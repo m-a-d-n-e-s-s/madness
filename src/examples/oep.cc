@@ -52,7 +52,7 @@ struct dens_inv{
             const Tensor<double>& inv) const {
         ITERATOR(
             U, double d = t(IND);
-            double p = std::max(inv(IND), 1.e-8);
+            double p = std::max(inv(IND), 1.e-7);
             U(IND) = d/p;
         );
    }
@@ -60,6 +60,30 @@ struct dens_inv{
     void serialize(Archive& ar) {}
 
 };
+
+
+// TODO: change dens_inv such that Slater potential is munged unsing the following form:
+
+/*
+/// Class to compute terms of the potential
+struct xc_potential {
+    const XCfunctional* xc;
+    const int ispin;
+
+    xc_potential(const XCfunctional& xc, int ispin) : xc(&xc), ispin(ispin)
+    {}
+
+
+
+    std::vector<madness::Tensor<double> > operator()(const madness::Key<3> & key,
+            const std::vector< madness::Tensor<double> >& t) const {
+        MADNESS_ASSERT(xc);
+        std::vector<madness::Tensor<double> > r = xc->vxc(t, ispin);
+        return r;
+    }
+};
+*/
+
 
 struct binary_munge{
 
@@ -127,6 +151,8 @@ class OEP : public Nemo {
 
 
 private:
+
+	// returns true if all members of a vector of booleans are true, otherwise false
 	bool IsAlltrue(std::vector<bool> vec) {
 		for (int i = 0; i < vec.size(); i++) {
 			if (!vec[i]) return false;
@@ -136,578 +162,131 @@ private:
 
 
 public:
+
+	std::vector<bool> oep_model = {false, false, false};
+
+	void set_model_oaep() {oep_model[0] = true;}
+	void unset_model_oaep() {oep_model[0] = false;}
+	bool is_model_oaep() {return oep_model[0];}
+
+	void set_model_ocep() {oep_model[1] = true;}
+	void unset_model_ocep() {oep_model[1] = false;}
+	bool is_model_ocep() {return oep_model[1];}
+
+	void set_model_dcep() {oep_model[2] = true;}
+	void unset_model_cdep() {oep_model[2] = false;}
+	bool is_model_dcep() {return oep_model[2];}
+
+
     OEP(World& world, const std::shared_ptr<SCF> calc) : Nemo(world, calc) {}
 
 
-    void solve_oaep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
+    void solve_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
 
-        // Iterative energy calculation for OAEP with EXACT EXCHANGE functional
-    	// for other functions, slater potential must be modified
-    	// HF orbitals and eigenvectors are used as the guess here
-    	// note that oaep_nemo is a reference and changes oep->get_calc()->amo orbitals
-    	// same for orbital energies (eigenvalues) oaep_eigvals which is oep->get_calc()->aeps
-
-    	double energy = 0.0;
-    	bool converged = false;
-
-		// compute OAEP Slater potential Vs and average IHF from HF orbitals and eigenvalues
-    	const real_function_3d Vs = compute_slater_potential(HF_nemo);
-    	const real_function_3d IHF = compute_average_I(HF_nemo, HF_eigvals);
-    	save(IHF, "IHF");
-
-    	// set oaep_nemo as reference to MOs
-    	vecfuncT& oaep_nemo = calc->amo;
-    	tensorT& oaep_eigvals = calc->aeps; // 1d tensor of same length as oaep_nemo
-
-    	// all necessary operators applied on nemos (Knemo is used after the cycle):
-    	vecfuncT Jnemo, Unemo, Slaternemo, Knemo;
-
-    	//define the solver
-    	typedef allocator<double, 3> allocT;
-    	typedef XNonlinearSolver<vecfunc<double, 3>, double, allocT> solverT;
-    	allocT alloc(world, oaep_nemo.size());
-    	solverT solver(allocT(world, oaep_nemo.size()));
-
-
-    	// iterations until energy is self-consistent:
-    	for (int iter = 0; iter < calc->param.maxiter; ++iter) {
-    		save_function(oaep_nemo, "oaep_nemo_it"+stringify(iter));
-    		vecfuncT R2oaep_nemo = R_square*oaep_nemo;
-    		truncate(world, R2oaep_nemo);
-
-    		// compute parts of the Fock matrix J, Unuc and Vs
-    		compute_oaep_nemo_potentials(oaep_nemo, Jnemo, Unemo, Vs, Slaternemo);
-
-    		// compute Fock matrix F = J + Vs + Vnuc and kinetic energy
-    		vecfuncT Fnemo = Jnemo + Slaternemo + Unemo;
-    		truncate(world, Fnemo);
-    		tensorT F = matrix_inner(world, R2oaep_nemo, Fnemo, false); // matrix_inner gives 2d tensor
-    		Kinetic<double,3> T(world);
-    		F += T(R2oaep_nemo, oaep_nemo); // 2d tensor = Fock-matrix  // R_square in bra, no R in ket
-
-    		// report the off-diagonal Fock matrix elements because canonical orbitals are used
-            tensorT F_offdiag = copy(F);
-            for (int i = 0; i < F.dim(0); ++i) F_offdiag(i, i) = 0.0;
-            double max_F_offidag = F_offdiag.absmax();
-            if (world.rank() == 0) print("F max off-diagonal ", max_F_offidag);
-
-    		// compute new (current) energy
-            double old_energy = energy;
-    		energy = compute_energy(R*oaep_nemo, R*Jnemo, Vs, Knemo, true); // Knemo is not used here
-    		// compute_exchange_potential(oaep_nemo, Knemo);
-    		// energy = compute_energy(R*oaep_nemo, R*Jnemo, Vs, R*Knemo, false);
-    		// there should be no difference between these two methods, because energy is only needed
-    		// for checking convergence threshold; but: Evir should be much faster because K takes time
-
-            // diagonalize the Fock matrix to get the eigenvalues and eigenvectors (canonical)
-    		// FC = epsilonSC and X^dSX with transform matrix X, see Szabo/Ostlund (3.159) and (3.165)
-            tensorT X; // must be formed from R*nemos but can then be used for nemos also
-            tensorT overlap = matrix_inner(world, R*oaep_nemo, R*oaep_nemo, true);
-            X = calc->get_fock_transformation(world, overlap, F, oaep_eigvals, calc->aocc,
-            		FunctionDefaults<3>::get_thresh());
-            oaep_nemo = transform(world, oaep_nemo, X, trantol(), true);
-            rotate_subspace(world, X, solver, 0, oaep_nemo.size());
-
-            truncate(world, oaep_nemo);
-            normalize(oaep_nemo);
-
-    		// update the nemos
-    		// set and modify orbital energies (current eigenvalues from Fock-matrix)
-    		for (int i = 0; i < oaep_nemo.size(); ++i) {
-    			oaep_eigvals(i) = std::min(-0.05, F(i, i));
-    			// orbital energy is set to -0.05 if it was above
-    		}
-
-    		// if requested: subtract orbital shift from orbital energies
-    		if (calc->param.orbitalshift > 0.0) {
-    			if (world.rank() == 0) print("shifting orbitals by ",
-    					calc->param.orbitalshift, " to lower energies");
-    			oaep_eigvals -= calc->param.orbitalshift;
-    		}
-
-    		// print orbital energies:
-    		printf("\norbital energies of iteration %3u\n", iter);
-    		for (long i = oaep_eigvals.size() - 1; i >= 0; i--) {
-    			printf(" e%2.2lu = %12.8f\n", i, oaep_eigvals(i));
-    		}
-
-    		// construct the BSH operators ops
-    		std::vector<poperatorT> G = calc->make_bsh_operators(world, oaep_eigvals);
-
-    		// remember Fock matrix * nemos from above; make sure it's in phase with nemo (transform)
-    		Fnemo = transform(world, Fnemo, X, trantol(), true);
-    		truncate(world, Fnemo);
-
-    		// apply the BSH operators G (here ops) on the wave function
-    		scale(world, Fnemo, -2.0);
-    		vecfuncT GFnemo = apply(world, G, Fnemo);
-    		truncate(world, GFnemo);
-
-    		double n1 = norm2(world, oaep_nemo);
-    		double n2 = norm2(world, GFnemo);
-    		print("\nnorm of oaep_nemo and GFnemo, ratio ", n1, n2, n1/n2);
-
-    		// compute the residuals
-    		vecfuncT residual = oaep_nemo - GFnemo;
-    		const double norm = norm2(world, residual) / sqrt(oaep_nemo.size());
-
-    		// What is happening here? (KAIN)
-    		vecfuncT nemo_new;
-    		if (norm < 5.0e-1) {
-    			nemo_new = (solver.update(oaep_nemo, residual)).x;
-    		} else {
-    			nemo_new = GFnemo;
-    		}
-    		truncate(world, nemo_new);
-    		normalize(nemo_new);
-
-    		// What is step restriction?
-    		calc->do_step_restriction(world, oaep_nemo, nemo_new, "ab spin case");
-    		orthonormalize(nemo_new);
-    		oaep_nemo = nemo_new;
-
-    		// evaluate convergence via norm error and energy difference
-    		if ((norm < calc->param.dconv) and (fabs(energy - old_energy) < calc->param.econv))
-    			converged = true;
-
-    		if (calc->param.save) calc->save_mos(world);
-
-    		if (world.rank() == 0) {
-    			printf("finished iteration %2d at time %8.1fs with energy %12.8f\n", iter, wall_time(), energy);
-    			print("current residual norm ", norm, "\n");
-    		}
-
-    		if (converged) break;
-
-    	}
-
-    	if (converged) {
-    		if (world.rank() == 0) print("\nIterations converged\n");
-    	}
-    	else {
-    		if (world.rank() == 0) print("\nIterations failed\n");
-    		energy = 0.0;
-    	}
-
-    	print("\nFINAL OAEP ENERGY Evir:");
-    	double Evir = compute_energy(R*oaep_nemo, R*Jnemo, Vs, Knemo, true); // Knemo is not used here
-
-    	print("FINAL OAEP ENERGY Econv:");
-    	compute_exchange_potential(oaep_nemo, Knemo);
-    	double Econv = compute_energy(R*oaep_nemo, R*Jnemo, Vs, R*Knemo, false); // Vs is not used here
-
-    	printf("OAEP  Evir = %15.8f  Eh", Evir);
-    	printf("\nOAEP Econv = %15.8f  Eh", Econv);
-    	printf("\nOAEP DEvir = %15.8f mEh\n", (Evir - Econv)*1000);
-
-    	printf("\n  computing V_OCEP with converged OAEP orbitals and eigenvalues\n");
-    	real_function_3d IKS = compute_average_I(oaep_nemo, oaep_eigvals);
-    	save(IKS, "IKS_OAEP");
-    	real_function_3d Vocep = Vs + compute_OCEP_correction(HF_nemo, HF_eigvals, oaep_nemo, oaep_eigvals);
-    	printf("     done\n");
-
-    }
-
-
-    void solve_oaep_2(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
-
-        // Iterative energy calculation for OAEP with EXACT EXCHANGE functional
-    	// for other functions, slater potential must be modified
-    	// HF orbitals and eigenvectors are used as the guess here
-    	// note that oaep_nemo is a reference and changes oep->get_calc()->amo orbitals
-    	// same for orbital energies (eigenvalues) oaep_eigvals which is oep->get_calc()->aeps
+        // Iterative energy calculation for approximate OEP with EXACT EXCHANGE functional
+    	// for other functionals, slater potential must be modified
+    	// HF orbitals and eigenvalues are used as the guess here
+    	// note that KS_nemo is a reference and changes oep->get_calc()->amo orbitals
+    	// same for orbital energies (eigenvalues) KS_eigvals which is oep->get_calc()->aeps
 
     	double energy = 0.0;
-    	bool converged = false;
-
-		// compute OAEP Slater potential Vs and average IHF from HF orbitals and eigenvalues
-    	const real_function_3d Vs = compute_slater_potential(HF_nemo);
-    	const real_function_3d IHF = compute_average_I(HF_nemo, HF_eigvals);
-    	save(IHF, "IHF");
-
-    	// set oaep_nemo as reference to MOs
-    	vecfuncT& oaep_nemo = calc->amo;
-    	tensorT& oaep_eigvals = calc->aeps; // 1d tensor of same length as oaep_nemo
-
-    	// all necessary operators applied on nemos (Knemo is used after the cycle):
-    	vecfuncT Jnemo, Unemo, Slaternemo, Knemo;
-
-    	//define the solver
-    	typedef allocator<double, 3> allocT;
-    	typedef XNonlinearSolver<vecfunc<double, 3>, double, allocT> solverT;
-    	allocT alloc(world, oaep_nemo.size());
-    	solverT solver(allocT(world, oaep_nemo.size()));
-
-
-    	// iterations until energy is self-consistent:
-    	for (int iter = 0; iter < calc->param.maxiter; ++iter) {
-    		for (int i = 0; i < oaep_nemo.size(); i++) {
-    			save(oaep_nemo[i], "oaep_nemo_"+stringify(i)+"_it_"+stringify(iter));
-    		}
-    		vecfuncT R2oaep_nemo = R_square*oaep_nemo;
-    		truncate(world, R2oaep_nemo);
-
-    		// compute parts of the Fock matrix J, Unuc and Vs
-    		compute_oaep_nemo_potentials(oaep_nemo, Jnemo, Unemo, Vs, Slaternemo);
-
-    		// compute Fock matrix F = J + Vs + Vnuc and kinetic energy
-    		vecfuncT Fnemo = Jnemo + Slaternemo + Unemo;
-    		truncate(world, Fnemo);
-    		tensorT F = matrix_inner(world, R2oaep_nemo, Fnemo, false); // matrix_inner gives 2d tensor
-    		Kinetic<double,3> T(world);
-    		F += T(R2oaep_nemo, oaep_nemo); // 2d tensor = Fock-matrix  // R_square in bra, no R in ket
-
-    		// report the off-diagonal Fock matrix elements because canonical orbitals are used
-            tensorT F_offdiag = copy(F);
-            for (int i = 0; i < F.dim(0); ++i) F_offdiag(i, i) = 0.0;
-            double max_F_offidag = F_offdiag.absmax();
-            if (world.rank() == 0) print("F max off-diagonal ", max_F_offidag);
-
-    		// compute new (current) energy
-            double old_energy = energy;
-    		energy = compute_energy(R*oaep_nemo, R*Jnemo, Vs, Knemo, true); // Knemo is not used here
-    		// compute_exchange_potential(oaep_nemo, Knemo);
-    		// energy = compute_energy(R*oaep_nemo, R*Jnemo, Vs, R*Knemo, false);
-    		// there should be no difference between these two methods, because energy is only needed
-    		// for checking convergence threshold; but: Evir should be much faster because K takes time
-
-            // diagonalize the Fock matrix to get the eigenvalues and eigenvectors (canonical)
-    		// FC = epsilonSC and X^dSX with transform matrix X, see Szabo/Ostlund (3.159) and (3.165)
-            tensorT X; // must be formed from R*nemos but can then be used for nemos also
-            tensorT overlap = matrix_inner(world, R*oaep_nemo, R*oaep_nemo, true);
-            X = calc->get_fock_transformation(world, overlap, F, oaep_eigvals, calc->aocc,
-            		FunctionDefaults<3>::get_thresh());
-            oaep_nemo = transform(world, oaep_nemo, X, trantol(), true);
-            rotate_subspace(world, X, solver, 0, oaep_nemo.size());
-
-            truncate(world, oaep_nemo);
-            normalize(oaep_nemo);
-
-    		// update the nemos
-    		// set and modify orbital energies (current eigenvalues from Fock-matrix)
-    		for (int i = 0; i < oaep_nemo.size(); ++i) {
-    			oaep_eigvals(i) = std::min(-0.05, F(i, i));
-    			// orbital energy is set to -0.05 if it was above
-    		}
-
-    		// if requested: subtract orbital shift from orbital energies
-    		if (calc->param.orbitalshift > 0.0) {
-    			if (world.rank() == 0) print("shifting orbitals by ",
-    					calc->param.orbitalshift, " to lower energies");
-    			oaep_eigvals -= calc->param.orbitalshift;
-    		}
-
-    		// print orbital energies:
-    		printf("\norbital energies of iteration %3u\n", iter);
-    		for (long i = oaep_eigvals.size() - 1; i >= 0; i--) {
-    			printf(" e%2.2lu = %12.8f\n", i, oaep_eigvals(i));
-    		}
-
-    		// construct the BSH operators ops
-    		std::vector<poperatorT> G = calc->make_bsh_operators(world, oaep_eigvals);
-
-    		// remember Fock matrix * nemos from above; make sure it's in phase with nemo (transform)
-    		Fnemo = transform(world, Fnemo, X, trantol(), true);
-    		truncate(world, Fnemo);
-
-    		// apply the BSH operators G (here ops) on the wave function
-    		scale(world, Fnemo, -2.0);
-    		vecfuncT GFnemo = apply(world, G, Fnemo);
-    		truncate(world, GFnemo);
-
-    		double n1 = norm2(world, oaep_nemo);
-    		double n2 = norm2(world, GFnemo);
-    		print("\nnorm of oaep_nemo and GFnemo, ratio ", n1, n2, n1/n2);
-
-    		// compute the residuals
-    		vecfuncT residual = oaep_nemo - GFnemo;
-    		const double norm = norm2(world, residual) / sqrt(oaep_nemo.size());
-
-    		// What is happening here? (KAIN)
-    		vecfuncT nemo_new;
-    		if (norm < 5.0e-1) {
-    			nemo_new = (solver.update(oaep_nemo, residual)).x;
-    		} else {
-    			nemo_new = GFnemo;
-    		}
-    		truncate(world, nemo_new);
-    		normalize(nemo_new);
-
-    		// What is step restriction?
-    		calc->do_step_restriction(world, oaep_nemo, nemo_new, "ab spin case");
-    		orthonormalize(nemo_new);
-    		oaep_nemo = nemo_new;
-
-    		// evaluate convergence via norm error and energy difference
-    		if ((norm < calc->param.dconv) and (fabs(energy - old_energy) < calc->param.econv))
-    			converged = true;
-
-    		if (calc->param.save) calc->save_mos(world);
-
-    		if (world.rank() == 0) {
-    			printf("finished iteration %2d at time %8.1fs with energy %12.8f\n", iter, wall_time(), energy);
-    			print("current residual norm ", norm, "\n");
-    		}
-
-    		if (converged) break;
-
-    	}
-
-    	if (converged) {
-    		if (world.rank() == 0) print("\nIterations converged\n");
-    	}
-    	else {
-    		if (world.rank() == 0) print("\nIterations failed\n");
-    		energy = 0.0;
-    	}
-
-    	print("\nFINAL OAEP ENERGY Evir:");
-    	double Evir = compute_energy(R*oaep_nemo, R*Jnemo, Vs, Knemo, true); // Knemo is not used here
-
-    	print("FINAL OAEP ENERGY Econv:");
-    	compute_exchange_potential(oaep_nemo, Knemo);
-    	double Econv = compute_energy(R*oaep_nemo, R*Jnemo, Vs, R*Knemo, false); // Vs is not used here
-
-    	printf("OAEP  Evir = %15.8f  Eh", Evir);
-    	printf("\nOAEP Econv = %15.8f  Eh", Econv);
-    	printf("\nOAEP DEvir = %15.8f mEh\n", (Evir - Econv)*1000);
-
-    	printf("\n  computing V_OCEP with converged OAEP orbitals and eigenvalues\n");
-    	real_function_3d IKS = compute_average_I(oaep_nemo, oaep_eigvals);
-    	save(IKS, "IKS_OAEP");
-    	real_function_3d correction = IHF - IKS;
-    	save(correction, "correction_old");
-
-    	real_function_3d rho = 2.0*R_square*dot(world, oaep_nemo, oaep_nemo);
-    	save(rho, "density");
-    	double homo_diff = oaep_eigvals(oaep_eigvals.size() - 1) - HF_eigvals(HF_eigvals.size() - 1);
-    	printf("   homo_diff = %11.8f\n", homo_diff);
-    	real_function_3d correction_munged = binary_op(correction, rho, binary_munge(homo_diff, 1.0e-5));
-    	save(correction_munged, "correction_old_munged");
-
-    	const real_function_3d Vocep = Vs + compute_OCEP_correction(HF_nemo, HF_eigvals, oaep_nemo, oaep_eigvals);
-    	save(Vocep, "OCEPpotential_old");
-    	printf("     done\n\n");
-
-
-
-    	// new iteration: same as above, but Vocep instead of Vs and current nemos as start
-
-    	converged = false;
-    	vecfuncT OCEPnemo;
-
-    	// iterations until energy is self-consistent:
-    	for (int iter = 0; iter < calc->param.maxiter; ++iter) {
-    		for (int i = 0; i < oaep_nemo.size(); i++) {
-    			save(oaep_nemo[i], "ocep_nemo_"+stringify(i)+"_it_"+stringify(iter));
-    		}
-    		vecfuncT R2oaep_nemo = R_square*oaep_nemo;
-    		truncate(world, R2oaep_nemo);
-
-    		// compute parts of the Fock matrix J, Unuc and Vocep
-    		compute_oaep_nemo_potentials(oaep_nemo, Jnemo, Unemo, Vocep, OCEPnemo);
-
-    		// compute Fock matrix F = J + Vs + Vnuc and kinetic energy
-    		vecfuncT Fnemo = Jnemo + OCEPnemo + Unemo;
-    		truncate(world, Fnemo);
-    		tensorT F = matrix_inner(world, R2oaep_nemo, Fnemo, false); // matrix_inner gives 2d tensor
-    		Kinetic<double,3> T(world);
-    		F += T(R2oaep_nemo, oaep_nemo); // 2d tensor = Fock-matrix  // R_square in bra, no R in ket
-
-    		// report the off-diagonal Fock matrix elements because canonical orbitals are used
-            tensorT F_offdiag = copy(F);
-            for (int i = 0; i < F.dim(0); ++i) F_offdiag(i, i) = 0.0;
-            double max_F_offidag = F_offdiag.absmax();
-            if (world.rank() == 0) print("F max off-diagonal ", max_F_offidag);
-
-    		// compute new (current) energy
-            double old_energy = energy;
-    		energy = compute_energy(R*oaep_nemo, R*Jnemo, Vocep, Knemo, true); // Knemo is not used here
-    		// compute_exchange_potential(oaep_nemo, Knemo);
-    		// energy = compute_energy(R*oaep_nemo, R*Jnemo, Vs, R*Knemo, false);
-    		// there should be no difference between these two methods, because energy is only needed
-    		// for checking convergence threshold; but: Evir should be much faster because K takes time
-
-            // diagonalize the Fock matrix to get the eigenvalues and eigenvectors (canonical)
-    		// FC = epsilonSC and X^dSX with transform matrix X, see Szabo/Ostlund (3.159) and (3.165)
-            tensorT X; // must be formed from R*nemos but can then be used for nemos also
-            tensorT overlap = matrix_inner(world, R*oaep_nemo, R*oaep_nemo, true);
-            X = calc->get_fock_transformation(world, overlap, F, oaep_eigvals, calc->aocc,
-            		FunctionDefaults<3>::get_thresh());
-            oaep_nemo = transform(world, oaep_nemo, X, trantol(), true);
-            rotate_subspace(world, X, solver, 0, oaep_nemo.size());
-
-            truncate(world, oaep_nemo);
-            normalize(oaep_nemo);
-
-    		// update the nemos
-    		// set and modify orbital energies (current eigenvalues from Fock-matrix)
-    		for (int i = 0; i < oaep_nemo.size(); ++i) {
-    			oaep_eigvals(i) = std::min(-0.05, F(i, i));
-    			// orbital energy is set to -0.05 if it was above
-    		}
-
-    		// if requested: subtract orbital shift from orbital energies
-    		if (calc->param.orbitalshift > 0.0) {
-    			if (world.rank() == 0) print("shifting orbitals by ",
-    					calc->param.orbitalshift, " to lower energies");
-    			oaep_eigvals -= calc->param.orbitalshift;
-    		}
-
-    		// print orbital energies:
-    		printf("\norbital energies of iteration %3u\n", iter);
-    		for (long i = oaep_eigvals.size() - 1; i >= 0; i--) {
-    			printf(" e%2.2lu = %12.8f\n", i, oaep_eigvals(i));
-    		}
-
-    		// construct the BSH operators ops
-    		std::vector<poperatorT> G = calc->make_bsh_operators(world, oaep_eigvals);
-
-    		// remember Fock matrix * nemos from above; make sure it's in phase with nemo (transform)
-    		Fnemo = transform(world, Fnemo, X, trantol(), true);
-    		truncate(world, Fnemo);
-
-    		// apply the BSH operators G (here ops) on the wave function
-    		scale(world, Fnemo, -2.0);
-    		vecfuncT GFnemo = apply(world, G, Fnemo);
-    		truncate(world, GFnemo);
-
-    		double n1 = norm2(world, oaep_nemo);
-    		double n2 = norm2(world, GFnemo);
-    		print("\nnorm of oaep_nemo and GFnemo, ratio ", n1, n2, n1/n2);
-
-    		// compute the residuals
-    		vecfuncT residual = oaep_nemo - GFnemo;
-    		const double norm = norm2(world, residual) / sqrt(oaep_nemo.size());
-
-    		// What is happening here? (KAIN)
-    		vecfuncT nemo_new;
-    		if (norm < 5.0e-1) {
-    			nemo_new = (solver.update(oaep_nemo, residual)).x;
-    		} else {
-    			nemo_new = GFnemo;
-    		}
-    		truncate(world, nemo_new);
-    		normalize(nemo_new);
-
-    		// What is step restriction?
-    		calc->do_step_restriction(world, oaep_nemo, nemo_new, "ab spin case");
-    		orthonormalize(nemo_new);
-    		oaep_nemo = nemo_new;
-
-    		// evaluate convergence via norm error and energy difference
-    		if ((norm < calc->param.dconv) and (fabs(energy - old_energy) < calc->param.econv))
-    			converged = true;
-
-    		if (calc->param.save) calc->save_mos(world);
-
-    		if (world.rank() == 0) {
-    			printf("finished iteration %2d at time %8.1fs with energy %12.8f\n", iter, wall_time(), energy);
-    			print("current residual norm ", norm, "\n");
-    		}
-
-    		if (converged) break;
-
-    	}
-
-    	if (converged) {
-    		if (world.rank() == 0) print("\nIterations converged\n");
-    	}
-    	else {
-    		if (world.rank() == 0) print("\nIterations failed\n");
-    		energy = 0.0;
-    	}
-
-
-    	print("\nFINAL OAEP ENERGY Evir:");
-    	Evir = compute_energy(R*oaep_nemo, R*Jnemo, Vocep, Knemo, true); // Knemo is not used here
-
-    	print("FINAL OAEP ENERGY Econv:");
-    	compute_exchange_potential(oaep_nemo, Knemo);
-    	Econv = compute_energy(R*oaep_nemo, R*Jnemo, Vocep, R*Knemo, false); // Vs is not used here
-
-    	printf("OAEP  Evir = %15.8f  Eh", Evir);
-    	printf("\nOAEP Econv = %15.8f  Eh", Econv);
-    	printf("\nOAEP DEvir = %15.8f mEh\n", (Evir - Econv)*1000);
-
-    	printf("\n  computing V_OCEP with new converged orbitals and eigenvalues\n");
-    	real_function_3d IKS_new = compute_average_I(oaep_nemo, oaep_eigvals);
-    	save(IKS_new, "IKS_OAEP_new");
-    	correction = IHF - IKS_new;
-    	save(correction, "correction_new");
-    	real_function_3d Vocep_new = Vs + compute_OCEP_correction(HF_nemo, HF_eigvals, oaep_nemo, oaep_eigvals);
-    	save(Vocep_new, "OCEPpotential_new");
-    	printf("     done\n");
-
-
-    }
-
-
-    void solve_ocep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
-
-        // Iterative energy calculation for OCEP with EXACT EXCHANGE functional
-    	// for other functions, slater potential must be modified
-    	// HF orbitals and eigenvectors are used as the guess here
-    	// note that ocep_nemo is a reference and changes oep->get_calc()->amo orbitals
-    	// same for orbital energies (eigenvalues) ocep_eigvals which is oep->get_calc()->aeps
-
-    	double energy = 0.0;
-    	bool update_converged = false; // checks micro iterations and if true, Vocep gets updated
+    	bool update_converged = false; // checks micro iterations and if true, Voep gets updated
     	bool potential_converged = false; // checks macro iterations for convergence of orbital energies
+    	unsigned int update_counter = 0; // counts amount of updates in OCEP cycle
 
-		// compute OAEP Slater potential Vs and average IHF from HF orbitals and eigenvalues
+    	// exit if no OEP model was set
+    	if (!oep_model[0] and !oep_model[1] and !oep_model[2]) {
+    		printf("No approximate OEP model selected!\n");
+    		printf("please choose oaep/ocep/dcep\n");
+    		return;
+    	}
+
+    	// for only OAEP calculation, potential (macro) is already converged by construction
+    	if (oep_model[0] and !oep_model[1] and !oep_model[2]) potential_converged = true;
+
+		// compute Slater potential Vs and average IHF from HF orbitals and eigenvalues
     	const real_function_3d Vs = compute_slater_potential(HF_nemo);
     	const real_function_3d IHF = compute_average_I(HF_nemo, HF_eigvals);
     	save(IHF, "IHF");
 
-    	// set ocep_nemo as reference to MOs
-    	vecfuncT& ocep_nemo = calc->amo;
-    	tensorT& ocep_eigvals = calc->aeps; // 1d tensor of same length as ocep_nemo
+    	// set KS_nemo as reference to MOs
+    	vecfuncT& KS_nemo = calc->amo;
+    	tensorT& KS_eigvals = calc->aeps; // 1d tensor of same length as KS_nemo
 
-    	// all necessary operators applied on nemos (Knemo is used after the cycle):
-    	vecfuncT Jnemo, Unemo, OCEPnemo, Knemo;
-    	real_function_3d Vocep = Vs;
+    	// all necessary operators applied on nemos (Knemo is used later):
+    	vecfuncT Jnemo, Unemo, Vnemo, Knemo;
+    	real_function_3d Voep = Vs;
 
     	//define the solver
     	typedef allocator<double, 3> allocT;
     	typedef XNonlinearSolver<vecfunc<double, 3>, double, allocT> solverT;
-    	allocT alloc(world, ocep_nemo.size());
-    	solverT solver(allocT(world, ocep_nemo.size()));
+    	allocT alloc(world, KS_nemo.size());
+    	solverT solver(allocT(world, KS_nemo.size()));
 
 
-    	// iterations until energy is self-consistent:
+    	// iterations until self-consistency
     	for (int iter = 0; iter < calc->param.maxiter; ++iter) {
-    		// save_function(ocep_nemo, "ocep_nemo_it_"+stringify(iter));
-    		for (int i = 0; i < ocep_nemo.size(); i++) {
-    			//save(ocep_nemo[i], "ocep_it_"+stringify(iter)+"_nemo_"+stringify(i));
+    		// save_function(KS_nemo, "KS_nemo_it_"+stringify(iter));
+    		for (int i = 0; i < KS_nemo.size(); i++) {
+    			//save(KS_nemo[i], "KS_it_"+stringify(iter)+"_nemo_"+stringify(i));
     		}
-    		vecfuncT R2ocep_nemo = R_square*ocep_nemo;
-    		truncate(world, R2ocep_nemo);
+    		vecfuncT R2KS_nemo = R_square*KS_nemo;
+    		truncate(world, R2KS_nemo);
 
-    		real_function_3d rho = 2.0*R_square*dot(world, ocep_nemo, ocep_nemo);  // 2 -> closed shell
+    		//real_function_3d rho = compute_density(KS_nemo);
     		//save(rho, "density_it_"+stringify(iter));
 
-    		// compute OCEP potential from current nemos and eigenvalues
-    		// like Kohut, 2014, equation (26) with correction = IHF - IKS
-    		// is computed (= updated) only if calculation was converged for smooth convergence
-    		if (update_converged) {
-    			printf("\n\n     *** updating OCEP potential ***\n\n");
-    			real_function_3d corr = compute_OCEP_correction(HF_nemo, HF_eigvals, ocep_nemo, ocep_eigvals);
-    			Vocep = Vs + corr;
-    			//save(corr, "OCEP_correction_it_"+stringify(iter));
-    			//save(Vocep, "OCEP_potential_it_"+stringify(iter));
+    		if (oep_model[1] or oep_model[2]) { // only update if OCEP and/or DCEP is enabled
+
+        		// is computed (= updated) only if calculation was converged for smooth convergence
+        		if (update_converged) {
+        			update_counter++;
+        			if (!(oep_model[0] and update_counter == 1))
+        				printf("\n\n     *** updating OCEP potential ***\n\n");
+            		// compute OCEP potential from current nemos and eigenvalues
+            		// like Kohut, 2014, equation (26) with correction = IHF - IKS
+        			real_function_3d corr = compute_OCEP_correction(HF_nemo, HF_eigvals, KS_nemo, KS_eigvals);
+        			Voep = Vs + corr;
+        			//save(corr, "OCEP_correction_it_"+stringify(iter));
+        			//save(Voep, "OCEP_potential_it_"+stringify(iter));
+
+        			if (oep_model[0] and update_counter == 1) {
+        				printf("\n\n     *** V_OAEP converged ***\n");
+        				printf("\n  saving V_OCEP with converged OAEP orbitals and eigenvalues\n");
+        		    	save(compute_density(KS_nemo), "density_OAEP");
+        		    	save(compute_average_I(KS_nemo, KS_eigvals), "IKS_OAEP");
+         		        save(corr, "OCEP_correction_OAEP");
+        		        save(Voep, "OCEP_potential_with_OAEP_orbs");
+        		    	printf("     done\n\n");
+
+        		    	printf("\nFINAL OAEP ENERGY Evir:");
+        		    	double Evir = compute_energy(R*KS_nemo, R*Jnemo, Vs, Knemo, true);
+
+        		    	printf("\nFINAL OAEP ENERGY Econv:");
+        		    	compute_exchange_potential(KS_nemo, Knemo);
+        		    	double Econv = compute_energy(R*KS_nemo, R*Jnemo, Vs, R*Knemo, false);
+
+        		    	printf("OAEP  Evir = %15.8f  Eh", Evir);
+        		    	printf("\nOAEP Econv = %15.8f  Eh", Econv);
+        		    	printf("\nOAEP DEvir = %15.8f mEh\n", (Evir - Econv)*1000);
+
+        		    	printf("\n\n\n     *** updating OCEP potential ***\n\n");
+        			}
+
+        		}
+        		//save(Voep, "OCEP_potential_it_"+stringify(iter));
+
     		}
-    		//save(Vocep, "OCEP_potential_it_"+stringify(iter));
 
-    		// compute parts of the Fock matrix J, Unuc and Vs
-    		compute_ocep_nemo_potentials(ocep_nemo, Jnemo, Unemo, Vocep, OCEPnemo);
+    		// compute parts of the Fock matrix J, Unuc and Voep
+    		compute_nemo_potentials(KS_nemo, Jnemo, Unemo, Voep, Vnemo);
 
-    		// compute Fock matrix F = J + Vs + Vnuc and kinetic energy
-    		vecfuncT Fnemo = Jnemo + OCEPnemo + Unemo;
+    		// compute Fock matrix F = J + Voep + Vnuc and kinetic energy
+    		vecfuncT Fnemo = Jnemo + Vnemo + Unemo;
     		truncate(world, Fnemo);
-    		tensorT F = matrix_inner(world, R2ocep_nemo, Fnemo, false); // matrix_inner gives 2d tensor
+    		tensorT F = matrix_inner(world, R2KS_nemo, Fnemo, false); // matrix_inner gives 2d tensor
     		Kinetic<double,3> T(world);
-    		F += T(R2ocep_nemo, ocep_nemo); // 2d tensor = Fock-matrix  // R_square in bra, no R in ket
+    		F += T(R2KS_nemo, KS_nemo); // 2d tensor = Fock-matrix  // R_square in bra, no R in ket
 
     		// report the off-diagonal Fock matrix elements because canonical orbitals are used
             tensorT F_offdiag = copy(F);
@@ -717,30 +296,31 @@ public:
 
     		// compute new (current) energy
             double old_energy = energy;
-    		energy = compute_energy(R*ocep_nemo, R*Jnemo, Vocep, Knemo, true); // Knemo is not used here
-    		// compute_exchange_potential(ocep_nemo, Knemo);
-    		// energy = compute_energy(R*ocep_nemo, R*Jnemo, Vs, R*Knemo, false);
+            printf("energy contributions of iteration %3u:", iter);
+    		energy = compute_energy(R*KS_nemo, R*Jnemo, Voep, Knemo, true); // Knemo is not used here
+    		// compute_exchange_potential(KS_nemo, Knemo);
+    		// energy = compute_energy(R*KS_nemo, R*Jnemo, Voep, R*Knemo, false);
     		// there should be no difference between these two methods, because energy is only needed
-    		// for checking convergence threshold; but: Evir should be much faster because K takes time
+    		// for checking convergence threshold; but: Evir should be much faster because K is expensive
 
-    		tensorT old_eigvals = copy(ocep_eigvals);
+    		tensorT old_eigvals = copy(KS_eigvals);
 
             // diagonalize the Fock matrix to get the eigenvalues and eigenvectors (canonical)
     		// FC = epsilonSC and X^dSX with transform matrix X, see Szabo/Ostlund (3.159) and (3.165)
             tensorT X; // must be formed from R*nemos but can then be used for nemos also
-            tensorT overlap = matrix_inner(world, R*ocep_nemo, R*ocep_nemo, true);
-            X = calc->get_fock_transformation(world, overlap, F, ocep_eigvals, calc->aocc,
+            tensorT overlap = matrix_inner(world, R*KS_nemo, R*KS_nemo, true);
+            X = calc->get_fock_transformation(world, overlap, F, KS_eigvals, calc->aocc,
             		FunctionDefaults<3>::get_thresh());
-            ocep_nemo = transform(world, ocep_nemo, X, trantol(), true);
-            rotate_subspace(world, X, solver, 0, ocep_nemo.size());
+            KS_nemo = transform(world, KS_nemo, X, trantol(), true);
+            rotate_subspace(world, X, solver, 0, KS_nemo.size());
 
-            truncate(world, ocep_nemo);
-            normalize(ocep_nemo);
+            truncate(world, KS_nemo);
+            normalize(KS_nemo);
 
     		// update the nemos
     		// set and modify orbital energies (current eigenvalues from Fock-matrix)
-    		for (int i = 0; i < ocep_nemo.size(); ++i) {
-    			ocep_eigvals(i) = std::min(-0.05, F(i, i));
+    		for (int i = 0; i < KS_nemo.size(); ++i) {
+    			KS_eigvals(i) = std::min(-0.05, F(i, i));
     			// orbital energy is set to -0.05 if it was above
     		}
 
@@ -748,31 +328,35 @@ public:
     		if (calc->param.orbitalshift > 0.0) {
     			if (world.rank() == 0) print("shifting orbitals by ",
     					calc->param.orbitalshift, " to lower energies");
-    			ocep_eigvals -= calc->param.orbitalshift;
+    			KS_eigvals -= calc->param.orbitalshift;
     		}
 
-    		potential_converged = false; // to ensure convergence is checked again in any case
-    		// evaluate convergence of orbital energies if Vocep was updated in this iteration (see above)
-    		if (update_converged) {
-    			// build vector of convergence information of every orbital energy
-    			std::vector<bool> conv(ocep_eigvals.size());
-    			for (int i = 0; i < ocep_eigvals.size(); i++) {
-    				if (fabs(ocep_eigvals(i) - old_eigvals(i)) < calc->param.dconv) conv[i] = true;
-    				else conv[i] = false;
-    			}
+    		if (oep_model[1] or oep_model[2]) { // evaluation only necessary if OCEP and/or DCEP is enabled
 
-    			if (IsAlltrue(conv)) potential_converged = true; // converged if all are converged
-    			update_converged = false; // reset micro iterations so it is checked again at the end
+        		potential_converged = false; // to ensure convergence is checked again in any case
+        		// evaluate convergence of orbital energies if Voep was updated in this iteration (see above)
+        		if (update_converged) {
+        			// build vector of convergence information of every orbital energy
+        			std::vector<bool> conv(KS_eigvals.size());
+        			for (int i = 0; i < KS_eigvals.size(); i++) {
+        				if (fabs(KS_eigvals(i) - old_eigvals(i)) < calc->param.dconv) conv[i] = true;
+        				else conv[i] = false;
+        			}
+
+        			if (IsAlltrue(conv)) potential_converged = true; // converged if all are converged
+        			update_converged = false; // reset micro iterations so it is checked again at the end
+        		}
+
     		}
 
     		// print orbital energies:
-    		printf("\norbital energies of iteration %3u\n", iter);
-    		for (long i = ocep_eigvals.size() - 1; i >= 0; i--) {
-    			printf(" e%2.2lu = %12.8f\n", i, ocep_eigvals(i));
+    		printf("\norbital energies of iteration %3u:\n", iter);
+    		for (long i = KS_eigvals.size() - 1; i >= 0; i--) {
+    			printf(" e%2.2lu = %12.8f\n", i, KS_eigvals(i));
     		}
 
     		// construct the BSH operators ops
-    		std::vector<poperatorT> G = calc->make_bsh_operators(world, ocep_eigvals);
+    		std::vector<poperatorT> G = calc->make_bsh_operators(world, KS_eigvals);
 
     		// remember Fock matrix * nemos from above; make sure it's in phase with nemo (transform)
     		Fnemo = transform(world, Fnemo, X, trantol(), true);
@@ -783,18 +367,18 @@ public:
     		vecfuncT GFnemo = apply(world, G, Fnemo);
     		truncate(world, GFnemo);
 
-    		double n1 = norm2(world, ocep_nemo);
+    		double n1 = norm2(world, KS_nemo);
     		double n2 = norm2(world, GFnemo);
-    		print("\nnorm of ocep_nemo and GFnemo, ratio ", n1, n2, n1/n2);
+    		print("\nnorm of nemo and GFnemo, ratio ", n1, n2, n1/n2);
 
     		// compute the residuals
-    		vecfuncT residual = ocep_nemo - GFnemo;
-    		const double norm = norm2(world, residual) / sqrt(ocep_nemo.size());
+    		vecfuncT residual = KS_nemo - GFnemo;
+    		const double norm = norm2(world, residual) / sqrt(KS_nemo.size());
 
     		// What is happening here? (KAIN)
     		vecfuncT nemo_new;
     		if (norm < 5.0e-1) {
-    			nemo_new = (solver.update(ocep_nemo, residual)).x;
+    			nemo_new = (solver.update(KS_nemo, residual)).x;
     		} else {
     			nemo_new = GFnemo;
     		}
@@ -802,9 +386,9 @@ public:
     		normalize(nemo_new);
 
     		// What is step restriction?
-    		calc->do_step_restriction(world, ocep_nemo, nemo_new, "ab spin case");
+    		calc->do_step_restriction(world, KS_nemo, nemo_new, "ab spin case");
     		orthonormalize(nemo_new);
-    		ocep_nemo = nemo_new;
+    		KS_nemo = nemo_new;
 
     		// evaluate convergence via norm error and energy difference
     		if ((norm < calc->param.dconv) and (fabs(energy - old_energy) < calc->param.econv))
@@ -813,7 +397,7 @@ public:
     		if (calc->param.save) calc->save_mos(world);
 
     		if (world.rank() == 0) {
-    			printf("finished iteration %2d at time %8.1fs with energy %12.8f\n", iter, wall_time(), energy);
+    			printf("\nfinished iteration %2d at time %8.1fs with energy %12.8f\n", iter, wall_time(), energy);
     			print("current residual norm ", norm, "\n");
     		}
 
@@ -829,41 +413,68 @@ public:
     		energy = 0.0;
     	}
 
-    	printf("\n  computing final IKS with converged OCEP orbitals and eigenvalues\n");
-    	real_function_3d IKS = compute_average_I(ocep_nemo, ocep_eigvals);
+    	// calculating and printing all final numbers
+
+    	printf("\n  computing final IKS and density\n");
+    	real_function_3d IKS = compute_average_I(KS_nemo, KS_eigvals);
+    	real_function_3d rho = compute_density(KS_nemo);
+    	save(rho, "density_final");
     	save(IKS, "IKS");
     	printf("     done\n");
 
-    	printf("\n  computing final V_OCEP with converged OCEP orbitals and eigenvalues\n");
-    	real_function_3d correction_final = compute_OCEP_correction(HF_nemo, HF_eigvals, ocep_nemo, ocep_eigvals);
-    	Vocep = Vs + correction_final;
-    	save(correction_final, "OCEP_correction_final");
-    	save(Vocep, "OCEP_potential_final");
-    	printf("     done\n");
+    	if (oep_model[0] and !oep_model[1] and !oep_model[2]){
+    		printf("\n  computing V_OCEP with converged OAEP orbitals and eigenvalues\n");
+        	real_function_3d correction = compute_OCEP_correction(HF_nemo, HF_eigvals, KS_nemo, KS_eigvals);
+        	real_function_3d ocep_oaep_pot = Vs + correction;
+        	save(correction, "OCEP_correction");
+        	save(ocep_oaep_pot, "OCEP_potential_with_OAEP_orbs");
+    	}
+    	if (oep_model[1] and !oep_model[2]) {
+    		printf("\n  computing final V_OCEP with converged OCEP orbitals and eigenvalues\n");
+        	real_function_3d correction_final = compute_OCEP_correction(HF_nemo, HF_eigvals, KS_nemo, KS_eigvals);
+        	Voep = Vs + correction_final;
+        	save(correction_final, "OCEP_correction_final");
+        	save(Voep, "OCEP_potential_final");
+    	}
+    	if (oep_model[2]) {
+    		printf("\n  computing final V_DCEP with converged DCEP orbitals and eigenvalues\n");
+    		// ...
+    	}
+    	printf("     done\n\n");
 
-    	print("\nFINAL OCEP ENERGY Evir:");
-    	double Evir = compute_energy(R*ocep_nemo, R*Jnemo, Vocep, Knemo, true); // Knemo is not used here
+    	if (oep_model[0] and !oep_model[1] and !oep_model[2]) printf("\nFINAL OAEP ENERGY Evir:");
+    	if (oep_model[1] and !oep_model[2]) {
+    		printf("\nV_OCEP converged after %3u updates\n", update_counter);
+    		printf("\nFINAL OCEP ENERGY Evir:");
+    	}
+    	if (oep_model[2]) printf("\nFINAL DCEP ENERGY Evir:");
+    	double Evir = compute_energy(R*KS_nemo, R*Jnemo, Voep, Knemo, true); // Knemo is not used here
 
-    	print("FINAL OCEP ENERGY Econv:");
-    	compute_exchange_potential(ocep_nemo, Knemo);
-    	double Econv = compute_energy(R*ocep_nemo, R*Jnemo, Vocep, R*Knemo, false); // Vocep is not used here
+    	if (oep_model[0] and !oep_model[1] and !oep_model[2]) printf("\nFINAL OAEP ENERGY Econv:");
+    	if (oep_model[1] and !oep_model[2]) printf("\nFINAL OCEP ENERGY Econv:");
+    	if (oep_model[2]) printf("\nFINAL DCEP ENERGY Econv:");
+    	compute_exchange_potential(KS_nemo, Knemo);
+    	double Econv = compute_energy(R*KS_nemo, R*Jnemo, Voep, R*Knemo, false); // Voep is not used here
 
-    	printf("OCEP  Evir = %15.8f  Eh", Evir);
-    	printf("\nOCEP Econv = %15.8f  Eh", Econv);
-    	printf("\nOCEP DEvir = %15.8f mEh\n", (Evir - Econv)*1000);
+    	printf("      Evir = %15.8f  Eh", Evir);
+    	printf("\n     Econv = %15.8f  Eh", Econv);
+    	printf("\n     DEvir = %15.8f mEh\n", (Evir - Econv)*1000);
 
     }
 
+    // compute density from orbitals with ragularization (Bischoff, 2014_1, equation (19))
+    real_function_3d compute_density(const vecfuncT& nemo) const {
+    	real_function_3d density = 2.0*R_square*dot(world, nemo, nemo); // 2 because closed shell
+    	return density;
+    }
 
     // compute Slater potential as OAEP potential (Kohut, 2014, equation (15))
     real_function_3d compute_slater_potential(const vecfuncT& nemo) const {
 
         Exchange K(world, this, 0); // no - in K here, so factor -1 must be included at the end
         vecfuncT Knemo = K(nemo);
-        real_function_3d numerator = dot(world, nemo, Knemo);
-        real_function_3d rho = dot(world, nemo, nemo);
-        // note that there is factor R_square and factor 2 (close shell) in numerator and rho,
-        // but both cancel when dividing
+        real_function_3d numerator = 2.0*R_square*dot(world, nemo, Knemo); // 2 because closed shell
+        real_function_3d rho = compute_density(nemo);
 
         real_function_3d Vs = -1.0*binary_op(numerator, rho, dens_inv());
         save(Vs, "Slaterpotential");
@@ -871,7 +482,7 @@ public:
 
     }
 
-    // compute average ionization energy I for OCEP potential (eigenvalues as 1d tensor)
+    // compute average ionization energy I (eigenvalues as 1d tensor)
     real_function_3d compute_average_I(const vecfuncT& nemo, const tensorT eigvals) const {
 
     	// transform tensor eigvals to vector epsilon
@@ -880,10 +491,8 @@ public:
 
 		vecfuncT nemo_square = square(world, nemo); // |nemo|^2
 		scale(world, nemo_square, epsilon); // epsilon*|nemo|^2
-		real_function_3d numerator = sum(world, nemo_square);
-        real_function_3d rho = dot(world, nemo, nemo); // density
-        // note that there is factor R_square and factor 2 (close shell) in numerator and rho,
-        // but both cancel when dividing
+		real_function_3d numerator = 2.0*R_square*sum(world, nemo_square); // 2 because closed shell
+        real_function_3d rho = compute_density(nemo);
 
         // like Kohut, 2014, equations (21) and (25)
         real_function_3d I = -1.0*binary_op(numerator, rho, dens_inv());
@@ -900,7 +509,7 @@ public:
     	real_function_3d IKS = compute_average_I(nemoKS, eigvalsKS);
 
     	// density with KS orbitals and HF/KS HOMO difference
-    	real_function_3d rho = 2.0*R_square*dot(world, nemoKS, nemoKS); // 2 because closed shell
+    	real_function_3d rho = compute_density(nemoKS);
     	double homo_diff = eigvalsKS(eigvalsKS.size() - 1) - eigvalsHF(eigvalsHF.size() - 1);
 
     	// munge potential for long-range asymptotics
@@ -914,8 +523,8 @@ public:
     }
 
     // compute all potentials from given nemos except kinetic energy
-    void compute_oaep_nemo_potentials(const vecfuncT& nemo, vecfuncT& Jnemo, vecfuncT& Unemo,
-    		const real_function_3d V, vecfuncT& OAEPnemo) const {
+    void compute_nemo_potentials(const vecfuncT& nemo, vecfuncT& Jnemo, vecfuncT& Unemo,
+    		const real_function_3d V, vecfuncT& Vnemo) const {
 
     	// compute Coulomb part
     	Coulomb J = Coulomb(world, this);
@@ -926,30 +535,12 @@ public:
     	Nuclear Unuc(world, this->nuclear_correlation);
     	Unemo = Unuc(nemo);
 
-    	// compute OAEP Slater potential part
-    	OAEPnemo = V*nemo;
+    	// compute approximate OEP exchange potential part
+    	Vnemo = V*nemo;
 
     }
 
-    // compute all potentials from given nemos except kinetic energy
-    void compute_ocep_nemo_potentials(const vecfuncT& nemo, vecfuncT& Jnemo, vecfuncT& Unemo,
-    		const real_function_3d V, vecfuncT& OCEPnemo) const {
-
-    	// compute Coulomb part
-    	Coulomb J = Coulomb(world, this);
-    	Jnemo = J(nemo);     // as in working equation for MRA
-    	truncate(world, Jnemo);
-
-    	// compute nuclear potential part
-    	Nuclear Unuc(world, this->nuclear_correlation);
-    	Unemo = Unuc(nemo);
-
-    	// compute OCEP potential part
-    	OCEPnemo = V*nemo;
-
-    }
-
-    // compute exchange potential (needed for compute_energy_conv)
+    // compute exchange potential (needed for Econv)
     void compute_exchange_potential(const vecfuncT& nemo, vecfuncT& Knemo) const {
 
     	Exchange K = Exchange(world, this, 0);
@@ -958,7 +549,7 @@ public:
 
     }
 
-    // compute energy from given nemos and given OEP approximation for exchange
+    // compute energy from given nemos and given OEP model for exchange
     // for example Slater potential for OAEP
     double compute_energy(const vecfuncT phi, const vecfuncT Jphi, const real_function_3d Vx,
     		const vecfuncT Kphi, const bool vir) const {
@@ -986,8 +577,8 @@ public:
         	r[0]=real_factory_3d(world).functor(monomial_x);
         	r[1]=real_factory_3d(world).functor(monomial_y);
         	r[2]=real_factory_3d(world).functor(monomial_z);
-        	// compute density rho = dot(R*nemo, R*nemo), note that phi should be R*nemo
-        	real_function_3d rho = 2.0*dot(world, phi, phi); // because a = b closed shell
+        	// for density note that phi should be R*nemo, so no R_square is needed
+        	real_function_3d rho = 2.0*dot(world, phi, phi); // 2 because closed shell
         	real_function_3d rhoterm = 3*rho + dot(world, r, grad(rho));
         	E_X = inner(Vx, rhoterm);
     	}
@@ -1001,7 +592,7 @@ public:
     	const vecfuncT Vextphi = Vext*phi;
 
     	// compute remaining energies: nuclear attraction, Coulomb, nuclear repulsion
-    	// computed as ecpectation values (see Szabo, Ostlund (3.81))
+    	// computed as expectation values (see Szabo, Ostlund (3.81))
     	const double E_ext = 2.0 * inner(world, phi, Vextphi).sum(); // because a = b closed shell
     	const double E_J = inner(world, phi, Jphi).sum();
     	const double E_nuc = calc->molecule.nuclear_repulsion_energy();
@@ -1011,7 +602,7 @@ public:
     		printf("\n                       kinetic energy %15.8f\n", E_kin);
     		printf("   electron-nuclear attraction energy %15.8f\n", E_ext);
     		printf("                       Coulomb energy %15.8f\n", E_J);
-    		if (vir) printf("  exchange energy (OEP approximation) %15.8f\n", E_X);
+    		if (vir) printf(" exchange energy (exchange potential) %15.8f\n", E_X);
     		else printf("  exchange energy (exchange operator) %15.8f\n", E_X);
     		printf("     nuclear-nuclear repulsion energy %15.8f\n", E_nuc);
     		printf("                         total energy %15.8f\n\n", energy);
@@ -1245,8 +836,11 @@ int main(int argc, char** argv) {
 
 
     // OAEP final energy
-    printf("   +++ starting OCEP iterative calculation +++\n");
-    oep->solve_ocep(HF_MOs, HF_orbens);
+    printf("\n   +++ starting approximate OEP iterative calculation +++\n\n");
+    oep->set_model_oaep();
+    oep->set_model_ocep();
+
+    oep->solve_oep(HF_MOs, HF_orbens);
 
 
 
