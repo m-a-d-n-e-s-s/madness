@@ -833,8 +833,11 @@ public:
     	real_function_3d IKS = compute_average_I(ocep_nemo, ocep_eigvals);
     	save(IKS, "IKS");
     	printf("     done\n");
+
     	printf("\n  computing final V_OCEP with converged OCEP orbitals and eigenvalues\n");
-    	Vocep = Vs + compute_OCEP_correction(HF_nemo, HF_eigvals, ocep_nemo, ocep_eigvals);
+    	real_function_3d correction_final = compute_OCEP_correction(HF_nemo, HF_eigvals, ocep_nemo, ocep_eigvals);
+    	Vocep = Vs + correction_final;
+    	save(correction_final, "OCEP_correction_final");
     	save(Vocep, "OCEP_potential_final");
     	printf("     done\n");
 
