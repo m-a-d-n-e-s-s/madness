@@ -41,6 +41,8 @@
 
 using namespace madness;
 
+bool smalltest = false;
+
 template <typename T, std::size_t NDIM>
 class Gaussian : public FunctionFunctorInterface<T,NDIM> {
 public:
@@ -103,7 +105,10 @@ int test_bsh(World& world) {
     FunctionDefaults<3>::set_truncate_mode(1);
     FunctionDefaults<3>::set_truncate_on_project(true);
 
-    for (int k=4; k<=12; k++) {
+    int kmin=8, kmax=8;
+    if (!smalltest) {kmin=4; kmax=12;}
+
+    for (int k=kmin; k<=kmax; k++) {
         print("\n Testing with k", k);
         FunctionDefaults<3>::set_k(k);
 
@@ -178,6 +183,10 @@ int main(int argc, char**argv) {
     int success=0;
     try {
         startup(world,argc,argv);
+
+        if (getenv("MAD_SMALL_TESTS")) smalltest=true;
+        for (int iarg=1; iarg<argc; iarg++) if (strcmp(argv[iarg],"--small")==0) smalltest=true;
+        std::cout << "small test : " << smalltest << std::endl;
 
         success=test_bsh<double>(world);
 

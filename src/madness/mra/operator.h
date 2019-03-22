@@ -794,7 +794,7 @@ namespace madness {
             const Tensor<double>& cell_width = FunctionDefaults<NDIM>::get_cell_width();
             // Check that the cell is cubic since currently is assumed
             for (std::size_t d=1; d<NDIM; ++d) {
-                MADNESS_ASSERT(fabs(cell_width(d)-cell_width(0L)) < 1e-14*cell_width(0L));
+                MADNESS_CHECK(fabs(cell_width(d)-cell_width(0L)) < 1e-14*cell_width(0L));
             }
         }
 

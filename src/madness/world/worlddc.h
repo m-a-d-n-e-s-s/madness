@@ -40,11 +40,13 @@
 
 */
 
+#include <functional>
+#include <set>
+
 #include <madness/world/parallel_archive.h>
 #include <madness/world/worldhashmap.h>
 #include <madness/world/mpi_archive.h>
 #include <madness/world/world_object.h>
-#include <set>
 
 namespace madness {
 
@@ -839,7 +841,8 @@ namespace madness {
         template <typename input_iterator>
         void replace(input_iterator& start, input_iterator& end) {
             check_initialized();
-            std::for_each(start,end,std::bind1st(std::mem_fun(&containerT::insert),this));
+            using std::placeholders::_1;
+            std::for_each(start,end,std::bind(this,std::mem_fn(&containerT::insert),_1));
         }
 
 
@@ -1617,7 +1620,7 @@ namespace madness {
                     int nclient = 0;
                     BinaryFstreamInputArchive& localar = ar.local_archive();
                     localar & cookie & nclient;
-                    MADNESS_ASSERT(cookie == magic);
+                    MADNESS_CHECK(cookie == magic);
                     while (nclient--) {
                         localar & t;
                     }

@@ -133,8 +133,8 @@ namespace madness {
         initialize_legendre_stuff();
 
         //if (world.rank() == 0) print("testing coeffs, etc.");
-        MADNESS_ASSERT(gauss_legendre_test());
-        MADNESS_ASSERT(test_two_scale_coefficients());
+        MADNESS_CHECK(gauss_legendre_test());
+        MADNESS_CHECK(test_two_scale_coefficients());
 
 	int mflopslo, mflopshi;
 	time_transform(world, mflopslo, mflopshi);

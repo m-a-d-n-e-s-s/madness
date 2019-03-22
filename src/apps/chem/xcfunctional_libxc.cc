@@ -24,27 +24,31 @@ namespace madness {
 
 static int lookup_name(const std::string& name) {
     // Call libxc routine
-    return XC(functional_get_number(name.c_str()));
+    //return XC(functional_get_number(name.c_str()));
+    return xc_functional_get_number(name.c_str());
 }
 
 static std::string lookup_id(const int id) {
     // Call libxc routine, needs memory handling
-    char *namep(XC(functional_get_name(id)));
-    std::string name = (namep==NULL) ? "Functional not found" : std::string(namep);
-    free(namep);
-    return name;
+    //char *namep(XC(functional_get_name(id)));
+    //std::string name = (namep==NULL) ? "Functional not found" : std::string(namep);
+    //free(namep);
+    //return name;
+    return std::string(xc_functional_get_name(id));
 }
 
 static xc_func_type* make_func(int id, bool polarized) {
     xc_func_type* func = new xc_func_type;
     int POLARIZED = polarized ? XC_POLARIZED : XC_UNPOLARIZED;
-    MADNESS_ASSERT(xc_func_init(func, id, POLARIZED) == 0);
+    //MADNESS_ASSERT(xc_func_init(func, id, POLARIZED) == 0); // SHOULD BE CHECK
+    if (xc_func_init(func, id, POLARIZED) != 0) throw "bad stuff!!!!!!!!!!";
     return func;
 }
 
 static xc_func_type* lookup_func(const std::string& name, bool polarized) {
     int id = lookup_name(name);
-    MADNESS_ASSERT(id > 0);
+    //MADNESS_ASSERT(id > 0); // SHOULD BE CHECK
+    if(id <= 0) throw "bad stuff xxx";
     return make_func(id, polarized);
 }
 
@@ -547,8 +551,9 @@ std::vector<madness::Tensor<double> > XCfunctional::vxc(
 std::vector<madness::Tensor<double> > XCfunctional::fxc_apply(
         const std::vector<Tensor<double> >& t, const int ispin) const {
 
-    MADNESS_ASSERT(!spin_polarized);    // for now
-    MADNESS_ASSERT(ispin==0);           // for now
+    //MADNESS_CHECK(!spin_polarized);    // for now
+    //MADNESS_CHECK(ispin==0);           // for now
+    if (spin_polarized || ispin!=0) throw "bad stuff yyy";
 
     // copy quantities from t to rho and sigma
     Tensor<double> rho,sigma, rho_pt, sigma_pt;   // rho=2rho_alpha, sigma=4sigma_alpha

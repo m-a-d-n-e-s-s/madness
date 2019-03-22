@@ -1,7 +1,21 @@
 #! /bin/sh
 
+# OSX tests presently not supported since Travis OSX environment is so problematic
+exit 1
+
 # Exit on error
 set -e
+
+# Configure ccache
+if [ ! -f "${HOME}/.ccache/ccache.conf" ]; then
+    mkdir ${HOME}/.ccache
+    cat <<EOF > ${HOME}/.ccache/ccache.conf
+cache_dir_levels = 8
+compiler_check = %compiler% --version
+compression = true
+run_second_cpp = true
+EOF
+fi
 
 brew update
 
@@ -19,6 +33,9 @@ brew update
 #  rm '/usr/local/include/c++'
 brew upgrade gcc || brew install gcc || true
 brew link --overwrite gcc || true
+
+brew install --HEAD ccache || true
+ccache --version || true
 
 # TBB requires python@2 but it's plagued by same issues as gcc
 # use similare workaround

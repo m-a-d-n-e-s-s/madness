@@ -2147,7 +2147,7 @@ namespace madness {
     const size_t freeze=x.functions.cbegin()->first;
     Tensor<double> overlap=inner(world,x.get_vecfunction(),t.get_vecfunction());
     double result=0.0;
-    for(size_t i=0; i < overlap.size(); i++){
+    for(int i=0; i < overlap.size(); i++){
       result+=get_orbital_energies()[i + freeze] * overlap(i);
     }
     return -1.0 * result;

@@ -151,8 +151,8 @@ SystolicEigensolver<T>::SystolicEigensolver(DistributedMatrix<T>& AV, int tag):
     nrot(0), nrotsum(0), size(AV.rowdim()/2),
     tol((T)1e-2), maxd(0), maxdaij(1e3) // just I want a very big value
 {
-    MADNESS_ASSERT(AV.is_column_distributed());
-    MADNESS_ASSERT(AV.coldim()*2 == AV.rowdim());
+    MADNESS_CHECK(AV.is_column_distributed());
+    MADNESS_CHECK(AV.coldim()*2 == AV.rowdim());
     print("One-sided Jacobi start");
 }
 template <typename T>
@@ -198,7 +198,7 @@ bool SystolicEigensolver<T>::converged(const TaskThreadEnv& env) const {
 template <typename T>
 SystolicEigensolver<T> void systolic_eigensolver(DistributedMatrix<T>& A, int tag )
 {
-    MADNESS_ASSERT(A.is_column_distributed() == true);
+    MADNESS_CHECK(A.is_column_distributed() == true);
     /// initialize V as identity matrix of size(A)
     DistributedMatrix<T> V = column_distributed_matrix<T>( A.get_world(), A.coldim(), A.rowdim() );
 
