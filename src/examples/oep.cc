@@ -45,6 +45,12 @@ using namespace madness;
 
 struct dens_inv{
 
+	double threshold;
+
+	dens_inv(const double thresh = 1.0e-8) {   // Why can't I just delete the value??
+		threshold = thresh;
+	}
+
     /// @param[out] U   result
     /// @param[in]  t   numerator
     /// @param[in]  inv density to be inverted >0.0
@@ -52,7 +58,7 @@ struct dens_inv{
             const Tensor<double>& inv) const {
         ITERATOR(
             U, double d = t(IND);
-            double p = std::max(inv(IND), 1.e-8);
+            double p = std::max(inv(IND), threshold);
             U(IND) = d/p;
         );
    }
@@ -90,7 +96,7 @@ struct binary_munge{
 	double longrangevalue;
 	double threshold;
 
-	binary_munge(const double lrv = 0.0, const double thresh = 1.0e-8) {
+	binary_munge(const double thresh = 1.0e-8, const double lrv = 0.0) {   // same as above -> ??
 		longrangevalue = lrv;
 		threshold = thresh;
 	}
@@ -146,23 +152,14 @@ struct logme{
     void serialize(Archive& ar) {}
 };
 
+
 class OEP : public Nemo {
 	typedef std::shared_ptr<real_convolution_3d> poperatorT;
 
-
 private:
 
-	// returns true if all members of a vector of booleans are true, otherwise false
-	bool IsAlltrue(std::vector<bool> vec) {
-		for (int i = 0; i < vec.size(); i++) {
-			if (!vec[i]) return false;
-		}
-		return true;
-	}
-
-
-public:
-
+	double dens_thresh = 1.0e-8;   // default 1.0e-8
+	double munge_thresh = 1.0e-8;  // default 1.0e-8
 	std::vector<bool> oep_model = {false, false, false};
 
 	void set_model_oaep() {oep_model[0] = true;}
@@ -176,6 +173,46 @@ public:
 	void set_model_dcep() {oep_model[2] = true;}
 	void unset_model_cdep() {oep_model[2] = false;}
 	bool is_dcep() const {return oep_model[2];}
+
+	// returns true if all members of a vector of booleans are true, otherwise false
+	bool IsAlltrue(std::vector<bool> vec) {
+		for (int i = 0; i < vec.size(); i++) {
+			if (!vec[i]) return false;
+		}
+		return true;
+	}
+
+public:
+
+	void read_oep_param(std::istream& in) {
+        position_stream(in, "oep");
+        std::string str;
+
+        while (in >> str) {
+            if (str == "end") {
+                break;
+            }
+            else if (str == "oaep") {
+                set_model_oaep();
+            }
+            else if (str == "ocep") {
+            	set_model_ocep();
+            }
+            else if (str == "dcep") {
+            	set_model_dcep();
+            }
+            else if (str == "density_threshold") {
+            	in >> dens_thresh;
+            }
+            else if (str == "munge_threshold") {
+            	in >> munge_thresh;
+            }
+            else {
+                print("oep: unrecognized input keyword:", str);
+                MADNESS_EXCEPTION("input error",0);
+            }
+        }
+	}
 
 
     OEP(World& world, const std::shared_ptr<SCF> calc) : Nemo(world, calc) {}
@@ -478,7 +515,7 @@ public:
         real_function_3d numerator = 2.0*R_square*dot(world, nemo, Knemo); // 2 because closed shell
         real_function_3d rho = compute_density(nemo);
 
-        real_function_3d Vs = -1.0*binary_op(numerator, rho, dens_inv());
+        real_function_3d Vs = -1.0*binary_op(numerator, rho, dens_inv(dens_thresh));
         save(Vs, "Slaterpotential");
         return Vs;
 
@@ -497,7 +534,7 @@ public:
         real_function_3d rho = compute_density(nemo);
 
         // like Kohut, 2014, equations (21) and (25)
-        real_function_3d I = -1.0*binary_op(numerator, rho, dens_inv());
+        real_function_3d I = -1.0*binary_op(numerator, rho, dens_inv(dens_thresh));
         return I;
 
     }
@@ -515,7 +552,7 @@ public:
     	double homo_diff = eigvalsKS(eigvalsKS.size() - 1) - eigvalsHF(eigvalsHF.size() - 1);
 
     	// munge potential for long-range asymptotics
-    	real_function_3d correction = binary_op(IHF - IKS, rho, binary_munge(homo_diff, 1.0e-5));
+    	real_function_3d correction = binary_op(IHF - IKS, rho, binary_munge(munge_thresh, homo_diff));
 
     	// shift potential (KS) so that HOMO_HF = HOMO_KS, so potential += (HOMO_HF - HOMO_KS)
     	real_function_3d correction_shifted = correction - homo_diff; // homo_diff = HOMO_KS - HOMO_HF
@@ -630,7 +667,7 @@ public:
         vecfuncT laplace_Rnemo=Laplace(Rnemo);
         real_function_3d tauL=-0.5*dot(world,laplace_Rnemo,Rnemo);
         save(tauL,"tauL");
-        real_function_3d tauL_div_rho=binary_op(tauL,rho,dens_inv());
+        real_function_3d tauL_div_rho=binary_op(tauL,rho,dens_inv(dens_thresh));
         save(tauL_div_rho,"tauL_div_rho");
 
         // compute tau = | grad(mo) |^2
@@ -648,7 +685,7 @@ public:
             tau+=dot(world,gradnemo,gradnemo);
         }
         tau=0.5*tau*R_square;
-        real_function_3d tau_div_rho=binary_op(tau,rho,dens_inv());
+        real_function_3d tau_div_rho=binary_op(tau,rho,dens_inv(dens_thresh));
         save(tau_div_rho,"tau_div_rho");
 
         // compute the laplacian of the density with the log trick
@@ -714,9 +751,9 @@ public:
         // divide by the density
         real_function_3d numerator=2.0*(-0.5*phiD2phi);   // fac 2 for sum over spin orbitals
 //        real_function_3d numerator=2.0*(-0.5*phiD2phi-phiepsilonphi);   // fac 2 for sum over spin orbitals
-        real_function_3d kinetic1=binary_op(numerator,rho,dens_inv());
+        real_function_3d kinetic1=binary_op(numerator,rho,dens_inv(dens_thresh));
         save(kinetic1,"kinetic1");
-        real_function_3d nu_bar=kinetic1 + 2.0*(-0.5)*binary_op(phiepsilonphi,rho,dens_inv());
+        real_function_3d nu_bar=kinetic1 + 2.0*(-0.5)*binary_op(phiepsilonphi,rho,dens_inv(dens_thresh));
 
         // reintroduce the nuclear potential *after* smoothing
         real_function_3d uvnuc=calc->potentialmanager->vnuclear()-nuclear_correlation->U2();
@@ -801,6 +838,7 @@ public:
 };
 
 
+
 int main(int argc, char** argv) {
     initialize(argc, argv);
     World world(SafeMPI::COMM_WORLD);
@@ -813,6 +851,7 @@ int main(int argc, char** argv) {
 
     const std::string input = "input";
     std::shared_ptr<SCF> calc(new SCF(world, input.c_str()));
+    // std::shared_ptr<SCF> calc(new SCF(world, "input")); would also work, see constructor in SCF.h
     if (world.rank()==0) {
         calc->molecule.print();
         print("\n");
@@ -839,8 +878,10 @@ int main(int argc, char** argv) {
 
     // OAEP final energy
     printf("\n   +++ starting approximate OEP iterative calculation +++\n\n");
-    //oep->set_model_oaep();
-    oep->set_model_ocep();
+
+    // read additional OEP parameters from same input file used for SCF calculation (see above)
+    std::ifstream in(input.c_str());
+    oep->read_oep_param(in);
 
     oep->solve_oep(HF_MOs, HF_orbens);
 
