@@ -1,0 +1,5 @@
+cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/generic-mkl-tbb.cmake \
+      -DBUILD_SHARED_LIBS=OFF \
+      -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+      .. 
+      
