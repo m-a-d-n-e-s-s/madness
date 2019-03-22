@@ -52,7 +52,7 @@ struct dens_inv{
             const Tensor<double>& inv) const {
         ITERATOR(
             U, double d = t(IND);
-            double p = std::max(inv(IND), 1.e-7);
+            double p = std::max(inv(IND), 1.e-8);
             U(IND) = d/p;
         );
    }
@@ -167,15 +167,15 @@ public:
 
 	void set_model_oaep() {oep_model[0] = true;}
 	void unset_model_oaep() {oep_model[0] = false;}
-	bool is_model_oaep() {return oep_model[0];}
+	bool is_oaep() const {return oep_model[0];}
 
 	void set_model_ocep() {oep_model[1] = true;}
 	void unset_model_ocep() {oep_model[1] = false;}
-	bool is_model_ocep() {return oep_model[1];}
+	bool is_ocep() const {return oep_model[1];}
 
 	void set_model_dcep() {oep_model[2] = true;}
 	void unset_model_cdep() {oep_model[2] = false;}
-	bool is_model_dcep() {return oep_model[2];}
+	bool is_dcep() const {return oep_model[2];}
 
 
     OEP(World& world, const std::shared_ptr<SCF> calc) : Nemo(world, calc) {}
@@ -195,14 +195,14 @@ public:
     	unsigned int update_counter = 0; // counts amount of updates in OCEP cycle
 
     	// exit if no OEP model was set
-    	if (!oep_model[0] and !oep_model[1] and !oep_model[2]) {
+    	if (!is_oaep() and !is_ocep() and !is_dcep()) {
     		printf("No approximate OEP model selected!\n");
     		printf("please choose oaep/ocep/dcep\n");
     		return;
     	}
 
     	// for only OAEP calculation, potential (macro) is already converged by construction
-    	if (oep_model[0] and !oep_model[1] and !oep_model[2]) potential_converged = true;
+    	if (is_oaep() and !is_ocep() and !is_dcep()) potential_converged = true;
 
 		// compute Slater potential Vs and average IHF from HF orbitals and eigenvalues
     	const real_function_3d Vs = compute_slater_potential(HF_nemo);
@@ -236,13 +236,14 @@ public:
     		//real_function_3d rho = compute_density(KS_nemo);
     		//save(rho, "density_it_"+stringify(iter));
 
-    		if (oep_model[1] or oep_model[2]) { // only update if OCEP and/or DCEP is enabled
+    		if (is_ocep() or is_dcep()) { // only update if OCEP and/or DCEP is enabled
 
         		// is computed (= updated) only if calculation was converged for smooth convergence
         		if (update_converged) {
         			update_counter++;
-        			if (!(oep_model[0] and update_counter == 1))
+        			if (!is_oaep() or update_counter > 1)
         				printf("\n\n     *** updating OCEP potential ***\n\n");
+
             		// compute OCEP potential from current nemos and eigenvalues
             		// like Kohut, 2014, equation (26) with correction = IHF - IKS
         			real_function_3d corr = compute_OCEP_correction(HF_nemo, HF_eigvals, KS_nemo, KS_eigvals);
@@ -250,7 +251,7 @@ public:
         			//save(corr, "OCEP_correction_it_"+stringify(iter));
         			//save(Voep, "OCEP_potential_it_"+stringify(iter));
 
-        			if (oep_model[0] and update_counter == 1) {
+        			if (is_oaep() and update_counter == 1) {
         				printf("\n\n     *** V_OAEP converged ***\n");
         				printf("\n  saving V_OCEP with converged OAEP orbitals and eigenvalues\n");
         		    	save(compute_density(KS_nemo), "density_OAEP");
@@ -331,7 +332,7 @@ public:
     			KS_eigvals -= calc->param.orbitalshift;
     		}
 
-    		if (oep_model[1] or oep_model[2]) { // evaluation only necessary if OCEP and/or DCEP is enabled
+    		if (is_ocep() or is_dcep()) { // evaluation only necessary if OCEP and/or DCEP is enabled
 
         		potential_converged = false; // to ensure convergence is checked again in any case
         		// evaluate convergence of orbital energies if Voep was updated in this iteration (see above)
@@ -422,37 +423,38 @@ public:
     	save(IKS, "IKS");
     	printf("     done\n");
 
-    	if (oep_model[0] and !oep_model[1] and !oep_model[2]){
+    	if (is_oaep() and !is_ocep() and !is_dcep()){
     		printf("\n  computing V_OCEP with converged OAEP orbitals and eigenvalues\n");
         	real_function_3d correction = compute_OCEP_correction(HF_nemo, HF_eigvals, KS_nemo, KS_eigvals);
         	real_function_3d ocep_oaep_pot = Vs + correction;
         	save(correction, "OCEP_correction");
         	save(ocep_oaep_pot, "OCEP_potential_with_OAEP_orbs");
     	}
-    	if (oep_model[1] and !oep_model[2]) {
+    	if (is_ocep() and !is_dcep()) {
     		printf("\n  computing final V_OCEP with converged OCEP orbitals and eigenvalues\n");
         	real_function_3d correction_final = compute_OCEP_correction(HF_nemo, HF_eigvals, KS_nemo, KS_eigvals);
         	Voep = Vs + correction_final;
         	save(correction_final, "OCEP_correction_final");
         	save(Voep, "OCEP_potential_final");
     	}
-    	if (oep_model[2]) {
+    	if (is_dcep()) {
     		printf("\n  computing final V_DCEP with converged DCEP orbitals and eigenvalues\n");
     		// ...
     	}
     	printf("     done\n\n");
 
-    	if (oep_model[0] and !oep_model[1] and !oep_model[2]) printf("\nFINAL OAEP ENERGY Evir:");
-    	if (oep_model[1] and !oep_model[2]) {
-    		printf("\nV_OCEP converged after %3u updates\n", update_counter);
+    	if (is_oaep() and !is_ocep() and !is_dcep()) printf("\nFINAL OAEP ENERGY Evir:");
+    	if (is_ocep() and !is_dcep()) {
+    		if (update_converged and potential_converged)
+    			printf("\nV_OCEP converged after %3u updates\n", update_counter);
     		printf("\nFINAL OCEP ENERGY Evir:");
     	}
-    	if (oep_model[2]) printf("\nFINAL DCEP ENERGY Evir:");
+    	if (is_dcep()) printf("\nFINAL DCEP ENERGY Evir:");
     	double Evir = compute_energy(R*KS_nemo, R*Jnemo, Voep, Knemo, true); // Knemo is not used here
 
-    	if (oep_model[0] and !oep_model[1] and !oep_model[2]) printf("\nFINAL OAEP ENERGY Econv:");
-    	if (oep_model[1] and !oep_model[2]) printf("\nFINAL OCEP ENERGY Econv:");
-    	if (oep_model[2]) printf("\nFINAL DCEP ENERGY Econv:");
+    	if (is_oaep() and !is_ocep() and !is_dcep()) printf("\nFINAL OAEP ENERGY Econv:");
+    	if (is_ocep() and !is_dcep()) printf("\nFINAL OCEP ENERGY Econv:");
+    	if (is_dcep()) printf("\nFINAL DCEP ENERGY Econv:");
     	compute_exchange_potential(KS_nemo, Knemo);
     	double Econv = compute_energy(R*KS_nemo, R*Jnemo, Voep, R*Knemo, false); // Voep is not used here
 
@@ -837,11 +839,10 @@ int main(int argc, char** argv) {
 
     // OAEP final energy
     printf("\n   +++ starting approximate OEP iterative calculation +++\n\n");
-    oep->set_model_oaep();
+    //oep->set_model_oaep();
     oep->set_model_ocep();
 
     oep->solve_oep(HF_MOs, HF_orbens);
-
 
 
 
