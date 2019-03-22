@@ -2002,8 +2002,12 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
 
      for(unsigned int j = 0; j < Init_params.num_occupied; j++){
           double r_expec = std::real(inner(occupieds[j], occupieds[j]*rfunc));
+          int numcoeffs = occupieds[j][0].size() + occupieds[j][1].size() + occupieds[j][2].size() + occupieds[j][3].size();
+          int maxdepth = std::max(occupieds[j][0].max_depth(), occupieds[j][1].max_depth());
+          maxdepth = std::max(int(occupieds[j][2].max_depth()), maxdepth);
+          maxdepth = std::max(int(occupieds[j][3].max_depth()), maxdepth);
           if(world.rank()==0){
-               printf("                Orbital: %3i, Energy: %.10e, <r>: %8e\n",j+1, energies[j]-myc*myc, r_expec);
+               printf("                Orbital: %3i, Energy: %.10e, <r>: %8e, No. coeffs: %7i, Max depth: %3i\n",j+1, energies[j], r_expec, numcoeffs, maxdepth);
           }
      }
      if(world.rank()==0){
@@ -2014,13 +2018,13 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
           print("    Nuclear Repulsion Energy: ",nuclear_repulsion_energy);
           print("                Total Energy: ",total_energy);
           print("       Total Energy Residual: ", std::fabs(total_energy - old_total_energy));
-          print("Energy Convergence Threshold: " , DFparams.thresh*pow(10,floor(log10(std::fabs(total_energy)))),"\n");
+          //print("Energy Convergence Threshold: " , DFparams.thresh*pow(10,floor(log10(std::fabs(total_energy)))),"\n");
      }
      
      //check total energy for convergence. the global variable thresh determines how many significant figures we look for
-     if(std::fabs(total_energy-old_total_energy) > DFparams.thresh*pow(10,floor(log10(std::fabs(total_energy))))){
-          iterate_again = true; 
-     }
+     //if(std::fabs(total_energy-old_total_energy) > DFparams.thresh*pow(10,floor(log10(std::fabs(total_energy))))){
+     //     iterate_again = true; 
+     //}
 
      //truncate
      for(unsigned int j = 0; j < Init_params.num_occupied; j++){
@@ -2087,7 +2091,8 @@ void DF::solve_occupied(World & world)
      if(world.rank()==0) print("     ", times[0]);
 
      //Set tolerance for residuals
-     double tol = pow(10,floor(0.5*log10(DFparams.thresh)));
+     //double tol = pow(10,floor(0.5*log10(DFparams.thresh)));
+     double tol = 10.0*DFparams.thresh; 
      
 
      //Now time to start iterating
