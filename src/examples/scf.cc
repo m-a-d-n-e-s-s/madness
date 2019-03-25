@@ -19,10 +19,12 @@
 
 using namespace madness;
 
+Tensor<double> saveTensor(std::ifstream f);
+
+
+
 int main()
 {
-    std::ifstream fs;
-    fs.open("integrals.dat");
     /********* Variables **********************************************************
      * nbf: Number of Basis Functions
      * nocc: ?
@@ -36,6 +38,8 @@ int main()
      * mos: ???? | Tensor<double> mos(nbf,nbf)
      * 2-electron | Tensor<double> C(nbf,nbf,nbf,nbf)
      *****************************************************************************/
+    std::ifstream fs;
+    fs.open("integrals.dat");
     int nbf;
     int nocc;
     double enrep;
@@ -65,6 +69,11 @@ int main()
         }
         else if ( keyword == "enrep") {
             fs >> enrep;
+        } 
+        else if ( keyword == "overlap") {
+           //here I want to call a function that reads tensor values line by line 
+           S=saveTensor(f);
+           
         }
         else {
             print("Unknown key word",keyword);
@@ -82,3 +91,6 @@ int main()
 
 // 1. Read in the input file "integrals.dat" Save the data to correspoinding variables
 // I need to figure out what every variable represents.
+// 
+// Save Tensor takes in a file stream object and returns the Tensor
+Tensor<double> saveTensor(std::ifstream f);
