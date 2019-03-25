@@ -1,0 +1,7 @@
+cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/generic-mkl-tbb.cmake \
+      -DCMAKE_BUILD_TYPE=Debug \
+      -DBUILD_SHARED_LIBS=OFF \
+      -DLIBXC_LIBRARIES=/gpfs/projects/rjh/libxc-3.0.0/lib/libxc.a \
+      -DLIBXC_INCLUDE_DIRS=/gpfs/projects/rjh/libxc-3.0.0/include \
+      -DCMAKE_CXX_COMPILER=mpiicpc \
+      ..
