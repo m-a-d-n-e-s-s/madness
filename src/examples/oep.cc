@@ -47,7 +47,7 @@ struct dens_inv{
 
 	double threshold;
 
-	dens_inv(const double thresh = 1.0e-8) {   // Why can't I just delete the value??
+	dens_inv(const double thresh = 1.0e-8) { // same default value as for dens_thresh
 		threshold = thresh;
 	}
 
@@ -96,7 +96,7 @@ struct binary_munge{
 	double longrangevalue;
 	double threshold;
 
-	binary_munge(const double thresh = 1.0e-8, const double lrv = 0.0) {   // same as above -> ??
+	binary_munge(const double thresh = 1.0e-8, const double lrv = 0.0) { // same default value as for munge_thresh
 		longrangevalue = lrv;
 		threshold = thresh;
 	}
@@ -118,23 +118,6 @@ struct binary_munge{
 
 };
 
-/*
-struct unary_munge{
-
-    /// @param[out] U   result
-    /// @param[in]  f   function to be munged
-    void operator()(const Key<3>& key, Tensor<double>& U, const Tensor<double>& f) const {
-        ITERATOR(
-            U, double ff = f(IND);
-            U(IND) = (ff > 1.e-8) ? ff : 0.0;
-        );
-    }
-
-    template <typename Archive>
-    void serialize(Archive& ar) {}
-
-};
-*/
 
 /// simple structure to take the pointwise logarithm of a function, shifted by +14
 struct logme{
@@ -184,6 +167,8 @@ private:
 
 public:
 
+	OEP(World& world, const std::shared_ptr<SCF> calc) : Nemo(world, calc) {}
+
 	void read_oep_param(std::istream& in) {
         position_stream(in, "oep");
         std::string str;
@@ -215,9 +200,6 @@ public:
 	}
 
 
-    OEP(World& world, const std::shared_ptr<SCF> calc) : Nemo(world, calc) {}
-
-
     void solve_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
 
         // Iterative energy calculation for approximate OEP with EXACT EXCHANGE functional
@@ -242,7 +224,7 @@ public:
     	if (is_oaep() and !is_ocep() and !is_dcep()) potential_converged = true;
 
 		// compute Slater potential Vs and average IHF from HF orbitals and eigenvalues
-    	const real_function_3d Vs = compute_slater_potential(HF_nemo);
+    	const real_function_3d Vs = compute_slater_potential(HF_nemo, homo_ind(HF_eigvals));
     	const real_function_3d IHF = compute_average_I(HF_nemo, HF_eigvals);
     	save(IHF, "IHF");
 
@@ -501,21 +483,40 @@ public:
 
     }
 
+    /// get index of HOMO from a given set of orbital energies
+    long homo_ind(const tensorT orbens) const {
+    	long index;
+    	double en_homo = orbens.max(&index);
+    	return index;
+    }
+
     // compute density from orbitals with ragularization (Bischoff, 2014_1, equation (19))
     real_function_3d compute_density(const vecfuncT& nemo) const {
     	real_function_3d density = 2.0*R_square*dot(world, nemo, nemo); // 2 because closed shell
     	return density;
     }
 
-    // compute Slater potential as OAEP potential (Kohut, 2014, equation (15))
-    real_function_3d compute_slater_potential(const vecfuncT& nemo) const {
+    /// compute Slater potential as OAEP potential (Kohut, 2014, equation (15))
+    real_function_3d compute_slater_potential(const vecfuncT& nemo, const long homo_ind) const {
 
         Exchange K(world, this, 0); // no - in K here, so factor -1 must be included at the end
         vecfuncT Knemo = K(nemo);
         real_function_3d numerator = 2.0*R_square*dot(world, nemo, Knemo); // 2 because closed shell
         real_function_3d rho = compute_density(nemo);
 
+        /// dividing by rho: the minimum value for rho is dens_thresh
         real_function_3d Vs = -1.0*binary_op(numerator, rho, dens_inv(dens_thresh));
+        save(Vs, "Slaterpotential_nolra");
+
+        /// long-range asymptotic behavior for Slater potential is \int 1/|r-r'| * |phi_HOMO|^2 dr'
+        /// in order to compute this lra, use Coulomb potential with only HOMO density (= |phi_HOMO|^2)
+        Coulomb J(world, this);
+        real_function_3d lra = -1.0*J.compute_potential(R_square*square(nemo[homo_ind]));
+
+        /// use apply function from adiabatic correction (see AC.h, nemo.h and nemo.cc) with own potentials
+        Vs = ac.apply(Vs, lra);
+
+        save(lra, "lra_slater");
         save(Vs, "Slaterpotential");
         return Vs;
 
@@ -549,9 +550,9 @@ public:
 
     	// density with KS orbitals and HF/KS HOMO difference
     	real_function_3d rho = compute_density(nemoKS);
-    	double homo_diff = eigvalsKS(eigvalsKS.size() - 1) - eigvalsHF(eigvalsHF.size() - 1);
+    	double homo_diff = eigvalsKS(homo_ind(eigvalsKS)) - eigvalsHF(homo_ind(eigvalsHF));
 
-    	// munge potential for long-range asymptotics
+    	// munge potential for long-range asymptotic behavior
     	real_function_3d correction = binary_op(IHF - IKS, rho, binary_munge(munge_thresh, homo_diff));
 
     	// shift potential (KS) so that HOMO_HF = HOMO_KS, so potential += (HOMO_HF - HOMO_KS)
@@ -850,8 +851,8 @@ int main(int argc, char** argv) {
     std::cout.precision(6);
 
     const std::string input = "input";
-    std::shared_ptr<SCF> calc(new SCF(world, input.c_str()));
-    // std::shared_ptr<SCF> calc(new SCF(world, "input")); would also work, see constructor in SCF.h
+    std::shared_ptr<SCF> calc(new SCF(world, input.c_str())); /// see constructor in SCF.h
+
     if (world.rank()==0) {
         calc->molecule.print();
         print("\n");
@@ -866,7 +867,7 @@ int main(int argc, char** argv) {
         printf("finished at time %.1f\n", wall_time());
     }
 
-    // save converged HF MOs and orbital energies
+    /// save converged HF MOs and orbital energies
     vecfuncT HF_MOs = copy(world, oep->get_calc()->amo);
     tensorT HF_orbens = copy(oep->get_calc()->aeps);
 
@@ -876,10 +877,10 @@ int main(int argc, char** argv) {
 //    oep->make_laplacian_density_oep(rhonemo);
 
 
-    // OAEP final energy
+    /// OAEP final energy
     printf("\n   +++ starting approximate OEP iterative calculation +++\n\n");
 
-    // read additional OEP parameters from same input file used for SCF calculation (see above)
+    /// read additional OEP parameters from same input file used for SCF calculation (see above)
     std::ifstream in(input.c_str());
     oep->read_oep_param(in);
 

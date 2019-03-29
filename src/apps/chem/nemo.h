@@ -409,9 +409,9 @@ protected:
 	/// a poisson solver
 	std::shared_ptr<real_convolution_3d> poisson;
 
-//	/// asymptotic correction for DFT
-//	AC<3> ac;
-//
+	/// asymptotic correction for DFT
+	AC<3> ac;
+
 //    /// apply the AC scheme of Tozer/Handy with the multipole approximation
 //    Function<double,3> apply_ac(const Function<double,3>& vxc)const{
 //    	return ac.apply(vxc);
@@ -430,7 +430,7 @@ protected:
 private:
 	/// polarizable continuum model
 	PCM pcm;
-	AC<3> ac;
+//	AC<3> ac;
 
 	/// adapt the thresholds consistently to a common value
     void set_protocol(const double thresh) {
