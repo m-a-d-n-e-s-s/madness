@@ -213,7 +213,7 @@ class GaussianNucleusFunctor : public FunctionFunctorInterface<double,3> {
                }
                
                //find atomic mass numbers for each atom
-               int Alist[116] = {1,4,7,9,11,12,14,16,19,20,23,24,27,28,31,32,35,40,39,40,45,48,51,52,55,56,59,59,63,65,70,72,75,79,80,84,85,87,89,91,93,96,98,101,103,106,108,112,115,119,122,127,127,131,133,137,139,140,141,144,145,150,152,157,159,162,165,167,169,173,175,178,181,184,186,190,192,195,197,200,204,207,209,209,210,222,223,226,227,232,231,238,237,244,243,247,247,251,252,257,258,259,262,261,262,263,262,264,266,264,272,277,284,289,288,292};
+               int Alist[116] = {1,4,7,9,11,12,14,16,19,20,23,24,27,28,31,32,35,40,39,40,45,48,51,52,55,56,59,58,63,64,69,74,75,80,79,84,85,88,89,90,93,98,98,102,103,106,107,114,115,120,121,130,127,132,133,138,139,140,141,144,145,152,153,158,159,162,162,168,169,174,175,180,181,184,187,192,193,195,197,202,205,208,209,209,210,222,223,226,227,232,231,238,237,244,243,247,247,251,252,257,258,259,262,261,262,263,262,265,266,264,272,277,284,289,288,292};
                for(unsigned int i = 0; i < m_Zlist.size(); i++){
                     m_Alist.push_back(Alist[m_Zlist[i]-1]);
                }
@@ -271,7 +271,7 @@ class FermiNucDistFunctor : public FunctionFunctorInterface<double,3> {
                m_R.push_back(R);
                
                //find atomic mass numbers for each atom
-               int Alist[116] = {1,4,7,9,11,12,14,16,19,20,23,24,27,28,31,32,35,40,39,40,45,48,51,52,55,56,59,59,63,65,70,72,75,79,80,84,85,87,89,91,93,96,98,101,103,106,108,112,115,119,122,127,127,131,133,137,139,140,141,144,145,150,152,157,159,162,165,167,169,173,175,178,181,184,186,190,192,195,197,200,204,207,209,209,210,222,223,226,227,232,231,238,237,244,243,247,247,251,252,257,258,259,262,261,262,263,262,264,266,264,272,277,284,289,288,292};
+               int Alist[116] = {1,4,7,9,11,12,14,16,19,20,23,24,27,28,31,32,35,40,39,40,45,48,51,52,55,56,59,58,63,64,69,74,75,80,79,84,85,88,89,90,93,98,98,102,103,106,107,114,115,120,121,130,127,132,133,138,139,140,141,144,145,152,153,158,159,162,162,168,169,174,175,180,181,184,187,192,193,195,197,202,205,208,209,209,210,222,223,226,227,232,231,238,237,244,243,247,247,251,252,257,258,259,262,261,262,263,262,265,266,264,272,277,284,289,288,292};
                m_A = Alist[Z-1];
 
                double PI = constants::pi;
@@ -883,7 +883,7 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      if(world.rank()==0) print("     Removing Rotations");
      start_timer(world);
 
-     double thresh_degenerate = DFparams.thresh*100.0;
+     double thresh_degenerate = DFparams.thresh*10.0;
      double csquared = 137.0359895*137.0359895; //electron rest energy
      //swap columns for a diagonally dominant matrix
      bool switched = true;
@@ -2007,7 +2007,7 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
           maxdepth = std::max(int(occupieds[j][2].max_depth()), maxdepth);
           maxdepth = std::max(int(occupieds[j][3].max_depth()), maxdepth);
           if(world.rank()==0){
-               printf("                Orbital: %3i, Energy: %.10e, <r>: %8e, No. coeffs: %7i, Max depth: %3i\n",j+1, energies[j], r_expec, numcoeffs, maxdepth);
+               printf("                Orbital: %3i, Energy: %.10e, <r>: %8e, No. coeffs: %7i, Max depth: %3i\n",j+1, energies[j]-myc*myc, r_expec, numcoeffs, maxdepth);
           }
      }
      if(world.rank()==0){
