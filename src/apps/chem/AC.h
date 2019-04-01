@@ -471,9 +471,9 @@ public:
 		   std::cout << "OR NOT -- EMPTY VECTOR ATOMS!!!\n";
 		   return xc_functional;
 	   }
+
 	   if(ac_param_.dft_coefficient_ < 0.0) { MADNESS_EXCEPTION("DFT coefficient is negative!",1); }
 	   if(ac_param_.dft_coefficient_ == 0.0) { MADNESS_EXCEPTION("DFT coefficient is zero. This is no DFT calculation!\n",1); }
-
 
 	   // shift of the exchange correlation potential to get the correct asymptotic behaviour
 	   xc_functional = xc_functional + shift();
@@ -510,12 +510,8 @@ public:
 	   // pointer on interpolation factor and long range potential
 	   std::shared_ptr<FunctionFunctorInterface<double, NDIM> > int_ptr(new int_factor_functor<NDIM>(ac_param_));
 
-
 	   // compute interpolation and long range potential
 	   BinaryOpStructure<NDIM> U_total(int_ptr);
-	   plot_plane<NDIM>(xc_functional.world(),int_factor_functor<NDIM>(ac_param_),"Utotal");
-//	   real_function_3d bla=real_factory_3d(xc_functional.world()).functor(*int_ptr.get());
-
 	   xc_functional = binary_op<double,double,BinaryOpStructure<NDIM>,NDIM >(xc_functional, v_hartree, U_total);
 
 	   return xc_functional;

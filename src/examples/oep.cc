@@ -504,6 +504,9 @@ public:
         real_function_3d numerator = 2.0*R_square*dot(world, nemo, Knemo); // 2 because closed shell
         real_function_3d rho = compute_density(nemo);
 
+
+
+
         /// dividing by rho: the minimum value for rho is dens_thresh
         real_function_3d Vs = -1.0*binary_op(numerator, rho, dens_inv(dens_thresh));
         save(Vs, "Slaterpotential_nolra");
@@ -511,12 +514,24 @@ public:
         /// long-range asymptotic behavior for Slater potential is \int 1/|r-r'| * |phi_HOMO|^2 dr'
         /// in order to compute this lra, use Coulomb potential with only HOMO density (= |phi_HOMO|^2)
         Coulomb J(world, this);
-        real_function_3d lra = -1.0*J.compute_potential(R_square*square(nemo[homo_ind]));
+//        real_function_3d lra = -1.0*J.compute_potential(R_square*square(nemo[homo_ind]));
+
+        real_function_3d lra = -1.0*J.compute_potential(R_square*square(nemo[6]));
+        save(R_square*square(nemo[6]), "phi6phi6");
+        save(lra, "int_phi6phi6");
+        real_function_3d int_phi6phi5 = -1.0*J.compute_potential(R_square*nemo[6]*nemo[5]);
+        save(R_square*nemo[6]*nemo[5], "phi6phi5");
+        save(int_phi6phi5, "int_phi6phi5");
+        real_function_3d int_phi5phi5 = -1.0*J.compute_potential(R_square*square(nemo[5]));
+        save(R_square*square(nemo[5]), "phi5phi5");
+        save(int_phi5phi5, "int_phi5phi5");
+
+
 
         /// use apply function from adiabatic correction (see AC.h, nemo.h and nemo.cc) with own potentials
         Vs = ac.apply(Vs, lra);
 
-        save(lra, "lra_slater");
+//        save(lra, "lra_slater");
         save(Vs, "Slaterpotential");
         return Vs;
 
