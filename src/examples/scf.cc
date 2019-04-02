@@ -19,6 +19,8 @@
 
 using namespace madness;
 
+void readTensor(std::ifstream fs, Tensor<double> T, int nbf);
+
 int main()
 {
     std::ifstream fs;
@@ -32,7 +34,7 @@ int main()
      * pe: Potential Energy Operator Integrals | Tensor<double> PE(nbf,nbf)
      * mux: DipoleX | Tensor<double> mux(nbf,nbf)
      * muy: Dipoley | Tensor<double> muy(nbf,nbf)
-     * muz: Dipolez | Tensor<double> muz(nbf,nbf) *** Can I place these in a 3,nbf,nbf Tensor? ***
+     * muz: Dipolez | Tensor<double> muz(nbf,nbf)
      * mos: ???? | Tensor<double> mos(nbf,nbf)
      * 2-electron | Tensor<double> C(nbf,nbf,nbf,nbf)
      *****************************************************************************/
@@ -46,9 +48,7 @@ int main()
      * Tensors with nbf sizes
      ***********************************************************************/
     std::string keyword;
-    fs>>keyword;
-    fs>>nbf;
-    // I can define Tensors now i think 
+    // I can define Tensors now i think
     Tensor<double> S(nbf,nbf);
     Tensor<double> KE(nbf,nbf);
     Tensor<double> PE(nbf,nbf);
@@ -56,14 +56,17 @@ int main()
     Tensor<double> MUY(nbf,nbf);
     Tensor<double> MUZ(nbf,nbf);
     Tensor<double> Electron(nbf,nbf,nbf,nbf);
-    
-   
+
+
     while (fs >> keyword) {
 
         if (keyword =="nocc") {
             fs >> nocc;
         }
         else if ( keyword == "enrep") {
+            fs >> enrep;
+        }
+        else if ( keyword == "overlap") {
             fs >> enrep;
         }
         else {
@@ -82,6 +85,17 @@ int main()
     return 0;
 }
 
+void readTensor(std::ifstream fs, Tensor<double> T, int nbf) {
 
-// 1. Read in the input file "integrals.dat" Save the data to correspoinding variables
+    int i;
+    int j;
+    std::string token;
+    while (fs >>token ){
+      print(T.size());
+    }
+     
+
+}
+
+// 1. Read in the input file "integrals.dat" Save the data to corresponding variables
 // I need to figure out what every variable represents.
