@@ -1487,7 +1487,7 @@ namespace madness {
             for (unsigned int i=0; i<right.size(); ++i) {
                 result[i].set_impl(left,false);
                 vresult[i] = result[i].impl.get();
-                vright[i] = right[i].impl.get();
+                vright[i] = right[i].get_impl().get();
             }
 
             left.world().gop.fence(); // Is this still essential?  Yes.

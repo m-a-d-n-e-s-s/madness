@@ -208,6 +208,40 @@ void Znemo::analyze() const {
 	print("< amo | lz | amo >",lza_exp);
 	print("< bmo | lz | bmo >",lzb_exp);
 
+	// compute magnetic vector potential
+	Tensor<double> Bvec(3);
+    Bvec(2)=B;
+    std::vector<real_function_3d> A=compute_magnetic_vector_potential(world,Bvec);
+    print("B",Bvec);
+    std::vector<real_function_3d> Btest=rot(A);
+    Btest[2]=Btest[2]-B;
+//    Btest[2]-=bla;
+    double n=norm2(world,Btest);
+    print("n(Btest-B)",n);
+    Tensor<double> p_exp=compute_kinetic_momentum();
+    Tensor<double> A_exp=compute_magnetic_potential_expectation(A);
+
+    print("<p>       ",p_exp);
+    print("<A>       ",A_exp);
+    print("(p-eA)    ",p_exp+A_exp);
+
+    // compute the standard kinetic gauge origin, defined as the gauge origin, where the
+    // expectation value of the kinetic momentum p vanishes
+    const long nmo=amo.size()+bmo.size();
+    Tensor<double> v=-1.0/nmo*p_exp;
+    Tensor<double> S=compute_standard_gauge_shift(p_exp);
+    print("standard gauge shift S",S);
+
+    // compute the standardized components of the canonical momentum square
+    const double v2=v.trace(v);	// term B^2(Sx^2+Sy^2)
+    const double vp=v.trace(p_exp);
+    const double vA=v.trace(A_exp);
+    print("v2, vp, vA", v2, vp, vA);
+
+    print("expectation values in standard gauge");
+    print("Delta 1/2 <p^2>  ",0.5*(nmo*v2 + 2.0*vp));
+
+
 }
 
 

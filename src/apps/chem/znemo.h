@@ -215,6 +215,45 @@ public:
 	// analyse the results only
 	void analyze() const;
 
+	/// compute the expectation value of the kinetic momentum p
+	Tensor<double> compute_kinetic_momentum() const {
+	    Tensor<double> p_exp(3);
+	    for (auto& mo : amo) p_exp+=imag(inner(world,mo,grad(mo)));
+	    for (auto& mo : bmo) p_exp+=imag(inner(world,mo,grad(mo)));
+	    return p_exp;
+	}
+
+	/// compute the expectation value of the linear moment r
+	Tensor<double> compute_linear_moment() const {
+		std::vector<real_function_3d> r(3);
+	    r[0]=real_factory_3d(world).functor([] (const coord_3d& r) {return r[0];});
+	    r[1]=real_factory_3d(world).functor([] (const coord_3d& r) {return r[1];});
+	    r[2]=real_factory_3d(world).functor([] (const coord_3d& r) {return r[2];});
+
+	    Tensor<double> r_exp(3);
+	    for (auto& mo : amo) r_exp+=real(inner(world,mo,r*mo));
+	    for (auto& mo : bmo) r_exp+=real(inner(world,mo,r*mo));
+	    return r_exp;
+	}
+
+	/// compute the expectation value of the magnetic vector potential A
+	Tensor<double> compute_magnetic_potential_expectation(const std::vector<real_function_3d>& A) const {
+	    Tensor<double> A_exp(3);
+	    for (auto& mo : amo) A_exp+=real(inner(world,mo,A*mo));
+	    for (auto& mo : bmo) A_exp+=real(inner(world,mo,A*mo));
+	    return A_exp;
+	}
+
+	/// compute the shift of the molecule such that the kinetic momentum vanishes
+	Tensor<double> compute_standard_gauge_shift(const Tensor<double>& p_exp) const {
+		Tensor<double> S(3);
+	    S(0l)=-p_exp(1);
+	    S(1) =p_exp(0l);
+	    S(2) =p_exp(2);
+	    S*=-2.0/(B*(amo.size()+bmo.size()));
+	    return S;
+	}
+
 	/// compute the current density
 	std::vector<real_function_3d> compute_current_density(
 			const std::vector<complex_function_3d>& alpha_mo,
@@ -222,6 +261,20 @@ public:
 
 	/// solve the SCF iterations
 	void solve_SCF();
+
+	/// compute the magnetic vector potential A
+	static std::vector<real_function_3d> compute_magnetic_vector_potential(World& world, const Tensor<double>& Bvec) {
+		std::vector<real_function_3d> r(3), A(3);
+	    r[0]=real_factory_3d(world).functor([] (const coord_3d& r) {return r[0];});
+	    r[1]=real_factory_3d(world).functor([] (const coord_3d& r) {return r[1];});
+	    r[2]=real_factory_3d(world).functor([] (const coord_3d& r) {return r[2];});
+
+	    A[0]=Bvec(1)*r[2]-Bvec(2)*r[1];
+	    A[1]=Bvec(2)*r[0]-Bvec(0l)*r[2];
+	    A[2]=Bvec(0l)*r[1]-Bvec(1)*r[0];
+
+		return 0.5*A;
+	}
 
 	/// are there explicit beta orbitals
 	bool have_beta() const {
