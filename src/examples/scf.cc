@@ -19,7 +19,7 @@
 
 using namespace madness;
 
-void readTensor(std::ifstream fs, Tensor<double> T, int nbf);
+void readTensor(std::ifstream& fs, Tensor<double>& T, int nbf);
 
 int main()
 {
@@ -67,7 +67,7 @@ int main()
             fs >> enrep;
         }
         else if ( keyword == "overlap") {
-            fs >> enrep;
+            readTensor(fs,S,nbf);
         }
         else {
             print("Unknown key word",keyword);
@@ -85,7 +85,7 @@ int main()
     return 0;
 }
 
-void readTensor(std::ifstream fs, Tensor<double> T, int nbf) {
+void readTensor(std::ifstream& fs, Tensor<double>& T, int nbf) {
 
     int i;
     int j;
