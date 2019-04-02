@@ -490,7 +490,7 @@ public:
     	return index;
     }
 
-    // compute density from orbitals with ragularization (Bischoff, 2014_1, equation (19))
+    /// compute density from orbitals with ragularization (Bischoff, 2014_1, equation (19))
     real_function_3d compute_density(const vecfuncT& nemo) const {
     	real_function_3d density = 2.0*R_square*dot(world, nemo, nemo); // 2 because closed shell
     	return density;
@@ -504,9 +504,6 @@ public:
         real_function_3d numerator = 2.0*R_square*dot(world, nemo, Knemo); // 2 because closed shell
         real_function_3d rho = compute_density(nemo);
 
-
-
-
         /// dividing by rho: the minimum value for rho is dens_thresh
         real_function_3d Vs = -1.0*binary_op(numerator, rho, dens_inv(dens_thresh));
         save(Vs, "Slaterpotential_nolra");
@@ -514,24 +511,36 @@ public:
         /// long-range asymptotic behavior for Slater potential is \int 1/|r-r'| * |phi_HOMO|^2 dr'
         /// in order to compute this lra, use Coulomb potential with only HOMO density (= |phi_HOMO|^2)
         Coulomb J(world, this);
-//        real_function_3d lra = -1.0*J.compute_potential(R_square*square(nemo[homo_ind]));
+        real_function_3d lra = -1.0*J.compute_potential(R_square*square(nemo[homo_ind]));
+//        real_function_3d lra = (-0.5/nemo.size())*J.compute_potential(this);
 
-        real_function_3d lra = -1.0*J.compute_potential(R_square*square(nemo[6]));
-        save(R_square*square(nemo[6]), "phi6phi6");
-        save(lra, "int_phi6phi6");
-        real_function_3d int_phi6phi5 = -1.0*J.compute_potential(R_square*nemo[6]*nemo[5]);
-        save(R_square*nemo[6]*nemo[5], "phi6phi5");
-        save(int_phi6phi5, "int_phi6phi5");
-        real_function_3d int_phi5phi5 = -1.0*J.compute_potential(R_square*square(nemo[5]));
-        save(R_square*square(nemo[5]), "phi5phi5");
-        save(int_phi5phi5, "int_phi5phi5");
+//        for (int i = 0; i < nemo.size(); i++) {
+//        	real_function_3d product = R_square*square(nemo[i]);
+//        	real_function_3d potential = -1.0*J.compute_potential(R_square*square(nemo[i]));
+//        	save(R*nemo[i], "phi"+stringify(i));
+//        	save(product, "phi"+stringify(i)+"phi"+stringify(i));
+//        	save(potential, "int_phi"+stringify(i)+"phi"+stringify(i));
+//        }
 
-
+//        real_function_3d int_phi6phi6 = -1.0*J.compute_potential(R_square*square(nemo[6]));
+//        save(R_square*square(nemo[6]), "phi6phi6");
+//        save(int_phi6phi6, "int_phi6phi6");
+//        real_function_3d int_phi6phi5 = -1.0*J.compute_potential(R_square*nemo[6]*nemo[5]);
+//        save(R_square*nemo[6]*nemo[5], "phi6phi5");
+//        save(int_phi6phi5, "int_phi6phi5");
+//        real_function_3d int_phi5phi5 = -1.0*J.compute_potential(R_square*square(nemo[5]));
+//        save(R_square*square(nemo[5]), "phi5phi5");
+//        save(int_phi5phi5, "int_phi5phi5");
+//        real_function_3d int_phi4phi4 = -1.0*J.compute_potential(R_square*square(nemo[4]));
+//        save(R_square*square(nemo[4]), "phi4phi4");
+//        save(int_phi4phi4, "int_phi4phi4");
+//
+//        real_function_3d lra = (1.0/3.0)*(int_phi6phi6 + int_phi5phi5 + int_phi4phi4);
 
         /// use apply function from adiabatic correction (see AC.h, nemo.h and nemo.cc) with own potentials
         Vs = ac.apply(Vs, lra);
 
-//        save(lra, "lra_slater");
+        save(lra, "lra_slater");
         save(Vs, "Slaterpotential");
         return Vs;
 
@@ -570,6 +579,10 @@ public:
     	// munge potential for long-range asymptotic behavior
     	real_function_3d correction = binary_op(IHF - IKS, rho, binary_munge(munge_thresh, homo_diff));
 
+//    	real_function_3d homo_diff_func = real_factory_3d(world).functor([] (const coord_3d& r) {return 1.0;});
+//    	homo_diff_func.scale(homo_diff);
+//    	real_function_3d correction = ac.apply(IHF - IKS, homo_diff_func);
+
     	// shift potential (KS) so that HOMO_HF = HOMO_KS, so potential += (HOMO_HF - HOMO_KS)
     	real_function_3d correction_shifted = correction - homo_diff; // homo_diff = HOMO_KS - HOMO_HF
     	// save(correction, "OCEP_correction");
@@ -577,25 +590,25 @@ public:
 
     }
 
-    // compute all potentials from given nemos except kinetic energy
+    /// compute all potentials from given nemos except kinetic energy
     void compute_nemo_potentials(const vecfuncT& nemo, vecfuncT& Jnemo, vecfuncT& Unemo,
     		const real_function_3d V, vecfuncT& Vnemo) const {
 
-    	// compute Coulomb part
+    	/// compute Coulomb part
     	Coulomb J = Coulomb(world, this);
-    	Jnemo = J(nemo);     // as in working equation for MRA
+    	Jnemo = J(nemo);
     	truncate(world, Jnemo);
 
-    	// compute nuclear potential part
+    	/// compute nuclear potential part
     	Nuclear Unuc(world, this->nuclear_correlation);
     	Unemo = Unuc(nemo);
 
-    	// compute approximate OEP exchange potential part
+    	/// compute approximate OEP exchange potential part
     	Vnemo = V*nemo;
 
     }
 
-    // compute exchange potential (needed for Econv)
+    /// compute exchange potential (needed for Econv)
     void compute_exchange_potential(const vecfuncT& nemo, vecfuncT& Knemo) const {
 
     	Exchange K = Exchange(world, this, 0);
@@ -669,7 +682,7 @@ public:
     }
 
 
-    // check if this is still useful (for DCEP)
+    //
     /// compute the kinetic energy potential using the Kohut trick Eq. (30)
     real_function_3d kinetic_energy_potential2(const vecfuncT& nemo) const {
 
@@ -716,7 +729,7 @@ public:
         return result;
     }
 
-    // check if this is still useful (for DCEP)
+    //
     real_function_3d kinetic_energy_potential(const vecfuncT& nemo) const {
 
         const Nuclear U_op(world,this->nuclear_correlation);
@@ -806,7 +819,7 @@ public:
         return nu_bar;
     }
 
-    // check if this is still useful
+    //
     /// compute the laplacian of the density using the log trick
     real_function_3d make_laplacian_density_oep(const real_function_3d& rhonemo) const {
 
