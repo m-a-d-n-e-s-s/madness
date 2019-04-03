@@ -47,8 +47,8 @@ int main()
     if (keyword == "nbf") {
         fs>>nbf;
     }
-    else{
-      throw "input file should start with nbf";
+    else {
+        throw "input file should start with nbf";
     }
 
     // I can define Tensors now i think
@@ -58,6 +58,7 @@ int main()
     Tensor<double> MUX(nbf,nbf);
     Tensor<double> MUY(nbf,nbf);
     Tensor<double> MUZ(nbf,nbf);
+    Tensor<double> MOS(nbf,nbf);
     Tensor<double> Electron(nbf,nbf,nbf,nbf);
 
 
@@ -71,6 +72,27 @@ int main()
         }
         else if ( keyword == "overlap") {
             readTensor(fs,S,2,nbf);
+        }
+        else if ( keyword == "ke") {
+            readTensor(fs,KE,2,nbf);
+        }
+        else if ( keyword == "pe") {
+            readTensor(fs,PE,2,nbf);
+        }
+        else if ( keyword == "mux") {
+            readTensor(fs,MUX,2,nbf);
+        }
+        else if ( keyword == "muy") {
+            readTensor(fs,MUY,2,nbf);
+        }
+        else if ( keyword == "muz") {
+            readTensor(fs,MUZ,2,nbf);
+        }
+        else if ( keyword == "mos") {
+            readTensor(fs,MOS,2,nbf);
+        }
+        else if ( keyword == "2-electron") {
+            readTensor(fs,Electron,4,nbf);
         }
         else {
             print("Unknown key word",keyword);
