@@ -92,6 +92,7 @@ int main()
             readTensor(fs,MOS,2,nbf);
         }
         else if ( keyword == "2-electron") {
+            print("entering");
             readTensor(fs,Electron,4,nbf);
         }
         else {
@@ -102,37 +103,77 @@ int main()
 
     std::cout << nbf <<"this is nbf"<< std::endl;
     fs.close();
-    /**********************************************************************************
-     *
-     * ********************************************************************************/
     Tensor<double> f(2, 2);
     print(f);
     return 0;
 }
+/**********************************************************************************
+   *
+   * ********************************************************************************/
 
 void readTensor(std::ifstream& fs, Tensor<double>& T,int dim, int nbf) {
 
+
+    int i,j,k,l;
     int * indices;
     double val;//value
     indices= new int [dim];// dynamic array of indicies
     std::string token;
     std::string line;
     do {
+
         std::getline(fs,line);
         std::istringstream iss(line);
+        print("line",line);
         // gather indices
-        for (int i=0; i<dim; i++) {
-            iss>>indices[i];
+        for (int ind=0; ind<dim; ind++) {
+            iss>>indices[ind];
+            print(ind);
         }
-        //
         iss>>val;
-        for (int i=0; i<dim; i++) {
-            std::cout<<" "<<indices[i];
+        /*/***************************************************************
+        for (int ind=0; ind<dim; ind++) {
+            std::cout<<" "<<indices[ind]<<" ";
         }
-        std::cout<<" "<<val<<std::endl;
+        print(val);
+        ******************************************************************/
+        // dim needs to be even in this case because we are assuming symmetric Tensors
+        if (indices[0]!=-1) {
+            if (dim==2) {
+                //grab indexs
+                i=indices[0]-1;
+
+                j=indices[1]-1;
+                print(i,j);
+                // inert values;
+                T(i,j)=val;
+                T(j,i)=val;
+            }
+            else if (dim==4) {
+
+                i=indices[0]-1;
+                j=indices[1]-1;
+                k=indices[2]-1;
+                l=indices[3]-1;
+                print(i,j,k,l);
+
+                T(i,j,k,l)=val;
+                T(i,j,l,k)=val;
+                T(j,i,k,l)=val;
+                T(j,i,l,k)=val;
+                T(k,l,i,j)=val;
+                T(k,l,j,i)=val;
+                T(l,k,i,j)=val;
+                T(l,k,j,i)=val;
+            }
+            else {
+                throw "bad dim";
+            }
+        }
     } while ( indices[0]!=-1);
 
     delete[] indices;//releases the memory allocated for arrays of elements using new and a size in brackets([])
+    print("exit function");
 }
 
 // 1. Read in the input file "integrals.dat" Save the data to corresponding variables
