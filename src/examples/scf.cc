@@ -23,8 +23,6 @@ void readTensor(std::ifstream& fs, Tensor<double>& T,int dim, int nbf);
 
 int main()
 {
-    std::ifstream fs;
-    fs.open("integrals.dat");
     /********* Variables **********************************************************
      * nbf: Number of Basis Functions
      * nocc: ?
@@ -38,16 +36,21 @@ int main()
      * mos: ???? | Tensor<double> mos(nbf,nbf)
      * 2-electron | Tensor<double> C(nbf,nbf,nbf,nbf)
      *****************************************************************************/
+    // make ifstream object and read in the first key word and read in the nbf
+    std::ifstream fs;
+    fs.open("integrals.dat");
     int nbf;
     int nocc;
     double enrep;
-    /*************** Read and printout data from integrals.dat *********
-     *
-     * Current task: Write a function that reads array data
-     * Note:First Thing I read in has to be nbf that way I can I can create
-     * Tensors with nbf sizes
-     ***********************************************************************/
     std::string keyword;
+    fs>>keyword;//read the first key word
+    if (keyword == "nbf") {
+        fs>>nbf;
+    }
+    else{
+      throw "input file should start with nbf";
+    }
+
     // I can define Tensors now i think
     Tensor<double> S(nbf,nbf);
     Tensor<double> KE(nbf,nbf);
@@ -97,15 +100,14 @@ void readTensor(std::ifstream& fs, Tensor<double>& T,int dim, int nbf) {
         std::istringstream iss(line);
         // gather indices
         for (int i=0; i<dim; i++) {
-         iss>>indices[i]; 
+            iss>>indices[i];
         }
         //
-       iss>>val; 
-       for (int i=0; i<dim; i++) {
-         std::cout<<" "<<indices[i]; 
+        iss>>val;
+        for (int i=0; i<dim; i++) {
+            std::cout<<" "<<indices[i];
         }
-       print(val);
-
+        print(val);
     } while ( indices[0]!=-1);
 
     delete[] indices;//releases the memory allocated for arrays of elements using new and a size in brackets([])
