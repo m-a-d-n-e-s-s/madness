@@ -107,7 +107,7 @@ void readTensor(std::ifstream& fs, Tensor<double>& T,int dim, int nbf) {
         for (int i=0; i<dim; i++) {
             std::cout<<" "<<indices[i];
         }
-        print(val);
+        std::cout<<" "<<val<<std::endl;
     } while ( indices[0]!=-1);
 
     delete[] indices;//releases the memory allocated for arrays of elements using new and a size in brackets([])
