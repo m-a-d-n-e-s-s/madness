@@ -71,7 +71,7 @@ int main()
         }
         else {
             print("Unknown key word",keyword);
-            //throw "bad";
+            throw "bad";
         }
     }
 
@@ -87,15 +87,28 @@ int main()
 
 void readTensor(std::ifstream& fs, Tensor<double>& T,int dim, int nbf) {
 
-    int i;
-    int j;
-    
+    int * indices;
+    double val;//value
+    indices= new int [dim];// dynamic array of indicies
     std::string token;
-    while (fs >>token ){
-      
-    }
-     
+    std::string line;
+    do {
+        std::getline(fs,line);
+        std::istringstream iss(line);
+        // gather indices
+        for (int i=0; i<dim; i++) {
+         iss>>indices[i]; 
+        }
+        //
+       iss>>val; 
+       for (int i=0; i<dim; i++) {
+         std::cout<<" "<<indices[i]; 
+        }
+       print(val);
 
+    } while ( indices[0]!=-1);
+
+    delete[] indices;//releases the memory allocated for arrays of elements using new and a size in brackets([])
 }
 
 // 1. Read in the input file "integrals.dat" Save the data to corresponding variables
