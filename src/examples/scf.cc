@@ -90,7 +90,6 @@ int main()
         }
         else if ( keyword == "mos") {
             readTensor(fs,MOS,2,nbf);
-            print(MOS);
         }
         else if ( keyword == "2-electron") {
             print("entering");
@@ -101,6 +100,8 @@ int main()
             throw "bad";
         }
     }
+
+    print(Electron);
 
     std::cout << nbf <<"this is nbf"<< std::endl;
     fs.close();
@@ -113,9 +114,8 @@ int main()
    * ********************************************************************************/
 
 void readTensor(std::ifstream& fs, Tensor<double>& T,int dim, int nbf) {
-
-
-    int i,j,k,l;
+    int count=1;
+    int a,b,c,d;
     int * indices;
     double val;//value
     indices= new int [dim];// dynamic array of indicies
@@ -125,43 +125,51 @@ void readTensor(std::ifstream& fs, Tensor<double>& T,int dim, int nbf) {
         std::getline(fs,line);
         std::istringstream iss(line);
         // gather indices
-        
-        for (int ind=0; ind<dim; ind++) {
-            iss>>indices[ind];
+
+        for (int i=0; i<dim; i++) {
+            iss>>indices[i];
         }
         iss>>val;
-        // dim needs to be even in this case because we are assuming symmetric Tensors
-        if (indices[0]!=-1) {
-            if (dim==2) {
-                //grab indexs
-                i=indices[0]-1;
-
-                j=indices[1]-1;
-                // inert values;
-                T(i,j)=val;
-                T(j,i)=val;
+        if (dim ==4&&indices[0]==1) {
+        print("before if(indices[0]!=-1");
+            for (int i=0; i<dim; i++) {
+                std::cout<<" "<<indices[i];
             }
-            else if (dim==4) {
+            std::cout<<" "<<val<<std::endl;
+        }
 
-                i=indices[0]-1;
-                j=indices[1]-1;
-                k=indices[2]-1;
-                l=indices[3]-1;
-
-                T(i,j,k,l)=val;
-                T(i,j,l,k)=val;
-                T(j,i,k,l)=val;
-                T(j,i,l,k)=val;
-                T(k,l,i,j)=val;
-                T(k,l,j,i)=val;
-                T(l,k,i,j)=val;
-                T(l,k,j,i)=val;
+        if(indices[0]!=-1&&indices[0]!=0) {//make sure it passes a blank line
+            if ( dim ==2) {
+                a=indices[0]-1;
+                b=indices[1]-1;
+                T(a,b)=val;
+                T(b,a)=val;
             }
-            else {
-                throw "bad dim";
+            else if (dim ==4) {
+
+                a=indices[0]-1;
+                b=indices[1]-1;
+                c=indices[2]-1;
+                d=indices[3]-1;
+                
+                  T(a,b,c,d)=val;
+                  T(a,b,d,c)=val;
+                  T(b,a,c,d)=val;
+                  T(b,a,d,c)=val;
+                  T(c,d,a,b)=val;
+                  T(c,d,b,a)=val;
+                  T(d,c,a,b)=val;
+                  T(d,c,b,a)=val;
+
+               if (count ==1) print("huh",a,b,c,d,indices[0]);
+                count++;
+
+            } else {
+                throw "bad";
             }
         }
-    } while ( indices[0]!=-1);
+    }
+    while ( indices[0]!=-1);
 
     delete[] indices;//releases the memory allocated for arrays of elements using new and a size in brackets([])
 }
