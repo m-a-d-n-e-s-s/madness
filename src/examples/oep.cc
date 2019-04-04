@@ -337,14 +337,14 @@ public:
             truncate(world, KS_nemo);
             normalize(KS_nemo);
 
-    		// update the nemos
-    		// set and modify orbital energies (current eigenvalues from Fock-matrix)
+    		/// calculate new orbital energies (current eigenvalues from Fock-matrix) and shift them to epsilon_HOMO^HF
+//            double homo_diff = KS_eigvals(homo_ind(KS_eigvals)) - HF_eigvals(homo_ind(HF_eigvals));
     		for (int i = 0; i < KS_nemo.size(); ++i) {
-    			KS_eigvals(i) = std::min(-0.05, F(i, i));
-    			// orbital energy is set to -0.05 if it was above
+    			KS_eigvals(i) = std::min(-0.05, F(i, i)); /// orbital energy is set to -0.05 if it was above
+//    			KS_eigvals(i) += homo_diff;
     		}
 
-    		/// TODO: Question: is this necessery in our programme or even bad?
+    		/// TODO: Question: is this necessary in our programme or even bad?
     		// if requested: subtract orbital shift from orbital energies
     		if (calc->param.orbitalshift > 0.0) {
     			if (world.rank() == 0) print("shifting orbitals by ",
@@ -434,7 +434,7 @@ public:
     		energy = 0.0;
     	}
 
-    	// calculating and printing all final numbers
+    	/// calculating and printing all final numbers
 
     	printf("\n  computing final IKS and density\n");
     	real_function_3d IKS = compute_average_I(KS_nemo, KS_eigvals);
@@ -447,20 +447,13 @@ public:
     		printf("\n  computing V_OCEP with converged OAEP orbitals and eigenvalues\n");
         	real_function_3d correction = compute_OCEP_correction(HF_nemo, HF_eigvals, KS_nemo, KS_eigvals);
         	real_function_3d ocep_oaep_pot = Vs + correction;
-        	save(correction, "OCEP_correction");
+//        	save(correction, "OCEP_correction");
         	save(ocep_oaep_pot, "OCEP_potential_with_OAEP_orbs");
-
-
-        	double De_homo = HF_eigvals(homo_ind(HF_eigvals)) - KS_eigvals(homo_ind(KS_eigvals));
-        	Voep = Vs + De_homo;
-        	save(Voep, "Slaterpotential_shifted");
 
     		printf("\nfinal OAEP orbital energies:\n");
     		for (long i = KS_eigvals.size() - 1; i >= 0; i--) {
-    			printf(" e%2.2lu = %12.8f\n", i, KS_eigvals(i) + De_homo);
+    			printf(" e%2.2lu = %12.8f\n", i, KS_eigvals(i));
     		}
-
-
     	}
     	if (is_ocep() and !is_dcep()) {
     		printf("\n  computing final V_OCEP with converged OCEP orbitals and eigenvalues\n");
@@ -575,7 +568,11 @@ public:
         real_function_3d I = -1.0*binary_op(numerator, rho, dens_inv(dens_thresh));
 
     	/// munge I for long-range asymptotic behavior
-    	I = binary_op(I, rho, binary_munge(munge_thresh, -1.0*eigvals(homo_ind(eigvals))));
+       	real_function_3d homo_diff_func = real_factory_3d(world).functor([] (const coord_3d& r) {return 1.0;});
+       	homo_diff_func.scale(-1.0*eigvals(homo_ind(eigvals)));
+       	I = ac.apply(I, homo_diff_func);
+
+//    	I = binary_op(I, rho, binary_munge(munge_thresh, -1.0*eigvals(homo_ind(eigvals))));
 
         return I;
 
@@ -592,6 +589,9 @@ public:
     	/// density with KS orbitals and HF/KS HOMO difference
     	real_function_3d rho = compute_density(nemoKS);
     	double homo_diff = eigvalsKS(homo_ind(eigvalsKS)) - eigvalsHF(homo_ind(eigvalsHF));
+    	print(homo_diff);
+
+    	real_function_3d correction = IHF - IKS;
 
 //    	/// munge potential for long-range asymptotic behavior
 //    	real_function_3d correction = binary_op(IHF - IKS, rho, binary_munge(munge_thresh, homo_diff));
@@ -601,9 +601,9 @@ public:
 //    	real_function_3d correction = ac.apply(IHF - IKS, homo_diff_func);
 
     	/// shift potential (KS) so that HOMO_HF = HOMO_KS, so potential += (HOMO_HF - HOMO_KS)
-//    	real_function_3d correction_shifted = correction - homo_diff; /// homo_diff = HOMO_KS - HOMO_HF
-    	real_function_3d correction_shifted = IHF - IKS - homo_diff;
-//    	save(correction, "OCEP_correction");
+    	real_function_3d correction_shifted = correction - homo_diff; /// homo_diff = HOMO_KS - HOMO_HF
+    	save(correction, "OCEP_correction");
+    	save(correction_shifted, "OCEP_correction_shifted");
     	return correction_shifted;
 
     }
@@ -909,6 +909,8 @@ int main(int argc, char** argv) {
 
     vecfuncT HF_nemos;
     tensorT HF_orbens;
+
+    // TODO: find a way to save eigenvalues and implement restart options
 //    const std::string saved_nemos = "HF_nemos";
 //    const std::string saved_orbens = "HF_orbens";
 //    std::ifstream f1(saved_nemos.c_str());
