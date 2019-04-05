@@ -265,22 +265,30 @@ public:
 
             		// compute OCEP potential from current nemos and eigenvalues
             		// like Kohut, 2014, equation (26) with correction = IHF - IKS
+
+        			/// shifting of orbital energies
+        			printf("HF/KS HOMO energy difference is %12.8f\n", homo_diff(HF_eigvals, KS_eigvals));
+        			printf("shifting KS orbitals");
+            		for (int i = 0; i < KS_nemo.size(); ++i) {
+            			KS_eigvals(i) += homo_diff(HF_eigvals, KS_eigvals);
+            		}
+
         			real_function_3d corr = compute_OCEP_correction(HF_nemo, HF_eigvals, KS_nemo, KS_eigvals);
-        			Voep = Vs + corr + homo_diff(HF_eigvals, KS_eigvals);
+        			Voep = Vs + corr;  //+ homo_diff(HF_eigvals, KS_eigvals);
         			save(corr, "OCEP_correction_update_"+stringify(update_counter));
-        			save(corr + homo_diff(HF_eigvals, KS_eigvals), "OCEP_correction_shifted_update_"+stringify(update_counter));
+//        			save(corr + homo_diff(HF_eigvals, KS_eigvals), "OCEP_correction_shifted_update_"+stringify(update_counter));
         			save(Voep, "OCEP_potential_update_"+stringify(update_counter));
 
         			if (is_oaep() and update_counter == 1) {
         				printf("\n\n     *** V_OAEP converged ***\n");
         				printf("\n  saving V_OCEP with converged OAEP orbitals and eigenvalues\n");
-        		    	save(compute_density(KS_nemo), "density_update_1)");
+        		    	save(compute_density(KS_nemo), "density_update_1");
         		    	save(compute_average_I(KS_nemo, KS_eigvals), "IKS_update_1");
         		    	printf("     done\n\n");
 
         	    		printf("\nfinal shifted OAEP orbital energies:\n");
         	    		for (long i = KS_eigvals.size() - 1; i >= 0; i--) {
-        	    			printf(" e%2.2lu = %12.8f\n", i, KS_eigvals(i) + homo_diff(HF_eigvals, KS_eigvals));
+        	    			printf(" e%2.2lu = %12.8f\n", i, KS_eigvals(i));  //+ homo_diff(HF_eigvals, KS_eigvals));
         	    		}
         	    		printf("HF/KS HOMO energy difference is %12.8f\n", homo_diff(HF_eigvals, KS_eigvals));
 
