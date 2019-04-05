@@ -274,11 +274,8 @@ public:
         			if (is_oaep() and update_counter == 1) {
         				printf("\n\n     *** V_OAEP converged ***\n");
         				printf("\n  saving V_OCEP with converged OAEP orbitals and eigenvalues\n");
-        		    	save(compute_density(KS_nemo), "density_OAEP");
-        		    	save(compute_average_I(KS_nemo, KS_eigvals), "IKS_OAEP");
-         		        save(corr, "OCEP_correction_OAEP");
-         		        save(corr + homo_diff(HF_eigvals, KS_eigvals), "OCEP_correction_shifted_OAEP");
-        		        save(Voep, "OCEP_potential_with_OAEP_orbs");
+        		    	save(compute_density(KS_nemo), "density_update_1)");
+        		    	save(compute_average_I(KS_nemo, KS_eigvals), "IKS_update_1");
         		    	printf("     done\n\n");
 
         	    		printf("\nfinal shifted OAEP orbital energies:\n");
@@ -454,7 +451,7 @@ public:
     	if (is_oaep() and !is_ocep() and !is_dcep()){
     		printf("\n  computing V_OCEP with converged OAEP orbitals and eigenvalues\n");
         	real_function_3d correction = compute_OCEP_correction(HF_nemo, HF_eigvals, KS_nemo, KS_eigvals);
-        	real_function_3d ocep_oaep_pot = Vs + correction + homo_diff(HF_eigvals, KS_eigvals);
+        	real_function_3d ocep_oaep_pot = Vs + correction;  //+ homo_diff(HF_eigvals, KS_eigvals);
         	save(correction, "OCEP_correction");
         	save(correction + homo_diff(HF_eigvals, KS_eigvals), "OCEP_correction_shifted");
         	save(ocep_oaep_pot, "OCEP_potential_with_OAEP_orbs");
@@ -476,7 +473,7 @@ public:
     	if (is_oaep() and !is_ocep() and !is_dcep()){
     		printf("\nfinal shifted OAEP orbital energies:\n");
     		for (long i = KS_eigvals.size() - 1; i >= 0; i--) {
-    			printf(" e%2.2lu = %12.8f\n", i, KS_eigvals(i) + homo_diff(HF_eigvals, KS_eigvals));
+    			printf(" e%2.2lu = %12.8f\n", i, KS_eigvals(i));  //+ homo_diff(HF_eigvals, KS_eigvals));
     		}
     		printf("HF/KS HOMO energy difference is %12.8f\n", homo_diff(HF_eigvals, KS_eigvals));
     	}
