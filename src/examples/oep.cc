@@ -68,7 +68,7 @@ struct dens_inv{
 };
 
 
-// TODO: change dens_inv such that Slater potential is munged unsing the following form:
+/// TODO: change dens_inv such that Slater potential is munged unsing the following form:
 
 /*
 /// Class to compute terms of the potential
@@ -157,7 +157,7 @@ private:
 	void unset_model_cdep() {oep_model[2] = false;}
 	bool is_dcep() const {return oep_model[2];}
 
-	// returns true if all members of a vector of booleans are true, otherwise false
+	/// returns true if all members of a vector of booleans are true, otherwise false
 	bool IsAlltrue(std::vector<bool> vec) {
 		for (int i = 0; i < vec.size(); i++) {
 			if (!vec[i]) return false;
@@ -202,11 +202,11 @@ public:
 
     void solve_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
 
-        // Iterative energy calculation for approximate OEP with EXACT EXCHANGE functional
-    	// for other functionals, slater potential must be modified
-    	// HF orbitals and eigenvalues are used as the guess here
-    	// note that KS_nemo is a reference and changes oep->get_calc()->amo orbitals
-    	// same for orbital energies (eigenvalues) KS_eigvals which is oep->get_calc()->aeps
+        /// Iterative energy calculation for approximate OEP with EXACT EXCHANGE functional
+    	/// for other functionals, slater potential must be modified
+    	/// HF orbitals and eigenvalues are used as the guess here
+    	/// note that KS_nemo is a reference and changes oep->get_calc()->amo orbitals
+    	/// same for orbital energies (eigenvalues) KS_eigvals which is oep->get_calc()->aeps
 
     	double energy = 0.0;
     	bool update_converged = false; // checks micro iterations and if true, Voep gets updated
@@ -236,7 +236,7 @@ public:
     	vecfuncT Jnemo, Unemo, Vnemo, Knemo;
     	real_function_3d Voep = Vs;
 
-    	//define the solver
+    	// define the solver
     	typedef allocator<double, 3> allocT;
     	typedef XNonlinearSolver<vecfunc<double, 3>, double, allocT> solverT;
     	allocT alloc(world, KS_nemo.size());
@@ -245,15 +245,15 @@ public:
 
     	// iterations until self-consistency
     	for (int iter = 0; iter < calc->param.maxiter; ++iter) {
-    		// save_function(KS_nemo, "KS_nemo_it_"+stringify(iter));
+//    		save_function(KS_nemo, "KS_nemo_it_"+stringify(iter));
     		for (int i = 0; i < KS_nemo.size(); i++) {
-    			//save(KS_nemo[i], "KS_it_"+stringify(iter)+"_nemo_"+stringify(i));
+//    		save(KS_nemo[i], "KS_it_"+stringify(iter)+"_nemo_"+stringify(i));
     		}
     		vecfuncT R2KS_nemo = R_square*KS_nemo;
     		truncate(world, R2KS_nemo);
 
-    		//real_function_3d rho = compute_density(KS_nemo);
-    		//save(rho, "density_it_"+stringify(iter));
+//    		real_function_3d rho = compute_density(KS_nemo);
+//    		save(rho, "density_it_"+stringify(iter));
 
     		if (is_ocep() or is_dcep()) { // only update if OCEP and/or DCEP is enabled
 
@@ -264,19 +264,9 @@ public:
         				printf("\n\n     *** updating OCEP potential ***\n\n");
 
             		// compute OCEP potential from current nemos and eigenvalues
-            		// like Kohut, 2014, equation (26) with correction = IHF - IKS
-
-        			/// shifting of orbital energies
-        			printf("HF/KS HOMO energy difference is %12.8f\n", homo_diff(HF_eigvals, KS_eigvals));
-        			printf("shifting KS orbitals");
-            		for (int i = 0; i < KS_nemo.size(); ++i) {
-            			KS_eigvals(i) += homo_diff(HF_eigvals, KS_eigvals);
-            		}
-
         			real_function_3d corr = compute_OCEP_correction(HF_nemo, HF_eigvals, KS_nemo, KS_eigvals);
-        			Voep = Vs + corr;  //+ homo_diff(HF_eigvals, KS_eigvals);
+        			Voep = Vs + corr;
         			save(corr, "OCEP_correction_update_"+stringify(update_counter));
-//        			save(corr + homo_diff(HF_eigvals, KS_eigvals), "OCEP_correction_shifted_update_"+stringify(update_counter));
         			save(Voep, "OCEP_potential_update_"+stringify(update_counter));
 
         			if (is_oaep() and update_counter == 1) {
@@ -288,7 +278,7 @@ public:
 
         	    		printf("\nfinal shifted OAEP orbital energies:\n");
         	    		for (long i = KS_eigvals.size() - 1; i >= 0; i--) {
-        	    			printf(" e%2.2lu = %12.8f\n", i, KS_eigvals(i));  //+ homo_diff(HF_eigvals, KS_eigvals));
+        	    			printf(" e%2.2lu = %12.8f\n", i, KS_eigvals(i) + homo_diff(HF_eigvals, KS_eigvals));
         	    		}
         	    		printf("HF/KS HOMO energy difference is %12.8f\n", homo_diff(HF_eigvals, KS_eigvals));
 
@@ -307,7 +297,6 @@ public:
         			}
 
         		}
-        		//save(Voep, "OCEP_potential_it_"+stringify(iter));
 
     		}
 
@@ -350,10 +339,9 @@ public:
             truncate(world, KS_nemo);
             normalize(KS_nemo);
 
-    		/// calculate new orbital energies (current eigenvalues from Fock-matrix) and shift them to epsilon_HOMO^HF
+    		// calculate new orbital energies (current eigenvalues from Fock-matrix)
     		for (int i = 0; i < KS_nemo.size(); ++i) {
-    			KS_eigvals(i) = std::min(-0.05, F(i, i)); /// orbital energy is set to -0.05 if it was above
-//    			KS_eigvals(i) += homo_diff(HF_eigvals, KS_eigvals);
+    			KS_eigvals(i) = std::min(-0.05, F(i, i)); // orbital energy is set to -0.05 if it was above
     		}
 
     		/// TODO: Question: is this necessary in our programme or even bad?
@@ -409,7 +397,7 @@ public:
     		vecfuncT residual = KS_nemo - GFnemo;
     		const double norm = norm2(world, residual) / sqrt(KS_nemo.size());
 
-    		// What is happening here? (KAIN)
+    		// KAIN (helps to converge)
     		vecfuncT nemo_new;
     		if (norm < 5.0e-1) {
     			nemo_new = (solver.update(KS_nemo, residual)).x;
@@ -447,21 +435,19 @@ public:
     		energy = 0.0;
     	}
 
-    	/// calculate and print all final numbers
-
+    	// calculate and print all final numbers
     	printf("\n  computing final IKS and density\n");
     	real_function_3d IKS = compute_average_I(KS_nemo, KS_eigvals);
     	real_function_3d rho = compute_density(KS_nemo);
     	save(rho, "density_final");
-    	save(IKS, "IKS");
+    	save(IKS, "IKS_final");
     	printf("     done\n");
 
     	if (is_oaep() and !is_ocep() and !is_dcep()){
     		printf("\n  computing V_OCEP with converged OAEP orbitals and eigenvalues\n");
         	real_function_3d correction = compute_OCEP_correction(HF_nemo, HF_eigvals, KS_nemo, KS_eigvals);
-        	real_function_3d ocep_oaep_pot = Vs + correction;  //+ homo_diff(HF_eigvals, KS_eigvals);
+        	real_function_3d ocep_oaep_pot = Vs + correction;
         	save(correction, "OCEP_correction");
-        	save(correction + homo_diff(HF_eigvals, KS_eigvals), "OCEP_correction_shifted");
         	save(ocep_oaep_pot, "OCEP_potential_with_OAEP_orbs");
     	}
     	if (is_ocep() and !is_dcep()) {
@@ -477,11 +463,11 @@ public:
     	}
     	printf("     done\n\n");
 
-    	/// print final orbital energies
+    	// print final orbital energies
     	if (is_oaep() and !is_ocep() and !is_dcep()){
     		printf("\nfinal shifted OAEP orbital energies:\n");
     		for (long i = KS_eigvals.size() - 1; i >= 0; i--) {
-    			printf(" e%2.2lu = %12.8f\n", i, KS_eigvals(i));  //+ homo_diff(HF_eigvals, KS_eigvals));
+    			printf(" e%2.2lu = %12.8f\n", i, KS_eigvals(i) + homo_diff(HF_eigvals, KS_eigvals));
     		}
     		printf("HF/KS HOMO energy difference is %12.8f\n", homo_diff(HF_eigvals, KS_eigvals));
     	}
@@ -533,28 +519,28 @@ public:
     	return ev1(homo_ind(ev1)) - ev2(homo_ind(ev2));
     }
 
-    // TODO: write a function that prints orbital energies
+    /// TODO: write a function that prints orbital energies
 
     /// compute density from orbitals with ragularization (Bischoff, 2014_1, equation (19))
     real_function_3d compute_density(const vecfuncT& nemo) const {
-    	real_function_3d density = 2.0*R_square*dot(world, nemo, nemo); /// 2 because closed shell
+    	real_function_3d density = 2.0*R_square*dot(world, nemo, nemo); // 2 because closed shell
     	return density;
     }
 
-    /// compute Slater potential as OAEP potential (Kohut, 2014, equation (15))
+    /// compute Slater potential (Kohut, 2014, equation (15))
     real_function_3d compute_slater_potential(const vecfuncT& nemo, const long homo_ind) const {
 
-        Exchange K(world, this, 0); /// no - in K here, so factor -1 must be included at the end
+        Exchange K(world, this, 0); // no - in K here, so factor -1 must be included at the end
         vecfuncT Knemo = K(nemo);
-        real_function_3d numerator = 2.0*R_square*dot(world, nemo, Knemo); /// 2 because closed shell
+        real_function_3d numerator = 2.0*R_square*dot(world, nemo, Knemo); // 2 because closed shell
         real_function_3d rho = compute_density(nemo);
 
-        /// dividing by rho: the minimum value for rho is dens_thresh
+        // dividing by rho: the minimum value for rho is dens_thresh
         real_function_3d Vs = -1.0*binary_op(numerator, rho, dens_inv(dens_thresh));
         save(Vs, "Slaterpotential_nolra");
 
-        /// long-range asymptotic behavior for Slater potential is \int 1/|r-r'| * |phi_HOMO|^2 dr'
-        /// in order to compute this lra, use Coulomb potential with only HOMO density (= |phi_HOMO|^2)
+        // long-range asymptotic behavior for Slater potential is \int 1/|r-r'| * |phi_HOMO|^2 dr'
+        // in order to compute this lra, use Coulomb potential with only HOMO density (= |phi_HOMO|^2)
         Coulomb J(world, this);
         real_function_3d lra = -1.0*J.compute_potential(R_square*square(nemo[homo_ind]));
 //        real_function_3d lra = (-0.5/nemo.size())*J.compute_potential(this);
@@ -567,22 +553,7 @@ public:
 //        	save(potential, "int_phi"+stringify(i)+"phi"+stringify(i));
 //        }
 
-//        real_function_3d int_phi6phi6 = -1.0*J.compute_potential(R_square*square(nemo[6]));
-//        save(R_square*square(nemo[6]), "phi6phi6");
-//        save(int_phi6phi6, "int_phi6phi6");
-//        real_function_3d int_phi6phi5 = -1.0*J.compute_potential(R_square*nemo[6]*nemo[5]);
-//        save(R_square*nemo[6]*nemo[5], "phi6phi5");
-//        save(int_phi6phi5, "int_phi6phi5");
-//        real_function_3d int_phi5phi5 = -1.0*J.compute_potential(R_square*square(nemo[5]));
-//        save(R_square*square(nemo[5]), "phi5phi5");
-//        save(int_phi5phi5, "int_phi5phi5");
-//        real_function_3d int_phi4phi4 = -1.0*J.compute_potential(R_square*square(nemo[4]));
-//        save(R_square*square(nemo[4]), "phi4phi4");
-//        save(int_phi4phi4, "int_phi4phi4");
-//
-//        real_function_3d lra = (1.0/3.0)*(int_phi6phi6 + int_phi5phi5 + int_phi4phi4);
-
-        /// use apply function from adiabatic correction (see AC.h, nemo.h and nemo.cc) with own potentials
+        // use apply function from adiabatic correction (see AC.h, nemo.h and nemo.cc) with own potentials
         Vs = ac.apply(Vs, lra);
 
         save(lra, "lra_slater");
@@ -594,19 +565,19 @@ public:
     /// compute average ionization energy I (eigenvalues as 1d tensor)
     real_function_3d compute_average_I(const vecfuncT& nemo, const tensorT eigvals) const {
 
-    	/// transform tensor eigvals to vector epsilon
+    	// transform tensor eigvals to vector epsilon
 		std::vector<double> epsilon(eigvals.size());
 		for (int i = 0; i < eigvals.size(); i++) epsilon[i] = eigvals(i);
 
-		vecfuncT nemo_square = square(world, nemo); /// |nemo|^2
-		scale(world, nemo_square, epsilon); /// epsilon*|nemo|^2
-		real_function_3d numerator = 2.0*R_square*sum(world, nemo_square); /// 2 because closed shell
+		vecfuncT nemo_square = square(world, nemo); // |nemo|^2
+		scale(world, nemo_square, epsilon); // epsilon*|nemo|^2
+		real_function_3d numerator = 2.0*R_square*sum(world, nemo_square); // 2 because closed shell
         real_function_3d rho = compute_density(nemo);
 
-        /// like Kohut, 2014, equations (21) and (25)
+        // like Kohut, 2014, equations (21) and (25)
         real_function_3d I = -1.0*binary_op(numerator, rho, dens_inv(dens_thresh));
 
-    	/// munge I for long-range asymptotic behavior
+    	// munge I for long-range asymptotic behavior which is -epsilon_HOMO
        	real_function_3d homo_func = real_factory_3d(world).functor([] (const coord_3d& r) {return 1.0;});
        	homo_func.scale(-1.0*eigvals(homo_ind(eigvals)));
        	I = ac.apply(I, homo_func);
@@ -621,24 +592,13 @@ public:
     real_function_3d compute_OCEP_correction(const vecfuncT& nemoHF, const tensorT eigvalsHF,
     		const vecfuncT& nemoKS, const tensorT eigvalsKS) const {
 
-    	/// Hartree-Fock and Kohn-Sham average ionization energie
+    	// Hartree-Fock and Kohn-Sham average ionization energie
     	real_function_3d IHF = compute_average_I(nemoHF, eigvalsHF);
     	real_function_3d IKS = compute_average_I(nemoKS, eigvalsKS);
 
-    	/// density with KS orbitals and HF/KS HOMO difference
-    	real_function_3d rho = compute_density(nemoKS);
-
-    	real_function_3d correction = IHF - IKS;
-
-//    	/// munge potential for long-range asymptotic behavior
-//    	real_function_3d correction = binary_op(IHF - IKS, rho, binary_munge(munge_thresh, homo_diff));
-
-//    	real_function_3d homo_diff_func = real_factory_3d(world).functor([] (const coord_3d& r) {return 1.0;});
-//    	homo_diff_func.scale(homo_diff(eigvalsKS, eigvalsHF));
-//    	real_function_3d correction = ac.apply(IHF - IKS, homo_diff_func);
-
-    	/// shift potential (KS) so that HOMO_HF = HOMO_KS, so potential += (HOMO_HF - HOMO_KS)
-    	real_function_3d correction_shifted = correction + homo_diff(eigvalsHF, eigvalsKS);
+    	// calculate correction IHF - IKS like Kohut, 2014, equation (26)
+    	// and shift potential so that HOMO_HF = HOMO_KS, so potential += (HOMO_HF - HOMO_KS)
+    	real_function_3d correction = IHF - IKS + homo_diff(eigvalsHF, eigvalsKS);
     	return correction;
 
     }
@@ -647,16 +607,16 @@ public:
     void compute_nemo_potentials(const vecfuncT& nemo, vecfuncT& Jnemo, vecfuncT& Unemo,
     		const real_function_3d V, vecfuncT& Vnemo) const {
 
-    	/// compute Coulomb part
+    	// compute Coulomb part
     	Coulomb J = Coulomb(world, this);
     	Jnemo = J(nemo);
     	truncate(world, Jnemo);
 
-    	/// compute nuclear potential part
+    	// compute nuclear potential part
     	Nuclear Unuc(world, this->nuclear_correlation);
     	Unemo = Unuc(nemo);
 
-    	/// compute approximate OEP exchange potential part
+    	// compute approximate OEP exchange potential part
     	Vnemo = V*nemo;
 
     }
@@ -675,19 +635,19 @@ public:
     double compute_energy(const vecfuncT phi, const vecfuncT Jphi, const real_function_3d Vx,
     		const vecfuncT Kphi, const bool vir) const {
 
-    	/// compute kinetic energy
-    	/// it's ok to use phi here, no regularization necessary for this eigenvalue
+    	// compute kinetic energy
+    	// it's ok to use phi here, no regularization necessary for this eigenvalue
     	double E_kin = 0.0;
     	for (int axis = 0; axis < 3; ++axis) {
     		real_derivative_3d D = free_space_derivative<double, 3>(world, axis);
     		const vecfuncT dphi = apply(world, D, phi);
     		E_kin += 0.5 * (inner(world, dphi, dphi)).sum();
-    		/// -1/2 sum <Psi|Nabla^2|Psi> = 1/2 sum <NablaPsi|NablaPsi>   (integration by parts)
+    		// -1/2 sum <Psi|Nabla^2|Psi> = 1/2 sum <NablaPsi|NablaPsi>   (integration by parts)
     	}
-    	E_kin *= 2.0; /// because a = b closed shell
+    	E_kin *= 2.0; // because a = b closed shell
 
-    	/// check vir: if true -> compute Evir using Levy-Perdew virial relation (Kohut_2014, (43))
-    	/// if false -> compute exchange energy using the expectation value of the exchange operator
+    	// check vir: if true -> compute Evir using Levy-Perdew virial relation (Kohut_2014, (43))
+    	// if false -> compute exchange energy using the expectation value of the exchange operator
     	double E_X;
     	if (vir) {
         	/// make vector of functions r = (x, y, z)
@@ -699,22 +659,22 @@ public:
         	r[1]=real_factory_3d(world).functor(monomial_y);
         	r[2]=real_factory_3d(world).functor(monomial_z);
         	/// for density note that phi should be R*nemo, so no R_square is needed
-        	real_function_3d rho = 2.0*dot(world, phi, phi); /// 2 because closed shell
+        	real_function_3d rho = 2.0*dot(world, phi, phi); // 2 because closed shell
         	real_function_3d rhoterm = 3*rho + dot(world, r, grad(rho));
         	E_X = inner(Vx, rhoterm);
     	}
     	else {
-    		/// this uses the oep->get_calc()->amo orbitals in the current form
+    		// this uses the oep->get_calc()->amo orbitals in the current form
     		E_X = -1.0*inner(world, phi, Kphi).sum();
     	}
 
-    	/// compute external potential (nuclear attraction)
+    	// compute external potential (nuclear attraction)
     	real_function_3d Vext = calc->potentialmanager->vnuclear();
     	const vecfuncT Vextphi = Vext*phi;
 
-    	/// compute remaining energies: nuclear attraction, Coulomb, nuclear repulsion
-    	/// computed as expectation values (see Szabo, Ostlund (3.81))
-    	const double E_ext = 2.0 * inner(world, phi, Vextphi).sum(); /// because a = b closed shell
+    	// compute remaining energies: nuclear attraction, Coulomb, nuclear repulsion
+    	// computed as expectation values (see Szabo, Ostlund (3.81))
+    	const double E_ext = 2.0 * inner(world, phi, Vextphi).sum(); // because a = b closed shell
     	const double E_J = inner(world, phi, Jphi).sum();
     	const double E_nuc = calc->molecule.nuclear_repulsion_energy();
     	double energy = E_kin + E_ext + E_J + E_X + E_nuc;
@@ -945,7 +905,7 @@ int main(int argc, char** argv) {
     vecfuncT HF_nemos;
     tensorT HF_orbens;
 
-    // TODO: find a way to save eigenvalues and implement restart options
+    /// TODO: find a way to save eigenvalues and implement restart options
 //    const std::string saved_nemos = "HF_nemos";
 //    const std::string saved_orbens = "HF_orbens";
 //    std::ifstream f1(saved_nemos.c_str());
@@ -969,7 +929,7 @@ int main(int argc, char** argv) {
         printf("finished at time %.1f\n", wall_time());
     }
 
-    /// save converged HF MOs and orbital energies
+    // save converged HF MOs and orbital energies
     HF_nemos = copy(world, oep->get_calc()->amo);
     HF_orbens = copy(oep->get_calc()->aeps);
 
@@ -980,10 +940,10 @@ int main(int argc, char** argv) {
 //    oep->make_laplacian_density_oep(rhonemo);
 
 
-    /// OEP model final energy
+    // OEP model final energy
     printf("\n   +++ starting approximate OEP iterative calculation +++\n\n");
 
-    /// read additional OEP parameters from same input file used for SCF calculation (see above)
+    // read additional OEP parameters from same input file used for SCF calculation (see above)
     std::ifstream in(input.c_str());
     oep->read_oep_param(in);
 
