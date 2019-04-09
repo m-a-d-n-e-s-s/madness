@@ -19,7 +19,7 @@
 
 using namespace madness;
 
-void readTensor(std::ifstream& fs, Tensor<double>& T,int dim, int nbf);
+void readTensor(std::ifstream& fs, Tensor<double>& T,int dim, int nbf,bool sym);
 
 int main()
 {
@@ -71,29 +71,29 @@ int main()
             fs >> enrep;
         }
         else if ( keyword == "overlap") {
-            readTensor(fs,S,2,nbf);
+            readTensor(fs,S,2,nbf,true);
         }
         else if ( keyword == "ke") {
-            readTensor(fs,KE,2,nbf);
+            readTensor(fs,KE,2,nbf,true);
         }
         else if ( keyword == "pe") {
-            readTensor(fs,PE,2,nbf);
+            readTensor(fs,PE,2,nbf,true);
         }
         else if ( keyword == "mux") {
-            readTensor(fs,MUX,2,nbf);
+            readTensor(fs,MUX,2,nbf,true);
         }
         else if ( keyword == "muy") {
-            readTensor(fs,MUY,2,nbf);
+            readTensor(fs,MUY,2,nbf,true);
         }
         else if ( keyword == "muz") {
-            readTensor(fs,MUZ,2,nbf);
+            readTensor(fs,MUZ,2,nbf,true);
         }
         else if ( keyword == "mos") {
-            readTensor(fs,MOS,2,nbf);
+            readTensor(fs,MOS,2,nbf,false);
         }
         else if ( keyword == "2-electron") {
             print("entering");
-            readTensor(fs,Electron,4,nbf);
+            readTensor(fs,Electron,4,nbf,true);
         }
         else {
             print("Unknown key word",keyword);
@@ -101,7 +101,22 @@ int main()
         }
     }
 
-    print(Electron);
+    Tensor<double> Smo(nbf,nbf);
+
+    for (int i=0; i<nbf; i++) {
+        for ( int j =0; j<nbf; j++) {
+            for( int mu=0; mu <nbf; mu++) {
+                for ( int nu=0; nu<nbf; nu++) {
+//S[i,j] = sum(mu,nu) C[mu,i] s[mu,nu] C[nu,j]
+
+                    Smo(i,j)+=MOS(mu,i)*S(mu,nu)*MOS(nu,j);
+                }
+            }
+        }
+    }
+    print(Smo);
+
+
 
     std::cout << nbf <<"this is nbf"<< std::endl;
     fs.close();
@@ -113,7 +128,7 @@ int main()
    *
    * ********************************************************************************/
 
-void readTensor(std::ifstream& fs, Tensor<double>& T,int dim, int nbf) {
+void readTensor(std::ifstream& fs, Tensor<double>& T,int dim, int nbf,bool sym) {
     int count=1;
     int a,b,c,d;
     int * indices;
@@ -131,7 +146,7 @@ void readTensor(std::ifstream& fs, Tensor<double>& T,int dim, int nbf) {
         }
         iss>>val;
         if (dim ==4&&indices[0]==1) {
-        print("before if(indices[0]!=-1");
+            print("before if(indices[0]!=-1");
             for (int i=0; i<dim; i++) {
                 std::cout<<" "<<indices[i];
             }
@@ -143,7 +158,10 @@ void readTensor(std::ifstream& fs, Tensor<double>& T,int dim, int nbf) {
                 a=indices[0]-1;
                 b=indices[1]-1;
                 T(a,b)=val;
-                T(b,a)=val;
+
+                if (sym) {
+                    T(b,a)=val;
+                }
             }
             else if (dim ==4) {
 
@@ -151,17 +169,17 @@ void readTensor(std::ifstream& fs, Tensor<double>& T,int dim, int nbf) {
                 b=indices[1]-1;
                 c=indices[2]-1;
                 d=indices[3]-1;
-                
-                  T(a,b,c,d)=val;
-                  T(a,b,d,c)=val;
-                  T(b,a,c,d)=val;
-                  T(b,a,d,c)=val;
-                  T(c,d,a,b)=val;
-                  T(c,d,b,a)=val;
-                  T(d,c,a,b)=val;
-                  T(d,c,b,a)=val;
 
-               if (count ==1) print("huh",a,b,c,d,indices[0]);
+                T(a,b,c,d)=val;
+                T(a,b,d,c)=val;
+                T(b,a,c,d)=val;
+                T(b,a,d,c)=val;
+                T(c,d,a,b)=val;
+                T(c,d,b,a)=val;
+                T(d,c,a,b)=val;
+                T(d,c,b,a)=val;
+
+                if (count ==1) print("huh",a,b,c,d,indices[0]);
                 count++;
 
             } else {
