@@ -270,9 +270,10 @@ public:
         			real_function_3d corr = compute_OCEP_correction(HF_nemo, HF_eigvals, KS_nemo, KS_eigvals);
         			Voep = Vs + corr;
 
-        			if (update_counter == 2 or update_counter % 10 == 0) {
+        			if (update_counter == 2 or update_counter % 20 == 0) {
             			save(corr, "OCEP_correction_update_"+stringify(update_counter));
             			save(Voep, "OCEP_potential_update_"+stringify(update_counter));
+            			save(compute_average_I(KS_nemo, KS_eigvals), "IKS_update_"+stringify(update_counter));
         			}
 
 //        			if (is_oaep() and update_counter == 1) {
@@ -583,10 +584,10 @@ public:
         // like Kohut, 2014, equations (21) and (25)
         real_function_3d I = -1.0*binary_op(numerator, rho, dens_inv(dens_thresh));
 
-    	// munge I for long-range asymptotic behavior which is -epsilon_HOMO
-       	real_function_3d homo_func = real_factory_3d(world).functor([] (const coord_3d& r) {return 1.0;});
-       	homo_func.scale(-1.0*eigvals(homo_ind(eigvals)));
-       	I = ac.apply(I, homo_func);
+//    	// munge I for long-range asymptotic behavior which is -epsilon_HOMO
+//       	real_function_3d homo_func = real_factory_3d(world).functor([] (const coord_3d& r) {return 1.0;});
+//       	homo_func.scale(-1.0*eigvals(homo_ind(eigvals)));
+//       	I = ac.apply(I, homo_func);
 
 //    	I = binary_op(I, rho, binary_munge(munge_thresh, -1.0*eigvals(homo_ind(eigvals))));
 
@@ -604,7 +605,14 @@ public:
 
     	// calculate correction IHF - IKS like Kohut, 2014, equation (26)
     	// and shift potential so that HOMO_HF = HOMO_KS, so potential += (HOMO_HF - HOMO_KS)
-    	real_function_3d correction = IHF - IKS + homo_diff(eigvalsHF, eigvalsKS);
+
+       	real_function_3d zero = real_factory_3d(world).functor([] (const coord_3d& r) {return 0.0;});
+       	real_function_3d correction = IHF - IKS;
+       	correction = ac.apply(correction, zero);
+    	correction = correction + homo_diff(eigvalsHF, eigvalsKS);
+
+//    	real_function_3d correction = IHF - IKS + homo_diff(eigvalsHF, eigvalsKS);
+
     	return correction;
 
     }
