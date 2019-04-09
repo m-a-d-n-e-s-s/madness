@@ -257,44 +257,50 @@ public:
 
     		if (is_ocep() or is_dcep()) { // only update if OCEP and/or DCEP is enabled
 
+    			// ATTENTION: delete this after testing!
+    			update_converged = true;
+
         		// is computed (= updated) only if calculation was converged for smooth convergence
         		if (update_converged) {
         			update_counter++;
-        			if (!is_oaep() or update_counter > 1)
+//        			if (!is_oaep() or update_counter > 1)
         				printf("\n\n     *** updating OCEP potential ***\n\n");
 
             		// compute OCEP potential from current nemos and eigenvalues
         			real_function_3d corr = compute_OCEP_correction(HF_nemo, HF_eigvals, KS_nemo, KS_eigvals);
         			Voep = Vs + corr;
-        			save(corr, "OCEP_correction_update_"+stringify(update_counter));
-        			save(Voep, "OCEP_potential_update_"+stringify(update_counter));
 
-        			if (is_oaep() and update_counter == 1) {
-        				printf("\n\n     *** V_OAEP converged ***\n");
-        				printf("\n  saving V_OCEP with converged OAEP orbitals and eigenvalues\n");
-        		    	save(compute_density(KS_nemo), "density_update_1");
-        		    	save(compute_average_I(KS_nemo, KS_eigvals), "IKS_update_1");
-        		    	printf("     done\n\n");
-
-        	    		printf("\nfinal shifted OAEP orbital energies:\n");
-        	    		for (long i = KS_eigvals.size() - 1; i >= 0; i--) {
-        	    			printf(" e%2.2lu = %12.8f\n", i, KS_eigvals(i) + homo_diff(HF_eigvals, KS_eigvals));
-        	    		}
-        	    		printf("HF/KS HOMO energy difference is %12.8f\n", homo_diff(HF_eigvals, KS_eigvals));
-
-        		    	printf("\nFINAL OAEP ENERGY Evir:");
-        		    	double Evir = compute_energy(R*KS_nemo, R*Jnemo, Vs, Knemo, true);
-
-        		    	printf("\nFINAL OAEP ENERGY Econv:");
-        		    	compute_exchange_potential(KS_nemo, Knemo);
-        		    	double Econv = compute_energy(R*KS_nemo, R*Jnemo, Vs, R*Knemo, false);
-
-        		    	printf("OAEP  Evir = %15.8f  Eh", Evir);
-        		    	printf("\nOAEP Econv = %15.8f  Eh", Econv);
-        		    	printf("\nOAEP DEvir = %15.8f mEh\n", (Evir - Econv)*1000);
-
-        		    	printf("\n\n\n     *** updating OCEP potential ***\n\n");
+        			if (update_counter == 2 or update_counter % 10 == 0) {
+            			save(corr, "OCEP_correction_update_"+stringify(update_counter));
+            			save(Voep, "OCEP_potential_update_"+stringify(update_counter));
         			}
+
+//        			if (is_oaep() and update_counter == 1) {
+//        				printf("\n\n     *** V_OAEP converged ***\n");
+//        				printf("\n  saving V_OCEP with converged OAEP orbitals and eigenvalues\n");
+//        		    	save(compute_density(KS_nemo), "density_update_1");
+//        		    	save(compute_average_I(KS_nemo, KS_eigvals), "IKS_update_1");
+//        		    	printf("     done\n\n");
+//
+//        	    		printf("\nfinal shifted OAEP orbital energies:\n");
+//        	    		for (long i = KS_eigvals.size() - 1; i >= 0; i--) {
+//        	    			printf(" e%2.2lu = %12.8f\n", i, KS_eigvals(i) + homo_diff(HF_eigvals, KS_eigvals));
+//        	    		}
+//        	    		printf("HF/KS HOMO energy difference is %12.8f\n", homo_diff(HF_eigvals, KS_eigvals));
+//
+//        		    	printf("\nFINAL OAEP ENERGY Evir:");
+//        		    	double Evir = compute_energy(R*KS_nemo, R*Jnemo, Vs, Knemo, true);
+//
+//        		    	printf("\nFINAL OAEP ENERGY Econv:");
+//        		    	compute_exchange_potential(KS_nemo, Knemo);
+//        		    	double Econv = compute_energy(R*KS_nemo, R*Jnemo, Vs, R*Knemo, false);
+//
+//        		    	printf("OAEP  Evir = %15.8f  Eh", Evir);
+//        		    	printf("\nOAEP Econv = %15.8f  Eh", Econv);
+//        		    	printf("\nOAEP DEvir = %15.8f mEh\n", (Evir - Econv)*1000);
+//
+//        		    	printf("\n\n\n     *** updating OCEP potential ***\n\n");
+//        			}
 
         		}
 
