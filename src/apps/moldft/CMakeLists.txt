@@ -18,6 +18,9 @@ target_link_libraries(testperiodic_moldft MADchem)
 add_executable(DFdriver DFdriver.cc DF.cc fcwf.cc gaussian.cc NWChem.cc polynomial.cc)
 target_link_libraries(DFdriver MADchem MADmra)
 
+add_executable(DFdriver2 DFdriver.cc DF.cc fcwf.cc gaussian.cc NWChem.cc polynomial.cc)
+target_link_libraries(DFdriver2 MADchem MADmra)
+
 add_executable(rk rk-3.cc)
 target_link_libraries(rk MADchem MADmra -lgmp -lmpfr)
 

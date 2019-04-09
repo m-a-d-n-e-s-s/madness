@@ -1,0 +1,14 @@
+README file for Joel Anderson's fork of MADNESS
+
+Notes:
+After configuration with cmake, you may need to go to <build directory>/src/madness/config.h and change the line:
+
+/*undef HAVE_INTEL_MKL */
+
+to:
+
+def HAVE_INTEL_MKL 1
+
+making sure that you do in fact have Intel MKL.
+
+This is due to a bug that I don't know how to fix, where even if you have Intel MKL, cmake doesn't set the right preprocessing macros, and ends up compiling pieces of code without it.

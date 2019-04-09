@@ -52,6 +52,7 @@ namespace madness {
           bool nwchem;                 ///< Indicates archive given is actually an nwchem file for starting the job
           bool lineplot;               ///< Whether or not to make lineplots at the end of the job
           bool no_compute;             ///< If true, will skip all computation
+          double bohr_rad;             ///< bohr radius in fm (default: 52917.7211)
           //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           //               If you add something here, don't forget to add it to serializable!
@@ -64,7 +65,7 @@ namespace madness {
 
           template<typename Archive>
           void serialize(Archive& ar){
-               ar & archive & job & print_level & max_iter & small & thresh & k & kain & maxsub & maxrotn & restart & nucleus & do_save & savefile & lb_iter & nwchem & lineplot & no_compute;
+               ar & archive & job & print_level & max_iter & small & thresh & k & kain & maxsub & maxrotn & restart & nucleus & do_save & savefile & lb_iter & nwchem & lineplot & no_compute & bohr_rad;
           }
 
           // Default constructor
@@ -87,6 +88,7 @@ namespace madness {
           , nwchem(false)
           , lineplot(false)
           , no_compute(false)
+          , bohr_rad(52917.7211)
           {}
 
           // Initializes DFParameters using the contents of file \c filename
@@ -178,6 +180,9 @@ namespace madness {
                     }
                     else if (s == "no_compute"){
                          no_compute = true;
+                    }
+                    else if (s == "bohr_rad"){
+                         f >> bohr_rad;
                     }
                     else{
                        std::cout << "Dirac Fock: unrecognized input keyword " << s << std::endl;

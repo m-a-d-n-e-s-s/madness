@@ -202,7 +202,7 @@ class GaussianNucleusFunctor : public FunctionFunctorInterface<double,3> {
           std::vector<double> m_xi;
      public:
           // Constructor 
-          GaussianNucleusFunctor(Molecule& molecule){
+          GaussianNucleusFunctor(Molecule& molecule, double bohr_rad){
 
                //get atom coordinates
                m_Rlist = molecule.get_all_coords_vec();
@@ -220,7 +220,7 @@ class GaussianNucleusFunctor : public FunctionFunctorInterface<double,3> {
 
                //calculate factors necessary for the potential
                for(unsigned int i = 0; i < m_Zlist.size(); i++){
-                    m_xi.push_back(sqrt(3.0/2.0)/(0.836*pow(m_Alist[i],1.0/3.0)+0.57)*52917.7211);
+                    m_xi.push_back(sqrt(3.0/2.0)/(0.836*pow(m_Alist[i],1.0/3.0)+0.57)*bohr_rad);
                }
           }
           
@@ -266,8 +266,9 @@ class FermiNucDistFunctor : public FunctionFunctorInterface<double,3> {
           std::vector<coord_3d> m_R;
      public:
           // Constructor 
-          FermiNucDistFunctor(int& Z, coord_3d R){
-               m_T = 0.000043463700858425666; //2.3 fm in bohr
+          FermiNucDistFunctor(int& Z, coord_3d R, double bohr_rad){
+               //m_T = 0.000043463700858425666; //2.3 fm in bohr
+               m_T = 2.3/bohr_rad;
                m_R.push_back(R);
                
                //find atomic mass numbers for each atom
@@ -279,7 +280,7 @@ class FermiNucDistFunctor : public FunctionFunctorInterface<double,3> {
                     m_C = 0.000022291*pow(m_A, 1.0/3.0) - 0.0000090676;
                }
                else{
-                    m_C = sqrt(5.0/3.0*pow((0.836*pow(m_A,1.0/3.0)+0.570)/52917.7211,2) - 7.0/3.0*pow(PI*m_T/4.0/log(3.0),2));
+                    m_C = sqrt(5.0/3.0*pow((0.836*pow(m_A,1.0/3.0)+0.570)/bohr_rad,2) - 7.0/3.0*pow(PI*m_T/4.0/log(3.0),2));
                }
           }
           
@@ -301,6 +302,27 @@ class FermiNucDistFunctor : public FunctionFunctorInterface<double,3> {
           madness::Level special_level() {
                return 18;
           }
+
+          void print_details(World& world){
+               int Alist[116] = {1,4,7,9,11,12,14,16,19,20,23,24,27,28,31,32,35,40,39,40,45,48,51,52,55,56,59,58,63,64,69,74,75,80,79,84,85,88,89,90,93,98,98,102,103,106,107,114,115,120,121,130,127,132,133,138,139,140,141,144,145,152,153,158,159,162,162,168,169,174,175,180,181,184,187,192,193,195,197,202,205,208,209,209,210,222,223,226,227,232,231,238,237,244,243,247,247,251,252,257,258,259,262,261,262,263,262,265,266,264,272,277,284,289,288,292};
+               double T = 2.3/52917.72490083583;
+               double PI = constants::pi;
+               
+               if(world.rank()==0){
+                    for(int i = 0; i < 116; i++){
+                         double RMS = (0.836*pow(Alist[i],1.0/3.0)+0.570)/52917.72490083583;
+                         double C;
+                         if(Alist[i] < 5){
+                              C = 0.000022291*pow(Alist[i], 1.0/3.0) - 0.0000090676;
+                         }
+                         else{
+                              C = sqrt(5.0/3.0*pow(RMS,2)-7.0/3.0*pow(PI*T/4.0/log(3.0),2));
+                         }
+                         double xi = 3.0/2.0/pow(RMS,2);
+                         printf("Z: %3i,  A: %3i,  RMS: %.10e,  C: %.10e,  xi: %.10e\n", i+1, Alist[i], RMS, C, xi);
+                    }
+               }
+          }
 };
 
 //generic f(r)=||r|| function for calculation of the radial expectation value
@@ -321,12 +343,13 @@ void DF::make_fermi_potential(World& world, real_convolution_3d& op, real_functi
 
      for(unsigned int i = 0; i < num_atoms; i++){
           Zlist[i] = Init_params.molecule.get_atom_number(i);
-          FermiNucDistFunctor rho(Zlist[i], Rlist[i]);
+          FermiNucDistFunctor rho(Zlist[i], Rlist[i],DFparams.bohr_rad);
           temp = real_factory_3d(world).functor(rho).truncate_mode(0);
           tempnorm = temp.trace();
           temp.scale(-Zlist[i]/tempnorm);
           if(i == 0){
                potential = temp;
+               //rho.print_details(world);
           }
           else{
                potential += temp;
@@ -1591,14 +1614,14 @@ void DF::saveDF(World& world){
 //Creates the nuclear potential from the molecule object
 void DF::make_gaussian_potential(World& world, real_function_3d& potential){
      if(world.rank()==0) print("\n***Making a Gaussian Potential***");
-     GaussianNucleusFunctor Vfunctor(Init_params.molecule);
+     GaussianNucleusFunctor Vfunctor(Init_params.molecule, DFparams.bohr_rad);
      potential = real_factory_3d(world).functor(Vfunctor).truncate_mode(0).truncate_on_project();
 }
 
 //Creates the nuclear potential from the molecule object. Also calculates the nuclear repulsion energy
 void DF::make_gaussian_potential(World& world, real_function_3d& potential, double& nuclear_repulsion_energy){
      if(world.rank()==0) print("\n***Making a Gaussian Potential***");
-     GaussianNucleusFunctor Vfunctor(Init_params.molecule);
+     GaussianNucleusFunctor Vfunctor(Init_params.molecule,DFparams.bohr_rad);
      potential = real_factory_3d(world).functor(Vfunctor).truncate_mode(0).truncate_on_project();
      std::vector<coord_3d> Rlist = Vfunctor.get_Rlist();
      std::vector<int> Zlist = Vfunctor.get_Zlist();
