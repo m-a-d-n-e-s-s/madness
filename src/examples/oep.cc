@@ -188,9 +188,11 @@ public:
             }
             else if (str == "density_threshold") {
             	in >> dens_thresh;
+            	print("using density_threshold =", dens_thresh);
             }
             else if (str == "munge_threshold") {
             	in >> munge_thresh;
+            	print("using munge_threshold =", munge_thresh);
             }
             else {
                 print("oep: unrecognized input keyword:", str);
@@ -228,9 +230,22 @@ public:
     	const real_function_3d IHF = compute_average_I(HF_nemo, HF_eigvals);
     	save(IHF, "IHF");
 
+
+    	// test
+		std::vector<double> epsilon(HF_eigvals.size());
+		for (int i = 0; i < HF_eigvals.size(); i++) epsilon[i] = HF_eigvals(i);
+		vecfuncT nemo_square = square(world, HF_nemo); // |nemo|^2
+		scale(world, nemo_square, epsilon); // epsilon*|nemo|^2
+		real_function_3d numerator = 2.0*R_square*sum(world, nemo_square); // 2 because closed shell
+		save(compute_density(HF_nemo), "density_HF");
+		save(numerator, "IHF_numerator");
+		// end test
+
+
     	// set KS_nemo as reference to MOs
     	vecfuncT& KS_nemo = calc->amo;
     	tensorT& KS_eigvals = calc->aeps; // 1d tensor of same length as KS_nemo
+    	save(compute_density(KS_nemo), "desity_start");
 
     	// all necessary operators applied on nemos (Knemo is used later):
     	vecfuncT Jnemo, Unemo, Vnemo, Knemo;
@@ -257,7 +272,7 @@ public:
 
     		if (is_ocep() or is_dcep()) { // only update if OCEP and/or DCEP is enabled
 
-    			// ATTENTION: delete this after testing!
+    			// TODO: ATTENTION: delete this after testing or change code if successful!
     			update_converged = true;
 
         		// is computed (= updated) only if calculation was converged for smooth convergence
@@ -271,9 +286,22 @@ public:
         			Voep = Vs + corr;
 
         			if (update_counter == 2 or update_counter % 20 == 0) {
-            			save(corr, "OCEP_correction_update_"+stringify(update_counter));
-            			save(Voep, "OCEP_potential_update_"+stringify(update_counter));
-            			save(compute_average_I(KS_nemo, KS_eigvals), "IKS_update_"+stringify(update_counter));
+            			save(corr, "OCEP_correction_update_" + stringify(update_counter));
+            			save(Voep, "OCEP_potential_update_" + stringify(update_counter));
+            			save(compute_density(KS_nemo), "density_update_" + stringify(update_counter));
+            			save(compute_average_I(KS_nemo, KS_eigvals), "IKS_update_" + stringify(update_counter));
+
+
+            	    	// test
+            			std::vector<double> epsilon(KS_eigvals.size());
+            			for (int i = 0; i < KS_eigvals.size(); i++) epsilon[i] = KS_eigvals(i);
+            			vecfuncT nemo_square = square(world, KS_nemo); // |nemo|^2
+            			scale(world, nemo_square, epsilon); // epsilon*|nemo|^2
+            			real_function_3d numerator = 2.0*R_square*sum(world, nemo_square); // 2 because closed shell
+            			save(numerator, "IKS_numerator_update_" + stringify(update_counter));
+            			// end test
+
+
         			}
 
 //        			if (is_oaep() and update_counter == 1) {
@@ -431,6 +459,9 @@ public:
     		}
 
     		if (update_converged and potential_converged) break;
+
+    		// TODO: ATTENTION: delete this after testing!
+    		if (update_counter == 2) break;
 
     	}
 
