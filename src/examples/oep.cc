@@ -96,7 +96,8 @@ struct binary_munge{
 	double longrangevalue;
 	double threshold;
 
-	binary_munge(const double thresh = 1.0e-8, const double lrv = 0.0) { // same default value as for munge_thresh
+	/// same default value as for munge_thresh
+	binary_munge(const double thresh = 1.0e-8, const double lrv = 0.0) {
 		longrangevalue = lrv;
 		threshold = thresh;
 	}
@@ -110,6 +111,47 @@ struct binary_munge{
             U, double r = refdens(IND);
             double ff = f(IND);
             U(IND) = (r > threshold) ? ff : longrangevalue;
+        );
+    }
+
+    template <typename Archive>
+    void serialize(Archive& ar) {}
+
+};
+
+
+struct binary_munge_linear{
+
+	double longrangevalue, thresh_high, thresh_low;
+
+	/// same default values as for dens_thresh_hi and dens_thresh_lo
+	binary_munge_linear(const double hi = 1.0e-6, const double lo = 1.0e-8, const double lrv = 0.0) {
+		longrangevalue = lrv;
+		thresh_high = hi;
+		thresh_low = lo;
+	}
+
+    /// @param[out] U   result
+    /// @param[in]  f   function to be munged
+    /// @param[in]  r   refdensity
+    void operator()(const Key<3>& key, Tensor<double>& U, const Tensor<double>& f,
+            const Tensor<double>& refdens) const {
+
+    	// interpolate with value = (r - lo)/(hi - lo), then U = f*value + longrangevalue*(1 - value)
+    	const Tensor<double> value = (refdens - thresh_low)/(thresh_high - thresh_low);
+    	Tensor<double> ff = copy(f);
+    	ff.emul(value);
+    	Tensor<double> longrange = longrangevalue*(1.0 - value);
+
+        ITERATOR(
+            U, double r = refdens(IND);
+            if (r > thresh_high) {
+            	U(IND) = f(IND);
+            } else if (r < thresh_low) {
+            	U(IND) = longrangevalue;
+            } else {
+            	U(IND) = ff(IND) + longrange(IND);
+            }
         );
     }
 
@@ -141,7 +183,8 @@ class OEP : public Nemo {
 
 private:
 
-	double dens_thresh = 1.0e-8;   // default 1.0e-8
+	double dens_thresh_hi = 1.0e-6;   // default 1.0e-6
+	double dens_thresh_lo = 1.0e-8;   // default 1.0e-8
 	double munge_thresh = 1.0e-8;  // default 1.0e-8
 	std::vector<bool> oep_model = {false, false, false};
 
@@ -186,18 +229,27 @@ public:
             else if (str == "dcep") {
             	set_model_dcep();
             }
-            else if (str == "density_threshold") {
-            	in >> dens_thresh;
-            	print("using density_threshold =", dens_thresh);
+            else if (str == "density_threshold_high") {
+            	in >> dens_thresh_hi;
+            	print("using upper density threshold =", dens_thresh_hi);
+            }
+            else if (str == "density_threshold_low") {
+            	in >> dens_thresh_lo;
+            	print("using lower density threshold =", dens_thresh_lo);
             }
             else if (str == "munge_threshold") {
             	in >> munge_thresh;
-            	print("using munge_threshold =", munge_thresh);
+            	print("using munge threshold =", munge_thresh);
             }
             else {
                 print("oep: unrecognized input keyword:", str);
                 MADNESS_EXCEPTION("input error",0);
             }
+        }
+
+        if (dens_thresh_hi <= dens_thresh_lo) {
+            print("oep: density_threshold_high must always be larger than density_threshold_low!");
+            MADNESS_EXCEPTION("input error",0);
         }
 	}
 
@@ -230,6 +282,14 @@ public:
     	const real_function_3d IHF = compute_average_I(HF_nemo, HF_eigvals);
     	save(IHF, "IHF");
 
+//    	// test
+//    	vecfuncT HF_nemo_square = square(world, HF_nemo);
+//    	for (int i = 0; i < HF_nemo_square.size(); i++) {
+//    		save(HF_nemo_square[i], "HF_nemo_square_" + stringify(i));
+//    	}
+//    	// end test
+
+//    	return; // for mungeing testing reasons
 
     	// test
 		std::vector<double> epsilon(HF_eigvals.size());
@@ -237,15 +297,14 @@ public:
 		vecfuncT nemo_square = square(world, HF_nemo); // |nemo|^2
 		scale(world, nemo_square, epsilon); // epsilon*|nemo|^2
 		real_function_3d numerator = 2.0*R_square*sum(world, nemo_square); // 2 because closed shell
-		save(compute_density(HF_nemo), "density_HF");
 		save(numerator, "IHF_numerator");
 		// end test
-
 
     	// set KS_nemo as reference to MOs
     	vecfuncT& KS_nemo = calc->amo;
     	tensorT& KS_eigvals = calc->aeps; // 1d tensor of same length as KS_nemo
-    	save(compute_density(KS_nemo), "desity_start");
+		save(compute_density(HF_nemo), "density_HF");
+    	save(compute_density(KS_nemo), "density_start");
 
     	// all necessary operators applied on nemos (Knemo is used later):
     	vecfuncT Jnemo, Unemo, Vnemo, Knemo;
@@ -282,25 +341,33 @@ public:
         				printf("\n\n     *** updating OCEP potential ***\n\n");
 
             		// compute OCEP potential from current nemos and eigenvalues
-        			real_function_3d corr = compute_OCEP_correction(HF_nemo, HF_eigvals, KS_nemo, KS_eigvals);
-        			Voep = Vs + corr;
+        			real_function_3d corr_ocep = compute_OCEP_correction(HF_eigvals, IHF, KS_nemo, KS_eigvals);
+        			Voep = Vs + corr_ocep;
 
-        			if (update_counter == 2 or update_counter % 20 == 0) {
-            			save(corr, "OCEP_correction_update_" + stringify(update_counter));
+//        			real_function_3d corr_dcep = compute_DCEP_correction(...);
+//        			Voep = Vs + corr_ocep + corr_dcep;
+
+        			if (update_counter == 2 or update_counter % 25 == 0) {
+            			save(corr_ocep, "OCEP_correction_update_" + stringify(update_counter));
             			save(Voep, "OCEP_potential_update_" + stringify(update_counter));
             			save(compute_density(KS_nemo), "density_update_" + stringify(update_counter));
             			save(compute_average_I(KS_nemo, KS_eigvals), "IKS_update_" + stringify(update_counter));
 
+//            	    	// test
+//            			std::vector<double> epsilon(KS_eigvals.size());
+//            			for (int i = 0; i < KS_eigvals.size(); i++) epsilon[i] = KS_eigvals(i);
+//            			vecfuncT nemo_square = square(world, KS_nemo); // |nemo|^2
+//            			scale(world, nemo_square, epsilon); // epsilon*|nemo|^2
+//            			real_function_3d numerator = 2.0*R_square*sum(world, nemo_square); // 2 because closed shell
+//            			save(numerator, "IKS_numerator_update_" + stringify(update_counter));
+//            			// end test
 
-            	    	// test
-            			std::vector<double> epsilon(KS_eigvals.size());
-            			for (int i = 0; i < KS_eigvals.size(); i++) epsilon[i] = KS_eigvals(i);
-            			vecfuncT nemo_square = square(world, KS_nemo); // |nemo|^2
-            			scale(world, nemo_square, epsilon); // epsilon*|nemo|^2
-            			real_function_3d numerator = 2.0*R_square*sum(world, nemo_square); // 2 because closed shell
-            			save(numerator, "IKS_numerator_update_" + stringify(update_counter));
-            			// end test
-
+//            	    	// test
+//            	    	vecfuncT KS_nemo_square = square(world, KS_nemo);
+//            	    	for (int i = 0; i < KS_nemo_square.size(); i++) {
+//            	    		save(KS_nemo_square[i], "KS_nemo_square_" + stringify(i));
+//            	    	}
+//            	    	// end test
 
         			}
 
@@ -460,9 +527,6 @@ public:
 
     		if (update_converged and potential_converged) break;
 
-    		// TODO: ATTENTION: delete this after testing!
-    		if (update_counter == 2) break;
-
     	}
 
     	if (update_converged and potential_converged) {
@@ -483,14 +547,14 @@ public:
 
     	if (is_oaep() and !is_ocep() and !is_dcep()){
     		printf("\n  computing V_OCEP with converged OAEP orbitals and eigenvalues\n");
-        	real_function_3d correction = compute_OCEP_correction(HF_nemo, HF_eigvals, KS_nemo, KS_eigvals);
+        	real_function_3d correction = compute_OCEP_correction(HF_eigvals, IHF, KS_nemo, KS_eigvals);
         	real_function_3d ocep_oaep_pot = Vs + correction;
         	save(correction, "OCEP_correction");
         	save(ocep_oaep_pot, "OCEP_potential_with_OAEP_orbs");
     	}
     	if (is_ocep() and !is_dcep()) {
     		printf("\n  computing final V_OCEP with converged OCEP orbitals and eigenvalues\n");
-        	real_function_3d correction_final = compute_OCEP_correction(HF_nemo, HF_eigvals, KS_nemo, KS_eigvals);
+        	real_function_3d correction_final = compute_OCEP_correction(HF_eigvals, IHF, KS_nemo, KS_eigvals);
         	Voep = Vs + correction_final;
         	save(correction_final, "OCEP_correction_final");
         	save(Voep, "OCEP_potential_final");
@@ -574,7 +638,7 @@ public:
         real_function_3d rho = compute_density(nemo);
 
         // dividing by rho: the minimum value for rho is dens_thresh
-        real_function_3d Vs = -1.0*binary_op(numerator, rho, dens_inv(dens_thresh));
+        real_function_3d Vs = -1.0*binary_op(numerator, rho, dens_inv(dens_thresh_lo));
         save(Vs, "Slaterpotential_nolra");
 
         // long-range asymptotic behavior for Slater potential is \int 1/|r-r'| * |phi_HOMO|^2 dr'
@@ -613,36 +677,31 @@ public:
         real_function_3d rho = compute_density(nemo);
 
         // like Kohut, 2014, equations (21) and (25)
-        real_function_3d I = -1.0*binary_op(numerator, rho, dens_inv(dens_thresh));
+        real_function_3d I = -1.0*binary_op(numerator, rho, dens_inv(dens_thresh_lo));
 
-//    	// munge I for long-range asymptotic behavior which is -epsilon_HOMO
 //       	real_function_3d homo_func = real_factory_3d(world).functor([] (const coord_3d& r) {return 1.0;});
 //       	homo_func.scale(-1.0*eigvals(homo_ind(eigvals)));
+//       	print("computing I: index of HOMO is", homo_ind(eigvals));
 //       	I = ac.apply(I, homo_func);
 
-//    	I = binary_op(I, rho, binary_munge(munge_thresh, -1.0*eigvals(homo_ind(eigvals))));
+        // munge I for long-range asymptotic behavior which is -epsilon_HOMO
+       	print("computing I: index of HOMO is", homo_ind(eigvals));
+       	I = binary_op(I, rho, binary_munge_linear(dens_thresh_hi, dens_thresh_lo, -1.0*eigvals(homo_ind(eigvals))));
 
         return I;
 
     }
 
     /// compute OCEP potential from OAEP Slater potential Vs
-    real_function_3d compute_OCEP_correction(const vecfuncT& nemoHF, const tensorT eigvalsHF,
+    real_function_3d compute_OCEP_correction(const tensorT eigvalsHF, const real_function_3d IHF,
     		const vecfuncT& nemoKS, const tensorT eigvalsKS) const {
 
-    	// Hartree-Fock and Kohn-Sham average ionization energie
-    	real_function_3d IHF = compute_average_I(nemoHF, eigvalsHF);
+    	// Kohn-Sham average ionization energie
     	real_function_3d IKS = compute_average_I(nemoKS, eigvalsKS);
 
     	// calculate correction IHF - IKS like Kohut, 2014, equation (26)
     	// and shift potential so that HOMO_HF = HOMO_KS, so potential += (HOMO_HF - HOMO_KS)
-
-       	real_function_3d zero = real_factory_3d(world).functor([] (const coord_3d& r) {return 0.0;});
-       	real_function_3d correction = IHF - IKS;
-       	correction = ac.apply(correction, zero);
-    	correction = correction + homo_diff(eigvalsHF, eigvalsKS);
-
-//    	real_function_3d correction = IHF - IKS + homo_diff(eigvalsHF, eigvalsKS);
+       	real_function_3d correction = IHF - IKS + homo_diff(eigvalsHF, eigvalsKS);
 
     	return correction;
 
@@ -754,7 +813,7 @@ public:
         vecfuncT laplace_Rnemo=Laplace(Rnemo);
         real_function_3d tauL=-0.5*dot(world,laplace_Rnemo,Rnemo);
         save(tauL,"tauL");
-        real_function_3d tauL_div_rho=binary_op(tauL,rho,dens_inv(dens_thresh));
+        real_function_3d tauL_div_rho=binary_op(tauL,rho,dens_inv(dens_thresh_lo));
         save(tauL_div_rho,"tauL_div_rho");
 
         // compute tau = | grad(mo) |^2
@@ -772,7 +831,7 @@ public:
             tau+=dot(world,gradnemo,gradnemo);
         }
         tau=0.5*tau*R_square;
-        real_function_3d tau_div_rho=binary_op(tau,rho,dens_inv(dens_thresh));
+        real_function_3d tau_div_rho=binary_op(tau,rho,dens_inv(dens_thresh_lo));
         save(tau_div_rho,"tau_div_rho");
 
         // compute the laplacian of the density with the log trick
@@ -838,9 +897,9 @@ public:
         // divide by the density
         real_function_3d numerator=2.0*(-0.5*phiD2phi);   // fac 2 for sum over spin orbitals
 //        real_function_3d numerator=2.0*(-0.5*phiD2phi-phiepsilonphi);   // fac 2 for sum over spin orbitals
-        real_function_3d kinetic1=binary_op(numerator,rho,dens_inv(dens_thresh));
+        real_function_3d kinetic1=binary_op(numerator,rho,dens_inv(dens_thresh_lo));
         save(kinetic1,"kinetic1");
-        real_function_3d nu_bar=kinetic1 + 2.0*(-0.5)*binary_op(phiepsilonphi,rho,dens_inv(dens_thresh));
+        real_function_3d nu_bar=kinetic1 + 2.0*(-0.5)*binary_op(phiepsilonphi,rho,dens_inv(dens_thresh_lo));
 
         // reintroduce the nuclear potential *after* smoothing
         real_function_3d uvnuc=calc->potentialmanager->vnuclear()-nuclear_correlation->U2();
