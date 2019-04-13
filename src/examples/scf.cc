@@ -103,6 +103,12 @@ int main()
 
     Tensor<double> Smo(nbf,nbf);
 
+
+    /*  Molecular overlap matrix should be idenities... this is a test to check whether
+     *  the integral matrices are read into the program directly
+     *  if they are then the overlap matrix of molecular orbitals should be identies
+     *  S(i,j)=sum(mu,nu) C'*S*C
+     */
     for (int i=0; i<nbf; i++) {
         for ( int j =0; j<nbf; j++) {
             for( int mu=0; mu <nbf; mu++) {
