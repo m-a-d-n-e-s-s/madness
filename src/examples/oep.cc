@@ -186,6 +186,7 @@ private:
 	double dens_thresh_hi = 1.0e-6;   // default 1.0e-6
 	double dens_thresh_lo = 1.0e-8;   // default 1.0e-8
 	double munge_thresh = 1.0e-8;  // default 1.0e-8
+	int damping_num = 3;
 	std::vector<bool> oep_model = {false, false, false};
 
 	void set_model_oaep() {oep_model[0] = true;}
@@ -309,6 +310,11 @@ public:
     	// all necessary operators applied on nemos (Knemo is used later):
     	vecfuncT Jnemo, Unemo, Vnemo, Knemo;
     	real_function_3d Voep = Vs;
+//    	real_function_3d Voep_old = Vs;
+//    	std::vector<real_function_3d> Voep_old2(damping_num);
+//    	for (int i = 0; i < damping_num; i++) {
+//    		Voep_old2[i] = Vs;
+//    	}
 
     	// define the solver
     	typedef allocator<double, 3> allocT;
@@ -340,18 +346,24 @@ public:
 //        			if (!is_oaep() or update_counter > 1)
         				printf("\n\n     *** updating OCEP potential ***\n\n");
 
+
+//        			// damping for better convergence of V_OCEP
+//        			Voep_old = Voep;
+
             		// compute OCEP potential from current nemos and eigenvalues
         			real_function_3d corr_ocep = compute_OCEP_correction(HF_eigvals, IHF, KS_nemo, KS_eigvals);
         			Voep = Vs + corr_ocep;
 
+//        			Voep = 0.5*(Vs + corr_ocep) + 0.5*Voep_old;
+
 //        			real_function_3d corr_dcep = compute_DCEP_correction(...);
 //        			Voep = Vs + corr_ocep + corr_dcep;
 
-        			if (update_counter == 2 or update_counter % 25 == 0) {
-            			save(corr_ocep, "OCEP_correction_update_" + stringify(update_counter));
-            			save(Voep, "OCEP_potential_update_" + stringify(update_counter));
-            			save(compute_density(KS_nemo), "density_update_" + stringify(update_counter));
-            			save(compute_average_I(KS_nemo, KS_eigvals), "IKS_update_" + stringify(update_counter));
+        			if (iter == 1 or iter % 25 == 0) {
+            			save(corr_ocep, "OCEP_correction_update_" + stringify(iter));
+            			save(Voep, "OCEP_potential_update_" + stringify(iter));
+            			save(compute_density(KS_nemo), "density_update_" + stringify(iter));
+            			save(compute_average_I(KS_nemo, KS_eigvals), "IKS_update_" + stringify(iter));
 
 //            	    	// test
 //            			std::vector<double> epsilon(KS_eigvals.size());
