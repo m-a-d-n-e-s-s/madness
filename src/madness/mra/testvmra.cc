@@ -82,6 +82,56 @@ RandomGaussian(const Tensor<double> cell, double expntmax=1e5) {
 }
 
 
+template <typename T, std::size_t NDIM>
+void test_add(World& world) {
+
+    const double thresh=1.e-7;
+    Tensor<double> cell(NDIM,2);
+    for (std::size_t i=0; i<NDIM; ++i) {
+        cell(i,0) = -11.0-2*i;  // Deliberately asymmetric bounding box
+        cell(i,1) =  10.0+i;
+    }
+    FunctionDefaults<NDIM>::set_cell(cell);
+    FunctionDefaults<NDIM>::set_k(8);
+    FunctionDefaults<NDIM>::set_thresh(thresh);
+    FunctionDefaults<NDIM>::set_refine(true);
+    FunctionDefaults<NDIM>::set_initial_level(3);
+    FunctionDefaults<NDIM>::set_truncate_mode(1);
+
+    std::size_t nvec=5;
+    std::vector<Function<T,NDIM> > add1(nvec), add2(nvec), sum(nvec), diff(nvec);
+
+    for (int i=0; i<nvec; ++i) {
+        add1[i]=FunctionFactory<T,NDIM>(world).functor([] (const Vector<double,3>& r) {return r.normf();});
+        add2[i]=FunctionFactory<T,NDIM>(world).functor([] (const Vector<double,3>& r) {return 2.0*r.normf();});
+        sum[i]=FunctionFactory<T,NDIM>(world).functor([] (const Vector<double,3>& r) {return 3.0*r.normf();});
+        diff[i]=FunctionFactory<T,NDIM>(world).functor([] (const Vector<double,3>& r) {return -1.0*r.normf();});
+    }
+
+    std::vector<Function<T,NDIM> > r1=add1+add2;
+    std::vector<Function<T,NDIM> > r3=add1+add2[0];
+    std::vector<Function<T,NDIM> > r5=add1[0]+add2;
+
+    std::vector<Function<T,NDIM> > r2=add1-add2;
+    std::vector<Function<T,NDIM> > r4=add1-add2[0];
+    std::vector<Function<T,NDIM> > r6=add1[0]-add2;
+
+    double error1=0.0,error2=0.0,error3=0.0,error4=0.0,error5=0.0,error6=0.0;
+    for (int i=0; i<nvec; ++i) {
+    	error1+=(r1[i]-sum[i]).norm2();
+    	error3+=(r3[i]-sum[i]).norm2();
+    	error5+=(r5[i]-sum[i]).norm2();
+
+    	error2+=(r2[i]-diff[i]).norm2();
+    	error4+=(r4[i]-diff[i]).norm2();
+    	error6+=(r6[i]-diff[i]).norm2();
+    }
+    print("errors in add", error1,error3,error5,error2,error4,error6);
+
+}
+
+
+
 template <typename T, typename R, int NDIM, bool sym>
 void test_inner(World& world) {
     typedef std::shared_ptr< FunctionFunctorInterface<T,NDIM> > ffunctorT;
@@ -308,6 +358,9 @@ int main(int argc, char**argv) {
     try {
         World world(SafeMPI::COMM_WORLD);
         startup(world,argc,argv);
+
+        test_add<double,3>(world);
+        test_add<std::complex<double>,3 >(world);
 
         test_inner<double,double,1,false>(world);
         test_inner<double,double,1,true>(world);

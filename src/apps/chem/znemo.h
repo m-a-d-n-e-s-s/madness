@@ -23,6 +23,7 @@
 
 namespace madness {
 
+class Diamagnetic_potential_factor;
 
 struct spherical_box : public FunctionFunctorInterface<double,3> {
 	const double radius;
@@ -112,15 +113,17 @@ struct allocator {
 
 class Nemo_complex_Parameters : public CalculationParametersBase {
 public:
-	enum parameterenum {B_, box_, shift_,printlevel_,diamagnetic_height_};
+	enum parameterenum {B_, explicit_B_, box_, shift_, printlevel_, diamagnetic_height_, use_diamagnetic_factor_};
 
 	/// the parameters with the enum key, the constructor taking the input file key and a default value
 	ParameterMap params={
         		init<std::vector<double> >(B_,{"B",{0.0}}),
+        		init<std::vector<double> >(explicit_B_,{"explicit_B",{0.0}}),
         		init<std::vector<double> >(box_,{"box",{15.0,1.0,4.0,0.0,0.0,0.0}}),
 				init<double>(shift_,{"shift",0.0}),
 				init<int>(printlevel_,{"printlevel",1}),		// 0: energies, 1: fock matrix, 2: function sizes
-				init<double>(diamagnetic_height_,{"diamagnetic_height",30})
+				init<double>(diamagnetic_height_,{"diamagnetic_height",30}),
+				init<bool>(use_diamagnetic_factor_,{"diamagnetic_factor",false})
     };
 
 	/// ctor reading out the input file
@@ -139,8 +142,10 @@ public:
 	int printlevel() const {return get<int>(printlevel_);}
 	double shift() const {return get<double>(shift_);}
 	std::vector<double> B() const {return get<std::vector<double> >(B_);}
+	std::vector<double> explicit_B() const {return get<std::vector<double> >(explicit_B_);}
 	std::vector<double> box() const {return get<std::vector<double> >(box_);}
 	double diamagnetic_height() const {return get<double>(diamagnetic_height_);}
+	bool use_diamagnetic_factor() const {return get<bool>(use_diamagnetic_factor_);}
 
 
 	/// return the value of the parameter
@@ -177,37 +182,7 @@ class Znemo {
 	};
 
 public:
-	Znemo(World& w) : world(w), param(world), molecule("input"), cparam() {
-		cparam.read_file("input");
-
-	    FunctionDefaults<3>::set_k(cparam.k);
-	    FunctionDefaults<3>::set_thresh(cparam.econv);
-	    FunctionDefaults<3>::set_refine(true);
-	    FunctionDefaults<3>::set_initial_level(5);
-	    FunctionDefaults<3>::set_truncate_mode(1);
-        FunctionDefaults<3>::set_cubic_cell(-cparam.L, cparam.L);
-
-        aobasis.read_file(cparam.aobasis);
-        cparam.set_molecular_info(molecule, aobasis, 0);
-
-		if (world.rank()==0) {
-			param.print(param.params,"complex","end");
-			cparam.print(world);
-			molecule.print();
-		}
-
-		// the guess is read from a previous nemo calculation
-		// make sure the molecule was not reoriented there
-		if (not cparam.no_orient) {
-			MADNESS_EXCEPTION("the molecule of the reference calculation was reoriented\n\n",1);
-		}
-
-		coulop=std::shared_ptr<real_convolution_3d>(CoulombOperatorPtr(world,cparam.lo,cparam.econv));
-		coord_3d box_offset{param.box()[3],param.box()[4],param.box()[5]};
-		spherical_box sbox2(param.box()[0],param.box()[1],param.box()[2],box_offset);
-		sbox=real_factory_3d(world).functor(sbox2);
-		save(sbox,"sbox");
-	};
+	Znemo(World& w);
 
 	/// compute the molecular energy
 	double value();
@@ -247,6 +222,8 @@ public:
 	/// compute the shift of the molecule such that the kinetic momentum vanishes
 	Tensor<double> compute_standard_gauge_shift(const Tensor<double>& p_exp) const {
 		Tensor<double> S(3);
+		const double B=param.B()[0];
+
 	    S(0l)=-p_exp(1);
 	    S(1) =p_exp(0l);
 	    S(2) =p_exp(2);
@@ -353,33 +330,6 @@ public:
 	}
 
 
-	/// compute the diamagnetic local potential (B is in z direction -> dia = x^2 + y^2
-	std::vector<complex_function_3d> diamagnetic(const std::vector<complex_function_3d>& rhs) const {
-//		auto dia = [](const coord_3d& r) {return r[0]*r[0] + r[1]*r[1];};
-		if (B!=0.0) {
-			const double height=param.diamagnetic_height();
-			const double radius=sqrt(8.0*height/(B*B));
-			return rhs*diamagnetic_boxed + radius*radius*rhs;
-		} else {
-			return zero_functions<double_complex,3>(world,rhs.size());
-		}
-	}
-
-	real_function_3d make_diamagnetic_boxed() const {
-		if (B!=0.0) {
-			const double height=param.diamagnetic_height();
-			const double radius=sqrt(8.0*height/(B*B));
-			if (world.rank()==0) print("computed radius for diamagnetic term from its cutoff height to",radius);
-			real_function_3d diabox=real_factory_3d(world).functor(diamagnetic_boxed_functor(radius));
-			save(diabox*(0.125*(B*B)),"diabox_B"+stringify(B));
-			return diabox;
-		} else {
-			auto one = [](const coord_3d& r) {return 1.0;};
-			real_function_3d nobox=real_factory_3d(world).functor(one);
-			return nobox;
-		}
-	}
-
 	/// compute the potential operators applied on the orbitals
 	potentials compute_potentials(const std::vector<complex_function_3d>& mo,
 			const real_function_3d& density,
@@ -401,10 +351,7 @@ public:
 
 	void orthonormalize(std::vector<complex_function_3d>& amo) const;
 
-	void normalize(std::vector<complex_function_3d>& mo) const {
-		std::vector<double> n=norm2s(world,mo);
-		for (int i=0; i<mo.size(); ++i) mo[i].scale(1.0/(n[i]));
-	}
+	void normalize(std::vector<complex_function_3d>& mo) const;
 
 	static Tensor<double_complex> Q2(const Tensor<double_complex> & s) {
 		Tensor<double_complex> Q = -0.5*s;
@@ -422,6 +369,8 @@ protected:
 	/// standard calculation parameters
 	CalculationParameters cparam;
 
+	std::shared_ptr<Diamagnetic_potential_factor> diafac;
+
 	/// nuclear potential
 	real_function_3d vnuclear;
 
@@ -431,14 +380,8 @@ protected:
 	/// the orbital energies
 	Tensor<double> aeps, beps;
 
-	/// the external magnetic field in z-direction
-	double B=0.0;
-
 	/// the spherical damping box
 	real_function_3d sbox;
-
-	/// the boxed diamagnetic potential (for a given B)
-	real_function_3d diamagnetic_boxed;
 
 	std::shared_ptr<real_convolution_3d> coulop;
 

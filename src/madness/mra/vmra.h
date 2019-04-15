@@ -1099,6 +1099,53 @@ namespace madness {
     }
 
 
+    /// out-of-place gaxpy for two vectors: result[i] = alpha * a[i] + beta * b[i]
+    template <typename T, typename Q, typename R, std::size_t NDIM>
+    std::vector<Function<TENSOR_RESULT_TYPE(Q,TENSOR_RESULT_TYPE(T,R)),NDIM> >
+    gaxpy_oop(Q alpha,
+               const std::vector< Function<T,NDIM> >& a,
+               Q beta,
+               const std::vector< Function<R,NDIM> >& b,
+               bool fence=true) {
+
+        MADNESS_ASSERT(a.size() == b.size());
+        typedef TENSOR_RESULT_TYPE(Q,TENSOR_RESULT_TYPE(T,R)) resultT;
+        if (a.size()==0) return std::vector<Function<resultT,NDIM> >();
+
+        World& world=a[0].world();
+        compress(world,a);
+    	compress(world,b);
+    	std::vector<Function<resultT,NDIM> > result(a.size());
+        for (unsigned int i=0; i<a.size(); ++i) {
+            result[i]=gaxpy_oop(alpha, a[i], beta, b[i], false);
+        }
+        if (fence) world.gop.fence();
+        return result;
+    }
+
+
+    /// out-of-place gaxpy for a vectors and a function: result[i] = alpha * a[i] + beta * b
+    template <typename T, typename Q, typename R, std::size_t NDIM>
+    std::vector<Function<TENSOR_RESULT_TYPE(Q,TENSOR_RESULT_TYPE(T,R)),NDIM> >
+    gaxpy_oop(Q alpha,
+               const std::vector< Function<T,NDIM> >& a,
+               Q beta,
+               const Function<R,NDIM>& b,
+               bool fence=true) {
+
+        typedef TENSOR_RESULT_TYPE(Q,TENSOR_RESULT_TYPE(T,R)) resultT;
+        if (a.size()==0) return std::vector<Function<resultT,NDIM> >();
+
+        World& world=a[0].world();
+        compress(world,a);
+    	b.compress();
+    	std::vector<Function<resultT,NDIM> > result(a.size());
+        for (unsigned int i=0; i<a.size(); ++i) {
+            result[i]=gaxpy_oop(alpha, a[i], beta, b, false);
+        }
+        if (fence) world.gop.fence();
+        return result;
+    }
 
     /// Generalized A*X+Y for vectors of functions ---- a[i] = alpha*a[i] + beta*b[i]
     template <typename T, typename Q, typename R, std::size_t NDIM>
@@ -1260,19 +1307,48 @@ namespace madness {
 
     // convenience operators
 
+    /// result[i] = a[i] + b[i]
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > operator+(const std::vector<Function<T,NDIM> >& lhs,
             const std::vector<Function<T,NDIM>>& rhs) {
-        if (lhs.size()>0) return add(lhs[0].world(),lhs,rhs);
-        return std::vector<Function<T, NDIM> >();
+        return gaxpy_oop(1.0,lhs,1.0,rhs);
     }
 
+    /// result[i] = a[i] - b[i]
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > operator-(const std::vector<Function<T,NDIM> >& lhs,
             const std::vector<Function<T,NDIM> >& rhs) {
-        if (lhs.size()>0) return sub(lhs[0].world(),lhs,rhs);
-        return std::vector<Function<T, NDIM> >();
+        return gaxpy_oop(1.0,lhs,-1.0,rhs);
     }
+
+    /// result[i] = a[i] + b
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > operator+(const std::vector<Function<T,NDIM> >& lhs,
+            const Function<T,NDIM>& rhs) {
+        return gaxpy_oop(1.0,lhs,1.0,rhs);
+    }
+
+    /// result[i] = a[i] - b
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > operator-(const std::vector<Function<T,NDIM> >& lhs,
+            const Function<T,NDIM>& rhs) {
+        return gaxpy_oop(1.0,lhs,-1.0,rhs);
+    }
+
+    /// result[i] = a + b[i]
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > operator+(const Function<T,NDIM>& lhs,
+            const std::vector<Function<T,NDIM> >& rhs) {
+        return gaxpy_oop(1.0,rhs,1.0,lhs);
+    }
+
+    /// result[i] = a - b[i]
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > operator-(const Function<T,NDIM>& lhs,
+            const std::vector<Function<T,NDIM> >& rhs) {
+        return gaxpy_oop(-1.0,rhs,1.0,lhs);
+    }
+
 
     template <typename T, typename R, std::size_t NDIM>
     std::vector<Function<TENSOR_RESULT_TYPE(T,R),NDIM> > operator*(const R fac,
