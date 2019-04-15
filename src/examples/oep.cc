@@ -186,7 +186,7 @@ private:
 	double dens_thresh_hi = 1.0e-6;   // default 1.0e-6
 	double dens_thresh_lo = 1.0e-8;   // default 1.0e-8
 	double munge_thresh = 1.0e-8;  // default 1.0e-8
-	int damping_num = 3;
+	unsigned int damping_num = 0;
 	std::vector<bool> oep_model = {false, false, false};
 
 	void set_model_oaep() {oep_model[0] = true;}
@@ -241,6 +241,14 @@ public:
             else if (str == "munge_threshold") {
             	in >> munge_thresh;
             	print("using munge threshold =", munge_thresh);
+            }
+            else if (str == "damping") {
+            	in >> damping_num;
+            	if (damping_num == 1) {
+            		print("using one old potential for damping (50/50)");
+            	} else if (damping_num == 2){
+            		print("using two old potentials for damping (50/35/15)");
+            	} else print("using no damping");
             }
             else {
                 print("oep: unrecognized input keyword:", str);
@@ -310,11 +318,13 @@ public:
     	// all necessary operators applied on nemos (Knemo is used later):
     	vecfuncT Jnemo, Unemo, Vnemo, Knemo;
     	real_function_3d Voep = Vs;
-//    	real_function_3d Voep_old = Vs;
-//    	std::vector<real_function_3d> Voep_old2(damping_num);
-//    	for (int i = 0; i < damping_num; i++) {
-//    		Voep_old2[i] = Vs;
-//    	}
+
+    	// TODO: implement damping better!
+    	// copy Vs to all old potentials for damping
+       	std::vector<real_function_3d> Voep_old(damping_num);
+       	for (int i = 0; i < damping_num; i++) {
+       		Voep_old[i] = Vs;
+       	}
 
     	// define the solver
     	typedef allocator<double, 3> allocT;
@@ -346,15 +356,21 @@ public:
 //        			if (!is_oaep() or update_counter > 1)
         				printf("\n\n     *** updating OCEP potential ***\n\n");
 
-
-//        			// damping for better convergence of V_OCEP
-//        			Voep_old = Voep;
+        			// damping for better convergence of V_OCEP
+        			for (int i = 0; i < damping_num - 1; i++) {
+        				Voep_old[i+1] = Voep_old[i];
+        			}
+        			Voep_old[0] = Voep;
 
             		// compute OCEP potential from current nemos and eigenvalues
         			real_function_3d corr_ocep = compute_OCEP_correction(HF_eigvals, IHF, KS_nemo, KS_eigvals);
-        			Voep = Vs + corr_ocep;
 
-//        			Voep = 0.5*(Vs + corr_ocep) + 0.5*Voep_old;
+        			// damping
+        			if (damping_num == 1) {
+        				Voep = 0.5*(Vs + corr_ocep) + 0.5*Voep_old[0];
+        			} else if (damping_num == 2) {
+        				Voep = 0.5*(Vs + corr_ocep) + 0.35*Voep_old[0] + 0.15*Voep_old[1];
+        			} else Voep = Vs + corr_ocep;
 
 //        			real_function_3d corr_dcep = compute_DCEP_correction(...);
 //        			Voep = Vs + corr_ocep + corr_dcep;
