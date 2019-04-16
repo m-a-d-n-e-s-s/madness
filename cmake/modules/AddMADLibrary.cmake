@@ -123,9 +123,7 @@ macro(add_mad_hdr_library _name _header_files _dep_mad_comp _include_dir)
     endif()
   endforeach()
   
-  # default to C++14 across the board. see here for explanation of this choice:
-  # https://github.com/drbenmorgan/cmake-compile-features/blob/master/README.md
-  target_compile_features(MAD${_name} INTERFACE cxx_decltype_auto)
+  target_compile_features(MAD${_name} INTERFACE "cxx_std_${CMAKE_CXX_STANDARD}")
   
   set(${_name}_is_mad_hdr_lib TRUE)
 endmacro()
