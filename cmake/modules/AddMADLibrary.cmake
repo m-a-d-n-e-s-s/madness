@@ -72,9 +72,7 @@ macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_d
   endforeach()
   set_target_properties(MAD${_name} PROPERTIES LINK_FLAGS "${LINK_FLAGS}") 
  
-  # default to C++14 across the board. see here for explanation of this choice:
-  # https://github.com/drbenmorgan/cmake-compile-features/blob/master/README.md
-  target_compile_features(MAD${_name} INTERFACE cxx_decltype_auto)
+  target_compile_features(MAD${_name} INTERFACE "cxx_std_${CMAKE_CXX_STANDARD}")
 
 endmacro()
 
