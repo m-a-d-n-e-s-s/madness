@@ -7,6 +7,13 @@
 
 using namespace madness;
 
+class Student
+{
+  std::string name;
+  int id;
+  int gradDate;
+};
+
 int main()
 {
 

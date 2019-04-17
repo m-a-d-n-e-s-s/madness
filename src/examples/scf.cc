@@ -1,4 +1,4 @@
-/** Program to solve SCF Equations and Compute SCF and MP2 energies
+/* Program to solve SCF Equations and Compute SCF and MP2 energies
  *  Program outline
  *  1. Read and print out all data from integral.dat
  *  2. Develop some notes in latex that details the equations
@@ -58,7 +58,7 @@ int main()
     Tensor<double> MUX(nbf,nbf);
     Tensor<double> MUY(nbf,nbf);
     Tensor<double> MUZ(nbf,nbf);
-    Tensor<double> MOS(nbf,nbf);
+    Tensor<double> C(nbf,nbf);
     Tensor<double> Electron(nbf,nbf,nbf,nbf);
 
 
@@ -89,7 +89,7 @@ int main()
             readTensor(fs,MUZ,2,nbf,true);
         }
         else if ( keyword == "mos") {
-            readTensor(fs,MOS,2,nbf,false);
+            readTensor(fs,C,2,nbf,false);
         }
         else if ( keyword == "2-electron") {
             print("entering");
@@ -102,6 +102,7 @@ int main()
     }
 
     Tensor<double> Smo(nbf,nbf);
+    Tensor<double> Smo2(nbf,nbf);
 
 
     /*  Molecular overlap matrix should be idenities... this is a test to check whether
@@ -109,25 +110,50 @@ int main()
      *  if they are then the overlap matrix of molecular orbitals should be identies
      *  S(i,j)=sum(mu,nu) C'*S*C
      */
+    int c1(0); 
     for (int i=0; i<nbf; i++) {
         for ( int j =0; j<nbf; j++) {
             for( int mu=0; mu <nbf; mu++) {
                 for ( int nu=0; nu<nbf; nu++) {
 //S[i,j] = sum(mu,nu) C[mu,i] s[mu,nu] C[nu,j]
-
-                    Smo(i,j)+=MOS(mu,i)*S(mu,nu)*MOS(nu,j);
+                    c1++;
+                    Smo(i,j)+=C(mu,i)*S(mu,nu)*C(nu,j);
                 }
             }
         }
     }
+    Tensor<double> B(nbf,nbf);
+    int c2(0);
+
+    for (int i=0; i<nbf;i++){
+      for ( int nu=0; nu<nbf;nu++){
+        for( int mu=0; mu<nbf;mu++){
+          B(i,nu)+=C(mu,i)*S(mu,nu);
+        }
+      }
+    }
+    for ( int i =0; i<nbf; i++){
+      for( int j =0; j < nbf; j++){
+        for (int nu=0; nu <nbf; nu++){
+          Smo(i,j)+=B(i,nu)*C(nu,j);
+          c2++;
+          }
+      }
+    }
+
+    Tensor<double> P(nbf,nbf);//Density Matrix
+    
+    
+      
+
+        
     print(Smo);
 
 
 
     std::cout << nbf <<"this is nbf"<< std::endl;
     fs.close();
-    Tensor<double> f(2, 2);
-    print(f);
+    print("N^4 ",c1,"2*N^3",c2);
     return 0;
 }
 /**********************************************************************************
