@@ -187,6 +187,7 @@ private:
 	double dens_thresh_lo = 1.0e-8;   // default 1.0e-8
 	double munge_thresh = 1.0e-8;  // default 1.0e-8
 	unsigned int damping_num = 0;
+	std::string model;
 	std::vector<bool> oep_model = {false, false, false};
 
 	void set_model_oaep() {oep_model[0] = true;}
@@ -223,12 +224,15 @@ public:
             }
             else if (str == "oaep") {
                 set_model_oaep();
+                model = "OAEP";
             }
             else if (str == "ocep") {
             	set_model_ocep();
+            	model = "OCEP";
             }
             else if (str == "dcep") {
             	set_model_dcep();
+            	model = "DCEP";
             }
             else if (str == "density_threshold_high") {
             	in >> dens_thresh_hi;
@@ -262,14 +266,12 @@ public:
         }
 	}
 
-
+    /// Iterative energy calculation for approximate OEP with EXACT EXCHANGE functional
+	/// for other functionals, slater potential must be modified
+	/// HF orbitals and eigenvalues are used as the guess here
+	/// note that KS_nemo is a reference and changes oep->get_calc()->amo orbitals
+	/// same for orbital energies (eigenvalues) KS_eigvals which is oep->get_calc()->aeps
     void solve_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
-
-        /// Iterative energy calculation for approximate OEP with EXACT EXCHANGE functional
-    	/// for other functionals, slater potential must be modified
-    	/// HF orbitals and eigenvalues are used as the guess here
-    	/// note that KS_nemo is a reference and changes oep->get_calc()->amo orbitals
-    	/// same for orbital energies (eigenvalues) KS_eigvals which is oep->get_calc()->aeps
 
     	double energy = 0.0;
     	bool update_converged = false; // checks micro iterations and if true, Voep gets updated
@@ -361,6 +363,9 @@ public:
         				Voep_old[i+1] = Voep_old[i];
         			}
         			Voep_old[0] = Voep;
+
+        			// shift orbital energies so that HOMO_HF = HOMO_KS
+        			shift_orbens(KS_eigvals, homo_diff(HF_eigvals, KS_eigvals));
 
             		// compute OCEP potential from current nemos and eigenvalues
         			real_function_3d corr_ocep = compute_OCEP_correction(HF_eigvals, IHF, KS_nemo, KS_eigvals);
@@ -490,7 +495,8 @@ public:
         			// build vector of convergence information of every orbital energy
         			std::vector<bool> conv(KS_eigvals.size());
         			for (int i = 0; i < KS_eigvals.size(); i++) {
-        				if (fabs(KS_eigvals(i) - old_eigvals(i)) < calc->param.dconv) conv[i] = true;
+        				// structure of iterations makes it necessary to add orbital shift again for convergence criterium
+        				if (fabs(KS_eigvals(i) + homo_diff(HF_eigvals, KS_eigvals) - old_eigvals(i)) < calc->param.dconv) conv[i] = true;
         				else conv[i] = false;
         			}
 
@@ -502,10 +508,8 @@ public:
 
     		// print orbital energies:
     		printf("\norbital energies of iteration %3u:\n", iter);
-    		for (long i = KS_eigvals.size() - 1; i >= 0; i--) {
-    			printf(" e%2.2lu = %12.8f\n", i, KS_eigvals(i));
-    		}
-    		printf("HF/KS HOMO energy difference is %12.8f\n", homo_diff(HF_eigvals, KS_eigvals));
+    		print_orbens(KS_eigvals);
+    		printf("HF/KS HOMO energy difference is %11.8f Eh\n", homo_diff(HF_eigvals, KS_eigvals));
 
     		// construct the BSH operators ops
     		std::vector<poperatorT> G = calc->make_bsh_operators(world, KS_eigvals);
@@ -594,41 +598,19 @@ public:
     	printf("     done\n\n");
 
     	// print final orbital energies
-    	if (is_oaep() and !is_ocep() and !is_dcep()){
-    		printf("\nfinal shifted OAEP orbital energies:\n");
-    		for (long i = KS_eigvals.size() - 1; i >= 0; i--) {
-    			printf(" e%2.2lu = %12.8f\n", i, KS_eigvals(i) + homo_diff(HF_eigvals, KS_eigvals));
-    		}
-    		printf("HF/KS HOMO energy difference is %12.8f\n", homo_diff(HF_eigvals, KS_eigvals));
-    	}
-    	if (is_ocep() and !is_dcep()) {
-    		printf("\nfinal shifted OCEP orbital energies:\n");
-    		for (long i = KS_eigvals.size() - 1; i >= 0; i--) {
-    			printf(" e%2.2lu = %12.8f\n", i, KS_eigvals(i));
-    		}
-    		printf("HF/KS HOMO energy difference is %12.8f\n", homo_diff(HF_eigvals, KS_eigvals));
-    	}
-    	if (is_dcep()) {
-    		printf("\nfinal shifted DCEP orbital energies:\n");
-    		for (long i = KS_eigvals.size() - 1; i >= 0; i--) {
-    			printf(" e%2.2lu = %12.8f\n", i, KS_eigvals(i));
-    		}
-    		printf("HF/KS HOMO energy difference is %12.8f\n", homo_diff(HF_eigvals, KS_eigvals));
-    	}
+   		print("final shifted " + model + " orbital energies:");
+   		print_orbens(KS_eigvals, homo_diff(HF_eigvals, KS_eigvals));
+   		print("HF/KS HOMO energy difference of", homo_diff(HF_eigvals, KS_eigvals), "Eh is already included");
 
-    	if (is_oaep() and !is_ocep() and !is_dcep()) printf("\nFINAL OAEP ENERGY Evir:");
     	if (is_ocep() and !is_dcep()) {
     		if (update_converged and potential_converged)
-    			printf("\nV_OCEP converged after %3u updates\n", update_counter);
-    		printf("\nFINAL OCEP ENERGY Evir:");
+    			print("V_OCEP converged after", update_counter, "updates");
     	}
-    	if (is_dcep()) printf("\nFINAL DCEP ENERGY Evir:");
+
+    	print("FINAL " + model + " ENERGY Evir:");
     	double Evir = compute_energy(R*KS_nemo, R*Jnemo, Voep, Knemo, true); // Knemo is not used here
 
-    	if (is_oaep() and !is_ocep() and !is_dcep()) printf("\nFINAL OAEP ENERGY Econv:");
-    	if (is_ocep() and !is_dcep()) printf("\nFINAL OCEP ENERGY Econv:");
-    	if (is_dcep()) printf("\nFINAL DCEP ENERGY Econv:");
-    	compute_exchange_potential(KS_nemo, Knemo);
+    	print("FINAL " + model + " ENERGY Econv:");
     	double Econv = compute_energy(R*KS_nemo, R*Jnemo, Voep, R*Knemo, false); // Voep is not used here
 
     	printf("      Evir = %15.8f  Eh", Evir);
@@ -649,7 +631,19 @@ public:
     	return ev1(homo_ind(ev1)) - ev2(homo_ind(ev2));
     }
 
-    /// TODO: write a function that prints orbital energies
+    /// print orbital energies in in reverse order with optional shift
+    void print_orbens(const tensorT orbens, const double shift = 0.0) const {
+		for (long i = orbens.size() - 1; i >= 0; i--) {
+			printf(" e%2.2lu = %12.8f\n", i, orbens(i) + shift);
+		}
+    }
+
+    /// shift all orbital energies in place by a double number
+    void shift_orbens(tensorT orbens, const double shift) const {
+    	for (long i = 0; i < orbens.size(); i++) {
+    		orbens(i) += shift;
+    	}
+    }
 
     /// compute density from orbitals with ragularization (Bischoff, 2014_1, equation (19))
     real_function_3d compute_density(const vecfuncT& nemo) const {
@@ -724,12 +718,12 @@ public:
     real_function_3d compute_OCEP_correction(const tensorT eigvalsHF, const real_function_3d IHF,
     		const vecfuncT& nemoKS, const tensorT eigvalsKS) const {
 
-    	// Kohn-Sham average ionization energie
+    	// Kohn-Sham average ionization energy
     	real_function_3d IKS = compute_average_I(nemoKS, eigvalsKS);
 
     	// calculate correction IHF - IKS like Kohut, 2014, equation (26)
     	// and shift potential so that HOMO_HF = HOMO_KS, so potential += (HOMO_HF - HOMO_KS)
-       	real_function_3d correction = IHF - IKS + homo_diff(eigvalsHF, eigvalsKS);
+       	real_function_3d correction = IHF - IKS; // + homo_diff(eigvalsHF, eigvalsKS);
 
     	return correction;
 
