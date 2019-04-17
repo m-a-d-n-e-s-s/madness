@@ -29,8 +29,8 @@ struct spherical_box : public FunctionFunctorInterface<double,3> {
 	const double radius;
 	const double height;
 	const double tightness;
-	const coord_3d offset;
-	const coord_3d B_direction;
+	const coord_3d offset={0,0,0};
+	const coord_3d B_direction={0,0,1.0};
 	spherical_box(const double r, const double h, const double t,
 			const coord_3d o={0.0,0.0,0.0}, const coord_3d B_dir={0.0,0.0,1.0}) :
 		radius(r), height(h), tightness(t), offset(o), B_direction(B_dir) {}
@@ -117,9 +117,9 @@ public:
 
 	/// the parameters with the enum key, the constructor taking the input file key and a default value
 	ParameterMap params={
-        		init<std::vector<double> >(B_,{"B",{0.0}}),
-        		init<std::vector<double> >(explicit_B_,{"explicit_B",{0.0}}),
-        		init<std::vector<double> >(box_,{"box",{15.0,1.0,4.0,0.0,0.0,0.0}}),
+        		init<double>(B_,{"B",0.0}),
+        		init<double>(explicit_B_,{"explicit_B",0.0}),
+        		init<std::vector<double> >(box_,{"box",{15.0, 1.0, 4.0, 0.0, 0.0, 0.0}}),
 				init<double>(shift_,{"shift",0.0}),
 				init<int>(printlevel_,{"printlevel",1}),		// 0: energies, 1: fock matrix, 2: function sizes
 				init<double>(diamagnetic_height_,{"diamagnetic_height",30}),
@@ -141,8 +141,8 @@ public:
 
 	int printlevel() const {return get<int>(printlevel_);}
 	double shift() const {return get<double>(shift_);}
-	std::vector<double> B() const {return get<std::vector<double> >(B_);}
-	std::vector<double> explicit_B() const {return get<std::vector<double> >(explicit_B_);}
+	double B() const {return get<double>(B_);}
+	double explicit_B() const {return get<double>(explicit_B_);}
 	std::vector<double> box() const {return get<std::vector<double> >(box_);}
 	double diamagnetic_height() const {return get<double>(diamagnetic_height_);}
 	bool use_diamagnetic_factor() const {return get<bool>(use_diamagnetic_factor_);}
@@ -222,7 +222,7 @@ public:
 	/// compute the shift of the molecule such that the kinetic momentum vanishes
 	Tensor<double> compute_standard_gauge_shift(const Tensor<double>& p_exp) const {
 		Tensor<double> S(3);
-		const double B=param.B()[0];
+		const double B=param.B();
 
 	    S(0l)=-p_exp(1);
 	    S(1) =p_exp(0l);
@@ -239,18 +239,28 @@ public:
 	/// solve the SCF iterations
 	void solve_SCF();
 
+	/// turn the magnetic strength from the input file to a coord_3d
+	coord_3d Bvec(const double B) {return coord_3d{0.0,0.0,B};}
+
 	/// compute the magnetic vector potential A
-	static std::vector<real_function_3d> compute_magnetic_vector_potential(World& world, const Tensor<double>& Bvec) {
+	static std::vector<real_function_3d> compute_magnetic_vector_potential(World& world,
+			const coord_3d& Bvec) {
 		std::vector<real_function_3d> r(3), A(3);
 	    r[0]=real_factory_3d(world).functor([] (const coord_3d& r) {return r[0];});
 	    r[1]=real_factory_3d(world).functor([] (const coord_3d& r) {return r[1];});
 	    r[2]=real_factory_3d(world).functor([] (const coord_3d& r) {return r[2];});
 
-	    A[0]=Bvec(1)*r[2]-Bvec(2)*r[1];
-	    A[1]=Bvec(2)*r[0]-Bvec(0l)*r[2];
-	    A[2]=Bvec(0l)*r[1]-Bvec(1)*r[0];
+	    A[0]=Bvec[1]*r[2]-Bvec[2]*r[1];
+	    A[1]=Bvec[2]*r[0]-Bvec[0l]*r[2];
+	    A[2]=Bvec[0l]*r[1]-Bvec[1]*r[0];
 
 		return 0.5*A;
+	}
+
+	static std::vector<coord_3d> compute_v_vector(World& world, const coord_3d& B, const Molecule& mol) {
+		std::vector<coord_3d> v;
+		for (auto& c : mol.get_all_coords_vec()) v.push_back(0.5*cross(B,c));
+		return v;
 	}
 
 	/// are there explicit beta orbitals
@@ -370,6 +380,15 @@ protected:
 	CalculationParameters cparam;
 
 	std::shared_ptr<Diamagnetic_potential_factor> diafac;
+
+	/// the magnetic potential A = 1/2 B cross r
+	std::vector<real_function_3d> A;
+
+	/// the magnetic field B=rot(A)
+	coord_3d B;
+
+	/// the position of the nuclei in the "A" space: v = 1/2 B cross R
+	std::vector<coord_3d> v;
 
 	/// nuclear potential
 	real_function_3d vnuclear;
