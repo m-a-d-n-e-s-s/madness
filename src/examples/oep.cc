@@ -186,18 +186,17 @@ private:
 	double dens_thresh_hi = 1.0e-6;   // default 1.0e-6
 	double dens_thresh_lo = 1.0e-8;   // default 1.0e-8
 	double munge_thresh = 1.0e-8;  // default 1.0e-8
-	unsigned int damping_num = 0;
+	unsigned int damp_num = 0;   // default 0 (no damping)
+	std::vector<double> damp_coeff;
 	std::string model;
 	std::vector<bool> oep_model = {false, false, false};
 
 	void set_model_oaep() {oep_model[0] = true;}
 	void unset_model_oaep() {oep_model[0] = false;}
 	bool is_oaep() const {return oep_model[0];}
-
 	void set_model_ocep() {oep_model[1] = true;}
 	void unset_model_ocep() {oep_model[1] = false;}
 	bool is_ocep() const {return oep_model[1];}
-
 	void set_model_dcep() {oep_model[2] = true;}
 	void unset_model_cdep() {oep_model[2] = false;}
 	bool is_dcep() const {return oep_model[2];}
@@ -222,37 +221,25 @@ public:
             if (str == "end") {
                 break;
             }
-            else if (str == "oaep") {
-                set_model_oaep();
-                model = "OAEP";
-            }
-            else if (str == "ocep") {
-            	set_model_ocep();
-            	model = "OCEP";
-            }
-            else if (str == "dcep") {
-            	set_model_dcep();
-            	model = "DCEP";
+            else if (str == "model") {
+            	in >> model;
             }
             else if (str == "density_threshold_high") {
             	in >> dens_thresh_hi;
-            	print("using upper density threshold =", dens_thresh_hi);
             }
             else if (str == "density_threshold_low") {
             	in >> dens_thresh_lo;
-            	print("using lower density threshold =", dens_thresh_lo);
             }
             else if (str == "munge_threshold") {
             	in >> munge_thresh;
-            	print("using munge threshold =", munge_thresh);
             }
             else if (str == "damping") {
-            	in >> damping_num;
-            	if (damping_num == 1) {
-            		print("using one old potential for damping (50/50)");
-            	} else if (damping_num == 2){
-            		print("using two old potentials for damping (50/35/15)");
-            	} else print("using no damping");
+            	in >> damp_num;
+            	for (unsigned int i = 0; i < damp_num + 1; i++) {
+            		double coeff;
+            		in >> coeff;
+            		damp_coeff.push_back(coeff);
+            	}
             }
             else {
                 print("oep: unrecognized input keyword:", str);
@@ -260,8 +247,52 @@ public:
             }
         }
 
+        // set variables from input and print notes in output
+
+    	if (model == "oaep" or model == "OAEP") {
+    		set_model_oaep();
+    		model = "OAEP";
+    	} else if (model == "ocep" or model == "OCEP") {
+    		set_model_ocep();
+    		model = "OCEP";
+    	} else if (model == "dcep" or model == "DCEP") {
+    		set_model_dcep();
+    		model = "DCEP";
+    	} else {
+            print("oep: no approximate OEP model selected, please choose oaep/ocep/dcep!");
+            MADNESS_EXCEPTION("input error",0);
+    	}
+
+    	print("using", model, "model as approximation to OEP");
+    	print("using upper density threshold =", dens_thresh_hi);
+    	print("using lower density threshold =", dens_thresh_lo);
+    	print("using munge threshold =", munge_thresh);
+    	if (damp_num == 0) {
+    		damp_coeff.push_back(1.0);
+    		print("using no damping");
+    	}
+    	else {
+    		print("using damping with", damp_num, "old potential(s) and the following coefficients:");
+    		print("         new potential =", damp_coeff[0]);
+    		for (unsigned int i = 1; i < damp_num + 1; i++) {
+    			print("  previous potential", i, "=", damp_coeff[i]);
+    		}
+    	}
+    	print("");
+
+        // check some common mistakes in input file
+
         if (dens_thresh_hi <= dens_thresh_lo) {
             print("oep: density_threshold_high must always be larger than density_threshold_low!");
+            MADNESS_EXCEPTION("input error",0);
+        }
+
+        double all_coeffs = 0.0;
+        for (unsigned int i = 0; i < damp_num + 1; i++) {
+        	all_coeffs += damp_coeff[i];
+        }
+        if (all_coeffs != 1.0) {
+            print("oep: sum of damping coefficients does not equal 1.0, please check the input file!");
             MADNESS_EXCEPTION("input error",0);
         }
 	}
@@ -271,45 +302,17 @@ public:
 	/// HF orbitals and eigenvalues are used as the guess here
 	/// note that KS_nemo is a reference and changes oep->get_calc()->amo orbitals
 	/// same for orbital energies (eigenvalues) KS_eigvals which is oep->get_calc()->aeps
+	/// converged if norm, total energy difference and orbital energy differences (if not OAEP) are converged
     void solve_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
 
     	double energy = 0.0;
-    	bool update_converged = false; // checks micro iterations and if true, Voep gets updated
-    	bool potential_converged = false; // checks macro iterations for convergence of orbital energies
-    	unsigned int update_counter = 0; // counts amount of updates in OCEP cycle
-
-    	// exit if no OEP model was set
-    	if (!is_oaep() and !is_ocep() and !is_dcep()) {
-    		printf("No approximate OEP model selected!\n");
-    		printf("please choose oaep/ocep/dcep\n");
-    		return;
-    	}
-
-    	// for only OAEP calculation, potential (macro) is already converged by construction
-    	if (is_oaep() and !is_ocep() and !is_dcep()) potential_converged = true;
+    	bool converged = false;
+    	unsigned int iter_counter = 0;
 
 		// compute Slater potential Vs and average IHF from HF orbitals and eigenvalues
     	const real_function_3d Vs = compute_slater_potential(HF_nemo, homo_ind(HF_eigvals));
     	const real_function_3d IHF = compute_average_I(HF_nemo, HF_eigvals);
     	save(IHF, "IHF");
-
-//    	// test
-//    	vecfuncT HF_nemo_square = square(world, HF_nemo);
-//    	for (int i = 0; i < HF_nemo_square.size(); i++) {
-//    		save(HF_nemo_square[i], "HF_nemo_square_" + stringify(i));
-//    	}
-//    	// end test
-
-//    	return; // for mungeing testing reasons
-
-    	// test
-		std::vector<double> epsilon(HF_eigvals.size());
-		for (int i = 0; i < HF_eigvals.size(); i++) epsilon[i] = HF_eigvals(i);
-		vecfuncT nemo_square = square(world, HF_nemo); // |nemo|^2
-		scale(world, nemo_square, epsilon); // epsilon*|nemo|^2
-		real_function_3d numerator = 2.0*R_square*sum(world, nemo_square); // 2 because closed shell
-		save(numerator, "IHF_numerator");
-		// end test
 
     	// set KS_nemo as reference to MOs
     	vecfuncT& KS_nemo = calc->amo;
@@ -317,15 +320,21 @@ public:
 		save(compute_density(HF_nemo), "density_HF");
     	save(compute_density(KS_nemo), "density_start");
 
-    	// all necessary operators applied on nemos (Knemo is used later):
+    	// test: print orbital contributions to total density
+    	vecfuncT HF_nemo_square = square(world, HF_nemo);
+    	for (int i = 0; i < HF_nemo_square.size(); i++) {
+    		save(HF_nemo_square[i], "HF_nemo_square_" + stringify(i));
+    	}
+    	// end test
+
+    	// all necessary operators applied on nemos
     	vecfuncT Jnemo, Unemo, Vnemo, Knemo;
     	real_function_3d Voep = Vs;
 
-    	// TODO: implement damping better!
     	// copy Vs to all old potentials for damping
-       	std::vector<real_function_3d> Voep_old(damping_num);
-       	for (int i = 0; i < damping_num; i++) {
-       		Voep_old[i] = Vs;
+       	std::vector<real_function_3d> Voep_old;
+       	for (unsigned int i = 0; i < damp_num; i++) {
+       		Voep_old.push_back(Vs);
        	}
 
     	// define the solver
@@ -334,106 +343,45 @@ public:
     	allocT alloc(world, KS_nemo.size());
     	solverT solver(allocT(world, KS_nemo.size()));
 
-
-    	// iterations until self-consistency
+    	// iterate until self-consistency
     	for (int iter = 0; iter < calc->param.maxiter; ++iter) {
-//    		save_function(KS_nemo, "KS_nemo_it_"+stringify(iter));
-    		for (int i = 0; i < KS_nemo.size(); i++) {
-//    		save(KS_nemo[i], "KS_it_"+stringify(iter)+"_nemo_"+stringify(i));
-    		}
-    		vecfuncT R2KS_nemo = R_square*KS_nemo;
-    		truncate(world, R2KS_nemo);
+    		iter_counter++;
+    		print("\n     ***", model, "iteration", iter_counter, "***\n");
 
-//    		real_function_3d rho = compute_density(KS_nemo);
-//    		save(rho, "density_it_"+stringify(iter));
+    		if (is_ocep() or is_dcep()) {
 
-    		if (is_ocep() or is_dcep()) { // only update if OCEP and/or DCEP is enabled
-
-    			// TODO: ATTENTION: delete this after testing or change code if successful!
-    			update_converged = true;
-
-        		// is computed (= updated) only if calculation was converged for smooth convergence
-        		if (update_converged) {
-        			update_counter++;
-//        			if (!is_oaep() or update_counter > 1)
-        				printf("\n\n     *** updating OCEP potential ***\n\n");
-
-        			// damping for better convergence of V_OCEP
-        			for (int i = 0; i < damping_num - 1; i++) {
+    			// damping for better convergence of Voep
+    			if (damp_num > 0) {
+        			for (unsigned int i = 0; i < damp_num - 1; i++) {
         				Voep_old[i+1] = Voep_old[i];
         			}
         			Voep_old[0] = Voep;
+    			}
 
-        			// shift orbital energies so that HOMO_HF = HOMO_KS
-        			shift_orbens(KS_eigvals, homo_diff(HF_eigvals, KS_eigvals));
+        		// compute OCEP potential from current nemos and eigenvalues
+    			real_function_3d corr_ocep = compute_OCEP_correction(HF_eigvals, IHF, KS_nemo, KS_eigvals);
 
-            		// compute OCEP potential from current nemos and eigenvalues
-        			real_function_3d corr_ocep = compute_OCEP_correction(HF_eigvals, IHF, KS_nemo, KS_eigvals);
+    			// damping
+    			Voep = damp_coeff[0]*(Vs + corr_ocep);
+    			for (unsigned int i = 0; i < damp_num; i++) {
+    				Voep += damp_coeff[i + 1]*Voep_old[i];
+    			}
 
-        			// damping
-        			if (damping_num == 1) {
-        				Voep = 0.5*(Vs + corr_ocep) + 0.5*Voep_old[0];
-        			} else if (damping_num == 2) {
-        				Voep = 0.5*(Vs + corr_ocep) + 0.35*Voep_old[0] + 0.15*Voep_old[1];
-        			} else Voep = Vs + corr_ocep;
+    			if (iter_counter == 2 or iter_counter % 25 == 0) {
+        			save(corr_ocep, "OCEP_correction_iter_" + stringify(iter_counter));
+        			save(Voep, "Effective_potential_iter_" + stringify(iter_counter));
+        			save(compute_density(KS_nemo), "density_iter_" + stringify(iter_counter));
+        			save(compute_average_I(KS_nemo, KS_eigvals), "IKS_iter_" + stringify(iter_counter));
+    			}
 
-//        			real_function_3d corr_dcep = compute_DCEP_correction(...);
-//        			Voep = Vs + corr_ocep + corr_dcep;
+			}
 
-        			if (iter == 1 or iter % 25 == 0) {
-            			save(corr_ocep, "OCEP_correction_update_" + stringify(iter));
-            			save(Voep, "OCEP_potential_update_" + stringify(iter));
-            			save(compute_density(KS_nemo), "density_update_" + stringify(iter));
-            			save(compute_average_I(KS_nemo, KS_eigvals), "IKS_update_" + stringify(iter));
+//			for (int i = 0; i < KS_nemo.size(); i++) {
+//			save(KS_nemo[i], "KS_iter_"+stringify(iter)+"_nemo_"+stringify(i));
+//			}
 
-//            	    	// test
-//            			std::vector<double> epsilon(KS_eigvals.size());
-//            			for (int i = 0; i < KS_eigvals.size(); i++) epsilon[i] = KS_eigvals(i);
-//            			vecfuncT nemo_square = square(world, KS_nemo); // |nemo|^2
-//            			scale(world, nemo_square, epsilon); // epsilon*|nemo|^2
-//            			real_function_3d numerator = 2.0*R_square*sum(world, nemo_square); // 2 because closed shell
-//            			save(numerator, "IKS_numerator_update_" + stringify(update_counter));
-//            			// end test
-
-//            	    	// test
-//            	    	vecfuncT KS_nemo_square = square(world, KS_nemo);
-//            	    	for (int i = 0; i < KS_nemo_square.size(); i++) {
-//            	    		save(KS_nemo_square[i], "KS_nemo_square_" + stringify(i));
-//            	    	}
-//            	    	// end test
-
-        			}
-
-//        			if (is_oaep() and update_counter == 1) {
-//        				printf("\n\n     *** V_OAEP converged ***\n");
-//        				printf("\n  saving V_OCEP with converged OAEP orbitals and eigenvalues\n");
-//        		    	save(compute_density(KS_nemo), "density_update_1");
-//        		    	save(compute_average_I(KS_nemo, KS_eigvals), "IKS_update_1");
-//        		    	printf("     done\n\n");
-//
-//        	    		printf("\nfinal shifted OAEP orbital energies:\n");
-//        	    		for (long i = KS_eigvals.size() - 1; i >= 0; i--) {
-//        	    			printf(" e%2.2lu = %12.8f\n", i, KS_eigvals(i) + homo_diff(HF_eigvals, KS_eigvals));
-//        	    		}
-//        	    		printf("HF/KS HOMO energy difference is %12.8f\n", homo_diff(HF_eigvals, KS_eigvals));
-//
-//        		    	printf("\nFINAL OAEP ENERGY Evir:");
-//        		    	double Evir = compute_energy(R*KS_nemo, R*Jnemo, Vs, Knemo, true);
-//
-//        		    	printf("\nFINAL OAEP ENERGY Econv:");
-//        		    	compute_exchange_potential(KS_nemo, Knemo);
-//        		    	double Econv = compute_energy(R*KS_nemo, R*Jnemo, Vs, R*Knemo, false);
-//
-//        		    	printf("OAEP  Evir = %15.8f  Eh", Evir);
-//        		    	printf("\nOAEP Econv = %15.8f  Eh", Econv);
-//        		    	printf("\nOAEP DEvir = %15.8f mEh\n", (Evir - Econv)*1000);
-//
-//        		    	printf("\n\n\n     *** updating OCEP potential ***\n\n");
-//        			}
-
-        		}
-
-    		}
+			vecfuncT R2KS_nemo = R_square*KS_nemo;
+			truncate(world, R2KS_nemo);
 
     		// compute parts of the Fock matrix J, Unuc and Voep
     		compute_nemo_potentials(KS_nemo, Jnemo, Unemo, Voep, Vnemo);
@@ -453,13 +401,14 @@ public:
 
     		// compute new (current) energy
             double old_energy = energy;
-            printf("energy contributions of iteration %3u:", iter);
+            print("energy contributions of iteration", iter_counter);
     		energy = compute_energy(R*KS_nemo, R*Jnemo, Voep, Knemo, true); // Knemo is not used here
     		// compute_exchange_potential(KS_nemo, Knemo);
     		// energy = compute_energy(R*KS_nemo, R*Jnemo, Voep, R*Knemo, false);
     		// there should be no difference between these two methods, because energy is only needed
     		// for checking convergence threshold; but: Evir should be much faster because K is expensive
 
+    		// copy old orbital energies for convergence criterium at the end
     		tensorT old_eigvals = copy(KS_eigvals);
 
             // diagonalize the Fock matrix to get the eigenvalues and eigenvectors (canonical)
@@ -487,29 +436,10 @@ public:
     			KS_eigvals -= calc->param.orbitalshift;
     		}
 
-    		if (is_ocep() or is_dcep()) { // evaluation only necessary if OCEP and/or DCEP is enabled
-
-        		potential_converged = false; // to ensure convergence is checked again in any case
-        		// evaluate convergence of orbital energies if Voep was updated in this iteration (see above)
-        		if (update_converged) {
-        			// build vector of convergence information of every orbital energy
-        			std::vector<bool> conv(KS_eigvals.size());
-        			for (int i = 0; i < KS_eigvals.size(); i++) {
-        				// structure of iterations makes it necessary to add orbital shift again for convergence criterium
-        				if (fabs(KS_eigvals(i) + homo_diff(HF_eigvals, KS_eigvals) - old_eigvals(i)) < calc->param.dconv) conv[i] = true;
-        				else conv[i] = false;
-        			}
-
-        			if (IsAlltrue(conv)) potential_converged = true; // converged if all are converged
-        			update_converged = false; // reset micro iterations so it is checked again at the end
-        		}
-
-    		}
-
     		// print orbital energies:
-    		printf("\norbital energies of iteration %3u:\n", iter);
+    		print("orbital energies of iteration", iter_counter);
     		print_orbens(KS_eigvals);
-    		printf("HF/KS HOMO energy difference is %11.8f Eh\n", homo_diff(HF_eigvals, KS_eigvals));
+    		print("HF/KS HOMO energy difference of", homo_diff(HF_eigvals, KS_eigvals), "Eh is not yet included");
 
     		// construct the BSH operators ops
     		std::vector<poperatorT> G = calc->make_bsh_operators(world, KS_eigvals);
@@ -527,7 +457,7 @@ public:
     		double n2 = norm2(world, GFnemo);
     		print("\nnorm of nemo and GFnemo, ratio ", n1, n2, n1/n2);
 
-    		// compute the residuals
+    		// compute the residuals for KAIN
     		vecfuncT residual = KS_nemo - GFnemo;
     		const double norm = norm2(world, residual) / sqrt(KS_nemo.size());
 
@@ -547,75 +477,95 @@ public:
     		KS_nemo = nemo_new;
 
     		// evaluate convergence via norm error and energy difference
-    		if ((norm < calc->param.dconv) and (fabs(energy - old_energy) < calc->param.econv))
-    			update_converged = true;
+    		if ((norm < calc->param.dconv) and (fabs(energy - old_energy) < calc->param.econv)) {
+
+    			if (is_oaep()) converged = true;  // if OAEP, the following evaluation is not necessary
+    			else {
+    				// build vector of convergence information of every orbital energy
+        			std::vector<bool> conv(KS_eigvals.size());
+        			for (long i = 0; i < KS_eigvals.size(); i++) {
+        				if (fabs(KS_eigvals(i) - old_eigvals(i)) < calc->param.dconv) conv[i] = true;
+        				else conv[i] = false;
+        			}
+
+        			if (IsAlltrue(conv)) converged = true; // converged if all are converged
+    			}
+
+    		}
 
     		if (calc->param.save) calc->save_mos(world);
 
     		if (world.rank() == 0) {
-    			printf("\nfinished iteration %2d at time %8.1fs with energy %12.8f\n", iter, wall_time(), energy);
-    			print("current residual norm ", norm, "\n");
+    			printf("\nfinished iteration %2d at time %8.1fs with energy %12.8f\n", iter_counter, wall_time(), energy);
+    			print("current residual norm", norm, "\n");
     		}
 
-    		if (update_converged and potential_converged) break;
+    		if (converged) break;
 
     	}
 
-    	if (update_converged and potential_converged) {
-    		if (world.rank() == 0) print("\nIterations converged\n");
+    	if (converged) {
+    		if (world.rank() == 0) {
+    			print("\n     +++ Iterations converged +++\n");
+    			print(model, "converged after", iter_counter, "iterations\n\n");
+    		}
     	}
     	else {
-    		if (world.rank() == 0) print("\nIterations failed\n");
+    		if (world.rank() == 0) print("\n     --- Iterations failed ---\n\n");
     		energy = 0.0;
     	}
 
     	// calculate and print all final numbers
-    	printf("\n  computing final IKS and density\n");
+    	print("\n  computing final IKS and density");
+
+    	// test: print orbital contributions to total density
+    	vecfuncT KS_nemo_square = square(world, KS_nemo);
+    	for (int i = 0; i < KS_nemo_square.size(); i++) {
+    		save(KS_nemo_square[i], "KS_nemo_final_square_" + stringify(i));
+    	}
+    	// end test
+
     	real_function_3d IKS = compute_average_I(KS_nemo, KS_eigvals);
     	real_function_3d rho = compute_density(KS_nemo);
     	save(rho, "density_final");
     	save(IKS, "IKS_final");
-    	printf("     done\n");
+    	print("     done");
 
-    	if (is_oaep() and !is_ocep() and !is_dcep()){
-    		printf("\n  computing V_OCEP with converged OAEP orbitals and eigenvalues\n");
+    	if (is_oaep()) {
+    		print("\n  computing OCEP with converged OAEP orbitals and eigenvalues");
         	real_function_3d correction = compute_OCEP_correction(HF_eigvals, IHF, KS_nemo, KS_eigvals);
         	real_function_3d ocep_oaep_pot = Vs + correction;
         	save(correction, "OCEP_correction");
         	save(ocep_oaep_pot, "OCEP_potential_with_OAEP_orbs");
     	}
-    	if (is_ocep() and !is_dcep()) {
-    		printf("\n  computing final V_OCEP with converged OCEP orbitals and eigenvalues\n");
+    	if (is_ocep()) {
+    		print("\n  computing final OCEP with converged OCEP orbitals and eigenvalues");
         	real_function_3d correction_final = compute_OCEP_correction(HF_eigvals, IHF, KS_nemo, KS_eigvals);
         	Voep = Vs + correction_final;
         	save(correction_final, "OCEP_correction_final");
-        	save(Voep, "OCEP_potential_final");
+        	save(Voep, "OCEP_final");
     	}
     	if (is_dcep()) {
-    		printf("\n  computing final V_DCEP with converged DCEP orbitals and eigenvalues\n");
+    		print("\n  computing final DCEP with converged DCEP orbitals and eigenvalues");
     		// ...
     	}
-    	printf("     done\n\n");
+    	print("     done\n");
 
     	// print final orbital energies
-   		print("final shifted " + model + " orbital energies:");
+   		print("final shifted", model, "orbital energies:");
    		print_orbens(KS_eigvals, homo_diff(HF_eigvals, KS_eigvals));
-   		print("HF/KS HOMO energy difference of", homo_diff(HF_eigvals, KS_eigvals), "Eh is already included");
+   		print("HF/KS HOMO energy difference of", homo_diff(HF_eigvals, KS_eigvals), "Eh is already included\n");
 
-    	if (is_ocep() and !is_dcep()) {
-    		if (update_converged and potential_converged)
-    			print("V_OCEP converged after", update_counter, "updates");
-    	}
-
-    	print("FINAL " + model + " ENERGY Evir:");
+    	print("FINAL", model, "ENERGY Evir:");
     	double Evir = compute_energy(R*KS_nemo, R*Jnemo, Voep, Knemo, true); // Knemo is not used here
 
-    	print("FINAL " + model + " ENERGY Econv:");
+    	print("FINAL", model, "ENERGY Econv:");
+    	compute_exchange_potential(KS_nemo, Knemo);
     	double Econv = compute_energy(R*KS_nemo, R*Jnemo, Voep, R*Knemo, false); // Voep is not used here
 
     	printf("      Evir = %15.8f  Eh", Evir);
     	printf("\n     Econv = %15.8f  Eh", Econv);
-    	printf("\n     DEvir = %15.8f mEh\n", (Evir - Econv)*1000);
+    	printf("\n     DEvir = %15.8f mEh\n\n", (Evir - Econv)*1000);
 
     }
 
@@ -631,18 +581,11 @@ public:
     	return ev1(homo_ind(ev1)) - ev2(homo_ind(ev2));
     }
 
-    /// print orbital energies in in reverse order with optional shift
+    /// print orbital energies in reverse order with optional shift
     void print_orbens(const tensorT orbens, const double shift = 0.0) const {
 		for (long i = orbens.size() - 1; i >= 0; i--) {
-			printf(" e%2.2lu = %12.8f\n", i, orbens(i) + shift);
+			printf(" e%2.2lu = %12.8f Eh\n", i, orbens(i) + shift);
 		}
-    }
-
-    /// shift all orbital energies in place by a double number
-    void shift_orbens(tensorT orbens, const double shift) const {
-    	for (long i = 0; i < orbens.size(); i++) {
-    		orbens(i) += shift;
-    	}
     }
 
     /// compute density from orbitals with ragularization (Bischoff, 2014_1, equation (19))
@@ -667,6 +610,8 @@ public:
         // in order to compute this lra, use Coulomb potential with only HOMO density (= |phi_HOMO|^2)
         Coulomb J(world, this);
         real_function_3d lra = -1.0*J.compute_potential(R_square*square(nemo[homo_ind]));
+
+//        // these are not yet forgotten tests
 //        real_function_3d lra = (-0.5/nemo.size())*J.compute_potential(this);
 
 //        for (int i = 0; i < nemo.size(); i++) {
@@ -701,6 +646,7 @@ public:
         // like Kohut, 2014, equations (21) and (25)
         real_function_3d I = -1.0*binary_op(numerator, rho, dens_inv(dens_thresh_lo));
 
+//          // if tests are necessary: munge with ac
 //       	real_function_3d homo_func = real_factory_3d(world).functor([] (const coord_3d& r) {return 1.0;});
 //       	homo_func.scale(-1.0*eigvals(homo_ind(eigvals)));
 //       	print("computing I: index of HOMO is", homo_ind(eigvals));
@@ -714,7 +660,7 @@ public:
 
     }
 
-    /// compute OCEP potential from OAEP Slater potential Vs
+    /// compute OCEP correction and orbital shift to add to Slater potential Vs
     real_function_3d compute_OCEP_correction(const tensorT eigvalsHF, const real_function_3d IHF,
     		const vecfuncT& nemoKS, const tensorT eigvalsKS) const {
 
@@ -723,7 +669,7 @@ public:
 
     	// calculate correction IHF - IKS like Kohut, 2014, equation (26)
     	// and shift potential so that HOMO_HF = HOMO_KS, so potential += (HOMO_HF - HOMO_KS)
-       	real_function_3d correction = IHF - IKS; // + homo_diff(eigvalsHF, eigvalsKS);
+       	real_function_3d correction = IHF - IKS + homo_diff(eigvalsHF, eigvalsKS);
 
     	return correction;
 
@@ -806,13 +752,13 @@ public:
     	double energy = E_kin + E_ext + E_J + E_X + E_nuc;
 
     	if (world.rank() == 0) {
-    		printf("\n                       kinetic energy %15.8f\n", E_kin);
-    		printf("   electron-nuclear attraction energy %15.8f\n", E_ext);
-    		printf("                       Coulomb energy %15.8f\n", E_J);
-    		if (vir) printf(" exchange energy (exchange potential) %15.8f\n", E_X);
-    		else printf("  exchange energy (exchange operator) %15.8f\n", E_X);
-    		printf("     nuclear-nuclear repulsion energy %15.8f\n", E_nuc);
-    		printf("                         total energy %15.8f\n\n", energy);
+    		printf("\n                       kinetic energy %15.8f Eh\n", E_kin);
+    		printf("   electron-nuclear attraction energy %15.8f Eh\n", E_ext);
+    		printf("                       Coulomb energy %15.8f Eh\n", E_J);
+    		if (vir) printf(" exchange energy (exchange potential) %15.8f Eh\n", E_X);
+    		else printf("  exchange energy (exchange operator) %15.8f Eh\n", E_X);
+    		printf("     nuclear-nuclear repulsion energy %15.8f Eh\n", E_nuc);
+    		printf("                         total energy %15.8f Eh\n\n", energy);
 //            printf("    works for exact exchange functional only...\n");
     	}
 
@@ -1036,7 +982,7 @@ int main(int argc, char** argv) {
 //    const std::string saved_orbens = "HF_orbens";
 //    std::ifstream f1(saved_nemos.c_str());
 //    std::ifstream f2(saved_orbens.c_str());
-//    if (f1.good() and f2.good()) { /// if file HF_nemos and HF_orbens exist
+//    if (f1.good() and f2.good()) { // if file HF_nemos and HF_orbens exist
 //    	load_function(world, HF_nemos, saved_nemos);
 //    	// load_tensor(... HF_orbens, saved_orbens ...);
 //    }
