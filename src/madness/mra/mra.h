@@ -2399,6 +2399,18 @@ namespace madness {
 
             template <typename Archive> void serialize (Archive& ar) {}
         };
+
+        template <std::size_t NDIM>
+        struct absop {
+            typedef double resultT;
+            Tensor<double> operator()(const Key<NDIM>& key, const Tensor<double_complex>& t) const {
+                Tensor<double> r = abs(t);
+                return r;
+            }
+
+            template <typename Archive> void serialize (Archive& ar) {}
+        };
+
     }
 
     /// Returns a new function that is the real part of the input
@@ -2458,6 +2470,11 @@ namespace madness {
         return unary_op(z, detail::abssqop<NDIM>(), fence);
     }
 
+    /// Returns a new function that is the absolute value of the input
+    template <std::size_t NDIM>
+    Function<double,NDIM> abs(const Function<double_complex,NDIM>& z, bool fence=true) {
+        return unary_op(z, detail::absop<NDIM>(), fence);
+    }
 
 }
 

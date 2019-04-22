@@ -25,65 +25,6 @@ namespace madness {
 
 class Diamagnetic_potential_factor;
 
-struct spherical_box : public FunctionFunctorInterface<double,3> {
-	const double radius;
-	const double height;
-	const double tightness;
-	const coord_3d offset={0,0,0};
-	const coord_3d B_direction={0,0,1.0};
-	spherical_box(const double r, const double h, const double t,
-			const coord_3d o={0.0,0.0,0.0}, const coord_3d B_dir={0.0,0.0,1.0}) :
-		radius(r), height(h), tightness(t), offset(o), B_direction(B_dir) {}
-
-	double operator()(const coord_3d& xyz) const {
-		// project out all contributions from xyz along the direction of the B field
-		coord_3d tmp=(xyz-offset)*B_direction;
-		const double inner=tmp[0]+tmp[1]+tmp[2];
-		coord_3d proj=(xyz-offset)-B_direction*inner;
-		double r=proj.normf();
-		double v1=height/(1.0+exp(-tightness*height*(r-radius)));
-		return 1.0-v1;
-
-	}
-
-    std::vector<coord_3d> special_points() const {
-    	return std::vector<coord_3d>();
-    }
-
-};
-
-
-/// functor for the diamagnetic term in a box
-
-/// The diamagnetic term is a 2D harmonic potential, which makes the iterations diverge.
-/// Approximate it by making it constant at a specific radius: construct a smooth approximation
-/// for the piecewise function f(x)={{x, x<1}, {1,x>1}}, which is squared. For this approximation
-/// see https://doi.org/10.1186/s40064-016-3278-y
-struct diamagnetic_boxed_functor : public FunctionFunctorInterface<double,3> {
-	double radius;	//
-	const double tightness;	// alpha in the article
-	diamagnetic_boxed_functor(const double r, const double t=30.0) :
-		radius(r), tightness(t) {}
-
-	double operator()(const coord_3d& xyz) const {
-		double r=sqrt(xyz[0]*xyz[0] + xyz[1]*xyz[1]);
-		const double a=0.5;
-		const double b=0.5;
-		const double c=-0.5;
-		const double beta=1.0;
-		const double A=a-c*beta;
-		const double B=b+c;
-		const double C=2.0*c/tightness;
-
-		const double f=radius * (A +B*r/radius + C*log(1.0+exp(-tightness*(r/radius-beta))));
-		return f*f-radius*radius;
-	}
-
-    std::vector<coord_3d> special_points() const {
-    	return std::vector<coord_3d>();
-    }
-
-};
 
 // The default constructor for functions does not initialize
 // them to any value, but the solver needs functions initialized
@@ -113,16 +54,19 @@ struct allocator {
 
 class Nemo_complex_Parameters : public CalculationParametersBase {
 public:
-	enum parameterenum {B_, explicit_B_, box_, shift_, printlevel_, diamagnetic_height_, use_diamagnetic_factor_};
+	enum parameterenum {B_, explicit_B_, u1box_, box_, shift_, printlevel_, diamagnetic_height_,
+		use_greensp_, use_diamagnetic_factor_};
 
 	/// the parameters with the enum key, the constructor taking the input file key and a default value
 	ParameterMap params={
         		init<double>(B_,{"B",0.0}),
         		init<double>(explicit_B_,{"explicit_B",0.0}),
         		init<std::vector<double> >(box_,{"box",{15.0, 1.0, 4.0, 0.0, 0.0, 0.0}}),
+        		init<std::vector<double> >(u1box_,{"u1box",{10.0, 1.0, 1.0, 0.0, 0.0, 0.0}}),
 				init<double>(shift_,{"shift",0.0}),
 				init<int>(printlevel_,{"printlevel",1}),		// 0: energies, 1: fock matrix, 2: function sizes
 				init<double>(diamagnetic_height_,{"diamagnetic_height",30}),
+				init<bool>(use_greensp_,{"greensp",false}),
 				init<bool>(use_diamagnetic_factor_,{"diamagnetic_factor",false})
     };
 
@@ -144,7 +88,9 @@ public:
 	double B() const {return get<double>(B_);}
 	double explicit_B() const {return get<double>(explicit_B_);}
 	std::vector<double> box() const {return get<std::vector<double> >(box_);}
+	std::vector<double> u1box() const {return get<std::vector<double> >(u1box_);}
 	double diamagnetic_height() const {return get<double>(diamagnetic_height_);}
+	bool use_greensp() const {return get<bool>(use_greensp_);}
 	bool use_diamagnetic_factor() const {return get<bool>(use_diamagnetic_factor_);}
 
 
@@ -179,6 +125,34 @@ class Znemo {
 		std::vector<complex_function_3d> J_mo;
 		std::vector<complex_function_3d> K_mo;
 		std::vector<complex_function_3d> spin_zeeman_mo;
+		std::vector<std::vector<complex_function_3d> > GpVmo;	// potentials for the derivative of the BSH operator
+	};
+
+	struct timer {
+        World& world;
+	    double ttt,sss;
+	    timer(World& world) : world(world) {
+	        world.gop.fence();
+	        ttt=wall_time();
+	        sss=cpu_time();
+	    }
+
+	    void tag(const std::string msg) {
+            world.gop.fence();
+	        double tt1=wall_time()-ttt;
+	        double ss1=cpu_time()-sss;
+	        if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg.c_str(), ss1, tt1);
+	        ttt=wall_time();
+	        sss=cpu_time();
+	    }
+
+	    void end(const std::string msg) {
+            world.gop.fence();
+            double tt1=wall_time()-ttt;
+            double ss1=cpu_time()-sss;
+            if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg.c_str(), ss1, tt1);
+        }
+
 	};
 
 public:
@@ -186,6 +160,11 @@ public:
 
 	/// compute the molecular energy
 	double value();
+
+	void test();
+	void test2();
+	void test_gp(const std::vector<complex_function_3d>& arg,
+			const std::vector<std::vector<complex_function_3d> > varg) const;
 
 	// analyse the results only
 	void analyze() const;
@@ -268,13 +247,7 @@ public:
 		return ((not cparam.spin_restricted) and (cparam.nbeta>0));
 	}
 
-	void save_orbitals(std::string suffix) const {
-		suffix="_"+suffix;
-		for (int i=0; i<amo.size(); ++i) save(amo[i],"amo"+stringify(i)+suffix);
-		for (int i=0; i<bmo.size(); ++i) save(bmo[i],"bmo"+stringify(i)+suffix);
-		for (int i=0; i<amo.size(); ++i) save(madness::abssq(amo[i]),"absamo"+stringify(i)+suffix);
-		for (int i=0; i<bmo.size(); ++i) save(madness::abssq(bmo[i]),"absbmo"+stringify(i)+suffix);
-	}
+	void save_orbitals(std::string suffix) const;
 
 	/// read the guess orbitals from a previous nemo or moldft calculation
 	std::vector<complex_function_3d> read_guess(const std::string& spin) const;
@@ -333,6 +306,9 @@ public:
 	/// compute the action of the Lz =i r x del operator on rhs
 	std::vector<complex_function_3d> Lz(const std::vector<complex_function_3d>& rhs) const;
 
+	/// compute the Lz operator, prepared with integration by parts for the derivative of the BSH operator
+	std::vector<std::vector<complex_function_3d> > Lz_Gp(const std::vector<complex_function_3d>& rhs) const;
+
 	/// compute the action of the Lz =i r x del operator on rhs
 	complex_function_3d Lz(const complex_function_3d& rhs) const {
 		std::vector<complex_function_3d> vrhs(1,rhs);
@@ -351,6 +327,7 @@ public:
 
 	std::vector<complex_function_3d> compute_residuals(
 			const std::vector<complex_function_3d>& Vpsi,
+			const std::vector<std::vector<complex_function_3d> > GpVpsi,
 			const std::vector<complex_function_3d>& psi,
 			Tensor<double>& eps) const;
 

@@ -357,6 +357,7 @@ private:
 	    if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss, ttt);
 	}
 
+public:
 	struct timer {
         World& world;
 	    double ttt,sss;
