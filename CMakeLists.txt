@@ -12,6 +12,10 @@ set(MADNESS_MINOR_VERSION 10)
 set(MADNESS_MICRO_VERSION 1)
 set(MADNESS_VERSION "${MADNESS_MAJOR_VERSION}.${MADNESS_MINOR_VERSION}.${MADNESS_MICRO_VERSION}")
 
+# Add source directory =========================================================
+
+add_definitions(-DMAD_ROOT_DIR="${PROJECT_SOURCE_DIR}")
+
 # Add module directory and modules =============================================
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules/")

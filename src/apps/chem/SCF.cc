@@ -698,7 +698,10 @@ namespace madness {
         if (world.rank() == 0) {
             C = transpose(C);
             long nmo = mo.size();
+            size_t ncoeff = 0;
             for (long i = 0; i < nmo; ++i) {
+                size_t ncoeffi = mo[i].size();
+                ncoeff += ncoeffi;
                 printf("  MO%4ld : ", i);
                 if (set.size())
                     printf("set=%d : ", set[i]);
@@ -708,11 +711,14 @@ namespace madness {
                 
                 if (energy.size())
                     printf("energy=%13.8f : ", energy(i));
-                
+
+                printf("ncoeff=%.2e:",(double) ncoeffi);                
+
                 printf("center=(%.2f,%.2f,%.2f) : radius=%.2f\n", dip(0, i),
                        dip(1, i), dip(2, i), sqrt(rsq(i)));
                 aobasis.print_anal(molecule, C(i, _));
-            }           
+            }
+            printf("total number of coefficients = %.8e\n\n", double(ncoeff));           
         }
         
     }
@@ -1512,7 +1518,7 @@ namespace madness {
         if (xc.is_dft() && !(xc.hf_exchange_coefficient() == 1.0)) {
             START_TIMER(world);
 
-            XCOperator xcoperator(world,this,ispin);
+            XCOperator xcoperator(world,this,ispin,param.dft_deriv);
             if (ispin==0) exc=xcoperator.compute_xc_energy();
             vloc+=xcoperator.make_xc_potential();
 
@@ -2872,10 +2878,7 @@ namespace madness {
                 dipole_matrix_elements(world, bmo, bocc, beps, 1);
             }
         }
-
-        
     }        // end solve function
-
 
 
 //vama polarizability
