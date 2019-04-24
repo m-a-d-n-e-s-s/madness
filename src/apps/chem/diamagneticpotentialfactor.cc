@@ -43,7 +43,7 @@ struct diamagnetic_boxed_functor : public FunctionFunctorInterface<double,3> {
 };
 
 void Diamagnetic_potential_factor::recompute_functions(const coord_3d& pB, const coord_3d& eB,
-		const std::vector<coord_3d>& v1, const real_function_3d& sbox) {
+		const std::vector<coord_3d>& v1) {
 
 	set_B_explicit_B(pB,eB);
 	v=v1;
@@ -81,7 +81,7 @@ void Diamagnetic_potential_factor::recompute_functions(const coord_3d& pB, const
 		for (int i=0; i<2; ++i) {
 //			diamagnetic_U1[i]=real_factory_3d(world).functor([&i] (const coord_3d& r) {return r[i];});
 			real_function_3d ri=real_factory_3d(world).functor([&i] (const coord_3d& r) {return r[i];});
-			diamagnetic_U1[i]=ri*sbox;
+			diamagnetic_U1[i]=ri;
 		}
 		scale(world,diamagnetic_U1,0.5*explicit_B.normf());
 
@@ -111,7 +111,26 @@ void Diamagnetic_potential_factor::recompute_functions(const coord_3d& pB, const
 }
 
 /// compute the diamagnetic local potential (B is in z direction -> dia = x^2 + y^2
-std::vector<complex_function_3d> Diamagnetic_potential_factor::apply_potential(const std::vector<complex_function_3d>& rhs) const {
+std::vector<std::vector<complex_function_3d> >
+Diamagnetic_potential_factor::apply_potential_greensp(const std::vector<complex_function_3d>& rhs) const {
+
+	std::vector<complex_function_3d> r=zero_functions_compressed<double_complex,3>(world,rhs.size());
+	std::vector<std::vector<complex_function_3d> > result(3,r);
+	if (physical_B.normf()==0.0) return result;
+
+	if (explicit_B.normf()!=0.0) {
+
+		result[0]=diamagnetic_U1[0]*rhs;
+		result[1]=diamagnetic_U1[1]*rhs;
+		result[2]=diamagnetic_U1[2]*rhs;
+	}
+	return result;
+}
+
+
+/// compute the diamagnetic local potential (B is in z direction -> dia = x^2 + y^2
+std::vector<complex_function_3d> Diamagnetic_potential_factor::apply_potential_scalar(
+		const std::vector<complex_function_3d>& rhs) const {
 
 	std::vector<complex_function_3d> result=zero_functions_compressed<double_complex,3>(world,rhs.size());
 	if (physical_B.normf()==0.0) return result;
@@ -122,11 +141,37 @@ std::vector<complex_function_3d> Diamagnetic_potential_factor::apply_potential(c
 	if (diapot_diffB!=0.0) radius=this->compute_radius(diapot_diffB);
 	result+=rhs*diamagnetic_U2 +  0.125*diapot_diffB*diapot_diffB*radius*radius*rhs;
 
-	if (param.use_diamagnetic_factor() and explicit_B.normf()!=0.0) {
+	// add the integration by parts term if greensp is used
+	// factor 2 for dU1x/dx + dU1y/dy = 2.0, since U1z=0
+	result-=0.5*explicit_B.normf()*2.0*rhs;
+
+	truncate(world,result);
+	return result;
+}
+
+
+/// compute the diamagnetic local potential (B is in z direction -> dia = x^2 + y^2
+std::vector<complex_function_3d> Diamagnetic_potential_factor::apply_potential(const std::vector<complex_function_3d>& rhs) const {
+
+	std::vector<complex_function_3d> result=zero_functions_compressed<double_complex,3>(world,rhs.size());
+	if (physical_B.normf()==0.0) return result;
+
+	// the diamagnetic potential
+	double diapot_diffB=sqrt(inner(physical_B,physical_B) - inner(explicit_B,explicit_B));
+	double radius=0.0;
+	if (diapot_diffB!=0.0) radius=this->compute_radius(diapot_diffB);
+	result+=rhs*diamagnetic_U2 +  0.125*diapot_diffB*diapot_diffB*radius*radius*rhs;
+	save(abs(result[1]),"U2rhs1");
+
+	if (explicit_B.normf()!=0.0) {
 		Derivative<double_complex,3> dx(world,0);
 		Derivative<double_complex,3> dy(world,1);
+		dx.set_ble1();
+		dy.set_ble1();
 		std::vector<complex_function_3d> dxrhs=apply(world,dx,rhs);
 		std::vector<complex_function_3d> dyrhs=apply(world,dy,rhs);
+		save(abs(dxrhs[1]),"dxrhs1");
+		save(abs(dyrhs[1]),"dyrhs1");
 
 		std::vector<complex_function_3d> tmp=(diamagnetic_U1[0]*dxrhs + diamagnetic_U1[1]*dyrhs);
 		save(abs(tmp[0]),"apply_potential_tmp0");
@@ -137,6 +182,32 @@ std::vector<complex_function_3d> Diamagnetic_potential_factor::apply_potential(c
 	truncate(world,result);
 	return result;
 }
+
+void Diamagnetic_potential_factor::test_Gp_potential(const std::vector<complex_function_3d>& rhs) const {
+
+	std::vector<complex_function_3d> nonGp=apply_potential(rhs);
+	std::vector<complex_function_3d> Gpscalar=apply_potential_scalar(rhs);
+	std::vector<std::vector<complex_function_3d> > Gpvector=apply_potential_greensp(rhs);
+
+	Derivative<double_complex,3> dx(world,0);
+	Derivative<double_complex,3> dy(world,1);
+	Derivative<double_complex,3> dz(world,2);
+	std::vector<complex_function_3d> divGpvector=apply(world,dx,Gpvector[0])
+		+apply(world,dy,Gpvector[1])+apply(world,dz,Gpvector[2]);
+
+	double n1=norm2(world,nonGp);
+	double n2=norm2(world,Gpscalar);
+	double n3=norm2(world,divGpvector);
+	print(" -- test_Gp_potential, n1, n2, n3",n1,n2,n3);
+
+	std::vector<complex_function_3d> diff=nonGp-(divGpvector+Gpscalar);
+	double n4=norm2(world,diff);
+	print(" -- test_Gp_potential, diffnorm ",n4);
+
+
+
+}
+
 
 
 } /* namespace madness */

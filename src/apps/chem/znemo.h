@@ -54,20 +54,19 @@ struct allocator {
 
 class Nemo_complex_Parameters : public CalculationParametersBase {
 public:
-	enum parameterenum {B_, explicit_B_, u1box_, box_, shift_, printlevel_, diamagnetic_height_,
-		use_greensp_, use_diamagnetic_factor_};
+	enum parameterenum {physical_B_, explicit_B_, box_, box_softness_, shift_, printlevel_, diamagnetic_height_,
+		use_greensp_};
 
 	/// the parameters with the enum key, the constructor taking the input file key and a default value
 	ParameterMap params={
-        		init<double>(B_,{"B",0.0}),
+        		init<double>(physical_B_,{"physical_B",0.0}),
         		init<double>(explicit_B_,{"explicit_B",0.0}),
-        		init<std::vector<double> >(box_,{"box",{15.0, 1.0, 4.0, 0.0, 0.0, 0.0}}),
-        		init<std::vector<double> >(u1box_,{"u1box",{10.0, 1.0, 1.0, 0.0, 0.0, 0.0}}),
+        		init<std::vector<double> >(box_,{"box",{-1.0, 1.0, 4.0, 0.0, 0.0, 0.0}}),
+        		init<double>(box_softness_,{"box_softness",1.0}),
 				init<double>(shift_,{"shift",0.0}),
 				init<int>(printlevel_,{"printlevel",1}),		// 0: energies, 1: fock matrix, 2: function sizes
-				init<double>(diamagnetic_height_,{"diamagnetic_height",30}),
+				init<double>(diamagnetic_height_,{"diamagnetic_height",-1.0}),
 				init<bool>(use_greensp_,{"greensp",false}),
-				init<bool>(use_diamagnetic_factor_,{"diamagnetic_factor",false})
     };
 
 	/// ctor reading out the input file
@@ -75,6 +74,31 @@ public:
 
 		// read input file
 		read(world,"input","complex",params);
+
+	}
+
+	void set_derived_values() {
+		double pb=physical_B();
+		double eb=explicit_B();
+		double remaining_B=fabs(pb-eb);
+		double differential_Bsquare=sqrt(pb*pb-eb*eb);
+		double thresh=FunctionDefaults<3>::get_thresh()*0.1;
+		::madness::print("thresh, rB",thresh,remaining_B);
+
+		double wave_function_radius=2.0*sqrt(-log(thresh)/remaining_B);
+		double potential_radius=wave_function_radius*1.4;
+		double box_radius=wave_function_radius*1.1;
+
+		::madness::print("wave function radius  ",wave_function_radius);
+		::madness::print("potential_radius      ",potential_radius);
+		::madness::print("differential_B_square ",differential_Bsquare);
+		::madness::print("diamagnetic_height    ",params[diamagnetic_height_]);
+
+		// set the diamagnetic height unless explicitly given
+		params[box_].set_derived_value(std::vector<double>({box_radius,1.0,box_softness()}));
+		params[diamagnetic_height_].set_derived_value(0.125*
+				differential_Bsquare*differential_Bsquare*potential_radius*potential_radius);
+
 
 		// set derived values
 //		params[param2_].set_derived_value(this->get<int>(param1_)*10.0);
@@ -85,13 +109,12 @@ public:
 
 	int printlevel() const {return get<int>(printlevel_);}
 	double shift() const {return get<double>(shift_);}
-	double B() const {return get<double>(B_);}
+	double physical_B() const {return get<double>(physical_B_);}
 	double explicit_B() const {return get<double>(explicit_B_);}
 	std::vector<double> box() const {return get<std::vector<double> >(box_);}
-	std::vector<double> u1box() const {return get<std::vector<double> >(u1box_);}
+	double box_softness() const {return get<double>(box_softness_);}
 	double diamagnetic_height() const {return get<double>(diamagnetic_height_);}
 	bool use_greensp() const {return get<bool>(use_greensp_);}
-	bool use_diamagnetic_factor() const {return get<bool>(use_diamagnetic_factor_);}
 
 
 	/// return the value of the parameter
@@ -118,7 +141,24 @@ class Znemo {
 			J_mo=zero_functions<double_complex,3>(world,nmo);
 			K_mo=zero_functions<double_complex,3>(world,nmo);
 			spin_zeeman_mo=zero_functions<double_complex,3>(world,nmo);
+			for (int i=0; i<3; ++i) GpVmo.push_back(zero_functions<double_complex,3>(world,nmo));
+			Gpscalar=zero_functions<double_complex,3>(world,nmo);
+
 		}
+
+		void transform(const Tensor<double_complex>& U) {
+			World& world=vnuc_mo[0].world();
+			vnuc_mo = ::madness::transform(world, vnuc_mo, U);
+			diamagnetic_mo = ::madness::transform(world, diamagnetic_mo, U);
+			lz_mo = ::madness::transform(world, lz_mo, U);
+			J_mo = ::madness::transform(world, J_mo, U);
+			K_mo = ::madness::transform(world, K_mo, U);
+			spin_zeeman_mo = ::madness::transform(world, spin_zeeman_mo, U);
+			for (auto& a : GpVmo) a=::madness::transform(world,a,U);
+			Gpscalar = ::madness::transform(world, Gpscalar, U);
+		}
+
+
 		std::vector<complex_function_3d> vnuc_mo;
 		std::vector<complex_function_3d> diamagnetic_mo;
 		std::vector<complex_function_3d> lz_mo;
@@ -126,6 +166,7 @@ class Znemo {
 		std::vector<complex_function_3d> K_mo;
 		std::vector<complex_function_3d> spin_zeeman_mo;
 		std::vector<std::vector<complex_function_3d> > GpVmo;	// potentials for the derivative of the BSH operator
+		std::vector<complex_function_3d> Gpscalar;				// scalar terms arising from the Gp treatment
 	};
 
 	struct timer {
@@ -165,6 +206,8 @@ public:
 	void test2();
 	void test_gp(const std::vector<complex_function_3d>& arg,
 			const std::vector<std::vector<complex_function_3d> > varg) const;
+	void test_gp2(const std::vector<complex_function_3d>& arg,
+			const std::vector<std::vector<complex_function_3d> > varg) const;
 
 	// analyse the results only
 	void analyze() const;
@@ -201,7 +244,7 @@ public:
 	/// compute the shift of the molecule such that the kinetic momentum vanishes
 	Tensor<double> compute_standard_gauge_shift(const Tensor<double>& p_exp) const {
 		Tensor<double> S(3);
-		const double B=param.B();
+		const double B=param.physical_B();
 
 	    S(0l)=-p_exp(1);
 	    S(1) =p_exp(0l);
@@ -300,7 +343,11 @@ public:
 	    }
 	    world.gop.fence();
 	}
+
 	double compute_energy(const std::vector<complex_function_3d>& amo, const potentials& apot,
+			const std::vector<complex_function_3d>& bmo, const potentials& bpot, const bool do_print) const;
+
+	double compute_energy_no_confinement(const std::vector<complex_function_3d>& amo, const potentials& apot,
 			const std::vector<complex_function_3d>& bmo, const potentials& bpot, const bool do_print) const;
 
 	/// compute the action of the Lz =i r x del operator on rhs
@@ -333,6 +380,7 @@ public:
 
 	void canonicalize(std::vector<complex_function_3d>& amo,
 			std::vector<complex_function_3d>& vnemo,
+			potentials& pot,
 			XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator>& solver,
 			Tensor<double_complex> fock, Tensor<double_complex> ovlp) const;
 

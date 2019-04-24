@@ -57,11 +57,27 @@ public:
 	}
 
 	/// recompute the factor and the potentials for given physical and explicit magnetic fields
-	void recompute_functions(const coord_3d& pB, const coord_3d& eB, const std::vector<coord_3d>& v,
-			const real_function_3d& sbox);
+	void recompute_functions(const coord_3d& pB, const coord_3d& eB, const std::vector<coord_3d>& v);
+
+	/// compute the bare potential without confinement or factors
+	real_function_3d potential_bare() const {
+		MADNESS_ASSERT(B_along_z(physical_B));
+		const double b_square=inner(physical_B,physical_B);
+		real_function_3d result=real_factory_3d(world)
+				.functor([& b_square](const coord_3d& r){return 0.125*b_square*(r[0]*r[0] + r[1]*r[1]);}
+		);
+		return result;
+	}
 
 	/// apply the diamagnetic potential on rhs
 	std::vector<complex_function_3d> apply_potential(const std::vector<complex_function_3d>& rhs) const;
+
+	std::vector<std::vector<complex_function_3d> >
+	apply_potential_greensp(const std::vector<complex_function_3d>& rhs) const;
+
+	std::vector<complex_function_3d> apply_potential_scalar(const std::vector<complex_function_3d>& rhs) const;
+
+	void test_Gp_potential(const std::vector<complex_function_3d>& rhs) const;
 
 	/// make sure the magnetic field is oriented along the z axis
 	static bool B_along_z(const coord_3d& B) {
@@ -69,7 +85,18 @@ public:
 	}
 
 	std::vector<coord_3d> get_v() const {return v;}
+
 	coord_3d get_explicit_B() const {return explicit_B;}
+
+	coord_3d get_physical_B() const {return physical_B;}
+
+	/// given the explicit and the physical B, estimate the required radius
+	/// of the wave function
+	double estimate_wavefunction_radius(const double eps=1.e-8) const {
+		double remaining_B=(get_physical_B()-get_explicit_B()).normf();
+		print("flodbg",log(eps),remaining_B);
+		return 2.0*sqrt(-log(eps)/remaining_B);
+	}
 
 private:
 	World& world;				///< the world
@@ -92,6 +119,7 @@ private:
 	/// the position of the nuclei in the "A" space: v = 1/2 B cross R
 	std::vector<coord_3d> v;
 
+public:
 	/// compute the radius for the diamagnetic potential
 	double compute_radius(const double B) const {
 		const double height=param.diamagnetic_height();
@@ -108,7 +136,6 @@ private:
 		double radius=compute_radius(diapot_diffB);
 		print("computing radius to",radius);
 	}
-public:
 
 };
 
