@@ -101,8 +101,8 @@ int main()
         }
     }
 
-    Tensor<double> Smo(nbf,nbf);
-    Tensor<double> Smo2(nbf,nbf);
+    //Tensor<double> Smo2(nbf,nbf);
+    Tensor<double> Smo=transform(S,C);
 
 
     /*  Molecular overlap matrix should be idenities... this is a test to check whether
@@ -110,12 +110,13 @@ int main()
      *  if they are then the overlap matrix of molecular orbitals should be identies
      *  S(i,j)=sum(mu,nu) C'*S*C
      */
-    int c1(0); 
+    /*
+    int c1(0);
     for (int i=0; i<nbf; i++) {
         for ( int j =0; j<nbf; j++) {
             for( int mu=0; mu <nbf; mu++) {
                 for ( int nu=0; nu<nbf; nu++) {
-//S[i,j] = sum(mu,nu) C[mu,i] s[mu,nu] C[nu,j]
+    //S[i,j] = sum(mu,nu) C[mu,i] s[mu,nu] C[nu,j]
                     c1++;
                     Smo(i,j)+=C(mu,i)*S(mu,nu)*C(nu,j);
                 }
@@ -140,20 +141,45 @@ int main()
           }
       }
     }
+    */
 
-    Tensor<double> P(nbf,nbf);//Density Matrix
-    
-    
-      
+    /*
+        for( int mu=0; mu <nbf; mu++) {
+            for ( int nu=0; nu<nbf; nu++) {
+                for (int i =0; i<nocc; i++) {
+                    D(mu,nu)+=C(mu,i)*C(nu,i);
+                }
+            }
+        }
+        */
+    Tensor<double> Cocc=C(_,Slice(0,nocc-1));
+    Tensor<double> D=inner(Cocc,Cocc,1,1);
 
-        
-    print(Smo);
+    double pe=PE.trace(D);
+
+    double ke=KE.trace(D);
+
+    double G;
+
+    for( int mu =0; mu <nbf; mu++) {
+        for (int nu =0; nu <nbf; nu++) {
+            for( int lambda =0; lambda <nbf; lambda ++) {
+                for ( int sigma=0; sigma <nbf; sigma ++) {
+
+
+
+                }
+            }
+        }
+    }
+
+    print(D);
+    print(ke,pe,2*(ke+pe));
 
 
 
     std::cout << nbf <<"this is nbf"<< std::endl;
     fs.close();
-    print("N^4 ",c1,"2*N^3",c2);
     return 0;
 }
 /**********************************************************************************
