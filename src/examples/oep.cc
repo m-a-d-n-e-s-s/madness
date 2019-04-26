@@ -185,11 +185,16 @@ private:
 
 	double dens_thresh_hi = 1.0e-6;   // default 1.0e-6
 	double dens_thresh_lo = 1.0e-8;   // default 1.0e-8
-	double munge_thresh = 1.0e-8;  // default 1.0e-8
-	unsigned int damp_num = 0;   // default 0 (no damping)
+	double munge_thresh = 1.0e-8;     // default 1.0e-8
+	unsigned int damp_num = 0;        // default 0 (no damping)
 	std::vector<double> damp_coeff;
 	std::string model;
 	std::vector<bool> oep_model = {false, false, false};
+	bool save_nemo_squares = false;                   // if true save density contributions of orbitals
+	unsigned int save_iter_density = 0;               // if > 0 save KS density every ... iterations
+	unsigned int save_iter_IKS = 0;                   // if > 0 save IKS every ... iterations
+	unsigned int save_iter_ocep_correction = 0;       // if > 0 save OCEP correction every ... iterations
+	unsigned int save_iter_effective_potential = 0;   // if > 0 save effective potential every ... iterations
 
 	void set_model_oaep() {oep_model[0] = true;}
 	void unset_model_oaep() {oep_model[0] = false;}
@@ -223,6 +228,21 @@ public:
             }
             else if (str == "model") {
             	in >> model;
+            }
+            else if (str == "save_nemo_squares") {
+            	save_nemo_squares = true;
+            }
+            else if (str == "save_density") {
+            	in >> save_iter_density;
+            }
+            else if (str == "save_IKS") {
+            	in >> save_iter_IKS;
+            }
+            else if (str == "save_OCEP_correction") {
+            	in >> save_iter_ocep_correction;
+            }
+            else if (str == "save_effective_potential") {
+            	in >> save_iter_effective_potential;
             }
             else if (str == "density_threshold_high") {
             	in >> dens_thresh_hi;
@@ -320,12 +340,13 @@ public:
 		save(compute_density(HF_nemo), "density_HF");
     	save(compute_density(KS_nemo), "density_start");
 
-    	// test: print orbital contributions to total density
-    	vecfuncT HF_nemo_square = square(world, HF_nemo);
-    	for (int i = 0; i < HF_nemo_square.size(); i++) {
-    		save(HF_nemo_square[i], "HF_nemo_square_" + stringify(i));
+    	// if desired: print HF orbital contributions to total density (nemo squares)
+    	if (save_nemo_squares) {
+        	vecfuncT HF_nemo_square = square(world, HF_nemo);
+        	for (int i = 0; i < HF_nemo_square.size(); i++) {
+        		save(HF_nemo_square[i], "HF_nemo_square_" + stringify(i));
+        	}
     	}
-    	// end test
 
     	// all necessary operators applied on nemos
     	vecfuncT Jnemo, Unemo, Vnemo, Knemo;
@@ -367,11 +388,25 @@ public:
     				Voep += damp_coeff[i + 1]*Voep_old[i];
     			}
 
-    			if (iter_counter == 2 or iter_counter % 25 == 0) {
-        			save(corr_ocep, "OCEP_correction_iter_" + stringify(iter_counter));
-        			save(Voep, "Effective_potential_iter_" + stringify(iter_counter));
-        			save(compute_density(KS_nemo), "density_iter_" + stringify(iter_counter));
-        			save(compute_average_I(KS_nemo, KS_eigvals), "IKS_iter_" + stringify(iter_counter));
+    			if (save_iter_density > 0) {
+    				if (iter_counter == 2 or iter_counter % save_iter_density == 0) {
+    					save(compute_density(KS_nemo), "density_iter_" + stringify(iter_counter));
+    				}
+    			}
+    			if (save_iter_IKS > 0) {
+    				if (iter_counter == 2 or iter_counter % save_iter_IKS == 0) {
+    					save(compute_average_I(KS_nemo, KS_eigvals), "IKS_iter_" + stringify(iter_counter));
+    				}
+    			}
+    			if (save_iter_ocep_correction > 0) {
+    				if (iter_counter == 2 or iter_counter % save_iter_ocep_correction == 0) {
+    					save(corr_ocep, "OCEP_correction_iter_" + stringify(iter_counter));
+    				}
+    			}
+    			if (save_iter_effective_potential > 0) {
+    				if (iter_counter == 2 or iter_counter % save_iter_effective_potential == 0) {
+    					save(Voep, "effective_potential_iter_" + stringify(iter_counter));
+    				}
     			}
 
 			}
@@ -518,12 +553,13 @@ public:
     	// calculate and print all final numbers
     	print("\n  computing final IKS and density");
 
-    	// test: print orbital contributions to total density
-    	vecfuncT KS_nemo_square = square(world, KS_nemo);
-    	for (int i = 0; i < KS_nemo_square.size(); i++) {
-    		save(KS_nemo_square[i], "KS_nemo_final_square_" + stringify(i));
+    	// if desired: print final KS orbital contributions to total density (nemo squares)
+    	if (save_nemo_squares) {
+        	vecfuncT KS_nemo_square = square(world, KS_nemo);
+        	for (int i = 0; i < KS_nemo_square.size(); i++) {
+        		save(KS_nemo_square[i], "KS_nemo_final_square_" + stringify(i));
+        	}
     	}
-    	// end test
 
     	real_function_3d IKS = compute_average_I(KS_nemo, KS_eigvals);
     	real_function_3d rho = compute_density(KS_nemo);
