@@ -53,6 +53,7 @@ namespace madness {
           bool lineplot;               ///< Whether or not to make lineplots at the end of the job
           bool no_compute;             ///< If true, will skip all computation
           double bohr_rad;             ///< bohr radius in fm (default: 52917.7211)
+          int min_iter;                ///< minimum number of iterations (default: 2)
           //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           //               If you add something here, don't forget to add it to serializable!
@@ -65,7 +66,7 @@ namespace madness {
 
           template<typename Archive>
           void serialize(Archive& ar){
-               ar & archive & job & print_level & max_iter & small & thresh & k & kain & maxsub & maxrotn & restart & nucleus & do_save & savefile & lb_iter & nwchem & lineplot & no_compute & bohr_rad;
+               ar & archive & job & print_level & max_iter & small & thresh & k & kain & maxsub & maxrotn & restart & nucleus & do_save & savefile & lb_iter & nwchem & lineplot & no_compute & bohr_rad & min_iter;
           }
 
           // Default constructor
@@ -89,6 +90,7 @@ namespace madness {
           , lineplot(false)
           , no_compute(false)
           , bohr_rad(52917.7211)
+          , min_iter(2)
           {}
 
           // Initializes DFParameters using the contents of file \c filename
@@ -183,6 +185,9 @@ namespace madness {
                     }
                     else if (s == "bohr_rad"){
                          f >> bohr_rad;
+                    }
+                    else if (s == "min_iter"){
+                         f >> min_iter;
                     }
                     else{
                        std::cout << "Dirac Fock: unrecognized input keyword " << s << std::endl;

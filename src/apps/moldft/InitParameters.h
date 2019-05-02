@@ -129,7 +129,7 @@ namespace madness{
                          double csquared = 137.0359895*137.0359895;
                          double temp;
                          for(unsigned int i = 0; i < num_occupied; i++){
-                              temp = temp_energies(i)+csquared;
+                              temp = temp_energies(i);//+csquared;
                               energies(2*i) = temp;
                               energies(2*i+1) = temp;
                          }
@@ -192,10 +192,10 @@ namespace madness{
                          energies = Tensor<double>(num_occupied + num_betas);
                          double csquared = 137.0359895*137.0359895;
                          for(unsigned int i = 0; i < num_occupied; i++){
-                              energies(i) = temp_energies(i) + csquared;
+                              energies(i) = temp_energies(i);// + csquared;
                          }
                          for(unsigned int i = 0; i < num_betas; i++){
-                              energies(num_occupied + i) = beta_energies(i) + csquared;
+                              energies(num_occupied + i) = beta_energies(i);// + csquared;
                          }
                          num_occupied += num_betas;
 

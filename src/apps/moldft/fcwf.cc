@@ -241,6 +241,9 @@ void Fcwf::apply(World& world, real_convolution_3d& op){
      m_psi = madness::apply(world, op, m_psi);
 }
 
+void Fcwf::apply(World& world, complex_derivative_3d& D){
+     m_psi = madness::apply(world, D, m_psi);
+}
 
 std::complex<double> inner(const Fcwf& psi, const Fcwf& phi){
      //std::complex<double> result(0,0);
@@ -265,6 +268,11 @@ Fcwf apply(World& world, real_convolution_3d& op, const Fcwf& psi){
      return temp;
 }
 
+Fcwf apply(World& world, complex_derivative_3d& D, const Fcwf& psi){
+     Fcwf temp = copy(psi);
+     temp.apply(world, D);
+     return temp;
+}
 
 real_function_3d squaremod(Fcwf& psi){
      MADNESS_ASSERT(psi.getinitialize());
@@ -456,5 +464,10 @@ void Fcwf::reconstruct(){
      for(unsigned int i = 0; i < 4; i++) m_psi[i].reconstruct();
 }
 
+//loop through fcwf and compress each function
+void Fcwf::compress(){
+     MADNESS_ASSERT(m_initialized); //needed?
+     for(unsigned int i = 0; i < 4; i++) m_psi[i].compress();
+}
 
 //kthxbye

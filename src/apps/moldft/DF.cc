@@ -221,6 +221,7 @@ class GaussianNucleusFunctor : public FunctionFunctorInterface<double,3> {
                //calculate factors necessary for the potential
                for(unsigned int i = 0; i < m_Zlist.size(); i++){
                     m_xi.push_back(sqrt(3.0/2.0)/(0.836*pow(m_Alist[i],1.0/3.0)+0.57)*bohr_rad);
+                    //std::cout << m_xi << std::endl;
                }
           }
           
@@ -460,10 +461,10 @@ double DF::rele(World& world, const Fcwf& psi){
      Fcwf Tpsi(world);
      complex_function_3d temp(world);
      
-     Tpsi[0] = Dz(psi[2]) + Dx(psi[3]) - myi*Dy(psi[3]) + myc*myi*psi[0];
-     Tpsi[1] = Dx(psi[2]) + myi*Dy(psi[2]) - Dz(psi[3]) + myc*myi*psi[1];
-     Tpsi[2] = Dz(psi[0]) + Dx(psi[1]) - myi*Dy(psi[1]) - myc*myi*psi[2];
-     Tpsi[3] = Dx(psi[0]) + myi*Dy(psi[0]) - Dz(psi[1]) - myc*myi*psi[3];
+     Tpsi[0] = Dz(psi[2]) + Dx(psi[3]) - myi*Dy(psi[3]);// + myc*myi*psi[0];
+     Tpsi[1] = Dx(psi[2]) + myi*Dy(psi[2]) - Dz(psi[3]);// + myc*myi*psi[1];
+     Tpsi[2] = Dz(psi[0]) + Dx(psi[1]) - myi*Dy(psi[1]) - 2*myc*myi*psi[2];
+     Tpsi[3] = Dx(psi[0]) + myi*Dy(psi[0]) - Dz(psi[1]) - 2*myc*myi*psi[3];
 
      //The giant block below this exists because I was debugging
      //some hung queues. I still don't know what's causing them
@@ -541,18 +542,38 @@ double DF::rele(World& world, const Fcwf& psi){
 }
 
 //returns a new Fcwf that is the result of applying the Dirac free-particle hamiltonian on psi
-Fcwf apply_T(World& world, const Fcwf& psi){
+Fcwf apply_T(World& world, Fcwf& psi){
      double myc = 137.0359895; //speed of light in atomic units
      std::complex<double> myi(0,1);
      complex_derivative_3d Dx(world,0);
      complex_derivative_3d Dy(world,1);
      complex_derivative_3d Dz(world,2);
      Fcwf Tpsi(world);
+     
+     //reconstruct psi
+     psi.reconstruct();
 
-     Tpsi[0] = Dz(psi[2]) + Dx(psi[3]) - myi*Dy(psi[3]) + myc*myi*psi[0];
-     Tpsi[1] = Dx(psi[2]) + myi*Dy(psi[2]) - Dz(psi[3]) + myc*myi*psi[1];
-     Tpsi[2] = Dz(psi[0]) + Dx(psi[1]) - myi*Dy(psi[1]) - myc*myi*psi[2];
-     Tpsi[3] = Dx(psi[0]) + myi*Dy(psi[0]) - Dz(psi[1]) - myc*myi*psi[3];
+     //take derivatives
+     Fcwf psix = apply(world,Dx,psi); 
+     Fcwf psiy = apply(world,Dy,psi);
+     Fcwf psiz = apply(world,Dz,psi); 
+
+     //compress
+     psix.compress();
+     psiy.compress();
+     psiz.compress();
+     psi.compress();
+
+     //combine to calculate application of T
+     Tpsi[0] = psiz[2] + psix[3] - myi*psiy[3];
+     Tpsi[1] = psix[2] + myi*psiy[2] - psiz[3];
+     Tpsi[2] = psiz[0] + psix[1] - myi*psiy[1] - 2*myc*myi*psi[2];
+     Tpsi[3] = psix[0] + myi*psiy[0] - psiz[1] - 2*myc*myi*psi[3];
+
+     //Tpsi[0] = Dz(psi[2]) + Dx(psi[3]) - myi*Dy(psi[3]);// + myc*myi*psi[0];
+     //Tpsi[1] = Dx(psi[2]) + myi*Dy(psi[2]) - Dz(psi[3]);// + myc*myi*psi[1];
+     //Tpsi[2] = Dz(psi[0]) + Dx(psi[1]) - myi*Dy(psi[1]) - 2*myc*myi*psi[2];
+     //Tpsi[3] = Dx(psi[0]) + myi*Dy(psi[0]) - Dz(psi[1]) - 2*myc*myi*psi[3];
 
      return Tpsi * (-myi*myc);
 }
@@ -622,6 +643,7 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
           for(unsigned int j = 0; j < n-i; j++){
                temp[j] = complex_factory_3d(world);    
           }
+          compress(world, temp);
 
           std::vector<complex_function_3d> temp0(n-i);
           std::vector<complex_function_3d> temp1(n-i);
@@ -634,12 +656,16 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
                temp3[j-i] = occupieds[j][3];
           }
 
-          gaxpy(world, 1.0, temp, 1.0, occupieds[i][0]*conj(world, temp0));
-          gaxpy(world, 1.0, temp, 1.0, occupieds[i][1]*conj(world, temp1));
-          gaxpy(world, 1.0, temp, 1.0, occupieds[i][2]*conj(world, temp2));
-          gaxpy(world, 1.0, temp, 1.0, occupieds[i][3]*conj(world, temp3));
+          gaxpy(world, 1.0, temp, 1.0, occupieds[i][0]*conj(world,temp0));
+          gaxpy(world, 1.0, temp, 1.0, occupieds[i][1]*conj(world,temp1));
+          gaxpy(world, 1.0, temp, 1.0, occupieds[i][2]*conj(world,temp2));
+          gaxpy(world, 1.0, temp, 1.0, occupieds[i][3]*conj(world,temp3));
+
+          if(world.rank()==0) print("Starting apply phase in K");
 
           temp = apply(world, op, temp);
+
+          if(world.rank()==0) print("Exiting apply phase in K");
 
           Kpsis[i][0] += sum(world, mul(world, temp, temp0));
           Kpsis[i][1] += sum(world, mul(world, temp, temp1));
@@ -659,10 +685,6 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
                Kpsis[j][3] += temp3[j-i];
           }
           
-
-
-
-
 
           //for(unsigned int j = i; j < n ; j++){ //parallelize this loop using 4-vectors approach
 
@@ -918,7 +940,8 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
                     //double snew = std::norm(U(kk, j)) + std::norm(U(j, kk));
                     double sold = std::real(U(kk,kk)*std::conj(U(kk,kk))) + std::real(U(j,j)*std::conj(U(j,j)));
                     double snew = std::real(U(kk,j)*std::conj(U(kk,j))) + std::real(U(j,kk)*std::conj(U(j,kk)));
-                    if (snew > sold and not ((evals[j] - evals[kk]) > thresh_degenerate * std::max(std::fabs(evals[kk])-csquared,1.0)) ) {
+                    //if (snew > sold and not ((evals[j] - evals[kk]) > thresh_degenerate * std::max(std::fabs(evals[kk])-csquared,1.0)) ) {
+                    if (snew > sold and not ((evals[j] - evals[kk]) > thresh_degenerate * std::fabs(evals[kk])) ) {
                          if(world.rank()==0){
                               print("          swapping columns ", kk+1, " and ", j+1);
                          }
@@ -944,7 +967,8 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      while (ilo < Init_params.num_occupied - 1) {
          unsigned int ihi = ilo;
          while (fabs(evals[ilo] - evals[ihi + 1])
-                < thresh_degenerate * std::max(std::fabs(evals[ilo]-csquared),1.0)){// pow(10,floor(log10(std::fabs(evals[ilo]))))) { 
+                < thresh_degenerate * std::fabs(evals[ilo])){// pow(10,floor(log10(std::fabs(evals[ilo]))))) { 
+                //< thresh_degenerate * std::max(std::fabs(evals[ilo]-csquared),1.0)){// pow(10,floor(log10(std::fabs(evals[ilo]))))) { 
              ++ihi;
              if (ihi == Init_params.num_occupied - 1)
                  break;
@@ -954,7 +978,8 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
               if(world.rank()==0){
                     print("          found cluster from ", ilo + 1, " to " , ihi + 1);
                     for(unsigned int kk = ilo; kk <= ihi; kk++){
-                         print("               ",evals[kk] - csquared);
+                         //print("               ",evals[kk] - csquared);
+                         print("               ",evals[kk]);
                     }
               }
 
@@ -1407,9 +1432,10 @@ void apply_BSH_new(World& world, Fcwf& Vpsi, double& eps, double& small, double&
      std::complex<double> ic = myi*myc;
     
      //calculate exponent for equivalent BSH operator
-     double mu = std::sqrt((myc*myc*myc*myc-eps*eps)/myc/myc);
+     //double mu = std::sqrt((myc*myc*myc*myc-eps*eps)/myc/myc);
+     double mu = std::sqrt(-(2*eps*c2+eps*eps)/c2);
 
-     //if(world.rank() == 0) print("Hi, this is apply_BSH! mu is: ", mu);
+     //if(world.rank()==0) print("in apply, mu = ", mu);
 
      //create gradient BSH operators
      //TODO: make my own GradBSH that first computes BSH with a ridiculous lo, and then accumulates to CDelta, then need something intelligent for the derivative of that result
@@ -1421,7 +1447,7 @@ void apply_BSH_new(World& world, Fcwf& Vpsi, double& eps, double& small, double&
      real_convolution_3d op = BSHOperator3D(world, mu,small,thresh); // Finer length scale and accuracy control
 
      Vpsi = apply(world, op, Vpsi);
-     Vpsi = (apply_T(world, Vpsi) + Vpsi * eps) * (1.0/c2);
+     Vpsi = (apply_T(world, Vpsi) + Vpsi * (eps+2*c2)) * (1.0/c2);
 
      //Vpsi = apply(world, op, apply_T(world, Vpsi) + Vpsi * eps) * (1.0/c2);
 
@@ -1805,6 +1831,7 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      //Apply BSH to each psi
      if(world.rank()==0) print("\n***Applying BSH operator***");
      start_timer(world);
+     double maxresidual = -1.0;
      for(unsigned int j = 0; j < Init_params.num_occupied; j++){
 
           //Debugging
@@ -1861,6 +1888,7 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
 
           //Print residual norm to keep track
           if(world.rank()==0) printf("     Orbital: %3i,  Resid: %.10e\n",j+1, residualnorm);
+          maxresidual = std::max(maxresidual, residualnorm);
 
           //If the norm is big enough, we'll need to iterate again.
           if(residualnorm > tolerance) iterate_again = true;
@@ -1873,6 +1901,7 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
                occupieds[j] = temp_function;
           }
      }
+     if(world.rank()==0) printf("                max Resid: %.10e\n",maxresidual);
      if(world.rank()==0) printf("                tolerance: %.10e\n",tolerance);
      times = end_timer(world);
      if(world.rank()==0) print("     ", times[0]);
@@ -1957,7 +1986,8 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
           //if(world.rank()==0) print("     Adding terms for orbital ", j);
           energies[j] = rele(world,occupieds[j]);
           
-          kinetic_energy += (energies[j] - myc*myc);
+          //kinetic_energy += (energies[j] - myc*myc);
+          kinetic_energy += (energies[j]);
           //if(world.rank()==0) print("          Kinetic done.");
      }
           
@@ -2030,7 +2060,8 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
           maxdepth = std::max(int(occupieds[j][2].max_depth()), maxdepth);
           maxdepth = std::max(int(occupieds[j][3].max_depth()), maxdepth);
           if(world.rank()==0){
-               printf("                Orbital: %3i, Energy: %.10e, <r>: %8e, No. coeffs: %7i, Max depth: %3i\n",j+1, energies[j]-myc*myc, r_expec, numcoeffs, maxdepth);
+               //printf("                Orbital: %3i, Energy: %.10e, <r>: %8e, No. coeffs: %7i, Max depth: %3i\n",j+1, energies[j]-myc*myc, r_expec, numcoeffs, maxdepth);
+               printf("                Orbital: %3i, Energy: %.10e, <r>: %8e, No. coeffs: %7i, Max depth: %3i\n",j+1, energies[j], r_expec, numcoeffs, maxdepth);
           }
      }
      if(world.rank()==0){
@@ -2115,14 +2146,14 @@ void DF::solve_occupied(World & world)
 
      //Set tolerance for residuals
      //double tol = pow(10,floor(0.5*log10(DFparams.thresh)));
-     double tol = 10.0*DFparams.thresh; 
+     double tol = 50.0*DFparams.thresh; 
      
 
      //Now time to start iterating
      bool keep_going = true;
      int iteration_number = 1;
      //while(iteration_number < DFparams.max_iter){
-     while(keep_going and iteration_number < DFparams.max_iter){
+     while((keep_going and iteration_number <= DFparams.max_iter) or iteration_number <= DFparams.min_iter){
           keep_going = iterate(world, Vnuc, op, JandV, Kpsis, kainsolver, tol, iteration_number, nuclear_repulsion_energy);
           
           //Load balance and save between iterations

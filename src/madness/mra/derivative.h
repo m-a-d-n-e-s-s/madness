@@ -195,7 +195,7 @@ namespace madness {
 
             functionT df;
             df.set_impl(f,false);
-
+            df.get_impl()->world.gop.fence(); // <<<<<<< perhaps unneccessary fence added by Robert
             df.get_impl()->diff(this, f.get_impl().get(), fence);
             return df;
         }
