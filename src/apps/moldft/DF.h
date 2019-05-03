@@ -74,7 +74,7 @@ class DF {
               std::shared_ptr<std::istream> input); // Pointer to input stream
 
           //Calculates the kinetic+rest energy expectation value of psi
-          double rele(World& world, const Fcwf& psi);
+          double rele(World& world, Fcwf& psi);
 
           //Applies the exchange operator to all of psis
           void exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsis);
@@ -87,9 +87,6 @@ class DF {
 
           //diagonalizes virtual orbitals. Transforms virtuals and Kpsis
           Tensor<double>  diagonalize_virtuals(World& world, real_function_3d& JandV,real_convolution_3d& op, std::vector<Fcwf>& Kpsis);
-              
-          //Prints norms of the given vector of functions.
-          void print_norms(World & world, std::vector<Fcwf> f);
               
           // Small function to print geometry of a molecule nicely
           // Straight up stolen from Bryan
