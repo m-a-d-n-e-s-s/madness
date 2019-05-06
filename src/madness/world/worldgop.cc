@@ -46,7 +46,7 @@ namespace madness {
     /// constant over two traversals.  We are then we are sure
     /// that all tasks and AM are processed and there no AM in
     /// flight.
-    void WorldGopInterface::fence() {
+    void WorldGopInterface::fence(bool debug) {
         PROFILE_MEMBER_FUNC(WorldGopInterface);
         unsigned long nsent_prev=0, nrecv_prev=1; // invalid initial condition
         SafeMPI::Request req0, req1;
@@ -108,7 +108,8 @@ namespace madness {
             broadcast(&sum, sizeof(sum), 0, dowork, bcast_tag);
             ++npass;
 
-//            madness::print("GOPFENCE", npass, sum[0], nsent_prev, sum[1], nrecv_prev);
+            if (debug)
+              madness::print("GOPFENCE", npass, sum[0], nsent_prev, sum[1], nrecv_prev);
 
             if (sum[0]==sum[1] && sum[0]==nsent_prev && sum[1]==nrecv_prev) {
                 break;
