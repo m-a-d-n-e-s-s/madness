@@ -159,15 +159,13 @@ int main()
 
     double ke=KE.trace(D);
 
-    double G;
+    double twoEE(0);
 
     for( int mu =0; mu <nbf; mu++) {
         for (int nu =0; nu <nbf; nu++) {
             for( int lambda =0; lambda <nbf; lambda ++) {
                 for ( int sigma=0; sigma <nbf; sigma ++) {
-
-
-
+                    twoEE+=Electron(mu,nu,lambda,sigma)*(2*D(mu,nu)*D(lambda,sigma)-D(mu,lambda)*D(nu,sigma));
                 }
             }
         }
@@ -175,6 +173,7 @@ int main()
 
     print(D);
     print(ke,pe,2*(ke+pe));
+    print(twoEE);
 
 
 
