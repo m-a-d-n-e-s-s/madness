@@ -112,98 +112,126 @@ namespace madness {
 
     namespace detail {
       template <typename Char> const Char* Vm_cstr();
+
+      bool& print_meminfo_flag_accessor();
     }
 
-    /// \brief print memory stats to file \c filename_prefix.<rank> , tagged with \c tag
+    /// \name print_meminfo
+    /// These functions are useful to instrument *aggregate* (not fine-grained, like WorldMemInfo) memory profiling.
+    /// \note To make this functionality usable must set the `ENABLE_MEM_PROFILE` CMake cache variable to `ON`
+    ///@{
+
+    /// disables print_meminfo() profiling (i.e. calling it is a no-op)
+    void print_meminfo_disable();
+    /// enables print_meminfo() profiling
+    /// \note print_meminfo() profiling is on by default.
+    void print_meminfo_enable();
+    /// @return true if print_meminfo() will generate profiling data.
+    bool print_meminfo_enabled();
+
+    /// \brief print aggregate memory stats to file \c filename_prefix.<rank> , tagged with \c tag
     /// \param[in] rank process rank
     /// \param[in] tag record tag as any string type, e.g. \c const char[] , \c std::string , or \c std::wstring
-    /// \param[in] filename_prefix filename prefix; the default value is "MEMORY"
+    /// \param[in] filename_prefix file name prefix; the default value is "MEMORY"
+    /// \note To make print_meminfo() usable must set the ENABLE_MEM_PROFILE CMake cache variable to ON; this makes print_meminfo() enabled by default.
+    ///       To disable/enable programmatically use print_meminfo_disable()/print_meminfo_enable() .
     /// \note must set global locale properly with \c std::locale::global() if \c tag has
     ///       nontrivial encoding
+    /// \warning this does not fence, it is up to the user to ensure proper synchronization
     template <typename String> void print_meminfo(
         int id, const String& tag,
         const std::string filename_prefix = std::string("MEMORY")) {
       using namespace std;
 #if defined(WORLD_MEM_PROFILE_ENABLE)
-      using Char = typename std::iterator_traits<decltype(std::begin(tag))>::value_type;
-      basic_ofstream<Char> memoryfile;
-      ostringstream filename;
+      if (print_meminfo_enabled()) {
+        using Char = typename std::iterator_traits<decltype(
+            std::begin(tag))>::value_type;
+        basic_ofstream<Char> memoryfile;
+        ostringstream filename;
 
-      filename << filename_prefix << "." << id;
+        filename << filename_prefix << "." << id;
 
-      memoryfile.open(filename.str().c_str(), ios::out | ios::app);
-      memoryfile << tag << endl;
+        memoryfile.open(filename.str().c_str(), ios::out | ios::app);
+        memoryfile << tag << endl;
 
-      const double fac = 1024.0 * 1024.0; /* Convert from bytes to megabytes */
+        const double to_MiB =
+            1 / (1024.0 * 1024.0); /* Convert from bytes to MiB */
 #if defined(HAVE_IBMBGQ)
-      uint64_t shared, persist, heapavail, stackavail, stack, heap, guard, mmap;
+        uint64_t shared, persist, heapavail, stackavail, stack, heap, guard,
+            mmap;
 
-      Kernel_GetMemorySize(KERNEL_MEMSIZE_SHARED, &shared);
-      Kernel_GetMemorySize(KERNEL_MEMSIZE_PERSIST, &persist);
-      Kernel_GetMemorySize(KERNEL_MEMSIZE_HEAPAVAIL, &heapavail);
-      Kernel_GetMemorySize(KERNEL_MEMSIZE_STACKAVAIL, &stackavail);
-      Kernel_GetMemorySize(KERNEL_MEMSIZE_STACK, &stack);
-      Kernel_GetMemorySize(KERNEL_MEMSIZE_HEAP, &heap);
-      Kernel_GetMemorySize(KERNEL_MEMSIZE_GUARD, &guard);
-      Kernel_GetMemorySize(KERNEL_MEMSIZE_MMAP, &mmap);
+        Kernel_GetMemorySize(KERNEL_MEMSIZE_SHARED, &shared);
+        Kernel_GetMemorySize(KERNEL_MEMSIZE_PERSIST, &persist);
+        Kernel_GetMemorySize(KERNEL_MEMSIZE_HEAPAVAIL, &heapavail);
+        Kernel_GetMemorySize(KERNEL_MEMSIZE_STACKAVAIL, &stackavail);
+        Kernel_GetMemorySize(KERNEL_MEMSIZE_STACK, &stack);
+        Kernel_GetMemorySize(KERNEL_MEMSIZE_HEAP, &heap);
+        Kernel_GetMemorySize(KERNEL_MEMSIZE_GUARD, &guard);
+        Kernel_GetMemorySize(KERNEL_MEMSIZE_MMAP, &mmap);
 
-      memoryfile << "Heap size (MB): " << (heap / fac)
-                 << ", available: " << (heapavail / fac) << endl;
-      memoryfile << "Stack size (MB): " << (stack / fac)
-                 << ", available: " << (stackavail / fac) << endl;
-      memoryfile << "Memory: shared: " << (shared / fac)
-                 << ", persist: " << (persist / fac)
-                 << ", guard: " << (guard / fac) << ", mmap: " << (mmap / fac)
-                 << endl;
+        memoryfile << "Heap size (MiB): " << (heap * to_MiB)
+                   << ", available: " << (heapavail * to_MiB) << endl;
+        memoryfile << "Stack size (MiB): " << (stack * to_MiB)
+                   << ", available: " << (stackavail * to_MiB) << endl;
+        memoryfile << "Memory (MiB): shared: " << (shared * to_MiB)
+                   << ", persist: " << (persist * to_MiB)
+                   << ", guard: " << (guard * to_MiB) << ", mmap: " << (mmap * to_MiB)
+                   << endl;
 #elif defined(ON_A_MAC)
-      /* Mac OS X specific hack - un-tested post Snow Leopard */
-      struct malloc_statistics_t mi; /* structure in bytes */
+        /* Mac OS X specific hack - un-tested post Snow Leopard */
+        struct malloc_statistics_t mi; /* structure in bytes */
 
-      malloc_zone_statistics(nullptr, &mi);
+        malloc_zone_statistics(nullptr, &mi);
 
-      memoryfile << "Heap size (MB): " << (mi.size_in_use / fac) << endl;
+        memoryfile << "Heap allocated  (MiB): " << (mi.size_allocated * to_MiB) << endl;
+        memoryfile << "Heap used       (MiB): " << (mi.size_in_use * to_MiB) << endl;
+        memoryfile << "Heap max used   (MiB): " << (mi.max_size_in_use * to_MiB) << endl;
 #elif defined(X86_32) // 32-bit Linux
-      struct mallinfo mi; /* structure in bytes */
+        struct mallinfo mi; /* structure in bytes */
 
-      mi = mallinfo();
+        mi = mallinfo();
 
-      memoryfile << "Non-mmap (MB): " << (mi.arena / fac) << endl;
-      memoryfile << "Mmap (MB): " << (mi.hblkhd / fac) << endl;
-      memoryfile << "Total malloc chunks (MB): " << (mi.uordblks / fac) << endl;
+        memoryfile << "Non-mmap (MiB): " << (mi.arena * to_MiB) << endl;
+        memoryfile << "Mmap (MiB): " << (mi.hblkhd * to_MiB) << endl;
+        memoryfile << "Total malloc chunks (MiB): " << (mi.uordblks * to_MiB)
+                   << endl;
 #elif defined(X86_64) // 64-bit Linux
-      // try parsing /proc/PID/status first, fallback on sysinfo
-      string status_fname = string("/proc/") + to_string(getpid()) + string("/status");
-      basic_ifstream<Char> status_stream(status_fname);
-      if (status_stream.good()) {
-        basic_string<Char> line;
-        while(getline(status_stream, line)) {
-          if (line.find(detail::Vm_cstr<Char>()) == 0)
-            memoryfile << line << endl;
+        // try parsing /proc/PID/status first, fallback on sysinfo
+        string status_fname =
+            string("/proc/") + to_string(getpid()) + string("/status");
+        basic_ifstream<Char> status_stream(status_fname);
+        if (status_stream.good()) {
+          basic_string<Char> line;
+          while (getline(status_stream, line)) {
+            if (line.find(detail::Vm_cstr<Char>()) == 0)
+              memoryfile << line << endl;
+          }
+          status_stream.close();
+        } else {
+          /* Better than nothing, mallinfo unreliable on 64-bit machine due to
+             use of int in mallinfo data structure. Requires Linux
+             kernel. Inaccurate if other processes besides MADNESS are
+             running. Memory differences appear to be reliable. */
+          struct sysinfo si; /* structure in bytes */
+
+          sysinfo(&si);
+
+          memoryfile << "Total RAM (MiB): " << (si.totalram * to_MiB) << endl;
+          memoryfile << "Free RAM (MiB): " << (si.freeram * to_MiB) << endl;
+          memoryfile << "Buffer (MiB): " << (si.bufferram * to_MiB) << endl;
+          memoryfile << "RAM in use (MiB): "
+                     << ((si.totalram - si.freeram + si.bufferram) * to_MiB)
+                     << endl;
         }
-        status_stream.close();
+#endif                // platform specific
+        memoryfile.close();
       }
-      else {
-        /* Better than nothing, mallinfo unreliable on 64-bit machine due to
-           use of int in mallinfo data structure. Requires Linux
-           kernel. Inaccurate if other processes besides MADNESS are
-           running. Memory differences appear to be reliable. */
-        struct sysinfo si; /* structure in bytes */
-
-        sysinfo(&si);
-
-        memoryfile << "Total RAM (MB): " << (si.totalram / fac) << endl;
-        memoryfile << "Free RAM (MB): " << (si.freeram / fac) << endl;
-        memoryfile << "Buffer (MB): " << (si.bufferram / fac) << endl;
-        memoryfile << "RAM in use (MB): "
-                   << ((si.totalram - si.freeram + si.bufferram) / fac) << endl;
-      }
-#endif  // platform specific
-      memoryfile.close();
 #else   // WORLD_MEM_PROFILE_ENABLE
       return;
 #endif  // WORLD_MEM_PROFILE_ENABLE
     }
 
+    ///@}
 
 }  // namespace madness
 
