@@ -191,7 +191,7 @@ private:
 	std::vector<double> damp_coeff;
 	std::string model;
 	std::vector<bool> oep_model = {false, false, false};
-	bool save_nemo_squares = false;                   // if true save density contributions of orbitals
+	bool save_orb_squares = false;                   // if true save density contributions of orbitals
 	unsigned int save_iter_density = 0;               // if > 0 save KS density every ... iterations
 	unsigned int save_iter_IKS = 0;                   // if > 0 save IKS every ... iterations
 	unsigned int save_iter_kinKS = 0;                 // if > 0 save kinKS every ... iterations
@@ -233,8 +233,8 @@ public:
             else if (str == "model") {
             	in >> model;
             }
-            else if (str == "save_nemo_squares") {
-            	save_nemo_squares = true;
+            else if (str == "save_orb_squares") {
+            	save_orb_squares = true;
             }
             else if (str == "save_density") {
             	in >> save_iter_density;
@@ -356,10 +356,10 @@ public:
     	save(compute_density(KS_nemo), "density_start");
 
     	// if desired: print HF orbital contributions to total density (nemo squares)
-    	if (save_nemo_squares) {
+    	if (save_orb_squares) {
         	vecfuncT HF_nemo_square = square(world, HF_nemo);
         	for (int i = 0; i < HF_nemo_square.size(); i++) {
-        		save(HF_nemo_square[i], "HF_nemo_square_" + stringify(i));
+        		save(R_square*HF_nemo_square[i], "HF_orb_square_" + stringify(i));
         	}
     	}
 
@@ -447,10 +447,6 @@ public:
     			}
 
 			}
-
-//			for (int i = 0; i < KS_nemo.size(); i++) {
-//			save(KS_nemo[i], "KS_iter_"+stringify(iter)+"_nemo_"+stringify(i));
-//			}
 
 			vecfuncT R2KS_nemo = R_square*KS_nemo;
 			truncate(world, R2KS_nemo);
@@ -588,20 +584,26 @@ public:
     	}
 
     	// calculate and print all final numbers
-    	print("\n  computing final IKS and density");
-
-    	// if desired: print final KS orbital contributions to total density (nemo squares)
-    	if (save_nemo_squares) {
-        	vecfuncT KS_nemo_square = square(world, KS_nemo);
-        	for (int i = 0; i < KS_nemo_square.size(); i++) {
-        		save(KS_nemo_square[i], "KS_nemo_final_square_" + stringify(i));
-        	}
-    	}
+    	print("\n  computing final orbitals, IKS and density");
 
     	real_function_3d IKS = compute_average_I(KS_nemo, KS_eigvals);
+    	real_function_3d kinKS = compute_kinetic_term(KS_nemo, KS_eigvals);
     	real_function_3d rho = compute_density(KS_nemo);
     	save(rho, "density_final");
     	save(IKS, "IKS_final");
+    	save(kinKS, "kin_KS_final");
+    	for (long i = 0; i < KS_nemo.size(); i++) {
+    		save(R*KS_nemo[i], "KS_orb_" + stringify(i));
+    	}
+
+    	// if desired: print final KS orbital contributions to total density (nemo squares)
+    	if (save_orb_squares) {
+        	vecfuncT KS_nemo_square = square(world, KS_nemo);
+        	for (long i = 0; i < KS_nemo_square.size(); i++) {
+        		save(R_square*KS_nemo_square[i], "KS_orb_square_" + stringify(i));
+        	}
+    	}
+
     	print("     done");
 
     	if (is_oaep()) {
@@ -678,8 +680,11 @@ public:
 
         Exchange K(world, this, 0); // no - in K here, so factor -1 must be included at the end
         vecfuncT Knemo = K(nemo);
-        real_function_3d numerator = 2.0*R_square*dot(world, nemo, Knemo); // 2 because closed shell
-        real_function_3d rho = compute_density(nemo);
+//        real_function_3d numerator = 2.0*R_square*dot(world, nemo, Knemo); // 2 because closed shell
+//        real_function_3d rho = compute_density(nemo);
+        real_function_3d numerator = dot(world, nemo, Knemo); // 2 because closed shell
+        real_function_3d rho = dot(world, nemo, nemo);
+        save(numerator, "Slaterpotential_numerator");
 
         // dividing by rho: the minimum value for rho is dens_thresh
         real_function_3d Vs = -1.0*binary_op(numerator, rho, dens_inv(dens_thresh_lo));
