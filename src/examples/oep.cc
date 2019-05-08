@@ -184,10 +184,11 @@ class OEP : public Nemo {
 
 private:
 
-	double dens_thresh_hi = 1.0e-4;   // default 1.0e-4
-	double dens_thresh_lo = 1.0e-7;   // default 1.0e-7
-	double munge_thresh = 1.0e-8;     // default 1.0e-8
-	unsigned int damp_num = 0;        // default 0 (no damping)
+	double dens_thresh_hi = 1.0e-4;          // default 1.0e-4
+	double dens_thresh_lo = 1.0e-7;          // default 1.0e-7
+	double munge_thresh = 1.0e-8;            // default 1.0e-8
+	double conv_thresh = calc->param.econv;  // default convergence threshold is same as econv
+	unsigned int damp_num = 0;               // default 0 (no damping)
 	std::vector<double> damp_coeff;
 	std::string model;
 	std::vector<bool> oep_model = {false, false, false};
@@ -233,6 +234,26 @@ public:
             else if (str == "model") {
             	in >> model;
             }
+            else if (str == "density_threshold_high") {
+            	in >> dens_thresh_hi;
+            }
+            else if (str == "density_threshold_low") {
+            	in >> dens_thresh_lo;
+            }
+            else if (str == "munge_threshold") {
+            	in >> munge_thresh;
+            }
+            else if (str == "conv_threshold") {
+            	in >> conv_thresh;
+            }
+            else if (str == "damping") {
+            	in >> damp_num;
+            	for (unsigned int i = 0; i < damp_num + 1; i++) {
+            		double coeff;
+            		in >> coeff;
+            		damp_coeff.push_back(coeff);
+            	}
+            }
             else if (str == "save_orb_squares") {
             	save_orb_squares = true;
             }
@@ -256,23 +277,6 @@ public:
             }
             else if (str == "save_effective_potential") {
             	in >> save_iter_effective_potential;
-            }
-            else if (str == "density_threshold_high") {
-            	in >> dens_thresh_hi;
-            }
-            else if (str == "density_threshold_low") {
-            	in >> dens_thresh_lo;
-            }
-            else if (str == "munge_threshold") {
-            	in >> munge_thresh;
-            }
-            else if (str == "damping") {
-            	in >> damp_num;
-            	for (unsigned int i = 0; i < damp_num + 1; i++) {
-            		double coeff;
-            		in >> coeff;
-            		damp_coeff.push_back(coeff);
-            	}
             }
             else {
                 print("oep: unrecognized input keyword:", str);
@@ -300,6 +304,7 @@ public:
     	print("using upper density threshold =", dens_thresh_hi);
     	print("using lower density threshold =", dens_thresh_lo);
     	print("using munge threshold =", munge_thresh);
+    	print("using convergence threshold for optimized potential =", conv_thresh);
     	if (damp_num == 0) {
     		damp_coeff.push_back(1.0);
     		print("using no damping");
@@ -310,6 +315,10 @@ public:
     		for (unsigned int i = 1; i < damp_num + 1; i++) {
     			print("  previous potential", i, "=", damp_coeff[i]);
     		}
+    	}
+    	if (is_dcep()) {
+        	if (calc->param.dft_deriv == "bspline") print("unsing b-spline gradient operator for DCEP correction");
+        	else print("unsing default abgv gradient operator for DCEP correction");
     	}
     	print("");
 
@@ -359,7 +368,7 @@ public:
     	if (save_orb_squares) {
         	vecfuncT HF_nemo_square = square(world, HF_nemo);
         	for (int i = 0; i < HF_nemo_square.size(); i++) {
-        		save(R_square*HF_nemo_square[i], "HF_orb_square_" + stringify(i));
+        		save(2.0*R_square*HF_nemo_square[i], "HF_orb_square_" + stringify(i)); // 2 because closed shell
         	}
     	}
 
@@ -545,7 +554,7 @@ public:
     		KS_nemo = nemo_new;
 
     		// evaluate convergence via norm error and energy difference
-    		if ((norm < calc->param.dconv) and (fabs(energy - old_energy) < calc->param.econv)) {
+    		if ((norm < calc->param.dconv) and (fabs(energy - old_energy) < conv_thresh)) {
 
     			if (is_oaep()) converged = true;  // if OAEP, the following evaluation is not necessary
     			else {
@@ -600,7 +609,7 @@ public:
     	if (save_orb_squares) {
         	vecfuncT KS_nemo_square = square(world, KS_nemo);
         	for (long i = 0; i < KS_nemo_square.size(); i++) {
-        		save(R_square*KS_nemo_square[i], "KS_orb_square_" + stringify(i));
+        		save(2.0*R_square*KS_nemo_square[i], "KS_orb_square_" + stringify(i)); // 2 because closed shell
         	}
     	}
 
@@ -760,7 +769,8 @@ public:
 	    // get \nabla nemo
 	    std::vector<vecfuncT> grad_nemo(nemo.size());
 	    for (long i = 0; i < nemo.size(); i++) {
-	    	grad_nemo[i] = grad(nemo[i]);
+	    	if(calc->param.dft_deriv == "bspline") grad_nemo[i] = grad_bspline_one(nemo[i]);  // gradient using b-spline
+	    	else grad_nemo[i] = grad(nemo[i]);  // default gradient using abgv
 	    }
 
 	    // compute tau = 1/2 * sum |phi_i|^2
