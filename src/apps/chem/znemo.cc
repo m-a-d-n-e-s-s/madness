@@ -132,32 +132,27 @@ Znemo::Znemo(World& w) : world(w), param(world), molecule("input"), cparam() {
 
 	B={0,0,param.physical_B()};
 
-	diafac.reset(new Diamagnetic_potential_factor(world,param));
-	diafac->set_B_explicit_B(B,{0,0,param.explicit_B()});
-
     // compute the magnetic potential
     A=compute_magnetic_vector_potential(world,B);
 
     // compute the nuclei's positions in the "A" space
-    v=compute_v_vector(world,B,molecule);
+    v=compute_v_vector(B,molecule);
 
-	std::vector<coord_3d> explicit_v=compute_v_vector(world,{0,0,param.explicit_B()},molecule);
+	std::vector<coord_3d> explicit_v=compute_v_vector({0,0,param.explicit_B()},molecule);
+//	explicit_v=std::vector<coord_3d>(1);
+	diafac.reset(new Diamagnetic_potential_factor(world,param,explicit_v,molecule.get_all_coords_vec()));
+
 	for (auto& vv : v) print("vv in znemo::ctor ",vv);
-//	std::vector<coord_3d> explicit_v(1,{0,0,0});
-	diafac->recompute_functions(B,{0,0,param.explicit_B()},explicit_v);
 
 	double diapot_diffB=sqrt(param.physical_B()*param.physical_B()- param.explicit_B()*param.explicit_B());
 	double radius=diafac->compute_radius(diapot_diffB);
 	print("expected radius",diafac->estimate_wavefunction_radius());
 
 
-//	if (param.box().size()==6) box_offset={param.box()[3],param.box()[4],param.box()[5]};
-//	spherical_box sbox2(param.box()[0],param.box()[1],param.box()[2],box_offset);
 	coord_3d box_offset={0.0,0.0,0.0};
 	if (param.box().size()==6) box_offset={param.box()[3],param.box()[4],param.box()[5]};
 	spherical_box sbox2(radius*0.9,param.box()[1],param.box()[2],box_offset);
 	sbox=real_factory_3d(world).functor(sbox2);
-	save(sbox,"sbox");
 
 	// the guess is read from a previous nemo calculation
 	// make sure the molecule was not reoriented there
@@ -169,24 +164,30 @@ Znemo::Znemo(World& w) : world(w), param(world), molecule("input"), cparam() {
 };
 
 void Znemo::test() {
-
-	std::vector< std::shared_ptr< SeparatedConvolution<double,3> > > gpoisson=GradCoulombOperator(world,1.e-5,FunctionDefaults<3>::get_thresh());
-	real_convolution_3d poisson=CoulombOperator(world,1.e-5,FunctionDefaults<3>::get_thresh());
-
-	double alpha=1.0;
-	real_function_3d gauss=real_factory_3d(world).functor([&alpha](const coord_3d& r){return exp(-alpha*r.normf()*r.normf());});
-	std::vector<real_function_3d> dgauss(3), r(3);
-	for (int i=0; i<3; ++i) {
-		dgauss[i]=real_factory_3d(world).functor([&alpha,&i](const coord_3d& r){return -2.0*alpha*r[i]*exp(-alpha*r.normf()*r.normf());});
-		r[i]=real_factory_3d(world).functor([&i](const coord_3d& r){return r[i];});
+	try {
+		diafac->test_me(1);
+	} catch (...) {
+		print("tests failed..");
 	}
 
-	real_function_3d drgauss=real_factory_3d(world)
-			.functor([&alpha](const coord_3d& r){return (3.-2.*alpha*r.normf()*r.normf())*exp(-alpha*r.normf()*r.normf());});
-	std::vector<real_function_3d> vgauss(3,gauss);
+	// compute the lz terms with and without explicit diamagnetic factor
+	std::vector<complex_function_3d> dia2amo=diafac->factor_square()*amo;
+	std::vector<complex_function_3d> diaamo=diafac->factor()*amo;
+	double_complex lz1=inner(dia2amo,Lz(amo));
+	double_complex lz2=inner(diaamo,Lz(diaamo));
+	double_complex lz_comm=inner(dia2amo,diafac->compute_lz_commutator()*amo);
+	print("<amo|R2 lz |amo>",    lz1);
+	print("<amo|R lz R|amo>",    lz2);
+	print("<amo|R2 [lz,R]|amo>", lz_comm);
 
-	real_function_3d null=poisson(dot(world,r,dgauss)) + 3.0*poisson(gauss) - sum(world,apply(world,gpoisson,r*gauss));
-	save(null,"null");
+	Kinetic<double_complex,3> T(world);
+	double_complex t1,t2,t4;
+	for (int i=0; i<amo.size(); ++i) t1+=T(diaamo[i],diaamo[i]);
+	for (int i=0; i<amo.size(); ++i) t2+=T(dia2amo[i],amo[i]);
+	for (int i=0; i<amo.size(); ++i) t4+=inner(dia2amo[i],dot(world,diafac->compute_T_commutator_vector_term(),grad(amo[i])));
+	print("<amo | R T R | amo",t1);
+	print("<amo | R2 T  | amo",t2);
+	print("<amo | R2 R=1[T,R] | amo",t4,"  vector");
 }
 
 
@@ -316,7 +317,7 @@ double Znemo::value() {
 		orthonormalize(amo);
 		orthonormalize(bmo);
 	}
-
+	test();
 	double thresh=FunctionDefaults<3>::get_thresh();
 	double energy=1.e10;
 	double oldenergy=0.0;
@@ -341,7 +342,7 @@ double Znemo::value() {
 
 	// iterate the SCF cycles
 	for (int iter=0; iter<maxiter; ++iter) {
-		save_orbitals("iteration"+stringify(iter));
+		if (iter%10==0) save_orbitals("iteration"+stringify(iter));
 
 		// compute the density
 		real_function_3d density=sum(world,abssq(world,amo));
@@ -422,36 +423,21 @@ double Znemo::value() {
 			Vnemoa=apot.vnuc_mo+apot.spin_zeeman_mo-apot.K_mo+apot.J_mo+apot.Gpscalar;
 			GpVpsi=apot.GpVmo;
 		}
-		save(abs(Vnemoa[1]),"Vnemoa1");
-		save(real(Vnemoa[1]),"Vnemoa1_re");
-		save(imag(Vnemoa[1]),"Vnemoa1_im");
 		std::vector<complex_function_3d> resa=compute_residuals(Vnemoa,GpVpsi,amo,aeps);
 		truncate(world,resa,thresh*0.1);
-		save(abs(resa[1]),"resa1");
 
 		Tensor<double> normsa=real(inner(world,resa*diafac->factor_square(),resa));
 		na=sqrt(normsa.sumsq());
 
 		std::vector<complex_function_3d> amo_new=solvera.update(amo,resa,0.01,3);
-		save(abs(amo_new[1]),"amo_new_before_sbox");
 		amo_new=sbox*amo_new;
-		save(abs(amo_new[1]),"amo_new_after_sbox");
-		binary_munge<double_complex> bmunge(cubic_map(1.e-7,1.e-5));
-		real_function_3d rfac=diafac->custom_factor((B-diafac->get_explicit_B()),
-				diafac->get_v());
-//		for (auto& a : amo_new) a=binary_op(rfac,a,bmunge);
-		save(abs(amo_new[1]),"amo_new_after_munge");
-
 
 		do_step_restriction(amo,amo_new);
-		save(abs(amo[1]),"amo_after_step_restriction");
 
 		amo=amo_new;
-//			amo=orthonormalize_symmetric(amo);
 		orthonormalize(amo);
 		truncate(world,amo);
 		orthonormalize(amo);
-		save(abs(amo[1]),"amo_after_orthonormalization");
 
 		if (have_beta()) {
 			std::vector<complex_function_3d> resb=compute_residuals(Vnemob,GpVpsi,bmo,beps);
@@ -467,6 +453,15 @@ double Znemo::value() {
 //				bmo=orthonormalize_symmetric(bmo);
 			truncate(world,bmo);
 		}
+
+		// shape tester
+		for (int i=0; i<amo.size(); ++i) {
+			auto& a =amo[i];
+			real_function_3d shape=(abssq(dot(world,grad(a),grad(a))));
+			save(shape,"shapes"+stringify(i));
+		}
+
+
 	}
 
 	// final energy computation
@@ -544,7 +539,7 @@ void Znemo::analyze() const {
 }
 
 
-double Znemo::compute_energy(const std::vector<complex_function_3d>& amo, const Znemo::potentials& apot,
+double Znemo::compute_energy_no_confinement(const std::vector<complex_function_3d>& amo, const Znemo::potentials& apot,
 		const std::vector<complex_function_3d>& bmo, const Znemo::potentials& bpot, const bool do_print) const {
 
 	timer tenergy(world);
@@ -565,11 +560,13 @@ double Znemo::compute_energy(const std::vector<complex_function_3d>& amo, const 
         kinetic += fac* 0.5 * (inner(world, damo, damo).sum() + inner(world, dbmo, dbmo).sum());
     }
 
-    real_function_3d diapot=diafac->potential_bare();
+    real_function_3d diapot=diafac->bare_diamagnetic_potential();
+    complex_function_3d lzcomm=diafac->compute_lz_commutator();
 
     double_complex nuclear_potential=fac*(inner(world,dia2amo,apot.vnuc_mo).sum()+inner(world,dia2bmo,bpot.vnuc_mo).sum());
     double_complex diamagnetic=fac*(inner(world,diaamo,diapot*diaamo).sum()+inner(world,diabmo,diapot*diabmo).sum());
-    double_complex lz=fac*(inner(world,dia2amo,apot.lz_mo).sum()+inner(world,dia2bmo,bpot.lz_mo).sum());
+    double_complex lz=fac*(inner(world,diaamo,Lz(diaamo)).sum()+inner(world,diabmo,Lz(diabmo)).sum())
+    		+fac*(inner(world,diaamo,lzcomm*diaamo).sum()+inner(world,diabmo,lzcomm*diabmo).sum());
     double_complex spin_zeeman=fac*(inner(world,dia2amo,apot.spin_zeeman_mo).sum()+inner(world,dia2bmo,bpot.spin_zeeman_mo).sum());
     double_complex coulomb=fac*0.5*(inner(world,dia2amo,apot.J_mo).sum()+inner(world,dia2bmo,bpot.J_mo).sum());
     double_complex exchange=fac*0.5*(inner(world,dia2amo,apot.K_mo).sum()+inner(world,dia2bmo,bpot.K_mo).sum());
@@ -619,13 +616,13 @@ double Znemo::compute_energy(const std::vector<complex_function_3d>& amo, const 
 		MADNESS_EXCEPTION("complex energy computation.. ",1);
 	}
 
-	tenergy.end("compute_energy");
+	tenergy.end("compute_energy no confinement");
 	return real(energy);
 }
 
 
 
-double Znemo::compute_energy_no_confinement(const std::vector<complex_function_3d>& amo, const Znemo::potentials& apot,
+double Znemo::compute_energy(const std::vector<complex_function_3d>& amo, const Znemo::potentials& apot,
 		const std::vector<complex_function_3d>& bmo, const Znemo::potentials& bpot, const bool do_print) const {
 
 	timer tenergy(world);
@@ -790,6 +787,8 @@ std::vector<complex_function_3d> Znemo::Lz(const std::vector<complex_function_3d
 	// the operator in cartesian components as
 	// L_z =  - i (x del_y - y del_x)
 
+	MADNESS_ASSERT((B[0]==0.0) && (B[1]==0.0));
+
 	if (rhs.size()==0) return std::vector<complex_function_3d>(0);
 	auto monomial_x = [] (const coord_3d& r) {return r[0];};
 	auto monomial_y = [] (const coord_3d& r) {return r[1];};
@@ -804,7 +803,7 @@ std::vector<complex_function_3d> Znemo::Lz(const std::vector<complex_function_3d
     std::vector<complex_function_3d> dely=apply(world,Dy,rhs);
 
     std::vector<complex_function_3d> result1=x*dely - y*delx;
-    std::vector<complex_function_3d> result=double_complex(0.0,-1.0)*result1;
+    std::vector<complex_function_3d> result=0.5*B[2]*double_complex(0.0,-1.0)*result1;
 	return result;
 
 }
@@ -872,65 +871,20 @@ Znemo::potentials Znemo::compute_potentials(const std::vector<complex_function_3
 	pot.K_mo=K(rhs);
 	pot.vnuc_mo=vnuclear*rhs;
 
-	MADNESS_ASSERT((B[0]==0.0) && (B[1]==0.0));
-	pot.lz_mo=0.5*B[2]*Lz(rhs);
-
-	if (param.use_greensp()) {
-		pot.GpVmo=Lz_Gp(rhs);
-//		test_gp2(pot.lz_mo,pot.GpVmo);
-	} else {
-//		pot.lz_mo=pot.lz_mo*sbox;
-		truncate(world,pot.lz_mo);
-	}
-	save(abs(pot.GpVmo[0][1]),"Gplzmox1");
-	save(abs(pot.GpVmo[1][1]),"Gplzmoy1");
-	save(abs(pot.GpVmo[2][1]),"Gplzmoz1");
-
-
-	save(abs(pot.lz_mo[0]),"lz_mo0");
-	save(abs(pot.lz_mo[1]),"lz_mo1");
-
+	pot.lz_mo=Lz(rhs);
 	pot.diamagnetic_mo=diafac->apply_potential(rhs);
 
 	if (param.use_greensp()) {
+		pot.GpVmo=Lz_Gp(rhs);
 		pot.Gpscalar=diafac->apply_potential_scalar(rhs);
 		const auto tmp=diafac->apply_potential_greensp(rhs);
 		for (int i=0; i<3; ++i) pot.GpVmo[i]+=tmp[i];
-		save(abs(pot.Gpscalar[1]),"Gpscalar1");
+		for (auto& a : pot.GpVmo) truncate(world,a);
+		truncate(world,pot.Gpscalar);
 	}
-	for (auto& a : pot.GpVmo) {
-//		a=a*sbox;
-		truncate(world,a);
-	}
-	save(abs(pot.GpVmo[0][1]),"GpVmox1");
-	save(abs(pot.GpVmo[1][1]),"GpVmoy1");
-	save(abs(pot.GpVmo[2][1]),"GpVmoz1");
 
-
-//	diafac->test_Gp_potential(rhs);
-
-	print_size(world,pot.diamagnetic_mo,"diamagnetic_mo");
-	save(abs(pot.diamagnetic_mo[0]),"diamagnetic_mo0");
-	save(abs(pot.diamagnetic_mo[1]),"diamagnetic_mo1");
-
-	binary_munge<double_complex> bmunge(cubic_map(1.e-6,1.e-4));
-	real_function_3d rfac=diafac->custom_factor((B-diafac->get_explicit_B()),
-			diafac->get_v());
-//	pot.diamagnetic_mo=pot.diamagnetic_mo*sbox;
-	truncate(world,pot.diamagnetic_mo);
-//	for (auto& a : pot.diamagnetic_mo) a=binary_op(rfac,a,bmunge);
-
-	save(abs(pot.diamagnetic_mo[0]),"diamagnetic_mo0_munged");
-	save(abs(pot.diamagnetic_mo[1]),"diamagnetic_mo1_munged");
-
-	save(abs(rhs[0]),"rhs0");
-	save(abs(rhs[1]),"rhs1");
-
-	MADNESS_ASSERT((B[0]==0.0) && (B[1]==0.0));
+	MADNESS_ASSERT(diafac->B_along_z(B));
 	pot.spin_zeeman_mo=B[2]*0.5*rhs;
-	save(abs(pot.J_mo[1]),"J_mo1");
-	save(abs(pot.K_mo[1]),"K_mo1");
-	save(abs(pot.vnuc_mo[1]),"vnuc_mo1");
 
 	truncate(world,pot.J_mo);
 	truncate(world,pot.K_mo);
@@ -954,13 +908,6 @@ Tensor<double_complex> Znemo::compute_vmat(const std::vector<complex_function_3d
 	Tensor<double_complex> spin_zeeman_mat=matrix_inner(world,dia2mo,pot.spin_zeeman_mo);
 	Tensor<double_complex> Kmat=matrix_inner(world,dia2mo,pot.K_mo);
 	Tensor<double_complex> Jmat=matrix_inner(world,dia2mo,pot.J_mo);
-//	print("vnuc, lz, dia, spin-zeeman, kmat, jmat");
-//	print(Vnucmat);
-//	print(lzmat);
-//	print(diamat);
-//	print(spin_zeeman_mat);
-//	print(Kmat);
-//	print(Jmat);
 
 	Tensor<double_complex> vmat=Vnucmat+lzmat+diamat+spin_zeeman_mat-Kmat+Jmat;
 	return vmat;
@@ -987,8 +934,6 @@ Znemo::compute_residuals(
 
     std::vector<complex_function_3d> tmp = apply(world,ops,-2.0*Vpsi-2.0*param.shift()*psi);
 
-    save(abs(tmp[1]),"tmp_scalar1");
-
     // apply the derivative of the Green's function
     for (int idim=0; idim<GpVpsi.size(); ++idim) {
     	print("applying Green's p");
@@ -997,7 +942,6 @@ Znemo::compute_residuals(
         		ops1[i]=std::shared_ptr<real_convolution_3d>(
         				GradBSHOperator(world, sqrt(-2.*std::min(-0.05,eps(i)+param.shift())), cparam.lo, tol)[idim]);
         tmp += apply(world,ops1,-2.0*GpVpsi[idim]);
-        save(abs(tmp[1]),"tmp_vector1"+stringify(idim));
     }
     std::vector<complex_function_3d> res=psi-tmp;
 
@@ -1077,8 +1021,8 @@ Znemo::orthonormalize(std::vector<complex_function_3d>& amo) const {
         truncate(world, amo);
     } while (maxq>0.01);
     normalize(amo);
-
 }
+
 void Znemo::save_orbitals(std::string suffix) const {
 	suffix="_"+suffix;
 	const real_function_3d& dia=diafac->factor();

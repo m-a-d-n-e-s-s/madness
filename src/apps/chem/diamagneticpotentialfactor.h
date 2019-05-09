@@ -21,14 +21,25 @@ class Diamagnetic_potential_factor {
 public:
 
 	/// constructor takes a world and the parameters for the calculation
-	Diamagnetic_potential_factor(World& world, const Nemo_complex_Parameters& param)
-		: world(world), param(param) {
+	Diamagnetic_potential_factor(World& world, const Nemo_complex_Parameters& param,
+			const std::vector<coord_3d>& v, const std::vector<coord_3d>& coords)
+		: world(world), v(v), coords(coords) {
+
+		physical_B={0,0,param.physical_B()};
+		explicit_B={0,0,param.explicit_B()};
+		diamagnetic_height=param.diamagnetic_height();
+
 		// initialize all functions to their default values
 		diamagnetic_factor_=real_factory_3d(world).functor([] (const coord_3d& r) {return 1.0;});
 		diamagnetic_factor_square=real_factory_3d(world).functor([] (const coord_3d& r) {return 1.0;});
-		diamagnetic_U2=real_factory_3d(world).functor([] (const coord_3d& r) {return 0.0;});
+		diamagnetic_U2=complex_factory_3d(world).functor([] (const coord_3d& r) {return 0.0;});
 		diamagnetic_U1=zero_functions<double,3>(world,3);
+
+		recompute_factors_and_potentials();
+		print_info();
 	}
+
+	void print_info() const;
 
 	/// return the diamagnetic factor
 	real_function_3d factor() const {return diamagnetic_factor_;}
@@ -38,7 +49,7 @@ public:
 
 	/// return a custom factor for a given magnetic field
 	real_function_3d custom_factor(const coord_3d& B, const std::vector<coord_3d>& vv,
-			const double extra_exponent=1.0) {
+			const double extra_exponent=1.0) const {
 		const double absB=B.normf();
 		if (absB==0.0) return real_factory_3d(world).functor([](const coord_3d& r){return 1.0;}).truncate_on_project();
 		const double& ee=extra_exponent;
@@ -52,20 +63,16 @@ public:
 			if (ee!=1.0) result=std::pow(result,ee);
 			return result;
 		};
-		real_function_3d result=real_factory_3d(world).functor(diamagnetic_HO).truncate_on_project();
+		real_function_3d result=real_factory_3d(world).functor(diamagnetic_HO);
 		return result;
 	}
 
-	/// recompute the factor and the potentials for given physical and explicit magnetic fields
-	void recompute_functions(const coord_3d& pB, const coord_3d& eB, const std::vector<coord_3d>& v);
-
 	/// compute the bare potential without confinement or factors
-	real_function_3d potential_bare() const {
+	real_function_3d bare_diamagnetic_potential() const {
 		MADNESS_ASSERT(B_along_z(physical_B));
 		const double b_square=inner(physical_B,physical_B);
 		real_function_3d result=real_factory_3d(world)
-				.functor([& b_square](const coord_3d& r){return 0.125*b_square*(r[0]*r[0] + r[1]*r[1]);}
-		);
+				.functor([& b_square](const coord_3d& r){return 0.125*b_square*(r[0]*r[0] + r[1]*r[1]);});
 		return result;
 	}
 
@@ -85,16 +92,16 @@ public:
 	}
 
 	std::vector<coord_3d> get_v() const {return v;}
+	std::vector<coord_3d> get_coords() const {return coords;}
 
 	coord_3d get_explicit_B() const {return explicit_B;}
 
 	coord_3d get_physical_B() const {return physical_B;}
 
-	/// given the explicit and the physical B, estimate the required radius
+	/// given the explicit and the physical B, estimate the radius
 	/// of the wave function
 	double estimate_wavefunction_radius(const double eps=1.e-8) const {
 		double remaining_B=(get_physical_B()-get_explicit_B()).normf();
-		print("flodbg",log(eps),remaining_B);
 		return 2.0*sqrt(-log(eps)/remaining_B);
 	}
 
@@ -103,38 +110,94 @@ private:
 	coord_3d physical_B={0,0,0};		///< the actual magnetic field strength
 	coord_3d explicit_B={0,0,0};		///< the magnetic field strength encoded in the diamagnetic factor
 
-	Nemo_complex_Parameters param;	///< the parameters for the magnetic field calculation
-
 	/// the diamagnetic factor to cancel the diamagnetic potential
 	real_function_3d diamagnetic_factor_;
 	real_function_3d diamagnetic_factor_square;
 
+	double diamagnetic_height;
+
 	/// the boxed diamagnetic potential (for a given B)
-	real_function_3d diamagnetic_U2;
+	complex_function_3d diamagnetic_U2;
 	std::vector<real_function_3d> diamagnetic_U1;
 
-	/// the magnetic field B=rot(A)
-	coord_3d B;
+	/// the position of the nuclei in the coordinate space:
+	std::vector<coord_3d> coords;
 
 	/// the position of the nuclei in the "A" space: v = 1/2 B cross R
 	std::vector<coord_3d> v;
 
+	/// recompute the factor and the potentials for given physical and explicit magnetic fields
+	void recompute_factors_and_potentials();
+
+public:
+	/// compute the commutator of the orbital-zeeman term with the diamagnetic factor
+
+	/// @return	a local potential: iB \sum_i \vec r \cdot \vec v_i
+	complex_function_3d compute_lz_commutator() const;
+
+	real_function_3d compute_T_commutator_scalar_term() const;
+	real_function_3d compute_R_times_T_commutator_scalar_term_numerically() const;
+	std::vector<complex_function_3d> compute_T_commutator_vector_term() const;
+
+	/// run the tests
+
+	/// @param[in]	level: 1: basic tests, .. , 3: all the tests
+	bool test_me(const int level) const {
+		bool success=true;
+		if ((level<1) or (level>3)) {
+			print("testing diamagneticpotentialfactor with an invalid level of ",level);
+		}
+		if (level<2) {
+			success=success and test_factor();
+			success=success and test_scalar_potentials();
+			success=success and test_vector_potentials();
+		}
+		if (level<3) {
+			;
+		}
+		if (level<4) {
+			;
+		}
+		return success;
+	}
+
+private:
+
+	struct test_output {
+		test_output(std::string line) {
+			std::cout << line;
+		}
+
+		std::stringstream testos;
+
+		bool end(bool success) const {
+			if (success) std::cout << "\033[32m"   << " passed " << "\033[0m" << std::endl;
+			if (not success) {
+				std::cout << "\033[31m"   << " failed " << "\033[0m" << std::endl;
+				std::cout << testos.str() << std::endl;
+			}
+			MADNESS_ASSERT(success);
+			return success;
+		}
+	};
+
+
+	/// compute a factor for comparison in coordinate space
+	bool test_factor() const;
+
+	/// test analytical vs numerical computation of the potentials
+	bool test_scalar_potentials() const;
+
+	/// test analytical vs numerical computation of the potentials
+	bool test_vector_potentials() const;
+
+	/// make a set orbitals for testing (not orthonormalized!)
+	std::vector<complex_function_3d> make_fake_orbitals(const int n) const;
+
 public:
 	/// compute the radius for the diamagnetic potential
 	double compute_radius(const double B) const {
-		const double height=param.diamagnetic_height();
-		const double radius=sqrt(8.0*height/(B*B));
-		return radius;
-	}
-
-	/// set physical and explict B, recompute the remaining potential
-	void set_B_explicit_B(const coord_3d& pB, const coord_3d& eB) {
-		physical_B=pB;
-		explicit_B=eB;
-		double diapot_diffB=sqrt(inner(pB,pB) - inner(eB,eB));
-		print("setting B values: physical", physical_B, " explicit", explicit_B);
-		double radius=compute_radius(diapot_diffB);
-		print("computing radius to",radius);
+		return sqrt(8.0*diamagnetic_height/(B*B));
 	}
 
 };

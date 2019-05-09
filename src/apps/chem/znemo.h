@@ -55,7 +55,7 @@ struct allocator {
 class Nemo_complex_Parameters : public CalculationParametersBase {
 public:
 	enum parameterenum {physical_B_, explicit_B_, box_, box_softness_, shift_, printlevel_, diamagnetic_height_,
-		use_greensp_};
+		use_greensp_, scale_factor_};
 
 	/// the parameters with the enum key, the constructor taking the input file key and a default value
 	ParameterMap params={
@@ -66,6 +66,7 @@ public:
 				init<double>(shift_,{"shift",0.0}),
 				init<int>(printlevel_,{"printlevel",1}),		// 0: energies, 1: fock matrix, 2: function sizes
 				init<double>(diamagnetic_height_,{"diamagnetic_height",-1.0}),
+				init<double>(scale_factor_,{"scale_factor",1.0}),
 				init<bool>(use_greensp_,{"greensp",false}),
     };
 
@@ -114,6 +115,7 @@ public:
 	std::vector<double> box() const {return get<std::vector<double> >(box_);}
 	double box_softness() const {return get<double>(box_softness_);}
 	double diamagnetic_height() const {return get<double>(diamagnetic_height_);}
+	double scale_factor() const {return get<double>(scale_factor_);}
 	bool use_greensp() const {return get<bool>(use_greensp_);}
 
 
@@ -279,7 +281,7 @@ public:
 		return 0.5*A;
 	}
 
-	static std::vector<coord_3d> compute_v_vector(World& world, const coord_3d& B, const Molecule& mol) {
+	static std::vector<coord_3d> compute_v_vector(const coord_3d& B, const Molecule& mol) {
 		std::vector<coord_3d> v;
 		for (auto& c : mol.get_all_coords_vec()) v.push_back(0.5*cross(B,c));
 		return v;
