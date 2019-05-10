@@ -559,7 +559,7 @@ public:
     		// KAIN (helps to converge)
     		vecfuncT nemo_new;
     		if (norm < 5.0e-1) {
-    			nemo_new = (solver.update(KS_nemo, residual)).x;
+    			nemo_new = (solver.update(KS_nemo, residual,1.e-8,3.0)).x;
     		} else {
     			nemo_new = GFnemo;
     		}
