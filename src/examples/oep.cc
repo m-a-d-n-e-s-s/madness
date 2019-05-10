@@ -184,14 +184,14 @@ class OEP : public Nemo {
 
 private:
 
-	double dens_thresh_hi = 1.0e-4;          // default 1.0e-4
-	double dens_thresh_lo = 1.0e-7;          // default 1.0e-7
-	double munge_thresh = 1.0e-8;            // default 1.0e-8
-	double conv_thresh = calc->param.econv;  // default convergence threshold is same as econv
-	unsigned int damp_num = 0;               // default 0 (no damping)
+	double dens_thresh_hi = 1.0e-4;           // default 1.0e-4
+	double dens_thresh_lo = 1.0e-7;           // default 1.0e-7
+	double munge_thresh = 1.0e-8;             // default 1.0e-8
+	double conv_thresh = calc->param.econv;   // default convergence threshold is same as econv
+	unsigned int damp_num = 0;                // default 0 (no damping)
 	std::vector<double> damp_coeff;
 	std::string model;
-	std::vector<bool> oep_model = {false, false, false};
+	std::vector<bool> oep_model = {false, false, false, false};
 	bool save_orb_squares = false;                    // if true save density contributions of orbitals
 	unsigned int save_iter_orbs = 0;                  // if > 0 save all orbitals every ... iterations (needs a lot of storage!)
 	unsigned int save_iter_density = 0;               // if > 0 save KS density every ... iterations
@@ -203,14 +203,13 @@ private:
 	unsigned int save_iter_effective_potential = 0;   // if > 0 save effective potential every ... iterations
 
 	void set_model_oaep() {oep_model[0] = true;}
-	void unset_model_oaep() {oep_model[0] = false;}
 	bool is_oaep() const {return oep_model[0];}
 	void set_model_ocep() {oep_model[1] = true;}
-	void unset_model_ocep() {oep_model[1] = false;}
 	bool is_ocep() const {return oep_model[1];}
 	void set_model_dcep() {oep_model[2] = true;}
-	void unset_model_cdep() {oep_model[2] = false;}
 	bool is_dcep() const {return oep_model[2];}
+	void set_model_mrks() {oep_model[3] = true;}
+	bool is_mrks() const {return oep_model[3];}
 
 	/// returns true if all members of a vector of booleans are true, otherwise false
 	bool IsAlltrue(std::vector<bool> vec) {
@@ -299,6 +298,9 @@ public:
     	} else if (model == "dcep" or model == "DCEP") {
     		set_model_dcep();
     		model = "DCEP";
+    	} else if (model == "mrks" or model == "mRKS" or model == "MRKS") {
+    		set_model_mrks();
+    		model = "mRKS";
     	} else {
             print("oep: no approximate OEP model selected, please choose oaep/ocep/dcep!");
             MADNESS_EXCEPTION("input error",0);
@@ -395,7 +397,7 @@ public:
     	typedef allocator<double, 3> allocT;
     	typedef XNonlinearSolver<vecfunc<double, 3>, double, allocT> solverT;
     	allocT alloc(world, KS_nemo.size());
-    	solverT solver(allocT(world, KS_nemo.size()));
+    	solverT solver(allocT(world, KS_nemo.size()),true);
 
     	// iterate until self-consistency
     	for (int iter = 0; iter < calc->param.maxiter; ++iter) {
@@ -413,8 +415,8 @@ public:
     			}
 
         		// compute OCEP potential from current nemos and eigenvalues
-    			real_function_3d corr_ocep = compute_ocep_correction(IHF, KS_nemo, KS_eigvals);
-    			real_function_3d corr_dcep = compute_dcep_correction(kinHF, KS_nemo, KS_eigvals);
+    			real_function_3d corr_ocep = compute_oep_correction("ocep", IHF, KS_nemo, KS_eigvals);
+    			real_function_3d corr_dcep = compute_oep_correction("dcep", kinHF, KS_nemo, KS_eigvals);
 
     			// and shift potential so that HOMO_HF = HOMO_KS, so potential += (HOMO_HF - HOMO_KS)
     			double shift = homo_diff(HF_eigvals, KS_eigvals);
@@ -633,22 +635,22 @@ public:
 
     	if (is_oaep()) {
     		print("\n  computing OCEP with converged OAEP orbitals and eigenvalues");
-        	real_function_3d correction = compute_ocep_correction(IHF, KS_nemo, KS_eigvals);
+        	real_function_3d correction = compute_oep_correction("ocep", IHF, KS_nemo, KS_eigvals);
         	real_function_3d ocep_oaep_pot = Vs + correction;
         	save(correction, "OCEP_correction");
         	save(ocep_oaep_pot, "OCEP_potential_with_OAEP_orbs");
     	}
     	if (is_ocep()) {
     		print("\n  computing final OCEP with converged OCEP orbitals and eigenvalues");
-        	real_function_3d correction_final = compute_ocep_correction(IHF, KS_nemo, KS_eigvals);
+        	real_function_3d correction_final = compute_oep_correction("ocep", IHF, KS_nemo, KS_eigvals);
         	Voep = Vs + correction_final;
         	save(correction_final, "OCEP_correction_final");
         	save(Voep, "OCEP_final");
     	}
     	if (is_dcep()) {
     		print("\n  computing final DCEP with converged DCEP orbitals and eigenvalues");
-        	real_function_3d ocep_correction_final = compute_ocep_correction(IHF, KS_nemo, KS_eigvals);
-        	real_function_3d dcep_correction_final = compute_dcep_correction(kinHF, KS_nemo, KS_eigvals);
+        	real_function_3d ocep_correction_final = compute_oep_correction("ocep", IHF, KS_nemo, KS_eigvals);
+        	real_function_3d dcep_correction_final = compute_oep_correction("dcep", kinHF, KS_nemo, KS_eigvals);
         	Voep = Vs + ocep_correction_final + dcep_correction_final;
         	save(ocep_correction_final, "OCEP_correction_final");
         	save(dcep_correction_final, "DCEP_correction_final");
@@ -707,7 +709,7 @@ public:
         vecfuncT Knemo = K(nemo);
 //        real_function_3d numerator = 2.0*R_square*dot(world, nemo, Knemo); // 2 because closed shell
 //        real_function_3d rho = compute_density(nemo);
-        real_function_3d numerator = dot(world, nemo, Knemo); // 2 because closed shell
+        real_function_3d numerator = dot(world, nemo, Knemo);
         real_function_3d rho = dot(world, nemo, nemo);
         save(numerator, "Slaterpotential_numerator");
 
@@ -810,29 +812,67 @@ public:
 
     }
 
-    /// compute OCEP correction and orbital shift to add to Slater potential Vs
-    real_function_3d compute_ocep_correction(const real_function_3d IHF, const vecfuncT& nemoKS,
+    // TODO: The following is a test for the better DCEP version, but is not ready yet
+    // e.g. grad_nemo_term[i] = ... still only has one index i and no regularization has been considered yet
+
+//    /// compute the Pauli kinetic energy density devided by the density tau_P/rho with equation (16)/(18) (?) from Ospadov, 2017
+//    real_function_3d compute_Pauli_kinetic_density(const vecfuncT& nemo, const tensorT eigvals) const {
+//
+//    	// compute the denominator rho (density)
+//    	real_function_3d rho = compute_density(nemo);
+//
+//    	// compute the numerator tau_P
+//
+//	    // get \nabla R and (\nabla R)^2 via and U1 = -1/R \nabla R and U1dot = (1/R \nabla R)^2
+//    	const vecfuncT U1 = this->nuclear_correlation->U1vec();
+//	    NuclearCorrelationFactor::U1_dot_U1_functor u1_dot_u1(nuclear_correlation.get());
+//	    const real_function_3d U1dot = real_factory_3d(world).functor(u1_dot_u1).truncate_on_project();
+//
+//	    // get \nabla nemo
+//	    std::vector<vecfuncT> grad_nemo(nemo.size());
+//	    for (long i = 0; i < nemo.size(); i++) {
+//	    	if(calc->param.dft_deriv == "bspline") grad_nemo[i] = grad_bspline_one(nemo[i]);  // gradient using b-spline
+//	    	else grad_nemo[i] = grad(nemo[i]);  // default gradient using abgv
+//	    }
+//
+//	    // compute tau = 1/2 * sum |phi_i|^2
+//	    // = 1/2 * sum {(\nabla R)^2 * nemo_i^2 + 2 * R * nemo_i * (\nabla R) * (\nabla nemo_i)) + R^2 * (\nabla nemo_i)^2}
+//	    // = 1/2 * R^2 * sum {U1dot * nemo_i^2 + 2 * nemo_i * U1 * (\nabla nemo_i)) + (\nabla nemo_i)^2}
+//	    std::vector<vecfuncT> grad_nemo_term(nemo.size());
+//		for (long i = 0; i < nemo.size(); i++) {
+//			for (long j = 0; j < nemo.size(); j++) {
+//				grad_nemo_term[i] = nemo[i]*grad_nemo[j] - nemo[j]*grad_nemo[i];
+//			}
+//		}
+//		 vecfuncT grad_nemo_term_squared(nemo.size());
+//		for (long i = 0; i < nemo.size(); i++) {
+//			grad_nemo_term_squared[i] = dot(world, grad_nemo_term[i], grad_nemo_term[i]);
+//		}
+//		real_function_3d tau_P = sum(world, grad_nemo_term_squared);
+//
+//		// calculate quotient = tau_P/rho
+//		real_function_3d quotient = binary_op(tau_P, rho, dens_inv(dens_thresh_lo));
+//
+//        // munge quotient for long-range asymptotic behavior which is -epsilon_HOMO
+//       	print("computing tau_P/rho: index of HOMO is", homo_ind(eigvals));
+//       	quotient = binary_op(quotient, rho, binary_munge_linear(dens_thresh_hi, dens_thresh_lo, -1.0*eigvals(homo_ind(eigvals))));
+//
+//    	return quotient;
+//
+//    }
+
+    /// compute correction of the given model
+    real_function_3d compute_oep_correction(const std::string model, const real_function_3d corrHF, const vecfuncT& nemoKS,
     		const tensorT eigvalsKS) const {
 
-    	// Kohn-Sham average ionization energy
-    	real_function_3d IKS = compute_average_I(nemoKS, eigvalsKS);
+    	// Kohn-Sham correction of given model
+    	real_function_3d corrKS;
+    	if (model == "ocep") corrKS = compute_average_I(nemoKS, eigvalsKS);
+    	if (model == "dcep") corrKS = compute_total_kinetic_density(nemoKS, eigvalsKS);
+//    	if (model == "mrks") corrKS = compute_Pauli_kinetic_density(nemoKS, eigvalsKS);
 
-    	// calculate correction IHF - IKS like Kohut, 2014, equation (26)
-       	real_function_3d correction = IHF - IKS;
-
-    	return correction;
-
-    }
-
-    /// compute DCEP correction on top of the OCEP correction
-    real_function_3d compute_dcep_correction(const real_function_3d kinHF, const vecfuncT& nemoKS,
-    		const tensorT eigvalsKS) const {
-
-    	// Kohn-Sham total kinetic energy density tau/rho
-    	real_function_3d kinKS = compute_total_kinetic_density(nemoKS, eigvalsKS);
-
-    	// calculate correction kinHF - kinKS like Kohut, 2014, equation (33) (on top of OCEP correction)
-    	real_function_3d correction = kinHF - kinKS;
+    	// calculate correction corrHF - corrKS like Kohut, 2014, equation (26) or (33)
+    	real_function_3d correction = corrHF - corrKS;
 
     	return correction;
 
