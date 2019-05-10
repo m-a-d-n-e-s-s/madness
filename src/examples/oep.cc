@@ -192,7 +192,8 @@ private:
 	std::vector<double> damp_coeff;
 	std::string model;
 	std::vector<bool> oep_model = {false, false, false};
-	bool save_orb_squares = false;                   // if true save density contributions of orbitals
+	bool save_orb_squares = false;                    // if true save density contributions of orbitals
+	unsigned int save_iter_orbs = 0;                  // if > 0 save all orbitals every ... iterations (needs a lot of storage!)
 	unsigned int save_iter_density = 0;               // if > 0 save KS density every ... iterations
 	unsigned int save_iter_IKS = 0;                   // if > 0 save IKS every ... iterations
 	unsigned int save_iter_kinKS = 0;                 // if > 0 save kinKS every ... iterations
@@ -254,8 +255,11 @@ public:
             		damp_coeff.push_back(coeff);
             	}
             }
-            else if (str == "save_orb_squares") {
+            else if (str == "save_orbital_squares") {
             	save_orb_squares = true;
+            }
+            else if (str == "save_orbitals") {
+            	in >> save_iter_orbs;
             }
             else if (str == "save_density") {
             	in >> save_iter_density;
@@ -318,7 +322,7 @@ public:
     	}
     	if (is_dcep()) {
         	if (calc->param.dft_deriv == "bspline") print("unsing b-spline gradient operator for DCEP correction");
-        	else print("unsing default abgv gradient operator for DCEP correction");
+        	else print("using default abgv gradient operator for DCEP correction");
     	}
     	print("");
 
@@ -355,7 +359,7 @@ public:
     	const real_function_3d Vs = compute_slater_potential(HF_nemo, homo_ind(HF_eigvals));
     	const real_function_3d IHF = compute_average_I(HF_nemo, HF_eigvals);
     	save(IHF, "IHF");
-    	const real_function_3d kinHF = compute_kinetic_term(HF_nemo, HF_eigvals);
+    	const real_function_3d kinHF = compute_total_kinetic_density(HF_nemo, HF_eigvals);
     	save(kinHF, "kin_HF");
 
     	// set KS_nemo as reference to MOs
@@ -364,7 +368,12 @@ public:
 		save(compute_density(HF_nemo), "density_HF");
     	save(compute_density(KS_nemo), "density_start");
 
-    	// if desired: print HF orbital contributions to total density (nemo squares)
+    	// if desired: save HF orbitals and orbital contributions to total density (orbital squares)
+		if (save_iter_orbs > 0) {
+	    	for (long i = 0; i < HF_nemo.size(); i++) {
+	    		save(R*HF_nemo[i], "HF_orb_" + stringify(i));
+	    	}
+		}
     	if (save_orb_squares) {
         	vecfuncT HF_nemo_square = square(world, HF_nemo);
         	for (int i = 0; i < HF_nemo_square.size(); i++) {
@@ -404,7 +413,7 @@ public:
     			}
 
         		// compute OCEP potential from current nemos and eigenvalues
-    			real_function_3d corr_ocep = compute_ocep_correction(HF_eigvals, IHF, KS_nemo, KS_eigvals);
+    			real_function_3d corr_ocep = compute_ocep_correction(IHF, KS_nemo, KS_eigvals);
     			real_function_3d corr_dcep = compute_dcep_correction(kinHF, KS_nemo, KS_eigvals);
 
     			// and shift potential so that HOMO_HF = HOMO_KS, so potential += (HOMO_HF - HOMO_KS)
@@ -419,6 +428,13 @@ public:
     			}
 
     			// save certain functions if desired
+    			if (save_iter_orbs > 0) {
+    				if (iter_counter == 2 or iter_counter % save_iter_orbs == 0) {
+    			    	for (long i = 0; i < KS_nemo.size(); i++) {
+    			    		save(R*KS_nemo[i], "KS_orb_" + stringify(i) + "_iter_" + stringify(iter_counter));
+    			    	}
+    				}
+    			}
     			if (save_iter_density > 0) {
     				if (iter_counter == 2 or iter_counter % save_iter_density == 0) {
     					save(compute_density(KS_nemo), "density_iter_" + stringify(iter_counter));
@@ -431,7 +447,7 @@ public:
     			}
     			if (save_iter_kinKS > 0) {
     				if (iter_counter == 2 or iter_counter % save_iter_kinKS == 0) {
-    					save(compute_kinetic_term(KS_nemo, KS_eigvals), "kin_KS_iter_" + stringify(iter_counter));
+    					save(compute_total_kinetic_density(KS_nemo, KS_eigvals), "kin_KS_iter_" + stringify(iter_counter));
     				}
     			}
     			if (save_iter_ocep_correction > 0) {
@@ -596,13 +612,13 @@ public:
     	print("\n  computing final orbitals, IKS and density");
 
     	real_function_3d IKS = compute_average_I(KS_nemo, KS_eigvals);
-    	real_function_3d kinKS = compute_kinetic_term(KS_nemo, KS_eigvals);
+    	real_function_3d kinKS = compute_total_kinetic_density(KS_nemo, KS_eigvals);
     	real_function_3d rho = compute_density(KS_nemo);
     	save(rho, "density_final");
     	save(IKS, "IKS_final");
     	save(kinKS, "kin_KS_final");
     	for (long i = 0; i < KS_nemo.size(); i++) {
-    		save(R*KS_nemo[i], "KS_orb_" + stringify(i));
+    		save(R*KS_nemo[i], "KS_orb_" + stringify(i) + "_final");
     	}
 
     	// if desired: print final KS orbital contributions to total density (nemo squares)
@@ -617,21 +633,21 @@ public:
 
     	if (is_oaep()) {
     		print("\n  computing OCEP with converged OAEP orbitals and eigenvalues");
-        	real_function_3d correction = compute_ocep_correction(HF_eigvals, IHF, KS_nemo, KS_eigvals);
+        	real_function_3d correction = compute_ocep_correction(IHF, KS_nemo, KS_eigvals);
         	real_function_3d ocep_oaep_pot = Vs + correction;
         	save(correction, "OCEP_correction");
         	save(ocep_oaep_pot, "OCEP_potential_with_OAEP_orbs");
     	}
     	if (is_ocep()) {
     		print("\n  computing final OCEP with converged OCEP orbitals and eigenvalues");
-        	real_function_3d correction_final = compute_ocep_correction(HF_eigvals, IHF, KS_nemo, KS_eigvals);
+        	real_function_3d correction_final = compute_ocep_correction(IHF, KS_nemo, KS_eigvals);
         	Voep = Vs + correction_final;
         	save(correction_final, "OCEP_correction_final");
         	save(Voep, "OCEP_final");
     	}
     	if (is_dcep()) {
     		print("\n  computing final DCEP with converged DCEP orbitals and eigenvalues");
-        	real_function_3d ocep_correction_final = compute_ocep_correction(HF_eigvals, IHF, KS_nemo, KS_eigvals);
+        	real_function_3d ocep_correction_final = compute_ocep_correction(IHF, KS_nemo, KS_eigvals);
         	real_function_3d dcep_correction_final = compute_dcep_correction(kinHF, KS_nemo, KS_eigvals);
         	Voep = Vs + ocep_correction_final + dcep_correction_final;
         	save(ocep_correction_final, "OCEP_correction_final");
@@ -753,8 +769,8 @@ public:
 
     }
 
-    /// compute the kinetic energy quantity tau/rho with equation (6) from Kohut, 2014, devided by the density
-    real_function_3d compute_kinetic_term(const vecfuncT& nemo, const tensorT eigvals) const {
+    /// compute the total kinetic energy density devided by the density tau/rho with equation (6) from Kohut
+    real_function_3d compute_total_kinetic_density(const vecfuncT& nemo, const tensorT eigvals) const {
 
     	// compute the denominator rho (density)
     	real_function_3d rho = compute_density(nemo);
@@ -795,8 +811,8 @@ public:
     }
 
     /// compute OCEP correction and orbital shift to add to Slater potential Vs
-    real_function_3d compute_ocep_correction(const tensorT eigvalsHF, const real_function_3d IHF,
-    		const vecfuncT& nemoKS, const tensorT eigvalsKS) const {
+    real_function_3d compute_ocep_correction(const real_function_3d IHF, const vecfuncT& nemoKS,
+    		const tensorT eigvalsKS) const {
 
     	// Kohn-Sham average ionization energy
     	real_function_3d IKS = compute_average_I(nemoKS, eigvalsKS);
@@ -812,8 +828,8 @@ public:
     real_function_3d compute_dcep_correction(const real_function_3d kinHF, const vecfuncT& nemoKS,
     		const tensorT eigvalsKS) const {
 
-    	// Kohn-Sham kinetic energy quantity tau/rho
-    	real_function_3d kinKS = compute_kinetic_term(nemoKS, eigvalsKS);
+    	// Kohn-Sham total kinetic energy density tau/rho
+    	real_function_3d kinKS = compute_total_kinetic_density(nemoKS, eigvalsKS);
 
     	// calculate correction kinHF - kinKS like Kohut, 2014, equation (33) (on top of OCEP correction)
     	real_function_3d correction = kinHF - kinKS;
