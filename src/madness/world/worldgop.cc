@@ -109,8 +109,7 @@ namespace madness {
             ++npass;
 
             if (debug)
-              madness::print("GOPFENCE", npass, sum[0], nsent_prev, sum[1], nrecv_prev);
-
+              madness::print(world_.rank(), ": WORLD.GOP.FENCE: npass=", npass, " sum0=", sum[0], " nsent_prev=", nsent_prev, " sum1=", sum[1], " nrecv_prev=", nrecv_prev);
             if (sum[0]==sum[1] && sum[0]==nsent_prev && sum[1]==nrecv_prev) {
                 break;
             }
