@@ -58,13 +58,19 @@ namespace madness {
 
         //double start = wall_time();
 
-        while (1) {
+      if (debug)
+        madness::print(world_.rank(), ": WORLD.GOP.FENCE: entering fence loop, gfence_tag=", gfence_tag, " bcast_tag=", bcast_tag);
+
+      while (1) {
             uint64_t sum0[2]={0,0}, sum1[2]={0,0}, sum[2];
             if (child0 != -1) req0 = world_.mpi.Irecv((void*) &sum0, sizeof(sum0), MPI_BYTE, child0, gfence_tag);
             if (child1 != -1) req1 = world_.mpi.Irecv((void*) &sum1, sizeof(sum1), MPI_BYTE, child1, gfence_tag);
             world_.taskq.fence();
             if (child0 != -1) World::await(req0);
             if (child1 != -1) World::await(req1);
+
+            if (debug && (child0 != -1 || child1 != -1))
+              madness::print(world_.rank(), ": WORLD.GOP.FENCE: npass=", npass, " received messages from children={", child0, ",", child1, "} gfence_tag=", gfence_tag);
 
             bool finished;
             uint64_t ntask1, nsent1, nrecv1, ntask2, nsent2, nrecv2;
@@ -97,7 +103,11 @@ namespace madness {
 
             if (parent != -1) {
                 req0 = world_.mpi.Isend(&sum, sizeof(sum), MPI_BYTE, parent, gfence_tag);
+                if (debug)
+                  madness::print(world_.rank(), ": WORLD.GOP.FENCE: npass=", npass, " sent message to parent=", parent, " gfence_tag=", gfence_tag);
                 World::await(req0);
+                if (debug)
+                  madness::print(world_.rank(), ": WORLD.GOP.FENCE: npass=", npass, " parent=", parent, ", confirmed receipt");
             }
 
             // While we are probably idle free unused communication buffers
@@ -110,8 +120,11 @@ namespace madness {
 
             if (debug)
               madness::print(world_.rank(), ": WORLD.GOP.FENCE: npass=", npass, " sum0=", sum[0], " nsent_prev=", nsent_prev, " sum1=", sum[1], " nrecv_prev=", nrecv_prev);
+
             if (sum[0]==sum[1] && sum[0]==nsent_prev && sum[1]==nrecv_prev) {
-                break;
+              if (debug)
+                madness::print(world_.rank(), ": WORLD.GOP.FENCE: npass=", npass, " exiting fence loop");
+              break;
             }
 
 //                 if (wall_time() - start > 1200.0) {
@@ -134,6 +147,8 @@ namespace madness {
         MallocExtension::instance()->ReleaseFreeMemory();
 //        print("clearing memory");
 #endif
+      if (debug)
+        madness::print(world_.rank(), ": WORLD.GOP.FENCE: done with fence in ", npass, (npass > 1 ? " loops" : " loop"));
     }
 
 
