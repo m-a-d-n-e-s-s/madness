@@ -197,9 +197,11 @@ private:
 	unsigned int save_iter_orbs = 0;                  // if > 0 save all orbitals every ... iterations (needs a lot of storage!)
 	unsigned int save_iter_density = 0;               // if > 0 save KS density every ... iterations
 	unsigned int save_iter_IKS = 0;                   // if > 0 save IKS every ... iterations
-	unsigned int save_iter_kinKS = 0;                 // if > 0 save kinKS every ... iterations
+	unsigned int save_iter_kin_tot_KS = 0;            // if > 0 save kin_tot_KS every ... iterations
+	unsigned int save_iter_kin_P_KS = 0;              // if > 0 save kin_P_KS every ... iterations
 	unsigned int save_iter_ocep_correction = 0;       // if > 0 save OCEP correction every ... iterations
 	unsigned int save_iter_dcep_correction = 0;       // if > 0 save DCEP correction every ... iterations
+	unsigned int save_iter_mrks_correction = 0;       // if > 0 save mRKS correction every ... iterations
 	unsigned int save_iter_total_correction = 0;      // if > 0 save total correction (OCEP + DCEP) every ... iterations
 	unsigned int save_iter_effective_potential = 0;   // if > 0 save effective potential every ... iterations
 
@@ -271,14 +273,20 @@ public:
             else if (str == "save_IKS") {
             	in >> save_iter_IKS;
             }
-            else if (str == "save_kin_KS") {
-            	in >> save_iter_kinKS;
+            else if (str == "save_kin_tot_KS") {
+            	in >> save_iter_kin_tot_KS;
+            }
+            else if (str == "save_kin_P_KS") {
+            	in >> save_iter_kin_P_KS;
             }
             else if (str == "save_OCEP_correction") {
             	in >> save_iter_ocep_correction;
             }
             else if (str == "save_DCEP_correction") {
             	in >> save_iter_dcep_correction;
+            }
+            else if (str == "save_mRKS_correction") {
+            	in >> save_iter_mrks_correction;
             }
             else if (str == "save_total_correction") {
             	in >> save_iter_total_correction;
@@ -328,7 +336,7 @@ public:
     			print("  previous potential", i, "=", damp_coeff[i]);
     		}
     	}
-    	if (is_dcep()) {
+    	if (is_dcep() or is_mrks()) {
         	if (calc->param.dft_deriv == "bspline") print("unsing b-spline gradient operator for DCEP correction");
         	else print("using default abgv gradient operator for DCEP correction");
     	}
@@ -366,9 +374,11 @@ public:
 		// compute Slater potential Vs and average IHF from HF orbitals and eigenvalues
     	const real_function_3d Vs = compute_slater_potential(HF_nemo, homo_ind(HF_eigvals));
     	const real_function_3d IHF = compute_average_I(HF_nemo, HF_eigvals);
+    	const real_function_3d kin_tot_HF = compute_total_kinetic_density(HF_nemo, HF_eigvals);
+    	const real_function_3d kin_P_HF = compute_Pauli_kinetic_density(HF_nemo, HF_eigvals);
     	save(IHF, "IHF");
-    	const real_function_3d kinHF = compute_total_kinetic_density(HF_nemo, HF_eigvals);
-    	save(kinHF, "kin_HF");
+    	save(kin_tot_HF, "kin_tot_HF");
+    	save(kin_P_HF, "kin_P_HF");
 
     	// set KS_nemo as reference to MOs
     	vecfuncT& KS_nemo = calc->amo;
@@ -410,7 +420,7 @@ public:
     		iter_counter++;
     		print("\n     ***", model, "iteration", iter_counter, "***\n");
 
-    		if (is_ocep() or is_dcep()) {
+    		if (is_ocep() or is_dcep() or is_mrks()) {
 
     			// damping for better convergence of Voep
     			if (damp_num > 0) {
@@ -421,8 +431,10 @@ public:
     			}
 
         		// compute OCEP potential from current nemos and eigenvalues
-    			real_function_3d corr_ocep = compute_oep_correction("ocep", IHF, KS_nemo, KS_eigvals);
-    			real_function_3d corr_dcep = compute_oep_correction("dcep", kinHF, KS_nemo, KS_eigvals);
+    			real_function_3d corr_ocep, corr_dcep, corr_mrks;
+    			corr_ocep = compute_oep_correction("ocep", IHF, KS_nemo, KS_eigvals);
+    			if (is_dcep()) corr_dcep = compute_oep_correction("dcep", kin_tot_HF, KS_nemo, KS_eigvals);
+    			if (is_mrks()) corr_mrks = compute_oep_correction("mrks", kin_P_HF, KS_nemo, KS_eigvals);
 
     			// and shift potential so that HOMO_HF = HOMO_KS, so potential += (HOMO_HF - HOMO_KS)
     			double shift = homo_diff(HF_eigvals, KS_eigvals);
@@ -431,6 +443,7 @@ public:
     			// damping
     			Voep = damp_coeff[0]*(Vs + corr_ocep + shift);
     			if (is_dcep()) Voep += damp_coeff[0]*corr_dcep;
+    			else if (is_mrks()) Voep += damp_coeff[0]*corr_mrks;
     			for (unsigned int i = 0; i < damp_num; i++) {
     				Voep += damp_coeff[i + 1]*Voep_old[i];
     			}
@@ -453,9 +466,14 @@ public:
     					save(compute_average_I(KS_nemo, KS_eigvals), "IKS_iter_" + stringify(iter_counter));
     				}
     			}
-    			if (save_iter_kinKS > 0) {
-    				if (iter_counter == 2 or iter_counter % save_iter_kinKS == 0) {
-    					save(compute_total_kinetic_density(KS_nemo, KS_eigvals), "kin_KS_iter_" + stringify(iter_counter));
+    			if (save_iter_kin_tot_KS > 0 and is_dcep()) {
+    				if (iter_counter == 2 or iter_counter % save_iter_kin_tot_KS == 0) {
+    					save(compute_total_kinetic_density(KS_nemo, KS_eigvals), "kin_tot_KS_iter_" + stringify(iter_counter));
+    				}
+    			}
+    			if (save_iter_kin_P_KS > 0 and is_mrks()) {
+    				if (iter_counter == 2 or iter_counter % save_iter_kin_P_KS == 0) {
+    					save(compute_Pauli_kinetic_density(KS_nemo, KS_eigvals), "kin_P_KS_iter_" + stringify(iter_counter));
     				}
     			}
     			if (save_iter_ocep_correction > 0) {
@@ -463,14 +481,22 @@ public:
     					save(corr_ocep + shift, "OCEP_correction_iter_" + stringify(iter_counter));
     				}
     			}
-    			if (save_iter_dcep_correction > 0) {
+    			if (save_iter_dcep_correction > 0 and is_dcep()) {
     				if (iter_counter == 2 or iter_counter % save_iter_dcep_correction == 0) {
     					save(corr_dcep + shift, "DCEP_correction_iter_" + stringify(iter_counter));
     				}
     			}
+    			if (save_iter_mrks_correction > 0 and is_mrks()) {
+    				if (iter_counter == 2 or iter_counter % save_iter_mrks_correction == 0) {
+    					save(corr_mrks + shift, "mRKS_correction_iter_" + stringify(iter_counter));
+    				}
+    			}
     			if (save_iter_total_correction > 0) {
-    				if (iter_counter == 2 or iter_counter % save_iter_total_correction == 0) {
+    				if (is_dcep() and (iter_counter == 2 or iter_counter % save_iter_total_correction == 0)) {
     					save(corr_ocep + corr_dcep + shift, "total_correction_iter_" + stringify(iter_counter));
+    				}
+    				else if (is_mrks() and (iter_counter == 2 or iter_counter % save_iter_total_correction == 0)) {
+    					save(corr_ocep + corr_mrks + shift, "total_correction_iter_" + stringify(iter_counter));
     				}
     			}
     			if (save_iter_effective_potential > 0) {
@@ -619,12 +645,15 @@ public:
     	// calculate and print all final numbers
     	print("\n  computing final orbitals, IKS and density");
 
+    	double shift_final = homo_diff(HF_eigvals, KS_eigvals);
     	real_function_3d IKS = compute_average_I(KS_nemo, KS_eigvals);
-    	real_function_3d kinKS = compute_total_kinetic_density(KS_nemo, KS_eigvals);
+    	real_function_3d kin_tot_KS = compute_total_kinetic_density(KS_nemo, KS_eigvals);
+    	real_function_3d kin_P_KS = compute_Pauli_kinetic_density(KS_nemo, KS_eigvals);
     	real_function_3d rho = compute_density(KS_nemo);
     	save(rho, "density_final");
     	save(IKS, "IKS_final");
-    	save(kinKS, "kin_KS_final");
+    	save(kin_tot_KS, "kin_tot_KS_final");
+    	save(kin_P_KS, "kin_P_KS_final");
     	for (long i = 0; i < KS_nemo.size(); i++) {
     		save(R*KS_nemo[i], "KS_orb_" + stringify(i) + "_final");
     	}
@@ -649,19 +678,29 @@ public:
     	if (is_ocep()) {
     		print("\n  computing final OCEP with converged OCEP orbitals and eigenvalues");
         	real_function_3d correction_final = compute_oep_correction("ocep", IHF, KS_nemo, KS_eigvals);
-        	Voep = Vs + correction_final;
-        	save(correction_final, "OCEP_correction_final");
+        	Voep = Vs + correction_final + shift_final;
+        	save(correction_final + shift_final, "OCEP_correction_final");
         	save(Voep, "OCEP_final");
     	}
     	if (is_dcep()) {
     		print("\n  computing final DCEP with converged DCEP orbitals and eigenvalues");
         	real_function_3d ocep_correction_final = compute_oep_correction("ocep", IHF, KS_nemo, KS_eigvals);
-        	real_function_3d dcep_correction_final = compute_oep_correction("dcep", kinHF, KS_nemo, KS_eigvals);
-        	Voep = Vs + ocep_correction_final + dcep_correction_final;
-        	save(ocep_correction_final, "OCEP_correction_final");
-        	save(dcep_correction_final, "DCEP_correction_final");
-        	save(ocep_correction_final + dcep_correction_final, "total_correction_final");
+        	real_function_3d dcep_correction_final = compute_oep_correction("dcep", kin_tot_HF, KS_nemo, KS_eigvals);
+        	Voep = Vs + ocep_correction_final + dcep_correction_final + shift_final;
+        	save(ocep_correction_final + shift_final, "OCEP_correction_final");
+        	save(dcep_correction_final + shift_final, "DCEP_correction_final");
+        	save(ocep_correction_final + dcep_correction_final + shift_final, "total_correction_final");
         	save(Voep, "DCEP_final");
+    	}
+    	if (is_mrks()) {
+    		print("\n  computing final mRKS potential with converged mRKS orbitals and eigenvalues");
+        	real_function_3d ocep_correction_final = compute_oep_correction("ocep", IHF, KS_nemo, KS_eigvals);
+        	real_function_3d mrks_correction_final = compute_oep_correction("mrks", kin_P_HF, KS_nemo, KS_eigvals);
+        	Voep = Vs + ocep_correction_final + mrks_correction_final + shift_final;
+        	save(ocep_correction_final + shift_final, "OCEP_correction_final");
+        	save(mrks_correction_final + shift_final, "mRKS_correction_final");
+        	save(ocep_correction_final + mrks_correction_final + shift_final, "total_correction_final");
+        	save(Voep, "mRKS_potential_final");
     	}
     	print("     done\n");
 
@@ -802,8 +841,9 @@ public:
 	    // = 1/2 * R^2 * sum {U1dot * nemo_i^2 + 2 * nemo_i * U1 * (\nabla nemo_i)) + (\nabla nemo_i)^2}
 	    vecfuncT grad_nemo_squared(nemo.size());
 		for (long i = 0; i < nemo.size(); i++) {
-			grad_nemo_squared[i] = U1dot*square(nemo[i]) - 2.0*nemo[i]*dot(world, U1, grad_nemo[i])
-					+ dot(world, grad_nemo[i], grad_nemo[i]);
+			grad_nemo_squared[i] = U1dot*square(nemo[i])
+								   - 2.0*nemo[i]*dot(world, U1, grad_nemo[i])
+								   + dot(world, grad_nemo[i], grad_nemo[i]);
 		}
 		real_function_3d tau = R_square*sum(world, grad_nemo_squared); // 1/2 * sum |Nabla nemo|^2 (* 2 because closed shell)
 
@@ -818,54 +858,51 @@ public:
 
     }
 
-    // TODO: The following is a test for the better DCEP version, but is not ready yet
-    // e.g. grad_nemo_term[i] = ... still only has one index i and no regularization has been considered yet
+    /// compute the Pauli kinetic energy density devided by the density tau_P/rho with equation (16) from Ospadov, 2017
+    real_function_3d compute_Pauli_kinetic_density(const vecfuncT& nemo, const tensorT eigvals) const {
 
-//    /// compute the Pauli kinetic energy density devided by the density tau_P/rho with equation (16) from Ospadov, 2017
-//    real_function_3d compute_Pauli_kinetic_density(const vecfuncT& nemo, const tensorT eigvals) const {
-//
-//    	// compute the denominator rho (density)
-//    	real_function_3d rho = compute_density(nemo);
-//
-//    	// compute the numerator tau_P
-//
-//	    // get \nabla R and (\nabla R)^2 via and U1 = -1/R \nabla R and U1dot = (1/R \nabla R)^2
-//    	const vecfuncT U1 = this->nuclear_correlation->U1vec();
-//	    NuclearCorrelationFactor::U1_dot_U1_functor u1_dot_u1(nuclear_correlation.get());
-//	    const real_function_3d U1dot = real_factory_3d(world).functor(u1_dot_u1).truncate_on_project();
-//
-//	    // get \nabla nemo
-//	    std::vector<vecfuncT> grad_nemo(nemo.size());
-//	    for (long i = 0; i < nemo.size(); i++) {
-//	    	if(calc->param.dft_deriv == "bspline") grad_nemo[i] = grad_bspline_one(nemo[i]);  // gradient using b-spline
-//	    	else grad_nemo[i] = grad(nemo[i]);  // default gradient using abgv
-//	    }
-//
-//	    // compute tau = 1/2 * sum |phi_i|^2
-//	    // = 1/2 * sum {(\nabla R)^2 * nemo_i^2 + 2 * R * nemo_i * (\nabla R) * (\nabla nemo_i)) + R^2 * (\nabla nemo_i)^2}
-//	    // = 1/2 * R^2 * sum {U1dot * nemo_i^2 + 2 * nemo_i * U1 * (\nabla nemo_i)) + (\nabla nemo_i)^2}
-//	    std::vector<vecfuncT> grad_nemo_term(nemo.size());
+    	// compute the denominator rho (density)
+    	real_function_3d rho_square = square(dot(world, nemo, nemo)); // density squared without 2.0 and R_square
+
+    	// compute the numerator tau_P
+
+	    // get \nabla nemo
+	    std::vector<vecfuncT> grad_nemo(nemo.size());
+	    for (long i = 0; i < nemo.size(); i++) {
+	    	if(calc->param.dft_deriv == "bspline") grad_nemo[i] = grad_bspline_one(nemo[i]);  // gradient using b-spline
+	    	else grad_nemo[i] = grad(nemo[i]);  // default gradient using abgv
+	    }
+
+	    // compute tau = 1/2 * sum |phi_i|^2
+	    // = 1/2 * sum {(\nabla R)^2 * nemo_i^2 + 2 * R * nemo_i * (\nabla R) * (\nabla nemo_i)) + R^2 * (\nabla nemo_i)^2}
+	    // = 1/2 * R^2 * sum {U1dot * nemo_i^2 + 2 * nemo_i * U1 * (\nabla nemo_i)) + (\nabla nemo_i)^2}
+	    vecfuncT grad_nemo_term;
 //		for (long i = 0; i < nemo.size(); i++) {
-//			for (long j = 0; j < nemo.size(); j++) {
-//				grad_nemo_term[i] = nemo[i]*grad_nemo[j] - nemo[j]*grad_nemo[i];
+//			for (long j = i + 1; j < nemo.size(); j++) {
+//				real_function_3d tmp = square(nemo[i])*dot(world, grad_nemo[j], grad_nemo[j])
+//								       - 2.0*nemo[i]*nemo[j]*dot(world, grad_nemo[i], grad_nemo[j])
+//									   + square(nemo[j])*dot(world, grad_nemo[i], grad_nemo[i]);
+//				grad_nemo_term.push_back(tmp);
 //			}
 //		}
-//		 vecfuncT grad_nemo_term_squared(nemo.size());
-//		for (long i = 0; i < nemo.size(); i++) {
-//			grad_nemo_term_squared[i] = dot(world, grad_nemo_term[i], grad_nemo_term[i]);
-//		}
-//		real_function_3d tau_P = sum(world, grad_nemo_term_squared);
-//
-//		// calculate quotient = tau_P/rho
-//		real_function_3d quotient = binary_op(tau_P, rho, dens_inv(dens_thresh_lo));
-//
-//        // munge quotient for long-range asymptotic behavior which is -epsilon_HOMO
-//       	print("computing tau_P/rho: index of HOMO is", homo_ind(eigvals));
-//       	quotient = binary_op(quotient, rho, binary_munge_linear(dens_thresh_hi, dens_thresh_lo, -1.0*eigvals(homo_ind(eigvals))));
-//
-//    	return quotient;
-//
-//    }
+		for (long i = 0; i < nemo.size(); i++) {
+			for (long j = i + 1; j < nemo.size(); j++) {
+				vecfuncT tmp = nemo[i]*grad_nemo[j] - nemo[j]*grad_nemo[i];
+				grad_nemo_term.push_back(dot(world, tmp, tmp));
+			}
+		}
+		real_function_3d numerator = sum(world, grad_nemo_term); // numerator = tau_P * 2 * rho / R^4
+
+		// calculate quotient = tau_P/rho
+		real_function_3d quotient = 0.5*binary_op(numerator, rho_square, dens_inv(dens_thresh_lo)); // TODO: closed-shell factors??
+
+        // munge quotient for long-range asymptotic behavior which is -epsilon_HOMO
+       	print("computing tau_P/rho: index of HOMO is", homo_ind(eigvals));
+       	quotient = binary_op(quotient, rho_square, binary_munge_linear(dens_thresh_hi, dens_thresh_lo, -1.0*eigvals(homo_ind(eigvals))));
+
+    	return quotient;
+
+    }
 
     /// compute correction of the given model
     real_function_3d compute_oep_correction(const std::string model, const real_function_3d corrHF, const vecfuncT& nemoKS,
@@ -875,7 +912,7 @@ public:
     	real_function_3d corrKS;
     	if (model == "ocep") corrKS = compute_average_I(nemoKS, eigvalsKS);
     	if (model == "dcep") corrKS = compute_total_kinetic_density(nemoKS, eigvalsKS);
-//    	if (model == "mrks") corrKS = compute_Pauli_kinetic_density(nemoKS, eigvalsKS);
+    	if (model == "mrks") corrKS = compute_Pauli_kinetic_density(nemoKS, eigvalsKS);
 
     	// calculate correction corrHF - corrKS like Kohut, 2014, equation (26) or (33)
     	real_function_3d correction = corrHF - corrKS;
