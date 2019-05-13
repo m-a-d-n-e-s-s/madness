@@ -184,11 +184,12 @@ class OEP : public Nemo {
 
 private:
 
-	double dens_thresh_hi = 1.0e-4;           // default 1.0e-4
-	double dens_thresh_lo = 1.0e-7;           // default 1.0e-7
-	double munge_thresh = 1.0e-8;             // default 1.0e-8
-	double conv_thresh = calc->param.econv;   // default convergence threshold is same as econv
-	unsigned int damp_num = 0;                // default 0 (no damping)
+	double dens_thresh_hi = 1.0e-4;                   // default 1.0e-4
+	double dens_thresh_lo = 1.0e-7;                   // default 1.0e-7
+	double munge_thresh = 1.0e-8;                     // default 1.0e-8
+	double conv_thresh = calc->param.econv;           // default convergence threshold is same as econv
+	std::vector<double> kain_param = {1.0e-8, 3.0};   // default KAIN settings for rcondtol and cabsmax (see nonlinsol.h)
+	unsigned int damp_num = 0;                        // default 0 (no damping)
 	std::vector<double> damp_coeff;
 	std::string model;
 	std::vector<bool> oep_model = {false, false, false, false};
@@ -245,6 +246,10 @@ public:
             }
             else if (str == "conv_threshold") {
             	in >> conv_thresh;
+            }
+            else if (str == "kain_parameters") {
+            	in >> kain_param[0];
+            	in >> kain_param[1];
             }
             else if (str == "damping") {
             	in >> damp_num;
@@ -311,6 +316,7 @@ public:
     	print("using lower density threshold =", dens_thresh_lo);
     	print("using munge threshold =", munge_thresh);
     	print("using convergence threshold for optimized potential =", conv_thresh);
+    	print("using KAIN parameters rcondtol =", kain_param[0], "and cabsmax =", kain_param[1]);
     	if (damp_num == 0) {
     		damp_coeff.push_back(1.0);
     		print("using no damping");
@@ -556,10 +562,10 @@ public:
     		vecfuncT residual = KS_nemo - GFnemo;
     		const double norm = norm2(world, residual) / sqrt(KS_nemo.size());
 
-    		// KAIN (helps to converge)
+    		// KAIN solver (helps to converge)
     		vecfuncT nemo_new;
     		if (norm < 5.0e-1) {
-    			nemo_new = (solver.update(KS_nemo, residual,1.e-8,3.0)).x;
+    			nemo_new = (solver.update(KS_nemo, residual, kain_param[0], kain_param[1])).x;
     		} else {
     			nemo_new = GFnemo;
     		}
@@ -815,7 +821,7 @@ public:
     // TODO: The following is a test for the better DCEP version, but is not ready yet
     // e.g. grad_nemo_term[i] = ... still only has one index i and no regularization has been considered yet
 
-//    /// compute the Pauli kinetic energy density devided by the density tau_P/rho with equation (16)/(18) (?) from Ospadov, 2017
+//    /// compute the Pauli kinetic energy density devided by the density tau_P/rho with equation (16) from Ospadov, 2017
 //    real_function_3d compute_Pauli_kinetic_density(const vecfuncT& nemo, const tensorT eigvals) const {
 //
 //    	// compute the denominator rho (density)
