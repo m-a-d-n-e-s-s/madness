@@ -125,6 +125,7 @@ int main()
     
 // ******************************************************** 
 // Everything below is the has the answers
+//This is for Hideo's education
 bool answer =false;
 if(answer == true){
     Tensor<double> Cocc=MOS(_,Slice(0,nocc-1));
