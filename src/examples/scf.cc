@@ -125,7 +125,7 @@ int main()
     
 // ******************************************************** 
 // Everything below is the has the answers
-bool answer =false
+bool answer =false;
 if(answer == true){
     Tensor<double> Cocc=MOS(_,Slice(0,nocc-1));
     Tensor<double> D=inner(Cocc,Cocc,1,1);
