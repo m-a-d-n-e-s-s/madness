@@ -16,6 +16,7 @@
 #include <madness/tensor/tensor.h>
 #include <madness/tensor/tensor_lapack.h>
 #include <madness/world/print.h>
+#include <cmath>
 
 using namespace madness;
 
@@ -44,21 +45,20 @@ int main()
     double enrep;
     std::string keyword;
     fs>>keyword;//read the first key word
-    if (keyword == "nbf") {
+   if (keyword == "nbf") {
         fs>>nbf;
     }
     else {
         throw "input file should start with nbf";
     }
 
-    // I can define Tensors now i think
     Tensor<double> S(nbf,nbf);
     Tensor<double> KE(nbf,nbf);
     Tensor<double> PE(nbf,nbf);
     Tensor<double> MUX(nbf,nbf);
     Tensor<double> MUY(nbf,nbf);
     Tensor<double> MUZ(nbf,nbf);
-    Tensor<double> C(nbf,nbf);
+    Tensor<double> MOS(nbf,nbf);
     Tensor<double> Electron(nbf,nbf,nbf,nbf);
 
 
@@ -89,7 +89,7 @@ int main()
             readTensor(fs,MUZ,2,nbf,true);
         }
         else if ( keyword == "mos") {
-            readTensor(fs,C,2,nbf,false);
+            readTensor(fs,MOS,2,nbf,false);
         }
         else if ( keyword == "2-electron") {
             print("entering");
@@ -101,64 +101,41 @@ int main()
         }
     }
 
-    //Tensor<double> Smo2(nbf,nbf);
-    Tensor<double> Smo=transform(S,C);
+/* The first stage of the calculation after having all the integrals define is to diagonalize the 
+** the overlap matrix S **/
 
+    Tensor<double> s(nbf,1);//holds the eigenvalues of S
+    Tensor<double> U(nbf,nbf);//holds the unitary matrix that transforms S
+    syev(S,U,s);// solve SU=sU
+    Tensor<double> s12(nbf,nbf);
 
-    /*  Molecular overlap matrix should be idenities... this is a test to check whether
-     *  the integral matrices are read into the program directly
-     *  if they are then the overlap matrix of molecular orbitals should be identies
-     *  S(i,j)=sum(mu,nu) C'*S*C
-     */
-    /*
-    int c1(0);
-    for (int i=0; i<nbf; i++) {
-        for ( int j =0; j<nbf; j++) {
-            for( int mu=0; mu <nbf; mu++) {
-                for ( int nu=0; nu<nbf; nu++) {
-    //S[i,j] = sum(mu,nu) C[mu,i] s[mu,nu] C[nu,j]
-                    c1++;
-                    Smo(i,j)+=C(mu,i)*S(mu,nu)*C(nu,j);
-                }
-            }
-        }
+// Create s^(-1/2) from eigenvalues in s
+    for(int mu = 0;mu<nbf;mu++){
+        s12(mu,mu)=1/pow(s(mu),.5);
     }
-    Tensor<double> B(nbf,nbf);
-    int c2(0);
+// Create X canoncial orthogonalization of S
+/*  X_{mu mu} = sum(mu') Umu mu' * s12 mu' nu' */
+    Tensor<double> X = inner(U,s12);
+// Compute the Core Hamiltonian with KE and PE 
+    Tensor<double> Hcore=KE+PE;
 
-    for (int i=0; i<nbf;i++){
-      for ( int nu=0; nu<nbf;nu++){
-        for( int mu=0; mu<nbf;mu++){
-          B(i,nu)+=C(mu,i)*S(mu,nu);
-        }
-      }
-    }
-    for ( int i =0; i<nbf; i++){
-      for( int j =0; j < nbf; j++){
-        for (int nu=0; nu <nbf; nu++){
-          Smo(i,j)+=B(i,nu)*C(nu,j);
-          c2++;
-          }
-      }
-    }
-    */
 
-    /*
-        for( int mu=0; mu <nbf; mu++) {
-            for ( int nu=0; nu<nbf; nu++) {
-                for (int i =0; i<nocc; i++) {
-                    D(mu,nu)+=C(mu,i)*C(nu,i);
-                }
-            }
-        }
-        */
-    Tensor<double> Cocc=C(_,Slice(0,nocc-1));
+
+
+    
+// ******************************************************** 
+// Everything below is the has the answers
+bool answer =false
+if(answer == true){
+    Tensor<double> Cocc=MOS(_,Slice(0,nocc-1));
     Tensor<double> D=inner(Cocc,Cocc,1,1);
 
     double pe=PE.trace(D);
 
     double ke=KE.trace(D);
-
+    print(ke+pe);
+    double E1=Hcore.trace(D);
+    print(E1);
     double twoEE(0);
 
     for( int mu =0; mu <nbf; mu++) {
@@ -171,82 +148,74 @@ int main()
         }
     }
 
-    print(D);
-    print(ke,pe,2*(ke+pe));
-    print(twoEE);
+}
 
 
-
-    std::cout << nbf <<"this is nbf"<< std::endl;
     fs.close();
     return 0;
 }
-/**********************************************************************************
-   *
-   * ********************************************************************************/
 
-void readTensor(std::ifstream& fs, Tensor<double>& T,int dim, int nbf,bool sym) {
-    int count=1;
-    int a,b,c,d;
-    int * indices;
-    double val;//value
-    indices= new int [dim];// dynamic array of indicies
-    std::string line;
-    do {
+void readTensor(std::ifstream& fs, Tensor<double>& T, int dim, int nbf,
+                bool sym) {
+  int count = 1;
+  int a, b, c, d;
+  int* indices;
+  double val;              // value
+  indices = new int[dim];  // dynamic array of indicies
+  std::string line;
+  do {
+    std::getline(fs, line);
+    std::istringstream iss(line);
+    // gather indices
 
-        std::getline(fs,line);
-        std::istringstream iss(line);
-        // gather indices
-
-        for (int i=0; i<dim; i++) {
-            iss>>indices[i];
-        }
-        iss>>val;
-        if (dim ==4&&indices[0]==1) {
-            print("before if(indices[0]!=-1");
-            for (int i=0; i<dim; i++) {
-                std::cout<<" "<<indices[i];
-            }
-            std::cout<<" "<<val<<std::endl;
-        }
-
-        if(indices[0]!=-1&&indices[0]!=0) {//make sure it passes a blank line
-            if ( dim ==2) {
-                a=indices[0]-1;
-                b=indices[1]-1;
-                T(a,b)=val;
-
-                if (sym) {
-                    T(b,a)=val;
-                }
-            }
-            else if (dim ==4) {
-
-                a=indices[0]-1;
-                b=indices[1]-1;
-                c=indices[2]-1;
-                d=indices[3]-1;
-
-                T(a,b,c,d)=val;
-                T(a,b,d,c)=val;
-                T(b,a,c,d)=val;
-                T(b,a,d,c)=val;
-                T(c,d,a,b)=val;
-                T(c,d,b,a)=val;
-                T(d,c,a,b)=val;
-                T(d,c,b,a)=val;
-
-                if (count ==1) print("huh",a,b,c,d,indices[0]);
-                count++;
-
-            } else {
-                throw "bad";
-            }
-        }
+    for (int i = 0; i < dim; i++) {
+      iss >> indices[i];
     }
-    while ( indices[0]!=-1);
+    iss >> val;
+    if (dim == 4 && indices[0] == 1) {
+      print("before if(indices[0]!=-1");
+      for (int i = 0; i < dim; i++) {
+        std::cout << " " << indices[i];
+      }
+      std::cout << " " << val << std::endl;
+    }
 
-    delete[] indices;//releases the memory allocated for arrays of elements using new and a size in brackets([])
+    if (indices[0] != -1 &&
+        indices[0] != 0) {  // make sure it passes a blank line
+      if (dim == 2) {
+        a = indices[0] - 1;
+        b = indices[1] - 1;
+        T(a, b) = val;
+
+        if (sym) {
+          T(b, a) = val;
+        }
+      } else if (dim == 4) {
+        a = indices[0] - 1;
+        b = indices[1] - 1;
+        c = indices[2] - 1;
+        d = indices[3] - 1;
+
+        T(a, b, c, d) = val;
+        T(a, b, d, c) = val;
+        T(b, a, c, d) = val;
+        T(b, a, d, c) = val;
+        T(c, d, a, b) = val;
+        T(c, d, b, a) = val;
+        T(d, c, a, b) = val;
+        T(d, c, b, a) = val;
+
+        if (count == 1) print("huh", a, b, c, d, indices[0]);
+        count++;
+
+      } else {
+        throw "bad";
+      }
+    }
+  } while (indices[0] != -1);
+
+  delete[] indices;  // releases the memory allocated for arrays of elements
+                     // using new and a size in brackets([])
 }
 
 // 1. Read in the input file "integrals.dat" Save the data to corresponding variables
