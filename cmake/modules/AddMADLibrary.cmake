@@ -38,7 +38,8 @@ macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_d
   # Create a target to install the component
   add_custom_target(install-${_name}
       COMMAND ${CMAKE_COMMAND} -DCOMPONENT=${_name} -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
-      COMMENT "Installing ${_name} library components")
+      COMMENT "Installing ${_name} library components"
+      USES_TERMINAL)
   add_dependencies(install-${_name} MAD${_name})
   add_dependencies(install-${_name} install-common)
   add_dependencies(install-libraries install-${_name})
@@ -100,7 +101,8 @@ macro(add_mad_hdr_library _name _header_files _dep_mad_comp _include_dir)
   # Create a target to install the component
   add_custom_target(install-${_name}
       COMMAND ${CMAKE_COMMAND} -DCOMPONENT=${_name} -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
-      COMMENT "Installing ${_name} library components")
+      COMMENT "Installing ${_name} library components"
+      USES_TERMINAL)
   add_dependencies(install-${_name} MAD${_name})
   add_dependencies(install-libraries install-${_name})
 

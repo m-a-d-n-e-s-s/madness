@@ -543,7 +543,7 @@ if(ENABLE_UNITTESTS)
   enable_testing()
   set(MADNESS_HAS_GOOGLE_TEST 1)
   add_custom_target(unittests)
-  add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND}) # to be GNU compatible
+  add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} USES_TERMINAL) # to be GNU compatible
 endif()
 add_subdirectory(src)
 add_subdirectory(doc)
@@ -612,7 +612,8 @@ install(FILES
     COMPONENT madness-config)
 add_custom_target(install-config
      COMMAND ${CMAKE_COMMAND} -DCOMPONENT=madness-config -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
-     COMMENT "Installing MADNESS config components")
+     COMMENT "Installing MADNESS config components"
+     USES_TERMINAL)
 
 feature_summary(WHAT ALL
                 DESCRIPTION "=== MADNESS Package/Feature Info ===")
