@@ -345,7 +345,7 @@ void DF::make_fermi_potential(World& world, real_convolution_3d& op, real_functi
      for(unsigned int i = 0; i < num_atoms; i++){
           Zlist[i] = Init_params.molecule.get_atom_number(i);
           FermiNucDistFunctor rho(Zlist[i], Rlist[i],DFparams.bohr_rad);
-          temp = real_factory_3d(world).functor(rho).truncate_mode(0);
+          temp = real_factory_3d(world).functor(rho).truncate_mode(1);
           tempnorm = temp.trace();
           temp.scale(-Zlist[i]/tempnorm);
           if(i == 0){
@@ -1149,14 +1149,14 @@ void DF::saveDF(World& world){
 void DF::make_gaussian_potential(World& world, real_function_3d& potential){
      if(world.rank()==0) print("\n***Making a Gaussian Potential***");
      GaussianNucleusFunctor Vfunctor(Init_params.molecule, DFparams.bohr_rad);
-     potential = real_factory_3d(world).functor(Vfunctor).truncate_mode(0).truncate_on_project();
+     potential = real_factory_3d(world).functor(Vfunctor).truncate_mode(1).truncate_on_project();
 }
 
 //Creates the nuclear potential from the molecule object. Also calculates the nuclear repulsion energy
 void DF::make_gaussian_potential(World& world, real_function_3d& potential, double& nuclear_repulsion_energy){
      if(world.rank()==0) print("\n***Making a Gaussian Potential***");
      GaussianNucleusFunctor Vfunctor(Init_params.molecule,DFparams.bohr_rad);
-     potential = real_factory_3d(world).functor(Vfunctor).truncate_mode(0).truncate_on_project();
+     potential = real_factory_3d(world).functor(Vfunctor).truncate_mode(1).truncate_on_project();
      std::vector<coord_3d> Rlist = Vfunctor.get_Rlist();
      std::vector<int> Zlist = Vfunctor.get_Zlist();
      nuclear_repulsion_energy = 0.0;
