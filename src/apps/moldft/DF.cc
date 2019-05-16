@@ -1079,6 +1079,7 @@ void apply_BSH_new(World& world, Fcwf& Vpsi, double& eps, double& small, double&
      //calculate exponent for equivalent BSH operator
      double mu = std::sqrt(-(2*eps*c2+eps*eps)/c2);
 
+     if(world.rank()==0) print("    mu = ", mu);
 
      world.gop.fence();
 
@@ -1088,8 +1089,14 @@ void apply_BSH_new(World& world, Fcwf& Vpsi, double& eps, double& small, double&
      //Apply BSH operator to Vpsi
      Vpsi = apply(world, op, Vpsi);
 
+     mu = Vpsi.norm2();
+     if(world.rank()==0) print("    after BSH = ", mu);
+
      //Apply (1/c^2)(H_D + eps) to Vpsi. Using apply_T for convenience, but this requires adding 2c^2Vpsi
-     Vpsi = (apply_T(world, Vpsi) + Vpsi * (eps+2*c2)) * (1.0/c2);
+     Vpsi = apply_T(world, Vpsi)*(1.0/c2) + Vpsi * ((eps+2*c2)/c2);
+
+     mu = Vpsi.norm2();
+     if(world.rank()==0) print("    after full apply = ", mu);
 
 }
 
