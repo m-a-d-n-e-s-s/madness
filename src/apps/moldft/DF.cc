@@ -473,10 +473,10 @@ Fcwf apply_T(World& world, Fcwf& psi){
      //combine to calculate application of T
      Tpsi[0] = psiz[2] + psix[3] - myi*psiy[3];
      Tpsi[1] = psix[2] + myi*psiy[2] - psiz[3];
-     Tpsi[2] = psiz[0] + psix[1] - myi*psiy[1] - 2*myc*myi*psi[2];
-     Tpsi[3] = psix[0] + myi*psiy[0] - psiz[1] - 2*myc*myi*psi[3];
+     Tpsi[2] = myc*(psiz[0] + psix[1] - myi*psiy[1] - 2*myi*psi[2]);
+     Tpsi[3] = myc*(psix[0] + myi*psiy[0] - psiz[1] - 2*myi*psi[3]);
 
-     return Tpsi * (-myi*myc);
+     return Tpsi * (-myi);
 }
 
 //function to calculate the kinetic + rest energy expectation value using Dirac Hamiltonian c*\alpha*p+\Beta*m*c*c
@@ -506,6 +506,7 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
 
      //Calculate and accumulate exchange contributions
      unsigned int n = Init_params.num_occupied;
+     double myc = 137.0359895; //speed of light in atomic units
      for(unsigned int i = 0; i < n; i++){
 
           std::vector<complex_function_3d> temp(n-i);
@@ -527,8 +528,8 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
 
           gaxpy(world, 1.0, temp, 1.0, occupieds[i][0]*conj(world,temp0));
           gaxpy(world, 1.0, temp, 1.0, occupieds[i][1]*conj(world,temp1));
-          gaxpy(world, 1.0, temp, 1.0, occupieds[i][2]*conj(world,temp2));
-          gaxpy(world, 1.0, temp, 1.0, occupieds[i][3]*conj(world,temp3));
+          gaxpy(world, 1.0, temp, 1.0/(myc*myc), occupieds[i][2]*conj(world,temp2));
+          gaxpy(world, 1.0, temp, 1.0/(myc*myc), occupieds[i][3]*conj(world,temp3));
 
           if(world.rank()==0) print(i, "Starting apply phase in K");
 
@@ -571,6 +572,7 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
 
 //This function is old an only used in the virtual solver (that doesn't work)
 Fcwf DF::apply_K(World& world, real_convolution_3d& op, Fcwf& phi){
+     throw;
      complex_function_3d temp(world);
      Fcwf result(world);
 
@@ -658,10 +660,10 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      if(world.rank()==0) print("          ", times[0]);
 
      //debugging: print fock and overlap matrices
-     //if(world.rank()==0){
-     //     print("fock:\n", fock);
-     //     print("\noverlap:\n", overlap);
-     //}
+     if(world.rank()==0){
+          print("fock:\n", fock);
+          print("\noverlap:\n", overlap);
+     }
      
      if(world.rank()==0) print("     Eigensolver");
      start_timer(world);
@@ -774,6 +776,7 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
 
 //returns a vector of orthonormal Fcwfs constructed from the input vector of Fcwfs
 std::vector<Fcwf> orthogonalize(World& world, std::vector<Fcwf> orbitals){
+     throw;
      int n = orbitals.size();
      std::vector<Fcwf> result;
      for(int i = 0; i < n; i++){
@@ -1469,15 +1472,15 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      }
      nuclear_attraction_tensor = real(inner(world,occupieds1,mul(world,V,occupieds1)));
      nuclear_attraction_tensor += real(inner(world,occupieds2,mul(world,V,occupieds2)));
-     nuclear_attraction_tensor += real(inner(world,occupieds3,mul(world,V,occupieds3)));
-     nuclear_attraction_tensor += real(inner(world,occupieds4,mul(world,V,occupieds4)));
+     nuclear_attraction_tensor += real(inner(world,occupieds3,mul(world,V,occupieds3)))*(1.0/(myc*myc));
+     nuclear_attraction_tensor += real(inner(world,occupieds4,mul(world,V,occupieds4)))*(1.0/(myc*myc));
      nuclear_attraction_energy = nuclear_attraction_tensor.sum();
      
      //Compute electron-electron repulsion energy contribution, again using vmra
      coulomb_tensor = real(inner(world,occupieds1,mul(world,Jop,occupieds1)));
      coulomb_tensor += real(inner(world,occupieds2,mul(world,Jop,occupieds2)));
-     coulomb_tensor += real(inner(world,occupieds3,mul(world,Jop,occupieds3)));
-     coulomb_tensor += real(inner(world,occupieds4,mul(world,Jop,occupieds4)));
+     coulomb_tensor += real(inner(world,occupieds3,mul(world,Jop,occupieds3)))*(1.0/(myc*myc));
+     coulomb_tensor += real(inner(world,occupieds4,mul(world,Jop,occupieds4)))*(1.0/(myc*myc));
      coulomb_energy = 0.5*coulomb_tensor.sum();
      
      //Calculate Exchange energy contribution
@@ -1493,8 +1496,8 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      }
      exchange_tensor = real(inner(world,occupieds1,Kpsis1));
      exchange_tensor += real(inner(world,occupieds2,Kpsis2));
-     exchange_tensor += real(inner(world,occupieds3,Kpsis3));
-     exchange_tensor += real(inner(world,occupieds4,Kpsis4));
+     exchange_tensor += real(inner(world,occupieds3,Kpsis3))*(1.0/(myc*myc));
+     exchange_tensor += real(inner(world,occupieds4,Kpsis4))*(1.0/(myc*myc));
      exchange_energy = 0.5*exchange_tensor.sum();
 
      //Loop through energies and calculate their new values using the individual contributions

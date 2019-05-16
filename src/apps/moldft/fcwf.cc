@@ -190,11 +190,15 @@ Fcwf Fcwf::operator-=(const Fcwf& phi){
 
 double Fcwf::norm2(){
      MADNESS_ASSERT(m_initialized);
-     std::complex<double> temp = madness::inner(m_psi[0].world(), m_psi, m_psi).sum();
-     //std::complex<double> temp(0,0);
-     //for(int i = 0 ; i < 4 ; i++){
-     //     temp += madness::inner(m_psi[i],m_psi[i]);
-     //}
+     //std::complex<double> temp = madness::inner(m_psi[0].world(), m_psi, m_psi).sum();
+     double c2 = 137.0359895*137.0359895; //speed of light in atomic units
+     std::complex<double> temp(0,0);
+
+     temp += madness::inner(m_psi[0],m_psi[0]);
+     temp += madness::inner(m_psi[1],m_psi[1]);
+     temp += madness::inner(m_psi[2],m_psi[2])/c2;
+     temp += madness::inner(m_psi[3],m_psi[3])/c2;
+
      return std::sqrt(std::real(temp));
 }
 
@@ -234,7 +238,15 @@ void Fcwf::truncate(){
 
 std::complex<double> Fcwf::inner(World& world, const Fcwf& phi) const{
      MADNESS_ASSERT(m_initialized && phi.getinitialize());
-     return madness::inner(world, m_psi, phi.m_psi).sum();
+     double c2 = 137.0359895*137.0359895; //speed of light in atomic units
+     std::complex<double> temp(0,0);
+
+     temp += madness::inner(m_psi[0],phi.m_psi[0]);
+     temp += madness::inner(m_psi[1],phi.m_psi[1]);
+     temp += madness::inner(m_psi[2],phi.m_psi[2])/c2;
+     temp += madness::inner(m_psi[3],phi.m_psi[3])/c2;
+
+     return temp;
 }
 
 void Fcwf::apply(World& world, real_convolution_3d& op){
@@ -276,13 +288,15 @@ Fcwf apply(World& world, complex_derivative_3d& D, const Fcwf& psi){
 
 real_function_3d squaremod(Fcwf& psi){
      MADNESS_ASSERT(psi.getinitialize());
-     real_function_3d temp = abssq(psi[0]) + abssq(psi[1]) + abssq(psi[2]) + abssq(psi[3]);
+     double c2 = 137.0359895*137.0359895; //speed of light in atomic units
+     real_function_3d temp = abssq(psi[0]) + abssq(psi[1]) + abssq(psi[2]).scale(1.0/c2) + abssq(psi[3]).scale(1.0/c2);
      return temp;
 }
 
 real_function_3d squaremod_small(Fcwf& psi){
      MADNESS_ASSERT(psi.getinitialize());
-     real_function_3d temp = abssq(psi[2]) + abssq(psi[3]);
+     double c2 = 137.0359895*137.0359895; //speed of light in atomic units
+     real_function_3d temp = (abssq(psi[2]) + abssq(psi[3])).scale(1.0/c2);
      return temp;
 }
 
@@ -294,11 +308,16 @@ real_function_3d squaremod_large(Fcwf& psi){
 
 complex_function_3d inner_func(World& world, Fcwf& psi, Fcwf& phi){
      MADNESS_ASSERT(psi.getinitialize() && phi.getinitialize());
+     double c = 137.0359895; //speed of light in atomic units
      std::vector<complex_function_3d> a(4);
      std::vector<complex_function_3d> b(4);
-     for(unsigned int i = 0; i < 4; i++){
+     for(unsigned int i = 0; i < 2; i++){
           a[i] = psi[i];
           b[i] = phi[i];
+     }
+     for(unsigned int i = 2; i < 4; i++){
+          a[i] = copy(psi[i]).scale(1.0/c);
+          b[i] = copy(phi[i]).scale(1.0/c);
      }
      complex_function_3d result = sum(world, mul(world, conj(world, a), b)); 
      return result;
@@ -399,6 +418,8 @@ Tensor<std::complex<double>> matrix_inner(World& world, std::vector<Fcwf>& a, st
      unsigned int m = b.size();
      MADNESS_ASSERT(n==m);
 
+     double c2 = 137.0359895*137.0359895; //speed of light in atomic units
+
      std::vector<complex_function_3d> a_1(n);
      std::vector<complex_function_3d> a_2(n);
      std::vector<complex_function_3d> a_3(n);
@@ -421,8 +442,8 @@ Tensor<std::complex<double>> matrix_inner(World& world, std::vector<Fcwf>& a, st
 
      Tensor<std::complex<double>> component1 = matrix_inner(world, a_1, b_1);
      Tensor<std::complex<double>> component2 = matrix_inner(world, a_2, b_2);
-     Tensor<std::complex<double>> component3 = matrix_inner(world, a_3, b_3);
-     Tensor<std::complex<double>> component4 = matrix_inner(world, a_4, b_4);
+     Tensor<std::complex<double>> component3 = (1.0/c2)*matrix_inner(world, a_3, b_3);
+     Tensor<std::complex<double>> component4 = (1.0/c2)*matrix_inner(world, a_4, b_4);
      component1=component1+component2+component3+component4;
      return component1;
 }
