@@ -484,6 +484,7 @@ double DF::rele(World& world, Fcwf& psi){
      Fcwf Tpsi = apply_T(world, psi);
      
      std::complex<double> energy  = inner(psi, Tpsi);
+     if(world.rank()==0) print("   in rele: ", energy.real());
 
      return energy.real();
 }
