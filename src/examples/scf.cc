@@ -24,6 +24,7 @@ void readTensor(std::ifstream &fs, Tensor<double> &T, int dim, int nbf, bool sym
 void computeDensity(Tensor<double> &P, Tensor<double> &Cocc, Tensor<double> &C, int Nocc);
 void computeG(Tensor<double> &G, Tensor<double> &twoE, Tensor<double> P, int nbf);
 double computeTwoEE(Tensor<double> twoE, Tensor<double> P, int nbf);
+double computeEtot(Tensor<double> P, Tensor<double>H,Tensor<double>F,int nbf);
 
 int main()
 {
@@ -181,7 +182,7 @@ int main()
         std::cout << "Potential Energy = " << pe << std::endl;
         twoEE = computeTwoEE(Electron, P, nbf);
         std::cout << "Two Electron Energy = " << twoEE << std::endl;
-        Etot = pe + ke + twoEE;
+        Etot = computeEtot(P,Hcore,F,nbf);
 
         std::cout << "Total Energy = " << Etot << std::endl;
         deltaE = std::abs((Etot - E0) / E0);
