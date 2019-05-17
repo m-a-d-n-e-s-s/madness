@@ -121,7 +121,7 @@ int main()
     Tensor<double> Hcore=KE+PE;
 // Compute the Intial Guess to the Core to Density Matrix
     Tensor<double> C(nbf,nbf);
-    Tensor<double> Cocc(nocc,nocc) =C(_,Slice(0,nocc-1));
+    Tensor<double> Cocc=C(_,Slice(0,nocc-1));
     Tensor<double> P=2*inner(Cocc,Cocc,1,1);
 
 // Convergence criteria Standard deviation of successive density matrix elements
@@ -261,7 +261,7 @@ void readTensor(std::ifstream& fs, Tensor<double>& T, int dim, int nbf, bool sym
 
 void computeDensity(Tensor<double>& P, Tensor<double>& Cocc,Tensor<double>& C, int Nocc)
 {
-   Cocc=C(_,Slice(O,nocc-1)); 
+   Cocc=C(_,Slice(0,Nocc-1)); 
    P=2*inner(Cocc,Cocc,1,1);
 }
 void computeG(Tensor<double>& G, Tensor<double>& )
