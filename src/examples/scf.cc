@@ -21,6 +21,7 @@
 using namespace madness;
 
 void readTensor(std::ifstream& fs, Tensor<double>& T,int dim, int nbf,bool sym);
+void computeDensity(Tensor<double>& P, Tensor<double>& Cocc,Tensor<double>& C, int Nocc);
 
 int main()
 {
@@ -118,6 +119,45 @@ int main()
     Tensor<double> X = inner(U,s12);
 // Compute the Core Hamiltonian with KE and PE 
     Tensor<double> Hcore=KE+PE;
+// Compute the Intial Guess to the Core to Density Matrix
+    Tensor<double> C(nbf,nbf);
+    Tensor<double> Cocc(nocc,nocc) =C(_,Slice(0,nocc-1));
+    Tensor<double> P=2*inner(Cocc,Cocc,1,1);
+
+// Convergence criteria Standard deviation of successive density matrix elements
+    int iter =1;
+    double Etot=0;
+    double deltaE=10;
+    double E0(0);
+// Fock Matrix
+    Tensor<double> F = Hcore;
+    Tensor<double> G(nbf,nbf);
+    Tensor<double> Fprime(nbf,nbf);
+    Tensor<double> Cprime(nbf,nbf);
+    Tensor<double> epsilons(nbf,1);
+    Tensor<double> CprimeOcc(nbf,nocc);
+
+
+    double del = 10e-06;
+    while( deltaE > del){
+
+        E0=Etot;
+
+        Fprime = transform(F,X);
+         syev(F,Cprime,epsilons);// solve SU=sU
+         CprimeOcc=Cprime(_,Slice(0,nocc-1));
+         Cocc=inner(X,CprimeOcc);
+         P=2*inner(Cocc,Cocc,1,1);
+
+
+
+
+
+
+
+    }
+
+
 
 
 
@@ -156,8 +196,8 @@ if(answer == true){
     return 0;
 }
 
-void readTensor(std::ifstream& fs, Tensor<double>& T, int dim, int nbf,
-                bool sym) {
+void readTensor(std::ifstream& fs, Tensor<double>& T, int dim, int nbf, bool sym)
+{
   int count = 1;
   int a, b, c, d;
   int* indices;
@@ -219,5 +259,11 @@ void readTensor(std::ifstream& fs, Tensor<double>& T, int dim, int nbf,
                      // using new and a size in brackets([])
 }
 
+void computeDensity(Tensor<double>& P, Tensor<double>& Cocc,Tensor<double>& C, int Nocc)
+{
+   Cocc=C(_,Slice(O,nocc-1)); 
+   P=2*inner(Cocc,Cocc,1,1);
+}
+void computeG(Tensor<double>& G, Tensor<double>& )
 // 1. Read in the input file "integrals.dat" Save the data to corresponding variables
 // I need to figure out what every variable represents.
