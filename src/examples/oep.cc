@@ -104,7 +104,7 @@ struct binary_munge{
 
     /// @param[out] U   result
     /// @param[in]  f   function to be munged
-    /// @param[in]  r   refdensity
+    /// @param[in]  r   reference density
     void operator()(const Key<3>& key, Tensor<double>& U, const Tensor<double>& f,
             const Tensor<double>& refdens) const {
         ITERATOR(
@@ -133,7 +133,7 @@ struct binary_munge_linear{
 
     /// @param[out] U   result
     /// @param[in]  f   function to be munged
-    /// @param[in]  r   refdensity
+    /// @param[in]  r   reference density
     void operator()(const Key<3>& key, Tensor<double>& U, const Tensor<double>& f,
             const Tensor<double>& refdens) const {
 
@@ -153,6 +153,43 @@ struct binary_munge_linear{
             	U(IND) = ff(IND) + longrange(IND);
             }
         );
+    }
+
+    template <typename Archive>
+    void serialize(Archive& ar) {}
+
+};
+
+
+struct unary_munge_linear{
+
+	double thresh_high, thresh_low;
+	typedef double resultT;
+
+	/// same default values as for dens_thresh_hi and dens_thresh_lo
+	unary_munge_linear(const double hi = 1.0e-4, const double lo = 1.0e-7) {
+		thresh_high = hi;
+		thresh_low = lo;
+	}
+
+    /// @param[out] U   result
+    /// @param[in]  r   reference density
+    Tensor<double> operator()(const Key<3>& key, const Tensor<double>& refdens) const {
+
+    	// interpolate with value = (r - lo)/(hi - lo) and set 1 or 0 if > or < munge interval
+    	Tensor<double> U;
+        ITERATOR(
+            U, double r = refdens(IND);
+            if (r > thresh_high) {
+            	U(IND) = 1.0;
+            } else if (r < thresh_low) {
+            	U(IND) = 0.0;
+            } else {
+            	U(IND) = (refdens(IND) - thresh_low)/(thresh_high - thresh_low);
+            }
+        );
+        return U;
+
     }
 
     template <typename Archive>
@@ -778,8 +815,12 @@ public:
 //        	save(potential, "int_phi"+stringify(i)+"phi"+stringify(i));
 //        }
 
-        // use apply function from adiabatic correction (see AC.h, nemo.h and nemo.cc) with own potentials
-        Vs = ac.apply(Vs, lra);
+//        // use apply function from adiabatic correction (see AC.h, nemo.h and nemo.cc) with own potentials
+//        Vs = ac.apply(Vs, lra);
+
+        // interpolate linear in interval between explicit calculation and long range asymptotics
+        real_function_3d value = unary_op(rho, unary_munge_linear(dens_thresh_hi, dens_thresh_lo));
+        Vs = Vs*value + lra*(1.0 - value);
 
         save(lra, "lra_slater");
         save(Vs, "Slaterpotential");
