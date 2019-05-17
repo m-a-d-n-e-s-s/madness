@@ -142,7 +142,7 @@ int main()
 
     // Convergence criteria Standard deviation of successive density matrix elements
     int iter = 1;
-    double Etot = 0;
+    double Etot = 100001;
     double deltaE = 10;
     double E0(0);
     // Fock Matrix
@@ -156,7 +156,7 @@ int main()
     double ke(0);
     double twoEE(0);
 
-    double del = 10e-06;
+    double del = 1e-06;
     while (deltaE > del)
     {
 
@@ -165,6 +165,7 @@ int main()
         Fprime = transform(F, X);
         syev(F, Cprime, epsilons); // solve SU=sU
         CprimeOcc = Cprime(_, Slice(0, nocc - 1));
+        print(epsilons);
         Cocc = inner(X, CprimeOcc);
         P = 2 * inner(Cocc, Cocc, 1, 1);
 
@@ -174,6 +175,7 @@ int main()
 
         pe = PE.trace(P);
         ke = KE.trace(P);
+
         std::cout << " Iteration " << iter << std::endl;
         std::cout << "Kinetic Energy = " << ke << std::endl;
         std::cout << "Potential Energy = " << pe << std::endl;
@@ -192,7 +194,7 @@ int main()
     // ********************************************************
     // Everything below is the has the answers
     //This is for Hideo's education
-    bool answer = false;
+    bool answer = true;
     if (answer == true)
     {
         Tensor<double> Cocc = MOS(_, Slice(0, nocc - 1));
@@ -333,6 +335,15 @@ double computeTwoEE(Tensor<double> twoE, Tensor<double> P, int nbf)
         }
     }
     return twoEE;
+}
+double computeEtot(Tensor<double> P, Tensor<double>H,Tensor<double>F,int nbf){
+    double E0(0);
+    for (int mu; mu<nbf; mu++){
+        for(int nu; nu<nbf;nu++){
+            E0+=P(nu,mu)*(H(mu,nu)+F(mu,nu));
+        }
+    }
+    return E0/2;
 }
 
 // 1. Read in the input file "integrals.dat" Save the data to corresponding variables
