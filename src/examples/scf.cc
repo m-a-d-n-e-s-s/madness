@@ -22,6 +22,7 @@ using namespace madness;
 
 void readTensor(std::ifstream& fs, Tensor<double>& T,int dim, int nbf,bool sym);
 void computeDensity(Tensor<double>& P, Tensor<double>& Cocc,Tensor<double>& C, int Nocc);
+void computeG(Tensor<double>& G, Tensor<double>& twoE, Tensor<double> P, int nbf  );
 
 int main()
 {
@@ -264,6 +265,21 @@ void computeDensity(Tensor<double>& P, Tensor<double>& Cocc,Tensor<double>& C, i
    Cocc=C(_,Slice(0,Nocc-1)); 
    P=2*inner(Cocc,Cocc,1,1);
 }
-void computeG(Tensor<double>& G, Tensor<double>& )
+void computeG(Tensor<double>& G, Tensor<double>& twoE, Tensor<double> P, int nbf  )
+{
+    double Gmn=0;
+    for(int mu; mu < nbf;mu++){
+        for( int nu; nu <nbf; nu++){
+            for(int lambda; lambda <nbf; lambda ++){
+                for ( int sigma; sigma < nbf; sigma ++){
+                    Gmn=P(lambda,sigma)*(twoE(mu,nu,lambda,sigma))-(1/2)*twoE(mu,sigma,lambda,nu));
+                    G(mu,nu)=G(mu,nu)+Gmn;    
+                }
+            }
+        }
+    }
+
+}
+
 // 1. Read in the input file "integrals.dat" Save the data to corresponding variables
 // I need to figure out what every variable represents.
