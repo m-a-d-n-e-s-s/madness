@@ -27,15 +27,16 @@ public:
 
 		physical_B={0,0,param.physical_B()};
 		explicit_B={0,0,param.explicit_B()};
-		diamagnetic_height=param.diamagnetic_height();
+
+		potential_radius=param.potential_radius();
 
 		// initialize all functions to their default values
 		diamagnetic_factor_=real_factory_3d(world).functor([] (const coord_3d& r) {return 1.0;});
 		diamagnetic_factor_square=real_factory_3d(world).functor([] (const coord_3d& r) {return 1.0;});
-		diamagnetic_U2=complex_factory_3d(world).functor([] (const coord_3d& r) {return 0.0;});
+		diamagnetic_U2=real_factory_3d(world).functor([] (const coord_3d& r) {return 0.0;});
 		diamagnetic_U1=zero_functions<double,3>(world,3);
 
-		recompute_factors_and_potentials();
+		if (physical_B.normf()>0.0) recompute_factors_and_potentials();
 		print_info();
 	}
 
@@ -79,13 +80,6 @@ public:
 	/// apply the diamagnetic potential on rhs
 	std::vector<complex_function_3d> apply_potential(const std::vector<complex_function_3d>& rhs) const;
 
-	std::vector<std::vector<complex_function_3d> >
-	apply_potential_greensp(const std::vector<complex_function_3d>& rhs) const;
-
-	std::vector<complex_function_3d> apply_potential_scalar(const std::vector<complex_function_3d>& rhs) const;
-
-	void test_Gp_potential(const std::vector<complex_function_3d>& rhs) const;
-
 	/// make sure the magnetic field is oriented along the z axis
 	static bool B_along_z(const coord_3d& B) {
 		return((B[0]==0.0) && (B[1]==0.0));
@@ -114,10 +108,11 @@ private:
 	real_function_3d diamagnetic_factor_;
 	real_function_3d diamagnetic_factor_square;
 
-	double diamagnetic_height;
+	/// radius where the diamagnetic potential flattens out
+	double potential_radius;
 
 	/// the boxed diamagnetic potential (for a given B)
-	complex_function_3d diamagnetic_U2;
+	real_function_3d diamagnetic_U2;
 	std::vector<real_function_3d> diamagnetic_U1;
 
 	/// the position of the nuclei in the coordinate space:
@@ -135,9 +130,11 @@ public:
 	/// @return	a local potential: iB \sum_i \vec r \cdot \vec v_i
 	complex_function_3d compute_lz_commutator() const;
 
-	real_function_3d compute_T_commutator_scalar_term() const;
+	real_function_3d compute_U2() const;
 	real_function_3d compute_R_times_T_commutator_scalar_term_numerically() const;
-	std::vector<complex_function_3d> compute_T_commutator_vector_term() const;
+
+	/// returns R^{-1} \vec\nabla\R
+	std::vector<real_function_3d> compute_nabla_R_div_R() const;
 
 	/// run the tests
 
@@ -149,6 +146,7 @@ public:
 		}
 		if (level<2) {
 			success=success and test_factor();
+			success=success and test_harmonic_potential();
 			success=success and test_scalar_potentials();
 			success=success and test_vector_potentials();
 		}
@@ -163,27 +161,12 @@ public:
 
 private:
 
-	struct test_output {
-		test_output(std::string line) {
-			std::cout << line;
-		}
-
-		std::stringstream testos;
-
-		bool end(bool success) const {
-			if (success) std::cout << "\033[32m"   << " passed " << "\033[0m" << std::endl;
-			if (not success) {
-				std::cout << "\033[31m"   << " failed " << "\033[0m" << std::endl;
-				std::cout << testos.str() << std::endl;
-			}
-			MADNESS_ASSERT(success);
-			return success;
-		}
-	};
-
 
 	/// compute a factor for comparison in coordinate space
 	bool test_factor() const;
+
+	/// test the harmonic potential
+	bool test_harmonic_potential() const;
 
 	/// test analytical vs numerical computation of the potentials
 	bool test_scalar_potentials() const;
@@ -196,8 +179,8 @@ private:
 
 public:
 	/// compute the radius for the diamagnetic potential
-	double compute_radius(const double B) const {
-		return sqrt(8.0*diamagnetic_height/(B*B));
+	double get_potential_radius() const {
+		return potential_radius;
 	}
 
 };

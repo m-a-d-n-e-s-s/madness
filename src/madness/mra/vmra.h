@@ -896,7 +896,8 @@ namespace madness {
         bool fence=true) {
         PROFILE_BLOCK(Vmulvv);
         reconstruct(world, a, true);
-        if (&a != &b) reconstruct(world, b, true);
+        reconstruct(world, b, true);
+//        if (&a != &b) reconstruct(world, b, true); // fails if type(a) != type(b)
 
         std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> > q(a.size());
         for (unsigned int i=0; i<a.size(); ++i) {

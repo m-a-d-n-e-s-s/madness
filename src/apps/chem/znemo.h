@@ -54,8 +54,8 @@ struct allocator {
 
 class Nemo_complex_Parameters : public CalculationParametersBase {
 public:
-	enum parameterenum {physical_B_, explicit_B_, box_, box_softness_, shift_, printlevel_, diamagnetic_height_,
-		use_greensp_, scale_factor_};
+	enum parameterenum {physical_B_, explicit_B_, box_, box_softness_, shift_, printlevel_,
+		 potential_radius_};
 
 	/// the parameters with the enum key, the constructor taking the input file key and a default value
 	ParameterMap params={
@@ -65,9 +65,7 @@ public:
         		init<double>(box_softness_,{"box_softness",1.0}),
 				init<double>(shift_,{"shift",0.0}),
 				init<int>(printlevel_,{"printlevel",1}),		// 0: energies, 1: fock matrix, 2: function sizes
-				init<double>(diamagnetic_height_,{"diamagnetic_height",-1.0}),
-				init<double>(scale_factor_,{"scale_factor",1.0}),
-				init<bool>(use_greensp_,{"greensp",false}),
+				init<double>(potential_radius_,{"potential_radius",-1.0}),
     };
 
 	/// ctor reading out the input file
@@ -82,7 +80,7 @@ public:
 		double pb=physical_B();
 		double eb=explicit_B();
 		double remaining_B=fabs(pb-eb);
-		double differential_Bsquare=sqrt(pb*pb-eb*eb);
+		double differential_Bsquare=pb*pb-eb*eb;
 		double thresh=FunctionDefaults<3>::get_thresh()*0.1;
 		::madness::print("thresh, rB",thresh,remaining_B);
 
@@ -93,12 +91,10 @@ public:
 		::madness::print("wave function radius  ",wave_function_radius);
 		::madness::print("potential_radius      ",potential_radius);
 		::madness::print("differential_B_square ",differential_Bsquare);
-		::madness::print("diamagnetic_height    ",params[diamagnetic_height_]);
 
 		// set the diamagnetic height unless explicitly given
 		params[box_].set_derived_value(std::vector<double>({box_radius,1.0,box_softness()}));
-		params[diamagnetic_height_].set_derived_value(0.125*
-				differential_Bsquare*differential_Bsquare*potential_radius*potential_radius);
+		params[potential_radius_].set_derived_value(potential_radius);
 
 
 		// set derived values
@@ -114,9 +110,7 @@ public:
 	double explicit_B() const {return get<double>(explicit_B_);}
 	std::vector<double> box() const {return get<std::vector<double> >(box_);}
 	double box_softness() const {return get<double>(box_softness_);}
-	double diamagnetic_height() const {return get<double>(diamagnetic_height_);}
-	double scale_factor() const {return get<double>(scale_factor_);}
-	bool use_greensp() const {return get<bool>(use_greensp_);}
+	double potential_radius() const {return get<double>(potential_radius_);}
 
 
 	/// return the value of the parameter
@@ -170,7 +164,7 @@ class Znemo {
 		std::vector<std::vector<complex_function_3d> > GpVmo;	// potentials for the derivative of the BSH operator
 		std::vector<complex_function_3d> Gpscalar;				// scalar terms arising from the Gp treatment
 	};
-
+public:
 	struct timer {
         World& world;
 	    double ttt,sss;
@@ -195,8 +189,8 @@ class Znemo {
             double ss1=cpu_time()-sss;
             if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg.c_str(), ss1, tt1);
         }
-
 	};
+
 
 public:
 	Znemo(World& w);
@@ -204,12 +198,14 @@ public:
 	/// compute the molecular energy
 	double value();
 
-	void test();
+	bool test() const;
 	void test2();
-	void test_gp(const std::vector<complex_function_3d>& arg,
-			const std::vector<std::vector<complex_function_3d> > varg) const;
-	void test_gp2(const std::vector<complex_function_3d>& arg,
-			const std::vector<std::vector<complex_function_3d> > varg) const;
+
+	/// test the identity: <F| f lz f |F> = <F| f ([lz, f] + f lz) |F>
+	bool test_lz_commutator() const;
+
+	/// test the identity <F| f (T + Vdia ) f |F> = <F|f^2 (T + Udia) |F>
+	bool test_U_potentials() const;
 
 	// analyse the results only
 	void analyze() const;
@@ -413,9 +409,6 @@ protected:
 
 	/// the magnetic field B=rot(A)
 	coord_3d B;
-
-	/// the position of the nuclei in the "A" space: v = 1/2 B cross R
-	std::vector<coord_3d> v;
 
 	/// nuclear potential
 	real_function_3d vnuclear;
