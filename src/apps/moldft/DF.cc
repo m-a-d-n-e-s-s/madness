@@ -767,6 +767,11 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      ////Apply the transformation to the orbitals 
      transform(world, occupieds, U);
      
+     //debugging
+     for(unsigned int j=0; j < Init_params.num_occupied; j++){
+          double tempdouble = rele(world, occupieds[j]);
+          if(world.rank()==0) print("   after diag, rele ",j," = ",tempdouble);
+     }
      
      times = end_timer(world);
      if(world.rank()==0) print("          ", times[0]);
