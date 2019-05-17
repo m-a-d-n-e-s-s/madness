@@ -1384,6 +1384,13 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      times = end_timer(world);
      if(world.rank()==0) print("     ", times[0]);
 
+     //debugging
+     for(unsigned int j=0; j < Init_params.num_occupied; j++){
+          double tempdouble = rele(world, occupieds[j]);
+          if(world.rank()==0) print("   after BSH, rele ",j," = ",tempdouble);
+     }
+     
+
      //Apply the kain solver, if called for
      if(iteration_number != 1 and DFparams.kain){
           if(world.rank()==0) print("\n***Applying KAIN Solver***");
