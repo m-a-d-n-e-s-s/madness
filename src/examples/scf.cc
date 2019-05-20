@@ -164,7 +164,7 @@ int main()
         E0 = Etot;
 
         Fprime = transform(F, X);
-        syev(F, Cprime, epsilons); // solve SU=sU
+        syev(Fprime, Cprime, epsilons); // solve SU=sU
         CprimeOcc = Cprime(_, Slice(0, nocc - 1));
         print(CprimeOcc);
 
