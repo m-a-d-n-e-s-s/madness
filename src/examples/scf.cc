@@ -157,7 +157,7 @@ int main()
     double ke(0);
     double twoEE(0);
 
-    double del = 1e-06;
+    double del = 1e-08;
     while (deltaE > del)
     {
 
@@ -166,25 +166,25 @@ int main()
         Fprime = transform(F, X);
         syev(F, Cprime, epsilons); // solve SU=sU
         CprimeOcc = Cprime(_, Slice(0, nocc - 1));
-        print(epsilons);
-        Cocc = inner(X, CprimeOcc);
-        P = 2 * inner(Cocc, Cocc, 1, 1);
+        print(CprimeOcc);
 
         // compute two electron integral portion of Fock matrix
         computeG(G, Electron, P, nbf);
         F = Hcore + G;
 
         pe = PE.trace(P);
-        ke = KE.trace(P);
+        ke = KE.trace(P);   
+        double E1 = Hcore.trace(P);
+        
+        std::cout << "Kinetic Energy =    " << ke << std::endl;
+        std::cout << "Potential Energy =    " << pe << std::endl;
+        std::cout <<"One-electron energy =    " <<E1 <<std::endl;
+        twoEE=computeTwoEE(Electron,P,nbf);
+        std::cout <<"Two-electron energy =   " <<twoEE <<std::endl;
+        Etot=computeEtot(P,Hcore,F,nbf);
+        std::cout<<"Total SCF energy  =     "<<Etot<<std::endl;
 
         std::cout << " Iteration " << iter << std::endl;
-        std::cout << "Kinetic Energy = " << ke << std::endl;
-        std::cout << "Potential Energy = " << pe << std::endl;
-        twoEE = computeTwoEE(Electron, P, nbf);
-        std::cout << "Two Electron Energy = " << twoEE << std::endl;
-        Etot = computeEtot(P, Hcore, F, nbf);
-
-        std::cout << "Total Energy = " << Etot << std::endl;
         deltaE = std::abs((Etot - E0));
         std::cout << "Detla E =" << deltaE << std::endl;
         std::cout << std::endl;
@@ -199,31 +199,28 @@ int main()
     if (answer == true)
     {
         Tensor<double> Cocc = MOS(_, Slice(0, nocc - 1));
-        Tensor<double> D = inner(Cocc, Cocc, 1, 1);
+        Tensor<double> D = 2*inner(Cocc, Cocc, 1, 1);
 
-        double pe = PE.trace(D);
+        double pe = PE.trace(D)/2;
 
-        double ke = KE.trace(D);
+        double ke = KE.trace(D)/2;
+
         print(ke + pe);
         double E1 = Hcore.trace(D);
         print(E1);
         double twoEE(0);
-
-        for (int mu = 0; mu < nbf; mu++)
-        {
-            for (int nu = 0; nu < nbf; nu++)
-            {
-                for (int lambda = 0; lambda < nbf; lambda++)
-                {
-                    for (int sigma = 0; sigma < nbf; sigma++)
-                    {
-                        twoEE += Electron(mu, nu, lambda, sigma) * (2 * D(mu, nu) * D(lambda, sigma) - D(mu, lambda) * D(nu, sigma));
-                    }
-                }
-            }
-        }
+//
+        std::cout<< "Answers **************************"<<std::endl;
+        std::cout << "Kinetic Energy =    " << ke << std::endl;
+        std::cout << "Potential Energy =    " << pe << std::endl;
+        std::cout <<"One-electron energy =    " <<E1 <<std::endl;
+        twoEE=computeTwoEE(Electron,D,nbf);
+        std::cout <<"Two-electron energy =   " <<twoEE <<std::endl;
+        Etot=computeEtot(D,Hcore,F,nbf);
+        std::cout<<"Total SCF energy  =     "<<Etot<<std::endl;
     }
 
+        
     fs.close();
     return 0;
 }
@@ -330,7 +327,7 @@ double computeTwoEE(Tensor<double> twoE, Tensor<double> P, int nbf)
             {
                 for (int sigma = 0; sigma < nbf; sigma++)
                 {
-                    twoEE += twoE(mu, nu, lambda, sigma) * (2 * P(mu, nu) * P(lambda, sigma) - P(mu, lambda) * P(nu, sigma));
+                    twoEE += twoE(mu, nu, lambda, sigma) * (0.5 * P(mu, nu) * P(lambda, sigma) -.25* P(mu, lambda) * P(nu, sigma));
                 }
             }
         }
@@ -340,9 +337,9 @@ double computeTwoEE(Tensor<double> twoE, Tensor<double> P, int nbf)
 double computeEtot(Tensor<double> P, Tensor<double> H, Tensor<double> F, int nbf)
 {
     double E0(0);
-    for (int mu; mu < nbf; mu++)
+    for (int mu=0; mu < nbf; mu++)
     {
-        for (int nu; nu < nbf; nu++)
+        for (int nu=0; nu < nbf; nu++)
         {
             E0 += P(nu, mu) * (H(mu, nu) + F(mu, nu));
         }
