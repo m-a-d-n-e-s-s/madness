@@ -22,7 +22,7 @@ using namespace madness;
 
 void readTensor(std::ifstream &fs, Tensor<double> &T, int dim, int nbf, bool sym);
 void computeDensity(Tensor<double> &P, Tensor<double> &Cocc, Tensor<double> &C, int Nocc);
-void computeG(Tensor<double> &G, Tensor<double> &twoE, Tensor<double> P, int nbf);
+Tensor<double> computeG(Tensor<double> &twoE, Tensor<double> P, int nbf);
 double computeTwoEE(Tensor<double> twoE, Tensor<double> P, int nbf);
 double computeEtot(Tensor<double> P, Tensor<double> H, Tensor<double> F, int nbf);
 
@@ -174,7 +174,7 @@ int main()
         // Cocc=inner(X,CprimeOcc); 
         P=2*inner(Cocc,Cocc,1,1);
         // compute two electron integral portion of Fock matrix
-        computeG(G, Electron, P, nbf);
+        G=computeG( Electron, P, nbf);
         F = Hcore + G;
  
         E1 = Hcore.trace(P);
@@ -295,8 +295,9 @@ void computeDensity(Tensor<double> &P, Tensor<double> &Cocc, Tensor<double> &C, 
     Cocc = C(_, Slice(0, Nocc - 1));
     P = 2 * inner(Cocc, Cocc, 1, 1);
 }
-void computeG(Tensor<double> &G, Tensor<double> &twoE, Tensor<double> P, int nbf)
+Tensor<double> computeG( Tensor<double> &twoE, Tensor<double> P, int nbf)
 {
+    Tensor<double> G(nbf,nbf);
     double Gmn = 0;
     for (int mu=0; mu < nbf; mu++)
     {
@@ -312,6 +313,7 @@ void computeG(Tensor<double> &G, Tensor<double> &twoE, Tensor<double> P, int nbf
             }
         }
     }
+    return G;
 }
 double computeTwoEE(Tensor<double> twoE, Tensor<double> P, int nbf)
 {
