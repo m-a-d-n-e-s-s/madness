@@ -166,8 +166,8 @@ int main()
         Fprime = transform(F, X);
         syev(Fprime, Cprime, epsilons); // solve SU=sU
         CprimeOcc = Cprime(_, Slice(0, nocc - 1));
-        print(CprimeOcc);
-
+        Cocc=inner(X,CprimeOcc); 
+        P=2*inner(Cocc,Cocc,1,1);
         // compute two electron integral portion of Fock matrix
         computeG(G, Electron, P, nbf);
         F = Hcore + G;
@@ -301,15 +301,16 @@ void computeDensity(Tensor<double> &P, Tensor<double> &Cocc, Tensor<double> &C, 
 void computeG(Tensor<double> &G, Tensor<double> &twoE, Tensor<double> P, int nbf)
 {
     double Gmn = 0;
-    for (int mu; mu < nbf; mu++)
+    for (int mu=0; mu < nbf; mu++)
     {
-        for (int nu; nu < nbf; nu++)
+        for (int nu=0; nu < nbf; nu++)
         {
-            for (int lambda; lambda < nbf; lambda++)
+            for (int lambda=0; lambda < nbf; lambda++)
             {
-                for (int sigma; sigma < nbf; sigma++)
+                for (int sigma=0; sigma < nbf; sigma++)
                 {
-                    Gmn = P(lambda, sigma) * (twoE(mu, nu, lambda, sigma) - (1 / 2) * twoE(mu, sigma, lambda, nu));
+                    Gmn = P(lambda, sigma) * (twoE(mu, nu, lambda, sigma) - 0.5 * twoE(mu, lambda, sigma, nu));
+                    print(Gmn);
                     G(mu, nu) = G(mu, nu) + Gmn;
                 }
             }
