@@ -164,6 +164,7 @@ real_function_3d Diamagnetic_potential_factor::compute_U2() const {
 
 	real_function_3d U2_function;
 	U2_function=-0.5*(-eB - 0.25*pB*pB*harmonic_potential  + U2c_function);
+	print("diamagnetic_height: U2(20,20,20) ", U2_function(20.0, 20.0, 20.0));
 	return U2_function.truncate();
 }
 

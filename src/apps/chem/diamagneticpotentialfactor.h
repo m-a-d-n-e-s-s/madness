@@ -22,11 +22,12 @@ public:
 
 	/// constructor takes a world and the parameters for the calculation
 	Diamagnetic_potential_factor(World& world, const Nemo_complex_Parameters& param,
-			const std::vector<coord_3d>& v, const std::vector<coord_3d>& coords)
-		: world(world), v(v), coords(coords) {
+			const std::vector<coord_3d>& coords)
+		: world(world), coords(coords) {
 
 		physical_B={0,0,param.physical_B()};
 		explicit_B={0,0,param.explicit_B()};
+		v=compute_v_vector(explicit_B,coords);
 
 		potential_radius=param.potential_radius();
 
@@ -39,6 +40,21 @@ public:
 		if (physical_B.normf()>0.0) recompute_factors_and_potentials();
 		print_info();
 	}
+
+	void reset_explicit_B_and_v(const coord_3d& eB) {
+		explicit_B=eB;
+		v=compute_v_vector(explicit_B,coords);
+	}
+
+	static std::vector<coord_3d> compute_v_vector(const coord_3d& B,
+			const std::vector<coord_3d>& coords) {
+		std::vector<coord_3d> v;
+		for (auto& c : coords) v.push_back(0.5*cross(B,c));
+//		v=std::vector<coord_3d> (1,{0.0,0.0,0.0});
+//		print("\n\nunset v vector\n\n");
+		return v;
+	}
+
 
 	void print_info() const;
 
@@ -121,10 +137,10 @@ private:
 	/// the position of the nuclei in the "A" space: v = 1/2 B cross R
 	std::vector<coord_3d> v;
 
+public:
 	/// recompute the factor and the potentials for given physical and explicit magnetic fields
 	void recompute_factors_and_potentials();
 
-public:
 	/// compute the commutator of the orbital-zeeman term with the diamagnetic factor
 
 	/// @return	a local potential: iB \sum_i \vec r \cdot \vec v_i

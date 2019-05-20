@@ -133,17 +133,14 @@ Znemo::Znemo(World& w) : world(w), param(world), molecule("input"), cparam() {
 
 	B={0,0,param.physical_B()};
 
-    // compute the magnetic potential
-    A=compute_magnetic_vector_potential(world,B);
-
     // compute the nuclei's positions in the "A" space
-	std::vector<coord_3d> explicit_v=compute_v_vector({0,0,param.explicit_B()},molecule);
-	diafac.reset(new Diamagnetic_potential_factor(world,param,explicit_v,molecule.get_all_coords_vec()));
+	diafac.reset(new Diamagnetic_potential_factor(world,param,molecule.get_all_coords_vec()));
 
 	coord_3d box_offset={0.0,0.0,0.0};
 	if (param.box().size()==6) box_offset={param.box()[3],param.box()[4],param.box()[5]};
 	spherical_box sbox2(param.box()[0],param.box()[1],param.box()[2],box_offset);
 	sbox=real_factory_3d(world).functor(sbox2);
+	print("sbox parameters: radius, tightness",sbox2.radius,sbox2.tightness);
 
 	// the guess is read from a previous nemo calculation
 	// make sure the molecule was not reoriented there
@@ -220,6 +217,31 @@ bool Znemo::test_lz_commutator() const {
 
 void Znemo::test2() {
 
+    coord_3d deltaB={0,0,-1.0};
+    real_function_3d delta_factor=diafac->custom_factor(deltaB,
+    		Diamagnetic_potential_factor::compute_v_vector(deltaB,molecule.get_all_coords_vec()));
+    amo=amo*delta_factor;
+    bmo=bmo*delta_factor;
+
+    coord_3d explicit_B=diafac->get_explicit_B()+deltaB;
+    diafac->reset_explicit_B_and_v(explicit_B);
+    diafac->recompute_factors_and_potentials();
+    // final energy computation
+    real_function_3d density=sum(world,abssq(world,amo));
+    if (have_beta()) density+=sum(world,abssq(world,bmo));
+    if (cparam.spin_restricted) density*=2.0;
+    density=density*diafac->factor_square();
+    density.truncate();
+
+    potentials apot(world,amo.size()), bpot(world,bmo.size());
+    apot=compute_potentials(amo,density,amo);
+    if (have_beta()) {
+            bpot=compute_potentials(bmo,density,bmo);
+            scale(world,bpot.spin_zeeman_mo,-1.0);
+    }
+
+    double energy=compute_energy(amo,apot,bmo,bpot,true);
+
 }
 
 /// compute the molecular energy
@@ -246,6 +268,7 @@ double Znemo::value() {
 		orthonormalize(bmo);
 	}
 	test();
+//	test2();
 	double thresh=FunctionDefaults<3>::get_thresh();
 	double energy=1.e10;
 	double oldenergy=0.0;
@@ -643,6 +666,10 @@ std::vector<real_function_3d> Znemo::compute_current_density(
 	std::vector<complex_function_3d> j=zero_functions_compressed<double_complex,3>(world,3);
 	for (auto& mo : alpha_mo) j+=double_complex(0.0,1.0)*(conj(mo)*grad(mo));
 	for (auto& mo : beta_mo) j+=double_complex(0.0,1.0)*(conj(mo)*grad(mo));
+
+
+    // compute the magnetic potential
+	std::vector<real_function_3d> A=compute_magnetic_vector_potential(world,B);
 
 	// compute density contribution and spin contribution
 	j-=convert<double,double_complex,3>(world,A*density);

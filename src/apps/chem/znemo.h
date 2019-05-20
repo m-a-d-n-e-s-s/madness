@@ -277,12 +277,6 @@ public:
 		return 0.5*A;
 	}
 
-	static std::vector<coord_3d> compute_v_vector(const coord_3d& B, const Molecule& mol) {
-		std::vector<coord_3d> v;
-		for (auto& c : mol.get_all_coords_vec()) v.push_back(0.5*cross(B,c));
-		return v;
-	}
-
 	/// are there explicit beta orbitals
 	bool have_beta() const {
 		return ((not cparam.spin_restricted) and (cparam.nbeta>0));
@@ -403,9 +397,6 @@ protected:
 	CalculationParameters cparam;
 
 	std::shared_ptr<Diamagnetic_potential_factor> diafac;
-
-	/// the magnetic potential A = 1/2 B cross r
-	std::vector<real_function_3d> A;
 
 	/// the magnetic field B=rot(A)
 	coord_3d B;
