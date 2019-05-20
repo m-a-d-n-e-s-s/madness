@@ -52,19 +52,45 @@ struct allocator {
 };
 
 
+struct printleveler {
+	bool print_nothing_=true;
+	bool print_setup_=false;
+	bool print_energies_=false;
+	bool print_timings_=false;
+	bool print_convergence_=false;
+	bool print_debug_information_=false;
+
+	printleveler(int printlevel) {
+		print_debug_information_=(printlevel>=10);
+		print_convergence_=(printlevel>=4);
+		print_timings_=(printlevel>=3);
+		print_energies_=(printlevel>=2);
+		print_setup_=(printlevel>=1);
+	}
+
+	bool print_setup() const {return print_setup_;}
+	bool print_energies() const {return print_energies_;}
+	bool print_timings() const {return print_timings_;}
+	bool print_convergence() const {return print_convergence_;}
+	bool print_debug() const {return print_debug_information_;}
+
+};
+
+
 class Nemo_complex_Parameters : public CalculationParametersBase {
 public:
 	enum parameterenum {physical_B_, explicit_B_, box_, box_softness_, shift_, printlevel_,
-		 potential_radius_};
+		 potential_radius_, use_v_vector_};
 
 	/// the parameters with the enum key, the constructor taking the input file key and a default value
 	ParameterMap params={
         		init<double>(physical_B_,{"physical_B",0.0}),
         		init<double>(explicit_B_,{"explicit_B",0.0}),
         		init<std::vector<double> >(box_,{"box",{-1.0, 1.0, 4.0, 0.0, 0.0, 0.0}}),
-        		init<double>(box_softness_,{"box_softness",1.0}),
+        		init<double>(box_softness_,{"box_softness",4.0}),
 				init<double>(shift_,{"shift",0.0}),
-				init<int>(printlevel_,{"printlevel",1}),		// 0: energies, 1: fock matrix, 2: function sizes
+				init<int>(printlevel_,{"printlevel",2}),		// 0: energies, 1: fock matrix, 2: function sizes
+				init<bool>(use_v_vector_,{"use_v_vector",false}),
 				init<double>(potential_radius_,{"potential_radius",-1.0}),
     };
 
@@ -111,6 +137,7 @@ public:
 	std::vector<double> box() const {return get<std::vector<double> >(box_);}
 	double box_softness() const {return get<double>(box_softness_);}
 	double potential_radius() const {return get<double>(potential_radius_);}
+	bool use_v_vector() const {return get<bool>(use_v_vector_);}
 
 
 	/// return the value of the parameter
@@ -168,7 +195,9 @@ public:
 	struct timer {
         World& world;
 	    double ttt,sss;
-	    timer(World& world) : world(world) {
+	    bool do_print=true;
+
+	    timer(World& world, bool do_print=true) : world(world), do_print(do_print) {
 	        world.gop.fence();
 	        ttt=wall_time();
 	        sss=cpu_time();
@@ -178,7 +207,7 @@ public:
             world.gop.fence();
 	        double tt1=wall_time()-ttt;
 	        double ss1=cpu_time()-sss;
-	        if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg.c_str(), ss1, tt1);
+	        if (world.rank()==0 and do_print) printf("timer: %20.20s %8.2fs %8.2fs\n", msg.c_str(), ss1, tt1);
 	        ttt=wall_time();
 	        sss=cpu_time();
 	    }
@@ -187,7 +216,7 @@ public:
             world.gop.fence();
             double tt1=wall_time()-ttt;
             double ss1=cpu_time()-sss;
-            if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg.c_str(), ss1, tt1);
+            if (world.rank()==0 and do_print) printf("timer: %20.20s %8.2fs %8.2fs\n", msg.c_str(), ss1, tt1);
         }
 	};
 
@@ -392,6 +421,7 @@ protected:
 	Molecule molecule;
 	Nemo_complex_Parameters param;
     AtomicBasisSet aobasis;
+    printleveler print_info=printleveler(2);
 
 	/// standard calculation parameters
 	CalculationParameters cparam;

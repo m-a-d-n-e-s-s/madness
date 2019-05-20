@@ -298,28 +298,21 @@ bool Diamagnetic_potential_factor::test_harmonic_potential() const {
 
 bool Diamagnetic_potential_factor::test_scalar_potentials() const {
 
-//	Znemo::timer timer(world);
 	test_output t("entering Diamagnetic_potential_factor::test_scalar_potentials .. ");
 	const std::vector<complex_function_3d> mo=make_fake_orbitals(2);
 	const std::vector<complex_function_3d> diamo=factor()*mo;
 	const std::vector<complex_function_3d> dia2mo=factor_square()*mo;
-//	timer.tag("setup");
 
 	real_function_3d T_commutator_scalar_term=compute_U2();
-//	timer.tag("compute commutator analytically");
 	real_function_3d T_commutator_scalar_term_numerical=compute_R_times_T_commutator_scalar_term_numerically();
-//	timer.tag("compute commutator numerically");
 
 	double_complex t3=inner(dia2mo,T_commutator_scalar_term*mo);
-//	timer.end("inner and multiplication 1");
 	double_complex t3a=inner(diamo,T_commutator_scalar_term_numerical*mo);
-//	timer.end("inner and multiplication 2");
 
 	t.logger << "t3   " << t3 << std::endl;
 	t.logger << "t3a  " << t3a << std::endl;
 	t.logger << "error " << std::abs(t3-t3a) << std::endl;
 
-//	timer.end("all done");
 	bool success=(std::abs(t3-t3a)<FunctionDefaults<3>::get_thresh());
 	return t.end(success);
 }

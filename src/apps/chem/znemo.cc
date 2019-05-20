@@ -125,7 +125,9 @@ Znemo::Znemo(World& w) : world(w), param(world), molecule("input"), cparam() {
     cparam.set_molecular_info(molecule, aobasis, 0);
 	param.set_derived_values();
 
-	if (world.rank()==0) {
+	print_info=printleveler(param.printlevel());
+
+	if (world.rank()==0 and print_info.print_setup()) {
 		param.print(param.params,"complex","end");
 		cparam.print(world);
 		molecule.print();
@@ -219,7 +221,7 @@ void Znemo::test2() {
 
     coord_3d deltaB={0,0,-1.0};
     real_function_3d delta_factor=diafac->custom_factor(deltaB,
-    		Diamagnetic_potential_factor::compute_v_vector(deltaB,molecule.get_all_coords_vec()));
+    		Diamagnetic_potential_factor::compute_v_vector(deltaB,molecule.get_all_coords_vec(),true));
     amo=amo*delta_factor;
     bmo=bmo*delta_factor;
 
@@ -327,15 +329,15 @@ double Znemo::value() {
 			fockb=T(R2bmo,bmo) + compute_vmat(bmo,bpot);
 		}
 
-		if (world.rank()==0 and (param.printlevel()>1)) {
+		if (world.rank()==0 and (print_info.print_convergence())) {
 			print("Fock matrix");
 			print(focka);
 			print(fockb);
 		}
 
 		oldenergy=energy;
-		energy=compute_energy(amo,apot,bmo,bpot,param.printlevel()>1);
-		energy=compute_energy_no_confinement(amo,apot,bmo,bpot,param.printlevel()>1);
+		energy=compute_energy(amo,apot,bmo,bpot,print_info.print_convergence());
+		energy=compute_energy_no_confinement(amo,apot,bmo,bpot,print_info.print_convergence());
 
 
 		Tensor<double_complex> ovlp=matrix_inner(world,R2amo,amo);
@@ -347,16 +349,16 @@ double Znemo::value() {
 			canonicalize(bmo,Vnemob,bpot,solverb,fockb,ovlp);
 		}
 
-		if (param.printlevel()>2) print("using fock matrix for the orbital energies");
+		if (world.rank()==0 and (print_info.print_convergence())) print("using fock matrix for the orbital energies");
 		for (int i=0; i<focka.dim(0); ++i) aeps(i)=real(focka(i,i));
 		for (int i=0; i<fockb.dim(0); ++i) beps(i)=real(fockb(i,i));
 
 
-		if (world.rank()==0 and (param.printlevel()>1)) {
+		if (world.rank()==0 and (print_info.print_convergence())) {
 			print("orbital energies alpha",aeps);
 			print("orbital energies beta ",beps);
 		}
-		if (world.rank() == 0) {
+		if ((world.rank() == 0) and print_info.print_energies()) {
 			printf("finished iteration %2d at time %8.1fs with energy, norms %12.8f %12.8f %12.8f\n",
 					iter, wall_time(), energy, na, nb);
 		}
@@ -399,15 +401,9 @@ double Znemo::value() {
 			orthonormalize(bmo);
 //				bmo=orthonormalize_symmetric(bmo);
 			truncate(world,bmo);
+		} else {
+			nb=0.0;
 		}
-
-		// shape tester
-		for (int i=0; i<amo.size(); ++i) {
-			auto& a =amo[i];
-			real_function_3d shape=(abssq(dot(world,grad(a),grad(a))));
-			save(shape,"shapes"+stringify(i));
-		}
-
 
 	}
 
@@ -488,7 +484,7 @@ void Znemo::analyze() const {
 double Znemo::compute_energy_no_confinement(const std::vector<complex_function_3d>& amo, const Znemo::potentials& apot,
 		const std::vector<complex_function_3d>& bmo, const Znemo::potentials& bpot, const bool do_print) const {
 
-	timer tenergy(world);
+	timer tenergy(world,print_info.print_timings());
     double fac= cparam.spin_restricted ? 2.0 : 1.0;
     std::vector<complex_function_3d> dia2amo=amo*diafac->factor_square();
     std::vector<complex_function_3d> dia2bmo=bmo*diafac->factor_square();
@@ -571,7 +567,7 @@ double Znemo::compute_energy_no_confinement(const std::vector<complex_function_3
 double Znemo::compute_energy(const std::vector<complex_function_3d>& amo, const Znemo::potentials& apot,
 		const std::vector<complex_function_3d>& bmo, const Znemo::potentials& bpot, const bool do_print) const {
 
-	timer tenergy(world);
+	timer tenergy(world,print_info.print_timings());
     double fac= cparam.spin_restricted ? 2.0 : 1.0;
     std::vector<complex_function_3d> dia2amo=amo*diafac->factor_square();
     std::vector<complex_function_3d> dia2bmo=bmo*diafac->factor_square();
@@ -717,7 +713,7 @@ void Znemo::do_step_restriction(const std::vector<complex_function_3d>& mo,
         if (anorm[i] > cparam.maxrotn) {
             double s = cparam.maxrotn / anorm[i];
             ++nres;
-            if (world.rank() == 0) {
+            if (world.rank() == 0 and print_info.print_convergence()) {
                 if (nres == 1)
                     printf("  restricting step ");
                 printf(" %d", i);
@@ -725,7 +721,7 @@ void Znemo::do_step_restriction(const std::vector<complex_function_3d>& mo,
             mo_new[i].gaxpy(s, mo[i], 1.0 - s, false);
         }
     }
-    if (nres > 0 && world.rank() == 0)
+    if (nres > 0 && (world.rank() == 0) and print_info.print_convergence())
         printf("\n");
 
     world.gop.fence();
@@ -805,7 +801,7 @@ Znemo::potentials Znemo::compute_potentials(const std::vector<complex_function_3
 		const real_function_3d& density,
 		std::vector<complex_function_3d>& rhs) const {
 
-	timer potential_timer(world);
+	timer potential_timer(world,print_info.print_timings());
 	std::vector<complex_function_3d> dia2mo=mo*diafac->factor_square();
 	truncate(world,dia2mo);
 
@@ -861,16 +857,15 @@ Znemo::compute_residuals(
 		const std::vector<std::vector<complex_function_3d> > GpVpsi,
 		const std::vector<complex_function_3d>& psi,
 		Tensor<double>& eps) const {
-	timer residual_timer(world);
+	timer residual_timer(world,print_info.print_timings());
 
 	double tol = FunctionDefaults < 3 > ::get_thresh();
 
     std::vector < std::shared_ptr<real_convolution_3d> > ops(psi.size());
     for (int i=0; i<eps.size(); ++i) {
-    	print("eps in op:",std::min(-0.05,eps(i)+param.shift()));
-    		ops[i]=std::shared_ptr<real_convolution_3d>(
-    				BSHOperatorPtr3D(world, sqrt(-2.*std::min(-0.05,eps(i)+param.shift())),
-    						cparam.lo*0.001, tol*0.001));
+    	ops[i]=std::shared_ptr<real_convolution_3d>(
+    			BSHOperatorPtr3D(world, sqrt(-2.*std::min(-0.05,eps(i)+param.shift())),
+    					cparam.lo*0.001, tol*0.001));
     }
 
     std::vector<complex_function_3d> tmp = apply(world,ops,-2.0*Vpsi-2.0*param.shift()*psi);
@@ -884,7 +879,7 @@ Znemo::compute_residuals(
     	norms(i)=sqrt(norms(i));
     	rnorms(i)=sqrt(rnorms(i));
     }
-    if ((world.rank()==0) and (param.printlevel()>1)) {
+    if ((world.rank()==0) and (print_info.print_convergence())) {
     	print("norm2(tmp)",norms);
     	print("norm2(res)",rnorms);
     }
@@ -893,7 +888,7 @@ Znemo::compute_residuals(
     for (int i=0; i<eps.size(); ++i) delta_eps(i)=real(in(i))/(norms[i]*norms[i]);
     eps-=delta_eps;
 
-    if ((world.rank()==0) and (param.printlevel()>1)) {
+    if ((world.rank()==0) and (print_info.print_convergence())) {
     	print("orbital energy update",delta_eps);
     }
     truncate(world,res);

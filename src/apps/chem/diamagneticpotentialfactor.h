@@ -25,9 +25,11 @@ public:
 			const std::vector<coord_3d>& coords)
 		: world(world), coords(coords) {
 
+		use_v_vector=param.use_v_vector();
 		physical_B={0,0,param.physical_B()};
 		explicit_B={0,0,param.explicit_B()};
-		v=compute_v_vector(explicit_B,coords);
+
+		v=compute_v_vector(explicit_B,coords,use_v_vector);
 
 		potential_radius=param.potential_radius();
 
@@ -43,15 +45,17 @@ public:
 
 	void reset_explicit_B_and_v(const coord_3d& eB) {
 		explicit_B=eB;
-		v=compute_v_vector(explicit_B,coords);
+		v=compute_v_vector(explicit_B,coords,use_v_vector);
 	}
 
 	static std::vector<coord_3d> compute_v_vector(const coord_3d& B,
-			const std::vector<coord_3d>& coords) {
+			const std::vector<coord_3d>& coords, bool use_v_vector) {
 		std::vector<coord_3d> v;
-		for (auto& c : coords) v.push_back(0.5*cross(B,c));
-//		v=std::vector<coord_3d> (1,{0.0,0.0,0.0});
-//		print("\n\nunset v vector\n\n");
+		if (use_v_vector) {
+			for (auto& c : coords) v.push_back(0.5*cross(B,c));
+		} else {
+			v=std::vector<coord_3d> (1,{0.0,0.0,0.0});
+		}
 		return v;
 	}
 
@@ -136,6 +140,8 @@ private:
 
 	/// the position of the nuclei in the "A" space: v = 1/2 B cross R
 	std::vector<coord_3d> v;
+
+	bool use_v_vector=true;
 
 public:
 	/// recompute the factor and the potentials for given physical and explicit magnetic fields
