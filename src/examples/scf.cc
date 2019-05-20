@@ -160,7 +160,7 @@ int main()
     double E1(0);
 
     double del = 1e-06;
-    int maxIter=10;
+    int maxIter=100;
     while (std::abs(deltaE) > del&&iter < maxIter)
     {
 
@@ -194,7 +194,26 @@ int main()
 
         iter++;
     }
+    
+    // calculation of dipole moments 
+    Tensor<double> dipole(3,1);
 
+    Tensor<double> dipole2(3,1);
+
+    for (int mu =0 ;mu < nbf; mu++){
+        for (int nu = 0; nu <nbf; nu++){
+            dipole(0,0)+=P(mu,nu)*MUX(nu,mu);
+            dipole(1,0)+=P(mu,nu)*MUY(nu,mu);
+            dipole(2,0)+=P(mu,nu)*MUZ(nu,mu);
+        }
+    }
+
+    dipole2(0,0)=P.trace(MUX);
+    dipole2(1,0)=P.trace(MUY);
+    dipole2(2,0)=P.trace(MUZ);
+
+    print(dipole);
+    print(dipole2);
     // ********************************************************
     // Everything below is the has the answers
     //This is for Hideo's education
