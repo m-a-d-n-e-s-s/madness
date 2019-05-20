@@ -156,9 +156,11 @@ int main()
     double pe(0);
     double ke(0);
     double twoEE(0);
+    double E1(0);
 
-    double del = 1e-08;
-    while (deltaE > del)
+    double del = 1e-06;
+    int maxIter=10;
+    while (deltaE > del&&iter < maxIter)
     {
 
         E0 = Etot;
@@ -172,16 +174,17 @@ int main()
         computeG(G, Electron, P, nbf);
         F = Hcore + G;
 
-        pe = PE.trace(P);
-        ke = KE.trace(P);   
-        double E1 = Hcore.trace(P);
+        pe = PE.trace(P)/2;
+        ke = KE.trace(P)/2;   
+        E1 = Hcore.trace(P);
+        twoEE=computeTwoEE(Electron,P,nbf);
+        Etot=E1+twoEE;
+        
         
         std::cout << "Kinetic Energy =    " << ke << std::endl;
         std::cout << "Potential Energy =    " << pe << std::endl;
         std::cout <<"One-electron energy =    " <<E1 <<std::endl;
-        twoEE=computeTwoEE(Electron,P,nbf);
         std::cout <<"Two-electron energy =   " <<twoEE <<std::endl;
-        Etot=computeEtot(P,Hcore,F,nbf);
         std::cout<<"Total SCF energy  =     "<<Etot<<std::endl;
 
         std::cout << " Iteration " << iter << std::endl;
@@ -310,7 +313,6 @@ void computeG(Tensor<double> &G, Tensor<double> &twoE, Tensor<double> P, int nbf
                 for (int sigma=0; sigma < nbf; sigma++)
                 {
                     Gmn = P(lambda, sigma) * (twoE(mu, nu, lambda, sigma) - 0.5 * twoE(mu, lambda, sigma, nu));
-                    print(Gmn);
                     G(mu, nu) = G(mu, nu) + Gmn;
                 }
             }
