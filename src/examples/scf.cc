@@ -154,8 +154,6 @@ int main()
     Tensor<double> Cprime(nbf, nbf);
     Tensor<double> epsilons(nbf, 1);
     Tensor<double> CprimeOcc(nbf, nocc);
-    double pe(0);
-    double ke(0);
     double twoEE(0);
     double E1(0);
 
@@ -182,7 +180,6 @@ int main()
         Etot=E1+twoEE+enrep;
         
         
-;
         std::cout <<"One-electron energy =    " <<E1 <<std::endl;
         std::cout <<"Two-electron energy =   " <<twoEE <<std::endl;
         std::cout<<"Total SCF energy  =     "<<Etot<<std::endl;
@@ -214,6 +211,8 @@ int main()
 
     print(dipole);
     print(dipole2);
+
+    print(epsilons);
     // ********************************************************
     // Everything below is the has the answers
     //This is for Hideo's education
@@ -222,8 +221,6 @@ int main()
     {
         Tensor<double> Cocc = MOS(_, Slice(0, nocc - 1));
         Tensor<double> D = 2*inner(Cocc, Cocc, 1, 1);
-        double pe = PE.trace(D)/2;
-        double ke = KE.trace(D)/2;
         double E1 = Hcore.trace(D);
         double twoEE(0);
         twoEE=computeTwoEE(Electron,D,nbf);
