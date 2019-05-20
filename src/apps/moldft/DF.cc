@@ -473,8 +473,8 @@ Fcwf apply_T(World& world, Fcwf& psi){
      //combine to calculate application of T
      Tpsi[0] = psiz[2] + psix[3] - myi*psiy[3];
      Tpsi[1] = psix[2] + myi*psiy[2] - psiz[3];
-     Tpsi[2] = myc*(psiz[0] + psix[1] - myi*psiy[1] - 2*myi*psi[2]);
-     Tpsi[3] = myc*(psix[0] + myi*psiy[0] - psiz[1] - 2*myi*psi[3]);
+     Tpsi[2] = (myc*myc)*(psiz[0] + psix[1] - myi*psiy[1] - 2*myi*psi[2]);
+     Tpsi[3] = (myc*myc)*(psix[0] + myi*psiy[0] - psiz[1] - 2*myi*psi[3]);
 
      return Tpsi * (-myi);
 }
@@ -484,7 +484,7 @@ double DF::rele(World& world, Fcwf& psi){
      Fcwf Tpsi = apply_T(world, psi);
      
      std::complex<double> energy  = inner(psi, Tpsi);
-     if(world.rank()==0) print("   in rele: ", energy.real());
+     //if(world.rank()==0) print("   in rele: ", energy.real());
 
      return energy.real();
 }
@@ -661,10 +661,10 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      if(world.rank()==0) print("          ", times[0]);
 
      //debugging: print fock and overlap matrices
-     if(world.rank()==0){
-          print("fock:\n", fock);
-          print("\noverlap:\n", overlap);
-     }
+     //if(world.rank()==0){
+     //     print("fock:\n", fock);
+     //     print("\noverlap:\n", overlap);
+     //}
      
      if(world.rank()==0) print("     Eigensolver");
      start_timer(world);
@@ -768,10 +768,10 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      transform(world, occupieds, U);
      
      //debugging
-     for(unsigned int j=0; j < Init_params.num_occupied; j++){
-          double tempdouble = rele(world, occupieds[j]);
-          if(world.rank()==0) print("   after diag, rele ",j," = ",tempdouble);
-     }
+     //for(unsigned int j=0; j < Init_params.num_occupied; j++){
+     //     double tempdouble = rele(world, occupieds[j]);
+     //     if(world.rank()==0) print("   after diag, rele ",j," = ",tempdouble);
+     //}
      
      times = end_timer(world);
      if(world.rank()==0) print("          ", times[0]);
@@ -1085,7 +1085,7 @@ void apply_BSH_new(World& world, Fcwf& Vpsi, double& eps, double& small, double&
      //calculate exponent for equivalent BSH operator
      double mu = std::sqrt(-(2*eps*c2+eps*eps)/c2);
 
-     if(world.rank()==0) print("    mu = ", mu);
+     //if(world.rank()==0) print("    mu = ", mu);
 
      world.gop.fence();
 
@@ -1095,14 +1095,14 @@ void apply_BSH_new(World& world, Fcwf& Vpsi, double& eps, double& small, double&
      //Apply BSH operator to Vpsi
      Vpsi = apply(world, op, Vpsi);
 
-     mu = (apply_T(world,Vpsi)*(1.0/c2)).norm2();
-     if(world.rank()==0) print("    after BSH and T= ", mu);
+     //mu = (apply_T(world,Vpsi)*(1.0/c2)).norm2();
+     //if(world.rank()==0) print("    after BSH and T= ", mu);
 
      //Apply (1/c^2)(H_D + eps) to Vpsi. Using apply_T for convenience, but this requires adding 2c^2Vpsi
      Vpsi = apply_T(world, Vpsi)*(1.0/c2) + Vpsi * ((eps+2*c2)/c2);
 
-     mu = Vpsi.norm2();
-     if(world.rank()==0) print("    after full apply = ", mu);
+     //mu = Vpsi.norm2();
+     //if(world.rank()==0) print("    after full apply = ", mu);
 
 }
 
@@ -1385,10 +1385,10 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      if(world.rank()==0) print("     ", times[0]);
 
      //debugging
-     for(unsigned int j=0; j < Init_params.num_occupied; j++){
-          double tempdouble = rele(world, occupieds[j]);
-          if(world.rank()==0) print("   after BSH, rele ",j," = ",tempdouble);
-     }
+     //for(unsigned int j=0; j < Init_params.num_occupied; j++){
+     //     double tempdouble = rele(world, occupieds[j]);
+     //     if(world.rank()==0) print("   after BSH, rele ",j," = ",tempdouble);
+     //}
      
 
      //Apply the kain solver, if called for
