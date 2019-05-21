@@ -177,7 +177,8 @@ struct unary_munge_linear{
     Tensor<double> operator()(const Key<3>& key, const Tensor<double>& refdens) const {
 
     	// interpolate with value = (r - lo)/(hi - lo) and set 1 or 0 if > or < munge interval
-    	Tensor<double> U;
+    	Tensor<double> U = copy(refdens); // copy refdens in oder to have the same dimension in the tensor
+    	U.fill(1.0); // start with a fuction that is 1.0 everywhere
         ITERATOR(
             U, double r = refdens(IND);
             if (r > thresh_high) {
@@ -789,13 +790,12 @@ public:
 
         Exchange K(world, this, 0); // no - in K here, so factor -1 must be included at the end
         vecfuncT Knemo = K(nemo);
-//        real_function_3d numerator = 2.0*R_square*dot(world, nemo, Knemo); // 2 because closed shell
-//        real_function_3d rho = compute_density(nemo);
+        // 2.0*R_square in numerator and density (rho) cancel out upon division
         real_function_3d numerator = dot(world, nemo, Knemo);
         real_function_3d rho = dot(world, nemo, nemo);
-        save(numerator, "Slaterpotential_numerator");
+//        save(numerator, "Slaterpotential_numerator");
 
-        // dividing by rho: the minimum value for rho is dens_thresh
+        // dividing by rho: the minimum value for rho is dens_thresh_lo
         real_function_3d Vs = -1.0*binary_op(numerator, rho, dens_inv(dens_thresh_lo));
         save(Vs, "Slaterpotential_nolra");
 
@@ -803,6 +803,7 @@ public:
         // in order to compute this lra, use Coulomb potential with only HOMO density (= |phi_HOMO|^2)
         Coulomb J(world, this);
         real_function_3d lra = -1.0*J.compute_potential(R_square*square(nemo[homo_ind]));
+        save(lra, "lra_slater");
 
 //        // these are not yet forgotten tests
 //        real_function_3d lra = (-0.5/nemo.size())*J.compute_potential(this);
@@ -815,14 +816,14 @@ public:
 //        	save(potential, "int_phi"+stringify(i)+"phi"+stringify(i));
 //        }
 
-//        // use apply function from adiabatic correction (see AC.h, nemo.h and nemo.cc) with own potentials
-//        Vs = ac.apply(Vs, lra);
+        // use apply function from adiabatic correction (see AC.h, nemo.h and nemo.cc) with own potentials
+        real_function_3d Vs_1 = ac.apply(Vs, lra);
+        save(Vs_1, "Slaterpotential_ac");
 
         // interpolate linear in interval between explicit calculation and long range asymptotics
         real_function_3d value = unary_op(rho, unary_munge_linear(dens_thresh_hi, dens_thresh_lo));
         Vs = Vs*value + lra*(1.0 - value);
 
-        save(lra, "lra_slater");
         save(Vs, "Slaterpotential");
         return Vs;
 
