@@ -25,6 +25,7 @@ void computeDensity(Tensor<double> &P, Tensor<double> &Cocc, Tensor<double> &C, 
 Tensor<double> computeG(Tensor<double> &twoE, Tensor<double> P, int nbf);
 double computeTwoEE(Tensor<double> twoE, Tensor<double> P, int nbf);
 double computeEtot(Tensor<double> P, Tensor<double> H, Tensor<double> F, int nbf);
+double computeMP2(Tensor<double> twoEE, Tensor<double> epsilons, int nocc, int K);
 
 int main()
 {
@@ -147,7 +148,7 @@ int main()
     double deltaE = 10;
     double E0(0);
     // Fock Matrix
-    Tensor<double> F(nbf,nbf);
+    Tensor<double> F(nbf, nbf);
     F = Hcore;
     Tensor<double> G(nbf, nbf);
     Tensor<double> Fprime(nbf, nbf);
@@ -157,32 +158,31 @@ int main()
     double twoEE(0);
     double E1(0);
 
-    double del = 1e-06;
-    int maxIter=100;
-    while (std::abs(deltaE) > del&&iter < maxIter)
+    double del = 1e-10;
+    int maxIter = 100;
+    while (std::abs(deltaE) > del && iter < maxIter)
     {
 
         E0 = Etot;
 
         // Fprime = transform(F, X);
         // syev(Fprime, Cprime, epsilons); // solve SU=sU
-        sygv(F,S,1,C,epsilons);
+        sygv(F, S, 1, C, epsilons);
         // CprimeOcc = Cprime(_, Slice(0, nocc - 1));
-        Cocc=C(_,Slice(0,nocc-1));
-        // Cocc=inner(X,CprimeOcc); 
-        P=2*inner(Cocc,Cocc,1,1);
+        Cocc = C(_, Slice(0, nocc - 1));
+        // Cocc=inner(X,CprimeOcc);
+        P = 2 * inner(Cocc, Cocc, 1, 1);
         // compute two electron integral portion of Fock matrix
-        G=computeG( Electron, P, nbf);
+        G = computeG(Electron, P, nbf);
         F = Hcore + G;
- 
+
         E1 = Hcore.trace(P);
-        twoEE=computeTwoEE(Electron,P,nbf);
-        Etot=E1+twoEE+enrep;
-        
-        
-        std::cout <<"One-electron energy =    " <<E1 <<std::endl;
-        std::cout <<"Two-electron energy =   " <<twoEE <<std::endl;
-        std::cout<<"Total SCF energy  =     "<<Etot<<std::endl;
+        twoEE = computeTwoEE(Electron, P, nbf);
+        Etot = E1 + twoEE + enrep;
+
+        std::cout << "One-electron energy =    " << E1 << std::endl;
+        std::cout << "Two-electron energy =   " << twoEE << std::endl;
+        std::cout << "Total SCF energy  =     " << Etot << std::endl;
 
         std::cout << " Iteration " << iter << std::endl;
         deltaE = std::abs((Etot - E0));
@@ -191,27 +191,36 @@ int main()
 
         iter++;
     }
-    
-    // calculation of dipole moments 
-    Tensor<double> dipole(3,1);
 
-    Tensor<double> dipole2(3,1);
+    // calculation of dipole moments
+    Tensor<double> dipole(3, 1);
 
-    for (int mu =0 ;mu < nbf; mu++){
-        for (int nu = 0; nu <nbf; nu++){
-            dipole(0,0)+=P(mu,nu)*MUX(nu,mu);
-            dipole(1,0)+=P(mu,nu)*MUY(nu,mu);
-            dipole(2,0)+=P(mu,nu)*MUZ(nu,mu);
+    Tensor<double> dipole2(3, 1);
+
+    for (int mu = 0; mu < nbf; mu++)
+    {
+        for (int nu = 0; nu < nbf; nu++)
+        {
+            dipole(0, 0) += P(mu, nu) * MUX(nu, mu);
+            dipole(1, 0) += P(mu, nu) * MUY(nu, mu);
+            dipole(2, 0) += P(mu, nu) * MUZ(nu, mu);
         }
     }
 
-    dipole2(0,0)=P.trace(MUX);
-    dipole2(1,0)=P.trace(MUY);
-    dipole2(2,0)=P.trace(MUZ);
+    dipole2(0, 0) = P.trace(MUX);
+    dipole2(1, 0) = P.trace(MUY);
+    dipole2(2, 0) = P.trace(MUZ);
 
     print(dipole);
+    print("Electric Dipole");
     print(dipole2);
 
+
+    //MP2 Correlation Energy
+    double EMP2 = computeMP2(Electron,epsilons,nocc,nbf);
+    print("MP2 Correlation Energy");
+    print(EMP2);
+    print("Total MP2 Energy " ,Etot+EMP2);
     print(epsilons);
     // ********************************************************
     // Everything below is the has the answers
@@ -220,20 +229,19 @@ int main()
     if (answer == true)
     {
         Tensor<double> Cocc = MOS(_, Slice(0, nocc - 1));
-        Tensor<double> D = 2*inner(Cocc, Cocc, 1, 1);
+        Tensor<double> D = 2 * inner(Cocc, Cocc, 1, 1);
         double E1 = Hcore.trace(D);
         double twoEE(0);
-        twoEE=computeTwoEE(Electron,D,nbf);
-        Etot=E1+twoEE+enrep;
-//
-        std::cout<< "Answers **************************"<<std::endl;
-  ;
-        std::cout <<"One-electron energy =    " <<E1 <<std::endl;
-        std::cout <<"Two-electron energy =   " <<twoEE <<std::endl;
-        std::cout<<"Total SCF energy  =     "<<Etot<<std::endl;
+        twoEE = computeTwoEE(Electron, D, nbf);
+        Etot = E1 + twoEE + enrep;
+        //
+        std::cout << "Answers **************************" << std::endl;
+        ;
+        std::cout << "One-electron energy =    " << E1 << std::endl;
+        std::cout << "Two-electron energy =   " << twoEE << std::endl;
+        std::cout << "Total SCF energy  =     " << Etot << std::endl;
     }
 
-        
     fs.close();
     return 0;
 }
@@ -311,17 +319,17 @@ void computeDensity(Tensor<double> &P, Tensor<double> &Cocc, Tensor<double> &C, 
     Cocc = C(_, Slice(0, Nocc - 1));
     P = 2 * inner(Cocc, Cocc, 1, 1);
 }
-Tensor<double> computeG( Tensor<double> &twoE, Tensor<double> P, int nbf)
+Tensor<double> computeG(Tensor<double> &twoE, Tensor<double> P, int nbf)
 {
-    Tensor<double> G(nbf,nbf);
+    Tensor<double> G(nbf, nbf);
     double Gmn = 0;
-    for (int mu=0; mu < nbf; mu++)
+    for (int mu = 0; mu < nbf; mu++)
     {
-        for (int nu=0; nu < nbf; nu++)
+        for (int nu = 0; nu < nbf; nu++)
         {
-            for (int lambda=0; lambda < nbf; lambda++)
+            for (int lambda = 0; lambda < nbf; lambda++)
             {
-                for (int sigma=0; sigma < nbf; sigma++)
+                for (int sigma = 0; sigma < nbf; sigma++)
                 {
                     Gmn = P(lambda, sigma) * (twoE(mu, nu, lambda, sigma) - 0.5 * twoE(mu, lambda, sigma, nu));
                     G(mu, nu) = G(mu, nu) + Gmn;
@@ -342,7 +350,7 @@ double computeTwoEE(Tensor<double> twoE, Tensor<double> P, int nbf)
             {
                 for (int sigma = 0; sigma < nbf; sigma++)
                 {
-                    twoEE += twoE(mu, nu, lambda, sigma) * (0.5 * P(mu, nu) * P(lambda, sigma) -.25* P(mu, lambda) * P(nu, sigma));
+                    twoEE += twoE(mu, nu, lambda, sigma) * (0.5 * P(mu, nu) * P(lambda, sigma) - .25 * P(mu, lambda) * P(nu, sigma));
                 }
             }
         }
@@ -352,9 +360,9 @@ double computeTwoEE(Tensor<double> twoE, Tensor<double> P, int nbf)
 double computeEtot(Tensor<double> P, Tensor<double> H, Tensor<double> F, int nbf)
 {
     double E0(0);
-    for (int mu=0; mu < nbf; mu++)
+    for (int mu = 0; mu < nbf; mu++)
     {
-        for (int nu=0; nu < nbf; nu++)
+        for (int nu = 0; nu < nbf; nu++)
         {
             E0 += P(nu, mu) * (H(mu, nu) + F(mu, nu));
         }
@@ -362,5 +370,31 @@ double computeEtot(Tensor<double> P, Tensor<double> H, Tensor<double> F, int nbf
     return E0 / 2;
 }
 
-// 1. Read in the input file "integrals.dat" Save the data to corresponding variables
-// I need to figure out what every variable represents.
+double computeMP2(Tensor<double> twoEE, Tensor<double> epsilons, int nocc, int K)
+{
+    print(K);
+    print(nocc);
+    K=nocc*2;
+    double E = 0;
+    for (int a = 0; a < nocc; a++)
+    {
+
+        for (int b = 0; b < nocc; b++)
+        {
+
+            for (int r = nocc; r < K; r++)
+            {
+
+                for (int s = nocc; s < K; s++)
+                {
+                    E+=2*twoEE(a,r,b,s)*twoEE(r,a,s,b)/(epsilons(a)+epsilons(b)-epsilons(r)-epsilons(s));
+                    E-=twoEE(a,r,b,s)*twoEE(r,b,s,a)/(epsilons(a)+epsilons(b)-epsilons(r)-epsilons(s));
+                }
+            }
+        }
+    }
+    return E;
+}
+
+    // 1. Read in the input file "integrals.dat" Save the data to corresponding variables
+    // I need to figure out what every variable represents.
