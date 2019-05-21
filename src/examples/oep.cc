@@ -47,7 +47,8 @@ struct dens_inv{
 
 	double threshold;
 
-	dens_inv(const double thresh = 1.0e-8) { // same default value as for dens_thresh
+	// default value for threshold is 1.0e-8
+	dens_inv(const double thresh = 1.0e-8) {
 		threshold = thresh;
 	}
 
@@ -91,92 +92,95 @@ struct xc_potential {
 */
 
 
-struct binary_munge{
-
-	double longrangevalue;
-	double threshold;
-
-	/// same default value as for munge_thresh
-	binary_munge(const double thresh = 1.0e-8, const double lrv = 0.0) {
-		longrangevalue = lrv;
-		threshold = thresh;
-	}
-
-    /// @param[out] U   result
-    /// @param[in]  f   function to be munged
-    /// @param[in]  r   reference density
-    void operator()(const Key<3>& key, Tensor<double>& U, const Tensor<double>& f,
-            const Tensor<double>& refdens) const {
-        ITERATOR(
-            U, double r = refdens(IND);
-            double ff = f(IND);
-            U(IND) = (r > threshold) ? ff : longrangevalue;
-        );
-    }
-
-    template <typename Archive>
-    void serialize(Archive& ar) {}
-
-};
-
-
-struct binary_munge_linear{
-
-	double longrangevalue, thresh_high, thresh_low;
-
-	/// same default values as for dens_thresh_hi and dens_thresh_lo
-	binary_munge_linear(const double hi = 1.0e-4, const double lo = 1.0e-7, const double lrv = 0.0) {
-		longrangevalue = lrv;
-		thresh_high = hi;
-		thresh_low = lo;
-	}
-
-    /// @param[out] U   result
-    /// @param[in]  f   function to be munged
-    /// @param[in]  r   reference density
-    void operator()(const Key<3>& key, Tensor<double>& U, const Tensor<double>& f,
-            const Tensor<double>& refdens) const {
-
-    	// interpolate with value = (r - lo)/(hi - lo), then U = f*value + longrangevalue*(1 - value)
-    	const Tensor<double> value = (refdens - thresh_low)/(thresh_high - thresh_low);
-    	Tensor<double> ff = copy(f);
-    	ff.emul(value);
-    	Tensor<double> longrange = longrangevalue*(1.0 - value);
-
-        ITERATOR(
-            U, double r = refdens(IND);
-            if (r > thresh_high) {
-            	U(IND) = f(IND);
-            } else if (r < thresh_low) {
-            	U(IND) = longrangevalue;
-            } else {
-            	U(IND) = ff(IND) + longrange(IND);
-            }
-        );
-    }
-
-    template <typename Archive>
-    void serialize(Archive& ar) {}
-
-};
+//struct binary_munge{
+//
+//	double longrangevalue;
+//	double threshold;
+//
+//	// default value for threshold is 1.0e-8
+//	binary_munge(const double thresh = 1.0e-8, const double lrv = 0.0) {
+//		longrangevalue = lrv;
+//		threshold = thresh;
+//	}
+//
+//    /// @param[out] U   result
+//    /// @param[in]  f   function to be munged
+//    /// @param[in]  r   reference density
+//    void operator()(const Key<3>& key, Tensor<double>& U, const Tensor<double>& f,
+//            const Tensor<double>& refdens) const {
+//        ITERATOR(
+//            U, double r = refdens(IND);
+//            double ff = f(IND);
+//            U(IND) = (r > threshold) ? ff : longrangevalue;
+//        );
+//    }
+//
+//    template <typename Archive>
+//    void serialize(Archive& ar) {}
+//
+//};
 
 
-struct unary_munge_linear{
+//struct binary_munge_linear{
+//
+//	double longrangevalue, thresh_high, thresh_low;
+//
+//	/// same default values as for dens_thresh_hi and dens_thresh_lo
+//	binary_munge_linear(const double hi = 1.0e-4, const double lo = 1.0e-7, const double lrv = 0.0) {
+//		longrangevalue = lrv;
+//		thresh_high = hi;
+//		thresh_low = lo;
+//	}
+//
+//    /// @param[out] U   result
+//    /// @param[in]  f   function to be munged
+//    /// @param[in]  r   reference density
+//    void operator()(const Key<3>& key, Tensor<double>& U, const Tensor<double>& f,
+//            const Tensor<double>& refdens) const {
+//
+//    	// interpolate with value = (r - lo)/(hi - lo), then U = f*value + longrangevalue*(1 - value)
+//    	const Tensor<double> value = (refdens - thresh_low)/(thresh_high - thresh_low);
+//    	Tensor<double> ff = copy(f);
+//    	ff.emul(value);
+//    	Tensor<double> longrange = longrangevalue*(1.0 - value);
+//
+//        ITERATOR(
+//            U, double r = refdens(IND);
+//            if (r > thresh_high) {
+//            	U(IND) = f(IND);
+//            } else if (r < thresh_low) {
+//            	U(IND) = longrangevalue;
+//            } else {
+//            	U(IND) = ff(IND) + longrange(IND);
+//            }
+//        );
+//    }
+//
+//    template <typename Archive>
+//    void serialize(Archive& ar) {}
+//
+//};
 
-	double thresh_high, thresh_low;
+
+struct interpolate_munge_refdens{
+
+	double thresh_high, thresh_low, log_high, log_low;
 	typedef double resultT;
 
-	/// same default values as for dens_thresh_hi and dens_thresh_lo
-	unary_munge_linear(const double hi = 1.0e-4, const double lo = 1.0e-7) {
+	// same default values as for dens_thresh_hi and dens_thresh_lo
+	interpolate_munge_refdens(const double hi = 1.0e-4, const double lo = 1.0e-7) {
 		thresh_high = hi;
 		thresh_low = lo;
+		log_high = log10(thresh_high);
+		log_low = log10(thresh_low);
 	}
 
     /// @param[out] U   result
     /// @param[in]  r   reference density
     Tensor<double> operator()(const Key<3>& key, const Tensor<double>& refdens) const {
 
-    	// interpolate with value = (r - lo)/(hi - lo) and set 1 or 0 if > or < munge interval
+    	// set 1 if above munge interval (dens > thresh_high) or 0 if below munge interval (dens < thresh_low)
+    	// interpolate inbetween with logarithmic form of (r - lo)/(hi - lo) because this yields near linear behavior
     	Tensor<double> U = copy(refdens); // copy refdens in oder to have the same dimension in the tensor
     	U.fill(1.0); // start with a fuction that is 1.0 everywhere
         ITERATOR(
@@ -186,7 +190,7 @@ struct unary_munge_linear{
             } else if (r < thresh_low) {
             	U(IND) = 0.0;
             } else {
-            	U(IND) = (refdens(IND) - thresh_low)/(thresh_high - thresh_low);
+            	U(IND) = (log10(refdens(IND)) - log_low)/(log_high - log_low);
             }
         );
         return U;
@@ -199,21 +203,21 @@ struct unary_munge_linear{
 };
 
 
-/// simple structure to take the pointwise logarithm of a function, shifted by +14
-struct logme{
-    typedef double resultT;
-    struct logme1 {
-        double operator()(const double& val) {return log(std::max(1.e-14,val))+14.0;}
-    };
-    Tensor<double> operator()(const Key<3>& key, const Tensor<double>& val) const {
-        Tensor<double> result=copy(val);
-        logme1 op;
-        return result.unaryop(op);
-    }
-
-    template <typename Archive>
-    void serialize(Archive& ar) {}
-};
+///// simple structure to take the pointwise logarithm of a function, shifted by +14
+//struct logme{
+//    typedef double resultT;
+//    struct logme1 {
+//        double operator()(const double& val) {return log(std::max(1.e-14,val))+14.0;}
+//    };
+//    Tensor<double> operator()(const Key<3>& key, const Tensor<double>& val) const {
+//        Tensor<double> result=copy(val);
+//        logme1 op;
+//        return result.unaryop(op);
+//    }
+//
+//    template <typename Archive>
+//    void serialize(Archive& ar) {}
+//};
 
 
 class OEP : public Nemo {
@@ -224,7 +228,6 @@ private:
 
 	double dens_thresh_hi = 1.0e-4;                   // default 1.0e-4
 	double dens_thresh_lo = 1.0e-7;                   // default 1.0e-7
-	double munge_thresh = 1.0e-8;                     // default 1.0e-8
 	double conv_thresh = calc->param.econv;           // default convergence threshold is same as econv
 	std::vector<double> kain_param = {1.0e-8, 3.0};   // default KAIN settings for rcondtol and cabsmax (see nonlinsol.h)
 	unsigned int damp_num = 0;                        // default 0 (no damping)
@@ -280,9 +283,6 @@ public:
             }
             else if (str == "density_threshold_low") {
             	in >> dens_thresh_lo;
-            }
-            else if (str == "munge_threshold") {
-            	in >> munge_thresh;
             }
             else if (str == "conv_threshold") {
             	in >> conv_thresh;
@@ -360,7 +360,6 @@ public:
     	print("using", model, "model as approximation to OEP");
     	print("using upper density threshold =", dens_thresh_hi);
     	print("using lower density threshold =", dens_thresh_lo);
-    	print("using munge threshold =", munge_thresh);
     	print("using convergence threshold for optimized potential =", conv_thresh);
     	print("using KAIN parameters rcondtol =", kain_param[0], "and cabsmax =", kain_param[1]);
     	if (damp_num == 0) {
@@ -785,6 +784,14 @@ public:
     	return density;
     }
 
+    /// get function that is 1 for density > dens_thresh_hi and 0 for density < dens_thresh_lo
+    /// interpolate logarithmic density inbetween
+    real_function_3d compute_weighting_function(const vecfuncT& nemo) const {
+    	real_function_3d density = compute_density(nemo);
+    	real_function_3d weighting = unary_op(density, interpolate_munge_refdens(dens_thresh_hi, dens_thresh_lo));
+    	return weighting;
+    }
+
     /// compute Slater potential (Kohut, 2014, equation (15))
     real_function_3d compute_slater_potential(const vecfuncT& nemo, const long homo_ind) const {
 
@@ -817,12 +824,12 @@ public:
 //        }
 
         // use apply function from adiabatic correction (see AC.h, nemo.h and nemo.cc) with own potentials
-        real_function_3d Vs_1 = ac.apply(Vs, lra);
-        save(Vs_1, "Slaterpotential_ac");
+        real_function_3d Vs_ac = ac.apply(Vs, lra);
+        save(Vs_ac, "Slaterpotential_ac");
 
-        // interpolate linear in interval between explicit calculation and long range asymptotics
-        real_function_3d value = unary_op(rho, unary_munge_linear(dens_thresh_hi, dens_thresh_lo));
-        Vs = Vs*value + lra*(1.0 - value);
+        // interpolate in interval between explicit calculation and long range asymptotics
+        real_function_3d weight = compute_weighting_function(nemo);
+        Vs = Vs*weight + lra*(1.0 - weight);
 
         save(Vs, "Slaterpotential");
         return Vs;
@@ -838,8 +845,9 @@ public:
 
 		vecfuncT nemo_square = square(world, nemo); // |nemo|^2
 		scale(world, nemo_square, epsilon); // epsilon*|nemo|^2
-		real_function_3d numerator = 2.0*R_square*sum(world, nemo_square); // 2 because closed shell
-        real_function_3d rho = compute_density(nemo);
+		// 2.0*R_square in numerator and density (rho) cancel out upon division
+		real_function_3d numerator = sum(world, nemo_square);
+        real_function_3d rho = dot(world, nemo, nemo);
 
         // like Kohut, 2014, equations (21) and (25)
         real_function_3d I = -1.0*binary_op(numerator, rho, dens_inv(dens_thresh_lo));
@@ -852,7 +860,9 @@ public:
 
         // munge I for long-range asymptotic behavior which is -epsilon_HOMO
        	print("computing I: index of HOMO is", homo_ind(eigvals));
-       	I = binary_op(I, rho, binary_munge_linear(dens_thresh_hi, dens_thresh_lo, -1.0*eigvals(homo_ind(eigvals))));
+       	double lra = -1.0*eigvals(homo_ind(eigvals));
+       	real_function_3d weight = compute_weighting_function(nemo);
+       	I = I*weight + lra*(1.0 - weight);
 
         return I;
 
@@ -894,7 +904,9 @@ public:
 
         // munge quotient for long-range asymptotic behavior which is -epsilon_HOMO
        	print("computing tau/rho: index of HOMO is", homo_ind(eigvals));
-       	quotient = binary_op(quotient, rho, binary_munge_linear(dens_thresh_hi, dens_thresh_lo, -1.0*eigvals(homo_ind(eigvals))));
+       	double lra = -1.0*eigvals(homo_ind(eigvals));
+       	real_function_3d weight = compute_weighting_function(nemo);
+       	quotient = quotient*weight + lra*(1.0 - weight);
 
     	return quotient;
 
@@ -904,7 +916,7 @@ public:
     real_function_3d compute_Pauli_kinetic_density(const vecfuncT& nemo, const tensorT eigvals) const {
 
     	// compute the denominator rho (density)
-    	real_function_3d rho_square = square(dot(world, nemo, nemo)); // density squared without 2.0 and R_square
+    	real_function_3d rho_square = square(dot(world, nemo, nemo)); // density squared without 2.0*R_square
 
     	// compute the numerator tau_P
 
@@ -940,7 +952,9 @@ public:
 
         // munge quotient for long-range asymptotic behavior which is -epsilon_HOMO
        	print("computing tau_P/rho: index of HOMO is", homo_ind(eigvals));
-       	quotient = binary_op(quotient, rho_square, binary_munge_linear(dens_thresh_hi, dens_thresh_lo, -1.0*eigvals(homo_ind(eigvals))));
+       	double lra = -1.0*eigvals(homo_ind(eigvals));
+       	real_function_3d weight = compute_weighting_function(nemo);
+       	quotient = quotient*weight + lra*(1.0 - weight);
 
     	return quotient;
 
