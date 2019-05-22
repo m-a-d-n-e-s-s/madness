@@ -228,6 +228,8 @@ private:
 
 	double dens_thresh_hi = 1.0e-4;                   // default 1.0e-4
 	double dens_thresh_lo = 1.0e-7;                   // default 1.0e-7
+	double dens_thresh_inv = 1.0e-8;                  // default 0.1*dens_thresh_lo
+	bool set_thresh_inv = false;                      // to check if default or custom
 	double conv_thresh = calc->param.econv;           // default convergence threshold is same as econv
 	std::vector<double> kain_param = {1.0e-8, 3.0};   // default KAIN settings for rcondtol and cabsmax (see nonlinsol.h)
 	unsigned int damp_num = 0;                        // default 0 (no damping)
@@ -283,6 +285,10 @@ public:
             }
             else if (str == "density_threshold_low") {
             	in >> dens_thresh_lo;
+            }
+            else if (str == "density_threshold_inverting") {
+            	in >> dens_thresh_inv;
+            	set_thresh_inv = true;
             }
             else if (str == "conv_threshold") {
             	in >> conv_thresh;
@@ -357,9 +363,12 @@ public:
             MADNESS_EXCEPTION("input error",0);
     	}
 
+    	if (!set_thresh_inv) dens_thresh_inv = 0.1*dens_thresh_lo; // take default dens_thresh_inv
+
     	print("using", model, "model as approximation to OEP");
     	print("using upper density threshold =", dens_thresh_hi);
     	print("using lower density threshold =", dens_thresh_lo);
+    	print("using density threshold for inverting =", dens_thresh_inv);
     	print("using convergence threshold for optimized potential =", conv_thresh);
     	print("using KAIN parameters rcondtol =", kain_param[0], "and cabsmax =", kain_param[1]);
     	if (damp_num == 0) {
@@ -803,7 +812,7 @@ public:
 //        save(numerator, "Slaterpotential_numerator");
 
         // dividing by rho: the minimum value for rho is dens_thresh_lo
-        real_function_3d Vs = -1.0*binary_op(numerator, rho, dens_inv(dens_thresh_lo));
+        real_function_3d Vs = -1.0*binary_op(numerator, rho, dens_inv(dens_thresh_inv));
         save(Vs, "Slaterpotential_nolra");
 
         // long-range asymptotic behavior for Slater potential is \int 1/|r-r'| * |phi_HOMO|^2 dr'
@@ -823,9 +832,9 @@ public:
 //        	save(potential, "int_phi"+stringify(i)+"phi"+stringify(i));
 //        }
 
-        // use apply function from adiabatic correction (see AC.h, nemo.h and nemo.cc) with own potentials
-        real_function_3d Vs_ac = ac.apply(Vs, lra);
-        save(Vs_ac, "Slaterpotential_ac");
+//        // use apply function from adiabatic correction (see AC.h, nemo.h and nemo.cc) with own potentials
+//        real_function_3d Vs_ac = ac.apply(Vs, lra);
+//        save(Vs_ac, "Slaterpotential_ac");
 
         // interpolate in interval between explicit calculation and long range asymptotics
         real_function_3d weight = compute_weighting_function(nemo);
@@ -850,7 +859,7 @@ public:
         real_function_3d rho = dot(world, nemo, nemo);
 
         // like Kohut, 2014, equations (21) and (25)
-        real_function_3d I = -1.0*binary_op(numerator, rho, dens_inv(dens_thresh_lo));
+        real_function_3d I = -1.0*binary_op(numerator, rho, dens_inv(dens_thresh_inv));
 
 //          // if tests are necessary: munge with ac
 //       	real_function_3d homo_func = real_factory_3d(world).functor([] (const coord_3d& r) {return 1.0;});
@@ -900,7 +909,7 @@ public:
 		real_function_3d tau = R_square*sum(world, grad_nemo_squared); // 1/2 * sum |Nabla nemo|^2 (* 2 because closed shell)
 
 		// calculate quotient = tau/rho
-		real_function_3d quotient = binary_op(tau, rho, dens_inv(dens_thresh_lo));
+		real_function_3d quotient = binary_op(tau, rho, dens_inv(dens_thresh_inv));
 
         // munge quotient for long-range asymptotic behavior which is -epsilon_HOMO
        	print("computing tau/rho: index of HOMO is", homo_ind(eigvals));
@@ -948,7 +957,7 @@ public:
 		real_function_3d numerator = sum(world, grad_nemo_term); // numerator = tau_P * 2 * rho / R^4
 
 		// calculate quotient = tau_P/rho
-		real_function_3d quotient = 0.5*binary_op(numerator, rho_square, dens_inv(dens_thresh_lo)); // TODO: closed-shell factors??
+		real_function_3d quotient = 0.5*binary_op(numerator, rho_square, dens_inv(dens_thresh_inv)); // TODO: closed-shell factors??
 
         // munge quotient for long-range asymptotic behavior which is -epsilon_HOMO
        	print("computing tau_P/rho: index of HOMO is", homo_ind(eigvals));
@@ -1123,13 +1132,6 @@ int main(int argc, char** argv) {
     HF_nemos = copy(world, oep->get_calc()->amo);
     HF_orbens = copy(oep->get_calc()->aeps);
 
-
-//    oep->kinetic_energy_potential(oep->get_calc()->amo);
-//    oep->kinetic_energy_potential2(oep->get_calc()->amo);
-//    real_function_3d rhonemo = dot(world,oep->get_calc()->amo,oep->get_calc()->amo);
-//    oep->make_laplacian_density_oep(rhonemo);
-
-
     // OEP model final energy
     printf("\n   +++ starting approximate OEP iterative calculation +++\n\n");
 
@@ -1138,7 +1140,6 @@ int main(int argc, char** argv) {
     oep->read_oep_param(in);
 
     oep->solve_oep(HF_nemos, HF_orbens);
-
 
     finalize();
     return 0;
