@@ -250,8 +250,8 @@ namespace madness {
         /// Find the World (if it exists) corresponding to the given communicator.
 
         /// \param[in] comm The communicator.
-        /// \return Pointer to the \c World that was constructed from \c comm;
-        ///     if such a \c World does not exist, return 0.
+        /// \return Pointer to the World that was constructed from \c comm;
+        ///     if such a World does not exist, return 0.
         static World* find_instance(const SafeMPI::Intracomm& comm) {
             typedef std::list<World*>::const_iterator citer;
             for(citer it = worlds.begin(); it != worlds.end(); ++it) {
@@ -261,21 +261,35 @@ namespace madness {
             return 0;
         }
 
-        /// Default \c World object accessor.
+        /// Default World object accessor.
 
         /// This function returns a reference to the default world object; this
-        /// is the same \c World object that is returned by
-        /// \c madness::initialize().
-        /// \return A reference to the default \c World.
+        /// is the same World object that is returned by
+        /// madness::initialize().
+        /// \return A reference to the default World.
+        /// \throw madness::Exception if the MADNESS_DISABLE_WORLD_GET_DEFAULT preprocessor macro is defined
         static World& get_default() {
 #ifdef MADNESS_DISABLE_WORLD_GET_DEFAULT
-            MADNESS_EXCEPTION("World::get_default() was called while disabled", 0);
+          MADNESS_EXCEPTION("World::get_default() was called while disabled", 0);
 #endif
-            MADNESS_ASSERT(default_world);
-            return *default_world;
+          MADNESS_ASSERT(default_world);
+          return *default_world;
         }
 
-        /// Sets the user-managed local state.
+        /// Checks if the default World object corresponds to the given Intracomm
+
+        /// \param[in] comm The communicator.
+        /// \return true if \c comm is the default World object's communicator
+        /// \sa World::get_default()
+        static bool is_default(const SafeMPI::Intracomm& comm) {
+            auto* comm_world = find_instance(comm);
+            if (comm_world)
+              return default_world == comm_world;
+            else
+              return false;
+        }
+
+      /// Sets the user-managed local state.
 
         /// Rather than having all remotely invoked actions carry all
         /// of their data with them, they can access local state through
