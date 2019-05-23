@@ -715,11 +715,9 @@ public:
     	print("     done");
 
     	if (is_oaep()) {
-    		print("\n  computing OCEP with converged OAEP orbitals and eigenvalues");
-        	real_function_3d correction = compute_oep_correction("ocep", IHF, KS_nemo, KS_eigvals);
-        	real_function_3d ocep_oaep_pot = Vs + correction;
-        	save(correction, "OCEP_correction");
-        	save(ocep_oaep_pot, "OCEP_potential_with_OAEP_orbs");
+    		print("\n  computing final OAEP with converged OAEP orbitals and eigenvalues");
+        	Voep = Vs + shift_final;
+        	save(Voep, "OAEP_final");
     	}
     	if (is_ocep()) {
     		print("\n  computing final OCEP with converged OCEP orbitals and eigenvalues");
@@ -838,6 +836,7 @@ public:
 
         // interpolate in interval between explicit calculation and long range asymptotics
         real_function_3d weight = compute_weighting_function(nemo);
+//        save(weight, "weight_slater");
         Vs = Vs*weight + lra*(1.0 - weight);
 
         save(Vs, "Slaterpotential");
