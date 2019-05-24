@@ -721,9 +721,9 @@ public:
     	}
     	if (is_ocep()) {
     		print("\n  computing final OCEP with converged OCEP orbitals and eigenvalues");
-        	real_function_3d correction_final = compute_oep_correction("ocep", IHF, KS_nemo, KS_eigvals);
-        	Voep = Vs + correction_final + shift_final;
-        	save(correction_final + shift_final, "OCEP_correction_final");
+        	real_function_3d ocep_correction_final = compute_oep_correction("ocep", IHF, KS_nemo, KS_eigvals);
+        	Voep = Vs + ocep_correction_final + shift_final;
+        	save(ocep_correction_final + shift_final, "OCEP_correction_final");
         	save(Voep, "OCEP_final");
     	}
     	if (is_dcep()) {
@@ -753,11 +753,14 @@ public:
    		print_orbens(KS_eigvals, homo_diff(HF_eigvals, KS_eigvals));
    		print("HF/KS HOMO energy difference of", homo_diff(HF_eigvals, KS_eigvals), "Eh is already included\n");
 
+   		// final Jnemo and Knemo have to be computed again in order to calculate final energy
+   		compute_coulomb_potential(KS_nemo, Jnemo);
+   		compute_exchange_potential(KS_nemo, Knemo);
+
     	print("FINAL", model, "ENERGY Evir:");
-    	double Evir = compute_energy(R*KS_nemo, R*Jnemo, Voep, Knemo, true); // Knemo is not used here
+    	double Evir = compute_energy(R*KS_nemo, R*Jnemo, Voep, R*Knemo, true); // R*Knemo is not used here
 
     	print("FINAL", model, "ENERGY Econv:");
-    	compute_exchange_potential(KS_nemo, Knemo);
     	double Econv = compute_energy(R*KS_nemo, R*Jnemo, Voep, R*Knemo, false); // Voep is not used here
 
     	printf("      Evir = %15.8f  Eh", Evir);
@@ -990,9 +993,7 @@ public:
     		const real_function_3d V, vecfuncT& Vnemo) const {
 
     	// compute Coulomb part
-    	Coulomb J = Coulomb(world, this);
-    	Jnemo = J(nemo);
-    	truncate(world, Jnemo);
+    	compute_coulomb_potential(nemo, Jnemo);
 
     	// compute nuclear potential part
     	Nuclear Unuc(world, this->nuclear_correlation);
@@ -1000,6 +1001,15 @@ public:
 
     	// compute approximate OEP exchange potential part
     	Vnemo = V*nemo;
+
+    }
+
+    /// compute Coulomb potential
+    void compute_coulomb_potential(const vecfuncT& nemo, vecfuncT& Jnemo) const {
+
+    	Coulomb J = Coulomb(world, this);
+    	Jnemo = J(nemo);
+    	truncate(world, Jnemo);
 
     }
 
