@@ -345,7 +345,7 @@ void DF::make_fermi_potential(World& world, real_convolution_3d& op, real_functi
      for(unsigned int i = 0; i < num_atoms; i++){
           Zlist[i] = Init_params.molecule.get_atom_number(i);
           FermiNucDistFunctor rho(Zlist[i], Rlist[i],DFparams.bohr_rad);
-          temp = real_factory_3d(world).functor(rho).truncate_mode(1);
+          temp = real_factory_3d(world).functor(rho).truncate_mode(0);
           tempnorm = temp.trace();
           temp.scale(-Zlist[i]/tempnorm);
           if(i == 0){
@@ -532,9 +532,13 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
           gaxpy(world, 1.0, temp, 1.0/(myc*myc), occupieds[i][2]*conj(world,temp2));
           gaxpy(world, 1.0, temp, 1.0/(myc*myc), occupieds[i][3]*conj(world,temp3));
 
+          truncate(world, temp);
+
           if(world.rank()==0) print(i, "Starting apply phase in K");
 
           temp = apply(world, op, temp);
+          
+          truncate(world,temp);
 
           if(world.rank()==0) print(i, "Exiting apply phase in K");
 
@@ -645,6 +649,9 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
 
      //Now compute the fock matrix
      fock = matrix_inner(world, occupieds, temp_orbitals);
+
+     //symmetrize
+     fock = (1.0/2.0)*(fock + conj_transpose(fock));
      
      Tensor<double> times = end_timer(world);
      if(world.rank()==0) print("               ", times[0]); 
@@ -655,6 +662,9 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      start_timer(world);
      overlap = matrix_inner(world,occupieds,occupieds);
      
+     //symmetrize
+     overlap = (1.0/2.0)*(overlap + conj_transpose(overlap));
+
      times = end_timer(world);
      if(world.rank()==0) print("               ", times[0]);
      times = end_timer(world);
@@ -764,15 +774,29 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      ////Apply the transformation to the Exchange
      transform(world, Kpsis, U);
 
+
      ////Apply the transformation to the orbitals 
      transform(world, occupieds, U);
-     
+
+     //truncate
+     for(int kk = 0; kk < Init_params.num_occupied; kk++){
+           Kpsis[kk].truncate();
+           occupieds[kk].truncate();
+     }
+
+
+     //truncate
+
      //debugging
      //for(unsigned int j=0; j < Init_params.num_occupied; j++){
      //     double tempdouble = rele(world, occupieds[j]);
      //     if(world.rank()==0) print("   after diag, rele ",j," = ",tempdouble);
      //}
      
+
+     //Set energies = evals, and fix the energy printing stage.
+     energies = evals;
+
      times = end_timer(world);
      if(world.rank()==0) print("          ", times[0]);
      times = end_timer(world);
@@ -1165,14 +1189,14 @@ void DF::saveDF(World& world){
 void DF::make_gaussian_potential(World& world, real_function_3d& potential){
      if(world.rank()==0) print("\n***Making a Gaussian Potential***");
      GaussianNucleusFunctor Vfunctor(Init_params.molecule, DFparams.bohr_rad);
-     potential = real_factory_3d(world).functor(Vfunctor).truncate_mode(1).truncate_on_project();
+     potential = real_factory_3d(world).functor(Vfunctor).truncate_mode(0).truncate_on_project();
 }
 
 //Creates the nuclear potential from the molecule object. Also calculates the nuclear repulsion energy
 void DF::make_gaussian_potential(World& world, real_function_3d& potential, double& nuclear_repulsion_energy){
      if(world.rank()==0) print("\n***Making a Gaussian Potential***");
      GaussianNucleusFunctor Vfunctor(Init_params.molecule,DFparams.bohr_rad);
-     potential = real_factory_3d(world).functor(Vfunctor).truncate_mode(1).truncate_on_project();
+     potential = real_factory_3d(world).functor(Vfunctor).truncate_mode(0).truncate_on_project();
      std::vector<coord_3d> Rlist = Vfunctor.get_Rlist();
      std::vector<int> Zlist = Vfunctor.get_Zlist();
      nuclear_repulsion_energy = 0.0;
@@ -1195,12 +1219,12 @@ void DF::DF_load_balance(World& world, real_function_3d& Vnuc){
      LoadBalanceDeux<3> lb(world);
      lb.add_tree(Vnuc, lbcost<double,3>(12.0,96.0),true);
      //Commenting out below block to test memory issues
-     //for(unsigned int j = 0; j < Init_params.num_occupied; j++){
-     //     for(int kk = 0; kk < 4; kk++){
-     //          lb.add_tree(occupieds[j][kk], lbcost<std::complex<double>,3>(24.0,192.0),true);
-     //     }
-     //}
-     FunctionDefaults<3>::redistribute(world, lb.load_balance(2), false);
+     for(unsigned int j = 0; j < Init_params.num_occupied; j++){
+          for(int kk = 0; kk < 4; kk++){
+               lb.add_tree(occupieds[j][kk], lbcost<std::complex<double>,3>(24.0,192.0),true);
+          }
+     }
+     FunctionDefaults<3>::redistribute(world, lb.load_balance(2), true);
      Tensor<double> times = end_timer(world);
      if(world.rank()==0) print("     ", times[0]);
      
@@ -1337,6 +1361,7 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
           rho += squaremod(occupieds[kk]);
      }
      JandV = V + apply(op,rho); 
+     JandV.truncate();
 
 
 
@@ -1347,7 +1372,7 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      for(unsigned int j = 0; j < Init_params.num_occupied; j++){
 
           //construct the function to which we will apply the BSH
-          occupieds[j].truncate();
+          //occupieds[j].truncate();
           temp_function = occupieds[j]*JandV;
           temp_function.scale(-1.0);
           temp_function += Kpsis[j];
@@ -1450,6 +1475,7 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
           rho += squaremod(occupieds[kk]);
      }
      JandV = V + apply(op,rho); 
+     JandV.truncate();
      times = end_timer(world);
      if(world.rank()==0) print("     ", times[0]);
 
@@ -1475,8 +1501,9 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
 
      //Compute kinetic energy contribution
      for(unsigned int j = 0; j < Init_params.num_occupied; j++){
-          energies[j] = rele(world,occupieds[j]);
-          kinetic_energy += (energies[j]);
+          //energies[j] = rele(world,occupieds[j]);
+          //kinetic_energy += (energies[j]);
+          kinetic_energy += rele(world, occupieds[j]);
      }
           
      //Compute electron-nuclear attraction energy contribution, taking advantage of vmra's inner
@@ -1522,9 +1549,9 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
 
      //Loop through energies and calculate their new values using the individual contributions
      //(inside the "tensor" variables
-     for(unsigned int i = 0; i < Init_params.num_occupied; i++){
-          energies[i] += nuclear_attraction_tensor[i]+coulomb_tensor[i] - exchange_tensor[i];
-     }
+     //for(unsigned int i = 0; i < Init_params.num_occupied; i++){
+     //     energies[i] += nuclear_attraction_tensor[i]+coulomb_tensor[i] - exchange_tensor[i];
+     //}
 
      //compute total energy
      total_energy = kinetic_energy + coulomb_energy - exchange_energy + nuclear_attraction_energy + nuclear_repulsion_energy;
@@ -1634,6 +1661,7 @@ void DF::solve_occupied(World & world)
           rho += squaremod(occupieds[kk]);
      }
      real_function_3d JandV = Vnuc + apply(op,rho); 
+     JandV.truncate();
      Tensor<double> times = end_timer(world);
      if(world.rank()==0) print("     ", times[0]);
 
