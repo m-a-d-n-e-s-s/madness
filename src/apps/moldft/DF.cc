@@ -441,6 +441,8 @@ DF::DF(World & world,std::shared_ptr<std::istream> input) {
      occupieds = Init_params.orbitals;
      virtuals = Init_params.virtuals;
      total_energy = Init_params.Init_total_energy;
+     closed_shell = Init_params.spinrestricted; //If nonrelativistic calculation was spinrestricted then we're doing a closed shell calculation
+
 
      Tensor<double> times = end_timer(world);
      if(world.rank()==0) print("Preparation complete: ", times[0]);
@@ -534,20 +536,20 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
 
           truncate(world, temp);
 
-          if(world.rank()==0) print(i, "Starting apply phase in K");
+          //if(world.rank()==0) print(i, "Starting apply phase in K");
 
           temp = apply(world, op, temp);
           
           truncate(world,temp);
 
-          if(world.rank()==0) print(i, "Exiting apply phase in K");
+          //if(world.rank()==0) print(i, "Exiting apply phase in K");
 
           Kpsis[i][0] += sum(world, mul(world, temp, temp0));
           Kpsis[i][1] += sum(world, mul(world, temp, temp1));
           Kpsis[i][2] += sum(world, mul(world, temp, temp2));
           Kpsis[i][3] += sum(world, mul(world, temp, temp3));
           
-          if(world.rank()==0) print(i, "Exiting sum block in K");
+          //if(world.rank()==0) print(i, "Exiting sum block in K");
 
           temp = conj(world, temp);
 
@@ -556,7 +558,7 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
           temp2 = occupieds[i][2]*temp;
           temp3 = occupieds[i][3]*temp;
 
-          if(world.rank()==0) print(i, "Entering final loop in K");
+         // if(world.rank()==0) print(i, "Entering final loop in K");
 
           for(unsigned int j = i+1; j < n; j++){
                Kpsis[j][0] += temp0[j-i];
@@ -565,7 +567,7 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
                Kpsis[j][3] += temp3[j-i];
           }
           
-          if(world.rank()==0) print(i, "Exiting final loop in K");
+          //if(world.rank()==0) print(i, "Exiting final loop in K");
 
           Kpsis[i].truncate();
      }
@@ -620,12 +622,41 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      if(world.rank() == 0) print("          Adding (V+J)psi");
      real_function_3d rho = real_factory_3d(world);
      for(unsigned int j = 0; j < n; j++){
-          rho += squaremod(occupieds[j]);
+          rho += 2*squaremod(occupieds[j]);
      }
      
-     //TODO: Here try moving the apply out to operate on the sum of the nuclear and electronic charge distributions
      real_function_3d potential = myV + apply(op,rho);
      potential.truncate();
+
+
+     //Debugging
+     std::vector<Fcwf> debug_orbitals;
+     for(unsigned int j = 0; j < n; j++){
+          debug_orbitals.push_back(occupieds[j]*myV);
+     }
+     fock = matrix_inner(world,occupieds,debug_orbitals);
+     if(world.rank()==0) print("\nVnuc matrix:\n",fock);
+     real_function_3d idk = apply(op,rho);
+     for(unsigned int j = 0; j < n; j++){
+          debug_orbitals[j] = occupieds[j]*idk;
+     }
+     fock = matrix_inner(world,occupieds,debug_orbitals);
+     if(world.rank()==0) print("\nJ matrix:\n",fock);
+     for(unsigned int j = 0; j < n; j++){
+          debug_orbitals[j] = Kpsis[j];
+     }
+     fock = matrix_inner(world,occupieds,debug_orbitals);
+     if(world.rank()==0) print("\nK matrix:\n",fock);
+     for(unsigned int j = 0; j < n; j++){
+          debug_orbitals[j] = apply_T(world,occupieds[j]);
+     }
+     fock = matrix_inner(world,occupieds,debug_orbitals);
+     if(world.rank()==0) print("\nT matrix:\n",fock);
+
+
+
+
+
 
      //add in coulomb parts to neworbitals
      for(unsigned int j = 0; j < n; j++){
@@ -671,10 +702,10 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      if(world.rank()==0) print("          ", times[0]);
 
      //debugging: print fock and overlap matrices
-     //if(world.rank()==0){
-     //     print("fock:\n", fock);
-     //     print("\noverlap:\n", overlap);
-     //}
+     if(world.rank()==0){
+          print("fock:\n", fock);
+          print("\noverlap:\n", overlap);
+     }
      
      if(world.rank()==0) print("     Eigensolver");
      start_timer(world);
@@ -762,7 +793,7 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      }
 
      //Debugging: Print transformation matrix after rotation removal
-     //if(world.rank()==0) print("U:\n", U);
+     if(world.rank()==0) print("U:\n", U, "\nevals:\n", evals);
      
      
      times = end_timer(world);
@@ -784,15 +815,11 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
            occupieds[kk].truncate();
      }
 
-
-     //truncate
-
      //debugging
      //for(unsigned int j=0; j < Init_params.num_occupied; j++){
      //     double tempdouble = rele(world, occupieds[j]);
      //     if(world.rank()==0) print("   after diag, rele ",j," = ",tempdouble);
      //}
-     
 
      //Set energies = evals, and fix the energy printing stage.
      energies = evals;
@@ -1358,7 +1385,7 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
 
      //Diagonalization forces us to recompute J
      for(unsigned int kk = 0; kk < Init_params.num_occupied; kk++){
-          rho += squaremod(occupieds[kk]);
+          rho += 2*squaremod(occupieds[kk]);
      }
      JandV = V + apply(op,rho); 
      JandV.truncate();
@@ -1472,7 +1499,7 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      start_timer(world);
      rho = real_factory_3d(world);
      for(unsigned int kk = 0; kk < Init_params.num_occupied; kk++){
-          rho += squaremod(occupieds[kk]);
+          rho += 2*squaremod(occupieds[kk]);
      }
      JandV = V + apply(op,rho); 
      JandV.truncate();
@@ -1502,8 +1529,8 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      //Compute kinetic energy contribution
      for(unsigned int j = 0; j < Init_params.num_occupied; j++){
           //energies[j] = rele(world,occupieds[j]);
-          //kinetic_energy += (energies[j]);
-          kinetic_energy += rele(world, occupieds[j]);
+          //kinetic_energy += 2*(energies[j]);
+          kinetic_energy += 2*rele(world, occupieds[j]);
      }
           
      //Compute electron-nuclear attraction energy contribution, taking advantage of vmra's inner
@@ -1521,14 +1548,14 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      nuclear_attraction_tensor += real(inner(world,occupieds2,mul(world,V,occupieds2)));
      nuclear_attraction_tensor += real(inner(world,occupieds3,mul(world,V,occupieds3)))*(1.0/(myc*myc));
      nuclear_attraction_tensor += real(inner(world,occupieds4,mul(world,V,occupieds4)))*(1.0/(myc*myc));
-     nuclear_attraction_energy = nuclear_attraction_tensor.sum();
+     nuclear_attraction_energy = 2*nuclear_attraction_tensor.sum();
      
      //Compute electron-electron repulsion energy contribution, again using vmra
      coulomb_tensor = real(inner(world,occupieds1,mul(world,Jop,occupieds1)));
      coulomb_tensor += real(inner(world,occupieds2,mul(world,Jop,occupieds2)));
      coulomb_tensor += real(inner(world,occupieds3,mul(world,Jop,occupieds3)))*(1.0/(myc*myc));
      coulomb_tensor += real(inner(world,occupieds4,mul(world,Jop,occupieds4)))*(1.0/(myc*myc));
-     coulomb_energy = 0.5*coulomb_tensor.sum();
+     coulomb_energy = coulomb_tensor.sum();//*0.5;
      
      //Calculate Exchange energy contribution
      std::vector<complex_function_3d> Kpsis1(Init_params.num_occupied);
@@ -1545,7 +1572,7 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      exchange_tensor += real(inner(world,occupieds2,Kpsis2));
      exchange_tensor += real(inner(world,occupieds3,Kpsis3))*(1.0/(myc*myc));
      exchange_tensor += real(inner(world,occupieds4,Kpsis4))*(1.0/(myc*myc));
-     exchange_energy = 0.5*exchange_tensor.sum();
+     exchange_energy = exchange_tensor.sum();//*0.5;
 
      //Loop through energies and calculate their new values using the individual contributions
      //(inside the "tensor" variables
@@ -1616,7 +1643,8 @@ void DF::solve_occupied(World & world)
 {
 
      //State what we're doing here
-     if(world.rank()==0) print("\nSolving for ", Init_params.num_occupied, " occupied orbitals\n-----------------------------------\n");
+     if(closed_shell and world.rank()==0) print("\nSolving for ", Init_params.num_occupied, " doubly-occupied orbitals\n----------------------------\n");
+     if((not closed_shell) and world.rank()==0) print("\nSolving for ", Init_params.num_occupied-1, " doubly-occupied, 1 singly-occupied orbitals\n---------------\n");
 
      //Will need a coulomb operator
      real_convolution_3d op = CoulombOperator(world,DFparams.small,DFparams.thresh);
@@ -1632,6 +1660,10 @@ void DF::solve_occupied(World & world)
      for(unsigned int i = 0; i < Init_params.num_occupied; i++){
           occupieds[i].normalize();
      }
+
+
+     //debugging: orthonormalize here to see the difference
+     orthogonalize_inplace(world);
 
      //Form nuclear potential
      real_function_3d Vnuc;
@@ -1658,7 +1690,7 @@ void DF::solve_occupied(World & world)
      start_timer(world);
      real_function_3d rho = real_factory_3d(world);
      for(unsigned int kk = 0; kk < Init_params.num_occupied; kk++){
-          rho += squaremod(occupieds[kk]);
+          rho += 2*squaremod(occupieds[kk]);
      }
      real_function_3d JandV = Vnuc + apply(op,rho); 
      JandV.truncate();

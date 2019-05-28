@@ -51,6 +51,9 @@ class DF {
           //Total energy of the system
           double total_energy;
 
+          //Whether or not the calculation to be done is closed shell
+          bool closed_shell;
+
      public:
 
           // Start a timer
