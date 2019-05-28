@@ -139,7 +139,7 @@ namespace madness {
     ///       nontrivial encoding
     /// \warning this does not fence, it is up to the user to ensure proper synchronization
     template <typename String> void print_meminfo(
-        int id, const String& tag,
+        int rank, const String& tag,
         const std::string filename_prefix = std::string("MEMORY")) {
       using namespace std;
 #if defined(WORLD_MEM_PROFILE_ENABLE)
@@ -149,7 +149,7 @@ namespace madness {
         basic_ofstream<Char> memoryfile;
         ostringstream filename;
 
-        filename << filename_prefix << "." << id;
+        filename << filename_prefix << "." << rank;
 
         memoryfile.open(filename.str().c_str(), ios::out | ios::app);
         memoryfile << tag << endl;
