@@ -236,7 +236,7 @@ private:
 	std::vector<double> damp_coeff;
 	std::string model;
 	std::vector<bool> oep_model = {false, false, false, false};
-	bool save_orb_squares = false;                    // if true save density contributions of orbitals
+	unsigned int saving_amount = 1;                   // choose level 0, 1, 2 or 3 for saving functions
 	unsigned int save_iter_orbs = 0;                  // if > 0 save all orbitals every ... iterations (needs a lot of storage!)
 	unsigned int save_iter_density = 0;               // if > 0 save KS density every ... iterations
 	unsigned int save_iter_IKS = 0;                   // if > 0 save IKS every ... iterations
@@ -305,8 +305,8 @@ public:
             		damp_coeff.push_back(coeff);
             	}
             }
-            else if (str == "save_orbital_squares") {
-            	save_orb_squares = true;
+            else if (str == "saving_amount") {
+            	in >> saving_amount;
             }
             else if (str == "save_orbitals") {
             	in >> save_iter_orbs;
@@ -422,25 +422,24 @@ public:
     	const real_function_3d IHF = compute_average_I(HF_nemo, HF_eigvals);
     	const real_function_3d kin_tot_HF = compute_total_kinetic_density(HF_nemo, HF_eigvals);
     	const real_function_3d kin_P_HF = compute_Pauli_kinetic_density(HF_nemo, HF_eigvals);
-    	save(IHF, "IHF");
-    	save(kin_tot_HF, "kin_tot_HF");
-    	save(kin_P_HF, "kin_P_HF");
+    	if (saving_amount >= 1) save(Vs, "Slaterpotential");
+    	if (saving_amount >= 2) {
+            if (is_ocep() or is_dcep() or is_mrks()) save(IHF, "IHF");
+            if (is_dcep()) save(kin_tot_HF, "kin_tot_HF");
+            if (is_mrks()) save(kin_P_HF, "kin_P_HF");
+    	}
 
     	// set KS_nemo as reference to MOs
     	vecfuncT& KS_nemo = calc->amo;
     	tensorT& KS_eigvals = calc->aeps; // 1d tensor of same length as KS_nemo
-		save(compute_density(HF_nemo), "density_HF");
-    	save(compute_density(KS_nemo), "density_start");
+    	if (saving_amount >= 2) save(compute_density(HF_nemo), "density_HF");
+    	if (saving_amount >= 3) save(compute_density(KS_nemo), "density_start");
 
     	// if desired: save HF orbitals and orbital contributions to total density (orbital squares)
-		if (save_iter_orbs > 0) {
+		if (saving_amount >= 3) {
+			vecfuncT HF_nemo_square = square(world, HF_nemo);
 	    	for (long i = 0; i < HF_nemo.size(); i++) {
 	    		save(R*HF_nemo[i], "HF_orb_" + stringify(i));
-	    	}
-		}
-    	if (save_orb_squares) {
-        	vecfuncT HF_nemo_square = square(world, HF_nemo);
-        	for (int i = 0; i < HF_nemo_square.size(); i++) {
         		save(2.0*R_square*HF_nemo_square[i], "HF_orb_square_" + stringify(i)); // 2 because closed shell
         	}
     	}
@@ -696,16 +695,18 @@ public:
     	real_function_3d kin_tot_KS = compute_total_kinetic_density(KS_nemo, KS_eigvals);
     	real_function_3d kin_P_KS = compute_Pauli_kinetic_density(KS_nemo, KS_eigvals);
     	real_function_3d rho = compute_density(KS_nemo);
-    	save(rho, "density_final");
-    	save(IKS, "IKS_final");
-    	save(kin_tot_KS, "kin_tot_KS_final");
-    	save(kin_P_KS, "kin_P_KS_final");
-    	for (long i = 0; i < KS_nemo.size(); i++) {
-    		save(R*KS_nemo[i], "KS_orb_" + stringify(i) + "_final");
+    	if (saving_amount >= 1) save(rho, "density_final");
+    	if (saving_amount >= 2) {
+            if (is_ocep() or is_dcep() or is_mrks()) save(IKS, "IKS_final");
+            if (is_dcep()) save(kin_tot_KS, "kin_tot_KS_final");
+            if (is_mrks()) save(kin_P_KS, "kin_P_KS_final");
+        	for (long i = 0; i < KS_nemo.size(); i++) {
+        		save(R*KS_nemo[i], "KS_orb_" + stringify(i) + "_final");
+        	}
     	}
 
     	// if desired: print final KS orbital contributions to total density (nemo squares)
-    	if (save_orb_squares) {
+    	if (saving_amount >= 3) {
         	vecfuncT KS_nemo_square = square(world, KS_nemo);
         	for (long i = 0; i < KS_nemo_square.size(); i++) {
         		save(2.0*R_square*KS_nemo_square[i], "KS_orb_square_" + stringify(i)); // 2 because closed shell
@@ -717,34 +718,44 @@ public:
     	if (is_oaep()) {
     		print("\n  computing final OAEP with converged OAEP orbitals and eigenvalues");
         	Voep = Vs + shift_final;
-        	save(Voep, "OAEP_final");
+        	if (saving_amount >= 1) save(Voep, "OAEP_final");
     	}
     	if (is_ocep()) {
     		print("\n  computing final OCEP with converged OCEP orbitals and eigenvalues");
         	real_function_3d ocep_correction_final = compute_oep_correction("ocep", IHF, KS_nemo, KS_eigvals);
         	Voep = Vs + ocep_correction_final + shift_final;
-        	save(ocep_correction_final + shift_final, "OCEP_correction_final");
-        	save(Voep, "OCEP_final");
+        	if (saving_amount >= 1) {
+        		save(ocep_correction_final + shift_final, "OCEP_correction_final");
+        		save(Voep, "OCEP_final");
+        	}
     	}
     	if (is_dcep()) {
     		print("\n  computing final DCEP with converged DCEP orbitals and eigenvalues");
         	real_function_3d ocep_correction_final = compute_oep_correction("ocep", IHF, KS_nemo, KS_eigvals);
         	real_function_3d dcep_correction_final = compute_oep_correction("dcep", kin_tot_HF, KS_nemo, KS_eigvals);
         	Voep = Vs + ocep_correction_final + dcep_correction_final + shift_final;
-        	save(ocep_correction_final + shift_final, "OCEP_correction_final");
-        	save(dcep_correction_final + shift_final, "DCEP_correction_final");
-        	save(ocep_correction_final + dcep_correction_final + shift_final, "total_correction_final");
-        	save(Voep, "DCEP_final");
+        	if (saving_amount >= 2) {
+            	save(ocep_correction_final + shift_final, "OCEP_correction_final");
+            	save(dcep_correction_final + shift_final, "DCEP_correction_final");
+        	}
+        	if (saving_amount >= 1) {
+        		save(ocep_correction_final + dcep_correction_final + shift_final, "total_correction_final");
+        		save(Voep, "DCEP_final");
+        	}
     	}
     	if (is_mrks()) {
     		print("\n  computing final mRKS potential with converged mRKS orbitals and eigenvalues");
         	real_function_3d ocep_correction_final = compute_oep_correction("ocep", IHF, KS_nemo, KS_eigvals);
         	real_function_3d mrks_correction_final = compute_oep_correction("mrks", kin_P_HF, KS_nemo, KS_eigvals);
         	Voep = Vs + ocep_correction_final + mrks_correction_final + shift_final;
-        	save(ocep_correction_final + shift_final, "OCEP_correction_final");
-        	save(mrks_correction_final + shift_final, "mRKS_correction_final");
-        	save(ocep_correction_final + mrks_correction_final + shift_final, "total_correction_final");
-        	save(Voep, "mRKS_potential_final");
+        	if (saving_amount >= 2) {
+            	save(ocep_correction_final + shift_final, "OCEP_correction_final");
+            	save(mrks_correction_final + shift_final, "mRKS_correction_final");
+        	}
+        	if (saving_amount >= 1) {
+        		save(ocep_correction_final + mrks_correction_final + shift_final, "total_correction_final");
+        		save(Voep, "mRKS_potential_final");
+        	}
     	}
     	print("     done\n");
 
@@ -814,13 +825,13 @@ public:
 
         // dividing by rho: the minimum value for rho is dens_thresh_lo
         real_function_3d Vs = -1.0*binary_op(numerator, rho, dens_inv(dens_thresh_inv));
-        save(Vs, "Slaterpotential_nolra");
+        if (saving_amount >= 3) save(Vs, "Slaterpotential_nolra");
 
         // long-range asymptotic behavior for Slater potential is \int 1/|r-r'| * |phi_HOMO|^2 dr'
         // in order to compute this lra, use Coulomb potential with only HOMO density (= |phi_HOMO|^2)
         Coulomb J(world, this);
         real_function_3d lra = -1.0*J.compute_potential(R_square*square(nemo[homo_ind]));
-        save(lra, "lra_slater");
+        if (saving_amount >= 3) save(lra, "lra_slater");
 
 //        // these are not yet forgotten tests
 //        real_function_3d lra = (-0.5/nemo.size())*J.compute_potential(this);
@@ -842,7 +853,6 @@ public:
 //        save(weight, "weight_slater");
         Vs = Vs*weight + lra*(1.0 - weight);
 
-        save(Vs, "Slaterpotential");
         return Vs;
 
     }
