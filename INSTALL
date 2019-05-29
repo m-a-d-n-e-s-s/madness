@@ -127,11 +127,15 @@ Intel Threading Building Blocks (TBB):
       ${TBB_ROOT_DIR}/(lib/libc++|lib) on OS X, if TBB_ROOT_DIR is specified in
       the configure command.
 
+If TBB_ROOT_DIR is not given, it will be set to the value of the TBBROOT environment variable if it is set.
+
 Intel Math Kernel Library (MKL):
 
 * ENABLE_MKL --- Search for Intel MKL for BLAS and LAPACK support [default=ON]
 * MKL_ROOT_DIR --- The install prefix for MKL.
 * MKL_LIBRARY --- The path to the MKL library directory.
+
+If MKL_ROOT_DIR is not given, it will be set to the value of the MKLROOT environment variable if it is set.
 
 AMD Core Math Library (ACML):
 
@@ -148,7 +152,7 @@ Google Performance Tools (Gperftools):
 * GPERFTOOLS_INCLUDE_DIR --- The path to the gperftools include directory.
 * GPERFTOOLS_LIBRARY --- The path to the gperftools library directory.
 
-If GPERFTOOLS_ROOT_DIR is not given, it will be set to the environment variable GPERFTOOLS_DIR if available.
+If GPERFTOOLS_ROOT_DIR is not given, it will be set to the value of the GPERFTOOLS_DIR environment variable if it is set.
 
 Libunwind:
 
@@ -157,7 +161,7 @@ Libunwind:
 * LIBUNWIND_INCLUDE_DIR --- The path to the Libunwind include directory.
 * LIBUNWIND_LIBRARY --- The path to the Libunwind library directory.
 
-If LIBUNWIND_ROOT_DIR is not given, it will be set to the environment variable LIBUNWIND_DIR if available.
+If LIBUNWIND_ROOT_DIR is not given, it will be set to the value of the LIBUNWIND_DIR environment variable if it is set.
 
 Library of Exchange-Correlation DFT functionals (LIBXC):
 
