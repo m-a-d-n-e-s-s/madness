@@ -458,7 +458,7 @@ public:
     	typedef allocator<double, 3> allocT;
     	typedef XNonlinearSolver<vecfunc<double, 3>, double, allocT> solverT;
     	allocT alloc(world, KS_nemo.size());
-    	solverT solver(allocT(world, KS_nemo.size()),true);
+    	solverT solver(allocT(world, KS_nemo.size()));
 
     	// iterate until self-consistency
     	for (int iter = 0; iter < calc->param.maxiter; ++iter) {
@@ -971,11 +971,10 @@ public:
 		// calculate quotient = tau_P/rho
 		real_function_3d quotient = 0.5*binary_op(numerator, rho_square, dens_inv(dens_thresh_inv)); // TODO: closed-shell factors??
 
-        // munge quotient for long-range asymptotic behavior which is -epsilon_HOMO
+        // munge quotient for long-range asymptotic behavior which is 0
        	print("computing tau_P/rho: index of HOMO is", homo_ind(eigvals));
-       	double lra = -1.0*eigvals(homo_ind(eigvals));
        	real_function_3d weight = compute_weighting_function(nemo);
-       	quotient = quotient*weight + lra*(1.0 - weight);
+       	quotient = quotient*weight; // + lra*(1.0 - weight) but lra is 0 here
 
     	return quotient;
 
