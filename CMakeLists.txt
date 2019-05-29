@@ -56,6 +56,9 @@ option(ENABLE_ACML "Search for AMD Core Math Library (ACML) for BLAS and LAPACK 
 option(ENABLE_TCMALLOC_MINIMAL "Enable use of tcmalloc_minimal library from Google Performance Tools (gperftools)" OFF)
 cmake_dependent_option(ENABLE_GPERFTOOLS "Enable use of Google Performance Tools (gperftools)" ON
     "NOT ENABLE_TCMALLOC_MINIMAL" OFF)
+option(ENABLE_LIBUNWIND
+       "Forces detection (and possible use) of Libunwind (normally Libunwind will be sought automatically if needed)"
+        OFF)
 option(ENABLE_PAPI "Enables use of PAPI" OFF)
 option(ENABLE_LIBXC "Enables use of the libxc library of density functionals" ON)
 option(ENABLE_PCM "Enables use of the polarizable continuum model library" ON)

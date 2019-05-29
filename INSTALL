@@ -152,6 +152,7 @@ If GPERFTOOLS_ROOT_DIR is not given, it will be set to the environment variable 
 
 Libunwind:
 
+* ENABLE_LIBUNWIND --- Force detection of gperftools [default=OFF, i.e. Libunwind will be searched for when needed]
 * LIBUNWIND_ROOT_DIR --- The install prefix for Libunwind.
 * LIBUNWIND_INCLUDE_DIR --- The path to the Libunwind include directory.
 * LIBUNWIND_LIBRARY --- The path to the Libunwind library directory.
