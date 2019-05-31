@@ -188,7 +188,7 @@ namespace madness {
     private:
         friend class WorldAmInterface;
         friend class WorldGopInterface;
-        friend World& initialize(int&, char**&, const SafeMPI::Intracomm&);
+        friend World& initialize(int&, char**&, const SafeMPI::Intracomm&, bool);
         friend void finalize();
 
         // Static member variables
