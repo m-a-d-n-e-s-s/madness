@@ -96,9 +96,11 @@ namespace madness {
     /// or \c MPI_Init_thread().
     /// \param[in,out] argc Application argument count.
     /// \param[in,out] argv Application argument values.
+    /// \param[in] quiet If false, will announce to \c std::cout on rank 0 when
+    ///            the runtime has been initialized.
     /// \return A reference to the default \c World, which is constructed with
     ///     \c MPI_COMM_WORLD.
-    World& initialize(int& argc, char**& argv);
+    World& initialize(int& argc, char**& argv, bool quiet = false);
 
     /// Initialize the MADNESS runtime.
 
@@ -109,8 +111,11 @@ namespace madness {
     /// \param[in,out] argv Application argument values.
     /// \param comm The communicator that should be used to construct the
     ///     \c World object.
+    /// \param[in] quiet If false, will announce to \c std::cout on rank 0 when
+    ///            the runtime has been initialized.
     /// \return A reference to the \c World constructed with \c comm.
-    World& initialize(int& argc, char**& argv, const SafeMPI::Intracomm& comm);
+    World& initialize(int& argc, char**& argv, const SafeMPI::Intracomm& comm,
+        bool quiet = false);
 
     /// Initialize the MADNESS runtime.
 
@@ -121,8 +126,11 @@ namespace madness {
     /// \param[in,out] argv Application argument values.
     /// \param comm The MPI communicator that should be used to construct the
     ///     \c World object.
+    /// \param[in] quiet If false, will announce to \c std::cout on rank 0 when
+    ///            the runtime has been initialized.
     /// \return A reference to the World constructed with \c comm.
-    World& initialize(int& argc, char**& argv, const MPI_Comm& comm);
+    World& initialize(int& argc, char**& argv, const MPI_Comm& comm,
+        bool quiet = false);
 
     /// Call this once at the very end of your main program instead of MPI_Finalize().
     void finalize();

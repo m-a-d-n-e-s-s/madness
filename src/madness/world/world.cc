@@ -135,15 +135,15 @@ namespace madness {
     }
 
 
-    World& initialize(int& argc, char**& argv, bool quiet = false) {
+    World& initialize(int& argc, char**& argv, bool quiet) {
         return initialize(argc, argv, SafeMPI::COMM_WORLD, quiet);
     }
 
-    World& initialize(int& argc, char**& argv, const MPI_Comm& comm, bool quiet = false) {
+    World& initialize(int& argc, char**& argv, const MPI_Comm& comm, bool quiet) {
         return initialize(argc, argv, SafeMPI::Intracomm(comm), quiet);
     }
 
-    World& initialize(int& argc, char**& argv, const SafeMPI::Intracomm& comm, bool quiet = false) {
+    World& initialize(int& argc, char**& argv, const SafeMPI::Intracomm& comm, bool quiet) {
 #ifdef HAVE_PAPI
         initialize_papi();
 #endif
