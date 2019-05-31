@@ -135,15 +135,15 @@ namespace madness {
     }
 
 
-    World& initialize(int& argc, char**& argv) {
-        return initialize(argc, argv, SafeMPI::COMM_WORLD);
+    World& initialize(int& argc, char**& argv, bool quiet = false) {
+        return initialize(argc, argv, SafeMPI::COMM_WORLD, quiet);
     }
 
-    World& initialize(int& argc, char**& argv, const MPI_Comm& comm) {
-        return initialize(argc, argv, SafeMPI::Intracomm(comm));
+    World& initialize(int& argc, char**& argv, const MPI_Comm& comm, bool quiet = false) {
+        return initialize(argc, argv, SafeMPI::Intracomm(comm), quiet);
     }
 
-    World& initialize(int& argc, char**& argv, const SafeMPI::Intracomm& comm) {
+    World& initialize(int& argc, char**& argv, const SafeMPI::Intracomm& comm, bool quiet = false) {
 #ifdef HAVE_PAPI
         initialize_papi();
 #endif
@@ -211,7 +211,7 @@ namespace madness {
 #endif // HAVE_ELEMENTAL
 
         madness_initialized_ = true;
-        if(comm.Get_rank() == 0)
+        if(!quiet && comm.Get_rank() == 0)
             std::cout << "MADNESS runtime initialized with " << ThreadPool::size()
                 << " threads in the pool and affinity " << sbind << "\n";
 
