@@ -123,7 +123,7 @@ void Diamagnetic_potential_factor::recompute_factors_and_potentials() {
 	diamagnetic_factor_=custom_factor(explicit_B,v,1.0);
 	diamagnetic_factor_square=custom_factor(explicit_B,v,2.0);
 	diamagnetic_U2=compute_U2();
-	diamagnetic_U1=compute_nabla_R_div_R();
+	diamagnetic_U1=-1.0*compute_nabla_R_div_R();
 	save(diamagnetic_U2,"U2");
 	save(diamagnetic_factor_,"factor");
 	save(diamagnetic_U1[0],"U1x");
@@ -133,12 +133,19 @@ void Diamagnetic_potential_factor::recompute_factors_and_potentials() {
 
 
 complex_function_3d Diamagnetic_potential_factor::compute_lz_commutator() const {
-	std::vector<real_function_3d> r(3);
-	for (int i=0; i<3; ++i) r[i]=real_factory_3d(world).functor([&i] (const coord_3d& r) {return r[i];});
+	std::vector<real_function_3d> r(3), A(3);
+    r[0]=real_factory_3d(world).functor([] (const coord_3d& r) {return r[0];});
+    r[1]=real_factory_3d(world).functor([] (const coord_3d& r) {return r[1];});
+    r[2]=real_factory_3d(world).functor([] (const coord_3d& r) {return r[2];});
 
-	real_function_3d result=real_factory_3d(world);
-	for (auto& vv : v) result+=vv[0]*r[0] + vv[1]*r[1] + vv[2]*r[2];
-	return result*double_complex(0.0,1.0)*explicit_B.normf();
+    A[0]=explicit_B[1]*r[2]-explicit_B[2]*r[1];
+    A[1]=explicit_B[2]*r[0]-explicit_B[0l]*r[2];
+    A[2]=explicit_B[0l]*r[1]-explicit_B[1]*r[0];
+
+	scale(world,A,0.5);
+	complex_function_3d result=double_complex(0.0,1.0)*dot(world,A,diamagnetic_U1);
+	save(abs(result),"abs_lz_commutator");
+	return result;
 }
 
 
@@ -160,6 +167,7 @@ real_function_3d Diamagnetic_potential_factor::compute_U2() const {
 	real_function_3d U2c_function(world);
 	double radius=get_potential_radius();
 	if (eB>0.0) U2c_function=real_factory_3d(world).functor(R_times_arg_div_R(U2c,explicit_B,v,radius)).truncate_on_project();
+	save(U2c_function,"U2c");
 	real_function_3d harmonic_potential=real_factory_3d(world).functor(harmonic_potential_boxed(radius));
 
 	real_function_3d U2_function;
@@ -213,7 +221,9 @@ std::vector<complex_function_3d> Diamagnetic_potential_factor::apply_potential(c
 	std::vector<complex_function_3d> result=zero_functions_compressed<double_complex,3>(world,rhs.size());
 	if (physical_B.normf()==0.0) return result;
 
-	result=diamagnetic_U2*rhs;
+	double plateau=diamagnetic_U2(20.0, 20.0, 20.0);
+
+	result=(diamagnetic_U2-plateau)*rhs + plateau*rhs;
 	if (explicit_B.normf()!=0.0) {
 		Derivative<double_complex,3> dx(world,0);
 		Derivative<double_complex,3> dy(world,1);
@@ -221,7 +231,7 @@ std::vector<complex_function_3d> Diamagnetic_potential_factor::apply_potential(c
 		std::vector<complex_function_3d> dyrhs=apply(world,dy,rhs);
 
 		std::vector<complex_function_3d> tmp=(diamagnetic_U1[0]*dxrhs + diamagnetic_U1[1]*dyrhs);
-		result-=tmp;
+		result+=tmp;
 	}
 	truncate(world,result);
 	return result;
@@ -342,15 +352,38 @@ bool Diamagnetic_potential_factor::test_vector_potentials() const {
 }
 
 
-std::vector<complex_function_3d> Diamagnetic_potential_factor::make_fake_orbitals(const int n) const {
+bool Diamagnetic_potential_factor::test_lz_commutator() const {
+
+	test_output t("entering Znemo::test_lz_commutator .. ");
+	double thresh=FunctionDefaults<3>::get_thresh();
+
+	Lz lz(world);
+
+	complex_function_3d lzR=0.5*explicit_B[2]*lz(factor());
+	complex_function_3d lz_commR=compute_lz_commutator()*factor();
+	double norm1=lzR.norm2();
+	double norm2=lz_commR.norm2();
+	double error=(lzR-lz_commR).norm2();
+//	save(imag(lzR),"Im_lzR");
+//	save(imag(lz_commR),"Im_lz_commR");
+
+	t.logger << "norm lz numerical  " << norm1 << std::endl;
+	t.logger << "norm lz analytical " << norm2 << std::endl;
+	t.logger << "error lz numerical vs analytical " << error << std::endl;
+
+	return t.end(error<thresh);
+}
+
+std::vector<complex_function_3d> Diamagnetic_potential_factor::make_fake_orbitals(const int n,
+		const coord_3d& offset) const {
 
 	std::vector<complex_function_3d> result;
 	for (int i=0; i<n; ++i) {
 		double exponent=2.0/double(i+1);
-		coord_3d offset={0.1,0.2,0.3*i};
+		coord_3d offset1=offset+coord_3d({0.1,0.2,0.3*i});
 		double_complex phase(0.0,2.0*i);
-		auto gaussian = [&exponent, &offset, &phase](const coord_3d& r) {
-			double arg=(r-offset).normf();
+		auto gaussian = [&exponent, &offset1, &phase](const coord_3d& r) {
+			double arg=(r-offset1).normf();
 			return exp(-exponent*arg*arg+phase);
 		};
 		complex_function_3d tmp=complex_factory_3d(world).functor(gaussian);

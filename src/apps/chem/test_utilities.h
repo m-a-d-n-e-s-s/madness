@@ -31,7 +31,7 @@ struct test_output {
 			std::cout << "\033[31m"   << "failed " << "\033[0m" << std::endl;
 			print_and_clear_log();
 		}
-		MADNESS_ASSERT(success);
+//		MADNESS_ASSERT(success);
 		return success;
 	}
 };

@@ -304,6 +304,64 @@ private:
 };
 
 
+/// the z component of the angular momentum
+
+/// takes real and complex functions as input, will return complex functions
+class Lz {
+public:
+
+	Lz(World& world) : world(world) {};
+
+	template<typename T, std::size_t NDIM>
+    complex_function_3d operator()(const Function<T,NDIM> ket) const {
+		std::vector<Function<T,NDIM> > vket(1,ket);
+        return this->operator()(vket)[0];
+    }
+
+	template<typename T, std::size_t NDIM>
+    std::vector<complex_function_3d> operator()(const std::vector<Function<T,NDIM> >& vket) const {
+
+		// the operator in cartesian components as
+		// L_z =  - i (x del_y - y del_x)
+
+		if (vket.size()==0) return std::vector<complex_function_3d>(0);
+
+	    real_function_3d x=real_factory_3d(world).functor([] (const coord_3d& r) {return r[0];});
+	    real_function_3d y=real_factory_3d(world).functor([] (const coord_3d& r) {return r[1];});
+
+	    Derivative<T,NDIM> Dx = free_space_derivative<T,NDIM>(world, 0);
+		Derivative<T,NDIM> Dy = free_space_derivative<T,NDIM>(world, 1);
+		Dx.set_bspline1();
+		Dy.set_bspline1();
+
+	    std::vector<Function<T,NDIM> > delx=apply(world,Dx,vket);
+	    std::vector<Function<T,NDIM> > dely=apply(world,Dy,vket);
+
+	    std::vector<Function<T,NDIM> > result1=x*dely - y*delx;
+	    std::vector<complex_function_3d> cresult1=convert<T,double_complex,NDIM>(world,result1);
+	    std::vector<complex_function_3d> result=double_complex(0.0,-1.0)*cresult1;
+		return result;
+	}
+
+	template<typename T, std::size_t NDIM>
+    double_complex operator()(const Function<T,NDIM>& bra, const Function<T,NDIM>& ket) const {
+        return inner(bra,this->operator()(ket));
+    }
+
+	template<typename T, std::size_t NDIM>
+    Tensor<double_complex> operator()(const std::vector<Function<T,NDIM> >& vbra,
+    		const std::vector<Function<T,NDIM> >& vket) const {
+        const auto bra_equiv_ket = &vbra == &vket;
+        std::vector<Function<T,NDIM> > vVket=this->operator()(vket);
+        return matrix_inner(world,vbra,vVket,bra_equiv_ket);
+    }
+
+private:
+    World& world;
+};
+
+
+
 /// derivative of the (regularized) nuclear potential wrt nuclear displacements
 class DNuclear {
 public:

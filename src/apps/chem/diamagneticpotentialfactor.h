@@ -88,6 +88,27 @@ public:
 		return result;
 	}
 
+
+	/// return a custom factor for a given magnetic field
+	complex_function_3d factor_with_phase(const coord_3d& B, const std::vector<coord_3d>& vv) const {
+		const double absB=B.normf();
+		if (absB==0.0) return complex_factory_3d(world).functor([](const coord_3d& r){return 1.0;}).truncate_on_project();
+		auto diamagnetic_HO = [&absB, &B, &vv](const coord_3d& r) {
+			double result=0.0;
+			const coord_3d A=0.5*cross(B,r);
+			for (auto& v : vv) {
+				coord_3d arg=A-v;
+				result+=exp(-1.0/absB*inner(arg,arg));
+			}
+			double theta=acos(r[2]/r.normf());
+			double phi=atan2(r[1],r[0]);
+			double_complex phase=r.normf()*sin(theta)*exp(absB*double_complex(0.0,1.0)*phi);
+			return result*phase;
+		};
+		complex_function_3d result=complex_factory_3d(world).functor(diamagnetic_HO);
+		return result;
+	}
+
 	/// compute the bare potential without confinement or factors
 	real_function_3d bare_diamagnetic_potential() const {
 		MADNESS_ASSERT(B_along_z(physical_B));
@@ -167,10 +188,11 @@ public:
 			print("testing diamagneticpotentialfactor with an invalid level of ",level);
 		}
 		if (level<2) {
-			success=success and test_factor();
-			success=success and test_harmonic_potential();
-			success=success and test_scalar_potentials();
-			success=success and test_vector_potentials();
+			success=test_factor() and success;
+			success=test_lz_commutator() and success;
+			success=test_harmonic_potential() and success;
+			success=test_scalar_potentials() and success;
+			success=test_vector_potentials() and success;
 		}
 		if (level<3) {
 			;
@@ -196,10 +218,13 @@ private:
 	/// test analytical vs numerical computation of the potentials
 	bool test_vector_potentials() const;
 
-	/// make a set orbitals for testing (not orthonormalized!)
-	std::vector<complex_function_3d> make_fake_orbitals(const int n) const;
+	bool test_lz_commutator() const;
 
 public:
+	/// make a set orbitals for testing (not orthonormalized!)
+	std::vector<complex_function_3d> make_fake_orbitals(const int n,
+			const coord_3d& offset={0.0,0.0,0.0}) const;
+
 	/// compute the radius for the diamagnetic potential
 	double get_potential_radius() const {
 		return potential_radius;

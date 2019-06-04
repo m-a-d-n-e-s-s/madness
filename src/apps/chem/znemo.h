@@ -188,6 +188,7 @@ class Znemo {
 		std::vector<complex_function_3d> J_mo;
 		std::vector<complex_function_3d> K_mo;
 		std::vector<complex_function_3d> spin_zeeman_mo;
+		std::vector<complex_function_3d> lz_commutator;
 		std::vector<std::vector<complex_function_3d> > GpVmo;	// potentials for the derivative of the BSH operator
 		std::vector<complex_function_3d> Gpscalar;				// scalar terms arising from the Gp treatment
 	};
@@ -229,9 +230,6 @@ public:
 
 	bool test() const;
 	void test2();
-
-	/// test the identity: <F| f lz f |F> = <F| f ([lz, f] + f lz) |F>
-	bool test_lz_commutator() const;
 
 	/// test the identity <F| f (T + Vdia ) f |F> = <F|f^2 (T + Udia) |F>
 	bool test_U_potentials() const;
@@ -371,19 +369,6 @@ public:
 	double compute_energy_no_confinement(const std::vector<complex_function_3d>& amo, const potentials& apot,
 			const std::vector<complex_function_3d>& bmo, const potentials& bpot, const bool do_print) const;
 
-	/// compute the action of the Lz =i r x del operator on rhs
-	std::vector<complex_function_3d> Lz(const std::vector<complex_function_3d>& rhs) const;
-
-	/// compute the Lz operator, prepared with integration by parts for the derivative of the BSH operator
-	std::vector<std::vector<complex_function_3d> > Lz_Gp(const std::vector<complex_function_3d>& rhs) const;
-
-	/// compute the action of the Lz =i r x del operator on rhs
-	complex_function_3d Lz(const complex_function_3d& rhs) const {
-		std::vector<complex_function_3d> vrhs(1,rhs);
-		return Lz(vrhs)[0];
-	}
-
-
 	/// compute the potential operators applied on the orbitals
 	potentials compute_potentials(const std::vector<complex_function_3d>& mo,
 			const real_function_3d& density,
@@ -445,11 +430,13 @@ protected:
 
 	std::shared_ptr<real_convolution_3d> coulop;
 
-	static double_complex p_plus(const coord_3d& xyz) {
+	static double_complex p_plus(const coord_3d& xyz1) {
+		coord_3d xyz=xyz1-coord_3d({5.0,0,0});
 		double r=xyz.normf();
 		double theta=acos(xyz[2]/r);
 		double phi=atan2(xyz[1],xyz[0]);
 		return r*exp(-r/2.0)*sin(theta)*exp(double_complex(0.0,1.0)*phi);
+//		return r*exp(-r/2.0)*exp(double_complex(0.0,1.0)*phi);
 	}
 
 	void test_compute_current_density() const;
