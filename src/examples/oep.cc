@@ -422,17 +422,21 @@ public:
     	const real_function_3d IHF = compute_average_I(HF_nemo, HF_eigvals);
     	const real_function_3d kin_tot_HF = compute_total_kinetic_density(HF_nemo, HF_eigvals);
     	const real_function_3d kin_P_HF = compute_Pauli_kinetic_density(HF_nemo, HF_eigvals);
+    	const real_function_3d rho_HF = compute_density(HF_nemo);
     	if (saving_amount >= 1) save(Vs, "Slaterpotential");
     	if (saving_amount >= 2) {
+    		save(rho_HF, "density_HF");
             if (is_ocep() or is_dcep() or is_mrks()) save(IHF, "IHF");
             if (is_dcep()) save(kin_tot_HF, "kin_tot_HF");
             if (is_mrks()) save(kin_P_HF, "kin_P_HF");
     	}
 
+    	// compute ab initio HF exchange energy using equation (21) from Ospadov_2017
+    	const double Ex_HF = 0.5*inner(rho_HF, Vs);
+
     	// set KS_nemo as reference to MOs
     	vecfuncT& KS_nemo = calc->amo;
     	tensorT& KS_eigvals = calc->aeps; // 1d tensor of same length as KS_nemo
-    	if (saving_amount >= 2) save(compute_density(HF_nemo), "density_HF");
     	if (saving_amount >= 3) save(compute_density(KS_nemo), "density_start");
 
     	// if desired: save HF orbitals and orbital contributions to total density (orbital squares)
@@ -574,9 +578,10 @@ public:
     		// compute new (current) energy
             double old_energy = energy;
             print("energy contributions of iteration", iter_counter);
-    		energy = compute_energy(R*KS_nemo, R*Jnemo, Voep, Knemo, true); // Knemo is not used here
+            double Ex_KS = compute_exchange_energy_vir(R*KS_nemo, Voep);
+    		energy = compute_energy(R*KS_nemo, R*Jnemo, Ex_KS);
     		// compute_exchange_potential(KS_nemo, Knemo);
-    		// energy = compute_energy(R*KS_nemo, R*Jnemo, Voep, R*Knemo, false);
+    		// double Ex_KS = compute_exchange_energy_conv(R*KS_nemo, R*Knemo);
     		// there should be no difference between these two methods, because energy is only needed
     		// for checking convergence threshold; but: Evir should be much faster because K is expensive
 
@@ -694,8 +699,9 @@ public:
     	real_function_3d IKS = compute_average_I(KS_nemo, KS_eigvals);
     	real_function_3d kin_tot_KS = compute_total_kinetic_density(KS_nemo, KS_eigvals);
     	real_function_3d kin_P_KS = compute_Pauli_kinetic_density(KS_nemo, KS_eigvals);
-    	real_function_3d rho = compute_density(KS_nemo);
-    	if (saving_amount >= 1) save(rho, "density_final");
+    	real_function_3d rho_KS = compute_density(KS_nemo);
+    	double Drho = compute_delta_rho(rho_HF, rho_KS);
+    	if (saving_amount >= 1) save(rho_KS, "density_final");
     	if (saving_amount >= 2) {
             if (is_ocep() or is_dcep() or is_mrks()) save(IKS, "IKS_final");
             if (is_dcep()) save(kin_tot_KS, "kin_tot_KS_final");
@@ -768,15 +774,32 @@ public:
    		compute_coulomb_potential(KS_nemo, Jnemo);
    		compute_exchange_potential(KS_nemo, Knemo);
 
+   		// compute final exchange energy using different methods
+   		double Ex_vir = compute_exchange_energy_vir(R*KS_nemo, Voep);
+   		double Ex_conv = compute_exchange_energy_conv(R*KS_nemo, R*Knemo);
+
     	print("FINAL", model, "ENERGY Evir:");
-    	double Evir = compute_energy(R*KS_nemo, R*Jnemo, Voep, R*Knemo, true); // R*Knemo is not used here
+    	double Evir = compute_energy(R*KS_nemo, R*Jnemo, Ex_vir);
 
     	print("FINAL", model, "ENERGY Econv:");
-    	double Econv = compute_energy(R*KS_nemo, R*Jnemo, Voep, R*Knemo, false); // Voep is not used here
+    	double Econv = compute_energy(R*KS_nemo, R*Jnemo, Ex_conv);
 
-    	printf("      Evir = %15.8f  Eh", Evir);
-    	printf("\n     Econv = %15.8f  Eh", Econv);
-    	printf("\n     DEvir = %15.8f mEh\n\n", (Evir - Econv)*1000);
+    	printf("      +++ FINAL TOTAL ENERGY = %15.8f  Eh +++\n\n\n", Econv);
+    	printf("     Ex_vir   = %15.8f  Eh", Ex_vir);
+    	printf("\n     Ex_conv  = %15.8f  Eh", Ex_conv);
+    	printf("\n     Ex_HF    = %15.8f  Eh\n", Ex_HF);
+    	printf("\n     Econv    = %15.8f  Eh", Econv);
+    	printf("\n     DEvir_14 = %15.8f mEh", (Ex_vir - Ex_conv)*1000);
+    	printf("\n     DEvir_17 = %15.8f mEh\n", (Ex_vir - Ex_HF)*1000);
+    	print("     Drho     =     ", Drho, "e\n\n");
+
+    	print("---------------------------------------------------------------------------");
+    	double E_0 = compute_E_zeroth(KS_eigvals);
+    	double E_1 = compute_E_first(R*KS_nemo, R*Jnemo, R*Knemo, Voep);
+
+    	printf("  E^(0)         = %15.8f  Eh", E_0);
+    	printf("\n  E^(1)         = %15.8f  Eh", E_1);
+    	printf("\n  E^(0) + E^(1) = %15.8f  Eh\n\n", E_0 + E_1);
 
     }
 
@@ -811,6 +834,14 @@ public:
     	real_function_3d density = compute_density(nemo);
     	real_function_3d weighting = unary_op(density, interpolate_munge_refdens(dens_thresh_hi, dens_thresh_lo));
     	return weighting;
+    }
+
+    /// compute \Delta rho as an indicator for the result's quality
+    double compute_delta_rho(const real_function_3d rho_HF, const real_function_3d rho_KS) const {
+    	// from Ospadov_2017, equation (26)
+    	real_function_3d rho_diff = abs(rho_KS - rho_HF);
+    	double Drho = rho_diff.trace();
+    	return Drho;
     }
 
     /// compute Slater potential (Kohut, 2014, equation (15))
@@ -969,7 +1000,7 @@ public:
 		real_function_3d numerator = sum(world, grad_nemo_term); // numerator = tau_P * 2 * rho / R^4
 
 		// calculate quotient = tau_P/rho
-		real_function_3d quotient = 0.5*binary_op(numerator, rho_square, dens_inv(dens_thresh_inv)); // TODO: closed-shell factors??
+		real_function_3d quotient = 0.5*binary_op(numerator, rho_square, dens_inv(dens_thresh_inv));
 
         // munge quotient for long-range asymptotic behavior which is 0
        	print("computing tau_P/rho: index of HOMO is", homo_ind(eigvals));
@@ -1031,10 +1062,37 @@ public:
 
     }
 
-    /// compute energy from given nemos and given OEP model for exchange
-    /// for example Slater potential for OAEP
-    double compute_energy(const vecfuncT phi, const vecfuncT Jphi, const real_function_3d Vx,
-    		const vecfuncT Kphi, const bool vir) const {
+    /// compute Evir using Levy-Perdew virial relation (Kohut_2014, (43) or Ospadov_2017, (25))
+    double compute_exchange_energy_vir(const vecfuncT phi, const real_function_3d Vx) const {
+
+    	// make vector of functions r = (x, y, z)
+    	auto monomial_x = [] (const coord_3d& r) {return r[0];};
+    	auto monomial_y = [] (const coord_3d& r) {return r[1];};
+    	auto monomial_z = [] (const coord_3d& r) {return r[2];};
+    	vecfuncT r(3);
+    	r[0]=real_factory_3d(world).functor(monomial_x);
+    	r[1]=real_factory_3d(world).functor(monomial_y);
+    	r[2]=real_factory_3d(world).functor(monomial_z);
+
+    	// for density note that phi is R*nemo, so no R_square is needed
+    	real_function_3d rho = 2.0*dot(world, phi, phi); // 2 because closed shell
+    	real_function_3d rhoterm = 3*rho + dot(world, r, grad(rho));
+    	double Ex = inner(Vx, rhoterm);
+    	return Ex;
+
+    }
+
+    /// compute exchange energy using the expectation value of the exchange operator
+    double compute_exchange_energy_conv(const vecfuncT phi, const vecfuncT Kphi) const {
+
+    	double Ex = -1.0*inner(world, phi, Kphi).sum();
+    	return Ex;
+
+    }
+
+    /// compute all energy contributions except exchange and sum up for total energy
+    /// the exchange energy must be computed priorly with the compute_exchange_energy_... methods
+    double compute_energy(const vecfuncT phi, const vecfuncT Jphi, const double E_X) const {
 
     	// compute kinetic energy
     	// it's ok to use phi here, no regularization necessary for this eigenvalue
@@ -1045,29 +1103,7 @@ public:
     		E_kin += 0.5 * (inner(world, dphi, dphi)).sum();
     		// -1/2 sum <Psi|Nabla^2|Psi> = 1/2 sum <NablaPsi|NablaPsi>   (integration by parts)
     	}
-    	E_kin *= 2.0; // because a = b closed shell
-
-    	// check vir: if true -> compute Evir using Levy-Perdew virial relation (Kohut_2014, (43))
-    	// if false -> compute exchange energy using the expectation value of the exchange operator
-    	double E_X;
-    	if (vir) {
-        	/// make vector of functions r = (x, y, z)
-        	auto monomial_x = [] (const coord_3d& r) {return r[0];};
-        	auto monomial_y = [] (const coord_3d& r) {return r[1];};
-        	auto monomial_z = [] (const coord_3d& r) {return r[2];};
-        	vecfuncT r(3);
-        	r[0]=real_factory_3d(world).functor(monomial_x);
-        	r[1]=real_factory_3d(world).functor(monomial_y);
-        	r[2]=real_factory_3d(world).functor(monomial_z);
-        	/// for density note that phi should be R*nemo, so no R_square is needed
-        	real_function_3d rho = 2.0*dot(world, phi, phi); // 2 because closed shell
-        	real_function_3d rhoterm = 3*rho + dot(world, r, grad(rho));
-        	E_X = inner(Vx, rhoterm);
-    	}
-    	else {
-    		// this uses the oep->get_calc()->amo orbitals in the current form
-    		E_X = -1.0*inner(world, phi, Kphi).sum();
-    	}
+    	E_kin *= 2.0; // 2 because closed shell
 
     	// compute external potential (nuclear attraction)
     	real_function_3d Vext = calc->potentialmanager->vnuclear();
@@ -1075,23 +1111,45 @@ public:
 
     	// compute remaining energies: nuclear attraction, Coulomb, nuclear repulsion
     	// computed as expectation values (see Szabo, Ostlund (3.81))
-    	const double E_ext = 2.0 * inner(world, phi, Vextphi).sum(); // because a = b closed shell
+    	const double E_ext = 2.0*inner(world, phi, Vextphi).sum(); // 2 because closed shell
     	const double E_J = inner(world, phi, Jphi).sum();
     	const double E_nuc = calc->molecule.nuclear_repulsion_energy();
     	double energy = E_kin + E_ext + E_J + E_X + E_nuc;
 
     	if (world.rank() == 0) {
-    		printf("\n                       kinetic energy %15.8f Eh\n", E_kin);
-    		printf("   electron-nuclear attraction energy %15.8f Eh\n", E_ext);
-    		printf("                       Coulomb energy %15.8f Eh\n", E_J);
-    		if (vir) printf(" exchange energy (exchange potential) %15.8f Eh\n", E_X);
-    		else printf("  exchange energy (exchange operator) %15.8f Eh\n", E_X);
-    		printf("     nuclear-nuclear repulsion energy %15.8f Eh\n", E_nuc);
-    		printf("                         total energy %15.8f Eh\n\n", energy);
-//            printf("    works for exact exchange functional only...\n");
+    		printf("\n                      kinetic energy %15.8f Eh\n", E_kin);
+    		printf("  electron-nuclear attraction energy %15.8f Eh\n", E_ext);
+    		printf("                      Coulomb energy %15.8f Eh\n", E_J);
+    		printf("                     exchange energy %15.8f Eh\n", E_X);
+    		printf("    nuclear-nuclear repulsion energy %15.8f Eh\n", E_nuc);
+    		printf("                        total energy %15.8f Eh\n\n", energy);
     	}
 
     	return energy;
+
+    }
+
+    /// cumpute E^(0) = \sum_i \epsilon_i^KS
+    double compute_E_zeroth(const tensorT eigvals) const {
+    	double E_0 = 0.0;
+    	for (long i = 0; i < eigvals.size(); i++) {
+    		E_0 += eigvals(i);
+    	}
+    	E_0 *= 2.0; // closed shell: every orbital energy must be counted twice
+    	return E_0;
+    }
+
+    /// compute E^(1) = 1/2*\sum_ij <ij||ij> - \sum_i <i|J + Vx|i> = \sum_i <i|- 0.5*J - 0.5*K - Vx|i>
+    double compute_E_first(const vecfuncT phi, const vecfuncT Jphi, const vecfuncT Kphi, const real_function_3d Vx) const {
+
+    	//compute expectation values:
+    	const double E_J = inner(world, phi, Jphi).sum();
+    	const double E_K = inner(world, phi, Kphi).sum();
+    	const double E_Vx = inner(world, phi, Vx*phi).sum();
+
+    	// closed shell: every orbital contribution must be counted twice, so E^(1) = \sum_i <i|- J - K - 2.0*Vx|i>
+    	double E_1 = -1.0*(E_J + E_K + 2.0*E_Vx);
+    	return E_1;
 
     }
 

@@ -1908,7 +1908,7 @@ namespace madness {
     }
 
     /// Create a new function that is the abs of f - global comm only if not reconstructed
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     Function<T,NDIM> abs(const Function<T,NDIM>& f, bool fence=true) {
         PROFILE_FUNC;
         Function<T,NDIM> result = copy(f,true);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -1916,7 +1916,7 @@ namespace madness {
     }
 
     /// Create a new function that is the abs_square of f - global comm only if not reconstructed
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     Function<T,NDIM> abs_square(const Function<T,NDIM>& f, bool fence=true) {
         PROFILE_FUNC;
         Function<T,NDIM> result = copy(f,true);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
