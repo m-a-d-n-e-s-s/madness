@@ -63,7 +63,11 @@ int main(int argc, char** argv) {
     try {
 
         Znemo nemo(world);
-        nemo.value();
+        double energy=nemo.value();
+        if (world.rank()==0) {
+            printf("final energy   %12.8f\n", energy);
+            printf("finished at time %.1f\n", wall_time());
+        }
 
 
     } catch (const SafeMPI::Exception& e) {

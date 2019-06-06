@@ -310,7 +310,9 @@ private:
 class Lz {
 public:
 
-	Lz(World& world) : world(world) {};
+	bool use_bsplines=true;
+
+	Lz(World& world, bool use_bspline_derivative=true) : world(world), use_bsplines(use_bspline_derivative) {};
 
 	template<typename T, std::size_t NDIM>
     complex_function_3d operator()(const Function<T,NDIM> ket) const {
@@ -331,11 +333,14 @@ public:
 
 	    Derivative<T,NDIM> Dx = free_space_derivative<T,NDIM>(world, 0);
 		Derivative<T,NDIM> Dy = free_space_derivative<T,NDIM>(world, 1);
-		Dx.set_bspline1();
-		Dy.set_bspline1();
+		if (use_bsplines) {
+			Dx.set_bspline1();
+			Dy.set_bspline1();
+		}
 
-	    std::vector<Function<T,NDIM> > delx=apply(world,Dx,vket);
-	    std::vector<Function<T,NDIM> > dely=apply(world,Dy,vket);
+		reconstruct(world,vket,true);
+	    std::vector<Function<T,NDIM> > delx=apply(world,Dx,vket,false);
+	    std::vector<Function<T,NDIM> > dely=apply(world,Dy,vket,true);
 
 	    std::vector<Function<T,NDIM> > result1=x*dely - y*delx;
 	    std::vector<complex_function_3d> cresult1=convert<T,double_complex,NDIM>(world,result1);

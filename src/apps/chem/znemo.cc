@@ -372,7 +372,7 @@ double Znemo::compute_energy_no_confinement(const std::vector<complex_function_3
     real_function_3d diapot=diafac->bare_diamagnetic_potential();
     complex_function_3d lzcomm=diafac->compute_lz_commutator();
 
-    Lz lz(world);
+    Lz lz(world,false);
     double_complex nuclear_potential=fac*(inner(world,dia2amo,apot.vnuc_mo).sum()+inner(world,dia2bmo,bpot.vnuc_mo).sum());
     double_complex diamagnetic=fac*(inner(world,diaamo,diapot*diaamo).sum()+inner(world,diabmo,diapot*diabmo).sum());
     double_complex lzval=fac*(inner(world,diaamo,0.5*B[2]*lz(diaamo)).sum()+inner(world,diabmo,0.5*B[2]*lz(diabmo)).sum())
@@ -646,7 +646,7 @@ Znemo::potentials Znemo::compute_potentials(const std::vector<complex_function_3
 	pot.K_mo=K(rhs);
 	pot.vnuc_mo=vnuclear*rhs;
 
-	pot.lz_mo=0.5*B[2]*Lz(world)(rhs);
+	pot.lz_mo=0.5*B[2]*Lz(world,true)(rhs);
 	pot.lz_commutator=diafac->compute_lz_commutator()*rhs;
 
 	pot.diamagnetic_mo=diafac->apply_potential(rhs);
