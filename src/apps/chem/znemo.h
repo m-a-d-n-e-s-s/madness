@@ -86,8 +86,7 @@ public:
 	ParameterMap params={
         		init<double>(physical_B_,{"physical_B",0.0}),
         		init<double>(explicit_B_,{"explicit_B",0.0}),
-        		init<std::vector<double> >(box_,{"box",{-1.0, 1.0, 4.0, 0.0, 0.0, 0.0}}),
-        		init<double>(box_softness_,{"box_softness",4.0}),
+        		init<std::vector<double> >(box_,{"box",{1.0, 0.01, 0.0, 0.0, 0.0}}),
 				init<double>(shift_,{"shift",0.0}),
 				init<int>(printlevel_,{"printlevel",2}),		// 0: energies, 1: fock matrix, 2: function sizes
 				init<bool>(use_v_vector_,{"use_v_vector",false}),
@@ -106,20 +105,14 @@ public:
 		double pb=physical_B();
 		double eb=explicit_B();
 		double remaining_B=fabs(pb-eb);
-		double differential_Bsquare=pb*pb-eb*eb;
 		double thresh=FunctionDefaults<3>::get_thresh()*0.1;
-		::madness::print("thresh, rB",thresh,remaining_B);
 
 		double wave_function_radius=2.0*sqrt(-log(thresh)/remaining_B);
 		double potential_radius=wave_function_radius*1.4;
-		double box_radius=wave_function_radius*1.1;
-
-		::madness::print("wave function radius  ",wave_function_radius);
-		::madness::print("potential_radius      ",potential_radius);
-		::madness::print("differential_B_square ",differential_Bsquare);
+		double box_radius=wave_function_radius*1.25;
 
 		// set the diamagnetic height unless explicitly given
-		params[box_].set_derived_value(std::vector<double>({box_radius,1.0,box_softness()}));
+		params[box_].set_derived_value(std::vector<double>({box_radius,0.01}));
 		params[potential_radius_].set_derived_value(potential_radius);
 
 
@@ -135,7 +128,6 @@ public:
 	double physical_B() const {return get<double>(physical_B_);}
 	double explicit_B() const {return get<double>(explicit_B_);}
 	std::vector<double> box() const {return get<std::vector<double> >(box_);}
-	double box_softness() const {return get<double>(box_softness_);}
 	double potential_radius() const {return get<double>(potential_radius_);}
 	bool use_v_vector() const {return get<bool>(use_v_vector_);}
 
@@ -228,8 +220,9 @@ public:
 	/// compute the molecular energy
 	double value();
 
+	void iterate();
+
 	bool test() const;
-	void test2();
 
 	/// test the identity <F| f (T + Vdia ) f |F> = <F|f^2 (T + Udia) |F>
 	bool test_U_potentials() const;
@@ -285,9 +278,6 @@ public:
 
 	/// solve the SCF iterations
 	void solve_SCF();
-
-	/// turn the magnetic strength from the input file to a coord_3d
-	coord_3d Bvec(const double B) {return coord_3d{0.0,0.0,B};}
 
 	/// compute the magnetic vector potential A
 	static std::vector<real_function_3d> compute_magnetic_vector_potential(World& world,

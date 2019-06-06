@@ -124,11 +124,11 @@ void Diamagnetic_potential_factor::recompute_factors_and_potentials() {
 	diamagnetic_factor_square=custom_factor(explicit_B,v,2.0);
 	diamagnetic_U2=compute_U2();
 	diamagnetic_U1=-1.0*compute_nabla_R_div_R();
-	save(diamagnetic_U2,"U2");
-	save(diamagnetic_factor_,"factor");
-	save(diamagnetic_U1[0],"U1x");
-	save(diamagnetic_U1[1],"U1y");
-	save(diamagnetic_U1[2],"U1z");
+//	save(diamagnetic_U2,"U2");
+//	save(diamagnetic_factor_,"factor");
+//	save(diamagnetic_U1[0],"U1x");
+//	save(diamagnetic_U1[1],"U1y");
+//	save(diamagnetic_U1[2],"U1z");
 }
 
 
@@ -144,7 +144,6 @@ complex_function_3d Diamagnetic_potential_factor::compute_lz_commutator() const 
 
 	scale(world,A,0.5);
 	complex_function_3d result=double_complex(0.0,1.0)*dot(world,A,diamagnetic_U1);
-	save(abs(result),"abs_lz_commutator");
 	return result;
 }
 
@@ -167,12 +166,10 @@ real_function_3d Diamagnetic_potential_factor::compute_U2() const {
 	real_function_3d U2c_function(world);
 	double radius=get_potential_radius();
 	if (eB>0.0) U2c_function=real_factory_3d(world).functor(R_times_arg_div_R(U2c,explicit_B,v,radius)).truncate_on_project();
-	save(U2c_function,"U2c");
 	real_function_3d harmonic_potential=real_factory_3d(world).functor(harmonic_potential_boxed(radius));
 
 	real_function_3d U2_function;
 	U2_function=-0.5*(-eB - 0.25*pB*pB*harmonic_potential  + U2c_function);
-	print("diamagnetic_height: U2(20,20,20) ", U2_function(20.0, 20.0, 20.0));
 	return U2_function.truncate();
 }
 
@@ -335,9 +332,6 @@ bool Diamagnetic_potential_factor::test_vector_potentials() const {
 	const std::vector<real_function_3d> U1_analytical=compute_nabla_R_div_R();
 	const std::vector<real_function_3d> U1_numerical_times_factor=grad(factor());
 
-	save(U1_analytical[0]*factor(),"U1_analyticalx");
-	save(U1_numerical_times_factor[0],"U1_numericalx");
-
 	double total_error=0.0;
 	for (int i=0; i<3; ++i) {
 		double norm=U1_analytical[i].norm2();
@@ -364,8 +358,6 @@ bool Diamagnetic_potential_factor::test_lz_commutator() const {
 	double norm1=lzR.norm2();
 	double norm2=lz_commR.norm2();
 	double error=(lzR-lz_commR).norm2();
-//	save(imag(lzR),"Im_lzR");
-//	save(imag(lz_commR),"Im_lz_commR");
 
 	t.logger << "norm lz numerical  " << norm1 << std::endl;
 	t.logger << "norm lz analytical " << norm2 << std::endl;

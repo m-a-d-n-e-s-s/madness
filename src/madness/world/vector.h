@@ -47,6 +47,7 @@
 #include <vector>
 #include <algorithm>
 #include <iostream>
+#include <math.h>
 
 namespace madness {
 

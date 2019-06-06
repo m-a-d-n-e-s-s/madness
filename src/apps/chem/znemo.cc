@@ -9,107 +9,10 @@
 #include "znemo.h"
 #include <chem/diamagneticpotentialfactor.h>
 #include <chem/test_utilities.h>
+#include <chem/masks_and_boxes.h>
 
 
 namespace madness {
-
-/// maps x to the interval 0 for x<xmin and 1 for x>xmax with a smooth
-/// transition by a cubic polynomial, such that the derivatives vanish
-struct cubic_map {
-
-	double xxmax=1.e-4, xxmin=1.e-6;
-	double a,b,c,d;
-
-	cubic_map() = default;
-
-	cubic_map(const double& xmin, const double& xmax) : xxmax(xmax), xxmin(xmin) {
-		MADNESS_ASSERT(xxmax>xxmin);
-		a=((3.0*xxmax-xxmin) * xxmin*xxmin)/std::pow(xxmax-xxmin,3.0);
-		b=-(6.0*xxmax*xxmin)/std::pow(xxmax-xxmin,3.0);
-		c=3.0*(xxmax+xxmin)/std::pow(xxmax-xxmin,3.0);
-		d=-2.0/std::pow(xxmax-xxmin,3.0);
-	}
-
-	double operator()(const double& x) const {
-		if (x>xxmax) return 1.0;
-		else if (x<xxmin) return 0.0;
-		else {
-			return a + b*x * c*x*x + d*x*x*x;
-		}
-	}
-};
-
-
-/// munge the argument if the reference function is small
-template<typename T>
-struct binary_munge{
-
-	double lo=0.0, hi=0.0;
-	cubic_map cmap;
-
-	binary_munge() = default;
-
-	/// ctor takes the threshold
-	binary_munge(const double threshold) : thresh(threshold) {};
-
-	/// ctor takes the threshold
-	binary_munge(const cubic_map& cmap1) : cmap(cmap1) {};
-
-	/// @param[in]	key
-	/// @param[in]	reference	the reference function (should be strictly positive!)
-	/// @param[in]	arg			the function to be munged
-	/// @param[out]	U			the result tensor
-    void operator()(const Key<3>& key, Tensor<T>& U, const Tensor<T>& reference,
-            const Tensor<T>& arg) const {
-    	// linear map: ref(lo)->0, ref(hi)->1
-
-    	Tensor<typename TensorTypeData<T>::scalar_type> absref=abs(reference);
-    	ITERATOR(U,
-    			double r = absref(IND);
-    			T a = arg(IND);
-    			U(IND) = cmap(r)*a;
-    	);
-    }
-
-    template <typename Archive>
-    void serialize(Archive& ar) {
-    	ar & thresh;
-    }
-
-    double thresh=0.0;
-
-};
-
-
-
-struct spherical_box : public FunctionFunctorInterface<double,3> {
-	const double radius;
-	const double height;
-	const double tightness;
-	const coord_3d offset={0,0,0};
-	const coord_3d B_direction={0,0,1.0};
-	spherical_box(const double r, const double h, const double t,
-			const coord_3d o={0.0,0.0,0.0}, const coord_3d B_dir={0.0,0.0,1.0}) :
-		radius(r), height(h), tightness(t), offset(o), B_direction(B_dir) {}
-
-	double operator()(const coord_3d& xyz) const {
-		// project out all contributions from xyz along the direction of the B field
-		coord_3d tmp=(xyz-offset)*B_direction;
-		const double inner=tmp[0]+tmp[1]+tmp[2];
-		coord_3d proj=(xyz-offset)-B_direction*inner;
-		double r=proj.normf();
-		double v1=height/(1.0+exp(-tightness*height*(r-radius)));
-		return 1.0-v1;
-
-	}
-
-    std::vector<coord_3d> special_points() const {
-    	return std::vector<coord_3d>();
-    }
-
-};
-
-
 
 Znemo::Znemo(World& w) : world(w), param(world), molecule("input"), cparam() {
 	cparam.read_file("input");
@@ -139,10 +42,9 @@ Znemo::Znemo(World& w) : world(w), param(world), molecule("input"), cparam() {
 	diafac.reset(new Diamagnetic_potential_factor(world,param,molecule.get_all_coords_vec()));
 
 	coord_3d box_offset={0.0,0.0,0.0};
-	if (param.box().size()==6) box_offset={param.box()[3],param.box()[4],param.box()[5]};
-	spherical_box sbox2(param.box()[0],param.box()[1],param.box()[2],box_offset);
+	if (param.box().size()==5) box_offset={param.box()[2],param.box()[3],param.box()[4]};
+	spherical_box<3> sbox2(param.box()[0],param.box()[1],box_offset);
 	sbox=real_factory_3d(world).functor(sbox2);
-	print("sbox parameters: radius, tightness",sbox2.radius,sbox2.tightness);
 
 	// the guess is read from a previous nemo calculation
 	// make sure the molecule was not reoriented there
@@ -202,35 +104,6 @@ bool Znemo::test_U_potentials() const {
 }
 
 
-void Znemo::test2() {
-
-    coord_3d deltaB={0,0,-1.0};
-    real_function_3d delta_factor=diafac->custom_factor(deltaB,
-    		Diamagnetic_potential_factor::compute_v_vector(deltaB,molecule.get_all_coords_vec(),true));
-    amo=amo*delta_factor;
-    bmo=bmo*delta_factor;
-
-    coord_3d explicit_B=diafac->get_explicit_B()+deltaB;
-    diafac->reset_explicit_B_and_v(explicit_B);
-    diafac->recompute_factors_and_potentials();
-    // final energy computation
-    real_function_3d density=sum(world,abssq(world,amo));
-    if (have_beta()) density+=sum(world,abssq(world,bmo));
-    if (cparam.spin_restricted) density*=2.0;
-    density=density*diafac->factor_square();
-    density.truncate();
-
-    potentials apot(world,amo.size()), bpot(world,bmo.size());
-    apot=compute_potentials(amo,density,amo);
-    if (have_beta()) {
-            bpot=compute_potentials(bmo,density,bmo);
-            scale(world,bpot.spin_zeeman_mo,-1.0);
-    }
-
-    double energy=compute_energy(amo,apot,bmo,bpot,true);
-
-}
-
 /// compute the molecular energy
 double Znemo::value() {
 
@@ -254,8 +127,43 @@ double Znemo::value() {
 		orthonormalize(amo);
 		orthonormalize(bmo);
 	}
+
 	test();
-//	test2();
+
+	iterate();
+
+	// final energy computation
+	real_function_3d density=sum(world,abssq(world,amo));
+	if (have_beta()) density+=sum(world,abssq(world,bmo));
+	if (cparam.spin_restricted) density*=2.0;
+	density=density*diafac->factor_square();
+	density.truncate();
+
+	potentials apot(world,amo.size()), bpot(world,bmo.size());
+	apot=compute_potentials(amo,density,amo);
+	if (have_beta()) {
+		bpot=compute_potentials(bmo,density,bmo);
+		scale(world,bpot.spin_zeeman_mo,-1.0);
+	}
+
+	double energy=compute_energy(amo,apot,bmo,bpot,true);
+
+	if (world.rank()==0) {
+		print("orbital energies alpha",aeps);
+		print("orbital energies beta ",beps);
+	}
+
+	save_orbitals("final");
+	save_orbitals();
+
+	analyze();
+
+	return energy;
+}
+
+
+void Znemo::iterate() {
+
 	double thresh=FunctionDefaults<3>::get_thresh();
 	double energy=1.e10;
 	double oldenergy=0.0;
@@ -392,36 +300,7 @@ double Znemo::value() {
 		} else {
 			nb=0.0;
 		}
-
 	}
-
-	// final energy computation
-	real_function_3d density=sum(world,abssq(world,amo));
-	if (have_beta()) density+=sum(world,abssq(world,bmo));
-	if (cparam.spin_restricted) density*=2.0;
-	density=density*diafac->factor_square();
-	density.truncate();
-
-	potentials apot(world,amo.size()), bpot(world,bmo.size());
-	apot=compute_potentials(amo,density,amo);
-	if (have_beta()) {
-		bpot=compute_potentials(bmo,density,bmo);
-		scale(world,bpot.spin_zeeman_mo,-1.0);
-	}
-
-	energy=compute_energy(amo,apot,bmo,bpot,true);
-
-	if (world.rank()==0) {
-		print("orbital energies alpha",aeps);
-		print("orbital energies beta ",beps);
-	}
-
-	save_orbitals("final");
-	save_orbitals();
-
-	analyze();
-
-	return energy;
 }
 
 void Znemo::analyze() const {
@@ -466,7 +345,6 @@ void Znemo::analyze() const {
     print("expectation values in standard gauge");
     print("Delta 1/2 <p^2>  ",0.5*(nmo*v2 + 2.0*vp));
 
-
 }
 
 
@@ -479,8 +357,8 @@ double Znemo::compute_energy_no_confinement(const std::vector<complex_function_3
     std::vector<complex_function_3d> dia2bmo=bmo*diafac->factor_square();
     std::vector<complex_function_3d> diaamo=amo*diafac->factor();
     std::vector<complex_function_3d> diabmo=bmo*diafac->factor();
-    truncate(world,dia2amo,FunctionDefaults<3>::get_thresh()*0.1);
-    truncate(world,dia2bmo,FunctionDefaults<3>::get_thresh()*0.1);
+    truncate(world,dia2amo,FunctionDefaults<3>::get_thresh());
+    truncate(world,dia2bmo,FunctionDefaults<3>::get_thresh());
 
 
     double_complex kinetic=0.0;

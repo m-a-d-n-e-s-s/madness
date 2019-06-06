@@ -37,6 +37,40 @@ bool test_smooth_maxout(World& world) {
 }
 
 
+bool test_spherical_box(World& world) {
+
+	print("entering test_spherical_box");
+	bool success=true;
+	for (int ideviation=2; ideviation<4; ++ideviation) {
+		double radius=10.0;
+		double deviation=std::pow(10,-double(ideviation));
+
+		Vector<double,3> offset={0.0,0.0,0.0};
+		Vector<double,3> direction={0.0,0.0,1.0};
+
+		spherical_box<3> sbox1(radius,deviation,offset,direction);
+
+		// project
+		real_function_3d sbox=real_factory_3d(world).functor(sbox1);
+		sbox.print_size("sbox with deviation 1e.-"+stringify(ideviation));
+
+		// test accuracy
+		double actual=sbox(0.0,0.8*radius,0.0);
+		double expect=1.0-std::pow(10.0,-double(ideviation));
+		double error=std::abs(actual-expect);
+
+		// compare values
+		print("deviation, actual, expect,error",deviation,actual,expect,error);
+		if (error>deviation*1.2) {
+			print("test failed for demanded deviation ",deviation);
+			success=false;
+		}
+	}
+	return success;
+}
+
+
+
 int main(int argc, char** argv) {
     initialize(argc, argv);
     World world(SafeMPI::COMM_WORLD);
@@ -48,9 +82,19 @@ int main(int argc, char** argv) {
     startup(world,argc,argv);
     std::cout.precision(6);
 
+
+    FunctionDefaults<3>::set_k(8);
+    FunctionDefaults<3>::set_thresh(1.e-5);
+    FunctionDefaults<3>::set_refine(true);
+    FunctionDefaults<3>::set_initial_level(5);
+    FunctionDefaults<3>::set_truncate_mode(1);
+    FunctionDefaults<3>::set_cubic_cell(-20, 20);
+
+
     try {
 
     	test_smooth_maxout(world);
+    	test_spherical_box(world);
 
 
     } catch (const SafeMPI::Exception& e) {

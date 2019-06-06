@@ -52,6 +52,38 @@ struct max_of_x_1_smooth {
 
 
 
+/// an 2-dimensional smooth mask that is 1 inside the radius and 0 outside
+template<std::size_t NDIM>
+struct spherical_box {
+
+	typedef Vector<double,NDIM> coordT;
+
+	const double radius;
+	const double tightness=11.5;	// 99.9% accurate at 0.8 radius
+	const coordT offset=coordT(0.0);
+	const coordT B_direction=coordT(0.0);
+
+	spherical_box(const double r, const double deviation,
+			const coordT o={0.0,0.0,0.0}, const coordT B_dir={0.0,0.0,1.0}) :
+		radius(r), tightness(compute_tightness(deviation)), offset(o), B_direction(B_dir) {}
+
+	double operator()(const coordT& xyz) const {
+		// project out all contributions from xyz along the direction of the B field
+		coordT tmp=(xyz-offset)*B_direction;
+		const double inner=tmp[0]+tmp[1]+tmp[2];
+		coordT proj=(xyz-offset)-B_direction*inner;
+		double r=proj.normf();
+		double v1=1.0/(1.0+exp(-tightness*(r-radius)));
+		return 1.0-v1;
+	}
+
+	/// compute the tightness parameter given the deviation at 0.8 radius
+	static double compute_tightness(const double deviation_at_dot_8_radius) {
+		return 5.0/3.0*log((1.0-deviation_at_dot_8_radius)/deviation_at_dot_8_radius);
+	}
+
+};
+
 
 }
 
