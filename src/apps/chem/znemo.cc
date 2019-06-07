@@ -646,7 +646,7 @@ Znemo::potentials Znemo::compute_potentials(const std::vector<complex_function_3
 	pot.K_mo=K(rhs);
 	pot.vnuc_mo=vnuclear*rhs;
 
-	pot.lz_mo=0.5*B[2]*Lz(world,true)(rhs);
+	pot.lz_mo=0.5*B[2]*Lz(world,false)(rhs);
 	pot.lz_commutator=diafac->compute_lz_commutator()*rhs;
 
 	pot.diamagnetic_mo=diafac->apply_potential(rhs);

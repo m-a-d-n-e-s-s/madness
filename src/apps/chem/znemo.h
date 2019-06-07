@@ -114,6 +114,7 @@ public:
 		// set the diamagnetic height unless explicitly given
 		params[box_].set_derived_value(std::vector<double>({box_radius,0.01}));
 		params[potential_radius_].set_derived_value(potential_radius);
+		params[shift_].set_derived_value(physical_B());
 
 
 		// set derived values
