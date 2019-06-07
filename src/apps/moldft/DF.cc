@@ -671,10 +671,10 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      if(world.rank()==0) print("          ", times[0]);
 
      //debugging: print fock and overlap matrices
-     //if(world.rank()==0){
-     //     print("fock:\n", fock);
-     //     print("\noverlap:\n", overlap);
-     //}
+     if(world.rank()==0){
+          print("fock:\n", fock);
+          print("\noverlap:\n", overlap);
+     }
      
      if(world.rank()==0) print("     Eigensolver");
      start_timer(world);
@@ -685,7 +685,7 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      if(world.rank()==0) print("          ", times[0]);
 
      //debugging: print matrix of eigenvectors
-     //if(world.rank()==0) print("U:\n", U);
+     if(world.rank()==0) print("U:\n", U);
 
      //Before applying the transformation, fix arbitrary rotations introduced by the eigensolver. 
      if(world.rank()==0) print("     Removing Rotations");
@@ -762,7 +762,7 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      }
 
      //Debugging: Print transformation matrix after rotation removal
-     //if(world.rank()==0) print("U:\n", U);
+     if(world.rank()==0) print("U:\n", U);
      
      
      times = end_timer(world);
@@ -1685,6 +1685,37 @@ void DF::solve_occupied(World & world)
           iteration_number++;
      }
 
+     //Calculation of Effective Electric Field:
+     if(world.rank()==0) print("Effective Electric Field calculation");
+     std::complex<double> myi(0,1);
+     std::complex<double> one(1,0);
+     real_derivative_3d Dx(world,0);
+     real_derivative_3d Dy(world,1);
+     real_derivative_3d Dz(world,2);
+     double Eeff(0.0);
+     for(unsigned int j; j < Init_params.num_occupied; j++){
+          real_function_3d LL(world);
+          for(unsigned int kk; kk < Init_params.num_occupied; kk++){
+               if(kk != j){
+                    LL += squaremod(occupieds[kk]);
+               }
+          }
+          LL = apply(op,LL);
+          LL += Vnuc;
+          complex_function_3d Lx = one*Dx(LL);
+          complex_function_3d Ly = one*Dy(LL);
+          complex_function_3d Lz = one*Dz(LL);
+          Fcwf temp(world);
+
+          temp[0] = Lz*occupieds[j][0] + (Lx - myi*Ly)*occupieds[j][1];
+          temp[1] =  (Lx + myi*Ly)*occupieds[j][0] - Lz*occupieds[j][1];
+          temp[2] = Lz*occupieds[j][2] + (Lx - myi*Ly)*occupieds[j][3];
+          temp[2].scale(-1.0);
+          temp[3] = Lz*occupieds[j][3] - (Lx + myi*Ly)*occupieds[j][2];
+
+          Eeff += std::real(inner(occupieds[0],temp));
+     }
+     if(world.rank()==0) print("Eeff = ", Eeff);
 
 
 }
@@ -1721,6 +1752,8 @@ void DF::solve(World& world){
      std::cout << std::fixed;
      Tensor<double> times = end_timer(world);
      if(world.rank() == 0) print("\n   Calculation time:", times[0],"\n");
+
+
 
      //Make density lineplots
      if(DFparams.lineplot){
