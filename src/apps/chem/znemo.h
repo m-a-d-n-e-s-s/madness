@@ -108,8 +108,8 @@ public:
 		double thresh=FunctionDefaults<3>::get_thresh()*0.1;
 
 		double wave_function_radius=2.0*sqrt(-log(thresh)/remaining_B);
-		double potential_radius=wave_function_radius*1.4;
-		double box_radius=wave_function_radius*1.25;
+		double potential_radius=wave_function_radius*1.6;
+		double box_radius=wave_function_radius*1.33;
 
 		// set the diamagnetic height unless explicitly given
 		params[box_].set_derived_value(std::vector<double>({box_radius,0.01}));
