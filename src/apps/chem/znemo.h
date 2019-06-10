@@ -371,7 +371,6 @@ public:
 
 	std::vector<complex_function_3d> compute_residuals(
 			const std::vector<complex_function_3d>& Vpsi,
-			const std::vector<std::vector<complex_function_3d> > GpVpsi,
 			const std::vector<complex_function_3d>& psi,
 			Tensor<double>& eps) const;
 

@@ -267,8 +267,7 @@ void Znemo::iterate() {
 		if (converged) break;
 
 		// compute the residual of the Greens' function
-		std::vector<std::vector<complex_function_3d> > GpVpsi(0);
-		std::vector<complex_function_3d> resa=compute_residuals(Vnemoa,GpVpsi,amo,aeps);
+		std::vector<complex_function_3d> resa=compute_residuals(Vnemoa,amo,aeps);
 		truncate(world,resa,thresh*0.1);
 
 		Tensor<double> normsa=real(inner(world,resa*diafac->factor_square(),resa));
@@ -280,23 +279,21 @@ void Znemo::iterate() {
 		do_step_restriction(amo,amo_new);
 
 		amo=amo_new;
-		orthonormalize(amo);
 		truncate(world,amo);
 		orthonormalize(amo);
 
 		if (have_beta()) {
-			std::vector<complex_function_3d> resb=compute_residuals(Vnemob,GpVpsi,bmo,beps);
+			std::vector<complex_function_3d> resb=compute_residuals(Vnemob,bmo,beps);
 			truncate(world,resb);
 			Tensor<double> normsb=real(inner(world,diafac->factor_square()*resb,resb));
 			nb=sqrt(normsb.sumsq());
 
-			std::vector<complex_function_3d> bmo_new=solvera.update(bmo,resb,0.01,3);
+			std::vector<complex_function_3d> bmo_new=solverb.update(bmo,resb,0.01,3);
 			bmo_new=sbox*bmo_new;
 			do_step_restriction(bmo,bmo_new);
 			bmo=bmo_new;
-			orthonormalize(bmo);
-//				bmo=orthonormalize_symmetric(bmo);
 			truncate(world,bmo);
+			orthonormalize(bmo);
 		} else {
 			nb=0.0;
 		}
@@ -686,7 +683,6 @@ Tensor<double_complex> Znemo::compute_vmat(const std::vector<complex_function_3d
 std::vector<complex_function_3d>
 Znemo::compute_residuals(
 		const std::vector<complex_function_3d>& Vpsi,
-		const std::vector<std::vector<complex_function_3d> > GpVpsi,
 		const std::vector<complex_function_3d>& psi,
 		Tensor<double>& eps) const {
 	timer residual_timer(world,print_info.print_timings());
