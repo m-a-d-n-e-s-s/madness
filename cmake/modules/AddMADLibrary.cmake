@@ -38,7 +38,8 @@ macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_d
   # Create a target to install the component
   add_custom_target(install-${_name}
       COMMAND ${CMAKE_COMMAND} -DCOMPONENT=${_name} -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
-      COMMENT "Installing ${_name} library components")
+      COMMENT "Installing ${_name} library components"
+      USES_TERMINAL)
   add_dependencies(install-${_name} MAD${_name})
   add_dependencies(install-${_name} install-common)
   add_dependencies(install-libraries install-${_name})
@@ -72,9 +73,7 @@ macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_d
   endforeach()
   set_target_properties(MAD${_name} PROPERTIES LINK_FLAGS "${LINK_FLAGS}") 
  
-  # default to C++14 across the board. see here for explanation of this choice:
-  # https://github.com/drbenmorgan/cmake-compile-features/blob/master/README.md
-  target_compile_features(MAD${_name} INTERFACE cxx_decltype_auto)
+  target_compile_features(MAD${_name} INTERFACE "cxx_std_${CMAKE_CXX_STANDARD}")
 
 endmacro()
 
@@ -102,7 +101,8 @@ macro(add_mad_hdr_library _name _header_files _dep_mad_comp _include_dir)
   # Create a target to install the component
   add_custom_target(install-${_name}
       COMMAND ${CMAKE_COMMAND} -DCOMPONENT=${_name} -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
-      COMMENT "Installing ${_name} library components")
+      COMMENT "Installing ${_name} library components"
+      USES_TERMINAL)
   add_dependencies(install-${_name} MAD${_name})
   add_dependencies(install-libraries install-${_name})
 
@@ -125,9 +125,7 @@ macro(add_mad_hdr_library _name _header_files _dep_mad_comp _include_dir)
     endif()
   endforeach()
   
-  # default to C++14 across the board. see here for explanation of this choice:
-  # https://github.com/drbenmorgan/cmake-compile-features/blob/master/README.md
-  target_compile_features(MAD${_name} INTERFACE cxx_decltype_auto)
+  target_compile_features(MAD${_name} INTERFACE "cxx_std_${CMAKE_CXX_STANDARD}")
   
   set(${_name}_is_mad_hdr_lib TRUE)
 endmacro()

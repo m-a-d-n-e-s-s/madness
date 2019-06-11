@@ -650,7 +650,8 @@ namespace madness {
         /// constant over two traversals.  We are then sure
         /// that all tasks and AM are processed and there no AM in
         /// flight.
-        void fence();
+        /// \param[in] debug set to true to print progress statistics using madness::print(); the default is false.
+        void fence(bool debug = false);
 
 
         /// Broadcasts bytes from process root while still processing AM & tasks
