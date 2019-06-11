@@ -431,8 +431,9 @@ public:
             if (is_mrks()) save(kin_P_HF, "kin_P_HF");
     	}
 
-    	// compute ab initio HF exchange energy using equation (21) from Ospadov_2017
+    	// compute ab initio HF exchange energy using equation (21) from Ospadov_2017 and HF kinetic energy
     	const double Ex_HF = 0.5*inner(rho_HF, Vs);
+    	const double Ekin_HF = compute_kinetic_energy(R*HF_nemo); // like T in Ospadov_2017, equation (20)
 
     	// set KS_nemo as reference to MOs
     	vecfuncT& KS_nemo = calc->amo;
@@ -774,9 +775,11 @@ public:
    		compute_coulomb_potential(KS_nemo, Jnemo);
    		compute_exchange_potential(KS_nemo, Knemo);
 
-   		// compute final exchange energy using different methods
+   		// compute final exchange energy using different methods and final kinetic energy
    		double Ex_vir = compute_exchange_energy_vir(R*KS_nemo, Voep);
    		double Ex_conv = compute_exchange_energy_conv(R*KS_nemo, R*Knemo);
+   		double Ekin_KS = compute_kinetic_energy(R*KS_nemo); // like Ts in Ospadov_2017, equation (22)
+   		double Tc = Ekin_HF - Ekin_KS; // like Tc = T - Ts in Ospadov_2017, equation (24)
 
     	print("FINAL", model, "ENERGY Evir:");
     	double Evir = compute_energy(R*KS_nemo, R*Jnemo, Ex_vir);
@@ -785,13 +788,14 @@ public:
     	double Econv = compute_energy(R*KS_nemo, R*Jnemo, Ex_conv);
 
     	printf("      +++ FINAL TOTAL ENERGY = %15.8f  Eh +++\n\n\n", Econv);
-    	printf("     Ex_vir   = %15.8f  Eh", Ex_vir);
-    	printf("\n     Ex_conv  = %15.8f  Eh", Ex_conv);
-    	printf("\n     Ex_HF    = %15.8f  Eh\n", Ex_HF);
-    	printf("\n     Econv    = %15.8f  Eh", Econv);
-    	printf("\n     DEvir_14 = %15.8f mEh", (Ex_vir - Ex_conv)*1000);
-    	printf("\n     DEvir_17 = %15.8f mEh\n", (Ex_vir - Ex_HF)*1000);
-    	print("     Drho     =     ", Drho, "e\n\n");
+    	printf("     Ex_vir       = %15.8f  Eh", Ex_vir);
+    	printf("\n     Ex_conv      = %15.8f  Eh", Ex_conv);
+    	printf("\n     Ex_HF        = %15.8f  Eh\n", Ex_HF);
+    	printf("\n     Ekin_HF (T)  = %15.8f  Eh", Ekin_HF);
+    	printf("\n     Ekin_KS (Ts) = %15.8f  Eh\n", Ekin_KS);
+    	printf("\n     DEvir_14     = %15.8f mEh", (Ex_vir - Ex_conv)*1000); // like in Kohut_2014, equation (45)
+    	printf("\n     DEvir_17     = %15.8f mEh\n", (Ex_vir - Ex_HF - 2.0*Tc)*1000); // like in Ospadov_2017, equation (28)
+    	print("     Drho         =     ", Drho, "e\n\n");
 
     	print("---------------------------------------------------------------------------");
     	double E_0 = compute_E_zeroth(KS_eigvals);
@@ -1062,6 +1066,22 @@ public:
 
     }
 
+    /// compute kinetic energy needed for total energy
+    double compute_kinetic_energy(const vecfuncT phi) const {
+
+    	// it's ok to use phi here, no regularization necessary for this eigenvalue
+    	double E_kin = 0.0;
+    	for (int axis = 0; axis < 3; axis++) {
+    		real_derivative_3d D = free_space_derivative<double, 3>(world, axis);
+    		const vecfuncT dphi = apply(world, D, phi);
+    		E_kin += 0.5 * (inner(world, dphi, dphi)).sum();
+    		// -1/2 sum <Psi|Nabla^2|Psi> = 1/2 sum <NablaPsi|NablaPsi>   (integration by parts)
+    	}
+    	E_kin *= 2.0; // 2 because closed shell
+    	return E_kin;
+
+    }
+
     /// compute Evir using Levy-Perdew virial relation (Kohut_2014, (43) or Ospadov_2017, (25))
     double compute_exchange_energy_vir(const vecfuncT phi, const real_function_3d Vx) const {
 
@@ -1095,15 +1115,7 @@ public:
     double compute_energy(const vecfuncT phi, const vecfuncT Jphi, const double E_X) const {
 
     	// compute kinetic energy
-    	// it's ok to use phi here, no regularization necessary for this eigenvalue
-    	double E_kin = 0.0;
-    	for (int axis = 0; axis < 3; ++axis) {
-    		real_derivative_3d D = free_space_derivative<double, 3>(world, axis);
-    		const vecfuncT dphi = apply(world, D, phi);
-    		E_kin += 0.5 * (inner(world, dphi, dphi)).sum();
-    		// -1/2 sum <Psi|Nabla^2|Psi> = 1/2 sum <NablaPsi|NablaPsi>   (integration by parts)
-    	}
-    	E_kin *= 2.0; // 2 because closed shell
+    	double E_kin = compute_kinetic_energy(phi);
 
     	// compute external potential (nuclear attraction)
     	real_function_3d Vext = calc->potentialmanager->vnuclear();
