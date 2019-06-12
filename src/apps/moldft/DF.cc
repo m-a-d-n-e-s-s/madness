@@ -534,20 +534,20 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
 
           truncate(world, temp);
 
-          if(world.rank()==0) print(i, "Starting apply phase in K");
+          //if(world.rank()==0) print(i, "Starting apply phase in K");
 
           temp = apply(world, op, temp);
           
           truncate(world,temp);
 
-          if(world.rank()==0) print(i, "Exiting apply phase in K");
+          //if(world.rank()==0) print(i, "Exiting apply phase in K");
 
           Kpsis[i][0] += sum(world, mul(world, temp, temp0));
           Kpsis[i][1] += sum(world, mul(world, temp, temp1));
           Kpsis[i][2] += sum(world, mul(world, temp, temp2));
           Kpsis[i][3] += sum(world, mul(world, temp, temp3));
           
-          if(world.rank()==0) print(i, "Exiting sum block in K");
+          //if(world.rank()==0) print(i, "Exiting sum block in K");
 
           temp = conj(world, temp);
 
@@ -556,7 +556,7 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
           temp2 = occupieds[i][2]*temp;
           temp3 = occupieds[i][3]*temp;
 
-          if(world.rank()==0) print(i, "Entering final loop in K");
+          //if(world.rank()==0) print(i, "Entering final loop in K");
 
           for(unsigned int j = i+1; j < n; j++){
                Kpsis[j][0] += temp0[j-i];
@@ -565,7 +565,7 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
                Kpsis[j][3] += temp3[j-i];
           }
           
-          if(world.rank()==0) print(i, "Exiting final loop in K");
+          //if(world.rank()==0) print(i, "Exiting final loop in K");
 
           Kpsis[i].truncate();
      }
@@ -671,10 +671,10 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      if(world.rank()==0) print("          ", times[0]);
 
      //debugging: print fock and overlap matrices
-     if(world.rank()==0){
-          print("fock:\n", fock);
-          print("\noverlap:\n", overlap);
-     }
+     //if(world.rank()==0){
+     //     print("fock:\n", fock);
+     //     print("\noverlap:\n", overlap);
+     //}
      
      if(world.rank()==0) print("     Eigensolver");
      start_timer(world);
@@ -685,7 +685,7 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      if(world.rank()==0) print("          ", times[0]);
 
      //debugging: print matrix of eigenvectors
-     if(world.rank()==0) print("U:\n", U);
+     //if(world.rank()==0) print("U:\n", U);
 
      //Before applying the transformation, fix arbitrary rotations introduced by the eigensolver. 
      if(world.rank()==0) print("     Removing Rotations");
@@ -762,7 +762,7 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      }
 
      //Debugging: Print transformation matrix after rotation removal
-     if(world.rank()==0) print("U:\n", U);
+     //if(world.rank()==0) print("U:\n", U);
      
      
      times = end_timer(world);
