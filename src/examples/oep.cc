@@ -359,7 +359,7 @@ public:
     		set_model_mrks();
     		model = "mRKS";
     	} else {
-            print("oep: no approximate OEP model selected, please choose oaep/ocep/dcep!");
+            print("oep: no approximate OEP model selected, please choose one of the following: oaep/ocep/dcep/mrks");
             MADNESS_EXCEPTION("input error",0);
     	}
 
@@ -793,17 +793,18 @@ public:
     	printf("\n     Ex_HF        = %15.8f  Eh\n", Ex_HF);
     	printf("\n     Ekin_HF (T)  = %15.8f  Eh", Ekin_HF);
     	printf("\n     Ekin_KS (Ts) = %15.8f  Eh\n", Ekin_KS);
-    	printf("\n     DEvir_14     = %15.8f mEh", (Ex_vir - Ex_conv)*1000); // like in Kohut_2014, equation (45)
-    	printf("\n     DEvir_17     = %15.8f mEh\n", (Ex_vir - Ex_HF - 2.0*Tc)*1000); // like in Ospadov_2017, equation (28)
+    	printf("\n     DEvir_14     = %15.8f mEh", (Ex_vir - Ex_conv)*1000.0); // like in Kohut_2014, equation (45)
+    	printf("\n     DEvir_17     = %15.8f mEh\n", (Ex_vir - Ex_HF - 2.0*Tc)*1000.0); // like in Ospadov_2017, equation (28)
     	print("     Drho         =     ", Drho, "e\n\n");
 
     	print("---------------------------------------------------------------------------");
     	double E_0 = compute_E_zeroth(KS_eigvals);
     	double E_1 = compute_E_first(R*KS_nemo, R*Jnemo, R*Knemo, Voep);
 
-    	printf("  E^(0)         = %15.8f  Eh", E_0);
-    	printf("\n  E^(1)         = %15.8f  Eh", E_1);
-    	printf("\n  E^(0) + E^(1) = %15.8f  Eh\n\n", E_0 + E_1);
+    	printf("  E^(0)               = %15.8f  Eh", E_0);
+    	printf("\n  E^(1)               = %15.8f  Eh", E_1);
+    	printf("\n  E^(0) + E^(1)       = %15.8f  Eh", E_0 + E_1);
+    	printf("\n  difference to Econv = %15.8f mEh\n\n", (E_0 + E_1 - Econv)*1000.0);
 
     }
 
@@ -851,7 +852,7 @@ public:
     /// compute Slater potential (Kohut, 2014, equation (15))
     real_function_3d compute_slater_potential(const vecfuncT& nemo, const long homo_ind) const {
 
-        Exchange K(world, this, 0); // no - in K here, so factor -1 must be included at the end
+        Exchange K(world, this, 0);
         vecfuncT Knemo = K(nemo);
         // 2.0*R_square in numerator and density (rho) cancel out upon division
         real_function_3d numerator = dot(world, nemo, Knemo);
@@ -859,7 +860,7 @@ public:
 //        save(numerator, "Slaterpotential_numerator");
 
         // dividing by rho: the minimum value for rho is dens_thresh_lo
-        real_function_3d Vs = -1.0*binary_op(numerator, rho, dens_inv(dens_thresh_inv));
+        real_function_3d Vs = -1.0*binary_op(numerator, rho, dens_inv(dens_thresh_inv)); // in Kohut_2014, -1.0 is included in K
         if (saving_amount >= 3) save(Vs, "Slaterpotential_nolra");
 
         // long-range asymptotic behavior for Slater potential is \int 1/|r-r'| * |phi_HOMO|^2 dr'
@@ -1158,9 +1159,9 @@ public:
     	const double E_J = inner(world, phi, Jphi).sum();
     	const double E_K = inner(world, phi, Kphi).sum();
     	const double E_Vx = inner(world, phi, Vx*phi).sum();
+    	const double E_nuc = calc->molecule.nuclear_repulsion_energy();
 
-    	// closed shell: every orbital contribution must be counted twice, so E^(1) = \sum_i <i|- J - K - 2.0*Vx|i>
-    	double E_1 = -1.0*(E_J + E_K + 2.0*E_Vx);
+    	double E_1 = -1.0*(E_J + E_K + 2.0*E_Vx) + E_nuc;
     	return E_1;
 
     }
