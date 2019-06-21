@@ -379,10 +379,13 @@ namespace madness {
         	/// maximum number of microiterations
         	int maxiter;
 
+        	/// use OEP orbitals
+        	bool do_oep;
+
         	/// ctor reading out the input file
         	Parameters(const std::string& input) : thresh_(-1.0), econv_(-1.0),
         	        dconv_(-1.0), i(-1), j(-1), freeze(0), restart(false),
-        	        maxsub(2), maxiter(20) {
+        	        maxsub(2), maxiter(20), do_oep(false) {
 
         		// get the parameters from the input file
                 std::ifstream f(input.c_str());
@@ -398,6 +401,7 @@ namespace madness {
                     else if (s == "maxsub") f >> maxsub;
                     else if (s == "freeze") f >> freeze;
                     else if (s == "restart") restart=true;
+                    else if (s == "oep") do_oep=true;
                     else continue;
                 }
                 // set default for dconv if not explicitly given

@@ -805,6 +805,15 @@ public:
     	printf("\n  E^(1)         = %15.8f  Eh", E_1);
     	printf("\n  E^(0) + E^(1) = %15.8f  Eh\n\n", E_0 + E_1);
 
+    	print("saving orbitals to restartdata");
+    	Tensor<double> f_pp=compute_fock_diagonal_elements(calc->aeps,KS_nemo,Knemo,Voep);
+
+    	print("KS Fock matrix elements ",calc->aeps);
+    	print("HF Fock matrix elements ",f_pp);
+
+    	calc->aeps=f_pp;
+		if (calc->param.save) calc->save_mos(world);
+
     }
 
     /// get index of HOMO from a given set of orbital energies
@@ -1141,6 +1150,12 @@ public:
 
     }
 
+    Tensor<double> compute_fock_diagonal_elements(const Tensor<double>& KS_eigvals,
+    		const vecfuncT& phi, const vecfuncT& Kphi, const real_function_3d& Vx) const {
+    	return KS_eigvals - inner(world,phi,Kphi) - inner(world,phi,Vx*phi);
+    }
+
+
     /// cumpute E^(0) = \sum_i \epsilon_i^KS
     double compute_E_zeroth(const tensorT eigvals) const {
     	double E_0 = 0.0;
@@ -1158,6 +1173,9 @@ public:
     	const double E_J = inner(world, phi, Jphi).sum();
     	const double E_K = inner(world, phi, Kphi).sum();
     	const double E_Vx = inner(world, phi, Vx*phi).sum();
+    	printf("E_J   %15.8f\n",E_J);
+    	printf("E_K   %15.8f\n",E_K);
+    	printf("E_Vx  %15.8f\n",E_Vx);
 
     	// closed shell: every orbital contribution must be counted twice, so E^(1) = \sum_i <i|- J - K - 2.0*Vx|i>
     	double E_1 = -1.0*(E_J + E_K + 2.0*E_Vx);
