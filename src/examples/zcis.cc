@@ -62,9 +62,9 @@ int main(int argc, char** argv) {
 
     try {
 
-        Znemo nemo(world);
-        nemo.value();
-        Zcis zcis(world,nemo);
+        std::shared_ptr<Znemo> znemo(new Znemo(world));
+        znemo->value();
+        Zcis zcis(world,znemo);
         zcis.value();
 
 

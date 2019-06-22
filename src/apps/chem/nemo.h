@@ -62,61 +62,6 @@ namespace madness {
 
 class PNO;
 
-// this class needs to be moved to vmra.h !!
-
-// This class is used to store information for the non-linear solver
-template<typename T, std::size_t NDIM>
-class vecfunc {
-public:
-	World& world;
-	std::vector<Function<T, NDIM> > x;
-
-	vecfunc(World& world, const std::vector<Function<T, NDIM> >& x1) :
-			world(world), x(x1) {
-	}
-
-	vecfunc(const std::vector<Function<T, NDIM> >& x1) :
-			world(x1[0].world()), x(x1) {
-	}
-
-	vecfunc(const vecfunc& other) :
-			world(other.world), x(other.x) {
-	}
-
-	vecfunc& operator=(const vecfunc& other) {
-		x = other.x;
-		return *this;
-	}
-
-	vecfunc operator-(const vecfunc& b) const {
-		return vecfunc(world, sub(world, x, b.x));
-	}
-
-	vecfunc operator+=(const vecfunc& b) { // Operator+= necessary
-		x = add(world, x, b.x);
-		return *this;
-	}
-
-	vecfunc operator*(double a) const { // Scale by a constant necessary
-
-		PROFILE_BLOCK(Vscale);
-		std::vector<Function<T,NDIM> > result(x.size());
-		for (unsigned int i=0; i<x.size(); ++i) {
-			result[i]=mul(a,x[i],false);
-		}
-		world.gop.fence();
-
-//		scale(world, x, a);
-		return result;
-	}
-};
-
-/// the non-linear solver requires an inner product
-template<typename T, std::size_t NDIM>
-T inner(const vecfunc<T, NDIM>& a, const vecfunc<T, NDIM>& b) {
-	Tensor<T> i = inner(a.world, a.x, b.x);
-	return i.sum();
-}
 
 // The default constructor for functions does not initialize
 // them to any value, but the solver needs functions initialized
@@ -133,15 +78,100 @@ struct allocator {
 	}
 
 	/// allocate a vector of n empty functions
-	vecfunc<T, NDIM> operator()() {
-		return vecfunc<T, NDIM>(world, zero_functions<T, NDIM>(world, n));
+	std::vector<Function<T, NDIM> > operator()() {
+		return zero_functions<T, NDIM>(world, n);
 	}
 };
 
 
+class NemoBase : public MolecularOptimizationTargetInterface {
+
+public:
+
+	NemoBase(World& w) : world(w) {}
+
+	std::shared_ptr<NuclearCorrelationFactor> get_ncf_ptr() const {
+		return nuclear_correlation;
+	}
+
+	/// normalize the nemos
+	template<typename T, std::size_t NDIM>
+	void normalize(std::vector<Function<T,NDIM> >& nemo) const {
+
+		// compute the norm of the reconstructed orbitals, includes the factor
+		std::vector<Function<T,NDIM> > mos = R*nemo;
+		std::vector<double> norms = norm2s(world, mos);
+
+		// scale the nemos, excludes the nuclear correlation factor
+		std::vector<double> invnorm(norms.size());
+		for (std::size_t i = 0; i < norms.size(); ++i)
+			invnorm[i] = 1.0 / norms[i];
+		scale(world, nemo, invnorm);
+	}
+
+	template<typename T>
+    Tensor<T> Q2(const Tensor<T>& s) const {
+		Tensor<T> Q = -0.5*s;
+        for (int i=0; i<s.dim(0); ++i) Q(i,i) += 1.5;
+        return Q;
+    }
+
+	/// orthonormalize the vectors
+	template<typename T, std::size_t NDIM>
+	void orthonormalize(std::vector<Function<T,NDIM> >& nemo, double trantol=FunctionDefaults<NDIM>::get_thresh()*0.01) const {
+	    normalize(nemo);
+	    double maxq;
+	    do {
+	    	std::vector<Function<T,NDIM> > Rnemo=R*nemo;
+	        Tensor<T> Q = Q2(matrix_inner(world, Rnemo, Rnemo));
+	        maxq=0.0;
+	        for (int i=0; i<Q.dim(0); ++i)
+	            for (int j=0; j<i; ++j)
+	                maxq = std::max(maxq,std::abs(Q(i,j)));
+
+	        Q.screen(trantol); // ???? Is this really needed?
+	        nemo = transform(world, nemo, Q, trantol, true);
+	        truncate(world, nemo);
+	        if (world.rank() == 0) print("ORTHOG2: maxq trantol", maxq, trantol);
+
+	    } while (maxq>0.01);
+	    normalize(nemo);
+	}
+
+	void construct_nuclear_correlation_factor(const Molecule& molecule,
+			const std::shared_ptr<PotentialManager> pm,
+			const std::string inputline) {
+
+	    // construct the nuclear correlation factor:
+	    if (not nuclear_correlation) {
+	    	nuclear_correlation=create_nuclear_correlation_factor(world, molecule, pm, inputline);
+	    }
+
+	    // re-project the ncf
+	    nuclear_correlation->initialize(FunctionDefaults<3>::get_thresh());
+	    R = nuclear_correlation->function();
+	    R.set_thresh(FunctionDefaults<3>::get_thresh());
+	    R_square = nuclear_correlation->square();
+	    R_square.set_thresh(FunctionDefaults<3>::get_thresh());
+	}
+
+	World& world;
+
+	/// the nuclear correlation factor
+	std::shared_ptr<NuclearCorrelationFactor> nuclear_correlation;
+
+	/// the nuclear correlation factor
+	real_function_3d R;
+
+    /// the square of the nuclear correlation factor
+    real_function_3d R_square;
+
+
+};
+
 
 /// The Nemo class
-class Nemo: public MolecularOptimizationTargetInterface {
+class Nemo: public NemoBase {
 	typedef std::shared_ptr<real_convolution_3d> poperatorT;
 	friend class PNO;
 	friend class TDHF;
@@ -153,23 +183,6 @@ public:
 	/// @param[in]	world1	the world
 	/// @param[in]	calc	the SCF
 	Nemo(World& world1, std::shared_ptr<SCF> calc);
-
-	void construct_nuclear_correlation_factor() {
-
-		// make sure the nuclear potential is present
-		MADNESS_ASSERT(calc->potentialmanager->vnuclear().is_initialized());
-
-	    // construct the nuclear correlation factor:
-	    if (not nuclear_correlation)
-	        nuclear_correlation=create_nuclear_correlation_factor(world,*calc);
-
-	    // re-project the ncf
-	    nuclear_correlation->initialize(FunctionDefaults<3>::get_thresh());
-	    R = nuclear_correlation->function();
-	    R.set_thresh(FunctionDefaults<3>::get_thresh());
-	    R_square = nuclear_correlation->square();
-	    R_square.set_thresh(FunctionDefaults<3>::get_thresh());
-	}
 
 	double value() {return value(calc->molecule.get_all_coords());}
 
@@ -336,9 +349,6 @@ public:
 
 private:
 
-	/// the world
-	World& world;
-
 	std::shared_ptr<SCF> calc;
 
 	projector_irrep symmetry_projector;
@@ -386,15 +396,6 @@ public:
 	};
 
 public:
-
-	/// the nuclear correlation factor
-	std::shared_ptr<NuclearCorrelationFactor> nuclear_correlation;
-
-	/// the nuclear correlation factor
-	real_function_3d R;
-
-    /// the square of the nuclear correlation factor
-    real_function_3d R_square;
 
     /// return the symmetry_projector
     projector_irrep get_symmetry_projector() const {
@@ -444,7 +445,7 @@ private:
         }
         if ((not R.is_initialized()) or (R.thresh()>thresh)) {
             timer timer1(world);
-            construct_nuclear_correlation_factor();
+            construct_nuclear_correlation_factor(calc->molecule, calc->potentialmanager, calc->param.nuclear_corrfac);
             timer1.end("reproject ncf");
         }
 
@@ -482,14 +483,6 @@ private:
 	void compute_nemo_potentials(const vecfuncT& nemo, vecfuncT& psi,
 			vecfuncT& Jnemo, vecfuncT& Knemo, vecfuncT& pcmnemo,
 			vecfuncT& Unemo) const;
-
-	/// normalize the nemos
-	void normalize(vecfuncT& nemo) const;
-
-    /// orthonormalize the vectors
-
-    /// @param[in,out]	nemo	the vectors to be orthonormalized
-    void orthonormalize(vecfuncT& nemo) const;
 
 	/// return the Coulomb potential
 	real_function_3d get_coulomb_potential(const vecfuncT& psi) const;
@@ -541,13 +534,6 @@ private:
 	void rotate_subspace(World& world, const tensorT& U, solverT& solver,
 			int lo, int nfunc) const;
 
-    tensorT Q2(const tensorT& s) const {
-    	print("s",s);
-        tensorT Q = -0.5*s;
-        for (int i=0; i<s.dim(0); ++i) Q(i,i) += 1.5;
-        print("Q",Q);
-        return Q;
-    }
 
     void make_plots(const real_function_3d &f,const std::string &name="function")const{
         double width = FunctionDefaults<3>::get_cell_min_width()/2.0 - 1.e-3;
@@ -571,11 +557,11 @@ private:
 template<typename solverT>
 void Nemo::rotate_subspace(World& world, const tensorT& U, solverT& solver,
         int lo, int nfunc) const {
-    std::vector < vecfunc<double, 3> > &ulist = solver.get_ulist();
-    std::vector < vecfunc<double, 3> > &rlist = solver.get_rlist();
+    std::vector < std::vector<Function<double, 3> > > &ulist = solver.get_ulist();
+    std::vector < std::vector<Function<double, 3> > > &rlist = solver.get_rlist();
     for (unsigned int iter = 0; iter < ulist.size(); ++iter) {
-        vecfuncT& v = ulist[iter].x;
-        vecfuncT& r = rlist[iter].x;
+        vecfuncT& v = ulist[iter];
+        vecfuncT& r = rlist[iter];
         vecfuncT vnew = transform(world, vecfuncT(&v[lo], &v[lo + nfunc]), U,
                 trantol(), false);
         vecfuncT rnew = transform(world, vecfuncT(&r[lo], &r[lo + nfunc]), U,

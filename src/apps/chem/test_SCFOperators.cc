@@ -643,7 +643,7 @@ int nuclear_anchor_test(World& world) {
 
     // test ncf=slater
     std::shared_ptr<NuclearCorrelationFactor> ncf=
-    create_nuclear_correlation_factor(world, calc);
+    create_nuclear_correlation_factor(world, calc.molecule, calc.potentialmanager, calc.param.nuclear_corrfac);
     ncf->initialize(FunctionDefaults<3>::get_thresh());
 
     Nuclear Vnuc1(world,ncf);
@@ -750,7 +750,7 @@ int dnuclear_anchor_test(World& world) {
 
     // test U2 and U3
     std::shared_ptr<NuclearCorrelationFactor> ncf=
-    create_nuclear_correlation_factor(world, calc);
+    create_nuclear_correlation_factor(world, calc.molecule, calc.potentialmanager, calc.param.nuclear_corrfac);
     ncf->initialize(FunctionDefaults<3>::get_thresh());
     NuclearCorrelationFactor::U2_functor u2f(ncf.get());
     const double u2=inner(gaussian,u2f);
