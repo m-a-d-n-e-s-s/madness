@@ -62,61 +62,6 @@ namespace madness {
 
 class PNO;
 
-// this class needs to be moved to vmra.h !!
-
-// This class is used to store information for the non-linear solver
-template<typename T, std::size_t NDIM>
-class vecfunc {
-public:
-	World& world;
-	std::vector<Function<T, NDIM> > x;
-
-	vecfunc(World& world, const std::vector<Function<T, NDIM> >& x1) :
-			world(world), x(x1) {
-	}
-
-	vecfunc(const std::vector<Function<T, NDIM> >& x1) :
-			world(x1[0].world()), x(x1) {
-	}
-
-	vecfunc(const vecfunc& other) :
-			world(other.world), x(other.x) {
-	}
-
-	vecfunc& operator=(const vecfunc& other) {
-		x = other.x;
-		return *this;
-	}
-
-	vecfunc operator-(const vecfunc& b) const {
-		return vecfunc(world, sub(world, x, b.x));
-	}
-
-	vecfunc operator+=(const vecfunc& b) { // Operator+= necessary
-		x = add(world, x, b.x);
-		return *this;
-	}
-
-	vecfunc operator*(double a) const { // Scale by a constant necessary
-
-		PROFILE_BLOCK(Vscale);
-		std::vector<Function<T,NDIM> > result(x.size());
-		for (unsigned int i=0; i<x.size(); ++i) {
-			result[i]=mul(a,x[i],false);
-		}
-		world.gop.fence();
-
-//		scale(world, x, a);
-		return result;
-	}
-};
-
-/// the non-linear solver requires an inner product
-template<typename T, std::size_t NDIM>
-T inner(const vecfunc<T, NDIM>& a, const vecfunc<T, NDIM>& b) {
-	Tensor<T> i = inner(a.world, a.x, b.x);
-	return i.sum();
-}
 
 // The default constructor for functions does not initialize
 // them to any value, but the solver needs functions initialized
@@ -133,8 +78,8 @@ struct allocator {
 	}
 
 	/// allocate a vector of n empty functions
-	vecfunc<T, NDIM> operator()() {
-		return vecfunc<T, NDIM>(world, zero_functions<T, NDIM>(world, n));
+	std::vector<Function<T, NDIM> > operator()() {
+		return zero_functions<T, NDIM>(world, n);
 	}
 };
 
@@ -568,11 +513,11 @@ private:
 template<typename solverT>
 void Nemo::rotate_subspace(World& world, const tensorT& U, solverT& solver,
         int lo, int nfunc) const {
-    std::vector < vecfunc<double, 3> > &ulist = solver.get_ulist();
-    std::vector < vecfunc<double, 3> > &rlist = solver.get_rlist();
+    std::vector < std::vector<Function<double, 3> > > &ulist = solver.get_ulist();
+    std::vector < std::vector<Function<double, 3> > > &rlist = solver.get_rlist();
     for (unsigned int iter = 0; iter < ulist.size(); ++iter) {
-        vecfuncT& v = ulist[iter].x;
-        vecfuncT& r = rlist[iter].x;
+        vecfuncT& v = ulist[iter];
+        vecfuncT& r = rlist[iter];
         vecfuncT vnew = transform(world, vecfuncT(&v[lo], &v[lo + nfunc]), U,
                 trantol(), false);
         vecfuncT rnew = transform(world, vecfuncT(&r[lo], &r[lo + nfunc]), U,

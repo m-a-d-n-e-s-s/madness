@@ -237,7 +237,7 @@ double Nemo::solve(const SCFProtocol& proto) {
 	bool localized=calc->param.localize;
 
 	typedef allocator<double, 3> allocT;
-	typedef XNonlinearSolver<vecfunc<double, 3>, double, allocT> solverT;
+	typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
 	allocT alloc(world, nemo.size());
 	solverT solver(allocT(world, nemo.size()));
 
@@ -349,7 +349,7 @@ double Nemo::solve(const SCFProtocol& proto) {
 		// kain works best in the quadratic region
 		vecfuncT nemo_new;
 		if (norm < 5.e-1) {
-			nemo_new = (solver.update(nemo, residual)).x;
+			nemo_new = solver.update(nemo, residual);
 		} else {
 			nemo_new = tmp;
 		}
@@ -1302,7 +1302,7 @@ vecfuncT Nemo::solve_cphf(const size_t iatom, const int iaxis, const Tensor<doub
 
     // construct the KAIN solver
     typedef allocator<double, 3> allocT;
-    typedef XNonlinearSolver<vecfunc<double, 3>, double, allocT> solverT;
+    typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
     allocT alloc(world, nemo.size());
     solverT solver(allocT(world, nemo.size()));
     solver.set_maxsub(5);
@@ -1391,7 +1391,7 @@ vecfuncT Nemo::solve_cphf(const size_t iatom, const int iaxis, const Tensor<doub
         const double norm = norm2(world,xi);
 
         if (rms < 1.0) {
-            xi = (solver.update(xi, residual)).x;
+            xi = solver.update(xi, residual);
         } else {
             xi = tmp;
         }
