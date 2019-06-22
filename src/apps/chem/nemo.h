@@ -96,10 +96,11 @@ public:
 
 	/// normalize the nemos
 	template<typename T, std::size_t NDIM>
-	void normalize(std::vector<Function<T,NDIM> >& nemo) const {
+	void normalize(std::vector<Function<T,NDIM> >& nemo,
+			const Function<double,NDIM> metric=Function<double,NDIM>()) const {
 
 		// compute the norm of the reconstructed orbitals, includes the factor
-		std::vector<Function<T,NDIM> > mos = R*nemo;
+		std::vector<Function<T,NDIM> > mos = (metric.is_initialized()) ? metric*nemo : nemo;
 		std::vector<double> norms = norm2s(world, mos);
 
 		// scale the nemos, excludes the nuclear correlation factor
@@ -110,7 +111,7 @@ public:
 	}
 
 	template<typename T>
-    Tensor<T> Q2(const Tensor<T>& s) const {
+    static Tensor<T> Q2(const Tensor<T>& s) {
 		Tensor<T> Q = -0.5*s;
         for (int i=0; i<s.dim(0); ++i) Q(i,i) += 1.5;
         return Q;
@@ -118,11 +119,15 @@ public:
 
 	/// orthonormalize the vectors
 	template<typename T, std::size_t NDIM>
-	void orthonormalize(std::vector<Function<T,NDIM> >& nemo, double trantol=FunctionDefaults<NDIM>::get_thresh()*0.01) const {
-	    normalize(nemo);
+	void orthonormalize(std::vector<Function<T,NDIM> >& nemo,
+			const Function<double,NDIM> metric=Function<double,NDIM>(),
+			const double trantol=FunctionDefaults<NDIM>::get_thresh()*0.01) const {
+
+		if (nemo.size()==0) return;
+	    normalize(nemo,metric);
 	    double maxq;
 	    do {
-	    	std::vector<Function<T,NDIM> > Rnemo=R*nemo;
+			std::vector<Function<T,NDIM> > Rnemo = (metric.is_initialized()) ? metric*nemo : nemo;
 	        Tensor<T> Q = Q2(matrix_inner(world, Rnemo, Rnemo));
 	        maxq=0.0;
 	        for (int i=0; i<Q.dim(0); ++i)
@@ -132,10 +137,10 @@ public:
 	        Q.screen(trantol); // ???? Is this really needed?
 	        nemo = transform(world, nemo, Q, trantol, true);
 	        truncate(world, nemo);
-	        if (world.rank() == 0) print("ORTHOG2: maxq trantol", maxq, trantol);
+//	        if (world.rank() == 0) print("ORTHOG2: maxq trantol", maxq, trantol);
 
 	    } while (maxq>0.01);
-	    normalize(nemo);
+	    normalize(nemo,metric);
 	}
 
 	void construct_nuclear_correlation_factor(const Molecule& molecule,

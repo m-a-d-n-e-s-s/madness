@@ -20,37 +20,13 @@
 #include <chem/molecularbasis.h>
 #include <chem/molecular_optimizer.h>
 #include <madness/mra/operator.h>
+#include <chem/nemo.h>
 
 
 namespace madness {
 
 class Diamagnetic_potential_factor;
 
-
-// The default constructor for functions does not initialize
-// them to any value, but the solver needs functions initialized
-// to zero for which we also need the world object.
-struct allocator {
-	World& world;
-	const int n;
-
-	/// @param[in]	world	the world
-	/// @param[in]	nn		the number of functions in a given vector
-	allocator(World& world, const int nn) :
-			world(world), n(nn) {
-	}
-
-	/// @param[in]	world	the world
-	/// @param[in]	nn		the number of functions in a given vector
-	allocator(const allocator& other) :
-			world(other.world), n(other.n) {
-	}
-
-	/// allocate a vector of n empty functions
-	std::vector<complex_function_3d> operator()() {
-		return zero_functions_compressed<double_complex, 3>(world, n);
-	}
-};
 
 
 struct printleveler {
@@ -146,7 +122,7 @@ public:
 };
 
 
-class Znemo : public MolecularOptimizationTargetInterface {
+class Znemo : public NemoBase {
 	friend class Zcis;
 
 	struct potentials {
@@ -388,22 +364,21 @@ public:
 	void canonicalize(std::vector<complex_function_3d>& amo,
 			std::vector<complex_function_3d>& vnemo,
 			potentials& pot,
-			XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator>& solver,
+			XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator<double_complex,3> >& solver,
 			Tensor<double_complex> fock, Tensor<double_complex> ovlp) const;
 
-	void orthonormalize(std::vector<complex_function_3d>& amo) const;
+//	void orthonormalize(std::vector<complex_function_3d>& amo) const;
 
-	void normalize(std::vector<complex_function_3d>& mo) const;
+//	void normalize(std::vector<complex_function_3d>& mo) const;
 
-	static Tensor<double_complex> Q2(const Tensor<double_complex> & s) {
-		Tensor<double_complex> Q = -0.5*s;
-		for (int i=0; i<s.dim(0); ++i) Q(i,i) += 1.5;
-		return Q;
-	}
+//	static Tensor<double_complex> Q2(const Tensor<double_complex> & s) {
+//		Tensor<double_complex> Q = -0.5*s;
+//		for (int i=0; i<s.dim(0); ++i) Q(i,i) += 1.5;
+//		return Q;
+//	}
 
 protected:
 
-	World& world;
 	Molecule mol;
 	Nemo_complex_Parameters param;
     AtomicBasisSet aobasis;

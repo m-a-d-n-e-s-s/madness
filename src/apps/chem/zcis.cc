@@ -46,8 +46,8 @@ void Zcis::iterate(std::vector<root>& roots) const {
 	const double shift=nemo->param.shift();
 	const bool use_kain=true;
 
-	XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator>
-			allsolver(allocator(world,(active_mo(nemo->amo).size()+active_mo(nemo->bmo).size())*roots.size()));
+	XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator<double_complex,3> >
+			allsolver(allocator<double_complex,3> (world,(active_mo(nemo->amo).size()+active_mo(nemo->bmo).size())*roots.size()));
 
 	for (int iter=0; iter<cis_param.maxiter(); ++iter) {
 		wall1=wall_time();
@@ -575,7 +575,7 @@ void Zcis::orthonormalize(std::vector<root>& roots) const {
 			}
 		}
 
-		Tensor<double_complex> Q = Znemo::Q2(ovlp);
+		Tensor<double_complex> Q = NemoBase::Q2(ovlp);
 		maxq = 0.0;
 		for (int j=1; j<Q.dim(0); j++)
 			for (int i=0; i<j; i++) {

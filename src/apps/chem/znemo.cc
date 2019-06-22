@@ -14,7 +14,7 @@
 
 namespace madness {
 
-Znemo::Znemo(World& w) : world(w), param(world), mol("input"), cparam() {
+Znemo::Znemo(World& world) : NemoBase(world), param(world), mol("input"), cparam() {
 	cparam.read_file("input");
 
     FunctionDefaults<3>::set_k(cparam.k);
@@ -125,8 +125,8 @@ double Znemo::value(const Tensor<double>& x) {
 		aeps=Tensor<double>(amo.size());
 		beps=Tensor<double>(bmo.size());
 
-		orthonormalize(amo);
-		orthonormalize(bmo);
+		orthonormalize(amo,diafac->factor());
+		orthonormalize(bmo,diafac->factor());
 	}
 
 //	test();
@@ -217,8 +217,8 @@ void Znemo::iterate() {
 
 	// the diamagnetic box
 
-	XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator> solvera(allocator(world,amo.size()));
-	XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator> solverb(allocator(world,bmo.size()));
+	XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator<double_complex,3> > solvera(allocator<double_complex,3> (world,amo.size()));
+	XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator<double_complex,3> > solverb(allocator<double_complex,3> (world,bmo.size()));
 	solvera.set_maxsub(cparam.maxsub); // @suppress("Method cannot be resolved")
 	solvera.do_print=(param.printlevel()>2);
 	solverb.set_maxsub(cparam.maxsub);
@@ -327,7 +327,7 @@ void Znemo::iterate() {
 
 		amo=amo_new;
 		truncate(world,amo);
-		orthonormalize(amo);
+		orthonormalize(amo,diafac->factor());
 
 		if (have_beta()) {
 			std::vector<complex_function_3d> resb=compute_residuals(Vnemob,bmo,beps);
@@ -340,7 +340,7 @@ void Znemo::iterate() {
 			do_step_restriction(bmo,bmo_new);
 			bmo=bmo_new;
 			truncate(world,bmo);
-			orthonormalize(bmo);
+			orthonormalize(bmo,diafac->factor());
 		} else {
 			nb=0.0;
 		}
@@ -777,7 +777,7 @@ void
 Znemo::canonicalize(std::vector<complex_function_3d>& amo,
 		std::vector<complex_function_3d>& vnemo,
 		potentials& pot,
-		XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator>& solver,
+		XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator<double_complex,3> >& solver,
 		Tensor<double_complex> fock, Tensor<double_complex> ovlp) const {
 
     Tensor<double_complex> U;
@@ -795,35 +795,35 @@ Znemo::canonicalize(std::vector<complex_function_3d>& amo,
 
 }
 
-
-void Znemo::normalize(std::vector<complex_function_3d>& mo) const {
-	std::vector<complex_function_3d> dia2mo=mo*diafac->factor_square();
-	Tensor<double_complex> n=inner(world,mo,dia2mo);
-	for (int i=0; i<mo.size(); ++i) mo[i].scale(1.0/sqrt(real(n[i])));
-}
-
-
-/// orthonormalize the vectors
-
-/// @param[in]          world   the world
-/// @param[inout]       amo_new the vectors to be orthonormalized
-void
-Znemo::orthonormalize(std::vector<complex_function_3d>& amo) const {
-	if (amo.size()==0) return;
-    normalize(amo);
-    double maxq;
-    do {
-    	std::vector<complex_function_3d> dia2mo=amo*diafac->factor_square();
-        Tensor<double_complex> Q = Q2(matrix_inner(world, dia2mo, amo)); // Q3(matrix_inner(world, amo_new, amo_new))
-        maxq = 0.0;
-        for (int j=1; j<Q.dim(0); j++)
-            for (int i=0; i<j; i++)
-                maxq = std::max(std::abs(Q(j,i)),maxq);
-        amo = transform(world, amo, Q, 0.0, true);
-        truncate(world, amo);
-    } while (maxq>0.01);
-    normalize(amo);
-}
+//
+//void Znemo::normalize(std::vector<complex_function_3d>& mo) const {
+//	std::vector<complex_function_3d> dia2mo=mo*diafac->factor_square();
+//	Tensor<double_complex> n=inner(world,mo,dia2mo);
+//	for (int i=0; i<mo.size(); ++i) mo[i].scale(1.0/sqrt(real(n[i])));
+//}
+//
+//
+///// orthonormalize the vectors
+//
+///// @param[in]          world   the world
+///// @param[inout]       amo_new the vectors to be orthonormalized
+//void
+//Znemo::orthonormalize(std::vector<complex_function_3d>& amo) const {
+//	if (amo.size()==0) return;
+//    normalize(amo);
+//    double maxq;
+//    do {
+//    	std::vector<complex_function_3d> dia2mo=amo*diafac->factor_square();
+//        Tensor<double_complex> Q = Q2(matrix_inner(world, dia2mo, amo)); // Q3(matrix_inner(world, amo_new, amo_new))
+//        maxq = 0.0;
+//        for (int j=1; j<Q.dim(0); j++)
+//            for (int i=0; i<j; i++)
+//                maxq = std::max(std::abs(Q(j,i)),maxq);
+//        amo = transform(world, amo, Q, 0.0, true);
+//        truncate(world, amo);
+//    } while (maxq>0.01);
+//    normalize(amo);
+//}
 
 void Znemo::save_orbitals(std::string suffix) const {
 	suffix="_"+suffix;
