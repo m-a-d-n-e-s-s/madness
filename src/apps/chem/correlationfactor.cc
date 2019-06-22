@@ -35,7 +35,6 @@
 
 
 #include <chem/correlationfactor.h>
-#include <chem/SCF.h>
 
 namespace madness{
 
@@ -45,9 +44,12 @@ namespace madness{
 	/// @param[in]	calc	the calculation as read from the input file
 	/// @return 	a nuclear correlation factor
 	std::shared_ptr<NuclearCorrelationFactor>
-	create_nuclear_correlation_factor(World& world, const SCF& calc) {
+	create_nuclear_correlation_factor(World& world,
+			const Molecule& molecule,
+			const std::shared_ptr<PotentialManager> potentialmanager,
+			const std::string inputline) {
 
-		std::stringstream ss(lowercase(calc.param.nuclear_corrfac));
+		std::stringstream ss(lowercase(inputline));
 		std::string corrfac, factor;
 		ss >> corrfac >> factor;
 
@@ -64,40 +66,40 @@ namespace madness{
 		typedef std::shared_ptr<NuclearCorrelationFactor> ncf_ptr;
 
 		if (corrfac == "gaussslater") {
-			return ncf_ptr(new GaussSlater(world, calc.molecule));
+			return ncf_ptr(new GaussSlater(world, molecule));
 		} else if (corrfac == "linearslater") {
-			return ncf_ptr(new LinearSlater(world, calc.molecule, a));
+			return ncf_ptr(new LinearSlater(world, molecule, a));
         } else if ((corrfac == "gradientalgaussslater") or (corrfac == "ggs")) {
-            return ncf_ptr(new GradientalGaussSlater(world, calc.molecule,a));
+            return ncf_ptr(new GradientalGaussSlater(world, molecule,a));
         } else if (corrfac == "slater") {
-			return ncf_ptr(new Slater(world, calc.molecule, a));
+			return ncf_ptr(new Slater(world, molecule, a));
         } else if (corrfac == "poly4erfc") {
-            return ncf_ptr(new poly4erfc(world, calc.molecule, a));
+            return ncf_ptr(new poly4erfc(world, molecule, a));
 		} else if (corrfac == "polynomial4") {
-			return ncf_ptr(new Polynomial<4>(world, calc.molecule, a ));
+			return ncf_ptr(new Polynomial<4>(world, molecule, a ));
 		} else if (corrfac == "polynomial5") {
-			return ncf_ptr(new Polynomial<5>(world, calc.molecule, a));
+			return ncf_ptr(new Polynomial<5>(world, molecule, a));
 		} else if (corrfac == "polynomial6") {
-			return ncf_ptr(new Polynomial<6>(world, calc.molecule, a));
+			return ncf_ptr(new Polynomial<6>(world, molecule, a));
 		} else if (corrfac == "polynomial7") {
-			return ncf_ptr(new Polynomial<7>(world, calc.molecule, a));
+			return ncf_ptr(new Polynomial<7>(world, molecule, a));
 		} else if (corrfac == "polynomial8") {
-			return ncf_ptr(new Polynomial<8>(world, calc.molecule, a));
+			return ncf_ptr(new Polynomial<8>(world, molecule, a));
 		} else if (corrfac == "polynomial9") {
-			return ncf_ptr(new Polynomial<9>(world, calc.molecule, a));
+			return ncf_ptr(new Polynomial<9>(world, molecule, a));
 		} else if (corrfac == "polynomial10") {
-			return ncf_ptr(new Polynomial<10>(world, calc.molecule, a));
+			return ncf_ptr(new Polynomial<10>(world, molecule, a));
 		} else if ((corrfac == "none") or (corrfac == "one")) {
 			return ncf_ptr(new PseudoNuclearCorrelationFactor(world,
-					calc.molecule,calc.potentialmanager,1.0));
+					molecule,potentialmanager,1.0));
 		} else if (corrfac == "two") {
 			return ncf_ptr(new PseudoNuclearCorrelationFactor(world,
-					calc.molecule,calc.potentialmanager,2.0));
+					molecule,potentialmanager,2.0));
 		} else if (corrfac == "linear") {
 			return ncf_ptr(new PseudoNuclearCorrelationFactor(world,
-					calc.molecule,calc.potentialmanager, a));
+					molecule,potentialmanager, a));
 		} else {
-			if (world.rank()==0) print(calc.param.nuclear_corrfac);
+			if (world.rank()==0) print(inputline);
 			MADNESS_EXCEPTION("unknown nuclear correlation factor", 1);
 			return ncf_ptr();
 		}
