@@ -142,8 +142,8 @@ public:
 
 
 
-	Zcis(World& w, Znemo& n) : world(w), cis_param(world), nemo(n),
-		Qa(world,nemo.amo,nemo.amo), Qb(world,nemo.bmo,nemo.bmo) {
+	Zcis(World& w, std::shared_ptr<Znemo> n) : world(w), cis_param(world), nemo(n),
+		Qa(world,nemo->amo,nemo->amo), Qb(world,nemo->bmo,nemo->bmo) {
 		cis_param.print(cis_param.params);
 		print("Qa projector",Qa.get_ket_vector().size());
 		print("Qb projector",Qb.get_ket_vector().size());
@@ -218,7 +218,7 @@ public:
 	void normalize(std::vector<root>& roots) const;
 
 	void compare_to_file(const std::vector<complex_function_3d>& rhs, const std::string name) const {
-		if (nemo.cparam.spin_restricted) {
+		if (nemo->cparam.spin_restricted) {
 			save_function(rhs,name);
 
 		} else {
@@ -253,7 +253,7 @@ public:
 	Complex_CIS_Parameters cis_param;
 
 	/// the reference
-	Znemo nemo;
+	std::shared_ptr<Znemo> nemo;
 
 	/// orthogonality projector
 	QProjector<double_complex,3> Qa, Qb;

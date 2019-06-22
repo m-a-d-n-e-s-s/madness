@@ -18,6 +18,7 @@
 #include <chem/CalculationParametersBaseMap.h>
 #include <chem/CalculationParameters.h>
 #include <chem/molecularbasis.h>
+#include <chem/molecular_optimizer.h>
 #include <madness/mra/operator.h>
 
 
@@ -145,8 +146,7 @@ public:
 };
 
 
-
-class Znemo {
+class Znemo : public MolecularOptimizationTargetInterface {
 	friend class Zcis;
 
 	struct potentials {
@@ -219,11 +219,22 @@ public:
 	Znemo(World& w);
 
 	/// compute the molecular energy
-	double value();
+	double value() {return value(mol.get_all_coords());}
+
+	/// compute the molecular energy
+	double value(const Tensor<double>& x);
 
 	void iterate();
 
+	Tensor<double> gradient(const Tensor<double>& x);
+	Tensor<double> gradient() {
+		return gradient(mol.get_all_coords());
+	}
+
 	bool test() const;
+
+	const CalculationParameters& get_cparam() const {return cparam;};
+	Molecule& molecule() {return mol;};
 
 	/// test the identity <F| f (T + Vdia ) f |F> = <F|f^2 (T + Udia) |F>
 	bool test_U_potentials() const;
@@ -393,7 +404,7 @@ public:
 protected:
 
 	World& world;
-	Molecule molecule;
+	Molecule mol;
 	Nemo_complex_Parameters param;
     AtomicBasisSet aobasis;
     printleveler print_info=printleveler(2);

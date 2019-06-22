@@ -865,11 +865,12 @@ namespace madness {
             value(x); // Ensures DFT equations are solved at this geometry
             
             functionT rho = calc.make_density(world, calc.aocc, calc.amo);
-            functionT brho = rho;
-            if (!calc.param.spin_restricted)
-                brho = calc.make_density(world, calc.bocc, calc.bmo);
-            rho.gaxpy(1.0, brho, 1.0);
-            
+            if (calc.param.nbeta>0) {
+				functionT brho = rho;
+				if (!calc.param.spin_restricted)
+					brho = calc.make_density(world, calc.bocc, calc.bmo);
+				rho.gaxpy(1.0, brho, 1.0);
+            }
             return calc.derivatives(world,rho);
         }
         
@@ -878,11 +879,12 @@ namespace madness {
             value(molecule.get_all_coords().flat()); // Ensures DFT equations are solved at this geometry
             
             functionT rho = calc.make_density(world, calc.aocc, calc.amo);
-            functionT brho = rho;
-            if (!calc.param.spin_restricted)
-                brho = calc.make_density(world, calc.bocc, calc.bmo);
-            rho.gaxpy(1.0, brho, 1.0);
-            
+            if (calc.param.nbeta>0) {
+				functionT brho = rho;
+				if (!calc.param.spin_restricted )
+					brho = calc.make_density(world, calc.bocc, calc.bmo);
+				rho.gaxpy(1.0, brho, 1.0);
+            }
             energy = calc.current_energy;
             gradient = calc.derivatives(world,rho);
         }

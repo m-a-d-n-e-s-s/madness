@@ -13,8 +13,8 @@ namespace madness {
 
 double Zcis::value() {
 	if (cis_param.swap_ab()) {
-		std::swap(nemo.aeps,nemo.beps);
-		std::swap(nemo.amo,nemo.bmo);
+		std::swap(nemo->aeps,nemo->beps);
+		std::swap(nemo->amo,nemo->bmo);
 		std::swap(Qa,Qb);
 	}
 	std::vector<root> roots;
@@ -35,19 +35,19 @@ void Zcis::iterate(std::vector<root>& roots) const {
 	double wall0=wall_time(), wall1=wall_time();
 
 	// compute ground state densities
-	const real_function_3d adens=real(dot(world,conj(world,nemo.amo),nemo.amo)).truncate();
-	const real_function_3d bdens=real(dot(world,conj(world,nemo.bmo),nemo.bmo)).truncate();
+	const real_function_3d adens=real(dot(world,conj(world,nemo->amo),nemo->amo)).truncate();
+	const real_function_3d bdens=real(dot(world,conj(world,nemo->bmo),nemo->bmo)).truncate();
 	real_function_3d totdens=(adens+bdens).truncate();
-	if (nemo.cparam.spin_restricted) totdens.scale(2.0);
+	if (nemo->cparam.spin_restricted) totdens.scale(2.0);
 	double nelectron=totdens.trace();
 	print("nelectron from the total density",nelectron);
 	totdens.print_size("totdens");
 
-	const double shift=nemo.param.shift();
+	const double shift=nemo->param.shift();
 	const bool use_kain=true;
 
 	XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator>
-			allsolver(allocator(world,(active_mo(nemo.amo).size()+active_mo(nemo.bmo).size())*roots.size()));
+			allsolver(allocator(world,(active_mo(nemo->amo).size()+active_mo(nemo->bmo).size())*roots.size()));
 
 	for (int iter=0; iter<cis_param.maxiter(); ++iter) {
 		wall1=wall_time();
@@ -72,8 +72,8 @@ void Zcis::iterate(std::vector<root>& roots) const {
 			Tensor<double_complex> ovlp(roots.size()),eovlp(roots.size());
 			for (std::size_t i=0; i<roots.size(); ++i) {
 				ovlp(i)=inner(roots[i],roots[i]);
-				eovlp(i)=(inner(world,roots[i].afunction,roots[i].afunction)).trace(noct(nemo.aeps))
-						+(inner(world,roots[i].bfunction,roots[i].bfunction)).trace(noct(nemo.beps));
+				eovlp(i)=(inner(world,roots[i].afunction,roots[i].afunction)).trace(noct(nemo->aeps))
+						+(inner(world,roots[i].bfunction,roots[i].bfunction)).trace(noct(nemo->beps));
 			}
 
 			if (cis_param.printlevel()>2) {
@@ -151,16 +151,16 @@ void Zcis::iterate(std::vector<root>& roots) const {
 
 void Zcis::compute_potentials(std::vector<root>& roots, const real_function_3d& totdens) const {
 	// some numbers
-	const int anoct=noct(nemo.aeps).size();
-	const int bnoct=noct(nemo.beps).size();
+	const int anoct=noct(nemo->aeps).size();
+	const int bnoct=noct(nemo->beps).size();
 	const int noct=anoct+bnoct;
 
 	for (int iroot=0; iroot<cis_param.guess_excitations(); ++iroot) {
 		root& thisroot=roots[iroot];
 		if (thisroot.delta<cis_param.dconv()) continue;
 
-		std::vector<complex_function_3d> td_a=mul(world,thisroot.afunction,active_mo(nemo.amo));
-		std::vector<complex_function_3d> td_b=mul(world,thisroot.bfunction,active_mo(nemo.bmo));
+		std::vector<complex_function_3d> td_a=mul(world,thisroot.afunction,active_mo(nemo->amo));
+		std::vector<complex_function_3d> td_b=mul(world,thisroot.bfunction,active_mo(nemo->bmo));
 		int i=cis_param.freeze();
 		for (auto& a : td_a) save(abs_square(a),"transition_density_a"+stringify(i++)+"root"+stringify(iroot));
 
@@ -168,9 +168,9 @@ void Zcis::compute_potentials(std::vector<root>& roots, const real_function_3d& 
 		std::vector<complex_function_3d> bpot=zero_functions_compressed<double_complex,3>(world,bnoct);
 
 		// compute the perturbed density
-		complex_function_3d denspt=((dot(world,conj(world,thisroot.afunction),active_mo(nemo.amo)) +
-				dot(world,conj(world,thisroot.bfunction),active_mo(nemo.bmo))));
-		if (nemo.cparam.spin_restricted) denspt.scale(2.0);
+		complex_function_3d denspt=((dot(world,conj(world,thisroot.afunction),active_mo(nemo->amo)) +
+				dot(world,conj(world,thisroot.bfunction),active_mo(nemo->bmo))));
+		if (nemo->cparam.spin_restricted) denspt.scale(2.0);
 
 		denspt=conj(denspt);
 		denspt.truncate();
@@ -178,23 +178,23 @@ void Zcis::compute_potentials(std::vector<root>& roots, const real_function_3d& 
 		save(abs_square(denspt),"denspt_root"+stringify(iroot));
 
 		for (std::string spin : {"alpha","beta"}) {
-			if (nemo.cparam.spin_restricted and (spin=="beta")) continue;
+			if (nemo->cparam.spin_restricted and (spin=="beta")) continue;
 
-			const std::vector<complex_function_3d>& mo=(spin=="alpha") ? nemo.amo : nemo.bmo;
-			const std::vector<complex_function_3d>& act_mo=(spin=="alpha") ? active_mo(nemo.amo) : active_mo(nemo.bmo);
+			const std::vector<complex_function_3d>& mo=(spin=="alpha") ? nemo->amo : nemo->bmo;
+			const std::vector<complex_function_3d>& act_mo=(spin=="alpha") ? active_mo(nemo->amo) : active_mo(nemo->bmo);
 			if (act_mo.size()==0) continue;
 
 			std::vector<complex_function_3d>& pot=(spin=="alpha") ? apot : bpot;
 			std::vector<complex_function_3d> x= (spin=="alpha") ? thisroot.afunction : thisroot.bfunction;
 			const QProjector<double_complex,3>& Q=(spin=="alpha") ? Qa : Qb;
-			Tensor<double> occ = (spin=="alpha") ? Tensor<double>(nemo.amo.size()) : Tensor<double>(nemo.bmo.size());
+			Tensor<double> occ = (spin=="alpha") ? Tensor<double>(nemo->amo.size()) : Tensor<double>(nemo->bmo.size());
 			occ=1.0;
 
 			/// zeroth order Fock operator acting on the x functions
-			Znemo::potentials pot_mo=nemo.compute_potentials(mo,totdens,x);
+			Znemo::potentials pot_mo=nemo->compute_potentials(mo,totdens,x);
 			if (spin=="beta") scale(world,pot_mo.spin_zeeman_mo,-1.0);
 
-//			nemo.compute_vmat(mo,vnemo,vlznemo,dianemo,spin_zeeman_nemo,knemo,jnemo);
+//			nemo->compute_vmat(mo,vnemo,vlznemo,dianemo,spin_zeeman_nemo,knemo,jnemo);
 
 
 			pot+=(pot_mo.vnuc_mo+pot_mo.lz_mo+pot_mo.diamagnetic_mo+pot_mo.spin_zeeman_mo
@@ -246,9 +246,9 @@ std::vector<complex_function_3d> Zcis::compute_residuals(root& root) const {
 
 	std::vector<complex_function_3d> x=append(root.afunction,root.bfunction);
 	std::vector<complex_function_3d> pot = append(root.apot,root.bpot);
-	Tensor<double> eps=copy(concatenate(noct(nemo.aeps),noct(nemo.beps))) + root.omega;
+	Tensor<double> eps=copy(concatenate(noct(nemo->aeps),noct(nemo->beps))) + root.omega;
 
-	double global_shift=nemo.param.shift();
+	double global_shift=nemo->param.shift();
 	eps+=global_shift;
 //	print("compute_residuals, eps",eps);
 
@@ -296,7 +296,7 @@ std::vector<complex_function_3d> Zcis::compute_residuals(root& root) const {
 	root.omega+=sou;
 	root.energy_change=sou;
 
-	return residual*nemo.sbox;
+	return residual*nemo->sbox;
 
 }
 
@@ -346,10 +346,10 @@ std::vector<Zcis::root> Zcis::make_guess() const {
 
 	std::vector<complex_function_3d> avirtuals, bvirtuals;
 	Tensor<double> aveps,bveps;		// virtual orbital energies for alpha and beta
-	real_function_3d adens=real(dot(world,conj(world,nemo.amo),nemo.amo)).truncate();
-	real_function_3d bdens=real(dot(world,conj(world,nemo.bmo),nemo.bmo)).truncate();
+	real_function_3d adens=real(dot(world,conj(world,nemo->amo),nemo->amo)).truncate();
+	real_function_3d bdens=real(dot(world,conj(world,nemo->bmo),nemo->bmo)).truncate();
 	real_function_3d density=adens + bdens;
-	if (nemo.cparam.spin_restricted) density.scale(2.0);
+	if (nemo->cparam.spin_restricted) density.scale(2.0);
 
 	density.print_size("density in make_guess");
 
@@ -358,7 +358,7 @@ std::vector<Zcis::root> Zcis::make_guess() const {
 	for (std::string spin : {"alpha","beta"}) {
 		print("spin " ,spin);
 		std::vector<complex_function_3d>& virtuals =(spin=="alpha") ? avirtuals : bvirtuals;
-		std::vector<complex_function_3d> mo= (spin=="alpha") ? active_mo(nemo.amo) : active_mo(nemo.bmo);
+		std::vector<complex_function_3d> mo= (spin=="alpha") ? active_mo(nemo->amo) : active_mo(nemo->bmo);
 		if (mo.size()==0) continue;
 
 		// prepare the list of excitation operators and copied seeds
@@ -394,18 +394,18 @@ std::vector<Zcis::root> Zcis::make_guess() const {
 	}
 
 	// canonicalize virtuals and set up the CIS matrix
-	if (avirtuals.size()>0) canonicalize(nemo.amo,density,avirtuals,aveps);
-	if (bvirtuals.size()>0) canonicalize(nemo.bmo,density,bvirtuals,bveps);
+	if (avirtuals.size()>0) canonicalize(nemo->amo,density,avirtuals,aveps);
+	if (bvirtuals.size()>0) canonicalize(nemo->bmo,density,bvirtuals,bveps);
 
 	// active orbital energies only
-	int anoct=noct(nemo.aeps).size();
-	int bnoct=noct(nemo.beps).size();
-	Tensor<double> oeps=concatenate(noct(nemo.aeps),noct(nemo.beps));
+	int anoct=noct(nemo->aeps).size();
+	int bnoct=noct(nemo->beps).size();
+	Tensor<double> oeps=concatenate(noct(nemo->aeps),noct(nemo->beps));
 	Tensor<double> veps=concatenate(aveps,bveps);
-//	auto [ae,be] = split(veps,nemo.aeps.size());
+//	auto [ae,be] = split(veps,nemo->aeps.size());
 
-	Tensor<double_complex> MCISa=make_CIS_matrix(aveps,noct(nemo.aeps));
-	Tensor<double_complex> MCISb=make_CIS_matrix(bveps,noct(nemo.beps));
+	Tensor<double_complex> MCISa=make_CIS_matrix(aveps,noct(nemo->aeps));
+	Tensor<double_complex> MCISb=make_CIS_matrix(bveps,noct(nemo->beps));
 	Tensor<double_complex> MCIS(MCISa.dim(0)+MCISb.dim(0),MCISa.dim(1)+MCISb.dim(1));
 	if (MCISa.size()>0) MCIS(Slice(0,MCISa.dim(0)-1,1),Slice(0,MCISa.dim(0)-1,1))=MCISa;
 	if (MCISb.size()>0) MCIS(Slice(MCISa.dim(0),-1,1),Slice(MCISa.dim(0),-1,1))=MCISb;
@@ -491,8 +491,8 @@ std::vector<Zcis::root> Zcis::make_guess() const {
 void Zcis::canonicalize(const std::vector<complex_function_3d>& mo, const real_function_3d& density,
 		std::vector<complex_function_3d>& virtuals, Tensor<double>& veps) const {
 
-	Znemo::potentials pot=nemo.compute_potentials(mo,density,virtuals);
-	Tensor<double_complex> fock=nemo.compute_vmat(virtuals,pot);
+	Znemo::potentials pot=nemo->compute_potentials(mo,density,virtuals);
+	Tensor<double_complex> fock=nemo->compute_vmat(virtuals,pot);
 	Kinetic<double_complex,3> T(world);
 	fock+=T(virtuals,virtuals);
 //	print("virtual Fock");

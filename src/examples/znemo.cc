@@ -62,13 +62,32 @@ int main(int argc, char** argv) {
 
     try {
 
-        Znemo nemo(world);
-        double energy=nemo.value();
-        if (world.rank()==0) {
-            printf("final energy   %12.8f\n", energy);
-            printf("finished at time %.1f\n", wall_time());
-        }
+        std::shared_ptr<Znemo> znemo(new Znemo(world));
 
+    	// optimize the geometry if requested
+    	if (znemo->get_cparam().gopt) {
+    		print("\n\n Geometry Optimization                      ");
+    		print(" ----------------------------------------------------------\n");
+    		znemo->get_cparam().gprint(world);
+
+    		Tensor<double> geomcoord = znemo->molecule().get_all_coords().flat();
+    		MolecularOptimizer geom(znemo,
+    				znemo->get_cparam().gmaxiter,
+					znemo->get_cparam().gtol,  //tol
+					znemo->get_cparam().gval,  //value prec
+					znemo->get_cparam().gprec); // grad prec
+
+    		geom.optimize(geomcoord);
+    	} else {
+
+    		// compute the energy to get converged orbitals
+    		const double energy=znemo->value();
+    		if (world.rank()==0) {
+    			printf("final energy   %12.8f\n", energy);
+    			printf("finished at time %.1f\n", wall_time());
+    		}
+
+    	}
 
     } catch (const SafeMPI::Exception& e) {
         print(e);
