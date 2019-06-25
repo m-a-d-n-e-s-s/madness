@@ -52,6 +52,10 @@ Znemo::Znemo(World& world) : NemoBase(world), param(world), mol("input"), cparam
 		MADNESS_EXCEPTION("the molecule of the reference calculation was reoriented\n\n",1);
 	}
 
+    potentialmanager = std::shared_ptr<PotentialManager>(new PotentialManager(mol, cparam.core_type));
+    construct_nuclear_correlation_factor(mol, potentialmanager, cparam.nuclear_corrfac);
+
+
 	coulop=std::shared_ptr<real_convolution_3d>(CoulombOperatorPtr(world,cparam.lo,cparam.econv));
 };
 
@@ -109,11 +113,7 @@ double Znemo::value(const Tensor<double>& x) {
 
 	// compute the molecular potential
 	mol.set_all_coords(x.reshape(mol.natom(),3));
-	Molecule& m=mol;
-	auto molecular_potential = [m] (const coord_3d& r) {
-		return m.nuclear_attraction_potential(r[0],r[1],r[2]);};
-	vnuclear=real_factory_3d(world).functor(molecular_potential).thresh(FunctionDefaults<3>::get_thresh()*0.1);
-	vnuclear.set_thresh(FunctionDefaults<3>::get_thresh());
+	potentialmanager->make_nuclear_potential(world);
 
 	// read the guess orbitals
 	try {
@@ -125,8 +125,8 @@ double Znemo::value(const Tensor<double>& x) {
 		aeps=Tensor<double>(amo.size());
 		beps=Tensor<double>(bmo.size());
 
-		orthonormalize(amo,diafac->factor());
-		orthonormalize(bmo,diafac->factor());
+		amo=orthonormalize(amo);
+		bmo=orthonormalize(bmo);
 	}
 
 //	test();
@@ -327,7 +327,7 @@ void Znemo::iterate() {
 
 		amo=amo_new;
 		truncate(world,amo);
-		orthonormalize(amo,diafac->factor());
+		amo=orthonormalize(amo);
 
 		if (have_beta()) {
 			std::vector<complex_function_3d> resb=compute_residuals(Vnemob,bmo,beps);
@@ -340,11 +340,24 @@ void Znemo::iterate() {
 			do_step_restriction(bmo,bmo_new);
 			bmo=bmo_new;
 			truncate(world,bmo);
-			orthonormalize(bmo,diafac->factor());
+			bmo=orthonormalize(bmo);
 		} else {
 			nb=0.0;
 		}
 	}
+}
+
+
+std::vector<complex_function_3d> Znemo::orthonormalize(const std::vector<complex_function_3d>& mo) const {
+	std::vector<complex_function_3d> result=copy(world,mo);
+	NemoBase::orthonormalize(result,diafac->factor()*R);
+	return result;
+}
+
+std::vector<complex_function_3d> Znemo::normalize(const std::vector<complex_function_3d>& mo) const {
+	std::vector<complex_function_3d> result=copy(world,mo);
+	NemoBase::normalize(result,diafac->factor()*R);
+	return result;
 }
 
 void Znemo::analyze() const {
@@ -688,7 +701,7 @@ Znemo::potentials Znemo::compute_potentials(const std::vector<complex_function_3
 
 	pot.J_mo=(*coulop)(density)*rhs;
 	pot.K_mo=K(rhs);
-	pot.vnuc_mo=vnuclear*rhs;
+	pot.vnuc_mo=potentialmanager->vnuclear()*rhs;
 
 	pot.lz_mo=0.5*B[2]*Lz(world,false)(rhs);
 	pot.lz_commutator=diafac->compute_lz_commutator()*rhs;
@@ -795,35 +808,6 @@ Znemo::canonicalize(std::vector<complex_function_3d>& amo,
 
 }
 
-//
-//void Znemo::normalize(std::vector<complex_function_3d>& mo) const {
-//	std::vector<complex_function_3d> dia2mo=mo*diafac->factor_square();
-//	Tensor<double_complex> n=inner(world,mo,dia2mo);
-//	for (int i=0; i<mo.size(); ++i) mo[i].scale(1.0/sqrt(real(n[i])));
-//}
-//
-//
-///// orthonormalize the vectors
-//
-///// @param[in]          world   the world
-///// @param[inout]       amo_new the vectors to be orthonormalized
-//void
-//Znemo::orthonormalize(std::vector<complex_function_3d>& amo) const {
-//	if (amo.size()==0) return;
-//    normalize(amo);
-//    double maxq;
-//    do {
-//    	std::vector<complex_function_3d> dia2mo=amo*diafac->factor_square();
-//        Tensor<double_complex> Q = Q2(matrix_inner(world, dia2mo, amo)); // Q3(matrix_inner(world, amo_new, amo_new))
-//        maxq = 0.0;
-//        for (int j=1; j<Q.dim(0); j++)
-//            for (int i=0; i<j; i++)
-//                maxq = std::max(std::abs(Q(j,i)),maxq);
-//        amo = transform(world, amo, Q, 0.0, true);
-//        truncate(world, amo);
-//    } while (maxq>0.01);
-//    normalize(amo);
-//}
 
 void Znemo::save_orbitals(std::string suffix) const {
 	suffix="_"+suffix;

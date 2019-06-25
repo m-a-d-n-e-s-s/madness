@@ -367,15 +367,9 @@ public:
 			XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator<double_complex,3> >& solver,
 			Tensor<double_complex> fock, Tensor<double_complex> ovlp) const;
 
-//	void orthonormalize(std::vector<complex_function_3d>& amo) const;
+	std::vector<complex_function_3d> orthonormalize(const std::vector<complex_function_3d>& mo) const;
 
-//	void normalize(std::vector<complex_function_3d>& mo) const;
-
-//	static Tensor<double_complex> Q2(const Tensor<double_complex> & s) {
-//		Tensor<double_complex> Q = -0.5*s;
-//		for (int i=0; i<s.dim(0); ++i) Q(i,i) += 1.5;
-//		return Q;
-//	}
+	std::vector<complex_function_3d> normalize(const std::vector<complex_function_3d>& mo) const;
 
 protected:
 
@@ -393,7 +387,7 @@ protected:
 	coord_3d B;
 
 	/// nuclear potential
-	real_function_3d vnuclear;
+	std::shared_ptr<PotentialManager> potentialmanager;
 
 	/// the molecular orbitals -- alpha
 	std::vector<complex_function_3d> amo, bmo;
