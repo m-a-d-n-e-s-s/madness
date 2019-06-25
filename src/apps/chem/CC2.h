@@ -183,7 +183,7 @@ namespace madness {
 
       // KAIN solver
       typedef allocator<double, 3> allocT;
-      typedef XNonlinearSolver<vecfunc<double, 3>, double, allocT> solverT;
+      typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
       allocT alloc(world,singles.size());
       solverT solver(allocT(world,singles.size()));
       solver.do_print=(world.rank() == 0);
@@ -316,7 +316,7 @@ namespace madness {
 	// update singles
 	singles.omega=omega;
 	vector_real_function_3d new_singles=GV;
-	if(parameters.kain) new_singles=solver.update(singles.get_vecfunction(),residual).x;
+	if(parameters.kain) new_singles=solver.update(singles.get_vecfunction(),residual);
 	print_size(world,new_singles,"new_singles");
 	truncate(world,new_singles);
 	print_size(world,new_singles,"new_singles");

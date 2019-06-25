@@ -48,6 +48,7 @@
 #include <cmath>
 #include <madness/tensor/tensor.h>
 #include <madness/misc/misc.h>
+#include <madness/mra/mra.h>
 
 namespace madness {
 class MolecularPotentialFunctor : public FunctionFunctorInterface<double,3> {
