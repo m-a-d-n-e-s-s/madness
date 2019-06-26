@@ -355,7 +355,8 @@ public:
 	std::vector<complex_function_3d> compute_residuals(
 			const std::vector<complex_function_3d>& Vpsi,
 			const std::vector<complex_function_3d>& psi,
-			Tensor<double>& eps) const;
+			Tensor<double>& eps,
+			const double levelshift=0.0) const;
 
 	void canonicalize(std::vector<complex_function_3d>& amo,
 			std::vector<complex_function_3d>& vnemo,

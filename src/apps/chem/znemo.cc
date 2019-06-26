@@ -266,7 +266,8 @@ void Znemo::iterate() {
 		if (converged) break;
 
 		// compute the residual of the Greens' function
-		std::vector<complex_function_3d> resa=compute_residuals(Vnemoa,amo,aeps);	// 2.16
+		double levelshifta=param.shift()-param.physical_B()*0.5;	// account for spin zeeman term
+		std::vector<complex_function_3d> resa=compute_residuals(Vnemoa,amo,aeps,levelshifta);	// 2.16
 
 		Tensor<double> normsa=real(inner(world,make_bra(resa),resa));
 		na=sqrt(normsa.sumsq());
@@ -279,7 +280,8 @@ void Znemo::iterate() {
 		amo=truncate(orthonormalize(amo_new));
 
 		if (have_beta()) {
-			std::vector<complex_function_3d> resb=compute_residuals(Vnemob,bmo,beps);
+			double levelshiftb=param.shift()+param.physical_B()*0.5;	// account for spin zeeman term
+			std::vector<complex_function_3d> resb=compute_residuals(Vnemob,bmo,beps,levelshiftb);
 			truncate(world,resb);
 			Tensor<double> normsb=real(inner(world,make_bra(resb),resb));
 			nb=sqrt(normsb.sumsq());
@@ -413,7 +415,7 @@ double Znemo::compute_energy_no_confinement(const std::vector<complex_function_3
     double_complex spin_zeeman=fac*(inner(world,dia2amo,apot.spin_zeeman_mo).sum()+inner(world,dia2bmo,bpot.spin_zeeman_mo).sum());
     double_complex coulomb=fac*0.5*(inner(world,dia2amo,apot.J_mo).sum()+inner(world,dia2bmo,bpot.J_mo).sum());
     double_complex exchange=fac*0.5*(inner(world,dia2amo,apot.K_mo).sum()+inner(world,dia2bmo,bpot.K_mo).sum());
-    double_complex zeeman_R_comm=fac*(inner(world,dia2amo,apot.zeeman_R_comm).sum()+inner(world,dia2bmo,bpot.zeeman_R_comm).sum());
+    double_complex zeeman_R_comm=0.0;//fac*(inner(world,dia2amo,apot.zeeman_R_comm).sum()+inner(world,dia2bmo,bpot.zeeman_R_comm).sum());
 
     double_complex energy=kinetic + nuclear_potential + mol.nuclear_repulsion_energy() +
     		diamagnetic + lzval + spin_zeeman + coulomb - exchange + zeeman_R_comm;
@@ -730,7 +732,8 @@ std::vector<complex_function_3d>
 Znemo::compute_residuals(
 		const std::vector<complex_function_3d>& Vpsi,
 		const std::vector<complex_function_3d>& psi,
-		Tensor<double>& eps) const {
+		Tensor<double>& eps,
+		double levelshift) const {
 	timer residual_timer(world,print_info.print_timings());
 
 	double tol = FunctionDefaults < 3 > ::get_thresh();
@@ -738,11 +741,11 @@ Znemo::compute_residuals(
     std::vector < std::shared_ptr<real_convolution_3d> > ops(psi.size());
     for (int i=0; i<eps.size(); ++i) {
     	ops[i]=std::shared_ptr<real_convolution_3d>(
-    			BSHOperatorPtr3D(world, sqrt(-2.*std::min(-0.05,eps(i)+param.shift())),
+    			BSHOperatorPtr3D(world, sqrt(-2.*std::min(-0.05,eps(i)+levelshift)),
     					cparam.lo*0.001, tol*0.001));
     }
 
-    std::vector<complex_function_3d> tmp = apply(world,ops,-2.0*Vpsi-2.0*param.shift()*psi);
+    std::vector<complex_function_3d> tmp = apply(world,ops,-2.0*Vpsi-2.0*levelshift*psi);
 
     const std::vector<complex_function_3d> res=truncate(psi-tmp);
     const std::vector<complex_function_3d> bra_res=make_bra(res);
