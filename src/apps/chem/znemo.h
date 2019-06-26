@@ -212,8 +212,10 @@ public:
 	/// test the identity <F| f (T + Vdia ) f |F> = <F|f^2 (T + Udia) |F>
 	bool test_U_potentials() const;
 
-	// analyse the results only
-	void analyze() const;
+	/// analyse the results only
+
+	/// @return	the energy
+	double analyze() const;
 
 	/// compute the expectation value of the kinetic momentum p
 	Tensor<double> compute_kinetic_momentum() const {
@@ -260,9 +262,6 @@ public:
 	std::vector<real_function_3d> compute_current_density(
 			const std::vector<complex_function_3d>& alpha_mo,
 			const std::vector<complex_function_3d>& beta_mo) const;
-
-	/// solve the SCF iterations
-	void solve_SCF();
 
 	/// compute the magnetic vector potential A
 	static std::vector<real_function_3d> compute_magnetic_vector_potential(World& world,
@@ -347,7 +346,7 @@ public:
 	/// compute the potential operators applied on the orbitals
 	potentials compute_potentials(const std::vector<complex_function_3d>& mo,
 			const real_function_3d& density,
-			std::vector<complex_function_3d>& rhs) const;
+			const std::vector<complex_function_3d>& rhs) const;
 
 	Tensor<double_complex> compute_vmat(
 			const std::vector<complex_function_3d>& mo,
@@ -367,6 +366,16 @@ public:
 	std::vector<complex_function_3d> orthonormalize(const std::vector<complex_function_3d>& mo) const;
 
 	std::vector<complex_function_3d> normalize(const std::vector<complex_function_3d>& mo) const;
+
+
+	real_function_3d compute_nemo_density(const std::vector<complex_function_3d>& amo,
+			const std::vector<complex_function_3d>& bmo) const {
+		real_function_3d density=NemoBase::compute_density(amo);
+		if (have_beta()) density+=NemoBase::compute_density(bmo);
+		if (cparam.spin_restricted) density=density.scale(2.0);
+		return density;
+	}
+
 
 	real_function_3d compute_density(const std::vector<complex_function_3d>& amo,
 			const std::vector<complex_function_3d>& bmo) const;

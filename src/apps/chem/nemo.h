@@ -165,6 +165,11 @@ public:
 	    R_square.set_thresh(FunctionDefaults<3>::get_thresh());
 	}
 
+
+	/// compute the nuclear gradients
+	Tensor<double> compute_gradient(const real_function_3d& rhonemo,
+			const Molecule& molecule) const;
+
 	World& world;
 
 	/// the nuclear correlation factor

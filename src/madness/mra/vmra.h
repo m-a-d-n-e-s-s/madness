@@ -627,9 +627,9 @@ namespace madness {
 
     /// Computes the 2-norm of a vector of functions
     template <typename T, std::size_t NDIM>
-    double norm2(World& world,
-                              const std::vector< Function<T,NDIM> >& v) {
+    double norm2(World& world,const std::vector< Function<T,NDIM> >& v) {
         PROFILE_BLOCK(Vnorm2);
+        if (v.size()==0) return 0.0;
         std::vector<double> norms(v.size());
         for (unsigned int i=0; i<v.size(); ++i) norms[i] = v[i].norm2sq_local();
         world.gop.sum(&norms[0], norms.size());
