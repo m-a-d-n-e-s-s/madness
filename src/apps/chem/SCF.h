@@ -407,6 +407,28 @@ namespace madness {
         
         /// getter for the occupation numbers, alpha spin
         const tensorT& get_bocc() const {return bocc;}
+
+        /// function for printing occupancies, useful in the case where explicit occupancies were given
+        void print_occs()
+        {
+            long naocc = aocc.size();
+
+            long nbocc = 0;
+            if (param.nbeta != 0 && !param.spin_restricted) {
+                nbocc = bocc.size();
+            }
+           
+            // assuming aocc must always be equal to or longer than bocc
+            printf("\tOccupancies:\n");
+            for (long i = 0; i < naocc; ++i) {
+                printf("\t%10.6f\t", aocc(i));
+                if (i < nbocc){
+                   printf("%10.6f\t", bocc(i));
+                }
+                printf("\n");
+            }
+            printf("\n");
+        }
         
         bool is_spin_restricted() const {return param.spin_restricted;}
         
@@ -741,7 +763,8 @@ namespace madness {
             
             int nvalpha = calc.param.nmo_alpha - calc.param.nalpha;
             int nvbeta = calc.param.nmo_beta - calc.param.nbeta;
-            int nvalpha_start, nv_old;
+            int nvalpha_start, nvalpha_end, nv_old;
+            int maxiter_final = calc.param.maxiter;
             
             // initialize the PCM solver for this geometry
             if (calc.param.pcm_data != "none") {
@@ -755,19 +778,34 @@ namespace madness {
                 
                 //repeat with gradually decreasing nvirt, only for first protocol
                 if (proto == 0 && nvalpha > 0){
-                    nvalpha_start = nvalpha * calc.param.nv_factor;}
+                    nvalpha_start = nvalpha;
+                    nvalpha_end = nvalpha - calc.param.nv_extra;}
                 else{
-                    nvalpha_start = nvalpha;}
+                    nvalpha_start = nvalpha - calc.param.nv_extra;
+                    nvalpha_end = nvalpha - calc.param.nv_extra;}
                 
                 nv_old = nvalpha_start;
                 
-                for (int nv=nvalpha_start;nv>=nvalpha;nv-=nvalpha){
+                int step;
+                if (calc.param.nv_extra > 0 && calc.param.nv_step == 0)
+                    step=calc.param.nv_extra;
+                else
+                    step=calc.param.nv_step;
+                // to make sure we eventually exit loop
+                if (step==0) step=1;
+
+                for (int nv=nvalpha_start;nv>=nvalpha_end;nv-=step){
                     
                     if (nv > 0 && world.rank() == 0) std::cout << "Running with " << nv << " virtual states" << std::endl;
                     
+                    if (nv > nvalpha_end){
+                        calc.param.maxiter = calc.param.nv_its;}
+                    else if (nvalpha > 0){
+                        calc.param.maxiter = maxiter_final;}
+
                     calc.param.nmo_alpha = calc.param.nalpha + nv;
                     // check whether this is sensible for spin restricted case
-                    if (calc.param.nbeta && !calc.param.spin_restricted){
+                    if (calc.param.nbeta){
                         if (nvbeta == nvalpha){
                             calc.param.nmo_beta = calc.param.nbeta + nv;}
                         else{
@@ -799,17 +837,17 @@ namespace madness {
                     else {
                         if (nv != nv_old){
                             calc.amo.resize(calc.param.nmo_alpha);
-                            calc.bmo.resize(calc.param.nmo_beta);
                             
                             calc.aocc = tensorT(calc.param.nmo_alpha);
                             for (int i = 0; i < calc.param.nalpha; ++i)
                                 calc.aocc[i] = 1.0;
-                            
-                            calc.bocc = tensorT(calc.param.nmo_beta);
-                            for (int i = 0; i < calc.param.nbeta; ++i)
-                                calc.bocc[i] = 1.0;
-                            
-                            // might need to resize aset, bset, but for the moment this doesn't seem to be necessary
+
+                            if (calc.param.nbeta){
+                                calc.bmo.resize(calc.param.nmo_beta);
+                                                     
+                                calc.bocc = tensorT(calc.param.nmo_beta);
+                                for (int i = 0; i < calc.param.nbeta; ++i)
+                                    calc.bocc[i] = 1.0;}
                             
                         }
                         calc.project(world);

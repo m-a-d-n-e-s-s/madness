@@ -91,6 +91,7 @@ struct CalculationParameters {
     bool conv_only_dens;        ///< If true remove bsh_residual from convergence criteria   how ugly name is...
     bool psp_calc;              ///< pseudopotential calculation for all atoms
     bool print_dipole_matels;   ///< If true output dipole matrix elements
+    bool explicit_occ;          ///< If true there should be an accompanying "occup" block which sets some input occupancies
     // Next list inferred parameters
     int nalpha;                 ///< Number of alpha spin electrons
     int nbeta;                  ///< Number of beta  spin electrons
@@ -114,11 +115,16 @@ struct CalculationParameters {
     bool tdksprop;               ///< time-dependent Kohn-Sham equation propagate
     std::string nuclear_corrfac;    ///< nuclear correlation factor
     bool pure_ae;                 ///< pure all electron calculation with no pseudo-atoms
-    int nv_factor;              ///< factor to multiply number of virtual orbitals with when automatically decreasing nvirt
+    // variables for calculations with automatically decreasing number of virtual states:
+    // do nv_its iters for nvalpha, then nv_its iters for nvalpha-nv_step etc. until reach nvalpha-nv_extra states
+    int nv_extra;               ///< number of extra virtual states when automatically decreasing nvirt
+    int nv_step;                ///< number of virtual states to decrease by
+    int nv_its;                 ///< maximum number of iterations for each number of virtual states
     int vnucextra; // load balance parameter for nuclear pot.
     int loadbalparts = 2; // was 6
     std::string pcm_data;            ///< do a PCM (solvent) calculation
     std::string ac_data;             ///< do a calculation with asymptotic correction (see ACParameters class in chem/AC.h for details)
+    std::vector<long> input_aocc, input_bocc;      // input occupancies in case of explicit occupancies
 
     // Next list for response code from a4v4
     bool response;                    ///< response function calculation
@@ -150,7 +156,8 @@ struct CalculationParameters {
         ar & xc_data & protocol_data;
         ar & gopt & gtol & gtest & gval & gprec & gmaxiter & ginitial_hessian & algopt & tdksprop
         & nuclear_corrfac & psp_calc & print_dipole_matels & pure_ae & hessian & read_cphf & restart_cphf
-        & purify_hessian & vnucextra & loadbalparts & pcm_data & ac_data;
+        & purify_hessian & vnucextra & loadbalparts & pcm_data & ac_data & explicit_occ & input_aocc & input_bocc
+        & nv_extra & nv_step & nv_its;
     }
 
     CalculationParameters()
@@ -191,6 +198,7 @@ struct CalculationParameters {
     , conv_only_dens(false)
     , psp_calc(false)
     , print_dipole_matels(false)
+    , explicit_occ(false)
     , nalpha(0)
     , nbeta(0)
     , nmo_alpha(0)
@@ -213,7 +221,9 @@ struct CalculationParameters {
     , tdksprop(false)
     , nuclear_corrfac("none")
     , pure_ae(true)
-    , nv_factor(1)
+    , nv_extra(0)
+    , nv_step(0)
+    , nv_its(5)
     , vnucextra(12)
     , loadbalparts(2)
     , pcm_data("none")
@@ -470,9 +480,18 @@ struct CalculationParameters {
             else if (s == "print_dipole_matels") {
                 print_dipole_matels = true;
             }
-            else if (s == "nv_factor") {
-                f >> nv_factor;
+            else if (s == "explicit_occ") {
+                explicit_occ = true;
             }
+            else if (s == "nv_extra") {
+                f >> nv_extra;
+            }
+            else if (s == "nv_step") {
+                f >> nv_step;
+            }
+            else if (s == "nv_its") {
+                f >> nv_its;
+             }
             else if (s == "response") {
                 response = true;
             }
@@ -517,6 +536,30 @@ struct CalculationParameters {
         }
         if (nopen != 0) spin_restricted = false;
         if (nvalpha || nvbeta) localize = false; // must use canonical orbitals if computing virtuals
+
+        // if and only if the variable is present, read the input block corresponding to the explicit occupancies
+        // note that everything beyond the actual number of occupied states is ignored
+        // i.e. virtual state occupancies are ignored
+        // similarly, if not enough states are specified, everything beyond that point remains unmodified
+        // also, if spin unrestricted, boccs will be ignored
+        if (explicit_occ) {
+            position_stream(f, "occup");
+            double a, b;
+
+            while (std::getline(f,s)) {
+                std::istringstream ss(s);
+                std::string tag;
+                if (s == "end") {
+                    break;
+                }
+                else {
+                    ss >> a >> b;
+                    input_aocc.push_back(a);
+                    input_bocc.push_back(b);
+                }
+            }
+        }
+
     }
 
     void set_molecular_info(const Molecule& molecule, const AtomicBasisSet& aobasis, unsigned int n_core) {
@@ -647,6 +690,17 @@ struct CalculationParameters {
             madness::print(" psp or all electron ", "all electron");
         else
             madness::print(" psp or all electron ", "mixed psp/AE");
+        if (explicit_occ){
+            madness::print("  explicit occupancy ");
+        }
+        if (nvalpha > 0){
+            madness::print("  number of virtuals ", nvalpha, nvbeta);
+            if (nv_extra > 0 && nv_its > 0){
+                madness::print(" num. extra virtuals ", nv_extra);
+                madness::print("decrease virtuals by ", nv_step);
+                madness::print("    max. virtual its ", nv_its);
+            }
+        }
     }
 
     void gprint(World& world) const {
