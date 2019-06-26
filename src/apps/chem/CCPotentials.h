@@ -127,7 +127,7 @@ namespace madness {
       return make_bra(t.get_vecfunction());
     }
     vector_real_function_3d make_bra(const vector_real_function_3d &t)const{
-      vector_real_function_3d bra= mul(world,nemo_.nuclear_correlation->square(),t);
+      vector_real_function_3d bra= mul(world,nemo_.ncf->square(),t);
       truncate(world,bra);
       return bra;
     }

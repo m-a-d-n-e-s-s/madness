@@ -885,7 +885,7 @@ Tensor<double> TDHF::make_perturbed_fock_matrix(const std::vector<CC_vecfunction
 				Vnuc = nemo.get_calc()->potentialmanager->vnuclear();
 			}
 
-			const real_function_3d R = nemo.nuclear_correlation -> function();
+			const real_function_3d R = nemo.ncf -> function();
 			std::vector<vector_real_function_3d> Rx(x.size(),zero_functions<double,3>(world,x.front().size()));
 			CCTimer timeR(world,"make Rx");
 			for(size_t k=0;k<x.size();k++){

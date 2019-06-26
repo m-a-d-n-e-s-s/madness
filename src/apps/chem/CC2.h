@@ -68,13 +68,13 @@ namespace madness {
       parameters.sanity_check(world);
 
       std::string nuc="???";
-      if(nemo.nuclear_correlation->type() == NuclearCorrelationFactor::None) nuc="None";
-      else if(nemo.nuclear_correlation->type() == NuclearCorrelationFactor::GaussSlater) nuc="GaussSlater";
-      else if(nemo.nuclear_correlation->type() == NuclearCorrelationFactor::GradientalGaussSlater) nuc="GradientalGaussSlater";
-      else if(nemo.nuclear_correlation->type() == NuclearCorrelationFactor::LinearSlater) nuc="LinearSlater";
-      else if(nemo.nuclear_correlation->type() == NuclearCorrelationFactor::Polynomial) nuc="Polynomial";
-      else if(nemo.nuclear_correlation->type() == NuclearCorrelationFactor::Slater) nuc="Slater";
-      else if(nemo.nuclear_correlation->type() == NuclearCorrelationFactor::Two) nuc="Two";
+      if(nemo.ncf->type() == NuclearCorrelationFactor::None) nuc="None";
+      else if(nemo.ncf->type() == NuclearCorrelationFactor::GaussSlater) nuc="GaussSlater";
+      else if(nemo.ncf->type() == NuclearCorrelationFactor::GradientalGaussSlater) nuc="GradientalGaussSlater";
+      else if(nemo.ncf->type() == NuclearCorrelationFactor::LinearSlater) nuc="LinearSlater";
+      else if(nemo.ncf->type() == NuclearCorrelationFactor::Polynomial) nuc="Polynomial";
+      else if(nemo.ncf->type() == NuclearCorrelationFactor::Slater) nuc="Slater";
+      else if(nemo.ncf->type() == NuclearCorrelationFactor::Two) nuc="Two";
       if(world.rank() == 0) std::cout << "Nuclear Correlation Factor is " << nuc << std::endl;
 
     }
@@ -267,7 +267,7 @@ namespace madness {
 	if(ctype==CT_LRCCS or ctype==CT_LRCC2 or ctype==CT_ADC2){
 	  output("Normalizing new singles");
 	  const vector_real_function_3d x = GV;
-	  const vector_real_function_3d xbra = mul(world,nemo.nuclear_correlation->square(),GV);
+	  const vector_real_function_3d xbra = mul(world,nemo.ncf->square(),GV);
 	  const double norm = sqrt(inner(world,xbra,x).sum());
 	  if(world.rank()==0) std::cout << " Norm was " <<std::fixed<< std::setprecision(parameters.output_prec) << norm << "\n";
 	  scale(world,GV,1.0/norm);
@@ -277,9 +277,9 @@ namespace madness {
 	const vector_real_function_3d residual=sub(world,singles.get_vecfunction(),GV);
 
 	// information
-	const Tensor<double> R2xinnerx=inner(world,mul(world,nemo.nuclear_correlation->square(),singles.get_vecfunction()),singles.get_vecfunction());
-	const Tensor<double> R2GVinnerGV=inner(world,mul(world,nemo.nuclear_correlation->square(),GV),GV);
-	const Tensor<double> R2rinnerr=inner(world,mul(world,nemo.nuclear_correlation->square(),residual),residual);
+	const Tensor<double> R2xinnerx=inner(world,mul(world,nemo.ncf->square(),singles.get_vecfunction()),singles.get_vecfunction());
+	const Tensor<double> R2GVinnerGV=inner(world,mul(world,nemo.ncf->square(),GV),GV);
+	const Tensor<double> R2rinnerr=inner(world,mul(world,nemo.ncf->square(),residual),residual);
 	const double R2vector_error=sqrt(R2rinnerr.sum());
 
 	// print information
@@ -300,8 +300,8 @@ namespace madness {
 	  output("\nMake 2nd order energy update:");
 	  // include nuclear factors
 	  {
-	    vector_real_function_3d bra_res=mul(world,nemo.nuclear_correlation->square(),residual);
-	    vector_real_function_3d bra_GV=mul(world,nemo.nuclear_correlation->square(),GV);
+	    vector_real_function_3d bra_res=mul(world,nemo.ncf->square(),residual);
+	    vector_real_function_3d bra_GV=mul(world,nemo.ncf->square(),GV);
 	    double Rtmp=inner(world,bra_res,V).sum();
 	    double Rtmp2=inner(world,bra_GV,GV).sum();
 	    const double Rdelta=(0.5 * Rtmp / Rtmp2);

@@ -133,8 +133,7 @@ class Znemo : public NemoBase {
 			J_mo=zero_functions<double_complex,3>(world,nmo);
 			K_mo=zero_functions<double_complex,3>(world,nmo);
 			spin_zeeman_mo=zero_functions<double_complex,3>(world,nmo);
-			for (int i=0; i<3; ++i) GpVmo.push_back(zero_functions<double_complex,3>(world,nmo));
-			Gpscalar=zero_functions<double_complex,3>(world,nmo);
+			zeeman_R_comm=zero_functions<double_complex,3>(world,nmo);
 
 		}
 
@@ -146,8 +145,7 @@ class Znemo : public NemoBase {
 			J_mo = ::madness::transform(world, J_mo, U);
 			K_mo = ::madness::transform(world, K_mo, U);
 			spin_zeeman_mo = ::madness::transform(world, spin_zeeman_mo, U);
-			for (auto& a : GpVmo) a=::madness::transform(world,a,U);
-			Gpscalar = ::madness::transform(world, Gpscalar, U);
+			zeeman_R_comm = ::madness::transform(world, zeeman_R_comm, U);
 		}
 
 
@@ -158,8 +156,7 @@ class Znemo : public NemoBase {
 		std::vector<complex_function_3d> K_mo;
 		std::vector<complex_function_3d> spin_zeeman_mo;
 		std::vector<complex_function_3d> lz_commutator;
-		std::vector<std::vector<complex_function_3d> > GpVmo;	// potentials for the derivative of the BSH operator
-		std::vector<complex_function_3d> Gpscalar;				// scalar terms arising from the Gp treatment
+		std::vector<complex_function_3d> zeeman_R_comm;
 	};
 public:
 	struct timer {
@@ -371,6 +368,12 @@ public:
 
 	std::vector<complex_function_3d> normalize(const std::vector<complex_function_3d>& mo) const;
 
+	real_function_3d compute_density(const std::vector<complex_function_3d>& amo,
+			const std::vector<complex_function_3d>& bmo) const;
+
+	std::vector<complex_function_3d> make_bra(const std::vector<complex_function_3d>& mo) const;
+
+
 protected:
 
 	Molecule mol;
@@ -397,6 +400,9 @@ protected:
 
 	/// the spherical damping box
 	real_function_3d sbox;
+
+	/// the linear moments r={x,y,z}
+	std::vector<real_function_3d> rvec;
 
 	std::shared_ptr<real_convolution_3d> coulop;
 

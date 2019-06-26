@@ -91,7 +91,7 @@ public:
 	NemoBase(World& w) : world(w) {}
 
 	std::shared_ptr<NuclearCorrelationFactor> get_ncf_ptr() const {
-		return nuclear_correlation;
+		return ncf;
 	}
 
 	/// normalize the nemos
@@ -143,27 +143,32 @@ public:
 	    normalize(nemo,metric);
 	}
 
+	template<typename T, std::size_t NDIM>
+	real_function_3d compute_density(const std::vector<Function<T,NDIM> > nemo) const {
+		return sum(world,abssq(world,nemo)).truncate();
+	}
+
 	void construct_nuclear_correlation_factor(const Molecule& molecule,
 			const std::shared_ptr<PotentialManager> pm,
 			const std::string inputline) {
 
 	    // construct the nuclear correlation factor:
-	    if (not nuclear_correlation) {
-	    	nuclear_correlation=create_nuclear_correlation_factor(world, molecule, pm, inputline);
+	    if (not ncf) {
+	    	ncf=create_nuclear_correlation_factor(world, molecule, pm, inputline);
 	    }
 
 	    // re-project the ncf
-	    nuclear_correlation->initialize(FunctionDefaults<3>::get_thresh());
-	    R = nuclear_correlation->function();
+	    ncf->initialize(FunctionDefaults<3>::get_thresh());
+	    R = ncf->function();
 	    R.set_thresh(FunctionDefaults<3>::get_thresh());
-	    R_square = nuclear_correlation->square();
+	    R_square = ncf->square();
 	    R_square.set_thresh(FunctionDefaults<3>::get_thresh());
 	}
 
 	World& world;
 
 	/// the nuclear correlation factor
-	std::shared_ptr<NuclearCorrelationFactor> nuclear_correlation;
+	std::shared_ptr<NuclearCorrelationFactor> ncf;
 
 	/// the nuclear correlation factor
 	real_function_3d R;

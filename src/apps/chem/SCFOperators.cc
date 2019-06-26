@@ -211,41 +211,34 @@ Nuclear::Nuclear(World& world, const SCF* calc) : world(world) {
 }
 
 Nuclear::Nuclear(World& world, const Nemo* nemo) : world(world) {
-    ncf=nemo->nuclear_correlation;
+    ncf=nemo->ncf;
 }
 
-vecfuncT Nuclear::operator()(const vecfuncT& vket) const {
+template<typename T, std::size_t NDIM>
+std::vector<Function<T,NDIM> > Nuclear::operator()(const std::vector<Function<T,NDIM> >& vket) const {
 
-    const static std::size_t NDIM=3;
+	typedef Function<T,NDIM> functionT;
+	typedef std::vector<functionT> vecfuncT;
 
     // shortcut for local nuclear potential (i.e. no correlation factor)
     if (ncf->type()==NuclearCorrelationFactor::None) {
-        vecfuncT result=mul(world,ncf->U2(),vket);
-        truncate(world,result);
-        return result;
+        return truncate(ncf->U2()*vket);
     }
 
-    std::vector< std::shared_ptr<Derivative<double,NDIM> > > gradop =
-            gradient_operator<double,NDIM>(world);
+    std::vector< std::shared_ptr<Derivative<T,NDIM> > > gradop =
+            gradient_operator<T,NDIM>(world);
     reconstruct(world, vket);
-    vecfuncT vresult=zero_functions_compressed<double,NDIM>(world,vket.size());
+    vecfuncT vresult=zero_functions_compressed<T,NDIM>(world,vket.size());
 
     // memory-saving algorithm: outer loop over the dimensions
     // apply the derivative operator on each function for each dimension
     for (std::size_t i=0; i<NDIM; ++i) {
-        std::vector<Function<double,NDIM> > dv=apply(world, *(gradop[i]), vket, true);
+        vecfuncT dv=apply(world, *(gradop[i]), vket, true);
         truncate(world,dv);
-        real_function_3d U1=ncf->U1(i%3);
-        std::vector<Function<double,NDIM> > U1dv=mul(world,U1,dv);
-        truncate(world,U1dv);
-        vresult=add(world,vresult,U1dv);
+        vresult+=truncate(ncf->U1(i%3)*dv);
     }
 
-    real_function_3d U2=ncf->U2();
-    std::vector<Function<double,NDIM> > U2v=mul(world,U2,vket);
-    vresult=add(world,vresult,U2v);
-    truncate(world,vresult);
-    return vresult;
+    return truncate(vresult+ncf->U2()*vket);
 }
 
 
@@ -258,7 +251,7 @@ DNuclear::DNuclear(World& world, const SCF* calc, const int iatom, const int iax
 
 DNuclear::DNuclear(World& world, const Nemo* nemo, const int iatom, const int iaxis)
            : world(world), iatom(iatom), iaxis(iaxis) {
-    ncf=nemo->nuclear_correlation;
+    ncf=nemo->ncf;
 }
 
 vecfuncT DNuclear::operator()(const vecfuncT& vket) const {
@@ -341,7 +334,7 @@ Exchange<T,NDIM>::Exchange(World& world, const Nemo* nemo, const int ispin) // @
         do_R2=CalculationParameters::stringtobool(it->second);
 
     if (do_R2) {
-        mo_bra=conj(world,mul(world,nemo->nuclear_correlation->square(),mo_ket));
+        mo_bra=conj(world,mul(world,nemo->ncf->square(),mo_ket));
         truncate(world,mo_bra);
     } else {
         print("skip R2 in exchange");
@@ -468,7 +461,7 @@ XCOperator::XCOperator(World& world, const Nemo* nemo, int ispin) : world(world)
     xc->initialize(nemo->get_calc()->param.xc_data,
             !nemo->get_calc()->param.spin_restricted, world);
 
-    ncf=nemo->nuclear_correlation;
+    ncf=nemo->ncf;
 
     nbeta=nemo->get_calc()->param.nbeta;
     const bool have_beta=xc->is_spin_polarized() && nbeta != 0;
@@ -503,7 +496,7 @@ XCOperator::XCOperator(World& world, const Nemo* nemo, const real_function_3d& a
     xc=std::shared_ptr<XCfunctional> (new XCfunctional());
     xc->initialize(nemo->get_calc()->param.xc_data,
             not nemo->get_calc()->param.spin_restricted, world);
-    ncf=nemo->nuclear_correlation;
+    ncf=nemo->ncf;
 
     xc_args=prep_xc_args(arho,brho);
 }
@@ -766,6 +759,9 @@ template std::vector<Function<double_complex,3> > XCOperator::operator()(const s
 
 template class Exchange<double_complex,3>;
 template class Exchange<double,3>;
+
+template std::vector<Function<double,3> > Nuclear::operator()(const std::vector<Function<double,3> >& vket) const;
+template std::vector<Function<double_complex,3> > Nuclear::operator()(const std::vector<Function<double_complex,3> >& vket) const;
 
 } // namespace madness
 

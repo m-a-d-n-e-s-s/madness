@@ -280,20 +280,25 @@ public:
         : world(world), ncf(ncf) {}
 
 
-    real_function_3d operator()(const real_function_3d& ket) const {
-        vecfuncT vket(1,ket);
+    template<typename T, std::size_t NDIM>
+    Function<T,NDIM> operator()(const Function<T,NDIM>& ket) const {
+        std::vector<Function<T,NDIM> > vket(1,ket);
         return this->operator()(vket)[0];
     }
 
-    vecfuncT operator()(const vecfuncT& vket) const;
+    template<typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > operator()(const std::vector<Function<T,NDIM> >& vket) const;
 
-    double operator()(const real_function_3d& bra, const real_function_3d& ket) const {
+    template<typename T, std::size_t NDIM>
+    T operator()(const Function<T,NDIM>& bra, const Function<T,NDIM>& ket) const {
         return inner(bra,this->operator()(ket));
     }
 
-    Tensor<double> operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
+    template<typename T, std::size_t NDIM>
+    Tensor<T> operator()(const  std::vector<Function<T,NDIM> >& vbra,
+    		const  std::vector<Function<T,NDIM> >& vket) const {
         const auto bra_equiv_ket = &vbra == &vket;
-        vecfuncT vVket=this->operator()(vket);
+        std::vector<Function<T,NDIM> > vVket=this->operator()(vket);
         return matrix_inner(world,vbra,vVket,bra_equiv_ket);
     }
 
