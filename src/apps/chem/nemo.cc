@@ -93,8 +93,8 @@ public:
 
 /// @param[in]	world1	the world
 /// @param[in]	calc	the SCF
-Nemo::Nemo(World& world1, std::shared_ptr<SCF> calc) :
-		world(world1), calc(calc),
+Nemo::Nemo(World& world, std::shared_ptr<SCF> calc) :
+		NemoBase(world), calc(calc),
 		ttt(0.0), sss(0.0), coords_sum(-1.0), ac(world,calc) {
 
     if (do_pcm()) pcm=PCM(world,this->molecule(),calc->param.pcm_data,true);
@@ -237,7 +237,7 @@ double Nemo::solve(const SCFProtocol& proto) {
 	bool localized=calc->param.localize;
 
 	typedef allocator<double, 3> allocT;
-	typedef XNonlinearSolver<vecfunc<double, 3>, double, allocT> solverT;
+	typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
 	allocT alloc(world, nemo.size());
 	solverT solver(allocT(world, nemo.size()));
 
@@ -349,7 +349,7 @@ double Nemo::solve(const SCFProtocol& proto) {
 		// kain works best in the quadratic region
 		vecfuncT nemo_new;
 		if (norm < 5.e-1) {
-			nemo_new = (solver.update(nemo, residual)).x;
+			nemo_new = solver.update(nemo, residual);
 		} else {
 			nemo_new = tmp;
 		}
@@ -612,46 +612,6 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo, vecfuncT& psi,
 }
 
 
-/// normalize the nemos
-void Nemo::normalize(vecfuncT& nemo) const {
-
-	// compute the norm of the reconstructed orbitals, includes the factor
-	vecfuncT mos = mul(world, R, nemo);
-	std::vector<double> norms = norm2s(world, mos);
-
-	// scale the nemos, excludes the nuclear correlation factor
-	std::vector<double> invnorm(norms.size());
-	for (std::size_t i = 0; i < norms.size(); ++i)
-		invnorm[i] = 1.0 / norms[i];
-	scale(world, nemo, invnorm);
-//	truncate(world, nemo);
-}
-
-/// orthonormalize the vectors
-
-/// @param[inout]	amo_new	the vectors to be orthonormalized
-void Nemo::orthonormalize(vecfuncT& nemo) const {
-    PROFILE_MEMBER_FUNC(SCF);
-    START_TIMER(world);
-    normalize(nemo);
-    double maxq;
-    do {
-        vecfuncT Rnemo=R*nemo;
-        tensorT Q = Q2(matrix_inner(world, Rnemo, Rnemo));
-        maxq=0.0;
-        for (int i=0; i<Q.dim(0); ++i)
-            for (int j=0; j<i; ++j)
-                maxq = std::max(maxq,std::abs(Q(i,j)));
-
-        Q.screen(trantol()); // ???? Is this really needed?
-        nemo = transform(world, nemo, Q, trantol(), true);
-        truncate(world, nemo);
-        if (world.rank() == 0) print("ORTHOG2: maxq trantol", maxq, trantol());
-
-    } while (maxq>0.01);
-    normalize(nemo);
-    END_TIMER(world, "Orthonormalize");
-}
 
 /// return the Coulomb potential
 real_function_3d Nemo::get_coulomb_potential(const vecfuncT& psi) const {
@@ -1302,7 +1262,7 @@ vecfuncT Nemo::solve_cphf(const size_t iatom, const int iaxis, const Tensor<doub
 
     // construct the KAIN solver
     typedef allocator<double, 3> allocT;
-    typedef XNonlinearSolver<vecfunc<double, 3>, double, allocT> solverT;
+    typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
     allocT alloc(world, nemo.size());
     solverT solver(allocT(world, nemo.size()));
     solver.set_maxsub(5);
@@ -1391,7 +1351,7 @@ vecfuncT Nemo::solve_cphf(const size_t iatom, const int iaxis, const Tensor<doub
         const double norm = norm2(world,xi);
 
         if (rms < 1.0) {
-            xi = (solver.update(xi, residual)).x;
+            xi = solver.update(xi, residual);
         } else {
             xi = tmp;
         }
