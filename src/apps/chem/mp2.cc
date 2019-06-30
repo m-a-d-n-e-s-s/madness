@@ -133,6 +133,7 @@ MP2::MP2(World& world, const std::string& input) : world(world),
 	if (world.rank() == 0) {
 		hf->get_calc().param.print(world);
 		this->print_info(world);
+		param.print("mp2","mp2_end");
 	}
 
 	// check the user input for consistency
@@ -143,7 +144,7 @@ MP2::MP2(World& world, const std::string& input) : world(world),
 	for (int i = param.freeze(); i < hf->nocc(); ++i) {
 		for (int j = i; j < hf->nocc(); ++j) {
 			pairs.insert(i,j,ElectronPair(i, j));
-			if (param.get<bool>(Parameters::restart_))
+			if (param.restart())
 				pairs(i, j).load_pair(world);
 		}
 	}
@@ -317,10 +318,10 @@ void MP2::solve_residual_equations(ElectronPair& result,
 			bsh_eps);
 	if(world.rank() == 0) std::cout << "Constructed Green Operator is destructive ? :" << green.destructive() << std::endl;
 
-	NonlinearSolverND<6> solver(param.get<int>(Parameters::maxsub_));
+	NonlinearSolverND<6> solver(param.maxsub());
 	solver.do_print = (world.rank() == 0);
 	// increment iteration counter upon entry
-	for (++result.iteration; result.iteration <= param.get<int>(Parameters::maxiter_); ++result.iteration) {
+	for (++result.iteration; result.iteration <= param.maxiter(); ++result.iteration) {
 
 		result.function.print_size("psi");
 
@@ -391,7 +392,7 @@ double MP2::solve_coupled_equations(Pairs<ElectronPair>& pairs,
 	}
 
 	// do the macro-iterations of the whole set of pair functions
-	for (int iteration=0; iteration<param.get<int>(Parameters::maxiter_); ++iteration) {
+	for (int iteration=0; iteration<param.maxiter(); ++iteration) {
 
 		// compute the coupling between the pair functions
 		START_TIMER(world);
@@ -896,7 +897,7 @@ real_function_6d MP2::make_KffKphi0(const ElectronPair& pair) const {
 ElectronPair MP2::make_pair(const int i, const int j) const {
 
 	ElectronPair p = ElectronPair(i, j);
-	if (param.get<bool>(Parameters::restart_)) p.load_pair(world);
+	if (param.restart()) p.load_pair(world);
 
 	// compute and store them if they have not been read from disk
 	if (p.ij_gQf_ij == ElectronPair::uninitialized()) {
