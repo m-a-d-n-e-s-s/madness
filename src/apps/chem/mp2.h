@@ -42,7 +42,8 @@
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/mra/mra.h>
 #include <madness/mra/lbdeux.h>
-#include <chem/CalculationParametersBaseMap.h>
+//#include <chem/CalculationParametersBaseMap.h>
+#include <chem/QCCalculationParametersBase.h>
 #include <chem/SCF.h>
 #include <madness/mra/nonlinsol.h>
 #include <chem/projector.h>
@@ -357,57 +358,68 @@ namespace madness {
     class MP2 : public OptimizationTargetInterface {
 
     	/// POD for MP2 keywords
-        struct Parameters : public CalculationParametersBase {
+    	struct Parameters : public QCCalculationParametersBase {
 
-        	enum parameterenum {
-        		thresh_,		///< thresh
-        		econv_, 		///< econv for MP2
-				dconv_, 		///< dconv for MP2
-				pair_,			///< compute this pair only
-				freeze_,		///< number of frozen orbitals
-				maxsub_,		///< maximum number of subspace vectors in KAIN
-				restart_,		///< if this flag is set the program expect for each pair a file named
-								///<  pair_ij.00000
-								///< where ij is to be replaced by the values of i and j.
-								///< These files contain the restart information for each pair.
-				maxiter_		///< maximum number of microiterations
-        	};
-
-            /// the map with initial values
-            ParameterMap params={
-            		init<double>(thresh_,{"thresh",1.e-3}),
-            		init<double>(econv_,{"econv",1.e-3}),
-            		init<double>(dconv_,{"dconv",1.e-3}),
-            		init<std::vector<int> >(pair_,{"pair",{-1,-1}}),
-            		init<int>(freeze_,{"freeze",0}),
-            		init<int>(maxsub_,{"maxsub",2}),
-            		init<bool>(restart_,{"restart",0}),
-            		init<int>(maxiter_,{"maxiter",5})
-            };
+//        	enum parameterenum {
+//        		thresh_,		///< thresh
+//        		econv_, 		///< econv for MP2
+//				dconv_, 		///< dconv for MP2
+//				pair_,			///< compute this pair only
+//				freeze_,		///< number of frozen orbitals
+//				maxsub_,		///< maximum number of subspace vectors in KAIN
+//				restart_,		///< if this flag is set the program expect for each pair a file named
+//								///<  pair_ij.00000
+//								///< where ij is to be replaced by the values of i and j.
+//								///< These files contain the restart information for each pair.
+//				maxiter_		///< maximum number of microiterations
+//        	};
+//
+//            ParameterMap params={
+//            		init<double>(thresh_,{"thresh",1.e-3}),
+//            		init<double>(econv_,{"econv",1.e-3}),
+//            		init<double>(dconv_,{"dconv",1.e-3}),
+//            		init<std::vector<int> >(pair_,{"pair",{-1,-1}}),
+//            		init<int>(freeze_,{"freeze",0}),
+//            		init<int>(maxsub_,{"maxsub",2}),
+//            		init<bool>(restart_,{"restart",0}),
+//            		init<int>(maxiter_,{"maxiter",5})
+//            };
 
         	/// ctor reading out the input file
         	Parameters(World& world) {
 
-        		// read input file
-        		read(world,"input","mp2",params);
+                /// the map with initial values
+        		initialize<double>("thresh",1.e-3,"recommended values: 1.e-4 < econv < 1.e-8");
+        		initialize<double>("econv",1.e-3,"recommended values: 1.e-4 < econv < 1.e-8");
+        		initialize<double>("dconv",1.e-3,"recommended values: 1.e-4 < econv < 1.e-8");
+        		initialize<std::vector<int> >("pair",{-1,-1});
+        		initialize<int>("freeze",0);
+        		initialize<int>("maxsub",2);
+        		initialize<bool>("restart",true);
+        		initialize<int>("maxiter",5);
 
-        		// set derived values
-        		params[dconv_].set_derived_value(sqrt(econv())*0.1);
+        		read_and_set_derived_values(world);
 
         		// print final parameters
-        		if (world.rank()==0) print(params,"mp2","end");
+        		if (world.rank()==0) print("mp2","end");
         	}
 
-        	/// return the value of the parameter
-        	template<typename T>
-        	T get(parameterenum k) const {
-        		if (params.find(int(k))!=params.end()) {
-        			return params.find(int(k))->second.get_parameter<T>().get();
-        		} else {
-        			MADNESS_EXCEPTION("could not fine parameter ",1);
-        		}
+        	void read_and_set_derived_values(World& world) {
+        		read(world,"input","mp3");
+        		set_derived_value("dconv",sqrt(get<double>("econv"))*0.1);
         	}
 
+//
+//        	/// return the value of the parameter
+//        	template<typename T>
+//        	T get(parameterenum k) const {
+//        		if (params.find(int(k))!=params.end()) {
+//        			return params.find(int(k))->second.get_parameter<T>().get();
+//        		} else {
+//        			MADNESS_EXCEPTION("could not fine parameter ",1);
+//        		}
+//        	}
+//
             /// check the user input
         	void check_input(const std::shared_ptr<HartreeFock> hf) const {
                 if (freeze()>hf->nocc()) MADNESS_EXCEPTION("you froze more orbitals than you have",1);
@@ -416,12 +428,15 @@ namespace madness {
                 if (thresh()<0.0) MADNESS_EXCEPTION("please provide the accuracy threshold for MP2",1);
         	}
 
-        	double thresh() const {return this->get<double>(thresh_);}   	/// convenience function
-        	double econv() const {return this->get<double>(econv_);}   		/// convenience function
-        	double dconv() const {return this->get<double>(dconv_);}   		/// convenience function
-        	int freeze() const {return this->get<int>(freeze_);}   			/// convenience function
-        	int i() const {return this->get<std::vector<int> >(pair_)[0];}	/// convenience function
-        	int j() const {return this->get<std::vector<int> >(pair_)[1];}	/// convenience function
+        	double thresh() const {return get<double>("thresh");}   	/// convenience function
+        	double econv() const {return get<double>("econv");}   		/// convenience function
+        	double dconv() const {return this->get<double>("dconv");}   		/// convenience function
+        	int freeze() const {return this->get<int>("freeze");}   			/// convenience function
+        	int i() const {return this->get<std::vector<int> >("pair")[0];}	/// convenience function
+        	int j() const {return this->get<std::vector<int> >("pair")[1];}	/// convenience function
+        	int restart() const {return this->get<bool>("restart");}	/// convenience function
+        	int maxiter() const {return this->get<int>("maxiter");}	/// convenience function
+        	int maxsub() const {return this->get<int>("maxsub");}	/// convenience function
         };
 
         /// POD holding all electron pairs with easy access

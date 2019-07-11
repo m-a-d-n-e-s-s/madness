@@ -15,7 +15,7 @@
 #include <madness/mra/operator.h>
 #include <madness/mra/nonlinsol.h>
 #include <chem/SCFOperators.h>
-#include <chem/CalculationParametersBaseMap.h>
+#include <chem/QCCalculationParametersBase.h>
 #include <chem/CalculationParameters.h>
 #include <chem/molecularbasis.h>
 #include <chem/molecular_optimizer.h>
@@ -54,27 +54,21 @@ struct printleveler {
 };
 
 
-class Nemo_complex_Parameters : public CalculationParametersBase {
+class Nemo_complex_Parameters : public QCCalculationParametersBase {
 public:
-	enum parameterenum {physical_B_, explicit_B_, box_, box_softness_, shift_, printlevel_,
-		 potential_radius_, use_v_vector_};
-
-	/// the parameters with the enum key, the constructor taking the input file key and a default value
-	ParameterMap params={
-        		init<double>(physical_B_,{"physical_B",0.0}),
-        		init<double>(explicit_B_,{"explicit_B",0.0}),
-        		init<std::vector<double> >(box_,{"box",{1.0, 0.01, 0.0, 0.0, 0.0}}),
-				init<double>(shift_,{"shift",0.0}),
-				init<int>(printlevel_,{"printlevel",2}),		// 0: energies, 1: fock matrix, 2: function sizes
-				init<bool>(use_v_vector_,{"use_v_vector",false}),
-				init<double>(potential_radius_,{"potential_radius",-1.0}),
-    };
 
 	/// ctor reading out the input file
 	Nemo_complex_Parameters(World& world) {
+		initialize<double>("physical_B",0.0);
+		initialize<double>("explicit_B",0.0);
+		initialize<std::vector<double> >("box",{1.0, 0.01, 0.0, 0.0, 0.0});
+		initialize<double>("shift",0.0);
+		initialize<int>("printlevel",2);		// 0: energies, 1: fock matrix, 2: function sizes
+		initialize<bool>("use_v_vector",false);
+		initialize<double>("potential_radius",-1.0);
 
 		// read input file
-		read(world,"input","complex",params);
+		read(world,"input","complex");
 
 	}
 
@@ -89,10 +83,13 @@ public:
 		double box_radius=wave_function_radius*1.33;
 
 		// set the diamagnetic height unless explicitly given
-		params[box_].set_derived_value(std::vector<double>({box_radius,0.01}));
-		params[potential_radius_].set_derived_value(potential_radius);
-		params[shift_].set_derived_value(physical_B());
+//		params[box].set_derived_value(std::vector<double>({box_radius,0.01}));
+//		params[potential_radius_].set_derived_value(potential_radius);
+//		params[shift_].set_derived_value(physical_B());
 
+		set_derived_value("box",std::vector<double>{box_radius,0.01});
+		set_derived_value("potential_radius",potential_radius);
+		set_derived_value("shift",physical_B());
 
 		// set derived values
 //		params[param2_].set_derived_value(this->get<int>(param1_)*10.0);
@@ -101,24 +98,14 @@ public:
 //		if (world.rank()==0) print(params,"Our parameters");
 	}
 
-	int printlevel() const {return get<int>(printlevel_);}
-	double shift() const {return get<double>(shift_);}
-	double physical_B() const {return get<double>(physical_B_);}
-	double explicit_B() const {return get<double>(explicit_B_);}
-	std::vector<double> box() const {return get<std::vector<double> >(box_);}
-	double potential_radius() const {return get<double>(potential_radius_);}
-	bool use_v_vector() const {return get<bool>(use_v_vector_);}
+	int printlevel() const {return get<int>("printlevel");}
+	double shift() const {return get<double>("shift");}
+	double physical_B() const {return get<double>("physical_B");}
+	double explicit_B() const {return get<double>("explicit_B");}
+	std::vector<double> box() const {return get<std::vector<double> >("box");}
+	double potential_radius() const {return get<double>("potential_radius");}
+	bool use_v_vector() const {return get<bool>("use_v_vector");}
 
-
-	/// return the value of the parameter
-	template<typename T>
-	T get(parameterenum k) const {
-		if (params.find(int(k))!=params.end()) {
-			return params.find(int(k))->second.get_parameter<T>().get();
-		} else {
-			MADNESS_EXCEPTION("could not fine parameter ",1);
-		}
-	}
 };
 
 

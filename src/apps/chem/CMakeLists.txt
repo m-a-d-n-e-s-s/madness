@@ -16,7 +16,8 @@ set(MADCHEM_SOURCES
     corepotential.cc atomutil.cc lda.cc cheminfo.cc
     distpm.cc SCF.cc gth_pseudopotential.cc nemo.cc mp2.cc pcm.cc
     SCFOperators.cc TDHF.cc GuessFactory.cc CCStructures.cc CC2.cc CCPotentials.cc 
-    AC.cc pointgroupsymmetry.cc znemo.cc zcis.cc diamagneticpotentialfactor.cc)
+    AC.cc pointgroupsymmetry.cc znemo.cc zcis.cc diamagneticpotentialfactor.cc
+    QCCalculationParametersBase.cc)
 if(LIBXC_FOUND)
   list(APPEND MADCHEM_SOURCES xcfunctional_libxc.cc)
 else()
@@ -54,7 +55,8 @@ if(ENABLE_UNITTESTS)
   
   SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
   # The list of unit test source files
-  set(CHEM_TEST_SOURCES test_SCFOperators.cc test_dft.cc test_pointgroupsymmetry.cc  test_masks_and_boxes.cc)
+  set(CHEM_TEST_SOURCES test_SCFOperators.cc test_dft.cc test_pointgroupsymmetry.cc test_masks_and_boxes.cc
+  test_QCCalculationParametersBase.cc)
   
   add_unittests(chem CHEM_TEST_SOURCES "MADchem;MADgtest")
   

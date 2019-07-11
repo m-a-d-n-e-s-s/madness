@@ -31,7 +31,7 @@ Znemo::Znemo(World& world) : NemoBase(world), param(world), mol("input"), cparam
 	print_info=printleveler(param.printlevel());
 
 	if (world.rank()==0 and print_info.print_setup()) {
-		param.print(param.params,"complex","end");
+		param.print("complex","end");
 		cparam.print(world);
 		mol.print();
 	}

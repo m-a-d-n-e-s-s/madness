@@ -18,31 +18,27 @@ namespace madness {
 
 
 
-class Complex_CIS_Parameters : public CalculationParametersBase {
+class Complex_CIS_Parameters : public QCCalculationParametersBase {
 public:
-	enum parameterenum {guess_excitation_operators_,exops_,freeze_,guess_excitations_,guess_maxiter_,thresh_,maxiter_,omega_,
-						swap_ab_,dconv_,printlevel_};
-
-	/// the parameters with the enum key, the constructor taking the input file key and a default value
-	ParameterMap params={
-        		init<std::string>(guess_excitation_operators_,{"guess_excitation_operators",{"dipole+"}}),
-        		init<std::vector<std::string> >(exops_,{"exops",{"x 1.0","y 1.0","z 1.0","x 2.0 , y 2.0 , z 2.0"}}),
-        		init<int>(freeze_,{"freeze",0}),
-        		init<int>(guess_excitations_,{"guess_excitations",4}),
-        		init<int>(guess_maxiter_,{"guess_maxiter",4}),
-        		init<double>(thresh_,{"thresh",FunctionDefaults<3>::get_thresh()}),
-        		init<double>(omega_,{"omega",0.0}),
-        		init<int>(maxiter_,{"maxiter",10}),
-				init<bool>(swap_ab_,{"swap_ab",false}),
-        		init<double>(dconv_,{"dconv",1.e-3}),
-        		init<int>(printlevel_,{"printlevel",1})
-    };
 
 	/// ctor reading out the input file
 	Complex_CIS_Parameters(World& world) {
 
+		/// the parameters with the enum key, the constructor taking the input file key and a default value
+		initialize<std::string>("guess_excitation_operators","dipole+");
+		initialize<std::vector<std::string> >("exops",{"x 1.0","y 1.0","z 1.0","x 2.0 , y 2.0 , z 2.0"});
+		initialize<int>("freeze",0);
+		initialize<int>("guess_excitations",4);
+		initialize<int>("guess_maxiter",4);
+		initialize<double>("thresh",FunctionDefaults<3>::get_thresh());
+		initialize<double>("omega",0.0);
+		initialize<int>("maxiter",10);
+		initialize<bool>("swap_ab",false);
+		initialize<double>("dconv",1.e-3);
+		initialize<int>("printlevel",1);
+
 		// read input file
-		read(world,"input","response",params);
+		read(world,"input","response");
 
 		// set derived values
 //		params[param2_].set_derived_value(this->get<int>(param1_)*10.0);
@@ -51,28 +47,19 @@ public:
 //		if (world.rank()==0) print(params,"Our parameters");
 	}
 
-	std::string guess_excitation_operators() const {return get<std::string>(guess_excitation_operators_);};
-	std::vector<std::string> exops() const {return get<std::vector<std::string> >(exops_);};
-	int freeze() const {return get<int>(freeze_);};
-	int guess_excitations() const {return get<int>(guess_excitations_);};
-	double thresh() const {return get<double>(thresh_);};
-	double omega() const {return get<double>(omega_);};
-	int maxiter() const {return get<int>(maxiter_);};
-	int guess_maxiter() const {return get<int>(guess_maxiter_);};
-	bool swap_ab() const {return get<bool>(swap_ab_);};
-	double dconv() const {return get<double>(dconv_);};
-	int printlevel() const {return get<int>(printlevel_);};
+	std::string guess_excitation_operators() const {return get<std::string>("guess_excitation_operators");};
+	std::vector<std::string> exops() const {return get<std::vector<std::string> >("exops");};
+	int freeze() const {return get<int>("freeze");};
+	int guess_excitations() const {return get<int>("guess_excitations");};
+	double thresh() const {return get<double>("thresh");};
+	double omega() const {return get<double>("omega");};
+	int maxiter() const {return get<int>("maxiter");};
+	int guess_maxiter() const {return get<int>("guess_maxiter");};
+	bool swap_ab() const {return get<bool>("swap_ab");};
+	double dconv() const {return get<double>("dconv");};
+	int printlevel() const {return get<int>("printlevel");};
 
 
-	/// return the value of the parameter
-	template<typename T>
-	T get(parameterenum k) const {
-		if (params.find(int(k))!=params.end()) {
-			return params.find(int(k))->second.get_parameter<T>().get();
-		} else {
-			MADNESS_EXCEPTION("could not fine parameter ",1);
-		}
-	}
 };
 
 
@@ -144,7 +131,7 @@ public:
 
 	Zcis(World& w, std::shared_ptr<Znemo> n) : world(w), cis_param(world), nemo(n),
 		Qa(world,nemo->amo,nemo->amo), Qb(world,nemo->bmo,nemo->bmo) {
-		cis_param.print(cis_param.params);
+		cis_param.print("response","end");
 		print("Qa projector",Qa.get_ket_vector().size());
 		print("Qb projector",Qb.get_ket_vector().size());
 

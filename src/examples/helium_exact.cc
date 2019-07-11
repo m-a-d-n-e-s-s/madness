@@ -492,7 +492,7 @@ int main(int argc, char** argv) {
 	nemo.value();
 
 	// create the electronic and nuclear correlation factors
-	ncf_ptr ncf = nemo.nuclear_correlation;
+	ncf_ptr ncf = nemo.ncf;
 	CorrelationFactor2 ecf(world);
 
 	// get a guess for the wave function
