@@ -207,6 +207,15 @@ private:
 
 /// class for holding the parameters for calculation
 
+/// Actual parameter classes will be derived from this class with a simple constructor
+/// (see test_QCCalculationParametersBase.cc for an example) and convenience
+/// getters for the parameters of each parameter class.
+/// Having the base class will allow consistent parameter input/output handling
+/// for all madness programs and reuse of the parsing methods.
+/// Even if the same parameter is used in different programs, default might differ
+/// (i.e. econv for 3D/6D calculations). The parameter class will effectively serve as
+/// a factory for the calculation classes (SCF, nemo, mp2, etc)
+///
 /// parameters are kept in a map with key (string) and value (QCParameter),
 /// types are converted whenever a parameter is accessed (i.e. should not be
 /// done too frequently in an inner loop)
