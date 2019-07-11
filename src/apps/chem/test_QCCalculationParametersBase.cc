@@ -85,17 +85,17 @@ bool test_serialize(World& world) {
 
 	param.print("defined parameters","foot\n\n");
 
-    const std::string name = "test.dat";
-    madness::archive::ParallelOutputArchive oar(world, name.c_str(), 1);
-    oar & param;
-    oar.close();
+	const std::string name = "test.dat";
+	madness::archive::ParallelOutputArchive oar(world, name.c_str(), 1);
+	oar & param;
+	oar.close();
 
 	Parameters param1;
 	param1.print("default parameters","foot\n\n");
 
-    madness::archive::ParallelInputArchive iar(world, name.c_str(), 1);
-    iar & param1;
-    iar.close();
+	madness::archive::ParallelInputArchive iar(world, name.c_str(), 1);
+	iar & param1;
+	iar.close();
 
 	param1.print("serialized parameters","foot\n\n");
 
@@ -407,41 +407,41 @@ bool test_derived(World& world) {
 
 
 int main(int argc, char** argv) {
-    initialize(argc, argv);
-    World world(SafeMPI::COMM_WORLD);
-    startup(world,argc,argv);
-    std::cout.precision(6);
+	initialize(argc, argv);
+	World world(SafeMPI::COMM_WORLD);
+	startup(world,argc,argv);
+	std::cout.precision(6);
 
-    int success=0;
-    try {
-    	test_serialize(world);
-    	test_type_conversion1(world);
-    	test_type_conversion2(world);
-    	test_type_conversion3(world);
-    	test_type_conversion5(world);
-    	test_type_conversion6(world);
-    	test_type_conversion7(world);
-    	test_type_conversion8(world);
-    	test_capitalization(world);
-    	test_not_allowed(world);
-    	test_comment_lines(world);
-    	test_empty_lines(world);
-    	test_derived(world);
-
-
-    } catch (std::exception& e) {
-    	print("\n\tan error occurred .. ");
-    	print(e.what());
-    	success=1;
-    } catch (...) {
-    	print("\n\tan unknown error occurred .. ");
-    	success=1;
-    }
+	int success=0;
+	try {
+		test_serialize(world);
+		test_type_conversion1(world);
+		test_type_conversion2(world);
+		test_type_conversion3(world);
+		test_type_conversion5(world);
+		test_type_conversion6(world);
+		test_type_conversion7(world);
+		test_type_conversion8(world);
+		test_capitalization(world);
+		test_not_allowed(world);
+		test_comment_lines(world);
+		test_empty_lines(world);
+		test_derived(world);
 
 
-    if(world.rank() == 0) printf("\nfinished at time %.1fs\n\n", wall_time());
-    world.gop.fence();
-    finalize();
+	} catch (std::exception& e) {
+		print("\n\tan error occurred .. ");
+		print(e.what());
+		success=1;
+	} catch (...) {
+		print("\n\tan unknown error occurred .. ");
+		success=1;
+	}
 
-    return success;
+
+	if(world.rank() == 0) printf("\nfinished at time %.1fs\n\n", wall_time());
+	world.gop.fence();
+	finalize();
+
+	return success;
 }

@@ -124,15 +124,12 @@ MP2::MP2(World& world, const std::string& input) : world(world),
 		// for each geometric structure
 		corrfac = CorrelationFactor(world, 1.0, dcut, calc->molecule);
 
-
 	}
-
 
 
 	// print some output for the user
 	if (world.rank() == 0) {
 		hf->get_calc().param.print(world);
-		this->print_info(world);
 		param.print("mp2","mp2_end");
 	}
 
@@ -253,38 +250,8 @@ double MP2::value(const Tensor<double>& x) {
 
 /// print the SCF parameters
 void MP2::print_info(World& world) const {
-//	if (world.rank() == 0) {
-//		madness::print("\n");
-//		madness::print_centered("MP2 info\n",31,false);
-//		print_options("MP2 restart",param.restart);
-//		print_options("threshold 3D",FunctionDefaults<3>::get_thresh());
-//		print_options("threshold 6D",FunctionDefaults<6>::get_thresh());
-//		print_options("density threshold (dconv)", param.dconv_);
-//		print_options("energy threshold (econv)", param.econv_);
-//		print_options("truncation mode",FunctionDefaults<6>::get_truncate_mode());
-//		print_options("tensor type",FunctionDefaults<6>::get_tensor_type());
-//		print_options("facReduce",GenTensor<double>::fac_reduce());
-//		print_options("max displacement",Displacements<6>::bmax_default());
-//		print_options("apply randomize",FunctionDefaults<6>::get_apply_randomize());
-//
-//		if (param.i() >= 0 and param.j() >= 0) {
-//			std::stringstream ss;
-//			ss << param.i() << " " << param.j();
-//			print_options("computing pair",ss.str());
-//		}
-//		if (param.freeze() == 0) {
-//			print_options("# frozen orbitals", "none");
-//		}else {
-//			std::stringstream ss;
-//			ss<< 0 << " to " << param.freeze() - 1;
-//			print_options("# frozen orbitals",ss.str());
-//		}
-//		std::stringstream ss1;
-//		ss1 << param.freeze() <<" to "<< hf->nocc() - 1;
-//		print_options(" correlated orbitals",ss1.str());
-//
-//		print_options("max KAIN subspace", param.maxsub);
-//	}
+
+
 }
 
 /// solve the residual equation for electron pair (i,j)

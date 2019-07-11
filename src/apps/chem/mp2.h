@@ -42,7 +42,6 @@
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/mra/mra.h>
 #include <madness/mra/lbdeux.h>
-//#include <chem/CalculationParametersBaseMap.h>
 #include <chem/QCCalculationParametersBase.h>
 #include <chem/SCF.h>
 #include <madness/mra/nonlinsol.h>
@@ -360,31 +359,6 @@ namespace madness {
     	/// POD for MP2 keywords
     	struct Parameters : public QCCalculationParametersBase {
 
-//        	enum parameterenum {
-//        		thresh_,		///< thresh
-//        		econv_, 		///< econv for MP2
-//				dconv_, 		///< dconv for MP2
-//				pair_,			///< compute this pair only
-//				freeze_,		///< number of frozen orbitals
-//				maxsub_,		///< maximum number of subspace vectors in KAIN
-//				restart_,		///< if this flag is set the program expect for each pair a file named
-//								///<  pair_ij.00000
-//								///< where ij is to be replaced by the values of i and j.
-//								///< These files contain the restart information for each pair.
-//				maxiter_		///< maximum number of microiterations
-//        	};
-//
-//            ParameterMap params={
-//            		init<double>(thresh_,{"thresh",1.e-3}),
-//            		init<double>(econv_,{"econv",1.e-3}),
-//            		init<double>(dconv_,{"dconv",1.e-3}),
-//            		init<std::vector<int> >(pair_,{"pair",{-1,-1}}),
-//            		init<int>(freeze_,{"freeze",0}),
-//            		init<int>(maxsub_,{"maxsub",2}),
-//            		init<bool>(restart_,{"restart",0}),
-//            		init<int>(maxiter_,{"maxiter",5})
-//            };
-
         	/// ctor reading out the input file
         	Parameters(World& world) {
 
@@ -409,17 +383,6 @@ namespace madness {
         		set_derived_value("dconv",sqrt(get<double>("econv"))*0.1);
         	}
 
-//
-//        	/// return the value of the parameter
-//        	template<typename T>
-//        	T get(parameterenum k) const {
-//        		if (params.find(int(k))!=params.end()) {
-//        			return params.find(int(k))->second.get_parameter<T>().get();
-//        		} else {
-//        			MADNESS_EXCEPTION("could not fine parameter ",1);
-//        		}
-//        	}
-//
             /// check the user input
         	void check_input(const std::shared_ptr<HartreeFock> hf) const {
                 if (freeze()>hf->nocc()) MADNESS_EXCEPTION("you froze more orbitals than you have",1);
