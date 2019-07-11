@@ -24,8 +24,8 @@ namespace madness {
 
 /// inverting the print method from print.h for std::vector
 /// TODO: move this where it belongs (into print.h ??)
-template <typename Q>
-std::istream& operator>>(std::istream& is, std::vector<Q>& v) {
+template <typename T, typename A=std::allocator<T> >
+std::istream& operator>>(std::istream& is, std::vector<T,A>& v) {
 
 	// get the full line from opening to closing brackets [ .. ]
 	std::string word, line="";
@@ -40,7 +40,7 @@ std::istream& operator>>(std::istream& is, std::vector<Q>& v) {
 
 	// stream the values into the container
 	std::stringstream sline(line);
-	Q tmp;
+	T tmp;
 	while (sline >> tmp) v.push_back(tmp);
 	if (sline.bad()) {
 		madness::print("error while reading vector from istream: ");
@@ -48,7 +48,7 @@ std::istream& operator>>(std::istream& is, std::vector<Q>& v) {
 		MADNESS_EXCEPTION("IO error",1);
 	}
 
-    return is;
+	return is;
 }
 
 
@@ -83,7 +83,7 @@ std::istream& operator>>(std::istream& is, std::pair<T,Q>& p) {
 	}
 	p=std::pair<T,Q>(tmp1,tmp2);
 
-    return is;
+	return is;
 }
 
 
@@ -102,7 +102,7 @@ public:
 
 	QCParameter(const std::string v, const std::string t, const std::string comment="",
 			const std::vector<std::string> allowed_values1={})
-			: default_value(v), type(t), comment(comment), allowed_values(allowed_values1) {
+	: default_value(v), type(t), comment(comment), allowed_values(allowed_values1) {
 		static int i=0;
 		print_order=i++;
 		set_all();
@@ -147,7 +147,7 @@ public:
 
 		std::string result=fill_left(20,key)+"  "+fill_right(10,get_value()) + " # "
 				+fill_right(10,print_precedence())
-//				+fill_right(5,get_type())
+				//				+fill_right(5,get_type())
 				+ fill_right(45,get_comment());
 		if (allowed_values.size()>0) {
 			std::stringstream ss;
@@ -160,10 +160,10 @@ public:
 		return result.substr(0, last+1);
 	}
 
-    template <typename Archive> void serialize (Archive& ar) {
-    	ar & value & default_value & derived_value & user_defined_value & type & null &
-			comment & allowed_values & print_order & precedence;
-    }
+	template <typename Archive> void serialize (Archive& ar) {
+		ar & value & default_value & derived_value & user_defined_value & type & null &
+		comment & allowed_values & print_order & precedence;
+	}
 
 
 private:
@@ -233,9 +233,9 @@ public:
 		return fromstring<T>(parameter.get_value());
 	}
 
-    template <typename Archive> void serialize (Archive& ar) {
-    	ar & parameters & print_debug;
-    }
+	template <typename Archive> void serialize (Archive& ar) {
+		ar & parameters & print_debug;
+	}
 
 protected:
 
@@ -281,7 +281,7 @@ protected:
 		}
 
 		parameters.insert(std::make_pair<std::string, QCParameter>
-			(std::string(key_lower),QCParameter(svalue,type,comment,av_lower_vec)));
+		(std::string(key_lower),QCParameter(svalue,type,comment,av_lower_vec)));
 	}
 
 
@@ -371,35 +371,35 @@ protected:
 	}
 
 	template<typename T>
-    static std::string tostring(const T& arg) {
+	static std::string tostring(const T& arg) {
 		std::ostringstream ss;
 		ss<<std::scientific  << std::setprecision(4) << arg;
 		return ss.str();
-    }
+	}
 
 	template<typename T>
 	static typename std::enable_if<!std::is_same<T,bool>::value, T>::type
 	fromstring(const std::string& arg) {
 
-	    std::stringstream ssvalue(arg);
-	    T result=T();
-	    ssvalue >> result;
+		std::stringstream ssvalue(arg);
+		T result=T();
+		ssvalue >> result;
 
-	    // check success of type conversion
-	    if (ssvalue.fail()) {
+		// check success of type conversion
+		if (ssvalue.fail()) {
 			std::string errmsg="error in type conversion for argument >> " + arg
 					+ " << to type " + std::type_index(typeid(T)).name();
-		    throw std::runtime_error(errmsg);
-	    }
+			throw std::runtime_error(errmsg);
+		}
 
-	    // check for trailing characters
-	    std::string word;
-	    while (ssvalue >> word) {
+		// check for trailing characters
+		std::string word;
+		while (ssvalue >> word) {
 			std::string errmsg="trailing characters in arguement >> " + arg + " <<";
-		    throw std::runtime_error(errmsg);
-	    }
-	    return result;
-    }
+			throw std::runtime_error(errmsg);
+		}
+		return result;
+	}
 
 
 	template<typename T>
@@ -411,7 +411,7 @@ protected:
 		if (str=="false" or str=="0" or str=="no") return false;
 		std::string errmsg="error in type conversion for argument >> " + arg
 				+ " << to type " + std::type_index(typeid(T)).name();
-	    throw std::runtime_error(errmsg);
+		throw std::runtime_error(errmsg);
 		return 0;
 	}
 
