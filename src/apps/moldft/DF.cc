@@ -17,6 +17,13 @@
 
 using namespace madness;
 
+double myxfunc(const madness::coord_3d& r){
+     return r[0];
+}
+double myyfunc(const madness::coord_3d& r){
+     return r[1];
+}
+
 // Needed for rebalancing
 template <typename T, int NDIM>
 struct lbcost {
@@ -493,6 +500,9 @@ double DF::rele(World& world, Fcwf& psi){
 
 //Calculates K*psi for each psi in the orbitals vector and stores them in result
 void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsis){
+
+
+
      //start timer
      start_timer(world);
 
@@ -510,67 +520,110 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
      //Calculate and accumulate exchange contributions
      unsigned int n = Init_params.num_occupied;
      double myc = 137.0359895; //speed of light in atomic units
-     for(unsigned int i = 0; i < n; i++){
 
-          std::vector<complex_function_3d> temp(n-i);
-          for(unsigned int j = 0; j < n-i; j++){
-               temp[j] = complex_factory_3d(world);    
-          }
-          compress(world, temp);
+     //for debugging
+     Tensor<std::complex<double>> exchange1(n,n); //spin-up contributions
+     Tensor<std::complex<double>> exchange2(n,n); //spin-down contributions
 
-          std::vector<complex_function_3d> temp0(n-i);
-          std::vector<complex_function_3d> temp1(n-i);
-          std::vector<complex_function_3d> temp2(n-i);
-          std::vector<complex_function_3d> temp3(n-i);
-          for(unsigned int j = i; j < n; j++){
-               temp0[j-i] = occupieds[j][0];
-               temp1[j-i] = occupieds[j][1];
-               temp2[j-i] = occupieds[j][2];
-               temp3[j-i] = occupieds[j][3];
-          }
+     
+     //Working on spin-restricted version of exchange now. For now do it the stupid way
+     for(unsigned int i=0; i < n; i++){
+          Fcwf K1 = Fcwf(world);
+          Fcwf K2 = Fcwf(world);
+          for(unsigned int j=0; j<n; j++){
+               Fcwf tempfcwf = Fcwf(world);
+               //calculate contribution from existing jth orbital
 
-          gaxpy(world, 1.0, temp, 1.0, occupieds[i][0]*conj(world,temp0));
-          gaxpy(world, 1.0, temp, 1.0, occupieds[i][1]*conj(world,temp1));
-          gaxpy(world, 1.0, temp, 1.0/(myc*myc), occupieds[i][2]*conj(world,temp2));
-          gaxpy(world, 1.0, temp, 1.0/(myc*myc), occupieds[i][3]*conj(world,temp3));
+               complex_function_3d temp = inner_func(world, occupieds[j], occupieds[i]);
+               temp = apply(op,temp);
+               tempfcwf = occupieds[j]*temp;
+               K1 += tempfcwf;
 
-          truncate(world, temp);
+               //calculate contribution from time-reversal of jth orbital
+               tempfcwf[0] = -1.0*conj(occupieds[j][1]);
+               tempfcwf[1] = conj(occupieds[j][0]);
+               tempfcwf[2] = -1.0*conj(occupieds[j][3]);
+               tempfcwf[3] = conj(occupieds[j][2]);
+               temp = inner_func(world,tempfcwf,occupieds[i]);
+               temp = apply(op,temp);
+               tempfcwf = tempfcwf*temp;
+               K2 += tempfcwf;
 
-          //if(world.rank()==0) print(i, "Starting apply phase in K");
-
-          temp = apply(world, op, temp);
-          
-          truncate(world,temp);
-
-          //if(world.rank()==0) print(i, "Exiting apply phase in K");
-
-          Kpsis[i][0] += sum(world, mul(world, temp, temp0));
-          Kpsis[i][1] += sum(world, mul(world, temp, temp1));
-          Kpsis[i][2] += sum(world, mul(world, temp, temp2));
-          Kpsis[i][3] += sum(world, mul(world, temp, temp3));
-          
-          //if(world.rank()==0) print(i, "Exiting sum block in K");
-
-          temp = conj(world, temp);
-
-          temp0 = occupieds[i][0]*temp;
-          temp1 = occupieds[i][1]*temp;
-          temp2 = occupieds[i][2]*temp;
-          temp3 = occupieds[i][3]*temp;
-
-         // if(world.rank()==0) print(i, "Entering final loop in K");
-
-          for(unsigned int j = i+1; j < n; j++){
-               Kpsis[j][0] += temp0[j-i];
-               Kpsis[j][1] += temp1[j-i];
-               Kpsis[j][2] += temp2[j-i];
-               Kpsis[j][3] += temp3[j-i];
           }
           
-          //if(world.rank()==0) print(i, "Exiting final loop in K");
+          for(unsigned int j = 0; j < n; j++){
+               exchange1(i,j) = inner(occupieds[j],K1);
+               exchange2(i,j) = inner(occupieds[j],K2);
+          }
 
-          Kpsis[i].truncate();
+          Kpsis[i] = K1+K2;
+
      }
+
+     if(world.rank()==0) print("K1:\n",exchange1,"\nK2:\n",exchange2,"\nsum:\n",exchange1+exchange2);
+
+
+     //for(unsigned int i = 0; i < n; i++){
+
+     //     std::vector<complex_function_3d> temp(n-i);
+     //     for(unsigned int j = 0; j < n-i; j++){
+     //          temp[j] = complex_factory_3d(world);    
+     //     }
+     //     compress(world, temp);
+
+     //     std::vector<complex_function_3d> temp0(n-i);
+     //     std::vector<complex_function_3d> temp1(n-i);
+     //     std::vector<complex_function_3d> temp2(n-i);
+     //     std::vector<complex_function_3d> temp3(n-i);
+     //     for(unsigned int j = i; j < n; j++){
+     //          temp0[j-i] = occupieds[j][0];
+     //          temp1[j-i] = occupieds[j][1];
+     //          temp2[j-i] = occupieds[j][2];
+     //          temp3[j-i] = occupieds[j][3];
+     //     }
+
+     //     gaxpy(world, 1.0, temp, 1.0, occupieds[i][0]*conj(world,temp0));
+     //     gaxpy(world, 1.0, temp, 1.0, occupieds[i][1]*conj(world,temp1));
+     //     gaxpy(world, 1.0, temp, 1.0/(myc*myc), occupieds[i][2]*conj(world,temp2));
+     //     gaxpy(world, 1.0, temp, 1.0/(myc*myc), occupieds[i][3]*conj(world,temp3));
+
+     //     truncate(world, temp);
+
+     //     //if(world.rank()==0) print(i, "Starting apply phase in K");
+
+     //     temp = apply(world, op, temp);
+     //     
+     //     truncate(world,temp);
+
+     //     //if(world.rank()==0) print(i, "Exiting apply phase in K");
+
+     //     Kpsis[i][0] += sum(world, mul(world, temp, temp0));
+     //     Kpsis[i][1] += sum(world, mul(world, temp, temp1));
+     //     Kpsis[i][2] += sum(world, mul(world, temp, temp2));
+     //     Kpsis[i][3] += sum(world, mul(world, temp, temp3));
+     //     
+     //     //if(world.rank()==0) print(i, "Exiting sum block in K");
+
+     //     temp = conj(world, temp);
+
+     //     temp0 = occupieds[i][0]*temp;
+     //     temp1 = occupieds[i][1]*temp;
+     //     temp2 = occupieds[i][2]*temp;
+     //     temp3 = occupieds[i][3]*temp;
+
+     //    // if(world.rank()==0) print(i, "Entering final loop in K");
+
+     //     for(unsigned int j = i+1; j < n; j++){
+     //          Kpsis[j][0] += temp0[j-i];
+     //          Kpsis[j][1] += temp1[j-i];
+     //          Kpsis[j][2] += temp2[j-i];
+     //          Kpsis[j][3] += temp3[j-i];
+     //     }
+     //     
+     //     //if(world.rank()==0) print(i, "Exiting final loop in K");
+
+     //     Kpsis[i].truncate();
+     //}
 
      //Report time
      Tensor<double> times = end_timer(world);
