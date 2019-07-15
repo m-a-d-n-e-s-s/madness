@@ -278,7 +278,7 @@ public:
                 break;
             }
             else if (str == "model") {
-            	in >> model;
+            	in >> model; // default model is mRKS
             }
             else if (str == "density_threshold_high") {
             	in >> dens_thresh_hi;
@@ -355,11 +355,11 @@ public:
     	} else if (model == "dcep" or model == "DCEP") {
     		set_model_dcep();
     		model = "DCEP";
-    	} else if (model == "mrks" or model == "mRKS" or model == "MRKS") {
+    	} else if (model == "mrks" or model == "mRKS" or model == "MRKS" or model.empty()) { // default model is mRKS
     		set_model_mrks();
     		model = "mRKS";
     	} else {
-            print("oep: no approximate OEP model selected, please choose one of the following: oaep/ocep/dcep/mrks");
+            print("oep: no available OEP model selected, please choose one of the following: oaep/ocep/dcep/mrks");
             MADNESS_EXCEPTION("input error",0);
     	}
 
