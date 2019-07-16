@@ -936,7 +936,8 @@ void MP2::guess_mp1_3(ElectronPair& pair) const {
 			bsh_eps);
 
     real_function_6d Uphi0 = make_Uphi0(pair);
-    real_function_6d KffKphi0 = make_KffKphi0(pair);
+    real_function_6d KffKphi0=real_factory_6d(world);
+    if (not param.do_oep) KffKphi0=make_KffKphi0(pair);
 
 //	{
 //		//DEBUG
@@ -1435,6 +1436,11 @@ real_function_6d MP2::multiply_with_0th_order_Hamiltonian(
 		// the purely local part: Coulomb and U2
 		real_function_3d v_local = hf->get_coulomb_potential()
 									+ hf->nemo_calc.nuclear_correlation->U2();
+		if (param.do_oep) {
+			real_function_3d voep=real_factory_3d(world);
+			load(voep,"mRKS_potential_final");
+			v_local+=voep;
+		}
 
 		v_local.print_size("vlocal");
 		f.print_size("u");
@@ -1489,7 +1495,7 @@ real_function_6d MP2::multiply_with_0th_order_Hamiltonian(
 
 	// and the exchange
 	START_TIMER(world);
-	vphi = (vphi - K(f, i == j)).truncate().reduce_rank();
+	if (not param.do_oep) vphi = (vphi - K(f, i == j)).truncate().reduce_rank();
 	asymmetry(vphi, "U+J-K");
 	vphi.print_size("(U_nuc + J - K) |ket>:  made V tree");
 	END_TIMER(world, "apply K |ket>");

@@ -148,6 +148,8 @@ public:
 		/// use kain (kain subspace<=0 == no kain, kain_subspace==1 should have the same effect)
 		int kain_subspace=8;
 
+		bool do_oep=false;
+
 		/// general new key/value pair for convenience in development
 		std::map<std::string,std::string> generalkeyval;
 
