@@ -740,7 +740,7 @@ vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x)const{
 
 		/// use alda approximation for the dft kernel
 		if (parameters.do_oep) {
-			const XCOperator xc(world,"lda", not nemo.get_calc()->param.spin_restricted,alpha_density,alpha_density);
+			const XCOperator xc(world,"lda_x", not nemo.get_calc()->param.spin_restricted,alpha_density,alpha_density);
 			real_function_3d gamma=xc.apply_xc_kernel(density_pert);
 			vector_real_function_3d XCp=truncate(gamma*active_mo);
 			Vpsi2=Vpsi2+XCp;
