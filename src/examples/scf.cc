@@ -119,7 +119,7 @@ int main()
         }
     }
 
-    /* The first stage of the calculation after having all the integrals define is to diagonalize the 
+    /* The first stage of the calculation after having all the integrals define is to diagonalize the
 ** the overlap matrix S **/
 
     Tensor<double> s(nbf, 1);   //holds the eigenvalues of S
