@@ -38,6 +38,33 @@ Znemo::Znemo(World& world) : NemoBase(world), param(world), mol("input"), cparam
 
 	B={0,0,param.physical_B()};
 
+
+    // set the linear moments
+    for (int i=0; i<3; ++i) rvec.push_back(real_factory_3d(world).functor([&i] (const coord_3d& r) {return r[i];}));
+
+	coulop=std::shared_ptr<real_convolution_3d>(CoulombOperatorPtr(world,cparam.lo,cparam.econv));
+};
+
+bool Znemo::need_recompute_factors_and_potentials(const double thresh) const {
+	bool need=false;
+	if ((not (potentialmanager.get() and potentialmanager->vnuclear().is_initialized()))
+	        		or (potentialmanager->vnuclear().thresh()>thresh)) need=true;
+    if ((not R.is_initialized()) or (R.thresh()>thresh)) need=true;
+    if (not diafac.get()) need=true;
+    return need;
+}
+
+void Znemo::invalidate_factors_and_potentials() {
+	R.clear();
+	R_square.clear();
+	diafac.reset();
+	ncf.reset();
+	potentialmanager.reset();
+}
+
+void Znemo::recompute_factors_and_potentials(const double thresh) {
+
+	print("recomputing factors and potentials in znemo");
     // compute the nuclei's positions in the "A" space
 	diafac.reset(new Diamagnetic_potential_factor(world,param,mol.get_all_coords_vec()));
 
@@ -62,11 +89,10 @@ Znemo::Znemo(World& world) : NemoBase(world), param(world), mol("input"), cparam
 		MADNESS_EXCEPTION("no use of diamagnetic factor and nuclear correlation factor at the same time",1);
 	}
 
-    // set the linear moments
-    for (int i=0; i<3; ++i) rvec.push_back(real_factory_3d(world).functor([&i] (const coord_3d& r) {return r[i];}));
-
+    // (re) construct the Poisson solver
 	coulop=std::shared_ptr<real_convolution_3d>(CoulombOperatorPtr(world,cparam.lo,cparam.econv));
-};
+
+}
 
 bool Znemo::test() const {
 	bool success=true;
@@ -120,8 +146,12 @@ bool Znemo::test_U_potentials() const {
 /// compute the molecular energy
 double Znemo::value(const Tensor<double>& x) {
 
+	if ((x-mol.get_all_coords()).normf()>1.e-12) invalidate_factors_and_potentials();
+
 	// compute the molecular potential
 	mol.set_all_coords(x.reshape(mol.natom(),3));
+	if (need_recompute_factors_and_potentials(cparam.econv))
+		recompute_factors_and_potentials(cparam.econv);
 
 	// read the guess orbitals
 	try {
@@ -135,14 +165,15 @@ double Znemo::value(const Tensor<double>& x) {
 
 		amo=orthonormalize(amo);
 		bmo=orthonormalize(bmo);
+        set_thresh(world,amo,FunctionDefaults<3>::get_thresh());
+        set_thresh(world,bmo,FunctionDefaults<3>::get_thresh());
+
 	}
 
-//	test();
-
 	iterate();
+
 	save_orbitals("final");
 	save_orbitals();
-
 
 	double energy=analyze();
 
@@ -321,7 +352,10 @@ std::vector<complex_function_3d> Znemo::make_bra(const std::vector<complex_funct
 }
 
 
-double Znemo::analyze() const {
+double Znemo::analyze() {
+
+	if (need_recompute_factors_and_potentials(cparam.econv))
+		recompute_factors_and_potentials(cparam.econv);
 
 	real_function_3d density=compute_density(amo,bmo);
 	potentials apot(world,amo.size()), bpot(world,bmo.size());

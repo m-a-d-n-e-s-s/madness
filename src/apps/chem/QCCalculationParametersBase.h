@@ -284,17 +284,17 @@ protected:
 		(std::string(key_lower),QCParameter(svalue,type,comment,av_lower_vec)));
 	}
 
-
+public:
 	template<typename T>
 	void set_derived_value(const std::string& key, const T& value) {
 
 		QCParameter& parameter=get_parameter(key);
 		if (not check_type_silent<T>(parameter)) {
-			throw std::runtime_error("type error in set_derived_value");
+			throw std::runtime_error("type error in set_derived_value for key "+key);
 		}
 		parameter.set_derived_value(tostring(value));
 	}
-
+protected:
 
 
 	template<typename T>

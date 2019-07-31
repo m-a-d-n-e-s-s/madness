@@ -1616,7 +1616,7 @@ Tensor<double> Nemo::compute_IR_intensities(const Tensor<double>& normalmodes,
 
     // compute the matrix of the normal modes: x -> q
     Tensor<double> M=molecule().massweights();
-    Tensor<double> D=MolecularOptimizer::projector_external_dof(molecule());
+    Tensor<double> D=MolecularOptimizer::projector_external_dof(molecule(),{"Tx","Ty","Tz","Rx","Ry","Rz"});
     Tensor<double> DL=inner(D,normalmodes);
     Tensor<double> nm=inner(M,DL);
 

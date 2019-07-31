@@ -40,7 +40,7 @@ public:
 		diamagnetic_U1=zero_functions<double,3>(world,3);
 
 		if (physical_B.normf()>0.0) recompute_factors_and_potentials();
-		print_info();
+		if (param.printlevel()>9) print_info();
 	}
 
 	void reset_explicit_B_and_v(const coord_3d& eB) {

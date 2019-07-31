@@ -52,13 +52,40 @@ using namespace madness;
 int main(int argc, char** argv) {
     initialize(argc, argv);
     World world(SafeMPI::COMM_WORLD);
+    startup(world,argc,argv);
+    std::cout.precision(6);
+
     if (world.rank() == 0) {
     	print("\n  ZNEMO -- complex Hartree-Fock using numerical exponential molecular orbitals \n");
     	printf("starting at time %.1f\n", wall_time());
 
     }
-    startup(world,argc,argv);
-    std::cout.precision(6);
+
+    bool value=true;
+    bool analyze=false;
+    bool write_input=false;
+    bool help=false;
+
+    // parse command line arguments
+    std::vector<std::string> allArgs(argv, argv + argc);
+    for (auto& a : allArgs) {
+		std::replace_copy(a.begin(), a.end(), a.begin(), '=',' ');
+		std::replace_copy(a.begin(), a.end(), a.begin(), '-',' ');
+    	std::string key, val;
+    	std::stringstream sa(a);
+    	sa >> key >> val;
+    	if (key=="help") help=true;
+    	if (key=="analyze") {
+    		value=false;
+    		analyze=true;
+    	}
+    	if (key=="write_input") write_input=true;
+    }
+
+    print("help",help);
+    print("value",value);
+    print("analyze",analyze);
+    print("write_input",write_input);
 
     try {
 
@@ -71,21 +98,25 @@ int main(int argc, char** argv) {
     		znemo->get_cparam().gprint(world);
 
     		Tensor<double> geomcoord = znemo->molecule().get_all_coords().flat();
-    		MolecularOptimizer geom(znemo,
-    				znemo->get_cparam().gmaxiter,
-					znemo->get_cparam().gtol,  //tol
-					znemo->get_cparam().gval,  //value prec
-					znemo->get_cparam().gprec); // grad prec
-
+    		MolecularOptimizer geom(world,znemo);
+    		geom.parameters.set_derived_value<std::vector<std::string> >("remove_dof",
+    				{"Tx","Ty","Tz","Rx","Ry"});
+    		geom.parameters.print("geometry optimization parameters","end");
     		geom.optimize(geomcoord);
     	} else {
 
     		// compute the energy to get converged orbitals
-    		const double energy=znemo->value();
+    		double energy=0.0;
+    		if (value) {
+    			energy=znemo->value();
+    		} else if (analyze) {
+    			znemo->read_orbitals();
+    			energy=znemo->analyze();
+    		}
     		if (world.rank()==0) {
     			printf("final energy   %12.8f\n", energy);
     			printf("finished at time %.1f\n", wall_time());
-    		}
+			}
 
     	}
 

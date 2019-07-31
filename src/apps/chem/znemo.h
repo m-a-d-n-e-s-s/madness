@@ -82,26 +82,16 @@ public:
 		double potential_radius=wave_function_radius*1.6;
 		double box_radius=wave_function_radius*1.33;
 
-		// set the diamagnetic height unless explicitly given
-//		params[box].set_derived_value(std::vector<double>({box_radius,0.01}));
-//		params[potential_radius_].set_derived_value(potential_radius);
-//		params[shift_].set_derived_value(physical_B());
-
 		set_derived_value("box",std::vector<double>{box_radius,0.01});
 		set_derived_value("potential_radius",potential_radius);
 		set_derived_value("shift",physical_B());
 
-		// set derived values
-//		params[param2_].set_derived_value(this->get<int>(param1_)*10.0);
-
-		// print final parameters
-//		if (world.rank()==0) print(params,"Our parameters");
 	}
 
 	int printlevel() const {return get<int>("printlevel");}
 	double shift() const {return get<double>("shift");}
-	double physical_B() const {return get<double>("physical_B");}
-	double explicit_B() const {return get<double>("explicit_B");}
+	double physical_B() const {return get<double>("physical_b");}
+	double explicit_B() const {return get<double>("explicit_b");}
 	std::vector<double> box() const {return get<std::vector<double> >("box");}
 	double potential_radius() const {return get<double>("potential_radius");}
 	bool use_v_vector() const {return get<bool>("use_v_vector");}
@@ -184,6 +174,12 @@ public:
 	/// compute the molecular energy
 	double value(const Tensor<double>& x);
 
+	/// adapt the thresholds consistently to a common value
+    void recompute_factors_and_potentials(const double thresh);
+
+    bool need_recompute_factors_and_potentials(const double thresh) const;
+    void invalidate_factors_and_potentials();
+
 	void iterate();
 
 	Tensor<double> gradient(const Tensor<double>& x);
@@ -202,7 +198,7 @@ public:
 	/// analyse the results only
 
 	/// @return	the energy
-	double analyze() const;
+	double analyze();
 
 	/// compute the expectation value of the kinetic momentum p
 	Tensor<double> compute_kinetic_momentum() const {
