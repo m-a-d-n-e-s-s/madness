@@ -1,10 +1,5 @@
-cmake_minimum_required (VERSION 3.1.0)
+cmake_minimum_required (VERSION 3.8.0)
 project(MADNESS CXX C ASM)
-
-# Check CMake version
-if(CMAKE_VERSION VERSION_LESS 3.5.1)  
-  message("WARNING: If parallel build fails halfway through, reduce the value of the parallel build to 'make -j 4'. Or try upgrading to CMake 3.5.1.")
-endif()
 
 # Set MADNESS version
 set(MADNESS_MAJOR_VERSION 0)
@@ -65,6 +60,9 @@ option(ENABLE_ACML "Search for AMD Core Math Library (ACML) for BLAS and LAPACK 
 option(ENABLE_TCMALLOC_MINIMAL "Enable use of tcmalloc_minimal library from Google Performance Tools (gperftools)" OFF)
 cmake_dependent_option(ENABLE_GPERFTOOLS "Enable use of Google Performance Tools (gperftools)" ON
     "NOT ENABLE_TCMALLOC_MINIMAL" OFF)
+option(ENABLE_LIBUNWIND
+       "Forces detection (and possible use) of Libunwind (normally Libunwind will be sought automatically if needed)"
+        OFF)
 option(ENABLE_PAPI "Enables use of PAPI" OFF)
 option(ENABLE_LIBXC "Enables use of the libxc library of density functionals" ON)
 option(ENABLE_PCM "Enables use of the polarizable continuum model library" ON)
@@ -116,13 +114,13 @@ add_feature_info(WORLD_PROFILE ENABLE_WORLD_PROFILE "supports simple profiling o
 set(WORLD_PROFILE_ENABLE ${ENABLE_WORLD_PROFILE} CACHE BOOL 
     "Enables world profiling")
 
-option(ENABLE_MEM_STATS "Gather memory statistics (expensive)" OFF)
-add_feature_info(MEM_STATS ENABLE_MEM_STATS "gather memory statistics (expensive)")
-set(WORLD_GATHER_MEM_STATS ${ENABLE_MEM_STATS} CACHE BOOL "Gather memory statistics (expensive)")
+option(ENABLE_MEM_STATS "Gather fine-grained memory statistics (expensive)" OFF)
+add_feature_info(MEM_STATS ENABLE_MEM_STATS "gather fine-grained memory statistics (expensive)")
+set(WORLD_GATHER_MEM_STATS ${ENABLE_MEM_STATS} CACHE BOOL "Gather fine-grained memory statistics (expensive)")
 
-option(ENABLE_MEM_PROFILE "Turn on instrumented memory profiling (print_meminfo)" OFF)
-add_feature_info(MEM_PROFILE ENABLE_MEM_PROFILE "instrumented memory profiling")
-set(WORLD_MEM_PROFILE_ENABLE ${ENABLE_MEM_PROFILE} CACHE BOOL "Turn on instrumented memory profiling (print_meminfo)")
+option(ENABLE_MEM_PROFILE "Turn on instrumented aggregate memory profiling (print_meminfo)" OFF)
+add_feature_info(MEM_PROFILE ENABLE_MEM_PROFILE "instrumented aggregate memory profiling")
+set(WORLD_MEM_PROFILE_ENABLE ${ENABLE_MEM_PROFILE} CACHE BOOL "Turn on instrumented aggregate memory profiling (print_meminfo)")
 
 option(ENABLE_TENSOR_BOUNDS_CHECKING
     "Enable checking of bounds in tensors ... slow but useful for debugging" OFF)
@@ -330,9 +328,16 @@ endif()
 
 # Check compiler feature support ===============================================
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 14 CACHE STRING  "C++ ISO Standard version")
+if (NOT(CMAKE_CXX_STANDARD EQUAL 14 OR CMAKE_CXX_STANDARD EQUAL 17 OR CMAKE_CXX_STANDARD EQUAL 20))
+  message(FATAL_ERROR "C++ 2014 ISO Standard or higher is required to compile MADNESS")
+endif()
+# C++20 is only configurable via compile features with cmake 3.12 and older
+if (CMAKE_CXX_STANDARD EQUAL 20 AND CMAKE_VERSION VERSION_LESS 3.12.0)
+  message(FATAL_ERROR "C++ 2020 ISO Standard requires CMake version 3.12 or higher")
+endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_CXX_EXTENSIONS OFF CACHE BOOLEAN "Whether to use extensions of C++ ISO Standard version")
 
 # Check for system include files
 check_include_file(sys/stat.h HAVE_SYS_STAT_H)
@@ -545,7 +550,7 @@ if(ENABLE_UNITTESTS)
   enable_testing()
   set(MADNESS_HAS_GOOGLE_TEST 1)
   add_custom_target(unittests)
-  add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND}) # to be GNU compatible
+  add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} USES_TERMINAL) # to be GNU compatible
 endif()
 add_subdirectory(src)
 add_subdirectory(doc)
@@ -614,7 +619,8 @@ install(FILES
     COMPONENT madness-config)
 add_custom_target(install-config
      COMMAND ${CMAKE_COMMAND} -DCOMPONENT=madness-config -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
-     COMMENT "Installing MADNESS config components")
+     COMMENT "Installing MADNESS config components"
+     USES_TERMINAL)
 
 feature_summary(WHAT ALL
                 DESCRIPTION "=== MADNESS Package/Feature Info ===")
