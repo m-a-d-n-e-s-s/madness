@@ -1313,6 +1313,113 @@ namespace madness {
         return result;
     }
 
+    // BLM first derivative 
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > grad_ble_one(const Function<T,NDIM>& f,
+            bool refine=false, bool fence=true) {
+
+        World& world=f.world();
+        f.reconstruct();
+        if (refine) f.refine();      // refine to make result more precise
+
+        std::vector< std::shared_ptr< Derivative<T,NDIM> > > grad=
+                gradient_operator<T,NDIM>(world);
+
+        // Read in new coeff for each operator
+        for (unsigned int i=0; i<NDIM; ++i) (*grad[i]).set_ble1();
+
+        std::vector<Function<T,NDIM> > result(NDIM);
+        for (unsigned int i=0; i<NDIM; ++i) result[i]=apply(*(grad[i]),f,false);
+        if (fence) world.gop.fence();
+        return result;
+    }
+
+    // BLM second derivative
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > grad_ble_two(const Function<T,NDIM>& f,
+            bool refine=false, bool fence=true) {
+
+        World& world=f.world();
+        f.reconstruct();
+        if (refine) f.refine();      // refine to make result more precise
+
+        std::vector< std::shared_ptr< Derivative<T,NDIM> > > grad=
+                gradient_operator<T,NDIM>(world);
+
+        // Read in new coeff for each operator
+        for (unsigned int i=0; i<NDIM; ++i) (*grad[i]).set_ble2();
+
+        std::vector<Function<T,NDIM> > result(NDIM);
+        for (unsigned int i=0; i<NDIM; ++i) result[i]=apply(*(grad[i]),f,false);
+        if (fence) world.gop.fence();
+        return result;
+    }
+
+    // Bspline first derivative 
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > grad_bspline_one(const Function<T,NDIM>& f,
+            bool refine=false, bool fence=true) {
+
+        World& world=f.world();
+        f.reconstruct();
+        if (refine) f.refine();      // refine to make result more precise
+
+        std::vector< std::shared_ptr< Derivative<T,NDIM> > > grad=
+                gradient_operator<T,NDIM>(world);
+
+        // Read in new coeff for each operator
+        for (unsigned int i=0; i<NDIM; ++i) (*grad[i]).set_bspline1();
+
+        std::vector<Function<T,NDIM> > result(NDIM);
+        for (unsigned int i=0; i<NDIM; ++i) result[i]=apply(*(grad[i]),f,false);
+        if (fence) world.gop.fence();
+        return result;
+    }
+
+    // Bpsline second derivative
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > grad_bpsline_two(const Function<T,NDIM>& f,
+            bool refine=false, bool fence=true) {
+
+        World& world=f.world();
+        f.reconstruct();
+        if (refine) f.refine();      // refine to make result more precise
+
+        std::vector< std::shared_ptr< Derivative<T,NDIM> > > grad=
+                gradient_operator<T,NDIM>(world);
+
+        // Read in new coeff for each operator
+        for (unsigned int i=0; i<NDIM; ++i) (*grad[i]).set_bspline2();
+
+        std::vector<Function<T,NDIM> > result(NDIM);
+        for (unsigned int i=0; i<NDIM; ++i) result[i]=apply(*(grad[i]),f,false);
+        if (fence) world.gop.fence();
+        return result;
+    }
+
+    // Bspline third derivative
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > grad_bspline_three(const Function<T,NDIM>& f,
+            bool refine=false, bool fence=true) {
+
+        World& world=f.world();
+        f.reconstruct();
+        if (refine) f.refine();      // refine to make result more precise
+
+        std::vector< std::shared_ptr< Derivative<T,NDIM> > > grad=
+                gradient_operator<T,NDIM>(world);
+
+        // Read in new coeff for each operator
+        for (unsigned int i=0; i<NDIM; ++i) (*grad[i]).set_bspline3();
+
+        std::vector<Function<T,NDIM> > result(NDIM);
+        for (unsigned int i=0; i<NDIM; ++i) result[i]=apply(*(grad[i]),f,false);
+        if (fence) world.gop.fence();
+        return result;
+    }
+
+
+
     /// shorthand div operator
 
     /// returns the dot product of nabla with a vector f

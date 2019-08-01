@@ -418,17 +418,18 @@ public:
 
     /// custom ctor with information about the XC functional
     XCOperator(World& world, std::string xc_data, const bool spin_polarized,
-            const real_function_3d& arho, const real_function_3d& brho);
+            const real_function_3d& arho, const real_function_3d& brho,
+            std::string deriv="abgv");
 
     /// ctor with an SCF calculation, will initialize the necessary intermediates
-    XCOperator(World& world, const SCF* scf, int ispin=0);
+    XCOperator(World& world, const SCF* scf, int ispin=0, std::string deriv="abgv");
 
     /// ctor with a Nemo calculation, will initialize the necessary intermediates
     XCOperator(World& world, const Nemo* nemo, int ispin=0);
 
     /// ctor with an SCF calculation, will initialize the necessary intermediates
     XCOperator(World& world, const SCF* scf, const real_function_3d& arho,
-            const real_function_3d& brho, int ispin=0);
+            const real_function_3d& brho, int ispin=0, std::string deriv="abgv");
 
     /// ctor with an Nemo calculation, will initialize the necessary intermediates
     XCOperator(World& world, const Nemo* scf, const real_function_3d& arho,
@@ -472,6 +473,9 @@ private:
 
     /// the world
     World& world;
+
+    /// which derivative operator to use
+    std::string dft_deriv;
 
 public:
     /// interface to the actual XC functionals
