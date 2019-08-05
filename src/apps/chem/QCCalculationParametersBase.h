@@ -259,7 +259,7 @@ protected:
 
 	template<typename T>
 	void initialize(const std::string& key, const T& value, const std::string comment="",
-			const std::vector<std::string> allowed_values={}) {
+			const std::vector<T> allowed_values={}) {
 
 		if (parameters.find(key)!=parameters.end()) {
 			madness::print("you cannot initialize a parameter twice: ",key);
@@ -275,7 +275,7 @@ protected:
 		std::transform(svalue.begin(), svalue.end(), svalue.begin(), ::tolower);
 		std::vector<std::string> av_lower_vec;
 		for (auto av : allowed_values) {
-			std::string av_lower=av;
+			std::string av_lower=tostring(av);
 			std::transform(av_lower.begin(), av_lower.end(), av_lower.begin(), ::tolower);
 			av_lower_vec.push_back(av_lower);
 		}
@@ -285,6 +285,7 @@ protected:
 	}
 
 
+public:
 	template<typename T>
 	void set_derived_value(const std::string& key, const T& value) {
 
@@ -295,7 +296,7 @@ protected:
 		parameter.set_derived_value(tostring(value));
 	}
 
-
+protected:
 
 	template<typename T>
 	bool try_setting_user_defined_value(const std::string& key, const std::string& val) {
@@ -308,6 +309,7 @@ protected:
 		return true;
 	}
 
+public:
 	template<typename T>
 	void set_user_defined_value(const std::string& key, const T& value) {
 
@@ -318,6 +320,7 @@ protected:
 
 		parameter.set_user_defined_value(tostring(value));
 	}
+protected:
 
 	const QCParameter& get_parameter(const std::string key) const {
 		if (not parameter_exists(key)) {
@@ -374,7 +377,9 @@ protected:
 	static std::string tostring(const T& arg) {
 		std::ostringstream ss;
 		ss<<std::scientific  << std::setprecision(4) << arg;
-		return ss.str();
+		std::string str=ss.str();
+		std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+		return str;
 	}
 
 	template<typename T>

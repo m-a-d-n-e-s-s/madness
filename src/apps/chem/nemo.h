@@ -140,11 +140,11 @@ public:
 
 	void construct_nuclear_correlation_factor(const Molecule& molecule,
 			const std::shared_ptr<PotentialManager> pm,
-			const std::string inputline) {
+			const std::pair<std::string,double> ncf_parameter) {
 
 	    // construct the nuclear correlation factor:
 	    if (not nuclear_correlation) {
-	    	nuclear_correlation=create_nuclear_correlation_factor(world, molecule, pm, inputline);
+	    	nuclear_correlation=create_nuclear_correlation_factor(world, molecule, pm, ncf_parameter);
 	    }
 
 	    // re-project the ncf
@@ -444,13 +444,13 @@ private:
         }
         if ((not R.is_initialized()) or (R.thresh()>thresh)) {
             timer timer1(world);
-            construct_nuclear_correlation_factor(calc->molecule, calc->potentialmanager, calc->param.nuclear_corrfac);
+            construct_nuclear_correlation_factor(calc->molecule, calc->potentialmanager, calc->param.ncf());
             timer1.end("reproject ncf");
         }
 
         // (re) construct the Poisson solver
         poisson = std::shared_ptr<real_convolution_3d>(
-                CoulombOperatorPtr(world, calc->param.lo, FunctionDefaults<3>::get_thresh()));
+                CoulombOperatorPtr(world, calc->param.lo(), FunctionDefaults<3>::get_thresh()));
 
         // set thresholds for the MOs
         set_thresh(world,calc->amo,thresh);
@@ -511,9 +511,9 @@ public:
 
 	bool is_dft() const {return calc->xc.is_dft();}
 
-	bool do_pcm() const {return calc->param.pcm_data != "none";}
+	bool do_pcm() const {return calc->param.pcm_data() != "none";}
 	
-	bool do_ac() const {return calc->param.ac_data != "none";}
+	bool do_ac() const {return calc->param.ac_data() != "none";}
 
 	AC<3> get_ac() const {return ac;}
 
