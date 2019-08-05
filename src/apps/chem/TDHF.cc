@@ -94,7 +94,7 @@ TDHF::TDHF(World &world, const Nemo & nemo_, const std::string& input)
 		msg << eps << "\n";
 
 	}
-	if(nemo.get_calc()->param.localize){
+	if(nemo.get_calc()->param.do_localize()){
 		Fock F(world, &nemo);
 		F_occ = F(get_active_mo_bra(),get_active_mo_ket());
 		for(size_t i=0;i<get_active_mo_ket().size();++i){
@@ -597,7 +597,7 @@ std::vector<vector_real_function_3d> TDHF::make_potentials(const std::vector<CC_
 
 vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x)const{
 	// XC information
-	const std::string xc_data = nemo.get_calc()->param.xc_data;
+	const std::string xc_data = nemo.get_calc()->param.xc();
 	// HF exchange Coefficient
 	double hf_coeff = nemo.get_calc()->xc.hf_exchange_coefficient();
 
@@ -627,7 +627,7 @@ vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x)const{
 		// const Nuclear V(world,&nemo); // not included in the TDA potential anymore
 
 
-		std::string xc_data=nemo.get_calc()->param.xc_data;
+		std::string xc_data=nemo.get_calc()->param.xc();
 		xc_data = xc_data.erase(0,xc_data.find_first_not_of(" "));
 		xc_data = xc_data.erase(xc_data.find_last_not_of(" ")+1);
 
@@ -642,7 +642,7 @@ vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x)const{
 
 		if(nemo.get_calc()->xc.is_dft()){
 			// XC Potential
-			const XCOperator xc(world,xc_data, not nemo.get_calc()->param.spin_restricted,alpha_density,alpha_density);
+			const XCOperator xc(world,xc_data, not nemo.get_calc()->param.spin_restricted(),alpha_density,alpha_density);
 
 			// Applied XC Potential
 			CCTimer timeXCx(world,"XCx");
@@ -695,7 +695,7 @@ vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x)const{
 		vector_real_function_3d XCp=zero_functions<double,3>(world,get_active_mo_ket().size());
 		if(nemo.get_calc()->xc.is_dft()){
 			// XC Potential
-			const XCOperator xc(world,xc_data, not nemo.get_calc()->param.spin_restricted,alpha_density,alpha_density);
+			const XCOperator xc(world,xc_data, not nemo.get_calc()->param.spin_restricted(),alpha_density,alpha_density);
 			// reconstruct the full perturbed density: do not truncate!
 			real_function_3d gamma=xc.apply_xc_kernel(density_pert);
 			vector_real_function_3d XCp=mul(world,gamma,active_mo);
@@ -746,7 +746,7 @@ vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x)const{
 	// canonical: -ei|xi> (part of greens function)
 	// local:  -fik|xk> (fii|xi> part of greens functions, rest needs to be added)
 
-	if(nemo.get_calc()->param.localize){
+	if(nemo.get_calc()->param.do_localize()){
 		const vector_real_function_3d vx=x.get_vecfunction();
 		vector_real_function_3d fock_coupling=madness::transform(world,vx,F_occ);
 		// subtract the diagonal terms
@@ -1364,7 +1364,7 @@ Tensor<double> TDHF::make_cis_matrix(const vector_real_function_3d virtuals,
 
 	// make CIS matrix
 	// first do the "diagonal" entries
-	if(nemo.get_calc()->param.localize){
+	if(nemo.get_calc()->param.do_localize()){
 
 		// make bra elements
 		const vector_real_function_3d virtuals_bra = make_bra(virtuals);
@@ -1576,13 +1576,13 @@ void TDHF::analyze(const std::vector<CC_vecfunction> &x) const {
 
 /// todo: read_from_file compatible with dist. memory computation
 TDHF::Parameters::Parameters(const std::shared_ptr<SCF>& scf,const std::string& input) :
-													lo(scf->param.lo) {
+													lo(scf->param.lo()) {
 	read_from_file(input, "response");
 	complete_with_defaults(scf);
 }
 
 TDHF::Parameters::Parameters(const std::shared_ptr<SCF>& scf) :
-													lo(scf->param.lo) {
+													lo(scf->param.lo()) {
 	complete_with_defaults(scf);
 }
 

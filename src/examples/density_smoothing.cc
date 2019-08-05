@@ -80,7 +80,7 @@ int main(int argc, char** argv) {
 		if (world.rank()==0) {
 			calc->molecule.print();
 			print("\n");
-			calc->param.print(world);
+			calc->param.print("dft");
 		}
 
 		// compute the energy to get converged orbitals

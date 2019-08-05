@@ -133,7 +133,7 @@ bool test_lrccs(World& world){
 				if (world.rank()==0) {
 					calc->molecule.print();
 					print("\n");
-					calc->param.print(world);
+					calc->param.print("dft");
 				}
 				//double hf_energy = nemo.value();
 
@@ -243,50 +243,48 @@ int main(int argc, char** argv) {
 				if (world.rank()==0) {
 					calc->molecule.print();
 					print("\n");
-					calc->param.print(world);
+					calc->param.print("dft");
 				}
 				double hf_energy = nemo.value();
 				if(world.rank()==0) std::cout << "\n\n\n\n\n\n Reference Calclation Ended\n SCF Energy is: " << hf_energy
 						<<"\n current wall-time: " << wall_time()
 						<<"\n current cpu-time: " << cpu_time()<< "\n\n\n";
 
-				// experimental
-				{
-					// get the list
-					std::vector<int> list;
-					for(size_t i=0;i<nemo.get_calc()->amo.size();++i){
-						const std::string key="recanonicalize"+std::to_string(i);
-						if(nemo.get_calc()->param.generalkeyval.find(key)!=nemo.get_calc()->param.generalkeyval.end()){
-							list.push_back(i);
-						}
-					}
-
-					if(list.size()>1){
-						if(world.rank()==0) std::cout << "Canonicalizing orbitals " << list << "\n";
-						Fock F(world,&nemo);
-						// testing
-						Tensor<double> Ftesta=F(nemo.get_calc()->amo,nemo.get_calc()->amo);
-						if(world.rank()==0) std::cout << "Fock Matrix:\n" << Ftesta << "\n";
-
-						vector_real_function_3d vdom;
-						for(const int& i:list) vdom.push_back(nemo.get_calc()->amo[i]);
-
-						Tensor<double> Fblock=F(vdom,vdom);
-						if(world.rank()==0) std::cout << "Partial Fock Matrix:\n" << Fblock << "\n";
-						canonicalize(world,Fblock,vdom,std::min(FunctionDefaults<3>::get_thresh(),1.e-5));
-						for(size_t ii=0;ii<vdom.size();++ii){
-							int i=list[ii];
-							nemo.get_calc()->amo[i]=vdom[ii];
-						}
-						// testing
-						Tensor<double> Ftest=F(nemo.get_calc()->amo,nemo.get_calc()->amo);
-						for(size_t k=0;k<nemo.get_calc()->amo.size();++k) nemo.get_calc()->aeps(k)=Ftest(k,k);
-						if(world.rank()==0) std::cout << "new Fock Matrix:\n" << Ftest << "\n";
-					}else if(world.rank()==0) std::cout << "nothing to recanonicalzie\n";
-
-
-
-				}
+//				// experimental
+//				{
+//					// get the list
+//					std::vector<int> list;
+//					for(size_t i=0;i<nemo.get_calc()->amo.size();++i){
+//						const std::string key="recanonicalize"+std::to_string(i);
+//						if(nemo.get_calc()->param.generalkeyval.find(key)!=nemo.get_calc()->param.generalkeyval.end()){
+//							list.push_back(i);
+//						}
+//					}
+//
+//					if(list.size()>1){
+//						if(world.rank()==0) std::cout << "Canonicalizing orbitals " << list << "\n";
+//						Fock F(world,&nemo);
+//						// testing
+//						Tensor<double> Ftesta=F(nemo.get_calc()->amo,nemo.get_calc()->amo);
+//						if(world.rank()==0) std::cout << "Fock Matrix:\n" << Ftesta << "\n";
+//
+//						vector_real_function_3d vdom;
+//						for(const int& i:list) vdom.push_back(nemo.get_calc()->amo[i]);
+//
+//						Tensor<double> Fblock=F(vdom,vdom);
+//						if(world.rank()==0) std::cout << "Partial Fock Matrix:\n" << Fblock << "\n";
+//						canonicalize(world,Fblock,vdom,std::min(FunctionDefaults<3>::get_thresh(),1.e-5));
+//						for(size_t ii=0;ii<vdom.size();++ii){
+//							int i=list[ii];
+//							nemo.get_calc()->amo[i]=vdom[ii];
+//						}
+//						// testing
+//						Tensor<double> Ftest=F(nemo.get_calc()->amo,nemo.get_calc()->amo);
+//						for(size_t k=0;k<nemo.get_calc()->amo.size();++k) nemo.get_calc()->aeps(k)=Ftest(k,k);
+//						if(world.rank()==0) std::cout << "new Fock Matrix:\n" << Ftest << "\n";
+//					}else if(world.rank()==0) std::cout << "nothing to recanonicalzie\n";
+//
+//				}
 
 
 				TDHF tdhf(world,nemo,input);

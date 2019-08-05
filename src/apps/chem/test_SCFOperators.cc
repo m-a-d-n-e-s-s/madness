@@ -126,10 +126,10 @@ struct write_test_input {
         std::ofstream of(filename_);
         of << "dft\n";
         of << "xc hf\n";
-        of << "no_orient\n";
+        of << "no_orient true\n";
         of << "k 8\n";
-        of << "protocol 1.e-5 \n";
-        of << "nuclear_corrfac  slater 2.0\n";
+        of << "protocol [1.e-5] \n";
+        of << "ncf (slater,2.0)\n";
         of << "end\n";
 
         if (mol=="lih") {
@@ -572,7 +572,7 @@ int nuclear_anchor_test(World& world) {
 
     // test ncf=slater
     std::shared_ptr<NuclearCorrelationFactor> ncf=
-    create_nuclear_correlation_factor(world, calc.molecule, calc.potentialmanager, calc.param.nuclear_corrfac);
+    create_nuclear_correlation_factor(world, calc.molecule, calc.potentialmanager, calc.param.ncf());
     ncf->initialize(FunctionDefaults<3>::get_thresh());
 
     Nuclear Vnuc1(world,ncf);
@@ -679,7 +679,7 @@ int dnuclear_anchor_test(World& world) {
 
     // test U2 and U3
     std::shared_ptr<NuclearCorrelationFactor> ncf=
-    create_nuclear_correlation_factor(world, calc.molecule, calc.potentialmanager, calc.param.nuclear_corrfac);
+    create_nuclear_correlation_factor(world, calc.molecule, calc.potentialmanager, calc.param.ncf());
     ncf->initialize(FunctionDefaults<3>::get_thresh());
     NuclearCorrelationFactor::U2_functor u2f(ncf.get());
     const double u2=inner(gaussian,u2f);

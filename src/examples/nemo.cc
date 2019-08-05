@@ -85,29 +85,29 @@ int main(int argc, char** argv) {
         if (world.rank()==0) {
             calc->molecule.print();
             print("\n");
-            calc->param.print(world);
+            calc->param.print("dft");
         }
 
         std::shared_ptr<Nemo> nemo(new Nemo(world,calc));
 
         // optimize the geometry if requested
-        if (calc->param.gopt) {
+        if (calc->param.gopt()) {
             print("\n\n Geometry Optimization                      ");
             print(" ----------------------------------------------------------\n");
-            calc->param.gprint(world);
+//            calc->param.gprint(world);
 
             Tensor<double> geomcoord = calc->molecule.get_all_coords().flat();
 //            MolecularOptimizer geom(std::shared_ptr<MolecularOptimizationTargetInterface>(new Nemo(world, calc)),
             MolecularOptimizer geom(nemo,
-                    calc->param.gmaxiter,
-                    calc->param.gtol,  //tol
-                    calc->param.gval,  //value prec
-                    calc->param.gprec); // grad prec
+                    calc->param.gmaxiter(),
+                    calc->param.gtol(),  //tol
+                    calc->param.gval(),  //value prec
+                    calc->param.gprec()); // grad prec
 //            geom.set_update(calc->param.algopt);
 //            geom.set_test(calc->param.gtest);
 
             // compute initial hessian
-            if (calc->param.ginitial_hessian) {
+            if (calc->param.ginitial_hessian()) {
                 nemo->value();
                 Tensor<double> hess=nemo->hessian(calc->molecule.get_all_coords());
                 geom.set_hessian(hess);
@@ -126,7 +126,7 @@ int main(int argc, char** argv) {
         }
 
         // compute the hessian
-        if (calc->param.hessian) nemo->hessian(calc->molecule.get_all_coords());
+        if (calc->param.hessian()) nemo->hessian(calc->molecule.get_all_coords());
 
 
     } catch (const SafeMPI::Exception& e) {

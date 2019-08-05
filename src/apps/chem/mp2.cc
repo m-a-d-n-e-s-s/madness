@@ -91,11 +91,11 @@ MP2::MP2(World& world, const std::string& input) : world(world),
 		if (world.rank() == 0)
 			print("accuracy from dft will be overriden by mp2 to 0.01*thresh");
 		calc->set_protocol<6>(world, param.thresh());
-		calc->param.econv = param.thresh() * 0.01;
-		calc->set_protocol<3>(world, calc->param.econv);
+		calc->param.set_derived_value("econv",param.thresh() * 0.01);
+		calc->set_protocol<3>(world, calc->param.econv());
 
 		// override computed parameters if they are provided explicitly
-		double eprec = calc->param.econv * 0.1;
+		double eprec = calc->param.econv() * 0.1;
 
 		std::ifstream f(input.c_str());
 		position_stream(f, "geometry");
@@ -117,7 +117,7 @@ MP2::MP2(World& world, const std::string& input) : world(world),
 
 		hf = std::shared_ptr<HartreeFock>(new HartreeFock(world, calc));
 		poisson = std::shared_ptr<real_convolution_3d>(
-				CoulombOperatorPtr(world, 0.0001, calc->param.econv));
+				CoulombOperatorPtr(world, 0.0001, calc->param.econv()));
 
 		// construct electronic correlation factor only, nuclear correlation
 		// factor depends on the coordinates and must be reassigned for
@@ -129,7 +129,7 @@ MP2::MP2(World& world, const std::string& input) : world(world),
 
 	// print some output for the user
 	if (world.rank() == 0) {
-		hf->get_calc().param.print(world);
+		hf->get_calc().param.print("reference");
 		param.print("mp2","mp2_end");
 	}
 
@@ -180,7 +180,7 @@ double MP2::value(const Tensor<double>& x) {
 		Q12.set_spaces(hf->get_calc().amo);
 	} else {
 		// only valid for closed shell
-		MADNESS_CHECK(hf->get_calc().param.spin_restricted);
+		MADNESS_CHECK(hf->get_calc().param.spin_restricted());
 		const std::vector<real_function_3d>& nemos = hf->nemos();
 		const std::vector<real_function_3d>& R2amo = hf->R2orbitals();
 		Q12.set_spaces(R2amo, nemos, R2amo, nemos);
@@ -191,7 +191,7 @@ double MP2::value(const Tensor<double>& x) {
 	}
 
 	correlation_energy = 0.0;
-	if (world.rank()==0) print("localize ",hf->get_calc().param.localize);
+	if (world.rank()==0) print("localize ",hf->get_calc().param.do_localize());
 
 	// compute only one single pair
 	if ((param.i() > -1) and (param.j() > -1)) {
@@ -230,7 +230,7 @@ double MP2::value(const Tensor<double>& x) {
 	}
 
 	correlation_energy=0.0;
-	if (hf->get_calc().param.localize) {
+	if (hf->get_calc().param.do_localize()) {
 		// solve the coupled MP1 equations
 		correlation_energy=solve_coupled_equations(pairs,param.econv()*0.1,param.dconv());
 
@@ -979,7 +979,7 @@ void MP2::guess_mp1_3(ElectronPair& pair) const {
 	// compute some intermediates
 	const tensorT occ=hf->get_calc().aocc;
 	tensorT fock=hf->nemo_calc.compute_fock_matrix(hf->nemos(),occ);
-	if (hf->get_calc().param.localize) {
+	if (hf->get_calc().param.do_localize()) {
 		// local orbitals -- add coupling
 		vecfuncT amotilde=transform(world,hf->orbitals(),fock);
 		vecfuncT fik, fjl, gik, jl, ik, tjl, jtl, itk, tik;
@@ -1217,7 +1217,7 @@ real_function_6d MP2::apply_exchange(const real_function_6d& f,
 
 	MADNESS_ASSERT((particle == 1) or (particle == 2));
 	real_convolution_3d op = CoulombOperator(world, 0.0001,
-			hf->get_calc().param.econv);
+			hf->get_calc().param.econv());
 	op.particle() = particle;
 	op.destructive()=true;
 
@@ -1263,7 +1263,7 @@ std::vector<real_function_3d> MP2::make_chi(const real_function_3d& phi,
 		const real_convolution_3d& op, const bool hc) const {
 
 	const double tol = 0.0;
-	MADNESS_ASSERT(hf->get_calc().param.spin_restricted);
+	MADNESS_ASSERT(hf->get_calc().param.spin_restricted());
 	std::vector<real_function_3d> psif;
 	if (hc)
 		psif = mul_sparse(world, phi, hf->nemos(), tol);

@@ -220,7 +220,7 @@ void Molecule::set_pseudo_atom(unsigned int i, bool psat) {
   atoms[i].pseudo_atom = psat;
 }
 
-bool Molecule::get_pseudo_atom(unsigned int i) {
+bool Molecule::get_pseudo_atom(unsigned int i) const {
   if (i>=atoms.size()) throw "trying to get pseudo atom for invalid atom";
   return atoms[i].pseudo_atom;
 }
