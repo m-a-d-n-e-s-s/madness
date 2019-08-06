@@ -254,6 +254,12 @@ protected:
 	/// ctor for testing
 	QCCalculationParametersBase() {}
 
+	/// copy ctor
+	QCCalculationParametersBase(const QCCalculationParametersBase& other)
+		: parameters(other.parameters)
+		, print_debug(other.print_debug) {
+	}
+
 	/// destructor
 	virtual ~QCCalculationParametersBase() {}
 

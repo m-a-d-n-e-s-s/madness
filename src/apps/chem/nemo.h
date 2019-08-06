@@ -49,6 +49,7 @@
 #include <madness/mra/operator.h>
 #include <madness/mra/lbdeux.h>
 #include <chem/SCF.h>
+#include <chem/CalculationParameters.h>
 #include <chem/SCFProtocol.h>
 #include <chem/correlationfactor.h>
 #include <chem/molecular_optimizer.h>
@@ -176,13 +177,41 @@ class Nemo: public NemoBase {
 	friend class PNO;
 	friend class TDHF;
 
+	struct NemoCalculationParameters : public CalculationParameters {
+
+		NemoCalculationParameters(World& world, const CalculationParameters& param,
+				const std::string inputfile) : CalculationParameters(param) {
+			initialize_nemo_parameters();
+			read(world,inputfile,"dft");
+		}
+
+
+		NemoCalculationParameters(World& world, const std::string inputfile)
+			: CalculationParameters(world,inputfile) {
+			initialize_nemo_parameters();
+			read(world,inputfile,"dft");
+		}
+
+		void initialize_nemo_parameters() {
+			initialize<std::pair<std::string,double> > ("ncf",{"none",0.0},"nuclear correlation factor",{{"none",0.0},{"slater",2.0}});
+			initialize<bool> ("hessian",false,"compute the hessian matrix");
+			initialize<bool> ("read_cphf",false,"read the converged orbital response for nuclear displacements from file");
+			initialize<bool> ("restart_cphf",false,"read the guess orbital response for nuclear displacements from file");
+			initialize<bool> ("purify_hessian",false,"symmetrize the hessian matrix based on atomic charges");
+		}
+
+		std::pair<std::string,double> ncf() const {return get<std::pair<std::string,double> >("ncf");}
+
+	};
+
+
 public:
 
 	/// ctor
 
 	/// @param[in]	world1	the world
 	/// @param[in]	calc	the SCF
-	Nemo(World& world1, std::shared_ptr<SCF> calc);
+	Nemo(World& world1, std::shared_ptr<SCF> calc, const std::string inputfile);
 
 	double value() {return value(calc->molecule.get_all_coords());}
 
@@ -351,6 +380,8 @@ private:
 
 	std::shared_ptr<SCF> calc;
 
+    NemoCalculationParameters param;
+
 	projector_irrep symmetry_projector;
 
 	mutable double ttt, sss;
@@ -444,7 +475,7 @@ private:
         }
         if ((not R.is_initialized()) or (R.thresh()>thresh)) {
             timer timer1(world);
-            construct_nuclear_correlation_factor(calc->molecule, calc->potentialmanager, calc->param.ncf());
+            construct_nuclear_correlation_factor(calc->molecule, calc->potentialmanager, param.ncf());
             timer1.end("reproject ncf");
         }
 

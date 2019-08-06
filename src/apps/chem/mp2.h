@@ -95,7 +95,7 @@ namespace madness {
         Nemo nemo_calc;
 
         HartreeFock(World& world, std::shared_ptr<SCF> calc1) :
-        	world(world), calc(calc1), coords_sum(-1.0), nemo_calc(world,calc1) {
+        	world(world), calc(calc1), coords_sum(-1.0), nemo_calc(world,calc1,"input") {
         }
 
         bool provides_gradient() const {return true;}
