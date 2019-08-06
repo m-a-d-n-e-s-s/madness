@@ -177,19 +177,16 @@ class Nemo: public NemoBase {
 	friend class PNO;
 	friend class TDHF;
 
+public:
+	/// class holding parameters for a nemo calculation beyond the standard dft parameters from moldft
 	struct NemoCalculationParameters : public CalculationParameters {
 
-		NemoCalculationParameters(World& world, const CalculationParameters& param,
-				const std::string inputfile) : CalculationParameters(param) {
+		NemoCalculationParameters(const CalculationParameters& param) : CalculationParameters(param) {
 			initialize_nemo_parameters();
-			read(world,inputfile,"dft");
 		}
 
-
-		NemoCalculationParameters(World& world, const std::string inputfile)
-			: CalculationParameters(world,inputfile) {
+		NemoCalculationParameters() : CalculationParameters() {
 			initialize_nemo_parameters();
-			read(world,inputfile,"dft");
 		}
 
 		void initialize_nemo_parameters() {
@@ -201,6 +198,7 @@ class Nemo: public NemoBase {
 		}
 
 		std::pair<std::string,double> ncf() const {return get<std::pair<std::string,double> >("ncf");}
+		bool hessian() const {return get<bool>("hessian");}
 
 	};
 
@@ -380,8 +378,10 @@ private:
 
 	std::shared_ptr<SCF> calc;
 
+public:
     NemoCalculationParameters param;
 
+private:
 	projector_irrep symmetry_projector;
 
 	mutable double ttt, sss;

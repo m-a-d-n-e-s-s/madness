@@ -129,13 +129,14 @@ namespace madness {
 //    }
 
     /// collective constructor, reads \c input on rank 0, broadcasts to all
-    SCF::SCF(World& world, const std::string& inputfile) {
+    SCF::SCF(World& world, const std::string& inputfile) : param(CalculationParameters()) {
         FunctionDefaults<3>::set_truncate_mode(1);
         PROFILE_MEMBER_FUNC(SCF);
+
         if (world.rank() == 0) {
 
-        	// read input parameters from the input file
-            param=CalculationParameters(world,inputfile);
+            // read input parameters from the input file
+    		param.read(world,inputfile,"dft");
 
             std::ifstream ifile(inputfile);
             molecule.read(ifile);

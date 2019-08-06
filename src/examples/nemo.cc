@@ -85,7 +85,7 @@ int main(int argc, char** argv) {
         if (world.rank()==0) {
             calc->molecule.print();
             print("\n");
-            calc->param.print("dft");
+//            calc->param.print("dft");
         }
 
         std::shared_ptr<Nemo> nemo(new Nemo(world,calc,input));
@@ -126,7 +126,7 @@ int main(int argc, char** argv) {
         }
 
         // compute the hessian
-        if (calc->param.hessian()) nemo->hessian(calc->molecule.get_all_coords());
+        if (nemo->param.hessian()) nemo->hessian(calc->molecule.get_all_coords());
 
 
     } catch (const SafeMPI::Exception& e) {

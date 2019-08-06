@@ -571,8 +571,10 @@ int nuclear_anchor_test(World& world) {
     if (check_err(err,thresh,"Nuclear matrix element error 1")) return 1;
 
     // test ncf=slater
+    Nemo::NemoCalculationParameters nemo_param(calc.param);
+    nemo_param.read(world,test_input.filename(),"dft");
     std::shared_ptr<NuclearCorrelationFactor> ncf=
-    create_nuclear_correlation_factor(world, calc.molecule, calc.potentialmanager, calc.param.ncf());
+    create_nuclear_correlation_factor(world, calc.molecule, calc.potentialmanager, nemo_param.ncf());
     ncf->initialize(FunctionDefaults<3>::get_thresh());
 
     Nuclear Vnuc1(world,ncf);
@@ -678,8 +680,11 @@ int dnuclear_anchor_test(World& world) {
     // test ncf=slater
 
     // test U2 and U3
+    Nemo::NemoCalculationParameters nemo_param(calc.param);
+    nemo_param.read(world,test_input.filename(),"dft");
+
     std::shared_ptr<NuclearCorrelationFactor> ncf=
-    create_nuclear_correlation_factor(world, calc.molecule, calc.potentialmanager, calc.param.ncf());
+    create_nuclear_correlation_factor(world, calc.molecule, calc.potentialmanager, nemo_param.ncf());
     ncf->initialize(FunctionDefaults<3>::get_thresh());
     NuclearCorrelationFactor::U2_functor u2f(ncf.get());
     const double u2=inner(gaussian,u2f);
@@ -775,7 +780,7 @@ int test_nemo(World& world) {
 
     write_test_input test_input;
     std::shared_ptr<SCF> calc_ptr(new SCF(world,test_input.filename().c_str()));
-    Nemo nemo(world,calc_ptr);
+    Nemo nemo(world,calc_ptr,test_input.filename());
     double energy=nemo.value(calc_ptr->molecule.get_all_coords().flat()); // ugh!
     print("energy(LiH)",energy);
     // hard-wire test
