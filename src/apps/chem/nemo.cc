@@ -93,8 +93,8 @@ public:
 
 /// @param[in]	world1	the world
 /// @param[in]	calc	the SCF
-Nemo::Nemo(World& world, std::shared_ptr<SCF> calc) :
-		NemoBase(world), calc(calc),
+Nemo::Nemo(World& world, std::shared_ptr<SCF> calc, const std::string inputfile) :
+		NemoBase(world), calc(calc), param(world,calc->param,inputfile),
 		ttt(0.0), sss(0.0), coords_sum(-1.0), ac(world,calc) {
 
     if (do_pcm()) pcm=PCM(world,this->molecule(),calc->param.pcm_data(),true);

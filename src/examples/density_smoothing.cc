@@ -84,7 +84,7 @@ int main(int argc, char** argv) {
 		}
 
 		// compute the energy to get converged orbitals
-		Nemo nemo(world,calc);
+		Nemo nemo(world,calc,input);
 		const double energy=nemo.value();
 		if (world.rank()==0) {
 			printf("final energy   %12.8f\n", energy);

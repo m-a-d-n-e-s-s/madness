@@ -88,7 +88,7 @@ int main(int argc, char** argv) {
             calc->param.print("dft");
         }
 
-        std::shared_ptr<Nemo> nemo(new Nemo(world,calc));
+        std::shared_ptr<Nemo> nemo(new Nemo(world,calc,input));
 
         // optimize the geometry if requested
         if (calc->param.gopt()) {

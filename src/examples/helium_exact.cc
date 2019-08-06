@@ -451,7 +451,7 @@ int main(int argc, char** argv) {
 	// read out input and stuff
 	std::string input = "input";
 	std::shared_ptr<SCF> calc(new SCF(world, input.c_str()));
-	Nemo nemo(world, calc);
+	Nemo nemo(world, calc,input);
 
 	TensorType tt = TT_2D;
 	FunctionDefaults<6>::set_tensor_type(tt);

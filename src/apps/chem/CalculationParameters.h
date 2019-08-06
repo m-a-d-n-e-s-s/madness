@@ -51,6 +51,9 @@ namespace madness {
 struct CalculationParameters : public QCCalculationParametersBase {
 
 	CalculationParameters() {}
+	CalculationParameters(const CalculationParameters& other) : QCCalculationParametersBase(other) {
+
+	}
 
 	/// ctor reading out the input file
 	CalculationParameters(World& world, const std::string inputfile) {
@@ -119,12 +122,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<int> ("gmaxiter",20,"optimization maxiter");
 		initialize<bool> ("ginitial_hessian",false,"compute inital hessian for optimization");
 		initialize<std::string> ("algopt","bfgs","algorithm used for optimization",{"bfgs","cg"});
-		initialize<bool> ("hessian",false,"compute the hessian matrix");
-		initialize<bool> ("read_cphf",false,"read the converged orbital response for nuclear displacements from file");
-		initialize<bool> ("restart_cphf",false,"read the guess orbital response for nuclear displacements from file");
-		initialize<bool> ("purify_hessian",false,"symmetrize the hessian matrix based on atomic charges");
 		initialize<bool> ("tdksprop",false,"time-dependent Kohn-Sham equation propagate");
-		initialize<std::pair<std::string,double> > ("ncf",{"none",0.0},"nuclear correlation factor",{{"none",0.0},{"slater",2.0}});
 		initialize<int> ("nv_factor",1,"factor to multiply number of virtual orbitals with when automatically decreasing nvirt");
 		initialize<int> ("vnucextra",2,"load balance parameter for nuclear pot");
 		initialize<int> ("loadbalparts",2,"??");
@@ -199,7 +197,6 @@ struct CalculationParameters : public QCCalculationParametersBase {
 
 	int vnucextra() const {return get<int>("vnucextra");}
 	int loadbalparts() const {return get<int>("loadbalparts");}
-	std::pair<std::string,double> ncf() const {return get<std::pair<std::string,double> >("ncf");}
 
 	double response_freq() const {return get<double>("response_freq");}
 	std::vector<bool> response_axis() const {return get<std::vector<bool> >("response_axis");}

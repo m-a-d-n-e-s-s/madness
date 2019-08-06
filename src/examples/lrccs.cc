@@ -129,7 +129,7 @@ bool test_lrccs(World& world){
 
 				// ground state calculation
 				std::shared_ptr<SCF> calc(new SCF(world,filename.c_str()));
-				Nemo nemo(world,calc);
+				Nemo nemo(world,calc,filename);
 				if (world.rank()==0) {
 					calc->molecule.print();
 					print("\n");
@@ -239,7 +239,7 @@ int main(int argc, char** argv) {
 				const std::string input = inpname;
 				//SCF calc(world,input.c_str());
 				std::shared_ptr<SCF> calc(new SCF(world,input.c_str()));
-				Nemo nemo(world,calc);
+				Nemo nemo(world,calc,input);
 				if (world.rank()==0) {
 					calc->molecule.print();
 					print("\n");
