@@ -94,16 +94,23 @@ public:
 /// @param[in]	world1	the world
 /// @param[in]	calc	the SCF
 Nemo::Nemo(World& world, std::shared_ptr<SCF> calc, const std::string inputfile) :
-		NemoBase(world), calc(calc), param(world,calc->param,inputfile),
+		NemoBase(world), calc(calc), param(calc->param),
 		ttt(0.0), sss(0.0), coords_sum(-1.0), ac(world,calc) {
 
     if (do_pcm()) pcm=PCM(world,this->molecule(),calc->param.pcm_data(),true);
+
+    // reading will not overwrite the derived and defined values
+    if (world.rank()==0) param.read(world,inputfile,"dft");
+    world.gop.broadcast_serializable(param, 0);
+
 
     symmetry_projector=projector_irrep(calc->param.point_group())
     		.set_ordering("keep").set_verbosity(0).set_orthonormalize_irreps(true);;
     if (world.rank()==0) print("constructed symmetry operator for point group",
     		symmetry_projector.get_pointgroup());
 	if (symmetry_projector.get_verbosity()>1) symmetry_projector.print_character_table();
+
+	param.print("dft","end");
 }
 
 

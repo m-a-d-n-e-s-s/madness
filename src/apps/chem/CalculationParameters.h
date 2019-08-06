@@ -50,13 +50,11 @@ namespace madness {
 #if 1
 struct CalculationParameters : public QCCalculationParametersBase {
 
-	CalculationParameters() {}
 	CalculationParameters(const CalculationParameters& other) : QCCalculationParametersBase(other) {
-
 	}
 
 	/// ctor reading out the input file
-	CalculationParameters(World& world, const std::string inputfile) {
+	CalculationParameters() {
 
 		initialize<double>("charge",0.0,"total molecular charge");
 		initialize<double>("smear",0.0,"smearing parameter");
@@ -137,10 +135,11 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<int> ("efield_axis",0,"finite field axis",{0l,1,2});
 //		initialize<std::map<std::string,std::string> generalkeyval;  ///< general new key/value pair
 
-
-		read(world,inputfile,"dft");
-
 	}
+
+	public:
+	using QCCalculationParametersBase::read;
+
 
 	double econv() const {return get<double>("econv");}
 	double dconv() const {return get<double>("dconv");}
@@ -213,7 +212,6 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	double gval() const {return get<double>("gval");}
 	double gprec() const {return get<double>("gprec");}
 	bool ginitial_hessian() const {return get<bool>("ginitial_hessian");}
-	bool hessian() const {return get<bool>("hessian");}
 
 	Tensor<double> plot_cell() const {
 		std::vector<double> vcell=get<std::vector<double> >("plot_cell");
