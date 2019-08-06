@@ -38,12 +38,12 @@ void QCCalculationParametersBase::print(const std::string header,
 void QCCalculationParametersBase::read(World& world, const std::string filename, const std::string tag) {
 
 	std::string filecontents, line;
-	if (world.rank()==0) {
+//	if (world.rank()==0) {
 		std::ifstream f(filename.c_str());
 		while (std::getline(f,line)) filecontents+=line+"\n";
-	}
+//	}
 	read_internal(world, filecontents,tag);
-	world.gop.broadcast_serializable(*this, 0);
+//	world.gop.broadcast_serializable(*this, 0);
 
 }
 

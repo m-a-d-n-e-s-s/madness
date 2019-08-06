@@ -31,18 +31,18 @@ target_include_directories(MADchem PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/apps/>)
 if(LIBXC_FOUND)
   target_include_directories(MADchem PUBLIC ${LIBXC_INCLUDE_DIRS})
-  target_link_libraries(MADchem PUBLIC ${LIBXC_LIBRARIES})
+  target_link_libraries(MADchem PUBLIC ${LIBXC_LIBRARIES} ${DISABLEPIE_LINKER_FLAG})
 endif()
 
 if(PCM_FOUND)
   target_include_directories(MADchem PUBLIC ${PCM_INCLUDE_DIRS})
-  target_link_libraries(MADchem PUBLIC ${PCM_LIBRARIES})
+  target_link_libraries(MADchem PUBLIC ${PCM_LIBRARIES} ${DISABLEPIE_LINKER_FLAG})
 endif()
 
 
 # Add executables
 add_executable(plotxc plotxc.cc xcfunctional.h)
-target_link_libraries(plotxc MADchem)
+target_link_libraries(plotxc MADchem ${DISABLEPIE_LINKER_FLAG})
 
 # Install files
 install(FILES sto-3g sto-6g 6-31g coredata/mcp coredata/mcp2 coredata/mcp_guess
@@ -63,7 +63,7 @@ if(ENABLE_UNITTESTS)
   foreach(_test ${CHEM_OTHER_TESTS})  
 #    add_executable(${_test} EXCLUDE_FROM_ALL ${_test}.cc)
     add_executable(${_test} ${_test}.cc)
-    target_link_libraries(${_test} MADchem)
+    target_link_libraries(${_test} MADchem ${DISABLEPIE_LINKER_FLAG})
   endforeach()
   
 endif()
