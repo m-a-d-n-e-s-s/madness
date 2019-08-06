@@ -150,24 +150,14 @@ namespace madness {
                 }
             }
 
-//            //print list of pseudo-atoms in mixed psp/ae calculation
-//            if (!param.psp_calc() && !param.pure_ae && world.rank() == 0){
-//               for (size_t iatom = 0; iatom < molecule.natom(); iatom++) {
-//                   //std::cout << "pseudo-atom " << iatom << "  " << molecule.get_pseudo_atom(iatom) << std::endl;
-//                   if (molecule.get_pseudo_atom(iatom)) std::cout << "atom " << iatom << " is a pseudo-atom" <<  std::endl;
-//               }
-//            }
-
             //modify atomic charge for complete PSP calc or individual PS atoms
-//            if (!param.pure_ae){
-                for (size_t iatom = 0; iatom < molecule.natom(); iatom++) {
-                    if (molecule.get_pseudo_atom(iatom)){
-                        unsigned int an=molecule.get_atom_number(iatom);
-                        double zeff=get_charge_from_file("gth.xml",an);
-                        molecule.set_atom_charge(iatom,zeff);
-                    }
+            for (size_t iatom = 0; iatom < molecule.natom(); iatom++) {
+            	if (molecule.get_pseudo_atom(iatom)){
+            		unsigned int an=molecule.get_atom_number(iatom);
+            		double zeff=get_charge_from_file("gth.xml",an);
+            		molecule.set_atom_charge(iatom,zeff);
                 }
-//            }
+            }
             
             if (param.core_type() != "none") {
                 molecule.read_core_file(param.core_type());
@@ -663,8 +653,8 @@ namespace madness {
         PROFILE_MEMBER_FUNC(SCF);
         tensorT Saomo = matrix_inner(world, ao, mo);
         tensorT Saoao = matrix_inner(world, ao, ao, true);
-        int nmo = mo.size();
-        tensorT rsq, dip(3, nmo);
+        int nmo1 = mo.size();
+        tensorT rsq, dip(3, nmo1);
         {
             functionT frsq = factoryT(world).f(rsquared).initial_level(4);
             rsq = inner(world, mo, mul_sparse(world, frsq, mo, vtol));
@@ -672,7 +662,7 @@ namespace madness {
                 functionT fdip = factoryT(world).functor(
                                                          functorT(new DipoleFunctor(axis))).initial_level(4);
                 dip(axis, _) = inner(world, mo, mul_sparse(world, fdip, mo, vtol));
-                for (int i = 0; i < nmo; ++i)
+                for (int i = 0; i < nmo1; ++i)
                     rsq(i) -= dip(axis, i) * dip(axis, i);
                 
             }
@@ -683,13 +673,13 @@ namespace madness {
         START_TIMER(world);
         gesvp(world, Saoao, Saomo, C);
         END_TIMER(world, "Compute eigen gesv analyze vectors");
-        if (world.rank() == 0) {
-            C = transpose(C);
-            long nmo = mo.size();
-            size_t ncoeff = 0;
-            for (long i = 0; i < nmo; ++i) {
-                size_t ncoeffi = mo[i].size();
-                ncoeff += ncoeffi;
+		C = transpose(C);
+		long nmo = mo.size();
+		size_t ncoeff = 0;
+		for (long i = 0; i < nmo; ++i) {
+			size_t ncoeffi = mo[i].size();
+			ncoeff += ncoeffi;
+			if (world.rank() == 0) {
                 printf("  MO%4ld : ", i);
                 if (set.size())
                     printf("set=%d : ", set[i]);
@@ -705,10 +695,9 @@ namespace madness {
                 printf("center=(%.2f,%.2f,%.2f) : radius=%.2f\n", dip(0, i),
                        dip(1, i), dip(2, i), sqrt(rsq(i)));
                 aobasis.print_anal(molecule, C(i, _));
+                printf("total number of coefficients = %.8e\n\n", double(ncoeff));
             }
-            printf("total number of coefficients = %.8e\n\n", double(ncoeff));           
         }
-        
     }
     
     distmatT SCF::localize_boys(World & world, const vecfuncT & mo,
