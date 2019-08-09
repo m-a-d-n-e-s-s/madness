@@ -240,7 +240,6 @@ struct CalculationParameters : public QCCalculationParametersBase {
 
 
 		set_derived_value("dconv",sqrt(get<double>("econv"))*0.1);
-		set_derived_value("dconv",sqrt(get<double>("econv"))*0.1);
 
         double z = molecule.total_nuclear_charge();
         const double charge=get<double>("charge");
