@@ -797,6 +797,7 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      //Set energies = evals, and fix the energy printing stage.
      energies = evals;
 
+
      times = end_timer(world);
      if(world.rank()==0) print("          ", times[0]);
      times = end_timer(world);
@@ -1564,6 +1565,13 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
 
      //Loop through occupied orbitals. Calculate <r>, number of coefficients, max depth.
      //Print these along with updated energies
+     std::vector<double> r_expec_vec(Init_params.num_occupied);
+     std::vector<int> numcoeffs_vec(Init_params.num_occupied);
+     std::vector<int> maxdepth_vec(Init_params.num_occupied);
+     std::vector<double> comp1norm(Init_params.num_occupied);
+     std::vector<double> comp2norm(Init_params.num_occupied);
+     std::vector<double> comp3norm(Init_params.num_occupied);
+     std::vector<double> comp4norm(Init_params.num_occupied);
      for(unsigned int j = 0; j < Init_params.num_occupied; j++){
 
           //calculate <r>
@@ -1577,10 +1585,23 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
           maxdepth = std::max(int(occupieds[j][2].max_depth()), maxdepth);
           maxdepth = std::max(int(occupieds[j][3].max_depth()), maxdepth);
 
-          //Print everything
-          if(world.rank()==0){
-               printf("                Orbital: %3i, Energy: %.10e, <r>: %8e, No. coeffs: %7i, Max depth: %3i\n",j+1, energies[j], r_expec, numcoeffs, maxdepth);
+          //Store in vectors
+          r_expec_vec[j] = r_expec;
+          numcoeffs_vec[j] = numcoeffs;
+          maxdepth_vec[j] = maxdepth;
+          comp1norm[j] = occupieds[j][0].norm2();
+          comp2norm[j] = occupieds[j][1].norm2();
+          comp3norm[j] = occupieds[j][2].norm2()/myc;
+          comp4norm[j] = occupieds[j][3].norm2()/myc;
 
+     }
+
+     //Print everything
+     if(world.rank()==0){
+          print("Orbital                 Energy            <r>     No. coeffs     Max depth        ||1||        ||2||        ||3||        ||4||");
+          print("------------------------------------------------------------------------------------------------------------------------------");
+          for(unsigned int j = 0; j < Init_params.num_occupied; j++){
+               printf("%7i %22.10e %14.5e %14i %13i %12.5e %12.5e %12.5e %12.5e\n",j+1,energies[j],r_expec_vec[j],numcoeffs_vec[j],maxdepth_vec[j],comp1norm[j],comp2norm[j],comp3norm[j],comp4norm[j]);
           }
      }
 
