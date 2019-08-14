@@ -154,7 +154,9 @@ END_TIMER(world, "initialize");
         }
         else {
           MolecularEnergy E(world, calc);
-          E.value(calc.molecule.get_all_coords().flat()); // ugh!
+          double energy=E.value(calc.molecule.get_all_coords().flat()); // ugh!
+          if ((world.rank()==0) and (calc.param.print_level()>0))
+				printf("final energy=%16.8f ", energy);
 
           functionT rho = calc.make_density(world, calc.aocc, calc.amo);
           functionT brho = rho;

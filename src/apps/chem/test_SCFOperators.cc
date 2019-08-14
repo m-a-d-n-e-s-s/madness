@@ -757,22 +757,6 @@ int test_dnuclear(World& world) {
     return ierr;
 }
 
-int test_SCF(World& world) {
-    FunctionDefaults<3>::set_thresh(1.e-5);
-    double thresh=FunctionDefaults<3>::get_thresh();
-    if (world.rank()==0) print("\nentering test_SCF",thresh);
-
-    write_test_input test_input;
-    SCF calc(world,test_input.filename().c_str());
-    MolecularEnergy ME(world, calc);
-    double energy=ME.value(calc.molecule.get_all_coords().flat()); // ugh!
-    print("energy(LiH)",energy);
-    // hard-wire test
-    print("energy, hard-wire, diff",energy,7.703833,energy+7.703833e+00);
-    if (check_err(energy+7.703833e+00,thresh,"SCF error")) return 1;
-    return 0;
-}
-
 int test_nemo(World& world) {
     FunctionDefaults<3>::set_thresh(1.e-5);
     double thresh=FunctionDefaults<3>::get_thresh();
@@ -815,7 +799,6 @@ int main(int argc, char** argv) {
         result+=test_exchange(world);
         result+=test_nuclear(world);
         result+=test_dnuclear(world);
-        result+=test_SCF(world);
         result+=test_nemo(world);
     }
 

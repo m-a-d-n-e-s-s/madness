@@ -54,7 +54,8 @@ if(ENABLE_UNITTESTS)
   
   SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
   # The list of unit test source files
-  set(CHEM_TEST_SOURCES test_SCFOperators.cc test_dft.cc test_pointgroupsymmetry.cc test_QCCalculationParametersBase.cc)
+  set(CHEM_TEST_SOURCES test_SCFOperators.cc test_dft.cc test_pointgroupsymmetry.cc 
+      test_QCCalculationParametersBase.cc test_qc.cc)
   
   add_unittests(chem CHEM_TEST_SOURCES "MADchem;MADgtest")
   

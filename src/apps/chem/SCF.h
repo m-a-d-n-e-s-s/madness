@@ -402,7 +402,7 @@ public:
 		}
 
 		mask = functionT(factoryT(world).f(mask3).initial_level(4).norefine());
-		if(world.rank() == 0){
+		if(world.rank() == 0 and param.print_level()>1){
 			print("\nSolving NDIM=",NDIM," with thresh", thresh, "    k",
 					FunctionDefaults<NDIM>::get_k(), "   conv", std::max(thresh, param.dconv()), "\n");
 		}

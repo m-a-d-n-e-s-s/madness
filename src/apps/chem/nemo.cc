@@ -104,7 +104,7 @@ Nemo::Nemo(World& world, std::shared_ptr<SCF> calc, const std::string inputfile)
     world.gop.broadcast_serializable(param, 0);
 
 
-    symmetry_projector=projector_irrep(calc->param.point_group())
+    symmetry_projector=projector_irrep(calc->param.pointgroup())
     		.set_ordering("keep").set_verbosity(0).set_orthonormalize_irreps(true);;
     if (world.rank()==0) print("constructed symmetry operator for point group",
     		symmetry_projector.get_pointgroup());
