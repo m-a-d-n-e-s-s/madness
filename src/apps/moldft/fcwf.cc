@@ -257,6 +257,14 @@ void Fcwf::apply(World& world, complex_derivative_3d& D){
      m_psi = madness::apply(world, D, m_psi);
 }
 
+Fcwf Fcwf::KramersPair(){
+     complex_function_3d phi0 = -1.0*conj(m_psi[1]);
+     complex_function_3d phi1 = conj(m_psi[0]);
+     complex_function_3d phi2 = -1.0*conj(m_psi[3]);
+     complex_function_3d phi3 = conj(m_psi[2]);
+     return Fcwf(phi0,phi1,phi2,phi3);
+}
+
 std::complex<double> inner(const Fcwf& psi, const Fcwf& phi){
      //std::complex<double> result(0,0);
      //for(int i = 0 ; i < 4 ; i++){

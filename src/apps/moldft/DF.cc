@@ -660,11 +660,12 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      start_timer(world);
 
      unsigned int n = Init_params.num_occupied;
-     Tensor<std::complex<double>> fock(n, n);
-     Tensor<std::complex<double>> overlap(n, n);
-     Tensor<std::complex<double>> U(n,n);
-     Tensor<double> evals(n);
+     Tensor<std::complex<double>> fock(2*n, 2*n);
+     Tensor<std::complex<double>> overlap(2*n, 2*n);
+     Tensor<std::complex<double>> U(2*n,2*n);
+     Tensor<double> evals(2*n);
      std::vector<Fcwf> temp_orbitals;
+     std::vector<Fcwf> kramers_pairs;
 
      if(world.rank()==0) print("     Forming Matrices");
      start_timer(world);
@@ -682,33 +683,29 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      potential.truncate();
 
 
-     //Debugging
-     std::vector<Fcwf> debug_orbitals;
-     for(unsigned int j = 0; j < n; j++){
-          debug_orbitals.push_back(occupieds[j]*myV);
-     }
-     fock = matrix_inner(world,occupieds,debug_orbitals);
-     if(world.rank()==0) print("\nVnuc matrix:\n",fock);
-     real_function_3d idk = apply(op,rho);
-     for(unsigned int j = 0; j < n; j++){
-          debug_orbitals[j] = occupieds[j]*idk;
-     }
-     fock = matrix_inner(world,occupieds,debug_orbitals);
-     if(world.rank()==0) print("\nJ matrix:\n",fock);
-     for(unsigned int j = 0; j < n; j++){
-          debug_orbitals[j] = Kpsis[j];
-     }
-     fock = matrix_inner(world,occupieds,debug_orbitals);
-     if(world.rank()==0) print("\nK matrix:\n",fock);
-     for(unsigned int j = 0; j < n; j++){
-          debug_orbitals[j] = apply_T(world,occupieds[j]);
-     }
-     fock = matrix_inner(world,occupieds,debug_orbitals);
-     if(world.rank()==0) print("\nT matrix:\n",fock);
-
-
-
-
+     ////Debugging
+     //std::vector<Fcwf> debug_orbitals;
+     //for(unsigned int j = 0; j < n; j++){
+     //     debug_orbitals.push_back(occupieds[j]*myV);
+     //}
+     //fock = matrix_inner(world,occupieds,debug_orbitals);
+     //if(world.rank()==0) print("\nVnuc matrix:\n",fock);
+     //real_function_3d idk = apply(op,rho);
+     //for(unsigned int j = 0; j < n; j++){
+     //     debug_orbitals[j] = occupieds[j]*idk;
+     //}
+     //fock = matrix_inner(world,occupieds,debug_orbitals);
+     //if(world.rank()==0) print("\nJ matrix:\n",fock);
+     //for(unsigned int j = 0; j < n; j++){
+     //     debug_orbitals[j] = Kpsis[j];
+     //}
+     //fock = matrix_inner(world,occupieds,debug_orbitals);
+     //if(world.rank()==0) print("\nK matrix:\n",fock);
+     //for(unsigned int j = 0; j < n; j++){
+     //     debug_orbitals[j] = apply_T(world,occupieds[j]);
+     //}
+     //fock = matrix_inner(world,occupieds,debug_orbitals);
+     //if(world.rank()==0) print("\nT matrix:\n",fock);
 
 
      //add in coulomb parts to neworbitals
@@ -716,11 +713,14 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
           temp_orbitals.push_back(occupieds[j]*potential); //add in coulomb term
      }
 
-     if(world.rank() == 0) print("          Subtracting K*psi");
+
+     //Handle K separately because the relations are a little different
+     //
+     //if(world.rank() == 0) print("          Subtracting K*psi");
      //Move Kpsis to new orbitals, as they are part of the fock operator
-     for(unsigned int j = 0; j < n; j++){
-          temp_orbitals[j] -= Kpsis[j]; //yes this needs to be subtraction. exchange function doesn't include the negative.
-     }
+     //for(unsigned int j = 0; j < n; j++){
+     //     temp_orbitals[j] -= Kpsis[j]; //yes this needs to be subtraction. exchange function doesn't include the negative.
+     //}
 
      //add in T_psi
      if(world.rank()==0) print("          Adding T*psi");
@@ -731,9 +731,32 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      if(world.rank()==0) print("          Integrating to form Fock Matrix");
      start_timer(world);
 
-     //Now compute the fock matrix
-     fock = matrix_inner(world, occupieds, temp_orbitals);
 
+     //Also make the vector of Kramers Pairs
+     //TODO: Actually roll this into a variant of matrix inner that doesn't explictly store this vector in order to save memory.
+     for(unsigned int j = 0; j < n; j++){
+          kramers_pairs.push_back(occupieds[j].KramersPair());
+     }
+
+     //Now compute the fock matrix
+     Tensor<std::complex<double>> tempmatrix = matrix_inner(world, occupieds, temp_orbitals);
+     fock(Slice(0,n-1),Slice(0,n-1)) = copy(tempmatrix);
+     fock(Slice(n,2*n-1),Slice(n,2*n-1)) = -1.0*conj(tempmatrix);
+     tempmatrix = matrix_inner(world,kramers_pairs,temp_orbitals);
+     fock(Slice(0,n-1),Slice(n,2*n-1)) = copy(tempmatrix);
+     fock(Slice(n,2*n-1),Slice(0,n-1)) = conj(tempmatrix);
+
+     //Put in Exchange part
+     tempmatrix = matrix_inner(world,occupieds,Kpsis);
+     fock(Slice(0,n-1),Slice(0,n-1)) = fock(Slice(0,n-1),Slice(0,n-1)) + tempmatrix;
+     fock(Slice(n,2*n-1),Slice(n,2*n-1)) = fock(Slice(n,2*n-1),Slice(n,2*n-1)) + transpose(tempmatrix);
+     tempmatrix = matrix_inner(world, kramers_pairs, Kpsis);
+     fock(Slice(n,2*n-1),Slice(0,n-1)) = fock(Slice(n,2*n-1),Slice(0,n-1)) + tempmatrix;
+     fock(Slice(0,n-1),Slice(n,2*n-1)) = fock(Slice(0,n-1),Slice(n,2*n-1)) - conj(tempmatrix);
+
+     //DEBUGGING:
+     if(world.rank()==0) print("new fock matrix:\n",fock);
+     
      //symmetrize
      fock = (1.0/2.0)*(fock + conj_transpose(fock));
      
@@ -744,7 +767,13 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      ////and the overlap matrix
      if(world.rank()==0) print("          Integrating to form Overlap Matrix");
      start_timer(world);
-     overlap = matrix_inner(world,occupieds,occupieds);
+     overlap(Slice(0,n-1),Slice(0,n-1)) = matrix_inner(world,occupieds,occupieds);
+     overlap(Slice(0,n-1),Slice(n,2*n-1)) = matrix_inner(world,occupieds,kramers_pairs);
+     overlap(Slice(n,2*n-1),Slice(0,n-1)) = matrix_inner(world,kramers_pairs,occupieds);
+     overlap(Slice(n,2*n-1),Slice(n,2*n-1)) = matrix_inner(world,kramers_pairs,kramers_pairs);
+
+     //DEBUGGING:
+     if(world.rank()==0) print("new overlap matrix:\n",overlap);
      
      //symmetrize
      overlap = (1.0/2.0)*(overlap + conj_transpose(overlap));
@@ -755,10 +784,10 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      if(world.rank()==0) print("          ", times[0]);
 
      //debugging: print fock and overlap matrices
-     if(world.rank()==0){
-          print("fock:\n", fock);
-          print("\noverlap:\n", overlap);
-     }
+     //if(world.rank()==0){
+     //     print("fock:\n", fock);
+     //     print("\noverlap:\n", overlap);
+     //}
      
      if(world.rank()==0) print("     Eigensolver");
      start_timer(world);
@@ -769,7 +798,7 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      if(world.rank()==0) print("          ", times[0]);
 
      //debugging: print matrix of eigenvectors
-     //if(world.rank()==0) print("U:\n", U);
+     if(world.rank()==0) print("U:\n", U);
 
      //Before applying the transformation, fix arbitrary rotations introduced by the eigensolver. 
      if(world.rank()==0) print("     Removing Rotations");
@@ -855,12 +884,32 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      if(world.rank()==0) print("     Applying Transformation");
      start_timer(world);
 
-     ////Apply the transformation to the Exchange
-     transform(world, Kpsis, U);
-
 
      ////Apply the transformation to the orbitals 
-     transform(world, occupieds, U);
+     tempmatrix = U(Slice(0,n-1),Slice(0,n-1));
+     print("a");
+     transform(world, occupieds, tempmatrix);
+
+     tempmatrix = U(Slice(n,2*n-1),Slice(0,n-1));
+     print("a");
+     transform(world, kramers_pairs, tempmatrix);
+
+     occupieds += kramers_pairs;
+     print("a");
+
+     ////Apply the transformation to the Exchange
+     for(unsigned int j = 0; j < n; j++){
+          kramers_pairs[j] = Kpsis[j].KramersPair();
+     }
+     tempmatrix = U(Slice(0,n-1),Slice(0,n-1));
+     print("a");
+     transform(world, Kpsis, tempmatrix);
+     tempmatrix = U(Slice(n,2*n-1),Slice(0,n-1));
+     print("a");
+     transform(world, kramers_pairs, tempmatrix);
+     Kpsis += kramers_pairs;
+
+
 
      //truncate
      for(int kk = 0; kk < Init_params.num_occupied; kk++){

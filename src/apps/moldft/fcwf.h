@@ -72,6 +72,8 @@ public:
      void reconstruct();
      void compress();
 
+     Fcwf KramersPair();
+
 };
 
 std::complex<double> inner(const Fcwf& psi, const Fcwf& phi);
