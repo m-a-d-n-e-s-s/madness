@@ -304,7 +304,7 @@ public:
 
     Tensor<double> moment_of_inertia() const;
 
-    void orient();
+    void orient(bool verbose=false);
 
     double total_nuclear_charge() const;
 

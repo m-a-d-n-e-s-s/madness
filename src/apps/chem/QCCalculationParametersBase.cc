@@ -22,17 +22,29 @@ namespace madness {
 void QCCalculationParametersBase::print(const std::string header,
 		const std::string footer) const {
 
+	std::string body=print_to_string();
+	if (header.size()>0) madness::print(header);
+	::madness::print(body);
+	if (footer.size()>0) madness::print(footer);
+}
+
+std::string QCCalculationParametersBase::print_to_string(bool non_defaults_only) const {
+
 	// sort parameters according to increasing print_order
 	typedef std::tuple<int,std::string,QCParameter> keyvalT;
 	std::list<keyvalT> list;
 	for (auto& p : parameters) list.push_back(keyvalT(p.second.get_print_order(),p.first,p.second));
 	list.sort([](const keyvalT& first, const keyvalT& second) {return std::get<0>(first) < std::get<0>(second);});
 
-	if (header.size()>0) madness::print(header);
-	for (auto& p : list) ::madness::print(std::get<2>(p).print_line(std::get<1>(p)));
-	if (footer.size()>0) madness::print(footer);
+	std::stringstream ss;
+	for (auto& p : list) {
+		const QCParameter& param=std::get<2>(p);
+		if (non_defaults_only and (param.precedence==QCParameter::def)) continue;
+		ss << param.print_line(std::get<1>(p));
+		ss << std::endl;
+	}
+	return ss.str();
 }
-
 
 /// read the parameters from file and broadcast
 void QCCalculationParametersBase::read(World& world, const std::string filename, const std::string tag) {

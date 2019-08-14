@@ -57,6 +57,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	CalculationParameters() {
 
 		initialize<double>("charge",0.0,"total molecular charge");
+		initialize<std::string> ("xc","hf","XC input line");
 		initialize<double>("smear",0.0,"smearing parameter");
 		initialize<double>("econv",1.e-5,"energy convergence");
 		initialize<double>("dconv",1.e-4,"density convergence");
@@ -79,7 +80,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 //		initialize<bool localize_pm;           ///< If true use PM for localization
 //		initialize<bool localize_boys;         ///< If true use boys for localization
 //		initialize<bool localize_new;          ///< If true use new for localization
-		initialize<std::string> ("symmetry","default","use point (sub) group symmetry if not localized",{"default","c1","c2","ci","cs","c2v","c2h","d2","d2h"});
+		initialize<std::string> ("pointgroup","c1","use point (sub) group symmetry if not localized",{"c1","c2","ci","cs","c2v","c2h","d2","d2h"});
 		initialize<bool>  ("restart",false,"if true restart from orbitals on disk");
 		initialize<bool>  ("restartao",false,"if true restart from orbitals projected into AO basis (STO3G) on disk");
 		initialize<bool>  ("no_compute",false,"if true use orbitals on disk, set value to computed");
@@ -100,6 +101,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<std::string> ("pcm_data","none","do a PCM (solvent) calculation");
 		initialize<std::string> ("ac_data","none","do a calculation with asymptotic correction (see ACParameters class in chem/AC.h for details)");
 		initialize<bool> ("pure_ae",true,"pure all electron calculation with no pseudo-atoms");
+		initialize<int>  ("print_level",3,"0: no output; 1: final energy; 2: iterations; 3: timings; 10: debug");
 
 		// Next list inferred parameters
 		initialize<int> ("nalpha",-1,"number of alpha spin electrons");
@@ -107,7 +109,6 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<int> ("nmo_alpha",-1,"number of alpha spin molecular orbitals");
 		initialize<int> ("nmo_beta",-1,"number of beta spin molecular orbitals");
 		initialize<double> ("lo",1.e10,"smallest length scale we need to resolve");
-		initialize<std::string> ("xc","hf","XC input line");
 		initialize<std::vector<double> > ("protocol",{1.e-4,1.e-6},"calculation protocol");
 
 		// geometry optimization parameters
@@ -166,10 +167,11 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	bool do_localize() const {return (localize_method()!="canon");}
 	bool localize_pm() const {return (localize_method()=="pm");}
 
-	std::string point_group() const {return get<std::string>("symmetry");}
-	bool do_symmetry() const {return (point_group()!="c1");}
+	std::string pointgroup() const {return get<std::string>("pointgroup");}
+	bool do_symmetry() const {return (pointgroup()!="c1");}
 	bool no_orient() const {return get<bool>("no_orient");}
 	double charge() const {return get<double>("charge");}
+	int print_level() const {return get<int>("print_level");}
 
 	int maxiter() const {return get<int>("maxiter");}
 	double orbitalshift() const {return get<double>("orbitalshift");}
@@ -239,6 +241,9 @@ struct CalculationParameters : public QCCalculationParametersBase {
         const int n_core = molecule.n_core_orb_all();
 
 
+        std::vector<double> proto=get<std::vector<double> >("protocol");
+        proto.back()=get<double>("econv");
+		set_derived_value("protocol",proto);
 		set_derived_value("dconv",sqrt(get<double>("econv"))*0.1);
 
         double z = molecule.total_nuclear_charge();
@@ -278,8 +283,8 @@ struct CalculationParameters : public QCCalculationParametersBase {
         set_derived_value("lo",molecule.smallest_length_scale());
 
         // set highest possible point group for symmetry
-        if (point_group()=="default") set_user_defined_value("symmetry",molecule.pointgroup_);
-        if (do_localize()) set_derived_value("symmetry",std::string("c1"));
+        if (do_localize()) set_derived_value("pointgroup",std::string("c1"));
+        else set_derived_value("pointgroup",molecule.pointgroup_);
 
         // above two lines will not override user input, so check input is sane
         if (do_localize() and do_symmetry()) {

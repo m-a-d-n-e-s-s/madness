@@ -165,6 +165,7 @@ public:
 		comment & allowed_values & print_order & precedence;
 	}
 
+	enum {def, derived, defined} precedence=def;
 
 private:
 
@@ -190,7 +191,6 @@ private:
 		return errmsg;
 	}
 
-	enum {def, derived, defined} precedence=def;
 
 	std::string value="";
 	std::string default_value="";
@@ -223,8 +223,9 @@ class QCCalculationParametersBase {
 
 public:
 	/// print all parameters
-	virtual void print(const std::string header="", const std::string footer="") const;
+	void print(const std::string header="", const std::string footer="") const;
 
+	std::string print_to_string(bool non_defaults_only=false) const;
 
 	template<typename T>
 	T get(const std::string key) const {
@@ -336,6 +337,7 @@ protected:
 		return parameter;
 	}
 
+public:
 	QCParameter& get_parameter(const std::string key) {
 		if (not parameter_exists(key)) {
 			throw std::runtime_error("could not find parameter for key "+key);
