@@ -926,6 +926,7 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      //Set energies = evals, and fix the energy printing stage.
      energies = evals;
 
+
      times = end_timer(world);
      if(world.rank()==0) print("          ", times[0]);
      times = end_timer(world);
@@ -1693,6 +1694,13 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
 
      //Loop through occupied orbitals. Calculate <r>, number of coefficients, max depth.
      //Print these along with updated energies
+     std::vector<double> r_expec_vec(Init_params.num_occupied);
+     std::vector<int> numcoeffs_vec(Init_params.num_occupied);
+     std::vector<int> maxdepth_vec(Init_params.num_occupied);
+     std::vector<double> comp1norm(Init_params.num_occupied);
+     std::vector<double> comp2norm(Init_params.num_occupied);
+     std::vector<double> comp3norm(Init_params.num_occupied);
+     std::vector<double> comp4norm(Init_params.num_occupied);
      for(unsigned int j = 0; j < Init_params.num_occupied; j++){
 
           //calculate <r>
@@ -1706,10 +1714,23 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
           maxdepth = std::max(int(occupieds[j][2].max_depth()), maxdepth);
           maxdepth = std::max(int(occupieds[j][3].max_depth()), maxdepth);
 
-          //Print everything
-          if(world.rank()==0){
-               printf("                Orbital: %3i, Energy: %.10e, <r>: %8e, No. coeffs: %7i, Max depth: %3i\n",j+1, energies[j], r_expec, numcoeffs, maxdepth);
+          //Store in vectors
+          r_expec_vec[j] = r_expec;
+          numcoeffs_vec[j] = numcoeffs;
+          maxdepth_vec[j] = maxdepth;
+          comp1norm[j] = occupieds[j][0].norm2();
+          comp2norm[j] = occupieds[j][1].norm2();
+          comp3norm[j] = occupieds[j][2].norm2()/myc;
+          comp4norm[j] = occupieds[j][3].norm2()/myc;
 
+     }
+
+     //Print everything
+     if(world.rank()==0){
+          print("Orbital                 Energy            <r>     No. coeffs     Max depth        ||1||        ||2||        ||3||        ||4||");
+          print("------------------------------------------------------------------------------------------------------------------------------");
+          for(unsigned int j = 0; j < Init_params.num_occupied; j++){
+               printf("%7i %22.10e %14.5e %14i %13i %12.5e %12.5e %12.5e %12.5e\n",j+1,energies[j],r_expec_vec[j],numcoeffs_vec[j],maxdepth_vec[j],comp1norm[j],comp2norm[j],comp3norm[j],comp4norm[j]);
           }
      }
 
@@ -1817,6 +1838,37 @@ void DF::solve_occupied(World & world)
           iteration_number++;
      }
 
+     //Calculation of Effective Electric Field:
+     if(world.rank()==0) print("Effective Electric Field calculation");
+     std::complex<double> myi(0,1);
+     std::complex<double> one(1,0);
+     real_derivative_3d Dx(world,0);
+     real_derivative_3d Dy(world,1);
+     real_derivative_3d Dz(world,2);
+     double Eeff(0.0);
+     for(unsigned int j; j < Init_params.num_occupied; j++){
+          real_function_3d LL(world);
+          for(unsigned int kk; kk < Init_params.num_occupied; kk++){
+               if(kk != j){
+                    LL += squaremod(occupieds[kk]);
+               }
+          }
+          LL = apply(op,LL);
+          LL += Vnuc;
+          complex_function_3d Lx = one*Dx(LL);
+          complex_function_3d Ly = one*Dy(LL);
+          complex_function_3d Lz = one*Dz(LL);
+          Fcwf temp(world);
+
+          temp[0] = Lz*occupieds[j][0] + (Lx - myi*Ly)*occupieds[j][1];
+          temp[1] =  (Lx + myi*Ly)*occupieds[j][0] - Lz*occupieds[j][1];
+          temp[2] = Lz*occupieds[j][2] + (Lx - myi*Ly)*occupieds[j][3];
+          temp[2].scale(-1.0);
+          temp[3] = Lz*occupieds[j][3] - (Lx + myi*Ly)*occupieds[j][2];
+
+          Eeff += std::real(inner(occupieds[0],temp));
+     }
+     if(world.rank()==0) print("Eeff = ", Eeff);
 
 
 }
@@ -1853,6 +1905,8 @@ void DF::solve(World& world){
      std::cout << std::fixed;
      Tensor<double> times = end_timer(world);
      if(world.rank() == 0) print("\n   Calculation time:", times[0],"\n");
+
+
 
      //Make density lineplots
      if(DFparams.lineplot){
