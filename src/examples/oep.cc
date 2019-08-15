@@ -69,29 +69,6 @@ struct dens_inv{
 };
 
 
-/// TODO: change dens_inv such that Slater potential is munged unsing the following form:
-
-/*
-/// Class to compute terms of the potential
-struct xc_potential {
-    const XCfunctional* xc;
-    const int ispin;
-
-    xc_potential(const XCfunctional& xc, int ispin) : xc(&xc), ispin(ispin)
-    {}
-
-
-
-    std::vector<madness::Tensor<double> > operator()(const madness::Key<3> & key,
-            const std::vector< madness::Tensor<double> >& t) const {
-        MADNESS_ASSERT(xc);
-        std::vector<madness::Tensor<double> > r = xc->vxc(t, ispin);
-        return r;
-    }
-};
-*/
-
-
 //struct binary_munge{
 //
 //	double longrangevalue;
@@ -112,47 +89,6 @@ struct xc_potential {
 //            U, double r = refdens(IND);
 //            double ff = f(IND);
 //            U(IND) = (r > threshold) ? ff : longrangevalue;
-//        );
-//    }
-//
-//    template <typename Archive>
-//    void serialize(Archive& ar) {}
-//
-//};
-
-
-//struct binary_munge_linear{
-//
-//	double longrangevalue, thresh_high, thresh_low;
-//
-//	/// same default values as for dens_thresh_hi and dens_thresh_lo
-//	binary_munge_linear(const double hi = 1.0e-4, const double lo = 1.0e-7, const double lrv = 0.0) {
-//		longrangevalue = lrv;
-//		thresh_high = hi;
-//		thresh_low = lo;
-//	}
-//
-//    /// @param[out] U   result
-//    /// @param[in]  f   function to be munged
-//    /// @param[in]  r   reference density
-//    void operator()(const Key<3>& key, Tensor<double>& U, const Tensor<double>& f,
-//            const Tensor<double>& refdens) const {
-//
-//    	// interpolate with value = (r - lo)/(hi - lo), then U = f*value + longrangevalue*(1 - value)
-//    	const Tensor<double> value = (refdens - thresh_low)/(thresh_high - thresh_low);
-//    	Tensor<double> ff = copy(f);
-//    	ff.emul(value);
-//    	Tensor<double> longrange = longrangevalue*(1.0 - value);
-//
-//        ITERATOR(
-//            U, double r = refdens(IND);
-//            if (r > thresh_high) {
-//            	U(IND) = f(IND);
-//            } else if (r < thresh_low) {
-//            	U(IND) = longrangevalue;
-//            } else {
-//            	U(IND) = ff(IND) + longrange(IND);
-//            }
 //        );
 //    }
 //
@@ -201,23 +137,6 @@ struct interpolate_munge_refdens{
     void serialize(Archive& ar) {}
 
 };
-
-
-///// simple structure to take the pointwise logarithm of a function, shifted by +14
-//struct logme{
-//    typedef double resultT;
-//    struct logme1 {
-//        double operator()(const double& val) {return log(std::max(1.e-14,val))+14.0;}
-//    };
-//    Tensor<double> operator()(const Key<3>& key, const Tensor<double>& val) const {
-//        Tensor<double> result=copy(val);
-//        logme1 op;
-//        return result.unaryop(op);
-//    }
-//
-//    template <typename Archive>
-//    void serialize(Archive& ar) {}
-//};
 
 
 class OEP : public Nemo {
@@ -725,7 +644,7 @@ public:
     	if (is_oaep()) {
     		print("\n  computing final OAEP with converged OAEP orbitals and eigenvalues");
         	Voep = Vs + shift_final;
-        	if (saving_amount >= 1) save(Voep, "OAEP_final");
+        	if (saving_amount >= 1) save(Voep, "OEPapprox_final");
     	}
     	if (is_ocep()) {
     		print("\n  computing final OCEP with converged OCEP orbitals and eigenvalues");
@@ -733,7 +652,7 @@ public:
         	Voep = Vs + ocep_correction_final + shift_final;
         	if (saving_amount >= 1) {
         		save(ocep_correction_final + shift_final, "OCEP_correction_final");
-        		save(Voep, "OCEP_final");
+        		save(Voep, "OEPapprox_final");
         	}
     	}
     	if (is_dcep()) {
@@ -747,7 +666,7 @@ public:
         	}
         	if (saving_amount >= 1) {
         		save(ocep_correction_final + dcep_correction_final + shift_final, "total_correction_final");
-        		save(Voep, "DCEP_final");
+        		save(Voep, "OEPapprox_final");
         	}
     	}
     	if (is_mrks()) {
@@ -761,7 +680,7 @@ public:
         	}
         	if (saving_amount >= 1) {
         		save(ocep_correction_final + mrks_correction_final + shift_final, "total_correction_final");
-        		save(Voep, "mRKS_potential_final");
+        		save(Voep, "OEPapprox_final");
         	}
     	}
     	print("     done\n");
@@ -807,12 +726,12 @@ public:
     	printf("\n  difference to Econv = %15.8f mEh\n\n", (E_0 + E_1 - Econv)*1000.0);
 
     	print("saving orbitals to restartdata");
-    	Tensor<double> f_pp=compute_fock_diagonal_elements(calc->aeps,KS_nemo,Knemo,Voep);
+    	Tensor<double> f_pp = compute_fock_diagonal_elements(calc->aeps, KS_nemo, Knemo, Voep);
 
-    	print("KS Fock matrix elements ",calc->aeps);
-    	print("HF Fock matrix elements ",f_pp);
+    	print("KS Fock matrix elements ", calc->aeps);
+    	print("HF Fock matrix elements ", f_pp);
 
-    	calc->aeps=f_pp;
+    	calc->aeps = f_pp;
 		if (calc->param.save) calc->save_mos(world);
 
     }
@@ -878,7 +797,7 @@ public:
         real_function_3d lra = -1.0*J.compute_potential(R_square*square(nemo[homo_ind]));
         if (saving_amount >= 3) save(lra, "lra_slater");
 
-//        // these are not yet forgotten tests
+//        // these are not yet forgotten tests about the correct long-range behavior
 //        real_function_3d lra = (-0.5/nemo.size())*J.compute_potential(this);
 
 //        for (int i = 0; i < nemo.size(); i++) {
@@ -888,10 +807,6 @@ public:
 //        	save(product, "phi"+stringify(i)+"phi"+stringify(i));
 //        	save(potential, "int_phi"+stringify(i)+"phi"+stringify(i));
 //        }
-
-//        // use apply function from adiabatic correction (see AC.h, nemo.h and nemo.cc) with own potentials
-//        real_function_3d Vs_ac = ac.apply(Vs, lra);
-//        save(Vs_ac, "Slaterpotential_ac");
 
         // interpolate in interval between explicit calculation and long range asymptotics
         real_function_3d weight = compute_weighting_function(nemo);
@@ -917,12 +832,6 @@ public:
 
         // like Kohut, 2014, equations (21) and (25)
         real_function_3d I = -1.0*binary_op(numerator, rho, dens_inv(dens_thresh_inv));
-
-//          // if tests are necessary: munge with ac
-//       	real_function_3d homo_func = real_factory_3d(world).functor([] (const coord_3d& r) {return 1.0;});
-//       	homo_func.scale(-1.0*eigvals(homo_ind(eigvals)));
-//       	print("computing I: index of HOMO is", homo_ind(eigvals));
-//       	I = ac.apply(I, homo_func);
 
         // munge I for long-range asymptotic behavior which is -epsilon_HOMO
        	print("computing I: index of HOMO is", homo_ind(eigvals));
@@ -997,14 +906,6 @@ public:
 	    // = 1/2 * sum {(\nabla R)^2 * nemo_i^2 + 2 * R * nemo_i * (\nabla R) * (\nabla nemo_i)) + R^2 * (\nabla nemo_i)^2}
 	    // = 1/2 * R^2 * sum {U1dot * nemo_i^2 + 2 * nemo_i * U1 * (\nabla nemo_i)) + (\nabla nemo_i)^2}
 	    vecfuncT grad_nemo_term;
-//		for (long i = 0; i < nemo.size(); i++) {
-//			for (long j = i + 1; j < nemo.size(); j++) {
-//				real_function_3d tmp = square(nemo[i])*dot(world, grad_nemo[j], grad_nemo[j])
-//								       - 2.0*nemo[i]*nemo[j]*dot(world, grad_nemo[i], grad_nemo[j])
-//									   + square(nemo[j])*dot(world, grad_nemo[i], grad_nemo[i]);
-//				grad_nemo_term.push_back(tmp);
-//			}
-//		}
 		for (long i = 0; i < nemo.size(); i++) {
 			for (long j = i + 1; j < nemo.size(); j++) {
 				vecfuncT tmp = nemo[i]*grad_nemo[j] - nemo[j]*grad_nemo[i];
@@ -1151,11 +1052,11 @@ public:
 
     }
 
+    /// compute diagonal elements of Fock matrix
     Tensor<double> compute_fock_diagonal_elements(const Tensor<double>& KS_eigvals,
     		const vecfuncT& phi, const vecfuncT& Kphi, const real_function_3d& Vx) const {
-    	return KS_eigvals - inner(world,phi,Kphi) - inner(world,phi,Vx*phi);
+    	return KS_eigvals - inner(world, phi, Kphi) - inner(world, phi, Vx*phi);
     }
-
 
     /// cumpute E^(0) = \sum_i \epsilon_i^KS
     double compute_E_zeroth(const tensorT eigvals) const {
@@ -1174,9 +1075,9 @@ public:
     	const double E_J = inner(world, phi, Jphi).sum();
     	const double E_K = inner(world, phi, Kphi).sum();
     	const double E_Vx = inner(world, phi, Vx*phi).sum();
-    	printf("E_J   %15.8f\n",E_J);
-    	printf("E_K   %15.8f\n",E_K);
-    	printf("E_Vx  %15.8f\n",E_Vx);
+    	printf("  E_J   =  %15.8f Eh\n", E_J);
+    	printf("  E_K   =  %15.8f Eh\n", E_K);
+    	printf("  E_Vx  =  %15.8f Eh\n", E_Vx);
     	const double E_nuc = calc->molecule.nuclear_repulsion_energy();
 
     	double E_1 = -1.0*(E_J + E_K + 2.0*E_Vx) + E_nuc;

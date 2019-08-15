@@ -616,7 +616,7 @@ vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x)const{
 	const real_function_3d alpha_density=0.5*nemo.R_square*nemo_density;
 
 	real_function_3d voep=real_factory_3d(world);
-	if (parameters.do_oep) load(voep,"mRKS_potential_final");
+	if (parameters.do_oep) load(voep,"OEPapprox_final");
 
 
 
