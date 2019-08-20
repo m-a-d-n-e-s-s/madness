@@ -31,12 +31,12 @@ target_include_directories(MADchem PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/apps/>)
 if(LIBXC_FOUND)
   target_include_directories(MADchem PUBLIC ${LIBXC_INCLUDE_DIRS})
-  target_link_libraries(MADchem PUBLIC ${LIBXC_LIBRARIES} ${DISABLEPIE_LINKER_FLAG})
+  target_link_libraries(MADchem PUBLIC ${LIBXC_LIBRARIES})
 endif()
 
 if(PCM_FOUND)
   target_include_directories(MADchem PUBLIC ${PCM_INCLUDE_DIRS})
-  target_link_libraries(MADchem PUBLIC ${PCM_LIBRARIES} ${DISABLEPIE_LINKER_FLAG})
+  target_link_libraries(MADchem PUBLIC ${PCM_LIBRARIES})
 endif()
 
 

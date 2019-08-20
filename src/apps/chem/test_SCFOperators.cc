@@ -122,7 +122,7 @@ struct write_test_input {
     double eprec=FunctionDefaults<3>::get_thresh()*0.1;
 
     std::string filename_;
-    write_test_input(std::string mol="lih") : filename_("test_input") {
+    write_test_input(std::string mol="lih") : filename_("test_SCFOperators_input") {
         std::ofstream of(filename_);
         of << "dft\n";
         of << "xc hf\n";
