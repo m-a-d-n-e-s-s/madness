@@ -103,10 +103,9 @@ namespace madness{
                          complex_function_3d complexreader;
                          Fcwf spinup(world);
                          Fcwf spindown(world);
-                    real_function_3d xfunc = real_factory_3d(world).f(myxfunc);
-                    real_function_3d yfunc = real_factory_3d(world).f(myyfunc);
-                         if(num_occupied != 5) throw;
-                         for(unsigned int i = 0; i < 2; i++){
+                         real_function_3d xfunc = real_factory_3d(world).f(myxfunc);
+                         real_function_3d yfunc = real_factory_3d(world).f(myyfunc);
+                         for(unsigned int i = 0; i < num_occupied; i++){
                               input & reader;
                               complexreader = function_real2complex(reader);
                               spinup[0] = complexreader;
@@ -129,79 +128,79 @@ namespace madness{
                               //orbitals.push_back(spindown);
                          }
 
-                         //Bring in p block, construct 4-component wavefunctions, and diagonalize under j_z
-                         std::vector<Fcwf> jzorbitals;
-                         std::vector<Fcwf> justorbitals;
-                         for(unsigned int i=0; i<3; i++){
-                              input & reader;
-                              complexreader = function_real2complex(reader);
-                              spinup[0] = complexreader;
-                              spinup[1] = complex_factory_3d(world);
-                              spinup[2] = (-myi) * Dz(complexreader);
-                              spinup[2].scale(0.5);
-                              spinup[3] = (-myi) * (Dx(complexreader) + myi * Dy(complexreader));
-                              spinup[3].scale(0.5);
-                              spinup.normalize();
-                              spindown[0] = complex_factory_3d(world);
-                              spindown[1] = complexreader;
-                              spindown[2] = (-myi) * (Dx(complexreader) - myi * Dy(complexreader));
-                              spindown[2].scale(0.5);
-                              spindown[3] = (myi) * Dz(complexreader);
-                              spindown[3].scale(0.5);
-                              spindown.normalize();
-                              ////spinup = Fcwf(complexreader, complex_factory_3d(world), complex_factory_3d(world), complex_factory_3d(world));
-                              ////spindown = Fcwf(complex_factory_3d(world), copy(complexreader), complex_factory_3d(world), complex_factory_3d(world));
-                              //spinup = spinup + spindown;
-                              //orbitals.push_back(spinup);
-                              //orbitals.push_back(spindown);
-                              justorbitals.push_back(spinup);
-                              justorbitals.push_back(spindown);
-                         }
-
-
-                         //for(unsigned int i=0; i<6; i++){
-                         //     spinup[0] = -myi*(xfunc*Dy(justorbitals[i][0])-yfunc*Dx(justorbitals[i][0])) + 0.5*justorbitals[i][0];
-                         //     spinup[1] = -myi*(xfunc*Dy(justorbitals[i][1])-yfunc*Dx(justorbitals[i][1])) - 0.5*justorbitals[i][1];
-                         //     spinup[2] = -myi*(xfunc*Dy(justorbitals[i][2])-yfunc*Dx(justorbitals[i][2])) + 0.5*justorbitals[i][2];
-                         //     spinup[3] = -myi*(xfunc*Dy(justorbitals[i][3])-yfunc*Dx(justorbitals[i][3])) - 0.5*justorbitals[i][3];
-                         //     jzorbitals.push_back(spinup);
+                         ////Bring in p block, construct 4-component wavefunctions, and diagonalize under j_z
+                         //std::vector<Fcwf> jzorbitals;
+                         //std::vector<Fcwf> justorbitals;
+                         //for(unsigned int i=0; i<3; i++){
+                         //     input & reader;
+                         //     complexreader = function_real2complex(reader);
+                         //     spinup[0] = complexreader;
+                         //     spinup[1] = complex_factory_3d(world);
+                         //     spinup[2] = (-myi) * Dz(complexreader);
+                         //     spinup[2].scale(0.5);
+                         //     spinup[3] = (-myi) * (Dx(complexreader) + myi * Dy(complexreader));
+                         //     spinup[3].scale(0.5);
+                         //     spinup.normalize();
+                         //     spindown[0] = complex_factory_3d(world);
+                         //     spindown[1] = complexreader;
+                         //     spindown[2] = (-myi) * (Dx(complexreader) - myi * Dy(complexreader));
+                         //     spindown[2].scale(0.5);
+                         //     spindown[3] = (myi) * Dz(complexreader);
+                         //     spindown[3].scale(0.5);
+                         //     spindown.normalize();
+                         //     ////spinup = Fcwf(complexreader, complex_factory_3d(world), complex_factory_3d(world), complex_factory_3d(world));
+                         //     ////spindown = Fcwf(complex_factory_3d(world), copy(complexreader), complex_factory_3d(world), complex_factory_3d(world));
+                         //     //spinup = spinup + spindown;
+                         //     //orbitals.push_back(spinup);
+                         //     //orbitals.push_back(spindown);
+                         //     justorbitals.push_back(spinup);
+                         //     justorbitals.push_back(spindown);
                          //}
 
-                         //Tensor<std::complex<double>> jztensor = matrix_inner(world,justorbitals,jzorbitals);
-                         //Tensor<std::complex<double>> overlap = matrix_inner(world,justorbitals,justorbitals);
 
-                         //Tensor<std::complex<double>> U(6,6);
-                         //Tensor<double> evals(6);
+                         ////for(unsigned int i=0; i<6; i++){
+                         ////     spinup[0] = -myi*(xfunc*Dy(justorbitals[i][0])-yfunc*Dx(justorbitals[i][0])) + 0.5*justorbitals[i][0];
+                         ////     spinup[1] = -myi*(xfunc*Dy(justorbitals[i][1])-yfunc*Dx(justorbitals[i][1])) - 0.5*justorbitals[i][1];
+                         ////     spinup[2] = -myi*(xfunc*Dy(justorbitals[i][2])-yfunc*Dx(justorbitals[i][2])) + 0.5*justorbitals[i][2];
+                         ////     spinup[3] = -myi*(xfunc*Dy(justorbitals[i][3])-yfunc*Dx(justorbitals[i][3])) - 0.5*justorbitals[i][3];
+                         ////     jzorbitals.push_back(spinup);
+                         ////}
 
-                         //if(world.rank()==0){
-                         //     print("\njz:\n", jztensor);
-                         //     print("\noverlap:\n", overlap);
-                         //}
-                         //
-                         //sygv(jztensor,overlap,1,U,evals);
+                         ////Tensor<std::complex<double>> jztensor = matrix_inner(world,justorbitals,jzorbitals);
+                         ////Tensor<std::complex<double>> overlap = matrix_inner(world,justorbitals,justorbitals);
 
-                         //if(world.rank()==0) print("U:\n",U);
-                         //if(world.rank()==0) print("evals:\n",evals);
+                         ////Tensor<std::complex<double>> U(6,6);
+                         ////Tensor<double> evals(6);
 
-                         //transform(world,justorbitals,U);
-                         //for(unsigned int i = 0; i < 6; i++){
-                         //     if(evals[i] > 0){
-                         //          if(world.rank()==0) print("Add in state with eval: ", evals[i]);
-                         //          orbitals.push_back(justorbitals[i]);
-                         //     }
-                         //}
-                         orbitals.push_back(justorbitals[0]);
-                         orbitals.push_back(justorbitals[2]);
-                         orbitals.push_back(justorbitals[4]);
-                         //duplicate the energies
-                         //energies = Tensor<double>(2*num_occupied);
-                         //double csquared = 137.0359895*137.0359895;
-                         //double temp;
-                         //for(unsigned int i = 0; i < num_occupied; i++){
-                         //     temp = temp_energies(i);//+csquared;
-                         //     energies(2*i) = temp;
-                         //     energies(2*i+1) = temp;
-                         //}
+                         ////if(world.rank()==0){
+                         ////     print("\njz:\n", jztensor);
+                         ////     print("\noverlap:\n", overlap);
+                         ////}
+                         ////
+                         ////sygv(jztensor,overlap,1,U,evals);
+
+                         ////if(world.rank()==0) print("U:\n",U);
+                         ////if(world.rank()==0) print("evals:\n",evals);
+
+                         ////transform(world,justorbitals,U);
+                         ////for(unsigned int i = 0; i < 6; i++){
+                         ////     if(evals[i] > 0){
+                         ////          if(world.rank()==0) print("Add in state with eval: ", evals[i]);
+                         ////          orbitals.push_back(justorbitals[i]);
+                         ////     }
+                         ////}
+                         //orbitals.push_back(justorbitals[0]);
+                         //orbitals.push_back(justorbitals[2]);
+                         //orbitals.push_back(justorbitals[4]);
+                         ////duplicate the energies
+                         ////energies = Tensor<double>(2*num_occupied);
+                         ////double csquared = 137.0359895*137.0359895;
+                         ////double temp;
+                         ////for(unsigned int i = 0; i < num_occupied; i++){
+                         ////     temp = temp_energies(i);//+csquared;
+                         ////     energies(2*i) = temp;
+                         ////     energies(2*i+1) = temp;
+                         ////}
 
                          ////correct the number of orbitals
                          //num_occupied *= 2;
