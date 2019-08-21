@@ -80,11 +80,11 @@ int main(int argc, char** argv) {
 		if (world.rank()==0) {
 			calc->molecule.print();
 			print("\n");
-			calc->param.print(world);
+			calc->param.print("dft");
 		}
 
 		// compute the energy to get converged orbitals
-		Nemo nemo(world,calc);
+		Nemo nemo(world,calc,input);
 		const double energy=nemo.value();
 		if (world.rank()==0) {
 			printf("final energy   %12.8f\n", energy);

@@ -49,6 +49,7 @@
 #include <madness/mra/operator.h>
 #include <madness/mra/lbdeux.h>
 #include <chem/SCF.h>
+#include <chem/CalculationParameters.h>
 #include <chem/SCFProtocol.h>
 #include <chem/correlationfactor.h>
 #include <chem/molecular_optimizer.h>
@@ -150,11 +151,11 @@ public:
 
 	void construct_nuclear_correlation_factor(const Molecule& molecule,
 			const std::shared_ptr<PotentialManager> pm,
-			const std::string inputline) {
+			const std::pair<std::string,double> ncf_parameter) {
 
 	    // construct the nuclear correlation factor:
 	    if (not ncf) {
-	    	ncf=create_nuclear_correlation_factor(world, molecule, pm, inputline);
+	    	nuclear_correlation=create_nuclear_correlation_factor(world, molecule, pm, ncf_parameter);
 	    }
 
 	    // re-project the ncf
@@ -192,12 +193,38 @@ class Nemo: public NemoBase {
 	friend class TDHF;
 
 public:
+	/// class holding parameters for a nemo calculation beyond the standard dft parameters from moldft
+	struct NemoCalculationParameters : public CalculationParameters {
+
+		NemoCalculationParameters(const CalculationParameters& param) : CalculationParameters(param) {
+			initialize_nemo_parameters();
+		}
+
+		NemoCalculationParameters() : CalculationParameters() {
+			initialize_nemo_parameters();
+		}
+
+		void initialize_nemo_parameters() {
+			initialize<std::pair<std::string,double> > ("ncf",{"none",0.0},"nuclear correlation factor",{{"none",0.0},{"slater",2.0}});
+			initialize<bool> ("hessian",false,"compute the hessian matrix");
+			initialize<bool> ("read_cphf",false,"read the converged orbital response for nuclear displacements from file");
+			initialize<bool> ("restart_cphf",false,"read the guess orbital response for nuclear displacements from file");
+			initialize<bool> ("purify_hessian",false,"symmetrize the hessian matrix based on atomic charges");
+		}
+
+		std::pair<std::string,double> ncf() const {return get<std::pair<std::string,double> >("ncf");}
+		bool hessian() const {return get<bool>("hessian");}
+
+	};
+
+
+public:
 
 	/// ctor
 
 	/// @param[in]	world1	the world
 	/// @param[in]	calc	the SCF
-	Nemo(World& world1, std::shared_ptr<SCF> calc);
+	Nemo(World& world1, std::shared_ptr<SCF> calc, const std::string inputfile);
 
 	double value() {return value(calc->molecule.get_all_coords());}
 
@@ -366,6 +393,10 @@ private:
 
 	std::shared_ptr<SCF> calc;
 
+public:
+    NemoCalculationParameters param;
+
+private:
 	projector_irrep symmetry_projector;
 
 	mutable double ttt, sss;
@@ -460,13 +491,13 @@ private:
         }
         if ((not R.is_initialized()) or (R.thresh()>thresh)) {
             timer timer1(world);
-            construct_nuclear_correlation_factor(calc->molecule, calc->potentialmanager, calc->param.nuclear_corrfac);
+            construct_nuclear_correlation_factor(calc->molecule, calc->potentialmanager, param.ncf());
             timer1.end("reproject ncf");
         }
 
         // (re) construct the Poisson solver
         poisson = std::shared_ptr<real_convolution_3d>(
-                CoulombOperatorPtr(world, calc->param.lo, FunctionDefaults<3>::get_thresh()));
+                CoulombOperatorPtr(world, calc->param.lo(), FunctionDefaults<3>::get_thresh()));
 
         // set thresholds for the MOs
         set_thresh(world,calc->amo,thresh);
@@ -527,9 +558,9 @@ public:
 
 	bool is_dft() const {return calc->xc.is_dft();}
 
-	bool do_pcm() const {return calc->param.pcm_data != "none";}
+	bool do_pcm() const {return calc->param.pcm_data() != "none";}
 	
-	bool do_ac() const {return calc->param.ac_data != "none";}
+	bool do_ac() const {return calc->param.ac_data() != "none";}
 
 	AC<3> get_ac() const {return ac;}
 

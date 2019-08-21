@@ -99,11 +99,11 @@ if (world.rank() == 0) print("input filename: ", inpname);
 
 //SCF calc(world,input.c_str());
 std::shared_ptr<SCF> calc(new SCF(world,inpname));
-Nemo nemo(world,calc);
+Nemo nemo(world,calc,inpname);
 if (world.rank()==0) {
     calc->molecule.print();
     print("\n");
-    calc->param.print(world);
+    calc->param.print("cc2");
 }
 double hf_energy = nemo.value();
 if(world.rank()==0) std::cout << "\n\n\n\n\n\n Reference Calclation Ended\n SCF Energy is: " << hf_energy

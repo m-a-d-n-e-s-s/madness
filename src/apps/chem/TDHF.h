@@ -23,142 +23,154 @@ namespace madness {
 /// solves CIS/TDA equations and hopefully soon the full TDHF/TDDFT equations
 class TDHF{
 public:
+
 	/// the TDHF parameter class
-	struct Parameters{
+	struct Parameters : public QCCalculationParametersBase {
 
-		// disable default constructor (need scf information)
-		Parameters();
-		Parameters(const std::shared_ptr<SCF>& scf);
-		Parameters(const std::shared_ptr<SCF>& scf, const std::string& input);
-
-		/// assign default for everything that has not been assigned from file:
-		void complete_with_defaults(const std::shared_ptr<SCF>& scf);
-
-		/// reads parameters in from file
-		/// parameters are given between key and end keywords
-		/// filename default is "input"
-		void read_from_file(const std::string input, const std::string& key = "response");
-
-		bool assign_bool(std::ifstream& s)const{
-			std::string tmp;
-			s>>tmp;
-			return assign_bool(tmp);
-		}
-		bool assign_bool(std::string& s)const{
-			if(s=="0" or s=="false" or s=="f") return false;
-			else return true;
+		Parameters() {
+			initialize_all();
 		}
 
-		bool debug=false;
-		bool plot=false;
-		bool no_compute=false;
+		Parameters(const Parameters& other) : QCCalculationParametersBase(other) {}
 
-		/// full linear-response (TDHF/TDDFT) or Tamm-Dancoff (CIS/DFT-TDA)
-		std::string calculation="cis"; // possible: cis and tdhf (dft part is controlled throught moldft parameters)
+		/// todo: read_from_file compatible with dist. memory computation
+		Parameters(World& world, const std::shared_ptr<SCF>& scf, const std::string& input) {
+			initialize_all();
+			read(world,input,"response");
+			set_derived_values(scf);
+		}
 
-		/// the threshold for the CIS calculation
-		double thresh=FunctionDefaults<3>::get_thresh();
-		double thresh_op=-1.0; // i.e. uninitialized;
-		///Smallest length scale to resolve
-		double lo=1.e-10;
+		void initialize_all() {
+
+			// MRA stuff
+			initialize<double>("thresh",1.e-5);
+			initialize<double>("econv",1.e-5);
+			initialize<double>("dconv",1.e-4);
+
+			// physics
+			initialize<std::string>("calculation","cis","currently only cis=tda possible, TBD: thdf",{"cis"});
+			initialize<bool>("triplet",false,"calculate triplet excitation energies (only works for CIS)");
+			initialize<std::size_t>("excitations",1);
+			initialize<std::size_t>("freeze",0,"the number of frozen occupied orbitals");
+			initialize<std::string>("irrep","all","compute only irreps of the respective point group");
+
+			// solver
+			initialize<size_t>("maxiter",25,"maximum number of iterations in the final iterations");
+			initialize<std::size_t>("kain_subspace",8,"use kain (kain subspace<=0 == no kain, kain_subspace==1 should have the same effect)");
+
+			// guess
+			initialize<double>("guess_econv",1.e-4);
+			initialize<double>("guess_dconv",1.e-3);
+			initialize<std::size_t>("iterating_excitations",2);
+			initialize<std::size_t>("guess_excitations",4);
+			initialize<std::size_t>("guess_occ_to_virt",5);
+			initialize<double>("damping_width",0.0,"every exop is multiplied with e^(-exponent*r2) to avoid noise at the boundaries");
+
+			initialize<bool>("debug",false);
+			initialize<bool>("plot",false);
+			initialize<bool>("no_compute",false);
+
+			initialize<std::vector<size_t> >("restart",std::vector<size_t>(),"excitations which will be read from disk");
+			initialize<double> ("lo",1.e10,"smallest length scale we need to resolve");
+
+			initialize<std::string>("guess_excitation_operators","dipole+","guess typ",{"dipole+","quadrupole","big_fock_2","big_fock_3","big_fock_4","custom"});
+
+			/// add center of mass functions determined by the homo-energy
+			/// will add s,px,py,pz functions in the center of mass with exponent: -(e_homo/c) and c=guess_cm is the value of this parameter
+			initialize<double>("guess_cm",2.0,"center-of-mass functions, s/p shell with exponent -(e_homo/c)");
+
+			/// use the diagonal approximation for the guess (only e_a -e_i terms in CIS matrix)
+			/// much faster
+			initialize<bool>("guess_diag",true,"use the diagonal approximation for the guess (only e_a -e_i terms in CIS matrix)");
+
+			/// determine active orbitals in guess (for all inactive orbitals only the diagonal  e_a-e_i term is computed in the guess
+			/// guess_active_orbitals=0 is the same as guess_diag
+			initialize<std::size_t>("guess_active_orbitals",0,"determine active orbitals in guess (for all inactive orbitals only the diagonal  e_a-e_i term is computed in the guess");
+
+
+			initialize<bool>("store_potential",true,"store the potential for orthogonalizations or recalculate it");
+
+			initialize<size_t>("guess_maxiter",0,"maximum number of guess iterations ");
+
+			//		/// determine how the virtuals for the guess are constructed: scf, external, custom, dipole, quadrupole
+			//		/// scf: read in the ao set from scf (scales with system size)
+			//		/// external: read in virtuals from disk
+			//		/// custom or predefined strings like dipole, dipole+, ... : create virtuals form occupied orbitals by multiplying with polynomials
+			//		/// |v> = |occ>*poly
+			//		/// if custom is chosen:
+			//		/// the polynomials can be determined by: exop x n1 y n2 z n3 c n4, x n11 ... x n44, ...  which will be n4*x^n1*y^n2*z^n3 + n44*x^n11* ...
+			//		/// e.g. for a dipole guess enter the exop keyword 3 times as:
+			//		/// exop x 1.0
+			//		/// exop y 1.0
+			//		/// exop z 1.0
+			//		/// the options dipole, dipole+, dipole+diffuse and quadrupole give predefined exops without explicitly stating them
+			//		/// see the end of TDHF.cc for predefined keys
+			//		std::string guess_excitation_operators="dipole+";
+			//
+			/// Vector of strings which contains the polynomial excitation operators
+			/// For this to be used the tda_guess key has to be "custom"
+			/// The strings are given in a format like: "c c1 x x1 y y1 z z1, c c2 x x2 y y2 z z2, ..." which will be interpreted as: c1*x^x1*y^y1*z^z1 + c2*x^x2*y^y2*z^z2 + ....
+			initialize<std::vector<std::string> >("exops",{""},"applies only if guess_excitation_operator is custom");
+
+
+
+		}
+
+		void set_derived_values(const std::shared_ptr<SCF>& scf);
+
+		// physical part
+		std::size_t excitations() const {return get<std::size_t>("excitations");}
+		std::size_t freeze() const {return get<std::size_t>("freeze");}
+		std::string irrep() const {return get<std::string>("irrep");}
+		bool triplet() const {return get<bool>("triplet");}
+
+		// precision
+		double thresh() const {return get<double>("thresh");}
+		double econv() const {return get<double>("econv");}
+		double dconv() const {return get<double>("dconv");}
+		double lo() const {return get<double>("lo");}
+
+		// restart and plotting
+		bool debug() const {return get<bool>("debug");}
+		bool no_compute() const {return get<bool>("no_compute");}
+		std::vector<size_t>  restart() const {return get<std::vector<size_t> >("restart");}
+		bool plot() const {return get<bool>("plot");}
+
+		// solver parameters
+		std::size_t iterating_excitations() const {return get<std::size_t>("iterating_excitations");}
+		std::size_t maxiter() const {return get<std::size_t>("maxiter");}
+		std::size_t kain_subspace() const {return get<std::size_t>("kain_subspace");}
+		bool store_potential() const {return get<bool>("store_potential");}
+
+		// guess parameters
+		std::size_t guess_occ_to_virt() const {return get<std::size_t>("guess_occ_to_virt");}
+		std::vector<std::string> exops() const {return get<std::vector<std::string> >("exops");}
+		std::size_t guess_active_orbitals() const {return get<std::size_t>("guess_active_orbitals");}
+		bool guess_diag() const {return get<bool>("guess_diag");}
+		std::size_t guess_excitations() const {return get<std::size_t>("guess_excitations");}
+		std::string guess_excitation_operators() const {return get<std::string>("guess_excitation_operators");}
+		double damping_width() const {return get<double>("damping_width");}
+		double guess_cm() const {return get<double>("guess_cm");}
+		double guess_econv() const {return get<double>("guess_econv");}
+		double guess_dconv() const {return get<double>("guess_dconv");}
+		std::size_t guess_maxiter() const {return get<std::size_t>("guess_maxiter");}
 
 		/// make parameters for convolution operator
 		typename CCConvolutionOperator::Parameters get_ccc_parameters()const{
 			typename CCConvolutionOperator::Parameters result;
-			result.freeze=freeze;
-			result.lo=lo;
-			result.thresh_op=thresh_op;
+			result.freeze=freeze();
+			result.lo=lo();
+			result.thresh_op=thresh();
 			result.gamma=1.0;
 			return result;
 		}
-
-		/// the number of frozen occupied orbitals (not taken into account for response)
-		int freeze=0;
-
-		/// the number of frozen occupied orbitals (not taken into account for response)
-		std::string irrep="all";
-
-		/// excitations which will be read from disk
-		std::vector<size_t> restart;
-
-		/// The number of occupied orbitals which are used to create the virtuals for the guess
-		/// <= 0 means that all orbitals will be used
-		int guess_occ_to_virt=5;
-
-		/// The number of excitation vectors for which the alorithm will solve
-		int excitations=1;
-		/// The number of guess_excitation vectors for the first iterations
-		int guess_excitations=-1;
-		/// The number of excitation vectors which will be iterated parallel
-		int iterating_excitations=-1;
-
-		/// determine how the virtuals for the guess are constructed: scf, external, custom, dipole, quadrupole
-		/// scf: read in the ao set from scf (scales with system size)
-		/// external: read in virtuals from disk
-		/// custom or predefined strings like dipole, dipole+, ... : create virtuals form occupied orbitals by multiplying with polynomials
-		/// |v> = |occ>*poly
-		/// if custom is chosen:
-		/// the polynomials can be determined by: exop x n1 y n2 z n3 c n4, x n11 ... x n44, ...  which will be n4*x^n1*y^n2*z^n3 + n44*x^n11* ...
-		/// e.g. for a dipole guess enter the exop keyword 3 times as:
-		/// exop x 1.0
-		/// exop y 1.0
-		/// exop z 1.0
-		/// the options dipole, dipole+, dipole+diffuse and quadrupole give predefined exops without explicitly stating them
-		/// see the end of TDHF.cc for predefined keys
-		std::string guess_excitation_operators="dipole+";
-
-		/// add center of mass functions determined by the homo-energy
-		/// will add s,px,py,pz functions in the center of mass with exponent: -(e_homo/c) and c=guess_cm is the value of this parameter
-		double guess_cm=2.0;
-
-		/// use the diagonal approximation for the guess (only e_a -e_i terms in CIS matrix)
-		/// much faster
-		bool guess_diag=true;
-
-		/// determine active orbitals in guess (for all inactive orbitals only the diagonal  e_a-e_i term is computed in the guess
-		/// guess_active_orbitals=0 is the same as guess_diag
-		int guess_active_orbitals=0;
-
-
-		/// convergence for the excitation vectors
-		double guess_dconv=-1.0;
-		double dconv=-1.0;
-		/// convergence for the excitation energy
-		double guess_econv=-1.0;
-		double econv=-1.0;
-
-		/// store the potential for orthogonalizations or recalculate it
-		bool store_potential=true;
-
-		/// maximum number of iterations in the final iterations
-		size_t maxiter=25;
-		/// maximum number of guess iterations (pre iterate guess functions)
-		size_t guess_maxiter=0;
-		/// Vector of strings which contains the polynomial excitation operators
-		/// For this to be used the tda_guess key has to be "custom"
-		/// The strings are given in a format like: "c c1 x x1 y y1 z z1, c c2 x x2 y y2 z z2, ..." which will be interpreted as: c1*x^x1*y^y1*z^z1 + c2*x^x2*y^y2*z^z2 + ....
-		std::vector<std::string> exops;
-		/// smoothing exponent
-		/// every exop is multiplied with e^(-exponent*r2) to avoid noise at the boundaries
-		double damping_width=0.0;
-
-		/// calculate triplet excitation energies (only works for CIS)
-		bool triplet=false;
-
-		/// use kain (kain subspace<=0 == no kain, kain_subspace==1 should have the same effect)
-		int kain_subspace=8;
-
-		/// general new key/value pair for convenience in development
-		std::map<std::string,std::string> generalkeyval;
-
-		void print(World& world) const;
 
 	}; // end of parameter class
 
 	TDHF(World & world,const Nemo &nemo, const std::string& input="input");
 	TDHF(World & world,const Nemo &nemo, const Parameters& param);
 	virtual
-	~TDHF();
+	~TDHF() {};
 
 
 	/// check consistency of the input parameters
@@ -282,7 +294,7 @@ public:
 	CC_vecfunction make_mo_bra(const Nemo &nemo) const {
 		vector_real_function_3d tmp = mul(world, nemo.ncf->square(),
 				nemo.get_calc()->amo);
-		set_thresh(world, tmp, parameters.thresh);
+		set_thresh(world, tmp, parameters.thresh());
 		truncate(world,tmp);
 		reconstruct(world,tmp);
 		CC_vecfunction mo_bra(tmp, HOLE);
@@ -291,7 +303,7 @@ public:
 
 	CC_vecfunction make_mo_ket(const Nemo&nemo) const {
 		vector_real_function_3d tmp = nemo.get_calc()->amo;
-		set_thresh(world, tmp, parameters.thresh);
+		set_thresh(world, tmp, parameters.thresh());
 		truncate(world,tmp);
 		reconstruct(world,tmp);
 		CC_vecfunction mo_ket(tmp, HOLE);
@@ -316,7 +328,7 @@ public:
 		CCTimer time(world,"Make Bra");
 		real_function_3d nucf = nemo.ncf->square();
 		vector_real_function_3d result= mul(world,nucf,ket);
-		time.info(parameters.debug);
+		time.info(parameters.debug());
 		return result;
 	}
 
@@ -334,12 +346,12 @@ public:
 
 	const vector_real_function_3d get_active_mo_ket()const{
 		vector_real_function_3d result;
-		for(size_t i=parameters.freeze;i<mo_ket_.size();i++) result.push_back(mo_ket_(i).function);
+		for(size_t i=parameters.freeze();i<mo_ket_.size();i++) result.push_back(mo_ket_(i).function);
 		return result;
 	}
 	const vector_real_function_3d get_active_mo_bra()const{
 		vector_real_function_3d result;
-		for(size_t i=parameters.freeze;i<mo_ket_.size();i++) result.push_back(mo_bra_(i).function);
+		for(size_t i=parameters.freeze();i<mo_ket_.size();i++) result.push_back(mo_bra_(i).function);
 		return result;
 	}
 

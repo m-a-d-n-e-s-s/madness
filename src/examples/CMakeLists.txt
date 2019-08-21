@@ -15,5 +15,5 @@ endif()
 # Create executables for example applications
 foreach(example ${EXAMPLE_SOURCES})
   add_executable(${example} ${example}.cc)
-  target_link_libraries(${example} MADchem)
+  target_link_libraries(${example} MADchem ${DISABLEPIE_LINKER_FLAG})
 endforeach()

@@ -451,14 +451,14 @@ int main(int argc, char** argv) {
 	// read out input and stuff
 	std::string input = "input";
 	std::shared_ptr<SCF> calc(new SCF(world, input.c_str()));
-	Nemo nemo(world, calc);
+	Nemo nemo(world, calc,input);
 
 	TensorType tt = TT_2D;
 	FunctionDefaults<6>::set_tensor_type(tt);
 	FunctionDefaults<6>::set_thresh(FunctionDefaults<3>::get_thresh());
 	FunctionDefaults<6>::set_k(FunctionDefaults<3>::get_k());
-    FunctionDefaults<3>::set_cubic_cell(-calc->param.L, calc->param.L);
-    FunctionDefaults<6>::set_cubic_cell(-calc->param.L, calc->param.L);
+    FunctionDefaults<3>::set_cubic_cell(-calc->param.L(), calc->param.L());
+    FunctionDefaults<6>::set_cubic_cell(-calc->param.L(), calc->param.L());
     calc->set_protocol<6>(world,FunctionDefaults<3>::get_thresh());
 
 
@@ -534,7 +534,7 @@ int main(int argc, char** argv) {
 		}
 
 
-		for (int iter = 0; iter < nemo.get_calc()->param.maxiter; ++iter) {
+		for (int iter = 0; iter < nemo.get_calc()->param.maxiter(); ++iter) {
 
 			real_function_6d Vpsi = real_factory_6d(world);
 	#ifdef WITH_G12

@@ -221,7 +221,7 @@ void Molecule::set_pseudo_atom(unsigned int i, bool psat) {
   atoms[i].pseudo_atom = psat;
 }
 
-bool Molecule::get_pseudo_atom(unsigned int i) {
+bool Molecule::get_pseudo_atom(unsigned int i) const {
   if (i>=atoms.size()) throw "trying to get pseudo atom for invalid atom";
   return atoms[i].pseudo_atom;
 }
@@ -626,7 +626,7 @@ void Molecule::identify_point_group() {
         pointgroup = "C1";
     }
 
-    madness::print("\n The point group is", pointgroup);
+//    madness::print("\n The point group is", pointgroup);
     // assign to member variable
     pointgroup_ = pointgroup;
 }
@@ -662,7 +662,7 @@ Tensor<double> Molecule::moment_of_inertia() const {
 }
 
 /// Centers and orients the molecule in a standard manner
-void Molecule::orient() {
+void Molecule::orient(bool verbose) {
 
     center();
 
@@ -685,22 +685,24 @@ void Molecule::orient() {
     rotate(U);
 
 
-    // Try to resolve degenerate rotations
-    double symtol = 1e-2;
-    if (fabs(e[0]-e[1])<symtol && fabs(e[1]-e[2])<symtol) {
-        madness::print("Cubic point group");
-    }
-    else if (fabs(e[0]-e[1])<symtol) {
-        madness::print("XY degenerate");
-    }
-    else if (fabs(e[0]-e[2])<symtol) {
-        madness::print("XZ degenerate");
-    }
-    else if (fabs(e[1]-e[2])<symtol) {
-        madness::print("YZ degenerate");
-    }
-    else {
-        madness::print("Abelian pointgroup");
+    if (verbose) {
+		// Try to resolve degenerate rotations
+		double symtol = 1e-2;
+		if (fabs(e[0]-e[1])<symtol && fabs(e[1]-e[2])<symtol) {
+			madness::print("Cubic point group");
+		}
+		else if (fabs(e[0]-e[1])<symtol) {
+			madness::print("XY degenerate");
+		}
+		else if (fabs(e[0]-e[2])<symtol) {
+			madness::print("XZ degenerate");
+		}
+		else if (fabs(e[1]-e[2])<symtol) {
+			madness::print("YZ degenerate");
+		}
+		else {
+			madness::print("Abelian pointgroup");
+		}
     }
 
     // Now hopefully have mirror planes and C2 axes correctly oriented

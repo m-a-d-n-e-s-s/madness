@@ -22,28 +22,40 @@ namespace madness {
 void QCCalculationParametersBase::print(const std::string header,
 		const std::string footer) const {
 
+	std::string body=print_to_string();
+	if (header.size()>0) madness::print(header);
+	::madness::print(body);
+	if (footer.size()>0) madness::print(footer);
+}
+
+std::string QCCalculationParametersBase::print_to_string(bool non_defaults_only) const {
+
 	// sort parameters according to increasing print_order
 	typedef std::tuple<int,std::string,QCParameter> keyvalT;
 	std::list<keyvalT> list;
 	for (auto& p : parameters) list.push_back(keyvalT(p.second.get_print_order(),p.first,p.second));
 	list.sort([](const keyvalT& first, const keyvalT& second) {return std::get<0>(first) < std::get<0>(second);});
 
-	if (header.size()>0) madness::print(header);
-	for (auto& p : list) ::madness::print(std::get<2>(p).print_line(std::get<1>(p)));
-	if (footer.size()>0) madness::print(footer);
+	std::stringstream ss;
+	for (auto& p : list) {
+		const QCParameter& param=std::get<2>(p);
+		if (non_defaults_only and (param.precedence==QCParameter::def)) continue;
+		ss << param.print_line(std::get<1>(p));
+		ss << std::endl;
+	}
+	return ss.str();
 }
-
 
 /// read the parameters from file and broadcast
 void QCCalculationParametersBase::read(World& world, const std::string filename, const std::string tag) {
 
 	std::string filecontents, line;
-	if (world.rank()==0) {
+//	if (world.rank()==0) {
 		std::ifstream f(filename.c_str());
 		while (std::getline(f,line)) filecontents+=line+"\n";
-	}
+//	}
 	read_internal(world, filecontents,tag);
-	world.gop.broadcast_serializable(*this, 0);
+//	world.gop.broadcast_serializable(*this, 0);
 
 }
 
@@ -95,6 +107,8 @@ void QCCalculationParametersBase::read_internal(World& world, std::string& filec
 		try {
 			success=try_setting_user_defined_value<double>(key,line1) or success;
 			success=try_setting_user_defined_value<int>(key,line1) or success;
+			success=try_setting_user_defined_value<long>(key,line1) or success;
+			success=try_setting_user_defined_value<std::size_t>(key,line1) or success;
 			success=try_setting_user_defined_value<bool>(key,line1) or success;
 			success=try_setting_user_defined_value<std::string>(key,line1) or success;
 			success=try_setting_user_defined_value<std::vector<double> >(key,line1) or success;

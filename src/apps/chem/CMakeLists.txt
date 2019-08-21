@@ -43,7 +43,7 @@ endif()
 
 # Add executables
 add_executable(plotxc plotxc.cc xcfunctional.h)
-target_link_libraries(plotxc MADchem)
+target_link_libraries(plotxc MADchem ${DISABLEPIE_LINKER_FLAG})
 
 # Install files
 install(FILES sto-3g sto-6g 6-31g coredata/mcp coredata/mcp2 coredata/mcp_guess
@@ -56,7 +56,7 @@ if(ENABLE_UNITTESTS)
   SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
   # The list of unit test source files
   set(CHEM_TEST_SOURCES test_SCFOperators.cc test_dft.cc test_pointgroupsymmetry.cc test_masks_and_boxes.cc
-  test_QCCalculationParametersBase.cc)
+  test_QCCalculationParametersBase.cc test_qc.cc)
   
   add_unittests(chem CHEM_TEST_SOURCES "MADchem;MADgtest")
   
@@ -65,7 +65,7 @@ if(ENABLE_UNITTESTS)
   foreach(_test ${CHEM_OTHER_TESTS})  
 #    add_executable(${_test} EXCLUDE_FROM_ALL ${_test}.cc)
     add_executable(${_test} ${_test}.cc)
-    target_link_libraries(${_test} MADchem)
+    target_link_libraries(${_test} MADchem ${DISABLEPIE_LINKER_FLAG})
   endforeach()
   
 endif()
