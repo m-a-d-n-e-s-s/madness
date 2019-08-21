@@ -263,7 +263,7 @@ public:
 
 	/// are there explicit beta orbitals
 	bool have_beta() const {
-		return ((not cparam.spin_restricted) and (cparam.nbeta>0));
+		return ((not cparam.spin_restricted()) and (cparam.nbeta()>0));
 	}
 
 	void save_orbitals(std::string suffix) const;
@@ -356,7 +356,7 @@ public:
 			const std::vector<complex_function_3d>& bmo) const {
 		real_function_3d density=NemoBase::compute_density(amo);
 		if (have_beta()) density+=NemoBase::compute_density(bmo);
-		if (cparam.spin_restricted) density=density.scale(2.0);
+		if (cparam.spin_restricted()) density=density.scale(2.0);
 		return density;
 	}
 
@@ -375,7 +375,7 @@ protected:
     printleveler print_info=printleveler(2);
 
 	/// standard calculation parameters
-	CalculationParameters cparam;
+    Nemo::NemoCalculationParameters cparam;
 
 	std::shared_ptr<Diamagnetic_potential_factor> diafac;
 

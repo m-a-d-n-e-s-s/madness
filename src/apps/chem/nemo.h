@@ -155,7 +155,7 @@ public:
 
 	    // construct the nuclear correlation factor:
 	    if (not ncf) {
-	    	nuclear_correlation=create_nuclear_correlation_factor(world, molecule, pm, ncf_parameter);
+	    	ncf=create_nuclear_correlation_factor(world, molecule, pm, ncf_parameter);
 	    }
 
 	    // re-project the ncf

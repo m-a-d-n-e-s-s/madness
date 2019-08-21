@@ -307,14 +307,14 @@ Exchange<T,NDIM>::Exchange(World& world, const Nemo* nemo, const int ispin) // @
     : Exchange<T,NDIM>(world,nemo->get_calc().get(),ispin) {
 
     if (ispin==0) { // alpha spin
-        mo_ket=nemo->get_calc()->amo;
+        mo_ket=convert<double,T,NDIM>(world,nemo->get_calc()->amo);        // deep copy necessary if T==double_complex
         occ=nemo->get_calc()->aocc;
     } else if (ispin==1) {  // beta spin
-        mo_ket=nemo->get_calc()->bmo;
+        mo_ket=convert<double,T,NDIM>(world,nemo->get_calc()->bmo);        // deep copy necessary if T==double_complex
         occ=nemo->get_calc()->bocc;
     }
 
-    mo_bra=mul(world,nemo->nuclear_correlation->square(),mo_ket);
+    mo_bra=mul(world,nemo->ncf->square(),mo_ket);
     truncate(world,mo_bra);
     poisson = std::shared_ptr<real_convolution_3d>(
             CoulombOperatorPtr(world, nemo->get_calc()->param.lo(),
@@ -472,7 +472,7 @@ XCOperator::XCOperator(World& world, const Nemo* nemo, const real_function_3d& a
     xc=std::shared_ptr<XCfunctional> (new XCfunctional());
     xc->initialize(nemo->get_calc()->param.xc(),
             not nemo->get_calc()->param.spin_restricted(), world);
-    ncf=nemo->ncf();
+    ncf=nemo->ncf;
 
     xc_args=prep_xc_args(arho,brho);
 }

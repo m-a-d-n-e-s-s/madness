@@ -92,10 +92,10 @@ int main(int argc, char** argv) {
         std::shared_ptr<Znemo> znemo(new Znemo(world));
 
     	// optimize the geometry if requested
-    	if (znemo->get_cparam().gopt) {
+    	if (znemo->get_cparam().gopt()) {
     		print("\n\n Geometry Optimization                      ");
     		print(" ----------------------------------------------------------\n");
-    		znemo->get_cparam().gprint(world);
+//    		znemo->get_cparam().gprint(world);
 
     		Tensor<double> geomcoord = znemo->molecule().get_all_coords().flat();
     		MolecularOptimizer geom(world,znemo);

@@ -876,7 +876,6 @@ int main(int argc, char** argv) {
     result+=test_coulomb<double_complex>(world);
 #endif
     if (!smalltest) {
-<<<<<<< HEAD
     	result+=test_exchange<double>(world);
 #ifndef HAVE_GENTENSOR
     	result+=test_exchange<double_complex>(world);
@@ -887,23 +886,8 @@ int main(int argc, char** argv) {
 #endif
     	result+=test_nuclear(world);
     	result+=test_dnuclear(world);
-    	result+=test_SCF(world);
     	result+=test_nemo(world);
 	}
-||||||| merged common ancestors
-        result+=test_exchange(world);
-        result+=test_nuclear(world);
-        result+=test_dnuclear(world);
-        result+=test_SCF(world);
-        result+=test_nemo(world);
-    }
-=======
-        result+=test_exchange(world);
-        result+=test_nuclear(world);
-        result+=test_dnuclear(world);
-        result+=test_nemo(world);
-    }
->>>>>>> master
 
     if (world.rank()==0) {
         if (result==0) print("\ntests passed\n");

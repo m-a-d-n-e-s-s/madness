@@ -15,24 +15,25 @@
 namespace madness {
 
 Znemo::Znemo(World& world) : NemoBase(world), param(world), mol("input"), cparam() {
-	cparam.read_file("input");
+	cparam.read(world,"input","dft");
 
-    FunctionDefaults<3>::set_k(cparam.k);
-    FunctionDefaults<3>::set_thresh(cparam.econv);
+    FunctionDefaults<3>::set_k(cparam.k());
+    FunctionDefaults<3>::set_thresh(cparam.econv());
     FunctionDefaults<3>::set_refine(true);
     FunctionDefaults<3>::set_initial_level(5);
     FunctionDefaults<3>::set_truncate_mode(1);
-    FunctionDefaults<3>::set_cubic_cell(-cparam.L, cparam.L);
+    FunctionDefaults<3>::set_cubic_cell(-cparam.L(), cparam.L());
 
-    aobasis.read_file(cparam.aobasis);
-    cparam.set_molecular_info(mol, aobasis, 0);
+    aobasis.read_file(cparam.aobasis());
+//    cparam.set_molecular_info(mol, aobasis, 0);
+    cparam.set_derived_values(mol,aobasis);
 	param.set_derived_values();
 
 	print_info=printleveler(param.printlevel());
 
 	if (world.rank()==0 and print_info.print_setup()) {
 		param.print("complex","end");
-		cparam.print(world);
+		cparam.print("dft");
 		mol.print();
 	}
 
@@ -42,7 +43,7 @@ Znemo::Znemo(World& world) : NemoBase(world), param(world), mol("input"), cparam
     // set the linear moments
     for (int i=0; i<3; ++i) rvec.push_back(real_factory_3d(world).functor([&i] (const coord_3d& r) {return r[i];}));
 
-	coulop=std::shared_ptr<real_convolution_3d>(CoulombOperatorPtr(world,cparam.lo,cparam.econv));
+	coulop=std::shared_ptr<real_convolution_3d>(CoulombOperatorPtr(world,cparam.lo(),cparam.econv()));
 };
 
 bool Znemo::need_recompute_factors_and_potentials(const double thresh) const {
@@ -75,13 +76,13 @@ void Znemo::recompute_factors_and_potentials(const double thresh) {
 
 	// the guess is read from a previous nemo calculation
 	// make sure the molecule was not reoriented there
-	if (not cparam.no_orient) {
+	if (not cparam.no_orient()) {
 		MADNESS_EXCEPTION("the molecule of the reference calculation was reoriented\n\n",1);
 	}
 
-	potentialmanager=std::shared_ptr<PotentialManager>(new PotentialManager(mol, cparam.core_type));
+	potentialmanager=std::shared_ptr<PotentialManager>(new PotentialManager(mol, cparam.core_type()));
 	potentialmanager->make_nuclear_potential(world);
-    construct_nuclear_correlation_factor(mol, potentialmanager, cparam.nuclear_corrfac);
+    construct_nuclear_correlation_factor(mol, potentialmanager, cparam.ncf());
 
 	// currently we cannot have the diamagnetic factor and the nuclear correlation factor
 	// at the same time
@@ -90,7 +91,7 @@ void Znemo::recompute_factors_and_potentials(const double thresh) {
 	}
 
     // (re) construct the Poisson solver
-	coulop=std::shared_ptr<real_convolution_3d>(CoulombOperatorPtr(world,cparam.lo,cparam.econv));
+	coulop=std::shared_ptr<real_convolution_3d>(CoulombOperatorPtr(world,cparam.lo(),cparam.econv()));
 
 }
 
@@ -150,8 +151,8 @@ double Znemo::value(const Tensor<double>& x) {
 
 	// compute the molecular potential
 	mol.set_all_coords(x.reshape(mol.natom(),3));
-	if (need_recompute_factors_and_potentials(cparam.econv))
-		recompute_factors_and_potentials(cparam.econv);
+	if (need_recompute_factors_and_potentials(cparam.econv()))
+		recompute_factors_and_potentials(cparam.econv());
 
 	// read the guess orbitals
 	try {
@@ -211,14 +212,14 @@ void Znemo::iterate() {
 
 	XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator<double_complex,3> > solvera(allocator<double_complex,3> (world,amo.size()));
 	XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator<double_complex,3> > solverb(allocator<double_complex,3> (world,bmo.size()));
-	solvera.set_maxsub(cparam.maxsub); // @suppress("Method cannot be resolved")
+	solvera.set_maxsub(cparam.maxsub()); // @suppress("Method cannot be resolved")
 	solvera.do_print=(param.printlevel()>2);
-	solverb.set_maxsub(cparam.maxsub);
+	solverb.set_maxsub(cparam.maxsub());
 	solverb.do_print=(param.printlevel()>2);
 
 	// set end of iteration cycles for intermediate calculations
-	int maxiter = cparam.maxiter;
-	double dconv=cparam.dconv;
+	int maxiter = cparam.maxiter();
+	double dconv=cparam.dconv();
 	double na=1.0,nb=1.0;	// residual norms
 
 	solvera.clear_subspace();
@@ -289,7 +290,7 @@ void Znemo::iterate() {
 					iter, wall_time(), energy, na, nb);
 		}
 
-		if (std::abs(oldenergy-energy)<cparam.econv and (sqrt(na*na+nb*nb)<dconv)) {
+		if (std::abs(oldenergy-energy)<cparam.econv() and (sqrt(na*na+nb*nb)<dconv)) {
 			print("energy converged");
 			save_orbitals("converged");
 			converged=true;
@@ -354,8 +355,8 @@ std::vector<complex_function_3d> Znemo::make_bra(const std::vector<complex_funct
 
 double Znemo::analyze() {
 
-	if (need_recompute_factors_and_potentials(cparam.econv))
-		recompute_factors_and_potentials(cparam.econv);
+	if (need_recompute_factors_and_potentials(cparam.econv()))
+		recompute_factors_and_potentials(cparam.econv());
 
 	real_function_3d density=compute_density(amo,bmo);
 	potentials apot(world,amo.size()), bpot(world,bmo.size());
@@ -420,7 +421,7 @@ double Znemo::compute_energy_no_confinement(const std::vector<complex_function_3
 		const std::vector<complex_function_3d>& bmo, const Znemo::potentials& bpot, const bool do_print) const {
 
 	timer tenergy(world,print_info.print_timings());
-    double fac= cparam.spin_restricted ? 2.0 : 1.0;
+    double fac= cparam.spin_restricted() ? 2.0 : 1.0;
     std::vector<complex_function_3d> dia2amo=make_bra(amo);
     std::vector<complex_function_3d> dia2bmo=make_bra(bmo);
     std::vector<complex_function_3d> diaamo=truncate(amo*diafac->factor()*R);
@@ -509,7 +510,7 @@ double Znemo::compute_energy(const std::vector<complex_function_3d>& amo, const 
 		const std::vector<complex_function_3d>& bmo, const Znemo::potentials& bpot, const bool do_print) const {
 
 	timer tenergy(world,print_info.print_timings());
-    double fac= cparam.spin_restricted ? 2.0 : 1.0;
+    double fac= cparam.spin_restricted() ? 2.0 : 1.0;
     std::vector<complex_function_3d> dia2amo=make_bra(amo);
     std::vector<complex_function_3d> dia2bmo=make_bra(bmo);
 
@@ -658,8 +659,8 @@ void Znemo::do_step_restriction(const std::vector<complex_function_3d>& mo,
     std::vector<double> anorm = norm2s(world, sub(world, mo, mo_new));
     int nres = 0;
     for (unsigned int i = 0; i < mo.size(); ++i) {
-        if (anorm[i] > cparam.maxrotn) {
-            double s = cparam.maxrotn / anorm[i];
+        if (anorm[i] > cparam.maxrotn()) {
+            double s = cparam.maxrotn() / anorm[i];
             ++nres;
             if (world.rank() == 0 and print_info.print_convergence()) {
                 if (nres == 1)
@@ -678,7 +679,7 @@ void Znemo::do_step_restriction(const std::vector<complex_function_3d>& mo,
 /// read the guess orbitals from a previous nemo or moldft calculation
 std::vector<complex_function_3d> Znemo::read_guess(const std::string& spin) const {
 
-	int nmo= (spin=="alpha") ? cparam.nalpha : cparam.nbeta;
+	int nmo= (spin=="alpha") ? cparam.nalpha() : cparam.nbeta();
 	std::vector<real_function_3d> real_mo=zero_functions<double,3>(world,nmo);
 
 	// load the converged orbitals
@@ -713,7 +714,7 @@ Znemo::potentials Znemo::compute_potentials(const std::vector<complex_function_3
 	Exchange<double_complex,3> K=Exchange<double_complex,3>(world);
 	Tensor<double> occ(mo.size());
 	occ=1.0;
-	K.set_parameters(conj(world,dia2mo),mo,occ,cparam.lo,cparam.econv);
+	K.set_parameters(conj(world,dia2mo),mo,occ,cparam.lo(),cparam.econv());
 
 	Nuclear nuc(world,ncf);
 
@@ -776,7 +777,7 @@ Znemo::compute_residuals(
     for (int i=0; i<eps.size(); ++i) {
     	ops[i]=std::shared_ptr<real_convolution_3d>(
     			BSHOperatorPtr3D(world, sqrt(-2.*std::min(-0.05,eps(i)+levelshift)),
-    					cparam.lo*0.001, tol*0.001));
+    					cparam.lo()*0.001, tol*0.001));
     }
 
     std::vector<complex_function_3d> tmp = apply(world,ops,-2.0*Vpsi-2.0*levelshift*psi);
