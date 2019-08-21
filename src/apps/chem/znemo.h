@@ -191,6 +191,7 @@ public:
 
 	const CalculationParameters& get_cparam() const {return cparam;};
 	Molecule& molecule() {return mol;};
+	const Molecule& molecule() const {return mol;};
 
 	/// test the identity <F| f (T + Vdia ) f |F> = <F|f^2 (T + Udia) |F>
 	bool test_U_potentials() const;
@@ -269,7 +270,8 @@ public:
 	void save_orbitals(std::string suffix) const;
 
 	/// read the guess orbitals from a previous nemo or moldft calculation
-	std::vector<complex_function_3d> read_guess(const std::string& spin) const;
+	std::pair<std::vector<complex_function_3d>, std::vector<complex_function_3d> >
+	read_guess() const;
 
 	void read_orbitals() {
 		std::string name="reference";

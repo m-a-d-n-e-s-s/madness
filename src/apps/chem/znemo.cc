@@ -10,6 +10,8 @@
 #include <chem/diamagneticpotentialfactor.h>
 #include <chem/test_utilities.h>
 #include <chem/masks_and_boxes.h>
+#include <chem/MolecularOrbitals.h>
+
 
 
 namespace madness {
@@ -159,8 +161,9 @@ double Znemo::value(const Tensor<double>& x) {
 		read_orbitals();
 
 	} catch(...) {
-		amo=read_guess("alpha");
-		if (have_beta()) bmo=read_guess("beta");
+		auto zmos=read_guess();
+		amo=zmos.first;
+		bmo=zmos.second;
 		aeps=Tensor<double>(amo.size());
 		beps=Tensor<double>(bmo.size());
 
@@ -677,28 +680,23 @@ void Znemo::do_step_restriction(const std::vector<complex_function_3d>& mo,
 }
 
 /// read the guess orbitals from a previous nemo or moldft calculation
-std::vector<complex_function_3d> Znemo::read_guess(const std::string& spin) const {
+std::pair<std::vector<complex_function_3d>, std::vector<complex_function_3d> >
+Znemo::read_guess() const {
 
-	int nmo= (spin=="alpha") ? cparam.nalpha() : cparam.nbeta();
-	std::vector<real_function_3d> real_mo=zero_functions<double,3>(world,nmo);
-
-	// load the converged orbitals
-    for (std::size_t imo = 0; imo < nmo; ++imo) {
-    	print("loading mos ",spin,imo);
-    	load(real_mo[imo], "nemo_"+spin + stringify(imo));
-    }
-    real_mo=truncate(real_mo*ncf->inverse());
+	print("reading mos from restartdata");
+	auto mos=MolecularOrbitals<double,3>::read_restartdata(world, molecule(), cparam.nalpha(), cparam.nbeta());
+	MolecularOrbitals<double,3> amo=mos.first,bmo=mos.second;
 
     // confine the orbitals to an approximate Gaussian form corresponding to the
     // diamagnetic (harmonic) potential
     coord_3d remaining_B=B-coord_3d{0,0,param.explicit_B()};
     real_function_3d gauss=diafac->custom_factor(remaining_B,diafac->get_v(),1.0);
-//    complex_function_3d pp=complex_factory_3d(world).f(p_plus);
-//    save(real(pp),"p_plus");
-//    complex_function_3d gauss=diafac->factor_with_phase(remaining_B,diafac->get_v());
-//    save(real(gauss),"gauss");
-//    return gauss*real_mo;
-    return convert<double,double_complex,3>(world,real_mo*gauss);
+
+	std::pair<std::vector<complex_function_3d>, std::vector<complex_function_3d> > zmos;
+	zmos.first=truncate(convert<double,double_complex,3>(world,amo.get_mos()*ncf->inverse()*gauss));		// alpha
+	zmos.second=truncate(convert<double,double_complex,3>(world,bmo.get_mos()*ncf->inverse()*gauss));		// beta
+
+	return zmos;
 }
 
 
