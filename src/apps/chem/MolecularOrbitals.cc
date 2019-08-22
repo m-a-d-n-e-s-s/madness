@@ -17,8 +17,8 @@ namespace madness {
 template class MolecularOrbitals<double,3>;
 
 template<typename T, std::size_t NDIM>
-void MolecularOrbitals<T,NDIM>::write_to(std::vector<Function<T,NDIM> >& mo_out, std::vector<double>& eps_out,
-		std::vector<std::string>& irrep_out, std::vector<double>& occ_out, std::vector<int>& set_out) const {
+void MolecularOrbitals<T,NDIM>::write_to(std::vector<Function<T,NDIM> >& mo_out, Tensor<double>& eps_out,
+		std::vector<std::string>& irrep_out, Tensor<double>& occ_out, std::vector<int>& set_out) const {
 	if (mo.size()>0) {
 		World& world=mo.front().world();
 		mo_out=copy(world,mo);

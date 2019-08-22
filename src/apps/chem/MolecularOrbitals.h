@@ -111,8 +111,8 @@ public:
 		ar & mo & eps & irreps & occ & localize_sets;
 	}
 
-	void write_to(std::vector<Function<T,NDIM> >& mo_out, std::vector<double>& eps_out,
-			std::vector<std::string>& irrep_out, std::vector<double>& occ_out, std::vector<int>& set_out) const;
+	void write_to(std::vector<Function<T,NDIM> >& mo_out, Tensor<double>& eps_out,
+			std::vector<std::string>& irrep_out, Tensor<double>& occ_out, std::vector<int>& set_out) const;
 
 	/// reads amo and bmo from the restartdata file
 
@@ -131,7 +131,7 @@ public:
 		if (have_beta) {
 			bmo.load_mos(ar,molecule,nmo_beta);
 		}
-		return std::make_tuple(amo,bmo);
+		return std::make_pair(amo,bmo);
 	}
 
 	/// legacy code
