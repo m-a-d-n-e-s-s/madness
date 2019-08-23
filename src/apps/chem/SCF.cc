@@ -402,23 +402,24 @@ vecfuncT SCF::project_ao_basis(World & world, const AtomicBasisSet& aobasis) {
 	// Make at_to_bf, at_nbf ... map from atom to first bf on atom, and nbf/atom
 	aobasis.atoms_to_bfn(molecule, at_to_bf, at_nbf);
 
-	START_TIMER(world);
+	return SCF::project_ao_basis_only(world,aobasis, molecule);
+}
+
+vecfuncT SCF::project_ao_basis_only(World & world, const AtomicBasisSet& aobasis,
+		const Molecule& molecule) {
 	vecfuncT ao = vecfuncT(aobasis.nbf(molecule));
 	for (int i = 0; i < aobasis.nbf(molecule); ++i) {
-		functorT aofunc(
-				new AtomicBasisFunctor(
+		functorT aofunc(new AtomicBasisFunctor(
 						aobasis.get_atomic_basis_function(molecule, i)));
-		ao[i] =
-				factoryT(world).functor(aofunc).truncate_on_project().nofence().truncate_mode(
-						1);
+		ao[i] = factoryT(world).functor(aofunc).truncate_on_project().nofence().truncate_mode(1);
 	}
 	world.gop.fence();
 	truncate(world, ao);
 	normalize(world, ao);
-	END_TIMER(world, "project ao basis");
-	print_meminfo(world.rank(), "project ao basis");
 	return ao;
 }
+
+
 
 
 distmatT SCF::localize_PM(World & world, const vecfuncT & mo,

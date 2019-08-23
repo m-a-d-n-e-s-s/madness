@@ -9,12 +9,12 @@
 #include <chem/molecule.h>
 #include <madness/world/world.h>
 #include <madness/world/parallel_archive.h>
+#include <chem/molecularbasis.h>
 
 #include<madness/mra/mra.h>
 
 namespace madness {
 
-template class MolecularOrbitals<double,3>;
 
 template<typename T, std::size_t NDIM>
 void MolecularOrbitals<T,NDIM>::write_to(std::vector<Function<T,NDIM> >& mo_out, Tensor<double>& eps_out,
@@ -45,6 +45,25 @@ void MolecularOrbitals<T,NDIM>::post_process_mos(World& world, const double thre
 	}
 	set_thresh(world,mo,thresh);
 }
+
+
+template<typename T, std::size_t NDIM>
+void MolecularOrbitals<T,NDIM>::project_ao(World& world, const Tensor<T>& Saomo,
+		const std::vector<real_function_3d>& aos) {
+
+	Tensor<double> Saoao=matrix_inner(world, aos, aos);
+
+	Tensor<T> c;
+	gesvp(world, convert<T>(Saoao), Saomo, c);
+	mo = transform(world, aos, c, 0.0, true);
+	truncate(world, mo);
+	mo=orthonormalize_symmetric(mo);
+
+}
+
+template class MolecularOrbitals<double,3>;
+template class MolecularOrbitals<double_complex,3>;
+
 
 
 } /* namespace madness */

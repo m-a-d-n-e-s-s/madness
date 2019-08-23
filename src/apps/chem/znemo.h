@@ -21,6 +21,7 @@
 #include <chem/molecular_optimizer.h>
 #include <madness/mra/operator.h>
 #include <chem/nemo.h>
+#include <chem/MolecularOrbitals.h>
 
 
 namespace madness {
@@ -274,17 +275,45 @@ public:
 	read_guess() const;
 
 	void read_orbitals() {
-		std::string name="reference";
-		print("reading orbitals from file",name);
 
-		archive::ParallelInputArchive ar(world, name.c_str(), 1);
-		std::size_t namo, nbmo;
+		if (cparam.restartao()) {
+			try {
+				print("reading orbitals ao projection from complex calculation");
+				std::vector<Function<double,3> > aos=SCF::project_ao_basis_only(world, aobasis, mol);
+				auto mos=MolecularOrbitals<double_complex,3>::read_restartaodata(world, aos, mol, cparam.have_beta());
+				amo=mos.first.get_mos();
+				aeps=mos.first.get_eps();
+				bmo=mos.second.get_mos();
+				beps=mos.second.get_eps();
+			} catch (...) {
+				print("  .. failed ");
+				try {
+					print("reading orbitals ao projection from real calculation");
+					std::vector<Function<double,3> > aos=SCF::project_ao_basis_only(world, aobasis, mol);
+					auto mos=MolecularOrbitals<double,3>::read_restartaodata(world, aos, mol, cparam.have_beta());
+					amo=convert<double,double_complex,3>(world,mos.first.get_mos());
+					aeps=mos.first.get_eps();
+					bmo=convert<double,double_complex,3>(world,mos.second.get_mos());
+					beps=mos.second.get_eps();
+				} catch (...) {
+					print("  .. failed ");
+				}
+			}
 
-		ar & namo & nbmo & aeps & beps;
-		amo.resize(namo);
-		bmo.resize(nbmo);
-		for (auto& a: amo) ar & a;
-		for (auto& a: bmo) ar & a;
+		} else {
+			std::string name="reference";
+			print("reading orbitals from file",name);
+
+			archive::ParallelInputArchive ar(world, name.c_str(), 1);
+			std::size_t namo, nbmo;
+
+			ar & namo & nbmo & aeps & beps;
+			amo.resize(namo);
+			bmo.resize(nbmo);
+			for (auto& a: amo) ar & a;
+			for (auto& a: bmo) ar & a;
+		}
+
 	}
 
 	void save_orbitals() const {
@@ -296,6 +325,14 @@ public:
 		ar & amo.size() & bmo.size() & aeps & beps;
 		for (auto& a: amo) ar & a;
 		for (auto& a: bmo) ar & a;
+
+		// save AO restart data
+		MolecularOrbitals<double_complex,3> amo1, bmo1;
+		amo1.update_mos_and_eps(amo,aeps);
+		bmo1.update_mos_and_eps(bmo,beps);
+
+		std::vector<Function<double,3> > aos=SCF::project_ao_basis_only(world, aobasis, mol);
+		MolecularOrbitals<double_complex,3>::save_restartaodata(world, aos, amo1, bmo1);
 	}
 
 	void do_step_restriction(const std::vector<complex_function_3d>& mo,
