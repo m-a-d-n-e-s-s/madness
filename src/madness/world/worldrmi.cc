@@ -393,7 +393,7 @@ namespace madness {
             MADNESS_ASSERT(task_ptr == nullptr);
 #if HAVE_INTEL_TBB
 
-            // Force the RMI task to be picked up by someone other then main thread
+            // Force the RMI task to be picked up by someone other than main thread
             // by keeping main thread occupied AND enqueing enough dummy tasks to make
             // TBB create threads and pick up RmiTask eventually
 
