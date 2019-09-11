@@ -37,7 +37,7 @@ namespace madness {
 
     CC2(World &world_,const std::string &inputFileName,const Nemo &nemo_)
 	: world(world_),
-	parameters(inputFileName,nemo_.get_calc()->param.lo),
+	parameters(inputFileName,nemo_.get_calc()->param.lo()),
 	nemo(nemo_),
 	CCOPS(world,nemo,parameters),
 	output(CCOPS.output)

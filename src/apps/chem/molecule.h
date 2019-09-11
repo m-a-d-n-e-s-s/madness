@@ -192,7 +192,7 @@ public:
 
     void set_pseudo_atom(unsigned int i, bool psat);
 
-    bool get_pseudo_atom(unsigned int i);
+    bool get_pseudo_atom(unsigned int i) const;
 
     void set_atom_coords(unsigned int i, double x, double y, double z);
 
@@ -304,7 +304,7 @@ public:
 
     Tensor<double> moment_of_inertia() const;
 
-    void orient();
+    void orient(bool verbose=false);
 
     double total_nuclear_charge() const;
 

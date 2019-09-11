@@ -122,14 +122,14 @@ struct write_test_input {
     double eprec=FunctionDefaults<3>::get_thresh()*0.1;
 
     std::string filename_;
-    write_test_input(std::string mol="lih") : filename_("test_input") {
+    write_test_input(std::string mol="lih") : filename_("test_SCFOperators_input") {
         std::ofstream of(filename_);
         of << "dft\n";
         of << "xc hf\n";
-        of << "no_orient\n";
+        of << "no_orient true\n";
         of << "k 8\n";
-        of << "protocol 1.e-5 \n";
-        of << "nuclear_corrfac  slater 2.0\n";
+        of << "protocol [1.e-5] \n";
+        of << "ncf (slater,2.0)\n";
         of << "end\n";
 
         if (mol=="lih") {
@@ -571,8 +571,10 @@ int nuclear_anchor_test(World& world) {
     if (check_err(err,thresh,"Nuclear matrix element error 1")) return 1;
 
     // test ncf=slater
+    Nemo::NemoCalculationParameters nemo_param(calc.param);
+    nemo_param.read(world,test_input.filename(),"dft");
     std::shared_ptr<NuclearCorrelationFactor> ncf=
-    create_nuclear_correlation_factor(world, calc.molecule, calc.potentialmanager, calc.param.nuclear_corrfac);
+    create_nuclear_correlation_factor(world, calc.molecule, calc.potentialmanager, nemo_param.ncf());
     ncf->initialize(FunctionDefaults<3>::get_thresh());
 
     Nuclear Vnuc1(world,ncf);
@@ -678,8 +680,11 @@ int dnuclear_anchor_test(World& world) {
     // test ncf=slater
 
     // test U2 and U3
+    Nemo::NemoCalculationParameters nemo_param(calc.param);
+    nemo_param.read(world,test_input.filename(),"dft");
+
     std::shared_ptr<NuclearCorrelationFactor> ncf=
-    create_nuclear_correlation_factor(world, calc.molecule, calc.potentialmanager, calc.param.nuclear_corrfac);
+    create_nuclear_correlation_factor(world, calc.molecule, calc.potentialmanager, nemo_param.ncf());
     ncf->initialize(FunctionDefaults<3>::get_thresh());
     NuclearCorrelationFactor::U2_functor u2f(ncf.get());
     const double u2=inner(gaussian,u2f);
@@ -752,22 +757,6 @@ int test_dnuclear(World& world) {
     return ierr;
 }
 
-int test_SCF(World& world) {
-    FunctionDefaults<3>::set_thresh(1.e-5);
-    double thresh=FunctionDefaults<3>::get_thresh();
-    if (world.rank()==0) print("\nentering test_SCF",thresh);
-
-    write_test_input test_input;
-    SCF calc(world,test_input.filename().c_str());
-    MolecularEnergy ME(world, calc);
-    double energy=ME.value(calc.molecule.get_all_coords().flat()); // ugh!
-    print("energy(LiH)",energy);
-    // hard-wire test
-    print("energy, hard-wire, diff",energy,7.703833,energy+7.703833e+00);
-    if (check_err(energy+7.703833e+00,thresh,"SCF error")) return 1;
-    return 0;
-}
-
 int test_nemo(World& world) {
     FunctionDefaults<3>::set_thresh(1.e-5);
     double thresh=FunctionDefaults<3>::get_thresh();
@@ -775,7 +764,7 @@ int test_nemo(World& world) {
 
     write_test_input test_input;
     std::shared_ptr<SCF> calc_ptr(new SCF(world,test_input.filename().c_str()));
-    Nemo nemo(world,calc_ptr);
+    Nemo nemo(world,calc_ptr,test_input.filename());
     double energy=nemo.value(calc_ptr->molecule.get_all_coords().flat()); // ugh!
     print("energy(LiH)",energy);
     // hard-wire test
@@ -810,7 +799,6 @@ int main(int argc, char** argv) {
         result+=test_exchange(world);
         result+=test_nuclear(world);
         result+=test_dnuclear(world);
-        result+=test_SCF(world);
         result+=test_nemo(world);
     }
 

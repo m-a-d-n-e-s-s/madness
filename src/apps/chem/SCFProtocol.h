@@ -49,9 +49,9 @@ public:
     SCFProtocol(World& w, const CalculationParameters& param,
             const std::string name, const bool restart)
             : world(w), filename(name), restart(restart), converged(false),
-              start_prec(1.e-4), current_prec(start_prec), end_prec(param.econv),
+              start_prec(1.e-4), current_prec(start_prec), end_prec(param.econv()),
               thresh(1.e-4), econv(1.e-4), dconv(1.e-3), user_dconv(1.e-20) {
-        user_dconv=param.dconv;
+        user_dconv=param.dconv();
     }
 
     World& world;

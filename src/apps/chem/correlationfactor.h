@@ -2022,10 +2022,20 @@ private:
 
 };
 
+
 std::shared_ptr<NuclearCorrelationFactor>
 create_nuclear_correlation_factor(World& world,
 		const Molecule& molecule,
 		const std::shared_ptr<PotentialManager> pm,
 		const std::string inputline);
+
+std::shared_ptr<NuclearCorrelationFactor>
+create_nuclear_correlation_factor(World& world,
+		const Molecule& molecule,
+		const std::shared_ptr<PotentialManager> pm,
+		const std::pair<std::string,double>& ncf);
+
 }
+
+
 #endif /* NUCLEARCORRELATIONFACTOR_H_ */

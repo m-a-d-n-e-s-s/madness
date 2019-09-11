@@ -139,11 +139,7 @@ template class Laplacian<double,6>;
 
 
 Coulomb::Coulomb(World& world, const Nemo* nemo) : world(world),
-        R_square(nemo->R_square), do_R2(true) {
-
-    std::map<std::string,std::string>::const_iterator it=nemo->get_calc()->param.generalkeyval.find("do_R2");
-    if (it!=nemo->get_calc()->param.generalkeyval.end())
-        do_R2=CalculationParameters::stringtobool(it->second);
+        R_square(nemo->R_square) {
 
     vcoul=compute_potential(nemo);
 }
@@ -179,19 +175,7 @@ real_function_3d Coulomb::compute_potential(const madness::Nemo* nemo) const {
                 nemo->get_calc()->get_bocc(),nemo->get_calc()->get_bmo());
         density+=brho;
     }
-    if (do_R2) {
-        density=density*R_square;
-    } else {
-        print("skip R2 in Coulomb");
-        double nel=density.trace();
-        print("number of electrons in Coulomb",nel);
-    }
-    density.truncate();
-//    if (do_R2) {
-//        density.print_size("density with R2");
-//    } else {
-//        density.print_size("density without R2");
-//    }
+    density=(density*R_square).truncate();
     return nemo->get_calc()->make_coulomb_potential(density);
 }
 
@@ -309,7 +293,7 @@ vecfuncT DNuclear::operator()(const vecfuncT& vket) const {
 
 
 Exchange::Exchange(World& world, const SCF* calc, const int ispin)
-        : world(world), small_memory_(true), same_(false), do_R2(true) {
+        : world(world), small_memory_(true), same_(false) {
     if (ispin==0) { // alpha spin
         mo_ket=calc->amo;
         occ=calc->aocc;
@@ -319,14 +303,11 @@ Exchange::Exchange(World& world, const SCF* calc, const int ispin)
     }
     mo_bra=mo_ket;
     poisson = std::shared_ptr<real_convolution_3d>(
-            CoulombOperatorPtr(world, calc->param.lo, calc->param.econv));
+            CoulombOperatorPtr(world, calc->param.lo(), calc->param.econv()));
 }
 
 Exchange::Exchange(World& world, const Nemo* nemo, const int ispin)
-    : world(world), small_memory_(true), same_(false), do_R2(true) {
-    std::map<std::string,std::string>::const_iterator it=nemo->get_calc()->param.generalkeyval.find("do_R2");
-    if (it!=nemo->get_calc()->param.generalkeyval.end())
-        do_R2=CalculationParameters::stringtobool(it->second);
+    : world(world), small_memory_(true), same_(false) {
 
     if (ispin==0) { // alpha spin
         mo_ket=nemo->get_calc()->amo;
@@ -336,16 +317,11 @@ Exchange::Exchange(World& world, const Nemo* nemo, const int ispin)
         occ=nemo->get_calc()->bocc;
     }
 
-    if (do_R2) {
-        mo_bra=mul(world,nemo->nuclear_correlation->square(),mo_ket);
-        truncate(world,mo_bra);
-    } else {
-        print("skip R2 in exchange");
-        mo_bra=mo_ket;
-    }
+    mo_bra=mul(world,nemo->nuclear_correlation->square(),mo_ket);
+    truncate(world,mo_bra);
     poisson = std::shared_ptr<real_convolution_3d>(
-            CoulombOperatorPtr(world, nemo->get_calc()->param.lo,
-                    nemo->get_calc()->param.econv));
+            CoulombOperatorPtr(world, nemo->get_calc()->param.lo(),
+                    nemo->get_calc()->param.econv()));
 
 }
 
@@ -450,8 +426,8 @@ XCOperator::XCOperator(World& world, std::string xc_data, const bool spin_polari
 XCOperator::XCOperator(World& world, const SCF* calc, int ispin, std::string deriv) : world(world),
         ispin(ispin), extra_truncation(FunctionDefaults<3>::get_thresh()*0.01), dft_deriv(deriv) {
     xc=std::shared_ptr<XCfunctional> (new XCfunctional());
-    xc->initialize(calc->param.xc_data, !calc->param.spin_restricted, world);
-    nbeta=calc->param.nbeta;
+    xc->initialize(calc->param.xc(), !calc->param.spin_restricted(), world);
+    nbeta=calc->param.nbeta();
     const bool have_beta=xc->is_spin_polarized() && nbeta != 0;
 
     // compute the alpha and beta densities
@@ -468,12 +444,12 @@ XCOperator::XCOperator(World& world, const SCF* calc, int ispin, std::string der
 XCOperator::XCOperator(World& world, const Nemo* nemo, int ispin) : world(world),
         ispin(ispin), extra_truncation(FunctionDefaults<3>::get_thresh()*0.01) {
     xc=std::shared_ptr<XCfunctional> (new XCfunctional());
-    xc->initialize(nemo->get_calc()->param.xc_data,
-            !nemo->get_calc()->param.spin_restricted, world);
+    xc->initialize(nemo->get_calc()->param.xc(),
+            !nemo->get_calc()->param.spin_restricted(), world);
 
     ncf=nemo->nuclear_correlation;
 
-    nbeta=nemo->get_calc()->param.nbeta;
+    nbeta=nemo->get_calc()->param.nbeta();
     const bool have_beta=xc->is_spin_polarized() && nbeta != 0;
 
     // compute the alpha and beta densities
@@ -493,19 +469,19 @@ XCOperator::XCOperator(World& world, const Nemo* nemo, int ispin) : world(world)
 
 XCOperator::XCOperator(World& world, const SCF* calc, const real_function_3d& arho,
         const real_function_3d& brho, int ispin, std::string deriv)
-        : world(world), nbeta(calc->param.nbeta), ispin(ispin),
+        : world(world), nbeta(calc->param.nbeta()), ispin(ispin),
           extra_truncation(FunctionDefaults<3>::get_thresh()*0.01), dft_deriv(deriv) {
     xc=std::shared_ptr<XCfunctional> (new XCfunctional());
-    xc->initialize(calc->param.xc_data, !calc->param.spin_restricted, world);
+    xc->initialize(calc->param.xc(), !calc->param.spin_restricted(), world);
     xc_args=prep_xc_args(arho,brho);
 }
 
 XCOperator::XCOperator(World& world, const Nemo* nemo, const real_function_3d& arho,
         const real_function_3d& brho, int ispin) : world(world),
-        nbeta(nemo->get_calc()->param.nbeta), ispin(ispin), extra_truncation(0.01) {
+        nbeta(nemo->get_calc()->param.nbeta()), ispin(ispin), extra_truncation(0.01) {
     xc=std::shared_ptr<XCfunctional> (new XCfunctional());
-    xc->initialize(nemo->get_calc()->param.xc_data,
-            not nemo->get_calc()->param.spin_restricted, world);
+    xc->initialize(nemo->get_calc()->param.xc(),
+            not nemo->get_calc()->param.spin_restricted(), world);
     ncf=nemo->nuclear_correlation;
 
     xc_args=prep_xc_args(arho,brho);

@@ -104,4 +104,16 @@ namespace madness{
 			return ncf_ptr();
 		}
 	}
+
+	std::shared_ptr<NuclearCorrelationFactor>
+	create_nuclear_correlation_factor(World& world,
+			const Molecule& molecule,
+			const std::shared_ptr<PotentialManager> pm,
+			const std::pair<std::string,double>& ncf) {
+		std::stringstream ss;
+		ss << ncf.first << " " << ncf.second;
+		return create_nuclear_correlation_factor(world,molecule,pm,ss.str());
+	}
+
+
 }
