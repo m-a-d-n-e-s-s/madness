@@ -22,6 +22,23 @@
 namespace madness {
 
 
+template<typename T>
+static typename std::enable_if<std::is_floating_point<T>::value, void>::type
+check_for_inf(const std::string& str, T& arg) {
+	std::string sinf;
+	std::stringstream ss;
+	ss << std::numeric_limits<T>::infinity();
+	sinf=ss.str();
+
+	if (sinf==str) arg=std::numeric_limits<T>::infinity();
+}
+
+template<typename T>
+static typename std::enable_if<!std::is_floating_point<T>::value, void>::type
+check_for_inf(const std::string& str, T& arg) {
+	return;
+}
+
 /// inverting the print method from print.h for std::vector
 /// TODO: move this where it belongs (into print.h ??)
 template <typename T, typename A=std::allocator<T> >
@@ -41,7 +58,12 @@ std::istream& operator>>(std::istream& is, std::vector<T,A>& v) {
 	// stream the values into the container
 	std::stringstream sline(line);
 	T tmp;
-	while (sline >> tmp) v.push_back(tmp);
+	while (sline >> word) {
+		std::stringstream sword(word);
+		sword >> tmp;
+		check_for_inf(word,tmp);
+		v.push_back(tmp);
+	}
 	if (sline.bad()) {
 		madness::print("error while reading vector from istream: ");
 		madness::print(line,"\n");
@@ -383,10 +405,29 @@ public:
 	template<typename T>
 	static std::string tostring(const T& arg) {
 		std::ostringstream ss;
+
 		ss<<std::scientific  << std::setprecision(4) << arg;
 		std::string str=ss.str();
 		std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+
+		overwrite_if_inf(str,arg);
 		return str;
+	}
+
+	template<typename T>
+	static typename std::enable_if<std::is_floating_point<T>::value, void>::type
+	overwrite_if_inf(std::string& str, const T& arg) {
+		if (std::isinf(arg)) {
+			std::stringstream ss;
+			ss << std::numeric_limits<T>::infinity();
+			str=ss.str();
+		}
+	}
+
+	template<typename T>
+	static typename std::enable_if<!std::is_floating_point<T>::value, void>::type
+	overwrite_if_inf(std::string& str, const T& arg) {
+		return;
 	}
 
 	template<typename T>
@@ -397,8 +438,19 @@ public:
 		T result=T();
 		ssvalue >> result;
 
-		// check success of type conversion
-		if (ssvalue.fail()) {
+		bool type_conversion_failed=ssvalue.fail();
+
+		// check for infinity in floating point conversions
+		if (type_conversion_failed and (std::is_floating_point<T>::value)) {
+
+			const static T inf=std::numeric_limits<T>::infinity();
+			std::string sinf=tostring(inf);         // repeat type conversion from above
+			if (sinf==arg) result=inf;
+			type_conversion_failed=false;
+		}
+
+		if (type_conversion_failed) {
+
 			std::string errmsg="error in type conversion for argument >> " + arg
 					+ " << to type " + std::type_index(typeid(T)).name();
 			throw std::runtime_error(errmsg);
