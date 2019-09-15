@@ -79,7 +79,8 @@ fi
 # Install libxc
 if [ ! -f "${HOME}/libxc/lib/libxc.a" ]; then
     #wget -O libxc-2.2.1.tar.gz "https://github.com/m-a-d-n-e-s-s/madness/files/661744/libxc-2.2.1.tar.gz"
-    wget -O libxc-4.2.3.tar.gz "http://www.tddft.org/programs/octopus/down.php?file=libxc/4.2.3/libxc-4.2.3.tar.gz"
+    #wget -O libxc-4.2.3.tar.gz "http://www.tddft.org/programs/octopus/down.php?file=libxc/4.2.3/libxc-4.2.3.tar.gz"
+    wget -O libxc-4.2.3.tar.gz "https://gitlab.com/libxc/libxc/-/archive/4.3.2/libxc-4.3.2.tar.gz"
     tar -xzf libxc-4.2.3.tar.gz
     cd libxc-4.2.3
     autoreconf -i
