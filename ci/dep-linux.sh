@@ -79,8 +79,9 @@ fi
 # Install libxc
 if [ ! -f "${HOME}/libxc/lib/libxc.a" ]; then
     export LIBXC_VERSION=4.3.4
-    wget https://gitlab.com/libxc/libxc/-/archive/4.3.2/libxc-${LIBXC_VERSION}.tar.gz
+    wget -O libxc-${LIBXC_VERSION} "https://gitlab.com/libxc/libxc/-/archive/${LIBXC_VERSION}/libxc-${LIBXC_VERSION}.tar.gz"
     tar -xzf libxc-${LIBXC_VERSION}.tar.gz
+    ls -l
     cd libxc-${LIBXC_VERSION}
     autoreconf -i
     ./configure --prefix=${HOME}/libxc --enable-static --disable-fortran CFLAGS="-mno-avx -O1" CXXFLAGS="-mno-avx -O1" FCFLAGS="-mno-avx -O1"
