@@ -78,16 +78,17 @@ fi
 
 # Install libxc
 if [ ! -f "${HOME}/libxc/lib/libxc.a" ]; then
-    #wget -O libxc-2.2.1.tar.gz "https://github.com/m-a-d-n-e-s-s/madness/files/661744/libxc-2.2.1.tar.gz"
-    wget -O libxc-4.2.3.tar.gz "http://www.tddft.org/programs/octopus/down.php?file=libxc/4.2.3/libxc-4.2.3.tar.gz"
-    tar -xzf libxc-4.2.3.tar.gz
-    cd libxc-4.2.3
+    export LIBXC_VERSION=4.3.4
+    wget -O libxc-${LIBXC_VERSION}.tar.gz "https://gitlab.com/libxc/libxc/-/archive/${LIBXC_VERSION}/libxc-${LIBXC_VERSION}.tar.gz"
+    tar -xzf libxc-${LIBXC_VERSION}.tar.gz
+    ls -l
+    cd libxc-${LIBXC_VERSION}
     autoreconf -i
     ./configure --prefix=${HOME}/libxc --enable-static --disable-fortran CFLAGS="-mno-avx -O1" CXXFLAGS="-mno-avx -O1" FCFLAGS="-mno-avx -O1"
     make -j2
     make install
     cd ..
-    rm -rf libxc-4.2.3
+    rm -rf libxc-${LIBXC_VERSION}
 else
     echo "LIBXC installed..."
     ls -l ${HOME}/libxc
