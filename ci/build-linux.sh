@@ -33,6 +33,7 @@ echo $LIBXCDIR
 ls $LIBXCDIR
 ls $LIBXCDIR/lib
 ls -l $LIBXCDIR/lib/libxc.a
+ls -l /opt/intel
 which ccache
 ccache --version
 
@@ -45,6 +46,7 @@ cmake \
     -D ENABLE_NEVER_SPIN=ON \
     -D BUILD_SHARED_LIBS=OFF \
     -D ENABLE_GPERFTOOLS=OFF \
+    -D ENABLE_MKL=ON \
     -D CMAKE_C_COMPILER=$CC \
     -D CMAKE_CXX_COMPILER=$CXX \
     -DLIBXC_LIBRARIES=$LIBXCDIR/lib/libxc.a \
