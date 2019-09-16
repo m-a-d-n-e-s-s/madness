@@ -78,7 +78,7 @@ fi
 
 # Install libxc
 if [ ! -f "${HOME}/libxc/lib/libxc.a" ]; then
-    export LIBXC_VERSION = 4.3.4
+    export LIBXC_VERSION=4.3.4
     wget https://gitlab.com/libxc/libxc/-/archive/4.3.2/libxc-${LIBXC_VERSION}.tar.gz
     tar -xzf libxc-${LIBXC_VERSION}.tar.gz
     cd libxc-${LIBXC_VERSION}
