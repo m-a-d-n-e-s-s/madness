@@ -17,14 +17,17 @@
 
 using namespace madness;
 
+//Just a function for f(x,y,z) = x
 double myxfunc(const madness::coord_3d& r){
      return r[0];
 }
+
+//Just a function for f(x,y,z) = y
 double myyfunc(const madness::coord_3d& r){
      return r[1];
 }
 
-// Needed for rebalancing
+// A function that constructs a cost tree, which is a heuristic used for load balancing
 template <typename T, int NDIM>
 struct lbcost {
     double leaf_value;
@@ -51,7 +54,7 @@ void DF::start_timer(World& world)
    sss.push_back(cpu_time());
 }
 
-// Needed for timers
+// Used by end_timer
 double DF::pop(std::vector<double>& v)
 {
    double x = v.back();
@@ -68,7 +71,7 @@ Tensor<double> DF::end_timer(World& world)
    return times;
 }
 
-//reports back with time spent in calculation (current time - the first time in ttt,sss)
+//reports back with time spent in calculation so far (current time - the first time in ttt,sss)
 Tensor<double> DF::get_times(World& world){
      Tensor<double> times(2);
      times[0] = wall_time() - ttt[0];
@@ -99,6 +102,7 @@ Function<std::complex<double>,3> function_real2complex(const Function<double,3>&
 /// Factory function generating operator for convolution with grad(bsh) in 3D
 /// Returns a 3-vector containing the convolution operator for the
 /// x, y, and z components of grad(bsh)
+//Mostly copied from a function written by W. Scott Thornton
 static
 inline
 std::vector< std::shared_ptr< SeparatedConvolution<double,3> > >
@@ -191,7 +195,7 @@ GradBSHOperator_Joel(World& world,
 }
 
 
-//Stolen from SCF.cc to aid in orthonormalization
+//Stolen from SCF.cc to aid in orthonormalization. Used in orthogonalize_inplace.
 Tensor<std::complex<double>> Q2(const Tensor<std::complex<double>>& s) {
     Tensor<std::complex<double>> Q = -0.5*s;
     for (int i=0; i<s.dim(0); ++i) Q(i,i) += 1.5;
@@ -219,7 +223,7 @@ class GaussianNucleusFunctor : public FunctionFunctorInterface<double,3> {
                     m_Zlist.push_back(molecule.get_atom_number(i));
                }
                
-               //find atomic mass numbers for each atom
+               //find atomic mass numbers for each atom. This list matches that of Visccher and Dyall (1997)
                int Alist[116] = {1,4,7,9,11,12,14,16,19,20,23,24,27,28,31,32,35,40,39,40,45,48,51,52,55,56,59,58,63,64,69,74,75,80,79,84,85,88,89,90,93,98,98,102,103,106,107,114,115,120,121,130,127,132,133,138,139,140,141,144,145,152,153,158,159,162,162,168,169,174,175,180,181,184,187,192,193,195,197,202,205,208,209,209,210,222,223,226,227,232,231,238,237,244,243,247,247,251,252,257,258,259,262,261,262,263,262,265,266,264,272,277,284,289,288,292};
                for(unsigned int i = 0; i < m_Zlist.size(); i++){
                     m_Alist.push_back(Alist[m_Zlist[i]-1]);
@@ -265,7 +269,7 @@ class GaussianNucleusFunctor : public FunctionFunctorInterface<double,3> {
 };
 
 
-//Functor to make the fermi nuclear charge distribution (not normalized) for a given center
+//Functor to make the fermi nuclear charge distribution (NOT the potential, and NOT normalized) for a given center
 class FermiNucDistFunctor : public FunctionFunctorInterface<double,3> {
      private:
           int m_A;
@@ -279,7 +283,7 @@ class FermiNucDistFunctor : public FunctionFunctorInterface<double,3> {
                m_T = 2.3/bohr_rad;
                m_R.push_back(R);
                
-               //find atomic mass numbers for each atom
+               //find atomic mass numbers for each atom. This list matches that of Visccher and Dyall (1997)
                int Alist[116] = {1,4,7,9,11,12,14,16,19,20,23,24,27,28,31,32,35,40,39,40,45,48,51,52,55,56,59,58,63,64,69,74,75,80,79,84,85,88,89,90,93,98,98,102,103,106,107,114,115,120,121,130,127,132,133,138,139,140,141,144,145,152,153,158,159,162,162,168,169,174,175,180,181,184,187,192,193,195,197,202,205,208,209,209,210,222,223,226,227,232,231,238,237,244,243,247,247,251,252,257,258,259,262,261,262,263,262,265,266,264,272,277,284,289,288,292};
                m_A = Alist[Z-1];
 
@@ -311,7 +315,10 @@ class FermiNucDistFunctor : public FunctionFunctorInterface<double,3> {
                return 18;
           }
 
+          //Print the parameters of the Fermi nuclear charge distribution
           void print_details(World& world){
+
+               //Constants necessary to print the details. Technically need to use bohr_rad parameter here
                int Alist[116] = {1,4,7,9,11,12,14,16,19,20,23,24,27,28,31,32,35,40,39,40,45,48,51,52,55,56,59,58,63,64,69,74,75,80,79,84,85,88,89,90,93,98,98,102,103,106,107,114,115,120,121,130,127,132,133,138,139,140,141,144,145,152,153,158,159,162,162,168,169,174,175,180,181,184,187,192,193,195,197,202,205,208,209,209,210,222,223,226,227,232,231,238,237,244,243,247,247,251,252,257,258,259,262,261,262,263,262,265,266,264,272,277,284,289,288,292};
                double T = 2.3/52917.72490083583;
                double PI = constants::pi;
@@ -338,7 +345,7 @@ double myr(const coord_3d& r){
      return std::sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]);
 }
 
-//Creates the fermi nuclear potential. Also calculates the nuclear repulsion energy
+//Creates the fermi nuclear potentiali from the charge distribution. Also calculates the nuclear repulsion energy
 void DF::make_fermi_potential(World& world, real_convolution_3d& op, real_function_3d& potential, double& nuclear_repulsion_energy){
      if(world.rank()==0) print("\n***Making a Fermi Potential***");
      
@@ -346,9 +353,12 @@ void DF::make_fermi_potential(World& world, real_convolution_3d& op, real_functi
      std::vector<coord_3d> Rlist = Init_params.molecule.get_all_coords_vec();
      std::vector<int> Zlist(Rlist.size());
      unsigned int num_atoms = Rlist.size();
+
+     //variables for upcoming loop
      real_function_3d temp;
      double tempnorm;
 
+     //Go through the atoms in the molecule and construct the total charge distribution due to all nuclei
      for(unsigned int i = 0; i < num_atoms; i++){
           Zlist[i] = Init_params.molecule.get_atom_number(i);
           FermiNucDistFunctor rho(Zlist[i], Rlist[i],DFparams.bohr_rad);
@@ -364,9 +374,12 @@ void DF::make_fermi_potential(World& world, real_convolution_3d& op, real_functi
           }
      }
 
+     //Potential is found by application of the coulomb operator to the charge distribution
      potential = apply(op,potential);
 
-
+     //Calculate the nuclear repulsion energy
+     //It doesn't change iteration to iteration, so we want to calculate it once and store the result
+     //We calculate it inside this function because here we already have access to the nuclear charges and coordinates
      nuclear_repulsion_energy = 0.0;
      double rr;
      for(unsigned int m = 0; m < num_atoms; m++){
@@ -380,10 +393,12 @@ void DF::make_fermi_potential(World& world, real_convolution_3d& op, real_functi
 }
 
 // Collective constructor
+// Design of this was mostly taken from Bryan Sundahl's response code
 DF::DF(World & world, const char* filename) : DF(world, (world.rank() == 0 ? std::make_shared<std::ifstream>(filename) : nullptr))
 {}
 
 // Constructor that actually does stuff
+// Design of this was mostly taken from Bryan Sundahl's response code
 DF::DF(World & world,std::shared_ptr<std::istream> input) {
      // Start a timer
      start_timer(world);
@@ -405,13 +420,15 @@ DF::DF(World & world,std::shared_ptr<std::istream> input) {
      // Broadcast to all other nodes
      world.gop.broadcast_serializable(DFparams, 0);
 
-     // Read in archive
+     // Read in archive, but first find out if we're reading an nwchem file or other archive
      if(DFparams.nwchem){
           Init_params.readnw(world, DFparams.archive);
      }
      else{
           Init_params.read(world, DFparams.archive, DFparams.restart);
      }
+
+     //print initialization parameters and molecule geometry
      if(world.rank() == 0){
           Init_params.print_params();
           print_molecule(world);
@@ -419,6 +436,8 @@ DF::DF(World & world,std::shared_ptr<std::istream> input) {
 
      // Set some function defaults   
      FunctionDefaults<3>::set_thresh(DFparams.thresh); //Always use user-specified thresh
+
+     //Truncate mode 0 is preferrable, but currently way too expensive for relativistic calculations, so for now use 1
      FunctionDefaults<3>::set_truncate_mode(1);   
 
      //If user requests different k, then project functions
@@ -631,7 +650,7 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
           
           //if(world.rank()==0) print(i, "Exiting final loop in K");
 
-          Kpsis[i].truncate();
+          //Kpsis[i].truncate();
      }
 
 
@@ -753,7 +772,7 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      }
 
      //Debugging
-     if(world.rank()==0) print("P:\n", P);
+     //if(world.rank()==0) print("P:\n", P);
 
      if(world.rank()==0) print("     Forming Matrices");
      start_timer(world);
@@ -861,7 +880,7 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      fock(Slice(0,n-1),Slice(n,2*n-1)) = fock(Slice(0,n-1),Slice(n,2*n-1)) + conj(tempmatrix);
 
      //DEBUGGING:
-     if(world.rank()==0) print("new fock matrix:\n",fock);
+     //if(world.rank()==0) print("new fock matrix:\n",fock);
      
      //permute and symmetrize
      fock = inner(transpose(P),inner(fock,P));
@@ -880,7 +899,7 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      overlap(Slice(n,2*n-1),Slice(n,2*n-1)) = matrix_inner(world,kramers_pairs,kramers_pairs);
 
      //DEBUGGING:
-     if(world.rank()==0) print("new overlap matrix:\n",overlap);
+     //if(world.rank()==0) print("new overlap matrix:\n",overlap);
      
      //permute symmetrize
      overlap = inner(transpose(P),inner(overlap,P));
@@ -893,10 +912,10 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
 
 
      //debugging: print fock and overlap matrices
-     if(world.rank()==0){
-          print("permuted fock:\n", fock);
-          print("\npermuted overlap:\n", overlap);
-     }
+     //if(world.rank()==0){
+     //     print("permuted fock:\n", fock);
+     //     print("\npermuted overlap:\n", overlap);
+     //}
      
      if(world.rank()==0) print("     Eigensolver");
      start_timer(world);
@@ -907,7 +926,7 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      if(world.rank()==0) print("          ", times[0]);
 
      //debugging: print matrix of eigenvectors
-     if(world.rank()==0) print("U:\n", U, "\nevals:\n", evals);
+     //if(world.rank()==0) print("U:\n", U, "\nevals:\n", evals);
 
      //Before applying the transformation, fix arbitrary rotations introduced by the eigensolver. 
      if(world.rank()==0) print("     Removing Rotations");
@@ -985,11 +1004,11 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      }
 
      //Debugging: Print transformation matrix after rotation removal
-     if(world.rank()==0) print("U:\n", U, "\nevals:\n", evals);
+     //if(world.rank()==0) print("U:\n", U, "\nevals:\n", evals);
      
      U = inner(P,inner(U,transpose(P)));
      evals = inner(evals,transpose(P));
-     if(world.rank()==0) print("U:\n", U, "\nevals:\n", evals);
+     //if(world.rank()==0) print("U:\n", U, "\nevals:\n", evals);
      
      times = end_timer(world);
      if(world.rank()==0) print("          ", times[0]);
@@ -1000,28 +1019,27 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
 
      ////Apply the transformation to the orbitals 
      tempmatrix = U(Slice(0,n-1),Slice(0,n-1));
-     print("a");
+     //print("a");
      transform(world, occupieds, tempmatrix);
 
      tempmatrix = U(Slice(n,2*n-1),Slice(0,n-1));
-     print("a");
+     //print("a");
      transform(world, kramers_pairs, tempmatrix);
 
      occupieds += kramers_pairs;
-     print("a");
+     //print("a");
 
      ////Apply the transformation to the Exchange
      for(unsigned int j = 0; j < n; j++){
           kramers_pairs[j] = Kpsis[j].KramersPair();
      }
      tempmatrix = U(Slice(0,n-1),Slice(0,n-1));
-     print("a");
+     //print("a");
      transform(world, Kpsis, tempmatrix);
      tempmatrix = U(Slice(n,2*n-1),Slice(0,n-1));
-     print("a");
+     //print("a");
      transform(world, kramers_pairs, tempmatrix);
      Kpsis += kramers_pairs;
-
 
 
      //truncate
@@ -1589,6 +1607,8 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      if(world.rank()==0) print("--------------");
      start_timer(world);
 
+     print_sizes(world);
+
      std::vector<Fcwf> Residuals;
      Fcwf temp_function(world);
      double residualnorm;
@@ -1598,6 +1618,7 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
 
      //Diagonalize
      diagonalize(world, V, op, Kpsis);
+     print_sizes(world);
 
      //Diagonalization forces us to recompute J
      for(unsigned int kk = 0; kk < Init_params.num_occupied; kk++){
@@ -1651,6 +1672,7 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      if(world.rank()==0) printf("                tolerance: %.10e\n",tolerance);
      times = end_timer(world);
      if(world.rank()==0) print("     ", times[0]);
+     print_sizes(world);
 
      //debugging
      //for(unsigned int j=0; j < Init_params.num_occupied; j++){
@@ -1690,18 +1712,21 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
 
      //truncate
      for(unsigned int i = 0; i < Init_params.num_occupied; i++) occupieds[i].truncate();
+     print_sizes(world);
 
      //orthogonalize
      if(world.rank()==0) print("\n***Orthonormalizing***");
      start_timer(world);
 
      orthogonalize_inplace(world);
+     print_sizes(world);
 
      //truncate here and normalize again
      for(unsigned int i = 0; i < Init_params.num_occupied; i++){
            occupieds[i].truncate();
            occupieds[i].normalize();
      }
+     print_sizes(world);
 
      times = end_timer(world);
      if(world.rank()==0) print("     ", times[0]);
@@ -2242,6 +2267,20 @@ void DF::solve_virtuals1(World& world){
 
 
 
+}
+
+void DF::print_sizes(World& world){
+     if(world.rank()==0) print("\nPrinting orbital sizes:\n");
+     int n = Init_params.num_occupied;
+     int a;
+     for(unsigned int j=0; j < n; j++){
+          a = 0;
+          a += occupieds[j][0].size();
+          a += occupieds[j][1].size();
+          a += occupieds[j][2].size();
+          a += occupieds[j][3].size();
+          if(world.rank()==0) print("Orbital; ",j+1," size: ",a);
+     }
 }
 
 //kthxbye
