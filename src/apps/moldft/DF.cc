@@ -1707,36 +1707,36 @@ void DF::solve_occupied(World & world)
      }
 
      //Calculation of Effective Electric Field:
-     if(world.rank()==0) print("Effective Electric Field calculation");
-     std::complex<double> myi(0,1);
-     std::complex<double> one(1,0);
-     real_derivative_3d Dx(world,0);
-     real_derivative_3d Dy(world,1);
-     real_derivative_3d Dz(world,2);
-     double Eeff(0.0);
-     for(unsigned int j; j < Init_params.num_occupied; j++){
-          real_function_3d LL(world);
-          for(unsigned int kk; kk < Init_params.num_occupied; kk++){
-               if(kk != j){
-                    LL += squaremod(occupieds[kk]);
-               }
-          }
-          LL = apply(op,LL);
-          LL += Vnuc;
-          complex_function_3d Lx = one*Dx(LL);
-          complex_function_3d Ly = one*Dy(LL);
-          complex_function_3d Lz = one*Dz(LL);
-          Fcwf temp(world);
+     //if(world.rank()==0) print("Effective Electric Field calculation");
+     //std::complex<double> myi(0,1);
+     //std::complex<double> one(1,0);
+     //real_derivative_3d Dx(world,0);
+     //real_derivative_3d Dy(world,1);
+     //real_derivative_3d Dz(world,2);
+     //double Eeff(0.0);
+     //for(unsigned int j; j < Init_params.num_occupied; j++){
+     //     real_function_3d LL(world);
+     //     for(unsigned int kk; kk < Init_params.num_occupied; kk++){
+     //          if(kk != j){
+     //               LL += squaremod(occupieds[kk]);
+     //          }
+     //     }
+     //     LL = apply(op,LL);
+     //     LL += Vnuc;
+     //     complex_function_3d Lx = one*Dx(LL);
+     //     complex_function_3d Ly = one*Dy(LL);
+     //     complex_function_3d Lz = one*Dz(LL);
+     //     Fcwf temp(world);
 
-          temp[0] = Lz*occupieds[j][0] + (Lx - myi*Ly)*occupieds[j][1];
-          temp[1] =  (Lx + myi*Ly)*occupieds[j][0] - Lz*occupieds[j][1];
-          temp[2] = Lz*occupieds[j][2] + (Lx - myi*Ly)*occupieds[j][3];
-          temp[2].scale(-1.0);
-          temp[3] = Lz*occupieds[j][3] - (Lx + myi*Ly)*occupieds[j][2];
+     //     temp[0] = Lz*occupieds[j][0] + (Lx - myi*Ly)*occupieds[j][1];
+     //     temp[1] =  (Lx + myi*Ly)*occupieds[j][0] - Lz*occupieds[j][1];
+     //     temp[2] = Lz*occupieds[j][2] + (Lx - myi*Ly)*occupieds[j][3];
+     //     temp[2].scale(-1.0);
+     //     temp[3] = Lz*occupieds[j][3] - (Lx + myi*Ly)*occupieds[j][2];
 
-          Eeff += std::real(inner(occupieds[0],temp));
-     }
-     if(world.rank()==0) print("Eeff = ", Eeff);
+     //     Eeff += std::real(inner(occupieds[0],temp));
+     //}
+     //if(world.rank()==0) print("Eeff = ", Eeff);
 
 
 }
