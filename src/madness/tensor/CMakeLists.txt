@@ -81,7 +81,8 @@ install(FILES ${MADCLAPACK_HEADERS}
         COMPONENT clapack)
 add_custom_target(install-clapack
     COMMAND ${CMAKE_COMMAND} -DCOMPONENT=clapack -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
-    COMMENT "Installing clapack headers")
+    COMMENT "Installing clapack headers"
+    USES_TERMINAL)
 
 # Add unit tests
 if(ENABLE_UNITTESTS)

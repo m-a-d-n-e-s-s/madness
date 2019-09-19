@@ -149,7 +149,7 @@ private:
 	double dens_thresh_lo = 1.0e-7;                   // default 1.0e-7
 	double dens_thresh_inv = 1.0e-8;                  // default 0.1*dens_thresh_lo
 	bool set_thresh_inv = false;                      // to check if default or custom
-	double conv_thresh = calc->param.econv;           // default convergence threshold is same as econv
+	double conv_thresh = calc->param.econv();           // default convergence threshold is same as econv
 	std::vector<double> kain_param = {1.0e-8, 3.0};   // default KAIN settings for rcondtol and cabsmax (see nonlinsol.h)
 	unsigned int damp_num = 0;                        // default 0 (no damping)
 	std::vector<double> damp_coeff;
@@ -186,7 +186,7 @@ private:
 
 public:
 
-	OEP(World& world, const std::shared_ptr<SCF> calc) : Nemo(world, calc) {}
+	OEP(World& world, const std::shared_ptr<SCF> calc, std::string inputfile) : Nemo(world, calc, inputfile) {}
 
 	void read_oep_param(std::istream& in) {
         position_stream(in, "oep");
@@ -302,7 +302,7 @@ public:
     		}
     	}
     	if (is_dcep() or is_mrks()) {
-        	if (calc->param.dft_deriv == "bspline") print("unsing b-spline gradient operator for DCEP correction");
+        	if (calc->param.dft_deriv() == "bspline") print("unsing b-spline gradient operator for DCEP correction");
         	else print("using default abgv gradient operator for", model, "correction");
     	}
     	print("");
@@ -381,12 +381,13 @@ public:
 
     	// define the solver
     	typedef allocator<double, 3> allocT;
-    	typedef XNonlinearSolver<vecfunc<double, 3>, double, allocT> solverT;
+    	typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
+//    	typedef XNonlinearSolver<vecfunc<double, 3>, double, allocT> solverT;
     	allocT alloc(world, KS_nemo.size());
     	solverT solver(allocT(world, KS_nemo.size()));
 
     	// iterate until self-consistency
-    	for (int iter = 0; iter < calc->param.maxiter; ++iter) {
+    	for (int iter = 0; iter < calc->param.maxiter(); ++iter) {
     		iter_counter++;
     		print("\n     ***", model, "iteration", iter_counter, "***\n");
 
@@ -528,10 +529,10 @@ public:
 
     		/// TODO: Question: is this necessary in our programme or even bad?
     		// if requested: subtract orbital shift from orbital energies
-    		if (calc->param.orbitalshift > 0.0) {
+    		if (calc->param.orbitalshift() > 0.0) {
     			if (world.rank() == 0) print("shifting orbitals by ",
-    					calc->param.orbitalshift, " to lower energies");
-    			KS_eigvals -= calc->param.orbitalshift;
+    					calc->param.orbitalshift(), " to lower energies");
+    			KS_eigvals -= calc->param.orbitalshift();
     		}
 
     		// print orbital energies:
@@ -562,7 +563,7 @@ public:
     		// KAIN solver (helps to converge)
     		vecfuncT nemo_new;
     		if (norm < 5.0e-1) {
-    			nemo_new = (solver.update(KS_nemo, residual, kain_param[0], kain_param[1])).x;
+    			nemo_new = (solver.update(KS_nemo, residual, kain_param[0], kain_param[1]));
     		} else {
     			nemo_new = GFnemo;
     		}
@@ -575,14 +576,14 @@ public:
     		KS_nemo = nemo_new;
 
     		// evaluate convergence via norm error and energy difference
-    		if ((norm < calc->param.dconv) and (fabs(energy - old_energy) < conv_thresh)) {
+    		if ((norm < calc->param.dconv()) and (fabs(energy - old_energy) < conv_thresh)) {
 
     			if (is_oaep()) converged = true;  // if OAEP, the following evaluation is not necessary
     			else {
     				// build vector of convergence information of every orbital energy
         			std::vector<bool> conv(KS_eigvals.size());
         			for (long i = 0; i < KS_eigvals.size(); i++) {
-        				if (fabs(KS_eigvals(i) - old_eigvals(i)) < calc->param.dconv) conv[i] = true;
+        				if (fabs(KS_eigvals(i) - old_eigvals(i)) < calc->param.dconv()) conv[i] = true;
         				else conv[i] = false;
         			}
 
@@ -591,7 +592,7 @@ public:
 
     		}
 
-    		if (calc->param.save) calc->save_mos(world);
+    		if (calc->param.save()) calc->save_mos(world);
 
     		if (world.rank() == 0) {
     			printf("\nfinished iteration %2d at time %8.1fs with energy %12.8f\n", iter_counter, wall_time(), energy);
@@ -733,7 +734,7 @@ public:
     	print("HF Fock matrix elements ", f_pp);
 
     	calc->aeps = f_pp;
-		if (calc->param.save) calc->save_mos(world);
+		if (calc->param.save()) calc->save_mos(world);
 
     }
 
@@ -860,7 +861,7 @@ public:
 	    // get \nabla nemo
 	    std::vector<vecfuncT> grad_nemo(nemo.size());
 	    for (long i = 0; i < nemo.size(); i++) {
-	    	if(calc->param.dft_deriv == "bspline") grad_nemo[i] = grad_bspline_one(nemo[i]);  // gradient using b-spline
+	    	if(calc->param.dft_deriv() == "bspline") grad_nemo[i] = grad_bspline_one(nemo[i]);  // gradient using b-spline
 	    	else grad_nemo[i] = grad(nemo[i]);  // default gradient using abgv
 	    }
 
@@ -899,7 +900,7 @@ public:
 	    // get \nabla nemo
 	    std::vector<vecfuncT> grad_nemo(nemo.size());
 	    for (long i = 0; i < nemo.size(); i++) {
-	    	if(calc->param.dft_deriv == "bspline") grad_nemo[i] = grad_bspline_one(nemo[i]);  // gradient using b-spline
+	    	if(calc->param.dft_deriv() == "bspline") grad_nemo[i] = grad_bspline_one(nemo[i]);  // gradient using b-spline
 	    	else grad_nemo[i] = grad(nemo[i]);  // default gradient using abgv
 	    }
 
@@ -1102,10 +1103,10 @@ int main(int argc, char** argv) {
     if (world.rank() == 0) {
         calc->molecule.print();
         print("\n");
-        calc->param.print(world);
+        calc->param.print("oep");
     }
 
-    std::shared_ptr<OEP> oep(new OEP(world, calc));
+    std::shared_ptr<OEP> oep(new OEP(world, calc, input));
 
     vecfuncT HF_nemos;
     tensorT HF_orbens;

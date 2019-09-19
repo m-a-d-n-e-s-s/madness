@@ -3,6 +3,7 @@ if(ENABLE_TBB)
   
   if(TBB_FOUND)
     set(HAVE_INTEL_TBB 1)
+    message(STATUS "Found TBB: ${TBB_LIBRARIES}")
   endif()
   
 endif()

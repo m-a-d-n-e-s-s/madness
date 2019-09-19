@@ -178,6 +178,22 @@ namespace madness {
   namespace detail {
     template <> const char* Vm_cstr<char>() { return "Vm"; }
     template <> const wchar_t* Vm_cstr<wchar_t>() { return L"Vm"; }
+
+    bool& print_meminfo_flag_accessor() {
+      static bool flag = true;
+      return flag;
+    }
   }  // namespace detail
+
+  void print_meminfo_disable() {
+    detail::print_meminfo_flag_accessor() = false;
+  }
+  void print_meminfo_enable() {
+    detail::print_meminfo_flag_accessor() = true;
+  }
+  bool print_meminfo_enabled() {
+    return detail::print_meminfo_flag_accessor();
+  }
+
 }  // namespace madness
 

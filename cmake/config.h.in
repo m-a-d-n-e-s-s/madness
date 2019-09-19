@@ -53,6 +53,7 @@
 #cmakedefine MADNESS_HAS_ELEMENTAL_EMBEDDED 1
 #cmakedefine MADNESS_HAS_GOOGLE_PERF_MINIMAL 1
 #cmakedefine MADNESS_HAS_GOOGLE_TEST 1
+#cmakedefine MADNESS_HAS_LIBUNWIND 1
 
 /* Define has access to function. */
 #cmakedefine HAVE_FORK 1

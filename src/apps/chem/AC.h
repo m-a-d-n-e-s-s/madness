@@ -450,12 +450,12 @@ public:
 
    AC(World &world, std::shared_ptr<SCF> calc){
 	   if(world.rank()==0){
-		   initialized_=ac_param_.initialize(calc->molecule, calc->param.ac_data, 1.0-calc->xc.hf_exchange_coefficient(), calc->param.charge);
+		   initialized_=ac_param_.initialize(calc->molecule, calc->param.ac_data(), 1.0-calc->xc.hf_exchange_coefficient(), calc->param.charge());
 	   }
 	   world.gop.broadcast_serializable(initialized_,0);
 	   world.gop.broadcast_serializable(ac_param_, 0);
 	   ac_param_.print(world);
-	   if(calc->param.ac_data!="none") ac_param_.check(world);
+	   if(calc->param.ac_data()!="none") ac_param_.check(world);
    }
 
    AC(const AC& other): ac_param_(other.ac_param_){}
