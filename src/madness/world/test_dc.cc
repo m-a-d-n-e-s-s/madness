@@ -99,10 +99,10 @@ void test0(World& world) {
     world.gop.fence();
 
     for (int i=0; i<10000; ++i)
-        MADNESS_ASSERT(c.find(key1).get()->second.get() == 1);
+        MADNESS_CHECK(c.find(key1).get()->second.get() == 1);
 
     for (int i=3; i<100; ++i)
-        MADNESS_ASSERT(c.find(Key(i)).get() == c.end());
+        MADNESS_CHECK(c.find(Key(i)).get() == c.end());
 
     world.gop.fence();
 }
@@ -181,9 +181,9 @@ void test1(World& world) {
         if (world.rank() == 0) print("count after from global sz", global_count);
         
         for (int i=0; i<100; ++i) {
-            MADNESS_ASSERT(c.find(i).get()->second == (i+1.0));
-            MADNESS_ASSERT(d.find(i).get()->second == (i+2.0));
-            MADNESS_ASSERT(e.find(i).get()->second == (i+3.0));
+            MADNESS_CHECK(c.find(i).get()->second == (i+1.0));
+            MADNESS_CHECK(d.find(i).get()->second == (i+2.0));
+            MADNESS_CHECK(e.find(i).get()->second == (i+3.0));
         }
         
         world.gop.fence(); total = double_count; world.gop.sum(total);
@@ -216,10 +216,10 @@ int main(int argc, char** argv) {
         test1(world);
         test1(world);
     }
-    catch (SafeMPI::Exception e) {
+    catch (const SafeMPI::Exception& e) {
         error("caught an MPI exception");
     }
-    catch (madness::MadnessException e) {
+    catch (const madness::MadnessException& e) {
         print(e);
         error("caught a MADNESS exception");
     }

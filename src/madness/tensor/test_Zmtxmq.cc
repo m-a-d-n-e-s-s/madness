@@ -179,6 +179,13 @@ int main(int argc, char * argv[]) {
     posix_memalign((void **) &c, 16, nimax*njmax*sizeof(double_complex));
     posix_memalign((void **) &d, 16, nimax*njmax*sizeof(double_complex));
 
+
+    bool smalltest = false;
+    if (getenv("MAD_SMALL_TESTS")) smalltest=true;
+    for (int iarg=1; iarg<argc; iarg++) if (strcmp(argv[iarg],"--small")==0) smalltest=true;
+    std::cout << "small test : " << smalltest << std::endl;
+    
+
     ran_fill(nkmax*nimax, a);
     ran_fill(nkmax*njmax, b);
 
@@ -195,10 +202,13 @@ int main(int argc, char * argv[]) {
 /*     } */
 /*     return 0; */
 
+    int stride = 1;
+    if (smalltest) stride = 3; // odd to test even and odd values
+    
     printf("Starting to test ... \n");
-    for (ni=1; ni<12; ni+=1) {
-        for (nj=1; nj<12; nj+=1) {
-            for (nk=1; nk<12; nk+=1) {
+    for (ni=1; ni<12; ni+=stride) {
+        for (nj=1; nj<12; nj+=stride) {
+            for (nk=1; nk<12; nk+=stride) {
                 for (i=0; i<ni*nj; ++i) d[i] = c[i] = 0.0;
                 mTxm (ni,nj,nk,c,a,b);
                 mTxmq(ni,nj,nk,d,a,b);
@@ -220,11 +230,13 @@ int main(int argc, char * argv[]) {
     }
     printf("... OK!\n");
 
-    printf("%20s %3s %3s %3s %8s %8s (GF/s)\n", "type", "M", "N", "K", "LOOP", "BLAS");
-    for (ni=2; ni<60; ni+=2) timer("(m*m)T*(m*m)", ni,ni,ni,a,b,c);
-    for (m=1; m<=30; m+=1) timer("(m*m,m)T*(m*m)", m*m,m,m,a,b,c);
-    for (m=1; m<=30; m+=1) trantimer("tran(m,m,m)", m*m,m,m,a,b,c);
-    for (m=1; m<=20; m+=1) timer("(20*20,20)T*(20,m)", 20*20,m,20,a,b,c);
+    if (!smalltest) {
+        printf("%20s %3s %3s %3s %8s %8s (GF/s)\n", "type", "M", "N", "K", "LOOP", "BLAS");
+        for (ni=2; ni<60; ni+=2) timer("(m*m)T*(m*m)", ni,ni,ni,a,b,c);
+        for (m=1; m<=30; m+=1) timer("(m*m,m)T*(m*m)", m*m,m,m,a,b,c);
+        for (m=1; m<=30; m+=1) trantimer("tran(m,m,m)", m*m,m,m,a,b,c);
+        for (m=1; m<=20; m+=1) timer("(20*20,20)T*(20,m)", 20*20,m,20,a,b,c);
+    }
 
     SafeMPI::Finalize();
 

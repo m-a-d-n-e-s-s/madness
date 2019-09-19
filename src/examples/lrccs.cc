@@ -77,8 +77,8 @@ using namespace madness;
 
 static void canonicalize(World& world, Tensor<double>& A, vector_real_function_3d& v, const double prec){
 	MADNESS_ASSERT(A.ndim() == 2);
-	MADNESS_ASSERT(A.dim(0) == A.dim(1) && A.dim(0) == v.size());
-	const auto n = A.dim(0);
+	MADNESS_ASSERT(A.dim(0) == A.dim(1) && size_t(A.dim(0)) == v.size());
+	const size_t n = A.dim(0);
 
 	Tensor<double> U, evals;
 	syev(A, U, evals);
@@ -135,7 +135,7 @@ bool test_lrccs(World& world){
 					print("\n");
 					calc->param.print(world);
 				}
-				double hf_energy = nemo.value();
+				//double hf_energy = nemo.value();
 
 				// LR calculation
 				TDHF tdhf(world,nemo,filename);
@@ -187,12 +187,12 @@ int main(int argc, char** argv) {
 			print_meminfo(world.rank(), "startup");
 			FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap< Key<3> >(world)));
 			// read out command line arguments
-			bool analyze_only=false;		// default: compute the excitations
 
-			for(int i = 1; i < argc; i++) {
-				const std::string arg=argv[i];
-				if (arg=="--analyze") analyze_only=true;
-			}
+			// bool analyze_only=false;		// default: compute the excitations
+			// for(int i = 1; i < argc; i++) {
+			// 	const std::string arg=argv[i];
+			// 	if (arg=="--analyze") analyze_only=true;
+			// }
 
 
 			if (world.rank() == 0) {

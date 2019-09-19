@@ -78,6 +78,7 @@ namespace madness {
     typedef std::vector<complex_functionT> cvecfuncT;
     typedef Convolution1D<double_complex> complex_operatorT;
     
+        
     extern distmatT distributed_localize_PM(World & world,
                                             const vecfuncT & mo,
                                             const vecfuncT & ao,
@@ -88,6 +89,7 @@ namespace madness {
                                             const double thetamax = 0.5,
                                             const bool randomize = true,
                                             const bool doprint = false);
+    
     
     inline double mask1(double x) {
         /* Iterated first beta function to switch smoothly
@@ -446,14 +448,26 @@ namespace madness {
         
         void analyze_vectors(World & world, const vecfuncT & mo, const tensorT & occ = tensorT(),
                              const tensorT & energy = tensorT(), const std::vector<int> & set = std::vector<int>());
-        
-        inline double DIP(const tensorT & dip, int i, int j, int k, int l) {
+
+        inline double DIP(const tensorT & dip, int i, int j, int k, int l) const {
             return dip(i, j, 0) * dip(k, l, 0) + dip(i, j, 1) * dip(k, l, 1) + dip(i, j, 2) * dip(k, l, 2);
         }
         
-        distmatT localize_boys(World & world, const vecfuncT & mo, const std::vector<int> & set,
-                               const double thresh = 1e-9, const double thetamax = 0.5, const bool randomize = true);
+        distmatT localize_boys(World & world,
+                               const vecfuncT & mo,
+                               const std::vector<int> & set,
+                               const double thresh = 1e-9,
+                               const double thetamax = 0.5,
+                               const bool randomize = true,
+                               const bool doprint = false) const;
         
+        distmatT localize_new(World & world,
+                              const vecfuncT & mo,
+                              const std::vector<int> & set,
+                              const double thresh = 1e-9,
+                              const double thetamax = 0.5,
+                              const bool randomize = true,
+                              const bool doprint = false) const;
         
         distmatT kinetic_energy_matrix(World & world, const vecfuncT & v) const;
         distmatT kinetic_energy_matrix(World & world, const vecfuncT & vbra, const vecfuncT & vket) const;

@@ -72,6 +72,8 @@ struct CalculationParameters {
     bool plotcoul;              ///< If true plot the total coulomb potential at convergence
     bool localize;              ///< If true solve for localized orbitals
     bool localize_pm;           ///< If true use PM for localization
+    bool localize_boys;         ///< If true use boys for localization
+    bool localize_new;          ///< If true use new for localization
     std::string symmetry;		///< use point group symmetry for all orbitals: default/full/schoenflies
     bool restart;               ///< If true restart from orbitals on disk
     bool restartao;             ///< If true restart from orbitals projected into AO basis (STO3G) on disk
@@ -142,7 +144,7 @@ struct CalculationParameters {
     void serialize(Archive& ar) {
         ar & charge & smear & econv & dconv & k & L & maxrotn & nvalpha & nvbeta
         & nopen & maxiter & nio & spin_restricted;
-        ar & plotlo & plothi & plotdens & plotcoul & localize & localize_pm & symmetry
+        ar & plotlo & plothi & plotdens & plotcoul & localize & localize_pm & localize_boys & localize_new & symmetry
         & restart & restartao & save & no_compute &no_orient & maxsub & orbitalshift & npt_plot & plot_cell & aobasis;
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
         ar & core_type & derivatives & conv_only_dens & dipole;
@@ -171,7 +173,9 @@ struct CalculationParameters {
     , plotdens(false)
     , plotcoul(false)
     , localize(true)
-    , localize_pm(true)
+    , localize_pm(false)
+    , localize_boys(false)
+    , localize_new(true)
     , symmetry("default")
     , restart(false)
     , restartao(false)
@@ -330,10 +334,16 @@ struct CalculationParameters {
                 localize = true;
             }
             else if (s == "pm") {
-                localize_pm = true;
+                localize = localize_pm = true;
+                localize_boys = localize_new = false;
             }
             else if (s == "boys") {
-                localize_pm = false;
+                localize = localize_boys = true;
+                localize_pm = localize_new = false;
+            }
+            else if (s == "newloc") {
+                localize = localize_new = true;
+                localize_boys = localize_pm = false;
             }
             else if (s == "symmetry") {
             	symmetry="full";
@@ -509,8 +519,9 @@ struct CalculationParameters {
                 std::cout << "moldft: unrecognized input keyword " << s << std::endl;
                 MADNESS_EXCEPTION("input error",0);
             }
-            if (nopen != 0) spin_restricted = false;
         }
+        if (nopen != 0) spin_restricted = false;
+        if (nvalpha || nvbeta) localize = false; // must use canonical orbitals if computing virtuals
     }
 
     void set_molecular_info(const Molecule& molecule, const AtomicBasisSet& aobasis, unsigned int n_core) {
@@ -622,7 +633,10 @@ struct CalculationParameters {
             madness::print("        plot  volume ", "default");
 
         std::string loctype = "pm";
-        if (!localize_pm) loctype = "boys";
+        if (localize_pm) loctype = "pm";
+        else if (localize_new) loctype = "new";
+        else if (localize_boys) loctype = "boys";
+        else loctype = "none";
         if (localize)
             madness::print("  localized orbitals ", loctype);
         else
