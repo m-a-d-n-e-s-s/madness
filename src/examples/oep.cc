@@ -303,7 +303,7 @@ public:
     	}
     	if (is_dcep() or is_mrks()) {
         	if (calc->param.dft_deriv == "bspline") print("unsing b-spline gradient operator for DCEP correction");
-        	else print("using default abgv gradient operator for DCEP correction");
+        	else print("using default abgv gradient operator for", model, "correction");
     	}
     	print("");
 
@@ -351,6 +351,7 @@ public:
     	}
 
     	// compute ab initio HF exchange energy using equation (21) from Ospadov_2017 and HF kinetic energy
+    	// edit: this is redundant because it is the same as -0.5*<phi|K|phi>
     	const double Ex_HF = 0.5*inner(rho_HF, Vs);
     	const double Ekin_HF = compute_kinetic_energy(R*HF_nemo); // like T in Ospadov_2017, equation (20)
 
@@ -902,9 +903,6 @@ public:
 	    	else grad_nemo[i] = grad(nemo[i]);  // default gradient using abgv
 	    }
 
-	    // compute tau = 1/2 * sum |phi_i|^2
-	    // = 1/2 * sum {(\nabla R)^2 * nemo_i^2 + 2 * R * nemo_i * (\nabla R) * (\nabla nemo_i)) + R^2 * (\nabla nemo_i)^2}
-	    // = 1/2 * R^2 * sum {U1dot * nemo_i^2 + 2 * nemo_i * U1 * (\nabla nemo_i)) + (\nabla nemo_i)^2}
 	    vecfuncT grad_nemo_term;
 		for (long i = 0; i < nemo.size(); i++) {
 			for (long j = i + 1; j < nemo.size(); j++) {
