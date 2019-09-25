@@ -316,88 +316,11 @@ extern "C" {
 # include <mkl.h>
 #endif // !defined(MKL_DIRECT_CALL)
 
-// some BLAS libraries define their own types for complex data
-#ifndef HAVE_INTEL_MKL
-#ifndef lapack_complex_float
-# define lapack_complex_float  std::complex<float>
-#else
-static_assert(sizeof(std::complex<float>)==sizeof(lapack_complex_float), "sizes of lapack_complex_float and std::complex<float> do not match");
-#endif
-#ifndef lapack_complex_double
-# define lapack_complex_double std::complex<double>
-#else
-static_assert(sizeof(std::complex<double>)==sizeof(lapack_complex_double), "sizes of lapack_complex_double and std::complex<double> do not match");
-#endif
-#else
-// if calling direct need to cast to the MKL complex types
-# ifdef MKL_DIRECT_CALL
-#  include <mkl_types.h>
-#  define lapack_complex_float MKL_Complex8
-#  define lapack_complex_double MKL_Complex16
-// else can call via F77 prototypes which don't need type conversion
-# else
-#  define lapack_complex_float  std::complex<float>
-#  define lapack_complex_double std::complex<double>
-# endif
-#endif
+// some BLAS libraries use custom complex types in their interface, so need to include their definitions here
+#include <madness/tensor/cblas_types.h>
 
 namespace madness {
 namespace cblas {
-
-    /// Matrix operations for BLAS function calls
-    typedef enum {
-       NoTrans=0,
-       Trans=1,
-       ConjTrans=2
-    }  CBLAS_TRANSPOSE;
-
-    /////////// legalized conversions between C++ and LAPACK types //////////
-    template <typename T>
-    T to_lapack_val(T val) {
-      return val;
-    }
-    template <typename T>
-    T from_lapack_val(T val) {
-      return val;
-    }
-
-    inline lapack_complex_float to_lapack_val(std::complex<float> val) {
-      return *reinterpret_cast<lapack_complex_float*>(&val);
-    }
-    inline std::complex<float> from_lapack_val(lapack_complex_float val) {
-      return *reinterpret_cast<std::complex<float>*>(&val);
-    }
-    template <typename T>
-    const lapack_complex_float*
-    to_lapack_cptr(const T* ptr) {
-      static_assert(sizeof(T)==sizeof(lapack_complex_float), "sizes of lapack_complex_float and T given to madness::cblas::to_lapack_cptr do not match");
-      return reinterpret_cast<const lapack_complex_float*>(ptr);
-    }
-    template <typename T>
-    typename std::enable_if<!std::is_const<T>::value, lapack_complex_float*>::type
-    to_lapack_cptr(T* ptr) {
-      static_assert(sizeof(T)==sizeof(lapack_complex_float), "sizes of lapack_complex_float and T given to madness::cblas::to_lapack_cptr do not match");
-      return reinterpret_cast<lapack_complex_float*>(ptr);
-    }
-
-    inline lapack_complex_double to_lapack_val(std::complex<double> val) {
-      return *reinterpret_cast<lapack_complex_double*>(&val);
-    }
-    inline std::complex<double> from_lapack_val(lapack_complex_double val) {
-      return *reinterpret_cast<std::complex<double>*>(&val);
-    }
-    template <typename T>
-    const lapack_complex_double*
-    to_lapack_zptr(const T* ptr) {
-      static_assert(sizeof(T)==sizeof(lapack_complex_double), "sizes of lapack_complex_double and T given to madness::cblas::to_lapack_zptr do not match");
-      return reinterpret_cast<const lapack_complex_double*>(ptr);
-    }
-    template <typename T>
-    typename std::enable_if<!std::is_const<T>::value, lapack_complex_double*>::type
-    to_lapack_zptr(T* ptr) {
-      static_assert(sizeof(T)==sizeof(lapack_complex_double), "sizes of lapack_complex_double and T given to madness::cblas::to_lapack_zptr do not match");
-      return reinterpret_cast<lapack_complex_double*>(ptr);
-    }
 
     /// Multiplies a matrix by a vector
 
@@ -445,9 +368,9 @@ namespace cblas {
             const complex_real4* b, const integer ldb, const complex_real4 beta,
             complex_real4* c, const integer ldc) {
       static const char *op[] = {"n", "t", "c"};
-      F77_CGEMM(op[OpA], op[OpB], &m, &n, &k, to_lapack_cptr(&alpha),
-                to_lapack_cptr(a), &lda, to_lapack_cptr(b), &ldb,
-                to_lapack_cptr(&beta), to_lapack_cptr(c), &ldc);
+      F77_CGEMM(op[OpA], op[OpB], &m, &n, &k, cblas::to_cptr(&alpha),
+                cblas::to_cptr(a), &lda, cblas::to_cptr(b), &ldb,
+                cblas::to_cptr(&beta), cblas::to_cptr(c), &ldc);
     }
 
     inline void gemm(const CBLAS_TRANSPOSE OpA, const CBLAS_TRANSPOSE OpB,
@@ -456,9 +379,9 @@ namespace cblas {
             const complex_real8* b, const integer ldb, const complex_real8 beta,
             complex_real8* c, const integer ldc) {
       static const char *op[] = {"n", "t", "c"};
-      F77_ZGEMM(op[OpA], op[OpB], &m, &n, &k, to_lapack_zptr(&alpha),
-                to_lapack_zptr(a), &lda, to_lapack_zptr(b), &ldb,
-                to_lapack_zptr(&beta), to_lapack_zptr(c), &ldc);
+      F77_ZGEMM(op[OpA], op[OpB], &m, &n, &k, cblas::to_zptr(&alpha),
+                cblas::to_zptr(a), &lda, cblas::to_zptr(b), &ldb,
+                cblas::to_zptr(&beta), cblas::to_zptr(c), &ldc);
     }
 
 #ifdef HAVE_INTEL_MKL
@@ -478,9 +401,9 @@ namespace cblas {
         static const char *opT[] = { "t","n","c" }; // Transpose of op ... conj-transpose not working yet
         MADNESS_ASSERT(OpA!=ConjTrans && OpB!=ConjTrans);
         const complex_real4 zero = 0.0;
-        F77_SCGEMM(opT[OpB], opT[OpA], &n, &m, &k, to_lapack_cptr(&alpha),
-                   b, &ldb, to_lapack_cptr(a), &lda,
-                   to_lapack_cptr(&zero), to_lapack_cptr(ctrans), &n);
+        F77_SCGEMM(opT[OpB], opT[OpA], &n, &m, &k, cblas::to_cptr(&alpha),
+                   b, &ldb, cblas::to_cptr(a), &lda,
+                   cblas::to_cptr(&zero), cblas::to_cptr(ctrans), &n);
 
         // In fortran have CTRANS(N,M) and fortran CTRANS(i,j) maps to C ctrans[j*n+i]
 
@@ -506,9 +429,9 @@ namespace cblas {
                      const complex_real4* b, const integer ldb, const complex_real4 beta,
                      complex_real4* c, const integer ldc) {
       static const char *op[] = {"n", "t", "c"};
-      F77_SCGEMM(op[OpA], op[OpB], &m, &n, &k, to_lapack_cptr(&alpha),
-                 a, &lda, to_lapack_cptr(b), &ldb,
-                 to_lapack_cptr(&beta), to_lapack_cptr(c), &ldc);
+      F77_SCGEMM(op[OpA], op[OpB], &m, &n, &k, cblas::to_cptr(&alpha),
+                 a, &lda, cblas::to_cptr(b), &ldb,
+                 cblas::to_cptr(&beta), cblas::to_cptr(c), &ldc);
     }
 
     inline void gemm(const CBLAS_TRANSPOSE OpA, const CBLAS_TRANSPOSE OpB,
@@ -527,9 +450,9 @@ namespace cblas {
         static const char *opT[] = { "t","n","c" }; // Transpose of op ... conj-transpose not working yet
         MADNESS_ASSERT(OpA!=ConjTrans && OpB!=ConjTrans);
         const complex_real8 zero = 0.0;
-        F77_DZGEMM(opT[OpB], opT[OpA], &n, &m, &k, to_lapack_zptr(&alpha),
-                   b, &ldb, to_lapack_zptr(a), &lda,
-                   to_lapack_zptr(&zero), to_lapack_zptr(ctrans), &n);
+        F77_DZGEMM(opT[OpB], opT[OpA], &n, &m, &k, cblas::to_zptr(&alpha),
+                   b, &ldb, cblas::to_zptr(a), &lda,
+                   cblas::to_zptr(&zero), cblas::to_zptr(ctrans), &n);
 
         // In fortran have CTRANS(N,M) and fortran CTRANS(i,j) maps to C ctrans[j*n+i]
         
@@ -555,9 +478,9 @@ namespace cblas {
                      const complex_real8* b, const integer ldb, const complex_real8 beta,
                      complex_real8* c, const integer ldc) {
       static const char *op[] = {"n", "t", "c"};
-      F77_DZGEMM(op[OpA], op[OpB], &m, &n, &k, to_lapack_zptr(&alpha), a, &lda,
-                 to_lapack_zptr(b), &ldb, to_lapack_zptr(&beta),
-                 to_lapack_zptr(c), &ldc);
+      F77_DZGEMM(op[OpA], op[OpB], &m, &n, &k, cblas::to_zptr(&alpha), a, &lda,
+                 cblas::to_zptr(b), &ldb, cblas::to_zptr(&beta),
+                 cblas::to_zptr(c), &ldc);
     }
 
 #endif
@@ -605,9 +528,9 @@ namespace cblas {
        const complex_real4 *x, const integer incx, const complex_real4 beta,
        complex_real4 *y, const integer incy) {
       static const char *op[] = {"n", "t", "c"};
-      F77_CGEMV(op[OpA], &m, &n, to_lapack_cptr(&alpha), to_lapack_cptr(A),
-                &lda, to_lapack_cptr(x), &incx, to_lapack_cptr(&beta),
-                to_lapack_cptr(y), &incy);
+      F77_CGEMV(op[OpA], &m, &n, cblas::to_cptr(&alpha), cblas::to_cptr(A),
+                &lda, cblas::to_cptr(x), &incx, cblas::to_cptr(&beta),
+                cblas::to_cptr(y), &incy);
     }
 
     inline void gemv(const CBLAS_TRANSPOSE OpA, const integer m, const integer n,
@@ -615,9 +538,9 @@ namespace cblas {
        const complex_real8 *x, const integer incx, const complex_real8 beta,
        complex_real8 *y, const integer incy) {
       static const char *op[] = {"n", "t", "c"};
-      F77_ZGEMV(op[OpA], &m, &n, to_lapack_zptr(&alpha), to_lapack_zptr(A),
-                &lda, to_lapack_zptr(x), &incx, to_lapack_zptr(&beta),
-                to_lapack_zptr(y), &incy);
+      F77_ZGEMV(op[OpA], &m, &n, cblas::to_zptr(&alpha), cblas::to_zptr(A),
+                &lda, cblas::to_zptr(x), &incx, cblas::to_zptr(&beta),
+                cblas::to_zptr(y), &incy);
     }
     ///@}
 
@@ -693,7 +616,7 @@ namespace cblas {
         const integer incx, const complex_real4* y, const integer incy)
     {
         complex_real4 result(0.0, 0.0);
-        F77_CDOTU(to_lapack_cptr(&result), &n, to_lapack_cptr(x), &incx, to_lapack_cptr(y), &incy);
+        F77_CDOTU(cblas::to_cptr(&result), &n, cblas::to_cptr(x), &incx, cblas::to_cptr(y), &incy);
         return result;
     }
 
@@ -701,7 +624,7 @@ namespace cblas {
         const integer incx, const complex_real8* y, const integer incy)
     {
         complex_real8 result(0.0, 0.0);
-        F77_ZDOTU(to_lapack_zptr(&result), &n, to_lapack_zptr(x), &incx, to_lapack_zptr(y), &incy);
+        F77_ZDOTU(cblas::to_zptr(&result), &n, cblas::to_zptr(x), &incx, cblas::to_zptr(y), &incy);
         return result;
     }
     ///@}
@@ -725,19 +648,19 @@ namespace cblas {
     }
 
     inline void scal(const integer n, const complex_real4 alpha, complex_real4* x, const integer incx) {
-      F77_CSCAL(&n, to_lapack_cptr(&alpha), to_lapack_cptr(x), &incx);
+      F77_CSCAL(&n, cblas::to_cptr(&alpha), cblas::to_cptr(x), &incx);
     }
 
     inline void scal(const integer n, const complex_real8 alpha, complex_real8* x, const integer incx) {
-      F77_ZSCAL(&n, to_lapack_zptr(&alpha), to_lapack_zptr(x), &incx);
+      F77_ZSCAL(&n, cblas::to_zptr(&alpha), cblas::to_zptr(x), &incx);
     }
 
     inline void scal(const integer n, const float alpha, complex_real4* x, const integer incx) {
-      F77_CSSCAL(&n, &alpha, to_lapack_cptr(x), &incx);
+      F77_CSSCAL(&n, &alpha, cblas::to_cptr(x), &incx);
     }
 
     inline void scal(const integer n, const double alpha, complex_real8* x, const integer incx) {
-      F77_ZDSCAL(&n, &alpha, to_lapack_zptr(x), &incx);
+      F77_ZDSCAL(&n, &alpha, cblas::to_zptr(x), &incx);
     }
     ///@}
 
@@ -765,12 +688,12 @@ namespace cblas {
 
     inline void axpy(const integer n, const complex_real4 alpha, complex_real4* x, const integer incx,
                      complex_real4* y, const integer incy) {
-      F77_CAXPY(&n, to_lapack_cptr(&alpha), to_lapack_cptr(x), &incx, to_lapack_cptr(y), &incy);
+      F77_CAXPY(&n, cblas::to_cptr(&alpha), cblas::to_cptr(x), &incx, cblas::to_cptr(y), &incy);
     }
 
     inline void axpy(const integer n, const complex_real8 alpha, complex_real8* x, const integer incx,
                      complex_real8* y, const integer incy) {
-      F77_ZAXPY(&n, to_lapack_zptr(&alpha), to_lapack_zptr(x), &incx, to_lapack_zptr(y), &incy);
+      F77_ZAXPY(&n, cblas::to_zptr(&alpha), cblas::to_zptr(x), &incx, cblas::to_zptr(y), &incy);
     }
     ///@}
 
