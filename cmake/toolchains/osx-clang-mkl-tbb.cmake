@@ -48,4 +48,5 @@ endif()
 set(LAPACK_LIBRARIES "-L${MKL_ROOT_DIR}/lib" "-lmkl_intel_lp64" "-lmkl_core"
     "-lmkl_sequential" "-lm" CACHE STRING "LAPACK linker flags")
 set(LAPACK_INCLUDE_DIRS ${MKL_ROOT_DIR}/include CACHE STRING "LAPACK include directories")
+set(LAPACK_COMPILE_DEFINITIONS MKL_DIRECT_CALL CACHE STRING "LAPACK compile definitions")
 set(INTEGER4 TRUE CACHE BOOL "Set Fortran integer size to 4 bytes")
