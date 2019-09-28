@@ -361,7 +361,7 @@ public:
     Tensor<double_complex> operator()(const std::vector<Function<T,NDIM> >& vbra,
     		const std::vector<Function<T,NDIM> >& vket) const {
         const auto bra_equiv_ket = &vbra == &vket;
-        std::vector<Function<T,NDIM> > vVket=this->operator()(vket);
+        std::vector<complex_function_3d> vVket=this->operator()(vket);
         return matrix_inner(world,vbra,vVket,bra_equiv_ket);
     }
 

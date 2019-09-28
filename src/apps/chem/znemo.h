@@ -274,6 +274,10 @@ public:
 	std::pair<std::vector<complex_function_3d>, std::vector<complex_function_3d> >
 	read_guess() const;
 
+	/// hcore guess including the magnetic field
+	std::pair<std::vector<complex_function_3d>, std::vector<complex_function_3d> >
+	initial_guess() const;
+
 	void read_orbitals() {
 
 		if (cparam.restartao()) {
@@ -447,8 +451,36 @@ protected:
 //		return r*exp(-r/2.0)*exp(double_complex(0.0,1.0)*phi);
 	}
 
+	/// following Doucot Pascier 2005
+	struct landau_wave_function {
+
+		int m=0;
+		double l=0.0;		///< radius Eq. (29)
+		coord_3d origin={0.0,0.0,0.0};
+
+		landau_wave_function(const int m, const double B,
+				const coord_3d& origin={0.0,0.0,0.0})
+			: m(m), l(1.0/sqrt(B)), origin(origin) {
+			print("origin",origin);
+			MADNESS_ASSERT(m>=0);
+			MADNESS_ASSERT(B>0);
+		}
+
+		/// following Eq. (43)
+		double_complex operator()(const coord_3d& xyz1) const {
+			const coord_3d xyz=xyz1-origin;
+			const double_complex z(xyz[0],xyz[1]);			// z = x + iy
+			const double_complex zbar(xyz[0],-xyz[1]);
+
+			double z_confinement=exp(-0.01*xyz[2]);		// make wf decay in z-direction
+			return std::pow(zbar/l,double(m)) * exp(-0.25*zbar*z/(l*l)) * z_confinement;
+		}
+	};
+
 	void test_compute_current_density() const;
 
+public:
+	void test_landau_wave_function();
 };
 
 

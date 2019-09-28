@@ -533,7 +533,7 @@ namespace madness {
 
         for (int i=0; i<m; ++i) {
             for (int j=0; j<n; ++j) {
-                if (c(j,i) != R(0.0)) vc[i].gaxpy(1.0,v[j],c(j,i),false);
+                if (c(j,i) != R(0.0)) vc[i].gaxpy(resultT(1.0),v[j],resultT(c(j,i)),false);
             }
         }
 

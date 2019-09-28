@@ -161,7 +161,8 @@ double Znemo::value(const Tensor<double>& x) {
 		read_orbitals();
 
 	} catch(...) {
-		auto zmos=read_guess();
+//		auto zmos=read_guess();
+		auto zmos=initial_guess();
 		amo=zmos.first;
 		bmo=zmos.second;
 		aeps=Tensor<double>(amo.size());
@@ -654,6 +655,32 @@ void Znemo::test_compute_current_density() const {
 
 }
 
+void Znemo::test_landau_wave_function() {
+	recompute_factors_and_potentials(cparam.econv());
+
+	int m=1;
+	double B=param.physical_B();
+	complex_function_3d f=complex_factory_3d(world).functor(landau_wave_function(m,-B));
+	double fnorm=f.norm2();
+	f.scale(1.0/fnorm);
+
+	Lz lz(world);
+	double_complex expval=0.5*B*lz(f,f);
+	print("<f(m) | Lz | f(m)> ", m, expval);
+	double_complex diaexpval=inner(f,diafac->bare_diamagnetic_potential()*f);
+	print("<f(m) | dia | f(m)>", m, diaexpval);
+	Kinetic<double_complex,3> T(world);
+	double_complex kinexpval=T(f,f);
+	print("<f(m) | T | f(m)>  ", m, kinexpval);
+
+	print("total energy",expval + diaexpval +kinexpval);
+	print("expect some contribution from the confinement in z-direction");
+
+
+
+	MADNESS_EXCEPTION("end of test",1);
+}
+
 
 
 void Znemo::do_step_restriction(const std::vector<complex_function_3d>& mo,
@@ -699,6 +726,85 @@ Znemo::read_guess() const {
 	return zmos;
 }
 
+
+/// read the guess orbitals from a previous nemo or moldft calculation
+std::pair<std::vector<complex_function_3d>, std::vector<complex_function_3d> >
+Znemo::initial_guess() const {
+
+	print("computing mos from hcore guess");
+
+	// get the AOs from the basis set ..
+	std::vector<real_function_3d> real_aos=SCF::project_ao_basis_only(world, aobasis, mol);
+	std::vector<complex_function_3d> aos = convert<double,double_complex,3>(world,real_aos);
+
+	// .. and from the Landau wave function (the eigenfunction of the free particle in the B-field)
+//	for (int i=0; i<mol.natom(); ++i) {
+		for (int n=0; n<2; ++n) {
+//			coord_3d origin=mol.get_atom(i).get_coords();
+			coord_3d origin;
+			double B=param.physical_B();
+			complex_function_3d f=complex_factory_3d(world).functor(landau_wave_function(n,-B,origin));
+			double fnorm=f.norm2();
+			f.scale(1.0/fnorm);
+
+			aos.push_back(conj(f));
+//			print("iatom, n",i,n);
+		}
+//	}
+
+
+	// compute the Hamilton matrix
+
+	// nuclear and diamagnetic potential
+	real_function_3d vlocal=(potentialmanager->vnuclear()+diafac->bare_diamagnetic_potential()).truncate();
+	Tensor<double_complex> potential=matrix_inner(world,aos,vlocal*aos);
+	print("real(vnuc + dia");
+	print(potential);
+	print(real(potential));
+
+	// zeeman term
+	Lz lz_operator(world,false);
+	Tensor<double_complex> lzmat=0.5*B[2]*lz_operator(aos,aos);
+	print("lzmat");
+	print(lzmat);
+	potential+=lzmat;
+
+	// kinetic term
+	Kinetic<double_complex,3> T(world);
+	Tensor<double_complex>  kinetic=T(aos,aos);
+	print("kinetic");
+	print(kinetic);
+
+	Tensor<double_complex> fock = convert<double_complex>(kinetic) + potential;
+	fock = 0.5 * (fock + conj_transpose(fock));
+
+	print("fock");
+	print(fock);
+	print(real(fock));
+
+	// diagonalize the Fock matrix
+	Tensor<double_complex> c;
+	Tensor<double> e;
+	Tensor<double_complex> overlap =matrix_inner(world, aos, aos, true);
+	print(real(overlap));
+	sygvp(world, fock, overlap, 1, c, e);
+
+	std::vector<complex_function_3d> amo = transform(world, aos, c(_, Slice(0, cparam.nmo_alpha() - 1)));
+	std::vector<complex_function_3d> bmo = transform(world, aos, c(_, Slice(0, cparam.nmo_beta() - 1)));
+	amo=truncate(normalize(amo));
+	bmo=truncate(normalize(bmo));
+
+//    coord_3d remaining_B=B-coord_3d{0,0,param.explicit_B()};
+//    real_function_3d gauss=diafac->custom_factor(remaining_B,diafac->get_v(),1.0);
+
+	std::pair<std::vector<complex_function_3d>, std::vector<complex_function_3d> > zmos;
+//	zmos.first=truncate(amo*ncf->inverse()*gauss);		// alpha
+//	zmos.second=truncate(amo*ncf->inverse()*gauss);		// beta
+	zmos.first=truncate(amo*ncf->inverse());		// alpha
+	zmos.second=truncate(bmo*ncf->inverse());		// beta
+
+	return zmos;
+}
 
 /// compute the potential operators applied on the orbitals
 Znemo::potentials Znemo::compute_potentials(const std::vector<complex_function_3d>& mo,
