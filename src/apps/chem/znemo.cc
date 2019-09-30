@@ -789,19 +789,17 @@ Znemo::initial_guess() const {
 	print(real(overlap));
 	sygvp(world, fock, overlap, 1, c, e);
 
-	std::vector<complex_function_3d> amo = transform(world, aos, c(_, Slice(0, cparam.nmo_alpha() - 1)));
-	std::vector<complex_function_3d> bmo = transform(world, aos, c(_, Slice(0, cparam.nmo_beta() - 1)));
-	amo=truncate(normalize(amo));
-	bmo=truncate(normalize(bmo));
-
-//    coord_3d remaining_B=B-coord_3d{0,0,param.explicit_B()};
-//    real_function_3d gauss=diafac->custom_factor(remaining_B,diafac->get_v(),1.0);
-
 	std::pair<std::vector<complex_function_3d>, std::vector<complex_function_3d> > zmos;
-//	zmos.first=truncate(amo*ncf->inverse()*gauss);		// alpha
-//	zmos.second=truncate(amo*ncf->inverse()*gauss);		// beta
+	std::vector<complex_function_3d> amo = transform(world, aos, c(_, Slice(0, cparam.nmo_alpha() - 1)));
+	amo=truncate(normalize(amo));
 	zmos.first=truncate(amo*ncf->inverse());		// alpha
-	zmos.second=truncate(bmo*ncf->inverse());		// beta
+
+	if (cparam.have_beta()) {
+		std::vector<complex_function_3d>
+		bmo = transform(world, aos, c(_, Slice(0, cparam.nmo_beta() - 1)));
+		bmo=truncate(normalize(bmo));
+		zmos.second=truncate(bmo*ncf->inverse());		// beta
+	}
 
 	return zmos;
 }
