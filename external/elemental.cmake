@@ -54,7 +54,15 @@ if(ENABLE_ELEMENTAL AND DEFINED ELEMENTAL_TAG)
   # Override BLAS+LAPACK selection by Elemental
   # unless ELEMENTAL_MATH_LIBS is given by the user, use LAPACK_LIBRARIES as the default value for Elemental's MATH_LIBS
   if (NOT ELEMENTAL_MATH_LIBS)
-    string(REPLACE ";" " " ELEMENTAL_MATH_LIBS "${LAPACK_LIBRARIES}")
+    # see lapack.cmake
+    # process LAPACK_LIBRARIES for CMAKE_REQUIRED_LIBRARIES (this is likely only to work with Makefile generator):
+    # 1. get rid of the surrounding quotes
+    string(REGEX REPLACE "\"" "" PROCESSED_LAPACK_LIBRARIES "${LAPACK_LIBRARIES}")
+    # 2. convert a space-separated string of libs into a list
+    string(REGEX REPLACE " " ";" PROCESSED_LAPACK_LIBRARIES "${PROCESSED_LAPACK_LIBRARIES}")
+    # 3. restore (and protect!) the space in "-framework X"
+    string(REGEX REPLACE "-framework;(.*)" "-framework\\\\ \\1" PROCESSED_LAPACK_LIBRARIES "${PROCESSED_LAPACK_LIBRARIES}")
+    set(ELEMENTAL_MATH_LIBS ${PROCESSED_LAPACK_LIBRARIES})
   endif()
 
   #
