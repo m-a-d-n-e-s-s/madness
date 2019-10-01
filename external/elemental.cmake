@@ -61,7 +61,7 @@ if(ENABLE_ELEMENTAL AND DEFINED ELEMENTAL_TAG)
     # 2. convert a space-separated string of libs into a list
     string(REGEX REPLACE " " ";" PROCESSED_LAPACK_LIBRARIES "${PROCESSED_LAPACK_LIBRARIES}")
     # 3. restore (and protect!) the space in "-framework X"
-    string(REGEX REPLACE "-framework;(.*)" "-framework\\\\ \\1" PROCESSED_LAPACK_LIBRARIES "${PROCESSED_LAPACK_LIBRARIES}")
+    string(REGEX REPLACE "-framework;(.*)" "-framework \\1" PROCESSED_LAPACK_LIBRARIES "${PROCESSED_LAPACK_LIBRARIES}")
     set(ELEMENTAL_MATH_LIBS ${PROCESSED_LAPACK_LIBRARIES})
   endif()
 
