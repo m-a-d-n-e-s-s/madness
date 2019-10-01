@@ -28,7 +28,9 @@ set(MADTENSOR_SOURCES tensor.cc tensoriter.cc basetensor.cc vmath.cc)
 # and will remember that these files depend on LAPACK
 #
 # Source lists for MADclapack
-set(MADCLAPACK_HEADERS cblas.h clapack.h clapack_fortran.h)  # this part of MADlinalg is purely independent of MADtensor
+set(MADCLAPACK_HEADERS cblas.h cblas_types.h
+        clapack.h clapack_fortran.h
+        lapacke_types.h) # this part of MADlinalg is purely independent of MADtensor
 
 # Source lists for MADlinalg
 set(MADLINALG_HEADERS ${MADCLAPACK_HEADERS} tensor_lapack.h solvers.h elem.h)
