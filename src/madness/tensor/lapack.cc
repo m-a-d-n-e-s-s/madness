@@ -55,7 +55,6 @@ using madness::Tensor;
 #include <madness/tensor/tensor_lapack.h>
 #include <madness/tensor/clapack.h>
 #ifdef MADNESS_LINALG_USE_LAPACKE
-# include <madness/tensor/lapacke_types.h>
 using madness::lapacke::to_cptr;
 using madness::lapacke::to_zptr;
 #endif

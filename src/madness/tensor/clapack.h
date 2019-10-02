@@ -41,6 +41,7 @@
 /// \brief C++ interface to LAPACK, either directly via Fortran API (see clapack_fortran.h) or via LAPACKE (see clapack_lapacke.h)
 
 #ifdef MADNESS_LINALG_USE_LAPACKE
+#  include <madness/tensor/lapacke_types.h>
 #  if HAVE_INTEL_MKL
 #    if !__has_include(<mkl_lapacke.h>)
 #      error "INTEL MKL detected at configure time, and MADNESS_LINALG_USE_LAPACKE defined, but mkl_lapacke.h not found. Provide -I/path/to/mkl/include to the compiler."

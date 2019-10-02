@@ -40,16 +40,17 @@
 #include <madness/madness_config.h>
 // some BLAS libraries define their own types for complex data
 #ifndef HAVE_INTEL_MKL
-#ifndef lapack_complex_float
-# define lapack_complex_float  std::complex<float>
-#else
+# include <complex>
+# ifndef lapack_complex_float
+#  define lapack_complex_float  std::complex<float>
+# else
 static_assert(sizeof(std::complex<float>)==sizeof(lapack_complex_float), "sizes of lapack_complex_float and std::complex<float> do not match");
-#endif
-#ifndef lapack_complex_double
-# define lapack_complex_double std::complex<double>
-#else
+# endif
+# ifndef lapack_complex_double
+#  define lapack_complex_double std::complex<double>
+# else
 static_assert(sizeof(std::complex<double>)==sizeof(lapack_complex_double), "sizes of lapack_complex_double and std::complex<double> do not match");
-#endif
+# endif
 #else
 // if calling direct need to cast to the MKL complex types
 # ifdef MKL_DIRECT_CALL
@@ -62,6 +63,7 @@ static_assert(sizeof(std::complex<double>)==sizeof(lapack_complex_double), "size
 #  endif
 // else can call via F77 prototypes which don't need type conversion
 # else
+#  include <complex>
 #  ifndef lapack_complex_float
 #   define lapack_complex_float  std::complex<float>
 #  endif
