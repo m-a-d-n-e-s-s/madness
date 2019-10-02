@@ -53,7 +53,7 @@ if(ENABLE_ELEMENTAL AND DEFINED ELEMENTAL_TAG)
 
   # Override BLAS+LAPACK selection by Elemental
   # unless ELEMENTAL_MATH_LIBS is given by the user, use LAPACK_LIBRARIES as the default value for Elemental's MATH_LIBS
-  if (NOT ELEMENTAL_MATH_LIBS)
+  if (NOT ELEMENTAL_MATH_LIBS AND NOT ("${ELEMENTAL_CMAKE_EXTRA_ARGS}" MATCHES "-DMATH_LIBS"))
     # see lapack.cmake
     # process LAPACK_LIBRARIES for CMAKE_REQUIRED_LIBRARIES (this is likely only to work with Makefile generator):
     # 1. get rid of the surrounding quotes
