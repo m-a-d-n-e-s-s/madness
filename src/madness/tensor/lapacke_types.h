@@ -73,6 +73,8 @@ static_assert(sizeof(std::complex<double>)==sizeof(lapack_complex_double), "size
 # endif
 #endif
 
+#include <type_traits>
+
 namespace madness {
 namespace lapacke {
 
