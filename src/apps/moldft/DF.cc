@@ -520,8 +520,6 @@ double DF::rele(World& world, Fcwf& psi){
 //Calculates K*psi for each psi in the orbitals vector and stores them in result
 void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsis){
 
-
-
      //start timer
      start_timer(world);
 
@@ -582,23 +580,19 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
      /////////////if(world.rank()==0) print("K1:\n",exchange1,"\nK2:\n",exchange2,"\nsum:\n",exchange1+exchange2);
 
 
-
-
-
-
-
-
-
-
      //Calculates exchange contributions from the orbitals that we have stored
+
+     //Loop through orbitals phi_i, computing K(phi_i), and while we're at it, use symmetry to start calculating contributions to later orbitals
      for(unsigned int i = 0; i < n; i++){
 
+          //temp will hold the contributions (results of the coulomb operator application) that we need to finish calculation of K(phi_i)
           std::vector<complex_function_3d> temp(n-i);
           for(unsigned int j = 0; j < n-i; j++){
                temp[j] = complex_factory_3d(world);    
           }
           compress(world, temp);
 
+          //break up ith through nth orbitals into their components to facilitate use of vmra functions
           std::vector<complex_function_3d> temp0(n-i);
           std::vector<complex_function_3d> temp1(n-i);
           std::vector<complex_function_3d> temp2(n-i);
@@ -610,57 +604,58 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
                temp3[j-i] = occupieds[j][3];
           }
 
+          //These gaxpy calls accomplish the (\phi_j^\dagger)(\phi_i) in the numerator 
           gaxpy(world, 1.0, temp, 1.0, occupieds[i][0]*conj(world,temp0));
           gaxpy(world, 1.0, temp, 1.0, occupieds[i][1]*conj(world,temp1));
           gaxpy(world, 1.0, temp, 1.0/(myc*myc), occupieds[i][2]*conj(world,temp2));
           gaxpy(world, 1.0, temp, 1.0/(myc*myc), occupieds[i][3]*conj(world,temp3));
 
+          //truncate before apply phase
           truncate(world, temp);
 
-          //if(world.rank()==0) print(i, "Starting apply phase in K");
-
+          //apply coulomb operator
           temp = apply(world, op, temp);
           
+          //truncate again
           truncate(world,temp);
 
-          //if(world.rank()==0) print(i, "Exiting apply phase in K");
-
+          //Now multiply by phi_j's and accumulate to K(phi_i)
           Kpsis[i][0] += sum(world, mul(world, temp, temp0));
           Kpsis[i][1] += sum(world, mul(world, temp, temp1));
           Kpsis[i][2] += sum(world, mul(world, temp, temp2));
           Kpsis[i][3] += sum(world, mul(world, temp, temp3));
           
-          //if(world.rank()==0) print(i, "Exiting sum block in K");
 
+          //Everything in temp can be used to accumulate a small part of K(phi_k) for k in [i+1,n] so we avoid calculating the same quantity on future iterations
+          
+          //First, take the complex conjugate of the contributions we have
           temp = conj(world, temp);
 
+          //multiply by phi_i
           temp0 = occupieds[i][0]*temp;
           temp1 = occupieds[i][1]*temp;
           temp2 = occupieds[i][2]*temp;
           temp3 = occupieds[i][3]*temp;
 
-         // if(world.rank()==0) print(i, "Entering final loop in K");
-
+          //acummulate
           for(unsigned int j = i+1; j < n; j++){
                Kpsis[j][0] += temp0[j-i];
                Kpsis[j][1] += temp1[j-i];
                Kpsis[j][2] += temp2[j-i];
                Kpsis[j][3] += temp3[j-i];
           }
-          
-          //if(world.rank()==0) print(i, "Exiting final loop in K");
-
+         
+          //truncate if we're done, but for Kramers-restricted calculations we still have work to do 
           //Kpsis[i].truncate();
      }
 
 
-
-
      //Now we need exchange contributions from the time-reversed orbitals that we don't explicitly store.
-
-
+     //This will look very similar to the above loop (over i), but with rearrangements to the temporary vectors
+     //Later, these can probably be combined into a single loop
      for(unsigned int i = 0; i < n; i++){
 
+          //RESUME HERE commenting (can use above for guidance)
           std::vector<complex_function_3d> temp(n-i);
           for(unsigned int j = 0; j < n-i; j++){
                temp[j] = complex_factory_3d(world);    
@@ -962,7 +957,7 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      for (unsigned int kk = 0; kk < 2*Init_params.num_occupied; ++kk)
           U(_, kk).scale(std::conj(U(kk,kk))/std::abs(U(kk,kk)));
 
-     if(world.rank()==0) print("After column swapping\nU:\n", U, "\nevals:\n", evals);
+     //if(world.rank()==0) print("After column swapping\nU:\n", U, "\nevals:\n", evals);
      
      //Find clusters of degenerate eigenvalues and rotate eigenvectors to maximize overlap with previous ones
      unsigned int ilo = 0; // first element of cluster
@@ -1377,6 +1372,7 @@ void apply_BSH_new(World& world, Fcwf& Vpsi, double& eps, double& small, double&
      //create BSH operator
      real_convolution_3d op = BSHOperator3D(world, mu,small,thresh); // Finer length scale and accuracy control
 
+
      //Apply BSH operator to Vpsi
      Vpsi = apply(world, op, Vpsi);
 
@@ -1385,6 +1381,7 @@ void apply_BSH_new(World& world, Fcwf& Vpsi, double& eps, double& small, double&
 
      //Apply (1/c^2)(H_D + eps) to Vpsi. Using apply_T for convenience, but this requires adding 2c^2Vpsi
      Vpsi = apply_T(world, Vpsi)*(1.0/c2) + Vpsi * ((eps+2*c2)/c2);
+
 
      //mu = Vpsi.norm2();
      //if(world.rank()==0) print("    after full apply = ", mu);
@@ -1450,14 +1447,14 @@ void DF::saveDF(World& world){
 void DF::make_gaussian_potential(World& world, real_function_3d& potential){
      if(world.rank()==0) print("\n***Making a Gaussian Potential***");
      GaussianNucleusFunctor Vfunctor(Init_params.molecule, DFparams.bohr_rad);
-     potential = real_factory_3d(world).functor(Vfunctor).truncate_mode(1).truncate_on_project();
+     potential = real_factory_3d(world).functor(Vfunctor).truncate_mode(0).truncate_on_project();
 }
 
 //Creates the nuclear potential from the molecule object. Also calculates the nuclear repulsion energy
 void DF::make_gaussian_potential(World& world, real_function_3d& potential, double& nuclear_repulsion_energy){
      if(world.rank()==0) print("\n***Making a Gaussian Potential***");
      GaussianNucleusFunctor Vfunctor(Init_params.molecule,DFparams.bohr_rad);
-     potential = real_factory_3d(world).functor(Vfunctor).truncate_mode(1).truncate_on_project();
+     potential = real_factory_3d(world).functor(Vfunctor).truncate_mode(0).truncate_on_project();
      std::vector<coord_3d> Rlist = Vfunctor.get_Rlist();
      std::vector<int> Zlist = Vfunctor.get_Zlist();
      nuclear_repulsion_energy = 0.0;
@@ -1607,7 +1604,7 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      if(world.rank()==0) print("--------------");
      start_timer(world);
 
-     print_sizes(world);
+     //print_sizes(world);
 
      std::vector<Fcwf> Residuals;
      Fcwf temp_function(world);
@@ -1618,22 +1615,22 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
 
      //Diagonalize
      diagonalize(world, V, op, Kpsis);
-     print_sizes(world);
+     //print_sizes(world);
 
      //Diagonalization forces us to recompute J
      for(unsigned int kk = 0; kk < Init_params.num_occupied; kk++){
-          rho += 2*squaremod(occupieds[kk]);
+          rho += squaremod(occupieds[kk]);
      }
+     rho.scale(2.0);
      JandV = V + apply(op,rho); 
      JandV.truncate();
-
-
 
      //Apply BSH to each psi
      if(world.rank()==0) print("\n***Applying BSH operator***");
      start_timer(world);
      double maxresidual = -1.0;
      for(unsigned int j = 0; j < Init_params.num_occupied; j++){
+
 
           //construct the function to which we will apply the BSH
           //occupieds[j].truncate();
@@ -1672,7 +1669,7 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      if(world.rank()==0) printf("                tolerance: %.10e\n",tolerance);
      times = end_timer(world);
      if(world.rank()==0) print("     ", times[0]);
-     print_sizes(world);
+     //print_sizes(world);
 
      //debugging
      //for(unsigned int j=0; j < Init_params.num_occupied; j++){
@@ -1712,21 +1709,21 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
 
      //truncate
      for(unsigned int i = 0; i < Init_params.num_occupied; i++) occupieds[i].truncate();
-     print_sizes(world);
+     //print_sizes(world);
 
      //orthogonalize
      if(world.rank()==0) print("\n***Orthonormalizing***");
      start_timer(world);
 
      orthogonalize_inplace(world);
-     print_sizes(world);
+     //print_sizes(world);
 
      //truncate here and normalize again
      for(unsigned int i = 0; i < Init_params.num_occupied; i++){
            occupieds[i].truncate();
            occupieds[i].normalize();
      }
-     print_sizes(world);
+     //print_sizes(world);
 
      times = end_timer(world);
      if(world.rank()==0) print("     ", times[0]);
@@ -1933,6 +1930,9 @@ void DF::solve_occupied(World & world)
      else{
           make_gaussian_potential(world, Vnuc, nuclear_repulsion_energy);
      }
+
+     double Vnucsize = Vnuc.size();
+     if(world.rank()==0) print("VNUC SIZE =",Vnucsize);
 
      //Initial load balance
      DF_load_balance(world, Vnuc);
@@ -2269,17 +2269,24 @@ void DF::solve_virtuals1(World& world){
 
 }
 
-void DF::print_sizes(World& world){
+void DF::print_sizes(World& world, bool individual=false){
      if(world.rank()==0) print("\nPrinting orbital sizes:\n");
      int n = Init_params.num_occupied;
-     int a;
+     double a,b1,b2,b3,b4;
      for(unsigned int j=0; j < n; j++){
-          a = 0;
-          a += occupieds[j][0].size();
-          a += occupieds[j][1].size();
-          a += occupieds[j][2].size();
-          a += occupieds[j][3].size();
-          if(world.rank()==0) print("Orbital; ",j+1," size: ",a);
+          b1 = occupieds[j][0].size();
+          b2 = occupieds[j][1].size();
+          b3 = occupieds[j][2].size();
+          b4 = occupieds[j][3].size();
+          a = b1+b2+b3+b4;
+          if(world.rank()==0){
+               if(individual){
+                    print("Orbital; ",j+1," size: ",b1,"+",b2,"+",b3,"+",b4,"=",a);
+               }
+               else{
+                    print("Orbital; ",j+1," size: ",a);
+               }
+          }
      }
 }
 
