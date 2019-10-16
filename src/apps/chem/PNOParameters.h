@@ -131,7 +131,7 @@ public:
 				char l = pw_string[2*i+1];
 				char n = pw_string[2*i];
 				MADNESS_ASSERT(l==control[i]);
-				numbers[i]=n;
+				numbers[i]=(n-'0'); // need to convert ascii to int
 			}
 			result[symbol] = numbers;
 		}

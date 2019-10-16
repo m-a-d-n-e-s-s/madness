@@ -9,15 +9,6 @@
 #define PAPER_CODE_BASISFUNCTIONS_H_
 
 
-
-#ifdef MADNESS_HAS_BOOST
-	namespace boost{ namespace math{ namespace tr1{
-	using double_t = double;
-	using float_t = float;
-	}}}
-	#include <boost/math/tr1.hpp>
-#endif
-
 #include <exception>
 #include <stdlib.h>
 #include <cassert>
