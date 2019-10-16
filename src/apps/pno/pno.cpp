@@ -1,122 +1,99 @@
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include "version.h"
-#include <apps/chem/SCF.h>
-#include <apps/chem/nemo.h>
-#include "PNO.h"
+#include <iomanip>
+#include <chem/SCF.h>
+#include <chem/nemo.h>
+#include <chem/PNO.h>
 
 using namespace madness;
 
-// DEFINE PARAMETER TAGS
+// DEFINE PARAMETER TAGS FOR THE INPUT FILE
 const std::string TAG_PNO = "pno";
 const std::string TAG_F12 = "f12";
 const std::string TAG_CP = "computeprotocol";
+
+
 
 int main(int argc, char** argv) {
 	initialize(argc, argv);
 	World world(SafeMPI::COMM_WORLD);
 	if (world.rank() == 0) printf("starting at time %.1f\n", wall_time());
-
-	if(world.rank()==0) std::cout << "-------------MRA-PNO-MP2-F12---------------\n";
-	if(world.rank()==0) std::cout << "Git Hash           :"<< GIT_COMMIT_HASH << "\n";
-	if(world.rank()==0) std::cout << "Git Branch         :" << GIT_BRANCH << "\n";
-	//if(world.rank()==0) std::cout << "MAD_ROOT_DIR       :" << MADNESS_ROOT_DIR << "\n";
-	if(world.rank()==0) std::cout << "CXX_FLAGS=         :" << CXX_FLAGS << "\n";
-	if(world.rank()==0) std::cout << "C_FLAGS            :" << C_FLAGS << "\n";
-	if(world.rank()==0) std::cout << "RR_CHOLESKY        :" << RR_CHOLESKY << "\n";
-	if(world.rank()==0) std::cout << "configured at      :" << CONFIGURE_DATE << "\n";
-	if(world.rank()==0) std::cout << "--------------------------------------------\n";
-
-
+	const double time_start = wall_time();
+	std::cout.precision(6);
 
 	startup(world,argc,argv,true);
 	print_meminfo(world.rank(), "startup");
-	std::cout.precision(6);
 
+	if(world.rank()==0){
+		std::cout << "\n\n";
+		std::cout << "-------------------------------------------------------------------------------------\n";
+		std::cout << "SOLVING MRA-PNO-F12 as described in \n";
+		std::cout << "J.S. Kottmann, F.A. Bischoff, E.F. Valeev\n";
+		std::cout << "Direct determination of optimal pair-natural orbitals in a real-space representation:\n";
+		std::cout << "the second-order Møller-Plesset energy\n";
+		std::cout << "Journal of Chemical Physics ... 2019\n";
+		std::cout << "-------------------------------------------------------------------------------------\n";
+		std::cout << "\n\n";
+	}
+
+	// Get the name of the input file (if given)
 	const std::string input = (argc > 1) ? argv[1] : "input";
+
+	// Compute the SCF Reference
+	const double time_scf_start = wall_time();
 	std::shared_ptr<SCF> calc(new SCF(world, input));
 	Nemo nemo(world, calc, input);
 	nemo.get_calc()->param.print();
-	const double energy = nemo.value();
-	if (world.rank() == 0) print("nemo energy: ", energy);
+	const double scf_energy = nemo.value();
+	if (world.rank() == 0) print("nemo energy: ", scf_energy);
 	if (world.rank() == 0) printf(" at time %.1f\n", wall_time());
+	const double time_scf_end = wall_time();
 
-	const vector_real_function_3d nemos = nemo.get_calc()->amo;
-	const vector_real_function_3d R2nemos =
-			mul(world, nemo.nuclear_correlation->square(), nemos);
+	// Compute MRA-PNO-MP2-F12
+	const double time_pno_start = wall_time();
+	PNOParameters parameters(world,input,TAG_PNO);
+	F12Parameters paramf12(world, input, parameters, TAG_F12);
+	PNO pno(world, nemo, parameters, paramf12);
+	std::vector<PNOPairs> all_pairs;
+	pno.solve(all_pairs);
+	const double time_pno_end = wall_time();
 
 
-	ComputeProtocol protocol;
-	try{
-		protocol=ComputeProtocol(world,input,TAG_CP);
-	}catch(...){
-		if(world.rank()==0) std::cout << "compute protocol not given\n...using defaults";
+	if(world.rank()==0){
+		//std::cout << std::setfill(" ");
+		std::cout << "\n\n\n";
+		std::cout << "-----------------------------------------------------------------------------------------------\n";
+		std::cout << "MRA-PNO-MP2-F12 ended \n";
+		std::cout << std::setw(20) << "time(scf)" << " = " << time_scf_end - time_scf_start << "\n";
+		std::cout << std::setw(20) << "E(scf) " << " = " << scf_energy << "\n";
+		std::cout << "-----------------------------------------------------------------------------------------------\n";
 	}
-
-	if(protocol.thresh().empty()){
-		if(world.rank()==0) std::cout << "no compute protocol found --- You have to set the keywords for the PNO class yourself\n";
-		PNOParameters parameters(world,input,TAG_PNO);
-		F12Parameters paramf12(world, input, parameters, TAG_F12);
-		PNO pno(world, nemo, parameters, paramf12);
-		pno.solve();
-	}else{
+	double mp2_energy = 0.0;
+	for(const auto& pairs: all_pairs){
+		if(pairs.type == MP2_PAIRTYPE){
+			mp2_energy = pairs.energies.total_energy();
+		}
+		std::pair<size_t, size_t> ranks= pno.get_average_rank(pairs.pno_ij);
 		if(world.rank()==0){
-			std::cout << "Compute Protocol is:\n";
-		}
-		protocol.print(TAG_CP,"end");
-
-		const auto amos=madness::copy(world,nemo.get_calc()->amo);
-		print_size(world,nemo.get_calc()->amo,"mos original ");
-		std::vector<PNOPairs> all_pairs;
-		PNOParameters parameters; // default parameters
-		try{
-			parameters = PNOParameters(world,input, TAG_PNO);
-		}catch(...){
-			if(world.rank()==0) std::cout << "no pno input found: using defaults\n";
-		}
-
-		for(size_t i=0;i<protocol.thresh().size();++i){
-			const double thresh=protocol.thresh()[i];
-			if(world.rank()==0) std::cout << "Invoce Protocol for thresh="<< thresh << "\n";
-
-			parameters.set_user_defined_value("thresh", thresh);
-			parameters.set_user_defined_value("op_thresh", 0.1*thresh);
-			if(protocol.op_thresh().size()>i) parameters.set_user_defined_value("op_thresh", protocol.op_thresh()[i]);
-			if(protocol.econv_micro().size()>i) parameters.set_user_defined_value("econv_micro", protocol.econv_micro()[i]);
-			if(protocol.econv_macro().size()>i) parameters.set_user_defined_value("econv_macro", protocol.econv_macro()[i]);
-			if(protocol.maxiter_micro().size()>i) parameters.set_user_defined_value("maxiter_micro", protocol.maxiter_micro()[i]);
-			if(protocol.maxiter_macro().size()>i) parameters.set_user_defined_value("maxiter_macro", protocol.maxiter_macro()[i]);
-			if(protocol.exop().size()>i) parameters.set_user_defined_value("exop", protocol.exop()[i]);
-
-
-			vector_real_function_3d amos_tr=madness::copy(world,amos);
-			madness::truncate(world,amos_tr,thresh);
-			nemo.get_calc()->amo=amos_tr;
-			nemo.get_calc()->set_protocol<3>(world,thresh);
-			print_size(world,nemo.get_calc()->amo,"mos truncated");
-			nemo.get_calc()->make_nuclear_potential(world);
-
-			if(world.rank()==0) std::cout << "\n\n\n" << "STARTING COMPUTE PROTOCOL WITH THRESH=" << thresh << "\n\n\n";
-
-			F12Parameters paramf12(parameters); // default parameters
-			try{
-				paramf12 = F12Parameters(world,input, parameters, TAG_PNO);
-			}catch(...){
-				if(world.rank()==0) std::cout << "no f12 input found: using defaults\n";
-			}
-
-			PNO pno(world, nemo, parameters, paramf12);
-			pno.solve(all_pairs);
-			if(world.rank()==0) std::cout << "\n\n\n" << "ENDING COMPUTE PROTOCOL WITH THRESH=" << thresh << " at time " << wall_time() << "\n\n\n";
+			std::string name;
+			std::stringstream ss;
+			ss << pairs.type;
+			ss >> name;
+			std::cout<< std::setw(20) << "time(pno)" << " = " << time_pno_end - time_pno_start << "\n";
+			std::cout<< std::setw(20) << "energy("+name+")"<< pairs.energies.total_energy() << "\n";
+			std::cout<< std::setw(20) << "average pno rank" << " = " << ranks.first << "\n";
+			std::cout<< std::setw(20) << "max pno rank" << " = " << ranks.second << "\n";
 		}
 	}
-
-
+	if(world.rank()==0 and mp2_energy != 0.0){
+		std::cout << "-----------------------------------------------------------------------------------------------\n";
+			std::cout<< std::setw(20) << "energy(total)" << " = " << scf_energy + mp2_energy << "\n";
+			std::cout << "-----------------------------------------------------------------------------------------------\n";
+			std::cout << "\n\n\n";
+	}
 
 	world.gop.fence();
 	if (world.rank() == 0) printf("finished at time %.1f\n", wall_time());
-	world.gop.fence();
 	print_stats(world);
-	world.gop.fence();
 	finalize();
 	return 0;
 }

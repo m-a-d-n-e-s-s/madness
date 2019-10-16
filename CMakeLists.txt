@@ -531,6 +531,7 @@ include(external/libunwind.cmake)
 include(external/gperftools.cmake)
 include(external/tbb.cmake)
 include(external/parsec.cmake)
+include(external/boost.cmake)
 
 if (DEFINED ELEMENTAL_TAG)
   include(external/elemental.cmake)
