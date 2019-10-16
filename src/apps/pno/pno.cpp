@@ -12,7 +12,6 @@ const std::string TAG_F12 = "f12";
 const std::string TAG_CP = "computeprotocol";
 
 
-
 int main(int argc, char** argv) {
 	initialize(argc, argv);
 	World world(SafeMPI::COMM_WORLD);

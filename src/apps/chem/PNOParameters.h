@@ -52,8 +52,8 @@ public:
 	}
 
 	void initialize_pno_parameters() {
-		initialize<int>("rank_increase", 10 , "maximum rank to increase in every macroiteration");
-		initialize<int>("chunk", 100 , "chunk of functions operated on in parrallel when G or K is applied (prevent memory shortage)");
+		initialize<int>("rank_increase", 15 , "maximum rank to increase in every macroiteration");
+		initialize<int>("chunk", 100 , "chunk of functions operated on in parallel when G or K is applied (prevent memory shortage)");
 		initialize<bool>("debug",false, "debug mode");
 		initialize<std::size_t>("freeze",0, "frozen core approximation");
 		initialize<int>("maxrank", 999, "maximal pno rank for all pairs");
@@ -68,10 +68,10 @@ public:
 		initialize<double>("tpno", 1.e-8, "PNO cutoff threshold");
 		initialize<double>("tpno_tight",1.e-10, "PNO cutoff for the first iteration");
 		initialize<bool>("canonicalize_pno",true, "canonicalize the pnos before the amplitude solver");
-		initialize<double>("thresh", 1.e-4, "MRA threshold");
-		initialize<double>("econv_micro",1.e-4, "Energy convergence for microiterations (Greens function based optimization) in adaptive solver");
-		initialize<double>("econv_macro",3.e-4, "Energy convergence for macroiterations in adaptive solver, no effect if adaptive_solver is deactivated");
-		initialize<double>("dconv",5.e-4, "convergence of every PNO in the Green's function solver");
+		initialize<double>("thresh", 1.e-3, "MRA threshold");
+		initialize<double>("econv_micro",1.e-3, "Energy convergence for microiterations (Greens function based optimization) in adaptive solver");
+		initialize<double>("econv_macro",1.e-3, "Energy convergence for macroiterations in adaptive solver, no effect if adaptive_solver is deactivated");
+		initialize<double>("dconv",1.e-1, "convergence of every PNO in the Green's function solver");
 		initialize<double>("op_thresh",1.e-6, "MRA operator thresh");
 		initialize<std::string>("restart","none", "restart pairs of this type, use 'mp2', 'cispd', 'all' or 'none' ");
 		initialize<std::string>("no_compute","none", "do not compute the pairs of this type, use 'mp2', 'cispd', 'all' or 'none' ");
@@ -79,7 +79,7 @@ public:
 		initialize<std::string>("no_guess","none", "guess for this type will be empty, use 'mp2', 'cispd', 'all' or 'none' ");
 		initialize<std::string>("adaptive_solver","all", "Use adaptive solver for those pairs, use 'mp2', 'cispd', 'all' or 'none', works only in combination with guesstype 'exop' ");
 		initialize<bool>("kain", true, "use KAIN solver in amplitude solver");
-		initialize<std::size_t>("kain_subspace", 5 , "subspace size of the KAIN solver");
+		initialize<std::size_t>("kain_subspace", 5 , "subspace size of the KAIN solver (amplitudes)");
 		initialize<bool>("f12",true, "use explicit correlation");
 		initialize<int> ("cispd_number", -1, "CIS(D) excitation numbers, to read in correct functions" );
 		initialize<double> ("cispd_energy", 0.0, "CIS energy" );
