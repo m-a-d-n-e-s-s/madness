@@ -27,60 +27,6 @@ inline std::string type(const GuessType& n){ return "GuessType";}
 std::ostream& operator << (std::ostream& os, const GuessType& en);
 std::istream& operator >> (std::istream& is, GuessType& en);
 
-
-class ComputeProtocol: public QCCalculationParametersBase {
-public:
-	using QCCalculationParametersBase::read;
-	ComputeProtocol(const QCCalculationParametersBase& param) : QCCalculationParametersBase(param){
-		initialize_compute_protocol();
-	}
-
-	ComputeProtocol() : QCCalculationParametersBase(){
-		initialize_compute_protocol();
-	}
-
-	ComputeProtocol(World& world, const std::string& inputfile, const std::string& TAG="computeprotocol") : QCCalculationParametersBase(){
-		initialize_compute_protocol();
-		read(world,inputfile, TAG);
-		set_derived_parameters();
-	}
-
-	template<typename T>
-	std::vector<T>initialize_vector(const T& one, const T& two)const{
-		std::vector<T> result;
-		result.push_back(one);
-		result.push_back(two);
-		return result;
-	}
-
-	void initialize_compute_protocol(){
-		initialize<std::vector<double> >("thresh",initialize_vector(1.e-3, 1.e-4), "MRA threshold");
-		initialize<std::vector<double> >("op_thresh",initialize_vector(1.e-7, 1.e-7), "MRA operator threshold");
-		initialize<std::vector<int> >("maxiter_micro",initialize_vector(10, 10), "");
-		initialize<std::vector<int> >("maxiter_macro",initialize_vector(10, 1), "");
-		initialize<std::vector<double> >("econv_micro",initialize_vector(3.e-4, 1.e-4), "");
-		initialize<std::vector<double> >("econv_macro",initialize_vector(3.e-4, 1.e-4), "");
-		initialize<std::vector<std::string> >("exop",std::vector<std::string>{"multipole","none"}, "");
-	}
-
-	size_t size()const{
-		return thresh().size();
-	}
-
-	void set_derived_parameters(){
-
-	}
-
-	std::vector<double> thresh()const { return get<std::vector<double> >("thresh");}
-	std::vector<double> op_thresh()const { return  get<std::vector<double> >("op_thresh");}
-	std::vector<int> maxiter_micro()const { return get<std::vector<int> >("maxiter_micro");}
-	std::vector<int> maxiter_macro()const { return get<std::vector<int> >("maxiter_macro");}
-	std::vector<double> econv_micro()const { return get<std::vector<double> >("econv_micro");}
-	std::vector<double> econv_macro()const { return get<std::vector<double> >("econv_macro");}
-	std::vector<std::string> exop()const { return get<std::vector<std::string> >("exop");}
-
-};
-
 class PNOParameters: public QCCalculationParametersBase {
 public:
 
@@ -114,22 +60,24 @@ public:
 		initialize<std::string>("guesstype","exop", "the guesstype: exop (recommended, multiply polynomial excitation operators onto the occupied orbitals), empty (don't compute a guess), scf (use the ao basis from the SCF solver), partial_wave (create s,p,d ..., type functions and place on atoms), predefined (same as partial_wave but for predefined sets) ");
 		initialize<std::string>("exop", "multipole", "this string defines which excitation operators can be used, use 'dipole', 'dipole+', 'quadrupole', 'ocopole', or 'multipole', need to set guesstype to 'exop' which is the default ");
 		initialize<bool>("exop_trigo", true, "use trigonometric excitation operators ( x --> sin(x) ");
-		initialize<std::string>("partial_wave", "", "atom centered partial wave guess of format like '3s2p1d', need to set guesstype to 'partial_wave' ");
-		initialize<std::string>("predefined_guess", "", "predefined partial wave guesses of type pvxz with x=d,t,q,5,6, need to set guesstype to 'predefined'");
-		initialize<int>("maxiter",10, "maximal number of iterations if no adaptive solver is used (greens function solver)");
+		initialize<std::string>("partial_wave", "", "atom centered partial wave guess of format like 'h-2s1p-o-3s2p1d', need to set guesstype to 'partial_wave' and adaptive_solver to 'none' ");
+		initialize<std::string>("predefined", "", "predefined partial wave guesses of type pvxz with x=d,t,q,5,6, need to set guesstype to 'predefined' and adaptive_solver to 'none'");
 		initialize<int>("maxiter_t",100, "maximal number of iterations in the amplitude solver");
+		initialize<int>("maxiter_micro",10, "Maximum of iterations for every cycle in the adaptive solver");
+		initialize<int>("maxiter_macro",10, "Maximum of iterations of cycles in the adaptive solver");
 		initialize<double>("tpno", 1.e-8, "PNO cutoff threshold");
 		initialize<double>("tpno_tight",1.e-10, "PNO cutoff for the first iteration");
 		initialize<bool>("canonicalize_pno",true, "canonicalize the pnos before the amplitude solver");
 		initialize<double>("thresh", 1.e-4, "MRA threshold");
+		initialize<double>("econv_micro",1.e-4, "Energy convergence for microiterations (Greens function based optimization) in adaptive solver");
+		initialize<double>("econv_macro",3.e-4, "Energy convergence for macroiterations in adaptive solver, no effect if adaptive_solver is deactivated");
 		initialize<double>("dconv",5.e-4, "convergence of every PNO in the Green's function solver");
-		initialize<double>("econv",1.e-4, "convergence of the total energy in the Green's function solver");
 		initialize<double>("op_thresh",1.e-6, "MRA operator thresh");
 		initialize<std::string>("restart","none", "restart pairs of this type, use 'mp2', 'cispd', 'all' or 'none' ");
 		initialize<std::string>("no_compute","none", "do not compute the pairs of this type, use 'mp2', 'cispd', 'all' or 'none' ");
 		initialize<std::string>("no_opt","none", "do not optimize the pnos of this type, use 'mp2', 'cispd', 'all' or 'none' ");
 		initialize<std::string>("no_guess","none", "guess for this type will be empty, use 'mp2', 'cispd', 'all' or 'none' ");
-		initialize<std::string>("adaptive_solver","all", "Use adaptive solver for those pairs, use 'mp2', 'cispd', 'all' or 'none' ");
+		initialize<std::string>("adaptive_solver","all", "Use adaptive solver for those pairs, use 'mp2', 'cispd', 'all' or 'none', works only in combination with guesstype 'exop' ");
 		initialize<bool>("kain", true, "use KAIN solver in amplitude solver");
 		initialize<std::size_t>("kain_subspace", 5 , "subspace size of the KAIN solver");
 		initialize<bool>("f12",true, "use explicit correlation");
@@ -138,10 +86,6 @@ public:
 		initialize<std::string> ("freeze_pairs", "none", "frozen pairs will not be optimized: Expected format 'a b c d' will freeze pairs ab and cd");
 		initialize<std::vector<int> >("freeze_pairs_of_orbital",std::vector<int>(), " All pairs which originate from this orbital will not be optimized");
 		initialize<std::vector<int> >("active_pairs_of_orbital",std::vector<int>(), " All pairs which originate from this orbital will not be frozen all other pairs will, if this vector is not empty");
-		initialize<double>("econv_micro",1.e-4, "Energy convergence for microiterations in adaptive solver");
-		initialize<double>("econv_macro",3.e-4, "Energy convergence for macroiterations in adaptive solver");
-		initialize<int>("maxiter_micro",10, "Maximum of iterations for every cycle in the adaptive solver");
-		initialize<int>("maxiter_macro",10, "Maximum of iterations of cycles in the adaptive solver");
 		initialize<bool>("no_opt_in_first_iteration", false, "Do not optimize in the first iteration (then the potentials do not have to be evaluated, use this for large guesses)");
 		initialize<std::string>("exchange", "full", "approximate exchange with 'neglect' or xc functional -> same syntax as moldft");
 	}
@@ -170,10 +114,12 @@ public:
 	int maxrank()const { return get<int >("maxrank");}
 	GuessType guesstype()const { return assign_from_string<GuessType>(get<std::string >("guesstype"));}
 	std::string exop()const { return get<std::string >("exop");}
-	std::map<std::string, std::vector<int> >partial_wave()const {
+	std::map<std::string, std::vector<int> >partial_wave(const std::string& key = "partial_wave")const {
 		// return format atom-name, vector of numbers giving S, P, D, ... functions
-		const std::string str=get<std::string >("partial_wave");
-		// expected input format: atom-name 3s2p1d atom-name XsYpZd...
+		std::string str=get<std::string >(key);
+		// madness parameter format does not allow blancs so we use '-' and transform them here
+		std::replace(str.begin(), str.end(), '-', ' ');
+		// expected input format: atom-name-3s2p1d atom-name-XsYpZd...
 		std::stringstream ss(str);
 		std::string symbol, pw_string;
 		std::map<std::string, std::vector<int> > result;
@@ -182,8 +128,8 @@ public:
 			std::vector<int> numbers(pw_string.size()/2);
 			std::vector<char> control = {'s', 'p', 'd', 'f', 'g', 'h', 'i', 'k'};
 			for (int i=0; i<pw_string.size()/2; ++i){
-				char l = pw_string[2*i];
-				char n = pw_string[2*i+1];
+				char l = pw_string[2*i+1];
+				char n = pw_string[2*i];
 				MADNESS_ASSERT(l==control[i]);
 				numbers[i]=n;
 			}
@@ -191,15 +137,15 @@ public:
 		}
 		return result;
 	}
-	std::string predefined_guess()const{ return get<std::string >("predefined_guess");}
-	int maxiter()const { return get<int >("maxiter");}
+	std::string predefined_guess()const{ return get<std::string >("predefined");}
+	int maxiter()const { return maxiter_micro();}
 	int maxiter_t()const { return get<int >("maxiter_t");}
 	double tpno()const { return get<double >("tpno");}
 	double tpno_tight()const { return get<double >("tpno_tight");}
 	bool canonicalize_pno()const { return get<bool >("canonicalize_pno");}
 	double thresh()const { return get<double >("thresh");}
 	double dconv()const { return get<double >("dconv");}
-	double econv()const { return get<double >("econv");}
+	double econv()const { return econv_micro();}
 	double op_thresh()const { return get<double >("op_thresh");}
 	PairType restart()const {return assign_from_string<PairType>(get<std::string >("restart"));}
 	PairType no_compute()const { return assign_from_string<PairType>(get<std::string >("no_compute"));}
@@ -249,28 +195,22 @@ public:
 		initialize<bool>("abs_u",false, " use auxilliary basis on f12QUe part of energy (only if energytype is HYLLERAAS_ENERGYTYPE) ");
 		initialize<double>("cabs_thresh",1.e-4, " thresh for auxbasis part in f12 energy ");
 		initialize<bool>("external_cabs", false, " use external comp. aux. basis in addition to the pnos as auxbasis");
-		initialize<EnergyType>("energytype",PROJECTED_ENERGYTYPE, " the energytype is 'projected' or 'hylleraas' functional projected energies do not need auxilliary bases for the evaluation of the f12 energy");
+		initialize<EnergyType>("energytype",PROJECTED_ENERGYTYPE, " the energytype is 'projected' or 'hylleraas' functional projected energies do not need auxilliary bases for the evaluation of the f12 energy. It's recommended to use projected_energies!");
 		initialize<double>("gamma",1.4, "The f12 length scale");
-		// broken in madness' new parameter format
-		//initialize<std::map<std::string,std::vector<int> > >("auxbas",std::map<std::string,std::vector<int> >() , "create LCAO auxbas, does not work in new parameter format");
-
+		initialize<std::string>("auxbas", "", "atom centered partial wave guess of format like 'h-2s1p-o-3s2p1d', need to set guesstype to 'partial_wave'");
 	}
 
 	bool f12()const { return get<bool >("f12");}
 	int ansatz()const { return get<int >("ansatz");}
 	bool abs_c()const { return get<bool >("abs_c");}
 	bool abs_u()const { return get<bool >("abs_u");}
-	std::size_t freeze()const { return get<std::size_t >("freeze");}
-	bool debug()const { return get<bool >("debug");}
 	double cabs_thresh()const { return get<double >("cabs_thresh");}
 	bool external_cabs()const { return get<bool >("external_cabs");}
 	EnergyType energytype()const { return get<EnergyType >("energytype");}
 	double gamma()const { return get<double >("gamma");}
 	std::map<std::string,std::vector<int> > auxbas()const {
-		MADNESS_EXCEPTION("Issues with new parameter structure",1);
+		return partial_wave("auxbas");
 	}
-	bool test6D()const {return false;}
-	bool old_fQc() const {return false;}
 
 
 };

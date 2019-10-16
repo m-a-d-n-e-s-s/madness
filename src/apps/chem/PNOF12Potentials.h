@@ -110,7 +110,8 @@ public:
 	std::pair<double, double> compute_fQc_integrals_ij(
 			const vector_real_function_3d& Kmos,
 			const vector_real_function_3d& functions,
-			const ElectronPairIterator& it) const;
+			const ElectronPairIterator& it,
+			const bool& use_no_intermediates = false) const;
 
 
 	/// Compute the <ab|[f,K]|ij> integrals

@@ -1012,75 +1012,14 @@ std::valarray<double> F12Potentials::compute_fQc_integrals(
 std::pair<double, double> F12Potentials::compute_fQc_integrals_ij(
 		const vector_real_function_3d& Kmos,
 		const vector_real_function_3d& functions,
-		const ElectronPairIterator& it) const {
-	const bool use_no_intermediates = false; // maybe needed at some point to save memory. The code works
+		const ElectronPairIterator& it,
+		const bool& use_no_intermediates) const {
 	const vector_real_function_3d& v = functions;
 	const real_function_3d& moi = acmos[it.i()];
 	const real_function_3d& moj = acmos[it.j()];
 	const real_function_3d& Ki = acKmos[it.i()];
 	const real_function_3d& Kj = acKmos[it.j()];
-	if (param.old_fQc()) {
-		// old algorithm, uses a more memory
-		if (world.rank() == 0)
-			std::cout
-					<< "!!!fQc is calculated with the old code (inaccurate for large ABS and low thresholds)! Is this by choice?\n";
-
-		const real_function_3d& ket1 = acmos[it.i()];
-		const real_function_3d& ket2 = acmos[it.j()];
-		const vector_real_function_3d fia = apply(world, *fop, moi * v);
-		// mixed algorithm with Q12=Q1Ox fixed
-		const vector_real_function_3d vKi = v * Ki;
-		const vector_real_function_3d vi = v * ket1;
-		const vector_real_function_3d fK1 = apply(world, *fop, vKi) * ket2;
-		const vector_real_function_3d fvi = apply(world, *fop, vi);
-		const vector_real_function_3d fK2 = fvi * Kj;
-		const vector_real_function_3d Kv = K(v);
-		// give information on memory
-		const double tmpsize = get_size(world, Kv);
-		if (world.rank() == 0)
-			std::cout << "Kv intermediate: " << tmpsize << " Gbyte\n";
-
-		const vector_real_function_3d Kvi = Kv * ket1;
-		const vector_real_function_3d K1f = apply(world, *fop, Kvi) * ket2;
-		const vector_real_function_3d K2f = K(fvi * ket2);
-		const vector_real_function_3d comm = (K1f - fK1 + K2f - fK2);
-		const vector_real_function_3d Qcomm = Q(comm);
-		if (param.debug()) {
-			const double db1ij = madness::inner(fia, moj * Q(K1f - fK1));
-			const double db2ij = madness::inner(fia, moj * Q(K2f - fK2));
-			if (world.rank() == 0)
-				std::cout << it.name() << "\n" << "1ij=" << db1ij << "\n"
-						<< "2ij=" << db2ij << "\n";
-		}
-		// ij part
-		double resultij = 0.0;
-		if (param.debug()) {
-			Tensor<double> resultt = madness::inner(world, fia, moj * Qcomm);
-			if (world.rank() == 0)
-				std::cout << "fQc contributions to " << it.name() << ":\n"
-						<< resultt << "\n";
-
-			resultij = resultt.sum();
-		} else
-			resultij = madness::inner(fia, moj * Qcomm);
-
-		// triplet end singlet energies
-		if (it.diagonal()) {
-			return std::make_pair(resultij, resultij);
-		} else {
-			// ji part
-			const vector_real_function_3d fja = apply(world, *fop, moj * v);
-			const double resultji = madness::inner(fja, moi * Qcomm);
-			if (param.debug()) {
-				const double db1ji = madness::inner(fja, moi * Q(K1f - fK1));
-				const double db2ji = madness::inner(fja, moi * Q(K2f - fK2));
-				if (world.rank() == 0)
-					std::cout << it.name() << "\n" << "1ji=" << db1ji << "\n"
-							<< "2ji=" << db2ji << "\n";
-			}
-			return std::make_pair(resultij, resultji);
-		}
-	} else if (use_no_intermediates) {
+	if (use_no_intermediates) {
 		// alternative with flexible: Q12=OxQ or QOx -> more accurate this way
 		// additionally no large intermediates are calculated
 		// in the long run it is probably better to use intermediates but restricted to small blocks

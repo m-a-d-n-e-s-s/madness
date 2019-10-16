@@ -59,15 +59,17 @@ int main(int argc, char** argv) {
 
 
 	if(world.rank()==0){
-		//std::cout << std::setfill(" ");
+		std::cout << std::setfill(' ');
 		std::cout << "\n\n\n";
-		std::cout << "-----------------------------------------------------------------------------------------------\n";
+		std::cout << "--------------------------------------------------\n";
 		std::cout << "MRA-PNO-MP2-F12 ended \n";
-		std::cout << std::setw(20) << "time(scf)" << " = " << time_scf_end - time_scf_start << "\n";
-		std::cout << std::setw(20) << "E(scf) " << " = " << scf_energy << "\n";
-		std::cout << "-----------------------------------------------------------------------------------------------\n";
+		std::cout << "--------------------------------------------------\n";
+		std::cout << std::setw(25) << "time scf" << " = " << time_scf_end - time_scf_start << "\n";
+		std::cout << std::setw(25) << "energy scf" << " = " << scf_energy << "\n";
+		std::cout << "--------------------------------------------------\n";
 	}
 	double mp2_energy = 0.0;
+	std::cout<< std::setw(25) << "time pno" << " = " << time_pno_end - time_pno_start << "\n";
 	for(const auto& pairs: all_pairs){
 		if(pairs.type == MP2_PAIRTYPE){
 			mp2_energy = pairs.energies.total_energy();
@@ -78,16 +80,15 @@ int main(int argc, char** argv) {
 			std::stringstream ss;
 			ss << pairs.type;
 			ss >> name;
-			std::cout<< std::setw(20) << "time(pno)" << " = " << time_pno_end - time_pno_start << "\n";
-			std::cout<< std::setw(20) << "energy("+name+")"<< pairs.energies.total_energy() << "\n";
-			std::cout<< std::setw(20) << "average pno rank" << " = " << ranks.first << "\n";
-			std::cout<< std::setw(20) << "max pno rank" << " = " << ranks.second << "\n";
+			std::cout<< std::setw(25) << "energy "+name << " = " << pairs.energies.total_energy() << "\n";
+			std::cout<< std::setw(25) << "average pno rank " + name << " = " << ranks.first << "\n";
+			std::cout<< std::setw(25) << "max pno rank " + name << " = " << ranks.second << "\n";
 		}
 	}
 	if(world.rank()==0 and mp2_energy != 0.0){
-		std::cout << "-----------------------------------------------------------------------------------------------\n";
-			std::cout<< std::setw(20) << "energy(total)" << " = " << scf_energy + mp2_energy << "\n";
-			std::cout << "-----------------------------------------------------------------------------------------------\n";
+		std::cout << "--------------------------------------------------\n";
+			std::cout<< std::setw(25) << "energy(total)" << " = " << scf_energy + mp2_energy << "\n";
+			std::cout << "--------------------------------------------------\n";
 			std::cout << "\n\n\n";
 	}
 
