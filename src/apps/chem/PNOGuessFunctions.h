@@ -8,20 +8,14 @@
 #ifndef PAPER_CODE_BASISFUNCTIONS_H_
 #define PAPER_CODE_BASISFUNCTIONS_H_
 
-namespace boost{ namespace math{ namespace tr1{
-using double_t = double;
-using float_t = float;
-}}}
 
-#ifdef DISABLE_BOOST
 
-#else
-	#ifdef BOOST_VERSION_BEFORE_TR1_HEADER
-	#include <boost/tr1/cmath.hpp>
-	#else
-	#warning assuming you have new boost version > 1.33 (1.66 works, not tested for everything inbetween) : if there are problems use -D DISABLE_BOOST or -D BOOST_VERSION_BEFORE_TR1_HEADER
+#ifdef MADNESS_HAS_BOOST
+	namespace boost{ namespace math{ namespace tr1{
+	using double_t = double;
+	using float_t = float;
+	}}}
 	#include <boost/math/tr1.hpp>
-	#endif
 #endif
 
 #include <exception>

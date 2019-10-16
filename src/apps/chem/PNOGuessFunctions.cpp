@@ -168,22 +168,17 @@ namespace madness {
 	const auto abs_m = std::abs(m);
 	assert(l + abs_m <= (sizeof(fac) / sizeof(int64_t) - 1));
 	// wrong sign for m < 0
-#ifdef DISABLE_BOOST
-	MADNESS_EXCEPTION("can not create SolidHarmonicGaussian without boost math_tr1 library ",1);
-	return 0.0;
-#else
-	#ifdef BOOST_VERSION_BEFORE_TR1_HEADER
-	const auto P_l_m = std::tr1::assoc_legendre(l, abs_m, cos_theta);
-	#else
-	#warning assuming you have new boost version > 1.33 (1.66 works, not tested for everything inbetween) : if there are problems use -D DISABLE_BOOST or -D BOOST_VERSION_BEFORE_TR1_HEADER
+#ifdef MADNESS_HAS_BOOST
 	const auto P_l_m = boost::math::tr1::assoc_legendre(l, abs_m, cos_theta);
-	#endif
 	// this excludes sqrt((2l+1)/4pi) since that gets cancelled by its inverse in the definition of the solid harmonics
 	// this also excludes (-1)^m since that is also included in the real spherical harmonics phase
 	const auto Y_normconst = std::sqrt(static_cast<double>(fac[l - m]) / static_cast<double>(fac[l + m]));
 	// (-1)^m was cancelled in Y_normconst
 	const auto real_azimuthal_prefactor = (m != 0) ? sqrt_2 * (m > 0 ? std::cos(m * phi) : std::sin(abs_m * phi)) : 1.0;
 	return pow(r, l) * (Y_normconst * real_azimuthal_prefactor * P_l_m) * exp(-exponent * r2);
+#else
+	MADNESS_EXCEPTION("can not create SolidHarmonicGaussian without boost math_tr1 library ",1);
+	return 0.0;
 #endif
 
 

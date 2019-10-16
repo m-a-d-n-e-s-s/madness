@@ -39,6 +39,10 @@ if(PCM_FOUND)
   target_link_libraries(MADchem PUBLIC ${PCM_LIBRARIES})
 endif()
 
+if(BOOST_FOUND)
+  target_include_directories(MADchem PUBLIC ${BOOST_INCLUDE_DIRS})
+  target_link_libraries(MADchem PUBLIC ${BOOST_LIBRARIES})
+endif()
 
 # Add executables
 add_executable(plotxc plotxc.cc xcfunctional.h)
