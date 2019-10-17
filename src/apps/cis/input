@@ -1,0 +1,22 @@
+plot
+end
+
+dft
+no_compute true
+xc hf
+L 30
+econv 1.e-4
+dconv 3.e-4
+k 7
+end
+
+response
+freeze 0
+excitations 2
+end
+
+geometry
+he 0.0 0.0 0.0
+end
+
+~     

@@ -38,7 +38,7 @@ int main(int argc, char** argv) {
 		std::cout << "J.S. Kottmann, S. Höfener ,F.A. Bischoff\n";
 		std::cout << "Numerically accurate linear response-properties in the configuration-interaction singles (CIS) approximation \n";
 		std::cout << "Phys. Chem. Chem. Phys., 2015, 17, 31453-31462\n";
-		std::cout << "DOI: 10.1039/C5CP00345H";
+		std::cout << "DOI: 10.1039/C5CP00345H\n";
 		std::cout << "-------------------------------------------------------------------------------------\n";
 		std::cout << "\n\n";
 	}
