@@ -806,8 +806,7 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      unsigned int np = Init_params.num_occupied; //number of PAIRS
      if(!closed_shell) np -= 1;
 
-     unsigned int m = 2*n; //Size of matrix to use
-     if(!closed_shell) m-=1;
+     unsigned int m = n+np; //Size of matrix to use
 
      Tensor<std::complex<double>> fock(m, m);
      Tensor<std::complex<double>> overlap(m, m);
@@ -827,8 +826,10 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      for(unsigned int j=0; j < np; j++){
           P(j,2*j) = 1;
           P(n+j,2*j+1) = 1;
+          //if(world.rank()==0) print("\nP:\n", P);
      }
-     if(!closed_shell) P(n-1,m) = 1;
+     if(!closed_shell) P(n-1,m-1) = 1;
+     //if(world.rank()==0) print("\nP:\n", P);
 
      //Debugging
      //if(world.rank()==0) print("P:\n", P);
@@ -925,33 +926,33 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
 
      //Now compute the fock matrix
      //sign doesn't line up with the notes, but I can't find out why
-     if(world.rank()==0) print("a");
+     //if(world.rank()==0) print("a");
      Tensor<std::complex<double>> tempmatrix = matrix_inner(world, occupieds, temp_orbitals);
      fock(Slice(0,n-1),Slice(0,n-1)) = copy(tempmatrix);
      fock(Slice(n,m-1),Slice(n,m-1)) = conj(tempmatrix(Slice(0,np-1),Slice(0,np-1)));
 
-     if(world.rank()==0) print("b");
+     //if(world.rank()==0) print("b");
      tempmatrix = matrix_inner(world,kramers_pairs,temp_orbitals);
      //if(world.rank()==0) print(occupieds.size(), Kpsis.size(), fock.dim(0), fock.dim(1), tempmatrix.dim(0), tempmatrix.dim(1));
      fock(Slice(n,m-1),Slice(0,n-1)) = copy(tempmatrix);
-     fock(Slice(0,n-1),Slice(n,m-1)) = -1.0*conj(tempmatrix);
+     fock(Slice(0,n-1),Slice(n,m-1)) = -1.0*conj_transpose(tempmatrix);
 
      //Put in Exchange part
-     if(world.rank()==0) print("c");
+     //if(world.rank()==0) print("c");
      tempmatrix = matrix_inner(world,occupieds,Kpsis);
      fock(Slice(0,n-1),Slice(0,n-1)) = fock(Slice(0,n-1),Slice(0,n-1)) - tempmatrix;
      fock(Slice(n,m-1),Slice(n,m-1)) = fock(Slice(n,m-1),Slice(n,m-1)) - transpose(tempmatrix(Slice(0,np-1),Slice(0,np-1)));
 
-     if(world.rank()==0) print("d");
+     //if(world.rank()==0) print("d");
      tempmatrix = matrix_inner(world, kramers_pairs, Kpsis);
      fock(Slice(n,m-1),Slice(0,n-1)) = fock(Slice(n,m-1),Slice(0,n-1)) - tempmatrix;
-     fock(Slice(0,n-1),Slice(n,m-1)) = fock(Slice(0,n-1),Slice(n,m-1)) + conj(tempmatrix);
+     fock(Slice(0,n-1),Slice(n,m-1)) = fock(Slice(0,n-1),Slice(n,m-1)) + conj_transpose(tempmatrix);
 
      //DEBUGGING:
      //if(world.rank()==0) print("new fock matrix:\n",fock);
      
      //permute and symmetrize
-     if(world.rank()==0) print("e");
+     //if(world.rank()==0) print("e");
      fock = inner(transpose(P),inner(fock,P));
      fock = (1.0/2.0)*(fock + conj_transpose(fock));
      
@@ -990,6 +991,7 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      start_timer(world);
 
      //Diagonalize
+     //if(world.rank()==0) print("P:\n", P, "\nfock:\n", fock, "\noverlap:\n", overlap, "\nU:\n", U);
      sygv(fock, overlap, 1, U, evals);
      times = end_timer(world);
      if(world.rank()==0) print("          ", times[0]);
@@ -1008,8 +1010,8 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      bool switched = true;
      while (switched) {
           switched = false;
-          for (unsigned int kk = 0; kk < 2*Init_params.num_occupied; kk++) {
-               for (unsigned int j = kk + 1; j < 2*Init_params.num_occupied; j++) {
+          for (unsigned int kk = 0; kk < m; kk++) {
+               for (unsigned int j = kk + 1; j < m; j++) {
                     double sold = std::real(U(kk,kk)*std::conj(U(kk,kk))) + std::real(U(j,j)*std::conj(U(j,j)));
                     double snew = std::real(U(kk,j)*std::conj(U(kk,j))) + std::real(U(j,kk)*std::conj(U(j,kk)));
                     //if (snew > sold and not ((evals[j] - evals[kk]) > thresh_degenerate * std::max(std::fabs(evals[kk])-csquared,1.0)) ) {
@@ -1028,7 +1030,7 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      }
 
      // Fix phases.
-     for (unsigned int kk = 0; kk < 2*Init_params.num_occupied; ++kk)
+     for (unsigned int kk = 0; kk < m; ++kk)
           U(_, kk).scale(std::conj(U(kk,kk))/std::abs(U(kk,kk)));
 
      //if(world.rank()==0) print("After column swapping\nU:\n", U, "\nevals:\n", evals);
@@ -1037,13 +1039,13 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      unsigned int ilo = 0; // first element of cluster
      if(world.rank()==0) print("          Degeneracy threshold: ",thresh_degenerate);
      
-     while (ilo < 2*Init_params.num_occupied - 1) {
+     while (ilo < m - 1) {
          unsigned int ihi = ilo;
          while (fabs(evals[ilo] - evals[ihi + 1])
                 < thresh_degenerate * std::fabs(evals[ilo])){// pow(10,floor(log10(std::fabs(evals[ilo]))))) { 
                 //< thresh_degenerate * std::max(std::fabs(evals[ilo]-csquared),1.0)){// pow(10,floor(log10(std::fabs(evals[ilo]))))) { 
              ++ihi;
-             if (ihi == 2*Init_params.num_occupied - 1)
+             if (ihi == m - 1)
                  break;
          }
          unsigned int nclus = ihi - ilo + 1;
@@ -1086,21 +1088,25 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      if(world.rank()==0) print("     Applying Transformation");
      start_timer(world);
 
-     //RESUME HERE
      ////Apply the transformation to the orbitals 
+     //if(world.rank()==0) print("a");
      tempmatrix = U(Slice(0,n-1),Slice(0,n-1));
      occupieds = transform(world, occupieds, tempmatrix);
 
+     //if(world.rank()==0) print("b");
      tempmatrix = U(Slice(n,m-1),Slice(0,n-1));
      occupieds += transform(world, kramers_pairs, tempmatrix);
 
+     //if(world.rank()==0) print("c");
      ////Apply the transformation to the Exchange
-     for(unsigned int j = 0; j < n; j++){
+     for(unsigned int j = 0; j < n-1; j++){
           kramers_pairs[j] = Kpsis[j].KramersPair();
      }
+     //if(world.rank()==0) print("d");
      tempmatrix = U(Slice(0,n-1),Slice(0,n-1));
      Kpsis = transform(world, Kpsis, tempmatrix);
-     tempmatrix = U(Slice(n,2*n-1),Slice(0,n-1));
+     //if(world.rank()==0) print("e");
+     tempmatrix = U(Slice(n,m-1),Slice(0,n-1));
      Kpsis += transform(world, kramers_pairs, tempmatrix);
 
 
@@ -1857,7 +1863,7 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
           for(unsigned int j = 0; j < Init_params.num_occupied-1; j++){
                kinetic_energy += 2*rele(world, occupieds[j]);
           }
-          kinetic_energy += rele(world, occupieds[Init_params.num_occupied]);
+          kinetic_energy += rele(world, occupieds[Init_params.num_occupied-1]);
      }
           
      //Compute electron-nuclear attraction energy contribution, taking advantage of vmra's inner
@@ -1884,7 +1890,7 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      coulomb_tensor += real(inner(world,occupieds3,mul(world,Jop,occupieds3)))*(1.0/(myc*myc));
      coulomb_tensor += real(inner(world,occupieds4,mul(world,Jop,occupieds4)))*(1.0/(myc*myc));
      coulomb_energy = coulomb_tensor.sum();//*0.5;
-     if(!closed_shell) coulomb_energy -= 0.5*coulomb_tensor(Init_params.num_occupied);
+     if(!closed_shell) coulomb_energy -= 0.5*coulomb_tensor(Init_params.num_occupied-1);
      
      //Calculate Exchange energy contribution
      std::vector<complex_function_3d> Kpsis1(Init_params.num_occupied);
@@ -1902,7 +1908,7 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      exchange_tensor += real(inner(world,occupieds3,Kpsis3))*(1.0/(myc*myc));
      exchange_tensor += real(inner(world,occupieds4,Kpsis4))*(1.0/(myc*myc));
      exchange_energy = exchange_tensor.sum();//*0.5;
-     if(!closed_shell) exchange_energy -= 0.5*exchange_tensor(Init_params.num_occupied);
+     if(!closed_shell) exchange_energy -= 0.5*exchange_tensor(Init_params.num_occupied-1);
 
      //Loop through energies and calculate their new values using the individual contributions
      //(inside the "tensor" variables
