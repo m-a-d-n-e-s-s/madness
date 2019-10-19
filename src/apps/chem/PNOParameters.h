@@ -51,6 +51,12 @@ public:
 		QCCalculationParametersBase::read(world,inputfile,TAG);
 	}
 
+	PNOParameters(World& world, const std::string& inputfile, const Molecule& molecule, const std::string& TAG="pno") : QCCalculationParametersBase(){
+		initialize_pno_parameters();
+		QCCalculationParametersBase::read(world,inputfile,TAG);
+		set_derived_values(molecule);
+	}
+
 	void initialize_pno_parameters() {
 		initialize<int>("rank_increase", 15 , "maximum rank to increase in every macroiteration");
 		initialize<int>("chunk", 100 , "chunk of functions operated on in parallel when G or K is applied (prevent memory shortage)");
@@ -70,6 +76,7 @@ public:
 		initialize<bool>("canonicalize_pno",true, "canonicalize the pnos before the amplitude solver");
 		initialize<double>("thresh", 1.e-3, "MRA threshold");
 		initialize<double>("econv_micro",1.e-3, "Energy convergence for microiterations (Greens function based optimization) in adaptive solver");
+		initialize<double>("econv_pairs",1.e-4, "ENergy convergence for individual pairs in adaptive solver. Converged pairs are frozen automatically");
 		initialize<double>("econv_macro",1.e-3, "Energy convergence for macroiterations in adaptive solver, no effect if adaptive_solver is deactivated");
 		initialize<double>("dconv",1.e-1, "convergence of every PNO in the Green's function solver");
 		initialize<double>("op_thresh",1.e-6, "MRA operator thresh");
@@ -88,6 +95,40 @@ public:
 		initialize<std::vector<int> >("active_pairs_of_orbital",std::vector<int>(), " All pairs which originate from this orbital will not be frozen all other pairs will, if this vector is not empty");
 		initialize<bool>("no_opt_in_first_iteration", false, "Do not optimize in the first iteration (then the potentials do not have to be evaluated, use this for large guesses)");
 		initialize<std::string>("exchange", "full", "approximate exchange with 'neglect' or xc functional -> same syntax as moldft");
+	}
+
+	void set_derived_values(const Molecule& molecule) {
+
+		// auto determine freeze parameter for the first two shells
+		// deactivate by setting freeze 0 or any other value in the input file
+		size_t freeze = 0;
+		for(const Atom& atom: molecule.get_atoms()){
+			if (atom.atomic_number < 3){
+				// no frozen core for H and He
+			}else if(atom.atomic_number < 11){
+				freeze += 1;
+			}else if(atom.atomic_number < 19){
+				freeze += 5;
+			}
+			// beyond this point the parameter is better set manually
+		}
+		set_derived_value("freeze", freeze);
+
+		set_derived_value("no_guess", get<std::string >("no_opt"));
+		set_derived_value("restart", get<std::string>("no_guess"));
+		set_derived_value("tpno_tight", 0.01*tpno());
+
+		// set default values for adaptive solver
+		if(adaptive_solver()){
+			const std::string gt = "exop";
+			const std::string ex = "multipole";
+			set_derived_value("guesstype", gt);
+			set_derived_value("exop", ex);
+			set_derived_value("econv_macro", thresh());
+			set_derived_value("econv_micro", thresh());
+			set_derived_value("econv_pairs", 0.1*thresh());
+		}
+
 	}
 
 	std::vector<std::pair<int,int> > freeze_pairs()const{
@@ -145,7 +186,6 @@ public:
 	bool canonicalize_pno()const { return get<bool >("canonicalize_pno");}
 	double thresh()const { return get<double >("thresh");}
 	double dconv()const { return get<double >("dconv");}
-	double econv()const { return econv_micro();}
 	double op_thresh()const { return get<double >("op_thresh");}
 	PairType restart()const {return assign_from_string<PairType>(get<std::string >("restart"));}
 	PairType no_compute()const { return assign_from_string<PairType>(get<std::string >("no_compute"));}
@@ -168,6 +208,8 @@ public:
 	std::vector<int> freeze_pairs_of_orbital()const { return get<std::vector<int> >("freeze_pairs_of_orbital");}
 	std::vector<int> active_pairs_of_orbital()const { return get<std::vector<int> >("active_pairs_of_orbital");}
 	PairType adaptive_solver()const { return assign_from_string<PairType>(get<std::string >("adaptive_solver"));}
+	double econv()const { return econv_micro();}
+	double econv_pairs()const { return get<double >("econv_pairs");}
 	double econv_micro()const { return get<double >("econv_micro");}
 	double econv_macro()const { return get<double >("econv_macro");}
 	int maxiter_micro()const { return get<int >("maxiter_micro");}

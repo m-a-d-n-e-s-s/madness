@@ -671,7 +671,7 @@ PNOPairs PNO::freeze_insignificant_pairs(PNOPairs& pairs)const{
 		const size_t i=it.i()+param.freeze();
 		const size_t j=it.j()+param.freeze();
 		bool freeze=false;
-		const double threshold = std::min(param.thresh()*0.1,param.econv());
+		const double threshold = std::min(param.thresh()*0.1,param.econv_pairs());
 		if(fabs(pairs.energies.eij[it.ij()])<threshold) freeze=true;
 
 		if(freeze){
@@ -1067,7 +1067,7 @@ PNOPairs PNO::adaptive_solver(PNOPairs& pairs)const{
 				maxdE=dE;
 				maxij=it.ij();
 			}
-			if(fabs(dE)>param.econv()) all_pairs_converged=false;
+			if(fabs(dE)>param.econv_pairs()) all_pairs_converged=false;
 			else{
 				msg << pairs.name(it) << " converged!";
 				pairs.frozen_ij[it.ij()]=true;
@@ -1239,9 +1239,22 @@ PNOPairs PNO::iterate_pairs_internal(PNOPairs& pairs, const int maxiter, const d
 			timer1.stop().print("compute KPNO");
 
 			TIMER(timerj);
-			const auto allJ=J(allP);
+			vector_real_function_3d allJ;
+			allPit =allP.begin();
+			while(allJ.size()<allP.size()){
+				MADNESS_ASSERT(allPit!=allP.end());
+				const auto dist=(std::distance(allPit,allP.end()));
+				if(dist<chunk) chunk=dist;
+				const auto tmp=vector_real_function_3d(allPit,allPit+chunk);
+				vector_real_function_3d Jtmp=J(tmp);
+				allJ.insert(allJ.end(),Jtmp.begin(),Jtmp.end());
+				allPit+=chunk;
+				const double allJs=get_size(world,allJ);
+				msg << "wall time=" << wall_time()  << " chunk=" << chunk << " allJ.size()=" << allJ.size() << " memory=" << allJs << " GB\n";
+			}
 			const auto Jpno_ij=pairs.reassemble(allJ);
 			timerj.stop().print("compute JPNO");
+
 
 			TIMER(timer2);
 			PAIRLOOP(it){
@@ -2295,45 +2308,49 @@ bool PNO::update_pno(PNOPairs& pairs, const std::valarray<Tensor<double> >& rdm_
 		}
 		timer2.stop().print("Prepare for G application");
 	}
-	{
+	if(K.type != "neglect"){
 		// compute J potetial and add it with the precomputed K potential
-		TIMER(timerJ);
-		const auto allJ=J(pairs.extract(pairs.pno_ij));
+		TIMER(timerK);
 		const auto allK=pairs.extract(pairs.Kpno_ij);
-		allVP +=(allJ - allK);
-		// clear intermediates (for frozen pairs the matrices will stay to avoid recomputation)
-		PAIRLOOP(it) pairs.clear_intermediates(it);
-		timerJ.stop().print("add J-K");
+		allVP -= allK;
+		timerK.stop().print("add K");
 	}
 	TIMER(timer3);
-
+	// clear intermediates (for frozen pairs the matrices will stay to avoid recomputation)
+	PAIRLOOP(it) pairs.clear_intermediates(it);
 	double tmps=get_size(world,allVP);
-	msg << "size of all Vpsi potentials (without Vnuc) " << tmps << " GB \n";
+	msg << "size of all Vpsi potentials (without Vnuc and J) " << tmps << " GB \n";
 	vector_real_function_3d allP=pairs.extract(pairs.pno_ij);
+	vector_real_function_3d newP;
 	size_t chunk=param.chunk();
-	vector_real_function_3d allGVP;
 	auto itVP=allVP.begin();
 	auto itP=allP.begin();
 	auto itG=allG.begin();
-	while(allGVP.size()<allP.size()){
+	std::vector<double> allR;
+	while(allR.size()<allP.size()){
 		const auto dist=std::distance(itVP,allVP.end());
 		if(chunk>dist) chunk=dist;
 		// include the nuclear potential
-		auto tmp=vector_real_function_3d(itVP,itVP+chunk);
-		tmp+=(V(vector_real_function_3d(itP,itP+chunk)));
+		auto Vtmp=vector_real_function_3d(itVP,itVP+chunk);
+		Vtmp+=(V(vector_real_function_3d(itP,itP+chunk)));
+		Vtmp+=(J(vector_real_function_3d(itP,itP+chunk)));
 		{
-			double tmps=get_size(world,tmp);
-			msg << "time=" << wall_time() << " chunk=" << chunk <<  " Vpsi+Vnuc=" << tmps << " GB\n";
+			double tmps=get_size(world,Vtmp);
+			msg << "time=" << wall_time() << " chunk=" << chunk <<  " Vpsi+Vnuc+J=" << tmps << " GB\n";
 		}
-		truncate(world,tmp);
+		truncate(world,Vtmp);
 		{
-			double tmps=get_size(world,tmp);
-			msg << "time=" << wall_time() << " chunk=" << chunk <<  " Vpsi+Vnuc=" << tmps << " GB (after truncation)\n";
+			double tmps=get_size(world,Vtmp);
+			msg << "time=" << wall_time() << " chunk=" << chunk <<  " Vpsi+Vnuc+J=" << tmps << " GB (after truncation)\n";
 		}
-		scale(world,tmp,-2.0);
+		scale(world,Vtmp,-2.0);
 		auto G=std::vector<poperatorT>(itG,itG+chunk);
-		auto Gtmp=apply(world,G,tmp);
-		allGVP.insert(allGVP.end(),Gtmp.begin(),Gtmp.end());
+		auto Gtmp=Q(apply(world,G,Vtmp));
+		Vtmp.clear();
+		auto Rnorm = norm2s<double,3>(world, Gtmp-vector_real_function_3d(itP,itP+chunk));
+		newP.insert(newP.end(), Gtmp.begin(), Gtmp.end());
+		// keep the norms
+		allR.insert(allR.end(), Rnorm.begin(), Rnorm.end());
 		itVP+=chunk;
 		itP+=chunk;
 		itG+=chunk;
@@ -2343,10 +2360,8 @@ bool PNO::update_pno(PNOPairs& pairs, const std::valarray<Tensor<double> >& rdm_
 
 
 	TIMER(timer4);
-	allGVP=Q(allGVP);
-	std::vector<double> allR=norm2s(world,allGVP-allP);
 	// reassemble without overwriting frozen pairs
-	pairs.pno_ij=pairs.reassemble(allGVP,pairs.pno_ij);
+	pairs.pno_ij=pairs.reassemble(newP,pairs.pno_ij);
 	pairs.S_ij_ik.reset();
 	pairs.S_ij_kj.reset();
 	timer4.stop().print("apply Q and update");
