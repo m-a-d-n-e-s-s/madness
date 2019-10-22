@@ -1218,11 +1218,22 @@ void test_multi_world(World& world) {
       std::cout << "== multiple worlds created with Intracomm::Split()==" << std::endl;
       int color = world.rank() % 2;
       SafeMPI::Intracomm comm = world.mpi.comm().Split(color, world.rank() / 2);
+      std::cout << "split_comm.size() = " << comm.Get_size() << std::endl;
       World subworld(comm);
       if (color == 1)
         work_odd(subworld);
       else
         work_even(subworld);
+    }
+    world.gop.fence();
+
+    // now split world by host and run tasks on each host's world
+    {
+      std::cout << "== multiple worlds created with Intracomm::Split_type()==" << std::endl;
+      SafeMPI::Intracomm comm = world.mpi.comm().Split(SafeMPI::Intracomm::SHARED_SPLIT_TYPE, 0);
+      std::cout << "split_comm.size() = " << comm.Get_size() << std::endl;
+      World subworld(comm);
+      work_even(subworld);
     }
     world.gop.fence();
 
