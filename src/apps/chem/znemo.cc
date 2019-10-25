@@ -593,7 +593,9 @@ double Znemo::compute_energy(const std::vector<complex_function_3d>& amo, const 
 	return real(energy);
 }
 
-/// following Lazeretti, J. Mol. Struct, 313 (1994)
+/// following Lazzeretti, J. Mol. Struct, 313 (1994)
+
+/// see also the first three terms of Eq. (47) of Hodge, Am. J. Phys., 82 (2014)
 std::vector<real_function_3d> Znemo::compute_current_density(
 		const std::vector<complex_function_3d>& alpha_mo,
 		const std::vector<complex_function_3d>& beta_mo) const {
@@ -609,31 +611,31 @@ std::vector<real_function_3d> Znemo::compute_current_density(
 	std::vector<real_function_3d> vspin_density=zero_functions_compressed<double,3>(world,3);;
 	vspin_density[2]=spin_density;
 
-	// compute first contribution to current density from orbitals:
-	// psi^* p psi = i psi^* del psi
-	std::vector<complex_function_3d> j=zero_functions_compressed<double_complex,3>(world,3);
-	for (auto& mo : alpha_mo) j+=double_complex(0.0,1.0)*(conj(mo)*grad(mo));
-	for (auto& mo : beta_mo) j+=double_complex(0.0,1.0)*(conj(mo)*grad(mo));
+	// compute first contribution to current density from orbitals: Re (\Psi \hat p \Psi)
+	// p = -i del
+	// Re(-i z) + Re( -i a - i^2 b) = b  =Im (z)
+	std::vector<real_function_3d> j=zero_functions_compressed<double,3>(world,3);
+	for (auto& mo : alpha_mo) j-=imag(conj(mo)*grad(mo));
+	for (auto& mo : beta_mo) j-=imag(conj(mo)*grad(mo));
 
-
-    // compute the magnetic potential
+    // compute the magnetic potential and density contribution: A \rho
 	std::vector<real_function_3d> A=compute_magnetic_vector_potential(world,B);
+	j-=A*density;
 
-	// compute density contribution and spin contribution
-	j-=convert<double,double_complex,3>(world,A*density);
-	j+=convert<double,double_complex,3>(world,0.5*rot(vspin_density));
+	// spin density contribution: rot(\Psi \hat S \Psi)
+	j+=0.5*rot(vspin_density);
+//	j[0]+=2.0*(-1.0)*ncf->U1(1)*spin_density;
+//	j[1]-=2.0*(-1.0)*ncf->U1(0)*spin_density;
 
-	std::vector<real_function_3d>  realj=real(j);
+//	j=j*R_square;
 
 	// sanity check
-
-	real_function_3d null=div(realj);
+	real_function_3d null=div(j);
 	double n3=null.norm2();
 	print("div(j)",n3);
 //	MADNESS_ASSERT(n3<FunctionDefaults<3>::get_thresh());
 
-
-	return realj;
+	return j;
 }
 
 
@@ -738,6 +740,7 @@ Znemo::initial_guess() const {
 	std::vector<complex_function_3d> aos = convert<double,double_complex,3>(world,real_aos);
 
 	// .. and from the Landau wave function (the eigenfunction of the free particle in the B-field)
+    if (param.physical_B()>0.0) {
 //	for (int i=0; i<mol.natom(); ++i) {
 		for (int n=0; n<2; ++n) {
 //			coord_3d origin=mol.get_atom(i).get_coords();
@@ -748,8 +751,8 @@ Znemo::initial_guess() const {
 			f.scale(1.0/fnorm);
 
 			aos.push_back(conj(f));
-//			print("iatom, n",i,n);
 		}
+    }
 //	}
 
 
@@ -758,35 +761,23 @@ Znemo::initial_guess() const {
 	// nuclear and diamagnetic potential
 	real_function_3d vlocal=(potentialmanager->vnuclear()+diafac->bare_diamagnetic_potential()).truncate();
 	Tensor<double_complex> potential=matrix_inner(world,aos,vlocal*aos);
-	print("real(vnuc + dia");
-	print(potential);
-	print(real(potential));
 
 	// zeeman term
 	Lz lz_operator(world,false);
 	Tensor<double_complex> lzmat=0.5*B[2]*lz_operator(aos,aos);
-	print("lzmat");
-	print(lzmat);
 	potential+=lzmat;
 
 	// kinetic term
 	Kinetic<double_complex,3> T(world);
 	Tensor<double_complex>  kinetic=T(aos,aos);
-	print("kinetic");
-	print(kinetic);
 
 	Tensor<double_complex> fock = convert<double_complex>(kinetic) + potential;
 	fock = 0.5 * (fock + conj_transpose(fock));
-
-	print("fock");
-	print(fock);
-	print(real(fock));
 
 	// diagonalize the Fock matrix
 	Tensor<double_complex> c;
 	Tensor<double> e;
 	Tensor<double_complex> overlap =matrix_inner(world, aos, aos, true);
-	print(real(overlap));
 	sygvp(world, fock, overlap, 1, c, e);
 
 	std::pair<std::vector<complex_function_3d>, std::vector<complex_function_3d> > zmos;
