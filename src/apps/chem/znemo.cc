@@ -29,6 +29,8 @@ Znemo::Znemo(World& world) : NemoBase(world), param(world), mol("input"), cparam
     aobasis.read_file(cparam.aobasis());
 //    cparam.set_molecular_info(mol, aobasis, 0);
     cparam.set_derived_values(mol,aobasis);
+    cparam.set_derived_value("spin_restricted",false);
+
 	param.set_derived_values();
 
 	print_info=printleveler(param.printlevel());
@@ -608,6 +610,11 @@ std::vector<real_function_3d> Znemo::compute_current_density(
 	real_function_3d density=adens+bdens;
 	real_function_3d spin_density=adens-bdens;
 
+	double ndiff=(spin_density*R_square).trace();
+	print("nalpha - nbeta",ndiff);
+	double nel=(density*R_square).trace();
+	print("nelectron",nel);
+
 	std::vector<real_function_3d> vspin_density=zero_functions_compressed<double,3>(world,3);;
 	vspin_density[2]=spin_density;
 
@@ -615,19 +622,29 @@ std::vector<real_function_3d> Znemo::compute_current_density(
 	// p = -i del
 	// Re(-i z) + Re( -i a - i^2 b) = b  =Im (z)
 	std::vector<real_function_3d> j=zero_functions_compressed<double,3>(world,3);
-	for (auto& mo : alpha_mo) j-=imag(conj(mo)*grad(mo));
-	for (auto& mo : beta_mo) j-=imag(conj(mo)*grad(mo));
+	for (auto& mo : alpha_mo) j+=imag(conj(mo)*grad(mo));
+	for (auto& mo : beta_mo) j+=imag(conj(mo)*grad(mo));
+
+	real_function_3d null1=div(j);
+	double n31=null1.norm2();
+	print("div(j)",n31);
 
     // compute the magnetic potential and density contribution: A \rho
 	std::vector<real_function_3d> A=compute_magnetic_vector_potential(world,B);
-	j-=A*density;
+	j+=A*density;
+	real_function_3d null2=div(j);
+	double n32=null2.norm2();
+	print("div(j)",n32);
 
 	// spin density contribution: rot(\Psi \hat S \Psi)
 	j+=0.5*rot(vspin_density);
-//	j[0]+=2.0*(-1.0)*ncf->U1(1)*spin_density;
-//	j[1]-=2.0*(-1.0)*ncf->U1(0)*spin_density;
+	j[0]+=0.5*2.0*(-1.0)*ncf->U1(1)*spin_density;
+	j[1]-=0.5*2.0*(-1.0)*ncf->U1(0)*spin_density;
+	real_function_3d null3=div(j);
+	double n33=null3.norm2();
+	print("div(j)",n33);
 
-//	j=j*R_square;
+	j=j*R_square;
 
 	// sanity check
 	real_function_3d null=div(j);
