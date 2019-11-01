@@ -234,7 +234,8 @@ void Znemo::iterate() {
 
 	// iterate the SCF cycles
 	for (int iter=0; iter<maxiter; ++iter) {
-		if (iter%10==0) save_orbitals("iteration"+stringify(iter));
+//		if (iter%10==0) save_orbitals("iteration"+stringify(iter));
+		save_orbitals();
 
 		// compute the density
 		real_function_3d density=compute_density(amo,bmo);
@@ -610,10 +611,10 @@ std::vector<real_function_3d> Znemo::compute_current_density(
 	real_function_3d density=adens+bdens;
 	real_function_3d spin_density=adens-bdens;
 
-	double ndiff=(spin_density*R_square).trace();
-	print("nalpha - nbeta",ndiff);
-	double nel=(density*R_square).trace();
-	print("nelectron",nel);
+//	double ndiff=(spin_density*R_square).trace();
+//	print("nalpha - nbeta",ndiff);
+//	double nel=(density*R_square).trace();
+//	print("nelectron",nel);
 
 	std::vector<real_function_3d> vspin_density=zero_functions_compressed<double,3>(world,3);;
 	vspin_density[2]=spin_density;
@@ -624,33 +625,46 @@ std::vector<real_function_3d> Znemo::compute_current_density(
 	std::vector<real_function_3d> j=zero_functions_compressed<double,3>(world,3);
 	for (auto& mo : alpha_mo) j+=imag(conj(mo)*grad(mo));
 	for (auto& mo : beta_mo) j+=imag(conj(mo)*grad(mo));
-
-	real_function_3d null1=div(j);
-	double n31=null1.norm2();
-	print("div(j)",n31);
+//
+//	real_function_3d null1=div(j*R_square);
+//	double n31=null1.norm2();
+//	print("div(j)",n31);
 
     // compute the magnetic potential and density contribution: A \rho
 	std::vector<real_function_3d> A=compute_magnetic_vector_potential(world,B);
+//	auto vAdens=A*density;
 	j+=A*density;
-	real_function_3d null2=div(j);
-	double n32=null2.norm2();
-	print("div(j)",n32);
+//	real_function_3d null2=div(vAdens*R_square);
+//	double n32=null2.norm2();
+//	print("div(A*dens)",n32);
 
 	// spin density contribution: rot(\Psi \hat S \Psi)
 	j+=0.5*rot(vspin_density);
 	j[0]+=0.5*2.0*(-1.0)*ncf->U1(1)*spin_density;
 	j[1]-=0.5*2.0*(-1.0)*ncf->U1(0)*spin_density;
-	real_function_3d null3=div(j);
-	double n33=null3.norm2();
-	print("div(j)",n33);
 
-	j=j*R_square;
+//	real_function_3d null3=div(j*R_square);
+//	double n33=null3.norm2();
+//	print("div(j)",n33);
+
+//	save(j[0],"j0reg");
+//	save(j[1],"j1reg");
+//	save(j[2],"j2reg");
+
+//	auto divj=div(j);
+//	save(divj,"div_reg_j");
+//	auto term1=2.0*dot(world,ncf->U1vec(),j);
+//	save(term1,"U1term");
 
 	// sanity check
-	real_function_3d null=div(j);
+	real_function_3d null=R_square*(-2.0*dot(world,ncf->U1vec(),j) + div(j,true));
+	save(null,"null");
 	double n3=null.norm2();
-	print("div(j)",n3);
-//	MADNESS_ASSERT(n3<FunctionDefaults<3>::get_thresh());
+	print("final div(j)",n3);
+
+	j=truncate(j*R_square);
+//	auto jnorm=norm2s(world,j);
+//	print("norm(j)",jnorm);
 
 	return j;
 }
