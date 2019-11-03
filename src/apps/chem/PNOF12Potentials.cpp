@@ -1329,20 +1329,19 @@ PairEnergies F12Potentials::compute_projected_f12_energies() const {
 PairEnergies F12Potentials::compute_hylleraas_f12_energies(
 		const std::valarray<vector_real_function_3d>& pnos) const {
 	MyTimer time = MyTimer(world).start();
-	bool cabs_from_file = param.external_cabs();
-	if (cabs_from_file || param.abs_c() == false) {
+	if (param.external_cabs() != "" and not param.abs_c()) {
 		std::valarray<vector_real_function_3d> dummy;
 		// Energy with PNOs as ABS
-		print("Computing F12 Energies without external CABS:\n");
+		if(world.rank()==0) std::cout << "Computing F12 Energies without external CABS:\n";
 		PairEnergies result = compute_f12_pair_energy(pnos, dummy);
 		if (param.abs_c() == true) {
-			print("Computing CABS corrections to fQc Part:\n");
+			if(world.rank()==0) std::cout <<("Computing CABS corrections to fQc Part:\n");
 			// now compute corrections to the f,k commutator:
 			MyTimer time_1 = MyTimer(world).start();
-			print("Reading CABS from external file: auxbas\n");
+			if(world.rank()==0) std::cout <<"Reading CABS from external file:" << param.external_cabs() << "\n";
 			// Read CABS Exponents from file
 			std::map<std::string, std::vector<std::vector<double> > > exponents =
-					basis.read_basis_from_file("auxbas",
+					basis.read_basis_from_file(param.external_cabs(),
 							nemo.get_calc()->molecule.get_atoms());
 			print("Exponents from file auxbas:");
 			for (const auto x : exponents) {

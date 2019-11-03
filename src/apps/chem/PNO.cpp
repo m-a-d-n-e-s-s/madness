@@ -56,6 +56,9 @@ void PNO::solve(std::vector<PNOPairs>& all_pairs) const {
 	//  in He (n+1/2)^{-6} ... will change when F12 added)
 	FunctionDefaults < 3 > ::set_thresh(param.thresh());
 	param.print("PNO Parameters\npno","end");
+	if (param.f12()){
+		f12.param.print("F12 Parameters\nf12", "end");
+	}
 	if (param.debug()) {
 		print("ElectronPairIterator will iterate the pairs: pair_ij, i , j , ij");
 		for (ElectronPairIterator it = pit(); it; ++it) {

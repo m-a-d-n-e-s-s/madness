@@ -158,6 +158,7 @@ public:
 	std::map<std::string, std::vector<int> >partial_wave(const std::string& key = "partial_wave")const {
 		// return format atom-name, vector of numbers giving S, P, D, ... functions
 		std::string str=get<std::string >(key);
+		std::transform(str.begin(), str.end(), str.begin(), ::tolower);
 		// madness parameter format does not allow blancs so we use '-' and transform them here
 		std::replace(str.begin(), str.end(), '-', ' ');
 		// expected input format: atom-name-3s2p1d atom-name-XsYpZd...
@@ -236,8 +237,8 @@ public:
 		initialize<bool>("abs_c",true, " use auxilliary basis on f12Q[Kf12] part of energy (only if energytype is HYLLERAAS_ENERGYTYPE) ");
 		initialize<bool>("abs_u",false, " use auxilliary basis on f12QUe part of energy (only if energytype is HYLLERAAS_ENERGYTYPE) ");
 		initialize<double>("cabs_thresh",1.e-4, " thresh for auxbasis part in f12 energy ");
-		initialize<bool>("external_cabs", false, " use external comp. aux. basis in addition to the pnos as auxbasis");
-		initialize<EnergyType>("energytype",PROJECTED_ENERGYTYPE, " the energytype is 'projected' or 'hylleraas' functional projected energies do not need auxilliary bases for the evaluation of the f12 energy. It's recommended to use projected_energies!");
+		initialize<std::string>("external_cabs", "", " use external comp. aux. basis in addition to the pnos as auxbasis. Give the filename as parameter. Give the auxbas in turbomole format. Don't use contractions");
+		initialize<std::string>("energytype", "projected", " the energytype is 'projected' or 'hylleraas' functional projected energies do not need auxilliary bases for the evaluation of the f12 energy. It's recommended to use projected_energies!");
 		initialize<double>("gamma",1.4, "The f12 length scale");
 		initialize<std::string>("auxbas", "", "atom centered partial wave guess of format like 'h-2s1p-o-3s2p1d', need to set guesstype to 'partial_wave'");
 	}
@@ -247,8 +248,16 @@ public:
 	bool abs_c()const { return get<bool >("abs_c");}
 	bool abs_u()const { return get<bool >("abs_u");}
 	double cabs_thresh()const { return get<double >("cabs_thresh");}
-	bool external_cabs()const { return get<bool >("external_cabs");}
-	EnergyType energytype()const { return get<EnergyType >("energytype");}
+	std::string external_cabs()const { return get<bool >("external_cabs");}
+	EnergyType energytype()const {
+		std::string key = get<std::string>("energytype");
+		std::transform(key.begin(), key.end(), key.begin(), ::tolower);
+		std::stringstream ss(key);
+		EnergyType result = UNKNOWN_ENERGYTYPE;
+		ss >> result;
+		MADNESS_ASSERT(result != UNKNOWN_ENERGYTYPE);
+		return result;
+	}
 	double gamma()const { return get<double >("gamma");}
 	std::map<std::string,std::vector<int> > auxbas()const {
 		return partial_wave("auxbas");
