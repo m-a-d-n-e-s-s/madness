@@ -227,6 +227,8 @@ public:
 	/// return 2.0 <ij|fQg|ij> - <ji|fQg|ij> as well as singlet and triplets
 	PairEnergies compute_projected_f12_energies() const;
 
+	std::vector<real_function_3d> read_cabs_from_file(const std::string& filename)const;
+
 	PairEnergies compute_hylleraas_f12_energies(
 			const std::valarray<vector_real_function_3d>& pnos) const;
 
@@ -238,7 +240,7 @@ public:
 	/// We use RI for the integrals with the exchange commutator
 	/// in two steps: 1. PNOs as approx for Q, 2. Correction with ABS set (either auto generated or from file)
 	/// EF12 =<ij|(fQg + fQU - fQ[f,K])(2|ij> - |ji>)
-	PairEnergies compute_f12_pair_energy_ansatz2(const std::valarray<vector_real_function_3d>& abs) const;
+	PairEnergies compute_f12_pair_energies(const std::valarray<vector_real_function_3d>& abs) const;
 
 	/// Compute the f12 pair energy if Ansatz 1 is used
 	/// This means: Normal MRA-PNO-MP2 calculation + F12 Correction
@@ -246,7 +248,7 @@ public:
 	/// Currently: Neglect Commutator if no abs is given
 	/// if abs_u is true then fQU part is also neglected (RI with PNOs as virtuals: fQU ~= fVU => fQU - fVU ~= 0)
 	/// EF12 = <ij|(fQg-fVg + fUg - fVg)|2ij-ji>
-	PairEnergies compute_f12_pair_energy_ansatz1(
+	PairEnergies compute_f12_correction(
 			const std::valarray<vector_real_function_3d>& pnos, const std::valarray<vector_real_function_3d>& abs) const;
 
 	/// Compute the applied Ue potential

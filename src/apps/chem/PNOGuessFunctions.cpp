@@ -182,7 +182,7 @@ namespace madness {
 	const auto real_azimuthal_prefactor = (m != 0) ? sqrt_2 * (m > 0 ? std::cos(m * phi) : std::sin(abs_m * phi)) : 1.0;
 	return pow(r, l) * (Y_normconst * real_azimuthal_prefactor * P_l_m) * exp(-exponent * r2);
 #else
-	MADNESS_EXCEPTION("can not create SolidHarmonicGaussian without boost math_tr1 library ",1);
+	MADNESS_EXCEPTION("can not create SolidHarmonicGaussian without boost math_tr1 library, compile MADNESS with boost by using cmake flag -D ENABLE_BOOST=ON ",1);
 	return 0.0;
 #endif
 

@@ -458,7 +458,7 @@ PNOPairs PNO::solve_mp2(PNOPairs& mp2) const {
 		const PairEnergies& energies_from_solve = mp2.energies;
 		const std::valarray<Tensor<double> >& t2_ij = mp2.t_ij;
 		// compute energies (or just print them)
-		PairEnergies pair_energies(f12.npairs());
+		PairEnergies pair_energies = mp2.energies;
 		MyTimer timef12 = MyTimer(world).start();
 		PairEnergies ef12(f12.npairs());
 		ef12 = f12.compute_f12_energies(pno_ij);
@@ -2121,7 +2121,7 @@ void PNO::print_ranks(const PNOPairs& pairs)const{
 	msg <<"Information About All Pairs:\n";
 	size_t sum=0;
 	size_t maxi=0;
-	size_t s=1;
+	size_t s=0;
 	PAIRLOOP(it){
 		const std::string name=pairs.name(it);
 		msg << name << std::setw(std::max(0,int(20-name.size())))  <<  " " <<" number="<<it.ij()<<" ";
@@ -2426,7 +2426,7 @@ vector_real_function_3d PNO::compute_CIS_potentials(const vector_real_function_3
 }
 
 Tensor<double> PNO::compute_fluctuation_matrix(const ElectronPairIterator& it, const vector_real_function_3d& pnos, const vector_real_function_3d& Kpnos_in) const {
-	if (param.f12() && f12.param.ansatz() == 2) {
+	if (param.f12()) {
 		vector_real_function_3d Kpnos = Kpnos_in;
 		if (Kpnos_in.empty())
 			Kpnos = K(pnos);
@@ -2475,7 +2475,7 @@ Tensor<double> PNO::compute_cispd_fluctuation_matrix(const ElectronPairIterator&
 	const real_function_3d Kj = f12.acKmos[it.j()];
 	const auto& x=pairs.cis.x;
 	const auto& Vx=pairs.cis.Vx;
-	if (param.f12() and f12.param.ansatz() == 2) {
+	if (param.f12()) {
 
 		TIMER(time1);
 		// xo part
@@ -2644,7 +2644,7 @@ template<typename projector>
 vector_real_function_3d PNO::compute_V_aj_i(
 		const real_function_3d& moi, const real_function_3d& moj,
 		const vector_real_function_3d& virtuals, const projector& Qpr) const {
-	MADNESS_ASSERT(param.f12() == false);
+	MADNESS_ASSERT(not param.f12());
 	const vector_real_function_3d aj = mul(world, moj, virtuals); // multiply a \times j
 	vector_real_function_3d gaj = apply(world, *poisson, aj); // \int \dr2 aj(2)/r12
 	vector_real_function_3d Vaj_i = mul(world, moi, gaj);
