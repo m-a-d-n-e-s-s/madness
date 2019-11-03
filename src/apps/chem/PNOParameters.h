@@ -248,7 +248,7 @@ public:
 	bool abs_c()const { return get<bool >("abs_c");}
 	bool abs_u()const { return get<bool >("abs_u");}
 	double cabs_thresh()const { return get<double >("cabs_thresh");}
-	std::string external_cabs()const { return get<bool >("external_cabs");}
+	std::string external_cabs()const { return get<std::string >("external_cabs");}
 	EnergyType energytype()const {
 		std::string key = get<std::string>("energytype");
 		std::transform(key.begin(), key.end(), key.begin(), ::tolower);
