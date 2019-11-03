@@ -233,22 +233,22 @@ public:
 
 
 	void initialize_f12_parameters() {
-		initialize<int>("ansatz",2, " (old parameter)");
-		initialize<bool>("abs_c",true, " use auxilliary basis on f12Q[Kf12] part of energy (only if energytype is HYLLERAAS_ENERGYTYPE) ");
-		initialize<bool>("abs_u",false, " use auxilliary basis on f12QUe part of energy (only if energytype is HYLLERAAS_ENERGYTYPE) ");
+		initialize<bool>("abs_c",true, " use auxilliary basis on f12Q[Kf12] part of energy (only if energytype is HYLLERAAS_ENERGYTYPE). If switched off the part neglected!");
+		initialize<bool>("abs_u",false, " use auxilliary basis on f12QUe part of energy (only if energytype is HYLLERAAS_ENERGYTYPE). If switched off the part is computed in full (recommended) ");
 		initialize<double>("cabs_thresh",1.e-4, " thresh for auxbasis part in f12 energy ");
-		initialize<std::string>("external_cabs", "", " use external comp. aux. basis in addition to the pnos as auxbasis. Give the filename as parameter. Give the auxbas in turbomole format. Don't use contractions");
-		initialize<std::string>("energytype", "projected", " the energytype is 'projected' or 'hylleraas' functional projected energies do not need auxilliary bases for the evaluation of the f12 energy. It's recommended to use projected_energies!");
+		initialize<std::string>("energytype", "projected", " the energytype is 'projected' or 'hylleraas' functional projected energies do not need auxilliary bases for the evaluation of the f12 energy. It's recommended to use projected_energies! For Hylleraas type you need to specify an auxbas from file OR internal");
 		initialize<double>("gamma",1.4, "The f12 length scale");
-		initialize<std::string>("auxbas", "", "atom centered partial wave guess of format like 'h-2s1p-o-3s2p1d', need to set guesstype to 'partial_wave'");
+		initialize<std::string>("auxbas", "none", "atom centered partial wave guess of format like 'h-2s1p-o-3s2p1d' ");
+		initialize<std::string>("auxbas_file", "none", " use external comp. aux. basis in addition to the pnos as auxbasis. Give the filename as parameter. Give the auxbas in turbomole format. Don't use contractions. If a file is specified the auxbas parameter has no effect");
 	}
 
 	bool f12()const { return get<bool >("f12");}
-	int ansatz()const { return get<int >("ansatz");}
 	bool abs_c()const { return get<bool >("abs_c");}
 	bool abs_u()const { return get<bool >("abs_u");}
 	double cabs_thresh()const { return get<double >("cabs_thresh");}
-	std::string external_cabs()const { return get<std::string >("external_cabs");}
+	std::string auxbas_file()const {
+		return get<std::string >("auxbas_file");
+	}
 	EnergyType energytype()const {
 		std::string key = get<std::string>("energytype");
 		std::transform(key.begin(), key.end(), key.begin(), ::tolower);
@@ -263,6 +263,11 @@ public:
 		return partial_wave("auxbas");
 	}
 
+	void set_derived_values() {
+		if(energytype() == HYLLERAAS_ENERGYTYPE) set_derived_value("abs_c", true);
+		if(energytype() == HYLLERAAS_ENERGYTYPE) set_derived_value("abs_u", false);
+		set_derived_value("cabs_thresh", thresh());
+	}
 
 };
 

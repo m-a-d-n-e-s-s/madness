@@ -66,13 +66,13 @@ GradSlaterOperator(World& world,
 
 
 F12Potentials::F12Potentials(World& world,const Nemo& nemo, const BasisFunctions& basis, const F12Parameters& pp) :
-								world(world),
-								nemo(nemo),basis(basis),
-								param(pp),
-								mos(nemo.get_calc()->amo),
-								acmos(initialize_active_mos(nemo)),
-								K(ParametrizedExchange(world, nemo, pp.exchange())),
-								Q(world, nemo.get_calc()->amo) {
+														world(world),
+														nemo(nemo),basis(basis),
+														param(pp),
+														mos(nemo.get_calc()->amo),
+														acmos(initialize_active_mos(nemo)),
+														K(ParametrizedExchange(world, nemo, pp.exchange())),
+														Q(world, nemo.get_calc()->amo) {
 	const double lo = 1.e-6;
 	const double eps = param.op_thresh();
 	coulombop = std::shared_ptr < real_convolution_3d > (CoulombOperatorPtr(world, lo, eps));
@@ -146,34 +146,28 @@ Tensor<double> F12Potentials::compute_xyab_integrals(const real_function_3d& x, 
 }
 
 PairEnergies F12Potentials::compute_f12_pair_energy(const std::valarray<vector_real_function_3d>& pnos, const std::valarray<vector_real_function_3d>& cabs) const {
-	if (param.ansatz() == 2){
-		if(world.rank()==0) std::cout << "Computing F12 Energy (Ansatz 1)\n";
-		std::valarray<vector_real_function_3d> abs(pnos.size());
-		if(cabs.size()!=pnos.size()){
-			if(world.rank()==0) std::cout << "No CABS given using the PNOs as ABS\n";
-			abs = pnos;
+	// F12 is used to regularize
+	// so here we compute the f12 part which is missing from the regularized mp2 energies
+	if(world.rank()==0) std::cout << "Computing F12 Energy (Ansatz 2)\n";
+	std::valarray<vector_real_function_3d> abs(pnos.size());
+	if(cabs.size()!=pnos.size()){
+		if(world.rank()==0) std::cout << "No CABS given using only the PNOs as ABS\n";
+		abs = pnos;
+	}
+	else{
+		for(ElectronPairIterator it=pit();it;++it){
+			vector_real_function_3d tmp = pnos[it.ij()];
+			for(const auto x:cabs[it.ij()]) tmp.push_back(x);
+			abs[it.ij()]=tmp;
+			if(world.rank()==0) std::cout << "Constructing ABS for pair "
+					<< it.name() << " from " << pnos[it.ij()].size() << " PNOs and "
+					<< cabs[it.ij()].size() << " CABS functions\n";
 		}
-		else{
-			for(ElectronPairIterator it=pit();it;++it){
-				vector_real_function_3d tmp = pnos[it.ij()];
-				for(const auto x:cabs[it.ij()]) tmp.push_back(x);
-				abs[it.ij()]=tmp;
-				if(world.rank()==0) std::cout << "Constructing ABS for pair "
-						<< it.name() << " from " << pnos[it.ij()].size() << " PNOs and "
-						<< cabs[it.ij()].size() << " CABS functions\n";
-			}
-		}
-		return compute_f12_pair_energy_ansatz2(abs);
-	}else if (param.ansatz() == 1)
-		return compute_f12_pair_energy_ansatz1(pnos,cabs);
-	else
-		MADNESS_EXCEPTION("???Unknown Ansatz: has to be 1 or 2???", 1);
-
-	MADNESS_EXCEPTION("dead end", 1);
-	return PairEnergies(npairs());
+	}
+	return compute_f12_pair_energies(abs);
 }
 
-PairEnergies F12Potentials::compute_f12_pair_energy_ansatz1(const std::valarray<vector_real_function_3d>& pnos,const std::valarray<vector_real_function_3d>& abs) const {
+PairEnergies F12Potentials::compute_f12_correction(const std::valarray<vector_real_function_3d>& pnos,const std::valarray<vector_real_function_3d>& abs) const {
 
 	PairEnergies result(npairs());
 
@@ -323,7 +317,7 @@ PairEnergies F12Potentials::compute_f12_pair_energy_ansatz1(const std::valarray<
 
 }
 
-PairEnergies F12Potentials::compute_f12_pair_energy_ansatz2(const std::valarray<vector_real_function_3d>& abs) const {
+PairEnergies F12Potentials::compute_f12_pair_energies(const std::valarray<vector_real_function_3d>& abs) const {
 
 	PairEnergies result(npairs());
 
@@ -428,9 +422,9 @@ void F12Potentials::print_pair_energies(const std::valarray<double>& es, const s
 			std::cout <<msg + " (Sum ES) : " << std::setw(12)<< ett << "\n";
 			std::cout <<msg + " (∆CIS(D)): " << std::setw(12)<< est + ett  << "\n";
 		}else{
-		std::cout <<msg + " (singlet): " << std::setw(12)<< est << "\n";
-		std::cout <<msg + " (triplet): " << std::setw(12)<< ett << "\n";
-		std::cout <<msg + " (total)  : " << std::setw(12)<< est + ett  << "\n";
+			std::cout <<msg + " (singlet): " << std::setw(12)<< est << "\n";
+			std::cout <<msg + " (triplet): " << std::setw(12)<< ett << "\n";
+			std::cout <<msg + " (total)  : " << std::setw(12)<< est + ett  << "\n";
 		}
 		print("=======================================================");
 	}
@@ -1027,7 +1021,7 @@ std::pair<double, double> F12Potentials::compute_fQc_integrals_ij(
 		// keeping this code to debug and to compare performance
 		if (world.rank() == 0)
 			std::cout
-					<< "!!!fQc is calculated without intermediates! Is this by choice?\n";
+			<< "!!!fQc is calculated without intermediates! Is this by choice?\n";
 
 		// Part 1 K1, Q12=OxQ, ij part
 		// <j|(ifx)*Q*((Kxfi)-(xfKi))|j>
@@ -1063,13 +1057,13 @@ std::pair<double, double> F12Potentials::compute_fQc_integrals_ij(
 		if (param.debug()) {
 			if (world.rank() == 0)
 				std::cout << "fQc_1_ij=" << result1_ij << "\n" << "fQc_1_ji="
-						<< result1_ji << "\n" << "fQc_2_ij=" << result2_ij
-						<< "\n" << "fQc_2_ji=" << result2_ji << "\n";
+				<< result1_ji << "\n" << "fQc_2_ij=" << result2_ij
+				<< "\n" << "fQc_2_ji=" << result2_ji << "\n";
 		}
 		if (it.diagonal())
 			MADNESS_ASSERT(
 					result1_ij == result2_ij && result1_ij == result1_ji
-							&& result1_ji == result2_ji);
+					&& result1_ji == result2_ji);
 
 		const double resultij = result1_ij + result2_ij;
 		const double resultji = result1_ji + result2_ji;
@@ -1090,13 +1084,13 @@ std::pair<double, double> F12Potentials::compute_fQc_integrals_ij(
 			if (world.rank() == 0)
 				std::cout << "Q(braij) intermediate: " << tmpsize << " Gbyte\n";
 		}            // Part 1 K1, Q12=OxQ, ij part
-					 // <j|(ifx)*Q*((Kxfi)-(xfKi))|j>
-					 // ji part
-					 // <i|(jfx)*Q*((Kxfi)-(xfKi))|j> or  <j|(ifx)*Q*((Kxfj)-(xfKj))|i>
-					 // Part 2 K2, Q12=QOx, ij part
-					 // <i|(jfx)*Q*((Kxfj)-(xfKj))|i>
-					 // ji part
-					 // <j|(ifx)*Q*((Kxfj)-(xfKj))|i> or <i|(jfx)*Q*((Kxfi)-(xfKi))|j>
+		// <j|(ifx)*Q*((Kxfi)-(xfKi))|j>
+		// ji part
+		// <i|(jfx)*Q*((Kxfi)-(xfKi))|j> or  <j|(ifx)*Q*((Kxfj)-(xfKj))|i>
+		// Part 2 K2, Q12=QOx, ij part
+		// <i|(jfx)*Q*((Kxfj)-(xfKj))|i>
+		// ji part
+		// <j|(ifx)*Q*((Kxfj)-(xfKj))|i> or <i|(jfx)*Q*((Kxfi)-(xfKi))|j>
 		double result1_ij = 0.0;
 		double result1_ji = 0.0;
 		double result2_ij = 0.0;
@@ -1114,7 +1108,7 @@ std::pair<double, double> F12Potentials::compute_fQc_integrals_ij(
 				std::cout << "vKi intermediate: " << tmpsize2 << " Gbyte\n";
 
 			const vector_real_function_3d ket1 = (apply(world, *fop, Kvi - vKi))
-					* moj;
+											* moj;
 			result1_ij = madness::inner(braij, ket1);
 			result2_ij = result1_ij;
 			result1_ji = result1_ij;
@@ -1126,7 +1120,7 @@ std::pair<double, double> F12Potentials::compute_fQc_integrals_ij(
 				const double tmpsize = get_size(world, braij);
 				if (world.rank() == 0)
 					std::cout << "Q(braij) intermediate: " << tmpsize
-							<< " Gbyte\n";
+					<< " Gbyte\n";
 			}
 			const vector_real_function_3d Kvi = mul(world, moi, Kv, false);
 			const vector_real_function_3d vKi = mul(world, Ki, v, false);
@@ -1150,9 +1144,9 @@ std::pair<double, double> F12Potentials::compute_fQc_integrals_ij(
 				std::cout << "vKj intermediate: " << tmpsize4 << " Gbyte\n";
 
 			const vector_real_function_3d ket1 = (apply(world, *fop, Kvi - vKi))
-					* moj;
+											* moj;
 			const vector_real_function_3d ket2 = (apply(world, *fop, Kvj - vKj))
-					* moi;
+											* moi;
 			result1_ij = madness::inner(braij, ket1);
 			result2_ij = madness::inner(braji, ket2); // braji is correct
 			result1_ji = madness::inner(braji, ket1);
@@ -1161,13 +1155,13 @@ std::pair<double, double> F12Potentials::compute_fQc_integrals_ij(
 		if (param.debug()) {
 			if (world.rank() == 0)
 				std::cout << "fQc_1_ij=" << result1_ij << "\n" << "fQc_1_ji="
-						<< result1_ji << "\n" << "fQc_2_ij=" << result2_ij
-						<< "\n" << "fQc_2_ji=" << result2_ji << "\n";
+				<< result1_ji << "\n" << "fQc_2_ij=" << result2_ij
+				<< "\n" << "fQc_2_ji=" << result2_ji << "\n";
 		}
 		if (it.diagonal())
 			MADNESS_ASSERT(
 					result1_ij == result2_ij && result1_ij == result1_ji
-							&& result1_ji == result2_ji);
+					&& result1_ji == result2_ji);
 
 		const double resultij = result1_ij + result2_ij;
 		const double resultji = result1_ji + result2_ji;
@@ -1183,39 +1177,39 @@ void F12Potentials::print_pair_energies(const PNOPairs& pairs,
 	if (world.rank() == 0 && pairs.type == CISPD_PAIRTYPE) {
 		std::cout << "-------------------------------------------\n";
 		std::cout << "GS correction reg=" << std::setw(12)
-				<< pairs.energies.eijs.sum() << "\n";
+		<< pairs.energies.eijs.sum() << "\n";
 		std::cout << "GS correction f12=" << std::setw(12)
-				<< pairs.energies.eijs_f12.sum() << "\n";
+		<< pairs.energies.eijs_f12.sum() << "\n";
 		std::cout << "GS correction tot=" << std::setw(12)
-				<< pairs.energies.eijs.sum() + pairs.energies.eijs_f12.sum()
-				<< "\n";
+		<< pairs.energies.eijs.sum() + pairs.energies.eijs_f12.sum()
+		<< "\n";
 		std::cout << "ES correction reg=" << std::setw(12)
-				<< pairs.energies.eijt.sum() << "\n";
+		<< pairs.energies.eijt.sum() << "\n";
 		std::cout << "ES correction f12=" << std::setw(12)
-				<< pairs.energies.eijt_f12.sum() << "\n";
+		<< pairs.energies.eijt_f12.sum() << "\n";
 		std::cout << "ES correction tot=" << std::setw(12)
-				<< pairs.energies.eijt.sum() + pairs.energies.eijt_f12.sum()
-				<< "\n";
+		<< pairs.energies.eijt.sum() + pairs.energies.eijt_f12.sum()
+		<< "\n";
 		std::cout << "-------------------------------------------\n";
 		std::cout << "∆CIS(D) reg      =" << std::setw(12)
-				<< pairs.energies.energy << "\n";
+		<< pairs.energies.energy << "\n";
 		std::cout << "∆CIS(D) f12      =" << std::setw(12)
-				<< pairs.energies.energy_f12 << "\n";
+		<< pairs.energies.energy_f12 << "\n";
 		;
 		std::cout << "∆CIS(D) tot      =" << std::setw(12)
-				<< pairs.energies.total_energy() << "\n";
+		<< pairs.energies.total_energy() << "\n";
 		;
 		std::cout << "-------------------------------------------\n";
 	} else if (world.rank() == 0) {
 		std::cout << "-------------------------------------------\n";
 		std::cout << std::scientific << std::setprecision(5);
 		std::cout << "Total Reg Energy  =" << std::setw(12)
-				<< pairs.energies.energy << "\n";
+		<< pairs.energies.energy << "\n";
 		std::cout << "Total F12 Energy  =" << std::setw(12)
-				<< pairs.energies.energy_f12 << "\n";
+		<< pairs.energies.energy_f12 << "\n";
 		;
 		std::cout << "Sum Energies Total=" << std::setw(12)
-				<< pairs.energies.total_energy() << "\n";
+		<< pairs.energies.total_energy() << "\n";
 		;
 		std::cout << "-------------------------------------------\n";
 	}
@@ -1326,132 +1320,73 @@ PairEnergies F12Potentials::compute_projected_f12_energies() const {
 	return result;
 }
 
+std::vector<real_function_3d> F12Potentials::read_cabs_from_file(const std::string& filename)const{
+	MyTimer time_1 = MyTimer(world).start();
+	if(world.rank()==0) std::cout <<"Reading CABS from external file:" << filename << "\n";
+	// Read CABS Exponents from file
+	std::map<std::string, std::vector<std::vector<double> > > exponents =
+			basis.read_basis_from_file(param.auxbas_file(),
+					nemo.get_calc()->molecule.get_atoms());
+	if(world.rank()==0) std::cout << "Exponents from file:" << param.auxbas_file() << "\n";
+	for (const auto x : exponents) {
+		if (world.rank() == 0) {
+			std::cout << x.first << " Exponents\n";
+			for (size_t l = 0; l < x.second.size(); ++l) {
+				std::cout << "l=" << l << "\n";
+				std::cout << x.second[l] << "\n";
+			}
+		}
+	}
+	time_1.stop().print("Read Exponents From File");
+	// make CABS virtuals
+	vector_real_function_3d cabsf;
+	MyTimer time_2 = MyTimer(world).start();
+	for (const madness::Atom atom : nemo.get_calc()->molecule.get_atoms()) {
+		std::vector<std::vector<double> > exp_atom = exponents.at(
+				atomic_number_to_symbol(atom.atomic_number));
+		for (size_t l = 0; l < exp_atom.size(); ++l) {
+			for (const double e : exp_atom[l]) {
+				cabsf = append(cabsf,
+						basis.guess_virtual_gaussian_shell(atom, l, e));
+			}
+		}
+	}
+	time_2.stop().print("Creating CABS Basis");
+	MyTimer time_3 = MyTimer(world).start();
+	cabsf = Q(cabsf);
+	time_3.stop().print("Apply Q");
+	print_size(world, cabsf, "cabs functions");
+	return cabsf;
+}
+
 PairEnergies F12Potentials::compute_hylleraas_f12_energies(
 		const std::valarray<vector_real_function_3d>& pnos) const {
 	MyTimer time = MyTimer(world).start();
-	if (param.external_cabs() != "" and not param.abs_c()) {
-		std::valarray<vector_real_function_3d> dummy;
-		// Energy with PNOs as ABS
-		if(world.rank()==0) std::cout << "Computing F12 Energies without external CABS:\n";
-		PairEnergies result = compute_f12_pair_energy(pnos, dummy);
-		if (param.abs_c() == true) {
-			if(world.rank()==0) std::cout <<("Computing CABS corrections to fQc Part:\n");
-			// now compute corrections to the f,k commutator:
-			MyTimer time_1 = MyTimer(world).start();
-			if(world.rank()==0) std::cout <<"Reading CABS from external file:" << param.external_cabs() << "\n";
-			// Read CABS Exponents from file
-			std::map<std::string, std::vector<std::vector<double> > > exponents =
-					basis.read_basis_from_file(param.external_cabs(),
-							nemo.get_calc()->molecule.get_atoms());
-			print("Exponents from file auxbas:");
-			for (const auto x : exponents) {
-				if (world.rank() == 0) {
-					std::cout << x.first << " Exponents\n";
-					for (size_t l = 0; l < x.second.size(); ++l) {
-						std::cout << "l=" << l << "\n";
-						std::cout << x.second[l] << "\n";
-					}
-				}
-			}
-			time_1.stop().print("Read Exponents From File");
-			// make CABS virtuals
-			vector_real_function_3d cabsf;
-			MyTimer time_2 = MyTimer(world).start();
-			for (const madness::Atom atom : nemo.get_calc()->molecule.get_atoms()) {
-				std::vector<std::vector<double> > exp_atom = exponents.at(
-						atomic_number_to_symbol(atom.atomic_number));
-				for (size_t l = 0; l < exp_atom.size(); ++l) {
-					for (const double e : exp_atom[l]) {
-						cabsf = append(cabsf,
-								basis.guess_virtual_gaussian_shell(atom, l, e));
-					}
-				}
-			}
-			time_2.stop().print("Creating CABS Basis");
-			MyTimer time_3 = MyTimer(world).start();
-			cabsf = Q(cabsf);
-			time_3.stop().print("Apply Q");
-			if (world.rank() == 0)
-				std::cout << "Read " << cabsf.size()
-						<< " cabs functions from file auxbas\n";
 
-			print_size(world, cabsf, "cabs functions");
-			// project out pnos
-			MyTimer time_4 = MyTimer(world).start();
-			if (world.rank() == 0)
-				std::cout << "Corrections to Qfc from auxbasis:\n";
-
-			for (ElectronPairIterator it = pit(); it; ++it) {
-				vector_real_function_3d cabsf_ij = cabsf;
-				// projecto out pnos (already used in the beginning)
-				madness::QProjector<double, 3> Qpno(world, pnos[it.ij()]);
-				cabsf_ij = Qpno(cabsf_ij);
-				// Normalize and sort out functions which are close to zero after projection (linear dependencies)
-				vector_real_function_3d tmp;
-				for (const auto& f : cabsf_ij) {
-					const double normf = f.norm2();
-					if (normf > 1.e-2)
-						tmp.push_back(1.0 / normf * f);
-				}
-				cabsf_ij = tmp;
-				// Orthonormalize
-				cabsf_ij = orthonormalize_rrcd(cabsf_ij, 0.1 * param.thresh());
-				// simple screening by x*i, x*j norm
-				if (cabsf_ij.empty())
-					continue;
-
-				// now compute correction to commutator
-				std::pair<double, double> corr = compute_fQc_integrals_ij(
-						acKmos, cabsf_ij, it); // does not include minus sing
-				const double diag_factor = (it.diagonal() ? 0.5 : 1.0);
-				const double corr_s = diag_factor * (corr.first + corr.second);
-				const double corr_t = 3.0 * diag_factor
-						* (corr.first - corr.second);
-				const double corr_total = corr_s + corr_t;
-				if (world.rank() == 0) {
-					std::cout << it.name() << " | " << corr_s << " | " << corr_t
-							<< " | " << corr_total << "\n";
-				}
-				result.eijs_f12[it.ij()] -= corr_s;
-				result.eijt_f12[it.ij()] -= corr_t;
-				result.energy_f12 -= corr_total;
-			}
-			time_4.stop().print("Compute CABS corrections");
-		} else {
-			print("No CABS corrections to fQc part demanded:\n");
-		}
-		return result;
-	} else {
-		if (param.abs_c() == false && world.rank() == 0)
-			std::cout << "No CABS demanded!!!\n";
-
-		// old way where CABS is created like the pno guess
-		std::valarray<vector_real_function_3d> abs_ij(pnos.size());
-		vector_real_function_3d abs_virtuals = basis.guess_virtuals_internal(
-				param.auxbas());
-		bool no_cabs = abs_virtuals.empty();
-		if (no_cabs) {
-			if (world.rank() == 0)
-				std::cout << "No CABS found or specified\n";
-
-			std::valarray<vector_real_function_3d> dummy;
-			PairEnergies result = compute_f12_pair_energy(pnos, dummy);
-			return result;
-		} else {
-			abs_virtuals = Q(abs_virtuals);
-			abs_virtuals = orthonormalize_rrcd(abs_virtuals,
-					0.1 * param.thresh());
-			for (ElectronPairIterator it = pit(); it; ++it) {
-				// right now this will make the same guess for all pairs
-				//const vector_real_function_3d tmp=guess_virtuals(param.abs);
-				QProjector<double, 3> Qpno(world, pnos[it.ij()]);
-				const vector_real_function_3d tmp = Qpno(abs_virtuals);
-				abs_ij[it.ij()] = tmp;
-			}
-			PairEnergies result = compute_f12_pair_energy(pnos, abs_ij);
-			return result;
-		}
+	std::valarray<vector_real_function_3d> abs_ij(pnos.size());
+	vector_real_function_3d cabs;
+	if (param.auxbas_file() != "none"){
+		cabs = read_cabs_from_file(param.auxbas_file());
+	}else if (param.get<std::string>("auxbas") != "none"){
+		cabs = basis.guess_virtuals_internal(param.auxbas());
 	}
+	if (not cabs.empty()){
+		MyTimer time2 = MyTimer(world).start();
+		// project out pnos from cabs
+		cabs = Q(cabs);
+		cabs = orthonormalize_rrcd(cabs,0.1 * param.thresh());
+		for (ElectronPairIterator it = pit(); it; ++it) {
+			// right now this will make the same guess for all pairs
+			//const vector_real_function_3d tmp=guess_virtuals(param.abs);
+			QProjector<double, 3> Qpno(world, pnos[it.ij()]);
+			const vector_real_function_3d tmp = Qpno(cabs);
+			abs_ij[it.ij()] = tmp;
+		}
+		time2.stop().print("Make pair specific ABS from PNOS and " + std::to_string(cabs.size()) + " functions");
+	}
+	PairEnergies result = compute_f12_pair_energy(pnos, abs_ij);
+	time.stop().print("compute hylleraas f12 energy (total) ");
+	return result;
 }
 
 
