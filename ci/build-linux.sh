@@ -10,6 +10,11 @@ ls -ltr
 echo ~
 ls -ltr ~
 
+# enable MKL direct call for clang only
+if [ "$CXX" = "clang++" ]; then
+    export EXTRACXXFLAGS="-DMKL_DIRECT_CALL"
+fi
+
 # Set up paths to stuff we installed
 export MPIDIR=$HOME/mpich
 export LIBXCDIR=$HOME/libxc
@@ -33,6 +38,7 @@ echo $LIBXCDIR
 ls $LIBXCDIR
 ls $LIBXCDIR/lib
 ls -l $LIBXCDIR/lib/libxc.a
+ls -l /opt/intel
 which ccache
 ccache --version
 
@@ -45,10 +51,12 @@ cmake \
     -D ENABLE_NEVER_SPIN=ON \
     -D BUILD_SHARED_LIBS=OFF \
     -D ENABLE_GPERFTOOLS=OFF \
+    -D ENABLE_MKL=ON \
     -D CMAKE_C_COMPILER=$CC \
     -D CMAKE_CXX_COMPILER=$CXX \
-    -DLIBXC_LIBRARIES=$LIBXCDIR/lib/libxc.a \
-    -DLIBXC_INCLUDE_DIRS=$LIBXCDIR/include \
+    -D CMAKE_CXX_FLAGS="${EXTRACXXFLAGS}" \
+    -D LIBXC_LIBRARIES=$LIBXCDIR/lib/libxc.a \
+    -D LIBXC_INCLUDE_DIRS=$LIBXCDIR/include \
     $CMAKE_EXTRA_OPTIONS \
     ..
 

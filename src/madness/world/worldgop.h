@@ -1054,7 +1054,7 @@ namespace madness {
         /// public:
         ///     // Typedefs
         ///     typedef ... result_type;
-        ///     tyepdef ... argument_type;
+        ///     typedef ... argument_type;
         ///
         ///     // Constructors
         ///     ReduceFunc(const ReduceFunc&);
@@ -1102,7 +1102,7 @@ namespace madness {
         /// public:
         ///     // Typedefs
         ///     typedef ... result_type;
-        ///     tyepdef ... argument_type;
+        ///     typedef ... argument_type;
         ///
         ///     // Constructors
         ///     ReduceFunc(const ReduceFunc&);
@@ -1162,7 +1162,7 @@ namespace madness {
         /// public:
         ///     // Typedefs
         ///     typedef ... result_type;
-        ///     tyepdef ... argument_type;
+        ///     typedef ... argument_type;
         ///
         ///     // Constructors
         ///     ReduceFunc(const ReduceFunc&);
