@@ -1773,7 +1773,7 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
                //see how big of a step KAIN took for each orbital
                residualnorm = (occupieds[i]-Residuals[i]).norm2();
 
-               //Restrict the step taken by KAIN if it's took big
+               //Restrict the step taken by KAIN if it's too big
                if(residualnorm > DFparams.maxrotn){
                     double s = DFparams.maxrotn / residualnorm;
                     if(world.rank()==0) print("     restricting step for orbital: ", i+1);
