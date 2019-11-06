@@ -54,8 +54,10 @@ using madness::Tensor;
 
 #include <madness/tensor/tensor_lapack.h>
 #include <madness/tensor/clapack.h>
-
-
+#ifdef MADNESS_LINALG_USE_LAPACKE
+using madness::lapacke::to_cptr;
+using madness::lapacke::to_zptr;
+#endif
 
 double tt1, ss1;
 
@@ -107,8 +109,8 @@ void dgesvd_(const char *jobu, const char *jobvt, integer *m, integer *n,
              integer *info, char_len jobulen, char_len jobvtlen) {
   Tensor<float> rwork(5*min(*m,*n));
 #if MADNESS_LINALG_USE_LAPACKE
-    cgesvd_(jobu, jobvt, m, n, reinterpret_cast<lapack_complex_float*>(a), lda, s, reinterpret_cast<lapack_complex_float*>(u), ldu,
-            reinterpret_cast<lapack_complex_float*>(vt), ldvt, reinterpret_cast<lapack_complex_float*>(work), lwork, rwork.ptr(), info);
+    cgesvd_(jobu, jobvt, m, n, to_cptr(a), lda, s, to_cptr(u), ldu,
+            to_cptr(vt), ldvt, to_cptr(work), lwork, rwork.ptr(), info);
 #else
     cgesvd_(jobu, jobvt, m, n, a, lda, s, u, ldu,
             vt, ldvt, work, lwork, rwork.ptr(), info, jobulen, jobvtlen);
@@ -122,8 +124,8 @@ void dgesvd_(const char *jobu, const char *jobvt, integer *m, integer *n,
              integer *info, char_len jobulen, char_len jobvtlen) {
     Tensor<double> rwork(5*min(*m,*n));
 #if MADNESS_LINALG_USE_LAPACKE
-    zgesvd_(jobu, jobvt, m, n, reinterpret_cast<lapack_complex_double*>(a), lda, s, reinterpret_cast<lapack_complex_double*>(u), ldu,
-            reinterpret_cast<lapack_complex_double*>(vt), ldvt, reinterpret_cast<lapack_complex_double*>(work), lwork, rwork.ptr(), info);
+    zgesvd_(jobu, jobvt, m, n, to_zptr(a), lda, s, to_zptr(u), ldu,
+            to_zptr(vt), ldvt, to_zptr(work), lwork, rwork.ptr(), info);
 #else
     zgesvd_(jobu, jobvt, m, n, a, lda, s, u, ldu,
             vt, ldvt, work, lwork, rwork.ptr(), info, jobulen, jobvtlen);
@@ -152,7 +154,7 @@ void potrf_(const char * UPLO,integer *n, real8 *a ,integer *lda , integer *info
 STATIC inline
 void potrf_(const char * UPLO,integer *n, complex_real4 *a ,integer *lda , integer *info){
 #if MADNESS_LINALG_USE_LAPACKE
-        cpotrf_(UPLO, n, reinterpret_cast<lapack_complex_float*>(a), lda, info);
+        cpotrf_(UPLO, n, to_cptr(a), lda, info);
 #else
 	cpotrf_(UPLO, n, a, lda, info, 1);
 #endif
@@ -160,7 +162,7 @@ void potrf_(const char * UPLO,integer *n, complex_real4 *a ,integer *lda , integ
 STATIC inline
 void potrf_(const char * UPLO,integer *n, complex_real8 *a ,integer *lda , integer *info){
 #if MADNESS_LINALG_USE_LAPACKE
-        zpotrf_(UPLO, n, reinterpret_cast<lapack_complex_double*>(a), lda, info);
+        zpotrf_(UPLO, n, to_zptr(a), lda, info);
 #else
 	zpotrf_(UPLO, n, a, lda, info, 1);
 #endif
@@ -188,7 +190,7 @@ void pstrf_(const char * UPLO,integer *n, real8 *a ,integer* lda, integer *piv, 
 STATIC inline
 void pstrf_(const char * UPLO,integer *n, complex_real4 *a ,integer* lda, integer *piv, integer* rank, real4* tol, complex_real4* work , integer *info){
 #if MADNESS_LINALG_USE_LAPACKE
-        cpstrf_(UPLO, n, reinterpret_cast<lapack_complex_float*>(a), lda, piv, rank, tol, reinterpret_cast<float*>(work), info);
+        cpstrf_(UPLO, n, to_cptr(a), lda, piv, rank, tol, reinterpret_cast<float*>(work), info);
 #else
 	cpstrf_(UPLO, n, a, lda, piv, rank, tol, work, info);
 #endif
@@ -196,8 +198,8 @@ void pstrf_(const char * UPLO,integer *n, complex_real4 *a ,integer* lda, intege
 STATIC inline
 void pstrf_(const char * UPLO,integer *n, complex_real8 *a ,integer* lda, integer *piv, integer* rank, real8* tol, complex_real8* work , integer *info){
 #if MADNESS_LINALG_USE_LAPACKE
-        //zpstrf_(UPLO, n, reinterpret_cast<lapack_complex_double*>(a), lda, piv, rank, tol, reinterpret_cast<lapack_complex_float*>(work), info);
-        zpstrf_(UPLO, n, reinterpret_cast<lapack_complex_double*>(a), lda, piv, rank, tol, reinterpret_cast<double*>(work), info);
+        //zpstrf_(UPLO, n, to_zptr(a), lda, piv, rank, tol, to_cptr(work), info);
+        zpstrf_(UPLO, n, to_zptr(a), lda, piv, rank, tol, reinterpret_cast<double*>(work), info);
 #else
 	zpstrf_(UPLO, n, a, lda, piv, rank, tol, work, info);
 #endif
@@ -214,7 +216,7 @@ STATIC inline void dgesv_(integer* n, integer* nrhs, float* AT, integer* lda,
 STATIC inline void dgesv_(integer* n, integer* nrhs, float_complex* AT, integer* lda,
                           integer* piv, float_complex* x, integer* ldx, integer* info) {
 #if MADNESS_LINALG_USE_LAPACKE
-    cgesv_(n, nrhs, reinterpret_cast<lapack_complex_float*>(AT), lda, piv, reinterpret_cast<lapack_complex_float*>(x), ldx, info);
+    cgesv_(n, nrhs, to_cptr(AT), lda, piv, to_cptr(x), ldx, info);
 #else
     cgesv_(n, nrhs, AT, lda, piv, x, ldx, info);
 #endif
@@ -222,7 +224,7 @@ STATIC inline void dgesv_(integer* n, integer* nrhs, float_complex* AT, integer*
 STATIC inline void dgesv_(integer* n, integer* nrhs, double_complex* AT, integer* lda,
                           integer* piv, double_complex* x, integer* ldx, integer* info) {
 #if MADNESS_LINALG_USE_LAPACKE
-    zgesv_(n, nrhs, reinterpret_cast<lapack_complex_double*>(AT), lda, piv, reinterpret_cast<lapack_complex_double*>(x), ldx, info);
+    zgesv_(n, nrhs, to_zptr(AT), lda, piv, to_zptr(x), ldx, info);
 #else
     zgesv_(n, nrhs, AT, lda, piv, x, ldx, info);
 #endif
@@ -245,8 +247,8 @@ STATIC inline void dgelss_(integer *m, integer *n, integer *nrhs,
                            integer *lwork, integer *infoOUT) {
     Tensor<float> rwork((5*min(*m,*n)));
 #if MADNESS_LINALG_USE_LAPACKE
-  cgelss_(m, n, nrhs, reinterpret_cast<lapack_complex_float*>(a), lda, reinterpret_cast<lapack_complex_float*>(b), ldb, sOUT,
-          rcondIN, rankOUT, reinterpret_cast<lapack_complex_float*>(work), lwork, rwork.ptr(),infoOUT);
+  cgelss_(m, n, nrhs, to_cptr(a), lda, to_cptr(b), ldb, sOUT,
+          rcondIN, rankOUT, to_cptr(work), lwork, rwork.ptr(),infoOUT);
 #else
     cgelss_(m, n, nrhs, a, lda, b, ldb, sOUT, rcondIN, rankOUT, work,
             lwork, rwork.ptr(),infoOUT);
@@ -261,8 +263,8 @@ STATIC inline void dgelss_(integer *m, integer *n, integer *nrhs,
                            integer *lwork, integer *infoOUT) {
     Tensor<double> rwork((5*min(*m,*n)));
 #if MADNESS_LINALG_USE_LAPACKE
-  zgelss_(m, n, nrhs, reinterpret_cast<lapack_complex_double*>(a), lda, reinterpret_cast<lapack_complex_double*>(b), ldb, sOUT,
-          rcondIN, rankOUT, reinterpret_cast<lapack_complex_double*>(work), lwork, rwork.ptr(),infoOUT);
+  zgelss_(m, n, nrhs, to_zptr(a), lda, to_zptr(b), ldb, sOUT,
+          rcondIN, rankOUT, to_zptr(work), lwork, rwork.ptr(),infoOUT);
 #else
     zgelss_(m, n, nrhs, a, lda, b, ldb, sOUT, rcondIN, rankOUT, work,
             lwork, rwork.ptr(),infoOUT);
@@ -303,8 +305,8 @@ void dsygv_(integer *itype, const char* jobz, const char* uplo, integer *n,
             integer *info, char_len jobzlen, char_len uplo_len ) {
     Tensor<float> rwork(max((integer) 1, (integer) (3*(*n)-2)));
 #if MADNESS_LINALG_USE_LAPACKE
-    chegv_(itype, jobz, uplo, n, reinterpret_cast<lapack_complex_float*>(a), lda, reinterpret_cast<lapack_complex_float*>(b),
-            ldb, w, reinterpret_cast<lapack_complex_float*>(work), lwork, rwork.ptr(), info);
+    chegv_(itype, jobz, uplo, n, to_cptr(a), lda, to_cptr(b),
+            ldb, w, to_cptr(work), lwork, rwork.ptr(), info);
 #else
     chegv_(itype, jobz, uplo, n,
            a, lda, b, ldb, w,  work,  lwork, rwork.ptr(), info,
@@ -319,8 +321,8 @@ void dsygv_(integer *itype, const char* jobz, const char* uplo, integer *n,
             integer *info, char_len jobzlen, char_len uplo_len ) {
     Tensor<double> rwork(max((integer) 1, (integer) (3*(*n)-2)));
 #if MADNESS_LINALG_USE_LAPACKE
-    zhegv_(itype, jobz, uplo,n, reinterpret_cast<lapack_complex_double*>(a), lda, reinterpret_cast<lapack_complex_double*>(b),
-            ldb, w, reinterpret_cast<lapack_complex_double*>(work), lwork, rwork.ptr(), info);
+    zhegv_(itype, jobz, uplo,n, to_zptr(a), lda, to_zptr(b),
+            ldb, w, to_zptr(work), lwork, rwork.ptr(), info);
 #else
     zhegv_(itype, jobz, uplo, n,
            a, lda, b, ldb, w,  work,  lwork, rwork.ptr(), info,
@@ -356,8 +358,8 @@ STATIC void dsyev_(const char* jobz, const char* uplo, integer *n,
     Tensor<float> rwork(max((integer) 1, (integer) (3* (*n)-2)));
     //std::cout << *n << " " << *lda << " " << *lwork <<std::endl;
 #if MADNESS_LINALG_USE_LAPACKE
-    cheev_(jobz, uplo, n, reinterpret_cast<lapack_complex_float*>(a), lda, w,
-           reinterpret_cast<lapack_complex_float*>(work), lwork, rwork.ptr(), info);
+    cheev_(jobz, uplo, n, to_cptr(a), lda, w,
+           to_cptr(work), lwork, rwork.ptr(), info);
 #else
     cheev_(jobz, uplo, n, a, lda, w,  work,  lwork, rwork.ptr(),
            info, jobzlen, uplo_len );
@@ -370,8 +372,8 @@ STATIC void dsyev_(const char* jobz, const char* uplo, integer *n,
                    integer *info, char_len jobzlen, char_len uplo_len ) {
     Tensor<double> rwork(max((integer) 1, (integer) (3* (*n)-2)));
 #if MADNESS_LINALG_USE_LAPACKE
-    zheev_(jobz, uplo, n, reinterpret_cast<lapack_complex_double*>(a), lda, w,
-           reinterpret_cast<lapack_complex_double*>(work), lwork, rwork.ptr(), info);
+    zheev_(jobz, uplo, n, to_zptr(a), lda, w,
+           to_zptr(work), lwork, rwork.ptr(), info);
 #else
     zheev_(jobz, uplo, n, a, lda, w,  work,  lwork, rwork.ptr(),
            info, jobzlen, uplo_len );
@@ -393,9 +395,9 @@ STATIC void dorgqr_(integer *m, integer *n, integer *k,
 		 complex_real4 *a, integer *lda, complex_real4 *tau,
 		 complex_real4 *work, integer *lwork, integer *info) {
 #if MADNESS_LINALG_USE_LAPACKE
-  cungqr_(m, n, k, reinterpret_cast<lapack_complex_float*>(a), lda,
-          reinterpret_cast<lapack_complex_float*>(tau),
-          reinterpret_cast<lapack_complex_float*>(work), lwork, info);
+  cungqr_(m, n, k, to_cptr(a), lda,
+          to_cptr(tau),
+          to_cptr(work), lwork, info);
 #else
 	cungqr_(m, n, k, a, m, tau, work, lwork, info);
 #endif
@@ -405,9 +407,9 @@ STATIC void dorgqr_(integer *m, integer *n, integer *k,
 		 complex_real8 *a, integer *lda, complex_real8 *tau,
 	 	 complex_real8 *work, integer *lwork, integer *info) {
 #if MADNESS_LINALG_USE_LAPACKE
-  zungqr_(m,n,k, reinterpret_cast<lapack_complex_double*>(a), m,
-          reinterpret_cast<lapack_complex_double*>(tau),
-          reinterpret_cast<lapack_complex_double*>(work), lwork, info);
+  zungqr_(m,n,k, to_zptr(a), m,
+          to_zptr(tau),
+          to_zptr(work), lwork, info);
 #else
 	zungqr_(m, n, k, a, m, tau, work, lwork, info);
 #endif
