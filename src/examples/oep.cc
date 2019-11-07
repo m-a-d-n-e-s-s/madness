@@ -59,6 +59,10 @@ int main(int argc, char** argv) {
 //        calc->param.print("oep");
     }
 
+	// set reference orbitals to canonical by default
+    std::string arg="canon";
+	calc->param.set_derived_value("localize",arg);
+
     std::shared_ptr<OEP> oep(new OEP(world, calc, input));
 
     vecfuncT HF_nemos;

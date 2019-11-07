@@ -232,6 +232,11 @@ public:
 	OEP(World& world, const std::shared_ptr<SCF> calc, std::string inputfile)
 		: Nemo(world, calc, inputfile), oep_param(world) {
 		oep_param.set_derived_values(param);
+
+		if (param.localize_method()!="canon") {
+			MADNESS_EXCEPTION("use localized orbitals for OEP calculations",1);
+		}
+
 		oep_param.print("oep","end");
 
 	}
