@@ -1,0 +1,30 @@
+Hylleraas MP2 energies with internally generated cabs
+Note that Hylleraas energies are not recommended for f12 calculations.
+Use projected as energytype and don't worry about aux. bases
+
+plot
+end
+
+dft
+no_compute false
+xc hf
+econv 1.e-4
+dconv 3.e-4
+k 7
+end
+
+pno
+tpno 1.e-7
+thresh 1.e-4
+end
+
+f12
+energytype hylleraas
+auxbas he-4s3p2d1f
+end
+
+geometry
+eprec 1.e-6
+he 0.0 0.0 0.0
+end
+

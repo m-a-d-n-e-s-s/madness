@@ -93,6 +93,8 @@ else (ENABLE_ELEMENTAL)
 endif (ENABLE_ELEMENTAL)
 add_feature_info(Elemental ENABLE_ELEMENTAL "compiles parallel linear-algebra library Elemental as part of MADNESS")
 
+option(ENABLE_BOOST "Enable C++ Boost Libraries" OFF)
+
 # Configure options ============================================================
 
 option(ENABLE_GENTENSOR "Enable generic tensor support" OFF)
@@ -531,6 +533,7 @@ include(external/libunwind.cmake)
 include(external/gperftools.cmake)
 include(external/tbb.cmake)
 include(external/parsec.cmake)
+include(external/boost.cmake)
 
 if (DEFINED ELEMENTAL_TAG)
   include(external/elemental.cmake)
