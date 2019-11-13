@@ -1476,7 +1476,7 @@ namespace madness {
             }
         }
 
-        /// Desctructor.
+        /// Destructor.
         ~ThreadPool() {
 #if HAVE_PARSEC
           ////////////////// Parsec related Begin /////////////////
