@@ -635,6 +635,18 @@ namespace madness {
             return impl->get_pmap();
         }
 
+        /// replicate this function, generating a unique pmap
+        void replicate(bool fence=true) const {
+            verify();
+            impl->replicate(fence);
+        }
+
+        /// distribute this function according to newmap
+        void distribute(std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > newmap) const {
+            verify();
+            impl->distribute(newmap);
+        }
+
 
         /// Returns the square of the norm of the local function ... no communication
 

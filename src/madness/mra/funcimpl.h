@@ -996,6 +996,16 @@ namespace madness {
 
         const std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >& get_pmap() const;
 
+        void replicate(bool fence=true) {
+        	coeffs.replicate(fence);
+        }
+
+        void distribute(std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > newmap) const {
+        	auto currentmap=coeffs.get_pmap();
+        	currentmap->redistribute(world,newmap);
+        }
+
+
         /// Copy coeffs from other into self
         template <typename Q>
         void copy_coeffs(const FunctionImpl<Q,NDIM>& other, bool fence) {

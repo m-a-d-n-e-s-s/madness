@@ -529,6 +529,17 @@ int test_convolution(World& world, const long& k, const double thresh) {
 }
 
 
+int test_replicate(World& world, const long& k, const double thresh) {
+    real_function_3d phi=real_factory_3d(world).f(gauss_3d);
+    auto map=phi.get_pmap();
+    map->print_data_sizes(world,"before replication");
+    phi.replicate();
+    phi.get_pmap()->print_data_sizes(world,"replicated");
+    map->print_data_sizes(world,"after replication");
+    phi.distribute(map);
+    map->print_data_sizes(world,"after distribution");
+    return 0;
+}
 
 
 int test(World& world, const long& k, const double thresh) {
@@ -684,23 +695,23 @@ int main(int argc, char**argv) {
 
 
     int error=0;
-
-    real_function_3d phi=real_factory_3d(world).f(gauss_3d);
-    double norm=phi.norm2();
-    if (world.rank()==0) printf("phi.norm2()   %12.8f\n",norm);
-
-    real_function_3d phi2=2.0*phi*phi;
-    norm=phi2.norm2();
-    if (world.rank()==0) printf("phi2.norm2()  %12.8f\n",norm);
+//
+//    real_function_3d phi=real_factory_3d(world).f(gauss_3d);
+//    double norm=phi.norm2();
+//    if (world.rank()==0) printf("phi.norm2()   %12.8f\n",norm);
+//
+//    real_function_3d phi2=2.0*phi*phi;
+//    norm=phi2.norm2();
+//    if (world.rank()==0) printf("phi2.norm2()  %12.8f\n",norm);
 
     test(world,k,thresh);
-    error+=test_hartree_product(world,k,thresh);
-    error+=test_convolution(world,k,thresh);
-    error+=test_multiply(world,k,thresh);
-    error+=test_add(world,k,thresh);
-    error+=test_exchange(world,k,thresh);
-    error+=test_inner(world,k,thresh);
-
+//    error+=test_hartree_product(world,k,thresh);
+//    error+=test_convolution(world,k,thresh);
+//    error+=test_multiply(world,k,thresh);
+//    error+=test_add(world,k,thresh);
+//    error+=test_exchange(world,k,thresh);
+//    error+=test_inner(world,k,thresh);
+    error+=test_replicate(world,k,thresh);
 
     print(ok(error==0),error,"finished test suite\n");
 
