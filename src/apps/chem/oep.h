@@ -124,8 +124,7 @@ public:
 		initialize<double>("density_threshold_inv",1.e-8,"comment on this");
 		initialize<bool>("set_thresh_inv",false,"comment on this");
 		initialize<std::vector<double> >("kain_param",{1.0e-8, 3.0},"comment on this");
-		initialize<unsigned int>("damp_num",0,"default 0 (no damping)");
-		initialize<std::vector<double> >("damp_coeff",{1.0},"comment on this");
+		initialize<std::vector<double> >("damp_coeff",{1.0},"set coefficients for the new and a number of old potentials for damping");
 
 //		std::vector<bool> oep_model = {false, false, false, false};
 		initialize<unsigned int>("saving_amount",1,"choose level 0, 1, 2 or 3 for saving functions");
@@ -158,6 +157,7 @@ public:
 	bool is_mrks() const {return (get<std::string>("model")=="mrks");}
 
 	long damp_num() const {return get<std::vector<double> >("damp_coeff").size();}
+	bool do_damping() const {return damp_num() > 1;}
 	double conv_thresh() const {return get<double>("conv_threshold");}
 	double dens_thresh_hi() const {return get<double>("density_threshold_high");}
 	double dens_thresh_lo() const {return get<double>("density_threshold_low");}
@@ -177,6 +177,7 @@ public:
 
 	std::vector<double> kain_param() const {return get<std::vector<double> >("kain_param");}
 	std::vector<double> damp_coeff() const {return get<std::vector<double> >("damp_coeff");}
+
 };
 
 

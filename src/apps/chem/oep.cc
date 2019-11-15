@@ -59,10 +59,13 @@ void OEP::solve_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
 	real_function_3d Voep = Vs;
 
 	// copy Vs to all old potentials for damping
-   	std::vector<real_function_3d> Voep_old;
-   	for (unsigned int i = 0; i < oep_param.damp_num(); i++) {
-   		Voep_old.push_back(Vs);
-   	}
+	// attention: Voep_old is only used if damping is used, so if oep_param.damp_num() > 1
+	std::vector<real_function_3d> Voep_old;
+	if (oep_param.do_damping()) {
+		for (unsigned int i = 1; i < oep_param.damp_num(); i++) {
+			Voep_old.push_back(Vs);
+		}
+	}
 
 	// define the solver
 	typedef allocator<double, 3> allocT;
@@ -79,9 +82,9 @@ void OEP::solve_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
 		if (oep_param.is_ocep() or oep_param.is_dcep() or oep_param.is_mrks()) {
 
 			// damping for better convergence of Voep
-			if (oep_param.damp_num() > 0) {
-    			for (unsigned int i = 0; i < oep_param.damp_num() - 1; i++) {
-    				Voep_old[i+1] = Voep_old[i];
+			if (oep_param.do_damping()) {
+    			for (unsigned int i = 1; i < oep_param.damp_num() - 1; i++) {
+    				Voep_old[i] = Voep_old[i - 1];
     			}
     			Voep_old[0] = Voep;
 			}
@@ -100,8 +103,10 @@ void OEP::solve_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
 			Voep = oep_param.damp_coeff()[0]*(Vs + corr_ocep + shift);
 			if (oep_param.is_dcep()) Voep += oep_param.damp_coeff()[0]*corr_dcep;
 			else if (oep_param.is_mrks()) Voep += oep_param.damp_coeff()[0]*corr_mrks;
-			for (unsigned int i = 0; i < oep_param.damp_num(); i++) {
-				Voep += oep_param.damp_coeff()[i + 1]*Voep_old[i];
+			if (oep_param.do_damping()) {
+				for (unsigned int i = 1; i < oep_param.damp_num(); i++) {
+					Voep += oep_param.damp_coeff()[i]*Voep_old[i - 1];
+				}
 			}
 
 			// save certain functions if desired
