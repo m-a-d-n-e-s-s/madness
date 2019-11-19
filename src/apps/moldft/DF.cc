@@ -859,44 +859,56 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
 
 
      ////Debugging
-     //std::vector<Fcwf> debug_orbitals;
-     //for(unsigned int j = 0; j < n; j++){
-     //     debug_orbitals.push_back(occupieds[j]*myV);
-     //}
-     //tempmatrix = matrix_inner(world,occupieds,debug_orbitals);
-     //fock(Slice(0,n-1),Slice(0,n-1)) = copy(tempmatrix);
-     //fock(Slice(n,2*n-1),Slice(n,2*n-1)) = -1.0*conj(tempmatrix);
-     //tempmatrix = matrix_inner(world,kramers_pairs,debug_orbitals);
-     //fock(Slice(0,n-1),Slice(n,2*n-1)) = conj(tempmatrix);
-     //fock(Slice(n,2*n-1),Slice(0,n-1)) = copy(tempmatrix);
-     //if(world.rank()==0) print("\nVnuc matrix:\n",fock);
+     std::vector<Fcwf> debug_orbitals;
+     for(unsigned int j = 0; j < n; j++){
+          debug_orbitals.push_back(occupieds[j]*myV);
+     }
+     Tensor<std::complex<double>> debugmatrix = matrix_inner(world,occupieds,debug_orbitals);
+     fock(Slice(0,n-1),Slice(0,n-1)) = copy(debugmatrix);
+     fock(Slice(n,m-1),Slice(n,m-1)) = conj(debugmatrix(Slice(0,np-1),Slice(0,np-1)));
+     debugmatrix = matrix_inner(world,kramers_pairs,debug_orbitals);
+     fock(Slice(n,m-1),Slice(0,n-1)) = copy(debugmatrix);
+     fock(Slice(0,n-1),Slice(n,m-1)) = -1.0*conj_transpose(debugmatrix);
+     fock = inner(transpose(P),inner(fock,P));
+     if(world.rank()==0) print("\nVnuc matrix:\n",fock);
 
+     real_function_3d idk = apply(op,rho);
+     for(unsigned int j = 0; j < n; j++){
+          debug_orbitals[j] = occupieds[j]*idk;
+     }
+     debugmatrix = matrix_inner(world,occupieds,debug_orbitals);
+     fock(Slice(0,n-1),Slice(0,n-1)) = copy(debugmatrix);
+     fock(Slice(n,m-1),Slice(n,m-1)) = conj(debugmatrix(Slice(0,np-1),Slice(0,np-1)));
+     debugmatrix = matrix_inner(world,kramers_pairs,debug_orbitals);
+     fock(Slice(n,m-1),Slice(0,n-1)) = copy(debugmatrix);
+     fock(Slice(0,n-1),Slice(n,m-1)) = -1.0*conj_transpose(debugmatrix);
+     fock = inner(transpose(P),inner(fock,P));
+     if(world.rank()==0) print("\nJ matrix:\n",fock);
 
+     for(unsigned int j = 0; j < n; j++){
+          debug_orbitals[j] = Kpsis[j];
+     }
+     debugmatrix = matrix_inner(world,occupieds,debug_orbitals);
+     fock(Slice(0,n-1),Slice(0,n-1)) = -1.0 * debugmatrix;
+     fock(Slice(n,m-1),Slice(n,m-1)) = -1.0 * transpose(debugmatrix(Slice(0,np-1),Slice(0,np-1)));
+     debugmatrix = matrix_inner(world, kramers_pairs, debug_orbitals);
+     fock(Slice(n,m-1),Slice(0,n-1)) = -1.0 * debugmatrix;
+     fock(Slice(0,n-1),Slice(n,m-1)) = conj_transpose(debugmatrix);
+     fock = inner(transpose(P),inner(fock,P));
+     if(world.rank()==0) print("\nK matrix:\n",fock);
 
-     //real_function_3d idk = apply(op,rho);
-     //for(unsigned int j = 0; j < n; j++){
-     //     debug_orbitals[j] = occupieds[j]*idk;
-     //}
-     //tempmatrix = matrix_inner(world,occupieds,debug_orbitals);
-     //fock(Slice(0,n-1),Slice(0,n-1)) = copy(tempmatrix);
-     //fock(Slice(n,2*n-1),Slice(n,2*n-1)) = -1.0*conj(tempmatrix);
-     //tempmatrix = matrix_inner(world,kramers_pairs,debug_orbitals);
-     //fock(Slice(0,n-1),Slice(n,2*n-1)) = conj(tempmatrix);
-     //fock(Slice(n,2*n-1),Slice(0,n-1)) = copy(tempmatrix);
-     //if(world.rank()==0) print("\nJ matrix:\n",fock);
-
-
-
-     //for(unsigned int j = 0; j < n; j++){
-     //     debug_orbitals[j] = Kpsis[j];
-     //}
-     //tempmatrix = matrix_inner(world,occupieds,debug_orbitals);
-     //if(world.rank()==0) print("\nK matrix:\n",fock);
-     //for(unsigned int j = 0; j < n; j++){
-     //     debug_orbitals[j] = apply_T(world,occupieds[j]);
-     //}
-     //tempmatrix = matrix_inner(world,occupieds,debug_orbitals);
-     //if(world.rank()==0) print("\nT matrix:\n",fock);
+     for(unsigned int j = 0; j < n; j++){
+          debug_orbitals[j] = apply_T(world,occupieds[j]);
+     }
+     debugmatrix = matrix_inner(world,occupieds,debug_orbitals);
+     fock(Slice(0,n-1),Slice(0,n-1)) = copy(debugmatrix);
+     fock(Slice(n,m-1),Slice(n,m-1)) = conj(debugmatrix(Slice(0,np-1),Slice(0,np-1)));
+     debugmatrix = matrix_inner(world,kramers_pairs,debug_orbitals);
+     fock(Slice(n,m-1),Slice(0,n-1)) = copy(debugmatrix);
+     fock(Slice(0,n-1),Slice(n,m-1)) = -1.0*conj_transpose(debugmatrix);
+     fock = inner(transpose(P),inner(fock,P));
+     if(world.rank()==0) print("\nT matrix:\n",fock);
+     //End debugging
 
 
      //add in coulomb parts to neworbitals
@@ -2082,37 +2094,37 @@ void DF::solve_occupied(World & world)
           iteration_number++;
      }
 
-     //Calculation of Effective Electric Field:
-     if(world.rank()==0) print("Effective Electric Field calculation");
-     std::complex<double> myi(0,1);
-     std::complex<double> one(1,0);
-     real_derivative_3d Dx(world,0);
-     real_derivative_3d Dy(world,1);
-     real_derivative_3d Dz(world,2);
-     double Eeff(0.0);
-     for(unsigned int j; j < Init_params.num_occupied; j++){
-          real_function_3d LL(world);
-          for(unsigned int kk; kk < Init_params.num_occupied; kk++){
-               if(kk != j){
-                    LL += squaremod(occupieds[kk]);
-               }
-          }
-          LL = apply(op,LL);
-          LL += Vnuc;
-          complex_function_3d Lx = one*Dx(LL);
-          complex_function_3d Ly = one*Dy(LL);
-          complex_function_3d Lz = one*Dz(LL);
-          Fcwf temp(world);
+     ////Calculation of Effective Electric Field:
+     //if(world.rank()==0) print("Effective Electric Field calculation");
+     //std::complex<double> myi(0,1);
+     //std::complex<double> one(1,0);
+     //real_derivative_3d Dx(world,0);
+     //real_derivative_3d Dy(world,1);
+     //real_derivative_3d Dz(world,2);
+     //double Eeff(0.0);
+     //for(unsigned int j; j < Init_params.num_occupied; j++){
+     //     real_function_3d LL(world);
+     //     for(unsigned int kk; kk < Init_params.num_occupied; kk++){
+     //          if(kk != j){
+     //               LL += squaremod(occupieds[kk]);
+     //          }
+     //     }
+     //     LL = apply(op,LL);
+     //     LL += Vnuc;
+     //     complex_function_3d Lx = one*Dx(LL);
+     //     complex_function_3d Ly = one*Dy(LL);
+     //     complex_function_3d Lz = one*Dz(LL);
+     //     Fcwf temp(world);
 
-          temp[0] = Lz*occupieds[j][0] + (Lx - myi*Ly)*occupieds[j][1];
-          temp[1] =  (Lx + myi*Ly)*occupieds[j][0] - Lz*occupieds[j][1];
-          temp[2] = Lz*occupieds[j][2] + (Lx - myi*Ly)*occupieds[j][3];
-          temp[2].scale(-1.0);
-          temp[3] = Lz*occupieds[j][3] - (Lx + myi*Ly)*occupieds[j][2];
+     //     temp[0] = Lz*occupieds[j][0] + (Lx - myi*Ly)*occupieds[j][1];
+     //     temp[1] =  (Lx + myi*Ly)*occupieds[j][0] - Lz*occupieds[j][1];
+     //     temp[2] = Lz*occupieds[j][2] + (Lx - myi*Ly)*occupieds[j][3];
+     //     temp[2].scale(-1.0);
+     //     temp[3] = Lz*occupieds[j][3] - (Lx + myi*Ly)*occupieds[j][2];
 
-          Eeff += std::real(inner(occupieds[0],temp));
-     }
-     if(world.rank()==0) print("Eeff = ", Eeff);
+     //     Eeff += std::real(inner(occupieds[0],temp));
+     //}
+     //if(world.rank()==0) print("Eeff = ", Eeff);
 
 
 }
