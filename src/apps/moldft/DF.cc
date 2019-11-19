@@ -610,6 +610,7 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      Tensor<std::complex<double>> U(n,n);
      Tensor<double> evals(n);
      std::vector<Fcwf> temp_orbitals;
+     
 
      if(world.rank()==0) print("     Forming Matrices");
      start_timer(world);
@@ -622,6 +623,34 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      for(unsigned int j = 0; j < n; j++){
           rho += squaremod(occupieds[j]);
      }
+
+     ////Debugging
+     std::vector<Fcwf> debug_orbitals;
+     for(unsigned int j = 0; j < n; j++){
+          debug_orbitals.push_back(occupieds[j]*myV);
+     }
+     fock = matrix_inner(world,occupieds,debug_orbitals);
+     if(world.rank()==0) print("\nVnuc matrix:\n",fock);
+
+     real_function_3d idk = apply(op,rho);
+     for(unsigned int j = 0; j < n; j++){
+          debug_orbitals[j] = occupieds[j]*idk;
+     }
+     fock = matrix_inner(world,occupieds,debug_orbitals);
+     if(world.rank()==0) print("\nJ matrix:\n",fock);
+
+     for(unsigned int j = 0; j < n; j++){
+          debug_orbitals[j] = Kpsis[j];
+     }
+     fock = matrix_inner(world,occupieds,debug_orbitals);
+     if(world.rank()==0) print("\nK matrix:\n",fock);
+
+     for(unsigned int j = 0; j < n; j++){
+          debug_orbitals[j] = apply_T(world,occupieds[j]);
+     }
+     fock = matrix_inner(world,occupieds,debug_orbitals);
+     if(world.rank()==0) print("\nT matrix:\n",fock);
+     //End Debugging
      
      //TODO: Here try moving the apply out to operate on the sum of the nuclear and electronic charge distributions
      real_function_3d potential = myV + apply(op,rho);
