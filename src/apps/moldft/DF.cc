@@ -638,6 +638,11 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      }
      fock = matrix_inner(world,occupieds,debug_orbitals);
      if(world.rank()==0) print("\nJ matrix:\n",fock);
+     for(unsigned int j = 0; j < n; j++){
+          double aa = occupieds[j].norm2();
+          double bb = debug_orbitals[j].norm2();
+          if(world.rank()==0) print("     ", j+1, aa, bb);
+     }
 
      for(unsigned int j = 0; j < n; j++){
           debug_orbitals[j] = Kpsis[j];
