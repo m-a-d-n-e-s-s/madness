@@ -623,6 +623,13 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      for(unsigned int j = 0; j < n; j++){
           rho += squaremod(occupieds[j]);
      }
+     for(unsigned int j = 0; j < n; j++){
+          double aa = occupieds[j][0].norm2();
+          double bb = occupieds[j][1].norm2();
+          double cc = occupieds[j][2].norm2();
+          double dd = occupieds[j][3].norm2();
+          if(world.rank()==0) print("     ", j+1, aa, bb, cc, dd);
+     }
 
      ////Debugging
      std::vector<Fcwf> debug_orbitals;
