@@ -846,6 +846,13 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
           rho += 2*squaremod(occupieds[j]);
      }
      if(!closed_shell) rho += squaremod(occupieds[n-1]);
+     for(unsigned int j = 0; j < n; j++){
+          double aa = occupieds[j][0].norm2();
+          double bb = occupieds[j][1].norm2();
+          double cc = occupieds[j][2].norm2();
+          double dd = occupieds[j][3].norm2();
+          if(world.rank()==0) print("     ", j+1, aa, bb, cc, dd);
+     }
      
      real_function_3d potential = myV + apply(op,rho);
      potential.truncate();
@@ -884,6 +891,11 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      fock(Slice(0,n-1),Slice(n,m-1)) = -1.0*conj_transpose(debugmatrix);
      fock = inner(transpose(P),inner(fock,P));
      if(world.rank()==0) print("\nJ matrix:\n",fock);
+     for(unsigned int j = 0; j < n; j++){
+          double aa = occupieds[j].norm2();
+          double bb = debug_orbitals[j].norm2();
+          if(world.rank()==0) print("     ", j+1, aa, bb);
+     }
 
      for(unsigned int j = 0; j < n; j++){
           debug_orbitals[j] = Kpsis[j];
