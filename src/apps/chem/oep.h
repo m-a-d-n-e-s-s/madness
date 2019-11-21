@@ -118,6 +118,7 @@ public:
 	OEP_Parameters(World& world) {
 
 		initialize<std::string>("model","mrks","comment on this",{"oaep","ocep","dcep","mrks"});
+//		initialize<unsigned int>("maxiter_oep",250,"maximum number of iterations in OEP algorithm");
 		initialize<double>("conv_threshold",1.e-5,"comment on this");
 		initialize<double>("density_threshold_high",1.e-4,"comment on this");
 		initialize<double>("density_threshold_low",1.e-7,"comment on this");
@@ -158,6 +159,7 @@ public:
 
 	long damp_num() const {return get<std::vector<double> >("damp_coeff").size();}
 	bool do_damping() const {return damp_num() > 1;}
+//	unsigned int maxiter_oep() const {return get<unsigned int>("maxiter_oep");}
 	double conv_thresh() const {return get<double>("conv_threshold");}
 	double dens_thresh_hi() const {return get<double>("density_threshold_high");}
 	double dens_thresh_lo() const {return get<double>("density_threshold_low");}
@@ -385,6 +387,9 @@ public:
 	/// same for orbital energies (eigenvalues) KS_eigvals which is oep->get_calc()->aeps
 	/// converged if norm, total energy difference and orbital energy differences (if not OAEP) are converged
     void solve_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals);
+
+    /// The following function tests all essential parts of the OEP program qualitatively and some also quantitatively
+    void test_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals);
 
     /// get index of HOMO from a given set of orbital energies
     long homo_ind(const tensorT orbens) const {

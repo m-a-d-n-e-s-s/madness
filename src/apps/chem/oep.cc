@@ -399,11 +399,14 @@ void OEP::solve_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
 	double Econv = compute_energy(R*KS_nemo, R*Jnemo, Ex_conv);
 
 	printf("      +++ FINAL TOTAL ENERGY = %15.8f  Eh +++\n\n\n", Econv);
+
 	printf("     Ex_vir       = %15.8f  Eh", Ex_vir);
 	printf("\n     Ex_conv      = %15.8f  Eh", Ex_conv);
 	printf("\n     Ex_HF        = %15.8f  Eh\n", Ex_HF);
+
 	printf("\n     Ekin_HF (T)  = %15.8f  Eh", Ekin_HF);
 	printf("\n     Ekin_KS (Ts) = %15.8f  Eh\n", Ekin_KS);
+
 	printf("\n     DEvir_14     = %15.8f mEh", (Ex_vir - Ex_conv)*1000.0); // like in Kohut_2014, equation (45)
 	printf("\n     DEvir_17     = %15.8f mEh\n", (Ex_vir - Ex_HF - 2.0*Tc)*1000.0); // like in Ospadov_2017, equation (28)
 	print("     Drho         =     ", Drho, "e\n\n");
@@ -425,6 +428,172 @@ void OEP::solve_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
 
 	calc->aeps = f_pp;
 	if (calc->param.save()) calc->save_mos(world);
+
+}
+
+
+/// TODO: test oep program (under construction)
+/// The following function tests all essential parts of the OEP program qualitatively and some also quantitatively
+void OEP::test_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
+
+    print("+++ starting OEP test +++\n");
+
+    print("test calculation of HOMO index from HF calculation");
+    print("     the HOMO index is ...", homo_ind(HF_eigvals));
+    print("  HOMO index computed successfully\n");
+
+    print("test construction of the munging weighting function");
+    real_function_3d weight_HF = compute_weighting_function(HF_nemo);
+    print("  weighting function computed successfully\n");
+
+    print("test construction of HF density");
+    const real_function_3d rho_HF = compute_density(HF_nemo);
+    print("  HF density computed successfully\n");
+
+    print("test construction of Slater potential");
+    const real_function_3d Vs = compute_slater_potential(HF_nemo, homo_ind(HF_eigvals));
+    print("  Slater potential computed successfully\n");
+
+    print("test construction of IHF");
+    const real_function_3d IHF = compute_average_I(HF_nemo, HF_eigvals);
+    print("  IHF computed successfully\n");
+
+    print("test construction of kin_tot_HF (tau/rho HF)");
+    const real_function_3d kin_tot_HF = compute_total_kinetic_density(HF_nemo, HF_eigvals);
+    print("  kin_tot_HF computed successfully\n");
+
+    print("test construction of kin_P_HF (tau_P/rho HF)");
+    const real_function_3d kin_P_HF = compute_Pauli_kinetic_density(HF_nemo, HF_eigvals);
+    print("  kin_P_HF computed successfully\n");
+
+
+    vecfuncT Knemo;
+	compute_exchange_potential(HF_nemo, Knemo);
+
+	// TODO: Check all reference numbers again for maxiter = enough and maxiter_oep = 2
+	// TODO: in solve_oep: substitute all maxiter with maxiter_oep
+
+    print("test conventional HF exchange energy");
+    const double Exconv_HF_correct = -2.66691494; // exchange energy from nemo calculation
+    print("HF exchange energy of the system should be", Exconv_HF_correct, "Eh");
+    const double Exconv_HF = compute_exchange_energy_conv(R*HF_nemo, R*Knemo);
+    const double Exconv_HF_diff = fabs(Exconv_HF_correct - Exconv_HF);
+    print("     the HF exchange energy of the system is ...", Exconv_HF, "Eh");
+    print("     difference:", Exconv_HF_diff);
+    if (Exconv_HF_diff <= param.econv()) print("  conventional HF exchange energy is correct\n");
+    else print("  ATTENTION: conventional HF exchange energy error is larger than energy convergence threshold (econv)!\n");
+
+    print("test HF exchange energy via Slater potential");
+    const double ExVs_HF_correct = -2.66691494; // exchange energy from nemo calculation
+    print("HF exchange energy of the system should be", ExVs_HF_correct, "Eh");
+    const double ExVs_HF = 0.5*inner(rho_HF, Vs);
+    const double ExVs_HF_diff = fabs(ExVs_HF_correct - ExVs_HF);
+    print("     the HF exchange energy of the system is ...", ExVs_HF, "Eh");
+    print("     difference:", ExVs_HF_diff);
+    if (ExVs_HF_diff <= param.econv()) print("  HF exchange energy via Slater potential is correct\n");
+    else print("  ATTENTION: HF exchange energy (via Slater potential) error is larger than energy convergence threshold (econv)!\n");
+
+    print("test virial HF exchange energy (with Slater potential)");
+    const double Exvir_HF_correct = -3.00658754; // exchange energy from a test calculation with HF reference
+    print("HF virial exchange energy of the system should be", Exvir_HF_correct, "Eh");
+    const double Exvir_HF = compute_exchange_energy_vir(R*HF_nemo, Vs);
+    const double Exvir_HF_diff = fabs(Exvir_HF_correct - Exvir_HF);
+    print("     the virial HF exchange energy of the system is ...", Exvir_HF, "Eh");
+    print("     difference:", Exvir_HF_diff);
+    if (Exvir_HF_diff <= param.econv()) print("  virial HF exchange energy is correct\n");
+    else print("  ATTENTION: virial HF exchange energy error is larger than energy convergence threshold (econv)!\n");
+
+    print("test virial HF exchange energy (with only HF OCEP: IKS = 0)");
+    real_function_3d V_HFocep = Vs + IHF;
+    const double Exvir_HFocep_correct = -0.47638766; // exchange energy from a test calculation with HF reference
+    print("HF OCEP virial exchange energy of the system should be", Exvir_HFocep_correct, "Eh");
+    const double Exvir_HFocep = compute_exchange_energy_vir(R*HF_nemo, V_HFocep);
+    const double Exvir_HFocep_diff = fabs(Exvir_HFocep_correct - Exvir_HFocep);
+    print("     the virial HF OCEP exchange energy of the system is ...", Exvir_HFocep, "Eh");
+    print("     difference:", Exvir_HFocep_diff);
+    if (Exvir_HFocep_diff <= param.econv()) print("  virial HF OCEP exchange energy is correct\n");
+    else print("  ATTENTION: virial HF OCEP exchange energy error is larger than energy convergence threshold (econv)!\n");
+
+    print("test virial HF exchange energy (with only HF DCEP: IKS = 0, kin_tot_KS = 0)");
+    real_function_3d V_HFdcep = Vs + IHF + kin_tot_HF;
+    const double Exvir_HFdcep_correct = 4.03651912; // exchange energy from a test calculation with HF reference
+    print("HF DCEP virial exchange energy of the system should be", Exvir_HFdcep_correct, "Eh");
+    const double Exvir_HFdcep = compute_exchange_energy_vir(R*HF_nemo, V_HFdcep);
+    const double Exvir_HFdcep_diff = fabs(Exvir_HFdcep_correct - Exvir_HFdcep);
+    print("     the virial HF DCEP exchange energy of the system is ...", Exvir_HFdcep, "Eh");
+    print("     difference:", Exvir_HFdcep_diff);
+    if (Exvir_HFdcep_diff <= param.econv()) print("  virial HF DCEP exchange energy is correct\n");
+    else print("  ATTENTION: virial HF DCEP exchange energy error is larger than energy convergence threshold (econv)!\n");
+
+    print("test virial HF exchange energy (with only HF mRKS: IKS = 0, kin_P_KS = 0)");
+    real_function_3d V_HFmrks = Vs + IHF + kin_P_HF;
+    const double Exvir_HFmrks_correct = -0.84505072; // exchange energy from a test calculation with HF reference
+    print("HF mRKS virial exchange energy of the system should be", Exvir_HFmrks_correct, "Eh");
+    const double Exvir_HFmrks = compute_exchange_energy_vir(R*HF_nemo, V_HFmrks);
+    const double Exvir_HFmrks_diff = fabs(Exvir_HFmrks_correct - Exvir_HFmrks);
+    print("     the virial HF mRKS exchange energy of the system is ...", Exvir_HFmrks, "Eh");
+    print("     difference:", Exvir_HFmrks_diff);
+    if (Exvir_HFmrks_diff <= param.econv()) print("  virial HF mRKS exchange energy is correct\n");
+    else print("  ATTENTION: virial HF mRKS exchange energy error is larger than energy convergence threshold (econv)!\n");
+
+    // TODO: Check some values after 2 iterations
+    // reference values after 10 test calculations:
+    // FINAL TOTAL ENERGY = -14.56855736 Eh
+    // final electron-nuclear attraction energy = -33.86962732 Eh
+    // final Coulomb energy = 7.23802369 Eh
+    // final exchange energy vir (Ex_vir) = -2.81672679 Eh
+    // final exchange energy conv (Ex_conv) = -2.68888508 Eh
+    // HF kinetic energy (T) = 14.57304583 Eh
+    // KS kinetic energy (Ts) = 14.75193136 Eh
+    // DEvir_14 = -127.84171 mEh
+    // DEvir_17 = 207.96006 mEh
+    // Drho = 5.266941e-02
+
+    // What else can be checked?
+    // Damping?
+
+    solve_oep(HF_nemo, HF_eigvals);
+
+    vecfuncT& KS_nemo = calc->amo;
+    tensorT& KS_eigvals = calc->aeps;
+
+    const real_function_3d rho_KS = compute_density(KS_nemo);
+
+    real_function_3d Voep = Vs;
+    print("loading final potential ...");
+    load(Voep, "OEPapprox_final");
+    print(   "... done");
+
+    vecfuncT Jnemo;
+    compute_coulomb_potential(KS_nemo, Jnemo);
+    compute_exchange_potential(KS_nemo, Knemo);
+
+    const double Ex_vir = compute_exchange_energy_vir(R*KS_nemo, Voep);
+    print("Ex_vir:", Ex_vir);
+
+    const double Ex_conv = compute_exchange_energy_conv(R*KS_nemo, R*Knemo);
+    print("Ex_conv:", Ex_conv);
+
+    const double Econv = compute_energy(R*KS_nemo, R*Jnemo, Ex_conv);
+    print("FINAL TOTAL ENERGY:", Econv);
+
+    const double Ekin_HF = compute_kinetic_energy(R*HF_nemo);
+    print("Ekin_HF:", Ekin_HF);
+
+    const double Ekin_KS = compute_kinetic_energy(R*KS_nemo);
+    print("Ekin_KS:", Ekin_KS);
+
+    const double Tc = Ekin_HF - Ekin_KS;
+
+    const double DEvir_14 = (Ex_vir - Ex_conv)*1000.0;
+	print("DEvir_14:", DEvir_14, "mEh");
+
+	const double DEvir_17 = (Ex_vir - ExVs_HF - 2.0*Tc)*1000.0;
+	print("DEvir_17:", DEvir_17, "mEh");
+
+	const double Drho = compute_delta_rho(rho_HF, rho_KS);
+	print("Drho:", Drho);
+
 
 }
 

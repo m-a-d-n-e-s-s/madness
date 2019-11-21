@@ -50,7 +50,10 @@ int main(int argc, char** argv) {
     startup(world, argc, argv);
     std::cout.precision(6);
 
+    // TODO: How can this be handled? See oep.h, line 142
+    // Or create a defined test input file. (probably better solution) How can this be done?
     const std::string input = "input";
+//    const std::string input = "test_input";
     std::shared_ptr<SCF> calc(new SCF(world, input.c_str())); /// see constructor in SCF.h
 
     if (world.rank() == 0) {
@@ -103,7 +106,9 @@ int main(int argc, char** argv) {
 //    std::ifstream in(input.c_str());
 //    oep->read_oep_param(in);
 
+    // TODO: This is currently under construction
     oep->solve_oep(HF_nemos, HF_orbens);
+//    oep->test_oep(HF_nemos, HF_orbens);
 
     finalize();
     return 0;
