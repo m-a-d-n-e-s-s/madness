@@ -115,10 +115,10 @@ struct interpolate_munge_refdens{
 
 class OEP_Parameters : public QCCalculationParametersBase {
 public:
-	OEP_Parameters(World& world) {
+	OEP_Parameters(World& world, std::string inputfile) {
 
 		initialize<std::string>("model","mrks","comment on this",{"oaep","ocep","dcep","mrks"});
-//		initialize<unsigned int>("maxiter_oep",250,"maximum number of iterations in OEP algorithm");
+		initialize<unsigned int>("maxiter",250,"maximum number of iterations in OEP algorithm");
 		initialize<double>("conv_threshold",1.e-5,"comment on this");
 		initialize<double>("density_threshold_high",1.e-4,"comment on this");
 		initialize<double>("density_threshold_low",1.e-7,"comment on this");
@@ -140,7 +140,7 @@ public:
 		initialize<unsigned int>("save_iter_total_correction",0,"if > 0 save total correction (OCEP + DCEP) every ... iterations");
 		initialize<unsigned int>("save_iter_effective_potential",0,"if > 0 save effective potential every ... iterations");
 
-		read(world,"input","oep");
+		read(world,inputfile,"oep");
 
 	}
 
@@ -159,7 +159,7 @@ public:
 
 	long damp_num() const {return get<std::vector<double> >("damp_coeff").size();}
 	bool do_damping() const {return damp_num() > 1;}
-//	unsigned int maxiter_oep() const {return get<unsigned int>("maxiter_oep");}
+	unsigned int maxiter() const {return get<unsigned int>("maxiter");}
 	double conv_thresh() const {return get<double>("conv_threshold");}
 	double dens_thresh_hi() const {return get<double>("density_threshold_high");}
 	double dens_thresh_lo() const {return get<double>("density_threshold_low");}
@@ -233,7 +233,7 @@ private:
 public:
 
 	OEP(World& world, const std::shared_ptr<SCF> calc, std::string inputfile)
-		: Nemo(world, calc, inputfile), oep_param(world) {
+		: Nemo(world, calc, inputfile), oep_param(world, inputfile) {
 		oep_param.set_derived_values(param);
 
 		if (param.localize_method()!="canon") {
