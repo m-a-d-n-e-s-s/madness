@@ -134,19 +134,28 @@ namespace madness {
 #define MADNESS_ASSERT(condition)
 #undef MADNESS_ASSERT
 
+/// Same as MADNESS_ASSERT , but never throws
+
+/// Behaves like MADNESS_ASSERT, except when the latter throws madness::MadnessException this aborts
+/// \param[in] condition The condition to be asserted.
+#define MADNESS_ASSERT_NOEXCEPT(condition)
+#undef MADNESS_ASSERT_NOEXCEPT
 
 #ifdef MADNESS_ASSERTIONS_ABORT
 #  define MADNESS_ASSERT(condition) \
      do {if (!(condition)) { std::abort(); }} while (0)
+#  define MADNESS_ASSERT_NOEXCEPT(condition) MADNESS_ASSERT(condition)
 #endif
 
 #ifdef MADNESS_ASSERTIONS_DISABLE
 // this avoid unused variable warnings, see http://cnicholson.net/2009/02/stupid-c-tricks-adventures-in-assert/
 #  define MADNESS_ASSERT(condition) do { (void)sizeof(condition);} while (0)    
+#  define MADNESS_ASSERT_NOEXCEPT(condition) MADNESS_ASSERT(condition)
 #endif
 
 #ifdef MADNESS_ASSERTIONS_ASSERT
 #  define MADNESS_ASSERT(condition) assert(condition)
+#  define MADNESS_ASSERT_NOEXCEPT(condition) MADNESS_ASSERT(condition)
 #endif
 
 #ifdef MADNESS_ASSERTIONS_THROW
@@ -158,6 +167,8 @@ namespace madness {
                                             (#condition),0,__LINE__,__FUNCTION__,__FILE__); \
         } \
     } while (0)
+#  define MADNESS_ASSERT_NOEXCEPT(condition) \
+     do {if (!(condition)) { std::abort(); }} while (0)
 #endif
 
 // the following define/undef are for documentation purposes only.
