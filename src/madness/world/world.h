@@ -297,7 +297,7 @@ namespace madness {
               return false;
         }
 
-      /// Sets the user-managed local state.
+        /// Sets the user-managed local state.
 
         /// Rather than having all remotely invoked actions carry all
         /// of their data with them, they can access local state through
