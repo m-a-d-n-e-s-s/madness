@@ -269,6 +269,14 @@ namespace madness {
             return 0;
         }
 
+        /// Check if the World exists in the registry.
+
+        /// \param[in] world pointer to a World object
+        /// \return true if \c world exists
+        static bool exists(World* world) {
+          return std::find(worlds.begin(), worlds.end(), world) != worlds.end();
+        }
+
         /// Default World object accessor.
 
         /// This function returns a reference to the default world object; this
