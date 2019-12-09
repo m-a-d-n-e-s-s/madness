@@ -61,10 +61,11 @@
 #include <cstddef>
 
 #ifdef HAVE_RANDOM
-#include <stdlib.h>
+#include <cstdlib>
 #endif
 
 // Madness world header files needed by world
+#include <madness/world/worldinit.h>
 #include <madness/world/worldmpi.h>
 #include <madness/world/worldhashmap.h>
 #include <madness/world/worldprofile.h>
@@ -81,64 +82,6 @@ namespace madness {
     class WorldTaskQueue;
     class WorldAmInterface;
     class WorldGopInterface;
-
-    /// redirects standard output and error to rank-specific files
-
-    /// @param[in] world the World object that determines rank of this process
-    /// @param[in] split if true, write standard output to log.<rank> and standard error to err.<rank>,
-    ///            otherwise write both standard output and error to log.<rank>. The default is false.
-    void redirectio(const World& world, bool split = false);
-
-    /// Initialize the MADNESS runtime.
-
-    /// Call this once at the very top of your main program to initialize the
-    /// MADNESS runtime. This function should be called instead of \c MPI_Init()
-    /// or \c MPI_Init_thread().
-    /// \param[in,out] argc Application argument count.
-    /// \param[in,out] argv Application argument values.
-    /// \param[in] quiet If false, will announce to \c std::cout on rank 0 when
-    ///            the runtime has been initialized.
-    /// \return A reference to the default \c World, which is constructed with
-    ///     \c MPI_COMM_WORLD.
-    World& initialize(int& argc, char**& argv, bool quiet = false);
-
-    /// Initialize the MADNESS runtime.
-
-    /// Call this once at the very top of your main program to initialize the
-    /// MADNESS runtime. This function should be called instead of \c MPI_Init()
-    /// or \c MPI_Init_thread().
-    /// \param[in,out] argc Application argument count.
-    /// \param[in,out] argv Application argument values.
-    /// \param comm The communicator that should be used to construct the
-    ///     \c World object.
-    /// \param[in] quiet If false, will announce to \c std::cout on rank 0 when
-    ///            the runtime has been initialized.
-    /// \return A reference to the \c World constructed with \c comm.
-    World& initialize(int& argc, char**& argv, const SafeMPI::Intracomm& comm,
-        bool quiet = false);
-
-    /// Initialize the MADNESS runtime.
-
-    /// Call this once at the very top of your main program to initialize the
-    /// MADNESS runtime. This function should be called instead of \c MPI_Init()
-    /// or \c MPI_Init_thread().
-    /// \param[in,out] argc Application argument count.
-    /// \param[in,out] argv Application argument values.
-    /// \param comm The MPI communicator that should be used to construct the
-    ///     \c World object.
-    /// \param[in] quiet If false, will announce to \c std::cout on rank 0 when
-    ///            the runtime has been initialized.
-    /// \return A reference to the World constructed with \c comm.
-    World& initialize(int& argc, char**& argv, const MPI_Comm& comm,
-        bool quiet = false);
-
-    /// Call this once at the very end of your main program instead of MPI_Finalize().
-    void finalize();
-
-    /// Check if the MADNESS runtime has been initialized (and not subsequently finalized).
-
-    /// @return true if \c madness::initialize had been called more recently than \c madness::finalize, false otherwise.
-    bool initialized();
 
     /// Print miscellaneous stats on a World.
 

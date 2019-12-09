@@ -10,14 +10,17 @@ set(MADCHEM_HEADERS
     molecular_optimizer.h projector.h
     SCFOperators.h CCStructures.h CalculationParameters.h
     electronic_correlation_factor.h cheminfo.h vibanal.h molopt.h TDHF.h CC2.h CCPotentials.h
-    pcm.h SCFProtocol.h AC.h pointgroupoperator.h pointgroupsymmetry.h znemo.h zcis.h diamagneticpotentialfactor.h
-    MolecularOrbitals.h)
+    pcm.h SCFProtocol.h AC.h pointgroupoperator.h pointgroupsymmetry.h MolecularOrbitals.h 
+	znemo.h zcis.h  diamagneticpotentialfactor.h
+    PNO.h PNOF12Potentials.h PNOGuessFunctions.h PNOParameters.h PNOStructures.h PNOTensors.h)
 set(MADCHEM_SOURCES
     correlationfactor.cc molecule.cc molecularbasis.cc vibanal.cc
     corepotential.cc atomutil.cc lda.cc cheminfo.cc
     distpm.cc SCF.cc gth_pseudopotential.cc nemo.cc mp2.cc pcm.cc
     SCFOperators.cc TDHF.cc GuessFactory.cc CCStructures.cc CC2.cc CCPotentials.cc 
-    AC.cc pointgroupsymmetry.cc znemo.cc zcis.cc diamagneticpotentialfactor.cc
+    AC.cc pointgroupsymmetry.cc 
+    znemo.cc zcis.cc diamagneticpotentialfactor.cc
+    PNO.cpp PNOF12Potentials.cpp PNOGuessFunctions.cpp PNOParameters.cpp PNOStructures.cpp
     QCCalculationParametersBase.cc MolecularOrbitals.cc)
 if(LIBXC_FOUND)
   list(APPEND MADCHEM_SOURCES xcfunctional_libxc.cc)
@@ -41,6 +44,10 @@ if(PCM_FOUND)
   target_link_libraries(MADchem PUBLIC ${PCM_LIBRARIES})
 endif()
 
+if(BOOST_FOUND)
+  target_include_directories(MADchem PUBLIC ${BOOST_INCLUDE_DIRS})
+  target_link_libraries(MADchem PUBLIC ${BOOST_LIBRARIES})
+endif()
 
 # Add executables
 add_executable(plotxc plotxc.cc xcfunctional.h)

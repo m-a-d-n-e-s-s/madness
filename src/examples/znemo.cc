@@ -44,6 +44,8 @@
 
 */
 
+#if defined USE_GENTENSOR
+
 #include <chem/znemo.h>
 
 using namespace madness;
@@ -146,3 +148,12 @@ int main(int argc, char** argv) {
     finalize();
     return 0;
 }
+#else
+
+#include <iostream>
+int main() {
+    std::cout << "U need to configure with -D ENABLE_GENTENSOR=0 to enable znemo\n";
+    return 0;
+}
+
+#endif

@@ -870,7 +870,7 @@ namespace madness {
         /// \param key The key associated with the received data
         /// \return A future that will be set with the received data
         /// \note It is the user's responsibility to ensure that \c key does not
-        /// conflict with other calls to \c recv. Keys may be reuse after the
+        /// conflict with other calls to \c recv. Keys may be reused after the
         /// associated operation has finished.
         template <typename valueT, typename keyT>
         static Future<valueT> recv(const ProcessID source, const keyT& key) {
@@ -885,7 +885,7 @@ namespace madness {
         /// \param key The key that is associated with the data
         /// \param value The data to be sent to \c dest
         /// \note It is the user's responsibility to ensure that \c key does not
-        /// conflict with other calls to \c send. Keys may be reuse after the
+        /// conflict with other calls to \c send. Keys may be reused after the
         /// associated operation has finished.
         template <typename keyT, typename valueT>
         void send(const ProcessID dest, const keyT& key, const valueT& value) const {
@@ -963,7 +963,7 @@ namespace madness {
         /// \param key The sync key
         /// \param op The sync operation to be executed on this process
         /// \note It is the user's responsibility to ensure that \c key does not
-        /// conflict with other calls to \c lazy_sync. Keys may be reuse after
+        /// conflict with other calls to \c lazy_sync. Keys may be reused after
         /// the associated operation has finished.
         template <typename keyT, typename opT>
         void lazy_sync(const keyT& key, const opT& op, const Group& group) const {
@@ -999,7 +999,7 @@ namespace madness {
         /// \throw madness::Exception When \c value has been set, except on the
         /// \c root process.
         /// \note It is the user's responsibility to ensure that \c key does not
-        /// conflict with other calls to \c bcast. Keys may be reuse after
+        /// conflict with other calls to \c bcast. Keys may be reused after
         /// the associated operation has finished.
         template <typename keyT, typename valueT>
         void bcast(const keyT& key, Future<valueT>& value, const ProcessID root) const {
@@ -1031,7 +1031,7 @@ namespace madness {
         /// \throw madness::Exception When \c data has been set except on the
         /// \c root process
         /// \note It is the user's responsibility to ensure that \c key does not
-        /// conflict with other calls to \c bcast. Keys may be reuse after
+        /// conflict with other calls to \c bcast. Keys may be reused after
         /// the associated operation has finished.
         template <typename keyT, typename valueT>
         void bcast(const keyT& key, Future<valueT>& value,
@@ -1079,7 +1079,7 @@ namespace madness {
         /// \return A future to the reduce value on the root process, otherwise an
         /// uninitialized future that may be ignored.
         /// \note It is the user's responsibility to ensure that \c key does not
-        /// conflict with other calls to \c reduce. Keys may be reuse after
+        /// conflict with other calls to \c reduce. Keys may be reused after
         /// the associated operation has finished.
         template <typename keyT, typename valueT, typename opT>
         Future<typename detail::result_of<opT>::type>
@@ -1135,7 +1135,7 @@ namespace madness {
         /// \throw madness::Exception When \c group_root is less than zero or
         /// greater than or equal to \c group size.
         /// \note It is the user's responsibility to ensure that \c key does not
-        /// conflict with other calls to \c reduce. Keys may be reuse after
+        /// conflict with other calls to \c reduce. Keys may be reused after
         /// the associated operation has finished.
         template <typename keyT, typename valueT, typename opT>
         Future<typename detail::result_of<opT>::type>
@@ -1186,7 +1186,7 @@ namespace madness {
         /// \return A future to the reduce value on the root process, otherwise an
         /// uninitialized future that may be ignored.
         /// \note It is the user's responsibility to ensure that \c key does not
-        /// conflict with other calls to \c all_reduce. Keys may be reuse after
+        /// conflict with other calls to \c all_reduce. Keys may be reused after
         /// the associated operation has finished.
         template <typename keyT, typename valueT, typename opT>
         Future<typename detail::result_of<opT>::type>
@@ -1249,7 +1249,7 @@ namespace madness {
         /// equal to that of the world used to construct this object
         /// \throw madness::Exception When this process is not in the group
         /// \note It is the user's responsibility to ensure that \c key does not
-        /// conflict with other calls to \c reduce. Keys may be reuse after
+        /// conflict with other calls to \c reduce. Keys may be reused after
         /// the associated operation has finished.
         template <typename keyT, typename valueT, typename opT>
         Future<typename detail::result_of<opT>::type>

@@ -66,7 +66,7 @@
 /* Jeff: Nick does not want this used on Blue Gene/Q, so we will not allow it
  *       even if other tests indicate that it should work. */
 #if !defined(__bgq__) && (__cplusplus >= 201103L)
-# if defined(MADNESS_GCC_48_OR_HIGHER) || defined(MADNESS_GCC_48_OR_HIGHER) || defined(MADNESS_CLANG_33_OR_HIGHER)
+# if defined(MADNESS_GCC_48_OR_HIGHER) || defined(MADNESS_CLANG_33_OR_HIGHER)
 #  define HAVE_CXX_ATOMICS
 # endif
 #endif
