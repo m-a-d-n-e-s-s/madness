@@ -254,10 +254,10 @@ int main(int argc, char** argv) {
 		coord_3d end(0.0); end[0]=width;
 		plot_line(("line_"+filenames[0]).c_str(),10000,start,end,vf[0]);
 
-//		// plot the Gaussian cube file
-//		std::vector<std::string> molecular_info=cubefile_header("input",no_orient);
-//		std::string filename=filenames[0]+".cube";
-//		plot_cubefile<3>(world,vf[0],filename,molecular_info);
+		// plot the Gaussian cube file
+		std::vector<std::string> molecular_info=cubefile_header("input",no_orient);
+		std::string filename=filenames[0]+".cube";
+		plot_cubefile<3>(world,vf[0],filename,molecular_info);
 
     } catch (...) {
         try {

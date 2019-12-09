@@ -420,6 +420,9 @@ double Znemo::analyze() {
     print("expectation values in standard gauge");
     print("Delta 1/2 <p^2>  ",0.5*(nmo*v2 + 2.0*vp));
 
+    print("saving orbitals for plotting");
+	save_orbitals("plot");
+	save(density,"density_plot");
     return energy;
 }
 
