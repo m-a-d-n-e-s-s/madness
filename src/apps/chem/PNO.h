@@ -33,7 +33,7 @@ public:
 	  J(world, &nemo),
 	  K(ParametrizedExchange(world, nemo, parameters.exchange())),
 	  T(world),
-	  V(world, nemo.nuclear_correlation),
+	  V(world, nemo.ncf),
 	  F(world, &nemo),
 	  Q(world, nemo.get_calc()->amo),
 	  basis(world,nemo.get_calc()->molecule,8),

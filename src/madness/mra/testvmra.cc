@@ -82,6 +82,56 @@ RandomGaussian(const Tensor<double> cell, double expntmax=1e5) {
 }
 
 
+template <typename T, std::size_t NDIM>
+void test_add(World& world) {
+
+    const double thresh=1.e-7;
+    Tensor<double> cell(NDIM,2);
+    for (std::size_t i=0; i<NDIM; ++i) {
+        cell(i,0) = -11.0-2*i;  // Deliberately asymmetric bounding box
+        cell(i,1) =  10.0+i;
+    }
+    FunctionDefaults<NDIM>::set_cell(cell);
+    FunctionDefaults<NDIM>::set_k(8);
+    FunctionDefaults<NDIM>::set_thresh(thresh);
+    FunctionDefaults<NDIM>::set_refine(true);
+    FunctionDefaults<NDIM>::set_initial_level(3);
+    FunctionDefaults<NDIM>::set_truncate_mode(1);
+
+    std::size_t nvec=5;
+    std::vector<Function<T,NDIM> > add1(nvec), add2(nvec), sum(nvec), diff(nvec);
+
+    for (int i=0; i<nvec; ++i) {
+        add1[i]=FunctionFactory<T,NDIM>(world).functor([] (const Vector<double,3>& r) {return r.normf();});
+        add2[i]=FunctionFactory<T,NDIM>(world).functor([] (const Vector<double,3>& r) {return 2.0*r.normf();});
+        sum[i]=FunctionFactory<T,NDIM>(world).functor([] (const Vector<double,3>& r) {return 3.0*r.normf();});
+        diff[i]=FunctionFactory<T,NDIM>(world).functor([] (const Vector<double,3>& r) {return -1.0*r.normf();});
+    }
+
+    std::vector<Function<T,NDIM> > r1=add1+add2;
+    std::vector<Function<T,NDIM> > r3=add1+add2[0];
+    std::vector<Function<T,NDIM> > r5=add1[0]+add2;
+
+    std::vector<Function<T,NDIM> > r2=add1-add2;
+    std::vector<Function<T,NDIM> > r4=add1-add2[0];
+    std::vector<Function<T,NDIM> > r6=add1[0]-add2;
+
+    double error1=0.0,error2=0.0,error3=0.0,error4=0.0,error5=0.0,error6=0.0;
+    for (int i=0; i<nvec; ++i) {
+    	error1+=(r1[i]-sum[i]).norm2();
+    	error3+=(r3[i]-sum[i]).norm2();
+    	error5+=(r5[i]-sum[i]).norm2();
+
+    	error2+=(r2[i]-diff[i]).norm2();
+    	error4+=(r4[i]-diff[i]).norm2();
+    	error6+=(r6[i]-diff[i]).norm2();
+    }
+    print("errors in add", error1,error3,error5,error2,error4,error6);
+
+}
+
+
+
 template <typename T, typename R, int NDIM, bool sym>
 void test_inner(World& world) {
     typedef std::shared_ptr< FunctionFunctorInterface<T,NDIM> > ffunctorT;
@@ -140,6 +190,118 @@ void test_inner(World& world) {
         print("error norm",(rold-rnew).normf(),"\n");
 }
 
+template <typename T, typename R, int NDIM>
+void test_cross(World& world) {
+    typedef std::shared_ptr< FunctionFunctorInterface<T,NDIM> > ffunctorT;
+    typedef std::shared_ptr< FunctionFunctorInterface<R,NDIM> > gfunctorT;
+
+    const double thresh=1.e-7;
+    Tensor<double> cell(NDIM,2);
+    for (std::size_t i=0; i<NDIM; ++i) {
+        cell(i,0) = -11.0-2*i;  // Deliberately asymmetric bounding box
+        cell(i,1) =  10.0+i;
+    }
+    FunctionDefaults<NDIM>::set_cell(cell);
+    FunctionDefaults<NDIM>::set_k(8);
+    FunctionDefaults<NDIM>::set_thresh(thresh);
+    FunctionDefaults<NDIM>::set_refine(true);
+    FunctionDefaults<NDIM>::set_initial_level(3);
+    FunctionDefaults<NDIM>::set_truncate_mode(1);
+
+    const int nleft=3, nright=3;
+
+    if (world.rank() == 0)
+        print("testing  cross product<",archive::get_type_name<T>(),",",archive::get_type_name<R>(),">");
+
+    START_TIMER;
+    std::vector< Function<T,NDIM> > left(nleft);
+    for (int i=0; i<nleft; ++i) {
+        ffunctorT f(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),0.5));
+        left[i] = FunctionFactory<T,NDIM>(world).functor(f);
+    }
+    std::vector< Function<R,NDIM> > right(nright);
+    for (int i=0; i<nright; ++i) {
+    	gfunctorT f(RandomGaussian<R,NDIM>(FunctionDefaults<NDIM>::get_cell(),0.5));
+    	right[i] = FunctionFactory<R,NDIM>(world).functor(f);
+    }
+    END_TIMER("project");
+
+    START_TIMER;
+    compress(world,left);
+    compress(world,right);
+    END_TIMER("compress");
+
+    // cross product is anti-commuting
+    std::vector<Function<TENSOR_RESULT_TYPE(T,R),NDIM> > result1=cross(left,right)+cross(right,left);
+    double err1=norm2(world,result1);
+    if (world.rank() == 0) print("error norm1",err1,"\n");
+
+    // cross product with self vanishes
+    std::vector<Function<TENSOR_RESULT_TYPE(T,R),NDIM> > result2=cross(left,left);
+    double err2=norm2(world,result2);
+    if (world.rank() == 0) print("error norm2",err2,"\n");
+
+    // cross product with self vanishes
+    std::vector<Function<TENSOR_RESULT_TYPE(T,R),NDIM> > result3=cross(left,right);
+    Function<TENSOR_RESULT_TYPE(T,R), NDIM> reference0=left[1]*right[2] - left[2]*right[1];
+
+    double err3=(reference0-result3[0]).norm2();
+    if (world.rank() == 0) print("error norm3",err3,"\n");
+
+    double err4=(result3[0]).norm2();
+    if (world.rank() == 0) print("error norm4",err4," (should not be zero)\n");
+
+}
+
+
+template <typename T, int NDIM>
+void test_rot(World& world) {
+    typedef std::shared_ptr< FunctionFunctorInterface<T,NDIM> > ffunctorT;
+
+    const double thresh=1.e-7;
+    Tensor<double> cell(NDIM,2);
+    for (std::size_t i=0; i<NDIM; ++i) {
+        cell(i,0) = -11.0-2*i;  // Deliberately asymmetric bounding box
+        cell(i,1) =  10.0+i;
+    }
+    FunctionDefaults<NDIM>::set_cell(cell);
+    FunctionDefaults<NDIM>::set_k(8);
+    FunctionDefaults<NDIM>::set_thresh(thresh);
+    FunctionDefaults<NDIM>::set_refine(true);
+    FunctionDefaults<NDIM>::set_initial_level(3);
+    FunctionDefaults<NDIM>::set_truncate_mode(1);
+
+    const int nleft=3;
+
+    if (world.rank() == 0)
+        print("testing rot operator<",archive::get_type_name<T>(),",",archive::get_type_name<T>(),">");
+
+    START_TIMER;
+    std::vector< Function<T,NDIM> > left(nleft);
+    for (int i=0; i<nleft; ++i) {
+        ffunctorT f(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),0.5));
+        left[i] = FunctionFactory<T,NDIM>(world).functor(f);
+    }
+    END_TIMER("project");
+
+    START_TIMER;
+    compress(world,left);
+    END_TIMER("compress");
+
+    // rot grad v vanishes
+    std::vector<Function<T,NDIM> > result1=rot(grad(left[0]));
+    double err1=norm2(world,result1);
+    if (world.rank() == 0) print("error norm1",err1,"\n");
+
+    // div rot v vanishes
+    Function<T,NDIM> result2=div(rot(left));
+    double err2=result2.norm2();
+    if (world.rank() == 0) print("error norm2",err2,"\n");
+
+
+}
+
+
 template <std::size_t NDIM>
 void test_multi_to_multi_op(World& world) {
 
@@ -185,6 +347,7 @@ void test_multi_to_multi_op(World& world) {
 
 int main(int argc, char**argv) {
     initialize(argc, argv);
+    World world(SafeMPI::COMM_WORLD);
 
     bool smalltest = false;
     if (getenv("MAD_SMALL_TESTS")) smalltest=true;
@@ -194,13 +357,23 @@ int main(int argc, char**argv) {
     
 
     try {
-        World world(SafeMPI::COMM_WORLD);
         startup(world,argc,argv);
+
+        test_add<double,3>(world);
+        test_add<std::complex<double>,3 >(world);
 
         test_inner<double,double,1,false>(world);
         test_inner<double,double,1,true>(world);
         test_multi_to_multi_op<1>(world);
         test_multi_to_multi_op<2>(world);
+
+        test_cross<double,double,2>(world);
+        test_cross<std::complex<double>,double,2>(world);
+        test_cross<std::complex<double>,std::complex<double>,2>(world);
+
+        test_rot<double,3>(world);
+        test_rot<std::complex<double>,3>(world);
+
         if (!smalltest) test_multi_to_multi_op<3>(world);
 #if !HAVE_GENTENSOR
         test_inner<double,std::complex<double>,1,false>(world);

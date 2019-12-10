@@ -1,0 +1,66 @@
+<?xml version="1.0" ?>
+<name>
+   def2-SVP
+</name>
+<basis symbol="H">
+  <shell type="S" nprim="3">
+    <exponents>
+     13.0107010   
+      1.9622572   
+      0.44453796  
+    </exponents>
+    <coefficients>
+           0.19682158e-01
+           0.13796524
+           0.47831935
+    </coefficients>
+  </shell>
+  <shell type="S" nprim="1">
+    <exponents>
+      0.12194962
+    </exponents>
+    <coefficients>
+      1.00000000
+    </coefficients>
+  </shell>
+  <shell type="P" nprim="1">
+    <exponents>
+      0.8
+    </exponents>
+    <coefficients>
+      1.00000000
+    </coefficients>
+  </shell>
+</basis>
+<basis symbol="He">
+  <shell type="S" nprim="3">
+    <exponents>
+      38.354936737
+      5.7689081479
+      1.2399407035
+    </exponents>
+    <coefficients>
+      0.02381428
+      0.15490906
+      0.46998096
+    </coefficients>
+  </shell>
+  <shell type="S" nprim="1">
+    <exponents>
+      0.29757815953
+    </exponents>
+    <coefficients>
+      1.00000000
+    </coefficients>
+  </shell>
+  <shell type="P" nprim="1">
+    <exponents>
+      1.0000000000
+    </exponents>
+    <coefficients>
+      1.00000000
+    </coefficients>
+  </shell>
+</basis>
+
+

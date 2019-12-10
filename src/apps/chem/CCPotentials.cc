@@ -36,7 +36,7 @@ namespace madness {
 
   madness::CC_vecfunction
   CCPotentials::make_mo_bra(const Nemo& nemo) const {
-    vector_real_function_3d tmp=mul(world,nemo.nuclear_correlation->square(),nemo.get_calc()->amo);
+    vector_real_function_3d tmp=mul(world,nemo.ncf->square(),nemo.get_calc()->amo);
     set_thresh(world,tmp,parameters.thresh_3D);
     truncate(world,tmp);
     reconstruct(world,tmp);
@@ -365,7 +365,7 @@ namespace madness {
 
   double
   CCPotentials::compute_cc2_excitation_energy(const CC_vecfunction& stau,const CC_vecfunction& sx,const Pairs<CCPair> dtau,const Pairs<CCPair> dx) const {
-    vector_real_function_3d tmp=mul(world,nemo_.nuclear_correlation->square(),sx.get_vecfunction());
+    vector_real_function_3d tmp=mul(world,nemo_.ncf->square(),sx.get_vecfunction());
     truncate(world,tmp);
     CC_vecfunction xbra(tmp,RESPONSE,parameters.freeze);
     const double xbrax=inner(world,xbra.get_vecfunction(),sx.get_vecfunction()).sum();
@@ -404,7 +404,7 @@ namespace madness {
     real_function_3d hartree_potential=real_factory_3d(world);
     for(const auto& tmp : mo_ket_.functions)
       hartree_potential+=g12(mo_bra_(tmp.first),mo_ket_(tmp.first));
-    real_function_3d local_part=(2.0 * hartree_potential + nemo_.nuclear_correlation->U2());
+    real_function_3d local_part=(2.0 * hartree_potential + nemo_.ncf->U2());
     if(parameters.debug) local_part.print_size("vlocal");
 
     if(parameters.debug) u.function().print_size(u.name());
@@ -427,7 +427,7 @@ namespace madness {
     for(int axis=0; axis < 3; ++axis){
       real_derivative_6d D=free_space_derivative<double, 6>(world,axis);
       const real_function_6d Du=D(u.function()).truncate();
-      const real_function_3d U1_axis=nemo_.nuclear_correlation->U1(axis);
+      const real_function_3d U1_axis=nemo_.ncf->U1(axis);
       double tight_thresh=parameters.thresh_6D;
       real_function_6d x=CompositeFactory<double, 6, 3>(world).ket(copy(Du)).V_for_particle1(copy(U1_axis)).thresh(tight_thresh).special_points(sp6d);
       x.fill_nuclear_cuspy_tree(op_mod,1);
@@ -446,7 +446,7 @@ namespace madness {
       for(int axis=3; axis < 6; ++axis){
 	real_derivative_6d D=free_space_derivative<double, 6>(world,axis);
 	const real_function_6d Du=D(u.function()).truncate();
-	const real_function_3d U1_axis=nemo_.nuclear_correlation->U1(axis % 3);
+	const real_function_3d U1_axis=nemo_.ncf->U1(axis % 3);
 	double tight_thresh=parameters.thresh_6D;
 	real_function_6d x=CompositeFactory<double, 6, 3>(world).ket(copy(Du)).V_for_particle2(copy(U1_axis)).thresh(tight_thresh).special_points(sp6d);
 	x.fill_nuclear_cuspy_tree(op_mod,2);
@@ -1165,7 +1165,7 @@ namespace madness {
     // Apply the double commutator R^{-1}[[T,f,R]
     for(size_t axis=0; axis < 3; axis++){
       // Make the local parts of the Nuclear and electronic U potentials
-      const real_function_3d Un_local=nemo_.nuclear_correlation->U1(axis);
+      const real_function_3d Un_local=nemo_.ncf->U1(axis);
       const real_function_3d Un_local_x=(Un_local * x.function).truncate();
       real_function_3d Un_local_y;
       if(symmetric) Un_local_y=copy(Un_local_x);
@@ -1199,10 +1199,10 @@ namespace madness {
 
     // sanity check: <xy|R2 [T,g12] |xy> = <xy |R2 U |xy> - <xy|R2 g12 | xy> = 0
     CCTimer time_sane(world,"Ue-Sanity-Check");
-    real_function_6d tmp=CompositeFactory<double, 6, 3>(world).particle1(copy(x.function * nemo_.nuclear_correlation->square())).particle2(copy(y.function * nemo_.nuclear_correlation->square()));
+    real_function_6d tmp=CompositeFactory<double, 6, 3>(world).particle1(copy(x.function * nemo_.ncf->square())).particle2(copy(y.function * nemo_.ncf->square()));
     const double a=inner(Uxy,tmp);
-    const real_function_3d xx=(x.function * x.function * nemo_.nuclear_correlation->square());
-    const real_function_3d yy=(y.function * y.function * nemo_.nuclear_correlation->square());
+    const real_function_3d xx=(x.function * x.function * nemo_.ncf->square());
+    const real_function_3d yy=(y.function * y.function * nemo_.ncf->square());
     const real_function_3d gxx=g12(xx);
     const double aa=inner(yy,gxx);
     const double error=std::fabs(a - aa);
@@ -1226,8 +1226,8 @@ namespace madness {
     {
       CCTimer sanity(world,"[K,f] sanity check");
       // make the <xy| bra state which is <xy|R2
-      const real_function_3d brax=(x.function * nemo_.nuclear_correlation->square()).truncate();
-      const real_function_3d bray=(y.function * nemo_.nuclear_correlation->square()).truncate();
+      const real_function_3d brax=(x.function * nemo_.ncf->square()).truncate();
+      const real_function_3d bray=(y.function * nemo_.ncf->square()).truncate();
       real_function_3d xres=result.project_out(brax,0);
       const double test=bray.inner(xres);
       const double diff=test;
@@ -1398,7 +1398,7 @@ namespace madness {
 
   double
   CCPotentials::overlap(const CCPairFunction& f1,const CCPairFunction& f2) const {
-    real_function_3d R=nemo_.nuclear_correlation->square();
+    real_function_3d R=nemo_.ncf->square();
     double result=0.0;
     if(f1.type == PT_FULL and f2.type == PT_FULL){
       CCTimer tmp(world,"making R1R2|u>");
@@ -1717,7 +1717,7 @@ namespace madness {
     vector_real_function_3d potential=apply_Qt(unprojected,mo_ket_);
     if(parameters.debug){
       // debug
-      vector_real_function_3d xbra=mul(world,nemo_.nuclear_correlation->square(),ex_singles.get_vecfunction());
+      vector_real_function_3d xbra=mul(world,nemo_.ncf->square(),ex_singles.get_vecfunction());
       const double ccs=inner(world,xbra,Vccs).sum();
       const double s2b=inner(world,xbra,Vs2b).sum();
       const double s2c=inner(world,xbra,Vs2c).sum();
@@ -2785,7 +2785,7 @@ namespace madness {
     output.section("Testing of CC2 Singles Ground State Potential");
     CCTimer time_gs(world,"CC2 Singles GS Test");
 
-    vector_real_function_3d tmp = mul(world,nemo_.nuclear_correlation->square(),ex_singles.get_vecfunction());
+    vector_real_function_3d tmp = mul(world,nemo_.ncf->square(),ex_singles.get_vecfunction());
     truncate(world,tmp);
     const CC_vecfunction xbra(tmp,RESPONSE,parameters.freeze);
 
