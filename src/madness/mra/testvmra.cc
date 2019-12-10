@@ -347,6 +347,7 @@ void test_multi_to_multi_op(World& world) {
 
 int main(int argc, char**argv) {
     initialize(argc, argv);
+    World world(SafeMPI::COMM_WORLD);
 
     bool smalltest = false;
     if (getenv("MAD_SMALL_TESTS")) smalltest=true;
@@ -356,7 +357,6 @@ int main(int argc, char**argv) {
     
 
     try {
-        World world(SafeMPI::COMM_WORLD);
         startup(world,argc,argv);
 
         test_add<double,3>(world);
