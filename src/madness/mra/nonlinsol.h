@@ -60,7 +60,8 @@ namespace madness {
     /// @param[in]     rcondtol rcond less than this will cause the subspace to be shrunk due to linear dependence
     /// @param[in]     cabsmax  maximum element of c greater than this will cause the subspace to be shrunk due to linear dependence
 	template<typename C>
-	void check_linear_dependence(const Tensor<C>& Q, Tensor<C>& c, const double rcondtol, const double cabsmax) {
+	void check_linear_dependence(const Tensor<C>& Q, Tensor<C>& c, const double rcondtol, const double cabsmax,
+			bool do_print=true) {
 		double rcond = 1e-12;
 		int m = c.dim(0);
 
@@ -71,10 +72,10 @@ namespace madness {
 			if (c.absmax()<cabsmax) {
 				break;
 			} else  if(rcond < rcondtol){
-				print("Increasing subspace singular value threshold ", c[m - 1], rcond);
+				if (do_print) print("Increasing subspace singular value threshold ", c[m - 1], rcond);
 				rcond *= 100;
 			} else {
-				print("Forcing full step due to subspace malfunction");
+				if (do_print) print("Forcing full step due to subspace malfunction");
 				c = 0.0;
 				c[m - 1] = 1.0;
 				break;
@@ -203,6 +204,12 @@ namespace madness {
 
 	void set_maxsub(int maxsub) {this->maxsub = maxsub;}
 
+	void clear_subspace() {
+		ulist.clear();
+		rlist.clear();
+		Q=Tensor<C>();
+	}
+
 	/// Computes next trial solution vector
 
 	/// You are responsible for performing step restriction or line search
@@ -229,7 +236,7 @@ namespace madness {
 		Q = Qnew;
 		Tensor<C> c = KAIN(Q);
 
-		check_linear_dependence(Q,c,rcondtol,cabsmax);
+		check_linear_dependence(Q,c,rcondtol,cabsmax,do_print);
 		if (do_print) print("subspace solution",c);
 
 		// Form new solution in u

@@ -165,7 +165,7 @@ namespace madness {
 
             // compute the full, reconstructed orbitals from nemo
             orbitals_=mul(world,nemo_calc.R,nemo_calc.get_calc()->amo);
-            real_function_3d R2=nemo_calc.nuclear_correlation->square();
+            real_function_3d R2=nemo_calc.ncf->square();
             R2orbitals_=mul(world,R2,nemo_calc.get_calc()->amo);
 
             return calc->current_energy;
@@ -673,7 +673,7 @@ namespace madness {
         real_function_6d get_residue(const real_function_6d& f,
 		const int i, const int j){
         	hf->value();		// make sure the reference is converged
-        	nuclear_corrfac = hf->nemo_calc.nuclear_correlation;
+        	nuclear_corrfac = hf->nemo_calc.ncf;
         	// set all orbitals spaces
         	// When a nuclear correlation factor is used the residual equations
         	// are similarity transformed. Therefore the orbitals in the

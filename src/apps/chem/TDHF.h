@@ -292,7 +292,7 @@ public:
 
 	/// Helper function to initialize the const mo_bra and ket elements
 	CC_vecfunction make_mo_bra(const Nemo &nemo) const {
-		vector_real_function_3d tmp = mul(world, nemo.nuclear_correlation->square(),
+		vector_real_function_3d tmp = mul(world, nemo.ncf->square(),
 				nemo.get_calc()->amo);
 		set_thresh(world, tmp, parameters.thresh());
 		truncate(world,tmp);
@@ -326,7 +326,7 @@ public:
 	/// maybe move this into nuclear_correlation class ?
 	vector_real_function_3d make_bra(const vector_real_function_3d &ket)const{
 		CCTimer time(world,"Make Bra");
-		real_function_3d nucf = nemo.nuclear_correlation ->square();
+		real_function_3d nucf = nemo.ncf->square();
 		vector_real_function_3d result= mul(world,nucf,ket);
 		time.info(parameters.debug());
 		return result;
