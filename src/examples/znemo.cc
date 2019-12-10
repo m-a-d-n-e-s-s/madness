@@ -44,7 +44,7 @@
 
 */
 
-#if defined USE_GENTENSOR
+#if !defined USE_GENTENSOR
 
 #include <chem/znemo.h>
 
