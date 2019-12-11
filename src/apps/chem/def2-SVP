@@ -33,16 +33,28 @@
   </shell>
 </basis>
 <basis symbol="He">
-  <shell type="S" nprim="3">
+  <shell type="S" nprim="1">
     <exponents>
       38.354936737
+    </exponents>
+    <coefficients>
+      1.00000008
+    </coefficients>
+  </shell>
+  <shell type="S" nprim="1">
+    <exponents>
       5.7689081479
+    </exponents>
+    <coefficients>
+      1.00000000
+    </coefficients>
+  </shell>
+  <shell type="S" nprim="1">
+    <exponents>
       1.2399407035
     </exponents>
     <coefficients>
-      0.02381428
-      0.15490906
-      0.46998096
+      1.00000006
     </coefficients>
   </shell>
   <shell type="S" nprim="1">

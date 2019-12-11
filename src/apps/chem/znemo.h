@@ -67,6 +67,8 @@ public:
 		initialize<int>("printlevel",2);		// 0: energies, 1: fock matrix, 2: function sizes
 		initialize<bool>("use_v_vector",false);
 		initialize<double>("potential_radius",-1.0);
+		initialize<std::vector<std::string> >("guess",std::vector<std::string>(),"list of l,m,exponent");	// atomic guess functions l, ml, exponent
+		initialize<std::vector<std::string> >("guess_functions",std::vector<std::string>(),"list function names");	// atomic guess functions l, ml, exponent
 
 		// read input file
 		read(world,"input","complex");
@@ -96,6 +98,8 @@ public:
 	std::vector<double> box() const {return get<std::vector<double> >("box");}
 	double potential_radius() const {return get<double>("potential_radius");}
 	bool use_v_vector() const {return get<bool>("use_v_vector");}
+	std::vector<std::string> guess() const {return get<std::vector<std::string>>("guess");}
+	std::vector<std::string> guess_functions() const {return get<std::vector<std::string>>("guess_functions");}
 
 };
 
@@ -270,55 +274,35 @@ public:
 
 	void save_orbitals(std::string suffix) const;
 
+	/// get initial orbitals from guesses
+	void get_initial_orbitals();
+
 	/// read the guess orbitals from a previous nemo or moldft calculation
-	std::pair<std::vector<complex_function_3d>, std::vector<complex_function_3d> >
-	read_guess() const;
+	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> >
+	read_real_guess() const;
+
+	/// read the guess orbitals from a previous nemo or moldft calculation
+	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> >
+	read_complex_guess() const;
+
+	/// read a list of functions for the guess
+	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> >
+	read_explicit_guess_functions() const;
+
+	/// read guess as projection of the orbitals onto an AO basis set (for geometry optimization)
+	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> >
+	read_restartaodata() const;
+
+	/// read orbitals from a znemo calculation
+	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> >
+	read_reference() const;
 
 	/// hcore guess including the magnetic field
-	std::pair<std::vector<complex_function_3d>, std::vector<complex_function_3d> >
-	initial_guess() const;
+	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> >
+	hcore_guess() const;
 
-	void read_orbitals() {
-
-		if (cparam.restartao()) {
-			try {
-				print("reading orbitals ao projection from complex calculation");
-				std::vector<Function<double,3> > aos=SCF::project_ao_basis_only(world, aobasis, mol);
-				auto mos=MolecularOrbitals<double_complex,3>::read_restartaodata(world, aos, mol, cparam.have_beta());
-				amo=mos.first.get_mos();
-				aeps=mos.first.get_eps();
-				bmo=mos.second.get_mos();
-				beps=mos.second.get_eps();
-			} catch (...) {
-				print("  .. failed ");
-				try {
-					print("reading orbitals ao projection from real calculation");
-					std::vector<Function<double,3> > aos=SCF::project_ao_basis_only(world, aobasis, mol);
-					auto mos=MolecularOrbitals<double,3>::read_restartaodata(world, aos, mol, cparam.have_beta());
-					amo=convert<double,double_complex,3>(world,mos.first.get_mos());
-					aeps=mos.first.get_eps();
-					bmo=convert<double,double_complex,3>(world,mos.second.get_mos());
-					beps=mos.second.get_eps();
-				} catch (...) {
-					print("  .. failed ");
-				}
-			}
-
-		} else {
-			std::string name="reference";
-			print("reading orbitals from file",name);
-
-			archive::ParallelInputArchive ar(world, name.c_str(), 1);
-			std::size_t namo, nbmo;
-
-			ar & namo & nbmo & aeps & beps;
-			amo.resize(namo);
-			bmo.resize(nbmo);
-			for (auto& a: amo) ar & a;
-			for (auto& a: bmo) ar & a;
-		}
-
-	}
+	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> >
+	custom_guess() const;
 
 	void save_orbitals() const {
 		std::string name="reference";
@@ -335,8 +319,7 @@ public:
 		amo1.update_mos_and_eps(amo,aeps);
 		bmo1.update_mos_and_eps(bmo,beps);
 
-		std::vector<Function<double,3> > aos=SCF::project_ao_basis_only(world, aobasis, mol);
-		MolecularOrbitals<double_complex,3>::save_restartaodata(world, aos, amo1, bmo1);
+		MolecularOrbitals<double_complex,3>::save_restartaodata(world, mol, amo1, bmo1, aobasis);
 	}
 
 	void do_step_restriction(const std::vector<complex_function_3d>& mo,
@@ -442,14 +425,51 @@ protected:
 
 	std::shared_ptr<real_convolution_3d> coulop;
 
-	static double_complex p_plus(const coord_3d& xyz1) {
-		coord_3d xyz=xyz1-coord_3d({5.0,0,0});
-		double r=xyz.normf();
-		double theta=acos(xyz[2]/r);
-		double phi=atan2(xyz[1],xyz[0]);
-		return r*exp(-r/2.0)*sin(theta)*exp(double_complex(0.0,1.0)*phi);
-//		return r*exp(-r/2.0)*exp(double_complex(0.0,1.0)*phi);
-	}
+
+	struct s_orbital : public FunctionFunctorInterface<double_complex,3> {
+
+		double exponent=1.0;
+		coord_3d origin={0.0,0.0,0.0};
+		s_orbital(const double& expo, const coord_3d& o) :
+			exponent(expo), origin(o) {
+			MADNESS_ASSERT(exponent>0.0);
+		}
+
+		double_complex operator()(const coord_3d& xyz1) const {
+			coord_3d xyz=xyz1-origin;
+			double r=xyz.normf();
+			return exp(-exponent*r);
+		}
+
+	};
+
+	struct p_orbital : public FunctionFunctorInterface<double_complex,3> {
+
+		long m=0;
+		double exponent=1.0;
+		coord_3d origin={0.0,0.0,0.0};
+		p_orbital(const long& mm, const double& expo, const coord_3d& o)
+			: m(mm), exponent(expo), origin(o) {
+			MADNESS_ASSERT(m>-2 and m<2);
+			MADNESS_ASSERT(exponent>0.0);
+		}
+
+		double_complex operator()(const coord_3d& xyz1) const {
+			coord_3d xyz=xyz1-origin;
+			double r=xyz.normf();
+
+			if (m==0) {
+				double theta=acos(xyz[2]/r);
+				double phi=atan2(xyz[1],xyz[0]);
+				return r*exp(-exponent*r)*cos(theta);
+			} else {
+				double theta=acos(xyz[2]/r);
+				double phi=atan2(xyz[1],xyz[0]);
+				return r*exp(-exponent*r)*sin(theta)*exp(double(m)*double_complex(0.0,1.0)*phi);
+			}
+		}
+
+	};
 
 	/// following Doucot Pascier 2005
 	struct landau_wave_function {
@@ -477,6 +497,7 @@ protected:
 		}
 	};
 
+	public:
 	void test_compute_current_density() const;
 
 public:

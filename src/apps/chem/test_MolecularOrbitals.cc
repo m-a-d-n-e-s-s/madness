@@ -115,10 +115,10 @@ int test_read_restartaodata(World& world) {
 	std::vector<Function<double,3> > aos=SCF::project_ao_basis_only(world, calc.aobasis, calc.molecule);
 	auto mos=MolecularOrbitals<double,3>::read_restartdata(world,calc.molecule, param.nmo_alpha(), param.nmo_beta());
 	MolecularOrbitals<double,3> amo=mos.first,bmo=mos.second;
-	MolecularOrbitals<double,3>::save_restartaodata(world,aos,amo,bmo);
+	MolecularOrbitals<double,3>::save_restartaodata(world,calc.molecule,amo,bmo,calc.aobasis);
 
 	// read AO projections
-	auto mos1=MolecularOrbitals<double,3>::read_restartaodata(world, aos, calc.molecule, param.have_beta());
+	auto mos1=MolecularOrbitals<double,3>::read_restartaodata(world, calc.molecule, param.have_beta());
 	MolecularOrbitals<double,3> amo1=mos1.first,bmo1=mos.second;
 
 	// accept error in the MOs (by construction)

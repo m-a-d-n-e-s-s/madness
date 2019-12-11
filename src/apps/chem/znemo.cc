@@ -158,24 +158,7 @@ double Znemo::value(const Tensor<double>& x) {
 	if (need_recompute_factors_and_potentials(cparam.econv()))
 		recompute_factors_and_potentials(cparam.econv());
 
-	// read the guess orbitals
-	try {
-		read_orbitals();
-
-	} catch(...) {
-//		auto zmos=read_guess();
-		auto zmos=initial_guess();
-		amo=zmos.first;
-		bmo=zmos.second;
-		aeps=Tensor<double>(amo.size());
-		beps=Tensor<double>(bmo.size());
-
-		amo=orthonormalize(amo);
-		bmo=orthonormalize(bmo);
-        set_thresh(world,amo,FunctionDefaults<3>::get_thresh());
-        set_thresh(world,bmo,FunctionDefaults<3>::get_thresh());
-
-	}
+	get_initial_orbitals();
 
 	iterate();
 
@@ -676,7 +659,7 @@ std::vector<real_function_3d> Znemo::compute_current_density(
 void Znemo::test_compute_current_density() const {
 
 	Lz lz(world);
-	complex_function_3d pp=complex_factory_3d(world).f(p_plus);
+	complex_function_3d pp=complex_factory_3d(world).functor(p_orbital(1,1.0,{0,0,0}));
 	double norm=pp.norm2();
 	pp.scale(1/norm);
 	double_complex l=inner(amo[0],0.5*B[2]*lz(amo[0]));
@@ -742,9 +725,76 @@ void Znemo::do_step_restriction(const std::vector<complex_function_3d>& mo,
     world.gop.fence();
 }
 
+
+void Znemo::get_initial_orbitals() {
+
+	/* possible guesses
+	 *
+	 * 1) guess_functions as specified in the user input
+	 * 2) custom guess (l,ml,exponenent) for atoms as specified in the user input
+	 * 3) reference file from a previous znemo calculation
+	 * 4) ao restart data from a previous znemo calculations
+	 * 5) restartdata file from a previous moldft calculation
+	 * 6) hcore guess
+	 */
+
+	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> > zmos;
+	bool gotit=false;
+
+	if (param.guess_functions().size()>0) {
+		zmos=read_explicit_guess_functions();
+		gotit=true;
+	} else if (param.guess().size()>0) {
+		zmos=custom_guess();
+		gotit=true;
+	} else {
+
+		try {
+			zmos=read_reference();
+			gotit=true;
+		} catch (...) {
+			print("could not read reference orbitals");
+		}
+
+//		zmos=read_complex_guess();
+//		zmos=read_real_guess();
+		if (not gotit) {
+			try {
+				zmos=read_restartaodata();
+				gotit=true;
+			} catch (...) {
+				print("could not read ao restart data");
+			}
+		}
+		if (not gotit) {
+			try {
+				zmos=hcore_guess();
+				gotit=true;
+			} catch (...) {
+				print("could not do an hcore guess");
+			}
+		}
+	}
+	if (not gotit) {
+		MADNESS_EXCEPTION("unable to generate guess functions",1);
+	}
+
+	for (int i=0; i<cparam.nalpha(); ++i) amo.push_back(zmos.first.get_mos()[i]);
+	for (int i=0; i<cparam.nbeta(); ++i) bmo.push_back(zmos.second.get_mos()[i]);
+	aeps=Tensor<double>(amo.size());
+	beps=Tensor<double>(bmo.size());
+
+	amo=orthonormalize(amo);
+	bmo=orthonormalize(bmo);
+	set_thresh(world,amo,FunctionDefaults<3>::get_thresh());
+	set_thresh(world,bmo,FunctionDefaults<3>::get_thresh());
+
+}
+
+
 /// read the guess orbitals from a previous nemo or moldft calculation
-std::pair<std::vector<complex_function_3d>, std::vector<complex_function_3d> >
-Znemo::read_guess() const {
+std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> >
+Znemo::read_real_guess() const {
 
 	print("reading mos from restartdata");
 	auto mos=MolecularOrbitals<double,3>::read_restartdata(world, molecule(), cparam.nalpha(), cparam.nbeta());
@@ -755,17 +805,135 @@ Znemo::read_guess() const {
     coord_3d remaining_B=B-coord_3d{0,0,param.explicit_B()};
     real_function_3d gauss=diafac->custom_factor(remaining_B,diafac->get_v(),1.0);
 
-	std::pair<std::vector<complex_function_3d>, std::vector<complex_function_3d> > zmos;
-	zmos.first=truncate(convert<double,double_complex,3>(world,amo.get_mos()*ncf->inverse()*gauss));		// alpha
-	zmos.second=truncate(convert<double,double_complex,3>(world,bmo.get_mos()*ncf->inverse()*gauss));		// beta
+	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> > zmos;
+	zmos.first.set_mos(truncate(convert<double,double_complex,3>(world,amo.get_mos()*ncf->inverse()*gauss)));		// alpha
+	zmos.second.set_mos(truncate(convert<double,double_complex,3>(world,bmo.get_mos()*ncf->inverse()*gauss)));		// beta
 
 	return zmos;
 }
 
 
 /// read the guess orbitals from a previous nemo or moldft calculation
-std::pair<std::vector<complex_function_3d>, std::vector<complex_function_3d> >
-Znemo::initial_guess() const {
+std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> >
+Znemo::read_complex_guess() const {
+	print("reading mos from complex restartdata");
+	auto zmos=MolecularOrbitals<double_complex,3>::read_restartdata(world, molecule(), cparam.nalpha(), cparam.nbeta());
+	return zmos;
+}
+
+/// read a list of functions for the guess
+std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> >
+Znemo::read_explicit_guess_functions() const {
+	// loop over all provided functions
+	if (param.guess_functions().size()<std::max(cparam.nalpha(),cparam.nbeta())) {
+		MADNESS_EXCEPTION("you did not provide enough guess functions for this calculations",1);
+	}
+	std::vector<complex_function_3d> guess_vector;
+	for (auto filename : param.guess_functions()) {
+		complex_function_3d mo=complex_factory_3d(world);
+		print("loading file",filename,"as guess function");
+		load(mo,filename);
+		guess_vector.push_back(mo);
+	}
+
+	std::vector<complex_function_3d> amos,bmos;
+	for (int i=0; i<cparam.nalpha(); ++i) amos.push_back(guess_vector[i]);
+	for (int i=0; i<cparam.nbeta(); ++i) bmos.push_back(guess_vector[i]);
+
+	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> > zmos;
+	zmos.first.set_mos(amos);
+	zmos.second.set_mos(bmos);
+
+	return zmos;
+}
+
+/// read a list of functions for the guess
+std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> >
+Znemo::read_restartaodata() const {
+	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> > zmos;
+
+	print("reading orbitals ao projection from complex calculation");
+	zmos=MolecularOrbitals<double_complex,3>::read_restartaodata(world, mol, cparam.have_beta());
+//		print("  .. failed ");
+//		try {
+//			print("reading orbitals ao projection from real calculation");
+//			auto mos=MolecularOrbitals<double,3>::read_restartaodata(world, mol, cparam.have_beta());
+//			zmos.first.set_mos(convert<double,double_complex,3>(world,mos.first.get_mos()));
+//			zmos.second.set_mos(convert<double,double_complex,3>(world,mos.second.get_mos()));
+//
+//		} catch (...) {
+//			print("  .. failed ");
+//		}
+	return zmos;
+}
+
+/// read a list of functions for the guess
+std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> >
+Znemo::read_reference() const {
+	std::string name="reference";
+	print("reading orbitals from file",name);
+
+	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> > zmos;
+
+	archive::ParallelInputArchive ar(world, name.c_str(), 1);
+	std::size_t namo, nbmo;
+
+	std::vector<complex_function_3d> amos,bmos;
+	Tensor<double> aeps,beps;
+
+	ar & namo & nbmo & aeps & beps;
+	amos.resize(namo);
+	bmos.resize(nbmo);
+	for (auto& a: amos) ar & a;
+	for (auto& a: bmos) ar & a;
+	zmos.first.set_mos(amos);
+	zmos.second.set_mos(bmos);
+
+	return zmos;
+}
+
+
+std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> >
+Znemo::custom_guess() const {
+	MADNESS_ASSERT(molecule().natom()==1);
+
+	Lz lz(world);
+
+	std::vector<std::string> guess=param.guess();
+	std::vector<complex_function_3d> guess_vector;
+	for (int i=0; i<guess.size(); i+=3) {
+		long l=atol(guess[i].c_str());
+		long ml=atol(guess[i+1].c_str());
+		double exponent=atof(guess[i+2].c_str());
+		print("making guess with l,ml,e",l,ml,exponent);
+
+		complex_function_3d g;
+		coord_3d origin=molecule().get_atoms()[0].get_coords();
+		if (l==0) g=complex_factory_3d(world).functor(s_orbital(exponent,origin));
+		if (l==1) g=complex_factory_3d(world).functor(p_orbital(ml,exponent,origin));
+		double norm=g.norm2();
+		g.scale(1/norm);
+		double_complex ii=inner(g,lz(g));
+		print("<p|Lz|p>, ml",ii, ml);
+
+		guess_vector.push_back(g);
+	}
+
+	std::vector<complex_function_3d> amos,bmos;
+	amos.resize(cparam.nalpha());
+	bmos.resize(cparam.nbeta());
+	std::copy(guess_vector.begin(),guess_vector.begin()+cparam.nalpha(),amos.begin());
+	std::copy(guess_vector.begin(),guess_vector.begin()+cparam.nbeta(),bmos.begin());
+
+	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> > zmos;
+	zmos.first.set_mos(amos);
+	zmos.second.set_mos(bmos);
+
+	return zmos;
+}
+
+std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> >
+Znemo::hcore_guess() const {
 
 	print("computing mos from hcore guess");
 
@@ -775,7 +943,6 @@ Znemo::initial_guess() const {
 
 	// .. and from the Landau wave function (the eigenfunction of the free particle in the B-field)
     if (param.physical_B()>0.0) {
-//	for (int i=0; i<mol.natom(); ++i) {
 		for (int n=0; n<2; ++n) {
 //			coord_3d origin=mol.get_atom(i).get_coords();
 			coord_3d origin;
@@ -787,8 +954,6 @@ Znemo::initial_guess() const {
 			aos.push_back(conj(f));
 		}
     }
-//	}
-
 
 	// compute the Hamilton matrix
 
@@ -814,16 +979,16 @@ Znemo::initial_guess() const {
 	Tensor<double_complex> overlap =matrix_inner(world, aos, aos, true);
 	sygvp(world, fock, overlap, 1, c, e);
 
-	std::pair<std::vector<complex_function_3d>, std::vector<complex_function_3d> > zmos;
+	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> > zmos;
 	std::vector<complex_function_3d> amo = transform(world, aos, c(_, Slice(0, cparam.nmo_alpha() - 1)));
 	amo=truncate(normalize(amo));
-	zmos.first=truncate(amo*ncf->inverse());		// alpha
+	zmos.first.set_mos(truncate(amo*ncf->inverse()));		// alpha
 
 	if (cparam.have_beta()) {
 		std::vector<complex_function_3d>
 		bmo = transform(world, aos, c(_, Slice(0, cparam.nmo_beta() - 1)));
 		bmo=truncate(normalize(bmo));
-		zmos.second=truncate(bmo*ncf->inverse());		// beta
+		zmos.second.set_mos(truncate(bmo*ncf->inverse()));		// beta
 	}
 
 	return zmos;

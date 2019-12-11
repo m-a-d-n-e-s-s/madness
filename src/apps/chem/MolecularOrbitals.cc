@@ -10,6 +10,7 @@
 #include <madness/world/world.h>
 #include <madness/world/parallel_archive.h>
 #include <chem/molecularbasis.h>
+#include <chem/SCF.h>
 
 #include<madness/mra/mra.h>
 
@@ -44,6 +45,69 @@ void MolecularOrbitals<T,NDIM>::post_process_mos(World& world, const double thre
 		world.gop.fence();
 	}
 	set_thresh(world,mo,thresh);
+}
+
+
+
+/// save MOs in the AO projection for geometry restart
+
+/// compute the aos in MRA projection as:
+/// std::vector<Function<double,3> > aos=SCF::project_ao_basis_only(world, calc.aobasis, calc.molecule);
+template<typename T, std::size_t NDIM>
+void MolecularOrbitals<T,NDIM>::save_restartaodata(World& world, const Molecule& molecule,
+		const MolecularOrbitals<T,NDIM>& amo, const MolecularOrbitals<T,NDIM>& bmo,
+		const AtomicBasisSet& aobasis) {
+
+	std::vector<Function<double,3> > aos=SCF::project_ao_basis_only(world, aobasis,molecule);
+
+	Tensor<T> Saoamo = matrix_inner(world, aos, amo.get_mos());
+	Tensor<T> Saobmo = (bmo.get_mos().size()>0) ? matrix_inner(world, aos, bmo.get_mos()) : Tensor<T>();
+	if (world.rank() == 0) {
+		archive::BinaryFstreamOutputArchive arao("restartaodata");
+		arao << aobasis << Saoamo << amo.get_eps() << amo.get_occ() << amo.get_localize_sets();
+		if (Saobmo.size()>0) arao << Saobmo << bmo.get_eps() << bmo.get_occ() << bmo.get_localize_sets();
+	}
+}
+
+
+/// uses AO-projection as a restart guess
+
+/// @return amo and bmo
+template<typename T, std::size_t NDIM>
+std::pair<MolecularOrbitals<T,NDIM>, MolecularOrbitals<T,NDIM> >
+MolecularOrbitals<T,NDIM>::read_restartaodata(World& world,
+		const Molecule& molecule, const bool have_beta) {
+
+	archive::BinaryFstreamInputArchive arao("restartaodata");
+
+	Tensor<T> Saomo;
+	Tensor<double> eps, occ;
+	std::vector<int> localize_set;
+	std::vector<std::string> irrep;
+	std::vector<Function<T,NDIM> > dummy_mo;
+	AtomicBasisSet aobasis;
+
+	MolecularOrbitals<T,NDIM> amo, bmo;
+
+	try {
+		// read alpha orbitals
+		arao >> aobasis >> Saomo >> eps >> occ >> localize_set;
+		print("reading from aobasis",aobasis.get_name());
+		std::vector<Function<double,3> > aos1=SCF::project_ao_basis_only(world, aobasis,molecule);
+
+		amo=MolecularOrbitals<T,NDIM>(dummy_mo,eps,irrep,occ,localize_set);
+		amo.project_ao(world,Saomo,aos1);
+
+		if (have_beta) {
+			arao >> Saomo >> eps >> occ >> localize_set;
+			bmo=MolecularOrbitals<T,NDIM>(dummy_mo,eps,irrep,occ,localize_set);
+			bmo.project_ao(world,Saomo,aos1);
+		}
+
+	} catch (...) {
+		throw std::runtime_error("failed to read restartdata");
+	}
+	return std::make_pair(amo,bmo);
 }
 
 

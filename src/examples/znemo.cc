@@ -112,7 +112,7 @@ int main(int argc, char** argv) {
     		if (value) {
     			energy=znemo->value();
     		} else if (analyze) {
-    			znemo->read_orbitals();
+    			znemo->read_reference();
     			energy=znemo->analyze();
     		}
     		if (world.rank()==0) {

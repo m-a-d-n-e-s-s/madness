@@ -148,6 +148,20 @@ public:
 		return std::make_pair(amo,bmo);
 	}
 
+	/// reads amo and bmo from the restartdata file
+
+	/// @return amo and bmo
+	void static save_restartdata(World& world, const Molecule& molecule,
+			const MolecularOrbitals<T,NDIM>& amo, const MolecularOrbitals<T,NDIM>& bmo) {
+		bool spinrestricted = false;
+		double current_energy=0.0;
+		archive::ParallelOutputArchive ar(world, "restartdata");
+		ar & current_energy & spinrestricted;
+
+		amo.save_mos(ar,molecule);
+		bmo.save_mos(ar,molecule);
+	}
+
 	/// legacy code
 	void load_mos(archive::ParallelInputArchive& ar, const Molecule& molecule, const std::size_t nmo_from_input) {
 
@@ -170,64 +184,34 @@ public:
 		}
 	}
 
+	/// legacy code
+	void save_mos(archive::ParallelOutputArchive& ar, const Molecule& molecule) const {
+
+		unsigned int nmo=mo.size();
+
+		ar & nmo;
+		ar & eps & occ & localize_sets;
+		for (unsigned int i = 0; i < mo.size(); ++i)
+			ar & mo[i];
+		unsigned int n_core = molecule.n_core_orb_all();
+	}
+
 	void post_process_mos(World& world, const double thresh, const int k);
 
 
 	/// save MOs in the AO projection for geometry restart
 
 	/// compute the aos in MRA projection as:
-	/// std::vector<Function<double,3> > aos=SCF::project_ao_basis_only(world, calc.aobasis, calc.molecule);
-	static void save_restartaodata(World& world, const std::vector<Function<double,3> > aos,
-			const MolecularOrbitals<T,NDIM>& amo, const MolecularOrbitals<T,NDIM>& bmo) {
-
-		Tensor<T> Saoamo = matrix_inner(world, aos, amo.get_mos());
-		Tensor<T> Saobmo = (bmo.get_mos().size()>0) ? matrix_inner(world, aos, bmo.get_mos()) : Tensor<T>();
-		if (world.rank() == 0) {
-			archive::BinaryFstreamOutputArchive arao("restartaodata");
-			arao << Saoamo << amo.get_eps() << amo.get_occ() << amo.get_localize_sets();
-			if (Saobmo.size()>0) arao << Saobmo << bmo.get_eps() << bmo.get_occ() << bmo.get_localize_sets();
-		}
-	}
-
+	static void save_restartaodata(World& world, const Molecule& molecule,
+			const MolecularOrbitals<T,NDIM>& amo, const MolecularOrbitals<T,NDIM>& bmo,
+			const AtomicBasisSet& aobasis);
 
 	/// uses AO-projection as a restart guess
 
 	/// @return amo and bmo
 	std::pair<MolecularOrbitals<T,NDIM>, MolecularOrbitals<T,NDIM> >
-	static read_restartaodata(World& world, const std::vector<Function<double,3> > aos,
-			const Molecule& molecule, const bool have_beta) {
-
-		// project ao basis into MRA
-		// compute the aos as
-//		std::vector<Function<double,3> > aos=SCF::project_ao_basis_only(world, aobasis,molecule);
-
-		archive::BinaryFstreamInputArchive arao("restartaodata");
-
-		Tensor<T> Saomo;
-		Tensor<double> eps, occ;
-		std::vector<int> localize_set;
-		std::vector<std::string> irrep;
-		std::vector<Function<T,NDIM> > dummy_mo;
-
-		MolecularOrbitals<T,NDIM> amo, bmo;
-
-		try {
-			// read alpha orbitals
-			arao >> Saomo >> eps >> occ >> localize_set;
-			amo=MolecularOrbitals<T,NDIM>(dummy_mo,eps,irrep,occ,localize_set);
-			amo.project_ao(world,Saomo,aos);
-
-			if (have_beta) {
-				arao >> Saomo >> eps >> occ >> localize_set;
-				bmo=MolecularOrbitals<T,NDIM>(dummy_mo,eps,irrep,occ,localize_set);
-				bmo.project_ao(world,Saomo,aos);
-			}
-
-		} catch (...) {
-			throw std::runtime_error("failed to read restartdata");
-		}
-		return std::make_pair(amo,bmo);
-	}
+	static read_restartaodata(World& world,
+			const Molecule& molecule, const bool have_beta);
 
 	void project_ao(World& world, const Tensor<T>& Saomo, const std::vector<Function<double,3> >& aos);
 
