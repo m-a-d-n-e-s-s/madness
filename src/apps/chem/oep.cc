@@ -210,7 +210,7 @@ void OEP::solve_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
         rotate_subspace(world, X, solver, 0, KS_nemo.size());
 
         truncate(world, KS_nemo);
-        normalize(KS_nemo);
+        normalize(KS_nemo,R);
 
 		// calculate new orbital energies (current eigenvalues from Fock-matrix)
 		for (int i = 0; i < KS_nemo.size(); ++i) {
@@ -258,11 +258,11 @@ void OEP::solve_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
 			nemo_new = GFnemo;
 		}
 		truncate(world, nemo_new);
-		normalize(nemo_new);
+		normalize(nemo_new,R);
 
 		// What is step restriction?
 		calc->do_step_restriction(world, KS_nemo, nemo_new, "ab spin case");
-		orthonormalize(nemo_new);
+		orthonormalize(nemo_new,R);
 		KS_nemo = nemo_new;
 
 		// evaluate convergence via norm error and energy difference
