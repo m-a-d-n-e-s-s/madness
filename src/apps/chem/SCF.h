@@ -436,6 +436,9 @@ public:
 
 	vecfuncT project_ao_basis(World & world, const AtomicBasisSet& aobasis);
 
+	static vecfuncT project_ao_basis_only(World & world, const AtomicBasisSet& aobasis,
+			const Molecule& molecule);
+
 	void reset_aobasis(const std::string& aobasisname) {
 		aobasis = AtomicBasisSet(); // reset
 		aobasis.read_file(aobasisname);

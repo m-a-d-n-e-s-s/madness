@@ -1487,7 +1487,7 @@ namespace madness {
             for (unsigned int i=0; i<right.size(); ++i) {
                 result[i].set_impl(left,false);
                 vresult[i] = result[i].impl.get();
-                vright[i] = right[i].impl.get();
+                vright[i] = right[i].get_impl().get();
             }
 
             left.world().gop.fence(); // Is this still essential?  Yes.
@@ -1897,32 +1897,6 @@ namespace madness {
             return sub(left,right,true);
         }
     }
-
-
-    /// Create a new function that is the square of f - global comm only if not reconstructed
-    template <typename T, std::size_t NDIM>
-    Function<T,NDIM> square(const Function<T,NDIM>& f, bool fence=true) {
-        PROFILE_FUNC;
-        Function<T,NDIM> result = copy(f,true);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        return result.square(true); //fence);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    }
-
-    /// Create a new function that is the abs of f - global comm only if not reconstructed
-    template <typename T, std::size_t NDIM>
-    Function<T,NDIM> abs(const Function<T,NDIM>& f, bool fence=true) {
-        PROFILE_FUNC;
-        Function<T,NDIM> result = copy(f,true);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        return result.abs(true); //fence);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    }
-
-    /// Create a new function that is the abs_square of f - global comm only if not reconstructed
-    template <typename T, std::size_t NDIM>
-    Function<T,NDIM> abs_square(const Function<T,NDIM>& f, bool fence=true) {
-        PROFILE_FUNC;
-        Function<T,NDIM> result = copy(f,true);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        return result.abs_square(true); //fence);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    }
-
 
     /// Create a new copy of the function with different distribution and optional fence
 
@@ -2425,6 +2399,18 @@ namespace madness {
 
             template <typename Archive> void serialize (Archive& ar) {}
         };
+
+        template <std::size_t NDIM>
+        struct absop {
+            typedef double resultT;
+            Tensor<double> operator()(const Key<NDIM>& key, const Tensor<double_complex>& t) const {
+                Tensor<double> r = abs(t);
+                return r;
+            }
+
+            template <typename Archive> void serialize (Archive& ar) {}
+        };
+
     }
 
     /// Returns a new function that is the real part of the input
@@ -2433,10 +2419,49 @@ namespace madness {
         return unary_op_coeffs(z, detail::realop<NDIM>(), fence);
     }
 
+    /// Returns a new function that is the real part of the input
+    template <std::size_t NDIM>
+    Function<double,NDIM> real(const Function<double,NDIM>& z, bool fence=true) {
+    	return copy(z);
+    }
+
     /// Returns a new function that is the imaginary part of the input
     template <std::size_t NDIM>
     Function<double,NDIM> imag(const Function<double_complex,NDIM>& z, bool fence=true) {
         return unary_op_coeffs(z, detail::imagop<NDIM>(), fence);
+    }
+
+
+    /// Create a new function that is the square of f - global comm only if not reconstructed
+    template <typename T, std::size_t NDIM>
+    Function<T,NDIM> square(const Function<T,NDIM>& f, bool fence=true) {
+        PROFILE_FUNC;
+        Function<T,NDIM> result = copy(f,true);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        return result.square(true); //fence);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    }
+
+    /// Create a new function that is the abs of f - global comm only if not reconstructed
+    template <typename T, std::size_t NDIM>
+    Function<T,NDIM> abs(const Function<T,NDIM>& f, bool fence=true) {
+        PROFILE_FUNC;
+        Function<T,NDIM> result = copy(f,true);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        return result.abs(true); //fence);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    }
+
+    /// Create a new function that is the abs_square of f - global comm only if not reconstructed
+    template <typename T, std::size_t NDIM>
+    typename std::enable_if<!TensorTypeData<T>::iscomplex, Function<T,NDIM> >::type
+    abs_square(const Function<T,NDIM>& f, bool fence=true) {
+        PROFILE_FUNC;
+        Function<T,NDIM> result = copy(f,true);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        return result.abs_square(true); //fence);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    }
+
+    /// Create a new function that is the abs_square of f - global comm only if not reconstructed
+    template <typename T, std::size_t NDIM>
+    typename std::enable_if<TensorTypeData<T>::iscomplex, Function<typename Tensor<T>::scalar_type,NDIM> >::type
+   	abs_square(const Function<T,NDIM>& f, bool fence=true) {
+        return unary_op(f, detail::abssqop<NDIM>(), fence);
     }
 
     /// Returns a new function that is the square of the absolute value of the input
@@ -2445,6 +2470,11 @@ namespace madness {
         return unary_op(z, detail::abssqop<NDIM>(), fence);
     }
 
+    /// Returns a new function that is the absolute value of the input
+    template <std::size_t NDIM>
+    Function<double,NDIM> abs(const Function<double_complex,NDIM>& z, bool fence=true) {
+        return unary_op(z, detail::absop<NDIM>(), fence);
+    }
 
 }
 

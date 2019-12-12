@@ -3,9 +3,10 @@
 set(EXAMPLE_SOURCES
     h2dft hedft hello hatom_energy h2 he tdse_example heat heat2 csqrt 
     sdf_shape_tester test_gmres tdse1d vnucso nonlinschro sininteg functionio 
-    dataloadbal hatom_1d binaryop dielectric hehf 3dharmonic testsolver 
+    dataloadbal hatom_1d binaryop dielectric hehf 3dharmonic testsolver
     testspectralprop dielectric_external_field mp2 tiny oep h2dynamic newsolver
-    cc2 nemo helium_exact density_smoothing siam_example ac_corr derivatives)
+    cc2 nemo znemo zcis helium_exact density_smoothing siam_example ac_corr
+    derivatives)
  
 if(LIBXC_FOUND)
   list(APPEND EXAMPLE_SOURCES hefxc)

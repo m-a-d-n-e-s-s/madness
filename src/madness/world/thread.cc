@@ -35,6 +35,7 @@
  \ingroup threads
 */
 
+#include <madness/world/worldinit.h>
 #include <madness/world/thread.h>
 #include <madness/world/worldprofile.h>
 #include <madness/world/madness_exception.h>
@@ -480,12 +481,12 @@ namespace madness {
             std::stringstream ss(mad_wait_timeout);
             ss >> await_timeout;
             if(await_timeout < 0.0) {
-                if(SafeMPI::COMM_WORLD.Get_rank() == 0)
+                if(SafeMPI::COMM_WORLD.Get_rank() == 0 && !madness::quiet())
                     std::cout << "!!MADNESS WARNING: Invalid wait timeout.\n"
                               << "!!MADNESS WARNING: MAD_WAIT_TIMEOUT = " << mad_wait_timeout << "\n";
                 await_timeout = 900.0;
             }
-            if(SafeMPI::COMM_WORLD.Get_rank() == 0) {
+            if(SafeMPI::COMM_WORLD.Get_rank() == 0 && !madness::quiet()) {
                 if(await_timeout >= 1.0) {
                     std::cout << "MADNESS wait timeout set to " << await_timeout << " seconds.\n";
                 } else {

@@ -202,7 +202,6 @@ int main(int argc, char** argv) {
 
     print("Final energy without shift", E+DELTA);
 
-
     if (world.rank() == 0) printf("finished at time %.1f\n", wall_time());
     finalize();
     return 0;

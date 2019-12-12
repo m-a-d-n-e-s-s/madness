@@ -48,7 +48,7 @@ public:
 	world(world),
 	nemo(nemo_),
 	type(type_),
-	K(Exchange(world, &nemo, 0))
+	K(Exchange<double,3>(world, &nemo, 0))
 	{
 
 	}
@@ -56,7 +56,7 @@ public:
 	World& world;
 	const Nemo& nemo;
 	const std::string type;
-	Exchange K;
+	Exchange<double,3> K;
 
     real_function_3d operator()(const real_function_3d& ket) const {
         vecfuncT vket(1,ket);

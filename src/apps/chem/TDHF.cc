@@ -654,7 +654,7 @@ vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x)const{
 		bool do_hf=(hf_coeff!=0.0) and (not parameters.do_oep());
 		if(do_hf){
 			CCTimer timeKx(world,"Kx");
-			Exchange K=Exchange(world,&nemo,0).small_memory(false);
+			Exchange<double,3> K=Exchange<double,3>(world,&nemo,0).small_memory(false);
 			K.set_parameters(mo_bra_.get_vecfunction(),mo_ket_.get_vecfunction(),occ,parameters.lo(),parameters.thresh());
 			vector_real_function_3d Kx =K(x.get_vecfunction());
 			scale(world,Kx,hf_coeff);
@@ -891,7 +891,7 @@ Tensor<double> TDHF::make_perturbed_fock_matrix(const std::vector<CC_vecfunction
 				Vnuc = nemo.get_calc()->potentialmanager->vnuclear();
 			}
 
-			const real_function_3d R = nemo.nuclear_correlation -> function();
+			const real_function_3d R = nemo.ncf -> function();
 			std::vector<vector_real_function_3d> Rx(x.size(),zero_functions<double,3>(world,x.front().size()));
 			CCTimer timeR(world,"make Rx");
 			for(size_t k=0;k<x.size();k++){

@@ -156,6 +156,8 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	int nmo_alpha() const {return get<int>("nmo_alpha");}
 	int nmo_beta() const {return get<int>("nmo_beta");}
 
+	bool have_beta() const {return (nbeta()>0) and (not spin_restricted());}
+
 	bool spin_restricted() const {return get<bool>("spin_restricted");}
 	bool no_compute() const {return get<bool>("no_compute");}
 

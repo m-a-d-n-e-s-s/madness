@@ -166,7 +166,7 @@ double MP2::value(const Tensor<double>& x) {
 		return correlation_energy;
 
 	// nuclear correlation factor depends on the coordinates
-	nuclear_corrfac = hf->nemo_calc.nuclear_correlation;
+	nuclear_corrfac = hf->nemo_calc.ncf;
 
 	// make sure HF used the same geometry as we do
 	coords_sum = xsq;
@@ -687,7 +687,7 @@ real_function_6d MP2::make_Uphi0(ElectronPair& pair) const {
 			op_mod.modified() = true;
 
 			const real_function_3d u1_nuc =
-					hf->nemo_calc.nuclear_correlation->U1(axis);
+					hf->nemo_calc.ncf->U1(axis);
 			const real_function_3d u1_nuc_nemo_i = u1_nuc * hf->nemo(i);
 			const real_function_3d u1_nuc_nemo_j = u1_nuc * hf->nemo(j);
 			const real_function_6d u1_el = corrfac.U1(axis);
@@ -1403,7 +1403,7 @@ real_function_6d MP2::multiply_with_0th_order_Hamiltonian(
 
 		// the purely local part: Coulomb and U2
 		real_function_3d v_local = hf->get_coulomb_potential()
-									+ hf->nemo_calc.nuclear_correlation->U2();
+									+ hf->nemo_calc.ncf->U2();
 		if (param.do_oep) {
 			real_function_3d voep=real_factory_3d(world);
 			load(voep,"mRKS_potential_final");
@@ -1435,7 +1435,7 @@ real_function_6d MP2::multiply_with_0th_order_Hamiltonian(
 			if (world.rank() == 0)
 				print("axis, axis^%3, axis/3+1", axis, axis % 3, axis / 3 + 1);
 			const real_function_3d U1_axis =
-					hf->nemo_calc.nuclear_correlation->U1(axis % 3);
+					hf->nemo_calc.ncf->U1(axis % 3);
 			//                    real_function_6d x=multiply(copy(Drhs),copy(U1_axis),axis/3+1).truncate();
 
 			double tight_thresh = std::min(FunctionDefaults<6>::get_thresh(), 1.e-4);

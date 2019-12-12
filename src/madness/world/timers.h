@@ -38,8 +38,9 @@
 #ifndef MADNESS_WORLD_TIMERS_H__INCLUDED
 #define MADNESS_WORLD_TIMERS_H__INCLUDED
 
-#include <stdint.h>
-#include <time.h>
+#include <chrono>
+#include <cstdint>
+#include <ctime>
 #include <sys/time.h>
 #include <unistd.h>
 #include <madness/madness_config.h>
@@ -134,7 +135,9 @@ namespace madness {
 #elif defined(HAVE_IBMBGQ)
         return BG_SECONDS_PER_CYCLE * GetTimeBase();
 #else
-        return double(clock())/CLOCKS_PER_SEC;
+        const auto now = std::chrono::steady_clock::now();
+        const auto seconds_since_epoch = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
+        return seconds_since_epoch;
 #endif
     }
 

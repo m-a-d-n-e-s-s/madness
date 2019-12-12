@@ -436,7 +436,7 @@ public:
     /// compute Slater potential (Kohut, 2014, equation (15))
     real_function_3d compute_slater_potential(const vecfuncT& nemo, const long homo_ind) const {
 
-        Exchange K(world, this, 0);
+        Exchange<double,3> K(world, this, 0);
         vecfuncT Knemo = K(nemo);
         // 2.0*R_square in numerator and density (rho) cancel out upon division
         real_function_3d numerator = dot(world, nemo, Knemo);
@@ -508,8 +508,8 @@ public:
     	// compute the numerator tau
 
 	    // get \nabla R and (\nabla R)^2 via and U1 = -1/R \nabla R and U1dot = (1/R \nabla R)^2
-    	const vecfuncT U1 = this->nuclear_correlation->U1vec();
-	    NuclearCorrelationFactor::U1_dot_U1_functor u1_dot_u1(nuclear_correlation.get());
+    	const vecfuncT U1 = this->ncf->U1vec();
+	    NuclearCorrelationFactor::U1_dot_U1_functor u1_dot_u1(ncf.get());
 	    const real_function_3d U1dot = real_factory_3d(world).functor(u1_dot_u1).truncate_on_project();
 
 	    // get \nabla nemo
@@ -604,7 +604,7 @@ public:
     	compute_coulomb_potential(nemo, Jnemo);
 
     	// compute nuclear potential part
-    	Nuclear Unuc(world, this->nuclear_correlation);
+    	Nuclear Unuc(world, this->ncf);
     	Unemo = Unuc(nemo);
 
     	// compute approximate OEP exchange potential part
@@ -624,7 +624,7 @@ public:
     /// compute exchange potential (needed for Econv)
     void compute_exchange_potential(const vecfuncT& nemo, vecfuncT& Knemo) const {
 
-    	Exchange K = Exchange(world, this, 0);
+    	Exchange<double,3> K = Exchange<double,3>(world, this, 0);
     	Knemo = K(nemo);
     	truncate(world, Knemo);
 
