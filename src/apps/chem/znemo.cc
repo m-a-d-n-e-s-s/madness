@@ -779,6 +779,8 @@ void Znemo::get_initial_orbitals() {
 		MADNESS_EXCEPTION("unable to generate guess functions",1);
 	}
 
+	amo.clear();
+	bmo.clear();
 	for (int i=0; i<cparam.nalpha(); ++i) amo.push_back(zmos.first.get_mos()[i]);
 	for (int i=0; i<cparam.nbeta(); ++i) bmo.push_back(zmos.second.get_mos()[i]);
 	aeps=Tensor<double>(amo.size());
