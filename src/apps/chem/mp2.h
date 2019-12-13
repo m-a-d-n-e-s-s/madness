@@ -359,6 +359,9 @@ namespace madness {
     	/// POD for MP2 keywords
     	struct Parameters : public QCCalculationParametersBase {
 
+        	/// use OEP orbitals
+        	bool do_oep;
+
         	/// ctor reading out the input file
         	Parameters(World& world) {
 

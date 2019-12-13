@@ -107,6 +107,7 @@ void QCCalculationParametersBase::read_internal(World& world, std::string& filec
 		try {
 			success=try_setting_user_defined_value<double>(key,line1) or success;
 			success=try_setting_user_defined_value<int>(key,line1) or success;
+			success=try_setting_user_defined_value<unsigned int>(key,line1) or success;
 			success=try_setting_user_defined_value<long>(key,line1) or success;
 			success=try_setting_user_defined_value<std::size_t>(key,line1) or success;
 			success=try_setting_user_defined_value<bool>(key,line1) or success;

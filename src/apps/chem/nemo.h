@@ -389,7 +389,7 @@ public:
         f=0.5*(f+freproj);
     }
 
-private:
+protected:
 
 	std::shared_ptr<SCF> calc;
 
@@ -453,12 +453,13 @@ private:
 	/// sum of square of coords at last solved geometry
 	mutable double coords_sum;
 
+protected:
 	/// a poisson solver
 	std::shared_ptr<real_convolution_3d> poisson;
 
-//	/// asymptotic correction for DFT
-//	AC<3> ac;
-//
+	/// asymptotic correction for DFT
+	AC<3> ac;
+
 //    /// apply the AC scheme of Tozer/Handy with the multipole approximation
 //    Function<double,3> apply_ac(const Function<double,3>& vxc)const{
 //    	return ac.apply(vxc);
@@ -474,9 +475,10 @@ private:
 //    	return ac.apply_potential(vxc,vhartree);
 //    }
 
+private:
 	/// polarizable continuum model
 	PCM pcm;
-	AC<3> ac;
+//	AC<3> ac;
 
 	/// adapt the thresholds consistently to a common value
     void set_protocol(const double thresh) {
@@ -570,7 +572,7 @@ private:
 
 	/// localize the nemo orbitals
     vecfuncT localize(const vecfuncT& nemo, const double dconv, const bool randomize) const;
-
+protected:
 	/// return the threshold for vanishing elements in orbital rotations
     double trantol() const {
         return calc->vtol / std::min(30.0, double(get_calc()->amo.size()));
@@ -631,7 +633,7 @@ void Nemo::save_function(const std::vector<Function<T,NDIM> >& f, const std::str
     for (const Function<T,NDIM>& ff:f)  ar & ff;
 }
 
-/// save a function
+/// load a function
 template<typename T, size_t NDIM>
 void Nemo::load_function(std::vector<Function<T,NDIM> >& f, const std::string name) const {
     if (world.rank()==0) print("loading vector of functions",name);

@@ -11,7 +11,7 @@ set(MADCHEM_HEADERS
     SCFOperators.h CCStructures.h CalculationParameters.h
     electronic_correlation_factor.h cheminfo.h vibanal.h molopt.h TDHF.h CC2.h CCPotentials.h
     pcm.h SCFProtocol.h AC.h pointgroupoperator.h pointgroupsymmetry.h MolecularOrbitals.h 
-	znemo.h zcis.h  diamagneticpotentialfactor.h
+	znemo.h zcis.h  diamagneticpotentialfactor.h oep.h
     PNO.h PNOF12Potentials.h PNOGuessFunctions.h PNOParameters.h PNOStructures.h PNOTensors.h)
 set(MADCHEM_SOURCES
     correlationfactor.cc molecule.cc molecularbasis.cc vibanal.cc
@@ -19,7 +19,7 @@ set(MADCHEM_SOURCES
     distpm.cc SCF.cc gth_pseudopotential.cc nemo.cc mp2.cc pcm.cc
     SCFOperators.cc TDHF.cc GuessFactory.cc CCStructures.cc CC2.cc CCPotentials.cc 
     AC.cc pointgroupsymmetry.cc 
-    znemo.cc zcis.cc diamagneticpotentialfactor.cc
+    znemo.cc zcis.cc diamagneticpotentialfactor.cc oep.cc
     PNO.cpp PNOF12Potentials.cpp PNOGuessFunctions.cpp PNOParameters.cpp PNOStructures.cpp
     QCCalculationParametersBase.cc MolecularOrbitals.cc)
 if(LIBXC_FOUND)
