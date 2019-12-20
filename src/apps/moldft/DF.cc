@@ -952,28 +952,28 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      //sign doesn't line up with the notes, but I can't find out why
      //if(world.rank()==0) print("a");
      Tensor<std::complex<double>> tempmatrix = matrix_inner(world, occupieds, temp_orbitals);
+     if(world.rank()==0) print("a:\n", tempmatrix);
      fock(Slice(0,n-1),Slice(0,n-1)) = copy(tempmatrix);
      fock(Slice(n,m-1),Slice(n,m-1)) = conj(tempmatrix(Slice(0,np-1),Slice(0,np-1)));
-
-     //if(world.rank()==0) print("b");
      tempmatrix = matrix_inner(world,kramers_pairs,temp_orbitals);
-     //if(world.rank()==0) print(occupieds.size(), Kpsis.size(), fock.dim(0), fock.dim(1), tempmatrix.dim(0), tempmatrix.dim(1));
+     if(world.rank()==0) print("b:\n", tempmatrix);
+     fock(Slice(0,n-1),Slice(n,m-1)) = -1.0*conj(tempmatrix);
      fock(Slice(n,m-1),Slice(0,n-1)) = copy(tempmatrix);
-     fock(Slice(0,n-1),Slice(n,m-1)) = -1.0*conj_transpose(tempmatrix);
 
      //Put in Exchange part
      //if(world.rank()==0) print("c");
      tempmatrix = matrix_inner(world,occupieds,Kpsis);
+     if(world.rank()==0) print("c:\n", tempmatrix);
      fock(Slice(0,n-1),Slice(0,n-1)) = fock(Slice(0,n-1),Slice(0,n-1)) - tempmatrix;
      fock(Slice(n,m-1),Slice(n,m-1)) = fock(Slice(n,m-1),Slice(n,m-1)) - transpose(tempmatrix(Slice(0,np-1),Slice(0,np-1)));
-
-     //if(world.rank()==0) print("d");
      tempmatrix = matrix_inner(world, kramers_pairs, Kpsis);
+     if(world.rank()==0) print("d:\n", tempmatrix);
      fock(Slice(n,m-1),Slice(0,n-1)) = fock(Slice(n,m-1),Slice(0,n-1)) - tempmatrix;
-     fock(Slice(0,n-1),Slice(n,m-1)) = fock(Slice(0,n-1),Slice(n,m-1)) + conj_transpose(tempmatrix);
+     fock(Slice(0,n-1),Slice(n,m-1)) = fock(Slice(0,n-1),Slice(n,m-1)) + conj(tempmatrix);
 
      //DEBUGGING:
-     //if(world.rank()==0) print("new fock matrix:\n",fock);
+     if(world.rank()==0) print("new fock matrix:\n",fock);
+     if(world.rank()==0) print("P:\n",P);
      
      //permute and symmetrize
      //if(world.rank()==0) print("e");
@@ -1006,10 +1006,10 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
 
 
      //debugging: print fock and overlap matrices
-     //if(world.rank()==0){
-     //     print("permuted fock:\n", fock);
-     //     print("\npermuted overlap:\n", overlap);
-     //}
+     if(world.rank()==0){
+          print("permuted fock:\n", fock);
+          print("\npermuted overlap:\n", overlap);
+     }
      
      if(world.rank()==0) print("     Eigensolver");
      start_timer(world);
@@ -1113,23 +1113,17 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      start_timer(world);
 
      ////Apply the transformation to the orbitals 
-     //if(world.rank()==0) print("a");
      tempmatrix = U(Slice(0,n-1),Slice(0,n-1));
      occupieds = transform(world, occupieds, tempmatrix);
-
-     //if(world.rank()==0) print("b");
      tempmatrix = U(Slice(n,m-1),Slice(0,n-1));
      occupieds += transform(world, kramers_pairs, tempmatrix);
 
-     //if(world.rank()==0) print("c");
      ////Apply the transformation to the Exchange
-     for(unsigned int j = 0; j < n-1; j++){
+     for(unsigned int j = 0; j < np; j++){
           kramers_pairs[j] = Kpsis[j].KramersPair();
      }
-     //if(world.rank()==0) print("d");
      tempmatrix = U(Slice(0,n-1),Slice(0,n-1));
      Kpsis = transform(world, Kpsis, tempmatrix);
-     //if(world.rank()==0) print("e");
      tempmatrix = U(Slice(n,m-1),Slice(0,n-1));
      Kpsis += transform(world, kramers_pairs, tempmatrix);
 
@@ -1729,6 +1723,7 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      }
      JandV = V + apply(op,rho); 
      JandV.truncate();
+
 
      //Apply BSH to each psi
      if(world.rank()==0) print("\n***Applying BSH operator***");

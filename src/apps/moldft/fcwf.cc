@@ -487,7 +487,7 @@ std::vector<Fcwf> transform(World& world, std::vector<Fcwf>& a, Tensor<std::comp
           reader[1] = a_2[i];
           reader[2] = a_3[i];
           reader[3] = a_4[i];
-          result.push_back(reader); //need a copy here?
+          result.push_back(reader); 
      }
 
      return result;
