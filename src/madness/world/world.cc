@@ -126,6 +126,9 @@ namespace madness {
     }
 
     World::~World() {
+//        stray WorldObjects are allowed as long as they outlive madness::finalize() :(
+//        MADNESS_ASSERT_NOEXCEPT(map_ptr_to_id.size() == 0);
+//        MADNESS_ASSERT_NOEXCEPT(map_id_to_ptr.size() == 0);
         worlds.remove(this);
         delete &taskq;
         delete &gop;

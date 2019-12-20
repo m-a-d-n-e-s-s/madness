@@ -106,6 +106,13 @@ template class Kinetic<double,4>;
 template class Kinetic<double,5>;
 template class Kinetic<double,6>;
 
+template class Kinetic<double_complex,1>;
+template class Kinetic<double_complex,2>;
+template class Kinetic<double_complex,3>;
+template class Kinetic<double_complex,4>;
+template class Kinetic<double_complex,5>;
+template class Kinetic<double_complex,6>;
+
 
 template<typename T, std::size_t NDIM>
 std::vector<Function<T,NDIM> >
@@ -179,11 +186,6 @@ real_function_3d Coulomb::compute_potential(const madness::Nemo* nemo) const {
     return nemo->get_calc()->make_coulomb_potential(density);
 }
 
-real_function_3d Coulomb::compute_potential(const real_function_3d& density,
-        double lo, double econv) const {
-    real_convolution_3d poisson = CoulombOperator(world, lo, econv);
-    return poisson(density).truncate();
-}
 
 
 Nuclear::Nuclear(World& world, const SCF* calc) : world(world) {
@@ -193,41 +195,34 @@ Nuclear::Nuclear(World& world, const SCF* calc) : world(world) {
 }
 
 Nuclear::Nuclear(World& world, const Nemo* nemo) : world(world) {
-    ncf=nemo->nuclear_correlation;
+    ncf=nemo->ncf;
 }
 
-vecfuncT Nuclear::operator()(const vecfuncT& vket) const {
+template<typename T, std::size_t NDIM>
+std::vector<Function<T,NDIM> > Nuclear::operator()(const std::vector<Function<T,NDIM> >& vket) const {
 
-    const static std::size_t NDIM=3;
+	typedef Function<T,NDIM> functionT;
+	typedef std::vector<functionT> vecfuncT;
 
     // shortcut for local nuclear potential (i.e. no correlation factor)
     if (ncf->type()==NuclearCorrelationFactor::None) {
-        vecfuncT result=mul(world,ncf->U2(),vket);
-        truncate(world,result);
-        return result;
+        return truncate(ncf->U2()*vket);
     }
 
-    std::vector< std::shared_ptr<Derivative<double,NDIM> > > gradop =
-            gradient_operator<double,NDIM>(world);
+    std::vector< std::shared_ptr<Derivative<T,NDIM> > > gradop =
+            gradient_operator<T,NDIM>(world);
     reconstruct(world, vket);
-    vecfuncT vresult=zero_functions_compressed<double,NDIM>(world,vket.size());
+    vecfuncT vresult=zero_functions_compressed<T,NDIM>(world,vket.size());
 
     // memory-saving algorithm: outer loop over the dimensions
     // apply the derivative operator on each function for each dimension
     for (std::size_t i=0; i<NDIM; ++i) {
-        std::vector<Function<double,NDIM> > dv=apply(world, *(gradop[i]), vket, true);
+        vecfuncT dv=apply(world, *(gradop[i]), vket, true);
         truncate(world,dv);
-        real_function_3d U1=ncf->U1(i%3);
-        std::vector<Function<double,NDIM> > U1dv=mul(world,U1,dv);
-        truncate(world,U1dv);
-        vresult=add(world,vresult,U1dv);
+        vresult+=truncate(ncf->U1(i%3)*dv);
     }
 
-    real_function_3d U2=ncf->U2();
-    std::vector<Function<double,NDIM> > U2v=mul(world,U2,vket);
-    vresult=add(world,vresult,U2v);
-    truncate(world,vresult);
-    return vresult;
+    return truncate(vresult+ncf->U2()*vket);
 }
 
 
@@ -240,7 +235,7 @@ DNuclear::DNuclear(World& world, const SCF* calc, const int iatom, const int iax
 
 DNuclear::DNuclear(World& world, const Nemo* nemo, const int iatom, const int iaxis)
            : world(world), iatom(iatom), iaxis(iaxis) {
-    ncf=nemo->nuclear_correlation;
+    ncf=nemo->ncf;
 }
 
 vecfuncT DNuclear::operator()(const vecfuncT& vket) const {
@@ -292,32 +287,34 @@ vecfuncT DNuclear::operator()(const vecfuncT& vket) const {
 }
 
 
-Exchange::Exchange(World& world, const SCF* calc, const int ispin)
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>::Exchange(World& world, const SCF* calc, const int ispin)
         : world(world), small_memory_(true), same_(false) {
     if (ispin==0) { // alpha spin
-        mo_ket=calc->amo;
+        mo_ket=convert<double,T,NDIM>(world,calc->amo);		// deep copy necessary if T==double_complex
         occ=calc->aocc;
     } else if (ispin==1) {  // beta spin
-        mo_ket=calc->bmo;
+        mo_ket=convert<double,T,NDIM>(world,calc->bmo);
         occ=calc->bocc;
     }
-    mo_bra=mo_ket;
+    mo_bra=conj(world,mo_ket);
     poisson = std::shared_ptr<real_convolution_3d>(
             CoulombOperatorPtr(world, calc->param.lo(), calc->param.econv()));
 }
 
-Exchange::Exchange(World& world, const Nemo* nemo, const int ispin)
-    : world(world), small_memory_(true), same_(false) {
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>::Exchange(World& world, const Nemo* nemo, const int ispin) // @suppress("Class members should be properly initialized")
+    : Exchange<T,NDIM>(world,nemo->get_calc().get(),ispin) {
 
     if (ispin==0) { // alpha spin
-        mo_ket=nemo->get_calc()->amo;
+        mo_ket=convert<double,T,NDIM>(world,nemo->get_calc()->amo);        // deep copy necessary if T==double_complex
         occ=nemo->get_calc()->aocc;
     } else if (ispin==1) {  // beta spin
-        mo_ket=nemo->get_calc()->bmo;
+        mo_ket=convert<double,T,NDIM>(world,nemo->get_calc()->bmo);        // deep copy necessary if T==double_complex
         occ=nemo->get_calc()->bocc;
     }
 
-    mo_bra=mul(world,nemo->nuclear_correlation->square(),mo_ket);
+    mo_bra=mul(world,nemo->ncf->square(),mo_ket);
     truncate(world,mo_bra);
     poisson = std::shared_ptr<real_convolution_3d>(
             CoulombOperatorPtr(world, nemo->get_calc()->param.lo(),
@@ -325,21 +322,14 @@ Exchange::Exchange(World& world, const Nemo* nemo, const int ispin)
 
 }
 
-void Exchange::set_parameters(const vecfuncT& bra, const vecfuncT& ket,
-        const Tensor<double>& occ1, const double lo, const double econv) {
-    mo_bra=copy(world,bra);
-    mo_ket=copy(world,ket);
-    occ=copy(occ1);
-    poisson = std::shared_ptr<real_convolution_3d>(
-            CoulombOperatorPtr(world, lo, econv));
-}
-
-vecfuncT Exchange::operator()(const vecfuncT& vket, const double& mul_tol) const {
+template<typename T, std::size_t NDIM>
+std::vector<Function<T,NDIM> > Exchange<T,NDIM>::operator()(
+		const std::vector<Function<T,NDIM> >& vket, const double& mul_tol) const {
     const bool same = this->same();
     int nocc = mo_bra.size();
     int nf = vket.size();
     double tol = FunctionDefaults < 3 > ::get_thresh(); /// Important this is consistent with Coulomb
-    vecfuncT Kf = zero_functions_compressed<double, 3>(world, nf);
+    vecfuncT Kf = zero_functions_compressed<T,NDIM>(world, nf);
     reconstruct(world, mo_bra);
     norm_tree(world, mo_bra);
     reconstruct(world, mo_ket);
@@ -377,7 +367,7 @@ vecfuncT Exchange::operator()(const vecfuncT& vket, const double& mul_tol) const
         truncate(world, psif, tol);
         reconstruct(world, psif);
         norm_tree(world, psif);
-        vecfuncT psipsif = zero_functions<double, 3>(world, nf * nocc);
+        vecfuncT psipsif = zero_functions<T,NDIM>(world, nf * nocc);
         int ij = 0;
         for (int i = 0; i < nocc; ++i) {
             int jtop = nf;
@@ -447,7 +437,7 @@ XCOperator::XCOperator(World& world, const Nemo* nemo, int ispin) : world(world)
     xc->initialize(nemo->get_calc()->param.xc(),
             !nemo->get_calc()->param.spin_restricted(), world);
 
-    ncf=nemo->nuclear_correlation;
+    ncf=nemo->ncf;
 
     nbeta=nemo->get_calc()->param.nbeta();
     const bool have_beta=xc->is_spin_polarized() && nbeta != 0;
@@ -482,12 +472,13 @@ XCOperator::XCOperator(World& world, const Nemo* nemo, const real_function_3d& a
     xc=std::shared_ptr<XCfunctional> (new XCfunctional());
     xc->initialize(nemo->get_calc()->param.xc(),
             not nemo->get_calc()->param.spin_restricted(), world);
-    ncf=nemo->nuclear_correlation;
+    ncf=nemo->ncf;
 
     xc_args=prep_xc_args(arho,brho);
 }
 
-vecfuncT XCOperator::operator()(const vecfuncT& vket) const {
+template<typename T>
+std::vector<Function<T,3> > XCOperator::operator()(const std::vector<Function<T,3> >& vket) const {
     real_function_3d xc_pot=make_xc_potential();
     double vtol = FunctionDefaults<3>::get_thresh() * 0.1;  // safety
     return mul_sparse(world, xc_pot, vket, vtol);
@@ -739,6 +730,14 @@ Fock::Fock(World& world, const Nemo* nemo,
 }
 
 
+template std::vector<Function<double,3> > XCOperator::operator()(const std::vector<Function<double,3> >& vket) const;
+template std::vector<Function<double_complex,3> > XCOperator::operator()(const std::vector<Function<double_complex,3> >& vket) const;
+
+template class Exchange<double_complex,3>;
+template class Exchange<double,3>;
+
+template std::vector<Function<double,3> > Nuclear::operator()(const std::vector<Function<double,3> >& vket) const;
+template std::vector<Function<double_complex,3> > Nuclear::operator()(const std::vector<Function<double_complex,3> >& vket) const;
 
 } // namespace madness
 

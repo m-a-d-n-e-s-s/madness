@@ -107,7 +107,7 @@ int main(int argc, char** argv) {
 
 		real_function_3d density = real_factory_3d(world);
 		double width = FunctionDefaults<3>::get_cell_min_width()/2.0 - 1.e-3;
-		real_function_3d R2 = nemo.nuclear_correlation->square();
+		real_function_3d R2 = nemo.ncf->square();
 		for(auto x:nemo.get_calc()->amo){
 			//x.truncate();
 			x.refine();
@@ -126,7 +126,7 @@ int main(int argc, char** argv) {
 //			real_function_3d amoR = x*nemo.nuclear_correlation->square();
 //			density += amoR*x;
 		}
-		density=density*nemo.nuclear_correlation->square();
+		density=density*nemo.ncf->square();
 		density.truncate(FunctionDefaults<3>::get_thresh()*0.01);
 		smooth<double,3> smoothing(world);
 		smoothing.smooth_density_from_orbitals(nemo.get_calc()->amo);

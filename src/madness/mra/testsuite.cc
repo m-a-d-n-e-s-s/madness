@@ -745,7 +745,7 @@ int test_op(World& world) {
     coeffs(0L) = pow(exponents(0L)/PI, 0.5*NDIM);
     SeparatedConvolution<T,NDIM> op(world, coeffs, exponents);
     START_TIMER;
-    Function<T,NDIM> r = apply(op,f);
+    Function<T,NDIM> r = madness::apply(op,f);
     END_TIMER("apply");
     r.verify_tree();
     f.verify_tree();
