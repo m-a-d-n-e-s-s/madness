@@ -44,7 +44,7 @@ if(ENABLE_UNITTESTS)
   
   # Test executables that are not run with unit tests
   set(MRA_OTHER_TESTS testperiodic testbc testqm test6
-      testdiff1D testdiff2D testdiff3D)
+      testdiff1D testdiff2D testdiff3D test_macrotask1)
   
   foreach(_test ${MRA_OTHER_TESTS})  
     add_executable(${_test} EXCLUDE_FROM_ALL ${_test}.cc)

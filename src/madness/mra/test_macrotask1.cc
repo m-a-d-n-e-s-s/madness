@@ -4,16 +4,17 @@
  *  Created on: Dec 17, 2019
  *      Author: fbischoff
  */
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 
+#include <madness/mra/mra.h>
 #include <iostream>
 #include <madness/world/MADworld.h>
 #include <madness/world/worlddc.h>
 #include <random>
-#include <madness/mra/mra.h>
 #include <madness/mra/funcimpl.h>
 
 using namespace madness;
+using namespace archive;
 
 
 
@@ -85,32 +86,71 @@ WorldContainer<keyT, valueT> copy_to_redistributed(World& local_world,
 
 	return local;
 }
+//
+//template<class F, class...Ts, std::size_t...Is>
+//void for_each_in_tuple(const std::tuple<Ts...> & tuple, F func, std::index_sequence<Is...>){
+//    using expander = int[];
+//    (void)expander { 0, ((void)func(std::get<Is>(tuple)), 0)... };
+//}
+//
+//template<class F, class...Ts>
+//void for_each_in_tuple(const std::tuple<Ts...> & tuple, F func){
+//    for_each_in_tuple(tuple, func, std::make_index_sequence<sizeof...(Ts)>());
+//}
 
-template<class F, class...Ts, std::size_t...Is>
-void for_each_in_tuple(const std::tuple<Ts...> & tuple, F func, std::index_sequence<Is...>){
-    using expander = int[];
-    (void)expander { 0, ((void)func(std::get<Is>(tuple)), 0)... };
-}
+template<typename T, std::size_t NDIM>
+struct data1 {
+	data1() : i(), d(), f() {}
+	data1(const int& i, const double& d, Function<T,NDIM> f) : i(i), d(d), f(f),
+			filename("dummy"+std::to_string(i)) {}
+	data1(const int& i, const double& d) : i(i), d(d), f(),
+			filename("dummy"+std::to_string(i)) {}
+//	data1(World& world) : i(), d(), f(Function<T,NDIM>) {}
+	double d;
+	int i;
+	Function<T,NDIM> f;
+	std::string filename="dummy";
 
-template<class F, class...Ts>
-void for_each_in_tuple(const std::tuple<Ts...> & tuple, F func){
-    for_each_in_tuple(tuple, func, std::make_index_sequence<sizeof...(Ts)>());
-}
+    template <typename Archive>
+    void serialize(const Archive& ar) {
+    	bool fexist=f.is_initialized();
+        ar & i & d & filename;
+//		if (fexist) ar & f;
+
+    }
+	void save(World& world) const {
+		world.gop.fence();
+		archive::ParallelOutputArchive ar(world, filename.c_str() , 1);
+		print("saving to file",filename);
+		ar & d & i & f;
+//		world.gop.fence();
+
+	}
+
+	void load(World& world) {
+		world.gop.fence();
+		print("loading from file",filename, world.id());
+		archive::ParallelInputArchive ar(world, filename.c_str() , 1);
+		ar & d & i & f;
+		world.gop.fence();
+		print("loaded from file",filename);
+
+	}
+
+};
 
 /// use tuple for the data
+// to be replaced by MPIArchive
 template<typename T>
-void localize_to_world(World& universe, World& local, const T& data) {
+void localize_to_world(World& universe, World& local,  T& data) {
 
-	// to be replaced by MPIArchive
-	for_each_in_tuple(data, [&local, &universe](const auto &x) {
-//		copy_to_redistributed(local,x);
-		std::string filename="dummy"+std::to_string(universe.rank());
-        archive::ParallelOutputArchive ar(universe, filename.c_str() , 1);
-        ar & x;
-        archive::ParallelInputArchive ar2(universe, filename.c_str(), 1);
-        ar2 & x;
+	data.save(universe);
+//	myusleep(10*1.e6);
 
-	});
+	T data2;
+	data2.load(local);
+	universe.gop.fence();
+	local.gop.fence();
 }
 
 
@@ -124,6 +164,9 @@ public:
 
 	macro_task() {}
 	macro_task(bool real_task) {
+		this->no_task=false;
+	}
+	macro_task(const T& d) : data(d) {
 		this->no_task=false;
 	}
 
@@ -153,6 +196,13 @@ public:
     void serialize(const Archive& ar) {
         ar & data & this->no_task;
     }
+	void save(World& world) const {
+		data.save(world);
+	}
+
+	void load(World& world) {
+		data.load(world);
+	}
 
 };
 
@@ -194,16 +244,21 @@ public:
 	void run_all() {
 
 		World& regional=*(regional_ptr.get());
-
 		universe.gop.fence();
+
+
 		bool working=true;
 		while (working) {
 			std::shared_ptr<taskT> task=get_task_from_tasklist(regional);
-			task.get()->copy_data_in(universe,regional);
-			localize_to_world(universe,regional,task->data);
 
+			regional.gop.fence();
 			if (task.get()) {
-				run_task(regional, *task);
+				universe.gop.fence();
+				print("hello world",universe.rank(),regional.rank(),task->data.i);
+				universe.gop.fence();
+				task->load(regional);
+				universe.gop.fence();
+//				run_task(regional, *task);
 			} else {
 				working=false;
 			}
@@ -215,7 +270,8 @@ public:
 		static int i=0;
 		i++;
 		int key=(i+universe.rank()*1000);	// unique?
-		taskq.replace(key,task);
+		task.save(universe);
+		if (universe.rank()==0) taskq.replace(key,task);
 	};
 
 	std::shared_ptr<taskT> get_task_from_tasklist(World& regional) {
@@ -244,7 +300,6 @@ public:
 	}
 
 	taskT pop_local(const int requested) {
-//		print("pop_local on rank",this->get_world().rank(), "requested from",requested);
 
 		taskT result;
 		bool found=false;
@@ -266,7 +321,6 @@ public:
 				print("could not find key",key, "continue searching");
 			}
 		}
-//		print("pop_local: returning",this->get_world().rank(), "requested from",requested);
 
 		return result;
 	}
@@ -278,6 +332,7 @@ int main(int argc, char** argv) {
 //    madness::World& universe = madness::initialize(argc,argv);
     initialize(argc, argv);
     World universe(SafeMPI::COMM_WORLD);
+    startup(universe,argc,argv);
 
     std::cout << "Hello from " << universe.rank() << std::endl;
     universe.gop.fence();
@@ -288,17 +343,33 @@ int main(int argc, char** argv) {
     for (int i=0; i<100; ++i) container.replace(i,double(i));
     print("container local size",container.size());
 
-
-    typedef macro_task<std::tuple<double,int,FunctionImpl<double,3>* > > taskT;
+    typedef macro_task<data1<double,3> > taskT;
+//    typedef macro_task<double> taskT;
     macro_taskq<taskT> taskq(universe,nworld);
-    if (universe.rank()==0)
-    	for (int i=0; i<20; ++i) taskq.add_task(taskT(true));
+    for (int i=0; i<20; ++i) {
+    	Function<double,3> f(universe);
+		data1<double,3> d(i,i,f);
+    	taskq.add_task(taskT(d));
+    }
+
+
+    universe.gop.fence();
+    print("taskq.size()",taskq.size());
+
+    print("");
     universe.gop.fence();
 
-    taskq.run_all();
+	taskq.run_all();
 
     madness::finalize();
     return 0;
 }
 
+template <> volatile std::list<detail::PendingMsg> WorldObject<macro_taskq<macro_task<data1<double, 3ul> > > >::pending = std::list<detail::PendingMsg>();
+template <> Spinlock WorldObject<macro_taskq<macro_task<data1<double, 3ul> > > >::pending_mutex(0);
 
+template <> volatile std::list<detail::PendingMsg> WorldObject<WorldContainerImpl<int, double, madness::Hash<int> > >::pending = std::list<detail::PendingMsg>();
+template <> Spinlock WorldObject<WorldContainerImpl<int, double, madness::Hash<int> > >::pending_mutex(0);
+
+template <> volatile std::list<detail::PendingMsg> WorldObject<WorldContainerImpl<long, macro_task<data1<double, 3ul> >, madness::Hash<long> > >::pending = std::list<detail::PendingMsg>();
+template <> Spinlock WorldObject<WorldContainerImpl<long, macro_task<data1<double, 3ul> >, madness::Hash<long> > >::pending_mutex(0);
