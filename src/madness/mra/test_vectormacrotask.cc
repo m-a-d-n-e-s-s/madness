@@ -26,6 +26,12 @@ using namespace archive;
  */
 
 
+
+double gaussian(const coord_4d& r) {
+    double x=r[0], y=r[1], z=r[2], aa=r[3];
+    return exp(-(x*x + y*y + z*z * aa*aa))*abs(sin(abs(2.0*x))) *cos(y);
+}
+
 /// for each process create a world using a communicator shared with other processes by round-robin
 /// copy-paste from test_world.cc
 std::shared_ptr<World> create_worlds(World& universe, const std::size_t nworld) {
@@ -67,32 +73,33 @@ public:
 	virtual ~macro_task_base() {};
 
 	double priority=0.0;
-	bool no_task=true;
 
 };
 
-//
-//template<typename T>
-//T copy_to_redistributed(World& local_world, const T& source) {
-//	print("copying", typeid(source).name());
-//	return source;
-//}
-//
-//template<typename keyT, typename valueT>
-//WorldContainer<keyT, valueT> copy_to_redistributed(World& local_world,
-//		const WorldContainer<keyT, valueT>& source) {
-//
-//	WorldContainer<keyT, valueT> local(local_world);
-//    for (auto it : source) {
-//        const auto& key = it.first;
-//        const auto& value = it.second;
-//        local.replace(key,value);
-//    }
-//    source.get_world().gop.fence();
-//
-//	return local;
-//}
-//
+template<typename T, std::size_t NDIM>
+Function<T,NDIM> localize(World& origin, World& destination, const Function<T,NDIM>& data, const long id) {
+
+	origin.gop.fence();
+	destination.gop.fence();
+	std::string filename="smartie"+std::to_string(id);
+	if (data.is_initialized() and data.world().id()==origin.id()) save(data,filename);
+
+	destination.gop.fence();
+	origin.gop.fence();
+
+    auto pmap = std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >(new madness::LevelPmap< Key<NDIM> >(destination));
+    FunctionDefaults<NDIM>::set_pmap(pmap);	// set default pmap to use only this world!
+	Function<T,NDIM> result(destination);
+	load(result,filename);
+
+	destination.gop.fence();
+	origin.gop.fence();
+
+    archive::ParallelInputArchive ar2(destination, filename.c_str(), 1);
+    ar2.remove();
+
+	return result;
+}
 
 template<typename T, std::size_t NDIM>
 struct data_type {
@@ -107,6 +114,7 @@ struct data_type {
 	int i;
 	Function<T,NDIM> f;
 	std::string filename="dummy";
+
 
     template <typename Archive>
     void serialize(const Archive& ar) {
@@ -138,36 +146,17 @@ struct data_type {
 template<typename resultT, typename dataT>
 class macro_task : public macro_task_base<resultT, dataT> {
 public:
-	double naptime=0.2; // in seconds
-//	T data;
+	typedef resultT result_type;
+	typedef dataT data_type;
 
 	macro_task() {}
-	macro_task(bool real_task) {
-		this->no_task=false;
-	}
-//	macro_task(const T& d) : data(d) {
-//		this->no_task=false;
-//	}
 
 
-	resultT run(World& local, const dataT& data) {
-//		if (local.rank()==0) print("task sleeping, performed by world",local.id());
-//		std::random_device rd;
-//		std::mt19937 mt(rd());
-//		std::uniform_real_distribution<double> dist(0.1, 1.0);
-//		double nap=dist(mt);
-//
-//		print("sleeping for",nap, "function_value is",data.f({0,0,0}));
-//		myusleep(nap*1.e6);
-		auto f=data.f;
-		auto f2=square(f);
-		double val1=f({0,0,0});
-		double val2=f2({0,0,0});
-		if (local.rank()==0) print("function_value is",val1,val2);
-		local.gop.fence();
+	resultT run(World& world, const dataT& data) {
+		const Function<double,4>& f=data.f;
+		Function<double,4> g=real_factory_4d(world).f(gaussian);
+		Function<double,4> f2=square(f)+g;
 		return f2;
-//		macro_task subsequent_task;
-//		return std::make_pair(subsequent_task,T(f2));
 	}
 
 	~macro_task() {}
@@ -175,7 +164,7 @@ public:
 
     template <typename Archive>
     void serialize(const Archive& ar) {
-        ar & this->no_task & this->priority;
+        ar & this->priority;
     }
 	void save(World& world, const dataT& data) const {
 		data.save(world);
@@ -199,12 +188,15 @@ public:
 
 template<typename taskT>
 class macro_taskq : public WorldObject< macro_taskq<taskT> > {
-    typedef macro_taskq<taskT> thistype; ///< Type of this class (implementation)
-    typedef WorldContainer<long,taskT> dcT; ///< Type of this class (implementation)
+    typedef macro_taskq<taskT> thistype;
+    typedef WorldContainer<long,taskT> dcT;
+    typedef typename taskT::result_type resultT;
+    typedef typename taskT::data_type dataT;
 
     World& universe;
     std::shared_ptr<World> regional_ptr;
 	WorldContainer<long,taskT> taskq;
+
 
 public:
 
@@ -221,72 +213,78 @@ public:
 		taskq.process_pending();
 	}
 
-	void run_all() {
+	std::vector<resultT> run_all(taskT& task, const std::vector<dataT>& data) {
+		std::vector<resultT> result(data.size());
+		for (int i=0; i<data.size(); ++i) {
+			add_task(std::make_tuple(i,task));
+			data[i].save(universe);
+		}
 
-		World& regional=*(regional_ptr.get());
-		universe.gop.fence();
-
+		World& regional=get_regional();
 
 		bool working=true;
 		while (working) {
-			std::shared_ptr<taskT> task=get_task_from_tasklist(regional);
+			auto [key,task] =get_task_from_tasklist(regional);
 
-			regional.gop.fence();
-			if (task.get()) {
-				task->load(regional);
-				run_task(regional, *task);
+			if (key>=0) {
+				dataT regionaldata(data[key]);
+				regionaldata.load(regional);
+
+				double cpu0=cpu_time();
+				result[key]=task.run(regional,regionaldata);
+				double cpu1=cpu_time();
+				printf("finished task %ld in %4.2fs\n",key,cpu1-cpu0);
 			} else {
 				working=false;
 			}
 		}
 		universe.gop.fence();
+		regional.gop.fence();
+
+	    for (int i=0; i<result.size(); ++i) {
+	    	result[i]=localize(regional,universe,result[i],i);
+	    }
+
+		return result;
+
 	}
 
-	void add_task(const std::pair<taskT,dataT>& task) {
-		static int i=0;
-		i++;
-		int key=i;
-		task.save(universe);
-		if (universe.rank()==0) taskq.replace(key,task);
+	void add_task(const std::tuple<long,taskT>& task) {
+		int key=std::get<0>(task);
+		if (universe.rank()==0) taskq.replace(key,std::get<1>(task));
 	};
 
-	std::shared_ptr<taskT> get_task_from_tasklist(World& regional) {
+	std::pair<long,taskT> get_task_from_tasklist(World& regional) {
 
 		// only root may pop from the task list
-		taskT task;
+		std::pair<long,taskT> task;
 		if (regional.rank()==0) task=pop();
 		regional.gop.broadcast_serializable(task, 0);
-
-        if (task.no_task) return std::shared_ptr<taskT>();
-		return std::shared_ptr<taskT>(new taskT(task));	// wait for task to arrive
+		regional.gop.fence();
+		return task;
 	}
-
-	void run_task(World& regional, taskT& task) {
-		task.run(regional);
-	};
-
-	bool master() const {return universe.rank()==0;}
 
 	std::size_t size() const {
 		return taskq.size();
 	}
 
-	Future<taskT> pop() {
+	Future<std::pair<long,taskT> > pop() {
         return this->task(ProcessID(0), &macro_taskq<taskT>::pop_local, this->get_world().rank());
 	}
 
-	taskT pop_local(const int requested) {
+	std::pair<long,taskT> pop_local(const int requested) {
 
 		taskT result;
+		long key;
 		bool found=false;
 		while (not found) {
 			auto iter=taskq.begin();
 			if (iter==taskq.end()) {
 				print("taskq empty");
-				break;	// taskq empty
+				return std::make_pair(-1,taskT());
 			}
 
-			long key=iter->first;
+			key=iter->first;
 
 			typename dcT::accessor acc;
 			if (taskq.find(acc,key)) {
@@ -298,7 +296,7 @@ public:
 			}
 		}
 
-		return result;
+		return std::make_pair(key,result);
 	}
 
 };
@@ -309,64 +307,58 @@ int main(int argc, char** argv) {
     initialize(argc, argv);
     World universe(SafeMPI::COMM_WORLD);
     startup(universe,argc,argv);
+    FunctionDefaults<4>::set_thresh(1.e-9);
+    FunctionDefaults<4>::set_k(7);
+
 
     std::cout << "Hello from " << universe.rank() << std::endl;
     universe.gop.fence();
     int nworld=std::min(int(universe.size()),int(3));
     if (universe.rank()==0) print("creating nworld",nworld);
 
+
+	/**
+	 * 	vectorization model
+	 *
+	 *    	std::vector<data_type<double,3> > vinput(ntask);	// fill with input data
+	 *    	macro_task<data_type<double,3> > task;				// implements run(World& world, const data_type& d);
+	 *    	macro_taskq<taskT> taskq(universe,nworld);
+	 *    	std::vector<Function<double,3> > result=taskq.run_all(task,vinput,fence=true);
+	 *
+	 */
+
     long ntask=20;
 
-    // task-based model
-	{
-    	// data_type holds input and output data
-    	typedef data_type<double,3> dataT;
-    	typedef macro_task<Function<double,3>, dataT> taskT;
-    	macro_taskq<std::pair<taskT,dataT> > taskq(universe,nworld);
-
-    	for (int i=0; i<ntask; ++i) {
-			Function<double,3> f(universe);
-			f.add_scalar(i);
-			dataT d(i,i,f);
-			taskq.add_task(std::make_pair(taskT(),d));						// runs on all processors
-		}
-		taskq.run_all(fence=true);
-
-
-    	for (int i=0; i<ntask; ++i) {						// post-process result
-			result[i]=task[i].d.result;
-		}
-
+    // set up input data
+    typedef data_type<double,4> dataT;
+    std::vector<dataT> vdata;
+    for (int i=0; i<ntask; ++i) {
+    	Function<double,4> f(universe);
+    	f.add_scalar(i);
+    	vdata.push_back(dataT(i,i,f));
     }
 
+    // set up taskq
+    typedef macro_task<Function<double,4>, dataT> taskT;
+    macro_taskq<taskT> taskq(universe,nworld);
+    taskT task;
+    std::vector<Function<double,4> > result=taskq.run_all(task,vdata);
 
-	// vectorization model
-    {
-    	std::vector<data_type<double,3> > vinput(ntask);	// fill with input data
-    	macro_task<data_type<double,3> > task;				// implements run(World& world, const data_type& d);
-    	macro_taskq<taskT> taskq(universe,nworld);
-    	std::vector<Function<double,3> > result=taskq.run_all(task,vinput,fence=true);
+    for (int i=0; i<result.size(); ++i) {
+    	double val=result[i]({0,0,0,0});
+    	if (universe.rank()==0) print("result",i,val);
     }
-
-//	// set up tasks with input data
-//	std::vector<Function<double,3> > vfunction;
-//	for (int i=0; i<ntask; ++i) {
-//		Function<double,3> f(universe);
-//		f.add_scalar(i);
-//		vfunction.push_back(f);
-//	}
-
 
 
     madness::finalize();
     return 0;
 }
 
-template <> volatile std::list<detail::PendingMsg> WorldObject<macro_taskq<macro_task<data_type<double, 3ul> > > >::pending = std::list<detail::PendingMsg>();
-template <> Spinlock WorldObject<macro_taskq<macro_task<data_type<double, 3ul> > > >::pending_mutex(0);
+template <> volatile std::list<detail::PendingMsg> WorldObject<macro_taskq<macro_task<Function<double,4>, data_type<double, 4ul> > > >::pending = std::list<detail::PendingMsg>();
+template <> Spinlock WorldObject<macro_taskq<macro_task<Function<double,4>, data_type<double, 4ul> > > >::pending_mutex(0);
 
 template <> volatile std::list<detail::PendingMsg> WorldObject<WorldContainerImpl<int, double, madness::Hash<int> > >::pending = std::list<detail::PendingMsg>();
 template <> Spinlock WorldObject<WorldContainerImpl<int, double, madness::Hash<int> > >::pending_mutex(0);
 
-template <> volatile std::list<detail::PendingMsg> WorldObject<WorldContainerImpl<long, macro_task<data_type<double, 3ul> >, madness::Hash<long> > >::pending = std::list<detail::PendingMsg>();
-template <> Spinlock WorldObject<WorldContainerImpl<long, macro_task<data_type<double, 3ul> >, madness::Hash<long> > >::pending_mutex(0);
+template <> volatile std::list<detail::PendingMsg> WorldObject<WorldContainerImpl<long, macro_task<Function<double,4>, data_type<double, 4ul> >, madness::Hash<long> > >::pending = std::list<detail::PendingMsg>();
+template <> Spinlock WorldObject<WorldContainerImpl<long, macro_task<Function<double,4>, data_type<double, 4ul> >, madness::Hash<long> > >::pending_mutex(0);
