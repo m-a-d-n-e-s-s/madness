@@ -6,7 +6,7 @@ set(EXAMPLE_SOURCES
     dataloadbal hatom_1d binaryop dielectric hehf 3dharmonic testsolver
     testspectralprop dielectric_external_field mp2 tiny oep h2dynamic newsolver
     cc2 nemo znemo zcis helium_exact density_smoothing siam_example ac_corr
-    derivatives)
+    derivatives array_worldobject)
  
 if(LIBXC_FOUND)
   list(APPEND EXAMPLE_SOURCES hefxc)
