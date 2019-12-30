@@ -19,18 +19,25 @@ using namespace archive;
 /**
  * 	Issues:
  * 	 - set_defaults<>(local_world) for loading (affects pmap)
- * 	 - serialization of task works only for int, double, .. but not for Function
+ * 	 - serialization of task works only for int, double, .. but not for Function -> separate task from data
+ * 	 - save/load of task data: must save data upon creation instead of consumption, because serialization of Function fails
+ * 	 - macro_taskq as WorldObject??
  *   - turn data structure into tuple
  *   - prioritize tasks
+ *   - submit tasks from within other tasks -> how to manage results?
  *
  */
 
 
-
-double gaussian(const coord_4d& r) {
-    double x=r[0], y=r[1], z=r[2], aa=r[3];
-    return exp(-(x*x + y*y + z*z * aa*aa))*abs(sin(abs(2.0*x))) *cos(y);
-}
+struct gaussian {
+	double a;
+	gaussian() : a() {};
+	gaussian(double aa) : a(aa) {}
+	double operator()(const coord_4d& r) const {
+		double x=r[0], y=r[1], z=r[2], aa=r[3];
+		return exp(-a*(x*x + y*y + z*z * aa*aa));//*abs(sin(abs(2.0*x))) *cos(y);
+	}
+};
 
 /// for each process create a world using a communicator shared with other processes by round-robin
 /// copy-paste from test_world.cc
@@ -77,11 +84,12 @@ public:
 };
 
 template<typename T, std::size_t NDIM>
-Function<T,NDIM> localize(World& origin, World& destination, const Function<T,NDIM>& data, const long id) {
+Function<T,NDIM> localize(World& origin, World& destination, const Function<T,NDIM>& data,
+		const long id, std::string filename="smartie") {
 
 	origin.gop.fence();
 	destination.gop.fence();
-	std::string filename="smartie"+std::to_string(id);
+	filename+=std::to_string(id);
 	if (data.is_initialized() and data.world().id()==origin.id()) save(data,filename);
 
 	destination.gop.fence();
@@ -123,6 +131,12 @@ struct data_type {
 //		if (fexist) ar & f;
 
     }
+
+//    void localize(World& origin, World& destination) {
+//    	f=::localize(origin,destination,f,i,"dummy");
+//    }
+
+
 	void save(World& world) const {
 		world.gop.fence();
 		archive::ParallelOutputArchive ar(world, filename.c_str() , 1);
@@ -154,9 +168,12 @@ public:
 
 	resultT run(World& world, const dataT& data) {
 		const Function<double,4>& f=data.f;
-		Function<double,4> g=real_factory_4d(world).f(gaussian);
+		Function<double,4> g=real_factory_4d(world).functor(gaussian(data.d));
 		Function<double,4> f2=square(f)+g;
-		return f2;
+		Derivative<double,4> D(world,1);
+		Function<double,4> df2=(D(f2)).truncate();
+		double trace=df2.trace();
+		return df2;
 	}
 
 	~macro_task() {}
@@ -222,6 +239,8 @@ public:
 
 		World& regional=get_regional();
 
+		double total_cpu=0.0;
+		double cp0=cpu_time();
 		bool working=true;
 		while (working) {
 			auto [key,task] =get_task_from_tasklist(regional);
@@ -229,21 +248,35 @@ public:
 			if (key>=0) {
 				dataT regionaldata(data[key]);
 				regionaldata.load(regional);
+//				dataT regionaldata=data[key];
+//				regionaldata.localize(universe,regional);
 
 				double cpu0=cpu_time();
 				result[key]=task.run(regional,regionaldata);
 				double cpu1=cpu_time();
-				printf("finished task %ld in %4.2fs\n",key,cpu1-cpu0);
+				printf("finished task %2ld in %4.2fs\n",key,cpu1-cpu0);
+				total_cpu+=(cpu1-cpu0);
 			} else {
 				working=false;
 			}
 		}
 		universe.gop.fence();
 		regional.gop.fence();
+		double cp1=cpu_time();
+		double fence2fence=cp1-cp0;
+		universe.gop.sum(total_cpu);
+		if (universe.rank()==0) printf("wall time spent in task execution %2.2fs\n",fence2fence);
+		if (universe.rank()==0) printf("CPU time spent in task execution  %2.2fs\n",total_cpu);
 
+		double cpu0=cpu_time();
 	    for (int i=0; i<result.size(); ++i) {
 	    	result[i]=localize(regional,universe,result[i],i);
 	    }
+		double cpu1=cpu_time();
+		double total_localize=cpu1-cpu0;
+		universe.gop.sum(total_localize);
+
+		if (universe.rank()==0) printf("time spent in localization %2.2fs\n",total_localize);
 
 		return result;
 
@@ -342,8 +375,15 @@ int main(int argc, char** argv) {
     typedef macro_task<Function<double,4>, dataT> taskT;
     macro_taskq<taskT> taskq(universe,nworld);
     taskT task;
+    double cpu0=cpu_time();
+    double wall0=wall_time();
+
     std::vector<Function<double,4> > result=taskq.run_all(task,vdata);
 
+    double cpu1=cpu_time();
+    double wall1=wall_time();
+
+    if (universe.rank()==0) printf("done with macrotasks in %.2fs (cpu) %.2fs (wall)\n",cpu1-cpu0,wall1-wall0);
     for (int i=0; i<result.size(); ++i) {
     	double val=result[i]({0,0,0,0});
     	if (universe.rank()==0) print("result",i,val);
