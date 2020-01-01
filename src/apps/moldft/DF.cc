@@ -846,13 +846,15 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
           rho += 2*squaremod(occupieds[j]);
      }
      if(!closed_shell) rho += squaremod(occupieds[n-1]);
-     for(unsigned int j = 0; j < n; j++){
-          double aa = occupieds[j][0].norm2();
-          double bb = occupieds[j][1].norm2();
-          double cc = occupieds[j][2].norm2();
-          double dd = occupieds[j][3].norm2();
-          if(world.rank()==0) print("     ", j+1, aa, bb, cc, dd);
-     }
+
+     //Debugging
+     //for(unsigned int j = 0; j < n; j++){
+     //     double aa = occupieds[j][0].norm2();
+     //     double bb = occupieds[j][1].norm2();
+     //     double cc = occupieds[j][2].norm2();
+     //     double dd = occupieds[j][3].norm2();
+     //     if(world.rank()==0) print("     ", j+1, aa, bb, cc, dd);
+     //}
      
      real_function_3d potential = myV + apply(op,rho);
      potential.truncate();
@@ -866,60 +868,60 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
 
 
      ////Debugging
-     std::vector<Fcwf> debug_orbitals;
-     for(unsigned int j = 0; j < n; j++){
-          debug_orbitals.push_back(occupieds[j]*myV);
-     }
-     Tensor<std::complex<double>> debugmatrix = matrix_inner(world,occupieds,debug_orbitals);
-     fock(Slice(0,n-1),Slice(0,n-1)) = copy(debugmatrix);
-     fock(Slice(n,m-1),Slice(n,m-1)) = conj(debugmatrix(Slice(0,np-1),Slice(0,np-1)));
-     debugmatrix = matrix_inner(world,kramers_pairs,debug_orbitals);
-     fock(Slice(n,m-1),Slice(0,n-1)) = copy(debugmatrix);
-     fock(Slice(0,n-1),Slice(n,m-1)) = -1.0*conj_transpose(debugmatrix);
-     fock = inner(transpose(P),inner(fock,P));
-     if(world.rank()==0) print("\nVnuc matrix:\n",fock);
+     //std::vector<Fcwf> debug_orbitals;
+     //for(unsigned int j = 0; j < n; j++){
+     //     debug_orbitals.push_back(occupieds[j]*myV);
+     //}
+     //Tensor<std::complex<double>> debugmatrix = matrix_inner(world,occupieds,debug_orbitals);
+     //fock(Slice(0,n-1),Slice(0,n-1)) = copy(debugmatrix);
+     //fock(Slice(n,m-1),Slice(n,m-1)) = conj(debugmatrix(Slice(0,np-1),Slice(0,np-1)));
+     //debugmatrix = matrix_inner(world,kramers_pairs,debug_orbitals);
+     //fock(Slice(n,m-1),Slice(0,n-1)) = copy(debugmatrix);
+     //fock(Slice(0,n-1),Slice(n,m-1)) = -1.0*conj_transpose(debugmatrix);
+     //fock = inner(transpose(P),inner(fock,P));
+     //if(world.rank()==0) print("\nVnuc matrix:\n",fock);
 
-     real_function_3d idk = apply(op,rho);
-     for(unsigned int j = 0; j < n; j++){
-          debug_orbitals[j] = occupieds[j]*idk;
-     }
-     debugmatrix = matrix_inner(world,occupieds,debug_orbitals);
-     fock(Slice(0,n-1),Slice(0,n-1)) = copy(debugmatrix);
-     fock(Slice(n,m-1),Slice(n,m-1)) = conj(debugmatrix(Slice(0,np-1),Slice(0,np-1)));
-     debugmatrix = matrix_inner(world,kramers_pairs,debug_orbitals);
-     fock(Slice(n,m-1),Slice(0,n-1)) = copy(debugmatrix);
-     fock(Slice(0,n-1),Slice(n,m-1)) = -1.0*conj_transpose(debugmatrix);
-     fock = inner(transpose(P),inner(fock,P));
-     if(world.rank()==0) print("\nJ matrix:\n",fock);
-     for(unsigned int j = 0; j < n; j++){
-          double aa = occupieds[j].norm2();
-          double bb = debug_orbitals[j].norm2();
-          if(world.rank()==0) print("     ", j+1, aa, bb);
-     }
+     //real_function_3d idk = apply(op,rho);
+     //for(unsigned int j = 0; j < n; j++){
+     //     debug_orbitals[j] = occupieds[j]*idk;
+     //}
+     //debugmatrix = matrix_inner(world,occupieds,debug_orbitals);
+     //fock(Slice(0,n-1),Slice(0,n-1)) = copy(debugmatrix);
+     //fock(Slice(n,m-1),Slice(n,m-1)) = conj(debugmatrix(Slice(0,np-1),Slice(0,np-1)));
+     //debugmatrix = matrix_inner(world,kramers_pairs,debug_orbitals);
+     //fock(Slice(n,m-1),Slice(0,n-1)) = copy(debugmatrix);
+     //fock(Slice(0,n-1),Slice(n,m-1)) = -1.0*conj_transpose(debugmatrix);
+     //fock = inner(transpose(P),inner(fock,P));
+     //if(world.rank()==0) print("\nJ matrix:\n",fock);
+     //for(unsigned int j = 0; j < n; j++){
+     //     double aa = occupieds[j].norm2();
+     //     double bb = debug_orbitals[j].norm2();
+     //     if(world.rank()==0) print("     ", j+1, aa, bb);
+     //}
 
-     for(unsigned int j = 0; j < n; j++){
-          debug_orbitals[j] = Kpsis[j];
-     }
-     debugmatrix = matrix_inner(world,occupieds,debug_orbitals);
-     fock(Slice(0,n-1),Slice(0,n-1)) = -1.0 * debugmatrix;
-     fock(Slice(n,m-1),Slice(n,m-1)) = -1.0 * transpose(debugmatrix(Slice(0,np-1),Slice(0,np-1)));
-     debugmatrix = matrix_inner(world, kramers_pairs, debug_orbitals);
-     fock(Slice(n,m-1),Slice(0,n-1)) = -1.0 * debugmatrix;
-     fock(Slice(0,n-1),Slice(n,m-1)) = conj_transpose(debugmatrix);
-     fock = inner(transpose(P),inner(fock,P));
-     if(world.rank()==0) print("\nK matrix:\n",fock);
+     //for(unsigned int j = 0; j < n; j++){
+     //     debug_orbitals[j] = Kpsis[j];
+     //}
+     //debugmatrix = matrix_inner(world,occupieds,debug_orbitals);
+     //fock(Slice(0,n-1),Slice(0,n-1)) = -1.0 * debugmatrix;
+     //fock(Slice(n,m-1),Slice(n,m-1)) = -1.0 * transpose(debugmatrix(Slice(0,np-1),Slice(0,np-1)));
+     //debugmatrix = matrix_inner(world, kramers_pairs, debug_orbitals);
+     //fock(Slice(n,m-1),Slice(0,n-1)) = -1.0 * debugmatrix;
+     //fock(Slice(0,n-1),Slice(n,m-1)) = conj_transpose(debugmatrix);
+     //fock = inner(transpose(P),inner(fock,P));
+     //if(world.rank()==0) print("\nK matrix:\n",fock);
 
-     for(unsigned int j = 0; j < n; j++){
-          debug_orbitals[j] = apply_T(world,occupieds[j]);
-     }
-     debugmatrix = matrix_inner(world,occupieds,debug_orbitals);
-     fock(Slice(0,n-1),Slice(0,n-1)) = copy(debugmatrix);
-     fock(Slice(n,m-1),Slice(n,m-1)) = conj(debugmatrix(Slice(0,np-1),Slice(0,np-1)));
-     debugmatrix = matrix_inner(world,kramers_pairs,debug_orbitals);
-     fock(Slice(n,m-1),Slice(0,n-1)) = copy(debugmatrix);
-     fock(Slice(0,n-1),Slice(n,m-1)) = -1.0*conj_transpose(debugmatrix);
-     fock = inner(transpose(P),inner(fock,P));
-     if(world.rank()==0) print("\nT matrix:\n",fock);
+     //for(unsigned int j = 0; j < n; j++){
+     //     debug_orbitals[j] = apply_T(world,occupieds[j]);
+     //}
+     //debugmatrix = matrix_inner(world,occupieds,debug_orbitals);
+     //fock(Slice(0,n-1),Slice(0,n-1)) = copy(debugmatrix);
+     //fock(Slice(n,m-1),Slice(n,m-1)) = conj(debugmatrix(Slice(0,np-1),Slice(0,np-1)));
+     //debugmatrix = matrix_inner(world,kramers_pairs,debug_orbitals);
+     //fock(Slice(n,m-1),Slice(0,n-1)) = copy(debugmatrix);
+     //fock(Slice(0,n-1),Slice(n,m-1)) = -1.0*conj_transpose(debugmatrix);
+     //fock = inner(transpose(P),inner(fock,P));
+     //if(world.rank()==0) print("\nT matrix:\n",fock);
      //End debugging
 
 
@@ -957,8 +959,9 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      fock(Slice(n,m-1),Slice(n,m-1)) = conj(tempmatrix(Slice(0,np-1),Slice(0,np-1)));
      tempmatrix = matrix_inner(world,kramers_pairs,temp_orbitals);
      if(world.rank()==0) print("b:\n", tempmatrix);
-     fock(Slice(0,n-1),Slice(n,m-1)) = -1.0*conj(tempmatrix);
      fock(Slice(n,m-1),Slice(0,n-1)) = copy(tempmatrix);
+     //fock(Slice(0,n-1),Slice(n,m-1)) = -1.0*conj(tempmatrix);
+     fock(Slice(0,n-1),Slice(n,m-1)) = conj_transpose(tempmatrix);
 
      //Put in Exchange part
      //if(world.rank()==0) print("c");
@@ -969,11 +972,12 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      tempmatrix = matrix_inner(world, kramers_pairs, Kpsis);
      if(world.rank()==0) print("d:\n", tempmatrix);
      fock(Slice(n,m-1),Slice(0,n-1)) = fock(Slice(n,m-1),Slice(0,n-1)) - tempmatrix;
-     fock(Slice(0,n-1),Slice(n,m-1)) = fock(Slice(0,n-1),Slice(n,m-1)) + conj(tempmatrix);
+     //fock(Slice(0,n-1),Slice(n,m-1)) = fock(Slice(0,n-1),Slice(n,m-1)) + conj(tempmatrix);
+     fock(Slice(0,n-1),Slice(n,m-1)) = fock(Slice(0,n-1),Slice(n,m-1)) - conj_transpose(tempmatrix);
 
      //DEBUGGING:
-     if(world.rank()==0) print("new fock matrix:\n",fock);
-     if(world.rank()==0) print("P:\n",P);
+     //if(world.rank()==0) print("new fock matrix:\n",fock);
+     //if(world.rank()==0) print("P:\n",P);
      
      //permute and symmetrize
      //if(world.rank()==0) print("e");
@@ -1006,10 +1010,10 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
 
 
      //debugging: print fock and overlap matrices
-     if(world.rank()==0){
-          print("permuted fock:\n", fock);
-          print("\npermuted overlap:\n", overlap);
-     }
+     //if(world.rank()==0){
+     //     print("permuted fock:\n", fock);
+     //     print("\npermuted overlap:\n", overlap);
+     //}
      
      if(world.rank()==0) print("     Eigensolver");
      start_timer(world);
