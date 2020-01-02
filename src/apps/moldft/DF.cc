@@ -954,11 +954,11 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      //sign doesn't line up with the notes, but I can't find out why
      //if(world.rank()==0) print("a");
      Tensor<std::complex<double>> tempmatrix = matrix_inner(world, occupieds, temp_orbitals);
-     if(world.rank()==0) print("a:\n", tempmatrix);
+     //if(world.rank()==0) print("a:\n", tempmatrix);
      fock(Slice(0,n-1),Slice(0,n-1)) = copy(tempmatrix);
      fock(Slice(n,m-1),Slice(n,m-1)) = conj(tempmatrix(Slice(0,np-1),Slice(0,np-1)));
      tempmatrix = matrix_inner(world,kramers_pairs,temp_orbitals);
-     if(world.rank()==0) print("b:\n", tempmatrix);
+     //if(world.rank()==0) print("b:\n", tempmatrix);
      fock(Slice(n,m-1),Slice(0,n-1)) = copy(tempmatrix);
      //fock(Slice(0,n-1),Slice(n,m-1)) = -1.0*conj(tempmatrix);
      fock(Slice(0,n-1),Slice(n,m-1)) = conj_transpose(tempmatrix);
@@ -966,11 +966,11 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      //Put in Exchange part
      //if(world.rank()==0) print("c");
      tempmatrix = matrix_inner(world,occupieds,Kpsis);
-     if(world.rank()==0) print("c:\n", tempmatrix);
+     //if(world.rank()==0) print("c:\n", tempmatrix);
      fock(Slice(0,n-1),Slice(0,n-1)) = fock(Slice(0,n-1),Slice(0,n-1)) - tempmatrix;
      fock(Slice(n,m-1),Slice(n,m-1)) = fock(Slice(n,m-1),Slice(n,m-1)) - transpose(tempmatrix(Slice(0,np-1),Slice(0,np-1)));
      tempmatrix = matrix_inner(world, kramers_pairs, Kpsis);
-     if(world.rank()==0) print("d:\n", tempmatrix);
+     //if(world.rank()==0) print("d:\n", tempmatrix);
      fock(Slice(n,m-1),Slice(0,n-1)) = fock(Slice(n,m-1),Slice(0,n-1)) - tempmatrix;
      //fock(Slice(0,n-1),Slice(n,m-1)) = fock(Slice(0,n-1),Slice(n,m-1)) + conj(tempmatrix);
      fock(Slice(0,n-1),Slice(n,m-1)) = fock(Slice(0,n-1),Slice(n,m-1)) - conj_transpose(tempmatrix);
@@ -1028,79 +1028,81 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      //if(world.rank()==0) print("U:\n", U, "\nevals:\n", evals);
 
      //Before applying the transformation, fix arbitrary rotations introduced by the eigensolver. 
-     if(world.rank()==0) print("     Removing Rotations");
-     start_timer(world);
+     //if(world.rank()==0) print("     Removing Rotations");
+     //start_timer(world);
 
-     double thresh_degenerate = DFparams.thresh*10.0;
-     double csquared = 137.0359895*137.0359895; //electron rest energy
+     //double thresh_degenerate = DFparams.thresh*10.0;
+     //double csquared = 137.0359895*137.0359895; //electron rest energy
 
-     //swap columns for a diagonally dominant matrix
-     bool switched = true;
-     while (switched) {
-          switched = false;
-          for (unsigned int kk = 0; kk < m; kk++) {
-               for (unsigned int j = kk + 1; j < m; j++) {
-                    double sold = std::real(U(kk,kk)*std::conj(U(kk,kk))) + std::real(U(j,j)*std::conj(U(j,j)));
-                    double snew = std::real(U(kk,j)*std::conj(U(kk,j))) + std::real(U(j,kk)*std::conj(U(j,kk)));
-                    //if (snew > sold and not ((evals[j] - evals[kk]) > thresh_degenerate * std::max(std::fabs(evals[kk])-csquared,1.0)) ) {
-                    if (snew > sold and not ((evals[j] - evals[kk]) > thresh_degenerate * std::fabs(evals[kk])) ) {
-                         if(world.rank()==0){
-                              print("          swapping columns ", kk+1, " and ", j+1);
-                         }
-                         Tensor<std::complex<double>> tmp = copy(U(_, kk));
-                         U(_, kk) = U(_, j);
-                         U(_, j) = tmp;
-                         std::swap(evals[kk], evals[j]);
-                         switched = true;
-                    }
-               }
-          }
-     }
+     ////swap columns for a diagonally dominant matrix
+     //bool switched = true;
+     //while (switched) {
+     //     switched = false;
+     //     for (unsigned int kk = 0; kk < m; kk++) {
+     //          for (unsigned int j = kk + 1; j < m; j++) {
+     //               double sold = std::real(U(kk,kk)*std::conj(U(kk,kk))) + std::real(U(j,j)*std::conj(U(j,j)));
+     //               double snew = std::real(U(kk,j)*std::conj(U(kk,j))) + std::real(U(j,kk)*std::conj(U(j,kk)));
+     //               //if (snew > sold and not ((evals[j] - evals[kk]) > thresh_degenerate * std::max(std::fabs(evals[kk])-csquared,1.0)) ) {
+     //               if (snew > sold and not ((evals[j] - evals[kk]) > thresh_degenerate * std::fabs(evals[kk])) ) {
+     //                    if(world.rank()==0){
+     //                         print("          swapping columns ", kk+1, " and ", j+1);
+     //                    }
+     //                    Tensor<std::complex<double>> tmp = copy(U(_, kk));
+     //                    U(_, kk) = U(_, j);
+     //                    U(_, j) = tmp;
+     //                    std::swap(evals[kk], evals[j]);
+     //                    switched = true;
+     //               }
+     //          }
+     //     }
+     //}
 
-     // Fix phases.
-     for (unsigned int kk = 0; kk < m; ++kk)
-          U(_, kk).scale(std::conj(U(kk,kk))/std::abs(U(kk,kk)));
+     //// Fix phases.
+     //for (unsigned int kk = 0; kk < m; ++kk)
+     //     U(_, kk).scale(std::conj(U(kk,kk))/std::abs(U(kk,kk)));
 
-     //if(world.rank()==0) print("After column swapping\nU:\n", U, "\nevals:\n", evals);
-     
-     //Find clusters of degenerate eigenvalues and rotate eigenvectors to maximize overlap with previous ones
-     unsigned int ilo = 0; // first element of cluster
-     if(world.rank()==0) print("          Degeneracy threshold: ",thresh_degenerate);
-     
-     while (ilo < m - 1) {
-         unsigned int ihi = ilo;
-         while (fabs(evals[ilo] - evals[ihi + 1])
-                < thresh_degenerate * std::fabs(evals[ilo])){// pow(10,floor(log10(std::fabs(evals[ilo]))))) { 
-                //< thresh_degenerate * std::max(std::fabs(evals[ilo]-csquared),1.0)){// pow(10,floor(log10(std::fabs(evals[ilo]))))) { 
-             ++ihi;
-             if (ihi == m - 1)
-                 break;
-         }
-         unsigned int nclus = ihi - ilo + 1;
-         if (nclus > 1) {
-              if(world.rank()==0){
-                    print("          found cluster from ", ilo + 1, " to " , ihi + 1);
-                    for(unsigned int kk = ilo; kk <= ihi; kk++){
-                         print("               ",evals[kk]);
-                    }
-              }
+     ////if(world.rank()==0) print("After column swapping\nU:\n", U, "\nevals:\n", evals);
+     //
+     ////Find clusters of degenerate eigenvalues and rotate eigenvectors to maximize overlap with previous ones
+     //unsigned int ilo = 0; // first element of cluster
+     //if(world.rank()==0) print("          Degeneracy threshold: ",thresh_degenerate);
+     //
+     //while (ilo < m - 1) {
+     //    unsigned int ihi = ilo;
+     //    while (fabs(evals[ilo] - evals[ihi + 1])
+     //           < thresh_degenerate * std::fabs(evals[ilo])){// pow(10,floor(log10(std::fabs(evals[ilo]))))) { 
+     //           //< thresh_degenerate * std::max(std::fabs(evals[ilo]-csquared),1.0)){// pow(10,floor(log10(std::fabs(evals[ilo]))))) { 
+     //        ++ihi;
+     //        if (ihi == m - 1)
+     //            break;
+     //    }
+     //    unsigned int nclus = ihi - ilo + 1;
+     //    if (nclus > 1) {
+     //         if(world.rank()==0){
+     //               print("          found cluster from ", ilo + 1, " to " , ihi + 1);
+     //               for(unsigned int kk = ilo; kk <= ihi; kk++){
+     //                    print("               ",evals[kk]);
+     //               }
+     //         }
 
 
-              //Use the polar decomposition to undo rotations:
-              Tensor<std::complex<double>> q = copy(U(Slice(ilo, ihi), Slice(ilo, ihi)));
-              Tensor<std::complex<double>> VH(nclus,nclus);
-              Tensor<std::complex<double>> W(nclus,nclus);
-              Tensor<double> sigma(nclus);
+     //         //Use the polar decomposition to undo rotations:
+     //         Tensor<std::complex<double>> q = copy(U(Slice(ilo, ihi), Slice(ilo, ihi)));
+     //         Tensor<std::complex<double>> VH(nclus,nclus);
+     //         Tensor<std::complex<double>> W(nclus,nclus);
+     //         Tensor<double> sigma(nclus);
 
-              svd(q, W, sigma, VH);
+     //         svd(q, W, sigma, VH);
 
-              //W*VH is the rotation part of q. Undo it by taking the adjoint and right-multiplying
-              q = conj_transpose(inner(W,VH));
-              U(_, Slice(ilo, ihi)) = inner(U(_, Slice(ilo, ihi)), q);
-              
-         }
-         ilo = ihi + 1;
-     }
+     //         //W*VH is the rotation part of q. Undo it by taking the adjoint and right-multiplying
+     //         q = conj_transpose(inner(W,VH));
+     //         U(_, Slice(ilo, ihi)) = inner(U(_, Slice(ilo, ihi)), q);
+     //         
+     //    }
+     //    ilo = ihi + 1;
+     //}
+     //times = end_timer(world);
+     //if(world.rank()==0) print("          ", times[0]);
 
      //Debugging: Print transformation matrix after rotation removal
      //if(world.rank()==0) print("U:\n", U, "\nevals:\n", evals);
@@ -1110,8 +1112,6 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      evals = inner(evals,transpose(P));
      //if(world.rank()==0) print("U:\n", U, "\nevals:\n", evals);
      
-     times = end_timer(world);
-     if(world.rank()==0) print("          ", times[0]);
 
      if(world.rank()==0) print("     Applying Transformation");
      start_timer(world);
