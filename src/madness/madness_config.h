@@ -164,7 +164,7 @@
 #define MADNESS_XPRAGMA(x) MADNESS_PRAGMA(x)
 /* "concats" a and b with a space in between */
 #define MADNESS_CONCAT(a,b) a b
-#ifdef __clang__
+#if defined(__clang__) && !defined(__INTEL_COMPILER_BUILD_DATE)
 #define MADNESS_PRAGMA_CLANG(x) MADNESS_XPRAGMA( MADNESS_CONCAT(clang,x) )
 #else
 #define MADNESS_PRAGMA_CLANG(x)
