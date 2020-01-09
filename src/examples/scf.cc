@@ -44,7 +44,7 @@ int main()
      *****************************************************************************/
     // make ifstream object and read in the first key word and read in the nbf
     std::ifstream fs;
-    fs.open("integrals.dat");
+    fs.open("/gpfs/home/ahurtado/Projects/madness/inputs/integrals.dat");
     int nbf;
     int nocc;
     double enrep;
@@ -58,7 +58,7 @@ int main()
     {
         throw "input file should start with nbf";
     }
-
+    print(nbf);
     Tensor<double> S(nbf, nbf);
     Tensor<double> KE(nbf, nbf);
     Tensor<double> PE(nbf, nbf);
@@ -121,6 +121,7 @@ int main()
 
     /* The first stage of the calculation after having all the integrals define is to diagonalize the
 ** the overlap matrix S **/
+    print(S);
 
     Tensor<double> s(nbf, 1);   //holds the eigenvalues of S
     Tensor<double> U(nbf, nbf); //holds the unitary matrix that transforms S
@@ -158,11 +159,10 @@ int main()
     double twoEE(0);
     double E1(0);
 
-    double del = 1e-10;
+    double del = 1e-8;
     int maxIter = 100;
     while (std::abs(deltaE) > del && iter < maxIter)
     {
-
         E0 = Etot;
 
         // Fprime = transform(F, X);
@@ -215,12 +215,11 @@ int main()
     print("Electric Dipole");
     print(dipole2);
 
-
     //MP2 Correlation Energy
-    double EMP2 = computeMP2(Electron,epsilons,nocc,nbf);
+    double EMP2 = computeMP2(Electron, epsilons, nocc, nbf);
     print("MP2 Correlation Energy");
     print(EMP2);
-    print("Total MP2 Energy " ,Etot+EMP2);
+    print("Total MP2 Energy ", Etot + EMP2);
     print(epsilons);
     // ********************************************************
     // Everything below is the has the answers
@@ -254,6 +253,7 @@ void readTensor(std::ifstream &fs, Tensor<double> &T, int dim, int nbf, bool sym
     double val;             // value
     indices = new int[dim]; // dynamic array of indicies
     std::string line;
+    std::getline(fs, line);
     do
     {
         std::getline(fs, line);
@@ -374,7 +374,7 @@ double computeMP2(Tensor<double> twoEE, Tensor<double> epsilons, int nocc, int K
 {
     print(K);
     print(nocc);
-    K=nocc*2;
+    K = nocc * 2;
     double E = 0;
     for (int a = 0; a < nocc; a++)
     {
@@ -387,8 +387,8 @@ double computeMP2(Tensor<double> twoEE, Tensor<double> epsilons, int nocc, int K
 
                 for (int s = nocc; s < K; s++)
                 {
-                    E+=2*twoEE(a,r,b,s)*twoEE(r,a,s,b)/(epsilons(a)+epsilons(b)-epsilons(r)-epsilons(s));
-                    E-=twoEE(a,r,b,s)*twoEE(r,b,s,a)/(epsilons(a)+epsilons(b)-epsilons(r)-epsilons(s));
+                    E += 2 * twoEE(a, r, b, s) * twoEE(r, a, s, b) / (epsilons(a) + epsilons(b) - epsilons(r) - epsilons(s));
+                    E -= twoEE(a, r, b, s) * twoEE(r, b, s, a) / (epsilons(a) + epsilons(b) - epsilons(r) - epsilons(s));
                 }
             }
         }
@@ -396,5 +396,5 @@ double computeMP2(Tensor<double> twoEE, Tensor<double> epsilons, int nocc, int K
     return E;
 }
 
-    // 1. Read in the input file "integrals.dat" Save the data to corresponding variables
-    // I need to figure out what every variable represents.
+// 1. Read in the input file "integrals.dat" Save the data to corresponding variables
+// I need to figure out what every variable represents.
