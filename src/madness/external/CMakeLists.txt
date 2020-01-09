@@ -51,12 +51,14 @@ if(ENABLE_ELEMENTAL AND ENABLE_ELEMENTAL_EMBEDDED)
   add_custom_target(build-elemental ALL
       COMMAND ${CMAKE_COMMAND} --build . --target elemental
       WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-      COMMENT "Building elemental")
+      COMMENT "Building elemental"
+      USES_TERMINAL)
   
   # Add a component install target for elemental 
   add_custom_target(install-elemental
       COMMAND ${CMAKE_COMMAND} -DCOMPONENT=elemental -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
-      COMMENT "Installing elemental library components")
+      COMMENT "Installing elemental library components"
+      USES_TERMINAL)
   add_dependencies(install-elemental elemental)
   
   # elemental target has been added to the list of exported targets in hacked CMakeFiles.txt in elemental subdir

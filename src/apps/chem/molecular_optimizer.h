@@ -38,6 +38,7 @@
 
 #include <madness/tensor/solvers.h>
 #include <chem/molecule.h>
+#include <chem/QCCalculationParametersBase.h>
 
 namespace madness {
 
@@ -52,6 +53,40 @@ struct MolecularOptimizationTargetInterface : public OptimizationTargetInterface
 };
 
 
+class MolecularOptimizationParameters : public QCCalculationParametersBase {
+public:
+
+	/// ctor reading out the input file
+	MolecularOptimizationParameters(World& world) {
+        initialize<std::string>("update","BFGS");
+        initialize<int>("maxiter",20);
+        initialize<double>("tol",1.e-6);
+        initialize<double>("value_precision",1.e-12);
+        initialize<double>("gradient_precision",1.e-12);
+        initialize<bool>("printtest",false);
+        initialize<std::string>("cg_method","polak_ribiere");
+        initialize<std::vector<std::string> >("remove_dof",{"Tx","Ty","Tz","Rx","Ry","Rz"},"which degree of freedom to project out");
+
+		// read input file
+		read(world,"input","geoopt");
+	}
+
+	void set_derived_values() {
+	}
+
+	std::string update() const {return get<std::string>("update");}
+	std::string cg_method() const {return get<std::string>("cg_method");}
+	int maxiter() const {return get<int>("maxiter");}
+	double tol() const {return get<double>("tol");}
+	double value_precision() const {return get<double>("value_precision");}
+	double gradient_precision() const {return get<double>("gradient_precision");}
+	bool printtest() const {return get<bool>("printtest");}
+	std::vector<std::string> remove_dof() const {return get<std::vector<std::string> >("remove_dof");}
+
+};
+
+
+
 
 /// Molecular optimizer derived from the QuasiNewton optimizer
 
@@ -61,19 +96,9 @@ class MolecularOptimizer : public OptimizerInterface {
 
 public:
     /// same ctor as the QuasiNewton optimizer
-    MolecularOptimizer(const std::shared_ptr<MolecularOptimizationTargetInterface>& tar,
-            int maxiter = 20, double tol = 1e-6, double value_precision = 1e-12,
-            double gradient_precision = 1e-12)
-        : update("BFGS")
-        , target(tar)
-        , maxiter(maxiter)
-        , tol(tol)
-        , value_precision(value_precision)
-        , gradient_precision(gradient_precision)
-        , f(tol*1e16)
-        , gnorm(tol*1e16)
-        , printtest(false)
-        , cg_method("polak_ribiere") {
+    MolecularOptimizer(World& world,
+    		const std::shared_ptr<MolecularOptimizationTargetInterface>& tar)
+			: target(tar), parameters(world) {
     }
 
     /// optimize the underlying molecule
@@ -86,7 +111,7 @@ public:
         return converge;
     }
 
-    bool converged() const {return gradient_norm()<tol;}
+    bool converged() const {return gradient_norm()<parameters.tol();}
 
     double value() const {return 0.0;}
 
@@ -97,26 +122,18 @@ public:
         h=copy(hess);
     }
 
+    MolecularOptimizationParameters parameters;
 private:
 
     /// How to update the hessian: BFGS or SR1
-    std::string update;
     std::shared_ptr<MolecularOptimizationTargetInterface> target;
-    const int maxiter;
-    const double tol;       // the gradient convergence threshold
-    const double value_precision;  // Numerical precision of value
-    const double gradient_precision; // Numerical precision of each element of residual
-    double f;
-    double gnorm;
     Tensor<double> h;
-    bool printtest;
-
-    /// conjugate_gradients method
-    std::string cg_method;
+    double f=1.e10;
+    double gnorm=1.e10;
 
     bool optimize_quasi_newton(Tensor<double>& x) {
 
-        if(printtest)  target->test_gradient(x, value_precision);
+        if(parameters.printtest())  target->test_gradient(x, parameters.value_precision());
 
         bool h_is_identity = (h.size() == 0);
         if (h_is_identity) {
@@ -143,14 +160,14 @@ private:
 
         }
 
-        remove_external_dof(h,target->molecule());
+        remove_external_dof(h,target->molecule(),parameters.remove_dof());
 
         // the previous gradient
         Tensor<double> gp;
         // the displacement
         Tensor<double> dx;
 
-        for (int iter=0; iter<maxiter; ++iter) {
+        for (int iter=0; iter<parameters.maxiter(); ++iter) {
             Tensor<double> gradient;
 
             target->value_and_gradient(x, f, gradient);
@@ -159,7 +176,7 @@ private:
             print("gopt: raw gradient norm ",rawgnorm);
 
             // remove external degrees of freedom (translation and rotation)
-            Tensor<double> project_ext=projector_external_dof(target->molecule());
+            Tensor<double> project_ext=projector_external_dof(target->molecule(),parameters.remove_dof());
             gradient=inner(gradient,project_ext);
             gnorm = gradient.normf()/sqrt(gradient.size());
             print("gopt: projected gradient norm ",gnorm);
@@ -176,12 +193,12 @@ private:
 //            }
 
             if (iter > 0) {
-                if (update == "BFGS") QuasiNewton::hessian_update_bfgs(dx, gradient-gp,h);
+                if (parameters.update() == "BFGS") QuasiNewton::hessian_update_bfgs(dx, gradient-gp,h);
                 else QuasiNewton::hessian_update_sr1(dx, gradient-gp,h);
             }
 
 
-            remove_external_dof(h,target->molecule());
+            remove_external_dof(h,target->molecule(),parameters.remove_dof());
             Tensor<double> v, e;
             syev(h, v, e);
             Tensor<double> normalmodes;
@@ -202,14 +219,14 @@ private:
             double step=1.0;
             double maxdx=dx.absmax();
             if (h_is_identity and (maxdx>0.01)) step = QuasiNewton::line_search(1.0, f,
-                    dx.trace(gradient), x, dx,target, value_precision);
+                    dx.trace(gradient), x, dx,target, parameters.value_precision());
 
             dx.scale(step);
             x += dx;
             gp = gradient;
         }
 
-        if (printtest) {
+        if (parameters.printtest()) {
             print("final hessian");
             print(h);
         }
@@ -231,7 +248,7 @@ private:
         Tensor<double> old_displacement(x.size());
         old_displacement.fill(0.0);
 
-        for (int iter=1; iter<maxiter; ++iter) {
+        for (int iter=1; iter<parameters.maxiter(); ++iter) {
 
             // displace coordinates
             if (iter>1) x+=displacement;
@@ -243,7 +260,7 @@ private:
             print("gopt: raw gradient norm ",gnorm);
 
             // remove external degrees of freedom (translation and rotation)
-            Tensor<double> project_ext=projector_external_dof(target->molecule());
+            Tensor<double> project_ext=projector_external_dof(target->molecule(),parameters.remove_dof());
             gradient=inner(gradient,project_ext);
             gnorm = gradient.normf()/sqrt(gradient.size());
             print("gopt: projected gradient norm ",gnorm);
@@ -253,9 +270,9 @@ private:
                 displacement=-gradient;
             } else {
                 double beta=0.0;
-                if (cg_method=="fletcher_reeves")
+                if (parameters.cg_method()=="fletcher_reeves")
                     beta=gradient.normf()/oldgradient.normf();
-                if (cg_method=="polak_ribiere")
+                if (parameters.cg_method()=="polak_ribiere")
                     beta=gradient.normf()/(gradient-oldgradient).normf();
                 displacement=-gradient + beta * old_displacement;
             }
@@ -263,7 +280,7 @@ private:
             // save displacement for the next step
             old_displacement=displacement;
 
-            if (converged() and (displacement.normf()/displacement.size()<tol)) break;
+            if (converged() and (displacement.normf()/displacement.size()<parameters.tol())) break;
         }
 
         return converged();
@@ -273,7 +290,7 @@ private:
     Tensor<double> new_search_direction2(const Tensor<double>& g,
             const Tensor<double>& hessian) const {
         Tensor<double> dx, s;
-        double tol = gradient_precision;
+        double tol = parameters.gradient_precision();
         double trust = 1.0; // This applied in spectral basis
 
         // diagonalize the hessian:
@@ -290,14 +307,14 @@ private:
         int nneg=0, nsmall=0, nrestrict=0;
         for (int i=0; i<e.size(); ++i) {
             if (e[i] < -tol) {
-                if (printtest) printf(
+                if (parameters.printtest()) printf(
                         "   forcing negative eigenvalue to be positive %d %.1e\n", i, e[i]);
                 nneg++;
                 //e[i] = -2.0*e[i]; // Enforce positive search direction
                 e[i] = -0.1*e[i]; // Enforce positive search direction
             }
             else if (e[i] < tol) {
-                if (printtest) printf(
+                if (parameters.printtest()) printf(
                         "   forcing small eigenvalue to be zero %d %.1e\n", i, e[i]);
                 nsmall++;
                 e[i] = tol;
@@ -308,7 +325,7 @@ private:
             gv[i] = -gv[i] / e[i];
             if (std::abs(gv[i]) > trust) { // Step restriction
                 double gvnew = trust*std::abs(gv(i))/gv[i];
-                if (printtest) printf(
+                if (parameters.printtest()) printf(
                         "   restricting step in spectral direction %d %.1e --> %.1e\n",
                         i, gv[i], gvnew);
                 nrestrict++;
@@ -331,7 +348,9 @@ public:
     /// I don't really understand the concept behind the projectors, but it
     /// seems to work, and it is not written down explicitly anywhere.
     /// NOTE THE ERROR IN THE FORMULAS ON THE WEBPAGE !
-    static Tensor<double> projector_external_dof(const Molecule& mol) {
+    /// @param[in]	do_remove_dof	which dof to remove: x,y,z,Rx,Ry,Rz (transl/rot)
+    static Tensor<double> projector_external_dof(const Molecule& mol,
+    		const std::vector<std::string>& remove_dof) {
 
         // compute the translation vectors
         Tensor<double> transx(3*mol.natom());
@@ -399,13 +418,21 @@ public:
         }
 
         // move the translational and rotational vectors to a common tensor
+        bool remove_Tx=std::find(remove_dof.begin(), remove_dof.end(), "Tx")!=remove_dof.end();
+        bool remove_Ty=std::find(remove_dof.begin(), remove_dof.end(), "Ty")!=remove_dof.end();
+        bool remove_Tz=std::find(remove_dof.begin(), remove_dof.end(), "Tz")!=remove_dof.end();
+        bool remove_Rx=std::find(remove_dof.begin(), remove_dof.end(), "Rx")!=remove_dof.end();
+        bool remove_Ry=std::find(remove_dof.begin(), remove_dof.end(), "Ry")!=remove_dof.end();
+        bool remove_Rz=std::find(remove_dof.begin(), remove_dof.end(), "Rz")!=remove_dof.end();
         Tensor<double> ext_dof(6,3*mol.natom());
-        ext_dof(0l,_)=transx;
-        ext_dof(1l,_)=transy;
-        ext_dof(2l,_)=transz;
-        ext_dof(3l,_)=rotx;
-        ext_dof(4l,_)=roty;
-        ext_dof(5l,_)=rotz;
+        if (remove_Tx) ext_dof(0l,_)=transx;
+        if (remove_Ty) ext_dof(1l,_)=transy;
+        if (remove_Tz) ext_dof(2l,_)=transz;
+
+        if (remove_Rx) ext_dof(3l,_)=rotx;
+        if (remove_Ry) ext_dof(4l,_)=roty;
+        if (remove_Rz) ext_dof(5l,_)=rotz;
+        print("removing dof ",remove_Tx, remove_Ty, remove_Tz, remove_Rx, remove_Ry, remove_Rz);
 
         // normalize
         for (int i=0; i<6; ++i) {
@@ -436,34 +463,18 @@ public:
         // 1- \sum_i | t_i >< t_i |
         projector-=inner(ext_dof,ext_dof,0,0);
 
-        // construct random tensor for orthogonalization
-        Tensor<double> D(3*mol.natom(),3*mol.natom());
-        D.fillrandom();
-        for (int i=0; i<6; ++i) D(i,_)=ext_dof(i,_);
-
-        // this works only for non-linear molecules -- projector seems simpler
-//        ovlp=inner(D,D,1,1);
-//        cholesky(ovlp); // destroys ovlp
-//        Tensor<double> L=transpose(ovlp);
-//        Tensor<double> Linv=inverse(L);
-//        D=inner(Linv,D,1,0);
-//        ovlp=inner(D,D,1,1);
-//
-//        for (int i=0; i<6; ++i) D(i,_)=0.0;
-//        D=copy(D(Slice(6,8),_));
-
-//        return transpose(D);
-
         return projector;
 
     }
 
     /// remove translational degrees of freedom from the hessian
-    static void remove_external_dof(Tensor<double>& hessian,
-            const Molecule& mol) {
+
+    /// @param[in]	do_remove_dof	which dof to remove: x,y,z,Rx,Ry,Rz (transl/rot)
+    static void remove_external_dof(Tensor<double>& hessian, const Molecule& mol,
+    		const std::vector<std::string>& remove_dof) {
 
         // compute the translation of the center of mass
-        Tensor<double> projector_ext=projector_external_dof(mol);
+        Tensor<double> projector_ext=projector_external_dof(mol,remove_dof);
 
         // this is P^T * H * P
         hessian=inner(projector_ext,inner(hessian,projector_ext),0,0);
@@ -490,7 +501,8 @@ public:
         Tensor<double> mwhessian=inner(M,inner(hessian,M));
 
         // remove translation and rotation
-        if (project_tr) MolecularOptimizer::remove_external_dof(mwhessian,molecule);
+        if (project_tr) MolecularOptimizer::remove_external_dof(mwhessian,molecule,
+        		{"Tx","Ty","Tz","Rx","Ry","Rz"});
 
         if (print_hessian) {
             if (project_tr) {
@@ -518,7 +530,7 @@ public:
             const Tensor<double>& normalmodes) {
 
         Tensor<double> M=molecule.massweights();
-        Tensor<double> D=MolecularOptimizer::projector_external_dof(molecule);
+        Tensor<double> D=MolecularOptimizer::projector_external_dof(molecule,{"Tx","Ty","Tz","Rx","Ry","Rz"});
         Tensor<double> L=copy(normalmodes);
         Tensor<double> DL=inner(D,L);
         Tensor<double> MDL=inner(M,DL);

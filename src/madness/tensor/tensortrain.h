@@ -1212,11 +1212,19 @@ namespace madness {
             return core[i];
         }
 
+        template <class Q>
+	    typename std::enable_if<(TensorTypeData<T>::iscomplex or TensorTypeData<Q>::iscomplex),
+		TENSOR_RESULT_TYPE(T,Q)>::type
+		trace(const TensorTrain<Q>& B) const {
+        	MADNESS_EXCEPTION("no complex trace in tensortrain",1);
+        }
         /// Return the trace of two tensors, no complex conjugate involved
 
         /// @return <this | B>
         template <class Q>
-        TENSOR_RESULT_TYPE(T,Q) trace(const TensorTrain<Q>& B) const {
+	    typename std::enable_if<!(TensorTypeData<T>::iscomplex or TensorTypeData<Q>::iscomplex),
+		TENSOR_RESULT_TYPE(T,Q)>::type
+		trace(const TensorTrain<Q>& B) const {
             if (TensorTypeData<T>::iscomplex) MADNESS_EXCEPTION("no complex trace in TensorTrain, sorry",1);
             if (TensorTypeData<Q>::iscomplex) MADNESS_EXCEPTION("no complex trace in TensorTrain, sorry",1);
 

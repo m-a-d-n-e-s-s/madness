@@ -19,6 +19,17 @@ double slater_radius(int atomic_number){
 	else if (atomic_number == 7) {return 0.65/ang2b;}
 	else if (atomic_number == 8) {return 0.60/ang2b;}
 	else if (atomic_number == 9) {return 0.50/ang2b;}
+	else if (atomic_number == 10) {return 1.60/ang2b;}
+	else if (atomic_number == 11) {return 1.80/ang2b;}
+	else if (atomic_number == 12) {return 1.50/ang2b;}
+	else if (atomic_number == 13) {return 1.25/ang2b;}
+	else if (atomic_number == 14) {return 1.10/ang2b;}
+	else if (atomic_number == 15) {return 1.00/ang2b;}
+	else if (atomic_number == 16) {return 1.00/ang2b;}
+	else if (atomic_number == 17) {return 1.00/ang2b;}
+	else if (atomic_number == 18) {return 0.71/ang2b;}
+	else if (atomic_number == 19) {return 2.20/ang2b;}
+	else if (atomic_number == 20) {return 1.80/ang2b;}
 	else{
 		MADNESS_EXCEPTION("Slater radius for element does not exist!",1);
 	}

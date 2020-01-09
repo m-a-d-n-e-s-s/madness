@@ -63,6 +63,7 @@ namespace madness {
         double start_cpu_time; ///< \todo Documentation needed.
         double start_wall_time; ///< \todo Documentation needed.
         bool madness_initialized_ = false;  ///< Tracks if MADNESS has been initialized.
+        bool madness_quiet_ = false;  ///< Tracks if madness::initialize() requested quiet operation
     } // namespace
 
     // World static member variables
@@ -72,6 +73,9 @@ namespace madness {
 
     bool initialized() {
       return madness_initialized_;
+    }
+    bool quiet() {
+      return madness_quiet_;
     }
 
     World::World(const SafeMPI::Intracomm& comm)
@@ -122,6 +126,9 @@ namespace madness {
     }
 
     World::~World() {
+//        stray WorldObjects are allowed as long as they outlive madness::finalize() :(
+//        MADNESS_ASSERT_NOEXCEPT(map_ptr_to_id.size() == 0);
+//        MADNESS_ASSERT_NOEXCEPT(map_id_to_ptr.size() == 0);
         worlds.remove(this);
         delete &taskq;
         delete &gop;
@@ -135,15 +142,17 @@ namespace madness {
     }
 
 
-    World& initialize(int& argc, char**& argv) {
-        return initialize(argc, argv, SafeMPI::COMM_WORLD);
+    World& initialize(int& argc, char**& argv, bool quiet) {
+        return initialize(argc, argv, SafeMPI::COMM_WORLD, quiet);
     }
 
-    World& initialize(int& argc, char**& argv, const MPI_Comm& comm) {
-        return initialize(argc, argv, SafeMPI::Intracomm(comm));
+    World& initialize(int& argc, char**& argv, const MPI_Comm& comm, bool quiet) {
+        return initialize(argc, argv, SafeMPI::Intracomm(comm), quiet);
     }
 
-    World& initialize(int& argc, char**& argv, const SafeMPI::Intracomm& comm) {
+    World& initialize(int& argc, char**& argv, const SafeMPI::Intracomm& comm, bool quiet) {
+        madness_quiet_ = quiet;
+
 #ifdef HAVE_PAPI
         initialize_papi();
 #endif
@@ -211,7 +220,7 @@ namespace madness {
 #endif // HAVE_ELEMENTAL
 
         madness_initialized_ = true;
-        if(comm.Get_rank() == 0)
+        if(!quiet && comm.Get_rank() == 0)
             std::cout << "MADNESS runtime initialized with " << ThreadPool::size()
                 << " threads in the pool and affinity " << sbind << "\n";
 
@@ -220,11 +229,19 @@ namespace madness {
 
     void finalize() {
         World::default_world->gop.fence();
+        const auto rank = World::default_world->rank();
         const auto world_size = World::default_world->size();
 
         // Destroy the default world
         delete World::default_world;
         World::default_world = nullptr;
+        // warn if there are surviving worlds
+        if (!World::worlds.empty() && !quiet() && rank == 0) {
+            const auto nworlds = World::worlds.size();
+            std::cerr << "MADNESS runtime finalized but " << nworlds << " world"
+                      << (nworlds > 1 ? "s" : "") << " still exist"
+                      << (nworlds > 1 ? "" : "s") << std::endl;
+        }
 
 #ifdef MADNESS_HAS_ELEMENTAL
         elem::Finalize();
@@ -235,6 +252,7 @@ namespace madness {
         ThreadPool::end();
         detail::WorldMpi::finalize();
         madness_initialized_ = false;
+        madness_quiet_ = false;
     }
 
     void print_stats(World& world) {

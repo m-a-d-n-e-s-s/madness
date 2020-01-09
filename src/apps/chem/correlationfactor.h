@@ -75,7 +75,6 @@
 #define MADNESS_CHEM_NUCLEARCORRELATIONFACTOR_H_
 
 #include <madness/mra/mra.h>
-#include <madness/mra/lbdeux.h>
 #include <chem/molecule.h>
 #include <chem/potentialmanager.h>
 #include <chem/atomutil.h>
@@ -2023,10 +2022,20 @@ private:
 
 };
 
-class SCF;
 
 std::shared_ptr<NuclearCorrelationFactor>
-create_nuclear_correlation_factor(World& world, const SCF& calc);
+create_nuclear_correlation_factor(World& world,
+		const Molecule& molecule,
+		const std::shared_ptr<PotentialManager> pm,
+		const std::string inputline);
+
+std::shared_ptr<NuclearCorrelationFactor>
+create_nuclear_correlation_factor(World& world,
+		const Molecule& molecule,
+		const std::shared_ptr<PotentialManager> pm,
+		const std::pair<std::string,double>& ncf);
 
 }
+
+
 #endif /* NUCLEARCORRELATIONFACTOR_H_ */

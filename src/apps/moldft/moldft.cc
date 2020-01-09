@@ -101,20 +101,20 @@ START_TIMER(world);
           print("\n");
           calc.molecule.print();
           print("\n");
-          calc.param.print(world);
+          calc.param.print("dft");
         }
 END_TIMER(world, "initialize");
         // Come up with an initial OK data map
         if (world.size() > 1) {
-          calc.set_protocol<3>(world,calc.param.econv);
+          calc.set_protocol<3>(world,calc.param.econv());
           calc.make_nuclear_potential(world);
           calc.initial_load_bal(world);
         }
 //vama
-        calc.set_protocol<3>(world,calc.param.protocol_data[0]);
+        calc.set_protocol<3>(world,calc.param.protocol()[0]);
 
 
-        if ( calc.param.gopt) {
+        if ( calc.param.gopt()) {
           // print("\n\n Geometry Optimization                      ");
           // print(" ----------------------------------------------------------\n");
           // calc.param.gprint(world);
@@ -133,20 +133,20 @@ END_TIMER(world, "initialize");
           // geom.set_hessian(h);
           // geom.optimize(geomcoord);
 
-            MolOpt opt(calc.param.gmaxiter,
+            MolOpt opt(calc.param.gmaxiter(),
                        0.1,
-                       calc.param.gval,
-                       calc.param.gtol,
+                       calc.param.gval(),
+                       calc.param.gtol(),
                        1e-3, //XTOL
                        1e-5, //EPREC
-                       calc.param.gprec, 
+                       calc.param.gprec(),
                        (world.rank()==0) ? 1 : 0, //print_level
-                       calc.param.algopt);
+                       calc.param.algopt());
 
             MolecularEnergy target(world,calc);
             opt.optimize(calc.molecule, target);
         }
-        else if (calc.param.tdksprop) {
+        else if (calc.param.tdksprop()) {
           print("\n\n Propagation of Kohn-Sham equation                      ");
           print(" ----------------------------------------------------------\n");
 //          calc.propagate(world,VextCosFunctor<double>(world,new DipoleFunctor(2),0.1),0);
@@ -154,17 +154,19 @@ END_TIMER(world, "initialize");
         }
         else {
           MolecularEnergy E(world, calc);
-          E.value(calc.molecule.get_all_coords().flat()); // ugh!
+          double energy=E.value(calc.molecule.get_all_coords().flat()); // ugh!
+          if ((world.rank()==0) and (calc.param.print_level()>0))
+				printf("final energy=%16.8f ", energy);
 
           functionT rho = calc.make_density(world, calc.aocc, calc.amo);
           functionT brho = rho;
-          if (calc.param.nbeta != 0 && !calc.param.spin_restricted)
+          if (calc.param.nbeta() != 0 && !calc.param.spin_restricted())
               brho = calc.make_density(world, calc.bocc, calc.bmo);
           rho.gaxpy(1.0, brho, 1.0);
 
-          if (calc.param.derivatives) calc.derivatives(world,rho);
-          if (calc.param.dipole) calc.dipole(world,rho);
-          if (calc.param.response) calc.polarizability(world);
+          if (calc.param.derivatives()) calc.derivatives(world,rho);
+          if (calc.param.dipole()) calc.dipole(world,rho);
+          if (calc.param.response()) calc.polarizability(world);
         }
 
         //        if (calc.param.twoint) {
