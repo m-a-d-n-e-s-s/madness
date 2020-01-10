@@ -50,6 +50,7 @@ public:
 			// physics
 			initialize<std::string>("calculation","cis","currently only cis=tda possible, TBD: thdf",{"cis"});
 			initialize<bool>("triplet",false,"calculate triplet excitation energies (only works for CIS)");
+			initialize<bool>("do_oep",false,"use OEP potentials for the ground state exchange");
 			initialize<std::size_t>("excitations",1);
 			initialize<std::size_t>("freeze",0,"the number of frozen occupied orbitals");
 			initialize<std::string>("irrep","all","compute only irreps of the respective point group");
@@ -123,6 +124,7 @@ public:
 		std::size_t freeze() const {return get<std::size_t>("freeze");}
 		std::string irrep() const {return get<std::string>("irrep");}
 		bool triplet() const {return get<bool>("triplet");}
+		bool do_oep() const {return get<bool>("do_oep");}
 
 		// precision
 		double thresh() const {return get<double>("thresh");}
@@ -164,7 +166,6 @@ public:
 			result.gamma=1.0;
 			return result;
 		}
-
 	}; // end of parameter class
 
 	TDHF(World & world,const Nemo &nemo, const std::string& input="input");
@@ -292,7 +293,7 @@ public:
 
 	/// Helper function to initialize the const mo_bra and ket elements
 	CC_vecfunction make_mo_bra(const Nemo &nemo) const {
-		vector_real_function_3d tmp = mul(world, nemo.nuclear_correlation->square(),
+		vector_real_function_3d tmp = mul(world, nemo.ncf->square(),
 				nemo.get_calc()->amo);
 		set_thresh(world, tmp, parameters.thresh());
 		truncate(world,tmp);
@@ -326,7 +327,7 @@ public:
 	/// maybe move this into nuclear_correlation class ?
 	vector_real_function_3d make_bra(const vector_real_function_3d &ket)const{
 		CCTimer time(world,"Make Bra");
-		real_function_3d nucf = nemo.nuclear_correlation ->square();
+		real_function_3d nucf = nemo.ncf->square();
 		vector_real_function_3d result= mul(world,nucf,ket);
 		time.info(parameters.debug());
 		return result;

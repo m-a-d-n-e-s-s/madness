@@ -603,6 +603,8 @@ vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x)const{
 	// Real Alpha density (with nuclear cusps)
 	const real_function_3d alpha_density=0.5*nemo.R_square*nemo_density;
 
+	real_function_3d voep=real_factory_3d(world);
+	if (parameters.do_oep()) load(voep,"OEPapprox_final");
 
 
 
@@ -647,16 +649,23 @@ vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x)const{
 			// Ground State Potential applied to x, without exchange
 			Vpsi1 = Jx+XCx; // Nx removed
 		}else Vpsi1=Jx;
+
 		// add exchange if demanded
-		if(hf_coeff!=0.0){
+		bool do_hf=(hf_coeff!=0.0) and (not parameters.do_oep());
+		if(do_hf){
 			CCTimer timeKx(world,"Kx");
-			Exchange K=Exchange(world,&nemo,0).small_memory(false);
+			Exchange<double,3> K=Exchange<double,3>(world,&nemo,0).small_memory(false);
 			K.set_parameters(mo_bra_.get_vecfunction(),mo_ket_.get_vecfunction(),occ,parameters.lo(),parameters.thresh());
 			vector_real_function_3d Kx =K(x.get_vecfunction());
 			scale(world,Kx,hf_coeff);
 			Vpsi1 = sub(world, Vpsi1, Kx);
 			timeKx.info(parameters.debug());
 		}
+
+		if (parameters.do_oep()) {
+			Vpsi1=Vpsi1+voep*x.get_vecfunction();
+		}
+
 		// compute the solvent (PCM) contribution to the potential
 		if (pcm) {
 			CCTimer timepcm(world,"pcm:gs");
@@ -697,7 +706,8 @@ vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x)const{
 		else Vpsi2 = Jp(active_mo)+XCp;
 		timeJ.info(parameters.debug());
 		// Exchange Part
-		if(hf_coeff>0.0){
+		bool do_hf=(hf_coeff!=0.0) and (not parameters.do_oep());
+		if(do_hf){
 			CCTimer timeK(world,"pK");
 			vector_real_function_3d Kp;
 			// summation over all active indices
@@ -714,6 +724,14 @@ vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x)const{
 			Vpsi2 = sub(world,Vpsi2,Kp);
 			timeK.info(parameters.debug());
 			truncate(world,Vpsi2);
+		}
+
+		/// use alda approximation for the dft kernel
+		if (parameters.do_oep()) {
+			const XCOperator xc(world,"lda_x", not nemo.get_calc()->param.spin_restricted(),alpha_density,alpha_density);
+			real_function_3d gamma=xc.apply_xc_kernel(density_pert);
+			vector_real_function_3d XCp=truncate(gamma*active_mo);
+			Vpsi2=Vpsi2+XCp;
 		}
 
 		// compute the solvent (PCM) contribution to the kernel
@@ -873,7 +891,7 @@ Tensor<double> TDHF::make_perturbed_fock_matrix(const std::vector<CC_vecfunction
 				Vnuc = nemo.get_calc()->potentialmanager->vnuclear();
 			}
 
-			const real_function_3d R = nemo.nuclear_correlation -> function();
+			const real_function_3d R = nemo.ncf -> function();
 			std::vector<vector_real_function_3d> Rx(x.size(),zero_functions<double,3>(world,x.front().size()));
 			CCTimer timeR(world,"make Rx");
 			for(size_t k=0;k<x.size();k++){

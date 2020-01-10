@@ -28,9 +28,22 @@ include(CopyTargetProperties)
 include(FeatureSummary)
 include(RedefaultableOption)
 
+# Check compiler feature support ===============================================
+
+set(CMAKE_CXX_STANDARD 14 CACHE STRING  "C++ ISO Standard version")
+if (NOT(CMAKE_CXX_STANDARD EQUAL 14 OR CMAKE_CXX_STANDARD EQUAL 17 OR CMAKE_CXX_STANDARD EQUAL 20))
+  message(FATAL_ERROR "C++ 2014 ISO Standard or higher is required to compile MADNESS")
+endif()
+# C++20 is only configurable via compile features with cmake 3.12 and older
+if (CMAKE_CXX_STANDARD EQUAL 20 AND CMAKE_VERSION VERSION_LESS 3.12.0)
+  message(FATAL_ERROR "C++ 2020 ISO Standard requires CMake version 3.12 or higher")
+endif()
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF CACHE BOOLEAN "Whether to use extensions of C++ ISO Standard version")
+
 # workaround for cmake bug: CheckCXXSourceCompiles does not respect CXX_STANDARD
 # see https://github.com/OPM/opm-common/blob/master/cmake/Modules/FindCXX11Features.cmake
-add_options(CXX ALL_BUILDS ${CMAKE_CXX14_STANDARD_COMPILE_OPTION})
+add_options(CXX ALL_BUILDS ${CMAKE_CXX${CMAKE_CXX_STANDARD}_STANDARD_COMPILE_OPTION})
 
 # Set install paths ============================================================
 
@@ -328,17 +341,6 @@ if(NOT USE_X86_64_ASM)
 endif()
 
 # Check compiler feature support ===============================================
-
-set(CMAKE_CXX_STANDARD 14 CACHE STRING  "C++ ISO Standard version")
-if (NOT(CMAKE_CXX_STANDARD EQUAL 14 OR CMAKE_CXX_STANDARD EQUAL 17 OR CMAKE_CXX_STANDARD EQUAL 20))
-  message(FATAL_ERROR "C++ 2014 ISO Standard or higher is required to compile MADNESS")
-endif()
-# C++20 is only configurable via compile features with cmake 3.12 and older
-if (CMAKE_CXX_STANDARD EQUAL 20 AND CMAKE_VERSION VERSION_LESS 3.12.0)
-  message(FATAL_ERROR "C++ 2020 ISO Standard requires CMake version 3.12 or higher")
-endif()
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF CACHE BOOLEAN "Whether to use extensions of C++ ISO Standard version")
 
 # Check for system include files
 check_include_file(sys/stat.h HAVE_SYS_STAT_H)

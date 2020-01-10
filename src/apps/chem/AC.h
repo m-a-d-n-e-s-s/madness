@@ -164,8 +164,6 @@ struct ACParameters{
 		else if(e_ion_ < 0) { MADNESS_EXCEPTION("Ionisation energy is negative!",1); }
 		else if(eh_>0) { MADNESS_EXCEPTION("Energy of homo is positive!",1); }
 		else if(R1_ == 0.0 or R2_ == 0.0) std::cout << "\n\nWARNING: R1 or R2 is zero!\n\n";
-		else if(dft_coefficient_ < 0.0) { MADNESS_EXCEPTION("DFT coefficient is negative!",1); }
-		else if(dft_coefficient_ == 0.0) { MADNESS_EXCEPTION("DFT coefficient is zero. This is no DFT calculation!\n",1); }
 		else if(interpolation_scheme_ != "linear" and interpolation_scheme_ != "constant") std::cout << "\n\nWARNING: Unknown interpolation scheme, using linear interpolation instead\n\n!";
 		else if(world.rank()==0) std::cout << "AC object was initialized succesfully!\n\n";
 	}
@@ -473,6 +471,9 @@ public:
 		   std::cout << "OR NOT -- EMPTY VECTOR ATOMS!!!\n";
 		   return xc_functional;
 	   }
+
+	   if(ac_param_.dft_coefficient_ < 0.0) { MADNESS_EXCEPTION("DFT coefficient is negative!",1); }
+	   if(ac_param_.dft_coefficient_ == 0.0) { MADNESS_EXCEPTION("DFT coefficient is zero. This is no DFT calculation!\n",1); }
 
 	   // shift of the exchange correlation potential to get the correct asymptotic behaviour
 	   xc_functional = xc_functional + shift();
