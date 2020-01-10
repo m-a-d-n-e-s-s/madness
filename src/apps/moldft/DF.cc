@@ -17,7 +17,17 @@
 
 using namespace madness;
 
-// Needed for rebalancing
+//Just a function for f(x,y,z) = x
+double myxfunc(const madness::coord_3d& r){
+     return r[0];
+}
+
+//Just a function for f(x,y,z) = y
+double myyfunc(const madness::coord_3d& r){
+     return r[1];
+}
+
+// A function that constructs a cost tree, which is a heuristic used for load balancing
 template <typename T, int NDIM>
 struct lbcost {
     double leaf_value;
@@ -44,7 +54,7 @@ void DF::start_timer(World& world)
    sss.push_back(cpu_time());
 }
 
-// Needed for timers
+// Used by end_timer
 double DF::pop(std::vector<double>& v)
 {
    double x = v.back();
@@ -61,7 +71,7 @@ Tensor<double> DF::end_timer(World& world)
    return times;
 }
 
-//reports back with time spent in calculation (current time - the first time in ttt,sss)
+//reports back with time spent in calculation so far (current time - the first time in ttt,sss)
 Tensor<double> DF::get_times(World& world){
      Tensor<double> times(2);
      times[0] = wall_time() - ttt[0];
@@ -92,6 +102,7 @@ Function<std::complex<double>,3> function_real2complex(const Function<double,3>&
 /// Factory function generating operator for convolution with grad(bsh) in 3D
 /// Returns a 3-vector containing the convolution operator for the
 /// x, y, and z components of grad(bsh)
+//Mostly copied from a function written by W. Scott Thornton
 static
 inline
 std::vector< std::shared_ptr< SeparatedConvolution<double,3> > >
@@ -184,7 +195,7 @@ GradBSHOperator_Joel(World& world,
 }
 
 
-//Stolen from SCF.cc to aid in orthonormalization
+//Stolen from SCF.cc to aid in orthonormalization. Used in orthogonalize_inplace.
 Tensor<std::complex<double>> Q2(const Tensor<std::complex<double>>& s) {
     Tensor<std::complex<double>> Q = -0.5*s;
     for (int i=0; i<s.dim(0); ++i) Q(i,i) += 1.5;
@@ -212,7 +223,7 @@ class GaussianNucleusFunctor : public FunctionFunctorInterface<double,3> {
                     m_Zlist.push_back(molecule.get_atom_number(i));
                }
                
-               //find atomic mass numbers for each atom
+               //find atomic mass numbers for each atom. This list matches that of Visccher and Dyall (1997)
                int Alist[116] = {1,4,7,9,11,12,14,16,19,20,23,24,27,28,31,32,35,40,39,40,45,48,51,52,55,56,59,58,63,64,69,74,75,80,79,84,85,88,89,90,93,98,98,102,103,106,107,114,115,120,121,130,127,132,133,138,139,140,141,144,145,152,153,158,159,162,162,168,169,174,175,180,181,184,187,192,193,195,197,202,205,208,209,209,210,222,223,226,227,232,231,238,237,244,243,247,247,251,252,257,258,259,262,261,262,263,262,265,266,264,272,277,284,289,288,292};
                for(unsigned int i = 0; i < m_Zlist.size(); i++){
                     m_Alist.push_back(Alist[m_Zlist[i]-1]);
@@ -258,7 +269,7 @@ class GaussianNucleusFunctor : public FunctionFunctorInterface<double,3> {
 };
 
 
-//Functor to make the fermi nuclear charge distribution (not normalized) for a given center
+//Functor to make the fermi nuclear charge distribution (NOT the potential, and NOT normalized) for a given center
 class FermiNucDistFunctor : public FunctionFunctorInterface<double,3> {
      private:
           int m_A;
@@ -272,7 +283,7 @@ class FermiNucDistFunctor : public FunctionFunctorInterface<double,3> {
                m_T = 2.3/bohr_rad;
                m_R.push_back(R);
                
-               //find atomic mass numbers for each atom
+               //find atomic mass numbers for each atom. This list matches that of Visccher and Dyall (1997)
                int Alist[116] = {1,4,7,9,11,12,14,16,19,20,23,24,27,28,31,32,35,40,39,40,45,48,51,52,55,56,59,58,63,64,69,74,75,80,79,84,85,88,89,90,93,98,98,102,103,106,107,114,115,120,121,130,127,132,133,138,139,140,141,144,145,152,153,158,159,162,162,168,169,174,175,180,181,184,187,192,193,195,197,202,205,208,209,209,210,222,223,226,227,232,231,238,237,244,243,247,247,251,252,257,258,259,262,261,262,263,262,265,266,264,272,277,284,289,288,292};
                m_A = Alist[Z-1];
 
@@ -304,7 +315,10 @@ class FermiNucDistFunctor : public FunctionFunctorInterface<double,3> {
                return 18;
           }
 
+          //Print the parameters of the Fermi nuclear charge distribution
           void print_details(World& world){
+
+               //Constants necessary to print the details. Technically need to use bohr_rad parameter here
                int Alist[116] = {1,4,7,9,11,12,14,16,19,20,23,24,27,28,31,32,35,40,39,40,45,48,51,52,55,56,59,58,63,64,69,74,75,80,79,84,85,88,89,90,93,98,98,102,103,106,107,114,115,120,121,130,127,132,133,138,139,140,141,144,145,152,153,158,159,162,162,168,169,174,175,180,181,184,187,192,193,195,197,202,205,208,209,209,210,222,223,226,227,232,231,238,237,244,243,247,247,251,252,257,258,259,262,261,262,263,262,265,266,264,272,277,284,289,288,292};
                double T = 2.3/52917.72490083583;
                double PI = constants::pi;
@@ -331,7 +345,7 @@ double myr(const coord_3d& r){
      return std::sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]);
 }
 
-//Creates the fermi nuclear potential. Also calculates the nuclear repulsion energy
+//Creates the fermi nuclear potentiali from the charge distribution. Also calculates the nuclear repulsion energy
 void DF::make_fermi_potential(World& world, real_convolution_3d& op, real_function_3d& potential, double& nuclear_repulsion_energy){
      if(world.rank()==0) print("\n***Making a Fermi Potential***");
      
@@ -339,13 +353,16 @@ void DF::make_fermi_potential(World& world, real_convolution_3d& op, real_functi
      std::vector<coord_3d> Rlist = Init_params.molecule.get_all_coords_vec();
      std::vector<int> Zlist(Rlist.size());
      unsigned int num_atoms = Rlist.size();
+
+     //variables for upcoming loop
      real_function_3d temp;
      double tempnorm;
 
+     //Go through the atoms in the molecule and construct the total charge distribution due to all nuclei
      for(unsigned int i = 0; i < num_atoms; i++){
           Zlist[i] = Init_params.molecule.get_atom_number(i);
           FermiNucDistFunctor rho(Zlist[i], Rlist[i],DFparams.bohr_rad);
-          temp = real_factory_3d(world).functor(rho).truncate_mode(0);
+          temp = real_factory_3d(world).functor(rho).truncate_mode(1);
           tempnorm = temp.trace();
           temp.scale(-Zlist[i]/tempnorm);
           if(i == 0){
@@ -357,9 +374,12 @@ void DF::make_fermi_potential(World& world, real_convolution_3d& op, real_functi
           }
      }
 
+     //Potential is found by application of the coulomb operator to the charge distribution
      potential = apply(op,potential);
 
-
+     //Calculate the nuclear repulsion energy
+     //It doesn't change iteration to iteration, so we want to calculate it once and store the result
+     //We calculate it inside this function because here we already have access to the nuclear charges and coordinates
      nuclear_repulsion_energy = 0.0;
      double rr;
      for(unsigned int m = 0; m < num_atoms; m++){
@@ -373,10 +393,12 @@ void DF::make_fermi_potential(World& world, real_convolution_3d& op, real_functi
 }
 
 // Collective constructor
+// Design of this was mostly taken from Bryan Sundahl's response code
 DF::DF(World & world, const char* filename) : DF(world, (world.rank() == 0 ? std::make_shared<std::ifstream>(filename) : nullptr))
 {}
 
 // Constructor that actually does stuff
+// Design of this was mostly taken from Bryan Sundahl's response code
 DF::DF(World & world,std::shared_ptr<std::istream> input) {
      // Start a timer
      start_timer(world);
@@ -398,13 +420,15 @@ DF::DF(World & world,std::shared_ptr<std::istream> input) {
      // Broadcast to all other nodes
      world.gop.broadcast_serializable(DFparams, 0);
 
-     // Read in archive
+     // Read in archive, but first find out if we're reading an nwchem file or other archive
      if(DFparams.nwchem){
           Init_params.readnw(world, DFparams.archive);
      }
      else{
           Init_params.read(world, DFparams.archive, DFparams.restart);
      }
+
+     //print initialization parameters and molecule geometry
      if(world.rank() == 0){
           Init_params.print_params();
           print_molecule(world);
@@ -412,6 +436,8 @@ DF::DF(World & world,std::shared_ptr<std::istream> input) {
 
      // Set some function defaults   
      FunctionDefaults<3>::set_thresh(DFparams.thresh); //Always use user-specified thresh
+
+     //Truncate mode 0 is preferrable, but currently way too expensive for relativistic calculations, so for now use 1
      FunctionDefaults<3>::set_truncate_mode(1);   
 
      //If user requests different k, then project functions
@@ -441,6 +467,8 @@ DF::DF(World & world,std::shared_ptr<std::istream> input) {
      occupieds = Init_params.orbitals;
      virtuals = Init_params.virtuals;
      total_energy = Init_params.Init_total_energy;
+     closed_shell = Init_params.spinrestricted; //If nonrelativistic calculation was spinrestricted then we're doing a closed shell calculation
+
 
      Tensor<double> times = end_timer(world);
      if(world.rank()==0) print("Preparation complete: ", times[0]);
@@ -491,13 +519,16 @@ double DF::rele(World& world, Fcwf& psi){
 
 //Calculates K*psi for each psi in the orbitals vector and stores them in result
 void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsis){
+
      //start timer
      start_timer(world);
+
 
      //zero out Kpsis
      for(unsigned int i = 0; i < Init_params.num_occupied; i++){
           Kpsis[i] = Fcwf(world);
      }
+
 
      //reconstruct
      for(unsigned int i = 0; i < Init_params.num_occupied; i++){
@@ -508,14 +539,62 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
      //Calculate and accumulate exchange contributions
      unsigned int n = Init_params.num_occupied;
      double myc = 137.0359895; //speed of light in atomic units
+
+     //for debugging
+     /////////////Tensor<std::complex<double>> exchange1(n,n); //spin-up contributions
+     /////////////Tensor<std::complex<double>> exchange2(n,n); //spin-down contributions
+
+     
+     ///////////////Working on spin-restricted version of exchange now. For now do it the stupid way
+     /////////////for(unsigned int i=0; i < n; i++){
+     /////////////     Fcwf K1 = Fcwf(world);
+     /////////////     Fcwf K2 = Fcwf(world);
+     /////////////     for(unsigned int j=0; j<n; j++){
+     /////////////          Fcwf tempfcwf = Fcwf(world);
+     /////////////          //calculate contribution from existing jth orbital
+
+     /////////////          complex_function_3d temp = inner_func(world, occupieds[j], occupieds[i]);
+     /////////////          temp = apply(op,temp);
+     /////////////          tempfcwf = occupieds[j]*temp;
+     /////////////          K1 += tempfcwf;
+
+     /////////////          //calculate contribution from time-reversal of jth orbital
+     /////////////          tempfcwf[0] = -1.0*conj(occupieds[j][1]);
+     /////////////          tempfcwf[1] = conj(occupieds[j][0]);
+     /////////////          tempfcwf[2] = -1.0*conj(occupieds[j][3]);
+     /////////////          tempfcwf[3] = conj(occupieds[j][2]);
+     /////////////          temp = inner_func(world,tempfcwf,occupieds[i]);
+     /////////////          temp = apply(op,temp);
+     /////////////          tempfcwf = tempfcwf*temp;
+     /////////////          K2 += tempfcwf;
+
+     /////////////     }
+     /////////////     
+     /////////////     for(unsigned int j = 0; j < n; j++){
+     /////////////          exchange1(i,j) = inner(occupieds[j],K1);
+     /////////////          exchange2(i,j) = inner(occupieds[j],K2);
+     /////////////     }
+
+     /////////////     Kpsis[i] = K1+K2;
+
+     /////////////}
+
+     /////////////if(world.rank()==0) print("K1:\n",exchange1,"\nK2:\n",exchange2,"\nsum:\n",exchange1+exchange2);
+
+
+     //Calculates exchange contributions from the orbitals that we have stored
+
+     //Loop through orbitals phi_i, computing K(phi_i), and while we're at it, use symmetry to start calculating contributions to later orbitals
      for(unsigned int i = 0; i < n; i++){
 
+          //temp will hold the contributions (results of the coulomb operator application) that we need to finish calculation of K(phi_i)
           std::vector<complex_function_3d> temp(n-i);
           for(unsigned int j = 0; j < n-i; j++){
                temp[j] = complex_factory_3d(world);    
           }
           compress(world, temp);
 
+          //break up ith through nth orbitals into their components to facilitate use of vmra functions
           std::vector<complex_function_3d> temp0(n-i);
           std::vector<complex_function_3d> temp1(n-i);
           std::vector<complex_function_3d> temp2(n-i);
@@ -527,10 +606,85 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
                temp3[j-i] = occupieds[j][3];
           }
 
+          //These gaxpy calls accomplish the (\phi_j^\dagger)(\phi_i) in the numerator 
           gaxpy(world, 1.0, temp, 1.0, occupieds[i][0]*conj(world,temp0));
           gaxpy(world, 1.0, temp, 1.0, occupieds[i][1]*conj(world,temp1));
           gaxpy(world, 1.0, temp, 1.0/(myc*myc), occupieds[i][2]*conj(world,temp2));
           gaxpy(world, 1.0, temp, 1.0/(myc*myc), occupieds[i][3]*conj(world,temp3));
+
+          //truncate before apply phase
+          truncate(world, temp);
+
+          //apply coulomb operator
+          temp = apply(world, op, temp);
+          
+          //truncate again
+          truncate(world,temp);
+
+          //Now multiply by phi_j's and accumulate to K(phi_i)
+          Kpsis[i][0] += sum(world, mul(world, temp, temp0));
+          Kpsis[i][1] += sum(world, mul(world, temp, temp1));
+          Kpsis[i][2] += sum(world, mul(world, temp, temp2));
+          Kpsis[i][3] += sum(world, mul(world, temp, temp3));
+          
+
+          //Everything in temp can be used to accumulate a small part of K(phi_k) for k in [i+1,n] so we avoid calculating the same quantity on future iterations
+          
+          //First, take the complex conjugate of the contributions we have
+          temp = conj(world, temp);
+
+          //multiply by phi_i
+          temp0 = occupieds[i][0]*temp;
+          temp1 = occupieds[i][1]*temp;
+          temp2 = occupieds[i][2]*temp;
+          temp3 = occupieds[i][3]*temp;
+
+          //acummulate
+          for(unsigned int j = i+1; j < n; j++){
+               Kpsis[j][0] += temp0[j-i];
+               Kpsis[j][1] += temp1[j-i];
+               Kpsis[j][2] += temp2[j-i];
+               Kpsis[j][3] += temp3[j-i];
+          }
+         
+          //truncate if we're done, but for Kramers-restricted calculations we still have work to do 
+          //Kpsis[i].truncate();
+     }
+
+
+     //Now we need exchange contributions from the time-reversed orbitals that we don't explicitly store.
+     //This will look very similar to the above loop (over i), but with rearrangements to the temporary vectors
+     //Later, these can probably be combined into a single loop
+     
+     int num_contrib=n;
+     if(!closed_shell){
+          num_contrib = n-1;
+     }
+
+     for(unsigned int i = 0; i < num_contrib; i++){
+
+          //RESUME HERE commenting (can use above for guidance)
+          std::vector<complex_function_3d> temp(num_contrib-i);
+          for(unsigned int j = 0; j < num_contrib-i; j++){
+               temp[j] = complex_factory_3d(world);    
+          }
+          compress(world, temp);
+
+          std::vector<complex_function_3d> temp0(num_contrib-i);
+          std::vector<complex_function_3d> temp1(num_contrib-i);
+          std::vector<complex_function_3d> temp2(num_contrib-i);
+          std::vector<complex_function_3d> temp3(num_contrib-i);
+          for(unsigned int j = i; j < num_contrib; j++){
+               temp0[j-i] = -1.0*occupieds[j][1];
+               temp1[j-i] = occupieds[j][0];
+               temp2[j-i] = -1.0*occupieds[j][3];
+               temp3[j-i] = occupieds[j][2];
+          }
+
+          gaxpy(world, 1.0, temp, 1.0, occupieds[i][0]*temp0);
+          gaxpy(world, 1.0, temp, 1.0, occupieds[i][1]*temp1);
+          gaxpy(world, 1.0, temp, 1.0/(myc*myc), occupieds[i][2]*temp2);
+          gaxpy(world, 1.0, temp, 1.0/(myc*myc), occupieds[i][3]*temp3);
 
           truncate(world, temp);
 
@@ -542,23 +696,24 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
 
           //if(world.rank()==0) print(i, "Exiting apply phase in K");
 
-          Kpsis[i][0] += sum(world, mul(world, temp, temp0));
-          Kpsis[i][1] += sum(world, mul(world, temp, temp1));
-          Kpsis[i][2] += sum(world, mul(world, temp, temp2));
-          Kpsis[i][3] += sum(world, mul(world, temp, temp3));
+          Kpsis[i][0] += sum(world, mul(world, temp, conj(world,temp0)));
+          Kpsis[i][1] += sum(world, mul(world, temp, conj(world,temp1)));
+          Kpsis[i][2] += sum(world, mul(world, temp, conj(world,temp2)));
+          Kpsis[i][3] += sum(world, mul(world, temp, conj(world,temp3)));
           
           //if(world.rank()==0) print(i, "Exiting sum block in K");
 
-          temp = conj(world, temp);
+          //Below line commented out, negative shifted to next block of code
+          //temp = -1.0*temp;
 
-          temp0 = occupieds[i][0]*temp;
-          temp1 = occupieds[i][1]*temp;
-          temp2 = occupieds[i][2]*temp;
-          temp3 = occupieds[i][3]*temp;
+          temp0 = conj(occupieds[i][1])*temp;
+          temp1 = -1.0*conj(occupieds[i][0])*temp;
+          temp2 = conj(occupieds[i][3])*temp;
+          temp3 = -1.0*conj(occupieds[i][2])*temp;
 
-          //if(world.rank()==0) print(i, "Entering final loop in K");
+         // if(world.rank()==0) print(i, "Entering final loop in K");
 
-          for(unsigned int j = i+1; j < n; j++){
+          for(unsigned int j = i+1; j < num_contrib; j++){
                Kpsis[j][0] += temp0[j-i];
                Kpsis[j][1] += temp1[j-i];
                Kpsis[j][2] += temp2[j-i];
@@ -568,6 +723,48 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
           //if(world.rank()==0) print(i, "Exiting final loop in K");
 
           Kpsis[i].truncate();
+
+     }
+
+     //For open shell calculations need to calculate final contributions for the singly-occupied orbital
+     //Could put this as an addition to the first iteration of the loop above for more concise, though less readable code
+     if(!closed_shell){
+          std::vector<complex_function_3d> temp(n-1);
+          for(unsigned int j = 0; j < n-1; j++){
+               temp[j] = complex_factory_3d(world);    
+          }
+          compress(world, temp);
+
+          std::vector<complex_function_3d> temp0(n-1);
+          std::vector<complex_function_3d> temp1(n-1);
+          std::vector<complex_function_3d> temp2(n-1);
+          std::vector<complex_function_3d> temp3(n-1);
+          for(unsigned int j = 0; j < n-1; j++){
+               temp0[j] = -1.0*occupieds[j][1];
+               temp1[j] = occupieds[j][0];
+               temp2[j] = -1.0*occupieds[j][3];
+               temp3[j] = occupieds[j][2];
+          }
+
+          gaxpy(world, 1.0, temp, 1.0, occupieds[n-1][0]*temp0);
+          gaxpy(world, 1.0, temp, 1.0, occupieds[n-1][1]*temp1);
+          gaxpy(world, 1.0, temp, 1.0/(myc*myc), occupieds[n-1][2]*temp2);
+          gaxpy(world, 1.0, temp, 1.0/(myc*myc), occupieds[n-1][3]*temp3);
+
+          truncate(world, temp);
+
+
+          temp = apply(world, op, temp);
+          
+          truncate(world,temp);
+
+          Kpsis[n-1][0] += sum(world, mul(world, temp, conj(world,temp0)));
+          Kpsis[n-1][1] += sum(world, mul(world, temp, conj(world,temp1)));
+          Kpsis[n-1][2] += sum(world, mul(world, temp, conj(world,temp2)));
+          Kpsis[n-1][3] += sum(world, mul(world, temp, conj(world,temp3)));
+          
+          Kpsis[n-1].truncate();
+          
      }
 
      //Report time
@@ -605,12 +802,37 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      start_timer(world);
 
      unsigned int n = Init_params.num_occupied;
-     Tensor<std::complex<double>> fock(n, n);
-     Tensor<std::complex<double>> overlap(n, n);
-     Tensor<std::complex<double>> U(n,n);
-     Tensor<double> evals(n);
+
+     unsigned int np = Init_params.num_occupied; //number of PAIRS
+     if(!closed_shell) np -= 1;
+
+     unsigned int m = n+np; //Size of matrix to use
+
+     Tensor<std::complex<double>> fock(m, m);
+     Tensor<std::complex<double>> overlap(m, m);
+     Tensor<std::complex<double>> U(m,m);
+     Tensor<double> evals(m);
      std::vector<Fcwf> temp_orbitals;
-     
+     std::vector<Fcwf> kramers_pairs;
+
+     //Make a permutation matrix for use later
+     //Fock matrix is built with orbitals in the following order:
+     //
+     //   stored (doubly occupied) orbitals, singly-occupied orbital (if open shell), then kramers pairs of doubly-occupied orbitals
+     //
+     //However, before diagonalization we want the fock matrix as if our orbitals were in order of increasing energy.
+     //This permutation matrix will accomplish the column and row swapping necessary to reorder
+     Tensor<double> P(m,m);
+     for(unsigned int j=0; j < np; j++){
+          P(j,2*j) = 1;
+          P(n+j,2*j+1) = 1;
+          //if(world.rank()==0) print("\nP:\n", P);
+     }
+     if(!closed_shell) P(n-1,m-1) = 1;
+     //if(world.rank()==0) print("\nP:\n", P);
+
+     //Debugging
+     //if(world.rank()==0) print("P:\n", P);
 
      if(world.rank()==0) print("     Forming Matrices");
      start_timer(world);
@@ -620,64 +842,102 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      //calculate coulomb part
      if(world.rank() == 0) print("          Adding (V+J)psi");
      real_function_3d rho = real_factory_3d(world);
-     for(unsigned int j = 0; j < n; j++){
-          rho += squaremod(occupieds[j]);
+     for(unsigned int j = 0; j < np; j++){
+          rho += 2*squaremod(occupieds[j]);
      }
-     for(unsigned int j = 0; j < n; j++){
-          double aa = occupieds[j][0].norm2();
-          double bb = occupieds[j][1].norm2();
-          double cc = occupieds[j][2].norm2();
-          double dd = occupieds[j][3].norm2();
-          if(world.rank()==0) print("     ", j+1, aa, bb, cc, dd);
-     }
+     if(!closed_shell) rho += squaremod(occupieds[n-1]);
 
-     ////Debugging
-     std::vector<Fcwf> debug_orbitals;
-     for(unsigned int j = 0; j < n; j++){
-          debug_orbitals.push_back(occupieds[j]*myV);
-     }
-     fock = matrix_inner(world,occupieds,debug_orbitals);
-     if(world.rank()==0) print("\nVnuc matrix:\n",fock);
-
-     real_function_3d idk = apply(op,rho);
-     for(unsigned int j = 0; j < n; j++){
-          debug_orbitals[j] = occupieds[j]*idk;
-     }
-     fock = matrix_inner(world,occupieds,debug_orbitals);
-     if(world.rank()==0) print("\nJ matrix:\n",fock);
-     for(unsigned int j = 0; j < n; j++){
-          double aa = occupieds[j].norm2();
-          double bb = debug_orbitals[j].norm2();
-          if(world.rank()==0) print("     ", j+1, aa, bb);
-     }
-
-     for(unsigned int j = 0; j < n; j++){
-          debug_orbitals[j] = Kpsis[j];
-     }
-     fock = matrix_inner(world,occupieds,debug_orbitals);
-     if(world.rank()==0) print("\nK matrix:\n",fock);
-
-     for(unsigned int j = 0; j < n; j++){
-          debug_orbitals[j] = apply_T(world,occupieds[j]);
-     }
-     fock = matrix_inner(world,occupieds,debug_orbitals);
-     if(world.rank()==0) print("\nT matrix:\n",fock);
-     //End Debugging
+     //Debugging
+     //for(unsigned int j = 0; j < n; j++){
+     //     double aa = occupieds[j][0].norm2();
+     //     double bb = occupieds[j][1].norm2();
+     //     double cc = occupieds[j][2].norm2();
+     //     double dd = occupieds[j][3].norm2();
+     //     if(world.rank()==0) print("     ", j+1, aa, bb, cc, dd);
+     //}
      
-     //TODO: Here try moving the apply out to operate on the sum of the nuclear and electronic charge distributions
      real_function_3d potential = myV + apply(op,rho);
      potential.truncate();
+     
+
+     //Also make the vector of Kramers Pairs
+     //TODO: Actually roll this into a variant of matrix inner that doesn't explictly store this vector in order to save memory.
+     for(unsigned int j = 0; j < np; j++){
+          kramers_pairs.push_back(occupieds[j].KramersPair());
+     }
+
+
+     ////Debugging
+     //std::vector<Fcwf> debug_orbitals;
+     //for(unsigned int j = 0; j < n; j++){
+     //     debug_orbitals.push_back(occupieds[j]*myV);
+     //}
+     //Tensor<std::complex<double>> debugmatrix = matrix_inner(world,occupieds,debug_orbitals);
+     //fock(Slice(0,n-1),Slice(0,n-1)) = copy(debugmatrix);
+     //fock(Slice(n,m-1),Slice(n,m-1)) = conj(debugmatrix(Slice(0,np-1),Slice(0,np-1)));
+     //debugmatrix = matrix_inner(world,kramers_pairs,debug_orbitals);
+     //fock(Slice(n,m-1),Slice(0,n-1)) = copy(debugmatrix);
+     //fock(Slice(0,n-1),Slice(n,m-1)) = -1.0*conj_transpose(debugmatrix);
+     //fock = inner(transpose(P),inner(fock,P));
+     //if(world.rank()==0) print("\nVnuc matrix:\n",fock);
+
+     //real_function_3d idk = apply(op,rho);
+     //for(unsigned int j = 0; j < n; j++){
+     //     debug_orbitals[j] = occupieds[j]*idk;
+     //}
+     //debugmatrix = matrix_inner(world,occupieds,debug_orbitals);
+     //fock(Slice(0,n-1),Slice(0,n-1)) = copy(debugmatrix);
+     //fock(Slice(n,m-1),Slice(n,m-1)) = conj(debugmatrix(Slice(0,np-1),Slice(0,np-1)));
+     //debugmatrix = matrix_inner(world,kramers_pairs,debug_orbitals);
+     //fock(Slice(n,m-1),Slice(0,n-1)) = copy(debugmatrix);
+     //fock(Slice(0,n-1),Slice(n,m-1)) = -1.0*conj_transpose(debugmatrix);
+     //fock = inner(transpose(P),inner(fock,P));
+     //if(world.rank()==0) print("\nJ matrix:\n",fock);
+     //for(unsigned int j = 0; j < n; j++){
+     //     double aa = occupieds[j].norm2();
+     //     double bb = debug_orbitals[j].norm2();
+     //     if(world.rank()==0) print("     ", j+1, aa, bb);
+     //}
+
+     //for(unsigned int j = 0; j < n; j++){
+     //     debug_orbitals[j] = Kpsis[j];
+     //}
+     //debugmatrix = matrix_inner(world,occupieds,debug_orbitals);
+     //fock(Slice(0,n-1),Slice(0,n-1)) = -1.0 * debugmatrix;
+     //fock(Slice(n,m-1),Slice(n,m-1)) = -1.0 * transpose(debugmatrix(Slice(0,np-1),Slice(0,np-1)));
+     //debugmatrix = matrix_inner(world, kramers_pairs, debug_orbitals);
+     //fock(Slice(n,m-1),Slice(0,n-1)) = -1.0 * debugmatrix;
+     //fock(Slice(0,n-1),Slice(n,m-1)) = conj_transpose(debugmatrix);
+     //fock = inner(transpose(P),inner(fock,P));
+     //if(world.rank()==0) print("\nK matrix:\n",fock);
+
+     //for(unsigned int j = 0; j < n; j++){
+     //     debug_orbitals[j] = apply_T(world,occupieds[j]);
+     //}
+     //debugmatrix = matrix_inner(world,occupieds,debug_orbitals);
+     //fock(Slice(0,n-1),Slice(0,n-1)) = copy(debugmatrix);
+     //fock(Slice(n,m-1),Slice(n,m-1)) = conj(debugmatrix(Slice(0,np-1),Slice(0,np-1)));
+     //debugmatrix = matrix_inner(world,kramers_pairs,debug_orbitals);
+     //fock(Slice(n,m-1),Slice(0,n-1)) = copy(debugmatrix);
+     //fock(Slice(0,n-1),Slice(n,m-1)) = -1.0*conj_transpose(debugmatrix);
+     //fock = inner(transpose(P),inner(fock,P));
+     //if(world.rank()==0) print("\nT matrix:\n",fock);
+     //End debugging
+
 
      //add in coulomb parts to neworbitals
      for(unsigned int j = 0; j < n; j++){
           temp_orbitals.push_back(occupieds[j]*potential); //add in coulomb term
      }
 
-     if(world.rank() == 0) print("          Subtracting K*psi");
+
+     //Handle K separately because the relations are a little different
+     //
+     //if(world.rank() == 0) print("          Subtracting K*psi");
      //Move Kpsis to new orbitals, as they are part of the fock operator
-     for(unsigned int j = 0; j < n; j++){
-          temp_orbitals[j] -= Kpsis[j]; //yes this needs to be subtraction. exchange function doesn't include the negative.
-     }
+     //for(unsigned int j = 0; j < n; j++){
+     //     temp_orbitals[j] -= Kpsis[j]; //yes this needs to be subtraction. exchange function doesn't include the negative.
+     //}
 
      //add in T_psi
      if(world.rank()==0) print("          Adding T*psi");
@@ -688,10 +948,40 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      if(world.rank()==0) print("          Integrating to form Fock Matrix");
      start_timer(world);
 
-     //Now compute the fock matrix
-     fock = matrix_inner(world, occupieds, temp_orbitals);
 
-     //symmetrize
+
+     //Now compute the fock matrix
+     //sign doesn't line up with the notes, but I can't find out why
+     //if(world.rank()==0) print("a");
+     Tensor<std::complex<double>> tempmatrix = matrix_inner(world, occupieds, temp_orbitals);
+     //if(world.rank()==0) print("a:\n", tempmatrix);
+     fock(Slice(0,n-1),Slice(0,n-1)) = copy(tempmatrix);
+     fock(Slice(n,m-1),Slice(n,m-1)) = conj(tempmatrix(Slice(0,np-1),Slice(0,np-1)));
+     tempmatrix = matrix_inner(world,kramers_pairs,temp_orbitals);
+     //if(world.rank()==0) print("b:\n", tempmatrix);
+     fock(Slice(n,m-1),Slice(0,n-1)) = copy(tempmatrix);
+     //fock(Slice(0,n-1),Slice(n,m-1)) = -1.0*conj(tempmatrix);
+     fock(Slice(0,n-1),Slice(n,m-1)) = conj_transpose(tempmatrix);
+
+     //Put in Exchange part
+     //if(world.rank()==0) print("c");
+     tempmatrix = matrix_inner(world,occupieds,Kpsis);
+     //if(world.rank()==0) print("c:\n", tempmatrix);
+     fock(Slice(0,n-1),Slice(0,n-1)) = fock(Slice(0,n-1),Slice(0,n-1)) - tempmatrix;
+     fock(Slice(n,m-1),Slice(n,m-1)) = fock(Slice(n,m-1),Slice(n,m-1)) - transpose(tempmatrix(Slice(0,np-1),Slice(0,np-1)));
+     tempmatrix = matrix_inner(world, kramers_pairs, Kpsis);
+     //if(world.rank()==0) print("d:\n", tempmatrix);
+     fock(Slice(n,m-1),Slice(0,n-1)) = fock(Slice(n,m-1),Slice(0,n-1)) - tempmatrix;
+     //fock(Slice(0,n-1),Slice(n,m-1)) = fock(Slice(0,n-1),Slice(n,m-1)) + conj(tempmatrix);
+     fock(Slice(0,n-1),Slice(n,m-1)) = fock(Slice(0,n-1),Slice(n,m-1)) - conj_transpose(tempmatrix);
+
+     //DEBUGGING:
+     //if(world.rank()==0) print("new fock matrix:\n",fock);
+     //if(world.rank()==0) print("P:\n",P);
+     
+     //permute and symmetrize
+     //if(world.rank()==0) print("e");
+     fock = inner(transpose(P),inner(fock,P));
      fock = (1.0/2.0)*(fock + conj_transpose(fock));
      
      Tensor<double> times = end_timer(world);
@@ -701,9 +991,16 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      ////and the overlap matrix
      if(world.rank()==0) print("          Integrating to form Overlap Matrix");
      start_timer(world);
-     overlap = matrix_inner(world,occupieds,occupieds);
+     overlap(Slice(0,n-1),Slice(0,n-1)) = matrix_inner(world,occupieds,occupieds);
+     overlap(Slice(0,n-1),Slice(n,m-1)) = matrix_inner(world,occupieds,kramers_pairs);
+     overlap(Slice(n,m-1),Slice(0,n-1)) = matrix_inner(world,kramers_pairs,occupieds);
+     overlap(Slice(n,m-1),Slice(n,m-1)) = matrix_inner(world,kramers_pairs,kramers_pairs);
+
+     //DEBUGGING:
+     //if(world.rank()==0) print("new overlap matrix:\n",overlap);
      
-     //symmetrize
+     //permute symmetrize
+     overlap = inner(transpose(P),inner(overlap,P));
      overlap = (1.0/2.0)*(overlap + conj_transpose(overlap));
 
      times = end_timer(world);
@@ -711,132 +1008,144 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      times = end_timer(world);
      if(world.rank()==0) print("          ", times[0]);
 
+
      //debugging: print fock and overlap matrices
      //if(world.rank()==0){
-     //     print("fock:\n", fock);
-     //     print("\noverlap:\n", overlap);
+     //     print("permuted fock:\n", fock);
+     //     print("\npermuted overlap:\n", overlap);
      //}
      
      if(world.rank()==0) print("     Eigensolver");
      start_timer(world);
 
      //Diagonalize
+     //if(world.rank()==0) print("P:\n", P, "\nfock:\n", fock, "\noverlap:\n", overlap, "\nU:\n", U);
      sygv(fock, overlap, 1, U, evals);
      times = end_timer(world);
      if(world.rank()==0) print("          ", times[0]);
 
      //debugging: print matrix of eigenvectors
-     //if(world.rank()==0) print("U:\n", U);
+     //if(world.rank()==0) print("U:\n", U, "\nevals:\n", evals);
 
      //Before applying the transformation, fix arbitrary rotations introduced by the eigensolver. 
-     if(world.rank()==0) print("     Removing Rotations");
-     start_timer(world);
+     //if(world.rank()==0) print("     Removing Rotations");
+     //start_timer(world);
 
-     double thresh_degenerate = DFparams.thresh*10.0;
-     double csquared = 137.0359895*137.0359895; //electron rest energy
+     //double thresh_degenerate = DFparams.thresh*10.0;
+     //double csquared = 137.0359895*137.0359895; //electron rest energy
 
-     //swap columns for a diagonally dominant matrix
-     bool switched = true;
-     while (switched) {
-          switched = false;
-          for (unsigned int kk = 0; kk < Init_params.num_occupied; kk++) {
-               for (unsigned int j = kk + 1; j < Init_params.num_occupied; j++) {
-                    double sold = std::real(U(kk,kk)*std::conj(U(kk,kk))) + std::real(U(j,j)*std::conj(U(j,j)));
-                    double snew = std::real(U(kk,j)*std::conj(U(kk,j))) + std::real(U(j,kk)*std::conj(U(j,kk)));
-                    //if (snew > sold and not ((evals[j] - evals[kk]) > thresh_degenerate * std::max(std::fabs(evals[kk])-csquared,1.0)) ) {
-                    if (snew > sold and not ((evals[j] - evals[kk]) > thresh_degenerate * std::fabs(evals[kk])) ) {
-                         if(world.rank()==0){
-                              print("          swapping columns ", kk+1, " and ", j+1);
-                         }
-                         Tensor<std::complex<double>> tmp = copy(U(_, kk));
-                         U(_, kk) = U(_, j);
-                         U(_, j) = tmp;
-                         std::swap(evals[kk], evals[j]);
-                         switched = true;
-                    }
-               }
-          }
-     }
+     ////swap columns for a diagonally dominant matrix
+     //bool switched = true;
+     //while (switched) {
+     //     switched = false;
+     //     for (unsigned int kk = 0; kk < m; kk++) {
+     //          for (unsigned int j = kk + 1; j < m; j++) {
+     //               double sold = std::real(U(kk,kk)*std::conj(U(kk,kk))) + std::real(U(j,j)*std::conj(U(j,j)));
+     //               double snew = std::real(U(kk,j)*std::conj(U(kk,j))) + std::real(U(j,kk)*std::conj(U(j,kk)));
+     //               //if (snew > sold and not ((evals[j] - evals[kk]) > thresh_degenerate * std::max(std::fabs(evals[kk])-csquared,1.0)) ) {
+     //               if (snew > sold and not ((evals[j] - evals[kk]) > thresh_degenerate * std::fabs(evals[kk])) ) {
+     //                    if(world.rank()==0){
+     //                         print("          swapping columns ", kk+1, " and ", j+1);
+     //                    }
+     //                    Tensor<std::complex<double>> tmp = copy(U(_, kk));
+     //                    U(_, kk) = U(_, j);
+     //                    U(_, j) = tmp;
+     //                    std::swap(evals[kk], evals[j]);
+     //                    switched = true;
+     //               }
+     //          }
+     //     }
+     //}
 
-     // Fix phases.
-     for (unsigned int kk = 0; kk < Init_params.num_occupied; ++kk)
-          U(_, kk).scale(std::conj(U(kk,kk))/std::abs(U(kk,kk)));
+     //// Fix phases.
+     //for (unsigned int kk = 0; kk < m; ++kk)
+     //     U(_, kk).scale(std::conj(U(kk,kk))/std::abs(U(kk,kk)));
 
-     
-     //Find clusters of degenerate eigenvalues and rotate eigenvectors to maximize overlap with previous ones
-     unsigned int ilo = 0; // first element of cluster
-     if(world.rank()==0) print("          Degeneracy threshold: ",thresh_degenerate);
-     
-     while (ilo < Init_params.num_occupied - 1) {
-         unsigned int ihi = ilo;
-         while (fabs(evals[ilo] - evals[ihi + 1])
-                < thresh_degenerate * std::fabs(evals[ilo])){// pow(10,floor(log10(std::fabs(evals[ilo]))))) { 
-                //< thresh_degenerate * std::max(std::fabs(evals[ilo]-csquared),1.0)){// pow(10,floor(log10(std::fabs(evals[ilo]))))) { 
-             ++ihi;
-             if (ihi == Init_params.num_occupied - 1)
-                 break;
-         }
-         unsigned int nclus = ihi - ilo + 1;
-         if (nclus > 1) {
-              if(world.rank()==0){
-                    print("          found cluster from ", ilo + 1, " to " , ihi + 1);
-                    for(unsigned int kk = ilo; kk <= ihi; kk++){
-                         print("               ",evals[kk]);
-                    }
-              }
+     ////if(world.rank()==0) print("After column swapping\nU:\n", U, "\nevals:\n", evals);
+     //
+     ////Find clusters of degenerate eigenvalues and rotate eigenvectors to maximize overlap with previous ones
+     //unsigned int ilo = 0; // first element of cluster
+     //if(world.rank()==0) print("          Degeneracy threshold: ",thresh_degenerate);
+     //
+     //while (ilo < m - 1) {
+     //    unsigned int ihi = ilo;
+     //    while (fabs(evals[ilo] - evals[ihi + 1])
+     //           < thresh_degenerate * std::fabs(evals[ilo])){// pow(10,floor(log10(std::fabs(evals[ilo]))))) { 
+     //           //< thresh_degenerate * std::max(std::fabs(evals[ilo]-csquared),1.0)){// pow(10,floor(log10(std::fabs(evals[ilo]))))) { 
+     //        ++ihi;
+     //        if (ihi == m - 1)
+     //            break;
+     //    }
+     //    unsigned int nclus = ihi - ilo + 1;
+     //    if (nclus > 1) {
+     //         if(world.rank()==0){
+     //               print("          found cluster from ", ilo + 1, " to " , ihi + 1);
+     //               for(unsigned int kk = ilo; kk <= ihi; kk++){
+     //                    print("               ",evals[kk]);
+     //               }
+     //         }
 
 
-              //Use the polar decomposition to undo rotations:
-              Tensor<std::complex<double>> q = copy(U(Slice(ilo, ihi), Slice(ilo, ihi)));
-              Tensor<std::complex<double>> VH(nclus,nclus);
-              Tensor<std::complex<double>> W(nclus,nclus);
-              Tensor<double> sigma(nclus);
+     //         //Use the polar decomposition to undo rotations:
+     //         Tensor<std::complex<double>> q = copy(U(Slice(ilo, ihi), Slice(ilo, ihi)));
+     //         Tensor<std::complex<double>> VH(nclus,nclus);
+     //         Tensor<std::complex<double>> W(nclus,nclus);
+     //         Tensor<double> sigma(nclus);
 
-              svd(q, W, sigma, VH);
+     //         svd(q, W, sigma, VH);
 
-              //W*VH is the rotation part of q. Undo it by taking the adjoint and right-multiplying
-              q = conj_transpose(inner(W,VH));
-              U(_, Slice(ilo, ihi)) = inner(U(_, Slice(ilo, ihi)), q);
-              
-         }
-         ilo = ihi + 1;
-     }
+     //         //W*VH is the rotation part of q. Undo it by taking the adjoint and right-multiplying
+     //         q = conj_transpose(inner(W,VH));
+     //         U(_, Slice(ilo, ihi)) = inner(U(_, Slice(ilo, ihi)), q);
+     //         
+     //    }
+     //    ilo = ihi + 1;
+     //}
+     //times = end_timer(world);
+     //if(world.rank()==0) print("          ", times[0]);
 
      //Debugging: Print transformation matrix after rotation removal
-     //if(world.rank()==0) print("U:\n", U);
+     //if(world.rank()==0) print("U:\n", U, "\nevals:\n", evals);
      
+     //Now undo permutations before thr transformation phase
+     U = inner(P,inner(U,transpose(P)));
+     evals = inner(evals,transpose(P));
+     //if(world.rank()==0) print("U:\n", U, "\nevals:\n", evals);
      
-     times = end_timer(world);
-     if(world.rank()==0) print("          ", times[0]);
 
      if(world.rank()==0) print("     Applying Transformation");
      start_timer(world);
 
-     ////Apply the transformation to the Exchange
-     transform(world, Kpsis, U);
-
-
      ////Apply the transformation to the orbitals 
-     transform(world, occupieds, U);
+     tempmatrix = U(Slice(0,n-1),Slice(0,n-1));
+     occupieds = transform(world, occupieds, tempmatrix);
+     tempmatrix = U(Slice(n,m-1),Slice(0,n-1));
+     occupieds += transform(world, kramers_pairs, tempmatrix);
+
+     ////Apply the transformation to the Exchange
+     for(unsigned int j = 0; j < np; j++){
+          kramers_pairs[j] = Kpsis[j].KramersPair();
+     }
+     tempmatrix = U(Slice(0,n-1),Slice(0,n-1));
+     Kpsis = transform(world, Kpsis, tempmatrix);
+     tempmatrix = U(Slice(n,m-1),Slice(0,n-1));
+     Kpsis += transform(world, kramers_pairs, tempmatrix);
+
 
      //truncate
-     for(int kk = 0; kk < Init_params.num_occupied; kk++){
+     for(int kk = 0; kk < n; kk++){
            Kpsis[kk].truncate();
            occupieds[kk].truncate();
      }
-
-
-     //truncate
 
      //debugging
      //for(unsigned int j=0; j < Init_params.num_occupied; j++){
      //     double tempdouble = rele(world, occupieds[j]);
      //     if(world.rank()==0) print("   after diag, rele ",j," = ",tempdouble);
      //}
-     
 
-     //Set energies = evals, and fix the energy printing stage.
-     energies = evals;
+     //Set energies = evals
+     energies = evals(Slice(0,n-1));
 
 
      times = end_timer(world);
@@ -888,7 +1197,7 @@ void DF::orthogonalize_inplace(World& world){
                     maxq = std::max(std::abs(Q(j,i)),maxq);
                }
           }
-          transform(world, occupieds, Q);
+          occupieds = transform(world, occupieds, Q);
      } while (maxq>0.01);
 
      //normalize afterward
@@ -1158,6 +1467,7 @@ void apply_BSH_new(World& world, Fcwf& Vpsi, double& eps, double& small, double&
      //create BSH operator
      real_convolution_3d op = BSHOperator3D(world, mu,small,thresh); // Finer length scale and accuracy control
 
+
      //Apply BSH operator to Vpsi
      Vpsi = apply(world, op, Vpsi);
 
@@ -1166,6 +1476,7 @@ void apply_BSH_new(World& world, Fcwf& Vpsi, double& eps, double& small, double&
 
      //Apply (1/c^2)(H_D + eps) to Vpsi. Using apply_T for convenience, but this requires adding 2c^2Vpsi
      Vpsi = apply_T(world, Vpsi)*(1.0/c2) + Vpsi * ((eps+2*c2)/c2);
+
 
      //mu = Vpsi.norm2();
      //if(world.rank()==0) print("    after full apply = ", mu);
@@ -1382,11 +1693,14 @@ void DF::make_density_lineplots(World& world, const char* filename, int npt, dou
 //One iteration
 bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, real_function_3d& JandV, std::vector<Fcwf>& Kpsis, XNonlinearSolver<std::vector<Fcwf>, std::complex<double>, Fcwf_vector_allocator>& kainsolver, double& tolerance, int& iteration_number, double& nuclear_repulsion_energy){
 
+     //RESUME HERE updating code for ROHF
      Tensor<double> times = get_times(world);
 
      if(world.rank()==0) print("\n\n\nIteration: ", iteration_number, " at ",times[0]);
      if(world.rank()==0) print("--------------");
      start_timer(world);
+
+     //print_sizes(world);
 
      std::vector<Fcwf> Residuals;
      Fcwf temp_function(world);
@@ -1397,14 +1711,22 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
 
      //Diagonalize
      diagonalize(world, V, op, Kpsis);
+     //print_sizes(world);
 
      //Diagonalization forces us to recompute J
-     for(unsigned int kk = 0; kk < Init_params.num_occupied; kk++){
-          rho += squaremod(occupieds[kk]);
+     if(closed_shell){
+          for(unsigned int kk = 0; kk < Init_params.num_occupied; kk++){
+               rho += 2*squaremod(occupieds[kk]);
+          }
+     }
+     else{
+          for(unsigned int kk = 0; kk < Init_params.num_occupied-1; kk++){
+               rho += 2*squaremod(occupieds[kk]);
+          }
+          rho+= squaremod(occupieds[Init_params.num_occupied-1]);
      }
      JandV = V + apply(op,rho); 
      JandV.truncate();
-
 
 
      //Apply BSH to each psi
@@ -1412,6 +1734,7 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      start_timer(world);
      double maxresidual = -1.0;
      for(unsigned int j = 0; j < Init_params.num_occupied; j++){
+
 
           //construct the function to which we will apply the BSH
           //occupieds[j].truncate();
@@ -1450,6 +1773,7 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      if(world.rank()==0) printf("                tolerance: %.10e\n",tolerance);
      times = end_timer(world);
      if(world.rank()==0) print("     ", times[0]);
+     //print_sizes(world);
 
      //debugging
      //for(unsigned int j=0; j < Init_params.num_occupied; j++){
@@ -1472,7 +1796,7 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
                //see how big of a step KAIN took for each orbital
                residualnorm = (occupieds[i]-Residuals[i]).norm2();
 
-               //Restrict the step taken by KAIN if it's took big
+               //Restrict the step taken by KAIN if it's too big
                if(residualnorm > DFparams.maxrotn){
                     double s = DFparams.maxrotn / residualnorm;
                     if(world.rank()==0) print("     restricting step for orbital: ", i+1);
@@ -1489,18 +1813,21 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
 
      //truncate
      for(unsigned int i = 0; i < Init_params.num_occupied; i++) occupieds[i].truncate();
+     //print_sizes(world);
 
      //orthogonalize
      if(world.rank()==0) print("\n***Orthonormalizing***");
      start_timer(world);
 
      orthogonalize_inplace(world);
+     //print_sizes(world);
 
      //truncate here and normalize again
      for(unsigned int i = 0; i < Init_params.num_occupied; i++){
            occupieds[i].truncate();
            occupieds[i].normalize();
      }
+     //print_sizes(world);
 
      times = end_timer(world);
      if(world.rank()==0) print("     ", times[0]);
@@ -1513,8 +1840,16 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      if(world.rank()==0) print("\n***Recalculating Coulomb***");
      start_timer(world);
      rho = real_factory_3d(world);
-     for(unsigned int kk = 0; kk < Init_params.num_occupied; kk++){
-          rho += squaremod(occupieds[kk]);
+     if(closed_shell){
+          for(unsigned int kk = 0; kk < Init_params.num_occupied; kk++){
+               rho += 2*squaremod(occupieds[kk]);
+          }
+     }
+     else{
+          for(unsigned int kk = 0; kk < Init_params.num_occupied-1; kk++){
+               rho += 2*squaremod(occupieds[kk]);
+          }
+          rho+= squaremod(occupieds[Init_params.num_occupied-1]);
      }
      JandV = V + apply(op,rho); 
      JandV.truncate();
@@ -1542,10 +1877,16 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      real_function_3d Jop = apply(op,rho);
 
      //Compute kinetic energy contribution
-     for(unsigned int j = 0; j < Init_params.num_occupied; j++){
-          //energies[j] = rele(world,occupieds[j]);
-          //kinetic_energy += (energies[j]);
-          kinetic_energy += rele(world, occupieds[j]);
+     if(closed_shell){
+          for(unsigned int j = 0; j < Init_params.num_occupied; j++){
+               kinetic_energy += 2*rele(world, occupieds[j]);
+          }
+     }
+     else{
+          for(unsigned int j = 0; j < Init_params.num_occupied-1; j++){
+               kinetic_energy += 2*rele(world, occupieds[j]);
+          }
+          kinetic_energy += rele(world, occupieds[Init_params.num_occupied-1]);
      }
           
      //Compute electron-nuclear attraction energy contribution, taking advantage of vmra's inner
@@ -1563,14 +1904,16 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      nuclear_attraction_tensor += real(inner(world,occupieds2,mul(world,V,occupieds2)));
      nuclear_attraction_tensor += real(inner(world,occupieds3,mul(world,V,occupieds3)))*(1.0/(myc*myc));
      nuclear_attraction_tensor += real(inner(world,occupieds4,mul(world,V,occupieds4)))*(1.0/(myc*myc));
-     nuclear_attraction_energy = nuclear_attraction_tensor.sum();
+     nuclear_attraction_energy = 2*nuclear_attraction_tensor.sum();
+     if(!closed_shell) nuclear_attraction_energy -= nuclear_attraction_tensor(Init_params.num_occupied-1);
      
      //Compute electron-electron repulsion energy contribution, again using vmra
      coulomb_tensor = real(inner(world,occupieds1,mul(world,Jop,occupieds1)));
      coulomb_tensor += real(inner(world,occupieds2,mul(world,Jop,occupieds2)));
      coulomb_tensor += real(inner(world,occupieds3,mul(world,Jop,occupieds3)))*(1.0/(myc*myc));
      coulomb_tensor += real(inner(world,occupieds4,mul(world,Jop,occupieds4)))*(1.0/(myc*myc));
-     coulomb_energy = 0.5*coulomb_tensor.sum();
+     coulomb_energy = coulomb_tensor.sum();//*0.5;
+     if(!closed_shell) coulomb_energy -= 0.5*coulomb_tensor(Init_params.num_occupied-1);
      
      //Calculate Exchange energy contribution
      std::vector<complex_function_3d> Kpsis1(Init_params.num_occupied);
@@ -1587,7 +1930,8 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      exchange_tensor += real(inner(world,occupieds2,Kpsis2));
      exchange_tensor += real(inner(world,occupieds3,Kpsis3))*(1.0/(myc*myc));
      exchange_tensor += real(inner(world,occupieds4,Kpsis4))*(1.0/(myc*myc));
-     exchange_energy = 0.5*exchange_tensor.sum();
+     exchange_energy = exchange_tensor.sum();//*0.5;
+     if(!closed_shell) exchange_energy -= 0.5*exchange_tensor(Init_params.num_occupied-1);
 
      //Loop through energies and calculate their new values using the individual contributions
      //(inside the "tensor" variables
@@ -1678,7 +2022,8 @@ void DF::solve_occupied(World & world)
 {
 
      //State what we're doing here
-     if(world.rank()==0) print("\nSolving for ", Init_params.num_occupied, " occupied orbitals\n-----------------------------------\n");
+     if(closed_shell and world.rank()==0) print("\nSolving for ", Init_params.num_occupied, " doubly-occupied orbitals\n----------------------------\n");
+     if((not closed_shell) and world.rank()==0) print("\nSolving for ", Init_params.num_occupied-1, " doubly-occupied, 1 singly-occupied orbitals\n---------------\n");
 
      //Will need a coulomb operator
      real_convolution_3d op = CoulombOperator(world,DFparams.small,DFparams.thresh);
@@ -1695,6 +2040,8 @@ void DF::solve_occupied(World & world)
           occupieds[i].normalize();
      }
 
+
+
      //Form nuclear potential
      real_function_3d Vnuc;
      double nuclear_repulsion_energy;
@@ -1704,6 +2051,9 @@ void DF::solve_occupied(World & world)
      else{
           make_gaussian_potential(world, Vnuc, nuclear_repulsion_energy);
      }
+
+     //double Vnucsize = Vnuc.size();
+     //if(world.rank()==0) print("VNUC SIZE =",Vnucsize);
 
      //Initial load balance
      DF_load_balance(world, Vnuc);
@@ -1719,8 +2069,16 @@ void DF::solve_occupied(World & world)
      if(world.rank()==0) print("\n***Calculating Initial Coulomb***");
      start_timer(world);
      real_function_3d rho = real_factory_3d(world);
-     for(unsigned int kk = 0; kk < Init_params.num_occupied; kk++){
-          rho += squaremod(occupieds[kk]);
+     if(closed_shell){
+          for(unsigned int kk = 0; kk < Init_params.num_occupied; kk++){
+               rho += 2*squaremod(occupieds[kk]);
+          }
+     }
+     else{
+          for(unsigned int kk = 0; kk < Init_params.num_occupied-1; kk++){
+               rho += 2*squaremod(occupieds[kk]);
+          }
+          rho+= squaremod(occupieds[Init_params.num_occupied-1]);
      }
      real_function_3d JandV = Vnuc + apply(op,rho); 
      JandV.truncate();
@@ -1747,7 +2105,7 @@ void DF::solve_occupied(World & world)
           iteration_number++;
      }
 
-     //Calculation of Effective Electric Field:
+     ////Calculation of Effective Electric Field:
      //if(world.rank()==0) print("Effective Electric Field calculation");
      //std::complex<double> myi(0,1);
      //std::complex<double> one(1,0);
@@ -2038,6 +2396,27 @@ void DF::solve_virtuals1(World& world){
 
 
 
+}
+
+void DF::print_sizes(World& world, bool individual=false){
+     if(world.rank()==0) print("\nPrinting orbital sizes:\n");
+     int n = Init_params.num_occupied;
+     double a,b1,b2,b3,b4;
+     for(unsigned int j=0; j < n; j++){
+          b1 = occupieds[j][0].size();
+          b2 = occupieds[j][1].size();
+          b3 = occupieds[j][2].size();
+          b4 = occupieds[j][3].size();
+          a = b1+b2+b3+b4;
+          if(world.rank()==0){
+               if(individual){
+                    print("Orbital; ",j+1," size: ",b1,"+",b2,"+",b3,"+",b4,"=",a);
+               }
+               else{
+                    print("Orbital; ",j+1," size: ",a);
+               }
+          }
+     }
 }
 
 //kthxbye

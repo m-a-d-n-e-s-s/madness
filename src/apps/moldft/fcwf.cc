@@ -257,6 +257,14 @@ void Fcwf::apply(World& world, complex_derivative_3d& D){
      m_psi = madness::apply(world, D, m_psi);
 }
 
+Fcwf Fcwf::KramersPair(){
+     complex_function_3d phi0 = -1.0*conj(m_psi[1]);
+     complex_function_3d phi1 = conj(m_psi[0]);
+     complex_function_3d phi2 = -1.0*conj(m_psi[3]);
+     complex_function_3d phi3 = conj(m_psi[2]);
+     return Fcwf(phi0,phi1,phi2,phi3);
+}
+
 std::complex<double> inner(const Fcwf& psi, const Fcwf& phi){
      //std::complex<double> result(0,0);
      //for(int i = 0 ; i < 4 ; i++){
@@ -416,7 +424,7 @@ void Fcwf_vector_allocator::set_size(int size){
 Tensor<std::complex<double>> matrix_inner(World& world, std::vector<Fcwf>& a, std::vector<Fcwf>& b){
      unsigned int n = a.size();
      unsigned int m = b.size();
-     MADNESS_ASSERT(n==m);
+     //MADNESS_ASSERT(n==m);
 
      double c2 = 137.0359895*137.0359895; //speed of light in atomic units
 
@@ -424,16 +432,18 @@ Tensor<std::complex<double>> matrix_inner(World& world, std::vector<Fcwf>& a, st
      std::vector<complex_function_3d> a_2(n);
      std::vector<complex_function_3d> a_3(n);
      std::vector<complex_function_3d> a_4(n);
-     std::vector<complex_function_3d> b_1(n);
-     std::vector<complex_function_3d> b_2(n);
-     std::vector<complex_function_3d> b_3(n);
-     std::vector<complex_function_3d> b_4(n);
+     std::vector<complex_function_3d> b_1(m);
+     std::vector<complex_function_3d> b_2(m);
+     std::vector<complex_function_3d> b_3(m);
+     std::vector<complex_function_3d> b_4(m);
 
      for(unsigned int i = 0; i < n; i++){
           a_1[i] = a[i][0];
           a_2[i] = a[i][1];
           a_3[i] = a[i][2];
           a_4[i] = a[i][3];
+     }
+     for(unsigned int i = 0; i < m; i++){
           b_1[i] = b[i][0];
           b_2[i] = b[i][1];
           b_3[i] = b[i][2];
@@ -448,12 +458,11 @@ Tensor<std::complex<double>> matrix_inner(World& world, std::vector<Fcwf>& a, st
      return component1;
 }
 
-void transform(World& world, std::vector<Fcwf>& a, Tensor<std::complex<double>> U){
+std::vector<Fcwf> transform(World& world, std::vector<Fcwf>& a, Tensor<std::complex<double>> U){
      unsigned int n = a.size();
      unsigned int m = U.dim(0);
      unsigned int k = U.dim(1);
      MADNESS_ASSERT(n==m);
-     MADNESS_ASSERT(m==k); //for now only support square transformation
 
      std::vector<complex_function_3d> a_1(n);
      std::vector<complex_function_3d> a_2(n);
@@ -470,12 +479,18 @@ void transform(World& world, std::vector<Fcwf>& a, Tensor<std::complex<double>> 
      a_3 = transform(world, a_3, U);
      a_4 = transform(world, a_4, U);
 
-     for(unsigned int i = 0; i < n; i++){
-          a[i][0] = a_1[i];
-          a[i][1] = a_2[i];
-          a[i][2] = a_3[i];
-          a[i][3] = a_4[i];
+     std::vector<Fcwf> result;
+     Fcwf reader(world);
+
+     for(unsigned int i = 0; i < k; i++){
+          reader[0] = a_1[i];
+          reader[1] = a_2[i];
+          reader[2] = a_3[i];
+          reader[3] = a_4[i];
+          result.push_back(reader); 
      }
+
+     return result;
      
 }
 

@@ -51,6 +51,9 @@ class DF {
           //Total energy of the system
           double total_energy;
 
+          //Whether or not the calculation to be done is closed shell
+          bool closed_shell;
+
      public:
 
           // Start a timer
@@ -133,6 +136,8 @@ class DF {
 
           //Lineplot the densities of the large and small component separately. only along x axis on log scale from 10^-startpnt to 10^endpnt with pts evenly spaced in log space
           void make_component_logplots(World& world, const char* filename1, const char* filename2, int npt, int startpnt, int endpnt);
+
+          void print_sizes(World& world, bool individual);
 
 };
 

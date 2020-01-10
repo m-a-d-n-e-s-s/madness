@@ -10,30 +10,32 @@
 #include "NWChem.h"
 
 Function<std::complex<double>,3> function_real2complex(const Function<double,3>& r);
+double myxfunc(const madness::coord_3d& r);
+double myyfunc(const madness::coord_3d& r);
 
 namespace madness{
 
 
      struct InitParameters{
           // Ground state parameters that are read in from archive
-          std::string inFile;                      ///< Name of input archive to read in ground state
-          double Init_total_energy;                  ///< Total energy of the nonrelativistic ground state
-          bool spinrestricted;                     ///< Indicates if ground state calc. was open or closed shell
-          unsigned int num_occupied;               ///< Number of orbitals in ground state
+          std::string inFile;                      ///< Name of input archive to read in
+          double Init_total_energy;                ///< Total energy of the nonrelativistic ground state
+          bool spinrestricted;                     ///< Indicates if input calc. was spin-restricted
+          unsigned int num_occupied;               ///< Number of orbitals
           unsigned int num_virtuals;
-          Tensor<double> energies;                 ///< Energy of ground state orbitals
+          Tensor<double> energies;                 ///< Energies of input orbitals
           Tensor<double> v_energies;
-          Tensor<double> occ;                      ///< Occupancy of ground state orbitals
-          double L;                                ///< Box size of ground state - Dirac Fock calcluation is in same box
-          int order;                               ///< Order of polynomial used in ground state
-          Molecule molecule;                       ///< The molecule used in ground state calculation
-          std::vector<Fcwf> orbitals;              ///< The ground state orbitals 
+          Tensor<double> occ;                      ///< Occupancy of input orbitals
+          double L;                                ///< Box size of input - Dirac Fock calcluation is in same box
+          int order;                               ///< Order of polynomial used in input
+          Molecule molecule;                       ///< The molecule used in input calculation
+          std::vector<Fcwf> orbitals;              ///< The occupied orbitals 
           std::vector<Fcwf> virtuals;
 
           // Default constructor
           InitParameters() {}
 
-          // Initializes NRParameters using the contents of file \c filename
+          // Initializes InitParameters using the contents of file \c filename
           void read(World& world, const std::string& filename, bool restart){ 
                // Save the filename
                inFile = filename;
@@ -71,7 +73,7 @@ namespace madness{
                     input & Init_total_energy;              // double
                     input & spinrestricted;      // bool
                     input & num_occupied;        // int
-                    input & temp_energies;       // Tensor<double>    orbital energies
+                    input & energies;            // Tensor<double>    orbital energies
                     input & occ;                 // Tensor<double>    orbital occupations
                     input & dummy2;              // std::vector<int>  sets of orbitals(?)
                     input & L;                   // double            box size
@@ -101,6 +103,8 @@ namespace madness{
                          complex_function_3d complexreader;
                          Fcwf spinup(world);
                          Fcwf spindown(world);
+                         real_function_3d xfunc = real_factory_3d(world).f(myxfunc);
+                         real_function_3d yfunc = real_factory_3d(world).f(myyfunc);
                          for(unsigned int i = 0; i < num_occupied; i++){
                               input & reader;
                               complexreader = function_real2complex(reader);
@@ -111,35 +115,99 @@ namespace madness{
                               spinup[3] = (-myi) * (Dx(complexreader) + myi * Dy(complexreader));
                               spinup[3].scale(0.5);
                               spinup.normalize();
-                              spindown[0] = complex_factory_3d(world);
-                              spindown[1] = complexreader;
-                              spindown[2] = (-myi) * (Dx(complexreader) - myi * Dy(complexreader));
-                              spindown[2].scale(0.5);
-                              spindown[3] = (myi) * Dz(complexreader);
-                              spindown[3].scale(0.5);
-                              spindown.normalize();
+                              //spindown[0] = complex_factory_3d(world);
+                              //spindown[1] = complexreader;
+                              //spindown[2] = (-myi) * (Dx(complexreader) - myi * Dy(complexreader));
+                              //spindown[2].scale(0.5);
+                              //spindown[3] = (myi) * Dz(complexreader);
+                              //spindown[3].scale(0.5);
+                              //spindown.normalize();
                               //spinup = Fcwf(complexreader, complex_factory_3d(world), complex_factory_3d(world), complex_factory_3d(world));
                               //spindown = Fcwf(complex_factory_3d(world), copy(complexreader), complex_factory_3d(world), complex_factory_3d(world));
                               orbitals.push_back(spinup);
-                              orbitals.push_back(spindown);
+                              //orbitals.push_back(spindown);
                          }
 
-                         //duplicate the energies
-                         energies = Tensor<double>(2*num_occupied);
-                         double csquared = 137.0359895*137.0359895;
-                         double temp;
-                         for(unsigned int i = 0; i < num_occupied; i++){
-                              temp = temp_energies(i);//+csquared;
-                              energies(2*i) = temp;
-                              energies(2*i+1) = temp;
-                         }
+                         ////Bring in p block, construct 4-component wavefunctions, and diagonalize under j_z
+                         //std::vector<Fcwf> jzorbitals;
+                         //std::vector<Fcwf> justorbitals;
+                         //for(unsigned int i=0; i<3; i++){
+                         //     input & reader;
+                         //     complexreader = function_real2complex(reader);
+                         //     spinup[0] = complexreader;
+                         //     spinup[1] = complex_factory_3d(world);
+                         //     spinup[2] = (-myi) * Dz(complexreader);
+                         //     spinup[2].scale(0.5);
+                         //     spinup[3] = (-myi) * (Dx(complexreader) + myi * Dy(complexreader));
+                         //     spinup[3].scale(0.5);
+                         //     spinup.normalize();
+                         //     spindown[0] = complex_factory_3d(world);
+                         //     spindown[1] = complexreader;
+                         //     spindown[2] = (-myi) * (Dx(complexreader) - myi * Dy(complexreader));
+                         //     spindown[2].scale(0.5);
+                         //     spindown[3] = (myi) * Dz(complexreader);
+                         //     spindown[3].scale(0.5);
+                         //     spindown.normalize();
+                         //     ////spinup = Fcwf(complexreader, complex_factory_3d(world), complex_factory_3d(world), complex_factory_3d(world));
+                         //     ////spindown = Fcwf(complex_factory_3d(world), copy(complexreader), complex_factory_3d(world), complex_factory_3d(world));
+                         //     //spinup = spinup + spindown;
+                         //     //orbitals.push_back(spinup);
+                         //     //orbitals.push_back(spindown);
+                         //     justorbitals.push_back(spinup);
+                         //     justorbitals.push_back(spindown);
+                         //}
 
-                         //correct the number of orbitals
-                         num_occupied *= 2;
+
+                         ////for(unsigned int i=0; i<6; i++){
+                         ////     spinup[0] = -myi*(xfunc*Dy(justorbitals[i][0])-yfunc*Dx(justorbitals[i][0])) + 0.5*justorbitals[i][0];
+                         ////     spinup[1] = -myi*(xfunc*Dy(justorbitals[i][1])-yfunc*Dx(justorbitals[i][1])) - 0.5*justorbitals[i][1];
+                         ////     spinup[2] = -myi*(xfunc*Dy(justorbitals[i][2])-yfunc*Dx(justorbitals[i][2])) + 0.5*justorbitals[i][2];
+                         ////     spinup[3] = -myi*(xfunc*Dy(justorbitals[i][3])-yfunc*Dx(justorbitals[i][3])) - 0.5*justorbitals[i][3];
+                         ////     jzorbitals.push_back(spinup);
+                         ////}
+
+                         ////Tensor<std::complex<double>> jztensor = matrix_inner(world,justorbitals,jzorbitals);
+                         ////Tensor<std::complex<double>> overlap = matrix_inner(world,justorbitals,justorbitals);
+
+                         ////Tensor<std::complex<double>> U(6,6);
+                         ////Tensor<double> evals(6);
+
+                         ////if(world.rank()==0){
+                         ////     print("\njz:\n", jztensor);
+                         ////     print("\noverlap:\n", overlap);
+                         ////}
+                         ////
+                         ////sygv(jztensor,overlap,1,U,evals);
+
+                         ////if(world.rank()==0) print("U:\n",U);
+                         ////if(world.rank()==0) print("evals:\n",evals);
+
+                         ////transform(world,justorbitals,U);
+                         ////for(unsigned int i = 0; i < 6; i++){
+                         ////     if(evals[i] > 0){
+                         ////          if(world.rank()==0) print("Add in state with eval: ", evals[i]);
+                         ////          orbitals.push_back(justorbitals[i]);
+                         ////     }
+                         ////}
+                         //orbitals.push_back(justorbitals[0]);
+                         //orbitals.push_back(justorbitals[2]);
+                         //orbitals.push_back(justorbitals[4]);
+                         ////duplicate the energies
+                         ////energies = Tensor<double>(2*num_occupied);
+                         ////double csquared = 137.0359895*137.0359895;
+                         ////double temp;
+                         ////for(unsigned int i = 0; i < num_occupied; i++){
+                         ////     temp = temp_energies(i);//+csquared;
+                         ////     energies(2*i) = temp;
+                         ////     energies(2*i+1) = temp;
+                         ////}
+
+                         ////correct the number of orbitals
+                         //num_occupied *= 2;
                     }
                     else{
 
-                         if(world.rank()==0) print("num_occupied is:" ,num_occupied);
+                         if(world.rank()==0) print("number of alpha read in is:" ,num_occupied);
 
                          // Read in alpha ground state orbitals
                          real_function_3d reader;
@@ -158,46 +226,46 @@ namespace madness{
                               orbitals.push_back(fcwfreader);
                          }
 
-                         // Read in beta quantities
-                         unsigned int num_betas;
-                         input & num_betas;
+                         //// Read in beta quantities
+                         //unsigned int num_betas;
+                         //input & num_betas;
 
-                         Tensor<double> beta_energies;
-                         input & beta_energies;
-                         //NEED TO ADD THESE INTO TOTAL ENERGIES MATRIX
+                         //Tensor<double> beta_energies;
+                         //input & beta_energies;
+                         ////NEED TO ADD THESE INTO TOTAL ENERGIES MATRIX
 
-                         Tensor<double> dummy3;
-                         input & dummy3;
+                         //Tensor<double> dummy3;
+                         //input & dummy3;
 
-                         std::vector<int> dummy4;
-                         input & dummy4;
+                         //std::vector<int> dummy4;
+                         //input & dummy4;
 
-                         if(world.rank()==0) print("made it here: ", num_betas);
-                         
-                         //read in beta ground state orbitals
-                         for(unsigned int i = 0; i < num_betas; i++){
-                              input & reader;
-                              complexreader = function_real2complex(reader);
-                              fcwfreader[0] = complex_factory_3d(world);
-                              fcwfreader[1] = complexreader;
-                              fcwfreader[2] = (-myi) * (Dx(complexreader) - myi * Dy(complexreader));
-                              fcwfreader[2].scale(0.5);
-                              fcwfreader[3] = (myi) * Dz(complexreader);
-                              fcwfreader[3].scale(0.5);
-                              fcwfreader.normalize();
-                              orbitals.push_back(fcwfreader);
-                         }
+                         //if(world.rank()==0) print("made it here: ", num_betas);
+                         //
+                         ////read in beta ground state orbitals
+                         //for(unsigned int i = 0; i < num_betas; i++){
+                         //     input & reader;
+                         //     complexreader = function_real2complex(reader);
+                         //     fcwfreader[0] = complex_factory_3d(world);
+                         //     fcwfreader[1] = complexreader;
+                         //     fcwfreader[2] = (-myi) * (Dx(complexreader) - myi * Dy(complexreader));
+                         //     fcwfreader[2].scale(0.5);
+                         //     fcwfreader[3] = (myi) * Dz(complexreader);
+                         //     fcwfreader[3].scale(0.5);
+                         //     fcwfreader.normalize();
+                         //     orbitals.push_back(fcwfreader);
+                         //}
 
-                         //fix up energies tensor and num_occupied
-                         energies = Tensor<double>(num_occupied + num_betas);
-                         double csquared = 137.0359895*137.0359895;
-                         for(unsigned int i = 0; i < num_occupied; i++){
-                              energies(i) = temp_energies(i);// + csquared;
-                         }
-                         for(unsigned int i = 0; i < num_betas; i++){
-                              energies(num_occupied + i) = beta_energies(i);// + csquared;
-                         }
-                         num_occupied += num_betas;
+                         ////fix up energies tensor and num_occupied
+                         //energies = Tensor<double>(num_occupied + num_betas);
+                         //double csquared = 137.0359895*137.0359895;
+                         //for(unsigned int i = 0; i < num_occupied; i++){
+                         //     energies(i) = temp_energies(i);// + csquared;
+                         //}
+                         //for(unsigned int i = 0; i < num_betas; i++){
+                         //     energies(num_occupied + i) = beta_energies(i);// + csquared;
+                         //}
+                         //num_occupied += num_betas;
 
                     }
 

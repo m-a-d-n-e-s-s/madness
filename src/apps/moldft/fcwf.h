@@ -72,6 +72,8 @@ public:
      void reconstruct();
      void compress();
 
+     Fcwf KramersPair();
+
 };
 
 std::complex<double> inner(const Fcwf& psi, const Fcwf& phi);
@@ -101,7 +103,7 @@ std::vector<Fcwf> operator-(const std::vector<Fcwf>& phi, const std::vector<Fcwf
 
 Tensor<std::complex<double>> matrix_inner(World& world, std::vector<Fcwf>& a, std::vector<Fcwf>& b);
 
-void transform(World& world, std::vector<Fcwf>& a, Tensor<std::complex<double>> U);
+std::vector<Fcwf> transform(World& world, std::vector<Fcwf>& a, Tensor<std::complex<double>> U);
 
 class Fcwf_vector_allocator {
      World& world;
