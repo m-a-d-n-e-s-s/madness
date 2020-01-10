@@ -355,10 +355,10 @@ namespace madness {
 			return rank()>0;
 		}
 
-	private:
-
 		/// does this have any data?
 		bool has_no_data() const {return !has_data();}
+
+	private:
 
 		/// reserve enough space to hold at least r configurations
 		void reserve(long r) {
@@ -834,7 +834,6 @@ protected:
 			return vector_[idim];
 		}
 
-	private:
 		/// return shallow copy of a slice of one of the vectors, flattened to (r,kVec)
 		const Tensor<T> flat_vector(const unsigned int& idim) const {
 		    MADNESS_ASSERT(rank()>0);
@@ -847,6 +846,7 @@ protected:
 		    return vector_[idim](c0()).reshape(rank(),kVec());
 		}
 
+	private:
 		/// fill this SRConf with 1 flattened random configurations (tested)
 		void fillWithRandom(const long& rank=1) {
 
@@ -941,7 +941,6 @@ protected:
             return (type()==TT_FULL or has_no_data() or vector_[0].dim(1)==this->get_k());
 		}
 
-	private:
 		/// return the dimension of this
 		unsigned int dim() const {return dim_;}
 
@@ -1079,9 +1078,18 @@ protected:
 			return n;
 		}
 
+
+		template<typename Q>
+	    typename std::enable_if<(TensorTypeData<T>::iscomplex or TensorTypeData<Q>::iscomplex), TENSOR_RESULT_TYPE(T,Q)>::type
+		friend  overlap(const SRConf<T>& rhs, const SRConf<Q>& lhs) {
+			MADNESS_EXCEPTION("no complex trace in srconf.h",1);
+			return T(0.0);
+		}
+
 		/// calculate the Frobenius inner product (tested)
 		template<typename Q>
-		friend TENSOR_RESULT_TYPE(T,Q) overlap(const SRConf<T>& rhs, const SRConf<Q>& lhs) {
+	    typename std::enable_if<!(TensorTypeData<T>::iscomplex or TensorTypeData<Q>::iscomplex) , TENSOR_RESULT_TYPE(T,Q)>::type
+		friend  overlap(const SRConf<T>& rhs, const SRConf<Q>& lhs) {
 
 			// fast return if either rank is 0
 			if ((lhs.has_no_data()) or (rhs.has_no_data())) return 0.0;

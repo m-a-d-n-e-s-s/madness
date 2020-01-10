@@ -24,7 +24,9 @@ typedef int MPI_Comm;
 #define MPI_COMM_WORLD (0x44000000)
 #define MPI_UNDEFINED      (-32766)
 
-typedef MPI_Errhandler int;
+typedef int MPI_Errhandler;
+
+typedef int MPI_Info;
 
 /* MPI's error classes */
 /* these constants are consistent with MPICH2 mpi.h */
@@ -181,7 +183,15 @@ inline int MPI_Allreduce(void *sendbuf, void *recvbuf, int count, MPI_Datatype, 
 
 inline int MPI_Comm_get_attr(MPI_Comm, int, void*, int*) { return MPI_ERR_COMM; }
 
-inline int MPI_Comm_split(MPI_Comm comm, int color, int key, MPI_Comm *newcomm) { return MPI_ERR_COMM; }
+inline int MPI_Comm_split(MPI_Comm comm, int color, int key, MPI_Comm *newcomm) {
+  *newcomm = (split_type == MPI_UNDEFINED) ? MPI_COMM_NULL : comm;
+  return MPI_SUCCESS;
+}
+
+inline int MPI_Comm_split_type(MPI_Comm comm, int split_type, int key, MPI_Info info, MPI_Comm *newcomm) {
+  *newcomm = (split_type == MPI_UNDEFINED) ? MPI_COMM_NULL : comm;
+  return MPI_SUCCESS;
+}
 
 inline int MPI_Abort(MPI_Comm, int code) { exit(code); return MPI_SUCCESS; }
 

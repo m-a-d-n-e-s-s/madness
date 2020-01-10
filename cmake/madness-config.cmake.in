@@ -17,6 +17,9 @@
 # Additionally MADNESS exports the following variables from its dependent packages:
 # = LAPACK =
 #    LAPACK_LIBRARIES           Libraries providing LAPACK and its dependents
+#    LAPACK_INCLUDE_DIRS        Include directories where to locate the header files needed to use LAPACK_LIBRARIES
+#    LAPACK_COMPILE_DEFINITIONS Compile definitions needed to use the LAPACK header files
+#    LAPACK_COMPILE_OPTIONS     Compile options needed to use the LAPACK header files
 # = MPI =
 #    MPIEXEC                    Executable for running MPI programs
 #    MPIEXEC_NUMPROC_FLAG       Flag to pass to MPIEXEC before giving
@@ -136,7 +139,11 @@ check_required_components(${MADNESS_TARGET_COMPONENT})
 set(MADNESS_FOUND TRUE)
 
 ########### LAPACK ############
-set(LAPACK_LIBRARIES "@LAPACK_LIBRARIES@")
+# this is formatted to be added to CMAKE_REQUIRED_LIBRARIES
+set(LAPACK_LIBRARIES "@PROCESSED_LAPACK_LIBRARIES@")
+set(LAPACK_INCLUDE_DIRS "@LAPACK_INCLUDE_DIRS@")
+set(LAPACK_COMPILE_DEFINITIONS "@LAPACK_COMPILE_DEFINITIONS@")
+set(LAPACK_COMPILE_OPTIONS "@LAPACK_COMPILE_OPTIONS@")
 
 ########### MPI ############
 set(MPIEXEC "@MPIEXEC@")

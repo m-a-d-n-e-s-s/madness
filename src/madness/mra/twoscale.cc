@@ -89,7 +89,7 @@ namespace madness {
     static bool read_twoscale(int kmax) {
         unsigned long correct = 6931979l;
         unsigned long computed = checksum_file(twoscale_filename);
-        MADNESS_ASSERT(correct == computed);
+        MADNESS_CHECK(correct == computed);
         FILE* file = fopen(twoscale_filename,"r");
         if (!file) {
             cout << "twoscale: failed opening file with twoscale coefficients\n";

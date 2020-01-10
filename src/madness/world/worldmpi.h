@@ -78,7 +78,7 @@ namespace madness {
 
     // Forward declarations
     class World;
-    World& initialize(int&, char**&, const SafeMPI::Intracomm&);
+    World& initialize(int&, char**&, const SafeMPI::Intracomm&, bool);
     void finalize();
 
     /// \todo Brief description needed.

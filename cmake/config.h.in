@@ -47,12 +47,14 @@
 #cmakedefine HAVE_PARSEC 1
 #cmakedefine HAVE_INTEL_MKL 1
 #cmakedefine HAVE_PAPI 1
-#cmakedefine MADNESS_HAS_LIBXC 1
 #cmakedefine MADNESS_HAS_PCM 1
+#cmakedefine MADNESS_HAS_LIBXC 1
+#cmakedefine MADNESS_HAS_BOOST 1
 #cmakedefine MADNESS_HAS_ELEMENTAL 1
 #cmakedefine MADNESS_HAS_ELEMENTAL_EMBEDDED 1
 #cmakedefine MADNESS_HAS_GOOGLE_PERF_MINIMAL 1
 #cmakedefine MADNESS_HAS_GOOGLE_TEST 1
+#cmakedefine MADNESS_HAS_LIBUNWIND 1
 
 /* Define has access to function. */
 #cmakedefine HAVE_FORK 1
@@ -105,7 +107,7 @@
 #cmakedefine WORLD_MEM_PROFILE_ENABLE 1
 #cmakedefine WORLD_PROFILE_ENABLE 1
 #cmakedefine MADNESS_TASK_DEBUG_TRACE 1
-
+#cmakedefine MADNESS_LINALG_USE_LAPACKE 1
 
 /* Define to the equivalent of the C99 'restrict' keyword, or to
    nothing if this is not supported.  Do not define if restrict is

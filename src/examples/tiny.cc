@@ -188,12 +188,33 @@ int main(int argc, char** argv) {
                 no_orient=true;
         }
     }
+
+    std::string c;
+    position_stream(f, "plot");
+    while (f >> s) {
+    	if (s == "end") {
+    		break;
+    	} else if (s == "line") {
+    		f >> c;
+        }
+    }
+
     if (L<0.0) MADNESS_EXCEPTION("box size indetermined",1);
     FunctionDefaults<3>::set_cubic_cell(-L,L);
     FunctionDefaults<6>::set_cubic_cell(-L,L);
 //    FunctionDefaults<6>::set_tensor_type(TT_2D);
     FunctionDefaults<6>::set_tensor_type(TT_FULL);
 
+    // convert human to mad form (analogous to plot_plane in funcplot.h)
+    unsigned int cc;
+    if (c == "x1") cc = 0;
+    else if (c == "x2") cc = 1;
+    else if (c == "x3") cc = 2;
+    else {
+    	print("plot line axis not defined, plotting x1 axis");
+    	c = "x1";
+    	cc = 0;
+    }
 
     if (world.rank()==0) {
      	    print("cell size:         ", FunctionDefaults<6>::get_cell_width()[0]);
@@ -236,7 +257,7 @@ int main(int argc, char** argv) {
     try {
         static const size_t NDIM=3;
         std::vector<Function<double,NDIM> > vf;
-        for (int i=0; i<filenames.size(); ++i) {
+        for (size_t i=0; i<filenames.size(); ++i) {
             real_function_3d tmp;
             try { // load a single function
                 load_function(world,tmp,filenames[i]);
@@ -250,9 +271,9 @@ int main(int argc, char** argv) {
 		plot_plane(world,vf,filenames[0]);
 
 		double width = FunctionDefaults<3>::get_cell_min_width()/2.0 - 1.e-3;
-		coord_3d start(0.0); start[0]=-width;
-		coord_3d end(0.0); end[0]=width;
-		plot_line(("line_"+filenames[0]).c_str(),10000,start,end,vf[0]);
+		coord_3d start(0.0); start[cc]=-width;
+		coord_3d end(0.0); end[cc]=width;
+		plot_line(("line_"+c+"_"+filenames[0]).c_str(),10000,start,end,vf[0]);
 
 		// plot the Gaussian cube file
 		std::vector<std::string> molecular_info=cubefile_header("input",no_orient);
@@ -263,7 +284,7 @@ int main(int argc, char** argv) {
         try {
             static const size_t NDIM=6;
             std::vector<Function<double,NDIM> > vf(filenames.size());
-            for (int i=0; i<filenames.size(); ++i) load_function(world,vf[i],filenames[i]);
+            for (size_t i=0; i<filenames.size(); ++i) load_function(world,vf[i],filenames[i]);
             plot_plane(world,vf,filenames[0]);
         } catch (...) {
 

@@ -257,6 +257,8 @@ public:
         vector_complex_function_3d t3 = mul(world,phase_m,t2);
         return t3;
         END_TIMER(world, "apply periodic bsh");
+        throw "control reaches end of non-void function";
+        return t2; // T2 is random choice ... WHAT SHOULD IT REALLY BE??????????????????????????????
     }
 };
 
@@ -293,7 +295,7 @@ vector_complex_function_3d makeao(World& world, const std::vector<Vector<double,
         for (int i = -maxR; i <= maxR; i++) {
             for (int j = -maxR; j <= maxR; j++) {
                 for (int k = -maxR; k <= maxR; k++) {
-                    AtomicBasisFunction abf = aobasis.get_atomic_basis_function(molecule, ibf); 
+                    //AtomicBasisFunction abf = aobasis.get_atomic_basis_function(molecule, ibf); 
                     //if ((i*i+j*j+k*k)*L*L < 3.0*abf.rangesq()) {
                     if (true) {
                         real_functor_3d aofunc(
@@ -530,7 +532,7 @@ complex_function_3d apply_periodic_bsh(World& world, const complex_function_3d& 
   complex_function_3d phase_m = complex_factory_3d(world).functor(complex_functor_3d(
     new ExpFunctor3d<double_complex>(-I*kx,-I*ky,-I*kz))).truncate_mode(0).truncate_on_project();
   auto op = PeriodicBSHOperator3D(world, vec(-kx*L, -ky*L, -kz*L), sqrt(-2.0*(energy)),  1e-4, FunctionDefaults<3>::get_thresh());
-  complex_function_3d g = phase_m*apply(op, phase_p*f);
+  complex_function_3d g = phase_m*madness::apply(op, phase_p*f);
   return g;
 }
 
@@ -606,7 +608,7 @@ vector_complex_function_3d initial_guess(World& world, const real_function_3d& v
     int nkpt = kpoints.size();
     int nsize = psi0.size();
     int nst_initial = nsize/nkpt;
-    MADNESS_ASSERT(nst <= nst_initial);
+    MADNESS_CHECK(nst <= nst_initial);
     if (world.rank() == 0) print("nsize: ", nsize);
     if (world.rank() == 0) print("nst_initial: ", nst_initial);
     vector_complex_function_3d psi;
@@ -659,7 +661,7 @@ vector_complex_function_3d initial_guess(World& world, const real_function_3d& v
 
 tensor_complex matrix_exponential(const tensor_complex& A) {
     const double tol = 1e-13;
-    MADNESS_ASSERT(A.dim(0) == A.dim(1));
+    MADNESS_CHECK(A.dim(0) == A.dim(1));
 
     // Scale A by a power of 2 until it is "small"
     double anorm = A.normf();
@@ -1061,7 +1063,7 @@ int main(int argc, char** argv) {
         }
 
         if (world.rank() == 0) print(nkpt,nst,psi.size());
-        MADNESS_ASSERT(nkpt*nst == (int) psi.size());
+        MADNESS_CHECK(nkpt*nst == (int) psi.size());
 
         if (iter == 20) {
           if (world.rank() == 0) print("reprojecting ..");

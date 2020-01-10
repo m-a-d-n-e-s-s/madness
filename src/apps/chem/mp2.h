@@ -42,12 +42,18 @@
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/mra/mra.h>
 #include <madness/mra/lbdeux.h>
+#include <chem/QCCalculationParametersBase.h>
 #include <chem/SCF.h>
 #include <madness/mra/nonlinsol.h>
 #include <chem/projector.h>
 #include <chem/correlationfactor.h>
 #include <chem/electronic_correlation_factor.h>
 #include <chem/nemo.h>
+
+#include <madness/world/text_fstream_archive.h>
+using madness::archive::TextFstreamInputArchive;
+using madness::archive::TextFstreamOutputArchive;
+
 
 #include <iostream>
 
@@ -89,7 +95,7 @@ namespace madness {
         Nemo nemo_calc;
 
         HartreeFock(World& world, std::shared_ptr<SCF> calc1) :
-        	world(world), calc(calc1), coords_sum(-1.0), nemo_calc(world,calc1) {
+        	world(world), calc(calc1), coords_sum(-1.0), nemo_calc(world,calc1,"input") {
         }
 
         bool provides_gradient() const {return true;}
@@ -108,58 +114,58 @@ namespace madness {
             coords_sum = xsq;
 
             // some extra steps if we have a nuclear correlation factor
-            if (1) {
+//            if (1) {
 //        	if (nemo_calc.nuclear_correlation->type()==NuclearCorrelationFactor::GaussSlater) {
         		// converge the nemo equations
         		nemo_calc.value(x);
 
-        	} else {
-				// Make the nuclear potential, initial orbitals, etc.
-				calc->make_nuclear_potential(world);
-				calc->potentialmanager->vnuclear().print_size("vnuc");
-				calc->project_ao_basis(world);
-
-				// read converged wave function from disk if there is one
-				if (calc->param.no_compute) {
-					calc->load_mos(world);
-					return calc->current_energy;
-				}
-
-				if (calc->param.restart) {
-					calc->load_mos(world);
-				} else {
-					calc->initial_guess(world);
-					calc->param.restart = true;
-				}
-
-				// If the basis for the inital guess was not sto-3g
-				// switch to sto-3g since this is needed for analysis
-				// of the MOs and orbital localization
-				if (calc->param.aobasis != "sto-3g") {
-					calc->param.aobasis = "sto-3g";
-					calc->project_ao_basis(world);
-				}
-
-
-				calc->solve(world);
-				calc->save_mos(world);
-
-				// successively tighten threshold
-				if (calc->param.econv<1.1e-6) {
-					calc->set_protocol<3>(world,1e-6);
-					calc->make_nuclear_potential(world);
-					calc->project_ao_basis(world);
-					calc->project(world);
-					calc->solve(world);
-					calc->save_mos(world);
-				}
-
-				calc->save_mos(world);
-			}
+//        	} else {
+//				// Make the nuclear potential, initial orbitals, etc.
+//				calc->make_nuclear_potential(world);
+//				calc->potentialmanager->vnuclear().print_size("vnuc");
+//				calc->ao=calc->project_ao_basis(world,calc->aobasis);
+//
+//				// read converged wave function from disk if there is one
+//				if (calc->param.no_compute()) {
+//					calc->load_mos(world);
+//					return calc->current_energy;
+//				}
+//
+//				if (calc->param.restart()) {
+//					calc->load_mos(world);
+//				} else {
+//					calc->initial_guess(world);
+//					calc->param.restart = true;
+//				}
+//
+//				// If the basis for the inital guess was not sto-3g
+//				// switch to sto-3g since this is needed for analysis
+//				// of the MOs and orbital localization
+//				if (calc->param.aobasis() != "sto-3g") {
+//					calc->param.aobasis = "sto-3g";
+//					calc->project_ao_basis(world);
+//				}
+//
+//
+//				calc->solve(world);
+//				calc->save_mos(world);
+//
+//				// successively tighten threshold
+//				if (calc->param.econv<1.1e-6) {
+//					calc->set_protocol<3>(world,1e-6);
+//					calc->make_nuclear_potential(world);
+//					calc->project_ao_basis(world);
+//					calc->project(world);
+//					calc->solve(world);
+//					calc->save_mos(world);
+//				}
+//
+//				calc->save_mos(world);
+//			}
 
             // compute the full, reconstructed orbitals from nemo
             orbitals_=mul(world,nemo_calc.R,nemo_calc.get_calc()->amo);
-            real_function_3d R2=nemo_calc.nuclear_correlation->square();
+            real_function_3d R2=nemo_calc.ncf->square();
             R2orbitals_=mul(world,R2,nemo_calc.get_calc()->amo);
 
             return calc->current_energy;
@@ -181,7 +187,7 @@ namespace madness {
         /// note that nemo() and orbital() are the same if no nuclear
         /// correlation factor is used
         real_function_3d orbital(const int i) const {
-            MADNESS_ASSERT(calc->param.spin_restricted);
+            MADNESS_ASSERT(calc->param.spin_restricted());
             return orbitals_[i];
         }
 
@@ -190,7 +196,7 @@ namespace madness {
         /// note that nemo() and orbital() are the same if no nuclear
         /// correlation factor is used
         std::vector<real_function_3d> orbitals() const {
-            MADNESS_ASSERT(calc->param.spin_restricted);
+            MADNESS_ASSERT(calc->param.spin_restricted());
             return orbitals_;
         }
 
@@ -199,7 +205,7 @@ namespace madness {
         /// note that nemo() and orbital() are the same if no nuclear
         /// correlation factor is used
         std::vector<real_function_3d> R2orbitals() const {
-            MADNESS_ASSERT(calc->param.spin_restricted);
+            MADNESS_ASSERT(calc->param.spin_restricted());
             return R2orbitals_;
         }
 
@@ -208,7 +214,7 @@ namespace madness {
         /// note that nemo() and orbital() are the same if no nuclear
         /// correlation factor is used
         real_function_3d R2orbital(const int i) const {
-            MADNESS_ASSERT(calc->param.spin_restricted);
+            MADNESS_ASSERT(calc->param.spin_restricted());
             return R2orbitals_[i];
         }
 
@@ -217,7 +223,7 @@ namespace madness {
         /// note that nemo() and orbital() are the same if no nuclear
         /// correlation factor is used
         real_function_3d nemo(const int i) const {
-            MADNESS_ASSERT(calc->param.spin_restricted);
+            MADNESS_ASSERT(calc->param.spin_restricted());
             return calc->amo[i];
         }
 
@@ -226,19 +232,19 @@ namespace madness {
         /// note that nemo() and orbital() are the same if no nuclear
         /// correlation factor is used
         std::vector<real_function_3d> nemos() const {
-            MADNESS_ASSERT(calc->param.spin_restricted);
+            MADNESS_ASSERT(calc->param.spin_restricted());
             return calc->amo;
         }
 
         /// return orbital energy i
         double orbital_energy(const int i) const {
-            MADNESS_ASSERT(calc->param.spin_restricted);
+            MADNESS_ASSERT(calc->param.spin_restricted());
             return calc->aeps[i];
         }
 
         /// return the Coulomb potential
         real_function_3d get_coulomb_potential() const {
-            MADNESS_ASSERT(calc->param.spin_restricted);
+            MADNESS_ASSERT(calc->param.spin_restricted());
             if (coulomb.is_initialized()) return copy(coulomb);
             functionT rho = calc->make_density(world, calc->aocc, orbitals()).scale(2.0);
             coulomb=calc->make_coulomb_potential(rho);
@@ -252,8 +258,8 @@ namespace madness {
 
         /// return the number of occupied orbitals
         int nocc() const {
-            MADNESS_ASSERT(calc->param.spin_restricted);
-            return calc->param.nalpha;
+            MADNESS_ASSERT(calc->param.spin_restricted());
+            return calc->param.nalpha();
         }
     };
 
@@ -351,68 +357,52 @@ namespace madness {
     class MP2 : public OptimizationTargetInterface {
 
     	/// POD for MP2 keywords
-        struct Parameters {
-        	double thresh_;			///< the accuracy threshold
-            double econv_;          ///< energy threshold for the MP1 residual
-        	double dconv_;			///< density threshold for the MP1 residual
-        	int i; 					///< electron 1, used only if a specific pair is requested
-        	int j; 					///< electron 2, used only if a specific pair is requested
+    	struct Parameters : public QCCalculationParametersBase {
 
-        	/// number of frozen orbitals; note the difference to the "pair" keyword where you
-        	/// request a specific orbital. Here you freeze lowest orbitals, i.e. if you find
-        	///  freeze 1
-        	/// in the input file the 0th orbital is kept frozen, and orbital 1 is the first to
-        	/// be correlated.
-        	int freeze;
-
-        	/// the restart flag initiates the loading of the pair functions
-
-        	/// if this flag is set the program expect for each pair a file named
-        	///  pair_ij.00000
-        	/// where ij is to be replaced by the values of i and j.
-        	/// These files contain the restart information for each pair.
-        	bool restart;
-
-        	/// maximum number of subspace vectors in KAIN
-        	int maxsub;
-
-        	/// maximum number of microiterations
-        	int maxiter;
+        	/// use OEP orbitals
+        	bool do_oep;
 
         	/// ctor reading out the input file
-        	Parameters(const std::string& input) : thresh_(-1.0), econv_(-1.0),
-        	        dconv_(-1.0), i(-1), j(-1), freeze(0), restart(false),
-        	        maxsub(2), maxiter(20) {
+        	Parameters(World& world) {
 
-        		// get the parameters from the input file
-                std::ifstream f(input.c_str());
-                position_stream(f, "mp2");
-                std::string s;
+                /// the map with initial values
+        		initialize<double>("thresh",1.e-3,"recommended values: 1.e-4 < econv < 1.e-8");
+        		initialize<double>("econv",1.e-3,"recommended values: 1.e-4 < econv < 1.e-8");
+        		initialize<double>("dconv",1.e-3,"recommended values: 1.e-4 < econv < 1.e-8");
+        		initialize<std::vector<int> >("pair",{-1,-1});
+        		initialize<int>("freeze",0);
+        		initialize<int>("maxsub",2);
+        		initialize<bool>("restart",true);
+        		initialize<int>("maxiter",5);
 
-                while (f >> s) {
-                    if (s == "end") break;
-                    else if (s == "thresh") f >> thresh_;
-                    else if (s == "econv") f >> econv_;
-                    else if (s == "dconv") f >> dconv_;
-                    else if (s == "pair") f >> i >> j;
-                    else if (s == "maxsub") f >> maxsub;
-                    else if (s == "freeze") f >> freeze;
-                    else if (s == "restart") restart=true;
-                    else continue;
-                }
-                // set default for dconv if not explicitly given
-                if (dconv_<0.0) dconv_=sqrt(econv_)*0.1;
-                if (thresh_<0.0) thresh_=econv_;
+        		read_and_set_derived_values(world);
+
+        		// print final parameters
+        		if (world.rank()==0) print("mp2","end");
+        	}
+
+        	void read_and_set_derived_values(World& world) {
+        		read(world,"input","mp2");
+        		set_derived_value("dconv",sqrt(get<double>("econv"))*0.1);
         	}
 
             /// check the user input
         	void check_input(const std::shared_ptr<HartreeFock> hf) const {
-                if (freeze>hf->nocc()) MADNESS_EXCEPTION("you froze more orbitals than you have",1);
-                if (i>=hf->nocc()) MADNESS_EXCEPTION("there is no i-th orbital",1);
-                if (j>=hf->nocc()) MADNESS_EXCEPTION("there is no j-th orbital",1);
-                if (thresh_<0.0) MADNESS_EXCEPTION("please provide the accuracy threshold for MP2",1);
+                if (freeze()>hf->nocc()) MADNESS_EXCEPTION("you froze more orbitals than you have",1);
+                if (i()>=hf->nocc()) MADNESS_EXCEPTION("there is no i-th orbital",1);
+                if (j()>=hf->nocc()) MADNESS_EXCEPTION("there is no j-th orbital",1);
+                if (thresh()<0.0) MADNESS_EXCEPTION("please provide the accuracy threshold for MP2",1);
         	}
 
+        	double thresh() const {return get<double>("thresh");}   	/// convenience function
+        	double econv() const {return get<double>("econv");}   		/// convenience function
+        	double dconv() const {return this->get<double>("dconv");}   		/// convenience function
+        	int freeze() const {return this->get<int>("freeze");}   			/// convenience function
+        	int i() const {return this->get<std::vector<int> >("pair")[0];}	/// convenience function
+        	int j() const {return this->get<std::vector<int> >("pair")[1];}	/// convenience function
+        	int restart() const {return this->get<bool>("restart");}	/// convenience function
+        	int maxiter() const {return this->get<int>("maxiter");}	/// convenience function
+        	int maxsub() const {return this->get<int>("maxsub");}	/// convenience function
         };
 
         /// POD holding all electron pairs with easy access
@@ -686,7 +676,7 @@ namespace madness {
         real_function_6d get_residue(const real_function_6d& f,
 		const int i, const int j){
         	hf->value();		// make sure the reference is converged
-        	nuclear_corrfac = hf->nemo_calc.nuclear_correlation;
+        	nuclear_corrfac = hf->nemo_calc.ncf;
         	// set all orbitals spaces
         	// When a nuclear correlation factor is used the residual equations
         	// are similarity transformed. Therefore the orbitals in the
@@ -695,7 +685,7 @@ namespace madness {
         		Q12.set_spaces(hf->get_calc().amo);
         	} else {
         		// only valid for closed shell
-        		MADNESS_ASSERT(hf->get_calc().param.spin_restricted);
+        		MADNESS_ASSERT(hf->get_calc().param.spin_restricted());
         		const std::vector<real_function_3d>& nemos = hf->nemos();
         		const std::vector<real_function_3d>& R2amo = hf->R2orbitals();
         		Q12.set_spaces(R2amo, nemos, R2amo, nemos);

@@ -61,10 +61,11 @@
 #include <cstddef>
 
 #ifdef HAVE_RANDOM
-#include <stdlib.h>
+#include <cstdlib>
 #endif
 
 // Madness world header files needed by world
+#include <madness/world/worldinit.h>
 #include <madness/world/worldmpi.h>
 #include <madness/world/worldhashmap.h>
 #include <madness/world/worldprofile.h>
@@ -81,56 +82,6 @@ namespace madness {
     class WorldTaskQueue;
     class WorldAmInterface;
     class WorldGopInterface;
-
-    /// redirects standard output and error to rank-specific files
-
-    /// @param[in] world the World object that determines rank of this process
-    /// @param[in] split if true, write standard output to log.<rank> and standard error to err.<rank>,
-    ///            otherwise write both standard output and error to log.<rank>. The default is false.
-    void redirectio(const World& world, bool split = false);
-
-    /// Initialize the MADNESS runtime.
-
-    /// Call this once at the very top of your main program to initialize the
-    /// MADNESS runtime. This function should be called instead of \c MPI_Init()
-    /// or \c MPI_Init_thread().
-    /// \param[in,out] argc Application argument count.
-    /// \param[in,out] argv Application argument values.
-    /// \return A reference to the default \c World, which is constructed with
-    ///     \c MPI_COMM_WORLD.
-    World& initialize(int& argc, char**& argv);
-
-    /// Initialize the MADNESS runtime.
-
-    /// Call this once at the very top of your main program to initialize the
-    /// MADNESS runtime. This function should be called instead of \c MPI_Init()
-    /// or \c MPI_Init_thread().
-    /// \param[in,out] argc Application argument count.
-    /// \param[in,out] argv Application argument values.
-    /// \param comm The communicator that should be used to construct the
-    ///     \c World object.
-    /// \return A reference to the \c World constructed with \c comm.
-    World& initialize(int& argc, char**& argv, const SafeMPI::Intracomm& comm);
-
-    /// Initialize the MADNESS runtime.
-
-    /// Call this once at the very top of your main program to initialize the
-    /// MADNESS runtime. This function should be called instead of \c MPI_Init()
-    /// or \c MPI_Init_thread().
-    /// \param[in,out] argc Application argument count.
-    /// \param[in,out] argv Application argument values.
-    /// \param comm The MPI communicator that should be used to construct the
-    ///     \c World object.
-    /// \return A reference to the World constructed with \c comm.
-    World& initialize(int& argc, char**& argv, const MPI_Comm& comm);
-
-    /// Call this once at the very end of your main program instead of MPI_Finalize().
-    void finalize();
-
-    /// Check if the MADNESS runtime has been initialized (and not subsequently finalized).
-
-    /// @return true if \c madness::initialize had been called more recently than \c madness::finalize, false otherwise.
-    bool initialized();
 
     /// Print miscellaneous stats on a World.
 
@@ -180,7 +131,7 @@ namespace madness {
     private:
         friend class WorldAmInterface;
         friend class WorldGopInterface;
-        friend World& initialize(int&, char**&, const SafeMPI::Intracomm&);
+        friend World& initialize(int&, char**&, const SafeMPI::Intracomm&, bool);
         friend void finalize();
 
         // Static member variables
@@ -250,8 +201,8 @@ namespace madness {
         /// Find the World (if it exists) corresponding to the given communicator.
 
         /// \param[in] comm The communicator.
-        /// \return Pointer to the \c World that was constructed from \c comm;
-        ///     if such a \c World does not exist, return 0.
+        /// \return Pointer to the World that was constructed from \c comm;
+        ///     if such a World does not exist, return 0.
         static World* find_instance(const SafeMPI::Intracomm& comm) {
             typedef std::list<World*>::const_iterator citer;
             for(citer it = worlds.begin(); it != worlds.end(); ++it) {
@@ -261,18 +212,40 @@ namespace madness {
             return 0;
         }
 
-        /// Default \c World object accessor.
+        /// Check if the World exists in the registry.
+
+        /// \param[in] world pointer to a World object
+        /// \return true if \c world exists
+        static bool exists(World* world) {
+          return std::find(worlds.begin(), worlds.end(), world) != worlds.end();
+        }
+
+        /// Default World object accessor.
 
         /// This function returns a reference to the default world object; this
-        /// is the same \c World object that is returned by
-        /// \c madness::initialize().
-        /// \return A reference to the default \c World.
+        /// is the same World object that is returned by
+        /// madness::initialize().
+        /// \return A reference to the default World.
+        /// \throw madness::Exception if the MADNESS_DISABLE_WORLD_GET_DEFAULT preprocessor macro is defined
         static World& get_default() {
 #ifdef MADNESS_DISABLE_WORLD_GET_DEFAULT
-            MADNESS_EXCEPTION("World::get_default() was called while disabled", 0);
+          MADNESS_EXCEPTION("World::get_default() was called while disabled", 0);
 #endif
-            MADNESS_ASSERT(default_world);
-            return *default_world;
+          MADNESS_ASSERT(default_world);
+          return *default_world;
+        }
+
+        /// Checks if the default World object corresponds to the given Intracomm
+
+        /// \param[in] comm The communicator.
+        /// \return true if \c comm is the default World object's communicator
+        /// \sa World::get_default()
+        static bool is_default(const SafeMPI::Intracomm& comm) {
+            auto* comm_world = find_instance(comm);
+            if (comm_world)
+              return default_world == comm_world;
+            else
+              return false;
         }
 
         /// Sets the user-managed local state.

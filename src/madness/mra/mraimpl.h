@@ -859,7 +859,7 @@ namespace madness {
             MADNESS_ASSERT(v[i]->coeffs.owner(key) == world.rank());
             bool exists = ! v[i]->coeffs.insert(acc[i],key);
             if (c[i].size()) {
-                MADNESS_ASSERT(!exists);
+                MADNESS_CHECK(!exists);
                 acc[i]->second = nodeT(coeffT(c[i],targs),false);
             }
             else {
@@ -1145,6 +1145,25 @@ namespace madness {
 
     }
 
+    /// mirror the dimensions of f according to mirror, result on this
+    template <typename T, std::size_t NDIM>
+    void FunctionImpl<T,NDIM>::mirror(const implT& f, const std::vector<long>& mirrormap, bool fence) {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
+        const_cast<implT*>(&f)->flo_unary_op_node_inplace(do_mirror(mirrormap,*this),fence);
+    }
+
+    /// map and mirror the translation index and the coefficients, result on this
+
+    /// first map the dimensions, the mirror!
+    /// this = mirror(map(f))
+    template <typename T, std::size_t NDIM>
+    void FunctionImpl<T,NDIM>::map_and_mirror(const implT& f, const std::vector<long>& map,
+    		const std::vector<long>& mirror, bool fence) {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
+        const_cast<implT*>(&f)->flo_unary_op_node_inplace(do_map_and_mirror(map,mirror,*this),fence);
+    }
+
+
 
     /// take the average of two functions, similar to: this=0.5*(this+rhs)
 
@@ -1343,7 +1362,7 @@ namespace madness {
             const keyT& key = it->first;
             typename dcT::accessor acc;
             const auto found = coeffs.find(acc,key);
-            MADNESS_ASSERT(found);
+            MADNESS_CHECK(found);
             nodeT& node = acc->second;
             if (node.has_coeff() &&
                 node.get_norm_tree() != -1.0 &&
@@ -1597,7 +1616,7 @@ namespace madness {
         // compute the wavelet coefficients from the child nodes
         typename dcT::accessor acc;
         const auto found = coeffs.find(acc, key);
-        MADNESS_ASSERT(found);
+        MADNESS_CHECK(found);
         int i=0;
         tensorT d(cdata.v2k);
         for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
@@ -1655,7 +1674,7 @@ namespace madness {
 
         typename dcT::accessor acc;
         const auto found = coeffs.find(acc, key);
-        MADNESS_ASSERT(found);
+        MADNESS_CHECK(found);
 
         if (acc->second.has_coeff()) {
             print(" stuff in compress_op");
@@ -1709,7 +1728,7 @@ namespace madness {
         // insert sum coefficients into tree
         typename dcT::accessor acc;
         const auto found = coeffs.find(acc, key);
-        MADNESS_ASSERT(found);
+        MADNESS_CHECK(found);
         MADNESS_ASSERT(not (acc->second.has_coeff()));
         acc->second.set_coeff(s);
 

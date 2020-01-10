@@ -11,7 +11,7 @@ set(MADWORLD_HEADERS
     uniqueid.h worldprofile.h timers.h binary_fstream_archive.h mpi_archive.h 
     text_fstream_archive.h worlddc.h mem_func_wrapper.h taskfn.h group.h 
     dist_cache.h distributed_id.h type_traits.h function_traits.h stubmpi.h 
-    bgq_atomics.h binsorter.h parsec.h meta.h)
+    bgq_atomics.h binsorter.h parsec.h meta.h worldinit.h)
 set(MADWORLD_SOURCES
     madness_exception.cc world.cc timers.cc future.cc redirectio.cc
     archive_type_names.cc info.cc debug.cc print.cc worldmem.cc worldrmi.cc
@@ -25,7 +25,7 @@ add_mad_library(world MADWORLD_SOURCES MADWORLD_HEADERS "common;${ELEMENTAL_PACK
 
 # DISABLEPIE flag can break linking of dependent libraries (e.g. on Linux using gcc6)
 # instead for each dependent executable target T do:
-# target_link_libraries(T MADNESS_DISABLEPIE_LINKER_FLAGS)
+# target_link_libraries(T ${MADNESS_DISABLEPIE_LINKER_FLAGS})
 #
 #if(LINKER_HAS_DISABLEPIE_SUPPORT)
 #  target_link_libraries(MADworld INTERFACE "${DISABLEPIE_LINKER_FLAG}")

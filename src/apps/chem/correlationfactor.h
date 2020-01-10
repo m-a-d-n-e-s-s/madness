@@ -75,7 +75,6 @@
 #define MADNESS_CHEM_NUCLEARCORRELATIONFACTOR_H_
 
 #include <madness/mra/mra.h>
-#include <madness/mra/lbdeux.h>
 #include <chem/molecule.h>
 #include <chem/potentialmanager.h>
 #include <chem/atomutil.h>
@@ -88,7 +87,7 @@ namespace madness {
 class NuclearCorrelationFactor {
 public:
 	enum corrfactype {None, GradientalGaussSlater, GaussSlater, LinearSlater,
-	    Polynomial, Slater, Two};
+	    Polynomial, Slater, poly4erfc, Two};
 	typedef std::shared_ptr< FunctionFunctorInterface<double,3> > functorT;
 
 	/// ctor
@@ -103,7 +102,10 @@ public:
 	virtual ~NuclearCorrelationFactor() {};
 
 	/// initialize the regularized potentials U1 and U2
-	void initialize() {
+	void initialize(const double vtol1) {
+
+	    // set threshold for projections
+	    vtol=vtol1;
 
 		// construct the potential functions
 		// keep tighter threshold for orthogonalization
@@ -436,7 +438,7 @@ public:
 			: ncf(ncf), exponent(e) {}
 		double operator()(const coord_3d& xyz) const {
 			double result=1.0;
-			for (int i=0; i<ncf->molecule.natom(); ++i) {
+			for (size_t i=0; i<ncf->molecule.natom(); ++i) {
 				const Atom& atom=ncf->molecule.get_atom(i);
 				const coord_3d vr1A=xyz-atom.get_coords();
 				const double r=vr1A.normf();
@@ -469,7 +471,7 @@ public:
 
 		double operator()(const coord_3d& xyz) const {
 			double result=0.0;
-			for (int i=0; i<ncf->molecule.natom(); ++i) {
+			for (size_t i=0; i<ncf->molecule.natom(); ++i) {
 				const Atom& atom=ncf->molecule.get_atom(i);
 				const coord_3d vr1A=xyz-atom.get_coords();
 				const double r=vr1A.normf();
@@ -494,11 +496,11 @@ public:
     class U1_atomic_functor : public FunctionFunctorInterface<double,3> {
 
         const NuclearCorrelationFactor* ncf;
-        const int iatom;
+        const size_t iatom;
         const int axis;
 
     public:
-        U1_atomic_functor(const NuclearCorrelationFactor* ncf, const int atom,
+        U1_atomic_functor(const NuclearCorrelationFactor* ncf, const size_t atom,
                 const int axis) : ncf(ncf), iatom(atom), axis(axis) {}
 
         double operator()(const coord_3d& xyz) const {
@@ -536,7 +538,7 @@ public:
 
         double operator()(const coord_3d& xyz) const {
             double result=0.0;
-            for (int i=0; i<ncf->molecule.natom(); ++i) {
+            for (size_t i=0; i<ncf->molecule.natom(); ++i) {
                 const Atom& atom=ncf->molecule.get_atom(i);
                 const coord_3d vr1A=xyz-atom.get_coords();
                 const double r=vr1A.normf();
@@ -558,7 +560,7 @@ public:
 		U2_functor(const NuclearCorrelationFactor* ncf) : ncf(ncf) {}
 		double operator()(const coord_3d& xyz) const {
 			double result=0.0;
-			for (int i=0; i<ncf->molecule.natom(); ++i) {
+			for (size_t i=0; i<ncf->molecule.natom(); ++i) {
 				const Atom& atom=ncf->molecule.get_atom(i);
 				const coord_3d vr1A=xyz-atom.get_coords();
 				const double r=vr1A.normf();
@@ -577,7 +579,7 @@ public:
 		U3_functor(const NuclearCorrelationFactor* ncf) : ncf(ncf) {}
 		double operator()(const coord_3d& xyz) const {
 			std::vector<coord_3d> all_terms(ncf->molecule.natom());
-			for (int i=0; i<ncf->molecule.natom(); ++i) {
+			for (size_t i=0; i<ncf->molecule.natom(); ++i) {
 				const Atom& atom=ncf->molecule.get_atom(i);
 				const coord_3d vr1A=xyz-atom.get_coords();
 				const double r=vr1A.normf();
@@ -586,8 +588,8 @@ public:
 			}
 
 			double result=0.0;
-			for (int i=0; i<ncf->molecule.natom(); ++i) {
-				for (int j=0; j<i; ++j) {
+			for (size_t i=0; i<ncf->molecule.natom(); ++i) {
+				for (size_t j=0; j<i; ++j) {
 					result+=all_terms[i][0]*all_terms[j][0]
 					       +all_terms[i][1]*all_terms[j][1]
 					       +all_terms[i][2]*all_terms[j][2];
@@ -605,10 +607,10 @@ public:
     class U2_atomic_functor : public FunctionFunctorInterface<double,3> {
 
         const NuclearCorrelationFactor* ncf;
-        const int iatom;
+        const size_t iatom;
 
     public:
-        U2_atomic_functor(const NuclearCorrelationFactor* ncf, const int atom)
+        U2_atomic_functor(const NuclearCorrelationFactor* ncf, const size_t atom)
             : ncf(ncf), iatom(atom) {}
 
         double operator()(const coord_3d& xyz) const {
@@ -632,7 +634,7 @@ public:
     class U3_atomic_functor : public FunctionFunctorInterface<double,3> {
 
         const NuclearCorrelationFactor* ncf;
-        const int iatom;
+        const size_t iatom;
 
     public:
         U3_atomic_functor(const NuclearCorrelationFactor* ncf, const int atom)
@@ -647,7 +649,7 @@ public:
 
             double result=0.0;
             // sum over B
-            for (int i=0; i<ncf->molecule.natom(); ++i) {
+            for (size_t i=0; i<ncf->molecule.natom(); ++i) {
                 if (i==iatom) continue; // restricted sum
 
                 const Atom& atomB=ncf->molecule.get_atom(i);
@@ -675,14 +677,14 @@ public:
     class square_times_V_functor : public FunctionFunctorInterface<double,3> {
         const NuclearCorrelationFactor* ncf;
         const Molecule& molecule;
-        const int iatom;
+        const size_t iatom;
     public:
         square_times_V_functor(const NuclearCorrelationFactor* ncf,
-                const Molecule& mol, const int iatom1)
+                const Molecule& mol, const size_t iatom1)
             : ncf(ncf), molecule(mol), iatom(iatom1) {}
         double operator()(const coord_3d& xyz) const {
             double result=1.0;
-            for (int i=0; i<ncf->molecule.natom(); ++i) {
+            for (size_t i=0; i<ncf->molecule.natom(); ++i) {
                 const Atom& atom=ncf->molecule.get_atom(i);
                 const coord_3d vr1A=xyz-atom.get_coords();
                 const double r=vr1A.normf();
@@ -702,15 +704,15 @@ public:
     class square_times_V_derivative_functor : public FunctionFunctorInterface<double,3> {
         const NuclearCorrelationFactor* ncf;
         const Molecule& molecule;
-        const int iatom;
+        const size_t iatom;
         const int axis;
     public:
         square_times_V_derivative_functor(const NuclearCorrelationFactor* ncf,
-                const Molecule& molecule1, const int atom1, const int axis1)
+                const Molecule& molecule1, const size_t atom1, const int axis1)
             : ncf(ncf), molecule(molecule1), iatom(atom1), axis(axis1) {}
         double operator()(const coord_3d& xyz) const {
             double result=1.0;
-            for (int i=0; i<ncf->molecule.natom(); ++i) {
+            for (size_t i=0; i<ncf->molecule.natom(); ++i) {
                 const Atom& atom=ncf->molecule.get_atom(i);
                 const coord_3d vr1A=xyz-atom.get_coords();
                 const double r=vr1A.normf();
@@ -752,7 +754,7 @@ public:
             // compute the R term
             double result=1.0;
             if ((exponent==1) or (exponent==2)) {
-                for (int i=0; i<ncf->molecule.natom(); ++i) {
+                for (size_t i=0; i<ncf->molecule.natom(); ++i) {
                     const Atom& atom=ncf->molecule.get_atom(i);
                     const coord_3d vr1A=xyz-atom.get_coords();
                     const double r=vr1A.normf();
@@ -878,10 +880,10 @@ public:
     /// \f]
     class U3X_functor : public FunctionFunctorInterface<double,3> {
         const NuclearCorrelationFactor* ncf;
-        const int iatom;
+        const size_t iatom;
         const int axis;
     public:
-        U3X_functor(const NuclearCorrelationFactor* ncf, const int iatom,
+        U3X_functor(const NuclearCorrelationFactor* ncf, const size_t iatom,
                 const int axis) : ncf(ncf), iatom(iatom), axis(axis) {}
 
         double operator()(const coord_3d& xyz) const {
@@ -902,7 +904,7 @@ public:
             const double drhodx=-nA[axis];
 
             double term=0.0;
-            for (int jatom=0; jatom<ncf->molecule.natom(); ++jatom) {
+            for (size_t jatom=0; jatom<ncf->molecule.natom(); ++jatom) {
                 if (iatom==jatom) continue; // restricted sum B \neq A
 
                 const Atom& atomB=ncf->molecule.get_atom(jatom);
@@ -957,7 +959,6 @@ public:
 			print("which is of Gaussian-Slater type\n");
 		}
 
-		initialize();
 	}
 
 	corrfactype type() const {return NuclearCorrelationFactor::GaussSlater;}
@@ -1091,7 +1092,6 @@ public:
             print("which is of Gradiental Gaussian-Slater type\n");
         }
 
-        initialize();
     }
 
     corrfactype type() const {return NuclearCorrelationFactor::GradientalGaussSlater;}
@@ -1236,7 +1236,6 @@ public:
             print("with eprec ",mol.get_eprec());
 			print("which is of linear Slater type\n");
 		}
-		initialize();
 	}
 
 	corrfactype type() const {return NuclearCorrelationFactor::LinearSlater;}
@@ -1320,15 +1319,15 @@ public:
 		: NuclearCorrelationFactor(world,mol), a_(1.5) {
 
 		if (a!=0.0) a_=a;
+		eprec_=mol.get_eprec();
 
 		if (world.rank()==0) {
 			print("\nconstructed nuclear correlation factor of the form");
 			print("  S_A = 1/(a-1) exp(-a Z_A r_{1A}) + 1");
 			print("    a = ",a_);
-            print("with eprec ",mol.get_eprec());
+            print("with eprec ",eprec_);
 			print("which is of Slater type\n");
 		}
-		initialize();
 	}
 
 	corrfactype type() const {return NuclearCorrelationFactor::Slater;}
@@ -1337,8 +1336,10 @@ private:
 
 	/// the length scale parameter
 	double a_;
+	double eprec_;
 
 	double a_param() const {return a_;}
+    double eprec_param() const {return eprec_;}
 
 	/// first derivative of the correlation factor wrt (r-R_A)
 
@@ -1375,7 +1376,12 @@ private:
     /// the nuclear correlation factor
     double S(const double& r, const double& Z) const {
     	const double a=a_param();
+    	//const double eprec=eprec_param();
     	return 1.0+1.0/(a-1.0) * exp(-a*Z*r);
+
+//    	return 1.0 + 0.5/(a-1.0) *
+//    	        (exp(-a*r*Z + 0.5*a*a*Z*Z*eprec) * erfc((-r+a*eprec*Z)/sqrt(2*eprec))
+//    	         + exp(-a*r*Z + 0.5*a*Z*(4.0*r+a*eprec*Z)) * erfc((r+a*eprec*Z)/sqrt(2*eprec)));
     }
 
     /// radial part first derivative of the nuclear correlation factor
@@ -1447,6 +1453,315 @@ private:
 };
 
 
+class poly4erfc : public NuclearCorrelationFactor {
+public:
+    /// ctor
+
+    /// @param[in]  world   the world
+    /// @param[in]  mol molecule with the sites of the nuclei
+    poly4erfc(World& world, const Molecule& mol, const double aa)
+        : NuclearCorrelationFactor(world,mol), a(1.0) {
+
+        if (aa!=0.0) a=aa;
+        eprec_=mol.get_eprec();
+
+        if (world.rank()==0) {
+            print("\nconstructed nuclear correlation factor of the form");
+            print("  S_A = 1 + (a0 + a1 arZ + a2 (arZ)^2 + a3 (arZ)^3 + a4 (arZ)^4) erfc(arZ)");
+            print("    a = ",a);
+            print("with eprec ",eprec_);
+            print("which is of poly4erfc type\n");
+        }
+        //const double pi32=std::pow(constants::pi,1.5);
+        //const double sqrtpi=sqrt(constants::pi);
+        //const double Pi=constants::pi;
+
+        if (a==0.5) {
+            a0=0.5083397721116242769;
+            a1=-2.4430795355664112811;
+            a2=3.569312300653802680;
+            a3=-1.9812471972342746507;
+            a4=0.3641705622093696564;
+        } else if (a==1.0) {
+            a0=0.20265985404508529127;
+            a1=-0.9739826967339938056;
+            a2=1.4229779953809877198;
+            a3=-0.7898639647077711196;
+            a4=0.14518390461225107425;
+
+        } else {
+            print("invalid parameter a for poly4erfc: only 0.5 and 1.0 implemented");
+            MADNESS_EXCEPTION("stupid you",1);
+        }
+    }
+
+    corrfactype type() const {return NuclearCorrelationFactor::poly4erfc;}
+
+private:
+
+    /// the length scale parameter
+    double a;
+    double a0, a1, a2, a3, a4;
+    double eprec_;
+
+    double a_param() const {return a;}
+    double eprec_param() const {return eprec_;}
+
+    /// first derivative of the correlation factor wrt (r-R_A)
+
+    /// \f[
+    ///     Sr_div_S = \frac{1}{S(r)}\frac{\partial S(r)}{\partial r}
+    /// \f]
+    double Sr_div_S(const double& r, const double& Z) const {
+       const double x=r*Z;
+
+       double result=0.0;
+       if (a==0.5) {
+           if (x<1.0) {
+                result=(-17.97663543396820624361586474 + x*(32.78290319470982346841067868 +
+                        x*(-18.158574783628271659713638233 +
+                           x*(2.472138984374094343735335913 +
+                              x*(0.5516975358315341628276502285 +
+                                 x*(-0.008573693952875097234391220137 +
+                                    x*(-0.05596791202351071993748992739 +
+                                       (0.002673799219133696315436690424 +
+                                          0.0013386538660557369902632289083*x)*x)))))))/
+                   (17.976635433967702922140233083 + x*
+                      (-13.062204300852085089323266568 +
+                        x*(16.397871971437618641239835027 + x*(-5.383337491559214163188757918 + 1.*x))));
+            } else if (x<2.0) {
+                result=(-16.53370050883888159389958126 + x*(30.04151304875517461538549269 +
+                        x*(-16.692529697855029750948871179 +
+                           x*(2.50341008323651011875249567 +
+                              x*(0.3106921665634860719234742532 +
+                                 x*(0.08721948207311506458903445571 +
+                                    x*(-0.10041387133168708232852057948 +
+                                       (0.02000987266876476192949541524 - 0.0012508983745483161308604975792*x)*
+                                        x)))))))/
+                   (16.532205048243702951212522516 + x*
+                      (-11.89273747187279634240347945 +
+                        x*(15.157537549656745468895369276 + x*(-4.9102960292797655978798640519 + 1.*x))));
+            } else if (x<5.0) {
+                result=(-2352.191894900273554810118278 + x*(5782.846962269399174183661793 +
+                        x*(-5653.246084369776756298278851 +
+                           x*(2948.18046377483570925427449 +
+                              x*(-913.4583247839311453090142452 +
+                                 x*(174.39391722588915386106331206 +
+                                    x*(-20.22035127074332315930567933 +
+                                       (1.3107321165711966663791114988 - 0.03655666729452579098523876463*x)*x))
+                                 )))))/
+                   (886.4859678528423041797649741 + x*(269.17746130370931387996124706 +
+                        x*(-130.21383548057958115685397713 + x*(37.644499985765056273193347388 + 1.*x))));
+            } else if (x<10) {
+                result=(2.2759176275121988686860433041 + x*(-1.8014283464827425541637211503 +
+                        x*(0.60570955276433317373251991152 +
+                           x*(-0.11235368819003308411943926239 +
+                              x*(0.01243211635244600976892077538 +
+                                 x*(-0.0008211800260491381826149891865 +
+                                    x*(0.000029973534470203049782417744015 +
+                                       (-4.6423722605763162431293872646e-7 -
+                                          1.3224615425412157194986675329e-10*x)*x)))))))/
+                   (1039.800013929971888016478838 + x*(-702.5378531848183775210948787 +
+                        x*(183.17476380259879599459789974 + x*(-21.74106003575315304073197254 + 1.*x))));
+            } else {
+                result=0.0;
+            }
+       } else if (a==1.0) {
+           if (x<1.0) {
+               result=(-1.6046958001953006847027538457 + x*(5.948945186367159977879486279 +
+                       x*(-6.884321742840291285733040882 +
+                          x*(2.296896506418919905405783368 +
+                             x*(0.616939354810622973212914089 +
+                                x*(-0.13679830198890803519235207564 +
+                                   x*(-0.3356576872066501398893403439 +
+                                      (0.14876798925798674488426727928 - 0.016049886728185297028755535226*x)*x
+                                      )))))))/
+                  (1.6046957999975126909719683196 + x*
+                     (-0.8234878506688316215458988304 +
+                       x*(3.4607641859010551501639903314 + x*(-1.8955210085531557309609670978 + 1.*x))));
+           } else if (x<2.0) {
+               result=(-7.143856421301985019580778813 + x*(33.35568129248075086686087865 +
+                       x*(-60.0412343766569246898209957 +
+                          x*(55.46407913315151830247939138 +
+                             x*(-28.7874770749840240158264326 +
+                                x*(8.379317837934083469035061852 +
+                                   x*(-1.2103278392957399092107317741 +
+                                      (0.04275186003977071121074860478 + 0.005247730112126140726731063205*x)*x
+                                      )))))))/
+                  (5.4509691924562038998044993827 + x*
+                     (-2.2732931206867811068721699796 +
+                       x*(4.1530634219989859344450742259 + x*(-2.0183662125874366044951391259 + 1.*x))));
+           } else if (x<5.0) {
+               result=(-0.4869290414611847276899694883 + x*(1.0513417728218375522016338562 +
+                       x*(-0.9694851629317255156038942437 +
+                          x*(0.5007460889402078102011673774 +
+                             x*(-0.15897436623286639052954575417 +
+                                x*(0.03185042477631079356985872518 +
+                                   x*(-0.003940899912654543218183049969 +
+                                      (0.0002757919409481032696079686825 -
+                                         8.369138363906178282041501561e-6*x)*x)))))))/
+                  (30.81121613134246115634780413 + x*(-49.989974505724725146933397436 +
+                       x*(31.455643953462635691568128729 + x*(-8.992097794824270871044305786 + 1.*x))));
+           } else {
+               result=0.0;
+           }
+       }
+       return result*Z;
+    }
+
+    /// second derivative of the correlation factor wrt (r-R_A)
+
+    /// \f[
+    ///     result = \frac{1}{S(r)}\frac{\partial^2 S(r)}{\partial r^2}
+    /// \f]
+    double Srr_div_S(const double& r, const double& Z) const {
+        MADNESS_EXCEPTION("no Srr_div_S in Slater2 yet",0);
+        return 0.0;
+    }
+
+    /// third derivative of the correlation factor wrt (r-R_A)
+
+    /// \f[
+    ///    result = \frac{1}{S(r)}\frac{\partial^3 S(r)}{\partial r^3}
+    /// \f]
+    double Srrr_div_S(const double& r, const double& Z) const {
+        MADNESS_EXCEPTION("no Srrr_div_S in Slater2 yet",0);
+        return 0.0;
+    }
+
+    /// the nuclear correlation factor
+    double S(const double& r, const double& Z) const {
+        const double arZ=a*r*Z;
+        const double arZ2=a*a*r*r*Z*Z;
+
+        return 1.0 + (a0 +a1* arZ+ a2 * arZ2 + a3*arZ*arZ2 + + a4*arZ2*arZ2) *erfc( a*r*Z);
+    }
+
+    /// radial part first derivative of the nuclear correlation factor
+    coord_3d Sp(const coord_3d& vr1A, const double& Z) const {
+        MADNESS_EXCEPTION("no Sp in Slater2 yet",0);
+        return smoothed_unitvec(vr1A);;
+    }
+
+    /// second derivative of the nuclear correlation factor
+    double Spp_div_S(const double& r, const double& Z) const {
+        const double x=r*Z;
+        double result=0.0;
+        if (a==0.5) {
+            if (x<1.0) {
+                result=(-37.75186842343823465059 + x*(21.3476988467348903615 +
+                        x*(0.014608707333424946750026 +
+                           x*(-3.704945314726273312722 +
+                              x*(0.08808104845382944292252 +
+                                 x*(0.3362428305409206967066 +
+                                    x*(-0.02288039625102549092766 +
+                                       (-0.017240056622850307571001 + 0.002412740490618117536527*x)*x)))))))/
+                   (17.595611361287293183447 + x*(-12.421065066789808273295 +
+                        x*(15.957564552156320207938 + x*(-5.0239100389132464317907 + 1.*x))));
+            } else if (x<2.0) {
+                result=(-35.46082798344982189328 + x*(20.3565414350879797493 +
+                        x*(-0.3046488975234456455871 +
+                           x*(-3.298067641731523613442 +
+                              x*(-0.10712268902574947466554 +
+                                 x*(0.4829111116912435121877 +
+                                    x*(-0.10089023589818206760275 +
+                                       (0.0013899828749998182176948 + 0.0008305150868988335610678*x)*x)))))))/
+                   (16.526499668833810286111 + x*(-11.79820182874024593006 +
+                        x*(15.115407083582433322342 + x*(-4.8449266197426825174319 + 1.*x))));
+            } else if (x<5.0) {
+                result=(-414.5311559516023264104 + x*(615.8720414166440747539 +
+                        x*(-422.5938440932793094888 + x*
+                            (159.72497494584873155352 +
+                              x*(-35.6790348104188081907 +
+                                 x*(4.658777521872728594702 +
+                                    x*(-0.328305094433759490678 +
+                                       (0.009162754689309596905172 + 0.00005047926659010755662873*x)*x)))))))/
+                   (112.7044543272820830484 + x*(-56.072518762714727894479 +
+                        x*(28.188843903409059322224 + x*(-6.519554545057610040741 + 1.*x))));
+            } else if (x<10.0) {
+                result=(-146.68256559112012287314 + x*(188.52807059353309478385 +
+                        x*(-82.07176992590032524431 + x*
+                            (18.107697718347802322776 +
+                              x*(-2.3221393933622638466979 +
+                                 x*(0.18681223946803275939642 +
+                                    x*(-0.009601011427143648072501 +
+                                       (0.00028623295732553770894583 - 3.77364531155112782235e-6*x)*x)))))))/
+                   (633.1319105785227043552 + x*(-574.29230199331494406798 +
+                        x*(171.872612865808639376 + x*(-21.906495121260483674385 + 1.*x))));
+            } else {
+                result=-1.0/x;
+            }
+        } else if (a==1.0) {
+            if (x<1.0) {
+                result=(-8.85288955131414420808 + x*(11.359434597010419928515 +
+                        x*(-2.982094072176256165405 + x*
+                            (-4.924201512880445076103 +
+                              x*(0.6773928043289287907009 +
+                                 x*(2.061680233090141287213 +
+                                    x*(-0.5528612000728412913713 +
+                                       (-0.3024276764350212595121 + 0.10765958646570631264003*x)*x)))))))/
+                   (1.6731803922436094206275 + x*(-0.8242052614481793487834 +
+                        x*(3.5912910648514747558597 + x*(-1.9146644266104277222142 + 1.*x))));
+            } else if (x<2.0) {
+                result=(-8.538839434207355205544 + x*(-37.85611260277589742674 +
+                        x*(155.08466711228234382211 + x*
+                            (-241.1247881821171613212 +
+                              x*(199.33293375918859716585 +
+                                 x*(-96.80750216221383928113 +
+                                    x*(27.71704080319043943288 +
+                                       (-4.354251431065185902435 + 0.2906781051124817624589*x)*x)))))))/
+                   (2.2233877901091612794108 + x*(3.2084406367698851844258 +
+                        x*(1.021615116328133792993 + x*(-0.9819667717342250528772 + 1.*x))));
+            } else if (x<5.0) {
+                result=(-7.338671998425412491091 + x*(18.593867285988629508481 +
+                        x*(-19.15344657249203844577 + x*
+                            (10.072359942912659732126 +
+                              x*(-2.99771628023376895151 +
+                                 x*(0.5324416109232007541639 +
+                                    x*(-0.05993976172902101376555 +
+                                       (0.003887110757665478374745 - 0.00011079212872583089652945*x)*x)))))))/
+                   (13.273604111590967002999 + x*(-28.012330064250556933961 +
+                        x*(22.161347591665727407914 + x*(-7.617582259533338164664 + 1.*x))));
+            } else if (x<10) {
+                result=(132.78397650676876308801 + x*(-78.01898251977413923271 +
+                        x*(15.292039515801252996504 + x*
+                            (-1.000000154745351328125 +
+                              x*(1.950300262619412492847e-8 +
+                                 x*(-1.6337541591423364318692e-9 +
+                                    x*(8.771557330523968791519e-11 +
+                                       (-2.7388800346031121159372e-12 + 3.7894572289998844980568e-14*x)*x))))))
+                     )/(-4.724326520908917985827e-6 + x*
+                      (-132.78397108375581258096 + x*(78.01897976124964688489 +
+                           x*(-15.292038699709498552356 + 1.*x))));
+            } else {
+                result=-1.0/x;
+            }
+        }
+        return result*Z*Z;
+    }
+
+
+    /// derivative of the U2 potential wrt X (scalar part)
+
+    /// with
+    /// \f[
+    ///   \rho = \left| \vec r- \vec R_A \right|
+    /// \f]
+    /// returns the term in the parenthesis without the the derivative of rho
+    /// \f[
+    /// \frac{\partial U_2}{\partial X_A} = \frac{\partial \rho}{\partial X}
+    ///           \left(-\frac{1}{2}\frac{S''' S - S'' S'}{S^2} + \frac{1}{\rho^2}\frac{S'}{S}
+    ///           - \frac{1}{\rho} \frac{S''S - S'^2}{S^2} + \frac{Z_A}{\rho^2}\right)
+    /// \f]
+    double U2X_spherical(const double& r, const double& Z, const double& rcut) const {
+        MADNESS_EXCEPTION("no U2X_spherical in Slater2 yet",0);
+        return 0.0;
+    }
+
+};
+
+
+
 /// A nuclear correlation factor class
 
 /// should reduce to quartic for N=4
@@ -1474,7 +1789,6 @@ public:
 			print("with eprec ",mol.get_eprec());
 			print("which is of polynomial type with exponent N = ",N);
 		}
-		initialize();
 	}
 
 	corrfactype type() const {return NuclearCorrelationFactor::Polynomial;}
@@ -1644,7 +1958,6 @@ public:
             print("with eprec ",mol.get_eprec());
 			print("which means it's (nearly) a conventional calculation\n");
 		}
-		initialize();
 
 		// add the missing -Z/r part to U2!
 	}
@@ -1709,10 +2022,20 @@ private:
 
 };
 
-class SCF;
 
 std::shared_ptr<NuclearCorrelationFactor>
-create_nuclear_correlation_factor(World& world, const SCF& calc);
+create_nuclear_correlation_factor(World& world,
+		const Molecule& molecule,
+		const std::shared_ptr<PotentialManager> pm,
+		const std::string inputline);
+
+std::shared_ptr<NuclearCorrelationFactor>
+create_nuclear_correlation_factor(World& world,
+		const Molecule& molecule,
+		const std::shared_ptr<PotentialManager> pm,
+		const std::pair<std::string,double>& ncf);
 
 }
+
+
 #endif /* NUCLEARCORRELATIONFACTOR_H_ */

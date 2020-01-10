@@ -53,7 +53,7 @@ namespace madness {
     }
 
     /// Plotting (convenience)
-    void plot(const vecfuncT &f, const std::string &msg) const;
+    void plot(const vector_real_function_3d &f, const std::string &msg) const;
     /// Plotting (convenience)
     void plot(const real_function_3d &f, const std::string &msg, const bool doprint=true)const;
 
@@ -75,22 +75,22 @@ namespace madness {
     }
 
     /// returns a vector of all active mos without nuclear correlation factor (nemos)
-    vecfuncT get_active_mo_ket()const{
-      vecfuncT result;
+    vector_real_function_3d get_active_mo_ket()const{
+      vector_real_function_3d result;
       for(size_t i=parameters.freeze;i<mo_ket_.size();i++) result.push_back(mo_ket_(i).function);
       return result;
     }
 
     /// returns a vector of all active mos multiplied with the squared nuclear currelation factor: mo_bra = R^2*mo_ket
-    vecfuncT get_active_mo_bra()const{
-      vecfuncT result;
+    vector_real_function_3d get_active_mo_bra()const{
+      vector_real_function_3d result;
       for(size_t i=parameters.freeze;i<mo_bra_.size();i++) result.push_back(mo_bra_(i).function);
       return result;
     }
 
     /// get the corresponding mo bra vectors to a ket vector
-    vecfuncT get_mo_bra(const CC_vecfunction& ket)const{
-      vecfuncT result;
+    vector_real_function_3d get_mo_bra(const CC_vecfunction& ket)const{
+      vector_real_function_3d result;
       for(const auto ktmp:ket.functions){
 	result.push_back(mo_bra_(ktmp.first).function);
       }
@@ -123,11 +123,11 @@ namespace madness {
     }
 
     /// make bra element: R^2|t>
-    vecfuncT make_bra(const CC_vecfunction& t)const{
+    vector_real_function_3d make_bra(const CC_vecfunction& t)const{
       return make_bra(t.get_vecfunction());
     }
-    vecfuncT make_bra(const vecfuncT &t)const{
-      vecfuncT bra= mul(world,nemo_.nuclear_correlation->square(),t);
+    vector_real_function_3d make_bra(const vector_real_function_3d &t)const{
+      vector_real_function_3d bra= mul(world,nemo_.ncf->square(),t);
       truncate(world,bra);
       return bra;
     }
@@ -212,11 +212,11 @@ namespace madness {
 
 
     double
-    compute_kinetic_energy(const vecfuncT& xbra,const vecfuncT& xket) const;
+    compute_kinetic_energy(const vector_real_function_3d& xbra,const vector_real_function_3d& xket) const;
 
     /// returns \f$  <x|T|x> + <x|V|x>  \f$
     double
-    compute_cis_expectation_value(const CC_vecfunction& x,const vecfuncT& V,const bool print=true) const;
+    compute_cis_expectation_value(const CC_vecfunction& x,const vector_real_function_3d& V,const bool print=true) const;
 
     /// Something like a pair energy for CIS(D)/LRCC2 to estimate energy convergence
     /// calculates the response part of s2b and s2c which are independent of the mp2 amplitudes
@@ -420,7 +420,7 @@ namespace madness {
     /// result: \f$ P(tau)f[i] = \sum_k tau[k]*<k|f[i]>   \f$
     /// ket state of the projector can vary
     /// bra state are always MOs
-    vecfuncT
+    vector_real_function_3d
     apply_projector(const CC_vecfunction& f,const CC_vecfunction& ket_) const;
 
     /// Apply Qt projector on 6D function
@@ -433,7 +433,7 @@ namespace madness {
     /// ket state of the projector can vary
     /// bra state are always MOs
     /// the factor c is usually 1 or 1/2
-    vecfuncT
+    vector_real_function_3d
     apply_Qt(const CC_vecfunction& f,const CC_vecfunction& ket_,const double c=1.0) const;
 
     /// Apply the Qt projector on a CCPairFunction
@@ -473,29 +473,29 @@ namespace madness {
 
     /// Calculates the CC2 singles potential for the ground state: result = Fock_residue + V
     /// the V part is stored in the intermediate_potentials structure
-    vecfuncT
+    vector_real_function_3d
     get_CC2_singles_potential_gs(const CC_vecfunction& singles,const Pairs<CCPair>& doubles) const;
 
     /// Calculates the CCS/CIS singles potential for the excited state: result = Fock_residue + V
     /// the V part is stored in the intermediate_potentials structure
     /// the expectation value is calculated and updated
-    vecfuncT
+    vector_real_function_3d
     get_CCS_potential_ex(CC_vecfunction& x,const bool print=false) const;
 
     /// Calculates the CIS potential (no expectation value or storing)
-    vecfuncT
+    vector_real_function_3d
     get_CIS_potential(const CC_vecfunction& x) const;
 
 
 
     /// Calculates the CC2 singles potential for the Excited state: result = Fock_residue + V
     /// the V part is stored in the intermediate_potentials structure
-    vecfuncT
+    vector_real_function_3d
     get_CC2_singles_potential_ex(const CC_vecfunction& gs_singles,const Pairs<CCPair>& gs_doubles,CC_vecfunction& ex_singles,const Pairs<CCPair>& response_doubles) const;
 
     /// Calculates the CC2 singles potential for the Excited state: result = Fock_residue + V
     /// the V part is stored in the intermediate_potentials structure
-    vecfuncT
+    vector_real_function_3d
     get_ADC2_singles_potential(const Pairs<CCPair>& gs_doubles,CC_vecfunction& ex_singles,const Pairs<CCPair>& response_doubles) const;
 
     /// The potential manager for the ground state potential
@@ -516,7 +516,7 @@ namespace madness {
     /// @param[in] Doubles of the Ground State
     /// @param[in] Name of the potential
     /// @param[out] the potential (without Q application)
-    vecfuncT
+    vector_real_function_3d
     potential_singles_gs(const CC_vecfunction& singles,const Pairs<CCPair>& doubles,const PotentialType& name) const;
 
     /// The integra manager for the excited state potential
@@ -542,14 +542,14 @@ namespace madness {
     /// @param[in] Doubles of the Excited State
     /// @param[in] Name of the potential
     /// @param[out] the potential (without Q application)
-    vecfuncT
+    vector_real_function_3d
     potential_singles_ex(const CC_vecfunction& singles_gs,const Pairs<CCPair>& doubles_gs,const CC_vecfunction& singles_ex,const Pairs<CCPair>& doubles_ex,const PotentialType& name) const;
 
     /// The Fock operator is partitioned into F = T + Vn + R
     /// the fock residue R= 2J-K+Un for closed shell is computed here
     /// J_i = \sum_k <k|r12|k> |tau_i>
     /// K_i = \sum_k <k|r12|tau_i> |k>
-    vecfuncT
+    vector_real_function_3d
     fock_residue_closed_shell(const CC_vecfunction& singles) const;
 
     /// the K operator runs over ALL orbitals (also the frozen ones)
@@ -590,26 +590,26 @@ namespace madness {
 
     /// the ccs potential without terms from the fock operator
     /// returns: \f$ (1-|\tau_k><k|)(2 <k|g|tau_k> |t_i> - <k|g|t_i> |\tau_k>)  \f$
-    vecfuncT
+    vector_real_function_3d
     ccs_potential_gs(const CC_vecfunction& tau) const;
 
     /// the ccs potential for the response equations
     /// returns \f$ d\dtau Q(tau)(unprojected_ccs(t,tau) = Q(tau)(unprojected(x,tau)+unprojected(t,x)) - O(x)(unprojected(t,tau))\f$
-    vecfuncT
+    vector_real_function_3d
     ccs_potential_ex(const CC_vecfunction& singles_gs,const CC_vecfunction& singles_ex) const;
 
 
     /// unprojected ccs potential
     /// returns 2kgtk|ti> - kgti|tk>
     /// the ccs potential: ti = ti and tk = tauk
-    vecfuncT
+    vector_real_function_3d
     ccs_unprojected(const CC_vecfunction& ti,const CC_vecfunction& tk) const;
 
 
     real_function_3d
     make_density(const CC_vecfunction& x) const;
 
-    vecfuncT
+    vector_real_function_3d
     cis_potential_ex(const CC_vecfunction& x) const;
 
     // integrals from singles potentials
@@ -658,7 +658,7 @@ namespace madness {
     ///@param[out] \f$ \sum_k( 2<k|g|uik>_2 - <k|g|uik>_1 ) \f$
     /// Q-Projector is not applied, sign is correct
     /// if the s2b potential has already been calculated it will be loaded from the intermediate_potentials structure
-    vecfuncT
+    vector_real_function_3d
     s2b(const CC_vecfunction& singles,const Pairs<CCPair>& doubles) const;
 
     // result: -\sum_k( <l|kgi|ukl>_2 - <l|kgi|ukl>_1)
@@ -667,20 +667,20 @@ namespace madness {
     ///@param[in] doubles:Pairs of CC_Pairs (GS or Response)
     ///@param[out] \f$ -\sum_k( <l|kgi|ukl>_2 - <l|kgi|ukl>_1) \f$
     /// Q-Projector is not applied, sign is correct
-    vecfuncT
+    vector_real_function_3d
     s2c(const CC_vecfunction& singles,const Pairs<CCPair>& doubles) const;
 
     /// the S4a potential can be calcualted from the S2b potential
     /// result is \f$ s4a_i = - <l|s2b_i>*|tau_l> \f$
-    vecfuncT
-    s4a_from_s2b(const vecfuncT& s2b,const CC_vecfunction& singles) const;
+    vector_real_function_3d
+    s4a_from_s2b(const vector_real_function_3d& s2b,const CC_vecfunction& singles) const;
 
     // result: -\sum_k( <l|kgtaui|ukl>_2 - <l|kgtaui|ukl>_1) | kgtaui = <k|g|taui>
     ///@param[in] singles:CC_vecfunction fof type response or particle (depending on this the correct intermediates will be used) the functions themselves are not needed
     ///@param[in] doubles:Pairs of CC_Pairs (GS or Response)
     ///@param[out] \f$ -( <l|kgtaui|ukl>_2 - <l|kgtaui|ukl>_1) | kgtaui = <k|g|taui> | taui=singles_i \f$
     /// Q-Projector is not applied, sign is correct
-    vecfuncT
+    vector_real_function_3d
     s4b(const CC_vecfunction& singles,const Pairs<CCPair>& doubles) const;
 
 
@@ -688,7 +688,7 @@ namespace madness {
     ///@param[in] doubles:Pairs of CC_Pairs (GS or Response)
     ///@param[out] \f$ ( 4<l|kgtauk|uil>_2 - 2<l|kgtauk|uil>_1 - 2<k|lgtauk|uil>_2 + <k|lgtauk|uil>_1 ) \f$
     /// Q-Projector is not applied, sign is correct
-    vecfuncT
+    vector_real_function_3d
     s4c(const CC_vecfunction& singles,const Pairs<CCPair>& doubles) const;
 
     // update the intermediates

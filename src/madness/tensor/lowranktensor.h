@@ -95,7 +95,7 @@ public:
 
         /// make sure only a single pointer is set
         void check_unique() const {
-            MADNESS_ASSERT(full.get() xor tt.get() xor svd.get());
+            MADNESS_CHECK(full.get() xor tt.get() xor svd.get());
         }
     };
 

@@ -282,8 +282,8 @@ namespace madness {
             /// \param key The key of the \c RemoteReference object to be unregistered.
             /// \throw MadnessException If \c key is not found in the pointer map.
             static void unregister_ptr_(void* key) {
-                std::size_t ereased = pimpl_map_.erase(key);
-                MADNESS_ASSERT(ereased > 0);
+                std::size_t erased = pimpl_map_.erase(key);
+                if (!erased) MADNESS_EXCEPTION("worldref: unregister_ptr failed", erased);
             }
 
             RemoteCounter(const WorldPtr<implT>& p) :
