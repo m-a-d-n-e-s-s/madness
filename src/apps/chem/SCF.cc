@@ -234,154 +234,86 @@ void SCF::load_mos(World& world) {
 
           repeat for beta if !spinrestricted
           
-        */
+     */
 
-        //Local copies for basic check
-        double L;
-        Molecule molecule1;
-        int k1;
-        
-        // LOTS OF LOGIC MISSING HERE TO CHANGE OCCUPATION NO., SET,
-        // EPS, SWAP, ... sigh
-        ar & current_energy & spinrest;
-        
-        ar & nmo;
-        MADNESS_ASSERT(nmo >= unsigned(param.nmo_alpha));
-        ar & aeps & aocc & aset & L & k1 & molecule1;
+     //Local copies for basic check
+     double L;
+     Molecule molecule1;
+     int k1;
+     
+     // LOTS OF LOGIC MISSING HERE TO CHANGE OCCUPATION NO., SET,
+     // EPS, SWAP, ... sigh
+     ar & current_energy & spinrest;
 
-        //Some basic checks
-        if(L != param.L){
-           if(world.rank()==0) print("Warning: Box size mismatch between archive and input parameter. Archive value:", L, "Param value:", param.L);
-        }
+     ar & nmo;
+     MADNESS_ASSERT(nmo >= unsigned(param.nmo_alpha()));
+     ar & aeps & aocc & aset & L & k1 & molecule1;
 
-        amo.resize(nmo);
-        for (unsigned int i = 0; i < amo.size(); ++i)
-            ar & amo[i];
-        unsigned int n_core = molecule.n_core_orb_all();
-        if (nmo > unsigned(param.nmo_alpha)) {
-            aset = vector<int>(aset.begin() + n_core,
-                               aset.begin() + n_core + param.nmo_alpha);
-            amo = vecfuncT(amo.begin() + n_core,
-                           amo.begin() + n_core + param.nmo_alpha);
-            aeps = copy(aeps(Slice(n_core, n_core + param.nmo_alpha - 1)));
-            aocc = copy(aocc(Slice(n_core, n_core + param.nmo_alpha - 1)));
-        }
-        
-        if (amo[0].k() != k) {
-            reconstruct(world, amo);
-            for (unsigned int i = 0; i < amo.size(); ++i)
-                amo[i] = madness::project(amo[i], k, thresh, false);
-            world.gop.fence();
-        }
-        set_thresh(world,amo,thresh);
+     //Some basic checks
+     if(L != param.L()){
+        if(world.rank()==0) print("Warning: Box size mismatch between archive and input parameter. Archive value:", L, "Param value:", param.L());
+     }
 
-        //        normalize(world, amo);
-        //        amo = transform(world, amo, Q3(matrix_inner(world, amo, amo)), trantol, true);
-        //        truncate(world, amo);
-        //        normalize(world, amo);
-        
-        if (!param.spin_restricted) {
-            
-            if (spinrest) { // Only alpha spin orbitals were on disk
-                MADNESS_ASSERT(param.nmo_alpha >= param.nmo_beta);
-                bmo.resize(param.nmo_beta);
-                bset.resize(param.nmo_beta);
-                beps = copy(aeps(Slice(0, param.nmo_beta - 1)));
-                bocc = copy(aocc(Slice(0, param.nmo_beta - 1)));
-                for (int i = 0; i < param.nmo_beta; ++i)
-                    bmo[i] = copy(amo[i]);
-            } else {
-                ar & nmo;
-                ar & beps & bocc & bset;
-                
-                bmo.resize(nmo);
-                for (unsigned int i = 0; i < bmo.size(); ++i)
-                    ar & bmo[i];
-                
-                if (nmo > unsigned(param.nmo_beta)) {
-                    bset = vector<int>(bset.begin() + n_core,
-                                       bset.begin() + n_core + param.nmo_beta);
-                    bmo = vecfuncT(bmo.begin() + n_core,
-                                   bmo.begin() + n_core + param.nmo_beta);
-                    beps = copy(beps(Slice(n_core, n_core + param.nmo_beta - 1)));
-                    bocc = copy(bocc(Slice(n_core, n_core + param.nmo_beta - 1)));
-                }
-                
-                if (bmo[0].k() != k) {
-                    reconstruct(world, bmo);
-                    for (unsigned int i = 0; i < bmo.size(); ++i)
-                        bmo[i] = madness::project(bmo[i], k, thresh, false);
-                    world.gop.fence();
-                }
-                set_thresh(world,amo,thresh);
+     amo.resize(nmo);
+     for (unsigned int i = 0; i < amo.size(); ++i)
+         ar & amo[i];
+     unsigned int n_core = molecule.n_core_orb_all();
+     if (nmo > unsigned(param.nmo_alpha())) {
+         aset = vector<int>(aset.begin() + n_core,
+                            aset.begin() + n_core + param.nmo_alpha());
+         amo = vecfuncT(amo.begin() + n_core,
+                        amo.begin() + n_core + param.nmo_alpha());
+         aeps = copy(aeps(Slice(n_core, n_core + param.nmo_alpha() - 1)));
+         aocc = copy(aocc(Slice(n_core, n_core + param.nmo_alpha() - 1)));
+     }
+     
+     if (amo[0].k() != k) {
+         reconstruct(world, amo);
+         for (unsigned int i = 0; i < amo.size(); ++i)
+             amo[i] = madness::project(amo[i], k, thresh, false);
+         world.gop.fence();
+     }
+     set_thresh(world,amo,thresh);
 
-	// LOTS OF LOGIC MISSING HERE TO CHANGE OCCUPATION NO., SET,
-	// EPS, SWAP, ... sigh
-	ar & current_energy & spinrest;
-
-	ar & nmo;
-	MADNESS_ASSERT(nmo >= unsigned(param.nmo_alpha()));
-	ar & aeps & aocc & aset;
-	amo.resize(nmo);
-	for (unsigned int i = 0; i < amo.size(); ++i)
-		ar & amo[i];
-	unsigned int n_core = molecule.n_core_orb_all();
-	if (nmo > unsigned(param.nmo_alpha())) {
-		aset = vector<int>(aset.begin() + n_core,
-				aset.begin() + n_core + param.nmo_alpha());
-		amo = vecfuncT(amo.begin() + n_core,
-				amo.begin() + n_core + param.nmo_alpha());
-		aeps = copy(aeps(Slice(n_core, n_core + param.nmo_alpha() - 1)));
-		aocc = copy(aocc(Slice(n_core, n_core + param.nmo_alpha() - 1)));
-	}
-
-	if (amo[0].k() != k) {
-		reconstruct(world, amo);
-		for (unsigned int i = 0; i < amo.size(); ++i)
-			amo[i] = madness::project(amo[i], k, thresh, false);
-		world.gop.fence();
-	}
-	set_thresh(world,amo,thresh);
-
-	//        normalize(world, amo);
-	//        amo = transform(world, amo, Q3(matrix_inner(world, amo, amo)), trantol, true);
-	//        truncate(world, amo);
-	//        normalize(world, amo);
-
-	if (!param.spin_restricted()) {
-
-		if (spinrest) { // Only alpha spin orbitals were on disk
-			MADNESS_ASSERT(param.nmo_alpha() >= param.nmo_beta());
-			bmo.resize(param.nmo_beta());
-			bset.resize(param.nmo_beta());
-			beps = copy(aeps(Slice(0, param.nmo_beta() - 1)));
-			bocc = copy(aocc(Slice(0, param.nmo_beta() - 1)));
-			for (int i = 0; i < param.nmo_beta(); ++i)
-				bmo[i] = copy(amo[i]);
-		} else {
-			ar & nmo;
-			ar & beps & bocc & bset;
-
-			bmo.resize(nmo);
-			for (unsigned int i = 0; i < bmo.size(); ++i)
-				ar & bmo[i];
-
-			if (nmo > unsigned(param.nmo_beta())) {
-				bset = vector<int>(bset.begin() + n_core,
-						bset.begin() + n_core + param.nmo_beta());
-				bmo = vecfuncT(bmo.begin() + n_core,
-						bmo.begin() + n_core + param.nmo_beta());
-				beps = copy(beps(Slice(n_core, n_core + param.nmo_beta() - 1)));
-				bocc = copy(bocc(Slice(n_core, n_core + param.nmo_beta() - 1)));
-			}
-
-			if (bmo[0].k() != k) {
-				reconstruct(world, bmo);
-				for (unsigned int i = 0; i < bmo.size(); ++i)
-					bmo[i] = madness::project(bmo[i], k, thresh, false);
-				world.gop.fence();
-			}
-			set_thresh(world,amo,thresh);
+     //        normalize(world, amo);
+     //        amo = transform(world, amo, Q3(matrix_inner(world, amo, amo)), trantol, true);
+     //        truncate(world, amo);
+     //        normalize(world, amo);
+     
+     if (!param.spin_restricted()) {
+         
+         if (spinrest) { // Only alpha spin orbitals were on disk
+             MADNESS_ASSERT(param.nmo_alpha() >= param.nmo_beta());
+             bmo.resize(param.nmo_beta());
+             bset.resize(param.nmo_beta());
+             beps = copy(aeps(Slice(0, param.nmo_beta() - 1)));
+             bocc = copy(aocc(Slice(0, param.nmo_beta() - 1)));
+             for (int i = 0; i < param.nmo_beta(); ++i)
+                 bmo[i] = copy(amo[i]);
+         } else {
+             ar & nmo;
+             ar & beps & bocc & bset;
+             
+             bmo.resize(nmo);
+             for (unsigned int i = 0; i < bmo.size(); ++i)
+                 ar & bmo[i];
+             
+             if (nmo > unsigned(param.nmo_beta())) {
+                 bset = vector<int>(bset.begin() + n_core,
+                                    bset.begin() + n_core + param.nmo_beta());
+                 bmo = vecfuncT(bmo.begin() + n_core,
+                                bmo.begin() + n_core + param.nmo_beta());
+                 beps = copy(beps(Slice(n_core, n_core + param.nmo_beta() - 1)));
+                 bocc = copy(bocc(Slice(n_core, n_core + param.nmo_beta() - 1)));
+             }
+             
+             if (bmo[0].k() != k) {
+                 reconstruct(world, bmo);
+                 for (unsigned int i = 0; i < bmo.size(); ++i)
+                     bmo[i] = madness::project(bmo[i], k, thresh, false);
+                 world.gop.fence();
+             }
+             set_thresh(world,amo,thresh);
 
 			//                normalize(world, bmo);
 			//                bmo = transform(world, bmo, Q3(matrix_inner(world, bmo, bmo)), trantol, true);

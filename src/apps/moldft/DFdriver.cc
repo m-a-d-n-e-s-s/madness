@@ -46,6 +46,7 @@ int main(int argc, char** argv)
      //my_calc.virtuals(world);
 
      world.gop.fence();
+     world.gop.fence();
      finalize();
 
      return 0; 

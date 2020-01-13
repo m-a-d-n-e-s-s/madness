@@ -1,9 +1,9 @@
-cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/generic-mkl-tbb.cmake \
-      -DCMAKE_BUILD_TYPE=Debug \
-      -DBUILD_SHARED_LIBS=OFF \
-      -DLIBXC_LIBRARIES=/gpfs/projects/rjh/libxc-3.0.0/lib/libxc.a \
-      -DLIBXC_INCLUDE_DIRS=/gpfs/projects/rjh/libxc-3.0.0/include \
-      -DCMAKE_CXX_COMPILER=mpiicpc \
-      -DCMAKE_C_COMPILER=mpiicc \
+cmake -D ENABLE_TBB=ON \
+      -D ENABLE_MKL=1 \
+      -D CMAKE_BUILD_TYPE=Release \
+      -D BUILD_SHARED_LIBS=OFF \
+      -D CMAKE_CXX_COMPILER=mpiicpc \
+      -D CMAKE_C_COMPILER=mpiicc \
+      -D CMAKE_CXX_STANDARD=17 \
       ..
 #      -DBLA_STATIC=TRUE 
