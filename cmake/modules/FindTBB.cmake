@@ -29,7 +29,10 @@ if(NOT TBB_FOUND)
       set(TBB_LIBRARY ${TBB_ROOT_DIR}/lib/libc++;${TBB_ROOT_DIR}/lib 
           CACHE PATH "The library directory for TBB")
     elseif(CMAKE_SYSTEM_NAME MATCHES "Linux")
-      if (EXISTS ${TBB_ROOT_DIR}/lib/intel64/gcc4.7)  # Intel packaged TBB
+      if (EXISTS ${TBB_ROOT_DIR}/lib/intel64/gcc4.8)  # Intel packaged TBB (2020+)
+        set(TBB_LIBRARY ${TBB_ROOT_DIR}/lib/intel64/gcc4.8
+            CACHE PATH "The library directory for TBB")
+      elseif (EXISTS ${TBB_ROOT_DIR}/lib/intel64/gcc4.7)  # Intel packaged TBB
         set(TBB_LIBRARY ${TBB_ROOT_DIR}/lib/intel64/gcc4.7
             CACHE PATH "The library directory for TBB")
       elseif(EXISTS ${TBB_ROOT_DIR}/lib/intel64/gcc4.4) # Intel packaged TBB
