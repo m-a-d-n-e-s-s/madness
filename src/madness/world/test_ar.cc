@@ -243,7 +243,7 @@ void pod_deserialize_dispatch(Archive&& ar, POD&& pod, std::enable_if_t<!std::is
 
 template <class OutputArchive>
 void test_out(const OutputArchive& oar) {
-    const int n = 3;
+    constexpr const int n = 3;
     A a, an[n];
     B b, bn[n];
     C c, cn[n];
@@ -254,6 +254,7 @@ void test_out(const OutputArchive& oar) {
     A *q = new A[n];
     vector<int> v(n);
     vector<vector<int>> vv(n);
+    std::array<int64_t,n> arr;
     pair<int,double> pp(33,99.0);
     map<short,double_complex> m;
     const char* teststr = "hello \n dude !";
@@ -268,7 +269,7 @@ void test_out(const OutputArchive& oar) {
     d.i = 1;  d.l = 2;
     f.i = 1;  f.l = 2;
     for (int k=0; k<n; ++k) {
-        p[k] = q[k].a = an[k].a = v[k] = cn[k].c = in[k] = k;
+        p[k] = q[k].a = an[k].a = v[k] = arr[k] = cn[k].c = in[k] = k;
         dn[k].i = k+1;
         dn[k].l = k+2;
         fn[k].i = k+3;
@@ -339,6 +340,9 @@ void test_out(const OutputArchive& oar) {
     MAD_ARCHIVE_DEBUG(std::cout << std::endl << " vector<vector<int>>" << std::endl);
     oar << vv;
     oar & vv;
+    MAD_ARCHIVE_DEBUG(std::cout << std::endl << " array<int64_t," << n << ">" << std::endl);
+    oar << arr;
+    oar & arr;
     MAD_ARCHIVE_DEBUG(std::cout << std::endl << " pair<int,double>" << std::endl);
     oar << pp;
     oar & pp;
@@ -361,7 +365,7 @@ void test_out(const OutputArchive& oar) {
 
 template <class InputArchive>
 void test_in(const InputArchive& iar) {
-    const int n = 3;
+    constexpr const int n = 3;
     A a, an[n];
     B b, bn[n];
     C c, cn[n];
@@ -372,6 +376,7 @@ void test_in(const InputArchive& iar) {
     A *q = new A[n];
     vector<int> v(n);
     vector<vector<int>> vv(n);
+    std::array<int64_t,n> arr;
     pair<int,double> pp(33,99.0);
     map<short,double_complex> m;
     const char* teststr = "hello \n dude !";
@@ -385,7 +390,7 @@ void test_in(const InputArchive& iar) {
     d.i = -1;  d.l = -1;
     f.i = -1;  f.l = -1;
     for (int k=0; k<n; ++k) {
-        p[k] = q[k].a = an[k].a = v[k] = cn[k].c = in[k] = -1;
+        p[k] = q[k].a = an[k].a = v[k] = arr[k] = cn[k].c = in[k] = -1;
         dn[k].i = -1;
         dn[k].l = -1;
         fn[k].i = -1;
@@ -459,6 +464,9 @@ void test_in(const InputArchive& iar) {
     MAD_ARCHIVE_DEBUG(std::cout << std::endl << " vector<vector<int>>" << std::endl);
     iar & vv;
     iar >> vv;
+    MAD_ARCHIVE_DEBUG(std::cout << std::endl << " array<int64_t," << n << ">" << std::endl);
+    iar & arr;
+    iar >> arr;
     MAD_ARCHIVE_DEBUG(std::cout << std::endl << " pair<int,double>" << std::endl);
     iar & pp;
     iar >> pp;
@@ -507,6 +515,7 @@ void test_in(const InputArchive& iar) {
         TEST(q[k].a == k);
         TEST(v[k] == k);
         TEST(vv[k].size() == 4);
+        TEST(arr[k] == k);
         TEST(vv[k][0] == k+1);
         TEST(vv[k][1] == k+2);
         TEST(vv[k][2] == k+3);
