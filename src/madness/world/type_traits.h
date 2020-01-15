@@ -75,8 +75,9 @@ using std::void_t;
     template <typename T>
     using remove_fcvr_t = typename remove_fcvr<T>::type;
 
-    /// This defines stuff that is serialiable by bitwise copy N.B. This reports true
-    /// for \c T that is an aggregate type (struct or array) that includes pointers.
+    /// This defines stuff that is serialiable by bitwise copy.
+    /// \warning This reports true for \c T that is an aggregate type
+    ///          (struct or array) that includes pointers.
     template <typename T>
     struct is_trivially_serializable {
       static const bool value = \
@@ -110,6 +111,13 @@ using std::void_t;
     std::is_function<T>::value  || \
     std::is_function<typename std::remove_pointer<T>::type>::value;
 
+    /// \brief is \c std::true_type if \c T can be serialized to \c Archive
+    ///        without specialized \c serialize() method
+    ///
+    /// For text stream-based \c Archive this is \c std::true_type if \c is_iostreammable<T>::value is true.
+    /// For other \c Archive types this is \c std::true_type if \c is_trivially_serializable<T>::value is true.
+    /// \tparam Archive an Archive type
+    /// \tparam T a type
     template <typename Archive, typename T, typename = void>
     struct is_serializable : std::false_type {};
 
