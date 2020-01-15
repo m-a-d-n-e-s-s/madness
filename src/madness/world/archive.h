@@ -42,7 +42,6 @@
 #include <complex>
 #include <iostream>
 #include <cstdio>
-#include <array>
 #include <vector>
 #include <map>
 #include <tuple>
@@ -957,78 +956,6 @@ namespace madness {
                 for (std::size_t i=0; i<n; ++i) v[i] = b[i];
                 delete [] b;
             }
-        };
-
-        /// Serialize a \c std::array.
-
-        /// \tparam Archive the archive type.
-        /// \tparam T The data type stored in the \c std::array.
-        /// \tparam N The size of the \c std::array.
-        template <class Archive, typename T, std::size_t N>
-        struct ArchiveStoreImpl< Archive, std::array<T, N> > {
-
-            /// Store a \c std::array of plain data.
-
-            /// \param[in] ar The archive.
-            /// \param[in] v The array object to be serialized.
-            template <typename U = T, typename = std::enable_if_t<is_serializable<Archive,U>::value>>
-            static inline void store(const Archive& ar, const std::array<U, N>& v) {
-                MAD_ARCHIVE_DEBUG(std::cout << "serialize std::array<T," << N << ">, with T plain data" << std::endl);
-                ar & v.size();
-                ar & wrap(v.data(),v.size());
-            }
-
-            /// Store a \c std::array of non-plain data.
-
-            /// \param[in] ar The archive.
-            /// \param[in] v The array object to be serialized.
-            template <typename U = T>
-            static inline void store(const Archive& ar, const std::array<U, N>& v, std::enable_if_t<!is_serializable<Archive,U>::value>* = nullptr) {
-                MAD_ARCHIVE_DEBUG(std::cout << "serialize std::array<T," << N << ">, with T non-plain data" << std::endl);
-                ar & v.size();
-                for(const auto& elem: v) {
-                    ar & elem;
-                }
-            }
-
-        };
-
-        /// Deserialize a \c std::array. \c MADNESS_ASSERT 's that the size matches.
-
-        /// \tparam Archive the archive type.
-        /// \tparam T The data type stored in the \c std::array.
-        /// \tparam N The size of the \c std::array.
-        template <class Archive, typename T, std::size_t N>
-        struct ArchiveLoadImpl< Archive, std::array<T, N> > {
-
-            /// Load a \c std::array of plain data.
-
-            /// \param[in] ar The archive.
-            /// \param[out] v The array to be deserialized.
-            template <typename U = T, typename = std::enable_if_t<is_serializable<Archive,U>::value>>
-            static void load(const Archive& ar, std::array<U, N>& v) {
-                MAD_ARCHIVE_DEBUG(std::cout << "deserialize std::array<T," << N << ">, with T plain data" << std::endl);
-                std::size_t n = 0ul;
-                ar & n;
-                MADNESS_ASSERT(n == v.size());
-                ar & wrap((T *) v.data(),n);
-            }
-
-            /// Load a \c std::array of non-plain data.
-
-            /// \param[in] ar The archive.
-            /// \param[out] v The array to be deserialized.
-            template <typename U = T>
-            static void load(const Archive& ar, std::array<U, N>& v, std::enable_if_t<!is_serializable<Archive,U>::value>* = nullptr) {
-                MAD_ARCHIVE_DEBUG(std::cout << "deserialize std::array<T," << N << ">, with T non-plain data" << std::endl);
-                std::size_t n = 0ul;
-                ar & n;
-                MADNESS_ASSERT(n == v.size());
-                for(auto& elem: v) {
-                    ar & elem;
-                }
-            }
-
         };
 
         /// Serialize a STL string.
