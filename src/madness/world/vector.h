@@ -42,8 +42,8 @@
 #include <madness/madness_config.h>
 #include <madness/world/madness_exception.h>
 #include <madness/world/worldhash.h>
-#include <array>
 #include <madness/world/array_addons.h>
+#include <madness/world/archive.h>
 #include <vector>
 #include <algorithm>
 #include <iostream>
