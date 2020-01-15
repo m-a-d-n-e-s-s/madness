@@ -546,7 +546,7 @@ endif (DEFINED ELEMENTAL_TAG)
 add_custom_target(libraries)
 add_custom_target(install-libraries)
 
-include_directories(${CMAKE_SOURCE_DIR}/src ${CMAKE_BINARY_DIR}/src)
+include_directories(${PROJECT_SOURCE_DIR}/src ${PROJECT_BINARY_DIR}/src)
 set(CMAKE_INCLUDE_CURRENT_DIR_IN_INTERFACE TRUE)
 set(CMAKE_INCLUDE_CURRENT_DIR TRUE)
 if(ENABLE_UNITTESTS)
@@ -622,7 +622,7 @@ install(FILES
     DESTINATION "${MADNESS_INSTALL_CMAKEDIR}" 
     COMPONENT madness-config)
 add_custom_target(install-config
-     COMMAND ${CMAKE_COMMAND} -DCOMPONENT=madness-config -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
+     COMMAND ${CMAKE_COMMAND} -DCOMPONENT=madness-config -P ${PROJECT_BINARY_DIR}/cmake_install.cmake
      COMMENT "Installing MADNESS config components"
      USES_TERMINAL)
 

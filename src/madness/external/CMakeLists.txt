@@ -50,13 +50,13 @@ if(ENABLE_ELEMENTAL AND ENABLE_ELEMENTAL_EMBEDDED)
   # Add build-elemental target
   add_custom_target(build-elemental ALL
       COMMAND ${CMAKE_COMMAND} --build . --target elemental
-      WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+      WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
       COMMENT "Building elemental"
       USES_TERMINAL)
   
   # Add a component install target for elemental 
   add_custom_target(install-elemental
-      COMMAND ${CMAKE_COMMAND} -DCOMPONENT=elemental -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
+      COMMAND ${CMAKE_COMMAND} -DCOMPONENT=elemental -P ${PROJECT_BINARY_DIR}/cmake_install.cmake
       COMMENT "Installing elemental library components"
       USES_TERMINAL)
   add_dependencies(install-elemental elemental)
