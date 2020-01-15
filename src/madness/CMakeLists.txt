@@ -93,7 +93,7 @@ install(FILES constants.h fortran_ctypes.h madness_config.h ${CMAKE_CURRENT_BINA
     DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}/madness"
     COMPONENT common)
 add_custom_target(install-common
-     COMMAND ${CMAKE_COMMAND} -DCOMPONENT=common -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
+     COMMAND ${CMAKE_COMMAND} -DCOMPONENT=common -P ${PROJECT_BINARY_DIR}/cmake_install.cmake
      COMMENT "Installing common library components"
      USES_TERMINAL)
 install(TARGETS madness EXPORT madness
@@ -102,7 +102,7 @@ install(TARGETS madness EXPORT madness
     ARCHIVE DESTINATION "${MADNESS_INSTALL_LIBDIR}"
     INCLUDES DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}")
 add_custom_target(install-madness
-    COMMAND ${CMAKE_COMMAND} -DCOMPONENT=madness -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
+    COMMAND ${CMAKE_COMMAND} -DCOMPONENT=madness -P ${PROJECT_BINARY_DIR}/cmake_install.cmake
     COMMENT "Installing madness library components"
     USES_TERMINAL)
 add_dependencies(install-madness madness)
