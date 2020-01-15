@@ -99,7 +99,7 @@ namespace madness {
             /// \param[in] v The array object to be serialized.
             template <typename U = T, typename = std::enable_if_t<is_serializable<Archive,U>::value>>
             static inline void store(const Archive& ar, const std::array<U, N>& v) {
-                MAD_ARCHIVE_DEBUG(std::cout << "serialize std::array<T," << N << ">, with T plain data" << std::endl);
+                //MAD_ARCHIVE_DEBUG(std::cout << "serialize std::array<T," << N << ">, with T plain data" << std::endl);
                 ar & v.size();
                 ar & wrap(v.data(),v.size());
             }
@@ -110,7 +110,7 @@ namespace madness {
             /// \param[in] v The array object to be serialized.
             template <typename U = T>
             static inline void store(const Archive& ar, const std::array<U, N>& v, std::enable_if_t<!is_serializable<Archive,U>::value>* = nullptr) {
-                MAD_ARCHIVE_DEBUG(std::cout << "serialize std::array<T," << N << ">, with T non-plain data" << std::endl);
+                //MAD_ARCHIVE_DEBUG(std::cout << "serialize std::array<T," << N << ">, with T non-plain data" << std::endl);
                 ar & v.size();
                 for(auto&& elem: v) {
                     ar & elem;
@@ -133,7 +133,7 @@ namespace madness {
             /// \param[out] v The array to be deserialized.
             template <typename U = T, typename = std::enable_if_t<is_serializable<Archive,U>::value>>
             static void load(const Archive& ar, std::array<U, N>& v) {
-                MAD_ARCHIVE_DEBUG(std::cout << "deserialize std::array<T," << N << ">, with T plain data" << std::endl);
+                //MAD_ARCHIVE_DEBUG(std::cout << "deserialize std::array<T," << N << ">, with T plain data" << std::endl);
                 std::size_t n = 0ul;
                 ar & n;
                 MADNESS_ASSERT(n == v.size());
@@ -146,7 +146,7 @@ namespace madness {
             /// \param[out] v The array to be deserialized.
             template <typename U = T>
             static void load(const Archive& ar, std::array<U, N>& v, std::enable_if_t<!is_serializable<Archive,U>::value>* = nullptr) {
-                MAD_ARCHIVE_DEBUG(std::cout << "deserialize std::array<T," << N << ">, with T non-plain data" << std::endl);
+                //MAD_ARCHIVE_DEBUG(std::cout << "deserialize std::array<T," << N << ">, with T non-plain data" << std::endl);
                 std::size_t n = 0ul;
                 ar & n;
                 MADNESS_ASSERT(n == v.size());
