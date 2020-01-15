@@ -56,6 +56,7 @@ using madness::archive::VectorOutputArchive;
 using madness::archive::BufferInputArchive;
 using madness::archive::BufferOutputArchive;
 
+#include <madness/world/array_addons.h>
 
 // A is a class that provides a symmetric serialize method
 class A {
