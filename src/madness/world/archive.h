@@ -834,6 +834,7 @@ namespace madness {
 
         /// \tparam Archive the archive type.
         /// \tparam T The data type stored in the \c vector.
+        /// \tparam Alloc The allocator type.
         template <class Archive, typename T, typename Alloc>
         struct ArchiveStoreImpl< Archive, std::vector<T, Alloc> > {
 
@@ -868,6 +869,7 @@ namespace madness {
 
         /// \tparam Archive the archive type.
         /// \tparam T The data type stored in the \c vector.
+        /// \tparam Alloc The allocator type.
         template <class Archive, typename T, typename Alloc>
         struct ArchiveLoadImpl< Archive, std::vector<T, Alloc> > {
 
@@ -913,6 +915,7 @@ namespace madness {
         /// Serialize a STL \c vector<bool> (as a plain array of bool).
 
         /// \tparam Archive The archive type.
+        /// \tparam Alloc The allocator type.
         template <class Archive, typename Alloc>
         struct ArchiveStoreImpl< Archive, std::vector<bool, Alloc> > {
             /// Store a \c vector<bool>.
@@ -933,6 +936,7 @@ namespace madness {
         /// Deserialize a STL vector<bool>. Clears and resizes as necessary.
 
         /// \tparam Archive The archive type.
+        /// \tparam Alloc The allocator type.
         template <class Archive, typename Alloc>
         struct ArchiveLoadImpl< Archive, std::vector<bool, Alloc> > {
             /// Load a \c vector<bool>.
