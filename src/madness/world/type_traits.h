@@ -34,6 +34,7 @@
 
 #include <madness/madness_config.h>
 #include <type_traits>
+#include <iosfwd>
 
 /// \file typestuff.h
 /// \brief type traits and templates
@@ -42,8 +43,6 @@
 #include <cstdint>
 #include <madness/madness_config.h>
 #include <madness/world/function_traits.h>
-
-#include <type_traits>
 
 namespace madness {
 
