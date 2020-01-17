@@ -1,8 +1,10 @@
 # Find Threads
-set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
-find_package(Threads REQUIRED)
+if (NOT TARGET Threads::Threads)
+  set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
+  find_package(Threads REQUIRED)
+endif()
 
 # Check that pthreads was found
-if(NOT CMAKE_USE_PTHREADS_INIT)
+if(NOT TARGET Threads::Threads)
   message(FATAL_ERROR "MADNESS requires pthreads support.")
 endif()
