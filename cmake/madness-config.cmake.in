@@ -43,6 +43,13 @@ if (NOT CMAKE_SYSTEM_NAME STREQUAL @CMAKE_SYSTEM_NAME@)
   endif(MADNESS_CMAKE_TOOLCHAIN_FILE)
 endif()
 
+# check for prereqs:
+# 1. Threads
+if (NOT TARGET Threads::Threads)
+  set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
+  find_package(Threads REQUIRED)
+endif()
+
 # determine if only looking for MADworld ... this is a common scenario that loads a subset of targets
 set(MADNESS_FIND_WORLD_ONLY FALSE)
 list(LENGTH MADNESS_FIND_COMPONENTS MADNESS_FIND_NUM_COMPONENTS)
