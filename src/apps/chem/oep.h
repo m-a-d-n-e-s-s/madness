@@ -18,12 +18,12 @@
 using namespace madness;
 namespace madness {
 
-struct dens_inv{
+struct dens_inv1{
 
 	double threshold;
 
 	// default value for threshold is 1.0e-8
-	dens_inv(const double thresh = 1.0e-8) {
+	dens_inv1(const double thresh = 1.0e-8) {
 		threshold = thresh;
 	}
 
@@ -444,7 +444,7 @@ public:
 //        save(numerator, "Slaterpotential_numerator");
 
         // dividing by rho: the minimum value for rho is dens_thresh_lo
-        real_function_3d Vs = -1.0*binary_op(numerator, rho, dens_inv(oep_param.dens_thresh_inv())); // in Kohut_2014, -1.0 is included in K
+        real_function_3d Vs = -1.0*binary_op(numerator, rho, dens_inv1(oep_param.dens_thresh_inv())); // in Kohut_2014, -1.0 is included in K
         if (oep_param.saving_amount() >= 3) save(Vs, "Slaterpotential_nolra");
 
         // long-range asymptotic behavior for Slater potential is \int 1/|r-r'| * |phi_HOMO|^2 dr'
@@ -487,7 +487,7 @@ public:
         real_function_3d rho = dot(world, nemo, nemo);
 
         // like Kohut, 2014, equations (21) and (25)
-        real_function_3d I = -1.0*binary_op(numerator, rho, dens_inv(oep_param.dens_thresh_inv()));
+        real_function_3d I = -1.0*binary_op(numerator, rho, dens_inv1(oep_param.dens_thresh_inv()));
 
         // munge I for long-range asymptotic behavior which is -epsilon_HOMO
        	print("computing I: index of HOMO is", homo_ind(eigvals));
@@ -531,7 +531,7 @@ public:
 		real_function_3d tau = R_square*sum(world, grad_nemo_squared); // 1/2 * sum |Nabla nemo|^2 (* 2 because closed shell)
 
 		// calculate quotient = tau/rho
-		real_function_3d quotient = binary_op(tau, rho, dens_inv(oep_param.dens_thresh_inv()));
+		real_function_3d quotient = binary_op(tau, rho, dens_inv1(oep_param.dens_thresh_inv()));
 
         // munge quotient for long-range asymptotic behavior which is -epsilon_HOMO
        	print("computing tau/rho: index of HOMO is", homo_ind(eigvals));
@@ -568,7 +568,7 @@ public:
 		real_function_3d numerator = sum(world, grad_nemo_term); // numerator = tau_P * 2 * rho / R^4
 
 		// calculate quotient = tau_P/rho
-		real_function_3d quotient = 0.5*binary_op(numerator, rho_square, dens_inv(oep_param.dens_thresh_inv()));
+		real_function_3d quotient = 0.5*binary_op(numerator, rho_square, dens_inv1(oep_param.dens_thresh_inv()));
 
         // munge quotient for long-range asymptotic behavior which is 0
        	print("computing tau_P/rho: index of HOMO is", homo_ind(eigvals));
