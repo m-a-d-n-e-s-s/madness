@@ -30,8 +30,8 @@ if(ENABLE_MPI)
   # filter out -pthread from COMPILE and LINK flags, use Threads::Threads instead
   # this is to avoid issues later consuming madness targets in codes using CUDA
   # see https://gitlab.kitware.com/cmake/cmake/merge_requests/2512
-  string(REGEX REPLACE "[ ]?-pthread" "" MPI_COMPILE_FLAGS ${MPI_COMPILE_FLAGS})
-  string(REGEX REPLACE "[ ]?-pthread" "" MPI_LINK_FLAGS ${MPI_LINK_FLAGS})
+  string(REGEX REPLACE "[ ]?-pthread" "" MPI_COMPILE_FLAGS "${MPI_COMPILE_FLAGS}")
+  string(REGEX REPLACE "[ ]?-pthread" "" MPI_LINK_FLAGS "${MPI_LINK_FLAGS}")
   set(MPI_LIBRARIES ${MPI_LIBRARIES} Threads::Threads)
 
 else()
