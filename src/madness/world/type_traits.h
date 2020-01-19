@@ -32,17 +32,19 @@
 #ifndef MADNESS_WORLD_TYPE_TRAITS_H__INCLUDED
 #define MADNESS_WORLD_TYPE_TRAITS_H__INCLUDED
 
-#include <madness/madness_config.h>
-#include <type_traits>
-#include <iosfwd>
-
 /// \file typestuff.h
 /// \brief type traits and templates
 
+/*
+ * N.B. this must be pure c++, usable without any context other than
+ *      the current compiler + library + C++ standard.
+ *      DO NOT include non-standard headers here!
+ */
+
 #include <cstddef>
 #include <cstdint>
-#include <madness/madness_config.h>
-#include <madness/world/function_traits.h>
+#include <type_traits>
+#include <iosfwd>
 
 namespace madness {
 
