@@ -39,7 +39,7 @@ if (CMAKE_CXX_STANDARD EQUAL 20 AND CMAKE_VERSION VERSION_LESS 3.12.0)
   message(FATAL_ERROR "C++ 2020 ISO Standard requires CMake version 3.12 or higher")
 endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF CACHE BOOLEAN "Whether to use extensions of C++ ISO Standard version")
+set(CMAKE_CXX_EXTENSIONS OFF CACHE BOOL "Whether to use extensions of C++ ISO Standard version")
 
 # workaround for cmake bug: CheckCXXSourceCompiles does not respect CXX_STANDARD
 # see https://github.com/OPM/opm-common/blob/master/cmake/Modules/FindCXX11Features.cmake
