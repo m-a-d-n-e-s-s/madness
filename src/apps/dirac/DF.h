@@ -29,7 +29,7 @@ class DF {
           // DFParameter object to hold all user input variables
           DFParameters DFparams;
 
-          // NRParameter object to hold all variables needed from
+          // InitParametesr object to hold all variables needed from
           // nonrelativistic ground state calculation. Read from an archive
           InitParameters Init_params;
 
@@ -39,14 +39,8 @@ class DF {
           // Tensor for holding energies
           Tensor<double> energies;        
 
-          //Tensor for holding energies of virtual orbitals
-          Tensor<double> v_energies;
-
           //Vector of DF Fcwf occupied orbitals
           std::vector<Fcwf> occupieds;
-
-          //Vector of DF Fcwf virtual orbitals
-          std::vector<Fcwf> virtuals;
 
           //Total energy of the system
           double total_energy;
@@ -68,29 +62,23 @@ class DF {
           //Find current time (relative to job start)
           Tensor<double> get_times(World& world);
 
-          // Collective constructor for response uses contents of file \c filename and broadcasts to all nodes
+          // Collective constructor uses contents of file \c filename and broadcasts to all nodes
           DF(World & world,            // MADNESS world object
               const char* input_file);  // Input file 
 
-          // Collective constructor for DF uses contents of stream \c input and broadcasts to all nodes
+          // Collective constructor uses contents of stream \c input and broadcasts to all nodes
           DF(World & world,                        // MADNESS world object
               std::shared_ptr<std::istream> input); // Pointer to input stream
 
           //Calculates the kinetic+rest energy expectation value of psi
           double rele(World& world, Fcwf& psi);
 
-          //Applies the exchange operator to all of psis
+          //Applies the exchange operator to all of occupieds
           void exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsis);
 
-          //Applies the exchange operator defined by psis to a single generic input fcwf
-          Fcwf apply_K(World& world, real_convolution_3d& op, Fcwf& phi);
-              
-          //diagonalizes psis in the Fock space. Transforms psis and Kpsis.
+          //diagonalizes occupieds in the Fock space. Transforms occupieds and Kpsis.
           void diagonalize(World& world, real_function_3d& myV,real_convolution_3d& op, std::vector<Fcwf>& Kpsis);
 
-          //diagonalizes virtual orbitals. Transforms virtuals and Kpsis
-          Tensor<double>  diagonalize_virtuals(World& world, real_function_3d& JandV,real_convolution_3d& op, std::vector<Fcwf>& Kpsis);
-              
           // Small function to print geometry of a molecule nicely
           // Straight up stolen from Bryan
           void print_molecule(World &world);
@@ -123,20 +111,19 @@ class DF {
           //solves the Dirac Fock equation for the occupied orbitals   
           void solve_occupied(World & world);
 
-          //solves for n-1 occupieds, then the last occupied, then some number of virtuals
-          void solve_virtuals1(World& world);
-
           //Lineplot the densities. Currently only along x axis from 0 to L
           void make_density_lineplots(World& world, const char* filename, int npt, double endpnt);
 
           //Lineplot the densities of the large and small component separately. only along x axis from 0 to L
           void make_component_lineplots(World& world, const char* filename1, const char* filename2, int npt, double endpnt);
 
+          //orthogonormalize occupieds, overwriting the ones in memory
           void orthogonalize_inplace(World& world);
 
           //Lineplot the densities of the large and small component separately. only along x axis on log scale from 10^-startpnt to 10^endpnt with pts evenly spaced in log space
           void make_component_logplots(World& world, const char* filename1, const char* filename2, int npt, int startpnt, int endpnt);
 
+          //print the number of coefficients used to represent all occupied orbitals. primarily used when debugging.
           void print_sizes(World& world, bool individual);
 
 };

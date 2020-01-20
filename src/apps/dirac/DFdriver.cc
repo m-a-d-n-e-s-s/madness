@@ -1,11 +1,11 @@
 /*
- *    Written by: bsundahl and jscanderson
- *    Date: A long time ago...
+ *
+ *   Main source file for the Dirac Fock code
  *
  */ 
 
 
-#include "DF.h"    // All response functions/objects enter through this
+#include "DF.h"    // All Dirac-Fock functions/objects enter through this
 #include <stdlib.h>
 
 #if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
@@ -38,12 +38,11 @@ int main(int argc, char** argv)
      }
      if (!file_exists(input)) throw "input file not found";
 
-     // Create the TDHF object
+     // Create the DF object
      DF my_calc(world, input);       
                  
      // Have it iterate to convergence
      my_calc.solve(world);
-     //my_calc.virtuals(world);
 
      world.gop.fence();
      world.gop.fence();

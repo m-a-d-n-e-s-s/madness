@@ -67,9 +67,11 @@ public:
      std::complex<double>  inner(World& world, const Fcwf& phi) const;
 
      void apply(World& world, real_convolution_3d& op);
+
      void apply(World& world, complex_derivative_3d& D);
      
      void reconstruct();
+
      void compress();
 
      Fcwf KramersPair();
@@ -78,12 +80,14 @@ public:
 
 std::complex<double> inner(const Fcwf& psi, const Fcwf& phi);
 
-//Fcwf apply(real_convolution_3d& op, const Fcwf& psi);
 Fcwf apply(World& world, real_convolution_3d& op, const Fcwf& psi);
+
 Fcwf apply(World& world, complex_derivative_3d& op, const Fcwf& psi);
 
 real_function_3d squaremod(Fcwf& psi);
+
 real_function_3d squaremod_small(Fcwf& psi);
+
 real_function_3d squaremod_large(Fcwf& psi);
 
 complex_function_3d inner_func(World& world, Fcwf& psi, Fcwf& phi);
@@ -100,11 +104,11 @@ void operator+=(std::vector<Fcwf>& phi, const std::vector<Fcwf>& psi);
 
 std::vector<Fcwf> operator-(const std::vector<Fcwf>& phi, const std::vector<Fcwf>& psi);
 
-
 Tensor<std::complex<double>> matrix_inner(World& world, std::vector<Fcwf>& a, std::vector<Fcwf>& b);
 
 std::vector<Fcwf> transform(World& world, std::vector<Fcwf>& a, Tensor<std::complex<double>> U);
 
+//allocator class needed for KAIN
 class Fcwf_vector_allocator {
      World& world;
      unsigned int m_size;
@@ -116,7 +120,6 @@ class Fcwf_vector_allocator {
           std::vector<Fcwf> operator()();
 
           //Copy Constructor
-          //according to Bryan, according to Jakob, this is necessary for KAIN?
           Fcwf_vector_allocator operator=(const Fcwf_vector_allocator& other);
 
           void set_size(int size);
