@@ -31,8 +31,8 @@
 */
 
 
-#ifndef SRC_APPS_CHEM_CHEMINFO_H_
-#define SRC_APPS_CHEM_CHEMINFO_H_
+#ifndef SRC_MADNESS_MISC_GITINFO_H_
+#define SRC_MADNESS_MISC_GITINFO_H_
 
 /**
  \file info.h
@@ -46,11 +46,29 @@ namespace madness {
         /// Get the git commit number for this version.
 
         /// \return The git commit number.
-        const char* cheminfo_git_commit();
+        const char* mad_git_commit();
 
+        /// return the build time
+        const char* build_time();
+
+        /// return the build date
+        const char* build_date();
+
+        void print_revision_information() {
+#ifdef MADNESS_REVISION
+        	const  char* gitrev =  MADNESS_REVISION;
+        	const std::string gitrevision(gitrev);
+        	std::cout << "    git revision at configure time ... " << gitrevision  << std::endl;
+#endif
+        	const std::string gitrevision1(info::mad_git_commit());
+        	std::cout << "    git revision at build time ...     " << gitrevision1 << std::endl;
+        	const std::string time(build_time());
+        	const std::string date(build_date());
+        	std::cout << "    build time at ...                  " << time << " on " << date << std::endl;
+        }
     } // namespace info
 } // namespace madness
 
 
 
-#endif /* SRC_APPS_CHEM_CHEMINFO_H_ */
+#endif /* SRC_MADNESS_MISC_GITINFO_H_ */

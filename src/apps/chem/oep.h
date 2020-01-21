@@ -11,7 +11,6 @@
 
 
 #include <chem/nemo.h>
-#include <chem/cheminfo.h>
 #include <chem/SCFOperators.h>
 #include <chem/projector.h>
 

@@ -52,20 +52,10 @@ int main(int argc, char** argv) {
     startup(world,argc,argv);
     std::cout.precision(6);
 
-#ifdef MADNESS_GITREVISION
-    const  char* gitrev =  MADNESS_GITREVISION;
-    const std::string gitrevision(gitrev);
-    if (world.rank()==0) {
-        print("    main() git revision ...",gitrevision);
-    }
-#endif
+    if (world.rank()==0) info::print_revision_information();
+
 
     if (world.rank()==0) {
-    	print("           git revision ...", info::git_commit());
-    }
-
-    if (world.rank()==0) {
-    	print("main() in mp2.cc compiled at ",__TIME__," on ",__DATE__);
 #ifdef MADNESS_HAS_GOOGLE_PERF_MINIMAL
     	print("using gperftools, clearing memory at each fence()");
 #endif
