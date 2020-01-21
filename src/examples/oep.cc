@@ -38,6 +38,7 @@
 
 
 #include <chem/oep.h>
+#include <madness/misc/gitinfo.h>
 
 
 /// Create a specific test input for the Be atom
@@ -89,8 +90,10 @@ int main(int argc, char** argv) {
     	print("\n  OEP -- optimized effective potentials for DFT  \n");
     	printf("starting at time %.1f\n", wall_time());
     }
-    startup(world, argc, argv);
+    startup(world, argc, argv,true);
     std::cout.precision(6);
+
+    if (world.rank()==0) info::print_revision_information();
 
     // to allow to test the program
     bool test = false;

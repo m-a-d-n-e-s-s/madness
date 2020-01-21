@@ -46,9 +46,9 @@
 
 #include <chem/nemo.h>
 #include <chem/molecular_optimizer.h>
-#include <chem/cheminfo.h>
 #include <chem/SCFOperators.h>
 #include <chem/projector.h>
+#include <madness/misc/gitinfo.h>
 
 using namespace madness;
 
@@ -64,19 +64,7 @@ int main(int argc, char** argv) {
     startup(world,argc,argv);
     std::cout.precision(6);
 
-#ifdef MADNESS_GITREVISION
-    const  char* gitrev =  MADNESS_GITREVISION;
-    const std::string gitrevision(gitrev);
-    if (world.rank()==0) {
-    	print("    main() git revision ...",gitrevision);
-    }
-#endif
-
-    if (world.rank()==0) {
-        print("     main() compiled at ...",__TIME__," on ",__DATE__);
-        const std::string gitrevision(info::cheminfo_git_commit());
-        print("   chemlib git revision ...",gitrevision);
-    }
+    if (world.rank()==0) info::print_revision_information();
 
     try {
 
