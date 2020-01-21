@@ -270,9 +270,10 @@ real_convolution_3d A(World& world){
           }
      }
      */
+     double fac = pow(2.0*constants::pi,1.5);
      Tensor<double> ctens(n), ttens(n);
      for(int i = 0; i < n; i++){
-          ctens[i] = c[i];
+          ctens[i] = c[i]*fac;
           ttens[i] = t[i];
      }
      //if(world.rank()==0) print("Made an A!, n = ", n);
@@ -331,7 +332,7 @@ real_convolution_3d A2(World& world){
           ctens[i] = c[i]*fac;
           ttens[i] = t[i];
      }
-     //c[n-1] += 1/sqrt(2)*fac*std::pow(t[n-1]*constants::pi,1.5); //largest exponent is at the end, so add 1/sqrt(2) to the coefficient there
+     c[n-1] += 1/sqrt(2)*fac*std::pow(t[n-1]*constants::pi,1.5); //largest exponent is at the end, so add 1/sqrt(2) to the coefficient there
      //if(world.rank()==0) print("Made an A!, n = ", n);
      //if(world.rank()==0) print("Made an A! Here's what's inside:\n\nc:\n",ctens,"\nt:\n",ttens);
      //return real_convolution_3d(world, args, ctens, ttens);
