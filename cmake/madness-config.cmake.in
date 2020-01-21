@@ -21,12 +21,12 @@
 #    LAPACK_COMPILE_DEFINITIONS Compile definitions needed to use the LAPACK header files
 #    LAPACK_COMPILE_OPTIONS     Compile options needed to use the LAPACK header files
 # = MPI =
-#    MPIEXEC                    Executable for running MPI programs
-#    MPIEXEC_NUMPROC_FLAG       Flag to pass to MPIEXEC before giving
+#    MPIEXEC_EXECUTABLE         Executable for running MPI programs
+#    MPIEXEC_NUMPROC_FLAG       Flag to pass to MPIEXEC_EXECUTABLE before giving
 #                               it the number of processors to run on
-#    MPIEXEC_PREFLAGS           Flags to pass to MPIEXEC directly
+#    MPIEXEC_PREFLAGS           Flags to pass to MPIEXEC_EXECUTABLE directly
 #                               before the executable to run.
-#    MPIEXEC_POSTFLAGS          Flags to pass to MPIEXEC after other flags
+#    MPIEXEC_POSTFLAGS          Flags to pass to MPIEXEC_EXECUTABLE after other flags
 
 # Set package version
 set(MADNESS_VERSION "@MADNESS_VERSION@")
@@ -153,7 +153,7 @@ set(LAPACK_COMPILE_DEFINITIONS "@LAPACK_COMPILE_DEFINITIONS@")
 set(LAPACK_COMPILE_OPTIONS "@LAPACK_COMPILE_OPTIONS@")
 
 ########### MPI ############
-set(MPIEXEC "@MPIEXEC@")
+set(MPIEXEC_EXECUTABLE "@MPIEXEC_EXECUTABLE@")
 set(MPIEXEC_NUMPROC_FLAG "@MPIEXEC_NUMPROC_FLAG@")
 set(MPIEXEC_PREFLAGS "@MPIEXEC_PREFLAGS@")
 set(MPIEXEC_POSTFLAGS "@MPIEXEC_POSTFLAGS@")

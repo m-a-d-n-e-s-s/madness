@@ -34,6 +34,11 @@ if(ENABLE_MPI)
   string(REGEX REPLACE "[ ]?-pthread" "" MPI_LINK_FLAGS "${MPI_LINK_FLAGS}")
   set(MPI_LIBRARIES ${MPI_LIBRARIES} Threads::Threads)
 
+  # MPIEXEC was deprecated in CMake 3.10
+  if (CMAKE_VERSION VERSION_LESS 3.10.0)
+    set(MPIEXEC_EXECUTABLE ${MPIEXEC})
+  endif()
+
 else()
   # Disable MPI via config.h
   set(STUBOUTMPI 1)
