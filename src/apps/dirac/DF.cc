@@ -410,7 +410,8 @@ DF::DF(World & world,std::shared_ptr<std::istream> input) {
 
      // Read in archive, but first find out if we're reading an nwchem file or other archive
      if(DFparams.nwchem){
-          Init_params.readnw(world, DFparams.archive);
+          throw; //The nwchem input reading needs to be redone
+          //Init_params.readnw(world, DFparams.archive);
      }
      else{
           Init_params.read(world, DFparams.archive, DFparams.restart);

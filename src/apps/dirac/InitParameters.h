@@ -223,217 +223,217 @@ namespace madness{
 
           //This function no longer works, because the code only perform Kramers-restricted calculations!
           //TODO: Update this function before using it
-          void readnw(World& world, const std::string& filename){
-               //Called to read in initial parameters from an nwchem output file
-               
-               //For now just use default values for L and order
-               order = 6;
-               L = 50.0;
-               FunctionDefaults<3>::set_k(order);
-               FunctionDefaults<3>::set_cubic_cell(-L, L);
+          //void readnw(World& world, const std::string& filename){
+          //     //Called to read in initial parameters from an nwchem output file
+          //     
+          //     //For now just use default values for L and order
+          //     order = 6;
+          //     L = 50.0;
+          //     FunctionDefaults<3>::set_k(order);
+          //     FunctionDefaults<3>::set_cubic_cell(-L, L);
 
-               //Need to set this to something...
-               Init_total_energy = 0.0;
-               
-               //Construct interface object from slymer namespace
-               slymer::NWChem_Interface nwchem(filename,std::cout);
+          //     //Need to set this to something...
+          //     Init_total_energy = 0.0;
+          //     
+          //     //Construct interface object from slymer namespace
+          //     slymer::NWChem_Interface nwchem(filename,std::cout);
 
-               //For parallel runs, silencing all but 1 slymer instance
-               if(world.rank() != 0) {
-                    std::ostream dev_null(nullptr);
-                    nwchem.err = dev_null;
-               }
+          //     //For parallel runs, silencing all but 1 slymer instance
+          //     if(world.rank() != 0) {
+          //          std::ostream dev_null(nullptr);
+          //          nwchem.err = dev_null;
+          //     }
 
-               //Read in basis set
-               nwchem.read(slymer::Properties::Basis);
+          //     //Read in basis set
+          //     nwchem.read(slymer::Properties::Basis);
 
-               //Read in the molecular orbital coefficients, energies, and occupancies
-               nwchem.read(slymer::Properties::Energies | slymer::Properties::MOs | slymer::Properties::Occupancies);
+          //     //Read in the molecular orbital coefficients, energies, and occupancies
+          //     nwchem.read(slymer::Properties::Energies | slymer::Properties::MOs | slymer::Properties::Occupancies);
 
-               //Need to construct a molecule object by ourselves
-               molecule = Molecule();
-               unsigned int anum;
-               double x,y,z,q;
-               for(unsigned int i=0; i < nwchem.atoms.size(); i++){
-                    anum = symbol_to_atomic_number(nwchem.atoms[i].symbol);
-                    q = anum*1.0;
-                    x = nwchem.atoms[i].position[0];
-                    y = nwchem.atoms[i].position[1];
-                    z = nwchem.atoms[i].position[2];
-                    molecule.add_atom(x,y,z,q,anum);
-               }
+          //     //Need to construct a molecule object by ourselves
+          //     molecule = Molecule();
+          //     unsigned int anum;
+          //     double x,y,z,q;
+          //     for(unsigned int i=0; i < nwchem.atoms.size(); i++){
+          //          anum = symbol_to_atomic_number(nwchem.atoms[i].symbol);
+          //          q = anum*1.0;
+          //          x = nwchem.atoms[i].position[0];
+          //          y = nwchem.atoms[i].position[1];
+          //          z = nwchem.atoms[i].position[2];
+          //          molecule.add_atom(x,y,z,q,anum);
+          //     }
 
-               //Find out how many orbitals we're dealing with by looking at the occupancies
-               unsigned int numalpha(0), numbeta(0);
-               num_virtuals = 0;
+          //     //Find out how many orbitals we're dealing with by looking at the occupancies
+          //     unsigned int numalpha(0), numbeta(0);
+          //     num_virtuals = 0;
 
-               bool have_beta(false);
-               for(unsigned int i = 0; i < nwchem.beta_occupancies.size(); i++){
-                    if(nwchem.beta_occupancies[i] > 0.0) have_beta = true;
-               }
-               
-               if(have_beta){
-                    //we're reading from an open-shell calculation
-                    for(unsigned int i = 0; i < nwchem.occupancies.size(); i++){
-                         (nwchem.occupancies[i] == 1.0) ? numalpha+=1 : num_virtuals+=1;
-                    }
-                    for(unsigned int i = 0; i < nwchem.beta_occupancies.size(); i++){
-                         (nwchem.beta_occupancies[i] == 1.0) ? numbeta+=1 : num_virtuals+=1;
-                    }
-               }
-               else{
-                    for(unsigned int i = 0; i < nwchem.occupancies.size(); i++){
-                         (nwchem.occupancies[i] == 2.0) ? numalpha += 1 : num_virtuals += 2;
-                    }
-                    numbeta = numalpha;
-               }
-               num_occupied = numalpha+numbeta;
+          //     bool have_beta(false);
+          //     for(unsigned int i = 0; i < nwchem.beta_occupancies.size(); i++){
+          //          if(nwchem.beta_occupancies[i] > 0.0) have_beta = true;
+          //     }
+          //     
+          //     if(have_beta){
+          //          //we're reading from an open-shell calculation
+          //          for(unsigned int i = 0; i < nwchem.occupancies.size(); i++){
+          //               (nwchem.occupancies[i] == 1.0) ? numalpha+=1 : num_virtuals+=1;
+          //          }
+          //          for(unsigned int i = 0; i < nwchem.beta_occupancies.size(); i++){
+          //               (nwchem.beta_occupancies[i] == 1.0) ? numbeta+=1 : num_virtuals+=1;
+          //          }
+          //     }
+          //     else{
+          //          for(unsigned int i = 0; i < nwchem.occupancies.size(); i++){
+          //               (nwchem.occupancies[i] == 2.0) ? numalpha += 1 : num_virtuals += 2;
+          //          }
+          //          numbeta = numalpha;
+          //     }
+          //     num_occupied = numalpha+numbeta;
 
-               //Let's print everything so we have a visual check on what we're working with (for now)
-               if(world.rank()==0) print("\nalpha occupancies:\n",nwchem.occupancies);
-               if(world.rank()==0) print("\nbeta occupancies:\n",nwchem.beta_occupancies);
-               if(world.rank()==0) print("\nenergies:\n",nwchem.energies);
-               if(world.rank()==0) print("\nbeta energies:\n",nwchem.beta_energies);
-               if(world.rank()==0) print("num alpha",numalpha);
-               if(world.rank()==0) print("num beta",numbeta);
-               if(world.rank()==0) print("num virtuals",num_virtuals);
-
-
-               //Now that we know how many orbitals we have. initialize energy tensors
-               energies = Tensor<double>(num_occupied);
-               v_energies = Tensor<double>(num_virtuals);
-
-               //Cast the 'basis set' into a Gaussian basis and iterate over it
-               vector_real_function_3d temp1;
-               int ii = 0;
-               for(auto basis : slymer::cast_basis<slymer::GaussianFunction>(nwchem.basis_set)) {
-                    //Get the center of gaussian as its special point
-                    std::vector<coord_3d> centers;
-                    coord_3d r;
-                    r[0] = basis.get().center[0]; r[1] = basis.get().center[1]; r[2] = basis.get().center[2];
-                    centers.push_back(r);
-
-                    //Now make the function
-                    temp1.push_back(FunctionFactory<double,3>(world).functor(std::shared_ptr<FunctionFunctorInterface<double,3>>(new slymer::Gaussian_Functor(basis.get(), centers))));
-                    double norm2 = temp1[ii].norm2();
-                    if(world.rank() == 0) print("function", ii, "has norm", norm2);
-                    ii++;
-               }
-
-               //Normalize aos
-               normalize(world, temp1);
-
-               //Transform aos now to get alpha mos
-               vector_real_function_3d temp = transform(world, temp1, nwchem.MOs , true);
-
-               //Keep track of how many energies i've stored
-               int energy_index = 0;
-               int v_energy_index = 0;
-
-               //nonrelativistic energies need to be adjusted for relativistic calculations
-               double csquared = 137.0359895*137.0359895;
-
-               //Convert and store alpha occupied MOs and virtuals. If closed shell, do betas too.
-               complex_function_3d complexreader(world);
-               Fcwf fcwfreader(world);
-               for(unsigned int i = 0; i < temp.size(); i++){
-                    complexreader = function_real2complex(temp[i]);
-                    fcwfreader = Fcwf(complexreader, complex_factory_3d(world), complex_factory_3d(world), complex_factory_3d(world));
-                    if(have_beta){
-                         if(nwchem.occupancies[i] == 1.0){
-                              orbitals.push_back(fcwfreader);
-                              energies[energy_index] = nwchem.energies[i] + csquared;
-                              energy_index++;
-                         }
-                         else{
-                              virtuals.push_back(fcwfreader);
-                              v_energies[v_energy_index] = nwchem.energies[i] + csquared;
-                              v_energy_index++;
-                         }
-
-                    }
-                    else{
-                         if(nwchem.occupancies[i] == 2.0){
-                              orbitals.push_back(fcwfreader);
-                              energies[energy_index] = nwchem.energies[i] + csquared;
-                              energy_index++;
-                              fcwfreader = Fcwf(complex_factory_3d(world), complexreader, complex_factory_3d(world), complex_factory_3d(world));
-                              orbitals.push_back(fcwfreader);
-                              energies[energy_index] = nwchem.energies[i] + csquared;
-                              energy_index++;
-
-                         }
-                         else{
-                              virtuals.push_back(fcwfreader);
-                              v_energies[v_energy_index] = nwchem.energies[i] + csquared;
-                              v_energy_index++;
-                              fcwfreader = Fcwf(complex_factory_3d(world), complexreader, complex_factory_3d(world), complex_factory_3d(world));
-                              virtuals.push_back(fcwfreader);
-                              v_energies[v_energy_index] = nwchem.energies[i] + csquared;
-                              v_energy_index++;
-                         }
-                    }
-               }
+          //     //Let's print everything so we have a visual check on what we're working with (for now)
+          //     if(world.rank()==0) print("\nalpha occupancies:\n",nwchem.occupancies);
+          //     if(world.rank()==0) print("\nbeta occupancies:\n",nwchem.beta_occupancies);
+          //     if(world.rank()==0) print("\nenergies:\n",nwchem.energies);
+          //     if(world.rank()==0) print("\nbeta energies:\n",nwchem.beta_energies);
+          //     if(world.rank()==0) print("num alpha",numalpha);
+          //     if(world.rank()==0) print("num beta",numbeta);
+          //     if(world.rank()==0) print("num virtuals",num_virtuals);
 
 
-               //If we're doing an open shell calculation we need to read in the beta orbitals explicitly
-               if(have_beta){
-                    //Transform aos again to get beta mos
-                    temp = transform(world, temp1, nwchem.beta_MOs, true);
+          //     //Now that we know how many orbitals we have. initialize energy tensors
+          //     energies = Tensor<double>(num_occupied);
+          //     v_energies = Tensor<double>(num_virtuals);
 
-                    //Convert and store beta occupied MOs and virtuals
-                    for(unsigned int i = 0; i < temp.size(); i++){
-                         complexreader = function_real2complex(temp[i]);
-                         fcwfreader = Fcwf(complex_factory_3d(world), complexreader, complex_factory_3d(world), complex_factory_3d(world));
-                         if(nwchem.beta_occupancies[i] == 1.0){
-                              orbitals.push_back(fcwfreader);
-                              energies[energy_index] = nwchem.beta_energies[i] + csquared;
-                              energy_index++;
-                         }
-                         else{
-                              virtuals.push_back(fcwfreader);
-                              v_energies[v_energy_index] = nwchem.beta_energies[i] + csquared;
-                              v_energy_index++;
-                         }
-                    }
-               }
-               
-               //Assure that the numbers line up
-               MADNESS_ASSERT(num_occupied == orbitals.size());
-               MADNESS_ASSERT(num_virtuals == virtuals.size());
+          //     //Cast the 'basis set' into a Gaussian basis and iterate over it
+          //     vector_real_function_3d temp1;
+          //     int ii = 0;
+          //     for(auto basis : slymer::cast_basis<slymer::GaussianFunction>(nwchem.basis_set)) {
+          //          //Get the center of gaussian as its special point
+          //          std::vector<coord_3d> centers;
+          //          coord_3d r;
+          //          r[0] = basis.get().center[0]; r[1] = basis.get().center[1]; r[2] = basis.get().center[2];
+          //          centers.push_back(r);
 
-               //Need to sort
-               double tempdouble;
-               //Sort occupied
-               for(unsigned int i = 0; i < num_occupied; i++){
-                    for(unsigned int j = i+1; j < num_occupied; j++){
-                         if(energies(j) < energies(i)){
-                              if(world.rank()==0) print("swapping orbitals", i, " and ", j);
-                              tempdouble = energies(j);
-                              energies(j) = energies(i);
-                              energies(i) = tempdouble;
-                              fcwfreader = orbitals[j];
-                              orbitals[j] = orbitals[i];
-                              orbitals[i] = fcwfreader;
-                         }
-                    }
-               }
-               //sort virtual
-               for(unsigned int i = 0; i < num_virtuals; i++){
-                    for(unsigned int j = i+1; j < num_virtuals; j++){
-                         if(v_energies(j) < v_energies(i)){
-                              if(world.rank()==0) print("swapping virtuals", i, " and ", j);
-                              tempdouble = v_energies(j);
-                              v_energies(j) = v_energies(i);
-                              v_energies(i) = tempdouble;
-                              fcwfreader = virtuals[j];
-                              virtuals[j] = virtuals[i];
-                              virtuals[i] = fcwfreader;
-                         }
-                    }
-               }
+          //          //Now make the function
+          //          temp1.push_back(FunctionFactory<double,3>(world).functor(std::shared_ptr<FunctionFunctorInterface<double,3>>(new slymer::Gaussian_Functor(basis.get(), centers))));
+          //          double norm2 = temp1[ii].norm2();
+          //          if(world.rank() == 0) print("function", ii, "has norm", norm2);
+          //          ii++;
+          //     }
 
-          }
+          //     //Normalize aos
+          //     normalize(world, temp1);
+
+          //     //Transform aos now to get alpha mos
+          //     vector_real_function_3d temp = transform(world, temp1, nwchem.MOs , true);
+
+          //     //Keep track of how many energies i've stored
+          //     int energy_index = 0;
+          //     int v_energy_index = 0;
+
+          //     //nonrelativistic energies need to be adjusted for relativistic calculations
+          //     double csquared = 137.0359895*137.0359895;
+
+          //     //Convert and store alpha occupied MOs and virtuals. If closed shell, do betas too.
+          //     complex_function_3d complexreader(world);
+          //     Fcwf fcwfreader(world);
+          //     for(unsigned int i = 0; i < temp.size(); i++){
+          //          complexreader = function_real2complex(temp[i]);
+          //          fcwfreader = Fcwf(complexreader, complex_factory_3d(world), complex_factory_3d(world), complex_factory_3d(world));
+          //          if(have_beta){
+          //               if(nwchem.occupancies[i] == 1.0){
+          //                    orbitals.push_back(fcwfreader);
+          //                    energies[energy_index] = nwchem.energies[i] + csquared;
+          //                    energy_index++;
+          //               }
+          //               else{
+          //                    virtuals.push_back(fcwfreader);
+          //                    v_energies[v_energy_index] = nwchem.energies[i] + csquared;
+          //                    v_energy_index++;
+          //               }
+
+          //          }
+          //          else{
+          //               if(nwchem.occupancies[i] == 2.0){
+          //                    orbitals.push_back(fcwfreader);
+          //                    energies[energy_index] = nwchem.energies[i] + csquared;
+          //                    energy_index++;
+          //                    fcwfreader = Fcwf(complex_factory_3d(world), complexreader, complex_factory_3d(world), complex_factory_3d(world));
+          //                    orbitals.push_back(fcwfreader);
+          //                    energies[energy_index] = nwchem.energies[i] + csquared;
+          //                    energy_index++;
+
+          //               }
+          //               else{
+          //                    virtuals.push_back(fcwfreader);
+          //                    v_energies[v_energy_index] = nwchem.energies[i] + csquared;
+          //                    v_energy_index++;
+          //                    fcwfreader = Fcwf(complex_factory_3d(world), complexreader, complex_factory_3d(world), complex_factory_3d(world));
+          //                    virtuals.push_back(fcwfreader);
+          //                    v_energies[v_energy_index] = nwchem.energies[i] + csquared;
+          //                    v_energy_index++;
+          //               }
+          //          }
+          //     }
+
+
+          //     //If we're doing an open shell calculation we need to read in the beta orbitals explicitly
+          //     if(have_beta){
+          //          //Transform aos again to get beta mos
+          //          temp = transform(world, temp1, nwchem.beta_MOs, true);
+
+          //          //Convert and store beta occupied MOs and virtuals
+          //          for(unsigned int i = 0; i < temp.size(); i++){
+          //               complexreader = function_real2complex(temp[i]);
+          //               fcwfreader = Fcwf(complex_factory_3d(world), complexreader, complex_factory_3d(world), complex_factory_3d(world));
+          //               if(nwchem.beta_occupancies[i] == 1.0){
+          //                    orbitals.push_back(fcwfreader);
+          //                    energies[energy_index] = nwchem.beta_energies[i] + csquared;
+          //                    energy_index++;
+          //               }
+          //               else{
+          //                    virtuals.push_back(fcwfreader);
+          //                    v_energies[v_energy_index] = nwchem.beta_energies[i] + csquared;
+          //                    v_energy_index++;
+          //               }
+          //          }
+          //     }
+          //     
+          //     //Assure that the numbers line up
+          //     MADNESS_ASSERT(num_occupied == orbitals.size());
+          //     MADNESS_ASSERT(num_virtuals == virtuals.size());
+
+          //     //Need to sort
+          //     double tempdouble;
+          //     //Sort occupied
+          //     for(unsigned int i = 0; i < num_occupied; i++){
+          //          for(unsigned int j = i+1; j < num_occupied; j++){
+          //               if(energies(j) < energies(i)){
+          //                    if(world.rank()==0) print("swapping orbitals", i, " and ", j);
+          //                    tempdouble = energies(j);
+          //                    energies(j) = energies(i);
+          //                    energies(i) = tempdouble;
+          //                    fcwfreader = orbitals[j];
+          //                    orbitals[j] = orbitals[i];
+          //                    orbitals[i] = fcwfreader;
+          //               }
+          //          }
+          //     }
+          //     //sort virtual
+          //     for(unsigned int i = 0; i < num_virtuals; i++){
+          //          for(unsigned int j = i+1; j < num_virtuals; j++){
+          //               if(v_energies(j) < v_energies(i)){
+          //                    if(world.rank()==0) print("swapping virtuals", i, " and ", j);
+          //                    tempdouble = v_energies(j);
+          //                    v_energies(j) = v_energies(i);
+          //                    v_energies(i) = tempdouble;
+          //                    fcwfreader = virtuals[j];
+          //                    virtuals[j] = virtuals[i];
+          //                    virtuals[i] = fcwfreader;
+          //               }
+          //          }
+          //     }
+
+          //}
 
           // Prints all information
           void print_params() const

@@ -150,7 +150,7 @@ void Fcwf::scale(std::complex<double> a){
 
 //in place addition of Fcwfs. Fcwf on right must be initialized
 Fcwf Fcwf::operator+=(const Fcwf& phi){
-     MADNESS_ASSERT(phi.getinitialize())
+     MADNESS_ASSERT(phi.getinitialize());
      if(m_initialized){
           for(int i = 0 ; i < 4 ; i++){
                m_psi[i] += phi[i];
@@ -167,7 +167,7 @@ Fcwf Fcwf::operator+=(const Fcwf& phi){
 
 //in place subtraction of Fcwfs. Fcwf on right must be initialized
 Fcwf Fcwf::operator-=(const Fcwf& phi){
-     MADNESS_ASSERT(phi.getinitialize())
+     MADNESS_ASSERT(phi.getinitialize());
      if(m_initialized){
           for(int i = 0 ; i < 4 ; i++){
                m_psi[i] -= phi[i];
