@@ -22,6 +22,7 @@
 #include <madness/mra/operator.h>
 #include <chem/nemo.h>
 #include <chem/MolecularOrbitals.h>
+#include <madness/misc/gitinfo.h>
 
 
 namespace madness {
@@ -347,10 +348,7 @@ public:
 	}
 
 	double compute_energy(const std::vector<complex_function_3d>& amo, const potentials& apot,
-			const std::vector<complex_function_3d>& bmo, const potentials& bpot, const bool do_print) const;
-
-	double compute_energy_no_confinement(const std::vector<complex_function_3d>& amo, const potentials& apot,
-			const std::vector<complex_function_3d>& bmo, const potentials& bpot, const bool do_print) const;
+			const std::vector<complex_function_3d>& bmo, const potentials& bpot, const bool do_print, const bool no_confinement) const;
 
 	/// compute the potential operators applied on the orbitals
 	potentials compute_potentials(const std::vector<complex_function_3d>& mo,
@@ -410,10 +408,10 @@ protected:
 
 	/// nuclear potential
 	std::shared_ptr<PotentialManager> potentialmanager;
-
+public:
 	/// the molecular orbitals -- alpha
 	std::vector<complex_function_3d> amo, bmo;
-
+protected:
 	/// the orbital energies
 	Tensor<double> aeps, beps;
 
