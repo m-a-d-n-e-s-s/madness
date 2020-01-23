@@ -63,6 +63,8 @@ int main(int argc, char** argv) {
 
     }
 
+    if (world.rank()==0) print(info::print_revision_information());
+
     bool value=true;
     bool analyze=false;
     bool write_input=false;
@@ -112,7 +114,9 @@ int main(int argc, char** argv) {
     		if (value) {
     			energy=znemo->value();
     		} else if (analyze) {
-    			znemo->read_reference();
+    			auto zmos=znemo->read_reference();
+    			for (int i=0; i<znemo->get_cparam().nalpha(); ++i) znemo->amo.push_back(zmos.first.get_mos()[i]);
+    			for (int i=0; i<znemo->get_cparam().nbeta(); ++i) znemo->bmo.push_back(zmos.second.get_mos()[i]);
     			energy=znemo->analyze();
     		}
     		if (world.rank()==0) {

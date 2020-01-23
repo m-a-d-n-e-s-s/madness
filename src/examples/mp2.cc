@@ -52,7 +52,7 @@ int main(int argc, char** argv) {
     startup(world,argc,argv);
     std::cout.precision(6);
 
-    if (world.rank()==0) info::print_revision_information();
+    if (world.rank()==0) print(info::print_revision_information());
 
 
     if (world.rank()==0) {
