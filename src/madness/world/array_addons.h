@@ -77,50 +77,6 @@ namespace madness {
         return madness::hash_range(a.data(), N);
     }
 
-    // Serialize std::array objects
-    namespace archive {
-
-        template <class Archive, class T>
-        struct ArchiveStoreImpl;
-        template <class Archive, class T>
-        struct ArchiveLoadImpl;
-
-        /// Serialize an \c std::array.
-
-        /// \tparam Archive The archive type.
-        /// \tparam T The type of data stored in the array.
-        /// \tparam N The size of the array.
-        template <class Archive, typename T, std::size_t N>
-        struct ArchiveStoreImpl<Archive, std::array<T,N> > {
-            /// Store the designated \c std::array in the archive.
-
-            /// \param[in,out] ar The archive.
-            /// \param[in] a The array.
-            static void store(const Archive& ar, const std::array<T,N>& a) {
-                for(auto it = a.begin(); it != a.end(); ++it)
-                    ar & (*it);
-            }
-        };
-
-        /// Serialize an \c std::array.
-
-        /// \tparam Archive The archive type.
-        /// \tparam T The type of data stored in the array.
-        /// \tparam N The size of the array.
-        template <class Archive, typename T, std::size_t N>
-        struct ArchiveLoadImpl<Archive, std::array<T,N> > {
-            /// Load an \c std::array from an archive.
-
-            /// \param[in,out] ar The archive.
-            /// \param[out] a The array.
-            static void load(const Archive& ar, std::array<T,N>& a) {
-                for(auto it = a.begin(); it != a.end(); ++it)
-                    ar & (*it);
-            }
-        };
-
-    } // namespace archive
-
 } // namespace madness
 
 #endif // MADNESS_WORLD_ARRAY_ADDONS_H__INCLUDED

@@ -39,7 +39,7 @@ if (CMAKE_CXX_STANDARD EQUAL 20 AND CMAKE_VERSION VERSION_LESS 3.12.0)
   message(FATAL_ERROR "C++ 2020 ISO Standard requires CMake version 3.12 or higher")
 endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF CACHE BOOLEAN "Whether to use extensions of C++ ISO Standard version")
+set(CMAKE_CXX_EXTENSIONS OFF CACHE BOOL "Whether to use extensions of C++ ISO Standard version")
 
 # workaround for cmake bug: CheckCXXSourceCompiles does not respect CXX_STANDARD
 # see https://github.com/OPM/opm-common/blob/master/cmake/Modules/FindCXX11Features.cmake
@@ -195,11 +195,10 @@ endif()
 add_feature_info("FORTRAN_INTEGER_SIZE=${FORTRAN_INTEGER_SIZE}" TRUE "assumes Fortran integers to be ${FORTRAN_INTEGER_SIZE} bytes long")
 
 if (CMAKE_BUILD_TYPE STREQUAL Release OR
-    CMAKE_BUILD_TYPE STREQUAL RelWithDebInfo OR
     CMAKE_BUILD_TYPE STREQUAL MinSizeRel)
   set (DEFAULT_ASSERTION_TYPE "disable")
 else ()
-  set (DEFAULT_ASSERTION_TYPE "throw")
+  set (DEFAULT_ASSERTION_TYPE "assert")
 endif()
 set(ASSERTION_TYPE ${DEFAULT_ASSERTION_TYPE} CACHE STRING "Define MADNESS assertion behavior (abort|assert|disable|throw)")
 if(ASSERTION_TYPE STREQUAL "abort")
@@ -547,7 +546,7 @@ endif (DEFINED ELEMENTAL_TAG)
 add_custom_target(libraries)
 add_custom_target(install-libraries)
 
-include_directories(${CMAKE_SOURCE_DIR}/src ${CMAKE_BINARY_DIR}/src)
+include_directories(${PROJECT_SOURCE_DIR}/src ${PROJECT_BINARY_DIR}/src)
 set(CMAKE_INCLUDE_CURRENT_DIR_IN_INTERFACE TRUE)
 set(CMAKE_INCLUDE_CURRENT_DIR TRUE)
 if(ENABLE_UNITTESTS)
@@ -559,6 +558,20 @@ if(ENABLE_UNITTESTS)
 endif()
 add_subdirectory(src)
 add_subdirectory(doc)
+
+# Get the git revision tag information =========================================
+
+if(EXISTS ${PROJECT_SOURCE_DIR}/.git)
+  find_package(Git REQUIRED)
+  execute_process(
+      COMMAND ${GIT_EXECUTABLE} rev-parse -q HEAD
+      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+      OUTPUT_VARIABLE MADNESS_REVISION )
+  string(REGEX MATCH "[0-9a-f]*"
+      MADNESS_REVISION "${MADNESS_REVISION}")
+else()
+  set(MADNESS_REVISION "unknown")
+endif()
 
 # Generate configure files =====================================================
 
@@ -623,7 +636,7 @@ install(FILES
     DESTINATION "${MADNESS_INSTALL_CMAKEDIR}" 
     COMPONENT madness-config)
 add_custom_target(install-config
-     COMMAND ${CMAKE_COMMAND} -DCOMPONENT=madness-config -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
+     COMMAND ${CMAKE_COMMAND} -DCOMPONENT=madness-config -P ${PROJECT_BINARY_DIR}/cmake_install.cmake
      COMMENT "Installing MADNESS config components"
      USES_TERMINAL)
 

@@ -8,6 +8,7 @@ macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_d
   add_library(MAD${_name} $<TARGET_OBJECTS:MAD${_name}-obj>)
   if(BUILD_SHARED_LIBS)
     set_target_properties(MAD${_name}-obj PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
+    message(WARNING "building shared libraries, setting PIE to true")
   endif()
 
   target_include_directories(MAD${_name} PUBLIC
@@ -37,7 +38,7 @@ macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_d
   
   # Create a target to install the component
   add_custom_target(install-${_name}
-      COMMAND ${CMAKE_COMMAND} -DCOMPONENT=${_name} -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
+      COMMAND ${CMAKE_COMMAND} -DCOMPONENT=${_name} -P ${PROJECT_BINARY_DIR}/cmake_install.cmake
       COMMENT "Installing ${_name} library components"
       USES_TERMINAL)
   add_dependencies(install-${_name} MAD${_name})
@@ -100,7 +101,7 @@ macro(add_mad_hdr_library _name _header_files _dep_mad_comp _include_dir)
   
   # Create a target to install the component
   add_custom_target(install-${_name}
-      COMMAND ${CMAKE_COMMAND} -DCOMPONENT=${_name} -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
+      COMMAND ${CMAKE_COMMAND} -DCOMPONENT=${_name} -P ${PROJECT_BINARY_DIR}/cmake_install.cmake
       COMMENT "Installing ${_name} library components"
       USES_TERMINAL)
   add_dependencies(install-${_name} MAD${_name})

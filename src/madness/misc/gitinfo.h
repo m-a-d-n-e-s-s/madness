@@ -31,8 +31,8 @@
 */
 
 
-#ifndef SRC_APPS_CHEM_CHEMINFO_H_
-#define SRC_APPS_CHEM_CHEMINFO_H_
+#ifndef SRC_MADNESS_MISC_GITINFO_H_
+#define SRC_MADNESS_MISC_GITINFO_H_
 
 /**
  \file info.h
@@ -46,11 +46,19 @@ namespace madness {
         /// Get the git commit number for this version.
 
         /// \return The git commit number.
-        const char* cheminfo_git_commit();
+        const char* mad_git_commit();
+
+        /// return the build time
+        const char* build_time();
+
+        /// return the build date
+        const char* build_date();
+
+        std::string print_revision_information();
 
     } // namespace info
 } // namespace madness
 
 
 
-#endif /* SRC_APPS_CHEM_CHEMINFO_H_ */
+#endif /* SRC_MADNESS_MISC_GITINFO_H_ */
