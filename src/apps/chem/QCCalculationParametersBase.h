@@ -253,6 +253,9 @@ public:
 	T get(const std::string key) const {
 		const QCParameter& parameter=get_parameter(key);
 		MADNESS_ASSERT(check_type<T>(key,parameter));
+		if (std::is_same<T,std::string>::value) {
+			return fromstring<T>(add_quotes(parameter.get_value()));
+		}
 		return fromstring<T>(parameter.get_value());
 	}
 
@@ -435,8 +438,9 @@ public:
 	fromstring(const std::string& arg) {
 
 		std::stringstream ssvalue(arg);
-		T result=T();
-		ssvalue >> result;
+
+		// if argument is std::string read the everything between possible double quotes
+		T result=read_quotes<T>(ssvalue);
 
 		bool type_conversion_failed=ssvalue.fail();
 
@@ -465,6 +469,58 @@ public:
 		return result;
 	}
 
+	template<typename T>
+	static typename std::enable_if<std::is_same<T,std::string>::value, T>::type
+	read_quotes(std::stringstream& ssvalue) {
+		T arg=ssvalue.str();
+		T result;
+
+		if (arg.find("\"")==std::string::npos) {	// no double quotes found
+			ssvalue >> result;
+
+		} else {									// found double quotes
+			int counter=0;
+			while (counter<2) {
+				T tmp;
+				ssvalue >> tmp;
+				if (ssvalue.fail()) {
+					std::string errmsg="missing closing double quote in line >> " + arg;
+					throw std::runtime_error(errmsg);
+				}
+				result+=" "+tmp;
+				counter=std::count(result.begin(), result.end(), '"');
+			}
+
+			// use only the text between the double quotes
+			result=trim_blanks(trim_quotes(result));
+		}
+		return result;
+	}
+
+	static std::string trim_blanks(const std::string arg) {
+		std::size_t first=arg.find_first_not_of(' ');
+		std::size_t last=arg.find_last_not_of(' ');
+		return arg.substr(first,last-first+1);
+	}
+
+	static std::string trim_quotes(const std::string arg) {
+		std::size_t first=arg.find_first_of('"');
+		std::size_t last=arg.find_last_of('"');
+		return arg.substr(first+1,last-first-1);
+	}
+
+	static std::string add_quotes(const std::string arg) {
+		return "\""+arg+"\"";
+	}
+
+
+	template<typename T>
+	static typename std::enable_if<!std::is_same<T,std::string>::value, T>::type
+	read_quotes(std::stringstream& ssvalue) {
+		T result;
+		ssvalue >> result;
+		return result;
+	}
 
 	template<typename T>
 	static typename std::enable_if<std::is_same<T,bool>::value, T>::type
