@@ -120,30 +120,30 @@ struct data_type {
 //    	f=::localize(origin,destination,f,i,"dummy");
 //    }
 
+    bool is_initialized() const {
+    	return f.is_initialized();
+    }
 
-	void store_and_clear(World& world, std::string filename) {
-		world.gop.fence();
-		ParallelOutputArchive ar(world, filename.c_str() , 1);
-//		print("saving to file",filename,world.id());
+    void clear() {
+    	f.clear();
+    	i=0;
+    	d=0.0;
+    }
+
+	template<typename archiveT>
+	void store(archiveT& ar) {
 		bool fexist=f.is_initialized();
 		ar & d & i & fexist;
 		if (fexist) ar & f;
-		world.gop.fence();
-		f.clear();
-		world.gop.fence();
 	}
 
-	void load(World& world, std::string filename) {
-		f.clear();
-		world.gop.fence();
+	template<typename archiveT>
+	void load(World& world, archiveT& ar) {
         auto pmap = std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >(new madness::LevelPmap< Key<NDIM> >(world));
         FunctionDefaults<NDIM>::set_pmap(pmap);	// set default pmap to use only this world!
-//		print("loading from file",filename, world.id());
-		ParallelInputArchive ar(world, filename.c_str() , 1);
 		bool fexist;
 		ar & d & i & fexist;
 		if (fexist) ar & f;
-		world.gop.fence();
 	}
 
 };
@@ -155,39 +155,39 @@ void localize(dataT& data, World& origin, World& destination, std::string filena
 //	data.load(destination, filename);
 }
 
-
-template<class dataT,
-	 typename std::enable_if_t<
-	 std::is_member_function_pointer<decltype(&dataT::load)>::value, int> = 0>
-void load_data(dataT& data, World& world, std::string filename){
-	data.load(world, filename);
-}
-
-template<typename T, std::size_t NDIM>
-void load_data(Function<T,NDIM> & data, World& world, const std::string filename){
-	data=FunctionFactory<T,NDIM>(world);
-	load(data,filename);
-}
-
-template<typename T, std::size_t NDIM>
-void load_result(Function<T,NDIM>& result, World& world, std::string filename) {
-	result=FunctionFactory<T,NDIM>(world);
-	load(result,filename);
-}
-
-
-template<class dataT,
-	 typename std::enable_if_t<
-	 std::is_member_function_pointer<decltype(&dataT::store_and_clear)>::value, int> = 0>
-void store_and_clear_data(dataT& data, World& world, std::string filename){
-	data.store_and_clear(world, filename);
-}
-
-template<typename T, std::size_t NDIM>
-void store_and_clear_data(Function<T,NDIM> & data, World& world, const std::string filename){
-	if (data.is_initialized()) save(data,filename);
-	data.clear();
-}
+//
+//template<class dataT,
+//	 typename std::enable_if_t<
+//	 std::is_member_function_pointer<decltype(&dataT::load)>::value, int> = 0>
+//void load_data(dataT& data, World& world, std::string filename){
+//	data.load(world, filename);
+//}
+//
+//template<typename T, std::size_t NDIM>
+//void load_data(Function<T,NDIM> & data, World& world, const std::string filename){
+//	data=FunctionFactory<T,NDIM>(world);
+//	load(data,filename);
+//}
+//
+//template<typename T, std::size_t NDIM>
+//void load_result(Function<T,NDIM>& result, World& world, std::string filename) {
+//	result=FunctionFactory<T,NDIM>(world);
+//	load(result,filename);
+//}
+//
+//
+//template<class dataT,
+//	 typename std::enable_if_t<
+//	 std::is_member_function_pointer<decltype(&dataT::store_and_clear)>::value, int> = 0>
+//void store_and_clear_data(dataT& data, World& world, std::string filename){
+//	data.store_and_clear(world, filename);
+//}
+//
+//template<typename T, std::size_t NDIM>
+//void store_and_clear_data(Function<T,NDIM> & data, World& world, const std::string filename){
+//	if (data.is_initialized()) save(data,filename);
+//	data.clear();
+//}
 
 
 class MacroTaskBase;
@@ -243,9 +243,6 @@ template<typename macrotaskT>
 class MacroTaskIntermediate : public MacroTaskBase {
 public:
 
-//	typedef typename macrotaskT::data_type dataT;
-//	typedef typename macrotaskT::result_type resultT;
-
 	MacroTaskIntermediate() {}
 
 	~MacroTaskIntermediate() {}
@@ -284,19 +281,43 @@ public:
 	}
 
     void load_data(World& world, std::string filename) {
-    	::load_data(macrotask().get_data(),world, filename);
+		macrotask().get_data().clear();
+    	ParallelInputArchive ar(world, filename.c_str() , 1);
+    	bool exist;
+    	ar & exist;
+    	if (exist) {
+			macrotask().get_data().load(world,ar);
+    	}
     }
 
     void load_result(World& world, std::string filename) {
-    	::load_result(macrotask().get_result(),world,filename);
+		macrotask().get_result().clear();
+    	ParallelInputArchive ar(world, filename.c_str() , 1);
+    	bool exist;
+    	ar & exist;
+    	if (exist) {
+			macrotask().get_result().load(world,ar);
+    	}
     }
 
     void store_and_clear_data(World& world, std::string filename) {
-    	::store_and_clear_data(macrotask().get_data(),world, filename);
+    	bool exist=macrotask().get_data().is_initialized();
+    	ParallelOutputArchive ar(world, filename.c_str() , 1);
+		ar & exist;
+    	if (exist) {
+			macrotask().get_data().store(ar);
+    	}
+		macrotask().get_data().clear();
     }
 
     void store_and_clear_result(World& world, std::string filename) {
-    	::store_and_clear_data(macrotask().get_result(),world,filename);
+    	bool exist=macrotask().get_result().is_initialized();
+		ParallelOutputArchive ar(world, filename.c_str() , 1);
+		ar & exist;
+    	if (exist) {
+			macrotask().get_result().store(ar);
+    	}
+    	macrotask().get_result().clear();
     }
 
     void localize(World& origin, World& destination, std::string filename) {
@@ -471,6 +492,7 @@ Function<T,NDIM> localize(World& origin, World& destination, const Function<T,ND
 }
 
 
+/// TODO: replicate input data
 class macro_taskq : public WorldObject< macro_taskq> {
 
     World& universe;
