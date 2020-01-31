@@ -84,7 +84,6 @@ std::shared_ptr<World> create_worlds(World& universe, const std::size_t nworld) 
 }
 
 
-static int ii=0;
 
 template<typename T, std::size_t NDIM>
 struct data_type {
@@ -93,11 +92,10 @@ struct data_type {
 	data_type(const int& i, const double& d, Function<T,NDIM> f) : i(i), d(d), f(f) {}
 	data_type(const int& i, const double& d) : i(i), d(d), f() {}
 	~data_type() {}
-//	data1(World& world) : i(), d(), f(Function<T,NDIM>) {}
+
 	double d;
 	int i;
 	Function<T,NDIM> f;
-	std::string filename="dummy"+std::to_string(ii++);
 
 
     template <typename Archive>
@@ -123,24 +121,28 @@ struct data_type {
 //    }
 
 
-	void store_and_clear(World& world) {
+	void store_and_clear(World& world, std::string filename) {
 		world.gop.fence();
 		ParallelOutputArchive ar(world, filename.c_str() , 1);
 //		print("saving to file",filename,world.id());
-		ar & d & i & f;
+		bool fexist=f.is_initialized();
+		ar & d & i & fexist;
+		if (fexist) ar & f;
 		world.gop.fence();
 		f.clear();
 		world.gop.fence();
 	}
 
-	void load(World& world) {
+	void load(World& world, std::string filename) {
 		f.clear();
 		world.gop.fence();
         auto pmap = std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >(new madness::LevelPmap< Key<NDIM> >(world));
         FunctionDefaults<NDIM>::set_pmap(pmap);	// set default pmap to use only this world!
 //		print("loading from file",filename, world.id());
 		ParallelInputArchive ar(world, filename.c_str() , 1);
-		ar & d & i & f;
+		bool fexist;
+		ar & d & i & fexist;
+		if (fexist) ar & f;
 		world.gop.fence();
 	}
 
@@ -148,19 +150,27 @@ struct data_type {
 
 
 template<typename dataT>
-void localize(dataT& data, World& origin, World& destination) {
-	data.store_and_clear(origin);
-	data.load(destination);
+void localize(dataT& data, World& origin, World& destination, std::string filename) {
+//	data.store_and_clear(origin, filename);
+//	data.load(destination, filename);
 }
 
 
-template<typename dataT>
-void get_data(dataT& data, World& world) {
-	data.load(world);
+template<class dataT,
+	 typename std::enable_if_t<
+	 std::is_member_function_pointer<decltype(&dataT::load)>::value, int> = 0>
+void load_data(dataT& data, World& world, std::string filename){
+	data.load(world, filename);
 }
 
 template<typename T, std::size_t NDIM>
-void get_result(Function<T,NDIM>& result, World& world, std::string filename) {
+void load_data(Function<T,NDIM> & data, World& world, const std::string filename){
+	data=FunctionFactory<T,NDIM>(world);
+	load(data,filename);
+}
+
+template<typename T, std::size_t NDIM>
+void load_result(Function<T,NDIM>& result, World& world, std::string filename) {
 	result=FunctionFactory<T,NDIM>(world);
 	load(result,filename);
 }
@@ -169,13 +179,13 @@ void get_result(Function<T,NDIM>& result, World& world, std::string filename) {
 template<class dataT,
 	 typename std::enable_if_t<
 	 std::is_member_function_pointer<decltype(&dataT::store_and_clear)>::value, int> = 0>
-void store_and_clear_data(dataT& data, World& world){
-	data.store_and_clear(world);
+void store_and_clear_data(dataT& data, World& world, std::string filename){
+	data.store_and_clear(world, filename);
 }
 
 template<typename T, std::size_t NDIM>
 void store_and_clear_data(Function<T,NDIM> & data, World& world, const std::string filename){
-	save(data,filename);
+	if (data.is_initialized()) save(data,filename);
 	data.clear();
 }
 
@@ -194,22 +204,24 @@ public:
 	virtual ~MacroTaskBase() {};
 
 	double priority=0.0;
-	enum Status {Running, Waiting, Complete, Unknown};
-	Status stat=Unknown;
+	enum Status {Running, Waiting, Complete, Unknown} stat=Unknown;
 
 	void set_complete() {stat=Complete;}
 	void set_running() {stat=Running;}
 	void set_waiting() {stat=Waiting;}
 
-	virtual std::shared_ptr<MacroTaskBase> create() = 0;
+	bool is_complete() const {return stat==Complete;}
+	bool is_running() const {return stat==Running;}
+	bool is_waiting() const {return stat==Waiting;}
 
 	virtual void run(World& world) = 0;
     virtual inputfuntype get_allocate_and_deserialize_method() = 0;
 
-    virtual void localize(World& origin, World& destination) = 0;
-    virtual void get_data(World& world) = 0;
-    virtual void get_result(World& world, std::string filename) = 0;
-    virtual void store_and_clear_data(World& world) = 0;
+    std::string make_filename(const long element) const {return "task"+std::to_string(element);}
+    virtual void localize(World& origin, World& destination, std::string filename) = 0;
+    virtual void load_data(World& world, std::string filename) = 0;
+    virtual void load_result(World& world, std::string filename) = 0;
+    virtual void store_and_clear_data(World& world, std::string filename) = 0;
     virtual void store_and_clear_result(World& world, std::string filename) = 0;
 
     virtual void print_me(std::string s="") const {}
@@ -230,6 +242,9 @@ std::ostream& operator<<(std::ostream& os, const MacroTaskBase::Status s) {
 template<typename macrotaskT>
 class MacroTaskIntermediate : public MacroTaskBase {
 public:
+
+//	typedef typename macrotaskT::data_type dataT;
+//	typedef typename macrotaskT::result_type resultT;
 
 	MacroTaskIntermediate() {}
 
@@ -253,25 +268,39 @@ public:
         return &allocate_and_deserialize;
     }
 
+    macrotaskT& macrotask() {return dynamic_cast<macrotaskT&>(*this);}
 
-    void get_data(World& world) {
-    	::get_data(dynamic_cast<macrotaskT*>(this)->data,world);
+    template<typename dataT>
+	void set_data(dataT& data1) {
+		macrotask().data=data1;
+	}
+
+    auto& get_data() {
+		return macrotask().data;
+	}
+
+	auto& get_result() {
+		return macrotask().result;
+	}
+
+    void load_data(World& world, std::string filename) {
+    	::load_data(macrotask().get_data(),world, filename);
     }
 
-    void get_result(World& world, std::string filename) {
-    	::get_result(dynamic_cast<macrotaskT*>(this)->result,world,filename);
+    void load_result(World& world, std::string filename) {
+    	::load_result(macrotask().get_result(),world,filename);
     }
 
-    void store_and_clear_data(World& world) {
-    	::store_and_clear_data(dynamic_cast<macrotaskT*>(this)->data,world);
+    void store_and_clear_data(World& world, std::string filename) {
+    	::store_and_clear_data(macrotask().get_data(),world, filename);
     }
 
     void store_and_clear_result(World& world, std::string filename) {
-    	::store_and_clear_data(dynamic_cast<macrotaskT*>(this)->result,world,filename);
+    	::store_and_clear_data(macrotask().get_result(),world,filename);
     }
 
-    void localize(World& origin, World& destination) {
-    	::localize(dynamic_cast<macrotaskT*>(this)->data,origin,destination);
+    void localize(World& origin, World& destination, std::string filename) {
+    	::localize(macrotask().get_data(),origin,destination, filename);
     }
 
 
@@ -340,15 +369,11 @@ class MacroTask : public MacroTaskIntermediate<MacroTask<resultT, dataT> > {
 public:
 	typedef resultT result_type;
 	typedef dataT data_type;
-	dataT data;
-	resultT result;
+
+	int idx=1;
 
 	MacroTask() {}
 	MacroTask(const dataT& data) : data(data) {}
-
-	std::shared_ptr<MacroTaskBase> create() {
-		return std::shared_ptr<MacroTaskBase>(new MacroTask());
-	}
 
 	void run(World& world) {
 //		print("doing something in world",world.id());
@@ -369,11 +394,55 @@ public:
     }
 
     void print_me(std::string s="") const {
-    	print("task",s, data.i,this,this->stat);
+    	print("task",s, idx,this,this->stat);
     }
+
+	dataT data;
+	resultT result;
 
 };
 
+
+
+
+
+template<typename resultT, typename dataT>
+class MacroTask1 : public MacroTaskIntermediate<MacroTask1<resultT, dataT> > {
+
+public:
+	typedef resultT result_type;
+	typedef dataT data_type;
+
+	int idx=1;
+
+	MacroTask1() {}
+	MacroTask1(const dataT& data) : data(data) {}
+
+	void run(World& world) {
+//		print("doing something in world",world.id());
+		const Function<double,4>& f=data;
+		Function<double,4> g=real_factory_4d(world).functor(gaussian(2.0));
+		Function<double,4> f2=square(f)+g;
+//		Derivative<double,4> D(world,1);
+//		Function<double,4> df2=(D(f2)).truncate();
+//		double trace=df2.trace();
+		result=g;
+		result.print_size("result in macrotask");
+		world.gop.fence();
+	}
+
+    template <typename Archive>
+    void serialize(const Archive& ar) {
+    }
+
+    void print_me(std::string s="") const {
+    	print("task",s, idx,this,this->stat);
+    }
+
+	dataT data;
+	resultT result;
+
+};
 
 template<typename T, std::size_t NDIM>
 Function<T,NDIM> localize(World& origin, World& destination, const Function<T,NDIM>& data,
@@ -401,20 +470,8 @@ Function<T,NDIM> localize(World& origin, World& destination, const Function<T,ND
 	return result;
 }
 
-class MasterPmap : public WorldDCPmapInterface<long> {
-public:
-    MasterPmap() {}
-    ProcessID owner(const long& key) const {return 0;}
-};
 
-
-// TODO: remove template parameter taskT
-template<typename taskT>
-class macro_taskq : public WorldObject< macro_taskq<taskT> > {
-    typedef macro_taskq<taskT> thistype;
-    typedef typename taskT::result_type resultT;
-    typedef typename taskT::data_type dataT;
-    typedef MacroTaskBase* basetaskptr;
+class macro_taskq : public WorldObject< macro_taskq> {
 
     World& universe;
     std::shared_ptr<World> subworld_ptr;
@@ -428,18 +485,17 @@ public:
 
     /// create an empty taskq and initialize the regional world groups
 	macro_taskq(World& universe, int nworld)
-		  : universe(universe), WorldObject<thistype>(universe), taskq() {
+		  : universe(universe), WorldObject<macro_taskq>(universe), taskq() {
 
 		subworld_ptr=create_worlds(universe,nworld);
-	    World& subworld=*(subworld_ptr.get());
 		this->process_pending();
 	}
 
 	/// run all tasks, leave result in the tasks
 	void run_all(std::vector<std::shared_ptr<MacroTaskBase> >& vtask) {
 
+		for (auto t : vtask) if (universe.rank()==0) t->set_waiting();
 		for (int i=0; i<vtask.size(); ++i) add_replicated_task(vtask[i]);
-		for (auto t : taskq) if (universe.rank()==0) t->set_waiting();
 		print_taskq();
 		store_task_data();
 
@@ -452,7 +508,7 @@ public:
 			double cpu0=cpu_time();
 			std::shared_ptr<MacroTaskBase> task=taskq[element];
 //			task->localize(universe,subworld);
-			task->get_data(subworld);
+			task->load_data(subworld,task->make_filename(element));
 
 			task->run(subworld);
 			subworld.gop.fence();
@@ -461,8 +517,8 @@ public:
 			set_complete(element);
 			printf("completed task %3ld after %4.1fs\n",element,cpu1-cpu0);
 
-			task->store_and_clear_data(subworld);
-			task->store_and_clear_result(subworld,"result_of_task"+std::to_string(element));
+			task->store_and_clear_data(subworld,task->make_filename(element));
+			task->store_and_clear_result(subworld,"result_of_"+task->make_filename(element));
 
 
 		};
@@ -471,23 +527,25 @@ public:
 	}
 
 	/// run the task on the vector of input data, return vector of results
-	std::vector<resultT> map(taskT& task1, std::vector<dataT>& vdata) {
+	template<typename taskT>
+	std::vector<typename taskT::result_type> map(taskT& task1,
+			std::vector<typename taskT::data_type>& vdata) {
 
-		// TODO: create copies, do not use default ctor
-		// create identical copies of the same default task and fill with the data
+		// create copies of the input task instance and fill with the data
 		std::vector<std::shared_ptr<MacroTaskBase> > vtask(vdata.size());
 		for (int i=0; i<vdata.size(); ++i) {
-			vtask[i]=std::shared_ptr<MacroTaskBase>(new taskT(vdata[i]));
+			vtask[i]=std::shared_ptr<MacroTaskBase>(new taskT(task1));
+			dynamic_cast<taskT&>(*vtask[i].get()).set_data(vdata[i]);
 		}
 
 		// execute the task list
 		run_all(vtask);
 
 		// localize the result into universe
-		std::vector<resultT> vresult(vdata.size());
+		std::vector<typename taskT::result_type> vresult(vdata.size());
 		for (int i=0; i<vresult.size(); ++i) {
-			vtask[i]->get_result(universe,"result_of_task"+std::to_string(i));
-			vresult[i]=dynamic_cast<taskT&>(*(vtask[i].get())).result;
+			vtask[i]->load_result(universe,"result_of_task"+std::to_string(i));
+			vresult[i]=dynamic_cast<taskT&>(*(vtask[i].get())).get_result();
 		}
 		return vresult;
 	}
@@ -503,24 +561,22 @@ private:
 			print("taskq on universe rank",universe.rank());
 			for (auto t : taskq) t->print_me();
 		}
-//		universe.gop.fence();
-//		if ((universe.size()>1) and (universe.rank()==universe.size()-1)) {
-//			print("taskq on universe rank",universe.rank());
-//			for (auto t : taskq) t->print_me();
-//		}
 		universe.gop.fence();
 	}
 
 	void store_task_data() const {
 		universe.gop.fence();
-		for (auto t : taskq) t->store_and_clear_data(universe);
+		for (auto t=taskq.begin(); t!=taskq.end(); ++t) {
+			long element=t-taskq.begin();
+			(*t)->store_and_clear_data(universe,(*t)->make_filename(element));
+		}
 		universe.gop.fence();
 	}
 
 	/// scheduler is located on universe.rank==0
 	long get_scheduled_task_number(World& subworld) {
 		long number=0;
-		if (subworld.rank()==0) number=this->task(ProcessID(0), &macro_taskq<taskT>::get_scheduled_task_number_local);
+		if (subworld.rank()==0) number=this->task(ProcessID(0), &macro_taskq::get_scheduled_task_number_local);
 		subworld.gop.broadcast_serializable(number, 0);
 		subworld.gop.fence();
 		return number;
@@ -531,20 +587,20 @@ private:
 		MADNESS_ASSERT(universe.rank()==0);
 		std::lock_guard<std::mutex> lock(taskq_mutex);
 
-		auto is_Waiting = [](std::shared_ptr<MacroTaskBase> mtb_ptr) {return mtb_ptr->stat==MacroTaskBase::Status::Waiting;};
+		auto is_Waiting = [](std::shared_ptr<MacroTaskBase> mtb_ptr) {return mtb_ptr->is_waiting();};
 		auto it=std::find_if(taskq.begin(),taskq.end(),is_Waiting);
 		if (it!=taskq.end()) {
 			it->get()->set_running();
 			long element=it-taskq.begin();
 			return element;
 		}
-		print("could not find task to schedule");
+//		print("could not find task to schedule");
 		return -1;
 	}
 
 	/// scheduler is located on rank==0
 	void set_complete(const long task_number) const {
-		this->task(ProcessID(0), &macro_taskq<taskT>::set_complete_local, task_number);
+		this->task(ProcessID(0), &macro_taskq::set_complete_local, task_number);
 	}
 
 	/// scheduler is located on rank==0
@@ -553,6 +609,9 @@ private:
 		taskq[task_number]->set_complete();
 	}
 
+	std::size_t size() const {
+		return taskq.size();
+	}
 
 //	void add_task(const std::shared_ptr<MacroTaskBase>& task) {
 //		ProcessID master=0;
@@ -586,10 +645,6 @@ private:
 //		return task;
 //	}
 
-	std::size_t size() const {
-		return taskq.size();
-	}
-//
 //	/// pass serialized task from universe.rank()==0 to world.rank()==0
 //	std::vector<unsigned char> pop() {
 //		return this->task(ProcessID(0), &macro_taskq<taskT>::pop_local);
@@ -627,22 +682,10 @@ int main(int argc, char** argv) {
     FunctionDefaults<4>::set_thresh(1.e-9);
     FunctionDefaults<4>::set_k(7);
 
-
     std::cout << "Hello from " << universe.rank() << std::endl;
     universe.gop.fence();
     int nworld=std::min(int(universe.size()),int(3));
     if (universe.rank()==0) print("creating nworld",nworld);
-
-
-	/**
-	 * 	vectorization model
-	 *
-	 *    	std::vector<data_type<double,3> > vinput(ntask);	// fill with input data
-	 *    	macro_task<data_type<double,3> > task;				// implements run(World& world, const data_type& d);
-	 *    	macro_taskq<taskT> taskq(universe,nworld);
-	 *    	std::vector<Function<double,3> > result=taskq.run_all(task,vinput,fence=true);
-	 *
-	 */
 
     long ntask=5;
 
@@ -658,23 +701,25 @@ int main(int argc, char** argv) {
     	vdata.push_back(dataT(i,i,f));
     	vtask.push_back(std::shared_ptr<MacroTaskBase>(new taskT(dataT(i,i,f))));
     }
+	Function<double,4> ff(universe);
+	ff.add_scalar(2);
 
+    vtask.push_back(std::shared_ptr<MacroTaskBase>(new MacroTask1<real_function_4d,real_function_4d>(ff)));
     // set up taskq with a vector of tasks
-    macro_taskq<taskT> taskq(universe,nworld);
+    macro_taskq taskq(universe,nworld);
     taskq.run_all(vtask);
 
-//    std::shared_ptr<MacroTaskBase> task=std::shared_ptr<MacroTaskBase>(new taskT());
     MacroTask<real_function_4d, dataT> task;
-    macro_taskq<taskT> taskq1(universe,nworld);
-    std::vector<Function<double,4> > result=taskq1.map(task,vdata);
+    task.idx=3;
+    std::vector<Function<double,4> > result=taskq.map(task,vdata);
 
     print_size(universe,result,"result after map");
     madness::finalize();
     return 0;
 }
 
-template <> volatile std::list<detail::PendingMsg> WorldObject<macro_taskq<MacroTask<Function<double,4>, data_type<double, 4ul> > > >::pending = std::list<detail::PendingMsg>();
-template <> Spinlock WorldObject<macro_taskq<MacroTask<Function<double,4>, data_type<double, 4ul> > > >::pending_mutex(0);
+template <> volatile std::list<detail::PendingMsg> WorldObject<macro_taskq>::pending = std::list<detail::PendingMsg>();
+template <> Spinlock WorldObject<macro_taskq>::pending_mutex(0);
 
 template <> volatile std::list<detail::PendingMsg> WorldObject<WorldContainerImpl<long, MacroTask<Function<double,4>, data_type<double, 4ul> >, madness::Hash<long> > >::pending = std::list<detail::PendingMsg>();
 template <> Spinlock WorldObject<WorldContainerImpl<long, MacroTask<Function<double,4>, data_type<double, 4ul> >, madness::Hash<long> > >::pending_mutex(0);
