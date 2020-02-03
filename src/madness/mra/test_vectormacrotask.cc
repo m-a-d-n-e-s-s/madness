@@ -18,24 +18,17 @@ using namespace madness;
 using namespace archive;
 
 /**
+ * @Robert:
+ *   - copying Function to/from different worlds without fence in the source world
+ *     currently this is done by writing/reading to disk
+ *   - serializing tasks not used right now, but will be in the future (submit tasks from within a task)
+ *
  * 	Issues:
- * 	 - set_defaults<>(local_world) for loading (affects pmap)
- * 	 - serialization of task works only for int, double, .. but not for Function -> separate task from data
- * 	 - save/load of task data: must save data upon creation instead of consumption, because serialization of Function fails
- * 	 - macro_taskq as WorldObject??
+ *   - default map is OK as long as worlds (universe, subworlds) are disjoint
  *   - turn data structure into tuple
- *   - prioritize tasks
- *   - submit tasks from within other tasks -> how to manage results?
+ *   - serialize Function pointer (cast to int64) using archive, serialize Function data using parallel archive
+ *   - priority q on rank 0, rank 0 does/nt respond to requests for tasks, does bookkeeping.
  *
- */
-
-
-/**
- *  - default map is OK as long as worlds (universe, subworlds) are disjoint
- *  - serialize Function pointer (cast to int64) using archive, serialize Function data using parallel archive
- *	- priority q on rank 0, rank 0 does/nt respond to requests for tasks, does bookkeeping.
- *
- *	- world.h load/store base pointer
  */
 
 
@@ -155,51 +148,14 @@ void localize(dataT& data, World& origin, World& destination, std::string filena
 //	data.load(destination, filename);
 }
 
-//
-//template<class dataT,
-//	 typename std::enable_if_t<
-//	 std::is_member_function_pointer<decltype(&dataT::load)>::value, int> = 0>
-//void load_data(dataT& data, World& world, std::string filename){
-//	data.load(world, filename);
-//}
-//
-//template<typename T, std::size_t NDIM>
-//void load_data(Function<T,NDIM> & data, World& world, const std::string filename){
-//	data=FunctionFactory<T,NDIM>(world);
-//	load(data,filename);
-//}
-//
-//template<typename T, std::size_t NDIM>
-//void load_result(Function<T,NDIM>& result, World& world, std::string filename) {
-//	result=FunctionFactory<T,NDIM>(world);
-//	load(result,filename);
-//}
-//
-//
-//template<class dataT,
-//	 typename std::enable_if_t<
-//	 std::is_member_function_pointer<decltype(&dataT::store_and_clear)>::value, int> = 0>
-//void store_and_clear_data(dataT& data, World& world, std::string filename){
-//	data.store_and_clear(world, filename);
-//}
-//
-//template<typename T, std::size_t NDIM>
-//void store_and_clear_data(Function<T,NDIM> & data, World& world, const std::string filename){
-//	if (data.is_initialized()) save(data,filename);
-//	data.clear();
-//}
-
-
 class MacroTaskBase;
 
 typedef MacroTaskBase* (*inputfuntype)(const BufferInputArchive& ar);
 typedef MacroTaskBase* (*outputfuntype)(BufferOutputArchive& ar);
 
 /// base class
-//template<typename resultT, typename dataT>
 class MacroTaskBase {
 public:
-//	virtual resultT run(World& world, const dataT& data) = 0;
 	MacroTaskBase() {}
 	virtual ~MacroTaskBase() {};
 
@@ -519,6 +475,7 @@ public:
 		for (auto t : vtask) if (universe.rank()==0) t->set_waiting();
 		for (int i=0; i<vtask.size(); ++i) add_replicated_task(vtask[i]);
 		print_taskq();
+		// TODO: needs to be replaced by localization (copying from/to different worlds)
 		store_task_data();
 
 		universe.gop.fence();
@@ -529,8 +486,10 @@ public:
 
 			double cpu0=cpu_time();
 			std::shared_ptr<MacroTaskBase> task=taskq[element];
-//			task->localize(universe,subworld);
+
+			// TODO: needs to be replaced by localization (copying from/to different worlds)
 			task->load_data(subworld,task->make_filename(element));
+			//			task->localize(universe,subworld);
 
 			task->run(subworld);
 			subworld.gop.fence();
@@ -666,7 +625,7 @@ private:
 //		task.reset(task_ptr);
 //		return task;
 //	}
-
+//
 //	/// pass serialized task from universe.rank()==0 to world.rank()==0
 //	std::vector<unsigned char> pop() {
 //		return this->task(ProcessID(0), &macro_taskq<taskT>::pop_local);
@@ -726,6 +685,7 @@ int main(int argc, char** argv) {
 	Function<double,4> ff(universe);
 	ff.add_scalar(2);
 
+	// try heterogeneous task list
     vtask.push_back(std::shared_ptr<MacroTaskBase>(new MacroTask1<real_function_4d,real_function_4d>(ff)));
     // set up taskq with a vector of tasks
     macro_taskq taskq(universe,nworld);
