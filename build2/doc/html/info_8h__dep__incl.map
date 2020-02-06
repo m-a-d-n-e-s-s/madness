@@ -1,0 +1,7 @@
+<map id="info.h" name="info.h">
+<area shape="rect" id="node1" title="Defines functions that give information on this version of MADNESS. " alt="" coords="199,5,252,32"/>
+<area shape="rect" id="node2" href="$ac__corr_8cc.html" title="ac_corr.cc" alt="" coords="5,80,88,107"/>
+<area shape="rect" id="node3" href="$helium__exact_8cc.html" title="Solves the two&#45;particle system exactly. " alt="" coords="112,80,227,107"/>
+<area shape="rect" id="node4" href="$examples_2mp2_8cc.html" title="mp2.cc" alt="" coords="251,80,315,107"/>
+<area shape="rect" id="node5" href="$info_8cc.html" title="Implements functions that give information on this version of MADNESS. " alt="" coords="339,80,399,107"/>
+</map>

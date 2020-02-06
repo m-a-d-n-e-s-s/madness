@@ -1,0 +1,44 @@
+<map id="pointgroupsymmetry.h" name="pointgroupsymmetry.h">
+<area shape="rect" id="node2" href="$nemo_8h.html" title="nemo.h" alt="" coords="768,80,832,107"/>
+<area shape="rect" id="node14" href="$apps_2chem_2nemo_8cc.html" title="nemo.cc" alt="" coords="53,155,123,181"/>
+<area shape="rect" id="node42" href="$pointgroupsymmetry_8cc.html" title="implements point group operations " alt="" coords="856,80,1011,107"/>
+<area shape="rect" id="node43" href="$test__pointgroupsymmetry_8cc.html" title="test_pointgroupsymmetry.cc" alt="" coords="1035,80,1217,107"/>
+<area shape="rect" id="node3" href="$CC2_8h.html" title="CC2.h" alt="" coords="874,229,931,256"/>
+<area shape="rect" id="node9" href="$CCPotentials_8h.html" title="CCPotentials.h" alt="" coords="519,155,625,181"/>
+<area shape="rect" id="node11" href="$apps_2chem_2mp2_8cc.html" title="mp2.cc" alt="" coords="5,229,69,256"/>
+<area shape="rect" id="node12" href="$mp2_8h.html" title="Solves molecular MP2 equations. " alt="" coords="199,155,256,181"/>
+<area shape="rect" id="node15" href="$oep_8h.html" title="oep.h" alt="" coords="281,155,335,181"/>
+<area shape="rect" id="node18" href="$PNOStructures_8h.html" title="PNOStructures.h" alt="" coords="375,155,493,181"/>
+<area shape="rect" id="node24" href="$SCF_8cc.html" title="Molecular HF and DFT code. " alt="" coords="650,155,715,181"/>
+<area shape="rect" id="node25" href="$SCFOperators_8cc.html" title="Operators for the molecular HF and DFT code. " alt="" coords="739,155,860,181"/>
+<area shape="rect" id="node26" href="$TDHF_8h.html" title="TDHF.h" alt="" coords="1109,155,1176,181"/>
+<area shape="rect" id="node29" href="$test__SCFOperators_8cc.html" title="test_SCFOperators.cc" alt="" coords="936,155,1085,181"/>
+<area shape="rect" id="node30" href="$znemo_8h.html" title="znemo.h" alt="" coords="1201,155,1271,181"/>
+<area shape="rect" id="node7" href="$pno_8cpp.html" title="pno.cpp" alt="" coords="1227,453,1293,480"/>
+<area shape="rect" id="node38" href="$smooth_8h.html" title="smooth.h" alt="" coords="1764,155,1839,181"/>
+<area shape="rect" id="node40" href="$helium__exact_8cc.html" title="Solves the two&#45;particle system exactly. " alt="" coords="1529,155,1644,181"/>
+<area shape="rect" id="node41" href="$examples_2nemo_8cc.html" title="solve the HF equations using numerical exponential MOs " alt="" coords="1669,155,1739,181"/>
+<area shape="rect" id="node4" href="$CC2_8cc.html" title="CC2.cc" alt="" coords="957,304,1021,331"/>
+<area shape="rect" id="node5" href="$PNO_8h.html" title="PNO.h" alt="" coords="805,379,864,405"/>
+<area shape="rect" id="node8" href="$cc2_8cc.html" title="cc2.cc" alt="" coords="873,304,932,331"/>
+<area shape="rect" id="node6" href="$PNO_8cpp.html" title="PNO.cpp" alt="" coords="797,453,872,480"/>
+<area shape="rect" id="node10" href="$CCPotentials_8cc.html" title="CCPotentials.cc" alt="" coords="735,229,849,256"/>
+<area shape="rect" id="node13" href="$examples_2mp2_8cc.html" title="mp2.cc" alt="" coords="93,229,157,256"/>
+<area shape="rect" id="node16" href="$apps_2chem_2oep_8cc.html" title="oep.cc" alt="" coords="182,229,241,256"/>
+<area shape="rect" id="node17" href="$examples_2oep_8cc.html" title="optimized effective potentials for DFT " alt="" coords="266,229,325,256"/>
+<area shape="rect" id="node19" href="$PNOF12Potentials_8h.html" title="PNOF12Potentials.h" alt="" coords="628,304,767,331"/>
+<area shape="rect" id="node21" href="$PNOGuessFunctions_8h.html" title="PNOGuessFunctions.h" alt="" coords="351,229,503,256"/>
+<area shape="rect" id="node23" href="$PNOStructures_8cpp.html" title="PNOStructures.cpp" alt="" coords="527,229,660,256"/>
+<area shape="rect" id="node20" href="$PNOF12Potentials_8cpp.html" title="PNOF12Potentials.cpp" alt="" coords="621,379,773,405"/>
+<area shape="rect" id="node22" href="$PNOGuessFunctions_8cpp.html" title="PNOGuessFunctions.cpp" alt="" coords="343,304,509,331"/>
+<area shape="rect" id="node27" href="$TDHF_8cc.html" title="TDHF.cc" alt="" coords="1042,229,1115,256"/>
+<area shape="rect" id="node28" href="$cis_8cpp.html" title="cis.cpp" alt="" coords="955,229,1017,256"/>
+<area shape="rect" id="node31" href="$diamagneticpotentialfactor_8h.html" title="diamagneticpotentialfactor.h" alt="" coords="1371,229,1555,256"/>
+<area shape="rect" id="node34" href="$zcis_8h.html" title="zcis.h" alt="" coords="1139,229,1193,256"/>
+<area shape="rect" id="node33" href="$apps_2chem_2znemo_8cc.html" title="znemo.cc" alt="" coords="1241,304,1319,331"/>
+<area shape="rect" id="node37" href="$examples_2znemo_8cc.html" title="solve the HF equations using numerical exponential MOs " alt="" coords="1269,229,1347,256"/>
+<area shape="rect" id="node32" href="$diamagneticpotentialfactor_8cc.html" title="diamagneticpotentialfactor.cc" alt="" coords="1363,304,1553,331"/>
+<area shape="rect" id="node35" href="$apps_2chem_2zcis_8cc.html" title="zcis.cc" alt="" coords="1060,304,1121,331"/>
+<area shape="rect" id="node36" href="$examples_2zcis_8cc.html" title="zcis.cc" alt="" coords="1145,304,1207,331"/>
+<area shape="rect" id="node39" href="$density__smoothing_8cc.html" title="density_smoothing.cc" alt="" coords="1729,229,1873,256"/>
+</map>

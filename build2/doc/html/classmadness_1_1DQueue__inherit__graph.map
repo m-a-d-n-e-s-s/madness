@@ -1,0 +1,5 @@
+<map id="madness::DQueue&lt; T &gt;" name="madness::DQueue&lt; T &gt;">
+<area shape="rect" id="node1" title="A thread safe, fast but simple doubled&#45;ended queue. " alt="" coords="30,155,185,181"/>
+<area shape="rect" id="node2" href="$classmadness_1_1PthreadConditionVariable.html" title="Simple wrapper for Pthread condition variable with its own mutex. " alt="" coords="5,80,211,107"/>
+<area shape="rect" id="node3" href="$classNO__DEFAULTS.html" title="Disables default copy constructor and assignment operators. " alt="" coords="51,5,165,32"/>
+</map>

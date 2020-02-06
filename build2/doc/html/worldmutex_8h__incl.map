@@ -1,0 +1,8 @@
+<map id="worldmutex.h" name="worldmutex.h">
+<area shape="rect" id="node1" title="Implements Mutex, MutexFair, Spinlock, ConditionVariable. " alt="" coords="785,5,881,32"/>
+<area shape="rect" id="node2" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS. " alt="" coords="448,171,627,197"/>
+<area shape="rect" id="node6" href="$nodefaults_8h.html" title="Implements NO_DEFAULTS. " alt="" coords="1118,88,1297,115"/>
+<area shape="rect" id="node7" href="$timers_8h.html" title="Wrappers around platform dependent timers and performance info. " alt="" coords="215,88,371,115"/>
+<area shape="rect" id="node13" href="$atomicint_8h.html" title="Implements AtomicInt. " alt="" coords="553,88,727,115"/>
+<area shape="rect" id="node15" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling.By default, the MADNESS_ASSERT macro throws ..." alt="" coords="752,81,915,122"/>
+</map>

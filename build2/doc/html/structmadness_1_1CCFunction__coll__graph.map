@@ -1,0 +1,5 @@
+<map id="madness::CCFunction" name="madness::CCFunction">
+<area shape="rect" id="node1" title="structure for a CC Function 3D which holds an index and a type " alt="" coords="84,219,231,245"/>
+<area shape="rect" id="node2" href="$classmadness_1_1Function.html" title="madness::Function\&lt;\l double, 3 \&gt;" alt="" coords="89,113,225,154"/>
+<area shape="rect" id="node3" href="$classmadness_1_1archive_1_1ParallelSerializableObject.html" title="Objects that implement their own parallel archive interface should derive from this class..." alt="" coords="5,6,173,47"/>
+</map>

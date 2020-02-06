@@ -1,0 +1,4 @@
+<map id="madness::SteepestDescent" name="madness::SteepestDescent">
+<area shape="rect" id="node1" title="Unconstrained minimization via steepest descent. " alt="" coords="9,80,185,107"/>
+<area shape="rect" id="node2" href="$structmadness_1_1OptimizerInterface.html" title="The interface to be provided by optimizers. " alt="" coords="5,5,189,32"/>
+</map>

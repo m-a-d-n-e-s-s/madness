@@ -1,0 +1,29 @@
+<map id="gentensor.h" name="gentensor.h">
+<area shape="rect" id="node2" href="$tensor_8h.html" title="Defines and implements most of Tensor. " alt="" coords="1883,320,2044,347"/>
+<area shape="rect" id="node41" href="$srconf_8h.html" title="madness/tensor/srconf.h" alt="" coords="2229,155,2389,181"/>
+<area shape="rect" id="node49" href="$tensortrain_8h.html" title="Defines and implements the tensor train decomposition as described in I.V. Oseledets, Siam J. Sci. Comput. 33, 2295 (2011). " alt="" coords="2335,80,2521,107"/>
+<area shape="rect" id="node3" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS. " alt="" coords="2272,659,2451,685"/>
+<area shape="rect" id="node5" href="$ran_8h.html" title="madness/misc/ran.h" alt="" coords="1791,395,1927,421"/>
+<area shape="rect" id="node13" href="$posixmem_8h.html" title="Implement dummy posix_memalign if it is missing on the system. " alt="" coords="2001,395,2180,421"/>
+<area shape="rect" id="node18" href="$archive_8h.html" title="Interface templates for the archives (serialization). " alt="" coords="1193,395,1356,421"/>
+<area shape="rect" id="node27" href="$basetensor_8h.html" title="Declares BaseTensor. " alt="" coords="145,568,332,595"/>
+<area shape="rect" id="node32" href="$aligned_8h.html" title="Provides routines for internal use optimized for aligned data. " alt="" coords="2450,395,2616,421"/>
+<area shape="rect" id="node37" href="$mxm_8h.html" title="Internal use only. " alt="" coords="2284,568,2439,595"/>
+<area shape="rect" id="node38" href="$tensorexcept_8h.html" title="Declares and implements TensorException. " alt="" coords="246,477,444,504"/>
+<area shape="rect" id="node39" href="$tensoriter_8h.html" title="Declares TensorIterator. " alt="" coords="475,395,653,421"/>
+<area shape="rect" id="node6" href="$thread_8h.html" title="Implements Dqueue, Thread, ThreadBase and ThreadPool. " alt="" coords="1857,477,2015,504"/>
+<area shape="rect" id="node23" href="$type__traits_8h.html" title="madness/world/type\l_traits.h" alt="" coords="1001,470,1135,511"/>
+<area shape="rect" id="node25" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling.By default, the MADNESS_ASSERT macro throws ..." alt="" coords="1324,561,1487,602"/>
+<area shape="rect" id="node28" href="$tensor__macros_8h.html" title="Macros for easy and efficient iteration over tensors. " alt="" coords="537,651,687,693"/>
+<area shape="rect" id="node29" href="$type__data_8h.html" title="Defines and implements TensorTypeData, a type traits class. " alt="" coords="195,651,335,693"/>
+<area shape="rect" id="node30" href="$slice_8h.html" title="Declares and implements Slice. " alt="" coords="360,659,512,685"/>
+<area shape="rect" id="node31" href="$vector__factory_8h.html" title="Declares and implements factories for short vectors. " alt="" coords="253,742,403,783"/>
+<area shape="rect" id="node33" href="$cblas_8h.html" title="Define BLAS like functions. " alt="" coords="2533,477,2688,504"/>
+<area shape="rect" id="node34" href="$fortran__ctypes_8h.html" title="Correspondence between C++ and Fortran types. " alt="" coords="2815,568,2983,595"/>
+<area shape="rect" id="node42" href="$print_8h.html" title="Defines simple templates for printing to std::cout &quot;a la Python&quot;. " alt="" coords="728,395,875,421"/>
+<area shape="rect" id="node45" href="$clapack_8h.html" title="C++ interface to LAPACK, either directly via Fortran API (see clapack_fortran.h) or via LAPACKE (see ..." alt="" coords="2527,237,2697,264"/>
+<area shape="rect" id="node47" href="$tensor__lapack_8h.html" title="Prototypes for a partial interface from Tensor to LAPACK. " alt="" coords="2351,230,2501,271"/>
+<area shape="rect" id="node44" href="$worldmutex_8h.html" title="Implements Mutex, MutexFair, Spinlock, ConditionVariable. " alt="" coords="1312,477,1499,504"/>
+<area shape="rect" id="node46" href="$clapack__fortran_8h.html" title="Legacy C++ prototypes for Fortran LAPACK with associated typedefs and macos. " alt="" coords="2838,320,2959,347"/>
+<area shape="rect" id="node48" href="$elem_8h.html" title="madness/tensor/elem.h" alt="" coords="2349,320,2504,347"/>
+</map>

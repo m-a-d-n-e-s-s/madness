@@ -1,0 +1,6 @@
+<map id="madness::FunctionCommonData&lt; T, NDIM &gt;" name="madness::FunctionCommonData&lt; T, NDIM &gt;">
+<area shape="rect" id="node1" title="FunctionCommonData holds all Function data common for given k. " alt="" coords="7,321,215,362"/>
+<area shape="rect" id="node2" href="$classmadness_1_1Slice.html" title="A slice defines a sub&#45;range or patch of a dimension. " alt="" coords="5,83,112,109"/>
+<area shape="rect" id="node3" href="$classmadness_1_1Tensor.html" title="madness::Tensor\&lt; double \&gt;" alt="" coords="137,83,316,109"/>
+<area shape="rect" id="node4" href="$classmadness_1_1BaseTensor.html" title="The base class for tensors defines generic capabilities. " alt="" coords="153,5,300,32"/>
+</map>

@@ -1,0 +1,5 @@
+<map id="mentity.h" name="mentity.h">
+<area shape="rect" id="node10" href="$misc_8h.html" title="Header to declare stuff which has not yet found a home. " alt="" coords="138,80,283,107"/>
+<area shape="rect" id="node11" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling.By default, the MADNESS_ASSERT macro throws ..." alt="" coords="151,155,313,197"/>
+<area shape="rect" id="node15" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS. " alt="" coords="340,245,519,272"/>
+</map>

@@ -1,0 +1,3 @@
+<map id="madness::is_ostreammable&lt; T, typename &gt;" name="madness::is_ostreammable&lt; T, typename &gt;">
+<area shape="rect" id="node1" title="True for types that are &quot;serialiable&quot; to a std::ostream. " alt="" coords="5,81,181,122"/>
+</map>

@@ -1,0 +1,11 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="node2" href="$structmadness_1_1detail_1_1callable__traits.html" title="Function traits in the spirit of boost function traits. " alt="" coords="134,5,325,46"/>
+<area shape="rect" id="node3" href="$structmadness_1_1detail_1_1function__traits.html" title="Function traits in the spirit of boost function traits. " alt="" coords="134,70,325,111"/>
+<area shape="rect" id="node4" href="$structmadness_1_1detail_1_1is__arg__holder.html" title="madness::detail::is\l_arg_holder\&lt; T \&gt;" alt="" coords="167,135,292,177"/>
+<area shape="rect" id="node5" href="$structmadness_1_1detail_1_1memfunc__traits.html" title="Member function traits in the spirit of boost function traits. " alt="" coords="144,201,315,242"/>
+<area shape="rect" id="node6" href="$structmadness_1_1is__future.html" title="Boost&#45;type&#45;trait&#45;like test if a type is a future. " alt="" coords="150,267,309,293"/>
+<area shape="rect" id="node7" href="$structmadness_1_1is__istreammable.html" title="True for types that are &quot;deserialiable&quot; from an std::istream. " alt="" coords="143,318,315,359"/>
+<area shape="rect" id="node8" href="$structmadness_1_1is__ostreammable.html" title="True for types that are &quot;serialiable&quot; to a std::ostream. " alt="" coords="141,383,317,425"/>
+<area shape="rect" id="node9" href="$structmadness_1_1is__serializable.html" title="is std::true_type if T can be serialized to Archive without specialized serialize() method ..." alt="" coords="147,449,312,490"/>
+<area shape="rect" id="node10" href="$structmadness_1_1meta_1_1taskattr__is__last__arg_3_4.html" title="madness::meta::taskattr\l_is_last_arg\&lt;\&gt;" alt="" coords="151,514,308,555"/>
+</map>

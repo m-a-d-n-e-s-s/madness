@@ -1,0 +1,5 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="node2" href="$classmadness_1_1WorldContainerImpl.html" title="Internal implementation of distributed container to facilitate shallow copy. " alt="" coords="253,57,445,98"/>
+<area shape="rect" id="node3" href="$classmadness_1_1WorldDCRedistributeInterface.html" title="madness::WorldDCRedistribute\lInterface\&lt; keyT \&gt;" alt="" coords="6,57,205,98"/>
+<area shape="rect" id="node4" href="$classmadness_1_1WorldObject.html" title="madness::WorldObject\l\&lt; WorldContainerImpl\l\&lt; keyT, valueT, hashfunT \&gt; \&gt;" alt="" coords="11,123,199,179"/>
+</map>

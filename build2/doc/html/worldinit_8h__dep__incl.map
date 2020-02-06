@@ -1,0 +1,52 @@
+<map id="worldinit.h" name="worldinit.h">
+<area shape="rect" id="node1" title="Declares the functions that initialize the parallel runtime. " alt="" coords="1033,5,1111,32"/>
+<area shape="rect" id="node2" href="$thread_8cc.html" title="Implements Dqueue, Thread, ThreadBase and ThreadPool. " alt="" coords="988,80,1063,107"/>
+<area shape="rect" id="node3" href="$world_8h.html" title="Declares the World class for the parallel runtime environment. " alt="" coords="1087,80,1149,107"/>
+<area shape="rect" id="node4" href="$MolecularOrbitals_8cc.html" title="MolecularOrbitals.cc" alt="" coords="387,536,525,563"/>
+<area shape="rect" id="node5" href="$plotxc_8cc.html" title="plotxc.cc" alt="" coords="1037,619,1109,645"/>
+<area shape="rect" id="node6" href="$QCCalculationParametersBase_8h.html" title="QCCalculationParametersBase.h" alt="" coords="332,379,543,405"/>
+<area shape="rect" id="node13" href="$array__worldobject_8cc.html" title="array_worldobject.cc" alt="" coords="973,453,1112,480"/>
+<area shape="rect" id="node14" href="$dependency__interface_8h.html" title="Defines DependencyInterface and CallbackInterface. " alt="" coords="878,155,1036,181"/>
+<area shape="rect" id="node15" href="$future_8h.html" title="Implements Future and related items. " alt="" coords="921,229,985,256"/>
+<area shape="rect" id="node45" href="$group_8h.html" title="group.h" alt="" coords="1133,304,1197,331"/>
+<area shape="rect" id="node19" href="$MADworld_8h.html" title="This header should include pretty much everything needed for the parallel runtime. " alt="" coords="1632,453,1723,480"/>
+<area shape="rect" id="node46" href="$mpi__archive_8h.html" title="Implements archives to serialize data for MPI. " alt="" coords="1112,155,1213,181"/>
+<area shape="rect" id="node41" href="$parallel__archive_8h.html" title="Implements ParallelInputArchive and ParallelOutputArchive for parallel serialization of data..." alt="" coords="827,453,948,480"/>
+<area shape="rect" id="node47" href="$test__atomicint_8cc.html" title="test_atomicint.cc" alt="" coords="1288,155,1408,181"/>
+<area shape="rect" id="node48" href="$test__hashthreaded_8cc.html" title="test_hashthreaded.cc" alt="" coords="1432,155,1576,181"/>
+<area shape="rect" id="node42" href="$world_8cc.html" title="Implementation of the World class and associated functions. " alt="" coords="1747,453,1816,480"/>
+<area shape="rect" id="node49" href="$worldam_8h.html" title="Implements active message layer for World on top of RMI layer. " alt="" coords="1651,379,1731,405"/>
+<area shape="rect" id="node17" href="$worldgop_8h.html" title="Implements global operations. " alt="" coords="1001,379,1084,405"/>
+<area shape="rect" id="node50" href="$worldptr_8h.html" title="The madness::detail::WorldPtr class for global pointers. " alt="" coords="1805,155,1883,181"/>
+<area shape="rect" id="node7" href="$CalculationParameters_8h.html" title="CalculationParameters.h" alt="" coords="177,453,340,480"/>
+<area shape="rect" id="node9" href="$molecular__optimizer_8h.html" title="optimize the geometrical structure of a molecule " alt="" coords="364,453,511,480"/>
+<area shape="rect" id="node10" href="$mp2_8h.html" title="Solves molecular MP2 equations. " alt="" coords="45,453,101,480"/>
+<area shape="rect" id="node11" href="$QCCalculationParametersBase_8cc.html" title="QCCalculationParametersBase.cc" alt="" coords="586,453,803,480"/>
+<area shape="rect" id="node12" href="$test__QCCalculationParametersBase_8cc.html" title="test_QCCalculationParameters\lBase.cc" alt="" coords="619,529,817,570"/>
+<area shape="rect" id="node8" href="$znemo_8h.html" title="znemo.h" alt="" coords="223,536,293,563"/>
+<area shape="rect" id="node44" href="$taskfn_8h.html" title="taskfn.h" alt="" coords="1043,304,1109,331"/>
+<area shape="rect" id="node16" href="$dist__cache_8h.html" title="dist_cache.h" alt="" coords="923,304,1017,331"/>
+<area shape="rect" id="node43" href="$future_8cc.html" title="Implementations for Future and related functions. " alt="" coords="827,304,899,331"/>
+<area shape="rect" id="node18" href="$group_8cc.html" title="group.cc" alt="" coords="1137,453,1207,480"/>
+<area shape="rect" id="node20" href="$AC_8h.html" title="AC.h" alt="" coords="2495,536,2545,563"/>
+<area shape="rect" id="node22" href="$distpm_8cc.html" title="distpm.cc" alt="" coords="2172,536,2249,563"/>
+<area shape="rect" id="node23" href="$xcfunctional_8h.html" title="xcfunctional.h" alt="" coords="1280,536,1381,563"/>
+<area shape="rect" id="node28" href="$pointgroupsymmetry_8h.html" title="pointgroupsymmetry.h" alt="" coords="2324,536,2471,563"/>
+<area shape="rect" id="node24" href="$testlda_8cc.html" title="testlda.cc" alt="" coords="1135,619,1212,645"/>
+<area shape="rect" id="node25" href="$testxc_8cc.html" title="testxc.cc" alt="" coords="1237,619,1309,645"/>
+<area shape="rect" id="node26" href="$xcfunctional__ldaonly_8cc.html" title="xcfunctional_ldaonly.cc" alt="" coords="1335,619,1489,645"/>
+<area shape="rect" id="node27" href="$xcfunctional__libxc_8cc.html" title="xcfunctional_libxc.cc" alt="" coords="1513,619,1655,645"/>
+<area shape="rect" id="node29" href="$dft_8h.html" title="dft.h" alt="" coords="2574,619,2620,645"/>
+<area shape="rect" id="node30" href="$eigsolver_8h.html" title="eigsolver.h" alt="" coords="2620,536,2703,563"/>
+<area shape="rect" id="node32" href="$util_8h.html" title="util.h" alt="" coords="1155,536,1204,563"/>
+<area shape="rect" id="node33" href="$libxc_8h.html" title="libxc.h" alt="" coords="1840,619,1899,645"/>
+<area shape="rect" id="node35" href="$lda_8h.html" title="lda.h" alt="" coords="1845,536,1893,563"/>
+<area shape="rect" id="node31" href="$hartreefock_8h.html" title="hartreefock.h" alt="" coords="2675,619,2772,645"/>
+<area shape="rect" id="node34" href="$solver_8h.html" title="solver.h" alt="" coords="1398,693,1463,720"/>
+<area shape="rect" id="node36" href="$test__comm_8cc.html" title="test_comm.cc" alt="" coords="1507,536,1609,563"/>
+<area shape="rect" id="node37" href="$testconv_8cc.html" title="testconv.cc" alt="" coords="1634,536,1720,563"/>
+<area shape="rect" id="node38" href="$testpg_8cc.html" title="testpg.cc" alt="" coords="1745,536,1820,563"/>
+<area shape="rect" id="node21" href="$ac__corr_8cc.html" title="ac_corr.cc" alt="" coords="2356,619,2439,645"/>
+<area shape="rect" id="node39" href="$hello_8cc.html" title="Simplest example program for MADNESS. " alt="" coords="1919,536,1985,563"/>
+<area shape="rect" id="node40" href="$derivative_8h.html" title="Declaration and initialization of tree traversal functions and generic derivative. " alt="" coords="2010,536,2096,563"/>
+</map>

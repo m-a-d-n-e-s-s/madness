@@ -1,0 +1,52 @@
+<map id="tensor_lapack.h" name="tensor_lapack.h">
+<area shape="rect" id="node1" title="Prototypes for a partial interface from Tensor to LAPACK. " alt="" coords="881,5,993,32"/>
+<area shape="rect" id="node2" href="$molecule_8cc.html" title="molecule.cc" alt="" coords="263,80,353,107"/>
+<area shape="rect" id="node3" href="$molopt_8h.html" title="molopt.h" alt="" coords="7,237,77,264"/>
+<area shape="rect" id="node5" href="$vibanal_8cc.html" title="vibanal.cc" alt="" coords="975,80,1053,107"/>
+<area shape="rect" id="node6" href="$convolution1d_8h.html" title="Compuates most matrix elements over 1D operators (including Gaussians) " alt="" coords="789,80,899,107"/>
+<area shape="rect" id="node40" href="$gfit_8h.html" title="fit isotropic functions to a set of Gaussians with controlled precision " alt="" coords="715,80,764,107"/>
+<area shape="rect" id="node8" href="$operator_8h.html" title="Implements most functionality of separated operators. " alt="" coords="1362,155,1440,181"/>
+<area shape="rect" id="node41" href="$elem_8h.html" title="elem.h" alt="" coords="635,155,695,181"/>
+<area shape="rect" id="node42" href="$fred_8cc.html" title="fred.cc" alt="" coords="1079,80,1140,107"/>
+<area shape="rect" id="node43" href="$gfit_8cc.html" title="gfit.cc" alt="" coords="103,237,159,264"/>
+<area shape="rect" id="node44" href="$gmres_8h.html" title="Defines a general operator interface and a templated GMRES solver for solving linear equations..." alt="" coords="1164,80,1231,107"/>
+<area shape="rect" id="node45" href="$kain_8cc.html" title="kain.cc" alt="" coords="1255,80,1317,107"/>
+<area shape="rect" id="node46" href="$lapack_8cc.html" title="Partial interface from Tensor to LAPACK. " alt="" coords="1343,80,1420,107"/>
+<area shape="rect" id="node47" href="$srconf_8h.html" title="srconf.h" alt="" coords="1495,80,1561,107"/>
+<area shape="rect" id="node48" href="$tensortrain_8h.html" title="Defines and implements the tensor train decomposition as described in I.V. Oseledets, Siam J. Sci. Comput. 33, 2295 (2011). " alt="" coords="1475,155,1567,181"/>
+<area shape="rect" id="node49" href="$solvers_8h.html" title="Defines interfaces for optimization and non&#45;linear equation solvers. " alt="" coords="479,155,549,181"/>
+<area shape="rect" id="node50" href="$test__linalg_8cc.html" title="test_linalg.cc" alt="" coords="1586,80,1683,107"/>
+<area shape="rect" id="node4" href="$moldft_8cc.html" title="Molecular HF and DFT code. " alt="" coords="5,320,80,347"/>
+<area shape="rect" id="node7" href="$function__interface_8h.html" title="function_interface.h" alt="" coords="747,155,881,181"/>
+<area shape="rect" id="node9" href="$CC2_8h.html" title="CC2.h" alt="" coords="938,320,995,347"/>
+<area shape="rect" id="node10" href="$nemo_8h.html" title="nemo.h" alt="" coords="1063,237,1127,264"/>
+<area shape="rect" id="node11" href="$znemo_8h.html" title="znemo.h" alt="" coords="1019,320,1089,347"/>
+<area shape="rect" id="node13" href="$poperator_8h.html" title="poperator.h" alt="" coords="1202,237,1288,264"/>
+<area shape="rect" id="node14" href="$eigsolver_8cc.html" title="eigsolver.cc" alt="" coords="1271,320,1360,347"/>
+<area shape="rect" id="node15" href="$tdse_8cc.html" title="Evolves the hydrogen atom in imaginary and also real time. " alt="" coords="1365,237,1427,264"/>
+<area shape="rect" id="node16" href="$tdse_8confused_8cc.html" title="Evolves the hydrogen atom in imaginary and also real time. " alt="" coords="1451,237,1569,264"/>
+<area shape="rect" id="node17" href="$tdse4_8cc.html" title="Evolves the hydrogen molecular ion in 4D ... 3 electron + 1 nuclear degree of freedom. " alt="" coords="1594,237,1664,264"/>
+<area shape="rect" id="node18" href="$csqrt_8cc.html" title="csqrt.cc" alt="" coords="1689,237,1756,264"/>
+<area shape="rect" id="node19" href="$dataloadbal_8cc.html" title="Illustrates how to use static data/load balancing of functions. " alt="" coords="1781,237,1885,264"/>
+<area shape="rect" id="node20" href="$dielectric_8cc.html" title="Example solution of Poisson&#39;s equation in a dielectric (polarizable) medium. " alt="" coords="276,237,367,264"/>
+<area shape="rect" id="node21" href="$dielectric__external__field_8cc.html" title="dielectric_external\l_field.cc" alt="" coords="391,230,517,271"/>
+<area shape="rect" id="node22" href="$gaussian_8cc.html" title="A simple example of projecting and using MADNESS functions.This example projects a simple Gaussian fu..." alt="" coords="1910,237,1999,264"/>
+<area shape="rect" id="node23" href="$h2_8cc.html" title="Solves the Hartree&#45;Fock equations for the hydrogen molecule. " alt="" coords="2024,237,2077,264"/>
+<area shape="rect" id="node24" href="$h2dft_8cc.html" title="h2dft.cc" alt="" coords="183,237,251,264"/>
+<area shape="rect" id="node25" href="$h2dynamic_8cc.html" title="h2dynamic.cc" alt="" coords="2101,237,2203,264"/>
+<area shape="rect" id="node26" href="$hatom__1d_8cc.html" title="Solves the Schrodinger equation for the 1&#45;d hydrogen atomThe Hartree&#45;Fock wave function is computed f..." alt="" coords="2227,237,2323,264"/>
+<area shape="rect" id="node27" href="$he_8cc.html" title="Solves the Hartree&#45;Fock equations for the helium atom. " alt="" coords="2347,237,2400,264"/>
+<area shape="rect" id="node28" href="$heat_8cc.html" title="Example Green function for the 3D heat equation. " alt="" coords="2424,237,2488,264"/>
+<area shape="rect" id="node29" href="$heat2_8cc.html" title="Example Green function for the 3D heat equation with a linear term. " alt="" coords="2513,237,2583,264"/>
+<area shape="rect" id="node30" href="$hedft_8cc.html" title="hedft.cc" alt="" coords="631,237,699,264"/>
+<area shape="rect" id="node31" href="$hefxc_8cc.html" title="hefxc.cc" alt="" coords="866,237,936,264"/>
+<area shape="rect" id="node32" href="$hehf_8cc.html" title="hehf.cc" alt="" coords="2608,237,2672,264"/>
+<area shape="rect" id="node12" href="$helium__exact_8cc.html" title="Solves the two&#45;particle system exactly. " alt="" coords="1115,320,1229,347"/>
+<area shape="rect" id="node33" href="$helium__mp2_8cc.html" title="Solves the Hartree&#45;Fock and MP2 equations for the helium atom. " alt="" coords="2696,237,2805,264"/>
+<area shape="rect" id="node34" href="$newsolver_8cc.html" title="newsolver.cc" alt="" coords="2830,237,2924,264"/>
+<area shape="rect" id="node35" href="$newsolver__lda_8cc.html" title="newsolver_lda.cc" alt="" coords="723,237,841,264"/>
+<area shape="rect" id="node36" href="$nonlinschro_8cc.html" title="Solves 1D nonlinear Schrödinger equation. " alt="" coords="2949,237,3053,264"/>
+<area shape="rect" id="node37" href="$svpe_8cc.html" title="svpe.cc" alt="" coords="542,237,607,264"/>
+<area shape="rect" id="node38" href="$tdse1d_8cc.html" title="Example propagation of TDSE (translating atom) using various propagators. " alt="" coords="3077,237,3155,264"/>
+<area shape="rect" id="node39" href="$tdse__example_8cc.html" title="Evolves the hydrogen atom in imaginary and also real time. " alt="" coords="3179,237,3297,264"/>
+</map>

@@ -1,0 +1,4 @@
+<map id="madness::NuclearCorrelationFactor::U1_dot_U1_functor" name="madness::NuclearCorrelationFactor::U1_dot_U1_functor">
+<area shape="rect" id="node1" title="functor for a local U1 dot U1 potential " alt="" coords="5,97,189,138"/>
+<area shape="rect" id="node2" href="$classmadness_1_1FunctionFunctorInterface.html" title="madness::FunctionFunctor\lInterface\&lt; double, 3 \&gt;" alt="" coords="11,6,184,47"/>
+</map>

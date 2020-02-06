@@ -1,0 +1,35 @@
+<map id="madness::SeparatedConvolution&lt; Q, NDIM &gt;" name="madness::SeparatedConvolution&lt; Q, NDIM &gt;">
+<area shape="rect" id="node1" title="Convolutions in separated form (including Gaussian) " alt="" coords="1965,379,2171,421"/>
+<area shape="rect" id="node2" href="$classmadness_1_1WorldObject.html" title="madness::WorldObject\l\&lt; SeparatedConvolution\l\&lt; Q, NDIM \&gt; \&gt;" alt="" coords="1669,71,1827,127"/>
+<area shape="rect" id="node3" href="$classmadness_1_1uniqueidT.html" title="Class for unique global IDs. " alt="" coords="1314,5,1449,32"/>
+<area shape="rect" id="node4" href="$classmadness_1_1Spinlock.html" title="Spinlock using pthread spinlock operations. " alt="" coords="6,107,135,133"/>
+<area shape="rect" id="node14" href="$classmadness_1_1Hash__private_1_1bin.html" title="madness::Hash_private\l::bin\&lt; keyT, valueT \&gt;" alt="" coords="659,445,813,486"/>
+<area shape="rect" id="node16" href="$classmadness_1_1MutexReaderWriter.html" title="madness::MutexReaderWriter" alt="" coords="187,344,376,371"/>
+<area shape="rect" id="node5" href="$classmadness_1_1World.html" title="A parallel world class. " alt="" coords="1325,227,1437,253"/>
+<area shape="rect" id="node9" href="$classmadness_1_1WorldTaskQueue.html" title="Multi&#45;threaded queue to manage and run tasks. " alt="" coords="1659,452,1837,479"/>
+<area shape="rect" id="node17" href="$classmadness_1_1WorldGopInterface.html" title="Provides collectives that interoperate with the AM and task interfaces. " alt="" coords="1655,204,1841,231"/>
+<area shape="rect" id="node6" href="$classNO__DEFAULTS.html" title="Disables default copy constructor and assignment operators. " alt="" coords="13,344,128,371"/>
+<area shape="rect" id="node7" href="$classmadness_1_1WorldAmInterface.html" title="Implements AM interface. " alt="" coords="949,168,1131,195"/>
+<area shape="rect" id="node8" href="$classmadness_1_1Mutex.html" title="Mutex using pthread mutex operations. " alt="" coords="645,168,827,195"/>
+<area shape="rect" id="node10" href="$classmadness_1_1CallbackInterface.html" title="The class used for callbacks (e.g., dependency tracking). " alt="" coords="1291,436,1471,463"/>
+<area shape="rect" id="node11" href="$classmadness_1_1AtomicInt.html" title="An integer with atomic set, get, read+increment, read+decrement, and decrement+test operations..." alt="" coords="1314,487,1449,513"/>
+<area shape="rect" id="node12" href="$classmadness_1_1ConcurrentHashMap.html" title="madness::ConcurrentHashMap\l\&lt; uniqueidT, void *, hashuniqueT \&gt;" alt="" coords="931,219,1149,261"/>
+<area shape="rect" id="node13" href="$structmadness_1_1World_1_1hashuniqueT.html" title="madness::World::hashuniqueT" alt="" coords="641,219,831,245"/>
+<area shape="rect" id="node18" href="$classmadness_1_1ConcurrentHashMap.html" title="madness::ConcurrentHashMap\l\&lt; void *, uniqueidT, hashvoidp \&gt;" alt="" coords="939,285,1141,326"/>
+<area shape="rect" id="node24" href="$classmadness_1_1ConcurrentHashMap.html" title="madness::ConcurrentHashMap\l\&lt; int, double \&gt;" alt="" coords="942,589,1138,630"/>
+<area shape="rect" id="node31" href="$classmadness_1_1ConcurrentHashMap.html" title="madness::ConcurrentHashMap\l\&lt; Key\&lt; NDIM \&gt;, madness::\lSeparatedConvolutionData\l\&lt; Q, NDIM \&gt; \&gt;" alt="" coords="1283,341,1479,411"/>
+<area shape="rect" id="node15" href="$classmadness_1_1Hash__private_1_1entry.html" title="madness::Hash_private\l::entry\&lt; keyT, valueT \&gt;" alt="" coords="427,379,581,421"/>
+<area shape="rect" id="node19" href="$structmadness_1_1World_1_1hashvoidp.html" title="madness::World::hashvoidp" alt="" coords="649,269,823,296"/>
+<area shape="rect" id="node20" href="$classmadness_1_1WorldMpiInterface.html" title="This class wraps/extends the MPI interface for World. " alt="" coords="948,351,1132,377"/>
+<area shape="rect" id="node21" href="$classmadness_1_1detail_1_1WorldMpiRuntime.html" title="MPI runtime reference counter. " alt="" coords="651,327,821,369"/>
+<area shape="rect" id="node22" href="$classSafeMPI_1_1Intracomm.html" title="Wrapper around MPI_Comm. Has a shallow copy constructor; use Create(Get_group()) for deep copy..." alt="" coords="665,393,807,420"/>
+<area shape="rect" id="node23" href="$classmadness_1_1Timer.html" title="madness::Timer" alt="" coords="1504,579,1616,605"/>
+<area shape="rect" id="node25" href="$structmadness_1_1Hash.html" title="madness::Hash\&lt; int \&gt;" alt="" coords="664,596,808,623"/>
+<area shape="rect" id="node26" href="$classmadness_1_1FunctionCommonData.html" title="madness::FunctionCommonData\l\&lt; Q, NDIM \&gt;" alt="" coords="1644,634,1852,675"/>
+<area shape="rect" id="node27" href="$classmadness_1_1Slice.html" title="A slice defines a sub&#45;range or patch of a dimension. " alt="" coords="1327,640,1435,667"/>
+<area shape="rect" id="node28" href="$classmadness_1_1Tensor.html" title="madness::Tensor\&lt; double \&gt;" alt="" coords="1292,832,1471,859"/>
+<area shape="rect" id="node29" href="$classmadness_1_1BaseTensor.html" title="The base class for tensors defines generic capabilities. " alt="" coords="967,832,1113,859"/>
+<area shape="rect" id="node30" href="$classmadness_1_1SimpleCache.html" title="madness::SimpleCache\l\&lt; madness::SeparatedConvolution\lData\&lt; Q, NDIM \&gt;, 2 *NDIM \&gt;" alt="" coords="1640,372,1856,428"/>
+<area shape="rect" id="node33" href="$classmadness_1_1SimpleCache.html" title="madness::SimpleCache\l\&lt; madness::SeparatedConvolution\lData\&lt; Q, NDIM \&gt;, NDIM \&gt;" alt="" coords="1640,292,1856,348"/>
+<area shape="rect" id="node32" href="$structmadness_1_1Hash.html" title="madness::Hash\&lt; Key\l\&lt; NDIM \&gt; \&gt;" alt="" coords="969,471,1111,513"/>
+</map>

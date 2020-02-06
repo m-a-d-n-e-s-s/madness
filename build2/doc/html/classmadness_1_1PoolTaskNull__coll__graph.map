@@ -1,0 +1,6 @@
+<map id="madness::PoolTaskNull" name="madness::PoolTaskNull">
+<area shape="rect" id="node1" title="A no&#45;operation task used for various purposes. " alt="" coords="80,189,235,216"/>
+<area shape="rect" id="node2" href="$classmadness_1_1PoolTaskInterface.html" title="Lowest level task interface. " alt="" coords="65,112,249,139"/>
+<area shape="rect" id="node4" href="$classmadness_1_1TaskAttributes.html" title="Contains attributes of a task. " alt="" coords="76,13,239,40"/>
+<area shape="rect" id="node5" href="$classmadness_1_1profiling_1_1TaskEvent.html" title="Task event class. " alt="" coords="263,6,385,47"/>
+</map>

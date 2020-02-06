@@ -1,0 +1,14 @@
+<map id="madness::OptimizationTargetInterface" name="madness::OptimizationTargetInterface">
+<area shape="rect" id="node1" title="The interface to be provided by functions to be optimized. " alt="" coords="6,217,194,258"/>
+<area shape="rect" id="node2" href="$structCoreFittingTarget.html" title="CoreFittingTarget" alt="" coords="285,5,408,32"/>
+<area shape="rect" id="node3" href="$classFred.html" title="Wrapper around vector demonstrating interface necessary. " alt="" coords="323,56,371,83"/>
+<area shape="rect" id="node4" href="$classmadness_1_1MolecularEnergy.html" title="madness::MolecularEnergy" alt="" coords="259,107,434,133"/>
+<area shape="rect" id="node5" href="$structmadness_1_1MolecularOptimizationTargetInterface.html" title="madness::MolecularOptimization\lTargetInterface" alt="" coords="243,158,450,199"/>
+<area shape="rect" id="node10" href="$classmadness_1_1MP2.html" title="a class for computing the first order wave function and MP2 pair energies " alt="" coords="293,224,400,251"/>
+<area shape="rect" id="node11" href="$structTest.html" title="Test" alt="" coords="323,275,370,301"/>
+<area shape="rect" id="node12" href="$structTest2.html" title="Test2" alt="" coords="319,325,374,352"/>
+<area shape="rect" id="node6" href="$classmadness_1_1NemoBase.html" title="madness::NemoBase" alt="" coords="499,165,642,192"/>
+<area shape="rect" id="node7" href="$classmadness_1_1Nemo.html" title="The Nemo class. " alt="" coords="694,140,807,167"/>
+<area shape="rect" id="node9" href="$classmadness_1_1Znemo.html" title="madness::Znemo" alt="" coords="691,191,810,217"/>
+<area shape="rect" id="node8" href="$classmadness_1_1OEP.html" title="madness::OEP" alt="" coords="859,140,965,167"/>
+</map>

@@ -1,0 +1,51 @@
+<map id="type_traits.h" name="type_traits.h">
+<area shape="rect" id="node2" href="$archive_8h.html" title="Interface templates for the archives (serialization). " alt="" coords="518,80,591,107"/>
+<area shape="rect" id="node44" href="$safempi_8h.html" title="Serializes calls to MPI in case it does not support THREAD_MULTIPLE. " alt="" coords="2511,80,2588,107"/>
+<area shape="rect" id="node3" href="$QCCalculationParametersBase_8h.html" title="QCCalculationParametersBase.h" alt="" coords="389,229,600,256"/>
+<area shape="rect" id="node10" href="$tensor_8h.html" title="Defines and implements most of Tensor. " alt="" coords="1764,155,1831,181"/>
+<area shape="rect" id="node35" href="$binary__fstream__archive_8h.html" title="Implements an archive wrapping a binary filestream. " alt="" coords="533,155,696,181"/>
+<area shape="rect" id="node37" href="$buffer__archive_8h.html" title="Implements an archive wrapping a memory buffer. " alt="" coords="5,155,115,181"/>
+<area shape="rect" id="node38" href="$mpi__archive_8h.html" title="Implements archives to serialize data for MPI. " alt="" coords="155,229,256,256"/>
+<area shape="rect" id="node36" href="$parallel__archive_8h.html" title="Implements ParallelInputArchive and ParallelOutputArchive for parallel serialization of data..." alt="" coords="634,229,755,256"/>
+<area shape="rect" id="node39" href="$text__fstream__archive_8h.html" title="Implements an archive wrapping text filestream. " alt="" coords="773,155,923,181"/>
+<area shape="rect" id="node40" href="$vector_8h.html" title="Implement the madness:Vector class, an extension of std::array that supports some mathematical operat..." alt="" coords="1041,155,1108,181"/>
+<area shape="rect" id="node41" href="$vector__archive_8h.html" title="Implements an archive wrapping an STL vector. " alt="" coords="140,155,255,181"/>
+<area shape="rect" id="node42" href="$worldptr_8h.html" title="The madness::detail::WorldPtr class for global pointers. " alt="" coords="329,155,407,181"/>
+<area shape="rect" id="node43" href="$worldref_8h.html" title="Implements RemoteReference which is for internal use. " alt="" coords="288,229,365,256"/>
+<area shape="rect" id="node4" href="$CalculationParameters_8h.html" title="CalculationParameters.h" alt="" coords="968,395,1131,421"/>
+<area shape="rect" id="node6" href="$molecular__optimizer_8h.html" title="optimize the geometrical structure of a molecule " alt="" coords="695,312,841,339"/>
+<area shape="rect" id="node7" href="$mp2_8h.html" title="Solves molecular MP2 equations. " alt="" coords="613,312,669,339"/>
+<area shape="rect" id="node8" href="$QCCalculationParametersBase_8cc.html" title="QCCalculationParametersBase.cc" alt="" coords="97,312,313,339"/>
+<area shape="rect" id="node9" href="$test__QCCalculationParametersBase_8cc.html" title="test_QCCalculationParameters\lBase.cc" alt="" coords="390,305,588,346"/>
+<area shape="rect" id="node5" href="$znemo_8h.html" title="znemo.h" alt="" coords="954,469,1024,496"/>
+<area shape="rect" id="node11" href="$distpm_8cc.html" title="distpm.cc" alt="" coords="2275,229,2352,256"/>
+<area shape="rect" id="node12" href="$chem_2molecularbasis_8h.html" title="molecularbasis.h" alt="" coords="1205,312,1323,339"/>
+<area shape="rect" id="node13" href="$MolecularOrbitals_8h.html" title="MolecularOrbitals.h" alt="" coords="866,312,997,339"/>
+<area shape="rect" id="node14" href="$molecule_8cc.html" title="molecule.cc" alt="" coords="1443,312,1533,339"/>
+<area shape="rect" id="node15" href="$molecule_8h.html" title="molecule.h" alt="" coords="1126,229,1209,256"/>
+<area shape="rect" id="node18" href="$molopt_8h.html" title="molopt.h" alt="" coords="2427,229,2497,256"/>
+<area shape="rect" id="node16" href="$pcm_8h.html" title="pcm.h" alt="" coords="1022,312,1079,339"/>
+<area shape="rect" id="node19" href="$plotxc_8cc.html" title="plotxc.cc" alt="" coords="1609,312,1681,339"/>
+<area shape="rect" id="node20" href="$xcfunctional_8h.html" title="xcfunctional.h" alt="" coords="1616,229,1717,256"/>
+<area shape="rect" id="node25" href="$potentialmanager_8h.html" title="potentialmanager.h" alt="" coords="1877,229,2008,256"/>
+<area shape="rect" id="node21" href="$testlda_8cc.html" title="testlda.cc" alt="" coords="1817,312,1895,339"/>
+<area shape="rect" id="node22" href="$testxc_8cc.html" title="testxc.cc" alt="" coords="1965,312,2037,339"/>
+<area shape="rect" id="node17" href="$vibanal_8h.html" title="vibanal.h" alt="" coords="1347,312,1419,339"/>
+<area shape="rect" id="node23" href="$xcfunctional__ldaonly_8cc.html" title="xcfunctional_ldaonly.cc" alt="" coords="2112,312,2267,339"/>
+<area shape="rect" id="node24" href="$xcfunctional__libxc_8cc.html" title="xcfunctional_libxc.cc" alt="" coords="2365,312,2507,339"/>
+<area shape="rect" id="node26" href="$hf_2molecularbasis_8h.html" title="molecularbasis.h" alt="" coords="2083,229,2200,256"/>
+<area shape="rect" id="node27" href="$pointgroup_8h.html" title="Implements basic functionality for Abelian point groups (D2h and subgroups) " alt="" coords="907,229,999,256"/>
+<area shape="rect" id="node28" href="$convolution1d_8h.html" title="Compuates most matrix elements over 1D operators (including Gaussians) " alt="" coords="1742,229,1852,256"/>
+<area shape="rect" id="node32" href="$derivative_8h.html" title="Declaration and initialization of tree traversal functions and generic derivative. " alt="" coords="1706,312,1792,339"/>
+<area shape="rect" id="node33" href="$funcdefaults_8h.html" title="Provides FunctionDefaults and utilities for coordinate transformation. " alt="" coords="1387,229,1489,256"/>
+<area shape="rect" id="node31" href="$funcimpl_8h.html" title="Provides FunctionCommonData, FunctionImpl and FunctionFactory. " alt="" coords="2529,469,2609,496"/>
+<area shape="rect" id="node30" href="$function__factory_8h.html" title="function_factory.h" alt="" coords="2613,395,2736,421"/>
+<area shape="rect" id="node29" href="$function__interface_8h.html" title="function_interface.h" alt="" coords="2607,312,2741,339"/>
+<area shape="rect" id="node34" href="$gfit_8h.html" title="fit isotropic functions to a set of Gaussians with controlled precision " alt="" coords="2675,229,2724,256"/>
+<area shape="rect" id="node45" href="$debug_8cc.html" title="debug.cc" alt="" coords="2408,155,2483,181"/>
+<area shape="rect" id="node46" href="$safempi_8cc.html" title="safempi.cc" alt="" coords="2507,155,2591,181"/>
+<area shape="rect" id="node47" href="$thread_8cc.html" title="Implements Dqueue, Thread, ThreadBase and ThreadPool. " alt="" coords="2616,155,2691,181"/>
+<area shape="rect" id="node48" href="$worldmpi_8h.html" title="Implements WorldMpiInterface. " alt="" coords="2715,155,2797,181"/>
+<area shape="rect" id="node49" href="$worldrmi_8cc.html" title="worldrmi.cc" alt="" coords="2818,229,2904,256"/>
+<area shape="rect" id="node50" href="$worldrmi_8h.html" title="Lowest level API for sending active messages — you should probably be looking at worldam..." alt="" coords="2821,155,2901,181"/>
+</map>

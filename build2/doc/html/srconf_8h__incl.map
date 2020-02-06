@@ -1,0 +1,30 @@
+<map id="srconf.h" name="srconf.h">
+<area shape="rect" id="node2" href="$print_8h.html" title="Defines simple templates for printing to std::cout &quot;a la Python&quot;. " alt="" coords="2755,245,2901,272"/>
+<area shape="rect" id="node20" href="$tensor_8h.html" title="Defines and implements most of Tensor. " alt="" coords="1837,171,1997,197"/>
+<area shape="rect" id="node47" href="$clapack_8h.html" title="C++ interface to LAPACK, either directly via Fortran API (see clapack_fortran.h) or via LAPACKE (see ..." alt="" coords="2464,88,2635,115"/>
+<area shape="rect" id="node49" href="$tensor__lapack_8h.html" title="Prototypes for a partial interface from Tensor to LAPACK. " alt="" coords="2682,81,2832,122"/>
+<area shape="rect" id="node8" href="$worldmutex_8h.html" title="Implements Mutex, MutexFair, Spinlock, ConditionVariable. " alt="" coords="2735,328,2921,355"/>
+<area shape="rect" id="node9" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS. " alt="" coords="2459,509,2637,536"/>
+<area shape="rect" id="node13" href="$nodefaults_8h.html" title="Implements NO_DEFAULTS. " alt="" coords="2735,419,2915,445"/>
+<area shape="rect" id="node14" href="$timers_8h.html" title="Wrappers around platform dependent timers and performance info. " alt="" coords="2991,419,3147,445"/>
+<area shape="rect" id="node15" href="$atomicint_8h.html" title="Implements AtomicInt. " alt="" coords="3171,419,3345,445"/>
+<area shape="rect" id="node16" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling.By default, the MADNESS_ASSERT macro throws ..." alt="" coords="1109,411,1272,453"/>
+<area shape="rect" id="node21" href="$ran_8h.html" title="madness/misc/ran.h" alt="" coords="1849,245,1985,272"/>
+<area shape="rect" id="node25" href="$posixmem_8h.html" title="Implement dummy posix_memalign if it is missing on the system. " alt="" coords="3216,245,3395,272"/>
+<area shape="rect" id="node29" href="$archive_8h.html" title="Interface templates for the archives (serialization). " alt="" coords="1149,245,1312,272"/>
+<area shape="rect" id="node34" href="$basetensor_8h.html" title="Declares BaseTensor. " alt="" coords="303,419,491,445"/>
+<area shape="rect" id="node39" href="$aligned_8h.html" title="Provides routines for internal use optimized for aligned data. " alt="" coords="2061,245,2227,272"/>
+<area shape="rect" id="node43" href="$mxm_8h.html" title="Internal use only. " alt="" coords="2344,245,2499,272"/>
+<area shape="rect" id="node44" href="$tensorexcept_8h.html" title="Declares and implements TensorException. " alt="" coords="597,328,795,355"/>
+<area shape="rect" id="node45" href="$tensoriter_8h.html" title="Declares TensorIterator. " alt="" coords="1589,245,1768,272"/>
+<area shape="rect" id="node22" href="$thread_8h.html" title="Implements Dqueue, Thread, ThreadBase and ThreadPool. " alt="" coords="1783,328,1940,355"/>
+<area shape="rect" id="node33" href="$type__traits_8h.html" title="madness/world/type\l_traits.h" alt="" coords="871,321,1005,362"/>
+<area shape="rect" id="node35" href="$tensor__macros_8h.html" title="Macros for easy and efficient iteration over tensors. " alt="" coords="435,502,585,543"/>
+<area shape="rect" id="node36" href="$type__data_8h.html" title="Defines and implements TensorTypeData, a type traits class. " alt="" coords="219,502,359,543"/>
+<area shape="rect" id="node37" href="$slice_8h.html" title="Declares and implements Slice. " alt="" coords="43,509,195,536"/>
+<area shape="rect" id="node38" href="$vector__factory_8h.html" title="Declares and implements factories for short vectors. " alt="" coords="322,593,472,634"/>
+<area shape="rect" id="node40" href="$cblas_8h.html" title="Define BLAS like functions. " alt="" coords="2301,328,2456,355"/>
+<area shape="rect" id="node41" href="$fortran__ctypes_8h.html" title="Correspondence between C++ and Fortran types. " alt="" coords="2292,419,2460,445"/>
+<area shape="rect" id="node48" href="$clapack__fortran_8h.html" title="Legacy C++ prototypes for Fortran LAPACK with associated typedefs and macos. " alt="" coords="2485,171,2605,197"/>
+<area shape="rect" id="node50" href="$elem_8h.html" title="madness/tensor/elem.h" alt="" coords="2684,171,2839,197"/>
+</map>

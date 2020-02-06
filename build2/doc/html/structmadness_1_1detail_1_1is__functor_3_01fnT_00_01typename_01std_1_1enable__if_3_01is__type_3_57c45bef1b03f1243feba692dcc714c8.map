@@ -1,0 +1,2 @@
+<map id="madness::detail::is_functor&lt; fnT, typename std::enable_if&lt; is_type&lt; typename fnT::result_type &gt;::value &gt;::type &gt;" name="madness::detail::is_functor&lt; fnT, typename std::enable_if&lt; is_type&lt; typename fnT::result_type &gt;::value &gt;::type &gt;">
+</map>

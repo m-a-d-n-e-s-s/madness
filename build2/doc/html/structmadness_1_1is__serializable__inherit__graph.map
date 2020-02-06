@@ -1,0 +1,3 @@
+<map id="madness::is_serializable&lt; Archive, T, typename &gt;" name="madness::is_serializable&lt; Archive, T, typename &gt;">
+<area shape="rect" id="node1" title="is std::true_type if T can be serialized to Archive without specialized serialize() method ..." alt="" coords="5,81,171,122"/>
+</map>

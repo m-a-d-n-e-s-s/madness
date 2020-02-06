@@ -1,0 +1,52 @@
+<map id="stack.h" name="stack.h">
+<area shape="rect" id="node1" title="Implement Stack for a fixed&#45;size stack container. " alt="" coords="1153,5,1215,32"/>
+<area shape="rect" id="node2" href="$dependency__interface_8h.html" title="Defines DependencyInterface and CallbackInterface. " alt="" coords="1163,80,1321,107"/>
+<area shape="rect" id="node3" href="$future_8h.html" title="Implements Future and related items. " alt="" coords="1105,155,1169,181"/>
+<area shape="rect" id="node46" href="$taskfn_8h.html" title="taskfn.h" alt="" coords="1209,229,1276,256"/>
+<area shape="rect" id="node4" href="$dist__cache_8h.html" title="dist_cache.h" alt="" coords="997,304,1091,331"/>
+<area shape="rect" id="node45" href="$future_8cc.html" title="Implementations for Future and related functions. " alt="" coords="1101,229,1173,256"/>
+<area shape="rect" id="node5" href="$worldgop_8h.html" title="Implements global operations. " alt="" coords="1140,453,1223,480"/>
+<area shape="rect" id="node6" href="$QCCalculationParametersBase_8cc.html" title="QCCalculationParametersBase.cc" alt="" coords="921,528,1137,555"/>
+<area shape="rect" id="node7" href="$array__worldobject_8cc.html" title="array_worldobject.cc" alt="" coords="707,528,845,555"/>
+<area shape="rect" id="node8" href="$group_8cc.html" title="group.cc" alt="" coords="1307,528,1377,555"/>
+<area shape="rect" id="node9" href="$MADworld_8h.html" title="This header should include pretty much everything needed for the parallel runtime. " alt="" coords="1403,528,1493,555"/>
+<area shape="rect" id="node43" href="$parallel__archive_8h.html" title="Implements ParallelInputArchive and ParallelOutputArchive for parallel serialization of data..." alt="" coords="1162,528,1283,555"/>
+<area shape="rect" id="node44" href="$world_8cc.html" title="Implementation of the World class and associated functions. " alt="" coords="1517,528,1587,555"/>
+<area shape="rect" id="node42" href="$worldgop_8cc.html" title="worldgop.cc" alt="" coords="5,603,96,629"/>
+<area shape="rect" id="node10" href="$AC_8h.html" title="AC.h" alt="" coords="1947,827,1997,853"/>
+<area shape="rect" id="node12" href="$distpm_8cc.html" title="distpm.cc" alt="" coords="2343,827,2420,853"/>
+<area shape="rect" id="node13" href="$xcfunctional_8h.html" title="xcfunctional.h" alt="" coords="413,603,515,629"/>
+<area shape="rect" id="node18" href="$pointgroupsymmetry_8h.html" title="pointgroupsymmetry.h" alt="" coords="2573,603,2720,629"/>
+<area shape="rect" id="node14" href="$testlda_8cc.html" title="testlda.cc" alt="" coords="573,827,651,853"/>
+<area shape="rect" id="node15" href="$testxc_8cc.html" title="testxc.cc" alt="" coords="377,827,449,853"/>
+<area shape="rect" id="node16" href="$xcfunctional__ldaonly_8cc.html" title="xcfunctional_ldaonly.cc" alt="" coords="221,677,376,704"/>
+<area shape="rect" id="node17" href="$xcfunctional__libxc_8cc.html" title="xcfunctional_libxc.cc" alt="" coords="501,677,643,704"/>
+<area shape="rect" id="node19" href="$dft_8h.html" title="dft.h" alt="" coords="683,901,729,928"/>
+<area shape="rect" id="node20" href="$eigsolver_8h.html" title="eigsolver.h" alt="" coords="675,827,757,853"/>
+<area shape="rect" id="node22" href="$util_8h.html" title="util.h" alt="" coords="926,827,975,853"/>
+<area shape="rect" id="node23" href="$libxc_8h.html" title="libxc.h" alt="" coords="1728,901,1787,928"/>
+<area shape="rect" id="node25" href="$lda_8h.html" title="lda.h" alt="" coords="1755,827,1804,853"/>
+<area shape="rect" id="node21" href="$hartreefock_8h.html" title="hartreefock.h" alt="" coords="754,901,851,928"/>
+<area shape="rect" id="node24" href="$solver_8h.html" title="solver.h" alt="" coords="1634,976,1699,1003"/>
+<area shape="rect" id="node26" href="$test__comm_8cc.html" title="test_comm.cc" alt="" coords="1098,603,1200,629"/>
+<area shape="rect" id="node27" href="$testconv_8cc.html" title="testconv.cc" alt="" coords="1225,603,1311,629"/>
+<area shape="rect" id="node28" href="$testpg_8cc.html" title="testpg.cc" alt="" coords="1336,603,1411,629"/>
+<area shape="rect" id="node11" href="$ac__corr_8cc.html" title="ac_corr.cc" alt="" coords="1931,901,2013,928"/>
+<area shape="rect" id="node29" href="$hello_8cc.html" title="Simplest example program for MADNESS. " alt="" coords="1485,603,1552,629"/>
+<area shape="rect" id="node30" href="$derivative_8h.html" title="Declaration and initialization of tree traversal functions and generic derivative. " alt="" coords="979,677,1065,704"/>
+<area shape="rect" id="node32" href="$funcdefaults_8h.html" title="Provides FunctionDefaults and utilities for coordinate transformation. " alt="" coords="971,603,1073,629"/>
+<area shape="rect" id="node33" href="$funcimpl_8h.html" title="Provides FunctionCommonData, FunctionImpl and FunctionFactory. " alt="" coords="1305,677,1385,704"/>
+<area shape="rect" id="node34" href="$legendre_8h.html" title="legendre.h" alt="" coords="1438,677,1519,704"/>
+<area shape="rect" id="node31" href="$mra_8h.html" title="Main include file for MADNESS and defines Function interface. " alt="" coords="1318,752,1372,779"/>
+<area shape="rect" id="node35" href="$twoscale_8h.html" title="twoscale.h" alt="" coords="1621,677,1704,704"/>
+<area shape="rect" id="node36" href="$distributed__matrix_8h.html" title="distributed_matrix.h" alt="" coords="2315,603,2448,629"/>
+<area shape="rect" id="node40" href="$elem_8h.html" title="elem.h" alt="" coords="1881,603,1940,629"/>
+<area shape="rect" id="node37" href="$systolic_8h.html" title="systolic.h" alt="" coords="2344,677,2419,704"/>
+<area shape="rect" id="node39" href="$test__distributed__matrix_8cc.html" title="test_distributed_matrix.cc" alt="" coords="2077,677,2245,704"/>
+<area shape="rect" id="node41" href="$test__elemental_8cc.html" title="test_elemental.cc" alt="" coords="2067,603,2189,629"/>
+<area shape="rect" id="node38" href="$test__systolic_8cc.html" title="test_systolic.cc" alt="" coords="2231,752,2340,779"/>
+<area shape="rect" id="node47" href="$world__task__queue_8h.html" title="Defines TaskInterface and implements WorldTaskQueue and associated stuff. " alt="" coords="1183,304,1317,331"/>
+<area shape="rect" id="node48" href="$group_8h.html" title="group.h" alt="" coords="1347,379,1411,405"/>
+<area shape="rect" id="node49" href="$world__object_8h.html" title="Defines and implements WorldObject. " alt="" coords="868,453,972,480"/>
+<area shape="rect" id="node50" href="$world__task__queue_8cc.html" title="Implementation of TaskInterface and WorldTaskQueue functions. " alt="" coords="1179,379,1321,405"/>
+</map>

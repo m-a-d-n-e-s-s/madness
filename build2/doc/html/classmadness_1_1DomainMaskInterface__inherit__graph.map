@@ -1,0 +1,5 @@
+<map id="madness::DomainMaskInterface" name="madness::DomainMaskInterface">
+<area shape="rect" id="node1" title="The interface for masking functions defined by signed distance functions. " alt="" coords="115,5,320,32"/>
+<area shape="rect" id="node2" href="$classmadness_1_1GaussianDomainMask.html" title="Use a Gaussian for the surface function and the corresponding erf for the domain mask. " alt="" coords="5,80,211,107"/>
+<area shape="rect" id="node3" href="$classmadness_1_1LLRVDomainMask.html" title="Provides the Li&#45;Lowengrub&#45;Ratz&#45;Voight (LLRV) domain mask characteristic functions. " alt="" coords="235,80,420,107"/>
+</map>

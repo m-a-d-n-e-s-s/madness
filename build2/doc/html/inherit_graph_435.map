@@ -1,0 +1,9 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="node1" href="$structmadness_1_1OptimizerInterface.html" title="The interface to be provided by optimizers. " alt="" coords="6,132,191,159"/>
+<area shape="rect" id="node2" href="$classmadness_1_1MolecularOptimizer.html" title="Molecular optimizer derived from the QuasiNewton optimizer. " alt="" coords="241,5,431,32"/>
+<area shape="rect" id="node3" href="$classmadness_1_1QuasiNewton.html" title="Optimization via quasi&#45;Newton (BFGS or SR1 update) " alt="" coords="259,56,413,83"/>
+<area shape="rect" id="node4" href="$classmadness_1_1SteepestDescent.html" title="Unconstrained minimization via steepest descent. " alt="" coords="247,107,425,133"/>
+<area shape="rect" id="node5" href="$classMySteepestDescent.html" title="MySteepestDescent" alt="" coords="267,157,405,184"/>
+<area shape="rect" id="node6" href="$classQuasiNewton.html" title="Optimization via quasi&#45;Newton (BFGS or SR1 update) " alt="" coords="287,208,385,235"/>
+<area shape="rect" id="node7" href="$classSteepestDescent.html" title="Optimization via steepest descent. " alt="" coords="276,259,396,285"/>
+</map>

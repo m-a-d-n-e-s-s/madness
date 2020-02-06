@@ -1,0 +1,30 @@
+<map id="mraimpl.h" name="mraimpl.h">
+<area shape="rect" id="node1" title="Declaration and initialization of static data, some implementation, some instantiation. " alt="" coords="730,5,808,32"/>
+<area shape="rect" id="node5" href="$world__object_8h.html" title="Defines and implements WorldObject. " alt="" coords="2109,470,2251,511"/>
+<area shape="rect" id="node29" href="$worlddc_8h.html" title="Implements WorldContainer. " alt="" coords="921,395,1087,421"/>
+<area shape="rect" id="node33" href="$worldhashmap_8h.html" title="Defines and implements a concurrent hashmap. " alt="" coords="241,568,444,595"/>
+<area shape="rect" id="node38" href="$function__common__data_8h.html" title="madness/mra/function\l_common_data.h" alt="" coords="1167,155,1316,197"/>
+<area shape="rect" id="node43" href="$funcimpl_8h.html" title="Provides FunctionCommonData, FunctionImpl and FunctionFactory. " alt="" coords="1348,80,1511,107"/>
+<area shape="rect" id="node50" href="$displacements_8h.html" title="madness/mra/displacements.h" alt="" coords="2224,80,2419,107"/>
+<area shape="rect" id="node7" href="$thread_8h.html" title="Implements Dqueue, Thread, ThreadBase and ThreadPool. " alt="" coords="1296,568,1453,595"/>
+<area shape="rect" id="node27" href="$world__task__queue_8h.html" title="Defines TaskInterface and implements WorldTaskQueue and associated stuff. " alt="" coords="2597,651,2739,693"/>
+<area shape="rect" id="node8" href="$dqueue_8h.html" title="Implements DQueue. " alt="" coords="959,659,1121,685"/>
+<area shape="rect" id="node16" href="$function__traits_8h.html" title="madness/world/function\l_traits.h" alt="" coords="1891,651,2048,693"/>
+<area shape="rect" id="node9" href="$worldmutex_8h.html" title="Implements Mutex, MutexFair, Spinlock, ConditionVariable. " alt="" coords="1360,741,1547,768"/>
+<area shape="rect" id="node12" href="$nodefaults_8h.html" title="Implements NO_DEFAULTS. " alt="" coords="2323,824,2503,851"/>
+<area shape="rect" id="node13" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling.By default, the MADNESS_ASSERT macro throws ..." alt="" coords="1372,817,1535,858"/>
+<area shape="rect" id="node28" href="$meta_8h.html" title="madness/world/meta.h" alt="" coords="2519,741,2669,768"/>
+<area shape="rect" id="node32" href="$parallel__archive_8h.html" title="Implements ParallelInputArchive and ParallelOutputArchive for parallel serialization of data..." alt="" coords="615,561,767,602"/>
+<area shape="rect" id="node37" href="$mpi__archive_8h.html" title="Implements archives to serialize data for MPI. " alt="" coords="1501,568,1691,595"/>
+<area shape="rect" id="node34" href="$worldhash_8h.html" title="Defines hash functions for use in distributed containers. " alt="" coords="317,659,496,685"/>
+<area shape="rect" id="node39" href="$funcdefaults_8h.html" title="Provides FunctionDefaults and utilities for coordinate transformation. " alt="" coords="1167,245,1349,272"/>
+<area shape="rect" id="node40" href="$MADworld_8h.html" title="This header should include pretty much everything needed for the parallel runtime. " alt="" coords="1263,320,1443,347"/>
+<area shape="rect" id="node41" href="$tensor_8h.html" title="Defines and implements most of Tensor. " alt="" coords="723,320,884,347"/>
+<area shape="rect" id="node42" href="$key_8h.html" title="Multidimension Key for MRA tree and associated iterators. " alt="" coords="1057,320,1191,347"/>
+<area shape="rect" id="node44" href="$print_8h.html" title="Defines simple templates for printing to std::cout &quot;a la Python&quot;. " alt="" coords="1759,568,1905,595"/>
+<area shape="rect" id="node45" href="$misc_8h.html" title="Header to declare stuff which has not yet found a home. " alt="" coords="2427,659,2572,685"/>
+<area shape="rect" id="node46" href="$gentensor_8h.html" title="madness/tensor/gentensor.h" alt="" coords="807,245,989,272"/>
+<area shape="rect" id="node47" href="$indexit_8h.html" title="Provides IndexIterator. " alt="" coords="1430,477,1580,504"/>
+<area shape="rect" id="node48" href="$function__factory_8h.html" title="madness/mra/function\l_factory.h" alt="" coords="943,155,1092,197"/>
+<area shape="rect" id="node49" href="$leafop_8h.html" title="leafop.h" alt="" coords="1492,163,1559,189"/>
+</map>

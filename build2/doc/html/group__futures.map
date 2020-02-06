@@ -1,0 +1,13 @@
+<map id="Futures" name="Futures">
+<area shape="rect" id="node1" href="$group__taskq.html" title="Task queue" alt="" coords="404,298,492,323"/>
+<area shape="rect" id="node2" href="$group__hashing.html" title="Hashing" alt="" coords="414,397,482,422"/>
+<area shape="rect" id="node3" href="$group__world__object.html" title="Globally addressable\l objects (WorldObject)" alt="" coords="374,233,522,273"/>
+<area shape="rect" id="node5" href="$group__function.html" title="Function" alt="" coords="412,6,484,31"/>
+<area shape="rect" id="node8" href="$group__tensor.html" title="Tensor" alt="" coords="417,55,479,81"/>
+<area shape="rect" id="node11" href="$group__atomics.html" title="Atomic operations" alt="" coords="385,105,511,130"/>
+<area shape="rect" id="node9" href="$group__world.html" title="Distributed computing\l environment (World and\l its relations)" alt="" coords="369,154,527,209"/>
+<area shape="rect" id="node10" href="$group__worlddc.html" title="Worlddc" alt="" coords="413,347,483,373"/>
+<area shape="rect" id="node6" href="$group__mpi.html" title="Interfaces from World\l to MPI" alt="" coords="376,447,520,487"/>
+<area shape="rect" id="node12" href="$group__mutexes.html" title="Mutexes" alt="" coords="413,511,483,537"/>
+<area shape="rect" id="node7" href="$group__parallel__runtime.html" title="Parallel programming\l environment" alt="" coords="6,263,149,303"/>
+</map>

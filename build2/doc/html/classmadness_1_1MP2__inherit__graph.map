@@ -1,0 +1,4 @@
+<map id="madness::MP2" name="madness::MP2">
+<area shape="rect" id="node1" title="a class for computing the first order wave function and MP2 pair energies " alt="" coords="45,96,152,123"/>
+<area shape="rect" id="node2" href="$structmadness_1_1OptimizationTargetInterface.html" title="The interface to be provided by functions to be optimized. " alt="" coords="5,6,192,47"/>
+</map>

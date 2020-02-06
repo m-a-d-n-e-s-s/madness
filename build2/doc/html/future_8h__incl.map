@@ -1,0 +1,24 @@
+<map id="future.h" name="future.h">
+<area shape="rect" id="node1" title="Implements Future and related items. " alt="" coords="1385,5,1449,32"/>
+<area shape="rect" id="node5" href="$nodefaults_8h.html" title="Implements NO_DEFAULTS. " alt="" coords="735,477,915,504"/>
+<area shape="rect" id="node6" href="$dependency__interface_8h.html" title="Defines DependencyInterface and CallbackInterface. " alt="" coords="457,155,636,197"/>
+<area shape="rect" id="node10" href="$stack_8h.html" title="Implement Stack for a fixed&#45;size stack container. " alt="" coords="2144,320,2296,347"/>
+<area shape="rect" id="node46" href="$worldref_8h.html" title="Implements RemoteReference which is for internal use. " alt="" coords="1481,80,1647,107"/>
+<area shape="rect" id="node26" href="$world_8h.html" title="Declares the World class for the parallel runtime environment. " alt="" coords="2242,245,2392,272"/>
+<area shape="rect" id="node20" href="$worldmutex_8h.html" title="Implements Mutex, MutexFair, Spinlock, ConditionVariable. " alt="" coords="827,395,1013,421"/>
+<area shape="rect" id="node24" href="$atomicint_8h.html" title="Implements AtomicInt. " alt="" coords="537,477,711,504"/>
+<area shape="rect" id="node40" href="$print_8h.html" title="Defines simple templates for printing to std::cout &quot;a la Python&quot;. " alt="" coords="864,320,1011,347"/>
+<area shape="rect" id="node11" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling.By default, the MADNESS_ASSERT macro throws ..." alt="" coords="1891,470,2053,511"/>
+<area shape="rect" id="node15" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS. " alt="" coords="1231,560,1409,587"/>
+<area shape="rect" id="node23" href="$timers_8h.html" title="Wrappers around platform dependent timers and performance info. " alt="" coords="986,477,1141,504"/>
+<area shape="rect" id="node31" href="$worldinit_8h.html" title="Declares the functions that initialize the parallel runtime. " alt="" coords="2793,320,2961,347"/>
+<area shape="rect" id="node32" href="$worldmpi_8h.html" title="Implements WorldMpiInterface. " alt="" coords="2791,395,2963,421"/>
+<area shape="rect" id="node35" href="$worldhashmap_8h.html" title="Defines and implements a concurrent hashmap. " alt="" coords="1635,320,1837,347"/>
+<area shape="rect" id="node37" href="$worldprofile_8h.html" title="madness/world/worldprofile.h" alt="" coords="1187,320,1372,347"/>
+<area shape="rect" id="node38" href="$thread_8h.html" title="Implements Dqueue, Thread, ThreadBase and ThreadPool. " alt="" coords="1861,320,2019,347"/>
+<area shape="rect" id="node39" href="$uniqueid_8h.html" title="madness/world/uniqueid.h" alt="" coords="2498,320,2667,347"/>
+<area shape="rect" id="node33" href="$worldtypes_8h.html" title="Defines types used by the parallel runtime. " alt="" coords="2920,477,3101,504"/>
+<area shape="rect" id="node47" href="$archive_8h.html" title="Interface templates for the archives (serialization). " alt="" coords="1397,320,1560,347"/>
+<area shape="rect" id="node49" href="$worldam_8h.html" title="Implements active message layer for World on top of RMI layer. " alt="" coords="1837,163,2005,189"/>
+<area shape="rect" id="node50" href="$worldptr_8h.html" title="The madness::detail::WorldPtr class for global pointers. " alt="" coords="2673,163,2839,189"/>
+</map>

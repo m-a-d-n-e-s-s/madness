@@ -1,0 +1,30 @@
+<map id="twoscale.cc" name="twoscale.cc">
+<area shape="rect" id="node1" title="Routines to provide twoscale &amp; correlation coeffs for Legendre basis. " alt="" coords="1023,5,1112,32"/>
+<area shape="rect" id="node6" href="$twoscale_8h.html" title="madness/mra/twoscale.h" alt="" coords="1588,80,1751,107"/>
+<area shape="rect" id="node9" href="$tensor_8h.html" title="Defines and implements most of Tensor. " alt="" coords="2019,155,2180,181"/>
+<area shape="rect" id="node49" href="$misc_8h.html" title="Header to declare stuff which has not yet found a home. " alt="" coords="885,312,1029,339"/>
+<area shape="rect" id="node7" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS. " alt="" coords="2588,493,2767,520"/>
+<area shape="rect" id="node40" href="$MADworld_8h.html" title="This header should include pretty much everything needed for the parallel runtime. " alt="" coords="539,155,719,181"/>
+<area shape="rect" id="node10" href="$ran_8h.html" title="madness/misc/ran.h" alt="" coords="2064,312,2200,339"/>
+<area shape="rect" id="node17" href="$posixmem_8h.html" title="Implement dummy posix_memalign if it is missing on the system. " alt="" coords="2705,229,2884,256"/>
+<area shape="rect" id="node20" href="$archive_8h.html" title="Interface templates for the archives (serialization). " alt="" coords="1552,312,1715,339"/>
+<area shape="rect" id="node28" href="$basetensor_8h.html" title="Declares BaseTensor. " alt="" coords="2122,403,2309,429"/>
+<area shape="rect" id="node33" href="$aligned_8h.html" title="Provides routines for internal use optimized for aligned data. " alt="" coords="2138,229,2304,256"/>
+<area shape="rect" id="node36" href="$mxm_8h.html" title="Internal use only. " alt="" coords="2908,229,3063,256"/>
+<area shape="rect" id="node37" href="$tensorexcept_8h.html" title="Declares and implements TensorException. " alt="" coords="1739,312,1937,339"/>
+<area shape="rect" id="node38" href="$tensoriter_8h.html" title="Declares TensorIterator. " alt="" coords="2329,229,2508,256"/>
+<area shape="rect" id="node11" href="$thread_8h.html" title="Implements Dqueue, Thread, ThreadBase and ThreadPool. " alt="" coords="1119,403,1276,429"/>
+<area shape="rect" id="node24" href="$type__traits_8h.html" title="madness/world/type\l_traits.h" alt="" coords="1402,395,1536,437"/>
+<area shape="rect" id="node26" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling.By default, the MADNESS_ASSERT macro throws ..." alt="" coords="1759,395,1921,437"/>
+<area shape="rect" id="node29" href="$tensor__macros_8h.html" title="Macros for easy and efficient iteration over tensors. " alt="" coords="2238,486,2388,527"/>
+<area shape="rect" id="node30" href="$type__data_8h.html" title="Defines and implements TensorTypeData, a type traits class. " alt="" coords="2074,486,2213,527"/>
+<area shape="rect" id="node31" href="$slice_8h.html" title="Declares and implements Slice. " alt="" coords="1897,493,2049,520"/>
+<area shape="rect" id="node32" href="$vector__factory_8h.html" title="Declares and implements factories for short vectors. " alt="" coords="1898,577,2048,618"/>
+<area shape="rect" id="node34" href="$cblas_8h.html" title="Define BLAS like functions. " alt="" coords="2307,312,2463,339"/>
+<area shape="rect" id="node41" href="$world_8h.html" title="Declares the World class for the parallel runtime environment. " alt="" coords="615,312,765,339"/>
+<area shape="rect" id="node45" href="$worldam_8h.html" title="Implements active message layer for World on top of RMI layer. " alt="" coords="483,229,652,256"/>
+<area shape="rect" id="node46" href="$world__task__queue_8h.html" title="Defines TaskInterface and implements WorldTaskQueue and associated stuff. " alt="" coords="144,305,285,346"/>
+<area shape="rect" id="node47" href="$worldgop_8h.html" title="Implements global operations. " alt="" coords="287,229,459,256"/>
+<area shape="rect" id="node48" href="$worlddc_8h.html" title="Implements WorldContainer. " alt="" coords="728,229,893,256"/>
+<area shape="rect" id="node44" href="$worldinit_8h.html" title="Declares the functions that initialize the parallel runtime. " alt="" coords="537,403,705,429"/>
+</map>

@@ -1,0 +1,52 @@
+<map id="type_data.h" name="type_data.h">
+<area shape="rect" id="node1" title="Defines and implements TensorTypeData, a type traits class. " alt="" coords="809,5,897,32"/>
+<area shape="rect" id="node2" href="$basetensor_8h.html" title="Declares BaseTensor. " alt="" coords="1605,80,1699,107"/>
+<area shape="rect" id="node39" href="$lowranktensor_8h.html" title="lowranktensor.h" alt="" coords="794,603,904,629"/>
+<area shape="rect" id="node3" href="$gfit_8h.html" title="fit isotropic functions to a set of Gaussians with controlled precision " alt="" coords="2338,379,2387,405"/>
+<area shape="rect" id="node15" href="$tensor_8h.html" title="Defines and implements most of Tensor. " alt="" coords="1564,229,1631,256"/>
+<area shape="rect" id="node49" href="$basetensor_8cc.html" title="Implements BaseTensor. " alt="" coords="1673,229,1775,256"/>
+<area shape="rect" id="node50" href="$tensorexcept_8h.html" title="Declares and implements TensorException. " alt="" coords="1599,155,1704,181"/>
+<area shape="rect" id="node4" href="$function__interface_8h.html" title="function_interface.h" alt="" coords="1743,603,1877,629"/>
+<area shape="rect" id="node14" href="$operator_8h.html" title="Implements most functionality of separated operators. " alt="" coords="2202,453,2280,480"/>
+<area shape="rect" id="node5" href="$function__factory_8h.html" title="function_factory.h" alt="" coords="1749,677,1872,704"/>
+<area shape="rect" id="node6" href="$funcimpl_8h.html" title="Provides FunctionCommonData, FunctionImpl and FunctionFactory. " alt="" coords="1875,752,1956,779"/>
+<area shape="rect" id="node7" href="$mra_8h.html" title="Main include file for MADNESS and defines Function interface. " alt="" coords="2365,827,2419,853"/>
+<area shape="rect" id="node8" href="$distpm_8cc.html" title="distpm.cc" alt="" coords="2689,901,2767,928"/>
+<area shape="rect" id="node9" href="$plotxc_8cc.html" title="plotxc.cc" alt="" coords="3307,901,3380,928"/>
+<area shape="rect" id="node10" href="$potentialmanager_8h.html" title="potentialmanager.h" alt="" coords="1668,901,1799,928"/>
+<area shape="rect" id="node11" href="$testlda_8cc.html" title="testlda.cc" alt="" coords="3025,901,3103,928"/>
+<area shape="rect" id="node12" href="$testxc_8cc.html" title="testxc.cc" alt="" coords="2355,901,2428,928"/>
+<area shape="rect" id="node13" href="$startup_8cc.html" title="startup.cc" alt="" coords="499,901,577,928"/>
+<area shape="rect" id="node16" href="$chem_2molecularbasis_8h.html" title="molecularbasis.h" alt="" coords="195,379,312,405"/>
+<area shape="rect" id="node17" href="$MolecularOrbitals_8h.html" title="MolecularOrbitals.h" alt="" coords="337,379,468,405"/>
+<area shape="rect" id="node18" href="$molecule_8cc.html" title="molecule.cc" alt="" coords="671,379,761,405"/>
+<area shape="rect" id="node19" href="$molecule_8h.html" title="molecule.h" alt="" coords="565,304,648,331"/>
+<area shape="rect" id="node22" href="$molopt_8h.html" title="molopt.h" alt="" coords="938,379,1008,405"/>
+<area shape="rect" id="node20" href="$pcm_8h.html" title="pcm.h" alt="" coords="493,379,549,405"/>
+<area shape="rect" id="node23" href="$xcfunctional_8h.html" title="xcfunctional.h" alt="" coords="3217,304,3319,331"/>
+<area shape="rect" id="node21" href="$vibanal_8h.html" title="vibanal.h" alt="" coords="575,379,647,405"/>
+<area shape="rect" id="node24" href="$xcfunctional__ldaonly_8cc.html" title="xcfunctional_ldaonly.cc" alt="" coords="3051,379,3205,405"/>
+<area shape="rect" id="node25" href="$xcfunctional__libxc_8cc.html" title="xcfunctional_libxc.cc" alt="" coords="3381,379,3523,405"/>
+<area shape="rect" id="node26" href="$hf_2molecularbasis_8h.html" title="molecularbasis.h" alt="" coords="1736,304,1853,331"/>
+<area shape="rect" id="node27" href="$pointgroup_8h.html" title="Implements basic functionality for Abelian point groups (D2h and subgroups) " alt="" coords="1878,304,1969,331"/>
+<area shape="rect" id="node28" href="$convolution1d_8h.html" title="Compuates most matrix elements over 1D operators (including Gaussians) " alt="" coords="2151,379,2261,405"/>
+<area shape="rect" id="node29" href="$derivative_8h.html" title="Declaration and initialization of tree traversal functions and generic derivative. " alt="" coords="2455,603,2541,629"/>
+<area shape="rect" id="node30" href="$funcdefaults_8h.html" title="Provides FunctionDefaults and utilities for coordinate transformation. " alt="" coords="2426,528,2528,555"/>
+<area shape="rect" id="node31" href="$tensor__lapack_8h.html" title="Prototypes for a partial interface from Tensor to LAPACK. " alt="" coords="1195,304,1307,331"/>
+<area shape="rect" id="node42" href="$legendre_8cc.html" title="Legendre quadrature, polynomials and scaling functions. " alt="" coords="1995,304,2083,331"/>
+<area shape="rect" id="node38" href="$test__mra6_8cc.html" title="test_mra6.cc" alt="" coords="1105,603,1201,629"/>
+<area shape="rect" id="node43" href="$twoscale_8cc.html" title="Routines to provide twoscale &amp; correlation coeffs for Legendre basis. " alt="" coords="1917,379,2005,405"/>
+<area shape="rect" id="node44" href="$twoscale_8h.html" title="twoscale.h" alt="" coords="2107,304,2189,331"/>
+<area shape="rect" id="node45" href="$aligned_8h.html" title="Provides routines for internal use optimized for aligned data. " alt="" coords="2649,304,2721,331"/>
+<area shape="rect" id="node46" href="$distributed__matrix_8h.html" title="distributed_matrix.h" alt="" coords="2213,304,2347,331"/>
+<area shape="rect" id="node32" href="$fred_8cc.html" title="fred.cc" alt="" coords="1033,379,1095,405"/>
+<area shape="rect" id="node37" href="$gentensor_8h.html" title="gentensor.h" alt="" coords="1424,528,1512,555"/>
+<area shape="rect" id="node33" href="$gmres_8h.html" title="Defines a general operator interface and a templated GMRES solver for solving linear equations..." alt="" coords="1119,379,1185,405"/>
+<area shape="rect" id="node47" href="$jimkernel_8cc.html" title="jimkernel.cc" alt="" coords="2371,304,2461,331"/>
+<area shape="rect" id="node34" href="$kain_8cc.html" title="kain.cc" alt="" coords="1351,379,1413,405"/>
+<area shape="rect" id="node35" href="$lapack_8cc.html" title="Partial interface from Tensor to LAPACK. " alt="" coords="1439,379,1516,405"/>
+<area shape="rect" id="node36" href="$srconf_8h.html" title="srconf.h" alt="" coords="1209,379,1276,405"/>
+<area shape="rect" id="node41" href="$tensortrain_8h.html" title="Defines and implements the tensor train decomposition as described in I.V. Oseledets, Siam J. Sci. Comput. 33, 2295 (2011). " alt="" coords="1197,453,1288,480"/>
+<area shape="rect" id="node48" href="$miketest_8cc.html" title="miketest.cc" alt="" coords="2485,304,2573,331"/>
+<area shape="rect" id="node40" href="$test__gentensor_8cc.html" title="test_gentensor.cc" alt="" coords="788,677,911,704"/>
+</map>

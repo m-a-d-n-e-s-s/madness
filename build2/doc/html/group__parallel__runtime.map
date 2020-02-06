@@ -1,0 +1,9 @@
+<map id="Parallel programming environment" name="Parallel programming environment">
+<area shape="rect" id="node1" href="$group__threading.html" title="Multi&#45;threading" alt="" coords="405,311,512,337"/>
+<area shape="rect" id="node2" href="$group__world__object.html" title="Globally addressable\l objects (WorldObject)" alt="" coords="385,148,533,188"/>
+<area shape="rect" id="node3" href="$group__futures.html" title="Futures" alt="" coords="426,213,491,238"/>
+<area shape="rect" id="node4" href="$group__mpi.html" title="Interfaces from World\l to MPI" alt="" coords="387,84,531,124"/>
+<area shape="rect" id="node6" href="$group__world.html" title="Distributed computing\l environment (World and\l its relations)" alt="" coords="379,5,538,59"/>
+<area shape="rect" id="node7" href="$group__serialization.html" title="Serialization" alt="" coords="413,262,505,287"/>
+<area shape="rect" id="node8" href="$group__libraries.html" title="MADNESS libraries" alt="" coords="5,185,139,210"/>
+</map>

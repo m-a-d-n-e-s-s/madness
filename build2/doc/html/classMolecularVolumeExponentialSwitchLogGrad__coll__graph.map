@@ -1,0 +1,6 @@
+<map id="MolecularVolumeExponentialSwitchLogGrad" name="MolecularVolumeExponentialSwitchLogGrad">
+<area shape="rect" id="node1" title="Returns the requested component of the derivative of the log of MolecularVolumeExponentialSwitch. " alt="" coords="41,190,228,231"/>
+<area shape="rect" id="node2" href="$classmadness_1_1FunctionFunctorInterface.html" title="madness::FunctionFunctor\lInterface\&lt; double, 3 \&gt;" alt="" coords="5,6,179,47"/>
+<area shape="rect" id="node3" href="$classMolecularVolumeMaskGrad.html" title="MolecularVolumeMaskGrad" alt="" coords="130,99,309,125"/>
+<area shape="rect" id="node4" href="$classMolecularMaskBase.html" title="MolecularMaskBase" alt="" coords="203,13,341,40"/>
+</map>

@@ -1,0 +1,30 @@
+<map id="gfit.cc" name="gfit.cc">
+<area shape="rect" id="node2" href="$tensor__lapack_8h.html" title="Prototypes for a partial interface from Tensor to LAPACK. " alt="" coords="2598,155,2748,197"/>
+<area shape="rect" id="node44" href="$solvers_8h.html" title="Defines interfaces for optimization and non&#45;linear equation solvers. " alt="" coords="1813,80,1979,107"/>
+<area shape="rect" id="node45" href="$print_8h.html" title="Defines simple templates for printing to std::cout &quot;a la Python&quot;. " alt="" coords="365,320,512,347"/>
+<area shape="rect" id="node3" href="$tensor_8h.html" title="Defines and implements most of Tensor. " alt="" coords="1815,245,1976,272"/>
+<area shape="rect" id="node35" href="$fortran__ctypes_8h.html" title="Correspondence between C++ and Fortran types. " alt="" coords="2673,493,2841,520"/>
+<area shape="rect" id="node42" href="$elem_8h.html" title="madness/tensor/elem.h" alt="" coords="2897,245,3052,272"/>
+<area shape="rect" id="node4" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS. " alt="" coords="2379,584,2557,611"/>
+<area shape="rect" id="node6" href="$ran_8h.html" title="madness/misc/ran.h" alt="" coords="1329,320,1465,347"/>
+<area shape="rect" id="node15" href="$posixmem_8h.html" title="Implement dummy posix_memalign if it is missing on the system. " alt="" coords="2089,320,2268,347"/>
+<area shape="rect" id="node20" href="$archive_8h.html" title="Interface templates for the archives (serialization). " alt="" coords="901,320,1064,347"/>
+<area shape="rect" id="node28" href="$basetensor_8h.html" title="Declares BaseTensor. " alt="" coords="1677,493,1864,520"/>
+<area shape="rect" id="node33" href="$aligned_8h.html" title="Provides routines for internal use optimized for aligned data. " alt="" coords="2623,320,2789,347"/>
+<area shape="rect" id="node38" href="$mxm_8h.html" title="Internal use only. " alt="" coords="2444,320,2599,347"/>
+<area shape="rect" id="node39" href="$tensorexcept_8h.html" title="Declares and implements TensorException. " alt="" coords="1786,403,1984,429"/>
+<area shape="rect" id="node40" href="$tensoriter_8h.html" title="Declares TensorIterator. " alt="" coords="1743,320,1921,347"/>
+<area shape="rect" id="node7" href="$thread_8h.html" title="Implements Dqueue, Thread, ThreadBase and ThreadPool. " alt="" coords="1167,403,1324,429"/>
+<area shape="rect" id="node25" href="$type__traits_8h.html" title="madness/world/type\l_traits.h" alt="" coords="810,395,944,437"/>
+<area shape="rect" id="node27" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling.By default, the MADNESS_ASSERT macro throws ..." alt="" coords="1439,486,1601,527"/>
+<area shape="rect" id="node29" href="$tensor__macros_8h.html" title="Macros for easy and efficient iteration over tensors. " alt="" coords="1611,577,1761,618"/>
+<area shape="rect" id="node30" href="$type__data_8h.html" title="Defines and implements TensorTypeData, a type traits class. " alt="" coords="1786,577,1925,618"/>
+<area shape="rect" id="node31" href="$slice_8h.html" title="Declares and implements Slice. " alt="" coords="1435,584,1587,611"/>
+<area shape="rect" id="node32" href="$vector__factory_8h.html" title="Declares and implements factories for short vectors. " alt="" coords="1435,667,1585,709"/>
+<area shape="rect" id="node34" href="$cblas_8h.html" title="Define BLAS like functions. " alt="" coords="2501,403,2656,429"/>
+<area shape="rect" id="node43" href="$MADworld_8h.html" title="This header should include pretty much everything needed for the parallel runtime. " alt="" coords="2917,320,3096,347"/>
+<area shape="rect" id="node47" href="$worldmutex_8h.html" title="Implements Mutex, MutexFair, Spinlock, ConditionVariable. " alt="" coords="1348,403,1535,429"/>
+<area shape="rect" id="node48" href="$nodefaults_8h.html" title="Implements NO_DEFAULTS. " alt="" coords="1234,493,1413,520"/>
+<area shape="rect" id="node49" href="$timers_8h.html" title="Wrappers around platform dependent timers and performance info. " alt="" coords="2025,493,2180,520"/>
+<area shape="rect" id="node50" href="$atomicint_8h.html" title="Implements AtomicInt. " alt="" coords="2205,493,2379,520"/>
+</map>

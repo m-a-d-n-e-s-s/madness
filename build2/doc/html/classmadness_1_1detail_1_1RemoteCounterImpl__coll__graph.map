@@ -1,0 +1,5 @@
+<map id="madness::detail::RemoteCounterImpl&lt; T &gt;" name="madness::detail::RemoteCounterImpl&lt; T &gt;">
+<area shape="rect" id="node1" title="Remote counter implementation object. " alt="" coords="19,174,225,215"/>
+<area shape="rect" id="node2" href="$classmadness_1_1detail_1_1RemoteCounterBase.html" title="Base class for remote counter implementation objects. " alt="" coords="5,96,240,123"/>
+<area shape="rect" id="node3" href="$classmadness_1_1AtomicInt.html" title="An integer with atomic set, get, read+increment, read+decrement, and decrement+test operations..." alt="" coords="55,5,189,32"/>
+</map>

@@ -1,0 +1,5 @@
+<map id="hardware.cc" name="hardware.cc">
+<area shape="rect" id="node2" href="$hardware_8h.html" title="madness/world/hardware.h" alt="" coords="44,80,217,107"/>
+<area shape="rect" id="node5" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling.By default, the MADNESS_ASSERT macro throws ..." alt="" coords="187,155,349,197"/>
+<area shape="rect" id="node9" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS. " alt="" coords="376,245,555,272"/>
+</map>

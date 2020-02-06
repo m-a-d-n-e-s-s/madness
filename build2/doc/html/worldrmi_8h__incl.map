@@ -1,0 +1,16 @@
+<map id="worldrmi.h" name="worldrmi.h">
+<area shape="rect" id="node1" title="Lowest level API for sending active messages — you should probably be looking at worldam..." alt="" coords="2247,5,2327,32"/>
+<area shape="rect" id="node2" href="$safempi_8h.html" title="Serializes calls to MPI in case it does not support THREAD_MULTIPLE. " alt="" coords="493,80,659,107"/>
+<area shape="rect" id="node29" href="$thread_8h.html" title="Implements Dqueue, Thread, ThreadBase and ThreadPool. " alt="" coords="1388,80,1545,107"/>
+<area shape="rect" id="node43" href="$worldtypes_8h.html" title="Defines types used by the parallel runtime. " alt="" coords="2505,80,2687,107"/>
+<area shape="rect" id="node46" href="$print_8h.html" title="Defines simple templates for printing to std::cout &quot;a la Python&quot;. " alt="" coords="2159,80,2305,107"/>
+<area shape="rect" id="node3" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS. " alt="" coords="448,411,627,437"/>
+<area shape="rect" id="node6" href="$worldmutex_8h.html" title="Implements Mutex, MutexFair, Spinlock, ConditionVariable. " alt="" coords="909,245,1096,272"/>
+<area shape="rect" id="node22" href="$type__traits_8h.html" title="madness/world/type\l_traits.h" alt="" coords="326,155,460,197"/>
+<area shape="rect" id="node9" href="$nodefaults_8h.html" title="Implements NO_DEFAULTS. " alt="" coords="1009,328,1188,355"/>
+<area shape="rect" id="node10" href="$timers_8h.html" title="Wrappers around platform dependent timers and performance info. " alt="" coords="215,328,371,355"/>
+<area shape="rect" id="node16" href="$atomicint_8h.html" title="Implements AtomicInt. " alt="" coords="571,328,745,355"/>
+<area shape="rect" id="node18" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling.By default, the MADNESS_ASSERT macro throws ..." alt="" coords="821,321,984,362"/>
+<area shape="rect" id="node30" href="$dqueue_8h.html" title="Implements DQueue. " alt="" coords="1003,163,1165,189"/>
+<area shape="rect" id="node34" href="$function__traits_8h.html" title="madness/world/function\l_traits.h" alt="" coords="1853,155,2011,197"/>
+</map>

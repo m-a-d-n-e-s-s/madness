@@ -1,0 +1,7 @@
+<map id="madness::guessfactory::PlaneWaveFunctor" name="madness::guessfactory::PlaneWaveFunctor">
+<area shape="rect" id="node1" title="creates a plane&#45;wave: sin (or cos) with argument (npi/L*x) " alt="" coords="465,63,615,105"/>
+<area shape="rect" id="node2" href="$classmadness_1_1FunctionFunctorInterface.html" title="madness::FunctionFunctor\lInterface\&lt; double, 3 \&gt;" alt="" coords="205,5,379,46"/>
+<area shape="rect" id="node3" href="$classmadness_1_1Vector.html" title="A simple, fixed dimension vector. " alt="" coords="211,71,373,97"/>
+<area shape="rect" id="node4" href="$classmadness_1_1Tensor.html" title="madness::Tensor\&lt; double \&gt;" alt="" coords="203,121,381,148"/>
+<area shape="rect" id="node5" href="$classmadness_1_1BaseTensor.html" title="The base class for tensors defines generic capabilities. " alt="" coords="5,121,152,148"/>
+</map>

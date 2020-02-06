@@ -1,0 +1,9 @@
+<map id="vector.h" name="vector.h">
+<area shape="rect" id="node1" title="Implement the madness:Vector class, an extension of std::array that supports some mathematical operat..." alt="" coords="569,5,636,32"/>
+<area shape="rect" id="node2" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS. " alt="" coords="5,261,184,288"/>
+<area shape="rect" id="node4" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling.By default, the MADNESS_ASSERT macro throws ..." alt="" coords="169,171,332,213"/>
+<area shape="rect" id="node8" href="$worldhash_8h.html" title="Defines hash functions for use in distributed containers. " alt="" coords="356,179,535,205"/>
+<area shape="rect" id="node13" href="$array__addons_8h.html" title="Supplements to the std::array class, such as I/O operations, for convenience. " alt="" coords="376,81,515,122"/>
+<area shape="rect" id="node16" href="$archive_8h.html" title="Interface templates for the archives (serialization). " alt="" coords="716,88,879,115"/>
+<area shape="rect" id="node22" href="$type__traits_8h.html" title="madness/world/type\l_traits.h" alt="" coords="730,171,864,213"/>
+</map>

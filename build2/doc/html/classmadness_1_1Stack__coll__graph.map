@@ -1,0 +1,4 @@
+<map id="madness::Stack&lt; T, N &gt;" name="madness::Stack&lt; T, N &gt;">
+<area shape="rect" id="node1" title="Dynamically sized Stack with small stack size optimization. " alt="" coords="18,96,176,123"/>
+<area shape="rect" id="node2" href="$classmadness_1_1detail_1_1StackBase.html" title="madness::detail::StackBase\l\&lt; T, std::is_pod\&lt; T \&gt;::value \&gt;" alt="" coords="5,6,189,47"/>
+</map>

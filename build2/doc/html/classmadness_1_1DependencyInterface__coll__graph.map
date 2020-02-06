@@ -1,0 +1,7 @@
+<map id="madness::DependencyInterface" name="madness::DependencyInterface">
+<area shape="rect" id="node1" title="Provides an interface for tracking dependencies. " alt="" coords="118,189,319,216"/>
+<area shape="rect" id="node2" href="$classmadness_1_1CallbackInterface.html" title="The class used for callbacks (e.g., dependency tracking). " alt="" coords="5,99,184,125"/>
+<area shape="rect" id="node3" href="$classmadness_1_1Spinlock.html" title="Spinlock using pthread spinlock operations. " alt="" coords="209,99,337,125"/>
+<area shape="rect" id="node4" href="$classmadness_1_1Stack.html" title="Dynamically sized Stack with small stack size optimization. " alt="" coords="362,99,520,125"/>
+<area shape="rect" id="node5" href="$classmadness_1_1detail_1_1StackBase.html" title="madness::detail::StackBase\l\&lt; T, std::is_pod\&lt; T \&gt;::value \&gt;" alt="" coords="349,6,533,47"/>
+</map>

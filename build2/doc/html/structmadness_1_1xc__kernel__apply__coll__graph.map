@@ -1,0 +1,9 @@
+<map id="madness::xc_kernel_apply" name="madness::xc_kernel_apply">
+<area shape="rect" id="node1" title="Class to compute terms of the kernel. " alt="" coords="1070,125,1205,166"/>
+<area shape="rect" id="node2" href="$classmadness_1_1FunctionCommonData.html" title="madness::FunctionCommonData\l\&lt; double, 3 \&gt;" alt="" coords="776,91,984,133"/>
+<area shape="rect" id="node3" href="$classmadness_1_1FunctionCommonData.html" title="madness::FunctionCommonData\l\&lt; double, NDIM \&gt;" alt="" coords="491,91,699,133"/>
+<area shape="rect" id="node4" href="$classmadness_1_1Slice.html" title="A slice defines a sub&#45;range or patch of a dimension. " alt="" coords="238,15,346,41"/>
+<area shape="rect" id="node5" href="$classmadness_1_1Tensor.html" title="madness::Tensor\&lt; double \&gt;" alt="" coords="203,272,381,299"/>
+<area shape="rect" id="node6" href="$classmadness_1_1BaseTensor.html" title="The base class for tensors defines generic capabilities. " alt="" coords="5,272,152,299"/>
+<area shape="rect" id="node7" href="$classmadness_1_1XCfunctional.html" title="Simplified interface to XC functionals. " alt="" coords="803,157,957,184"/>
+</map>

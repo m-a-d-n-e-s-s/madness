@@ -1,0 +1,5 @@
+<map id="madness::Nemo::NemoCalculationParameters" name="madness::Nemo::NemoCalculationParameters">
+<area shape="rect" id="node1" title="class holding parameters for a nemo calculation beyond the standard dft parameters from moldft ..." alt="" coords="25,155,241,197"/>
+<area shape="rect" id="node2" href="$structmadness_1_1CalculationParameters.html" title="madness::CalculationParameters" alt="" coords="29,80,237,107"/>
+<area shape="rect" id="node3" href="$classmadness_1_1QCCalculationParametersBase.html" title="class for holding the parameters for calculation " alt="" coords="5,5,261,32"/>
+</map>

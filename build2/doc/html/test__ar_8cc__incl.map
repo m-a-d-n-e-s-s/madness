@@ -1,0 +1,17 @@
+<map id="test_ar.cc" name="test_ar.cc">
+<area shape="rect" id="node4" href="$text__fstream__archive_8h.html" title="Implements an archive wrapping text filestream. " alt="" coords="866,81,997,122"/>
+<area shape="rect" id="node36" href="$binary__fstream__archive_8h.html" title="Implements an archive wrapping a binary filestream. " alt="" coords="682,81,827,122"/>
+<area shape="rect" id="node38" href="$vector__archive_8h.html" title="Implements an archive wrapping an STL vector. " alt="" coords="1189,81,1336,122"/>
+<area shape="rect" id="node39" href="$buffer__archive_8h.html" title="Implements an archive wrapping a memory buffer. " alt="" coords="1022,81,1164,122"/>
+<area shape="rect" id="node40" href="$array__addons_8h.html" title="Supplements to the std::array class, such as I/O operations, for convenience. " alt="" coords="260,171,399,213"/>
+<area shape="rect" id="node8" href="$archive_8h.html" title="Interface templates for the archives (serialization). " alt="" coords="863,179,1025,205"/>
+<area shape="rect" id="node24" href="$print_8h.html" title="Defines simple templates for printing to std::cout &quot;a la Python&quot;. " alt="" coords="1049,179,1196,205"/>
+<area shape="rect" id="node15" href="$type__traits_8h.html" title="madness/world/type\l_traits.h" alt="" coords="555,262,689,303"/>
+<area shape="rect" id="node19" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling.By default, the MADNESS_ASSERT macro throws ..." alt="" coords="363,353,525,394"/>
+<area shape="rect" id="node22" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS. " alt="" coords="679,443,857,469"/>
+<area shape="rect" id="node26" href="$worldmutex_8h.html" title="Implements Mutex, MutexFair, Spinlock, ConditionVariable. " alt="" coords="1457,269,1644,296"/>
+<area shape="rect" id="node28" href="$nodefaults_8h.html" title="Implements NO_DEFAULTS. " alt="" coords="1611,360,1791,387"/>
+<area shape="rect" id="node29" href="$timers_8h.html" title="Wrappers around platform dependent timers and performance info. " alt="" coords="1130,360,1285,387"/>
+<area shape="rect" id="node34" href="$atomicint_8h.html" title="Implements AtomicInt. " alt="" coords="1311,360,1485,387"/>
+<area shape="rect" id="node41" href="$worldhash_8h.html" title="Defines hash functions for use in distributed containers. " alt="" coords="29,269,208,296"/>
+</map>

@@ -1,0 +1,7 @@
+<map id="madness::RMI" name="madness::RMI">
+<area shape="rect" id="node1" title="This class implements the communications server thread and provides the only send interface..." alt="" coords="234,187,336,213"/>
+<area shape="rect" id="node2" href="$classmadness_1_1RMI_1_1RmiTask.html" title="madness::RMI::RmiTask" alt="" coords="77,96,237,123"/>
+<area shape="rect" id="node4" href="$classmadness_1_1Mutex.html" title="Mutex using pthread mutex operations. " alt="" coords="100,5,215,32"/>
+<area shape="rect" id="node5" href="$classSafeMPI_1_1Intracomm.html" title="Wrapper around MPI_Comm. Has a shallow copy constructor; use Create(Get_group()) for deep copy..." alt="" coords="239,5,380,32"/>
+<area shape="rect" id="node6" href="$structmadness_1_1RMIStats.html" title="madness::RMIStats" alt="" coords="261,96,395,123"/>
+</map>

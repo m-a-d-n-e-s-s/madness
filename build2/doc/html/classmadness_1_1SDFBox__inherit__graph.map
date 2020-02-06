@@ -1,0 +1,5 @@
+<map id="madness::SDFBox" name="madness::SDFBox">
+<area shape="rect" id="node1" title="A box (3 dimensions) " alt="" coords="50,80,176,107"/>
+<area shape="rect" id="node3" href="$classmadness_1_1SDFCube.html" title="A cube (3 dimensions) " alt="" coords="46,155,180,181"/>
+<area shape="rect" id="node2" href="$classmadness_1_1SignedDFInterface.html" title="madness::SignedDFInterface\&lt; 3 \&gt;" alt="" coords="5,5,221,32"/>
+</map>

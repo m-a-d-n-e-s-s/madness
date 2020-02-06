@@ -1,0 +1,22 @@
+<map id="worldref.cc" name="worldref.cc">
+<area shape="rect" id="node2" href="$worldref_8h.html" title="Implements RemoteReference which is for internal use. " alt="" coords="1650,80,1816,107"/>
+<area shape="rect" id="node29" href="$worldmutex_8h.html" title="Implements Mutex, MutexFair, Spinlock, ConditionVariable. " alt="" coords="428,403,615,429"/>
+<area shape="rect" id="node3" href="$atomicint_8h.html" title="Implements AtomicInt. " alt="" coords="385,493,559,520"/>
+<area shape="rect" id="node7" href="$worldtypes_8h.html" title="Defines types used by the parallel runtime. " alt="" coords="2091,320,2272,347"/>
+<area shape="rect" id="node9" href="$archive_8h.html" title="Interface templates for the archives (serialization). " alt="" coords="1267,320,1429,347"/>
+<area shape="rect" id="node25" href="$worldam_8h.html" title="Implements active message layer for World on top of RMI layer. " alt="" coords="673,155,841,181"/>
+<area shape="rect" id="node49" href="$worldptr_8h.html" title="The madness::detail::WorldPtr class for global pointers. " alt="" coords="1650,155,1816,181"/>
+<area shape="rect" id="node46" href="$worldhashmap_8h.html" title="Defines and implements a concurrent hashmap. " alt="" coords="1813,320,2016,347"/>
+<area shape="rect" id="node4" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS. " alt="" coords="628,576,807,603"/>
+<area shape="rect" id="node18" href="$type__traits_8h.html" title="madness/world/type\l_traits.h" alt="" coords="1281,395,1415,437"/>
+<area shape="rect" id="node22" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling.By default, the MADNESS_ASSERT macro throws ..." alt="" coords="2233,486,2396,527"/>
+<area shape="rect" id="node26" href="$buffer__archive_8h.html" title="Implements an archive wrapping a memory buffer. " alt="" coords="777,230,919,271"/>
+<area shape="rect" id="node38" href="$worldrmi_8h.html" title="Lowest level API for sending active messages — you should probably be looking at worldam..." alt="" coords="583,237,752,264"/>
+<area shape="rect" id="node45" href="$world_8h.html" title="Declares the World class for the parallel runtime environment. " alt="" coords="1486,237,1636,264"/>
+<area shape="rect" id="node27" href="$print_8h.html" title="Defines simple templates for printing to std::cout &quot;a la Python&quot;. " alt="" coords="629,320,776,347"/>
+<area shape="rect" id="node31" href="$nodefaults_8h.html" title="Implements NO_DEFAULTS. " alt="" coords="959,493,1139,520"/>
+<area shape="rect" id="node32" href="$timers_8h.html" title="Wrappers around platform dependent timers and performance info. " alt="" coords="205,493,360,520"/>
+<area shape="rect" id="node39" href="$safempi_8h.html" title="Serializes calls to MPI in case it does not support THREAD_MULTIPLE. " alt="" coords="438,320,604,347"/>
+<area shape="rect" id="node42" href="$thread_8h.html" title="Implements Dqueue, Thread, ThreadBase and ThreadPool. " alt="" coords="851,320,1008,347"/>
+<area shape="rect" id="node47" href="$worldhash_8h.html" title="Defines hash functions for use in distributed containers. " alt="" coords="2088,403,2267,429"/>
+</map>

@@ -1,0 +1,5 @@
+<map id="madness::WorldContainerImpl&lt; keyT, valueT, hashfunT &gt;" name="madness::WorldContainerImpl&lt; keyT, valueT, hashfunT &gt;">
+<area shape="rect" id="node1" title="Internal implementation of distributed container to facilitate shallow copy. " alt="" coords="267,86,459,127"/>
+<area shape="rect" id="node2" href="$classmadness_1_1WorldObject.html" title="madness::WorldObject\l\&lt; WorldContainerImpl\l\&lt; keyT, valueT, hashfunT \&gt; \&gt;" alt="" coords="18,5,206,61"/>
+<area shape="rect" id="node3" href="$classmadness_1_1WorldDCRedistributeInterface.html" title="madness::WorldDCRedistribute\lInterface\&lt; keyT \&gt;" alt="" coords="13,86,211,127"/>
+</map>

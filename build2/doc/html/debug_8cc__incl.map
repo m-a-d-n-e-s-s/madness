@@ -1,0 +1,10 @@
+<map id="debug.cc" name="debug.cc">
+<area shape="rect" id="node2" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS. " alt="" coords="764,320,943,347"/>
+<area shape="rect" id="node4" href="$safempi_8h.html" title="Serializes calls to MPI in case it does not support THREAD_MULTIPLE. " alt="" coords="909,80,1075,107"/>
+<area shape="rect" id="node6" href="$worldmutex_8h.html" title="Implements Mutex, MutexFair, Spinlock, ConditionVariable. " alt="" coords="533,155,720,181"/>
+<area shape="rect" id="node22" href="$type__traits_8h.html" title="madness/world/type\l_traits.h" alt="" coords="1203,230,1337,271"/>
+<area shape="rect" id="node9" href="$nodefaults_8h.html" title="Implements NO_DEFAULTS. " alt="" coords="537,237,716,264"/>
+<area shape="rect" id="node10" href="$timers_8h.html" title="Wrappers around platform dependent timers and performance info. " alt="" coords="77,237,232,264"/>
+<area shape="rect" id="node16" href="$atomicint_8h.html" title="Implements AtomicInt. " alt="" coords="338,237,512,264"/>
+<area shape="rect" id="node18" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling.By default, the MADNESS_ASSERT macro throws ..." alt="" coords="1016,230,1179,271"/>
+</map>

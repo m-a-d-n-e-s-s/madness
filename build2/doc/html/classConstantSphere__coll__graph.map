@@ -1,0 +1,7 @@
+<map id="ConstantSphere" name="ConstantSphere">
+<area shape="rect" id="node1" title="The constant on a sphere problem. " alt="" coords="571,95,685,121"/>
+<area shape="rect" id="node2" href="$classEmbeddedDirichlet.html" title="Abstract base class for embedded Dirichlet problems. " alt="" coords="389,95,520,121"/>
+<area shape="rect" id="node3" href="$classmadness_1_1FunctionFunctorInterface.html" title="madness::FunctionFunctor\lInterface\&lt; double, 3 \&gt;" alt="" coords="27,5,200,46"/>
+<area shape="rect" id="node4" href="$classmadness_1_1DomainMaskInterface.html" title="The interface for masking functions defined by signed distance functions. " alt="" coords="11,71,216,97"/>
+<area shape="rect" id="node5" href="$classmadness_1_1SignedDFInterface.html" title="madness::SignedDFInterface\&lt; 3 \&gt;" alt="" coords="5,121,221,148"/>
+</map>

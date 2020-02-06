@@ -1,0 +1,4 @@
+<map id="madness::DomainMaskSDFFunctor&lt; NDIM &gt;" name="madness::DomainMaskSDFFunctor&lt; NDIM &gt;">
+<area shape="rect" id="node1" title="Framework for combining a signed distance function (sdf) with a domain mask to produce MADNESS functi..." alt="" coords="5,97,229,138"/>
+<area shape="rect" id="node2" href="$classmadness_1_1FunctionFunctorInterface.html" title="madness::FunctionFunctor\lInterface\&lt; double, NDIM \&gt;" alt="" coords="31,6,204,47"/>
+</map>

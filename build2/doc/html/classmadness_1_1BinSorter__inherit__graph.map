@@ -1,0 +1,4 @@
+<map id="madness::BinSorter&lt; T, inserterT &gt;" name="madness::BinSorter&lt; T, inserterT &gt;">
+<area shape="rect" id="node1" title="A parallel bin sort across MPI processes. " alt="" coords="31,97,164,138"/>
+<area shape="rect" id="node2" href="$classmadness_1_1WorldObject.html" title="madness::WorldObject\l\&lt; BinSorter\&lt; T, inserterT \&gt; \&gt;" alt="" coords="5,6,189,47"/>
+</map>

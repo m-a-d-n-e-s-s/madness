@@ -1,0 +1,12 @@
+<map id="worldmpi.h" name="worldmpi.h">
+<area shape="rect" id="node1" title="Implements WorldMpiInterface. " alt="" coords="945,5,1028,32"/>
+<area shape="rect" id="node3" href="$safempi_8h.html" title="Serializes calls to MPI in case it does not support THREAD_MULTIPLE. " alt="" coords="509,80,675,107"/>
+<area shape="rect" id="node29" href="$worldtypes_8h.html" title="Defines types used by the parallel runtime. " alt="" coords="1403,80,1584,107"/>
+<area shape="rect" id="node4" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS. " alt="" coords="537,336,716,363"/>
+<area shape="rect" id="node7" href="$worldmutex_8h.html" title="Implements Mutex, MutexFair, Spinlock, ConditionVariable. " alt="" coords="499,163,685,189"/>
+<area shape="rect" id="node23" href="$type__traits_8h.html" title="madness/world/type\l_traits.h" alt="" coords="271,155,405,197"/>
+<area shape="rect" id="node10" href="$nodefaults_8h.html" title="Implements NO_DEFAULTS. " alt="" coords="663,253,843,280"/>
+<area shape="rect" id="node11" href="$timers_8h.html" title="Wrappers around platform dependent timers and performance info. " alt="" coords="250,253,405,280"/>
+<area shape="rect" id="node17" href="$atomicint_8h.html" title="Implements AtomicInt. " alt="" coords="867,253,1041,280"/>
+<area shape="rect" id="node19" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling.By default, the MADNESS_ASSERT macro throws ..." alt="" coords="1067,246,1229,287"/>
+</map>

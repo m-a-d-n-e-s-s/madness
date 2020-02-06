@@ -1,0 +1,12 @@
+<map id="corepotential.h" name="corepotential.h">
+<area shape="rect" id="node1" title="Declaration of core potential related class. " alt="" coords="1203,5,1309,32"/>
+<area shape="rect" id="node2" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS. " alt="" coords="448,320,627,347"/>
+<area shape="rect" id="node4" href="$constants_8h.html" title="Defines common mathematical and physical constants. " alt="" coords="1031,80,1173,107"/>
+<area shape="rect" id="node5" href="$atomutil_8h.html" title="Declaration of utility class and functions for atom. " alt="" coords="1199,80,1313,107"/>
+<area shape="rect" id="node7" href="$print_8h.html" title="Defines simple templates for printing to std::cout &quot;a la Python&quot;. " alt="" coords="809,80,956,107"/>
+<area shape="rect" id="node13" href="$worldmutex_8h.html" title="Implements Mutex, MutexFair, Spinlock, ConditionVariable. " alt="" coords="631,155,817,181"/>
+<area shape="rect" id="node16" href="$nodefaults_8h.html" title="Implements NO_DEFAULTS. " alt="" coords="915,237,1095,264"/>
+<area shape="rect" id="node17" href="$timers_8h.html" title="Wrappers around platform dependent timers and performance info. " alt="" coords="215,237,371,264"/>
+<area shape="rect" id="node23" href="$atomicint_8h.html" title="Implements AtomicInt. " alt="" coords="537,237,711,264"/>
+<area shape="rect" id="node25" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling.By default, the MADNESS_ASSERT macro throws ..." alt="" coords="1120,230,1283,271"/>
+</map>

@@ -1,0 +1,12 @@
+<map id="text_fstream_archive.h" name="text_fstream_archive.h">
+<area shape="rect" id="node1" title="Implements an archive wrapping text filestream. " alt="" coords="1107,5,1257,32"/>
+<area shape="rect" id="node5" href="$archive_8h.html" title="Interface templates for the archives (serialization). " alt="" coords="829,80,992,107"/>
+<area shape="rect" id="node22" href="$print_8h.html" title="Defines simple templates for printing to std::cout &quot;a la Python&quot;. " alt="" coords="487,80,633,107"/>
+<area shape="rect" id="node13" href="$type__traits_8h.html" title="madness/world/type\l_traits.h" alt="" coords="1221,155,1355,197"/>
+<area shape="rect" id="node17" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling.By default, the MADNESS_ASSERT macro throws ..." alt="" coords="819,246,981,287"/>
+<area shape="rect" id="node20" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS. " alt="" coords="211,336,389,363"/>
+<area shape="rect" id="node24" href="$worldmutex_8h.html" title="Implements Mutex, MutexFair, Spinlock, ConditionVariable. " alt="" coords="199,163,385,189"/>
+<area shape="rect" id="node26" href="$nodefaults_8h.html" title="Implements NO_DEFAULTS. " alt="" coords="354,253,533,280"/>
+<area shape="rect" id="node27" href="$timers_8h.html" title="Wrappers around platform dependent timers and performance info. " alt="" coords="558,253,713,280"/>
+<area shape="rect" id="node32" href="$atomicint_8h.html" title="Implements AtomicInt. " alt="" coords="5,253,179,280"/>
+</map>

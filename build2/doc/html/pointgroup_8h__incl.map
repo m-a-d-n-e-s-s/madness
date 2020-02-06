@@ -1,0 +1,26 @@
+<map id="pointgroup.h" name="pointgroup.h">
+<area shape="rect" id="node1" title="Implements basic functionality for Abelian point groups (D2h and subgroups) " alt="" coords="3318,5,3409,32"/>
+<area shape="rect" id="node2" href="$tensor_8h.html" title="Defines and implements most of Tensor. " alt="" coords="814,80,975,107"/>
+<area shape="rect" id="node43" href="$vector_8h.html" title="Implement the madness:Vector class, an extension of std::array that supports some mathematical operat..." alt="" coords="3117,155,3272,181"/>
+<area shape="rect" id="node3" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS. " alt="" coords="1165,419,1344,445"/>
+<area shape="rect" id="node5" href="$ran_8h.html" title="madness/misc/ran.h" alt="" coords="1063,155,1199,181"/>
+<area shape="rect" id="node19" href="$posixmem_8h.html" title="Implement dummy posix_memalign if it is missing on the system. " alt="" coords="1401,155,1580,181"/>
+<area shape="rect" id="node24" href="$archive_8h.html" title="Interface templates for the archives (serialization). " alt="" coords="2164,237,2327,264"/>
+<area shape="rect" id="node32" href="$basetensor_8h.html" title="Declares BaseTensor. " alt="" coords="149,328,336,355"/>
+<area shape="rect" id="node37" href="$aligned_8h.html" title="Provides routines for internal use optimized for aligned data. " alt="" coords="871,155,1037,181"/>
+<area shape="rect" id="node40" href="$mxm_8h.html" title="Internal use only. " alt="" coords="1223,155,1377,181"/>
+<area shape="rect" id="node41" href="$tensorexcept_8h.html" title="Declares and implements TensorException. " alt="" coords="597,237,795,264"/>
+<area shape="rect" id="node42" href="$tensoriter_8h.html" title="Declares TensorIterator. " alt="" coords="617,155,796,181"/>
+<area shape="rect" id="node6" href="$thread_8h.html" title="Implements Dqueue, Thread, ThreadBase and ThreadPool. " alt="" coords="1739,237,1896,264"/>
+<area shape="rect" id="node7" href="$dqueue_8h.html" title="Implements DQueue. " alt="" coords="2756,328,2919,355"/>
+<area shape="rect" id="node12" href="$function__traits_8h.html" title="madness/world/function\l_traits.h" alt="" coords="1681,321,1839,362"/>
+<area shape="rect" id="node28" href="$type__traits_8h.html" title="madness/world/type\l_traits.h" alt="" coords="2095,321,2229,362"/>
+<area shape="rect" id="node30" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling.By default, the MADNESS_ASSERT macro throws ..." alt="" coords="1393,321,1556,362"/>
+<area shape="rect" id="node33" href="$tensor__macros_8h.html" title="Macros for easy and efficient iteration over tensors. " alt="" coords="233,411,383,453"/>
+<area shape="rect" id="node34" href="$type__data_8h.html" title="Defines and implements TensorTypeData, a type traits class. " alt="" coords="407,411,547,453"/>
+<area shape="rect" id="node35" href="$slice_8h.html" title="Declares and implements Slice. " alt="" coords="5,419,157,445"/>
+<area shape="rect" id="node36" href="$vector__factory_8h.html" title="Declares and implements factories for short vectors. " alt="" coords="119,502,269,543"/>
+<area shape="rect" id="node38" href="$cblas_8h.html" title="Define BLAS like functions. " alt="" coords="1106,237,1261,264"/>
+<area shape="rect" id="node44" href="$worldhash_8h.html" title="Defines hash functions for use in distributed containers. " alt="" coords="2553,328,2732,355"/>
+<area shape="rect" id="node46" href="$array__addons_8h.html" title="Supplements to the std::array class, such as I/O operations, for convenience. " alt="" coords="2743,230,2881,271"/>
+</map>

@@ -1,0 +1,52 @@
+<map id="worlddc.h" name="worlddc.h">
+<area shape="rect" id="node1" title="Implements WorldContainer. " alt="" coords="3614,5,3689,32"/>
+<area shape="rect" id="node2" href="$derivative_8h.html" title="Declaration and initialization of tree traversal functions and generic derivative. " alt="" coords="3321,229,3407,256"/>
+<area shape="rect" id="node42" href="$funcdefaults_8h.html" title="Provides FunctionDefaults and utilities for coordinate transformation. " alt="" coords="3289,155,3391,181"/>
+<area shape="rect" id="node46" href="$lbdeux_8h.html" title="Implements (2nd generation) static load/data balancing for functions. " alt="" coords="911,304,980,331"/>
+<area shape="rect" id="node3" href="$mra_8h.html" title="Main include file for MADNESS and defines Function interface. " alt="" coords="2254,379,2308,405"/>
+<area shape="rect" id="node39" href="$mra1_8cc.html" title="mra1.cc" alt="" coords="4013,453,4080,480"/>
+<area shape="rect" id="node44" href="$mraimpl_8h.html" title="Declaration and initialization of static data, some implementation, some instantiation. " alt="" coords="3890,379,3968,405"/>
+<area shape="rect" id="node47" href="$MADworld_8h.html" title="This header should include pretty much everything needed for the parallel runtime. " alt="" coords="3459,80,3549,107"/>
+<area shape="rect" id="node48" href="$test__dc_8cc.html" title="test_dc.cc" alt="" coords="3569,155,3649,181"/>
+<area shape="rect" id="node49" href="$test__hashdc_8cc.html" title="test_hashdc.cc" alt="" coords="3674,155,3781,181"/>
+<area shape="rect" id="node50" href="$test__world_8cc.html" title="test_world.cc" alt="" coords="3806,155,3903,181"/>
+<area shape="rect" id="node40" href="$vmra_8h.html" title="Defines operations on vectors of FunctionsThis file defines a number of operations on vectors of func..." alt="" coords="3503,453,3563,480"/>
+<area shape="rect" id="node41" href="$vmra1_8h.html" title="vmra1.h" alt="" coords="3689,453,3756,480"/>
+<area shape="rect" id="node4" href="$AC_8h.html" title="AC.h" alt="" coords="2361,603,2412,629"/>
+<area shape="rect" id="node6" href="$CC2_8h.html" title="CC2.h" alt="" coords="2835,768,2892,795"/>
+<area shape="rect" id="node10" href="$CCStructures_8h.html" title="CCStructures.h" alt="" coords="2420,453,2529,480"/>
+<area shape="rect" id="node5" href="$nemo_8h.html" title="nemo.h" alt="" coords="1961,685,2025,712"/>
+<area shape="rect" id="node11" href="$projector_8h.html" title="projector.h" alt="" coords="1636,685,1719,712"/>
+<area shape="rect" id="node12" href="$electronic__correlation__factor_8h.html" title="electronic_correlation\l_factor.h" alt="" coords="1314,678,1459,719"/>
+<area shape="rect" id="node13" href="$corepotential_8cc.html" title="Simple management of core potential and orbital information. " alt="" coords="2554,453,2667,480"/>
+<area shape="rect" id="node14" href="$correlationfactor_8h.html" title="class for regularizing singular potentials in the molecular Hamilton operator " alt="" coords="1695,603,1820,629"/>
+<area shape="rect" id="node15" href="$diamagneticpotentialfactor_8h.html" title="diamagneticpotentialfactor.h" alt="" coords="2692,453,2876,480"/>
+<area shape="rect" id="node16" href="$distpm_8cc.html" title="distpm.cc" alt="" coords="93,453,171,480"/>
+<area shape="rect" id="node17" href="$gth__pseudopotential_8h.html" title="gth_pseudopotential.h" alt="" coords="2097,453,2244,480"/>
+<area shape="rect" id="node19" href="$MolecularOrbitals_8cc.html" title="MolecularOrbitals.cc" alt="" coords="2199,603,2337,629"/>
+<area shape="rect" id="node7" href="$apps_2chem_2mp2_8cc.html" title="mp2.cc" alt="" coords="1724,843,1788,869"/>
+<area shape="rect" id="node8" href="$mp2_8h.html" title="Solves molecular MP2 equations. " alt="" coords="1519,768,1576,795"/>
+<area shape="rect" id="node20" href="$plotxc_8cc.html" title="plotxc.cc" alt="" coords="2901,453,2973,480"/>
+<area shape="rect" id="node21" href="$pointgroupsymmetry_8cc.html" title="implements point group operations " alt="" coords="3257,528,3412,555"/>
+<area shape="rect" id="node22" href="$potentialmanager_8h.html" title="potentialmanager.h" alt="" coords="1841,453,1972,480"/>
+<area shape="rect" id="node18" href="$SCF_8h.html" title="SCF.h" alt="" coords="2064,528,2123,555"/>
+<area shape="rect" id="node23" href="$test__masks__and__boxes_8cc.html" title="test_masks_and_boxes.cc" alt="" coords="2998,453,3169,480"/>
+<area shape="rect" id="node24" href="$test__pointgroupsymmetry_8cc.html" title="test_pointgroupsymmetry.cc" alt="" coords="3194,453,3376,480"/>
+<area shape="rect" id="node25" href="$test__problems_8h.html" title="Provides test problems for examining the convergence of embedded (Dirichlet) boundary conditions..." alt="" coords="1308,453,1420,480"/>
+<area shape="rect" id="node26" href="$tdse_8cc.html" title="Evolves the hydrogen atom in imaginary and also real time. " alt="" coords="3926,453,3988,480"/>
+<area shape="rect" id="node27" href="$tdse_8confused_8cc.html" title="Evolves the hydrogen atom in imaginary and also real time. " alt="" coords="1445,453,1563,480"/>
+<area shape="rect" id="node28" href="$tdse4_8cc.html" title="Evolves the hydrogen molecular ion in 4D ... 3 electron + 1 nuclear degree of freedom. " alt="" coords="3831,453,3901,480"/>
+<area shape="rect" id="node29" href="$colloid_8cc.html" title="colloid.cc" alt="" coords="347,453,423,480"/>
+<area shape="rect" id="node30" href="$dataloadbal_8cc.html" title="Illustrates how to use static data/load balancing of functions. " alt="" coords="3127,528,3232,555"/>
+<area shape="rect" id="node31" href="$h2dft_8cc.html" title="h2dft.cc" alt="" coords="447,453,515,480"/>
+<area shape="rect" id="node32" href="$he_8cc.html" title="Solves the Hartree&#45;Fock equations for the helium atom. " alt="" coords="540,453,593,480"/>
+<area shape="rect" id="node33" href="$hedft_8cc.html" title="hedft.cc" alt="" coords="618,453,685,480"/>
+<area shape="rect" id="node34" href="$hefxc_8cc.html" title="hefxc.cc" alt="" coords="710,453,780,480"/>
+<area shape="rect" id="node9" href="$helium__exact_8cc.html" title="Solves the two&#45;particle system exactly. " alt="" coords="1797,768,1912,795"/>
+<area shape="rect" id="node35" href="$helium__mp2_8cc.html" title="Solves the Hartree&#45;Fock and MP2 equations for the helium atom. " alt="" coords="805,453,915,480"/>
+<area shape="rect" id="node36" href="$newsolver__lda_8cc.html" title="newsolver_lda.cc" alt="" coords="939,453,1057,480"/>
+<area shape="rect" id="node37" href="$tdse__example_8cc.html" title="Evolves the hydrogen atom in imaginary and also real time. " alt="" coords="1082,453,1200,480"/>
+<area shape="rect" id="node38" href="$tiny_8cc.html" title="tiny.cc" alt="" coords="1225,453,1284,480"/>
+<area shape="rect" id="node43" href="$funcimpl_8h.html" title="Provides FunctionCommonData, FunctionImpl and FunctionFactory. " alt="" coords="3675,304,3756,331"/>
+<area shape="rect" id="node45" href="$function__common__data_8h.html" title="function_common_data.h" alt="" coords="3483,229,3649,256"/>
+</map>

@@ -1,0 +1,4 @@
+<map id="madness::GaussianDomainMask" name="madness::GaussianDomainMask">
+<area shape="rect" id="node1" title="Use a Gaussian for the surface function and the corresponding erf for the domain mask. " alt="" coords="5,80,211,107"/>
+<area shape="rect" id="node2" href="$classmadness_1_1DomainMaskInterface.html" title="The interface for masking functions defined by signed distance functions. " alt="" coords="5,5,211,32"/>
+</map>

@@ -1,0 +1,4 @@
+<map id="madness::lr_pot_functor&lt; NDIM &gt;" name="madness::lr_pot_functor&lt; NDIM &gt;">
+<area shape="rect" id="node1" title="Functor for the 1/r potential to induce the correct asymptotic behaviour of the exchange correlation ..." alt="" coords="13,97,171,138"/>
+<area shape="rect" id="node2" href="$classmadness_1_1FunctionFunctorInterface.html" title="madness::FunctionFunctor\lInterface\&lt; double, NDIM \&gt;" alt="" coords="5,6,179,47"/>
+</map>

@@ -1,0 +1,8 @@
+<map id="EmbeddedDirichlet" name="EmbeddedDirichlet">
+<area shape="rect" id="node1" title="Abstract base class for embedded Dirichlet problems. " alt="" coords="208,96,339,123"/>
+<area shape="rect" id="node3" href="$classConstantSphere.html" title="The constant on a sphere problem. " alt="" coords="5,171,120,197"/>
+<area shape="rect" id="node4" href="$classCosineSphere.html" title="The cos(theta) on a sphere problem. " alt="" coords="145,171,247,197"/>
+<area shape="rect" id="node5" href="$classInhomoConstantSphere.html" title="The constant on a sphere problem, with inhomogeneity. " alt="" coords="272,171,429,197"/>
+<area shape="rect" id="node6" href="$classY20Sphere.html" title="The Y_2^0 on a sphere problem. " alt="" coords="454,171,540,197"/>
+<area shape="rect" id="node2" href="$classmadness_1_1FunctionFunctorInterface.html" title="madness::FunctionFunctor\lInterface\&lt; double, 3 \&gt;" alt="" coords="187,6,360,47"/>
+</map>

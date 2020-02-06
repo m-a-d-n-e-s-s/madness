@@ -1,0 +1,21 @@
+<map id="madness::CallbackInterface" name="madness::CallbackInterface">
+<area shape="rect" id="node1" title="The class used for callbacks (e.g., dependency tracking). " alt="" coords="6,352,186,379"/>
+<area shape="rect" id="node2" href="$classmadness_1_1DependencyInterface.html" title="Provides an interface for tracking dependencies. " alt="" coords="235,260,437,287"/>
+<area shape="rect" id="node17" href="$structmadness_1_1TaskInterface_1_1Submit.html" title="madness::TaskInterface\l::Submit" alt="" coords="257,311,415,353"/>
+<area shape="rect" id="node18" href="$classmadness_1_1WorldGopInterface_1_1DelayedSend.html" title="Delayed send callback object. " alt="" coords="237,377,435,418"/>
+<area shape="rect" id="node19" href="$classmadness_1_1WorldTaskQueue.html" title="Multi&#45;threaded queue to manage and run tasks. " alt="" coords="247,443,425,469"/>
+<area shape="rect" id="node3" href="$classmadness_1_1Future_3_01std_1_1vector_3_01Future_3_01T_01_4_01_4_01_4.html" title="Specialization of Future for a vector of Futures. " alt="" coords="485,223,648,265"/>
+<area shape="rect" id="node4" href="$classmadness_1_1TaskInterface.html" title="All world tasks must be derived from this public interface. " alt="" coords="487,289,646,316"/>
+<area shape="rect" id="node5" href="$classmadness_1_1detail_1_1ForEachRootTask.html" title="Apply an operation to a range of iterators. " alt="" coords="735,5,903,46"/>
+<area shape="rect" id="node6" href="$structmadness_1_1MatrixInnerTask.html" title="madness::MatrixInnerTask\l\&lt; T, R, NDIM \&gt;" alt="" coords="733,70,904,111"/>
+<area shape="rect" id="node7" href="$classmadness_1_1SystolicMatrixAlgorithm.html" title="Base class for parallel algorithms that employ a systolic loop to generate all row pairs in parallel..." alt="" coords="697,136,941,163"/>
+<area shape="rect" id="node9" href="$structmadness_1_1TaskFn.html" title="Wrap a callable object and its arguments into a task function. " alt="" coords="741,187,897,258"/>
+<area shape="rect" id="node10" href="$classmadness_1_1SystolicMatrixAlgorithm.html" title="madness::SystolicMatrixAlgorithm\l\&lt; double \&gt;" alt="" coords="711,282,926,323"/>
+<area shape="rect" id="node13" href="$classTask.html" title="Task" alt="" coords="793,348,844,375"/>
+<area shape="rect" id="node14" href="$classTestBarrier.html" title="TestBarrier" alt="" coords="776,399,861,425"/>
+<area shape="rect" id="node15" href="$classTestTask.html" title="TestTask" alt="" coords="781,449,856,476"/>
+<area shape="rect" id="node16" href="$classTimeBarrier.html" title="TimeBarrier" alt="" coords="774,500,863,527"/>
+<area shape="rect" id="node8" href="$classTestSystolicMatrixAlgorithm.html" title="TestSystolicMatrixAlgorithm\&lt; T \&gt;" alt="" coords="990,136,1202,163"/>
+<area shape="rect" id="node11" href="$classmadness_1_1SystolicFixOrbitalOrders.html" title="madness::SystolicFixOrbital\lOrders" alt="" coords="1007,250,1185,291"/>
+<area shape="rect" id="node12" href="$classmadness_1_1SystolicPMOrbitalLocalize.html" title="madness::SystolicPMOrbital\lLocalize" alt="" coords="1005,315,1187,357"/>
+</map>

@@ -1,0 +1,4 @@
+<map id="madness::MutexReaderWriter" name="madness::MutexReaderWriter">
+<area shape="rect" id="node2" href="$classmadness_1_1Spinlock.html" title="Spinlock using pthread spinlock operations. " alt="" coords="5,5,133,32"/>
+<area shape="rect" id="node3" href="$classNO__DEFAULTS.html" title="Disables default copy constructor and assignment operators. " alt="" coords="159,5,273,32"/>
+</map>

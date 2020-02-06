@@ -1,0 +1,30 @@
+<map id="twoscale.h" name="twoscale.h">
+<area shape="rect" id="node2" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS. " alt="" coords="619,493,797,520"/>
+<area shape="rect" id="node4" href="$tensor_8h.html" title="Defines and implements most of Tensor. " alt="" coords="901,155,1061,181"/>
+<area shape="rect" id="node39" href="$MADworld_8h.html" title="This header should include pretty much everything needed for the parallel runtime. " alt="" coords="2466,80,2645,107"/>
+<area shape="rect" id="node5" href="$ran_8h.html" title="madness/misc/ran.h" alt="" coords="808,320,944,347"/>
+<area shape="rect" id="node13" href="$posixmem_8h.html" title="Implement dummy posix_memalign if it is missing on the system. " alt="" coords="184,237,363,264"/>
+<area shape="rect" id="node18" href="$archive_8h.html" title="Interface templates for the archives (serialization). " alt="" coords="1803,320,1965,347"/>
+<area shape="rect" id="node27" href="$basetensor_8h.html" title="Declares BaseTensor. " alt="" coords="53,403,240,429"/>
+<area shape="rect" id="node32" href="$aligned_8h.html" title="Provides routines for internal use optimized for aligned data. " alt="" coords="649,237,815,264"/>
+<area shape="rect" id="node35" href="$mxm_8h.html" title="Internal use only. " alt="" coords="387,237,541,264"/>
+<area shape="rect" id="node36" href="$tensorexcept_8h.html" title="Declares and implements TensorException. " alt="" coords="1019,320,1217,347"/>
+<area shape="rect" id="node37" href="$tensoriter_8h.html" title="Declares TensorIterator. " alt="" coords="1167,237,1345,264"/>
+<area shape="rect" id="node6" href="$thread_8h.html" title="Implements Dqueue, Thread, ThreadBase and ThreadPool. " alt="" coords="2291,403,2448,429"/>
+<area shape="rect" id="node23" href="$type__traits_8h.html" title="madness/world/type\l_traits.h" alt="" coords="2473,395,2607,437"/>
+<area shape="rect" id="node25" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling.By default, the MADNESS_ASSERT macro throws ..." alt="" coords="1171,395,1333,437"/>
+<area shape="rect" id="node28" href="$tensor__macros_8h.html" title="Macros for easy and efficient iteration over tensors. " alt="" coords="279,486,429,527"/>
+<area shape="rect" id="node29" href="$type__data_8h.html" title="Defines and implements TensorTypeData, a type traits class. " alt="" coords="454,486,593,527"/>
+<area shape="rect" id="node30" href="$slice_8h.html" title="Declares and implements Slice. " alt="" coords="103,493,255,520"/>
+<area shape="rect" id="node31" href="$vector__factory_8h.html" title="Declares and implements factories for short vectors. " alt="" coords="103,577,253,618"/>
+<area shape="rect" id="node33" href="$cblas_8h.html" title="Define BLAS like functions. " alt="" coords="627,320,783,347"/>
+<area shape="rect" id="node40" href="$world_8h.html" title="Declares the World class for the parallel runtime environment. " alt="" coords="2419,237,2569,264"/>
+<area shape="rect" id="node47" href="$worldam_8h.html" title="Implements active message layer for World on top of RMI layer. " alt="" coords="2781,155,2949,181"/>
+<area shape="rect" id="node48" href="$world__task__queue_8h.html" title="Defines TaskInterface and implements WorldTaskQueue and associated stuff. " alt="" coords="2819,230,2960,271"/>
+<area shape="rect" id="node49" href="$worldgop_8h.html" title="Implements global operations. " alt="" coords="2533,155,2704,181"/>
+<area shape="rect" id="node50" href="$worlddc_8h.html" title="Implements WorldContainer. " alt="" coords="1965,155,2131,181"/>
+<area shape="rect" id="node43" href="$worldinit_8h.html" title="Declares the functions that initialize the parallel runtime. " alt="" coords="2211,320,2379,347"/>
+<area shape="rect" id="node44" href="$worldmpi_8h.html" title="Implements WorldMpiInterface. " alt="" coords="2094,403,2265,429"/>
+<area shape="rect" id="node45" href="$worldhashmap_8h.html" title="Defines and implements a concurrent hashmap. " alt="" coords="1576,320,1779,347"/>
+<area shape="rect" id="node46" href="$worldprofile_8h.html" title="madness/world/worldprofile.h" alt="" coords="1782,403,1967,429"/>
+</map>

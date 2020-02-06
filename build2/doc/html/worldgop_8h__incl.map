@@ -1,0 +1,33 @@
+<map id="worldgop.h" name="worldgop.h">
+<area shape="rect" id="node1" title="Implements global operations. " alt="" coords="1808,5,1891,32"/>
+<area shape="rect" id="node3" href="$worldtypes_8h.html" title="Defines types used by the parallel runtime. " alt="" coords="2748,675,2929,701"/>
+<area shape="rect" id="node5" href="$buffer__archive_8h.html" title="Implements an archive wrapping a memory buffer. " alt="" coords="958,577,1100,618"/>
+<area shape="rect" id="node26" href="$world_8h.html" title="Declares the World class for the parallel runtime environment. " alt="" coords="1946,427,2096,453"/>
+<area shape="rect" id="node41" href="$deferred__cleanup_8h.html" title="madness/world/deferred\l_cleanup.h" alt="" coords="1649,667,1807,709"/>
+<area shape="rect" id="node42" href="$world__task__queue_8h.html" title="Defines TaskInterface and implements WorldTaskQueue and associated stuff. " alt="" coords="537,155,679,197"/>
+<area shape="rect" id="node48" href="$group_8h.html" title="madness/world/group.h" alt="" coords="1830,80,1983,107"/>
+<area shape="rect" id="node50" href="$dist__cache_8h.html" title="madness/world/dist\l_cache.h" alt="" coords="2783,246,2913,287"/>
+<area shape="rect" id="node6" href="$archive_8h.html" title="Interface templates for the archives (serialization). " alt="" coords="829,675,992,701"/>
+<area shape="rect" id="node20" href="$print_8h.html" title="Defines simple templates for printing to std::cout &quot;a la Python&quot;. " alt="" coords="1067,675,1213,701"/>
+<area shape="rect" id="node14" href="$type__traits_8h.html" title="madness/world/type\l_traits.h" alt="" coords="1158,758,1292,799"/>
+<area shape="rect" id="node16" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling.By default, the MADNESS_ASSERT macro throws ..." alt="" coords="2831,849,2993,890"/>
+<area shape="rect" id="node18" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS. " alt="" coords="2149,939,2328,965"/>
+<area shape="rect" id="node22" href="$worldmutex_8h.html" title="Implements Mutex, MutexFair, Spinlock, ConditionVariable. " alt="" coords="1735,765,1921,792"/>
+<area shape="rect" id="node23" href="$nodefaults_8h.html" title="Implements NO_DEFAULTS. " alt="" coords="581,856,760,883"/>
+<area shape="rect" id="node24" href="$timers_8h.html" title="Wrappers around platform dependent timers and performance info. " alt="" coords="401,856,556,883"/>
+<area shape="rect" id="node28" href="$worldinit_8h.html" title="Declares the functions that initialize the parallel runtime. " alt="" coords="2287,501,2455,528"/>
+<area shape="rect" id="node29" href="$worldmpi_8h.html" title="Implements WorldMpiInterface. " alt="" coords="2333,584,2504,611"/>
+<area shape="rect" id="node32" href="$worldhashmap_8h.html" title="Defines and implements a concurrent hashmap. " alt="" coords="2276,675,2479,701"/>
+<area shape="rect" id="node36" href="$worldprofile_8h.html" title="madness/world/worldprofile.h" alt="" coords="1919,501,2104,528"/>
+<area shape="rect" id="node38" href="$thread_8h.html" title="Implements Dqueue, Thread, ThreadBase and ThreadPool. " alt="" coords="1237,675,1395,701"/>
+<area shape="rect" id="node40" href="$uniqueid_8h.html" title="madness/world/uniqueid.h" alt="" coords="2554,675,2723,701"/>
+<area shape="rect" id="node30" href="$safempi_8h.html" title="Serializes calls to MPI in case it does not support THREAD_MULTIPLE. " alt="" coords="1831,675,1997,701"/>
+<area shape="rect" id="node33" href="$worldhash_8h.html" title="Defines hash functions for use in distributed containers. " alt="" coords="2327,765,2505,792"/>
+<area shape="rect" id="node37" href="$worldrmi_8h.html" title="Lowest level API for sending active messages — you should probably be looking at worldam..." alt="" coords="1534,584,1703,611"/>
+<area shape="rect" id="node43" href="$meta_8h.html" title="madness/world/meta.h" alt="" coords="475,344,625,371"/>
+<area shape="rect" id="node44" href="$range_8h.html" title="Implement the Range class for parallel iteration. " alt="" coords="145,427,297,453"/>
+<area shape="rect" id="node45" href="$taskfn_8h.html" title="madness/world/taskfn.h" alt="" coords="589,253,744,280"/>
+<area shape="rect" id="node47" href="$mem__func__wrapper_8h.html" title="Defines tools for encapsulating a pointer to a member function.The member pointer is stored..." alt="" coords="2361,337,2532,378"/>
+<area shape="rect" id="node46" href="$future_8h.html" title="Implements Future and related items. " alt="" coords="1204,344,1359,371"/>
+<area shape="rect" id="node49" href="$distributed__id_8h.html" title="madness/world/distributed_id.h" alt="" coords="2681,584,2879,611"/>
+</map>

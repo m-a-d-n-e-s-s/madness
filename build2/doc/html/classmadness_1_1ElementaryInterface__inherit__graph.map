@@ -1,0 +1,4 @@
+<map id="madness::ElementaryInterface&lt; T, NDIM &gt;" name="madness::ElementaryInterface&lt; T, NDIM &gt;">
+<area shape="rect" id="node1" title="ElementaryInterface (formerly FunctorInterfaceWrapper) interfaces a c&#45;function. " alt="" coords="5,97,200,138"/>
+<area shape="rect" id="node2" href="$classmadness_1_1FunctionFunctorInterface.html" title="Abstract base class interface required for functors used as input to Functions. " alt="" coords="16,6,189,47"/>
+</map>

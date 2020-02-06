@@ -1,0 +1,5 @@
+<map id="madness::detail::PendingMsg" name="madness::detail::PendingMsg">
+<area shape="rect" id="node1" title="Common base class for pending messages to ensure in&#45;order processing. " alt="" coords="27,109,213,136"/>
+<area shape="rect" id="node2" href="$classmadness_1_1uniqueidT.html" title="Class for unique global IDs. " alt="" coords="5,5,139,32"/>
+<area shape="rect" id="node3" href="$classmadness_1_1AmArg.html" title="World active message that extends an RMI message. " alt="" coords="163,5,281,32"/>
+</map>

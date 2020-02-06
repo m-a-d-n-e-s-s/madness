@@ -1,0 +1,5 @@
+<map id="madness::profiling::TaskProfiler" name="madness::profiling::TaskProfiler">
+<area shape="rect" id="node1" title="This class collects and prints task profiling data. " alt="" coords="68,126,191,167"/>
+<area shape="rect" id="node2" href="$classmadness_1_1Mutex.html" title="Mutex using pthread mutex operations. " alt="" coords="5,13,120,40"/>
+<area shape="rect" id="node3" href="$classmadness_1_1profiling_1_1TaskEventListBase.html" title="Task event list base class. " alt="" coords="145,6,281,47"/>
+</map>

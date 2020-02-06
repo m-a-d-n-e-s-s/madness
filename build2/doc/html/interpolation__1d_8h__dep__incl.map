@@ -1,0 +1,5 @@
+<map id="interpolation_1d.h" name="interpolation_1d.h">
+<area shape="rect" id="node1" title="Provides 1D cubic interpolation class. " alt="" coords="35,5,157,32"/>
+<area shape="rect" id="node2" href="$interp3_8cc.html" title="interp3.cc" alt="" coords="5,80,83,107"/>
+<area shape="rect" id="node3" href="$qmprop_8cc.html" title="Implements BandlimitedPropagator and qm_free_particle_propagator. " alt="" coords="108,80,191,107"/>
+</map>

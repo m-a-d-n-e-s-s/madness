@@ -1,0 +1,5 @@
+<map id="madness::archive::TextFstreamInputArchive" name="madness::archive::TextFstreamInputArchive">
+<area shape="rect" id="node1" title="Wraps an archive around a text filestream for input. " alt="" coords="5,171,203,213"/>
+<area shape="rect" id="node2" href="$classmadness_1_1archive_1_1BaseInputArchive.html" title="Base class for input archive classes. " alt="" coords="12,81,196,122"/>
+<area shape="rect" id="node3" href="$classmadness_1_1archive_1_1BaseArchive.html" title="Base class for all archive classes. " alt="" coords="5,5,203,32"/>
+</map>

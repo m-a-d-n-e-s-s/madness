@@ -1,0 +1,3 @@
+<map id="madness::is_istreammable&lt; T, typename &gt;" name="madness::is_istreammable&lt; T, typename &gt;">
+<area shape="rect" id="node1" title="True for types that are &quot;deserialiable&quot; from an std::istream. " alt="" coords="5,81,176,122"/>
+</map>

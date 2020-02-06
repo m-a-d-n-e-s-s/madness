@@ -1,0 +1,4 @@
+<map id="MolecularVolumeExponentialSwitch" name="MolecularVolumeExponentialSwitch">
+<area shape="rect" id="node1" title="Switches between positive values Vint and Vext with special log derivative. " alt="" coords="5,97,192,138"/>
+<area shape="rect" id="node2" href="$classmadness_1_1FunctionFunctorInterface.html" title="madness::FunctionFunctor\lInterface\&lt; double, 3 \&gt;" alt="" coords="12,6,185,47"/>
+</map>

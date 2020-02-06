@@ -1,0 +1,10 @@
+<map id="safempi.h" name="safempi.h">
+<area shape="rect" id="node1" title="Serializes calls to MPI in case it does not support THREAD_MULTIPLE. " alt="" coords="739,5,816,32"/>
+<area shape="rect" id="node2" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS. " alt="" coords="364,245,543,272"/>
+<area shape="rect" id="node5" href="$worldmutex_8h.html" title="Implements Mutex, MutexFair, Spinlock, ConditionVariable. " alt="" coords="447,80,633,107"/>
+<area shape="rect" id="node21" href="$type__traits_8h.html" title="madness/world/type\l_traits.h" alt="" coords="1183,155,1317,197"/>
+<area shape="rect" id="node8" href="$nodefaults_8h.html" title="Implements NO_DEFAULTS. " alt="" coords="593,163,772,189"/>
+<area shape="rect" id="node9" href="$timers_8h.html" title="Wrappers around platform dependent timers and performance info. " alt="" coords="131,163,287,189"/>
+<area shape="rect" id="node15" href="$atomicint_8h.html" title="Implements AtomicInt. " alt="" coords="797,163,971,189"/>
+<area shape="rect" id="node17" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling.By default, the MADNESS_ASSERT macro throws ..." alt="" coords="996,155,1159,197"/>
+</map>

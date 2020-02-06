@@ -1,0 +1,11 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="node1" href="$classmadness_1_1SignedDFInterface.html" title="madness::SignedDFInterface\&lt; 3 \&gt;" alt="" coords="5,157,221,184"/>
+<area shape="rect" id="node2" href="$classmadness_1_1SDFBox.html" title="A box (3 dimensions) " alt="" coords="290,5,417,32"/>
+<area shape="rect" id="node4" href="$classmadness_1_1SDFCone.html" title="A cone (3 dimensions) " alt="" coords="286,56,421,83"/>
+<area shape="rect" id="node5" href="$classmadness_1_1SDFCylinder.html" title="A cylinder (3 dimensions) " alt="" coords="278,107,429,133"/>
+<area shape="rect" id="node6" href="$classmadness_1_1SDFEllipsoid.html" title="An ellipsoid (3 dimensions) " alt="" coords="277,157,429,184"/>
+<area shape="rect" id="node7" href="$classmadness_1_1SDFParaboloid.html" title="A paraboloid (3 dimensions) " alt="" coords="270,208,437,235"/>
+<area shape="rect" id="node8" href="$classmadness_1_1SDFPlane.html" title="A plane surface (3 dimensions) " alt="" coords="284,259,423,285"/>
+<area shape="rect" id="node9" href="$classmadness_1_1SDFSphere.html" title="A spherical surface (3 dimensions) " alt="" coords="280,309,427,336"/>
+<area shape="rect" id="node3" href="$classmadness_1_1SDFCube.html" title="A cube (3 dimensions) " alt="" coords="486,5,621,32"/>
+</map>

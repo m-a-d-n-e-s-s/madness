@@ -1,0 +1,3 @@
+<map id="write_test_input" name="write_test_input">
+<area shape="rect" id="node1" title="will write a test input and remove it from disk upon destruction " alt="" coords="5,96,117,123"/>
+</map>

@@ -1,0 +1,30 @@
+<map id="solvers.h" name="solvers.h">
+<area shape="rect" id="node1" title="Defines interfaces for optimization and non&#45;linear equation solvers. " alt="" coords="1394,5,1464,32"/>
+<area shape="rect" id="node2" href="$tensor_8h.html" title="Defines and implements most of Tensor. " alt="" coords="1778,171,1939,197"/>
+<area shape="rect" id="node42" href="$print_8h.html" title="Defines simple templates for printing to std::cout &quot;a la Python&quot;. " alt="" coords="67,245,213,272"/>
+<area shape="rect" id="node48" href="$tensor__lapack_8h.html" title="Prototypes for a partial interface from Tensor to LAPACK. " alt="" coords="2815,81,2965,122"/>
+<area shape="rect" id="node3" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS. " alt="" coords="2435,509,2613,536"/>
+<area shape="rect" id="node5" href="$ran_8h.html" title="madness/misc/ran.h" alt="" coords="1308,245,1444,272"/>
+<area shape="rect" id="node14" href="$posixmem_8h.html" title="Implement dummy posix_memalign if it is missing on the system. " alt="" coords="2156,245,2335,272"/>
+<area shape="rect" id="node19" href="$archive_8h.html" title="Interface templates for the archives (serialization). " alt="" coords="552,245,715,272"/>
+<area shape="rect" id="node28" href="$basetensor_8h.html" title="Declares BaseTensor. " alt="" coords="1817,419,2004,445"/>
+<area shape="rect" id="node33" href="$aligned_8h.html" title="Provides routines for internal use optimized for aligned data. " alt="" coords="2627,245,2793,272"/>
+<area shape="rect" id="node38" href="$mxm_8h.html" title="Internal use only. " alt="" coords="2448,245,2603,272"/>
+<area shape="rect" id="node39" href="$tensorexcept_8h.html" title="Declares and implements TensorException. " alt="" coords="1322,328,1520,355"/>
+<area shape="rect" id="node40" href="$tensoriter_8h.html" title="Declares TensorIterator. " alt="" coords="1769,245,1948,272"/>
+<area shape="rect" id="node6" href="$thread_8h.html" title="Implements Dqueue, Thread, ThreadBase and ThreadPool. " alt="" coords="1140,328,1297,355"/>
+<area shape="rect" id="node24" href="$type__traits_8h.html" title="madness/world/type\l_traits.h" alt="" coords="785,321,919,362"/>
+<area shape="rect" id="node26" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling.By default, the MADNESS_ASSERT macro throws ..." alt="" coords="1579,411,1741,453"/>
+<area shape="rect" id="node29" href="$tensor__macros_8h.html" title="Macros for easy and efficient iteration over tensors. " alt="" coords="1941,502,2091,543"/>
+<area shape="rect" id="node30" href="$type__data_8h.html" title="Defines and implements TensorTypeData, a type traits class. " alt="" coords="2115,502,2255,543"/>
+<area shape="rect" id="node31" href="$slice_8h.html" title="Declares and implements Slice. " alt="" coords="1713,509,1865,536"/>
+<area shape="rect" id="node32" href="$vector__factory_8h.html" title="Declares and implements factories for short vectors. " alt="" coords="1714,593,1864,634"/>
+<area shape="rect" id="node34" href="$cblas_8h.html" title="Define BLAS like functions. " alt="" coords="2697,328,2852,355"/>
+<area shape="rect" id="node35" href="$fortran__ctypes_8h.html" title="Correspondence between C++ and Fortran types. " alt="" coords="2713,419,2881,445"/>
+<area shape="rect" id="node44" href="$worldmutex_8h.html" title="Implements Mutex, MutexFair, Spinlock, ConditionVariable. " alt="" coords="1545,328,1732,355"/>
+<area shape="rect" id="node45" href="$nodefaults_8h.html" title="Implements NO_DEFAULTS. " alt="" coords="1374,419,1553,445"/>
+<area shape="rect" id="node46" href="$timers_8h.html" title="Wrappers around platform dependent timers and performance info. " alt="" coords="2279,419,2435,445"/>
+<area shape="rect" id="node47" href="$atomicint_8h.html" title="Implements AtomicInt. " alt="" coords="2029,419,2203,445"/>
+<area shape="rect" id="node49" href="$elem_8h.html" title="madness/tensor/elem.h" alt="" coords="2935,171,3089,197"/>
+<area shape="rect" id="node50" href="$MADworld_8h.html" title="This header should include pretty much everything needed for the parallel runtime. " alt="" coords="2929,245,3108,272"/>
+</map>

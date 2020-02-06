@@ -1,0 +1,51 @@
+<map id="adquad.h" name="adquad.h">
+<area shape="rect" id="node2" href="$convolution1d_8h.html" title="Compuates most matrix elements over 1D operators (including Gaussians) " alt="" coords="2170,80,2280,107"/>
+<area shape="rect" id="node48" href="$operator_8h.html" title="Implements most functionality of separated operators. " alt="" coords="2063,229,2141,256"/>
+<area shape="rect" id="node41" href="$qmprop_8cc.html" title="Implements BandlimitedPropagator and qm_free_particle_propagator. " alt="" coords="4308,387,4391,413"/>
+<area shape="rect" id="node3" href="$function__interface_8h.html" title="function_interface.h" alt="" coords="2190,155,2324,181"/>
+<area shape="rect" id="node4" href="$function__factory_8h.html" title="function_factory.h" alt="" coords="2181,229,2304,256"/>
+<area shape="rect" id="node5" href="$mra_8h.html" title="Main include file for MADNESS and defines Function interface. " alt="" coords="2203,304,2257,331"/>
+<area shape="rect" id="node6" href="$CC2_8h.html" title="CC2.h" alt="" coords="2322,469,2379,496"/>
+<area shape="rect" id="node10" href="$nemo_8h.html" title="nemo.h" alt="" coords="2015,387,2079,413"/>
+<area shape="rect" id="node11" href="$znemo_8h.html" title="znemo.h" alt="" coords="2035,469,2105,496"/>
+<area shape="rect" id="node13" href="$tdse_8cc.html" title="Evolves the hydrogen atom in imaginary and also real time. " alt="" coords="269,387,331,413"/>
+<area shape="rect" id="node14" href="$tdse_8confused_8cc.html" title="Evolves the hydrogen atom in imaginary and also real time. " alt="" coords="355,387,473,413"/>
+<area shape="rect" id="node15" href="$tdse4_8cc.html" title="Evolves the hydrogen molecular ion in 4D ... 3 electron + 1 nuclear degree of freedom. " alt="" coords="498,387,568,413"/>
+<area shape="rect" id="node16" href="$csqrt_8cc.html" title="csqrt.cc" alt="" coords="593,387,660,413"/>
+<area shape="rect" id="node17" href="$dataloadbal_8cc.html" title="Illustrates how to use static data/load balancing of functions. " alt="" coords="685,387,789,413"/>
+<area shape="rect" id="node18" href="$dielectric_8cc.html" title="Example solution of Poisson&#39;s equation in a dielectric (polarizable) medium. " alt="" coords="815,387,905,413"/>
+<area shape="rect" id="node19" href="$dielectric__external__field_8cc.html" title="dielectric_external\l_field.cc" alt="" coords="930,379,1056,421"/>
+<area shape="rect" id="node20" href="$gaussian_8cc.html" title="A simple example of projecting and using MADNESS functions.This example projects a simple Gaussian fu..." alt="" coords="1081,387,1169,413"/>
+<area shape="rect" id="node21" href="$h2_8cc.html" title="Solves the Hartree&#45;Fock equations for the hydrogen molecule. " alt="" coords="1195,387,1248,413"/>
+<area shape="rect" id="node22" href="$h2dft_8cc.html" title="h2dft.cc" alt="" coords="1273,387,1340,413"/>
+<area shape="rect" id="node23" href="$h2dynamic_8cc.html" title="h2dynamic.cc" alt="" coords="1365,387,1467,413"/>
+<area shape="rect" id="node24" href="$hatom__1d_8cc.html" title="Solves the Schrodinger equation for the 1&#45;d hydrogen atomThe Hartree&#45;Fock wave function is computed f..." alt="" coords="1491,387,1587,413"/>
+<area shape="rect" id="node25" href="$he_8cc.html" title="Solves the Hartree&#45;Fock equations for the helium atom. " alt="" coords="1611,387,1664,413"/>
+<area shape="rect" id="node26" href="$heat_8cc.html" title="Example Green function for the 3D heat equation. " alt="" coords="1688,387,1752,413"/>
+<area shape="rect" id="node27" href="$heat2_8cc.html" title="Example Green function for the 3D heat equation with a linear term. " alt="" coords="1777,387,1847,413"/>
+<area shape="rect" id="node28" href="$hedft_8cc.html" title="hedft.cc" alt="" coords="1871,387,1939,413"/>
+<area shape="rect" id="node29" href="$hefxc_8cc.html" title="hefxc.cc" alt="" coords="2103,387,2173,413"/>
+<area shape="rect" id="node30" href="$hehf_8cc.html" title="hehf.cc" alt="" coords="2199,387,2263,413"/>
+<area shape="rect" id="node12" href="$helium__exact_8cc.html" title="Solves the two&#45;particle system exactly. " alt="" coords="1896,469,2011,496"/>
+<area shape="rect" id="node31" href="$helium__mp2_8cc.html" title="Solves the Hartree&#45;Fock and MP2 equations for the helium atom. " alt="" coords="2388,387,2497,413"/>
+<area shape="rect" id="node32" href="$newsolver_8cc.html" title="newsolver.cc" alt="" coords="2522,387,2616,413"/>
+<area shape="rect" id="node33" href="$newsolver__lda_8cc.html" title="newsolver_lda.cc" alt="" coords="2641,387,2759,413"/>
+<area shape="rect" id="node34" href="$nonlinschro_8cc.html" title="Solves 1D nonlinear Schrödinger equation. " alt="" coords="2784,387,2888,413"/>
+<area shape="rect" id="node35" href="$svpe_8cc.html" title="svpe.cc" alt="" coords="2913,387,2977,413"/>
+<area shape="rect" id="node36" href="$tdse1d_8cc.html" title="Example propagation of TDSE (translating atom) using various propagators. " alt="" coords="3003,387,3080,413"/>
+<area shape="rect" id="node37" href="$tdse__example_8cc.html" title="Evolves the hydrogen atom in imaginary and also real time. " alt="" coords="3105,387,3223,413"/>
+<area shape="rect" id="node38" href="$testspectralprop_8cc.html" title="testspectralprop.cc" alt="" coords="3248,387,3379,413"/>
+<area shape="rect" id="node39" href="$tiny_8cc.html" title="tiny.cc" alt="" coords="3403,387,3461,413"/>
+<area shape="rect" id="node40" href="$vnucso_8cc.html" title="Solves the spin&#45;orbit nuclear potential problem. " alt="" coords="3486,387,3564,413"/>
+<area shape="rect" id="node42" href="$testbc_8cc.html" title="testbc.cc" alt="" coords="3589,387,3664,413"/>
+<area shape="rect" id="node43" href="$testbsh_8cc.html" title="test the bsh operator " alt="" coords="3688,387,3768,413"/>
+<area shape="rect" id="node44" href="$testgconv_8cc.html" title="Test convolution with Gaussian * polyn. " alt="" coords="3793,387,3887,413"/>
+<area shape="rect" id="node45" href="$testopdir_8cc.html" title="test different operators in different directions " alt="" coords="3912,387,4000,413"/>
+<area shape="rect" id="node46" href="$testper_8cc.html" title="test the periodic convolution operator " alt="" coords="4025,387,4103,413"/>
+<area shape="rect" id="node47" href="$madness_2mra_2testperiodic_8cc.html" title="testperiodic.cc" alt="" coords="4127,387,4232,413"/>
+<area shape="rect" id="node7" href="$CC2_8cc.html" title="CC2.cc" alt="" coords="2232,544,2296,571"/>
+<area shape="rect" id="node8" href="$PNO_8h.html" title="PNO.h" alt="" coords="2321,544,2380,571"/>
+<area shape="rect" id="node9" href="$cc2_8cc.html" title="cc2.cc" alt="" coords="2405,544,2464,571"/>
+<area shape="rect" id="node49" href="$poperator_8h.html" title="poperator.h" alt="" coords="5,304,91,331"/>
+<area shape="rect" id="node50" href="$eigsolver_8cc.html" title="eigsolver.cc" alt="" coords="29,387,117,413"/>
+</map>

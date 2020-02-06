@@ -1,0 +1,29 @@
+<map id="parallel_archive.h" name="parallel_archive.h">
+<area shape="rect" id="node1" title="Implements ParallelInputArchive and ParallelOutputArchive for parallel serialization of data..." alt="" coords="1439,5,1560,32"/>
+<area shape="rect" id="node3" href="$archive_8h.html" title="Interface templates for the archives (serialization). " alt="" coords="371,469,533,496"/>
+<area shape="rect" id="node20" href="$binary__fstream__archive_8h.html" title="Implements an archive wrapping a binary filestream. " alt="" coords="219,379,364,421"/>
+<area shape="rect" id="node23" href="$world_8h.html" title="Declares the World class for the parallel runtime environment. " alt="" coords="2085,229,2235,256"/>
+<area shape="rect" id="node44" href="$worldgop_8h.html" title="Implements global operations. " alt="" coords="893,80,1064,107"/>
+<area shape="rect" id="node11" href="$type__traits_8h.html" title="madness/world/type\l_traits.h" alt="" coords="811,545,945,586"/>
+<area shape="rect" id="node15" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling.By default, the MADNESS_ASSERT macro throws ..." alt="" coords="959,710,1121,751"/>
+<area shape="rect" id="node18" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS. " alt="" coords="1564,800,1743,827"/>
+<area shape="rect" id="node26" href="$worldinit_8h.html" title="Declares the functions that initialize the parallel runtime. " alt="" coords="1325,304,1493,331"/>
+<area shape="rect" id="node27" href="$worldmpi_8h.html" title="Implements WorldMpiInterface. " alt="" coords="1017,387,1188,413"/>
+<area shape="rect" id="node33" href="$worldhashmap_8h.html" title="Defines and implements a concurrent hashmap. " alt="" coords="1816,469,2019,496"/>
+<area shape="rect" id="node37" href="$worldprofile_8h.html" title="madness/world/worldprofile.h" alt="" coords="1795,304,1980,331"/>
+<area shape="rect" id="node39" href="$thread_8h.html" title="Implements Dqueue, Thread, ThreadBase and ThreadPool. " alt="" coords="2309,469,2467,496"/>
+<area shape="rect" id="node43" href="$uniqueid_8h.html" title="madness/world/uniqueid.h" alt="" coords="2603,469,2772,496"/>
+<area shape="rect" id="node30" href="$nodefaults_8h.html" title="Implements NO_DEFAULTS. " alt="" coords="1829,717,2008,744"/>
+<area shape="rect" id="node28" href="$safempi_8h.html" title="Serializes calls to MPI in case it does not support THREAD_MULTIPLE. " alt="" coords="1267,469,1433,496"/>
+<area shape="rect" id="node32" href="$worldtypes_8h.html" title="Defines types used by the parallel runtime. " alt="" coords="1509,469,1691,496"/>
+<area shape="rect" id="node29" href="$worldmutex_8h.html" title="Implements Mutex, MutexFair, Spinlock, ConditionVariable. " alt="" coords="1825,635,2012,661"/>
+<area shape="rect" id="node34" href="$worldhash_8h.html" title="Defines hash functions for use in distributed containers. " alt="" coords="2533,552,2712,579"/>
+<area shape="rect" id="node38" href="$worldrmi_8h.html" title="Lowest level API for sending active messages — you should probably be looking at worldam..." alt="" coords="1694,387,1863,413"/>
+<area shape="rect" id="node40" href="$dqueue_8h.html" title="Implements DQueue. " alt="" coords="2787,552,2949,579"/>
+<area shape="rect" id="node41" href="$function__traits_8h.html" title="madness/world/function\l_traits.h" alt="" coords="2251,545,2408,586"/>
+<area shape="rect" id="node45" href="$buffer__archive_8h.html" title="Implements an archive wrapping a memory buffer. " alt="" coords="542,379,684,421"/>
+<area shape="rect" id="node46" href="$deferred__cleanup_8h.html" title="madness/world/deferred\l_cleanup.h" alt="" coords="1265,379,1423,421"/>
+<area shape="rect" id="node47" href="$world__task__queue_8h.html" title="Defines TaskInterface and implements WorldTaskQueue and associated stuff. " alt="" coords="1021,545,1163,586"/>
+<area shape="rect" id="node48" href="$group_8h.html" title="madness/world/group.h" alt="" coords="697,155,849,181"/>
+<area shape="rect" id="node49" href="$dist__cache_8h.html" title="madness/world/dist\l_cache.h" alt="" coords="811,379,941,421"/>
+</map>

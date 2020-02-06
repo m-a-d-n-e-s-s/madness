@@ -1,0 +1,22 @@
+<map id="world_object.h" name="world_object.h">
+<area shape="rect" id="node1" title="Defines and implements WorldObject. " alt="" coords="476,5,580,32"/>
+<area shape="rect" id="node3" href="$thread_8h.html" title="Implements Dqueue, Thread, ThreadBase and ThreadPool. " alt="" coords="1416,501,1573,528"/>
+<area shape="rect" id="node35" href="$world__task__queue_8h.html" title="Defines TaskInterface and implements WorldTaskQueue and associated stuff. " alt="" coords="457,81,599,122"/>
+<area shape="rect" id="node4" href="$dqueue_8h.html" title="Implements DQueue. " alt="" coords="1413,584,1576,611"/>
+<area shape="rect" id="node24" href="$function__traits_8h.html" title="madness/world/function\l_traits.h" alt="" coords="1080,577,1237,618"/>
+<area shape="rect" id="node5" href="$worldmutex_8h.html" title="Implements Mutex, MutexFair, Spinlock, ConditionVariable. " alt="" coords="561,667,748,693"/>
+<area shape="rect" id="node6" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS. " alt="" coords="691,832,869,859"/>
+<area shape="rect" id="node10" href="$nodefaults_8h.html" title="Implements NO_DEFAULTS. " alt="" coords="1762,749,1941,776"/>
+<area shape="rect" id="node11" href="$timers_8h.html" title="Wrappers around platform dependent timers and performance info. " alt="" coords="2557,749,2712,776"/>
+<area shape="rect" id="node17" href="$atomicint_8h.html" title="Implements AtomicInt. " alt="" coords="567,749,741,776"/>
+<area shape="rect" id="node18" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling.By default, the MADNESS_ASSERT macro throws ..." alt="" coords="380,742,543,783"/>
+<area shape="rect" id="node36" href="$meta_8h.html" title="madness/world/meta.h" alt="" coords="342,261,492,288"/>
+<area shape="rect" id="node37" href="$range_8h.html" title="Implement the Range class for parallel iteration. " alt="" coords="113,344,265,371"/>
+<area shape="rect" id="node39" href="$taskfn_8h.html" title="madness/world/taskfn.h" alt="" coords="519,179,675,205"/>
+<area shape="rect" id="node50" href="$mem__func__wrapper_8h.html" title="Defines tools for encapsulating a pointer to a member function.The member pointer is stored..." alt="" coords="43,171,215,213"/>
+<area shape="rect" id="node40" href="$dependency__interface_8h.html" title="Defines DependencyInterface and CallbackInterface. " alt="" coords="714,337,893,378"/>
+<area shape="rect" id="node49" href="$future_8h.html" title="Implements Future and related items. " alt="" coords="1056,261,1211,288"/>
+<area shape="rect" id="node43" href="$stack_8h.html" title="Implement Stack for a fixed&#45;size stack container. " alt="" coords="621,501,773,528"/>
+<area shape="rect" id="node44" href="$world_8h.html" title="Declares the World class for the parallel runtime environment. " alt="" coords="2182,427,2332,453"/>
+<area shape="rect" id="node45" href="$print_8h.html" title="Defines simple templates for printing to std::cout &quot;a la Python&quot;. " alt="" coords="797,501,944,528"/>
+</map>

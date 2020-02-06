@@ -1,0 +1,52 @@
+<map id="vmra.h" name="vmra.h">
+<area shape="rect" id="node1" title="Defines operations on vectors of FunctionsThis file defines a number of operations on vectors of func..." alt="" coords="1318,5,1377,32"/>
+<area shape="rect" id="node2" href="$CC2_8h.html" title="CC2.h" alt="" coords="3071,544,3128,571"/>
+<area shape="rect" id="node7" href="$nemo_8h.html" title="nemo.h" alt="" coords="2353,387,2417,413"/>
+<area shape="rect" id="node26" href="$pointgroupsymmetry_8cc.html" title="implements point group operations " alt="" coords="51,155,205,181"/>
+<area shape="rect" id="node18" href="$znemo_8h.html" title="znemo.h" alt="" coords="699,469,769,496"/>
+<area shape="rect" id="node27" href="$electronicstructureparams_8h.html" title="electronicstructureparams.h" alt="" coords="717,155,896,181"/>
+<area shape="rect" id="node32" href="$dataloadbal_8cc.html" title="Illustrates how to use static data/load balancing of functions. " alt="" coords="230,155,335,181"/>
+<area shape="rect" id="node33" href="$navstokes__cosines_8cc.html" title="Example Solving the Navier&#45;Stokes equations. " alt="" coords="1400,80,1547,107"/>
+<area shape="rect" id="node34" href="$vnucso_8cc.html" title="Solves the spin&#45;orbit nuclear potential problem. " alt="" coords="359,155,437,181"/>
+<area shape="rect" id="node35" href="$mra_8h.html" title="Main include file for MADNESS and defines Function interface. " alt="" coords="1321,80,1375,107"/>
+<area shape="rect" id="node50" href="$testvmra_8cc.html" title="testvmra.cc" alt="" coords="3132,155,3220,181"/>
+<area shape="rect" id="node3" href="$CC2_8cc.html" title="CC2.cc" alt="" coords="2939,619,3003,645"/>
+<area shape="rect" id="node4" href="$PNO_8h.html" title="PNO.h" alt="" coords="3027,619,3087,645"/>
+<area shape="rect" id="node6" href="$cc2_8cc.html" title="cc2.cc" alt="" coords="3111,619,3171,645"/>
+<area shape="rect" id="node5" href="$pno_8cpp.html" title="pno.cpp" alt="" coords="2340,693,2407,720"/>
+<area shape="rect" id="node8" href="$CCPotentials_8h.html" title="CCPotentials.h" alt="" coords="2921,469,3028,496"/>
+<area shape="rect" id="node9" href="$apps_2chem_2mp2_8cc.html" title="mp2.cc" alt="" coords="1945,544,2009,571"/>
+<area shape="rect" id="node10" href="$mp2_8h.html" title="Solves molecular MP2 equations. " alt="" coords="1846,469,1903,496"/>
+<area shape="rect" id="node11" href="$apps_2chem_2nemo_8cc.html" title="nemo.cc" alt="" coords="2725,469,2795,496"/>
+<area shape="rect" id="node12" href="$oep_8h.html" title="oep.h" alt="" coords="2647,469,2700,496"/>
+<area shape="rect" id="node13" href="$PNOStructures_8h.html" title="PNOStructures.h" alt="" coords="2217,469,2335,496"/>
+<area shape="rect" id="node14" href="$SCF_8cc.html" title="Molecular HF and DFT code. " alt="" coords="2462,469,2527,496"/>
+<area shape="rect" id="node15" href="$SCFOperators_8cc.html" title="Operators for the molecular HF and DFT code. " alt="" coords="1526,469,1647,496"/>
+<area shape="rect" id="node16" href="$TDHF_8h.html" title="TDHF.h" alt="" coords="3103,469,3169,496"/>
+<area shape="rect" id="node17" href="$test__SCFOperators_8cc.html" title="test_SCFOperators.cc" alt="" coords="1672,469,1821,496"/>
+<area shape="rect" id="node23" href="$smooth_8h.html" title="smooth.h" alt="" coords="2117,469,2192,496"/>
+<area shape="rect" id="node24" href="$helium__exact_8cc.html" title="Solves the two&#45;particle system exactly. " alt="" coords="1928,469,2043,496"/>
+<area shape="rect" id="node25" href="$examples_2nemo_8cc.html" title="solve the HF equations using numerical exponential MOs " alt="" coords="2551,469,2621,496"/>
+<area shape="rect" id="node19" href="$diamagneticpotentialfactor_8h.html" title="diamagneticpotentialfactor.h" alt="" coords="513,544,697,571"/>
+<area shape="rect" id="node21" href="$zcis_8h.html" title="zcis.h" alt="" coords="1259,544,1313,571"/>
+<area shape="rect" id="node20" href="$apps_2chem_2znemo_8cc.html" title="znemo.cc" alt="" coords="567,619,644,645"/>
+<area shape="rect" id="node22" href="$examples_2znemo_8cc.html" title="solve the HF equations using numerical exponential MOs " alt="" coords="772,544,849,571"/>
+<area shape="rect" id="node28" href="$eigsolver_8h.html" title="eigsolver.h" alt="" coords="665,229,748,256"/>
+<area shape="rect" id="node29" href="$dft_8h.html" title="dft.h" alt="" coords="683,304,729,331"/>
+<area shape="rect" id="node30" href="$electronicstructureapp_8h.html" title="electronicstructureapp.h" alt="" coords="823,229,981,256"/>
+<area shape="rect" id="node31" href="$solver_8h.html" title="solver.h" alt="" coords="1006,229,1071,256"/>
+<area shape="rect" id="node36" href="$AC_8h.html" title="AC.h" alt="" coords="2352,304,2403,331"/>
+<area shape="rect" id="node37" href="$CCStructures_8h.html" title="CCStructures.h" alt="" coords="2920,387,3029,413"/>
+<area shape="rect" id="node38" href="$projector_8h.html" title="projector.h" alt="" coords="2719,387,2801,413"/>
+<area shape="rect" id="node39" href="$electronic__correlation__factor_8h.html" title="electronic_correlation\l_factor.h" alt="" coords="2183,379,2328,421"/>
+<area shape="rect" id="node40" href="$corepotential_8cc.html" title="Simple management of core potential and orbital information. " alt="" coords="2943,155,3056,181"/>
+<area shape="rect" id="node41" href="$correlationfactor_8h.html" title="class for regularizing singular potentials in the molecular Hamilton operator " alt="" coords="1732,304,1857,331"/>
+<area shape="rect" id="node42" href="$distpm_8cc.html" title="distpm.cc" alt="" coords="921,155,999,181"/>
+<area shape="rect" id="node43" href="$gth__pseudopotential_8h.html" title="gth_pseudopotential.h" alt="" coords="1984,155,2131,181"/>
+<area shape="rect" id="node45" href="$MolecularOrbitals_8cc.html" title="MolecularOrbitals.cc" alt="" coords="1075,304,1213,331"/>
+<area shape="rect" id="node46" href="$plotxc_8cc.html" title="plotxc.cc" alt="" coords="1125,155,1197,181"/>
+<area shape="rect" id="node47" href="$potentialmanager_8h.html" title="potentialmanager.h" alt="" coords="1829,155,1960,181"/>
+<area shape="rect" id="node44" href="$SCF_8h.html" title="SCF.h" alt="" coords="1953,229,2012,256"/>
+<area shape="rect" id="node48" href="$test__masks__and__boxes_8cc.html" title="test_masks_and_boxes.cc" alt="" coords="1325,155,1496,181"/>
+<area shape="rect" id="node49" href="$test__pointgroupsymmetry_8cc.html" title="test_pointgroupsymmetry.cc" alt="" coords="1521,155,1703,181"/>
+</map>

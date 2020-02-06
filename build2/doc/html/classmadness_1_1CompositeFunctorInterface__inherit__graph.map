@@ -1,0 +1,4 @@
+<map id="madness::CompositeFunctorInterface&lt; T, NDIM, MDIM &gt;" name="madness::CompositeFunctorInterface&lt; T, NDIM, MDIM &gt;">
+<area shape="rect" id="node1" title="CompositeFunctorInterface implements a wrapper of holding several functions and functors. " alt="" coords="5,97,189,138"/>
+<area shape="rect" id="node2" href="$classmadness_1_1FunctionFunctorInterface.html" title="Abstract base class interface required for functors used as input to Functions. " alt="" coords="11,6,184,47"/>
+</map>

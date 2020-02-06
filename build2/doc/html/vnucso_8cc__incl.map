@@ -1,0 +1,41 @@
+<map id="vnucso.cc" name="vnucso.cc">
+<area shape="rect" id="node1" title="Solves the spin&#45;orbit nuclear potential problem. " alt="" coords="1433,5,1511,32"/>
+<area shape="rect" id="node2" href="$mra_8h.html" title="Main include file for MADNESS and defines Function interface. " alt="" coords="1187,80,1321,107"/>
+<area shape="rect" id="node49" href="$vmra_8h.html" title="Defines operations on vectors of FunctionsThis file defines a number of operations on vectors of func..." alt="" coords="321,155,463,181"/>
+<area shape="rect" id="node40" href="$operator_8h.html" title="Implements most functionality of separated operators. " alt="" coords="1989,155,2149,181"/>
+<area shape="rect" id="node38" href="$constants_8h.html" title="Defines common mathematical and physical constants. " alt="" coords="2575,312,2672,339"/>
+<area shape="rect" id="node3" href="$MADworld_8h.html" title="This header should include pretty much everything needed for the parallel runtime. " alt="" coords="787,485,967,512"/>
+<area shape="rect" id="node21" href="$misc_8h.html" title="Header to declare stuff which has not yet found a home. " alt="" coords="1058,403,1203,429"/>
+<area shape="rect" id="node23" href="$tensor_8h.html" title="Defines and implements most of Tensor. " alt="" coords="1777,485,1937,512"/>
+<area shape="rect" id="node28" href="$key_8h.html" title="Multidimension Key for MRA tree and associated iterators. " alt="" coords="1407,485,1540,512"/>
+<area shape="rect" id="node29" href="$twoscale_8h.html" title="madness/mra/twoscale.h" alt="" coords="1993,403,2156,429"/>
+<area shape="rect" id="node30" href="$legendre_8h.html" title="madness/mra/legendre.h" alt="" coords="1756,403,1919,429"/>
+<area shape="rect" id="node31" href="$indexit_8h.html" title="Provides IndexIterator. " alt="" coords="1445,312,1595,339"/>
+<area shape="rect" id="node15" href="$parallel__archive_8h.html" title="Implements ParallelInputArchive and ParallelOutputArchive for parallel serialization of data..." alt="" coords="348,635,500,677"/>
+<area shape="rect" id="node14" href="$worlddc_8h.html" title="Implements WorldContainer. " alt="" coords="341,560,507,587"/>
+<area shape="rect" id="node32" href="$funcdefaults_8h.html" title="Provides FunctionDefaults and utilities for coordinate transformation. " alt="" coords="549,403,731,429"/>
+<area shape="rect" id="node33" href="$function__factory_8h.html" title="madness/mra/function\l_factory.h" alt="" coords="1431,395,1580,437"/>
+<area shape="rect" id="node34" href="$lbdeux_8h.html" title="Implements (2nd generation) static load/data balancing for functions. " alt="" coords="863,312,1013,339"/>
+<area shape="rect" id="node35" href="$funcimpl_8h.html" title="Provides FunctionCommonData, FunctionImpl and FunctionFactory. " alt="" coords="1004,229,1167,256"/>
+<area shape="rect" id="node37" href="$funcplot_8h.html" title="Defines/implements plotting interface for functions. " alt="" coords="2301,155,2459,181"/>
+<area shape="rect" id="node39" href="$derivative_8h.html" title="Declaration and initialization of tree traversal functions and generic derivative. " alt="" coords="346,312,512,339"/>
+<area shape="rect" id="node48" href="$functypedefs_8h.html" title="Provides typedefs to hide use of templates and to increase interoperability. " alt="" coords="1655,155,1841,181"/>
+<area shape="rect" id="node4" href="$world_8h.html" title="Declares the World class for the parallel runtime environment. " alt="" coords="975,808,1125,835"/>
+<area shape="rect" id="node8" href="$worldam_8h.html" title="Implements active message layer for World on top of RMI layer. " alt="" coords="1029,725,1197,752"/>
+<area shape="rect" id="node11" href="$world__task__queue_8h.html" title="Defines TaskInterface and implements WorldTaskQueue and associated stuff. " alt="" coords="509,801,651,842"/>
+<area shape="rect" id="node13" href="$worldgop_8h.html" title="Implements global operations. " alt="" coords="435,725,607,752"/>
+<area shape="rect" id="node5" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS. " alt="" coords="2104,891,2283,917"/>
+<area shape="rect" id="node16" href="$archive_8h.html" title="Interface templates for the archives (serialization). " alt="" coords="1273,725,1436,752"/>
+<area shape="rect" id="node19" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling.By default, the MADNESS_ASSERT macro throws ..." alt="" coords="1789,801,1952,842"/>
+<area shape="rect" id="node24" href="$ran_8h.html" title="madness/misc/ran.h" alt="" coords="1865,725,2001,752"/>
+<area shape="rect" id="node25" href="$posixmem_8h.html" title="Implement dummy posix_memalign if it is missing on the system. " alt="" coords="1977,643,2156,669"/>
+<area shape="rect" id="node27" href="$aligned_8h.html" title="Provides routines for internal use optimized for aligned data. " alt="" coords="2466,560,2632,587"/>
+<area shape="rect" id="node36" href="$function__common__data_8h.html" title="madness/mra/function\l_common_data.h" alt="" coords="639,305,788,346"/>
+<area shape="rect" id="node42" href="$adquad_8h.html" title="madness/mra/adquad.h" alt="" coords="1772,312,1927,339"/>
+<area shape="rect" id="node43" href="$tensor__lapack_8h.html" title="Prototypes for a partial interface from Tensor to LAPACK. " alt="" coords="2401,305,2551,346"/>
+<area shape="rect" id="node44" href="$simplecache_8h.html" title="madness/mra/simplecache.h" alt="" coords="1951,312,2136,339"/>
+<area shape="rect" id="node45" href="$convolution1d_8h.html" title="Compuates most matrix elements over 1D operators (including Gaussians) " alt="" coords="1973,229,2165,256"/>
+<area shape="rect" id="node46" href="$displacements_8h.html" title="madness/mra/displacements.h" alt="" coords="2240,229,2435,256"/>
+<area shape="rect" id="node47" href="$gfit_8h.html" title="fit isotropic functions to a set of Gaussians with controlled precision " alt="" coords="2661,229,2792,256"/>
+<area shape="rect" id="node50" href="$distributed__matrix_8h.html" title="madness/tensor/distributed\l_matrix.h" alt="" coords="807,395,981,437"/>
+</map>

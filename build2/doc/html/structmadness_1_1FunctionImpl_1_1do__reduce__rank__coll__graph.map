@@ -1,0 +1,4 @@
+<map id="madness::FunctionImpl&lt; T, NDIM &gt;::do_reduce_rank" name="madness::FunctionImpl&lt; T, NDIM &gt;::do_reduce_rank">
+<area shape="rect" id="node1" title="reduce the rank of the nodes, optional fence " alt="" coords="5,97,195,138"/>
+<area shape="rect" id="node2" href="$structmadness_1_1TensorArgs.html" title="TensorArgs holds the arguments for creating a LowRankTensor. " alt="" coords="28,5,172,32"/>
+</map>

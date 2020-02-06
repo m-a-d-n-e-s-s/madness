@@ -1,0 +1,9 @@
+<map id="madness::Timer" name="madness::Timer">
+<area shape="rect" id="node2" href="$classmadness_1_1ConcurrentHashMap.html" title="madness::ConcurrentHashMap\l\&lt; int, double \&gt;" alt="" coords="42,374,237,415"/>
+<area shape="rect" id="node3" href="$structmadness_1_1Hash.html" title="madness::Hash\&lt; int \&gt;" alt="" coords="5,275,149,301"/>
+<area shape="rect" id="node4" href="$classmadness_1_1Hash__private_1_1bin.html" title="madness::Hash_private\l::bin\&lt; keyT, valueT \&gt;" alt="" coords="174,267,327,309"/>
+<area shape="rect" id="node5" href="$classmadness_1_1Spinlock.html" title="Spinlock using pthread spinlock operations. " alt="" coords="145,5,273,32"/>
+<area shape="rect" id="node7" href="$classmadness_1_1MutexReaderWriter.html" title="madness::MutexReaderWriter" alt="" coords="247,83,436,109"/>
+<area shape="rect" id="node6" href="$classmadness_1_1Hash__private_1_1entry.html" title="madness::Hash_private\l::entry\&lt; keyT, valueT \&gt;" alt="" coords="251,161,404,202"/>
+<area shape="rect" id="node8" href="$classNO__DEFAULTS.html" title="Disables default copy constructor and assignment operators. " alt="" coords="299,5,413,32"/>
+</map>

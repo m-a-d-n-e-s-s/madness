@@ -1,0 +1,4 @@
+<map id="madness::GenericConvolution1D&lt; Q, opT &gt;" name="madness::GenericConvolution1D&lt; Q, opT &gt;">
+<area shape="rect" id="node1" title="Generic 1D convolution using brute force (i.e., slow) adaptive quadrature for rnlp. " alt="" coords="5,81,203,122"/>
+<area shape="rect" id="node2" href="$classmadness_1_1Convolution1D.html" title="Provides the common functionality/interface of all 1D convolutions. " alt="" coords="7,5,201,32"/>
+</map>

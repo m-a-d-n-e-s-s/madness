@@ -1,0 +1,6 @@
+<map id="archive.h" name="archive.h">
+<area shape="rect" id="node1" title="Interface templates for the archives (serialization). " alt="" coords="327,5,399,32"/>
+<area shape="rect" id="node10" href="$type__traits_8h.html" title="madness/world/type\l_traits.h" alt="" coords="603,81,737,122"/>
+<area shape="rect" id="node14" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling.By default, the MADNESS_ASSERT macro throws ..." alt="" coords="762,81,925,122"/>
+<area shape="rect" id="node17" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS. " alt="" coords="991,171,1170,197"/>
+</map>

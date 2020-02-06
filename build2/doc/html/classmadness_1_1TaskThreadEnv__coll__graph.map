@@ -1,0 +1,5 @@
+<map id="madness::TaskThreadEnv" name="madness::TaskThreadEnv">
+<area shape="rect" id="node1" title="Used to pass information about the thread environment to a user&#39;s task. " alt="" coords="5,187,173,213"/>
+<area shape="rect" id="node2" href="$classmadness_1_1Barrier.html" title="madness::Barrier" alt="" coords="31,96,148,123"/>
+<area shape="rect" id="node3" href="$classmadness_1_1AtomicInt.html" title="An integer with atomic set, get, read+increment, read+decrement, and decrement+test operations..." alt="" coords="22,5,156,32"/>
+</map>

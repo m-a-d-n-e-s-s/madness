@@ -1,0 +1,10 @@
+<map id="slater_kernel_apply" name="slater_kernel_apply">
+<area shape="rect" id="node2" href="$classmadness_1_1FunctionCommonData.html" title="madness::FunctionCommonData\l\&lt; double, 3 \&gt;" alt="" coords="776,222,984,263"/>
+<area shape="rect" id="node3" href="$classmadness_1_1FunctionCommonData.html" title="madness::FunctionCommonData\l\&lt; double, NDIM \&gt;" alt="" coords="491,111,699,153"/>
+<area shape="rect" id="node4" href="$classmadness_1_1Slice.html" title="A slice defines a sub&#45;range or patch of a dimension. " alt="" coords="238,21,346,48"/>
+<area shape="rect" id="node5" href="$classmadness_1_1Tensor.html" title="madness::Tensor\&lt; double \&gt;" alt="" coords="203,283,381,309"/>
+<area shape="rect" id="node6" href="$classmadness_1_1BaseTensor.html" title="The base class for tensors defines generic capabilities. " alt="" coords="5,283,152,309"/>
+<area shape="rect" id="node7" href="$structapply__kernel__helper.html" title="apply_kernel_helper" alt="" coords="812,316,948,343"/>
+<area shape="rect" id="node8" href="$structasymptotic__slater.html" title="asymptotic_slater" alt="" coords="533,387,656,413"/>
+<area shape="rect" id="node9" href="$classmadness_1_1FunctionFunctorInterface.html" title="madness::FunctionFunctor\lInterface\&lt; double, 3 \&gt;" alt="" coords="205,379,379,421"/>
+</map>

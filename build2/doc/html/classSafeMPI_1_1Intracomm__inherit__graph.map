@@ -1,0 +1,4 @@
+<map id="SafeMPI::Intracomm" name="SafeMPI::Intracomm">
+<area shape="rect" id="node1" title="Wrapper around MPI_Comm. Has a shallow copy constructor; use Create(Get_group()) for deep copy..." alt="" coords="27,5,168,32"/>
+<area shape="rect" id="node2" href="$classmadness_1_1WorldMpiInterface.html" title="This class wraps/extends the MPI interface for World. " alt="" coords="5,80,189,107"/>
+</map>

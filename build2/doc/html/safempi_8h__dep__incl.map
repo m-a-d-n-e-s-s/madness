@@ -1,0 +1,52 @@
+<map id="safempi.h" name="safempi.h">
+<area shape="rect" id="node1" title="Serializes calls to MPI in case it does not support THREAD_MULTIPLE. " alt="" coords="1469,5,1546,32"/>
+<area shape="rect" id="node2" href="$debug_8cc.html" title="debug.cc" alt="" coords="1219,80,1294,107"/>
+<area shape="rect" id="node3" href="$safempi_8cc.html" title="safempi.cc" alt="" coords="1319,80,1402,107"/>
+<area shape="rect" id="node4" href="$thread_8cc.html" title="Implements Dqueue, Thread, ThreadBase and ThreadPool. " alt="" coords="1463,229,1538,256"/>
+<area shape="rect" id="node5" href="$worldmpi_8h.html" title="Implements WorldMpiInterface. " alt="" coords="1427,80,1510,107"/>
+<area shape="rect" id="node47" href="$worldrmi_8cc.html" title="worldrmi.cc" alt="" coords="1813,155,1899,181"/>
+<area shape="rect" id="node48" href="$worldrmi_8h.html" title="Lowest level API for sending active messages — you should probably be looking at worldam..." alt="" coords="1663,80,1743,107"/>
+<area shape="rect" id="node6" href="$world_8h.html" title="Declares the World class for the parallel runtime environment. " alt="" coords="1121,229,1183,256"/>
+<area shape="rect" id="node32" href="$worldam_8cc.html" title="worldam.cc" alt="" coords="1587,760,1673,787"/>
+<area shape="rect" id="node45" href="$worldinit_8h.html" title="Declares the functions that initialize the parallel runtime. " alt="" coords="1316,155,1394,181"/>
+<area shape="rect" id="node46" href="$worldmpi_8cc.html" title="Several variables needed for WorldMPI. " alt="" coords="1419,155,1510,181"/>
+<area shape="rect" id="node7" href="$MolecularOrbitals_8cc.html" title="MolecularOrbitals.cc" alt="" coords="903,760,1042,787"/>
+<area shape="rect" id="node8" href="$plotxc_8cc.html" title="plotxc.cc" alt="" coords="1409,843,1482,869"/>
+<area shape="rect" id="node9" href="$QCCalculationParametersBase_8h.html" title="QCCalculationParametersBase.h" alt="" coords="262,603,473,629"/>
+<area shape="rect" id="node16" href="$array__worldobject_8cc.html" title="array_worldobject.cc" alt="" coords="998,677,1137,704"/>
+<area shape="rect" id="node17" href="$dependency__interface_8h.html" title="Defines DependencyInterface and CallbackInterface. " alt="" coords="551,379,709,405"/>
+<area shape="rect" id="node18" href="$future_8h.html" title="Implements Future and related items. " alt="" coords="675,453,739,480"/>
+<area shape="rect" id="node38" href="$group_8h.html" title="group.h" alt="" coords="729,528,793,555"/>
+<area shape="rect" id="node22" href="$MADworld_8h.html" title="This header should include pretty much everything needed for the parallel runtime. " alt="" coords="1161,677,1251,704"/>
+<area shape="rect" id="node39" href="$mpi__archive_8h.html" title="Implements archives to serialize data for MPI. " alt="" coords="1637,453,1738,480"/>
+<area shape="rect" id="node34" href="$parallel__archive_8h.html" title="Implements ParallelInputArchive and ParallelOutputArchive for parallel serialization of data..." alt="" coords="852,677,973,704"/>
+<area shape="rect" id="node40" href="$test__atomicint_8cc.html" title="test_atomicint.cc" alt="" coords="1190,304,1310,331"/>
+<area shape="rect" id="node41" href="$test__hashthreaded_8cc.html" title="test_hashthreaded.cc" alt="" coords="1334,304,1478,331"/>
+<area shape="rect" id="node35" href="$world_8cc.html" title="Implementation of the World class and associated functions. " alt="" coords="1362,677,1431,704"/>
+<area shape="rect" id="node42" href="$worldam_8h.html" title="Implements active message layer for World on top of RMI layer. " alt="" coords="1553,304,1633,331"/>
+<area shape="rect" id="node20" href="$worldgop_8h.html" title="Implements global operations. " alt="" coords="871,603,954,629"/>
+<area shape="rect" id="node44" href="$worldptr_8h.html" title="The madness::detail::WorldPtr class for global pointers. " alt="" coords="785,304,862,331"/>
+<area shape="rect" id="node10" href="$CalculationParameters_8h.html" title="CalculationParameters.h" alt="" coords="25,677,187,704"/>
+<area shape="rect" id="node12" href="$molecular__optimizer_8h.html" title="optimize the geometrical structure of a molecule " alt="" coords="294,677,441,704"/>
+<area shape="rect" id="node13" href="$mp2_8h.html" title="Solves molecular MP2 equations. " alt="" coords="212,677,269,704"/>
+<area shape="rect" id="node14" href="$QCCalculationParametersBase_8cc.html" title="QCCalculationParametersBase.cc" alt="" coords="516,677,733,704"/>
+<area shape="rect" id="node15" href="$test__QCCalculationParametersBase_8cc.html" title="test_QCCalculationParameters\lBase.cc" alt="" coords="391,753,589,794"/>
+<area shape="rect" id="node11" href="$znemo_8h.html" title="znemo.h" alt="" coords="71,760,141,787"/>
+<area shape="rect" id="node37" href="$taskfn_8h.html" title="taskfn.h" alt="" coords="542,528,609,555"/>
+<area shape="rect" id="node19" href="$dist__cache_8h.html" title="dist_cache.h" alt="" coords="817,528,911,555"/>
+<area shape="rect" id="node36" href="$future_8cc.html" title="Implementations for Future and related functions. " alt="" coords="633,528,705,555"/>
+<area shape="rect" id="node21" href="$group_8cc.html" title="group.cc" alt="" coords="757,677,827,704"/>
+<area shape="rect" id="node23" href="$AC_8h.html" title="AC.h" alt="" coords="1309,760,1359,787"/>
+<area shape="rect" id="node24" href="$distpm_8cc.html" title="distpm.cc" alt="" coords="1383,760,1461,787"/>
+<area shape="rect" id="node25" href="$xcfunctional_8h.html" title="xcfunctional.h" alt="" coords="727,760,829,787"/>
+<area shape="rect" id="node30" href="$pointgroupsymmetry_8h.html" title="pointgroupsymmetry.h" alt="" coords="1066,760,1213,787"/>
+<area shape="rect" id="node26" href="$testlda_8cc.html" title="testlda.cc" alt="" coords="1206,843,1283,869"/>
+<area shape="rect" id="node27" href="$testxc_8cc.html" title="testxc.cc" alt="" coords="561,843,634,869"/>
+<area shape="rect" id="node28" href="$xcfunctional__ldaonly_8cc.html" title="xcfunctional_ldaonly.cc" alt="" coords="659,843,814,869"/>
+<area shape="rect" id="node29" href="$xcfunctional__libxc_8cc.html" title="xcfunctional_libxc.cc" alt="" coords="838,843,979,869"/>
+<area shape="rect" id="node31" href="$dft_8h.html" title="dft.h" alt="" coords="1237,760,1283,787"/>
+<area shape="rect" id="node33" href="$worldprofile_8cc.html" title="worldprofile.cc" alt="" coords="1697,760,1799,787"/>
+<area shape="rect" id="node43" href="$worldref_8h.html" title="Implements RemoteReference which is for internal use. " alt="" coords="785,379,862,405"/>
+<area shape="rect" id="node49" href="$worldprofile_8h.html" title="worldprofile.h" alt="" coords="1585,155,1681,181"/>
+<area shape="rect" id="node50" href="$mtxmq__avx__rjh_8cc.html" title="mtxmq_avx_rjh.cc" alt="" coords="1562,229,1687,256"/>
+</map>

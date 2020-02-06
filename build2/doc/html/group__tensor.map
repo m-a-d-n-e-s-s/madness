@@ -1,0 +1,12 @@
+<map id="Tensor" name="Tensor">
+<area shape="rect" id="node1" href="$group__taskq.html" title="Task queue" alt="" coords="204,297,292,322"/>
+<area shape="rect" id="node2" href="$group__hashing.html" title="Hashing" alt="" coords="214,395,282,421"/>
+<area shape="rect" id="node3" href="$group__world__object.html" title="Globally addressable\l objects (WorldObject)" alt="" coords="174,232,322,272"/>
+<area shape="rect" id="node4" href="$group__futures.html" title="Futures" alt="" coords="215,103,281,129"/>
+<area shape="rect" id="node5" href="$group__function.html" title="Function" alt="" coords="212,5,284,30"/>
+<area shape="rect" id="node6" href="$group__mpi.html" title="Interfaces from World\l to MPI" alt="" coords="176,445,320,485"/>
+<area shape="rect" id="node10" href="$group__atomics.html" title="Atomic operations" alt="" coords="185,54,311,79"/>
+<area shape="rect" id="node8" href="$group__world.html" title="Distributed computing\l environment (World and\l its relations)" alt="" coords="169,153,327,207"/>
+<area shape="rect" id="node9" href="$group__worlddc.html" title="Worlddc" alt="" coords="213,346,283,371"/>
+<area shape="rect" id="node11" href="$group__mutexes.html" title="Mutexes" alt="" coords="213,510,283,535"/>
+</map>

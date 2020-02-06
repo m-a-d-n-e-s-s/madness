@@ -1,0 +1,24 @@
+<map id="aligned.h" name="aligned.h">
+<area shape="rect" id="node1" title="Provides routines for internal use optimized for aligned data. " alt="" coords="907,5,980,32"/>
+<area shape="rect" id="node2" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS. " alt="" coords="289,403,468,429"/>
+<area shape="rect" id="node4" href="$tensor_8h.html" title="Defines and implements most of Tensor. " alt="" coords="863,80,1024,107"/>
+<area shape="rect" id="node47" href="$cblas_8h.html" title="Define BLAS like functions. " alt="" coords="134,229,289,256"/>
+<area shape="rect" id="node5" href="$ran_8h.html" title="madness/misc/ran.h" alt="" coords="1312,155,1448,181"/>
+<area shape="rect" id="node26" href="$posixmem_8h.html" title="Implement dummy posix_memalign if it is missing on the system. " alt="" coords="480,155,659,181"/>
+<area shape="rect" id="node31" href="$archive_8h.html" title="Interface templates for the archives (serialization). " alt="" coords="1448,229,1611,256"/>
+<area shape="rect" id="node39" href="$basetensor_8h.html" title="Declares BaseTensor. " alt="" coords="806,312,993,339"/>
+<area shape="rect" id="node44" href="$mxm_8h.html" title="Internal use only. " alt="" coords="251,155,405,181"/>
+<area shape="rect" id="node45" href="$tensorexcept_8h.html" title="Declares and implements TensorException. " alt="" coords="707,229,905,256"/>
+<area shape="rect" id="node46" href="$tensoriter_8h.html" title="Declares TensorIterator. " alt="" coords="981,155,1160,181"/>
+<area shape="rect" id="node6" href="$thread_8h.html" title="Implements Dqueue, Thread, ThreadBase and ThreadPool. " alt="" coords="2760,229,2917,256"/>
+<area shape="rect" id="node7" href="$dqueue_8h.html" title="Implements DQueue. " alt="" coords="2128,312,2291,339"/>
+<area shape="rect" id="node12" href="$function__traits_8h.html" title="madness/world/function\l_traits.h" alt="" coords="2995,305,3152,346"/>
+<area shape="rect" id="node35" href="$type__traits_8h.html" title="madness/world/type\l_traits.h" alt="" coords="1889,305,2023,346"/>
+<area shape="rect" id="node37" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling.By default, the MADNESS_ASSERT macro throws ..." alt="" coords="568,305,731,346"/>
+<area shape="rect" id="node40" href="$tensor__macros_8h.html" title="Macros for easy and efficient iteration over tensors. " alt="" coords="923,395,1073,437"/>
+<area shape="rect" id="node41" href="$type__data_8h.html" title="Defines and implements TensorTypeData, a type traits class. " alt="" coords="759,395,899,437"/>
+<area shape="rect" id="node42" href="$slice_8h.html" title="Declares and implements Slice. " alt="" coords="1149,403,1301,429"/>
+<area shape="rect" id="node43" href="$vector__factory_8h.html" title="Declares and implements factories for short vectors. " alt="" coords="1150,486,1300,527"/>
+<area shape="rect" id="node48" href="$fortran__ctypes_8h.html" title="Correspondence between C++ and Fortran types. " alt="" coords="1019,312,1187,339"/>
+<area shape="rect" id="node49" href="$cblas__types_8h.html" title="Define types used by CBLAS API. " alt="" coords="144,305,291,346"/>
+</map>

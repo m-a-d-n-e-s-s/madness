@@ -1,0 +1,30 @@
+<map id="gfit.h" name="gfit.h">
+<area shape="rect" id="node1" title="fit isotropic functions to a set of Gaussians with controlled precision " alt="" coords="2319,5,2368,32"/>
+<area shape="rect" id="node3" href="$constants_8h.html" title="Defines common mathematical and physical constants. " alt="" coords="873,80,969,107"/>
+<area shape="rect" id="node4" href="$basetensor_8h.html" title="Declares BaseTensor. " alt="" coords="2459,403,2601,429"/>
+<area shape="rect" id="node8" href="$slice_8h.html" title="Declares and implements Slice. " alt="" coords="2751,493,2903,520"/>
+<area shape="rect" id="node13" href="$tensor_8h.html" title="Defines and implements most of Tensor. " alt="" coords="911,155,1027,181"/>
+<area shape="rect" id="node43" href="$tensor__lapack_8h.html" title="Prototypes for a partial interface from Tensor to LAPACK. " alt="" coords="1857,80,2017,107"/>
+<area shape="rect" id="node32" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling.By default, the MADNESS_ASSERT macro throws ..." alt="" coords="915,395,1077,437"/>
+<area shape="rect" id="node46" href="$print_8h.html" title="Defines simple templates for printing to std::cout &quot;a la Python&quot;. " alt="" coords="2841,229,2988,256"/>
+<area shape="rect" id="node6" href="$tensor__macros_8h.html" title="Macros for easy and efficient iteration over tensors. " alt="" coords="2429,486,2579,527"/>
+<area shape="rect" id="node7" href="$type__data_8h.html" title="Defines and implements TensorTypeData, a type traits class. " alt="" coords="2265,486,2404,527"/>
+<area shape="rect" id="node9" href="$vector__factory_8h.html" title="Declares and implements factories for short vectors. " alt="" coords="2542,577,2692,618"/>
+<area shape="rect" id="node11" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS. " alt="" coords="812,493,991,520"/>
+<area shape="rect" id="node14" href="$ran_8h.html" title="madness/misc/ran.h" alt="" coords="1532,229,1668,256"/>
+<area shape="rect" id="node21" href="$posixmem_8h.html" title="Implement dummy posix_memalign if it is missing on the system. " alt="" coords="607,229,785,256"/>
+<area shape="rect" id="node25" href="$archive_8h.html" title="Interface templates for the archives (serialization). " alt="" coords="1271,229,1433,256"/>
+<area shape="rect" id="node34" href="$aligned_8h.html" title="Provides routines for internal use optimized for aligned data. " alt="" coords="323,229,489,256"/>
+<area shape="rect" id="node39" href="$mxm_8h.html" title="Internal use only. " alt="" coords="93,229,248,256"/>
+<area shape="rect" id="node40" href="$tensorexcept_8h.html" title="Declares and implements TensorException. " alt="" coords="2090,312,2288,339"/>
+<area shape="rect" id="node41" href="$tensoriter_8h.html" title="Declares TensorIterator. " alt="" coords="2180,229,2359,256"/>
+<area shape="rect" id="node15" href="$thread_8h.html" title="Implements Dqueue, Thread, ThreadBase and ThreadPool. " alt="" coords="1596,312,1753,339"/>
+<area shape="rect" id="node30" href="$type__traits_8h.html" title="madness/world/type\l_traits.h" alt="" coords="1285,305,1419,346"/>
+<area shape="rect" id="node35" href="$cblas_8h.html" title="Define BLAS like functions. " alt="" coords="679,312,835,339"/>
+<area shape="rect" id="node36" href="$fortran__ctypes_8h.html" title="Correspondence between C++ and Fortran types. " alt="" coords="1909,403,2077,429"/>
+<area shape="rect" id="node44" href="$elem_8h.html" title="madness/tensor/elem.h" alt="" coords="1860,155,2015,181"/>
+<area shape="rect" id="node45" href="$MADworld_8h.html" title="This header should include pretty much everything needed for the parallel runtime. " alt="" coords="2535,229,2715,256"/>
+<area shape="rect" id="node48" href="$worldmutex_8h.html" title="Implements Mutex, MutexFair, Spinlock, ConditionVariable. " alt="" coords="1777,312,1964,339"/>
+<area shape="rect" id="node49" href="$nodefaults_8h.html" title="Implements NO_DEFAULTS. " alt="" coords="2153,403,2332,429"/>
+<area shape="rect" id="node50" href="$timers_8h.html" title="Wrappers around platform dependent timers and performance info. " alt="" coords="1678,403,1833,429"/>
+</map>

@@ -1,0 +1,4 @@
+<map id="madness::WorldProfileEntry" name="madness::WorldProfileEntry">
+<area shape="rect" id="node1" title="Used to store profiler info. " alt="" coords="5,80,181,107"/>
+<area shape="rect" id="node2" href="$classmadness_1_1Spinlock.html" title="Spinlock using pthread spinlock operations. " alt="" coords="29,5,157,32"/>
+</map>

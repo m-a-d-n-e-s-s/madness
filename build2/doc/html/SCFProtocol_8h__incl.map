@@ -1,0 +1,28 @@
+<map id="SCFProtocol.h" name="SCFProtocol.h">
+<area shape="rect" id="node1" title="solution protocol for SCF calculations " alt="" coords="1063,5,1170,32"/>
+<area shape="rect" id="node2" href="$CalculationParameters_8h.html" title="chem/CalculationParameters.h" alt="" coords="1017,80,1215,107"/>
+<area shape="rect" id="node3" href="$molecule_8h.html" title="chem/molecule.h" alt="" coords="1057,237,1177,264"/>
+<area shape="rect" id="node44" href="$chem_2molecularbasis_8h.html" title="chem/molecularbasis.h" alt="" coords="2459,155,2611,181"/>
+<area shape="rect" id="node47" href="$QCCalculationParametersBase_8h.html" title="chem/QCCalculationParameters\lBase.h" alt="" coords="352,321,558,362"/>
+<area shape="rect" id="node4" href="$corepotential_8h.html" title="Declaration of core potential related class. " alt="" coords="1101,328,1243,355"/>
+<area shape="rect" id="node8" href="$atomutil_8h.html" title="Declaration of utility class and functions for atom. " alt="" coords="26,419,141,445"/>
+<area shape="rect" id="node19" href="$vector_8h.html" title="Implement the madness:Vector class, an extension of std::array that supports some mathematical operat..." alt="" coords="1521,328,1677,355"/>
+<area shape="rect" id="node34" href="$tensor_8h.html" title="Defines and implements most of Tensor. " alt="" coords="3243,328,3403,355"/>
+<area shape="rect" id="node43" href="$misc_8h.html" title="Header to declare stuff which has not yet found a home. " alt="" coords="549,419,694,445"/>
+<area shape="rect" id="node5" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS. " alt="" coords="2365,667,2543,693"/>
+<area shape="rect" id="node7" href="$constants_8h.html" title="Defines common mathematical and physical constants. " alt="" coords="2173,419,2315,445"/>
+<area shape="rect" id="node10" href="$print_8h.html" title="Defines simple templates for printing to std::cout &quot;a la Python&quot;. " alt="" coords="1765,419,1911,445"/>
+<area shape="rect" id="node20" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling.By default, the MADNESS_ASSERT macro throws ..." alt="" coords="1453,502,1615,543"/>
+<area shape="rect" id="node22" href="$worldhash_8h.html" title="Defines hash functions for use in distributed containers. " alt="" coords="1250,509,1429,536"/>
+<area shape="rect" id="node24" href="$array__addons_8h.html" title="Supplements to the std::array class, such as I/O operations, for convenience. " alt="" coords="1365,411,1503,453"/>
+<area shape="rect" id="node26" href="$archive_8h.html" title="Interface templates for the archives (serialization). " alt="" coords="1578,419,1741,445"/>
+<area shape="rect" id="node29" href="$type__traits_8h.html" title="madness/world/type\l_traits.h" alt="" coords="1715,502,1849,543"/>
+<area shape="rect" id="node35" href="$ran_8h.html" title="madness/misc/ran.h" alt="" coords="3669,592,3805,619"/>
+<area shape="rect" id="node36" href="$posixmem_8h.html" title="Implement dummy posix_memalign if it is missing on the system. " alt="" coords="2365,592,2543,619"/>
+<area shape="rect" id="node38" href="$basetensor_8h.html" title="Declares BaseTensor. " alt="" coords="3456,592,3643,619"/>
+<area shape="rect" id="node39" href="$aligned_8h.html" title="Provides routines for internal use optimized for aligned data. " alt="" coords="3437,419,3603,445"/>
+<area shape="rect" id="node40" href="$mxm_8h.html" title="Internal use only. " alt="" coords="3061,592,3215,619"/>
+<area shape="rect" id="node41" href="$tensorexcept_8h.html" title="Declares and implements TensorException. " alt="" coords="3557,509,3755,536"/>
+<area shape="rect" id="node42" href="$tensoriter_8h.html" title="Declares TensorIterator. " alt="" coords="3234,419,3413,445"/>
+<area shape="rect" id="node50" href="$world_8h.html" title="Declares the World class for the parallel runtime environment. " alt="" coords="872,419,1022,445"/>
+</map>

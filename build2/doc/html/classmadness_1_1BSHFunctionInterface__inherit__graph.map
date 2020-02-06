@@ -1,0 +1,5 @@
+<map id="madness::BSHFunctionInterface" name="madness::BSHFunctionInterface">
+<area shape="rect" id="node1" title="a function like f(x) = exp(&#45;mu x)/x " alt="" coords="5,187,211,213"/>
+<area shape="rect" id="node2" href="$classmadness_1_1TwoElectronInterface.html" title="madness::TwoElectronInterface\l\&lt; double, 6 \&gt;" alt="" coords="7,97,208,138"/>
+<area shape="rect" id="node3" href="$classmadness_1_1FunctionFunctorInterface.html" title="madness::FunctionFunctor\lInterface\&lt; double, NDIM \&gt;" alt="" coords="21,6,195,47"/>
+</map>

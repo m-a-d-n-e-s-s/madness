@@ -1,0 +1,16 @@
+<map id="worldprofile.h" name="worldprofile.h">
+<area shape="rect" id="node2" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS. " alt="" coords="320,485,499,512"/>
+<area shape="rect" id="node4" href="$worldrmi_8h.html" title="Lowest level API for sending active messages — you should probably be looking at worldam..." alt="" coords="1766,80,1935,107"/>
+<area shape="rect" id="node44" href="$worldtypes_8h.html" title="Defines types used by the parallel runtime. " alt="" coords="2667,155,2848,181"/>
+<area shape="rect" id="node7" href="$worldmutex_8h.html" title="Implements Mutex, MutexFair, Spinlock, ConditionVariable. " alt="" coords="685,320,872,347"/>
+<area shape="rect" id="node5" href="$safempi_8h.html" title="Serializes calls to MPI in case it does not support THREAD_MULTIPLE. " alt="" coords="601,155,767,181"/>
+<area shape="rect" id="node30" href="$thread_8h.html" title="Implements Dqueue, Thread, ThreadBase and ThreadPool. " alt="" coords="1528,155,1685,181"/>
+<area shape="rect" id="node47" href="$print_8h.html" title="Defines simple templates for printing to std::cout &quot;a la Python&quot;. " alt="" coords="2267,155,2413,181"/>
+<area shape="rect" id="node23" href="$type__traits_8h.html" title="madness/world/type\l_traits.h" alt="" coords="383,230,517,271"/>
+<area shape="rect" id="node10" href="$nodefaults_8h.html" title="Implements NO_DEFAULTS. " alt="" coords="487,403,667,429"/>
+<area shape="rect" id="node11" href="$timers_8h.html" title="Wrappers around platform dependent timers and performance info. " alt="" coords="890,403,1045,429"/>
+<area shape="rect" id="node17" href="$atomicint_8h.html" title="Implements AtomicInt. " alt="" coords="691,403,865,429"/>
+<area shape="rect" id="node19" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling.By default, the MADNESS_ASSERT macro throws ..." alt="" coords="65,395,228,437"/>
+<area shape="rect" id="node31" href="$dqueue_8h.html" title="Implements DQueue. " alt="" coords="1407,237,1569,264"/>
+<area shape="rect" id="node35" href="$function__traits_8h.html" title="madness/world/function\l_traits.h" alt="" coords="2001,230,2159,271"/>
+</map>

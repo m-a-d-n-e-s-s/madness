@@ -1,0 +1,6 @@
+<map id="Gaussian&lt; T, NDIM &gt;" name="Gaussian&lt; T, NDIM &gt;">
+<area shape="rect" id="node2" href="$classmadness_1_1FunctionFunctorInterface.html" title="Abstract base class interface required for functors used as input to Functions. " alt="" coords="5,30,179,72"/>
+<area shape="rect" id="node3" href="$classmadness_1_1FunctionFunctorInterface.html" title="madness::FunctionFunctor\lInterface\&lt; double, 3 \&gt;" alt="" coords="5,112,179,153"/>
+<area shape="rect" id="node4" href="$classmadness_1_1Vector.html" title="A simple, fixed dimension vector. " alt="" coords="11,178,173,204"/>
+<area shape="rect" id="node5" href="$classmadness_1_1Vector.html" title="madness::Vector\&lt; double,\l NDIM \&gt;" alt="" coords="7,229,177,270"/>
+</map>

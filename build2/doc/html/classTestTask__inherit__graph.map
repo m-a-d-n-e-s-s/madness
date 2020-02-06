@@ -1,0 +1,8 @@
+<map id="TestTask" name="TestTask">
+<area shape="rect" id="node2" href="$classmadness_1_1TaskInterface.html" title="All world tasks must be derived from this public interface. " alt="" coords="181,155,339,181"/>
+<area shape="rect" id="node3" href="$classmadness_1_1PoolTaskInterface.html" title="Lowest level task interface. " alt="" coords="60,80,244,107"/>
+<area shape="rect" id="node5" href="$classmadness_1_1TaskAttributes.html" title="Contains attributes of a task. " alt="" coords="76,5,239,32"/>
+<area shape="rect" id="node6" href="$classmadness_1_1DependencyInterface.html" title="Provides an interface for tracking dependencies. " alt="" coords="269,80,469,107"/>
+<area shape="rect" id="node7" href="$classmadness_1_1CallbackInterface.html" title="The class used for callbacks (e.g., dependency tracking). " alt="" coords="274,5,453,32"/>
+<area shape="rect" id="node8" href="$classmadness_1_1Spinlock.html" title="Spinlock using pthread spinlock operations. " alt="" coords="478,5,607,32"/>
+</map>

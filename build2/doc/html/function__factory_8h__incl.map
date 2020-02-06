@@ -1,0 +1,32 @@
+<map id="function_factory.h" name="function_factory.h">
+<area shape="rect" id="node2" href="$tensor_8h.html" title="Defines and implements most of Tensor. " alt="" coords="869,411,1029,437"/>
+<area shape="rect" id="node37" href="$gentensor_8h.html" title="madness/tensor/gentensor.h" alt="" coords="919,179,1101,205"/>
+<area shape="rect" id="node41" href="$key_8h.html" title="Multidimension Key for MRA tree and associated iterators. " alt="" coords="2416,411,2549,437"/>
+<area shape="rect" id="node47" href="$function__interface_8h.html" title="madness/mra/function\l_interface.h" alt="" coords="1065,81,1215,122"/>
+<area shape="rect" id="node3" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS. " alt="" coords="1024,749,1203,776"/>
+<area shape="rect" id="node5" href="$ran_8h.html" title="madness/misc/ran.h" alt="" coords="915,576,1051,603"/>
+<area shape="rect" id="node13" href="$posixmem_8h.html" title="Implement dummy posix_memalign if it is missing on the system. " alt="" coords="357,493,536,520"/>
+<area shape="rect" id="node18" href="$archive_8h.html" title="Interface templates for the archives (serialization). " alt="" coords="1995,576,2157,603"/>
+<area shape="rect" id="node26" href="$basetensor_8h.html" title="Declares BaseTensor. " alt="" coords="318,659,505,685"/>
+<area shape="rect" id="node31" href="$aligned_8h.html" title="Provides routines for internal use optimized for aligned data. " alt="" coords="1195,493,1361,520"/>
+<area shape="rect" id="node34" href="$mxm_8h.html" title="Internal use only. " alt="" coords="1016,493,1171,520"/>
+<area shape="rect" id="node35" href="$tensorexcept_8h.html" title="Declares and implements TensorException. " alt="" coords="691,576,889,603"/>
+<area shape="rect" id="node36" href="$tensoriter_8h.html" title="Declares TensorIterator. " alt="" coords="712,493,891,520"/>
+<area shape="rect" id="node6" href="$thread_8h.html" title="Implements Dqueue, Thread, ThreadBase and ThreadPool. " alt="" coords="1667,659,1824,685"/>
+<area shape="rect" id="node23" href="$type__traits_8h.html" title="madness/world/type\l_traits.h" alt="" coords="2267,651,2401,693"/>
+<area shape="rect" id="node25" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling.By default, the MADNESS_ASSERT macro throws ..." alt="" coords="1429,651,1592,693"/>
+<area shape="rect" id="node27" href="$tensor__macros_8h.html" title="Macros for easy and efficient iteration over tensors. " alt="" coords="506,742,656,783"/>
+<area shape="rect" id="node28" href="$type__data_8h.html" title="Defines and implements TensorTypeData, a type traits class. " alt="" coords="342,742,481,783"/>
+<area shape="rect" id="node29" href="$slice_8h.html" title="Declares and implements Slice. " alt="" coords="681,749,833,776"/>
+<area shape="rect" id="node30" href="$vector__factory_8h.html" title="Declares and implements factories for short vectors. " alt="" coords="682,833,832,874"/>
+<area shape="rect" id="node32" href="$cblas_8h.html" title="Define BLAS like functions. " alt="" coords="1177,576,1332,603"/>
+<area shape="rect" id="node38" href="$srconf_8h.html" title="madness/tensor/srconf.h" alt="" coords="890,336,1051,363"/>
+<area shape="rect" id="node39" href="$tensortrain_8h.html" title="Defines and implements the tensor train decomposition as described in I.V. Oseledets, Siam J. Sci. Comput. 33, 2295 (2011). " alt="" coords="815,261,1001,288"/>
+<area shape="rect" id="node42" href="$power_8h.html" title="madness/mra/power.h" alt="" coords="2465,493,2612,520"/>
+<area shape="rect" id="node43" href="$vector_8h.html" title="Implement the madness:Vector class, an extension of std::array that supports some mathematical operat..." alt="" coords="1939,493,2095,520"/>
+<area shape="rect" id="node46" href="$binary__fstream__archive_8h.html" title="Implements an archive wrapping a binary filestream. " alt="" coords="2637,486,2781,527"/>
+<area shape="rect" id="node44" href="$worldhash_8h.html" title="Defines hash functions for use in distributed containers. " alt="" coords="2380,576,2559,603"/>
+<area shape="rect" id="node48" href="$gfit_8h.html" title="fit isotropic functions to a set of Gaussians with controlled precision " alt="" coords="508,336,639,363"/>
+<area shape="rect" id="node49" href="$convolution1d_8h.html" title="Compuates most matrix elements over 1D operators (including Gaussians) " alt="" coords="1227,336,1419,363"/>
+<area shape="rect" id="node50" href="$function__common__data_8h.html" title="madness/mra/function\l_common_data.h" alt="" coords="1177,171,1327,213"/>
+</map>

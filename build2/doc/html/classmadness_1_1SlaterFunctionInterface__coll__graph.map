@@ -1,0 +1,5 @@
+<map id="madness::SlaterFunctionInterface" name="madness::SlaterFunctionInterface">
+<area shape="rect" id="node1" title="a function like f(x)=exp(&#45;mu x) " alt="" coords="5,187,219,213"/>
+<area shape="rect" id="node2" href="$classmadness_1_1TwoElectronInterface.html" title="madness::TwoElectronInterface\l\&lt; double, 6 \&gt;" alt="" coords="11,97,212,138"/>
+<area shape="rect" id="node3" href="$classmadness_1_1FunctionFunctorInterface.html" title="madness::FunctionFunctor\lInterface\&lt; double, NDIM \&gt;" alt="" coords="25,6,199,47"/>
+</map>

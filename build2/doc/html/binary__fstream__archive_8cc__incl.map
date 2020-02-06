@@ -1,0 +1,8 @@
+<map id="binary_fstream_archive.cc" name="binary_fstream_archive.cc">
+<area shape="rect" id="node1" title="Implements an archive wrapping a binary filestream. " alt="" coords="616,5,787,32"/>
+<area shape="rect" id="node2" href="$binary__fstream__archive_8h.html" title="Implements an archive wrapping a binary filestream. " alt="" coords="447,81,592,122"/>
+<area shape="rect" id="node18" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling.By default, the MADNESS_ASSERT macro throws ..." alt="" coords="931,246,1093,287"/>
+<area shape="rect" id="node6" href="$archive_8h.html" title="Interface templates for the archives (serialization). " alt="" coords="439,171,601,197"/>
+<area shape="rect" id="node14" href="$type__traits_8h.html" title="madness/world/type\l_traits.h" alt="" coords="770,246,904,287"/>
+<area shape="rect" id="node21" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS. " alt="" coords="1076,336,1255,363"/>
+</map>

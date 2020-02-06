@@ -1,0 +1,41 @@
+<map id="testdiff1Db.cc" name="testdiff1Db.cc">
+<area shape="rect" id="node1" title="testing for diff() in 1D " alt="" coords="1696,5,1795,32"/>
+<area shape="rect" id="node2" href="$mra_8h.html" title="Main include file for MADNESS and defines Function interface. " alt="" coords="1678,80,1812,107"/>
+<area shape="rect" id="node3" href="$MADworld_8h.html" title="This header should include pretty much everything needed for the parallel runtime. " alt="" coords="875,395,1055,421"/>
+<area shape="rect" id="node22" href="$misc_8h.html" title="Header to declare stuff which has not yet found a home. " alt="" coords="2701,312,2845,339"/>
+<area shape="rect" id="node24" href="$tensor_8h.html" title="Defines and implements most of Tensor. " alt="" coords="1667,552,1828,579"/>
+<area shape="rect" id="node33" href="$key_8h.html" title="Multidimension Key for MRA tree and associated iterators. " alt="" coords="1995,395,2128,421"/>
+<area shape="rect" id="node38" href="$twoscale_8h.html" title="madness/mra/twoscale.h" alt="" coords="573,312,736,339"/>
+<area shape="rect" id="node39" href="$legendre_8h.html" title="madness/mra/legendre.h" alt="" coords="336,312,499,339"/>
+<area shape="rect" id="node40" href="$indexit_8h.html" title="Provides IndexIterator. " alt="" coords="3106,469,3256,496"/>
+<area shape="rect" id="node15" href="$parallel__archive_8h.html" title="Implements ParallelInputArchive and ParallelOutputArchive for parallel serialization of data..." alt="" coords="776,545,928,586"/>
+<area shape="rect" id="node14" href="$worlddc_8h.html" title="Implements WorldContainer. " alt="" coords="1177,469,1343,496"/>
+<area shape="rect" id="node42" href="$funcdefaults_8h.html" title="Provides FunctionDefaults and utilities for coordinate transformation. " alt="" coords="1463,312,1645,339"/>
+<area shape="rect" id="node43" href="$function__factory_8h.html" title="madness/mra/function\l_factory.h" alt="" coords="1772,305,1921,346"/>
+<area shape="rect" id="node44" href="$lbdeux_8h.html" title="Implements (2nd generation) static load/data balancing for functions. " alt="" coords="1214,229,1364,256"/>
+<area shape="rect" id="node45" href="$funcimpl_8h.html" title="Provides FunctionCommonData, FunctionImpl and FunctionFactory. " alt="" coords="1860,229,2023,256"/>
+<area shape="rect" id="node46" href="$funcplot_8h.html" title="Defines/implements plotting interface for functions. " alt="" coords="2050,155,2208,181"/>
+<area shape="rect" id="node47" href="$derivative_8h.html" title="Declaration and initialization of tree traversal functions and generic derivative. " alt="" coords="2129,229,2295,256"/>
+<area shape="rect" id="node48" href="$operator_8h.html" title="Implements most functionality of separated operators. " alt="" coords="144,552,304,579"/>
+<area shape="rect" id="node49" href="$functypedefs_8h.html" title="Provides typedefs to hide use of templates and to increase interoperability. " alt="" coords="2371,155,2557,181"/>
+<area shape="rect" id="node50" href="$vmra_8h.html" title="Defines operations on vectors of FunctionsThis file defines a number of operations on vectors of func..." alt="" coords="1884,155,2025,181"/>
+<area shape="rect" id="node4" href="$world_8h.html" title="Declares the World class for the parallel runtime environment. " alt="" coords="405,733,555,760"/>
+<area shape="rect" id="node8" href="$worldam_8h.html" title="Implements active message layer for World on top of RMI layer. " alt="" coords="578,643,747,669"/>
+<area shape="rect" id="node11" href="$world__task__queue_8h.html" title="Defines TaskInterface and implements WorldTaskQueue and associated stuff. " alt="" coords="977,726,1119,767"/>
+<area shape="rect" id="node13" href="$worldgop_8h.html" title="Implements global operations. " alt="" coords="823,643,995,669"/>
+<area shape="rect" id="node5" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS. " alt="" coords="1269,907,1448,933"/>
+<area shape="rect" id="node16" href="$archive_8h.html" title="Interface templates for the archives (serialization). " alt="" coords="2361,733,2524,760"/>
+<area shape="rect" id="node20" href="$binary__fstream__archive_8h.html" title="Implements an archive wrapping a binary filestream. " alt="" coords="1071,635,1216,677"/>
+<area shape="rect" id="node18" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling.By default, the MADNESS_ASSERT macro throws ..." alt="" coords="2589,817,2752,858"/>
+<area shape="rect" id="node25" href="$ran_8h.html" title="madness/misc/ran.h" alt="" coords="1599,824,1735,851"/>
+<area shape="rect" id="node26" href="$posixmem_8h.html" title="Implement dummy posix_memalign if it is missing on the system. " alt="" coords="1396,733,1575,760"/>
+<area shape="rect" id="node28" href="$basetensor_8h.html" title="Declares BaseTensor. " alt="" coords="1759,824,1947,851"/>
+<area shape="rect" id="node29" href="$aligned_8h.html" title="Provides routines for internal use optimized for aligned data. " alt="" coords="387,643,553,669"/>
+<area shape="rect" id="node30" href="$mxm_8h.html" title="Internal use only. " alt="" coords="1545,643,1700,669"/>
+<area shape="rect" id="node31" href="$tensorexcept_8h.html" title="Declares and implements TensorException. " alt="" coords="1751,733,1949,760"/>
+<area shape="rect" id="node32" href="$tensoriter_8h.html" title="Declares TensorIterator. " alt="" coords="1889,643,2068,669"/>
+<area shape="rect" id="node34" href="$power_8h.html" title="madness/mra/power.h" alt="" coords="1988,469,2135,496"/>
+<area shape="rect" id="node35" href="$vector_8h.html" title="Implement the madness:Vector class, an extension of std::array that supports some mathematical operat..." alt="" coords="2365,643,2520,669"/>
+<area shape="rect" id="node36" href="$worldhash_8h.html" title="Defines hash functions for use in distributed containers. " alt="" coords="1143,733,1321,760"/>
+<area shape="rect" id="node41" href="$print_8h.html" title="Defines simple templates for printing to std::cout &quot;a la Python&quot;. " alt="" coords="3004,733,3151,760"/>
+</map>

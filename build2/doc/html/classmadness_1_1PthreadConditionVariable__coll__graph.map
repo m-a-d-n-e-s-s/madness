@@ -1,0 +1,4 @@
+<map id="madness::PthreadConditionVariable" name="madness::PthreadConditionVariable">
+<area shape="rect" id="node1" title="Simple wrapper for Pthread condition variable with its own mutex. " alt="" coords="5,81,184,122"/>
+<area shape="rect" id="node2" href="$classNO__DEFAULTS.html" title="Disables default copy constructor and assignment operators. " alt="" coords="37,5,152,32"/>
+</map>

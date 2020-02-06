@@ -1,0 +1,22 @@
+<map id="madness::XCOperator" name="madness::XCOperator">
+<area shape="rect" id="node1" title="operator class for the handling of DFT exchange&#45;correlation functionals " alt="" coords="1599,359,1745,385"/>
+<area shape="rect" id="node2" href="$classmadness_1_1World.html" title="A parallel world class. " alt="" coords="1317,223,1429,249"/>
+<area shape="rect" id="node6" href="$classmadness_1_1WorldTaskQueue.html" title="Multi&#45;threaded queue to manage and run tasks. " alt="" coords="1583,87,1761,113"/>
+<area shape="rect" id="node15" href="$classmadness_1_1WorldGopInterface.html" title="Provides collectives that interoperate with the AM and task interfaces. " alt="" coords="1579,245,1765,272"/>
+<area shape="rect" id="node3" href="$classNO__DEFAULTS.html" title="Disables default copy constructor and assignment operators. " alt="" coords="13,160,128,187"/>
+<area shape="rect" id="node14" href="$classmadness_1_1MutexReaderWriter.html" title="madness::MutexReaderWriter" alt="" coords="187,219,376,245"/>
+<area shape="rect" id="node4" href="$classmadness_1_1WorldAmInterface.html" title="Implements AM interface. " alt="" coords="949,369,1131,396"/>
+<area shape="rect" id="node5" href="$classmadness_1_1Mutex.html" title="Mutex using pthread mutex operations. " alt="" coords="645,384,827,411"/>
+<area shape="rect" id="node7" href="$classmadness_1_1CallbackInterface.html" title="The class used for callbacks (e.g., dependency tracking). " alt="" coords="1283,43,1463,69"/>
+<area shape="rect" id="node8" href="$classmadness_1_1AtomicInt.html" title="An integer with atomic set, get, read+increment, read+decrement, and decrement+test operations..." alt="" coords="1306,93,1441,120"/>
+<area shape="rect" id="node9" href="$classmadness_1_1ConcurrentHashMap.html" title="madness::ConcurrentHashMap\l\&lt; uniqueidT, void *, hashuniqueT \&gt;" alt="" coords="931,215,1149,257"/>
+<area shape="rect" id="node10" href="$structmadness_1_1World_1_1hashuniqueT.html" title="madness::World::hashuniqueT" alt="" coords="641,211,831,237"/>
+<area shape="rect" id="node11" href="$classmadness_1_1Hash__private_1_1bin.html" title="madness::Hash_private\l::bin\&lt; keyT, valueT \&gt;" alt="" coords="659,266,813,307"/>
+<area shape="rect" id="node16" href="$classmadness_1_1ConcurrentHashMap.html" title="madness::ConcurrentHashMap\l\&lt; void *, uniqueidT, hashvoidp \&gt;" alt="" coords="939,281,1141,322"/>
+<area shape="rect" id="node12" href="$classmadness_1_1Spinlock.html" title="Spinlock using pthread spinlock operations. " alt="" coords="6,257,135,284"/>
+<area shape="rect" id="node13" href="$classmadness_1_1Hash__private_1_1entry.html" title="madness::Hash_private\l::entry\&lt; keyT, valueT \&gt;" alt="" coords="427,211,581,253"/>
+<area shape="rect" id="node17" href="$structmadness_1_1World_1_1hashvoidp.html" title="madness::World::hashvoidp" alt="" coords="649,333,823,360"/>
+<area shape="rect" id="node18" href="$classmadness_1_1WorldMpiInterface.html" title="This class wraps/extends the MPI interface for World. " alt="" coords="948,101,1132,128"/>
+<area shape="rect" id="node19" href="$classmadness_1_1detail_1_1WorldMpiRuntime.html" title="MPI runtime reference counter. " alt="" coords="651,94,821,135"/>
+<area shape="rect" id="node20" href="$classSafeMPI_1_1Intracomm.html" title="Wrapper around MPI_Comm. Has a shallow copy constructor; use Create(Get_group()) for deep copy..." alt="" coords="665,43,807,69"/>
+</map>
