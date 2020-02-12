@@ -162,6 +162,22 @@ using std::void_t;
     template <typename T>
     struct is_serializable<archive::MPIInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
 
+    /// \brief This trait types tests if \c Archive is a text archive
+    /// \tparam Archive an archive type
+    /// \note much be specialized for each archive
+    template <typename Archive, typename Enabler = void>
+    struct is_text_archive : std::false_type {};
+
+    template <>
+    struct is_text_archive<archive::TextFstreamOutputArchive> : std::true_type {};
+    template <>
+    struct is_text_archive<archive::TextFstreamInputArchive> : std::true_type {};
+
+    /// \brief \c is_text_archive_v<A> is a shorthand for \c is_text_archive<A>::value
+    /// \tparam Archive an archive type
+    template <typename Archive>
+    constexpr const bool is_text_archive_v = is_text_archive<Archive>::value;
+
     /* Macros to make some of this stuff more readable */
 
     /**

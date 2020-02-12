@@ -40,78 +40,113 @@
 
 #include <memory>
 #include <cereal/cereal.hpp>
-#include <cereal/archives/binary.hpp>
+#include <cereal/details/traits.hpp>
 #include <madness/world/archive.h>
 
 namespace madness {
 namespace archive {
-/// Wraps an output archive around a cereal archive
+/// Wraps an output archive around a Cereal archive
 template <typename Muesli>
-class MadnessCerealOutputArchive
-    : public ::madness::archive::BaseOutputArchive {
+class CerealOutputArchive : public ::madness::archive::BaseOutputArchive {
   mutable std::shared_ptr<Muesli>
       muesli; ///< The cereal archive being wrapped, deleter determines whether this is an owning ptr
 
 public:
-  MadnessCerealOutputArchive(Muesli &muesli)
-      : muesli(&muesli, [](Muesli *) {}) {}
+  CerealOutputArchive(Muesli &muesli) : muesli(&muesli, [](Muesli *) {}) {}
   template <typename Arg, typename... RestOfArgs,
             typename = std::enable_if_t<
                 !std::is_same<Muesli, std::decay_t<Arg>>::value>>
-  MadnessCerealOutputArchive(Arg &&arg, RestOfArgs &&... rest_of_args)
+  CerealOutputArchive(Arg &&arg, RestOfArgs &&... rest_of_args)
       : muesli(new Muesli(std::forward<Arg>(arg),
                           std::forward<RestOfArgs>(rest_of_args)...),
                std::default_delete<Muesli>{}) {}
 
-  template <class T>
-  inline typename std::enable_if<madness::is_trivially_serializable<T>::value,
-                                 void>::type
+  template <class T, class Cereal = Muesli>
+  inline std::enable_if_t<
+      madness::is_trivially_serializable<T>::value &&
+          !cereal::traits::is_text_archive<Cereal>::value,
+      void>
   store(const T *t, long n) const {
     const unsigned char *ptr = (unsigned char *)t;
     (*muesli)(cereal::binary_data(ptr, sizeof(T) * n));
   }
+
+  template <class T, class Cereal = Muesli>
+  inline std::enable_if_t<cereal::traits::is_text_archive<Cereal>::value,void>
+  store(const T *t, long n) const {
+    for (long i = 0; i != n; ++i)
+      *muesli << t[i];
+  }
+
   void open(std::size_t hint) {}
   void close(){};
   void flush(){};
 };
 
-/// Wraps an input archive around a cereal archive
-template <typename Muesli>
-class MadnessCerealInputArchive : public BaseInputArchive {
+/// Wraps an input archive around a Cereal archive
+template <typename Muesli> class CerealInputArchive : public BaseInputArchive {
   std::shared_ptr<Muesli> muesli; ///< The cereal archive being wrapped, deleter determines whether this is an owning ptr
 
 public:
-  MadnessCerealInputArchive(Muesli &muesli)
-      : muesli(&muesli, [](Muesli *) {}) {}
+  CerealInputArchive(Muesli &muesli) : muesli(&muesli, [](Muesli *) {}) {}
   template <typename Arg, typename... RestOfArgs,
-      typename = std::enable_if_t<
-          !std::is_same<Muesli, std::decay_t<Arg>>::value>>
-  MadnessCerealInputArchive(Arg &&arg, RestOfArgs &&... rest_of_args)
-  : muesli(new Muesli(std::forward<Arg>(arg),
-                      std::forward<RestOfArgs>(rest_of_args)...),
-      std::default_delete<Muesli>{}) {}
+            typename = std::enable_if_t<
+                !std::is_same<Muesli, std::decay_t<Arg>>::value>>
+  CerealInputArchive(Arg &&arg, RestOfArgs &&... rest_of_args)
+      : muesli(new Muesli(std::forward<Arg>(arg),
+                          std::forward<RestOfArgs>(rest_of_args)...),
+               std::default_delete<Muesli>{}) {}
 
-  template <class T>
-  inline typename std::enable_if<madness::is_trivially_serializable<T>::value,
-                                 void>::type
+  template <class T, class Cereal = Muesli>
+  inline std::enable_if_t<
+      madness::is_trivially_serializable<T>::value &&
+          !cereal::traits::is_text_archive<Cereal>::value,
+      void>
   load(T *t, long n) const {
     (*muesli)(cereal::binary_data(t, sizeof(T) * n));
   }
+
+  template <class T, class Cereal = Muesli>
+  inline std::enable_if_t<
+      !madness::is_trivially_serializable<T>::value ||
+          cereal::traits::is_text_archive<Cereal>::value,
+      void>
+  load(T *t, long n) const {
+    for (long i = 0; i != n; ++i)
+      *muesli & t[i];
+  }
+
   void open(std::size_t hint) {}
   void rewind() const {}
   void close(){};
 };
-}
+} // namespace archive
+
+template <typename Muesli>
+struct is_text_archive<
+    archive::CerealInputArchive<Muesli>,
+    std::enable_if_t<cereal::traits::is_text_archive<Muesli>::value>>
+    : std::true_type {};
+template <typename Muesli>
+struct is_text_archive<
+    archive::CerealOutputArchive<Muesli>,
+    std::enable_if_t<cereal::traits::is_text_archive<Muesli>::value>>
+    : std::true_type {};
 
 template <typename Muesli, typename T>
-struct is_serializable<archive::MadnessCerealOutputArchive<Muesli>, T,
-                       std::enable_if_t<is_trivially_serializable<T>::value>>
-    : std::true_type {};
+struct is_serializable<
+    archive::CerealOutputArchive<Muesli>, T,
+    std::enable_if_t<is_trivially_serializable<T>::value &&
+        !cereal::traits::is_text_archive<Muesli>::value>> : std::true_type {};
 template <typename Muesli, typename T>
-struct is_serializable<archive::MadnessCerealInputArchive<Muesli>, T,
-                       std::enable_if_t<is_trivially_serializable<T>::value>>
+struct is_serializable<
+    archive::CerealInputArchive<Muesli>, T,
+    std::enable_if_t<
+        is_trivially_serializable<T>::value &&
+            !cereal::traits::is_text_archive<Muesli>::value>>
     : std::true_type {};
-}
+
+}  // namespace madness
 
 #endif  // have cereal/cereal.hpp
 

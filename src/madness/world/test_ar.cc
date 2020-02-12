@@ -58,8 +58,26 @@ using madness::archive::BufferOutputArchive;
 
 #include <madness/world/cereal_archive.h>
 #ifdef MADNESS_HAS_CEREAL
-using CerealBinaryFstreamInputArchive = madness::archive::MadnessCerealInputArchive<cereal::BinaryInputArchive>;
-using CerealBinaryFstreamOutputArchive = madness::archive::MadnessCerealOutputArchive<cereal::BinaryOutputArchive>;
+#include <cereal/archives/binary.hpp>
+using CerealBinaryInputArchive = madness::archive::CerealInputArchive<cereal::BinaryInputArchive>;
+using CerealBinaryOutputArchive = madness::archive::CerealOutputArchive<cereal::BinaryOutputArchive>;
+static_assert(!madness::is_text_archive_v<CerealBinaryInputArchive>, "ouch");
+static_assert(!madness::is_text_archive_v<CerealBinaryInputArchive>, "ouch");
+#include <cereal/archives/portable_binary.hpp>
+using CerealPortableBinaryInputArchive = madness::archive::CerealInputArchive<cereal::PortableBinaryInputArchive>;
+using CerealPortableBinaryOutputArchive = madness::archive::CerealOutputArchive<cereal::PortableBinaryOutputArchive>;
+static_assert(!madness::is_text_archive_v<CerealPortableBinaryInputArchive>, "ouch");
+static_assert(!madness::is_text_archive_v<CerealPortableBinaryInputArchive>, "ouch");
+#include <cereal/archives/json.hpp>
+using CerealJSONInputArchive = madness::archive::CerealInputArchive<cereal::JSONInputArchive>;
+using CerealJSONOutputArchive = madness::archive::CerealOutputArchive<cereal::JSONOutputArchive>;
+static_assert(madness::is_text_archive_v<CerealJSONInputArchive>, "ouch");
+static_assert(madness::is_text_archive_v<CerealJSONOutputArchive>, "ouch");
+#include <cereal/archives/xml.hpp>
+using CerealXMLInputArchive = madness::archive::CerealInputArchive<cereal::XMLInputArchive>;
+using CerealXMLOutputArchive = madness::archive::CerealOutputArchive<cereal::XMLOutputArchive>;
+static_assert(madness::is_text_archive_v<CerealXMLInputArchive>, "ouch");
+static_assert(madness::is_text_archive_v<CerealXMLOutputArchive>, "ouch");
 #endif
 
 #include <madness/world/array_addons.h>
@@ -230,20 +248,20 @@ using madness::archive::wrap;
 typedef std::complex<double> double_complex;
 typedef std::tuple<int,double,std::complex<float>> tuple_int_double_complexfloat;
 
-template <typename Archive, typename POD, typename Disabler = std::enable_if_t<std::is_same<std::decay_t<Archive>,TextFstreamOutputArchive>::value>>
+template <typename Archive, typename POD, typename Disabler = std::enable_if_t<madness::is_text_archive_v<std::decay_t<Archive>>>>
 void pod_serialize_dispatch(Archive&& ar, const POD& pod) {
 }
 template <typename Archive, typename POD>
-void pod_serialize_dispatch(Archive&& ar, const POD& pod, std::enable_if_t<!std::is_same<std::decay_t<Archive>,TextFstreamOutputArchive>::value>* = nullptr) {
+void pod_serialize_dispatch(Archive&& ar, const POD& pod, std::enable_if_t<!madness::is_text_archive_v<std::decay_t<Archive>>>* = nullptr) {
   ar & pod;
   ar << pod;
 }
 
-template <typename Archive, typename POD, typename Disabler = std::enable_if_t<std::is_same<std::decay_t<Archive>,TextFstreamInputArchive>::value>>
+template <typename Archive, typename POD, typename Disabler = std::enable_if_t<madness::is_text_archive_v<std::decay_t<Archive>>>>
 void pod_deserialize_dispatch(Archive&& ar, POD&& pod) {
 }
 template <typename Archive, typename POD>
-void pod_deserialize_dispatch(Archive&& ar, POD&& pod, std::enable_if_t<!std::is_same<std::decay_t<Archive>,TextFstreamInputArchive>::value>* = nullptr) {
+void pod_deserialize_dispatch(Archive&& ar, POD&& pod, std::enable_if_t<!madness::is_text_archive_v<std::decay_t<Archive>>>* = nullptr) {
   ar & pod;
   ar >> pod;
 }
@@ -602,17 +620,71 @@ int main() {
 
 #ifdef MADNESS_HAS_CEREAL
     {
-        const char* f = "test.dat";
-        cout << endl << "testing binary Cereal fstream archive" << endl;
-        std::ofstream fout(f);
-        CerealBinaryFstreamOutputArchive oar(fout);
+      const char *f = "test.dat";
+      cout << endl << "testing binary Cereal archive" << endl;
+      {
+        std::ofstream fout(f, std::ios_base::binary | std::ios_base::out |
+                                  std::ios_base::trunc);
+        CerealBinaryOutputArchive oar(fout);
         test_out(oar);
         oar.close();
+      }
 
-        std::ifstream fin(f);
-        CerealBinaryFstreamInputArchive iar(fin);
+      {
+        std::ifstream fin(f, std::ios_base::binary | std::ios_base::in);
+        CerealBinaryInputArchive iar(fin);
         test_in(iar);
         iar.close();
+      }
+
+      cout << endl << "testing portable binary Cereal archive" << endl;
+      {
+        std::ofstream fout(f, std::ios_base::binary | std::ios_base::out |
+                                  std::ios_base::trunc);
+        CerealPortableBinaryOutputArchive oar(fout);
+        test_out(oar);
+        oar.close();
+      }
+
+      {
+        std::ifstream fin(f, std::ios_base::binary | std::ios_base::in);
+        CerealPortableBinaryInputArchive iar(fin);
+        test_in(iar);
+        iar.close();
+      }
+
+//      cout << endl << "testing JSON Cereal archive" << endl;
+//      {
+//        std::ofstream fout(f, std::ios_base::out |
+//            std::ios_base::trunc);
+//        CerealJSONOutputArchive oar(fout);
+//        test_out(oar);
+//        oar.close();
+//      }
+//
+//      {
+//        std::ifstream fin(f, std::ios_base::in);
+//        CerealJSONInputArchive iar(fin);
+//        test_in(iar);
+//        iar.close();
+//      }
+//
+//      cout << endl << "testing XML Cereal archive" << endl;
+//      {
+//        std::ofstream fout(f, std::ios_base::out |
+//            std::ios_base::trunc);
+//        CerealXMLOutputArchive oar(fout);
+//        test_out(oar);
+//        oar.close();
+//      }
+//
+//      {
+//        std::ifstream fin(f, std::ios_base::in);
+//        CerealXMLInputArchive iar(fin);
+//        test_in(iar);
+//        iar.close();
+//      }
+
     }
 #endif  // MADNESS_HAS_CEREAL
 
