@@ -56,6 +56,12 @@ using madness::archive::VectorOutputArchive;
 using madness::archive::BufferInputArchive;
 using madness::archive::BufferOutputArchive;
 
+#include <madness/world/cereal_archive.h>
+#ifdef MADNESS_HAS_CEREAL
+using CerealBinaryFstreamInputArchive = madness::archive::MadnessCerealInputArchive<cereal::BinaryInputArchive>;
+using CerealBinaryFstreamOutputArchive = madness::archive::MadnessCerealOutputArchive<cereal::BinaryOutputArchive>;
+#endif
+
 #include <madness/world/array_addons.h>
 
 // A is a class that provides a symmetric serialize method
@@ -594,5 +600,21 @@ int main() {
         iar.close();
     }
 
-    return 0;
+#ifdef MADNESS_HAS_CEREAL
+    {
+        const char* f = "test.dat";
+        cout << endl << "testing binary Cereal fstream archive" << endl;
+        std::ofstream fout(f);
+        CerealBinaryFstreamOutputArchive oar(fout);
+        test_out(oar);
+        oar.close();
+
+        std::ifstream fin(f);
+        CerealBinaryFstreamInputArchive iar(fin);
+        test_in(iar);
+        iar.close();
+    }
+#endif  // MADNESS_HAS_CEREAL
+
+  return 0;
 }
