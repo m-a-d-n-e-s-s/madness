@@ -1,9 +1,9 @@
 cmake -D ENABLE_TBB=ON \
       -D ENABLE_MKL=1 \
-      -D CMAKE_BUILD_TYPE=Release \
+      -D CMAKE_BUILD_TYPE=Debug \
       -D BUILD_SHARED_LIBS=OFF \
-      -D CMAKE_CXX_COMPILER=mpiicpc \
-      -D CMAKE_C_COMPILER=mpiicc \
+      -D CMAKE_CXX_COMPILER=mpicxx \
+      -D CMAKE_C_COMPILER=mpicc \
       -D CMAKE_CXX_STANDARD=17 \
       ..
 #      -DBLA_STATIC=TRUE 

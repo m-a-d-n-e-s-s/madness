@@ -41,6 +41,7 @@ namespace madness {
           bool no_compute;             ///< If true, will skip all computation
           double bohr_rad;             ///< bohr radius in fm (default: 52917.7211)
           int min_iter;                ///< minimum number of iterations (default: 2)
+          bool Krestricted;            ///< Calculation should be performed in Kramers-restricted manner (default: false)
           //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           //               If you add something here, don't forget to add it to serializable!
@@ -49,7 +50,7 @@ namespace madness {
 
           template<typename Archive>
           void serialize(Archive& ar){
-               ar & archive & job & max_iter & small & thresh & k & kain & maxsub & maxrotn & restart & nucleus & do_save & savefile & lb_iter & nwchem & lineplot & no_compute & bohr_rad & min_iter;
+               ar & archive & job & max_iter & small & thresh & k & kain & maxsub & maxrotn & restart & nucleus & do_save & savefile & lb_iter & nwchem & lineplot & no_compute & bohr_rad & min_iter & Krestricted;
           }
 
           // Default constructor
@@ -72,6 +73,7 @@ namespace madness {
           , no_compute(false)
           , bohr_rad(52917.7211)
           , min_iter(2)
+          , Krestricted(false)
           {}
 
           // Initializes DFParameters using the contents of file \c filename
@@ -146,6 +148,9 @@ namespace madness {
                     else if (s == "min_iter"){
                          f >> min_iter;
                     }
+                    else if (s == "Krestricted"){
+                         Krestricted = true;
+                    }
                     else{
                        std::cout << "Dirac Fock: unrecognized input keyword " << s << std::endl;
                        MADNESS_EXCEPTION("input error", 0); 
@@ -173,6 +178,7 @@ namespace madness {
                else{
                     madness::print("                       Nucleus: gaussian");
                }
+               madness::print("           Kramers restriction:", Krestricted);
                madness::print("                  Do Lineplots:", lineplot);
           }
      };

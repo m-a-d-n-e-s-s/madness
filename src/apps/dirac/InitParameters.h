@@ -21,6 +21,7 @@ namespace madness{
           std::string inFile;                      ///< Name of input archive to read in
           double Init_total_energy;                ///< Total energy of the nonrelativistic ground state
           bool spinrestricted;                     ///< Indicates if input calc. was spin-restricted
+          bool closed_shell;
           unsigned int num_occupied;               ///< Number of orbitals
           Tensor<double> energies;                 ///< Energies of input orbitals
           Tensor<double> occ;                      ///< Occupancy of input orbitals
@@ -33,7 +34,7 @@ namespace madness{
           InitParameters() {}
 
           // Initializes InitParameters using the contents of file \c filename
-          void read(World& world, const std::string& filename, bool restart){ 
+          void read(World& world, const std::string& filename, bool restart, bool Krestricted){ 
                // Save the filename
                inFile = filename;
   
@@ -43,11 +44,16 @@ namespace madness{
                     archive::ParallelInputArchive input(world, filename.c_str());
                     input & Init_total_energy;
                     input & spinrestricted;
+                    input & closed_shell;
                     input & num_occupied;
                     input & energies;
                     input & L;
                     input & order;
                     input & molecule;
+
+                    //Code breaks if spinrestricted (state of archive) and Krestricted (requested by user) don't match
+                    //This functionality could probably be added at some point, but it's a bit of work
+                    MADNESS_CHECK(spinrestricted != Krestricted);
 
                     // Set this so we can read in whats
                     // written in the archive 
@@ -74,12 +80,15 @@ namespace madness{
                     input & Init_total_energy;              // double
                     input & spinrestricted;      // bool
                     input & num_occupied;        // int
-                    input & energies;            // Tensor<double>    orbital energies
+                    input & temp_energies;       // Tensor<double>    orbital energies
                     input & occ;                 // Tensor<double>    orbital occupations
                     input & dummy2;              // std::vector<int>  sets of orbitals(?)
                     input & L;                   // double            box size
                     input & order;               // int               wavelet order
                     input & molecule;            // Molecule   
+
+                    //For now assume spin-restricted means closed shell in moldft
+                    closed_shell = spinrestricted;
 
                     // Check that order is positive and less than 30
                     if (order < 1 or order > 30){
@@ -99,49 +108,80 @@ namespace madness{
                     double myc = 137.0359895; //speed of light in atomic units
                     std::complex<double> myi(0,1);
                     if(spinrestricted){ 
-                         //If the calculation was spin-restricted, then we only have "spin-up" orbitals
+                         //If the calculation was spin-restricted in moldft, then we only have "spin-up" orbitals
 
                          //Initialize some functions for reading in the orbitals
                          real_function_3d reader;
                          complex_function_3d complexreader;
                          Fcwf spinup(world);
-                         //Fcwf spindown(world);
+                         Fcwf spindown(world); //used if !Krestricted
                          real_function_3d xfunc = real_factory_3d(world).f(myxfunc);
                          real_function_3d yfunc = real_factory_3d(world).f(myyfunc);
+                         
+                         //Handle Kramers-restricted and unrestricted cases differently
+                         if(Krestricted){
+                              //Loop over the occupied orbitals and convert
+                              for(unsigned int i = 0; i < num_occupied; i++){
+                                   //read in orbital
+                                   input & reader;
 
-                         //Loop over the occupied orbitals and convert
-                         for(unsigned int i = 0; i < num_occupied; i++){
-                              //read in orbital
-                              input & reader;
+                                   //change to a complex function
+                                   complexreader = function_real2complex(reader);
 
-                              //change to a complex function
-                              complexreader = function_real2complex(reader);
+                                   //build up the corresponding fcwfs, using kinetic balance to define the small component
+                                   spinup[0] = complexreader;
+                                   spinup[1] = complex_factory_3d(world);
+                                   spinup[2] = (-myi) * Dz(complexreader);
+                                   spinup[2].scale(0.5);
+                                   spinup[3] = (-myi) * (Dx(complexreader) + myi * Dy(complexreader));
+                                   spinup[3].scale(0.5);
+                                   spinup.normalize();
+                                   orbitals.push_back(spinup);
+                              }
 
-                              //build up the corresponding fcwf, using kinetic balance to define the small component
-                              spinup[0] = complexreader;
-                              spinup[1] = complex_factory_3d(world);
-                              spinup[2] = (-myi) * Dz(complexreader);
-                              spinup[2].scale(0.5);
-                              spinup[3] = (-myi) * (Dx(complexreader) + myi * Dy(complexreader));
-                              spinup[3].scale(0.5);
-                              spinup.normalize();
-                              //spindown[0] = complex_factory_3d(world);
-                              //spindown[1] = complexreader;
-                              //spindown[2] = (-myi) * (Dx(complexreader) - myi * Dy(complexreader));
-                              //spindown[2].scale(0.5);
-                              //spindown[3] = (myi) * Dz(complexreader);
-                              //spindown[3].scale(0.5);
-                              //spindown.normalize();
-                              orbitals.push_back(spinup);
-                              //orbitals.push_back(spindown);
+                              //Update energies
+                              energies = temp_energies;
                          }
+                         else{
+                              //Loop over the occupied orbitals and convert
+                              for(unsigned int i = 0; i < num_occupied; i++){
+                                   //read in orbital
+                                   input & reader;
 
-                         ////correct the number of orbitals
-                         //num_occupied *= 2;
+                                   //change to a complex function
+                                   complexreader = function_real2complex(reader);
+
+                                   //build up the corresponding fcwfs, using kinetic balance to define the small component
+                                   spinup[0] = complexreader;
+                                   spinup[1] = complex_factory_3d(world);
+                                   spinup[2] = (-myi) * Dz(complexreader);
+                                   spinup[2].scale(0.5);
+                                   spinup[3] = (-myi) * (Dx(complexreader) + myi * Dy(complexreader));
+                                   spinup[3].scale(0.5);
+                                   spinup.normalize();
+                                   spindown[0] = complex_factory_3d(world);
+                                   spindown[1] = complexreader;
+                                   spindown[2] = (-myi) * (Dx(complexreader) - myi * Dy(complexreader));
+                                   spindown[2].scale(0.5);
+                                   spindown[3] = (myi) * Dz(complexreader);
+                                   spindown[3].scale(0.5);
+                                   spindown.normalize();
+                                   orbitals.push_back(spinup);
+                                   orbitals.push_back(spindown);
+                              }
+
+                              //Double length of energies tensor and fill in as needed.
+                              energies = Tensor<double>(2*num_occupied);
+                              for(unsigned int i = 0; i < num_occupied; i++){
+                                   energies[2*i] = temp_energies[i];
+                                   energies[2*i+1] = temp_energies[i];
+                              }
+                              num_occupied *= 2;
+                         }
                     }
                     else{
 
-                         if(world.rank()==0) print("number of alpha read in is:" ,num_occupied);
+                         if(world.rank()==0) print("number of alpha read in from moldft is:" ,num_occupied);
 
                          // Read in alpha ground state orbitals
                          real_function_3d reader;
@@ -160,46 +200,53 @@ namespace madness{
                               orbitals.push_back(fcwfreader);
                          }
 
-                         //// Read in beta quantities
-                         //unsigned int num_betas;
-                         //input & num_betas;
+                         if(!Krestricted){
+                              // Read in beta quantities
+                              unsigned int num_betas;
+                              input & num_betas;
 
-                         //Tensor<double> beta_energies;
-                         //input & beta_energies;
+                              Tensor<double> beta_energies;
+                              input & beta_energies;
 
-                         //Tensor<double> dummy3;
-                         //input & dummy3;
+                              Tensor<double> dummy3;
+                              input & dummy3;
 
-                         //std::vector<int> dummy4;
-                         //input & dummy4;
+                              std::vector<int> dummy4;
+                              input & dummy4;
 
-                         ////read in beta ground state orbitals
-                         //for(unsigned int i = 0; i < num_betas; i++){
-                         //     input & reader;
-                         //     complexreader = function_real2complex(reader);
-                         //     fcwfreader[0] = complex_factory_3d(world);
-                         //     fcwfreader[1] = complexreader;
-                         //     fcwfreader[2] = (-myi) * (Dx(complexreader) - myi * Dy(complexreader));
-                         //     fcwfreader[2].scale(0.5);
-                         //     fcwfreader[3] = (myi) * Dz(complexreader);
-                         //     fcwfreader[3].scale(0.5);
-                         //     fcwfreader.normalize();
-                         //     orbitals.push_back(fcwfreader);
-                         //}
+                              //read in beta ground state orbitals
+                              for(unsigned int i = 0; i < num_betas; i++){
+                                   input & reader;
+                                   complexreader = function_real2complex(reader);
+                                   fcwfreader[0] = complex_factory_3d(world);
+                                   fcwfreader[1] = complexreader;
+                                   fcwfreader[2] = (-myi) * (Dx(complexreader) - myi * Dy(complexreader));
+                                   fcwfreader[2].scale(0.5);
+                                   fcwfreader[3] = (myi) * Dz(complexreader);
+                                   fcwfreader[3].scale(0.5);
+                                   fcwfreader.normalize();
+                                   orbitals.push_back(fcwfreader);
+                              }
 
-                         ////fix up energies tensor and num_occupied
-                         //energies = Tensor<double>(num_occupied + num_betas);
-                         //double csquared = 137.0359895*137.0359895;
-                         //for(unsigned int i = 0; i < num_occupied; i++){
-                         //     energies(i) = temp_energies(i);// + csquared;
-                         //}
-                         //for(unsigned int i = 0; i < num_betas; i++){
-                         //     energies(num_occupied + i) = beta_energies(i);// + csquared;
-                         //}
-                         //num_occupied += num_betas;
+                              //Handle energy tensor and number of occupied orbitals
+                              energies = Tensor<double>(num_occupied + num_betas);
+                              for(unsigned int i = 0; i < num_occupied; i++){
+                                   energies(i) = temp_energies(i);
+                              }
+                              for(unsigned int i = 0; i < num_betas; i++){
+                                   energies(num_occupied + i) = beta_energies(i);
+                              }
+                              num_occupied += num_betas;
+
+                         }
+                         else{
+                              energies = temp_energies;
+                         }
+
+
 
                     }
-
+                    
                     //reorder orbitals and energies in ascending order, if necessary.
                     double tempdouble;
                     Fcwf fcwfreader(world);
@@ -216,12 +263,10 @@ namespace madness{
                               }
                          }
                     }
-               
-                     
                }
           }
 
-          //This function no longer works, because the code only perform Kramers-restricted calculations!
+          //This function no longer works
           //TODO: Update this function before using it
           //void readnw(World& world, const std::string& filename){
           //     //Called to read in initial parameters from an nwchem output file
