@@ -8,6 +8,7 @@ macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_d
   add_library(MAD${_name} $<TARGET_OBJECTS:MAD${_name}-obj>)
   if(BUILD_SHARED_LIBS)
     set_target_properties(MAD${_name}-obj PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
+    message(WARNING "building shared libraries, setting PIE to true")
   endif()
 
   target_include_directories(MAD${_name} PUBLIC

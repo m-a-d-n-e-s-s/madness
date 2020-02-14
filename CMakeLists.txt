@@ -39,7 +39,7 @@ if (CMAKE_CXX_STANDARD EQUAL 20 AND CMAKE_VERSION VERSION_LESS 3.12.0)
   message(FATAL_ERROR "C++ 2020 ISO Standard requires CMake version 3.12 or higher")
 endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF CACHE BOOLEAN "Whether to use extensions of C++ ISO Standard version")
+set(CMAKE_CXX_EXTENSIONS OFF CACHE BOOL "Whether to use extensions of C++ ISO Standard version")
 
 # workaround for cmake bug: CheckCXXSourceCompiles does not respect CXX_STANDARD
 # see https://github.com/OPM/opm-common/blob/master/cmake/Modules/FindCXX11Features.cmake
@@ -558,6 +558,20 @@ if(ENABLE_UNITTESTS)
 endif()
 add_subdirectory(src)
 add_subdirectory(doc)
+
+# Get the git revision tag information =========================================
+
+if(EXISTS ${PROJECT_SOURCE_DIR}/.git)
+  find_package(Git REQUIRED)
+  execute_process(
+      COMMAND ${GIT_EXECUTABLE} rev-parse -q HEAD
+      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+      OUTPUT_VARIABLE MADNESS_REVISION )
+  string(REGEX MATCH "[0-9a-f]*"
+      MADNESS_REVISION "${MADNESS_REVISION}")
+else()
+  set(MADNESS_REVISION "unknown")
+endif()
 
 # Generate configure files =====================================================
 
