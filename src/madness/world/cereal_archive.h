@@ -72,10 +72,12 @@ public:
   }
 
   template <class T, class Cereal = Muesli>
-  inline std::enable_if_t<cereal::traits::is_text_archive<Cereal>::value,void>
+  inline std::enable_if_t<
+      !madness::is_trivially_serializable<T>::value ||
+          cereal::traits::is_text_archive<Cereal>::value,void>
   store(const T *t, long n) const {
     for (long i = 0; i != n; ++i)
-      *muesli << t[i];
+      *muesli & t[i];
   }
 
   void open(std::size_t hint) {}
@@ -136,14 +138,14 @@ struct is_text_archive<
 template <typename Muesli, typename T>
 struct is_serializable<
     archive::CerealOutputArchive<Muesli>, T,
-    std::enable_if_t<is_trivially_serializable<T>::value &&
-        !cereal::traits::is_text_archive<Muesli>::value>> : std::true_type {};
+    std::enable_if_t<(is_trivially_serializable<T>::value &&
+        !cereal::traits::is_text_archive<Muesli>::value) || cereal::traits::is_text_archive<Muesli>::value>> : std::true_type {};
 template <typename Muesli, typename T>
 struct is_serializable<
     archive::CerealInputArchive<Muesli>, T,
     std::enable_if_t<
-        is_trivially_serializable<T>::value &&
-            !cereal::traits::is_text_archive<Muesli>::value>>
+        (is_trivially_serializable<T>::value &&
+            !cereal::traits::is_text_archive<Muesli>::value) || cereal::traits::is_text_archive<Muesli>::value>>
     : std::true_type {};
 
 }  // namespace madness
