@@ -310,7 +310,6 @@ namespace madness{
 
                //Find out how many orbitals we're dealing with by looking at the occupancies
                unsigned int numalpha(0), numbeta(0);
-               num_virtuals = 0;
 
                bool have_beta(false);
                for(unsigned int i = 0; i < nwchem.beta_occupancies.size(); i++){
@@ -321,10 +320,10 @@ namespace madness{
                     //we're reading from an unrestricted calculation
                     //and for now we will assume this is an open shell calculation
                     for(unsigned int i = 0; i < nwchem.occupancies.size(); i++){
-                         (nwchem.occupancies[i] == 1.0) ? numalpha+=1 : num_virtuals+=1;
+                         if(nwchem.occupancies[i] == 1.0) numalpha+=1;
                     }
                     for(unsigned int i = 0; i < nwchem.beta_occupancies.size(); i++){
-                         (nwchem.beta_occupancies[i] == 1.0) ? numbeta+=1 : num_virtuals+=1;
+                         if(nwchem.beta_occupancies[i] == 1.0) numbeta+=1;
                     }
 
                     //Right now DF can only handle a single unpaired electron
@@ -332,7 +331,7 @@ namespace madness{
                }
                else{
                     for(unsigned int i = 0; i < nwchem.occupancies.size(); i++){
-                         (nwchem.occupancies[i] == 2.0) ? numalpha += 1 : num_virtuals += 2;
+                         if(nwchem.occupancies[i] == 2.0) numalpha += 1;
                     }
                     numbeta = numalpha;
                }
@@ -354,29 +353,28 @@ namespace madness{
                if(world.rank()==0) print("\nbeta energies:\n",nwchem.beta_energies);
                if(world.rank()==0) print("num alpha",numalpha);
                if(world.rank()==0) print("num beta",numbeta);
-               if(world.rank()==0) print("num virtuals",num_virtuals);
 
 
                //Now that we know how many orbitals we have. initialize and fill energy tensor
                energies = Tensor<double>(num_occupied);
                if(Krestricted){
-                    for(unsigned int i=0; i < nwchem.energies.size(); i++){
+                    for(unsigned int i=0; i < numalpha; i++){
                          energies[i] = nwchem.energies[i];
                     }
                }
                else{
                     if(closed_shell){
-                         for(unsigned int i=0; i < nwchem.energies.size(); i++){
+                         for(unsigned int i=0; i < numalpha; i++){
                               energies[2*i] = nwchem.energies[i];
                               energies[2*i+1] = nwchem.energies[i];
                          }
                     }
                     else{
-                         for(unsigned int i=0; i < nwchem.energies.size()-1; i++){
+                         for(unsigned int i=0; i < numalpha-1; i++){
                               energies[2*i] = nwchem.energies[i];
                               energies[2*i+1] = nwchem.energies[i];
                          }
-                         energies[2*(nwchem.energies.size()-1] = nwchem.energies[nwchem.energies.size()-1];
+                         energies[2*(numalpha-1)] = nwchem.energies[numalpha-1];
                     }
                }
 
@@ -405,19 +403,52 @@ namespace madness{
 
                //Convert and store alpha occupied MOs.
                complex_function_3d complexreader(world);
-               Fcwf fcwfreader(world);
-               for(unsigned int i = 0; i < temp.size()-1; i++){
+               Fcwf spinup(world);
+               Fcwf spindown(world);
+               complex_derivative_3d Dx(world,0);
+               complex_derivative_3d Dy(world,1);
+               complex_derivative_3d Dz(world,2);
+               std::complex<double> myi(0,1);
+               for(unsigned int i = 0; i < numalpha-1; i++){
                     complexreader = function_real2complex(temp[i]);
-                    fcwfreader = Fcwf(complexreader, complex_factory_3d(world), complex_factory_3d(world), complex_factory_3d(world));
-                    orbitals.push_back(fcwfreader);
+                    spinup[0] = complexreader;
+                    spinup[1] = complex_factory_3d(world);
+                    spinup[2] = (-myi) * Dz(complexreader);
+                    spinup[2].scale(0.5);
+                    spinup[3] = (-myi) * (Dx(complexreader) + myi * Dy(complexreader));
+                    spinup[3].scale(0.5);
+                    spinup.normalize();
+                    orbitals.push_back(spinup);
                     if(!Krestricted){
-                         fcwfreader = Fcwf(complex_factory_3d(world), complexreader, complex_factory_3d(world), complex_factory_3d(world));
-                         orbitals.push_back(fcwfreader);
+                         spindown[0] = complex_factory_3d(world);
+                         spindown[1] = complexreader;
+                         spindown[2] = (-myi) * (Dx(complexreader) - myi * Dy(complexreader));
+                         spindown[2].scale(0.5);
+                         spindown[3] = (myi) * Dz(complexreader);
+                         spindown[3].scale(0.5);
+                         spindown.normalize();
+                         orbitals.push_back(spindown);
                     }
                }
-               complexreader = function_real2complex(temp[temp.size()i-1]);
-               fcwfreader = Fcwf(complexreader, complex_factory_3d(world), complex_factory_3d(world), complex_factory_3d(world));
-               orbitals.push_back(fcwfreader);
+               complexreader = function_real2complex(temp[numalpha-1]);
+               spinup[0] = complexreader;
+               spinup[1] = complex_factory_3d(world);
+               spinup[2] = (-myi) * Dz(complexreader);
+               spinup[2].scale(0.5);
+               spinup[3] = (-myi) * (Dx(complexreader) + myi * Dy(complexreader));
+               spinup[3].scale(0.5);
+               spinup.normalize();
+               orbitals.push_back(spinup);
+               if(closed_shell and not Krestricted){
+                    spindown[0] = complex_factory_3d(world);
+                    spindown[1] = complexreader;
+                    spindown[2] = (-myi) * (Dx(complexreader) - myi * Dy(complexreader));
+                    spindown[2].scale(0.5);
+                    spindown[3] = (myi) * Dz(complexreader);
+                    spindown[3].scale(0.5);
+                    spindown.normalize();
+                    orbitals.push_back(spindown);
+               }
 
                //Assure that the numbers line up
                MADNESS_ASSERT(num_occupied == orbitals.size());
