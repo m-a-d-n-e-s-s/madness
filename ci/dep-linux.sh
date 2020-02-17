@@ -132,4 +132,4 @@ mkdir build
 cd build
 cmake -DSKIP_PORTABILITY_TEST=ON ..
 make
-make install
+sudo make install
