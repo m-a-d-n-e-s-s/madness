@@ -89,7 +89,7 @@ public:
     A(float a = 0.0) : a(a) {};
 
     template <class Archive>
-    inline void serialize(const Archive& ar) {
+    inline void serialize(Archive& ar) {
         ar & a;
     }
 };

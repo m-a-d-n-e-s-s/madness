@@ -139,13 +139,18 @@ template <typename Muesli, typename T>
 struct is_serializable<
     archive::CerealOutputArchive<Muesli>, T,
     std::enable_if_t<(is_trivially_serializable<T>::value &&
-        !cereal::traits::is_text_archive<Muesli>::value) || cereal::traits::is_text_archive<Muesli>::value>> : std::true_type {};
+        !cereal::traits::is_text_archive<Muesli>::value) ||
+        (cereal::traits::detail::count_output_serializers<T, Muesli>::value != 0 &&
+         cereal::traits::is_text_archive<Muesli>::value)>>
+    : std::true_type {};
 template <typename Muesli, typename T>
 struct is_serializable<
     archive::CerealInputArchive<Muesli>, T,
     std::enable_if_t<
         (is_trivially_serializable<T>::value &&
-            !cereal::traits::is_text_archive<Muesli>::value) || cereal::traits::is_text_archive<Muesli>::value>>
+            !cereal::traits::is_text_archive<Muesli>::value) ||
+            (cereal::traits::detail::count_output_serializers<T, Muesli>::value != 0 &&
+             cereal::traits::is_text_archive<Muesli>::value)>>
     : std::true_type {};
 
 }  // namespace madness
