@@ -128,6 +128,7 @@ sudo apt-get install intel-mkl-2019.4-070
 cd
 git clone https://github.com/USCiLab/cereal
 cd cereal
+git checkout a5a30953125e70b115a2
 mkdir build
 cd build
 cmake -DSKIP_PORTABILITY_TEST=ON ..
