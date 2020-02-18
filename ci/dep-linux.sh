@@ -114,6 +114,21 @@ else
     find ${HOME}/mpich -name mpicxx
 fi
 
+# Install Cereal (headers only)
+if [ ! -f "${HOME}/cereal/include/cereal/cereal.hpp" ]; then
+    cd
+    git clone https://github.com/USCiLab/cereal cereal_repo
+    cd cereal_repo
+    git checkout a5a30953125e70b115a2
+    mkdir build
+    cd build
+    cmake -D JUST_INSTALL_CEREAL=ON -D CMAKE_INSTALL_PREFIX=${HOME}/cereal ..
+    make install
+else
+    echo "Cereal installed..."
+    find ${HOME}/cereal/include/cereal -name "cereal.hpp"
+fi
+
 # Do not exit on error because MKL is optional
 set +e
 
@@ -124,13 +139,3 @@ sudo sh -c 'echo deb https://apt.repos.intel.com/mkl all main > /etc/apt/sources
 sudo apt-get update
 sudo apt-get install intel-mkl-2019.4-070
 
-# Install Cereal
-cd
-git clone https://github.com/USCiLab/cereal
-cd cereal
-git checkout a5a30953125e70b115a2
-mkdir build
-cd build
-cmake -DSKIP_PORTABILITY_TEST=ON ..
-make
-sudo make install
