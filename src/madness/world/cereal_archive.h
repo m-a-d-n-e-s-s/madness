@@ -149,7 +149,7 @@ struct is_serializable<
     std::enable_if_t<
         (is_trivially_serializable<T>::value &&
             !cereal::traits::is_text_archive<Muesli>::value) ||
-            (cereal::traits::detail::count_output_serializers<T, Muesli>::value != 0 &&
+            (cereal::traits::detail::count_input_serializers<T, Muesli>::value != 0 &&
              cereal::traits::is_text_archive<Muesli>::value)>>
     : std::true_type {};
 
