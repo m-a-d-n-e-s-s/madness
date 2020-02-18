@@ -56,6 +56,30 @@ using madness::archive::VectorOutputArchive;
 using madness::archive::BufferInputArchive;
 using madness::archive::BufferOutputArchive;
 
+#include <madness/world/cereal_archive.h>
+#ifdef MADNESS_HAS_CEREAL
+#include <cereal/archives/binary.hpp>
+using CerealBinaryInputArchive = madness::archive::CerealInputArchive<cereal::BinaryInputArchive>;
+using CerealBinaryOutputArchive = madness::archive::CerealOutputArchive<cereal::BinaryOutputArchive>;
+static_assert(!madness::is_text_archive_v<CerealBinaryInputArchive>, "ouch");
+static_assert(!madness::is_text_archive_v<CerealBinaryInputArchive>, "ouch");
+#include <cereal/archives/portable_binary.hpp>
+using CerealPortableBinaryInputArchive = madness::archive::CerealInputArchive<cereal::PortableBinaryInputArchive>;
+using CerealPortableBinaryOutputArchive = madness::archive::CerealOutputArchive<cereal::PortableBinaryOutputArchive>;
+static_assert(!madness::is_text_archive_v<CerealPortableBinaryInputArchive>, "ouch");
+static_assert(!madness::is_text_archive_v<CerealPortableBinaryInputArchive>, "ouch");
+#include <cereal/archives/json.hpp>
+using CerealJSONInputArchive = madness::archive::CerealInputArchive<cereal::JSONInputArchive>;
+using CerealJSONOutputArchive = madness::archive::CerealOutputArchive<cereal::JSONOutputArchive>;
+static_assert(madness::is_text_archive_v<CerealJSONInputArchive>, "ouch");
+static_assert(madness::is_text_archive_v<CerealJSONOutputArchive>, "ouch");
+#include <cereal/archives/xml.hpp>
+using CerealXMLInputArchive = madness::archive::CerealInputArchive<cereal::XMLInputArchive>;
+using CerealXMLOutputArchive = madness::archive::CerealOutputArchive<cereal::XMLOutputArchive>;
+static_assert(madness::is_text_archive_v<CerealXMLInputArchive>, "ouch");
+static_assert(madness::is_text_archive_v<CerealXMLOutputArchive>, "ouch");
+#endif
+
 #include <madness/world/array_addons.h>
 
 // A is a class that provides a symmetric serialize method
@@ -65,7 +89,7 @@ public:
     A(float a = 0.0) : a(a) {};
 
     template <class Archive>
-    inline void serialize(const Archive& ar) {
+    inline void serialize(Archive& ar) {
         ar & a;
     }
 };
@@ -224,23 +248,39 @@ using madness::archive::wrap;
 typedef std::complex<double> double_complex;
 typedef std::tuple<int,double,std::complex<float>> tuple_int_double_complexfloat;
 
-template <typename Archive, typename POD, typename Disabler = std::enable_if_t<std::is_same<std::decay_t<Archive>,TextFstreamOutputArchive>::value>>
-void pod_serialize_dispatch(Archive&& ar, const POD& pod) {
-}
-template <typename Archive, typename POD>
-void pod_serialize_dispatch(Archive&& ar, const POD& pod, std::enable_if_t<!std::is_same<std::decay_t<Archive>,TextFstreamOutputArchive>::value>* = nullptr) {
-  ar & pod;
-  ar << pod;
-}
+template <bool DoSerialize>
+struct pod_serialize_dispatch;
+template <>
+struct pod_serialize_dispatch<false> {
+  template <typename Archive, typename POD>
+  void operator()(Archive&& ar, const POD& pod) {
+  }
+};
+template <>
+struct pod_serialize_dispatch<true> {
+  template <typename Archive, typename POD>
+  void operator()(Archive&& ar, const POD& pod) {
+    ar &pod;
+    ar << pod;
+  }
+};
 
-template <typename Archive, typename POD, typename Disabler = std::enable_if_t<std::is_same<std::decay_t<Archive>,TextFstreamInputArchive>::value>>
-void pod_deserialize_dispatch(Archive&& ar, POD&& pod) {
-}
-template <typename Archive, typename POD>
-void pod_deserialize_dispatch(Archive&& ar, POD&& pod, std::enable_if_t<!std::is_same<std::decay_t<Archive>,TextFstreamInputArchive>::value>* = nullptr) {
-  ar & pod;
-  ar >> pod;
-}
+template <bool DoSerialize>
+struct pod_deserialize_dispatch;
+template <>
+struct pod_deserialize_dispatch<false> {
+  template <typename Archive, typename POD>
+  void operator()(Archive&& ar, const POD& pod) {
+  }
+};
+template <>
+struct pod_deserialize_dispatch<true> {
+  template <typename Archive, typename POD>
+  void operator()(Archive&& ar, const POD& pod) {
+    ar &pod;
+    ar >> pod;
+  }
+};
 
 template <class OutputArchive>
 void test_out(const OutputArchive& oar) {
@@ -302,14 +342,18 @@ void test_out(const OutputArchive& oar) {
     MAD_ARCHIVE_DEBUG(std::cout << std::endl << " C" << std::endl);
     oar & c;
     oar << c;
-    // all but text archives should work with POD
-    if (!std::is_same<OutputArchive, TextFstreamOutputArchive>::value) {
+    // only binary archives can serialize an un-annotated POD
+    constexpr const bool D_is_serializable = !madness::is_text_archive_v<OutputArchive>;
+    if (D_is_serializable) {
       MAD_ARCHIVE_DEBUG(std::cout << std::endl << " D" << std::endl);
-      pod_serialize_dispatch(oar, d);
+      pod_serialize_dispatch<D_is_serializable>{}(oar, d);
     }
-    MAD_ARCHIVE_DEBUG(std::cout << std::endl << " F" << std::endl);
-    oar & f;
-    oar << f;
+    // only MADNESS text archive can use operator<<(std::ostream) to serialize un-annotated POD
+    constexpr const bool F_is_serializable = !madness::is_text_archive_v<OutputArchive> || std::is_same<OutputArchive, TextFstreamOutputArchive>::value;
+    if (F_is_serializable) {
+      MAD_ARCHIVE_DEBUG(std::cout << std::endl << " F" << std::endl);
+      pod_serialize_dispatch<F_is_serializable>{}(oar, f);
+    }
     MAD_ARCHIVE_DEBUG(std::cout << std::endl << " int[]" << std::endl);
     oar & in;
     oar << in;
@@ -322,13 +366,16 @@ void test_out(const OutputArchive& oar) {
     MAD_ARCHIVE_DEBUG(std::cout << std::endl << " C[]" << std::endl);
     oar << cn;
     oar & cn;
-    if (!std::is_same<OutputArchive, TextFstreamOutputArchive>::value) {
+    // only binary archives can serialize an un-annotated POD
+    if (D_is_serializable) {
       MAD_ARCHIVE_DEBUG(std::cout << std::endl << " D[]" << std::endl);
-      pod_serialize_dispatch(oar, dn);
+      pod_serialize_dispatch<D_is_serializable>{}(oar, dn);
     }
-    MAD_ARCHIVE_DEBUG(std::cout << std::endl << " F[]" << std::endl);
-    oar << fn;
-    oar & fn;
+    // only MADNESS text archive can use operator<<(std::ostream) to serialize un-annotated POD
+    if (F_is_serializable) {
+      MAD_ARCHIVE_DEBUG(std::cout << std::endl << " F[]" << std::endl);
+      pod_serialize_dispatch<F_is_serializable>{}(oar, fn);
+    }
     MAD_ARCHIVE_DEBUG(std::cout << std::endl << " double *p wrapped" << std::endl);
     oar << wrap(p,n);
     oar & wrap(p,n);
@@ -357,10 +404,14 @@ void test_out(const OutputArchive& oar) {
     oar << str;
     oar & str;
 
-    oar & 1.0 & i & a & b & c & f & in & an & bn & cn & fn & wrap(p,n) & wrap(q,n) & pp & m & t & str;
-    if (!std::is_same<OutputArchive, TextFstreamOutputArchive>::value) {
-      pod_serialize_dispatch(oar, d);
-      pod_serialize_dispatch(oar, dn);
+    oar & 1.0 & i & a & b & c & in & an & bn & cn & wrap(p,n) & wrap(q,n) & pp & m & t & str;
+    if (D_is_serializable) {
+      pod_serialize_dispatch<D_is_serializable>{}(oar, d);
+      pod_serialize_dispatch<D_is_serializable>{}(oar, dn);
+    }
+    if (F_is_serializable) {
+      pod_serialize_dispatch<F_is_serializable>{}(oar, f);
+      pod_serialize_dispatch<F_is_serializable>{}(oar, fn);
     }
 }
 
@@ -427,13 +478,18 @@ void test_in(const InputArchive& iar) {
     MAD_ARCHIVE_DEBUG(std::cout << std::endl << " C" << std::endl);
     iar & c;
     iar >> c;
-    if (!std::is_same<InputArchive, TextFstreamInputArchive>::value) {
+    // only binary archives can serialize an un-annotated POD
+    constexpr const bool D_is_serializable = !madness::is_text_archive_v<InputArchive>;
+    if (D_is_serializable) {
       MAD_ARCHIVE_DEBUG(std::cout << std::endl << " D" << std::endl);
-      pod_deserialize_dispatch(iar, d);
+      pod_deserialize_dispatch<D_is_serializable>{}(iar, d);
     }
-    MAD_ARCHIVE_DEBUG(std::cout << std::endl << " F" << std::endl);
-    iar & f;
-    iar >> f;
+    // only MADNESS text archive can use operator<<(std::ostream) to serialize un-annotated POD
+    constexpr const bool F_is_serializable = !madness::is_text_archive_v<InputArchive> || std::is_same<InputArchive, TextFstreamInputArchive>::value;
+    if (F_is_serializable) {
+      MAD_ARCHIVE_DEBUG(std::cout << std::endl << " F" << std::endl);
+      pod_deserialize_dispatch<F_is_serializable>{}(iar, f);
+    }
     MAD_ARCHIVE_DEBUG(std::cout << std::endl << " int[]" << std::endl);
     iar & in;
     iar >> in;
@@ -446,13 +502,14 @@ void test_in(const InputArchive& iar) {
     MAD_ARCHIVE_DEBUG(std::cout << std::endl << " C[]" << std::endl);
     iar & cn;
     iar >> cn;
-    if (!std::is_same<InputArchive, TextFstreamInputArchive>::value) {
+    if (D_is_serializable) {
       MAD_ARCHIVE_DEBUG(std::cout << std::endl << " D[]" << std::endl);
-      pod_deserialize_dispatch(iar, dn);
+      pod_deserialize_dispatch<D_is_serializable>{}(iar, dn);
     }
-    MAD_ARCHIVE_DEBUG(std::cout << std::endl << " F[]" << std::endl);
-    iar & fn;
-    iar >> fn;
+    if (F_is_serializable) {
+      MAD_ARCHIVE_DEBUG(std::cout << std::endl << " F[]" << std::endl);
+      pod_deserialize_dispatch<F_is_serializable>{}(iar, fn);
+    }
     MAD_ARCHIVE_DEBUG(std::cout << std::endl << " double *p wrapped" << std::endl);
     iar & wrap(p,n);
     iar >> wrap(p,n);
@@ -481,10 +538,14 @@ void test_in(const InputArchive& iar) {
     iar & str;
     iar >> str;
 
-    iar & 1.0 & i & a & b & c & f & in & an & bn & cn & fn & wrap(p,n) & wrap(q,n) & pp & m & t & str;
-    if (!std::is_same<InputArchive, TextFstreamInputArchive>::value) {
-      pod_deserialize_dispatch(iar, d);
-      pod_deserialize_dispatch(iar, dn);
+    iar & 1.0 & i & a & b & c & in & an & bn & cn & wrap(p,n) & wrap(q,n) & pp & m & t & str;
+    if (D_is_serializable) {
+      pod_deserialize_dispatch<D_is_serializable>{}(iar, d);
+      pod_deserialize_dispatch<D_is_serializable>{}(iar, dn);
+    }
+    if (F_is_serializable) {
+      pod_deserialize_dispatch<F_is_serializable>{}(iar, f);
+      pod_deserialize_dispatch<F_is_serializable>{}(iar, fn);
     }
     // Test data
     bool status = true;
@@ -494,23 +555,27 @@ void test_in(const InputArchive& iar) {
     TEST(a.a == 1);
     TEST(b.b == 1);
     TEST(c.c == 1);
-    if (!std::is_same<InputArchive, TextFstreamInputArchive>::value) {
+    if (D_is_serializable) {
       TEST(d.i == 1);
       TEST(d.l == 2);
     }
-    TEST(f.i == 1);
-    TEST(f.l == 2);
+    if (F_is_serializable) {
+      TEST(f.i == 1);
+      TEST(f.l == 2);
+    }
     TEST(i == 1);
     for (int k=0; k<n; ++k) {
         TEST(an[k].a == k);
         TEST(bn[k].b == (k&1));
         TEST(cn[k].c == k);
-        if (!std::is_same<InputArchive, TextFstreamInputArchive>::value) {
+        if (D_is_serializable) {
           TEST(dn[k].i == k+1);
           TEST(dn[k].l == k+2);
         }
-        TEST(fn[k].i == k+3);
-        TEST(fn[k].l == k+4);
+        if (F_is_serializable) {
+          TEST(fn[k].i == k + 3);
+          TEST(fn[k].l == k + 4);
+        }
         TEST(in[k] == k);
         TEST(p[k] == k);
         TEST(q[k].a == k);
@@ -594,5 +659,75 @@ int main() {
         iar.close();
     }
 
-    return 0;
+#ifdef MADNESS_HAS_CEREAL
+    {
+      const char *f = "test.dat";
+      cout << endl << "testing binary Cereal archive" << endl;
+      {
+        std::ofstream fout(f, std::ios_base::binary | std::ios_base::out |
+                                  std::ios_base::trunc);
+        CerealBinaryOutputArchive oar(fout);
+        test_out(oar);
+        oar.close();
+      }
+
+      {
+        std::ifstream fin(f, std::ios_base::binary | std::ios_base::in);
+        CerealBinaryInputArchive iar(fin);
+        test_in(iar);
+        iar.close();
+      }
+
+      cout << endl << "testing portable binary Cereal archive" << endl;
+      {
+        std::ofstream fout(f, std::ios_base::binary | std::ios_base::out |
+                                  std::ios_base::trunc);
+        CerealPortableBinaryOutputArchive oar(fout);
+        test_out(oar);
+        oar.close();
+      }
+
+      {
+        std::ifstream fin(f, std::ios_base::binary | std::ios_base::in);
+        CerealPortableBinaryInputArchive iar(fin);
+        test_in(iar);
+        iar.close();
+      }
+
+      cout << endl << "testing JSON Cereal archive" << endl;
+      {
+        std::ofstream fout(f, std::ios_base::out |
+            std::ios_base::trunc);
+        CerealJSONOutputArchive oar(fout);
+        test_out(oar);
+        oar.close();
+      }
+
+      {
+        std::ifstream fin(f, std::ios_base::in);
+        CerealJSONInputArchive iar(fin);
+        test_in(iar);
+        iar.close();
+      }
+
+      cout << endl << "testing XML Cereal archive" << endl;
+      {
+        std::ofstream fout(f, std::ios_base::out |
+            std::ios_base::trunc);
+        CerealXMLOutputArchive oar(fout);
+        test_out(oar);
+        oar.close();
+      }
+
+      {
+        std::ifstream fin(f, std::ios_base::in);
+        CerealXMLInputArchive iar(fin);
+        test_in(iar);
+        iar.close();
+      }
+
+    }
+#endif  // MADNESS_HAS_CEREAL
+
+  return 0;
 }

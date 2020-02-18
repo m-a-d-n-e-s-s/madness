@@ -15,6 +15,11 @@ if [ "$CXX" = "clang++" ]; then
     export EXTRACXXFLAGS="-DMKL_DIRECT_CALL"
 fi
 
+# add cereal header files to include dirs
+if [ ! -f "${HOME}/cereal/include/cereal/cereal.hpp" ]; then
+    export EXTRACXXFLAGS="-DI${HOME}/cereal/include"
+fi
+
 # Set up paths to stuff we installed
 export MPIDIR=$HOME/mpich
 export LIBXCDIR=$HOME/libxc
