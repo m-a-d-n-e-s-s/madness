@@ -124,6 +124,8 @@ if [ ! -f "${HOME}/cereal/include/cereal/cereal.hpp" ]; then
     cd build
     cmake -D JUST_INSTALL_CEREAL=ON -D CMAKE_INSTALL_PREFIX=${HOME}/cereal ..
     make install
+    cd 
+    rm -rf cereal_repo
 else
     echo "Cereal installed..."
     find ${HOME}/cereal/include/cereal -name "cereal.hpp"

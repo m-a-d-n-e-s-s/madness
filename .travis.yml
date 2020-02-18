@@ -44,3 +44,4 @@ cache:
     - $HOME/mpich
     - $HOME/libxc
     - $HOME/ccache
+    - $HOME/cereal
