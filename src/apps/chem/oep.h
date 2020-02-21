@@ -42,36 +42,6 @@ struct dens_inv1{
 
 };
 
-
-//struct binary_munge{
-//
-//	double longrangevalue;
-//	double threshold;
-//
-//	// default value for threshold is 1.0e-8
-//	binary_munge(const double thresh = 1.0e-8, const double lrv = 0.0) {
-//		longrangevalue = lrv;
-//		threshold = thresh;
-//	}
-//
-//    /// @param[out] U   result
-//    /// @param[in]  f   function to be munged
-//    /// @param[in]  r   reference density
-//    void operator()(const Key<3>& key, Tensor<double>& U, const Tensor<double>& f,
-//            const Tensor<double>& refdens) const {
-//        ITERATOR(
-//            U, double r = refdens(IND);
-//            double ff = f(IND);
-//            U(IND) = (r > threshold) ? ff : longrangevalue;
-//        );
-//    }
-//
-//    template <typename Archive>
-//    void serialize(Archive& ar) {}
-//
-//};
-
-
 struct interpolate_munge_refdens{
 
 	double thresh_high, thresh_low, log_high, log_low;
@@ -112,6 +82,49 @@ struct interpolate_munge_refdens{
 
 };
 
+
+/// Class to compute terms of the potential
+struct interpolate_to_longrange_op {
+
+	double thresh_high=1.e-5;
+	double thresh_low=1.e-7;
+	double log_high, log_low;
+
+	interpolate_to_longrange_op(double hi, double lo) : thresh_high(hi), thresh_low(lo),
+			log_high(log10(thresh_high)), log_low(log10(thresh_low)) {}
+
+    std::size_t get_result_size() const {
+    	return 1;
+    }
+
+	/// @param[in]	t	vector containing: oep, refdensity, longrange
+	std::vector<Tensor<double> > operator()(const Key<3> & key,
+			const std::vector<Tensor<double> >& t) const {
+
+		const Tensor<double>& refdens=t[0];
+		const Tensor<double>& oep=t[1];
+		const Tensor<double>& longrange=t[2];
+
+    	// set 1 if above munge interval (dens > thresh_high) or 0 if below munge interval (dens < thresh_low)
+    	// interpolate inbetween with logarithmic form of (r - lo)/(hi - lo) because this yields near linear behavior
+    	Tensor<double> U = copy(refdens); // copy refdens in oder to have the same dimension in the tensor
+    	U.fill(1.0); // start with a fuction that is 1.0 everywhere
+        ITERATOR(
+            U, double r = refdens(IND);
+            if (r > thresh_high) {
+            	U(IND) = oep(IND);
+            } else if (r < thresh_low) {
+            	U(IND) = longrange(IND);
+            } else {
+            	// mask = 1 if refdens>hi, 0 if refdens < lo, interpolate in between
+            	double mask=(log10(refdens(IND)) - log_low)/(log_high - log_low);
+            	U(IND)=mask*oep(IND) + (1.0-mask)*longrange(IND);
+            }
+        );
+        return std::vector<Tensor<double> > (1,U);
+	}
+};
+
 class OEP_Parameters : public QCCalculationParametersBase {
 public:
 	OEP_Parameters(World& world, std::string inputfile) {
@@ -144,6 +157,9 @@ public:
 	}
 
 	void set_derived_values(const Nemo::NemoCalculationParameters& nparam) {
+		if (dens_thresh_hi()<dens_thresh_lo()) {
+			MADNESS_EXCEPTION("confused thresholds for the long-range transition",1);
+		}
     	set_derived_value("density_threshold_inv",0.1*get<double>("density_threshold_low"));
     	set_derived_value("conv_threshold",nparam.econv());
 
@@ -187,38 +203,6 @@ class OEP : public Nemo {
 	typedef std::shared_ptr<real_convolution_3d> poperatorT;
 
 private:
-//
-//	double dens_thresh_hi = 1.0e-4;                   // default 1.0e-4
-//	double dens_thresh_lo = 1.0e-7;                   // default 1.0e-7
-//	double dens_thresh_inv = 1.0e-8;                  // default 0.1*dens_thresh_lo
-//	bool set_thresh_inv = false;                      // to check if default or custom
-//	double conv_thresh = calc->param.econv();           // default convergence threshold is same as econv
-//	std::vector<double> kain_param = {1.0e-8, 3.0};   // default KAIN settings for rcondtol and cabsmax (see nonlinsol.h)
-//	unsigned int damp_num = 0;                        // default 0 (no damping)
-//	std::vector<double> damp_coeff;
-//	std::string model;
-//	std::vector<bool> oep_model = {false, false, false, false};
-//	unsigned int saving_amount = 1;                   // choose level 0, 1, 2 or 3 for saving functions
-//	unsigned int save_iter_orbs = 0;                  // if > 0 save all orbitals every ... iterations (needs a lot of storage!)
-//	unsigned int save_iter_density = 0;               // if > 0 save KS density every ... iterations
-//	unsigned int save_iter_IKS = 0;                   // if > 0 save IKS every ... iterations
-//	unsigned int save_iter_kin_tot_KS = 0;            // if > 0 save kin_tot_KS every ... iterations
-//	unsigned int save_iter_kin_P_KS = 0;              // if > 0 save kin_P_KS every ... iterations
-//	unsigned int save_iter_ocep_correction = 0;       // if > 0 save OCEP correction every ... iterations
-//	unsigned int save_iter_dcep_correction = 0;       // if > 0 save DCEP correction every ... iterations
-//	unsigned int save_iter_mrks_correction = 0;       // if > 0 save mRKS correction every ... iterations
-//	unsigned int save_iter_total_correction = 0;      // if > 0 save total correction (OCEP + DCEP) every ... iterations
-//	unsigned int save_iter_effective_potential = 0;   // if > 0 save effective potential every ... iterations
-//
-//	void set_model_oaep() {oep_model[0] = true;}
-//	bool is_oaep() const {return oep_model[0];}
-//	void set_model_ocep() {oep_model[1] = true;}
-//	bool is_ocep() const {return oep_model[1];}
-//	void set_model_dcep() {oep_model[2] = true;}
-//	bool is_dcep() const {return oep_model[2];}
-//	void set_model_mrks() {oep_model[3] = true;}
-//	bool is_mrks() const {return oep_model[3];}
-
 	/// returns true if all members of a vector of booleans are true, otherwise false
 	bool IsAlltrue(std::vector<bool> vec) {
 		for (int i = 0; i < vec.size(); i++) {
@@ -242,142 +226,6 @@ public:
 		oep_param.print("oep","end");
 
 	}
-
-//	void read_oep_param(std::istream& in) {
-//        position_stream(in, "oep");
-//        std::string str;
-//
-//        while (in >> str) {
-//            if (str == "end") {
-//                break;
-//            }
-//            else if (str == "model") {
-//            	in >> model; // default model is mRKS
-//            }
-//            else if (str == "density_threshold_high") {
-//            	in >> dens_thresh_hi;
-//            }
-//            else if (str == "density_threshold_low") {
-//            	in >> dens_thresh_lo;
-//            }
-//            else if (str == "density_threshold_inverting") {
-//            	in >> dens_thresh_inv;
-//            	set_thresh_inv = true;
-//            }
-//            else if (str == "conv_threshold") {
-//            	in >> conv_thresh;
-//            }
-//            else if (str == "kain_parameters") {
-//            	in >> kain_param[0];
-//            	in >> kain_param[1];
-//            }
-//            else if (str == "damping") {
-//            	in >> damp_num;
-//            	for (unsigned int i = 0; i < damp_num + 1; i++) {
-//            		double coeff;
-//            		in >> coeff;
-//            		damp_coeff.push_back(coeff);
-//            	}
-//            }
-//            else if (str == "saving_amount") {
-//            	in >> saving_amount;
-//            }
-//            else if (str == "save_orbitals") {
-//            	in >> save_iter_orbs;
-//            }
-//            else if (str == "save_density") {
-//            	in >> save_iter_density;
-//            }
-//            else if (str == "save_IKS") {
-//            	in >> save_iter_IKS;
-//            }
-//            else if (str == "save_kin_tot_KS") {
-//            	in >> save_iter_kin_tot_KS;
-//            }
-//            else if (str == "save_kin_P_KS") {
-//            	in >> save_iter_kin_P_KS;
-//            }
-//            else if (str == "save_OCEP_correction") {
-//            	in >> save_iter_ocep_correction;
-//            }
-//            else if (str == "save_DCEP_correction") {
-//            	in >> save_iter_dcep_correction;
-//            }
-//            else if (str == "save_mRKS_correction") {
-//            	in >> save_iter_mrks_correction;
-//            }
-//            else if (str == "save_total_correction") {
-//            	in >> save_iter_total_correction;
-//            }
-//            else if (str == "save_effective_potential") {
-//            	in >> save_iter_effective_potential;
-//            }
-//            else {
-//                print("oep: unrecognized input keyword:", str);
-//                MADNESS_EXCEPTION("input error",0);
-//            }
-//        }
-//
-//        // set variables from input and print notes in output
-//
-//    	if (model == "oaep" or model == "OAEP") {
-//    		set_model_oaep();
-//    		model = "OAEP";
-//    	} else if (model == "ocep" or model == "OCEP") {
-//    		set_model_ocep();
-//    		model = "OCEP";
-//    	} else if (model == "dcep" or model == "DCEP") {
-//    		set_model_dcep();
-//    		model = "DCEP";
-//    	} else if (model == "mrks" or model == "mRKS" or model == "MRKS" or model.empty()) { // default model is mRKS
-//    		set_model_mrks();
-//    		model = "mRKS";
-//    	} else {
-//            print("oep: no available OEP model selected, please choose one of the following: oaep/ocep/dcep/mrks");
-//            MADNESS_EXCEPTION("input error",0);
-//    	}
-//
-//    	if (!set_thresh_inv) dens_thresh_inv = 0.1*dens_thresh_lo; // take default dens_thresh_inv
-//
-//    	print("using", model, "model as approximation to OEP");
-//    	print("using upper density threshold =", dens_thresh_hi);
-//    	print("using lower density threshold =", dens_thresh_lo);
-//    	print("using density threshold for inverting =", dens_thresh_inv);
-//    	print("using convergence threshold for optimized potential =", conv_thresh);
-//    	print("using KAIN parameters rcondtol =", kain_param[0], "and cabsmax =", kain_param[1]);
-//    	if (damp_num == 0) {
-//    		damp_coeff.push_back(1.0);
-//    		print("using no damping");
-//    	}
-//    	else {
-//    		print("using damping with", damp_num, "old potential(s) and the following coefficients:");
-//    		print("         new potential =", damp_coeff[0]);
-//    		for (unsigned int i = 1; i < damp_num + 1; i++) {
-//    			print("  previous potential", i, "=", damp_coeff[i]);
-//    		}
-//    	}
-//    	if (is_dcep() or is_mrks()) {
-//        	if (calc->param.dft_deriv() == "bspline") print("unsing b-spline gradient operator for DCEP correction");
-//        	else print("using default abgv gradient operator for", model, "correction");
-//    	}
-//    	print("");
-//
-//        // check some common mistakes in input file
-//
-//        if (dens_thresh_hi <= dens_thresh_lo) {
-//            print("oep: density_threshold_high must always be larger than density_threshold_low!");
-//            MADNESS_EXCEPTION("input error",0);
-//        }
-//
-//        double all_coeffs = 0.0;
-//        for (unsigned int i = 0; i < damp_num + 1; i++) {
-//        	all_coeffs += damp_coeff[i];
-//        }
-//        if (all_coeffs != 1.0) {
-//            print("oep: sum of damping coefficients does not equal 1.0, please check the input file!");
-//            MADNESS_EXCEPTION("input error",0);
-//        }
-//	}
 
     /// Iterative energy calculation for approximate OEP with EXACT EXCHANGE functional
 	/// for other functionals, slater potential must be modified
@@ -415,13 +263,34 @@ public:
     	return density;
     }
 
-    /// get function that is 1 for density > dens_thresh_hi and 0 for density < dens_thresh_lo
-    /// interpolate logarithmic density inbetween
-    real_function_3d compute_weighting_function(const vecfuncT& nemo) const {
-    	real_function_3d density = compute_density(nemo);
-    	real_function_3d weighting = unary_op(density, interpolate_munge_refdens(
-    			oep_param.dens_thresh_hi(), oep_param.dens_thresh_lo()));
-    	return weighting;
+    /// gradually turn the input function f into its long-range asymptotic form longrange
+
+    /// @param[in]	f	the function of interest
+    /// @param[in]	refdensity	the reference density, on which the transition is based
+    /// @param[in]	longrange	the long-range asymptotics function
+    /// @return 	the function f with the long-range asymptotics longrange
+    real_function_3d interpolate_to_longrange(const real_function_3d refdensity,
+    		const real_function_3d& f, const real_function_3d& longrange) const {
+
+    	std::vector<real_function_3d> args={refdensity,f,longrange};
+        refine_to_common_level(world,args);
+
+        interpolate_to_longrange_op op(oep_param.dens_thresh_hi(), oep_param.dens_thresh_lo());
+        real_function_3d result=multi_to_multi_op_values(op,args)[0];
+
+        return result;
+    }
+
+    /// gradually turn the input function f into its long-range asymptotic form longrange
+
+    /// @param[in]	f	the function of interest
+    /// @param[in]	refdensity	the reference density, on which the transition is based
+    /// @param[in]	longrange	the long-range asymptotics (optional, set to zero if not present)
+    /// @return 	the function f with the long-range asymptotics longrange
+    real_function_3d interpolate_to_longrange(const real_function_3d refdensity,
+    		const real_function_3d& f, const double longrange=0.0) const {
+    	real_function_3d lra=real_factory_3d(world).functor([&longrange](const coord_3d& r){return longrange;});
+    	return interpolate_to_longrange(refdensity,f,lra);
     }
 
     /// compute \Delta rho as an indicator for the result's quality
@@ -463,11 +332,8 @@ public:
 //        	save(potential, "int_phi"+stringify(i)+"phi"+stringify(i));
 //        }
 
-        // interpolate in interval between explicit calculation and long range asymptotics
-        real_function_3d weight = compute_weighting_function(nemo);
-//        save(weight, "weight_slater");
-        Vs = Vs*weight + lra*(1.0 - weight);
-
+    	real_function_3d density = compute_density(nemo);
+        Vs=interpolate_to_longrange(density,Vs,lra);
         return Vs;
 
     }
@@ -491,8 +357,9 @@ public:
         // munge I for long-range asymptotic behavior which is -epsilon_HOMO
        	print("computing I: index of HOMO is", homo_ind(eigvals));
        	double lra = -1.0*eigvals(homo_ind(eigvals));
-       	real_function_3d weight = compute_weighting_function(nemo);
-       	I = I*weight + lra*(1.0 - weight);
+
+    	real_function_3d density = compute_density(nemo);
+        I=interpolate_to_longrange(density,I,lra);
 
         return I;
 
@@ -535,8 +402,9 @@ public:
         // munge quotient for long-range asymptotic behavior which is -epsilon_HOMO
        	print("computing tau/rho: index of HOMO is", homo_ind(eigvals));
        	double lra = -1.0*eigvals(homo_ind(eigvals));
-       	real_function_3d weight = compute_weighting_function(nemo);
-       	quotient = quotient*weight + lra*(1.0 - weight);
+
+    	real_function_3d density = compute_density(nemo);
+    	quotient=interpolate_to_longrange(density,quotient,lra);
 
     	return quotient;
 
@@ -571,8 +439,9 @@ public:
 
         // munge quotient for long-range asymptotic behavior which is 0
        	print("computing tau_P/rho: index of HOMO is", homo_ind(eigvals));
-       	real_function_3d weight = compute_weighting_function(nemo);
-       	quotient = quotient*weight; // + lra*(1.0 - weight) but lra is 0 here
+
+    	real_function_3d density = compute_density(nemo);
+    	quotient=interpolate_to_longrange(density,quotient,0.0);
 
     	return quotient;
 

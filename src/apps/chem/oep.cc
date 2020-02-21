@@ -444,10 +444,6 @@ void OEP::test_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
     print("     the HOMO index is ...", homo_ind(HF_eigvals));
     print("  HOMO index computed successfully\n");
 
-    print("test construction of the munging weighting function");
-    real_function_3d weight_HF = compute_weighting_function(HF_nemo);
-    print("  weighting function computed successfully\n");
-
     print("test construction of HF density");
     const real_function_3d rho_HF = compute_density(HF_nemo);
     print("  HF density computed successfully\n");
