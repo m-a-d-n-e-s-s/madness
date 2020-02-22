@@ -42,44 +42,52 @@ struct dens_inv1{
 
 };
 
-struct interpolate_munge_refdens{
+/// Class to compute terms of the potential
+struct divide_add_interpolate {
 
-	double thresh_high, thresh_low, log_high, log_low;
-	typedef double resultT;
+	double thresh_high=1.e-5;
+	double thresh_low=1.e-7;
+	double log_high, log_low;
 
-	// same default values as for dens_thresh_hi and dens_thresh_lo
-	interpolate_munge_refdens(const double hi = 1.0e-4, const double lo = 1.0e-7) {
-		thresh_high = hi;
-		thresh_low = lo;
-		log_high = log10(thresh_high);
-		log_low = log10(thresh_low);
-	}
+	divide_add_interpolate(double hi, double lo) : thresh_high(hi), thresh_low(lo),
+			log_high(log10(thresh_high)), log_low(log10(thresh_low)) {}
 
-    /// @param[out] U   result
-    /// @param[in]  r   reference density
-    Tensor<double> operator()(const Key<3>& key, const Tensor<double>& refdens) const {
+    std::size_t get_result_size() const {
+    	return 1;
+    }
+
+	/// @param[in]	t	vector containing: oep, refdensity, longrange
+    /// @return		(num1/denom1 - num2/denom2) * mask + (1-mask)*longrange
+	std::vector<Tensor<double> > operator()(const Key<3> & key,
+			const std::vector<Tensor<double> >& t) const {
+
+		const Tensor<double>& refdens=t[0];
+		const Tensor<double>& num1=t[1];
+		const Tensor<double>& denom1=t[2];
+		const Tensor<double>& num2=t[3];
+		const Tensor<double>& denom2=t[4];
+		const Tensor<double>& longrange=t[5];
 
     	// set 1 if above munge interval (dens > thresh_high) or 0 if below munge interval (dens < thresh_low)
     	// interpolate inbetween with logarithmic form of (r - lo)/(hi - lo) because this yields near linear behavior
     	Tensor<double> U = copy(refdens); // copy refdens in oder to have the same dimension in the tensor
     	U.fill(1.0); // start with a fuction that is 1.0 everywhere
         ITERATOR(
-            U, double r = refdens(IND);
+            U,
+			double r = refdens(IND);
+        	double result=num1(IND)/denom1(IND) - num2(IND)/denom2(IND);
             if (r > thresh_high) {
-            	U(IND) = 1.0;
+            	U(IND) = result;
             } else if (r < thresh_low) {
-            	U(IND) = 0.0;
+            	U(IND) = longrange(IND);
             } else {
-            	U(IND) = (log10(refdens(IND)) - log_low)/(log_high - log_low);
+            	// mask = 1 if refdens>hi, 0 if refdens < lo, interpolate in between
+            	double mask=(log10(refdens(IND)) - log_low)/(log_high - log_low);
+            	U(IND)=mask*result + (1.0-mask)*longrange(IND);
             }
         );
-        return U;
-
-    }
-
-    template <typename Archive>
-    void serialize(Archive& ar) {}
-
+        return std::vector<Tensor<double> > (1,U);
+	}
 };
 
 
@@ -183,7 +191,6 @@ public:
 
 	unsigned int save_iter_orbs               () const {return get<unsigned int>("save_iter_orbs");}
 	unsigned int save_iter_density            () const {return get<unsigned int>("save_iter_density");}
-	unsigned int save_iter_IKS                () const {return get<unsigned int>("save_iter_iks");}
 	unsigned int save_iter_kin_tot_KS         () const {return get<unsigned int>("save_iter_kin_tot_ks");}
 	unsigned int save_iter_kin_P_KS           () const {return get<unsigned int>("save_iter_kin_p_ks");}
 	unsigned int save_iter_ocep_correction    () const {return get<unsigned int>("save_iter_ocep_correction");}
@@ -338,40 +345,10 @@ public:
 
     }
 
-    /// compute average ionization energy I like Kohut, 2014, equations (21) and (25)
-    real_function_3d compute_average_I(const vecfuncT& nemo, const tensorT eigvals) const {
+    /// compute the total kinetic energy density of equation (6) from Kohut
 
-    	// transform 1d tensor eigvals to vector epsilon
-		std::vector<double> epsilon(eigvals.size());
-		for (int i = 0; i < eigvals.size(); i++) epsilon[i] = eigvals(i);
-
-		vecfuncT nemo_square = square(world, nemo); // |nemo|^2
-		scale(world, nemo_square, epsilon); // epsilon*|nemo|^2
-		// 2.0*R_square in numerator and density (rho) cancel out upon division
-		real_function_3d numerator = sum(world, nemo_square);
-        real_function_3d rho = dot(world, nemo, nemo);
-
-        // like Kohut, 2014, equations (21) and (25)
-        real_function_3d I = -1.0*binary_op(numerator, rho, dens_inv1(oep_param.dens_thresh_inv()));
-
-        // munge I for long-range asymptotic behavior which is -epsilon_HOMO
-       	print("computing I: index of HOMO is", homo_ind(eigvals));
-       	double lra = -1.0*eigvals(homo_ind(eigvals));
-
-    	real_function_3d density = compute_density(nemo);
-        I=interpolate_to_longrange(density,I,lra);
-
-        return I;
-
-    }
-
-    /// compute the total kinetic energy density devided by the density tau/rho with equation (6) from Kohut
+    /// return without the NCF and factor 2 for closed shell !
     real_function_3d compute_total_kinetic_density(const vecfuncT& nemo, const tensorT eigvals) const {
-
-    	// compute the denominator rho (density)
-    	real_function_3d rho = compute_density(nemo);
-
-    	// compute the numerator tau
 
 	    // get \nabla R and (\nabla R)^2 via and U1 = -1/R \nabla R and U1dot = (1/R \nabla R)^2
     	const vecfuncT U1 = this->ncf->U1vec();
@@ -394,27 +371,14 @@ public:
 								   - 2.0*nemo[i]*dot(world, U1, grad_nemo[i])
 								   + dot(world, grad_nemo[i], grad_nemo[i]);
 		}
-		real_function_3d tau = R_square*sum(world, grad_nemo_squared); // 1/2 * sum |Nabla nemo|^2 (* 2 because closed shell)
+		real_function_3d tau = 0.5*sum(world, grad_nemo_squared); // 1/2 * sum |Nabla nemo|^2 (* 2 because closed shell)
 
-		// calculate quotient = tau/rho
-		real_function_3d quotient = binary_op(tau, rho, dens_inv1(oep_param.dens_thresh_inv()));
-
-        // munge quotient for long-range asymptotic behavior which is -epsilon_HOMO
-       	print("computing tau/rho: index of HOMO is", homo_ind(eigvals));
-       	double lra = -1.0*eigvals(homo_ind(eigvals));
-
-    	real_function_3d density = compute_density(nemo);
-    	quotient=interpolate_to_longrange(density,quotient,lra);
-
-    	return quotient;
+		return tau;
 
     }
 
-    /// compute the Pauli kinetic energy density devided by the density tau_P/rho with equation (16) from Ospadov, 2017
+    /// compute the Pauli kinetic energy density divided by the density tau_P/rho with equation (16) from Ospadov, 2017
     real_function_3d compute_Pauli_kinetic_density(const vecfuncT& nemo, const tensorT eigvals) const {
-
-    	// compute the denominator rho (density)
-    	real_function_3d rho_square = square(dot(world, nemo, nemo)); // density squared without 2.0*R_square
 
     	// compute the numerator tau_P
 
@@ -434,34 +398,120 @@ public:
 		}
 		real_function_3d numerator = sum(world, grad_nemo_term); // numerator = tau_P * 2 * rho / R^4
 
-		// calculate quotient = tau_P/rho
-		real_function_3d quotient = 0.5*binary_op(numerator, rho_square, dens_inv1(oep_param.dens_thresh_inv()));
-
-        // munge quotient for long-range asymptotic behavior which is 0
-       	print("computing tau_P/rho: index of HOMO is", homo_ind(eigvals));
-
-    	real_function_3d density = compute_density(nemo);
-    	quotient=interpolate_to_longrange(density,quotient,0.0);
-
-    	return quotient;
+		return numerator;
 
     }
 
     /// compute correction of the given model
-    real_function_3d compute_oep_correction(const std::string model, const real_function_3d corrHF, const vecfuncT& nemoKS,
-    		const tensorT eigvalsKS) const {
+    real_function_3d compute_oep_correction(const std::string model,
+			const vecfuncT& nemoHF, const tensorT eigvalHF,
+			const vecfuncT& nemoKS, const tensorT eigvalKS) const {
 
-    	// Kohn-Sham correction of given model
-    	real_function_3d corrKS;
-    	if (model == "ocep") corrKS = compute_average_I(nemoKS, eigvalsKS);
-    	if (model == "dcep") corrKS = compute_total_kinetic_density(nemoKS, eigvalsKS);
-    	if (model == "mrks") corrKS = compute_Pauli_kinetic_density(nemoKS, eigvalsKS);
+    	if (model == "ocep") return compute_ocep_correction(nemoHF,eigvalHF,nemoKS,eigvalKS);
+    	else if (model == "dcep") return compute_dcep_correction(nemoHF,eigvalHF,nemoKS,eigvalKS);
+    	else if (model == "mrks") return compute_mrks_correction(nemoHF,eigvalHF,nemoKS,eigvalKS);
+    	else {
+    		MADNESS_EXCEPTION("unknown model in compute_oep_correction",1);
+    	}
+    }
 
-    	// calculate correction corrHF - corrKS like Kohut, 2014, equation (26) or (33)
-    	real_function_3d correction = corrHF - corrKS;
+    /// compute correction of the given model
+    real_function_3d compute_ocep_correction(const vecfuncT& nemoHF, const tensorT& eigvalsHF,
+    		const vecfuncT& nemoKS, const tensorT& eigvalsKS) const {
+
+		// 2.0*R_square in numerator and density (rho) cancel out upon division
+    	real_function_3d numeratorHF=-1.0*compute_energy_weighted_density(nemoHF,eigvalsHF);
+    	real_function_3d numeratorKS=-1.0*compute_energy_weighted_density(nemoKS,eigvalsKS);
+
+		// 2.0*R_square in numerator and density (rho) cancel out upon division
+        real_function_3d densityKS = dot(world, nemoKS, nemoKS);
+        real_function_3d densityHF = dot(world, nemoHF, nemoHF);
+
+       	double lraKS = -eigvalsKS(homo_ind(eigvalsKS));
+       	double lraHF = -eigvalsHF(homo_ind(eigvalsHF));
+
+        double longrange=lraHF-lraKS;
+    	real_function_3d lra_func=real_factory_3d(world).functor([&longrange](const coord_3d& r)
+    			{return longrange;});
+
+    	std::vector<real_function_3d> args={densityKS,numeratorHF,densityHF,
+    			numeratorKS,densityKS,lra_func};
+        refine_to_common_level(world,args);
+
+        divide_add_interpolate op(oep_param.dens_thresh_hi(), oep_param.dens_thresh_lo());
+        real_function_3d correction=multi_to_multi_op_values(op,args)[0];
 
     	return correction;
 
+    }
+
+    /// return without the NCF and factor 2 for closed shell !
+    real_function_3d compute_energy_weighted_density(const vecfuncT& nemo, const tensorT& eigval) const {
+
+    	// transform 1d tensor eigvals to vector epsilon
+		std::vector<double> epsilon(eigval.size());
+		for (int i = 0; i < eigval.size(); i++) epsilon[i] = eigval(i);
+
+		vecfuncT nemo_square = square(world, nemo); // |nemo|^2
+		scale(world, nemo_square, epsilon); // epsilon*|nemo|^2
+		// 2.0*R_square in numerator and density (rho) cancel out upon division
+		real_function_3d numerator = sum(world, nemo_square);
+		return numerator;
+    }
+
+    /// compute correction of the given model
+    real_function_3d compute_dcep_correction(const vecfuncT& nemoHF, const tensorT& eigvalsHF,
+    		const vecfuncT& nemoKS, const tensorT& eigvalsKS) const {
+
+		// 2.0*R_square in numerator and density (rho) cancel out upon division
+    	real_function_3d numeratorHF=compute_total_kinetic_density(nemoHF,eigvalsHF);
+    	real_function_3d numeratorKS=compute_total_kinetic_density(nemoKS,eigvalsKS);
+
+		// 2.0*R_square in numerator and density (rho) cancel out upon division
+        real_function_3d densityKS = dot(world, nemoKS, nemoKS);
+        real_function_3d densityHF = dot(world, nemoHF, nemoHF);
+
+       	double lraKS = -eigvalsKS(homo_ind(eigvalsKS));
+       	double lraHF = -eigvalsHF(homo_ind(eigvalsHF));
+
+        double longrange=lraHF-lraKS;
+    	real_function_3d lra_func=real_factory_3d(world).functor([&longrange](const coord_3d& r)
+    			{return longrange;});
+
+    	std::vector<real_function_3d> args={densityKS,numeratorHF,densityHF,
+    			numeratorKS,densityKS,lra_func};
+        refine_to_common_level(world,args);
+
+        divide_add_interpolate op(oep_param.dens_thresh_hi(), oep_param.dens_thresh_lo());
+        real_function_3d correction=multi_to_multi_op_values(op,args)[0];
+
+    	return correction;
+    }
+
+
+    /// compute correction of the given model
+    real_function_3d compute_mrks_correction(const vecfuncT& nemoHF, const tensorT& eigvalsHF,
+    		const vecfuncT& nemoKS, const tensorT& eigvalsKS) const {
+
+		// 2.0*R_square in numerator and density (rho) cancel out upon division
+    	real_function_3d numeratorHF=compute_Pauli_kinetic_density(nemoHF,eigvalsHF);
+    	real_function_3d numeratorKS=compute_Pauli_kinetic_density(nemoKS,eigvalsKS);
+
+		// 2.0*R_square in numerator and density (rho) cancel out upon division
+        real_function_3d densityKSsquare = square(dot(world, nemoKS, nemoKS));
+        real_function_3d densityHFsquare = square(dot(world, nemoHF, nemoHF));
+
+        // longrange correction is zero
+    	real_function_3d lra_func=real_factory_3d(world).functor([](const coord_3d& r) {return 0.0;});
+
+    	std::vector<real_function_3d> args={densityKSsquare,numeratorHF,densityHFsquare,
+    			numeratorKS,densityKSsquare,lra_func};
+        refine_to_common_level(world,args);
+
+        divide_add_interpolate op(oep_param.dens_thresh_hi(), oep_param.dens_thresh_lo());
+        real_function_3d correction=0.5*multi_to_multi_op_values(op,args)[0];
+
+    	return correction;
     }
 
     /// compute all potentials from given nemos except kinetic energy

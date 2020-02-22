@@ -23,14 +23,12 @@ void OEP::solve_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
 
 	// compute Slater potential Vs and average IHF from HF orbitals and eigenvalues
 	const real_function_3d Vs = compute_slater_potential(HF_nemo, homo_ind(HF_eigvals));
-	const real_function_3d IHF = compute_average_I(HF_nemo, HF_eigvals);
 	const real_function_3d kin_tot_HF = compute_total_kinetic_density(HF_nemo, HF_eigvals);
 	const real_function_3d kin_P_HF = compute_Pauli_kinetic_density(HF_nemo, HF_eigvals);
 	const real_function_3d rho_HF = compute_density(HF_nemo);
 	if (oep_param.saving_amount() >= 1) save(Vs, "Slaterpotential");
 	if (oep_param.saving_amount() >= 2) {
 		save(rho_HF, "density_HF");
-        if (oep_param.is_ocep() or oep_param.is_dcep() or oep_param.is_mrks()) save(IHF, "IHF");
         if (oep_param.is_dcep()) save(kin_tot_HF, "kin_tot_HF");
         if (oep_param.is_mrks()) save(kin_P_HF, "kin_P_HF");
 	}
@@ -91,9 +89,9 @@ void OEP::solve_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
 
     		// compute OCEP potential from current nemos and eigenvalues
 			real_function_3d corr_ocep, corr_dcep, corr_mrks;
-			corr_ocep = compute_oep_correction("ocep", IHF, KS_nemo, KS_eigvals);
-			if (oep_param.is_dcep()) corr_dcep = compute_oep_correction("dcep", kin_tot_HF, KS_nemo, KS_eigvals);
-			if (oep_param.is_mrks()) corr_mrks = compute_oep_correction("mrks", kin_P_HF, KS_nemo, KS_eigvals);
+			corr_ocep = compute_oep_correction("ocep", HF_nemo,HF_eigvals, KS_nemo, KS_eigvals);
+			if (oep_param.is_dcep()) corr_dcep = compute_oep_correction("dcep", HF_nemo,HF_eigvals, KS_nemo, KS_eigvals);
+			if (oep_param.is_mrks()) corr_mrks = compute_oep_correction("mrks", HF_nemo,HF_eigvals, KS_nemo, KS_eigvals);
 
 			// and shift potential so that HOMO_HF = HOMO_KS, so potential += (HOMO_HF - HOMO_KS)
 			double shift = homo_diff(HF_eigvals, KS_eigvals);
@@ -120,11 +118,6 @@ void OEP::solve_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
 			if (oep_param.save_iter_density() > 0) {
 				if (iter_counter == 2 or iter_counter % oep_param.save_iter_density() == 0) {
 					save(compute_density(KS_nemo), "density_iter_" + stringify(iter_counter));
-				}
-			}
-			if (oep_param.save_iter_IKS() > 0) {
-				if (iter_counter == 2 or iter_counter % oep_param.save_iter_IKS() == 0) {
-					save(compute_average_I(KS_nemo, KS_eigvals), "IKS_iter_" + stringify(iter_counter));
 				}
 			}
 			if (oep_param.save_iter_kin_tot_KS() > 0 and oep_param.is_dcep()) {
@@ -308,14 +301,12 @@ void OEP::solve_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
 	print("\n  computing final orbitals, IKS and density");
 
 	double shift_final = homo_diff(HF_eigvals, KS_eigvals);
-	real_function_3d IKS = compute_average_I(KS_nemo, KS_eigvals);
 	real_function_3d kin_tot_KS = compute_total_kinetic_density(KS_nemo, KS_eigvals);
 	real_function_3d kin_P_KS = compute_Pauli_kinetic_density(KS_nemo, KS_eigvals);
 	real_function_3d rho_KS = compute_density(KS_nemo);
 	double Drho = compute_delta_rho(rho_HF, rho_KS);
 	if (oep_param.saving_amount() >= 1) save(rho_KS, "density_final");
 	if (oep_param.saving_amount() >= 2) {
-        if (oep_param.is_ocep() or oep_param.is_dcep() or oep_param.is_mrks()) save(IKS, "IKS_final");
         if (oep_param.is_dcep()) save(kin_tot_KS, "kin_tot_KS_final");
         if (oep_param.is_mrks()) save(kin_P_KS, "kin_P_KS_final");
     	for (long i = 0; i < KS_nemo.size(); i++) {
@@ -340,7 +331,7 @@ void OEP::solve_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
 	}
 	if (oep_param.is_ocep()) {
 		print("\n  computing final OCEP with converged OCEP orbitals and eigenvalues");
-    	real_function_3d ocep_correction_final = compute_oep_correction("ocep", IHF, KS_nemo, KS_eigvals);
+    	real_function_3d ocep_correction_final = compute_oep_correction("ocep", HF_nemo,HF_eigvals, KS_nemo, KS_eigvals);
     	Voep = Vs + ocep_correction_final + shift_final;
     	if (oep_param.saving_amount() >= 1) {
     		save(ocep_correction_final + shift_final, "OCEP_correction_final");
@@ -349,8 +340,8 @@ void OEP::solve_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
 	}
 	if (oep_param.is_dcep()) {
 		print("\n  computing final DCEP with converged DCEP orbitals and eigenvalues");
-    	real_function_3d ocep_correction_final = compute_oep_correction("ocep", IHF, KS_nemo, KS_eigvals);
-    	real_function_3d dcep_correction_final = compute_oep_correction("dcep", kin_tot_HF, KS_nemo, KS_eigvals);
+    	real_function_3d ocep_correction_final = compute_oep_correction("ocep", HF_nemo,HF_eigvals, KS_nemo, KS_eigvals);
+    	real_function_3d dcep_correction_final = compute_oep_correction("dcep", HF_nemo,HF_eigvals, KS_nemo, KS_eigvals);
     	Voep = Vs + ocep_correction_final + dcep_correction_final + shift_final;
     	if (oep_param.saving_amount() >= 2) {
         	save(ocep_correction_final + shift_final, "OCEP_correction_final");
@@ -363,8 +354,8 @@ void OEP::solve_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
 	}
 	if (oep_param.is_mrks()) {
 		print("\n  computing final mRKS potential with converged mRKS orbitals and eigenvalues");
-    	real_function_3d ocep_correction_final = compute_oep_correction("ocep", IHF, KS_nemo, KS_eigvals);
-    	real_function_3d mrks_correction_final = compute_oep_correction("mrks", kin_P_HF, KS_nemo, KS_eigvals);
+    	real_function_3d ocep_correction_final = compute_oep_correction("ocep", HF_nemo,HF_eigvals, KS_nemo, KS_eigvals);
+    	real_function_3d mrks_correction_final = compute_oep_correction("mrks", HF_nemo,HF_eigvals, KS_nemo, KS_eigvals);
     	Voep = Vs + ocep_correction_final + mrks_correction_final + shift_final;
     	if (oep_param.saving_amount() >= 2) {
         	save(ocep_correction_final + shift_final, "OCEP_correction_final");
@@ -378,19 +369,19 @@ void OEP::solve_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
 	print("     done\n");
 
 	// print final orbital energies
-		print("final shifted", oep_param.model(), "orbital energies:");
-		print_orbens(KS_eigvals, homo_diff(HF_eigvals, KS_eigvals));
-		print("HF/KS HOMO energy difference of", homo_diff(HF_eigvals, KS_eigvals), "Eh is already included\n");
+	print("final shifted", oep_param.model(), "orbital energies:");
+	print_orbens(KS_eigvals, homo_diff(HF_eigvals, KS_eigvals));
+	print("HF/KS HOMO energy difference of", homo_diff(HF_eigvals, KS_eigvals), "Eh is already included\n");
 
-		// final Jnemo and Knemo have to be computed again in order to calculate final energy
-		compute_coulomb_potential(KS_nemo, Jnemo);
-		compute_exchange_potential(KS_nemo, Knemo);
+	// final Jnemo and Knemo have to be computed again in order to calculate final energy
+	compute_coulomb_potential(KS_nemo, Jnemo);
+	compute_exchange_potential(KS_nemo, Knemo);
 
-		// compute final exchange energy using different methods and final kinetic energy
-		double Ex_vir = compute_exchange_energy_vir(R*KS_nemo, Voep);
-		double Ex_conv = compute_exchange_energy_conv(R*KS_nemo, R*Knemo);
-		double Ekin_KS = compute_kinetic_energy(R*KS_nemo); // like Ts in Ospadov_2017, equation (22)
-		double Tc = Ekin_HF - Ekin_KS; // like Tc = T - Ts in Ospadov_2017, equation (24)
+	// compute final exchange energy using different methods and final kinetic energy
+	double Ex_vir = compute_exchange_energy_vir(R*KS_nemo, Voep);
+	double Ex_conv = compute_exchange_energy_conv(R*KS_nemo, R*Knemo);
+	double Ekin_KS = compute_kinetic_energy(R*KS_nemo); // like Ts in Ospadov_2017, equation (22)
+	double Tc = Ekin_HF - Ekin_KS; // like Tc = T - Ts in Ospadov_2017, equation (24)
 
 	print("FINAL", oep_param.model(), "ENERGY Evir:");
 	double Evir = compute_energy(R*KS_nemo, R*Jnemo, Ex_vir);
@@ -453,8 +444,8 @@ void OEP::test_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
     print("  Slater potential computed successfully\n");
 
     print("test construction of IHF");
-    const real_function_3d IHF = compute_average_I(HF_nemo, HF_eigvals);
-    print("  IHF computed successfully\n");
+    const real_function_3d IHF = compute_energy_weighted_density(HF_nemo, HF_eigvals);
+    print("  compute_energy_weighted_density computed successfully\n");
 
     print("test construction of kin_tot_HF (tau/rho HF)");
     const real_function_3d kin_tot_HF = compute_total_kinetic_density(HF_nemo, HF_eigvals);
