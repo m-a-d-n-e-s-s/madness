@@ -320,7 +320,8 @@ double Nemo::solve(const SCFProtocol& proto) {
 		}
 
 		std::vector<double> oldenergyvec=energyvec;
-		double oldenergy=oldenergyvec[0];
+		double oldenergy=0.0;
+		if (oldenergyvec.size()>0) oldenergy=oldenergyvec[0];
 //		energy = compute_energy(psi, mul(world, R, Jnemo),
 //				mul(world, R, Knemo));
         energyvec = compute_energy_regularized(nemo, Jnemo, Knemo, Unemo);
