@@ -61,6 +61,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<double>("smear",0.0,"smearing parameter");
 		initialize<double>("econv",1.e-5,"energy convergence");
 		initialize<double>("dconv",1.e-4,"density convergence");
+		initialize<bool>  ("converge_each_energy",false,"converge all fock operator components");
 		initialize<int>   ("k",7,"polynomial order");
 		initialize<double>("l",20,"user coordinates box size");
 		initialize<std::string>("deriv","abgv","derivative method",{"abgv","bspline","ble"});
@@ -144,6 +145,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 
 	double econv() const {return get<double>("econv");}
 	double dconv() const {return get<double>("dconv");}
+	bool converge_each_energy() {return get<bool>("converge_each_energy");}
 
 	int nopen() const {return get<int>("nopen");}
 	int nalpha() const {return get<int>("nalpha");}

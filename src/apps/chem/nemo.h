@@ -515,7 +515,7 @@ private:
 			const vecfuncT& Kpsi) const;
 
     /// given nemos, compute the HF energy using the regularized expressions for T and V
-    double compute_energy_regularized(const vecfuncT& nemo, const vecfuncT& Jnemo,
+    std::vector<double> compute_energy_regularized(const vecfuncT& nemo, const vecfuncT& Jnemo,
             const vecfuncT& Knemo, const vecfuncT& Unemo) const;
 
 	/// compute the reconstructed orbitals, and all potentials applied on nemo
