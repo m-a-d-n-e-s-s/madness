@@ -242,6 +242,18 @@ public:
 	/// converged if norm, total energy difference and orbital energy differences (if not OAEP) are converged
     void solve_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals);
 
+    double value(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
+    	set_protocol(calc->param.econv());
+    	solve(HF_nemo,HF_eigvals);
+    	return 0.0;
+    }
+
+    void solve(const vecfuncT& HF_nemo, const tensorT& HF_eigvals);
+
+    void iterate(const std::string model, const vecfuncT& HF_nemo, const tensorT& HF_eigvals,
+    		vecfuncT& KS_nemo, tensorT& KS_eigvals, real_function_3d& Voep,
+			const real_function_3d Vs);
+
     /// The following function tests all essential parts of the OEP program qualitatively and some also quantitatively
     void test_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals);
 
@@ -419,20 +431,22 @@ public:
     real_function_3d compute_ocep_correction(const vecfuncT& nemoHF, const tensorT& eigvalsHF,
     		const vecfuncT& nemoKS, const tensorT& eigvalsKS) const {
 
+       	double lraKS = -eigvalsKS(homo_ind(eigvalsKS));
+       	double lraHF = -eigvalsHF(homo_ind(eigvalsHF));
+        double longrange=lraHF-lraKS;
+
 		// 2.0*R_square in numerator and density (rho) cancel out upon division
     	real_function_3d numeratorHF=-1.0*compute_energy_weighted_density(nemoHF,eigvalsHF);
-    	real_function_3d numeratorKS=-1.0*compute_energy_weighted_density(nemoKS,eigvalsKS);
+    	real_function_3d numeratorKS=-1.0*compute_energy_weighted_density(nemoKS,eigvalsKS-longrange);
 
 		// 2.0*R_square in numerator and density (rho) cancel out upon division
         real_function_3d densityKS = dot(world, nemoKS, nemoKS);
         real_function_3d densityHF = dot(world, nemoHF, nemoHF);
 
-       	double lraKS = -eigvalsKS(homo_ind(eigvalsKS));
-       	double lraHF = -eigvalsHF(homo_ind(eigvalsHF));
-
-        double longrange=lraHF-lraKS;
-    	real_function_3d lra_func=real_factory_3d(world).functor([&longrange](const coord_3d& r)
-    			{return longrange;});
+//    	real_function_3d lra_func=real_factory_3d(world).functor([&longrange](const coord_3d& r)
+//    			{return longrange;});
+    	real_function_3d lra_func=real_factory_3d(world).functor([](const coord_3d& r)
+    			{return 0.0;});
 
     	std::vector<real_function_3d> args={densityKS,numeratorHF,densityHF,
     			numeratorKS,densityKS,lra_func};
@@ -440,6 +454,8 @@ public:
 
         divide_add_interpolate op(oep_param.dens_thresh_hi(), oep_param.dens_thresh_lo());
         real_function_3d correction=multi_to_multi_op_values(op,args)[0];
+        static int i=1;
+        save(correction,"ocep_correction"+std::to_string(i++));
 
     	return correction;
 
@@ -533,7 +549,7 @@ public:
     /// compute Coulomb potential
     void compute_coulomb_potential(const vecfuncT& nemo, vecfuncT& Jnemo) const {
 
-    	Coulomb J = Coulomb(world, this);
+    	Coulomb J(world,this);
     	Jnemo = J(nemo);
     	truncate(world, Jnemo);
 
@@ -548,21 +564,21 @@ public:
 
     }
 
-    /// compute kinetic energy needed for total energy
-    double compute_kinetic_energy(const vecfuncT phi) const {
-
-    	// it's ok to use phi here, no regularization necessary for this eigenvalue
-    	double E_kin = 0.0;
-    	for (int axis = 0; axis < 3; axis++) {
-    		real_derivative_3d D = free_space_derivative<double, 3>(world, axis);
-    		const vecfuncT dphi = apply(world, D, phi);
-    		E_kin += 0.5 * (inner(world, dphi, dphi)).sum();
-    		// -1/2 sum <Psi|Nabla^2|Psi> = 1/2 sum <NablaPsi|NablaPsi>   (integration by parts)
-    	}
-    	E_kin *= 2.0; // 2 because closed shell
-    	return E_kin;
-
-    }
+//    /// compute kinetic energy needed for total energy
+//    double compute_kinetic_energy(const vecfuncT phi) const {
+//
+//    	// it's ok to use phi here, no regularization necessary for this eigenvalue
+//    	double E_kin = 0.0;
+//    	for (int axis = 0; axis < 3; axis++) {
+//    		real_derivative_3d D = free_space_derivative<double, 3>(world, axis);
+//    		const vecfuncT dphi = apply(world, D, phi);
+//    		E_kin += 0.5 * (inner(world, dphi, dphi)).sum();
+//    		// -1/2 sum <Psi|Nabla^2|Psi> = 1/2 sum <NablaPsi|NablaPsi>   (integration by parts)
+//    	}
+//    	E_kin *= 2.0; // 2 because closed shell
+//    	return E_kin;
+//
+//    }
 
     /// compute Evir using Levy-Perdew virial relation (Kohut_2014, (43) or Ospadov_2017, (25))
     double compute_exchange_energy_vir(const vecfuncT phi, const real_function_3d Vx) const {
@@ -594,19 +610,19 @@ public:
 
     /// compute all energy contributions except exchange and sum up for total energy
     /// the exchange energy must be computed priorly with the compute_exchange_energy_... methods
-    double compute_energy(const vecfuncT phi, const vecfuncT Jphi, const double E_X) const {
+    double compute_energy(const vecfuncT& nemo, const vecfuncT& Jnemo, const double E_X) const {
 
     	// compute kinetic energy
-    	double E_kin = compute_kinetic_energy(phi);
+    	double E_kin = compute_kinetic_energy(nemo);
 
     	// compute external potential (nuclear attraction)
     	real_function_3d Vext = calc->potentialmanager->vnuclear();
-    	const vecfuncT Vextphi = Vext*phi;
 
     	// compute remaining energies: nuclear attraction, Coulomb, nuclear repulsion
     	// computed as expectation values (see Szabo, Ostlund (3.81))
-    	const double E_ext = 2.0*inner(world, phi, Vextphi).sum(); // 2 because closed shell
-    	const double E_J = inner(world, phi, Jphi).sum();
+    	const vecfuncT R2nemo=R_square*nemo;
+    	const double E_ext = 2.0*inner(R2nemo,Vext*nemo); // 2 because closed shell
+    	const double E_J = inner(world, R2nemo, Jnemo).sum();
     	const double E_nuc = calc->molecule.nuclear_repulsion_energy();
     	double energy = E_kin + E_ext + E_J + E_X + E_nuc;
 

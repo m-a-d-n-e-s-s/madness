@@ -127,8 +127,9 @@ int main(int argc, char** argv) {
 	// set reference orbitals to canonical by default
     std::string arg="canon";
 	calc->param.set_derived_value("localize",arg);
+	calc->param.set_derived_value("lo",1.e-6);
 
-    std::shared_ptr<OEP> oep(new OEP(world, calc, input));
+    std::shared_ptr<Nemo> nemo(new Nemo(world, calc, input));
 
     vecfuncT HF_nemos;
     tensorT HF_orbens;
@@ -150,7 +151,7 @@ int main(int argc, char** argv) {
 //    	// save_tensor(... HF_orbens, saved_orbens ...);
 //    }
 
-    const double energy = oep->value();
+    const double energy = nemo->value();
 
     if (world.rank() == 0) {
         printf("final energy   %12.8f\n", energy);
@@ -158,8 +159,8 @@ int main(int argc, char** argv) {
     }
 
     // save converged HF MOs and orbital energies
-    HF_nemos = copy(world, oep->get_calc()->amo);
-    HF_orbens = copy(oep->get_calc()->aeps);
+    HF_nemos = copy(world, nemo->get_calc()->amo);
+    HF_orbens = copy(nemo->get_calc()->aeps);
 
     if (test) printf("\n   +++ starting test of the OEP program +++\n\n");
     else printf("\n   +++ starting approximate OEP iterative calculation +++\n\n");
@@ -169,8 +170,10 @@ int main(int argc, char** argv) {
 //    oep->read_oep_param(in);
 
     // do approximate OEP calculation or test the program
+    std::shared_ptr<OEP> oep(new OEP(world, calc, input));
     if (test) oep->test_oep(HF_nemos, HF_orbens);
-    else oep->solve_oep(HF_nemos, HF_orbens);
+    else oep->value(HF_nemos, HF_orbens);
+//    else oep->solve_oep(HF_nemos, HF_orbens);
 
     finalize();
     return 0;

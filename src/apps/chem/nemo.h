@@ -171,6 +171,72 @@ public:
 	Tensor<double> compute_gradient(const real_function_3d& rhonemo,
 			const Molecule& molecule) const;
 
+	/// compute the kinetic energy
+	template<typename T, std::size_t NDIM>
+	double compute_kinetic_energy(const std::vector<Function<T,NDIM> >& nemo) const {
+
+		// T = 0.5\sum_i \int R^2 U1.U1 F^2 + 2 R^2 U1.grad(F) + R^2 grad(F)^2
+		//   = 0.5 (<U1.U1 | rho > + <R^2|grad(F)^2> - 2<R^2 | U1.grad(F)>)
+		// note: U1=-grad(R)/R
+//		real_function_3d dens=sum(world,abssq(world,nemo))*R_square;
+		real_function_3d dens=dot(world,nemo,nemo)*R_square;
+	    real_function_3d U1dotU1=real_factory_3d(world).functor(NuclearCorrelationFactor::U1_dot_U1_functor(ncf.get()));
+	    double ke1=inner(dens,U1dotU1);
+
+	    double ke2=0.0;
+	    double ke3_real=0.0;
+	    double ke3_imag=0.0;
+
+	    for (int axis = 0; axis < NDIM; axis++) {
+	        real_derivative_3d D = free_space_derivative<double, NDIM>(world, axis);
+	        const std::vector<Function<T,NDIM> > dnemo = apply(world, D, nemo);
+
+	        real_function_3d term2=dot(world,dnemo,nemo)*ncf->U1(axis);
+	        T tmp=inner(R_square,term2);
+	        ke3_real -=2.0*std::real(tmp);
+	        ke3_imag -=2.0*std::imag(tmp);
+
+//	        const real_function_3d term1=sum(world,abssq(world,dnemo));
+	        const real_function_3d term1=dot(world,dnemo,dnemo);
+	        ke2 += inner(term1,R_square);
+
+
+	    }
+	    if (ke3_imag>1.e-8) {
+	    	print("kinetic energy, imaginary part: ",ke3_imag);
+	    	MADNESS_EXCEPTION("imaginary kinetic energy",1);
+	    }
+	    double ke=2.0*(ke1+ke2+ke3_real); // closed shell
+	    return 0.5*ke;
+	}
+
+	/// compute the kinetic energy
+	template<typename T, std::size_t NDIM>
+	double compute_kinetic_energy1(const std::vector<Function<T,NDIM> >& nemo) const {
+		double ke=0.0;
+		for (int i=0; i<nemo.size(); ++i) {
+			double fnorm2=norm2(world,-1.0*R*ncf->U1vec()*nemo[i] + R*grad(nemo[i]));
+			ke+=2.0*fnorm2*fnorm2;
+		}
+		return 0.5*ke;
+	}
+
+    /// compute kinetic energy needed for total energy
+	template<typename T, std::size_t NDIM>
+    double compute_kinetic_energy2(const std::vector<Function<T,NDIM> >& nemo) const {
+
+    	// it's ok to use phi here, no regularization necessary for this eigenvalue
+    	double E_kin = 0.0;
+    	for (int axis = 0; axis < 3; axis++) {
+    		real_derivative_3d D = free_space_derivative<double, 3>(world, axis);
+    		const vecfuncT dphi = apply(world, D,R*nemo);
+    		E_kin += 0.5 * (inner(world, dphi, dphi)).sum();
+    		// -1/2 sum <Psi|Nabla^2|Psi> = 1/2 sum <NablaPsi|NablaPsi>   (integration by parts)
+    	}
+    	E_kin *= 2.0; // 2 because closed shell
+    	return E_kin;
+    }
+
 	World& world;
 
 	/// the nuclear correlation factor
@@ -480,6 +546,7 @@ private:
 	PCM pcm;
 //	AC<3> ac;
 
+protected:
 	/// adapt the thresholds consistently to a common value
     void set_protocol(const double thresh) {
 

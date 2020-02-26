@@ -499,11 +499,15 @@ std::vector<double> Nemo::compute_energy_regularized(const vecfuncT& nemo, const
         const vecfuncT& Knemo, const vecfuncT& Unemo) const {
     START_TIMER(world);
 
-    vecfuncT R2nemo=mul(world,R_square,nemo);
+    vecfuncT R2nemo=R_square*nemo;
     truncate(world,R2nemo);
 
     const tensorT U = inner(world, R2nemo, Unemo);
     const double pe = 2.0 * U.sum();  // closed shell
+
+    real_function_3d dens=dot(world,nemo,nemo)*R_square;
+    double pe1=2.0*inner(dens,calc->potentialmanager->vnuclear());
+
 
     double ke = 0.0;
     for (int axis = 0; axis < 3; axis++) {
@@ -514,22 +518,19 @@ std::vector<double> Nemo::compute_energy_regularized(const vecfuncT& nemo, const
     }
     ke *= 2.0; // closed shell
 
-    // possible advantageous to do it this way, the U1 term should cancel
-    // with the nuclear potential, might be faster and more precise.
-//    // do the kinetic energy again
-//    double ke1=0.0;
-//    for (int axis = 0; axis < 3; axis++) {
-//        real_derivative_3d D = free_space_derivative<double, 3>(world, axis);
-//        const vecfuncT dnemo = apply(world, D, nemo);
-//
-//        real_function_3d term1=dot(world,dnemo,dnemo);
-//        ke1 += 0.5*inner(term1,R_square);
-//
-//        vecfuncT term2=R_square*nuclear_correlation->U1(axis)*nemo;
-//        ke1 +=-2.0* 0.5 * (inner(world, dnemo, term2)).sum();
-//    }
-//    ke1 *= 2.0; // closed shell
 
+    double ke0 = 0.0;
+    for (int axis = 0; axis < 3; axis++) {
+        real_derivative_3d D = free_space_derivative<double, 3>(world, axis);
+        const vecfuncT dnemo = apply(world, D, nemo);
+        ke0+=0.5*inner(R_square,dot(world,dnemo,dnemo));
+        ke0-=0.5*2.0*inner(R_square*ncf->U1(axis),dot(world,nemo,dnemo));
+    }
+    ke0 *= 2.0; // closed shell
+
+    double ke1=compute_kinetic_energy(nemo);
+    double ke2=compute_kinetic_energy1(nemo);
+    double ke3=compute_kinetic_energy2(nemo);
 
     const double J = inner(world, R2nemo, Jnemo).sum();
     const double K = inner(world, R2nemo, Knemo).sum();
@@ -552,7 +553,12 @@ std::vector<double> Nemo::compute_energy_regularized(const vecfuncT& nemo, const
 
     if (world.rank() == 0) {
         printf("\n  nuclear and kinetic %16.8f\n", ke + pe);
-//        printf("\n  kinetic again %16.8f\n",  ke1);
+        printf("\n  nuclear and kinetic more accurate %16.8f\n", ke0 + pe);
+        printf("\n  kinetic only  %16.8f\n",  ke1);
+        printf("\n  kinetic only  %16.8f\n",  ke2);
+        printf("\n  kinetic plain %16.8f\n",  ke3);
+        printf("\n  nuclear only  %16.8f\n",  pe1);
+        printf("\n  nuclear and kinetic each  %16.8f\n",  pe1+ke1);
         printf("              coulomb %16.8f\n", J);
         if (is_dft()) {
             printf(" exchange-correlation %16.8f\n", exc);

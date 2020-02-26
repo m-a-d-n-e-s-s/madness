@@ -11,7 +11,7 @@ set(MADCHEM_HEADERS
     SCFOperators.h CCStructures.h CalculationParameters.h
     electronic_correlation_factor.h vibanal.h molopt.h TDHF.h CC2.h CCPotentials.h
     pcm.h SCFProtocol.h AC.h pointgroupoperator.h pointgroupsymmetry.h MolecularOrbitals.h 
-	znemo.h zcis.h  diamagneticpotentialfactor.h oep.h
+	znemo.h zcis.h  diamagneticpotentialfactor.h oep.h BSHApply.h
     PNO.h PNOF12Potentials.h PNOGuessFunctions.h PNOParameters.h PNOStructures.h PNOTensors.h)
 set(MADCHEM_SOURCES
     correlationfactor.cc molecule.cc molecularbasis.cc vibanal.cc
