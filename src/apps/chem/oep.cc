@@ -446,10 +446,10 @@ void OEP::solve(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
 	// all necessary operators applied on nemos
 	real_function_3d Voep = Vs;
 
-	for (auto model : {"oaep","ocep","dcep","mrks"}) {
-
+	iterate("oaep",HF_nemo,HF_eigvals,KS_nemo,KS_eigvals,Voep,Vs);
+	for (auto model : {"ocep","dcep","mrks"}) {
 		iterate(model,HF_nemo,HF_eigvals,KS_nemo,KS_eigvals,Voep,Vs);
-		if (model==oep_param.model()) break;
+		if (oep_param.model()==model) break;
 	}
 
 
@@ -537,15 +537,15 @@ void OEP::solve(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
 
 	// compute final exchange energy using different methods and final kinetic energy
 	double Ex_vir = compute_exchange_energy_vir(R*KS_nemo, Voep);
-	double Ex_conv = compute_exchange_energy_conv(R*KS_nemo, R*Knemo);
+	double Ex_conv = compute_exchange_energy_conv(R_square*KS_nemo, Knemo);
 	double Ekin_KS = compute_kinetic_energy(KS_nemo); // like Ts in Ospadov_2017, equation (22)
 	double Tc = Ekin_HF - Ekin_KS; // like Tc = T - Ts in Ospadov_2017, equation (24)
 
 	print("FINAL", oep_param.model(), "ENERGY Evir:");
-	double Evir = compute_energy(R*KS_nemo, R*Jnemo, Ex_vir);
+	double Evir = compute_energy(KS_nemo, Jnemo, Ex_vir);
 
 	print("FINAL", oep_param.model(), "ENERGY Econv:");
-	double Econv = compute_energy(R*KS_nemo, R*Jnemo, Ex_conv);
+	double Econv = compute_energy(KS_nemo, Jnemo, Ex_conv);
 
 	printf("      +++ FINAL TOTAL ENERGY = %15.8f  Eh +++\n\n\n", Econv);
 
@@ -587,6 +587,7 @@ void OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tensor
 	typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
 	allocT alloc(world, KS_nemo.size());
 	solverT solver(allocT(world, KS_nemo.size()),false);
+	solver.set_maxsub(calc->param.maxsub());
 
 	std::deque<tensorT> eps_history;
 	double energy=0.0;
@@ -606,7 +607,7 @@ void OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tensor
 			if (model=="mrks") correction += compute_oep_correction("mrks", HF_nemo,HF_eigvals, KS_nemo, KS_eigvals);
 
 			// and shift potential so that HOMO_HF = HOMO_KS, so potential += (HOMO_HF - HOMO_KS)
-			double shift = 0.0;//homo_diff(HF_eigvals, KS_eigvals);
+			double shift = 0.0;// homo_diff(HF_eigvals, KS_eigvals);
 			print("building new Voep: orbital shift is", shift, "Eh");
 			Voep = Vs + correction + shift;
 		}
@@ -635,9 +636,8 @@ void OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tensor
         double old_energy = energy;
         print("energy contributions of iteration", iter);
         double Ex_KS = compute_exchange_energy_vir(R*KS_nemo, Voep);
-		energy = compute_energy(KS_nemo, Jnemo, Ex_KS);
-		// compute_exchange_potential(KS_nemo, Knemo);
-		// double Ex_KS = compute_exchange_energy_conv(R*KS_nemo, R*Knemo);
+//		double Ex_KS = -inner(R2KS_nemo,Knemo);
+			energy = compute_energy(KS_nemo, Jnemo, Ex_KS);
 		// there should be no difference between these two methods, because energy is only needed
 		// for checking convergence threshold; but: Evir should be much faster because K is expensive
 
@@ -650,7 +650,7 @@ void OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tensor
         tensorT overlap = matrix_inner(world, R*KS_nemo, R*KS_nemo, true);
         X = calc->get_fock_transformation(world, overlap, F, KS_eigvals, calc->aocc,
         		FunctionDefaults<3>::get_thresh());
-        KS_nemo = transform(world, KS_nemo, X, trantol(), true);
+        KS_nemo = transform(world, KS_nemo, X);
         rotate_subspace(world, X, solver, 0, KS_nemo.size());
 
         truncate(world, KS_nemo);

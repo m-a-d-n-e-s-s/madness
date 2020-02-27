@@ -443,11 +443,7 @@ public:
         real_function_3d densityKS = dot(world, nemoKS, nemoKS);
         real_function_3d densityHF = dot(world, nemoHF, nemoHF);
 
-//    	real_function_3d lra_func=real_factory_3d(world).functor([&longrange](const coord_3d& r)
-//    			{return longrange;});
-    	real_function_3d lra_func=real_factory_3d(world).functor([](const coord_3d& r)
-    			{return 0.0;});
-
+    	real_function_3d lra_func=real_factory_3d(world);
     	std::vector<real_function_3d> args={densityKS,numeratorHF,densityHF,
     			numeratorKS,densityKS,lra_func};
         refine_to_common_level(world,args);
@@ -490,9 +486,11 @@ public:
        	double lraKS = -eigvalsKS(homo_ind(eigvalsKS));
        	double lraHF = -eigvalsHF(homo_ind(eigvalsHF));
 
-        double longrange=lraHF-lraKS;
-    	real_function_3d lra_func=real_factory_3d(world).functor([&longrange](const coord_3d& r)
-    			{return longrange;});
+//        double longrange=lraHF-lraKS;
+//    	real_function_3d lra_func=real_factory_3d(world).functor([&longrange](const coord_3d& r)
+//    			{return longrange;});
+    	real_function_3d lra_func=real_factory_3d(world).functor([](const coord_3d& r)
+    			{return 0.0;});
 
     	std::vector<real_function_3d> args={densityKS,numeratorHF,densityHF,
     			numeratorKS,densityKS,lra_func};
@@ -500,6 +498,8 @@ public:
 
         divide_add_interpolate op(oep_param.dens_thresh_hi(), oep_param.dens_thresh_lo());
         real_function_3d correction=multi_to_multi_op_values(op,args)[0];
+        static int i=0;
+        save(correction,"dcep_correction"+std::to_string(i++));
 
     	return correction;
     }
