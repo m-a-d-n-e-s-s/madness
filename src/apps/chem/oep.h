@@ -414,6 +414,29 @@ public:
 
     }
 
+    real_function_3d compute_oep(const std::string model, const real_function_3d& Vs,
+			const vecfuncT& HF_nemo, const tensorT HF_eigvals,
+			const vecfuncT& KS_nemo, const tensorT KS_eigvals) const {
+
+    	real_function_3d Voep=Vs;
+		if (model=="ocep" or model=="dcep" or model=="mrks") {
+
+    		// compute OCEP potential from current nemos and eigenvalues
+			Tensor<double> fixed_eigval(2);
+			fixed_eigval[1] = -0.30984916;
+			fixed_eigval[0] = -4.07112595;
+			real_function_3d correction = compute_oep_correction("ocep", HF_nemo,HF_eigvals, KS_nemo, KS_eigvals);
+			if (model=="dcep") correction += compute_oep_correction("dcep", HF_nemo,HF_eigvals, KS_nemo, KS_eigvals);
+			if (model=="mrks") correction += compute_oep_correction("mrks", HF_nemo,HF_eigvals, KS_nemo, KS_eigvals);
+
+			// and shift potential so that HOMO_HF = HOMO_KS, so potential += (HOMO_HF - HOMO_KS)
+			double shift = 0.0;// homo_diff(HF_eigvals, KS_eigvals);
+			print("building new Voep: orbital shift is", shift, "Eh");
+			Voep += correction + shift;
+		}
+		return Voep;
+    }
+
     /// compute correction of the given model
     real_function_3d compute_oep_correction(const std::string model,
 			const vecfuncT& nemoHF, const tensorT eigvalHF,

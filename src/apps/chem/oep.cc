@@ -596,65 +596,77 @@ void OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tensor
 	for (int iter = 0; iter < oep_param.maxiter(); ++iter) {
 		print("\n     ***", model, "iteration", iter, "***\n");
 
-		if (model=="ocep" or model=="dcep" or model=="mrks") {
-
-    		// compute OCEP potential from current nemos and eigenvalues
-			Tensor<double> fixed_eigval(2);
-			fixed_eigval[1] = -0.30984916;
-			fixed_eigval[0] = -4.07112595;
-			real_function_3d correction = compute_oep_correction("ocep", HF_nemo,HF_eigvals, KS_nemo, KS_eigvals);
-			if (model=="dcep") correction += compute_oep_correction("dcep", HF_nemo,HF_eigvals, KS_nemo, KS_eigvals);
-			if (model=="mrks") correction += compute_oep_correction("mrks", HF_nemo,HF_eigvals, KS_nemo, KS_eigvals);
-
-			// and shift potential so that HOMO_HF = HOMO_KS, so potential += (HOMO_HF - HOMO_KS)
-			double shift = 0.0;// homo_diff(HF_eigvals, KS_eigvals);
-			print("building new Voep: orbital shift is", shift, "Eh");
-			Voep = Vs + correction + shift;
-		}
-
-		vecfuncT R2KS_nemo = R_square*KS_nemo;
-		truncate(world, R2KS_nemo);
+//		vecfuncT R2KS_nemo = R_square*KS_nemo;
+//		truncate(world, R2KS_nemo);
 
 		// compute parts of the Fock matrix J, Unuc and Voep
-		vecfuncT Jnemo, Unemo, Vnemo;
-		compute_nemo_potentials(KS_nemo, Jnemo, Unemo, Voep, Vnemo);
+		vecfuncT Jnemo, Unemo, Vnemo, Fnemo;
 
-		// compute Fock matrix F = J + Voep + Vnuc and kinetic energy
-		vecfuncT Fnemo = Jnemo + Vnemo + Unemo;
-		truncate(world, Fnemo);
-		tensorT F = matrix_inner(world, R2KS_nemo, Fnemo, false); // matrix_inner gives 2d tensor
-		Kinetic<double,3> T(world);
-		F += T(R2KS_nemo, KS_nemo); // 2d tensor = Fock-matrix  // R_square in bra, no R in ket
+		// compute the Fock matrix self-consistently as
+		// orbital energies enter the Fock matrix
+		// no orbital update is involved!
+		tensorT old_eigvals = copy(KS_eigvals);
+		tensorT X, F;	// fock transformation matrix
+		int ii=0;
+		while (1) {
+			vecfuncT R2KS_nemo = R_square*KS_nemo;
+			truncate(world, R2KS_nemo);
 
-		// report the off-diagonal Fock matrix elements because canonical orbitals are used
-        tensorT F_offdiag = copy(F);
-        for (int i = 0; i < F.dim(0); ++i) F_offdiag(i, i) = 0.0;
-        double max_F_offidag = F_offdiag.absmax();
-        if (world.rank() == 0) print("F max off-diagonal ", max_F_offidag);
+			compute_nemo_potentials(KS_nemo, Jnemo, Unemo, Voep, Vnemo);
 
+			print("KS_eigvals");
+			print(KS_eigvals);
+			Voep=compute_oep(model,Vs, HF_nemo,HF_eigvals, KS_nemo, KS_eigvals);
+			Fnemo = Jnemo + Unemo + Voep*KS_nemo;
+			truncate(world, Fnemo);
+
+			F = matrix_inner(world, R2KS_nemo, Fnemo, false);
+			Kinetic<double,3> T(world);
+			F += T(R2KS_nemo, KS_nemo);
+			print("fock");
+			print(F);
+
+			// report the off-diagonal Fock matrix elements because canonical orbitals are used
+	        tensorT F_offdiag = copy(F);
+	        for (int i = 0; i < F.dim(0); ++i) F_offdiag(i, i) = 0.0;
+	        double max_F_offidag = F_offdiag.absmax();
+	        if (world.rank() == 0) print("F max off-diagonal ", max_F_offidag);
+
+	        // diagonalize the Fock matrix to get the eigenvalues and eigenvectors (canonical)
+			// FC = epsilonSC and X^dSX with transform matrix X, see Szabo/Ostlund (3.159) and (3.165)
+	        tensorT overlap = matrix_inner(world, R*KS_nemo, R*KS_nemo, true);
+	        print("overlap");
+	        print(overlap);
+			tensorT KSeig;
+	        X = calc->get_fock_transformation(world, overlap, F, KSeig, calc->aocc,
+	        		FunctionDefaults<3>::get_thresh());
+	        KS_nemo = transform(world, KS_nemo, X);
+	        print("X");
+	        print(X);
+
+	        double delta_eig=(KSeig-KS_eigvals).normf();
+	        print("delta eigenvalues",delta_eig);
+//	        KS_eigvals=(KSeig+KS_eigvals)*0.5;
+
+	        if (delta_eig<calc->param.econv()) break;
+	        if (ii++>10) break;
+	        break;
+
+		}
 		// compute new (current) energy
         double old_energy = energy;
         print("energy contributions of iteration", iter);
         double Ex_KS = compute_exchange_energy_vir(R*KS_nemo, Voep);
 //		double Ex_KS = -inner(R2KS_nemo,Knemo);
-			energy = compute_energy(KS_nemo, Jnemo, Ex_KS);
+        energy = compute_energy(KS_nemo, Jnemo, Ex_KS);
 		// there should be no difference between these two methods, because energy is only needed
 		// for checking convergence threshold; but: Evir should be much faster because K is expensive
 
-		// copy old orbital energies for convergence criterium at the end
-		tensorT old_eigvals = copy(KS_eigvals);
-
-        // diagonalize the Fock matrix to get the eigenvalues and eigenvectors (canonical)
-		// FC = epsilonSC and X^dSX with transform matrix X, see Szabo/Ostlund (3.159) and (3.165)
-        tensorT X; // must be formed from R*nemos but can then be used for nemos also
-        tensorT overlap = matrix_inner(world, R*KS_nemo, R*KS_nemo, true);
-        X = calc->get_fock_transformation(world, overlap, F, KS_eigvals, calc->aocc,
-        		FunctionDefaults<3>::get_thresh());
-        KS_nemo = transform(world, KS_nemo, X);
         rotate_subspace(world, X, solver, 0, KS_nemo.size());
 
         truncate(world, KS_nemo);
         normalize(KS_nemo,R);
+
 
 		// calculate new orbital energies (current eigenvalues from Fock-matrix)
 		for (int i = 0; i < KS_nemo.size(); ++i) {
