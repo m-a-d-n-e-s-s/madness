@@ -240,7 +240,7 @@ public:
 	/// note that KS_nemo is a reference and changes oep->get_calc()->amo orbitals
 	/// same for orbital energies (eigenvalues) KS_eigvals which is oep->get_calc()->aeps
 	/// converged if norm, total energy difference and orbital energy differences (if not OAEP) are converged
-    void solve_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals);
+//    void solve_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals);
 
     double value(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
     	set_protocol(calc->param.econv());
@@ -418,36 +418,16 @@ public:
 			const vecfuncT& HF_nemo, const tensorT HF_eigvals,
 			const vecfuncT& KS_nemo, const tensorT KS_eigvals) const {
 
-    	real_function_3d Voep=Vs;
+    	real_function_3d Voep=copy(Vs);
 		if (model=="ocep" or model=="dcep" or model=="mrks") {
 
     		// compute OCEP potential from current nemos and eigenvalues
-			Tensor<double> fixed_eigval(2);
-			fixed_eigval[1] = -0.30984916;
-			fixed_eigval[0] = -4.07112595;
-			real_function_3d correction = compute_oep_correction("ocep", HF_nemo,HF_eigvals, KS_nemo, KS_eigvals);
-			if (model=="dcep") correction += compute_oep_correction("dcep", HF_nemo,HF_eigvals, KS_nemo, KS_eigvals);
-			if (model=="mrks") correction += compute_oep_correction("mrks", HF_nemo,HF_eigvals, KS_nemo, KS_eigvals);
-
-			// and shift potential so that HOMO_HF = HOMO_KS, so potential += (HOMO_HF - HOMO_KS)
-			double shift = 0.0;// homo_diff(HF_eigvals, KS_eigvals);
-			print("building new Voep: orbital shift is", shift, "Eh");
-			Voep += correction + shift;
+			real_function_3d correction = compute_ocep_correction(HF_nemo,HF_eigvals,KS_nemo,KS_eigvals);
+			if (model=="dcep") correction += compute_dcep_correction(HF_nemo,HF_eigvals,KS_nemo,KS_eigvals);
+			if (model=="mrks") correction += compute_mrks_correction(HF_nemo,HF_eigvals,KS_nemo,KS_eigvals);
+			Voep += correction;
 		}
 		return Voep;
-    }
-
-    /// compute correction of the given model
-    real_function_3d compute_oep_correction(const std::string model,
-			const vecfuncT& nemoHF, const tensorT eigvalHF,
-			const vecfuncT& nemoKS, const tensorT eigvalKS) const {
-
-    	if (model == "ocep") return compute_ocep_correction(nemoHF,eigvalHF,nemoKS,eigvalKS);
-    	else if (model == "dcep") return compute_dcep_correction(nemoHF,eigvalHF,nemoKS,eigvalKS);
-    	else if (model == "mrks") return compute_mrks_correction(nemoHF,eigvalHF,nemoKS,eigvalKS);
-    	else {
-    		MADNESS_EXCEPTION("unknown model in compute_oep_correction",1);
-    	}
     }
 
     /// compute correction of the given model
