@@ -173,7 +173,6 @@ int main(int argc, char** argv) {
     std::shared_ptr<OEP> oep(new OEP(world, calc, input));
     if (test) oep->test_oep(HF_nemos, HF_orbens);
     else oep->value(HF_nemos, HF_orbens);
-//    else oep->solve_oep(HF_nemos, HF_orbens);
 
     finalize();
     return 0;

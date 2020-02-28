@@ -17,31 +17,6 @@
 using namespace madness;
 namespace madness {
 
-struct dens_inv1{
-
-	double threshold;
-
-	// default value for threshold is 1.0e-8
-	dens_inv1(const double thresh = 1.0e-8) {
-		threshold = thresh;
-	}
-
-    /// @param[out] U   result
-    /// @param[in]  t   numerator
-    /// @param[in]  inv density to be inverted >0.0
-    void operator()(const Key<3>& key, Tensor<double>& U, const Tensor<double>& t,
-            const Tensor<double>& inv) const {
-        ITERATOR(
-            U, double d = t(IND);
-            double p = std::max(inv(IND), threshold);
-            U(IND) = d/p;
-        );
-   }
-    template <typename Archive>
-    void serialize(Archive& ar) {}
-
-};
-
 /// Class to compute terms of the potential
 struct divide_add_interpolate {
 
@@ -91,47 +66,6 @@ struct divide_add_interpolate {
 };
 
 
-/// Class to compute terms of the potential
-struct interpolate_to_longrange_op {
-
-	double thresh_high=1.e-5;
-	double thresh_low=1.e-7;
-	double log_high, log_low;
-
-	interpolate_to_longrange_op(double hi, double lo) : thresh_high(hi), thresh_low(lo),
-			log_high(log10(thresh_high)), log_low(log10(thresh_low)) {}
-
-    std::size_t get_result_size() const {
-    	return 1;
-    }
-
-	/// @param[in]	t	vector containing: oep, refdensity, longrange
-	std::vector<Tensor<double> > operator()(const Key<3> & key,
-			const std::vector<Tensor<double> >& t) const {
-
-		const Tensor<double>& refdens=t[0];
-		const Tensor<double>& oep=t[1];
-		const Tensor<double>& longrange=t[2];
-
-    	// set 1 if above munge interval (dens > thresh_high) or 0 if below munge interval (dens < thresh_low)
-    	// interpolate inbetween with logarithmic form of (r - lo)/(hi - lo) because this yields near linear behavior
-    	Tensor<double> U = copy(refdens); // copy refdens in oder to have the same dimension in the tensor
-    	U.fill(1.0); // start with a fuction that is 1.0 everywhere
-        ITERATOR(
-            U, double r = refdens(IND);
-            if (r > thresh_high) {
-            	U(IND) = oep(IND);
-            } else if (r < thresh_low) {
-            	U(IND) = longrange(IND);
-            } else {
-            	// mask = 1 if refdens>hi, 0 if refdens < lo, interpolate in between
-            	double mask=(log10(refdens(IND)) - log_low)/(log_high - log_low);
-            	U(IND)=mask*oep(IND) + (1.0-mask)*longrange(IND);
-            }
-        );
-        return std::vector<Tensor<double> > (1,U);
-	}
-};
 
 class OEP_Parameters : public QCCalculationParametersBase {
 public:
@@ -207,11 +141,9 @@ public:
 
 class OEP : public Nemo {
 
-	typedef std::shared_ptr<real_convolution_3d> poperatorT;
-
 private:
 	/// returns true if all members of a vector of booleans are true, otherwise false
-	bool IsAlltrue(std::vector<bool> vec) {
+	bool IsAlltrue(std::vector<bool> vec) const {
 		for (int i = 0; i < vec.size(); i++) {
 			if (!vec[i]) return false;
 		}
@@ -234,25 +166,23 @@ public:
 
 	}
 
-    /// Iterative energy calculation for approximate OEP with EXACT EXCHANGE functional
-	/// for other functionals, slater potential must be modified
-	/// HF orbitals and eigenvalues are used as the guess here
-	/// note that KS_nemo is a reference and changes oep->get_calc()->amo orbitals
-	/// same for orbital energies (eigenvalues) KS_eigvals which is oep->get_calc()->aeps
-	/// converged if norm, total energy difference and orbital energy differences (if not OAEP) are converged
-//    void solve_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals);
-
     double value(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
     	set_protocol(calc->param.econv());
     	solve(HF_nemo,HF_eigvals);
     	return 0.0;
     }
 
+    /// Iterative energy calculation for approximate OEP with EXACT EXCHANGE functional
+	/// for other functionals, slater potential must be modified
+	/// HF orbitals and eigenvalues are used as the guess here
+	/// note that KS_nemo is a reference and changes oep->get_calc()->amo orbitals
+	/// same for orbital energies (eigenvalues) KS_eigvals which is oep->get_calc()->aeps
+	/// converged if norm, total energy difference and orbital energy differences (if not OAEP) are converged
     void solve(const vecfuncT& HF_nemo, const tensorT& HF_eigvals);
 
     void iterate(const std::string model, const vecfuncT& HF_nemo, const tensorT& HF_eigvals,
     		vecfuncT& KS_nemo, tensorT& KS_eigvals, real_function_3d& Voep,
-			const real_function_3d Vs);
+			const real_function_3d Vs) const;
 
     /// The following function tests all essential parts of the OEP program qualitatively and some also quantitatively
     void test_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals);
@@ -286,37 +216,7 @@ public:
     	return density;
     }
 
-    /// gradually turn the input function f into its long-range asymptotic form longrange
-
-    /// @param[in]	f	the function of interest
-    /// @param[in]	refdensity	the reference density, on which the transition is based
-    /// @param[in]	longrange	the long-range asymptotics function
-    /// @return 	the function f with the long-range asymptotics longrange
-    real_function_3d interpolate_to_longrange(const real_function_3d refdensity,
-    		const real_function_3d& f, const real_function_3d& longrange) const {
-
-    	std::vector<real_function_3d> args={refdensity,f,longrange};
-        refine_to_common_level(world,args);
-
-        interpolate_to_longrange_op op(oep_param.dens_thresh_hi(), oep_param.dens_thresh_lo());
-        real_function_3d result=multi_to_multi_op_values(op,args)[0];
-
-        return result;
-    }
-
-    /// gradually turn the input function f into its long-range asymptotic form longrange
-
-    /// @param[in]	f	the function of interest
-    /// @param[in]	refdensity	the reference density, on which the transition is based
-    /// @param[in]	longrange	the long-range asymptotics (optional, set to zero if not present)
-    /// @return 	the function f with the long-range asymptotics longrange
-    real_function_3d interpolate_to_longrange(const real_function_3d refdensity,
-    		const real_function_3d& f, const double longrange=0.0) const {
-    	real_function_3d lra=real_factory_3d(world).functor([&longrange](const coord_3d& r){return longrange;});
-    	return interpolate_to_longrange(refdensity,f,lra);
-    }
-
-    /// compute \Delta rho as an indicator for the result's quality
+        /// compute \Delta rho as an indicator for the result's quality
     double compute_delta_rho(const real_function_3d rho_HF, const real_function_3d rho_KS) const {
     	// from Ospadov_2017, equation (26)
     	real_function_3d rho_diff = abs(rho_KS - rho_HF);
@@ -324,42 +224,33 @@ public:
     	return Drho;
     }
 
-    /// compute Slater potential (Kohut, 2014, equation (15))
+     /// compute Slater potential (Kohut, 2014, equation (15))
     real_function_3d compute_slater_potential(const vecfuncT& nemo, const long homo_ind) const {
 
-        Exchange<double,3> K(world, this, 0);
-        vecfuncT Knemo = K(nemo);
+        Exchange<double,3> K(world);
+        K.set_parameters(R_square*nemo,nemo,calc->aocc,calc->param.lo());
+        const vecfuncT Knemo = K(nemo);
         // 2.0*R_square in numerator and density (rho) cancel out upon division
-        real_function_3d numerator = dot(world, nemo, Knemo);
+        real_function_3d numerator = -1.0*dot(world, nemo, Knemo);
         real_function_3d rho = dot(world, nemo, nemo);
-//        save(numerator, "Slaterpotential_numerator");
-
-        // dividing by rho: the minimum value for rho is dens_thresh_lo
-        real_function_3d Vs = -1.0*binary_op(numerator, rho, dens_inv1(oep_param.dens_thresh_inv())); // in Kohut_2014, -1.0 is included in K
-        if (oep_param.saving_amount() >= 3) save(Vs, "Slaterpotential_nolra");
 
         // long-range asymptotic behavior for Slater potential is \int 1/|r-r'| * |phi_HOMO|^2 dr'
         // in order to compute this lra, use Coulomb potential with only HOMO density (= |phi_HOMO|^2)
-        Coulomb J(world, this);
+        Coulomb J(world);
+        J.reset_poisson_operator_ptr(calc->param.lo(),calc->param.econv());
         real_function_3d lra = -1.0*J.compute_potential(R_square*square(nemo[homo_ind]));
         if (oep_param.saving_amount() >= 3) save(lra, "lra_slater");
 
-//        // these are not yet forgotten tests about the correct long-range behavior
-//        real_function_3d lra = (-0.5/nemo.size())*J.compute_potential(this);
+        real_function_3d zero=real_factory_3d(world);
+        real_function_3d one=real_factory_3d(world).functor([](const coord_3d& r){return 1.0;});
+    	std::vector<real_function_3d> args={R_square*rho,numerator,rho,zero,one,lra};
+        refine_to_common_level(world,args);
 
-//        for (int i = 0; i < nemo.size(); i++) {
-//        	real_function_3d product = R_square*square(nemo[i]);
-//        	real_function_3d potential = -1.0*J.compute_potential(R_square*square(nemo[i]));
-//        	save(R*nemo[i], "phi"+stringify(i));
-//        	save(product, "phi"+stringify(i)+"phi"+stringify(i));
-//        	save(potential, "int_phi"+stringify(i)+"phi"+stringify(i));
-//        }
-
-    	real_function_3d density = compute_density(nemo);
-        Vs=interpolate_to_longrange(density,Vs,lra);
-        return Vs;
-
+        divide_add_interpolate op(oep_param.dens_thresh_hi(), oep_param.dens_thresh_lo());
+        real_function_3d VSlater=multi_to_multi_op_values(op,args)[0];
+        return VSlater;
     }
+
 
     /// compute the total kinetic energy density of equation (6) from Kohut
 
@@ -511,7 +402,6 @@ public:
     	return correction;
     }
 
-
     /// compute correction of the given model
     real_function_3d compute_mrks_correction(const vecfuncT& nemoHF, const tensorT& eigvalsHF,
     		const vecfuncT& nemoKS, const tensorT& eigvalsKS) const {
@@ -566,22 +456,6 @@ public:
     	truncate(world, Knemo);
 
     }
-
-//    /// compute kinetic energy needed for total energy
-//    double compute_kinetic_energy(const vecfuncT phi) const {
-//
-//    	// it's ok to use phi here, no regularization necessary for this eigenvalue
-//    	double E_kin = 0.0;
-//    	for (int axis = 0; axis < 3; axis++) {
-//    		real_derivative_3d D = free_space_derivative<double, 3>(world, axis);
-//    		const vecfuncT dphi = apply(world, D, phi);
-//    		E_kin += 0.5 * (inner(world, dphi, dphi)).sum();
-//    		// -1/2 sum <Psi|Nabla^2|Psi> = 1/2 sum <NablaPsi|NablaPsi>   (integration by parts)
-//    	}
-//    	E_kin *= 2.0; // 2 because closed shell
-//    	return E_kin;
-//
-//    }
 
     /// compute Evir using Levy-Perdew virial relation (Kohut_2014, (43) or Ospadov_2017, (25))
     double compute_exchange_energy_vir(const vecfuncT phi, const real_function_3d Vx) const {

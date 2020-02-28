@@ -483,7 +483,8 @@ public:
 	struct timer {
         World& world;
 	    double ttt,sss;
-	    timer(World& world) : world(world) {
+	    bool printme;
+	    timer(World& world, bool print=true) : world(world), printme(print and world.rank()==0) {
 	        world.gop.fence();
 	        ttt=wall_time();
 	        sss=cpu_time();
@@ -493,7 +494,7 @@ public:
             world.gop.fence();
 	        double tt1=wall_time()-ttt;
 	        double ss1=cpu_time()-sss;
-	        if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg.c_str(), ss1, tt1);
+	        if (printme) printf("timer: %20.20s %8.2fs %8.2fs\n", msg.c_str(), ss1, tt1);
 	        ttt=wall_time();
 	        sss=cpu_time();
 	    }
@@ -502,7 +503,7 @@ public:
             world.gop.fence();
             double tt1=wall_time()-ttt;
             double ss1=cpu_time()-sss;
-            if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg.c_str(), ss1, tt1);
+            if (printme) printf("timer: %20.20s %8.2fs %8.2fs\n", msg.c_str(), ss1, tt1);
         }
 
 	};

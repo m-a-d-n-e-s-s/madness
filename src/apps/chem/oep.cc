@@ -22,13 +22,7 @@ void OEP::solve(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
 
 	// compute Slater potential Vs and average IHF from HF orbitals and eigenvalues
 	const real_function_3d Vs = compute_slater_potential(HF_nemo, homo_ind(HF_eigvals));
-	const real_function_3d rho_HF = compute_density(HF_nemo);
 	if (oep_param.saving_amount() >= 1) save(Vs, "Slaterpotential");
-
-	// compute ab initio HF exchange energy using equation (21) from Ospadov_2017 and HF kinetic energy
-	// edit: this is redundant because it is the same as -0.5*<phi|K|phi>
-	const double Ex_HF = 0.5*inner(rho_HF, Vs);
-	const double Ekin_HF = compute_kinetic_energy(HF_nemo); // like T in Ospadov_2017, equation (20)
 
 	// set KS_nemo as reference to MOs
 	vecfuncT& KS_nemo = calc->amo;
@@ -38,10 +32,11 @@ void OEP::solve(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
 	real_function_3d Voep = copy(Vs);
 
 	iterate("oaep",HF_nemo,HF_eigvals,KS_nemo,KS_eigvals,Voep,Vs);
-	for (auto model : {"ocep","dcep","mrks"}) {
-		iterate(model,HF_nemo,HF_eigvals,KS_nemo,KS_eigvals,Voep,Vs);
-		if (oep_param.model()==model) break;
-	}
+	if (oep_param.model()!="oaep") iterate(oep_param.model(),HF_nemo,HF_eigvals,KS_nemo,KS_eigvals,Voep,Vs);
+//	for (auto model : {"ocep","dcep","mrks"}) {
+//		iterate(model,HF_nemo,HF_eigvals,KS_nemo,KS_eigvals,Voep,Vs);
+//		if (oep_param.model()==model) break;
+//	}
 
 	save(Voep,"OEP_final");
 	if (calc->param.save()) calc->save_mos(world);
@@ -118,7 +113,7 @@ double OEP::compute_and_print_final_energies(const std::string model, const real
 }
 
 void OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tensorT& HF_eigvals,
-		vecfuncT& KS_nemo, tensorT& KS_eigvals, real_function_3d& Voep, const real_function_3d Vs) {
+		vecfuncT& KS_nemo, tensorT& KS_eigvals, real_function_3d& Voep, const real_function_3d Vs) const {
 
 	typedef allocator<double, 3> allocT;
 	typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
@@ -130,6 +125,7 @@ void OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tensor
 	double energy=0.0;
 	bool converged=false;
 
+	timer timer1(world,calc->param.print_level()>=3);
 	for (int iter = 0; iter < oep_param.maxiter(); ++iter) {
 //		print("\n     ***", model, "iteration", iter, "***\n");
 
@@ -143,17 +139,20 @@ void OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tensor
 		tensorT X, F;	// fock transformation matrix
 		int ii=0;
 		while (1) {
+			timer timer_pot(world,calc->param.print_level()>=4);
 			vecfuncT R2KS_nemo = truncate(R_square*KS_nemo);
 
 			bool print_debug=(calc->param.print_level()>=10) and (world.rank()==0);
 			compute_nemo_potentials(KS_nemo, Jnemo, Unemo);
 
+			timer_pot.tag("compute potentials");
 			if (print_debug) {
 				print("KS_eigvals");
 				print(KS_eigvals);
 			}
 			Voep=compute_oep(model,Vs, HF_nemo,HF_eigvals, KS_nemo, KS_eigvals);
 			Fnemo = truncate(Jnemo + Unemo + Voep*KS_nemo);
+			timer_pot.tag("compute oep");
 
 			F = matrix_inner(world, R2KS_nemo, Fnemo, false);
 			Kinetic<double,3> T(world);
@@ -187,10 +186,13 @@ void OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tensor
 		        print("delta eigenvalues",delta_eig);
 			}
 
+			timer_pot.tag("rest");
+
 	        if (delta_eig<calc->param.econv()) break;
 	        if (++ii>2) break;
 
 		}
+		timer1.tag("compute potentials");
 		// compute new (current) energy
         double old_energy = energy;
         double Ex_KS = compute_exchange_energy_vir(R*KS_nemo, Voep);
@@ -212,11 +214,13 @@ void OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tensor
 
 		// remember Fock matrix * nemos from above; make sure it's in phase with nemo (transform)
 		Fnemo = transform(world, Fnemo, X, trantol(), true);
+		timer1.tag("prepare BSH");
 
 		BSHApply<double,3> bsh_apply(world);
 		bsh_apply.metric=R_square;
 		bsh_apply.lo=get_calc()->param.lo();
 		auto [residual,eps_update] =bsh_apply(KS_nemo,KS_eigvals,Fnemo);
+		timer1.tag("apply BSH");
 
 		double norm=norm2(world,residual)/sqrt(KS_nemo.size());
 		// KAIN solver (helps to converge)
@@ -259,9 +263,10 @@ void OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tensor
 		}
 
 //		if (calc->param.save()) calc->save_mos(world);
+		timer1.tag("post-process");
 
 		if (world.rank() == 0) {
-			printf("\nfinished %s iteration %2d at time %8.1fs with energy %12.8f; residual %12.8f\n",
+			printf("\nfinished %s iteration %2d at time %8.1fs with energy %12.8f; residual %12.8f\n\n",
 					model.c_str(), iter, wall_time(), energy,norm);
 		}
 
