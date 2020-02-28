@@ -87,7 +87,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<bool>  ("no_compute",false,"if true use orbitals on disk, set value to computed");
 		initialize<bool>  ("no_orient",false,"if true the molecule coordinates will not be reoriented");
 		initialize<bool>  ("save",true,"if true save orbitals to disk");
-		initialize<int>   ("maxsub",5,"size of iterative subspace ... set to 0 or 1 to disable");
+		initialize<int>   ("maxsub",10,"size of iterative subspace ... set to 0 or 1 to disable");
 		initialize<double> ("orbitalshift",0.0,"scf orbital shift: shift the occ orbitals to lower energies");
 		initialize<int>    ("npt_plot",101,"no. of points to use in each dim for plots");
 //		initialize<Tensor<double> > ("plot_cell",Tensor<double>(),"lo hi in each dimension for plotting (default is all space)");
