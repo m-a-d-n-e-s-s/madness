@@ -333,9 +333,11 @@ double Nemo::solve(const SCFProtocol& proto) {
         }
         expval=sqrt(expval);
 
-        print(energyvec);
-        print(oldenergyvec);
-        print("energy differences",expval);
+        if (calc->param.print_level()>=4 and world.rank()==0) {
+        	print(energyvec);
+        	print(oldenergyvec);
+        	print("energy differences",expval);
+        }
 
         // Diagonalize the Fock matrix to get the eigenvalues and eigenvectors
         tensorT U;
@@ -398,12 +400,8 @@ double Nemo::solve(const SCFProtocol& proto) {
 		truncate(world, tmp);
 		END_TIMER(world, "apply BSH");
 
-		double n1=norm2(world,nemo);
-		double n2=norm2(world,tmp);
-		print("norm of nemo and GVnemo; ratio ",n1,n2,n1/n2);
-
 		// compute the residuals
-		vecfuncT residual = sub(world, nemo, tmp);
+		vecfuncT residual = nemo-tmp;
 		const double norm = norm2(world, residual) / sqrt(nemo.size());
 
 		// kain works best in the quadratic region
@@ -429,7 +427,7 @@ double Nemo::solve(const SCFProtocol& proto) {
 		if (world.rank() == 0) {
 			printf("finished iteration %2d at time %8.1fs with energy %12.8f\n",
 					iter, wall_time(), energy);
-			print("current residual norm  ", norm, "\n");
+			print("current residual norm, individual energy changes  ", norm, expval,"\n");
 		}
 
 		if (converged) break;
@@ -505,10 +503,10 @@ std::vector<double> Nemo::compute_energy_regularized(const vecfuncT& nemo, const
     const tensorT U = inner(world, R2nemo, Unemo);
     const double pe = 2.0 * U.sum();  // closed shell
 
-    real_function_3d dens=dot(world,nemo,nemo)*R_square;
-    double pe1=2.0*inner(dens,calc->potentialmanager->vnuclear());
+//    real_function_3d dens=dot(world,nemo,nemo)*R_square;
+//    double pe1=2.0*inner(dens,calc->potentialmanager->vnuclear());
 
-
+    // compute \sum_i <F_i | R^2 T | F_i>
     double ke = 0.0;
     for (int axis = 0; axis < 3; axis++) {
         real_derivative_3d D = free_space_derivative<double, 3>(world, axis);
@@ -519,18 +517,9 @@ std::vector<double> Nemo::compute_energy_regularized(const vecfuncT& nemo, const
     ke *= 2.0; // closed shell
 
 
-    double ke0 = 0.0;
-    for (int axis = 0; axis < 3; axis++) {
-        real_derivative_3d D = free_space_derivative<double, 3>(world, axis);
-        const vecfuncT dnemo = apply(world, D, nemo);
-        ke0+=0.5*inner(R_square,dot(world,dnemo,dnemo));
-        ke0-=0.5*2.0*inner(R_square*ncf->U1(axis),dot(world,nemo,dnemo));
-    }
-    ke0 *= 2.0; // closed shell
-
-    double ke1=compute_kinetic_energy(nemo);
-    double ke2=compute_kinetic_energy1(nemo);
-    double ke3=compute_kinetic_energy2(nemo);
+//    double ke1=compute_kinetic_energy(nemo);
+//    double ke2=compute_kinetic_energy1(nemo);
+//    double ke3=compute_kinetic_energy2(nemo);
 
     const double J = inner(world, R2nemo, Jnemo).sum();
     const double K = inner(world, R2nemo, Knemo).sum();
@@ -553,12 +542,11 @@ std::vector<double> Nemo::compute_energy_regularized(const vecfuncT& nemo, const
 
     if (world.rank() == 0) {
         printf("\n  nuclear and kinetic %16.8f\n", ke + pe);
-        printf("\n  nuclear and kinetic more accurate %16.8f\n", ke0 + pe);
-        printf("\n  kinetic only  %16.8f\n",  ke1);
-        printf("\n  kinetic only  %16.8f\n",  ke2);
-        printf("\n  kinetic plain %16.8f\n",  ke3);
-        printf("\n  nuclear only  %16.8f\n",  pe1);
-        printf("\n  nuclear and kinetic each  %16.8f\n",  pe1+ke1);
+//        printf("\n  kinetic only  %16.8f\n",  ke1);
+//        printf("\n  kinetic only  %16.8f\n",  ke2);
+//        printf("\n  kinetic plain %16.8f\n",  ke3);
+//        printf("\n  nuclear only  %16.8f\n",  pe1);
+//        printf("\n  nuclear and kinetic each  %16.8f\n",  pe1+ke1);
         printf("              coulomb %16.8f\n", J);
         if (is_dft()) {
             printf(" exchange-correlation %16.8f\n", exc);

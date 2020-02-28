@@ -31,17 +31,13 @@ void OEP::solve(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
 	// all necessary operators applied on nemos
 	real_function_3d Voep = copy(Vs);
 
-	iterate("oaep",HF_nemo,HF_eigvals,KS_nemo,KS_eigvals,Voep,Vs);
-	if (oep_param.model()!="oaep") iterate(oep_param.model(),HF_nemo,HF_eigvals,KS_nemo,KS_eigvals,Voep,Vs);
-//	for (auto model : {"ocep","dcep","mrks"}) {
-//		iterate(model,HF_nemo,HF_eigvals,KS_nemo,KS_eigvals,Voep,Vs);
-//		if (oep_param.model()==model) break;
-//	}
+	double energy=0.0;
+	energy=iterate("oaep",HF_nemo,HF_eigvals,KS_nemo,KS_eigvals,Voep,Vs);
+	if (oep_param.model()!="oaep") energy=iterate(oep_param.model(),HF_nemo,HF_eigvals,KS_nemo,KS_eigvals,Voep,Vs);
 
 	save(Voep,"OEP_final");
 	if (calc->param.save()) calc->save_mos(world);
 
-	double energy=compute_and_print_final_energies(oep_param.model(),Voep,KS_nemo,KS_eigvals,HF_nemo,HF_eigvals);
 	printf("      +++ FINAL TOTAL %s ENERGY = %15.8f  Eh +++\n\n\n", oep_param.model().c_str(), energy);
 
 }
@@ -112,7 +108,7 @@ double OEP::compute_and_print_final_energies(const std::string model, const real
 	return Econv;
 }
 
-void OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tensorT& HF_eigvals,
+double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tensorT& HF_eigvals,
 		vecfuncT& KS_nemo, tensorT& KS_eigvals, real_function_3d& Voep, const real_function_3d Vs) const {
 
 	typedef allocator<double, 3> allocT;
@@ -274,16 +270,13 @@ void OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tensor
 
 	}
 
-	if (converged) {
-		if (world.rank() == 0) print("\n     +++ Iterations converged +++\n");
-		compute_and_print_final_energies(model,Voep,KS_nemo,KS_eigvals,HF_nemo,HF_eigvals);
-
+	if (world.rank()==0) {
+		if (converged) print("\n     +++ Iterations converged +++\n");
+		else print("\n     --- Iterations failed ---\n\n");
 	}
-	else {
-		if (world.rank() == 0) print("\n     --- Iterations failed ---\n\n");
-		energy = 0.0;
-	}
-
+	energy=compute_and_print_final_energies(model,Voep,KS_nemo,KS_eigvals,HF_nemo,HF_eigvals);
+	if (not converged) energy=0.0;
+	return energy;
 }
 
 

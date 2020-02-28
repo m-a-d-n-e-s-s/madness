@@ -180,7 +180,7 @@ public:
 	/// converged if norm, total energy difference and orbital energy differences (if not OAEP) are converged
     void solve(const vecfuncT& HF_nemo, const tensorT& HF_eigvals);
 
-    void iterate(const std::string model, const vecfuncT& HF_nemo, const tensorT& HF_eigvals,
+    double iterate(const std::string model, const vecfuncT& HF_nemo, const tensorT& HF_eigvals,
     		vecfuncT& KS_nemo, tensorT& KS_eigvals, real_function_3d& Voep,
 			const real_function_3d Vs) const;
 
@@ -348,8 +348,6 @@ public:
 
         divide_add_interpolate op(oep_param.dens_thresh_hi(), oep_param.dens_thresh_lo());
         real_function_3d correction=multi_to_multi_op_values(op,args)[0];
-        static int i=1;
-        save(correction,"ocep_correction"+std::to_string(i++));
 
     	return correction;
 
@@ -396,8 +394,6 @@ public:
 
         divide_add_interpolate op(oep_param.dens_thresh_hi(), oep_param.dens_thresh_lo());
         real_function_3d correction=multi_to_multi_op_values(op,args)[0];
-        static int i=0;
-        save(correction,"dcep_correction"+std::to_string(i++));
 
     	return correction;
     }

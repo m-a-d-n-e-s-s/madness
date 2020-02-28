@@ -127,7 +127,7 @@ int main(int argc, char** argv) {
 	// set reference orbitals to canonical by default
     std::string arg="canon";
 	calc->param.set_derived_value("localize",arg);
-//	calc->param.set_derived_value("lo",1.e-6);
+	calc->param.set_derived_value("converge_each_energy",true);
 
     std::shared_ptr<Nemo> nemo(new Nemo(world, calc, input));
 
