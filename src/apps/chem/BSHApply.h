@@ -53,7 +53,7 @@ public:
 	    }
 
 	    const std::vector<Function<T,NDIM> > tmp = apply(world,ops,-2.0*Vpsi-2.0*levelshift*psi);
-	    const std::vector<Function<T,NDIM> > res=(psi-tmp);
+	    const std::vector<Function<T,NDIM> > res=truncate(psi-tmp,FunctionDefaults<NDIM>::get_thresh()*0.1);
 	    const std::vector<Function<T,NDIM> > bra_res=make_bra(res);
 
 	    // update eps

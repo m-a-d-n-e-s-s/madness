@@ -276,6 +276,10 @@ public:
 		}
     }
 
+    double compute_and_print_final_energies(const std::string model, const real_function_3d& Voep,
+    		const vecfuncT& KS_nemo, const tensorT& KS_eigvals,
+			const vecfuncT& HF_nemo, const tensorT& HF_eigvals) const;
+
     /// compute density from orbitals with ragularization (Bischoff, 2014_1, equation (19))
     real_function_3d compute_density(const vecfuncT& nemo) const {
     	real_function_3d density = 2.0*R_square*dot(world, nemo, nemo); // 2 because closed shell
@@ -534,8 +538,7 @@ public:
     }
 
     /// compute all potentials from given nemos except kinetic energy
-    void compute_nemo_potentials(const vecfuncT& nemo, vecfuncT& Jnemo, vecfuncT& Unemo,
-    		const real_function_3d V, vecfuncT& Vnemo) const {
+    void compute_nemo_potentials(const vecfuncT& nemo, vecfuncT& Jnemo, vecfuncT& Unemo) const {
 
     	// compute Coulomb part
     	compute_coulomb_potential(nemo, Jnemo);
@@ -543,9 +546,6 @@ public:
     	// compute nuclear potential part
     	Nuclear Unuc(world, this->ncf);
     	Unemo = Unuc(nemo);
-
-    	// compute approximate OEP exchange potential part
-    	Vnemo = V*nemo;
 
     }
 
