@@ -61,7 +61,7 @@ double OEP::compute_and_print_final_energies(const std::string model, const real
 	double Ex_HF=-inner(R_square*HF_nemo,K(HF_nemo));
 
 	// compute final exchange energy using different methods and final kinetic energy
-	double Ex_vir = compute_exchange_energy_vir(R*KS_nemo, Voep);
+	double Ex_vir = compute_exchange_energy_vir(KS_nemo, Voep);
 	double Ex_conv = compute_exchange_energy_conv(R_square*KS_nemo, Knemo);
 //	double Ex_HF = compute_exchange_energy_conv(R_square*HF_nemo, Knemo_HF);
 	double Ekin_KS = compute_kinetic_energy(KS_nemo); // like Ts in Ospadov_2017, equation (22)
@@ -114,7 +114,7 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 	typedef allocator<double, 3> allocT;
 	typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
 	allocT alloc(world, KS_nemo.size());
-	solverT solver(allocT(world, KS_nemo.size()),false);
+	solverT solver(allocT(world, KS_nemo.size()),calc->param.print_level()>4);
 	solver.set_maxsub(calc->param.maxsub());
 
 	std::deque<tensorT> eps_history;
@@ -164,6 +164,8 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 	        double max_F_offidag = F_offdiag.absmax();
 	        if (print_debug) print("F max off-diagonal ", max_F_offidag);
 
+	        if (++ii>2) break;
+
 	        // diagonalize the Fock matrix to get the eigenvalues and eigenvectors (canonical)
 			// FC = epsilonSC and X^dSX with transform matrix X, see Szabo/Ostlund (3.159) and (3.165)
 	        tensorT overlap = matrix_inner(world, R*KS_nemo, R*KS_nemo, true);
@@ -184,14 +186,13 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 
 			timer_pot.tag("rest");
 
-	        if (delta_eig<calc->param.econv()) break;
-	        if (++ii>2) break;
+//	        if (delta_eig<calc->param.econv()) break;
 
 		}
 		timer1.tag("compute potentials");
 		// compute new (current) energy
         double old_energy = energy;
-        double Ex_KS = compute_exchange_energy_vir(R*KS_nemo, Voep);
+        double Ex_KS = compute_exchange_energy_vir(KS_nemo, Voep);
         energy = compute_energy(KS_nemo, Jnemo, Ex_KS);
 		// there should be no difference between these two methods, because energy is only needed
 		// for checking convergence threshold; but: Evir should be much faster because K is expensive
@@ -346,7 +347,7 @@ void OEP::test_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
     print("test virial HF exchange energy (with Slater potential)");
     const double Exvir_HF_correct = -3.00658754; // exchange energy from a test calculation with HF reference
     print("HF virial exchange energy of the system should be", Exvir_HF_correct, "Eh");
-    const double Exvir_HF = compute_exchange_energy_vir(R*HF_nemo, Vs);
+    const double Exvir_HF = compute_exchange_energy_vir(HF_nemo, Vs);
     const double Exvir_HF_diff = fabs(Exvir_HF_correct - Exvir_HF);
     print("     the virial HF exchange energy of the system is ...", Exvir_HF, "Eh");
     print("     error:", Exvir_HF_diff, "Eh");
@@ -360,7 +361,7 @@ void OEP::test_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
     real_function_3d V_HFocep = Vs + IHF;
     const double Exvir_HFocep_correct = -0.47639487; // exchange energy from a test calculation with HF reference
     print("HF OCEP virial exchange energy of the system should be", Exvir_HFocep_correct, "Eh");
-    const double Exvir_HFocep = compute_exchange_energy_vir(R*HF_nemo, V_HFocep);
+    const double Exvir_HFocep = compute_exchange_energy_vir(HF_nemo, V_HFocep);
     const double Exvir_HFocep_diff = fabs(Exvir_HFocep_correct - Exvir_HFocep);
     print("     the virial HF OCEP exchange energy of the system is ...", Exvir_HFocep, "Eh");
     print("     error:", Exvir_HFocep_diff, "Eh");
@@ -374,7 +375,7 @@ void OEP::test_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
     real_function_3d V_HFdcep = Vs + IHF + kin_tot_HF;
     const double Exvir_HFdcep_correct = 4.03650400; // exchange energy from a test calculation with HF reference
     print("HF DCEP virial exchange energy of the system should be", Exvir_HFdcep_correct, "Eh");
-    const double Exvir_HFdcep = compute_exchange_energy_vir(R*HF_nemo, V_HFdcep);
+    const double Exvir_HFdcep = compute_exchange_energy_vir(HF_nemo, V_HFdcep);
     const double Exvir_HFdcep_diff = fabs(Exvir_HFdcep_correct - Exvir_HFdcep);
     print("     the virial HF DCEP exchange energy of the system is ...", Exvir_HFdcep, "Eh");
     print("     error:", Exvir_HFdcep_diff, "Eh");
@@ -388,7 +389,7 @@ void OEP::test_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
     real_function_3d V_HFmrks = Vs + IHF + kin_P_HF;
     const double Exvir_HFmrks_correct = -0.84506060; // exchange energy from a test calculation with HF reference
     print("HF mRKS virial exchange energy of the system should be", Exvir_HFmrks_correct, "Eh");
-    const double Exvir_HFmrks = compute_exchange_energy_vir(R*HF_nemo, V_HFmrks);
+    const double Exvir_HFmrks = compute_exchange_energy_vir(HF_nemo, V_HFmrks);
     const double Exvir_HFmrks_diff = fabs(Exvir_HFmrks_correct - Exvir_HFmrks);
     print("     the virial HF mRKS exchange energy of the system is ...", Exvir_HFmrks, "Eh");
     print("     error:", Exvir_HFmrks_diff, "Eh");
@@ -445,7 +446,7 @@ void OEP::test_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
     print("test virial KS exchange energy");
     const double Ex_vir_correct = -2.81673416; // exchange energy from a test calculation with HF reference (OEP: maxiter = 2)
     print("KS virial exchange energy of the system should be", Ex_vir_correct, "Eh");
-    const double Ex_vir = compute_exchange_energy_vir(R*KS_nemo, Voep);
+    const double Ex_vir = compute_exchange_energy_vir(KS_nemo, Voep);
     const double Ex_vir_diff = fabs(Ex_vir_correct - Ex_vir);
     print("     the virial KS exchange energy of the system is ...", Ex_vir, "Eh");
     print("     error:", Ex_vir_diff, "Eh");

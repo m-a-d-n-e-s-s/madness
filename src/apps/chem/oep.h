@@ -349,6 +349,9 @@ public:
         divide_add_interpolate op(oep_param.dens_thresh_hi(), oep_param.dens_thresh_lo());
         real_function_3d correction=multi_to_multi_op_values(op,args)[0];
 
+        static int i=0;
+        save(correction,"ocep_correction"+std::to_string(i++));
+
     	return correction;
 
     }
@@ -395,6 +398,9 @@ public:
         divide_add_interpolate op(oep_param.dens_thresh_hi(), oep_param.dens_thresh_lo());
         real_function_3d correction=multi_to_multi_op_values(op,args)[0];
 
+        static int i=0;
+        save(correction,"dcep_correction"+std::to_string(i++));
+
     	return correction;
     }
 
@@ -419,6 +425,9 @@ public:
 
         divide_add_interpolate op(oep_param.dens_thresh_hi(), oep_param.dens_thresh_lo());
         real_function_3d correction=0.5*multi_to_multi_op_values(op,args)[0];
+
+        static int i=0;
+        save(correction,"mrks_correction"+std::to_string(i++));
 
     	return correction;
     }
@@ -454,7 +463,7 @@ public:
     }
 
     /// compute Evir using Levy-Perdew virial relation (Kohut_2014, (43) or Ospadov_2017, (25))
-    double compute_exchange_energy_vir(const vecfuncT phi, const real_function_3d Vx) const {
+    double compute_exchange_energy_vir(const vecfuncT& nemo, const real_function_3d Vx) const {
 
     	// make vector of functions r = (x, y, z)
     	auto monomial_x = [] (const coord_3d& r) {return r[0];};
@@ -465,10 +474,10 @@ public:
     	r[1]=real_factory_3d(world).functor(monomial_y);
     	r[2]=real_factory_3d(world).functor(monomial_z);
 
-    	// for density note that phi is R*nemo, so no R_square is needed
-    	real_function_3d rho = 2.0*dot(world, phi, phi); // 2 because closed shell
-    	real_function_3d rhoterm = 3*rho + dot(world, r, grad(rho));
-    	double Ex = inner(Vx, rhoterm);
+    	real_function_3d rhonemo = 2.0*dot(world, nemo, nemo); // 2 because closed shell
+
+    	real_function_3d rhoterm = 3*rhonemo + dot(world, r, -2.0*ncf->U1vec()*rhonemo + grad(rhonemo));
+    	double Ex = inner(Vx, R_square*rhoterm);
     	return Ex;
 
     }
