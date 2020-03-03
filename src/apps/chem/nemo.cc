@@ -322,8 +322,6 @@ double Nemo::solve(const SCFProtocol& proto) {
 		std::vector<double> oldenergyvec=energyvec;
 		double oldenergy=0.0;
 		if (oldenergyvec.size()>0) oldenergy=oldenergyvec[0];
-//		energy = compute_energy(psi, mul(world, R, Jnemo),
-//				mul(world, R, Knemo));
         energyvec = compute_energy_regularized(nemo, Jnemo, Knemo, Unemo);
         energy=energyvec[0];
         double expval=fabs(energyvec.size()-oldenergyvec.size());	// >0 if oldenergyvec not initialized
@@ -419,7 +417,7 @@ double Nemo::solve(const SCFProtocol& proto) {
 		nemo=nemo_new;
 
 		bool econv=(fabs(energy-oldenergy)<proto.econv);
-		if (calc->param.converge_each_energy()) econv=(expval<proto.dconv);
+		if (calc->param.converge_each_energy()) econv=(expval<proto.econv*3.0);
 		converged =((norm < proto.dconv) and econv);
 
 		if (calc->param.save()) calc->save_mos(world);
