@@ -517,9 +517,9 @@ std::vector<double> Nemo::compute_energy_regularized(const vecfuncT& nemo, const
     ke *= 2.0; // closed shell
 
 
-//    double ke1=compute_kinetic_energy(nemo);
-//    double ke2=compute_kinetic_energy1(nemo);
-//    double ke3=compute_kinetic_energy2(nemo);
+//    double ke0=compute_kinetic_energy(nemo);
+    double ke1=compute_kinetic_energy1(nemo);
+//    double ke2=compute_kinetic_energy2(nemo);
 
     const double J = inner(world, R2nemo, Jnemo).sum();
     const double K = inner(world, R2nemo, Knemo).sum();
@@ -542,7 +542,7 @@ std::vector<double> Nemo::compute_energy_regularized(const vecfuncT& nemo, const
 
     if (world.rank() == 0) {
         printf("\n  nuclear and kinetic %16.8f\n", ke + pe);
-//        printf("\n  kinetic only  %16.8f\n",  ke1);
+        printf("\n  kinetic only        %16.8f\n",  ke1);
 //        printf("\n  kinetic only  %16.8f\n",  ke2);
 //        printf("\n  kinetic plain %16.8f\n",  ke3);
 //        printf("\n  nuclear only  %16.8f\n",  pe1);
@@ -562,7 +562,7 @@ std::vector<double> Nemo::compute_energy_regularized(const vecfuncT& nemo, const
     }
     END_TIMER(world, "compute energy");
 
-    return std::vector<double>{energy,ke+pe,J,exc,-K,pcm_energy,nucrep};
+    return std::vector<double>{energy,ke1,ke+pe,J,exc,-K,pcm_energy,nucrep};
 }
 
 /// compute the reconstructed orbitals, and all potentials applied on nemo
