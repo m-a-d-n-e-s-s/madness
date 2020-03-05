@@ -251,7 +251,7 @@ public:
         double maxenergychange=fabs(energies.size()-oldenergies.size());	// >0 if oldenergyvec not initialized
         for (auto iter1=energies.begin(), iter2=oldenergies.begin();
         		(iter1!=energies.end() and iter2!=oldenergies.end()); iter1++, iter2++) {
-        	maxenergychange+=std::max(maxenergychange,fabs(*iter1 - *iter2));
+        	maxenergychange=std::max(maxenergychange,fabs(*iter1 - *iter2));
         }
         double delta_energy=fabs(energies[0]-oldenergies[0]);
 
@@ -306,7 +306,7 @@ public:
 		}
 
 		void initialize_nemo_parameters() {
-			initialize<std::pair<std::string,double> > ("ncf",{"Slater",2.0},"nuclear correlation factor");
+			initialize<std::pair<std::string,double> > ("ncf",{"slater",2.0},"nuclear correlation factor");
 			initialize<bool> ("hessian",false,"compute the hessian matrix");
 			initialize<bool> ("read_cphf",false,"read the converged orbital response for nuclear displacements from file");
 			initialize<bool> ("restart_cphf",false,"read the guess orbital response for nuclear displacements from file");
