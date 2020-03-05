@@ -73,7 +73,7 @@ public:
 
 		initialize<std::string>("model","mrks","comment on this",{"oaep","ocep","dcep","mrks"});
 		initialize<unsigned int>("maxiter",250,"maximum number of iterations in OEP algorithm");
-		initialize<double>("conv_threshold",1.e-5,"comment on this");
+//		initialize<double>("conv_threshold",1.e-5,"comment on this");
 		initialize<double>("density_threshold_high",1.e-4,"comment on this");
 		initialize<double>("density_threshold_low",1.e-7,"comment on this");
 		initialize<double>("density_threshold_inv",1.e-8,"comment on this");
@@ -103,7 +103,6 @@ public:
 			MADNESS_EXCEPTION("confused thresholds for the long-range transition",1);
 		}
     	set_derived_value("density_threshold_inv",0.1*get<double>("density_threshold_low"));
-    	set_derived_value("conv_threshold",nparam.econv());
 
 	}
 
@@ -117,7 +116,7 @@ public:
 	long damp_num() const {return get<std::vector<double> >("damp_coeff").size();}
 	bool do_damping() const {return damp_num() > 1;}
 	unsigned int maxiter() const {return get<unsigned int>("maxiter");}
-	double conv_thresh() const {return get<double>("conv_threshold");}
+//	double conv_thresh() const {return get<double>("conv_threshold");}
 	double dens_thresh_hi() const {return get<double>("density_threshold_high");}
 	double dens_thresh_lo() const {return get<double>("density_threshold_low");}
 	double dens_thresh_inv() const{return get<double>("density_threshold_inv");}
@@ -495,7 +494,7 @@ public:
 
     /// compute all energy contributions except exchange and sum up for total energy
     /// the exchange energy must be computed priorly with the compute_exchange_energy_... methods
-    double compute_energy(const vecfuncT& nemo, const vecfuncT& Jnemo, const double E_X) const {
+    std::vector<double> compute_energy(const vecfuncT& nemo, const vecfuncT& Jnemo, const double E_X) const {
 
     	// compute kinetic energy
     	double E_kin = compute_kinetic_energy(nemo);
@@ -519,8 +518,7 @@ public:
     		printf("    nuclear-nuclear repulsion energy %15.8f Eh\n", E_nuc);
     		printf("                        total energy %15.8f Eh\n\n", energy);
     	}
-
-    	return energy;
+    	return {energy,E_kin,E_ext,E_J,E_X};
 
     }
 

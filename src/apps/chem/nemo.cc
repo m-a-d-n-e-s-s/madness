@@ -278,10 +278,11 @@ double Nemo::solve(const SCFProtocol& proto) {
 	// apply all potentials (J, K, Vnuc) on the nemos
 	vecfuncT psi, Jnemo, Knemo, pcmnemo, Unemo;
 
-	std::vector<double> energyvec;
+	std::vector<double> energies(1,0.0);	// contains the total energy and all its contributions
 	double energy=0.0;
 	bool converged = false;
 	bool localized=calc->param.do_localize();
+	real_function_3d density=real_factory_3d(world); 	// for testing convergence
 
 	typedef allocator<double, 3> allocT;
 	typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
@@ -319,23 +320,9 @@ double Nemo::solve(const SCFProtocol& proto) {
             if (world.rank()==0) print("F max off-diagonal  ",max_fock_offidag);
 		}
 
-		std::vector<double> oldenergyvec=energyvec;
-		double oldenergy=0.0;
-		if (oldenergyvec.size()>0) oldenergy=oldenergyvec[0];
-        energyvec = compute_energy_regularized(nemo, Jnemo, Knemo, Unemo);
-        energy=energyvec[0];
-        double expval=fabs(energyvec.size()-oldenergyvec.size());	// >0 if oldenergyvec not initialized
-        for (auto iter1=energyvec.begin(), iter2=oldenergyvec.begin();
-        		(iter1!=energyvec.end() and iter2!=oldenergyvec.end()); iter1++, iter2++) {
-        	expval+=(*iter1 - *iter2)*(*iter1 - *iter2);
-        }
-        expval=sqrt(expval);
-
-        if (calc->param.print_level()>=4 and world.rank()==0) {
-        	print(energyvec);
-        	print(oldenergyvec);
-        	print("energy differences",expval);
-        }
+		std::vector<double> oldenergies=energies;
+		energies = compute_energy_regularized(nemo, Jnemo, Knemo, Unemo);
+        energy=energies[0];
 
         // Diagonalize the Fock matrix to get the eigenvalues and eigenvectors
         tensorT U;
@@ -400,11 +387,11 @@ double Nemo::solve(const SCFProtocol& proto) {
 
 		// compute the residuals
 		vecfuncT residual = nemo-tmp;
-		const double norm = norm2(world, residual) / sqrt(nemo.size());
+		const double bsh_norm = norm2(world, residual) / sqrt(nemo.size());
 
 		// kain works best in the quadratic region
 		vecfuncT nemo_new;
-		if (norm < 5.e-1) {
+		if (bsh_norm < 5.e-1) {
 			nemo_new = solver.update(nemo, residual);
 		} else {
 			nemo_new = tmp;
@@ -416,16 +403,16 @@ double Nemo::solve(const SCFProtocol& proto) {
 		orthonormalize(nemo_new,R);
 		nemo=nemo_new;
 
-		bool econv=(fabs(energy-oldenergy)<proto.econv);
-		if (calc->param.converge_each_energy()) econv=(expval<proto.econv*3.0);
-		converged =((norm < proto.dconv) and econv);
+		real_function_3d olddensity=density;
+		density=R_square*compute_density(nemo);
+		double deltadens=(density-olddensity).norm2();
+		converged=check_convergence(energies,oldenergies,bsh_norm,deltadens,calc->param);
 
 		if (calc->param.save()) calc->save_mos(world);
 
 		if (world.rank() == 0) {
-			printf("finished iteration %2d at time %8.1fs with energy %12.8f\n",
+			printf("finished iteration %2d at time %8.1fs with energy  %12.8f\n",
 					iter, wall_time(), energy);
-			print("current residual norm, individual energy changes  ", norm, expval,"\n");
 		}
 
 		if (converged) break;

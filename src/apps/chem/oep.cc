@@ -74,10 +74,10 @@ double OEP::compute_and_print_final_energies(const std::string model, const real
 
 
 	print("FINAL", model, "ENERGY Evir:");
-	double Evir = compute_energy(KS_nemo, Jnemo, Ex_vir);
+	double Evir = compute_energy(KS_nemo, Jnemo, Ex_vir)[0];
 
 	print("FINAL", model, "ENERGY Econv:");
-	double Econv = compute_energy(KS_nemo, Jnemo, Ex_conv);
+	double Econv = compute_energy(KS_nemo, Jnemo, Ex_conv)[0];
 
 
 	printf("     Ex_vir       = %15.8f  Eh", Ex_vir);
@@ -119,6 +119,7 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 
 	std::deque<tensorT> eps_history;
 	double energy=0.0;
+	std::vector<double> energies(1,0.0);
 	bool converged=false;
 
 	timer timer1(world,calc->param.print_level()>=3);
@@ -193,7 +194,10 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 		// compute new (current) energy
         double old_energy = energy;
         double Ex_KS = compute_exchange_energy_vir(KS_nemo, Voep);
-        energy = compute_energy(KS_nemo, Jnemo, Ex_KS);
+
+		std::vector<double> oldenergies=energies;
+        energies=compute_energy(KS_nemo, Jnemo, Ex_KS);
+        energy =energies[0];
 		// there should be no difference between these two methods, because energy is only needed
 		// for checking convergence threshold; but: Evir should be much faster because K is expensive
 
@@ -219,7 +223,7 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 		auto [residual,eps_update] =bsh_apply(KS_nemo,KS_eigvals,Fnemo);
 		timer1.tag("apply BSH");
 
-		double norm=norm2(world,residual)/sqrt(KS_nemo.size());
+		double bshnorm=norm2(world,residual)/sqrt(KS_nemo.size());
 		// KAIN solver (helps to converge)
 		vecfuncT nemo_new = (solver.update(KS_nemo, residual, oep_param.kain_param()[0], oep_param.kain_param()[1]));
 		truncate(world, nemo_new);
@@ -242,8 +246,10 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 		orthonormalize(nemo_new,R);
 		KS_nemo = nemo_new;
 
+		double deltadensity=0.0;
+		converged=check_convergence(energies,oldenergies,bshnorm,deltadensity,calc->param);
 		// evaluate convergence via norm error and energy difference
-		if ((norm < calc->param.dconv()) and (fabs(energy - old_energy) < oep_param.conv_thresh())) {
+		if (converged) {
 
 			if (oep_param.is_oaep()) converged = true;  // if OAEP, the following evaluation is not necessary
 			else {
@@ -264,7 +270,7 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 
 		if (world.rank() == 0) {
 			printf("\nfinished %s iteration %2d at time %8.1fs with energy %12.8f; residual %12.8f\n\n",
-					model.c_str(), iter, wall_time(), energy,norm);
+					model.c_str(), iter, wall_time(), energy,bshnorm);
 		}
 
 		if (converged) break;
@@ -459,7 +465,7 @@ void OEP::test_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
     print("test final total energy");
     const double Etot_correct = -14.56855740; // total energy (conv) from a test calculation with HF reference (OEP: maxiter = 2)
     print("final total energy of the system should be", Etot_correct, "Eh");
-    const double Etot = compute_energy(R*KS_nemo, R*Jnemo, Ex_conv);
+    const double Etot = compute_energy(R*KS_nemo, R*Jnemo, Ex_conv)[0];
     const double Etot_diff = fabs(Etot_correct - Etot);
     print("     the final total energy of the system is ...", Etot, "Eh");
     print("     error:", Etot_diff, "Eh");

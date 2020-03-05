@@ -145,7 +145,7 @@ public:
 	}
 
 	template<typename T, std::size_t NDIM>
-	real_function_3d compute_density(const std::vector<Function<T,NDIM> > nemo) const {
+	Function<typename Tensor<T>::scalar_type,NDIM> compute_density(const std::vector<Function<T,NDIM> > nemo) const {
 		return sum(world,abssq(world,nemo)).truncate();
 	}
 
@@ -243,6 +243,35 @@ public:
     	return E_kin;
     }
 
+
+	bool check_convergence(const std::vector<double> energies,
+			const std::vector<double> oldenergies, const double bsh_norm,
+			const double delta_density, const CalculationParameters& param) const {
+
+        double maxenergychange=fabs(energies.size()-oldenergies.size());	// >0 if oldenergyvec not initialized
+        for (auto iter1=energies.begin(), iter2=oldenergies.begin();
+        		(iter1!=energies.end() and iter2!=oldenergies.end()); iter1++, iter2++) {
+        	maxenergychange+=std::max(maxenergychange,fabs(*iter1 - *iter2));
+        }
+        double delta_energy=fabs(energies[0]-oldenergies[0]);
+
+		bool bsh_conv=param.converge_bsh_residual() ? bsh_norm<param.dconv() : true;
+		bool total_energy_conv=param.converge_total_energy() ? delta_energy<param.econv() : true;
+		bool each_energy_conv=param.converge_each_energy() ? maxenergychange<param.econv() *3.0 : true;
+		bool density_conv=param.converge_density() ? delta_density<param.dconv() : true;
+
+		if (world.rank()==0 and param.print_level()>=2) {
+			std::stringstream line;
+			line << "convergence: bshresidual, energy change, max energy change, density change "
+					<< std::scientific << std::setprecision(1)
+					<< bsh_norm << " " << delta_energy << " "
+					<< maxenergychange << " " << delta_density;
+			print(line.str());
+		}
+
+		return (bsh_conv and density_conv and each_energy_conv and total_energy_conv);
+	}
+
 	World& world;
 
 	/// the nuclear correlation factor
@@ -277,7 +306,7 @@ public:
 		}
 
 		void initialize_nemo_parameters() {
-			initialize<std::pair<std::string,double> > ("ncf",{"none",0.0},"nuclear correlation factor",{{"none",0.0},{"slater",2.0}});
+			initialize<std::pair<std::string,double> > ("ncf",{"Slater",2.0},"nuclear correlation factor");
 			initialize<bool> ("hessian",false,"compute the hessian matrix");
 			initialize<bool> ("read_cphf",false,"read the converged orbital response for nuclear displacements from file");
 			initialize<bool> ("restart_cphf",false,"read the guess orbital response for nuclear displacements from file");

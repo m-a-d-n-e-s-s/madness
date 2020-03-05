@@ -127,7 +127,13 @@ int main(int argc, char** argv) {
 	// set reference orbitals to canonical by default
     std::string arg="canon";
 	calc->param.set_derived_value("localize",arg);
-	calc->param.set_derived_value("converge_each_energy",true);
+
+	// add tight convergence criteria
+	std::vector<std::string> convergence_crit=calc->param.get<std::vector<std::string> >("convergence_criteria");
+	if (std::find(convergence_crit.begin(),convergence_crit.end(),"each_energy")==convergence_crit.end()) {
+		convergence_crit.push_back("each_energy");
+	}
+	calc->param.set_derived_value("convergence_criteria",convergence_crit);
 
     std::shared_ptr<Nemo> nemo(new Nemo(world, calc, input));
 
