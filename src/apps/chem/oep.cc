@@ -165,7 +165,6 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 	        double max_F_offidag = F_offdiag.absmax();
 	        if (print_debug) print("F max off-diagonal ", max_F_offidag);
 
-	        if (++ii>2) break;
 
 	        // diagonalize the Fock matrix to get the eigenvalues and eigenvectors (canonical)
 			// FC = epsilonSC and X^dSX with transform matrix X, see Szabo/Ostlund (3.159) and (3.165)
@@ -175,6 +174,8 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 	        		FunctionDefaults<3>::get_thresh());
 	        KS_nemo = truncate(transform(world, KS_nemo, X));
 	        normalize(KS_nemo,R);
+	        rotate_subspace(world, X, solver, 0, KS_nemo.size());
+			Fnemo = transform(world, Fnemo, X, trantol(), true);
 
 	        double delta_eig=(KSeig-KS_eigvals).normf();
 	        KS_eigvals=KSeig;
@@ -186,8 +187,8 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 			}
 
 			timer_pot.tag("rest");
+	        if (++ii>2) break;
 
-			break;
 //	        if (delta_eig<calc->param.econv()) break;
 
 		}
@@ -202,7 +203,6 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 		// there should be no difference between these two methods, because energy is only needed
 		// for checking convergence threshold; but: Evir should be much faster because K is expensive
 
-        rotate_subspace(world, X, solver, 0, KS_nemo.size());
 
 		// calculate new orbital energies (current eigenvalues from Fock-matrix)
 		for (int i = 0; i < KS_nemo.size(); ++i) {
@@ -215,7 +215,6 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 		print("HF/KS HOMO energy difference of", homo_diff(HF_eigvals, KS_eigvals), "Eh is not yet included");
 
 		// remember Fock matrix * nemos from above; make sure it's in phase with nemo (transform)
-		Fnemo = transform(world, Fnemo, X, trantol(), true);
 		timer1.tag("prepare BSH");
 
 		BSHApply<double,3> bsh_apply(world);
