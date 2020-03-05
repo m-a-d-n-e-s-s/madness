@@ -235,12 +235,12 @@ public:
 
         // long-range asymptotic behavior for Slater potential is \int 1/|r-r'| * |phi_HOMO|^2 dr'
         // in order to compute this lra, use Coulomb potential with only HOMO density (= |phi_HOMO|^2)
-        Coulomb J(world);
-        J.reset_poisson_operator_ptr(calc->param.lo(),calc->param.econv());
-        real_function_3d lra = -1.0*J.compute_potential(R_square*square(nemo[homo_ind]));
-//        Coulomb J(world,this);
-//        real_function_3d lra=-1.0/(calc->param.nalpha()+calc->param.nbeta())*J.compute_potential(this);
-//        print("compute long-range part of the Slater potential from the full molecular density");
+//        Coulomb J(world);
+//        J.reset_poisson_operator_ptr(calc->param.lo(),calc->param.econv());
+//        real_function_3d lra = -1.0*J.compute_potential(R_square*square(nemo[homo_ind]));
+        Coulomb J(world,this);
+        real_function_3d lra=-1.0/(calc->param.nalpha()+calc->param.nbeta())*J.compute_potential(this);
+        print("compute long-range part of the Slater potential from the full molecular density");
         if (oep_param.saving_amount() >= 3) save(lra, "lra_slater");
 
         real_function_3d zero=real_factory_3d(world);

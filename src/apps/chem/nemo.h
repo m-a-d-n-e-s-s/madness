@@ -159,7 +159,7 @@ public:
 	    }
 
 	    // re-project the ncf
-	    ncf->initialize(FunctionDefaults<3>::get_thresh()*0.3);
+	    ncf->initialize(FunctionDefaults<3>::get_thresh());
 	    R = ncf->function();
 	    R.set_thresh(FunctionDefaults<3>::get_thresh());
 	    R_square = ncf->square();
