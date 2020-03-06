@@ -249,8 +249,7 @@ public:
     /// this function uses a newly constructed Poisson operator. Note that
     /// the accuracy parameters must be consistent with the exchange operator.
     template<typename T, std::size_t NDIM>
-    Function<T,NDIM> compute_potential(const Function<T,NDIM>& density,
-            double lo=1.e-4, double econv=FunctionDefaults<3>::get_thresh()) const {
+    Function<T,NDIM> compute_potential(const Function<T,NDIM>& density) const {
     	return (*poisson)(density).truncate();
     }
 
