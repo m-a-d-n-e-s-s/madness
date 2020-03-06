@@ -118,11 +118,7 @@ int main(int argc, char** argv) {
 
     std::shared_ptr<SCF> calc(new SCF(world, input.c_str())); /// see constructor in SCF.h
 
-    if (world.rank() == 0) {
-        calc->molecule.print();
-//        print("\n");
-//        calc->param.print("oep");
-    }
+    if (world.rank() == 0) calc->molecule.print();
 
 	// set reference orbitals to canonical by default
     std::string arg="canon";
@@ -135,45 +131,21 @@ int main(int argc, char** argv) {
 	}
 	calc->param.set_derived_value("convergence_criteria",convergence_crit);
 
-    std::shared_ptr<Nemo> nemo(new Nemo(world, calc, input));
 
-    vecfuncT HF_nemos;
-    tensorT HF_orbens;
-
-    /// TODO: find a way to save eigenvalues and implement restart options
-//    const std::string saved_nemos = "HF_nemos";
-//    const std::string saved_orbens = "HF_orbens";
-//    std::ifstream f1(saved_nemos.c_str());
-//    std::ifstream f2(saved_orbens.c_str());
-//    if (f1.good() and f2.good()) { // if file HF_nemos and HF_orbens exist
-//    	load_function(world, HF_nemos, saved_nemos);
-//    	// load_tensor(... HF_orbens, saved_orbens ...);
-//    }
-//    else {
-//    	const double energy = oep->value();
-//    	HF_nemos = copy(world, oep->get_calc()->amo);
-//    	HF_orbens = copy(oep->get_calc()->aeps);
-//    	save_function(HF_nemos, saved_nemos);
-//    	// save_tensor(... HF_orbens, saved_orbens ...);
-//    }
-
+	// compute the reference HF orbitals and orbittal energies
+	std::shared_ptr<Nemo> nemo(new Nemo(world, calc, input));
     const double energy = nemo->value();
+    // save converged HF MOs and orbital energies
+    vecfuncT HF_nemos = copy(world, nemo->get_calc()->amo);
+    tensorT HF_orbens = copy(nemo->get_calc()->aeps);
 
     if (world.rank() == 0) {
         printf("final energy   %12.8f\n", energy);
         printf("finished at time %.1f\n", wall_time());
     }
 
-    // save converged HF MOs and orbital energies
-    HF_nemos = copy(world, nemo->get_calc()->amo);
-    HF_orbens = copy(nemo->get_calc()->aeps);
-
     if (test) printf("\n   +++ starting test of the OEP program +++\n\n");
     else printf("\n   +++ starting approximate OEP iterative calculation +++\n\n");
-
-    // read additional OEP parameters from same input file used for SCF calculation (see above)
-//    std::ifstream in(input.c_str());
-//    oep->read_oep_param(in);
 
     // do approximate OEP calculation or test the program
     std::shared_ptr<OEP> oep(new OEP(world, calc, input));

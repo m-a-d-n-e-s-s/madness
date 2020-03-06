@@ -28,7 +28,6 @@ void OEP::solve(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
 	vecfuncT& KS_nemo = calc->amo;
 	tensorT& KS_eigvals = calc->aeps; // 1d tensor of same length as KS_nemo
 
-	// all necessary operators applied on nemos
 	real_function_3d Voep = copy(Vs);
 
 	double energy=0.0;
@@ -36,7 +35,7 @@ void OEP::solve(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
 	if (oep_param.model()!="oaep") energy=iterate(oep_param.model(),HF_nemo,HF_eigvals,KS_nemo,KS_eigvals,Voep,Vs);
 
 	save(Voep,"OEP_final");
-	if (calc->param.save()) calc->save_mos(world);
+//	if (calc->param.save()) calc->save_mos(world);
 
 	printf("      +++ FINAL TOTAL %s ENERGY = %15.8f  Eh +++\n\n\n", oep_param.model().c_str(), energy);
 
@@ -121,6 +120,7 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 	double energy=0.0;
 	std::vector<double> energies(1,0.0);
 	bool converged=false;
+	bool print_debug=(calc->param.print_level()>=10) and (world.rank()==0);
 
 	timer timer1(world,calc->param.print_level()>=3);
 	for (int iter = 0; iter < oep_param.maxiter(); ++iter) {
@@ -139,7 +139,6 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 			timer timer_pot(world,calc->param.print_level()>=4);
 			vecfuncT R2KS_nemo = truncate(R_square*KS_nemo);
 
-			bool print_debug=(calc->param.print_level()>=10) and (world.rank()==0);
 			compute_nemo_potentials(KS_nemo, Jnemo, Unemo);
 
 			timer_pot.tag("compute potentials");
@@ -181,8 +180,8 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 	        KS_eigvals=KSeig;
 
 			if (print_debug) {
-				print("X");
-				print(X);
+//				print("X");
+//				print(X);
 		        print("delta eigenvalues",delta_eig);
 			}
 
@@ -210,9 +209,11 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 		}
 
 		// print orbital energies:
-		print("current orbital energies");
-		print_orbens(KS_eigvals);
-		print("HF/KS HOMO energy difference of", homo_diff(HF_eigvals, KS_eigvals), "Eh is not yet included");
+		if (print_debug) {
+			print("current orbital energies");
+			print_orbens(KS_eigvals);
+			print("HF/KS HOMO energy difference of", homo_diff(HF_eigvals, KS_eigvals), "Eh is not yet included");
+		}
 
 		// remember Fock matrix * nemos from above; make sure it's in phase with nemo (transform)
 		timer1.tag("prepare BSH");
@@ -245,9 +246,15 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 		calc->do_step_restriction(world, KS_nemo, nemo_new, "ab spin case");
 		orthonormalize(nemo_new,R);
 		KS_nemo = nemo_new;
+		timer1.tag("post-process");
 
 		double deltadensity=0.0;
 		converged=check_convergence(energies,oldenergies,bshnorm,deltadensity,calc->param);
+		if (world.rank() == 0) {
+			printf("\nfinished %s iteration %2d at time %8.1fs with energy %12.8f; residual %12.8f\n\n",
+					model.c_str(), iter, wall_time(), energy,bshnorm);
+		}
+
 		// evaluate convergence via norm error and energy difference
 		if (converged) {
 
@@ -259,18 +266,8 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
     				if (fabs(KS_eigvals(i) - old_eigvals(i)) < calc->param.dconv()) conv[i] = true;
     				else conv[i] = false;
     			}
-
     			if (IsAlltrue(conv)) converged = true; // converged if all are converged
 			}
-
-		}
-
-//		if (calc->param.save()) calc->save_mos(world);
-		timer1.tag("post-process");
-
-		if (world.rank() == 0) {
-			printf("\nfinished %s iteration %2d at time %8.1fs with energy %12.8f; residual %12.8f\n\n",
-					model.c_str(), iter, wall_time(), energy,bshnorm);
 		}
 
 		if (converged) break;
