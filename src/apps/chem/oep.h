@@ -65,8 +65,11 @@ struct divide_add_interpolate {
 	}
 };
 
-
-
+/// TODO:
+///  - change algorithm to handle localized orbitals
+///  - do not recompute the OEP potentials that don't depend on the orbital energies/Fock matrix elements
+///  - do not recompute the HF contributions to the OEP potentials
+///  - think about the long-range part of the Slater potential (or medium-range)
 class OEP_Parameters : public QCCalculationParametersBase {
 public:
 	OEP_Parameters(World& world, std::string inputfile) {
