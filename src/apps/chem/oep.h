@@ -160,9 +160,9 @@ public:
 		: Nemo(world, calc, inputfile), oep_param(world, inputfile) {
 		oep_param.set_derived_values(param);
 
-		if (param.localize_method()!="canon") {
-			MADNESS_EXCEPTION("use localized orbitals for OEP calculations",1);
-		}
+//		if (param.localize_method()!="canon") {
+//			MADNESS_EXCEPTION("use localized orbitals for OEP calculations",1);
+//		}
 
 		oep_param.print("oep","end");
 
@@ -316,13 +316,14 @@ public:
 
     real_function_3d compute_oep(const std::string model, const real_function_3d& Vs,
 			const vecfuncT& HF_nemo, const tensorT HF_eigvals,
-			const vecfuncT& KS_nemo, const tensorT KS_eigvals) const {
+			const vecfuncT& KS_nemo, const tensorT KS_eigvals,
+			const tensorT& fock) const {
 
     	real_function_3d Voep=copy(Vs);
 		if (model=="ocep" or model=="dcep" or model=="mrks") {
 
     		// compute OCEP potential from current nemos and eigenvalues
-			real_function_3d correction = compute_ocep_correction(HF_nemo,HF_eigvals,KS_nemo,KS_eigvals);
+			real_function_3d correction = compute_ocep_correction(HF_nemo,HF_eigvals,KS_nemo,KS_eigvals,fock);
 			if (model=="dcep") correction += compute_dcep_correction(HF_nemo,HF_eigvals,KS_nemo,KS_eigvals);
 			if (model=="mrks") correction += compute_mrks_correction(HF_nemo,HF_eigvals,KS_nemo,KS_eigvals);
 			Voep += correction;
@@ -332,7 +333,7 @@ public:
 
     /// compute correction of the given model
     real_function_3d compute_ocep_correction(const vecfuncT& nemoHF, const tensorT& eigvalsHF,
-    		const vecfuncT& nemoKS, const tensorT& eigvalsKS) const {
+    		const vecfuncT& nemoKS, const tensorT& eigvalsKS, const tensorT& fock) const {
 
        	double lraKS = -eigvalsKS(homo_ind(eigvalsKS));
        	double lraHF = -eigvalsHF(homo_ind(eigvalsHF));

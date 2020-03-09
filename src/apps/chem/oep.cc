@@ -133,7 +133,7 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 		// orbital energies enter the Fock matrix
 		// no orbital update is involved!
 		tensorT old_eigvals = copy(KS_eigvals);
-		tensorT X, F;	// fock transformation matrix
+		tensorT F(KS_nemo.size(),KS_nemo.size());
 		int ii=0;
 		while (1) {
 			timer timer_pot(world,calc->param.print_level()>=4);
@@ -146,7 +146,7 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 				print("KS_eigvals");
 				print(KS_eigvals);
 			}
-			Voep=compute_oep(model,Vs, HF_nemo,HF_eigvals, KS_nemo, KS_eigvals);
+			Voep=compute_oep(model,Vs, HF_nemo,HF_eigvals, KS_nemo, KS_eigvals,F);
 			Fnemo = truncate(Jnemo + Unemo + Voep*KS_nemo);
 			timer_pot.tag("compute oep");
 
@@ -158,23 +158,31 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 				print(F);
 			}
 
-			// report the off-diagonal Fock matrix elements because canonical orbitals are used
-	        tensorT F_offdiag = copy(F);
-	        for (int i = 0; i < F.dim(0); ++i) F_offdiag(i, i) = 0.0;
-	        double max_F_offidag = F_offdiag.absmax();
-	        if (print_debug) print("F max off-diagonal ", max_F_offidag);
+	        if (calc->param.do_localize()) {
+	        	calc->aeps=eps;
+		        Fnemo= transform(world, nemo, fock, trantol(), true);
 
+	        } else {
 
-	        // diagonalize the Fock matrix to get the eigenvalues and eigenvectors (canonical)
-			// FC = epsilonSC and X^dSX with transform matrix X, see Szabo/Ostlund (3.159) and (3.165)
-	        tensorT overlap = matrix_inner(world, R*KS_nemo, R*KS_nemo, true);
-			tensorT KSeig;
-	        X = calc->get_fock_transformation(world, overlap, F, KSeig, calc->aocc,
-	        		FunctionDefaults<3>::get_thresh());
-	        KS_nemo = truncate(transform(world, KS_nemo, X));
-	        normalize(KS_nemo,R);
-	        rotate_subspace(world, X, solver, 0, KS_nemo.size());
-			Fnemo = transform(world, Fnemo, X, trantol(), true);
+	        	// report the off-diagonal Fock matrix elements because canonical orbitals are used
+		        tensorT F_offdiag = copy(F);
+		        for (int i = 0; i < F.dim(0); ++i) F_offdiag(i, i) = 0.0;
+		        double max_F_offidag = F_offdiag.absmax();
+		        if (print_debug) print("F max off-diagonal ", max_F_offidag);
+
+		        // diagonalize the Fock matrix to get the eigenvalues and eigenvectors (canonical)
+				// FC = epsilonSC and X^dSX with transform matrix X, see Szabo/Ostlund (3.159) and (3.165)
+		        tensorT overlap = matrix_inner(world, R*KS_nemo, R*KS_nemo, true);
+				tensorT KSeig;
+		        tensorT X = calc->get_fock_transformation(world, overlap, F, KSeig, calc->aocc,
+		        		FunctionDefaults<3>::get_thresh());
+		        KS_nemo = truncate(transform(world, KS_nemo, X));
+		        normalize(KS_nemo,R);
+		        rotate_subspace(world, X, solver, 0, KS_nemo.size());
+				Fnemo = transform(world, Fnemo, X, trantol(), true);
+
+	        }
+
 
 	        double delta_eig=(KSeig-KS_eigvals).normf();
 	        KS_eigvals=KSeig;

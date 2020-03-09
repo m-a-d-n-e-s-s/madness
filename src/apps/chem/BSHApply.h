@@ -21,6 +21,7 @@ public:
 	double bshtol=1.e-5;
 	bool printme=false;
 	bool destroy_Vpsi=false;
+	bool do_coupling=false;
 	Function<double,NDIM> metric;
 
 public:
@@ -33,15 +34,22 @@ public:
 
 	/// apply the BSH operator on the vector of functions and respective potentials
 
-	/// @param[in]	arg		the MO structure holding MOs and orbital energies
+	/// @param[in]	eps		orbital energies or the square fock matrix (depends on do_coupling)
 	/// @param[in]	Vpsi	vector of functions V*MOs
 	/// @return		an MO structure holding the residuals and the orbital energy updates
 	std::tuple<std::vector<Function<T,NDIM> >, Tensor<double> > operator()(
 			const std::vector<Function<T,NDIM> > psi,
 			const Tensor<T> eps,
-			const std::vector<Function<T,NDIM> >& Vpsi) const {
+			const std::vector<Function<T,NDIM> >& Vpsi1) const {
 
 		double cpu0=cpu_time();
+		std::vector<Function<T,NDIM> > Vpsi=copy(world,Vpsi1);
+
+		// add coupling between the functions (i.e. in case of localized orbitals)
+		// ( T + V ) \psi_i	= \sum_j \psi_j F_{ji}
+		// ( T - F_{ii}) \psi_i = -V \psi_i + \sum_{j\neq i} \psi_jF_{ji}
+		// no coupling means F_{ij} =\eps_i \delta_{ij}, and the coupling term vanishes
+		if (do_coupling) Vpsi+=add_coupling(psi,eps,Vpsi);
 
 	    std::vector < std::shared_ptr<SeparatedConvolution<double,NDIM> > > ops(psi.size());
 	    for (int i=0; i<eps.size(); ++i) {
@@ -49,7 +57,7 @@ public:
 	    			BSHOperatorPtr<NDIM>(world,
 	    					sqrt(-2.*std::min(-0.05,eps(i)+levelshift)),
 	    					lo, bshtol));
-	    	ops[i]->destructive()=destroy_Vpsi;
+	    	ops[i]->destructive()=true;
 	    }
 
 	    const std::vector<Function<T,NDIM> > tmp = apply(world,ops,-2.0*Vpsi-2.0*levelshift*psi);
@@ -95,6 +103,33 @@ public:
 	std::vector<Function<T,NDIM> > make_bra(const std::vector<Function<T,NDIM> >& rhs) const {
 		if (metric.is_initialized()) return metric*rhs;
 		return rhs;
+	}
+
+	std::vector<Function<T,NDIM> > add_coupling(const std::vector<Function<T,NDIM> > psi,
+			const Tensor<T> fock,
+			const std::vector<Function<T,NDIM> >& Vpsi) const {
+
+		if (not ((eps.ndim()==2) and (eps.dim(0)==psi.size()) and (eps.dim(1)==psi.size()))) {
+			MADNESS_EXCEPTION("confused Fock matrix/orbital energies in BSHApply - 1",1);
+		}
+		// update the nemos
+
+		// construct the BSH operator and add off-diagonal elements
+		// (in case of non-canonical HF)
+		tensorT eps(nmo);
+		for (int i = 0; i < nmo; ++i) {
+			eps(i) = std::min(-0.05, fock(i, i));
+            fock(i, i) -= eps(i);
+		}
+
+        if(localized) calc->aeps=eps;
+        vecfuncT fnemo;
+        if (localized) fnemo= transform(world, nemo, fock, trantol(), true);
+
+        // Undo the damage
+        for (int i = 0; i < nmo; ++i) fock(i, i) += eps(i);
+
+
 	}
 
 };
