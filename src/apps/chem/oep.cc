@@ -73,10 +73,10 @@ double OEP::compute_and_print_final_energies(const std::string model, const real
 
 
 	print("FINAL", model, "ENERGY Evir:");
-	double Evir = compute_energy(KS_nemo, Jnemo, Ex_vir)[0];
+	double Evir = compute_energy(KS_nemo, Ex_vir)[0];
 
 	print("FINAL", model, "ENERGY Econv:");
-	double Econv = compute_energy(KS_nemo, Jnemo, Ex_conv)[0];
+	double Econv = compute_energy(KS_nemo, Ex_conv)[0];
 
 
 	printf("     Ex_vir       = %15.8f  Eh", Ex_vir);
@@ -197,7 +197,7 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
         double Ex_KS = compute_exchange_energy_vir(KS_nemo, Voep);
 
 		std::vector<double> oldenergies=energies;
-        energies=compute_energy(KS_nemo, Jnemo, Ex_KS);
+        energies=compute_energy(KS_nemo, Ex_KS);
         energy =energies[0];
 		// there should be no difference between these two methods, because energy is only needed
 		// for checking convergence threshold; but: Evir should be much faster because K is expensive
@@ -462,7 +462,7 @@ void OEP::test_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
     print("test final total energy");
     const double Etot_correct = -14.56855740; // total energy (conv) from a test calculation with HF reference (OEP: maxiter = 2)
     print("final total energy of the system should be", Etot_correct, "Eh");
-    const double Etot = compute_energy(R*KS_nemo, R*Jnemo, Ex_conv)[0];
+    const double Etot = compute_energy(R*KS_nemo, Ex_conv)[0];
     const double Etot_diff = fabs(Etot_correct - Etot);
     print("     the final total energy of the system is ...", Etot, "Eh");
     print("     error:", Etot_diff, "Eh");

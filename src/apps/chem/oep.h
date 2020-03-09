@@ -497,19 +497,23 @@ public:
 
     /// compute all energy contributions except exchange and sum up for total energy
     /// the exchange energy must be computed priorly with the compute_exchange_energy_... methods
-    std::vector<double> compute_energy(const vecfuncT& nemo, const vecfuncT& Jnemo, const double E_X) const {
+    std::vector<double> compute_energy(const vecfuncT& nemo, const double E_X) const {
 
     	// compute kinetic energy
-    	double E_kin = compute_kinetic_energy(nemo);
+    	double E_kin = compute_kinetic_energy1(nemo);
+
+    	real_function_3d density=compute_density(nemo);
 
     	// compute external potential (nuclear attraction)
     	real_function_3d Vext = calc->potentialmanager->vnuclear();
+    	Coulomb J(world);
+    	J.reset_poisson_operator_ptr(param.lo(),param.econv());
+    	real_function_3d Jpotential=J.compute_potential(density);
 
     	// compute remaining energies: nuclear attraction, Coulomb, nuclear repulsion
     	// computed as expectation values (see Szabo, Ostlund (3.81))
-    	const vecfuncT R2nemo=R_square*nemo;
-    	const double E_ext = 2.0*inner(R2nemo,Vext*nemo); // 2 because closed shell
-    	const double E_J = inner(world, R2nemo, Jnemo).sum();
+    	const double E_ext = inner(Vext,density); // 2 because closed shell
+    	const double E_J = 0.5*inner(density,Jpotential);
     	const double E_nuc = calc->molecule.nuclear_repulsion_energy();
     	double energy = E_kin + E_ext + E_J + E_X + E_nuc;
 
