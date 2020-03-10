@@ -500,7 +500,7 @@ public:
     std::vector<double> compute_energy(const vecfuncT& nemo, const double E_X) const {
 
     	// compute kinetic energy
-    	double E_kin = compute_kinetic_energy1(nemo);
+    	double E_kin = compute_kinetic_energy(nemo);
 
     	real_function_3d density=compute_density(nemo);
 
