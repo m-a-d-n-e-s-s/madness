@@ -563,12 +563,16 @@ std::vector<PNOPairs> PNO::solve_cispd(std::vector<PNOPairs>& result) const {
 				std::cout << "\n\nComputung GS part of CIS(D) energy:\n\n";
 
 			cispd_energies = compute_cispd_correction_gs(xcis, mp2);
-			cispd_energies=compute_cispd_f12_correction_gs(xcis,cispd_energies);
+			if (param.f12()){
+				cispd_energies=compute_cispd_f12_correction_gs(xcis,cispd_energies);
+			}
 			cispd_energies.update();
 			omega_gs = cispd_energies.total_energy();
 		}
 
-		cispd_energies=compute_cispd_f12_correction_es(xcis,cispd_energies);
+		if (param.f12()){
+			cispd_energies=compute_cispd_f12_correction_es(xcis,cispd_energies);
+		}
 		cispd_energies.update();
 
 		MyTimer timer_cispd = MyTimer(world).start();

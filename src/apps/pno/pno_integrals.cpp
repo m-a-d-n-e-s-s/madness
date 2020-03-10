@@ -115,7 +115,7 @@ int main(int argc, char** argv) {
 	std::cout << std::showpos;
 
 	bool canonicalize = false;
-	bool quadratic_correction = true;
+	bool quadratic_correction = false;
 	const double h_thresh = 1.e-4;
 	const double thresh = 1.e-4;//parameters.thresh();
 	const auto amo = nemo.get_calc()->amo;
@@ -126,9 +126,9 @@ int main(int argc, char** argv) {
 		// generalize over PNO occupation number and possible additional threshold
 		// maybe everything over 0.1
 
-		madness::ASSERT(all_pairs[0].pno_ij.size() == 1);
-		auto& f = all_pairs[0].pno_ij[0];
-		auto mp2_potential = pno.compute_V_aj_i();
+//		madness::ASSERT(all_pairs[0].pno_ij.size() == 1);
+//		auto& f = all_pairs[0].pno_ij[0];
+//		auto mp2_potential = pno.compute_V_aj_i();
 
 	}
 
