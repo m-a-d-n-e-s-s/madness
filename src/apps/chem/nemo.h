@@ -202,7 +202,7 @@ public:
 	/// @return		T = 1/2 \sum_i \int R^2 U1.U1 F^2 + 2 R^2 U1.grad(F) + R^2 grad(F)^2
 	template<typename T, std::size_t NDIM>
 	double compute_kinetic_energy(const std::vector<Function<T,NDIM> >& nemo) const {
-        timer timer1(world);
+//        timer timer1(world);
 
 		// T = 0.5\sum_i \int R^2 U1.U1 F^2 - 2 R^2 U1.grad(F) F + R^2 grad(F)^2
 		//   = 0.5 (<U1.U1 | rho > + <R^2|grad(F)^2> - 2<R^2 | U1.grad(F) >)
@@ -236,9 +236,8 @@ public:
 //	    	MADNESS_EXCEPTION("imaginary kinetic energy",1);
 //	    }
 //	    double ke=2.0*(ke1+ke2+ke3_real); // closed shell
-	    print("ke1,2,3",ke1,ke2,ke3);
 	    double ke=2.0*(ke1+ke2+ke3); // closed shell
-		timer1.end("compute_0_kinetic_energy1");
+//		timer1.end("compute_0_kinetic_energy1");
 	    return 0.5*ke;
 	}
 

@@ -188,7 +188,7 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 			timer_pot.tag("rest");
 	        if (++ii>2) break;
 
-//	        if (delta_eig<calc->param.econv()) break;
+	        if (delta_eig<calc->param.econv()) break;
 
 		}
 		timer1.tag("compute potentials");
