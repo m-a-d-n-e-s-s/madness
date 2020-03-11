@@ -49,18 +49,17 @@ public:
 		// ( T + V ) \psi_i	= \sum_j \psi_j F_{ji}
 		// ( T - F_{ii}) \psi_i = -V \psi_i + \sum_{j\neq i} \psi_jF_{ji}
 		// no coupling means F_{ij} =\eps_i \delta_{ij}, and the coupling term vanishes
-		if (do_coupling) Vpsi+=add_coupling(psi,eps,Vpsi);
+		if (do_coupling) Vpsi-=compute_coupling(psi,eps);
 
 	    std::vector < std::shared_ptr<SeparatedConvolution<double,NDIM> > > ops(psi.size());
-	    for (int i=0; i<eps.size(); ++i) {
+	    for (int i=0; i<eps.dim(0); ++i) {
+	    	double e_i= (eps.ndim()==2) ? eps(i,i) : eps(i);
 	    	ops[i]=std::shared_ptr<SeparatedConvolution<double,NDIM> >(
-	    			BSHOperatorPtr<NDIM>(world,
-	    					sqrt(-2.*std::min(-0.05,eps(i)+levelshift)),
-	    					lo, bshtol));
+	    			BSHOperatorPtr<NDIM>(world, sqrt(-2.0*eps_in_green(e_i)), lo, bshtol));
 	    	ops[i]->destructive()=true;
 	    }
 
-	    const std::vector<Function<T,NDIM> > tmp = apply(world,ops,-2.0*Vpsi-2.0*levelshift*psi);
+	    const std::vector<Function<T,NDIM> > tmp = apply(world,ops,-2.0*Vpsi);
 	    const std::vector<Function<T,NDIM> > res=truncate(psi-tmp,FunctionDefaults<NDIM>::get_thresh()*0.1);
 	    const std::vector<Function<T,NDIM> > bra_res=make_bra(res);
 
@@ -105,30 +104,27 @@ public:
 		return rhs;
 	}
 
-	std::vector<Function<T,NDIM> > add_coupling(const std::vector<Function<T,NDIM> > psi,
-			const Tensor<T> fock,
-			const std::vector<Function<T,NDIM> >& Vpsi) const {
+	/// limit the orbital energy (diagonal fock matrix element) entering the Green's function parameter mu
+	double eps_in_green(const double eps) const {
+		return std::min(-0.05,eps+levelshift);
+	}
 
-		if (not ((eps.ndim()==2) and (eps.dim(0)==psi.size()) and (eps.dim(1)==psi.size()))) {
+	std::vector<Function<T,NDIM> > compute_coupling(const std::vector<Function<T,NDIM> > psi,
+			const Tensor<T> fock1) const {
+
+		if (not ((fock1.ndim()==2) and (fock1.dim(0)==psi.size()) and (fock1.dim(1)==psi.size()))) {
 			MADNESS_EXCEPTION("confused Fock matrix/orbital energies in BSHApply - 1",1);
 		}
-		// update the nemos
 
-		// construct the BSH operator and add off-diagonal elements
-		// (in case of non-canonical HF)
-		tensorT eps(nmo);
-		for (int i = 0; i < nmo; ++i) {
-			eps(i) = std::min(-0.05, fock(i, i));
-            fock(i, i) -= eps(i);
+		// subtract the BSH energy (aka Fock diagonal elements) from the rhs
+		// ( T - fock(i,i) ) psi_i  = -V psi_i + \sum_j psi_j fock(j,i)
+		// if there is no level shift and the orbital energies are large enough the
+		// diagonal should simply vanish.
+		Tensor<T> fock=copy(fock1);
+		for (int i=0; i<fock.dim(0); ++i) {
+			fock(i,i)-=eps_in_green(fock(i,i));
 		}
-
-        if(localized) calc->aeps=eps;
-        vecfuncT fnemo;
-        if (localized) fnemo= transform(world, nemo, fock, trantol(), true);
-
-        // Undo the damage
-        for (int i = 0; i < nmo; ++i) fock(i, i) += eps(i);
-
+		return transform(world, psi, fock);
 
 	}
 

@@ -49,6 +49,7 @@
 #include <chem/vibanal.h>
 #include <chem/pcm.h>
 #include <chem/pointgroupsymmetry.h>
+#include <chem/BSHApply.h>
 
 
 namespace madness {
@@ -344,58 +345,68 @@ double Nemo::solve(const SCFProtocol& proto) {
 
 		// construct the BSH operator and add off-diagonal elements
 		// (in case of non-canonical HF)
-		tensorT eps(nmo);
-		for (int i = 0; i < nmo; ++i) {
-			eps(i) = std::min(-0.05, fock(i, i));
-            fock(i, i) -= eps(i);
-		}
-         
-        if(localized) calc->aeps=eps;
-        vecfuncT fnemo;
-        if (localized) fnemo= transform(world, nemo, fock, trantol(), true);
-
-        // Undo the damage
-        for (int i = 0; i < nmo; ++i) fock(i, i) += eps(i);
-
-		if (calc->param.orbitalshift()>0.0) {
-			if (world.rank()==0) print("shifting orbitals by "
-					,calc->param.orbitalshift()," to lower energies");
-			eps-=calc->param.orbitalshift();
-		}
-		std::vector<poperatorT> ops = calc->make_bsh_operators(world, eps);
-
-		// make the potential * nemos term; make sure it's in phase with nemo
-		START_TIMER(world);
+//		tensorT eps(nmo);
+//		for (int i = 0; i < nmo; ++i) {
+//			eps(i) = std::min(-0.05, fock(i, i));
+//            fock(i, i) -= eps(i);
+//		}
+//
+        if(localized) {
+        	for (int i=0; i<calc->aeps.size(); ++i) calc->aeps[i]=fock(i,i);
+        }
+//        vecfuncT fnemo;
+//        if (localized) fnemo= transform(world, nemo, fock, trantol(), true);
+//
+//        // Undo the damage
+//        for (int i = 0; i < nmo; ++i) fock(i, i) += eps(i);
+//
+//		if (calc->param.orbitalshift()>0.0) {
+//			if (world.rank()==0) print("shifting orbitals by "
+//					,calc->param.orbitalshift()," to lower energies");
+//			eps-=calc->param.orbitalshift();
+//		}
+//		std::vector<poperatorT> ops = calc->make_bsh_operators(world, eps);
+//
+//		// make the potential * nemos term; make sure it's in phase with nemo
+//		START_TIMER(world);
         vecfuncT Vpsi=Unemo+Jnemo-Knemo;
         if (do_pcm()) Vpsi+=pcmnemo;
 
-        if (localized) gaxpy(world, 1.0, Vpsi, -1.0, fnemo);
-		truncate(world,Vpsi);
-		END_TIMER(world, "make Vpsi");
+//        if (localized) gaxpy(world, 1.0, Vpsi, -1.0, fnemo);
+//		truncate(world,Vpsi);
+//		END_TIMER(world, "make Vpsi");
 
 		START_TIMER(world);
 		if (not localized) Vpsi = transform(world, Vpsi, U, trantol(), true);
 		truncate(world,Vpsi);
 		END_TIMER(world, "transform Vpsi");
 
-		// apply the BSH operator on the wave function
-		START_TIMER(world);
-		scale(world, Vpsi, -2.0);
-		vecfuncT tmp = apply(world, ops, Vpsi);
-		truncate(world, tmp);
-		END_TIMER(world, "apply BSH");
+//		// apply the BSH operator on the wave function
+//		START_TIMER(world);
+//		scale(world, Vpsi, -2.0);
+//		vecfuncT tmp = apply(world, ops, Vpsi);
+//		truncate(world, tmp);
+//		END_TIMER(world, "apply BSH");
+//
+//		// compute the residuals
+//		vecfuncT residual = nemo-tmp;
 
-		// compute the residuals
-		vecfuncT residual = nemo-tmp;
+		BSHApply<double,3> bsh_apply(world);
+		bsh_apply.metric=R_square;
+		bsh_apply.lo=get_calc()->param.lo();
+		bsh_apply.do_coupling=localized();
+		auto [residual,eps_update] =bsh_apply(nemo,fock,Vpsi);
+
+
 		const double bsh_norm = norm2(world, residual) / sqrt(nemo.size());
 
 		// kain works best in the quadratic region
 		vecfuncT nemo_new;
-		if (bsh_norm < 5.e-1) {
+//		if (bsh_norm < 5.e-1) {
 			nemo_new = solver.update(nemo, residual);
-		} else {
-			nemo_new = tmp;
-		}
+//		} else {
+//			nemo_new = tmp;
+//		}
 		truncate(world,nemo_new);
 		normalize(nemo_new,R);
 
