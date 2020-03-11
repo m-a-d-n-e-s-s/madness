@@ -698,7 +698,7 @@ public:
 
 	bool do_symmetry() const {return (symmetry_projector.get_pointgroup()!="C1");}
 
-private:
+protected:
 
 	/// localize the nemo orbitals
     vecfuncT localize(const vecfuncT& nemo, const double dconv, const bool randomize) const;

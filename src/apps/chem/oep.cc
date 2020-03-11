@@ -129,6 +129,9 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 		// compute parts of the Fock matrix J, Unuc and Voep
 		vecfuncT Jnemo, Unemo, Fnemo;
 
+	    if (calc->param.do_localize()) KS_nemo=localize(KS_nemo,calc->param.dconv(),iter==0);
+
+
 		// compute the Fock matrix self-consistently as
 		// orbital energies enter the Fock matrix
 		// no orbital update is involved!
@@ -222,6 +225,7 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 		BSHApply<double,3> bsh_apply(world);
 		bsh_apply.metric=R_square;
 		bsh_apply.lo=get_calc()->param.lo();
+		bsh_apply.do_coupling=calc->param.do_localize();
 		auto [residual,eps_update] =bsh_apply(KS_nemo,F,Fnemo);
 		timer1.tag("apply BSH");
 
