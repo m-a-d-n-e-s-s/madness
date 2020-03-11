@@ -31,7 +31,7 @@ void OEP::solve(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
 	real_function_3d Voep = copy(Vs);
 
 	double energy=0.0;
-	energy=iterate("oaep",HF_nemo,HF_eigvals,KS_nemo,KS_eigvals,Voep,Vs);
+//	energy=iterate("oaep",HF_nemo,HF_eigvals,KS_nemo,KS_eigvals,Voep,Vs);
 	if (oep_param.model()!="oaep") energy=iterate(oep_param.model(),HF_nemo,HF_eigvals,KS_nemo,KS_eigvals,Voep,Vs);
 
 	save(Voep,"OEP_final");
@@ -122,6 +122,8 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 	bool converged=false;
 	bool print_debug=(calc->param.print_level()>=10) and (world.rank()==0);
 
+	tensorT F(KS_nemo.size(),KS_nemo.size());
+
 	timer timer1(world,calc->param.print_level()>=3);
 	for (int iter = 0; iter < oep_param.maxiter(); ++iter) {
 //		print("\n     ***", model, "iteration", iter, "***\n");
@@ -136,7 +138,6 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 		// orbital energies enter the Fock matrix
 		// no orbital update is involved!
 		tensorT old_eigvals = copy(KS_eigvals);
-		tensorT F(KS_nemo.size(),KS_nemo.size());
 		int ii=0;
 		while (1) {
 			timer timer_pot(world,calc->param.print_level()>=4);
@@ -149,6 +150,9 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 				print("KS_eigvals");
 				print(KS_eigvals);
 			}
+//			for (int i=0; i<KS_eigvals.size(); ++i) F(i,i)=KS_eigvals(i);
+			print("fock before compute_oep");
+			print(F);
 			Voep=compute_oep(model,Vs, HF_nemo,HF_eigvals, KS_nemo, KS_eigvals,F);
 			Fnemo = truncate(Jnemo + Unemo + Voep*KS_nemo);
 			timer_pot.tag("compute oep");
@@ -219,7 +223,6 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 			print("HF/KS HOMO energy difference of", homo_diff(HF_eigvals, KS_eigvals), "Eh is not yet included");
 		}
 
-		// remember Fock matrix * nemos from above; make sure it's in phase with nemo (transform)
 		timer1.tag("prepare BSH");
 
 		BSHApply<double,3> bsh_apply(world);
@@ -236,16 +239,16 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 		normalize(nemo_new,R);
 
 		// estimate the orbital energies, as they enter the potential
-		eps_history.push_back(copy(KS_eigvals));
+		eps_history.push_back(copy(F));
 		if (eps_history.size()>solver.get_c().size()) eps_history.pop_front();
-		tensorT KS_eigvals1(KS_eigvals.size());
+		tensorT fock1(F.dim(0),F.dim(1));
 		int i=0;
 		for (auto eps : eps_history) {
 			if (calc->param.print_level()==10) print("c[i], eps",solver.get_c()[i],eps);
-			KS_eigvals1 += eps*solver.get_c()[i++];
+			fock1 += eps*solver.get_c()[i++];
 		}
-		KS_eigvals=copy(KS_eigvals1);
-		if (calc->param.print_level()==10) print("KS_eigvals projection",KS_eigvals1);
+		F=copy(fock1);
+		if (calc->param.print_level()==10) print("KS_eigvals projection",F);
 
 		// What is step restriction?
 		calc->do_step_restriction(world, KS_nemo, nemo_new, "ab spin case");

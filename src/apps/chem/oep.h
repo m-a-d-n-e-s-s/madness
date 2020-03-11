@@ -332,16 +332,36 @@ public:
     }
 
     /// compute correction of the given model
+
+    /// shift of the diagonal elements of the fock matrix results in a global shift
+    /// of the potential
+    /// \[
+    /// \frac{\bar \epsilon}{\rho} = \frac{1}{\rho}\sum_{ij}\phi_i(F_ij+\delta_ij s)\phi_j
+    ///        = \frac{1}{\rho} ( \sum_{ij}\phi_i F_ij \phi_j + s\sum_i\phi_i\phi_i )
+    ///        = s + \frac{1}{\rho} \sum_{ij}\phi_i F_ij \phi_j
     real_function_3d compute_ocep_correction(const vecfuncT& nemoHF, const tensorT& eigvalsHF,
     		const vecfuncT& nemoKS, const tensorT& eigvalsKS, const tensorT& fock) const {
 
-       	double lraKS = -eigvalsKS(homo_ind(eigvalsKS));
-       	double lraHF = -eigvalsHF(homo_ind(eigvalsHF));
-        double longrange=lraHF-lraKS;
+    	if (fock.normf()<1.e-10) {
+    		real_function_3d zero=real_factory_3d(world);
+    		return zero;
+    	}
+    	auto [eval, evec] = syev(fock);
+    	print("fock, eval");
+    	print(fock);
+    	print(eval);
+    	print(evec);
+       	double homoKS = -eval.max();
+       	double homoHF = -eigvalsHF.max();
+        double longrange=homoHF-homoKS;
+        print("homoKS, homoHF, longrange",homoKS,homoHF,longrange);
+        tensorT fock1=copy(fock);
+        for (int i=0; i<fock1.dim(0); ++i) fock1(i,i)-=longrange;
 
 		// 2.0*R_square in numerator and density (rho) cancel out upon division
     	real_function_3d numeratorHF=-1.0*compute_energy_weighted_density(nemoHF,eigvalsHF);
-    	real_function_3d numeratorKS=-1.0*compute_energy_weighted_density(nemoKS,eigvalsKS-longrange);
+    	real_function_3d numeratorKS=-1.0*compute_energy_weighted_density_local(nemoKS,fock1);
+//    	real_function_3d numeratorKS=-1.0*compute_energy_weighted_density(nemoKS,eval);
 
 		// 2.0*R_square in numerator and density (rho) cancel out upon division
         real_function_3d densityKS = dot(world, nemoKS, nemoKS);
@@ -374,6 +394,15 @@ public:
 		// 2.0*R_square in numerator and density (rho) cancel out upon division
 		real_function_3d numerator = sum(world, nemo_square);
 		return numerator;
+    }
+
+
+    /// return without the NCF and factor 2 for closed shell !
+
+    /// follow Eq. (4) of Ryabinkin2014
+    real_function_3d compute_energy_weighted_density_local(const vecfuncT& nemo,
+    		const tensorT& fock) const {
+    	return dot(world,nemo,transform(world,nemo,fock));
     }
 
     /// compute correction of the given model

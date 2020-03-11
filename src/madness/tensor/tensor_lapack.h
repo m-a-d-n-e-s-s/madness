@@ -81,6 +81,20 @@ namespace madness {
     void syev(const Tensor<T>& A,
               Tensor<T>& V, Tensor< typename Tensor<T>::scalar_type >& e);
 
+    /// Solves symmetric or Hermitian eigenvalue problem - MATLAB syntax
+
+    /// call as
+    /// auto [eval, evec] = syev(A);
+    template <typename T>
+    std::tuple<Tensor<T>, Tensor< typename Tensor<T>::scalar_type > >
+    syev(const Tensor<T>& A) {
+    	Tensor<T> V;
+    	Tensor< typename Tensor<T>::scalar_type > e;
+    	syev(A,V,e);
+    	return std::make_tuple(e,V);
+    }
+
+
     /// Solves linear equations
     
     /// \ingroup linalg
