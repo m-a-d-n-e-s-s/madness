@@ -298,7 +298,8 @@ public:
 
 	bool check_convergence(const std::vector<double> energies,
 			const std::vector<double> oldenergies, const double bsh_norm,
-			const double delta_density, const CalculationParameters& param) const {
+			const double delta_density, const CalculationParameters& param,
+			const double econv, const double dconv) const {
 
         double maxenergychange=fabs(energies.size()-oldenergies.size());	// >0 if oldenergyvec not initialized
         for (auto iter1=energies.begin(), iter2=oldenergies.begin();
@@ -307,10 +308,10 @@ public:
         }
         double delta_energy=fabs(energies[0]-oldenergies[0]);
 
-		bool bsh_conv=param.converge_bsh_residual() ? bsh_norm<param.dconv() : true;
-		bool total_energy_conv=param.converge_total_energy() ? delta_energy<param.econv() : true;
-		bool each_energy_conv=param.converge_each_energy() ? maxenergychange<param.econv() *3.0 : true;
-		bool density_conv=param.converge_density() ? delta_density<param.dconv() : true;
+		bool bsh_conv=param.converge_bsh_residual() ? bsh_norm<dconv : true;
+		bool total_energy_conv=param.converge_total_energy() ? delta_energy<econv : true;
+		bool each_energy_conv=param.converge_each_energy() ? maxenergychange<econv*3.0 : true;
+		bool density_conv=param.converge_density() ? delta_density<dconv : true;
 
 		if (world.rank()==0 and param.print_level()>=2) {
 			std::stringstream line;

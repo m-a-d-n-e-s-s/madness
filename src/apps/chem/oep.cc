@@ -158,11 +158,7 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 				print(F);
 			}
 
-	        if (calc->param.do_localize()) {
-	        	calc->aeps=eps;
-		        Fnemo= transform(world, nemo, fock, trantol(), true);
-
-	        } else {
+	        if (not calc->param.do_localize()) {
 
 	        	// report the off-diagonal Fock matrix elements because canonical orbitals are used
 		        tensorT F_offdiag = copy(F);
@@ -181,22 +177,19 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 		        rotate_subspace(world, X, solver, 0, KS_nemo.size());
 				Fnemo = transform(world, Fnemo, X, trantol(), true);
 
+				double delta_eig=(KSeig-KS_eigvals).normf();
+		        KS_eigvals=KSeig;
+
+				if (print_debug) {
+			        print("delta eigenvalues",delta_eig);
+				}
+
 	        }
 
-
-	        double delta_eig=(KSeig-KS_eigvals).normf();
-	        KS_eigvals=KSeig;
-
-			if (print_debug) {
-//				print("X");
-//				print(X);
-		        print("delta eigenvalues",delta_eig);
-			}
-
 			timer_pot.tag("rest");
-	        if (++ii>2) break;
+	        if (++ii>1) break;
 
-	        if (delta_eig<calc->param.econv()) break;
+//	        if (delta_eig<calc->param.econv()) break;
 
 		}
 		timer1.tag("compute potentials");
@@ -210,11 +203,11 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 		// there should be no difference between these two methods, because energy is only needed
 		// for checking convergence threshold; but: Evir should be much faster because K is expensive
 
-
-		// calculate new orbital energies (current eigenvalues from Fock-matrix)
-		for (int i = 0; i < KS_nemo.size(); ++i) {
-			KS_eigvals(i) = std::min(-0.05, F(i, i)); // orbital energy is set to -0.05 if it was above
-		}
+//
+//		// calculate new orbital energies (current eigenvalues from Fock-matrix)
+//		for (int i = 0; i < KS_nemo.size(); ++i) {
+//			KS_eigvals(i) = std::min(-0.05, F(i, i)); // orbital energy is set to -0.05 if it was above
+//		}
 
 		// print orbital energies:
 		if (print_debug) {
@@ -229,7 +222,7 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 		BSHApply<double,3> bsh_apply(world);
 		bsh_apply.metric=R_square;
 		bsh_apply.lo=get_calc()->param.lo();
-		auto [residual,eps_update] =bsh_apply(KS_nemo,KS_eigvals,Fnemo);
+		auto [residual,eps_update] =bsh_apply(KS_nemo,F,Fnemo);
 		timer1.tag("apply BSH");
 
 		double bshnorm=norm2(world,residual)/sqrt(KS_nemo.size());
@@ -257,7 +250,8 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 		timer1.tag("post-process");
 
 		double deltadensity=0.0;
-		converged=check_convergence(energies,oldenergies,bshnorm,deltadensity,calc->param);
+		converged=check_convergence(energies,oldenergies,bshnorm,deltadensity,calc->param,
+				calc->param.econv(),calc->param.dconv());
 		if (world.rank() == 0) {
 			printf("\nfinished %s iteration %2d at time %8.1fs with energy %12.8f; residual %12.8f\n\n",
 					model.c_str(), iter, wall_time(), energy,bshnorm);
