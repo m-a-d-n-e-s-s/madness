@@ -260,7 +260,7 @@ public:
     /// compute the total kinetic energy density of equation (6) from Kohut
 
     /// return without the NCF and factor 2 for closed shell !
-    real_function_3d compute_total_kinetic_density(const vecfuncT& nemo, const tensorT eigvals) const {
+    real_function_3d compute_total_kinetic_density(const vecfuncT& nemo) const {
 
 	    // get \nabla R and (\nabla R)^2 via and U1 = -1/R \nabla R and U1dot = (1/R \nabla R)^2
     	const vecfuncT U1 = this->ncf->U1vec();
@@ -290,7 +290,7 @@ public:
     }
 
     /// compute the Pauli kinetic energy density divided by the density tau_P/rho with equation (16) from Ospadov, 2017
-    real_function_3d compute_Pauli_kinetic_density(const vecfuncT& nemo, const tensorT eigvals) const {
+    real_function_3d compute_Pauli_kinetic_density(const vecfuncT& nemo) const {
 
     	// compute the numerator tau_P
 
@@ -315,17 +315,16 @@ public:
     }
 
     real_function_3d compute_oep(const std::string model, const real_function_3d& Vs,
-			const vecfuncT& HF_nemo, const tensorT HF_eigvals,
-			const vecfuncT& KS_nemo, const tensorT KS_eigvals,
+			const vecfuncT& HF_nemo, const vecfuncT& KS_nemo,
 			const tensorT& fockHF, const tensorT& fock) const {
 
     	real_function_3d Voep=copy(Vs);
 		if (model=="ocep" or model=="dcep" or model=="mrks") {
 
     		// compute OCEP potential from current nemos and eigenvalues
-			real_function_3d correction = compute_ocep_correction(HF_nemo,HF_eigvals,KS_nemo,KS_eigvals,fockHF,fock);
-			if (model=="dcep") correction += compute_dcep_correction(HF_nemo,HF_eigvals,KS_nemo,KS_eigvals);
-			if (model=="mrks") correction += compute_mrks_correction(HF_nemo,HF_eigvals,KS_nemo,KS_eigvals);
+			real_function_3d correction = compute_ocep_correction(HF_nemo,KS_nemo,fockHF,fock);
+			if (model=="dcep") correction += compute_dcep_correction(HF_nemo,KS_nemo);
+			if (model=="mrks") correction += compute_mrks_correction(HF_nemo,KS_nemo);
 			Voep += correction;
 		}
 		return Voep;
@@ -339,27 +338,24 @@ public:
     /// \frac{\bar \epsilon}{\rho} = \frac{1}{\rho}\sum_{ij}\phi_i(F_ij+\delta_ij s)\phi_j
     ///        = \frac{1}{\rho} ( \sum_{ij}\phi_i F_ij \phi_j + s\sum_i\phi_i\phi_i )
     ///        = s + \frac{1}{\rho} \sum_{ij}\phi_i F_ij \phi_j
-    real_function_3d compute_ocep_correction(const vecfuncT& nemoHF, const tensorT& eigvalsHF,
-    		const vecfuncT& nemoKS, const tensorT& eigvalsKS,
-			const tensorT& fockHF, const tensorT& fock) const {
+    real_function_3d compute_ocep_correction(const vecfuncT& nemoHF, const vecfuncT& nemoKS,
+			const tensorT& fockHF, const tensorT& fockKS) const {
 
-    	if (fock.normf()<1.e-10) {
+    	if (fockKS.normf()<1.e-10) {
     		real_function_3d zero=real_factory_3d(world);
     		return zero;
     	}
-    	auto [eval, evec] = syev(fock);
-    	print("fock, eval");
-    	print(fock);
-    	print(eval);
-    	print(evec);
+
+    	// compute HOMO energies and the long-range asymptotics
+    	auto [eval, evec] = syev(fockKS);
        	double homoKS = -eval.max();
 
        	auto [eval1, evec1] = syev(fockHF);
        	double homoHF = -eval1.max();
 
         double longrange=homoHF-homoKS;
-        print("homoKS, homoHF, longrange",homoKS,homoHF,longrange);
-        tensorT fock1=copy(fock);
+
+        tensorT fock1=copy(fockKS);
         for (int i=0; i<fock1.dim(0); ++i) fock1(i,i)-=longrange;
 
 		// 2.0*R_square in numerator and density (rho) cancel out upon division
@@ -411,23 +407,17 @@ public:
     }
 
     /// compute correction of the given model
-    real_function_3d compute_dcep_correction(const vecfuncT& nemoHF, const tensorT& eigvalsHF,
-    		const vecfuncT& nemoKS, const tensorT& eigvalsKS) const {
+    real_function_3d compute_dcep_correction(const vecfuncT& nemoHF,
+    		const vecfuncT& nemoKS) const {
 
 		// 2.0*R_square in numerator and density (rho) cancel out upon division
-    	real_function_3d numeratorHF=compute_total_kinetic_density(nemoHF,eigvalsHF);
-    	real_function_3d numeratorKS=compute_total_kinetic_density(nemoKS,eigvalsKS);
+    	real_function_3d numeratorHF=compute_total_kinetic_density(nemoHF);
+    	real_function_3d numeratorKS=compute_total_kinetic_density(nemoKS);
 
 		// 2.0*R_square in numerator and density (rho) cancel out upon division
         real_function_3d densityKS = dot(world, nemoKS, nemoKS);
         real_function_3d densityHF = dot(world, nemoHF, nemoHF);
 
-       	double lraKS = -eigvalsKS(homo_ind(eigvalsKS));
-       	double lraHF = -eigvalsHF(homo_ind(eigvalsHF));
-
-//        double longrange=lraHF-lraKS;
-//    	real_function_3d lra_func=real_factory_3d(world).functor([&longrange](const coord_3d& r)
-//    			{return longrange;});
     	real_function_3d lra_func=real_factory_3d(world).functor([](const coord_3d& r)
     			{return 0.0;});
 
@@ -445,12 +435,12 @@ public:
     }
 
     /// compute correction of the given model
-    real_function_3d compute_mrks_correction(const vecfuncT& nemoHF, const tensorT& eigvalsHF,
-    		const vecfuncT& nemoKS, const tensorT& eigvalsKS) const {
+    real_function_3d compute_mrks_correction(const vecfuncT& nemoHF,
+    		const vecfuncT& nemoKS) const {
 
 		// 2.0*R_square in numerator and density (rho) cancel out upon division
-    	real_function_3d numeratorHF=compute_Pauli_kinetic_density(nemoHF,eigvalsHF);
-    	real_function_3d numeratorKS=compute_Pauli_kinetic_density(nemoKS,eigvalsKS);
+    	real_function_3d numeratorHF=compute_Pauli_kinetic_density(nemoHF);
+    	real_function_3d numeratorKS=compute_Pauli_kinetic_density(nemoKS);
 
 		// 2.0*R_square in numerator and density (rho) cancel out upon division
         real_function_3d densityKSsquare = square(dot(world, nemoKS, nemoKS));

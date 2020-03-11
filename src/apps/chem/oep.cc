@@ -90,19 +90,20 @@ double OEP::compute_and_print_final_energies(const std::string model, const real
 	printf("\n     DEvir_17     = %15.8f mEh\n", (Ex_vir - Ex_HF - 2.0*Tc)*1000.0); // like in Ospadov_2017, equation (28)
 	print("     Drho         =     ", Drho, "e\n\n");
 
-	print("---------------------------------------------------------------------------");
-	double E_0 = compute_E_zeroth(KS_eigvals);
-	double E_1 = compute_E_first(R*KS_nemo, R*Jnemo, R*Knemo, Voep);
+	if (not calc->param.do_localize()) {
+		print("---------------------------------------------------------------------------");
+		double E_0 = compute_E_zeroth(KS_eigvals);
+		double E_1 = compute_E_first(R*KS_nemo, R*Jnemo, R*Knemo, Voep);
 
-	printf("  E^(0)               = %15.8f  Eh", E_0);
-	printf("\n  E^(1)               = %15.8f  Eh", E_1);
-	printf("\n  E^(0) + E^(1)       = %15.8f  Eh", E_0 + E_1);
-	printf("\n  difference to Econv = %15.8f mEh\n\n", (E_0 + E_1 - Econv)*1000.0);
-
+		printf("  E^(0)               = %15.8f  Eh", E_0);
+		printf("\n  E^(1)               = %15.8f  Eh", E_1);
+		printf("\n  E^(0) + E^(1)       = %15.8f  Eh", E_0 + E_1);
+		printf("\n  difference to Econv = %15.8f mEh\n\n", (E_0 + E_1 - Econv)*1000.0);
+	}
 	Tensor<double> f_pp = compute_fock_diagonal_elements(calc->aeps, KS_nemo, Knemo, Voep);
 
-	print("KS Fock matrix elements ", calc->aeps);
-	print("HF Fock matrix elements ", f_pp);
+	print("KS Fock matrix elements using Voep/virial ", calc->aeps);
+	print("KS Fock matrix elements using K operator  ", f_pp);
 
 	return Econv;
 }
@@ -176,10 +177,8 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 				print("KS_eigvals");
 				print(KS_eigvals);
 			}
-//			for (int i=0; i<KS_eigvals.size(); ++i) F(i,i)=KS_eigvals(i);
-			print("fock before compute_oep");
-			print(F);
-			Voep=compute_oep(model,Vs, HF_nemo,HF_eigvals, KS_nemo, KS_eigvals,HF_Fock,F);
+			Voep=copy(Vs);
+			if (F.normf()>1.e-10) Voep=compute_oep(model,Vs, HF_nemo, KS_nemo, HF_Fock, F);
 			Fnemo = truncate(Jnemo + Unemo + Voep*KS_nemo);
 			timer_pot.tag("compute oep");
 
@@ -216,12 +215,11 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 				if (print_debug) {
 			        print("delta eigenvalues",delta_eig);
 				}
-
 	        }
 
 			timer_pot.tag("rest");
 	        if (++ii>1) break;
-
+//	        break;
 //	        if (delta_eig<calc->param.econv()) break;
 
 		}
@@ -233,14 +231,6 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 		std::vector<double> oldenergies=energies;
         energies=compute_energy(KS_nemo, Ex_KS);
         energy =energies[0];
-		// there should be no difference between these two methods, because energy is only needed
-		// for checking convergence threshold; but: Evir should be much faster because K is expensive
-
-//
-//		// calculate new orbital energies (current eigenvalues from Fock-matrix)
-//		for (int i = 0; i < KS_nemo.size(); ++i) {
-//			KS_eigvals(i) = std::min(-0.05, F(i, i)); // orbital energy is set to -0.05 if it was above
-//		}
 
 		// print orbital energies:
 		if (print_debug) {
@@ -344,11 +334,11 @@ void OEP::test_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
     print("  compute_energy_weighted_density computed successfully\n");
 
     print("test construction of kin_tot_HF (tau/rho HF)");
-    const real_function_3d kin_tot_HF = compute_total_kinetic_density(HF_nemo, HF_eigvals);
+    const real_function_3d kin_tot_HF = compute_total_kinetic_density(HF_nemo);
     print("  kin_tot_HF computed successfully\n");
 
     print("test construction of kin_P_HF (tau_P/rho HF)");
-    const real_function_3d kin_P_HF = compute_Pauli_kinetic_density(HF_nemo, HF_eigvals);
+    const real_function_3d kin_P_HF = compute_Pauli_kinetic_density(HF_nemo);
     print("  kin_P_HF computed successfully\n");
 
     print("\n   >> test some quantities based on the reference HF calculation\n");
