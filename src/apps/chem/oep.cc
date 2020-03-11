@@ -107,8 +107,34 @@ double OEP::compute_and_print_final_energies(const std::string model, const real
 	return Econv;
 }
 
-double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tensorT& HF_eigvals,
+double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tensorT& HF_eigvals1,
 		vecfuncT& KS_nemo, tensorT& KS_eigvals, real_function_3d& Voep, const real_function_3d Vs) const {
+
+	std::vector<double> HF1={-20.56387795 , -1.34271167 , -0.71990142,  -0.57296142,  -0.5079550};
+	tensorT HF_eigvals(HF1.size());
+	for (int i=0; i<HF1.size(); ++i) HF_eigvals(i)=HF1[i];
+
+	// compute the HF reference Fock matrix
+	tensorT HF_Fock;
+	{
+	    const vecfuncT R2nemo=truncate(R_square*HF_nemo);
+
+		vecfuncT psi, Jnemo, Knemo, pcmnemo, Unemo;
+		Nemo::compute_nemo_potentials(HF_nemo, psi, Jnemo, Knemo, pcmnemo, Unemo);
+		vecfuncT Vnemo=Unemo+Jnemo-Knemo;
+		if (do_pcm()) Vnemo+=pcmnemo;
+		HF_Fock=matrix_inner(world,R2nemo,Vnemo,false);   // not symmetric actually
+		Kinetic<double,3> T(world);
+		HF_Fock+=T(R2nemo,HF_nemo);
+		print("HF Fock matrix");
+		print(HF_Fock);
+		auto [eval, evec] = syev(HF_Fock);
+		print("HF orbital energies");
+		print(eval);
+		HF_eigvals=eval;
+	}
+	KS_eigvals=copy(HF_eigvals);
+
 
 	typedef allocator<double, 3> allocT;
 	typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
@@ -153,7 +179,7 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 //			for (int i=0; i<KS_eigvals.size(); ++i) F(i,i)=KS_eigvals(i);
 			print("fock before compute_oep");
 			print(F);
-			Voep=compute_oep(model,Vs, HF_nemo,HF_eigvals, KS_nemo, KS_eigvals,F);
+			Voep=compute_oep(model,Vs, HF_nemo,HF_eigvals, KS_nemo, KS_eigvals,HF_Fock,F);
 			Fnemo = truncate(Jnemo + Unemo + Voep*KS_nemo);
 			timer_pot.tag("compute oep");
 
@@ -244,11 +270,11 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 		tensorT fock1(F.dim(0),F.dim(1));
 		int i=0;
 		for (auto eps : eps_history) {
-			if (calc->param.print_level()==10) print("c[i], eps",solver.get_c()[i],eps);
+			if (calc->param.print_level()>10) print("c[i], eps",solver.get_c()[i],eps);
 			fock1 += eps*solver.get_c()[i++];
 		}
 		F=copy(fock1);
-		if (calc->param.print_level()==10) print("KS_eigvals projection",F);
+		if (calc->param.print_level()>=10) print("KS_eigvals projection",F);
 
 		// What is step restriction?
 		calc->do_step_restriction(world, KS_nemo, nemo_new, "ab spin case");

@@ -317,13 +317,13 @@ public:
     real_function_3d compute_oep(const std::string model, const real_function_3d& Vs,
 			const vecfuncT& HF_nemo, const tensorT HF_eigvals,
 			const vecfuncT& KS_nemo, const tensorT KS_eigvals,
-			const tensorT& fock) const {
+			const tensorT& fockHF, const tensorT& fock) const {
 
     	real_function_3d Voep=copy(Vs);
 		if (model=="ocep" or model=="dcep" or model=="mrks") {
 
     		// compute OCEP potential from current nemos and eigenvalues
-			real_function_3d correction = compute_ocep_correction(HF_nemo,HF_eigvals,KS_nemo,KS_eigvals,fock);
+			real_function_3d correction = compute_ocep_correction(HF_nemo,HF_eigvals,KS_nemo,KS_eigvals,fockHF,fock);
 			if (model=="dcep") correction += compute_dcep_correction(HF_nemo,HF_eigvals,KS_nemo,KS_eigvals);
 			if (model=="mrks") correction += compute_mrks_correction(HF_nemo,HF_eigvals,KS_nemo,KS_eigvals);
 			Voep += correction;
@@ -340,7 +340,8 @@ public:
     ///        = \frac{1}{\rho} ( \sum_{ij}\phi_i F_ij \phi_j + s\sum_i\phi_i\phi_i )
     ///        = s + \frac{1}{\rho} \sum_{ij}\phi_i F_ij \phi_j
     real_function_3d compute_ocep_correction(const vecfuncT& nemoHF, const tensorT& eigvalsHF,
-    		const vecfuncT& nemoKS, const tensorT& eigvalsKS, const tensorT& fock) const {
+    		const vecfuncT& nemoKS, const tensorT& eigvalsKS,
+			const tensorT& fockHF, const tensorT& fock) const {
 
     	if (fock.normf()<1.e-10) {
     		real_function_3d zero=real_factory_3d(world);
@@ -352,14 +353,18 @@ public:
     	print(eval);
     	print(evec);
        	double homoKS = -eval.max();
-       	double homoHF = -eigvalsHF.max();
+
+       	auto [eval1, evec1] = syev(fockHF);
+       	double homoHF = -eval1.max();
+
         double longrange=homoHF-homoKS;
         print("homoKS, homoHF, longrange",homoKS,homoHF,longrange);
         tensorT fock1=copy(fock);
         for (int i=0; i<fock1.dim(0); ++i) fock1(i,i)-=longrange;
 
 		// 2.0*R_square in numerator and density (rho) cancel out upon division
-    	real_function_3d numeratorHF=-1.0*compute_energy_weighted_density(nemoHF,eigvalsHF);
+    	real_function_3d numeratorHF=-1.0*compute_energy_weighted_density_local(nemoHF,fockHF);
+//    	real_function_3d numeratorHF=-1.0*compute_energy_weighted_density(nemoHF,eigvalsHF);
     	real_function_3d numeratorKS=-1.0*compute_energy_weighted_density_local(nemoKS,fock1);
 //    	real_function_3d numeratorKS=-1.0*compute_energy_weighted_density(nemoKS,eval);
 
@@ -461,8 +466,8 @@ public:
         divide_add_interpolate op(oep_param.dens_thresh_hi(), oep_param.dens_thresh_lo());
         real_function_3d correction=0.5*multi_to_multi_op_values(op,args)[0];
 
-        static int i=0;
-        save(correction,"mrks_correction"+std::to_string(i++));
+//        static int i=0;
+//        save(correction,"mrks_correction"+std::to_string(i++));
 
     	return correction;
     }
