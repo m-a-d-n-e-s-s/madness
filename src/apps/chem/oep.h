@@ -23,6 +23,7 @@ struct divide_add_interpolate {
 	double thresh_high=1.e-5;
 	double thresh_low=1.e-7;
 	double log_high, log_low;
+	bool square_denominator=false;
 
 	divide_add_interpolate(double hi, double lo) : thresh_high(hi), thresh_low(lo),
 			log_high(log10(thresh_high)), log_low(log10(thresh_low)) {}
@@ -51,6 +52,8 @@ struct divide_add_interpolate {
             U,
 			double r = refdens(IND);
         	double result=num1(IND)/denom1(IND) - num2(IND)/denom2(IND);
+        	if (square_denominator) result=num1(IND)/(denom1(IND)*denom1(IND))
+        			- num2(IND)/(denom2(IND)*denom2(IND));
             if (r > thresh_high) {
             	U(IND) = result;
             } else if (r < thresh_low) {
@@ -443,17 +446,18 @@ public:
     	real_function_3d numeratorKS=compute_Pauli_kinetic_density(nemoKS);
 
 		// 2.0*R_square in numerator and density (rho) cancel out upon division
-        real_function_3d densityKSsquare = square(dot(world, nemoKS, nemoKS));
-        real_function_3d densityHFsquare = square(dot(world, nemoHF, nemoHF));
+        real_function_3d densityKS = dot(world, nemoKS, nemoKS);
+        real_function_3d densityHF = dot(world, nemoHF, nemoHF);
 
         // longrange correction is zero
     	real_function_3d lra_func=real_factory_3d(world).functor([](const coord_3d& r) {return 0.0;});
 
-    	std::vector<real_function_3d> args={densityKSsquare,numeratorHF,densityHFsquare,
-    			numeratorKS,densityKSsquare,lra_func};
+    	std::vector<real_function_3d> args={densityKS,numeratorHF,densityHF,
+    			numeratorKS,densityKS,lra_func};
         refine_to_common_level(world,args);
 
         divide_add_interpolate op(oep_param.dens_thresh_hi(), oep_param.dens_thresh_lo());
+        op.square_denominator=true;
         real_function_3d correction=0.5*multi_to_multi_op_values(op,args)[0];
 
 //        static int i=0;
