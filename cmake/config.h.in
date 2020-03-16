@@ -39,6 +39,7 @@
 /* Define type macros. */
 #cmakedefine HAVE_INT64_T 1
 #cmakedefine HAVE_LONG_LONG 1
+#cmakedefine MADNESS_HAS_STDINTPTR_T 1
 /* Define to `int' if <sys/types.h> does not define. */
 #cmakedefine pid_t int
 

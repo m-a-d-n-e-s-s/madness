@@ -360,6 +360,11 @@ check_type_size("long double" HAVE_LONG_DOUBLE)
 check_type_size("long long" HAVE_LONG_LONG)
 check_cxx_source_compiles(
     "
+    #include <cstdint>
+    int main() { std::intptr_t x = 0; return x; }
+    " MADNESS_HAS_STDINTPTR_T)
+check_cxx_source_compiles(
+    "
     #include <sys/types.h>
     int main() { typedef pid_t test_t; return 0; }
     " CHECK_SYS_TYPES_H_HAS_PID_T)
