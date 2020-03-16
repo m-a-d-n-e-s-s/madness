@@ -52,8 +52,8 @@ struct divide_add_interpolate {
             U,
 			double r = refdens(IND);
         	double result=num1(IND)/denom1(IND) - num2(IND)/denom2(IND);
-        	if (square_denominator) result=num1(IND)/(denom1(IND)*denom1(IND))
-        			- num2(IND)/(denom2(IND)*denom2(IND));
+        	if (square_denominator) result=num1(IND)/(denom1(IND)*denom1(IND)+1.e-8)
+        			- num2(IND)/(denom2(IND)*denom2(IND)+1.e-8);
             if (r > thresh_high) {
             	U(IND) = result;
             } else if (r < thresh_low) {
@@ -431,8 +431,8 @@ public:
         divide_add_interpolate op(oep_param.dens_thresh_hi(), oep_param.dens_thresh_lo());
         real_function_3d correction=multi_to_multi_op_values(op,args)[0];
 
-//        static int i=0;
-//        save(correction,"dcep_correction"+std::to_string(i++));
+        static int i=0;
+        save(correction,"dcep_correction"+std::to_string(i++));
 
     	return correction;
     }
@@ -456,12 +456,16 @@ public:
     			numeratorKS,densityKS,lra_func};
         refine_to_common_level(world,args);
 
-        divide_add_interpolate op(oep_param.dens_thresh_hi(), oep_param.dens_thresh_lo());
+        divide_add_interpolate op(oep_param.dens_thresh_hi()*100.0, oep_param.dens_thresh_lo()*100.0);
         op.square_denominator=true;
         real_function_3d correction=0.5*multi_to_multi_op_values(op,args)[0];
 
-//        static int i=0;
-//        save(correction,"mrks_correction"+std::to_string(i++));
+        static int i=0;
+        save(numeratorHF,"numeratorHF"+std::to_string(i));
+        save(numeratorKS,"numeratorKS"+std::to_string(i));
+        save(densityKS,"densityKS"+std::to_string(i));
+        save(densityHF,"densityHF"+std::to_string(i));
+        save(correction,"mrks_correction"+std::to_string(i++));
 
     	return correction;
     }

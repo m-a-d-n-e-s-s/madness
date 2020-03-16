@@ -111,13 +111,10 @@ double OEP::compute_and_print_final_energies(const std::string model, const real
 double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tensorT& HF_eigvals1,
 		vecfuncT& KS_nemo, tensorT& KS_eigvals, real_function_3d& Voep, const real_function_3d Vs) const {
 
-	std::vector<double> HF1={-20.56387795 , -1.34271167 , -0.71990142,  -0.57296142,  -0.5079550};
-	tensorT HF_eigvals(HF1.size());
-	for (int i=0; i<HF1.size(); ++i) HF_eigvals(i)=HF1[i];
-
 	// compute the HF reference Fock matrix
+	tensorT HF_eigvals=copy(HF_eigvals1);
 	tensorT HF_Fock;
-	{
+	if (calc->param.do_localize()) {
 	    const vecfuncT R2nemo=truncate(R_square*HF_nemo);
 
 		vecfuncT psi, Jnemo, Knemo, pcmnemo, Unemo;
@@ -133,6 +130,9 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 		print("HF orbital energies");
 		print(eval);
 		HF_eigvals=eval;
+	} else {
+		HF_Fock=tensorT(HF_eigvals.dim(0),HF_eigvals.dim(0));
+		for (int i=0; i<HF_eigvals.dim(0); ++i) HF_Fock(i,i)=HF_eigvals(i);
 	}
 	KS_eigvals=copy(HF_eigvals);
 
