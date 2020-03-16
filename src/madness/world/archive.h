@@ -42,6 +42,7 @@
 #include <complex>
 #include <iostream>
 #include <cstdio>
+#include <cstdint>
 #include <array>
 #include <vector>
 #include <map>
@@ -230,6 +231,14 @@ namespace madness {
         // **********
 #endif
 
+        // pointer to this is the origin for relative function pointer serialization
+        void fn_ptr_origin();
+#ifdef MADNESS_HAS_STDINTPTR_T
+        using intptr_t = std::intptr_t;
+#else
+        using intptr_t = std::intmax_t;
+        static_assert(sizeof(intptr_t) == sizeof(void*), "width of std::intmax_t != pointer width, contact the developers with details of your platform");
+#endif
 
         /// Base class for all archive classes.
         class BaseArchive {
@@ -302,7 +311,18 @@ namespace madness {
         typename std::enable_if_t< is_serializable<Archive,T>::value && is_output_archive<Archive>::value, void>
         serialize(const Archive& ar, const T* t, unsigned int n) {
             MAD_ARCHIVE_DEBUG(std::cout << "serialize fund array" << std::endl);
-            ar.store(t,n);
+            // transform function pointers to relative offsets wrt to fn_ptr_origin
+            constexpr bool is_fn_ptr = std::is_function<std::remove_pointer_t<T>>::value;
+            if constexpr (is_fn_ptr) {
+              const auto fn_ptr_0 = reinterpret_cast<intptr_t>(&fn_ptr_origin);
+              std::vector<intptr_t> t_rel(n);
+              std::transform(t, t+n, begin(t_rel), [=](auto& fn_ptr) {
+                return reinterpret_cast<intptr_t>(fn_ptr) - fn_ptr_0;
+              });
+              ar.store(t_rel.data(), n);
+            } else {
+              ar.store(t, n);
+            }
         }
 
 
@@ -319,7 +339,18 @@ namespace madness {
         typename std::enable_if_t< is_serializable<Archive,T>::value && is_input_archive<Archive>::value, void>
         serialize(const Archive& ar, const T* t, unsigned int n) {
             MAD_ARCHIVE_DEBUG(std::cout << "deserialize fund array" << std::endl);
-            ar.load((T*) t,n);
+            // transform function pointers to relative offsets wrt to fn_ptr_origin
+            constexpr bool is_fn_ptr = std::is_function<std::remove_pointer_t<T>>::value;
+            if constexpr (is_fn_ptr) {
+              const auto fn_ptr_0 = reinterpret_cast<intptr_t>(&fn_ptr_origin);
+              std::vector<intptr_t> t_rel(n);
+              ar.load(t_rel.data(),n);
+              std::transform(begin(t_rel), end(t_rel), (T*)t, [=](auto& fn_ptr_rel) {
+                return reinterpret_cast<T>(fn_ptr_rel + fn_ptr_0);
+              });
+            } else {
+              ar.load((T*) t,n);
+            }
         }
 
 
@@ -414,7 +445,7 @@ namespace madness {
         std::enable_if_t< is_serializable<Archive,T>::value && is_archive<Archive>::value, void>
         serialize(const Archive& ar, const T& t) {
             MAD_ARCHIVE_DEBUG(std::cout << "serialize(ar,t) -> serialize(ar,&t,1)" << std::endl);
-            serialize(ar,&t,1);
+            serialize(ar, &t, 1);
         }
 
 
@@ -447,7 +478,15 @@ namespace madness {
             /// \param[in] t The data.
             static inline void store(const Archive& ar, const T& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "store(ar,t) default" << std::endl);
-                serialize(ar,t);
+                // convert function to function ptr
+                constexpr bool is_fn = std::is_function<T>::value;
+                if constexpr (is_fn) {
+                  auto* fn_ptr = &t;
+                  serialize(ar,fn_ptr);
+                }
+                else {
+                  serialize(ar,t);
+                }
             }
         };
 

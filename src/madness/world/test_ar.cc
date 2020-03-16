@@ -200,6 +200,13 @@ public:
     };
 };
 
+namespace {
+void free_fn() {}
+struct Member {
+  static void fn(){}
+};
+}
+
 namespace madness {
     namespace archive {
         template <class Archive>
@@ -404,7 +411,24 @@ void test_out(const OutputArchive& oar) {
     oar << str;
     oar & str;
 
+    constexpr const bool ptr_is_serializable = !madness::is_cereal_archive<OutputArchive>::value;
+    if constexpr(ptr_is_serializable) {
+      MAD_ARCHIVE_DEBUG(std::cout << std::endl
+                                  << " function pointer" << std::endl);
+      oar &free_fn;
+      oar << (&free_fn);
+      MAD_ARCHIVE_DEBUG(std::cout << std::endl
+                                  << " static member function pointer"
+                                  << std::endl);
+      oar &Member::fn;
+      oar << (&Member::fn);
+    }
+
     oar & 1.0 & i & a & b & c & in & an & bn & cn & wrap(p,n) & wrap(q,n) & pp & m & t & str;
+    if constexpr(ptr_is_serializable) {
+      oar &free_fn &(&free_fn) & Member::fn &(&Member::fn);
+    }
+
     if (D_is_serializable) {
       pod_serialize_dispatch<D_is_serializable>{}(oar, d);
       pod_serialize_dispatch<D_is_serializable>{}(oar, dn);
@@ -436,6 +460,8 @@ void test_in(const InputArchive& iar) {
     linked_list list;
     double pi = 0.0, e = 0.0;
     tuple_int_double_complexfloat t;
+    decltype(&free_fn) free_fn_ptr1=nullptr, free_fn_ptr2=nullptr;
+    decltype(&Member::fn) static_member_fn_ptr1=nullptr, static_member_fn_ptr2=nullptr;
 
     // Destroy in-core data
     a.a = b.b = c.c = i = 0;
@@ -538,7 +564,24 @@ void test_in(const InputArchive& iar) {
     iar & str;
     iar >> str;
 
+    constexpr const bool ptr_is_serializable = !madness::is_cereal_archive<InputArchive>::value;
+    if constexpr(ptr_is_serializable) {
+      MAD_ARCHIVE_DEBUG(std::cout << std::endl
+                                  << " function pointer" << std::endl);
+      iar &free_fn_ptr1;
+      iar >> free_fn_ptr2;
+      MAD_ARCHIVE_DEBUG(std::cout << std::endl
+                                  << " static member function pointer"
+                                  << std::endl);
+      iar &static_member_fn_ptr1;
+      iar >> static_member_fn_ptr2;
+    }
+
     iar & 1.0 & i & a & b & c & in & an & bn & cn & wrap(p,n) & wrap(q,n) & pp & m & t & str;
+    if constexpr(ptr_is_serializable) {
+      iar &free_fn_ptr1 &free_fn_ptr2 &static_member_fn_ptr1
+          &static_member_fn_ptr2;
+    }
     if (D_is_serializable) {
       pod_deserialize_dispatch<D_is_serializable>{}(iar, d);
       pod_deserialize_dispatch<D_is_serializable>{}(iar, dn);
@@ -591,6 +634,12 @@ void test_in(const InputArchive& iar) {
     TEST(pp.first==33 && pp.second==99.0);
     TEST(str == string(teststr));
     TEST(t == std::make_tuple(1,2.0,std::complex<float>(3.0f,4.0f)));
+    if constexpr(ptr_is_serializable) {
+      TEST(free_fn_ptr1 == &free_fn);
+      TEST(free_fn_ptr2 == &free_fn);
+      TEST(static_member_fn_ptr1 == &Member::fn);
+      TEST(static_member_fn_ptr2 == &Member::fn);
+    }
 
 #undef TEST
 
