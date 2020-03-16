@@ -38,6 +38,7 @@
  \ingroup serialization
 */
 
+#include <algorithm>
 #include <type_traits>
 #include <complex>
 #include <iostream>
