@@ -38,7 +38,7 @@ void do_vtk_plots(World& world,
     f = fopen(b.c_str(), "w");
 
     // Write the header
-    fprintf(f,"%d", molecule.natom());
+    fprintf(f,"%zu", molecule.natom());
     fprintf(f,"\n\n");
             
     // Get the data

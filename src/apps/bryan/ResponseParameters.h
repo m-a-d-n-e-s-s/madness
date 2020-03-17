@@ -103,10 +103,14 @@ bool old;
 
       // Default constructor
       ResponseParameters()
-      : states(1)
+      : archive("")
+      , nwchem("")
+      , states(1)
       , print_level(1)
       , tda(false)
       , plot(false)
+      , plot_range(false)
+      , plot_data(std::vector<int>{0})
       , plot_L(-1.0)
       , plot_pts(201)
       , max_iter(20)

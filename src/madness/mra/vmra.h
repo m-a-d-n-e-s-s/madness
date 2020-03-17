@@ -142,8 +142,8 @@ namespace madness {
                 must_fence = true;
             }
         }
-
         if (fence && must_fence) world.gop.fence();
+        //if (fence) world.gop.fence();
     }
 
 
@@ -162,6 +162,7 @@ namespace madness {
         }
 
         if (fence && must_fence) world.gop.fence();
+        //if (fence) world.gop.fence();
     }
 
     /// refine the functions according to the autorefine criteria

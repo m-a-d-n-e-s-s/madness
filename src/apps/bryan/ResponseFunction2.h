@@ -211,7 +211,7 @@ inline double inner(ResponseFunction& a,
 
    for(unsigned int i = 0; i < a.size(); i++)
    {
-      // vmra.h function, line 580 
+      // vmra.h function
       value += inner(a[i][0].world(), a[i], b[i]).sum();
    }
 
