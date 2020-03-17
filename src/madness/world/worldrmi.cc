@@ -41,6 +41,7 @@
 #include <list>
 #include <memory>
 #include <madness/world/safempi.h>
+#include <madness/world/archive.h>
 
 namespace madness {
 
@@ -350,9 +351,9 @@ namespace madness {
     namespace detail {
     void compare_fn_addresses(void* addresses_in, void* addresses_inout,
                               int* len, MPI_Datatype* type) {
-      MADNESS_ASSERT(*type == MPI_UNSIGNED_LONG);
-      unsigned long* in = static_cast<unsigned long*>(addresses_in);
-      unsigned long* inout = static_cast<unsigned long*>(addresses_inout);
+      MADNESS_ASSERT(*type == MPI_LONG);
+      long* in = static_cast<long*>(addresses_in);
+      long* inout = static_cast<long*>(addresses_inout);
       int n = *len;
       // produce zero if addresses do not match; zero address trumps everything else
       for(int i=0; i!=n; ++i) {
@@ -362,11 +363,11 @@ namespace madness {
     }  // namespace detail
 
     void RMI::assert_aslr_off(const SafeMPI::Intracomm& comm) {
-      unsigned long my_address = reinterpret_cast<unsigned long>(&assert_aslr_off);
-      MADNESS_ASSERT(my_address != 0ul);
+      static_assert(sizeof(long) >= sizeof(archive::intptr_t), "madness::archive::intptr_t must not exceed the width of long");
+      long my_address = archive::to_rel_fn_ptr(assert_aslr_off);
       MPI_Op compare_fn_addresses_op = SafeMPI::Op_create(&detail::compare_fn_addresses, 1);
-      unsigned long zero_if_addresses_differ;
-      comm.Reduce(&my_address, &zero_if_addresses_differ, 1, MPI_UNSIGNED_LONG, compare_fn_addresses_op, 0);
+      long zero_if_addresses_differ;
+      comm.Reduce(&my_address, &zero_if_addresses_differ, 1, MPI_LONG, compare_fn_addresses_op, 0);
       if (comm.Get_rank() == 0) {
         if (zero_if_addresses_differ == 0) {
           MADNESS_EXCEPTION("Address Space Layout Randomization (ASLR) detected, please turn off or disable by providing appropriate linker flags (see MADNESS_DISABLEPIE_LINKER_FLAG)",0);
