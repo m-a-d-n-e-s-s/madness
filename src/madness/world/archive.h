@@ -232,14 +232,40 @@ namespace madness {
         // **********
 #endif
 
-        // pointer to this is the origin for relative function pointer serialization
-        void fn_ptr_origin();
+        /// \name function pointer serialization
+        /// @{
 #ifdef MADNESS_HAS_STDINTPTR_T
+        /// \brief the signed integer type to represent relative pointers
         using intptr_t = std::intptr_t;
 #else
+        /// brief the signed integer type to represent relative pointers
         using intptr_t = std::intmax_t;
         static_assert(sizeof(intptr_t) == sizeof(void*), "width of std::intmax_t != pointer width, contact the developers with details of your platform");
 #endif
+        /// \return function pointer to serve as the reference for computing relative pointers
+        /// \note this _is_ the reference function, i.e. this returns the pointer to self
+        intptr_t fn_ptr_origin();
+
+        /// \brief converts function or function pointer to the relative function pointer
+        /// \param[in] fn a function or function pointer
+        template <typename T, typename = std::enable_if_t<std::is_function<T>::value || std::is_function<std::remove_pointer_t<T>>::value>>
+        intptr_t to_rel_fn_ptr(const T& fn) {
+          if constexpr (std::is_function<T>::value) {
+            return reinterpret_cast<intptr_t>(&fn) - fn_ptr_origin();
+          } else {
+            return reinterpret_cast<intptr_t>(fn) - fn_ptr_origin();
+          }
+        }
+
+        /// \brief converts function or function pointer to the relative function pointer
+        /// \param[in] fn a function or function pointer
+        /// \return absolute function pointer
+        template <typename T, typename = std::enable_if_t<std::is_function<std::remove_pointer_t<T>>::value>>
+        T to_abs_fn_ptr(intptr_t rel_fn_ptr) {
+          return reinterpret_cast<T>(rel_fn_ptr + fn_ptr_origin());
+        }
+
+        ///@}
 
         /// Base class for all archive classes.
         class BaseArchive {
@@ -312,13 +338,12 @@ namespace madness {
         typename std::enable_if_t< is_serializable<Archive,T>::value && is_output_archive<Archive>::value, void>
         serialize(const Archive& ar, const T* t, unsigned int n) {
             MAD_ARCHIVE_DEBUG(std::cout << "serialize fund array" << std::endl);
-            // transform function pointers to relative offsets wrt to fn_ptr_origin
+            // transform function pointers to relative pointers
             constexpr bool is_fn_ptr = std::is_function<std::remove_pointer_t<T>>::value;
             if constexpr (is_fn_ptr) {
-              const auto fn_ptr_0 = reinterpret_cast<intptr_t>(&fn_ptr_origin);
               std::vector<intptr_t> t_rel(n);
-              std::transform(t, t+n, begin(t_rel), [=](auto& fn_ptr) {
-                return reinterpret_cast<intptr_t>(fn_ptr) - fn_ptr_0;
+              std::transform(t, t+n, begin(t_rel), [](auto& fn_ptr) {
+                return to_rel_fn_ptr(fn_ptr);
               });
               ar.store(t_rel.data(), n);
             } else {
@@ -340,14 +365,13 @@ namespace madness {
         typename std::enable_if_t< is_serializable<Archive,T>::value && is_input_archive<Archive>::value, void>
         serialize(const Archive& ar, const T* t, unsigned int n) {
             MAD_ARCHIVE_DEBUG(std::cout << "deserialize fund array" << std::endl);
-            // transform function pointers to relative offsets wrt to fn_ptr_origin
+            // transform function pointers to relative offsets
             constexpr bool is_fn_ptr = std::is_function<std::remove_pointer_t<T>>::value;
             if constexpr (is_fn_ptr) {
-              const auto fn_ptr_0 = reinterpret_cast<intptr_t>(&fn_ptr_origin);
               std::vector<intptr_t> t_rel(n);
               ar.load(t_rel.data(),n);
-              std::transform(begin(t_rel), end(t_rel), (T*)t, [=](auto& fn_ptr_rel) {
-                return reinterpret_cast<T>(fn_ptr_rel + fn_ptr_0);
+              std::transform(begin(t_rel), end(t_rel), (T*)t, [](auto& fn_ptr_rel) {
+                return to_abs_fn_ptr<T>(fn_ptr_rel);
               });
             } else {
               ar.load((T*) t,n);
@@ -463,7 +487,7 @@ namespace madness {
         std::enable_if_t< !is_serializable<Archive,T>::value && is_archive<Archive>::value, void >
         serialize(const Archive& ar, const T& t) {
             MAD_ARCHIVE_DEBUG(std::cout << "serialize(ar,t) -> ArchiveSerializeImpl" << std::endl);
-            ArchiveSerializeImpl<Archive,T>::serialize(ar,(T&) t);
+            ArchiveSerializeImpl<Archive, T>::serialize(ar, const_cast<T&>(t));
         }
 
 
@@ -719,8 +743,15 @@ namespace madness {
 
             /// \param[in] ar The archive.
             /// \param[in] fn The function pointer.
-            static inline void serialize(const Archive& ar, resT(*fn)(paramT...)) {
-                ar & wrap_opaque(fn);
+            static inline void serialize(const Archive& ar, resT(*(&fn))(paramT...)) {
+              if constexpr (is_output_archive<Archive>::value) {
+                ar &wrap_opaque(to_rel_fn_ptr(fn));
+              }
+              else {
+                intptr_t rel_fn_ptr{};
+                ar & wrap_opaque(rel_fn_ptr);
+                fn = to_abs_fn_ptr<std::remove_reference_t<decltype(fn)>>(rel_fn_ptr);
+              }
             }
         };
 
@@ -737,8 +768,15 @@ namespace madness {
 
             /// \param[in] ar The archive.
             /// \param[in] memfn The member function pointer.
-            static inline void serialize(const Archive& ar, resT(objT::*memfn)(paramT...)) {
-                ar & wrap_opaque(memfn);
+            static inline void serialize(const Archive& ar, resT(objT::*(&memfn))(paramT...)) {
+              if constexpr (is_output_archive<Archive>::value) {
+                ar &wrap_opaque(to_rel_fn_ptr(memfn));
+              }
+              else {
+                intptr_t rel_fn_ptr{};
+                ar & wrap_opaque(rel_fn_ptr);
+                memfn = to_abs_fn_ptr<decltype(memfn)>(rel_fn_ptr);
+              }
             }
         };
 

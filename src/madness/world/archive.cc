@@ -39,6 +39,8 @@
 
 namespace madness {
 namespace archive {
-void fn_ptr_origin() {}
+intptr_t fn_ptr_origin() {
+  return reinterpret_cast<intptr_t>(&fn_ptr_origin);
+}
 }
 }
