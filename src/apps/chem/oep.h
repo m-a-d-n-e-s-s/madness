@@ -189,6 +189,18 @@ public:
     /// The following function tests all essential parts of the OEP program qualitatively and some also quantitatively
     void test_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals);
 
+    bool need_ocep_correction(const std::string model) const {
+    	return (model=="ocep") or (model=="dcep") or (model=="mrks");
+    }
+
+    bool need_dcep_correction(const std::string model) const {
+    	return (model=="dcep");
+    }
+
+    bool need_mrks_correction(const std::string model) const {
+    	return (model=="mrks");
+    }
+
     /// get index of HOMO from a given set of orbital energies
     long homo_ind(const tensorT orbens) const {
     	long index;

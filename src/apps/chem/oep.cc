@@ -154,7 +154,7 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 	bool converged=false;
 	bool print_debug=(calc->param.print_level()>=10) and (world.rank()==0);
 
-	tensorT F(KS_nemo.size(),KS_nemo.size());
+	tensorT F=copy(HF_Fock);
 
 	timer timer1(world,calc->param.print_level()>=3);
 	for (int iter = 0; iter < oep_param.maxiter(); ++iter) {
@@ -169,32 +169,56 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 		// compute the Fock matrix self-consistently as
 		// orbital energies enter the Fock matrix
 		// no orbital update is involved!
-		tensorT old_eigvals = copy(KS_eigvals);
+		compute_nemo_potentials(KS_nemo, Jnemo, Unemo);
+
+	    tensorT old_eigvals = copy(KS_eigvals);
 		int ii=0;
 		while (1) {
 			timer timer_pot(world,calc->param.print_level()>=4);
 			vecfuncT R2KS_nemo = truncate(R_square*KS_nemo);
-
-			compute_nemo_potentials(KS_nemo, Jnemo, Unemo);
-
 			timer_pot.tag("compute potentials");
-			if (print_debug) {
-				print("KS_eigvals");
-				print(KS_eigvals);
-			}
+
+			// treat ocep correction separately as it depends on the KS Fock matrix
+			tensorT Fock_ocep;
+
 			Voep=copy(Vs);
-			if (F.normf()>1.e-10) Voep=compute_oep(model,Vs, ocep_numerator_HF,
-					dcep_numerator_HF, mrks_numerator_HF,
-					HF_nemo, KS_nemo, HF_Fock, F);
+			if (need_ocep_correction(model)) {
+				real_function_3d ocep_correction = compute_ocep_correction(ocep_numerator_HF, HF_nemo,KS_nemo,HF_Fock,F);
+				Fock_ocep=matrix_inner(world,R2KS_nemo,ocep_correction*KS_nemo);
+			}
+
+			if (need_dcep_correction(model))
+				Voep += compute_dcep_correction(dcep_numerator_HF, HF_nemo,KS_nemo);
+
+			if (need_mrks_correction(model))
+				Voep += compute_mrks_correction(mrks_numerator_HF, HF_nemo,KS_nemo);
+
+
 			Fnemo = truncate(Jnemo + Unemo + Voep*KS_nemo);
 			timer_pot.tag("compute oep");
 
-			F = matrix_inner(world, R2KS_nemo, Fnemo, false);
+			tensorT Fock_no_ocep = matrix_inner(world, R2KS_nemo, Fnemo, false);
 			Kinetic<double,3> T(world);
-			F += T(R2KS_nemo, KS_nemo);
+			Fock_no_ocep += T(R2KS_nemo, KS_nemo);
+			F=Fock_no_ocep+Fock_ocep;
 			if (print_debug) {
 				print("fock");
 				print(F);
+			}
+
+			// recompute the OCEP correction with the updated Fock matrix
+			if (need_ocep_correction(model)) {
+				real_function_3d ocep_correction = compute_ocep_correction(ocep_numerator_HF, HF_nemo,KS_nemo,HF_Fock,F);
+				Voep+=ocep_correction;
+				Fnemo+=ocep_correction*KS_nemo;
+
+				Fock_ocep=matrix_inner(world,R2KS_nemo,ocep_correction*KS_nemo);
+				F=Fock_no_ocep+Fock_ocep;
+			}
+
+			if (print_debug) {
+				print("fock with updated ocep Fock matrix");
+				print(Fock_no_ocep+Fock_ocep);
 			}
 
 	        if (not calc->param.do_localize()) {
@@ -226,7 +250,7 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 
 			timer_pot.tag("rest");
 	        if (++ii>1) break;
-//	        break;
+	        break;
 //	        if (delta_eig<calc->param.econv()) break;
 
 		}
