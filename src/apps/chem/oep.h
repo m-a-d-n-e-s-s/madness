@@ -22,10 +22,12 @@ struct divide_add_interpolate {
 
 	double thresh_high=1.e-5;
 	double thresh_low=1.e-7;
+	double eps_regularize=1.e-8;
 	double log_high, log_low;
 	bool square_denominator=false;
 
-	divide_add_interpolate(double hi, double lo) : thresh_high(hi), thresh_low(lo),
+	divide_add_interpolate(double hi, double lo, double eps_regularize) :
+		thresh_high(hi), thresh_low(lo), eps_regularize(eps_regularize),
 			log_high(log10(thresh_high)), log_low(log10(thresh_low)) {}
 
     std::size_t get_result_size() const {
@@ -52,8 +54,8 @@ struct divide_add_interpolate {
             U,
 			double r = refdens(IND);
         	double result=num1(IND)/denom1(IND) - num2(IND)/denom2(IND);
-        	if (square_denominator) result=num1(IND)/(denom1(IND)*denom1(IND)+1.e-8)
-        			- num2(IND)/(denom2(IND)*denom2(IND)+1.e-8);
+        	if (square_denominator) result=num1(IND)/(denom1(IND)*denom1(IND)+eps_regularize)
+        			- num2(IND)/(denom2(IND)*denom2(IND)+eps_regularize);
             if (r > thresh_high) {
             	U(IND) = result;
             } else if (r < thresh_low) {
@@ -254,7 +256,8 @@ public:
     	std::vector<real_function_3d> args={R_square*rho,numerator,rho,zero,one,lra};
         refine_to_common_level(world,args);
 
-        divide_add_interpolate op(oep_param.dens_thresh_hi(), oep_param.dens_thresh_lo());
+        divide_add_interpolate op(oep_param.dens_thresh_hi(), oep_param.dens_thresh_lo(),
+        		oep_param.dens_thresh_inv());
         real_function_3d VSlater=multi_to_multi_op_values(op,args)[0];
         return VSlater;
     }
@@ -265,28 +268,27 @@ public:
     /// return without the NCF and factor 2 for closed shell !
     real_function_3d compute_total_kinetic_density(const vecfuncT& nemo) const {
 
-	    // get \nabla R and (\nabla R)^2 via and U1 = -1/R \nabla R and U1dot = (1/R \nabla R)^2
+	    // compute tau = 1/2 * sum |\nabla phi_i|^2
+	    // = 1/2 * sum {(\nabla R)^2 * nemo_i^2 + 2 * R * nemo_i * (\nabla R) * (\nabla nemo_i)) + R^2 * (\nabla nemo_i)^2}
+	    // = 1/2 * R^2 * sum {U1dot * nemo_i^2 + 2 * nemo_i * U1 * (\nabla nemo_i)) + (\nabla nemo_i)^2}
+
+    	// get \nabla R and (\nabla R)^2 via and U1 = -1/R \nabla R and U1dot = (1/R \nabla R)^2
     	const vecfuncT U1 = this->ncf->U1vec();
 	    NuclearCorrelationFactor::U1_dot_U1_functor u1_dot_u1(ncf.get());
 	    const real_function_3d U1dot = real_factory_3d(world).functor(u1_dot_u1).truncate_on_project();
 
-	    // get \nabla nemo
-	    std::vector<vecfuncT> grad_nemo(nemo.size());
-	    for (long i = 0; i < nemo.size(); i++) {
-	    	if(calc->param.dft_deriv() == "bspline") grad_nemo[i] = grad_bspline_one(nemo[i]);  // gradient using b-spline
-	    	else grad_nemo[i] = grad(nemo[i]);  // default gradient using abgv
+	    real_function_3d u1u1term=U1dot*dot(world,nemo,nemo);
+	    real_function_3d u1dnterm=real_factory_3d(world).compressed();
+	    real_function_3d dndnterm=real_factory_3d(world).compressed();
+
+	    for (int idim=0; idim<3; ++idim) {
+	    	real_derivative_3d D(world,idim);
+	    	std::vector<real_function_3d> dnemo=apply(world,D,nemo);
+	    	u1dnterm+=U1[idim]*dot(world,nemo,dnemo);
+	    	dndnterm+=dot(world,dnemo,dnemo);
 	    }
 
-	    // compute tau = 1/2 * sum |phi_i|^2
-	    // = 1/2 * sum {(\nabla R)^2 * nemo_i^2 + 2 * R * nemo_i * (\nabla R) * (\nabla nemo_i)) + R^2 * (\nabla nemo_i)^2}
-	    // = 1/2 * R^2 * sum {U1dot * nemo_i^2 + 2 * nemo_i * U1 * (\nabla nemo_i)) + (\nabla nemo_i)^2}
-	    vecfuncT grad_nemo_squared(nemo.size());
-		for (long i = 0; i < nemo.size(); i++) {
-			grad_nemo_squared[i] = U1dot*square(nemo[i])
-								   - 2.0*nemo[i]*dot(world, U1, grad_nemo[i])
-								   + dot(world, grad_nemo[i], grad_nemo[i]);
-		}
-		real_function_3d tau = 0.5*sum(world, grad_nemo_squared); // 1/2 * sum |Nabla nemo|^2 (* 2 because closed shell)
+	    real_function_3d tau=0.5*(u1u1term - 2.0*u1dnterm + dndnterm);
 
 		return tau;
 
@@ -376,7 +378,8 @@ public:
     			numeratorKS,densityKS,lra_func};
         refine_to_common_level(world,args);
 
-        divide_add_interpolate op(oep_param.dens_thresh_hi(), oep_param.dens_thresh_lo());
+        divide_add_interpolate op(oep_param.dens_thresh_hi(), oep_param.dens_thresh_lo(),
+        		oep_param.dens_thresh_inv());
         real_function_3d correction=multi_to_multi_op_values(op,args)[0];
 
 //        static int i=0;
@@ -428,7 +431,8 @@ public:
     			numeratorKS,densityKS,lra_func};
         refine_to_common_level(world,args);
 
-        divide_add_interpolate op(oep_param.dens_thresh_hi(), oep_param.dens_thresh_lo());
+        divide_add_interpolate op(oep_param.dens_thresh_hi(), oep_param.dens_thresh_lo(),
+        		oep_param.dens_thresh_inv());
         real_function_3d correction=multi_to_multi_op_values(op,args)[0];
 
         static int i=0;
@@ -456,7 +460,8 @@ public:
     			numeratorKS,densityKS,lra_func};
         refine_to_common_level(world,args);
 
-        divide_add_interpolate op(oep_param.dens_thresh_hi()*100.0, oep_param.dens_thresh_lo()*100.0);
+        divide_add_interpolate op(oep_param.dens_thresh_hi(), oep_param.dens_thresh_lo(),
+        		oep_param.dens_thresh_inv());
         op.square_denominator=true;
         real_function_3d correction=0.5*multi_to_multi_op_values(op,args)[0];
 
