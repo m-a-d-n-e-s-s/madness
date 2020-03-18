@@ -248,7 +248,7 @@ namespace madness {
 
         /// \brief converts function or function pointer to the relative function pointer
         /// \param[in] fn a function or function pointer
-        template <typename T, typename = std::enable_if_t<std::is_function<T>::value || std::is_function<std::remove_pointer_t<T>>::value>>
+        template <typename T, typename = std::enable_if_t<std::is_function<T>::value || is_any_function_pointer_v<T>>>
         intptr_t to_rel_fn_ptr(const T& fn) {
           if constexpr (std::is_function<T>::value) {
             return reinterpret_cast<intptr_t>(&fn) - fn_ptr_origin();
@@ -260,7 +260,7 @@ namespace madness {
         /// \brief converts function or function pointer to the relative function pointer
         /// \param[in] fn a function or function pointer
         /// \return absolute function pointer
-        template <typename T, typename = std::enable_if_t<std::is_function<std::remove_pointer_t<T>>::value>>
+        template <typename T, typename = std::enable_if_t<is_any_function_pointer_v<T>>>
         T to_abs_fn_ptr(intptr_t rel_fn_ptr) {
           return reinterpret_cast<T>(rel_fn_ptr + fn_ptr_origin());
         }
@@ -339,7 +339,7 @@ namespace madness {
         serialize(const Archive& ar, const T* t, unsigned int n) {
             MAD_ARCHIVE_DEBUG(std::cout << "serialize fund array" << std::endl);
             // transform function pointers to relative pointers
-            constexpr bool is_fn_ptr = std::is_function<std::remove_pointer_t<T>>::value;
+            constexpr bool is_fn_ptr = is_any_function_pointer_v<T>;
             if constexpr (is_fn_ptr) {
               std::vector<intptr_t> t_rel(n);
               std::transform(t, t+n, begin(t_rel), [](auto& fn_ptr) {
@@ -366,7 +366,7 @@ namespace madness {
         serialize(const Archive& ar, const T* t, unsigned int n) {
             MAD_ARCHIVE_DEBUG(std::cout << "deserialize fund array" << std::endl);
             // transform function pointers to relative offsets
-            constexpr bool is_fn_ptr = std::is_function<std::remove_pointer_t<T>>::value;
+            constexpr bool is_fn_ptr = is_any_function_pointer_v<T>;
             if constexpr (is_fn_ptr) {
               std::vector<intptr_t> t_rel(n);
               ar.load(t_rel.data(),n);

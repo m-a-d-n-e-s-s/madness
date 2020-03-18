@@ -76,6 +76,18 @@ using std::void_t;
     template <typename T>
     using remove_fcvr_t = typename remove_fcvr<T>::type;
 
+    /// is true type if \p T is a pointer to a free function
+    template <typename T, typename Enabler = void> struct is_function_pointer : public std::false_type {};
+    template <typename T> struct is_function_pointer<T, std::enable_if_t<std::is_function<typename std::remove_pointer<T>::type>::value>> : public std::true_type {};
+    template <typename T> constexpr bool is_function_pointer_v = is_function_pointer<T>::value;
+
+    // use std::is_member_function_pointer<T> if looking for is_member_function_pointer
+
+    /// is true type if \p T is a pointer to free or member function
+    template <typename T, typename Enabler = void> struct is_any_function_pointer : public std::false_type {};
+    template <typename T> struct is_any_function_pointer<T, std::enable_if_t<std::is_member_function_pointer<T>::value || is_function_pointer_v<T>>> : public std::true_type {};
+    template <typename T> constexpr bool is_any_function_pointer_v = is_any_function_pointer<T>::value;
+
     /// This defines stuff that is serialiable by bitwise copy.
     /// \warning This reports true for \c T that is an aggregate type
     ///          (struct or array) that includes pointers.
@@ -83,9 +95,8 @@ using std::void_t;
     struct is_trivially_serializable {
       static const bool value = \
         std::is_arithmetic<T>::value || \
-        std::is_member_function_pointer<T>::value || \
         std::is_function<T>::value  || \
-        std::is_function<typename std::remove_pointer<T>::type>::value || \
+        is_any_function_pointer_v<T> || \
         (std::is_pod<T>::value && !std::is_pointer<T>::value);
 //        ((std::is_class<T>::value || std::is_array<T>::value) && std::is_trivially_copyable<T>::value);
     };
@@ -108,9 +119,8 @@ using std::void_t;
     template <typename T> constexpr bool is_always_serializable =
     std::is_arithmetic<T>::value || \
     std::is_same<std::nullptr_t, typename std::remove_cv<T>::type>::value || \
-    std::is_member_function_pointer<T>::value || \
-    std::is_function<T>::value  || \
-    std::is_function<typename std::remove_pointer<T>::type>::value;
+    is_any_function_pointer_v<T> || \
+    std::is_function<T>::value;
 
     /// \brief is \c std::true_type if \c T can be serialized to \c Archive
     ///        without specialized \c serialize() method
