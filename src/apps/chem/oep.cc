@@ -32,7 +32,8 @@ void OEP::solve(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
 
 	double energy=0.0;
 //	energy=iterate("oaep",HF_nemo,HF_eigvals,KS_nemo,KS_eigvals,Voep,Vs);
-	if (oep_param.model()!="oaep") energy=iterate(oep_param.model(),HF_nemo,HF_eigvals,KS_nemo,KS_eigvals,Voep,Vs);
+//	if (oep_param.model()!="oaep") energy=iterate(oep_param.model(),HF_nemo,HF_eigvals,KS_nemo,KS_eigvals,Voep,Vs);
+	energy=iterate(oep_param.model(),HF_nemo,HF_eigvals,KS_nemo,KS_eigvals,Voep,Vs);
 
 	save(Voep,"OEP_final");
 //	if (calc->param.save()) calc->save_mos(world);
@@ -136,6 +137,10 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 	}
 	KS_eigvals=copy(HF_eigvals);
 
+	// compute the constant HF contributions to the OEP hierarchy
+	const real_function_3d ocep_numerator_HF=-1.0*compute_energy_weighted_density_local(HF_nemo,HF_Fock);
+	const real_function_3d dcep_numerator_HF=compute_total_kinetic_density(HF_nemo);
+	const real_function_3d mrks_numerator_HF=compute_Pauli_kinetic_density(HF_nemo);
 
 	typedef allocator<double, 3> allocT;
 	typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
@@ -178,7 +183,9 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 				print(KS_eigvals);
 			}
 			Voep=copy(Vs);
-			if (F.normf()>1.e-10) Voep=compute_oep(model,Vs, HF_nemo, KS_nemo, HF_Fock, F);
+			if (F.normf()>1.e-10) Voep=compute_oep(model,Vs, ocep_numerator_HF,
+					dcep_numerator_HF, mrks_numerator_HF,
+					HF_nemo, KS_nemo, HF_Fock, F);
 			Fnemo = truncate(Jnemo + Unemo + Voep*KS_nemo);
 			timer_pot.tag("compute oep");
 

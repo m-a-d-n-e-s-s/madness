@@ -164,11 +164,6 @@ public:
 	OEP(World& world, const std::shared_ptr<SCF> calc, std::string inputfile)
 		: Nemo(world, calc, inputfile), oep_param(world, inputfile) {
 		oep_param.set_derived_values(param);
-
-//		if (param.localize_method()!="canon") {
-//			MADNESS_EXCEPTION("use localized orbitals for OEP calculations",1);
-//		}
-
 		oep_param.print("oep","end");
 
 	}
@@ -319,7 +314,11 @@ public:
 
     }
 
-    real_function_3d compute_oep(const std::string model, const real_function_3d& Vs,
+    real_function_3d compute_oep(const std::string model,
+    		const real_function_3d& Vs,
+    		const real_function_3d& ocep_numerator_HF,
+    		const real_function_3d& dcep_numerator_HF,
+    		const real_function_3d& mrks_numerator_HF,
 			const vecfuncT& HF_nemo, const vecfuncT& KS_nemo,
 			const tensorT& fockHF, const tensorT& fock) const {
 
@@ -327,9 +326,9 @@ public:
 		if (model=="ocep" or model=="dcep" or model=="mrks") {
 
     		// compute OCEP potential from current nemos and eigenvalues
-			real_function_3d correction = compute_ocep_correction(HF_nemo,KS_nemo,fockHF,fock);
-			if (model=="dcep") correction += compute_dcep_correction(HF_nemo,KS_nemo);
-			if (model=="mrks") correction += compute_mrks_correction(HF_nemo,KS_nemo);
+			real_function_3d correction = compute_ocep_correction(ocep_numerator_HF, HF_nemo,KS_nemo,fockHF,fock);
+			if (model=="dcep") correction += compute_dcep_correction(dcep_numerator_HF, HF_nemo,KS_nemo);
+			if (model=="mrks") correction += compute_mrks_correction(mrks_numerator_HF, HF_nemo,KS_nemo);
 			Voep += correction;
 		}
 		return Voep;
@@ -343,7 +342,8 @@ public:
     /// \frac{\bar \epsilon}{\rho} = \frac{1}{\rho}\sum_{ij}\phi_i(F_ij+\delta_ij s)\phi_j
     ///        = \frac{1}{\rho} ( \sum_{ij}\phi_i F_ij \phi_j + s\sum_i\phi_i\phi_i )
     ///        = s + \frac{1}{\rho} \sum_{ij}\phi_i F_ij \phi_j
-    real_function_3d compute_ocep_correction(const vecfuncT& nemoHF, const vecfuncT& nemoKS,
+    real_function_3d compute_ocep_correction(const real_function_3d& ocep_numerator_HF,
+    		const vecfuncT& nemoHF, const vecfuncT& nemoKS,
 			const tensorT& fockHF, const tensorT& fockKS) const {
 
     	if (fockKS.normf()<1.e-10) {
@@ -364,7 +364,7 @@ public:
         for (int i=0; i<fock1.dim(0); ++i) fock1(i,i)-=longrange;
 
 		// 2.0*R_square in numerator and density (rho) cancel out upon division
-    	real_function_3d numeratorHF=-1.0*compute_energy_weighted_density_local(nemoHF,fockHF);
+//    	real_function_3d numeratorHF=-1.0*compute_energy_weighted_density_local(nemoHF,fockHF);
 //    	real_function_3d numeratorHF=-1.0*compute_energy_weighted_density(nemoHF,eigvalsHF);
     	real_function_3d numeratorKS=-1.0*compute_energy_weighted_density_local(nemoKS,fock1);
 //    	real_function_3d numeratorKS=-1.0*compute_energy_weighted_density(nemoKS,eval);
@@ -374,7 +374,7 @@ public:
         real_function_3d densityHF = dot(world, nemoHF, nemoHF);
 
     	real_function_3d lra_func=real_factory_3d(world);
-    	std::vector<real_function_3d> args={densityKS,numeratorHF,densityHF,
+    	std::vector<real_function_3d> args={densityKS,ocep_numerator_HF,densityHF,
     			numeratorKS,densityKS,lra_func};
         refine_to_common_level(world,args);
 
@@ -413,11 +413,11 @@ public:
     }
 
     /// compute correction of the given model
-    real_function_3d compute_dcep_correction(const vecfuncT& nemoHF,
-    		const vecfuncT& nemoKS) const {
+    real_function_3d compute_dcep_correction(const real_function_3d& dcep_numerator_HF,
+    		const vecfuncT& nemoHF, const vecfuncT& nemoKS) const {
 
 		// 2.0*R_square in numerator and density (rho) cancel out upon division
-    	real_function_3d numeratorHF=compute_total_kinetic_density(nemoHF);
+//    	real_function_3d numeratorHF=compute_total_kinetic_density(nemoHF);
     	real_function_3d numeratorKS=compute_total_kinetic_density(nemoKS);
 
 		// 2.0*R_square in numerator and density (rho) cancel out upon division
@@ -427,7 +427,7 @@ public:
     	real_function_3d lra_func=real_factory_3d(world).functor([](const coord_3d& r)
     			{return 0.0;});
 
-    	std::vector<real_function_3d> args={densityKS,numeratorHF,densityHF,
+    	std::vector<real_function_3d> args={densityKS,dcep_numerator_HF,densityHF,
     			numeratorKS,densityKS,lra_func};
         refine_to_common_level(world,args);
 
@@ -435,18 +435,18 @@ public:
         		oep_param.dens_thresh_inv());
         real_function_3d correction=multi_to_multi_op_values(op,args)[0];
 
-        static int i=0;
-        save(correction,"dcep_correction"+std::to_string(i++));
+//        static int i=0;
+//        save(correction,"dcep_correction"+std::to_string(i++));
 
     	return correction;
     }
 
     /// compute correction of the given model
-    real_function_3d compute_mrks_correction(const vecfuncT& nemoHF,
-    		const vecfuncT& nemoKS) const {
+    real_function_3d compute_mrks_correction(const real_function_3d& mrks_numerator_HF,
+    		const vecfuncT& nemoHF, const vecfuncT& nemoKS) const {
 
 		// 2.0*R_square in numerator and density (rho) cancel out upon division
-    	real_function_3d numeratorHF=compute_Pauli_kinetic_density(nemoHF);
+//    	real_function_3d numeratorHF=compute_Pauli_kinetic_density(nemoHF);
     	real_function_3d numeratorKS=compute_Pauli_kinetic_density(nemoKS);
 
 		// 2.0*R_square in numerator and density (rho) cancel out upon division
@@ -456,7 +456,7 @@ public:
         // longrange correction is zero
     	real_function_3d lra_func=real_factory_3d(world).functor([](const coord_3d& r) {return 0.0;});
 
-    	std::vector<real_function_3d> args={densityKS,numeratorHF,densityHF,
+    	std::vector<real_function_3d> args={densityKS,mrks_numerator_HF,densityHF,
     			numeratorKS,densityKS,lra_func};
         refine_to_common_level(world,args);
 
@@ -465,12 +465,12 @@ public:
         op.square_denominator=true;
         real_function_3d correction=0.5*multi_to_multi_op_values(op,args)[0];
 
-        static int i=0;
-        save(numeratorHF,"numeratorHF"+std::to_string(i));
-        save(numeratorKS,"numeratorKS"+std::to_string(i));
-        save(densityKS,"densityKS"+std::to_string(i));
-        save(densityHF,"densityHF"+std::to_string(i));
-        save(correction,"mrks_correction"+std::to_string(i++));
+//        static int i=0;
+//        save(mrks_numerator_HF,"numeratorHF"+std::to_string(i));
+//        save(numeratorKS,"numeratorKS"+std::to_string(i));
+//        save(densityKS,"densityKS"+std::to_string(i));
+//        save(densityHF,"densityHF"+std::to_string(i));
+//        save(correction,"mrks_correction"+std::to_string(i++));
 
     	return correction;
     }
