@@ -85,12 +85,10 @@ public:
 		initialize<double>("density_threshold_high",1.e-4,"comment on this");
 		initialize<double>("density_threshold_low",1.e-7,"comment on this");
 		initialize<double>("density_threshold_inv",1.e-8,"comment on this");
-		initialize<bool>("set_thresh_inv",false,"comment on this");
 		initialize<std::vector<double> >("kain_param",{1.0e-8, 3.0},"comment on this");
-		initialize<std::vector<double> >("damp_coeff",{1.0},"set coefficients for the new and a number of old potentials for damping");
 
 //		std::vector<bool> oep_model = {false, false, false, false};
-		initialize<unsigned int>("saving_amount",1,"choose level 0, 1, 2 or 3 for saving functions");
+		initialize<unsigned int>("saving_amount",0,"choose level 0, 1, 2 or 3 for saving functions");
 		initialize<unsigned int>("save_iter_orbs",0,"if > 0 save all orbitals every ... iterations (needs a lot of storage!");
 		initialize<unsigned int>("save_iter_density",0,"if > 0 save KS density every ... iterations");
 		initialize<unsigned int>("save_iter_IKS",0,"if > 0 save IKS every ... iterations");
@@ -121,8 +119,6 @@ public:
 	bool is_dcep() const {return (get<std::string>("model")=="dcep");}
 	bool is_mrks() const {return (get<std::string>("model")=="mrks");}
 
-	long damp_num() const {return get<std::vector<double> >("damp_coeff").size();}
-	bool do_damping() const {return damp_num() > 1;}
 	unsigned int maxiter() const {return get<unsigned int>("maxiter");}
 //	double conv_thresh() const {return get<double>("conv_threshold");}
 	double dens_thresh_hi() const {return get<double>("density_threshold_high");}
@@ -141,7 +137,6 @@ public:
 	unsigned int save_iter_effective_potential() const {return get<unsigned int>("save_iter_effective_potential");}
 
 	std::vector<double> kain_param() const {return get<std::vector<double> >("kain_param");}
-	std::vector<double> damp_coeff() const {return get<std::vector<double> >("damp_coeff");}
 
 };
 
@@ -239,7 +234,7 @@ public:
     }
 
      /// compute Slater potential (Kohut, 2014, equation (15))
-    real_function_3d compute_slater_potential(const vecfuncT& nemo, const long homo_ind) const {
+    real_function_3d compute_slater_potential(const vecfuncT& nemo) const {
 
         Exchange<double,3> K(world);
         K.set_parameters(R_square*nemo,nemo,calc->aocc,calc->param.lo());
