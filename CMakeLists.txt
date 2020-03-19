@@ -340,6 +340,30 @@ if(NOT USE_X86_64_ASM)
       " USE_X86_32_ASM)
 endif()
 
+# (try to) determine C++ ABI
+# ABI kinds are named as in https://clang.llvm.org/doxygen/classclang_1_1TargetCXXABI.html
+# we only need ABI for serializing member pointers, hence all ARM-based ABIs are represented by same kind
+set(MADNESS_CXX_ABI_GenericItanium 1)
+set(MADNESS_CXX_ABI_GenericARM 2)
+set(MADNESS_CXX_ABI_Microsoft 3)
+if (NOT CMAKE_SYSTEM_PROCESSOR)
+  set(processor_name ${CMAKE_HOST_SYSTEM_PROCESSOR})
+else(NOT CMAKE_SYSTEM_PROCESSOR)
+  set(processor_name ${CMAKE_SYSTEM_PROCESSOR})
+endif(NOT CMAKE_SYSTEM_PROCESSOR)
+if(processor_name MATCHES "^(aarch64.*|AARCH64.*|arm64.*|ARM64.*)" OR processor_name MATCHES "^(arm.*|ARM.*)" OR processor_name MATCHES "^(mips.*|MIPS.*)")
+  # on ARM everything, including Windows, targets ARM C++ ABI
+  set(MADNESS_CXX_ABI ${MADNESS_CXX_ABI_GenericARM})
+elseif(processor_name MATCHES "amd64.*|x86_64.*|AMD64.*" OR processor_name MATCHES "i686.*|i386.*|x86.*" OR processor_name MATCHES "^(powerpc|ppc)64le" OR processor_name MATCHES "^(powerpc|ppc)64")
+  if (CMAKE_SYSTEM_NAME STREQUAL Windows) # on x86 Windows all compilers (clang, intel) target Windows C++ ABI
+    set(MADNESS_CXX_ABI ${MADNESS_CXX_ABI_Microsoft})
+  else (CMAKE_SYSTEM_NAME STREQUAL Windows)  # everyone else uses Itanium C++ ABI
+    set(MADNESS_CXX_ABI ${MADNESS_CXX_ABI_GenericItanium})
+  endif (CMAKE_SYSTEM_NAME STREQUAL Windows)
+else()
+  message(FATAL_ERROR "Cannot determine C++ ABI for CMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR}, please file an issue")
+endif()
+
 # Check compiler feature support ===============================================
 
 # Check for system include files
