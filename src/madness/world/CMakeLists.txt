@@ -32,6 +32,9 @@ add_mad_library(world MADWORLD_SOURCES MADWORLD_HEADERS "common;${ELEMENTAL_PACK
 #endif()
 
 foreach (suffix ${MADNESS_LIBRARY_TARGET_SUFFIXES})
+  if (suffix STREQUAL none)
+    set(suffix )
+  endif()
   set(targetname MADworld${suffix})
 
   # create an additional, MADworld-only, export
@@ -105,7 +108,7 @@ if(ENABLE_UNITTESTS)
       test_worldref.cc test_stack.cc test_googletest.cc test_tree.cc)
 
 
-  add_unittests(world WORLD_TEST_SOURCES "MADworld;MADgtest")
+  add_unittests(world "${WORLD_TEST_SOURCES}" "MADworld;MADgtest")
 
   set_tests_properties(world-test_googletest PROPERTIES WILL_FAIL TRUE)
 

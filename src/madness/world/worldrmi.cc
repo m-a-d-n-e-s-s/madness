@@ -370,7 +370,7 @@ namespace madness {
       comm.Reduce(&my_address, &zero_if_addresses_differ, 1, MPI_LONG, compare_fn_addresses_op, 0);
       if (comm.Get_rank() == 0) {
         if (zero_if_addresses_differ == 0) {
-          MADNESS_EXCEPTION("Address Space Layout Randomization (ASLR) detected, please turn off or disable by providing appropriate linker flags (see MADNESS_DISABLEPIE_LINKER_FLAG)",0);
+          MADNESS_EXCEPTION("Address Space Layout Randomization (ASLR) detected and MADNESS could not work around it, possibly due to the use of Microsoft C++ ABI by this platform (please contact the developers to request such support); please turn off ASLR, disable by providing appropriate linker flags (see MADNESS_DISABLEPIE_LINKER_FLAG), or compile your application statically",0);
         }
         MADNESS_ASSERT(zero_if_addresses_differ == my_address);
       }

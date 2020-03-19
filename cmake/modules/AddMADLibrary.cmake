@@ -18,13 +18,13 @@ macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_d
     # create static library by default as well, using the same object library as the shared lib
     add_library(MAD${_name}-static STATIC $<TARGET_OBJECTS:MAD${_name}-obj>)
     # sanity check the suffix list
-    if (NOT(MADNESS_LIBRARY_TARGET_SUFFIXES STREQUAL ";-static"))
-      message(FATAL_ERROR "MADNESS_LIBRARY_TARGET_SUFFIXES=\"${MADNESS_LIBRARY_TARGET_SUFFIXES}\", but expected \";-static\"")
+    if (NOT(MADNESS_LIBRARY_TARGET_SUFFIXES STREQUAL "none;-static"))
+      message(FATAL_ERROR "MADNESS_LIBRARY_TARGET_SUFFIXES=\"${MADNESS_LIBRARY_TARGET_SUFFIXES}\", but expected \"none;-static\"")
     endif()
   else(BUILD_SHARED_LIBS)
     # sanity check the suffix list
-    if (NOT(MADNESS_LIBRARY_TARGET_SUFFIXES STREQUAL ""))
-      message(FATAL_ERROR "MADNESS_LIBRARY_TARGET_SUFFIXES=\"${MADNESS_LIBRARY_TARGET_SUFFIXES}\", but expected \"\"")
+    if (NOT(MADNESS_LIBRARY_TARGET_SUFFIXES STREQUAL "none"))
+      message(FATAL_ERROR "MADNESS_LIBRARY_TARGET_SUFFIXES=\"${MADNESS_LIBRARY_TARGET_SUFFIXES}\", but expected \"none\"")
     endif()
   endif(BUILD_SHARED_LIBS)
 
@@ -51,7 +51,11 @@ macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_d
 
   # configure each target
   foreach(suffix ${MADNESS_LIBRARY_TARGET_SUFFIXES})
-    set(targetname "MAD${_name}${suffix}")
+    if (suffix STREQUAL none)
+      set(suffix )
+    endif()
+    set(targetname MAD${_name}${suffix})
+
     target_include_directories(${targetname} PUBLIC
         $<INSTALL_INTERFACE:${MADNESS_INSTALL_INCLUDEDIR}>)
     set_target_properties(${targetname} PROPERTIES PUBLIC_HEADER "${${_header_files}}")
@@ -70,9 +74,9 @@ macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_d
     set(LINK_FLAGS "")
     foreach(_dep ${_dep_mad_comp})
       if (${_dep}_is_mad_hdr_lib)
-        set(deptargetname ${_dep})
+        set(deptargetname MAD${_dep})
       else(${_dep}_is_mad_hdr_lib)
-        set(deptargetname ${_dep}${suffix})
+        set(deptargetname MAD${_dep}${suffix})
       endif(${_dep}_is_mad_hdr_lib)
 
       if(TARGET ${deptargetname})
