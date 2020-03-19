@@ -238,10 +238,12 @@ cmake_dependent_option(BUILD_SHARED_LIBS "Enable shared libraries" ON
 if(BUILD_SHARED_LIBS)
   set(BLA_STATIC_DEFAULT FALSE)
   set(CMAKE_MACOSX_RPATH TRUE)
-else()
+  set(MADNESS_LIBRARY_TARGET_SUFFIXES "" "-static")
+else(BUILD_SHARED_LIBS)
   set(BLA_STATIC_DEFAULT TRUE)
   set(CMAKE_MACOSX_RPATH FALSE)
-endif()
+  set(MADNESS_LIBRARY_TARGET_SUFFIXES "")
+endif(BUILD_SHARED_LIBS)
 if (NOT DEFINED BLA_STATIC)
   set(BLA_STATIC ${BLA_STATIC_DEFAULT})
 endif()
@@ -382,11 +384,6 @@ endif()
 check_type_size("int64_t" HAVE_INT64_T)
 check_type_size("long double" HAVE_LONG_DOUBLE)
 check_type_size("long long" HAVE_LONG_LONG)
-check_cxx_source_compiles(
-    "
-    #include <cstdint>
-    int main() { std::intptr_t x = 0; return x; }
-    " MADNESS_HAS_STDINTPTR_T)
 check_cxx_source_compiles(
     "
     #include <sys/types.h>

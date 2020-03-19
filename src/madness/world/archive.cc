@@ -39,8 +39,8 @@
 
 namespace madness {
 namespace archive {
-intptr_t fn_ptr_origin() {
-  return reinterpret_cast<intptr_t>(&fn_ptr_origin);
+std::ptrdiff_t fn_ptr_origin() {
+  return reinterpret_cast<std::ptrdiff_t>(&fn_ptr_origin);
 }
 }
 }

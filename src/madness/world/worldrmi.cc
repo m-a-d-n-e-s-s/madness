@@ -363,7 +363,7 @@ namespace madness {
     }  // namespace detail
 
     void RMI::assert_aslr_off(const SafeMPI::Intracomm& comm) {
-      static_assert(sizeof(long) >= sizeof(archive::intptr_t), "madness::archive::intptr_t must not exceed the width of long");
+      static_assert(sizeof(long) >= sizeof(std::ptrdiff_t), "std::ptrdiff_t must not exceed the width of long");
       long my_address = archive::to_rel_fn_ptr(assert_aslr_off);
       MPI_Op compare_fn_addresses_op = SafeMPI::Op_create(&detail::compare_fn_addresses, 1);
       long zero_if_addresses_differ;
