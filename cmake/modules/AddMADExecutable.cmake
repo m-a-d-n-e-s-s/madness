@@ -2,7 +2,6 @@ macro(add_mad_executable _name _source_files _libs)
 
   # build executable as a library to support loading whole thing as a single shared library
   add_library(${_name}-lib EXCLUDE_FROM_ALL ${_source_files})
-  message(STATUS "considering linking target ${_name}-lib to libs ${_libs}")
   foreach(_lib ${_libs})
     set(libtarget ${_lib})
     if (${_lib} MATCHES "^MAD" AND BUILD_SHARED_LIBS AND TARGET ${_lib}-static)
