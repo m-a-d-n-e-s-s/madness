@@ -94,10 +94,7 @@ public:
 		initialize<unsigned int>("save_iter_IKS",0,"if > 0 save IKS every ... iterations");
 		initialize<unsigned int>("save_iter_kin_tot_KS",0,"if > 0 save kin_tot_KS every ... iterations");
 		initialize<unsigned int>("save_iter_kin_P_KS",0,"if > 0 save kin_P_KS every ... iterations");
-		initialize<unsigned int>("save_iter_ocep_correction",0,"if > 0 save OCEP correction every ... iterations");
-		initialize<unsigned int>("save_iter_dcep_correction",0,"if > 0 save DCEP correction every ... iterations");
-		initialize<unsigned int>("save_iter_mrks_correction",0,"if > 0 save mRKS correction every ... iterations");
-		initialize<unsigned int>("save_iter_total_correction",0,"if > 0 save total correction (OCEP + DCEP) every ... iterations");
+		initialize<unsigned int>("save_iter_corrections",0,"if > 0 save OEP correction(s) every ... iterations");
 		initialize<unsigned int>("save_iter_effective_potential",0,"if > 0 save effective potential every ... iterations");
 
 		read(world,inputfile,"oep");
@@ -130,10 +127,7 @@ public:
 	unsigned int save_iter_density            () const {return get<unsigned int>("save_iter_density");}
 	unsigned int save_iter_kin_tot_KS         () const {return get<unsigned int>("save_iter_kin_tot_ks");}
 	unsigned int save_iter_kin_P_KS           () const {return get<unsigned int>("save_iter_kin_p_ks");}
-	unsigned int save_iter_ocep_correction    () const {return get<unsigned int>("save_iter_ocep_correction");}
-	unsigned int save_iter_dcep_correction    () const {return get<unsigned int>("save_iter_dcep_correction");}
-	unsigned int save_iter_mrks_correction    () const {return get<unsigned int>("save_iter_mrks_correction");}
-	unsigned int save_iter_total_correction   () const {return get<unsigned int>("save_iter_total_correction");}
+	unsigned int save_iter_corrections        () const {return get<unsigned int>("save_iter_corrections");}
 	unsigned int save_iter_effective_potential() const {return get<unsigned int>("save_iter_effective_potential");}
 
 	std::vector<double> kain_param() const {return get<std::vector<double> >("kain_param");}
@@ -389,8 +383,6 @@ public:
         		oep_param.dens_thresh_inv());
         real_function_3d correction=multi_to_multi_op_values(op,args)[0];
 
-//        static int i=0;
-//        save(correction,"ocep_correction"+std::to_string(i++));
 
     	return correction;
 
@@ -442,9 +434,6 @@ public:
         		oep_param.dens_thresh_inv());
         real_function_3d correction=multi_to_multi_op_values(op,args)[0];
 
-//        static int i=0;
-//        save(correction,"dcep_correction"+std::to_string(i++));
-
     	return correction;
     }
 
@@ -471,13 +460,6 @@ public:
         		oep_param.dens_thresh_inv());
         op.square_denominator=true;
         real_function_3d correction=0.5*multi_to_multi_op_values(op,args)[0];
-
-//        static int i=0;
-//        save(mrks_numerator_HF,"numeratorHF"+std::to_string(i));
-//        save(numeratorKS,"numeratorKS"+std::to_string(i));
-//        save(densityKS,"densityKS"+std::to_string(i));
-//        save(densityHF,"densityHF"+std::to_string(i));
-//        save(correction,"mrks_correction"+std::to_string(i++));
 
     	return correction;
     }

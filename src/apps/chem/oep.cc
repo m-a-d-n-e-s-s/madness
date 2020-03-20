@@ -179,13 +179,23 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 		if (need_ocep_correction(model)) {
 			real_function_3d ocep_correction = compute_ocep_correction(ocep_numerator_HF, HF_nemo,KS_nemo,HF_Fock,F);
 			Fock_ocep=matrix_inner(world,R2KS_nemo,ocep_correction*KS_nemo);
+			if (oep_param.save_iter_corrections()>0 and (iter%oep_param.save_iter_corrections()==0))
+				save(ocep_correction,"ocep_correction"+std::to_string(iter));
 		}
 
-		if (need_dcep_correction(model))
-			Voep += compute_dcep_correction(dcep_numerator_HF, HF_nemo,KS_nemo);
+		if (need_dcep_correction(model)) {
+			real_function_3d dcep_correction=compute_dcep_correction(dcep_numerator_HF, HF_nemo,KS_nemo);
+			Voep += dcep_correction;
+			if (oep_param.save_iter_corrections()>0 and (iter%oep_param.save_iter_corrections()==0))
+				save(dcep_correction,"dcep_correction"+std::to_string(iter));
+		}
 
-		if (need_mrks_correction(model))
-			Voep += compute_mrks_correction(mrks_numerator_HF, HF_nemo,KS_nemo);
+		if (need_mrks_correction(model)) {
+			real_function_3d mrks_correction=compute_mrks_correction(mrks_numerator_HF, HF_nemo,KS_nemo);
+			Voep += mrks_correction;
+			if (oep_param.save_iter_corrections()>0 and (iter%oep_param.save_iter_corrections()==0))
+				save(mrks_correction,"mrks_correction"+std::to_string(iter));
+		}
 
 		Fnemo = truncate(Jnemo + Unemo + Voep*KS_nemo);
 
