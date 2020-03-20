@@ -87,7 +87,7 @@ namespace madness {
         unsigned char header[RMI::HEADER_LEN]; // !!!!!!!!!  MUST BE FIRST !!!!!!!!!!
         std::size_t nbyte;      // Size of user payload
         unsigned long worldid;  // Id of associated world
-        am_handlerT func;       // User function to call
+        std::ptrdiff_t func;    // User function to call, as a relative fn ptr (see archive::to_rel_fn_ptr)
         ProcessID src;          // Rank of process sending the message
         unsigned int flags;     // Misc. bit flags
 
@@ -104,7 +104,7 @@ namespace madness {
 
         void set_func(am_handlerT handler) {
             MADNESS_ASSERT(handler);
-            func = handler;
+            func = archive::to_rel_fn_ptr(handler);
         }
 
         void set_size(std::size_t numbyte) { nbyte = numbyte; }
@@ -115,7 +115,7 @@ namespace madness {
 
         void clear_flags() { flags = 0; }
 
-        am_handlerT get_func() const { return func; }
+        am_handlerT get_func() const { return archive::to_abs_fn_ptr<am_handlerT>(func); }
 
         archive::BufferInputArchive make_input_arch() const {
             return archive::BufferInputArchive(buf(),size());
