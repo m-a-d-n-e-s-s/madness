@@ -96,7 +96,7 @@ namespace madness {
                 RMI::stats.nbyte_recv += len;
 
                 const header* h = (const header*)(recv_buf[i]);
-                rmi_handlerT func = h->func;
+                rmi_handlerT func = archive::to_abs_fn_ptr<rmi_handlerT>(h->func);
                 const attrT attr = h->attr;
                 const counterT count = (attr>>16); //&&0xffff;
 
@@ -491,7 +491,7 @@ namespace madness {
         }
 
         header* h = (header*)(buf);
-        h->func = func;
+        h->func = archive::to_rel_fn_ptr(func);
         h->attr = attr;
 
         ++(RMI::stats.nmsg_sent);
