@@ -6,13 +6,14 @@ compiler:
   - gcc
   - clang
 env:
-  - RUN_TEST=all
-  - RUN_TEST=mra CMAKE_EXTRA_OPTIONS="-D ENABLE_GENTENSOR=1"    
+  - RUN_TEST=all BUILD_SHARED=0
+  - RUN_TEST=mra CMAKE_EXTRA_OPTIONS="-D ENABLE_GENTENSOR=1" BUILD_SHARED=0
+  - RUN_TEST=all BUILD_SHARED=1
 matrix:
   exclude:
     - os: linux
       compiler: clang
-      env: RUN_TEST=mra CMAKE_EXTRA_OPTIONS="-D ENABLE_GENTENSOR=1"    
+      env: RUN_TEST=mra CMAKE_EXTRA_OPTIONS="-D ENABLE_GENTENSOR=1" BUILD_SHARED=0
 sudo: false
 addons:
   apt:
