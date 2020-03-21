@@ -36,10 +36,10 @@ if(ENABLE_UNITTESTS)
   set(MRA_TEST_SOURCES testbsh.cc testproj.cc 
       testpdiff.cc testdiff1Db.cc testgconv.cc testopdir.cc testinnerext.cc 
       testgaxpyext.cc testvmra.cc)
-  add_unittests(mra ${MRA_TEST_SOURCES} "MADmra;MADgtest")
+  add_unittests(mra "${MRA_TEST_SOURCES}" "MADmra;MADgtest")
   set(MRA_SEPOP_TEST_SOURCES testsuite.cc
       testper.cc)
-  add_unittests(mra_sepop ${MRA_SEPOP_TEST_SOURCES} "libtest_sepop;MADmra;MADgtest")
+  add_unittests(mra_sepop "${MRA_SEPOP_TEST_SOURCES}" "libtest_sepop;MADmra;MADgtest")
   
   # Test executables that are not run with unit tests
   set(MRA_OTHER_TESTS testperiodic testbc testqm test6
