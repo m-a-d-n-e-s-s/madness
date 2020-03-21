@@ -18,7 +18,10 @@ namespace madness {
 /// note that KS_nemo is a reference and changes oep->get_calc()->amo orbitals
 /// same for orbital energies (eigenvalues) KS_eigvals which is oep->get_calc()->aeps
 /// converged if norm, total energy difference and orbital energy differences (if not OAEP) are converged
-void OEP::solve(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
+void OEP::solve(const vecfuncT& HF_nemo1, const tensorT& HF_eigvals) {
+
+	// recompute HF Fock matrix and orbitals
+	auto [HF_Fock, HF_nemo] = recompute_HF(HF_nemo1);
 
 	// compute Slater potential Vs and average IHF from HF orbitals and eigenvalues
 	const real_function_3d Vs = compute_slater_potential(HF_nemo);
@@ -30,13 +33,43 @@ void OEP::solve(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
 
 	real_function_3d Voep = copy(Vs);
 
-	double energy=iterate(oep_param.model(),HF_nemo,HF_eigvals,KS_nemo,KS_eigvals,Voep,Vs);
+	double energy=iterate(oep_param.model(),HF_nemo,HF_Fock,KS_nemo,KS_eigvals,Voep,Vs);
 
 	save(Voep,"OEP_final");
 //	if (calc->param.save()) calc->save_mos(world);
 
 	printf("      +++ FINAL TOTAL %s ENERGY = %15.8f  Eh +++\n\n\n", oep_param.model().c_str(), energy);
 
+}
+
+std::tuple<Tensor<double>, vecfuncT> OEP::recompute_HF(const vecfuncT& HF_nemo) const {
+
+	timer timer1(world);
+    const vecfuncT R2nemo=truncate(R_square*HF_nemo);
+	vecfuncT psi, Jnemo, Knemo, pcmnemo, Unemo;
+	Nemo::compute_nemo_potentials(HF_nemo, psi, Jnemo, Knemo, pcmnemo, Unemo);
+	vecfuncT Vnemo=Unemo+Jnemo-Knemo;
+	if (do_pcm()) Vnemo+=pcmnemo;
+	tensorT HF_Fock=matrix_inner(world,R2nemo,Vnemo,false);   // not symmetric actually
+	Kinetic<double,3> T(world);
+	HF_Fock+=T(R2nemo,HF_nemo);
+
+
+	BSHApply<double,3> bsh_apply(world);
+	bsh_apply.metric=R_square;
+	bsh_apply.lo=get_calc()->param.lo();
+	bsh_apply.do_coupling=calc->param.do_localize();
+	auto [residual,eps_update] =bsh_apply(HF_nemo,HF_Fock,Vnemo);
+
+	vecfuncT nemo_new=HF_nemo-residual;
+	if (param.print_level()>=10) {
+		print("HF Fock matrix");
+		print(HF_Fock);
+		double rnorm=norm2(world,residual);
+		print("residual for HF nemo recomputation",rnorm);
+	}
+	timer1.end("recompute HF");
+	return std::make_tuple(HF_Fock, nemo_new);
 }
 
 double OEP::compute_and_print_final_energies(const std::string model, const real_function_3d& Voep,
@@ -106,38 +139,14 @@ double OEP::compute_and_print_final_energies(const std::string model, const real
 	return Econv;
 }
 
-double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tensorT& HF_eigvals1,
+double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tensorT& HF_Fock,
 		vecfuncT& KS_nemo, tensorT& KS_eigvals, real_function_3d& Voep, const real_function_3d Vs) const {
 
 	bool print_debug=(calc->param.print_level()>=10) and (world.rank()==0);
 
 	// compute the HF reference Fock matrix
-	tensorT HF_eigvals=copy(HF_eigvals1);
-	tensorT HF_Fock;
-	if (calc->param.do_localize()) {
-	    const vecfuncT R2nemo=truncate(R_square*HF_nemo);
-
-		vecfuncT psi, Jnemo, Knemo, pcmnemo, Unemo;
-		Nemo::compute_nemo_potentials(HF_nemo, psi, Jnemo, Knemo, pcmnemo, Unemo);
-		vecfuncT Vnemo=Unemo+Jnemo-Knemo;
-		if (do_pcm()) Vnemo+=pcmnemo;
-		HF_Fock=matrix_inner(world,R2nemo,Vnemo,false);   // not symmetric actually
-		Kinetic<double,3> T(world);
-		HF_Fock+=T(R2nemo,HF_nemo);
-		if (print_debug) {
-			print("HF Fock matrix");
-			print(HF_Fock);
-		}
-		auto [eval, evec] = syev(HF_Fock);
-		if (print_debug) {
-			print("HF orbital energies");
-			print(eval);
-		}
-		HF_eigvals=eval;
-	} else {
-		HF_Fock=tensorT(HF_eigvals.dim(0),HF_eigvals.dim(0));
-		for (int i=0; i<HF_eigvals.dim(0); ++i) HF_Fock(i,i)=HF_eigvals(i);
-	}
+	tensorT HF_eigvals(HF_Fock.dim(0));
+	for (int i=0; i<HF_eigvals.dim(0); ++i) HF_eigvals(i)=HF_Fock(i,i);
 	KS_eigvals=copy(HF_eigvals);
 
 	// compute the constant HF contributions to the OEP hierarchy
@@ -212,7 +221,7 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 		if (need_ocep_correction(model)) {
 			real_function_3d ocep_correction = compute_ocep_correction(ocep_numerator_HF, HF_nemo,KS_nemo,HF_Fock,F);
 			Voep+=ocep_correction;
-			Fnemo+=ocep_correction*KS_nemo;
+			Fnemo+=truncate(ocep_correction*KS_nemo);
 
 			Fock_ocep=matrix_inner(world,R2KS_nemo,ocep_correction*KS_nemo);
 			F=Fock_no_ocep+Fock_ocep;

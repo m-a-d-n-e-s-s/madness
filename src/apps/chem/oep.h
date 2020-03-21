@@ -175,6 +175,8 @@ public:
     		vecfuncT& KS_nemo, tensorT& KS_eigvals, real_function_3d& Voep,
 			const real_function_3d Vs) const;
 
+    std::tuple<Tensor<double>, vecfuncT> recompute_HF(const vecfuncT& HF_nemo) const;
+
     /// The following function tests all essential parts of the OEP program qualitatively and some also quantitatively
     void test_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals);
 
@@ -452,9 +454,17 @@ public:
         // longrange correction is zero
     	real_function_3d lra_func=real_factory_3d(world).functor([](const coord_3d& r) {return 0.0;});
 
-    	std::vector<real_function_3d> args={densityKS,mrks_numerator_HF,densityHF,
+    	real_function_3d denssq=square(densityKS);
+    	std::vector<real_function_3d> args={denssq,mrks_numerator_HF,densityHF,
     			numeratorKS,densityKS,lra_func};
         refine_to_common_level(world,args);
+
+        static int i=0;
+        save(mrks_numerator_HF,"mrks_numerator_HF"+std::to_string(i));
+        save(numeratorKS,"mrks_numerator_KS"+std::to_string(i));
+        save(densityHF,"densityHF"+std::to_string(i));
+        save(densityKS,"densityKS"+std::to_string(i));
+        i++;
 
         divide_add_interpolate op(oep_param.dens_thresh_hi(), oep_param.dens_thresh_lo(),
         		oep_param.dens_thresh_inv());
