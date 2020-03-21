@@ -44,6 +44,7 @@
 #include <iostream>
 #include <cstdio>
 #include <cstddef>
+#include <cstring>
 #include <array>
 #include <vector>
 #include <map>
