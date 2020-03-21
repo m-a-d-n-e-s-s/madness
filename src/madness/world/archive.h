@@ -427,15 +427,13 @@ namespace madness {
         serialize(const Archive& ar, const T* t, unsigned int n) {
             MAD_ARCHIVE_DEBUG(std::cout << "serialize fund array" << std::endl);
             // transform function pointers to relative pointers
-            constexpr bool is_fn_ptr = is_function_pointer_v<T>;
-            constexpr bool is_memfn_ptr = std::is_member_function_pointer_v<T>;
-            if constexpr (is_fn_ptr) {
+            if constexpr (is_function_pointer_v<T>) {
               std::vector<std::ptrdiff_t> t_rel(n);
               std::transform(t, t+n, begin(t_rel), [](auto& fn_ptr) {
                 return to_rel_fn_ptr(fn_ptr);
               });
               ar.store(t_rel.data(), n);
-            } else if constexpr (is_memfn_ptr) {
+            } else if constexpr (std::is_member_function_pointer_v<T>) {
               using rel_memfn_ptr_t = decltype(to_rel_memfn_ptr(t[0]));
               static_assert(sizeof(rel_memfn_ptr_t) % sizeof(std::ptrdiff_t) == 0);
               constexpr std::size_t memfn_ptr_width = sizeof(rel_memfn_ptr_t) / sizeof(std::ptrdiff_t);
@@ -464,15 +462,13 @@ namespace madness {
         serialize(const Archive& ar, const T* t, unsigned int n) {
             MAD_ARCHIVE_DEBUG(std::cout << "deserialize fund array" << std::endl);
             // transform function pointers to relative offsets
-            constexpr bool is_fn_ptr = is_function_pointer_v<T>;
-            constexpr bool is_memfn_ptr = std::is_member_function_pointer_v<T>;
-            if constexpr (is_fn_ptr) {
+            if constexpr (is_function_pointer_v<T>) {
               std::vector<std::ptrdiff_t> t_rel(n);
               ar.load(t_rel.data(),n);
               std::transform(begin(t_rel), end(t_rel), (T*)t, [](auto& fn_ptr_rel) {
                 return to_abs_fn_ptr<T>(fn_ptr_rel);
               });
-            } else if constexpr (is_memfn_ptr) {
+            } else if constexpr (std::is_member_function_pointer_v<T>) {
               using rel_memfn_ptr_t = decltype(to_rel_memfn_ptr(t[0]));
               static_assert(sizeof(rel_memfn_ptr_t) % sizeof(std::ptrdiff_t) == 0);
               constexpr std::size_t memfn_ptr_width = sizeof(rel_memfn_ptr_t) / sizeof(std::ptrdiff_t);
