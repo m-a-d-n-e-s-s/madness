@@ -79,10 +79,10 @@ fi
 # Install libxc
 if [ "X${BUILD_SHARED}" = "X1" ]; then
   LIBEXT="so"
-  LIBXC_TYPE_ENABLE="--enable-shared"
+  LIBXC_TYPE_ENABLE="--enable-shared --disable-static"
 else
   LIBEXT="a"
-  LIBXC_TYPE_ENABLE="--enable-static"
+  LIBXC_TYPE_ENABLE="--enable-static --disable-shared"
 fi
 if [ ! -f "${HOME}/libxc/lib/libxc.${LIBEXT}" ]; then
     export LIBXC_VERSION=4.3.4
