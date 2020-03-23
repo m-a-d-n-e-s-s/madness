@@ -30,6 +30,12 @@ export CC=mpicc
 export CXX=mpicxx
 export FC=gfortran-8
 
+if [ "X${BUILD_SHARED}" = "X1" ]; then
+  LIBEXT="so"
+else
+  LIBEXT="a"
+fi
+
 echo $CC
 which $CC
 $CC --version
@@ -42,25 +48,25 @@ $FC --version
 echo $LIBXCDIR
 ls $LIBXCDIR
 ls $LIBXCDIR/lib
-ls -l $LIBXCDIR/lib/libxc.a
+ls -l $LIBXCDIR/lib/libxc.${LIBEXT}
 ls -l /opt/intel
 which ccache
 ccache --version
 
-# Configure MADNESS 
+# Configure MADNESS
 mkdir build
 cd build
 cmake \
     -D CMAKE_BUILD_TYPE=MinSizeRel \
     -D ENABLE_UNITTESTS=ON \
     -D ENABLE_NEVER_SPIN=ON \
-    -D BUILD_SHARED_LIBS=OFF \
+    -D BUILD_SHARED_LIBS=${BUILD_SHARED} \
     -D ENABLE_GPERFTOOLS=OFF \
     -D ENABLE_MKL=ON \
     -D CMAKE_C_COMPILER=$CC \
     -D CMAKE_CXX_COMPILER=$CXX \
     -D CMAKE_CXX_FLAGS="${EXTRACXXFLAGS}" \
-    -D LIBXC_LIBRARIES=$LIBXCDIR/lib/libxc.a \
+    -D LIBXC_LIBRARIES=$LIBXCDIR/lib/libxc.${LIBEXT} \
     -D LIBXC_INCLUDE_DIRS=$LIBXCDIR/include \
     $CMAKE_EXTRA_OPTIONS \
     ..

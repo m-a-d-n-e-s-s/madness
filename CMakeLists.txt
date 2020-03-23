@@ -21,8 +21,9 @@ include(CheckTypeSize)
 include(CheckCXXSourceCompiles)
 include(CheckFunctionExists)
 include(CMakeDependentOption)
-include(AddUnittests)
 include(AddMADLibrary)
+include(AddMADExecutable)
+include(AddUnittests)
 include(CMakePackageConfigHelpers)
 include(CopyTargetProperties)
 include(FeatureSummary)
@@ -30,9 +31,9 @@ include(RedefaultableOption)
 
 # Check compiler feature support ===============================================
 
-set(CMAKE_CXX_STANDARD 14 CACHE STRING  "C++ ISO Standard version")
-if (NOT(CMAKE_CXX_STANDARD EQUAL 14 OR CMAKE_CXX_STANDARD EQUAL 17 OR CMAKE_CXX_STANDARD EQUAL 20))
-  message(FATAL_ERROR "C++ 2014 ISO Standard or higher is required to compile MADNESS")
+set(CMAKE_CXX_STANDARD 17 CACHE STRING  "C++ ISO Standard version")
+if (NOT(CMAKE_CXX_STANDARD EQUAL 17 OR CMAKE_CXX_STANDARD EQUAL 20))
+  message(FATAL_ERROR "C++ 2017 ISO Standard or higher is required to compile MADNESS")
 endif()
 # C++20 is only configurable via compile features with cmake 3.12 and older
 if (CMAKE_CXX_STANDARD EQUAL 20 AND CMAKE_VERSION VERSION_LESS 3.12.0)
@@ -238,10 +239,12 @@ cmake_dependent_option(BUILD_SHARED_LIBS "Enable shared libraries" ON
 if(BUILD_SHARED_LIBS)
   set(BLA_STATIC_DEFAULT FALSE)
   set(CMAKE_MACOSX_RPATH TRUE)
-else()
+  set(MADNESS_LIBRARY_TARGET_SUFFIXES "none;-static")
+else(BUILD_SHARED_LIBS)
   set(BLA_STATIC_DEFAULT TRUE)
   set(CMAKE_MACOSX_RPATH FALSE)
-endif()
+  set(MADNESS_LIBRARY_TARGET_SUFFIXES "none")
+endif(BUILD_SHARED_LIBS)
 if (NOT DEFINED BLA_STATIC)
   set(BLA_STATIC ${BLA_STATIC_DEFAULT})
 endif()
@@ -338,6 +341,30 @@ if(NOT USE_X86_64_ASM)
       #endif
       int main() { return 0; }
       " USE_X86_32_ASM)
+endif()
+
+# (try to) determine C++ ABI
+# ABI kinds are named as in https://clang.llvm.org/doxygen/classclang_1_1TargetCXXABI.html
+# we only need ABI for serializing member pointers, hence all ARM-based ABIs are represented by same kind
+set(MADNESS_CXX_ABI_GenericItanium 1)
+set(MADNESS_CXX_ABI_GenericARM 2)
+set(MADNESS_CXX_ABI_Microsoft 3)
+if (NOT CMAKE_SYSTEM_PROCESSOR)
+  set(processor_name ${CMAKE_HOST_SYSTEM_PROCESSOR})
+else(NOT CMAKE_SYSTEM_PROCESSOR)
+  set(processor_name ${CMAKE_SYSTEM_PROCESSOR})
+endif(NOT CMAKE_SYSTEM_PROCESSOR)
+if(processor_name MATCHES "^(aarch64.*|AARCH64.*|arm64.*|ARM64.*)" OR processor_name MATCHES "^(arm.*|ARM.*)" OR processor_name MATCHES "^(mips.*|MIPS.*)")
+  # on ARM everything, including Windows, targets ARM C++ ABI
+  set(MADNESS_CXX_ABI ${MADNESS_CXX_ABI_GenericARM})
+elseif(processor_name MATCHES "amd64.*|x86_64.*|AMD64.*" OR processor_name MATCHES "i686.*|i386.*|x86.*" OR processor_name MATCHES "^(powerpc|ppc)64le" OR processor_name MATCHES "^(powerpc|ppc)64")
+  if (CMAKE_SYSTEM_NAME STREQUAL Windows) # on x86 Windows all compilers (clang, intel) target Windows C++ ABI
+    set(MADNESS_CXX_ABI ${MADNESS_CXX_ABI_Microsoft})
+  else (CMAKE_SYSTEM_NAME STREQUAL Windows)  # everyone else uses Itanium C++ ABI
+    set(MADNESS_CXX_ABI ${MADNESS_CXX_ABI_GenericItanium})
+  endif (CMAKE_SYSTEM_NAME STREQUAL Windows)
+else()
+  message(FATAL_ERROR "Cannot determine C++ ABI for CMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR}, please file an issue")
 endif()
 
 # Check compiler feature support ===============================================

@@ -35,6 +35,10 @@
 #cmakedefine HAVE_IBMBGP 1
 #cmakedefine HAVE_IBMBGQ 1
 #cmakedefine ON_A_MAC 1
+#define MADNESS_CXX_ABI_GenericItanium @MADNESS_CXX_ABI_GenericItanium@
+#define MADNESS_CXX_ABI_GenericARM @MADNESS_CXX_ABI_GenericARM@
+#define MADNESS_CXX_ABI_Microsoft @MADNESS_CXX_ABI_Microsoft@
+#define MADNESS_CXX_ABI @MADNESS_CXX_ABI@
 
 /* Define type macros. */
 #cmakedefine HAVE_INT64_T 1

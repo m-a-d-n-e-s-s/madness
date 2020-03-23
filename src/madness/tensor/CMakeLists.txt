@@ -40,42 +40,39 @@ set(MADLINALG_SOURCES lapack.cc solvers.cc elem.cc)
 add_mad_library(tensor MADTENSOR_SOURCES MADTENSOR_HEADERS "misc" "madness/tensor")
 #add_mad_library(clapack MADLINALG_HEADERS "" "madness/tensor")
 add_mad_library(linalg MADLINALG_SOURCES MADLINALG_HEADERS "tensor" "madness/tensor")
-target_link_libraries(MADlinalg PUBLIC ${LAPACK_LIBRARIES}) # logically it's MADclapack that depends on LAPACK
-target_link_libraries(MADtensor PUBLIC ${LAPACK_LIBRARIES}) # some of the tests depend on MKL/Blas
-if (LAPACK_INCLUDE_DIRS)
-  target_include_directories(MADlinalg PUBLIC ${LAPACK_INCLUDE_DIRS})
-  target_include_directories(MADtensor PUBLIC ${LAPACK_INCLUDE_DIRS})
-endif(LAPACK_INCLUDE_DIRS)
-if (LAPACK_COMPILE_OPTIONS)
-  target_compile_options(MADlinalg PUBLIC ${LAPACK_COMPILE_OPTIONS})
-  target_compile_options(MADtensor PUBLIC ${LAPACK_COMPILE_OPTIONS})
-endif(LAPACK_COMPILE_OPTIONS)
-if (LAPACK_COMPILE_DEFINITIONS)
-  target_compile_definitions(MADlinalg PUBLIC ${LAPACK_COMPILE_DEFINITIONS})
-  target_compile_definitions(MADtensor PUBLIC ${LAPACK_COMPILE_DEFINITIONS})
-endif(LAPACK_COMPILE_DEFINITIONS)
 
-if(HAVE_IBMBGQ)
-  add_custom_command(OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/mtxmq_bg/libMADMTXM.a
-      COMMAND TARGET=BGQ ${CMAKE_MAKE_PROGRAM} 
-      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/mtxmq_bg
-      COMMENT "Building libMADMTXM.a")
-  add_custom_target (libmadmtxm DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/mtxmq_bg/libMADMTXM.a)
-  add_dependencies(MADtensor libmadmtxm)
-  target_link_libraries(MADtensor PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/mtxmq_bg/libMADMTXM.a)
-elseif(HAVE_IBMBGP)
-  add_custom_command(OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/mtxmq_bg/libMADMTXM.a
-      COMMAND TARGET=BGP ${CMAKE_MAKE_PROGRAM} 
-      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/mtxmq_bg
-      COMMENT "Building libMADMTXM.a")
-  add_custom_target (libmadmtxm DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/mtxmq_bg/libMADMTXM.a)
-  add_dependencies(MADtensor libmadmtxm)
-  target_link_libraries(MADtensor PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/mtxmq_bg/libMADMTXM.a)
-endif()
+foreach (suffix ${MADNESS_LIBRARY_TARGET_SUFFIXES})
+  if (suffix STREQUAL none)
+    set(suffix)
+  endif ()
+  set(l_target MADlinalg${suffix})
+  set(t_target MADtensor${suffix})
 
-if(ELEMENTAL_FOUND AND MADNESS_HAS_ELEMENTAL_EMBEDDED)
-  target_link_libraries(MADlinalg PUBLIC ${ELEMENTAL_PACKAGE_NAME})
-endif()
+  target_link_libraries(${l_target} PUBLIC ${LAPACK_LIBRARIES}) # logically it's MADclapack that depends on LAPACK
+  target_link_libraries(${t_target} PUBLIC ${LAPACK_LIBRARIES}) # some of the tests depend on MKL/Blas
+  if (LAPACK_INCLUDE_DIRS)
+    target_include_directories(${l_target} PUBLIC ${LAPACK_INCLUDE_DIRS})
+    target_include_directories(${t_target} PUBLIC ${LAPACK_INCLUDE_DIRS})
+  endif (LAPACK_INCLUDE_DIRS)
+  if (LAPACK_COMPILE_OPTIONS)
+    target_compile_options(${l_target} PUBLIC ${LAPACK_COMPILE_OPTIONS})
+    target_compile_options(${t_target} PUBLIC ${LAPACK_COMPILE_OPTIONS})
+  endif (LAPACK_COMPILE_OPTIONS)
+  if (LAPACK_COMPILE_DEFINITIONS)
+    target_compile_definitions(${l_target} PUBLIC ${LAPACK_COMPILE_DEFINITIONS})
+    target_compile_definitions(${t_target} PUBLIC ${LAPACK_COMPILE_DEFINITIONS})
+  endif (LAPACK_COMPILE_DEFINITIONS)
+
+  if (HAVE_IBMBGQ)
+    message(FATAL_ERROR "IBM BG/Q support ended")
+  elseif (HAVE_IBMBGP)
+    message(FATAL_ERROR "IBM BG/P support ended")
+  endif ()
+
+  if (ELEMENTAL_FOUND AND MADNESS_HAS_ELEMENTAL_EMBEDDED)
+    target_link_libraries(${l_target} PUBLIC ${ELEMENTAL_PACKAGE_NAME})
+  endif ()
+endforeach (suffix ${MADNESS_LIBRARY_TARGET_SUFFIXES})
 
 # add custom target for "installing" MADclapack headers
 install(FILES ${MADCLAPACK_HEADERS}
@@ -97,7 +94,7 @@ if(ENABLE_UNITTESTS)
     list(APPEND LINALG_TEST_SOURCES test_gentensor.cc)
   endif()
 
-  add_unittests(tensor TENSOR_TEST_SOURCES "MADtensor;MADgtest")
-  add_unittests(linalg LINALG_TEST_SOURCES "MADlinalg;MADgtest")
+  add_unittests(tensor "${TENSOR_TEST_SOURCES}" "MADtensor;MADgtest")
+  add_unittests(linalg "${LINALG_TEST_SOURCES}" "MADlinalg;MADgtest")
   
 endif()
