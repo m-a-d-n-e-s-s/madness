@@ -245,9 +245,9 @@ namespace madness {
 
         /// \brief converts function or (free or static member) function pointer to the relative function pointer
         /// \param[in] fn a function or function pointer
-        template <typename T, typename = std::enable_if_t<std::is_function<T>::value || is_function_pointer_v<T>>>
+        template <typename T, typename = std::enable_if_t<std::is_function_v<T> || is_function_pointer_v<T>>>
         std::ptrdiff_t to_rel_fn_ptr(const T& fn) {
-          if constexpr (std::is_function<T>::value) {
+          if constexpr (std::is_function_v<T>) {
             return reinterpret_cast<std::ptrdiff_t>(&fn) - fn_ptr_origin();
           } else {
             static_assert(sizeof(std::ptrdiff_t) == sizeof(T));
@@ -609,7 +609,7 @@ namespace madness {
             static inline void store(const Archive& ar, const T& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "store(ar,t) default" << std::endl);
                 // convert function to function ptr
-                constexpr bool is_fn = std::is_function<T>::value;
+                constexpr bool is_fn = std::is_function_v<T>;
                 if constexpr (is_fn) {
                   auto* fn_ptr = &t;
                   serialize(ar,fn_ptr);
