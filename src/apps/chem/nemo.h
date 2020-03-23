@@ -205,7 +205,7 @@ public:
 		}
 
 		void initialize_nemo_parameters() {
-			initialize<std::pair<std::string,double> > ("ncf",{"none",0.0},"nuclear correlation factor",{{"none",0.0},{"slater",2.0}});
+			initialize<std::pair<std::string,double> > ("ncf",{"slater",2.0},"nuclear correlation factor");
 			initialize<bool> ("hessian",false,"compute the hessian matrix");
 			initialize<bool> ("read_cphf",false,"read the converged orbital response for nuclear displacements from file");
 			initialize<bool> ("restart_cphf",false,"read the guess orbital response for nuclear displacements from file");
