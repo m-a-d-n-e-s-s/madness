@@ -55,19 +55,20 @@ std::tuple<Tensor<double>, vecfuncT> OEP::recompute_HF(const vecfuncT& HF_nemo) 
 	HF_Fock+=T(R2nemo,HF_nemo);
 
 
-	BSHApply<double,3> bsh_apply(world);
-	bsh_apply.metric=R_square;
-	bsh_apply.lo=get_calc()->param.lo();
-	bsh_apply.do_coupling=calc->param.do_localize();
-	auto [residual,eps_update] =bsh_apply(HF_nemo,HF_Fock,Vnemo);
-
-	vecfuncT nemo_new=HF_nemo-residual;
-	if (param.print_level()>=10) {
-		print("HF Fock matrix");
-		print(HF_Fock);
-		double rnorm=norm2(world,residual);
-		print("residual for HF nemo recomputation",rnorm);
-	}
+//	BSHApply<double,3> bsh_apply(world);
+//	bsh_apply.metric=R_square;
+//	bsh_apply.lo=get_calc()->param.lo();
+//	bsh_apply.do_coupling=calc->param.do_localize();
+//	auto [residual,eps_update] =bsh_apply(HF_nemo,HF_Fock,Vnemo);
+//
+//	vecfuncT nemo_new=HF_nemo-residual;
+//	if (param.print_level()>=10) {
+//		print("HF Fock matrix");
+//		print(HF_Fock);
+//		double rnorm=norm2(world,residual);
+//		print("residual for HF nemo recomputation",rnorm);
+//	}
+	vecfuncT nemo_new=HF_nemo;
 	timer1.end("recompute HF");
 	return std::make_tuple(HF_Fock, nemo_new);
 }
