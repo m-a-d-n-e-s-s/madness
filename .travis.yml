@@ -1,5 +1,5 @@
 language: cpp
-dist: xenial
+dist: bionic
 os:
   - linux
 compiler:
@@ -17,9 +17,6 @@ matrix:
 sudo: false
 addons:
   apt:
-    sources:
-      - ubuntu-toolchain-r-test
-      - llvm-toolchain-xenial-7
     update: true
     packages:
       - gcc-8
