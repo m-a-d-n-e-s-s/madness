@@ -240,7 +240,8 @@ namespace madness {
         ///       N=2 on most common platforms, and a type-dependent constant on some (Microsoft))
         /// @{
         /// \return function pointer to serve as the reference for computing relative pointers
-        /// \note this _is_ the reference function, i.e. this returns the pointer to self
+        /// \note the value returned by this function is a pointer to a non-virtual member function,
+        ///       this helps on the platforms that use the parity to distinguish non-virtual and virtual pointers (e.g. Itanium ABI)
         std::ptrdiff_t fn_ptr_origin();
 
         /// \brief converts function or (free or static member) function pointer to the relative function pointer
@@ -329,7 +330,7 @@ namespace madness {
           if (rel_fn_ptr[0] == 0 && rel_fn_ptr[1] == std::numeric_limits<std::ptrdiff_t>::min()) {  // null ptr
             rel_fn_ptr[1] = 0;
           }
-          else if ((rel_fn_ptr[0] & 1) == 0) {
+          else if ((rel_fn_ptr[0] & 1) == 0) {  // nonvirtual relative ptr is even since fn_ptr_origin is guaranteed to be even also
             rel_fn_ptr[0] += fn_ptr_origin();
           }
 #elif MADNESS_CXX_ABI == MADNESS_CXX_ABI_GenericARM

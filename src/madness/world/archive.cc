@@ -35,12 +35,29 @@
  \ingroup serialization
 */
 
+#include <cstring>
+#include <cstddef>
+
 #include <madness/world/archive.h>
 
 namespace madness {
 namespace archive {
+
+namespace detail {
+struct Ref {
+  void fn() {}
+};
+}  // namespace detail
+
 std::ptrdiff_t fn_ptr_origin() {
-  return reinterpret_cast<std::ptrdiff_t>(&fn_ptr_origin);
+  static const std::ptrdiff_t result = []() {
+    std::ptrdiff_t ptr;
+    const auto ref_fn_ptr = &detail::Ref::fn;
+    std::memcpy(&ptr, &ref_fn_ptr, sizeof(std::ptrdiff_t));
+    return ptr;
+  }();
+  return result;
 }
-}
-}
+
+}  // namespace archive
+}  // namespace madness
