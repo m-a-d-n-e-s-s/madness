@@ -234,9 +234,17 @@ vecfuncT Nemo::localize(const vecfuncT& nemo, const double dconv, const bool ran
                         calc->aocc, nemo.size());
         // localize using the reconstructed orbitals
         vecfuncT psi = mul(world, R, nemo);
-        if(calc->param.localize_method()=="pm")dUT = calc->localize_PM(world, psi, aset, tolloc, 0.1, randomize, true);
-        else dUT = calc->localize_boys(world, psi, aset, tolloc, 0.1, randomize);
-        dUT.data().screen(trantol());
+        if(calc->param.localize_method()=="pm") {
+        	dUT = calc->localize_PM(world, psi, aset, tolloc, 0.1, randomize, true);
+        } else if (calc->param.localize_method()=="boys") {
+        	dUT = calc->localize_boys(world, psi, aset, tolloc, 0.1, randomize);
+        } else if (calc->param.localize_method()=="new") {
+        	dUT = calc->localize_new(world, psi, aset, tolloc, 0.1, randomize, false);
+        } else {
+        	print("unknown localization method",calc->param.localize_method());
+        	MADNESS_EXCEPTION("unknown localization method",1);
+        }
+//        dUT.data().screen(trantol());
 
         vecfuncT localnemo = transform(world, nemo, dUT);
         truncate(world, localnemo);
