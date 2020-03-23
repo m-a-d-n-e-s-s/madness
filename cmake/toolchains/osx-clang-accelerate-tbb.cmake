@@ -41,7 +41,7 @@ endif()
 
 # Set BLAS/LAPACK flags
 set(ENABLE_MKL OFF)
-set(LAPACK_LIBRARIES "-framework Accelerate" CACHE STRING "LAPACK libraries")
-set(LAPACK_COMPILE_OPTIONS "-framework Accelerate" CACHE STRING "LAPACK compiler options")
+set(LAPACK_LIBRARIES "-framework;Accelerate" CACHE STRING "LAPACK libraries")
+set(LAPACK_COMPILE_OPTIONS "-framework;Accelerate" CACHE STRING "LAPACK compiler options")
 set(INTEGER4 TRUE CACHE BOOL "Set Fortran integer size to 4 bytes")
 

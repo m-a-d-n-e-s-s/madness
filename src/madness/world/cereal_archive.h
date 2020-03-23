@@ -32,6 +32,10 @@
 #ifndef MADNESS_WORLD_CEREAL_ARCHIVE_H__INCLUDED
 #define MADNESS_WORLD_CEREAL_ARCHIVE_H__INCLUDED
 
+namespace madness {
+template <typename Archive> struct is_cereal_archive;
+}
+
 #if __has_include(<cereal/cereal.hpp>)
 
 #ifndef MADNESS_HAS_CEREAL
@@ -153,8 +157,17 @@ struct is_serializable<
              cereal::traits::is_text_archive<Muesli>::value)>>
     : std::true_type {};
 
+template <typename Muesli>
+struct is_cereal_archive<archive::CerealOutputArchive<Muesli>> : std::true_type {};
+template <typename Muesli>
+struct is_cereal_archive<archive::CerealInputArchive<Muesli>> : std::true_type {};
+
 }  // namespace madness
 
 #endif  // have cereal/cereal.hpp
+
+namespace madness {
+template <typename Archive> struct is_cereal_archive : std::false_type {};
+}
 
 #endif  // MADNESS_WORLD_CEREAL_ARCHIVE_H__INCLUDED
