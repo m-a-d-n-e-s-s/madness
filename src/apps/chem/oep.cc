@@ -145,9 +145,8 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 
 	bool print_debug=(calc->param.print_level()>=10) and (world.rank()==0);
 
-	// compute the HF reference Fock matrix
-	tensorT HF_eigvals(HF_Fock.dim(0));
-	for (int i=0; i<HF_eigvals.dim(0); ++i) HF_eigvals(i)=HF_Fock(i,i);
+	// get the HF orbital energies from its Fock matrix
+	auto [HF_eigvals, evec] = syev(HF_Fock);
 	KS_eigvals=copy(HF_eigvals);
 
 	// compute the constant HF contributions to the OEP hierarchy
@@ -173,9 +172,9 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 	for (int iter = 0; iter < oep_param.maxiter(); ++iter) {
 //		print("\n     ***", model, "iteration", iter, "***\n");
 
-	    if (calc->param.do_localize()) KS_nemo=localize(KS_nemo,calc->param.dconv(),iter==0);
+	    if (calc->param.do_localize()) KS_nemo=localize(KS_nemo,calc->param.econv(),iter==0);
 
-	    // compute parts of the Fock matrix J, Unuc and Voep
+	    // compute parts of the KS Fock matrix J, Unuc and Voep
 		vecfuncT Jnemo, Unemo, Fnemo;
 		compute_nemo_potentials(KS_nemo, Jnemo, Unemo);
 		vecfuncT R2KS_nemo = truncate(R_square*KS_nemo);
@@ -207,7 +206,7 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 				save(mrks_correction,"mrks_correction"+std::to_string(iter));
 		}
 
-		Fnemo = truncate(Jnemo + Unemo + Voep*KS_nemo);
+		Fnemo = (Jnemo + Unemo + Voep*KS_nemo);
 
 		tensorT Fock_no_ocep = matrix_inner(world, R2KS_nemo, Fnemo, false);
 		Kinetic<double,3> T(world);
@@ -222,7 +221,7 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 		if (need_ocep_correction(model)) {
 			real_function_3d ocep_correction = compute_ocep_correction(ocep_numerator_HF, HF_nemo,KS_nemo,HF_Fock,F);
 			Voep+=ocep_correction;
-			Fnemo+=truncate(ocep_correction*KS_nemo);
+			Fnemo+=(ocep_correction*KS_nemo);
 
 			Fock_ocep=matrix_inner(world,R2KS_nemo,ocep_correction*KS_nemo);
 			F=Fock_no_ocep+Fock_ocep;
@@ -261,6 +260,7 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 			}
 			timer1.tag("canonicalization");
 		}
+		Fnemo=truncate(Fnemo);
 
 		// compute new (current) energy
         double old_energy = energy;
