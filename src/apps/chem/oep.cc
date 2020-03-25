@@ -287,22 +287,28 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 		timer1.tag("apply BSH");
 
 		double bshnorm=norm2(world,residual)/sqrt(KS_nemo.size());
+
 		// KAIN solver (helps to converge)
+		if (bshnorm<calc->param.econv()*10.0) {
+			solver.clear_subspace();
+			print("clearing KAIN subspace", bshnorm, calc->param.econv()*10.0);
+		}
 		vecfuncT nemo_new = (solver.update(KS_nemo, residual, oep_param.kain_param()[0], oep_param.kain_param()[1]));
 		truncate(world, nemo_new);
 		normalize(nemo_new,R);
-
-		// estimate the orbital energies, as they enter the potential
-		eps_history.push_back(copy(F));
-		if (eps_history.size()>solver.get_c().size()) eps_history.pop_front();
-		tensorT fock1(F.dim(0),F.dim(1));
-		int i=0;
-		for (auto eps : eps_history) {
-			if (calc->param.print_level()>10) print("c[i], eps",solver.get_c()[i],eps);
-			fock1 += eps*solver.get_c()[i++];
-		}
-		F=copy(fock1);
-		if (calc->param.print_level()>=10) print("KS_eigvals projection",F);
+//
+//		// estimate the orbital energies, as they enter the potential
+//		eps_history.push_back(copy(F));
+//		if (eps_history.size()>solver.get_c().size()) eps_history.pop_front();
+//		tensorT fock1(F.dim(0),F.dim(1));
+//		int i=0;
+//		for (auto eps : eps_history) {
+//			if (calc->param.print_level()>10) print("c[i], eps",solver.get_c()[i],eps);
+//			fock1 += eps*solver.get_c()[i++];
+//		}
+//		F=copy(fock1);
+//		if (calc->param.print_level()>=10) print("KS_eigvals projection",F);
+		print("no fock KAIN projection +++\n");
 
 		// What is step restriction?
 		calc->do_step_restriction(world, KS_nemo, nemo_new, "ab spin case");
