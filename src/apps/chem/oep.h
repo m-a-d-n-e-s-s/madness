@@ -53,7 +53,8 @@ struct divide_add_interpolate {
         ITERATOR(
             U,
 			double r = refdens(IND);
-        	double result=num1(IND)/denom1(IND) - num2(IND)/denom2(IND);
+        	double result=num1(IND)/(denom1(IND)+eps_regularize)
+        			- num2(IND)/(denom2(IND)+eps_regularize);
         	if (square_denominator) result=num1(IND)/(denom1(IND)*denom1(IND)+eps_regularize)
         			- num2(IND)/(denom2(IND)*denom2(IND)+eps_regularize);
             if (r > thresh_high) {
