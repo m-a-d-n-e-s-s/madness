@@ -53,8 +53,8 @@ struct divide_add_interpolate {
         ITERATOR(
             U,
 			double r = refdens(IND);
-        	double result=num1(IND)/(denom1(IND)+eps_regularize)
-        			- num2(IND)/(denom2(IND)+eps_regularize);
+        	double result=num1(IND)/std::max(denom1(IND),eps_regularize)
+        			- num2(IND)/std::max(denom2(IND),eps_regularize);
         	if (square_denominator) result=num1(IND)/(denom1(IND)*denom1(IND)+eps_regularize)
         			- num2(IND)/(denom2(IND)*denom2(IND)+eps_regularize);
             if (r > thresh_high) {
@@ -459,13 +459,6 @@ public:
     	std::vector<real_function_3d> args={denssq,mrks_numerator_HF,densityHF,
     			numeratorKS,densityKS,lra_func};
         refine_to_common_level(world,args);
-
-        static int i=0;
-        save(mrks_numerator_HF,"mrks_numerator_HF"+std::to_string(i));
-        save(numeratorKS,"mrks_numerator_KS"+std::to_string(i));
-        save(densityHF,"densityHF"+std::to_string(i));
-        save(densityKS,"densityKS"+std::to_string(i));
-        i++;
 
         divide_add_interpolate op(oep_param.dens_thresh_hi(), oep_param.dens_thresh_lo(),
         		oep_param.dens_thresh_inv());
