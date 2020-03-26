@@ -1,7 +1,7 @@
 /*
   This file is part of MADNESS.
 
-  Copyright (C) 2015 Stony Brook University
+  Copyright (C) 2019 Virginia Tech
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -30,25 +30,34 @@
 */
 
 /**
- \file cheminfo.cc
- \brief give information on this version of the chem lib of MADNESS.
- \ingroup configuration
+ \file archive.cc
+ \brief Definitions of serialization functions
+ \ingroup serialization
 */
 
-#include "chem/cheminfo.h"
+#include <cstring>
+#include <cstddef>
 
-#include <madness/madness_config.h>
+#include <madness/world/archive.h>
 
 namespace madness {
-    namespace info {
+namespace archive {
 
-        const char* cheminfo_git_commit() {
-#ifdef MADNESS_GITREVISION
-            return MADNESS_GITREVISION;
-#else
-            return "unavailable";
-#endif
-        }
+namespace detail {
+struct Ref {
+  void fn() {}
+};
+}  // namespace detail
 
-    } // namespace info
-} // namespace madness
+std::ptrdiff_t fn_ptr_origin() {
+  static const std::ptrdiff_t result = []() {
+    std::ptrdiff_t ptr;
+    const auto ref_fn_ptr = &detail::Ref::fn;
+    std::memcpy(&ptr, &ref_fn_ptr, sizeof(std::ptrdiff_t));
+    return ptr;
+  }();
+  return result;
+}
+
+}  // namespace archive
+}  // namespace madness

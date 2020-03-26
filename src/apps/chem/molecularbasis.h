@@ -502,6 +502,8 @@ public:
         read_file(filename);
     }
 
+    std::string get_name() const {return name;}
+
     /// read the atomic basis set from file
 
     /// use the default location MRA_CHEMDATA_DIR as defined in the Makefile.am

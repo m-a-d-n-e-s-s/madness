@@ -1,6 +1,7 @@
 # Find BLAS and LAPACK.
 include(CheckCFortranFunctionExists)
 include(CMakePushCheckState)
+include(CheckCXXSourceCompiles)
 
 if(NOT LAPACK_LIBRARIES)
   set(USER_LAPACK_LIBRARIES FALSE)
@@ -12,6 +13,8 @@ if(NOT LAPACK_LIBRARIES)
       set(LAPACK_FOUND TRUE)
       set(LAPACK_LIBRARIES ${MKL_LIBRARIES})
       set(HAVE_INTEL_MKL 1)
+      set(LAPACK_COMPILE_DEFINITIONS MADNESS_LINALG_USE_LAPACKE)
+      set(LAPACK_INCLUDE_DIRS ${MKL_INCLUDE_DIRS})
     endif()
   endif()
   
@@ -58,7 +61,7 @@ string(REGEX REPLACE " " ";" PROCESSED_LAPACK_LIBRARIES "${PROCESSED_LAPACK_LIBR
 string(REGEX REPLACE "-framework;(.*)" "-framework\\\\ \\1" PROCESSED_LAPACK_LIBRARIES "${PROCESSED_LAPACK_LIBRARIES}")
 #message(STATUS "PROCESSED_LAPACK_LIBRARIES=${PROCESSED_LAPACK_LIBRARIES}")
 set(CMAKE_REQUIRED_LIBRARIES ${PROCESSED_LAPACK_LIBRARIES} ${CMAKE_REQUIRED_LIBRARIES}
-        ${CMAKE_THREAD_LIBS_INIT})
+        Threads::Threads)
 
 # Verify that we can link against BLAS
 check_c_fortran_function_exists(sgemm BLAS_WORKS)
@@ -89,6 +92,10 @@ if (USER_LAPACK_LIBRARIES)
   if(USER_LAPACK_LIBRARIES_IS_MKL)
     message(STATUS "User-defined LAPACK_LIBRARIES provides an MKL library")
     set(HAVE_INTEL_MKL 1)
+    # ensure that MADNESS_LINALG_USE_LAPACKE is defined
+    list(APPEND LAPACK_COMPILE_DEFINITIONS MADNESS_LINALG_USE_LAPACKE)
+    list(REMOVE_DUPLICATES LAPACK_COMPILE_DEFINITIONS)
+
   else(USER_LAPACK_LIBRARIES_IS_MKL)
     # check for ACML
     check_function_exists(acmlversion USER_LAPACK_LIBRARIES_IS_ACML)
@@ -120,3 +127,27 @@ endif()
 string(REGEX REPLACE "\"" "" LAPACK_COMPILE_OPTIONS "${LAPACK_COMPILE_OPTIONS}")
 string(REGEX REPLACE "\"" "" LAPACK_INCLUDE_DIRS "${LAPACK_INCLUDE_DIRS}")
 string(REGEX REPLACE "\"" "" LAPACK_COMPILE_DEFINITIONS "${LAPACK_COMPILE_DEFINITIONS}")
+
+# epilogue: final sanity checks
+if(USER_LAPACK_LIBRARIES_IS_MKL)
+  cmake_push_check_state()
+  # ensure that can include mkl.h
+  set(CMAKE_REQUIRED_INCLUDES ${LAPACK_INCLUDE_DIRS})
+  foreach(def ${LAPACK_COMPILE_DEFINITIONS})
+    set(CMAKE_REQUIRED_DEFINITIONS "${CMAKE_REQUIRED_DEFINITIONS};-D${def}")
+  endforeach()
+  set(CMAKE_REQUIRED_FLAGS ${LAPACK_COMPILE_OPTIONS})
+  check_cxx_source_compiles(
+          "
+  #include <mkl.h>
+  int main(int argc, char** argv) {
+    return 0;
+  }
+  "  MADNESS_CAN_INCLUDE_MKL_H)
+  if (NOT MADNESS_CAN_INCLUDE_MKL_H)
+    message(FATAL_ERROR "User-provided LAPACK_LIBRARIES provides MKL but cannot include its headers; ensure that corresponding LAPACK_INCLUDE_DIRS, LAPACK_COMPILE_DEFINITIONS, or LAPACK_COMPILE_OPTIONS were provided")
+  endif()
+
+  cmake_pop_check_state()
+endif(USER_LAPACK_LIBRARIES_IS_MKL)
+

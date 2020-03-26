@@ -7,11 +7,32 @@ set(MADMISC_SOURCES
 # Create the MADmisc library
 add_mad_library(misc MADMISC_SOURCES MADMISC_HEADERS "world" "madness/misc/")
 
+# Create the compile-time git library: git_version.cmake will write the gitinfo.cc file,
+add_custom_command(
+    OUTPUT  "${PROJECT_BINARY_DIR}/src/madness/misc/git_version.h"
+           SYMBOLIC "${PROJECT_BINARY_DIR}/src/madness/misc/_git_version.h"
+    COMMAND ${CMAKE_COMMAND}
+      -Dlocal_dir="${PROJECT_SOURCE_DIR}/cmake/"
+      -Doutput_dir="${PROJECT_BINARY_DIR}/src/madness/misc"
+      -Dsource_dir="${PROJECT_SOURCE_DIR}/src/madness/misc"
+      -P "${PROJECT_SOURCE_DIR}/cmake/git_version.cmake"
+ 	COMMENT "generating the gitversion file"
+)
+add_custom_target(mgit
+    DEPENDS "${PROJECT_BINARY_DIR}/src/madness/misc/git_version.h"
+)
+
+set(MADGIT_HEADERS gitinfo.h)
+set(MADGIT_SOURCES gitinfo.cc )
+
+add_mad_library(git MADGIT_SOURCES MADGIT_HEADERS "world" "madness/misc/")
+add_dependencies(MADgit-obj mgit)
+
 if(ENABLE_UNITTESTS)
   
   # The list of unit test source files
   set(MISC_TEST_SOURCES interp3.cc)
   
-  add_unittests(misc MISC_TEST_SOURCES "MADmisc;MADgtest")
+  add_unittests(misc "${MISC_TEST_SOURCES}" "MADmisc;MADgtest")
 
 endif()

@@ -1,6 +1,7 @@
 # - Try to find Libunwind
 # Input variables:
-#  LIBUNWIND_ROOT_DIR     - The libunwind install directory
+#  LIBUNWIND_ROOT_DIR     - The libunwind install directory;
+#                           if not set the LIBUNWIND_DIR environment variable will be used
 #  LIBUNWIND_INCLUDE_DIR  - The libunwind include directory
 #  LIBUNWIND_LIBRARY      - The libunwind library directory
 # Output variables:
@@ -12,6 +13,11 @@
 include(FindPackageHandleStandardArgs)
   
 if(NOT DEFINED LIBUNWIND_FOUND)
+
+  # if not set already, set LIBUNWIND_ROOT_DIR from environment
+  if (DEFINED ENV{LIBUNWIND_DIR} AND NOT DEFINED LIBUNWIND_ROOT_DIR)
+    set(LIBUNWIND_ROOT_DIR $ENV{LIBUNWIND_DIR})
+  endif()
 
   # Set default sarch paths for libunwind
   if(LIBUNWIND_ROOT_DIR)

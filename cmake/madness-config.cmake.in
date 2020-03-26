@@ -8,6 +8,7 @@
 #  MADNESS_FOUND                - System has the MADNESS package
 #  MADNESS_INCLUDE_DIRS         - The MADNESS include directory
 #  MADNESS_LIBRARIES            - The MADNESS libraries and their dependencies
+#  MADNESS_INSTALL_LIBRARY_DIR  - Where MADNESS libraries will be installed (same for CONFIG files imported from the build and install trees)
 #  MADNESS_<COMPONENT>_FOUND    - System has the specified MADNESS COMPONENT
 #  MADNESS_<COMPONENT>_LIBRARY  - The MADNESS COMPONENT library
 #  MADNESS_F77_INTEGER_SIZE     - The default F77 integer size used for BLAS calls 
@@ -17,27 +18,38 @@
 # Additionally MADNESS exports the following variables from its dependent packages:
 # = LAPACK =
 #    LAPACK_LIBRARIES           Libraries providing LAPACK and its dependents
+#    LAPACK_INCLUDE_DIRS        Include directories where to locate the header files needed to use LAPACK_LIBRARIES
+#    LAPACK_COMPILE_DEFINITIONS Compile definitions needed to use the LAPACK header files
+#    LAPACK_COMPILE_OPTIONS     Compile options needed to use the LAPACK header files
 # = MPI =
-#    MPIEXEC                    Executable for running MPI programs
-#    MPIEXEC_NUMPROC_FLAG       Flag to pass to MPIEXEC before giving
+#    MPIEXEC_EXECUTABLE         Executable for running MPI programs
+#    MPIEXEC_NUMPROC_FLAG       Flag to pass to MPIEXEC_EXECUTABLE before giving
 #                               it the number of processors to run on
-#    MPIEXEC_PREFLAGS           Flags to pass to MPIEXEC directly
+#    MPIEXEC_PREFLAGS           Flags to pass to MPIEXEC_EXECUTABLE directly
 #                               before the executable to run.
-#    MPIEXEC_POSTFLAGS          Flags to pass to MPIEXEC after other flags
+#    MPIEXEC_POSTFLAGS          Flags to pass to MPIEXEC_EXECUTABLE after other flags
 
 # Set package version
 set(MADNESS_VERSION "@MADNESS_VERSION@")
 
 @PACKAGE_INIT@
 
+set(MADNESS_CMAKE_TOOLCHAIN_FILE "@CMAKE_TOOLCHAIN_FILE@")
+
 # ensure that CMAKE_SYSTEM_NAME matches what was used to compile MADNESS
 if (NOT CMAKE_SYSTEM_NAME STREQUAL @CMAKE_SYSTEM_NAME@)
   set (ERROR_MESSAGE "CMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}, does not match CMAKE_SYSTEM_NAME=@CMAKE_SYSTEM_NAME@ used to compile MADNESS")
-  set(MADNESS_CMAKE_TOOLCHAIN_FILE "@CMAKE_TOOLCHAIN_FILE@")
   if (MADNESS_CMAKE_TOOLCHAIN_FILE)
     set (ERROR_MESSAGE "${ERROR_MESSAGE}; make sure to use toolchain @CMAKE_TOOLCHAIN_FILE@ to compile your code!")
     message (FATAL_ERROR "${ERROR_MESSAGE}")
   endif(MADNESS_CMAKE_TOOLCHAIN_FILE)
+endif()
+
+# check for prereqs:
+# 1. Threads
+if (NOT TARGET Threads::Threads)
+  set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
+  find_package(Threads REQUIRED)
 endif()
 
 # determine if only looking for MADworld ... this is a common scenario that loads a subset of targets
@@ -70,6 +82,7 @@ set(MADNESS_BINARY_DIR "@MADNESS_BINARY_DIR@")
 set(MADNESS_HAS_ELEMENTAL @MADNESS_HAS_ELEMENTAL@)
 set(MADNESS_HAS_ELEMENTAL_EMBEDDED @MADNESS_HAS_ELEMENTAL_EMBEDDED@)
 
+set(MADNESS_INSTALL_LIBRARY_DIR "@PACKAGE_MADNESS_INSTALL_LIBDIR@")
 set(MADNESS_BUILD_INCLUDE_DIRS "${MADNESS_SOURCE_DIR}/src" "${MADNESS_BINARY_DIR}/src")
 set(MADNESS_INSTALL_INCLUDE_DIRS "@PACKAGE_MADNESS_INSTALL_INCLUDEDIR@"
       "@PACKAGE_MADNESS_INSTALL_INCLUDEDIR@/madness/external")
@@ -138,9 +151,12 @@ set(MADNESS_FOUND TRUE)
 ########### LAPACK ############
 # this is formatted to be added to CMAKE_REQUIRED_LIBRARIES
 set(LAPACK_LIBRARIES "@PROCESSED_LAPACK_LIBRARIES@")
+set(LAPACK_INCLUDE_DIRS "@LAPACK_INCLUDE_DIRS@")
+set(LAPACK_COMPILE_DEFINITIONS "@LAPACK_COMPILE_DEFINITIONS@")
+set(LAPACK_COMPILE_OPTIONS "@LAPACK_COMPILE_OPTIONS@")
 
 ########### MPI ############
-set(MPIEXEC "@MPIEXEC@")
+set(MPIEXEC_EXECUTABLE "@MPIEXEC_EXECUTABLE@")
 set(MPIEXEC_NUMPROC_FLAG "@MPIEXEC_NUMPROC_FLAG@")
 set(MPIEXEC_PREFLAGS "@MPIEXEC_PREFLAGS@")
 set(MPIEXEC_POSTFLAGS "@MPIEXEC_POSTFLAGS@")

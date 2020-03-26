@@ -108,25 +108,15 @@ namespace madness {
 
         private:
 
-            /// Identify function and member function pointers.
-
-            /// \tparam fnT The function to identify.
-            template <typename fnT>
-            struct is_func_ptr {
-                static const bool value =
-                    (std::is_function<typename std::remove_pointer<fnT>::type >::value
-                    || std::is_member_function_pointer<fnT>::value);
-            };
-
             /// Serialization for function pointers and member function pointers.
 
             /// \tparam fnT The function type.
             /// \tparam Archive The serialization archive type.
             /// \param[in,out] ar The serialization archive.
             template <typename fnT, typename Archive>
-            typename std::enable_if<is_func_ptr<fnT>::value >::type
+            typename std::enable_if<is_any_function_pointer_v<fnT>>::type
             serialize_internal(const Archive& ar) {
-                ar & ref & archive::wrap_opaque(func) & attr;
+                ar & ref & func & attr;
             }
 
             /// Serialization for non- function pointers and member function pointers.
@@ -135,7 +125,7 @@ namespace madness {
             /// \tparam Archive The serialization archive type.
             /// \param[in,out] ar The serialization archive.
             template <typename fnT, typename Archive>
-            typename std::enable_if<!is_func_ptr<fnT>::value >::type
+            typename std::enable_if<!is_any_function_pointer_v<fnT>>::type
             serialize_internal(const Archive& ar) {
                 ar & ref & func & attr;
             }

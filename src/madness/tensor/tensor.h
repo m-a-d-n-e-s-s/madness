@@ -2507,7 +2507,8 @@ namespace madness {
     template <class T>
     Tensor<T> conj(const Tensor<T>& t) {
         Tensor<T> result(t.ndim(),t.dims(),false);
-        BINARY_OPTIMIZED_ITERATOR(T,result,const T,t,*_p0 = std::conj(*_p1));
+//        BINARY_OPTIMIZED_ITERATOR(T,result,const T,t,*_p0 = std::conj(*_p1));
+        BINARY_OPTIMIZED_ITERATOR(T,result,const T,t,*_p0 = conditional_conj(*_p1));
         return result;
     }
 }

@@ -485,7 +485,7 @@ namespace madness {
       static_assert(not (std::is_const<arg6T>::value || std::is_reference<arg6T>::value),
                     "improper instantiation of TaskFn, arg6T cannot be a const or reference type");
       static_assert(not (std::is_const<arg7T>::value || std::is_reference<arg7T>::value),
-                    "improper instantiation of TaskFn, arg7T cannot be a consy or reference type");
+                    "improper instantiation of TaskFn, arg7T cannot be a const or reference type");
       static_assert(not (std::is_const<arg8T>::value || std::is_reference<arg8T>::value),
                     "improper instantiation of TaskFn, arg8T cannot be a const or reference type");
       static_assert(not (std::is_const<arg9T>::value || std::is_reference<arg9T>::value),

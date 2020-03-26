@@ -74,7 +74,7 @@ if(HAVE_IBMBGQ OR HAVE_IBMBGP)
   target_link_libraries(madness PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/new_mtxmq/bests/libMADMTXM.a)
 endif()
 target_link_libraries(madness PUBLIC ${LAPACK_LIBRARIES})
-target_link_libraries(madness PUBLIC ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(madness PUBLIC Threads::Threads)
 if (WORLD_GET_DEFAULT_DISABLED)
   target_compile_definitions(madness PUBLIC -DMADNESS_DISABLE_WORLD_GET_DEFAULT=1)
 endif (WORLD_GET_DEFAULT_DISABLED)
@@ -94,7 +94,8 @@ install(FILES constants.h fortran_ctypes.h madness_config.h ${CMAKE_CURRENT_BINA
     COMPONENT common)
 add_custom_target(install-common
      COMMAND ${CMAKE_COMMAND} -DCOMPONENT=common -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
-     COMMENT "Installing common library components")
+     COMMENT "Installing common library components"
+     USES_TERMINAL)
 install(TARGETS madness EXPORT madness
     COMPONENT madness
     LIBRARY DESTINATION "${MADNESS_INSTALL_LIBDIR}"
@@ -102,7 +103,8 @@ install(TARGETS madness EXPORT madness
     INCLUDES DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}")
 add_custom_target(install-madness
     COMMAND ${CMAKE_COMMAND} -DCOMPONENT=madness -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
-    COMMENT "Installing madness library components")
+    COMMENT "Installing madness library components"
+    USES_TERMINAL)
 add_dependencies(install-madness madness)
 add_dependencies(install-madness install-common)
 add_dependencies(install-libraries install-madness)

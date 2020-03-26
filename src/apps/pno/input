@@ -1,0 +1,25 @@
+plot
+end
+
+dft
+no_compute false
+xc hf
+econv 1.e-4
+dconv 3.e-4
+k 7
+end
+
+pno
+thresh 1.e-3
+exop multipole
+end
+
+f12
+gamma 1.4
+end
+
+geometry
+he 0.0 0.0 0.0
+end
+
+~     

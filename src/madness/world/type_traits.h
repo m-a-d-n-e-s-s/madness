@@ -32,18 +32,19 @@
 #ifndef MADNESS_WORLD_TYPE_TRAITS_H__INCLUDED
 #define MADNESS_WORLD_TYPE_TRAITS_H__INCLUDED
 
-#include <madness/madness_config.h>
-#include <type_traits>
-
 /// \file typestuff.h
 /// \brief type traits and templates
 
+/*
+ * N.B. this must be pure c++, usable without any context other than
+ *      the current compiler + library + C++ standard.
+ *      DO NOT include non-standard headers here!
+ */
+
 #include <cstddef>
 #include <cstdint>
-#include <madness/madness_config.h>
-#include <madness/world/function_traits.h>
-
 #include <type_traits>
+#include <iosfwd>
 
 namespace madness {
 
@@ -75,15 +76,27 @@ using std::void_t;
     template <typename T>
     using remove_fcvr_t = typename remove_fcvr<T>::type;
 
-    /// This defines stuff that is serialiable by bitwise copy N.B. This reports true
-    /// for \c T that is an aggregate type (struct or array) that includes pointers.
+    /// is true type if \p T is a pointer to a free function
+    template <typename T, typename Enabler = void> struct is_function_pointer : public std::false_type {};
+    template <typename T> struct is_function_pointer<T, std::enable_if_t<std::is_function<typename std::remove_pointer<T>::type>::value>> : public std::true_type {};
+    template <typename T> constexpr bool is_function_pointer_v = is_function_pointer<T>::value;
+
+    // use std::is_member_function_pointer<T> if looking for is_member_function_pointer
+
+    /// is true type if \p T is a pointer to free or member function
+    template <typename T, typename Enabler = void> struct is_any_function_pointer : public std::false_type {};
+    template <typename T> struct is_any_function_pointer<T, std::enable_if_t<std::is_member_function_pointer<T>::value || is_function_pointer_v<T>>> : public std::true_type {};
+    template <typename T> constexpr bool is_any_function_pointer_v = is_any_function_pointer<T>::value;
+
+    /// This defines stuff that is serialiable by bitwise copy.
+    /// \warning This reports true for \c T that is an aggregate type
+    ///          (struct or array) that includes pointers.
     template <typename T>
     struct is_trivially_serializable {
       static const bool value = \
         std::is_arithmetic<T>::value || \
-        std::is_member_function_pointer<T>::value || \
         std::is_function<T>::value  || \
-        std::is_function<typename std::remove_pointer<T>::type>::value || \
+        is_any_function_pointer_v<T> || \
         (std::is_pod<T>::value && !std::is_pointer<T>::value);
 //        ((std::is_class<T>::value || std::is_array<T>::value) && std::is_trivially_copyable<T>::value);
     };
@@ -106,10 +119,16 @@ using std::void_t;
     template <typename T> constexpr bool is_always_serializable =
     std::is_arithmetic<T>::value || \
     std::is_same<std::nullptr_t, typename std::remove_cv<T>::type>::value || \
-    std::is_member_function_pointer<T>::value || \
-    std::is_function<T>::value  || \
-    std::is_function<typename std::remove_pointer<T>::type>::value;
+    is_any_function_pointer_v<T> || \
+    std::is_function<T>::value;
 
+    /// \brief is \c std::true_type if \c T can be serialized to \c Archive
+    ///        without specialized \c serialize() method
+    ///
+    /// For text stream-based \c Archive this is \c std::true_type if \c is_iostreammable<T>::value is true.
+    /// For other \c Archive types this is \c std::true_type if \c is_trivially_serializable<T>::value is true.
+    /// \tparam Archive an Archive type
+    /// \tparam T a type
     template <typename Archive, typename T, typename = void>
     struct is_serializable : std::false_type {};
 
@@ -152,6 +171,22 @@ using std::void_t;
     struct is_serializable<archive::MPIOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
     template <typename T>
     struct is_serializable<archive::MPIInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+
+    /// \brief This trait types tests if \c Archive is a text archive
+    /// \tparam Archive an archive type
+    /// \note much be specialized for each archive
+    template <typename Archive, typename Enabler = void>
+    struct is_text_archive : std::false_type {};
+
+    template <>
+    struct is_text_archive<archive::TextFstreamOutputArchive> : std::true_type {};
+    template <>
+    struct is_text_archive<archive::TextFstreamInputArchive> : std::true_type {};
+
+    /// \brief \c is_text_archive_v<A> is a shorthand for \c is_text_archive<A>::value
+    /// \tparam Archive an archive type
+    template <typename Archive>
+    constexpr const bool is_text_archive_v = is_text_archive<Archive>::value;
 
     /* Macros to make some of this stuff more readable */
 

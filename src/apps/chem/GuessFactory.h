@@ -22,7 +22,10 @@ namespace guessfactory{
 
 /// compute the centroid of a function i.e. c[xi]=<f|xi|f>/<f|f> i.e. position expectation value
 coord_3d compute_centroid(const real_function_3d& f);
-std::vector<coord_3d> compute_centroids(const vector_real_function_3d & vf);
+
+template<typename T, std::size_t NDIM>
+std::vector<coord_3d> compute_centroids(const std::vector<Function<T,NDIM> > & vf);
+
 /// little helper for coord (Vector<3>) and Tensor data formats
 template<typename T, size_t NDIM>
 Vector<T,NDIM> tensor_to_coord(const Tensor<T>& t) {
@@ -45,6 +48,7 @@ public:
 
 	/// multiplies the target function by the excitation operator defined by exfunc
 	void operator ()(const Key<3>& key, Tensor<double>& t) const;
+	void operator ()(const Key<3>& key, Tensor<double_complex>& t) const;
     /// shared pointer to object of excitation operator
     std::shared_ptr<FunctionFunctorInterface<double,3> >  exfunc;
     FunctionCommonData<double,3> cdata;
@@ -160,14 +164,44 @@ public:
 vector_real_function_3d apply_polynomial_exop(vector_real_function_3d& vf, const std::string& exop_input, std::vector<coord_3d> centers = std::vector<coord_3d>(), const bool& fence = false);
 /// convenience wrapper
 real_function_3d apply_polynomial_exop(real_function_3d& f, const std::string& exop_input, coord_3d center = coord_3d(), const bool& fence = false);
+
 /// excite a vector of functions with a specific excitation operator
 /// @param[in/out] vf the function which gets excited, exop*f on return
 /// @param[in] exop_input, the excitation operator defined by a string (see the polynomial_functor class for details)
 /// @param[in] the centers of the vf functions, if none were given they are recomputed
 /// @return exop*vf i.e. result[i]=exop*vf[i]
-vector_real_function_3d apply_trigonometric_exop(vector_real_function_3d& vf, const std::string& exop_input, std::vector<coord_3d> centers = std::vector<coord_3d>(), const bool& fence = false);
+//template<typename T, std::size_t NDIM>
+//std::vector<Function<T,NDIM> > apply_trigonometric_exop(std::vector<Function<T,NDIM> >& vf,
+//		const std::string& exop_input, std::vector<coord_3d> centers = std::vector<coord_3d>(), const bool& fence = false);
+/// excite a vector of functions with a specific excitation operator
+/// @param[in/out] vf the function which gets excited, exop*f on return
+/// @param[in] exop_input, the excitation operator defined by a string (see the polynomial_functor class for details)
+/// @param[in] the centers of the vf functions, if none were given they are recomputed
+/// @return exop*vf i.e. result[i]=exop*vf[i]
+template<typename T, std::size_t NDIM>
+std::vector<Function<T,NDIM> > apply_trigonometric_exop(std::vector<Function<T,NDIM> >& vf,
+		const std::string& exop_input, std::vector<coord_3d> centers, const bool& fence) {
+	if (vf.empty()) return vf;
+
+	//recompute centers if necessary
+	if (centers.empty()) centers = compute_centroids(vf);
+
+	ExopUnaryOpStructure exop(std::make_shared<PolynomialTrigonometricsFunctor>(PolynomialTrigonometricsFunctor(exop_input)));
+	for (auto& f : vf) f.unaryop(exop, false);
+	if (fence) vf.front().world().gop.fence();
+	return vf;
+}
+
+
 /// convenience wrapper
-real_function_3d apply_trigonometric_exop(real_function_3d& f, const std::string& exop_input, coord_3d center = coord_3d(), const bool& fence = false);
+template<typename T, std::size_t NDIM>
+Function<T,NDIM> apply_trigonometric_exop(Function<T,NDIM>& f, const std::string& exop_input, coord_3d center, const bool& fence) {
+	std::vector<Function<T,NDIM> > vf(1, f);
+	std::vector<coord_3d> centers(1, center);
+	return apply_trigonometric_exop(vf, exop_input, centers, fence).front();
+}
+//template<typename T, std::size_t NDIM>
+//std::vector<Function<T,NDIM> > apply_trigonometric_exop(Function<T,NDIM>& f, const std::string& exop_input, coord_3d center = coord_3d(), const bool& fence = false);
 
 
 /// Makes an excitation operator string based on predefined keywords

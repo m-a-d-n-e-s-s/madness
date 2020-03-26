@@ -26,7 +26,7 @@ set(CMAKE_C_FLAGS_DEBUG            "-g -Wall" CACHE STRING "Inital C debug compi
 set(CMAKE_C_FLAGS_MINSIZEREL       "-Os -march=native" CACHE STRING "Inital C minimum size release compile flags")
 set(CMAKE_C_FLAGS_RELEASE          "-O3 -march=native" CACHE STRING "Inital C release compile flags")
 set(CMAKE_C_FLAGS_RELWITHDEBINFO   "-O2 -g -Wall" CACHE STRING "Inital C release with debug info compile flags")
-set(CMAKE_CXX_FLAGS_INIT           " -stdlib=libc++" CACHE STRING "Inital C++ compile flags")
+set(CMAKE_CXX_FLAGS_INIT           "-I/usr/local/include -stdlib=libc++" CACHE STRING "Inital C++ compile flags")
 set(CMAKE_CXX_FLAGS_DEBUG          "-g -Wall" CACHE STRING "Inital C++ debug compile flags")
 set(CMAKE_CXX_FLAGS_MINSIZEREL     "-Os -march=native" CACHE STRING "Inital C++ minimum size release compile flags")
 set(CMAKE_CXX_FLAGS_RELEASE        "-O3 -march=native" CACHE STRING "Inital C++ release compile flags")
@@ -45,8 +45,8 @@ else()
 endif()
 
 # Flags
-set(LAPACK_LIBRARIES "-L${MKL_ROOT_DIR}/lib" "-lmkl_intel_lp64" "-lmkl_core" 
+set(LAPACK_LIBRARIES "-L${MKL_ROOT_DIR}/lib" "-lmkl_intel_lp64" "-lmkl_core"
     "-lmkl_sequential" "-lm" CACHE STRING "LAPACK linker flags")
 set(LAPACK_INCLUDE_DIRS ${MKL_ROOT_DIR}/include CACHE STRING "LAPACK include directories")
-set(LAPACK_COMPILE_DEFINITIONS MADNESS_LINALG_USE_LAPACKE CACHE STRING "LAPACK preprocessor definitions")
+set(LAPACK_COMPILE_DEFINITIONS MKL_DIRECT_CALL CACHE STRING "LAPACK compile definitions")
 set(INTEGER4 TRUE CACHE BOOL "Set Fortran integer size to 4 bytes")

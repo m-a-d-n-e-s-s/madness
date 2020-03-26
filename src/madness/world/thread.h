@@ -1445,11 +1445,15 @@ namespace madness {
                     start = current_time;
                     counter = 0;
                 } else {
-                    if(((current_time - start) > timeout) && (timeout > 1.0)) {	// Check for timeout
-                        std::cerr << "!!MADNESS: Hung queue?" << std::endl;
-                        if(counter++ > 3)
-                            throw madness::MadnessException("ThreadPool::await() timeout",
-                                    0, 1, __LINE__, __FUNCTION__, __FILE__);
+                    if(((current_time - start) > timeout) && (timeout > 1.0)) { // Check for timeout
+                      std::cerr << "!!MADNESS: Hung queue?" << std::endl;
+                      if (counter++ > 3) {
+                        char errstr[256];
+                        sprintf(errstr, "ThreadPool::await() timed out after %.1lf seconds", timeout);
+                        throw madness::MadnessException(errstr, 0, 1,
+                                                        __LINE__, __FUNCTION__,
+                                                        __FILE__);
+                      }
                     }
 		    if (sleep) {
 		      // THIS NEEDS TO BECOME AN EXTERNAL PARAMETER
@@ -1476,7 +1480,7 @@ namespace madness {
             }
         }
 
-        /// Desctructor.
+        /// Destructor.
         ~ThreadPool() {
 #if HAVE_PARSEC
           ////////////////// Parsec related Begin /////////////////
