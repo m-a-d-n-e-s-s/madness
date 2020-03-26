@@ -8,6 +8,8 @@
 #ifndef SRC_MADNESS_WORLD_META_H_
 #define SRC_MADNESS_WORLD_META_H_
 
+#include <type_traits>
+
 namespace madness {
 namespace meta {  // to make it easier importing another MP library
 

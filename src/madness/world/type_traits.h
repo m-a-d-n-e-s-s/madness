@@ -96,15 +96,15 @@ namespace madness {
     // namespace hiding implementation details of is_ostreammable ... by ensuring that the detector lives in a different namespace branch than the operators we do not accidentally pick them up
     namespace is_ostreammable_ns {
 
-    using madness::operators::operator<<;
-
     template <typename To, typename From> using left_shift = decltype(std::declval<To>() << std::declval<From>());
+    template <typename To, typename From> using left_shift_in_ns_madness_operators = decltype(madness::operators::operator<<(std::declval<To>(), std::declval<From>()));
 
-    template <typename T> struct impl : public meta::is_detected_exact<std::ostream&, left_shift, std::ostream&, const T&> {};
-
+    template <typename T> struct impl : public std::disjunction<meta::is_detected_exact<std::ostream&, left_shift, std::ostream&, const T&>,
+                                                                meta::is_detected_exact<std::ostream&, left_shift_in_ns_madness_operators, std::ostream&, const T&>> {};
     }  // namespace is_ostreammable_ns
 
     /// True for types that are "serialiable" to a std::ostream
+    /// \note \c operator<<(std::ostream&,const T&) must be visible via ADL or defined in namespace madness::operators
     template <typename T>
     struct is_ostreammable : public is_ostreammable_ns::impl<T> {};
 
@@ -114,15 +114,16 @@ namespace madness {
     // namespace hiding implementation details of is_istreammable ... by ensuring that the detector lives in a different namespace branch than the operators we do not accidentally pick them up
     namespace is_istreammable_ns {
 
-    using madness::operators::operator>>;
-
     template <typename From, typename To> using right_shift = decltype(std::declval<From>() >> std::declval<To>());
+    template <typename From, typename To> using right_shift_in_ns_madness_operators = decltype(madness::operators::operator<<(std::declval<From>(), std::declval<To>()));
 
-    template <typename T> struct impl : public meta::is_detected_exact<std::istream&, right_shift, std::istream&, T&> {};
+    template <typename T> struct impl : public std::disjunction<meta::is_detected_exact<std::istream&, right_shift, std::istream&, T&>,
+                                                                meta::is_detected_exact<std::istream&, right_shift_in_ns_madness_operators, std::istream&, T&>> {};
 
     }  // namespace is_istreammable_ns
 
     /// True for types that are "deserialiable" from an std::istream
+    /// \note \c operator>>(std::ostream&,T&) must be visible via ADL or defined in namespace madness::operators
     template <typename T>
     struct is_istreammable : public is_istreammable_ns::impl<T> {};
 
