@@ -282,8 +282,10 @@ public:
 
 	    for (int idim=0; idim<3; ++idim) {
 	    	real_derivative_3d D(world,idim);
-	    	std::vector<real_function_3d> dnemo=apply(world,D,nemo);
-	    	u1dnterm+=U1[idim]*dot(world,nemo,dnemo);
+	    	vecfuncT nemo_copy=copy(world,nemo);
+	    	refine(world,nemo_copy);
+	    	std::vector<real_function_3d> dnemo=apply(world,D,nemo_copy);
+	    	u1dnterm+=U1[idim]*dot(world,nemo_copy,dnemo);
 	    	dndnterm+=dot(world,dnemo,dnemo);
 	    }
 
