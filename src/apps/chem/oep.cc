@@ -289,6 +289,10 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 		double bshnorm=norm2(world,residual)/sqrt(KS_nemo.size());
 
 		// KAIN solver (helps to converge)
+		if (bshnorm<calc->param.econv()*10) {
+			solver.clear_subspace();
+			print("clearing subspace");
+		}
 		vecfuncT nemo_new = (solver.update(KS_nemo, residual, oep_param.kain_param()[0], oep_param.kain_param()[1]));
 		truncate(world, nemo_new);
 		normalize(nemo_new,R);
