@@ -47,23 +47,26 @@
 
 namespace madness {
 
-    /// Output \c std::array to stream for human consumption.
+    namespace operators {
+        /// Output \c std::array to stream for human consumption.
 
-    /// \tparam T The type of data stored in the array.
-    /// \tparam N The size of the array.
-    /// \param[in,out] s The output stream.
-    /// \param[in] a The array to be output.
-    /// \return The output stream.
-    template <typename T, std::size_t N>
-    std::ostream& operator<<(std::ostream& s, const std::array<T,N>& a) {
-        s << "[";
-        for(std::size_t i=0; i<N; ++i) {
-            s << a[i];
-            if (i != (N-1)) s << ",";
-        }
-        s << "]";
-        return s;
-    }
+        /// \tparam T The type of data stored in the array.
+        /// \tparam N The size of the array.
+        /// \param[in,out] s The output stream.
+        /// \param[in] a The array to be output.
+        /// \return The output stream.
+        template <typename T, std::size_t N>
+        std::ostream &operator<<(std::ostream &s, const std::array<T, N> &a) {
+  s << "[";
+  for (std::size_t i = 0; i < N; ++i) {
+    s << a[i];
+    if (i != (N - 1))
+      s << ",";
+  }
+  s << "]";
+  return s;
+}
+    }  // namespace operators
 
     /// Hash std::array with madness hash.
 

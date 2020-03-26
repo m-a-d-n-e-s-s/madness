@@ -1333,6 +1333,7 @@ std::vector<real_function_3d> F12Potentials::read_cabs_from_file(const std::stri
 			std::cout << x.first << " Exponents\n";
 			for (size_t l = 0; l < x.second.size(); ++l) {
 				std::cout << "l=" << l << "\n";
+                                using madness::operators::operator<<;
 				std::cout << x.second[l] << "\n";
 			}
 		}
