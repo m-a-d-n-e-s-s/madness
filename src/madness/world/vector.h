@@ -474,6 +474,7 @@ namespace madness {
         /// \param[in] v The \c Vector to output.
         /// \return The output stream.
         friend std::ostream& operator<<(std::ostream& s, const Vector<T,N>& v) {
+            using madness::operators::operator<<;
             s << v.data_;
             return s;
         }
