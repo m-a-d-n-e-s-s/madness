@@ -82,6 +82,7 @@ int main(int argc, char** argv) {
     WorldContainer<Key,double>::iterator it = fred.find(Key(99));
     // WorldContainer<Key,double>::pairT& p = *it;
     // cout << p;
+    using madness::operators::operator<<;
     cout << *it;
 
     WorldContainer<Key,double>::const_iterator c_it = it;
