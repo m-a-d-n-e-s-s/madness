@@ -99,8 +99,8 @@ namespace madness {
     template <typename To, typename From> using left_shift = decltype(std::declval<To>() << std::declval<From>());
     template <typename To, typename From> using left_shift_in_ns_madness_operators = decltype(madness::operators::operator<<(std::declval<To>(), std::declval<From>()));
 
-    template <typename T> struct impl : public std::disjunction<meta::is_detected_exact<std::ostream&, left_shift, std::ostream&, const T&>,
-                                                                meta::is_detected_exact<std::ostream&, left_shift_in_ns_madness_operators, std::ostream&, const T&>> {};
+    template <typename T> struct impl : public meta::disjunction<meta::is_detected_exact<std::ostream&, left_shift, std::ostream&, const T&>,
+                                                                 meta::is_detected_exact<std::ostream&, left_shift_in_ns_madness_operators, std::ostream&, const T&>> {};
     }  // namespace is_ostreammable_ns
 
     /// True for types that are "serialiable" to a std::ostream
@@ -117,8 +117,8 @@ namespace madness {
     template <typename From, typename To> using right_shift = decltype(std::declval<From>() >> std::declval<To>());
     template <typename From, typename To> using right_shift_in_ns_madness_operators = decltype(madness::operators::operator<<(std::declval<From>(), std::declval<To>()));
 
-    template <typename T> struct impl : public std::disjunction<meta::is_detected_exact<std::istream&, right_shift, std::istream&, T&>,
-                                                                meta::is_detected_exact<std::istream&, right_shift_in_ns_madness_operators, std::istream&, T&>> {};
+    template <typename T> struct impl : public meta::disjunction<meta::is_detected_exact<std::istream&, right_shift, std::istream&, T&>,
+                                                                 meta::is_detected_exact<std::istream&, right_shift_in_ns_madness_operators, std::istream&, T&>> {};
 
     }  // namespace is_istreammable_ns
 
