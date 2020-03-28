@@ -25,7 +25,6 @@ addons:
       - gfortran-8
       - libblas-dev
       - liblapack-dev
-      - libtbb-dev
 # if necessary to debug the install step, move all lines into
 # script step and add appropriate debugging analysis to the
 # after_failure step e.g. find . -name config.log -exec cat {} ";"
