@@ -53,7 +53,7 @@ ls -l /opt/intel
 which ccache
 ccache --version
 ls -l /opt/intel/tbb/bin/*
-/opt/intel/tbb/bin/tbbvars.sh intel64
+#source /opt/intel/tbb/bin/tbbvars.sh intel64
 echo ${TBBROOT}
 
 # Configure MADNESS
