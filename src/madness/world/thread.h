@@ -71,7 +71,8 @@ extern "C" {
 #endif // MADNESS_TASK_PROFILING
 
 #ifdef HAVE_INTEL_TBB
-#include "tbb/tbb.h"
+#include <tbb/task.h>
+#include <tbb/task_scheduler_init.h>
 #endif
 
 
