@@ -64,7 +64,7 @@ cmake \
     -D ENABLE_GPERFTOOLS=OFF \
     -D ENABLE_MKL=ON \
     -D ENABLE_TBB=ON \
-    -D TBB_ROOT_DIR=/opt/intel/tbb \
+    -D TBB_ROOT_DIR=/opt/intel/compilers_and_libraries/linux/tbb \
     -D CMAKE_C_COMPILER=$CC \
     -D CMAKE_CXX_COMPILER=$CXX \
     -D CMAKE_CXX_FLAGS="${EXTRACXXFLAGS}" \

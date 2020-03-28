@@ -148,4 +148,4 @@ sudo sh -c 'echo deb https://apt.repos.intel.com/mkl all main > /etc/apt/sources
 sudo apt-get update
 sudo apt-get install intel-mkl-2019.4-070
 
-ls -l /opt/intel/tbb
+ls -l /opt/intel/compilers_and_libraries/linux/tbb
