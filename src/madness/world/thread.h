@@ -72,7 +72,7 @@ extern "C" {
 
 #ifdef HAVE_INTEL_TBB
 #include <tbb/task.h>
-#include <tbb/task_scheduler_init.h>
+#include <tbb/global_control.h>
 #endif
 
 
@@ -1290,7 +1290,7 @@ namespace madness {
 #endif
 
 #if HAVE_INTEL_TBB
-        static tbb::task_scheduler_init* tbb_scheduler; ///< \todo Description needed.
+        static std::unique_ptr<tbb::global_control> tbb_control; ///< \todo Description needed.
 #endif
 
         /// Please invoke while in a single-threaded environment.
@@ -1489,8 +1489,6 @@ namespace madness {
           dague_fini((dague_context_t **)&parsec);
           ////////////////// Parsec related End /////////////////
 #elif HAVE_INTEL_TBB
-            tbb_scheduler->terminate();
-            delete(tbb_scheduler);
 #else
             delete[] threads;           
 #endif
