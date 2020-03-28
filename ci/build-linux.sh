@@ -52,8 +52,8 @@ ls -l $LIBXCDIR/lib/libxc.${LIBEXT}
 ls -l /opt/intel
 which ccache
 ccache --version
-ls -l /opt/intel/tbb/bin/*
-source /opt/intel/tbb/bin/tbbvars.sh intel64
+ls -l /opt/intel/compilers_and_libraries_2019.4.243/linux/tbb/bin/*
+source opt/intel/compilers_and_libraries_2019.4.243/linux/tbb/bin/tbbvars.sh intel64
 echo ${TBBROOT}
 
 # Configure MADNESS
