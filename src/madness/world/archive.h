@@ -246,15 +246,22 @@ namespace madness {
 
         /// \brief converts function or (free or static member) function pointer to the relative function pointer
         /// \param[in] fn a function or function pointer
-        template <typename T, typename = std::enable_if_t<std::is_function<std::remove_reference_t<T>>::value>>
-        std::ptrdiff_t to_rel_fn_ptr(T&& fn) {
+        template <typename T, typename = std::enable_if_t<std::is_function<T>::value || is_function_pointer<T>::value>>
+        std::ptrdiff_t to_rel_fn_ptr(const T& fn) {
+          if
+#if __cplusplus >= 201703L
+            constexpr
+#endif
+            (std::is_function<T>::value) {
+            static_assert(sizeof(std::ptrdiff_t) == sizeof(T*));
             return reinterpret_cast<std::ptrdiff_t>(&fn) - fn_ptr_origin();
-        }
-
-        template <typename T>
-        std::enable_if_t<is_function_pointer<T>::value, std::ptrdiff_t> to_rel_fn_ptr(T fn) {
+          }
+          else {
+#if __cplusplus >= 201703L
             static_assert(sizeof(std::ptrdiff_t) == sizeof(T));
+#endif
             return reinterpret_cast<std::ptrdiff_t>(fn) - fn_ptr_origin();
+          }
         }
 
         /// \brief converts nonstatic member function pointer to the relative equivalent
@@ -316,6 +323,7 @@ namespace madness {
         /// \sa to_rel_fn_ptr
         template <typename T, typename = std::enable_if_t<is_function_pointer_v<T>>>
         T to_abs_fn_ptr(std::ptrdiff_t rel_fn_ptr) {
+          static_assert(sizeof(std::ptrdiff_t) == sizeof(T));
           return reinterpret_cast<T>(rel_fn_ptr + fn_ptr_origin());
         }
 
@@ -628,7 +636,7 @@ namespace madness {
 
             /// \param[in] ar The archive.
             /// \param[in] t The data.
-            template <typename U = T, typename = std::enable_if_t<std::is_function<T>::value>>
+            template <typename U = T, typename = std::enable_if_t<std::is_function<U>::value>>
             static inline void store(const Archive& ar, const U& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "store(ar,t) default" << std::endl);
                 // convert function to function ptr
@@ -637,7 +645,7 @@ namespace madness {
             }
 
             template <typename U = T>
-            static inline std::enable_if_t<!std::is_function<T>::value, void> store(const Archive& ar, const U& t) {
+            static inline std::enable_if_t<!std::is_function<U>::value, void> store(const Archive& ar, const U& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "store(ar,t) default" << std::endl);
                 serialize(ar,t);
              }
@@ -871,13 +879,13 @@ namespace madness {
 
             /// \param[in] ar The archive.
             /// \param[in] fn The function pointer.
-            template <typename A = Archive, typename = std::enable_if_t<is_output_archive<Archive>::value>>
+            template <typename A = Archive, typename = std::enable_if_t<is_output_archive<A>::value>>
             static inline void serialize(const A& ar, resT(*(&fn))(paramT...)) {
                 ar &wrap_opaque(to_rel_fn_ptr(fn));
             }
 
             template <typename A = Archive>
-            static inline std::enable_if_t<!is_output_archive<Archive>::value, void> serialize(const A& ar, resT(*(&fn))(paramT...)) {
+            static inline std::enable_if_t<!is_output_archive<A>::value, void> serialize(const A& ar, resT(*(&fn))(paramT...)) {
                 std::ptrdiff_t rel_fn_ptr{};
                 ar & wrap_opaque(rel_fn_ptr);
                 fn = to_abs_fn_ptr<std::remove_reference_t<decltype(fn)>>(rel_fn_ptr);
@@ -897,13 +905,13 @@ namespace madness {
 
             /// \param[in] ar The archive.
             /// \param[in] memfn The member function pointer.
-            template <typename A = Archive, typename = std::enable_if_t<is_output_archive<Archive>::value>>
+            template <typename A = Archive, typename = std::enable_if_t<is_output_archive<A>::value>>
             static inline void serialize(const A& ar, resT(objT::*(&memfn))(paramT...)) {
                 ar &wrap_opaque(to_rel_memfn_ptr(memfn));
             }
 
             template <typename A = Archive>
-            static inline std::enable_if_t<!is_output_archive<Archive>::value, void> serialize(const A& ar, resT(objT::*(&memfn))(paramT...)) {
+            static inline std::enable_if_t<!is_output_archive<A>::value, void> serialize(const A& ar, resT(objT::*(&memfn))(paramT...)) {
                 using rel_memfn_ptr_t = decltype(to_rel_memfn_ptr(memfn));
                 rel_memfn_ptr_t rel_fn_ptr{};
                 ar & wrap_opaque(rel_fn_ptr);
