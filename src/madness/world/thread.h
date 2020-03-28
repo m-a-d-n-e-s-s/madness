@@ -72,7 +72,10 @@ extern "C" {
 
 #ifdef HAVE_INTEL_TBB
 #include <tbb/task.h>
-#include <tbb/global_control.h>
+#ifndef TBB_PREVIEW_GLOBAL_CONTROL
+# define TBB_PREVIEW_GLOBAL_CONTROL 1
+#endif
+# include <tbb/global_control.h>
 #endif
 
 
