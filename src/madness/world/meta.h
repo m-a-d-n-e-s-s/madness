@@ -16,6 +16,7 @@ namespace meta {  // to make it easier importing another MP library
 ///////////////////////////////////////////////////////////////////////////////
 
 // import some existing C++17 features, or implement them
+// TODO remove when it is possible to use CUDA/NVCC with C++17
 #  if __cplusplus <= 201402L
 
 template<typename... Ts>
@@ -44,10 +45,10 @@ template<class... B>
 inline constexpr bool conjunction_v = conjunction<B...>::value;
 
 template< class T >
-inline constexpr bool is_function_v = is_function<T>::value;
+inline constexpr bool is_function_v = std::is_function<T>::value;
 
 template< class T >
-inline constexpr bool is_member_function_pointer_v = is_member_function_pointer<T>::value;
+inline constexpr bool is_member_function_pointer_v = std::is_member_function_pointer<T>::value;
 
 # else
 
