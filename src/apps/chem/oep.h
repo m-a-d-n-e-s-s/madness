@@ -303,8 +303,11 @@ public:
 	    // get \nabla nemo
 	    std::vector<vecfuncT> grad_nemo(nemo.size());
 	    for (long i = 0; i < nemo.size(); i++) {
-	    	if(calc->param.dft_deriv() == "bspline") grad_nemo[i] = grad_bspline_one(nemo[i]);  // gradient using b-spline
-	    	else grad_nemo[i] = grad(nemo[i]);  // default gradient using abgv
+	    	vecfuncT nemo_copy=copy(world,nemo);
+	    	refine(world,nemo_copy);
+
+	    	if(calc->param.dft_deriv() == "bspline") grad_nemo[i] = grad_bspline_one(nemo_copy[i]);  // gradient using b-spline
+	    	else grad_nemo[i] = grad(nemo_copy[i]);  // default gradient using abgv
 	    }
 
 	    vecfuncT grad_nemo_term;
@@ -458,7 +461,7 @@ public:
     	real_function_3d lra_func=real_factory_3d(world).functor([](const coord_3d& r) {return 0.0;});
 
     	real_function_3d denssq=square(densityKS);
-    	std::vector<real_function_3d> args={denssq,mrks_numerator_HF,densityHF,
+    	std::vector<real_function_3d> args={densityKS,mrks_numerator_HF,densityHF,
     			numeratorKS,densityKS,lra_func};
         refine_to_common_level(world,args);
 
