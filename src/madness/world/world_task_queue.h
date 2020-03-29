@@ -47,6 +47,10 @@
 #include <madness/world/taskfn.h>
 #include <madness/world/mem_func_wrapper.h>
 
+#ifdef HAVE_INTEL_TBB
+# include <tbb/parallel_reduce.h>
+#endif
+
 /// \addtogroup taskq
 /// @{
 
