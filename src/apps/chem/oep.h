@@ -80,12 +80,12 @@ class OEP_Parameters : public QCCalculationParametersBase {
 public:
 	OEP_Parameters(World& world, std::string inputfile) {
 
-		initialize<std::string>("model","mrks","comment on this",{"oaep","ocep","dcep","mrks"});
+		initialize<std::string>("model","dcep","comment on this",{"oaep","ocep","dcep","mrks"});
 		initialize<unsigned int>("maxiter",250,"maximum number of iterations in OEP algorithm");
 //		initialize<double>("conv_threshold",1.e-5,"comment on this");
-		initialize<double>("density_threshold_high",1.e-4,"comment on this");
-		initialize<double>("density_threshold_low",1.e-7,"comment on this");
-		initialize<double>("density_threshold_inv",1.e-8,"comment on this");
+		initialize<double>("density_threshold_high",1.e-6,"comment on this");
+		initialize<double>("density_threshold_low",1.e-8,"comment on this");
+		initialize<double>("density_threshold_inv",1.e-9,"comment on this");
 		initialize<std::vector<double> >("kain_param",{1.0e-8, 3.0},"comment on this");
 
 //		std::vector<bool> oep_model = {false, false, false, false};
@@ -103,6 +103,8 @@ public:
 	}
 
 	void set_derived_values(const Nemo::NemoCalculationParameters& nparam) {
+    	set_derived_value("density_threshold_high",nparam.econv());
+    	set_derived_value("density_threshold_low",0.01*get<double>("density_threshold_high"));
 		if (dens_thresh_hi()<dens_thresh_lo()) {
 			MADNESS_EXCEPTION("confused thresholds for the long-range transition",1);
 		}
