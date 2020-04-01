@@ -53,8 +53,8 @@ struct divide_add_interpolate {
         ITERATOR(
             U,
 			double r = refdens(IND);
-        	double result=num1(IND)/std::max(denom1(IND),eps_regularize)
-        			- num2(IND)/std::max(denom2(IND),eps_regularize);
+        	double result=num1(IND)/(denom1(IND)+eps_regularize)
+        			- num2(IND)/(denom2(IND)+eps_regularize);
         	if (square_denominator) result=num1(IND)/(denom1(IND)*denom1(IND)+eps_regularize)
         			- num2(IND)/(denom2(IND)*denom2(IND)+eps_regularize);
             if (r > thresh_high) {
@@ -103,7 +103,7 @@ public:
 	}
 
 	void set_derived_values(const Nemo::NemoCalculationParameters& nparam) {
-    	set_derived_value("density_threshold_high",nparam.econv());
+    	set_derived_value("density_threshold_high",10.0*nparam.econv());
     	set_derived_value("density_threshold_low",0.01*get<double>("density_threshold_high"));
 		if (dens_thresh_hi()<dens_thresh_lo()) {
 			MADNESS_EXCEPTION("confused thresholds for the long-range transition",1);
