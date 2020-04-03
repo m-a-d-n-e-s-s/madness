@@ -1,12 +1,12 @@
 macro(add_unittests _component _sources _libs)
 
   # Add targets and for world_unittests
-  add_custom_target(${_component}_unittests)
-  add_dependencies(unittests ${_component}_unittests)
+  add_custom_target_subproject(madness ${_component}_unittests)
+  add_dependencies(unittests-madness ${_component}_unittests-madness)
 
   # Add a test that builds the unit tests
   add_test(build_${_component}_unittests
-      "${CMAKE_COMMAND}" --build ${PROJECT_BINARY_DIR} --target ${_component}_unittests)
+      "${CMAKE_COMMAND}" --build ${PROJECT_BINARY_DIR} --target ${_component}_unittests-madness)
   
   foreach(_source ${_sources})
     # Get the test name (the file name of the first source)
@@ -19,7 +19,7 @@ macro(add_unittests _component _sources _libs)
 
     # Add the test and set dependencies
     add_test(NAME ${_component}-${_test} COMMAND ${_test})
-    add_dependencies(${_component}_unittests ${_test})
+    add_dependencies(${_component}_unittests-madness ${_test})
     set_tests_properties(${_component}-${_test} 
         PROPERTIES DEPENDS build_${_component}_unittests)
  
