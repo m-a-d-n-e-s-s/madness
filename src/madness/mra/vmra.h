@@ -933,7 +933,7 @@ namespace madness {
     	typedef typename Tensor<T>::scalar_type scalartype;
     	reconstruct(world,v);
     	std::vector<Function<scalartype,NDIM> > result(v.size());
-    	for (int i=0; i<v.size(); ++i) result[i]=abssq(v[i],false);
+    	for (size_t i=0; i<v.size(); ++i) result[i]=abssq(v[i],false);
     	if (fence) world.gop.fence();
         return result;
     }

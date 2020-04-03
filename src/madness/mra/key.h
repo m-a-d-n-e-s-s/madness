@@ -270,9 +270,13 @@ namespace madness {
             for (int i=0; i<static_cast<int>(LDIM); ++i) {
                 l1[i]=l[i];
             }
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Waggressive-loop-optimizations"
             for (size_t i=LDIM; i<NDIM; ++i) {
                 l2[i-LDIM]=l[i];
             }
+#pragma GCC diagnostic pop
+	    
             key1=Key<LDIM>(n,l1);
             key2=Key<KDIM>(n,l2);
         }
