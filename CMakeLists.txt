@@ -14,6 +14,7 @@ add_definitions(-DMAD_ROOT_DIR="${PROJECT_SOURCE_DIR}")
 # Add module directory and modules =============================================
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules/")
+include(AddCustomTargetSubproject)
 include(AddOptions)
 include(AppendFlags)
 include(CheckIncludeFile)
@@ -28,7 +29,6 @@ include(CMakePackageConfigHelpers)
 include(CopyTargetProperties)
 include(FeatureSummary)
 include(RedefaultableOption)
-include(AddCustomtargetSubproject)
 
 # Check compiler feature support ===============================================
 
