@@ -78,7 +78,7 @@ endforeach (suffix ${MADNESS_LIBRARY_TARGET_SUFFIXES})
 install(FILES ${MADCLAPACK_HEADERS}
         DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}/madness/tensor"
         COMPONENT clapack)
-add_custom_target(install-clapack
+add_custom_target(install-madness-clapack
     COMMAND ${CMAKE_COMMAND} -DCOMPONENT=clapack -P ${PROJECT_BINARY_DIR}/cmake_install.cmake
     COMMENT "Installing clapack headers"
     USES_TERMINAL)
