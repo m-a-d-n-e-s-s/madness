@@ -32,10 +32,12 @@ namespace madness
          // Save the filename
          inFile = filename;
 
+         unsigned int dummyversion;
          double dummy1;
          std::vector<int> dummy2;
 
          archive::ParallelInputArchive input(world, filename.c_str());
+         input & dummyversion;
          input & dummy1;              // double
          input & spinrestricted;      // bool
          input & num_orbitals;        // int
