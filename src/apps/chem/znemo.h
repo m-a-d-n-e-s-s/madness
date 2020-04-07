@@ -339,7 +339,7 @@ public:
 	    	std::vector<Function<double_complex, 3> > rnew = transform(world, r, U, trantol, true);
 
 	        world.gop.fence();
-	        for (int i=0; i<v.size(); i++) {
+	        for (size_t i=0; i<v.size(); i++) {
 	            v[i] = vnew[i];
 	            r[i] = rnew[i];
 	        }
@@ -458,7 +458,7 @@ protected:
 
 			if (m==0) {
 				double theta=acos(xyz[2]/r);
-				double phi=atan2(xyz[1],xyz[0]);
+				//double phi=atan2(xyz[1],xyz[0]);
 				return r*exp(-exponent*r)*cos(theta);
 			} else {
 				double theta=acos(xyz[2]/r);

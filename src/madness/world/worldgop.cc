@@ -157,7 +157,7 @@ namespace madness {
 
     /// Optimizations can be added for long messages
     void WorldGopInterface::broadcast(void* buf, size_t nbyte, ProcessID root, bool dowork, Tag bcast_tag) {
-        MADNESS_ASSERT(nbyte <= std::numeric_limits<int>::max());
+        MADNESS_ASSERT(nbyte <= size_t(std::numeric_limits<int>::max()));
         SafeMPI::Request req0, req1;
         ProcessID parent, child0, child1;
         world_.mpi.binary_tree_info(root, parent, child0, child1);

@@ -223,7 +223,7 @@ public:
 				if (s == "s" || s == "p" || s == "d" || s == "f" || s == "g" || s == "h" || s == "i" || s == "k") {
 					std::vector<double> exponents;
 					std::vector<double> coeff;
-					for(size_t i=0;i<n;++i){
+					for(int i=0;i<n;++i){
 						double ex,c;
 						f>>ex;
 						f>>c;
