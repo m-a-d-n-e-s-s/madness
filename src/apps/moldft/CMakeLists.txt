@@ -1,7 +1,6 @@
 # src/apps/moldft
 
-add_executable(moldft moldft.cc)
-target_link_libraries(moldft MADchem ${DISABLEPIE_LINKER_FLAG})
+add_mad_executable(moldft moldft.cc MADchem)
 
 add_executable(mcpfit mcpfit.cc)
 target_link_libraries(mcpfit MADchem ${DISABLEPIE_LINKER_FLAG})
