@@ -211,7 +211,8 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 		tensorT Fock_no_ocep = matrix_inner(world, R2KS_nemo, Fnemo, false);
 		Kinetic<double,3> T(world);
 		Fock_no_ocep += T(R2KS_nemo, KS_nemo);
-		F=Fock_no_ocep+Fock_ocep;
+		F=copy(Fock_no_ocep);
+		if (need_ocep_correction(model)) F+=Fock_ocep;
 		if (print_debug) {
 			print("fock");
 			print(F);
