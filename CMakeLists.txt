@@ -14,6 +14,7 @@ add_definitions(-DMAD_ROOT_DIR="${PROJECT_SOURCE_DIR}")
 # Add module directory and modules =============================================
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules/")
+include(AddCustomTargetSubproject)
 include(AddOptions)
 include(AppendFlags)
 include(CheckIncludeFile)
@@ -547,7 +548,6 @@ if(CCACHE)
 endif(CCACHE)
 
 # Check for external dependencies ==============================================
-add_custom_target(External)
 include(external/pthread.cmake)
 include(external/mpi.cmake)
 include(external/papi.cmake)
@@ -567,8 +567,8 @@ endif (DEFINED ELEMENTAL_TAG)
 # Add project subdirectories ===================================================
 
 # Create build and install libraries libraries
-add_custom_target(libraries)
-add_custom_target(install-libraries)
+add_custom_target(madness-libraries)
+add_custom_target(install-madness-libraries)
 
 include_directories(${PROJECT_SOURCE_DIR}/src ${PROJECT_BINARY_DIR}/src)
 set(CMAKE_INCLUDE_CURRENT_DIR_IN_INTERFACE TRUE)
@@ -577,8 +577,8 @@ if(ENABLE_UNITTESTS)
   include(CTest)
   enable_testing()
   set(MADNESS_HAS_GOOGLE_TEST 1)
-  add_custom_target(unittests)
-  add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} USES_TERMINAL) # to be GNU compatible
+  add_custom_target_subproject(madness unittests)
+  add_custom_target_subproject(madness check COMMAND ${CMAKE_CTEST_COMMAND} USES_TERMINAL) # to be GNU compatible
 endif()
 add_subdirectory(src)
 add_subdirectory(doc)
@@ -659,7 +659,7 @@ install(FILES
     "${MADNESS_BINARY_DIR}/madness-config-version.cmake"
     DESTINATION "${MADNESS_INSTALL_CMAKEDIR}" 
     COMPONENT madness-config)
-add_custom_target(install-config
+add_custom_target(install-madness-config
      COMMAND ${CMAKE_COMMAND} -DCOMPONENT=madness-config -P ${PROJECT_BINARY_DIR}/cmake_install.cmake
      COMMENT "Installing MADNESS config components"
      USES_TERMINAL)

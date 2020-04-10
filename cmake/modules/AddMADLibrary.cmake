@@ -9,7 +9,7 @@ macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_d
   # if building shared library, build static as well using the same objects
   add_library(MAD${_name} $<TARGET_OBJECTS:MAD${_name}-obj>)
   add_library(${_name} ALIAS MAD${_name})
-  add_dependencies(libraries ${_name})
+  add_dependencies(madness-libraries ${_name})
   if(BUILD_SHARED_LIBS)
     if (NOT DEFINED CMAKE_POSITION_INDEPENDENT_CODE)
       set_target_properties(MAD${_name}-obj PROPERTIES POSITION_INDEPENDENT_CODE TRUE)  # this is the default anyway, but produce a warning just in case
@@ -37,15 +37,15 @@ macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_d
       $<TARGET_PROPERTY:MAD${_name},COMPILE_OPTIONS>)
 
   # target-common setup
-  add_custom_target(install-${_name}
+  add_custom_target(install-madness-${_name}
       COMMAND ${CMAKE_COMMAND} -DCOMPONENT=${_name} -P ${PROJECT_BINARY_DIR}/cmake_install.cmake
       COMMENT "Installing ${_name} library components"
       USES_TERMINAL)
-  add_dependencies(install-${_name} install-common)
-  add_dependencies(install-libraries install-${_name})
+  add_dependencies(install-madness-${_name} install-madness-common)
+  add_dependencies(install-madness-libraries install-madness-${_name})
   foreach(_dep ${_dep_mad_comp})
-    if(TARGET install-${_dep})
-      add_dependencies(install-${_name} install-${_dep})
+    if(TARGET install-madness-${_dep})
+      add_dependencies(install-madness-${_name} install-madness-${_dep})
     endif()
   endforeach()
 
@@ -69,7 +69,7 @@ macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_d
       INCLUDES DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}")
   
     # Create a target to install the component
-    add_dependencies(install-${_name} ${targetname})
+    add_dependencies(install-madness-${_name} ${targetname})
 
     set(LINK_FLAGS "")
     foreach(_dep ${_dep_mad_comp})
@@ -117,7 +117,7 @@ macro(add_mad_hdr_library _name _header_files _dep_mad_comp _include_dir)
   
   # Add target dependencies
   add_library(${_name} ALIAS MAD${_name})
-  add_dependencies(libraries MAD${_name})
+  add_dependencies(libraries-madness MAD${_name})
   
   target_include_directories(MAD${_name} INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
@@ -129,16 +129,16 @@ macro(add_mad_hdr_library _name _header_files _dep_mad_comp _include_dir)
       COMPONENT ${_name})
   
   # Create a target to install the component
-  add_custom_target(install-${_name}
+  add_custom_target(install-madness-${_name}
       COMMAND ${CMAKE_COMMAND} -DCOMPONENT=${_name} -P ${PROJECT_BINARY_DIR}/cmake_install.cmake
       COMMENT "Installing ${_name} library components"
       USES_TERMINAL)
-  add_dependencies(install-${_name} MAD${_name})
-  add_dependencies(install-libraries install-${_name})
+  add_dependencies(install-madness-${_name} MAD${_name})
+  add_dependencies(install-madness-libraries install-madness-${_name})
 
   foreach(_dep ${_dep_mad_comp})
-    if(TARGET install-${_dep})
-      add_dependencies(install-${_name} install-${_dep})
+    if(TARGET install-madness-${_dep})
+      add_dependencies(install-madness-${_name} install-madness-${_dep})
     endif()
     if(TARGET ${_dep})
         target_compile_definitions(MAD${_name} PUBLIC 

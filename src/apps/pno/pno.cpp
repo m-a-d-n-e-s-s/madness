@@ -16,7 +16,7 @@ int main(int argc, char** argv) {
 	initialize(argc, argv);
 	World world(SafeMPI::COMM_WORLD);
 	if (world.rank() == 0) printf("starting at time %.1f\n", wall_time());
-	const double time_start = wall_time();
+	//const double time_start = wall_time();
 	std::cout.precision(6);
 
 	startup(world,argc,argv,true);

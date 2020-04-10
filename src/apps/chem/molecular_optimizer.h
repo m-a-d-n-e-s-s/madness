@@ -93,8 +93,16 @@ public:
 /// Essentially the QuasiNewton optimizer, but with the additional feature
 /// of projecting out rotational and translational degrees of freedom
 class MolecularOptimizer : public OptimizerInterface {
+private:
+    /// How to update the hessian: BFGS or SR1
+    std::shared_ptr<MolecularOptimizationTargetInterface> target;
+    Tensor<double> h;
+    double f=1.e10;
+    double gnorm=1.e10;
 
 public:
+    MolecularOptimizationParameters parameters;
+
     /// same ctor as the QuasiNewton optimizer
     MolecularOptimizer(World& world,
     		const std::shared_ptr<MolecularOptimizationTargetInterface>& tar)
@@ -122,14 +130,8 @@ public:
         h=copy(hess);
     }
 
-    MolecularOptimizationParameters parameters;
-private:
 
-    /// How to update the hessian: BFGS or SR1
-    std::shared_ptr<MolecularOptimizationTargetInterface> target;
-    Tensor<double> h;
-    double f=1.e10;
-    double gnorm=1.e10;
+private:
 
     bool optimize_quasi_newton(Tensor<double>& x) {
 

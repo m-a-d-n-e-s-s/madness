@@ -18,7 +18,7 @@ add_custom_command(
       -P "${PROJECT_SOURCE_DIR}/cmake/git_version.cmake"
  	COMMENT "generating the gitversion file"
 )
-add_custom_target(mgit
+add_custom_target_subproject(madness mgit
     DEPENDS "${PROJECT_BINARY_DIR}/src/madness/misc/git_version.h"
 )
 
@@ -26,7 +26,7 @@ set(MADGIT_HEADERS gitinfo.h)
 set(MADGIT_SOURCES gitinfo.cc )
 
 add_mad_library(git MADGIT_SOURCES MADGIT_HEADERS "world" "madness/misc/")
-add_dependencies(MADgit-obj mgit)
+add_dependencies(MADgit-obj mgit-madness)
 
 if(ENABLE_UNITTESTS)
   

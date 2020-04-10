@@ -62,9 +62,9 @@ void PNO::solve(std::vector<PNOPairs>& all_pairs) const {
 	if (param.debug()) {
 		print("ElectronPairIterator will iterate the pairs: pair_ij, i , j , ij");
 		for (ElectronPairIterator it = pit(); it; ++it) {
-			const size_t ij = it.ij();
-			const size_t i = it.i();
-			const size_t j = it.j();
+		  //const size_t ij = it.ij();
+		  //const size_t i = it.i();
+		  //const size_t j = it.j();
 			if (world.rank() == 0)
 				std::cout << it.name() << ", " << it.i() << ", " << it.j() << ", " << it.ij() << "\n";
 		}
@@ -227,7 +227,7 @@ PairEnergies PNO::compute_cispd_correction_gs(const vector_real_function_3d& xci
 				for (size_t a = 0; a < pno.size(); ++a) {
 					const Tensor<double> Ska = inner(world, pno[a], xcis);
 					real_function_3d ta = real_factory_3d(world);
-					for (size_t k = 0; k < Ska.size(); ++k)
+					for (size_t k = 0; k < size_t(Ska.size()); ++k)
 						ta += Ska(k) * xcis[k];
 					tpno.push_back(ta);
 				}
@@ -251,14 +251,14 @@ PairEnergies PNO::compute_cispd_correction_gs(const vector_real_function_3d& xci
 			{
 				const Tensor<double> Sik = inner(world, xi, xcis);
 				real_function_3d ti = real_factory_3d(world);
-				for (size_t k = 0; k < Sik.size(); ++k)
+				for (size_t k = 0; k < size_t(Sik.size()); ++k)
 					ti += Sik(k) * acmos[k];
 				real_function_3d tj = real_factory_3d(world);
 				if (it.diagonal())
 					tj = ti;
 				else {
 					const Tensor<double> Sjk = inner(world, xj, xcis);
-					for (size_t k = 0; k < Sjk.size(); ++k)
+					for (size_t k = 0; k < size_t(Sjk.size()); ++k)
 						tj += Sjk(k) * acmos[k];
 				}
 				// transformed gijab with i=Sik_k or/and j=Sjk_k
@@ -270,7 +270,7 @@ PairEnergies PNO::compute_cispd_correction_gs(const vector_real_function_3d& xci
 					const Tensor<double> tmp2 = matrix_inner(world, iga, tjb);
 					gijab = (tmp1 + tmp2);
 				}
-				MADNESS_ASSERT(gijab.size() == pno.size() * pno.size());
+				MADNESS_ASSERT(size_t(gijab.size()) == pno.size() * pno.size());
 				for (size_t a = 0; a < pno.size(); ++a) {
 					for (size_t b = 0; b < pno.size(); ++b) {
 						s4b_ij -= (t(a, b) * gijab(a, b));
@@ -340,14 +340,14 @@ PairEnergies PNO::compute_cispd_f12_correction_gs(const vector_real_function_3d&
 		// intermediates
 		const Tensor<double> Sik = inner(world, xi, xcis);
 		real_function_3d ti = real_factory_3d(world);
-		for (size_t k = 0; k < Sik.size(); ++k)
+		for (size_t k = 0; k < size_t(Sik.size()); ++k)
 			ti += Sik(k) * acmos[k];
 		real_function_3d tj = real_factory_3d(world);
 		if (it.diagonal())
 			tj = ti;
 		else {
 			const Tensor<double> Sjk = inner(world, xj, xcis);
-			for (size_t k = 0; k < Sjk.size(); ++k)
+			for (size_t k = 0; k < size_t(Sjk.size()); ++k)
 				tj += Sjk(k) * acmos[k];
 		}
 		real_function_3d im_kxk = real_factory_3d(world);
@@ -440,7 +440,7 @@ PairEnergies PNO::compute_cispd_f12_correction_gs(const vector_real_function_3d&
 PNOPairs PNO::solve_mp2(PNOPairs& mp2) const {
 	msg.section("Solve PNO-MP2");
 	const size_t nocc=pit().nocc();
-	const size_t npairs=pit().npairs();
+	//const size_t npairs=pit().npairs();
 	if(mp2.npairs==0) mp2 = PNOPairs(MP2_PAIRTYPE,nocc);
 	// compute f12 energies before
 	if(param.f12() and f12.param.energytype()==PROJECTED_ENERGYTYPE){
@@ -455,8 +455,8 @@ PNOPairs PNO::solve_mp2(PNOPairs& mp2) const {
 	mp2 = iterate_pairs(mp2);
 	const std::valarray<vector_real_function_3d>& pno_ij = mp2.pno_ij;
 	if (param.f12() and f12.param.energytype() == HYLLERAAS_ENERGYTYPE) {
-		const PairEnergies& energies_from_solve = mp2.energies;
-		const std::valarray<Tensor<double> >& t2_ij = mp2.t_ij;
+	        //const PairEnergies& energies_from_solve = mp2.energies;
+		//const std::valarray<Tensor<double> >& t2_ij = mp2.t_ij;
 		// compute energies (or just print them)
 		PairEnergies pair_energies = mp2.energies;
 		MyTimer timef12 = MyTimer(world).start();
@@ -504,7 +504,7 @@ std::vector<PNOPairs> PNO::solve_cispd(std::vector<PNOPairs>& result) const {
 	}else MADNESS_ASSERT(result.size()>1);
 	MyTimer timer_solve_cispd = MyTimer(world).start();
 	const size_t nocc=pit().nocc();
-	const size_t npairs=pit().npairs();
+	//const size_t npairs=pit().npairs();
 	msg.section("Solve PNO-CIS(D)");
 
 	// 1. get CIS vectors
@@ -542,7 +542,7 @@ std::vector<PNOPairs> PNO::solve_cispd(std::vector<PNOPairs>& result) const {
 	PNOPairs& mp2=result[0];
 	double mp2_energy = mp2.energies.total_energy();
 
-	const std::valarray<Tensor<double> >& t2_mp2_ij = mp2.t_ij;
+	//const std::valarray<Tensor<double> >& t2_mp2_ij = mp2.t_ij;
 	const std::valarray<vector_real_function_3d>& pno_mp2_ij = mp2.pno_ij;
 	time_mp2.stop().print("MRA-PNO-MP2 Calculation");
 	// 4. solve CIS(D) doubles
@@ -551,9 +551,9 @@ std::vector<PNOPairs> PNO::solve_cispd(std::vector<PNOPairs>& result) const {
 	std::vector<std::pair<size_t, size_t> > av_ranks_cispd; // store average and max ranks
 
 	for (const auto& x : cis_result) {
-		const double omega_cis = x.omega;
+	        //const double omega_cis = x.omega;
 		const vector_real_function_3d xcis = x.x;
-		double omega_gs = 0.0;
+		//double omega_gs = 0.0;
 		PairEnergies cispd_energies(mp2.npairs);
 		if (param.no_compute() == MP2_PAIRTYPE || param.no_compute() == ALL_PAIRTYPE) {
 			if (world.rank() == 0)
@@ -565,7 +565,7 @@ std::vector<PNOPairs> PNO::solve_cispd(std::vector<PNOPairs>& result) const {
 			cispd_energies = compute_cispd_correction_gs(xcis, mp2);
 			cispd_energies=compute_cispd_f12_correction_gs(xcis,cispd_energies);
 			cispd_energies.update();
-			omega_gs = cispd_energies.total_energy();
+			//omega_gs = cispd_energies.total_energy();
 		}
 
 		cispd_energies=compute_cispd_f12_correction_es(xcis,cispd_energies);
@@ -581,8 +581,8 @@ std::vector<PNOPairs> PNO::solve_cispd(std::vector<PNOPairs>& result) const {
 		cispd = iterate_pairs(cispd);
 		timer_cispd.stop().print("compute CIS(D) doubles");
 
-		const double cispd_energy_ex = cispd.energies.energy;
-		const std::valarray<Tensor<double> >& t2_cispd_ij = cispd.t_ij;
+		//const double cispd_energy_ex = cispd.energies.energy;
+		//const std::valarray<Tensor<double> >& t2_cispd_ij = cispd.t_ij;
 		const std::valarray<vector_real_function_3d>& pno_cispd_ij = cispd.pno_ij;
 
 		// (re)-compute CIS(D) part of the energy (s2b and s2c)
@@ -655,7 +655,7 @@ PNOPairs PNO::truncate_pairs(PNOPairs& pairs) const {
 	}
 
 	if(all.empty()) return pairs;
-	const double size_0 = get_size(world,all);
+	//const double size_0 = get_size(world,all);
 	compress(world,all);
 	truncate(world,all,thresh);
 
@@ -687,18 +687,18 @@ PNOPairs PNO::freeze_insignificant_pairs(PNOPairs& pairs)const{
 		// i.e. freeze if demanded and the pair was restarted
 		if(not freeze){
 			for(const auto orb: param.freeze_pairs_of_orbital()){
-				if(it.i()==orb or it.j()==orb) freeze=true;
+			  if(it.i()==size_t(orb) or it.j()==size_t(orb)) freeze=true;
 			}
 			for(const auto pair: param.freeze_pairs()){
-				if(it.i()==pair.first and it.j()==pair.second) freeze=true;
-				if(it.j()==pair.first and it.i()==pair.second) freeze=true;
+			  if(it.i()==size_t(pair.first) and it.j()==size_t(pair.second)) freeze=true;
+			  if(it.j()==size_t(pair.first) and it.i()==size_t(pair.second)) freeze=true;
 			}
 
 			// if a whitelist exists this means that all pairs which are not on that list should be frozen no matter what the other parameters say
 			if(param.active_pairs_of_orbital().size()>0){
 				freeze=true;
 				for(const auto orb: param.active_pairs_of_orbital()){
-					if(i==orb or j==orb) freeze=false;
+				  if(i==size_t(orb) or j==size_t(orb)) freeze=false;
 				}
 			}
 
@@ -722,9 +722,9 @@ PNOPairs PNO::truncate_pair_ranks(PNOPairs& pairs) const {
 		PAIRLOOP(it){
 			const int maxrank=pairs.maxranks_ij[it.ij()];
 			const vector_real_function_3d& tmp = pairs.pno_ij[it.ij()];
-			if (tmp.size() < maxrank or maxrank<0) continue; // fast cont.
+			if (tmp.size() < size_t(maxrank) or maxrank<0) continue; // fast cont.
 			vector_real_function_3d tr_tmp;
-			for (size_t i = 0; i < maxrank; ++i) tr_tmp.push_back(tmp[tmp.size() - 1 - i]);
+			for (size_t i = 0; i < size_t(maxrank); ++i) tr_tmp.push_back(tmp[tmp.size() - 1 - i]);
 			result[it.ij()] = tr_tmp;
 			msg << it.name() << " truncated to rank " << maxrank << "\n";
 			if(tr_tmp.size()!=tmp.size()) pairs.clear_intermediates(it);
@@ -748,7 +748,7 @@ PNOPairs PNO::initialize_pairs(PNOPairs& pairs, const GuessType& inpgt) const {
 
 	// determine of restart or other options for the speficfic pair type where demanded
 	const bool restart = (param.restart() == pt || param.restart() == ALL_PAIRTYPE);
-	const bool no_opt = (param.no_opt() == pt || param.no_opt() == ALL_PAIRTYPE);
+	//const bool no_opt = (param.no_opt() == pt || param.no_opt() == ALL_PAIRTYPE);
 	const bool no_guess = (param.no_guess() == pt || param.no_guess() == ALL_PAIRTYPE || guesstype == EMPTY_GUESSTYPE);
 	const bool pair_specific_guess = (guesstype == EXOP_GUESSTYPE);
 
@@ -801,7 +801,7 @@ PNOPairs PNO::initialize_pairs(PNOPairs& pairs, const GuessType& inpgt) const {
 				const real_function_3d xi = (1.0 / normi) * pairs.cis.x[it.i()];
 				pair_mo.push_back(xi);
 				if (not it.diagonal()) {
-					const double normj = pairs.cis.x[it.j()].norm2(); // cis vector contains only active orbitals
+				  //const double normj = pairs.cis.x[it.j()].norm2(); // cis vector contains only active orbitals
 					const real_function_3d xj = (1.0 / normi) * pairs.cis.x[it.j()];
 					pair_mo.push_back(xj);
 				}
@@ -898,7 +898,7 @@ PNOPairs PNO::compute_fluctuation_potential(const ElectronPairIterator& it, PNOP
 }
 
 PNOPairs PNO::compute_cispd_fluctuation_potential(const ElectronPairIterator& it, PNOPairs& pairs) const {
-	const size_t ij = it.ij();
+  //const size_t ij = it.ij();
 	const size_t i = it.i();
 	const size_t j = it.j();
 	const auto& pno=pairs.pno_ij[it.ij()];
@@ -1021,7 +1021,7 @@ PNOPairs PNO::adaptive_solver(PNOPairs& pairs)const{
 
 	msg << "Guess protocol for adaptively growing ranks is: " << multipoles << "\n";
 
-	for (size_t i = 0; i < param.maxiter_macro(); ++i) {
+	for (size_t i = 0; i < size_t(param.maxiter_macro()); ++i) {
 
 		// fast return if possible
 		if(param.exop()=="none" and i>0){
@@ -1033,7 +1033,7 @@ PNOPairs PNO::adaptive_solver(PNOPairs& pairs)const{
 			bool maxrank_reached=true;
 			PAIRLOOP(it)
 			{
-				if (pairs.pno_ij[it.ij()].size() < param.maxrank()) maxrank_reached = false;
+			  if (pairs.pno_ij[it.ij()].size() < size_t(param.maxrank())) maxrank_reached = false;
 			}
 			if (maxrank_reached){
 				msg << "Maximum Rank of" << param.maxrank() << " reached, no need to iterate further";
@@ -1088,7 +1088,7 @@ PNOPairs PNO::adaptive_solver(PNOPairs& pairs)const{
 			msg << "\n\nall pairs converged but deltaE above given threshold -> check your parameters\n\n";
 			break;
 		}else msg << "\n\nnot converged yet\n\n";
-		if (i == param.maxiter_macro())
+		if (i == size_t(param.maxiter_macro()))
 			msg << "Maximum number of Macroiterations reached\n";
 
 		// do not further optimize and grow ranks of pairs which do not really contribute
@@ -1110,9 +1110,9 @@ PNOPairs PNO::iterate_pairs_internal(PNOPairs& pairs, const int maxiter, const d
 	std::valarray<vector_real_function_3d>& W_ij_i=pairs.W_ij_i; // fluctuation potential
 	std::valarray<vector_real_function_3d>& W_ij_j=pairs.W_ij_j; // fluctuation potential
 	std::valarray<Tensor<double> >& W_ij=pairs.W_ij; // ij -> <ij|W|ab>
-	std::valarray<Tensor<double> >& F_ij=pairs.F_ij; // ij -> Fock matrix in PNO basis
-	Tensor_IJ_IK<double>& S_ij_ik=pairs.S_ij_ik; // f12.pit().tridx(ij,ik) -> <a_ij|b_ik>
-	Tensor_IJ_KJ<double>& S_ij_kj=pairs.S_ij_kj; // f12.pit().tridx(ij,kj) -> <a_ij|b_kj>
+	//std::valarray<Tensor<double> >& F_ij=pairs.F_ij; // ij -> Fock matrix in PNO basis
+	PNOTensors::Tensor_IJ_IK<double>& S_ij_ik=pairs.S_ij_ik; // f12.pit().tridx(ij,ik) -> <a_ij|b_ik>
+	PNOTensors::Tensor_IJ_KJ<double>& S_ij_kj=pairs.S_ij_kj; // f12.pit().tridx(ij,kj) -> <a_ij|b_kj>
 	// see if this is the CIS(D) solver
 
 	bool do_cispd = false;
@@ -1169,8 +1169,8 @@ PNOPairs PNO::iterate_pairs_internal(PNOPairs& pairs, const int maxiter, const d
 	auto dconverged = false;
 	auto energy = pairs.energies.total_energy();
 
-	const auto nocc_act = amo.size() - param.freeze();
-	auto npairs = nocc_act * (nocc_act + 1) / 2; // # of {i>=j} pairs
+	//const auto nocc_act = amo.size() - param.freeze();
+	//auto npairs = nocc_act * (nocc_act + 1) / 2; // # of {i>=j} pairs
 
 	size_t iter = 0;
 	bool converged = false;
@@ -1178,7 +1178,7 @@ PNOPairs PNO::iterate_pairs_internal(PNOPairs& pairs, const int maxiter, const d
 		print("Found no_compute keyword!\n");
 	}
 	std::valarray<Tensor<double> > rdm_evals_ij(f12.npairs());
-	while (((iter < maxiter)) and (no_compute == false)) {
+	while (((iter < size_t(maxiter))) and (no_compute == false)) {
 		TIMER(timer_iter);
 		print_ranks(pairs);
 
@@ -1191,7 +1191,7 @@ PNOPairs PNO::iterate_pairs_internal(PNOPairs& pairs, const int maxiter, const d
 		if(no_opt) no_opt_in_this_iteration=true;
 		if(iter==0 and no_opt_in_first_iteration) no_opt_in_this_iteration=true;
 		if(converged) no_opt_in_this_iteration=true;
-		if(iter==maxiter-1) no_opt_in_this_iteration=true;
+		if(iter==size_t(maxiter-1)) no_opt_in_this_iteration=true;
 
 		// if the key word is not set everything else does not matter at all
 		if(no_opt_in_first_iteration==false) no_opt_in_this_iteration=false;
@@ -1211,7 +1211,7 @@ PNOPairs PNO::iterate_pairs_internal(PNOPairs& pairs, const int maxiter, const d
 				if(pairs.pno_ij[ij].empty()) pairs.F_ij[ij]=Tensor<double>(std::vector<long>(2,0));
 				else if(pairs.frozen_ij[it.ij()]){
 					MADNESS_ASSERT(pairs.F_ij[it.ij()].ndim()==2);
-					MADNESS_ASSERT(pairs.F_ij[it.ij()].dim(0)==pairs.pno_ij[it.ij()].size());
+					MADNESS_ASSERT(size_t(pairs.F_ij[it.ij()].dim(0))==pairs.pno_ij[it.ij()].size());
 					msg << "frozen pair " + pairs.name(it)<< ", no recomputation of F_ij\n";
 				}
 				else{
@@ -1268,8 +1268,8 @@ PNOPairs PNO::iterate_pairs_internal(PNOPairs& pairs, const int maxiter, const d
 				else if(pairs.frozen_ij[it.ij()]){
 					if(pairs.F_ij[it.ij()].size()==0) pairs.F_ij[it.ij()]=F(pairs.pno_ij[it.ij()],pairs.pno_ij[it.ij()]);
 					else{
-						MADNESS_ASSERT(pairs.F_ij[it.ij()].dim(0)==pairs.F_ij[it.ij()].dim(1));
-						MADNESS_ASSERT(pairs.F_ij[it.ij()].dim(0)==pairs.pno_ij[it.ij()].size());
+					  MADNESS_ASSERT(pairs.F_ij[it.ij()].dim(0)==pairs.F_ij[it.ij()].dim(1));
+					  MADNESS_ASSERT(size_t(pairs.F_ij[it.ij()].dim(0))==pairs.pno_ij[it.ij()].size());
 						continue;
 					}
 				}
@@ -1307,8 +1307,8 @@ PNOPairs PNO::iterate_pairs_internal(PNOPairs& pairs, const int maxiter, const d
 			TIMER(timer3b);
 			for (ElectronPairIterator it = pit(); it; ++it) {
 				const size_t ij = it.ij();
-				const size_t i = it.i();
-				const size_t j = it.j();
+				//const size_t i = it.i();
+				//const size_t j = it.j();
 				if(pno_ij[ij].empty()){
 					W_ij[ij]=Tensor<double>(std::vector<long>(2,0));
 					continue;
@@ -1337,12 +1337,12 @@ PNOPairs PNO::iterate_pairs_internal(PNOPairs& pairs, const int maxiter, const d
 				if(pno_ij[it.ij()].size()>0){
 					if(pairs.frozen_ij[it.ij()]){
 						MADNESS_ASSERT(pairs.W_ij[it.ij()].ndim()==2);
-						MADNESS_ASSERT(pairs.W_ij[it.ij()].dim(0)==pairs.pno_ij[it.ij()].size());
+						MADNESS_ASSERT(size_t(pairs.W_ij[it.ij()].dim(0))==pairs.pno_ij[it.ij()].size());
 						msg << pairs.name(it) << " frozen pair: no recomputation of fluctuation matrix\n";
 					}
 					else if(pairs.W_ij[it.ij()].size()>0){
 						MADNESS_ASSERT(pairs.W_ij[it.ij()].ndim()==2);
-						MADNESS_ASSERT(pairs.W_ij[it.ij()].dim(0)==pairs.pno_ij[it.ij()].size());
+						MADNESS_ASSERT(size_t(pairs.W_ij[it.ij()].dim(0))==pairs.pno_ij[it.ij()].size());
 						msg <<  pairs.name(it) << " fluctuation matrix already computed\n";
 					}
 					else if(do_cispd) W_ij[it.ij()] = compute_cispd_fluctuation_matrix(it, pairs);
@@ -1423,7 +1423,7 @@ PNOPairs PNO::iterate_pairs_internal(PNOPairs& pairs, const int maxiter, const d
 		print_ranks(pairs);
 		save_pnos(pairs);
 		// see if we can stop
-		if (iter == maxiter - 1) {
+		if (iter == size_t(maxiter - 1)) {
 			if (world.rank() == 0)
 				std::cout << "exiting: Last iteration\n";
 			break;
@@ -1463,7 +1463,7 @@ PNOPairs PNO::iterate_pairs_internal(PNOPairs& pairs, const int maxiter, const d
 					std::cout << "since no_opt keyword was given\n";
 				else if (econverged and dconverged)
 					std::cout << "since the PNOs are already converged\n";
-				else if (iter == param.maxiter() - 1)
+				else if (iter == size_t(param.maxiter() - 1))
 					std::cout << "since this is the last iteration\n";
 				else
 					std::cout << "for unknown reasons ... should not happen!!!!!!!\n";
@@ -1524,7 +1524,7 @@ PNOPairs PNO::grow_rank(PNOPairs& pairs, std::string exop)const{
 	bool no_need=true;
 	PAIRLOOP(it)
 	{
-		if (pairs.pno_ij[it.ij()].size() < param.maxrank()) no_need = false;
+	  if (pairs.pno_ij[it.ij()].size() < size_t(param.maxrank())) no_need = false;
 	}
 	if (no_need) {
 		msg << "maxrank reached for all pairs, no need to grow ranks\n";
@@ -1532,7 +1532,7 @@ PNOPairs PNO::grow_rank(PNOPairs& pairs, std::string exop)const{
 		TIMER(timer);
 		PAIRLOOP(it)
 		{
-			if (pairs.pno_ij[it.ij()].size() >= param.maxrank()) {
+		  if (pairs.pno_ij[it.ij()].size() >= size_t(param.maxrank())) {
 				msg << "maxrank reached for " << it.name() << " no further growing\n";
 				continue;
 			} else if (pairs.frozen_ij[it.ij()]) {
@@ -1551,7 +1551,7 @@ PNOPairs PNO::grow_rank(PNOPairs& pairs, std::string exop)const{
 					const real_function_3d xi = (1.0 / normi) * pairs.cis.x[it.i()];
 					pair_mo.push_back(xi);
 					if (not it.diagonal()) {
-						const double normj = pairs.cis.x[it.j()].norm2(); // cis vector contains only active orbitals
+					        //const double normj = pairs.cis.x[it.j()].norm2(); // cis vector contains only active orbitals
 						const real_function_3d xj = (1.0 / normi) * pairs.cis.x[it.j()];
 						pair_mo.push_back(xj);
 					}
@@ -1629,7 +1629,7 @@ PNOPairs PNO::orthonormalize_cholesky(PNOPairs& pairs) const {
 			Tensor<double> U = transpose(Linv);
 			U_ij[it.ij()]=U;
 
-			if(rank<pno.size()) msg << "RRCD: truncate ranks of " << std::setw(25) << pairs.name(it) << " from " << std::setw(3) << pno.size() <<  " to " << std::setw(3) << rank << "\n";
+			if(size_t(rank)<pno.size()) msg << "RRCD: truncate ranks of " << std::setw(25) << pairs.name(it) << " from " << std::setw(3) << pno.size() <<  " to " << std::setw(3) << rank << "\n";
 		}
 	}
 	timer.stop().print("RRCD");
@@ -1683,12 +1683,12 @@ PairEnergies PNO::compute_cispd_f12_correction_es(const vector_real_function_3d&
 		{
 			// transform pnos according to transposed(Ox)|a>, Ox=|xk><k| -> transposed(Ox)=|k><x_k|
 			Projector<double, 3> Oxt(xcis, f12.acmos);
-			double pr_part = 0.0;
+			//double pr_part = 0.0;
 			if (it.diagonal()) {
 				const vector_real_function_3d& p1 = xcis;
 				const vector_real_function_3d p2 = Q(apply(world, *poisson, moi * f12.acmos) * moj);
 				s2c_f12_ij -= 2.0 * (madness::inner(world, p1 * xi, apply(world, *f12.fop, p2 * moj)).sum() + madness::inner(world, apply(world, *f12.fop, p1 * moi), p2 * xj).sum());
-				const double tmp = s2c_f12_ij;
+				//const double tmp = s2c_f12_ij;
 				// projector response
 				//Projector<double,3> Oxt(xcis,f12.acmos);
 				const vector_real_function_3d Oxtp1 = Oxt(p1);
@@ -1739,8 +1739,8 @@ madness::PairEnergies PNO::t_solve(PNOPairs& pairs, const Tensor<double>& F_occ,
 	const auto& W_ij=pairs.W_ij;
 	const auto& S_ij_ik=pairs.S_ij_ik;
 	const auto& S_ij_kj=pairs.S_ij_kj;
-	const auto& pno_ij=pairs.pno_ij;
-	const auto& nocc_act=pairs.nocc;
+	//const auto& pno_ij=pairs.pno_ij;
+	//const auto& nocc_act=pairs.nocc;
 	double omega=0.0;
 	if(pairs.type==CISPD_PAIRTYPE) omega=pairs.cis.omega;
 	double energy=0.0;
@@ -1754,7 +1754,7 @@ madness::PairEnergies PNO::t_solve(PNOPairs& pairs, const Tensor<double>& F_occ,
 		npno_total+=pairs.W_ij[it.ij()].size();
 		MADNESS_ASSERT(W_ij[it.ij()].ndim()==2);
 		MADNESS_ASSERT(W_ij[it.ij()].dim(0)==W_ij[it.ij()].dim(1));
-		MADNESS_ASSERT(W_ij[it.ij()].dim(0)==pairs.pno_ij[it.ij()].size());
+		MADNESS_ASSERT(size_t(W_ij[it.ij()].dim(0))==pairs.pno_ij[it.ij()].size());
 	}
 
 	size_t tdim = 0;
@@ -1768,7 +1768,7 @@ madness::PairEnergies PNO::t_solve(PNOPairs& pairs, const Tensor<double>& F_occ,
 	std::valarray<double> energy_ij_t(npairs); // triplet pair energies
 	bool converged = false;
 	auto iter = 0;
-	while (!converged && iter < max_niter) {
+	while (!converged && size_t(iter) < max_niter) {
 		std::valarray<Tensor<double> > R_ij(npairs); // ij -> <ij|R|ab>
 		auto flatten = [npno_total,&pairs](const std::valarray<Tensor<double> >& arr) {
 			std::valarray<double> flattened_arr(npno_total);
@@ -1803,13 +1803,13 @@ madness::PairEnergies PNO::t_solve(PNOPairs& pairs, const Tensor<double>& F_occ,
 			if(pairs.frozen_ij[it.ij()]){
 				MADNESS_ASSERT(pairs.t_ij[it.ij()].ndim()==2);
 				MADNESS_ASSERT(pairs.t_ij[it.ij()].dim(0)==pairs.t_ij[it.ij()].dim(1));
-				MADNESS_ASSERT(pairs.t_ij[it.ij()].dim(0)==pairs.pno_ij[it.ij()].size());
+				MADNESS_ASSERT(size_t(pairs.t_ij[it.ij()].dim(0))==pairs.pno_ij[it.ij()].size());
 				R_ij[it.ij()]=Tensor<double>(std::vector<long>(2,pairs.pno_ij[it.ij()].size()));
 				continue;
 			}
 			const size_t ij = it.ij();
-			const size_t i = it.i();
-			const size_t j = it.j();
+			//const size_t i = it.i();
+			//const size_t j = it.j();
 			const auto npno = W_ij[ij].dim(0);
 			if(npno==0){
 				t2_ij[ij]=Tensor<double>(std::vector<long>(2,0));
@@ -1865,7 +1865,7 @@ madness::PairEnergies PNO::t_solve(PNOPairs& pairs, const Tensor<double>& F_occ,
 				const auto& wpno = W_ij[ij];
 				const auto& fpno = F_ij[ij];
 				double eps_s = 0.0, eps_t = 0.0; // singlet + triplet pair energies
-				for (size_t a = 0; a != npno; ++a) {
+				for (size_t a = 0; a != size_t(npno); ++a) {
 					for (size_t b = 0; b <= a; ++b) {
 						const auto perm_ab_factor = a == b ? 1 : 2;
 						const auto t_ab_s = (tpno(a, b) + tpno(b, a)) / 2;
@@ -1887,8 +1887,8 @@ madness::PairEnergies PNO::t_solve(PNOPairs& pairs, const Tensor<double>& F_occ,
 				energy_ij_s[ij] = factor * eps_s;
 				energy_ij_t[ij] = factor * eps_t;
 				// Jacobi step on first iteration, KAIN afterwards
-				for (size_t a = 0; a != npno; ++a) {
-					for (size_t b = 0; b != npno; ++b) {
+				for (size_t a = 0; a != size_t(npno); ++a) {
+				  for (size_t b = 0; b != size_t(npno); ++b) {
 						const auto denom = (F_occ(i, i) + F_occ(j, j) + omega - fpno(a, a) - fpno(b, b));
 						rpno(a, b) = rpno(a, b) / denom; // rescale residue for kain update
 						if (iter == 0 || !(param.kain())) {
@@ -1949,15 +1949,15 @@ std::valarray<Tensor<double> > PNO::pno_compress(PNOPairs& pairs, const double t
 	// convenience assigmenet
 	auto& t2_ij=pairs.t_ij;
 	auto& pno_ij=pairs.pno_ij;
-	auto& W_ij_i=pairs.W_ij_i;
-	auto& W_ij_j=pairs.W_ij_j;
-	auto& W_ij=pairs.W_ij;
-	auto& S_ij_ik=pairs.S_ij_ik;
-	auto& S_ij_kj=pairs.S_ij_kj;
+	//auto& W_ij_i=pairs.W_ij_i;
+	//auto& W_ij_j=pairs.W_ij_j;
+	//auto& W_ij=pairs.W_ij;
+	//auto& S_ij_ik=pairs.S_ij_ik;
+	//auto& S_ij_kj=pairs.S_ij_kj;
 	const auto& nocc_act=pairs.nocc;
 	const auto& maxranks=pairs.maxranks_ij;
 
-	const auto npairs = ntri(nocc_act);
+	const auto npairs = PNOTensors::ntri(nocc_act);
 	std::valarray<Tensor<double> > evals_ij(npairs);
 	std::valarray<Tensor<double> > U_ij(npairs); // "unitary" rotations for each pair
 	for (ElectronPairIterator it = pit(); it; ++it) {
@@ -1999,10 +1999,10 @@ std::valarray<Tensor<double> > PNO::pno_compress(PNOPairs& pairs, const double t
 			msg << "tpno<0: no truncation\n";
 			npno = n;
 		}
-		if (npno > maxrank and maxrank>0)
+		if (npno > size_t(maxrank) and maxrank>0)
 			npno = maxrank;
 
-		if (npno != n && world.rank() == 0)
+		if (npno != size_t(n) && world.rank() == 0)
 			print(it.name() + ": # of PNOs reduced from ", n, " to ", npno, " maxrank=", maxrank);
 
 		bool emptypair = false;
@@ -2086,8 +2086,8 @@ PNOPairs PNO::transform_pairs(PNOPairs& pairs, const std::valarray<Tensor<double
 			const size_t k = kit.i();
 			{
 				const auto kj = f12.pit().tridx(k, j);
-				const auto ijk = f12.pit().tridx(ij, kj);
-				const auto swap_ij_kj = ij < kj;
+				//const auto ijk = f12.pit().tridx(ij, kj);
+				//const auto swap_ij_kj = ij < kj;
 				if (U_ij[kj].size() == 0 || U_ij[ij].size() == 0) {
 					S_ij_kj.set(i, j, k, Tensor<double>(std::vector<long>(2, 0)));
 				} else if (S_ij_kj.is_unique(i, j, k)) {
@@ -2099,8 +2099,8 @@ PNOPairs PNO::transform_pairs(PNOPairs& pairs, const std::valarray<Tensor<double
 			}
 			{
 				const auto ik = f12.pit().tridx(i, k);
-				const auto ijk = f12.pit().tridx(ij, ik);
-				const auto swap_ij_ik = ij < ik;
+				//const auto ijk = f12.pit().tridx(ij, ik);
+				//const auto swap_ij_ik = ij < ik;
 				if (U_ij[ik].size() == 0 || U_ij[ij].size() == 0) {
 					S_ij_ik.set(i, j, k, Tensor<double>(std::vector<long>(2, 0)));
 				} else if (S_ij_ik.is_unique(i, j, k)) {
@@ -2131,7 +2131,7 @@ void PNO::print_ranks(const PNOPairs& pairs)const{
 		sum+=rank;
 		++s;
 	}
-	const size_t lr=maxi;
+	//const size_t lr=maxi;
 	const double ar=double(sum)/double(s);
 	msg << "number of pairs="  << s << "\n";
 	msg << "average rank   ="  << sum/s << " ("<<ar<<")" << "\n";
@@ -2146,7 +2146,7 @@ bool PNO::update_pno(PNOPairs& pairs, const std::valarray<Tensor<double> >& rdm_
 	auto& pno_ij=pairs.pno_ij;
 	auto& W_ij_i=pairs.W_ij_i;
 	auto& W_ij_j=pairs.W_ij_j;
-	auto& W_ij=pairs.W_ij;
+	//auto& W_ij=pairs.W_ij;
 	auto& F_ij=pairs.F_ij;
 	auto& t2_ij=pairs.t_ij;
 	auto& S_ij_ik=pairs.S_ij_ik;
@@ -2156,8 +2156,8 @@ bool PNO::update_pno(PNOPairs& pairs, const std::valarray<Tensor<double> >& rdm_
 
 	bool converged = true;
 	// compute densities between coupled pairs
-	Tensor_IJ_IK<double> D_ij_ik(nocc_act); // f12.pit().tridx(ij,ik) -> D_{a_ij,b_ik}
-	Tensor_IJ_KJ<double> D_ij_kj(nocc_act); // f12.pit().tridx(ij,kj) -> D_{a_ij,b_kj}
+	PNOTensors::Tensor_IJ_IK<double> D_ij_ik(nocc_act); // f12.pit().tridx(ij,ik) -> D_{a_ij,b_ik}
+	PNOTensors::Tensor_IJ_KJ<double> D_ij_kj(nocc_act); // f12.pit().tridx(ij,kj) -> D_{a_ij,b_kj}
 	{
 		TIMER(time);
 		for (ElectronPairIterator it = pit(); it; ++it) {
@@ -2332,7 +2332,7 @@ bool PNO::update_pno(PNOPairs& pairs, const std::valarray<Tensor<double> >& rdm_
 	std::vector<double> allR;
 	while(allR.size()<allP.size()){
 		const auto dist=std::distance(itVP,allVP.end());
-		if(chunk>dist) chunk=dist;
+		if(chunk>size_t(dist)) chunk=dist;
 		// include the nuclear potential
 		auto Vtmp=vector_real_function_3d(itVP,itVP+chunk);
 		Vtmp+=(V(vector_real_function_3d(itP,itP+chunk)));
@@ -2394,7 +2394,7 @@ bool PNO::update_pno(PNOPairs& pairs, const std::valarray<Tensor<double> >& rdm_
 std::vector<PNO::poperatorT> PNO::make_bsh_operators(World& world, const tensorT& evals) const
 {
 	PROFILE_MEMBER_FUNC (SCF);
-	int nmo = evals.dim(0);
+	//int nmo = evals.dim(0);
 	std::vector<poperatorT> ops(evals.size());
 	double tol = param.op_thresh();
 	for (int i = 0;i < evals.size();++i) {
