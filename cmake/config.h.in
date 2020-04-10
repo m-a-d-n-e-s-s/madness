@@ -44,7 +44,10 @@
 #cmakedefine HAVE_INT64_T 1
 #cmakedefine HAVE_LONG_LONG 1
 /* Define to `int' if <sys/types.h> does not define. */
-#cmakedefine pid_t int
+#cmakedefine SYS_TYPES_H_HAS_PID_T 1
+#if !defined(SYS_TYPES_H_HAS_PID_T)
+# define pid_t int
+#endif
 
 /* Define MADNESS has access to the library. */
 #cmakedefine HAVE_ACML 1
