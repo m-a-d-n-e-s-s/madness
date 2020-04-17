@@ -30,7 +30,8 @@ if(ENABLE_MPI)
     message(FATAL_ERROR "No suitable MPI compiler was not found.")
   endif()
   # will hardwire to particular mpi.h to avoid the issues with CPATH defined by Intel MPI envvar script overriding mpi.h in system dirs
-  get_filename_component(MADNESS_MPI_HEADER ./mpi.h ABSOLUTE BASE_DIR ${MPI_HEADER_DIR})
+  get_filename_component(MADNESS_MPI_HEADER "${MPI_HEADER_DIR}/mpi.h" ABSOLUTE)
+  message(STATUS "MPI main header: ${MADNESS_MPI_HEADER}")
 
   # filter out -pthread from COMPILE and LINK flags, use Threads::Threads instead
   # this is to avoid issues later consuming madness targets in codes using CUDA
