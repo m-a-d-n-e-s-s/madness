@@ -35,7 +35,7 @@ if(ENABLE_MPI)
   elseif (EXISTS MPI_INCLUDE_PATH)
     get_filename_component(MADNESS_MPI_HEADER "${MPI_INCLUDE_PATH}/mpi.h" ABSOLUTE)
   else()
-    set(MADNESS_MPI_HEADER "<mpi.h>" CACHE STRING "Path to the main MPI header")
+    set(MADNESS_MPI_HEADER "mpi.h" CACHE STRING "Path to the main MPI header")
   endif()
   message(STATUS "MPI main header: ${MADNESS_MPI_HEADER}")
 
