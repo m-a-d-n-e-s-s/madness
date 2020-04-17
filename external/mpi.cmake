@@ -29,8 +29,16 @@ if(ENABLE_MPI)
   else()
     message(FATAL_ERROR "No suitable MPI compiler was not found.")
   endif()
+  message(STATUS "MPI include path: ${MPI_INCLUDE_PATH}")
+  message(STATUS "MPI header dir: ${MPI_HEADER_DIR}")
   # will hardwire to particular mpi.h to avoid the issues with CPATH defined by Intel MPI envvar script overriding mpi.h in system dirs
-  get_filename_component(MADNESS_MPI_HEADER "${MPI_HEADER_DIR}/mpi.h" ABSOLUTE)
+  if (EXISTS MPI_HEADER_DIR)
+    get_filename_component(MADNESS_MPI_HEADER "${MPI_HEADER_DIR}/mpi.h" ABSOLUTE)
+  elseif (EXISTS MPI_INCLUDE_PATH)
+    get_filename_component(MADNESS_MPI_HEADER "${MPI_INCLUDE_PATH}/mpi.h" ABSOLUTE)
+  else()
+    message(FATAL_ERROR "Could not locate the mpi.h header")
+  endif()
   message(STATUS "MPI main header: ${MADNESS_MPI_HEADER}")
 
   # filter out -pthread from COMPILE and LINK flags, use Threads::Threads instead
