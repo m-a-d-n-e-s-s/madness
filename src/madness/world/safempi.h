@@ -52,7 +52,12 @@
 //#undef SEEK_END
 //#endif
 
-#include <mpi.h>
+#ifdef MADNESS_MPI_HEADER
+# include MADNESS_MPI_HEADER
+#else
+# include <mpi.h>
+#endif
+
 #endif
 
 
