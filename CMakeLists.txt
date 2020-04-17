@@ -390,10 +390,7 @@ check_cxx_source_compiles(
     "
     #include <sys/types.h>
     int main() { typedef pid_t test_t; return 0; }
-    " CHECK_SYS_TYPES_H_HAS_PID_T)
-if(NOT CHECK_SYS_TYPES_H_HAS_PID_T)
-  set(pid_t 1)
-endif()
+    " SYS_TYPES_H_HAS_PID_T)
 
 # Check function support
 check_function_exists(memset HAVE_MEMSET)
