@@ -284,6 +284,7 @@ public:
 
 	    for (int idim=0; idim<3; ++idim) {
 	    	real_derivative_3d D(world,idim);
+	    	if(calc->param.dft_deriv() == "bspline") D.set_bspline1();
 	    	vecfuncT nemo_copy=copy(world,nemo);
 	    	refine(world,nemo_copy);
 	    	std::vector<real_function_3d> dnemo=apply(world,D,nemo_copy);
