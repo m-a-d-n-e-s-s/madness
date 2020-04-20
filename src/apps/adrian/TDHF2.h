@@ -85,7 +85,7 @@ public:
 /// the function looks like
 /// \[
 /// f(r) = x^i y^j .. z^k exp(-alpha r^2)
-/// \]
+/// j\]
 template<std::size_t NDIM>
 class GaussianGuess : public FunctionFunctorInterface<double,NDIM> {
     typedef Vector<double,NDIM> coordT;
@@ -136,6 +136,7 @@ class TDHF
       // GroundParameter object to hold all variables needed from
       // ground state calculation. Read from an archive
       GroundParameters Gparams;
+
 
       // Tensors for holding energies 
       // residuals, and shifts
