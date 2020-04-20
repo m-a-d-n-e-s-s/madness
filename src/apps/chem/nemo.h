@@ -550,9 +550,10 @@ protected:
 public:
     NemoCalculationParameters param;
 
-private:
-	projector_irrep symmetry_projector;
+protected:
+    projector_irrep symmetry_projector;
 
+private:
 	mutable double ttt, sss;
 	void START_TIMER(World& world) const {
 	    world.gop.fence(); ttt=wall_time(); sss=cpu_time();

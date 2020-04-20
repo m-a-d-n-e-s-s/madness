@@ -134,7 +134,7 @@ double OEP::compute_and_print_final_energies(const std::string model, const real
 	}
 	Tensor<double> f_pp = compute_fock_diagonal_elements(calc->aeps, KS_nemo, Knemo, Voep);
 
-	print("KS Fock matrix elements using Voep/virial ", calc->aeps);
+//	print("KS Fock matrix elements using Voep/virial ", calc->aeps);
 	print("KS Fock matrix elements using K operator  ", f_pp);
 
 	return Econv;
@@ -172,7 +172,15 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 	for (int iter = 0; iter < oep_param.maxiter(); ++iter) {
 //		print("\n     ***", model, "iteration", iter, "***\n");
 
-	    if (calc->param.do_localize()) KS_nemo=localize(KS_nemo,calc->param.econv(),iter==0);
+	    if (calc->param.do_localize()) {
+	    	for (int i=0; i<KS_nemo.size(); ++i) calc->aeps(i)=F(i,i);
+	    	KS_nemo=localize(KS_nemo,calc->param.econv(),iter==0);
+	    }
+	    if (do_symmetry()) {
+		    std::vector<std::string> str_irreps;
+	    	KS_nemo=symmetry_projector(KS_nemo,R_square,str_irreps);
+		    if (world.rank()==0) print("orbital irreps",str_irreps);
+	    }
 
 	    // compute parts of the KS Fock matrix J, Unuc and Voep
 		vecfuncT Jnemo, Unemo, Fnemo;
