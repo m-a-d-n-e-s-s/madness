@@ -1,0 +1,14 @@
+[
+
+    {
+      "name": "Madness with GCC 8.1.0 ",
+      "compilers": {
+        "C": "/gpfs/software/gcc/8.1.0/bin/gcc",
+        "CXX": "/gpfs/software/gcc/8.1.0/bin/g++"
+      }
+
+    }
+
+
+  ]
+  
