@@ -3,7 +3,10 @@
         {
             "name": "Linux",
             "includePath": [
-                "${workspaceFolder}/**"
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/src",
+                "${workspaceFolder}/**",
+                "/gpfs/projects/rjh/libxc-3.0.0/include"
             ],
             "defines": [],
             "compilerPath": "/gpfs/software/gcc/8.1.0/bin/gcc",
