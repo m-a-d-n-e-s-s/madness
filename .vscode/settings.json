@@ -20,6 +20,10 @@
     "cmake.environment": {
         "MKLROOT": "/gpfs/software/intel/parallel-studio-xe/2018_2/compilers_and_libraries/linux/mkl",
         "TBBROOT": "/gpfs/software/intel/parallel-studio-xe/2018_2/tbb"
+    },
+    "files.associations": {
+        "*.tex": "latex",
+        "*.tcc": "cpp"
     }
     
 }
