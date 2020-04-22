@@ -175,6 +175,7 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 	    if (calc->param.do_localize()) {
 	    	for (int i=0; i<KS_nemo.size(); ++i) calc->aeps(i)=F(i,i);
 	    	KS_nemo=localize(KS_nemo,calc->param.econv(),iter==0);
+	    	if (calc->param.print_level()>=10) calc->analyze_vectors(world,KS_nemo,calc->aocc,tensorT(),calc->aset);
 	    }
 	    if (do_symmetry()) {
 		    std::vector<std::string> str_irreps;
@@ -290,6 +291,7 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 
 		BSHApply<double,3> bsh_apply(world);
 		bsh_apply.metric=R_square;
+		bsh_apply.levelshift=oep_param.levelshift();
 		bsh_apply.lo=get_calc()->param.lo();
 		bsh_apply.do_coupling=calc->param.do_localize();
 		auto [residual,eps_update] =bsh_apply(KS_nemo,F,Fnemo);

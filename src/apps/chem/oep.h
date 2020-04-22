@@ -81,7 +81,8 @@ public:
 	OEP_Parameters(World& world, std::string inputfile) {
 
 		initialize<std::string>("model","dcep","comment on this",{"oaep","ocep","dcep","mrks"});
-		initialize<unsigned int>("maxiter",250,"maximum number of iterations in OEP algorithm");
+		initialize<unsigned int>("maxiter",150,"maximum number of iterations in OEP algorithm");
+		initialize<double>("levelshift",0.0,"shift occupied orbital energies in the BSH operator");
 //		initialize<double>("conv_threshold",1.e-5,"comment on this");
 		initialize<double>("density_threshold_high",1.e-6,"comment on this");
 		initialize<double>("density_threshold_low",1.e-8,"comment on this");
@@ -110,6 +111,10 @@ public:
 		}
     	set_derived_value("density_threshold_inv",0.1*get<double>("density_threshold_low"));
 
+    	if (levelshift()>0.0) {
+    		print("levelshift > 0.0 in oep parameters\n\n");
+    		MADNESS_EXCEPTION("levelshift > 0.0 in oep parameters",1);
+    	}
 	}
 
 	// convenience functions
@@ -120,6 +125,7 @@ public:
 	bool is_mrks() const {return (get<std::string>("model")=="mrks");}
 
 	unsigned int maxiter() const {return get<unsigned int>("maxiter");}
+	double levelshift() const {return get<double>("levelshift");}
 //	double conv_thresh() const {return get<double>("conv_threshold");}
 	double dens_thresh_hi() const {return get<double>("density_threshold_high");}
 	double dens_thresh_lo() const {return get<double>("density_threshold_low");}
