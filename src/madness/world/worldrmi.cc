@@ -402,7 +402,7 @@ namespace madness {
                 new (tbb::task::allocate_root()) tbb::empty_task;
             tbb_rmi_parent_task->set_ref_count(2);
             task_ptr = new (tbb_rmi_parent_task->allocate_child()) RmiTask(comm);
-            tbb::task::enqueue(*task_ptr, tbb::priority_high);
+            tbb::task::enqueue(*task_ptr);
 
             task_ptr->comm.Barrier();
 
@@ -424,7 +424,7 @@ namespace madness {
               for (int i = 0; i < NEMPTY; i++) {
                 tbb::task* empty =
                     new (empty_root->allocate_child()) tbb::empty_task;
-                tbb::task::enqueue(*empty, tbb::priority_high);
+                tbb::task::enqueue(*empty);
                 ++binge_counter;
               }
               myusleep(100000);
