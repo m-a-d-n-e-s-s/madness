@@ -425,6 +425,7 @@ namespace madness {
                 tbb::task* empty =
                     new (empty_root->allocate_child()) tbb::empty_task;
                 tbb::task::enqueue(*empty);
+#endif  // MADNESS_CAN_USE_TBB_PRIORITY
                 ++binge_counter;
               }
               myusleep(100000);
