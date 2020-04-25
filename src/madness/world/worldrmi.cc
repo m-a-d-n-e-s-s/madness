@@ -402,7 +402,11 @@ namespace madness {
                 new (tbb::task::allocate_root()) tbb::empty_task;
             tbb_rmi_parent_task->set_ref_count(2);
             task_ptr = new (tbb_rmi_parent_task->allocate_child()) RmiTask(comm);
+#ifdef MADNESS_CAN_USE_TBB_PRIORITY
+            tbb::task::enqueue(*task_ptr, tbb::priority_high);
+#else
             tbb::task::enqueue(*task_ptr);
+#endif  // MADNESS_CAN_USE_TBB_PRIORITY
 
             task_ptr->comm.Barrier();
 
@@ -424,6 +428,9 @@ namespace madness {
               for (int i = 0; i < NEMPTY; i++) {
                 tbb::task* empty =
                     new (empty_root->allocate_child()) tbb::empty_task;
+#ifdef MADNESS_CAN_USE_TBB_PRIORITY
+                tbb::task::enqueue(*empty, tbb::priority_high);
+#else
                 tbb::task::enqueue(*empty);
 #endif  // MADNESS_CAN_USE_TBB_PRIORITY
                 ++binge_counter;
