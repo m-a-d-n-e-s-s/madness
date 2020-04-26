@@ -8,7 +8,7 @@ if (ENABLE_TBB)
 
   # if user set MADNESS_EXPLOIT_TBB_PRIORITY to ON:
   # check if task priorities are supported (albeit deprecated) and whether they need macro __TBB_TASK_PRIORITY to be defined
-  if (NOT MADNESS_EXPLOIT_TBB_PRIORITY)
+  if (MADNESS_EXPLOIT_TBB_PRIORITY)
     cmake_push_check_state()
     set(CMAKE_REQUIRED_INCLUDES ${TBB_INCLUDE_DIRS})
     if (TBB_USE_DEBUG AND TBB_LIBRARIES_DEBUG)
