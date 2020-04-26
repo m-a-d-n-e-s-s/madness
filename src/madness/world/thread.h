@@ -1324,11 +1324,12 @@ namespace madness {
             __dague_schedule(parsec->virtual_processes[0]->execution_units[0], context);
             //////////// Parsec Related End ////////////////////
 #elif HAVE_INTEL_TBB
-            if(task->is_high_priority()) {
-                tbb::task::spawn(*task);
-            } else {
+#ifdef MADNESS_CAN_USE_TBB_PRIORITY
+            if(task->is_high_priority())
+                tbb::task::enqueue(*task, tbb::priority_high);
+            else
+#endif  // MADNESS_CAN_USE_TBB_PRIORITY
                 tbb::task::enqueue(*task);
-            }
 #else
             if (!task) MADNESS_EXCEPTION("ThreadPool: inserting a NULL task pointer", 1);
             int task_threads = task->get_nthread();

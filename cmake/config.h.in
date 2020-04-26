@@ -52,6 +52,7 @@
 /* Define MADNESS has access to the library. */
 #cmakedefine HAVE_ACML 1
 #cmakedefine HAVE_INTEL_TBB 1
+#cmakedefine MADNESS_CAN_USE_TBB_PRIORITY 1
 #cmakedefine HAVE_PARSEC 1
 #cmakedefine HAVE_INTEL_MKL 1
 #cmakedefine HAVE_PAPI 1
