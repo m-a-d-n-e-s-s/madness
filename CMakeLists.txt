@@ -568,6 +568,7 @@ if (DEFINED ELEMENTAL_TAG)
 endif (DEFINED ELEMENTAL_TAG)
 
 # Add project subdirectories ===================================================
+add_custom_target_subproject(madness numerical-examples)
 
 # Create build and install libraries libraries
 add_custom_target(madness-libraries)

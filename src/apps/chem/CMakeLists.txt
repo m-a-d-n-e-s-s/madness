@@ -72,12 +72,12 @@ if(ENABLE_UNITTESTS)
   set(CHEM_TEST_SOURCES test_SCFOperators.cc test_dft.cc test_pointgroupsymmetry.cc test_masks_and_boxes.cc
   test_QCCalculationParametersBase.cc test_qc.cc test_MolecularOrbitals.cc)
   
-  add_unittests(chem "${CHEM_TEST_SOURCES}" "MADchem;MADgtest")
+  add_unittests(chem "${CHEM_TEST_SOURCES}" "MADchem;MADgtest;MADgit")
   
   # Create other test executables not included in the unit tests
   set(CHEM_OTHER_TESTS testxc)
   foreach(_test ${CHEM_OTHER_TESTS})  
-    add_mad_executable(${_test} "${_test}.cc" "MADchem")
+    add_mad_executable(${_test} "${_test}.cc" "MADchem;MADgit")
   endforeach()
   
 endif()
