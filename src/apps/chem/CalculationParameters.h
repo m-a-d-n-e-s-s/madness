@@ -62,7 +62,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<double>("econv",1.e-5,"energy convergence");
 		initialize<double>("dconv",1.e-4,"density convergence");
 		initialize<bool>  ("converge_each_energy",false,"converge all fock operator components");
-		initialize<int>   ("k",7,"polynomial order");
+		initialize<int>   ("k",-1,"polynomial order");
 		initialize<double>("l",20,"user coordinates box size");
 		initialize<std::string>("deriv","abgv","derivative method",{"abgv","bspline","ble"});
 		initialize<std::string>("dft_deriv","abgv","derivative method for gga potentials",{"abgv","bspline","ble"});
@@ -246,9 +246,13 @@ struct CalculationParameters : public QCCalculationParametersBase {
 
 
         std::vector<double> proto=get<std::vector<double> >("protocol");
-        proto.back()=get<double>("econv");
-		set_derived_value("protocol",proto);
-		set_derived_value("dconv",sqrt(get<double>("econv"))*0.1);
+	// No ... The accuracy of computation is INDEPENDENT of the convergence requirement
+	// --- actually need more precision than convergence threshold in order to have
+	// variational principle working and for robust convergence
+        //proto.back()=get<double>("econv");
+	set_derived_value("protocol",proto);
+	// No ... the energy is variational!  Don't need more accuracy in dconv --- in fact the opposite is true.
+	// set_derived_value("dconv",sqrt(get<double>("econv"))*0.1);
 
         double z = molecule.total_nuclear_charge();
         const double charge=get<double>("charge");
