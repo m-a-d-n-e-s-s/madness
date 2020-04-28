@@ -154,6 +154,7 @@ int run_all_calculations(World& world, const std::vector<CalculationParameters>&
         write_test_input test_input(cp,"lih");
 
         SCF calc(world,test_input.filename().c_str());
+        calc.set_protocol<3>(world, 1e-4);
         MolecularEnergy ME(world, calc);
         double energy=ME.value(calc.molecule.get_all_coords().flat()); // ugh!
         print("energy(LiH)",energy);
@@ -168,11 +169,12 @@ int run_all_calculations(World& world, const std::vector<CalculationParameters>&
 
 int main(int argc, char** argv) {
     madness::initialize(argc, argv);
+    int result=0;
+    {
 
     madness::World world(SafeMPI::COMM_WORLD);
     world.gop.fence();
     startup(world,argc,argv);
-    int result=0;
 
     // default set of parameters for closed shell
     CalculationParameters cparam;
@@ -192,15 +194,24 @@ int main(int argc, char** argv) {
     		TestCalculationParameters tparam(cparam);
 			tparam.set_user_defined_value("maxiter",1);
 
-			tparam.extend_parameters<double>("econv",{1.e-4,1.e-5}); // default and higher accuracy
-			tparam.extend_parameters<std::string>("localize",{"canon","boys","new"});
-			tparam.extend_parameters<bool>("spin_restricted",{false});
-			tparam.extend_parameters<bool>("no_orient",{true});
-			tparam.extend_parameters<bool>("derivatives",{true,false});
-			tparam.extend_parameters<bool>("dipole",{true});
-			tparam.extend_parameters<std::string>("xc",{"hf","lda"});
-			tparam.extend_parameters<int>("k",{8});
-			tparam.extend_parameters<double>("l",{25.0});
+                        bool small = true;
+                        if (small) {
+                            tparam.extend_parameters<double>("econv",{1.e-4});
+                            tparam.extend_parameters<bool>("derivatives",{true}); // ,false
+                            tparam.extend_parameters<int>("k",{6});
+                            tparam.extend_parameters<double>("l",{25.0});
+                        }
+                        else {
+                            tparam.extend_parameters<double>("econv",{1.e-4,1.e-5}); // default and higher accuracy
+                            tparam.extend_parameters<std::string>("localize",{"canon","boys","new"}); //
+                            tparam.extend_parameters<bool>("spin_restricted",{false});
+                            tparam.extend_parameters<bool>("no_orient",{true});
+                            tparam.extend_parameters<bool>("derivatives",{true,false}); //
+                            tparam.extend_parameters<bool>("dipole",{true});
+                            tparam.extend_parameters<std::string>("xc",{"hf","lda"}); // 
+                            tparam.extend_parameters<int>("k",{6});
+                            tparam.extend_parameters<double>("l",{25.0});
+                        }
 
 			std::vector<CalculationParameters> all_singles=tparam.make_all_parameter_singles();
 			run_all_calculations(world, all_singles);
@@ -223,7 +234,7 @@ int main(int argc, char** argv) {
 
 //    std::vector<CalculationParameters> all_doubles=tparam.make_all_parameter_doubles();
 //    run_all_calculations(world, all_doubles);
-
+    }
     madness::finalize();
     return result;
 }

@@ -375,7 +375,7 @@ public:
 		} else {
 			FunctionDefaults<NDIM>::set_k(param.k());
 		}
-		// don't forget to adapt the molecular smoothing parameter!!
+		// don't forget to adapt the molecular smoothing parameter!! NO ... it is independent
 		//        molecule.set_eprec(std::min(thresh,molecule.get_eprec()));
 		FunctionDefaults<NDIM>::set_thresh(thresh);
 		FunctionDefaults<NDIM>::set_refine(true);
