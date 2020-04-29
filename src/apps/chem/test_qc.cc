@@ -170,6 +170,8 @@ int run_all_calculations(World& world, const std::vector<CalculationParameters>&
 int main(int argc, char** argv) {
     madness::initialize(argc, argv);
     int result=0;
+    bool small = true;
+    
     {
 
     madness::World world(SafeMPI::COMM_WORLD);
@@ -194,12 +196,11 @@ int main(int argc, char** argv) {
     		TestCalculationParameters tparam(cparam);
 			tparam.set_user_defined_value("maxiter",1);
 
-                        bool small = true;
                         if (small) {
                             tparam.extend_parameters<double>("econv",{1.e-4});
-                            tparam.extend_parameters<bool>("derivatives",{true}); // ,false
-                            tparam.extend_parameters<int>("k",{6});
-                            tparam.extend_parameters<double>("l",{25.0});
+                            //tparam.extend_parameters<bool>("derivatives",{true}); // ,false
+                            //tparam.extend_parameters<int>("k",{6});
+                            //tparam.extend_parameters<double>("l",{25.0});
                         }
                         else {
                             tparam.extend_parameters<double>("econv",{1.e-4,1.e-5}); // default and higher accuracy
@@ -218,6 +219,7 @@ int main(int argc, char** argv) {
     	}
 
     	// need to modify two parameters for this test
+        if (! small)
     	{
     		// store the variations of the default set
 			TestCalculationParameters tparam(cparam);
