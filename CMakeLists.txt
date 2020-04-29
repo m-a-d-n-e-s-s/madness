@@ -83,6 +83,9 @@ option(ENABLE_LIBXC "Enables use of the libxc library of density functionals" ON
 option(ENABLE_PCM "Enables use of the polarizable continuum model library" ON)
 
 redefaultable_option(ENABLE_TBB "Enables use of Intel Thread Building Blocks (TBB) as the task scheduler" ON)
+if (ENABLE_TBB)
+  redefaultable_option(MADNESS_EXPLOIT_TBB_PRIORITY "Enables use of Intel TBB task priorities" OFF)
+endif(ENABLE_TBB)
 option(ENABLE_PARSEC "Enables use of PaRSEC as the task scheduler" OFF)
 if(ENABLE_PARSEC AND ENABLE_TBB)
   message(FATAL_ERROR "TBB and PaRSEC cannot be both enabled.")
@@ -390,10 +393,7 @@ check_cxx_source_compiles(
     "
     #include <sys/types.h>
     int main() { typedef pid_t test_t; return 0; }
-    " CHECK_SYS_TYPES_H_HAS_PID_T)
-if(NOT CHECK_SYS_TYPES_H_HAS_PID_T)
-  set(pid_t 1)
-endif()
+    " SYS_TYPES_H_HAS_PID_T)
 
 # Check function support
 check_function_exists(memset HAVE_MEMSET)

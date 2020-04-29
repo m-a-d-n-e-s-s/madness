@@ -126,6 +126,7 @@ Intel Threading Building Blocks (TBB):
       search path is ${TBB_ROOT_DIR}/(lib/intel64/gcc4.4|lib) on Linux and
       ${TBB_ROOT_DIR}/(lib/libc++|lib) on OS X, if TBB_ROOT_DIR is specified in
       the configure command.
+* MADNESS_EXPLOIT_TBB_PRIORITY --- If ON, MADNESS will try to use Intel TBB task priorities [default=OFF]
 
 If TBB_ROOT_DIR is not given, it will be set to the value of the TBBROOT environment variable if it is set.
 
