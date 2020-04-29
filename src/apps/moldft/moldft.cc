@@ -106,7 +106,7 @@ START_TIMER(world);
 END_TIMER(world, "initialize");
         // Come up with an initial OK data map
         if (world.size() > 1) {
-          calc.set_protocol<3>(world,calc.param.econv());
+          calc.set_protocol<3>(world,1e-4);
           calc.make_nuclear_potential(world);
           calc.initial_load_bal(world);
         }
