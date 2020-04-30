@@ -63,6 +63,12 @@ set(MADNESS_INSTALL_DOCDIR "share/doc/madness"
 set(MADNESS_INSTALL_CMAKEDIR "lib/cmake/madness"
     CACHE PATH "MADNESS CMAKE install directory")
 
+# Build options  ==============================================================
+
+option(ENABLE_APPS "Enable building src/apps" ON)
+option(ENABLE_EXAMPLES "Enable building src/examples" ON)
+option(ENABLE_WORLD_ONLY "Build only MADworld" OFF)
+
 # Enable optional libraries ====================================================
 
 # Always search for libraries that are 'ON' by default. If a library is not

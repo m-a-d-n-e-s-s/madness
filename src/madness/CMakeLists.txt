@@ -12,17 +12,21 @@ elseif (MADNESS_HAS_ELEMENTAL)
       ${ELEMENTAL_BINARY_DIR}/include)
 endif ()
 
-add_subdirectory(world)
-add_subdirectory(misc)
-add_subdirectory(tensor)
-add_subdirectory(mra)
-
+if(ENABLE_WORLD_ONLY)
+	add_subdirectory(world)
+	add_library(madness $<TARGET_OBJECTS:MADworld-obj>)
+else()
+	add_subdirectory(world)
+	add_subdirectory(misc)
+	add_subdirectory(tensor)
+	add_subdirectory(mra)
 # Create the super library that contains all MADNESS libraries
-add_library(madness
-    $<TARGET_OBJECTS:MADworld-obj> $<TARGET_OBJECTS:MADmisc-obj>
-    $<TARGET_OBJECTS:MADtensor-obj> ${MADTENSOR_MTXMQ_OBJ}
-    $<TARGET_OBJECTS:MADlinalg-obj> $<TARGET_OBJECTS:MADmuparser-obj>
-    $<TARGET_OBJECTS:MADtinyxml-obj> $<TARGET_OBJECTS:MADmra-obj>)
+	add_library(madness
+    	$<TARGET_OBJECTS:MADworld-obj> $<TARGET_OBJECTS:MADmisc-obj>
+    	$<TARGET_OBJECTS:MADtensor-obj> ${MADTENSOR_MTXMQ_OBJ}
+    	$<TARGET_OBJECTS:MADlinalg-obj> $<TARGET_OBJECTS:MADmuparser-obj>
+    	$<TARGET_OBJECTS:MADtinyxml-obj> $<TARGET_OBJECTS:MADmra-obj>)
+endif()
 
 # Set the dependencies for the super-library
 if(CXX11_COMPILE_FLAG)
