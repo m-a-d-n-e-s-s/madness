@@ -58,6 +58,9 @@ if(TBB_FOUND)
   else()
     target_link_libraries(madness PUBLIC ${TBB_LIBRARIES_RELEASE})
   endif()
+  if (TBB_COMPILE_FLAGS)
+    target_compile_definitions(madness PUBLIC "${TBB_COMPILE_FLAGS}")
+  endif(TBB_COMPILE_FLAGS)
 endif()
 if(PARSEC_FOUND)
   target_include_directories(madness PUBLIC ${PARSEC_INCLUDE_DIRS})
@@ -92,7 +95,7 @@ endif(LAPACK_COMPILE_DEFINITIONS)
 install(FILES constants.h fortran_ctypes.h madness_config.h ${CMAKE_CURRENT_BINARY_DIR}/config.h
     DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}/madness"
     COMPONENT common)
-add_custom_target(install-common
+add_custom_target(install-madness-common
      COMMAND ${CMAKE_COMMAND} -DCOMPONENT=common -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
      COMMENT "Installing common library components"
      USES_TERMINAL)
@@ -105,6 +108,6 @@ add_custom_target(install-madness
     COMMAND ${CMAKE_COMMAND} -DCOMPONENT=madness -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
     COMMENT "Installing madness library components"
     USES_TERMINAL)
-add_dependencies(install-madness madness)
-add_dependencies(install-madness install-common)
-add_dependencies(install-libraries install-madness)
+#add_dependencies(install-madness madness)
+add_dependencies(install-madness install-madness-common)
+add_dependencies(install-madness-libraries install-madness)

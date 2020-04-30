@@ -41,7 +41,7 @@
 
 using namespace madness;
 
-bool smalltest = false;
+bool smalltest = true;
 
 template <typename T, std::size_t NDIM>
 class Gaussian : public FunctionFunctorInterface<T,NDIM> {

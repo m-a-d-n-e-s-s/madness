@@ -76,7 +76,7 @@ namespace madness {
     ThreadPool* ThreadPool::instance_ptr = 0;
     double ThreadPool::await_timeout = 900.0;
 #if HAVE_INTEL_TBB
-    tbb::task_scheduler_init* ThreadPool::tbb_scheduler = 0;
+    std::unique_ptr<tbb::global_control> ThreadPool::tbb_control = nullptr;
 #endif
 #ifdef MADNESS_TASK_PROFILING
     Mutex profiling::TaskProfiler::output_mutex_;
@@ -381,17 +381,12 @@ namespace madness {
         if(nthreads < 1)
             nthreads = 1;
 
-        if (SafeMPI::COMM_WORLD.Get_size() > 1) {
-            // There are nthreads+2 because the main and communicator thread
-            // are counted as part of tbb.
-            tbb_scheduler = new tbb::task_scheduler_init(nthreads+2);
-        }
-        else {
-            // There are nthreads+1 because the main
-            // is counted as part of tbb.
-            tbb_scheduler = new tbb::task_scheduler_init(nthreads+1);
-
-        }
+        //  nranks > 1: there are nthreads+2 because the main and communicator thread
+        //              are counted as part of tbb.
+        // nranks == 1: there are nthreads+1 because the main
+        //              is counted as part of tbb.
+        const int num_tbb_threads = (SafeMPI::COMM_WORLD.Get_size() > 1) ? nthreads + 2 : nthreads + 1;
+        tbb_control = std::make_unique<tbb::global_control>(tbb::global_control::max_allowed_parallelism, num_tbb_threads);
 #else
 
         try {

@@ -579,7 +579,10 @@ namespace madness{
       if(no_compute_response) std::cout << "no_compute for excited-state";
       std::cout << "Excitations to optimize are:\n";
       if(excitations_.empty()) std::cout << "All" << "\n";
-      else std::cout << excitations_ <<"\n\n\n";
+      else {
+        using madness::operators::operator<<;
+        std::cout << excitations_ <<"\n\n\n";
+      }
     }
   }
 

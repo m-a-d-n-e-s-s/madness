@@ -1,7 +1,7 @@
 /*
   This file is part of MADNESS.
 
-  Copyright (C) 2007,2010 Oak Ridge National Laboratory
+  Copyright (C) 2019 Virginia Tech
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -27,27 +27,37 @@
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
 */
 
-#ifndef MADNESS_WORLD_POSIXMEM_H__INCLUDED
-#define MADNESS_WORLD_POSIXMEM_H__INCLUDED
+/**
+ \file archive.cc
+ \brief Definitions of serialization functions
+ \ingroup serialization
+*/
 
-/// \file world/posixmem.h
-/// \brief Implement dummy posix_memalign if it is missing on the system.
+#include <cstring>
+#include <cstddef>
 
-#include <madness/madness_config.h>
+#include <madness/world/archive.h>
 
-#if !HAVE_POSIX_MEMALIGN
-#include <sys/errno.h>
-inline int posix_memalign(void **memptr, std::size_t alignment, std::size_t size) {
-    *memptr=malloc(size);
-    if (*memptr) return 0;
-    else return ENOMEM;
+namespace madness {
+namespace archive {
+
+namespace detail {
+struct Ref {
+  void fn() {}
+};
+}  // namespace detail
+
+std::ptrdiff_t fn_ptr_origin() {
+  static const std::ptrdiff_t result = []() {
+    std::ptrdiff_t ptr;
+    const auto ref_fn_ptr = &detail::Ref::fn;
+    std::memcpy(&ptr, &ref_fn_ptr, sizeof(std::ptrdiff_t));
+    return ptr;
+  }();
+  return result;
 }
-#elif MISSING_POSIX_MEMALIGN_PROTO
-extern "C"  int posix_memalign(void **memptr, std::size_t alignment, std::size_t size);
-#endif
 
-#endif // MADNESS_WORLD_POSIXMEM_H__INCLUDED
+}  // namespace archive
+}  // namespace madness

@@ -43,7 +43,7 @@ void Zcis::iterate(std::vector<root>& roots) const {
 	print("nelectron from the total density",nelectron);
 	totdens.print_size("totdens");
 
-	const double shift=nemo->param.shift();
+	//const double shift=nemo->param.shift();
 	const bool use_kain=true;
 
 	XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator<double_complex,3> >
@@ -55,8 +55,8 @@ void Zcis::iterate(std::vector<root>& roots) const {
 		wall0=wall1;
 		print("root     energy         wf delta      energy change ");
 
-		for (int i=0; i<roots.size(); ++i)
-			printf("  %2d   %12.8f     %4.2e      %5.2e\n",i, roots[i].omega, roots[i].delta, roots[i].energy_change);
+		for (size_t i=0; i<roots.size(); ++i)
+			printf("  %2lu   %12.8f     %4.2e      %5.2e\n",i, roots[i].omega, roots[i].delta, roots[i].energy_change);
 
 		bool do_kain=use_kain and (iter>cis_param.guess_maxiter());
 		if (not do_kain) allsolver.clear_subspace();	// fock_pt diag reshuffles the roots and confuses solver
@@ -153,7 +153,7 @@ void Zcis::compute_potentials(std::vector<root>& roots, const real_function_3d& 
 	// some numbers
 	const int anoct=noct(nemo->aeps).size();
 	const int bnoct=noct(nemo->beps).size();
-	const int noct=anoct+bnoct;
+	//const int noct=anoct+bnoct;
 
 	for (int iroot=0; iroot<cis_param.guess_excitations(); ++iroot) {
 		root& thisroot=roots[iroot];
@@ -427,7 +427,7 @@ std::vector<Zcis::root> Zcis::make_guess() const {
 	// assemble the guess vectors
 
 	std::vector<complex_function_3d> abvirtuals=append(avirtuals,bvirtuals);
-	int nvirt = abvirtuals.size();
+	//int nvirt = abvirtuals.size();
 	int nva=avirtuals.size();
 	int nvb=bvirtuals.size();
 	auto get_vir_idx_a = [nva](int I) {return I%nva;};
@@ -447,8 +447,8 @@ std::vector<Zcis::root> Zcis::make_guess() const {
 //	print(Ub);
 
 
-	for (size_t I = 0, iexcitation=0; I < MCIS.dim(1); ++I, iexcitation++) {
-		if (iexcitation >= cis_param.guess_excitations()) break;
+	for (size_t I = 0, iexcitation=0; I < size_t(MCIS.dim(1)); ++I, iexcitation++) {
+	        if (iexcitation >= size_t(cis_param.guess_excitations())) break;
 
 		guess[iexcitation].afunction=zero_functions_compressed<double_complex,3>(world,anoct);
 		guess[iexcitation].bfunction=zero_functions_compressed<double_complex,3>(world,bnoct);
@@ -460,7 +460,7 @@ std::vector<Zcis::root> Zcis::make_guess() const {
 
 		// alpha part
 		if (Ua.size()>0) {
-			for (size_t J = 0; J < Ua.dim(0); ++J) {
+		        for (size_t J = 0; J < size_t(Ua.dim(0)); ++J) {
 				const int b = get_vir_idx_a(J);
 				const int j = get_occ_idx_a(J);
 				const double_complex xjb = Ua(J, I);
@@ -470,7 +470,7 @@ std::vector<Zcis::root> Zcis::make_guess() const {
 
 		// beta part
 		if (Ub.size()>0) {
-			for (size_t J = 0; J < Ub.dim(0); ++J) {
+		        for (size_t J = 0; J < size_t(Ub.dim(0)); ++J) {
 				const int b = get_vir_idx_b(J);
 				const int j = get_occ_idx_b(J);
 				const double_complex xjb = Ub(J, I);
@@ -541,8 +541,8 @@ Tensor<double_complex> Zcis::make_CIS_matrix(const Tensor<double>& veps, const T
 void Zcis::orthonormalize(std::vector<root>& roots, const Tensor<double_complex>& fock_pt) const {
 	normalize(roots);
 	Tensor<double_complex> ovlp(roots.size(),roots.size());
-	for (auto i=0; i<roots.size(); ++i) {
-		for (auto j=0; j<roots.size(); ++j) {
+	for (size_t i=0; i<roots.size(); ++i) {
+		for (size_t j=0; j<roots.size(); ++j) {
 			ovlp(i,j)=inner(roots[i],roots[j]);
 		}
 	}
@@ -552,7 +552,7 @@ void Zcis::orthonormalize(std::vector<root>& roots, const Tensor<double_complex>
 	Tensor<double> e;
 	sygv(fock_pt, ovlp, 1, U, e);
 	std::vector<root> tmp = transform(world,roots,U);
-	for (int i=0; i<tmp.size(); ++i) {
+	for (size_t i=0; i<tmp.size(); ++i) {
 		roots[i].afunction=tmp[i].afunction;
 		roots[i].bfunction=tmp[i].bfunction;
 		roots[i].apot=tmp[i].apot;
@@ -569,8 +569,8 @@ void Zcis::orthonormalize(std::vector<root>& roots) const {
 	do {
 
 		Tensor<double_complex> ovlp(roots.size(),roots.size());
-		for (auto i=0; i<roots.size(); ++i) {
-			for (auto j=0; j<roots.size(); ++j) {
+		for (size_t i=0; i<roots.size(); ++i) {
+			for (size_t j=0; j<roots.size(); ++j) {
 				ovlp(i,j)=inner(roots[i].afunction,roots[j].afunction)+inner(roots[i].bfunction,roots[j].bfunction);
 			}
 		}
@@ -583,7 +583,7 @@ void Zcis::orthonormalize(std::vector<root>& roots) const {
 			}
 //		amo = transform(world, amo, Q, 0.0, true);
 		std::vector<root> tmp = transform(world,roots,Q);
-		for (int i=0; i<tmp.size(); ++i) {
+		for (size_t i=0; i<tmp.size(); ++i) {
 			roots[i].afunction=tmp[i].afunction;
 			roots[i].bfunction=tmp[i].bfunction;
 			roots[i].apot=tmp[i].apot;

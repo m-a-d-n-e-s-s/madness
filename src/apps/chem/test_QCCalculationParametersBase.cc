@@ -47,6 +47,7 @@ template<typename T>
 void test_same(const T& t1, const T& t2) {
 	if (t1!=t2) {
 		print("t1, t2", t1,t2);
+		using madness::operators::operator<<;
 		std::cout << "++"<< t1 << "++"<< std::endl;
 		std::cout << "++" << t2 << "++" <<std::endl;
 

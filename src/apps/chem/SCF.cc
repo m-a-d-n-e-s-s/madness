@@ -179,7 +179,7 @@ SCF::SCF(World& world, const std::string& inputfile) : param(CalculationParamete
 	//xc.plot();
 
 	FunctionDefaults < 3 > ::set_cubic_cell(-param.L(), param.L());
-	set_protocol < 3 > (world, param.econv());
+	//set_protocol < 3 > (world, param.econv());
 	FunctionDefaults<3>::set_truncate_mode(1);
 
 }
@@ -2226,7 +2226,7 @@ void SCF::update_subspace(World & world, vecfuncT & Vpsia, vecfuncT & Vpsib,
 				END_TIMER(world, "Subspace transform");
 				if (param.maxsub() <= 1) {
 					subspace.clear();
-				} else if (subspace.size() == param.maxsub()) {
+				} else if (subspace.size() == size_t(param.maxsub())) {
 					subspace.erase(subspace.begin());
 					Q = Q(Slice(1, -1), Slice(1, -1));
 				}
@@ -2958,7 +2958,7 @@ void SCF::update_response_subspace(World & world,
 	END_TIMER(world, "Subspace transform");
 	if(param.maxsub() <= 1){
 		subspace.clear();
-	} else if(subspace.size() == param.maxsub()){
+	} else if(subspace.size() == size_t(param.maxsub())){
 		subspace.erase(subspace.begin());
 		Q = Q(Slice(1, -1), Slice(1, -1));
 	}

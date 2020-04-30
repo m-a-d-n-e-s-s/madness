@@ -14,6 +14,7 @@ add_definitions(-DMAD_ROOT_DIR="${PROJECT_SOURCE_DIR}")
 # Add module directory and modules =============================================
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules/")
+include(AddCustomTargetSubproject)
 include(AddOptions)
 include(AppendFlags)
 include(CheckIncludeFile)
@@ -21,8 +22,9 @@ include(CheckTypeSize)
 include(CheckCXXSourceCompiles)
 include(CheckFunctionExists)
 include(CMakeDependentOption)
-include(AddUnittests)
 include(AddMADLibrary)
+include(AddMADExecutable)
+include(AddUnittests)
 include(CMakePackageConfigHelpers)
 include(CopyTargetProperties)
 include(FeatureSummary)
@@ -30,9 +32,9 @@ include(RedefaultableOption)
 
 # Check compiler feature support ===============================================
 
-set(CMAKE_CXX_STANDARD 14 CACHE STRING  "C++ ISO Standard version")
-if (NOT(CMAKE_CXX_STANDARD EQUAL 14 OR CMAKE_CXX_STANDARD EQUAL 17 OR CMAKE_CXX_STANDARD EQUAL 20))
-  message(FATAL_ERROR "C++ 2014 ISO Standard or higher is required to compile MADNESS")
+set(CMAKE_CXX_STANDARD 17 CACHE STRING  "C++ ISO Standard version")
+if (NOT(CMAKE_CXX_STANDARD EQUAL 17 OR CMAKE_CXX_STANDARD EQUAL 20))
+  message(FATAL_ERROR "C++ 2017 ISO Standard or higher is required to compile MADNESS")
 endif()
 # C++20 is only configurable via compile features with cmake 3.12 and older
 if (CMAKE_CXX_STANDARD EQUAL 20 AND CMAKE_VERSION VERSION_LESS 3.12.0)
@@ -80,7 +82,10 @@ option(ENABLE_PAPI "Enables use of PAPI" OFF)
 option(ENABLE_LIBXC "Enables use of the libxc library of density functionals" ON)
 option(ENABLE_PCM "Enables use of the polarizable continuum model library" ON)
 
-redefaultable_option(ENABLE_TBB "Enables use of Intel Thread Building Blocks (TBB) as the task scheduler" ON)
+redefaultable_option(ENABLE_TBB "Enables use of Intel Thread Building Blocks (TBB) as the task scheduler" OFF)
+if (ENABLE_TBB)
+  redefaultable_option(MADNESS_EXPLOIT_TBB_PRIORITY "Enables use of Intel TBB task priorities" OFF)
+endif(ENABLE_TBB)
 option(ENABLE_PARSEC "Enables use of PaRSEC as the task scheduler" OFF)
 if(ENABLE_PARSEC AND ENABLE_TBB)
   message(FATAL_ERROR "TBB and PaRSEC cannot be both enabled.")
@@ -238,10 +243,12 @@ cmake_dependent_option(BUILD_SHARED_LIBS "Enable shared libraries" ON
 if(BUILD_SHARED_LIBS)
   set(BLA_STATIC_DEFAULT FALSE)
   set(CMAKE_MACOSX_RPATH TRUE)
-else()
+  set(MADNESS_LIBRARY_TARGET_SUFFIXES "none;-static")
+else(BUILD_SHARED_LIBS)
   set(BLA_STATIC_DEFAULT TRUE)
   set(CMAKE_MACOSX_RPATH FALSE)
-endif()
+  set(MADNESS_LIBRARY_TARGET_SUFFIXES "none")
+endif(BUILD_SHARED_LIBS)
 if (NOT DEFINED BLA_STATIC)
   set(BLA_STATIC ${BLA_STATIC_DEFAULT})
 endif()
@@ -340,6 +347,30 @@ if(NOT USE_X86_64_ASM)
       " USE_X86_32_ASM)
 endif()
 
+# (try to) determine C++ ABI
+# ABI kinds are named as in https://clang.llvm.org/doxygen/classclang_1_1TargetCXXABI.html
+# we only need ABI for serializing member pointers, hence all ARM-based ABIs are represented by same kind
+set(MADNESS_CXX_ABI_GenericItanium 1)
+set(MADNESS_CXX_ABI_GenericARM 2)
+set(MADNESS_CXX_ABI_Microsoft 3)
+if (NOT CMAKE_SYSTEM_PROCESSOR)
+  set(processor_name ${CMAKE_HOST_SYSTEM_PROCESSOR})
+else(NOT CMAKE_SYSTEM_PROCESSOR)
+  set(processor_name ${CMAKE_SYSTEM_PROCESSOR})
+endif(NOT CMAKE_SYSTEM_PROCESSOR)
+if(processor_name MATCHES "^(aarch64.*|AARCH64.*|arm64.*|ARM64.*)" OR processor_name MATCHES "^(arm.*|ARM.*)" OR processor_name MATCHES "^(mips.*|MIPS.*)")
+  # on ARM everything, including Windows, targets ARM C++ ABI
+  set(MADNESS_CXX_ABI ${MADNESS_CXX_ABI_GenericARM})
+elseif(processor_name MATCHES "amd64.*|x86_64.*|AMD64.*" OR processor_name MATCHES "i686.*|i386.*|x86.*" OR processor_name MATCHES "^(powerpc|ppc)64le" OR processor_name MATCHES "^(powerpc|ppc)64")
+  if (CMAKE_SYSTEM_NAME STREQUAL Windows) # on x86 Windows all compilers (clang, intel) target Windows C++ ABI
+    set(MADNESS_CXX_ABI ${MADNESS_CXX_ABI_Microsoft})
+  else (CMAKE_SYSTEM_NAME STREQUAL Windows)  # everyone else uses Itanium C++ ABI
+    set(MADNESS_CXX_ABI ${MADNESS_CXX_ABI_GenericItanium})
+  endif (CMAKE_SYSTEM_NAME STREQUAL Windows)
+else()
+  message(FATAL_ERROR "Cannot determine C++ ABI for CMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR}, please file an issue")
+endif()
+
 # Check compiler feature support ===============================================
 
 # Check for system include files
@@ -362,10 +393,7 @@ check_cxx_source_compiles(
     "
     #include <sys/types.h>
     int main() { typedef pid_t test_t; return 0; }
-    " CHECK_SYS_TYPES_H_HAS_PID_T)
-if(NOT CHECK_SYS_TYPES_H_HAS_PID_T)
-  set(pid_t 1)
-endif()
+    " SYS_TYPES_H_HAS_PID_T)
 
 # Check function support
 check_function_exists(memset HAVE_MEMSET)
@@ -523,7 +551,6 @@ if(CCACHE)
 endif(CCACHE)
 
 # Check for external dependencies ==============================================
-add_custom_target(External)
 include(external/pthread.cmake)
 include(external/mpi.cmake)
 include(external/papi.cmake)
@@ -541,10 +568,11 @@ if (DEFINED ELEMENTAL_TAG)
 endif (DEFINED ELEMENTAL_TAG)
 
 # Add project subdirectories ===================================================
+add_custom_target_subproject(madness numerical-examples)
 
 # Create build and install libraries libraries
-add_custom_target(libraries)
-add_custom_target(install-libraries)
+add_custom_target(madness-libraries)
+add_custom_target(install-madness-libraries)
 
 include_directories(${PROJECT_SOURCE_DIR}/src ${PROJECT_BINARY_DIR}/src)
 set(CMAKE_INCLUDE_CURRENT_DIR_IN_INTERFACE TRUE)
@@ -553,8 +581,8 @@ if(ENABLE_UNITTESTS)
   include(CTest)
   enable_testing()
   set(MADNESS_HAS_GOOGLE_TEST 1)
-  add_custom_target(unittests)
-  add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} USES_TERMINAL) # to be GNU compatible
+  add_custom_target_subproject(madness unittests)
+  add_custom_target_subproject(madness check COMMAND ${CMAKE_CTEST_COMMAND} USES_TERMINAL) # to be GNU compatible
 endif()
 add_subdirectory(src)
 add_subdirectory(doc)
@@ -635,7 +663,7 @@ install(FILES
     "${MADNESS_BINARY_DIR}/madness-config-version.cmake"
     DESTINATION "${MADNESS_INSTALL_CMAKEDIR}" 
     COMPONENT madness-config)
-add_custom_target(install-config
+add_custom_target(install-madness-config
      COMMAND ${CMAKE_COMMAND} -DCOMPONENT=madness-config -P ${PROJECT_BINARY_DIR}/cmake_install.cmake
      COMMENT "Installing MADNESS config components"
      USES_TERMINAL)

@@ -127,7 +127,11 @@ namespace madness {
 
         /// \param[in] other The \c Vector to copy.
         Vector(const Vector<T,N>& other) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wuninitialized"
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
             data_ = other.data_;
+#pragma GCC diagnostic pop
         }
 
         /// Copy constructor is deep (because \c Vector is POD).
@@ -474,6 +478,7 @@ namespace madness {
         /// \param[in] v The \c Vector to output.
         /// \return The output stream.
         friend std::ostream& operator<<(std::ostream& s, const Vector<T,N>& v) {
+            using madness::operators::operator<<;
             s << v.data_;
             return s;
         }
