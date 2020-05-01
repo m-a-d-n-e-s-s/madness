@@ -2,20 +2,24 @@
 
 if(ENABLE_WORLD_ONLY)
 	add_subdirectory(world)
-	if(ENABLE_WORLD_CLAPACK_ONLY)
-		set(MADCLAPACK_HEADERS tensor/cblas.h tensor/cblas_types.h
-        	tensor/clapack.h tensor/clapack_fortran.h
-        	tensor/lapacke_types.h) # this part of MADlinalg is purely independent of MADtensor
-
-		# add custom target for "installing" MADclapack headers
-		install(FILES ${MADCLAPACK_HEADERS}
-    	    	DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}/madness/tensor"
-        		COMPONENT clapack)
-		add_custom_target(install-madness-clapack
-    			COMMAND ${CMAKE_COMMAND} -DCOMPONENT=clapack -P ${PROJECT_BINARY_DIR}/cmake_install.cmake
-    			COMMENT "Installing clapack headers"
-    			USES_TERMINAL)
+	if(ENABLE_UNITTESTS)
+		add_subdirectory(external/gtest)
 	endif()
+	add_library(madness $<TARGET_OBJECTS:MADworld-obj>)
+elseif(ENABLE_WORLD_CLAPACK_ONLY)
+	add_subdirectory(world)
+	set(MADCLAPACK_HEADERS tensor/cblas.h tensor/cblas_types.h
+       	tensor/clapack.h tensor/clapack_fortran.h
+       	tensor/lapacke_types.h) # this part of MADlinalg is purely independent of MADtensor
+
+	# add custom target for "installing" MADclapack headers
+	install(FILES ${MADCLAPACK_HEADERS}
+   	    	DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}/madness/tensor"
+       		COMPONENT clapack)
+	add_custom_target(install-madness-clapack
+   			COMMAND ${CMAKE_COMMAND} -DCOMPONENT=clapack -P ${PROJECT_BINARY_DIR}/cmake_install.cmake
+   			COMMENT "Installing clapack headers"
+   			USES_TERMINAL)
 	if(ENABLE_UNITTESTS)
 		add_subdirectory(external/gtest)
 	endif()
