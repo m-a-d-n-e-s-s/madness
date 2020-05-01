@@ -15,6 +15,7 @@ if(ENABLE_WORLD_ONLY)
     			COMMAND ${CMAKE_COMMAND} -DCOMPONENT=clapack -P ${PROJECT_BINARY_DIR}/cmake_install.cmake
     			COMMENT "Installing clapack headers"
     			USES_TERMINAL)
+	endif()
 	if(ENABLE_UNITTESTS)
 		add_subdirectory(external/gtest)
 	endif()
