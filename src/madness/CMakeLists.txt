@@ -2,10 +2,16 @@
 
 if(ENABLE_WORLD_ONLY)
 	add_subdirectory(world)
+	if(ENABLE_UNITTESTS)
+		add_subdirectory(external/gtest)
+	endif()
 	add_library(madness $<TARGET_OBJECTS:MADworld-obj>)
 elseif(ENABLE_TENSOR_ONLY)
 	add_subdirectory(world)
 	add_subdirectory(tensor)
+	if(ENABLE_UNITTESTS)
+		add_subdirectory(external/gtest)
+	endif()
 	add_library(madness
     	$<TARGET_OBJECTS:MADworld-obj>
     	$<TARGET_OBJECTS:MADtensor-obj> ${MADTENSOR_MTXMQ_OBJ})
