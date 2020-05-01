@@ -68,6 +68,7 @@ set(MADNESS_INSTALL_CMAKEDIR "lib/cmake/madness"
 option(ENABLE_APPS "Enable building src/apps" ON)
 option(ENABLE_EXAMPLES "Enable building src/examples" ON)
 option(ENABLE_WORLD_ONLY "Build only MADworld" OFF)
+option(ENABLE_TENSOR_ONLY "Build only MADworld and tensor" OFF)
 
 # Enable optional libraries ====================================================
 

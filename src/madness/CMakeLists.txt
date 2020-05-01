@@ -1,21 +1,25 @@
 # src/madness
 
-# Add source subdirectories
-add_subdirectory(external)
-
-if (MADNESS_HAS_ELEMENTAL_EMBEDDED)
-  include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/elemental/include
-      ${CMAKE_CURRENT_BINARY_DIR}/external/elemental/include)
-elseif (MADNESS_HAS_ELEMENTAL)
-  include_directories(${ELEMENTAL_SOURCE_DIR}/include
-      ${ELEMENTAL_SOURCE_DIR}/external/suite_sparse/include
-      ${ELEMENTAL_BINARY_DIR}/include)
-endif ()
-
 if(ENABLE_WORLD_ONLY)
 	add_subdirectory(world)
 	add_library(madness $<TARGET_OBJECTS:MADworld-obj>)
+elseif(ENABLE_TENSOR_ONLY)
+	add_subdirectory(world)
+	add_subdirectory(tensor)
+	add_library(madness
+    	$<TARGET_OBJECTS:MADworld-obj>
+    	$<TARGET_OBJECTS:MADtensor-obj> ${MADTENSOR_MTXMQ_OBJ})
 else()
+	# Add source subdirectories
+	add_subdirectory(external)
+	if (MADNESS_HAS_ELEMENTAL_EMBEDDED)
+  		include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/elemental/include
+      	${CMAKE_CURRENT_BINARY_DIR}/external/elemental/include)
+	elseif (MADNESS_HAS_ELEMENTAL)
+  		include_directories(${ELEMENTAL_SOURCE_DIR}/include
+      		${ELEMENTAL_SOURCE_DIR}/external/suite_sparse/include
+      		${ELEMENTAL_BINARY_DIR}/include)
+	endif ()
 	add_subdirectory(world)
 	add_subdirectory(misc)
 	add_subdirectory(tensor)
