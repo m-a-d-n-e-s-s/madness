@@ -9,8 +9,13 @@
 #define SRC_APPS_CHEM_BSHAPPLY_H_
 
 #include<chem/MolecularOrbitals.h>
+#include<madness/world/MADworld.h>
+
+namespace madness {
 
 /// apply the BSH operator on a vector of functions with corresponding potentials
+
+/// TODO: adding a level shift seems to make the operation less precise, why??
 template<typename T, std::size_t NDIM>
 class BSHApply {
 
@@ -34,7 +39,7 @@ public:
 
 	/// apply the BSH operator on the vector of functions and respective potentials
 
-	/// @param[in]	eps		orbital energies or the square fock matrix (depends on do_coupling)
+	/// @param[in]	eps		orbital energies or the square fock matrix
 	/// @param[in]	Vpsi	vector of functions V*MOs
 	/// @return		an MO structure holding the residuals and the orbital energy updates
 	std::tuple<std::vector<Function<T,NDIM> >, Tensor<double> > operator()(
@@ -49,11 +54,11 @@ public:
 		// ( T + V ) \psi_i	= \sum_j \psi_j F_{ji}
 		// ( T - F_{ii}) \psi_i = -V \psi_i + \sum_{j\neq i} \psi_jF_{ji}
 		// no coupling means F_{ij} =\eps_i \delta_{ij}, and the coupling term vanishes
-		if (do_coupling) Vpsi-=compute_coupling(psi,eps);
+		Vpsi-=add_coupling_and_levelshift(psi,eps);
 
 	    std::vector < std::shared_ptr<SeparatedConvolution<double,NDIM> > > ops(psi.size());
 	    for (int i=0; i<eps.dim(0); ++i) {
-	    	double e_i= (eps.ndim()==2) ? eps(i,i) : eps(i);
+	    	T e_i= (eps.ndim()==2) ? eps(i,i) : eps(i);
 	    	ops[i]=std::shared_ptr<SeparatedConvolution<double,NDIM> >(
 	    			BSHOperatorPtr<NDIM>(world, sqrt(-2.0*eps_in_green(e_i)), lo, bshtol));
 	    	ops[i]->destructive()=true;
@@ -76,8 +81,8 @@ public:
 	    }
 
 	    Tensor<T> in=inner(world,Vpsi,bra_res);	// no shift here!
-	    Tensor<double> delta_eps(eps.size());
-	    for (int i=0; i<eps.size(); ++i) delta_eps(i)=std::real(in(i))/(norms[i]*norms[i]);
+	    Tensor<double> delta_eps(psi.size());
+	    for (int i=0; i<psi.size(); ++i) delta_eps(i)=std::real(in(i))/(norms[i]*norms[i]);
 
 	    if (printme) print("orbital energy update",delta_eps);
 	    double cpu1=cpu_time();
@@ -105,30 +110,55 @@ public:
 	}
 
 	/// limit the orbital energy (diagonal fock matrix element) entering the Green's function parameter mu
-	double eps_in_green(const double eps) const {
-		return std::min(-0.05,eps+levelshift);
+	double eps_in_green(const T eps) const {
+
+    	if (std::imag(eps)>1.e-12)
+    		MADNESS_EXCEPTION("complex orbital energies in BSHApply",1);
+		return std::min(-0.05,std::real(eps)+levelshift);
 	}
 
-	std::vector<Function<T,NDIM> > compute_coupling(const std::vector<Function<T,NDIM> > psi,
+	std::vector<Function<T,NDIM> > add_coupling_and_levelshift(const std::vector<Function<T,NDIM> > psi,
 			const Tensor<T> fock1) const {
 
-		if (not ((fock1.ndim()==2) and (fock1.dim(0)==psi.size()) and (fock1.dim(1)==psi.size()))) {
+		// check dimensions
+		bool consistent=(psi.size()==fock1.dim(0));
+		if ((fock1.ndim()==2) and not (psi.size()==fock1.dim(1))) consistent=false;
+		if ((do_coupling) and not (fock1.ndim()==2)) consistent=false;
+
+		if (not consistent) {
+			print("Fock matrix dimensions",fock1.ndim(), fock1.dim(0), fock1.dim(1));
+			print("number of orbitals",psi.size());
+			print("do_coupling parameter",do_coupling);
 			MADNESS_EXCEPTION("confused Fock matrix/orbital energies in BSHApply - 1",1);
 		}
 
 		// subtract the BSH energy (aka Fock diagonal elements) from the rhs
-		// ( T - fock(i,i) ) psi_i  = -V psi_i + \sum_j psi_j fock(j,i)
+		// ( T - fock(i,i) ) psi_i  = -V psi_i + \sum_{j\neq i} psi_j fock(j,i)
 		// if there is no level shift and the orbital energies are large enough the
 		// diagonal should simply vanish.
-		Tensor<T> fock=copy(fock1);
-		for (int i=0; i<fock.dim(0); ++i) {
-			fock(i,i)-=eps_in_green(fock(i,i));
+		if (do_coupling) {
+			Tensor<T> fock=copy(fock1);
+			for (int i=0; i<fock.dim(0); ++i) {
+				fock(i,i)-=eps_in_green(fock(i,i));
+			}
+			return transform(world, psi, fock);
+
+		} else  {
+			std::vector<T> eps(psi.size());
+			if (fock1.ndim()==1)
+				for (int i=0; i<fock1.dim(0); ++i) eps[i]=fock1(i)-eps_in_green(fock1(i));
+			if (fock1.ndim()==2)
+				for (int i=0; i<fock1.dim(0); ++i) eps[i]=fock1(i,i)-eps_in_green(fock1(i,i));
+
+			std::vector<Function<T,NDIM> > result=copy(world,psi);
+			scale(world,result,eps);
+			return result;
 		}
-		return transform(world, psi, fock);
 
 	}
 
 };
+} // namespace madness
 
 
 #endif /* SRC_APPS_CHEM_BSHAPPLY_H_ */

@@ -16,7 +16,7 @@
 namespace madness {
 
 template<typename T, std::size_t NDIM> class Function;
-class World;
+//class World;
 class AtomicBasisSet;
 
 template<typename T, std::size_t NDIM>

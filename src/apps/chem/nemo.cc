@@ -356,6 +356,7 @@ double Nemo::solve(const SCFProtocol& proto) {
 		bsh_apply.metric=R_square;
 		bsh_apply.lo=get_calc()->param.lo();
 		bsh_apply.do_coupling=localized;
+		bsh_apply.levelshift=param.orbitalshift();
 		auto [residual,eps_update] =bsh_apply(nemo,fock,Vnemo);
 
 		const double bsh_norm = norm2(world, residual) / sqrt(nemo.size());
