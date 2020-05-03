@@ -119,7 +119,7 @@ CMAKE_PREFIX_PATH as well as other system paths.
 
 Intel Threading Building Blocks (TBB):
 
-* ENABLE_TBB --- Enables use of Intel TBB as the task scheduler [default=ON]
+* ENABLE_TBB --- Enables use of Intel TBB as the task scheduler [default=OFF]
 * TBB_ROOT_DIR --- The install prefix for TBB
 * TBB_INCLUDE_DIR --- The path to the TBB include directory
 * TBB_LIBRARY --- The path to the TBB library directory. By default, the library

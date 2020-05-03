@@ -11,9 +11,9 @@ else()
 endif()
 
 # Create the moldft_polar executable
-add_executable(moldft_polar ${MOLDFT_POLAR_SOURCES})
-target_link_libraries(moldft_polar MADmra)
 if(LIBXC_FOUND)
-  target_link_libraries(moldft_polar libxc)
-endif()
+  add_mad_executable(moldft_polar ${MOLDFT_POLAR_SOURCES} "MADmra;libxc")
+else(LIBXC_FOUND)
+  add_mad_executable(moldft_polar ${MOLDFT_POLAR_SOURCES} MADmra)
+endif(LIBXC_FOUND)
 

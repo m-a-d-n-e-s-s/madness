@@ -48,6 +48,7 @@
 #include <madness/mra/mra.h>
 #include <madness/mra/vmra.h>
 #include <madness/mra/functypedefs.h>
+#include <madness/fortran_ctypes.h>
 
 namespace madness {
 
@@ -196,7 +197,7 @@ std::vector<Function<T,NDIM> > projector_irrep::apply_symmetry_operators(
 			if (verbosity_>1) print("eigenvalues",eval);
 
 			// compute rank-revealing Cholesky, discard linear dependent vectors
-			Tensor<int> piv;
+			Tensor<integer> piv;
 			int rank;
 			rr_cholesky(ovlp,lindep_,piv,rank);
 			Tensor<double> shrunk=copy(ovlp(Slice(0,rank-1,1),Slice(0,rank-1,1)));

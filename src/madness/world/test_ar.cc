@@ -335,7 +335,7 @@ void test_out(const OutputArchive& oar) {
     tuple_int_double_complexfloat t = std::make_tuple(1,2.0,std::complex<float>(3.0f,4.0f));
 
     // Initialize data
-    a.a = b.b = c.c = i = 1;
+    a.a = 1; b.b = 1; c.c = 1; i = 1;
     d.i = 1;  d.l = 2;
     f.i = 1;  f.l = 2;
     for (int k=0; k<n; ++k) {
@@ -497,7 +497,7 @@ void test_in(const InputArchive& iar) {
     decltype(&Member::fn) member_fn_ptr=nullptr, virtual_member_fn_ptr=nullptr;
 
     // Destroy in-core data
-    a.a = b.b = c.c = i = 0;
+    a.a = 0; b.b = 0; c.c = 0; i = 0;
     d.i = -1;  d.l = -1;
     f.i = -1;  f.l = -1;
     for (int k=0; k<n; ++k) {
