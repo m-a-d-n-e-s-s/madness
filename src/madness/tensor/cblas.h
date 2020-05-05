@@ -33,6 +33,12 @@
 #ifndef MADNESS_LINALG_CBLAS_H__INCLUDED
 #define MADNESS_LINALG_CBLAS_H__INCLUDED
 
+#if defined(__GNUC__) || defined(__clang__)
+// MKL direct macros produce a zillion warning messages about unused variables --- disable this warning just in this header
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-value"
+#endif
+
 /// \file cblas.h
 /// \brief Define BLAS like functions
 
@@ -313,7 +319,9 @@ extern "C" {
             const integer*, complex_real8*, const integer*);
 }
 #else
+
 # include <mkl.h>
+
 #endif // !defined(MKL_DIRECT_CALL)
 
 // some BLAS libraries use custom complex types in their interface, so need to include their definitions here
@@ -700,6 +708,10 @@ namespace cblas {
 
 } // namespace cblas
 } // namespace madness
+
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 
 #endif // MADNESS_LINALG_CBLAS_H__INCLUDED
 
