@@ -33,12 +33,6 @@
 #ifndef MADNESS_LINALG_CBLAS_H__INCLUDED
 #define MADNESS_LINALG_CBLAS_H__INCLUDED
 
-#if defined(__GNUC__) || defined(__clang__)
-// MKL direct macros produce a zillion warning messages about unused variables --- disable this warning just in this header
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-value"
-#endif
-
 /// \file cblas.h
 /// \brief Define BLAS like functions
 
@@ -46,6 +40,12 @@
 #include <madness/fortran_ctypes.h>
 #include <madness/madness_config.h>
 #include <madness/world/madness_exception.h>
+
+// MKL direct macros produce a zillion warning messages about unused variables --- disable this warning just in this header
+MADNESS_PRAGMA_GCC(diagnostic push)
+MADNESS_PRAGMA_GCC(diagnostic ignored "-Wunused-value")
+MADNESS_PRAGMA_CLANG(diagnostic push)
+MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wunused-value")
 
 #if defined(FORTRAN_LINKAGE_LC) || (defined(HAVE_INTEL_MKL) && defined(MKL_DIRECT_CALL))
 
@@ -709,9 +709,8 @@ namespace cblas {
 } // namespace cblas
 } // namespace madness
 
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
+MADNESS_PRAGMA_CLANG(diagnostic pop)
+MADNESS_PRAGMA_GCC(diagnostic pop)
 
 #endif // MADNESS_LINALG_CBLAS_H__INCLUDED
 
