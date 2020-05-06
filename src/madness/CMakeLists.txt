@@ -1,12 +1,12 @@
 # src/madness
 
-if(ENABLE_WORLD_ONLY)
+if(MADNESS_BUILD_MADWORLD_ONLY)
 	add_subdirectory(world)
 	if(ENABLE_UNITTESTS)
 		add_subdirectory(external/gtest)
 	endif()
 	add_library(madness $<TARGET_OBJECTS:MADworld-obj>)
-elseif(ENABLE_WORLD_CLAPACK_ONLY)
+elseif(MADNESS_BUILD_MADWORLD_CLAPACK_ONLY)
 	add_subdirectory(world)
 	set(MADCLAPACK_HEADERS tensor/cblas.h tensor/cblas_types.h
        	tensor/clapack.h tensor/clapack_fortran.h
@@ -24,15 +24,6 @@ elseif(ENABLE_WORLD_CLAPACK_ONLY)
 		add_subdirectory(external/gtest)
 	endif()
 	add_library(madness $<TARGET_OBJECTS:MADworld-obj>)
-elseif(ENABLE_TENSOR_ONLY)
-	add_subdirectory(world)
-	add_subdirectory(tensor)
-	add_subdirectory(external)
-	add_library(madness
-    	$<TARGET_OBJECTS:MADworld-obj> $<TARGET_OBJECTS:MADmisc-obj>
-    	$<TARGET_OBJECTS:MADtensor-obj> ${MADTENSOR_MTXMQ_OBJ}
-    	$<TARGET_OBJECTS:MADlinalg-obj> $<TARGET_OBJECTS:MADmuparser-obj>
-    	$<TARGET_OBJECTS:MADtinyxml-obj>)
 else()
 	# Add source subdirectories
 	add_subdirectory(external)

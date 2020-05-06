@@ -65,12 +65,9 @@ set(MADNESS_INSTALL_CMAKEDIR "lib/cmake/madness"
 
 # Build options  ==============================================================
 
-option(ENABLE_APPS "Enable building src/apps" ON)
-option(ENABLE_EXAMPLES "Enable building src/examples" ON)
-option(ENABLE_LAPACK "Enable using blas/lapack" ON)
-option(ENABLE_WORLD_ONLY "Build only MADworld" OFF)
-option(ENABLE_WORLD_CLAPACK_ONLY "Build MADworld and CLapack headers" OFF)
-option(ENABLE_TENSOR_ONLY "Build all except mra" OFF)
+option(MADNESS_SEARCH_LAPACK "Search for blas/lapack" ON)
+option(MADNESS_BUILD_MADWORLD_ONLY "Build only MADworld" OFF)
+option(MADNESS_BUILD_MADWORLD_CLAPACK_ONLY "Build MADworld and CLapack headers" OFF)
 
 # Enable optional libraries ====================================================
 
@@ -563,7 +560,7 @@ endif(CCACHE)
 include(external/pthread.cmake)
 include(external/mpi.cmake)
 include(external/papi.cmake)
-if(ENABLE_LAPACK)
+if(MADNESS_SEARCH_LAPACK)
 	include(external/lapack.cmake)
 endif()
 include(external/libxc.cmake)

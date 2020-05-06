@@ -1,12 +1,10 @@
 # src
 
 add_subdirectory(madness)
-if(ENABLE_APPS)
+if(NOT(MADNESS_BUILD_MADWORLD_ONLY OR MADNESS_BUILD_MADWORLD_CLAPACK_ONLY))
 	add_subdirectory(apps)
-endif()
-if(ENABLE_EXAMPLES)
 	add_subdirectory(examples)
 endif()
 install(FILES madness.h
-    DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}"
-    COMPONENT madness)
+    	DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}"
+    	COMPONENT madness)
