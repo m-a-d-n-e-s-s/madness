@@ -95,10 +95,10 @@ namespace madness {
                     MADNESS_ASSERT(i+m<=nbyte);
                 }
                 else {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+MADNESS_PRAGMA_GCC(diagnostic push)
+MADNESS_PRAGMA_GCC(diagnostic ignored "-Wmaybe-uninitialized")
 		  memcpy(ptr+i, t, m);
-#pragma GCC diagnostic pop
+MADNESS_PRAGMA_GCC(diagnostic pop)
                     i += m;
                 }
             }
