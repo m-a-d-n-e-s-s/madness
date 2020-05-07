@@ -576,8 +576,9 @@ if (DEFINED ELEMENTAL_TAG)
 endif (DEFINED ELEMENTAL_TAG)
 
 # Add project subdirectories ===================================================
-add_custom_target_subproject(madness numerical-examples)
-
+if(NOT(MADNESS_BUILD_MADWORLD_ONLY OR MADNESS_BUILD_MADWORLD_CLAPACK_ONLY))
+	add_custom_target_subproject(madness numerical-examples)
+endif()
 # Create build and install libraries libraries
 add_custom_target(madness-libraries)
 add_custom_target(install-madness-libraries)
@@ -644,7 +645,7 @@ write_basic_package_version_file(madness-config-version.cmake
 
 # Create the targets file
 export(EXPORT madness
-  FILE "${PROJECT_BINARY_DIR}/madness-targets.cmake")
+  	FILE "${PROJECT_BINARY_DIR}/madness-targets.cmake")
 export(EXPORT madworld
   FILE "${PROJECT_BINARY_DIR}/madworld-targets.cmake")
 
@@ -659,9 +660,9 @@ configure_package_config_file(cmake/madness-config.cmake.in
 
 # Install config, version, and target files
 install(EXPORT madness
-    FILE "madness-targets.cmake"
-    DESTINATION "${MADNESS_INSTALL_CMAKEDIR}" 
-    COMPONENT madness-config)
+   	FILE "madness-targets.cmake"
+   	DESTINATION "${MADNESS_INSTALL_CMAKEDIR}" 
+   	COMPONENT madness-config)
 install(EXPORT madworld
     FILE "madworld-targets.cmake"
     DESTINATION "${MADNESS_INSTALL_CMAKEDIR}" 

@@ -122,15 +122,17 @@ add_custom_target(install-madness-common
      COMMAND ${CMAKE_COMMAND} -DCOMPONENT=common -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
      COMMENT "Installing common library components"
      USES_TERMINAL)
-install(TARGETS madness EXPORT madness
-    COMPONENT madness
-    LIBRARY DESTINATION "${MADNESS_INSTALL_LIBDIR}"
-    ARCHIVE DESTINATION "${MADNESS_INSTALL_LIBDIR}"
-    INCLUDES DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}")
-add_custom_target(install-madness
-    COMMAND ${CMAKE_COMMAND} -DCOMPONENT=madness -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
-    COMMENT "Installing madness library components"
-    USES_TERMINAL)
-#add_dependencies(install-madness madness)
-add_dependencies(install-madness install-madness-common)
-add_dependencies(install-madness-libraries install-madness)
+if(NOT(MADNESS_BUILD_MADWORLD_ONLY OR MADNESS_BUILD_MADWORLD_CLAPACK_ONLY))
+	install(TARGETS madness EXPORT madness
+	    COMPONENT madness
+	    LIBRARY DESTINATION "${MADNESS_INSTALL_LIBDIR}"
+	    ARCHIVE DESTINATION "${MADNESS_INSTALL_LIBDIR}"
+	    INCLUDES DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}")
+	add_custom_target(install-madness
+	    COMMAND ${CMAKE_COMMAND} -DCOMPONENT=madness -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
+	    COMMENT "Installing madness library components"
+	    USES_TERMINAL)
+	#add_dependencies(install-madness madness)
+	add_dependencies(install-madness install-madness-common)
+	add_dependencies(install-madness-libraries install-madness)
+endif()
