@@ -165,6 +165,12 @@ namespace madness {
 
             post_pending_huge_msg();
 
+#if !(defined(HAVE_INTEL_TBB) || defined(HAVE_PARSEC))
+	    // Since this thread never waits or tries to run a task we
+	    // must manually flush the thread-local prebuffer that
+	    // aggregates task submission.
+	    ThreadPool::instance()->flush_prebuf();
+#endif
             clear_send_req();
         }
     }

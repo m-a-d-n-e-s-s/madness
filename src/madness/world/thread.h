@@ -1270,6 +1270,7 @@ namespace madness {
         /// \return Description needed.
         static void* pool_thread_main(void *v);
 
+    public:
         /// Return a pointer to the only instance, constructing as necessary.
 
         /// \return A pointer to the only instance.
@@ -1284,8 +1285,12 @@ namespace madness {
             return instance_ptr;
         }
 
+	void flush_prebuf() {
+#if !(defined(HAVE_INTEL_TBB) || defined(HAVE_PARSEC))
+	  queue.lock_and_flush_prebuf();
+#endif
+	}
 
-    public:
 #if HAVE_PARSEC
 	////////////////// Parsec Related Begin //////////////////
         static dague_context_t *parsec;

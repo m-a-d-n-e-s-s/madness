@@ -67,6 +67,12 @@ extern "C" void HPM_Prof_stop(unsigned int);
 
 
 namespace madness {
+#ifdef MADNESS_DQ_USE_PREBUF
+  template<> __thread PoolTaskInterface* DQueue<PoolTaskInterface*>::prebuf[DQueue<madness::PoolTaskInterface*>::NPREBUF] = {0};
+  template<> __thread PoolTaskInterface* DQueue<PoolTaskInterface*>::prebufhi[DQueue<madness::PoolTaskInterface*>::NPREBUF] = {0};
+  template<> __thread size_t DQueue<PoolTaskInterface*>::ninprebuf = 0;
+  template<> __thread size_t DQueue<PoolTaskInterface*>::ninprebufhi = 0;
+#endif
 
     int ThreadBase::cpulo[3];
     int ThreadBase::cpuhi[3];
@@ -528,6 +534,7 @@ namespace madness {
         for (int i=0; i<instance()->nthreads; ++i) {
             add(new PoolTaskNull);
         }
+	instance_ptr->flush_prebuf();
         while (instance_ptr->nfinished != instance_ptr->nthreads);
 #else  /* HAVE_PARSEC */
 	/* Remove the fake task we used to keep the engine up and running */
