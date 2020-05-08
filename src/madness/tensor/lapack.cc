@@ -777,7 +777,9 @@ namespace madness {
     	piv=Tensor<integer>(n);
     	Tensor<T> work(2*n);
 
-    	pstrf_("L", &n, A.ptr(), &n, piv.ptr(), &rank, &tol, work.ptr(), &info);
+    	integer irank = static_cast<integer>(rank);
+    	pstrf_("L", &n, A.ptr(), &n, piv.ptr(), &irank, &tol, work.ptr(), &info);
+    	rank = static_cast<int>(irank);
 
     	// note:
     	// info=0: Cholesky decomposition suceeded with full rank

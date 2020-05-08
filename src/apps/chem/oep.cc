@@ -493,7 +493,7 @@ void OEP::test_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
     print("\n   >> solve_oep test finished, calculating test quantities based on the new KS orbitals and eigenvalues\n");
 
     vecfuncT& KS_nemo = calc->amo;
-    tensorT& KS_eigvals = calc->aeps;
+    //tensorT& KS_eigvals = calc->aeps;
 
     const real_function_3d rho_KS = compute_density(KS_nemo);
 

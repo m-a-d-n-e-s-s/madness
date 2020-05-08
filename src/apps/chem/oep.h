@@ -204,7 +204,7 @@ public:
     /// get index of HOMO from a given set of orbital energies
     long homo_ind(const tensorT orbens) const {
     	long index;
-    	double en_homo = orbens.max(&index);
+    	orbens.max(&index); // return value discarded
     	return index;
     }
 
@@ -320,8 +320,8 @@ public:
 	    }
 
 	    vecfuncT grad_nemo_term;
-		for (long i = 0; i < nemo.size(); i++) {
-			for (long j = i + 1; j < nemo.size(); j++) {
+		for (size_t i = 0; i < nemo.size(); i++) {
+			for (size_t j = i + 1; j < nemo.size(); j++) {
 				vecfuncT tmp = nemo[i]*grad_nemo[j] - nemo[j]*grad_nemo[i];
 				grad_nemo_term.push_back(dot(world, tmp, tmp));
 			}

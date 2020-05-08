@@ -377,9 +377,13 @@ namespace madness {
 #endif
                 }
                 catch (...) {
+		  // Ideally use if constexpr here but want headers C++14 for cuda compatibility
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
                     std::printf("new failed nd=%ld type=%ld size=%ld\n", nd, id(), _size);
                     std::printf("  %ld %ld %ld %ld %ld %ld\n",
                                 d[0], d[1], d[2], d[3], d[4], d[5]);
+#pragma GCC diagnostic pop
                     TENSOR_EXCEPTION("new failed",_size,this);
                 }
                 //std::printf("allocated %p [%ld]  %ld\n", _p, size, p.use_count());
@@ -452,10 +456,13 @@ namespace madness {
                 _shptr = t._shptr;
                 _size = t._size;
                 _ndim = t._ndim;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"		
                 for (int i=0; i<TENSOR_MAXDIM; ++i) {
                     _dim[i] = t._dim[i];
                     _stride[i] = t._stride[i];
                 }
+#pragma GCC diagnostic pop
             }
             return *this;
         }

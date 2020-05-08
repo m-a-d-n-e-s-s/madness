@@ -71,7 +71,11 @@ extern "C" {
 #endif // MADNESS_TASK_PROFILING
 
 #ifdef HAVE_INTEL_TBB
-#include "tbb/tbb.h"
+#include <tbb/task.h>
+#ifndef TBB_PREVIEW_GLOBAL_CONTROL
+# define TBB_PREVIEW_GLOBAL_CONTROL 1
+#endif
+# include <tbb/global_control.h>
 #endif
 
 
@@ -1289,7 +1293,7 @@ namespace madness {
 #endif
 
 #if HAVE_INTEL_TBB
-        static tbb::task_scheduler_init* tbb_scheduler; ///< \todo Description needed.
+        static std::unique_ptr<tbb::global_control> tbb_control; ///< \todo Description needed.
 #endif
 
         /// Please invoke while in a single-threaded environment.
@@ -1320,11 +1324,12 @@ namespace madness {
             __dague_schedule(parsec->virtual_processes[0]->execution_units[0], context);
             //////////// Parsec Related End ////////////////////
 #elif HAVE_INTEL_TBB
-            if(task->is_high_priority()) {
-                tbb::task::spawn(*task);
-            } else {
+#ifdef MADNESS_CAN_USE_TBB_PRIORITY
+            if(task->is_high_priority())
+                tbb::task::enqueue(*task, tbb::priority_high);
+            else
+#endif  // MADNESS_CAN_USE_TBB_PRIORITY
                 tbb::task::enqueue(*task);
-            }
 #else
             if (!task) MADNESS_EXCEPTION("ThreadPool: inserting a NULL task pointer", 1);
             int task_threads = task->get_nthread();
@@ -1488,8 +1493,6 @@ namespace madness {
           dague_fini((dague_context_t **)&parsec);
           ////////////////// Parsec related End /////////////////
 #elif HAVE_INTEL_TBB
-            tbb_scheduler->terminate();
-            delete(tbb_scheduler);
 #else
             delete[] threads;           
 #endif

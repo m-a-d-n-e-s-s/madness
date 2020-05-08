@@ -45,23 +45,15 @@
 #include <cstdint>
 #include <type_traits>
 #include <iosfwd>
+#include <madness/world/meta.h>
 
 namespace madness {
 
-namespace meta {
-// import some existing C++17 features, or implement them
-#  if __cplusplus <= 201402L
-
-template<typename... Ts>
-struct make_void {
-  using type = void;
-};
-template<typename... Ts>
-using void_t = typename make_void<Ts...>::type;
-# else
-using std::void_t;
-#endif  // C++17 features
-}
+   namespace operators {
+   class __x {};
+   std::ostream& operator<<(std::ostream&, const __x&);
+   std::ostream& operator>>(std::ostream&, __x&);
+   }
 
     template <typename> class Future;
     template <typename> struct add_future;
@@ -76,6 +68,18 @@ using std::void_t;
     template <typename T>
     using remove_fcvr_t = typename remove_fcvr<T>::type;
 
+    /// is true type if \p T is a pointer to a free function
+    template <typename T, typename Enabler = void> struct is_function_pointer : public std::false_type {};
+    template <typename T> struct is_function_pointer<T, std::enable_if_t<std::is_function<typename std::remove_pointer<T>::type>::value>> : public std::true_type {};
+    template <typename T> constexpr bool is_function_pointer_v = is_function_pointer<T>::value;
+
+    // use std::is_member_function_pointer<T> if looking for is_member_function_pointer
+
+    /// is true type if \p T is a pointer to free or member function
+    template <typename T, typename Enabler = void> struct is_any_function_pointer : public std::false_type {};
+    template <typename T> struct is_any_function_pointer<T, std::enable_if_t<std::is_member_function_pointer<T>::value || is_function_pointer_v<T>>> : public std::true_type {};
+    template <typename T> constexpr bool is_any_function_pointer_v = is_any_function_pointer<T>::value;
+
     /// This defines stuff that is serialiable by bitwise copy.
     /// \warning This reports true for \c T that is an aggregate type
     ///          (struct or array) that includes pointers.
@@ -83,34 +87,57 @@ using std::void_t;
     struct is_trivially_serializable {
       static const bool value = \
         std::is_arithmetic<T>::value || \
-        std::is_member_function_pointer<T>::value || \
         std::is_function<T>::value  || \
-        std::is_function<typename std::remove_pointer<T>::type>::value || \
+        is_any_function_pointer_v<T> || \
         (std::is_pod<T>::value && !std::is_pointer<T>::value);
 //        ((std::is_class<T>::value || std::is_array<T>::value) && std::is_trivially_copyable<T>::value);
     };
 
+    // namespace hiding implementation details of is_ostreammable ... by ensuring that the detector lives in a different namespace branch than the operators we do not accidentally pick them up
+    namespace is_ostreammable_ns {
+
+    template <typename To, typename From> using left_shift = decltype(std::declval<To>() << std::declval<From>());
+    template <typename To, typename From> using left_shift_in_ns_madness_operators = decltype(madness::operators::operator<<(std::declval<To>(), std::declval<From>()));
+
+    template <typename T> struct impl : public meta::disjunction<meta::is_detected_exact<std::ostream&, left_shift, std::ostream&, const T&>,
+                                                                 meta::is_detected_exact<std::ostream&, left_shift_in_ns_madness_operators, std::ostream&, const T&>> {};
+    }  // namespace is_ostreammable_ns
+
     /// True for types that are "serialiable" to a std::ostream
-    template <typename T, typename = void>
-    struct is_ostreammable : std::false_type {};
+    /// \note \c operator<<(std::ostream&,const T&) must be visible via ADL or defined in namespace madness::operators
     template <typename T>
-    struct is_ostreammable<T, meta::void_t<decltype(std::declval<std::ostream&>() << std::declval<const T&>())>> : std::true_type {};
+    struct is_ostreammable : public is_ostreammable_ns::impl<T> {};
+
+    /// Shortcut for \c is_ostreammable<T>::value
     template <typename T> constexpr bool is_ostreammable_v = is_ostreammable<T>::value;
+
+    // namespace hiding implementation details of is_istreammable ... by ensuring that the detector lives in a different namespace branch than the operators we do not accidentally pick them up
+    namespace is_istreammable_ns {
+
+    template <typename From, typename To> using right_shift = decltype(std::declval<From>() >> std::declval<To>());
+    template <typename From, typename To> using right_shift_in_ns_madness_operators = decltype(madness::operators::operator<<(std::declval<From>(), std::declval<To>()));
+
+    template <typename T> struct impl : public meta::disjunction<meta::is_detected_exact<std::istream&, right_shift, std::istream&, T&>,
+                                                                 meta::is_detected_exact<std::istream&, right_shift_in_ns_madness_operators, std::istream&, T&>> {};
+
+    }  // namespace is_istreammable_ns
+
     /// True for types that are "deserialiable" from an std::istream
-    template <typename T, typename = void>
-    struct is_istreammable : std::false_type {};
+    /// \note \c operator>>(std::ostream&,T&) must be visible via ADL or defined in namespace madness::operators
     template <typename T>
-    struct is_istreammable<T, meta::void_t<decltype(std::declval<std::istream&>() >> std::declval<T&>())>> : std::true_type {};
+    struct is_istreammable : public is_istreammable_ns::impl<T> {};
+
+    /// Shortcut for \c is_istreammable<T>::value
     template <typename T> constexpr bool is_istreammable_v = is_istreammable<T>::value;
+
     /// providing automatic support for serializing to/from std streams requires bidirectional streammability
     template <typename T> constexpr bool is_iostreammable_v = is_istreammable_v<T> && is_ostreammable_v<T>;
 
     template <typename T> constexpr bool is_always_serializable =
     std::is_arithmetic<T>::value || \
     std::is_same<std::nullptr_t, typename std::remove_cv<T>::type>::value || \
-    std::is_member_function_pointer<T>::value || \
-    std::is_function<T>::value  || \
-    std::is_function<typename std::remove_pointer<T>::type>::value;
+    is_any_function_pointer_v<T> || \
+    std::is_function<T>::value;
 
     /// \brief is \c std::true_type if \c T can be serialized to \c Archive
     ///        without specialized \c serialize() method

@@ -77,14 +77,21 @@ EOF
 fi
 
 # Install libxc
-if [ ! -f "${HOME}/libxc/lib/libxc.a" ]; then
+if [ "X${BUILD_SHARED}" = "X1" ]; then
+  LIBEXT="so"
+  LIBXC_TYPE_ENABLE="--enable-shared --disable-static"
+else
+  LIBEXT="a"
+  LIBXC_TYPE_ENABLE="--enable-static --disable-shared"
+fi
+if [ ! -f "${HOME}/libxc/lib/libxc.${LIBEXT}" ]; then
     export LIBXC_VERSION=4.3.4
     wget -O libxc-${LIBXC_VERSION}.tar.gz "https://gitlab.com/libxc/libxc/-/archive/${LIBXC_VERSION}/libxc-${LIBXC_VERSION}.tar.gz"
     tar -xzf libxc-${LIBXC_VERSION}.tar.gz
     ls -l
     cd libxc-${LIBXC_VERSION}
     autoreconf -i
-    ./configure --prefix=${HOME}/libxc --enable-static --disable-fortran CFLAGS="-mno-avx -O1" CXXFLAGS="-mno-avx -O1" FCFLAGS="-mno-avx -O1"
+    ./configure --prefix=${HOME}/libxc ${LIBXC_TYPE_ENABLE} --disable-fortran CFLAGS="-mno-avx -O1" CXXFLAGS="-mno-avx -O1" FCFLAGS="-mno-avx -O1"
     make -j2
     make install
     cd ..
@@ -134,10 +141,14 @@ fi
 # Do not exit on error because MKL is optional
 set +e
 
-# Install MKL
-wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS-2019.PUB
-sudo apt-key add GPG-PUB-KEY-INTEL-SW-PRODUCTS-2019.PUB
-sudo sh -c 'echo deb https://apt.repos.intel.com/mkl all main > /etc/apt/sources.list.d/intel-mkl.list'
-sudo apt-get update
-sudo apt-get install intel-mkl-2019.4-070
+# Install MKL+TBB
+if [ ! -f "/opt/intel/mkl/bin/mklvars.sh" ]; then
+  wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS-2019.PUB
+  sudo apt-key add GPG-PUB-KEY-INTEL-SW-PRODUCTS-2019.PUB
+  sudo sh -c 'echo deb https://apt.repos.intel.com/mkl all main > /etc/apt/sources.list.d/intel-mkl.list'
+  sudo sh -c 'echo deb https://apt.repos.intel.com/tbb all main > /etc/apt/sources.list.d/intel-tbb.list'
+  sudo apt-get update
+  sudo apt-get install intel-mkl-64bit-2020.1-102
+  sudo apt-get install intel-tbb-64bit-2020.2-102
+fi
 

@@ -35,6 +35,10 @@ using std::endl;
 
 #include <cmath>
 
+// make more fundamental types ostreammable
+#include <madness/world/array_addons.h>
+#include <madness/world/print.h>
+
 /// \file test.cc
 /// \brief Tests serialization by some of the archives
 
@@ -80,7 +84,8 @@ static_assert(madness::is_text_archive_v<CerealXMLInputArchive>, "ouch");
 static_assert(madness::is_text_archive_v<CerealXMLOutputArchive>, "ouch");
 #endif
 
-#include <madness/world/array_addons.h>
+#include <madness/world/world.h>
+#include <madness/world/worldgop.h>
 
 // A is a class that provides a symmetric serialize method
 class A {
@@ -158,14 +163,29 @@ std::istream& operator>>(std::istream& os, F& data) {
   return os;
 }
 
-static_assert(!madness::is_ostreammable<A>::value, "A is not ostreammable");
-static_assert(madness::is_ostreammable<F>::value, "F is ostreammable");
-static_assert(madness::is_ostreammable<bool>::value, "bool is ostreammable");
-static_assert(madness::is_ostreammable<int>::value, "int is ostreammable");
-static_assert(!madness::is_istreammable<A>::value, "A is not istreammable");
-static_assert(madness::is_istreammable<F>::value, "F is istreammable");
-static_assert(madness::is_istreammable<bool>::value, "bool is istreammable");
-static_assert(madness::is_istreammable<int>::value, "int is istreammable");
+// make sure streaming ops have correct return types
+struct NotStreammable {
+};
+int operator<<(std::ostream& os, const NotStreammable& data) {
+  return 0;
+}
+void operator>>(std::istream& os, NotStreammable& data) {
+}
+
+static_assert(!madness::is_ostreammable_v<A>, "A is not ostreammable");
+static_assert(madness::is_ostreammable_v<F>, "F is ostreammable");
+static_assert(madness::is_ostreammable_v<bool>, "bool is ostreammable");
+static_assert(madness::is_ostreammable_v<int>, "int is ostreammable");
+static_assert(madness::is_ostreammable_v<std::array<int,3>>, "std::array<int,3> is ostreammable");
+static_assert(madness::is_ostreammable_v<std::vector<int>>, "std::vector<int> is ostreammable");
+static_assert(!madness::is_ostreammable_v<NotStreammable>, "NotStreammable is ostreammable");
+static_assert(!madness::is_istreammable_v<A>, "A is not istreammable");
+static_assert(madness::is_istreammable_v<F>, "F is istreammable");
+static_assert(madness::is_istreammable_v<bool>, "bool is istreammable");
+static_assert(madness::is_istreammable_v<int>, "int is istreammable");
+static_assert(!madness::is_istreammable_v<std::array<int,3>>, "std::array<int,3> is not istreammable");
+static_assert(!madness::is_istreammable_v<std::vector<int>>, "std::vector<int> is not istreammable");
+static_assert(!madness::is_istreammable_v<NotStreammable>, "NotStreammable is not istreammable");
 
 // A better example of a class with asym load/store
 class linked_list {
@@ -199,6 +219,15 @@ public:
         else cout << value << endl;
     };
 };
+
+namespace {
+void free_fn() {}
+struct Member {
+  static void static_fn(){}
+  void fn(){}
+  virtual void virtual_fn() {}
+};
+}
 
 namespace madness {
     namespace archive {
@@ -306,7 +335,7 @@ void test_out(const OutputArchive& oar) {
     tuple_int_double_complexfloat t = std::make_tuple(1,2.0,std::complex<float>(3.0f,4.0f));
 
     // Initialize data
-    a.a = b.b = c.c = i = 1;
+    a.a = 1; b.b = 1; c.c = 1; i = 1;
     d.i = 1;  d.l = 2;
     f.i = 1;  f.l = 2;
     for (int k=0; k<n; ++k) {
@@ -404,7 +433,34 @@ void test_out(const OutputArchive& oar) {
     oar << str;
     oar & str;
 
+    constexpr const bool ptr_is_serializable = !madness::is_cereal_archive<OutputArchive>::value;
+    if constexpr(ptr_is_serializable) {
+      MAD_ARCHIVE_DEBUG(std::cout << std::endl
+                                  << " function pointer" << std::endl);
+      oar &free_fn;
+      oar << (&free_fn);
+      MAD_ARCHIVE_DEBUG(std::cout << std::endl
+                                  << " static member function pointer"
+                                  << std::endl);
+      oar &Member::static_fn;
+      oar << (&Member::static_fn);
+      MAD_ARCHIVE_DEBUG(std::cout << std::endl
+                                  << " non-static member function pointer"
+                                  << std::endl);
+      oar & (&Member::fn);
+      oar << (&Member::fn);
+      MAD_ARCHIVE_DEBUG(std::cout << std::endl
+                                  << " non-static virtual member function pointer"
+                                  << std::endl);
+      oar & (&Member::virtual_fn);
+      oar << (&Member::virtual_fn);
+    }
+
     oar & 1.0 & i & a & b & c & in & an & bn & cn & wrap(p,n) & wrap(q,n) & pp & m & t & str;
+    if constexpr(ptr_is_serializable) {
+      oar &free_fn &(&free_fn) & Member::static_fn & (&Member::static_fn) & (&Member::fn) & (&Member::virtual_fn);
+    }
+
     if (D_is_serializable) {
       pod_serialize_dispatch<D_is_serializable>{}(oar, d);
       pod_serialize_dispatch<D_is_serializable>{}(oar, dn);
@@ -436,9 +492,12 @@ void test_in(const InputArchive& iar) {
     linked_list list;
     double pi = 0.0, e = 0.0;
     tuple_int_double_complexfloat t;
+    decltype(&free_fn) free_fn_ptr1=nullptr, free_fn_ptr2=nullptr;
+    decltype(&Member::static_fn) static_member_fn_ptr1=nullptr, static_member_fn_ptr2=nullptr;
+    decltype(&Member::fn) member_fn_ptr=nullptr, virtual_member_fn_ptr=nullptr;
 
     // Destroy in-core data
-    a.a = b.b = c.c = i = 0;
+    a.a = 0; b.b = 0; c.c = 0; i = 0;
     d.i = -1;  d.l = -1;
     f.i = -1;  f.l = -1;
     for (int k=0; k<n; ++k) {
@@ -538,7 +597,36 @@ void test_in(const InputArchive& iar) {
     iar & str;
     iar >> str;
 
+    constexpr const bool ptr_is_serializable = !madness::is_cereal_archive<InputArchive>::value;
+    if constexpr(ptr_is_serializable) {
+      MAD_ARCHIVE_DEBUG(std::cout << std::endl
+                                  << " function pointer" << std::endl);
+      iar &free_fn_ptr1;
+      iar >> free_fn_ptr2;
+      MAD_ARCHIVE_DEBUG(std::cout << std::endl
+                                  << " static member function pointer"
+                                  << std::endl);
+      iar &static_member_fn_ptr1;
+      iar >> static_member_fn_ptr2;
+      MAD_ARCHIVE_DEBUG(std::cout << std::endl
+                                  << " non-static member function pointer"
+                                  << std::endl);
+      decltype(&Member::fn) nonstatic_member_fn_ptr;
+      iar & nonstatic_member_fn_ptr;
+      iar >> nonstatic_member_fn_ptr;
+      MAD_ARCHIVE_DEBUG(std::cout << std::endl
+                                  << " non-static virtual member function pointer"
+                                  << std::endl);
+      decltype(&Member::virtual_fn) nonstatic_virtual_member_fn_ptr;
+      iar & nonstatic_virtual_member_fn_ptr;
+      iar >> nonstatic_virtual_member_fn_ptr;
+    }
+
     iar & 1.0 & i & a & b & c & in & an & bn & cn & wrap(p,n) & wrap(q,n) & pp & m & t & str;
+    if constexpr(ptr_is_serializable) {
+      iar &free_fn_ptr1 &free_fn_ptr2 &static_member_fn_ptr1
+          &static_member_fn_ptr2 & member_fn_ptr & virtual_member_fn_ptr;
+    }
     if (D_is_serializable) {
       pod_deserialize_dispatch<D_is_serializable>{}(iar, d);
       pod_deserialize_dispatch<D_is_serializable>{}(iar, dn);
@@ -591,6 +679,14 @@ void test_in(const InputArchive& iar) {
     TEST(pp.first==33 && pp.second==99.0);
     TEST(str == string(teststr));
     TEST(t == std::make_tuple(1,2.0,std::complex<float>(3.0f,4.0f)));
+    if constexpr(ptr_is_serializable) {
+      TEST(free_fn_ptr1 == &free_fn);
+      TEST(free_fn_ptr2 == &free_fn);
+      TEST(static_member_fn_ptr1 == &Member::static_fn);
+      TEST(static_member_fn_ptr2 == &Member::static_fn);
+      TEST(member_fn_ptr == &Member::fn);
+      TEST(virtual_member_fn_ptr == &Member::virtual_fn);
+    }
 
 #undef TEST
 
@@ -600,134 +696,173 @@ void test_in(const InputArchive& iar) {
         std::cout << "Sorry, back to the drawing board.\n";
 }
 
-int main() {
-    madness::archive::archive_initialize_type_names();
-    ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(A);
-    ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(B);
-    ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(C);
-    ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(linked_list);
-    ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(madness::archive::pair_int_double);
-    ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(madness::archive::pair_short_complex_double);
-    ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(madness::archive::map_short_complex_double);
+int main(int argc, char* argv[]) {
 
-    {
-        const char* f = "test.dat";
-        cout << endl << "testing binary fstream archive" << endl;
-        BinaryFstreamOutputArchive oar(f);
-        test_out(oar);
-        oar.close();
+  auto &world = madness::initialize(argc, argv);
 
-        BinaryFstreamInputArchive iar(f);
-        test_in(iar);
-        iar.close();
+  const auto me = world.rank();
+  const auto nproc = world.size();
+  const auto is_write_proc = (me == 0);
+  const auto is_read_proc = (nproc == 1) ? (me == 0) : (me == 1);
+  const int nworkers = (nproc == 1) ? 1 : 2;
+  for(int rank=0; rank!=nworkers; ++rank) {
+    if (rank == me) {
+      cout << "rank=" << rank << " fn_ptr_origin=" << std::hex
+           << madness::archive::fn_ptr_origin() << endl;
     }
+    world.gop.barrier();
+  }
 
-    {
-        cout << endl << "testing vector archive" << endl;
-        std::vector<unsigned char> f;
-        VectorOutputArchive oar(f);
-        test_out(oar);
-        oar.close();
+  madness::archive::archive_initialize_type_names();
+  ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(A);
+  ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(B);
+  ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(C);
+  ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(linked_list);
+  ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(madness::archive::pair_int_double);
+  ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(
+      madness::archive::pair_short_complex_double);
+  ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(
+      madness::archive::map_short_complex_double);
 
-        VectorInputArchive iar(f);
-        test_in(iar);
-        iar.close();
+  {
+    const char *f = "test.dat";
+    if (is_write_proc) {
+      cout << endl << "testing binary fstream archive" << endl;
+      BinaryFstreamOutputArchive oar(f);
+      test_out(oar);
+      oar.close();
     }
+    world.gop.barrier();
 
-    {
-        const char* f = "test.dat";
-        cout << endl << "testing text fstream archive" << endl;
-        TextFstreamOutputArchive oar(f);
-        test_out(oar);
-        oar.close();
-
-        TextFstreamInputArchive iar(f);
-        test_in(iar);
-        iar.close();
+    if (is_read_proc) {
+      BinaryFstreamInputArchive iar(f);
+      test_in(iar);
+      iar.close();
     }
+    world.gop.barrier();
+  }
 
-    {
-        cout << endl << "testing buffer archive" << endl;
-        unsigned char buf[32768];
-        BufferOutputArchive oar(buf,sizeof(buf));
-        test_out(oar);
-        std::size_t nbyte = oar.size();
-        oar.close();
+  if (me == 0) {
+    cout << endl << "testing vector archive" << endl;
+    std::vector<unsigned char> f;
+    VectorOutputArchive oar(f);
+    test_out(oar);
+    oar.close();
 
-        BufferInputArchive iar(buf,nbyte);
-        test_in(iar);
-        iar.close();
+    VectorInputArchive iar(f);
+    test_in(iar);
+    iar.close();
+  }
+  world.gop.barrier();
+
+  {
+    const char *f = "test.dat";
+    if (is_write_proc) {
+      cout << endl << "testing text fstream archive" << endl;
+      TextFstreamOutputArchive oar(f);
+      test_out(oar);
+      oar.close();
     }
+    world.gop.barrier();
+
+    if (is_read_proc) {
+      TextFstreamInputArchive iar(f);
+      test_in(iar);
+      iar.close();
+    }
+    world.gop.barrier();
+  }
+
+  // buffer archive only tested on rank 0
+  if (me == 0) {
+    cout << endl << "testing buffer archive" << endl;
+    unsigned char buf[32768];
+    BufferOutputArchive oar(buf, sizeof(buf));
+    test_out(oar);
+    std::size_t nbyte = oar.size();
+    oar.close();
+
+    BufferInputArchive iar(buf, nbyte);
+    test_in(iar);
+    iar.close();
+  }
+  world.gop.barrier();
 
 #ifdef MADNESS_HAS_CEREAL
-    {
-      const char *f = "test.dat";
+  {
+    const char *f = "test.dat";
+    if (is_write_proc) {
       cout << endl << "testing binary Cereal archive" << endl;
-      {
-        std::ofstream fout(f, std::ios_base::binary | std::ios_base::out |
-                                  std::ios_base::trunc);
-        CerealBinaryOutputArchive oar(fout);
-        test_out(oar);
-        oar.close();
-      }
-
-      {
-        std::ifstream fin(f, std::ios_base::binary | std::ios_base::in);
-        CerealBinaryInputArchive iar(fin);
-        test_in(iar);
-        iar.close();
-      }
-
-      cout << endl << "testing portable binary Cereal archive" << endl;
-      {
-        std::ofstream fout(f, std::ios_base::binary | std::ios_base::out |
-                                  std::ios_base::trunc);
-        CerealPortableBinaryOutputArchive oar(fout);
-        test_out(oar);
-        oar.close();
-      }
-
-      {
-        std::ifstream fin(f, std::ios_base::binary | std::ios_base::in);
-        CerealPortableBinaryInputArchive iar(fin);
-        test_in(iar);
-        iar.close();
-      }
-
-      cout << endl << "testing JSON Cereal archive" << endl;
-      {
-        std::ofstream fout(f, std::ios_base::out |
-            std::ios_base::trunc);
-        CerealJSONOutputArchive oar(fout);
-        test_out(oar);
-        oar.close();
-      }
-
-      {
-        std::ifstream fin(f, std::ios_base::in);
-        CerealJSONInputArchive iar(fin);
-        test_in(iar);
-        iar.close();
-      }
-
-      cout << endl << "testing XML Cereal archive" << endl;
-      {
-        std::ofstream fout(f, std::ios_base::out |
-            std::ios_base::trunc);
-        CerealXMLOutputArchive oar(fout);
-        test_out(oar);
-        oar.close();
-      }
-
-      {
-        std::ifstream fin(f, std::ios_base::in);
-        CerealXMLInputArchive iar(fin);
-        test_in(iar);
-        iar.close();
-      }
-
+      std::ofstream fout(f, std::ios_base::binary | std::ios_base::out |
+                                std::ios_base::trunc);
+      CerealBinaryOutputArchive oar(fout);
+      test_out(oar);
+      oar.close();
     }
-#endif  // MADNESS_HAS_CEREAL
+    world.gop.barrier();
 
+    if (is_read_proc) {
+      std::ifstream fin(f, std::ios_base::binary | std::ios_base::in);
+      CerealBinaryInputArchive iar(fin);
+      test_in(iar);
+      iar.close();
+    }
+    world.gop.barrier();
+
+    if (is_write_proc) {
+      cout << endl << "testing portable binary Cereal archive" << endl;
+      std::ofstream fout(f, std::ios_base::binary | std::ios_base::out |
+                                std::ios_base::trunc);
+      CerealPortableBinaryOutputArchive oar(fout);
+      test_out(oar);
+      oar.close();
+    }
+    world.gop.barrier();
+
+    if (is_read_proc) {
+      std::ifstream fin(f, std::ios_base::binary | std::ios_base::in);
+      CerealPortableBinaryInputArchive iar(fin);
+      test_in(iar);
+      iar.close();
+    }
+    world.gop.barrier();
+
+    if (is_write_proc) {
+      cout << endl << "testing JSON Cereal archive" << endl;
+      std::ofstream fout(f, std::ios_base::out | std::ios_base::trunc);
+      CerealJSONOutputArchive oar(fout);
+      test_out(oar);
+      oar.close();
+    }
+    world.gop.barrier();
+
+    if (is_read_proc) {
+      std::ifstream fin(f, std::ios_base::in);
+      CerealJSONInputArchive iar(fin);
+      test_in(iar);
+      iar.close();
+    }
+    world.gop.barrier();
+
+    if (is_write_proc) {
+      cout << endl << "testing XML Cereal archive" << endl;
+      std::ofstream fout(f, std::ios_base::out | std::ios_base::trunc);
+      CerealXMLOutputArchive oar(fout);
+      test_out(oar);
+      oar.close();
+    }
+    world.gop.barrier();
+
+    if (is_read_proc) {
+      std::ifstream fin(f, std::ios_base::in);
+      CerealXMLInputArchive iar(fin);
+      test_in(iar);
+      iar.close();
+    }
+    world.gop.barrier();
+  }
+#endif // MADNESS_HAS_CEREAL
+
+  madness::finalize();
   return 0;
 }
