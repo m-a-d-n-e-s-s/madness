@@ -13,18 +13,19 @@
 
 # Compilers
 
-if(NOT CMAKE_C_COMPILER)
-  set(CMAKE_C_COMPILER mpicc)
-endif()
-if(NOT CMAKE_CXX_COMPILER)
-  set(CMAKE_CXX_COMPILER mpicxx)
-endif()
-if (NOT MPI_C_COMPILER)
-  set(MPI_C_COMPILER mpicc)
-endif()
-if (NOT MPI_CXX_COMPILER)
-  set(MPI_CXX_COMPILER mpicxx)
-endif()
+# These seem to break findmpi module
+#if(NOT CMAKE_C_COMPILER)
+#  set(CMAKE_C_COMPILER mpicc)
+#endif()
+#if(NOT CMAKE_CXX_COMPILER)
+#  set(CMAKE_CXX_COMPILER mpicxx)
+#endif()
+#if (NOT MPI_C_COMPILER)
+#  set(MPI_C_COMPILER mpicc)
+#endif()
+#if (NOT MPI_CXX_COMPILER)
+#  set(MPI_CXX_COMPILER mpicxx)
+#endif()
 
 # Specify the GNU compilers to use with Intel C/C++
 set(GCC_ROOT_DIR "$ENV{GCC_DIR}")

@@ -559,7 +559,7 @@ endif(CCACHE)
 
 # Check for external dependencies ==============================================
 include(external/pthread.cmake)
-#include(external/mpi.cmake)
+include(external/mpi.cmake)
 include(external/papi.cmake)
 include(external/lapack.cmake)
 include(external/libxc.cmake)
