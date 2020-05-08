@@ -68,10 +68,10 @@ extern "C" void HPM_Prof_stop(unsigned int);
 
 namespace madness {
 #ifdef MADNESS_DQ_USE_PREBUF
-  template<> __thread PoolTaskInterface* DQueue<PoolTaskInterface*>::prebuf[DQueue<madness::PoolTaskInterface*>::NPREBUF] = {0};
-  template<> __thread PoolTaskInterface* DQueue<PoolTaskInterface*>::prebufhi[DQueue<madness::PoolTaskInterface*>::NPREBUF] = {0};
-  template<> __thread size_t DQueue<PoolTaskInterface*>::ninprebuf = 0;
-  template<> __thread size_t DQueue<PoolTaskInterface*>::ninprebufhi = 0;
+  template<> thread_local PoolTaskInterface* DQueue<PoolTaskInterface*>::prebuf[DQueue<madness::PoolTaskInterface*>::NPREBUF] = {0};
+  template<> thread_local PoolTaskInterface* DQueue<PoolTaskInterface*>::prebufhi[DQueue<madness::PoolTaskInterface*>::NPREBUF] = {0};
+  template<> thread_local size_t DQueue<PoolTaskInterface*>::ninprebuf = 0;
+  template<> thread_local size_t DQueue<PoolTaskInterface*>::ninprebufhi = 0;
 #endif
 
     int ThreadBase::cpulo[3];

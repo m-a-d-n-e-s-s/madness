@@ -87,9 +87,9 @@ namespace madness {
 
 #ifdef MADNESS_DQ_USE_PREBUF
 	static const size_t NPREBUF=20;
-	static __thread T prebuf[NPREBUF]; // relies on this being a singleton class!!!!!!!!!!!!!!!!!!
-	static __thread T prebufhi[NPREBUF]; // relies on this being a singleton class!!!!!!!!!!!!!!!!!!
-	static __thread size_t ninprebuf, ninprebufhi;
+	static thread_local T prebuf[NPREBUF]; // relies on this being a singleton class!!!!!!!!!!!!!!!!!!
+	static thread_local T prebufhi[NPREBUF]; // relies on this being a singleton class!!!!!!!!!!!!!!!!!!
+	static thread_local size_t ninprebuf, ninprebufhi;
 #endif
 
         void grow() {
