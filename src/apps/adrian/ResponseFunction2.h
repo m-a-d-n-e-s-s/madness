@@ -20,23 +20,23 @@ class ResponseFunction {
       unsigned int r_states; // Num. of resp. states
       unsigned int g_states; // Num. of ground states
       std::vector<std::vector<Function<double,3>>> x;
- 
+
    // Member functions
    public:
 
       // Default constructor
-      ResponseFunction() : r_states(0), g_states(0) {      
+      ResponseFunction() : r_states(0), g_states(0) {
       }
 
       // Initializes functions to zero
       ResponseFunction(World& world, unsigned int m, unsigned int n) : r_states(m), g_states(n) {
-         for(unsigned int i = 0; i < m; i++) x.push_back(zero_functions<double,3>(world,n)); 
+         for(unsigned int i = 0; i < m; i++) x.push_back(zero_functions<double,3>(world,n));
          x[0][0].world().gop.fence();
       }
 
-      // Copy constructor 
+      // Copy constructor
       ResponseFunction(const ResponseFunction& b) : r_states(b.r_states), g_states(b.g_states) {
-         for(unsigned int i = 0; i < r_states; i++) x.push_back(madness::copy(b.x[0][0].world(), b.x[i])); 
+         for(unsigned int i = 0; i < r_states; i++) x.push_back(madness::copy(b.x[0][0].world(), b.x[i]));
          x[0][0].world().gop.fence();
       }
 
@@ -57,11 +57,11 @@ class ResponseFunction {
          ResponseFunction result(x[0][0].world(), r_states, g_states);
 
          for(unsigned int i = 0; i < r_states; i++) {
-            result[i] = add(x[0][0].world(), x[i], b[i]); 
+            result[i] = add(x[0][0].world(), x[i], b[i]);
          }
 
          result[0][0].world().gop.fence();
-         return result; 
+         return result;
       }
 
       ResponseFunction operator-(const ResponseFunction& b) const {
@@ -70,10 +70,10 @@ class ResponseFunction {
          ResponseFunction result(x[0][0].world(), r_states, g_states);
 
          for(unsigned int i = 0; i < r_states; i++) {
-            result.x[i] = sub(x[0][0].world(), x[i], b.x[i]); 
+            result.x[i] = sub(x[0][0].world(), x[i], b.x[i]);
          }
 
-         return result; 
+         return result;
       }
 
       // KAIN must have this
@@ -108,21 +108,21 @@ class ResponseFunction {
          MADNESS_ASSERT(same_size(b));
 
          for(unsigned int i = 0; i < r_states; i++) {
-            x[i] = add(b.x[0][0].world(), x[i], b.x[i]); 
+            x[i] = add(b.x[0][0].world(), x[i], b.x[i]);
          }
 
-         return *this; 
+         return *this;
       }
-  
+
       // Returns a deep copy
       ResponseFunction copy() {
          ResponseFunction result(x[0][0].world(), r_states, g_states);
-         
+
          for(unsigned int i = 0; i < r_states; i++) {
             result.x[i] = madness::copy(x[0][0].world(), x[i], false);
          }
          x[0][0].world().gop.fence();
-         
+
          return result;
       }
 
@@ -130,7 +130,7 @@ class ResponseFunction {
       void push_back(const std::vector<Function<double,3>>& f) {
          x.push_back(f);
          r_states++;
-         
+
          // Be smart with g_states
          if (g_states > 0) {
             MADNESS_ASSERT(g_states = f.size());
@@ -146,7 +146,7 @@ class ResponseFunction {
 
          // Be smart with g_states
          if (r_states == 0) { // removed last item
-            g_states = 0; 
+            g_states = 0;
          }
       }
       void clear() {
@@ -156,12 +156,12 @@ class ResponseFunction {
       }
       unsigned int size() const {
          return r_states;
-      }      
+      }
 
       // Mimicing standard madness calls with these 3
-      void zero() { 
+      void zero() {
          for(unsigned int k = 0; k < r_states; k++) {
-            x[k] = zero_functions<double,3>(x[0][0].world(), g_states); 
+            x[k] = zero_functions<double,3>(x[0][0].world(), g_states);
          }
       }
 
@@ -184,7 +184,7 @@ class ResponseFunction {
       }
 
       // Returns norms of each state
-      Tensor<double> norm2() { 
+      Tensor<double> norm2() {
          Tensor<double> answer(r_states);
          for(unsigned int i = 0; i < r_states; i++) answer(i) = sqrt(inner(x[i], x[i]));
          return answer;
@@ -218,7 +218,7 @@ inline double inner(ResponseFunction& a,
    return value;
 }
 
-} // End namespace madness 
+} // End namespace madness
 #endif
 
 
