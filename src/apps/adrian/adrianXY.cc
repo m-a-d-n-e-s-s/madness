@@ -8,7 +8,7 @@
  */
 
 
-#include "TDHF2.h"    // All response functions/objects enter through this
+#include "TDDFT.h"    // All response functions/objects enter through this
 #include <stdlib.h>
 
 #if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
