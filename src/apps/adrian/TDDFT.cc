@@ -537,6 +537,7 @@ ResponseFunction TDHF::dipole_guess(World &world,
 // Returns the derivative of the coulomb operator, applied to ground state orbitals
 ResponseFunction TDHF::create_coulomb_derivative(World &world,
                                                  ResponseFunction & f,
+                                                 ResponseFunction & g,
                                                  std::vector<real_function_3d> & orbitals,
                                                  double small,
                                                  double thresh)
@@ -558,7 +559,9 @@ ResponseFunction TDHF::create_coulomb_derivative(World &world,
    for(int k = 0; k < m; k++)
    {
       // Get transition density 
-      rho = dot(world, f[k], orbitals);
+      rho = dot(world, f[k]+g[k], orbitals);//sum the vector of functions
+      // This works because we assume x,y,phi_i all to be real
+
 
       // Apply coulomb operator
       rho = apply(op, rho);
