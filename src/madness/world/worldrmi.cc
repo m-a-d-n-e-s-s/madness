@@ -72,11 +72,11 @@ namespace madness {
 
         MutexWaiter waiter;
         while((narrived == 0) && (iterations < 1000)) {
-	  narrived = SafeMPI::Request::Testsome(maxq_, recv_req.get(), ind.get(), status.get());
+          narrived = SafeMPI::Request::Testsome(maxq_, recv_req.get(), ind.get(), status.get());
           if (narrived) break;
-	  ++iterations;
+          ++iterations;
           clear_send_req();
-	  myusleep(RMI::testsome_backoff_us);
+          myusleep(RMI::testsome_backoff_us);
         }
 
 #ifndef HAVE_CRAYXT
@@ -166,10 +166,10 @@ namespace madness {
             post_pending_huge_msg();
 
 #if !(defined(HAVE_INTEL_TBB) || defined(HAVE_PARSEC))
-	    // Since this thread never waits or tries to run a task we
-	    // must manually flush the thread-local prebuffer that
-	    // aggregates task submission.
-	    ThreadPool::instance()->flush_prebuf();
+            // Since this thread never waits or tries to run a task we
+            // must manually flush the thread-local prebuffer that
+            // aggregates task submission.
+            ThreadPool::instance()->flush_prebuf();
 #endif
             clear_send_req();
         }
@@ -454,7 +454,7 @@ namespace madness {
 
 
   void RMI::RmiTask::set_rmi_task_is_running(bool flag) {
-	      rmi_task_is_running = flag; // Yipeeeeeeeeeeeeeeeeeeeeee ... fighting TBB laziness
+              rmi_task_is_running = flag; // Yipeeeeeeeeeeeeeeeeeeeeee ... fighting TBB laziness
   }
 
     RMI::Request

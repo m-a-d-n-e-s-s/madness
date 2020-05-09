@@ -86,7 +86,7 @@ namespace madness {
         DQStats stats;
 
 #ifdef MADNESS_DQ_USE_PREBUF
-	static const size_t NPREBUF=20;
+	static const size_t NPREBUF=MADNESS_DQ_PREBUF_SIZE;
 	static thread_local T prebuf[NPREBUF]; // relies on this being a singleton class!!!!!!!!!!!!!!!!!!
 	static thread_local T prebufhi[NPREBUF]; // relies on this being a singleton class!!!!!!!!!!!!!!!!!!
 	static thread_local size_t ninprebuf, ninprebufhi;
