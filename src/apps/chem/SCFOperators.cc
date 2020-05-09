@@ -405,7 +405,7 @@ XCOperator::XCOperator(World& world, std::string xc_data, const bool spin_polari
     : world(world), nbeta(0), ispin(0), extra_truncation(FunctionDefaults<3>::get_thresh()*0.01),
       dft_deriv(deriv) {
 
-    nbeta=(brho.norm2()>0.0);   // does this make sense
+    nbeta=(brho.norm2()>0.0);   // does this make sense?
 
     xc=std::shared_ptr<XCfunctional> (new XCfunctional());
     xc->initialize(xc_data, spin_polarized, world);
@@ -460,7 +460,8 @@ XCOperator::XCOperator(World& world, const Nemo* nemo, int ispin) : world(world)
 XCOperator::XCOperator(World& world, const SCF* calc, const real_function_3d& arho,
         const real_function_3d& brho, int ispin, std::string deriv)
         : world(world), nbeta(calc->param.nbeta()), ispin(ispin),
-          extra_truncation(FunctionDefaults<3>::get_thresh()*0.01), dft_deriv(deriv) {
+          extra_truncation(FunctionDefaults<3>::get_thresh()*0.01), dft_deriv(deriv) 
+          {
     xc=std::shared_ptr<XCfunctional> (new XCfunctional());
     xc->initialize(calc->param.xc(), !calc->param.spin_restricted(), world);
     xc_args=prep_xc_args(arho,brho);

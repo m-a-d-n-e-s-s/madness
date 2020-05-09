@@ -901,7 +901,7 @@ namespace madness {
 //        if (&a != &b) reconstruct(world, b, true); // fails if type(a) != type(b)
 
         std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> > q(a.size());
-        for (unsigned int i=0; i<a.size(); ++i) {
+        for (unsigned int i=0; i<a.size(); ++i) {// FOR EACH VECTOR MULTIPLY FUNCTION Ai and Bi
             q[i] = mul(a[i], b[i], false);
         }
         if (fence) world.gop.fence();
