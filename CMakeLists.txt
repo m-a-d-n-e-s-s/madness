@@ -170,6 +170,13 @@ add_feature_info(NEVER_SPIN ENABLE_NEVER_SPIN
 set(NEVER_SPIN ${ENABLE_NEVER_SPIN} CACHE BOOL
     "Disables use of spinlocks (notably for use inside virtual machines)")
 
+option(ENABLE_DQ_PREBUF
+    "Enables thread-local buffer for task aggregation to reduce lock contention" ON)
+add_feature_info(DQ_PREBUF ENABLE_DQ_PREBUF
+    "Enables thread-local buffer for task aggregation to reduce lock contention")
+set(MADNESS_DQ_USE_PREBUF ${ENABLE_DQ_PREBUF} CACHE BOOL
+    "Enables thread-local buffer for task aggregation to reduce lock contention")
+
 option(ENABLE_BSEND_ACKS 
     "Use MPI Send instead of MPI Bsend for huge message acknowledgements" ON)
 add_feature_info(BSEND_ACKS ENABLE_BSEND_ACKS
