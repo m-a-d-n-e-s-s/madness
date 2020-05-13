@@ -555,47 +555,40 @@ ResponseFunction TDHF::create_coulomb_derivative(World &world,
                                                  ResponseFunction &g,
                                                  std::vector<real_function_3d> &orbitals,
                                                  double small,
-                                                 double thresh)
+                                                 double thresh
+                                                 )
 {
    // Get sizes
-   int m = f.size();
-   int n = f[0].size();
-
+   int m = f.size();// number of resposne states or frequencies
+   int n = f[0].size(); //number of ground states  x[m][n]
    // Zero function, to be returned
-   ResponseFunction deriv_j(world, m, n);
-
+   ResponseFunction deriv_J(world, m, n); //J_p--Jderivative
    // Need the coulomb operator
    real_convolution_3d op = CoulombOperator(world, small, thresh);
-
    // Temperary storage
-   real_function_3d rho = real_function_3d(world);
-
+   real_function_3d transition_density = real_function_3d(world);
    // Need to run over each state
    for (int k = 0; k < m; k++)
    {
-      // Get transition density
-      rho = dot(world, f[k] + g[k], orbitals); //sum the vector of functions
+      //transition_density = dot(world, f[k] + g[k], orbitals); //sum the vector of functions
       // This works because we assume x,y,phi_i all to be real
-
       // Apply coulomb operator
-      rho = apply(op, rho);
-
-      // Need to run over all occupied orbitals
+      transition_density=apply(op,dot(world,f[k]+g[k],orbitals));
+      //transition_density = apply(op, rho);
       for (int p = 0; p < n; p++)
       {
          // Multiply by ground state orbital p
          // and save the result
-         deriv_j[k][p] = rho * orbitals[p];
+         deriv_J[k][p] = transition_density * orbitals[p];
       }
    }
-
-   // Done
-   return deriv_j;
+   return deriv_J;
 }
 
 // Does what it sounds like it does
 ResponseFunction TDHF::create_exchange_derivative(World &world,
                                                   ResponseFunction &f,
+                                                  ResponseFunction &g,
                                                   std::vector<real_function_3d> &orbitals,
                                                   double small,
                                                   double thresh)
@@ -873,7 +866,7 @@ ResponseFunction TDHF::create_gamma(World &world,
    // If including any HF exchange:
    if (xcf.hf_exchange_coefficient())
    {
-      deriv_K = create_exchange_derivative(world, f, orbitals, small, thresh);
+      deriv_K = create_exchange_derivative(world, f,g, orbitals, small, thresh);
    }
    // Get the DFT contribution
    if (xcf.hf_exchange_coefficient() != 1.0)

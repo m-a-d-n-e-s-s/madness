@@ -242,6 +242,7 @@ public:
     // This is the function for TDA only
     ResponseFunction create_exchange_derivative(World &world,
                                                 ResponseFunction &f,
+                                                ResponseFunction &g,
                                                 std::vector<real_function_3d> &orbitals,
                                                 double small,
                                                 double thresh);
