@@ -312,6 +312,10 @@ T ShurDense(const Tensor<T>& H, T E) {
         }
     }
 
+    // Tensor<double> evals,evecs;
+    // syev(A, evecs, evals);
+    // print("dense Aevals",evals[0],evals[A.dim(0)-1]);
+
     // Solve the linear equation
     Tensor<T> y;
     gesv(A, x, y);
@@ -357,17 +361,142 @@ T ShurSparse(const Tensor<T>& H, T E) {
     // then switch to faster iteration to solve.
 
     Tensor<T> y(N-1);
-    double omega = 0.3;
+    double omega = 0.773;
     for (int iter=0; iter<1000; iter++) {
         Tensor<T> r = x - sparse_matrix_times_vector(Asp,y);
         double err = r.normf();
-        //print(iter,err);
+        print(iter,err);
         y += omega*r;
         if (err < 1e-6) break;
     }
 
     // Compute new energy
     return E0 - x.trace(y);
+}
+
+
+// Computes the Shur energy expression using (mostly) sparse matrix algebra and Monte Carlo
+// (we need to extend the sparse matrix class a little to avoid the dense operations)
+template <typename T>
+T ShurSparseMC(const Tensor<T>& H, T E) {
+    size_t N = H.dim(0);
+
+    // Reference state energy
+    T E0 = H(0,0);
+
+    // Extract Shur complement matrix and vector
+    Tensor<T> A = copy(H(Slice(1,-1),Slice(1,-1)));
+    Tensor<T> x = copy(H(0,Slice(1,-1)));
+
+    // Shift and extract diagonal, and scale x
+    Tensor<double> D(N-1);
+    for (size_t i=0; i<N-1; i++) {
+        T d = A(i,i) - E;
+        A(i,i) = d;
+        d = 1.0/std::sqrt(d);
+        D(i) = d;
+        x(i) *= d;
+    }
+
+    // Scale A
+    for (size_t i=0; i<N-1; i++) {
+        for (size_t j=0; j<N-1; j++) {
+            A(i,j) *= D(i)*D(j);
+        }
+    }
+
+    // Tensor<double> evals,evecs;
+    // syev(A, evecs, evals);
+    // print("Aevals",evals[0],evals[A.dim(0)-1]);
+
+    // For MC algorithm zero the diagonal entries of A which we know are all 1
+    for (size_t i=0; i<N-1; i++) {
+        if (std::abs(A(i,i)-1.0) > 1e-12) print("bad diag", i, A(i,i));
+        A(i,i) = 0.0;
+    }
+
+    // // Examine spectra of +ve and -ve parts of A
+    // Tensor<T> Apos=copy(A), Aneg=copy(A);
+    // for (size_t i=0; i<N-1; i++) {
+    //     for (size_t j=0; j<N-1; j++) {
+    //         if (A(i,j)<0) {
+    //             Apos(i,j) = 0.0;
+    //         }
+    //         else {
+    //             Aneg(i,j) = 0.0;
+    //         }
+    //     }
+    // }
+    // Tensor<double> evals,evecs;
+    // {syev(Aneg, evecs, evals); print("Aneg",evals[0],evals[A.dim(0)-1]);}
+    // {syev(Apos, evecs, evals); print("Apos",evals[0],evals[A.dim(0)-1]);}
+    // {syev(Apos+Aneg, evecs, evals); print("Apos+Aneg",evals[0],evals[A.dim(0)-1]);}
+    // {syev(Apos-Aneg, evecs, evals); print("Apos-Aneg",evals[0],evals[A.dim(0)-1]);}
+    
+    // Convert to sparse
+    sparse_matrix_csr<T> Asp = tensor_to_sparse_matrix(A,1e-6);
+
+    double omega = 0.1; //0.773;
+    Tensor<T> y = omega*copy(x); // can generate a better initial guess
+
+    double sum = 0.0;
+    double sumsq = 0.0;
+    size_t count = 0;
+    
+    for (int iter=0; iter<500; iter++) {
+        Tensor<T> ynew(N-1);
+        for (size_t i=0; i<N-1; i++) {
+            if (y[i]) {
+                int nrep = 10;
+                for (int rep=0; rep<nrep; rep++) {
+                    // Randomly sample non-zero element in row A[i,*]
+                    auto row = Asp.get_row(i);
+                    size_t n = row.get_indices().size();
+                    size_t j = n*RandomValue<double>();
+                    double aji = row.get_data()[j];
+                    double gji = double(nrep)/double(n);
+                    ynew[row.get_indices()[j]] -= omega*aji*y[i] / gji;
+                }
+                //for (auto [j,aji] : Asp.get_row(i)) ynew[j] -= omega*aji*y[i];
+            }
+            //ynew[i] += (1.0-omega)*y[i] + omega*x[i];
+        }
+
+        //ynew -= omega*sparse_matrix_times_vector(Asp,y);
+        ynew += (1.0-omega)*y + omega*x;
+        double ecor = ynew.trace(x);
+        print(iter,ecor,(ynew-y).normf());
+        y = ynew;
+        if (iter >250) {
+            sum += ecor;
+            sumsq += ecor*ecor;
+            count += 1;
+        }
+
+        const double cut = 0.01;
+        const double pkill = 0.75;
+        size_t nkill = 0.0;
+        for (size_t i=0; i<N-1; i++) {
+            if (std::abs(y[i]) < cut) {
+                if (RandomValue<double>() > pkill) {
+                    y[i] *= 1.0/(1.0-pkill);
+                }
+                else {
+                    nkill ++;
+                    y[i] = 0.0;
+                }
+            }
+        }
+        print("nkill", nkill);
+    }
+    sum /= count;
+    sumsq /= count;
+    double err = std::sqrt((sumsq - sum*sum)/count);
+    print("Correlation energy",-sum,"stderr",err,"total energy", E0 - sum, "F(E)", E0-sum-E);
+    //print(y);
+
+    // Compute new energy
+    return E0 - sum;
 }
 
 int main() {
@@ -395,8 +524,10 @@ int main() {
 
     // power_iteration(A, elo, elo+0.2, ehi, 1e-7);
 
-    print("sparse", -76.1,ShurSparse(B,-76.1));
-    print(" dense", -76.1,ShurDense(B,-76.1));
+    // print("sparse", -76.1,ShurSparse(B,-76.1));
+    // print(" dense", -76.1,ShurDense(B,-76.1));
+
+    ShurSparseMC(B,-76.1);
     
     // exact evals [-75.95318203 -75.78742742  ... -65.77660219]
     // for (int i=0; i<20; i++) {
