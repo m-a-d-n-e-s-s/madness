@@ -516,11 +516,11 @@ ResponseFunction TDHF::dipole_guess(World &world,
 // and g are the response functions phi are the ground state orbitals small and
 // thresh are accuracy parameters for the creating of the coulomb operator
 ResponseFunction TDHF::CreateCoulombDerivative(
-    World &world, ResponseFunction &f, ResponseFunction &g,
+    World &world, ResponseFunction &x, ResponseFunction &y,
     std::vector<real_function_3d> &phi, double small, double thresh) {
   // Get sizes
-  int m = f.size();     // number of resposne states or frequencies
-  int n = f[0].size();  // number of ground states  x[m][n]
+  int m = x.size();     // number of resposne states or frequencies
+  int n = x[0].size();  // number of ground states  x[m][n]
   // Zero function, to be returned
   ResponseFunction deriv_J(world, m, n);  // J_p--Jderivative
   // Need the coulomb operator
@@ -533,7 +533,7 @@ ResponseFunction TDHF::CreateCoulombDerivative(
     // of functions
     // This works because we assume x,y,phi_i all to be real
     // Apply coulomb operator
-    transition_density = apply(op, dot(world, f[k] + g[k], phi));
+    transition_density = apply(op, dot(world, x[k] + y[k], phi));
     // transition_density = apply(op, rho);
     for (int p = 0; p < n; p++) {
       // Multiply by ground state orbital p
@@ -546,11 +546,11 @@ ResponseFunction TDHF::CreateCoulombDerivative(
 
 // Does what it sounds like it does
 ResponseFunction TDHF::CreateExchangeDerivative(
-    World &world, ResponseFunction &f, ResponseFunction &g,
+    World &world, ResponseFunction &x, ResponseFunction &y,
     std::vector<real_function_3d> &phi, double small, double thresh) {
   // Get sizes
-  int m = f.size();
-  int n = f[0].size();
+  int m = x.size();
+  int n = x[0].size();
 
   // Zero function, to be returned
   ResponseFunction deriv_k(world, m, n);
@@ -559,42 +559,29 @@ ResponseFunction TDHF::CreateExchangeDerivative(
   real_convolution_3d op = CoulombOperator(world, small, thresh);
 
   // Potential is not stored by default
-  if (Rparams.store_potential) {
     // Need to run over occupied orbitals
-    for (int p = 0; p < n; p++) {
       // Need to run over all virtual orbitals originating from orbital p
-      for (int k = 0; k < m; k++) {
         // Need to sum over occupied orbitals
+  if (Rparams.store_potential) {
+    for (int p = 0; p < n; p++) {
+      for (int k = 0; k < m; k++) {
         for (int i = 0; i < n; i++) {
-          // Multiply precalculated \int rho/r by response function (k,i)
-          deriv_k[k][p] += stored_potential[i][p] * f[k][i] +
-                           phi[i] * apply(op, g[i] * phi[p]);
+          deriv_k[k][p] += stored_potential[i][p] * x[k][i] +
+                           phi[i] * apply(op, y[i] * phi[p]);
         }
       }
     }
   } else  // But the storage can be turned off...
   {
-    // Need to run over occupied orbitals
-    for (int p = 0; p < n; p++) {
-      // Need to run over all virtual orbitals originating from orbital p
+    for (int p = 0; p < n; p++) {// 
       for (int k = 0; k < m; k++) {
-        // Need to sum over occupied orbitals
         for (int i = 0; i < n; i++) {
-          // Get density (ground state orbitals)
-          real_function_3d rho = phi[i] * phi[p];
-
-          // Apply coulomb operator
-          rho = apply(op, rho);
-
-          // Multiply by response function (k,i)
           // and add to total
-          deriv_k[k][p] += rho * f[k][i];
+          deriv_k[k][p] += x[k][i]*apply(op,phi[i]*phi[p])+phi[i]*apply(op,y[k][i]*phi[p]);
         }
       }
     }
   }
-
-  // Done
   return deriv_k;
 }
 

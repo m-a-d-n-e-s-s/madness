@@ -237,8 +237,8 @@ class TDHF {
 
   // Returns the derivative of the exchange operator, applied to the ground
   // state orbitals This is the function for TDA only
-  ResponseFunction CreateExchangeDerivative(World &world, ResponseFunction &f,
-                                            ResponseFunction &g,
+  ResponseFunction CreateExchangeDerivative(World &world, ResponseFunction &x,
+                                            ResponseFunction &y,
                                             std::vector<real_function_3d> &phi,
                                             double small, double thresh);
 
