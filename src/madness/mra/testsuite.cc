@@ -1286,13 +1286,12 @@ int test_apply_push_1d(World& world) {
 #define TO_STRING2(s) #s
 
 int main(int argc, char**argv) {
-    initialize(argc, argv);
+	World& world=initialize(argc, argv);
 
     // number of failed tests
     int nfail=0;
 
     try {
-        World world(SafeMPI::COMM_WORLD);
         if (world.rank() == 0) {
             print("");
             print("--------------------------------------------");
