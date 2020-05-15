@@ -559,25 +559,30 @@ ResponseFunction TDHF::CreateExchangeDerivative(
   real_convolution_3d op = CoulombOperator(world, small, thresh);
 
   // Potential is not stored by default
-    // Need to run over occupied orbitals
-      // Need to run over all virtual orbitals originating from orbital p
-        // Need to sum over occupied orbitals
+  // Need to run over occupied orbitals
+  // Need to run over all virtual orbitals originating from orbital p
+  // Need to sum over occupied orbitals
   if (Rparams.store_potential) {
     for (int p = 0; p < n; p++) {
       for (int k = 0; k < m; k++) {
         for (int i = 0; i < n; i++) {
-          deriv_k[k][p] += stored_potential[i][p] * x[k][i] +
-                           phi[i] * apply(op, y[i] * phi[p]);
+          real_function_3d yKI_phiP = y[k][i] * phi[p];
+          deriv_k[k][p] +=
+              stored_potential[i][p] * x[k][i] + phi[i] * apply(op, yKI_phiP);
         }
       }
     }
   } else  // But the storage can be turned off...
   {
-    for (int p = 0; p < n; p++) {// 
+    for (int p = 0; p < n; p++) {  //
       for (int k = 0; k < m; k++) {
         for (int i = 0; i < n; i++) {
           // and add to total
-          deriv_k[k][p] += x[k][i]*apply(op,phi[i]*phi[p])+phi[i]*apply(op,y[k][i]*phi[p]);
+          real_function_3d phiI_phiP = phi[i] * phi[p];
+          real_function_3d yKI_phiP = y[k][i] * phi[p];
+
+          deriv_k[k][p] +=
+              x[k][i] * apply(op, phiI_phiP) + phi[i] * apply(op, yKI_phiP);
         }
       }
     }
@@ -599,7 +604,7 @@ ResponseFunction TDHF::create_A(World &world, ResponseFunction &fe,
   Tensor<double> A(m, m);
 
   // Create the ground-state fock operator on response components
-  ResponseFunction fock_resp = create_fock(world, V, f, print_level, xy);
+  ResponseFunction fock_resp = create_fock(world, V, f, print_level, xy);  // Fx
 
   // Debugging output
   if (print_level >= 2) {
@@ -817,7 +822,7 @@ ResponseFunction TDHF::CreateGamma(World &world, ResponseFunction &x,
 }
 
 // Calculates ground state coulomb potential
-real_function_3d TDHF::coulomb(World &world) {
+real_function_3d TDHF::Coulomb(World &world) {
   // Coulomb operator
   real_convolution_3d op =
       CoulombOperator(world, Rparams.small, FunctionDefaults<3>::get_thresh());
@@ -892,9 +897,9 @@ ResponseFunction TDHF::exchange(World &world, ResponseFunction &f) {
 }
 
 // Returns the ground state potential applied to functions f
-ResponseFunction TDHF::create_potential(World &world, ResponseFunction &f,
-                                        XCOperator xc, int print_level,
-                                        std::string xy) {
+ResponseFunction TDHF::CreatePotential(World &world, ResponseFunction &f,
+                                       XCOperator xc, int print_level,
+                                       std::string xy) {
   // Start a timer
   if (print_level >= 1) start_timer(world);
 
@@ -914,7 +919,7 @@ ResponseFunction TDHF::create_potential(World &world, ResponseFunction &f,
     // v_coul next
     // This does not include final multiplication of each orbital
     // 2.0 scale is from spin integration
-    v_coul = coulomb(world);
+    v_coul = Coulomb(world);
     v_coul.scale(2.0);
   } else  // Already pre-computed
   {
@@ -1103,7 +1108,7 @@ Tensor<double> TDHF::create_response_matrix(
 // Constructs the matrix, so really it does
 // [ X Y ] [ A  B ] [ X ]
 //         [ B  A ] [ Y ]
-Tensor<double> TDHF::create_full_response_matrix(
+Tensor<double> TDHF::CreateFullResponseMatrix(
     World &world,
     ResponseFunction &x_gamma,  // x perturbed two electron piece
     ResponseFunction &Vx,       // potential * x
@@ -2512,7 +2517,7 @@ std::vector<real_function_3d> TDHF::create_fxc(
 }
 
 // Iterates the response functions until converged or out of iterations
-void TDHF::iterate(World &world) {
+void TDHF::Iterate(World &world) {
   // Variables needed to iterate
   int iteration = 0;  // Iteration counter
   QProjector<double, 3> projector(
@@ -2628,10 +2633,10 @@ void TDHF::iterate(World &world) {
 
     // Create \hat{V}^0 applied to response functions
     V_x_response =
-        create_potential(world, x_response, xc, Rparams.print_level, "x");
+        CreatePotential(world, x_response, xc, Rparams.print_level, "x");
     if (not Rparams.tda)
       V_y_response =
-          create_potential(world, y_response, xc, Rparams.print_level, "y");
+          CreatePotential(world, y_response, xc, Rparams.print_level, "y");
 
     // Load balance
     // Only balancing on x-components. Smart?
@@ -2703,7 +2708,7 @@ void TDHF::iterate(World &world) {
       }
 
       // Construct full response matrix
-      Tensor<double> A = create_full_response_matrix(
+      Tensor<double> A = CreateFullResponseMatrix(
           world, x_gamma, V_x_response, B_x, x_fe, x_response, y_gamma,
           V_y_response, B_y, y_fe, y_response, Gparams.orbitals, hamiltonian,
           Rparams.small, FunctionDefaults<3>::get_thresh(),
@@ -3390,7 +3395,7 @@ void TDHF::iterate_guess(World &world, ResponseFunction &guesses) {
                         "x");
 
     // Create \hat{V}^0 applied to response functions
-    V = create_potential(world, guesses, xc, Rparams.print_level, "x");
+    V = CreatePotential(world, guesses, xc, Rparams.print_level, "x");
 
     // Constructing S
     S = expectation(world, x_response, x_response);
@@ -3495,7 +3500,7 @@ ResponseFunction TDHF::diagonalize_CIS_guess(
 
   // Create Fock matrix
   // -1 suppresses output
-  Tensor<double> Fmat = create_ground_hamiltonian(world, virtuals, -1);
+  Tensor<double> Fmat = CreateGroundHamiltonian(world, virtuals, -1);
 
   // Diagonalize
   Tensor<double> U, evals, dummy(virtuals.size());
@@ -3647,9 +3652,9 @@ ResponseFunction TDHF::add_randomness(World &world, ResponseFunction &f,
 }
 
 // Creates the ground state hamiltonian from given functions f
-Tensor<double> TDHF::create_ground_hamiltonian(World &world,
-                                               std::vector<real_function_3d> f,
-                                               int print_level) {
+Tensor<double> TDHF::CreateGroundHamiltonian(World &world,
+                                             std::vector<real_function_3d> f,
+                                             int print_level) {
   // Basic output
   if (print_level >= 1) start_timer(world);
 
@@ -3699,7 +3704,7 @@ Tensor<double> TDHF::create_ground_hamiltonian(World &world,
   // V_coul next
   // This does not include final multiplication of each orbital
   // 2 is from integrating out spin
-  real_function_3d v_coul = 2.0 * coulomb(world);
+  real_function_3d v_coul = 2.0 * Coulomb(world);
 
   // Clear old stored potentials
   stored_v_coul.clear();
@@ -3888,7 +3893,7 @@ void TDHF::check_k(World &world, double thresh, int k) {
   // Recalculate ground state hamiltonian here
   if (redo or !hamiltonian.has_data()) {
     hamiltonian =
-        create_ground_hamiltonian(world, Gparams.orbitals, Rparams.print_level);
+        CreateGroundHamiltonian(world, Gparams.orbitals, Rparams.print_level);
   }
 
   // If we stored the potential, check that too
@@ -4345,7 +4350,7 @@ void TDHF::solve(World &world) {
     }
 
     // Now actually ready to iterate...
-    iterate(world);
+    Iterate(world);
   }
 
   // Plot the response function if desired
@@ -4503,10 +4508,10 @@ void TDHF::iterate_polarizability(World &world, ResponseFunction &dipoles) {
 
     // Create \hat{V}^0 applied to response functions
     V_x_response =
-        create_potential(world, x_response, xc, Rparams.print_level, "x");
+        CreatePotential(world, x_response, xc, Rparams.print_level, "x");
     if (Rparams.omega != 0.0)
       V_y_response =
-          create_potential(world, y_response, xc, Rparams.print_level, "y");
+          CreatePotential(world, y_response, xc, Rparams.print_level, "y");
 
     // Apply shift
     V_x_response = apply_shift(world, x_shifts, V_x_response, x_response);
