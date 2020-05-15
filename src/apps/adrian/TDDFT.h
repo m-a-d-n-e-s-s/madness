@@ -264,13 +264,13 @@ class TDHF {
 
   // Returns the coulomb potential of the ground state
   // Note: No post multiplication involved here
-  real_function_3d coulomb(World &world);
+  real_function_3d Coulomb(World &world);
 
   // Returns the result of ground state exchange applied to response functions
   ResponseFunction exchange(World &world, ResponseFunction &f);
 
   // Returns the ground state potential applied to response functions
-  ResponseFunction create_potential(World &world, ResponseFunction &f,
+  ResponseFunction CreatePotential(World &world, ResponseFunction &f,
                                     XCOperator xc, int print_level,
                                     std::string xy);
 
@@ -293,7 +293,7 @@ class TDHF {
   // Constructs full response matrix of
   // [ A  B ] [ X ] = w [ X ]
   // [-B -A ] [ Y ]     [ Y ]
-  Tensor<double> create_full_response_matrix(
+  Tensor<double> CreateFullResponseMatrix(
       World &world, ResponseFunction &x_b, ResponseFunction &Vx,
       ResponseFunction &B_x, ResponseFunction &fe_x, ResponseFunction &x,
       ResponseFunction &y_b, ResponseFunction &Vy, ResponseFunction &B_y,
@@ -460,7 +460,7 @@ class TDHF {
       ResponseFunction &f, ResponseFunction &g);
 
   // Iterates the trial functions until covergence or it runs out of iterations
-  void iterate(World &world);
+  void Iterate(World &world);
 
   // Constructs and prints a more detailed analysis of response functions
   // Uses member variables
@@ -486,7 +486,7 @@ class TDHF {
 
   // Creates the ground state hamiltonian for the orbitals in the active
   // subspace (aka the orbitals in tda_act_orbitals)
-  Tensor<double> create_ground_hamiltonian(World &world,
+  Tensor<double> CreateGroundHamiltonian(World &world,
                                            std::vector<real_function_3d> f,
                                            int print_level);
 
