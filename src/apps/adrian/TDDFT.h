@@ -231,19 +231,17 @@ class TDHF {
   ResponseFunction CreateCoulombDerivative(
       World &world,
       ResponseFunction &f,                 // response functions
-      ResponseFunction &g,                 // response functions
       std::vector<real_function_3d> &phi,  // orbitals
       double small, double thresh);
 
   // Returns the derivative of the exchange operator, applied to the ground
   // state orbitals This is the function for TDA only
-  ResponseFunction CreateExchangeDerivative(World &world, ResponseFunction &x,
-                                            ResponseFunction &y,
+  ResponseFunction CreateExchangeDerivative(World &world, ResponseFunction &f,
                                             std::vector<real_function_3d> &phi,
                                             double small, double thresh);
 
   // Returns the diagonal (letter A) elements of response matrix
-  ResponseFunction create_A(World &world, ResponseFunction &fe,
+  ResponseFunction CreateA(World &world, ResponseFunction &fe,
                             ResponseFunction &gamma, ResponseFunction &V,
                             ResponseFunction &f,
                             std::vector<real_function_3d> &ground_orbitals,
@@ -251,14 +249,14 @@ class TDHF {
                             std::string xy);
 
   // Returns the off diagonal (letter B) elements of response matrix
-  ResponseFunction create_B(World &world, ResponseFunction &f,
+  ResponseFunction CreateB(World &world, ResponseFunction &f,
                             ResponseFunction &g,
                             std::vector<real_function_3d> &orbitals,
                             double small, double thresh, int print_level);
 
   // Returns gamma (the perturbed 2 electron piece)
-  ResponseFunction CreateGamma(World &world, ResponseFunction &x,
-                               ResponseFunction &y,
+  ResponseFunction CreateGamma(World &world, ResponseFunction &f,
+                               ResponseFunction &g,
                                std::vector<real_function_3d> &phi, double small,
                                double thresh, int print_level, std::string xy);
 

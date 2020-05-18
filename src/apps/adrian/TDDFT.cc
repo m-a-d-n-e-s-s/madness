@@ -516,29 +516,29 @@ ResponseFunction TDHF::dipole_guess(World &world,
 // and g are the response functions phi are the ground state orbitals small and
 // thresh are accuracy parameters for the creating of the coulomb operator
 ResponseFunction TDHF::CreateCoulombDerivative(
-    World &world, ResponseFunction &x, ResponseFunction &y,
-    std::vector<real_function_3d> &phi, double small, double thresh) {
+    World &world, ResponseFunction &f, std::vector<real_function_3d> &phi,
+    double small, double thresh) {
   // Get sizes
-  int m = x.size();     // number of resposne states or frequencies
-  int n = x[0].size();  // number of ground states  x[m][n]
+  int m = f.size();     // number of resposne states or frequencies
+  int n = f[0].size();  // number of ground states  x[m][n]
   // Zero function, to be returned
   ResponseFunction deriv_J(world, m, n);  // J_p--Jderivative
   // Need the coulomb operator
   real_convolution_3d op = CoulombOperator(world, small, thresh);
   // Temperary storage
-  real_function_3d transition_density = real_function_3d(world);
+  real_function_3d f_density = real_function_3d(world);
   // Need to run over each state
   for (int k = 0; k < m; k++) {
     // transition_density = dot(world, f[k] + g[k], orbitals); //sum the vector
     // of functions
     // This works because we assume x,y,phi_i all to be real
     // Apply coulomb operator
-    transition_density = apply(op, dot(world, x[k] + y[k], phi));
+    f_density = apply(op, dot(world, f[k], phi));
     // transition_density = apply(op, rho);
     for (int p = 0; p < n; p++) {
       // Multiply by ground state orbital p
       // and save the result
-      deriv_J[k][p] = transition_density * phi[p];
+      deriv_J[k][p] = f_density * phi[p];
     }
   }
   return deriv_J;
@@ -546,11 +546,11 @@ ResponseFunction TDHF::CreateCoulombDerivative(
 
 // Does what it sounds like it does
 ResponseFunction TDHF::CreateExchangeDerivative(
-    World &world, ResponseFunction &x, ResponseFunction &y,
-    std::vector<real_function_3d> &phi, double small, double thresh) {
+    World &world, ResponseFunction &f, std::vector<real_function_3d> &phi,
+    double small, double thresh) {
   // Get sizes
-  int m = x.size();
-  int n = x[0].size();
+  int m = f.size();
+  int n = f[0].size();
 
   // Zero function, to be returned
   ResponseFunction deriv_k(world, m, n);
@@ -566,9 +566,7 @@ ResponseFunction TDHF::CreateExchangeDerivative(
     for (int p = 0; p < n; p++) {
       for (int k = 0; k < m; k++) {
         for (int i = 0; i < n; i++) {
-          real_function_3d yKI_phiP = y[k][i] * phi[p];
-          deriv_k[k][p] +=
-              stored_potential[i][p] * x[k][i] + phi[i] * apply(op, yKI_phiP);
+          deriv_k[k][p] += stored_potential[i][p] * f[k][i];
         }
       }
     }
@@ -578,11 +576,12 @@ ResponseFunction TDHF::CreateExchangeDerivative(
       for (int k = 0; k < m; k++) {
         for (int i = 0; i < n; i++) {
           // and add to total
-          real_function_3d phiI_phiP = phi[i] * phi[p];
-          real_function_3d yKI_phiP = y[k][i] * phi[p];
-
-          deriv_k[k][p] +=
-              x[k][i] * apply(op, phiI_phiP) + phi[i] * apply(op, yKI_phiP);
+          real_function_3d rho = phi[i] * phi[p];
+          // Apply coulomb operator
+          rho = apply(op, rho);
+          // Multiply by response function (k,i)
+          // and add to total
+          deriv_k[k][p] += rho * f[k][i];
         }
       }
     }
@@ -591,7 +590,7 @@ ResponseFunction TDHF::CreateExchangeDerivative(
 }
 
 // Creates diagonal (letter A) portions of response matrix
-ResponseFunction TDHF::create_A(World &world, ResponseFunction &fe,
+ResponseFunction TDHF::CreateA(World &world, ResponseFunction &fe,
                                 ResponseFunction &gamma, ResponseFunction &V,
                                 ResponseFunction &f,
                                 std::vector<real_function_3d> &ground_orbitals,
@@ -599,10 +598,6 @@ ResponseFunction TDHF::create_A(World &world, ResponseFunction &fe,
                                 int print_level, std::string xy) {
   // Sizes inferred from V and gamma
   int m = V.size();
-
-  // Create A
-  Tensor<double> A(m, m);
-
   // Create the ground-state fock operator on response components
   ResponseFunction fock_resp = create_fock(world, V, f, print_level, xy);  // Fx
 
@@ -624,10 +619,8 @@ ResponseFunction TDHF::create_A(World &world, ResponseFunction &fe,
     Tensor<double> temp2 = expectation(world, f, energy_resp);
     if (world.rank() == 0) print(temp2);
   }
-
   // Saving this here for larger subspace calculations
   fe = fock_resp - energy_resp;
-
   // And return the sum
   return gamma + fe;
 }
@@ -635,7 +628,7 @@ ResponseFunction TDHF::create_A(World &world, ResponseFunction &fe,
 // Creates the off diagonal (letter B) portions of response matrix
 // Very similiar to create_gamma, but the order of ground state and
 // response components are different inside the integrals
-ResponseFunction TDHF::create_B(World &world, ResponseFunction &f,
+ResponseFunction TDHF::CreateB(World &world, ResponseFunction &f,
                                 ResponseFunction &g,
                                 std::vector<real_function_3d> &orbitals,
                                 double small, double thresh, int print_level) {
@@ -742,8 +735,8 @@ ResponseFunction TDHF::create_B(World &world, ResponseFunction &f,
 }
 
 // Computes gamma(r) given the ground state orbitals and response functions
-ResponseFunction TDHF::CreateGamma(World &world, ResponseFunction &x,
-                                   ResponseFunction &y,
+ResponseFunction TDHF::CreateGamma(World &world, ResponseFunction &f,
+                                   ResponseFunction &g,
                                    std::vector<real_function_3d> &phi,
                                    double small, double thresh, int print_level,
                                    std::string xy) {
@@ -751,8 +744,8 @@ ResponseFunction TDHF::CreateGamma(World &world, ResponseFunction &x,
   if (print_level >= 1) start_timer(world);
 
   // Get sizes
-  int m = x.size();
-  int n = x[0].size();
+  int m = f.size();
+  int n = f[0].size();
 
   // The gamma function to be returned, intialized to zero
   ResponseFunction gamma(world, m, n);
@@ -763,16 +756,16 @@ ResponseFunction TDHF::CreateGamma(World &world, ResponseFunction &x,
 
   // Perturbed coulomb piece
   ResponseFunction deriv_J =
-      CreateCoulombDerivative(world, x, y, phi, small, thresh);
+      CreateCoulombDerivative(world, f,  phi, small, thresh);
 
   // If including any HF exchange:
   if (xcf.hf_exchange_coefficient()) {
-    deriv_K = CreateExchangeDerivative(world, x, y, phi, small, thresh);
+    deriv_K = CreateExchangeDerivative(world, f,  phi, small, thresh);
   }
   // Get the DFT contribution
   if (xcf.hf_exchange_coefficient() != 1.0) {
     // Get v_xc
-    std::vector<real_function_3d> vxc = create_fxc(world, phi, x, y);
+    std::vector<real_function_3d> vxc = create_fxc(world, phi, f, g);
 
     // Apply xc kernel to ground state orbitals
     for (int i = 0; i < m; i++) {
@@ -794,21 +787,21 @@ ResponseFunction TDHF::CreateGamma(World &world, ResponseFunction &x,
     if (world.rank() == 0)
       printf("   Coulomb Deriv matrix for %s components:\n", xy.c_str());
     ResponseFunction t = deriv_J * 2.0;
-    Tensor<double> temp = expectation(world, x, t);
+    Tensor<double> temp = expectation(world, f, t);
     if (world.rank() == 0) print(temp);
     if (Rparams.xc == "hf") {
       if (world.rank() == 0)
         printf("   Exchange Deriv matrix for %s components:\n", xy.c_str());
-      temp = expectation(world, x, deriv_K);
+      temp = expectation(world, f, deriv_K);
     } else {
       if (world.rank() == 0)
         printf("   XC Deriv matrix for %s components:\n", xy.c_str());
-      temp = expectation(world, x, deriv_XC);
+      temp = expectation(world, f, deriv_XC);
     }
     if (world.rank() == 0) print(temp);
     if (world.rank() == 0)
       printf("   Gamma matrix for %s components:\n", xy.c_str());
-    temp = expectation(world, x, gamma);
+    temp = expectation(world, f, gamma);
     if (world.rank() == 0) print(temp);
   }
 
@@ -1086,7 +1079,7 @@ Tensor<double> TDHF::create_response_matrix(
 
   // Construct intermediary
   // Sets fe to be (\hat{fock} - eps)*f
-  ResponseFunction temp = create_A(world, fe, gamma, V, f, ground_orbitals,
+  ResponseFunction temp = CreateA(world, fe, gamma, V, f, ground_orbitals,
                                    hamiltonian, print_level, xy);
 
   // Make the matrix
@@ -1128,14 +1121,14 @@ Tensor<double> TDHF::CreateFullResponseMatrix(
 
   // Create the A pieces
   // (Sets fe_x and fe_y to be (\hat{F}-eps) * resp. funcs.
-  ResponseFunction A_x = create_A(world, fe_x, x_gamma, Vx, x, ground_orbitals,
+  ResponseFunction A_x = CreateA(world, fe_x, x_gamma, Vx, x, ground_orbitals,
                                   ground_ham, print_level, "x");
-  ResponseFunction A_y = create_A(world, fe_y, y_gamma, Vy, y, ground_orbitals,
+  ResponseFunction A_y = CreateA(world, fe_y, y_gamma, Vy, y, ground_orbitals,
                                   ground_ham, print_level, "y");
 
   // Create the B pieces
-  B_x = create_B(world, x, y, ground_orbitals, small, thresh, print_level);
-  B_y = create_B(world, y, x, ground_orbitals, small, thresh, print_level);
+  B_x = CreateB(world, x, y, ground_orbitals, small, thresh, print_level);
+  B_y = CreateB(world, y, x, ground_orbitals, small, thresh, print_level);
 
   // Debugging output
   if (print_level >= 2) {
@@ -4560,10 +4553,10 @@ void TDHF::iterate_polarizability(World &world, ResponseFunction &dipoles) {
 
     // Calculate coupling terms
     B_y =
-        create_B(world, y_response, x_response, Gparams.orbitals, Rparams.small,
+        CreateB(world, y_response, x_response, Gparams.orbitals, Rparams.small,
                  FunctionDefaults<3>::get_thresh(), Rparams.print_level);
     if (Rparams.omega != 0.0)
-      B_x = create_B(world, x_response, y_response, Gparams.orbitals,
+      B_x = CreateB(world, x_response, y_response, Gparams.orbitals,
                      Rparams.small, FunctionDefaults<3>::get_thresh(),
                      Rparams.print_level);
 
