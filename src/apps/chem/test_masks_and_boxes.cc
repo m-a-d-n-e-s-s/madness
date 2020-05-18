@@ -72,8 +72,8 @@ bool test_spherical_box(World& world) {
 
 
 int main(int argc, char** argv) {
-    initialize(argc, argv);
-	World world(SafeMPI::COMM_WORLD);
+
+	World& world=initialize(argc, argv);
 	if (world.rank() == 0) {
 		print("\n  test masks_and_boxes \n");
 		printf("starting at time %.1f\n", wall_time());
@@ -118,7 +118,7 @@ int main(int argc, char** argv) {
 	} catch (...) {
 		error("caught unhandled exception");
 	}
-        
-    finalize();
-    return 0;
+
+	finalize();
+	return 0;
 }

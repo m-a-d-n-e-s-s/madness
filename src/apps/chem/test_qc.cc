@@ -168,30 +168,31 @@ int run_all_calculations(World& world, const std::vector<CalculationParameters>&
 }
 
 int main(int argc, char** argv) {
-	madness::initialize(argc, argv);
-	int result=0;
-	bool small = true;
 
-	madness::World world(SafeMPI::COMM_WORLD);
-	world.gop.fence();
-	startup(world,argc,argv);
 
-	// default set of parameters for closed shell
-	CalculationParameters cparam;
-	cparam.set_user_defined_value("print_level",1);
-	cparam.set_user_defined_value("save",false);
+    madness::World& world=madness::initialize(argc, argv);
+    startup(world,argc,argv);
 
-	try {
-		// check for correct result
-		{
-			result+=run_all_calculations(world, {cparam},true);
-			if (result>0) throw std::runtime_error("moldft returns incorrect result");
-		}
+    int result=0;
+    bool small = true;
+    
 
-		// check for no error (run 1 iteration only)
-		{
-			// store the variations of the default set
-			TestCalculationParameters tparam(cparam);
+    // default set of parameters for closed shell
+    CalculationParameters cparam;
+    cparam.set_user_defined_value("print_level",1);
+    cparam.set_user_defined_value("save",false);
+
+    try {
+        // check for correct result
+    	{
+    		result+=run_all_calculations(world, {cparam},true);
+    		if (result>0) throw std::runtime_error("moldft returns incorrect result");
+    	}
+
+    	// check for no error (run 1 iteration only)
+    	{
+    		// store the variations of the default set
+    		TestCalculationParameters tparam(cparam);
 			tparam.set_user_defined_value("maxiter",1);
 
 			if (small) {
@@ -224,17 +225,16 @@ int main(int argc, char** argv) {
 			tparam.set_user_defined_value("charge",1.0);
 			tparam.set_user_defined_value("nopen",1);
 			run_all_calculations(world, {tparam});
-		}
-	} catch (std::exception& e) {
-		print("an error occured, moldft tests failed");
-		print(e.what());
-		result=1;
-	}
+    	}
+    } catch (std::exception& e) {
+    	print("an error occured, moldft tests failed");
+    	print(e.what());
+    	result=1;
+    }
 
 
-	//    std::vector<CalculationParameters> all_doubles=tparam.make_all_parameter_doubles();
-	//    run_all_calculations(world, all_doubles);
-
-	madness::finalize();
-	return result;
+//    std::vector<CalculationParameters> all_doubles=tparam.make_all_parameter_doubles();
+//    run_all_calculations(world, all_doubles);
+    madness::finalize();
+    return result;
 }
