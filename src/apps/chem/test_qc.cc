@@ -168,15 +168,14 @@ int run_all_calculations(World& world, const std::vector<CalculationParameters>&
 }
 
 int main(int argc, char** argv) {
-    madness::initialize(argc, argv);
+
+
+    madness::World& world=madness::initialize(argc, argv);
+    startup(world,argc,argv);
+
     int result=0;
     bool small = true;
     
-    {
-
-    madness::World world(SafeMPI::COMM_WORLD);
-    world.gop.fence();
-    startup(world,argc,argv);
 
     // default set of parameters for closed shell
     CalculationParameters cparam;
@@ -236,7 +235,6 @@ int main(int argc, char** argv) {
 
 //    std::vector<CalculationParameters> all_doubles=tparam.make_all_parameter_doubles();
 //    run_all_calculations(world, all_doubles);
-    }
     madness::finalize();
     return result;
 }
