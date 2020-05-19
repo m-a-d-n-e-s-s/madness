@@ -65,9 +65,7 @@ set(MADNESS_INSTALL_CMAKEDIR "lib/cmake/madness"
 
 # Build options  ==============================================================
 
-option(MADNESS_SEARCH_LAPACK "Search for blas/lapack" ON)
-option(MADNESS_BUILD_MADWORLD_ONLY "Build only MADworld" OFF)
-option(MADNESS_BUILD_MADWORLD_CLAPACK_ONLY "Build MADworld and CLapack headers" OFF)
+redefaultable_option(MADNESS_BUILD_MADWORLD_ONLY "Build only MADWorld runtime (including BLAS/LAPACK interfaces, if found)" OFF)
 
 # Enable optional libraries ====================================================
 
@@ -570,23 +568,25 @@ endif(CCACHE)
 include(external/pthread.cmake)
 include(external/mpi.cmake)
 include(external/papi.cmake)
-if(MADNESS_SEARCH_LAPACK)
-	include(external/lapack.cmake)
-endif()
-include(external/libxc.cmake)
-include(external/pcm.cmake)
+include(external/lapack.cmake)
 include(external/libunwind.cmake)
 include(external/gperftools.cmake)
 include(external/tbb.cmake)
 include(external/parsec.cmake)
 include(external/boost.cmake)
+if (NOT MADNESS_BUILD_MADWORLD_ONLY)
+  include(external/libxc.cmake)
+  include(external/pcm.cmake)
+endif (NOT MADNESS_BUILD_MADWORLD_ONLY)
 
 if (DEFINED ELEMENTAL_TAG)
   include(external/elemental.cmake)
 endif (DEFINED ELEMENTAL_TAG)
 
 # Add project subdirectories ===================================================
-if(NOT(MADNESS_BUILD_MADWORLD_ONLY OR MADNESS_BUILD_MADWORLD_CLAPACK_ONLY))
+
+# predefine targets
+if(NOT MADNESS_BUILD_MADWORLD_ONLY AND LAPACK_FOUND)
 	add_custom_target_subproject(madness numerical-examples)
 endif()
 # Create build and install libraries libraries
