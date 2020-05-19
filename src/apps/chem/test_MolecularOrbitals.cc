@@ -133,17 +133,14 @@ int test_read_restartaodata(World& world) {
 
 
 int main(int argc, char** argv) {
-    madness::initialize(argc, argv);
-    int result=0;
-    {
-        madness::World world(SafeMPI::COMM_WORLD);
-        world.gop.fence();
-        startup(world,argc,argv);
-        
-        result+=test_read_restartdata(world);
-        result+=test_read_restartaodata(world);
-        print("result",result);
-    }
-    madness::finalize();
-    return result;
+	World& world=madness::initialize(argc, argv);
+	int result=0;
+	world.gop.fence();
+	startup(world,argc,argv);
+
+	result+=test_read_restartdata(world);
+	result+=test_read_restartaodata(world);
+	print("result",result);
+	madness::finalize();
+	return result;
 }
