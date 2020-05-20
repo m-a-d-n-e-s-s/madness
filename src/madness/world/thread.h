@@ -958,7 +958,7 @@ namespace madness {
             , barrier(nullptr)
         {
 #if HAVE_PARSEC
-	  init_exec_context();
+	  mad_parsec_init_task();
 #endif
 	  count = 0;
         }
@@ -971,7 +971,7 @@ namespace madness {
             , barrier(attr.get_nthread()>1 ? new Barrier(attr.get_nthread()) : 0)
         {
 #if HAVE_PARSEC
-	  init_exec_context();
+	    mad_parsec_init_task();
 #endif
             count = 0;
         }
@@ -1001,18 +1001,18 @@ namespace madness {
         }
 #if HAVE_PARSEC
 	    //////////// Parsec Related Begin ////////////////////
-            dague_execution_context_t exec_context;
-            static const dague_function_t*   func;
+            parsec_task_t                       parsec_task;
+            static const parsec_task_class_t*   parsec_tc;
 
             /* This function initializes exec_context from the one in parsec.cpp*/
-            void init_exec_context(void)
+            void mad_parsec_init_task()
             {
-                exec_context.dague_handle = &madness::madness_handle;
-                exec_context.function = &madness::madness_function;
-                exec_context.chore_id = 0;
-                exec_context.status = DAGUE_TASK_STATUS_NONE;
-                exec_context.priority = is_high_priority() ? 1000 : 0; // 1 & 0 would work as good
-                ((PoolTaskInterface **)exec_context.locals)[0] = this;
+                parsec_task.taskpool   = &madness::madness_parsec_tp;
+                parsec_task.task_class = &madness::madness_parsec_tc;
+                parsec_task.chore_id   = 0;
+                parsec_task.status     = PARSEC_TASK_STATUS_NONE;
+                parsec_task.priority   = is_high_priority() ? 1000 : 0; // 1 & 0 would work as good
+                ((PoolTaskInterface **)parsec_task.locals)[0] = this;
             }
             //////////// Parsec Related End   ///////////////////
         
@@ -1291,7 +1291,7 @@ namespace madness {
 
 #if HAVE_PARSEC
 	////////////////// Parsec Related Begin //////////////////
-        static dague_context_t *parsec;
+        static parsec_context_t *parsec;
         ///////////////// Parsec Related End ////////////////////
 #endif
 
@@ -1321,10 +1321,10 @@ namespace madness {
             //////////// Parsec Related Begin ////////////////////
             /* Initialize the execution context and give it to the scheduler*/
 #if HAVE_PARSEC
-            dague_execution_context_t *context = &(task->exec_context);
-            DAGUE_LIST_ITEM_SINGLETON(context);
-            dague_atomic_add_32b(&madness_handle.nb_tasks, 1);
-            __dague_schedule(parsec->virtual_processes[0]->execution_units[0], context);
+            parsec_task_t *parsec_task = &(task->parsec_task);
+            PARSEC_LIST_ITEM_SINGLETON(parsec_task);
+            madness_parsec_tp.tdm.module->taskpool_addto_nb_tasks(&madness_parsec_tp, 1);
+            __parsec_schedule(parsec->virtual_processes[0]->execution_streams[0], parsec_task, 0);
             //////////// Parsec Related End ////////////////////
 #elif HAVE_INTEL_TBB
 #ifdef MADNESS_CAN_USE_TBB_PRIORITY
@@ -1493,7 +1493,7 @@ namespace madness {
 #if HAVE_PARSEC
           ////////////////// Parsec related Begin /////////////////
           /* End of scheduling*/
-          dague_fini((dague_context_t **)&parsec);
+          parsec_fini((parsec_context_t **)&parsec);
           ////////////////// Parsec related End /////////////////
 #elif HAVE_INTEL_TBB
 #else

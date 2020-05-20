@@ -17,8 +17,8 @@
 namespace madness{
   extern "C"{
 
-    extern const dague_function_t madness_function;
-    extern dague_handle_t madness_handle;
+    extern const parsec_task_class_t madness_parsec_tc;
+    extern parsec_taskpool_t madness_parsec_tp;
   }
 
 }
