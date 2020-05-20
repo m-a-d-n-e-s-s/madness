@@ -5,11 +5,13 @@
 
 #ifdef HAVE_PARSEC
 
-#include <dague.h>
-#include <dague/dague_internal.h>
-#include <dague/devices/device.h>
-#include <dague/execution_unit.h>
-#include <dague/scheduling.h>  
+#include <parsec.h>
+#include <parsec/parsec_config.h>
+#include <parsec/parsec_internal.h>
+#include <parsec/mca/device/device.h>
+#include <parsec/execution_stream.h>
+#include <parsec/scheduling.h>
+
 #include <iostream>
 
 namespace madness{
