@@ -63,6 +63,10 @@ set(MADNESS_INSTALL_DOCDIR "share/doc/madness"
 set(MADNESS_INSTALL_CMAKEDIR "lib/cmake/madness"
     CACHE PATH "MADNESS CMAKE install directory")
 
+# Build options  ==============================================================
+
+redefaultable_option(MADNESS_BUILD_MADWORLD_ONLY "Build only MADWorld runtime (including BLAS/LAPACK interfaces, if found)" OFF)
+
 # Enable optional libraries ====================================================
 
 # Always search for libraries that are 'ON' by default. If a library is not
@@ -565,21 +569,26 @@ include(external/pthread.cmake)
 include(external/mpi.cmake)
 include(external/papi.cmake)
 include(external/lapack.cmake)
-include(external/libxc.cmake)
-include(external/pcm.cmake)
 include(external/libunwind.cmake)
 include(external/gperftools.cmake)
 include(external/tbb.cmake)
 include(external/parsec.cmake)
 include(external/boost.cmake)
+if (NOT MADNESS_BUILD_MADWORLD_ONLY)
+  include(external/libxc.cmake)
+  include(external/pcm.cmake)
+endif (NOT MADNESS_BUILD_MADWORLD_ONLY)
 
 if (DEFINED ELEMENTAL_TAG)
   include(external/elemental.cmake)
 endif (DEFINED ELEMENTAL_TAG)
 
 # Add project subdirectories ===================================================
-add_custom_target_subproject(madness numerical-examples)
 
+# predefine targets
+if(NOT MADNESS_BUILD_MADWORLD_ONLY AND LAPACK_FOUND)
+	add_custom_target_subproject(madness numerical-examples)
+endif()
 # Create build and install libraries libraries
 add_custom_target(madness-libraries)
 add_custom_target(install-madness-libraries)
@@ -646,7 +655,7 @@ write_basic_package_version_file(madness-config-version.cmake
 
 # Create the targets file
 export(EXPORT madness
-  FILE "${PROJECT_BINARY_DIR}/madness-targets.cmake")
+  	FILE "${PROJECT_BINARY_DIR}/madness-targets.cmake")
 export(EXPORT madworld
   FILE "${PROJECT_BINARY_DIR}/madworld-targets.cmake")
 
@@ -661,9 +670,9 @@ configure_package_config_file(cmake/madness-config.cmake.in
 
 # Install config, version, and target files
 install(EXPORT madness
-    FILE "madness-targets.cmake"
-    DESTINATION "${MADNESS_INSTALL_CMAKEDIR}" 
-    COMPONENT madness-config)
+   	FILE "madness-targets.cmake"
+   	DESTINATION "${MADNESS_INSTALL_CMAKEDIR}" 
+   	COMPONENT madness-config)
 install(EXPORT madworld
     FILE "madworld-targets.cmake"
     DESTINATION "${MADNESS_INSTALL_CMAKEDIR}" 
