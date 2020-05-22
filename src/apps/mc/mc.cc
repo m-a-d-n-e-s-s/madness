@@ -739,7 +739,7 @@ T ShurSparseMC(const sparse_matrix_csr<T>& H, T E) {
         print("Aevals", eval0, eval1);
     }
 
-    for (int iter=0; iter<6800; iter++) {
+    for (int iter=0; iter<3800; iter++) {
         Tensor<T> ynew(N-1);
         sparse_matrix_coo<double> Asample(N,N);
         for (size_t i=0; i<N-1; i++) {
@@ -780,7 +780,8 @@ T ShurSparseMC(const sparse_matrix_csr<T>& H, T E) {
             count += 1;
         }
 
-        size_t nkill = 0.0;
+        size_t nnz = 0;
+        size_t nkill = 0;
         for (size_t i=0; i<N-1; i++) {
             if (std::abs(y[i]) < cut) {
                 if (RandomValue<double>() > pkill) {
@@ -791,8 +792,9 @@ T ShurSparseMC(const sparse_matrix_csr<T>& H, T E) {
                     y[i] = 0.0;
                 }
             }
+            if (std::abs(y[i])) nnz++;
         }
-        if ((iter%10) == 1) print(iter,ecor,xzy,(ynew-y).normf(),nkill);
+        if ((iter%10) == 1) print(iter,ecor,xzy,(ynew-y).normf(),nkill,nnz,nnz/double(N-1));
     }
     sum /= count;
     sumsq /= count;
@@ -811,7 +813,8 @@ T ShurSparseMC(const sparse_matrix_csr<T>& H, T E) {
 int main() {
     std::cout.precision(10);    
     //sparse_matrix_csr A = load_ci_matrix("sparse.txt");
-    sparse_matrix_csr A = load_ci_matrix("hooh-15252.txt");
+    //sparse_matrix_csr A = load_ci_matrix("hooh-15252.txt");
+    sparse_matrix_csr A = load_ci_matrix("hooh-44034.txt");
     //print(A.get_row(0));
     
     //Tensor<double> B = sparse_matrix_to_tensor(A);
