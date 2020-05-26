@@ -2,6 +2,7 @@
     "C_Cpp.default.configurationProvider": "vector-of-bool.cmake-tools",
     "cmake.configureSettings": {
         "CMAKE_MAKE_PROGRAM":"/usr/bin/make",
+        "CMAKE_EXPORT_COMPILE_COMMANDS":1,
         "CMAKE_BUILD_TYPE":"Debug",
         "ENABLE_MKL":"ON",
         "ENABLE_TBB":"ON",
@@ -23,7 +24,16 @@
     },
     "files.associations": {
         "*.tex": "latex",
-        "*.tcc": "cpp"
-    }
+        "*.tcc": "cpp",
+        "atomic": "cpp",
+        "functional": "cpp",
+        "random": "cpp",
+        "cmath": "cpp",
+        "regex": "cpp",
+        "valarray": "cpp"
+    },
+    "cquery.cacheDirectory": "${workspaceFolder}/.vscode/cquery_cached_index/",
+    "C_Cpp.default.macFrameworkPath": [],
+    "C_Cpp.clang_format_fallbackStyle": "Google"
     
 }
