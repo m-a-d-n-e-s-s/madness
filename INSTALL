@@ -96,7 +96,7 @@ if properly configured and built it can now be used on ASLR platforms. Use the f
 variables to control the ASLR-related aspects of MADNESS runtime.
 
 * MADNESS_ASSUMES_ASLR_DISABLED --- MADNESS runtime will assume that the Address Space Layout Randomization (ASLR) is off.
-      By default MADNESS_ASSUMES_ASLR_DISABLED is set to ON (i.e. MADNESS will assume that ASLR is enabled);
+      By default MADNESS_ASSUMES_ASLR_DISABLED is set to OFF (i.e. MADNESS will assume that ASLR is enabled);
       this will cause all libraries by default to be static (BUILD_SHARED_LIBS=OFF)
       and compiled as position-independent code (CMAKE_POSITION_INDEPENDENT_CODE=ON).
       This will also enable a runtime check for ASLR.
