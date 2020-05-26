@@ -1,7 +1,8 @@
 # src/madness/external/gtest
 
 if(ENABLE_UNITTESTS)
-  add_library(MADgtest gtest-all.cc)
-  target_include_directories(MADgtest PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-  target_link_libraries(MADgtest Threads::Threads)
+  set(gtest_sources gtest-all.cc)
+  set(gtest_headers )
+  add_mad_library(gtest gtest_sources gtest_headers "Threads::Threads" "madness/external/gtest")
+  target_include_directories(MADgtest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 endif()

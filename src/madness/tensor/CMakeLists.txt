@@ -41,12 +41,8 @@ add_mad_library(tensor MADTENSOR_SOURCES MADTENSOR_HEADERS "misc" "madness/tenso
 #add_mad_library(clapack MADLINALG_HEADERS "" "madness/tensor")
 add_mad_library(linalg MADLINALG_SOURCES MADLINALG_HEADERS "tensor" "madness/tensor")
 
-foreach (suffix ${MADNESS_LIBRARY_TARGET_SUFFIXES})
-  if (suffix STREQUAL none)
-    set(suffix)
-  endif ()
-  set(l_target MADlinalg${suffix})
-  set(t_target MADtensor${suffix})
+  set(l_target MADlinalg)
+  set(t_target MADtensor)
 
   target_link_libraries(${l_target} PUBLIC ${LAPACK_LIBRARIES}) # logically it's MADclapack that depends on LAPACK
   target_link_libraries(${t_target} PUBLIC ${LAPACK_LIBRARIES}) # some of the tests depend on MKL/Blas
@@ -72,7 +68,6 @@ foreach (suffix ${MADNESS_LIBRARY_TARGET_SUFFIXES})
   if (ELEMENTAL_FOUND AND MADNESS_HAS_ELEMENTAL_EMBEDDED)
     target_link_libraries(${l_target} PUBLIC ${ELEMENTAL_PACKAGE_NAME})
   endif ()
-endforeach (suffix ${MADNESS_LIBRARY_TARGET_SUFFIXES})
 
 # Add unit tests
 if(ENABLE_UNITTESTS)
