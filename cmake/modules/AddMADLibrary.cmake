@@ -17,6 +17,7 @@ macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_d
     endif()
     # create static library by default as well, using the same object library as the shared lib
     add_library(MAD${_name}-static STATIC $<TARGET_OBJECTS:MAD${_name}-obj>)
+    set_target_properties(MAD${_name}-static PROPERTIES ARCHIVE_OUTPUT_NAME MAD${_name})
     # sanity check the suffix list
     if (NOT(MADNESS_LIBRARY_TARGET_SUFFIXES STREQUAL "none;-static"))
       message(FATAL_ERROR "MADNESS_LIBRARY_TARGET_SUFFIXES=\"${MADNESS_LIBRARY_TARGET_SUFFIXES}\", but expected \"none;-static\"")
@@ -103,6 +104,7 @@ macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_d
     endforeach(_dep ${_dep_mad_comp})
     set_target_properties(${targetname} PROPERTIES LINK_FLAGS "${LINK_FLAGS}")
     target_compile_features(${targetname} INTERFACE "cxx_std_${CMAKE_CXX_STANDARD}")
+
   endforeach(suffix ${MADNESS_LIBRARY_TARGET_SUFFIXES})
 
 endmacro()
