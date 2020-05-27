@@ -117,7 +117,7 @@ if(NOT DEFINED GPERFTOOLS_FOUND)
 
   # handle the QUIETLY and REQUIRED arguments and set GPERFTOOLS_FOUND to TRUE
   # if all listed variables are TRUE
-  find_package_handle_standard_args(GPERFTOOLS
+  find_package_handle_standard_args(Gperftools
       FOUND_VAR GPERFTOOLS_FOUND
       REQUIRED_VARS GPERFTOOLS_LIBRARIES GPERFTOOLS_INCLUDE_DIRS
       HANDLE_COMPONENTS)

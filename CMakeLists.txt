@@ -251,17 +251,29 @@ add_feature_info("MPI_THREAD=${MPI_THREAD}" TRUE "controls the level of thread-s
 
 # Enable support for shared libraries ==========================================
 
+redefaultable_option(MADNESS_ASSUMES_ASLR_DISABLED "MADNESS runtime assumes the Address Space Layout Randomization (ASLR) to be disabled" OFF)
+add_feature_info(ASSUMES_ASLR_DISABLED MADNESS_ASSUMES_ASLR_DISABLED
+    "MADNESS runtime assumes the Address Space Layout Randomization (ASLR) to be disabled")
 get_property(SUPPORTS_SHARED GLOBAL PROPERTY TARGET_SUPPORTS_SHARED_LIBS)
-cmake_dependent_option(BUILD_SHARED_LIBS "Enable shared libraries" ON
-      "SUPPORTS_SHARED" OFF)
+if (SUPPORTS_SHARED AND MADNESS_ASSUMES_ASLR_DISABLED)
+  set(default_BUILD_SHARED_LIBS ON)
+else ()
+  set(default_BUILD_SHARED_LIBS OFF)
+endif()
+redefaultable_option(BUILD_SHARED_LIBS "Enable shared libraries" default_BUILD_SHARED_LIBS)
+if (BUILD_SHARED_LIBS OR NOT MADNESS_ASSUMES_ASLR_DISABLED)
+  set(default_CMAKE_POSITION_INDEPENDENT_CODE ON)
+else ()
+  set(default_CMAKE_POSITION_INDEPENDENT_CODE OFF)
+endif()
+redefaultable_option(CMAKE_POSITION_INDEPENDENT_CODE "Default value for POSITION_INDEPENDENT_CODE of targets" default_CMAKE_POSITION_INDEPENDENT_CODE)
+
 if(BUILD_SHARED_LIBS)
   set(BLA_STATIC_DEFAULT FALSE)
   set(CMAKE_MACOSX_RPATH TRUE)
-  set(MADNESS_LIBRARY_TARGET_SUFFIXES "none;-static")
 else(BUILD_SHARED_LIBS)
   set(BLA_STATIC_DEFAULT TRUE)
   set(CMAKE_MACOSX_RPATH FALSE)
-  set(MADNESS_LIBRARY_TARGET_SUFFIXES "none")
 endif(BUILD_SHARED_LIBS)
 if (NOT DEFINED BLA_STATIC)
   set(BLA_STATIC ${BLA_STATIC_DEFAULT})
