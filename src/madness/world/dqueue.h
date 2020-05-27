@@ -209,47 +209,13 @@ namespace madness {
             delete [] buf;
         }
 
-	void lock_and_flush_prebuf() {
-#ifdef MADNESS_DQ_USE_PREBUF
-	  if (ninprebuf+ninprebufhi) {
-            madness::ScopedMutex<CONDITION_VARIABLE_TYPE> obolus(this);
-	    flush_prebuf();
-	  }
-#endif
-	}
+	void lock_and_flush_prebuf();
 
         /// Insert value at front of queue
-        void push_front(const T& value) {
-#ifdef MADNESS_DQ_USE_PREBUF
-	  if (ninprebufhi < NPREBUF) {
-	    prebufhi[ninprebufhi++] = value;
-	    return;
-	  }
-#endif
-	  {
-	    madness::ScopedMutex<CONDITION_VARIABLE_TYPE> obolus(this);
-	    push_front_with_lock(value);
-	  }
-	}
+        void push_front(const T& value);
 
         /// Insert element at back of queue (default is just one copy)
-        void push_back(const T& value, int ncopy=1) {
-#ifdef MADNESS_DQ_USE_PREBUF
-	  if (ncopy==1 && ninprebuf < NPREBUF) {
-	    prebuf[ninprebuf++] = value;
-	    return;
-	  }
-#endif
-	  {
-	    madness::ScopedMutex<CONDITION_VARIABLE_TYPE> obolus(this);
-	    flush_prebuf();
-	    //sanity_check();
-	    while (ncopy--)
-	      push_back_with_lock(value);
-	    //sanity_check();
-	    //broadcast();
-	  }
-	}
+        void push_back(const T& value, int ncopy=1);
 
         template <typename opT>
         void scan(opT& op) {
@@ -348,19 +314,72 @@ namespace madness {
             return n;
         }
 
-        bool empty() const {
-#ifdef MADNESS_DQ_USE_PREBUF
-	  return (ninprebuf+ninprebufhi+n)==0; // this is just from the perspective of this thread!!!!!
-#else
-	  return (n==0);
-#endif
-        }
+        bool empty() const;
 
         const DQStats& get_stats() const {
             return stats;
         }
     };
 
-}
+#ifdef MADNESS_DQ_USE_PREBUF
+    template <typename T> thread_local T DQueue<T>::prebuf[DQueue<T>::NPREBUF] = {T{}};
+    template <typename T> thread_local T DQueue<T>::prebufhi[DQueue<T>::NPREBUF] = {T{}};
+    template <typename T> thread_local size_t DQueue<T>::ninprebuf = 0;
+    template <typename T> thread_local size_t DQueue<T>::ninprebufhi = 0;
+#endif
+
+    template <typename T>
+    void DQueue<T>::lock_and_flush_prebuf() {
+#ifdef MADNESS_DQ_USE_PREBUF
+        if (ninprebuf+ninprebufhi) {
+             madness::ScopedMutex<CONDITION_VARIABLE_TYPE> obolus(this);
+             flush_prebuf();
+        }
+#endif
+    }
+
+    template <typename T>
+    void DQueue<T>::push_front(const T& value) {
+#ifdef MADNESS_DQ_USE_PREBUF
+        if (ninprebufhi < NPREBUF) {
+             prebufhi[ninprebufhi++] = value;
+             return;
+        }
+#endif
+        {
+             madness::ScopedMutex<CONDITION_VARIABLE_TYPE> obolus(this);
+             push_front_with_lock(value);
+        }
+    }
+
+    template <typename T>
+    void DQueue<T>::push_back(const T& value, int ncopy) {
+#ifdef MADNESS_DQ_USE_PREBUF
+        if (ncopy==1 && ninprebuf < NPREBUF) {
+             prebuf[ninprebuf++] = value;
+             return;
+        }
+#endif
+        {
+             madness::ScopedMutex<CONDITION_VARIABLE_TYPE> obolus(this);
+             flush_prebuf();
+             //sanity_check();
+             while (ncopy--)
+                 push_back_with_lock(value);
+             //sanity_check();
+             //broadcast();
+        }
+    }
+
+    template <typename T>
+    bool DQueue<T>::empty() const {
+#ifdef MADNESS_DQ_USE_PREBUF
+      return (ninprebuf+ninprebufhi+n)==0; // this is just from the perspective of this thread!!!!!
+#else
+      return (n==0);
+#endif
+    }
+
+}  // namespace madness
 
 #endif // MADNESS_WORLD_DQUEUE_H__INCLUDED
