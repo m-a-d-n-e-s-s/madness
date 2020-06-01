@@ -101,19 +101,19 @@ if(ENABLE_UNITTESTS)
       test_worldprofile.cc test_binsorter.cc test_vector.cc test_worldptr.cc 
       test_worldref.cc test_stack.cc test_googletest.cc test_tree.cc)
 
+  add_unittests(world "${WORLD_TEST_SOURCES}" "MADworld;MADgtest")    
 
-  add_unittests(world "${WORLD_TEST_SOURCES}" "MADworld;MADgtest")
+  find_package(CUDA)
+  if (TARGET PaRSEC::parsec AND CUDA_FOUND)
+    CMAKE_PUSH_CHECK_STATE()
+    STRING(REPLACE "-std=c++1z" "" _tmp "${CMAKE_CXX_FLAGS}")
+    SET(CMAKE_CXX_FLAGS "${_tmp}")
+    cuda_add_library(MADtest_cuda hello_world.cu EXCLUDE_FROM_ALL)
+    CMAKE_POP_CHECK_STATE()
+    target_link_libraries(test_world PRIVATE MADtest_cuda)
+  endif ()
 
   set_tests_properties(world-test_googletest PROPERTIES WILL_FAIL TRUE)
-
-  if (ENABLE_PARSEC)
-    find_package(CUDA)
-    if (CUDA_FOUND) # no way to make sure PARSEC has CUDA
-                    # so just look for it and hope for the best
-      cuda_add_library(MADtest_cuda hello_world.cu EXCLUDE_FROM_ALL)  
-      target_link_libraries(test_world MADtest_cuda)
-    endif(CUDA_FOUND)
-  endif (ENABLE_PARSEC)
   
 endif()
 
