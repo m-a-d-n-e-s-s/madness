@@ -67,7 +67,6 @@ extern "C" void HPM_Prof_stop(unsigned int);
 
 
 namespace madness {
-
     int ThreadBase::cpulo[3];
     int ThreadBase::cpuhi[3];
     bool ThreadBase::bind[3];
@@ -359,6 +358,8 @@ namespace madness {
         argv[1] = NULL;
         int nb_threads = ThreadPool::default_nthread() + 1;
         ThreadPool::parsec = parsec_init(nb_threads, &argc, &argv);
+        MPI_Comm parsec_comm  = MPI_COMM_SELF;
+        parsec_remote_dep_set_ctx(ThreadPool::parsec, (intptr_t)parsec_comm);
 #ifdef PARSEC_PROF_TRACE
         madness_parsec_tp.profiling_array = (int*)malloc(2*sizeof(int));
         paresc__profiling_add_dictionary_keyword("MADNESS TASK", "fill:CC2828", 0, "",
