@@ -31,11 +31,7 @@ add_mad_library(world MADWORLD_SOURCES MADWORLD_HEADERS "common;${ELEMENTAL_PACK
 #  target_link_libraries(MADworld INTERFACE "${DISABLEPIE_LINKER_FLAG}")
 #endif()
 
-foreach (suffix ${MADNESS_LIBRARY_TARGET_SUFFIXES})
-  if (suffix STREQUAL none)
-    set(suffix )
-  endif()
-  set(targetname MADworld${suffix})
+  set(targetname MADworld)
 
   # create an additional, MADworld-only, export
   install(TARGETS ${targetname} EXPORT madworld
@@ -91,7 +87,6 @@ foreach (suffix ${MADNESS_LIBRARY_TARGET_SUFFIXES})
   if (WORLD_GET_DEFAULT_DISABLED)
     target_compile_definitions(${targetname} PUBLIC -DMADNESS_DISABLE_WORLD_GET_DEFAULT=1)
   endif (WORLD_GET_DEFAULT_DISABLED)
-endforeach (suffix ${MADNESS_LIBRARY_TARGET_SUFFIXES})
 
 if (TARGET PaRSEC::parsec)
   add_subproject_parsec_target_to_export_set("madworld" "world")
