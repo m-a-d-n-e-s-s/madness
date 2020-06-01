@@ -591,15 +591,15 @@ ResponseFunction TDHF::CreateExchangeDerivative(
 
 // Creates diagonal (letter A) portions of response matrix
 ResponseFunction TDHF::CreateA(World &world, ResponseFunction &fe,
-                                ResponseFunction &gamma, ResponseFunction &V,
+                                ResponseFunction &gamma, ResponseFunction &Vf,
                                 ResponseFunction &f,
                                 std::vector<real_function_3d> &ground_orbitals,
                                 Tensor<double> &hamiltonian,  // Ground state
                                 int print_level, std::string xy) {
   // Sizes inferred from V and gamma
-  int m = V.size();
+  int m = Vf.size();
   // Create the ground-state fock operator on response components
-  ResponseFunction fock_resp = create_fock(world, V, f, print_level, xy);  // Fx
+  ResponseFunction fock_resp = CreateFock(world, Vf, f, print_level, xy);  // Fx
 
   // Debugging output
   if (print_level >= 2) {
@@ -611,6 +611,16 @@ ResponseFunction TDHF::CreateA(World &world, ResponseFunction &fe,
 
   // Need to calculate hamiltonian * x_response
   // Name of function sounds strange, I know...
+
+  /*
+  ResponseFunction energy_resp(world, f.size(),f[0].size());
+  for (int p =0; p< m ; p++){
+    for (int i =0; i<f[0].size();++i){
+      energy_resp[p][i]=f[p][i]*GroundParameters.energies[p];
+    }
+  }
+  */
+
   ResponseFunction energy_resp = scale_2d(world, f, hamiltonian);
 
   if (print_level >= 2) {
@@ -1011,7 +1021,7 @@ Tensor<double> TDHF::expectation(World &world, ResponseFunction &a,
 }
 
 // Returns the ground state fock operator applied to functions f
-ResponseFunction TDHF::create_fock(World &world, ResponseFunction &V,
+ResponseFunction TDHF::CreateFock(World &world, ResponseFunction &Vf,
                                    ResponseFunction &f, int print_level,
                                    std::string xy) {
   // Debugging output
@@ -1054,12 +1064,12 @@ ResponseFunction TDHF::create_fock(World &world, ResponseFunction &V,
     if (world.rank() == 0) print(temp);
     if (world.rank() == 0)
       printf("   Potential energy matrix for %s components:\n", xy.c_str());
-    temp = expectation(world, f, V);
+    temp = expectation(world, f, Vf);
     if (world.rank() == 0) print(temp);
   }
 
   // Add in potential
-  fock = fock + V;
+  fock = fock + Vf;
 
   truncate(world, fock);
 
@@ -2221,7 +2231,7 @@ void TDHF::unaugment_full(
 }
 
 // Diagonalize the full response matrix, taking care of degenerate components
-Tensor<double> TDHF::diag_full_response(
+Tensor<double> TDHF::DiagonalizeFullResponseMatrix(
     World &world, Tensor<double> &S, Tensor<double> &A, ResponseFunction &x,
     ResponseFunction &Vx, ResponseFunction &x_g, ResponseFunction &x_fe,
     ResponseFunction &B_x, ResponseFunction &y, ResponseFunction &Vy,
@@ -2230,7 +2240,7 @@ Tensor<double> TDHF::diag_full_response(
   // compute the unitary transformation matrix U that diagonalizes
   // the response matrix
   Tensor<double> vecs =
-      get_full_response_transformation(world, S, A, omega, thresh);
+      GetFullResponseTransformation(world, S, A, omega, thresh);
 
   // Start timer
   if (Rparams.print_level >= 1) start_timer(world);
@@ -2265,7 +2275,7 @@ Tensor<double> TDHF::diag_full_response(
 }
 
 // Similar to what robert did above in "get_fock_transformation"
-Tensor<double> TDHF::get_full_response_transformation(
+Tensor<double> TDHF::GetFullResponseTransformation(
     World &world, Tensor<double> &S, Tensor<double> &A, Tensor<double> &evals,
     const double thresh_degenerate) {
   // Start timer
@@ -2304,16 +2314,16 @@ Tensor<double> TDHF::get_full_response_transformation(
   }
 
   // Going to use these a lot here, so just calculate them
-  int size_l = s_vals.dim(0);
-  int size_s = size_l - num_sv;
-  Tensor<double> l_vecs_s(size_l, num_sv);
-  Tensor<double> copyA = copy(A);
+  int size_l = s_vals.dim(0);//number of singular values
+  int size_s = size_l - num_sv;//smaller subspace size
+  Tensor<double> l_vecs_s(size_l, num_sv);//number of sv by number smaller than thress
+  Tensor<double> copyA = copy(A);// we copy xAx
 
   // Transform into this smaller space if necessary
   if (num_sv > 0) {
     // Cut out the singular values that are small
     // (singular values come out in descending order)
-    S = Tensor<double>(size_s, size_s);
+    S = Tensor<double>(size_s, size_s);// create size of new size
     for (int i = 0; i < size_s; i++) S(i, i) = s_vals(i);
 
     // Copy the active vectors to a smaller container
@@ -2354,7 +2364,7 @@ Tensor<double> TDHF::get_full_response_transformation(
   double max_imag = abs(imag(omega)).max();
   if (world.rank() == 0 and Rparams.print_level >= 2)
     print("\n   Max imaginary component of eigenvalues:", max_imag, "\n");
-  MADNESS_ASSERT(max_imag == 0);  // MUST BE REAL!
+  MADNESS_ASSERT(max_imag <= 1e-5);  // MUST BE REAL!
   evals = real(omega);
 
   // Easier to just resize here
@@ -2505,6 +2515,7 @@ std::vector<real_function_3d> TDHF::create_fxc(
   for (unsigned int i = 0; i < f.size(); i++) {
     vxc.push_back(xc.apply_xc_kernel(drho[i]));
   }
+  //for each density apply xckernel
 
   return vxc;
 }
@@ -2601,9 +2612,12 @@ void TDHF::Iterate(World &world) {
     }
 
     // Project out ground state
-    for (int i = 0; i < m; i++) x_response[i] = projector(x_response[i]);
+    for (int k = 0; k < m; k++) x_response[k] = projector(x_response[k]);
     if (not Rparams.tda)
-      for (int i = 0; i < m; i++) y_response[i] = projector(y_response[i]);
+      for (int k = 0; k < m; k++) y_response[k] = projector(y_response[k]);
+
+     // doesn't Qy=0
+
 
     // Truncate before doing expensive things
     truncate(world, x_response);
@@ -2722,7 +2736,7 @@ void TDHF::Iterate(World &world) {
       // Diagonalize
       // Just to be sure dimensions work out, clear omega
       omega.clear();
-      Tensor<double> U = diag_full_response(
+      Tensor<double> U = DiagonalizeFullResponseMatrix(
           world, S, A, x_response, V_x_response, x_gamma, x_fe, B_x, y_response,
           V_y_response, y_gamma, y_fe, B_y, omega,
           FunctionDefaults<3>::get_thresh(), Rparams.print_level);
@@ -2736,7 +2750,7 @@ void TDHF::Iterate(World &world) {
       //                  old_S, old_A,
       //                  old_x_gamma, old_x_response, old_V_x_response,
       //                  old_x_fe, old_B_x, old_y_gamma, old_y_response,
-      //                  old_V_y_response, old_y_fe, old_B_y,
+      //                  old_V_y_response, old_y_fe, old_B_y,/
       //                  Rparams.print_level);
       //}
     }

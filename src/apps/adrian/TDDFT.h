@@ -242,7 +242,7 @@ class TDHF {
 
   // Returns the diagonal (letter A) elements of response matrix
   ResponseFunction CreateA(World &world, ResponseFunction &fe,
-                            ResponseFunction &gamma, ResponseFunction &V,
+                            ResponseFunction &gamma, ResponseFunction &Vf,
                             ResponseFunction &f,
                             std::vector<real_function_3d> &ground_orbitals,
                             Tensor<double> &hamiltonian, int print_level,
@@ -277,7 +277,7 @@ class TDHF {
                              ResponseFunction &b);
 
   // Returns the ground state fock operator applied to response functions
-  ResponseFunction create_fock(World &world, ResponseFunction &V,
+  ResponseFunction CreateFock(World &world, ResponseFunction &Vf,
                                ResponseFunction &f, int print_level,
                                std::string xy);
 
@@ -429,7 +429,7 @@ class TDHF {
       ResponseFunction &old_B_y, int print_level);
 
   // Diagonalize the full response matrix, taking care of degenerate states
-  Tensor<double> diag_full_response(
+  Tensor<double> DiagonalizeFullResponseMatrix(
       World &world, Tensor<double> &S, Tensor<double> &A, ResponseFunction &x,
       ResponseFunction &Vx, ResponseFunction &x_g, ResponseFunction &x_fe,
       ResponseFunction &B_x, ResponseFunction &y, ResponseFunction &Vy,
@@ -437,7 +437,7 @@ class TDHF {
       Tensor<double> &omega, const double thresh, int print_level);
 
   // Similar to what robert did above in "get_fock_transformation"
-  Tensor<double> get_full_response_transformation(World &world,
+  Tensor<double> GetFullResponseTransformation(World &world,
                                                   Tensor<double> &S,
                                                   Tensor<double> &A,
                                                   Tensor<double> &evals,
