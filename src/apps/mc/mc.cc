@@ -129,6 +129,16 @@ namespace madness {
             std::pair<size_t,T> operator*() {return std::pair<size_t,T>(indices[i],data[i]);}
         };
 
+        // Inplace renumber the indices so that inew = map(iold)
+        // For convenience we also sort the new vector of indices/values, which also minimizes the storage
+        // map should be a permutation
+        void renumber(const std::vector<size_t>& map) {
+          sparse_vector<T> v(M);
+          for (auto [i,x] : *this) {v.push_back(map[i],x);}
+          v.sort_indices();
+          *this = v;
+        }
+
         const_iterator begin() const {return const_iterator(indices,data,0);}
         const_iterator end() const {return const_iterator(indices,data,indices.size());}
         iterator begin() {return iterator(indices,data,0);}
@@ -169,6 +179,21 @@ namespace madness {
         typedef const sparse_vector<T>* const_iterator;
         
         sparse_matrix_csr(size_t N, size_t M) : N(N), M(M), data(N,M) {}
+
+      // Make a sparse matrix from a dense matrix with optional thresholding
+      sparse_matrix_csr(const Tensor<T>& A, T tol = 0.0) 
+      	: N(A.dim(0)), M(A.dim(1)), data(A.dim(0),A.dim(1))
+      {
+        for (size_t i=0; i<N; i++) {
+            sparse_vector<T>& row = get_row(i);
+            for (size_t j=0; j<M; j++) {
+                T value = A(i,j);
+                if (std::abs(value) > tol) row.push_back(j,value);
+            }
+            row.get_indices().shrink_to_fit();
+            row.get_data().shrink_to_fit();
+        }
+      }
         
         sparse_matrix_csr(const sparse_matrix_coo<T>& A) : N(A.nrow()), M(A.ncol()), data(N,M) { 
             for (const auto& [ij,value] : A) {
@@ -179,9 +204,19 @@ namespace madness {
             for (auto& row : data) row.sort_indices();
         }
 
-        // Returns the sparse vector representing row i
-        const sparse_vector<T>& get_row(size_t i) const {return data.at(i);}
-        sparse_vector<T>& get_row(size_t i) {return data.at(i);}
+      Tensor<T> dense() {
+        Tensor<T> B(nrow(),ncol());
+        size_t i=0;
+        for (const auto& row: *this) {
+ 	  for (const auto& [j,value] : row) B(i,j) = value;
+	  i++;
+        }
+        return B;
+      }
+
+      // Returns the sparse vector representing row i
+      const sparse_vector<T>& get_row(size_t i) const {return data.at(i);}
+      sparse_vector<T>& get_row(size_t i) {return data.at(i);}
 
         const_iterator begin() const {return &data[0];}
         const_iterator end() const {return (&data[0])+N;}
@@ -195,6 +230,16 @@ namespace madness {
         // Compress out zero/small elements
         void compress() {
             for (auto& row : *this) row.compress();
+        }
+
+        // Inplace renumber indices so that inew = imap(iold), jnew = jmap(jold)
+        // For convenience we also sort the new vectors of indices/values, which also minimizes the storage
+        // imap/jmap should be a permutation
+        void renumber(const std::vector<size_t>& imap, const std::vector<size_t>& jmap) {
+          for (auto& row : *this) row.renumber(jmap);
+          std::vector<sparse_vector<T>> rows(N,M);
+          for (size_t i=0; i<N; i++) rows[imap[i]] = std::move(data[i]);
+          data = std::move(rows);
         }
 
         // Return a new matrix with elements in the specified slices.
@@ -213,8 +258,8 @@ namespace madness {
             if (rowstart == rowend && rowstep==0) throw "empty row slice not permitted";
             if (colstart == colend && colstep==0) throw "empty col slice not permitted";
             if (colstep!=1 || rowstep!=1) throw "non-unit step not supported yet";
-            MADNESS_ASSERT(rowstart >= rowend);
-            MADNESS_ASSERT(colstart >= colend);
+            MADNESS_ASSERT(rowstart <= rowend);
+            MADNESS_ASSERT(colstart <= colend);
 
             sparse_matrix_csr<T> A(rowend-rowstart+1, colend-colstart+1);
             for (long i=rowstart; i<=rowend; i++) {
@@ -229,23 +274,45 @@ namespace madness {
         }
     };
 
+    // Print sparse matrix CSR
+    template <typename T>
+    std::ostream& operator<<(std::ostream& s, const sparse_matrix_csr<T>& A) {
+        using madness::operators::operator<<;        
+        s<<"[";
+	size_t i=0;
+	for (auto& row : A) {
+	  s << i << ":" << row;
+	  if (i != A.nrow()-1) s << ",";
+	  else s << "]";
+	  i++;
+	}
+        return s;
+    }
+
+
     // Read A test matrix from the configuration interaction (CI) code
     sparse_matrix_csr<double> load_ci_matrix(const std::string& filename) {
         std::fstream file(filename,std::ios::in);
         size_t N;
         file >> N;
+	print("read ", N);
         //sparse_matrix_coo<double> A(N,N);
         sparse_matrix_csr<double> A(N,N);
-        size_t i, j;
+        int i, j; // MUST BE SIGNED
         double value;
         size_t count=0;
         while (file >> i >> j >> value) {
-            i--; j--; // fortran indexes from 1, c++ from 1
-            MADNESS_ASSERT(i>=0 && i<N && j>=0 && j<N);
+	  if (i<0) {print("breaking with ", count); break;}
+	  i--; j--; // fortran indexes from 1, c++ from 1
+	  //MADNESS_ASSERT(i>=0 && i<N && j>=0 && j<N);
+	  if (i<0 || j<0 || i>=long(N) || j>=long(N)) {
+	    print("bad", count, ":", i, j, N, value);
+	    throw "bad";
+	  }
             //A[{i,j}] = value; A[{j,i}] = value; // read full square
-            A.get_row(i).push_back(j,value);
-            if (i != j) A.get_row(j).push_back(i,value);
-            count++;
+	  A.get_row(i).push_back(j,value);
+	  if (i != j) A.get_row(j).push_back(i,value);
+	  count++;
         }
         print("load_ci_matrix:",N,count);
         
@@ -255,35 +322,35 @@ namespace madness {
         return A;
     }
 
-    // Converts a sparse_matrix_csr into a MADNESS tensor
-    template <typename T>
-    Tensor<T> sparse_matrix_to_tensor(const sparse_matrix_csr<T>& A) {
-        Tensor<T> B(A.nrow(),A.ncol());
-        size_t i=0;
-        for (const auto& row: A) {
-            for (const auto& [j,value] : row) B(i,j) = value;
-            i++;
-        }
-        return B;
-    }
+    // // Converts a sparse_matrix_csr into a MADNESS tensor
+    // template <typename T>
+    // Tensor<T> sparse_matrix_to_tensor(const sparse_matrix_csr<T>& A) {
+    //     Tensor<T> B(A.nrow(),A.ncol());
+    //     size_t i=0;
+    //     for (const auto& row: A) {
+    //         for (const auto& [j,value] : row) B(i,j) = value;
+    //         i++;
+    //     }
+    //     return B;
+    // }
 
-    // Converts a MADNESS tensor into a sparse_matrix_csr
-    template <typename T>
-    sparse_matrix_csr<T> tensor_to_sparse_matrix(const Tensor<T>& A, T tol=0.0) {
-        size_t N=A.dim(0), M=A.dim(1);
-        sparse_matrix_csr<T> B(N,M);
+    // // Converts a MADNESS tensor into a sparse_matrix_csr
+    // template <typename T>
+    // sparse_matrix_csr<T> tensor_to_sparse_matrix(const Tensor<T>& A, T tol=0.0) {
+    //     size_t N=A.dim(0), M=A.dim(1);
+    //     sparse_matrix_csr<T> B(N,M);
 
-        for (size_t i=0; i<N; i++) {
-            sparse_vector<T>& row = B.get_row(i);
-            for (size_t j=0; j<M; j++) {
-                T value = A(i,j);
-                if (std::abs(value) > tol) row.push_back(j,value);
-            }
-            row.get_indices().shrink_to_fit();
-            row.get_data().shrink_to_fit();
-        }
-        return B;
-    }
+    //     for (size_t i=0; i<N; i++) {
+    //         sparse_vector<T>& row = B.get_row(i);
+    //         for (size_t j=0; j<M; j++) {
+    //             T value = A(i,j);
+    //             if (std::abs(value) > tol) row.push_back(j,value);
+    //         }
+    //         row.get_indices().shrink_to_fit();
+    //         row.get_data().shrink_to_fit();
+    //     }
+    //     return B;
+    // }
     
     // Multiplies a sparse matrix (CSR) onto a vector (that can be either std::vector or madness::Tensor)
     template <typename T, typename vecT>
@@ -307,7 +374,7 @@ namespace madness {
         else x[0] = 1.0;
         
         T eprev = 0.0;
-        for (int iter=0; iter<1000; iter++) {
+        for (size_t iter=0; iter<1000; iter++) {
             x.scale(1.0/x.normf());
             Tensor<T> Ax = sparse_matrix_times_vector(A, x);
             T eval = x.trace(Ax);
@@ -334,7 +401,7 @@ namespace madness {
         //T pts[] = {std::sqrt(3.0)/2.0,0.0,-std::sqrt(3.0)/2.0};
         T pts[] = {-std::sqrt(2.0+std::sqrt(2.0))/2.0,-std::sqrt(2.0-std::sqrt(2.0))/2.0,std::sqrt(2.0-std::sqrt(2.0))/2.0,std::sqrt(2.0+std::sqrt(2.0))/2.0};
         T eprev = 0.0;
-        for (int iter=0; iter<1000; iter++) {
+        for (size_t iter=0; iter<1000; iter++) {
             T eval;
             for (T pt : pts) {
                 T omega = 1.0/((0.5*(pt+1.0)*(xhi-xlo)+ xlo));
@@ -352,6 +419,76 @@ namespace madness {
         }
         return eprev;
     }
+  
+  template <typename T>
+  class vector_sampler {
+    std::vector<size_t> indices;
+    std::vector<T> P;
+    std::vector<T> signs;
+    size_t N;
+    T X;
+    
+  public:
+    vector_sampler() {} // need this to be able to store in a vector
+
+    vector_sampler(const std::vector<T>& x, const std::vector<size_t>& indices = std::vector<size_t>())
+      : indices(indices)
+      , P(x.size())
+      , signs(x.size())
+      , N(x.size())
+    {
+      if (indices.size() > 0) MADNESS_ASSERT(indices.size() == N);
+      T sum = 0.0;
+      for (size_t i=0; i<N; i++) {
+	sum += std::abs(x[i]);
+	P[i] = sum;
+	signs[i] = x[i]>=0.0 ? 1.0 : -1.0;
+      }
+      X = sum;
+      sum = 1.0/sum;
+      for (size_t i=0; i<N; i++) P[i] *= sum;
+    }
+
+    vector_sampler(const sparse_vector<T>& x) 
+      : vector_sampler(x.get_data(), x.get_indices())
+    {}
+    
+    std::pair<size_t,T> sample() const {
+      T xi = RandomValue<T>();
+      size_t a=0, b=N-1;
+      while ((b-a) > 1) { // binary search for i
+	size_t m = (a+b)/2;
+	if (P[m]>=xi) b = m;
+	else a = m;
+      }
+      size_t i;
+      if (P[a]>=xi) i = a;
+      else i = b;
+      T isgn = signs[i];
+      if (indices.size()) i = indices[i];
+      return {i,isgn};
+    }
+    
+    T norm() const {
+      return X;
+    }
+  };
+
+  template <typename T>
+  class sparse_matrix_sampler {
+    std::vector<vector_sampler<T>> data;
+  public:
+    sparse_matrix_sampler(const sparse_matrix_csr<T>& a) {
+      data.reserve(a.nrow());
+      for (const auto& row: a) data.push_back(vector_sampler<T>(row));
+    }
+
+    // sample an element from row i of the matrix
+    std::pair<size_t, T> sample(size_t i) const {return data[i].sample();}
+
+    // return the norm (sum of absolute values) of row i of the matrix
+    T norm(size_t i) const {return data[i].norm();}
+  };
 }
 
 // Computes the Shur energy expression using dense matrix algebra
@@ -442,7 +579,7 @@ T ShurSparse(const Tensor<T>& H, T E) {
     }
 
     // Convert to sparse
-    sparse_matrix_csr<T> Asp = tensor_to_sparse_matrix(A,1e-6);
+    sparse_matrix_csr<T> Asp(A,1e-6);
 
     // Iteratively solve the linear equation --- for now just bute force iteration --- really need to estimate the range of the spectrum using power method
     // then switch to faster iteration to solve.
@@ -482,6 +619,7 @@ T ShurSparse(const sparse_matrix_csr<T>& H, T E) {
         D(i) = d;
         x(i) *= d;
     }
+    //print("xxxxxxxx", x);
 
     // Scale A and shift its diagonal (which becomes 1)
     for (size_t i=0; i<N-1; i++) {
@@ -498,13 +636,14 @@ T ShurSparse(const sparse_matrix_csr<T>& H, T E) {
             }
         }
     }
+    //print("AAAAAAAAAA", A);
 
     // Iteratively solve the linear equation --- for now just bute force iteration --- really need to estimate the range of the spectrum using power method
     // then switch to faster iteration to solve.
 
     Tensor<T> y(N-1);
     double omega = 0.773;
-    for (int iter=0; iter<1000; iter++) {
+    for (size_t iter=0; iter<1000; iter++) {
         Tensor<T> r = x - sparse_matrix_times_vector(A,y);
         double err = r.normf();
         //print(iter,err);
@@ -590,7 +729,7 @@ T ShurSparseMC(const Tensor<T>& H, T E) {
     // {syev(Apos-Aneg, evecs, evals); print("Apos-Aneg",evals[0],evals[A.dim(0)-1]);}
     
     // Convert to sparse
-    sparse_matrix_csr<T> Asp = tensor_to_sparse_matrix(A,1e-6);
+    sparse_matrix_csr<T> Asp(A,1e-6);
 
     double omega = 0.1; //0.773;
     Tensor<T> y = omega*copy(x); // can generate a better initial guess
@@ -610,7 +749,7 @@ T ShurSparseMC(const Tensor<T>& H, T E) {
         print("Aspevals", eval0, eval1);
     }
 
-    for (int iter=0; iter<3500; iter++) {
+    for (size_t iter=0; iter<3500; iter++) {
         Tensor<T> ynew(N-1);
         sparse_matrix_coo<double> Asample(N,N);
         for (size_t i=0; i<N-1; i++) {
@@ -722,7 +861,7 @@ T ShurSparseMC(const sparse_matrix_csr<T>& H, T E) {
     A.compress();
 
     double omega = 0.1; //0.773;
-    Tensor<T> y = omega*copy(x); // can generate a better initial guess
+    Tensor<T> y = copy(x); // can generate a better initial guess
 
     double sum = 0.0;
     double sumsq = 0.0;
@@ -739,7 +878,7 @@ T ShurSparseMC(const sparse_matrix_csr<T>& H, T E) {
         print("Aevals", eval0, eval1);
     }
 
-    for (int iter=0; iter<3800; iter++) {
+    for (size_t iter=0; iter<3800; iter++) {
         Tensor<T> ynew(N-1);
         sparse_matrix_coo<double> Asample(N,N);
         for (size_t i=0; i<N-1; i++) {
@@ -810,14 +949,205 @@ T ShurSparseMC(const sparse_matrix_csr<T>& H, T E) {
     return E0 - sum;
 }
 
+// Computes the Shur energy expression using fully sparse matrix
+// algebra and Monte Carlo This routine has code that demonstrates the
+// sign problem by computing with combinations of A+ and A-
+template <typename T>
+T ShurSparseMCX(const sparse_matrix_csr<T>& H, T E) {
+    size_t N = H.nrow();
+
+    print("HHHH", N);
+    //print(H);
+
+    // Reference state energy
+    T E0 = H.get_row(0).get_data()[0];
+
+    // Extract Shur complement matrix and vector
+    sparse_matrix_csr<T> A = H(Slice(1,-1),Slice(1,-1));
+    Tensor<T> x = copy(H.get_row(0).dense()(Slice(1,-1)));
+
+    // For convenience of testing algorithms, reorder the rows/columns
+    // so that the non-zero elements of x come first in the vector.
+    std::vector<size_t> map(N-1);
+    size_t countx = 0;
+    for (size_t i=0; i<N-1; i++) if (std::abs(x[i]) > 0) countx++;
+    print("countx", countx);
+    size_t inew=0, jnew=countx;
+    for (size_t i=0; i<N-1; i++) {
+      if (std::abs(x[i]) > 0) map[i] = inew++;
+      else map[i] = jnew++;
+    }
+    MADNESS_ASSERT(inew==countx && jnew==N-1);
+    //print(map);
+    A.renumber(map,map);
+    {
+      Tensor<T> y = copy(x);
+      for (size_t i=0; i<N-1; i++) x[map[i]] = y[i];
+    }
+
+    T DELTA = E; // (A-E) = (D-DELTA) + (A-D-E+DELTA)
+
+    // Shift and extract diagonal, and scale x
+    Tensor<double> D(N-1);
+    for (size_t i=0; i<N-1; i++) {
+        const auto [found, d] = A.get_row(i).find(i);
+        if (!found) throw "diagonal element is missing?";
+        T rsqd = 1.0/std::sqrt(d-DELTA);
+        D(i) = rsqd;
+        x(i) *= rsqd;
+    }
+
+    double omega = 1.0;
+
+    // Scale and shift A to make Zomega = I - omega * A
+    for (size_t i=0; i<N-1; i++) {
+        auto& rowi = A.get_row(i);
+        auto& ind = rowi.get_indices();
+        auto& dat = rowi.get_data();
+        for (size_t jj=0; jj<ind.size(); jj++) {
+            size_t j = ind[jj];
+	    if (i == j) dat[jj] = DELTA - E;
+	    dat[jj] *= -omega*D(i)*D(j);
+	    if (i == j) dat[jj] += 1.0 - omega;
+        }
+    }
+
+    // Compress out any zeros
+    A.compress();
+
+    // {
+    //   // Compute the exact solution
+    //   // print("Z", A);
+    //   Tensor<T> tA = A.dense();
+    //   tA *= -1.0;
+    //   for (size_t i=0; i<N-1; i++) tA(i,i) += 1.0;
+    //   Tensor<T> ty;
+    //   gesv(tA, x, ty);
+    //   print("exact soln", ty.trace(x)*omega, E0 - ty.trace(x)*omega);
+    // }
+    
+    // // Test with the absolute value of the matrix elements
+    // for (auto& row: A) {
+    //   for (auto [j,value] : row) {
+    // 	value = std::abs(value);//value<0 ? value : 0.0;
+    //   }
+    // }
+
+    {
+        T eval0 = simple_power_iteration(A, 0.0);
+        T eval1 = simple_power_iteration(A, eval0);
+        print("Zevals", eval0, eval1);
+    }
+
+    // {
+    //   Tensor<double> evals,evecs;
+    //   syev(A.dense(), evecs, evals);
+    //   print("dense Zevals",evals);
+    // }
+
+    size_t nstep = 50;
+    {
+      // test with simple von Neumann iteration
+      Tensor<T> y = copy(x);
+      Tensor<T> xk = copy(x);
+      for (size_t iter=0; iter<nstep; iter++) {
+	xk = sparse_matrix_times_vector(A,xk);
+	y += xk;
+	print("vN", iter, y.trace(x)*omega);
+      }
+    }
+
+    {
+      // test with iterative solver iteration
+      Tensor<T> y = copy(x);
+      for (size_t iter=0; iter<nstep; iter++) {
+	y = x + sparse_matrix_times_vector(A,y);
+	print("it", iter, y.trace(x)*omega);
+      }
+    }
+
+    // Now do the MC version of von Neumann iteration
+    size_t nsample = 1000000;
+    std::vector<double> sum(nstep,0.0);
+    std::vector<double> sumsq(nstep,0.0);
+
+    vector_sampler<T> xsampler(x);
+    sparse_matrix_sampler<T> Zsampler(A);
+
+    //for (size_t i=0; i<N-1; i++) print(i,Zsampler.norm(i));
+
+    for (size_t sample=0; sample<nsample; sample++) {
+      auto [i,wi] = xsampler.sample();
+      wi *= xsampler.norm();
+      for (size_t step=0; step<nstep; step++) {
+	sum[step] += x[i]*wi;
+	auto [j,s] = Zsampler.sample(i);
+	wi *= s*Zsampler.norm(i);
+	i = j;
+      }
+    }
+
+    for (auto& s : sum) s *= omega/nsample;
+    print(sum);
+
+    T s = 0.0;
+    for (auto v : sum) s += v;
+
+    print("sss", s, E0 - s );
+
+    return 1.0;
+}
+
+void test_sampler() {
+  size_t N = 1000;
+  std::vector<double> x(N), y(N);
+  std::vector<size_t> indices(N);
+  for (size_t i=0; i<N; i++) {
+      // size_t j = RandomValue<double>()*i;
+      // indices[i] = indices[j];
+      // indices[j] = i;
+      indices[i] = N-i-1;
+      x[i] = RandomValue<double>()-0.8;
+      y[i] = RandomValue<double>()-0.3;
+    }
+    double exact = 0.0, exact2 = 0.0;
+    for (size_t i=0; i<N; i++) {
+      exact += x[i]*y[i];
+      exact2 += x[i]*y[indices[i]];
+    }
+    vector_sampler<double> X(x), XI(x,indices);
+    double sum = 0.0, sum2 = 0.0;
+
+    size_t nsample = 10000000;
+    for (size_t sample=0; sample<nsample; sample++) {
+      {
+	auto [i,s] = X.sample();
+	sum += y[i]*s;
+      }
+      {
+	auto [i,s] = XI.sample();
+	sum2 += y[i]*s;
+      }
+    }
+    print(X.norm()*sum/nsample, exact);
+    print(XI.norm()*sum2/nsample, exact2);
+  }
+    
+
 int main() {
     std::cout.precision(10);    
+    sparse_matrix_csr A = load_ci_matrix("h2o-4037.txt");
+    //size_t Nuse = A.nrow()-1;
+    size_t Nuse = 400;
+    A = A(Slice(0,Nuse),Slice(0,Nuse)); 
+    print(A.nrow(),A.nrow());
+
     //sparse_matrix_csr A = load_ci_matrix("sparse.txt");
     //sparse_matrix_csr A = load_ci_matrix("hooh-15252.txt");
-    sparse_matrix_csr A = load_ci_matrix("hooh-44034.txt");
+    //sparse_matrix_csr A = load_ci_matrix("hooh-44034.txt");
     //print(A.get_row(0));
     
-    //Tensor<double> B = sparse_matrix_to_tensor(A);
+    //Tensor<double> B = A.dense();
     // Tensor<double> evals,evecs;
     // syev(B, evecs, evals);
     // print("Hevals",evals[0],evals[B.dim(0)-1]);
@@ -838,28 +1168,32 @@ int main() {
     // power_iteration(A, elo, elo+0.2, ehi, 1e-7);
 
     //    print("sparse1 ", -76.1, ShurSparse(B,-76.1));
-    double E0 = -150.807 - 0.4;
+    double E0 = -76.0; //-150.807 - 0.4;
     print("sparse2 ", E0, ShurSparse(A,E0));
     //    //print(" dense", -76.1,ShurDense(B,-76.1));
 
-    ShurSparseMC(A,E0);
+    //test_sampler();
+
+    ShurSparseMCX(A,E0);
+
     
-    // Use secant method to find the root ... better would be to use all points computed and fit a low-order polyn to manage noise
-    //double E0 = -76.1; // Initial guess
-    double F0 = ShurSparse(A,E0) - E0;
-    double E1 = E0 + 0.1;
-    while (std::abs(E0-E1)>1e-4) {
-        double F1 = ShurSparse(A,E1) - E1;
-        print(E0,F0,E1,F1);
-        double E2 = E1 - F1*(E1-E0)/(F1-F0);
-        // Save the old point closest to the new point
-        if (std::abs(E2-E1) < std::abs(E2-E0)) {
-            E0 = E1; F0 = F1; E1 = E2;
-        }
-        else {
-            E1 = E2;
-        }
-    }
+    
+    // // Use secant method to find the root ... better would be to use all points computed and fit a low-order polyn to manage noise
+    // //double E0 = -76.1; // Initial guess
+    // double F0 = ShurSparse(A,E0) - E0;
+    // double E1 = E0 + 0.1;
+    // while (std::abs(E0-E1)>1e-4) {
+    //     double F1 = ShurSparse(A,E1) - E1;
+    //     print(E0,F0,E1,F1);
+    //     double E2 = E1 - F1*(E1-E0)/(F1-F0);
+    //     // Save the old point closest to the new point
+    //     if (std::abs(E2-E1) < std::abs(E2-E0)) {
+    //         E0 = E1; F0 = F1; E1 = E2;
+    //     }
+    //     else {
+    //         E1 = E2;
+    //     }
+    // }
     
     return 0;
 }
