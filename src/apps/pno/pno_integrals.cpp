@@ -40,6 +40,13 @@ int main(int argc, char** argv) {
 	startup(world,argc,argv,true);
 	print_meminfo(world.rank(), "startup");
 
+	// Get the name of the input file (if given)
+	const std::string input = (argc > 1) ? argv[1] : "input";
+
+	// get the orthogonalization method (cholesky, canonicalize, none) and basis_size
+	const std::string orthogonalization = (argc > 2) ? argv[2] : "cholesky";
+	const int basis_size = (argc > 3) ? std::atoi(argv[3]) : 10;
+
 	if(world.rank()==0){
 		std::cout << "\n\n";
 		std::cout << "-------------------------------------------------------------------------------------\n";
@@ -50,10 +57,16 @@ int main(int argc, char** argv) {
 		std::cout << "Journal of Chemical Physics ... 2020\n";
 		std::cout << "-------------------------------------------------------------------------------------\n";
 		std::cout << "\n\n";
+
+		std::cout << "This script will run PNO-MP2 and print out tensors in binary\n";
+		std::cout << "Call as: pno_integrals inputfile orthogonalization basis_size";
+		std::cout << "input is " << input << "\n";
+		std::cout << "orthogonalization is " << orthogonalization << "\n";
+		std::cout << "basis size is " << basis_size << "\n";
 	}
 
-	// Get the name of the input file (if given)
-	const std::string input = (argc > 1) ? argv[1] : "input";
+
+
 
 	// Compute the SCF Reference
 	const double time_scf_start = wall_time();
@@ -114,28 +127,18 @@ int main(int argc, char** argv) {
 	std::cout << std::fixed;
 	std::cout << std::showpos;
 
-	bool canonicalize = false;
-	bool quadratic_correction = false;
+	const bool canonicalize = orthogonalization == "canonicalize";
+	const bool orthogonalize = orthogonalization != "none";
 	const double h_thresh = 1.e-4;
 	const double thresh = 1.e-4;//parameters.thresh();
 	const auto amo = nemo.get_calc()->amo;
 
-	if (quadratic_correction){
-		// hardcoded for H2, only MP2 groundstate
-		// take the first PNO (which is highly occupied) and do quadratic CCD like correction
-		// generalize over PNO occupation number and possible additional threshold
-		// maybe everything over 0.1
+	if(world.rank()==0) std::cout << "Tightening thresholds to 1.e-6 for post-processing\n";
+	FunctionDefaults<3>::set_thresh(1.e-6);
 
-//		madness::ASSERT(all_pairs[0].pno_ij.size() == 1);
-//		auto& f = all_pairs[0].pno_ij[0];
-//		auto mp2_potential = pno.compute_V_aj_i();
-
-	}
-
-
-	for(const auto& pairs: all_pairs){
-
+	for(auto& pairs: all_pairs){
 		const auto& pno_ij = pairs.pno_ij;
+		const auto& rdm_evals = pairs.rdm_evals_ij;
 		const bool is_gs = pairs.type == MP2_PAIRTYPE;
 		std::string name = "gs";
 
@@ -148,15 +151,41 @@ int main(int argc, char** argv) {
 
 		std::vector<real_function_3d> all_basis_functions;// = nemo.get_calc()->amo;
 
+		std::vector<double> occ;
+		// collect PNOs from all pairs and sort by occupation number
 		for (const auto& pair: pno_ij){
 			all_basis_functions.insert(all_basis_functions.end(), pair.begin(), pair.end());
+		}
+		for (auto i=0; i<rdm_evals.size(); ++i){
+			for (auto ii=0; ii<rdm_evals[i].size();++ii){
+				occ.push_back(rdm_evals[i][ii]);
+			}
+		}
+		std::vector<std::pair<double, real_function_3d> > zipped;
+		for (auto i=0; i< all_basis_functions.size(); ++i){
+			zipped.push_back(std::make_pair(occ[i], all_basis_functions[i]));
+		}
+
+		std::sort(zipped.begin(), zipped.end(), [](const auto& i, const auto& j) { return i.first > j.first; });
+
+		std::vector<double> unzipped_first;
+		std::vector<real_function_3d> unzipped_second;
+		for (auto i=0; i<basis_size;++i){
+			unzipped_first.push_back(zipped[i].first);
+			unzipped_second.push_back(zipped[i].second);
+		}
+		occ = unzipped_first;
+		all_basis_functions = unzipped_second;
+
+		if(world.rank()==0){
+			std::cout << "all used occupation numbers:\n" << occ << "\n";
 		}
 
 		// reference projector (not fullfilled for CIS)
 		madness::QProjector<double, 3> Q(world, reference);
 		all_basis_functions = Q(all_basis_functions);
 
-	//	// compute overlap for cholesky decomposition
+		// compute overlap for cholesky decomposition
 		const auto S = madness::matrix_inner(world, all_basis_functions, all_basis_functions, true);
 		if(world.rank()==0) std::cout << "Overlap Matrix of all PNOs:\n";
 		for (int i=0;i<all_basis_functions.size();++i){
@@ -166,18 +195,22 @@ int main(int argc, char** argv) {
 			if(world.rank()==0) std::cout << "\n";
 		}
 		auto gop = std::shared_ptr < real_convolution_3d > (madness::CoulombOperatorPtr(world, 1.e-6, parameters.op_thresh()));
-		auto basis = madness::orthonormalize_rrcd(all_basis_functions, 1.e-5);
-		if(world.rank()==0) std::cout << "Basis size after global Cholesky: " << basis.size() << "\n";
+
+		auto basis = all_basis_functions;
+		if (orthogonalize){
+			basis = madness::orthonormalize_rrcd(all_basis_functions, 1.e-5);
+			if(world.rank()==0) std::cout << "Basis size after global Cholesky: " << basis.size() << "\n";
+		}
+
 		if(world.rank()==0) std::cout << "Adding Reference orbitals\n";
 		const auto amo = nemo.get_calc()->amo;
 		basis.insert(basis.begin(), reference.begin(), reference.end());
 
 		madness::Tensor<double> g(basis.size(), basis.size(), basis.size(), basis.size()); // using mulliken notation since thats more efficient to compute here: Tensor is (pq|g|rs) = <pr|g|qs>
 
-		madness::truncate(basis, parameters.thresh());
-
 
 		if(canonicalize){
+			if(world.rank()==0) std::cout << "canonicalizing!\n";
 			auto F = madness::Fock(world, &nemo);
 			const auto Fmat = F(basis, basis);
 			Tensor<double> U, evals;
@@ -217,7 +250,7 @@ int main(int argc, char** argv) {
 								g(p,q,r,s) += Kmat(p,q) - Jmat(p,q);
 							}
 							if(std::fabs(g(p,q,r,s)) > h_thresh ){
-								if(world.rank()==0) std::cout << " g " << p  << " "<<  q  << " "<<  r  << " "<<  s << " = " << g(p,q,r,s) << "\n";
+								if(world.rank()==0 and basis.size() < 3) std::cout << " g " << p  << " "<<  q  << " "<<  r  << " "<<  s << " = " << g(p,q,r,s) << "\n";
 								++non_zero;
 							}
 						}
@@ -239,7 +272,7 @@ int main(int argc, char** argv) {
 		for (int i=0;i<basis.size();++i){
 			for (int j=0;j<basis.size();++j){
 				if(std::fabs(h(i,j)) > h_thresh){
-					if(world.rank()==0) std::cout << " h " << i << " "<< j << " "<< h(i,j) << "\n";
+					if(world.rank()==0 and basis.size() < 3) std::cout << " h " << i << " "<< j << " "<< h(i,j) << "\n";
 					++non_zero_h;
 				}
 			}
@@ -254,6 +287,13 @@ int main(int argc, char** argv) {
 		g = g.flat();
 		nc::NdArray<double> gg(g.ptr(), g.size(), 1);
 		gg.tofile(name+"_gtensor.bin", "");
+
+		if (not orthogonalize){
+			auto S = madness::matrix_inner(world, basis, basis, true);
+			S = S.flat();
+			nc::NdArray<double> gg(S.ptr(), S.size(), 1);
+			gg.tofile(name+"_overlap.bin", "");
+		}
 
 		auto Fop =  madness::Fock(world, &nemo);
 		auto F = Fop(basis, basis);

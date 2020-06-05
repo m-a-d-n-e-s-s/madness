@@ -273,6 +273,7 @@ struct PNOPairs{
 	const size_t npairs;							///< number of Pairs
 	CISData cis;									///< CIS excitation structure
 	vfT pno_ij;										///< the PNOs for all Pairs
+	std::valarray<Tensor<double> > rdm_evals_ij;   	///< PNO eigenvalues
 	std::valarray<Tensor<double> > t_ij;			///< the amplitudes for all Pairs
 	std::valarray<Tensor<double> > F_ij;			///< Fock matrices of the PNOs
 	std::valarray<Tensor<double> > W_ij;			///< Fluctuation matrix

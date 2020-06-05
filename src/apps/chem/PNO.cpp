@@ -1416,6 +1416,7 @@ PNOPairs PNO::iterate_pairs_internal(PNOPairs& pairs, const int maxiter, const d
 			} else {
 				rdm_evals_ij = pno_compress(pairs,param.tpno());
 			}
+			pairs.rdm_evals_ij = rdm_evals_ij;
 
 			// test if ampltides are transformed correctly
 			//PairEnergies edb=compute_projected_mp2_energies(t2_ij, pno_ij);
@@ -2579,6 +2580,7 @@ Tensor<double> PNO::compute_cispd_fluctuation_matrix(const ElectronPairIterator&
 }
 
 void PNO::canonicalize(PNOPairs& pairs)const{
+	pairs.rdm_evals_ij = std::valarray<Tensor<double> >(); // make clear that they are not valid anymore
 	// diagonalize all Fock matrices
 	std::valarray<Tensor<double> > U_ij(Tensor<double>(std::vector<long>(2,0)),pairs.npairs);
 	PAIRLOOP(it){

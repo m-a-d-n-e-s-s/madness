@@ -177,7 +177,7 @@ int main(int argc, char** argv) {
 		gijkl = g;
 		hij = h;
 
-		if(std::fabs(err) < 1.e-3) break;
+		if(std::fabs(err) < 1.e-5) break;
 	}
 
 	{

@@ -278,7 +278,9 @@ int main(int argc, char** argv) {
 		// plot the Gaussian cube file
 		std::vector<std::string> molecular_info=cubefile_header("input",no_orient);
 		std::string filename=filenames[0]+".cube";
-		plot_cubefile<3>(world,vf[0],filename,molecular_info);
+		for(auto i=0;i<vf.size();++i){
+		    plot_cubefile<3>(world,vf[i],filename+"_"+std::to_string(i),molecular_info);
+	        }
 
     } catch (...) {
         try {

@@ -7,14 +7,33 @@
 
 //#include <cnpy.h>
 #include "/home/jsk/install/cnpy/include/cnpy.h" // integrate into cmake!
-#include "NumCpp.hpp" // integrate into cmake (inluce only just pass cxx flag -I/home/jsk/install/numcpp/include/
+#include "NumCpp.hpp" // integrate into cmake (include only just pass cxx flag -I/home/jsk/install/numcpp/include/
 #include <iomanip>
 #include <chem/SCF.h>
 #include <chem/nemo.h>
 #include <chem/projector.h>
 #include <nonlinsol.h>
+#include <chem/MolecularOrbitals.h>
 
 using namespace madness;
+
+
+//template<typename T, std::size_t NDIM>
+//struct allocator {
+//	World& world;
+//	const int n;
+//
+//	/// @param[in]	world	the world
+//	/// @param[in]	nn		the number of functions in a given vector
+//	allocator(World& world, const int nn) :
+//			world(world), n(nn) {
+//	}
+//
+//	/// allocate a vector of n empty functions
+//	std::vector<Function<T, NDIM> > operator()() {
+//		return zero_functions<T, NDIM>(world, n);
+//	}
+//};
 
 Tensor<double> load_tensor(const std::string& name){
 	cnpy::NpyArray data = cnpy::npy_load(name+".npy");
@@ -91,7 +110,7 @@ vecfuncT compute_initial_guess(const Nemo& nemo){
 	const auto amo = nemo.get_calc()->amo;
 	MADNESS_ASSERT(amo.size()==1);
 	const auto atomic_guess = nemo.get_calc() -> ao;
-
+	std::cout << atomic_guess.size() << " atomic guess orbitals\n";
 
 	QProjector<double,3> Q(nemo.world, amo);
 
@@ -101,10 +120,21 @@ vecfuncT compute_initial_guess(const Nemo& nemo){
 	atomic_vi.scale(1.0/atomic_vi.norm2());
 
 	auto vi = Q(atomic_vi);
-	atomic_vi.scale(1.0/atomic_vi.norm2());
+	vi.scale(1.0/vi.norm2());
 
-	vecfuncT basis = {amo[0], atomic_vi};
+	auto tmp = amo[0].inner(vi);
+	std::cout << "overlap of guess = " << tmp << "\n";
+	vecfuncT basis = {amo[0], vi};
 	return basis;
+}
+
+void print_orbital_information(World& world, const MolecularOrbitals<double, 3>& orbitals){
+	if (world.rank()==0){
+		std::cout << orbitals.get_mos().size() << " Molecular orbitals\n";
+		std::cout << "irreps: " << orbitals.get_irreps() << "\n";
+		std::cout << "occ   : " << orbitals.get_occ() << "\n";
+		std::cout << "set   : " << orbitals.get_localize_sets() << "\n";
+	}
 }
 
 int main(int argc, char** argv) {
@@ -117,6 +147,8 @@ int main(int argc, char** argv) {
 	startup(world,argc,argv,true);
 	//print_meminfo(world.rank(), "startup");
 
+	const std::string input = "input";
+
 	// read in the spin integrated density matrices
 	auto dij = load_tensor("dij");
 	auto dijkl = load_tensor("dijkl");
@@ -124,38 +156,167 @@ int main(int argc, char** argv) {
 	std::cout << "dij\n" << dij << '\n';
 	std::cout << "dijkl " << dijkl.dims()  << " " << dijkl.ndim()<< "\n" << dijkl << '\n';
 
-	auto nemo = compute_scf(world);
-	const double nuc_rep = nemo.get_calc() -> molecule.nuclear_repulsion_energy();
-	auto basis = compute_initial_guess(nemo);
+	std::shared_ptr<SCF> scf_ptr(new SCF(world, input));
+	Nemo nemo(world, scf_ptr, input);
+	try{
+		nemo.get_calc() -> load_mos(world);
+		nemo.get_calc() -> ao = nemo.get_calc() -> project_ao_basis(world, nemo.get_calc() -> aobasis);
+		nemo.get_calc() -> make_nuclear_potential(world);
+	}catch(MadnessException& e){
+		nemo.value();
+	}
 
+	std::vector<std::string> irreps;
+	auto symmetry_projector = nemo.get_symmetry_projector();
+	symmetry_projector(nemo.get_calc() -> amo, irreps);
+	auto alphas = MolecularOrbitals<double, 3>(nemo.get_calc()->amo, nemo.get_calc()->aeps, irreps, nemo.get_calc()->aocc, nemo.get_calc()->aset);
+	auto betas = MolecularOrbitals<double, 3>(nemo.get_calc()->amo, nemo.get_calc()->aeps, irreps, nemo.get_calc()->aocc, nemo.get_calc()->aset);
+	const double nuc_rep = nemo.get_calc() -> molecule.nuclear_repulsion_energy();
 	auto T = Kinetic<double, 3>(world);
-	auto Vnuc =  Nuclear(world, &nemo);
+	auto Vnuc =  Nuclear(world, nemo.get_calc().get());
 	auto gop = CoulombOperator(world, 1.e-6,1.e-6);
 	QProjector<double,3> Q(nemo.world, nemo.get_calc()->amo);
-	// will only optimize the virtuals here
-	NonlinearSolver solver;
-	for(auto i=0; i<100; i++){
-		auto vi = basis.back();
-		auto mo = basis.front();
-		auto h = Vnuc(basis,basis) + T(basis,basis);
-		auto g11 = gop(vi*vi);
-		auto g01 = gop(mo*vi);
-		auto V = Vnuc(vi)*dij(1,1) + Q(dijkl(1,1,1,1)*g11*vi + dijkl(1,1,0,0)*g01*mo) - dij(1,1)*h(0,1)*mo;
-		const double lambda = dij(1,1)*T(vi,vi) + vi.inner(V) ;
-		auto BSH = BSHOperator3D(world, sqrt(-2.0 * lambda/dij(1,1)), 1.e-6, 1.e-6);
-		auto vi2 = BSH(-2.0/dij(1,1)*V);
-		auto res = vi - vi2;
-		auto err = res.norm2();
-		std::cout << "err=" << err << " lambda=" << lambda << "\n";
-		//vi = vi2;
-		vi = solver.update(vi, res);
 
-		vi = Q(vi);
-		const auto norm = vi.norm2();
-		std::cout << "norm of updated function " << norm << "\n";
-		vi.scale(1.0/norm);
-		basis = {mo, vi};
-		if(std::fabs(err) < 1.e-3) break;
+	// currently only closed shell
+	MADNESS_ASSERT(betas.get_mos().size()==0);
+	print_orbital_information(world, alphas);
+
+	std::cout << "compute initial guess\n";
+	auto basis = compute_initial_guess(nemo);
+	std::cout << "done\n";
+
+//	std::vector<std::string> virreps;
+//	vecfuncT guessvirt = {basis.back()};
+//	std::cout << "guessvirt.size() = " << guessvirt.size() << "\n";
+//	guessvirt = symmetry_projector(guessvirt, virreps);
+//	guessvirt = vecfuncT({guessvirt.back()});
+//	virreps = std::vector<std::string>({"b1u"});
+//	guessvirt = symmetry_projector(guessvirt, virreps);
+//	auto virtuals = MolecularOrbitals<double,3>(guessvirt, Tensor<double>(1), virreps, Tensor<double>(1), std::vector<int>(1,0));
+//	print_orbital_information(world, virtuals);
+
+	std::vector<std::string> airreps;
+	//basis = symmetry_projector(basis, airreps);
+	auto bas = MolecularOrbitals<double, 3>(basis, Tensor<double>(basis.size()), airreps, Tensor<double>(basis.size()), std::vector<int>(basis.size(),0));
+	print_orbital_information(world, bas);
+
+	// will only optimize the virtuals here
+	const double thresh = 1.e-4;
+	auto size = bas.get_mos().size();
+	typedef allocator<double, 3> allocT;
+	typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
+	allocT alloc(world, size);
+	solverT solver(allocT(world, size));
+	bool canonicalize = true;
+	for(auto i=0; i<10; i++){
+		// hardcoded for 2e example
+//		auto mo = alphas.get_mos().front();
+//		auto vi = virtuals.get_mos().front();
+//		auto h = Vnuc(basis,basis) + T(basis,basis);
+//		auto g11 = gop(vi*vi);
+//		auto g01 = gop(mo*vi);
+//		auto Vx = Vnuc(vi)*dij(1,1) + Q(dijkl(1,1,1,1)*g11*vi + dijkl(1,1,0,0)*g01*mo) - dij(1,1)*h(0,1)*mo;
+//		const double lambdax = dij(1,1)*T(vi,vi) + vi.inner(Vx) ;
+//		auto BSH = BSHOperator3D(world, sqrt(-2.0 * lambdax/dij(1,1)), 1.e-6, 1.e-6);
+//		auto vi2 = BSH(-2.0/dij(1,1)*Vx);
+//		auto resx = vi - vi2;
+//		auto err = resx.norm2();
+//		std::cout << "err=" << err << " lambda=" << lambdax << "\n";
+//		//vi = vi2;
+//		//vi = solver.update(vi, res);
+//		vi = Q(vi);
+//		const auto norm = vi.norm2();
+//		std::cout << "norm of updated function " << norm << "\n";
+//		vi.scale(1.0/norm);
+//		Tensor<double> tmp(1);
+//		tmp[0] = lambdax;
+//		vecfuncT tmpvi(1,vi);
+//		virtuals.update_mos_and_eps(tmpvi, tmp);
+//		if(std::fabs(err) < 1.e-3) break;
+//		basis = {mo, vi};
+
+		//vecfuncT hop = T(bas.get_mos()) + Vnuc(bas.get_mos()); // not supported currently; would need for non-diagonal dij
+
+		auto S = matrix_inner(world, bas.get_mos(), bas.get_mos());
+		std::cout << "Overlap\n" << S << "\n";
+
+		std::vector<vecfuncT> glm;
+
+		for (auto l=0;l<size;++l){
+			const auto tmp = truncate(apply(world,gop, truncate(bas.get_mos()[l]*bas.get_mos() , thresh)),thresh);
+			glm.push_back(tmp);
+		}
+
+		vecfuncT V;
+		Tensor<double> kinetic_part(size,size); // diagonal matrix
+		for (auto a=0; a<size; ++a){
+			real_function_3d Va = Vnuc(bas.get_mos()[a])*dij[a,a];
+			vecfuncT moa;
+			for(auto k=0;k<size; ++k){
+				if(k!=a) moa.push_back(bas.get_mos()[k]);
+			}
+			auto Qa = QProjector<double,3>(world, moa);
+			kinetic_part(a,a) = dij(a,a)*T(bas.get_mos()[a], bas.get_mos()[a]);
+			for(auto k=0;k<size; ++k){
+				//Va += (1.0 - a==k)*dij(a,k)*hop[k]; // assuming diagonal dij for now
+				for(auto l=0;l<size; ++l){
+					for(auto m=0;m<size; ++m){
+						Va += 0.5*Qa((dijkl(a,k,l,m) + dijkl(k,a,l,m))*glm[l][m]*bas.get_mos()[k]);
+					}
+				}
+			}
+			V.push_back(Va);
+		}
+
+		auto Lambda = kinetic_part + matrix_inner(world, bas.get_mos(), V, true);
+		std::vector<double> eps(size);
+		if (canonicalize){
+			Tensor<double> U, lambda;
+			syev(Lambda, U, lambda);
+			std::cout << "lambdas : " << lambda << "\n";
+			bas.update_mos(transform(world, bas.get_mos(), U));
+			V = transform(world, V, U);
+			for (int i = 0;i < size;++i) {
+				eps[i] = lambda(i)/dij(i,i);
+			}
+		}else{
+			for (auto a=0; a<size; ++a){
+				eps[i] = Lambda(i,i)/dij(i,i);
+				for(auto k=0;k<size; ++k){
+					V[a] -= Lambda(a,k)*bas.get_mos()[k];
+				}
+				V[a] = -2.0/dij(a,a)*V[a];
+			}
+			std::cout << "Lambda  :\n" << Lambda << "\n";
+		}
+
+
+
+
+		std::vector<poperatorT> ops(size);
+		for (int i = 0;i < size;++i) {
+			if (eps[i] > 0) {
+				MADNESS_EXCEPTION("Positive Eigenvalue for BSH Operator?????", 1);
+			}
+			ops[i] = poperatorT(BSHOperatorPtr3D(world, sqrt(-2.0 * eps[i]), 1.e-6, 1.e-6));
+		}
+
+//		auto res = bas.get_mos() - apply(world, ops, V);
+//		auto updated = solver.update(bas.get_mos(), res);
+		auto updated = apply(world,ops,V);
+		for (auto& u: updated){
+			u.scale(1.0/u.norm2());
+		}
+		auto res = bas.get_mos() - updated;
+
+		auto errv = norm2s(world, res);
+		auto maxerr = std::max_element(std::begin(errv), std::end(errv));
+		std::cout << "errv : " << errv << " | max " << *maxerr <<  "\n";
+		if (*maxerr < 1.e-3) break;
+
+		bas.update_mos(updated);
+
+
 	}
 
 	auto hij = compute_one_electron_tensor(basis, T);
