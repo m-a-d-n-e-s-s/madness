@@ -62,4 +62,8 @@ cmake/bin
 cmake/doc
 cmake/share
 Makefile-prog.in
+# Clangd
 .clangd
+#tags
+.vscode-ctags
+.tags
