@@ -42,6 +42,7 @@ struct TDHF_allocator {
   }
 };
 
+
 // Needed for rebalancing
 template <typename T, int NDIM>
 struct lbcost {
@@ -823,6 +824,85 @@ ResponseFunction TDHF::CreateGamma(World &world, ResponseFunction &f,
   // Done
   return gamma;
 }
+
+ResponseFunction TDHF::CreateH(World &world, ResponseFunction &f,
+                                   std::vector<real_function_3d> &phi,
+                                   double small, double thresh, int print_level,
+                                   std::string xy) {
+  // Start timer
+  if (print_level >= 1) start_timer(world);
+
+  // Get sizes
+  int m = f.size();
+  int n = f[0].size();
+
+  // The gamma function to be returned, intialized to zero
+  ResponseFunction gamma(world, m, n);
+
+  // Intermediaries, initialized to zero
+  ResponseFunction deriv_K(world, m, n);
+  ResponseFunction deriv_XC(world, m, n);
+
+  // Perturbed coulomb piece
+  ResponseFunction deriv_J =
+      CreateCoulombDerivative(world, f,  phi, small, thresh);
+
+  // If including any HF exchange:
+  if (xcf.hf_exchange_coefficient()) {
+    deriv_K = CreateExchangeDerivative(world, f,  phi, small, thresh);
+  }
+  // Get the DFT contribution
+  if (xcf.hf_exchange_coefficient() != 1.0) {
+    // Get v_xc
+    std::vector<real_function_3d> vxc = create_fxc(world, phi, f, g);
+
+    // Apply xc kernel to ground state orbitals
+    for (int i = 0; i < m; i++) {
+      deriv_XC[i] = mul_sparse(world, vxc[i], phi, thresh, false);
+    }
+    world.gop.fence();
+  }
+
+  // Now assemble pieces together to get gamma
+  // Spin integration gives 2.0
+  gamma = deriv_J * 2.0 + deriv_XC - deriv_K * xcf.hf_exchange_coefficient();
+
+  // Project out groundstate
+  QProjector<double, 3> projector(world, Gparams.orbitals);
+  for (int i = 0; i < m; i++) gamma[i] = projector(gamma[i]);
+
+  // Debugging output
+  if (print_level >= 2) {
+    if (world.rank() == 0)
+      printf("   Coulomb Deriv matrix for %s components:\n", xy.c_str());
+    ResponseFunction t = deriv_J * 2.0;
+    Tensor<double> temp = expectation(world, f, t);
+    if (world.rank() == 0) print(temp);
+    if (Rparams.xc == "hf") {
+      if (world.rank() == 0)
+        printf("   Exchange Deriv matrix for %s components:\n", xy.c_str());
+      temp = expectation(world, f, deriv_K);
+    } else {
+      if (world.rank() == 0)
+        printf("   XC Deriv matrix for %s components:\n", xy.c_str());
+      temp = expectation(world, f, deriv_XC);
+    }
+    if (world.rank() == 0) print(temp);
+    if (world.rank() == 0)
+      printf("   Gamma matrix for %s components:\n", xy.c_str());
+    temp = expectation(world, f, gamma);
+    if (world.rank() == 0) print(temp);
+  }
+
+  // Basic output
+  if (print_level >= 1) end_timer(world, "Creating gamma:");
+
+  truncate(world, gamma);
+
+  // Done
+  return gamma;
+}
+
 
 // Calculates ground state coulomb potential
 real_function_3d TDHF::Coulomb(World &world) {
@@ -2617,6 +2697,7 @@ void TDHF::Iterate(World &world) {
       for (int k = 0; k < m; k++) y_response[k] = projector(y_response[k]);
 
      // doesn't Qy=0
+
 
 
     // Truncate before doing expensive things

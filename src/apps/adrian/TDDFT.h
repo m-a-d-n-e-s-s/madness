@@ -260,6 +260,11 @@ class TDHF {
                                std::vector<real_function_3d> &phi, double small,
                                double thresh, int print_level, std::string xy);
 
+  ResponseFunction CreateH(World &world, ResponseFunction &f,
+                               std::vector<real_function_3d> &phi, double small,
+                               double thresh, int print_level, std::string xy);
+
+
   // Returns the coulomb potential of the ground state
   // Note: No post multiplication involved here
   real_function_3d Coulomb(World &world);
