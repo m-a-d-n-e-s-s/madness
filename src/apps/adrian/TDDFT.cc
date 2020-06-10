@@ -854,7 +854,7 @@ ResponseFunction TDHF::CreateH(World &world, ResponseFunction &f,
   // Get the DFT contribution
   if (xcf.hf_exchange_coefficient() != 1.0) {
     // Get v_xc
-    std::vector<real_function_3d> vxc = create_fxc(world, phi, f, g);
+    std::vector<real_function_3d> vxc = CreateXCDerivative(world, phi, f);
 
     // Apply xc kernel to ground state orbitals
     for (int i = 0; i < m; i++) {
@@ -2599,6 +2599,39 @@ std::vector<real_function_3d> TDHF::create_fxc(
 
   return vxc;
 }
+
+std::vector<real_function_3d> TDHF::CreateXCDerivative(
+    World &world, std::vector<real_function_3d> &orbitals, ResponseFunction &f
+    ) {
+  // Create the xcop
+  XCOperator xc = create_xcoperator(world, Gparams.orbitals, Rparams.xc);
+  int m =f.size();// get the number of response functions
+  int n =f[0].size();// get the number of orbitals function
+
+   std::vector<real_function_3d> drho = zero_functions<double, 3>(world, m);
+ // Run over virtual...
+   for(int i = 0; i < m; i++)
+   {
+      // Run over occupied...
+      for(int j = 0; j < n; j++)
+      {
+         // y functions are zero if TDA is active
+         drho[i] = drho[i] + orbitals[j] * f[i][j]; //+ orbitals[j] * y[i][j];
+      }
+   }
+  // Return container
+  std::vector<real_function_3d> vxc;
+
+  // Finally create the functions we want, one per response state
+  // (xc_args_prep_response happens inside this call)
+  for (unsigned int i = 0; i < f.size(); i++) {
+    vxc.push_back(xc.apply_xc_kernel(drho[i]));
+  }
+  //for each density apply xckernel
+
+  return vxc;
+}
+
 
 // Iterates the response functions until converged or out of iterations
 void TDHF::Iterate(World &world) {

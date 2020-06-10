@@ -462,6 +462,10 @@ class TDHF {
       World &world, std::vector<real_function_3d> &orbitals,
       ResponseFunction &f, ResponseFunction &g);
 
+  std::vector<real_function_3d> CreateXCDerivative(
+      World &world, std::vector<real_function_3d> &orbitals,
+      ResponseFunction &f );
+
   // Iterates the trial functions until covergence or it runs out of iterations
   void Iterate(World &world);
 
