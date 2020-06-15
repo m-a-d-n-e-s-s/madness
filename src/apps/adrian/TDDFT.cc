@@ -3966,7 +3966,7 @@ void TDHF::set_protocol(World &world, double thresh) {
   FunctionDefaults<NDIM>::set_autorefine(false);
   FunctionDefaults<NDIM>::set_apply_randomize(false);
   FunctionDefaults<NDIM>::set_project_randomize(false);
-  GaussianConvolution1DCache<double>::map.clear();
+  //GaussianConvolution1DCache<double>::map.clear();//(TODO:Adrian-What is this? Do i need it?)
 
   // dconv defaults to thresh*100, overrirde by providing dconv in input file
   if (Rparams.dconv_set == false) {
