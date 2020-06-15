@@ -6,6 +6,7 @@ build*
 *.o
 *.obj
 
+
 # Compiled Dynamic libraries
 *.so
 *.dylib
@@ -61,3 +62,8 @@ cmake/bin
 cmake/doc
 cmake/share
 Makefile-prog.in
+# Clangd
+.clangd
+#tags
+.vscode-ctags
+.tags
