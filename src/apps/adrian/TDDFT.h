@@ -234,7 +234,7 @@ class TDHF {
       std::vector<real_function_3d> &phi,  // orbitals
       double small, double thresh);
 
-  ResponseFunction CreateCoulombDerivativeDaggerRF(
+  ResponseFunction CreateCoulombDerivativeRFDagger(
     World &world, ResponseFunction &f, std::vector<real_function_3d> &phi,
     double small, double thresh);
 
@@ -279,11 +279,11 @@ class TDHF {
                                std::vector<real_function_3d> &phi, double small,
                                double thresh, int print_level, std::string xy);
 
-  ResponseFunction CreateH(World &world, ResponseFunction &f,
+  ResponseFunction CreateHfRF(World &world, ResponseFunction &f,
                                std::vector<real_function_3d> &phi, double small,
                                double thresh, int print_level, std::string xy);
 
-  ResponseFunction CreateG(World &world, ResponseFunction &f,ResponseFunction &g,
+  ResponseFunction CreateGfRF(World &world, ResponseFunction &f,
                                 std::vector<real_function_3d> &orbitals,
                                 double small, double thresh, int print_level);
 
