@@ -476,7 +476,7 @@ class TDHF {
   std::vector<real_function_3d> GetWxcOnF(
     World &world, std::vector<real_function_3d> &orbitals, ResponseFunction &f
     );
-  std::vector<real_function_3d> GetWxcOnFConjugate(
+  std::vector<real_function_3d> GetConjugateWxcOnF(
     World &world, std::vector<real_function_3d> &orbitals, ResponseFunction &f
     );
   std::vector<real_function_3d> CreateXCDerivative(
@@ -508,10 +508,10 @@ class TDHF {
       World &world, std::vector<real_function_3d> &orbitals,
       ResponseFunction &x, ResponseFunction &y);
   // Get transition density from f and orbitals
-  std::vector<real_function_3d> GetTransitionDensity(
+  std::vector<real_function_3d> GetTransitionDensities(
     World &world, std::vector<real_function_3d> &orbitals, ResponseFunction &f
     );
-  std::vector<real_function_3d> GetTransitionDensityConjugate(
+  std::vector<real_function_3d> GetConjugateTransitionDensities(
     World &world, std::vector<real_function_3d> &orbitals, ResponseFunction &f
     );
   // Creates the ground state hamiltonian for the orbitals in the active

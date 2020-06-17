@@ -2781,37 +2781,35 @@ std::vector<real_function_3d> TDHF::GetWxcOnF(
     ) {
   // Create the xcop
   XCOperator xc = create_xcoperator(world, Gparams.orbitals, Rparams.xc);
-
   // Next need the perturbed density
-  std::vector<real_function_3d> drho = GetTransitionDensity(world,orbitals,f);
+  std::vector<real_function_3d> drhoM = GetTransitionDensities(world,orbitals,f);
   // Return container
   std::vector<real_function_3d> vxc;
-
   // Finally create the functions we want, one per response state
   // (xc_args_prep_response happens inside this call)
   for (unsigned int i = 0; i < f.size(); i++) {
-    vxc.push_back(xc.apply_xc_kernel(drho[i]));
+    vxc.push_back(xc.apply_xc_kernel(drhoM[i]));
   }
   //for each density apply xckernel
 
   return vxc;
 }
 
-std::vector<real_function_3d> TDHF::GetWxcOnFConjugate(
+std::vector<real_function_3d> TDHF::GetConjugateWxcOnF(
     World &world, std::vector<real_function_3d> &orbitals, ResponseFunction &f
     ) {
   // Create the xcop
   XCOperator xc = create_xcoperator(world, Gparams.orbitals, Rparams.xc);
 
   // Next need the perturbed density
-  std::vector<real_function_3d> drho = GetTransitionDensityConjugate(world,orbitals,f);
+  std::vector<real_function_3d> drhoM = GetConjugateTransitionDensities(world,orbitals,f);
   // Return container
   std::vector<real_function_3d> vxc;
 
   // Finally create the functions we want, one per response state
   // (xc_args_prep_response happens inside this call)
   for (unsigned int i = 0; i < f.size(); i++) {
-    vxc.push_back(xc.apply_xc_kernel(drho[i]));
+    vxc.push_back(xc.apply_xc_kernel(drhoM[i]));
   }
   //for each density apply xckernel
 
@@ -4157,7 +4155,7 @@ std::vector<real_function_3d> TDHF::transition_density(
   return densities;
 }
 // Creates the transition density
-std::vector<real_function_3d> TDHF::GetTransitionDensity(
+std::vector<real_function_3d> TDHF::GetTransitionDensities(
     World &world, std::vector<real_function_3d> &orbitals, ResponseFunction &f
     ) {
   // Get sizes
@@ -4181,7 +4179,7 @@ std::vector<real_function_3d> TDHF::GetTransitionDensity(
   return densities;
 }
 
-std::vector<real_function_3d> TDHF::GetTransitionDensityConjugate(
+std::vector<real_function_3d> TDHF::GetConjugateTransitionDensities(
     World &world, std::vector<real_function_3d> &orbitals, ResponseFunction &f
     ) {
   // Get sizes
