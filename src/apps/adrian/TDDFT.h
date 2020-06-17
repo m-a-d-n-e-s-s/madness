@@ -247,10 +247,17 @@ class TDHF {
   ResponseFunction CreateExchangeDerivativeDagger(
     World &world, ResponseFunction &f, std::vector<real_function_3d> &phi,
     double small, double thresh);
-  ResponseFunction CreateXCDerivativeOnF(
-      World &world, ResponseFunction &f, std::vector<real_factory_3d> &phi,
+
+  ResponseFunction CreateXCDerivativeOnFDens(
+      World &world, ResponseFunction &f, std::vector<real_function_3d> &phi,
       double small, double thresh
       );
+  ResponseFunction CreateXCDerivativeOnFDensDagger(
+      World &world, ResponseFunction &f, std::vector<real_function_3d> &phi,
+      double small, double thresh
+      );
+
+
 
   // Returns the diagonal (letter A) elements of response matrix
   ResponseFunction CreateA(World &world, ResponseFunction &fe,

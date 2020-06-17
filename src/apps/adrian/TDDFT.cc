@@ -621,19 +621,10 @@ ResponseFunction TDHF::CreateExchangeDerivativeDagger(
   // Get sizes
   int m = f.size();
   int n = f[0].size();
-
   // Zero function, to be returned
   ResponseFunction deriv_k_dagger(world, m, n);
-
   // Need the coulomb operator
   real_convolution_3d op = CoulombOperator(world, small, thresh);
-
-  // Potential is not stored by default
-  // Need to run over occupied orbitals
-  // Need to run over all virtual orbitals originating from orbital p
-  // Need to sum over occupied orbitals
-  //
-  // Determine if including HF exchange
   // Need to run over occupied orbitals
   for (int p = 0; p < n; p++) {
     // Need to run over all virtual orbitals originating from orbital p
@@ -643,11 +634,8 @@ ResponseFunction TDHF::CreateExchangeDerivativeDagger(
         // Get density (ground state orbitals)
         real_function_3d rho = f[k][i] * phi[p];
         //real_function_3d rho = dagger(f[k][i]) * phi[p];TODO:DAGGER()
-
         // Apply coulomb operator
         rho = apply(op, rho);
-
-        // Multiply by response function (k,i)
         // and add to total
         deriv_k_dagger[k][p] += rho * phi[i];
       }
@@ -656,16 +644,43 @@ ResponseFunction TDHF::CreateExchangeDerivativeDagger(
   return deriv_k_dagger;
 }
 
-ResponseFunction TDHF::CreateXCDerivativeOnF(
+ResponseFunction TDHF::CreateXCDerivativeOnFDens(
     World &world, ResponseFunction &f, std::vector<real_function_3d> &phi,
     double small, double thresh) {
+  // Get sizes
+  int m = f.size();
+  int n = f[0].size();
+
+
   //Initialize response function
   ResponseFunction deriv_XC(world, m, n);
   // Get WF for each resonse function
   std::vector<real_function_3d> WxconF = GetWxcOnFDensities(world, phi,f);
-  // app
+  // apply xc kernel to ground staate orbitals
+  for (int i = 0; i < m; i++) {
+      deriv_XC[i] = mul_sparse(world, WxconF[i], phi, thresh, false);
+    }
+    world.gop.fence();
+  return deriv_XC;
+}
 
+ResponseFunction TDHF::CreateXCDerivativeOnFDensDagger(
+    World &world, ResponseFunction &f, std::vector<real_function_3d> &phi,
+    double small, double thresh) {
+  // Get sizes
+  int m = f.size();
+  int n = f[0].size();
 
+  //Initialize response function
+  ResponseFunction deriv_XC(world, m, n);
+  // Get WF for each resonse function
+  std::vector<real_function_3d> conjWxconF = GetConjugateWxcOnFDensities(world, phi,f);
+  // apply xc kernel to ground staate orbitals
+  for (int i = 0; i < m; i++) {
+      deriv_XC[i] = mul_sparse(world, conjWxconF[i], phi, thresh, false);
+    }
+    world.gop.fence();
+  return deriv_XC;
 }
 
 
