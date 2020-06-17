@@ -3,7 +3,7 @@
  *   Written by: bsundahl
  *   Date: A long time ago...
  *
- */ 
+ */
 
 #include "TDHF2.h"
 #include "Plot_VTK.h"
@@ -68,11 +68,11 @@ inline double mask1(double x) {
        from 0->1 in [0,1].  n iterations produce 2*n-1
        zero derivatives at the end points. Order of polyn
        is 3^n.
-       
+
        Currently use one iteration so that first deriv.
        is zero at interior boundary and is exactly representable
        by low order multiwavelet without refinement */
-    
+
     x = (x*x*(3.-2.*x));
     return x;
 }
@@ -83,7 +83,7 @@ static double mask3(const coord_3d& ruser) {
     double x= rsim[0], y=rsim[1], z=rsim[2];
     double lo = 0.0625, hi = 1.0-lo, result = 1.0;
     double rlo = 1.0/lo;
-    
+
     if (x<lo)
         result *= mask1(x*rlo);
     else if (x>hi)
@@ -96,7 +96,7 @@ static double mask3(const coord_3d& ruser) {
         result *= mask1(z*rlo);
     else if (z>hi)
         result *= mask1((1.0-z)*rlo);
-    
+
     return result;
 }
 
@@ -121,10 +121,10 @@ static double pop(std::vector<double>& v)
 // Stops a timer
 static void end_timer(World& world,
                       const char* msg)
-{ 
+{
    double wall = wall_time() - pop(ttt);
    double cpu  = cpu_time() - pop(sss);
-   if(world.rank() == 0) printf("   timer: %20.20s %8.2fs %8.2fs\n", msg, cpu, wall); 
+   if(world.rank() == 0) printf("   timer: %20.20s %8.2fs %8.2fs\n", msg, cpu, wall);
 }
 
 // Collective constructor
@@ -143,9 +143,9 @@ TDHF::TDHF(World & world,
    if(world.rank() == 0)
    {
       if (input->fail()) MADNESS_EXCEPTION("Response failed to open input stream", 0);
-   
-      // Welcome user (future ASCII art of Robert goes here) 
-      print("\n   Preparing to solve the TDHF equations.\n"); 
+
+      // Welcome user (future ASCII art of Robert goes here)
+      print("\n   Preparing to solve the TDHF equations.\n");
 
       // Read input files
       Rparams.read(*input);
@@ -163,11 +163,11 @@ TDHF::TDHF(World & world,
    {
       Gparams.print_params();
       print_molecule(world);
-   }   
+   }
 
-   // Set some function defaults   
+   // Set some function defaults
    FunctionDefaults<3>::set_cubic_cell(-Gparams.L, Gparams.L);
-   FunctionDefaults<3>::set_truncate_mode(1);   
+   FunctionDefaults<3>::set_truncate_mode(1);
    FunctionDefaults<3>::set_truncate_on_project(true);
 
    // Initialize response state xcfuntion object
@@ -180,9 +180,9 @@ TDHF::TDHF(World & world,
    if(world.size() > 1)
    {
       // Start a timer
-      if(Rparams.print_level >= 1) start_timer(world); 
+      if(Rparams.print_level >= 1) start_timer(world);
       if(world.rank() == 0) print(""); // Makes it more legible
- 
+
       LoadBalanceDeux<3> lb(world);
       for(unsigned int j = 0; j < Gparams.num_orbitals; j++)
       {
@@ -211,14 +211,14 @@ void TDHF::save(World & world)
    //        Function<double,3> x_response[i][j]
    //  (If TDA flag == True)
    //  (Tensor<double>  energies of m y-components    )
-   //  (for i from 0 to m-1                       ) 
+   //  (for i from 0 to m-1                       )
    //  (   for j from 0 to n-1                    )
    //  (      Function<double,3> y_response[i][j] )
    ar & Gparams.inFile;
    ar & Rparams.tda;
    ar & Gparams.num_orbitals;
    ar & Rparams.states;
-   ar & omega; 
+   ar & omega;
 
    for(int i=0; i<Rparams.states; i++)
       for(unsigned int j=0; j<Gparams.num_orbitals; j++)
@@ -227,7 +227,7 @@ void TDHF::save(World & world)
    {
       for(int i=0; i<Rparams.states; i++)
          for(unsigned int j=0; j<Gparams.num_orbitals; j++)
-            ar & y_response[i][j]; 
+            ar & y_response[i][j];
    }
 }
 
@@ -249,26 +249,26 @@ void TDHF::load(World& world,
    //        Function<double,3> x_response[i][j]
    //  (If TDA flag == True)
    //  (Tensor<double>  energies of m y-components    )
-   //  (for i from 0 to m-1                       ) 
+   //  (for i from 0 to m-1                       )
    //  (   for j from 0 to n-1                    )
    //  (      Function<double,3> y_response[i][j] )
-   
+
    ar & Rparams.archive;
    ar & Rparams.tda;
    ar & Gparams.num_orbitals;
    ar & Rparams.states;
-   ar & omega;   
+   ar & omega;
 
    x_response = ResponseFunction(world, Rparams.states, Gparams.num_orbitals);
 
-   for(int i=0; i<Rparams.states; i++) 
+   for(int i=0; i<Rparams.states; i++)
       for(unsigned int j=0; j<Gparams.num_orbitals; j++)
          ar & x_response[i][j];
    world.gop.fence();
 
    y_response = ResponseFunction(world, Rparams.states, Gparams.num_orbitals);
    if(not Rparams.tda)
-   {      
+   {
       for(int i=0; i<Rparams.states; i++)
          for(unsigned int j=0; j<Gparams.num_orbitals; j++)
             ar & y_response[i][j];
@@ -276,7 +276,7 @@ void TDHF::load(World& world,
    }
 }
 
-// (Each state's norm should be 1, not the 
+// (Each state's norm should be 1, not the
 // individual functions norms)
 void TDHF::normalize(World & world,
                      ResponseFunction & f)
@@ -285,11 +285,11 @@ void TDHF::normalize(World & world,
    for(unsigned int i = 0; i < f.size(); i++)
    {
       // Get the normalization constant
-      // (Sum included inside inner) 
+      // (Sum included inside inner)
       double norm = inner(f[i], f[i]);
       norm = sqrt(norm);
 
-      // Doing this to deal with zero functions. 
+      // Doing this to deal with zero functions.
       // Maybe not smrt.
       if( norm == 0) continue;
 
@@ -298,7 +298,7 @@ void TDHF::normalize(World & world,
    }
 };
 
-// (Each state's norm should be 1, not the 
+// (Each state's norm should be 1, not the
 // individual functions norms)
 void TDHF::normalize(World & world,
                      ResponseFunction & f,
@@ -308,12 +308,12 @@ void TDHF::normalize(World & world,
    for(unsigned int i = 0; i < f.size(); i++)
    {
       // Get the normalization constant
-      // (Sum included inside inner) 
+      // (Sum included inside inner)
       double normf = inner(f[i], f[i]);
       double normg = inner(g[i], g[i]);
       double norm = sqrt(normf - normg);
 
-      // Doing this to deal with zero functions. 
+      // Doing this to deal with zero functions.
       // Maybe not smrt.
       if( norm == 0) continue;
 
@@ -418,7 +418,7 @@ std::map<std::vector<int>,real_function_3d> TDHF::solid_harmonics(World & world,
       // Formula below calls for some functions that don't exist.
       // Need zeroes where that would occur
       result[std::vector<int>{l+1,  l+2}] = zero;
-      result[std::vector<int>{l+1, -l-2}] = zero; 
+      result[std::vector<int>{l+1, -l-2}] = zero;
 
       // Run over quantum number m
       for(int m = -l; m < l+1; m++)
@@ -431,9 +431,9 @@ std::map<std::vector<int>,real_function_3d> TDHF::solid_harmonics(World & world,
    // Get rid of any zero functions we added
    for(auto it = result.begin(); it != result.end(); )
    {
-      if (it->second.norm2() == 0) 
+      if (it->second.norm2() == 0)
          it = result.erase(it);
-      else 
+      else
          ++it;
    }
 
@@ -455,7 +455,7 @@ ResponseFunction TDHF::create_trial_functions(World & world,
    int n = orbitals.size();
 
    // Create solid harmonics such that num. solids * num. orbitals > k.
-   // The total number of solid harmonics that exist up to level n is 
+   // The total number of solid harmonics that exist up to level n is
    // (n+1)^2 (because we count from zero)
    // Always do at least 8 (through the d orbital angular momentum functions,
    // minus )
@@ -464,18 +464,18 @@ ResponseFunction TDHF::create_trial_functions(World & world,
    // Useful info.
    if(world.rank() == 0) print("   Created", solids.size(), "solid harmonics.\n");
 
-   // Container to return 
+   // Container to return
    ResponseFunction trials;
 
-   // Counter for number of trials created 
+   // Counter for number of trials created
    int count = 0;
 
    // Multiply each solid harmonic onto a ground state orbital
    for(int i = 0; i < n; i++)
    {
-      // For each solid harmonic 
+      // For each solid harmonic
       for(auto key : solids)
-      { 
+      {
          // Temp zero functions
          std::vector<real_function_3d> temp = zero_functions_compressed<double,3>(world, n);
 
@@ -488,7 +488,7 @@ ResponseFunction TDHF::create_trial_functions(World & world,
       // Stop when we first get beyond k components
       if(count >= k) break;
    }
- 
+
    // Debugging output
    if(print_level >= 2)
    {
@@ -496,7 +496,7 @@ ResponseFunction TDHF::create_trial_functions(World & world,
       print_norms(world, trials);
    }
 
-   // Truncate 
+   // Truncate
    truncate(world, trials);
 
    // Done
@@ -504,7 +504,7 @@ ResponseFunction TDHF::create_trial_functions(World & world,
 }
 
 
-// Returns dipole operator * molecular orbitals 
+// Returns dipole operator * molecular orbitals
 ResponseFunction TDHF::dipole_guess(World &world,
                                     std::vector<real_function_3d> orbitals)
 {
@@ -523,7 +523,7 @@ ResponseFunction TDHF::dipole_guess(World &world,
       // Create guesses
       for(unsigned int i = 0; i < dipole_guesses[0].size(); i++)
       {
-         dipole_guesses[axis][i] = mul_sparse(dip, orbitals[i], false); 
+         dipole_guesses[axis][i] = mul_sparse(dip, orbitals[i], false);
       }
       world.gop.fence();
    }
@@ -548,16 +548,16 @@ ResponseFunction TDHF::create_coulomb_derivative(World &world,
    // Zero function, to be returned
    ResponseFunction deriv_j(world, m, n);
 
-   // Need the coulomb operator 
+   // Need the coulomb operator
    real_convolution_3d op = CoulombOperator(world, small, thresh);
 
    // Temperary storage
    real_function_3d rho = real_function_3d(world);
 
-   // Need to run over each state 
+   // Need to run over each state
    for(int k = 0; k < m; k++)
    {
-      // Get transition density 
+      // Get transition density
       rho = dot(world, f[k], orbitals);
 
       // Apply coulomb operator
@@ -582,7 +582,7 @@ ResponseFunction TDHF::create_exchange_derivative(World &world,
                                                   ResponseFunction & f,
                                                   std::vector<real_function_3d> & orbitals,
                                                   double small,
-                                                  double thresh) 
+                                                  double thresh)
 {
    // Get sizes
    int m = f.size();
@@ -591,9 +591,9 @@ ResponseFunction TDHF::create_exchange_derivative(World &world,
    // Zero function, to be returned
    ResponseFunction deriv_k(world, m, n);
 
-   // Need the coulomb operator 
+   // Need the coulomb operator
    real_convolution_3d op = CoulombOperator(world, small, thresh);
-  
+
    // Potential is not stored by default
    if(Rparams.store_potential)
    {
@@ -636,7 +636,7 @@ ResponseFunction TDHF::create_exchange_derivative(World &world,
          }
       }
    }
-   
+
    // Done
    return deriv_k;
 }
@@ -648,7 +648,7 @@ ResponseFunction TDHF::create_A(World &world,
                                 ResponseFunction & V,
                                 ResponseFunction & f,
                                 std::vector<real_function_3d> & ground_orbitals,
-                                Tensor<double> & hamiltonian, // Ground state 
+                                Tensor<double> & hamiltonian, // Ground state
                                 int print_level,
                                 std::string xy)
 {
@@ -671,7 +671,7 @@ ResponseFunction TDHF::create_A(World &world,
 
    // Need to calculate hamiltonian * x_response
    // Name of function sounds strange, I know...
-   ResponseFunction energy_resp = scale_2d(world, f, hamiltonian);    
+   ResponseFunction energy_resp = scale_2d(world, f, hamiltonian);
 
    if(print_level >= 2)
    {
@@ -683,20 +683,20 @@ ResponseFunction TDHF::create_A(World &world,
    // Saving this here for larger subspace calculations
    fe = fock_resp - energy_resp;
 
-   // And return the sum 
-   return gamma + fe; 
+   // And return the sum
+   return gamma + fe;
 }
 
 // Creates the off diagonal (letter B) portions of response matrix
 // Very similiar to create_gamma, but the order of ground state and
 // response components are different inside the integrals
 ResponseFunction TDHF::create_B(World &world,
-                                ResponseFunction & f, 
-                                ResponseFunction & g, 
+                                ResponseFunction & f,
+                                ResponseFunction & g,
                                 std::vector<real_function_3d> & orbitals,
                                 double small,
                                 double thresh,
-                                int print_level) 
+                                int print_level)
 {
    // Start a timer
    if(print_level >= 1) start_timer(world);
@@ -712,15 +712,15 @@ ResponseFunction TDHF::create_B(World &world,
    ResponseFunction gamma;
    real_function_3d rho;
 
-   // Need the coulomb operator 
+   // Need the coulomb operator
    real_convolution_3d op = CoulombOperator(world, small, thresh);
 
-   // Two pieces: coulomb and exchange 
-   // Coulomb first 
+   // Two pieces: coulomb and exchange
+   // Coulomb first
    // Need to run over virtual orbitals
    for(int k = 0; k < m; k++)
    {
-      // Get transition density 
+      // Get transition density
       rho = dot(world, f[k], orbitals);
 
       // Apply coulomb operator
@@ -735,7 +735,7 @@ ResponseFunction TDHF::create_B(World &world,
       }
    }
 
-   // Exchange 
+   // Exchange
    // Determine if including HF exchange
    if(xcf.hf_exchange_coefficient())
    {
@@ -760,7 +760,7 @@ ResponseFunction TDHF::create_B(World &world,
             }
          }
       }
-   }   
+   }
    // Determine if DFT potential is needed
    if(xcf.hf_exchange_coefficient() != 1.0)
    {
@@ -776,10 +776,10 @@ ResponseFunction TDHF::create_B(World &world,
    }
 
    // Take care of coeficients
-   gamma = deriv_j * 2.0 + deriv_xc - deriv_k * xcf.hf_exchange_coefficient();  
- 
+   gamma = deriv_j * 2.0 + deriv_xc - deriv_k * xcf.hf_exchange_coefficient();
+
    // Project out the ground state
-   QProjector<double, 3> projector(world, orbitals);          
+   QProjector<double, 3> projector(world, orbitals);
    for(int i = 0; i<m; i++) gamma[i] = projector(gamma[i]);
 
    // Debugging output
@@ -809,7 +809,7 @@ ResponseFunction TDHF::create_B(World &world,
    if(print_level >= 1) end_timer(world, "   Creating B:");
 
    // Done
-   return gamma; 
+   return gamma;
 }
 
 // Computes gamma(r) given the ground state orbitals and response functions
@@ -836,21 +836,21 @@ ResponseFunction TDHF::create_gamma(World &world,
    ResponseFunction deriv_K(world, m, n);
    ResponseFunction deriv_XC(world, m, n);
 
-   // Perturbed coulomb piece 
+   // Perturbed coulomb piece
    ResponseFunction deriv_J = create_coulomb_derivative(world, f, orbitals, small, thresh);
 
    // If including any HF exchange:
    if(xcf.hf_exchange_coefficient())
    {
-      deriv_K = create_exchange_derivative(world, f, orbitals, small, thresh); 
+      deriv_K = create_exchange_derivative(world, f, orbitals, small, thresh);
    }
    // Get the DFT contribution
-   if(xcf.hf_exchange_coefficient() != 1.0) 
+   if(xcf.hf_exchange_coefficient() != 1.0)
    {
       // Get v_xc
       std::vector<real_function_3d> vxc = create_fxc(world, orbitals, f, g);
 
-      // Apply xc kernel to ground state orbitals      
+      // Apply xc kernel to ground state orbitals
       for(int i = 0; i < m; i++)
       {
           deriv_XC[i] = mul_sparse(world, vxc[i], orbitals, thresh, false);
@@ -860,9 +860,9 @@ ResponseFunction TDHF::create_gamma(World &world,
 
    // Now assemble pieces together to get gamma
    // Spin integration gives 2.0
-   gamma = deriv_J * 2.0 + deriv_XC - deriv_K * xcf.hf_exchange_coefficient();   
+   gamma = deriv_J * 2.0 + deriv_XC - deriv_K * xcf.hf_exchange_coefficient();
 
-   // Project out groundstate 
+   // Project out groundstate
    QProjector<double, 3> projector(world, Gparams.orbitals);
    for(int i = 0; i<m; i++) gamma[i] = projector(gamma[i]);
 
@@ -899,7 +899,7 @@ ResponseFunction TDHF::create_gamma(World &world,
 }
 
 
-// Calculates ground state coulomb potential 
+// Calculates ground state coulomb potential
 real_function_3d TDHF::coulomb(World& world)
 {
    // Coulomb operator
@@ -920,11 +920,11 @@ real_function_3d TDHF::coulomb(World& world)
    rho = apply(op, rho);
    rho.truncate();
 
-   // Done 
+   // Done
    return rho;
 }
 
-// Calculates HF exchange between ground state orbitals and functions f 
+// Calculates HF exchange between ground state orbitals and functions f
 ResponseFunction TDHF::exchange(World& world,
                                 ResponseFunction & f)
 {
@@ -948,11 +948,11 @@ ResponseFunction TDHF::exchange(World& world,
       // And run over each occupied state
       for(int j = 0; j < n; j++)
       {
-         // Get a vector of transition densities     
+         // Get a vector of transition densities
          auto phix = mul_sparse(world, Gparams.orbitals[j], f[k], FunctionDefaults<3>::get_thresh());
 
          // Clean up
-         truncate(world, phix);         
+         truncate(world, phix);
 
          // Apply operator to each member of vector
          phix = apply(world, op, phix);
@@ -988,7 +988,7 @@ ResponseFunction TDHF::create_potential(World & world,
    // Return container
    ResponseFunction V_x_resp;
 
-   // Computing \hat{V}^0 = v_nuc + v_coul + v_exch           
+   // Computing \hat{V}^0 = v_nuc + v_coul + v_exch
    // v_nuc first
    real_function_3d v_nuc, v_coul;
    if(!Rparams.store_potential)
@@ -1000,7 +1000,7 @@ ResponseFunction TDHF::create_potential(World & world,
       v_nuc.truncate();
 
       // v_coul next
-      // This does not include final multiplication of each orbital 
+      // This does not include final multiplication of each orbital
       // 2.0 scale is from spin integration
       v_coul = coulomb(world);
       v_coul.scale(2.0);
@@ -1022,7 +1022,7 @@ ResponseFunction TDHF::create_potential(World & world,
       // Multiplication by f functions is included in construction
       v_exch = exchange(world, f);
    }
-   if(xcf.hf_exchange_coefficient() != 1.0) 
+   if(xcf.hf_exchange_coefficient() != 1.0)
    {
       // Calculate DFT potential
       v_xc = xc.make_xc_potential();
@@ -1052,7 +1052,7 @@ ResponseFunction TDHF::create_potential(World & world,
       {
          if(world.rank() == 0) printf("   XC potential matrix for %s components:\n", xy.c_str());
          v_exch = f * v_xc;
-         temp = expectation(world, f, v_exch); 
+         temp = expectation(world, f, v_exch);
       }
       if(world.rank() == 0) print(temp);
       if(world.rank() == 0) printf("   Total Potential Energy matrix for %s components:\n", xy.c_str());
@@ -1096,7 +1096,7 @@ Tensor<double> TDHF::expectation(World &world,
    // Container for result
    Tensor<double> result(dim_1, dim_1);
 
-   // Run over dimension two 
+   // Run over dimension two
    for(int p = 0; p < dim_2; p++)
    {
       result += matrix_inner(world, aT[p], bT[p]);
@@ -1144,7 +1144,7 @@ ResponseFunction TDHF::create_fock(World & world,
    // Add together derivatives
    fock = (dvx2 + dvy2 + dvz2) * (-0.5);
 
-   // Debugging output   
+   // Debugging output
    if(print_level >= 2)
    {
       if(world.rank() == 0) printf("   Kinetic energy matrix for %s components:\n", xy.c_str());
@@ -1171,7 +1171,7 @@ Tensor<double> TDHF::create_response_matrix(World & world,
                                             ResponseFunction & V,
                                             ResponseFunction & f,
                                             std::vector<real_function_3d> & ground_orbitals,
-                                            Tensor<double> & hamiltonian, // Ground state 
+                                            Tensor<double> & hamiltonian, // Ground state
                                             int print_level,
                                             std::string xy)
 {
@@ -1180,7 +1180,7 @@ Tensor<double> TDHF::create_response_matrix(World & world,
 
    // Construct intermediary
    // Sets fe to be (\hat{fock} - eps)*f
-   ResponseFunction temp = create_A(world, fe, gamma, V, f, ground_orbitals, hamiltonian, print_level, xy); 
+   ResponseFunction temp = create_A(world, fe, gamma, V, f, ground_orbitals, hamiltonian, print_level, xy);
 
    // Make the matrix
    Tensor<double> A = expectation(world, f, temp);
@@ -1201,17 +1201,17 @@ Tensor<double> TDHF::create_response_matrix(World & world,
 
 // Constructs the matrix, so really it does
 // [ X Y ] [ A  B ] [ X ]
-//         [ B  A ] [ Y ] 
-Tensor<double> TDHF::create_full_response_matrix(World & world, 
-                                                 ResponseFunction & x_gamma, // x perturbed two electron piece 
+//         [ B  A ] [ Y ]
+Tensor<double> TDHF::create_full_response_matrix(World & world,
+                                                 ResponseFunction & x_gamma, // x perturbed two electron piece
                                                  ResponseFunction & Vx,      // potential * x
                                                  ResponseFunction & B_x,     // mixing terms for y
-                                                 ResponseFunction & fe_x,    // eps * x 
+                                                 ResponseFunction & fe_x,    // eps * x
                                                  ResponseFunction & x,       // x response functions
                                                  ResponseFunction & y_gamma, // y perturbed two electron piece
                                                  ResponseFunction & Vy,      // potential * y
                                                  ResponseFunction & B_y,     // mixing terms for x
-                                                 ResponseFunction & fe_y,    // eps * y 
+                                                 ResponseFunction & fe_y,    // eps * y
                                                  ResponseFunction & y,       // y response functions
                                                  std::vector<real_function_3d> & ground_orbitals, // ground state orbitals
                                                  Tensor<double> & ground_ham,                     // full ground state hamiltonian
@@ -1224,25 +1224,25 @@ Tensor<double> TDHF::create_full_response_matrix(World & world,
 
    // Create the A pieces
    // (Sets fe_x and fe_y to be (\hat{F}-eps) * resp. funcs.
-   ResponseFunction A_x = create_A(world, fe_x, x_gamma, Vx, x, ground_orbitals, ground_ham, print_level, "x"); 
+   ResponseFunction A_x = create_A(world, fe_x, x_gamma, Vx, x, ground_orbitals, ground_ham, print_level, "x");
    ResponseFunction A_y = create_A(world, fe_y, y_gamma, Vy, y, ground_orbitals, ground_ham, print_level, "y");
-   
-   // Create the B pieces 
+
+   // Create the B pieces
    B_x = create_B(world, x, y, ground_orbitals, small, thresh, print_level);
    B_y = create_B(world, y, x, ground_orbitals, small, thresh, print_level);
 
-   // Debugging output 
+   // Debugging output
    if(print_level >= 2)
    {
       Tensor<double> t = expectation(world, x, A_x);
-      if(world.rank() == 0) 
+      if(world.rank() == 0)
       {
          print("\n   A_x:");
          print(t);
       }
 
       t = expectation(world, x, B_y);
-      if(world.rank() == 0) 
+      if(world.rank() == 0)
       {
          print("\n   B_y:");
          print(t);
@@ -1269,25 +1269,25 @@ Tensor<double> TDHF::create_full_response_matrix(World & world,
    A_y = B_x + A_y; // Needs adjoint if complex
 
    // Construct matrix to be returned
-   Tensor<double> response_matrix = expectation(world, x, A_x) + expectation(world, y, A_y); 
+   Tensor<double> response_matrix = expectation(world, x, A_x) + expectation(world, y, A_y);
 
-   // Debugging output 
+   // Debugging output
    if(print_level >= 2 and world.rank() == 0)
    {
       print("\n   Full Coupled Response Matrix:");
       print(response_matrix);
    }
 
-   // End timer 
+   // End timer
    if(print_level >= 1) end_timer(world, "Create resp. matrix:");
-   
+
    // Done
    return response_matrix;
 }
 
 // Returns the shift needed to make sure that
-// -2.0 * (ground_state_energy + excited_state_energy) 
-// is negative. Please note: The same shift needs to 
+// -2.0 * (ground_state_energy + excited_state_energy)
+// is negative. Please note: The same shift needs to
 // be applied to the potential.
 Tensor<double> TDHF::create_shift(World & world,
                                   Tensor<double> & ground,
@@ -1338,7 +1338,7 @@ Tensor<double> TDHF::create_shift(World & world,
 }
 
 // Returns the shift needed to make sure that
-// (ground_state_energy + excited_state_energy + shift) = target 
+// (ground_state_energy + excited_state_energy + shift) = target
 // Please note: The same shift needs to be applied to the potential.
 Tensor<double> TDHF::create_shift_target(World & world,
                                          Tensor<double> & ground,
@@ -1363,7 +1363,7 @@ Tensor<double> TDHF::create_shift_target(World & world,
       // Run over ground components
       for(int p = 0; p < n; p++)
       {
-         // Calculate the shift needed to get energy to target 
+         // Calculate the shift needed to get energy to target
          result(k,p) = -(ground(p) + omega(k) - target);
 
          // Basic output
@@ -1374,7 +1374,7 @@ Tensor<double> TDHF::create_shift_target(World & world,
             if(world.rank() == 0) print("   Excited energy =", omega(k));
             if(world.rank() == 0) print("   Shifting by", result(k,p));
             if(world.rank() == 0) print("");
-         }         
+         }
       }
    }
 
@@ -1415,7 +1415,7 @@ ResponseFunction TDHF::apply_shift(World & world,
 
    // End timer
    if(Rparams.print_level >= 1) end_timer(world, "Apply shift:");
-   
+
    // Done
    return shifted_V;
 }
@@ -1537,7 +1537,7 @@ ResponseFunction TDHF::gram_schmidt(World & world,
       // Need to normalize the row
       double norm = norm2(world, result[j]);
 
-      // Now scale each entry      
+      // Now scale each entry
       scale(world, result[j], 1.0/norm);
 
       // Project out from the rest of the vectors
@@ -1548,7 +1548,7 @@ ResponseFunction TDHF::gram_schmidt(World & world,
          // vmra.h function, line 627
          double temp = inner(result[j], result[k]);
 
-         // Now subtract 
+         // Now subtract
          gaxpy(world, 1.0, result[k], -temp, result[j]);
       }
    }
@@ -1574,7 +1574,7 @@ void TDHF::gram_schmidt(World & world,
       // Need to normalize the row
       double norm = inner(f[j],f[j]) - inner(g[j],g[j]);
 
-      // Now scale each entry      
+      // Now scale each entry
       scale(world, f[j], 1.0/sqrt(norm));
       scale(world, g[j], 1.0/sqrt(norm));
 
@@ -1586,7 +1586,7 @@ void TDHF::gram_schmidt(World & world,
          // vmra.h function, line 627
          double temp = inner(f[j], f[k]) - inner(g[j], g[k]);
 
-         // Now subtract 
+         // Now subtract
          gaxpy(world, 1.0, f[k], -temp, f[j]);
          gaxpy(world, 1.0, g[k], -temp, g[j]);
       }
@@ -1642,11 +1642,11 @@ void TDHF::select_active_subspace(World & world)
       std::cout << std::scientific;
   }
 
-   // Determine active orbitals based on energy differences 
+   // Determine active orbitals based on energy differences
    // from HOMO
    for(unsigned int i = 0; i < Gparams.num_orbitals; i++)
    {
-      
+
       if(Rparams.range_low < Gparams.energies(i) and Gparams.energies(i) < Rparams.range_high)
       {
          // This orbital should be active, so add to list
@@ -1655,7 +1655,7 @@ void TDHF::select_active_subspace(World & world)
    }
 
    // Make sure we have at least one ground state orbital to excite from
-   MADNESS_ASSERT(active.size() > 0); 
+   MADNESS_ASSERT(active.size() > 0);
 
    // Now that we know size, allocate act_ground_energies
    act_ground_energies = Tensor<double>(active.size());
@@ -1695,9 +1695,9 @@ ResponseFunction TDHF::select_functions(World & world,
    answer = f;
    truncate(world, answer);
 
-   // Get rid of extra energies and save 
+   // Get rid of extra energies and save
    // the first k
-   energies = energies(Slice(0,k-1)); 
+   energies = energies(Slice(0,k-1));
 
    // Basic output
    if(print_level >= 1)
@@ -1789,7 +1789,7 @@ Tensor<double> TDHF::get_fock_transformation(World & world,
       if(s_vals(i) < 10 * thresh_degenerate)
       {
          if(world.rank() == 0 and num_sv == 0) print("");
-         if(world.rank() == 0) printf("   Detected singular value (%.8f) below threshold (%.8f). Reducing subspace size.\n", 
+         if(world.rank() == 0) printf("   Detected singular value (%.8f) below threshold (%.8f). Reducing subspace size.\n",
                                       s_vals(i), 10*thresh_degenerate);
          num_sv++;
       }
@@ -1807,7 +1807,7 @@ Tensor<double> TDHF::get_fock_transformation(World & world,
       // Cut out the singular values that are small
       // (singular values come out in descending order)
       overlap = Tensor<double>(size_s, size_s);
-      for(int i = 0; i < size_s; i++) overlap(i,i) = s_vals(i); 
+      for(int i = 0; i < size_s; i++) overlap(i,i) = s_vals(i);
 
       // Copy the active vectors to a smaller container
       l_vecs_s = copy(l_vecs(_, Slice(0, size_s - 1)));
@@ -1925,7 +1925,7 @@ Tensor<int> TDHF::sort_eigenvalues(World & world,
    // Tensor to hold selection order
    Tensor<int> selected(k);
 
-   // Copy everything...    
+   // Copy everything...
    std::vector<double> vals_copy;
    for(int i = 0; i < k; i++) vals_copy.push_back(vals[i]);
    Tensor<double> vals_copy2 = copy(vals);
@@ -1935,7 +1935,7 @@ Tensor<int> TDHF::sort_eigenvalues(World & world,
    std::sort(vals_copy.begin(), vals_copy.end());
 
    // Now sort the rest of the things, using the sorted energy list
-   // to find the correct indices 
+   // to find the correct indices
    for(int i = 0; i < k; i++)
    {
       // Find matching index in sorted vals_copy
@@ -1963,7 +1963,7 @@ Tensor<int> TDHF::sort_eigenvalues(World & world,
 
 /// Vpsi is passed in to make sure orbitals and Vpsi are in phase
 /// @param[in]  world    the world
-/// @param[in]           fock    
+/// @param[in]           fock
 /// @param[inout]        psi     the orbitals
 /// @param[inout]        Vpsi    the orbital times the potential
 /// @param[inout]        gamma   the orbital times the perturbed potential
@@ -2029,15 +2029,15 @@ ResponseFunction TDHF::transform(World & world,
    // Return container
    ResponseFunction result;
 
-   // Go element by element 
+   // Go element by element
    for(unsigned int i = 0; i < f.size(); i++)
    {
       // Temp for the result of one row
       std::vector<real_function_3d> temp = zero_functions_compressed<double,3>(world, f[0].size());
 
-      for(unsigned int j = 0; j < f.size(); j++) 
+      for(unsigned int j = 0; j < f.size(); j++)
       {
-         gaxpy(world, 1.0, temp, U(j,i), f[j]); 
+         gaxpy(world, 1.0, temp, U(j,i), f[j]);
       }
 
       // Add to temp to result
@@ -2052,17 +2052,17 @@ ResponseFunction TDHF::transform(World & world,
 
 // If using a larger subspace to diagonalize in, this will put everything in the right spot
 void TDHF::augment(World & world,
-                   Tensor<double> & S_x,     
-                   Tensor<double> & A_x,     
+                   Tensor<double> & S_x,
+                   Tensor<double> & A_x,
                    ResponseFunction & x_gamma,
                    ResponseFunction & x_response,
                    ResponseFunction & V_x_response,
                    ResponseFunction & x_fe,         // Contains fock and energy scaled orbitals
-                   Tensor<double> & old_S, 
-                   Tensor<double> & old_A, 
-                   ResponseFunction & old_x_gamma, 
-                   ResponseFunction & old_x_response, 
-                   ResponseFunction & old_V_x_response, 
+                   Tensor<double> & old_S,
+                   Tensor<double> & old_A,
+                   ResponseFunction & old_x_gamma,
+                   ResponseFunction & old_x_response,
+                   ResponseFunction & old_V_x_response,
                    ResponseFunction & old_x_fe,
                    int print_level)
 {
@@ -2085,13 +2085,13 @@ void TDHF::augment(World & world,
    // Calculate correct inner products of upper off diagonal
    Tensor<double> off = expectation(world, x_response, temp_old);
 
-   // Use slicing to put in correct spot 
+   // Use slicing to put in correct spot
    temp_A(Slice(0, m-1), Slice(m, 2*m-1)) = copy(off);
 
-   // Now for lower off diagonal 
-   off = expectation(world, old_x_response, temp_cur); 
+   // Now for lower off diagonal
+   off = expectation(world, old_x_response, temp_cur);
 
-   // Use slicing to put in correct spot 
+   // Use slicing to put in correct spot
    temp_A(Slice(m, 2*m-1), Slice(0, m-1)) = copy(off);
 
    // Put together the rest of A
@@ -2107,19 +2107,19 @@ void TDHF::augment(World & world,
 
    // Save temp_A as A_x
    // Need to symmeterize A as well (?)
-   A_x = 0.5 * (temp_A + transpose(temp_A)); 
+   A_x = 0.5 * (temp_A + transpose(temp_A));
 
    // Now create upper off diagonal block of S
-   off = expectation(world, x_response, old_x_response); 
+   off = expectation(world, x_response, old_x_response);
 
-   // Use slicing to put in correct spot 
+   // Use slicing to put in correct spot
    temp_S(Slice(0, m-1), Slice(m, 2*m-1)) = copy(off);
 
    // Now the lower off diagonal block
    // (Go ahead and cheat and use the transpose...)
-   off = transpose(off);   
+   off = transpose(off);
 
-   // Use slicing to put in correct spot 
+   // Use slicing to put in correct spot
    temp_S(Slice(m, 2*m-1), Slice(0, m-1)) = copy(off);
 
    // Put together the rest of S
@@ -2129,7 +2129,7 @@ void TDHF::augment(World & world,
    // Save temp_S as S_x
    S_x = copy(temp_S);
 
-   // Add in old vectors to current vectors for the appropriate ones 
+   // Add in old vectors to current vectors for the appropriate ones
    for(int i = 0; i < m; i++)
    {
       x_response.push_back(old_x_response[i]);
@@ -2142,14 +2142,14 @@ void TDHF::augment(World & world,
    if(print_level >= 1) end_timer(world, "Aug. resp. matrix:");
 
    // Debugging output
-   if(print_level >= 2 and world.rank() == 0) 
+   if(print_level >= 2 and world.rank() == 0)
    {
       print("\n   Augmented response matrix:");
       print(A_x);
    }
 
    // Debugging output
-   if(print_level >= 2 and world.rank() == 0) 
+   if(print_level >= 2 and world.rank() == 0)
    {
       print("   Augmented overlap matrix:");
       print(S_x);
@@ -2160,7 +2160,7 @@ void TDHF::augment(World & world,
    {
       if(world.rank() == 0) print("   Calculating condition number of aug. response matrix");
 
-      
+
    }
 }
 
@@ -2168,27 +2168,27 @@ void TDHF::augment(World & world,
 void TDHF::augment_full(World & world,
                         Tensor<double> & S,
                         Tensor<double> & A,
-                        ResponseFunction & B_x, 
+                        ResponseFunction & B_x,
                         ResponseFunction & x_gamma,
                         ResponseFunction & x_response,
                         ResponseFunction & V_x_response,
                         ResponseFunction & x_fe,  // Contains V_x_response
-                        ResponseFunction & B_y, 
+                        ResponseFunction & B_y,
                         ResponseFunction & y_gamma,
                         ResponseFunction & y_response,
                         ResponseFunction & V_y_response,
                         ResponseFunction & y_fe, // Contains V_y_response
-                        Tensor<double> & old_S, 
-                        Tensor<double> & old_A, 
+                        Tensor<double> & old_S,
+                        Tensor<double> & old_A,
                         ResponseFunction & old_B_x,
-                        ResponseFunction & old_x_gamma, 
-                        ResponseFunction & old_x_response, 
-                        ResponseFunction & old_V_x_response, 
+                        ResponseFunction & old_x_gamma,
+                        ResponseFunction & old_x_response,
+                        ResponseFunction & old_V_x_response,
                         ResponseFunction & old_x_fe,
                         ResponseFunction & old_B_y,
-                        ResponseFunction & old_y_gamma, 
-                        ResponseFunction & old_y_response, 
-                        ResponseFunction & old_V_y_response, 
+                        ResponseFunction & old_y_gamma,
+                        ResponseFunction & old_y_response,
+                        ResponseFunction & old_V_y_response,
                         ResponseFunction & old_y_fe,
                         int print_level)
 {
@@ -2214,37 +2214,37 @@ void TDHF::augment_full(World & world,
    Tensor<double> off = expectation(world, x_response, temp_old_x) +
                         expectation(world, y_response, temp_old_y);
 
-   // Use slicing to put in correct spot 
+   // Use slicing to put in correct spot
    temp_A(Slice(0, m-1), Slice(m, 2*m-1)) = copy(off);
    //temp_A(Slice(m, 2*m-1), Slice(0, m-1)) = copy(off);
 
-   // Now for lower off diagonal 
-   off = expectation(world, old_x_response, temp_cur_x) + 
+   // Now for lower off diagonal
+   off = expectation(world, old_x_response, temp_cur_x) +
          expectation(world, old_y_response, temp_cur_y);
 
-   // Use slicing to put in correct spot 
+   // Use slicing to put in correct spot
    temp_A(Slice(m, 2*m-1), Slice(0, m-1)) = copy(off);
    //temp_A(Slice(0, m-1), Slice(m, 2*m-1)) = copy(off);
 
-   // Put together the rest of A 
+   // Put together the rest of A
    temp_A(Slice(0, m-1), Slice(0, m-1)) = copy(A);
    temp_A(Slice(m, 2*m-1), Slice(m, 2*m-1)) = copy(old_A);
 
-   // Save temp_A into A 
+   // Save temp_A into A
    A = copy(temp_A);
 
    // Now create upper off diagonal block of S
    off = expectation(world, x_response, old_x_response) -
-         expectation(world, y_response, old_y_response); 
+         expectation(world, y_response, old_y_response);
 
-   // Use slicing to put in correct spot 
+   // Use slicing to put in correct spot
    temp_S(Slice(0, m-1), Slice(m, 2*m-1)) = copy(off);
 
    // Now the lower off diagonal block
    // (Cheating by using the transpose...)
-   off = transpose(off);   
+   off = transpose(off);
 
-   // Use slicing to put in correct spot 
+   // Use slicing to put in correct spot
    temp_S(Slice(m, 2*m-1), Slice(0, m-1)) = copy(off);
 
    // Put together the rest of S
@@ -2254,7 +2254,7 @@ void TDHF::augment_full(World & world,
    // Save temp_S as S
    S = copy(temp_S);
 
-   // Finally, add in old vectors to current vectors for the appropriate ones 
+   // Finally, add in old vectors to current vectors for the appropriate ones
    for(int i = 0; i < m; i++)
    {
       x_response.push_back(old_x_response[i]);
@@ -2273,15 +2273,15 @@ void TDHF::augment_full(World & world,
    // End the timer
    if(print_level >= 1) end_timer(world, "Aug. resp. matrix:");
 
-   // Debugging output 
-   if(print_level >= 2 and world.rank() == 0) 
+   // Debugging output
+   if(print_level >= 2 and world.rank() == 0)
    {
       print("\n   Augmented response matrix:");
       print(A);
    }
 
    // Debugging output
-   if(print_level >= 2 and world.rank() == 0) 
+   if(print_level >= 2 and world.rank() == 0)
    {
       print("   Augmented overlap matrix:");
       print(S);
@@ -2294,19 +2294,19 @@ void TDHF::unaugment(World & world,
                      int m,
                      int iter,
                      Tensor<double> & omega,
-                     Tensor<double> & S_x,     
-                     Tensor<double> & A_x,     
+                     Tensor<double> & S_x,
+                     Tensor<double> & A_x,
                      ResponseFunction & x_gamma,
                      ResponseFunction & x_response,
                      ResponseFunction & V_x_response,
                      ResponseFunction & x_fe,         // Contains fock and energy scaled orbitals
-                     Tensor<double> & old_S, 
-                     Tensor<double> & old_A, 
-                     ResponseFunction & old_x_gamma, 
-                     ResponseFunction & old_x_response, 
-                     ResponseFunction & old_V_x_response, 
+                     Tensor<double> & old_S,
+                     Tensor<double> & old_A,
+                     ResponseFunction & old_x_gamma,
+                     ResponseFunction & old_x_response,
+                     ResponseFunction & old_V_x_response,
                      ResponseFunction & old_x_fe,
-                     int print_level)        
+                     int print_level)
 {
    // Basic output
    if(print_level >= 1) start_timer(world);
@@ -2314,7 +2314,7 @@ void TDHF::unaugment(World & world,
    // Note: the eigenvalues and vectors were sorted after diagonalization
    // and hence all the functions are sorted in ascending order of energy
 
-   // Quick copy of m lowest eigenvalues        
+   // Quick copy of m lowest eigenvalues
    omega = omega(Slice(0,m-1));
 
    // Pop off the "m" vectors off the back end of appropriate vectors
@@ -2335,7 +2335,7 @@ void TDHF::unaugment(World & world,
    old_x_gamma = x_gamma.copy();
    old_V_x_response = V_x_response.copy();
 
-   // Project out ground state  
+   // Project out ground state
    //QProjector<double, 3> projector(world, Gparams.orbitals);
    //for(int i = 0; i < m; i++) x_response[i] = projector(x_response[i]);
    old_x_response = x_response.copy();
@@ -2359,31 +2359,31 @@ void TDHF::unaugment_full(World & world,
                           int iter,
                           Tensor<double> & U,
                           Tensor<double> & omega,
-                          Tensor<double> & S,     
-                          Tensor<double> & A, 
+                          Tensor<double> & S,
+                          Tensor<double> & A,
                           ResponseFunction & x_gamma,
                           ResponseFunction & x_response,
                           ResponseFunction & V_x_response,
                           ResponseFunction & x_fe,
-                          ResponseFunction & B_x, 
+                          ResponseFunction & B_x,
                           ResponseFunction & y_gamma,
                           ResponseFunction & y_response,
                           ResponseFunction & V_y_response,
                           ResponseFunction & y_fe,
-                          ResponseFunction & B_y,  
-                          Tensor<double> & old_S, 
-                          Tensor<double> & old_A, 
-                          ResponseFunction & old_x_gamma, 
-                          ResponseFunction & old_x_response, 
-                          ResponseFunction & old_V_x_response, 
+                          ResponseFunction & B_y,
+                          Tensor<double> & old_S,
+                          Tensor<double> & old_A,
+                          ResponseFunction & old_x_gamma,
+                          ResponseFunction & old_x_response,
+                          ResponseFunction & old_V_x_response,
                           ResponseFunction & old_x_fe,
                           ResponseFunction & old_B_x,
-                          ResponseFunction & old_y_gamma, 
-                          ResponseFunction & old_y_response, 
-                          ResponseFunction & old_V_y_response, 
+                          ResponseFunction & old_y_gamma,
+                          ResponseFunction & old_y_response,
+                          ResponseFunction & old_V_y_response,
                           ResponseFunction & old_y_fe,
                           ResponseFunction & old_B_y,
-                          int print_level)        
+                          int print_level)
 {
    // Basic output
    if(print_level >= 1) start_timer(world);
@@ -2391,7 +2391,7 @@ void TDHF::unaugment_full(World & world,
    // Note: the eigenvalues and vectors were sorted after diagonalization
    // and hence all the functions are sorted in ascending order of energy
 
-   // Quick copy of m lowest eigenvalues        
+   // Quick copy of m lowest eigenvalues
    omega = omega(Slice(0,m-1));
 
    // Pop off the "m" vectors off the back end of appropriate vectors
@@ -2432,15 +2432,15 @@ void TDHF::unaugment_full(World & world,
    old_x_response = x_response.copy();
    old_y_response = y_response.copy();
 
-   // Now to pull out correct values from S and A (both are size 2*m by 2*m, 
+   // Now to pull out correct values from S and A (both are size 2*m by 2*m,
    // and only want m by m values)
-   old_S = expectation(world, x_response, x_response) - expectation(world, y_response, y_response);  
+   old_S = expectation(world, x_response, x_response) - expectation(world, y_response, y_response);
 
    // And construct old_A
    ResponseFunction t1 = old_x_fe + old_x_gamma + old_B_y;
    ResponseFunction t2 = old_y_fe + old_y_gamma + old_B_x;
-   old_A = expectation(world, old_x_response, t1) + expectation(world, old_y_response, t2); 
-  
+   old_A = expectation(world, old_x_response, t1) + expectation(world, old_y_response, t2);
+
    // End the timer
    if(print_level >= 1) end_timer(world, "Unaug. resp. mat.:");
 }
@@ -2460,16 +2460,16 @@ Tensor<double> TDHF::diag_full_response(World & world,
                                         ResponseFunction & y_g,
                                         ResponseFunction & y_fe,
                                         ResponseFunction & B_y,
-                                        Tensor<double> & omega, 
+                                        Tensor<double> & omega,
                                         const double thresh,
                                         int print_level)
-{  
+{
     // compute the unitary transformation matrix U that diagonalizes
     // the response matrix
-    Tensor<double> vecs = get_full_response_transformation(world, S, A, omega, thresh);    
+    Tensor<double> vecs = get_full_response_transformation(world, S, A, omega, thresh);
 
     // Start timer
-    if(Rparams.print_level >= 1) start_timer(world);    
+    if(Rparams.print_level >= 1) start_timer(world);
 
     // Transform the vectors of functions
     // Truncate happens in here
@@ -2487,7 +2487,7 @@ Tensor<double> TDHF::diag_full_response(World & world,
     // End timer
     if(Rparams.print_level >= 1) end_timer(world, "Transform orbs.:");
 
-    // Normalize x and y 
+    // Normalize x and y
     normalize(world, x, y);
 
     // Debugging output
@@ -2495,9 +2495,9 @@ Tensor<double> TDHF::diag_full_response(World & world,
     {
        print("   Eigenvector coefficients from diagonalization:");
        print(vecs);
-    } 
+    }
 
-    // Return the selected functions 
+    // Return the selected functions
     return vecs;
 }
 
@@ -2506,11 +2506,11 @@ Tensor<double> TDHF::get_full_response_transformation(World& world,
                                                       Tensor<double>& S,
                                                       Tensor<double>& A,
                                                       Tensor<double>& evals,
-                                                      const double thresh_degenerate)    
+                                                      const double thresh_degenerate)
 {
     // Start timer
     if(Rparams.print_level >= 1) start_timer(world);
- 
+
     // Get size
     int m = S.dim(0);
 
@@ -2536,7 +2536,7 @@ Tensor<double> TDHF::get_full_response_transformation(World& world,
        if(s_vals(i) < 10 * thresh_degenerate)
        {
           if(world.rank() == 0 and num_sv == 0) print("");
-          if(world.rank() == 0) printf("   Detected singular value (%.8f) below threshold (%.8f). Reducing subspace size.\n", 
+          if(world.rank() == 0) printf("   Detected singular value (%.8f) below threshold (%.8f). Reducing subspace size.\n",
                                        s_vals(i), 10*thresh_degenerate);
           num_sv++;
        }
@@ -2555,7 +2555,7 @@ Tensor<double> TDHF::get_full_response_transformation(World& world,
        // Cut out the singular values that are small
        // (singular values come out in descending order)
        S = Tensor<double>(size_s, size_s);
-       for(int i = 0; i < size_s; i++) S(i,i) = s_vals(i); 
+       for(int i = 0; i < size_s; i++) S(i,i) = s_vals(i);
 
        // Copy the active vectors to a smaller container
        l_vecs_s = copy(l_vecs(_, Slice(0, size_s - 1)));
@@ -2573,9 +2573,9 @@ Tensor<double> TDHF::get_full_response_transformation(World& world,
        copyA = Tensor<double>(size_s, size_s);
        Tensor<double> l_vecs_t = transpose(l_vecs);
        mxm(size_s, size_s, size_l, copyA.ptr(), l_vecs_t.ptr(), work.ptr());
-    
+
        // Debugging output
-       if(Rparams.print_level >= 2 and world.rank() == 0) 
+       if(Rparams.print_level >= 2 and world.rank() == 0)
        {
           print("   Reduced response matrix:");
           print(copyA);
@@ -2589,10 +2589,10 @@ Tensor<double> TDHF::get_full_response_transformation(World& world,
     Tensor<double> U(size_s, size_s);
     ggevp(world, copyA, S, U, omega);
 
-    // Eigenvectors come out oddly packaged if there are 
+    // Eigenvectors come out oddly packaged if there are
     // complex eigenvalues.
     // Currently only supporting real valued eigenvalues
-    // so throw an error if any imaginary components are 
+    // so throw an error if any imaginary components are
     // not zero enough
     double max_imag = abs(imag(omega)).max();
     if(world.rank() == 0 and Rparams.print_level >= 2) print("\n   Max imaginary component of eigenvalues:", max_imag, "\n");
@@ -2685,8 +2685,8 @@ Tensor<double> TDHF::get_full_response_transformation(World& world,
 
 
 
-// Sorts the given tensor of eigenvalues and 
-// response functions 
+// Sorts the given tensor of eigenvalues and
+// response functions
 void TDHF::sort(World & world,
                 Tensor<double> & vals,
                 ResponseFunction& f)
@@ -2694,8 +2694,8 @@ void TDHF::sort(World & world,
    // Get relevant sizes
    int k = vals.size();
 
-   // Copy everything... 
-   ResponseFunction f_copy(f); 
+   // Copy everything...
+   ResponseFunction f_copy(f);
    Tensor<double> vals_copy = copy(vals);
    Tensor<double> vals_copy2 = copy(vals);
 
@@ -2703,7 +2703,7 @@ void TDHF::sort(World & world,
    std::sort(vals_copy.ptr(), vals_copy.ptr() + vals_copy.size());
 
    // Now sort the rest of the things, using the sorted energy list
-   // to find the correct indices 
+   // to find the correct indices
    for(int i = 0; i < k; i++)
    {
       // Find matching index in sorted vals_copy
@@ -2712,7 +2712,7 @@ void TDHF::sort(World & world,
 
       // Put corresponding function, difference function, value residual and value
       // in the correct place
-      f[i] = f_copy[j]; 
+      f[i] = f_copy[j];
       vals(i) =  vals_copy(i);
 
       // Change the value of vals_copy2[j] to help deal with duplicates?
@@ -2740,9 +2740,9 @@ XCOperator TDHF::create_xcoperator(World& world,
    XCOperator xcop(world, xc, false, rho, rho);
 
    return xcop;
-} 
+}
 
-// Uses an XCOperator to construct v_xc for the ground state density 
+// Uses an XCOperator to construct v_xc for the ground state density
 // Returns d^2/d rho^2 E_xc[rho]
 std::vector<real_function_3d> TDHF::create_fxc(World& world,
                                                std::vector<real_function_3d>& orbitals,
@@ -2753,12 +2753,12 @@ std::vector<real_function_3d> TDHF::create_fxc(World& world,
    XCOperator xc = create_xcoperator(world, Gparams.orbitals, Rparams.xc);
 
    // Next need the perturbed density
-   std::vector<real_function_3d> drho = transition_density(world, orbitals, f, g); 
+   std::vector<real_function_3d> drho = transition_density(world, orbitals, f, g);
 
    // Return container
    std::vector<real_function_3d> vxc;
 
-   // Finally create the functions we want, one per response state 
+   // Finally create the functions we want, one per response state
    // (xc_args_prep_response happens inside this call)
    for(unsigned int i = 0; i < f.size(); i++)
    {
@@ -2782,7 +2782,7 @@ void TDHF::iterate(World & world)
    int num_conv=0;                                            // For convergence
    std::vector<bool>converged(m, false);                      // For convergence
    Tensor<double> old_energy(m);                              // Holds previous iteration's energy
-   Tensor<double> energy_residuals;                           // Holds energy residuals 
+   Tensor<double> energy_residuals;                           // Holds energy residuals
    Tensor<double> x_norms(m);                                 // Holds the norms of x function residuals (for convergence)
    Tensor<double> y_norms(m);                                 // Holds the norms of y function residuals (for convergence)
    Tensor<double> x_shifts;                                   // Holds the shifted energy values
@@ -2793,8 +2793,8 @@ void TDHF::iterate(World & world)
    ResponseFunction y_differences;                            // Holds wave function corrections
    ResponseFunction x_gamma;                                  // Holds the perturbed two electron piece
    ResponseFunction y_gamma;                                  // Holds the perturbed two electron piece
-   ResponseFunction x_fe;                                     // Holds the ground state-fock and energy scaled x response components 
-   ResponseFunction y_fe;                                     // Holds the ground state-fock and energy scaled y response components 
+   ResponseFunction x_fe;                                     // Holds the ground state-fock and energy scaled x response components
+   ResponseFunction y_fe;                                     // Holds the ground state-fock and energy scaled y response components
    ResponseFunction V_x_response;                             // Holds V^0 applied to response functions
    ResponseFunction V_y_response;                             // Holds V^0 applied to response functions
    ResponseFunction B_x;                                      // Holds the off diagonal perturbed piece of y equation
@@ -2808,11 +2808,11 @@ void TDHF::iterate(World & world)
 
    // Versions from previous iteration that need to be stored
    // in order to diagonalize in a larger subspace
-   ResponseFunction old_x_gamma; 
+   ResponseFunction old_x_gamma;
    ResponseFunction old_V_x_response;
    ResponseFunction old_x_fe;
    ResponseFunction old_B_x;
-   ResponseFunction old_y_gamma;   
+   ResponseFunction old_y_gamma;
    ResponseFunction old_V_y_response;
    ResponseFunction old_y_fe;
    ResponseFunction old_B_y;
@@ -2823,7 +2823,7 @@ void TDHF::iterate(World & world)
    XCOperator xc = create_xcoperator(world, Gparams.orbitals, Rparams.xc);
 
    // The KAIN solver
-   XNonlinearSolver<ResponseFunction, double, TDHF_allocator> kain(TDHF_allocator(world, Rparams.tda ? m : 2*m, n), false); 
+   XNonlinearSolver<ResponseFunction, double, TDHF_allocator> kain(TDHF_allocator(world, Rparams.tda ? m : 2*m, n), false);
 
    // Setting max sub size for KAIN solver
    if(Rparams.kain) kain.set_maxsub(Rparams.maxsub);
@@ -2835,7 +2835,7 @@ void TDHF::iterate(World & world)
    while( iteration < Rparams.max_iter  && !all_converged)
    {
       // Start a timer for this iteration
-      start_timer(world); 
+      start_timer(world);
 
       // Basic output
       if(Rparams.print_level >= 1)
@@ -2844,7 +2844,7 @@ void TDHF::iterate(World & world)
          if(world.rank() == 0) print(" -------------------------------");
       }
 
-      // Project out ground state 
+      // Project out ground state
       for(int i = 0; i < m; i++) x_response[i] = projector(x_response[i]);
       if(not Rparams.tda) for(int i = 0; i < m; i++) y_response[i] = projector(y_response[i]);
 
@@ -2857,9 +2857,9 @@ void TDHF::iterate(World & world)
       else normalize(world, x_response, y_response);
 
       // Create gamma
-      x_gamma = create_gamma(world, x_response, y_response, Gparams.orbitals, Rparams.small, 
+      x_gamma = create_gamma(world, x_response, y_response, Gparams.orbitals, Rparams.small,
                              FunctionDefaults<3>::get_thresh(), Rparams.print_level, "x");
-      if(!Rparams.tda) y_gamma = create_gamma(world, y_response, x_response, Gparams.orbitals, Rparams.small, 
+      if(!Rparams.tda) y_gamma = create_gamma(world, y_response, x_response, Gparams.orbitals, Rparams.small,
                                               FunctionDefaults<3>::get_thresh(), Rparams.print_level, "y");
 
       // Create \hat{V}^0 applied to response functions
@@ -2871,9 +2871,9 @@ void TDHF::iterate(World & world)
       if(world.size() > 1 && ((iteration < 2) or (iteration % 5 == 0)) )
       {
          // Start a timer
-         if(Rparams.print_level >= 1) start_timer(world); 
+         if(Rparams.print_level >= 1) start_timer(world);
          if(world.rank() == 0) print(""); // Makes it more legible
- 
+
          LoadBalanceDeux<3> lb(world);
          for(int j = 0; j < n; j++)
          {
@@ -2893,15 +2893,15 @@ void TDHF::iterate(World & world)
       if(Rparams.tda)
       {
          // Constructing S
-         S = expectation(world, x_response, x_response); 
+         S = expectation(world, x_response, x_response);
 
-         // Debugging output 
-         if(Rparams.print_level >= 2 and world.rank() == 0) 
+         // Debugging output
+         if(Rparams.print_level >= 2 and world.rank() == 0)
          {
             print("   Overlap matrix:");
             print(S);
          }
- 
+
          // Constructing response matrix
          Tensor<double> A_x = create_response_matrix(world, x_fe, x_gamma, V_x_response, x_response, Gparams.orbitals, hamiltonian, Rparams.print_level, "x");
 
@@ -2909,64 +2909,64 @@ void TDHF::iterate(World & world)
          // if using a larger subspace and not iteration zero
          if(iteration < Rparams.larger_subspace and iteration > 0)
          {
-            augment(world, S, A_x, x_gamma, x_response, V_x_response, x_fe, old_S, old_A, 
+            augment(world, S, A_x, x_gamma, x_response, V_x_response, x_fe, old_S, old_A,
                     old_x_gamma, old_x_response, old_V_x_response, old_x_fe, Rparams.print_level);
          }
 
          // Solve Ax = Sxw
          // Just to be sure dimensions work out, clear omega
-         omega.clear(); 
-         diag_fock_matrix(world, A_x, x_response, V_x_response, x_gamma, x_fe, omega, S, 
+         omega.clear();
+         diag_fock_matrix(world, A_x, x_response, V_x_response, x_gamma, x_fe, omega, S,
                           FunctionDefaults<3>::get_thresh());
 
-         // If larger subspace, need to "un-augment" everything 
+         // If larger subspace, need to "un-augment" everything
          if(iteration < Rparams.larger_subspace)
-         {  
-            unaugment(world, m, iteration, omega, S, A_x, x_gamma, x_response, V_x_response, x_fe, old_S, 
-                      old_A, old_x_gamma, old_x_response, old_V_x_response, old_x_fe, Rparams.print_level);          
+         {
+            unaugment(world, m, iteration, omega, S, A_x, x_gamma, x_response, V_x_response, x_fe, old_S,
+                      old_A, old_x_gamma, old_x_response, old_V_x_response, old_x_fe, Rparams.print_level);
          }
       }
       // Full TDHF
-      else 
+      else
       {
          // Constructing S
          S = expectation(world, x_response, x_response) - expectation(world, y_response, y_response);
 
-         // Debugging output 
+         // Debugging output
          if(world.rank() == 0 and Rparams.print_level >= 2)
          {
             print("\n   Overlap Matrix:");
             print(S);
          }
 
-         // Construct full response matrix 
-         Tensor<double> A = create_full_response_matrix(world, x_gamma, V_x_response, B_x, x_fe, x_response, y_gamma, 
-                                                        V_y_response, B_y, y_fe, y_response, Gparams.orbitals, hamiltonian, 
+         // Construct full response matrix
+         Tensor<double> A = create_full_response_matrix(world, x_gamma, V_x_response, B_x, x_fe, x_response, y_gamma,
+                                                        V_y_response, B_y, y_fe, y_response, Gparams.orbitals, hamiltonian,
                                                         Rparams.small, FunctionDefaults<3>::get_thresh(), Rparams.print_level);
 
          // Larger subspace augmentation BROKEN!!!!!
          //if(iteration < Rparams.larger_subspace and iteration > 0)
          //{
-         //   augment_full(world, S, A, 
-         //                B_x, x_gamma, x_response, V_x_response, x_fe, 
+         //   augment_full(world, S, A,
+         //                B_x, x_gamma, x_response, V_x_response, x_fe,
          //                B_y, y_gamma, y_response, V_y_response, y_fe,
-         //                old_S, old_A, 
+         //                old_S, old_A,
          //                old_B_x, old_x_gamma, old_x_response, old_V_x_response, old_x_fe,
          //                old_B_y, old_y_gamma, old_y_response, old_V_y_response, old_y_fe,
          //                Rparams.print_level);
          //}
 
-         // Diagonalize         
+         // Diagonalize
          // Just to be sure dimensions work out, clear omega
          omega.clear();
-         Tensor<double> U = diag_full_response(world, S, A, 
+         Tensor<double> U = diag_full_response(world, S, A,
                                                x_response, V_x_response, x_gamma, x_fe, B_x,
                                                y_response, V_y_response, y_gamma, y_fe, B_y,
                                                omega, FunctionDefaults<3>::get_thresh(), Rparams.print_level);
 
          // Larger subspace un-augmentation BROKEN!!!!
          //if(iteration < Rparams.larger_subspace)
-         //{  
+         //{
          //   unaugment_full(world, m, iteration, U, omega, S, A,
          //                  x_gamma, x_response, V_x_response, x_fe, B_x,
          //                  y_gamma, y_response, V_y_response, y_fe, B_y,
@@ -2981,10 +2981,10 @@ void TDHF::iterate(World & world)
       if(Rparams.print_level >= 1 and world.rank() == 0)
       {
          print("\n   Excitation Energies:");
-         print(omega);       
+         print(omega);
       }
 
-      // Calculate energy residual and update old_energy 
+      // Calculate energy residual and update old_energy
       energy_residuals = abs(omega - old_energy);
       old_energy = copy(omega);
 
@@ -2997,7 +2997,7 @@ void TDHF::iterate(World & world)
 
       // Analysis gets messed up if BSH is last thing applied
       // so exit early if last iteration
-      if(iteration == Rparams.max_iter-1) 
+      if(iteration == Rparams.max_iter-1)
       {
          end_timer(world," This iteration:");
          break;
@@ -3006,9 +3006,9 @@ void TDHF::iterate(World & world)
       //  Calculates shifts needed for potential / energies
       //  If none needed, the zero tensor is returned
       x_shifts = create_shift(world, Gparams.energies, omega, Rparams.print_level, "x");
-      if(not Rparams.tda) 
+      if(not Rparams.tda)
       {
-         omega = -omega; // Negative here is so that these Greens functions are (eps - omega) 
+         omega = -omega; // Negative here is so that these Greens functions are (eps - omega)
          y_shifts = create_shift_target(world, Gparams.energies, omega, Gparams.energies[n-1], Rparams.print_level, "y");
          omega = -omega;
       }
@@ -3017,7 +3017,7 @@ void TDHF::iterate(World & world)
       shifted_V_x_response = apply_shift(world, x_shifts, V_x_response, x_response);
       if(not Rparams.tda)
       {
-         y_shifts = -y_shifts; 
+         y_shifts = -y_shifts;
          shifted_V_y_response = apply_shift(world, y_shifts, V_y_response, y_response);
       }
 
@@ -3035,7 +3035,7 @@ void TDHF::iterate(World & world)
 
       // Used to be localized orbital correction
       // but needs to happen in all cases
-      ResponseFunction temp = scale_2d(world, x_response, ham_no_diag); 
+      ResponseFunction temp = scale_2d(world, x_response, ham_no_diag);
       rhs_x = rhs_x - temp;
 
       // Debugging output
@@ -3048,7 +3048,7 @@ void TDHF::iterate(World & world)
       if(not Rparams.tda)
       {
          temp = scale_2d(world, y_response, ham_no_diag);
-         rhs_y = rhs_y - temp; 
+         rhs_y = rhs_y - temp;
 
          // Debugging output
          if(Rparams.print_level >= 2)
@@ -3056,7 +3056,7 @@ void TDHF::iterate(World & world)
             if(world.rank() == 0) print("   Norms of off-diagonal hamiltonian correction for y components:");
             print_norms(world, temp);
          }
-      }      
+      }
 
       // Debugging output
       if(Rparams.print_level >= 2)
@@ -3074,13 +3074,13 @@ void TDHF::iterate(World & world)
 
       // Construct BSH operators
       std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> bsh_x_operators = create_bsh_operators(world, x_shifts, Gparams.energies, omega, Rparams.small, FunctionDefaults<3>::get_thresh());
-      std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> bsh_y_operators; 
-      if(not Rparams.tda) 
+      std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> bsh_y_operators;
+      if(not Rparams.tda)
       {
          omega = -omega;
          bsh_y_operators = create_bsh_operators(world, y_shifts, Gparams.energies, omega, Rparams.small, FunctionDefaults<3>::get_thresh());
          omega = -omega;
-      }     
+      }
 
       // Save current into old
       old_x_response = x_response.copy();
@@ -3088,9 +3088,9 @@ void TDHF::iterate(World & world)
 
       // Scale by -2.0 (coefficient in eq. 37 of reference paper)
       rhs_x = scale(rhs_x, -2.0);
-      if(not Rparams.tda) rhs_y = scale(rhs_y, -2.0);     
+      if(not Rparams.tda) rhs_y = scale(rhs_y, -2.0);
 
-      // Apply BSH and get updated response components 
+      // Apply BSH and get updated response components
       if(Rparams.print_level >= 1) start_timer(world);
       bsh_x_resp = apply(world, bsh_x_operators, rhs_x);
       if(not Rparams.tda) bsh_y_resp  = apply(world, bsh_y_operators, rhs_y);
@@ -3147,7 +3147,7 @@ void TDHF::iterate(World & world)
          }
       }
 
-      // KAIN solver update 
+      // KAIN solver update
       // Returns next set of components
       // If not kain, save the new components
       if(Rparams.kain)
@@ -3174,9 +3174,9 @@ void TDHF::iterate(World & world)
          {
             for(int i = 0; i < m; i++) y_response[i] = x_response[m + i];
             for(int i = 0; i < m; i++)
-            { 
-               x_response.pop_back();          
-               x_differences.pop_back();          
+            {
+               x_response.pop_back();
+               x_differences.pop_back();
             }
          }
       }
@@ -3184,7 +3184,7 @@ void TDHF::iterate(World & world)
       // Apply mask
       for(int i = 0; i < m; i++) x_response[i] = mask * x_response[i];
       if(not Rparams.tda)
-      { 
+      {
          for(int i = 0; i < m; i++) y_response[i] = mask * y_response[i];
       }
 
@@ -3201,7 +3201,7 @@ void TDHF::iterate(World & world)
             }
          }
 
-         // Check if relaxing needs to start 
+         // Check if relaxing needs to start
          if(num_conv == m)
          {
             relax_start = iteration;
@@ -3216,7 +3216,7 @@ void TDHF::iterate(World & world)
          }
       }
       else
-      { 
+      {
          // Relaxing
          // Run at least 2 iterations
          if(iteration >= relax_start + 2)
@@ -3227,13 +3227,13 @@ void TDHF::iterate(World & world)
                if(not converged[i] && fabs(x_norms[i]) < Rparams.dconv)
                {
                   converged[i] = true;
-                  num_conv++;                  
+                  num_conv++;
                }
             }
             if(num_conv == m) all_converged = true;
          }
       }
-      
+
       // Update counter
       iteration += 1;
 
@@ -3255,14 +3255,14 @@ void TDHF::iterate(World & world)
 // TESTING
 // get transition density
 //if(world.rank() == 0) print("Making density.");
-//std::vector<real_function_3d> densities = transition_density(world, Gparams.orbitals, x_response, y_response); 
+//std::vector<real_function_3d> densities = transition_density(world, Gparams.orbitals, x_response, y_response);
 //// Doing line plots along each axis
 //if(world.rank() == 0) print("\n\nStarting plots");
 //coord_3d lo,hi;
 //char plotname[500];
 //double Lp = std::min(Gparams.L, 24.0);
 //if(world.rank() == 0) print("x:");
-//// x axis 
+//// x axis
 //lo[0] = 0.0; lo[1] = 0.0; lo[2] = 0.0;
 //hi[0] =  Lp; hi[1] = 0.0; hi[2] = 0.0;
 ////// plot ground state
@@ -3273,7 +3273,7 @@ void TDHF::iterate(World & world)
 //for(int i = 0; i < m; i++)
 //{
 //   sprintf(plotname, "plot_orbital_%d_%d_x%d.plt", FunctionDefaults<3>::get_k(), i, iteration-1);
-//   plot_line(plotname, 5001, lo, hi, x_response[i][0]);  
+//   plot_line(plotname, 5001, lo, hi, x_response[i][0]);
 //}
 //
 //if(world.rank() == 0) print("y:");
@@ -3329,8 +3329,8 @@ void TDHF::iterate(World & world)
    // Sort
    sort(world, omega, x_response);
 
-   // Print final things 
-   if(world.rank() == 0) 
+   // Print final things
+   if(world.rank() == 0)
    {
       print(" Final excitation energies:");
       print(omega);
@@ -3338,7 +3338,7 @@ void TDHF::iterate(World & world)
       print(energy_residuals);
       print(" Final x-state response function residuals:");
       print(x_norms);
-   
+
       if(not Rparams.tda)
       {
          if(world.rank() == 0) print(" Final y-state response function residuals:");
@@ -3354,21 +3354,21 @@ void TDHF::iterate(World & world)
 //if(world.rank() == 0) print("\n\nStarting plots");
 //coord_3d lo,hi;
 //char plotname[500];
-//// z axis 
+//// z axis
 //lo[0] = 0.0; lo[1] = 0.0; lo[2] = -Gparams.L;
 //hi[0] = 0.0; hi[1] = 0.0; hi[2] =  Gparams.L;
 //for(int i = 0; i < Rparams.states; i++) {
 //  for(unsigned int j = 0; j < Gparams.num_orbitals; j++) {
 //    sprintf(plotname, "plot_exX_%d_%d.plt", i, j);
-//    plot_line(plotname, 500001, lo, hi, x_response[i][j]);  
+//    plot_line(plotname, 500001, lo, hi, x_response[i][j]);
 //    sprintf(plotname, "plot_exY_%d_%d.plt", i, j);
-//    plot_line(plotname, 500001, lo, hi, y_response[i][j]);  
+//    plot_line(plotname, 500001, lo, hi, y_response[i][j]);
 //  }
 //}
 // END TEST
 
 
-}   // Done with iterate. 
+}   // Done with iterate.
 
 // More detailed analysis of the response functions
 // Uses member variables
@@ -3381,7 +3381,7 @@ void TDHF::analysis(World & world)
    // Per response function, want to print the contributions from each ground state
    // So print the norm of each function?
    Tensor<double> x_norms(m, n);
-   Tensor<double> y_norms(m, n); 
+   Tensor<double> y_norms(m, n);
 
    // Calculate the inner products
    for(int i = 0; i < m; i++)
@@ -3433,14 +3433,14 @@ void TDHF::analysis(World & world)
          dipoles(i,1) += inner(Gparams.orbitals[j], y * x_response[i][j]);
          dipoles(i,2) += inner(Gparams.orbitals[j], z * x_response[i][j]);
 
-         if(not Rparams.tda) 
+         if(not Rparams.tda)
          {
             dipoles(i,0) += inner(Gparams.orbitals[j], x * y_response[i][j]);
             dipoles(i,1) += inner(Gparams.orbitals[j], y * y_response[i][j]);
             dipoles(i,2) += inner(Gparams.orbitals[j], z * y_response[i][j]);
          }
       }
-      
+
       // Normalization (negative?)
       dipoles(i,0) *= -sqrt(2.0);
       dipoles(i,1) *= -sqrt(2.0);
@@ -3457,7 +3457,7 @@ void TDHF::analysis(World & world)
    // Calculate transition quadrapole moments
    Tensor<double> quadrupoles(m,3,3);
 
-   // Run over each excited state 
+   // Run over each excited state
    for(int i = 0; i < m; i++)
    {
       // Add in contribution from each ground state
@@ -3518,7 +3518,7 @@ void TDHF::analysis(World & world)
          printf("   Z %16.8f %16.8f %16.8f\n", quadrupoles(i,2,0), quadrupoles(i,2,1), quadrupoles(i,2,2));
 
          // Print contributions
-         // Only print the top 5? 
+         // Only print the top 5?
          if(Rparams.tda)
          {
             print("\n   Dominant Contributions:");
@@ -3557,7 +3557,7 @@ void TDHF::iterate_guess(World & world,
    Tensor<double> shifts;                                     // Holds the shifted energy values
    ResponseFunction bsh_resp;      // Holds wave function corrections
    ResponseFunction gamma;         // Holds the perturbed two electron piece
-   ResponseFunction fe;            // Holds the ground state-fock and energy scaled x response components 
+   ResponseFunction fe;            // Holds the ground state-fock and energy scaled x response components
    ResponseFunction V;             // Holds V^0 applied to response functions
    ResponseFunction shifted_V;     // Holds the shifted V^0 applied to response functions
    Tensor<double> S;               // Overlap matrix of response components for x states
@@ -3573,7 +3573,7 @@ void TDHF::iterate_guess(World & world,
    while( iteration < Rparams.guess_max_iter)
    {
       // Start a timer for this iteration
-      start_timer(world); 
+      start_timer(world);
 
       // Basic output
       if(Rparams.print_level >= 1)
@@ -3587,9 +3587,9 @@ void TDHF::iterate_guess(World & world,
       if(world.size() > 1 && ((iteration < 2) or (iteration % 5 == 0)) and iteration != 0)
       {
          // Start a timer
-         if(Rparams.print_level >= 1) start_timer(world); 
+         if(Rparams.print_level >= 1) start_timer(world);
          if(world.rank() == 0) print(""); // Makes it more legible
- 
+
          LoadBalanceDeux<3> lb(world);
          for(int j = 0; j < n; j++)
          {
@@ -3605,7 +3605,7 @@ void TDHF::iterate_guess(World & world,
          if(Rparams.print_level >= 1) end_timer(world, "Load balancing:");
       }
 
-      // Project out ground state 
+      // Project out ground state
       for(int i = 0; i < m; i++) guesses[i] = projector(guesses[i]);
 
       // Truncate before doing expensive things
@@ -3615,17 +3615,17 @@ void TDHF::iterate_guess(World & world,
       if(Rparams.tda) normalize(world, guesses);
 
       // Create gamma
-      gamma = create_gamma(world, guesses, zeros, Gparams.orbitals, Rparams.small, 
+      gamma = create_gamma(world, guesses, zeros, Gparams.orbitals, Rparams.small,
                            FunctionDefaults<3>::get_thresh(), Rparams.print_level, "x");
 
       // Create \hat{V}^0 applied to response functions
       V = create_potential(world, guesses, xc, Rparams.print_level, "x");
 
       // Constructing S
-      S = expectation(world, x_response, x_response); 
+      S = expectation(world, x_response, x_response);
 
       // Debugging output
-      if(Rparams.print_level >= 2 and world.rank() == 0) 
+      if(Rparams.print_level >= 2 and world.rank() == 0)
       {
          print("\n   Overlap matrix:");
          print(S);
@@ -3649,7 +3649,7 @@ void TDHF::iterate_guess(World & world,
       if(Rparams.print_level >= 1 and world.rank() == 0)
       {
          print("\n   Excitation Energies:");
-         print(omega);       
+         print(omega);
       }
 
       // Only do BSH if not the last iteration
@@ -3665,8 +3665,8 @@ void TDHF::iterate_guess(World & world,
          // Construct RHS of equation
          ResponseFunction rhs = gamma + shifted_V;
 
-         // Add in all off diagonal elements of ground state Fock matrix 
-         ResponseFunction temp = scale_2d(world, guesses, ham_no_diag); 
+         // Add in all off diagonal elements of ground state Fock matrix
+         ResponseFunction temp = scale_2d(world, guesses, ham_no_diag);
          rhs = rhs - temp;
 
          // Construct BSH operators
@@ -3675,7 +3675,7 @@ void TDHF::iterate_guess(World & world,
          // Scale by -2.0 (coefficient in eq. 37 of reference paper)
          rhs = scale(rhs, -2.0);
 
-         // Apply BSH and get updated components 
+         // Apply BSH and get updated components
          if(Rparams.print_level >= 1) start_timer(world);
          bsh_resp = apply(world, bsh_operators, rhs);
          if(Rparams.print_level >= 1) end_timer(world, "Apply BSH:");
@@ -3688,7 +3688,7 @@ void TDHF::iterate_guess(World & world,
 
          // Apply mask
          for(int i = 0; i < m; i++) guesses[i] = mask * guesses[i];
-      }     
+      }
 
       // Update counter
       iteration += 1;
@@ -3705,7 +3705,7 @@ void TDHF::iterate_guess(World & world,
 }   // Done with iterate guess
 
 
-// Create and diagonalize the CIS matrix for improved initial guess 
+// Create and diagonalize the CIS matrix for improved initial guess
 ResponseFunction TDHF::diagonalize_CIS_guess(World & world,
                                              std::vector<real_function_3d> & virtuals,
                                              Tensor<double> & omega,
@@ -3729,7 +3729,7 @@ ResponseFunction TDHF::diagonalize_CIS_guess(World & world,
 
    // Diagonalize
    Tensor<double> U, evals, dummy(virtuals.size());
-   U = get_fock_transformation(world, S, Fmat, evals, thresh); 
+   U = get_fock_transformation(world, S, Fmat, evals, thresh);
 
    // Transform and truncate functions
    virtuals = madness::transform(world, virtuals, U);
@@ -3749,7 +3749,7 @@ ResponseFunction TDHF::diagonalize_CIS_guess(World & world,
    virtuals = Q(true_virtuals);
 
    // Debugging output
-   if(print_level >= 2 and world.rank() == 0) print("   Remaining virtuals:", virtuals.size()); 
+   if(print_level >= 2 and world.rank() == 0) print("   Remaining virtuals:", virtuals.size());
 
    // Now make the CIS matrix (copied from Jakob)
    if(world.rank() == 0) print("   Forming CIS matrix for improved initial guess.");
@@ -3794,7 +3794,7 @@ ResponseFunction TDHF::diagonalize_CIS_guess(World & world,
    }
 
    // End timer
-   if(print_level >= 1) end_timer(world, "Form CIS matrix:"); 
+   if(print_level >= 1) end_timer(world, "Form CIS matrix:");
 
    // Debugging output
    if(print_level >= 2 and world.rank() == 0)
@@ -3810,7 +3810,7 @@ ResponseFunction TDHF::diagonalize_CIS_guess(World & world,
    if(world.rank() == 0)
    {
       print("   Initial CIS matrix eigenvalues:");
-      print(evals); 
+      print(evals);
    }
 
    // Now construct the initial guess
@@ -3875,7 +3875,7 @@ ResponseFunction TDHF::add_randomness(World & world,
          // Add in random noise using rng and a the defined lambda function
          f_copy[i][j].unaryop(noise);
       }
-      
+
       // Apply mask to get boundary condition right
       f_copy[i] = mask * f_copy[i];
    }
@@ -3890,7 +3890,7 @@ Tensor<double> TDHF::create_ground_hamiltonian(World & world,
                                                int print_level)
 {
    // Basic output
-   if(print_level >= 1) start_timer(world); 
+   if(print_level >= 1) start_timer(world);
 
    // Get sizes
    int m = f.size();
@@ -3922,13 +3922,13 @@ Tensor<double> TDHF::create_ground_hamiltonian(World & world,
    world.gop.fence();
 
    // Construct T according to above formula
-   // Note: No negative as the formula above 
+   // Note: No negative as the formula above
    // has one as well, so they cancel
    Tensor<double> T = 1.0/2.0 * (matrix_inner(world, fx, fx) +
                                  matrix_inner(world, fy, fy) +
                                  matrix_inner(world, fz, fz));
 
-   // Construct V 
+   // Construct V
    // v_nuc first
    PotentialManager manager(Gparams.molecule, "a");
    manager.make_nuclear_potential(world);
@@ -3936,7 +3936,7 @@ Tensor<double> TDHF::create_ground_hamiltonian(World & world,
    v_nuc.truncate();
 
    // V_coul next
-   // This does not include final multiplication of each orbital 
+   // This does not include final multiplication of each orbital
    // 2 is from integrating out spin
    real_function_3d v_coul = 2.0 * coulomb(world);
 
@@ -3963,7 +3963,7 @@ Tensor<double> TDHF::create_ground_hamiltonian(World & world,
 
    // ALWAYS DO THIS FOR THE STORED POTENTIAL!!
    // exchange last
-   // 'small memory' algorithm from SCF.cc 
+   // 'small memory' algorithm from SCF.cc
    real_convolution_3d op = CoulombOperator(world, Rparams.small, FunctionDefaults<3>::get_thresh());
    std::vector<real_function_3d> Kf = zero_functions_compressed<double,3>(world, m);
    for(int i=0; i<m; ++i)
@@ -3988,7 +3988,7 @@ Tensor<double> TDHF::create_ground_hamiltonian(World & world,
    real_function_3d v_xc;
 
    if(Gparams.xc == "hf")
-   { 
+   {
       // Construct V
       V = matrix_inner(world, f, vf) - matrix_inner(world, f, Kf);
    }
@@ -4000,7 +4000,7 @@ Tensor<double> TDHF::create_ground_hamiltonian(World & world,
       v = v + v_xc;
       std::vector<real_function_3d> vf = v * f;
       if((*xcop.xc).hf_exchange_coefficient() > 0.0)
-      { 
+      {
          // XCOperator has member variable xc, which is an xcfunctional
          // which has the hf_exchange_coeff we need here
          gaxpy(world, 1.0, vf, -(*xcop.xc).hf_exchange_coefficient(), Kf);
@@ -4012,10 +4012,10 @@ Tensor<double> TDHF::create_ground_hamiltonian(World & world,
    hamiltonian = T + V;
 
    // Save a matrix that is
-   // (T+V) - Lambda * eye 
-   // Copy hamiltonian and zero the diagonal 
-   ham_no_diag = copy(hamiltonian); 
-   for(int i = 0; i < m; i++) ham_no_diag(i,i) = 0.0; 
+   // (T+V) - Lambda * eye
+   // Copy hamiltonian and zero the diagonal
+   ham_no_diag = copy(hamiltonian);
+   for(int i = 0; i < m; i++) ham_no_diag(i,i) = 0.0;
 
    // Debug output
    if(print_level >= 2 and world.rank() == 0)
@@ -4040,7 +4040,7 @@ std::vector<real_function_3d> TDHF::transition_density(World& world,
    int m = x.size();
    int n = x[0].size();
 
-   // Return container 
+   // Return container
    std::vector<real_function_3d> densities = zero_functions<double, 3>(world, m);
 
    // Run over virtual...
@@ -4073,12 +4073,12 @@ void TDHF::set_protocol(World & world, double thresh)
        k = 10;
    else
        k = 12;
-   
+
    // k defaults to make sense with thresh, override by providing k in input file
    if (Rparams.k > 0)
    {
        FunctionDefaults<NDIM>::set_k(Rparams.k);
-   } 
+   }
    else FunctionDefaults<NDIM>::set_k(k);
 
    // MolDFT sets all these, so copying
@@ -4105,7 +4105,7 @@ void TDHF::set_protocol(World & world, double thresh)
 }
 
 
-void TDHF::check_k(World& world, 
+void TDHF::check_k(World& world,
                    double thresh,
                    int k)
 {
@@ -4118,7 +4118,7 @@ void TDHF::check_k(World& world,
    {
       // Re-read orbitals from the archive (assuming
       // the archive has orbitals stored at a higher
-      // k value than what was previously computed 
+      // k value than what was previously computed
       // with)
       Gparams.read(world, Rparams.archive);
       reconstruct(world, Gparams.orbitals);
@@ -4135,20 +4135,20 @@ void TDHF::check_k(World& world,
       truncate(world, Gparams.orbitals);
 
       // Ground state orbitals changed, clear old hamiltonian
-      redo = true; 
+      redo = true;
    }
 
    // Recalculate ground state hamiltonian here
    if(redo or !hamiltonian.has_data())
    {
-      hamiltonian = create_ground_hamiltonian(world, Gparams.orbitals, Rparams.print_level); 
+      hamiltonian = create_ground_hamiltonian(world, Gparams.orbitals, Rparams.print_level);
    }
 
    // If we stored the potential, check that too
    if(Rparams.store_potential)
    {
       if(FunctionDefaults<3>::get_k() != stored_potential[0][0].k())
-      { 
+      {
          // Project the potential into correct k
          for(unsigned int i = 0; i < stored_potential.size(); i++)
          {
@@ -4156,7 +4156,7 @@ void TDHF::check_k(World& world,
             for(unsigned int j = 0; j < stored_potential[0].size(); j++)
                stored_potential[i][j] = project(stored_potential[i][j], FunctionDefaults<3>::get_k(), thresh, false);
             world.gop.fence();
-         }     
+         }
       }
       if(FunctionDefaults<3>::get_k() != stored_v_coul.k()) stored_v_coul = project(stored_v_coul, FunctionDefaults<3>::get_k(), thresh, false);
       if(FunctionDefaults<3>::get_k() != stored_v_nuc.k()) stored_v_nuc = project(stored_v_nuc, FunctionDefaults<3>::get_k(), thresh, false);
@@ -4175,10 +4175,10 @@ void TDHF::check_k(World& world,
                x_response[i][j] = project(x_response[i][j], FunctionDefaults<3>::get_k(), thresh, false);
             world.gop.fence();
          }
-         truncate(world, x_response); 
+         truncate(world, x_response);
 
          // Do same for y components if applicable
-         // (Always do this, as y will be zero 
+         // (Always do this, as y will be zero
          //  and still used in doing DFT and TDA)
          // Project all y components into correct k
          for(unsigned int i = 0; i < y_response.size(); i++)
@@ -4189,13 +4189,13 @@ void TDHF::check_k(World& world,
             world.gop.fence();
          }
          truncate(world, y_response);
-         
-      } 
+
+      }
    }
 
    // Don't forget the mask function as well
    if(FunctionDefaults<3>::get_k() != mask.k())
-   {      
+   {
       mask = project(mask, FunctionDefaults<3>::get_k(), thresh, false);
    }
 
@@ -4204,17 +4204,17 @@ void TDHF::check_k(World& world,
 }
 
 // Creates random guess functions semi-intelligently(?)
-ResponseFunction TDHF::create_random_guess(World & world, 
-                                           int m, 
+ResponseFunction TDHF::create_random_guess(World & world,
+                                           int m,
                                            int n,
                                            std::vector<real_function_3d> & grounds,
                                            Molecule & molecule)
 {
-   // Basic output 
+   // Basic output
    if(world.rank() == 0) print("   Using a random guess for initial response functions.\n");
 
    // Create empty container and add in randomness
-   ResponseFunction f(world, m, n); 
+   ResponseFunction f(world, m, n);
    f = add_randomness(world, f, 1e3);
 
    // Create and apply a centered gaussian on each atom so that the randomness is localized around the atoms
@@ -4229,7 +4229,7 @@ ResponseFunction TDHF::create_random_guess(World & world,
    // Project out groundstate from guesses
    QProjector<double, 3> projector(world, grounds);
    for(unsigned int i = 0; i < f.size(); i++) f[i] = projector(f[i]);
-  
+
    // Normalize
    normalize(world, f);
 
@@ -4237,12 +4237,12 @@ ResponseFunction TDHF::create_random_guess(World & world,
 }
 
 // Creates random guess functions semi-intelligently(?)
-std::vector<real_function_3d> TDHF::create_random_guess(World & world, 
-                                                        int m, 
+std::vector<real_function_3d> TDHF::create_random_guess(World & world,
+                                                        int m,
                                                         std::vector<real_function_3d> & grounds,
                                                         Molecule & molecule)
 {
-   // Basic output 
+   // Basic output
    if(world.rank() == 0) print("   Using a random guess for initial response functions.");
 
    // Create empty container and add in randomness
@@ -4270,7 +4270,7 @@ std::vector<real_function_3d> TDHF::create_random_guess(World & world,
    {
       // Add in random noise using rng and a the defined lambda function
       f[i].unaryop(lambda);
-  
+
       // Apply mask to get boundary condition right
       f[i] = mask * f[i] * gaus;
    }
@@ -4278,22 +4278,22 @@ std::vector<real_function_3d> TDHF::create_random_guess(World & world,
    // Project out groundstate from guesses
    QProjector<double, 3> projector(world, grounds);
    for(unsigned int i = 0; i < f.size(); i++) f[i] = projector(f[i]);
-  
+
    // Normalize
    for(unsigned int i = 0; i < f.size(); i++)
    {
       double norm = f[i].norm2();
       f[i].scale(1.0/norm);
-   } 
+   }
 
    return f;
 }
 
 // Creates an initial guess function from nwchem output files
-ResponseFunction TDHF::create_nwchem_guess(World & world, 
+ResponseFunction TDHF::create_nwchem_guess(World & world,
                                            int m)
 {
-   // Basic output 
+   // Basic output
    if(world.rank() == 0) print("   Creating an initial guess from NWChem file", Rparams.nwchem);
 
    // Create empty containers
@@ -4301,12 +4301,12 @@ ResponseFunction TDHF::create_nwchem_guess(World & world,
 
    // Create the nwchem reader
    slymer::NWChem_Interface nwchem(Rparams.nwchem, std::cout);
-   
+
    // For parallel runs, silencing all but 1 slymer instance
    if(world.rank() != 0) {
       std::ostream dev_null(nullptr);
       nwchem.err = dev_null;
-   }              
+   }
 
    // Read in basis set
    nwchem.read(slymer::Properties::Basis);
@@ -4314,7 +4314,7 @@ ResponseFunction TDHF::create_nwchem_guess(World & world,
    // Read in the molecular orbital coefficients, energies,
    // and occupancies
    nwchem.read(slymer::Properties::MOs | slymer::Properties::Energies | slymer::Properties::Occupancies);
-        
+
    // Create the nwchem orbitals as madness functions
    std::vector<real_function_3d> temp1;
    for(auto basis : slymer::cast_basis<slymer::GaussianFunction>(nwchem.basis_set))
@@ -4326,18 +4326,18 @@ ResponseFunction TDHF::create_nwchem_guess(World & world,
        centers.push_back(r);
 
        // Now make the function
-       temp1.push_back(FunctionFactory<double,3>(world).functor(std::shared_ptr<FunctionFunctorInterface<double,3>>(new slymer::Gaussian_Functor(basis.get(), centers)))); 
+       temp1.push_back(FunctionFactory<double,3>(world).functor(std::shared_ptr<FunctionFunctorInterface<double,3>>(new slymer::Gaussian_Functor(basis.get(), centers))));
 
        // Let user know something is going on
        if(temp1.size() % 10 == 0 and world.rank() == 0) print("Created", temp1.size(), "functions.");
-   } 
+   }
    if(world.rank() == 0) print("Finished creating", temp1.size(), "functions.");
 
    // Normalize ao's
    madness::normalize(world, temp1);
-   
+
    // Transform ao's now
-   std::vector<real_function_3d> temp = madness::transform(world, temp1, nwchem.MOs, FunctionDefaults<3>::get_thresh(), true); 
+   std::vector<real_function_3d> temp = madness::transform(world, temp1, nwchem.MOs, FunctionDefaults<3>::get_thresh(), true);
 
    // Now save the unoccupied orbitals
    std::vector<real_function_3d> temp2;
@@ -4351,8 +4351,8 @@ ResponseFunction TDHF::create_nwchem_guess(World & world,
        }
    }
 
-   // Create as many vectors of functions as we can from these nwchem virtual orbitals 
-   // putting 1 virtual orbital from nwchem per vector 
+   // Create as many vectors of functions as we can from these nwchem virtual orbitals
+   // putting 1 virtual orbital from nwchem per vector
    for(int i = 0; i < std::max(m, num_virt); i++)
    {
        // Create the vector to add the new function to
@@ -4370,7 +4370,7 @@ ResponseFunction TDHF::create_nwchem_guess(World & world,
    if(world.rank() == 0) print("Created", f.size(), "guess functions from provided NWChem data.");
 
    // If not enough functions have been made, start adding symmetry adapted functions
-   int n = f.size(); 
+   int n = f.size();
 
    // If still not enough functions have been made, add in random guesses
    if(n < m)
@@ -4388,7 +4388,7 @@ ResponseFunction TDHF::create_nwchem_guess(World & world,
    // Project out groundstate from guesses
    QProjector<double, 3> projector(world, Gparams.orbitals);
    for(unsigned int i = 0; i < f.size(); i++) f[i] = projector(f[i]);
-  
+
    // Truncate and normalize
    truncate(world, f);
    normalize(world, f);
@@ -4407,21 +4407,21 @@ void TDHF::create_all_potentials(World & world,
 {
    // Intermediaries
    ResponseFunction gammaJ, gammaK, groundJ, groundK;
-   
+
    // Calc. coulomb like terms
    if(print_level >= 1) start_timer(world);
    potentials.coulomb_terms(x, gammaK, groundJ);
    if(print_level >= 1) end_timer(world, "Coulomb terms:");
-   
+
    // Calc. exchange like terms
    if(print_level >= 1) start_timer(world);
    potentials.exchange_terms(x, gammaJ, groundK);
    if(print_level >= 1) end_timer(world, "Exchange terms:");
-   
+
    // Assemble pieces together
    x_gamma = gammaJ - gammaK;
    x_V0 = groundJ - groundK;
-   
+
    // Debugging output
    if(print_level >= 2)
    {
@@ -4433,15 +4433,15 @@ void TDHF::create_all_potentials(World & world,
       // Exchange or VXC
       if(Rparams.xc == "hf" and world.rank() == 0) printf("   Exchange Deriv matrix:\n");
       if(Rparams.xc != "hf" and world.rank() == 0) printf("   Negative of XC Deriv matrix:\n");
-      temp = expectation(world, x, gammaK);      
+      temp = expectation(world, x, gammaK);
       if(world.rank() == 0) print(temp);
 
       // Total Gamma
       if(world.rank() == 0) printf("   Gamma matrix:\n");
       temp = expectation(world, x, x_gamma);
       if(world.rank() == 0) print(temp);
-   
-      // Coulomb (ground) 
+
+      // Coulomb (ground)
       if(world.rank() == 0) printf("   Coulomb + Nuclear potential matrix:\n");
       temp = expectation(world, x, groundJ);
       if(world.rank() == 0) print(temp);
@@ -4462,7 +4462,7 @@ void TDHF::create_all_potentials(World & world,
 void TDHF::solve(World & world)
 {
    // Get start time
-   start_timer(world); 
+   start_timer(world);
 
    // Plotting input orbitals
    if(Rparams.plot_initial)
@@ -4472,14 +4472,14 @@ void TDHF::solve(World & world)
       else do_vtk_plots(world, Rparams.plot_pts, Gparams.L/2.0, 0, Gparams.num_orbitals, Gparams.molecule, square(world, Gparams.orbitals), "ground");
    }
 
-   // Warm and fuzzy 
+   // Warm and fuzzy
    if(world.rank() == 0)
    {
       print("\n\n     Response Calculation");
       print("   ------------------------");
    }
 
-   // Ready to iterate! 
+   // Ready to iterate!
    for(unsigned int proto = 0; proto < Rparams.protocol_data.size(); proto++)
    {
       // Set defaults inside here
@@ -4525,9 +4525,9 @@ void TDHF::solve(World & world)
             if(world.size() > 1)
             {
                // Start a timer
-               if(Rparams.print_level >= 1) start_timer(world); 
+               if(Rparams.print_level >= 1) start_timer(world);
                if(world.rank() == 0) print(""); // Makes it more legible
- 
+
                LoadBalanceDeux<3> lb(world);
                for(int j = 0; j < Rparams.states; j++)
                {
@@ -4544,7 +4544,7 @@ void TDHF::solve(World & world)
 
                if(Rparams.print_level >= 1) end_timer(world, "Load balancing:");
             }
-            
+
             // Project out groundstate from guesses
             QProjector<double, 3> projector(world, Gparams.orbitals);
             for(unsigned int i = 0; i < x_response.size(); i++) x_response[i] = projector(x_response[i]);
@@ -4557,11 +4557,11 @@ void TDHF::solve(World & world)
                x_response = gram_schmidt(world, x_response);
                end_timer(world, "orthog");
 
-               start_timer(world); 
+               start_timer(world);
                // Normalize
                normalize(world, x_response);
                end_timer(world, "normalize");
-            } 
+            }
 
             // Diagonalize guess
             if(world.rank() == 0) print("\n   Iterating trial functions for an improved initial guess.\n");
@@ -4577,7 +4577,7 @@ void TDHF::solve(World & world)
                print(omega);
             }
 
-            // Select lowest energy functions from guess   
+            // Select lowest energy functions from guess
             x_response = select_functions(world, x_response, omega, Rparams.states, Rparams.print_level);
 
             // Initial guess for y are zero functions
@@ -4587,13 +4587,13 @@ void TDHF::solve(World & world)
 
       // Now actually ready to iterate...
       iterate(world);
-   }   
+   }
 
    // Plot the response function if desired
    if(Rparams.plot)
    {
       // Need to get densities first
-      std::vector<real_function_3d> densities = transition_density(world, Gparams.orbitals, x_response, y_response); 
+      std::vector<real_function_3d> densities = transition_density(world, Gparams.orbitals, x_response, y_response);
 
       // For the instance where we don't plot all the orbitals
       std::vector<real_function_3d> plot_densities;
@@ -4604,8 +4604,8 @@ void TDHF::solve(World & world)
 
       // Now plot
       if(world.rank() == 0) print("\n   Plotting response state densities.\n");
-      if(Rparams.plot_L > 0.0) do_vtk_plots(world, Rparams.plot_pts, Rparams.plot_L, 0, Rparams.plot_data.size(), Gparams.molecule, plot_densities, "response-state");   
-      else do_vtk_plots(world, Rparams.plot_pts, Gparams.L, 0, Rparams.plot_data.size(), Gparams.molecule, plot_densities, "response-state");   
+      if(Rparams.plot_L > 0.0) do_vtk_plots(world, Rparams.plot_pts, Rparams.plot_L, 0, Rparams.plot_data.size(), Gparams.molecule, plot_densities, "response-state");
+      else do_vtk_plots(world, Rparams.plot_pts, Gparams.L, 0, Rparams.plot_data.size(), Gparams.molecule, plot_densities, "response-state");
    }
 
    // Print total time
@@ -4636,8 +4636,8 @@ void TDHF::iterate_polarizability(World & world,
    ResponseFunction y_differences;                            // Holds wave function corrections
    ResponseFunction x_gamma;                                  // Holds the perturbed two electron piece
    ResponseFunction y_gamma;                                  // Holds the perturbed two electron piece
-   ResponseFunction x_fe;                                     // Holds the ground state-fock and energy scaled x response components 
-   ResponseFunction y_fe;                                     // Holds the ground state-fock and energy scaled y response components 
+   ResponseFunction x_fe;                                     // Holds the ground state-fock and energy scaled x response components
+   ResponseFunction y_fe;                                     // Holds the ground state-fock and energy scaled y response components
    ResponseFunction V_x_response;                             // Holds V^0 applied to response functions
    ResponseFunction V_y_response;                             // Holds V^0 applied to response functions
    ResponseFunction B_x;                                      // Holds the off diagonal perturbed piece of y equation
@@ -4654,7 +4654,7 @@ void TDHF::iterate_polarizability(World & world,
    XCOperator xc = create_xcoperator(world, Gparams.orbitals, Rparams.xc);
 
    // The KAIN solver
-   XNonlinearSolver<ResponseFunction, double, TDHF_allocator> kain(TDHF_allocator(world, (Rparams.omega != 0.0) ? 2*m : m, n), false); 
+   XNonlinearSolver<ResponseFunction, double, TDHF_allocator> kain(TDHF_allocator(world, (Rparams.omega != 0.0) ? 2*m : m, n), false);
 
    // Setting max sub size for KAIN solver
    if(Rparams.kain) kain.set_maxsub(Rparams.maxsub);
@@ -4662,12 +4662,12 @@ void TDHF::iterate_polarizability(World & world,
    // Set omega (its constant here,
    // and has only 1 entry for each axis)
    omega = Tensor<double>(3);
-   omega = Rparams.omega; 
+   omega = Rparams.omega;
 
    // Verify if any shift is needed (NEEDS CHECKING)
    if((Gparams.energies[n-1] + Rparams.omega) > 0.0)
    {
-      // Calculate minimum shift needed such that \eps + \omega + shift < 0 
+      // Calculate minimum shift needed such that \eps + \omega + shift < 0
       // for all \eps, \omega
       x_shifts = create_shift(world, Gparams.energies, omega, Rparams.print_level, "x");
       y_shifts = Gparams.energies[n-1] + Rparams.omega + 0.05;
@@ -4675,7 +4675,7 @@ void TDHF::iterate_polarizability(World & world,
 
    // Construct BSH operators
    std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> bsh_x_operators = create_bsh_operators(world, x_shifts, Gparams.energies, omega, Rparams.small, FunctionDefaults<3>::get_thresh());
-   std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> bsh_y_operators; 
+   std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> bsh_y_operators;
 
    // Negate omega to make this next set of BSH operators \eps - omega
    if(Rparams.omega != 0.0)
@@ -4688,7 +4688,7 @@ void TDHF::iterate_polarizability(World & world,
    while(iteration < Rparams.max_iter and !converged)
    {
       // Start a timer for this iteration
-      start_timer(world); 
+      start_timer(world);
 
       // Basic output
       if(Rparams.print_level >= 1)
@@ -4702,21 +4702,21 @@ void TDHF::iterate_polarizability(World & world,
 
       // Save current to old
       old_x_response = x_response.copy();
-      if(Rparams.omega != 0.0) old_y_response = y_response.copy(); 
+      if(Rparams.omega != 0.0) old_y_response = y_response.copy();
 //      world.gop.fence(); // Norm calc. below sometimes hangs without this (?)
 
-      // Get norms 
-      for(int i = 0; i < m; i++) x_norms[i] = sqrt(inner(x_response[i], x_response[i]) - inner(y_response[i], y_response[i])); 
+      // Get norms
+      for(int i = 0; i < m; i++) x_norms[i] = sqrt(inner(x_response[i], x_response[i]) - inner(y_response[i], y_response[i]));
 
-      // Scale x and y 
+      // Scale x and y
       Tensor<double> rec_norms(m);
       for(int i = 0; i < m; i++) rec_norms(i) = 1.0/std::max(1.0, x_norms(i));
       x_response.scale(rec_norms); y_response.scale(rec_norms);
 
       // Create gamma
-      x_gamma = create_gamma(world, x_response, y_response, Gparams.orbitals, Rparams.small, 
+      x_gamma = create_gamma(world, x_response, y_response, Gparams.orbitals, Rparams.small,
                              FunctionDefaults<3>::get_thresh(), Rparams.print_level, "x");
-      if(Rparams.omega != 0.0) y_gamma = create_gamma(world, y_response, x_response, Gparams.orbitals, Rparams.small, 
+      if(Rparams.omega != 0.0) y_gamma = create_gamma(world, y_response, x_response, Gparams.orbitals, Rparams.small,
                                                       FunctionDefaults<3>::get_thresh(), Rparams.print_level, "y");
 
       // Create \hat{V}^0 applied to response functions
@@ -4728,9 +4728,9 @@ void TDHF::iterate_polarizability(World & world,
       if(Rparams.omega != 0.0) V_y_response = apply_shift(world, y_shifts, V_y_response, y_response);
 
       // Create \epsilon applied to response functions
-      x_fe = scale_2d(world, x_response, ham_no_diag); 
-      if(Rparams.omega != 0.0) y_fe = scale_2d(world, y_response, ham_no_diag); 
-      if(Rparams.print_level >= 2) 
+      x_fe = scale_2d(world, x_response, ham_no_diag);
+      if(Rparams.omega != 0.0) y_fe = scale_2d(world, y_response, ham_no_diag);
+      if(Rparams.print_level >= 2)
       {
          Tensor<double> t = expectation(world, x_response, x_fe);
          if(world.rank() == 0)
@@ -4756,9 +4756,9 @@ void TDHF::iterate_polarizability(World & world,
       if(world.size() > 1 && ((iteration < 2) or (iteration % 5 == 0)) )
       {
          // Start a timer
-         if(Rparams.print_level >= 1) start_timer(world); 
+         if(Rparams.print_level >= 1) start_timer(world);
          if(world.rank() == 0) print(""); // Makes it more legible
- 
+
          LoadBalanceDeux<3> lb(world);
          for(int j = 0; j < n; j++)
          {
@@ -4785,7 +4785,7 @@ void TDHF::iterate_polarizability(World & world,
       // Construct RHS of equation
       ResponseFunction rhs_x, rhs_y;
       rhs_x = V_x_response - x_fe + dip_copy + x_gamma + B_y;
-      if(Rparams.omega != 0.0) rhs_y = V_y_response - y_fe + dip_copy + y_gamma + B_x; 
+      if(Rparams.omega != 0.0) rhs_y = V_y_response - y_fe + dip_copy + y_gamma + B_x;
 
       // Project out ground state
       for(int i = 0; i < m; i++) rhs_x[i] = projector(rhs_x[i]);
@@ -4804,15 +4804,15 @@ void TDHF::iterate_polarizability(World & world,
          }
       }
 
-      // Apply BSH and get updated response components 
+      // Apply BSH and get updated response components
       if(Rparams.print_level >= 1) start_timer(world);
       bsh_x_resp = apply(world, bsh_x_operators, rhs_x);
       if(Rparams.omega != 0.0) bsh_y_resp  = apply(world, bsh_y_operators, rhs_y);
       if(Rparams.print_level >= 1) end_timer(world, "Apply BSH:");
 
       // Scale by -2.0 (coefficient in eq. 37 of reference paper)
-      for(int i = 0; i < m; i++) bsh_x_resp[i] = bsh_x_resp[i] * (std::max(1.0, x_norms[i]) * -2.0); 
-      if(Rparams.omega != 0.0) for(int i = 0; i < m; i++) bsh_y_resp[i] = bsh_y_resp[i] * (std::max(1.0, x_norms[i]) * -2.0); 
+      for(int i = 0; i < m; i++) bsh_x_resp[i] = bsh_x_resp[i] * (std::max(1.0, x_norms[i]) * -2.0);
+      if(Rparams.omega != 0.0) for(int i = 0; i < m; i++) bsh_y_resp[i] = bsh_y_resp[i] * (std::max(1.0, x_norms[i]) * -2.0);
 
       // Debugging output
       if(Rparams.print_level >= 2)
@@ -4845,7 +4845,7 @@ void TDHF::iterate_polarizability(World & world,
       {
          print("\n   2-norm of response function residuals of x components:");
          print(x_norms);
-         
+
          if(Rparams.omega != 0.0)
          {
             print("   2-norm of response function residuals of y components:");
@@ -4854,7 +4854,7 @@ void TDHF::iterate_polarizability(World & world,
       }
 
       // Check convergence
-      if(std::max(x_norms.absmax(), y_norms.absmax()) < Rparams.dconv and iteration > 0) 
+      if(std::max(x_norms.absmax(), y_norms.absmax()) < Rparams.dconv and iteration > 0)
       {
           if(Rparams.print_level >= 1) end_timer(world, "This iteration:");
           if(world.rank() == 0) print("\n   Converged!");
@@ -4862,7 +4862,7 @@ void TDHF::iterate_polarizability(World & world,
           break;
       }
 
-      // KAIN solver update 
+      // KAIN solver update
       // Returns next set of components
       // If not kain, save the new components
       if(Rparams.kain)
@@ -4888,9 +4888,9 @@ void TDHF::iterate_polarizability(World & world,
             // reduce x size back to original
             for(int i = 0; i < m; i++) y_response[i] = x_response[m + i];
             for(int i = 0; i < m; i++)
-            { 
-               x_response.pop_back();          
-               x_differences.pop_back();          
+            {
+               x_response.pop_back();
+               x_differences.pop_back();
             }
          }
       }
@@ -4898,7 +4898,7 @@ void TDHF::iterate_polarizability(World & world,
       // Apply mask
       for(int i = 0; i < m; i++) x_response[i] = mask * x_response[i];
       if(Rparams.omega != 0.0) for(int i = 0; i < m; i++) y_response[i] = mask * y_response[i];
- 
+
       // Update counter
       iteration += 1;
 
@@ -4908,7 +4908,7 @@ void TDHF::iterate_polarizability(World & world,
 
       // Save
       if(Rparams.save)
-      { 
+      {
          start_timer(world);
          save(world);
          end_timer(world, "Save:");
@@ -4917,7 +4917,7 @@ void TDHF::iterate_polarizability(World & world,
       if(Rparams.print_level >= 1) end_timer(world, " This iteration:");
 
    }
-}  // Done with iterate_polarizability 
+}  // Done with iterate_polarizability
 
 // Calculates polarizability according to
 // alpha_ij(\omega) = -sum_{ directions } < x_j | r_i | 0 > + < 0 | r_i | y_j >
@@ -4925,10 +4925,10 @@ void TDHF::polarizability(World& world,
                           Tensor<double> polar)
 {
    // Get transition density
-   //std::vector<real_function_3d> rhos = transition_density(world, Gparams.orbitals, x_response, y_response); 
+   //std::vector<real_function_3d> rhos = transition_density(world, Gparams.orbitals, x_response, y_response);
    std::vector<real_function_3d> rhos;
-   if(Rparams.omega == 0) rhos = transition_density(world, Gparams.orbitals, x_response, x_response); 
-   else rhos = transition_density(world, Gparams.orbitals, x_response, y_response); 
+   if(Rparams.omega == 0) rhos = transition_density(world, Gparams.orbitals, x_response, x_response);
+   else rhos = transition_density(world, Gparams.orbitals, x_response, y_response);
 
    // For each r_axis
    for(int axis = 0; axis < 3; axis++)
@@ -4953,9 +4953,9 @@ void TDHF::polarizability(World& world,
 void TDHF::solve_polarizability(World & world)
 {
    // Get start time
-   start_timer(world); 
+   start_timer(world);
 
-   // Warm and fuzzy 
+   // Warm and fuzzy
    if(world.rank() == 0)
    {
       print("\n\n    Response Calculation");
@@ -4988,22 +4988,22 @@ void TDHF::solve_polarizability(World & world)
             check_k(world, Rparams.protocol_data[proto], FunctionDefaults<3>::get_k());
          }
          else // Dipole guesses
-         { 
-            x_response = dipole_guess(world, Gparams.orbitals); 
-            y_response = x_response.copy(); 
+         {
+            x_response = dipole_guess(world, Gparams.orbitals);
+            y_response = x_response.copy();
          }
       }
 
       // Set the dipoles (ground orbitals are probably
       // more accurate now, so recalc the dipoles)
-      dipoles = dipole_guess(world, Gparams.orbitals); 
+      dipoles = dipole_guess(world, Gparams.orbitals);
 
       // Now actually ready to iterate...
       iterate_polarizability(world, dipoles);
    }
 
    // Have response function, now calculate polarizability for this axis
-   polarizability(world, polar_tensor); 
+   polarizability(world, polar_tensor);
 
    // Final polarizability analysis
    //diagonalize
@@ -5021,7 +5021,7 @@ void TDHF::solve_polarizability(World & world)
    {
        print("\nTotal Dynamic Polarizability Tensor");
        printf("\nFrequency  = %.6f a.u.\n\n", Rparams.omega);
-       //printf("\nWavelength = %.6f a.u.\n\n", Rparams.omega * ???); 
+       //printf("\nWavelength = %.6f a.u.\n\n", Rparams.omega * ???);
        print(polar_tensor);
        printf("\tEigenvalues = ");
        printf("\t %.6f \t %.6f \t %.6f \n", epolar[0], epolar[1], epolar[2]);
@@ -5037,7 +5037,7 @@ void TDHF::solve_polarizability(World & world)
 
    // Get start time
    end_timer(world, "total:");
-} 
+}
 // End solve_polar
 
 
