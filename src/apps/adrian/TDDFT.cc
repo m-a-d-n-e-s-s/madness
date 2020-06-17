@@ -970,7 +970,7 @@ ResponseFunction TDHF::CreateH(World &world, ResponseFunction &f,
   return gamma;
 }
 
-ResponseFunction TDHF::CreateG(World &world, ResponseFunction &f,
+ResponseFunction TDHF::CreateG(World &world, ResponseFunction &f,ResponseFunction &g,
                                 std::vector<real_function_3d> &orbitals,
                                 double small, double thresh, int print_level) {
   // Start a timer
