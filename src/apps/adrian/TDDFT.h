@@ -473,6 +473,12 @@ class TDHF {
       World &world, std::vector<real_function_3d> &orbitals,
       ResponseFunction &f, ResponseFunction &g);
 
+  std::vector<real_function_3d> GetWxcOnF(
+    World &world, std::vector<real_function_3d> &orbitals, ResponseFunction &f
+    );
+  std::vector<real_function_3d> GetWxcOnFConjugate(
+    World &world, std::vector<real_function_3d> &orbitals, ResponseFunction &f
+    );
   std::vector<real_function_3d> CreateXCDerivative(
       World &world, std::vector<real_function_3d> &orbitals,
       ResponseFunction &f );

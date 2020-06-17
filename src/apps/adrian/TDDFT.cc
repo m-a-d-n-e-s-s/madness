@@ -2774,6 +2774,51 @@ std::vector<real_function_3d> TDHF::create_fxc(
   return vxc;
 }
 
+// Uses an XCOperator to construct v_xc for the ground state density
+// Returns d^2/d rho^2 E_xc[rho]
+std::vector<real_function_3d> TDHF::GetWxcOnF(
+    World &world, std::vector<real_function_3d> &orbitals, ResponseFunction &f
+    ) {
+  // Create the xcop
+  XCOperator xc = create_xcoperator(world, Gparams.orbitals, Rparams.xc);
+
+  // Next need the perturbed density
+  std::vector<real_function_3d> drho = GetTransitionDensity(world,orbitals,f);
+  // Return container
+  std::vector<real_function_3d> vxc;
+
+  // Finally create the functions we want, one per response state
+  // (xc_args_prep_response happens inside this call)
+  for (unsigned int i = 0; i < f.size(); i++) {
+    vxc.push_back(xc.apply_xc_kernel(drho[i]));
+  }
+  //for each density apply xckernel
+
+  return vxc;
+}
+
+std::vector<real_function_3d> TDHF::GetWxcOnFConjugate(
+    World &world, std::vector<real_function_3d> &orbitals, ResponseFunction &f
+    ) {
+  // Create the xcop
+  XCOperator xc = create_xcoperator(world, Gparams.orbitals, Rparams.xc);
+
+  // Next need the perturbed density
+  std::vector<real_function_3d> drho = GetTransitionDensityConjugate(world,orbitals,f);
+  // Return container
+  std::vector<real_function_3d> vxc;
+
+  // Finally create the functions we want, one per response state
+  // (xc_args_prep_response happens inside this call)
+  for (unsigned int i = 0; i < f.size(); i++) {
+    vxc.push_back(xc.apply_xc_kernel(drho[i]));
+  }
+  //for each density apply xckernel
+
+  return vxc;
+}
+
+
 std::vector<real_function_3d> TDHF::CreateXCDerivative(
     World &world, std::vector<real_function_3d> &orbitals, ResponseFunction &f
     ) {
