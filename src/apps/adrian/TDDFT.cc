@@ -516,7 +516,7 @@ ResponseFunction TDHF::dipole_guess(World &world,
 // states. This function assumes all orbitals and response functions are real f
 // and g are the response functions phi are the ground state orbitals small and
 // thresh are accuracy parameters for the creating of the coulomb operator
-ResponseFunction TDHF::CreateCoulombDerivative(
+ResponseFunction TDHF::CreateCoulombDerivativeRF(
     World &world, ResponseFunction &f, std::vector<real_function_3d> &phi,
     double small, double thresh) {
   // Get sizes
@@ -546,7 +546,7 @@ ResponseFunction TDHF::CreateCoulombDerivative(
 }
 // Returns the derivative of the conjugate couloumb derivative operator, applied to to
 // the groundstate orbitals.  (TODO: set up imaginary functions)
-ResponseFunction TDHF::CreateCoulombDerivativeDagger(
+ResponseFunction TDHF::CreateCoulombDerivativeDaggerRF(
     World &world, ResponseFunction &f, std::vector<real_function_3d> &phi,
     double small, double thresh) {
   // Get sizes
@@ -570,7 +570,7 @@ ResponseFunction TDHF::CreateCoulombDerivativeDagger(
 }
 
 // Does what it sounds like it does
-ResponseFunction TDHF::CreateExchangeDerivative(
+ResponseFunction TDHF::CreateExchangeDerivativeRF(
     World &world, ResponseFunction &f, std::vector<real_function_3d> &phi,
     double small, double thresh) {
   // Get sizes
@@ -615,7 +615,7 @@ ResponseFunction TDHF::CreateExchangeDerivative(
 }
 
 // Does what it sounds like it does
-ResponseFunction TDHF::CreateExchangeDerivativeDagger(
+ResponseFunction TDHF::CreateExchangeDerivativeRFDagger(
     World &world, ResponseFunction &f, std::vector<real_function_3d> &phi,
     double small, double thresh) {
   // Get sizes
@@ -644,7 +644,7 @@ ResponseFunction TDHF::CreateExchangeDerivativeDagger(
   return deriv_k_dagger;
 }
 
-ResponseFunction TDHF::CreateXCDerivativeOnFDens(
+ResponseFunction TDHF::CreateXCDerivativeRF(
     World &world, ResponseFunction &f, std::vector<real_function_3d> &phi,
     double small, double thresh) {
   // Get sizes
@@ -664,7 +664,7 @@ ResponseFunction TDHF::CreateXCDerivativeOnFDens(
   return deriv_XC;
 }
 
-ResponseFunction TDHF::CreateXCDerivativeOnFDensDagger(
+ResponseFunction TDHF::CreateXCDerivativeRFDagger(
     World &world, ResponseFunction &f, std::vector<real_function_3d> &phi,
     double small, double thresh) {
   // Get sizes

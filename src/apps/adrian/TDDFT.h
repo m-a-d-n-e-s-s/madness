@@ -228,31 +228,31 @@ class TDHF {
 
   // Returns the derivative of the coulomb operator, applied to ground state
   // orbitals
-  ResponseFunction CreateCoulombDerivative(
+  ResponseFunction CreateCoulombDerivativeRF(
       World &world,
       ResponseFunction &f,                 // response functions
       std::vector<real_function_3d> &phi,  // orbitals
       double small, double thresh);
 
-  ResponseFunction CreateCoulombDerivativeDagger(
+  ResponseFunction CreateCoulombDerivativeDaggerRF(
     World &world, ResponseFunction &f, std::vector<real_function_3d> &phi,
     double small, double thresh);
 
   // Returns the derivative of the exchange operator, applied to the ground
   // state orbitals This is the function for TDA only
-  ResponseFunction CreateExchangeDerivative(World &world, ResponseFunction &f,
+  ResponseFunction CreateExchangeDerivativeRF(World &world, ResponseFunction &f,
                                             std::vector<real_function_3d> &phi,
                                             double small, double thresh);
 
-  ResponseFunction CreateExchangeDerivativeDagger(
+  ResponseFunction CreateExchangeDerivativeRFDagger(
     World &world, ResponseFunction &f, std::vector<real_function_3d> &phi,
     double small, double thresh);
 
-  ResponseFunction CreateXCDerivativeOnFDens(
+  ResponseFunction CreateXCDerivativeRF(
       World &world, ResponseFunction &f, std::vector<real_function_3d> &phi,
       double small, double thresh
       );
-  ResponseFunction CreateXCDerivativeOnFDensDagger(
+  ResponseFunction CreateXCDerivativeRFDagger(
       World &world, ResponseFunction &f, std::vector<real_function_3d> &phi,
       double small, double thresh
       );
