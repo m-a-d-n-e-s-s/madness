@@ -835,6 +835,7 @@ ResponseFunction TDHF::CreateGamma(World &world, ResponseFunction &f,
   // Perturbed coulomb piece
   ResponseFunction deriv_J =
       CreateCoulombDerivative(world, f,  phi, small, thresh);
+  // ResponseFunction deriv_XC=CreateXCDerivative
 
   // If including any HF exchange:
   if (xcf.hf_exchange_coefficient()) {
@@ -2784,15 +2785,15 @@ std::vector<real_function_3d> TDHF::GetWxcOnF(
   // Next need the perturbed density
   std::vector<real_function_3d> drhoM = GetTransitionDensities(world,orbitals,f);
   // Return container
-  std::vector<real_function_3d> vxc;
+  std::vector<real_function_3d> Wfxc;
   // Finally create the functions we want, one per response state
   // (xc_args_prep_response happens inside this call)
   for (unsigned int i = 0; i < f.size(); i++) {
-    vxc.push_back(xc.apply_xc_kernel(drhoM[i]));
+    Wfxc.push_back(xc.apply_xc_kernel(drhoM[i]));
   }
   //for each density apply xckernel
 
-  return vxc;
+  return Wfxc;
 }
 
 std::vector<real_function_3d> TDHF::GetConjugateWxcOnF(
@@ -2804,16 +2805,16 @@ std::vector<real_function_3d> TDHF::GetConjugateWxcOnF(
   // Next need the perturbed density
   std::vector<real_function_3d> drhoM = GetConjugateTransitionDensities(world,orbitals,f);
   // Return container
-  std::vector<real_function_3d> vxc;
+  std::vector<real_function_3d> conjugateWfvxc;
 
   // Finally create the functions we want, one per response state
   // (xc_args_prep_response happens inside this call)
   for (unsigned int i = 0; i < f.size(); i++) {
-    vxc.push_back(xc.apply_xc_kernel(drhoM[i]));
+    conjugateWfvxc.push_back(xc.apply_xc_kernel(drhoM[i]));
   }
   //for each density apply xckernel
 
-  return vxc;
+  return conjugateWfvxc;
 }
 
 
