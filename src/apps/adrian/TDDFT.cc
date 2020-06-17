@@ -658,9 +658,9 @@ ResponseFunction TDHF::CreateXCDerivativeRF(
   std::vector<real_function_3d> WxconF = GetWxcOnFDensities(world, phi,f);
   // apply xc kernel to ground staate orbitals
   for (int i = 0; i < m; i++) {
-      deriv_XC[i] = mul_sparse(world, WxconF[i], phi, thresh, false);
-    }
-    world.gop.fence();
+    deriv_XC[i] = mul_sparse(world, WxconF[i], phi, thresh, false);
+  }
+  world.gop.fence();
   return deriv_XC;
 }
 
@@ -677,9 +677,9 @@ ResponseFunction TDHF::CreateXCDerivativeRFDagger(
   std::vector<real_function_3d> conjWxconF = GetConjugateWxcOnFDensities(world, phi,f);
   // apply xc kernel to ground staate orbitals
   for (int i = 0; i < m; i++) {
-      deriv_XC[i] = mul_sparse(world, conjWxconF[i], phi, thresh, false);
-    }
-    world.gop.fence();
+    deriv_XC[i] = mul_sparse(world, conjWxconF[i], phi, thresh, false);
+  }
+  world.gop.fence();
   return deriv_XC;
 }
 
@@ -862,12 +862,12 @@ ResponseFunction TDHF::CreateGamma(World &world, ResponseFunction &f,
 
   // Perturbed coulomb piece
   ResponseFunction deriv_J =
-    CreateCoulombDerivative(world, f,  phi, small, thresh);
+    CreateCoulombDerivativeRF(world, f,  phi, small, thresh);
   // ResponseFunction deriv_XC=CreateXCDerivative
 
   // If including any HF exchange:
   if (xcf.hf_exchange_coefficient()) {
-    deriv_K = CreateExchangeDerivative(world, f,  phi, small, thresh);
+    deriv_K = CreateExchangeDerivativeRF(world, f,  phi, small, thresh);
   }
   // CreateXcDerivativeOnF(world,f,phi,small,thresh);
   // Get the DFT contribution
@@ -941,25 +941,16 @@ ResponseFunction TDHF::CreateH(World &world, ResponseFunction &f,
   ResponseFunction deriv_XC(world, m, n);
 
   // Perturbed coulomb piece
-  ResponseFunction deriv_J =
-    CreateCoulombDerivative(world, f,  phi, small, thresh);
-
+  ResponseFunction deriv_J =CreateCoulombDerivativeRF(world, f,  phi, small, thresh);
   // If including any HF exchange:
   if (xcf.hf_exchange_coefficient()) {
-    deriv_K = CreateExchangeDerivative(world, f,  phi, small, thresh);
+    deriv_K = CreateExchangeDerivativeRF(world, f,  phi, small, thresh);
   }
   // Get the DFT contribution
   if (xcf.hf_exchange_coefficient() != 1.0) {
     // Get v_xc
-    std::vector<real_function_3d> vxc = CreateXCDerivative(world, phi, f);
-
-    // Apply xc kernel to ground state orbitals
-    for (int i = 0; i < m; i++) {
-      deriv_XC[i] = mul_sparse(world, vxc[i], phi, thresh, false);
-    }
-    world.gop.fence();
+    deriv_XC= CreateXCDerivativeRF(world,f,phi,small,thresh);
   }
-
   // Now assemble pieces together to get gamma
   // Spin integration gives 2.0
   gamma = deriv_J * 2.0 + deriv_XC - deriv_K * xcf.hf_exchange_coefficient();
