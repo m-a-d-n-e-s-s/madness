@@ -544,6 +544,30 @@ ResponseFunction TDHF::CreateCoulombDerivative(
   }
   return deriv_J;
 }
+// Returns the derivative of the conjugate couloumb derivative operator, applied to to
+// the groundstate orbitals.  (TODO: set up imaginary functions)
+ResponseFunction TDHF::CreateCoulombDerivativeDagger(
+    World &world, ResponseFunction &f, std::vector<real_function_3d> &phi,
+    double small, double thresh) {
+  // Get sizes
+  int m = f.size();     // number of resposne states or frequencies
+  int n = f[0].size();  // number of ground states  x[m][n]
+  // Zero function, to be returned
+  ResponseFunction deriv_J_dagger(world, m, n);  // J_p--Jderivative
+  real_convolution_3d op = CoulombOperator(world, small, thresh);
+  real_function_3d f_density = real_function_3d(world);
+  for (int k=0; k<m; k++){//for each of the m response states
+      // dot vector of response functions with orbitals phi
+      f_density = apply(op,dot(world,phi,f[k]));
+      //f_density = apply(op,dot(world,dagger(phi,f[k])));
+      //TODO write or find a dagger function
+      // apply to each orbital to make up jdaggerKP
+      for (int p=0; p<n; p++){
+          deriv_J_dagger[k][p]=f_density*phi[p];
+      }
+  }
+  return deriv_J_dagger;
+    }
 
 // Does what it sounds like it does
 ResponseFunction TDHF::CreateExchangeDerivative(
@@ -589,6 +613,49 @@ ResponseFunction TDHF::CreateExchangeDerivative(
   }
   return deriv_k;
 }
+
+// Does what it sounds like it does
+ResponseFunction TDHF::CreateExchangeDerivativeDagger(
+    World &world, ResponseFunction &f, std::vector<real_function_3d> &phi,
+    double small, double thresh) {
+  // Get sizes
+  int m = f.size();
+  int n = f[0].size();
+
+  // Zero function, to be returned
+  ResponseFunction deriv_k_dagger(world, m, n);
+
+  // Need the coulomb operator
+  real_convolution_3d op = CoulombOperator(world, small, thresh);
+
+  // Potential is not stored by default
+  // Need to run over occupied orbitals
+  // Need to run over all virtual orbitals originating from orbital p
+  // Need to sum over occupied orbitals
+  //
+    // Determine if including HF exchange
+    // Need to run over occupied orbitals
+    for (int p = 0; p < n; p++) {
+      // Need to run over all virtual orbitals originating from orbital p
+      for (int k = 0; k < m; k++) {
+        // Need to sum over occupied orbitals
+        for (int i = 0; i < n; i++) {
+          // Get density (ground state orbitals)
+          real_function_3d rho = f[k][i] * phi[p];
+          //real_function_3d rho = dagger(f[k][i]) * phi[p];TODO:DAGGER()
+
+          // Apply coulomb operator
+          rho = apply(op, rho);
+
+          // Multiply by response function (k,i)
+          // and add to total
+          deriv_k_dagger[k][p] += rho * phi[i];
+        }
+      }
+  }
+  return deriv_k_dagger;
+}
+
 
 // Creates diagonal (letter A) portions of response matrix
 ResponseFunction TDHF::CreateA(World &world, ResponseFunction &fe,
@@ -904,7 +971,6 @@ ResponseFunction TDHF::CreateH(World &world, ResponseFunction &f,
 }
 
 ResponseFunction TDHF::CreateG(World &world, ResponseFunction &f,
-                                ResponseFunction &g,
                                 std::vector<real_function_3d> &orbitals,
                                 double small, double thresh, int print_level) {
   // Start a timer

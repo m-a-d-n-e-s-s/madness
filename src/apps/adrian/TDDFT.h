@@ -234,11 +234,19 @@ class TDHF {
       std::vector<real_function_3d> &phi,  // orbitals
       double small, double thresh);
 
+  ResponseFunction CreateCoulombDerivativeDagger(
+    World &world, ResponseFunction &f, std::vector<real_function_3d> &phi,
+    double small, double thresh);
+
   // Returns the derivative of the exchange operator, applied to the ground
   // state orbitals This is the function for TDA only
   ResponseFunction CreateExchangeDerivative(World &world, ResponseFunction &f,
                                             std::vector<real_function_3d> &phi,
                                             double small, double thresh);
+
+  ResponseFunction CreateExchangeDerivativeDagger(
+    World &world, ResponseFunction &f, std::vector<real_function_3d> &phi,
+    double small, double thresh);
 
   // Returns the diagonal (letter A) elements of response matrix
   ResponseFunction CreateA(World &world, ResponseFunction &fe,
@@ -265,7 +273,6 @@ class TDHF {
                                double thresh, int print_level, std::string xy);
 
   ResponseFunction CreateG(World &world, ResponseFunction &f,
-                                ResponseFunction &g,
                                 std::vector<real_function_3d> &orbitals,
                                 double small, double thresh, int print_level);
 
