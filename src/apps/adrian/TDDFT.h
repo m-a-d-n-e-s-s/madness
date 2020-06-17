@@ -264,6 +264,10 @@ class TDHF {
                                std::vector<real_function_3d> &phi, double small,
                                double thresh, int print_level, std::string xy);
 
+  ResponseFunction CreateG(World &world, ResponseFunction &f,
+                                ResponseFunction &g,
+                                std::vector<real_function_3d> &orbitals,
+                                double small, double thresh, int print_level);
 
   // Returns the coulomb potential of the ground state
   // Note: No post multiplication involved here

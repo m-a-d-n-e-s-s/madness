@@ -903,6 +903,114 @@ ResponseFunction TDHF::CreateH(World &world, ResponseFunction &f,
   return gamma;
 }
 
+ResponseFunction TDHF::CreateG(World &world, ResponseFunction &f,
+                                ResponseFunction &g,
+                                std::vector<real_function_3d> &orbitals,
+                                double small, double thresh, int print_level) {
+  // Start a timer
+  if (print_level >= 1) start_timer(world);
+
+  // Get sizes
+  int m = f.size();
+  int n = f[0].size();
+
+  // Initialize function
+  ResponseFunction deriv_j(world, m, n);
+  ResponseFunction deriv_k(world, m, n);
+  ResponseFunction deriv_xc(world, m, n);
+  ResponseFunction gamma;
+  real_function_3d rho;
+
+  // Need the coulomb operator
+  real_convolution_3d op = CoulombOperator(world, small, thresh);
+
+  // Two pieces: coulomb and exchange
+  // Coulomb first
+  // Need to run over virtual orbitals
+  for (int k = 0; k < m; k++) {
+    // Get transition density
+    rho = dot(world, f[k], orbitals);
+
+    // Apply coulomb operator
+    rho = apply(op, rho);
+
+    // Need to run over all occupied orbitals
+    for (int p = 0; p < n; p++) {
+      // Multiply by ground state orbital p
+      // and save the result
+      deriv_j[k][p] = rho * orbitals[p];
+    }
+  }
+
+  // Exchange
+  // Determine if including HF exchange
+  if (xcf.hf_exchange_coefficient()) {
+    // Need to run over occupied orbitals
+    for (int p = 0; p < n; p++) {
+      // Need to run over all virtual orbitals originating from orbital p
+      for (int k = 0; k < m; k++) {
+        // Need to sum over occupied orbitals
+        for (int i = 0; i < n; i++) {
+          // Get density (ground state orbitals)
+          real_function_3d rho = f[k][i] * orbitals[p];
+
+          // Apply coulomb operator
+          rho = apply(op, rho);
+
+          // Multiply by response function (k,i)
+          // and add to total
+          deriv_k[k][p] += rho * orbitals[i];
+        }
+      }
+    }
+  }
+  // Determine if DFT potential is needed
+  if (xcf.hf_exchange_coefficient() != 1.0) {
+    // Get v_xc
+    std::vector<real_function_3d> vxc = create_fxc(world, orbitals, f, g);
+
+    // Apply xc kernel to ground state orbitals
+    for (int i = 0; i < m; i++) {
+      deriv_xc[i] = mul_sparse(world, vxc[i], orbitals, thresh, false);
+    }
+    world.gop.fence();
+  }
+
+  // Take care of coeficients
+  gamma = deriv_j * 2.0 + deriv_xc - deriv_k * xcf.hf_exchange_coefficient();
+
+  // Project out the ground state
+  QProjector<double, 3> projector(world, orbitals);
+  for (int i = 0; i < m; i++) gamma[i] = projector(gamma[i]);
+
+  // Debugging output
+  if (print_level >= 2) {
+    if (world.rank() == 0) printf("   B coulomb deriv matrix:\n");
+    ResponseFunction t = deriv_j * 2.0;
+    Tensor<double> temp = expectation(world, f, t);
+    if (world.rank() == 0) print(temp);
+    if (Rparams.xc == "hf") {
+      if (world.rank() == 0) printf("   B exchange deriv matrix:\n");
+      temp = expectation(world, f, deriv_k);
+    } else {
+      if (world.rank() == 0) printf("   B XC deriv matrix:\n");
+      temp = expectation(world, f, deriv_xc);
+    }
+    if (world.rank() == 0) print(temp);
+    if (world.rank() == 0) printf("   B gamma matrix:\n");
+    temp = expectation(world, f, gamma);
+    if (world.rank() == 0) print(temp);
+  }
+
+  // End timer
+  if (print_level >= 1) end_timer(world, "   Creating B:");
+
+  // Done
+  return gamma;
+}
+
+
+
 
 // Calculates ground state coulomb potential
 real_function_3d TDHF::Coulomb(World &world) {
