@@ -4111,6 +4111,55 @@ std::vector<real_function_3d> TDHF::transition_density(
   // Done!
   return densities;
 }
+// Creates the transition density
+std::vector<real_function_3d> TDHF::GetTransitionDensity(
+    World &world, std::vector<real_function_3d> &orbitals, ResponseFunction &f
+    ) {
+  // Get sizes
+  int m = f.size();
+  int n = f[0].size();
+  // Return container
+  std::vector<real_function_3d> densities = zero_functions<double, 3>(world, m);
+
+  // Run over virtual...
+  for (int i = 0; i < m; i++) {
+    // Run over occupied...
+    for (int j = 0; j < n; j++) {
+      // y functions are zero if TDA is active
+      densities[i] =densities[i] + orbitals[j] * f[i][j];
+      //densities[i] =densities[i] + orbitals[j] * dagger(f[i][j]);TODO: DAGGER
+
+    }
+  }
+
+  // Done!
+  return densities;
+}
+
+std::vector<real_function_3d> TDHF::GetTransitionDensityConjugate(
+    World &world, std::vector<real_function_3d> &orbitals, ResponseFunction &f
+    ) {
+  // Get sizes
+  int m = f.size();
+  int n = f[0].size();
+  // Return container
+  std::vector<real_function_3d> densities = zero_functions<double, 3>(world, m);
+  // Run over virtual...
+  for (int i = 0; i < m; i++) {
+    // Run over occupied...
+    for (int j = 0; j < n; j++) {
+      // y functions are zero if TDA is active
+      densities[i] = densities[i] + orbitals[j] * f[i][j];
+      //densities[i] + orbitals[j] * dagger(f[i][j]) TODO: DAGGER;
+    }
+  }
+  // Done!
+  return densities;
+}
+
+
+
+
 
 template <std::size_t NDIM>
 void TDHF::set_protocol(World &world, double thresh) {

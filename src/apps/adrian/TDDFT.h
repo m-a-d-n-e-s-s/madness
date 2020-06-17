@@ -501,7 +501,13 @@ class TDHF {
   std::vector<real_function_3d> transition_density(
       World &world, std::vector<real_function_3d> &orbitals,
       ResponseFunction &x, ResponseFunction &y);
-
+  // Get transition density from f and orbitals
+  std::vector<real_function_3d> GetTransitionDensity(
+    World &world, std::vector<real_function_3d> &orbitals, ResponseFunction &f
+    );
+  std::vector<real_function_3d> GetTransitionDensityConjugate(
+    World &world, std::vector<real_function_3d> &orbitals, ResponseFunction &f
+    );
   // Creates the ground state hamiltonian for the orbitals in the active
   // subspace (aka the orbitals in tda_act_orbitals)
   Tensor<double> CreateGroundHamiltonian(World &world,
