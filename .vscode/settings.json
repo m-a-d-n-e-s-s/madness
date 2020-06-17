@@ -3,6 +3,7 @@
     "cmake.configureSettings": {
         "CMAKE_MAKE_PROGRAM":"/usr/bin/make",
         "CMAKE_EXPORT_COMPILE_COMMANDS":1,
+        "ENABLE_GPERFTOOLS":"OFF",
         "CMAKE_BUILD_TYPE":"Debug",
         "ENABLE_MKL":"ON",
         "ENABLE_TBB":"ON",
@@ -16,7 +17,7 @@
         "CMAKE_CXX_STANDARD": 17,
         "LIBXC_LIBRARIES": "/gpfs/projects/rjh/libxc-3.0.0/lib/libxc.a",
         "LIBXC_INCLUDE_DIRS": "/gpfs/projects/rjh/libxc-3.0.0/include",
-        "BUILD_SHARED_LIBS": "",
+        "BUILD_SHARED_LIBS": ""
     },
     "cmake.environment": {
         "MKLROOT": "/gpfs/software/intel/parallel-studio-xe/2018_2/compilers_and_libraries/linux/mkl",
@@ -35,5 +36,5 @@
     "cquery.cacheDirectory": "${workspaceFolder}/.vscode/cquery_cached_index/",
     "C_Cpp.default.macFrameworkPath": [],
     "C_Cpp.clang_format_fallbackStyle": "Google"
-    
+
 }
