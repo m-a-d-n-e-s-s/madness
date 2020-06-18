@@ -700,11 +700,9 @@ TDHF::CreateXCDerivativeRFDagger(World &world, ResponseFunction &f,
 ResponseFunction TDHF::CreateA(World &world, ResponseFunction &fe,
                                ResponseFunction &gamma, ResponseFunction &Vf,
                                ResponseFunction &f,
-                               std::vector<real_function_3d> &ground_orbitals,
+                               std::vector<real_function_3d> &orbitals,
                                Tensor<double> &hamiltonian, // Ground state
                                int print_level, std::string xy) {
-  // Sizes inferred from V and gamma
-  int m = Vf.size();
   // Create the ground-state fock operator on response components
   ResponseFunction fock_resp = CreateFock(world, Vf, f, print_level, xy); // Fx
 
