@@ -228,6 +228,12 @@ public:
 	/// = basis in which input A is represented, on output = the eigenbasis of A
 	void canonicalize(PNOPairs& v) const;
 
+
+	/// convenience
+	size_t nocc()const{return nemo.get_calc()->amo.size();}
+	size_t nact()const{return nemo.get_calc()->amo.size()-param.freeze();}
+	ElectronPairIterator pit()const{ return f12.pit();} /// convenience
+	OrbitalIterator oit()const{return OrbitalIterator(nemo.get_calc()->amo.size(),param.freeze());}
 private:
 	World& world;
 	PNOParameters param;  ///< calculation parameters
@@ -241,11 +247,6 @@ private:
 	std::shared_ptr<real_convolution_3d> poisson;
 	BasisFunctions basis; ///< class which holds all methods to read or create guess functions for PNO or CABS
 	F12Potentials f12;
-	/// convenience
-	size_t nocc()const{return nemo.get_calc()->amo.size();}
-	size_t nact()const{return nemo.get_calc()->amo.size()-param.freeze();}
-	ElectronPairIterator pit()const{ return f12.pit();} /// convenience
-	OrbitalIterator oit()const{return OrbitalIterator(nemo.get_calc()->amo.size(),param.freeze());}
 	CCMessenger msg;
 };
 
