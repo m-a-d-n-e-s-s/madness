@@ -164,6 +164,9 @@ int main(int argc, char** argv) {
 			}else{
 				const auto& pair = pno_ij[it.ij()];
 				all_basis_functions.insert(all_basis_functions.end(), pair.begin(), pair.end());
+				for (auto ii=0; ii<rdm_evals[it.ij()].size();++ii){
+					occ.push_back(rdm_evals[it.ij()][ii]);
+				}
 			}
 		}
 		for (auto i=0; i<rdm_evals.size(); ++i){
