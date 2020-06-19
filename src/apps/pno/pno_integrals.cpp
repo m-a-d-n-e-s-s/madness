@@ -27,6 +27,7 @@ const std::string TAG_PNO = "pno";
 const std::string TAG_F12 = "f12";
 const std::string TAG_CP = "computeprotocol";
 
+// this needs to be added to include
 #include "NumCpp.hpp"
 
 
@@ -47,6 +48,8 @@ int main(int argc, char** argv) {
 	const std::string orthogonalization = (argc > 2) ? argv[2] : "cholesky";
 	const int basis_size = (argc > 3) ? std::atoi(argv[3]) : 10;
 
+	const bool only_diag = (argc > 4) ? bool(std::atoi(argv[4])) : false;
+
 	if(world.rank()==0){
 		std::cout << "\n\n";
 		std::cout << "-------------------------------------------------------------------------------------\n";
@@ -63,6 +66,7 @@ int main(int argc, char** argv) {
 		std::cout << "input is " << input << "\n";
 		std::cout << "orthogonalization is " << orthogonalization << "\n";
 		std::cout << "basis size is " << basis_size << "\n";
+		std::cout << "only diag is " << only_diag << "\n";
 	}
 
 
@@ -153,8 +157,14 @@ int main(int argc, char** argv) {
 
 		std::vector<double> occ;
 		// collect PNOs from all pairs and sort by occupation number
-		for (const auto& pair: pno_ij){
-			all_basis_functions.insert(all_basis_functions.end(), pair.begin(), pair.end());
+		for(ElectronPairIterator it=pno.pit();it;++it){
+			if (only_diag and not it.diagonal()){
+				std::cout << "skipping pair " << it << "\n";
+				continue;
+			}else{
+				const auto& pair = pno_ij[it.ij()];
+				all_basis_functions.insert(all_basis_functions.end(), pair.begin(), pair.end());
+			}
 		}
 		for (auto i=0; i<rdm_evals.size(); ++i){
 			for (auto ii=0; ii<rdm_evals[i].size();++ii){
