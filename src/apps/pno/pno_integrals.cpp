@@ -157,9 +157,9 @@ int main(int argc, char** argv) {
 
 		std::vector<double> occ;
 		// collect PNOs from all pairs and sort by occupation number
-		for(ElectronPairIterator it=pno.pit();it;++it){
+		for(ElectronPairIterator it=pno.f12.pit();it;++it){
 			if (only_diag and not it.diagonal()){
-				std::cout << "skipping pair " << it << "\n";
+				std::cout << "skipping pair " << it.name() << "\n";
 				continue;
 			}else{
 				const auto& pair = pno_ij[it.ij()];
