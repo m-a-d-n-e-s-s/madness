@@ -48,12 +48,11 @@
 /// derived class.
 class NO_DEFAULTS {
 public:
-    NO_DEFAULTS() {};
-private:
-    // hide these - DO NOT IMPLEMENT!
-    NO_DEFAULTS(const NO_DEFAULTS&);
-    NO_DEFAULTS& operator=(const NO_DEFAULTS&);
+    NO_DEFAULTS() {}
+    NO_DEFAULTS(const NO_DEFAULTS&) = delete;
+    NO_DEFAULTS(NO_DEFAULTS&&) = delete;
+    NO_DEFAULTS& operator=(const NO_DEFAULTS&) = delete;
+    NO_DEFAULTS& operator=(NO_DEFAULTS&&) = delete;
 };
 
 #endif // MADNESS_WORLD_NODEFAULTS_H__INCLUDED
-
