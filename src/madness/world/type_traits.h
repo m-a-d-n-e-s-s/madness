@@ -127,6 +127,8 @@ using std::void_t;
     class MPIRawInputArchive;
     class MPIOutputArchive;
     class MPIInputArchive;
+    class ContainerRecordInputArchive;
+    class ContainerRecordOutputArchive;
     }
     template <typename T>
     struct is_serializable<archive::BinaryFstreamOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
@@ -152,6 +154,10 @@ using std::void_t;
     struct is_serializable<archive::MPIOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
     template <typename T>
     struct is_serializable<archive::MPIInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    template <typename T>
+    struct is_serializable<archive::ContainerRecordOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    template <typename T>
+    struct is_serializable<archive::ContainerRecordInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
 
     /* Macros to make some of this stuff more readable */
 

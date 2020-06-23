@@ -4,7 +4,7 @@ set(MADWORLD_HEADERS
     info.h archive.h print.h worldam.h future.h worldmpi.h
     world_task_queue.h array_addons.h stack.h vector.h worldgop.h 
     world_object.h buffer_archive.h nodefaults.h dependency_interface.h 
-    worldhash.h worldref.h worldtypes.h dqueue.h parallel_archive.h 
+    worldhash.h worldref.h worldtypes.h dqueue.h parallel_archive.h parallel_dc_archive.h
     vector_archive.h madness_exception.h worldmem.h thread.h worldrmi.h 
     safempi.h worldpapi.h worldmutex.h print_seq.h worldhashmap.h range.h 
     atomicint.h posixmem.h worldptr.h deferred_cleanup.h MADworld.h world.h 
@@ -99,7 +99,7 @@ if(ENABLE_UNITTESTS)
       test_dc.cc test_hashthreaded.cc test_queue.cc test_world.cc 
       test_worldprofile.cc test_binsorter.cc test_vector.cc test_worldptr.cc 
       test_worldref.cc test_stack.cc test_googletest.cc test_tree.cc
-      test_macrotask.cc)
+      test_macrotask.cc test_pdca.cc)
 
 
   add_unittests(world WORLD_TEST_SOURCES "MADworld;MADgtest")
