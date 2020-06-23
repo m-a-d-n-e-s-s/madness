@@ -334,8 +334,12 @@ std::vector<complex_function_3d> Znemo::normalize(const std::vector<complex_func
 
 real_function_3d Znemo::compute_density(const std::vector<complex_function_3d>& amo,
 		const std::vector<complex_function_3d>& bmo) const {
-
 	return (compute_nemo_density(amo,bmo)*diafac->factor_square()*R_square).truncate();
+}
+
+real_function_3d Znemo::compute_spin_density(const std::vector<complex_function_3d>& amo,
+		const std::vector<complex_function_3d>& bmo) const {
+	return (compute_nemo_spin_density(amo,bmo)*diafac->factor_square()*R_square).truncate();
 }
 
 std::vector<complex_function_3d> Znemo::make_bra(const std::vector<complex_function_3d>& rhs) const {
@@ -349,6 +353,8 @@ double Znemo::analyze() {
 		recompute_factors_and_potentials(cparam.econv());
 
 	real_function_3d density=compute_density(amo,bmo);
+	real_function_3d spindensity=compute_spin_density(amo,bmo);
+
 	potentials apot(world,amo.size()), bpot(world,bmo.size());
 	apot=compute_potentials(amo,density,amo);
 	if (have_beta()) {
@@ -405,7 +411,8 @@ double Znemo::analyze() {
 
     print("saving orbitals for plotting");
 	save_orbitals("plot");
-	save(density,"density_plot");
+	save(density,"density");
+	save(spindensity,"spindensity");
     return energy;
 }
 
