@@ -16,7 +16,7 @@
 
 namespace madness {
 
-Znemo::Znemo(World& world) : NemoBase(world), param(world), mol("input"), cparam() {
+Znemo::Znemo(World& world) : NemoBase(world), mol("input"), param(world), cparam() {
 	cparam.read(world,"input","dft");
 
     FunctionDefaults<3>::set_k(cparam.k());
@@ -127,7 +127,7 @@ bool Znemo::test_U_potentials() const {
 	Kinetic<double_complex,3> T(world);
 
 	double_complex t1,t2;
-	for (int i=0; i<ket_R.size(); ++i) {
+	for (size_t i=0; i<ket_R.size(); ++i) {
 		t1+=T(bra_R[i],ket_R[i]);
 		t2+=T(bra_R2[i],ket[i]);
 	}
@@ -334,8 +334,12 @@ std::vector<complex_function_3d> Znemo::normalize(const std::vector<complex_func
 
 real_function_3d Znemo::compute_density(const std::vector<complex_function_3d>& amo,
 		const std::vector<complex_function_3d>& bmo) const {
-
 	return (compute_nemo_density(amo,bmo)*diafac->factor_square()*R_square).truncate();
+}
+
+real_function_3d Znemo::compute_spin_density(const std::vector<complex_function_3d>& amo,
+		const std::vector<complex_function_3d>& bmo) const {
+	return (compute_nemo_spin_density(amo,bmo)*diafac->factor_square()*R_square).truncate();
 }
 
 std::vector<complex_function_3d> Znemo::make_bra(const std::vector<complex_function_3d>& rhs) const {
@@ -349,6 +353,8 @@ double Znemo::analyze() {
 		recompute_factors_and_potentials(cparam.econv());
 
 	real_function_3d density=compute_density(amo,bmo);
+	real_function_3d spindensity=compute_spin_density(amo,bmo);
+
 	potentials apot(world,amo.size()), bpot(world,bmo.size());
 	apot=compute_potentials(amo,density,amo);
 	if (have_beta()) {
@@ -405,7 +411,8 @@ double Znemo::analyze() {
 
     print("saving orbitals for plotting");
 	save_orbitals("plot");
-	save(density,"density_plot");
+	save(density,"density");
+	save(spindensity,"spindensity");
     return energy;
 }
 
@@ -837,7 +844,7 @@ Znemo::read_complex_guess() const {
 std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> >
 Znemo::read_explicit_guess_functions() const {
 	// loop over all provided functions
-	if (param.guess_functions().size()<std::max(cparam.nalpha(),cparam.nbeta())) {
+        if (param.guess_functions().size()<size_t(std::max(cparam.nalpha(),cparam.nbeta()))) {
 		MADNESS_EXCEPTION("you did not provide enough guess functions for this calculations",1);
 	}
 	std::vector<complex_function_3d> guess_vector;
@@ -913,7 +920,7 @@ Znemo::custom_guess() const {
 
 	std::vector<std::string> guess=param.guess();
 	std::vector<complex_function_3d> guess_vector;
-	for (int i=0; i<guess.size(); i+=3) {
+	for (size_t i=0; i<guess.size(); i+=3) {
 		long l=atol(guess[i].c_str());
 		long ml=atol(guess[i+1].c_str());
 		double exponent=atof(guess[i+2].c_str());
@@ -1125,7 +1132,7 @@ Znemo::canonicalize(std::vector<complex_function_3d>& amo,
     Tensor<double> evals;
     sygv(fock, ovlp, 1, U, evals);
     // Fix phases.
-    for (long i = 0; i < amo.size(); ++i) if (real(U(i, i)) < 0.0) U(_, i).scale(-1.0);
+    for (size_t i = 0; i < amo.size(); ++i) if (real(U(i, i)) < 0.0) U(_, i).scale(-1.0);
 
     fock = 0.0;
     for (unsigned int i = 0; i < amo.size(); ++i) fock(i, i) = evals(i);
@@ -1140,12 +1147,12 @@ Znemo::canonicalize(std::vector<complex_function_3d>& amo,
 void Znemo::save_orbitals(std::string suffix) const {
 	suffix="_"+suffix;
 	const real_function_3d& dia=diafac->factor();
-	for (int i=0; i<amo.size(); ++i) save(amo[i],"amo"+stringify(i)+suffix);
-	for (int i=0; i<bmo.size(); ++i) save(bmo[i],"bmo"+stringify(i)+suffix);
-	for (int i=0; i<amo.size(); ++i) save(madness::abs(amo[i]),"absamo"+stringify(i)+suffix);
-	for (int i=0; i<bmo.size(); ++i) save(madness::abs(bmo[i]),"absbmo"+stringify(i)+suffix);
-	for (int i=0; i<amo.size(); ++i) save(madness::abs(amo[i]*dia),"diaamo"+stringify(i)+suffix);
-	for (int i=0; i<bmo.size(); ++i) save(madness::abs(bmo[i]*dia),"diabmo"+stringify(i)+suffix);
+	for (size_t i=0; i<amo.size(); ++i) save(amo[i],"amo"+stringify(i)+suffix);
+	for (size_t i=0; i<bmo.size(); ++i) save(bmo[i],"bmo"+stringify(i)+suffix);
+	for (size_t i=0; i<amo.size(); ++i) save(madness::abs(amo[i]),"absamo"+stringify(i)+suffix);
+	for (size_t i=0; i<bmo.size(); ++i) save(madness::abs(bmo[i]),"absbmo"+stringify(i)+suffix);
+	for (size_t i=0; i<amo.size(); ++i) save(madness::abs(amo[i]*dia),"diaamo"+stringify(i)+suffix);
+	for (size_t i=0; i<bmo.size(); ++i) save(madness::abs(bmo[i]*dia),"diabmo"+stringify(i)+suffix);
 
 }
 

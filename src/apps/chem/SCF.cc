@@ -194,8 +194,8 @@ SCF::SCF(World &world, const std::string &inputfile) : param(CalculationParamete
 	xc.initialize(param.xc(), !param.spin_restricted(), world, param.print_level() > 1);
 	//xc.plot();
 
-	FunctionDefaults<3>::set_cubic_cell(-param.L(), param.L());
-	set_protocol<3>(world, param.econv());
+	FunctionDefaults < 3 > ::set_cubic_cell(-param.L(), param.L());
+	//set_protocol < 3 > (world, param.econv());
 	FunctionDefaults<3>::set_truncate_mode(1);
 }
 
@@ -585,30 +585,25 @@ distmatT SCF::localize_new(World &world, const vecfuncT &mo,
 	for (int i = 0; i < nmo; ++i)
 		U(i, i) = 1.0;
 
-	if (world.rank() == 0)
-	{
+
+	default_random_generator.setstate(182041+world.rank()*10101); // To help with reproducibility for debugging, etc.
+
+	if (world.rank() == 0) {
 		//MKL_Set_Num_Threads_Local(16);
 
-		tensorT Q(nmo, natom);
-
-		auto QQ = [&at_to_bf, &at_nbf](const tensorT &C, int i, int j, int a) -> double {
+		tensorT Q(nmo,natom);
+		double breaksym = 1e-3;
+		auto QQ = [&at_to_bf, &at_nbf,&breaksym](const tensorT& C, int i, int j, int a) -> double {
 			int lo = at_to_bf[a], nbf = at_nbf[a];
 			const double *Ci = &C(i, lo);
 			const double *Cj = &C(j, lo);
 			double qij = 0.0;
-			for (int mu = 0; mu < nbf; ++mu)
-				qij += Ci[mu] * Cj[mu];
-			return qij;
+			for(int mu=0; mu<nbf; ++mu) qij += Ci[mu] * Cj[mu];
+			return qij*(1.0+breaksym*a); // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! break symmetry
 		};
 
-		auto makeGW = [&Q, &nmo, &natom, &QQ](const tensorT &C, double &W, tensorT &g) -> void {
-			W = 0.0;
-			for (int i = 0; i < nmo; ++i)
-			{
-				for (int a = 0; a < natom; ++a)
 				{
 					Q(i, a) = QQ(C, i, i, a);
-					W += Q(i, a) * Q(i, a);
 				}
 			}
 
@@ -717,16 +712,16 @@ distmatT SCF::localize_new(World &world, const vecfuncT &mo,
 				mu = mu2;
 			}
 
-			dU = matrix_exponential(x * mu);
-			U = inner(U, dU, 1, 0);
-			C = inner(dU, C, 0, 0);
+			if (maxg < 10*thresh) {
+			  breaksym = 1e-5;
+			  rprev = true; // since just messed up the gradient
+			}
+
+			dU = matrix_exponential(x*mu);
+			U = inner(U,dU,1,0);
+			C = inner(dU,C,0,0);
 		}
 		bool switched = true;
-		while (switched)
-		{
-			switched = false;
-			for (int i = 0; i < nmo; i++)
-			{
 				for (int j = i + 1; j < nmo; j++)
 				{
 					if (set[i] == set[j])
@@ -735,7 +730,6 @@ distmatT SCF::localize_new(World &world, const vecfuncT &mo,
 						double snew = U(i, j) * U(i, j) + U(j, i) * U(j, i);
 						if (snew > sold)
 						{
-							tensorT tmp = copy(U(_, i));
 							U(_, i) = U(_, j);
 							U(_, j) = tmp;
 							switched = true;
@@ -840,8 +834,8 @@ distmatT SCF::localize_boys(World &world, const vecfuncT &mo,
 	if (thresh < 1e-6)
 		thresh = 1e-6; //<<<<<<<<<<<<<<<<<<<<< need to implement new line search like in pm routine
 	tensorT U(nmo, nmo);
-	if (world.rank() == 0)
-	{
+	default_random_generator.setstate(182041+world.rank()*10101); // To help with reproducibility for debugging, etc.
+	if (world.rank() == 0) {
 		for (long i = 0; i < nmo; ++i)
 			U(i, i) = 1.0;
 
@@ -2502,78 +2496,34 @@ restart:
 	if (m > 1)
 		newQ(Slice(0, -2), Slice(0, -2)) = Q;
 
-	newQ(m - 1, _) = ms;
-	newQ(_, m - 1) = sm;
-	Q = newQ;
-	//if (world.rank() == 0) { print("kain Q"); print(Q); }
-	tensorT c;
-	//if (world.rank() == 0) {
-	double rcond = 1e-12;
-	while (1)
-	{
-		c = KAIN(Q, rcond);
-		if (world.rank() == 0 and (param.print_level() > 3))
-			print("kain c:", c);
-		//if (std::abs(c[m - 1]) < 5.0) { // was 3
-		if (c.absmax() < 3.0)
-		{ // was 3
-			break;
-		}
-		else if (rcond < 0.01)
-		{
-			if (world.rank() == 0 and (param.print_level() > 3))
-				print("Increasing subspace singular value threshold ", c[m - 1], rcond);
-			rcond *= 100;
-		}
-		else
-		{
-			//print("Forcing full step due to subspace malfunction");
-			// c = 0.0;
-			// c[m - 1] = 1.0;
-			// break;
-			if (world.rank() == 0 and (param.print_level() > 3))
-				print("Restarting KAIN due to subspace malfunction");
-			Q = tensorT();
-			subspace.clear();
-			goto restart; // fortran hat on ...
-		}
-	}
-	//}
-	END_TIMER(world, "Update subspace stuff");
-
-	world.gop.broadcast_serializable(c, 0); // make sure everyone has same data
-	if (world.rank() == 0 and (param.print_level() > 3))
-	{
-		print("Subspace solution", c);
-	}
-	START_TIMER(world);
-	vecfuncT amo_new = zero_functions_compressed<double, 3>(world, amo.size(), false);
-	vecfuncT bmo_new = zero_functions_compressed<double, 3>(world, bmo.size(), false);
-	world.gop.fence();
-	for (unsigned int m = 0; m < subspace.size(); ++m)
-	{
-		const vecfuncT &vm = subspace[m].first;
-		const vecfuncT &rm = subspace[m].second;
-		const vecfuncT vma(vm.begin(), vm.begin() + amo.size());
-		const vecfuncT rma(rm.begin(), rm.begin() + amo.size());
-		const vecfuncT vmb(vm.end() - bmo.size(), vm.end());
-		const vecfuncT rmb(rm.end() - bmo.size(), rm.end());
-		gaxpy(world, 1.0, amo_new, c(m), vma, false);
-		gaxpy(world, 1.0, amo_new, -c(m), rma, false);
-		gaxpy(world, 1.0, bmo_new, c(m), vmb, false);
-		gaxpy(world, 1.0, bmo_new, -c(m), rmb, false);
-	}
-	world.gop.fence();
-	END_TIMER(world, "Subspace transform");
-	if (param.maxsub() <= 1)
-	{
-		subspace.clear();
-	}
-	else if (subspace.size() == param.maxsub())
-	{
-		subspace.erase(subspace.begin());
-		Q = Q(Slice(1, -1), Slice(1, -1));
-	}
+				world.gop.broadcast_serializable(c, 0); // make sure everyone has same data
+				if (world.rank() == 0 and (param.print_level()>3)) {
+					print("Subspace solution", c);
+				}
+				START_TIMER(world);
+				vecfuncT amo_new = zero_functions_compressed<double, 3>(world, amo.size(), false);
+				vecfuncT bmo_new = zero_functions_compressed<double, 3>(world, bmo.size(), false);
+				world.gop.fence();
+				for (unsigned int m = 0; m < subspace.size(); ++m) {
+					const vecfuncT & vm = subspace[m].first;
+					const vecfuncT & rm = subspace[m].second;
+					const vecfuncT vma(vm.begin(), vm.begin() + amo.size());
+					const vecfuncT rma(rm.begin(), rm.begin() + amo.size());
+					const vecfuncT vmb(vm.end() - bmo.size(), vm.end());
+					const vecfuncT rmb(rm.end() - bmo.size(), rm.end());
+					gaxpy(world, 1.0, amo_new, c(m), vma, false);
+					gaxpy(world, 1.0, amo_new, -c(m), rma, false);
+					gaxpy(world, 1.0, bmo_new, c(m), vmb, false);
+					gaxpy(world, 1.0, bmo_new, -c(m), rmb, false);
+				}
+				world.gop.fence();
+				END_TIMER(world, "Subspace transform");
+				if (param.maxsub() <= 1) {
+					subspace.clear();
+				} else if (subspace.size() == size_t(param.maxsub())) {
+					subspace.erase(subspace.begin());
+					Q = Q(Slice(1, -1), Slice(1, -1));
+				}
 
 	do_step_restriction(world, amo, amo_new, "alpha");
 	orthonormalize(world, amo_new, param.nalpha());
@@ -2872,9 +2822,8 @@ void SCF::iterate_trotter(World &world, Convolution1D<double_complex> *G,
 		camo[iorb] = APPLY(G, camo3[iorb]);
 		camo[iorb].truncate();
 	}
-	if (!param.spin_restricted() && param.nbeta())
-	{
-		cvecfuncT cbmo3 = mul_sparse(world, expV, cbmo2, vtol, false);
+	if (!param.spin_restricted() && param.nbeta()) {
+     	        cvecfuncT cbmo3 = mul_sparse(world, expV, cbmo2, vtol); // Removed nofence --- must fence here
 
 		// second kinetic energy apply
 		for (int iorb = 0; iorb < param.nbeta(); iorb++)
@@ -3401,9 +3350,7 @@ void SCF::update_response_subspace(World &world,
 	if (param.maxsub() <= 1)
 	{
 		subspace.clear();
-	}
-	else if (subspace.size() == param.maxsub())
-	{
+	} else if(subspace.size() == size_t(param.maxsub())){
 		subspace.erase(subspace.begin());
 		Q = Q(Slice(1, -1), Slice(1, -1));
 	}
@@ -3641,8 +3588,9 @@ vecfuncT SCF::calc_dipole_mo(World &world, vecfuncT &mo, const int axis)
 	reconstruct(world, mo);
 
 	// dipolefunc * mo[iter]
-	for (size_t p = 0; p < mo.size(); ++p)
-		dipolemo[p] = mul_sparse(dipolefunc, mo[p], false);
+	for(size_t p=0; p<mo.size(); ++p)
+		dipolemo[p] =  mul_sparse(dipolefunc, mo[p],false);
+	world.gop.fence(); // Must fence here
 
 	//END_TIMER(world, "Make perturbation");
 	print_meminfo(world.rank(), "Make perturbation");

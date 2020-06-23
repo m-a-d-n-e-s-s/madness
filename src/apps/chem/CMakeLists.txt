@@ -31,11 +31,7 @@ endif()
 # Create the MADchem library
 add_mad_library(chem MADCHEM_SOURCES MADCHEM_HEADERS "mra" "chem/")
 
-foreach (suffix ${MADNESS_LIBRARY_TARGET_SUFFIXES})
-  if (suffix STREQUAL none)
-    set(suffix)
-  endif ()
-  set(targetname MADchem${suffix})
+  set(targetname MADchem)
 
   # Add dependencies for MADchem
   target_include_directories(${targetname} PUBLIC
@@ -54,7 +50,6 @@ foreach (suffix ${MADNESS_LIBRARY_TARGET_SUFFIXES})
     target_include_directories(${targetname} PUBLIC ${BOOST_INCLUDE_DIRS})
     target_link_libraries(${targetname} PUBLIC ${BOOST_LIBRARIES})
   endif ()
-endforeach (suffix ${MADNESS_LIBRARY_TARGET_SUFFIXES})
 
 # Add executables
 add_mad_executable(plotxc "plotxc.cc;xcfunctional.h" "MADchem")
@@ -72,12 +67,12 @@ if(ENABLE_UNITTESTS)
   set(CHEM_TEST_SOURCES test_SCFOperators.cc test_dft.cc test_pointgroupsymmetry.cc test_masks_and_boxes.cc
   test_QCCalculationParametersBase.cc test_qc.cc test_MolecularOrbitals.cc)
   
-  add_unittests(chem "${CHEM_TEST_SOURCES}" "MADchem;MADgtest")
+  add_unittests(chem "${CHEM_TEST_SOURCES}" "MADchem;MADgtest;MADgit")
   
   # Create other test executables not included in the unit tests
   set(CHEM_OTHER_TESTS testxc)
   foreach(_test ${CHEM_OTHER_TESTS})  
-    add_mad_executable(${_test} "${_test}.cc" "MADchem")
+    add_mad_executable(${_test} "${_test}.cc" "MADchem;MADgit")
   endforeach()
   
 endif()

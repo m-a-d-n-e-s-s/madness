@@ -86,8 +86,8 @@ int test_per(World& world) {
 
 
 int main(int argc, char**argv) {
-    initialize(argc, argv);
-    World world(SafeMPI::COMM_WORLD);
+
+    World& world=initialize(argc, argv);
 
     int success=0;
     try {

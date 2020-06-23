@@ -72,11 +72,11 @@ namespace madness {
 
         MutexWaiter waiter;
         while((narrived == 0) && (iterations < 1000)) {
-	  narrived = SafeMPI::Request::Testsome(maxq_, recv_req.get(), ind.get(), status.get());
+          narrived = SafeMPI::Request::Testsome(maxq_, recv_req.get(), ind.get(), status.get());
           if (narrived) break;
-	  ++iterations;
+          ++iterations;
           clear_send_req();
-	  myusleep(RMI::testsome_backoff_us);
+          myusleep(RMI::testsome_backoff_us);
         }
 
 #ifndef HAVE_CRAYXT
@@ -165,6 +165,12 @@ namespace madness {
 
             post_pending_huge_msg();
 
+#if !(defined(HAVE_INTEL_TBB) || defined(HAVE_PARSEC))
+            // Since this thread never waits or tries to run a task we
+            // must manually flush the thread-local prebuffer that
+            // aggregates task submission.
+            ThreadPool::instance()->flush_prebuf();
+#endif
             clear_send_req();
         }
     }
@@ -340,7 +346,7 @@ namespace madness {
         // the worst case is where only one node sends huge messages to every node in the communicator
         // AND it has enough threads to use up all tags
         // NB list::size() is O(1) in c++11, but O(N) in older libstdc++
-        bool OK = (ThreadPool::size() < RMI::RmiTask::unique_tag_period() ||
+        bool OK = (ThreadPool::size() < size_t(RMI::RmiTask::unique_tag_period()) ||
                    RMI::task_ptr->hugeq.size() <
                    std::size_t(RMI::RmiTask::unique_tag_period() / RMI::task_ptr->comm.Get_size()));
         if (!OK) MADNESS_EXCEPTION("huge_msg_handler paranoid test failing", RMI::RmiTask::unique_tag_period());
@@ -364,7 +370,7 @@ namespace madness {
 
     void RMI::assert_aslr_off(const SafeMPI::Intracomm& comm) {
       static_assert(sizeof(long) >= sizeof(std::ptrdiff_t), "std::ptrdiff_t must not exceed the width of long");
-      long my_address = archive::to_rel_fn_ptr(assert_aslr_off);
+      long my_address = reinterpret_cast<long>(&assert_aslr_off);
       MPI_Op compare_fn_addresses_op = SafeMPI::Op_create(&detail::compare_fn_addresses, 1);
       long zero_if_addresses_differ;
       comm.Reduce(&my_address, &zero_if_addresses_differ, 1, MPI_LONG, compare_fn_addresses_op, 0);
@@ -379,8 +385,11 @@ namespace madness {
 
     void RMI::begin(const SafeMPI::Intracomm& comm) {
 
+      // if MADNESS was told to assume ASLR is disabled check ... RMI can work with ALSR on, but that requires loading all RMI-using code as one giant shared library
+#ifdef MADNESS_ASSUMES_ASLR_DISABLED
             // complain loudly and throw if ASLR is on ... RMI requires ASLR to be off
             assert_aslr_off(comm);
+#endif
 
             testsome_backoff_us = 5;
             const char* buf = getenv("MAD_BACKOFF_US");
@@ -402,7 +411,11 @@ namespace madness {
                 new (tbb::task::allocate_root()) tbb::empty_task;
             tbb_rmi_parent_task->set_ref_count(2);
             task_ptr = new (tbb_rmi_parent_task->allocate_child()) RmiTask(comm);
+#ifdef MADNESS_CAN_USE_TBB_PRIORITY
             tbb::task::enqueue(*task_ptr, tbb::priority_high);
+#else
+            tbb::task::enqueue(*task_ptr);
+#endif  // MADNESS_CAN_USE_TBB_PRIORITY
 
             task_ptr->comm.Barrier();
 
@@ -424,7 +437,11 @@ namespace madness {
               for (int i = 0; i < NEMPTY; i++) {
                 tbb::task* empty =
                     new (empty_root->allocate_child()) tbb::empty_task;
+#ifdef MADNESS_CAN_USE_TBB_PRIORITY
                 tbb::task::enqueue(*empty, tbb::priority_high);
+#else
+                tbb::task::enqueue(*empty);
+#endif  // MADNESS_CAN_USE_TBB_PRIORITY
                 ++binge_counter;
               }
               myusleep(100000);
@@ -440,7 +457,7 @@ namespace madness {
 
 
   void RMI::RmiTask::set_rmi_task_is_running(bool flag) {
-	      rmi_task_is_running = flag; // Yipeeeeeeeeeeeeeeeeeeeeee ... fighting TBB laziness
+              rmi_task_is_running = flag; // Yipeeeeeeeeeeeeeeeeeeeeee ... fighting TBB laziness
   }
 
     RMI::Request

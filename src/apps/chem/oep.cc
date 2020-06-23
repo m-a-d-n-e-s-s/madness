@@ -46,7 +46,7 @@ void OEP::solve_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
 	// if desired: save HF orbitals and orbital contributions to total density (orbital squares)
 	if (oep_param.saving_amount() >= 3) {
 		vecfuncT HF_nemo_square = square(world, HF_nemo);
-    	for (long i = 0; i < HF_nemo.size(); i++) {
+    	for (size_t i = 0; i < HF_nemo.size(); i++) {
     		save(R*HF_nemo[i], "HF_orb_" + stringify(i));
     		save(2.0*R_square*HF_nemo_square[i], "HF_orb_square_" + stringify(i)); // 2 because closed shell
     	}
@@ -73,7 +73,7 @@ void OEP::solve_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
 	solverT solver(allocT(world, KS_nemo.size()));
 
 	// iterate until self-consistency
-	for (int iter = 0; iter < oep_param.maxiter(); ++iter) {
+	for (size_t iter = 0; iter < oep_param.maxiter(); ++iter) {
 		iter_counter++;
 		print("\n     ***", oep_param.model(), "iteration", iter_counter, "***\n");
 
@@ -110,7 +110,7 @@ void OEP::solve_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
 			// save certain functions if desired
 			if (oep_param.save_iter_orbs() > 0) {
 				if (iter_counter == 2 or iter_counter % oep_param.save_iter_orbs() == 0) {
-			    	for (long i = 0; i < KS_nemo.size(); i++) {
+			    	for (size_t i = 0; i < KS_nemo.size(); i++) {
 			    		save(R*KS_nemo[i], "KS_orb_" + stringify(i) + "_iter_" + stringify(iter_counter));
 			    	}
 				}
@@ -206,7 +206,7 @@ void OEP::solve_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
         normalize(KS_nemo,R);
 
 		// calculate new orbital energies (current eigenvalues from Fock-matrix)
-		for (int i = 0; i < KS_nemo.size(); ++i) {
+		for (size_t i = 0; i < KS_nemo.size(); ++i) {
 			KS_eigvals(i) = std::min(-0.05, F(i, i)); // orbital energy is set to -0.05 if it was above
 		}
 
@@ -309,7 +309,7 @@ void OEP::solve_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
 	if (oep_param.saving_amount() >= 2) {
         if (oep_param.is_dcep()) save(kin_tot_KS, "kin_tot_KS_final");
         if (oep_param.is_mrks()) save(kin_P_KS, "kin_P_KS_final");
-    	for (long i = 0; i < KS_nemo.size(); i++) {
+    	for (size_t i = 0; i < KS_nemo.size(); i++) {
     		save(R*KS_nemo[i], "KS_orb_" + stringify(i) + "_final");
     	}
 	}
@@ -317,7 +317,7 @@ void OEP::solve_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
 	// if desired: print final KS orbital contributions to total density (nemo squares)
 	if (oep_param.saving_amount() >= 3) {
     	vecfuncT KS_nemo_square = square(world, KS_nemo);
-    	for (long i = 0; i < KS_nemo_square.size(); i++) {
+    	for (size_t i = 0; i < KS_nemo_square.size(); i++) {
     		save(2.0*R_square*KS_nemo_square[i], "KS_orb_square_" + stringify(i)); // 2 because closed shell
     	}
 	}
@@ -384,7 +384,7 @@ void OEP::solve_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
 	double Tc = Ekin_HF - Ekin_KS; // like Tc = T - Ts in Ospadov_2017, equation (24)
 
 	print("FINAL", oep_param.model(), "ENERGY Evir:");
-	double Evir = compute_energy(R*KS_nemo, R*Jnemo, Ex_vir);
+	//double Evir = compute_energy(R*KS_nemo, R*Jnemo, Ex_vir);
 
 	print("FINAL", oep_param.model(), "ENERGY Econv:");
 	double Econv = compute_energy(R*KS_nemo, R*Jnemo, Ex_conv);
@@ -559,7 +559,7 @@ void OEP::test_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
     print("\n   >> solve_oep test finished, calculating test quantities based on the new KS orbitals and eigenvalues\n");
 
     vecfuncT& KS_nemo = calc->amo;
-    tensorT& KS_eigvals = calc->aeps;
+    //tensorT& KS_eigvals = calc->aeps;
 
     const real_function_3d rho_KS = compute_density(KS_nemo);
 

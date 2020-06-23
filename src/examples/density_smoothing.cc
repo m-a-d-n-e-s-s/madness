@@ -103,6 +103,7 @@ int main(int argc, char** argv) {
 		for(size_t i=0;i<norb;i++){
 			eps.push_back(nemo.get_calc()->aeps(i));
 		}
+		using madness::operators::operator<<;
 		std::cout << "Orbital energies\n " << eps << std::endl;
 
 		real_function_3d density = real_factory_3d(world);

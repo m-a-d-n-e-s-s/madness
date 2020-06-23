@@ -653,6 +653,10 @@ inline double conj(float x) { return x; }
 //        }
 //    }; // struct MatrixInnerTask
 
+
+/// Computes the matrix inner product of two function vectors - q(i,j) =
+/// inner(f[i],g[j])
+
 template <typename T, std::size_t NDIM>
 DistributedMatrix<T> matrix_inner(const DistributedMatrixDistribution& d,
                                   const std::vector<Function<T, NDIM>>& f,
@@ -694,6 +698,457 @@ Tensor<TENSOR_RESULT_TYPE(T, R)> matrix_inner(
   world.gop.fence();
   compress(world, f);
   if ((void*)(&f) != (void*)(&g)) compress(world, g);
+
+  std::vector<const FunctionImpl<T, NDIM>*> left(f.size());
+  std::vector<const FunctionImpl<R, NDIM>*> right(g.size());
+  for (unsigned int i = 0; i < f.size(); i++) left[i] = f[i].get_impl().get();
+  for (unsigned int i = 0; i < g.size(); i++) right[i] = g[i].get_impl().get();
+
+  Tensor<TENSOR_RESULT_TYPE(T, R)> r =
+      FunctionImpl<T, NDIM>::inner_local(left, right, sym);
+
+  world.gop.fence();
+  world.gop.sum(r.ptr(), f.size() * g.size());
+
+  return r;
+}
+
+/// Computes the matrix inner product of two function vectors - q(i,j) =
+/// inner(f[i],g[j])
+
+/// For complex types symmetric is interpreted as Hermitian.
+///
+/// The current parallel loop is non-optimal but functional.
+template <typename T, typename R, std::size_t NDIM>
+Tensor<TENSOR_RESULT_TYPE(T, R)> matrix_inner_old(
+    World& world, const std::vector<Function<T, NDIM>>& f,
+    const std::vector<Function<R, NDIM>>& g, bool sym = false) {
+  PROFILE_BLOCK(Vmatrix_inner);
+  long n = f.size(), m = g.size();
+  Tensor<TENSOR_RESULT_TYPE(T, R)> r(n, m);
+  if (sym) MADNESS_ASSERT(n == m);
+
+  world.gop.fence();
+  compress(world, f);
+  if ((void*)(&f) != (void*)(&g)) compress(world, g);
+
+  for (long i = 0; i < n; ++i) {
+    long jtop = m;
+    if (sym) jtop = i + 1;
+    for (long j = 0; j < jtop; ++j) {
+      r(i, j) = f[i].inner_local(g[j]);
+      if (sym) r(j, i) = conj(r(i, j));
+    }
+  }
+
+  //        for (long i=n-1; i>=0; --i) {
+  //            long jtop = m;
+  //            if (sym) jtop = i+1;
+  //            world.taskq.add(new MatrixInnerTask<T,R,NDIM>(r(i,_), f[i], g,
+  //            jtop));
+  //        }
+  world.gop.fence();
+  world.gop.sum(r.ptr(), n * m);
+
+  //        if (sym) {
+  //            for (int i=0; i<n; ++i) {
+  //                for (int j=0; j<i; ++j) {
+  //                    r(j,i) = conj(r(i,j));
+  //                }
+  //            }
+  //        }
+  return r;
+}
+
+/// Computes the element-wise inner product of two function vectors - q(i) =
+/// inner(f[i],g[i])
+template <typename T, typename R, std::size_t NDIM>
+Tensor<TENSOR_RESULT_TYPE(T, R)> inner(
+    World& world, const std::vector<Function<T, NDIM>>& f,
+    const std::vector<Function<R, NDIM>>& g) {
+  PROFILE_BLOCK(Vinnervv);
+  long n = f.size(), m = g.size();
+  MADNESS_CHECK(n == m);
+  Tensor<TENSOR_RESULT_TYPE(T, R)> r(n);
+
+  compress(world, f);
+  compress(world, g);
+
+  for (long i = 0; i < n; ++i) {
+    r(i) = f[i].inner_local(g[i]);
+  }
+
+  world.taskq.fence();
+  world.gop.sum(r.ptr(), n);
+  world.gop.fence();
+  return r;
+}
+
+/// Computes the inner product of a function with a function vector - q(i) =
+/// inner(f,g[i])
+template <typename T, typename R, std::size_t NDIM>
+Tensor<TENSOR_RESULT_TYPE(T, R)> inner(
+    World& world, const Function<T, NDIM>& f,
+    const std::vector<Function<R, NDIM>>& g) {
+  PROFILE_BLOCK(Vinner);
+  long n = g.size();
+  Tensor<TENSOR_RESULT_TYPE(T, R)> r(n);
+
+  f.compress();
+  compress(world, g);
+
+  for (long i = 0; i < n; ++i) {
+    r(i) = f.inner_local(g[i]);
+  }
+
+  world.taskq.fence();
+  world.gop.sum(r.ptr(), n);
+  world.gop.fence();
+  return r;
+}
+
+/// inner function with right signature for the nonlinear sovler
+/// this is needed for the KAIN solvers and other functions
+template <typename T, typename R, std::size_t NDIM>
+TENSOR_RESULT_TYPE(T, R)
+inner(const std::vector<Function<T, NDIM>>& f,
+      const std::vector<Function<R, NDIM>>& g) {
+  MADNESS_ASSERT(f.size() == g.size());
+  if (f.empty())
+    return 0.0;
+  else
+    return inner(f[0].world(), f, g).sum();
+}
+
+/// Multiplies a function against a vector of functions --- q[i] = a * v[i]
+template <typename T, typename R, std::size_t NDIM>
+std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> mul(
+    World& world, const Function<T, NDIM>& a,
+    const std::vector<Function<R, NDIM>>& v, bool fence = true) {
+  PROFILE_BLOCK(Vmul);
+  a.reconstruct(false);
+  reconstruct(world, v, false);
+  world.gop.fence();
+  return vmulXX(a, v, 0.0, fence);
+}
+
+/// Multiplies a function against a vector of functions using sparsity of a and
+/// v[i] --- q[i] = a * v[i]
+template <typename T, typename R, std::size_t NDIM>
+std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> mul_sparse(
+    World& world, const Function<T, NDIM>& a,
+    const std::vector<Function<R, NDIM>>& v, double tol, bool fence = true) {
+  PROFILE_BLOCK(Vmulsp);
+  a.reconstruct(false);
+  reconstruct(world, v, false);
+  world.gop.fence();
+  for (unsigned int i = 0; i < v.size(); ++i) {
+    v[i].norm_tree(false);
+  }
+  a.norm_tree();
+  return vmulXX(a, v, tol, fence);
+}
+
+/// Makes the norm tree for all functions in a vector
+template <typename T, std::size_t NDIM>
+void norm_tree(World& world, const std::vector<Function<T, NDIM>>& v,
+               bool fence = true) {
+  PROFILE_BLOCK(Vnorm_tree);
+  for (unsigned int i = 0; i < v.size(); ++i) {
+    v[i].norm_tree(false);
+  }
+  if (fence) world.gop.fence();
+}
+
+/// Multiplies two vectors of functions q[i] = a[i] * b[i]
+template <typename T, typename R, std::size_t NDIM>
+std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> mul(
+    World& world, const std::vector<Function<T, NDIM>>& a,
+    const std::vector<Function<R, NDIM>>& b, bool fence = true) {
+  PROFILE_BLOCK(Vmulvv);
+  reconstruct(world, a, true);
+  reconstruct(world, b, true);
+  //        if (&a != &b) reconstruct(world, b, true); // fails if type(a) !=
+  //        type(b)
+
+  std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> q(a.size());
+  for (unsigned int i = 0; i < a.size(); ++i) {
+    q[i] = mul(a[i], b[i], false);
+  }
+  if (fence) world.gop.fence();
+  return q;
+}
+
+/// Computes the square of a vector of functions --- q[i] = v[i]**2
+template <typename T, std::size_t NDIM>
+std::vector<Function<T, NDIM>> square(World& world,
+                                      const std::vector<Function<T, NDIM>>& v,
+                                      bool fence = true) {
+  return mul<T, T, NDIM>(world, v, v, fence);
+  //         std::vector< Function<T,NDIM> > vsq(v.size());
+  //         for (unsigned int i=0; i<v.size(); ++i) {
+  //             vsq[i] = square(v[i], false);
+  //         }
+  //         if (fence) world.gop.fence();
+  //         return vsq;
+}
+
+/// Computes the square of a vector of functions --- q[i] = abs(v[i])**2
+template <typename T, std::size_t NDIM>
+std::vector<Function<typename Tensor<T>::scalar_type, NDIM>> abssq(
+    World& world, const std::vector<Function<T, NDIM>>& v, bool fence = true) {
+  typedef typename Tensor<T>::scalar_type scalartype;
+  reconstruct(world, v);
+  std::vector<Function<scalartype, NDIM>> result(v.size());
+  for (size_t i = 0; i < v.size(); ++i) result[i] = abssq(v[i], false);
+  if (fence) world.gop.fence();
+  return result;
+}
+
+/// Sets the threshold in a vector of functions
+template <typename T, std::size_t NDIM>
+void set_thresh(World& world, std::vector<Function<T, NDIM>>& v, double thresh,
+                bool fence = true) {
+  for (unsigned int j = 0; j < v.size(); ++j) {
+    v[j].set_thresh(thresh, false);
+  }
+  if (fence) world.gop.fence();
+}
+
+/// Returns the complex conjugate of the vector of functions
+template <typename T, std::size_t NDIM>
+std::vector<Function<T, NDIM>> conj(World& world,
+                                    const std::vector<Function<T, NDIM>>& v,
+                                    bool fence = true) {
+  PROFILE_BLOCK(Vconj);
+  std::vector<Function<T, NDIM>> r =
+      copy(world, v);  // Currently don't have oop conj
+  for (unsigned int i = 0; i < v.size(); ++i) {
+    r[i].conj(false);
+  }
+  if (fence) world.gop.fence();
+  return r;
+}
+
+/// Returns a deep copy of a vector of functions
+template <typename T, typename R, std::size_t NDIM>
+std::vector<Function<R, NDIM>> convert(World& world,
+                                       const std::vector<Function<T, NDIM>>& v,
+                                       bool fence = true) {
+  PROFILE_BLOCK(Vcopy);
+  std::vector<Function<R, NDIM>> r(v.size());
+  for (unsigned int i = 0; i < v.size(); ++i) {
+    r[i] = convert<T, R, NDIM>(v[i], false);
+  }
+  if (fence) world.gop.fence();
+  return r;
+}
+
+/// Returns a deep copy of a vector of functions
+template <typename T, std::size_t NDIM>
+std::vector<Function<T, NDIM>> copy(World& world,
+                                    const std::vector<Function<T, NDIM>>& v,
+                                    bool fence = true) {
+  PROFILE_BLOCK(Vcopy);
+  std::vector<Function<T, NDIM>> r(v.size());
+  for (unsigned int i = 0; i < v.size(); ++i) {
+    r[i] = copy(v[i], false);
+  }
+  if (fence) world.gop.fence();
+  return r;
+}
+
+/// Returns a vector of deep copies of of a function
+template <typename T, std::size_t NDIM>
+std::vector<Function<T, NDIM>> copy(World& world, const Function<T, NDIM>& v,
+                                    const unsigned int n, bool fence = true) {
+  PROFILE_BLOCK(Vcopy1);
+  std::vector<Function<T, NDIM>> r(n);
+  for (unsigned int i = 0; i < n; ++i) {
+    r[i] = copy(v, false);
+  }
+  if (fence) world.gop.fence();
+  return r;
+}
+
+/// Returns new vector of functions --- q[i] = a[i] + b[i]
+template <typename T, typename R, std::size_t NDIM>
+std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> add(
+    World& world, const std::vector<Function<T, NDIM>>& a,
+    const std::vector<Function<R, NDIM>>& b, bool fence = true) {
+  PROFILE_BLOCK(Vadd);
+  MADNESS_ASSERT(a.size() == b.size());
+  compress(world, a);
+  compress(world, b);
+
+  std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> r(a.size());
+  for (unsigned int i = 0; i < a.size(); ++i) {
+    r[i] = add(a[i], b[i], false);
+  }
+  if (fence) world.gop.fence();
+  return r;
+}
+
+/// Returns new vector of functions --- q[i] = a + b[i]
+template <typename T, typename R, std::size_t NDIM>
+std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> add(
+    World& world, const Function<T, NDIM>& a,
+    const std::vector<Function<R, NDIM>>& b, bool fence = true) {
+  PROFILE_BLOCK(Vadd1);
+  a.compress();
+  compress(world, b);
+
+  std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> r(b.size());
+  for (unsigned int i = 0; i < b.size(); ++i) {
+    r[i] = add(a, b[i], false);
+  }
+  if (fence) world.gop.fence();
+  return r;
+}
+template <typename T, typename R, std::size_t NDIM>
+inline std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> add(
+    World& world, const std::vector<Function<R, NDIM>>& b,
+    const Function<T, NDIM>& a, bool fence = true) {
+  return add(world, a, b, fence);
+}
+
+/// Returns new vector of functions --- q[i] = a[i] - b[i]
+template <typename T, typename R, std::size_t NDIM>
+std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> sub(
+    World& world, const std::vector<Function<T, NDIM>>& a,
+    const std::vector<Function<R, NDIM>>& b, bool fence = true) {
+  PROFILE_BLOCK(Vsub);
+  MADNESS_ASSERT(a.size() == b.size());
+  compress(world, a);
+  compress(world, b);
+
+  std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> r(a.size());
+  for (unsigned int i = 0; i < a.size(); ++i) {
+    r[i] = sub(a[i], b[i], false);
+  }
+  if (fence) world.gop.fence();
+  return r;
+}
+
+/// Returns new function --- q = sum_i f[i]
+template <typename T, std::size_t NDIM>
+Function<T, NDIM> sum(World& world, const std::vector<Function<T, NDIM>>& f,
+                      bool fence = true) {
+  compress(world, f);
+  Function<T, NDIM> r = FunctionFactory<T, NDIM>(world).compressed();
+
+  for (unsigned int i = 0; i < f.size(); ++i) r.gaxpy(1.0, f[i], 1.0, false);
+  if (fence) world.gop.fence();
+  return r;
+}
+
+/// Multiplies and sums two vectors of functions r = \sum_i a[i] * b[i]
+template <typename T, typename R, std::size_t NDIM>
+Function<TENSOR_RESULT_TYPE(T, R), NDIM> dot(
+    World& world, const std::vector<Function<T, NDIM>>& a,
+    const std::vector<Function<R, NDIM>>& b, bool fence = true) {
+  return sum(world, mul(world, a, b, true), fence);
+}
+
+/// out-of-place gaxpy for two vectors: result[i] = alpha * a[i] + beta * b[i]
+template <typename T, typename Q, typename R, std::size_t NDIM>
+std::vector<Function<TENSOR_RESULT_TYPE(Q, TENSOR_RESULT_TYPE(T, R)), NDIM>>
+gaxpy_oop(Q alpha, const std::vector<Function<T, NDIM>>& a, Q beta,
+          const std::vector<Function<R, NDIM>>& b, bool fence = true) {
+  MADNESS_ASSERT(a.size() == b.size());
+  typedef TENSOR_RESULT_TYPE(Q, TENSOR_RESULT_TYPE(T, R)) resultT;
+  if (a.size() == 0) return std::vector<Function<resultT, NDIM>>();
+
+  World& world = a[0].world();
+  compress(world, a);
+  compress(world, b);
+  std::vector<Function<resultT, NDIM>> result(a.size());
+  for (unsigned int i = 0; i < a.size(); ++i) {
+    result[i] = gaxpy_oop(alpha, a[i], beta, b[i], false);
+  }
+  if (fence) world.gop.fence();
+  return result;
+}
+
+/// out-of-place gaxpy for a vectors and a function: result[i] = alpha * a[i] +
+/// beta * b
+template <typename T, typename Q, typename R, std::size_t NDIM>
+std::vector<Function<TENSOR_RESULT_TYPE(Q, TENSOR_RESULT_TYPE(T, R)), NDIM>>
+gaxpy_oop(Q alpha, const std::vector<Function<T, NDIM>>& a, Q beta,
+          const Function<R, NDIM>& b, bool fence = true) {
+  typedef TENSOR_RESULT_TYPE(Q, TENSOR_RESULT_TYPE(T, R)) resultT;
+  if (a.size() == 0) return std::vector<Function<resultT, NDIM>>();
+
+  World& world = a[0].world();
+  compress(world, a);
+  b.compress();
+  std::vector<Function<resultT, NDIM>> result(a.size());
+  for (unsigned int i = 0; i < a.size(); ++i) {
+    result[i] = gaxpy_oop(alpha, a[i], beta, b, false);
+  }
+  if (fence) world.gop.fence();
+  return result;
+}
+
+/// Generalized A*X+Y for vectors of functions ---- a[i] = alpha*a[i] +
+/// beta*b[i]
+template <typename T, typename Q, typename R, std::size_t NDIM>
+void gaxpy(World& world, Q alpha, std::vector<Function<T, NDIM>>& a, Q beta,
+           const std::vector<Function<R, NDIM>>& b, bool fence = true) {
+  PROFILE_BLOCK(Vgaxpy);
+  MADNESS_ASSERT(a.size() == b.size());
+  compress(world, a);
+  compress(world, b);
+
+  for (unsigned int i = 0; i < a.size(); ++i) {
+    a[i].gaxpy(alpha, b[i], beta, false);
+  }
+  if (fence) world.gop.fence();
+}
+
+/// Applies a vector of operators to a vector of functions --- q[i] =
+/// apply(op[i],f[i])
+template <typename opT, typename R, std::size_t NDIM>
+std::vector<Function<TENSOR_RESULT_TYPE(typename opT::opT, R), NDIM>> apply(
+    World& world, const std::vector<std::shared_ptr<opT>>& op,
+    const std::vector<Function<R, NDIM>> f) {
+  PROFILE_BLOCK(Vapplyv);
+  MADNESS_ASSERT(f.size() == op.size());
+
+  std::vector<Function<R, NDIM>>& ncf =
+      *const_cast<std::vector<Function<R, NDIM>>*>(&f);
+
+  reconstruct(world, f);
+  nonstandard(world, ncf);
+
+  std::vector<Function<TENSOR_RESULT_TYPE(typename opT::opT, R), NDIM>> result(
+      f.size());
+  for (unsigned int i = 0; i < f.size(); ++i) {
+    MADNESS_ASSERT(not op[i]->is_slaterf12);
+    result[i] = apply_only(*op[i], f[i], false);
+  }
+
+  world.gop.fence();
+
+  standard(world, ncf, false);  // restores promise of logical constness
+  world.gop.fence();
+  reconstruct(world, result);
+
+  return result;
+}
+
+/// Applies an operator to a vector of functions --- q[i] = apply(op,f[i])
+template <typename T, typename R, std::size_t NDIM>
+std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> apply(
+    World& world, const SeparatedConvolution<T, NDIM>& op,
+    const std::vector<Function<R, NDIM>> f) {
+  PROFILE_BLOCK(Vapply);
+
+  std::vector<Function<R, NDIM>>& ncf =
+      *const_cast<std::vector<Function<R, NDIM>>*>(&f);
+
+  reconstruct(world, f);
+  nonstandard(world, ncf);
 
   std::vector<const FunctionImpl<T, NDIM>*> left(f.size());
   std::vector<const FunctionImpl<R, NDIM>*> right(g.size());

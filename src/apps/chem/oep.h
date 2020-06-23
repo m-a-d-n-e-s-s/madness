@@ -212,7 +212,7 @@ class OEP : public Nemo {
 private:
 	/// returns true if all members of a vector of booleans are true, otherwise false
 	bool IsAlltrue(std::vector<bool> vec) {
-		for (int i = 0; i < vec.size(); i++) {
+		for (size_t i = 0; i < vec.size(); i++) {
 			if (!vec[i]) return false;
 		}
 		return true;
@@ -248,7 +248,7 @@ public:
     /// get index of HOMO from a given set of orbital energies
     long homo_ind(const tensorT orbens) const {
     	long index;
-    	double en_homo = orbens.max(&index);
+    	orbens.max(&index); // return value discarded
     	return index;
     }
 
@@ -357,7 +357,7 @@ public:
 
 	    // get \nabla nemo
 	    std::vector<vecfuncT> grad_nemo(nemo.size());
-	    for (long i = 0; i < nemo.size(); i++) {
+	    for (size_t i = 0; i < nemo.size(); i++) {
 	    	if(calc->param.dft_deriv() == "bspline") grad_nemo[i] = grad_bspline_one(nemo[i]);  // gradient using b-spline
 	    	else grad_nemo[i] = grad(nemo[i]);  // default gradient using abgv
 	    }
@@ -366,7 +366,7 @@ public:
 	    // = 1/2 * sum {(\nabla R)^2 * nemo_i^2 + 2 * R * nemo_i * (\nabla R) * (\nabla nemo_i)) + R^2 * (\nabla nemo_i)^2}
 	    // = 1/2 * R^2 * sum {U1dot * nemo_i^2 + 2 * nemo_i * U1 * (\nabla nemo_i)) + (\nabla nemo_i)^2}
 	    vecfuncT grad_nemo_squared(nemo.size());
-		for (long i = 0; i < nemo.size(); i++) {
+		for (size_t i = 0; i < nemo.size(); i++) {
 			grad_nemo_squared[i] = U1dot*square(nemo[i])
 								   - 2.0*nemo[i]*dot(world, U1, grad_nemo[i])
 								   + dot(world, grad_nemo[i], grad_nemo[i]);
@@ -384,14 +384,14 @@ public:
 
 	    // get \nabla nemo
 	    std::vector<vecfuncT> grad_nemo(nemo.size());
-	    for (long i = 0; i < nemo.size(); i++) {
+	    for (size_t i = 0; i < nemo.size(); i++) {
 	    	if(calc->param.dft_deriv() == "bspline") grad_nemo[i] = grad_bspline_one(nemo[i]);  // gradient using b-spline
 	    	else grad_nemo[i] = grad(nemo[i]);  // default gradient using abgv
 	    }
 
 	    vecfuncT grad_nemo_term;
-		for (long i = 0; i < nemo.size(); i++) {
-			for (long j = i + 1; j < nemo.size(); j++) {
+		for (size_t i = 0; i < nemo.size(); i++) {
+			for (size_t j = i + 1; j < nemo.size(); j++) {
 				vecfuncT tmp = nemo[i]*grad_nemo[j] - nemo[j]*grad_nemo[i];
 				grad_nemo_term.push_back(dot(world, tmp, tmp));
 			}

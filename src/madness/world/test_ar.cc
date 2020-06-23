@@ -35,6 +35,10 @@ using std::endl;
 
 #include <cmath>
 
+// make more fundamental types ostreammable
+#include <madness/world/array_addons.h>
+#include <madness/world/print.h>
+
 /// \file test.cc
 /// \brief Tests serialization by some of the archives
 
@@ -79,8 +83,6 @@ using CerealXMLOutputArchive = madness::archive::CerealOutputArchive<cereal::XML
 static_assert(madness::is_text_archive_v<CerealXMLInputArchive>, "ouch");
 static_assert(madness::is_text_archive_v<CerealXMLOutputArchive>, "ouch");
 #endif
-
-#include <madness/world/array_addons.h>
 
 #include <madness/world/world.h>
 #include <madness/world/worldgop.h>
@@ -161,14 +163,29 @@ std::istream& operator>>(std::istream& os, F& data) {
   return os;
 }
 
-static_assert(!madness::is_ostreammable<A>::value, "A is not ostreammable");
-static_assert(madness::is_ostreammable<F>::value, "F is ostreammable");
-static_assert(madness::is_ostreammable<bool>::value, "bool is ostreammable");
-static_assert(madness::is_ostreammable<int>::value, "int is ostreammable");
-static_assert(!madness::is_istreammable<A>::value, "A is not istreammable");
-static_assert(madness::is_istreammable<F>::value, "F is istreammable");
-static_assert(madness::is_istreammable<bool>::value, "bool is istreammable");
-static_assert(madness::is_istreammable<int>::value, "int is istreammable");
+// make sure streaming ops have correct return types
+struct NotStreammable {
+};
+int operator<<(std::ostream& os, const NotStreammable& data) {
+  return 0;
+}
+void operator>>(std::istream& os, NotStreammable& data) {
+}
+
+static_assert(!madness::is_ostreammable_v<A>, "A is not ostreammable");
+static_assert(madness::is_ostreammable_v<F>, "F is ostreammable");
+static_assert(madness::is_ostreammable_v<bool>, "bool is ostreammable");
+static_assert(madness::is_ostreammable_v<int>, "int is ostreammable");
+static_assert(madness::is_ostreammable_v<std::array<int,3>>, "std::array<int,3> is ostreammable");
+static_assert(madness::is_ostreammable_v<std::vector<int>>, "std::vector<int> is ostreammable");
+static_assert(!madness::is_ostreammable_v<NotStreammable>, "NotStreammable is ostreammable");
+static_assert(!madness::is_istreammable_v<A>, "A is not istreammable");
+static_assert(madness::is_istreammable_v<F>, "F is istreammable");
+static_assert(madness::is_istreammable_v<bool>, "bool is istreammable");
+static_assert(madness::is_istreammable_v<int>, "int is istreammable");
+static_assert(!madness::is_istreammable_v<std::array<int,3>>, "std::array<int,3> is not istreammable");
+static_assert(!madness::is_istreammable_v<std::vector<int>>, "std::vector<int> is not istreammable");
+static_assert(!madness::is_istreammable_v<NotStreammable>, "NotStreammable is not istreammable");
 
 // A better example of a class with asym load/store
 class linked_list {
@@ -318,7 +335,7 @@ void test_out(const OutputArchive& oar) {
     tuple_int_double_complexfloat t = std::make_tuple(1,2.0,std::complex<float>(3.0f,4.0f));
 
     // Initialize data
-    a.a = b.b = c.c = i = 1;
+    a.a = 1; b.b = 1; c.c = 1; i = 1;
     d.i = 1;  d.l = 2;
     f.i = 1;  f.l = 2;
     for (int k=0; k<n; ++k) {
@@ -480,7 +497,7 @@ void test_in(const InputArchive& iar) {
     decltype(&Member::fn) member_fn_ptr=nullptr, virtual_member_fn_ptr=nullptr;
 
     // Destroy in-core data
-    a.a = b.b = c.c = i = 0;
+    a.a = 0; b.b = 0; c.c = 0; i = 0;
     d.i = -1;  d.l = -1;
     f.i = -1;  f.l = -1;
     for (int k=0; k<n; ++k) {

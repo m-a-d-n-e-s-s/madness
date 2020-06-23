@@ -23,9 +23,9 @@ struct R_times_arg_div_R {
 
 	const coord_3d& B;
 	const std::vector<coord_3d>& vv;
+	std::function<double(const coord_3d& r, const coord_3d& B, const coord_3d& vv)>& arg;
 	const double radius;
 	double tightness;
-	std::function<double(const coord_3d& r, const coord_3d& B, const coord_3d& vv)>& arg;
 
 	R_times_arg_div_R(std::function<double(const coord_3d& r, const coord_3d& B, const coord_3d& v)>& arg,
 			const coord_3d& B, const std::vector<coord_3d>& vv, const double radius) : B(B), vv(vv), arg(arg),
@@ -38,10 +38,10 @@ struct R_times_arg_div_R {
 		r_boxed*=max_of_x_1_smooth::compute_factor(r.normf(),tightness,radius);
 		int imax=0;
 		double Riuimax=-1.0;
-		double Rmax=0.0;
+		//double Rmax=0.0;
 		double umax=0.0;
 		double Amv_square_max=0.0;
-		for (int i=0; i<vv.size(); ++i) {
+		for (size_t i=0; i<vv.size(); ++i) {
 			const coord_3d& v = vv[i];
 			coord_3d Amv=0.5*cross(B,r_boxed)-v;
 			double Amv_square=inner(Amv,Amv);
@@ -49,7 +49,7 @@ struct R_times_arg_div_R {
 			double ui=arg(r_boxed,B,v);
 
 			if (Ri*ui>Riuimax) {
-				Rmax=Ri;
+			        //Rmax=Ri;
 				umax=ui;
 				Amv_square_max=Amv_square;
 				Riuimax=Ri*ui;
@@ -58,8 +58,8 @@ struct R_times_arg_div_R {
 		}
 		double numerator=umax;
 		double denominator=1.0;
-		for (int i=0; i<vv.size(); ++i) {
-			if (i==imax) continue;
+		for (size_t i=0; i<vv.size(); ++i) {
+		        if (i==size_t(imax)) continue;
 			const coord_3d& v = vv[i];
 			coord_3d Amv=0.5*cross(B,r_boxed)-v;
 			double Amv_square=inner(Amv,Amv);
