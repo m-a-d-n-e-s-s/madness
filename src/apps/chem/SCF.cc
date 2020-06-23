@@ -185,6 +185,38 @@ SCF::SCF(World& world, const std::string& inputfile) : param(CalculationParamete
 }
 
 
+void SCF::save_mos(World &world)
+{
+	PROFILE_MEMBER_FUNC(SCF);
+	archive::ParallelOutputArchive ar(world, "restartdata", param.get<int>("nio"));
+
+	//IF YOU CHANGE ANYTHING HERE MAKE SURE TO UPDATE THIS VERSION NUMBER
+	unsigned int version = 1;
+
+	ar &version;
+	ar &current_energy &param.spin_restricted();
+	ar &(unsigned int)(amo.size());
+	ar &aeps &aocc &aset &param.L() & FunctionDefaults<3>::get_k() & molecule &param.xc();
+	for (unsigned int i = 0; i < amo.size(); ++i)
+		ar &amo[i];
+	if (!param.spin_restricted())
+	{
+		ar &(unsigned int)(bmo.size());
+		ar &beps &bocc &bset;
+		for (unsigned int i = 0; i < bmo.size(); ++i)
+			ar &bmo[i];
+	}
+
+	tensorT Saoamo = matrix_inner(world, ao, amo);
+	tensorT Saobmo = (!param.spin_restricted()) ? matrix_inner(world, ao, bmo) : tensorT();
+	if (world.rank() == 0)
+	{
+		archive::BinaryFstreamOutputArchive arao("restartaodata");
+		arao << Saoamo << aeps << aocc << aset;
+		if (!param.spin_restricted())
+			arao << Saobmo << beps << bocc << bset;
+	}
+}
 
 void SCF::load_mos(World &world)
 {
@@ -330,7 +362,9 @@ void SCF::load_mos(World &world)
 			//                normalize(world, bmo);
 		}
 	}
-}void SCF::do_plots(World& world) {
+}
+
+void SCF::do_plots(World& world) {
 	PROFILE_MEMBER_FUNC(SCF);
 	START_TIMER(world);
 
