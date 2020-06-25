@@ -283,13 +283,13 @@ public:
                                std::vector<real_function_3d> &phi, double small,
                                double thresh, int print_level, std::string xy);
 
-  ResponseFunction CreateHfRF(World &world, ResponseFunction &f,
-                              std::vector<real_function_3d> &phi, double small,
-                              double thresh, int print_level, std::string xy);
+  ResponseFunction CreateHf(World &world, ResponseFunction &f,
+                            std::vector<real_function_3d> &phi, double small,
+                            double thresh, int print_level, std::string xy);
 
-  ResponseFunction CreateGfRF(World &world, ResponseFunction &f,
-                              std::vector<real_function_3d> &orbitals,
-                              double small, double thresh, int print_level);
+  ResponseFunction CreateGf(World &world, ResponseFunction &f,
+                            std::vector<real_function_3d> &orbitals,
+                            double small, double thresh, int print_level);
 
   // Returns the coulomb potential of the ground state
   // Note: No post multiplication involved here

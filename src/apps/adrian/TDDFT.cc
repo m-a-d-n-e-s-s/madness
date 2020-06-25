@@ -698,14 +698,13 @@ TDHF::CreateXCDerivativeRFDagger(World &world, ResponseFunction &f,
 
 // Creates diagonal (letter A) portions of response matrix
 ResponseFunction TDHF::CreateA(World &world, ResponseFunction &fe,
-                               ResponseFunction &gamma, ResponseFunction &Vf,
+                               ResponseFunction &Hf, ResponseFunction &Vf,
                                ResponseFunction &f,
                                std::vector<real_function_3d> &orbitals,
                                Tensor<double> &hamiltonian, // Ground state
                                int print_level, std::string xy) {
   // Create the ground-state fock operator on response components
   ResponseFunction fock_resp = CreateFock(world, Vf, f, print_level, xy); // Fx
-
   // Debugging output
   if (print_level >= 2) {
     if (world.rank() == 0)
@@ -714,10 +713,8 @@ ResponseFunction TDHF::CreateA(World &world, ResponseFunction &fe,
     if (world.rank() == 0)
       print(temp2);
   }
-
   // Need to calculate hamiltonian * x_response
   // Name of function sounds strange, I know...
-
   /*
      ResponseFunction energy_resp(world, f.size(),f[0].size());
      for (int p =0; p< m ; p++){
@@ -726,9 +723,7 @@ ResponseFunction TDHF::CreateA(World &world, ResponseFunction &fe,
      }
      }
      */
-
   ResponseFunction energy_resp = scale_2d(world, f, hamiltonian);
-
   if (print_level >= 2) {
     if (world.rank() == 0)
       printf("   Energy scaled response %s components:\n", xy.c_str());
@@ -1025,10 +1020,9 @@ ResponseFunction TDHF::CreateHfRF(World &world, ResponseFunction &f,
   return H;
 }
 
-ResponseFunction TDHF::CreateGfRF(World &world, ResponseFunction &f,
-                                  std::vector<real_function_3d> &orbitals,
-                                  double small, double thresh,
-                                  int print_level) {
+ResponseFunction TDHF::CreateGf(World &world, ResponseFunction &f,
+                                std::vector<real_function_3d> &orbitals,
+                                double small, double thresh, int print_level) {
   // Start a timer
   if (print_level >= 1)
     start_timer(world);
@@ -1190,7 +1184,7 @@ ResponseFunction TDHF::CreatePotential(World &world, ResponseFunction &f,
   // Computing \hat{V}^0 = v_nuc + v_coul + v_exch
   // v_nuc first
   real_function_3d v_nuc, v_coul;
-  if (!Rparams.store_potential) {
+  if (not Rparams.store_potential) {
     PotentialManager manager(Gparams.molecule, "a");
     manager.make_nuclear_potential(world);
     // v_nuc = manager.vnuclear().truncate();
@@ -1313,32 +1307,25 @@ ResponseFunction TDHF::CreateFock(World &world, ResponseFunction &Vf,
       printf("   Creating perturbed fock matrix for %s components\n",
              xy.c_str());
   }
-
   // Container to return
-  ResponseFunction fock;
-
-  // Fock = (T + V) * orbitals
-  // Already have V (input parameter)
+  ResponseFunction fock; // Fock = (T + V) * orbitals
+                         // Already have V (input parameter)
   // Create T
   // Make the derivative operators in each direction
   real_derivative_3d Dx(world, 0);
   real_derivative_3d Dy(world, 1);
   real_derivative_3d Dz(world, 2);
-
   // Apply derivatives to orbitals
   f.reconstruct_rf();
   ResponseFunction dvx = apply(world, Dx, f);
   ResponseFunction dvy = apply(world, Dy, f);
   ResponseFunction dvz = apply(world, Dz, f);
-
   // Apply again for 2nd derivatives
   ResponseFunction dvx2 = apply(world, Dx, dvx);
   ResponseFunction dvy2 = apply(world, Dy, dvy);
   ResponseFunction dvz2 = apply(world, Dz, dvz);
-
   // Add together derivatives
   fock = (dvx2 + dvy2 + dvz2) * (-0.5);
-
   // Debugging output
   if (print_level >= 2) {
     if (world.rank() == 0)
@@ -1352,12 +1339,9 @@ ResponseFunction TDHF::CreateFock(World &world, ResponseFunction &Vf,
     if (world.rank() == 0)
       print(temp);
   }
-
   // Add in potential
   fock = fock + Vf;
-
   truncate(world, fock);
-
   // Done
   return fock;
 }
@@ -3060,10 +3044,11 @@ void TDHF::Iterate(World &world) {
     // Create \hat{V}^0 applied to response functions
     V_x_response =
         CreatePotential(world, x_response, xc, Rparams.print_level, "x");
-    if (not Rparams.tda)
+
+    if (not Rparams.tda) {
       V_y_response =
           CreatePotential(world, y_response, xc, Rparams.print_level, "y");
-
+    }
     // Load balance
     // Only balancing on x-components. Smart?
     if (world.size() > 1 && ((iteration < 2) or (iteration % 5 == 0))) {
