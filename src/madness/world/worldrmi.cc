@@ -370,7 +370,7 @@ namespace madness {
 
     void RMI::assert_aslr_off(const SafeMPI::Intracomm& comm) {
       static_assert(sizeof(long) >= sizeof(std::ptrdiff_t), "std::ptrdiff_t must not exceed the width of long");
-      long my_address = archive::to_rel_fn_ptr(assert_aslr_off);
+      long my_address = reinterpret_cast<long>(&assert_aslr_off);
       MPI_Op compare_fn_addresses_op = SafeMPI::Op_create(&detail::compare_fn_addresses, 1);
       long zero_if_addresses_differ;
       comm.Reduce(&my_address, &zero_if_addresses_differ, 1, MPI_LONG, compare_fn_addresses_op, 0);
@@ -385,8 +385,11 @@ namespace madness {
 
     void RMI::begin(const SafeMPI::Intracomm& comm) {
 
+      // if MADNESS was told to assume ASLR is disabled check ... RMI can work with ALSR on, but that requires loading all RMI-using code as one giant shared library
+#ifdef MADNESS_ASSUMES_ASLR_DISABLED
             // complain loudly and throw if ASLR is on ... RMI requires ASLR to be off
             assert_aslr_off(comm);
+#endif
 
             testsome_backoff_us = 5;
             const char* buf = getenv("MAD_BACKOFF_US");

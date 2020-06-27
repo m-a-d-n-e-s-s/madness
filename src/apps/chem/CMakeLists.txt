@@ -31,11 +31,7 @@ endif()
 # Create the MADchem library
 add_mad_library(chem MADCHEM_SOURCES MADCHEM_HEADERS "mra" "chem/")
 
-foreach (suffix ${MADNESS_LIBRARY_TARGET_SUFFIXES})
-  if (suffix STREQUAL none)
-    set(suffix)
-  endif ()
-  set(targetname MADchem${suffix})
+  set(targetname MADchem)
 
   # Add dependencies for MADchem
   target_include_directories(${targetname} PUBLIC
@@ -54,7 +50,6 @@ foreach (suffix ${MADNESS_LIBRARY_TARGET_SUFFIXES})
     target_include_directories(${targetname} PUBLIC ${BOOST_INCLUDE_DIRS})
     target_link_libraries(${targetname} PUBLIC ${BOOST_LIBRARIES})
   endif ()
-endforeach (suffix ${MADNESS_LIBRARY_TARGET_SUFFIXES})
 
 # Add executables
 add_mad_executable(plotxc "plotxc.cc;xcfunctional.h" "MADchem")

@@ -122,6 +122,7 @@
 #cmakedefine MADNESS_LINALG_USE_LAPACKE 1
 #cmakedefine MADNESS_DQ_USE_PREBUF 1
 #cmakedefine MADNESS_DQ_PREBUF_SIZE @MADNESS_DQ_PREBUF_SIZE@
+#cmakedefine MADNESS_ASSUMES_ASLR_DISABLED 1
 
 /* Define to the equivalent of the C99 'restrict' keyword, or to
    nothing if this is not supported.  Do not define if restrict is
