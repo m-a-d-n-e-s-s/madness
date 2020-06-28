@@ -2751,7 +2751,7 @@ void SCF::solve(World & world) {
 		current_energy = etot;
 		//esol = etot;
 
-		if (world.rank() == 0  and (param.print_level()>1)) {
+	//	if (world.rank() == 0  and (param.print_level()>1)) {
 			//lots of dps for testing Exc stuff
 			/*printf("\n              kinetic %32.24f\n", ekinetic);
                 printf("         nonlocal psp %32.24f\n", enonlocal);
@@ -2761,6 +2761,7 @@ void SCF::solve(World & world) {
                 printf("    nuclear-repulsion %32.24f\n", enrep);
                 printf("                total %32.24f\n\n", etot);*/
 
+/*
 			printf("\n              kinetic %16.8f\n", ekinetic);
 			printf("         nonlocal psp %16.8f\n", enonlocal);
 			printf("   nuclear attraction %16.8f\n", enuclear);
@@ -2769,7 +2770,8 @@ void SCF::solve(World & world) {
 			printf(" exchange-correlation %16.8f\n", exc);
 			printf("    nuclear-repulsion %16.8f\n", enrep);
 			printf("                total %16.8f\n\n", etot);
-		}
+      */
+    //	}
 
 		if (iter > 0) {
 			//print("##convergence criteria: density delta=", da < dconv * molecule.natom() && db < dconv * molecule.natom(), ", bsh_residual=", (param.conv_only_dens || bsh_residual < 5.0*dconv));
@@ -2792,7 +2794,7 @@ void SCF::solve(World & world) {
 			    printf(" exchange-correlation %16.8f\n", exc);
 			    printf("    nuclear-repulsion %16.8f\n", enrep);
 			    printf("                total %16.8f\n\n", etot);
-	
+
 				}
 
 				// Diagonalize to get the eigenvalues and if desired the final eigenvectors
