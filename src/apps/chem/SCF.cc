@@ -798,7 +798,7 @@ distmatT SCF::localize_boys(World &world, const vecfuncT &mo,
   // print("tolloc", thresh, "thetamax", thetamax);
   if (thresh < 1e-6)
     thresh = 1e-6; //<<<<<<<<<<<<<<<<<<<<< need to implement new line search
-                   //like in pm routine
+                   // like in pm routine
   tensorT U(nmo, nmo);
   default_random_generator.setstate(
       182041 +
@@ -2853,26 +2853,29 @@ void SCF::solve(World &world) {
         ekinetic + enuclear + ecoulomb + exc + enrep + enonlocal + epcm;
     current_energy = etot;
     // esol = etot;
+    //
+    //
 
-    if (world.rank() == 0 and (param.print_level() > 1)) {
-      // lots of dps for testing Exc stuff
-      /*printf("\n              kinetic %32.24f\n", ekinetic);
+    //    if (world.rank() == 0 and (param.print_level() > 1)) {
+    // lots of dps for testing Exc stuff
+    /*printf("\n              kinetic %32.24f\n", ekinetic);
 printf("         nonlocal psp %32.24f\n", enonlocal);
 printf("   nuclear attraction %32.24f\n", enuclear);
 printf("              coulomb %32.24f\n", ecoulomb);
 printf(" exchange-correlation %32.24f\n", exc);
 printf("    nuclear-repulsion %32.24f\n", enrep);
 printf("                total %32.24f\n\n", etot);*/
-
-      printf("\n              kinetic %16.8f\n", ekinetic);
-      printf("         nonlocal psp %16.8f\n", enonlocal);
-      printf("   nuclear attraction %16.8f\n", enuclear);
-      printf("              coulomb %16.8f\n", ecoulomb);
-      printf("                  PCM %16.8f\n", epcm);
-      printf(" exchange-correlation %16.8f\n", exc);
-      printf("    nuclear-repulsion %16.8f\n", enrep);
-      printf("                total %16.8f\n\n", etot);
-    }
+    /*
+        printf("\n              kinetic %16.8f\n", ekinetic);
+        printf("         nonlocal psp %16.8f\n", enonlocal);
+        printf("   nuclear attraction %16.8f\n", enuclear);
+        printf("              coulomb %16.8f\n", ecoulomb);
+        printf("                  PCM %16.8f\n", epcm);
+        printf(" exchange-correlation %16.8f\n", exc);
+        printf("    nuclear-repulsion %16.8f\n", enrep);
+        printf("                total %16.8f\n\n", etot);
+      }
+      */
 
     if (iter > 0) {
       // print("##convergence criteria: density delta=", da < dconv *
@@ -2998,7 +3001,7 @@ printf("                total %32.24f\n\n", etot);*/
         }
 
         break;
-      }
+      } // namespace madness
     }
 
     update_subspace(world, Vpsia, Vpsib, focka, fockb, subspace, Q,
@@ -3038,7 +3041,7 @@ printf("                total %32.24f\n\n", etot);*/
       dipole_matrix_elements(world, bmo, bocc, beps, 1);
     }
   }
-} // end solve function
+} // namespace madness
 
 // vama polarizability
 void SCF::update_response_subspace(World &world, vecfuncT &ax, vecfuncT &ay,
