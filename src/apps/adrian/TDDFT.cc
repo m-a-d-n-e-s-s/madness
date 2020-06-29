@@ -944,10 +944,10 @@ ResponseFunction TDHF::CreateGamma(World &world, ResponseFunction &f,
   return gamma;
 }
 
-ResponseFunction TDHF::CreateHfRF(World &world, ResponseFunction &f,
-                                  std::vector<real_function_3d> &phi,
-                                  double small, double thresh, int print_level,
-                                  std::string xy) {
+ResponseFunction TDHF::CreateHf(World &world, ResponseFunction &f,
+                                std::vector<real_function_3d> &phi,
+                                double small, double thresh, int print_level,
+                                std::string xy) {
   // Start timer
   if (print_level >= 1)
     start_timer(world);

@@ -1,6 +1,11 @@
 /*
  * Some basic operators for ResponseFunction objects
  */
+#include <ResponseFunction2.h>
+#include <madness/mra/mra.h>
+#include <madness/mra/operator.h>
+#include <memory>
+#include <vector>
 
 #ifndef MADNESS_APPS_TDHF_OPS_H_INCLUDED
 #define MADNESS_APPS_TDHF_OPS_H_INCLUDED
@@ -8,7 +13,7 @@
 using namespace madness;
 
 // Returns a shallow copy of the transpose of a vector of vector of functions
-ResponseFunction transpose(ResponseFunction& f) {
+ResponseFunction transpose(ResponseFunction &f) {
   MADNESS_ASSERT(f.size() > 0);
   MADNESS_ASSERT(f[0].size() > 0);
 
@@ -21,17 +26,18 @@ ResponseFunction transpose(ResponseFunction& f) {
 
   // Now do shallow copies
   for (int i = 0; i < m; i++)
-    for (int j = 0; j < n; j++) g[j][i] = f[i][j];
+    for (int j = 0; j < n; j++)
+      g[j][i] = f[i][j];
 
   // Done
   return g;
 }
 
-// Multiplication of a vector of vectors by a matrix, 
-//  *  g[i][k] = \sum_{j} a[i][j] * b(j,k) 
+// Multiplication of a vector of vectors by a matrix,
+//  *  g[i][k] = \sum_{j} a[i][j] * b(j,k)
 // !  NOTE: NO BOUNDS CHECKING ON THE TENSOR b!!!!
-ResponseFunction scale_2d(World& world, ResponseFunction& a,
-                          Tensor<double>& b) {
+ResponseFunction scale_2d(World &world, ResponseFunction &a,
+                          Tensor<double> &b) {
   MADNESS_ASSERT(a.size() > 0);
   MADNESS_ASSERT(a[0].size() > 0);
 
@@ -67,7 +73,7 @@ ResponseFunction scale(ResponseFunction a, double b) {
 }
 
 // Truncate a vector of vector of functions
-void truncate(World& world, ResponseFunction& v, double tol = 0.0,
+void truncate(World &world, ResponseFunction &v, double tol = 0.0,
               bool fence = true) {
   MADNESS_ASSERT(v.size() > 0);
   MADNESS_ASSERT(v[0].size() > 0);
@@ -79,10 +85,10 @@ void truncate(World& world, ResponseFunction& v, double tol = 0.0,
 
 // Apply a vector of vector of operators to a vector of vector of functions
 // g[i][j] = op[i][j](f[i][j])
-ResponseFunction apply(
-    World& world,
-    std::vector<std::vector<std::shared_ptr<real_convolution_3d>>>& op,
-    ResponseFunction& f) {
+ResponseFunction
+apply(World &world,
+      std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> &op,
+      ResponseFunction &f) {
   MADNESS_ASSERT(f.size() > 0);
   MADNESS_ASSERT(f.size() == op.size());
   MADNESS_ASSERT(f[0].size() == op[0].size());
@@ -98,8 +104,8 @@ ResponseFunction apply(
 }
 
 // Apply the derivative operator to a vector of vector of functions
-ResponseFunction apply(World& world, real_derivative_3d& op,
-                       ResponseFunction& f) {
+ResponseFunction apply(World &world, real_derivative_3d &op,
+                       ResponseFunction &f) {
   MADNESS_ASSERT(f.size() > 0);
 
   ResponseFunction result;
