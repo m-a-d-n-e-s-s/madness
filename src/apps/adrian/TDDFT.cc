@@ -734,7 +734,7 @@ ResponseFunction TDHF::CreateA(World &world, ResponseFunction &fe,
   // Saving this here for larger subspace calculations
   fe = fock_resp - energy_resp;
   // And return the sum
-  return gamma + fe;
+  return Hf + fe;
 }
 
 // Creates the off diagonal (letter B) portions of response matrix
