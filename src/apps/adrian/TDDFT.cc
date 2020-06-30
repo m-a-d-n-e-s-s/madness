@@ -697,19 +697,24 @@ TDHF::CreateXCDerivativeRFDagger(World &world, ResponseFunction &f,
 }
 
 // Creates diagonal (letter A) portions of response matrix
-ResponseFunction TDHF::CreateA(World &world, ResponseFunction &fe,
-                               ResponseFunction &Hf, ResponseFunction &Vf,
-                               ResponseFunction &f,
-                               std::vector<real_function_3d> &orbitals,
-                               Tensor<double> &hamiltonian, // Ground state
-                               int print_level, std::string xy) {
+ResponseFunction TDHF::CreateAf(World &world, ResponseFunction &fe,
+                                ResponseFunction &Hf, ResponseFunction &Vf,
+                                ResponseFunction &f,
+                                std::vector<real_function_3d> &orbitals,
+                                Tensor<double> &hamiltonian, // Ground state
+                                int print_level, std::string xy) {
+  int m = Hf.size();
+  int n = Hf[0].size();
+  ResponseFunction Af(world, m, n);
   // Create the ground-state fock operator on response components
-  ResponseFunction fock_resp = CreateFock(world, Vf, f, print_level, xy); // Fx
+  // Create F0 on x or y response  (Fx-xF)
+
+  ResponseFunction F0_f = CreateFock(world, Vf, f, print_level, xy); // Fx
   // Debugging output
   if (print_level >= 2) {
     if (world.rank() == 0)
       printf("   Ground Fock matrix for %s components:\n", xy.c_str());
-    Tensor<double> temp2 = expectation(world, f, fock_resp);
+    Tensor<double> temp2 = expectation(world, f, F0_f);
     if (world.rank() == 0)
       print(temp2);
   }
@@ -723,6 +728,7 @@ ResponseFunction TDHF::CreateA(World &world, ResponseFunction &fe,
      }
      }
      */
+  // for each root (k) in response function f subtract sum[q] f[k][q]*h(q,p)
   ResponseFunction energy_resp = scale_2d(world, f, hamiltonian);
   if (print_level >= 2) {
     if (world.rank() == 0)
@@ -732,128 +738,42 @@ ResponseFunction TDHF::CreateA(World &world, ResponseFunction &fe,
       print(temp2);
   }
   // Saving this here for larger subspace calculations
-  fe = fock_resp - energy_resp;
+  // Not sure what this comment is about (TODO)
+  // (F0_f - energy_resp)+Hf
+  Af = Hf + F0_f - energy_resp;
+  // Need to project
+  QProjector<double, 3> projector(world, orbitals);
+  for (int i = 0; i < m; i++)
+    Af[i] = projector(Af[i]);
+
+  return Af;
   // And return the sum
-  return Hf + fe;
 }
 
 // Creates the off diagonal (letter B) portions of response matrix
-// Very similiar to create_gamma, but the order of ground state and
-// response components are different inside the integrals
-ResponseFunction TDHF::CreateB(World &world, ResponseFunction &f,
-                               ResponseFunction &g,
-                               std::vector<real_function_3d> &orbitals,
-                               double small, double thresh, int print_level) {
+// Simply projects out ground state from Gf response functions
+ResponseFunction TDHF::CreateBf(World &world, ResponseFunction &Gf,
+                                std::vector<real_function_3d> &orbitals,
+                                int print_level) {
   // Start a timer
   if (print_level >= 1)
     start_timer(world);
 
   // Get sizes
-  int m = f.size();
-  int n = f[0].size();
-
-  // Initialize function
-  ResponseFunction deriv_j(world, m, n);
-  ResponseFunction deriv_k(world, m, n);
-  ResponseFunction deriv_xc(world, m, n);
-  ResponseFunction gamma;
-  real_function_3d rho;
-
-  // Need the coulomb operator
-  real_convolution_3d op = CoulombOperator(world, small, thresh);
-
-  // Two pieces: coulomb and exchange
-  // Coulomb first
-  // Need to run over virtual orbitals
-  for (int k = 0; k < m; k++) {
-    // Get transition density
-    rho = dot(world, f[k], orbitals);
-
-    // Apply coulomb operator
-    rho = apply(op, rho);
-
-    // Need to run over all occupied orbitals
-    for (int p = 0; p < n; p++) {
-      // Multiply by ground state orbital p
-      // and save the result
-      deriv_j[k][p] = rho * orbitals[p];
-    }
-  }
-
-  // Exchange
-  // Determine if including HF exchange
-  if (xcf.hf_exchange_coefficient()) {
-    // Need to run over occupied orbitals
-    for (int p = 0; p < n; p++) {
-      // Need to run over all virtual orbitals originating from orbital p
-      for (int k = 0; k < m; k++) {
-        // Need to sum over occupied orbitals
-        for (int i = 0; i < n; i++) {
-          // Get density (ground state orbitals)
-          real_function_3d rho = f[k][i] * orbitals[p];
-
-          // Apply coulomb operator
-          rho = apply(op, rho);
-
-          // Multiply by response function (k,i)
-          // and add to total
-          deriv_k[k][p] += rho * orbitals[i];
-        }
-      }
-    }
-  }
-  // Determine if DFT potential is needed
-  if (xcf.hf_exchange_coefficient() != 1.0) {
-    // Get v_xc
-    std::vector<real_function_3d> vxc = create_fxc(world, orbitals, f, g);
-
-    // Apply xc kernel to ground state orbitals
-    for (int i = 0; i < m; i++) {
-      deriv_xc[i] = mul_sparse(world, vxc[i], orbitals, thresh, false);
-    }
-    world.gop.fence();
-  }
-
-  // Take care of coeficients
-  gamma = deriv_j * 2.0 + deriv_xc - deriv_k * xcf.hf_exchange_coefficient();
-
+  int m = Gf.size();
+  int n = Gf[0].size();
+  ResponseFunction Bf(world, m, n);
   // Project out the ground state
   QProjector<double, 3> projector(world, orbitals);
   for (int i = 0; i < m; i++)
-    gamma[i] = projector(gamma[i]);
-
-  // Debugging output
-  if (print_level >= 2) {
-    if (world.rank() == 0)
-      printf("   B coulomb deriv matrix:\n");
-    ResponseFunction t = deriv_j * 2.0;
-    Tensor<double> temp = expectation(world, f, t);
-    if (world.rank() == 0)
-      print(temp);
-    if (Rparams.xc == "hf") {
-      if (world.rank() == 0)
-        printf("   B exchange deriv matrix:\n");
-      temp = expectation(world, f, deriv_k);
-    } else {
-      if (world.rank() == 0)
-        printf("   B XC deriv matrix:\n");
-      temp = expectation(world, f, deriv_xc);
-    }
-    if (world.rank() == 0)
-      print(temp);
-    if (world.rank() == 0)
-      printf("   B gamma matrix:\n");
-    temp = expectation(world, f, gamma);
-    if (world.rank() == 0)
-      print(temp);
-  }
+    Bf[i] = projector(Gf[i]);
 
   // End timer
   if (print_level >= 1)
     end_timer(world, "   Creating B:");
 
   // Done
-  return gamma;
+  return Bf;
 }
 
 // Computes gamma(r) given the ground state orbitals and response functions
@@ -1055,11 +975,6 @@ ResponseFunction TDHF::CreateGf(World &world, ResponseFunction &f,
 
   // Take care of coeficients
   G = Jdagger * 2.0 + XCdagger - Kdagger * xcf.hf_exchange_coefficient();
-
-  // Project out the ground state
-  QProjector<double, 3> projector(world, orbitals);
-  for (int i = 0; i < m; i++)
-    G[i] = projector(G[i]);
 
   // Debugging output
   if (print_level >= 2) {
@@ -1360,8 +1275,8 @@ TDHF::create_response_matrix(World &world, ResponseFunction &fe,
 
   // Construct intermediary
   // Sets fe to be (\hat{fock} - eps)*f
-  ResponseFunction temp = CreateA(world, fe, gamma, V, f, ground_orbitals,
-                                  hamiltonian, print_level, xy);
+  ResponseFunction temp = CreateAf(world, fe, gamma, V, f, ground_orbitals,
+                                   hamiltonian, print_level, xy);
 
   // Make the matrix
   Tensor<double> A = expectation(world, f, temp);
@@ -1404,14 +1319,14 @@ Tensor<double> TDHF::CreateFullResponseMatrix(
 
   // Create the A pieces
   // (Sets fe_x and fe_y to be (\hat{F}-eps) * resp. funcs.
-  ResponseFunction A_x = CreateA(world, fe_x, x_gamma, Vx, x, ground_orbitals,
-                                 ground_ham, print_level, "x");
-  ResponseFunction A_y = CreateA(world, fe_y, y_gamma, Vy, y, ground_orbitals,
-                                 ground_ham, print_level, "y");
+  ResponseFunction A_x = CreateAf(world, fe_x, x_gamma, Vx, x, ground_orbitals,
+                                  ground_ham, print_level, "x");
+  ResponseFunction A_y = CreateAf(world, fe_y, y_gamma, Vy, y, ground_orbitals,
+                                  ground_ham, print_level, "y");
 
   // Create the B pieces
-  B_x = CreateB(world, x, y, ground_orbitals, small, thresh, print_level);
-  B_y = CreateB(world, y, x, ground_orbitals, small, thresh, print_level);
+  B_x = CreateBf(world, x, y, ground_orbitals, small, thresh, print_level);
+  B_y = CreateBf(world, y, x, ground_orbitals, small, thresh, print_level);
 
   // Debugging output
   if (print_level >= 2) {
@@ -5113,12 +5028,13 @@ void TDHF::iterate_polarizability(World &world, ResponseFunction &dipoles) {
 
     // Calculate coupling terms
     B_y =
-        CreateB(world, y_response, x_response, Gparams.orbitals, Rparams.small,
-                FunctionDefaults<3>::get_thresh(), Rparams.print_level);
+        CreateBf(world, y_response, x_response, Gparams.orbitals, Rparams.small,
+                 FunctionDefaults<3>::get_thresh(), Rparams.print_level);
+
     if (Rparams.omega != 0.0)
-      B_x = CreateB(world, x_response, y_response, Gparams.orbitals,
-                    Rparams.small, FunctionDefaults<3>::get_thresh(),
-                    Rparams.print_level);
+      B_x = CreateBf(world, x_response, y_response, Gparams.orbitals,
+                     Rparams.small, FunctionDefaults<3>::get_thresh(),
+                     Rparams.print_level);
 
     // Scale dipoles by same value
     ResponseFunction dip_copy(dipoles);

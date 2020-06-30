@@ -264,18 +264,17 @@ public:
                              double thresh);
 
   // Returns the diagonal (letter A) elements of response matrix
-  ResponseFunction CreateA(World &world, ResponseFunction &fe,
-                           ResponseFunction &gamma, ResponseFunction &Vf,
-                           ResponseFunction &f,
-                           std::vector<real_function_3d> &orbitals,
-                           Tensor<double> &hamiltonian, int print_level,
-                           std::string xy);
+  ResponseFunction CreateAf(World &world, ResponseFunction &fe,
+                            ResponseFunction &Hf, ResponseFunction &Vf,
+                            ResponseFunction &f,
+                            std::vector<real_function_3d> &orbitals,
+                            Tensor<double> &hamiltonian, int print_level,
+                            std::string xy);
 
   // Returns the off diagonal (letter B) elements of response matrix
-  ResponseFunction CreateB(World &world, ResponseFunction &f,
-                           ResponseFunction &g,
-                           std::vector<real_function_3d> &orbitals,
-                           double small, double thresh, int print_level);
+  ResponseFunction CreateBf(World &world, ResponseFunction &Gf,
+                            std::vector<real_function_3d> &orbitals,
+                            int print_level);
 
   // Returns gamma (the perturbed 2 electron piece)
   ResponseFunction CreateGamma(World &world, ResponseFunction &f,
