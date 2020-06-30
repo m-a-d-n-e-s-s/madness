@@ -173,9 +173,8 @@ double Nemo::value(const Tensor<double>& x) {
 
 	// read (pre-) converged wave function from disk if there is one
 	if (calc->param.no_compute() or calc->param.restart()) {
+	    set_protocol(calc->param.econv());	// set thresh to current value
 	    calc->load_mos(world);
-
-	    set_protocol(calc->amo[0].thresh());	// set thresh to current value
 	    calc->ao=calc->project_ao_basis(world,calc->aobasis);
 
 	} else {		// we need a guess

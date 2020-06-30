@@ -13,6 +13,7 @@
 #include <chem/nemo.h>
 #include <chem/SCFOperators.h>
 #include <chem/projector.h>
+#include <chem/MolecularOrbitals.h>
 
 using namespace madness;
 namespace madness {
@@ -80,8 +81,9 @@ class OEP_Parameters : public QCCalculationParametersBase {
 public:
 	OEP_Parameters(World& world, std::string inputfile) {
 
-		initialize<std::string>("model","dcep","comment on this",{"oaep","ocep","dcep","mrks"});
+		initialize<std::vector<std::string> >("model",{"dcep"},"comment on this: oaep ocep dcep mrks");
 		initialize<unsigned int>("maxiter",150,"maximum number of iterations in OEP algorithm");
+		initialize<bool>("restart",false,"restart from previous OEP calculation");
 		initialize<double>("levelshift",0.0,"shift occupied orbital energies in the BSH operator");
 //		initialize<double>("conv_threshold",1.e-5,"comment on this");
 		initialize<double>("density_threshold_high",1.e-6,"comment on this");
@@ -118,12 +120,13 @@ public:
 	}
 
 	// convenience functions
-	std::string model() const {return get<std::string>("model");}
+	std::vector<std::string> model() const {return get<std::vector<std::string> >("model");}
 	bool is_oaep() const {return (get<std::string>("model")=="oaep");}
 	bool is_ocep() const {return (get<std::string>("model")=="ocep");}
 	bool is_dcep() const {return (get<std::string>("model")=="dcep");}
 	bool is_mrks() const {return (get<std::string>("model")=="mrks");}
 
+	bool restart() const {return get<bool>("restart");}
 	unsigned int maxiter() const {return get<unsigned int>("maxiter");}
 	double levelshift() const {return get<double>("levelshift");}
 //	double conv_thresh() const {return get<double>("conv_threshold");}
@@ -181,8 +184,18 @@ public:
     void solve(const vecfuncT& HF_nemo, const tensorT& HF_eigvals);
 
     double iterate(const std::string model, const vecfuncT& HF_nemo, const tensorT& HF_eigvals,
-    		vecfuncT& KS_nemo, tensorT& KS_eigvals, real_function_3d& Voep,
+    		vecfuncT& KS_nemo, tensorT& KS_Fock, real_function_3d& Voep,
 			const real_function_3d Vs) const;
+
+    MolecularOrbitals<double,3> to_MO() const {
+    	std::vector<std::string> str_irreps;
+    	vecfuncT aaa=symmetry_projector(calc->amo,R_square,str_irreps);
+    	return MolecularOrbitals<double,3>(aaa,this->get_calc()->aeps,str_irreps,this->get_calc()->aocc,this->get_calc()->aset);
+    }
+
+    void save_restartdata(const Tensor<double>& fock) const;
+
+    void load_restartdata(Tensor<double>& fock);
 
     std::tuple<Tensor<double>, vecfuncT> recompute_HF(const vecfuncT& HF_nemo) const;
 
@@ -221,8 +234,8 @@ public:
     }
 
     double compute_and_print_final_energies(const std::string model, const real_function_3d& Voep,
-    		const vecfuncT& KS_nemo, const tensorT& KS_eigvals,
-			const vecfuncT& HF_nemo, const tensorT& HF_eigvals) const;
+    		const vecfuncT& KS_nemo, const tensorT& KS_Fock,
+			const vecfuncT& HF_nemo, const tensorT& HF_Fock) const;
 
     /// compute density from orbitals with ragularization (Bischoff, 2014_1, equation (19))
     real_function_3d compute_density(const vecfuncT& nemo) const {
@@ -497,7 +510,10 @@ public:
     /// compute Coulomb potential
     void compute_coulomb_potential(const vecfuncT& nemo, vecfuncT& Jnemo) const {
 
-    	Coulomb J(world,this);
+    	Coulomb J(world);
+    	real_function_3d density=this->compute_density(nemo);
+    	J.reset_poisson_operator_ptr(get_calc()->param.lo(),get_calc()->param.econv());
+    	J.potential()=J.compute_potential(density);
     	Jnemo = J(nemo);
     	truncate(world, Jnemo);
 
@@ -506,7 +522,8 @@ public:
     /// compute exchange potential (needed for Econv)
     void compute_exchange_potential(const vecfuncT& nemo, vecfuncT& Knemo) const {
 
-    	Exchange<double,3> K = Exchange<double,3>(world, this, 0);
+    	Exchange<double,3> K = Exchange<double,3>(world);
+    	K.set_parameters(R_square*nemo,nemo,this->get_calc()->aocc);
     	Knemo = K(nemo);
     	truncate(world, Knemo);
 
