@@ -264,12 +264,11 @@ public:
                              double thresh);
 
   // Returns the diagonal (letter A) elements of response matrix
-  ResponseFunction CreateAf(World &world, ResponseFunction &fe,
-                            ResponseFunction &Hf, ResponseFunction &Vf,
-                            ResponseFunction &f,
+  ResponseFunction CreateAf(World &world, ResponseFunction &Hf,
+                            ResponseFunction &Vf, ResponseFunction &f,
+                            ResponseFunction &energy_resp,
                             std::vector<real_function_3d> &orbitals,
-                            Tensor<double> &hamiltonian, int print_level,
-                            std::string xy);
+                            int print_level, std::string xy);
 
   // Returns the off diagonal (letter B) elements of response matrix
   ResponseFunction CreateBf(World &world, ResponseFunction &Gf,
@@ -289,7 +288,8 @@ public:
 
   ResponseFunction CreateGf(World &world, ResponseFunction &f,
                             std::vector<real_function_3d> &orbitals,
-                            double small, double thresh, int print_level);
+                            double small, double thresh, int print_level,
+                            std::string xy);
 
   // Returns the coulomb potential of the ground state
   // Note: No post multiplication involved here
@@ -313,23 +313,33 @@ public:
                               std::string xy);
 
   // Returns the hamiltonian matrix, equation 45 from the paper
-  Tensor<double> create_response_matrix(
-      World &world, ResponseFunction &fe, ResponseFunction &gamma,
-      ResponseFunction &V, ResponseFunction &f,
-      std::vector<real_function_3d> &ground_orbitals, Tensor<double> &energies,
-      int print_level, std::string xy);
+  Tensor<double>
+  create_response_matrix(World &world, ResponseFunction &Hf,
+                         ResponseFunction &Vf, ResponseFunction &fe,
+                         ResponseFunction &f,
+                         std::vector<real_function_3d> &ground_orbitals,
+                         Tensor<double> &hamiltonian, // Ground state
+                         int print_level, std::string xy);
 
   // Constructs full response matrix of
   // [ A  B ] [ X ] = w [ X ]
   // [-B -A ] [ Y ]     [ Y ]
-  Tensor<double> CreateFullResponseMatrix(
-      World &world, ResponseFunction &x_b, ResponseFunction &Vx,
-      ResponseFunction &B_x, ResponseFunction &fe_x, ResponseFunction &x,
-      ResponseFunction &y_b, ResponseFunction &Vy, ResponseFunction &B_y,
-      ResponseFunction &fe_y, ResponseFunction &y,
-      std::vector<real_function_3d> &ground_orbitals,
-      Tensor<double> &ground_ham, double small, double thresh, int print_level);
 
+  Tensor<double> CreateFullResponseMatrix(
+      World &world,
+      ResponseFunction &Hx,   // x perturbed two electron piece
+      ResponseFunction &Hy,   // x perturbed two electron piece
+      ResponseFunction &Gx,   // x perturbed two electron piece
+      ResponseFunction &Gy,   // x perturbed two electron piece
+      ResponseFunction &Vx,   // potential * x
+      ResponseFunction &Vy,   // potential * y
+      ResponseFunction &x,    // x response functions
+      ResponseFunction &y,    // y response functions
+      ResponseFunction &x_fe, // eps * x
+      ResponseFunction &y_fe, // eps * y
+      std::vector<real_function_3d> &ground_orbitals, // ground state orbitals
+      Tensor<double> &ground_ham, // full ground state hamiltonian
+      double small, double thresh, int print_level);
   // Returns the shift needed for each orbital to make sure
   // -2.0 * (ground_state_energy + excited_state_energy) is positive
   Tensor<double> create_shift(World &world, Tensor<double> &ground,
@@ -368,8 +378,8 @@ public:
   // Returns the max norm of the given vector of functions
   double calculate_max_residual(World &world, ResponseFunction &f);
 
-  // Selects the 'active' orbitals from ground state orbitals to be used in the
-  // calculation (based on energy distance from the HOMO.) Function needs
+  // Selects the 'active' orbitals from ground state orbitals to be used in
+  // the calculation (based on energy distance from the HOMO.) Function needs
   // knowledge of Gparams.orbitals and Gparams.ground_energies. Function sets
   // act_orbitals and num_act_orbitals.
   void select_active_subspace(World &world);
@@ -461,11 +471,12 @@ public:
 
   // Diagonalize the full response matrix, taking care of degenerate states
   Tensor<double> DiagonalizeFullResponseMatrix(
-      World &world, Tensor<double> &S, Tensor<double> &A, ResponseFunction &x,
-      ResponseFunction &Vx, ResponseFunction &x_g, ResponseFunction &x_fe,
-      ResponseFunction &B_x, ResponseFunction &y, ResponseFunction &Vy,
-      ResponseFunction &y_g, ResponseFunction &y_fe, ResponseFunction &B_y,
-      Tensor<double> &omega, const double thresh, int print_level);
+      World &world, Tensor<double> &S, Tensor<double> &A, ResponseFunction &Hx,
+      ResponseFunction &Hy, ResponseFunction &Gx, ResponseFunction &Gy,
+      ResponseFunction &Vx, ResponseFunction &Vy, ResponseFunction &x,
+      ResponseFunction &y, ResponseFunction &x_fe, ResponseFunction &y_fe,
+      ResponseFunction &x_fe2, ResponseFunction &y_fe2, Tensor<double> &omega,
+      const double thresh, int print_level);
 
   // Similar to what robert did above in "get_fock_transformation"
   Tensor<double> GetFullResponseTransformation(World &world, Tensor<double> &S,
@@ -499,7 +510,8 @@ public:
   CreateXCDerivative(World &world, std::vector<real_function_3d> &orbitals,
                      ResponseFunction &f);
 
-  // Iterates the trial functions until covergence or it runs out of iterations
+  // Iterates the trial functions until covergence or it runs out of
+  // iterations
   void Iterate(World &world);
 
   // Constructs and prints a more detailed analysis of response functions
