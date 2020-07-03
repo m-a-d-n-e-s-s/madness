@@ -2907,6 +2907,9 @@ void TDHF::Iterate(World &world) {
   Tensor<double> S;      // Overlap matrix of response components for x states
   real_function_3d v_xc; // For TDDFT
 
+  ElectronInteractionTerms Gamma;
+  ElectronInteractionTerms old_Gamma;
+
   // Versions from previous iteration that need to be stored
   // in order to diagonalize in a larger subspace
   ResponseFunction old_x_gamma(world, m, n);
@@ -2956,14 +2959,14 @@ void TDHF::Iterate(World &world) {
     }
 
     // Project out ground state
-    for (int k = 0; k < m; k++)
-      x_response[k] = projector(x_response[k]);
+    // for (int k = 0; k < m; k++)
+    // x_response[k] = projector(x_response[k]);
     // (TODO) i thought y response functions would be zeroed by this
     // (1-n)*(n)*d*(1-n)=0!!!
 
-    if (not Rparams.tda)
-      for (int k = 0; k < m; k++)
-        y_response[k] = projector(y_response[k]);
+    // if (not Rparams.tda)
+    // for (int k = 0; k < m; k++)
+    //  y_response[k] = projector(y_response[k]);
 
     // doesn't Qy=0
 
