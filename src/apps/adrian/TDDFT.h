@@ -122,12 +122,22 @@ public:
   }
 };
 
-struct ElectronInteractionTerms {
+struct ElectronResponses {
+  // Potential Terms
+  ResponseFunction Vx;
+  ResponseFunction Vy;
+
+  // Electron Interactions
   ResponseFunction Hx;
   ResponseFunction Gy;
-
   ResponseFunction Gx;
   ResponseFunction Hy;
+
+  // Epsilon Terms
+  ResponseFunction x_fe;
+  ResponseFunction x_fe_nodiag;
+  ResponseFunction y_fe;
+  ResponseFunction y_fe_nodiag;
 };
 /// Given a molecule and ground state orbitals, solve the response equations
 /// in the Tamm-Danchoff approximation.
@@ -297,7 +307,6 @@ public:
                             std::vector<real_function_3d> &orbitals,
                             double small, double thresh, int print_level,
                             std::string xy);
-
   // Returns the coulomb potential of the ground state
   // Note: No post multiplication involved here
   real_function_3d Coulomb(World &world);
@@ -310,6 +319,13 @@ public:
                                    XCOperator xc, int print_level,
                                    std::string xy);
 
+  void computeElectronResponse(World &world, ElectronResponses &I,
+                               ResponseFunction &x, ResponseFunction &y,
+                               std::vector<real_function_3d> &orbitals,
+                               XCOperator xc, Tensor<double> &hamiltonian,
+                               Tensor<double> &ham_no_diag, double small,
+                               double thresh, int print_level, std::string xy);
+
   // Returns a tensor, where entry (i,j) = inner(a[i], b[j]).sum()
   Tensor<double> expectation(World &world, ResponseFunction &a,
                              ResponseFunction &b);
@@ -321,31 +337,20 @@ public:
 
   // Returns the hamiltonian matrix, equation 45 from the paper
   Tensor<double>
-  create_response_matrix(World &world, ResponseFunction &Hf,
-                         ResponseFunction &Vf, ResponseFunction &fe,
-                         ResponseFunction &f,
-                         std::vector<real_function_3d> &ground_orbitals,
-                         Tensor<double> &hamiltonian, // Ground state
-                         int print_level, std::string xy);
+  createResponseMatrix(World &world, ResponseFunction &x, ElectronResponses &I,
+                       std::vector<real_function_3d> &ground_orbitals,
+                       int print_level, std::string xy);
 
   // Constructs full response matrix of
   // [ A  B ] [ X ] = w [ X ]
   // [-B -A ] [ Y ]     [ Y ]
 
-  Tensor<double> CreateFullResponseMatrix(
+  Tensor<double> createFullResponseMatrix(
       World &world,
-      ResponseFunction &Hx,   // x perturbed two electron piece
-      ResponseFunction &Hy,   // x perturbed two electron piece
-      ResponseFunction &Gx,   // x perturbed two electron piece
-      ResponseFunction &Gy,   // x perturbed two electron piece
-      ResponseFunction &Vx,   // potential * x
-      ResponseFunction &Vy,   // potential * y
-      ResponseFunction &x,    // x response functions
-      ResponseFunction &y,    // y response functions
-      ResponseFunction &x_fe, // eps * x
-      ResponseFunction &y_fe, // eps * y
+      ResponseFunction &x, // x response functions
+      ResponseFunction &y, // y response functions
+      ElectronResponses &I,
       std::vector<real_function_3d> &ground_orbitals, // ground state orbitals
-      Tensor<double> &ground_ham, // full ground state hamiltonian
       double small, double thresh, int print_level);
   // Returns the shift needed for each orbital to make sure
   // -2.0 * (ground_state_energy + excited_state_energy) is positive
@@ -411,11 +416,12 @@ public:
                                Tensor<double> &vecs);
 
   // Diagonalizes the fock matrix, taking care of degerate states
-  Tensor<double> diag_fock_matrix(World &world, Tensor<double> &fock,
-                                  ResponseFunction &psi, ResponseFunction &Vpsi,
-                                  ResponseFunction &Hpsi, ResponseFunction &fe,
-                                  ResponseFunction &fe2, Tensor<double> &evals,
-                                  Tensor<double> &overlap, const double thresh);
+  Tensor<double> diagonalizeFockMatrix(World &world, Tensor<double> &fock,
+                                       ResponseFunction &psi,
+                                       ElectronResponses &I,
+                                       Tensor<double> &evals,
+                                       Tensor<double> &overlap,
+                                       const double thresh);
 
   // Transforms the given matrix of functions according to the given
   // transformation matrix. Used to update orbitals / potentials
@@ -477,12 +483,9 @@ public:
       ResponseFunction &old_B_y, int print_level);
 
   // Diagonalize the full response matrix, taking care of degenerate states
-  Tensor<double> DiagonalizeFullResponseMatrix(
-      World &world, Tensor<double> &S, Tensor<double> &A, ResponseFunction &Hx,
-      ResponseFunction &Hy, ResponseFunction &Gx, ResponseFunction &Gy,
-      ResponseFunction &Vx, ResponseFunction &Vy, ResponseFunction &x,
-      ResponseFunction &y, ResponseFunction &x_fe, ResponseFunction &y_fe,
-      ResponseFunction &x_fe2, ResponseFunction &y_fe2, Tensor<double> &omega,
+  Tensor<double> diagonalizeFullResponseMatrix(
+      World &world, Tensor<double> &S, Tensor<double> &A, ResponseFunction &x,
+      ResponseFunction &y, ElectronResponses &I, Tensor<double> &omega,
       const double thresh, int print_level);
 
   // Similar to what robert did above in "get_fock_transformation"

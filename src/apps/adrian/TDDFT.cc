@@ -1182,6 +1182,35 @@ ResponseFunction TDHF::CreatePotential(World &world, ResponseFunction &f,
   return V_x_resp;
 }
 
+void TDHF::computeElectronResponse(World &world, ElectronResponses &I,
+                                   ResponseFunction &x, ResponseFunction &y,
+                                   std::vector<real_function_3d> &orbitals,
+                                   XCOperator xc, Tensor<double> &hamiltonian,
+                                   Tensor<double> &ham_no_diag, double small,
+                                   double thresh, int print_level,
+                                   std::string xy) {
+
+  I.Vx = CreatePotential(world, x, xc, print_level, "x");
+  // epsilon with diag for FullR matrix
+  I.x_fe = scale_2d(world, x, hamiltonian);
+  I.x_fe_nodiag = scale_2d(world, x, ham_no_diag); // for rhs
+  // compute Electron Interaction Terms for this Iteration
+  I.Hx = CreateHf(world, x, orbitals, small, thresh, print_level, "x");
+  // print(Hx);
+  I.Gy = CreateGf(world, y, orbitals, small, thresh, print_level, "y");
+  // else Compute everything
+  if (not Rparams.tda) { // not sure why this is the condition
+    I.Vy = CreatePotential(world, y, xc, print_level, "y");
+    I.y_fe = scale_2d(world, x, hamiltonian);
+    I.y_fe_nodiag = scale_2d(world, y, ham_no_diag);
+    I.Hy = CreateHf(world, y, orbitals, small, thresh, print_level, "y");
+    I.Gx = CreateGf(world, x, orbitals, small, thresh, print_level, "x");
+  }
+  // Create \hat{V}^0 applied to response functions
+
+  if (not Rparams.tda) {
+  }
+}
 // Returns a Tensor of inner products, where
 // result(i,j) = inner(a[i],b[j]).sum()
 Tensor<double> TDHF::expectation(World &world, ResponseFunction &a,
@@ -1263,12 +1292,10 @@ ResponseFunction TDHF::CreateFock(World &world, ResponseFunction &Vf,
 
 // Construct the Hamiltonian
 Tensor<double>
-TDHF::create_response_matrix(World &world, ResponseFunction &Hf,
-                             ResponseFunction &Vf, ResponseFunction &fe,
-                             ResponseFunction &f,
-                             std::vector<real_function_3d> &ground_orbitals,
-                             Tensor<double> &hamiltonian, // Ground state
-                             int print_level, std::string xy) {
+TDHF::createResponseMatrix(World &world, ResponseFunction &x,
+                           ElectronResponses &I,
+                           std::vector<real_function_3d> &ground_orbitals,
+                           int print_level, std::string xy) {
   // Start a timer
   if (print_level >= 1)
     start_timer(world);
@@ -1276,10 +1303,10 @@ TDHF::create_response_matrix(World &world, ResponseFunction &Hf,
   // Construct intermediary
   // Sets fe to be (\hat{fock} - eps)*f
   ResponseFunction temp =
-      CreateAf(world, Hf, Vf, f, fe, ground_orbitals, print_level, xy);
+      CreateAf(world, I.Hx, I.Vx, x, I.x_fe, ground_orbitals, print_level, xy);
 
   // Make the matrix
-  Tensor<double> A = expectation(world, f, temp);
+  Tensor<double> A = expectation(world, x, temp);
 
   // Debugging output
   if (print_level >= 2 and world.rank() == 0) {
@@ -1298,20 +1325,12 @@ TDHF::create_response_matrix(World &world, ResponseFunction &Hf,
 // Constructs the matrix, so really it does
 // [ X Y ] [ A  B ] [ X ]
 //         [ B  A ] [ Y ]
-Tensor<double> TDHF::CreateFullResponseMatrix(
+Tensor<double> TDHF::createFullResponseMatrix(
     World &world,
-    ResponseFunction &Hx,   // Hx perturbed two electron piece
-    ResponseFunction &Hy,   // Hy perturbed two electron piece
-    ResponseFunction &Gx,   // Gx perturbed two electron piece
-    ResponseFunction &Gy,   // Gy perturbed two electron piece
-    ResponseFunction &Vx,   // potential * x
-    ResponseFunction &Vy,   // potential * y
-    ResponseFunction &x,    // x response functions
-    ResponseFunction &y,    // y response functions
-    ResponseFunction &x_fe, // eps * x
-    ResponseFunction &y_fe, // eps * y
+    ResponseFunction &x, // x response functions
+    ResponseFunction &y, // y response functions
+    ElectronResponses &I,
     std::vector<real_function_3d> &ground_orbitals, // ground state orbitals
-    Tensor<double> &ground_ham, // full ground state hamiltonian
     double small, double thresh, int print_level) {
   // Start timer
   if (print_level >= 1)
@@ -1320,13 +1339,13 @@ Tensor<double> TDHF::CreateFullResponseMatrix(
   // Create the A pieces
   // (Sets fe_x and fe_y to be (\hat{F}-eps) * resp. funcs.
   ResponseFunction A_x =
-      CreateAf(world, Hx, Vx, x, x_fe, ground_orbitals, print_level, "x");
+      CreateAf(world, I.Hx, I.Vx, x, I.x_fe, ground_orbitals, print_level, "x");
   ResponseFunction A_y =
-      CreateAf(world, Hy, Vy, y, y_fe, ground_orbitals, print_level, "y");
+      CreateAf(world, I.Hy, I.Vy, y, I.y_fe, ground_orbitals, print_level, "y");
 
   // Create the B pieces
-  ResponseFunction B_x = CreateBf(world, Gx, ground_orbitals, print_level);
-  ResponseFunction B_y = CreateBf(world, Gx, ground_orbitals, print_level);
+  ResponseFunction B_x = CreateBf(world, I.Gx, ground_orbitals, print_level);
+  ResponseFunction B_y = CreateBf(world, I.Gy, ground_orbitals, print_level);
 
   // Debugging output
   if (print_level >= 2) {
@@ -2037,12 +2056,12 @@ Tensor<int> TDHF::sort_eigenvalues(World &world, Tensor<double> &vals,
 /// @param[out] evals    the orbital energies
 /// @param[in]  overlap  the overlap matrix
 /// @param[in]  thresh   threshold for rotation and truncation
-Tensor<double>
-TDHF::diag_fock_matrix(World &world, Tensor<double> &fock,
-                       ResponseFunction &psi, ResponseFunction &Vpsi,
-                       ResponseFunction &Hpsi, ResponseFunction &fe,
-                       ResponseFunction &fe2, Tensor<double> &evals,
-                       Tensor<double> &overlap, const double thresh) {
+Tensor<double> TDHF::diagonalizeFockMatrix(World &world, Tensor<double> &fock,
+                                           ResponseFunction &psi,
+                                           ElectronResponses &I,
+                                           Tensor<double> &evals,
+                                           Tensor<double> &overlap,
+                                           const double thresh) {
   // compute the unitary transformation matrix U that diagonalizes
   // the fock matrix
   Tensor<double> U =
@@ -2063,10 +2082,10 @@ TDHF::diag_fock_matrix(World &world, Tensor<double> &fock,
 
   // transform the orbitals and the potential
   // Truncate happens inside here
-  Vpsi = transform(world, Vpsi, U);
-  Hpsi = transform(world, Hpsi, U);
-  fe = transform(world, fe, U);
-  fe2 = transform(world, fe2, U);
+  I.Vx = transform(world, I.Vx, U);
+  I.Hx = transform(world, I.Hx, U);
+  I.x_fe = transform(world, I.x_fe, U);
+  I.x_fe_nodiag = transform(world, I.x_fe_nodiag, U);
   psi = transform(world, psi, U);
 
   // End timer
@@ -2463,12 +2482,9 @@ void TDHF::unaugment_full(
 // Diagonalize the full response matrix, taking care of degenerate components
 // Why diagonalization and then transform the x_fe vectors
 
-Tensor<double> TDHF::DiagonalizeFullResponseMatrix(
-    World &world, Tensor<double> &S, Tensor<double> &A, ResponseFunction &Hx,
-    ResponseFunction &Hy, ResponseFunction &Gx, ResponseFunction &Gy,
-    ResponseFunction &Vx, ResponseFunction &Vy, ResponseFunction &x,
-    ResponseFunction &y, ResponseFunction &x_fe, ResponseFunction &y_fe,
-    ResponseFunction &x_fe2, ResponseFunction &y_fe2, Tensor<double> &omega,
+Tensor<double> TDHF::diagonalizeFullResponseMatrix(
+    World &world, Tensor<double> &S, Tensor<double> &A, ResponseFunction &x,
+    ResponseFunction &y, ElectronResponses &I, Tensor<double> &omega,
     const double thresh, int print_level) {
   // compute the unitary transformation matrix U that diagonalizes
   // the response matrix
@@ -2481,22 +2497,22 @@ Tensor<double> TDHF::DiagonalizeFullResponseMatrix(
 
   // Transform the vectors of functions
   // Truncate happens in here
-  Hx = transform(world, Hx, vecs);
-  Hy = transform(world, Hy, vecs);
-  Gx = transform(world, Gx, vecs);
-  Gy = transform(world, Gy, vecs);
+  I.Hx = transform(world, I.Hx, vecs);
+  I.Hy = transform(world, I.Hy, vecs);
+  I.Gx = transform(world, I.Gx, vecs);
+  I.Gy = transform(world, I.Gy, vecs);
 
-  Vx = transform(world, Vx, vecs);
-  Vy = transform(world, Vy, vecs);
+  I.Vx = transform(world, I.Vx, vecs);
+  I.Vy = transform(world, I.Vy, vecs);
 
   x = transform(world, x, vecs);
   y = transform(world, y, vecs);
 
-  x_fe = transform(world, x_fe, vecs);
-  y_fe = transform(world, y_fe, vecs);
+  I.x_fe = transform(world, I.x_fe, vecs);
+  I.y_fe = transform(world, I.y_fe, vecs);
 
-  x_fe2 = transform(world, x_fe2, vecs);
-  y_fe2 = transform(world, y_fe2, vecs);
+  I.x_fe_nodiag = transform(world, I.x_fe_nodiag, vecs);
+  I.y_fe_nodiag = transform(world, I.y_fe_nodiag, vecs);
   // we do transform here
   // End timer
   if (Rparams.print_level >= 1)
@@ -2886,10 +2902,6 @@ void TDHF::Iterate(World &world) {
                                 n); // Holds V^0 applied to response functions
   ResponseFunction V_y_response(world, m,
                                 n); // Holds V^0 applied to response functions
-  ResponseFunction Hx(world, m, n);
-  ResponseFunction Hy(world, m, n);
-  ResponseFunction Gx(world, m, n);
-  ResponseFunction Gy(world, m, n);
   ResponseFunction B_x(
       world, m, n); // Holds the off diagonal perturbed piece of y equation
   ResponseFunction B_y(
@@ -2907,8 +2919,8 @@ void TDHF::Iterate(World &world) {
   Tensor<double> S;      // Overlap matrix of response components for x states
   real_function_3d v_xc; // For TDDFT
 
-  ElectronInteractionTerms Gamma;
-  ElectronInteractionTerms old_Gamma;
+  ElectronResponses Responses;
+  ElectronResponses OldResponses;
 
   // Versions from previous iteration that need to be stored
   // in order to diagonalize in a larger subspace
@@ -3004,35 +3016,11 @@ void TDHF::Iterate(World &world) {
                             Rparams.print_level, "y");
 
                             */
-
-    ResponseFunction x_fe = scale_2d(
-        world, x_response, hamiltonian); // epsilon with diag for FullR matrix
-    ResponseFunction x_fe2 =
-        scale_2d(world, x_response, ham_no_diag); // for rhs
-    Hx = CreateHf(world, x_response, Gparams.orbitals, Rparams.small,
-                  FunctionDefaults<3>::get_thresh(), Rparams.print_level, "x");
-    // print(Hx);
-    Gy = CreateGf(world, y_response, Gparams.orbitals, Rparams.small,
-                  FunctionDefaults<3>::get_thresh(), Rparams.print_level, "y");
-    // else Compute everything
-    if (not Rparams.tda) { // not sure why this is the condition
-      ResponseFunction y_fe = scale_2d(world, x_response, hamiltonian);
-      ResponseFunction y_fe2 = scale_2d(world, y_response, ham_no_diag);
-      Hy =
-          CreateHf(world, y_response, Gparams.orbitals, Rparams.small,
-                   FunctionDefaults<3>::get_thresh(), Rparams.print_level, "y");
-      Gx =
-          CreateGf(world, x_response, Gparams.orbitals, Rparams.small,
-                   FunctionDefaults<3>::get_thresh(), Rparams.print_level, "x");
-    }
-    // Create \hat{V}^0 applied to response functions
-    V_x_response =
-        CreatePotential(world, x_response, xc, Rparams.print_level, "x");
-
-    if (not Rparams.tda) {
-      V_y_response =
-          CreatePotential(world, y_response, xc, Rparams.print_level, "y");
-    }
+    // This compute electron response terms from the response functions
+    computeElectronResponse(world, Responses, x_response, y_response,
+                            Gparams.orbitals, xc, hamiltonian, ham_no_diag,
+                            Rparams.small, FunctionDefaults<3>::get_thresh(),
+                            Rparams.print_level, "x");
     // Load balance
     // Only balancing on x-components. Smart?
     if (world.size() > 1 && ((iteration < 2) or (iteration % 5 == 0))) {
@@ -3068,14 +3056,15 @@ void TDHF::Iterate(World &world) {
       }
 
       // Constructing response matrix
-      Tensor<double> A_x = create_response_matrix(
-          world, Hx, V_x_response, x_fe, x_response, Gparams.orbitals,
-          hamiltonian, Rparams.print_level, "x");
+      Tensor<double> XAX =
+          createResponseMatrix(world, x_response, Responses, Gparams.orbitals,
+                               Rparams.print_level, "x");
 
       // Augment S_x, A_x, x_gamma, x_response, V_x_response and x_gamma
-      // if using a larger subspace and not iteration zero
+      // if using a larger subspace and not iteration zero (TODO ---Gotta look
+      // at this and make sure it uses my new functions ADRIAN )
       if (iteration < Rparams.larger_subspace and iteration > 0) {
-        augment(world, S, A_x, x_gamma, x_response, V_x_response, x_fe, old_S,
+        augment(world, S, XAX, x_gamma, x_response, V_x_response, x_fe, old_S,
                 old_A, old_x_gamma, old_x_response, old_V_x_response, old_x_fe,
                 Rparams.print_level);
       }
@@ -3083,12 +3072,12 @@ void TDHF::Iterate(World &world) {
       // Solve Ax = Sxw
       // Just to be sure dimensions work out, clear omega
       omega.clear();
-      diag_fock_matrix(world, A_x, x_response, V_x_response, Hx, x_fe, x_fe2,
-                       omega, S, FunctionDefaults<3>::get_thresh());
+      diagonalizeFockMatrix(world, XAX, x_response, Responses, omega, S,
+                            FunctionDefaults<3>::get_thresh());
 
       // If larger subspace, need to "un-augment" everything
       if (iteration < Rparams.larger_subspace) {
-        unaugment(world, m, iteration, omega, S, A_x, x_gamma, x_response,
+        unaugment(world, m, iteration, omega, S, XAX, x_gamma, x_response,
                   V_x_response, x_fe, old_S, old_A, old_x_gamma, old_x_response,
                   old_V_x_response, old_x_fe, Rparams.print_level);
       }
@@ -3106,10 +3095,10 @@ void TDHF::Iterate(World &world) {
       }
 
       // Construct full response matrix
-      Tensor<double> A = CreateFullResponseMatrix(
-          world, Hx, Hy, Gx, Gy, V_x_response, V_y_response, x_response,
-          y_response, x_fe, y_fe, Gparams.orbitals, hamiltonian, Rparams.small,
-          FunctionDefaults<3>::get_thresh(), Rparams.print_level);
+      Tensor<double> A = createFullResponseMatrix(
+          world, x_response, y_response, Responses, Gparams.orbitals,
+          Rparams.small, FunctionDefaults<3>::get_thresh(),
+          Rparams.print_level);
 
       // Larger subspace augmentation BROKEN!!!!!
       // if(iteration < Rparams.larger_subspace and iteration > 0)
@@ -3128,9 +3117,8 @@ void TDHF::Iterate(World &world) {
       // Just to be sure dimensions work out, clear omega
       omega.clear();
 
-      Tensor<double> U = DiagonalizeFullResponseMatrix(
-          world, S, A, Hx, Hy, Gx, Gy, V_x_response, V_y_response, x_response,
-          y_response, x_fe, y_fe, x_fe2, y_fe2, omega,
+      Tensor<double> U = diagonalizeFullResponseMatrix(
+          world, S, A, x_response, y_response, Responses, omega,
           FunctionDefaults<3>::get_thresh(), Rparams.print_level);
       // Larger subspace un-augmentation BROKEN!!!!
       // if(iteration < Rparams.larger_subspace)
