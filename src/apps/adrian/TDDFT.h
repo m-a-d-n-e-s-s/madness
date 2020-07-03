@@ -122,6 +122,13 @@ public:
   }
 };
 
+struct ElectronInteractionTerms {
+  ResponseFunction Hx;
+  ResponseFunction Gy;
+
+  ResponseFunction Gx;
+  ResponseFunction Hy;
+};
 /// Given a molecule and ground state orbitals, solve the response equations
 /// in the Tamm-Danchoff approximation.
 class TDHF {
@@ -406,8 +413,8 @@ public:
   // Diagonalizes the fock matrix, taking care of degerate states
   Tensor<double> diag_fock_matrix(World &world, Tensor<double> &fock,
                                   ResponseFunction &psi, ResponseFunction &Vpsi,
-                                  ResponseFunction &gamma, ResponseFunction &fe,
-                                  Tensor<double> &evals,
+                                  ResponseFunction &Hpsi, ResponseFunction &fe,
+                                  ResponseFunction &fe2, Tensor<double> &evals,
                                   Tensor<double> &overlap, const double thresh);
 
   // Transforms the given matrix of functions according to the given
@@ -519,7 +526,7 @@ public:
   void analysis(World &world);
 
   // Simplified iterate scheme for guesses
-  void iterate_guess(World &world, ResponseFunction &guesses);
+  void IterateGuess(World &world, ResponseFunction &guesses);
 
   // Create and diagonalize the CIS matrix for improved initial guess
   ResponseFunction diagonalize_CIS_guess(

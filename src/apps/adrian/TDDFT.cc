@@ -1,7 +1,7 @@
 /*
  *
- *   Written by: bsundahl
- *   Date: A long time ago...
+ *   Written by: bsundahl and Adrian
+ *   Date: A long time ago... and today
  *
  */
 
@@ -22,9 +22,7 @@ struct TDHF_allocator {
   // Member variables
   World &world;
   const int num_vir;
-  const int num_occ;
-
-  // Constructor
+  const int num_occ; // Constructor
   TDHF_allocator(World &world, const int num_vir, const int num_occ)
       : world(world), num_vir(num_vir), num_occ(num_occ) {}
 
@@ -703,8 +701,9 @@ ResponseFunction TDHF::CreateAf(World &world, ResponseFunction &Hf,
                                 ResponseFunction &energy_resp,
                                 std::vector<real_function_3d> &orbitals,
                                 int print_level, std::string xy) {
-  int m = Hf.size();
-  int n = Hf[0].size();
+  int m = f.size();
+  int n = f[0].size();
+
   ResponseFunction Af(world, m, n);
   // Create the ground-state fock operator on response components
   // Create F0 on x or y response  (Fx-xF)
@@ -2038,10 +2037,12 @@ Tensor<int> TDHF::sort_eigenvalues(World &world, Tensor<double> &vals,
 /// @param[out] evals    the orbital energies
 /// @param[in]  overlap  the overlap matrix
 /// @param[in]  thresh   threshold for rotation and truncation
-Tensor<double> TDHF::diag_fock_matrix(
-    World &world, Tensor<double> &fock, ResponseFunction &psi,
-    ResponseFunction &Vpsi, ResponseFunction &gamma, ResponseFunction &fe,
-    Tensor<double> &evals, Tensor<double> &overlap, const double thresh) {
+Tensor<double>
+TDHF::diag_fock_matrix(World &world, Tensor<double> &fock,
+                       ResponseFunction &psi, ResponseFunction &Vpsi,
+                       ResponseFunction &Hpsi, ResponseFunction &fe,
+                       ResponseFunction &fe2, Tensor<double> &evals,
+                       Tensor<double> &overlap, const double thresh) {
   // compute the unitary transformation matrix U that diagonalizes
   // the fock matrix
   Tensor<double> U =
@@ -2063,8 +2064,9 @@ Tensor<double> TDHF::diag_fock_matrix(
   // transform the orbitals and the potential
   // Truncate happens inside here
   Vpsi = transform(world, Vpsi, U);
-  gamma = transform(world, gamma, U);
+  Hpsi = transform(world, Hpsi, U);
   fe = transform(world, fe, U);
+  fe2 = transform(world, fe2, U);
   psi = transform(world, psi, U);
 
   // End timer
@@ -2460,14 +2462,6 @@ void TDHF::unaugment_full(
 
 // Diagonalize the full response matrix, taking care of degenerate components
 // Why diagonalization and then transform the x_fe vectors
-// /x_fe
-//
-// Tensor<double> TDHF::DiagonalizeFullResponseMatrix(
-//    World &world, Tensor<double> &S, Tensor<double> &A, ResponseFunction &x,
-//    ResponseFunction &Vx, ResponseFunction &x_g, ResponseFunction &x_fe,
-//    ResponseFunction &B_x, ResponseFunction &y, ResponseFunction &Vy,
-//    ResponseFunction &y_g, ResponseFunction &y_fe, ResponseFunction &B_y,
-//    Tensor<double> &omega, const double thresh, int print_level) {
 
 Tensor<double> TDHF::DiagonalizeFullResponseMatrix(
     World &world, Tensor<double> &S, Tensor<double> &A, ResponseFunction &Hx,
@@ -2853,6 +2847,8 @@ TDHF::CreateXCDerivative(World &world, std::vector<real_function_3d> &orbitals,
 }
 
 // Iterates the response functions until converged or out of iterations
+//
+
 void TDHF::Iterate(World &world) {
   // Variables needed to iterate
   int iteration = 0; // Iteration counter
@@ -2879,23 +2875,30 @@ void TDHF::Iterate(World &world) {
   ResponseFunction y_differences; // Holds wave function corrections
   ResponseFunction x_gamma;       // Holds the perturbed two electron piece
   ResponseFunction y_gamma;       // Holds the perturbed two electron piece
-  ResponseFunction x_fe;  // Holds the ground state-fock and energy scaled x
-  ResponseFunction x_fe2; // Holds the ground state-fock and energy scaled x
+  ResponseFunction x_fe(world, m, n);
+  ResponseFunction x_fe2(world, m, n);
   // response components
-  ResponseFunction y_fe;  // Holds the ground state-fock and energy scaled y
-  ResponseFunction y_fe2; // Holds the ground state-fock and energy scaled y
+  ResponseFunction y_fe(world, m, n);
+  ResponseFunction y_fe2(world, m, n);
+  ;
   // response components
-  ResponseFunction V_x_response; // Holds V^0 applied to response functions
-  ResponseFunction V_y_response; // Holds V^0 applied to response functions
-  ResponseFunction Hx;
-  ResponseFunction Hy;
-  ResponseFunction Gx;
-  ResponseFunction Gy;
-  ResponseFunction B_x; // Holds the off diagonal perturbed piece of y equation
-  ResponseFunction B_y; // Holds the off diagonal perturbed piece of x equation
-  ResponseFunction shifted_V_x_response; // Holds the shifted V^0 applied to
+  ResponseFunction V_x_response(world, m,
+                                n); // Holds V^0 applied to response functions
+  ResponseFunction V_y_response(world, m,
+                                n); // Holds V^0 applied to response functions
+  ResponseFunction Hx(world, m, n);
+  ResponseFunction Hy(world, m, n);
+  ResponseFunction Gx(world, m, n);
+  ResponseFunction Gy(world, m, n);
+  ResponseFunction B_x(
+      world, m, n); // Holds the off diagonal perturbed piece of y equation
+  ResponseFunction B_y(
+      world, m, n); // Holds the off diagonal perturbed piece of x equation
+  ResponseFunction shifted_V_x_response(world, m,
+                                        n); // Holds the shifted V^0 applied to
   // response functions
-  ResponseFunction shifted_V_y_response; // Holds the shifted V^0 applied to
+  ResponseFunction shifted_V_y_response(world, m,
+                                        n); // Holds the shifted V^0 applied to
   // response functions
   ResponseFunction old_x_response(
       world, m, n); // Holds the old x_response vector of vectors
@@ -2906,14 +2909,14 @@ void TDHF::Iterate(World &world) {
 
   // Versions from previous iteration that need to be stored
   // in order to diagonalize in a larger subspace
-  ResponseFunction old_x_gamma;
-  ResponseFunction old_V_x_response;
-  ResponseFunction old_x_fe;
-  ResponseFunction old_B_x;
-  ResponseFunction old_y_gamma;
-  ResponseFunction old_V_y_response;
-  ResponseFunction old_y_fe;
-  ResponseFunction old_B_y;
+  ResponseFunction old_x_gamma(world, m, n);
+  ResponseFunction old_V_x_response(world, m, n);
+  ResponseFunction old_x_fe(world, m, n);
+  ResponseFunction old_B_x(world, m, n);
+  ResponseFunction old_y_gamma(world, m, n);
+  ResponseFunction old_V_y_response(world, m, n);
+  ResponseFunction old_y_fe(world, m, n);
+  ResponseFunction old_B_y(world, m, n);
   Tensor<double> old_A;
   Tensor<double> old_S;
 
@@ -2988,6 +2991,7 @@ void TDHF::Iterate(World &world) {
     // Call it the Electronic Interaction Class
 
     // Create gamma
+    /*
     x_gamma = CreateGamma(world, x_response, y_response, Gparams.orbitals,
                           Rparams.small, FunctionDefaults<3>::get_thresh(),
                           Rparams.print_level, "x");
@@ -2996,10 +3000,15 @@ void TDHF::Iterate(World &world) {
                             Rparams.small, FunctionDefaults<3>::get_thresh(),
                             Rparams.print_level, "y");
 
-    ResponseFunction x_fe = scale_2d(world, x_response, hamiltonian);
-    ResponseFunction x_fe2 = scale_2d(world, x_response, ham_no_diag);
+                            */
+
+    ResponseFunction x_fe = scale_2d(
+        world, x_response, hamiltonian); // epsilon with diag for FullR matrix
+    ResponseFunction x_fe2 =
+        scale_2d(world, x_response, ham_no_diag); // for rhs
     Hx = CreateHf(world, x_response, Gparams.orbitals, Rparams.small,
                   FunctionDefaults<3>::get_thresh(), Rparams.print_level, "x");
+    // print(Hx);
     Gy = CreateGf(world, y_response, Gparams.orbitals, Rparams.small,
                   FunctionDefaults<3>::get_thresh(), Rparams.print_level, "y");
     // else Compute everything
@@ -3071,7 +3080,7 @@ void TDHF::Iterate(World &world) {
       // Solve Ax = Sxw
       // Just to be sure dimensions work out, clear omega
       omega.clear();
-      diag_fock_matrix(world, A_x, x_response, V_x_response, x_gamma, x_fe,
+      diag_fock_matrix(world, A_x, x_response, V_x_response, Hx, x_fe, x_fe2,
                        omega, S, FunctionDefaults<3>::get_thresh());
 
       // If larger subspace, need to "un-augment" everything
@@ -3181,16 +3190,37 @@ void TDHF::Iterate(World &world) {
           apply_shift(world, y_shifts, V_y_response, y_response);
     }
 
-    // Construct RHS of equation
-    ResponseFunction rhs_x = x_gamma + shifted_V_x_response;
+    QProjector<double, 3> projector(world, Gparams.orbitals);
+    // for (int i = 0; i < m; i++)
+    // Af[i] = projector(Af[i]);
+
+    // Construct RHS of equation ()
+    // ResponseFunction rhs_x = x_gamma + shifted_V_x_response;
+    ResponseFunction rhs_x = Hx;
     ResponseFunction rhs_y;
     if (not Rparams.tda) {
       // Add in coupling
-      rhs_x = rhs_x + B_y;
+      rhs_x = rhs_x + Gy;
 
       // And construct y
-      rhs_y = y_gamma + shifted_V_y_response + B_x;
+      // rhs_y = y_gamma + shifted_V_y_response + B_x;
+      rhs_y = Gx + Hy;
     }
+
+    for (int i = 0; i < m; i++) {
+      rhs_x[i] = projector(rhs_x[i]);
+
+      if (not Rparams.tda) {
+        rhs_y[i] = projector(rhs_x[i]);
+      }
+    }
+
+    rhs_x = shifted_V_x_response + rhs_x - x_fe2;
+    if (not Rparams.tda) {
+      rhs_y = shifted_V_x_response + rhs_x - x_fe2;
+    }
+
+    // Then project electron terms
 
     // Used to be localized orbital correction
     // but needs to happen in all cases
@@ -3199,7 +3229,6 @@ void TDHF::Iterate(World &world) {
     // Perhaps we should be rotating the hamiltonian instead
     // but we never use those response functions
     // instead we recompute here....Are x_response functions rotated?)
-    rhs_x = rhs_x - x_fe2;
 
     // Debugging output
     if (Rparams.print_level >= 2) {
@@ -3747,7 +3776,7 @@ void TDHF::analysis(World &world) {
 }
 
 // Simplified iterate scheme for guesses
-void TDHF::iterate_guess(World &world, ResponseFunction &guesses) {
+void TDHF::IterateGuess(World &world, ResponseFunction &guesses) {
   // Variables needed to iterate
   int iteration = 0; // Iteration counter
   QProjector<double, 3> projector(
@@ -3826,6 +3855,11 @@ void TDHF::iterate_guess(World &world, ResponseFunction &guesses) {
                         FunctionDefaults<3>::get_thresh(), Rparams.print_level,
                         "x");
 
+    /*    gamma =
+            CreateHf(world, guesses, Gparams.orbitals, Rparams.small,
+                     FunctionDefaults<3>::get_thresh(), Rparams.print_level,
+       "x");
+                     */
     // Create \hat{V}^0 applied to response functions
     V = CreatePotential(world, guesses, xc, Rparams.print_level, "x");
 
@@ -3837,12 +3871,15 @@ void TDHF::iterate_guess(World &world, ResponseFunction &guesses) {
       print("\n   Overlap matrix:");
       print(S);
     }
+    ResponseFunction g_fe = scale_2d(world, guesses, hamiltonian);
+    ResponseFunction g_fe2 = scale_2d(world, guesses, ham_no_diag);
 
     // Constructing response matrix
     Tensor<double> A =
-        create_response_matrix(world, fe, gamma, V, guesses, Gparams.orbitals,
+        create_response_matrix(world, gamma, V, g_fe, guesses, Gparams.orbitals,
                                hamiltonian, Rparams.print_level, "x");
-    diag_fock_matrix(world, A, guesses, V, gamma, fe, omega, S,
+
+    diag_fock_matrix(world, A, guesses, V, gamma, g_fe, g_fe2, omega, S,
                      FunctionDefaults<3>::get_thresh());
 
     // Ensure right number of omegas
@@ -3878,8 +3915,7 @@ void TDHF::iterate_guess(World &world, ResponseFunction &guesses) {
       ResponseFunction rhs = gamma + shifted_V;
 
       // Add in all off diagonal elements of ground state Fock matrix
-      ResponseFunction temp = scale_2d(world, guesses, ham_no_diag);
-      rhs = rhs - temp;
+      rhs = rhs - g_fe2;
 
       // Construct BSH operators
       std::vector<std::vector<std::shared_ptr<real_convolution_3d>>>
@@ -4850,7 +4886,7 @@ void TDHF::solve(World &world) {
         if (world.rank() == 0)
           print("\n   Iterating trial functions for an improved initial "
                 "guess.\n");
-        iterate_guess(world, x_response);
+        IterateGuess(world, x_response);
 
         // Sort
         sort(world, omega, x_response);
