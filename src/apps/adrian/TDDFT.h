@@ -122,10 +122,14 @@ public:
   }
 };
 
-struct ElectronResponses {
+struct ElectronResponseFunctions {
   // Potential Terms
   ResponseFunction Vx;
   ResponseFunction Vy;
+
+  // GroundState Fock Operator on respones components
+  ResponseFunction F0_x;
+  ResponseFunction F0_y;
 
   // Electron Interactions
   ResponseFunction Hx;
@@ -134,10 +138,10 @@ struct ElectronResponses {
   ResponseFunction Hy;
 
   // Epsilon Terms
-  ResponseFunction x_fe;
-  ResponseFunction x_fe_nodiag;
-  ResponseFunction y_fe;
-  ResponseFunction y_fe_nodiag;
+  ResponseFunction EpsilonX;
+  ResponseFunction EpsilonY;
+  ResponseFunction EpsilonXNoDiag;
+  ResponseFunction EpsilonYNoDiag;
 };
 /// Given a molecule and ground state orbitals, solve the response equations
 /// in the Tamm-Danchoff approximation.
@@ -281,14 +285,14 @@ public:
                              double thresh);
 
   // Returns the diagonal (letter A) elements of response matrix
-  ResponseFunction CreateAf(World &world, ResponseFunction &Hf,
-                            ResponseFunction &Vf, ResponseFunction &f,
-                            ResponseFunction &energy_resp,
+  ResponseFunction createAf(World &world, ResponseFunction &Vf,
+                            ResponseFunction &F0_f, ResponseFunction &Epsilonf,
+                            ResponseFunction &Hf, ResponseFunction &f,
                             std::vector<real_function_3d> &orbitals,
                             int print_level, std::string xy);
 
   // Returns the off diagonal (letter B) elements of response matrix
-  ResponseFunction CreateBf(World &world, ResponseFunction &Gf,
+  ResponseFunction createBf(World &world, ResponseFunction &Gf,
                             std::vector<real_function_3d> &orbitals,
                             int print_level);
 
@@ -319,7 +323,7 @@ public:
                                    XCOperator xc, int print_level,
                                    std::string xy);
 
-  void computeElectronResponse(World &world, ElectronResponses &I,
+  void computeElectronResponse(World &world, ElectronResponseFunctions &I,
                                ResponseFunction &x, ResponseFunction &y,
                                std::vector<real_function_3d> &orbitals,
                                XCOperator xc, Tensor<double> &hamiltonian,
@@ -337,7 +341,8 @@ public:
 
   // Returns the hamiltonian matrix, equation 45 from the paper
   Tensor<double>
-  createResponseMatrix(World &world, ResponseFunction &x, ElectronResponses &I,
+  createResponseMatrix(World &world, ResponseFunction &x,
+                       ElectronResponseFunctions &I,
                        std::vector<real_function_3d> &ground_orbitals,
                        int print_level, std::string xy);
 
@@ -349,7 +354,7 @@ public:
       World &world,
       ResponseFunction &x, // x response functions
       ResponseFunction &y, // y response functions
-      ElectronResponses &I,
+      ElectronResponseFunctions &I,
       std::vector<real_function_3d> &ground_orbitals, // ground state orbitals
       double small, double thresh, int print_level);
   // Returns the shift needed for each orbital to make sure
@@ -418,7 +423,7 @@ public:
   // Diagonalizes the fock matrix, taking care of degerate states
   Tensor<double> diagonalizeFockMatrix(World &world, Tensor<double> &fock,
                                        ResponseFunction &psi,
-                                       ElectronResponses &I,
+                                       ElectronResponseFunctions &I,
                                        Tensor<double> &evals,
                                        Tensor<double> &overlap,
                                        const double thresh);
@@ -431,12 +436,10 @@ public:
   // If using a larger subspace to diagonalize in, this will put everything in
   // the right spot
   void augment(World &world, Tensor<double> &S_x, Tensor<double> &A_x,
-               ResponseFunction &x_gamma, ResponseFunction &x_response,
-               ResponseFunction &V_x_response, ResponseFunction &x_fe,
+               ElectronResponseFunctions &Current,
+               ElectronResponseFunctions &Last, ResponseFunction &x_response,
                Tensor<double> &old_S, Tensor<double> &old_A,
-               ResponseFunction &old_x_gamma, ResponseFunction &old_x_resopnse,
-               ResponseFunction &old_V_x_response, ResponseFunction &old_x_fe,
-               int print_level);
+               ResponseFunction &old_x_resopnse, int print_level);
 
   // If using a larger subspace to diagonalize in, this will put everything in
   // the right spot
@@ -458,13 +461,10 @@ public:
   // will put everything in the right spot
   void unaugment(World &world, int m, int iter, Tensor<double> &omega,
                  Tensor<double> &S_x, Tensor<double> &A_x,
-                 ResponseFunction &x_gamma, ResponseFunction &x_response,
-                 ResponseFunction &V_x_response, ResponseFunction &x_fe,
+                 ElectronResponseFunctions &Current,
+                 ElectronResponseFunctions &Last, ResponseFunction &x_response,
                  Tensor<double> &old_S, Tensor<double> &old_A,
-                 ResponseFunction &old_x_gamma,
-                 ResponseFunction &old_x_resopnse,
-                 ResponseFunction &old_V_x_response, ResponseFunction &old_x_fe,
-                 int print_level);
+                 ResponseFunction &old_x_response, int print_level);
 
   // If using a larger subspace to diagonalize in, after diagonalization this
   // will put everything in the right spot
@@ -485,7 +485,7 @@ public:
   // Diagonalize the full response matrix, taking care of degenerate states
   Tensor<double> diagonalizeFullResponseMatrix(
       World &world, Tensor<double> &S, Tensor<double> &A, ResponseFunction &x,
-      ResponseFunction &y, ElectronResponses &I, Tensor<double> &omega,
+      ResponseFunction &y, ElectronResponseFunctions &I, Tensor<double> &omega,
       const double thresh, int print_level);
 
   // Similar to what robert did above in "get_fock_transformation"
