@@ -169,11 +169,6 @@ int main(int argc, char** argv) {
 				}
 			}
 		}
-		for (auto i=0; i<rdm_evals.size(); ++i){
-			for (auto ii=0; ii<rdm_evals[i].size();++ii){
-				occ.push_back(rdm_evals[i][ii]);
-			}
-		}
 		std::vector<std::pair<double, real_function_3d> > zipped;
 		for (auto i=0; i< all_basis_functions.size(); ++i){
 			zipped.push_back(std::make_pair(occ[i], all_basis_functions[i]));
@@ -211,8 +206,17 @@ int main(int argc, char** argv) {
 
 		auto basis = all_basis_functions;
 		if (orthogonalize){
+			const auto old = copy(world, basis);
 			basis = madness::orthonormalize_rrcd(all_basis_functions, 1.e-5);
 			if(world.rank()==0) std::cout << "Basis size after global Cholesky: " << basis.size() << "\n";
+			if(world.rank()==0) std::cout << "Overlap Matrix before and after Cholesky\n";
+			for (int i=0;i<basis.size();++i){
+				for (int j=0;j<basis.size();++j){
+					const auto tmpxs = old[i].inner(basis[j]);
+					std::cout << tmpxs(i,j) << " ";
+				}
+				if(world.rank()==0) std::cout << "\n";
+			}
 		}
 
 		if(world.rank()==0) std::cout << "Adding Reference orbitals\n";
