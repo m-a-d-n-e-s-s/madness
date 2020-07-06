@@ -213,7 +213,7 @@ int main(int argc, char** argv) {
 			for (int i=0;i<basis.size();++i){
 				for (int j=0;j<basis.size();++j){
 					const auto tmpxs = old[i].inner(basis[j]);
-					std::cout << tmpxs(i,j) << " ";
+					std::cout << tmpxs << " ";
 				}
 				if(world.rank()==0) std::cout << "\n";
 			}
