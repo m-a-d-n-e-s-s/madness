@@ -497,7 +497,23 @@ public:
   // Sorts the given Tensor and response functions in place
   void sort(World &world, Tensor<double> &vals, ResponseFunction &f);
 
-  // Creates the XCOperator object and initializes it with correct parameters
+  void deflateTDA(World &world, Tensor<double> &S, Tensor<double> old_S,
+                  Tensor<double> old_A, ResponseFunction &x_response,
+                  ResponseFunction &old_x_response,
+                  ElectronResponseFunctions &ElectronResponses,
+                  ElectronResponseFunctions &OldElectronResponses,
+                  Tensor<double> &omega, int &iteration, int &m);
+
+  void deflateFull(World &world, Tensor<double> &S, Tensor<double> old_S,
+                   Tensor<double> old_A, ResponseFunction &x_response,
+                   ResponseFunction &y, ResponseFunction &old_x_response,
+                   ResponseFunction &old_y_response,
+                   ElectronResponseFunctions &ElectronResponses,
+                   ElectronResponseFunctions &OldElectronResponses,
+                   Tensor<double> &omega, int &iteration, int &m);
+
+  // Creates the XCOperator object and initializes it with correct
+  // parameters
   XCOperator create_xcoperator(World &world,
                                std::vector<real_function_3d> orbitals,
                                std::string xc);
