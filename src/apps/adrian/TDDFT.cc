@@ -3086,6 +3086,11 @@ void TDHF::Iterate(World &world) {
         end_timer(world, "Load balancing:");
     }
 
+    if (Rparams.print_level >= 1 and world.rank() == 0) {
+      print("Before Deflate");
+      print("\n   Excitation Energies:");
+      print(omega);
+    }
     // TDA approximation
     if (Rparams.tda) {
       deflateTDA(world, S, old_S, old_A, x_response, old_x_response,
@@ -3102,8 +3107,13 @@ void TDHF::Iterate(World &world) {
 
     // Basic output
     if (Rparams.print_level >= 1 and world.rank() == 0) {
+      print("After Deflate");
       print("\n   Excitation Energies:");
       print(omega);
+      print("\n Hamiltonian: ");
+      print(hamiltonian);
+      print("\n Hamiltonian NoDiag: ");
+      print(ham_no_diag);
     }
 
     // Calculate energy residual and update old_energy
@@ -3147,47 +3157,20 @@ void TDHF::Iterate(World &world) {
           apply_shift(world, y_shifts, ElectronResponses.Vy, y_response);
     }
 
-    QProjector<double, 3> projector(world, Gparams.orbitals);
-    // for (int i = 0; i < m; i++)
-    // Af[i] = projector(Af[i]);
-
-    // Construct RHS of equation ()
-    // ResponseFunction rhs_x = x_gamma + shifted_V_x_response;
     ResponseFunction rhs_x = ElectronResponses.Hx;
     ResponseFunction rhs_y;
+
     if (not Rparams.tda) {
       // Add in coupling
       rhs_x = rhs_x + ElectronResponses.Gy;
-
       // And construct y
       // rhs_y = y_gamma + shifted_V_y_response + B_x;
       rhs_y = ElectronResponses.Gx + ElectronResponses.Hy;
     }
-
-    //    for (int i = 0; i < m; i++) {
-    //      rhs_x[i] = projector(rhs_x[i]);
-    //
-    //      if (not Rparams.tda) {
-    //        rhs_y[i] = projector(rhs_x[i]);
-    //      }
-    //    }
-    //
     rhs_x = shifted_V_x_response + rhs_x - ElectronResponses.EpsilonXNoDiag;
     if (not Rparams.tda) {
       rhs_y = shifted_V_x_response + rhs_x - ElectronResponses.EpsilonYNoDiag;
     }
-
-    // Then project electron terms
-
-    // Used to be localized orbital correction
-    // but needs to happen in all cases
-    // (TODO Show Robert... we digonalize A..
-    // Then we transform vectors including x_fe and y_fe
-    // Perhaps we should be rotating the hamiltonian instead
-    // but we never use those response functions
-    // instead we recompute here....Are x_response functions rotated?)
-
-    // Debugging output
     if (Rparams.print_level >= 2) {
       if (world.rank() == 0)
         print("   Norms of off-diagonal hamiltonian correction for x "
@@ -3196,8 +3179,6 @@ void TDHF::Iterate(World &world) {
     }
 
     if (not Rparams.tda) {
-      rhs_y = rhs_y - ElectronResponses.EpsilonYNoDiag;
-
       // Debugging output
       if (Rparams.print_level >= 2) {
         if (world.rank() == 0)
@@ -3822,7 +3803,6 @@ void TDHF::IterateGuess(World &world, ResponseFunction &guesses) {
                             Rparams.print_level, "x");
     // Constructing S
     S = expectation(world, x_response, x_response);
-
     // Debugging output
     if (Rparams.print_level >= 2 and world.rank() == 0) {
       print("\n   Overlap matrix:");
@@ -3830,7 +3810,6 @@ void TDHF::IterateGuess(World &world, ResponseFunction &guesses) {
     }
     Tensor<double> A = createResponseMatrix(world, guesses, I, Gparams.orbitals,
                                             Rparams.print_level, "x");
-
     diagonalizeFockMatrix(world, A, guesses, I, omega, S,
                           FunctionDefaults<3>::get_thresh());
     // Ensure right number of omegas
