@@ -718,28 +718,7 @@ ResponseFunction TDHF::createAf(World &world, ResponseFunction &Vf,
     if (world.rank() == 0)
       print(temp2);
   }
-  // Need to calculate hamiltonian * x_response
-  // Name of function sounds strange, I know...
-  /*
-     ResponseFunction energy_resp(world, f.size(),f[0].size());
-     for (int p =0; p< m ; p++){
-     for (int i =0; i<f[0].size();++i){
-     energy_resp[p][i]=f[p][i]*GroundParameters.energies[p];
-     }
-     }
-     */
-  // for each root (k) in response function f subtract sum[q] f[k][q]*h(q,p)
-  // f_fe
-  // if (print_level >= 2) {
-  //  if (world.rank() == 0)
-  //    printf("   Energy scaled response %s components:\n", xy.c_str());
-  //  Tensor<double> temp2 = expectation(world, f, energy_resp);
-  //  if (world.rank() == 0)
-  //    print(temp2);
-  //}
-  // Saving this here for larger subspace calculations
-  // Not sure what this comment is about (TODO)
-  // (F0_f - energy_resp)+Hf
+  //
   Af = Hf + F0_f;
   Af = Af - Epsilonf;
   // Need to project
@@ -901,9 +880,9 @@ ResponseFunction TDHF::CreateHf(World &world, ResponseFunction &f,
   H = deriv_J * 2.0 + deriv_XC - deriv_K * xcf.hf_exchange_coefficient();
 
   // Project out groundstate
-  QProjector<double, 3> projector(world, Gparams.orbitals);
-  for (int i = 0; i < m; i++)
-    H[i] = projector(H[i]);
+  // QProjector<double, 3> projector(world, Gparams.orbitals);
+  // for (int i = 0; i < m; i++)
+  //  H[i] = projector(H[i]);
 
   // Debugging output
   if (print_level >= 2) {
@@ -979,9 +958,9 @@ ResponseFunction TDHF::CreateGf(World &world, ResponseFunction &f,
   G = Jdagger * 2.0 + XCdagger - Kdagger * xcf.hf_exchange_coefficient();
 
   // Project out groundstate
-  QProjector<double, 3> projector(world, Gparams.orbitals);
-  for (int i = 0; i < m; i++)
-    G[i] = projector(G[i]);
+  // QProjector<double, 3> projector(world, Gparams.orbitals);
+  // for (int i = 0; i < m; i++)
+  //  G[i] = projector(G[i]);
 
   // Debugging output
   if (print_level >= 2) {
@@ -1308,16 +1287,16 @@ TDHF::createResponseMatrix(World &world, ResponseFunction &x,
 
   // Construct intermediary
   // Sets fe to be (\hat{fock} - eps)*f
-  ResponseFunction temp = createAf(world, I.Vx, I.F0_x, I.EpsilonX, I.Hx, x,
-                                   ground_orbitals, print_level, xy);
+  ResponseFunction Ax = createAf(world, I.Vx, I.F0_x, I.EpsilonX, I.Hx, x,
+                                 ground_orbitals, print_level, xy);
 
   // Make the matrix
-  Tensor<double> A = expectation(world, x, temp);
+  Tensor<double> xAx = expectation(world, x, Ax);
 
   // Debugging output
   if (print_level >= 2 and world.rank() == 0) {
     printf("\n   Response matrix for %s components:\n", xy.c_str());
-    print(A);
+    print(xAx);
   }
 
   // End timer
@@ -1325,7 +1304,7 @@ TDHF::createResponseMatrix(World &world, ResponseFunction &x,
     end_timer(world, "Create resp. matrix:");
 
   // Done
-  return A;
+  return xAx;
 }
 
 // Constructs the matrix, so really it does
@@ -2974,12 +2953,12 @@ TDHF::CreateXCDerivative(World &world, std::vector<real_function_3d> &orbitals,
 void TDHF::Iterate(World &world) {
   // Variables needed to iterate
   int iteration = 0; // Iteration counter
-  QProjector<double, 3> projector(
-      world, Gparams.orbitals); // Projector to project out ground state
-  int m = Rparams.states;       // Number of excited states
-  int n = Gparams.num_orbitals; // Number of ground state orbitals
-  bool all_converged = false;   // For convergence
-  bool relax = false;           // For convergence
+                     // Projector to project out ground state
+  QProjector<double, 3> projector(world, Gparams.orbitals);
+  int m = Rparams.states;                 // Number of excited states
+  int n = Gparams.num_orbitals;           // Number of ground state orbitals
+  bool all_converged = false;             // For convergence
+  bool relax = false;                     // For convergence
   int relax_start = Rparams.max_iter + 1; // For convergence
   int num_conv = 0;                       // For convergence
   std::vector<bool> converged(m, false);  // For convergence
@@ -2991,6 +2970,8 @@ void TDHF::Iterate(World &world) {
   Tensor<double> y_norms(m);
   Tensor<double> x_shifts;        // Holds the shifted energy values
   Tensor<double> y_shifts;        // Holds the shifted energy values
+  ResponseFunction rhs_x;         // Holds wave function corrections
+  ResponseFunction rhs_y;         // Holds wave function corrections
   ResponseFunction bsh_x_resp;    // Holds wave function corrections
   ResponseFunction bsh_y_resp;    // Holds wave function corrections
   ResponseFunction x_differences; // Holds wave function corrections
@@ -3049,8 +3030,8 @@ void TDHF::Iterate(World &world) {
 
     // Normalize after projection
     if (Rparams.tda)
-      normalize(world,
-                x_response); // Gotta checkout out what normalize does
+      // Gotta checkout out what normalize does
+      normalize(world, x_response);
     else
       normalize(world, x_response, y_response);
 
@@ -3157,35 +3138,21 @@ void TDHF::Iterate(World &world) {
           apply_shift(world, y_shifts, ElectronResponses.Vy, y_response);
     }
 
-    ResponseFunction rhs_x = ElectronResponses.Hx;
-    ResponseFunction rhs_y;
-
     if (not Rparams.tda) {
-      // Add in coupling
-      rhs_x = rhs_x + ElectronResponses.Gy;
-      // And construct y
-      // rhs_y = y_gamma + shifted_V_y_response + B_x;
-      rhs_y = ElectronResponses.Gx + ElectronResponses.Hy;
-    }
-    rhs_x = shifted_V_x_response + rhs_x - ElectronResponses.EpsilonXNoDiag;
-    if (not Rparams.tda) {
-      rhs_y = shifted_V_x_response + rhs_x - ElectronResponses.EpsilonYNoDiag;
-    }
-    if (Rparams.print_level >= 2) {
-      if (world.rank() == 0)
-        print("   Norms of off-diagonal hamiltonian correction for x "
-              "components:");
-      print_norms(world, ElectronResponses.EpsilonXNoDiag);
-    }
-
-    if (not Rparams.tda) {
-      // Debugging output
-      if (Rparams.print_level >= 2) {
-        if (world.rank() == 0)
-          print("   Norms of off-diagonal hamiltonian correction for y "
-                "components:");
-        print_norms(world, ElectronResponses.EpsilonYNoDiag);
+      rhs_x = ElectronResponses.Hx + ElectronResponses.Gy;
+      rhs_y = ElectronResponses.Hy + ElectronResponses.Gx;
+      for (int i = 0; i < m; i++) {
+        rhs_x[i] = projector(rhs_x[i]);
+        rhs_y[i] = projector(rhs_y[i]);
       }
+      rhs_x = shifted_V_x_response + rhs_x - ElectronResponses.EpsilonXNoDiag;
+      rhs_y = shifted_V_y_response + rhs_y - ElectronResponses.EpsilonYNoDiag;
+    } else {
+      ResponseFunction rhs_x = ElectronResponses.Hx;
+      for (int i = 0; i < m; i++) {
+        rhs_x[i] = projector(rhs_x[i]);
+      }
+      rhs_x = shifted_V_x_response + rhs_x - ElectronResponses.EpsilonXNoDiag;
     }
 
     // Debugging output
@@ -3223,11 +3190,6 @@ void TDHF::Iterate(World &world) {
     old_x_response = x_response.copy();
     if (not Rparams.tda)
       old_y_response = y_response.copy();
-
-    // Scale by -2.0 (coefficient in eq. 37 of reference paper)
-    rhs_x = scale(rhs_x, -2.0);
-    if (not Rparams.tda)
-      rhs_y = scale(rhs_y, -2.0);
 
     // Apply BSH and get updated response components
     if (Rparams.print_level >= 1)
@@ -3268,6 +3230,10 @@ void TDHF::Iterate(World &world) {
           y_response[i] = bsh_y_resp[i];
       }
     }
+    // Scale by -2.0 (coefficient in eq. 37 of reference paper)
+    x_response = scale(x_response, -2.0);
+    if (not Rparams.tda)
+      x_response = scale(x_response, -2.0);
 
     // Get the difference between old and new
     x_differences = old_x_response - x_response;
@@ -3727,7 +3693,8 @@ void TDHF::IterateGuess(World &world, ResponseFunction &guesses) {
   ElectronResponseFunctions I;
   ResponseFunction bsh_resp; // Holds wave function corrections
   ResponseFunction gamma;    // Holds the perturbed two electron piece
-  ResponseFunction fe;       // Holds the ground state-fock and energy scaled x
+  ResponseFunction rhs;
+  ResponseFunction fe; // Holds the ground state-fock and energy scaled x
   // response components
   ResponseFunction V; // Holds V^0 applied to response functions
   ResponseFunction
@@ -3844,7 +3811,11 @@ void TDHF::IterateGuess(World &world, ResponseFunction &guesses) {
 
       // Construct RHS of equation
       //      ResponseFunction rhs = gamma + shifted_V;
-      ResponseFunction rhs = I.Hx;
+      rhs = I.Hx;
+      for (int i = 0; i < m; i++) {
+        rhs[i] = projector(rhs[i]);
+      }
+
       rhs = rhs - I.EpsilonXNoDiag + shifted_V;
 
       // Add in all off diagonal elements of ground state Fock
@@ -3860,7 +3831,6 @@ void TDHF::IterateGuess(World &world, ResponseFunction &guesses) {
 
       // Scale by -2.0 (coefficient in eq. 37 of reference
       // paper)
-      rhs = scale(rhs, -2.0);
 
       // Apply BSH and get updated components
       if (Rparams.print_level >= 1)
@@ -3875,7 +3845,7 @@ void TDHF::IterateGuess(World &world, ResponseFunction &guesses) {
 
       // Save new components
       guesses = bsh_resp;
-
+      guesses = scale(guesses, -2.0);
       // Apply mask
       for (int i = 0; i < m; i++)
         guesses[i] = mask * guesses[i];
