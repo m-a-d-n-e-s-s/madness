@@ -230,7 +230,7 @@ int main(int argc, char** argv) {
 
 		if (orthogonalize){
 			const auto old = copy(world, basis);
-			basis = madness::orthonormalize_cd(all_basis_functions);
+			basis = madness::orthonormalize_cd(basis);
 			if(world.rank()==0) std::cout << "Basis size after global Cholesky: " << basis.size() << "\n";
 			if(world.rank()==0) std::cout << "Overlap Matrix before and after Cholesky\n";
 			for (int i=0;i<basis.size();++i){
