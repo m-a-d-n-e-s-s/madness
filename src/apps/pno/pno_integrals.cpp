@@ -216,6 +216,18 @@ int main(int argc, char** argv) {
 		auto gop = std::shared_ptr < real_convolution_3d > (madness::CoulombOperatorPtr(world, 1.e-6, parameters.op_thresh()));
 
 		auto basis = all_basis_functions;
+
+		if(not cherry_pick.empty()){
+			vecfuncT cp;
+			if(world.rank()==0){
+				std::cout << "Cherry picking orbitals: " << cherry_pick << " from pno basis\n";
+			}
+			for(auto i: cherry_pick){
+				cp.push_back(basis[i]);
+			}
+			basis = cp;
+		}
+
 		if (orthogonalize){
 			const auto old = copy(world, basis);
 			basis = madness::orthonormalize_cd(all_basis_functions);
