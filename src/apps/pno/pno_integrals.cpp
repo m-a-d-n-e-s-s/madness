@@ -50,6 +50,15 @@ int main(int argc, char** argv) {
 
 	const bool only_diag = (argc > 4) ? bool(std::atoi(argv[4])) : false;
 
+	std::vector<int> cherry_pick();
+	for(auto i=0; i<99; ++i){
+		if(argc > i){
+			int atmp = std::atoi(argv[i]);
+			cherry_pick.push_back(atmp);
+		}
+	}
+
+
 	if(world.rank()==0){
 		std::cout << "\n\n";
 		std::cout << "-------------------------------------------------------------------------------------\n";
@@ -67,6 +76,7 @@ int main(int argc, char** argv) {
 		std::cout << "orthogonalization is " << orthogonalization << "\n";
 		std::cout << "basis size is " << basis_size << "\n";
 		std::cout << "only diag is " << only_diag << "\n";
+		std::cout << "cherry_pick is " << cherry_pick << "\n";
 	}
 
 
