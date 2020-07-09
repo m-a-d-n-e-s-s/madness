@@ -19,6 +19,7 @@
 #include <chem/SCF.h>
 #include <chem/nemo.h>
 #include <chem/PNO.h>
+#include <vector>
 
 using namespace madness;
 
@@ -50,7 +51,7 @@ int main(int argc, char** argv) {
 
 	const bool only_diag = (argc > 4) ? bool(std::atoi(argv[4])) : false;
 
-	std::vector<int> cherry_pick();
+	std::vector<int> cherry_pick;
 	for(auto i=0; i<99; ++i){
 		if(argc > i){
 			int atmp = std::atoi(argv[i]);
