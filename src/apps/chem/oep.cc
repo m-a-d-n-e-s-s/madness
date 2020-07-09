@@ -26,6 +26,7 @@ void OEP::solve(const vecfuncT& HF_nemo1, const tensorT& HF_eigvals) {
 	// compute Slater potential Vs and average IHF from HF orbitals and eigenvalues
 	const real_function_3d Vs = compute_slater_potential(HF_nemo);
 	if (oep_param.saving_amount() >= 1) save(Vs, "Slaterpotential");
+	save(Vs, "Slaterpotential");
 
 	tensorT KS_Fock=copy(HF_Fock);
 	if (oep_param.restart()) {
@@ -181,6 +182,12 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 	const real_function_3d ocep_numerator_HF=-1.0*compute_energy_weighted_density_local(HF_nemo,HF_Fock);
 	const real_function_3d dcep_numerator_HF=compute_total_kinetic_density(HF_nemo);
 	const real_function_3d mrks_numerator_HF=compute_Pauli_kinetic_density(HF_nemo);
+	if (oep_param.saving_amount() >= 1) {
+		save(ocep_numerator_HF,"ocep_numerator_HF");
+		save(dcep_numerator_HF,"dcep_numerator_HF");
+		save(mrks_numerator_HF,"mrks_numerator_HF");
+	}
+
 
 	typedef allocator<double, 3> allocT;
 	typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
@@ -188,7 +195,6 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 	solverT solver(allocT(world, KS_nemo.size()),calc->param.print_level()>4);
 	solver.set_maxsub(calc->param.maxsub());
 
-	std::deque<tensorT> eps_history;
 	double energy=0.0;
 	std::vector<double> energies(1,0.0);
 	bool converged=false;
@@ -244,12 +250,11 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 		tensorT Fock_no_ocep = matrix_inner(world, R2KS_nemo, Fnemo, false);
 		Kinetic<double,3> T(world);
 		Fock_no_ocep += T(R2KS_nemo, KS_nemo);
-//		KS_Fock=copy(Fock_no_ocep);
 
 		// recompute the OCEP correction with the updated Fock matrix
 		if (need_ocep_correction(model)) {
 			real_function_3d ocep_correction;
-			for (int i=0; i<15; ++i) {
+			for (int i=0; i<5; ++i) {
 				ocep_correction= compute_ocep_correction(ocep_numerator_HF, HF_nemo,KS_nemo,HF_Fock,KS_Fock);
 				Fock_ocep=matrix_inner(world,R2KS_nemo,ocep_correction*KS_nemo);
 				tensorT KS_Fock_old=copy(KS_Fock);
@@ -262,6 +267,8 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 			}
 			Voep+=ocep_correction;
 			Fnemo+=(ocep_correction*KS_nemo);
+		} else {
+			KS_Fock=copy(Fock_no_ocep);
 		}
 
 		timer1.tag("compute oep");
@@ -297,13 +304,6 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
         energies=compute_energy(KS_nemo, Ex_KS);
         energy =energies[0];
 
-//		// print orbital energies:
-//		if (print_debug) {
-//			print("current orbital energies");
-//			print_orbens(KS_eigvals);
-//			print("HF/KS HOMO energy difference of", homo_diff(HF_eigvals, KS_eigvals), "Eh is not yet included");
-//		}
-
 		timer1.tag("compute energy");
 
 		BSHApply<double,3> bsh_apply(world);
@@ -322,22 +322,15 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 		normalize(nemo_new,R);
 
 		// estimate the orbital energies, as they enter the potential
-		eps_history.push_back(copy(KS_Fock));
-		if (eps_history.size()>solver.get_c().size()) eps_history.pop_front();
-		tensorT fock1(KS_Fock.dim(0),KS_Fock.dim(1));
-		int i=0;
-		for (auto eps : eps_history) {
-			if (calc->param.print_level()>10) print("c[i], eps",solver.get_c()[i],eps);
-			fock1 += eps*solver.get_c()[i++];
-		}
-		KS_Fock=copy(fock1);
-		if (calc->param.print_level()>=10) print("KS_eigvals projection",KS_Fock);
+		if (calc->param.print_level()>=10)  print(KS_Fock);
 
 		// What is step restriction?
 		calc->do_step_restriction(world, KS_nemo, nemo_new, "ab spin case");
 		orthonormalize(nemo_new,R);
 		KS_nemo = nemo_new;
 		timer1.tag("post-process");
+		if (oep_param.saving_amount() >= 3)
+			for (int n=0; n<KS_nemo.size(); ++n) save(KS_nemo[n], "KS_nemo"+stringify(n)+"iter"+stringify(iter));
 
 		double deltadensity=0.0;
 		converged=check_convergence(energies,oldenergies,bshnorm,deltadensity,calc->param,

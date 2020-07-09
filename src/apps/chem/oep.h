@@ -308,6 +308,7 @@ public:
 	    	refine(world,nemo_copy);
 	    	std::vector<real_function_3d> dnemo=apply(world,D,nemo_copy);
 	    	u1dnterm+=U1[idim]*dot(world,nemo_copy,dnemo);
+	    	refine(world,dnemo);
 	    	dndnterm+=dot(world,dnemo,dnemo);
 	    }
 
@@ -543,7 +544,7 @@ public:
 
     	real_function_3d rhonemo = 2.0*dot(world, nemo, nemo); // 2 because closed shell
 
-    	real_function_3d rhoterm = 3*rhonemo + dot(world, r, -2.0*ncf->U1vec()*rhonemo + grad(rhonemo));
+    	real_function_3d rhoterm = 3*rhonemo + dot(world, r, -2.0*ncf->U1vec()*rhonemo + grad(rhonemo,true));
     	double Ex = inner(Vx, R_square*rhoterm);
     	return Ex;
 
