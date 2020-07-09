@@ -52,7 +52,7 @@ int main(int argc, char** argv) {
 	const bool only_diag = (argc > 4) ? bool(std::atoi(argv[4])) : false;
 
 	std::vector<int> cherry_pick;
-	for(auto i=0; i<99; ++i){
+	for(auto i=5; i<99; ++i){
 		if(argc > i){
 			int atmp = std::atoi(argv[i]);
 			cherry_pick.push_back(atmp);
