@@ -228,6 +228,10 @@ int main(int argc, char** argv) {
 			basis = cp;
 		}
 
+		for(auto i=0;i<basis.size();++i){
+			madness::save(basis[i], "pno_"+std::to_string(i));
+		}
+
 		if (orthogonalize){
 			const auto old = copy(world, basis);
 			basis = madness::orthonormalize_cd(basis);
@@ -240,6 +244,10 @@ int main(int argc, char** argv) {
 				}
 				if(world.rank()==0) std::cout << "\n";
 			}
+		}
+
+		for(auto i=0;i<basis.size();++i){
+			madness::save(basis[i], "orthonormalized_pno_"+std::to_string(i));
 		}
 
 		if(world.rank()==0) std::cout << "Adding Reference orbitals\n";
