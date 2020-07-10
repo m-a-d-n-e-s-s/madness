@@ -225,7 +225,51 @@ int main(int argc, char** argv) {
         }
         auto gop = std::shared_ptr < real_convolution_3d > (madness::CoulombOperatorPtr(world, 1.e-6, parameters.op_thresh()));
 
-        // |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+        
+        auto basis = all_basis_functions;
+
+        if (orthogonalize){
+
+            //basis = madness::orthonormalize_rrcd(all_basis_functions, 1.e-5);
+            //Use standard cd, since pivoting swaps PNOs around
+            if (orthogonalization == "cholesky") {    
+                basis = madness::orthonormalize_cd(all_basis_functions);
+                if(world.rank()==0) std::cout << "Basis size after global Cholesky: " << basis.size() << "\n";
+            }
+
+            //do  gram-schmidt
+            else if (orthogonalization == "gs") {
+                std::cout << "orthonormalize...\n";
+                // u_0 = v_0
+                double norm_i = std::sqrt(basis[0].inner(basis[0]));
+                basis[0].scale(1.0/norm_i);
+                // Gram-Schmidt iterations
+                for (int i=1; i<basis.size(); ++i) {
+                    //basis[i] = in_basis[i];
+                    for (int j=0; j<i; ++j) {
+                        std::vector<real_function_3d> basis_j(1);
+                        basis_j[0] = basis[j];
+                        Q = madness::QProjector<double, 3> (world, basis_j);
+                        basis[i] = Q(basis[i]);
+                    }
+                norm_i = std::sqrt(basis[i].inner(basis[i]));
+                basis[i].scale(1.0/norm_i);
+                }
+            }
+
+            if(world.rank()==0) std::cout << "Basis size after Gram-Schmidt: " << basis.size() << "\n";
+
+        }
+
+
+
+
+
+
+
+
+
+       // |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 
         auto fop = std::shared_ptr < real_convolution_3d > (SlaterF12OperatorPtr(world, paramf12.gamma(), 1.e-6, parameters.op_thresh()));
         fop->is_slaterf12 = false; // make sure it is the correct formulation of the exponent
@@ -271,7 +315,9 @@ int main(int argc, char** argv) {
             // Merge {cabs} + {pno}
             // necessary?
             if(world.rank()==0) std::cout << "Adding {cabs} to {pno}.\n";
-            basis_full.insert(basis_full.begin(), cabs.begin(), cabs.end());
+            if(world.rank()==0) std::cout << "Size before: " << basis.size() << ".\n";
+            basis.insert(basis.end(), cabs.begin(), cabs.end());
+            if(world.rank()==0) std::cout << "Size after: " << basis.size() << ".\n";
 
         
         }
@@ -282,42 +328,6 @@ int main(int argc, char** argv) {
 
 
 
-
-
-        auto basis = basis_full; // all_basis_functions;
-
-        if (orthogonalize){
-
-            //basis = madness::orthonormalize_rrcd(all_basis_functions, 1.e-5);
-            //Use standard cd, since pivoting swaps PNOs around
-            if (orthogonalization == "cholesky") {    
-                basis = madness::orthonormalize_cd(all_basis_functions);
-                if(world.rank()==0) std::cout << "Basis size after global Cholesky: " << basis.size() << "\n";
-            }
-
-            //do  gram-schmidt
-            else if (orthogonalization == "gs") {
-                std::cout << "orthonormalize...\n";
-                // u_0 = v_0
-                double norm_i = std::sqrt(basis[0].inner(basis[0]));
-                basis[0].scale(1.0/norm_i);
-                // Gram-Schmidt iterations
-                for (int i=1; i<basis.size(); ++i) {
-                    //basis[i] = in_basis[i];
-                    for (int j=0; j<i; ++j) {
-                        std::vector<real_function_3d> basis_j(1);
-                        basis_j[0] = basis[j];
-                        Q = madness::QProjector<double, 3> (world, basis_j);
-                        basis[i] = Q(basis[i]);
-                    }
-                norm_i = std::sqrt(basis[i].inner(basis[i]));
-                basis[i].scale(1.0/norm_i);
-                }
-            }
-
-            if(world.rank()==0) std::cout << "Basis size after Gram-Schmidt: " << basis.size() << "\n";
-
-        }
 
         if(world.rank()==0) std::cout << "Adding Reference orbitals\n";
         const auto amo = nemo.get_calc()->amo;
