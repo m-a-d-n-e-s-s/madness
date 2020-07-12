@@ -261,17 +261,16 @@ int main(int argc, char** argv) {
 
         }
 
-
-
-
-
-
+        if(world.rank()==0) std::cout << "Adding Reference orbitals\n";
+        const auto amo = nemo.get_calc()->amo;
+        basis.insert(basis.begin(), reference.begin(), reference.end());
 
 
 
        // |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 
         auto fop = std::shared_ptr < real_convolution_3d > (SlaterF12OperatorPtr(world, paramf12.gamma(), 1.e-6, parameters.op_thresh()));
+	// auto slaterop = SlaterOperator(world, paramf12.gamma(), 1.e-6, parameters.op_thresh());
         fop->is_slaterf12 = false; // make sure it is the correct formulation of the exponent
     
 
@@ -285,17 +284,19 @@ int main(int argc, char** argv) {
         // > different routine for orthonormalization? -> GS?
         // > check whether we only project out PNO's used in PNO-basis!
         bool corr_cabs = true; // todo: read from params file
-        auto basis_full = all_basis_functions;
+        auto pno_plus_ref = basis;
         if (corr_cabs) {
             std::vector<real_function_3d> cabs;
             cabs = pno.f12.read_cabs_from_file(paramf12.auxbas_file()); // sadly, F12Potential f12 is private member of pno...
             if (not cabs.empty()){
                 MyTimer time2 = MyTimer(world).start();
-                // Project out reference
-                cabs = Q(cabs); 
+                // Project out reference 
+                //cabs = Q(cabs); 
+                // Project out {pno} + ref
+                madness::QProjector<double, 3> Qpno(world, pno_plus_ref);
+                cabs = Qpno(cabs);
                 // Orthonormalize {cabs}
                 cabs = orthonormalize_cd(cabs);
-                // Project out {pno}
                 //for (ElectronPairIterator it = pno.pit(); it; ++it) {
                      //right now this will make the same guess for all pairs
                     //const vector_real_function_3d tmp=guess_virtuals(param.abs);
@@ -304,9 +305,7 @@ int main(int argc, char** argv) {
                     //const vector_real_function_3d tmp = Qpno(cabs);
                     //abs_ij[it.ij()] = tmp;
                 //}
-                madness::QProjector<double, 3> Qpno(world, all_basis_functions);
-                cabs = Qpno(cabs);
-                time2.stop().print("Make pair specific ABS from PNOS and " + std::to_string(cabs.size()) + " functions");
+               time2.stop().print("Make pair specific ABS from PNOS and " + std::to_string(cabs.size()) + " functions");
             }
             else if (cabs.empty()) {
                 std::cout << "Complaining..." << std::endl; // todo: raise exception or so
@@ -314,7 +313,7 @@ int main(int argc, char** argv) {
         
             // Merge {cabs} + {pno}
             // necessary?
-            if(world.rank()==0) std::cout << "Adding {cabs} to {pno}.\n";
+            if(world.rank()==0) std::cout << "Adding {cabs} to {pno+ref}.\n";
             if(world.rank()==0) std::cout << "Size before: " << basis.size() << ".\n";
             basis.insert(basis.end(), cabs.begin(), cabs.end());
             if(world.rank()==0) std::cout << "Size after: " << basis.size() << ".\n";
@@ -329,12 +328,9 @@ int main(int argc, char** argv) {
 
 
 
-        if(world.rank()==0) std::cout << "Adding Reference orbitals\n";
-        const auto amo = nemo.get_calc()->amo;
-        basis.insert(basis.begin(), reference.begin(), reference.end());
-
         madness::Tensor<double> g(basis.size(), basis.size(), basis.size(), basis.size()); // using mulliken notation since thats more efficient to compute here: Tensor is (pq|g|rs) = <pr|g|qs>
-        madness::Tensor<double> f(basis.size(), basis.size(), basis.size(), basis.size()); // using mulliken notation since thats more efficient to compute here: Tensor is (pq|g|rs) = <pr|g|qs>
+        madness::Tensor<double> f(basis.size(), basis.size(), basis.size(), basis.size());
+        // madness::Tensor<double> slater(basis.size(), basis.size(), basis.size(), basis.size());
 
 
         if(canonicalize){
@@ -352,9 +348,11 @@ int main(int argc, char** argv) {
         }
         std::vector<vecfuncT> GPQ;
         std::vector<vecfuncT> FPQ;
+        //std::vector<vecfuncT> slaterPQ;
         for (const auto& x : basis){
             GPQ.push_back(madness::truncate(madness::apply(world, *gop, madness::truncate(x*basis,thresh)), thresh));
             FPQ.push_back(madness::truncate(madness::apply(world, *fop, madness::truncate(x*basis,thresh)), thresh));
+            //slaterPQ.push_back(madness::truncate(madness::apply(world, slaterop, madness::truncate(x*basis,thresh)), thresh));
         }
 
         auto J = madness::Coulomb(world, &nemo);
@@ -362,7 +360,20 @@ int main(int argc, char** argv) {
         auto Jmat = J(basis, basis);
         auto Kmat = K(basis, basis);
 
-
+        // delete me ---------------------------------------------
+        for (auto p=0; p<basis.size(); p++){
+            for (auto q=0; q<basis.size(); q++){
+		    std::cout << Jmat(p,q) << "\t";
+	    }
+	    std::cout << std::endl;
+	 }
+        for (auto p=0; p<basis.size(); p++){
+            for (auto q=0; q<basis.size(); q++){
+		    std::cout << Kmat(p,q) << "\t";
+	    }
+	    std::cout << std::endl;
+	 }
+        // delete me ---------------------------------------------
 
         int non_zero=0, non_zero_f=0;
         if(world.rank() ==0 ) std::cout << "Compute G Tensor:\n";
@@ -387,6 +398,7 @@ int main(int argc, char** argv) {
                         if (FPQ[r][s].norm2() < h_thresh) continue;
                         else{
                             f(p,q,r,s) = PQ[p][q].inner(FPQ[r][s]);
+                            //slater(p,q,r,s) = PQ[p][q].inner(slaterPQ[r][s]);
                             if(std::fabs(f(p,q,r,s)) > h_thresh ){
                                 if(world.rank()==0 and basis.size() < 3) std::cout << " f " << p  << " "<<  q  << " "<<  r  << " "<<  s << " = " << g(p,q,r,s) << "\n";
                                 ++non_zero_f;
@@ -432,6 +444,9 @@ int main(int argc, char** argv) {
         f = f.flat();
         nc::NdArray<double> ff(f.ptr(), f.size(), 1);
         ff.tofile(name+"_f12tensor.bin", "");
+        //slater = slater.flat();
+        //nc::NdArray<double> ss(slater.ptr(), slater.size(), 1);
+        //ss.tofile(name+"_f12_tensor.bin", "");
 
         if (not orthogonalize){
             auto S = madness::matrix_inner(world, basis, basis, true);
