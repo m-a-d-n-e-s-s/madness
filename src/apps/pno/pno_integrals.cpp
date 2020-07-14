@@ -241,7 +241,7 @@ int main(int argc, char** argv) {
         // > different routine for orthonormalization? -> GS?
         // > check whether we only project out PNO's used in PNO-basis!
         bool corr_cabs = true; // todo: read from params file
-        auto basis_full = all_basis_functions;
+        auto basis = all_basis_functions;
         if (corr_cabs) {
             std::vector<real_function_3d> cabs;
             cabs = pno.f12.read_cabs_from_file(paramf12.auxbas_file()); // sadly, F12Potential f12 is private member of pno...
@@ -249,8 +249,8 @@ int main(int argc, char** argv) {
                 MyTimer time2 = MyTimer(world).start();
                 // Project out reference
                 cabs = Q(cabs); 
-                // Orthonormalize {cabs}
-                cabs = orthonormalize_cd(cabs);
+                // Orthonormalize {cabs} --> this is done later
+                //cabs = orthonormalize_cd(cabs);
                 // Project out {pno}
                 //for (ElectronPairIterator it = pno.pit(); it; ++it) {
                      //right now this will make the same guess for all pairs
@@ -271,7 +271,7 @@ int main(int argc, char** argv) {
             // Merge {cabs} + {pno}
             // necessary?
             if(world.rank()==0) std::cout << "Adding {cabs} to {pno}.\n";
-            basis_full.insert(basis_full.begin(), cabs.begin(), cabs.end());
+            basis.insert(basis.end(), cabs.begin(), cabs.end());
 
         
         }
@@ -283,15 +283,14 @@ int main(int argc, char** argv) {
 
 
 
-
-        auto basis = basis_full; // all_basis_functions;
+        if(world.rank()==0) std::cout << "About to orthogonalize basis..." << std::endl;
 
         if (orthogonalize){
 
             //basis = madness::orthonormalize_rrcd(all_basis_functions, 1.e-5);
             //Use standard cd, since pivoting swaps PNOs around
             if (orthogonalization == "cholesky") {    
-                basis = madness::orthonormalize_cd(all_basis_functions);
+                basis = madness::orthonormalize_cd(basis);
                 if(world.rank()==0) std::cout << "Basis size after global Cholesky: " << basis.size() << "\n";
             }
 
@@ -313,9 +312,9 @@ int main(int argc, char** argv) {
                 norm_i = std::sqrt(basis[i].inner(basis[i]));
                 basis[i].scale(1.0/norm_i);
                 }
+                if(world.rank()==0) std::cout << "Basis size after Gram-Schmidt: " << basis.size() << "\n";
             }
 
-            if(world.rank()==0) std::cout << "Basis size after Gram-Schmidt: " << basis.size() << "\n";
 
         }
 
