@@ -845,7 +845,7 @@ ResponseFunction TDHF::CreateGamma(World &world, ResponseFunction &f,
   return gamma;
 }
 
-ResponseFunction TDHF::CreateHf(World &world, ResponseFunction &f,
+ResponseFunction TDHF::createHf(World &world, ResponseFunction &f,
                                 std::vector<real_function_3d> &phi,
                                 double small, double thresh, int print_level,
                                 std::string xy) {
@@ -921,7 +921,7 @@ ResponseFunction TDHF::CreateHf(World &world, ResponseFunction &f,
   return H;
 }
 
-ResponseFunction TDHF::CreateGf(World &world, ResponseFunction &f,
+ResponseFunction TDHF::createGf(World &world, ResponseFunction &f,
                                 std::vector<real_function_3d> &orbitals,
                                 double small, double thresh, int print_level,
                                 std::string xy) {
@@ -1182,17 +1182,17 @@ void TDHF::computeElectronResponse(World &world, ElectronResponseFunctions &I,
   I.EpsilonX = scale_2d(world, x, hamiltonian);
   I.EpsilonXNoDiag = scale_2d(world, x, ham_no_diag); // for rhs
   // compute Electron Interaction Terms for this Iteration
-  I.Hx = CreateHf(world, x, orbitals, small, thresh, print_level, "x");
+  I.Hx = createHf(world, x, orbitals, small, thresh, print_level, "x");
   // print(Hx);
-  I.Gy = CreateGf(world, y, orbitals, small, thresh, print_level, "y");
+  I.Gy = createGf(world, y, orbitals, small, thresh, print_level, "y");
   // else Compute everything
   if (not Rparams.tda) { // not sure why this is the condition
     I.Vy = CreatePotential(world, y, xc, print_level, "y");
     I.F0_y = CreateFock(world, I.Vy, y, print_level, "y");
     I.EpsilonY = scale_2d(world, y, hamiltonian);
     I.EpsilonYNoDiag = scale_2d(world, y, ham_no_diag);
-    I.Hy = CreateHf(world, y, orbitals, small, thresh, print_level, "y");
-    I.Gx = CreateGf(world, x, orbitals, small, thresh, print_level, "x");
+    I.Hy = createHf(world, y, orbitals, small, thresh, print_level, "y");
+    I.Gx = createGf(world, x, orbitals, small, thresh, print_level, "x");
   }
 
   // Create \hat{V}^0 applied to response functions
@@ -4182,7 +4182,7 @@ Tensor<double> TDHF::CreateGroundHamiltonian(World &world,
       hamiltonian(j, i) = hamiltonian(i, j);
     }
   }
-  double traceOfHamiltonian;
+  double traceOfHamiltonian(0);
   for (int i = 0; i < hamiltonian.dim(0); i++) {
     traceOfHamiltonian += hamiltonian(i, i);
   }
@@ -5001,17 +5001,17 @@ void TDHF::iterate_polarizability(World &world, ResponseFunction &dipoles) {
     // Here I will first compute Hx Hy Gx Gy
     // Create gamma
     // If TDA we only compute Hx and Gy
-    Hx = CreateHf(world, x_response, Gparams.orbitals, Rparams.small,
+    Hx = createHf(world, x_response, Gparams.orbitals, Rparams.small,
                   FunctionDefaults<3>::get_thresh(), Rparams.print_level, "x");
-    Gy = CreateGf(world, y_response, Gparams.orbitals, Rparams.small,
+    Gy = createGf(world, y_response, Gparams.orbitals, Rparams.small,
                   FunctionDefaults<3>::get_thresh(), Rparams.print_level, "y");
     // else Compute everything
     if (Rparams.omega != 0.0) { // not sure why this is the condition
       Hy =
-          CreateHf(world, y_response, Gparams.orbitals, Rparams.small,
+          createHf(world, y_response, Gparams.orbitals, Rparams.small,
                    FunctionDefaults<3>::get_thresh(), Rparams.print_level, "y");
       Gx =
-          CreateGf(world, x_response, Gparams.orbitals, Rparams.small,
+          createGf(world, x_response, Gparams.orbitals, Rparams.small,
                    FunctionDefaults<3>::get_thresh(), Rparams.print_level, "x");
     }
 

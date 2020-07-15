@@ -302,12 +302,12 @@ public:
                                std::vector<real_function_3d> &phi, double small,
                                double thresh, int print_level, std::string xy);
 
-  ResponseFunction CreateHf(World &world, ResponseFunction &f,
+  ResponseFunction createHf(World &world, ResponseFunction &f,
                             std::vector<real_function_3d> &orbitals,
                             double small, double thresh, int print_level,
                             std::string xy);
 
-  ResponseFunction CreateGf(World &world, ResponseFunction &f,
+  ResponseFunction createGf(World &world, ResponseFunction &f,
                             std::vector<real_function_3d> &orbitals,
                             double small, double thresh, int print_level,
                             std::string xy);
