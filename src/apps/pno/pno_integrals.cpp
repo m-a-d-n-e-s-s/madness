@@ -278,9 +278,11 @@ int main(int argc, char** argv) {
                 // Project out reference 
                 //cabs = Q(cabs); 
                 // Project out {pno} + ref
-             		std::cout << "/tProject out PNO + ref" << std::endl;
+		std::cout << "/tProject out PNO + ref" << std::endl;
+		madness::QProjector<double, 3> Qpno(world, pno_plus_ref);
+                cabs = Qpno(cabs);
                 // Orthonormalize {cabs}
-		            std::cout << "/tOrthogonalize" << std::endl;
+		std::cout << "/tOrthogonalize" << std::endl;
                 cabs = orthonormalize_rrcd(cabs, 1.e-5); // order does not really matter here..
                 //for (ElectronPairIterator it = pno.pit(); it; ++it) {
                      //right now this will make the same guess for all pairs
@@ -301,9 +303,9 @@ int main(int argc, char** argv) {
             if(world.rank()==0) std::cout << "Adding {cabs} to {pno+ref}.\n";
             if(world.rank()==0) std::cout << "Size before: " << basis.size() << ".\n";
             auto basis2 = basis;
-      	    std::vector<real_function_3d> basis;
-	          basis.insert(basis.begin(), cabs.begin(), cabs.end());
-	          basis.insert(basis.begin(), pno_plus_ref.begin(), pno_plus_ref.end());
+	    std::vector<real_function_3d> basis;
+	    basis.insert(basis.begin(), cabs.begin(), cabs.end());
+	    basis.insert(basis.begin(), pno_plus_ref.begin(), pno_plus_ref.end());
             if(world.rank()==0) std::cout << "Size after: " << basis.size() << ".\n";
 
         
@@ -315,45 +317,6 @@ int main(int argc, char** argv) {
 
 
 
-
-        if(world.rank()==0) std::cout << "About to orthogonalize basis..." << std::endl;
-
-        if (orthogonalize){
-
-            //basis = madness::orthonormalize_rrcd(all_basis_functions, 1.e-5);
-            //Use standard cd, since pivoting swaps PNOs around
-            if (orthogonalization == "cholesky") {    
-                basis = madness::orthonormalize_cd(basis);
-                if(world.rank()==0) std::cout << "Basis size after global Cholesky: " << basis.size() << "\n";
-            }
-
-            //do  gram-schmidt
-            else if (orthogonalization == "gs") {
-                std::cout << "orthonormalize...\n";
-                // u_0 = v_0
-                double norm_i = std::sqrt(basis[0].inner(basis[0]));
-                basis[0].scale(1.0/norm_i);
-                // Gram-Schmidt iterations
-                for (int i=1; i<basis.size(); ++i) {
-                    //basis[i] = in_basis[i];
-                    for (int j=0; j<i; ++j) {
-                        std::vector<real_function_3d> basis_j(1);
-                        basis_j[0] = basis[j];
-                        Q = madness::QProjector<double, 3> (world, basis_j);
-                        basis[i] = Q(basis[i]);
-                    }
-                norm_i = std::sqrt(basis[i].inner(basis[i]));
-                basis[i].scale(1.0/norm_i);
-                }
-                if(world.rank()==0) std::cout << "Basis size after Gram-Schmidt: " << basis.size() << "\n";
-            }
-
-
-        }
-
-        if(world.rank()==0) std::cout << "Adding Reference orbitals\n";
-        const auto amo = nemo.get_calc()->amo;
-        basis.insert(basis.begin(), reference.begin(), reference.end());
 
         madness::Tensor<double> g(basis.size(), basis.size(), basis.size(), basis.size()); // using mulliken notation since thats more efficient to compute here: Tensor is (pq|g|rs) = <pr|g|qs>
         madness::Tensor<double> f(basis.size(), basis.size(), basis.size(), basis.size());
