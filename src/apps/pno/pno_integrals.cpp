@@ -30,22 +30,6 @@ const std::string TAG_CP = "computeprotocol";
 // this needs to be added to include
 #include "NumCpp.hpp"
 
-//std::vector<real_function_3d> gram_schmidt(World world, std::vector<real_function_3d> &in_basis){
-  //auto out_basis = in_basis;
-  //out_basis[0] = in_basis[0];
-  //std::cout << "norm of 0: " << std::sqrt(out_basis[0].inner(out_basis[0])) << std::endl;
-  //for (int i=1; i<in_basis.size(); ++i) {
-      //out_basis[i] = in_basis[i];
-      //for (int j=0; j<i; ++j) {
-          //Q = madness::QProjector<double, 3> (world, out_basis[j]);
-          //out_basis[i] = Q(out_basis[i]);
-      //}
-  //std::cout << "norm of " << i << ": " << std::sqrt(out_basis[i].inner(out_basis[i])) << std::endl;
-  //}
-
-  //return out_basis;
-//}
-
 
 int main(int argc, char** argv) {
     madness::initialize(argc, argv);
@@ -225,9 +209,52 @@ int main(int argc, char** argv) {
         }
         auto gop = std::shared_ptr < real_convolution_3d > (madness::CoulombOperatorPtr(world, 1.e-6, parameters.op_thresh()));
 
-        // |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+        
+        auto basis = all_basis_functions;
+
+        if (orthogonalize){
+
+            //basis = madness::orthonormalize_rrcd(all_basis_functions, 1.e-5);
+            //Use standard cd, since pivoting swaps PNOs around
+            if (orthogonalization == "cholesky") {    
+                basis = madness::orthonormalize_cd(all_basis_functions);
+                if(world.rank()==0) std::cout << "Basis size after global Cholesky: " << basis.size() << "\n";
+            }
+
+            //do  gram-schmidt
+            else if (orthogonalization == "gs") {
+                std::cout << "orthonormalize...\n";
+                // u_0 = v_0
+                double norm_i = std::sqrt(basis[0].inner(basis[0]));
+                basis[0].scale(1.0/norm_i);
+                // Gram-Schmidt iterations
+                for (int i=1; i<basis.size(); ++i) {
+                    //basis[i] = in_basis[i];
+                    for (int j=0; j<i; ++j) {
+                        std::vector<real_function_3d> basis_j(1);
+                        basis_j[0] = basis[j];
+                        Q = madness::QProjector<double, 3> (world, basis_j);
+                        basis[i] = Q(basis[i]);
+                    }
+                norm_i = std::sqrt(basis[i].inner(basis[i]));
+                basis[i].scale(1.0/norm_i);
+                }
+            }
+
+            if(world.rank()==0) std::cout << "Basis size after Gram-Schmidt: " << basis.size() << "\n";
+
+        }
+
+        if(world.rank()==0) std::cout << "Adding Reference orbitals\n";
+        const auto amo = nemo.get_calc()->amo;
+        basis.insert(basis.begin(), reference.begin(), reference.end());
+
+
+
+       // |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 
         auto fop = std::shared_ptr < real_convolution_3d > (SlaterF12OperatorPtr(world, paramf12.gamma(), 1.e-6, parameters.op_thresh()));
+	// auto slaterop = SlaterOperator(world, paramf12.gamma(), 1.e-6, parameters.op_thresh());
         fop->is_slaterf12 = false; // make sure it is the correct formulation of the exponent
     
 
@@ -241,17 +268,20 @@ int main(int argc, char** argv) {
         // > different routine for orthonormalization? -> GS?
         // > check whether we only project out PNO's used in PNO-basis!
         bool corr_cabs = true; // todo: read from params file
-        auto basis = all_basis_functions;
+        auto pno_plus_ref = basis;
         if (corr_cabs) {
             std::vector<real_function_3d> cabs;
             cabs = pno.f12.read_cabs_from_file(paramf12.auxbas_file()); // sadly, F12Potential f12 is private member of pno...
             if (not cabs.empty()){
+		std::cout << "Found CABS..." << std::endl;
                 MyTimer time2 = MyTimer(world).start();
-                // Project out reference
-                cabs = Q(cabs); 
-                // Orthonormalize {cabs} --> this is done later
-                //cabs = orthonormalize_cd(cabs);
-                // Project out {pno}
+                // Project out reference 
+                //cabs = Q(cabs); 
+                // Project out {pno} + ref
+             		std::cout << "/tProject out PNO + ref" << std::endl;
+                // Orthonormalize {cabs}
+		            std::cout << "/tOrthogonalize" << std::endl;
+                cabs = orthonormalize_rrcd(cabs, 1.e-5); // order does not really matter here..
                 //for (ElectronPairIterator it = pno.pit(); it; ++it) {
                      //right now this will make the same guess for all pairs
                     //const vector_real_function_3d tmp=guess_virtuals(param.abs);
@@ -260,9 +290,7 @@ int main(int argc, char** argv) {
                     //const vector_real_function_3d tmp = Qpno(cabs);
                     //abs_ij[it.ij()] = tmp;
                 //}
-                madness::QProjector<double, 3> Qpno(world, all_basis_functions);
-                cabs = Qpno(cabs);
-                time2.stop().print("Make pair specific ABS from PNOS and " + std::to_string(cabs.size()) + " functions");
+               time2.stop().print("Made pair specific ABS from PNOS and " + std::to_string(cabs.size()) + " functions");
             }
             else if (cabs.empty()) {
                 std::cout << "Complaining..." << std::endl; // todo: raise exception or so
@@ -270,8 +298,13 @@ int main(int argc, char** argv) {
         
             // Merge {cabs} + {pno}
             // necessary?
-            if(world.rank()==0) std::cout << "Adding {cabs} to {pno}.\n";
-            basis.insert(basis.end(), cabs.begin(), cabs.end());
+            if(world.rank()==0) std::cout << "Adding {cabs} to {pno+ref}.\n";
+            if(world.rank()==0) std::cout << "Size before: " << basis.size() << ".\n";
+            auto basis2 = basis;
+      	    std::vector<real_function_3d> basis;
+	          basis.insert(basis.begin(), cabs.begin(), cabs.end());
+	          basis.insert(basis.begin(), pno_plus_ref.begin(), pno_plus_ref.end());
+            if(world.rank()==0) std::cout << "Size after: " << basis.size() << ".\n";
 
         
         }
@@ -323,7 +356,8 @@ int main(int argc, char** argv) {
         basis.insert(basis.begin(), reference.begin(), reference.end());
 
         madness::Tensor<double> g(basis.size(), basis.size(), basis.size(), basis.size()); // using mulliken notation since thats more efficient to compute here: Tensor is (pq|g|rs) = <pr|g|qs>
-        madness::Tensor<double> f(basis.size(), basis.size(), basis.size(), basis.size()); // using mulliken notation since thats more efficient to compute here: Tensor is (pq|g|rs) = <pr|g|qs>
+        madness::Tensor<double> f(basis.size(), basis.size(), basis.size(), basis.size());
+        // madness::Tensor<double> slater(basis.size(), basis.size(), basis.size(), basis.size());
 
 
         if(canonicalize){
@@ -341,17 +375,36 @@ int main(int argc, char** argv) {
         }
         std::vector<vecfuncT> GPQ;
         std::vector<vecfuncT> FPQ;
+        //std::vector<vecfuncT> slaterPQ;
         for (const auto& x : basis){
             GPQ.push_back(madness::truncate(madness::apply(world, *gop, madness::truncate(x*basis,thresh)), thresh));
             FPQ.push_back(madness::truncate(madness::apply(world, *fop, madness::truncate(x*basis,thresh)), thresh));
+            //slaterPQ.push_back(madness::truncate(madness::apply(world, slaterop, madness::truncate(x*basis,thresh)), thresh));
         }
 
         auto J = madness::Coulomb(world, &nemo);
         auto K = madness::Exchange<double, 3>(world, &nemo, 0);
         auto Jmat = J(basis, basis);
+        auto Jmat1 = J(reference, reference);
         auto Kmat = K(basis, basis);
+        auto Kmat1 = K(reference, reference);
 
-
+        // delete me ---------------------------------------------
+        std::cout << "Jmat:" << std::endl; 
+	for (auto p=0; p<basis.size(); p++){
+            for (auto q=0; q<basis.size(); q++){
+		    std::cout << Jmat1(p,q) << "\t";
+	    }
+	    std::cout << std::endl;
+	}
+        std::cout << "Kmat:" << std::endl; 
+        for (auto p=0; p<basis.size(); p++){
+            for (auto q=0; q<basis.size(); q++){
+		    std::cout << Kmat1(p,q) << "\t";
+	    }
+	    std::cout << std::endl;
+	}
+        // delete me ---------------------------------------------
 
         int non_zero=0, non_zero_f=0;
         if(world.rank() ==0 ) std::cout << "Compute G Tensor:\n";
@@ -376,6 +429,7 @@ int main(int argc, char** argv) {
                         if (FPQ[r][s].norm2() < h_thresh) continue;
                         else{
                             f(p,q,r,s) = PQ[p][q].inner(FPQ[r][s]);
+                            //slater(p,q,r,s) = PQ[p][q].inner(slaterPQ[r][s]);
                             if(std::fabs(f(p,q,r,s)) > h_thresh ){
                                 if(world.rank()==0 and basis.size() < 3) std::cout << " f " << p  << " "<<  q  << " "<<  r  << " "<<  s << " = " << g(p,q,r,s) << "\n";
                                 ++non_zero_f;
@@ -421,6 +475,9 @@ int main(int argc, char** argv) {
         f = f.flat();
         nc::NdArray<double> ff(f.ptr(), f.size(), 1);
         ff.tofile(name+"_f12tensor.bin", "");
+        //slater = slater.flat();
+        //nc::NdArray<double> ss(slater.ptr(), slater.size(), 1);
+        //ss.tofile(name+"_f12_tensor.bin", "");
 
         if (not orthogonalize){
             auto S = madness::matrix_inner(world, basis, basis, true);
