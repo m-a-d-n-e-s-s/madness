@@ -30,22 +30,6 @@ const std::string TAG_CP = "computeprotocol";
 // this needs to be added to include
 #include "NumCpp.hpp"
 
-//std::vector<real_function_3d> gram_schmidt(World world, std::vector<real_function_3d> &in_basis){
-  //auto out_basis = in_basis;
-  //out_basis[0] = in_basis[0];
-  //std::cout << "norm of 0: " << std::sqrt(out_basis[0].inner(out_basis[0])) << std::endl;
-  //for (int i=1; i<in_basis.size(); ++i) {
-      //out_basis[i] = in_basis[i];
-      //for (int j=0; j<i; ++j) {
-          //Q = madness::QProjector<double, 3> (world, out_basis[j]);
-          //out_basis[i] = Q(out_basis[i]);
-      //}
-  //std::cout << "norm of " << i << ": " << std::sqrt(out_basis[i].inner(out_basis[i])) << std::endl;
-  //}
-
-  //return out_basis;
-//}
-
 
 int main(int argc, char** argv) {
     madness::initialize(argc, argv);
@@ -289,14 +273,17 @@ int main(int argc, char** argv) {
             std::vector<real_function_3d> cabs;
             cabs = pno.f12.read_cabs_from_file(paramf12.auxbas_file()); // sadly, F12Potential f12 is private member of pno...
             if (not cabs.empty()){
+		std::cout << "Found CABS..." << std::endl;
                 MyTimer time2 = MyTimer(world).start();
                 // Project out reference 
                 //cabs = Q(cabs); 
                 // Project out {pno} + ref
-                madness::QProjector<double, 3> Qpno(world, pno_plus_ref);
+		std::cout << "/tProject out PNO + ref" << std::endl;
+		madness::QProjector<double, 3> Qpno(world, pno_plus_ref);
                 cabs = Qpno(cabs);
                 // Orthonormalize {cabs}
-                cabs = orthonormalize_cd(cabs);
+		std::cout << "/tOrthogonalize" << std::endl;
+                cabs = orthonormalize_rrcd(cabs, 1.e-5); // order does not really matter here..
                 //for (ElectronPairIterator it = pno.pit(); it; ++it) {
                      //right now this will make the same guess for all pairs
                     //const vector_real_function_3d tmp=guess_virtuals(param.abs);
@@ -305,7 +292,7 @@ int main(int argc, char** argv) {
                     //const vector_real_function_3d tmp = Qpno(cabs);
                     //abs_ij[it.ij()] = tmp;
                 //}
-               time2.stop().print("Make pair specific ABS from PNOS and " + std::to_string(cabs.size()) + " functions");
+               time2.stop().print("Made pair specific ABS from PNOS and " + std::to_string(cabs.size()) + " functions");
             }
             else if (cabs.empty()) {
                 std::cout << "Complaining..." << std::endl; // todo: raise exception or so
@@ -315,7 +302,10 @@ int main(int argc, char** argv) {
             // necessary?
             if(world.rank()==0) std::cout << "Adding {cabs} to {pno+ref}.\n";
             if(world.rank()==0) std::cout << "Size before: " << basis.size() << ".\n";
-            basis.insert(basis.end(), cabs.begin(), cabs.end());
+            auto basis2 = basis;
+	    std::vector<real_function_3d> basis;
+	    basis.insert(basis.begin(), cabs.begin(), cabs.end());
+	    basis.insert(basis.begin(), pno_plus_ref.begin(), pno_plus_ref.end());
             if(world.rank()==0) std::cout << "Size after: " << basis.size() << ".\n";
 
         
@@ -358,21 +348,25 @@ int main(int argc, char** argv) {
         auto J = madness::Coulomb(world, &nemo);
         auto K = madness::Exchange<double, 3>(world, &nemo, 0);
         auto Jmat = J(basis, basis);
+        auto Jmat1 = J(reference, reference);
         auto Kmat = K(basis, basis);
+        auto Kmat1 = K(reference, reference);
 
         // delete me ---------------------------------------------
-        for (auto p=0; p<basis.size(); p++){
+        std::cout << "Jmat:" << std::endl; 
+	for (auto p=0; p<basis.size(); p++){
             for (auto q=0; q<basis.size(); q++){
-		    std::cout << Jmat(p,q) << "\t";
+		    std::cout << Jmat1(p,q) << "\t";
 	    }
 	    std::cout << std::endl;
-	 }
+	}
+        std::cout << "Kmat:" << std::endl; 
         for (auto p=0; p<basis.size(); p++){
             for (auto q=0; q<basis.size(); q++){
-		    std::cout << Kmat(p,q) << "\t";
+		    std::cout << Kmat1(p,q) << "\t";
 	    }
 	    std::cout << std::endl;
-	 }
+	}
         // delete me ---------------------------------------------
 
         int non_zero=0, non_zero_f=0;
