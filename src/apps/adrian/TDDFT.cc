@@ -867,10 +867,14 @@ ResponseFunction TDHF::createHf(World &world, ResponseFunction &f,
 
   // Perturbed coulomb piece
   deriv_J = CreateCoulombDerivativeRF(world, f, phi, small, thresh);
+  // Spin integration gives 2.0
+  deriv_J = deriv_J * 2.0;
+
   // If including any HF exchange:
   if (xcf.hf_exchange_coefficient()) {
     deriv_K = CreateExchangeDerivativeRF(world, f, phi, small, thresh);
   }
+  deriv_K = deriv_K * xcf.hf_exchange_coefficient();
   // Get the DFT contribution
   if (xcf.hf_exchange_coefficient() != 1.0) {
     // Get v_xc
@@ -878,11 +882,13 @@ ResponseFunction TDHF::createHf(World &world, ResponseFunction &f,
   }
   // Now assemble pieces together to get gamma
   // Spin integration gives 2.0
-  H = deriv_J * 2.0 + deriv_XC - deriv_K * xcf.hf_exchange_coefficient();
+  // J+K+W
+  world.gop.fence();
+  H = deriv_J - deriv_K + deriv_XC;
 
   // Project out groundstate
   // QProjector<double, 3> projector(world, Gparams.orbitals);
-  // for (int i = 0; i < m; i++)
+  // for (int i = 0; i k< m; i++)
   //  H[i] = projector(H[i]);
 
   // Debugging output
@@ -941,6 +947,7 @@ ResponseFunction TDHF::createGf(World &world, ResponseFunction &f,
   ResponseFunction XCdagger(world, m, n);
 
   Jdagger = CreateCoulombDerivativeRFDagger(world, f, orbitals, small, thresh);
+  Jdagger = Jdagger * 2.0;
 
   // Exchange
   // Determine if including HF exchange
@@ -948,6 +955,7 @@ ResponseFunction TDHF::createGf(World &world, ResponseFunction &f,
     Kdagger =
         CreateExchangeDerivativeRFDagger(world, f, orbitals, small, thresh);
   }
+  Kdagger = Kdagger * xcf.hf_exchange_coefficient();
   // Determine if DFT potential is needed
   if (xcf.hf_exchange_coefficient() != 1.0) {
     // Get v_xc
@@ -956,8 +964,9 @@ ResponseFunction TDHF::createGf(World &world, ResponseFunction &f,
   world.gop.fence();
 
   // Take care of coeficients
-  G = Jdagger * 2.0 + XCdagger - Kdagger * xcf.hf_exchange_coefficient();
-
+  // G = Jdagger * 2.0 + XCdagger - Kdagger * xcf.hf_exchange_coefficient();
+  // (J-K)+W
+  G = Jdagger - Kdagger + XCdagger;
   // Project out groundstate
   // QProjector<double, 3> projector(world, Gparams.orbitals);
   // for (int i = 0; i < m; i++)
