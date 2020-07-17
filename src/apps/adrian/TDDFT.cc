@@ -1630,7 +1630,7 @@ Tensor<double> TDHF::calculate_energy_update(World &world,
     if (world.rank() == 0)
       printf("   Energy residuals for %s components:\n", xy.c_str());
     if (world.rank() == 0)
-      print(abs(updates));
+      print("Er: ", abs(updates));
   }
 
   // Done?
@@ -3091,7 +3091,7 @@ void TDHF::Iterate(World &world) {
     if (Rparams.print_level >= 1 and world.rank() == 0) {
       print("Before Deflate");
       print("\n   Excitation Energies:");
-      print(omega);
+      print("i=",iteration," roots: ",iteration, omega);
     }
     // TDA approximation
     if (Rparams.tda) {
@@ -3111,7 +3111,7 @@ void TDHF::Iterate(World &world) {
     if (Rparams.print_level >= 1 and world.rank() == 0) {
       print("After Deflate");
       print("\n   Excitation Energies:");
-      print(omega);
+      print("i=",iteration," roots: ",iteration, omega);
       print("\n Hamiltonian: ");
       print(hamiltonian);
       print("\n Hamiltonian NoDiag: ");
@@ -3819,7 +3819,7 @@ void TDHF::IterateGuess(World &world, ResponseFunction &guesses) {
     // Basic output
     if (Rparams.print_level >= 1 and world.rank() == 0) {
       print("\n   Excitation Energies:");
-      print(omega);
+      print("gi=",iteration," roots: ", omega);
     }
 
     // Only do BSH if not the last iteration
