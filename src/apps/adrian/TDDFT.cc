@@ -2771,7 +2771,9 @@ void TDHF::deflateTDA(World &world, Tensor<double> &S, Tensor<double> old_S,
   // Augment S_x, A_x, x_gamma, x_response, V_x_response and x_gamma
   // if using a larger subspace and not iteration zero (TODO ---Gotta
   // look at this and make sure it uses my new functions ADRIAN )
+ // by default Rparams.larger_subspace = 0 therefore never uses this 
   if (iteration < Rparams.larger_subspace and iteration > 0) {
+    print("Using augmented subspace");
     augment(world, S, XAX, ElectronResponses, OldElectronResponses, x_response,
             old_S, old_A, old_x_response, Rparams.print_level);
   }
@@ -2784,6 +2786,7 @@ void TDHF::deflateTDA(World &world, Tensor<double> &S, Tensor<double> old_S,
 
   // If larger subspace, need to "un-augment" everything
   if (iteration < Rparams.larger_subspace) {
+    print("Unaugmenting subspace");
     unaugment(world, m, iteration, omega, S, XAX, ElectronResponses,
               OldElectronResponses, x_response, old_S, old_A, old_x_response,
               Rparams.print_level);
@@ -3129,7 +3132,7 @@ void TDHF::Iterate(World &world) {
       if (world.rank() == 0)
         print("   Energy residuals:");
       if (world.rank() == 0)
-        print(energy_residuals);
+        print("er: ",iteration," ",energy_residuals);
     }
 
     // Analysis gets messed up if BSH is last thing applied
