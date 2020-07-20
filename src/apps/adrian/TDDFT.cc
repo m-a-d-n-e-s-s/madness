@@ -4753,7 +4753,7 @@ void TDHF::solve(World &world) {
     set_protocol<3>(world, Rparams.protocol_data[proto]);
 
     // Do something to ensure all functions have same k value
-    check_k(world, Rparams.protocol_data[proto], FunctionDefaults<4>::get_k());
+    check_k(world, Rparams.protocol_data[proto], FunctionDefaults<3>::get_k());
 
     // Create the active subspace (select which ground state orbitals to
     // calculate excitations from)
