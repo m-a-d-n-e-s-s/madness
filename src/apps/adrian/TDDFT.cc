@@ -2771,7 +2771,7 @@ void TDHF::deflateTDA(World &world, Tensor<double> &S, Tensor<double> old_S,
   // Augment S_x, A_x, x_gamma, x_response, V_x_response and x_gamma
   // if using a larger subspace and not iteration zero (TODO ---Gotta
   // look at this and make sure it uses my new functions ADRIAN )
- // by default Rparams.larger_subspace = 0 therefore never uses this 
+  // by default Rparams.larger_subspace = 0 therefore never uses this
   if (iteration < Rparams.larger_subspace and iteration > 0) {
     print("Using augmented subspace");
     augment(world, S, XAX, ElectronResponses, OldElectronResponses, x_response,
@@ -3094,7 +3094,7 @@ void TDHF::Iterate(World &world) {
     if (Rparams.print_level >= 1 and world.rank() == 0) {
       print("Before Deflate");
       print("\n   Excitation Energies:");
-      print("i=",iteration," roots: ",iteration, omega);
+      print("i=", iteration, " roots: ", iteration, omega);
     }
     // TDA approximation
     if (Rparams.tda) {
@@ -3114,7 +3114,7 @@ void TDHF::Iterate(World &world) {
     if (Rparams.print_level >= 1 and world.rank() == 0) {
       print("After Deflate");
       print("\n   Excitation Energies:");
-      print("i=",iteration," roots: ",iteration, omega);
+      print("i=", iteration, " roots: ", iteration, omega);
       print("\n Hamiltonian: ");
       print(hamiltonian);
       print("\n Hamiltonian NoDiag: ");
@@ -3132,7 +3132,7 @@ void TDHF::Iterate(World &world) {
       if (world.rank() == 0)
         print("   Energy residuals:");
       if (world.rank() == 0)
-        print("er: ",iteration," ",energy_residuals);
+        print("er: ", iteration, " ", energy_residuals);
     }
 
     // Analysis gets messed up if BSH is last thing applied
@@ -3822,7 +3822,7 @@ void TDHF::IterateGuess(World &world, ResponseFunction &guesses) {
     // Basic output
     if (Rparams.print_level >= 1 and world.rank() == 0) {
       print("\n   Excitation Energies:");
-      print("gi=",iteration," roots: ", omega);
+      print("gi=", iteration, " roots: ", omega);
     }
 
     // Only do BSH if not the last iteration
@@ -4746,6 +4746,7 @@ void TDHF::solve(World &world) {
     print("\n\n     Response Calculation");
     print("   ------------------------");
   }
+  // Here print the relevant parameters
 
   // Ready to iterate!
   for (unsigned int proto = 0; proto < Rparams.protocol_data.size(); proto++) {
@@ -4761,8 +4762,9 @@ void TDHF::solve(World &world) {
 
     if (proto == 0) {
       if (Rparams.restart) {
-        if (world.rank() == 0)
+        if (world.rank() == 0) {
           print("   Restarting from file:", Rparams.restart_file);
+        }
         load(world, Rparams.restart_file);
         check_k(world, Rparams.protocol_data[proto],
                 FunctionDefaults<3>::get_k());
