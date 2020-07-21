@@ -168,7 +168,7 @@ SCF::SCF(World& world, const std::string& inputfile) : param(CalculationParamete
 
           //account for nwchem aobasis generation
           if(param.nwfile() == "")	reset_aobasis(param.aobasis());
-          else aobasis.read_nw_file(param.nwfile);
+          else aobasis.read_nw_file(param.nwfile());
 		param.set_derived_values(molecule,aobasis);
 
 	}
@@ -3057,7 +3057,7 @@ void SCF::solve(World & world) {
 		if (param.nwfile() == "") print("Analysis of alpha MO vectors");
 	}
 
-     if (param.nwfile == "") {
+     if (param.nwfile() == "") {
 	     analyze_vectors(world, amo, aocc, aeps);
 	     if (param.nbeta() != 0 && !param.spin_restricted()) {
 	     	if (world.rank() == 0 and (param.print_level()>1))
