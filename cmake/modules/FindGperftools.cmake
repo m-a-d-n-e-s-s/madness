@@ -1,6 +1,7 @@
 # - Try to find Google performance tools (gperftools)
 # Input variables:
-#   GPERFTOOLS_ROOT_DIR    - The gperftools install directory
+#   GPERFTOOLS_ROOT_DIR    - The gperftools install directory;
+#                            if not set the GPERFTOOLS_DIR environment variable will be used
 #   GPERFTOOLS_INCLUDE_DIR - The gperftools include directory
 #   GPERFTOOLS_LIBRARY     - The gperftools library directory
 # Components: profiler, and tcmalloc or tcmalloc_minimal
@@ -13,6 +14,11 @@
 include(FindPackageHandleStandardArgs)
   
 if(NOT DEFINED GPERFTOOLS_FOUND)
+
+  # If not set already, set GPERFTOOLS_ROOT_DIR from environment
+  if (DEFINED ENV{GPERFTOOLS_DIR} AND NOT DEFINED GPERFTOOLS_ROOT_DIR)
+    set(GPERFTOOLS_ROOT_DIR $ENV{GPERFTOOLS_DIR})
+  endif()
 
   # Check to see if libunwind is required
   set(GPERFTOOLS_DISABLE_PROFILER FALSE)
@@ -111,7 +117,7 @@ if(NOT DEFINED GPERFTOOLS_FOUND)
 
   # handle the QUIETLY and REQUIRED arguments and set GPERFTOOLS_FOUND to TRUE
   # if all listed variables are TRUE
-  find_package_handle_standard_args(GPERFTOOLS
+  find_package_handle_standard_args(Gperftools
       FOUND_VAR GPERFTOOLS_FOUND
       REQUIRED_VARS GPERFTOOLS_LIBRARIES GPERFTOOLS_INCLUDE_DIRS
       HANDLE_COMPONENTS)

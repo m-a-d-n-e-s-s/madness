@@ -1,13 +1,14 @@
 /* Input file cmake/config.h.in. */
 
 /* Define of package information */
-#define MADNESS_PACKAGE_NAME "@CMAKE_PROJECT_NAME@"
+#define MADNESS_PACKAGE_NAME "@PROJECT_NAME@"
 #define MADNESS_PACKAGE_URL "https://github.com/m-a-d-n-e-s-s/madness"
 #define MADNESS_PACKAGE_VERSION "@MADNESS_VERSION@"
 #define MADNESS_VERSION "@MADNESS_VERSION@"
 #define MADNESS_MAJOR_VERSION @MADNESS_MAJOR_VERSION@
 #define MADNESS_MINOR_VERSION @MADNESS_MAJOR_VERSION@
 #define MADNESS_MICRO_VERSION @MADNESS_MAJOR_VERSION@
+#define MADNESS_REVISION "@MADNESS_REVISION@"
 
 /* Configured information */
 #define MADNESS_CONFIGURATION_CXX "@CMAKE_CXX_COMPILER@"
@@ -34,25 +35,35 @@
 #cmakedefine HAVE_IBMBGP 1
 #cmakedefine HAVE_IBMBGQ 1
 #cmakedefine ON_A_MAC 1
+#define MADNESS_CXX_ABI_GenericItanium @MADNESS_CXX_ABI_GenericItanium@
+#define MADNESS_CXX_ABI_GenericARM @MADNESS_CXX_ABI_GenericARM@
+#define MADNESS_CXX_ABI_Microsoft @MADNESS_CXX_ABI_Microsoft@
+#define MADNESS_CXX_ABI @MADNESS_CXX_ABI@
 
 /* Define type macros. */
 #cmakedefine HAVE_INT64_T 1
 #cmakedefine HAVE_LONG_LONG 1
 /* Define to `int' if <sys/types.h> does not define. */
-#cmakedefine pid_t int
+#cmakedefine SYS_TYPES_H_HAS_PID_T 1
+#if !defined(SYS_TYPES_H_HAS_PID_T)
+# define pid_t int
+#endif
 
 /* Define MADNESS has access to the library. */
 #cmakedefine HAVE_ACML 1
 #cmakedefine HAVE_INTEL_TBB 1
+#cmakedefine MADNESS_CAN_USE_TBB_PRIORITY 1
 #cmakedefine HAVE_PARSEC 1
 #cmakedefine HAVE_INTEL_MKL 1
 #cmakedefine HAVE_PAPI 1
-#cmakedefine MADNESS_HAS_LIBXC 1
 #cmakedefine MADNESS_HAS_PCM 1
+#cmakedefine MADNESS_HAS_LIBXC 1
+#cmakedefine MADNESS_HAS_BOOST 1
 #cmakedefine MADNESS_HAS_ELEMENTAL 1
 #cmakedefine MADNESS_HAS_ELEMENTAL_EMBEDDED 1
 #cmakedefine MADNESS_HAS_GOOGLE_PERF_MINIMAL 1
 #cmakedefine MADNESS_HAS_GOOGLE_TEST 1
+#cmakedefine MADNESS_HAS_LIBUNWIND 1
 
 /* Define has access to function. */
 #cmakedefine HAVE_FORK 1
@@ -90,6 +101,9 @@
 /* Thread-safety level requested from MPI by MADNESS */
 #define MADNESS_MPI_THREAD_LEVEL @MADNESS_MPI_THREAD_LEVEL@
 #cmakedefine STUBOUTMPI 1
+#ifndef MADNESS_MPI_HEADER
+# cmakedefine MADNESS_MPI_HEADER "@MADNESS_MPI_HEADER@"
+#endif
 
 /* The default binding for threads */
 #define MAD_BIND_DEFAULT "@MAD_BIND_DEFAULT@"
@@ -106,6 +120,9 @@
 #cmakedefine WORLD_PROFILE_ENABLE 1
 #cmakedefine MADNESS_TASK_DEBUG_TRACE 1
 #cmakedefine MADNESS_LINALG_USE_LAPACKE 1
+#cmakedefine MADNESS_DQ_USE_PREBUF 1
+#cmakedefine MADNESS_DQ_PREBUF_SIZE @MADNESS_DQ_PREBUF_SIZE@
+#cmakedefine MADNESS_ASSUMES_ASLR_DISABLED 1
 
 /* Define to the equivalent of the C99 'restrict' keyword, or to
    nothing if this is not supported.  Do not define if restrict is

@@ -46,9 +46,9 @@
 
 #include <chem/nemo.h>
 #include <chem/molecular_optimizer.h>
-#include <chem/cheminfo.h>
 #include <chem/SCFOperators.h>
 #include <chem/projector.h>
+#include <madness/misc/gitinfo.h>
 
 using namespace madness;
 
@@ -64,19 +64,7 @@ int main(int argc, char** argv) {
     startup(world,argc,argv);
     std::cout.precision(6);
 
-#ifdef MADNESS_GITREVISION
-    const  char* gitrev =  MADNESS_GITREVISION;
-    const std::string gitrevision(gitrev);
-    if (world.rank()==0) {
-    	print("    main() git revision ...",gitrevision);
-    }
-#endif
-
-    if (world.rank()==0) {
-        print("     main() compiled at ...",__TIME__," on ",__DATE__);
-        const std::string gitrevision(info::cheminfo_git_commit());
-        print("   chemlib git revision ...",gitrevision);
-    }
+    if (world.rank()==0) print(info::print_revision_information());
 
     try {
 
@@ -85,29 +73,30 @@ int main(int argc, char** argv) {
         if (world.rank()==0) {
             calc->molecule.print();
             print("\n");
-            calc->param.print(world);
+//            calc->param.print("dft");
         }
 
-        std::shared_ptr<Nemo> nemo(new Nemo(world,calc));
+        std::shared_ptr<Nemo> nemo(new Nemo(world,calc,input));
 
         // optimize the geometry if requested
-        if (calc->param.gopt) {
+        if (calc->param.gopt()) {
             print("\n\n Geometry Optimization                      ");
             print(" ----------------------------------------------------------\n");
-            calc->param.gprint(world);
+//            calc->param.gprint(world);
 
             Tensor<double> geomcoord = calc->molecule.get_all_coords().flat();
 //            MolecularOptimizer geom(std::shared_ptr<MolecularOptimizationTargetInterface>(new Nemo(world, calc)),
-            MolecularOptimizer geom(nemo,
-                    calc->param.gmaxiter,
-                    calc->param.gtol,  //tol
-                    calc->param.gval,  //value prec
-                    calc->param.gprec); // grad prec
+            MolecularOptimizer geom(world,nemo);
+//            MolecularOptimizer geom(nemo,
+//                    calc->param.gmaxiter(),
+//                    calc->param.gtol(),  //tol
+//                    calc->param.gval(),  //value prec
+//                    calc->param.gprec()); // grad prec
 //            geom.set_update(calc->param.algopt);
 //            geom.set_test(calc->param.gtest);
 
             // compute initial hessian
-            if (calc->param.ginitial_hessian) {
+            if (calc->param.ginitial_hessian()) {
                 nemo->value();
                 Tensor<double> hess=nemo->hessian(calc->molecule.get_all_coords());
                 geom.set_hessian(hess);
@@ -126,7 +115,7 @@ int main(int argc, char** argv) {
         }
 
         // compute the hessian
-        if (calc->param.hessian) nemo->hessian(calc->molecule.get_all_coords());
+        if (nemo->param.hessian()) nemo->hessian(calc->molecule.get_all_coords());
 
 
     } catch (const SafeMPI::Exception& e) {

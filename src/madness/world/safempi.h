@@ -52,7 +52,12 @@
 //#undef SEEK_END
 //#endif
 
-#include <mpi.h>
+#ifdef MADNESS_MPI_HEADER
+# include MADNESS_MPI_HEADER
+#else
+# include <mpi.h>
+#endif
+
 #endif
 
 
@@ -604,7 +609,8 @@ namespace SafeMPI {
          * This collective operation creates a new \c Intracomm using
          * the MPI_Comm_split. Must be called by all processes that
          * belong to this communicator. Each caller must provide Color of the new Intracomm
-         * and Key (rank within Intracomm).
+         * and Key (this controls the rank within the new Intracomm;
+         * ties are broken by the rank in this Intracomm).
          *
          * @param Color Specifies the new Intracomm that the calling process is to be assigned to.
          *              The value of color must be non-negative. If Color=UNDEFINED_COLOR then
@@ -628,7 +634,42 @@ namespace SafeMPI {
               return Intracomm();
         }
 
-        /**
+      static const int UNDEFINED_SPLIT_TYPE = MPI_UNDEFINED;
+      static const int SHARED_SPLIT_TYPE = MPI_COMM_TYPE_SHARED;
+      /**
+       * This collective operation creates a new \c Intracomm using
+       * the MPI_Comm_split_type. Must be called by all processes that
+       * belong to this communicator. Each caller must provide the split type
+       * and Key (this controls the rank within the new Intracomm;
+       * ties are broken by the rank in this Intracomm).
+       *
+       * @param Type  Controls how this Intracomm will be split.
+       *              The value can only be UNDEFINED_SPLIT_TYPE or SHARED_SPLIT_TYPE.
+       *              If Type=UNDEFINED_SPLIT_TYPE then
+       *              an uninitialized Intracomm object will be produced.
+       * @param Key The relative rank of the calling process in the group of the new Intracomm.
+       *            If omitted, each communicator's ranks will be determined by
+       *            the rank in the host communicator.
+       * @return a new Intracomm object
+       */
+      Intracomm Split_type(int Type, int Key = 0) const {
+        MADNESS_ASSERT(pimpl);
+        SAFE_MPI_GLOBAL_MUTEX;
+        MPI_Comm group_comm;
+        MPI_Info info;
+        MPI_Info_create(&info);
+        MADNESS_MPI_TEST(MPI_Comm_split_type(pimpl->comm, Type, Key, info, &group_comm));
+        MPI_Info_free(&info);
+        if (group_comm != MPI_COMM_NULL) {
+          int me; MADNESS_MPI_TEST(MPI_Comm_rank(group_comm, &me));
+          int nproc; MADNESS_MPI_TEST(MPI_Comm_size(group_comm, &nproc));
+          return Intracomm(std::shared_ptr<Impl>(new Impl(group_comm, me, nproc, true)));
+        }
+        else
+          return Intracomm();
+      }
+
+      /**
          * Clones this Intracomm object
          *
          * @return a (deep) copy of this Intracomm object

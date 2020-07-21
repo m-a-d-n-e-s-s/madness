@@ -46,7 +46,11 @@
 #  ifdef STUBOUTMPI
 #    error "stub MPI is used by need MPI on IBM BG"
 #  endif
-#  include <mpi.h>
+#  ifdef MADNESS_MPI_HEADER
+#    include MADNESS_MPI_HEADER
+#  else
+#    include <mpi.h>
+#  endif
 #  if defined(__bgp__)
 #    define HARDWARE_RUNS_BGP
 #    include <dcmf.h>

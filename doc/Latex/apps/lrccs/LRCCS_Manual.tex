@@ -39,12 +39,12 @@ Detailed information can be found in the MADNESS wiki on Github: \url{https://gi
 'MPICC=/opt/local/bin/mpicc-mpich-clang38' 'MPICXX=/opt/local/bin/mpicxx-mpich-clang38'} 
 \item Compile the MADNESS libraries in your compile directory\\
 \textit{make -C /path-to-madness-compile/madness-compile/ libraries}
-\item Compile LRCCS in the MADNESS examples directory\\
-\textit{make -C /path-to-madness-compile/madness-compile/src/examples lrccs}
+\item Compile cis in the MADNESS examples directory\\
+\textit{make -C /path-to-madness-compile/madness-compile/src/apps/cis cis}
 \end{itemize}
 
 \section{Run LRCCS}
-After compiling you can execute \textit{lrccs} in the \textit{madness-compile/src/examples} directory. For the calculation it is necessary that an input file with the name \textit{input} is present in the directory from which you call lrccs.
+After compiling you can execute \textit{cis} in the \textit{madness-compile/src/apps/cis} directory. For the calculation it is necessary that an input file with the name \textit{input} is present in the directory from which you call \textit{cis}.
 
 \clearpage
 \section{Quick Tutorial}
@@ -109,7 +109,7 @@ Example: The following line would be equivalent with the \textit{tda\_guess dipo
 \paragraph{Geometry section:} Begins with \textit{geometry} and ends with \textit{end}. Contains the molecular coordinates in atomic units
 \paragraph{Plot section:} Begins with \textit{plot} and ends with \textit{end}. Contains plotting information. Can in principle be empty but should be present. 
 \subsection{Example Input}
-The example input File should also be found in the madness-source/src/examples directory with the name \textit{input\_example\_lrccs}. Note that it has to be renamed to \textit{input}\\
+The example input File should also be found in the madness-source/src/apps/cis directory with the name \textit{input}.\\
 
 
 dft\\

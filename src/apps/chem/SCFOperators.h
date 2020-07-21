@@ -194,33 +194,38 @@ class Coulomb {
 public:
 
     /// default empty ctor
-    Coulomb(World& world) : world(world), do_R2(true) {};
+    Coulomb(World& world) : world(world) {};
 
     /// ctor with an SCF calculation providing the MOs and density
-    Coulomb(World& world, const SCF* calc) : world(world), do_R2(true) {
+    Coulomb(World& world, const SCF* calc) : world(world) {
         vcoul=compute_potential(calc);
     }
 
     /// ctor with an SCF calculation providing the MOs and density
     Coulomb(World& world, const Nemo* nemo);
 
-    real_function_3d operator()(const real_function_3d& ket) const {
+    template<typename T, std::size_t NDIM>
+    Function<T,NDIM> operator()(const Function<T,NDIM>& ket) const {
         return (vcoul*ket).truncate();
     }
 
-    vecfuncT operator()(const vecfuncT& vket) const {
-        vecfuncT tmp=mul(world,vcoul,vket);
+    template<typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > operator()(const std::vector<Function<T,NDIM> >& vket) const {
+        std::vector<Function<T,NDIM> > tmp=mul(world,vcoul,vket);
         truncate(world,tmp);
         return tmp;
     }
 
-    double operator()(const real_function_3d& bra, const real_function_3d& ket) const {
+    template<typename T, std::size_t NDIM>
+    T operator()(const Function<T,NDIM>& bra, const Function<T,NDIM>& ket) const {
         return inner(bra,vcoul*ket);
     }
 
-    Tensor<double> operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
+    template<typename T, std::size_t NDIM>
+    Tensor<T> operator()(const std::vector<Function<T,NDIM> >& vbra,
+    		const std::vector<Function<T,NDIM> >& vket) const {
         const auto bra_equiv_ket = &vbra == &vket;
-        vecfuncT vJket;
+        std::vector<Function<T,NDIM> > vJket;
         for (std::size_t i=0; i<vket.size(); ++i) {
             vJket.push_back(this->operator()(vket[i]));
         }
@@ -239,8 +244,12 @@ public:
 
     /// this function uses a newly constructed Poisson operator. Note that
     /// the accuracy parameters must be consistent with the exchange operator.
-    real_function_3d compute_potential(const real_function_3d& density,
-            double lo=1.e-4, double econv=FunctionDefaults<3>::get_thresh()) const;
+    template<typename T, std::size_t NDIM>
+    Function<T,NDIM> compute_potential(const Function<T,NDIM>& density,
+            double lo=1.e-4, double econv=FunctionDefaults<3>::get_thresh()) const {
+    	real_convolution_3d poisson = CoulombOperator(world, lo, econv);
+    	return poisson(density).truncate();
+    }
 
     /// given a set of MOs in an SCF calculation, compute the Coulomb potential
 
@@ -256,7 +265,6 @@ private:
     World& world;
     real_function_3d vcoul; ///< the coulomb potential
     real_function_3d R_square;    ///< square of the nuclear correlation factor, if any
-    bool do_R2;             ///< multiply with the ncf (default), or skip
 };
 
 
@@ -271,20 +279,25 @@ public:
         : world(world), ncf(ncf) {}
 
 
-    real_function_3d operator()(const real_function_3d& ket) const {
-        vecfuncT vket(1,ket);
+    template<typename T, std::size_t NDIM>
+    Function<T,NDIM> operator()(const Function<T,NDIM>& ket) const {
+        std::vector<Function<T,NDIM> > vket(1,ket);
         return this->operator()(vket)[0];
     }
 
-    vecfuncT operator()(const vecfuncT& vket) const;
+    template<typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > operator()(const std::vector<Function<T,NDIM> >& vket) const;
 
-    double operator()(const real_function_3d& bra, const real_function_3d& ket) const {
+    template<typename T, std::size_t NDIM>
+    T operator()(const Function<T,NDIM>& bra, const Function<T,NDIM>& ket) const {
         return inner(bra,this->operator()(ket));
     }
 
-    Tensor<double> operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
+    template<typename T, std::size_t NDIM>
+    Tensor<T> operator()(const  std::vector<Function<T,NDIM> >& vbra,
+    		const  std::vector<Function<T,NDIM> >& vket) const {
         const auto bra_equiv_ket = &vbra == &vket;
-        vecfuncT vVket=this->operator()(vket);
+        std::vector<Function<T,NDIM> > vVket=this->operator()(vket);
         return matrix_inner(world,vbra,vVket,bra_equiv_ket);
     }
 
@@ -293,6 +306,69 @@ private:
     std::shared_ptr<NuclearCorrelationFactor> ncf;
 
 };
+
+
+/// the z component of the angular momentum
+
+/// takes real and complex functions as input, will return complex functions
+class Lz {
+private:
+    World& world;
+public:
+
+	bool use_bsplines=true;
+
+	Lz(World& world, bool use_bspline_derivative=true) : world(world), use_bsplines(use_bspline_derivative) {};
+
+	template<typename T, std::size_t NDIM>
+    complex_function_3d operator()(const Function<T,NDIM> ket) const {
+		std::vector<Function<T,NDIM> > vket(1,ket);
+        return this->operator()(vket)[0];
+    }
+
+	template<typename T, std::size_t NDIM>
+    std::vector<complex_function_3d> operator()(const std::vector<Function<T,NDIM> >& vket) const {
+
+		// the operator in cartesian components as
+		// L_z =  - i (x del_y - y del_x)
+
+		if (vket.size()==0) return std::vector<complex_function_3d>(0);
+
+	    real_function_3d x=real_factory_3d(world).functor([] (const coord_3d& r) {return r[0];});
+	    real_function_3d y=real_factory_3d(world).functor([] (const coord_3d& r) {return r[1];});
+
+	    Derivative<T,NDIM> Dx = free_space_derivative<T,NDIM>(world, 0);
+		Derivative<T,NDIM> Dy = free_space_derivative<T,NDIM>(world, 1);
+		if (use_bsplines) {
+			Dx.set_bspline1();
+			Dy.set_bspline1();
+		}
+
+		reconstruct(world,vket,true);
+	    std::vector<Function<T,NDIM> > delx=apply(world,Dx,vket,false);
+	    std::vector<Function<T,NDIM> > dely=apply(world,Dy,vket,true);
+
+	    std::vector<Function<T,NDIM> > result1=x*dely - y*delx;
+	    std::vector<complex_function_3d> cresult1=convert<T,double_complex,NDIM>(world,result1);
+	    std::vector<complex_function_3d> result=double_complex(0.0,-1.0)*cresult1;
+		return result;
+	}
+
+	template<typename T, std::size_t NDIM>
+    double_complex operator()(const Function<T,NDIM>& bra, const Function<T,NDIM>& ket) const {
+        return inner(bra,this->operator()(ket));
+    }
+
+	template<typename T, std::size_t NDIM>
+    Tensor<double_complex> operator()(const std::vector<Function<T,NDIM> >& vbra,
+    		const std::vector<Function<T,NDIM> >& vket) const {
+        const auto bra_equiv_ket = &vbra == &vket;
+        std::vector<complex_function_3d> vVket=this->operator()(vket);
+        return matrix_inner(world,vbra,vVket,bra_equiv_ket);
+    }
+
+};
+
 
 
 /// derivative of the (regularized) nuclear potential wrt nuclear displacements
@@ -333,12 +409,15 @@ private:
 
 };
 
+template<typename T, std::size_t NDIM>
 class Exchange {
+	typedef Function<T,NDIM> functionT;
+	typedef std::vector<functionT> vecfuncT;
+
 public:
 
     /// default ctor
-    Exchange(World& world) : world(world), small_memory_(true), same_(false),
-            do_R2(true) {};
+    Exchange(World& world) : world(world), small_memory_(true), same_(false) {};
 
     /// ctor with a conventional calculation
     Exchange(World& world, const SCF* calc, const int ispin);
@@ -346,11 +425,22 @@ public:
     /// ctor with a nemo calculation
     Exchange(World& world, const Nemo* nemo, const int ispin);
 
-    void set_parameters(const vecfuncT& bra, const vecfuncT& ket,
-            const Tensor<double>& occ, const double lo=1.e-4,
-            const double econv=FunctionDefaults<3>::get_thresh());
+    /// set the bra and ket orbital spaces, and the occupation
 
-    real_function_3d operator()(const real_function_3d& ket) const {
+    /// @param[in]	bra		bra space, must be provided as complex conjugate
+    /// @param[in]	ket		ket space
+    /// @param[in]	occ1	occupation numbers
+    void set_parameters(const vecfuncT& bra, const vecfuncT& ket,
+            const Tensor<double>& occ1, const double lo=1.e-4,
+            const double econv=FunctionDefaults<3>::get_thresh()) {
+    	mo_bra=copy(world,bra);
+    	mo_ket=copy(world,ket);
+    	occ=copy(occ1);
+    	poisson = std::shared_ptr<real_convolution_3d>(
+    	            CoulombOperatorPtr(world, lo, econv));
+    }
+
+    Function<T,NDIM> operator()(const Function<T,NDIM>& ket) const {
         vecfuncT vket(1,ket);
         vecfuncT vKket=this->operator()(vket);
         return vKket[0];
@@ -367,7 +457,7 @@ public:
 
     /// @param[in]  bra    real_funtion_3d, the bra state
     /// @param[in]  ket    real_funtion_3d, the ket state
-    double operator()(const real_function_3d& bra, const real_function_3d& ket) const {
+    T operator()(const Function<T,NDIM>& bra, const Function<T,NDIM>& ket) const {
         return inner(bra,this->operator()(ket));
     }
 
@@ -376,7 +466,7 @@ public:
     /// @param[in]  vbra    vector of real_funtion_3d, the set of bra states
     /// @param[in]  vket    vector of real_funtion_3d, the set of ket states
     /// @return K_ij
-    Tensor<double> operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
+    Tensor<T> operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
         const auto bra_equiv_ket = &vbra == &vket;
         vecfuncT vKket=this->operator()(vket);
         return matrix_inner(world,vbra,vKket,bra_equiv_ket);
@@ -399,9 +489,8 @@ public:
 private:
 
     World& world;
-    bool small_memory_;
-    bool same_;
-    bool do_R2;             ///< multiply with the square of the ncf (default)
+    bool small_memory_=true;
+    bool same_=false;
     vecfuncT mo_bra, mo_ket;    ///< MOs for bra and ket
     Tensor<double> occ;
     std::shared_ptr<real_convolution_3d> poisson;
@@ -418,17 +507,18 @@ public:
 
     /// custom ctor with information about the XC functional
     XCOperator(World& world, std::string xc_data, const bool spin_polarized,
-            const real_function_3d& arho, const real_function_3d& brho);
+            const real_function_3d& arho, const real_function_3d& brho,
+            std::string deriv="abgv");
 
     /// ctor with an SCF calculation, will initialize the necessary intermediates
-    XCOperator(World& world, const SCF* scf, int ispin=0);
+    XCOperator(World& world, const SCF* scf, int ispin=0, std::string deriv="abgv");
 
     /// ctor with a Nemo calculation, will initialize the necessary intermediates
     XCOperator(World& world, const Nemo* nemo, int ispin=0);
 
     /// ctor with an SCF calculation, will initialize the necessary intermediates
     XCOperator(World& world, const SCF* scf, const real_function_3d& arho,
-            const real_function_3d& brho, int ispin=0);
+            const real_function_3d& brho, int ispin=0, std::string deriv="abgv");
 
     /// ctor with an Nemo calculation, will initialize the necessary intermediates
     XCOperator(World& world, const Nemo* scf, const real_function_3d& arho,
@@ -445,12 +535,14 @@ public:
     void set_ispin(const int i) const {ispin=i;}
 
     /// apply the xc potential on a set of orbitals
-    vecfuncT operator()(const vecfuncT& vket) const;
+    template<typename T>
+    std::vector<Function<T,3> > operator()(const std::vector<Function<T,3> >& vket) const;
 
     /// apply the xc potential on an orbitals
-    real_function_3d operator()(const real_function_3d& ket) const {
-        vecfuncT vket(1,ket);
-        vecfuncT vKket=this->operator()(vket);
+    template<typename T>
+    Function<T,3> operator()(const Function<T,3>& ket) const {
+    	std::vector<Function<T,3> > vket(1,ket);
+    	std::vector<Function<T,3> > vKket=this->operator()(vket);
         return vKket[0];
     }
 
@@ -473,27 +565,19 @@ private:
     /// the world
     World& world;
 
+    /// which derivative operator to use
+    std::string dft_deriv;
+
 public:
     /// interface to the actual XC functionals
     std::shared_ptr<XCfunctional> xc;
 
 private:
-    /// the nuclear correlation factor, if it exists, for computing derivatives for GGA
-    std::shared_ptr<NuclearCorrelationFactor> ncf;
-
     /// number of beta orbitals
     int nbeta;
 
     /// the XC functionals depend on the spin of the orbitals they act on
     mutable int ispin;
-
-    /// functions that are need for the computation of the XC operator
-
-    /// the ordering of the intermediates is fixed, but the code can handle
-    /// non-initialized functions, so if e.g. no GGA is requested, all the
-    /// corresponding vector components may be left empty.
-    /// For the ordering of the intermediates see xcfunctional::xc_arg
-    mutable vecfuncT xc_args;
 
     /// additional truncation for the densities in the XC kernel
 
@@ -502,6 +586,17 @@ private:
     /// results. Extra truncation will tighten the truncation threshold by a
     /// specified factor, default is 0.01.
     double extra_truncation;
+
+    /// the nuclear correlation factor, if it exists, for computing derivatives for GGA
+    std::shared_ptr<NuclearCorrelationFactor> ncf;
+
+    /// functions that are need for the computation of the XC operator
+
+    /// the ordering of the intermediates is fixed, but the code can handle
+    /// non-initialized functions, so if e.g. no GGA is requested, all the
+    /// corresponding vector components may be left empty.
+    /// For the ordering of the intermediates see xcfunctional::xc_arg
+    mutable vecfuncT xc_args;
 
     /// compute the intermediates for the XC functionals
 
@@ -598,7 +693,7 @@ public:
 private:
     World& world;
     Coulomb J;
-    Exchange K;
+    Exchange<double,3> K;
     Kinetic<double,3> T;
     Nuclear V;
     const double scale_K;

@@ -532,7 +532,7 @@ complex_function_3d apply_periodic_bsh(World& world, const complex_function_3d& 
   complex_function_3d phase_m = complex_factory_3d(world).functor(complex_functor_3d(
     new ExpFunctor3d<double_complex>(-I*kx,-I*ky,-I*kz))).truncate_mode(0).truncate_on_project();
   auto op = PeriodicBSHOperator3D(world, vec(-kx*L, -ky*L, -kz*L), sqrt(-2.0*(energy)),  1e-4, FunctionDefaults<3>::get_thresh());
-  complex_function_3d g = phase_m*apply(op, phase_p*f);
+  complex_function_3d g = phase_m*madness::apply(op, phase_p*f);
   return g;
 }
 

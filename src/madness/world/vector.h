@@ -42,11 +42,12 @@
 #include <madness/madness_config.h>
 #include <madness/world/madness_exception.h>
 #include <madness/world/worldhash.h>
-#include <array>
 #include <madness/world/array_addons.h>
+#include <madness/world/archive.h>
 #include <vector>
 #include <algorithm>
 #include <iostream>
+#include <math.h>
 
 namespace madness {
 
@@ -126,7 +127,11 @@ namespace madness {
 
         /// \param[in] other The \c Vector to copy.
         Vector(const Vector<T,N>& other) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wuninitialized"
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
             data_ = other.data_;
+#pragma GCC diagnostic pop
         }
 
         /// Copy constructor is deep (because \c Vector is POD).
@@ -473,6 +478,7 @@ namespace madness {
         /// \param[in] v The \c Vector to output.
         /// \return The output stream.
         friend std::ostream& operator<<(std::ostream& s, const Vector<T,N>& v) {
+            using madness::operators::operator<<;
             s << v.data_;
             return s;
         }
@@ -615,6 +621,42 @@ namespace madness {
         for (std::size_t i = 0; i < N; ++i)
             l[i] -= r[i];
         return l;
+    }
+
+
+    /// compute the inner product two `Vector`s.
+
+    /// Do an inner product of \c l and \c r and return the
+    /// result in a new \c Vector.
+    /// \tparam T The \c Vector element type.
+    /// \tparam N The \c Vector size.
+    /// \param[in] l The left-hand \c Vector.
+    /// \param[in] r The right-hand \c Vector.
+    /// \return the inner product, where `result==\sum_i(l[i]*r[i])`.
+    template <typename T, std::size_t N>
+    T inner(const Vector<T,N>& l, const Vector<T,N>& r) {
+    	T result=0.0;
+        for (std::size_t i = 0; i < N; ++i)
+            result+=l[i]*r[i];
+        return result;
+    }
+
+    /// compute the cross product two `Vector`s of dimension 3
+
+    /// Do a cross product of \c l and \c r and return the result in a new \c Vector.
+    /// \tparam T The \c Vector element type.
+    /// \tparam N The \c Vector size.
+    /// \param[in] l The left-hand \c Vector.
+    /// \param[in] r The right-hand \c Vector.
+    /// \return the cross product
+    template <typename T, std::size_t N>
+    typename std::enable_if<N==3, Vector<T,N> >::type
+	cross(const Vector<T,N>& l, const Vector<T,N>& r) {
+    	Vector<T,N> result;
+    	result[0]=l[1]*r[2] - r[1]*l[2];
+    	result[1]=l[2]*r[0] - r[2]*l[0];
+    	result[2]=l[0]*r[1] - r[0]*l[1];
+        return result;
     }
 
 

@@ -42,8 +42,8 @@
 #endif
 
 #ifdef HAVE_PARSEC
-# include <dague_config.h>
-# ifdef DAGUE_HAVE_CUDA
+# include <parsec.h>
+# ifdef PARSEC_HAVE_CUDA
 #  include <cuda_runtime.h>
 # endif
 #endif
@@ -1218,6 +1218,7 @@ void test_multi_world(World& world) {
       std::cout << "== multiple worlds created with Intracomm::Split()==" << std::endl;
       int color = world.rank() % 2;
       SafeMPI::Intracomm comm = world.mpi.comm().Split(color, world.rank() / 2);
+      std::cout << "split_comm.size() = " << comm.Get_size() << std::endl;
       World subworld(comm);
       if (color == 1)
         work_odd(subworld);
@@ -1226,10 +1227,20 @@ void test_multi_world(World& world) {
     }
     world.gop.fence();
 
+    // now split world by host and run tasks on each host's world
+    {
+      std::cout << "== multiple worlds created with Intracomm::Split_type()==" << std::endl;
+      SafeMPI::Intracomm comm = world.mpi.comm().Split(SafeMPI::Intracomm::SHARED_SPLIT_TYPE, 0);
+      std::cout << "split_comm.size() = " << comm.Get_size() << std::endl;
+      World subworld(comm);
+      work_even(subworld);
+    }
+    world.gop.fence();
+
 }
 
 #ifdef HAVE_PARSEC
-# ifdef DAGUE_HAVE_CUDA
+# ifdef PARSEC_HAVE_CUDA
 
 extern void __cuda_hello_world(); // in hello_world.cu
 class GPUHelloWorldTask : public TaskInterface {
@@ -1301,7 +1312,7 @@ int main(int argc, char** argv) {
           test_multi_world(world);
         }
 
-#ifdef DAGUE_HAVE_CUDA
+#ifdef PARSEC_HAVE_CUDA
         test_cuda0(world);
 #endif
     }

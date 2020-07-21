@@ -56,6 +56,7 @@
 #    endif
 #    include <lapacke.h>
 #  endif
+#  include <madness/tensor/lapacke_types.h>
 #else
 #  include "clapack_fortran.h"
 #endif

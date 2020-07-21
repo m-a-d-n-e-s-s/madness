@@ -745,7 +745,7 @@ int test_op(World& world) {
     coeffs(0L) = pow(exponents(0L)/PI, 0.5*NDIM);
     SeparatedConvolution<T,NDIM> op(world, coeffs, exponents);
     START_TIMER;
-    Function<T,NDIM> r = apply(op,f);
+    Function<T,NDIM> r = madness::apply(op,f);
     END_TIMER("apply");
     r.verify_tree();
     f.verify_tree();
@@ -1286,13 +1286,12 @@ int test_apply_push_1d(World& world) {
 #define TO_STRING2(s) #s
 
 int main(int argc, char**argv) {
-    initialize(argc, argv);
+	World& world=initialize(argc, argv);
 
     // number of failed tests
     int nfail=0;
 
     try {
-        World world(SafeMPI::COMM_WORLD);
         if (world.rank() == 0) {
             print("");
             print("--------------------------------------------");

@@ -47,23 +47,26 @@
 
 namespace madness {
 
-    /// Output \c std::array to stream for human consumption.
+    namespace operators {
+        /// Output \c std::array to stream for human consumption.
 
-    /// \tparam T The type of data stored in the array.
-    /// \tparam N The size of the array.
-    /// \param[in,out] s The output stream.
-    /// \param[in] a The array to be output.
-    /// \return The output stream.
-    template <typename T, std::size_t N>
-    std::ostream& operator<<(std::ostream& s, const std::array<T,N>& a) {
-        s << "[";
-        for(std::size_t i=0; i<N; ++i) {
-            s << a[i];
-            if (i != (N-1)) s << ",";
-        }
-        s << "]";
-        return s;
-    }
+        /// \tparam T The type of data stored in the array.
+        /// \tparam N The size of the array.
+        /// \param[in,out] s The output stream.
+        /// \param[in] a The array to be output.
+        /// \return The output stream.
+        template <typename T, std::size_t N>
+        std::ostream &operator<<(std::ostream &s, const std::array<T, N> &a) {
+  s << "[";
+  for (std::size_t i = 0; i < N; ++i) {
+    s << a[i];
+    if (i != (N - 1))
+      s << ",";
+  }
+  s << "]";
+  return s;
+}
+    }  // namespace operators
 
     /// Hash std::array with madness hash.
 
@@ -76,50 +79,6 @@ namespace madness {
         // Use this version of range for potential optimization.
         return madness::hash_range(a.data(), N);
     }
-
-    // Serialize std::array objects
-    namespace archive {
-
-        template <class Archive, class T>
-        struct ArchiveStoreImpl;
-        template <class Archive, class T>
-        struct ArchiveLoadImpl;
-
-        /// Serialize an \c std::array.
-
-        /// \tparam Archive The archive type.
-        /// \tparam T The type of data stored in the array.
-        /// \tparam N The size of the array.
-        template <class Archive, typename T, std::size_t N>
-        struct ArchiveStoreImpl<Archive, std::array<T,N> > {
-            /// Store the designated \c std::array in the archive.
-
-            /// \param[in,out] ar The archive.
-            /// \param[in] a The array.
-            static void store(const Archive& ar, const std::array<T,N>& a) {
-                for(auto it = a.begin(); it != a.end(); ++it)
-                    ar & (*it);
-            }
-        };
-
-        /// Serialize an \c std::array.
-
-        /// \tparam Archive The archive type.
-        /// \tparam T The type of data stored in the array.
-        /// \tparam N The size of the array.
-        template <class Archive, typename T, std::size_t N>
-        struct ArchiveLoadImpl<Archive, std::array<T,N> > {
-            /// Load an \c std::array from an archive.
-
-            /// \param[in,out] ar The archive.
-            /// \param[out] a The array.
-            static void load(const Archive& ar, std::array<T,N>& a) {
-                for(auto it = a.begin(); it != a.end(); ++it)
-                    ar & (*it);
-            }
-        };
-
-    } // namespace archive
 
 } // namespace madness
 
