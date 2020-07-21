@@ -468,6 +468,7 @@ namespace madness {
         spotrf_( &uplo, &n, A, &lda, &info, sizeof(char) );
     #endif
     
+        LINALG_ASSERT( (info==0), "Cholesky Failed", info);
     }
     
     template <>
@@ -481,6 +482,7 @@ namespace madness {
         dpotrf_( &uplo, &n, A, &lda, &info, sizeof(char) );
     #endif
     
+        LINALG_ASSERT( (info==0), "Cholesky Failed", info);
     }
     
     template <>
@@ -494,6 +496,7 @@ namespace madness {
         cpotrf_( &uplo, &n, A, &lda, &info, sizeof(char) );
     #endif
     
+        LINALG_ASSERT( (info==0), "Cholesky Failed", info);
     }
     
     template <>
@@ -507,6 +510,7 @@ namespace madness {
         zpotrf_( &uplo, &n, A, &lda, &info, sizeof(char) );
     #endif
     
+        LINALG_ASSERT( (info==0), "Cholesky Failed", info);
     }
 
 
