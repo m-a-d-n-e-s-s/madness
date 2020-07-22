@@ -911,7 +911,7 @@ ResponseFunction TDHF::createHf(World &world, ResponseFunction &f,
     if (world.rank() == 0)
       print(temp);
     if (world.rank() == 0)
-      printf("   Gamma matrix for %s components:\n", xy.c_str());
+      printf("   H matrix for %s components:\n", xy.c_str());
     temp = expectation(world, f, H);
     if (world.rank() == 0)
       print(temp);
@@ -975,24 +975,24 @@ ResponseFunction TDHF::createGf(World &world, ResponseFunction &f,
   // Debugging output
   if (print_level >= 2) {
     if (world.rank() == 0)
-      printf("   B coulomb deriv matrix:\n");
+      printf("   G coulomb deriv matrix:\n");
     ResponseFunction t = Jdagger * 2.0;
     Tensor<double> temp = expectation(world, f, t);
     if (world.rank() == 0)
       print(temp);
     if (Rparams.xc == "hf") {
       if (world.rank() == 0)
-        printf("   B exchange deriv matrix:\n");
+        printf("   G exchange deriv matrix:\n");
       temp = expectation(world, f, Kdagger);
     } else {
       if (world.rank() == 0)
-        printf("   B XC deriv matrix:\n");
+        printf("   G XC deriv matrix:\n");
       temp = expectation(world, f, XCdagger);
     }
     if (world.rank() == 0)
       print(temp);
     if (world.rank() == 0)
-      printf("   B gamma matrix:\n");
+      printf("   G matrix:\n");
     temp = expectation(world, f, G);
     if (world.rank() == 0)
       print(temp);
@@ -1185,6 +1185,10 @@ void TDHF::computeElectronResponse(World &world, ElectronResponseFunctions &I,
                                    Tensor<double> &ham_no_diag, double small,
                                    double thresh, int print_level,
                                    std::string xy) {
+  // Start a timer
+  if (print_level >= 1)
+    start_timer(world);
+
   I.Vx = CreatePotential(world, x, xc, print_level, "x");
   I.F0_x = CreateFock(world, I.Vx, x, print_level, "x");
   // epsilon with diag for FullR matrix
@@ -1193,9 +1197,10 @@ void TDHF::computeElectronResponse(World &world, ElectronResponseFunctions &I,
   // compute Electron Interaction Terms for this Iteration
   I.Hx = createHf(world, x, orbitals, small, thresh, print_level, "x");
   // print(Hx);
-  I.Gy = createGf(world, y, orbitals, small, thresh, print_level, "y");
   // else Compute everything
   if (not Rparams.tda) { // not sure why this is the condition
+    I.Gy = createGf(world, y, orbitals, small, thresh, print_level, "y");
+
     I.Vy = CreatePotential(world, y, xc, print_level, "y");
     I.F0_y = CreateFock(world, I.Vy, y, print_level, "y");
     I.EpsilonY = scale_2d(world, y, hamiltonian);
@@ -1203,6 +1208,7 @@ void TDHF::computeElectronResponse(World &world, ElectronResponseFunctions &I,
     I.Hy = createHf(world, y, orbitals, small, thresh, print_level, "y");
     I.Gx = createGf(world, x, orbitals, small, thresh, print_level, "x");
   }
+  end_timer(world, "Creating Electron Responses");
 
   // Create \hat{V}^0 applied to response functions
 }
