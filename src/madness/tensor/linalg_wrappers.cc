@@ -2,6 +2,11 @@
 #include <madness/madness_config.h>
 #include <madness/tensor/linalg_wrappers.h>
 
+#ifdef MADNESS_LINALG_USE_LAPACKE
+using madness::lapacke::to_cptr;
+using madness::lapacke::to_zptr;
+#endif
+
 
 namespace madness {
 
@@ -90,7 +95,7 @@ namespace madness {
         complex_real4 lwork_dummy;
     
     #if MADNESS_LINALG_USE_LAPACKE
-        cgesvd_( &jobu, &jobvt, &m, &n, A, &lda, S, U, &ldu, VT, &ldvt, &lwork_dummy,
+        cgesvd_( &jobu, &jobvt, &m, &n, to_cptr(A), &lda, S, to_cptr(U), &ldu, to_cptr(VT), &ldvt, to_cptr(&lwork_dummy),
                  &lwork, rwork.data(), &info );
     #else
         cgesvd_( &jobu, &jobvt, &m, &n, A, &lda, S, U, &ldu, VT, &ldvt, &lwork_dummy,
@@ -102,7 +107,7 @@ namespace madness {
         std::vector<complex_real4> work( lwork );
     
     #if MADNESS_LINALG_USE_LAPACKE
-        cgesvd_( &jobu, &jobvt, &m, &n, A, &lda, S, U, &ldu, VT, &ldvt, work.data(),
+        cgesvd_( &jobu, &jobvt, &m, &n, to_cptr(A), &lda, S, to_cptr(U), &ldu, to_cptr(VT), &ldvt, to_cptr(work.data()),
                  &lwork, rwork.data(), &info );
     #else
         cgesvd_( &jobu, &jobvt, &m, &n, A, &lda, S, U, &ldu, VT, &ldvt, work.data(),
@@ -127,7 +132,7 @@ namespace madness {
         complex_real8 lwork_dummy;
     
     #if MADNESS_LINALG_USE_LAPACKE
-        zgesvd_( &jobu, &jobvt, &m, &n, A, &lda, S, U, &ldu, VT, &ldvt, &lwork_dummy,
+        zgesvd_( &jobu, &jobvt, &m, &n, to_cptr(A), &lda, S, to_cptr(U), &ldu, to_cptr(VT), &ldvt, to_cptr(&lwork_dummy),
                  &lwork, rwork.data(), &info );
     #else
         zgesvd_( &jobu, &jobvt, &m, &n, A, &lda, S, U, &ldu, VT, &ldvt, &lwork_dummy,
@@ -139,7 +144,7 @@ namespace madness {
         std::vector<complex_real8> work( lwork );
     
     #if MADNESS_LINALG_USE_LAPACKE
-        zgesvd_( &jobu, &jobvt, &m, &n, A, &lda, S, U, &ldu, VT, &ldvt, work.data(),
+        zgesvd_( &jobu, &jobvt, &m, &n, to_cptr(A), &lda, S, to_cptr(U), &ldu, to_cptr(VT), &ldvt, to_cptr(work.data()),
                  &lwork, rwork.data(), &info );
     #else
         zgesvd_( &jobu, &jobvt, &m, &n, A, &lda, S, U, &ldu, VT, &ldvt, work.data(),
@@ -235,7 +240,7 @@ namespace madness {
         complex_real4 lwork_dummy;
     
     #if MADNESS_LINALG_USE_LAPACKE
-        cheev_( &jobz, &uplo, &n, A, &lda, W, &lwork_dummy, &lwork, rwork.data(), &info );
+        cheev_( &jobz, &uplo, &n, to_cptr(A), &lda, W, to_cptr(&lwork_dummy), &lwork, rwork.data(), &info );
     #else
         cheev_( &jobz, &uplo, &n, A, &lda, W, &lwork_dummy, &lwork, rwork.data(), &info, 
                 sizeof(char), sizeof(char) );
@@ -246,7 +251,7 @@ namespace madness {
         std::vector<complex_real4> work( lwork );
     
     #if MADNESS_LINALG_USE_LAPACKE
-        cheev_( &jobz, &uplo, &n, A, &lda, W, work.data(), &lwork, rwork.data(), &info );
+        cheev_( &jobz, &uplo, &n, to_cptr(A), &lda, W, to_cptr(work.data()), &lwork, rwork.data(), &info );
     #else
         cheev_( &jobz, &uplo, &n, A, &lda, W, work.data(), &lwork, rwork.data(), &info, 
                 sizeof(char), sizeof(char) );
@@ -269,7 +274,7 @@ namespace madness {
         complex_real8 lwork_dummy;
     
     #if MADNESS_LINALG_USE_LAPACKE
-        zheev_( &jobz, &uplo, &n, A, &lda, W, &lwork_dummy, &lwork, rwork.data(), &info );
+        zheev_( &jobz, &uplo, &n, to_cptr(A), &lda, W, to_cptr(&lwork_dummy), &lwork, rwork.data(), &info );
     #else
         zheev_( &jobz, &uplo, &n, A, &lda, W, &lwork_dummy, &lwork, rwork.data(), &info, 
                 sizeof(char), sizeof(char) );
@@ -280,7 +285,7 @@ namespace madness {
         std::vector<complex_real8> work( lwork );
     
     #if MADNESS_LINALG_USE_LAPACKE
-        zheev_( &jobz, &uplo, &n, A, &lda, W, work.data(), &lwork, rwork.data(), &info );
+        zheev_( &jobz, &uplo, &n, to_cptr(A), &lda, W, to_cptr(work.data()), &lwork, rwork.data(), &info );
     #else
         zheev_( &jobz, &uplo, &n, A, &lda, W, work.data(), &lwork, rwork.data(), &info, 
                 sizeof(char), sizeof(char) );
@@ -382,7 +387,7 @@ namespace madness {
         complex_real4 lwork_dummy;
     
     #if MADNESS_LINALG_USE_LAPACKE
-        chegv_( &itype, &jobz, &uplo, &n, A, &lda, B, &ldb, W, &lwork_dummy, &lwork, 
+        chegv_( &itype, &jobz, &uplo, &n, to_cptr(A), &lda, to_cptr(B), &ldb, W, to_cptr(&lwork_dummy), &lwork, 
                 rwork.data(), &info );
     #else
         chegv_( &itype, &jobz, &uplo, &n, A, &lda, B, &ldb, W, &lwork_dummy, &lwork, 
@@ -394,7 +399,7 @@ namespace madness {
         std::vector<complex_real4> work( lwork );
     
     #if MADNESS_LINALG_USE_LAPACKE
-        chegv_( &itype, &jobz, &uplo, &n, A, &lda, B, &ldb, W, work.data(), &lwork, 
+        chegv_( &itype, &jobz, &uplo, &n, to_cptr(A), &lda, to_cptr(B), &ldb, W, to_cptr(work.data()), &lwork, 
                 rwork.data(), &info );
     #else
         chegv_( &itype, &jobz, &uplo, &n, A, &lda, B, &ldb, W, work.data(), &lwork, 
@@ -418,7 +423,7 @@ namespace madness {
         complex_real8 lwork_dummy;
     
     #if MADNESS_LINALG_USE_LAPACKE
-        zhegv_( &itype, &jobz, &uplo, &n, A, &lda, B, &ldb, W, &lwork_dummy, &lwork, 
+        zhegv_( &itype, &jobz, &uplo, &n, to_cptr(A), &lda, to_cptr(B), &ldb, W, to_cptr(&lwork_dummy), &lwork, 
                 rwork.data(), &info );
     #else
         zhegv_( &itype, &jobz, &uplo, &n, A, &lda, B, &ldb, W, &lwork_dummy, &lwork, 
@@ -430,7 +435,7 @@ namespace madness {
         std::vector<complex_real8> work( lwork );
     
     #if MADNESS_LINALG_USE_LAPACKE
-        zhegv_( &itype, &jobz, &uplo, &n, A, &lda, B, &ldb, W, work.data(), &lwork, 
+        zhegv_( &itype, &jobz, &uplo, &n, to_cptr(A), &lda, to_cptr(B), &ldb, W, to_cptr(work.data()), &lwork, 
                 rwork.data(), &info );
     #else
         zhegv_( &itype, &jobz, &uplo, &n, A, &lda, B, &ldb, W, work.data(), &lwork, 
@@ -491,7 +496,7 @@ namespace madness {
         integer info;
     
     #if MADNESS_LINALG_USE_LAPACKE
-        cpotrf_( &uplo, &n, A, &lda, &info );
+        cpotrf_( &uplo, &n, to_cptr(A), &lda, &info );
     #else
         cpotrf_( &uplo, &n, A, &lda, &info, sizeof(char) );
     #endif
@@ -505,7 +510,7 @@ namespace madness {
         integer info;
     
     #if MADNESS_LINALG_USE_LAPACKE
-        zpotrf_( &uplo, &n, A, &lda, &info );
+        zpotrf_( &uplo, &n, to_cptr(A), &lda, &info );
     #else
         zpotrf_( &uplo, &n, A, &lda, &info, sizeof(char) );
     #endif
