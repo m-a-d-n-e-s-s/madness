@@ -167,7 +167,7 @@ SCF::SCF(World& world, const std::string& inputfile) : param(CalculationParamete
 		if(not param.no_orient()) molecule.orient();
 
           //account for nwchem aobasis generation
-          if(param.nwfile() == "")	reset_aobasis(param.aobasis());
+          if(param.nwfile() == "none")	reset_aobasis(param.aobasis());
           else aobasis.read_nw_file(param.nwfile());
 		param.set_derived_values(molecule,aobasis);
 
@@ -205,7 +205,7 @@ void SCF::save_mos(World& world) {
 
      // Do not make a restartaodata file if nwchem orbitals used,
      // as no aoamo/aobmo overlap matrix can be computed
-     if (param.nwfile() == "") {
+     if (param.nwfile() == "none") {
 	     tensorT Saoamo = matrix_inner(world, ao, amo);
 	     tensorT Saobmo = (!param.spin_restricted()) ? matrix_inner(world, ao, bmo) : tensorT();
 	     if (world.rank() == 0) {
@@ -1049,7 +1049,7 @@ void SCF::initial_guess(World & world) {
 	} else {
 
           //If not using nwchem, proceed as normal...
-          if (param.nwfile() == ""){
+          if (param.nwfile() == "none"){
 
 		     // recalculate initial guess density matrix without core orbitals
 		     if (!param.pure_ae()){
@@ -3054,10 +3054,10 @@ void SCF::solve(World & world) {
 					"Orbitals are localized - energies are diagonal Fock matrix elements\n");
 		else
 			print("Orbitals are eigenvectors - energies are eigenvalues\n");
-		if (param.nwfile() == "") print("Analysis of alpha MO vectors");
+		if (param.nwfile() == "none") print("Analysis of alpha MO vectors");
 	}
 
-     if (param.nwfile() == "") {
+     if (param.nwfile() == "none") {
 	     analyze_vectors(world, amo, aocc, aeps);
 	     if (param.nbeta() != 0 && !param.spin_restricted()) {
 	     	if (world.rank() == 0 and (param.print_level()>1))

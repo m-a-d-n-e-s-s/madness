@@ -842,7 +842,7 @@ public:
                     // Only do this if not starting from NWChem.
                     // analysis will be done on NWChem orbitals.
 
-				if (calc.param.aobasis() != "sto-3g" && calc.param.nwfile() == "") {
+				if (calc.param.aobasis() != "sto-3g" && calc.param.nwfile() == "none") {
 					calc.reset_aobasis("sto-3g");
 					calc.ao=calc.project_ao_basis(world,calc.aobasis);
 				}

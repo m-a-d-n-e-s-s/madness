@@ -138,7 +138,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 //		initialize<std::map<std::string,std::string> generalkeyval;  ///< general new key/value pair
 
           //Keyword to use nwchem output for initial guess
-          initialize<std::string> ("nwfile","","Base name of nwchem output files (.out and .movecs extensions) to read from");
+          initialize<std::string> ("nwfile","none","Base name of nwchem output files (.out and .movecs extensions) to read from");
 
 	}
 
@@ -309,8 +309,8 @@ struct CalculationParameters : public QCCalculationParametersBase {
         if (get<bool>("gopt") && nwfile() != "") error("NWchem initialization only supports single point energy calculations.");
 
         //NWChem only supports Boys localization
-        if (nwfile() != "") {
-             set_derived_value("localize_method",std::string("boys"));
+        if (nwfile() != "none") {
+             set_derived_value("localize",std::string("boys"));
              //Error if user requested something other than Boys
              if(localize_method() != "boys") error("NWchem initialization only supports Boys localization");
         }
