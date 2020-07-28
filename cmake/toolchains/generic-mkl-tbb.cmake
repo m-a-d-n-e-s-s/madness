@@ -13,18 +13,19 @@
 
 # Compilers
 
-if(NOT CMAKE_C_COMPILER)
-  set(CMAKE_C_COMPILER mpicc)
-endif()
-if(NOT CMAKE_CXX_COMPILER)
-  set(CMAKE_CXX_COMPILER mpicxx)
-endif()
-if (NOT MPI_C_COMPILER)
-  set(MPI_C_COMPILER mpicc)
-endif()
-if (NOT MPI_CXX_COMPILER)
-  set(MPI_CXX_COMPILER mpicxx)
-endif()
+# These seem to break findmpi module
+#if(NOT CMAKE_C_COMPILER)
+#  set(CMAKE_C_COMPILER mpicc)
+#endif()
+#if(NOT CMAKE_CXX_COMPILER)
+#  set(CMAKE_CXX_COMPILER mpicxx)
+#endif()
+#if (NOT MPI_C_COMPILER)
+#  set(MPI_C_COMPILER mpicc)
+#endif()
+#if (NOT MPI_CXX_COMPILER)
+#  set(MPI_CXX_COMPILER mpicxx)
+#endif()
 
 # Specify the GNU compilers to use with Intel C/C++
 set(GCC_ROOT_DIR "$ENV{GCC_DIR}")
@@ -62,5 +63,7 @@ endif()
 set(LAPACK_LIBRARIES "-L${MKL_ROOT_DIR}/lib" "-lmkl_intel_ilp64" "-lmkl_core"
         "-lmkl_sequential" "-lm" CACHE STRING "LAPACK linker flags")
 set(LAPACK_INCLUDE_DIRS ${MKL_ROOT_DIR}/include CACHE STRING "LAPACK include directories")
-set(LAPACK_COMPILE_DEFINITIONS MKL_DIRECT_CALL CACHE STRING "LAPACK compile definitions")
-set(FORTRAN_INTEGER_SIZE "4" CACHE STRING "Set Fortran integer size to 8 bytes")
+
+set(LAPACK_COMPILE_DEFINITIONS MKL_DIRECT_CALL;MKL_INT=long CACHE STRING "LAPACK compile definitions")
+set(FORTRAN_INTEGER_SIZE "8" CACHE STRING "Set Fortran integer size to 8 bytes")
+

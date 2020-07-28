@@ -285,11 +285,12 @@ namespace madness {
             Vector<long double, 3> diff;
             unsigned int i, n;
             long double dotp, d;
-            long double lambda, dist, temp[2], upper;
+            long double dist, temp[2], upper;
+	    //double lambda;
             std::vector<long double> roots;
 
-            // silence warnings
-            lambda = 0.0;
+            // silence warnings ... doesn't work
+            //lambda = 0.0;
             dist = 0.0;
 
             // avoid lots of casting
@@ -334,12 +335,12 @@ namespace madness {
                     }
 
                     if(n == 0) {
-                        lambda = temp[0];
+		      //lambda = temp[0];
                         dist = temp[1];
                     }
                     else {
                         if(temp[1] < dist) {
-                            lambda = temp[0];
+			  //lambda = temp[0];
                             dist = temp[1];
                         }
                     }

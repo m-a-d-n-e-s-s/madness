@@ -1,8 +1,13 @@
 # src/madness/external
 
-add_subdirectory(gtest)
-add_subdirectory(muParser)
-add_subdirectory(tinyxml)
+if(ENABLE_UNITTESTS)
+  add_subdirectory(gtest)
+endif()
+
+if (NOT MADNESS_BUILD_MADWORLD_ONLY)
+  add_subdirectory(muParser)
+  add_subdirectory(tinyxml)
+endif (NOT MADNESS_BUILD_MADWORLD_ONLY)
 
 # if want embedded elemental ...
 if(ENABLE_ELEMENTAL AND ENABLE_ELEMENTAL_EMBEDDED)

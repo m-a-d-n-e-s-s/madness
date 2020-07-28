@@ -73,11 +73,11 @@ public:
 
 /// Timer structure
 struct MyTimer{
+	World& world;
 	mutable double wstart_, cstart_;
 	mutable double wstop_, cstop_;
 	mutable double wtime_, ctime_;
 	mutable std::string msg_;
-	World& world;
 
 	MyTimer(World& world): world(world), wstart_(-1.0),cstart_(-1.0),wstop_(-1.0),cstop_(-1.0),wtime_(-1.0),ctime_(-1.0){}
 	MyTimer start()const{
@@ -141,6 +141,13 @@ struct PairEnergies{
 
 /// iterates the third index for pair coupling
 struct OrbitalIterator{
+private:
+	size_t i_;
+	const size_t start_;
+	const size_t stop_;
+	bool finished_;
+	const size_t freeze_;
+public:
 	size_t i()const {return i_;}
 
 	OrbitalIterator(const size_t &nocc, const size_t &freeze): i_(0), start_(0),stop_(nocc-freeze),finished_(false),freeze_(freeze) {}
@@ -156,12 +163,6 @@ struct OrbitalIterator{
 	// gives real index (if some orbtials are frozen)
 	std::string name()const {return std::to_string(i_+start_);}
 
-private:
-	size_t i_;
-	const size_t start_;
-	const size_t stop_;
-	const size_t freeze_;
-	bool finished_;
 };
 
 /// Iterator over pairs
@@ -282,8 +283,8 @@ struct PNOPairs{
 	vfT Kpno_ij; 									///< Exchange Intermediate
 	vfT W_ij_i;										///< Fluctuation Potential
 	vfT W_ij_j;										///< Fluctuation Potential
-	Tensor_IJ_IK<double> S_ij_ik;					///< PNO overlaps
-	Tensor_IJ_KJ<double> S_ij_kj;					///< PNO overlaps
+        PNOTensors::Tensor_IJ_IK<double> S_ij_ik;					///< PNO overlaps
+        PNOTensors::Tensor_IJ_KJ<double> S_ij_kj;					///< PNO overlaps
 	mutable MemInfo meminfo;						///< information about the used memory
 
 	/// check if all pairs are empty

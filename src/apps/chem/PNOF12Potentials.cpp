@@ -342,8 +342,8 @@ PairEnergies F12Potentials::compute_f12_pair_energies(const std::valarray<vector
 		const double cij = fQc[it.ij()];
 		const double gij = fQg[it.ij()];
 		const double Uij = fQU[it.ij()];
-		double fvu = 0.0;
-		double fvux= 0.0;
+		//double fvu = 0.0;
+		//double fvux= 0.0;
 		double cji = fQc[it.ij()+it.npairs()];
 		double gji = fQg[it.ij()+it.npairs()];
 		double Uji = fQU[it.ij()+it.npairs()];
@@ -389,10 +389,10 @@ PairEnergies F12Potentials::compute_f12_pair_energies(const std::valarray<vector
 }
 
 void F12Potentials::print_pair_energies(const std::valarray<double>& es, const std::valarray<double>& et, const std::string& msg, const PairType& type) const{
-	double est = 0.0;
-	double ett = 0.0;
-	double est_f12 = 0.0;
-	double ett_f12 = 0.0;
+  //double est = 0.0;
+  //double ett = 0.0;
+  //double est_f12 = 0.0;
+  //double ett_f12 = 0.0;
 	if (world.rank() == 0) {
 		std::cout << std::setfill(' ');
 		std::cout << std::scientific << std::setprecision(5);
@@ -432,7 +432,7 @@ void F12Potentials::print_pair_energies(const std::valarray<double>& es, const s
 
 
 vector_real_function_3d F12Potentials::apply_regularized_potential(const real_function_3d& ket1, const real_function_3d& ket2,const real_function_3d Ki, const real_function_3d& Kj, const vector_real_function_3d& bra,const vector_real_function_3d& Kpno) const {
-	const double muleps = 0.0;//FunctionDefaults < 3 > ::get_thresh();
+  //const double muleps = 0.0;//FunctionDefaults < 3 > ::get_thresh();
 
 	MyTimer timeU = MyTimer(world).start();
 	const vector_real_function_3d Uepart = convolve_with_U(bra, ket1, ket2);
@@ -620,7 +620,7 @@ Tensor<double> F12Potentials::compute_regularized_fluctuation_matrix(const std::
 
 		if(diagonal and same_pnos){
 			const vector_real_function_3d& pnos=a;
-			const vector_real_function_3d& vi=ai;
+			//const vector_real_function_3d& vi=ai;
 			const vector_real_function_3d& vj=bj;
 			Tensor<double> Uenl(pnos.size(),pnos.size());
 			for(size_t axis=0;axis<3;++axis){
@@ -1333,6 +1333,7 @@ std::vector<real_function_3d> F12Potentials::read_cabs_from_file(const std::stri
 			std::cout << x.first << " Exponents\n";
 			for (size_t l = 0; l < x.second.size(); ++l) {
 				std::cout << "l=" << l << "\n";
+                                using madness::operators::operator<<;
 				std::cout << x.second[l] << "\n";
 			}
 		}

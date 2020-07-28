@@ -31,11 +31,7 @@ add_mad_library(world MADWORLD_SOURCES MADWORLD_HEADERS "common;${ELEMENTAL_PACK
 #  target_link_libraries(MADworld INTERFACE "${DISABLEPIE_LINKER_FLAG}")
 #endif()
 
-foreach (suffix ${MADNESS_LIBRARY_TARGET_SUFFIXES})
-  if (suffix STREQUAL none)
-    set(suffix )
-  endif()
-  set(targetname MADworld${suffix})
+  set(targetname MADworld)
 
   # create an additional, MADworld-only, export
   install(TARGETS ${targetname} EXPORT madworld
@@ -73,13 +69,16 @@ foreach (suffix ${MADNESS_LIBRARY_TARGET_SUFFIXES})
     else ()
       target_link_libraries(${targetname} PUBLIC ${TBB_LIBRARIES_RELEASE})
     endif ()
+    if (TBB_COMPILE_FLAGS)
+      target_compile_definitions(${targetname} PUBLIC "${TBB_COMPILE_FLAGS}")
+    endif(TBB_COMPILE_FLAGS)
   endif ()
-  if (PARSEC_FOUND)
+  if (TARGET PaRSEC::parsec)
     target_link_libraries(${targetname} PUBLIC PaRSEC::parsec)
   endif ()
   if (MPI_FOUND)
     target_include_directories(${targetname} PUBLIC ${MPI_INCLUDE_PATH})
-    target_compile_definitions(${targetname} PUBLIC -DMPICH_SKIP_MPICXX=1 -DOMPI_SKIP_MPICXX=1)
+    target_compile_definitions(${targetname} PUBLIC -DMPICH_SKIP_MPICXX=1 -DOMPI_SKIP_MPICXX=1 -DMADNESS_MPI_HEADER=$<1:"${MADNESS_MPI_HEADER}">)
     target_compile_options(${targetname} PUBLIC ${MPI_COMPILE_FLAGS})
     target_link_libraries(${targetname} PUBLIC ${MPI_LINK_FLAGS})
     target_link_libraries(${targetname} PUBLIC ${MPI_LIBRARIES})
@@ -88,7 +87,10 @@ foreach (suffix ${MADNESS_LIBRARY_TARGET_SUFFIXES})
   if (WORLD_GET_DEFAULT_DISABLED)
     target_compile_definitions(${targetname} PUBLIC -DMADNESS_DISABLE_WORLD_GET_DEFAULT=1)
   endif (WORLD_GET_DEFAULT_DISABLED)
-endforeach (suffix ${MADNESS_LIBRARY_TARGET_SUFFIXES})
+
+if (TARGET PaRSEC::parsec)
+  add_subproject_parsec_target_to_export_set("madworld" "world")
+endif()
 
 if(ENABLE_UNITTESTS)
 
@@ -99,19 +101,19 @@ if(ENABLE_UNITTESTS)
       test_worldprofile.cc test_binsorter.cc test_vector.cc test_worldptr.cc 
       test_worldref.cc test_stack.cc test_googletest.cc test_tree.cc)
 
+  add_unittests(world "${WORLD_TEST_SOURCES}" "MADworld;MADgtest")    
 
-  add_unittests(world "${WORLD_TEST_SOURCES}" "MADworld;MADgtest")
+  find_package(CUDA)
+  if (TARGET PaRSEC::parsec AND CUDA_FOUND)
+    CMAKE_PUSH_CHECK_STATE()
+    STRING(REPLACE "-std=c++1z" "" _tmp "${CMAKE_CXX_FLAGS}")
+    SET(CMAKE_CXX_FLAGS "${_tmp}")
+    cuda_add_library(MADtest_cuda hello_world.cu EXCLUDE_FROM_ALL)
+    CMAKE_POP_CHECK_STATE()
+    target_link_libraries(test_world PRIVATE MADtest_cuda)
+  endif ()
 
   set_tests_properties(world-test_googletest PROPERTIES WILL_FAIL TRUE)
-
-  if (ENABLE_PARSEC)
-    find_package(CUDA)
-    if (CUDA_FOUND) # no way to make sure PARSEC has CUDA
-                    # so just look for it and hope for the best
-      cuda_add_library(MADtest_cuda hello_world.cu EXCLUDE_FROM_ALL)  
-      target_link_libraries(test_world MADtest_cuda)
-    endif(CUDA_FOUND)
-  endif (ENABLE_PARSEC)
   
 endif()
 

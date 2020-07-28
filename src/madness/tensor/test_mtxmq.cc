@@ -36,12 +36,12 @@
 bool smalltest = false;
 
 // Disable for now to facilitate CI 
-#if !(defined(X86_32) || defined(X86_64))
+//#if !(defined(X86_32) || defined(X86_64))
 
-#include <iostream>
-int main() {std::cout << "x86 only\n"; return 0;}
+//#include <iostream>
+//int main() {std::cout << "x86 only\n"; return 0;}
 
-#else
+//#else
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -57,6 +57,7 @@ int main() {std::cout << "x86 only\n"; return 0;}
 using namespace madness;
 
 
+#define TIME_DGEMM
 #ifdef TIME_DGEMM
 
 void mTxm_dgemm(long ni, long nj, long nk, double* c, const double* a, const double*b ) {
@@ -237,4 +238,4 @@ int main(int argc, char * argv[]) {
     return 0;
 }
 
-#endif
+//#endif

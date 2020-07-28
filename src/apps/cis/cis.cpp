@@ -25,7 +25,7 @@ int main(int argc, char** argv) {
 			}
 #endif
 	}
-	const double time_start = wall_time();
+	//const double time_start = wall_time();
 	std::cout.precision(6);
 
 	startup(world,argc,argv,true);

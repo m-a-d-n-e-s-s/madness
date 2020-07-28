@@ -23,6 +23,7 @@ namespace madness {
 			std::cout << x.first << " Exponents\n";
 			for (size_t l = 0; l < x.second.size(); ++l) {
 				std::cout << "l=" << l << "\n";
+                                using madness::operators::operator<<;
 				std::cout << x.second[l] << "\n";
 			}
 		}
@@ -44,7 +45,7 @@ namespace madness {
 
  vector_real_function_3d BasisFunctions::guess_virtuals_internal(const std::map<std::string, std::vector<int> > guess_map) const {
 	vector_real_function_3d virtuals;
-	for (int i = 0; i < molecule.natom(); ++i) {
+	for (size_t i = 0; i < molecule.natom(); ++i) {
 		// get the partial wave basis for the atom
 		const Atom& atom = molecule.get_atom(i);
 		const std::string symbol = atomic_number_to_symbol(atom.atomic_number);
@@ -62,7 +63,7 @@ namespace madness {
 			print("working on atom", symbol);
 			print("pw_guess", pw_guess);
 		}
-		for (int l = 0; l < pw_guess.size(); ++l) {
+		for (size_t l = 0; l < pw_guess.size(); ++l) {
 			for (int i = 0; i < pw_guess[l]; ++i) {
 				double e = double(pw_guess[l]) / (double(i + 1.0));
 				virtuals=append(virtuals, guess_virtual_gaussian_shell(atom, l, e));
@@ -157,8 +158,8 @@ namespace madness {
 
 
  double BasisFunctions::SolidHarmonicGaussian::operator ()(const coord_3d& xyz) const {
-
-	static const int64_t fac[] = { 1, 1, 2, 6, 24, 120, 720, 5040, 40320, 362880, 3628800, 39916800, 479001600, 6227020800, 87178291200, 1307674368000, 20922789888000 };
+#ifdef MADNESS_HAS_BOOST
+        static const int64_t fac[] = { 1, 1, 2, 6, 24, 120, 720, 5040, 40320, 362880, 3628800, 39916800, 479001600, 6227020800, 87178291200, 1307674368000, 20922789888000 };
 	static const auto sqrt_2 = 1.41421356237309504880168872421;
 	double xx = xyz[0] - x;
 	double yy = xyz[1] - y;
@@ -170,9 +171,8 @@ namespace madness {
 	const double cos_phi = xx / (r * sin_theta);
 	const double phi = (yy > 0 ? 1.0 : -1.0) * std::acos(cos_phi);
 	const auto abs_m = std::abs(m);
-	assert(l + abs_m <= (sizeof(fac) / sizeof(int64_t) - 1));
+	assert(size_t(l + abs_m) <= (sizeof(fac) / sizeof(int64_t) - 1));
 	// wrong sign for m < 0
-#ifdef MADNESS_HAS_BOOST
 	//const auto P_l_m = boost::math::tr1::assoc_legendre(l, abs_m, cos_theta);
 	const auto P_l_m = boost::math::legendre_p(l, abs_m, cos_theta);
 	// this excludes sqrt((2l+1)/4pi) since that gets cancelled by its inverse in the definition of the solid harmonics

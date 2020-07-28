@@ -4,6 +4,7 @@
         "CMAKE_TOOLCHAIN_FILE":"/home/agh/projects/madness/cmake/toolchains/generic-mkl-tbb.cmake",
         "CMAKE_MAKE_PROGRAM":"/usr/bin/make",
         "CMAKE_EXPORT_COMPILE_COMMANDS":1,
+        "ENABLE_GPERFTOOLS":"OFF",
         "CMAKE_BUILD_TYPE":"Debug",
         "ENABLE_MKL":"ON",
         "ENABLE_TBB":"OFoF",
@@ -11,9 +12,11 @@
         "MPI_CXX_COMPILER":"mpicxx" ,
         "MPI_C_COMPILER":"mpicc" ,
         "CMAKE_CXX_STANDARD": 17,
+
         "LIBXC_LIBRARIES": "/usr/lib/x86_64-linux-gnu/libxc.a",
         "LIBXC_INCLUDE_DIRS": "/usr/include",
         "BUILD_SHARED_LIBS": "False",
+
     },
     "cmake.environment": {
 
@@ -34,8 +37,10 @@
     "cquery.cacheDirectory": "${workspaceFolder}/.vscode/cquery_cached_index/",
     "C_Cpp.default.macFrameworkPath": [],
     "C_Cpp.clang_format_fallbackStyle": "Google"
+
     
 }
 
 //        "CMAKE_CXX_COMPILER": "mpicxx",
 //        "CMAKE_C_COMPILER": "mpicc",
+

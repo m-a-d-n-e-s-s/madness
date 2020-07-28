@@ -185,7 +185,7 @@ void TDHF::initialize(std::vector<CC_vecfunction> &start)const{
 	std::sort(guess.begin(),guess.end());
 	//truncate the guess
 	std::vector<CC_vecfunction> guess_vectors;
-	for(int i=0;i<parameters.guess_excitations();i++) guess_vectors.push_back(guess[i]);
+	for(size_t i=0;i<parameters.guess_excitations();i++) guess_vectors.push_back(guess[i]);
 	// this is the return value
 	start = guess_vectors;
 }
@@ -1067,7 +1067,7 @@ vector_real_function_3d TDHF::make_virtuals() const {
 	} else{
 		// create the seeds
 		vector_real_function_3d xmo;
-		for(int i=0;i<parameters.guess_occ_to_virt();++i) xmo.push_back(get_active_mo_ket()[get_active_mo_ket().size()-1-i]);
+		for(size_t i=0;i<parameters.guess_occ_to_virt();++i) xmo.push_back(get_active_mo_ket()[get_active_mo_ket().size()-1-i]);
 
 		bool use_trigo=true;
 //		if(parameters.generalkeyval.find("polynomial_exops")!=parameters.generalkeyval.end())
@@ -1207,7 +1207,7 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
 	}
 
 	// initialize the guess functions
-	if (world.rank() == 0 && MCIS.dim(0) < parameters.guess_excitations()) {
+	if (world.rank() == 0 && size_t(MCIS.dim(0)) < parameters.guess_excitations()) {
 		msg.warning(std::to_string(parameters.guess_excitations())
 			+ " guess vectors where demanded, but with the given options only "
 			+ std::to_string(MCIS.dim(0)) + " can be created\n");
@@ -1234,7 +1234,7 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
 		}
 	}
 	std::vector<CC_vecfunction> xfunctions;
-	for (int x = 0; x < MCIS.dim(0); ++x) {
+	for (size_t x = 0; x < size_t(MCIS.dim(0)); ++x) {
 		if (x >= parameters.guess_excitations())
 			break;
 
@@ -1258,7 +1258,7 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
 		// todo: probably not optimal for highly parallel applications
 		int iexcitation=0;
 		for (int I = 0; I < MCIS.dim(0); ++I) {
-			if (iexcitation >= parameters.guess_excitations()) break;
+  		        if (size_t(iexcitation) >= parameters.guess_excitations()) break;
 
 			//const int a = get_vir_idx(I);
 			//const int i = get_occ_idx(I);
@@ -1583,7 +1583,7 @@ void TDHF::analyze(const std::vector<CC_vecfunction> &x) const {
 /// auto assigns all parameters which where not explicitly given and which depend on other parameters of the reference calculation
 //void TDHF::Parameters::complete_with_defaults(const std::shared_ptr<SCF>& scf) {
 void TDHF::Parameters::set_derived_values(const std::shared_ptr<SCF>& scf) {
-	double thresh=FunctionDefaults<3>::get_thresh();
+        //  double thresh=FunctionDefaults<3>::get_thresh();
 
 	set_derived_value("econv",scf->param.econv());
 	set_derived_value("dconv",sqrt(get<double>("econv"))*0.1);

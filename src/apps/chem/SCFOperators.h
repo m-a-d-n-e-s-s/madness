@@ -312,6 +312,8 @@ private:
 
 /// takes real and complex functions as input, will return complex functions
 class Lz {
+private:
+    World& world;
 public:
 
 	bool use_bsplines=true;
@@ -365,8 +367,6 @@ public:
         return matrix_inner(world,vbra,vVket,bra_equiv_ket);
     }
 
-private:
-    World& world;
 };
 
 
@@ -573,22 +573,11 @@ public:
     std::shared_ptr<XCfunctional> xc;
 
 private:
-    /// the nuclear correlation factor, if it exists, for computing derivatives for GGA
-    std::shared_ptr<NuclearCorrelationFactor> ncf;
-
     /// number of beta orbitals
     int nbeta;
 
     /// the XC functionals depend on the spin of the orbitals they act on
     mutable int ispin;
-
-    /// functions that are need for the computation of the XC operator
-
-    /// the ordering of the intermediates is fixed, but the code can handle
-    /// non-initialized functions, so if e.g. no GGA is requested, all the
-    /// corresponding vector components may be left empty.
-    /// For the ordering of the intermediates see xcfunctional::xc_arg
-    mutable vecfuncT xc_args;
 
     /// additional truncation for the densities in the XC kernel
 
@@ -597,6 +586,17 @@ private:
     /// results. Extra truncation will tighten the truncation threshold by a
     /// specified factor, default is 0.01.
     double extra_truncation;
+
+    /// the nuclear correlation factor, if it exists, for computing derivatives for GGA
+    std::shared_ptr<NuclearCorrelationFactor> ncf;
+
+    /// functions that are need for the computation of the XC operator
+
+    /// the ordering of the intermediates is fixed, but the code can handle
+    /// non-initialized functions, so if e.g. no GGA is requested, all the
+    /// corresponding vector components may be left empty.
+    /// For the ordering of the intermediates see xcfunctional::xc_arg
+    mutable vecfuncT xc_args;
 
     /// compute the intermediates for the XC functionals
 

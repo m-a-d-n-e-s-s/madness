@@ -67,3 +67,4 @@ Makefile-prog.in
 #tags
 .vscode-ctags
 .tags
+.ccls-cache

@@ -14,7 +14,7 @@ using namespace madness;
 /// will write a test input and remove it from disk upon destruction
 struct write_test_input {
 
-    double eprec=1.e-6;
+    double eprec=1.e-3; // was 1e-4 ... trying to make test faster
 
     std::string filename_;
     write_test_input(const CalculationParameters& param, const std::string& mol="lih") : filename_("test_MO_input") {
@@ -30,7 +30,7 @@ struct write_test_input {
             of << "H  1.4375 0.0 0.0\n";
             of << "end\n";
         } else if (mol=="hf") {
-            double eprec=1.e-5;
+            //double eprec=1.e-5; // trying to make test faster
             of << "geometry\n";
             of << "eprec " << eprec << std::endl;
             of << "F  0.1    0.0 0.2\n";
@@ -64,16 +64,18 @@ int compare_calc_and_mos(World& world, const SCF& calc, const MolecularOrbitals<
 }
 
 int test_read_restartdata(World& world) {
-	int success=0;
+        //int success=0;
 	CalculationParameters param1;
 	param1.set_user_defined_value("maxiter",2);
-	param1.set_user_defined_value("protocol",std::vector<double>({1.e-3}));
+	param1.set_user_defined_value("protocol",std::vector<double>({1.e-4}));
 
 	// write restart file
 	write_test_input test_input(param1);
 	SCF calc(world,test_input.filename().c_str());
+        calc.set_protocol<3>(world, 1e-4);
 	MolecularEnergy ME(world, calc);
-	double energy=ME.value(calc.molecule.get_all_coords().flat()); // ugh!
+	//double energy=ME.value(calc.molecule.get_all_coords().flat()); // ugh!
+	ME.value(calc.molecule.get_all_coords().flat()); // ugh!
 
 	// this has the derived parameters as well
 	CalculationParameters param=calc.param;
@@ -105,8 +107,10 @@ int test_read_restartaodata(World& world) {
 	// write restart file
 	write_test_input test_input(param1);
 	SCF calc(world,test_input.filename().c_str());
+        calc.set_protocol<3>(world, 1e-4);
 	MolecularEnergy ME(world, calc);
-	double energy=ME.value(calc.molecule.get_all_coords().flat()); // ugh!
+	//double energy=ME.value(calc.molecule.get_all_coords().flat()); // ugh!
+	ME.value(calc.molecule.get_all_coords().flat()); // ugh!
 
 	// this has the derived parameters as well
 	CalculationParameters param=calc.param;
@@ -129,17 +133,14 @@ int test_read_restartaodata(World& world) {
 
 
 int main(int argc, char** argv) {
-    madness::initialize(argc, argv);
+	World& world=madness::initialize(argc, argv);
+	int result=0;
+	world.gop.fence();
+	startup(world,argc,argv);
 
-    madness::World world(SafeMPI::COMM_WORLD);
-    world.gop.fence();
-    startup(world,argc,argv);
-    int result=0;
-
-    result+=test_read_restartdata(world);
-    result+=test_read_restartaodata(world);
-
-    print("result",result);
-    madness::finalize();
-    return result;
+	result+=test_read_restartdata(world);
+	result+=test_read_restartaodata(world);
+	print("result",result);
+	madness::finalize();
+	return result;
 }

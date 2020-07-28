@@ -52,6 +52,9 @@ ls -l $LIBXCDIR/lib/libxc.${LIBEXT}
 ls -l /opt/intel
 which ccache
 ccache --version
+ls -l /opt/intel/tbb/bin/*
+#source /opt/intel/tbb/bin/tbbvars.sh intel64
+echo ${TBBROOT}
 
 # Configure MADNESS
 mkdir build
@@ -60,9 +63,9 @@ cmake \
     -D CMAKE_BUILD_TYPE=MinSizeRel \
     -D ENABLE_UNITTESTS=ON \
     -D ENABLE_NEVER_SPIN=ON \
-    -D BUILD_SHARED_LIBS=${BUILD_SHARED} \
     -D ENABLE_GPERFTOOLS=OFF \
     -D ENABLE_MKL=ON \
+    -D ENABLE_TBB=ON \
     -D CMAKE_C_COMPILER=$CC \
     -D CMAKE_CXX_COMPILER=$CXX \
     -D CMAKE_CXX_FLAGS="${EXTRACXXFLAGS}" \

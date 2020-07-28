@@ -14,7 +14,7 @@ using namespace madness;
 bool test_smooth_maxout(World& world) {
 
 	bool success=true;
-	for (int itight=3; itight<10; ++itight) {
+	for (int itight=3; itight<4; ++itight) { // was 10 ... reduced to speed up the test
 		double radius=10.0;
 		double deviation=std::pow(10,-double(itight));
 		double tightness=max_of_x_1_smooth::compute_tightness(deviation,radius);
@@ -41,7 +41,7 @@ bool test_spherical_box(World& world) {
 
 	print("entering test_spherical_box");
 	bool success=true;
-	for (int ideviation=2; ideviation<4; ++ideviation) {
+	for (int ideviation=2; ideviation<3; ++ideviation) { // was 4 ... reduced to speed up test
 		double radius=10.0;
 		double deviation=std::pow(10,-double(ideviation));
 
@@ -72,54 +72,53 @@ bool test_spherical_box(World& world) {
 
 
 int main(int argc, char** argv) {
-    initialize(argc, argv);
-    World world(SafeMPI::COMM_WORLD);
-    if (world.rank() == 0) {
-    	print("\n  test masks_and_boxes \n");
-    	printf("starting at time %.1f\n", wall_time());
 
-    }
-    startup(world,argc,argv);
-    std::cout.precision(6);
+	World& world=initialize(argc, argv);
+	if (world.rank() == 0) {
+		print("\n  test masks_and_boxes \n");
+		printf("starting at time %.1f\n", wall_time());
 
-
-    FunctionDefaults<3>::set_k(8);
-    FunctionDefaults<3>::set_thresh(1.e-5);
-    FunctionDefaults<3>::set_refine(true);
-    FunctionDefaults<3>::set_initial_level(5);
-    FunctionDefaults<3>::set_truncate_mode(1);
-    FunctionDefaults<3>::set_cubic_cell(-20, 20);
+	}
+	startup(world,argc,argv);
+	std::cout.precision(6);
 
 
-    try {
-
-    	test_smooth_maxout(world);
-    	test_spherical_box(world);
-
-
-    } catch (const SafeMPI::Exception& e) {
-        print(e);
-        error("caught an MPI exception");
-    } catch (const madness::MadnessException& e) {
-        print(e);
-        error("caught a MADNESS exception");
-    } catch (const madness::TensorException& e) {
-        print(e);
-        error("caught a Tensor exception");
-    } catch (const char* s) {
-        print(s);
-        error("caught a string exception");
-    } catch (const std::string& s) {
-        print(s);
-        error("caught a string (class) exception");
-    } catch (const std::exception& e) {
-        print(e.what());
-        error("caught an STL exception");
-    } catch (...) {
-        error("caught unhandled exception");
-    }
+	FunctionDefaults<3>::set_k(8); // was 8 but lower order can be faster for deeper refinement
+	FunctionDefaults<3>::set_thresh(1.e-4); // was 1e-5 but increaesd to speed up test
+	FunctionDefaults<3>::set_refine(true);
+	FunctionDefaults<3>::set_initial_level(5);
+	FunctionDefaults<3>::set_truncate_mode(1);
+	FunctionDefaults<3>::set_cubic_cell(-20, 20);
 
 
-    finalize();
-    return 0;
+	try {
+
+		test_smooth_maxout(world);
+		test_spherical_box(world);
+
+
+	} catch (const SafeMPI::Exception& e) {
+		print(e);
+		error("caught an MPI exception");
+	} catch (const madness::MadnessException& e) {
+		print(e);
+		error("caught a MADNESS exception");
+	} catch (const madness::TensorException& e) {
+		print(e);
+		error("caught a Tensor exception");
+	} catch (const char* s) {
+		print(s);
+		error("caught a string exception");
+	} catch (const std::string& s) {
+		print(s);
+		error("caught a string (class) exception");
+	} catch (const std::exception& e) {
+		print(e.what());
+		error("caught an STL exception");
+	} catch (...) {
+		error("caught unhandled exception");
+	}
+
+	finalize();
+	return 0;
 }

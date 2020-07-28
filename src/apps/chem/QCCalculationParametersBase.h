@@ -172,6 +172,7 @@ public:
 				//				+fill_right(5,get_type())
 				+ fill_right(45,get_comment());
 		if (allowed_values.size()>0) {
+                        using madness::operators::operator<<;
 			std::stringstream ss;
 			ss << allowed_values;
 			result+=ss.str();
@@ -205,6 +206,7 @@ private:
 	}
 
 	std::string not_allowed_errmsg() const {
+                using madness::operators::operator<<;
 		std::stringstream ss;
 		ss<< allowed_values;
 		std::string errmsg="\ntrying to assign a value that's not allowed\n\n";
@@ -407,6 +409,7 @@ public:
 
 	template<typename T>
 	static std::string tostring(const T& arg) {
+                using madness::operators::operator<<;
 		std::ostringstream ss;
 
 		ss<<std::scientific  << std::setprecision(4) << arg;

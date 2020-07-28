@@ -246,19 +246,27 @@ namespace madness {
 
         /// \brief converts function or (free or static member) function pointer to the relative function pointer
         /// \param[in] fn a function or function pointer
-        template <typename T, typename = std::enable_if_t<std::is_function_v<T> || is_function_pointer_v<T>>>
+        template <typename T, typename = std::enable_if_t<std::is_function<T>::value || is_function_pointer<T>::value>>
         std::ptrdiff_t to_rel_fn_ptr(const T& fn) {
-          if constexpr (std::is_function_v<T>) {
+          if
+#if __cplusplus >= 201703L
+            constexpr
+#endif
+            (std::is_function<T>::value) {
+            static_assert(sizeof(std::ptrdiff_t) == sizeof(T*));
             return reinterpret_cast<std::ptrdiff_t>(&fn) - fn_ptr_origin();
-          } else {
+          }
+          else {
+#if __cplusplus >= 201703L
             static_assert(sizeof(std::ptrdiff_t) == sizeof(T));
+#endif
             return reinterpret_cast<std::ptrdiff_t>(fn) - fn_ptr_origin();
           }
         }
 
         /// \brief converts nonstatic member function pointer to the relative equivalent
         /// \param[in] fn a member function pointer
-        template <typename T, typename = std::enable_if_t<std::is_member_function_pointer_v<T>>>
+        template <typename T, typename = std::enable_if_t<std::is_member_function_pointer<T>::value>>
         auto to_rel_memfn_ptr(const T& fn) {
 
 #if MADNESS_CXX_ABI == MADNESS_CXX_ABI_GenericItanium || MADNESS_CXX_ABI == MADNESS_CXX_ABI_GenericARM
@@ -315,6 +323,7 @@ namespace madness {
         /// \sa to_rel_fn_ptr
         template <typename T, typename = std::enable_if_t<is_function_pointer_v<T>>>
         T to_abs_fn_ptr(std::ptrdiff_t rel_fn_ptr) {
+          static_assert(sizeof(std::ptrdiff_t) == sizeof(T));
           return reinterpret_cast<T>(rel_fn_ptr + fn_ptr_origin());
         }
 
@@ -323,7 +332,7 @@ namespace madness {
         /// \return absolute function pointer
         /// \sa to_rel_memfn_ptr
         /// \note see notes in to_rel_memfn_ptr re: Microsoft ABI
-        template <typename T, std::size_t N, typename = std::enable_if_t<std::is_member_function_pointer_v<std::remove_reference_t<T>>>>
+        template <typename T, std::size_t N, typename = std::enable_if_t<std::is_member_function_pointer<std::remove_reference_t<T>>::value>>
         auto to_abs_memfn_ptr(std::array<std::ptrdiff_t, N> rel_fn_ptr) {
           // ABI-dependent code
 #if MADNESS_CXX_ABI == MADNESS_CXX_ABI_GenericItanium
@@ -424,28 +433,39 @@ namespace madness {
         /// \param[in] t Pointer to the start of the array.
         /// \param[in] n Number of data items to be serialized.
         template <class Archive, class T>
-        typename std::enable_if_t< is_serializable<Archive,T>::value && is_output_archive<Archive>::value, void>
+        typename std::enable_if_t< is_serializable<Archive,T>::value && is_output_archive<Archive>::value &&
+                                   is_function_pointer_v<T>, void>
         serialize(const Archive& ar, const T* t, unsigned int n) {
             MAD_ARCHIVE_DEBUG(std::cout << "serialize fund array" << std::endl);
             // transform function pointers to relative pointers
-            if constexpr (is_function_pointer_v<T>) {
-              std::vector<std::ptrdiff_t> t_rel(n);
-              std::transform(t, t+n, begin(t_rel), [](auto& fn_ptr) {
-                return to_rel_fn_ptr(fn_ptr);
-              });
-              ar.store(t_rel.data(), n);
-            } else if constexpr (std::is_member_function_pointer_v<T>) {
-              using rel_memfn_ptr_t = decltype(to_rel_memfn_ptr(t[0]));
-              static_assert(sizeof(rel_memfn_ptr_t) % sizeof(std::ptrdiff_t) == 0);
-              constexpr std::size_t memfn_ptr_width = sizeof(rel_memfn_ptr_t) / sizeof(std::ptrdiff_t);
-              std::vector<rel_memfn_ptr_t> t_rel(n);
-              std::transform(t, t+n, begin(t_rel), [](auto& fn_ptr) {
-                return to_rel_memfn_ptr(fn_ptr);
-              });
-              ar.store(reinterpret_cast<std::ptrdiff_t*>(t_rel.data()), n * memfn_ptr_width);
-            } else {
-              ar.store(t, n);
-            }
+            std::vector<std::ptrdiff_t> t_rel(n);
+            std::transform(t, t+n, begin(t_rel), [](auto& fn_ptr) {
+              return to_rel_fn_ptr(fn_ptr);
+            });
+            ar.store(t_rel.data(), n);
+        }
+
+        template <class Archive, class T>
+        typename std::enable_if_t< is_serializable<Archive,T>::value && is_output_archive<Archive>::value &&
+                                   std::is_member_function_pointer<T>::value, void>
+        serialize(const Archive& ar, const T* t, unsigned int n) {
+            MAD_ARCHIVE_DEBUG(std::cout << "serialize fund array" << std::endl);
+            using rel_memfn_ptr_t = decltype(to_rel_memfn_ptr(t[0]));
+            static_assert(sizeof(rel_memfn_ptr_t) % sizeof(std::ptrdiff_t) == 0);
+            constexpr std::size_t memfn_ptr_width = sizeof(rel_memfn_ptr_t) / sizeof(std::ptrdiff_t);
+            std::vector<rel_memfn_ptr_t> t_rel(n);
+            std::transform(t, t+n, begin(t_rel), [](auto& fn_ptr) {
+              return to_rel_memfn_ptr(fn_ptr);
+            });
+            ar.store(reinterpret_cast<std::ptrdiff_t*>(t_rel.data()), n * memfn_ptr_width);
+        }
+
+        template <class Archive, class T>
+        typename std::enable_if_t< is_serializable<Archive,T>::value && is_output_archive<Archive>::value &&
+                                   !(is_function_pointer_v<T> || std::is_member_function_pointer<T>::value), void>
+        serialize(const Archive& ar, const T* t, unsigned int n) {
+            MAD_ARCHIVE_DEBUG(std::cout << "serialize fund array" << std::endl);
+            ar.store(t, n);
         }
 
 
@@ -459,31 +479,40 @@ namespace madness {
         /// \param[in] t Pointer to the start of the array.
         /// \param[in] n Number of data items to be deserialized.
         template <class Archive, class T>
-        typename std::enable_if_t< is_serializable<Archive,T>::value && is_input_archive<Archive>::value, void>
+        typename std::enable_if_t< is_serializable<Archive,T>::value && is_input_archive<Archive>::value &&
+                                   is_function_pointer_v<T>, void>
         serialize(const Archive& ar, const T* t, unsigned int n) {
             MAD_ARCHIVE_DEBUG(std::cout << "deserialize fund array" << std::endl);
             // transform function pointers to relative offsets
-            if constexpr (is_function_pointer_v<T>) {
-              std::vector<std::ptrdiff_t> t_rel(n);
-              ar.load(t_rel.data(),n);
-              std::transform(begin(t_rel), end(t_rel), (T*)t, [](auto& fn_ptr_rel) {
-                return to_abs_fn_ptr<T>(fn_ptr_rel);
-              });
-            } else if constexpr (std::is_member_function_pointer_v<T>) {
-              using rel_memfn_ptr_t = decltype(to_rel_memfn_ptr(t[0]));
-              static_assert(sizeof(rel_memfn_ptr_t) % sizeof(std::ptrdiff_t) == 0);
-              constexpr std::size_t memfn_ptr_width = sizeof(rel_memfn_ptr_t) / sizeof(std::ptrdiff_t);
-              std::vector<rel_memfn_ptr_t> t_rel(n);
-              ar.load(reinterpret_cast<std::ptrdiff_t*>(t_rel.data()), n * memfn_ptr_width);
-              std::transform(begin(t_rel), end(t_rel), (T*)t, [](auto& memfn_ptr_rel) {
-                return to_abs_memfn_ptr<T>(memfn_ptr_rel);
-              });
-            }
-            else {
-              ar.load((T*) t,n);
-            }
+            std::vector<std::ptrdiff_t> t_rel(n);
+            ar.load(t_rel.data(),n);
+            std::transform(begin(t_rel), end(t_rel), (T*)t, [](auto& fn_ptr_rel) {
+              return to_abs_fn_ptr<T>(fn_ptr_rel);
+            });
         }
 
+        template <class Archive, class T>
+        typename std::enable_if_t< is_serializable<Archive,T>::value && is_input_archive<Archive>::value &&
+                                   std::is_member_function_pointer<T>::value, void>
+        serialize(const Archive& ar, const T* t, unsigned int n) {
+            MAD_ARCHIVE_DEBUG(std::cout << "deserialize fund array" << std::endl);
+            using rel_memfn_ptr_t = decltype(to_rel_memfn_ptr(t[0]));
+            static_assert(sizeof(rel_memfn_ptr_t) % sizeof(std::ptrdiff_t) == 0);
+            constexpr std::size_t memfn_ptr_width = sizeof(rel_memfn_ptr_t) / sizeof(std::ptrdiff_t);
+            std::vector<rel_memfn_ptr_t> t_rel(n);
+            ar.load(reinterpret_cast<std::ptrdiff_t*>(t_rel.data()), n * memfn_ptr_width);
+            std::transform(begin(t_rel), end(t_rel), (T*)t, [](auto& memfn_ptr_rel) {
+              return to_abs_memfn_ptr<T>(memfn_ptr_rel);
+            });
+        }
+
+        template <class Archive, class T>
+        typename std::enable_if_t< is_serializable<Archive,T>::value && is_input_archive<Archive>::value &&
+                                   !(is_function_pointer_v<T> || std::is_member_function_pointer<T>::value), void>
+        serialize(const Archive& ar, const T* t, unsigned int n) {
+            MAD_ARCHIVE_DEBUG(std::cout << "deserialize fund array" << std::endl);
+            ar.load((T*) t,n);
+        }
 
         /// Serialize (or deserialize) an array of non-fundamental stuff.
 
@@ -607,18 +636,19 @@ namespace madness {
 
             /// \param[in] ar The archive.
             /// \param[in] t The data.
-            static inline void store(const Archive& ar, const T& t) {
+            template <typename U = T, typename = std::enable_if_t<std::is_function<U>::value>>
+            static inline void store(const Archive& ar, const U& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "store(ar,t) default" << std::endl);
                 // convert function to function ptr
-                constexpr bool is_fn = std::is_function_v<T>;
-                if constexpr (is_fn) {
-                  auto* fn_ptr = &t;
-                  serialize(ar,fn_ptr);
-                }
-                else {
-                  serialize(ar,t);
-                }
+                auto* fn_ptr = &t;
+                serialize(ar,fn_ptr);
             }
+
+            template <typename U = T>
+            static inline std::enable_if_t<!std::is_function<U>::value, void> store(const Archive& ar, const U& t) {
+                MAD_ARCHIVE_DEBUG(std::cout << "store(ar,t) default" << std::endl);
+                serialize(ar,t);
+             }
         };
 
 
@@ -849,15 +879,16 @@ namespace madness {
 
             /// \param[in] ar The archive.
             /// \param[in] fn The function pointer.
-            static inline void serialize(const Archive& ar, resT(*(&fn))(paramT...)) {
-              if constexpr (is_output_archive<Archive>::value) {
+            template <typename A = Archive, typename = std::enable_if_t<is_output_archive<A>::value>>
+            static inline void serialize(const A& ar, resT(*(&fn))(paramT...)) {
                 ar &wrap_opaque(to_rel_fn_ptr(fn));
-              }
-              else {
+            }
+
+            template <typename A = Archive>
+            static inline std::enable_if_t<!is_output_archive<A>::value, void> serialize(const A& ar, resT(*(&fn))(paramT...)) {
                 std::ptrdiff_t rel_fn_ptr{};
                 ar & wrap_opaque(rel_fn_ptr);
                 fn = to_abs_fn_ptr<std::remove_reference_t<decltype(fn)>>(rel_fn_ptr);
-              }
             }
         };
 
@@ -874,16 +905,17 @@ namespace madness {
 
             /// \param[in] ar The archive.
             /// \param[in] memfn The member function pointer.
-            static inline void serialize(const Archive& ar, resT(objT::*(&memfn))(paramT...)) {
-              if constexpr (is_output_archive<Archive>::value) {
+            template <typename A = Archive, typename = std::enable_if_t<is_output_archive<A>::value>>
+            static inline void serialize(const A& ar, resT(objT::*(&memfn))(paramT...)) {
                 ar &wrap_opaque(to_rel_memfn_ptr(memfn));
-              }
-              else {
+            }
+
+            template <typename A = Archive>
+            static inline std::enable_if_t<!is_output_archive<A>::value, void> serialize(const A& ar, resT(objT::*(&memfn))(paramT...)) {
                 using rel_memfn_ptr_t = decltype(to_rel_memfn_ptr(memfn));
                 rel_memfn_ptr_t rel_fn_ptr{};
                 ar & wrap_opaque(rel_fn_ptr);
                 memfn = to_abs_memfn_ptr<decltype(memfn)>(rel_fn_ptr);
-              }
             }
         };
 
