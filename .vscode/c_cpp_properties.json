@@ -6,9 +6,8 @@
                 "${workspaceFolder}/**",
                 "${workspaceFolder}/src",
                 "${workspaceFolder}/**",
-                "/gpfs/projects/rjh/libxc-3.0.0/include",
+                "/usr/lib/x86_64-linux-gnu",
                 "${workspaceFolder}/src/**",
-                "${workspaceFolder}/build/src",
                 "${workspaceFolder}/src",
                 "${workspaceFolder}/src/apps",
                 "${workspaceFolder}/src/**",
@@ -22,12 +21,11 @@
                 "${workspaceFolder}/src"
             ],
             "defines": [],
-            "compilerPath": "/gpfs/software/gcc/8.1.0/bin/gcc",
             "cStandard": "c11",
             "cppStandard": "c++17",
             "intelliSenseMode": "${default}",
             "configurationProvider": "vector-of-bool.cmake-tools",
-            "compileCommands": "/gpfs/projects/rjh/adrian/madness/build/compile_commands.json"
+            "compileCommands": "/home/agh/projects/madness/build/compile_commands.json"
         }
     ],
     "version": 4
