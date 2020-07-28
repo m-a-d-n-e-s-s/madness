@@ -7,10 +7,10 @@
         "ENABLE_GPERFTOOLS":"OFF",
         "CMAKE_BUILD_TYPE":"Debug",
         "ENABLE_MKL":"ON",
-        "ENABLE_TBB":"OFoF",
+        "ENABLE_TBB":"OFF",
         "LAPACK":"-L/opt/intel/compilers_and_libraries_2020.2.254/linux/mkl/lib;-lmkl_intel_ilp64;-lmkl_core;-lmkl_sequential;-lm",
-        "MPI_CXX_COMPILER":"mpicxx" ,
-        "MPI_C_COMPILER":"mpicc" ,
+        "CMAKE_CXX_COMPILER":"mpicxx" ,
+        "CMAKE_C_COMPILER":"mpicc" ,
         "CMAKE_CXX_STANDARD": 17,
 
         "LIBXC_LIBRARIES": "/usr/lib/x86_64-linux-gnu/libxc.a",
