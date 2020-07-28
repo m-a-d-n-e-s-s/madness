@@ -1,26 +1,25 @@
 {
     "C_Cpp.default.configurationProvider": "vector-of-bool.cmake-tools",
     "cmake.configureSettings": {
+        "CMAKE_TOOLCHAIN_FILE":"/home/agh/projects/madness/cmake/toolchains/generic-mkl-tbb.cmake",
         "CMAKE_MAKE_PROGRAM":"/usr/bin/make",
         "CMAKE_EXPORT_COMPILE_COMMANDS":1,
         "CMAKE_BUILD_TYPE":"Debug",
         "ENABLE_MKL":"ON",
-        "ENABLE_TBB":"ON",
-        "MKL_ROOT_DIR":"/gpfs/software/intel/parallel-studio-xe/2018_2/compilers_and_libraries/linux/mkl",
-        "MKL_INCLUDE_DIR":"/gpfs/software/intel/parallel-studio-xe/2018_2/compilers_and_libraries/linux/mkl/include",
-        "MKL_LIBRARY":"/gpfs/software/intel/parallel-studio-xe/2018_2/compilers_and_libraries/linux/mkl/lib/intel64",
-        "MKL_LIBRARIES":"-Wl,--start-group;/gpfs/software/intel/parallel-studio-xe/2018_2/compilers_and_libraries/linux/mkl/lib/intel64/libmkl_intel_lp64.a;/gpfs/software/intel/parallel-studio-xe/2018_2/compilers_and_libraries/linux/mkl/lib/intel64/libmkl_core.a;/gpfs/software/intel/parallel-studio-xe/2018_2/compilers_and_libraries/linux/mkl/lib/intel64/libmkl_sequential.a;-Wl,--end-group;-lm;-ldl",
-        "TBB_ROOT_DIR": "/gpfs/software/intel/parallel-studio-xe/2018_2/tbb",
-        "CMAKE_CXX_COMPILER": "mpicxx",
-        "CMAKE_C_COMPILER": "mpicc",
+        "ENABLE_TBB":"OFoF",
+        "LAPACK":"-L/opt/intel/compilers_and_libraries_2020.2.254/linux/mkl/lib;-lmkl_intel_ilp64;-lmkl_core;-lmkl_sequential;-lm",
+        "MPI_CXX_COMPILER":"mpicxx" ,
+        "MPI_C_COMPILER":"mpicc" ,
         "CMAKE_CXX_STANDARD": 17,
-        "LIBXC_LIBRARIES": "/gpfs/projects/rjh/libxc-3.0.0/lib/libxc.a",
-        "LIBXC_INCLUDE_DIRS": "/gpfs/projects/rjh/libxc-3.0.0/include",
-        "BUILD_SHARED_LIBS": "",
+        "LIBXC_LIBRARIES": "/usr/lib/x86_64-linux-gnu/libxc.a",
+        "LIBXC_INCLUDE_DIRS": "/usr/include",
+        "BUILD_SHARED_LIBS": "False",
     },
     "cmake.environment": {
-        "MKLROOT": "/gpfs/software/intel/parallel-studio-xe/2018_2/compilers_and_libraries/linux/mkl",
-        "TBBROOT": "/gpfs/software/intel/parallel-studio-xe/2018_2/tbb"
+
+        "MKLROOT": "/opt/intel/compilers_and_libraries_2020.2.254/linux/mkl",
+         "TBBROOT": "/opt/intel/compilers_and_libraries_2020.2.254/linux/tbb"
+
     },
     "files.associations": {
         "*.tex": "latex",
@@ -37,3 +36,6 @@
     "C_Cpp.clang_format_fallbackStyle": "Google"
     
 }
+
+//        "CMAKE_CXX_COMPILER": "mpicxx",
+//        "CMAKE_C_COMPILER": "mpicc",
