@@ -240,10 +240,16 @@ public:
   // Returns a list of solid harmonics
   std::map<std::vector<int>, real_function_3d> solid_harmonics(World &world,
                                                                int n);
-
+  // returns a map of real form spherical harmonics  n=level...returns (n+1)^2 functions
+  std::map<std::vector<int>, real_function_3d> spherical_harmonics(World &world,
+                                                               int n);
   // Returns initial response functions
   ResponseFunction
   create_trial_functions(World &world, int k,
+                         std::vector<real_function_3d> &orbitals,
+                         int print_level);
+  ResponseFunction
+  create_trial_functions2(World &world, int k,
                          std::vector<real_function_3d> &orbitals,
                          int print_level);
 

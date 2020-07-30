@@ -432,6 +432,58 @@ std::map<std::vector<int>, real_function_3d> TDHF::solid_harmonics(World &world,
   return result;
 }
 
+// Returns a list of solid harmonics such that:
+// solid_harm.size() * num_ground_orbs > 2 * num. resp. components
+std::map<std::vector<int>, real_function_3d> TDHF::simple_spherical_harmonics(World &world,
+                                                                   int n) {
+  // Container to return
+  std::map<std::vector<int>, real_function_3d> result;
+
+  // Create the basic x, y, z, constant and zero
+  real_function_3d x = real_factory_3d(world).functor(
+      real_functor_3d(new BS_MomentFunctor(std::vector<int>{1, 0, 0})));
+  real_function_3d y = real_factory_3d(world).functor(
+      real_functor_3d(new BS_MomentFunctor(std::vector<int>{0, 1, 0})));
+  real_function_3d z = real_factory_3d(world).functor(
+      real_functor_3d(new BS_MomentFunctor(std::vector<int>{0, 0, 1})));
+  real_function_3d c = real_factory_3d(world).functor(
+      real_functor_3d(new BS_MomentFunctor(std::vector<int>{0, 0, 0})));
+  real_function_3d zero = real_factory_3d(world);
+
+  real_function_3d rfunc = (x*x+y*y+z*z);
+  double r = rfunc.norm2();  
+
+  std::vector<real_function_3d> funcs;
+  funcs[0]=c;
+
+  funcs[1]= y.scale(1/r);
+  funcs[2]=z.scale(1/r);
+  funcs[3]=x.scale(1/r);
+
+  funcs[4]=x*y;
+  funcs[5]=y*z;
+  funcs[6]=2*z*z-x*x-y*y;
+  funcs[7]= z*x;
+  funcs[8]= x*x-y*y;
+
+  funcs[4]=funcs[4].scale(1/(r*r));
+  funcs[5]=funcs[5].scale(1/(r*r));
+  funcs[6]=funcs[6].scale(1/(r*r));
+  funcs[7]=funcs[7].scale(1/(r*r));
+  funcs[8]=funcs[8].scale(1/(r*r));
+
+  int num=0;
+  for (int l =0; l<n; l++){
+    for (int m=-l; m<=l;m++){
+      result[vector<int>{l,m}]=funcs[num];
+      num+=1;
+    }
+  }
+
+  // Done
+  return result;
+}
+
 // Returns initial guess functions as
 // ground MO * solid harmonics
 ResponseFunction
@@ -440,6 +492,67 @@ TDHF::create_trial_functions(World &world, int k,
                              int print_level) {
   // Get size
   int n = orbitals.size();
+
+  // Create solid harmonics such that num. solids * num. orbitals > k.
+  // The total number of solid harmonics that exist up to level n is
+  // (n+1)^2 (because we count from zero)
+  // Always do at least 8 (through the d orbital angular momentum functions,
+  // minus )
+  std::map<std::vector<int>, real_function_3d> solids =
+      solid_harmonics(world, std::max(2.0, ceil(sqrt(k / n) - 1)));
+
+  // Useful info.
+  if (world.rank() == 0)
+    print("   Created", solids.size(), "solid harmonics.\n");
+
+  // Container to return
+  ResponseFunction trials;
+
+  // Counter for number of trials created
+  int count = 0;
+
+  // Multiply each solid harmonic onto a ground state orbital
+  for (int i = 0; i < n; i++) {
+    // For each solid harmonic
+    for (auto key : solids) {
+      // Temp zero functions
+      std::vector<real_function_3d> temp =
+          zero_functions_compressed<double, 3>(world, n);
+
+      // Create one non-zero function and add to trials
+      temp[count % n] = key.second * orbitals[n - count % n - 1];
+      trials.push_back(temp);
+      count++;
+    }
+
+    // Stop when we first get beyond k components
+    if (count >= k)
+      break;
+  }
+
+  // Debugging output
+  if (print_level >= 2) {
+    if (world.rank() == 0)
+      print("   Norms of guess functions:");
+    print_norms(world, trials);
+  }
+
+  // Truncate
+  truncate(world, trials);
+
+  // Done
+  return trials;
+}
+
+// Returns initial guess functions as
+// ground MO * solid harmonics
+ResponseFunction
+TDHF::create_trial_functions2(World &world, int k,
+                              std::vector<real_function_3d> &orbitals,
+                              int print_level) {
+  // Get size
+  int n = orbitals.size();
+  // n is the number of grounds state orbitals
 
   // Create solid harmonics such that num. solids * num. orbitals > k.
   // The total number of solid harmonics that exist up to level n is
