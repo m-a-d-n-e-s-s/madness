@@ -240,9 +240,13 @@ public:
   // Returns a list of solid harmonics
   std::map<std::vector<int>, real_function_3d> solid_harmonics(World &world,
                                                                int n);
-  // returns a map of real form spherical harmonics  n=level...returns (n+1)^2 functions
-  std::map<std::vector<int>, real_function_3d> simple_spherical_harmonics(World &world,
-                                                               int n);
+  // returns a map of real form spherical harmonics  n=level...returns (n+1)^2
+  // functions
+  std::map<std::vector<int>, real_function_3d>
+  simple_spherical_harmonics(World &world, int n);
+  // returns a map of real form spherical harmonics  n=level...returns (n+1)^2
+  // functions
+  std::vector<real_function_3d> createDipoleFunctionMap(World &world);
   // Returns initial response functions
   ResponseFunction
   create_trial_functions(World &world, int k,
@@ -250,8 +254,8 @@ public:
                          int print_level);
   ResponseFunction
   create_trial_functions2(World &world, int k,
-                         std::vector<real_function_3d> &orbitals,
-                         int print_level);
+                          std::vector<real_function_3d> &orbitals,
+                          int print_level);
 
   // Returns dipole operator * molecular orbitals
   ResponseFunction dipole_guess(World &world,
@@ -404,9 +408,7 @@ public:
   // Selects the 'active' orbitals from ground state orbitals to be used in
   // the calculation (based on energy distance from the HOMO.) Function needs
   // knowledge of Gparams.orbitals and Gparams.ground_energies. Function sets
-  // act_orbitals and num_act_orbitals.
   void select_active_subspace(World &world);
-
   // Selects from a list of functions and energies the k functions with the
   // lowest energy
   ResponseFunction select_functions(World &world, ResponseFunction &f,
