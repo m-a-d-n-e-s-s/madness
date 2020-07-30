@@ -241,7 +241,7 @@ public:
   std::map<std::vector<int>, real_function_3d> solid_harmonics(World &world,
                                                                int n);
   // returns a map of real form spherical harmonics  n=level...returns (n+1)^2 functions
-  std::map<std::vector<int>, real_function_3d> spherical_harmonics(World &world,
+  std::map<std::vector<int>, real_function_3d> simple_spherical_harmonics(World &world,
                                                                int n);
   // Returns initial response functions
   ResponseFunction

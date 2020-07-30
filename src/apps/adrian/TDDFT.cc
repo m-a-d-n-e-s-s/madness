@@ -168,8 +168,8 @@ TDHF::TDHF(World &world, std::shared_ptr<std::istream> input) {
   // Create the masking function
   mask = real_function_3d(
       real_factory_3d(world).f(mask3).initial_level(4).norefine());
+  
 
-  // Load balance on orbitals
   if (world.size() > 1) {
     // Start a timer
     if (Rparams.print_level >= 1)
@@ -491,6 +491,7 @@ TDHF::create_trial_functions(World &world, int k,
                              std::vector<real_function_3d> &orbitals,
                              int print_level) {
   // Get size
+  // /
   int n = orbitals.size();
 
   // Create solid harmonics such that num. solids * num. orbitals > k.
@@ -552,43 +553,29 @@ TDHF::create_trial_functions2(World &world, int k,
                               int print_level) {
   // Get size
   int n = orbitals.size();
-  // n is the number of grounds state orbitals
-
-  // Create solid harmonics such that num. solids * num. orbitals > k.
-  // The total number of solid harmonics that exist up to level n is
   // (n+1)^2 (because we count from zero)
-  // Always do at least 8 (through the d orbital angular momentum functions,
-  // minus )
-  std::map<std::vector<int>, real_function_3d> solids =
-      solid_harmonics(world, std::max(2.0, ceil(sqrt(k / n) - 1)));
-
-  // Useful info.
+  // adsf
+  //
+  std::map<std::vector<int>, real_function_3d> solids = simple_spherical_harmonics(world, 2);
   if (world.rank() == 0)
     print("   Created", solids.size(), "solid harmonics.\n");
-
   // Container to return
-  ResponseFunction trials;
-
+  ResponseFunction trials(8,n);
   // Counter for number of trials created
-  int count = 0;
-
   // Multiply each solid harmonic onto a ground state orbital
-  for (int i = 0; i < n; i++) {
-    // For each solid harmonic
+  //  for each orbital we 
     for (auto key : solids) {
+    // For each solid harmonic
       // Temp zero functions
-      std::vector<real_function_3d> temp =
-          zero_functions_compressed<double, 3>(world, n);
-
+      for (int i = 0; i < n; i++) {
+        std::vector<real_function_3d> temp =
+            zero_functions_compressed<double, 3>(world, n);
+      
       // Create one non-zero function and add to trials
-      temp[count % n] = key.second * orbitals[n - count % n - 1];
+            temp[i] = key.second * orbitals[i];
       trials.push_back(temp);
-      count++;
     }
-
     // Stop when we first get beyond k components
-    if (count >= k)
-      break;
   }
 
   // Debugging output
@@ -4903,7 +4890,7 @@ void TDHF::solve(World &world) {
           x_response = create_nwchem_guess(world, 2 * Rparams.states);
         } else {
           // Use a symmetry adapted operator on ground state functions
-          x_response = create_trial_functions(
+          x_response = create_trial_functions2(
               world, 2 * Rparams.states, Gparams.orbitals, Rparams.print_level);
         }
 
