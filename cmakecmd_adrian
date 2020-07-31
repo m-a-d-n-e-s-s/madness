@@ -1,0 +1,16 @@
+cmake -DCMAKE_TOOLCHAIN_FILE=/gpfs/projects/rjh/adrian/madness/cmake/toolchains/generic-mkl-tbb.cmake \
+      -DCMAKE_BUILD_TYPE=Debug \
+      -DBUILD_SHARED_LIBS=OFF \
+      -DENABLE_TBB=OFF \
+      -DLIBXC_LIBRARIES=/gpfs/projects/rjh/libxc-3.0.0/lib/libxc.a \
+      -DLIBXC_INCLUDE_DIRS=/gpfs/projects/rjh/libxc-3.0.0/include \
+      -DMKL_ROOT_DIR=/gpfs/software/intel/parallel-studio-xe/2018_2/compilers_and_libraries/linux/mkl \
+      -DMKL_INCLUDE_DIR=/gpfs/software/intel/parallel-studio-xe/2018_2/compilers_and_libraries/linux/mkl/include \
+      -DMKL_LIBRARY=/gpfs/software/intel/parallel-studio-xe/2018_2/compilers_and_libraries/linux/mkl/lib/intel64 \
+      -DMPI_CXX_COMPILER=mpicxx \
+      -DMPI_C_COMPILER=mpicc \
+      -DCMAKE_CXX_COMPILER=mpicxx \
+      -DCMAKE_C_COMPILER=mpicc \
+      -DCMAKE_CXX_STANDARD=17 \
+      ..
+#      -DBLA_STATIC=TRUE
