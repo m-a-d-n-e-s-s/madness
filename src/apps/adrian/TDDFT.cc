@@ -545,10 +545,8 @@ TDHF::create_trial_functions(World &world, int k,
 
 // Returns initial guess functions as
 // ground MO * solid harmonics
-ResponseFunction
-TDHF::create_trial_functions2(World &world, int k,
-                              std::vector<real_function_3d> &orbitals,
-                              int print_level) {
+ResponseFunction TDHF::create_trial_functions2(
+    World &world, std::vector<real_function_3d> &orbitals, int print_level) {
   // Get size
   int n = orbitals.size();
   int directions = 3;
@@ -564,7 +562,7 @@ TDHF::create_trial_functions2(World &world, int k,
     vector<real_function_3d> temp;
     for (int i = 0; i < n; i++) {
       // create x functions then y.. then z ..
-      temp[i] = orbitals[i] * xyz[d];
+      temp.push_back(orbitals[i] * xyz[d]);
     }
     // all the x then the y then the z
     functions.push_back(temp);
@@ -648,9 +646,9 @@ std::vector<real_function_3d> TDHF::createDipoleFunctionMap(World &world) {
   double r = rfunc.norm2();
 
   std::vector<real_function_3d> funcs;
-  funcs[0] = x.scale(1 / r);
-  funcs[1] = y.scale(1 / r);
-  funcs[2] = z.scale(1 / r);
+  funcs.push_back(x.scale(1 / r));
+  funcs.push_back(y.scale(1 / r));
+  funcs.push_back(z.scale(1 / r));
   // Done
   return funcs;
 }
@@ -4953,8 +4951,8 @@ void TDHF::solve(World &world) {
           x_response = create_nwchem_guess(world, 2 * Rparams.states);
         } else {
           // Use a symmetry adapted operator on ground state functions
-          x_response = create_trial_functions2(
-              world, 2 * Rparams.states, Gparams.orbitals, Rparams.print_level);
+          x_response = create_trial_functions2(world, Gparams.orbitals,
+                                               Rparams.print_level);
         }
 
         // Load balance

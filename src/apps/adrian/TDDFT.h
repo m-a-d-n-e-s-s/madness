@@ -253,8 +253,7 @@ public:
                          std::vector<real_function_3d> &orbitals,
                          int print_level);
   ResponseFunction
-  create_trial_functions2(World &world, int k,
-                          std::vector<real_function_3d> &orbitals,
+  create_trial_functions2(World &world, std::vector<real_function_3d> &orbitals,
                           int print_level);
 
   // Returns dipole operator * molecular orbitals
