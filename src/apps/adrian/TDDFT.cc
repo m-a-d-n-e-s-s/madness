@@ -169,7 +169,6 @@ TDHF::TDHF(World &world, std::shared_ptr<std::istream> input) {
   mask = real_function_3d(
       real_factory_3d(world).f(mask3).initial_level(4).norefine());
 
-  // Load balance on orbitals
   if (world.size() > 1) {
     // Start a timer
     if (Rparams.print_level >= 1)
@@ -275,7 +274,6 @@ void TDHF::normalize(World &world, ResponseFunction &f) {
     // (Sum included inside inner)
     double norm = inner(f[i], f[i]);
     norm = sqrt(norm);
-
     // Doing this to deal with zero functions.
     // Maybe not smrt.
     if (norm == 0)
@@ -432,6 +430,58 @@ std::map<std::vector<int>, real_function_3d> TDHF::solid_harmonics(World &world,
   return result;
 }
 
+// Returns a list of solid harmonics such that:
+// solid_harm.size() * num_ground_orbs > 2 * num. resp. components
+std::map<std::vector<int>, real_function_3d>
+TDHF::simple_spherical_harmonics(World &world, int n) {
+  // Container to return
+  std::map<std::vector<int>, real_function_3d> result;
+
+  // Create the basic x, y, z, constant and zero
+  real_function_3d x = real_factory_3d(world).functor(
+      real_functor_3d(new BS_MomentFunctor(std::vector<int>{1, 0, 0})));
+  real_function_3d y = real_factory_3d(world).functor(
+      real_functor_3d(new BS_MomentFunctor(std::vector<int>{0, 1, 0})));
+  real_function_3d z = real_factory_3d(world).functor(
+      real_functor_3d(new BS_MomentFunctor(std::vector<int>{0, 0, 1})));
+  real_function_3d c = real_factory_3d(world).functor(
+      real_functor_3d(new BS_MomentFunctor(std::vector<int>{0, 0, 0})));
+  real_function_3d zero = real_factory_3d(world);
+
+  real_function_3d rfunc = (x * x + y * y + z * z);
+  double r = rfunc.norm2();
+
+  std::vector<real_function_3d> funcs;
+  funcs[0] = c;
+
+  funcs[1] = y.scale(1 / r);
+  funcs[2] = z.scale(1 / r);
+  funcs[3] = x.scale(1 / r);
+
+  funcs[4] = x * y;
+  funcs[5] = y * z;
+  funcs[6] = 2 * z * z - x * x - y * y;
+  funcs[7] = z * x;
+  funcs[8] = x * x - y * y;
+
+  funcs[4] = funcs[4].scale(1 / (r * r));
+  funcs[5] = funcs[5].scale(1 / (r * r));
+  funcs[6] = funcs[6].scale(1 / (r * r));
+  funcs[7] = funcs[7].scale(1 / (r * r));
+  funcs[8] = funcs[8].scale(1 / (r * r));
+
+  int num = 0;
+  for (int l = 0; l < n; l++) {
+    for (int m = -l; m <= l; m++) {
+      result[vector<int>{l, m}] = funcs[num];
+      num += 1;
+    }
+  }
+
+  // Done
+  return result;
+}
+
 // Returns initial guess functions as
 // ground MO * solid harmonics
 ResponseFunction
@@ -439,6 +489,7 @@ TDHF::create_trial_functions(World &world, int k,
                              std::vector<real_function_3d> &orbitals,
                              int print_level) {
   // Get size
+  // /
   int n = orbitals.size();
 
   // Create solid harmonics such that num. solids * num. orbitals > k.
@@ -490,6 +541,116 @@ TDHF::create_trial_functions(World &world, int k,
 
   // Done
   return trials;
+}
+
+// Returns initial guess functions as
+// ground MO * solid harmonics
+ResponseFunction TDHF::create_trial_functions2(
+    World &world, std::vector<real_function_3d> &orbitals, int print_level) {
+  // Get size
+  int n = orbitals.size();
+  int directions = 3;
+  int m = directions * n * n;
+  // (n+1)^2 (because we count from zero)
+  // adsf
+  //
+  std::vector<real_function_3d> xyz = createDipoleFunctionMap(world);
+  // create 3 x n orbital functions
+  std::vector<vector<real_function_3d>> functions;
+
+  for (int d = 0; d < directions; d++) {
+    vector<real_function_3d> temp;
+    for (int i = 0; i < n; i++) {
+      // create x functions then y.. then z ..
+      temp.push_back(orbitals[i] * xyz[d]);
+    }
+    // all the x then the y then the z
+    functions.push_back(temp);
+  }
+
+  // Container to return
+  ResponseFunction trials(world, 3 * n * n, n);
+  for (int i; i < n; i++) {
+    for (int j; j < directions; j++) {
+      for (int o; o < n; o++) {
+
+        trials[i + j + o][o] = functions[i][j];
+      }
+    }
+  }
+  // The above generates response function as follows
+  // all functions start off as zeros
+  // 1  [x1 0 0 ]
+  // 2  [0 x1 0 ]
+  // 3  [0 0 x1 ]
+  // 4  [y1 0 0 ]
+  // 5  [0 y1 0 ]
+  // 6  [0 0 y1 ]
+  // 7  [z1 0 0 ]
+  // 8  [0 z1 0 ]
+  // 9  [0 0 z1 ]
+  // 10 [x2 0 0 ]
+  // 11 [0 x2 0 ]
+  // 12 [0 0 x2 ]
+  // 13 [y2 0 0 ]
+  // 14 [0 y2 0 ]
+  // 15 [0 0 y2 ]
+  // 16 [z2 0 0 ]
+  // 17 [0 z2 0 ]
+  // 18 [0 0 z2 ]
+  // 19 [x3 0 0 ]
+  // 20 [0 x3 0 ]
+  // 21 [0 0 x3 ]
+  // 22 [y3 0 0 ]
+  // 23 [0 y3 0 ]
+  // 24 [0 0 y3 ]
+  // 25 [z3 0 0 ]
+  // 26 [0 z3 0 ]
+  // 27 [0 0 z3 ]
+  // for each orbital for each direction
+  // Counter for number of trials created
+  // Multiply each solid harmonic onto a ground state orbital
+  //  for each orbital we
+
+  // For each solid harmonic
+  // Temp zero functions
+
+  // Debugging output
+  if (print_level >= 2) {
+    if (world.rank() == 0)
+      print("   Norms of guess functions:");
+    print_norms(world, trials);
+  }
+
+  // Truncate
+  truncate(world, trials);
+
+  // Done
+  return trials;
+}
+
+// Returns a list of solid harmonics such that:
+// solid_harm.size() * num_ground_orbs > 2 * num. resp. components
+std::vector<real_function_3d> TDHF::createDipoleFunctionMap(World &world) {
+  // Container to return
+
+  // Create the basic x, y, z, constant and zero
+  real_function_3d x = real_factory_3d(world).functor(
+      real_functor_3d(new BS_MomentFunctor(std::vector<int>{1, 0, 0})));
+  real_function_3d y = real_factory_3d(world).functor(
+      real_functor_3d(new BS_MomentFunctor(std::vector<int>{0, 1, 0})));
+  real_function_3d z = real_factory_3d(world).functor(
+      real_functor_3d(new BS_MomentFunctor(std::vector<int>{0, 0, 1})));
+
+  real_function_3d rfunc = (x * x + y * y + z * z);
+  double r = rfunc.norm2();
+
+  std::vector<real_function_3d> funcs;
+  funcs.push_back(x.scale(1 / r));
+  funcs.push_back(y.scale(1 / r));
+  funcs.push_back(z.scale(1 / r));
+  // Done
+  return funcs;
 }
 
 // Returns dipole operator * molecular orbitals
@@ -4790,8 +4951,8 @@ void TDHF::solve(World &world) {
           x_response = create_nwchem_guess(world, 2 * Rparams.states);
         } else {
           // Use a symmetry adapted operator on ground state functions
-          x_response = create_trial_functions(
-              world, 2 * Rparams.states, Gparams.orbitals, Rparams.print_level);
+          x_response = create_trial_functions2(world, Gparams.orbitals,
+                                               Rparams.print_level);
         }
 
         // Load balance
