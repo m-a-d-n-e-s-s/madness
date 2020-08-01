@@ -13,6 +13,7 @@
 #include "Plot_VTK.h"
 #include "TDHF_Basic_Operators2.h"
 #include "funcdefaults.h"
+#include "math.h"
 #include "potentialmanager.h"
 #include "projector.h" // For easy calculation of (1 - \hat{\rho}^0)
 
@@ -550,7 +551,6 @@ ResponseFunction TDHF::create_trial_functions2(
   // Get size
   int n = orbitals.size();
   int directions = 3;
-  int m = directions * n * n;
   // (n+1)^2 (because we count from zero)
   // adsf
   //
@@ -558,23 +558,33 @@ ResponseFunction TDHF::create_trial_functions2(
   // create 3 x n orbital functions
   std::vector<vector<real_function_3d>> functions;
 
+  print("Debug Norms", xyz[0].norm2());
+  print("Debug Norms", xyz[1].norm2());
+  print("Debug Norms", xyz[2].norm2());
+
   for (int d = 0; d < directions; d++) {
     vector<real_function_3d> temp;
     for (int i = 0; i < n; i++) {
       // create x functions then y.. then z ..
       temp.push_back(orbitals[i] * xyz[d]);
+      print("Debug Norms of temp ", i, "=", temp[i].norm2());
+      print("Debug Norms of orbitals ", i, "=", orbitals[i].norm2());
     }
     // all the x then the y then the z
     functions.push_back(temp);
   }
+  print("number of orbitals: ", orbitals.size());
 
   // Container to return
-  ResponseFunction trials(world, 3 * n * n, n);
-  for (int i; i < n; i++) {
-    for (int j; j < directions; j++) {
-      for (int o; o < n; o++) {
+  int count = 0;
 
-        trials[i + j + o][o] = functions[i][j];
+  ResponseFunction trials(world, 3 * n * n, n);
+  for (int i = 0; i < n; i++) {
+    for (int d = 0; d < directions; d++) {
+      for (int o = 0; o < n; o++) {
+        //        trials[i + j + o][o] = functions[i][j];
+        trials[count][o] = copy(functions.at(d).at(o));
+        count++;
       }
     }
   }
@@ -642,13 +652,13 @@ std::vector<real_function_3d> TDHF::createDipoleFunctionMap(World &world) {
   real_function_3d z = real_factory_3d(world).functor(
       real_functor_3d(new BS_MomentFunctor(std::vector<int>{0, 0, 1})));
 
-  real_function_3d rfunc = (x * x + y * y + z * z);
-  double r = rfunc.norm2();
+  //  real_function_3d rfunc = (x * x + y * y + z * z);
+  // double r = rfunc.norm2();
 
   std::vector<real_function_3d> funcs;
-  funcs.push_back(x.scale(1 / r));
-  funcs.push_back(y.scale(1 / r));
-  funcs.push_back(z.scale(1 / r));
+  funcs.push_back(x);
+  funcs.push_back(y);
+  funcs.push_back(z);
   // Done
   return funcs;
 }
@@ -3905,6 +3915,29 @@ void TDHF::IterateGuess(World &world, ResponseFunction &guesses) {
   while (iteration < Rparams.guess_max_iter) {
     // Start a timer for this iteration
     start_timer(world);
+    // (Eventually take symmtry into consideration
+    //  We need a number of points that takes into account the number
+    //  of degenerate states)
+    // reduce the space progressively
+    //  Starting number of response functions
+    int N0 = 3 * n * n;
+    //  number of response functions after p-1 iterations
+    //  I believe we don't iterate the last time
+    int Np = 2 * Rparams.states;
+    // this controls the final number of points to choose from
+    // number of iterations
+    int p = Rparams.guess_max_iter - 1;
+    // Number of points after i iterations
+    int Ni;
+    // No*exp(log(Np/N0)/p*t) to exponential decay
+    // the number of states down to 2*Rparams.states
+    if (iteration > 1) {
+      Ni = std::ceil(N0 * std::exp(std::log(double(Np) / double(N0)) /
+                                   float(p) * iteration));
+      sort(world, omega, guesses);
+      guesses =
+          select_functions(world, guesses, omega, Ni, Rparams.print_level);
+    }
 
     // Basic output
     if (Rparams.print_level >= 1) {
