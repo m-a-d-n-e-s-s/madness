@@ -308,11 +308,11 @@ struct CalculationParameters : public QCCalculationParametersBase {
         //NWChem interface doesn't support geometry optimization
         if (get<bool>("gopt") && nwfile() != "") error("NWchem initialization only supports single point energy calculations.");
 
-        //NWChem only supports Boys localization
+        //NWChem only supports Boys localization (or canonical)
         if (nwfile() != "none") {
              set_derived_value("localize",std::string("boys"));
              //Error if user requested something other than Boys
-             if(localize_method() != "boys") error("NWchem initialization only supports Boys localization");
+             if(localize_method() != "boys" and localize_method() != "canon") error("NWchem initialization only supports Boys localization");
         }
      
 

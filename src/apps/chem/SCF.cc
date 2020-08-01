@@ -1285,7 +1285,8 @@ void SCF::initial_guess(World & world) {
              slymer::NWChem_Interface nwchem(param.nwfile(), std::cout);
              
              // For parallel runs, silencing all but 1 slymer instance
-             if(world.rank() != 0) {
+             // If print_level is too low, silence all
+             if(world.rank() != 0 or param.print_level() < 4) {
                 std::ostream dev_null(nullptr);
                 nwchem.err = dev_null;
              }              
