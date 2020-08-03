@@ -643,7 +643,7 @@ namespace madness {
 
         /// Synchronizes all processes in communicator AND globally ensures no pending AM or tasks
 
-        /// Runs Dykstra-like termination algorithm on binary tree by
+        /// \internal Runs Dykstra-like termination algorithm on binary tree by
         /// locally ensuring ntask=0 and all am sent and processed,
         /// and then participating in a global sum of nsent and nrecv.
         /// Then globally checks that nsent=nrecv and that both are
@@ -653,8 +653,14 @@ namespace madness {
         /// \param[in] debug set to true to print progress statistics using madness::print(); the default is false.
         void fence(bool debug = false);
 
+        /// Synchronizes all processes in communicator AND globally ensures no pending AM or tasks
 
-        /// Broadcasts bytes from process root while still processing AM & tasks
+        /// \param[in] pre the action to execute (by the calling thread) before starting to run the tasks
+        /// \param[in] debug set to true to print progress statistics using madness::print(); the default is false.
+        void fence(std::function<void()> pre,
+                   bool debug = false);
+
+      /// Broadcasts bytes from process root while still processing AM & tasks
 
         /// Optimizations can be added for long messages
         void broadcast(void* buf, size_t nbyte, ProcessID root, bool dowork = true, Tag bcast_tag = -1);
