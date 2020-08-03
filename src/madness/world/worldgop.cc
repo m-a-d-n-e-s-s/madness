@@ -47,7 +47,7 @@ namespace madness {
     /// constant over two traversals.  We are then we are sure
     /// that all tasks and AM are processed and there no AM in
     /// flight.
-    void WorldGopInterface::fence(bool debug) {
+    void WorldGopInterface::fence(std::function<void()> pre, bool debug) {
         PROFILE_MEMBER_FUNC(WorldGopInterface);
         unsigned long nsent_prev=0, nrecv_prev=1; // invalid initial condition
         SafeMPI::Request req0, req1;
@@ -142,6 +142,8 @@ namespace madness {
             nrecv_prev = sum[1];
 
         };
+        // execute post-fence actions ... do we want to execute these with pool paused?
+        pre();
         world_.am.free_managed_buffers(); // free up communication buffers
         deferred_->do_cleanup();
 #ifdef MADNESS_HAS_GOOGLE_PERF_MINIMAL
@@ -152,6 +154,9 @@ namespace madness {
         madness::print(world_.rank(), ": WORLD.GOP.FENCE: done with fence in ", npass, (npass > 1 ? " loops" : " loop"));
     }
 
+    void WorldGopInterface::fence(bool debug) {
+      fence([]{}, debug);
+    }
 
     /// Broadcasts bytes from process root while still processing AM & tasks
 
