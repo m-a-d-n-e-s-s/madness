@@ -3890,9 +3890,8 @@ void TDHF::IterateGuess(World &world, ResponseFunction &guesses) {
   QProjector<double, 3> projector(
       world, Gparams.orbitals); // Projector to project out ground state
   int n = guesses[0].size();    // Number of ground state orbitals
-  int m = guesses.size();
-  ;                      // Number of excited components
-  Tensor<double> shifts; // Holds the shifted energy values
+  int m = guesses.size();       // number initial guess orbitals
+  Tensor<double> shifts;        // Holds the shifted energy values
   ElectronResponseFunctions I;
   ResponseFunction bsh_resp; // Holds wave function corrections
   ResponseFunction gamma;    // Holds the perturbed two electron piece
@@ -3951,6 +3950,7 @@ void TDHF::IterateGuess(World &world, ResponseFunction &guesses) {
     // Load balance
     // Only balancing on x-components. Smart?
     if (world.size() > 1 && ((iteration < 2) or (iteration % 5 == 0)) and
+
         iteration != 0) {
       // Start a timer
       if (Rparams.print_level >= 1)
@@ -4003,18 +4003,20 @@ void TDHF::IterateGuess(World &world, ResponseFunction &guesses) {
     }
     Tensor<double> A = createResponseMatrix(world, guesses, I, Gparams.orbitals,
                                             Rparams.print_level, "x");
+
     diagonalizeFockMatrix(world, A, guesses, I, omega, S,
                           FunctionDefaults<3>::get_thresh());
+
     // Ensure right number of omegas
-    if (omega.dim(0) != m) {
+    if (omega.dim(0) != Ni) {
       if (world.rank() == 0)
-        print("\n   Adding", m - omega.dim(0),
+        print("\n   Adding", Ni - omega.dim(0),
               "eigenvalue(s) (counters subspace size "
               "reduction in "
               "diagonalizatoin).");
-      Tensor<double> temp(m);
+      Tensor<double> temp(Ni);
       temp(Slice(0, omega.dim(0) - 1)) = omega;
-      for (int i = omega.dim(0); i < m; i++)
+      for (int i = omega.dim(0); i < Ni; i++)
         temp[i] = 2.5 * i;
       omega = copy(temp);
     }
@@ -4038,7 +4040,7 @@ void TDHF::IterateGuess(World &world, ResponseFunction &guesses) {
       // Construct RHS of equation
       //      ResponseFunction rhs = gamma + shifted_V;
       rhs = I.Hx;
-      for (int i = 0; i < m; i++) {
+      for (int i = 0; i < Ni; i++) {
         rhs[i] = projector(rhs[i]);
       }
 
@@ -4066,14 +4068,14 @@ void TDHF::IterateGuess(World &world, ResponseFunction &guesses) {
         end_timer(world, "Apply BSH:");
 
       // Project out ground state
-      for (int i = 0; i < m; i++)
+      for (int i = 0; i < Ni; i++)
         bsh_resp[i] = projector(bsh_resp[i]);
 
       // Save new components
       guesses = bsh_resp;
       guesses = scale(guesses, -2.0);
       // Apply mask
-      for (int i = 0; i < m; i++)
+      for (int i = 0; i < Ni; i++)
         guesses[i] = mask * guesses[i];
     }
 
