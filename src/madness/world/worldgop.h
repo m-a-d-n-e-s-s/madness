@@ -38,6 +38,7 @@
 /// If you can recall the Intel hypercubes, their comm lib used GOP as
 /// the abbreviation.
 
+#include <functional>
 #include <type_traits>
 #include <madness/world/worldtypes.h>
 #include <madness/world/buffer_archive.h>
