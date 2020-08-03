@@ -47,7 +47,8 @@ public:
   }
 
   // 1D accessor for x
-  std::vector<Function<double, 3>> &operator[](long i) { return x[i]; }
+  // std::vector<Function<double, 3>> &operator[](long i) { return x[i]; }
+  std::vector<Function<double, 3>> &operator[](long i) { return x.at(i); }
 
   // KAIN must have this
   ResponseFunction operator+(ResponseFunction &b) {
