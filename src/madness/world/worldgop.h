@@ -613,6 +613,15 @@ namespace madness {
             return Future<result_type>::default_initializer();
         }
 
+        /// Implementation of fence
+
+        /// \param[in] epilogue the action to execute (by the calling thread) immediately after the fence
+        /// \param[in] pause_during_epilogue whether to suspend work while executing epilogue
+        /// \param[in] debug set to true to print progress statistics using madness::print(); the default is false.
+        /// \warning currently only \c pause_during_epilogue=false is supported
+        void fence_impl(std::function<void()> epilogue = []{},
+                        bool pause_during_epilogue = false,
+                        bool debug = false);
 
     public:
 
@@ -654,14 +663,12 @@ namespace madness {
         /// \param[in] debug set to true to print progress statistics using madness::print(); the default is false.
         void fence(bool debug = false);
 
-        /// Synchronizes all processes in communicator AND globally ensures no pending AM or tasks
+        /// Executes an action on single (this) thread after ensuring all other work is done
 
-        /// \param[in] pre the action to execute (by the calling thread) before starting to run the tasks
-        /// \param[in] debug set to true to print progress statistics using madness::print(); the default is false.
-        void fence(std::function<void()> pre,
-                   bool debug = false);
+        /// \param[in] action the action to execute (by the calling thread)
+        void serial_invoke(std::function<void()> action);
 
-      /// Broadcasts bytes from process root while still processing AM & tasks
+        /// Broadcasts bytes from process root while still processing AM & tasks
 
         /// Optimizations can be added for long messages
         void broadcast(void* buf, size_t nbyte, ProcessID root, bool dowork = true, Tag bcast_tag = -1);
