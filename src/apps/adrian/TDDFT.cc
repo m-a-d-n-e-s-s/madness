@@ -740,8 +740,9 @@ TDHF::CreateCoulombDerivativeRFDagger(World &world, ResponseFunction &f,
   for (int k = 0; k < m; k++) { // for each of the m response states
     // dot vector of response functions with orbitals phi
     f_density = apply(op, dot(world, phi, f[k]));
-    // f_density = apply(op,dot(world,dagger(phi,f[k])));
+    // f_density = apply(op,dot(world,dagger(phi),f[k])));
     // TODO write or find a dagger function
+    //
     // apply to each orbital to make up jdaggerKP
     for (int p = 0; p < n; p++) {
       deriv_J_dagger[k][p] = f_density * phi[p];
@@ -3927,7 +3928,8 @@ void TDHF::IterateGuess(World &world, ResponseFunction &guesses) {
     // number of iterations
     int p = Rparams.guess_max_iter - 1;
     // Number of points after i iterations
-    int Ni;
+    int Ni = N0;
+
     // No*exp(log(Np/N0)/p*t) to exponential decay
     // the number of states down to 2*Rparams.states
     if (iteration > 1) {
@@ -3973,7 +3975,7 @@ void TDHF::IterateGuess(World &world, ResponseFunction &guesses) {
     }
 
     // Project out ground state
-    for (int i = 0; i < m; i++)
+    for (int i = 0; i < Ni; i++)
       guesses[i] = projector(guesses[i]);
 
     // Truncate before doing expensive things
