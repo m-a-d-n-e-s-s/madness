@@ -287,7 +287,7 @@ namespace madness {
             //
             // Also assume that the caller either has the lock
             // or is sure that we are single threaded.
-            MADNESS_CHECK(!assigned);
+            MADNESS_ASSERT(!assigned);
             assigned = true;
 
             assignmentT& as = const_cast<assignmentT&>(assignments);
