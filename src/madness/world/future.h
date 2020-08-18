@@ -38,11 +38,6 @@
 #ifndef MADNESS_WORLD_FUTURE_H__INCLUDED
 #define MADNESS_WORLD_FUTURE_H__INCLUDED
 
-// #include <sys/types.h>
-// #include <sys/syscall.h>
-// #include <unistd.h>
-// #include <stdlib.h>
-
 #include <atomic>
 #include <vector>
 #include <stack>
@@ -52,11 +47,6 @@
 #include <madness/world/stack.h>
 #include <madness/world/worldref.h>
 #include <madness/world/world.h>
-
-// static long gettid() {
-//     long tid = syscall(SYS_gettid);
-//     return tid;
-// }
 
 /// \addtogroup futures
 /// @{
@@ -245,7 +235,6 @@ namespace madness {
             // to take another.
             {
                 FutureImpl<T>* pimpl = ref.get();
-                //std::cout << gettid() << " : " << "  impl set handler " << (void*)(pimpl) << std::endl;
 
                 ScopedMutex<Spinlock> fred(pimpl);
                 if(pimpl->remote_ref) {
@@ -335,7 +324,6 @@ namespace madness {
                 , remote_ref()
                 , t()
         {
-            //std::cout << gettid() << " : " << "  impl defcon " << (void*)(this) << std::endl;
         }
 
 
@@ -350,7 +338,6 @@ namespace madness {
                 , remote_ref(remote_ref)
                 , t()
         {
-            //std::cout << gettid() << " : " << "  impl con from ref " << (void*)(this) << std::endl;
         }
 
 
@@ -383,7 +370,6 @@ namespace madness {
         /// \param[in] value Description needed.
         template <typename U>
         void set(const U& value) {
-            //std::cout << gettid() << " : " << "  impl set " << (void*)(this) << std::endl;
             ScopedMutex<Spinlock> fred(this);
             if(remote_ref) {
                 // Copy world and owner from remote_ref since sending remote_ref
@@ -407,7 +393,6 @@ namespace madness {
             ScopedMutex<Spinlock> fred(this);
             MADNESS_ASSERT(! remote_ref);
             input_arch & const_cast<T&>(t);
-            //std::cout << gettid() << " : " << "  impl set from buf" << (void*)(this) << std::endl;
             set_assigned(const_cast<T&>(t));
         }
 
@@ -419,9 +404,7 @@ namespace madness {
         /// \return Description needed.
         T& get() {
             MADNESS_ASSERT(! remote_ref);  // Only for local futures
-            //std::cout << gettid() << " : " << "  impl ref get wait " << (void*)(this) << std::endl;
             World::await([this] () -> bool { return this->probe(); });
-            //std::cout << gettid() << " : " << "  impl ref get done " << (void*)(this) << std::endl;
             return *const_cast<T*>(&t);
         }
 
@@ -433,9 +416,7 @@ namespace madness {
         /// \return Description needed.
         const T& get() const {
             MADNESS_ASSERT(! remote_ref);  // Only for local futures
-            //std::cout << gettid() << " : " << "  impl const ref get wait " << (void*)(this) << std::endl;
             World::await([this] () -> bool { return this->probe(); });
-            //std::cout << gettid() << " : " << "  impl const ref get done " << (void*)(this) << std::endl;
             return *const_cast<const T*>(&t);
         }
 
@@ -472,7 +453,6 @@ namespace madness {
 
         /// \todo Perhaps a comment about its behavior.
         virtual ~FutureImpl() {
-            //std::cout << gettid() << " : " << "  impl destructor " << (void*)(this) << std::endl;
             if (const_cast<callbackT&>(callbacks).size()) {
                 print("Future: uninvoked callbacks being destroyed?", assigned);
                 abort();
@@ -530,7 +510,6 @@ namespace madness {
         Future() :
             f(new FutureImpl<T>()), value(nullptr)
         {
-            //std::cout << gettid() << " : " << "empty con " << (void*)(this) << " " << (void*)(f.get()) << std::endl;
         }
 
         /// Makes an assigned future.
@@ -540,7 +519,6 @@ namespace madness {
         explicit Future(const T& t) :
             f(), value(new(static_cast<void*>(buffer)) T(t))
         {
-            //std::cout << gettid() << " : " << "value con " << (void*)(this) << " " << (void*)(f.get()) << std::endl;
         }
 
 
@@ -554,7 +532,6 @@ namespace madness {
                 //                        std::shared_ptr<FutureImpl<T> >(new FutureImpl<T>(remote_ref))),
                 value(nullptr)
         {
-            //std::cout << gettid() << " : " << "remref con" << (void*)(this) << " " << (void*)(f.get()) << std::endl;
         }
 
 
@@ -577,14 +554,12 @@ namespace madness {
                 new(static_cast<void*>(buffer)) T(* other.value) :
                 nullptr)
         {
-            //std::cout << gettid() << " : " << "copy con " << (void*)(this) << " " << (void*)(f.get()) << std::endl;
             if(other.is_default_initialized())
                 f.reset(new FutureImpl<T>()); // Other was default constructed so make a new f
         }
 
         /// Destructor.
         ~Future() {
-            //std::cout << gettid() << " : " << "destructor " << (void*)(this) << " " << (void*)(f.get()) << std::endl;
             if(value)
                 value->~T();
         }
@@ -691,7 +666,6 @@ namespace madness {
         /// \attention Throws an error if this is not a local future. 
         /// \return The value.
         inline T& get() & {
-            //std::cout << gettid() << " : " << "get & "  << (void*)f.get() << std::endl;
             MADNESS_CHECK(f || value); // Check that future is not default initialized
             return (f ? f->get() : *value);
         }
@@ -701,7 +675,6 @@ namespace madness {
         /// \attention Throws an error if this is not a local future.
         /// \return The value.
         inline const T& get() const & {
-            //std::cout << gettid() << " : " << "get const & "  << (void*)f.get() << std::endl;
             MADNESS_CHECK(f || value); // Check that future is not default initialized
             return (f ? f->get() : *value);
         }
@@ -716,7 +689,6 @@ namespace madness {
             // should not return && since that will still be a ref to
             // local value.  Also, does not seem as if reference
             // lifetime extension applies (see https://abseil.io/tips/107)
-            // std::cout << gettid() << " : " << "get&& " << (void*)f.get() << std::endl;
             MADNESS_CHECK(f || value); // Check that future is not default initialized
             if (f) {
                 // N.B. it is only safe to move the data out if f is the owner (i.e. it is the sole ref)
