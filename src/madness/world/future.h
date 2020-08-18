@@ -718,7 +718,24 @@ namespace madness {
             // lifetime extension applies (see https://abseil.io/tips/107)
             // std::cout << gettid() << " : " << "get&& " << (void*)f.get() << std::endl;
             MADNESS_CHECK(f || value); // Check that future is not default initialized
-            return (f ? std::move(f->get()) : std::move(*value));
+            if (f) {
+                // N.B. it is only safe to move the data out if f is the owner (i.e. it is the sole ref)
+                // it's not clear how to safely detect ownership beyond the obvious cases (see https://stackoverflow.com/questions/41142315/why-is-stdshared-ptrunique-deprecated)
+                // e.g. in the common case f is set by a task, hence its refcount is 2 until the task has completed *and* been destroyed
+                // so will tread lightly here ... don't move unless safe
+                auto &value_ref = f->get();
+                // if the task setting f is gone *and* this is the only ref, move out
+                // to prevent a race with another thread that will make a copy of this Future while we are moving the data
+                // atomically swap f with nullptr, then check use count of f's copy
+                decltype(f) fcopy;
+                std::atomic_store(&f, fcopy);  // N.B. deprecated in C++20! need to convert f to std::atomic<std::shared_ptr<FutureImpl>>
+                // f is now null and no new ref to the value can be created
+                if (fcopy.use_count() == 1)
+                    return std::move(value_ref);
+                else
+                    return value_ref;
+            } else
+                return std::move(*value);
         }
 
         /// Check whether this future has been assigned.
@@ -732,31 +749,21 @@ namespace madness {
 
         /// \return An lvalue reference to the value.
         inline operator T&() & { // Must return & since taskfn uses it in argument holder
-            //std::cout << gettid() << " : " << "operator &\n";
-            MADNESS_CHECK(f || value); // Check that future is not default initialized
-            return (f ? f->get() : *value);
+            return this->get();
         }
 
         /// Same as `get() const&`.
 
         /// \return A const lvalue reference to the value.
         inline operator const T&() const& { // Must return & since taskfn uses it in argument holder
-            //std::cout << gettid() << " : " << "operator const&\n";
-            MADNESS_CHECK(f || value); // Check that future is not default initialized
-            return (f ? f->get() : *value);
+            return this->get();
         }
 
         /// An rvalue analog of \c get().
 
         /// \return An rvalue reference to the value. 
         inline operator T() && {
-            // same logic for return type as get&&.
-            // Also, inlined get() since it always invoked get& not
-            // get&& and could not figure out how to use std::forward
-            // to avoid the decay
-            //std::cout << gettid() << " : " << "operator &&\n";
-            MADNESS_CHECK(f || value); // Check that future is not default initialized
-            return (f ? std::move(f->get()) : std::move(*value));
+            return this->get();
         }
 
         /// Returns a structure used to pass references to another process.
