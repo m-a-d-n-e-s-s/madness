@@ -720,21 +720,21 @@ namespace madness {
 
         /// \return An lvalue reference to the value.
         inline operator T&() & { // Must return & since taskfn uses it in argument holder
-            return this->get();
+            return static_cast<Future&>(*this).get();
         }
 
         /// Same as `get() const&`.
 
         /// \return A const lvalue reference to the value.
         inline operator const T&() const& { // Must return & since taskfn uses it in argument holder
-            return this->get();
+            return static_cast<const Future&>(*this).get();
         }
 
         /// An rvalue analog of \c get().
 
         /// \return An rvalue reference to the value. 
         inline operator T() && {
-            return this->get();
+            return static_cast<Future&&>(*this).get();
         }
 
         /// Returns a structure used to pass references to another process.
