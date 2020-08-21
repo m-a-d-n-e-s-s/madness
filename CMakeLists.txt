@@ -30,9 +30,9 @@ include(RedefaultableOption)
 
 # Check compiler feature support ===============================================
 
-set(CMAKE_CXX_STANDARD 14 CACHE STRING  "C++ ISO Standard version")
-if (NOT(CMAKE_CXX_STANDARD EQUAL 14 OR CMAKE_CXX_STANDARD EQUAL 17 OR CMAKE_CXX_STANDARD EQUAL 20))
-  message(FATAL_ERROR "C++ 2014 ISO Standard or higher is required to compile MADNESS")
+set(CMAKE_CXX_STANDARD 17 CACHE STRING  "C++ ISO Standard version")
+if (NOT(CMAKE_CXX_STANDARD EQUAL 17 OR CMAKE_CXX_STANDARD EQUAL 20))
+  message(FATAL_ERROR "C++ 2017 ISO Standard or higher is required to compile MADNESS")
 endif()
 # C++20 is only configurable via compile features with cmake 3.12 and older
 if (CMAKE_CXX_STANDARD EQUAL 20 AND CMAKE_VERSION VERSION_LESS 3.12.0)

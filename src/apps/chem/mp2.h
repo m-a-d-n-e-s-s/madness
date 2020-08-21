@@ -319,7 +319,7 @@ namespace madness {
 
         bool load_pair(World& world) {
         	std::string name="pair_"+stringify(i)+stringify(j);
-        	bool exists=archive::ParallelInputArchive::exists(world,name.c_str());
+        	bool exists=archive::ParallelInputArchive<archive::BinaryFstreamInputArchive>::exists(world,name.c_str());
             if (exists) {
             	if (world.rank()==0) printf("loading matrix elements %s",name.c_str());
                 archive::ParallelInputArchive ar(world, name.c_str(), 1);

@@ -335,7 +335,7 @@ public:
 
 	template<typename T, size_t NDIM>
 	bool load_function(Function<T, NDIM>& f, const std::string name) const {
-		bool exists = archive::ParallelInputArchive::exists(world,name.c_str());
+                bool exists = archive::ParallelInputArchive<archive::BinaryFstreamInputArchive>::exists(world,name.c_str());
 		if(exists){
 			if (world.rank() == 0) print("loading function", name);
 			archive::ParallelInputArchive ar(world, name.c_str());

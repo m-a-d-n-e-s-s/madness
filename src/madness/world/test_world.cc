@@ -1125,7 +1125,7 @@ void test13(World& world) {
     }
 
     fin.close();
-    archive::ParallelOutputArchive::remove(world, "fred");
+    archive::ParallelOutputArchive<>::remove(world, "fred");
 
     print("Test13 OK");
     world.gop.fence();

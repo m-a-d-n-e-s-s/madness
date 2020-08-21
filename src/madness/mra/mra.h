@@ -66,6 +66,7 @@ namespace madness {
 #include <madness/mra/legendre.h>
 #include <madness/mra/indexit.h>
 #include <madness/world/parallel_archive.h>
+#include <madness/world/binary_fstream_archive.h>
 #include <madness/world/worlddc.h>
 #include <madness/mra/funcdefaults.h>
 #include <madness/mra/function_factory.h>
@@ -2494,16 +2495,16 @@ namespace madness {
 
 namespace madness {
     namespace archive {
-        template <class T, std::size_t NDIM>
-        struct ArchiveLoadImpl< ParallelInputArchive, Function<T,NDIM> > {
-            static inline void load(const ParallelInputArchive& ar, Function<T,NDIM>& f) {
+        template <class archiveT, class T, std::size_t NDIM>
+        struct ArchiveLoadImpl< ParallelInputArchive<archiveT>, Function<T,NDIM> > {
+            static inline void load(const ParallelInputArchive<archiveT>& ar, Function<T,NDIM>& f) {
                 f.load(*ar.get_world(), ar);
             }
         };
 
-        template <class T, std::size_t NDIM>
-        struct ArchiveStoreImpl< ParallelOutputArchive, Function<T,NDIM> > {
-            static inline void store(const ParallelOutputArchive& ar, const Function<T,NDIM>& f) {
+        template <class archiveT, class T, std::size_t NDIM>
+        struct ArchiveStoreImpl< ParallelOutputArchive<archiveT>, Function<T,NDIM> > {
+            static inline void store(const ParallelOutputArchive<archiveT>& ar, const Function<T,NDIM>& f) {
                 f.store(ar);
             }
         };
@@ -2511,13 +2512,13 @@ namespace madness {
 
     template <class T, std::size_t NDIM>
     void save(const Function<T,NDIM>& f, const std::string name) {
-        archive::ParallelOutputArchive ar2(f.world(), name.c_str(), 1);
+        archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar2(f.world(), name.c_str(), 1);
         ar2 & f;
     }
 
     template <class T, std::size_t NDIM>
     void load(Function<T,NDIM>& f, const std::string name) {
-        archive::ParallelInputArchive ar2(f.world(), name.c_str(), 1);
+        archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar2(f.world(), name.c_str(), 1);
         ar2 & f;
     }
 

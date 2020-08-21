@@ -5,23 +5,23 @@
 #include <madness/world/worlddc.h>
 #include <madness/world/vector_archive.h>
 
-// class ParallelDCArchive : public BaseOutputArchive {
-// }
-
 namespace madness {
     namespace archive {
         
         class ContainerRecordOutputArchive : public BaseOutputArchive {
             using keyT = long;
             using containerT = WorldContainer<keyT,std::vector<unsigned char>>;
+            World& subworld;
             keyT key;
             containerT& dc; // lifetime???
             std::vector<unsigned char> v;
             VectorOutputArchive ar;
             
         public:
-            ContainerRecordOutputArchive(const keyT& key, containerT& dc)
-                : key(key)
+
+            ContainerRecordOutputArchive(World& subworld, containerT& dc, const keyT& key)
+                : subworld(subworld)
+                , key(key)
                 , dc(dc)
                 , v()
                 , ar(v)
@@ -36,7 +36,7 @@ namespace madness {
             inline
             typename std::enable_if< madness::is_trivially_serializable<T>::value, void >::type
             store(const T* t, long n) const {
-                MADNESS_CHECK(dc.get_world().rank() == 0);
+                MADNESS_CHECK(subworld.rank() == 0);
                 ar.store(t, n);
             }
             
@@ -45,7 +45,7 @@ namespace madness {
             void flush() {}
             
             void close() {
-                if (dc.get_world().rank() == 0) dc.replace(key,v);
+                if (subworld.rank() == 0) dc.replace(key,v);
             }
         };
         
@@ -57,11 +57,21 @@ namespace madness {
             VectorInputArchive ar;
             
         public:
-            ContainerRecordInputArchive(const keyT& key, containerT& dc)
-                : rank(dc.get_world().rank())
-                , v( (rank==0) ? dc.find(key).get()->second : std::vector<unsigned char>() )
+            ContainerRecordInputArchive(World& subworld, containerT& dc, const keyT& key)
+                : rank(subworld.rank())
+                , v()
                 , ar(v)
-            {}
+            {
+                if (rank==0) {
+                    containerT::const_iterator it = dc.find(key).get();
+                    if (it != dc.end()) {
+                        v = it->second;
+                    }
+                    else {
+                        MADNESS_EXCEPTION("record not found", key);
+                    }
+                }
+            }
             
             ~ContainerRecordInputArchive()
             {}
@@ -86,19 +96,19 @@ namespace madness {
             WorldContainer<long,std::vector<unsigned char>> dc(world);
             if (world.rank() == 0) {
                 //VectorOutputArchive ar(v);
-                ContainerRecordOutputArchive ar(99, dc);
+                ContainerRecordOutputArchive ar(world, dc, 99);
                 int a=1, b=7;
                 ar & a & b;
             }
             if (world.rank() == 0) {
                 //VectorInputArchive ar(v);
-                ContainerRecordInputArchive ar(99, dc);
+                ContainerRecordInputArchive ar(world, dc, 99);
                 int a, b;
                 ar & a & b;
                 std::cout << "I read " << a << " " << b << std::endl;
             }
+            dc.get_world().gop.fence();
         }
-        
     }
 }
 

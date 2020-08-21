@@ -141,9 +141,76 @@ struct data_type {
 
 };
 
+class SampleDataIn : public ::madness::WorldObject, ::madness::archive::ParallelSerializableObject {
+    int i;
+    WorldContainer<int,double> d;
+public:
+    SampleDataIn(World& world) : i(99), d(world) {
+        process_pending();
+        d.replace(world.rank(), world.rank()*100.0);
+    }
+};
+
+template <typename dataT>
+class ParallelLocalizeInputArchive {
+public:
+    static const bool is_parallel_archive = true; ///< Mark this class as a parallel archive.
+    ParallelLocalizeInputArchive(World& origin, const dataT& datain, World& destination) { ????
+        
+    }
+};
+
+
+template <typename dataT>
+class ParallelLocalizeOutputArchive {
+    World& origin;
+    World& destination;
+public:
+    static const bool is_parallel_archive = true; ///< Mark this class as a parallel archive.
+    ParallelLocalizeOutputArchive(World& origin, const std::vector<ProcessID>& destrank) {
+        
+    }
+};
+
 
 template<typename dataT>
-void localize(dataT& data, World& origin, World& destination, std::string filename) {
+void localize(World& origin, const dataT& datain, World& destination, dataT& dataout) {
+    /*
+      data --- replicated across all processes in world origin and can include both local (replicated) and distributed data.
+
+      replicated data takes value from process 0-origin and broadcasts to all processes in destination world
+     
+      this code is executed in the destination world
+      * process 0 in destination creates a task on each process in origin
+      * the task makes a ParallelLocalizeOutputArchive(origin,destination) and executes ar & datain;
+
+      a) localize from universe (origin) to subworld (dest) to make metatask
+         - dest is subset of origin so dest makes sense in that subset of processes, but is not defined outside
+         - original design works since from dest can access origin and hence make task on all of its processes to push data
+           but note that it must communicate in world origin since dest is not known by everyone (so localize data within
+           world origin onto the subset of processes in dest, then insert into a data structure specific to dest).
+
+      b) localize back from subworld (origin) to universe (dest)
+         - dest is superset of origin so origin makes sense only in a subset of dest
+         - find a node in dest that is also in origin --- use this as the master to make a task on all nodes
+           in origin.  can use dest in all nodes to send data.
+
+      c) general case of disjoint origin and destination - cannot
+      access dest from origin or vv --- need to make a superworld but
+      need list of processes and making an MPI comm syncs
+
+
+      To help cut the Gordian knot, consider the original design --- using a file
+
+      a) The data associated with a task was serialized to a file.  This was done when making the task, so that all 
+         processes in the universe could participate.  Now we want to initiate this data motion when the task is scheduled
+         which occurs only in the subset of the universe corresponding to the destination world.
+
+     */
+
+    ParallelLocalizeInputArchive ar(origin, datain, destination);
+    ar & dataout;
+    
 //	data.store_and_clear(origin, filename);
 //	data.load(destination, filename);
 }
@@ -197,6 +264,9 @@ std::ostream& operator<<(std::ostream& os, const MacroTaskBase::Status s) {
 
 template<typename macrotaskT>
 class MacroTaskIntermediate : public MacroTaskBase {
+    WorldContainer<size_t, std::vector<unsigned char>>*  inputs;
+    WorldContainer<size_t, std::vector<unsigned char>>* outputs;
+    
 public:
 
 	MacroTaskIntermediate() {}
@@ -487,6 +557,8 @@ public:
 			double cpu0=cpu_time();
 			std::shared_ptr<MacroTaskBase> task=taskq[element];
 
+                        
+
 			// TODO: needs to be replaced by localization (copying from/to different worlds)
 			task->load_data(subworld,task->make_filename(element));
 			//			task->localize(universe,subworld);
@@ -680,7 +752,7 @@ int main(int argc, char** argv) {
     	Function<double,4> f(universe);
     	f.add_scalar(i);
     	vdata.push_back(dataT(i,i,f));
-    	vtask.push_back(std::shared_ptr<MacroTaskBase>(new taskT(dataT(i,i,f))));
+   	vtask.push_back(std::shared_ptr<MacroTaskBase>(new taskT(dataT(i,i,f))));
     }
 	Function<double,4> ff(universe);
 	ff.add_scalar(2);

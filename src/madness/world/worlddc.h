@@ -1600,9 +1600,9 @@ namespace madness {
         /// before doing IO, and that all IO has completed before
         /// subsequent modifications. Also, there is always at least
         /// some synchronization between a client and its IO server.
-        template <class keyT, class valueT>
-        struct ArchiveStoreImpl< ParallelOutputArchive, WorldContainer<keyT,valueT> > {
-            static void store(const ParallelOutputArchive& ar, const WorldContainer<keyT,valueT>& t) {
+        template <class keyT, class valueT, class localarchiveT>
+        struct ArchiveStoreImpl< ParallelOutputArchive<localarchiveT>, WorldContainer<keyT,valueT> > {
+            static void store(const ParallelOutputArchive<localarchiveT>& ar, const WorldContainer<keyT,valueT>& t) {
                 const long magic = -5881828; // Sitar Indian restaurant in Knoxville (negative to indicate parallel!)
                 typedef WorldContainer<keyT,valueT> dcT;
                 // typedef typename dcT::const_iterator iterator; // unused?
@@ -1612,7 +1612,7 @@ namespace madness {
                 ProcessID me = world->rank();
                 if (ar.dofence()) world->gop.fence();
                 if (ar.is_io_node()) {
-                    BinaryFstreamOutputArchive& localar = ar.local_archive();
+                    auto& localar = ar.local_archive();
                     localar & magic & ar.num_io_clients();
                     for (ProcessID p=0; p<world->size(); ++p) {
                         if (p == me) {
@@ -1624,7 +1624,7 @@ namespace madness {
                             long cookie = 0l;
                             unsigned long count = 0ul;
 
-                            ArchivePrePostImpl<BinaryFstreamOutputArchive,dcT>::preamble_store(localar);
+                            ArchivePrePostImpl<localarchiveT,dcT>::preamble_store(localar);
 
                             source & cookie & count;
                             localar & cookie & count;
@@ -1634,7 +1634,7 @@ namespace madness {
                                 localar & datum;
                             }
 
-                            ArchivePrePostImpl<BinaryFstreamOutputArchive,dcT>::postamble_store(localar);
+                            ArchivePrePostImpl<localarchiveT,dcT>::postamble_store(localar);
                         }
                     }
                 }
@@ -1650,8 +1650,8 @@ namespace madness {
             }
         };
 
-        template <class keyT, class valueT>
-        struct ArchiveLoadImpl< ParallelInputArchive, WorldContainer<keyT,valueT> > {
+        template <class keyT, class valueT, class localarchiveT>
+        struct ArchiveLoadImpl< ParallelInputArchive<localarchiveT>, WorldContainer<keyT,valueT> > {
             /// Read container from parallel archive
 
             /// \ingroup worlddc
@@ -1661,7 +1661,7 @@ namespace madness {
             /// can always run a separate job to copy to a different number.
             ///
             /// The IO node simply reads all data and inserts entries.
-            static void load(const ParallelInputArchive& ar, WorldContainer<keyT,valueT>& t) {
+            static void load(const ParallelInputArchive<localarchiveT>& ar, WorldContainer<keyT,valueT>& t) {
                 const long magic = -5881828; // Sitar Indian restaurant in Knoxville (negative to indicate parallel!)
                 // typedef WorldContainer<keyT,valueT> dcT; // unused
                 // typedef typename dcT::iterator iterator; // unused
@@ -1671,7 +1671,7 @@ namespace madness {
                 if (ar.is_io_node()) {
                     long cookie = 0l;
                     int nclient = 0;
-                    BinaryFstreamInputArchive& localar = ar.local_archive();
+                    auto& localar = ar.local_archive();
                     localar & cookie & nclient;
                     MADNESS_CHECK(cookie == magic);
                     while (nclient--) {
