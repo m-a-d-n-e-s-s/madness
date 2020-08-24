@@ -545,7 +545,7 @@ TDHF::create_trial_functions(World &world, int k,
 }
 
 // Returns initial guess functions as
-// ground MO * solid harmonics
+// ground MO * <x,y,z>
 ResponseFunction TDHF::create_trial_functions2(
     World &world, std::vector<real_function_3d> &orbitals, int print_level) {
   // Get size
@@ -4986,10 +4986,13 @@ void TDHF::solve(World &world) {
         } else if (Rparams.nwchem != "") {
           // Virtual orbitals from NWChem
           x_response = create_nwchem_guess(world, 2 * Rparams.states);
-        } else {
+        } else if (Rparams.guess_xyz) {
           // Use a symmetry adapted operator on ground state functions
           x_response = create_trial_functions2(world, Gparams.orbitals,
                                                Rparams.print_level);
+        } else {
+          x_response = create_trial_functions(world, Gparams.orbitals,
+                                              Rparams.print_level);
         }
 
         // Load balance
