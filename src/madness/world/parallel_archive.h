@@ -67,7 +67,7 @@ namespace madness {
             World* world; ///< The world.
             mutable Archive ar; ///< The local archive.
             int nio; ///< Number of I/O nodes (always includes node zero).
-            bool do_fence; ///< If true (default), a read/write of parallel objects fences before and after I/O.
+            bool do_fence=true; ///< If true (default), a read/write of parallel objects fences before and after I/O.
             char fname[256]; ///< Name of the archive.
             int nclient; ///< Number of clients of this node, including self. Zero if not I/O node.
 
@@ -78,13 +78,17 @@ namespace madness {
                 : world(&world)
                 , ar(ar)
                 , nio(nio)
-            {fname[0] = 0;}
+            {
+            	fname[0] = 0;
+            	set_nclient(world);
+            }
             
 
             /// Default constructor.
             template <typename X=Archive>
             BaseParallelArchive(typename std::enable_if_t<std::is_same<X,BinaryFstreamInputArchive>::value || std::is_same<X,BinaryFstreamOutputArchive>::value,int> nio=0)
-                : world(nullptr), ar(), nio(nio), do_fence(true) {}
+                : world(nullptr), ar(), nio(nio), do_fence(true) {
+            }
 
             /// Returns the process doing I/O for given node.
 
@@ -183,17 +187,21 @@ namespace madness {
                     ar.open(buf);
                 }
 
-                // Count #client
-                ProcessID me = world.rank();
-                nclient=0;
-                for (ProcessID p=0; p<world.size(); ++p) if (io_node(p) == me) ++nclient;
+                set_nclient(world);
+            }
 
-//                 if (is_io_node()) {
-//                     madness::print("I am an IO node with",nclient,"clients and file",buf);
-//                 }
-//                 else {
-//                     madness::print("I am a client served by",my_io_node(),fname);
-//                 }
+            // Count #client
+            void set_nclient(World& world) {
+				ProcessID me = world.rank();
+				nclient=0;
+				for (ProcessID p=0; p<world.size(); ++p) if (io_node(p) == me) ++nclient;
+
+		//                 if (is_io_node()) {
+		//                     madness::print("I am an IO node with",nclient,"clients and file",buf);
+		//                 }
+		//                 else {
+		//                     madness::print("I am a client served by",my_io_node(),fname);
+		//                 }
             }
 
             /// Returns true if the named, unopened archive exists on disk with read access.

@@ -1,3 +1,5 @@
+
+//#define MAD_ARCHIVE_DEBUG_ENABLE
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/world/MADworld.h>
 #include <madness/world/worlddc.h>
@@ -22,7 +24,8 @@ void test(madness::World& world)
     world.gop.fence();
 }
 void test_multi_work(madness::World& universe, madness::World& subworld, madness::WorldContainer<long,std::vector<unsigned char>>& container) {
-    long key = 1+(universe.rank()%2);
+
+	long key = 1+(universe.rank()%2);
     int value;
     {
         madness::WorldContainer<int,double> data(subworld);
@@ -55,8 +58,14 @@ void test_multi(madness::World& universe) {
     {
         madness::archive::ContainerRecordOutputArchive ar(universe,container,1);
         madness::archive::ParallelOutputArchive<madness::archive::ContainerRecordOutputArchive> par(universe, ar);
-        par & 1 & data;
+        std::cout << "starting with saving number \n\n" << std::endl;
+        par & 1;
+        std::cout << "done with saving number \n\n" << std::endl;
+        par & data;
+        std::cout << "done with saving data container\n\n " << std::endl;
+
     }
+    std::cout << "done with saving " << std::endl;
     {
         madness::archive::ContainerRecordOutputArchive ar(universe,container,2);
         madness::archive::ParallelOutputArchive<madness::archive::ContainerRecordOutputArchive> par(universe, ar);
@@ -71,6 +80,7 @@ void test_multi(madness::World& universe) {
     
     // In subworlds read data from universe container and put results back
     test_multi_work(universe, subworld, container);
+    subworld.gop.fence();
     universe.gop.fence(); // Workers must finish before reading the results
 
     // In universe read back results from subworld computations
