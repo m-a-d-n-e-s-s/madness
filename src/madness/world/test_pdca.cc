@@ -5,6 +5,7 @@
 #include <madness/world/worlddc.h>
 #include <madness/world/parallel_dc_archive.h>
 
+
 void test(madness::World& world)
 {
     madness::WorldContainer<long,std::vector<unsigned char>> container(world);
@@ -23,7 +24,10 @@ void test(madness::World& world)
     }
     world.gop.fence();
 }
-void test_multi_work(madness::World& universe, madness::World& subworld, madness::WorldContainer<long,std::vector<unsigned char>>& container) {
+
+
+void test_multi_work(madness::World& universe, madness::World& subworld,
+		madness::WorldContainer<long,std::vector<unsigned char>>& container) {
 
 	long key = 1+(universe.rank()%2);
     int value;
@@ -33,6 +37,7 @@ void test_multi_work(madness::World& universe, madness::World& subworld, madness
         madness::archive::ParallelInputArchive<madness::archive::ContainerRecordInputArchive> par(subworld, ar);
         par & value & data;
         std::cout << subworld.id() << " : subworld read process " << subworld.rank() << " read " << value << std::endl;
+        std::cout << "data.size() " << subworld.id() << " " << subworld.rank() << " " << data.size() << std::endl;
     }
     {
         madness::WorldContainer<int,double> subdata(subworld);
@@ -52,20 +57,21 @@ void test_multi(madness::World& universe) {
     madness::WorldContainer<int,double> data(universe);
     data.replace(universe.rank(), universe.rank()*100.0);
     universe.gop.fence();
+    int sz=data.size();
+    std::cout << "universe data size in rank " << universe.rank() << " "  << sz << std::endl;
+    universe.gop.sum(sz);
+    std::cout << "universe data size total   "   << sz << std::endl;
+    for (auto& a : data) {
+    	std::cout << " universe content " << a.first << " " << a.second << std::endl;
+    }
 
     // From universe put data into container
     madness::WorldContainer<long,std::vector<unsigned char>> container(universe);
     {
         madness::archive::ContainerRecordOutputArchive ar(universe,container,1);
         madness::archive::ParallelOutputArchive<madness::archive::ContainerRecordOutputArchive> par(universe, ar);
-        std::cout << "starting with saving number \n\n" << std::endl;
-        par & 1;
-        std::cout << "done with saving number \n\n" << std::endl;
-        par & data;
-        std::cout << "done with saving data container\n\n " << std::endl;
-
+        par & 1 & data;
     }
-    std::cout << "done with saving " << std::endl;
     {
         madness::archive::ContainerRecordOutputArchive ar(universe,container,2);
         madness::archive::ParallelOutputArchive<madness::archive::ContainerRecordOutputArchive> par(universe, ar);
@@ -90,7 +96,13 @@ void test_multi(madness::World& universe) {
         madness::archive::ParallelInputArchive<madness::archive::ContainerRecordInputArchive> par(universe, ar);
         int value;
         par & value & subdata;
-        madness::print("first result", value);
+        int sz=subdata.size();
+        universe.gop.fence(); // Workers must finish before reading the results
+        madness::print("first result", value, sz);
+        for (auto& a : subdata) {
+        	std::cout << " universe content after work " << a.first << " " << a.second << std::endl;
+        }
+
     }
     {
         madness::WorldContainer<int,double> subdata(universe);
@@ -98,7 +110,8 @@ void test_multi(madness::World& universe) {
         madness::archive::ParallelInputArchive<madness::archive::ContainerRecordInputArchive> par(universe, ar);
         int value;
         par & value & subdata;
-        madness::print("second result", value);
+        int sz=subdata.size();
+        madness::print("second result", value,sz);
     }
     universe.gop.fence();
 }
@@ -107,8 +120,9 @@ int main(int argc, char** argv) {
     madness::World& world = madness::initialize(argc, argv);
 
     //madness::archive::xxxtest(world);
-    //test(world);
-    test_multi(world);
+//    test(world);
+//    test_multi(world);
+    test_cloud(world);
     
     madness::finalize();
 
