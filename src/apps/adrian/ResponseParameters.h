@@ -36,6 +36,7 @@ struct ResponseParameters {
   int max_iter;               ///< Maximum number of iterations
   double dconv;               ///< Convergence criterion for the orbital density
   bool dconv_set;             ///< Convergence flag for the orbital density
+  bool guess_xyz;             ///< Convergence flag for the orbital density
   double small;               ///< Minimum length scale to be resolved
   std::vector<double> protocol_data; ///< Different thresholds for truncation
   int larger_subspace;  ///< Number of iterations to diagonalize in a subspace
@@ -71,11 +72,11 @@ struct ResponseParameters {
   // Used to broadcast data to all mpi ranks
   template <typename Archive> void serialize(Archive &ar) {
     ar &archive &nwchem &states &print_level &tda &plot &plot_range &plot_data
-        &plot_L &plot_pts &max_iter &dconv &dconv_set &small &protocol_data
-            &larger_subspace &k &random &store_potential &e_window &range_low
-                &range_high &plot_initial &restart &restart_file &kain &maxsub
-                    &xc &save &guess_max_iter &property &polarizability &omega
-                        &old;
+        &plot_L &plot_pts &max_iter &dconv &dconv_set &guess_xyz &small
+            &protocol_data &larger_subspace &k &random &store_potential
+                &e_window &range_low &range_high &plot_initial &restart
+                    &restart_file &kain &maxsub &xc &save &guess_max_iter
+                        &property &polarizability &omega &old;
   }
 
   // Default constructor
@@ -83,7 +84,7 @@ struct ResponseParameters {
       : archive("restartdata"), nwchem(""), states(1), print_level(1),
         tda(false), plot(false), plot_range(false),
         plot_data(std::vector<int>{0}), plot_L(-1.0), plot_pts(201),
-        max_iter(20), dconv(0), dconv_set(false), small(1e-6),
+        max_iter(20), dconv(0), dconv_set(false), guess_xyz(false), small(1e-6),
         protocol_data(madness::vector_factory(1e-6)), larger_subspace(0), k(0),
         random(false), store_potential(true), e_window(false), range_low(0.0),
         range_high(1.0), plot_initial(false), restart(false), restart_file(""),
@@ -159,6 +160,8 @@ struct ResponseParameters {
         plot_initial = true;
       } else if (s == "random") {
         random = true;
+      } else if (s == "guess_xyz") {
+        guess_xyz = true;
       } else if (s == "store_potential_off") {
         store_potential = false;
       } else if (s == "range") {
