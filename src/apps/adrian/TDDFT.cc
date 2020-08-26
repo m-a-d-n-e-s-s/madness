@@ -8,14 +8,20 @@
 
 #include "TDDFT.h"
 
+#include <math.h>
+
+#include <map>
+#include <memory>
+#include <string>
+#include <utility>
+
 #include "../chem/SCFOperators.h"
 #include "NWChem.h" // For nwchem interface
 #include "Plot_VTK.h"
 #include "TDHF_Basic_Operators2.h"
-#include "funcdefaults.h"
-#include "math.h"
-#include "potentialmanager.h"
-#include "projector.h" // For easy calculation of (1 - \hat{\rho}^0)
+#include "chem/potentialmanager.h"
+#include "chem/projector.h" // For easy calculation of (1 - \hat{\rho}^0)
+#include "madness/mra/funcdefaults.h"
 
 using namespace madness;
 
@@ -31,7 +37,6 @@ struct TDHF_allocator {
   // Overloading () operator
   ResponseFunction operator()() {
     ResponseFunction f(world, num_vir, num_occ);
-    ;
 
     return f;
   }
@@ -47,7 +52,7 @@ struct TDHF_allocator {
 template <typename T, int NDIM> struct lbcost {
   double leaf_value;
   double parent_value;
-  lbcost(double leaf_value = 1.0, double parent_value = 0.0)
+  explicit lbcost(double leaf_value = 1.0, double parent_value = 0.0)
       : leaf_value(leaf_value), parent_value(parent_value) {}
   double operator()(const Key<NDIM> &key,
                     const FunctionNode<T, NDIM> &node) const {
@@ -283,7 +288,7 @@ void TDHF::normalize(World &world, ResponseFunction &f) {
     // And scale
     scale(world, f[i], 1.0 / norm);
   }
-};
+}
 
 // (Each state's norm should be 1, not the
 // individual functions norms)
@@ -305,7 +310,7 @@ void TDHF::normalize(World &world, ResponseFunction &f, ResponseFunction &g) {
     scale(world, f[i], 1.0 / norm);
     scale(world, g[i], 1.0 / norm);
   }
-};
+}
 
 // Prints norms of the given vector of vector of functions
 void TDHF::print_norms(World &world, ResponseFunction f) {
@@ -778,8 +783,7 @@ TDHF::CreateExchangeDerivativeRF(World &world, ResponseFunction &f,
         }
       }
     }
-  } else // But the storage can be turned off...
-  {
+  } else {                        // But the storage can be turned off...{
     for (int p = 0; p < n; p++) { //
       for (int k = 0; k < m; k++) {
         for (int i = 0; i < n; i++) {
@@ -1279,8 +1283,7 @@ ResponseFunction TDHF::CreatePotential(World &world, ResponseFunction &f,
     // 2.0 scale is from spin integration
     v_coul = Coulomb(world);
     v_coul.scale(2.0);
-  } else // Already pre-computed
-  {
+  } else { // Already pre-computed
     v_nuc = stored_v_nuc;
     v_coul = stored_v_coul;
   }
@@ -1975,7 +1978,7 @@ ResponseFunction TDHF::select_functions(World &world, ResponseFunction &f,
 
   // Get rid of extra functions and save
   // the first k
-  while (int(f.size()) > k)
+  while (static_cast<int>(f.size()) > k)
     f.pop_back();
   answer = f;
   truncate(world, answer);
@@ -2112,7 +2115,7 @@ Tensor<double> TDHF::get_fock_transformation(World &world,
   Tensor<double> U;
   sygv(fock, overlap, 1, U, evals);
 
-  long nmo = fock.dim(0);
+  long nmo = fock.dim(0); // NOLINT
 
   bool switched = true;
   while (switched) {
@@ -2133,22 +2136,22 @@ Tensor<double> TDHF::get_fock_transformation(World &world,
   }
 
   // Fix phases.
-  for (long i = 0; i < nmo; ++i)
+  for (long i = 0; i < nmo; ++i) // NOLINT
     if (U(i, i) < 0.0)
       U(_, i).scale(-1.0);
 
   // Rotations between effectively degenerate components confound
   // the non-linear equation solver ... undo these rotations
-  long ilo = 0; // first element of cluster
+  long ilo = 0; // first element of cluster NOLINT
   while (ilo < nmo - 1) {
-    long ihi = ilo;
+    long ihi = ilo; // NOLINT
     while (fabs(evals[ilo] - evals[ihi + 1]) <
            thresh_degenerate * 100.0 * std::max(fabs(evals[ilo]), 1.0)) {
       ++ihi;
       if (ihi == nmo - 1)
         break;
     }
-    long nclus = ihi - ilo + 1;
+    long nclus = ihi - ilo + 1; // NOLINT
     if (nclus > 1) {
       Tensor<double> q = copy(U(Slice(ilo, ihi), Slice(ilo, ihi)));
 
@@ -3279,9 +3282,8 @@ void TDHF::Iterate(World &world) {
       deflateTDA(world, S, old_S, old_A, x_response, old_x_response,
                  ElectronResponses, OldElectronResponses, omega, iteration, m);
       // Constructing S
-    }
-    // Full TDHF
-    else {
+      // Full TDHF
+    } else {
       // Constructing S
       deflateFull(world, S, old_S, old_A, x_response, y_response,
                   old_x_response, old_y_response, ElectronResponses,
@@ -3422,9 +3424,10 @@ void TDHF::Iterate(World &world) {
     // Project out ground state
     for (int i = 0; i < m; i++)
       bsh_x_resp[i] = projector(bsh_x_resp[i]);
-    if (not Rparams.tda)
+    if (not Rparams.tda) {
       for (int i = 0; i < m; i++)
         bsh_y_resp[i] = projector(bsh_y_resp[i]);
+    }
 
     // Only update non-converged components
     for (int i = 0; i < m; i++) {
@@ -3448,9 +3451,10 @@ void TDHF::Iterate(World &world) {
     // Remember: the entire vector is one state
     for (int i = 0; i < m; i++)
       x_norms(i) = norm2(world, x_differences[i]);
-    if (not Rparams.tda)
+    if (not Rparams.tda) {
       for (int i = 0; i < m; i++)
         y_norms(i) = norm2(world, y_differences[i]);
+    }
 
     // Basic output
     if (Rparams.print_level >= 1) {
@@ -3693,7 +3697,6 @@ void TDHF::Iterate(World &world) {
   //  }
   //}
   // END TEST
-
 } // Done with iterate.
 
 // More detailed analysis of the response functions
@@ -3933,8 +3936,9 @@ void TDHF::IterateGuess(World &world, ResponseFunction &guesses) {
     // No*exp(log(Np/N0)/p*t) to exponential decay
     // the number of states down to 2*Rparams.states
     if (iteration > 1) {
-      Ni = std::ceil(N0 * std::exp(std::log(double(Np) / double(N0)) /
-                                   float(p) * iteration));
+      Ni = std::ceil(N0 * std::exp(std::log(static_cast<double>(Np) /
+                                            static_cast<double>(N0)) /
+                                   static_cast<double>(p) * iteration));
       sort(world, omega, guesses);
       guesses =
           select_functions(world, guesses, omega, Ni, Rparams.print_level);
@@ -4235,9 +4239,7 @@ ResponseFunction TDHF::diagonalize_CIS_guess(
 
 // Adds in random noise to a vector of vector of functions
 ResponseFunction TDHF::add_randomness(World &world, ResponseFunction &f,
-                                      double magnitude)
-
-{
+                                      double magnitude) {
   // Copy input functions
   ResponseFunction f_copy = f.copy();
 
@@ -4372,8 +4374,8 @@ Tensor<double> TDHF::CreateGroundHamiltonian(World &world,
   if (Gparams.xc == "hf") {
     // Construct V
     V = matrix_inner(world, f, vf) - matrix_inner(world, f, Kf);
-  } else // DFT
-  {
+  } else { // DFT
+
     XCOperator xcop = create_xcoperator(world, f, Gparams.xc);
 
     real_function_3d v_xc = xcop.make_xc_potential();
@@ -4515,8 +4517,9 @@ void TDHF::set_protocol(World &world, double thresh) {
   // input file
   if (Rparams.k > 0) {
     FunctionDefaults<NDIM>::set_k(Rparams.k);
-  } else
+  } else {
     FunctionDefaults<NDIM>::set_k(k);
+  }
 
   // MolDFT sets all these, so copying
   FunctionDefaults<NDIM>::set_thresh(thresh);
@@ -4809,7 +4812,7 @@ ResponseFunction TDHF::create_nwchem_guess(World &world, int m) {
     f.push_back(v1);
 
     // See if we've made enough functions
-    if (int(f.size()) >= m)
+    if (static_cast<int>(f.size()) >= m)
       break;
   }
   if (world.rank() == 0)
@@ -4991,8 +4994,8 @@ void TDHF::solve(World &world) {
           x_response = create_trial_functions2(world, Gparams.orbitals,
                                                Rparams.print_level);
         } else {
-          x_response = create_trial_functions(world, Gparams.orbitals,
-                                              Rparams.print_level);
+          x_response = create_trial_functions(
+              world, 2 * Rparams.states, Gparams.orbitals, Rparams.print_level);
         }
 
         // Load balance
@@ -5321,9 +5324,10 @@ void TDHF::iterate_polarizability(World &world, ResponseFunction &dipoles) {
     // Project out ground state
     for (int i = 0; i < m; i++)
       rhs_x[i] = projector(rhs_x[i]);
-    if (Rparams.omega != 0.0)
+    if (Rparams.omega != 0.0) {
       for (int i = 0; i < m; i++)
         rhs_y[i] = projector(rhs_y[i]);
+    }
 
     // Debugging output
     if (Rparams.print_level >= 2) {
@@ -5350,9 +5354,10 @@ void TDHF::iterate_polarizability(World &world, ResponseFunction &dipoles) {
     // Scale by -2.0 (coefficient in eq. 37 of reference paper)
     for (int i = 0; i < m; i++)
       bsh_x_resp[i] = bsh_x_resp[i] * (std::max(1.0, x_norms[i]) * -2.0);
-    if (Rparams.omega != 0.0)
+    if (Rparams.omega != 0.0) {
       for (int i = 0; i < m; i++)
         bsh_y_resp[i] = bsh_y_resp[i] * (std::max(1.0, x_norms[i]) * -2.0);
+    }
 
     // Debugging output
     if (Rparams.print_level >= 2) {
@@ -5381,9 +5386,10 @@ void TDHF::iterate_polarizability(World &world, ResponseFunction &dipoles) {
     // Remember: the entire vector is one state
     for (int i = 0; i < m; i++)
       x_norms(i) = norm2(world, x_differences[i]);
-    if (Rparams.omega != 0.0)
+    if (Rparams.omega != 0.0) {
       for (int i = 0; i < m; i++)
         y_norms(i) = norm2(world, y_differences[i]);
+    }
 
     // Basic output
     if (Rparams.print_level >= 1 and world.rank() == 0) {
@@ -5440,9 +5446,10 @@ void TDHF::iterate_polarizability(World &world, ResponseFunction &dipoles) {
     // Apply mask
     for (int i = 0; i < m; i++)
       x_response[i] = mask * x_response[i];
-    if (Rparams.omega != 0.0)
+    if (Rparams.omega != 0.0) {
       for (int i = 0; i < m; i++)
         y_response[i] = mask * y_response[i];
+    }
 
     // Update counter
     iteration += 1;
@@ -5530,8 +5537,8 @@ void TDHF::solve_polarizability(World &world) {
         load(world, Rparams.restart_file);
         check_k(world, Rparams.protocol_data[proto],
                 FunctionDefaults<3>::get_k());
-      } else // Dipole guesses
-      {
+      } else { // Dipole guesses
+
         x_response = dipole_guess(world, Gparams.orbitals);
         y_response = x_response.copy();
       }
