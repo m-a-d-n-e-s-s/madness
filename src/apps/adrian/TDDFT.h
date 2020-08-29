@@ -74,7 +74,8 @@ private:
 
 public:
   BS_MomentFunctor(int i, int j, int k) : i(i), j(j), k(k) {}
-  BS_MomentFunctor(const std::vector<int> &x) : i(x[0]), j(x[1]), k(x[2]) {}
+  explicit BS_MomentFunctor(const std::vector<int> &x)
+      : i(x[0]), j(x[1]), k(x[2]) {}
   double operator()(const Vector<double, 3> &r) const {
     double xi = 1.0, yj = 1.0, zk = 1.0;
     for (int p = 0; p < i; ++p)
