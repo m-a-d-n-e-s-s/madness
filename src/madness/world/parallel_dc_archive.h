@@ -96,24 +96,6 @@ namespace madness {
             void close() {}
         };
         
-        void xxxtest(World& world) {
-            //std::vector<unsigned char> v;
-            WorldContainer<long,std::vector<unsigned char>> dc(world);
-            if (world.rank() == 0) {
-                //VectorOutputArchive ar(v);
-                ContainerRecordOutputArchive ar(world, dc, 99);
-                int a=1, b=7;
-                ar & a & b;
-            }
-            if (world.rank() == 0) {
-                //VectorInputArchive ar(v);
-                ContainerRecordInputArchive ar(world, dc, 99);
-                int a, b;
-                ar & a & b;
-                std::cout << "I read " << a << " " << b << std::endl;
-            }
-            dc.get_world().gop.fence();
-        }
     }
 
 
