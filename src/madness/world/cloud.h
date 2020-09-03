@@ -10,6 +10,9 @@
 #ifndef SRC_MADNESS_WORLD_CLOUD_H_
 #define SRC_MADNESS_WORLD_CLOUD_H_
 
+
+#include <madness/world/parallel_dc_archive.h>
+
 namespace madness {
 
 
@@ -37,7 +40,8 @@ class Cloud  {
 	madness::WorldContainer<long,std::vector<unsigned char> > container;
 	bool debug=false;
 	bool dofence=true;
-
+public:
+private:
 	/// vector helper function
 	template <typename T, typename _ = void>
 	struct is_vector {
@@ -51,11 +55,25 @@ class Cloud  {
 	    static const bool value = true;
 	};
 
+	struct storetimer {
+		double cpu0;
+		storetimer() : cpu0(cpu_time()) {}
+		~storetimer() {
+			writing_time+=long((cpu_time()-cpu0)*1000l);
+		}
+	};
+	struct loadtimer {
+		double cpu0;
+		loadtimer() : cpu0(cpu_time()) {}
+		~loadtimer() {
+			reading_time+=long((cpu_time()-cpu0)*1000l);
+		}
+	};
+
+
 public:
-	/// @param[in]	w	the universe world
-	Cloud(madness::World& w) : container(w) {
-		MADNESS_ASSERT(w.id()==0);
-	}
+	/// @param[in]	universe	the universe world
+	Cloud(madness::World& universe) : container(universe){}
 
 	void set_debug(bool value) {
 		debug=value;
@@ -63,9 +81,9 @@ public:
 
 	template<typename T>
 	void store(madness::World& world, const T& source, const int record) {
+		storetimer t;
 		if (debug)
 			std::cout << "storing " << typeid(T).name() << " to record " << record << std::endl;
-
 		// scope is important because of destruction ordering of world objects and fence
 		{
 			madness::archive::ContainerRecordOutputArchive ar(world,container,record);
@@ -73,12 +91,14 @@ public:
 			par & source;
 		}
 		if (dofence) world.gop.fence();
+
 		if (debug) std::cout << "done with storing; container size " << container.size() << std::endl;
 	}
 
 
 	template<typename T>
 	void store(madness::World& world, const std::vector<T>& source, const int record) {
+		storetimer t;
 		if (debug)
 			std::cout << "storing vector of " << typeid(T).name() << " of size " << source.size() << " to record " << record << std::endl;
 
@@ -115,6 +135,7 @@ public:
 	template<typename T>
 	typename std::enable_if<!is_vector<T>::value, void>::type
 	load(madness::World& world, T& target, const int record) {
+		loadtimer t;
         if (debug) std::cout << "loading " << typeid(T).name() << " to world " << world.id() << " from record " << record << std::endl;
         madness::archive::ContainerRecordInputArchive ar(world,container,record);
         madness::archive::ParallelInputArchive<madness::archive::ContainerRecordInputArchive> par(world, ar);
@@ -126,6 +147,7 @@ public:
 	template<typename vecT>
 	typename std::enable_if<is_vector<vecT>::value && !std::is_constructible<typename vecT::value_type,World&>::value, void>::type
 	load(madness::World& world, vecT& target, const int record) {
+		loadtimer t;
 		typedef typename vecT::value_type T;
         if (debug) std::cout << "loading vector of type " << typeid(T).name() << " to world " << world.id() << " from record " << record << std::endl;
         madness::archive::ContainerRecordInputArchive ar(world,container,record);
@@ -144,6 +166,7 @@ public:
 	template<typename vecT>
 	typename std::enable_if<is_vector<vecT>::value && std::is_constructible<typename vecT::value_type,World&>::value, void>::type
 	load(madness::World& world, vecT& target, const int record) {
+		loadtimer t;
 		typedef typename vecT::value_type T;
         if (debug) std::cout << "loading vector of type " << typeid(T).name() << " to world " << world.id() << " from record " << record << std::endl;
         madness::archive::ContainerRecordInputArchive ar(world,container,record);
