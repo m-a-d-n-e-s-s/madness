@@ -105,7 +105,7 @@ namespace madness {
             return {false,0.0};
         }
 
-        // Non-const iterator deferences into pair(index&,value&)
+        // Non-const iterator dereferences into pair(index&,value&)
         struct iterator {
             std::vector<size_t>& indices;
             std::vector<T>& data;
@@ -117,7 +117,7 @@ namespace madness {
             std::pair<size_t&,T&> operator*() {return std::pair<size_t&,T&>(indices[i],data[i]);}
         };
 
-        // Const iterator deferences into pair(index,value)
+        // Const iterator dereferences into pair(index,value)
         struct const_iterator {
             const std::vector<size_t>& indices;
             const std::vector<T>& data;
@@ -274,6 +274,63 @@ namespace madness {
         }
     };
 
+    // Simple class storing sparse matrix as compressed sparse row with tiling
+    template <typename T=double>
+    class sparse_matrix_csr_tiled {
+    public:
+        struct triple {
+            size_t i;
+            size_t j;
+            T value;
+        };
+        struct lookup {
+            size_t nu;
+            size_t size;
+            size_t offset;
+        };
+        typedef std::vector<triple> rowtype;
+
+        size_t N,M,tilesize;
+        std::vector<rowtype> data;
+        std::vector<std::vector<lookup>> index;
+
+    public:
+        sparse_matrix_csr_tiled(size_t N, size_t M, size_t tilesize) : N(N), M(M), tilesize(tilesize), data(), index((M-1)/tilesize + 1) {}
+
+        // Returns the sparse vector representing row i
+        const rowtype& get_row(size_t i) const {return data.at(i);}
+        rowtype& get_row(size_t i) {return data.at(i);}
+
+        // Once data is loaded we need to complete the data structure
+        void complete() {
+            for (auto& row : data) {
+                if (row.size() > 0) {
+                    // 1) sort the rows so data in a tile is contiguous
+                    std::sort(row.begin(), row.end(),
+                              [](const triple& left, const triple& right) {return left.j < right.j;});
+
+                    size_t itile = row[0].i / tilesize;
+                    auto& rowindex = index[itile];
+
+                    // 2) Build the index vector
+                    lookup current = {size_t(-1),0,0};
+                    size_t offset = 0;
+                    for (const triple& entry : row) {
+                        size_t jtile = entry.j/tilesize;
+                        if (jtile != current.nu) {
+                            if (current.size > 0) rowindex.push_back(current);
+                            current = {jtile,0,offset};
+                        }
+                        current.size++;
+                        offset++;
+                    }
+                    if (current.size > 0) rowindex.push_back(current);
+                }
+            }
+        }
+    };
+
+
     // Print sparse matrix CSR
     template <typename T>
     std::ostream& operator<<(std::ostream& s, const sparse_matrix_csr<T>& A) {
@@ -303,7 +360,7 @@ namespace madness {
         size_t count=0;
         while (file >> i >> j >> value) {
 	  if (i<0) {print("breaking with ", count); break;}
-	  i--; j--; // fortran indexes from 1, c++ from 1
+	  i--; j--; // fortran indexes from 1, c++ from 0
 	  //MADNESS_ASSERT(i>=0 && i<N && j>=0 && j<N);
 	  if (i<0 || j<0 || i>=long(N) || j>=long(N)) {
 	    print("bad", count, ":", i, j, N, value);
@@ -321,6 +378,36 @@ namespace madness {
         for (auto& row : A) row.sort_indices();
         return A;
     }
+
+
+    // Read A test matrix from the configuration interaction (CI) code
+    sparse_matrix_csr_tiled<double> load_ci_matrix_tiled(const std::string& filename, size_t tilesize) {
+        std::fstream file(filename,std::ios::in);
+        size_t N;
+        file >> N;
+	print("read ", N);
+
+        sparse_matrix_csr_tiled<double> A(N,N,tilesize);
+        int ii, jj; // MUST BE SIGNED
+        double value;
+        size_t count=0;
+        while (file >> ii >> jj >> value) {
+	  if (ii<0) {print("breaking with ", count); break;}
+	  size_t i = ii-1;
+          size_t j = jj-1;
+          size_t itile = i/tilesize;
+          size_t jtile = j/tilesize;
+	  A.get_row(itile).push_back({i, j, value});
+	  if (i != j) A.get_row(jtile).push_back({j, i, value});
+	  count++;
+        }
+        print("load_ci_matrix:",N,count);
+        
+        A.complete();
+
+        return A;
+    }
+
 
     // // Converts a sparse_matrix_csr into a MADNESS tensor
     // template <typename T>
@@ -949,6 +1036,16 @@ T ShurSparseMC(const sparse_matrix_csr<T>& H, T E) {
     return E0 - sum;
 }
 
+/*
+
+  y = y + (x - A*y)
+
+  y = A^-1 x
+
+    = (1 - Z)^-1 x = (1 + Z + Z^2 + ...) x
+
+ */
+
 // Computes the Shur energy expression using fully sparse matrix
 // algebra and Monte Carlo This routine has code that demonstrates the
 // sign problem by computing with combinations of A+ and A-
@@ -987,6 +1084,8 @@ T ShurSparseMCX(const sparse_matrix_csr<T>& H, T E) {
 
     T DELTA = E; // (A-E) = (D-DELTA) + (A-D-E+DELTA)
 
+    T lambda = 1.0;
+
     // Shift and extract diagonal, and scale x
     Tensor<double> D(N-1);
     for (size_t i=0; i<N-1; i++) {
@@ -997,7 +1096,7 @@ T ShurSparseMCX(const sparse_matrix_csr<T>& H, T E) {
         x(i) *= rsqd;
     }
 
-    double omega = 1.0;
+    double omega = 0.733;
 
     // Scale and shift A to make Zomega = I - omega * A
     for (size_t i=0; i<N-1; i++) {
@@ -1007,8 +1106,8 @@ T ShurSparseMCX(const sparse_matrix_csr<T>& H, T E) {
         for (size_t jj=0; jj<ind.size(); jj++) {
             size_t j = ind[jj];
 	    if (i == j) dat[jj] = DELTA - E;
-	    dat[jj] *= -omega*D(i)*D(j);
-	    if (i == j) dat[jj] += 1.0 - omega;
+	    dat[jj] *= -lambda*omega*D(i)*D(j);
+	    if (i == j) dat[jj] += lambda*(1.0 - omega);
         }
     }
 
@@ -1027,6 +1126,7 @@ T ShurSparseMCX(const sparse_matrix_csr<T>& H, T E) {
     // }
     
     // // Test with the absolute value of the matrix elements
+    // print("USING ABSOLUTE VALUE OF THE MATRIX");
     // for (auto& row: A) {
     //   for (auto [j,value] : row) {
     // 	value = std::abs(value);//value<0 ? value : 0.0;
@@ -1039,21 +1139,28 @@ T ShurSparseMCX(const sparse_matrix_csr<T>& H, T E) {
         print("Zevals", eval0, eval1);
     }
 
+    // if (countx != N-1) {
+    //     sparse_matrix_csr<T> AA = A(Slice(countx,-1),Slice(countx,-1));
+    //     T eval0 = simple_power_iteration(AA, 0.0);
+    //     T eval1 = simple_power_iteration(AA, eval0);
+    //     print("TZevals", eval0, eval1);
+    // }
+
     // {
     //   Tensor<double> evals,evecs;
     //   syev(A.dense(), evecs, evals);
     //   print("dense Zevals",evals);
     // }
 
-    size_t nstep = 50;
+    size_t nstep = 40;
     {
       // test with simple von Neumann iteration
       Tensor<T> y = copy(x);
       Tensor<T> xk = copy(x);
       for (size_t iter=0; iter<nstep; iter++) {
+	print("vN", iter, x.trace(xk)*omega, y.trace(x)*omega);
 	xk = sparse_matrix_times_vector(A,xk);
 	y += xk;
-	print("vN", iter, y.trace(x)*omega);
       }
     }
 
@@ -1070,6 +1177,7 @@ T ShurSparseMCX(const sparse_matrix_csr<T>& H, T E) {
     size_t nsample = 1000000;
     std::vector<double> sum(nstep,0.0);
     std::vector<double> sumsq(nstep,0.0);
+    std::vector<double> stderr(nstep,0.0);
 
     vector_sampler<T> xsampler(x);
     sparse_matrix_sampler<T> Zsampler(A);
@@ -1081,6 +1189,7 @@ T ShurSparseMCX(const sparse_matrix_csr<T>& H, T E) {
       wi *= xsampler.norm();
       for (size_t step=0; step<nstep; step++) {
 	sum[step] += x[i]*wi;
+        sumsq[step] += (x[i]*wi)*(x[i]*wi);
 	auto [j,s] = Zsampler.sample(i);
 	wi *= s*Zsampler.norm(i);
 	i = j;
@@ -1088,12 +1197,20 @@ T ShurSparseMCX(const sparse_matrix_csr<T>& H, T E) {
     }
 
     for (auto& s : sum) s *= omega/nsample;
-    print(sum);
+    for (auto& s : sumsq) s *= omega*omega/nsample;
+    for (size_t k=0; k<nstep; k++) stderr[k] = std::sqrt((sumsq[k] - sum[k]*sum[k])/nsample);
+    for (size_t k=0; k<nstep; k++) print(k, sum[k], stderr[k]);
 
-    T s = 0.0;
-    for (auto v : sum) s += v;
+    T s = 0.0, ss = 0.0, lamk = 1.0;
+    for (auto v : sum) {
+      s += v; 
+      ss += lamk*v; 
+      print(v, lamk, s, ss);
+      lamk /= lambda;
+    }
 
-    print("sss", s, E0 - s );
+    print("x.x", x.trace(x)*omega);
+    print("sss", s, ss, E0 - ss );
 
     return 1.0;
 }
@@ -1137,8 +1254,11 @@ void test_sampler() {
 int main() {
     std::cout.precision(10);    
     sparse_matrix_csr A = load_ci_matrix("h2o-4037.txt");
-    //size_t Nuse = A.nrow()-1;
-    size_t Nuse = 400;
+
+    auto AA = load_ci_matrix_tiled("h2o-4037.txt", 2);
+
+    size_t Nuse = A.nrow()-1;
+    //size_t Nuse = 500;
     A = A(Slice(0,Nuse),Slice(0,Nuse)); 
     print(A.nrow(),A.nrow());
 
