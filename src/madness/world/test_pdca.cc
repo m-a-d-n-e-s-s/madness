@@ -239,7 +239,7 @@ int worlddc_test_vector(madness::Cloud& cloud, madness::World& universe, madness
 
 
 
-/// store a simple type (e.g. int, double, i.e. no distributed container)
+/// store a pod struct, world-constructible
 int pod_test(madness::Cloud& cloud, madness::World& universe, madness::World& subworld,
 		int color,int nsubworld) {
 

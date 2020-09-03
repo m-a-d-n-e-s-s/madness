@@ -500,7 +500,7 @@ int main(int argc, char** argv) {
 	real_function_6d psi;
 
 	std::string filename = "he_psi_exact";
-	bool exists = archive::ParallelInputArchive::exists(world,
+	bool exists = archive::ParallelInputArchive<madness::archive::BinaryFstreamInputArchive>::exists(world,
 			filename.c_str());
 	if (exists) {
 		if (world.rank() == 0) print("reading wave function from file");
