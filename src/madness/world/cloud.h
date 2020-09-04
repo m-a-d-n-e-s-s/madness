@@ -40,7 +40,11 @@ class Cloud  {
 	madness::WorldContainer<long,std::vector<unsigned char> > container;
 	bool debug=false;
 	bool dofence=true;
+
 public:
+	std::atomic<long> reading_time;	// in ms
+	std::atomic<long> writing_time;	// in ms
+
 private:
 	/// vector helper function
 	template <typename T, typename _ = void>
@@ -57,31 +61,45 @@ private:
 
 	struct storetimer {
 		double cpu0;
-		storetimer() : cpu0(cpu_time()) {}
+		std::atomic<long>& wtime;
+		storetimer(std::atomic<long>& writetime) : cpu0(cpu_time()), wtime(writetime) {}
 		~storetimer() {
-			writing_time+=long((cpu_time()-cpu0)*1000l);
+			wtime+=long((cpu_time()-cpu0)*1000l);
 		}
 	};
 	struct loadtimer {
 		double cpu0;
-		loadtimer() : cpu0(cpu_time()) {}
+		std::atomic<long>& rtime;
+		loadtimer(std::atomic<long>& readtime) : cpu0(cpu_time()), rtime(readtime)  {}
 		~loadtimer() {
-			reading_time+=long((cpu_time()-cpu0)*1000l);
+			rtime+=long((cpu_time()-cpu0)*1000l);
 		}
 	};
 
 
 public:
 	/// @param[in]	universe	the universe world
-	Cloud(madness::World& universe) : container(universe){}
+	Cloud(madness::World& universe) : container(universe), reading_time(0), writing_time(0){}
 
 	void set_debug(bool value) {
 		debug=value;
 	}
 
+	void print_timings(World& universe) const {
+		double rtime=double(reading_time);
+		double wtime=double(writing_time);
+		universe.gop.sum(rtime);
+		universe.gop.sum(wtime);
+		if (universe.rank()==0) {
+			std::cout << std::fixed << std::setprecision(1);
+			print("cloud storing cpu time", wtime*0.001);
+			print("cloud reading cpu time", rtime*0.001,std::defaultfloat);
+		}
+	}
+
 	template<typename T>
 	void store(madness::World& world, const T& source, const int record) {
-		storetimer t;
+		storetimer t(writing_time);
 		if (debug)
 			std::cout << "storing " << typeid(T).name() << " to record " << record << std::endl;
 		// scope is important because of destruction ordering of world objects and fence
@@ -98,7 +116,7 @@ public:
 
 	template<typename T>
 	void store(madness::World& world, const std::vector<T>& source, const int record) {
-		storetimer t;
+		storetimer t(writing_time);
 		if (debug)
 			std::cout << "storing vector of " << typeid(T).name() << " of size " << source.size() << " to record " << record << std::endl;
 
@@ -135,7 +153,7 @@ public:
 	template<typename T>
 	typename std::enable_if<!is_vector<T>::value, void>::type
 	load(madness::World& world, T& target, const int record) {
-		loadtimer t;
+		loadtimer t(reading_time);
         if (debug) std::cout << "loading " << typeid(T).name() << " to world " << world.id() << " from record " << record << std::endl;
         madness::archive::ContainerRecordInputArchive ar(world,container,record);
         madness::archive::ParallelInputArchive<madness::archive::ContainerRecordInputArchive> par(world, ar);
@@ -147,7 +165,7 @@ public:
 	template<typename vecT>
 	typename std::enable_if<is_vector<vecT>::value && !std::is_constructible<typename vecT::value_type,World&>::value, void>::type
 	load(madness::World& world, vecT& target, const int record) {
-		loadtimer t;
+		loadtimer t(reading_time);
 		typedef typename vecT::value_type T;
         if (debug) std::cout << "loading vector of type " << typeid(T).name() << " to world " << world.id() << " from record " << record << std::endl;
         madness::archive::ContainerRecordInputArchive ar(world,container,record);
@@ -166,7 +184,7 @@ public:
 	template<typename vecT>
 	typename std::enable_if<is_vector<vecT>::value && std::is_constructible<typename vecT::value_type,World&>::value, void>::type
 	load(madness::World& world, vecT& target, const int record) {
-		loadtimer t;
+		loadtimer t(reading_time);
 		typedef typename vecT::value_type T;
         if (debug) std::cout << "loading vector of type " << typeid(T).name() << " to world " << world.id() << " from record " << record << std::endl;
         madness::archive::ContainerRecordInputArchive ar(world,container,record);
