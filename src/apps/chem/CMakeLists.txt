@@ -8,7 +8,7 @@ set(MADCHEM_HEADERS
     corepotential.h atomutil.h SCF.h xcfunctional.h
     mp2.h nemo.h potentialmanager.h gth_pseudopotential.h
     molecular_optimizer.h projector.h
-    SCFOperators.h CCStructures.h CalculationParameters.h
+    SCFOperators.h exchangeoperator.h CCStructures.h CalculationParameters.h
     electronic_correlation_factor.h vibanal.h molopt.h TDHF.h CC2.h CCPotentials.h
     pcm.h SCFProtocol.h AC.h pointgroupoperator.h pointgroupsymmetry.h MolecularOrbitals.h 
 	znemo.h zcis.h  diamagneticpotentialfactor.h oep.h
@@ -17,7 +17,7 @@ set(MADCHEM_SOURCES
     correlationfactor.cc molecule.cc molecularbasis.cc vibanal.cc
     corepotential.cc atomutil.cc lda.cc
     distpm.cc SCF.cc gth_pseudopotential.cc nemo.cc mp2.cc pcm.cc
-    SCFOperators.cc TDHF.cc GuessFactory.cc CCStructures.cc CC2.cc CCPotentials.cc 
+    SCFOperators.cc  exchangeoperator.cc TDHF.cc GuessFactory.cc CCStructures.cc CC2.cc CCPotentials.cc 
     AC.cc pointgroupsymmetry.cc 
     znemo.cc zcis.cc diamagneticpotentialfactor.cc oep.cc
     PNO.cpp PNOF12Potentials.cpp PNOGuessFunctions.cpp PNOParameters.cpp PNOStructures.cpp

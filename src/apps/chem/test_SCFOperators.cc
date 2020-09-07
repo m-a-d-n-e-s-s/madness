@@ -443,7 +443,7 @@ int exchange_anchor_test(World& world, Exchange<T,3>& K, const double thresh) {
 
     std::vector<Function<T,3> > diff=sub(world,Kamo,Kamo1);
     std::vector<double> norms=norm2s(world,diff);
-    print("diffnorm in K",norms);
+    if (world.rank()==0) print("diffnorm in K",norms);
     int ierr=0;
     for (double& n : norms) {
         if (n>thresh*5.0) ierr++;           // tolerance 5.0 in the density
@@ -455,8 +455,9 @@ int exchange_anchor_test(World& world, Exchange<T,3>& K, const double thresh) {
 //    print(Kmat);
 //    print(Kmat1);
     double err=(Kmat-Kmat1).normf()/Kmat.size();
-    print("diff in Kmat compared to reference potential",err);
-    if (check_err(err,thresh,"Exchange potential error")) return 1;
+    if (world.rank()==0)
+    	print("diff in Kmat compared to reference potential",err);
+	if (check_err(err,thresh,"Exchange potential error")) return 1;
 
     // hard-wire!
     Tensor<double> hardwire(2,2);
@@ -465,8 +466,9 @@ int exchange_anchor_test(World& world, Exchange<T,3>& K, const double thresh) {
     hardwire(1,0)=3.70974661;
     hardwire(1,1)=2.36014231;
     err=(hardwire-Kmat1).normf()/Kmat.size();
-    print("diff in Kmat compared to hardwired result ",err);
-    if (check_err(err,thresh,"Exchange matrix element error")) return 1;
+    if (world.rank()==0)
+    	print("diff in Kmat compared to hardwired result ",err);
+	if (check_err(err,thresh,"Exchange matrix element error")) return 1;
     return 0;
 }
 
@@ -859,35 +861,35 @@ int main(int argc, char** argv) {
     FunctionDefaults<3>::set_k(8); // needed for XC test to work
 
     int result=0;
-    result+=test_kinetic<double,1>(world);
-    result+=test_kinetic<double,2>(world);
-    result+=test_kinetic<double,3>(world);
-#ifndef HAVE_GENTENSOR
-    result+=test_kinetic<double_complex,1>(world);
-    result+=test_kinetic<double_complex,2>(world);
-    result+=test_kinetic<double_complex,3>(world);
-#endif
-
-//    result+=test_kinetic<double,4>(world);
-//    result+=test_kinetic<double_complex,4>(world);
-
-    result+=test_coulomb<double>(world);
-#ifndef HAVE_GENTENSOR
-    result+=test_coulomb<double_complex>(world);
-#endif
-    if (!smalltest) {
+//    result+=test_kinetic<double,1>(world);
+//    result+=test_kinetic<double,2>(world);
+//    result+=test_kinetic<double,3>(world);
+//#ifndef HAVE_GENTENSOR
+//    result+=test_kinetic<double_complex,1>(world);
+//    result+=test_kinetic<double_complex,2>(world);
+//    result+=test_kinetic<double_complex,3>(world);
+//#endif
+//
+////    result+=test_kinetic<double,4>(world);
+////    result+=test_kinetic<double_complex,4>(world);
+//
+//    result+=test_coulomb<double>(world);
+//#ifndef HAVE_GENTENSOR
+//    result+=test_coulomb<double_complex>(world);
+//#endif
+//    if (!smalltest) {
     	result+=test_exchange<double>(world);
-#ifndef HAVE_GENTENSOR
-    	result+=test_exchange<double_complex>(world);
-#endif
-    	result+=test_XCOperator<double>(world);
-#ifndef HAVE_GENTENSOR
-    	result+=test_XCOperator<double_complex>(world);
-#endif
-    	result+=test_nuclear(world);
-    	result+=test_dnuclear(world);
-    	result+=test_nemo(world);
-	}
+//#ifndef HAVE_GENTENSOR
+//    	result+=test_exchange<double_complex>(world);
+//#endif
+//    	result+=test_XCOperator<double>(world);
+//#ifndef HAVE_GENTENSOR
+//    	result+=test_XCOperator<double_complex>(world);
+//#endif
+//    	result+=test_nuclear(world);
+//    	result+=test_dnuclear(world);
+//    	result+=test_nemo(world);
+//	}
 
     if (world.rank()==0) {
         if (result==0) print("\ntests passed\n");

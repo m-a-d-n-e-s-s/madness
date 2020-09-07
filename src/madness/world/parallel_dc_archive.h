@@ -60,7 +60,7 @@ namespace madness {
             VectorInputArchive ar;
             
         public:
-            ContainerRecordInputArchive(World& subworld, containerT& dc, const keyT& key)
+            ContainerRecordInputArchive(World& subworld, const containerT& dc, const keyT& key)
                 : rank(subworld.rank())
                 , v()
                 , ar(v)

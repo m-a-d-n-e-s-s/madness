@@ -42,8 +42,8 @@ class Cloud  {
 	bool dofence=true;
 
 public:
-	std::atomic<long> reading_time;	// in ms
-	std::atomic<long> writing_time;	// in ms
+	mutable std::atomic<long> reading_time;	// in ms
+	mutable std::atomic<long> writing_time;	// in ms
 
 private:
 	/// vector helper function
@@ -134,7 +134,7 @@ public:
 	// call this load if your argument has a constructor taking world as argument (e.g. WorldContainer)
 	template<typename T>
 	typename std::enable_if<std::is_constructible<T,World&>::value, T>::type
-	load(madness::World& world, const int record) {
+	load(madness::World& world, const int record) const {
 		T target(world);
 		load(world, target, record);
         return target;
@@ -143,7 +143,7 @@ public:
 	// call this load for simple types
 	template<typename T>
 	typename std::enable_if<!std::is_constructible<T,World&>::value, T>::type
-	load(madness::World& world, const int record) {
+	load(madness::World& world, const int record) const {
 		T target;
 		load(world, target, record);
         return target;
@@ -152,7 +152,7 @@ public:
 	// call this load to pass in an already constructed argument (not a vector)
 	template<typename T>
 	typename std::enable_if<!is_vector<T>::value, void>::type
-	load(madness::World& world, T& target, const int record) {
+	load(madness::World& world, T& target, const int record) const {
 		loadtimer t(reading_time);
         if (debug) std::cout << "loading " << typeid(T).name() << " to world " << world.id() << " from record " << record << std::endl;
         madness::archive::ContainerRecordInputArchive ar(world,container,record);
@@ -164,7 +164,7 @@ public:
 	// call this load to pass in an uninitialized vector, default-constructible
 	template<typename vecT>
 	typename std::enable_if<is_vector<vecT>::value && !std::is_constructible<typename vecT::value_type,World&>::value, void>::type
-	load(madness::World& world, vecT& target, const int record) {
+	load(madness::World& world, vecT& target, const int record) const {
 		loadtimer t(reading_time);
 		typedef typename vecT::value_type T;
         if (debug) std::cout << "loading vector of type " << typeid(T).name() << " to world " << world.id() << " from record " << record << std::endl;
@@ -183,7 +183,7 @@ public:
 	// call this load to pass in an uninitialized vector, world-constructible
 	template<typename vecT>
 	typename std::enable_if<is_vector<vecT>::value && std::is_constructible<typename vecT::value_type,World&>::value, void>::type
-	load(madness::World& world, vecT& target, const int record) {
+	load(madness::World& world, vecT& target, const int record) const {
 		loadtimer t(reading_time);
 		typedef typename vecT::value_type T;
         if (debug) std::cout << "loading vector of type " << typeid(T).name() << " to world " << world.id() << " from record " << record << std::endl;

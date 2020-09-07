@@ -53,14 +53,14 @@ public:
     virtual void print_me(std::string s="") const {}
 
 };
-
-std::ostream& operator<<(std::ostream& os, const MacroTaskBase::Status s) {
-	if (s==MacroTaskBase::Status::Running) os << "Running";
-	if (s==MacroTaskBase::Status::Waiting) os << "Waiting";
-	if (s==MacroTaskBase::Status::Complete) os << "Complete";
-	if (s==MacroTaskBase::Status::Unknown) os << "Unknown";
-	return os;
-}
+//
+//std::ostream& operator<<(std::ostream& os, const MacroTaskBase::Status s) {
+//	if (s==MacroTaskBase::Status::Running) os << "Running";
+//	if (s==MacroTaskBase::Status::Waiting) os << "Waiting";
+//	if (s==MacroTaskBase::Status::Complete) os << "Complete";
+//	if (s==MacroTaskBase::Status::Unknown) os << "Unknown";
+//	return os;
+//}
 
 template<typename macrotaskT>
 class MacroTaskIntermediate : public MacroTaskBase {
@@ -152,6 +152,7 @@ public:
 		double cpu00=cpu_time();
 
 		World& subworld=get_subworld();
+		print("I am subworld",subworld.id());
 		while (true){
 			long element=get_scheduled_task_number(subworld);
 			if (element<0) break;
