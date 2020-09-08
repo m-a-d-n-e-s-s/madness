@@ -45,8 +45,8 @@ int main(int argc, char** argv) {
 	// Get the name of the input file (if given)
 	const std::string input = (argc > 1) ? argv[1] : "input";
 
-	// get the orthogonalization method (cholesky, canonicalize, none) and basis_size
-	const std::string orthogonalization = (argc > 2) ? argv[2] : "cholesky";
+	// get the orthogonalization method (cholesky, symmetric, none) and basis_size
+	const std::string orthogonalization = (argc > 2) ? argv[2] : "symmetric";
 	const int basis_size = (argc > 3) ? std::atoi(argv[3]) : 10;
 
 	const bool only_diag = (argc > 4) ? bool(std::atoi(argv[4])) : false;
