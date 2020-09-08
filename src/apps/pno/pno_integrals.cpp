@@ -132,9 +132,9 @@ int main(int argc, char** argv) {
 	}
 	if(world.rank()==0 and mp2_energy != 0.0){
 		std::cout << "--------------------------------------------------\n";
-			std::cout<< std::setw(25) << "energy(total)" << " = " << scf_energy + mp2_energy << "\n";
-			std::cout << "--------------------------------------------------\n";
-			std::cout << "\n\n\n";
+		std::cout<< std::setw(25) << "energy(total)" << " = " << scf_energy + mp2_energy << "\n";
+		std::cout << "--------------------------------------------------\n";
+		std::cout << "\n\n\n";
 	}
 
 	// compute orthogonalized mp2 basis and print out hamiltonian tensors
@@ -146,27 +146,28 @@ int main(int argc, char** argv) {
 	const bool orthogonalize = orthogonalization != "none";
 	const double h_thresh = 1.e-4;
 	const double thresh = 1.e-4;//parameters.thresh();
-	const auto amo = nemo.get_calc()->amo;
 
 	if(world.rank()==0) std::cout << "Tightening thresholds to 1.e-6 for post-processing\n";
 	FunctionDefaults<3>::set_thresh(1.e-6);
 
+	vecfuncT reference = nemo.get_calc()->amo;
+	vecfuncT all_pnos;
+	std::string name;
 	for(auto& pairs: all_pairs){
 		const auto& pno_ij = pairs.pno_ij;
 		const auto& rdm_evals = pairs.rdm_evals_ij;
 		const bool is_gs = pairs.type == MP2_PAIRTYPE;
-		std::string name = "gs";
 
-		vecfuncT reference = amo;
 		if (not is_gs){
 			const auto& x = pairs.cis.x;
 			reference.insert(reference.end(), x.begin(), x.end());
 			name = "ex" + std::to_string(pairs.cis.number);
+		}else{
+			name = "gs";
 		}
 
-		std::vector<real_function_3d> all_basis_functions;// = nemo.get_calc()->amo;
-
 		std::vector<double> occ;
+		std::vector<real_function_3d> all_current_pnos;
 		// collect PNOs from all pairs and sort by occupation number
 		for(ElectronPairIterator it=pno.pit();it;++it){
 			if (only_diag and not it.diagonal()){
@@ -174,15 +175,15 @@ int main(int argc, char** argv) {
 				continue;
 			}else{
 				const auto& pair = pno_ij[it.ij()];
-				all_basis_functions.insert(all_basis_functions.end(), pair.begin(), pair.end());
+				all_current_pnos.insert(all_current_pnos.end(), pair.begin(), pair.end());
 				for (auto ii=0; ii<rdm_evals[it.ij()].size();++ii){
 					occ.push_back(rdm_evals[it.ij()][ii]);
 				}
 			}
 		}
 		std::vector<std::pair<double, real_function_3d> > zipped;
-		for (auto i=0; i< all_basis_functions.size(); ++i){
-			zipped.push_back(std::make_pair(occ[i], all_basis_functions[i]));
+		for (auto i=0; i< all_current_pnos.size(); ++i){
+			zipped.push_back(std::make_pair(occ[i], all_current_pnos[i]));
 		}
 
 		std::sort(zipped.begin(), zipped.end(), [](const auto& i, const auto& j) { return i.first > j.first; });
@@ -194,165 +195,177 @@ int main(int argc, char** argv) {
 			unzipped_second.push_back(zipped[i].second);
 		}
 		occ = unzipped_first;
-		all_basis_functions = unzipped_second;
+		all_current_pnos = unzipped_second;
 
 		if(world.rank()==0){
 			std::cout << "all used occupation numbers:\n" << occ << "\n";
 		}
 
-		// reference projector (not fullfilled for CIS)
-		madness::QProjector<double, 3> Q(world, reference);
-		all_basis_functions = Q(all_basis_functions);
+		all_pnos.insert(all_pnos.end(), all_current_pnos.begin(), all_current_pnos.end());
+	}
 
-		// compute overlap for cholesky decomposition
-		const auto S = madness::matrix_inner(world, all_basis_functions, all_basis_functions, true);
-		if(world.rank()==0) std::cout << "Overlap Matrix of all PNOs:\n";
-		for (int i=0;i<all_basis_functions.size();++i){
-			for (int j=0;j<all_basis_functions.size();++j){
-				std::cout << S(i,j) << " ";
+	// reference projector (not automatically fullfilled for CIS)
+	// projection is to keep the reference and CIS orbitals untouched in the orthogonalization
+	madness::QProjector<double, 3> Q(world, reference);
+	all_pnos = Q(all_pnos);
+
+	auto basis = all_pnos;
+
+	// compute overlap for cholesky decomposition
+	const auto S = madness::matrix_inner(world, all_pnos, all_pnos, true);
+	if(world.rank()==0) std::cout << "Overlap Matrix of all PNOs:\n";
+	for (int i=0;i<all_pnos.size();++i){
+		for (int j=0;j<all_pnos.size();++j){
+			std::cout << S(i,j) << " ";
+		}
+		if(world.rank()==0) std::cout << "\n";
+	}
+	auto gop = std::shared_ptr < real_convolution_3d > (madness::CoulombOperatorPtr(world, 1.e-6, parameters.op_thresh()));
+
+
+	if(not cherry_pick.empty()){
+		vecfuncT cp;
+		if(world.rank()==0){
+			std::cout << "Cherry picking orbitals: " << cherry_pick << " from pno basis\n";
+		}
+		for(auto i: cherry_pick){
+			cp.push_back(basis[i]);
+		}
+		basis = cp;
+	}
+
+	for(auto i=0;i<basis.size();++i){
+		madness::save(basis[i], "pno_"+std::to_string(i));
+	}
+
+	if (orthogonalize){
+		const auto old = copy(world, basis);
+		if (orthogonalization == "cholesky"){
+			basis = madness::orthonormalize_cd(basis);
+		}else if(orthogonalization == "symmetric"){
+			basis = madness::orthonormalize_symmetric(basis);
+		}else{
+			MADNESS_EXCEPTION("unknown orthonormalization method", 1);
+		}
+
+		auto old_new_overlap = madness::matrix_inner(world, basis, old);
+		if(world.rank()==0) {
+			std::cout << "Overlap Matrix before and after " << orthogonalization << "\n";
+			std::cout << old_new_overlap;
+		}
+
+		for (int i=0;i<basis.size();++i){
+			for (int j=0;j<basis.size();++j){
+				const auto tmpxs = old[i].inner(basis[j]);
+				std::cout << tmpxs << " ";
 			}
 			if(world.rank()==0) std::cout << "\n";
 		}
-		auto gop = std::shared_ptr < real_convolution_3d > (madness::CoulombOperatorPtr(world, 1.e-6, parameters.op_thresh()));
+	}
 
-		auto basis = all_basis_functions;
+	for(auto i=0;i<basis.size();++i){
+		madness::save(basis[i], "orthonormalized_pno_"+std::to_string(i));
+	}
 
-		if(not cherry_pick.empty()){
-			vecfuncT cp;
-			if(world.rank()==0){
-				std::cout << "Cherry picking orbitals: " << cherry_pick << " from pno basis\n";
-			}
-			for(auto i: cherry_pick){
-				cp.push_back(basis[i]);
-			}
-			basis = cp;
-		}
+	// will include CIS orbitals for excited states
+	if(world.rank()==0) std::cout << "Adding " << reference.size() << " Reference orbitals\n";
+	basis.insert(basis.begin(), reference.begin(), reference.end());
 
-		for(auto i=0;i<basis.size();++i){
-			madness::save(basis[i], "pno_"+std::to_string(i));
-		}
-
-		if (orthogonalize){
-			const auto old = copy(world, basis);
-			basis = madness::orthonormalize_cd(basis);
-			if(world.rank()==0) std::cout << "Basis size after global Cholesky: " << basis.size() << "\n";
-			if(world.rank()==0) std::cout << "Overlap Matrix before and after Cholesky\n";
-			for (int i=0;i<basis.size();++i){
-				for (int j=0;j<basis.size();++j){
-					const auto tmpxs = old[i].inner(basis[j]);
-					std::cout << tmpxs << " ";
-				}
-				if(world.rank()==0) std::cout << "\n";
-			}
-		}
-
-		for(auto i=0;i<basis.size();++i){
-			madness::save(basis[i], "orthonormalized_pno_"+std::to_string(i));
-		}
-
-		if(world.rank()==0) std::cout << "Adding Reference orbitals\n";
-		const auto amo = nemo.get_calc()->amo;
-		basis.insert(basis.begin(), reference.begin(), reference.end());
-
-		madness::Tensor<double> g(basis.size(), basis.size(), basis.size(), basis.size()); // using mulliken notation since thats more efficient to compute here: Tensor is (pq|g|rs) = <pr|g|qs>
+	madness::Tensor<double> g(basis.size(), basis.size(), basis.size(), basis.size()); // using mulliken notation since thats more efficient to compute here: Tensor is (pq|g|rs) = <pr|g|qs>
 
 
-		if(canonicalize){
-			if(world.rank()==0) std::cout << "canonicalizing!\n";
-			auto F = madness::Fock(world, &nemo);
-			const auto Fmat = F(basis, basis);
-			Tensor<double> U, evals;
-			syev(Fmat, U, evals);
-			basis = madness::transform(world, basis, U);
-		}
+	if(canonicalize){
+		if(world.rank()==0) std::cout << "canonicalizing!\n";
+		auto F = madness::Fock(world, &nemo);
+		const auto Fmat = F(basis, basis);
+		Tensor<double> U, evals;
+		syev(Fmat, U, evals);
+		basis = madness::transform(world, basis, U);
+	}
 
-		std::vector<vecfuncT> PQ;
-		for (const auto& x : basis){
-			PQ.push_back(madness::truncate(x*basis,thresh));
-		}
-		std::vector<vecfuncT> GPQ;
-		for (const auto& x : basis){
-			GPQ.push_back(madness::truncate(madness::apply(world, *gop, madness::truncate(x*basis,thresh)), thresh));
-		}
+	std::vector<vecfuncT> PQ;
+	for (const auto& x : basis){
+		PQ.push_back(madness::truncate(x*basis,thresh));
+	}
+	std::vector<vecfuncT> GPQ;
+	for (const auto& x : basis){
+		GPQ.push_back(madness::truncate(madness::apply(world, *gop, madness::truncate(x*basis,thresh)), thresh));
+	}
 
-		auto J = madness::Coulomb(world, &nemo);
-		auto K = madness::Exchange<double, 3>(world, &nemo, 0);
-		auto Jmat = J(basis, basis);
-		auto Kmat = K(basis, basis);
+	auto J = madness::Coulomb(world, &nemo);
+	auto K = madness::Exchange<double, 3>(world, &nemo, 0);
+	auto Jmat = J(basis, basis);
+	auto Kmat = K(basis, basis);
 
 
 
-		int non_zero=0;
-		if(world.rank() ==0 ) std::cout << "Compute G Tensor:\n";
-		for (auto p=0; p<basis.size(); p++){
-			for (auto q=0; q<basis.size(); q++){
-				if (PQ[p][q].norm2() < h_thresh) continue;
-				for (auto r=0; r<basis.size(); r++){
-					for (auto s=0; s<basis.size(); s++){
-						if (GPQ[r][s].norm2() < h_thresh) continue;
-						else{
-							g(p,q,r,s) = PQ[p][q].inner(GPQ[r][s]);
-							if(canonicalize and p==q){
-								g(p,q,r,s) += Kmat(r,s) - Jmat(r,s);
-							}else if(canonicalize and r==s){
-								g(p,q,r,s) += Kmat(p,q) - Jmat(p,q);
-							}
-							if(std::fabs(g(p,q,r,s)) > h_thresh ){
-								if(world.rank()==0 and basis.size() < 3) std::cout << " g " << p  << " "<<  q  << " "<<  r  << " "<<  s << " = " << g(p,q,r,s) << "\n";
-								++non_zero;
-							}
+	int non_zero=0;
+	if(world.rank() ==0 ) std::cout << "Compute G Tensor:\n";
+	for (auto p=0; p<basis.size(); p++){
+		for (auto q=0; q<basis.size(); q++){
+			if (PQ[p][q].norm2() < h_thresh) continue;
+			for (auto r=0; r<basis.size(); r++){
+				for (auto s=0; s<basis.size(); s++){
+					if (GPQ[r][s].norm2() < h_thresh) continue;
+					else{
+						g(p,q,r,s) = PQ[p][q].inner(GPQ[r][s]);
+						if(canonicalize and p==q){
+							g(p,q,r,s) += Kmat(r,s) - Jmat(r,s);
+						}else if(canonicalize and r==s){
+							g(p,q,r,s) += Kmat(p,q) - Jmat(p,q);
+						}
+						if(std::fabs(g(p,q,r,s)) > h_thresh ){
+							if(world.rank()==0 and basis.size() < 3) std::cout << " g " << p  << " "<<  q  << " "<<  r  << " "<<  s << " = " << g(p,q,r,s) << "\n";
+							++non_zero;
 						}
 					}
 				}
 			}
 		}
-		int non_zero_h = 0;
+	}
+	int non_zero_h = 0;
 
-		Tensor<double> h;
-		if(canonicalize){
-			auto F = madness::Fock(world, &nemo);
-			h = F(basis, basis);
-		}else{
-			auto T = madness::Kinetic<double, 3>(world);
-			auto V = madness::Nuclear(world, &nemo);
-			h = T(basis,basis) + V(basis,basis);
-		}
-		for (int i=0;i<basis.size();++i){
-			for (int j=0;j<basis.size();++j){
-				if(std::fabs(h(i,j)) > h_thresh){
-					if(world.rank()==0 and basis.size() < 3) std::cout << " h " << i << " "<< j << " "<< h(i,j) << "\n";
-					++non_zero_h;
-				}
+	Tensor<double> h;
+	if(canonicalize){
+		auto F = madness::Fock(world, &nemo);
+		h = F(basis, basis);
+	}else{
+		auto T = madness::Kinetic<double, 3>(world);
+		auto V = madness::Nuclear(world, &nemo);
+		h = T(basis,basis) + V(basis,basis);
+	}
+	for (int i=0;i<basis.size();++i){
+		for (int j=0;j<basis.size();++j){
+			if(std::fabs(h(i,j)) > h_thresh){
+				if(world.rank()==0 and basis.size() < 3) std::cout << " h " << i << " "<< j << " "<< h(i,j) << "\n";
+				++non_zero_h;
 			}
 		}
-
-		if(world.rank()==0) std::cout << "non zero elements:\n g : " << non_zero << "\n h : " << non_zero_h << "\n";
-
-		h = h.flat();
-		nc::NdArray<double> hh(h.ptr(), h.size(), 1);
-		hh.tofile(name+"_hcore.bin", "");
-
-		g = g.flat();
-		nc::NdArray<double> gg(g.ptr(), g.size(), 1);
-		gg.tofile(name+"_gtensor.bin", "");
-
-		if (not orthogonalize){
-			auto S = madness::matrix_inner(world, basis, basis, true);
-			S = S.flat();
-			nc::NdArray<double> gg(S.ptr(), S.size(), 1);
-			gg.tofile(name+"_overlap.bin", "");
-		}
-
-		auto Fop =  madness::Fock(world, &nemo);
-		auto F = Fop(basis, basis);
-		std::cout << "F\n" << F << "\n";
-
-		const auto Stest = madness::matrix_inner(world, basis, basis, true);
-		std::cout << "Overlap over whole basis\n" << Stest << "\n";
-
 	}
 
+	if(world.rank()==0) std::cout << "non zero elements:\n g : " << non_zero << "\n h : " << non_zero_h << "\n";
 
+	h = h.flat();
+	nc::NdArray<double> hh(h.ptr(), h.size(), 1);
+	hh.tofile(name+"_hcore.bin", "");
+
+	g = g.flat();
+	nc::NdArray<double> gg(g.ptr(), g.size(), 1);
+	gg.tofile(name+"_gtensor.bin", "");
+
+	if (not orthogonalize){
+		auto S = madness::matrix_inner(world, basis, basis, true);
+		S = S.flat();
+		nc::NdArray<double> gg(S.ptr(), S.size(), 1);
+		gg.tofile(name+"_overlap.bin", "");
+	}
+
+	auto Fop =  madness::Fock(world, &nemo);
+	auto F = Fop(basis, basis);
+	std::cout << "F\n" << F << "\n";
+
+	const auto Stest = madness::matrix_inner(world, basis, basis, true);
+	std::cout << "Overlap over whole basis\n" << Stest << "\n";
 
 
 	world.gop.fence();
