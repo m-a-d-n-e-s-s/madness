@@ -288,6 +288,9 @@ int main(int argc, char** argv) {
                 //}
                time2.stop().print("Made pair specific ABS from PNOS and " + std::to_string(cabs.size()) + " functions");
 
+            // Truncate cabs 
+            madness::truncate(world, cabs, thresh);
+
             // Merge {cabs} + {pno}
             if(world.rank()==0) std::cout << "Adding {cabs} to {pno+ref}.\n";
             if(world.rank()==0) std::cout << "Size before: " << pno_plus_ref.size() << ".\n";
@@ -297,6 +300,7 @@ int main(int argc, char** argv) {
 	          //basis.insert(basis.end()-1, cabs.begin(), cabs.end());
 	          basis.insert(basis.begin(), pno_plus_ref.begin(), pno_plus_ref.end());
             if(world.rank()==0) std::cout << "Size after: " << basis.size() << ".\n";
+
             
             }
             else if (cabs.empty()) {
@@ -413,7 +417,7 @@ int main(int argc, char** argv) {
                                     }
                                 }
                                 // f12-tensor
-                                if (FPQ[r][s].norm2() >= h_thresh and cabs_option.compare("none")==0) {
+                                if (FPQ[r][s].norm2() >= h_thresh and cabs_option.compare("none")!=0) {
                                     //f(p,q,r,s) = PQ[p][q].inner(FPQ[r][s]);
                                     f(p,q,r,s) = PQ[p][q].inner(FPQ[r][s]);
                                     if(std::fabs(f(p,q,r,s)) > h_thresh ){
@@ -445,7 +449,7 @@ int main(int argc, char** argv) {
                                     }
                                 }
                                 // f12-tensor
-                                if (FPQ[r][s].norm2() >= h_thresh and cabs_option.compare("none")==0) {
+                                if (FPQ[r][s].norm2() >= h_thresh and cabs_option.compare("none")!=0) {
                                     f(p,q,r,s) = PQ[p][q].inner(FPQ[r][s]);
                                     f(r,s,p,q) = f(p,q,r,s);
                                     if(std::fabs(f(p,q,r,s)) > h_thresh ){
@@ -472,7 +476,7 @@ int main(int argc, char** argv) {
                                }
                            }
                            // f12-tensor
-                           if (FPQ[r][s].norm2() >= h_thresh and cabs_option.compare("none")==0) {
+                           if (FPQ[r][s].norm2() >= h_thresh and cabs_option.compare("none")!=0) {
                                f(p,q,r,s) = PQ[p][q].inner(FPQ[r][s]);
                                if(std::fabs(f(p,q,r,s)) > h_thresh ){
                                    ++non_zero_f;
@@ -495,7 +499,7 @@ int main(int argc, char** argv) {
                         g(q,p,r,s) = g(p,q,r,s);
                         g(q,p,s,r) = g(p,q,r,s);
                         // f12-tensor 
-                        if (cabs_option.compare("none")==0){
+                        if (cabs_option.compare("none")!=0){
                             f(p,q,s,r) = f(p,q,r,s);
                             f(q,p,r,s) = f(p,q,r,s);
                             f(q,p,s,r) = f(p,q,r,s);
@@ -611,7 +615,7 @@ int main(int argc, char** argv) {
         nc::NdArray<double> gg(g.ptr(), g.size(), 1);
         gg.tofile(name+"_gtensor.bin", "");
 
-        if (cabs_option.compare("none")==0) {
+        if (cabs_option.compare("none")!=0) {
             f = f.flat();
             nc::NdArray<double> ff(f.ptr(), f.size(), 1);
             ff.tofile(name+"_f12tensor.bin", "");
