@@ -332,9 +332,11 @@ public:
             , a(a) {
       process_pending();
       dbuf_short_.reserve((world.nproc() > 1 ? RMI::max_msg_len() : 1024)/sizeof(double)-5);
-      std::generate_n(std::back_inserter(dbuf_short_), dbuf_short_.capacity(), []() { return rand()/(double)RAND_MAX; } );
       dbuf_long_.reserve((world.nproc() > 1 ? RMI::max_msg_len() : 1024)/sizeof(double)+5);
-      std::generate_n(std::back_inserter(dbuf_long_), dbuf_long_.capacity(), []() { return rand()/(double)RAND_MAX; } );
+
+      // make sure values are integer so equality correctness test is robust with compiler optimization
+      std::generate_n(std::back_inserter(dbuf_short_), dbuf_short_.capacity(), [&world]() { return world.rand(); } );
+      std::generate_n(std::back_inserter(dbuf_long_), dbuf_long_.capacity(), [&world]() { return world.rand(); } );
     }
 
     virtual ~Foo() { }
@@ -421,6 +423,7 @@ void test6(World& world) {
     PROFILE_FUNC;
     ProcessID me = world.rank();
     ProcessID nproc = world.nproc();
+    world.srand(73); // Everyone needs the same seed
     Foo a(world, me*100);
     const auto dbuf_sum = std::accumulate(a.dbuf().begin(), a.dbuf().end(), 0.0);
 
@@ -903,14 +906,16 @@ struct Node {
 
     void random_insert(const dcT& constd, const Key& keyin, double valin) {
         dcT& d = const_cast<dcT&>(constd);
+        MADNESS_CHECK(valin<=1.0);
         //print("inserting",keyin,valin);
         key = keyin;
         value = valin;
         isleaf = true;
-        if (value > 0.25 && d.size()<4000) {
+        if (value>0.25 && key.n<9 && d.size()<4000) {
             isleaf = false;
             World& world = d.get_world();
             double ran = world.drand();
+            MADNESS_CHECK(ran>=0 && ran<1.0);
             key.foreach_child(do_random_insert(d,value*ran));
         }
     }
@@ -993,7 +998,7 @@ void test11(World& world) {
     WorldContainer<Key,Node> d(world);
 
     // First build an oct-tree with random depth
-    world.srand();
+    world.srand(); // Each process will have a different random number
     print("first ran#",world.drand());
     world.gop.fence();
     if (me == 0) {
@@ -1006,7 +1011,7 @@ void test11(World& world) {
     //d.clear();
     d.erase(d.begin(),d.end());
     print("size after erasing",d.size());
-    world.srand();
+    world.srand(); // Each process will have a different random number
     print("first ran#",world.drand());
     world.gop.fence();
     // rebuild the tree in the same container
@@ -1147,7 +1152,7 @@ void work_odd(World& world) {
     test8(world);
     test9(world);
     test10(world);
-    test11(world);
+    //test11(world);
     // test12(world); cannot run due to filename collision
     // test13(world);
     world.gop.fence();
@@ -1161,7 +1166,7 @@ void work_even(World& world) {
     test8(world);
     test9(world);
     test10(world);
-    test11(world);
+    //test11(world);
     // test12(world); cannot run due to filename collision
     // test13(world);
     world.gop.fence();
@@ -1194,7 +1199,9 @@ void test_multi_world(World& world) {
             even.push_back(i);
     }
 
-    if (world.rank() & 0x1) {   // Odd processes
+    const int color = world.rank() % 2;
+
+    if (color) {   // Odd processes
       SafeMPI::Group g_odd = world.mpi.comm().Get_group().Incl(odd.size(), &odd[0]);
       SafeMPI::Intracomm comm_odd = world.mpi.comm().Create(g_odd);
       {
@@ -1210,14 +1217,12 @@ void test_multi_world(World& world) {
         work_even(world_even);
       }
     }
-
     world.gop.fence();
 
     // try to do the same but use MPI_Comm_split
     {
       std::cout << "== multiple worlds created with Intracomm::Split()==" << std::endl;
-      int color = world.rank() % 2;
-      SafeMPI::Intracomm comm = world.mpi.comm().Split(color, world.rank() / 2);
+      SafeMPI::Intracomm comm = world.mpi.comm().Split(color, world.rank());
       std::cout << "split_comm.size() = " << comm.Get_size() << std::endl;
       World subworld(comm);
       if (color == 1)
@@ -1230,7 +1235,7 @@ void test_multi_world(World& world) {
     // now split world by host and run tasks on each host's world
     {
       std::cout << "== multiple worlds created with Intracomm::Split_type()==" << std::endl;
-      SafeMPI::Intracomm comm = world.mpi.comm().Split(SafeMPI::Intracomm::SHARED_SPLIT_TYPE, 0);
+      SafeMPI::Intracomm comm = world.mpi.comm().Split_type(SafeMPI::Intracomm::SHARED_SPLIT_TYPE, world.rank());
       std::cout << "split_comm.size() = " << comm.Get_size() << std::endl;
       World subworld(comm);
       work_even(subworld);
@@ -1288,14 +1293,6 @@ int main(int argc, char** argv) {
         PROFILE_BLOCK(main_program);
 
         test0(world);
-        // ??????  When/why did these tests get deleted?
-//       if (world.nproc() > 1) {
-//         test1(world);
-//         test2(world);
-//         test3(world);
-//       }
-//       test4(world);
-//       test4a(world);
         test5(world);
         test6(world);
         test6a(world);

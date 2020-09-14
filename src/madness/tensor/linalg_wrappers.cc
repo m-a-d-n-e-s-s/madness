@@ -232,7 +232,7 @@ namespace madness {
       real4* W ) {
     
         integer lwork = -1;
-        integer lrwork = std::max(1, 3*n-2);
+        integer lrwork = std::max(integer(1), 3*n-2);
         integer info;
     
         std::vector<real4> rwork( lrwork );
@@ -266,7 +266,7 @@ namespace madness {
       real8* W ) {
     
         integer lwork = -1;
-        integer lrwork = std::max(1, 3*n-2);
+        integer lrwork = std::max(integer(1), 3*n-2);
         integer info;
     
         std::vector<real8> rwork( lrwork );
@@ -310,7 +310,7 @@ namespace madness {
     
     template <>
     void hereig_gen( integer itype, char jobz, char uplo, integer n, real4* A, 
-                     integer lda, real4* B, int ldb, real4* W ) {
+                     integer lda, real4* B, integer ldb, real4* W ) {
     
         integer lwork = -1;
         integer info;
@@ -343,7 +343,7 @@ namespace madness {
     
     template <>
     void hereig_gen( integer itype, char jobz, char uplo, integer n, real8* A, 
-                     integer lda, real8* B, int ldb, real8* W ) {
+                     integer lda, real8* B, integer ldb, real8* W ) {
     
         integer lwork = -1;
         integer info;
@@ -379,7 +379,7 @@ namespace madness {
                      integer lda, complex_real4* B, integer ldb, real4* W ) {
     
         integer lwork = -1;
-        integer lrwork = std::max(1, 3*n-2);
+        integer lrwork = std::max(integer(1), 3*n-2);
         integer info;
     
         std::vector<real4> rwork( lrwork );
@@ -415,7 +415,7 @@ namespace madness {
                      integer lda, complex_real8* B, integer ldb, real8* W ) {
     
         integer lwork = -1;
-        integer lrwork = std::max(1, 3*n-2);
+        integer lrwork = std::max(integer(1), 3*n-2);
         integer info;
       
         std::vector<real8> rwork( lrwork );
