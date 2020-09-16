@@ -258,7 +258,7 @@ int test_periodic_bsh(World& world)
   SeparatedConvolution<double,3> op = BSHOperator3D(world, mu, 1e-6, thresh);
   std::cout.precision(10);
 
-  Function<double_complex,3> opf = apply(op,f);
+  Function<double_complex,3> opf = madness::apply(op,f);
   opf.reconstruct();
 
   print("i,value,exact,relerr");

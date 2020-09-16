@@ -248,20 +248,22 @@ namespace madness {
         /// \param[in] fn a function or function pointer
         template <typename T, typename = std::enable_if_t<std::is_function<T>::value || is_function_pointer<T>::value>>
         std::ptrdiff_t to_rel_fn_ptr(const T& fn) {
+          std::ptrdiff_t retval;
           if
 #if __cplusplus >= 201703L
             constexpr
 #endif
             (std::is_function<T>::value) {
             static_assert(sizeof(std::ptrdiff_t) == sizeof(T*));
-            return reinterpret_cast<std::ptrdiff_t>(&fn) - fn_ptr_origin();
+            retval = reinterpret_cast<std::ptrdiff_t>(&fn) - fn_ptr_origin();
           }
           else {
 #if __cplusplus >= 201703L
             static_assert(sizeof(std::ptrdiff_t) == sizeof(T));
 #endif
-            return reinterpret_cast<std::ptrdiff_t>(fn) - fn_ptr_origin();
+            retval = reinterpret_cast<std::ptrdiff_t>(fn) - fn_ptr_origin();
           }
+          return retval; // To silence stupid Intel 19* compiler
         }
 
         /// \brief converts nonstatic member function pointer to the relative equivalent

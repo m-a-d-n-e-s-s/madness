@@ -321,7 +321,7 @@ namespace madness {
         }
     };
 
-#ifdef MADNESS_DQ_USE_PREBUF
+#if defined(MADNESS_DQ_USE_PREBUF) && !defined(MADNESS_CXX_COMPILER_IS_ICC)
     template <typename T> thread_local T DQueue<T>::prebuf[DQueue<T>::NPREBUF] = {T{}};
     template <typename T> thread_local T DQueue<T>::prebufhi[DQueue<T>::NPREBUF] = {T{}};
     template <typename T> thread_local size_t DQueue<T>::ninprebuf = 0;

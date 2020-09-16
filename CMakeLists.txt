@@ -606,12 +606,18 @@ endif (DEFINED ELEMENTAL_TAG)
 # Add project subdirectories ===================================================
 
 # predefine targets
+add_custom_target(everything)
+add_dependencies(everything madness)
+
 if(NOT MADNESS_BUILD_MADWORLD_ONLY AND LAPACK_FOUND)
 	add_custom_target_subproject(madness numerical-examples)
+	add_custom_target_subproject(madness applications)
 endif()
+
 # Create build and install libraries libraries
 add_custom_target(madness-libraries)
 add_custom_target(install-madness-libraries)
+add_dependencies(everything madness-libraries)
 
 include_directories(${PROJECT_SOURCE_DIR}/src ${PROJECT_BINARY_DIR}/src)
 set(CMAKE_INCLUDE_CURRENT_DIR_IN_INTERFACE TRUE)
@@ -622,6 +628,7 @@ if(ENABLE_UNITTESTS)
   set(MADNESS_HAS_GOOGLE_TEST 1)
   add_custom_target_subproject(madness unittests)
   add_custom_target_subproject(madness check COMMAND ${CMAKE_CTEST_COMMAND} USES_TERMINAL) # to be GNU compatible
+  add_dependencies(everything unittests)
 endif()
 add_subdirectory(src)
 add_subdirectory(doc)

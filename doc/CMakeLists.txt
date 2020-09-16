@@ -10,6 +10,10 @@ if(DOXYGEN_FOUND)
   add_custom_target_subproject(madness docs)
   add_dependencies(docs-madness html-madness)
 
+  add_dependencies(everything docs)
+  add_dependencies(everything docs-madness)
+  add_dependencies(everything html-madness)
+
   install(DIRECTORY html
       DESTINATION "${MADNESS_INSTALL_DOCDIR}" OPTIONAL
       COMPONENT docs)
