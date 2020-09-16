@@ -169,9 +169,9 @@ public:
 
 	}
 
-    double value(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
+    double value(const vecfuncT& HF_nemo) {
     	set_protocol(calc->param.econv());
-    	solve(HF_nemo,HF_eigvals);
+    	solve(HF_nemo);
     	return 0.0;
     }
 
@@ -181,7 +181,7 @@ public:
 	/// note that KS_nemo is a reference and changes oep->get_calc()->amo orbitals
 	/// same for orbital energies (eigenvalues) KS_eigvals which is oep->get_calc()->aeps
 	/// converged if norm, total energy difference and orbital energy differences (if not OAEP) are converged
-    void solve(const vecfuncT& HF_nemo, const tensorT& HF_eigvals);
+    void solve(const vecfuncT& HF_nemo);
 
     double iterate(const std::string model, const vecfuncT& HF_nemo, const tensorT& HF_eigvals,
     		vecfuncT& KS_nemo, tensorT& KS_Fock, real_function_3d& Voep,
@@ -200,7 +200,7 @@ public:
     std::tuple<Tensor<double>, vecfuncT> recompute_HF(const vecfuncT& HF_nemo) const;
 
     /// The following function tests all essential parts of the OEP program qualitatively and some also quantitatively
-    void test_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals);
+    int test_oep(const vecfuncT& HF_nemo);
 
     bool need_ocep_correction(const std::string model) const {
     	return (model=="ocep") or (model=="dcep") or (model=="mrks");
@@ -268,7 +268,7 @@ public:
 //        real_function_3d lra = -1.0*J.compute_potential(R_square*square(nemo[homo_ind]));
         Coulomb J(world,this);
         real_function_3d lra=-1.0/(calc->param.nalpha()+calc->param.nbeta())*J.compute_potential(this);
-        print("compute long-range part of the Slater potential from the full molecular density");
+//        print("compute long-range part of the Slater potential from the full molecular density");
         if (oep_param.saving_amount() >= 3) save(lra, "lra_slater");
 
         real_function_3d zero=real_factory_3d(world);
@@ -418,21 +418,6 @@ public:
     	return correction;
 
     }
-
-    /// return without the NCF and factor 2 for closed shell !
-    real_function_3d compute_energy_weighted_density(const vecfuncT& nemo, const tensorT& eigval) const {
-
-    	// transform 1d tensor eigvals to vector epsilon
-		std::vector<double> epsilon(eigval.size());
-		for (int i = 0; i < eigval.size(); i++) epsilon[i] = eigval(i);
-
-		vecfuncT nemo_square = square(world, nemo); // |nemo|^2
-		scale(world, nemo_square, epsilon); // epsilon*|nemo|^2
-		// 2.0*R_square in numerator and density (rho) cancel out upon division
-		real_function_3d numerator = sum(world, nemo_square);
-		return numerator;
-    }
-
 
     /// return without the NCF and factor 2 for closed shell !
 

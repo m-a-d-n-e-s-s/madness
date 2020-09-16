@@ -7,6 +7,7 @@
 
 #include <chem/oep.h>
 #include <chem/BSHApply.h>
+#include <chem/test_utilities.h>
 
 
 
@@ -18,7 +19,7 @@ namespace madness {
 /// note that KS_nemo is a reference and changes oep->get_calc()->amo orbitals
 /// same for orbital energies (eigenvalues) KS_eigvals which is oep->get_calc()->aeps
 /// converged if norm, total energy difference and orbital energy differences (if not OAEP) are converged
-void OEP::solve(const vecfuncT& HF_nemo1, const tensorT& HF_eigvals) {
+void OEP::solve(const vecfuncT& HF_nemo1) {
 
 	// recompute HF Fock matrix and orbitals
 	auto [HF_Fock, HF_nemo] = recompute_HF(HF_nemo1);
@@ -47,7 +48,7 @@ void OEP::solve(const vecfuncT& HF_nemo1, const tensorT& HF_eigvals) {
 	calc->aeps=eval;
 	calc->amo=KS_nemo;
 
-	save(Voep,"OEP_final");
+	save(Voep,"OEPapprox_final");
 	save_restartdata(KS_Fock);
 
 	printf("      +++ FINAL TOTAL %s ENERGY = %15.8f  Eh +++\n\n\n", oep_param.model().back().c_str(), energy);
@@ -354,146 +355,157 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 
 
 /// The following function tests all essential parts of the OEP program qualitatively and some also quantitatively
-void OEP::test_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
+int OEP::test_oep(const vecfuncT& HF_nemo1) {
 
-    bool everything_ok = true;
+	int ierr=0;
+	set_protocol(calc->param.econv());
 
     // Start by testing all important functions. If something severe fails, they throw an exception
     print("\n   >> test calculation of all important functions - severe errors will cause an exception\n");
 
-    print("test calculation of HOMO index from HF calculation");
-    print("     the HOMO index is ...", homo_ind(HF_eigvals));
-    print("  HOMO index computed successfully\n");
+    test_output hfdens("test construction of HF density");
+    const real_function_3d rho_HF = compute_density(HF_nemo1);
+    hfdens.end(true);
 
-    print("test construction of HF density");
-    const real_function_3d rho_HF = compute_density(HF_nemo);
-    print("  HF density computed successfully\n");
+    test_output hf_recompute("test recomputation of HF orbitals and fock matrix");
+	auto [HF_Fock, HF_nemo] = recompute_HF(HF_nemo1);
+	double err_hf=norm2(world,HF_nemo1-HF_nemo);
+	hf_recompute.end(err_hf<param.econv());
 
-    print("test construction of Slater potential");
+    test_output slater("test computation of the Slater potential");
     const real_function_3d Vs = compute_slater_potential(HF_nemo);
-    print("  Slater potential computed successfully\n");
+    double refn1=1.70581413e+01;
+    double n1=Vs.norm2();
+    slater.logger << "  norm of the Slater potential " << n1 << std::endl;
+    ierr+=slater.end(fabs(n1-refn1) < param.econv());
 
-    print("test construction of IHF");
-    const real_function_3d IHF = compute_energy_weighted_density(HF_nemo, HF_eigvals);
-    print("  compute_energy_weighted_density computed successfully\n");
+    test_output ihf("test computation of the energy_weighted density IHF");
+    const real_function_3d IHF = compute_energy_weighted_density_local(HF_nemo,HF_Fock);
+    double refn2=4.48800120e+00;
+    double n2=IHF.norm2();
+    ihf.logger << "  norm of the IHF potential " << n2 << std::endl;
+    ierr+=ihf.end(fabs(n2-refn2) < param.econv());
 
-    print("test construction of kin_tot_HF (tau/rho HF)");
+    test_output kinhf("test computation of the kinetic density for dcep");
     const real_function_3d kin_tot_HF = compute_total_kinetic_density(HF_nemo);
-    print("  kin_tot_HF computed successfully\n");
+    double refn3=7.02281570e+00;
+    double n3=kin_tot_HF.norm2();
+    kinhf.logger << "  norm of the kin_tot_HF potential " << n3 << std::endl;
+    ierr+=kinhf.end(fabs(n3-refn3) < param.econv());
 
-    print("test construction of kin_P_HF (tau_P/rho HF)");
+    test_output paulihf("test computation of the pauli kinetic density for mrks");
     const real_function_3d kin_P_HF = compute_Pauli_kinetic_density(HF_nemo);
-    print("  kin_P_HF computed successfully\n");
+    double refn4= 7.59945929e-02;
+    double n4=kin_P_HF.norm2();
+    paulihf.logger << "  norm of the kin_P_HF potential " << n4 << std::endl;
+    ierr+=paulihf.end(fabs(n4-refn4) < param.econv());
 
     print("\n   >> test some quantities based on the reference HF calculation\n");
 
     vecfuncT Knemo;
 	compute_exchange_potential(HF_nemo, Knemo);
 
-    print("test conventional HF exchange energy");
+    test_output conv_hf("test conventional HF exchange energy");
     const double Exconv_HF_correct = -2.66691504; // exchange energy from nemo calculation
-    print("HF exchange energy of the system should be", Exconv_HF_correct, "Eh");
+    conv_hf.logger << "HF exchange energy of the system should be " <<  Exconv_HF_correct << " Eh" << std::endl;
     const double Exconv_HF = compute_exchange_energy_conv(R*HF_nemo, R*Knemo);
     const double Exconv_HF_diff = fabs(Exconv_HF_correct - Exconv_HF);
-    print("     the HF exchange energy of the system is ...", Exconv_HF, "Eh");
-    print("     error:", Exconv_HF_diff, "Eh");
-    if (Exconv_HF_diff <= param.econv()) print("  conventional HF exchange energy is correct\n");
-    else {
-    	print("  ATTENTION: conventional HF exchange energy error is larger than energy convergence threshold (econv)!\n");
-    	everything_ok = false;
-    }
+    conv_hf.logger << "the HF exchange energy of the system is ... " <<  Exconv_HF <<" Eh" << std::endl;
+    conv_hf.logger << "the error is ... " <<  std::scientific << Exconv_HF_diff <<" Eh" << std::endl;
+    ierr+=conv_hf.end(Exconv_HF_diff < param.econv());
 
-    print("test HF exchange energy via Slater potential");
-    const double ExVs_HF_correct = -2.66691504; // exchange energy from nemo calculation
-    print("HF exchange energy of the system should be", ExVs_HF_correct, "Eh");
+
+    test_output slater_x("test HF exchange energy via Slater potential");
+    const double ExVs_HF_correct = -2.666912; // exchange energy from nemo calculation
+    slater_x.logger << "  HF exchange energy of the system should be "
+    		<< std::scientific << std::setprecision(8) <<  ExVs_HF_correct << " Eh"<<std::endl;
     const double ExVs_HF = 0.5*inner(rho_HF, Vs);
     const double ExVs_HF_diff = fabs(ExVs_HF_correct - ExVs_HF);
-    print("     the HF exchange energy of the system is ...", ExVs_HF, "Eh");
-    print("     error:", ExVs_HF_diff, "Eh");
-    if (ExVs_HF_diff <= param.econv()) print("  HF exchange energy via Slater potential is correct\n");
-    else {
-    	print("  ATTENTION: HF exchange energy (via Slater potential) error is larger than energy convergence threshold (econv)!\n");
-    	everything_ok = false;
-    }
+    slater_x.logger <<"  the HF exchange energy of the system is ... " << ExVs_HF << " Eh" << std::endl;
+    slater_x.logger <<"  error: "  << ExVs_HF_diff <<  " Eh" << std::endl;;
+    ierr+=slater_x.end(ExVs_HF_diff < param.econv());
 
-    print("test virial HF exchange energy (with Slater potential)");
-    const double Exvir_HF_correct = -3.00658754; // exchange energy from a test calculation with HF reference
-    print("HF virial exchange energy of the system should be", Exvir_HF_correct, "Eh");
+
+    test_output slater_x_vir("test virial HF exchange energy (with Slater potential)");
+    const double Exvir_HF_correct = -3.00661935; // exchange energy from a test calculation with HF reference
+    slater_x_vir.logger << "  HF virial exchange energy of the system should be "
+    		<< std::scientific << std::setprecision(8) << Exvir_HF_correct << " Eh" << std::endl;
     const double Exvir_HF = compute_exchange_energy_vir(HF_nemo, Vs);
     const double Exvir_HF_diff = fabs(Exvir_HF_correct - Exvir_HF);
-    print("     the virial HF exchange energy of the system is ...", Exvir_HF, "Eh");
-    print("     error:", Exvir_HF_diff, "Eh");
-    if (Exvir_HF_diff <= param.econv()) print("  virial HF exchange energy is correct\n");
-    else {
-    	print("  ATTENTION: virial HF exchange energy error is larger than energy convergence threshold (econv)!\n");
-    	everything_ok = false;
-    }
+    slater_x_vir.logger << "  the virial HF exchange energy of the system is ... " << Exvir_HF <<" Eh" << std::endl;
+    slater_x_vir.logger << "  error: " << Exvir_HF_diff << " Eh" << std::endl;
+    ierr+=slater_x_vir.end(Exvir_HF_diff < param.econv());
 
-    print("test virial HF exchange energy (with only HF OCEP: IKS = 0)");
-    real_function_3d V_HFocep = Vs + IHF;
-    const double Exvir_HFocep_correct = -0.47639487; // exchange energy from a test calculation with HF reference
-    print("HF OCEP virial exchange energy of the system should be", Exvir_HFocep_correct, "Eh");
+
+    print("\n   >> test solve_oep function with oaep model for 2 iterations\n");
+
+    tensorT KS_Fock=copy(HF_Fock);
+	vecfuncT KS_nemo = copy(world,calc->amo);
+	real_function_3d Voep = copy(Vs);
+    double energy=iterate("oaep",HF_nemo,HF_Fock,KS_nemo,KS_Fock,Voep,Vs);
+
+
+    test_output ihf_vir("test virial ocep exchange energy");
+    save(IHF,"IHF");
+    vecfuncT empty; tensorT fock0(2,2);
+    real_function_3d V_HFocep = compute_ocep_correction(IHF, HF_nemo, KS_nemo, HF_Fock, KS_Fock);
+    const double Exvir_HFocep_correct = -5.01251194e+00; // exchange energy from a test calculation with HF reference
+    ihf_vir.logger  << "HF OCEP virial exchange energy of the system should be "
+    		<< std::scientific << std::setprecision(8) << Exvir_HFocep_correct << " Eh" << std::endl;
     const double Exvir_HFocep = compute_exchange_energy_vir(HF_nemo, V_HFocep);
     const double Exvir_HFocep_diff = fabs(Exvir_HFocep_correct - Exvir_HFocep);
-    print("     the virial HF OCEP exchange energy of the system is ...", Exvir_HFocep, "Eh");
-    print("     error:", Exvir_HFocep_diff, "Eh");
-    if (Exvir_HFocep_diff <= param.econv()) print("  virial HF OCEP exchange energy is correct\n");
-    else {
-    	print("  ATTENTION: virial HF OCEP exchange energy error is larger than energy convergence threshold (econv)!\n");
-    	everything_ok = false;
-    }
+    ihf_vir.logger << "  the virial HF OCEP exchange energy of the system is ... "<< Exvir_HFocep<<" Eh"<<std::endl;
+    ihf_vir.logger << " error: "<< Exvir_HFocep_diff << " Eh" << std::endl;
+    ierr+=ihf_vir.end(Exvir_HFocep_diff < param.econv());
 
-    print("test virial HF exchange energy (with only HF DCEP: IKS = 0, kin_tot_KS = 0)");
-    real_function_3d V_HFdcep = Vs + IHF + kin_tot_HF;
-    const double Exvir_HFdcep_correct = 4.03650400; // exchange energy from a test calculation with HF reference
-    print("HF DCEP virial exchange energy of the system should be", Exvir_HFdcep_correct, "Eh");
+
+    test_output ihf_kin_vir("test virial dcep exchange energy");
+    real_function_3d V_HFdcep = compute_dcep_correction(kin_tot_HF, HF_nemo, KS_nemo);
+    const double Exvir_HFdcep_correct = 7.83817133e-02; // exchange energy from a test calculation with HF reference
+    ihf_kin_vir.logger << "HF DCEP virial exchange energy of the system should be "
+    		<< std::scientific << std::setprecision(8) << Exvir_HFdcep_correct << " Eh" << std::endl;
     const double Exvir_HFdcep = compute_exchange_energy_vir(HF_nemo, V_HFdcep);
     const double Exvir_HFdcep_diff = fabs(Exvir_HFdcep_correct - Exvir_HFdcep);
-    print("     the virial HF DCEP exchange energy of the system is ...", Exvir_HFdcep, "Eh");
-    print("     error:", Exvir_HFdcep_diff, "Eh");
-    if (Exvir_HFdcep_diff <= param.econv()) print("  virial HF DCEP exchange energy is correct\n");
-    else {
-    	print("  ATTENTION: virial HF DCEP exchange energy error is larger than energy convergence threshold (econv)!\n");
-    	everything_ok = false;
-    }
+    ihf_kin_vir.logger << "  the virial HF DCEP exchange energy of the system is ... " << Exvir_HFdcep << " Eh" << std::endl;
+    ihf_kin_vir.logger << "  error: " << Exvir_HFdcep_diff << " Eh" << std::endl;
+    ierr+=ihf_kin_vir.end(Exvir_HFdcep_diff < param.econv());
 
-    print("test virial HF exchange energy (with only HF mRKS: IKS = 0, kin_P_KS = 0)");
-    real_function_3d V_HFmrks = Vs + IHF + kin_P_HF;
-    const double Exvir_HFmrks_correct = -0.84506060; // exchange energy from a test calculation with HF reference
-    print("HF mRKS virial exchange energy of the system should be", Exvir_HFmrks_correct, "Eh");
+
+    test_output ihf_pauli_vir("test virial mrks exchange energy ");
+    real_function_3d V_HFmrks = compute_mrks_correction(kin_P_HF,HF_nemo, KS_nemo);
+    const double Exvir_HFmrks_correct = 2.97175117e-01; // exchange energy from a test calculation with HF reference
+    ihf_pauli_vir.logger << "HF mRKS virial exchange energy of the system should be"
+    		<< std::scientific << std::setprecision(8) << Exvir_HFmrks_correct << " Eh" << std::endl;
     const double Exvir_HFmrks = compute_exchange_energy_vir(HF_nemo, V_HFmrks);
     const double Exvir_HFmrks_diff = fabs(Exvir_HFmrks_correct - Exvir_HFmrks);
-    print("     the virial HF mRKS exchange energy of the system is ...", Exvir_HFmrks, "Eh");
-    print("     error:", Exvir_HFmrks_diff, "Eh");
-    if (Exvir_HFmrks_diff <= param.econv()) print("  virial HF mRKS exchange energy is correct\n");
-    else {
-    	print("  ATTENTION: virial HF mRKS exchange energy error is larger than energy convergence threshold (econv)!\n");
-    	everything_ok = false;
-    }
+    ihf_pauli_vir.logger << "  the virial HF mRKS exchange energy of the system is ... " << Exvir_HFmrks << " Eh" << std::endl;;
+    ihf_pauli_vir.logger << "  error:" << Exvir_HFmrks_diff << " Eh" << std::endl;
+    ierr+=ihf_pauli_vir.end(Exvir_HFmrks_diff < param.econv());
 
-    print("test HF kinetic energy");
+
+    test_output hf_kinetic("test HF kinetic energy");
     const double Ekin_HF_correct = 14.57304144; // HF kinetic energy from a test calculation with HF reference (OEP: maxiter = 2)
-    print("HF kinetic energy of the system should be", Ekin_HF_correct, "Eh");
+    hf_kinetic.logger << "HF kinetic energy of the system should be"
+    		<< std::scientific << std::setprecision(8) << Ekin_HF_correct << " Eh" << std::endl;
     const double Ekin_HF = compute_kinetic_energy(HF_nemo);
     const double Ekin_HF_diff = fabs(Ekin_HF_correct - Ekin_HF);
-    print("     the HF kinetic energy of the system is ...", Ekin_HF, "Eh");
-    print("     error:", Ekin_HF_diff, "Eh");
-    if (Ekin_HF_diff <= param.econv()) print("  HF kinetic energy is correct\n");
-    else {
-    	print("  ATTENTION: HF kinetic energy error is larger than energy convergence threshold (econv)!\n");
-    	everything_ok = false;
-    }
+    hf_kinetic.logger << "  the HF kinetic energy of the system is ... " << Ekin_HF << " Eh" << std::endl;
+    hf_kinetic.logger << "  error:" << Ekin_HF_diff << " Eh" << std::endl;
+    ierr+=hf_kinetic.end(Ekin_HF_diff < param.econv());
+
+
+
+
 
     print("\n   >> test solve_oep function with mRKS model for 2 iterations\n");
-    solve(HF_nemo, HF_eigvals);
+    solve(HF_nemo);
     print("\n   >> solve_oep test finished, calculating test quantities based on the new KS orbitals and eigenvalues\n");
 
-    vecfuncT& KS_nemo = calc->amo;
+    KS_nemo = calc->amo;
     //tensorT& KS_eigvals = calc->aeps;
 
     const real_function_3d rho_KS = compute_density(KS_nemo);
 
-    real_function_3d Voep = Vs;
     print("loading final potential ...");
     load(Voep, "OEPapprox_final");
     print(   "... done\n");
@@ -502,105 +514,88 @@ void OEP::test_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
     compute_coulomb_potential(KS_nemo, Jnemo);
     compute_exchange_potential(KS_nemo, Knemo);
 
-    print("test conventional KS exchange energy");
-    const double Ex_conv_correct = -2.68888478; // exchange energy from a test calculation with HF reference (OEP: maxiter = 2)
-    print("KS conventional exchange energy of the system should be", Ex_conv_correct, "Eh");
+    test_output conv_ks("test conventional KS exchange energy");
+    const double Ex_conv_correct = -2.68048325e+00;
+    conv_ks.logger << "KS conventional exchange energy of the system should be "
+    		<< std::scientific << std::setprecision(8) << Ex_conv_correct << " Eh" << std::endl;
     const double Ex_conv = compute_exchange_energy_conv(R*KS_nemo, R*Knemo);
     const double Ex_conv_diff = fabs(Ex_conv_correct - Ex_conv);
-    print("     the conventional KS exchange energy of the system is ...", Ex_conv, "Eh");
-    print("     error:", Ex_conv_diff, "Eh");
-    if (Ex_conv_diff <= param.econv()) print("  conventional KS exchange energy is correct\n");
-    else {
-    	print("  ATTENTION: conventional KS exchange energy error is larger than energy convergence threshold (econv)!\n");
-    	everything_ok = false;
-    }
+    conv_ks.logger << "  the conventional KS exchange energy of the system is ... " << Ex_conv << " Eh" << std::endl;;
+    conv_ks.logger << "  error: "<< Ex_conv_diff << " Eh" << std::endl;
+    ierr+=conv_ks.end(Ex_conv_diff < param.econv());
 
-    print("test virial KS exchange energy");
-    const double Ex_vir_correct = -2.81673416; // exchange energy from a test calculation with HF reference (OEP: maxiter = 2)
-    print("KS virial exchange energy of the system should be", Ex_vir_correct, "Eh");
+
+    test_output vir_ks("test virial KS exchange energy");
+    const double Ex_vir_correct = -2.67728104e+00; // exchange energy from a test calculation with HF reference (OEP: maxiter = 2)
+    vir_ks.logger << "KS virial exchange energy of the system should be"
+    		<< std::scientific << std::setprecision(8)  << Ex_vir_correct << " Eh" << std::endl;
     const double Ex_vir = compute_exchange_energy_vir(KS_nemo, Voep);
     const double Ex_vir_diff = fabs(Ex_vir_correct - Ex_vir);
-    print("     the virial KS exchange energy of the system is ...", Ex_vir, "Eh");
-    print("     error:", Ex_vir_diff, "Eh");
-    if (Ex_vir_diff <= param.econv()) print("  virial KS exchange energy is correct\n");
-    else {
-    	print("  ATTENTION: virial KS exchange energy error is larger than energy convergence threshold (econv)!\n");
-    	everything_ok = false;
-    }
+    vir_ks.logger << "  the virial KS exchange energy of the system is ... " << Ex_vir << " Eh" << std::endl;
+    vir_ks.logger << "  error: " << Ex_vir_diff << " Eh" << std::endl;
+    ierr+=vir_ks.end(Ex_vir_diff < param.econv());
 
-    print("test final total energy");
-    const double Etot_correct = -14.56855740; // total energy (conv) from a test calculation with HF reference (OEP: maxiter = 2)
-    print("final total energy of the system should be", Etot_correct, "Eh");
-    const double Etot = compute_energy(R*KS_nemo, Ex_conv)[0];
+
+    test_output total_energy("test final total energy");
+    const double Etot_correct = -1.45708107e+01; // total energy (conv) from a test calculation with HF reference (OEP: maxiter = 2)
+    total_energy.logger << "final total energy of the system should be "
+    		<< Etot_correct << " Eh" << std::endl;
+    const double Etot = compute_energy(KS_nemo, Ex_conv)[0];
     const double Etot_diff = fabs(Etot_correct - Etot);
-    print("     the final total energy of the system is ...", Etot, "Eh");
-    print("     error:", Etot_diff, "Eh");
-    if (Etot_diff <= param.econv()) print("  final total energy is correct\n");
-    else {
-    	print("  ATTENTION: final total energy error is larger than energy convergence threshold (econv)!\n");
-    	everything_ok = false;
-    }
+    total_energy.logger << "  the final total energy of the system is ... " << Etot << " Eh" << std::endl;
+    total_energy.logger << "  error: " << Etot_diff << "Eh" << std::endl;
+    ierr+=total_energy.end(Etot_diff < param.econv());
 
-    print("test KS kinetic energy");
-    const double Ekin_KS_correct = 14.75193175; // KS kinetic energy from a test calculation with HF reference (OEP: maxiter = 2)
-    print("KS kinetic energy of the system should be", Ekin_KS_correct, "Eh");
+
+    test_output ks_kinetic_energy("test KS kinetic energy");
+    const double Ekin_KS_correct = 1.46848100e+01; // KS kinetic energy from a test calculation with HF reference (OEP: maxiter = 2)
+    ks_kinetic_energy.logger << "KS kinetic energy of the system should be " << Ekin_KS_correct << " Eh" << std::endl;
     const double Ekin_KS = compute_kinetic_energy(KS_nemo);
     const double Ekin_KS_diff = fabs(Ekin_KS_correct - Ekin_KS);
-    print("     the KS kinetic energy of the system is ...", Ekin_KS, "Eh");
-    print("     error:", Ekin_KS_diff, "Eh");
-    if (Ekin_KS_diff <= param.econv()) print("  KS kinetic energy is correct\n");
-    else {
-    	print("  ATTENTION: KS kinetic energy error is larger than energy convergence threshold (econv)!\n");
-    	everything_ok = false;
-    }
+    ks_kinetic_energy.logger << "  the KS kinetic energy of the system is ... " << Ekin_KS << " Eh" << std::endl;
+    ks_kinetic_energy.logger << "  error: " << Ekin_KS_diff << " Eh" << std::endl;
+    ierr+=ks_kinetic_energy.end(Ekin_KS_diff < param.econv());
+
 
     const double Tc = Ekin_HF - Ekin_KS;
 
-    print("test quantity Delta Evir (14) after 2 iterations");
-    const double DEvir_14_correct = -127.84938639; // DEvir_14 (in mEh) from a test calculation with HF reference (OEP: maxiter = 2)
-    print("Delta Evir (14) of the system should be", DEvir_14_correct, "mEh");
+    test_output corr_energy("test quantity Delta Evir (14) after 2 iterations");
+    const double DEvir_14_correct = 3.20220918e+00; // DEvir_14 (in mEh) from a test calculation with HF reference (OEP: maxiter = 2)
+    corr_energy.logger << "Delta Evir (14) of the system should be " << DEvir_14_correct << " mEh" << std::endl;
     const double DEvir_14 = (Ex_vir - Ex_conv)*1000.0;
     const double DEvir_14_diff = fabs(DEvir_14_correct - DEvir_14);
-    print("     Delta Evir (14) of the system is ...", DEvir_14, "mEh");
-    print("     error:", DEvir_14_diff, "mEh");
-    if (DEvir_14_diff*0.001 <= param.econv()) print("  quantity Delta Evir (14) is correct\n"); // mind the units
-    else {
-    	print("  ATTENTION: error of quantity Delta Evir (14) is larger than energy convergence threshold (econv)!\n");
-    	everything_ok = false;
-    }
+    corr_energy.logger << "  Delta Evir (14) of the system is ... " << DEvir_14 << " mEh" << std::endl;
+    corr_energy.logger << "  error: "<< DEvir_14_diff << " mEh" << std::endl;
+    ierr+=corr_energy.end(DEvir_14_diff*0.001 < param.econv());
 
-    print("test quantity Delta Evir (17) after 2 iterations");
-    const double DEvir_17_correct = 207.96150201; // DEvir_17 (in mEh) from a test calculation with HF reference (OEP: maxiter = 2)
-    print("Delta Evir (17) of the system should be", DEvir_17_correct, "mEh");
+
+    test_output devir17("test quantity Delta Evir (17) after 2 iterations");
+    const double DEvir_17_correct = 2.13166331e+02; // DEvir_17 (in mEh) from a test calculation with HF reference (OEP: maxiter = 2)
+    devir17.logger << "Delta Evir (17) of the system should be " << DEvir_17_correct <<  " mEh" << std::endl;
     const double DEvir_17 = (Ex_vir - ExVs_HF - 2.0*Tc)*1000.0;
     const double DEvir_17_diff = fabs(DEvir_17_correct - DEvir_17);
-    print("     Delta Evir (17) of the system is ...", DEvir_17, "mEh");
-    print("     error:", DEvir_17_diff, "mEh");
-    if (DEvir_17_diff*0.001 <= param.econv()) print("  quantity Delta Evir (17) is correct\n"); // mind the units
-    else {
-    	print("  ATTENTION: error of quantity Delta Evir (17) is larger than energy convergence threshold (econv)!\n");
-    	everything_ok = false;
-    }
+    devir17.logger << "  Delta Evir (17) of the system is ... " << DEvir_17<< " mEh" << std::endl;
+    devir17.logger << "  error: " << DEvir_17_diff << " mEh" << std::endl;
+    ierr+=devir17.end(DEvir_17_diff*0.001 < param.econv());
 
-    print("test quantity Delta rho after 2 iterations");
-    const double Drho_correct = 0.05266930; // Drho from a test calculation with HF reference (OEP: maxiter = 2)
-    print("Delta rho of the system should be", Drho_correct);
+
+    test_output delta_rho("test quantity Delta rho after 2 iterations");
+    const double Drho_correct = 3.66404755e-02; // Drho from a test calculation with HF reference (OEP: maxiter = 2)
+    delta_rho.logger << "Delta rho of the system should be "<< Drho_correct << std::endl;
     const double Drho = compute_delta_rho(rho_HF, rho_KS);
     const double Drho_diff = fabs(Drho_correct - Drho);
-    print("     Delta rho of the system is ...", Drho);
-    print("     error:", Drho_diff);
-    if (Drho_diff <= param.econv()) print("  quantity Delta rho is correct\n"); // unitless
-    else {
-    	print("  ATTENTION: error of quantity Delta rho is larger than energy convergence threshold (econv)!\n");
-    	everything_ok = false;
-    }
+    delta_rho.logger << "  Delta rho of the system is ... " << Drho <<std::endl;
+    delta_rho.logger << "  error: " <<  Drho_diff << std::endl;
+    ierr+=delta_rho.end(Drho_diff < param.econv());
+
 
     // TODO: What else can be checked?
 
     print("+++ OEP test finished +++\n");
 
-    if (everything_ok) print("\n  All calculated results are correct, everything ok!\n");
+    if (ierr==0) print("\n  All calculated results are correct, everything ok!\n");
     else print("  ATTENTION! There are errors in the results, see above!\n");
+    return ierr;
 
 }
 

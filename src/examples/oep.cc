@@ -64,7 +64,7 @@ void write_test_input() {
     of << "end\n\n\n";
 
     of << "oep\n";
-    of << "  model mrks\n";
+    of << "  model [mrks]\n";
     of << "  maxiter 2\n";
     of << "  density_threshold_high 1.0e-4\n";
     of << "  density_threshold_low 1.0e-7\n";
@@ -145,9 +145,10 @@ int main(int argc, char** argv) {
 
     // do approximate OEP calculation or test the program
     std::shared_ptr<OEP> oep(new OEP(world, calc, input));
-    if (test) oep->test_oep(HF_nemos, HF_orbens);
-    else oep->value(HF_nemos, HF_orbens);
+    int ierr=0;
+    if (test) ierr=oep->test_oep(HF_nemos);
+    else oep->value(HF_nemos);
 
     finalize();
-    return 0;
+    return ierr;
 }
