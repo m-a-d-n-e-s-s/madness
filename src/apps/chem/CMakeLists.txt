@@ -31,27 +31,28 @@ endif()
 # Create the MADchem library
 add_mad_library(chem MADCHEM_SOURCES MADCHEM_HEADERS "mra" "chem/")
 
-# Add dependencies for MADchem
-target_include_directories(MADchem PUBLIC
-  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/apps/>)
-if(LIBXC_FOUND)
-  target_include_directories(MADchem PUBLIC ${LIBXC_INCLUDE_DIRS})
-  target_link_libraries(MADchem PUBLIC ${LIBXC_LIBRARIES})
-endif()
+  set(targetname MADchem)
 
-if(PCM_FOUND)
-  target_include_directories(MADchem PUBLIC ${PCM_INCLUDE_DIRS})
-  target_link_libraries(MADchem PUBLIC ${PCM_LIBRARIES})
-endif()
+  # Add dependencies for MADchem
+  target_include_directories(${targetname} PUBLIC
+      $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/apps/>)
+  if (LIBXC_FOUND)
+    target_include_directories(${targetname} PUBLIC ${LIBXC_INCLUDE_DIRS})
+    target_link_libraries(${targetname} PUBLIC ${LIBXC_LIBRARIES})
+  endif ()
 
-if(BOOST_FOUND)
-  target_include_directories(MADchem PUBLIC ${BOOST_INCLUDE_DIRS})
-  target_link_libraries(MADchem PUBLIC ${BOOST_LIBRARIES})
-endif()
+  if (PCM_FOUND)
+    target_include_directories(${targetname} PUBLIC ${PCM_INCLUDE_DIRS})
+    target_link_libraries(${targetname} PUBLIC ${PCM_LIBRARIES})
+  endif ()
+
+  if (BOOST_FOUND)
+    target_include_directories(${targetname} PUBLIC ${BOOST_INCLUDE_DIRS})
+    target_link_libraries(${targetname} PUBLIC ${BOOST_LIBRARIES})
+  endif ()
 
 # Add executables
-add_executable(plotxc plotxc.cc xcfunctional.h)
-target_link_libraries(plotxc MADchem ${DISABLEPIE_LINKER_FLAG})
+add_mad_executable(plotxc "plotxc.cc;xcfunctional.h" "MADchem")
 
 # Install files
 install(FILES sto-3g sto-6g 6-31g coredata/mcp coredata/mcp2 coredata/mcp_guess
@@ -66,14 +67,12 @@ if(ENABLE_UNITTESTS)
   set(CHEM_TEST_SOURCES test_SCFOperators.cc test_dft.cc test_pointgroupsymmetry.cc test_masks_and_boxes.cc
   test_QCCalculationParametersBase.cc test_qc.cc test_MolecularOrbitals.cc)
   
-  add_unittests(chem CHEM_TEST_SOURCES "MADchem;MADgtest")
+  add_unittests(chem "${CHEM_TEST_SOURCES}" "MADchem;MADgtest;MADgit")
   
   # Create other test executables not included in the unit tests
   set(CHEM_OTHER_TESTS testxc)
   foreach(_test ${CHEM_OTHER_TESTS})  
-#    add_executable(${_test} EXCLUDE_FROM_ALL ${_test}.cc)
-    add_executable(${_test} ${_test}.cc)
-    target_link_libraries(${_test} MADchem ${DISABLEPIE_LINKER_FLAG})
+    add_mad_executable(${_test} "${_test}.cc" "MADchem;MADgit")
   endforeach()
   
 endif()

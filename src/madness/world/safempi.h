@@ -52,7 +52,12 @@
 //#undef SEEK_END
 //#endif
 
-#include <mpi.h>
+#ifdef MADNESS_MPI_HEADER
+# include MADNESS_MPI_HEADER
+#else
+# include <mpi.h>
+#endif
+
 #endif
 
 
@@ -654,6 +659,7 @@ namespace SafeMPI {
         MPI_Info info;
         MPI_Info_create(&info);
         MADNESS_MPI_TEST(MPI_Comm_split_type(pimpl->comm, Type, Key, info, &group_comm));
+        MPI_Info_free(&info);
         if (group_comm != MPI_COMM_NULL) {
           int me; MADNESS_MPI_TEST(MPI_Comm_rank(group_comm, &me));
           int nproc; MADNESS_MPI_TEST(MPI_Comm_size(group_comm, &nproc));
@@ -661,7 +667,6 @@ namespace SafeMPI {
         }
         else
           return Intracomm();
-        MPI_Info_free(&info);
       }
 
       /**

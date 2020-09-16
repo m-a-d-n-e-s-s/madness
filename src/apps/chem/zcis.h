@@ -169,7 +169,7 @@ public:
 
 	/// return the active orbitals only
 	std::vector<complex_function_3d> active_mo(const std::vector<complex_function_3d>& mo) const {
-		if (mo.size()<=cis_param.freeze()) return std::vector<complex_function_3d> ();
+	     if (mo.size()<=size_t(cis_param.freeze())) return std::vector<complex_function_3d> ();
 		std::vector<complex_function_3d> result;
 		result.insert(result.end(),mo.begin()+cis_param.freeze(),mo.end());
 		return result;
@@ -212,7 +212,7 @@ public:
 			std::vector<complex_function_3d> rhs_file=zero_functions_compressed<double_complex,3>(world,rhs.size());
 			std::vector<complex_function_3d> rhs_file1;
 			load_function(world,rhs_file1,name);
-			for (int i=0; i<rhs_file1.size(); ++i) rhs_file[i]=rhs_file1[i];
+			for (size_t i=0; i<rhs_file1.size(); ++i) rhs_file[i]=rhs_file1[i];
 			std::vector<double> dnorm=norm2s(world,rhs-rhs_file);
 			print(name,"diffnorm",dnorm);
 		}
@@ -222,9 +222,9 @@ public:
 	static std::tuple<std::vector<complex_function_3d>, std::vector<complex_function_3d> >
 	split(const std::vector<complex_function_3d>& rhs, int dim1) {
 
-		MADNESS_ASSERT(dim1>=0 and dim1<=rhs.size());
+	        MADNESS_ASSERT(dim1>=0 and size_t(dim1)<=rhs.size());
 		if (dim1==0) return std::make_tuple(std::vector<complex_function_3d>(),rhs);
-		if (dim1==rhs.size()) return std::make_tuple(rhs,std::vector<complex_function_3d>());
+		if (size_t(dim1)==rhs.size()) return std::make_tuple(rhs,std::vector<complex_function_3d>());
 
 		std::vector<complex_function_3d> t1,t2;
 		copy(rhs.begin(),rhs.begin()+dim1,back_inserter(t1));

@@ -88,11 +88,17 @@ namespace madness {
         /// \todo Verify & complete; what is AM?
         template <typename memfunT>
         struct info_base {
+            using memfunT_rel_ptr = decltype(archive::to_rel_memfn_ptr(std::declval<memfunT>()));
             // id must be at front ... see peek.
             uniqueidT id; ///< \todo Description needed. Context with the "see peek" comment above?
             ProcessID requestor; ///< \todo Description needed.
-            memfunT memfun; ///< \todo Description needed.
+            memfunT_rel_ptr memfun_rel_ptr; ///< \todo Description needed.
             TaskAttributes attr; ///< \todo Description needed.
+
+            /// \return the (absolute) member function pointer
+            memfunT memfun() const {
+              return archive::to_abs_memfn_ptr<memfunT>(memfun_rel_ptr);
+            }
 
         protected:
 
@@ -109,7 +115,7 @@ namespace madness {
                  const TaskAttributes& attr=TaskAttributes())
                     : id(id)
                     , requestor(requestor)
-                    , memfun(memfun)
+                    , memfun_rel_ptr(archive::to_rel_memfn_ptr(memfun))
                     , attr(attr) {}
 
             /// Serializes a \c info_base for I/O.
@@ -456,7 +462,7 @@ namespace madness {
                 typename detail::task_arg<arg9T>::type arg9;
                 arg & info & arg1 & arg2 & arg3 & arg4 & arg5 & arg6 & arg7 & arg8 & arg9;
                 typename detail::info<memfnT>::futureT result(info.ref);
-                detail::run_function(result, task_helper::make_task_fn(obj, info.memfun),
+                detail::run_function(result, task_helper::make_task_fn(obj, info.memfun()),
                         arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9);
             }
         }
@@ -484,7 +490,7 @@ namespace madness {
 
                 // Construct task
                 taskT* task = new taskT(typename taskT::futureT(info.ref),
-                        task_helper::make_task_fn(obj, info.memfun), info.attr, input_arch);
+                        task_helper::make_task_fn(obj, info.memfun()), info.attr, input_arch);
 
                 // Add task to queue
                 arg.get_world()->taskq.add(task);

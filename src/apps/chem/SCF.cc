@@ -179,7 +179,7 @@ SCF::SCF(World& world, const std::string& inputfile) : param(CalculationParamete
 	//xc.plot();
 
 	FunctionDefaults < 3 > ::set_cubic_cell(-param.L(), param.L());
-	set_protocol < 3 > (world, param.econv());
+	//set_protocol < 3 > (world, param.econv());
 	FunctionDefaults<3>::set_truncate_mode(1);
 
 }
@@ -498,18 +498,21 @@ distmatT SCF::localize_new(World & world, const vecfuncT & mo,
 	tensorT U(nmo, nmo);
 	for (int i = 0; i < nmo; ++i) U(i, i) = 1.0;
 
+
+	default_random_generator.setstate(182041+world.rank()*10101); // To help with reproducibility for debugging, etc.
+
 	if (world.rank() == 0) {
 		//MKL_Set_Num_Threads_Local(16);
 
 		tensorT Q(nmo,natom);
-
-		auto QQ = [&at_to_bf, &at_nbf](const tensorT& C, int i, int j, int a) -> double {
+		double breaksym = 1e-3;
+		auto QQ = [&at_to_bf, &at_nbf,&breaksym](const tensorT& C, int i, int j, int a) -> double {
 			int lo = at_to_bf[a], nbf = at_nbf[a];
 			const double* Ci = &C(i,lo);
 			const double* Cj = &C(j,lo);
 			double qij = 0.0;
 			for(int mu=0; mu<nbf; ++mu) qij += Ci[mu] * Cj[mu];
-			return qij;
+			return qij*(1.0+breaksym*a); // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! break symmetry
 		};
 
 		auto makeGW = [&Q,&nmo,&natom,&QQ](const tensorT& C, double& W, tensorT& g) -> void {
@@ -605,6 +608,11 @@ distmatT SCF::localize_new(World & world, const vecfuncT & mo,
 				double f2p = f0 + dxgrad*mu2 + 0.5*hess*mu2*mu2;
 				if (doprint) print(f0,f1,f0-f1,f2p,"dxg", dxgrad,"hess", hess, "mu", mu, "mu2", mu2);
 				mu = mu2;
+			}
+
+			if (maxg < 10*thresh) {
+			  breaksym = 1e-5;
+			  rprev = true; // since just messed up the gradient
 			}
 
 			dU = matrix_exponential(x*mu);
@@ -717,6 +725,7 @@ distmatT SCF::localize_boys(World & world, const vecfuncT & mo,
 	//print("tolloc", thresh, "thetamax", thetamax);
 	if (thresh < 1e-6) thresh = 1e-6; //<<<<<<<<<<<<<<<<<<<<< need to implement new line search like in pm routine
 	tensorT U(nmo, nmo);
+	default_random_generator.setstate(182041+world.rank()*10101); // To help with reproducibility for debugging, etc.
 	if (world.rank() == 0) {
 		for (long i = 0; i < nmo; ++i)
 			U(i, i) = 1.0;
@@ -2226,7 +2235,7 @@ void SCF::update_subspace(World & world, vecfuncT & Vpsia, vecfuncT & Vpsib,
 				END_TIMER(world, "Subspace transform");
 				if (param.maxsub() <= 1) {
 					subspace.clear();
-				} else if (subspace.size() == param.maxsub()) {
+				} else if (subspace.size() == size_t(param.maxsub())) {
 					subspace.erase(subspace.begin());
 					Q = Q(Slice(1, -1), Slice(1, -1));
 				}
@@ -2504,7 +2513,7 @@ void SCF::iterate_trotter(World& world, Convolution1D<double_complex>* G,
 		camo[iorb].truncate();
 	}
 	if (!param.spin_restricted() && param.nbeta()) {
-		cvecfuncT cbmo3 = mul_sparse(world, expV, cbmo2, vtol, false);
+     	        cvecfuncT cbmo3 = mul_sparse(world, expV, cbmo2, vtol); // Removed nofence --- must fence here
 
 		// second kinetic energy apply
 		for (int iorb = 0; iorb < param.nbeta(); iorb++) {
@@ -2958,7 +2967,7 @@ void SCF::update_response_subspace(World & world,
 	END_TIMER(world, "Subspace transform");
 	if(param.maxsub() <= 1){
 		subspace.clear();
-	} else if(subspace.size() == param.maxsub()){
+	} else if(subspace.size() == size_t(param.maxsub())){
 		subspace.erase(subspace.begin());
 		Q = Q(Slice(1, -1), Slice(1, -1));
 	}
@@ -3187,6 +3196,7 @@ vecfuncT SCF::calc_dipole_mo(World & world,  vecfuncT & mo, const int axis)
 	// dipolefunc * mo[iter]
 	for(size_t p=0; p<mo.size(); ++p)
 		dipolemo[p] =  mul_sparse(dipolefunc, mo[p],false);
+	world.gop.fence(); // Must fence here
 
 	//END_TIMER(world, "Make perturbation");
 	print_meminfo(world.rank(), "Make perturbation");

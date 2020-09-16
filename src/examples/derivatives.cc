@@ -220,7 +220,7 @@ void test(World& world, int k, int initial_level, double thresh, int truncmode, 
 // Prints relevant values for a second derivative
 #define DOIT2 \
 	real_function_3d g2 = D(g); \
- 	PRINT("relerrg2", g2.err(f2)/g2norm); \ 
+ 	PRINT("relerrg2", g2.err(f2)/g2norm); \
  	PRINT("e+<g|g2>", e+g.inner(g2));     \
         plotter2(p(buf,model.c_str(),k,initial_level,thresh,2), pts, g, g2);
 

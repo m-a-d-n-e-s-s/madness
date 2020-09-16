@@ -278,7 +278,8 @@ double Nemo::solve(const SCFProtocol& proto) {
 	// apply all potentials (J, K, Vnuc) on the nemos
 	vecfuncT psi, Jnemo, Knemo, pcmnemo, Unemo;
 
-	double energy = 0.0;
+	std::vector<double> energyvec;
+	double energy=0.0;
 	bool converged = false;
 	bool localized=calc->param.do_localize();
 
@@ -318,10 +319,23 @@ double Nemo::solve(const SCFProtocol& proto) {
             if (world.rank()==0) print("F max off-diagonal  ",max_fock_offidag);
 		}
 
-		double oldenergy=energy;
+		std::vector<double> oldenergyvec=energyvec;
+		double oldenergy=0.0;
+		if (oldenergyvec.size()>0) oldenergy=oldenergyvec[0];
 //		energy = compute_energy(psi, mul(world, R, Jnemo),
 //				mul(world, R, Knemo));
-        energy = compute_energy_regularized(nemo, Jnemo, Knemo, Unemo);
+        energyvec = compute_energy_regularized(nemo, Jnemo, Knemo, Unemo);
+        energy=energyvec[0];
+        double expval=fabs(energyvec.size()-oldenergyvec.size());	// >0 if oldenergyvec not initialized
+        for (auto iter1=energyvec.begin(), iter2=oldenergyvec.begin();
+        		(iter1!=energyvec.end() and iter2!=oldenergyvec.end()); iter1++, iter2++) {
+        	expval+=(*iter1 - *iter2)*(*iter1 - *iter2);
+        }
+        expval=sqrt(expval);
+
+        print(energyvec);
+        print(oldenergyvec);
+        print("energy differences",expval);
 
         // Diagonalize the Fock matrix to get the eigenvalues and eigenvectors
         tensorT U;
@@ -406,9 +420,9 @@ double Nemo::solve(const SCFProtocol& proto) {
 		orthonormalize(nemo_new,R);
 		nemo=nemo_new;
 
-		if ((norm < proto.dconv) and
-				(fabs(energy-oldenergy)<proto.econv))
-			converged = true;
+		bool econv=(fabs(energy-oldenergy)<proto.econv);
+		if (calc->param.converge_each_energy()) econv=(expval<proto.dconv);
+		converged =((norm < proto.dconv) and econv);
 
 		if (calc->param.save()) calc->save_mos(world);
 
@@ -481,7 +495,7 @@ double Nemo::compute_energy(const vecfuncT& psi, const vecfuncT& Jpsi,
 }
 
 /// given nemos, compute the HF energy using the regularized expressions for T and V
-double Nemo::compute_energy_regularized(const vecfuncT& nemo, const vecfuncT& Jnemo,
+std::vector<double> Nemo::compute_energy_regularized(const vecfuncT& nemo, const vecfuncT& Jnemo,
         const vecfuncT& Knemo, const vecfuncT& Unemo) const {
     START_TIMER(world);
 
@@ -554,7 +568,7 @@ double Nemo::compute_energy_regularized(const vecfuncT& nemo, const vecfuncT& Jn
     }
     END_TIMER(world, "compute energy");
 
-    return energy;
+    return std::vector<double>{energy,ke+pe,J,exc,-K,pcm_energy,nucrep};
 }
 
 /// compute the reconstructed orbitals, and all potentials applied on nemo

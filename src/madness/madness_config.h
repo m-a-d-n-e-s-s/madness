@@ -158,17 +158,53 @@
 
 #endif /* POWERPC */
 
+/* ----------- compiler checks -------------------*/
+/*
+ * - copied from https://github.com/ValeevGroup/tiledarray/blob/master/src/TiledArray/config.h.in
+ * - ids taken from CMake
+ * - macros are discussed at https://sourceforge.net/p/predef/wiki/Compilers/
+*/
+#define MADNESS_CXX_COMPILER_ID_GNU 0
+#define MADNESS_CXX_COMPILER_ID_Clang 1
+#define MADNESS_CXX_COMPILER_ID_AppleClang 2
+#define MADNESS_CXX_COMPILER_ID_XLClang 3
+#define MADNESS_CXX_COMPILER_ID_Intel 4
+#if defined(__INTEL_COMPILER_BUILD_DATE)  /* macros like __ICC and even __INTEL_COMPILER can be affected by command options like -no-icc */
+# define MADNESS_CXX_COMPILER_ID MADNESS_CXX_COMPILER_ID_Intel
+# define MADNESS_CXX_COMPILER_IS_ICC 1
+#endif
+#if defined(__clang__) && !defined(MADNESS_CXX_COMPILER_IS_ICC)
+# define MADNESS_CXX_COMPILER_IS_CLANG 1
+# if defined(__apple_build_version__)
+#  define MADNESS_CXX_COMPILER_ID MADNESS_CXX_COMPILER_ID_AppleClang
+# elif defined(__ibmxl__)
+#  define MADNESS_CXX_COMPILER_ID MADNESS_CXX_COMPILER_ID_XLClang
+# else
+#  define MADNESS_CXX_COMPILER_ID MADNESS_CXX_COMPILER_ID_Clang
+# endif
+#endif
+#if defined(__GNUG__) && !defined(MADNESS_CXX_COMPILER_IS_ICC) && !defined(MADNESS_CXX_COMPILER_IS_CLANG)
+# define MADNESS_CXX_COMPILER_ID MADNESS_CXX_COMPILER_ID_GNU
+# define MADNESS_CXX_COMPILER_IS_GCC 1
+#endif
+
 /* ----------- preprocessor checks ---------------*/
 #define MADNESS_PRAGMA(x) _Pragma(#x)
 /* same as MADNESS_PRAGMA(x), but expands x */
 #define MADNESS_XPRAGMA(x) MADNESS_PRAGMA(x)
 /* "concats" a and b with a space in between */
 #define MADNESS_CONCAT(a,b) a b
-#if defined(__clang__) && !defined(__INTEL_COMPILER_BUILD_DATE)
+#ifdef MADNESS_CXX_COMPILER_IS_CLANG
 #define MADNESS_PRAGMA_CLANG(x) MADNESS_XPRAGMA( MADNESS_CONCAT(clang,x) )
 #else
 #define MADNESS_PRAGMA_CLANG(x)
 #endif
+#ifdef MADNESS_CXX_COMPILER_IS_GCC
+#define MADNESS_PRAGMA_GCC(x) MADNESS_XPRAGMA( MADNESS_CONCAT(GCC,x) )
+#else
+#define MADNESS_PRAGMA_GCC(x)
+#endif
+
 /* ----------- end of preprocessor checks ---------*/
 
 #endif // MADNESS_MADNESS_CONFIG_H__INCLUDED

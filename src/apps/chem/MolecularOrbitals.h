@@ -193,7 +193,7 @@ public:
 		ar & eps & occ & localize_sets;
 		for (unsigned int i = 0; i < mo.size(); ++i)
 			ar & mo[i];
-		unsigned int n_core = molecule.n_core_orb_all();
+		//unsigned int n_core = molecule.n_core_orb_all();
 	}
 
 	void post_process_mos(World& world, const double thresh, const int k);

@@ -30,61 +30,44 @@ set(MADTENSOR_SOURCES tensor.cc tensoriter.cc basetensor.cc vmath.cc)
 # Source lists for MADclapack
 set(MADCLAPACK_HEADERS cblas.h cblas_types.h
         clapack.h clapack_fortran.h
-        lapacke_types.h) # this part of MADlinalg is purely independent of MADtensor
+        lapacke_types.h linalg_wrappers.h ) # this part of MADlinalg is purely independent of MADtensor
 
 # Source lists for MADlinalg
 set(MADLINALG_HEADERS ${MADCLAPACK_HEADERS} tensor_lapack.h solvers.h elem.h)
-set(MADLINALG_SOURCES lapack.cc solvers.cc elem.cc)
+set(MADLINALG_SOURCES lapack.cc solvers.cc elem.cc linalg_wrappers.cc )
 
 # Create libraries MADtensor and MADlinalg
 add_mad_library(tensor MADTENSOR_SOURCES MADTENSOR_HEADERS "misc" "madness/tensor")
 #add_mad_library(clapack MADLINALG_HEADERS "" "madness/tensor")
 add_mad_library(linalg MADLINALG_SOURCES MADLINALG_HEADERS "tensor" "madness/tensor")
-target_link_libraries(MADlinalg PUBLIC ${LAPACK_LIBRARIES}) # logically it's MADclapack that depends on LAPACK
-target_link_libraries(MADtensor PUBLIC ${LAPACK_LIBRARIES}) # some of the tests depend on MKL/Blas
-if (LAPACK_INCLUDE_DIRS)
-  target_include_directories(MADlinalg PUBLIC ${LAPACK_INCLUDE_DIRS})
-  target_include_directories(MADtensor PUBLIC ${LAPACK_INCLUDE_DIRS})
-endif(LAPACK_INCLUDE_DIRS)
-if (LAPACK_COMPILE_OPTIONS)
-  target_compile_options(MADlinalg PUBLIC ${LAPACK_COMPILE_OPTIONS})
-  target_compile_options(MADtensor PUBLIC ${LAPACK_COMPILE_OPTIONS})
-endif(LAPACK_COMPILE_OPTIONS)
-if (LAPACK_COMPILE_DEFINITIONS)
-  target_compile_definitions(MADlinalg PUBLIC ${LAPACK_COMPILE_DEFINITIONS})
-  target_compile_definitions(MADtensor PUBLIC ${LAPACK_COMPILE_DEFINITIONS})
-endif(LAPACK_COMPILE_DEFINITIONS)
 
-if(HAVE_IBMBGQ)
-  add_custom_command(OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/mtxmq_bg/libMADMTXM.a
-      COMMAND TARGET=BGQ ${CMAKE_MAKE_PROGRAM} 
-      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/mtxmq_bg
-      COMMENT "Building libMADMTXM.a")
-  add_custom_target (libmadmtxm DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/mtxmq_bg/libMADMTXM.a)
-  add_dependencies(MADtensor libmadmtxm)
-  target_link_libraries(MADtensor PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/mtxmq_bg/libMADMTXM.a)
-elseif(HAVE_IBMBGP)
-  add_custom_command(OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/mtxmq_bg/libMADMTXM.a
-      COMMAND TARGET=BGP ${CMAKE_MAKE_PROGRAM} 
-      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/mtxmq_bg
-      COMMENT "Building libMADMTXM.a")
-  add_custom_target (libmadmtxm DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/mtxmq_bg/libMADMTXM.a)
-  add_dependencies(MADtensor libmadmtxm)
-  target_link_libraries(MADtensor PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/mtxmq_bg/libMADMTXM.a)
-endif()
+  set(l_target MADlinalg)
+  set(t_target MADtensor)
 
-if(ELEMENTAL_FOUND AND MADNESS_HAS_ELEMENTAL_EMBEDDED)
-  target_link_libraries(MADlinalg PUBLIC ${ELEMENTAL_PACKAGE_NAME})
-endif()
+  target_link_libraries(${l_target} PUBLIC ${LAPACK_LIBRARIES}) # logically it's MADclapack that depends on LAPACK
+  target_link_libraries(${t_target} PUBLIC ${LAPACK_LIBRARIES}) # some of the tests depend on MKL/Blas
+  if (LAPACK_INCLUDE_DIRS)
+    target_include_directories(${l_target} PUBLIC ${LAPACK_INCLUDE_DIRS})
+    target_include_directories(${t_target} PUBLIC ${LAPACK_INCLUDE_DIRS})
+  endif (LAPACK_INCLUDE_DIRS)
+  if (LAPACK_COMPILE_OPTIONS)
+    target_compile_options(${l_target} PUBLIC ${LAPACK_COMPILE_OPTIONS})
+    target_compile_options(${t_target} PUBLIC ${LAPACK_COMPILE_OPTIONS})
+  endif (LAPACK_COMPILE_OPTIONS)
+  if (LAPACK_COMPILE_DEFINITIONS)
+    target_compile_definitions(${l_target} PUBLIC ${LAPACK_COMPILE_DEFINITIONS})
+    target_compile_definitions(${t_target} PUBLIC ${LAPACK_COMPILE_DEFINITIONS})
+  endif (LAPACK_COMPILE_DEFINITIONS)
 
-# add custom target for "installing" MADclapack headers
-install(FILES ${MADCLAPACK_HEADERS}
-        DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}/madness/tensor"
-        COMPONENT clapack)
-add_custom_target(install-clapack
-    COMMAND ${CMAKE_COMMAND} -DCOMPONENT=clapack -P ${PROJECT_BINARY_DIR}/cmake_install.cmake
-    COMMENT "Installing clapack headers"
-    USES_TERMINAL)
+  if (HAVE_IBMBGQ)
+    message(FATAL_ERROR "IBM BG/Q support ended")
+  elseif (HAVE_IBMBGP)
+    message(FATAL_ERROR "IBM BG/P support ended")
+  endif ()
+
+  if (ELEMENTAL_FOUND AND MADNESS_HAS_ELEMENTAL_EMBEDDED)
+    target_link_libraries(${l_target} PUBLIC ${ELEMENTAL_PACKAGE_NAME})
+  endif ()
 
 # Add unit tests
 if(ENABLE_UNITTESTS)
@@ -97,7 +80,7 @@ if(ENABLE_UNITTESTS)
     list(APPEND LINALG_TEST_SOURCES test_gentensor.cc)
   endif()
 
-  add_unittests(tensor TENSOR_TEST_SOURCES "MADtensor;MADgtest")
-  add_unittests(linalg LINALG_TEST_SOURCES "MADlinalg;MADgtest")
+  add_unittests(tensor "${TENSOR_TEST_SOURCES}" "MADtensor;MADgtest")
+  add_unittests(linalg "${LINALG_TEST_SOURCES}" "MADlinalg;MADgtest")
   
 endif()
