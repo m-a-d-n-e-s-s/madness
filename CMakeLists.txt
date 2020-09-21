@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.8.0)
+cmake_minimum_required (VERSION 3.11.0)
 project(MADNESS CXX C ASM)
 
 # Set MADNESS version
@@ -29,6 +29,7 @@ include(CMakePackageConfigHelpers)
 include(CopyTargetProperties)
 include(FeatureSummary)
 include(RedefaultableOption)
+include(FetchContent)
 
 # Check compiler feature support ===============================================
 
@@ -68,6 +69,9 @@ set(MADNESS_INSTALL_CMAKEDIR "lib/cmake/madness"
 redefaultable_option(MADNESS_BUILD_MADWORLD_ONLY "Build only MADWorld runtime (including BLAS/LAPACK interfaces, if found)" OFF)
 
 # Enable optional libraries ====================================================
+
+# Preload versions/tags of all dependencies ====================================
+include(external/versions.cmake)
 
 # Always search for libraries that are 'ON' by default. If a library is not
 # found, it is disabled without error. If the library is 'OFF' by default,
