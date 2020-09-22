@@ -162,13 +162,16 @@ set(MPIEXEC_POSTFLAGS "@MPIEXEC_POSTFLAGS@" CACHE STRING "These flags will be pl
 
 ########### PaRSEC ############
 # if MADworld depends on PaRSEC, enable C language and load MPI_C
-# I suspect PaRSEC does not preserve imported MPI targets
 get_target_property(_madworld_link_libraries MADworld INTERFACE_LINK_LIBRARIES)
 if (MPI::MPI_CXX IN_LIST _madworld_link_libraries)
     set(_mpi_languages CXX)
     if (PaRSEC::parsec IN_LIST _madworld_link_libraries)
         enable_language(C)
         list(APPEND _mpi_languages C)
+        if (NOT TARGET PaRSEC::parsec)
+           include( CMakeFindDependencyMacro )
+           find_dependency(PaRSEC CONFIG REQUIRED COMPONENTS parsec PATHS "@PaRSEC_CONFIG@" NO_DEFAULT_PATH)
+        endif()
     endif()
     find_package(MPI REQUIRED COMPONENTS "${_mpi_languages}")
 endif()
