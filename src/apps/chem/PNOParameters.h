@@ -271,6 +271,82 @@ public:
 
 };
 
+
+class PNOIntParameters: public PNOParameters {
+/*
+ * parameters we need:
+ * == orthogonalization method
+ * == cabs-file (don't pick the one from F12 I guess)
+ * == cherry-pick orbs
+ * == size of desired PNO-basis aka size-OBS
+ * == size of PNO-CABS
+ * == maybe some kind of thresh for cabs? aka cabs_thresh, that is unused anyhow
+ *
+ *
+ *
+ */
+public:
+	PNOIntParameters(const PNOParameters& param) : PNOParameters(param){
+		initialize_pnoint_parameters();
+	}
+
+	PNOIntParameters(World& world, const std::string& inputfile, const PNOParameters& param, const std::string& TAG="pnoint") : PNOParameters(param){
+		initialize_pnoint_parameters();
+		QCCalculationParametersBase::read(world,inputfile,TAG);
+	}
+
+
+	void initialize_pnoint_parameters() {
+		initialize<std::string>("orthog", "symmetric", "orthogonalization method for PNO basis, also current default for a potential CABS. options: symmetric, canonical, cholesky, rr_cholesky,  ");
+		initialize<std::string>("orthog_cabs", "default", "orthogonalization method for CABS basis. options: symmetric, canonical, cholesky, rr_cholesky, uses same as orbitals basis if default.");
+		initialize<int>("basis_size", 10, "desired size of PNO-basis (orbital space)");
+		initialize<std::string>("cabs_option", "none", "type of complementary auxiliary basis to be used. can be none ~ no CABS, gbs ~ Gaussian basis set as CABS, requires input via auxbas_file, pno ~ use superfluous PNOs as CABS, mixed ~ gbs&pno-option");
+		initialize<int>("pno_cabs_size", -1, "size of a potential pno-cabs. defaults to -1 ~ all remaining PNOs, if pno-cabs or mixed-cabs");
+		initialize<bool>("only_diag", false, "use only diagonal elements PNOs");
+		initialize<std::vector<int> >("cherry_pick", std::vector<int>(), "cherry pick option to choose particular set of PNOs, not just blindly by occupation number. can be useful, if only a restricted number of PNOs can be used, to avoid separating degenerate pairs. can be envoked by passing a vector via [ elem1, elem2, ... ]");
+
+		initialize<double>("gamma",1.4, "The f12 length scale, here to be used to compute f12-integrals");
+		initialize<double>("cabs_thresh",1.e-4, " thresh for cabs part ");
+		initialize<std::string>("auxbas", "none", "atom centered partial wave guess of format like 'h-2s1p-o-3s2p1d' ");
+		initialize<std::string>("auxbas_file", "none", "Use external comp. aux. basis in addition to the pnos as auxbasis. Give the filename as parameter. Give the auxbas in turbomole format. Don't use contractions. If a file is specified the auxbas parameter has no effect");
+		initialize<bool>("print_pno_overlap", false, "Print overlap matrix at certain steps in computation, for debugging purposes.");
+	}
+
+	std::string orthogonalization()const { return get<std::string>("orthog");}
+	std::string cabs_orthogonalization()const { 
+		if (get<std::string>("orthog_cabs") == "default")
+			return orthogonalization();
+		else
+			return get<std::string>("orthog_cabs");
+	}
+
+	std::string cabs_option()const { return get<std::string>("cabs_option");}
+	int basis_size()const { return get<int >("basis_size");}
+	int pno_cabs_size()const { return get<int >("pno_cabs_size");}
+	bool only_diag()const { return get<bool>("only_diag"); }
+	std::vector<int> cherry_pick()const { 
+		return get<std::vector<int> >("cherry_pick");
+	}
+	double cabs_thresh()const { return get<double >("cabs_thresh");}
+	std::string auxbas_file()const {
+		return get<std::string >("auxbas_file");
+	}
+	double gamma()const { return get<double >("gamma");}
+
+	// TODO guess we don't need that here...
+	std::map<std::string,std::vector<int> > auxbas()const {
+		return partial_wave("auxbas");
+	}
+	bool print_pno_overlap()const { return get<bool>("print_pno_overlap"); }
+
+	void set_derived_values() {
+		set_derived_value("cabs_thresh", thresh());
+	}
+
+};
+
+
+
 } /* namespace madness */
 
 #endif /* PNOPARAMETERS_H_ */
