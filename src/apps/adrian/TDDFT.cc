@@ -3784,7 +3784,8 @@ void TDHF::IterateGuess(World &world, ResponseFunction &guesses) {
     //  of degenerate states)
     // reduce the space progressively
     //  Starting number of response functions
-    int N0 = 3 * n * n;
+    //
+    int N0 = guesses.size();
     //  number of response functions after p-1 iterations
     //  I believe we don't iterate the last time
     int Np = 2 * Rparams.states;
@@ -3796,11 +3797,19 @@ void TDHF::IterateGuess(World &world, ResponseFunction &guesses) {
 
     // No*exp(log(Np/N0)/p*t) to exponential decay
     // the number of states down to 2*Rparams.states
-    if (iteration > 1) {
+    if (iteration > 1 && Rparams.guess_xyz && Ni > Np) {
       Ni = std::ceil(N0 * std::exp(std::log(static_cast<double>(Np) /
                                             static_cast<double>(N0)) /
                                    static_cast<double>(p) * iteration));
       sort(world, omega, guesses);
+      print(omega);
+      for (int i = 0; i < Ni; i++) {
+        Ni = 0;
+        if (omega[i] < 1) {
+          Ni++;
+        }
+      }
+      // this function selects k functions
       guesses =
           select_functions(world, guesses, omega, Ni, Rparams.print_level);
     }
