@@ -1,3 +1,4 @@
+#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <chem/exchangeoperator.h>
 
 #include <chem/SCF.h>
@@ -62,7 +63,7 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::operator()(
     }
 
     // macro task version
-    if (world.size()>0) {
+    if (world.size()>1) {
 
     	if (world.rank()==0) print("entering macrotask version");
 
@@ -167,14 +168,14 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::operator()(
 template class Exchange<double_complex,3>;
 template class Exchange<double,3>;
 
-template <> volatile std::list<detail::PendingMsg> WorldObject<MacroTaskQ>::pending = std::list<detail::PendingMsg>();
-template <> Spinlock WorldObject<MacroTaskQ>::pending_mutex(0);
-
-template <> volatile std::list<detail::PendingMsg> WorldObject<WorldContainerImpl<long, Exchange<double,3>::MacroTaskExchange, madness::Hash<long> > >::pending = std::list<detail::PendingMsg>();
-template <> Spinlock WorldObject<WorldContainerImpl<long, Exchange<double,3>::MacroTaskExchange, madness::Hash<long> > >::pending_mutex(0);
-
-template <> volatile std::list<detail::PendingMsg> WorldObject<WorldContainerImpl<long, std::vector<unsigned char>, madness::Hash<long> > >::pending = std::list<detail::PendingMsg>();
-template <> Spinlock WorldObject<WorldContainerImpl<long, std::vector<unsigned char>, madness::Hash<long> > >::pending_mutex(0);
+//template <> volatile std::list<detail::PendingMsg> WorldObject<MacroTaskQ>::pending = std::list<detail::PendingMsg>();
+//template <> Spinlock WorldObject<MacroTaskQ>::pending_mutex(0);
+//
+//template <> volatile std::list<detail::PendingMsg> WorldObject<WorldContainerImpl<long, Exchange<double,3>::MacroTaskExchange, madness::Hash<long> > >::pending = std::list<detail::PendingMsg>();
+//template <> Spinlock WorldObject<WorldContainerImpl<long, Exchange<double,3>::MacroTaskExchange, madness::Hash<long> > >::pending_mutex(0);
+//
+//template <> volatile std::list<detail::PendingMsg> WorldObject<WorldContainerImpl<long, std::vector<unsigned char>, madness::Hash<long> > >::pending = std::list<detail::PendingMsg>();
+//template <> Spinlock WorldObject<WorldContainerImpl<long, std::vector<unsigned char>, madness::Hash<long> > >::pending_mutex(0);
 
 
 } /* namespace madness */
