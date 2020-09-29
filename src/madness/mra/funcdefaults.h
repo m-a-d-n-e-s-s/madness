@@ -172,6 +172,9 @@ namespace madness {
     /// \ingroup mra
     template <std::size_t NDIM>
     class FunctionDefaults {
+        MADNESS_PRAGMA_CLANG(diagnostic push)
+    	MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
+
     private:
         static int k;                 ///< Wavelet order
         static double thresh;          ///< Truncation threshold
@@ -205,8 +208,6 @@ namespace madness {
 
     public:
 
-        MADNESS_PRAGMA_CLANG(diagnostic push)
-    	MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
 
 		/// Used to set defaults to k=7, thresh=1-5, for a unit cube [0,1].
 		static void set_defaults(World& world);
