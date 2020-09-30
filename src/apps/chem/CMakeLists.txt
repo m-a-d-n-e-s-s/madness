@@ -11,7 +11,7 @@ set(MADCHEM_HEADERS
     SCFOperators.h CCStructures.h CalculationParameters.h
     electronic_correlation_factor.h vibanal.h molopt.h TDHF.h CC2.h CCPotentials.h
     pcm.h SCFProtocol.h AC.h pointgroupoperator.h pointgroupsymmetry.h MolecularOrbitals.h 
-	znemo.h zcis.h  diamagneticpotentialfactor.h oep.h
+	znemo.h zcis.h  diamagneticpotentialfactor.h oep.h BSHApply.h
     PNO.h PNOF12Potentials.h PNOGuessFunctions.h PNOParameters.h PNOStructures.h PNOTensors.h
     basis.h polynomial.h gaussian.h ESInterface.h NWChem.h)
 set(MADCHEM_SOURCES
@@ -67,7 +67,7 @@ if(ENABLE_UNITTESTS)
   SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
   # The list of unit test source files
   set(CHEM_TEST_SOURCES test_SCFOperators.cc test_dft.cc test_pointgroupsymmetry.cc test_masks_and_boxes.cc
-  test_QCCalculationParametersBase.cc test_qc.cc test_MolecularOrbitals.cc)
+  test_QCCalculationParametersBase.cc test_qc.cc test_MolecularOrbitals.cc test_BSHApply.cc)
   
   add_unittests(chem "${CHEM_TEST_SOURCES}" "MADchem;MADgtest;MADgit")
   

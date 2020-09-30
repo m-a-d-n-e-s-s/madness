@@ -2134,10 +2134,10 @@ tensorT SCF::get_fock_transformation(World& world, const tensorT& overlap,
 		const double thresh_degenerate) const {
 	PROFILE_MEMBER_FUNC(SCF);
 
-	START_TIMER(world);
+//	START_TIMER(world);
 	tensorT U;
 	sygvp(world, fock, overlap, 1, U, evals);
-	END_TIMER(world, "Diagonalization Fock-mat w sygv");
+//	END_TIMER(world, "Diagonalization Fock-mat w sygv");
 
 	long nmo = fock.dim(0);
 

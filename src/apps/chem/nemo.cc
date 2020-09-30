@@ -49,6 +49,7 @@
 #include <chem/vibanal.h>
 #include <chem/pcm.h>
 #include <chem/pointgroupsymmetry.h>
+#include <chem/BSHApply.h>
 
 
 namespace madness {
@@ -172,9 +173,8 @@ double Nemo::value(const Tensor<double>& x) {
 
 	// read (pre-) converged wave function from disk if there is one
 	if (calc->param.no_compute() or calc->param.restart()) {
+	    set_protocol(calc->param.econv());	// set thresh to current value
 	    calc->load_mos(world);
-
-	    set_protocol(calc->amo[0].thresh());	// set thresh to current value
 	    calc->ao=calc->project_ao_basis(world,calc->aobasis);
 
 	} else {		// we need a guess
@@ -233,9 +233,17 @@ vecfuncT Nemo::localize(const vecfuncT& nemo, const double dconv, const bool ran
                         calc->aocc, nemo.size());
         // localize using the reconstructed orbitals
         vecfuncT psi = mul(world, R, nemo);
-        if(calc->param.localize_method()=="pm")dUT = calc->localize_PM(world, psi, aset, tolloc, 0.1, randomize, true);
-        else dUT = calc->localize_boys(world, psi, aset, tolloc, 0.1, randomize);
-        dUT.data().screen(trantol());
+        if(calc->param.localize_method()=="pm") {
+        	dUT = calc->localize_PM(world, psi, aset, tolloc, 0.1, randomize, true);
+        } else if (calc->param.localize_method()=="boys") {
+        	dUT = calc->localize_boys(world, psi, aset, tolloc, 0.1, randomize);
+        } else if (calc->param.localize_method()=="new") {
+        	dUT = calc->localize_new(world, psi, aset, tolloc, 0.1, randomize, false);
+        } else {
+        	print("unknown localization method",calc->param.localize_method());
+        	MADNESS_EXCEPTION("unknown localization method",1);
+        }
+//        dUT.data().screen(trantol());
 
         vecfuncT localnemo = transform(world, nemo, dUT);
         truncate(world, localnemo);
@@ -278,10 +286,11 @@ double Nemo::solve(const SCFProtocol& proto) {
 	// apply all potentials (J, K, Vnuc) on the nemos
 	vecfuncT psi, Jnemo, Knemo, pcmnemo, Unemo;
 
-	std::vector<double> energyvec;
+	std::vector<double> energies(1,0.0);	// contains the total energy and all its contributions
 	double energy=0.0;
 	bool converged = false;
 	bool localized=calc->param.do_localize();
+	real_function_3d density=real_factory_3d(world); 	// for testing convergence
 
 	typedef allocator<double, 3> allocT;
 	typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
@@ -296,140 +305,79 @@ double Nemo::solve(const SCFProtocol& proto) {
 	    std::vector<std::string> str_irreps;
 	    if (do_symmetry()) nemo=symmetry_projector(nemo,R_square,str_irreps);
 	    if (world.rank()==0) print("orbital irreps",str_irreps);
-	    save_function(nemo,"nemo_it"+stringify(iter));
 	    vecfuncT R2nemo=mul(world,R_square,nemo);
 	    truncate(world,R2nemo);
 
 		// compute potentials the Fock matrix: J - K + Vnuc
 		compute_nemo_potentials(nemo, psi, Jnemo, Knemo, pcmnemo, Unemo);
 
+		// compute the energy
+		std::vector<double> oldenergies=energies;
+		energies = compute_energy_regularized(nemo, Jnemo, Knemo, Unemo);
+        energy=energies[0];
+
 		// compute the fock matrix
-		vecfuncT JKUpsi=Unemo+Jnemo-Knemo;
-		if (do_pcm()) JKUpsi+=pcmnemo;
-		tensorT fock=matrix_inner(world,R2nemo,JKUpsi,false);   // not symmetric actually
+		vecfuncT Vnemo=Unemo+Jnemo-Knemo;
+		if (do_pcm()) Vnemo+=pcmnemo;
+		tensorT fock=matrix_inner(world,R2nemo,Vnemo,false);   // not symmetric actually
 		Kinetic<double,3> T(world);
 		fock+=T(R2nemo,nemo);
-		JKUpsi.clear();
 
-		// report the off-diagonal fock matrix elements
-		if (not localized) {
+
+        // Diagonalize the Fock matrix to get the eigenvalues and eigenvectors
+        if (not localized) {
+            START_TIMER(world);
+    		// report the off-diagonal fock matrix elements
             tensorT fock_offdiag=copy(fock);
             for (int i=0; i<fock.dim(0); ++i) fock_offdiag(i,i)=0.0;
             double max_fock_offidag=fock_offdiag.absmax();
             if (world.rank()==0) print("F max off-diagonal  ",max_fock_offidag);
-		}
 
-		std::vector<double> oldenergyvec=energyvec;
-		double oldenergy=0.0;
-		if (oldenergyvec.size()>0) oldenergy=oldenergyvec[0];
-//		energy = compute_energy(psi, mul(world, R, Jnemo),
-//				mul(world, R, Knemo));
-        energyvec = compute_energy_regularized(nemo, Jnemo, Knemo, Unemo);
-        energy=energyvec[0];
-        double expval=fabs(energyvec.size()-oldenergyvec.size());	// >0 if oldenergyvec not initialized
-        for (auto iter1=energyvec.begin(), iter2=oldenergyvec.begin();
-        		(iter1!=energyvec.end() and iter2!=oldenergyvec.end()); iter1++, iter2++) {
-        	expval+=(*iter1 - *iter2)*(*iter1 - *iter2);
-        }
-        expval=sqrt(expval);
-
-        print(energyvec);
-        print(oldenergyvec);
-        print("energy differences",expval);
-
-        // Diagonalize the Fock matrix to get the eigenvalues and eigenvectors
-        tensorT U;
-        if (not localized) {
-            tensorT overlap = matrix_inner(world, psi, psi, true);
-            U=calc->get_fock_transformation(world,overlap,
+            // canonicalize the orbitals, rotate subspace and potentials
+        	tensorT overlap = matrix_inner(world, psi, psi, true);
+            tensorT U=calc->get_fock_transformation(world,overlap,
                     fock,calc->aeps,calc->aocc,FunctionDefaults<3>::get_thresh());
 
-            START_TIMER(world);
             nemo = transform(world, nemo, U, trantol(), true);
+            Vnemo = transform(world, Vnemo, U, trantol(), true);
             rotate_subspace(world, U, solver, 0, nemo.size());
 
             truncate(world, nemo);
             normalize(nemo,R);
-            END_TIMER(world, "transform orbitals");
+            END_TIMER(world, "canonicalize orbitals");
+
+        } else {
+        	// if localized the orbital energies are the diagonal fock matrix elements
+        	for (int i=0; i<calc->aeps.size(); ++i) calc->aeps[i]=fock(i,i);
         }
 
-		// update the nemos
+		BSHApply<double,3> bsh_apply(world);
+		bsh_apply.metric=R_square;
+		bsh_apply.lo=get_calc()->param.lo();
+		bsh_apply.do_coupling=localized;
+		bsh_apply.levelshift=param.orbitalshift();
+		auto [residual,eps_update] =bsh_apply(nemo,fock,Vnemo);
 
-		// construct the BSH operator and add off-diagonal elements
-		// (in case of non-canonical HF)
-		tensorT eps(nmo);
-		for (int i = 0; i < nmo; ++i) {
-			eps(i) = std::min(-0.05, fock(i, i));
-            fock(i, i) -= eps(i);
-		}
-         
-        if(localized) calc->aeps=eps;
-        vecfuncT fnemo;
-        if (localized) fnemo= transform(world, nemo, fock, trantol(), true);
+		const double bsh_norm = norm2(world, residual) / sqrt(nemo.size());
 
-        // Undo the damage
-        for (int i = 0; i < nmo; ++i) fock(i, i) += eps(i);
-
-		if (calc->param.orbitalshift()>0.0) {
-			if (world.rank()==0) print("shifting orbitals by "
-					,calc->param.orbitalshift()," to lower energies");
-			eps-=calc->param.orbitalshift();
-		}
-		std::vector<poperatorT> ops = calc->make_bsh_operators(world, eps);
-
-		// make the potential * nemos term; make sure it's in phase with nemo
-		START_TIMER(world);
-        vecfuncT Vpsi=Unemo+Jnemo-Knemo;
-        if (do_pcm()) Vpsi+=pcmnemo;
-
-        if (localized) gaxpy(world, 1.0, Vpsi, -1.0, fnemo);
-		truncate(world,Vpsi);
-		END_TIMER(world, "make Vpsi");
-
-		START_TIMER(world);
-		if (not localized) Vpsi = transform(world, Vpsi, U, trantol(), true);
-		truncate(world,Vpsi);
-		END_TIMER(world, "transform Vpsi");
-
-		// apply the BSH operator on the wave function
-		START_TIMER(world);
-		scale(world, Vpsi, -2.0);
-		vecfuncT tmp = apply(world, ops, Vpsi);
-		truncate(world, tmp);
-		END_TIMER(world, "apply BSH");
-
-		double n1=norm2(world,nemo);
-		double n2=norm2(world,tmp);
-		print("norm of nemo and GVnemo; ratio ",n1,n2,n1/n2);
-
-		// compute the residuals
-		vecfuncT residual = sub(world, nemo, tmp);
-		const double norm = norm2(world, residual) / sqrt(nemo.size());
-
-		// kain works best in the quadratic region
-		vecfuncT nemo_new;
-		if (norm < 5.e-1) {
-			nemo_new = solver.update(nemo, residual);
-		} else {
-			nemo_new = tmp;
-		}
-		truncate(world,nemo_new);
+		vecfuncT nemo_new = truncate(solver.update(nemo, residual));
 		normalize(nemo_new,R);
 
 		calc->do_step_restriction(world,nemo,nemo_new,"ab spin case");
 		orthonormalize(nemo_new,R);
 		nemo=nemo_new;
 
-		bool econv=(fabs(energy-oldenergy)<proto.econv);
-		if (calc->param.converge_each_energy()) econv=(expval<proto.dconv);
-		converged =((norm < proto.dconv) and econv);
+		real_function_3d olddensity=density;
+		density=R_square*compute_density(nemo);
+		double deltadens=(density-olddensity).norm2();
+		converged=check_convergence(energies,oldenergies,bsh_norm,deltadens,calc->param,
+				proto.econv,proto.dconv);
 
 		if (calc->param.save()) calc->save_mos(world);
 
 		if (world.rank() == 0) {
-			printf("finished iteration %2d at time %8.1fs with energy %12.8f\n",
+			printf("finished iteration %2d at time %8.1fs with energy  %12.8f\n",
 					iter, wall_time(), energy);
-			print("current residual norm  ", norm, "\n");
 		}
 
 		if (converged) break;
@@ -499,12 +447,16 @@ std::vector<double> Nemo::compute_energy_regularized(const vecfuncT& nemo, const
         const vecfuncT& Knemo, const vecfuncT& Unemo) const {
     START_TIMER(world);
 
-    vecfuncT R2nemo=mul(world,R_square,nemo);
+    vecfuncT R2nemo=R_square*nemo;
     truncate(world,R2nemo);
 
     const tensorT U = inner(world, R2nemo, Unemo);
     const double pe = 2.0 * U.sum();  // closed shell
 
+//    real_function_3d dens=dot(world,nemo,nemo)*R_square;
+//    double pe1=2.0*inner(dens,calc->potentialmanager->vnuclear());
+
+    // compute \sum_i <F_i | R^2 T | F_i>
     double ke = 0.0;
     for (int axis = 0; axis < 3; axis++) {
         real_derivative_3d D = free_space_derivative<double, 3>(world, axis);
@@ -514,22 +466,10 @@ std::vector<double> Nemo::compute_energy_regularized(const vecfuncT& nemo, const
     }
     ke *= 2.0; // closed shell
 
-    // possible advantageous to do it this way, the U1 term should cancel
-    // with the nuclear potential, might be faster and more precise.
-//    // do the kinetic energy again
-//    double ke1=0.0;
-//    for (int axis = 0; axis < 3; axis++) {
-//        real_derivative_3d D = free_space_derivative<double, 3>(world, axis);
-//        const vecfuncT dnemo = apply(world, D, nemo);
-//
-//        real_function_3d term1=dot(world,dnemo,dnemo);
-//        ke1 += 0.5*inner(term1,R_square);
-//
-//        vecfuncT term2=R_square*nuclear_correlation->U1(axis)*nemo;
-//        ke1 +=-2.0* 0.5 * (inner(world, dnemo, term2)).sum();
-//    }
-//    ke1 *= 2.0; // closed shell
 
+    double ke0=compute_kinetic_energy(nemo);
+//    double ke1=compute_kinetic_energy1(nemo);
+//    double ke2=compute_kinetic_energy2(nemo);
 
     const double J = inner(world, R2nemo, Jnemo).sum();
     const double K = inner(world, R2nemo, Knemo).sum();
@@ -552,7 +492,11 @@ std::vector<double> Nemo::compute_energy_regularized(const vecfuncT& nemo, const
 
     if (world.rank() == 0) {
         printf("\n  nuclear and kinetic %16.8f\n", ke + pe);
-//        printf("\n  kinetic again %16.8f\n",  ke1);
+        printf("         kinetic only %16.8f\n",  ke0);
+//        printf("\n  kinetic only  %16.8f\n",  ke2);
+//        printf("\n  kinetic plain %16.8f\n",  ke3);
+//        printf("\n  nuclear only  %16.8f\n",  pe1);
+//        printf("\n  nuclear and kinetic each  %16.8f\n",  pe1+ke1);
         printf("              coulomb %16.8f\n", J);
         if (is_dft()) {
             printf(" exchange-correlation %16.8f\n", exc);
@@ -568,7 +512,7 @@ std::vector<double> Nemo::compute_energy_regularized(const vecfuncT& nemo, const
     }
     END_TIMER(world, "compute energy");
 
-    return std::vector<double>{energy,ke+pe,J,exc,-K,pcm_energy,nucrep};
+    return std::vector<double>{energy,ke0,ke+pe,J,exc,-K,pcm_energy,nucrep};
 }
 
 /// compute the reconstructed orbitals, and all potentials applied on nemo
