@@ -194,7 +194,7 @@ TDHF::TDHF(World &world, std::shared_ptr<std::istream> input) {
 // Save the current response calculation
 void TDHF::save(World &world) {
   // Archive to write everything to
-  archive::ParallelOutputArchive ar(world, "resp_restart", 1);
+  archive::ParallelOutputArchive ar(world, Rparams.save_file, 1);
   // Just going to enforce 1 io server
 
   // Saving, in this order;

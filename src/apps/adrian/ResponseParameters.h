@@ -12,84 +12,113 @@ namespace madness {
 
 struct ResponseParameters {
   // List of input parameters
-  std::string archive; ///< Name of input archive to read in ground state
+  std::string archive;  ///< Name of input archive to read in ground state
   std::string
-      nwchem;      ///< Root name of nwchem files for intelligent starting guess
-  int states;      ///< Number of excited states requested
-  int print_level; ///< Controls the amount and style of printing. Higher values
-                   ///< print more
-                   ///<   Values |   What gets printed
-                   ///<   ----------------------------
-                   ///<     1    |   Print out timing of each step in the
-                   ///<     calculation,
-                   ///<          |   along with energy, energy res., and func.
-                   ///<          res.
-                   ///<   ----------------------------
-                   ///<     2    |   Debug level. Prints EVERYTHING!!!
+      nwchem;  ///< Root name of nwchem files for intelligent starting guess
+  int states;  ///< Number of excited states requested
+  int print_level;  ///< Controls the amount and style of printing. Higher
+                    ///< values print more
+                    ///<   Values |   What gets printed
+                    ///<   ----------------------------
+                    ///<     1    |   Print out timing of each step in the
+                    ///<     calculation,
+                    ///<          |   along with energy, energy res., and func.
+                    ///<          res.
+                    ///<   ----------------------------
+                    ///<     2    |   Debug level. Prints EVERYTHING!!!
 
   bool tda;  ///< Turn on Tam-Danchof approximation (only calculate excitations)
-  bool plot; ///< Turn on plotting of final orbitals. Output format is .vts
-  bool plot_range;            ///< Controls which orbitals will be plotted
-  std::vector<int> plot_data; ///< Orbitals to plot
-  double plot_L;              ///< Controls the plotting box size
-  int plot_pts;               ///< Controls number of points in plots
-  int max_iter;               ///< Maximum number of iterations
-  double dconv;               ///< Convergence criterion for the orbital density
-  bool dconv_set;             ///< Convergence flag for the orbital density
-  bool guess_xyz;             ///< Convergence flag for the orbital density
-  double small;               ///< Minimum length scale to be resolved
-  std::vector<double> protocol_data; ///< Different thresholds for truncation
-  int larger_subspace;  ///< Number of iterations to diagonalize in a subspace
-                        ///< consisting of old and new vectors
-  int k;                ///< Polynomial order to use in calculation
-  bool random;          ///< Use a random guess for initial response functions
-  bool store_potential; ///< Store the potential instead of computing each
-                        ///< iteration
-  bool e_window;        ///< Use an energy window to excite from
-  double range_low;  ///< Energy range (lower end) for orbitals to excite from
-  double range_high; ///< Energy range (upper end) for orbitals to excite from
-  bool plot_initial; ///< Flag to plot the ground state orbitals read in from
-                     ///< archive
-  bool restart;      ///< Flag to restart from file
-  std::string restart_file; ///< Flag to restart from file
-  bool kain;                ///< Flag to use KAIN solver
-  int maxsub;               ///< How many previous iterations KAIN will store
-  std::string xc;     ///< Controls the HF or DFT switch, as well as which DFT
-                      ///< functional is used
-  bool save;          ///< Controls if orbitals will be saved each iteration
-  int guess_max_iter; ///< Maximum number of iterations for guess functions
+  bool plot;  ///< Turn on plotting of final orbitals. Output format is .vts
+  bool plot_range;             ///< Controls which orbitals will be plotted
+  std::vector<int> plot_data;  ///< Orbitals to plot
+  double plot_L;               ///< Controls the plotting box size
+  int plot_pts;                ///< Controls number of points in plots
+  int max_iter;                ///< Maximum number of iterations
+  double dconv;    ///< Convergence criterion for the orbital density
+  bool dconv_set;  ///< Convergence flag for the orbital density
+  bool guess_xyz;  ///< Convergence flag for the orbital density
+  double small;    ///< Minimum length scale to be resolved
+  std::vector<double> protocol_data;  ///< Different thresholds for truncation
+  int larger_subspace;   ///< Number of iterations to diagonalize in a subspace
+                         ///< consisting of old and new vectors
+  int k;                 ///< Polynomial order to use in calculation
+  bool random;           ///< Use a random guess for initial response functions
+  bool store_potential;  ///< Store the potential instead of computing each
+                         ///< iteration
+  bool e_window;         ///< Use an energy window to excite from
+  double range_low;   ///< Energy range (lower end) for orbitals to excite from
+  double range_high;  ///< Energy range (upper end) for orbitals to excite from
+  bool plot_initial;  ///< Flag to plot the ground state orbitals read in from
+                      ///< archive
+  bool restart;       ///< Flag to restart from file
+  std::string restart_file;  ///< Flag to restart from file
+  bool kain;                 ///< Flag to use KAIN solver
+  int maxsub;                ///< How many previous iterations KAIN will store
+  std::string xc;      ///< Controls the HF or DFT switch, as well as which DFT
+                       ///< functional is used
+  bool save;           ///< Controls if orbitals will be saved each iteration
+  char *save_file;     ///< Flag to save to file
+  int guess_max_iter;  ///< Maximum number of iterations for guess functions
 
   // Start of properties
-  bool property;       ///< Flag that this is a properties calculation
-  bool polarizability; ///< Flag to indicate desired property is the
-                       ///< polarizability
-  double omega;        ///< Incident energy for polarizability
+  bool property;        ///< Flag that this is a properties calculation
+  bool polarizability;  ///< Flag to indicate desired property is the
+                        ///< polarizability
+  double omega;         ///< Incident energy for polarizability
 
   // TESTING
   bool old;
   // END TESTING
 
   // Used to broadcast data to all mpi ranks
-  template <typename Archive> void serialize(Archive &ar) {
+  template <typename Archive>
+  void serialize(Archive &ar) {
     ar &archive &nwchem &states &print_level &tda &plot &plot_range &plot_data
         &plot_L &plot_pts &max_iter &dconv &dconv_set &guess_xyz &small
             &protocol_data &larger_subspace &k &random &store_potential
                 &e_window &range_low &range_high &plot_initial &restart
-                    &restart_file &kain &maxsub &xc &save &guess_max_iter
-                        &property &polarizability &omega &old;
+                    &restart_file &kain &maxsub &xc &save &save_file
+                        &guess_max_iter &property &polarizability &omega &old;
   }
 
   // Default constructor
   ResponseParameters()
-      : archive("restartdata"), nwchem(""), states(1), print_level(1),
-        tda(false), plot(false), plot_range(false),
-        plot_data(std::vector<int>{0}), plot_L(-1.0), plot_pts(201),
-        max_iter(20), dconv(0), dconv_set(false), guess_xyz(false), small(1e-6),
-        protocol_data(madness::vector_factory(1e-6)), larger_subspace(0), k(0),
-        random(false), store_potential(true), e_window(false), range_low(0.0),
-        range_high(1.0), plot_initial(false), restart(false), restart_file(""),
-        kain(false), maxsub(5), xc("hf"), save(false), guess_max_iter(5),
-        property(false), polarizability(false), omega(0.0), old(true) {}
+      : archive("restartdata"),
+        nwchem(""),
+        states(1),
+        print_level(1),
+        tda(false),
+        plot(false),
+        plot_range(false),
+        plot_data(std::vector<int>{0}),
+        plot_L(-1.0),
+        plot_pts(201),
+        max_iter(20),
+        dconv(0),
+        dconv_set(false),
+        guess_xyz(false),
+        small(1e-6),
+        protocol_data(madness::vector_factory(1e-6)),
+        larger_subspace(0),
+        k(0),
+        random(false),
+        store_potential(true),
+        e_window(false),
+        range_low(0.0),
+        range_high(1.0),
+        plot_initial(false),
+        restart(false),
+        restart_file(""),
+        kain(false),
+        maxsub(5),
+        xc("hf"),
+        save(false),
+        save_file("response_parameters"),
+        guess_max_iter(5),
+        property(false),
+        polarizability(false),
+        omega(0.0),
+        old(true) {}
 
   // Initializes ResponseParameters using the contents of file \c filename
   void read_file(const std::string &filename) {
@@ -142,8 +171,7 @@ struct ResponseParameters {
         } else {
           // Add in the one we just read
           plot_data.push_back(std::stoi(d));
-          while (t >> d)
-            plot_data.push_back(std::stoi(d));
+          while (t >> d) plot_data.push_back(std::stoi(d));
         }
       } else if (s == "plot_pts") {
         f >> plot_pts;
@@ -180,23 +208,23 @@ struct ResponseParameters {
         protocol_data = std::vector<double>();
         double d;
         std::stringstream s(buf);
-        while (s >> d)
-          protocol_data.push_back(d);
+        while (s >> d) protocol_data.push_back(d);
       } else if (s == "kain") {
         kain = true;
       } else if (s == "maxsub") {
         f >> maxsub;
       } else if (s == "save") {
         save = true;
+        f >> save_file;
       } else if (s == "guess_iter") {
         f >> guess_max_iter;
       } else if (s == "polarizability") {
         property = true;
-        states = 3; // One for each axis
+        states = 3;  // One for each axis
         polarizability = true;
         f >> omega;
-      } else if (s == "new") // Use potential manager, for debugging. Remove
-                             // after it works
+      } else if (s == "new")  // Use potential manager, for debugging. Remove
+                              // after it works
       {
         old = false;
       } else {
@@ -204,7 +232,7 @@ struct ResponseParameters {
         MADNESS_EXCEPTION("input error", 0);
       }
     }
-  } // end read()
+  }  // end read()
 
   // Prints all information
   void print_params() const {
@@ -212,14 +240,10 @@ struct ResponseParameters {
     madness::print("   -------------------------");
     madness::print("       Response XC Functional:", xc);
     madness::print("            Ground State File:", archive);
-    if (nwchem != "")
-      madness::print("                  NWChem File:", nwchem);
-    if (restart)
-      madness::print("                 Restart File:", restart_file);
-    if (!property)
-      madness::print("             States Requested:", states);
-    if (!property)
-      madness::print("            TDA Approximation:", tda);
+    if (nwchem != "") madness::print("                  NWChem File:", nwchem);
+    if (restart) madness::print("                 Restart File:", restart_file);
+    if (!property) madness::print("             States Requested:", states);
+    if (!property) madness::print("            TDA Approximation:", tda);
     if (e_window and !property)
       madness::print("                Energy Window:", e_window,
                      " (Not yet implemented)");
@@ -227,8 +251,7 @@ struct ResponseParameters {
       madness::print("           Energy Range Start:", range_low);
     if (e_window and !property)
       madness::print("             Energy Range End:", range_high);
-    if (k > 0)
-      madness::print("                            k:", k);
+    if (k > 0) madness::print("                            k:", k);
     if (!property and random)
       madness::print("                Initial Guess: Random");
     if (!property and !random and nwchem == "")
@@ -239,11 +262,9 @@ struct ResponseParameters {
     if (!property)
       madness::print("   Larger Subspace Iterations:", larger_subspace);
     madness::print("                     Use KAIN:", kain);
-    if (kain)
-      madness::print("           KAIN Subspace Size:", maxsub);
+    if (kain) madness::print("           KAIN Subspace Size:", maxsub);
     madness::print("                Save orbitals:", save);
-    if (dconv != 0.0)
-      madness::print("Density Convergence Threshold:", dconv);
+    if (dconv != 0.0) madness::print("Density Convergence Threshold:", dconv);
     if (!property)
       madness::print("                     Protocol:", protocol_data);
     if (plot_initial and !property)
@@ -270,5 +291,5 @@ struct ResponseParameters {
   }
 };
 
-} // namespace madness
+}  // namespace madness
 #endif
