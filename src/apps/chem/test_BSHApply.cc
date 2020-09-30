@@ -252,11 +252,13 @@ int main(int argc, char** argv) {
     for (bool coupling : {true,false}) {
     	for (double shift : {0.0, -5.0}) {
     	    result+=test_converged_function<double,1>(world,shift,coupling);
-    	    result+=test_converged_function<double_complex,1>(world,shift,coupling);
     	    result+=test_converged_function<double,2>(world,shift,coupling);
-    	    result+=test_converged_function<double_complex,2>(world,shift,coupling);
     	    result+=test_converged_function<double,3>(world,shift,coupling);
+#ifdef USE_GENTENSOR
+    	    result+=test_converged_function<double_complex,1>(world,shift,coupling);
+    	    result+=test_converged_function<double_complex,2>(world,shift,coupling);
 //    	    result+=test_converged_function<double_complex,3>(world,shift,coupling);
+#endif
     	    result+=test_convergence<double,2>(world,shift,coupling);
     	}
     }
