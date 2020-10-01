@@ -603,7 +603,8 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo, vecfuncT& psi,
     Knemo=zero_functions_compressed<double,3>(world,nemo.size());
     if (calc->xc.hf_exchange_coefficient()>0.0) {
         START_TIMER(world);
-        Exchange<double,3> K=Exchange<double,3>(world,this,ispin).same(false).small_memory(false);
+        Exchange<double,3> K=Exchange<double,3>(world,this,ispin).same(false).small_memory(false)
+        		.multiworld(param.multiworld());
         Knemo=K(nemo);
         scale(world,Knemo,calc->xc.hf_exchange_coefficient());
         truncate(world, Knemo);

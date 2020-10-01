@@ -63,7 +63,7 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::operator()(
     }
 
     // macro task version
-    if (world.size()>1) {
+    if (multiworld_) {
 
     	if (world.rank()==0) print("entering macrotask version");
 

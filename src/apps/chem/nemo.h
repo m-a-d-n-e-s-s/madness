@@ -206,6 +206,7 @@ public:
 
 		void initialize_nemo_parameters() {
 			initialize<std::pair<std::string,double> > ("ncf",{"slater",2.0},"nuclear correlation factor");
+			initialize<bool> ("multiworld",false,"use macrotask/multiworld algorithm");
 			initialize<bool> ("hessian",false,"compute the hessian matrix");
 			initialize<bool> ("read_cphf",false,"read the converged orbital response for nuclear displacements from file");
 			initialize<bool> ("restart_cphf",false,"read the guess orbital response for nuclear displacements from file");
@@ -214,6 +215,7 @@ public:
 
 		std::pair<std::string,double> ncf() const {return get<std::pair<std::string,double> >("ncf");}
 		bool hessian() const {return get<bool>("hessian");}
+		bool multiworld() const {return get<bool>("multiworld");}
 
 	};
 

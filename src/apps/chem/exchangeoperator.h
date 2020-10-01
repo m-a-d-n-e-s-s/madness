@@ -158,11 +158,18 @@ public:
         return *this;
     }
 
+    Exchange& multiworld(const bool flag) {
+    	multiworld_=flag;
+        return *this;
+    }
+
+
 private:
 
     World& world;
     bool small_memory_=true;
     bool same_=false;
+    bool multiworld_=false;
     vecfuncT mo_bra, mo_ket;    ///< MOs for bra and ket
     Tensor<double> occ;
     std::shared_ptr<real_convolution_3d> poisson;
