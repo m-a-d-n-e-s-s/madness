@@ -10,6 +10,7 @@
 
 #include <math.h>
 
+#include <cstdint>
 #include <map>
 #include <memory>
 #include <string>
@@ -2756,20 +2757,20 @@ Tensor<double> TDHF::GetFullResponseTransformation(
   }
 
   // Fix phases.
-  for (long i = 0; i < m; ++i)
+  for (int64_t i = 0; i < m; ++i)
     if (U(i, i) < 0.0) U(_, i).scale(-1.0);
 
   // Rotations between effectively degenerate components confound
   // the non-linear equation solver ... undo these rotations
-  long ilo = 0;  // first element of cluster
+  int64_t ilo = 0;  // first element of cluster
   while (ilo < m - 1) {
-    long ihi = ilo;
+    int64_t ihi = ilo;
     while (fabs(evals[ilo] - evals[ihi + 1]) <
            thresh_degenerate * 10.0 * std::max(fabs(evals[ilo]), 1.0)) {
       ++ihi;
       if (ihi == m - 1) break;
     }
-    long nclus = ihi - ilo + 1;
+    int64_t nclus = ihi - ilo + 1;
     if (nclus > 1) {
       Tensor<double> q = copy(U(Slice(ilo, ihi), Slice(ilo, ihi)));
 
@@ -3142,7 +3143,6 @@ void TDHF::Iterate(World &world) {
       normalize(world, x_response);
     else
       normalize(world, x_response, y_response);
-
     computeElectronResponse(world, ElectronResponses, x_response, y_response,
                             Gparams.orbitals, xc, hamiltonian, ham_no_diag,
                             Rparams.small, FunctionDefaults<3>::get_thresh(),
@@ -3459,8 +3459,10 @@ void TDHF::Iterate(World &world) {
     // lo[0] = 0.0; lo[1] = 0.0; lo[2] = 0.0;
     // hi[0] =  Lp; hi[1] = 0.0; hi[2] = 0.0;
     ////// plot ground state
-    ////sprintf(plotname, "plot_ground_x.plt");
-    ////plot_line(plotname, 5001, lo, hi, Gparams.orbitals[0]);
+    //// sprintf(plotname, "plot_ground_x.plt");
+    //
+    //
+    //// plot_line(plotname, 5001, lo, hi, Gparams.orbitals[0]);
     ////
     //// plot each x_k^p and the density
     // for(int i = 0; i < m; i++)
