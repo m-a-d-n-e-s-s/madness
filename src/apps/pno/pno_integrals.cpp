@@ -20,6 +20,7 @@
 #include <chem/nemo.h>
 #include <chem/PNO.h>
 #include <vector>
+#include <fstream>
 
 using namespace madness;
 
@@ -188,8 +189,12 @@ int main(int argc, char** argv) {
 	FunctionDefaults<3>::set_thresh(1.e-6);
 
 	vecfuncT reference = nemo.get_calc()->amo;
-	vecfuncT all_pnos;
+	vecfuncT obs_pnos;
 	std::vector<real_function_3d> rest_pnos;
+	std::vector<double> occ;
+	std::vector<double> rest_occ;
+	std::vector<std::string> pno_ids;
+	std::vector<std::string> rest_ids;
 	std::string name;
 	for(auto& pairs: all_pairs){
 		const auto& pno_ij = pairs.pno_ij;
@@ -204,11 +209,7 @@ int main(int argc, char** argv) {
 			name = "gs";
 		}
 
-		std::vector<double> occ;
 		std::vector<real_function_3d> all_current_pnos;
-		std::vector<double> rest_occ;
-		std::vector<std::string> pno_ids;
-		std::vector<std::string> rest_ids;
 		// collect PNOs from all pairs and sort by occupation number, keeping pair information via name
 		for(ElectronPairIterator it=pno.pit();it;++it){
 			if (only_diag and not it.diagonal()){
@@ -260,33 +261,35 @@ int main(int argc, char** argv) {
 		rest_ids = unzipped_third;
 
 
-		if(world.rank()==0){
-			std::cout << "all used occupation numbers:\n" << occ << std::endl;
-			std::cout << "corresponding to pairs:\n" << pno_ids << std::endl;
-			if (cabs_option=="pno" || cabs_option=="mixed")
-				std::cout << "add remaining occupation numbers for cabs:\n" << rest_occ << std::endl;
-				std::cout << "corresponding to pairs:\n" << rest_ids << std::endl;
-		}
-
-		all_pnos.insert(all_pnos.end(), all_current_pnos.begin(), all_current_pnos.end());
+		obs_pnos.insert(obs_pnos.end(), all_current_pnos.begin(), all_current_pnos.end());
 	}
 
 	// reference projector (not automatically fullfilled for CIS)
 	// projection is to keep the reference and CIS orbitals untouched in the orthogonalization
 	madness::QProjector<double, 3> Q(world, reference);
-	all_pnos = Q(all_pnos);
+	obs_pnos = Q(obs_pnos);
 
-	auto basis = all_pnos;
+	auto basis = obs_pnos;
 
 	// compute overlap of all PNOs before orthogonalization
 	if (paramsint.print_pno_overlap()) {
-		const auto S = madness::matrix_inner(world, all_pnos, all_pnos, true);
+		const auto S = madness::matrix_inner(world, obs_pnos, obs_pnos, true);
 		if(world.rank()==0) std::cout << "Overlap Matrix of all PNOs:\n";
-		for (int i=0;i<all_pnos.size();++i){
-			for (int j=0;j<all_pnos.size();++j){
+		for (int i=0;i<obs_pnos.size();++i){
+			for (int j=0;j<obs_pnos.size();++j){
 				if(world.rank()==0) std::cout << S(i,j) << " ";
 			}
 			if(world.rank()==0) std::cout << "\n";
+		}
+	}
+
+	if(world.rank()==0){
+		std::cout << "Before cherry pick" << std::endl;
+		std::cout << "all used occupation numbers:\n" << occ << std::endl;
+		std::cout << "corresponding to pairs:\n" << pno_ids << std::endl;
+		if (cabs_option=="pno" || cabs_option=="mixed") {
+			std::cout << "add remaining occupation numbers for cabs:\n" << rest_occ << std::endl;
+			std::cout << "corresponding to pairs:\n" << rest_ids << std::endl;
 		}
 	}
 
@@ -294,17 +297,46 @@ int main(int argc, char** argv) {
 	std::vector<int> cherry_pick = paramsint.cherry_pick();
 	if(not cherry_pick.empty()){
 		vecfuncT cp;
+		std::vector<double> cp_occ;
+		std::vector<std::string> cp_pno_ids;
 		if(world.rank()==0){
-			std::cout << "Cherry picking orbitals: " << cherry_pick << " from pno basis\n";
+			std::cout << "Cherry picking orbitals: " << cherry_pick << " from pno basis." << std::endl;
 		}
-		for(auto i: cherry_pick){
+		for(auto i: cherry_pick){ // TODO: whatever does not get cherry-picked, add to CABS, if CABS!
 			cp.push_back(basis[i]);
+			cp_occ.push_back(occ[i]);
+			cp_pno_ids.push_back(pno_ids[i]);
 		}
 		basis = cp;
+		occ = cp_occ;
+		pno_ids = cp_pno_ids;
 	}
+	if(world.rank()==0){
+		std::cout << "After cherry pick" << std::endl;
+		std::cout << "all used occupation numbers:\n" << occ << std::endl;
+		std::cout << "corresponding to pairs:\n" << pno_ids << std::endl;
+		if (cabs_option=="pno" || cabs_option=="mixed") {
+			std::cout << "add remaining occupation numbers for cabs:\n" << rest_occ << std::endl;
+			std::cout << "corresponding to pairs:\n" << rest_ids << std::endl;
+		}
+	}
+  // Save pair information to file after having picked the cherries 
+  std::ofstream pairwriter ("pairinfo.txt", std::ofstream::out|std::ofstream::trunc);
+  pairwriter << "PNO Pair information" << std::endl;
+  for(auto i=0; i<reference.size(); ++i) {
+		pairwriter << i << ",";
+	}
+  for(auto i=0; i<pno_ids.size(); ++i) {
+		pairwriter << pno_ids[i].substr(4); // cut off "pair"
+		if (!(i==pno_ids.size()-1)) pairwriter << ",";
+	}
+	pairwriter.close();
 
-	for(auto i=0;i<basis.size();++i){
-		madness::save(basis[i], "pno_"+std::to_string(i));
+
+	if (parameters.save_pnos()) {
+		for(auto i=0; i<basis.size(); ++i){
+			madness::save(basis[i], "pno_"+std::to_string(i));
+		}
 	}
 
 	// orthogonalize orbital basis
@@ -312,8 +344,10 @@ int main(int argc, char** argv) {
 		basis = orthonormalize_basis(basis, orthogonalization, thresh, world, paramsint.print_pno_overlap()); 
 	}
 
-	for(auto i=0;i<basis.size();++i){
-		madness::save(basis[i], "orthonormalized_pno_"+std::to_string(i));
+	if (parameters.save_pnos()) {
+		for(auto i=0;i<basis.size();++i){
+			madness::save(basis[i], "orthonormalized_pno_"+std::to_string(i));
+		}
 	}
 
 	// will include CIS orbitals for excited states

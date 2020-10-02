@@ -95,6 +95,7 @@ public:
 		initialize<std::vector<int> >("active_pairs_of_orbital",std::vector<int>(), " All pairs which originate from this orbital will not be frozen all other pairs will, if this vector is not empty");
 		initialize<bool>("no_opt_in_first_iteration", false, "Do not optimize in the first iteration (then the potentials do not have to be evaluated, use this for large guesses)");
 		initialize<std::string>("exchange", "full", "approximate exchange with 'neglect' or xc functional -> same syntax as moldft");
+		initialize<bool>("save_pnos",true, "Save the OBS-PNOs to a file, before and after orthonormalization.");
 	}
 
 	void set_derived_values(const Molecule& molecule) {
@@ -217,6 +218,7 @@ public:
 	int maxiter_macro()const { return get<int >("maxiter_macro");}
 	bool no_opt_in_first_iteration()const { return get<bool >("no_opt_in_first_iteration");}
 
+	bool save_pnos()const { return get<bool >("save_pnos");}
 
 };
 
