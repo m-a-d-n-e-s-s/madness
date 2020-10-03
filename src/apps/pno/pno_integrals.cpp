@@ -467,7 +467,7 @@ int main(int argc, char** argv) {
 									}
 								}
 								// f12-tensor, only if cabs are used
-								if (FPQ[r][s].norm2() >= h_thresh and cabs_switch) {
+								if (cabs_switch and FPQ[r][s].norm2() >= h_thresh) {
 									f(p,q,r,s) = PQ[p][q].inner(FPQ[r][s]);
 									// symm
 									f(r,s,p,q) = f(p,q,r,s);
@@ -496,7 +496,7 @@ int main(int argc, char** argv) {
 							}
 						}
 						// f12-tensor
-						if (FPQ[r][s].norm2() >= h_thresh and cabs_switch) {
+						if (cabs_switch and FPQ[r][s].norm2() >= h_thresh) {
 							//f(p,q,r,s) = PQ[p][q].inner(FPQ[r][s]);
 							f(p,q,r,s) = PQ[p][q].inner(FPQ[r][s]);
 							if(std::fabs(f(p,q,r,s)) > h_thresh ){
@@ -526,7 +526,7 @@ int main(int argc, char** argv) {
 								}
 							}
 							// f12-tensor
-							if (FPQ[r][s].norm2() >= h_thresh and cabs_switch) {
+							if (cabs_switch and FPQ[r][s].norm2() >= h_thresh) {
 								f(p,q,r,s) = PQ[p][q].inner(FPQ[r][s]);
 								f(r,s,p,q) = f(p,q,r,s);
 								if(std::fabs(f(p,q,r,s)) > h_thresh ){
@@ -553,7 +553,7 @@ int main(int argc, char** argv) {
 							}
 						}
 						// f12-tensor
-						if (FPQ[r][s].norm2() >= h_thresh and cabs_switch) {
+						if (cabs_switch and FPQ[r][s].norm2() >= h_thresh) {
 							f(p,q,r,s) = PQ[p][q].inner(FPQ[r][s]);
 							if(std::fabs(f(p,q,r,s)) > h_thresh ){
 								++non_zero_f;
