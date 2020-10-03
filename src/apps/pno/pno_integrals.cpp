@@ -21,6 +21,7 @@
 #include <chem/PNO.h>
 #include <vector>
 #include <fstream>
+#include <tuple>
 
 using namespace madness;
 
@@ -121,6 +122,7 @@ int main(int argc, char** argv) {
 	PNOParameters parameters(world,input,nemo.get_calc()->molecule,TAG_PNO);
 	F12Parameters paramf12(world, input, parameters, TAG_F12);
 	PNOIntParameters paramsint(world, input, parameters, TAG_PNOInt);
+	paramsint.print("PNO Integrals evaluated as:\npnoint","end");
 	PNO pno(world, nemo, parameters, paramf12);
 	std::vector<PNOPairs> all_pairs;
 	pno.solve(all_pairs);
@@ -193,8 +195,8 @@ int main(int argc, char** argv) {
 	std::vector<real_function_3d> rest_pnos;
 	std::vector<double> occ;
 	std::vector<double> rest_occ;
-	std::vector<std::string> pno_ids;
-	std::vector<std::string> rest_ids;
+	std::vector<std::pair<size_t,size_t>> pno_ids;
+	std::vector<std::pair<size_t,size_t>> rest_ids;
 	std::string name;
 	for(auto& pairs: all_pairs){
 		const auto& pno_ij = pairs.pno_ij;
@@ -220,12 +222,12 @@ int main(int argc, char** argv) {
 				all_current_pnos.insert(all_current_pnos.end(), pair.begin(), pair.end());
 				for (auto ii=0; ii<rdm_evals[it.ij()].size();++ii){
 					occ.push_back(rdm_evals[it.ij()][ii]);
-					pno_ids.push_back(it.name());  // for each eigenvalue ~ PNO, store pair affiliation
+					pno_ids.push_back(std::make_pair(it.i(),it.j()));  // for each eigenvalue ~ PNO, store pair affiliation
 				}
 			}
 		}
 		
-		std::vector<std::tuple<double, real_function_3d, std::string> > zipped;
+		std::vector<std::tuple<double, real_function_3d, std::pair<size_t,size_t> > > zipped;
 		for (auto i=0; i< all_current_pnos.size(); ++i){
 			zipped.push_back(std::make_tuple(occ[i], all_current_pnos[i], pno_ids[i]));
 		}
@@ -234,7 +236,7 @@ int main(int argc, char** argv) {
 
 		std::vector<double> unzipped_first;
 		std::vector<real_function_3d> unzipped_second;
-		std::vector<std::string> unzipped_third;
+		std::vector<std::pair<size_t,size_t> > unzipped_third;
 		for (auto i=0; i<basis_size;++i){
 			unzipped_first.push_back(std::get<0>(zipped[i]));
 			unzipped_second.push_back(std::get<1>(zipped[i]));
@@ -298,7 +300,7 @@ int main(int argc, char** argv) {
 	if(not cherry_pick.empty()){
 		vecfuncT cp;
 		std::vector<double> cp_occ;
-		std::vector<std::string> cp_pno_ids;
+		std::vector<std::pair<size_t,size_t> > cp_pno_ids;
 		if(world.rank()==0){
 			std::cout << "Cherry picking orbitals: " << cherry_pick << " from pno basis." << std::endl;
 		}
@@ -321,15 +323,23 @@ int main(int argc, char** argv) {
 		}
 	}
   // Save pair information to file after having picked the cherries 
-  std::ofstream pairwriter ("pairinfo.txt", std::ofstream::out|std::ofstream::trunc);
-  pairwriter << "PNO Pair information" << std::endl;
+  std::ofstream pairwriter ("pnoinfo.txt", std::ofstream::out|std::ofstream::trunc);
+  pairwriter << "MADNESS MRA-PNO INFORMATION" << std::endl;
+  pairwriter << "pairinfo=";
   for(auto i=0; i<reference.size(); ++i) {
 		pairwriter << i << ",";
 	}
   for(auto i=0; i<pno_ids.size(); ++i) {
-		pairwriter << pno_ids[i].substr(4); // cut off "pair"
-		if (!(i==pno_ids.size()-1)) pairwriter << ",";
+		pairwriter << pno_ids[i].first << "." << pno_ids[i].second;
+		if (!(i==pno_ids.size()-1))pairwriter << ",";
 	}
+    pairwriter << std::endl;
+    pairwriter << "nuclear_repulsion=" << nemo.get_calc()->molecule.nuclear_repulsion_energy() << std::endl;
+    pairwriter << "occ_numbers=";
+    for (auto i=0; i<occ.size();++i){
+    	pairwriter << occ[i];
+    	if (!(i==occ.size()-1))pairwriter << ",";
+    }
 	pairwriter.close();
 
 
@@ -625,11 +635,12 @@ int main(int argc, char** argv) {
 	// save integrals to binary files
 	h = h.flat();
 	nc::NdArray<double> hh(h.ptr(), h.size(), 1);
-	hh.tofile(name+"_hcore.bin", "");
+	hh.tofile(name+"_htensor.bin", "");
 
 	g = g.flat();
 	nc::NdArray<double> gg(g.ptr(), g.size(), 1);
 	gg.tofile(name+"_gtensor.bin", "");
+
 
 	if (cabs_switch) {
 		f = f.flat();
