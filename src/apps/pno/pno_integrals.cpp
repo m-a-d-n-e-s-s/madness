@@ -289,7 +289,7 @@ int main(int argc, char** argv) {
 		if(world.rank()==0){
 			std::cout << "Before cherry pick" << std::endl;
 			std::cout << "all used occupation numbers:\n" << occ << std::endl;
-			std::cout << "corresponding to pairs:\n" << pno_ids << std::endl;
+			std::cout << "corresponding to active pairs:\n" << pno_ids << std::endl;
 			if (cabs_option=="pno" || cabs_option=="mixed") {
 				std::cout << "add remaining occupation numbers for cabs:\n" << rest_occ << std::endl;
 				std::cout << "corresponding to pairs:\n" << rest_ids << std::endl;
@@ -317,7 +317,7 @@ int main(int argc, char** argv) {
 		if(world.rank()==0){
 			std::cout << "After cherry pick" << std::endl;
 			std::cout << "all used occupation numbers:\n" << occ << std::endl;
-			std::cout << "corresponding to pairs:\n" << pno_ids << std::endl;
+			std::cout << "corresponding to active pairs:\n" << pno_ids << std::endl;
 			if (cabs_option=="pno" || cabs_option=="mixed") {
 				std::cout << "add remaining occupation numbers for cabs:\n" << rest_occ << std::endl;
 				std::cout << "corresponding to pairs:\n" << rest_ids << std::endl;
@@ -330,8 +330,11 @@ int main(int argc, char** argv) {
 		for(auto i=0; i<reference.size(); ++i) {
 			pairwriter << i << ",";
 		}
+
+		// print total indices of pairs
+		const auto nfreeze = parameters.freeze();
 		for(auto i=0; i<pno_ids.size(); ++i) {
-			pairwriter << pno_ids[i].first << "." << pno_ids[i].second;
+			pairwriter << pno_ids[i].first+nfreeze << "." << pno_ids[i].second+nfreeze;
 			if (!(i==pno_ids.size()-1))pairwriter << ",";
 		}
 		pairwriter << std::endl;
