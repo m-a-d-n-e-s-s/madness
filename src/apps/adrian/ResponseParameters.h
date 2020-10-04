@@ -54,11 +54,11 @@ struct ResponseParameters {
   std::string restart_file;  ///< Flag to restart from file
   bool kain;                 ///< Flag to use KAIN solver
   int maxsub;                ///< How many previous iterations KAIN will store
-  std::string xc;      ///< Controls the HF or DFT switch, as well as which DFT
-                       ///< functional is used
-  bool save;           ///< Controls if orbitals will be saved each iteration
-  char *save_file;     ///< Flag to save to file
-  int guess_max_iter;  ///< Maximum number of iterations for guess functions
+  std::string xc;  ///< Controls the HF or DFT switch, as well as which DFT
+                   ///< functional is used
+  bool save;       ///< Controls if orbitals will be saved each iteration
+  std::string save_file;  ///< Flag to save to file
+  int guess_max_iter;     ///< Maximum number of iterations for guess functions
 
   // Start of properties
   bool property;        ///< Flag that this is a properties calculation
@@ -113,7 +113,7 @@ struct ResponseParameters {
         maxsub(5),
         xc("hf"),
         save(false),
-        save_file("response_parameters"),
+        save_file(""),
         guess_max_iter(5),
         property(false),
         polarizability(false),
@@ -223,9 +223,9 @@ struct ResponseParameters {
         states = 3;  // One for each axis
         polarizability = true;
         f >> omega;
-      } else if (s == "new")  // Use potential manager, for debugging. Remove
-                              // after it works
-      {
+      } else if (s == "new") {
+        // Use potential manager, for debugging. Remove
+        // after it works
         old = false;
       } else {
         std::cout << "response: unrecognized input keyword " << s << std::endl;
