@@ -39,29 +39,29 @@
 */
 
 #ifndef MADNESS_APPS_TDHF_H_INCLUDED
-#define MADNESS_APPS_TDHF_H_INCLUDED
+  #define MADNESS_APPS_TDHF_H_INCLUDED
 
-#include <madness/constants.h>
-#include <madness/mra/mra.h>
-#include <madness/mra/nonlinsol.h> // The kain solver
-#include <madness/mra/operator.h>
-#include <math.h>
-#include <stdio.h>
+  #include <madness/constants.h>
+  #include <madness/mra/mra.h>
+  #include <madness/mra/nonlinsol.h>  // The kain solver
+  #include <madness/mra/operator.h>
+  #include <math.h>
+  #include <stdio.h>
 
-#include <algorithm>
-#include <cmath>
-#include <complex>
-#include <iomanip>
-#include <random>
-#include <vector>
+  #include <algorithm>
+  #include <cmath>
+  #include <complex>
+  #include <iomanip>
+  #include <random>
+  #include <vector>
 
-#include "../chem/SCFOperators.h"
-#include "../chem/molecule.h"
-#include "../chem/xcfunctional.h"
-#include "GroundParameters.h"
-#include "ResponseFunction2.h"
-#include "ResponseParameters.h"
-#include "ResponsePotential.h"
+  #include "../chem/SCFOperators.h"
+  #include "../chem/molecule.h"
+  #include "../chem/xcfunctional.h"
+  #include "GroundParameters.h"
+  #include "ResponseFunction2.h"
+  #include "ResponseParameters.h"
+  #include "ResponsePotential.h"
 
 using namespace madness;
 
@@ -69,21 +69,18 @@ using namespace madness;
 // renamed here) A copy of a MADNESS functor to compute the cartesian moment x^i
 // * y^j * z^k (i, j, k integer and >= 0)
 class BS_MomentFunctor : public FunctionFunctorInterface<double, 3> {
-private:
+ private:
   const int i, j, k;
 
-public:
+ public:
   BS_MomentFunctor(int i, int j, int k) : i(i), j(j), k(k) {}
   explicit BS_MomentFunctor(const std::vector<int> &x)
       : i(x[0]), j(x[1]), k(x[2]) {}
   double operator()(const Vector<double, 3> &r) const {
     double xi = 1.0, yj = 1.0, zk = 1.0;
-    for (int p = 0; p < i; ++p)
-      xi *= r[0];
-    for (int p = 0; p < j; ++p)
-      yj *= r[1];
-    for (int p = 0; p < k; ++p)
-      zk *= r[2];
+    for (int p = 0; p < i; ++p) xi *= r[0];
+    for (int p = 0; p < j; ++p) yj *= r[1];
+    for (int p = 0; p < k; ++p) zk *= r[2];
     return xi * yj * zk;
   }
 };
@@ -98,7 +95,7 @@ template <std::size_t NDIM>
 class GaussianGuess : public FunctionFunctorInterface<double, NDIM> {
   typedef Vector<double, NDIM> coordT;
 
-public:
+ public:
   /// ctor
 
   /// @param[in]  origin  the origin of the Gauss function
@@ -109,8 +106,8 @@ public:
       : origin(origin), exponent(alpha), ijk(ijk) {}
 
   coordT origin;
-  double exponent;      ///< exponent of the guess
-  std::vector<int> ijk; ///< cartesian exponents
+  double exponent;       ///< exponent of the guess
+  std::vector<int> ijk;  ///< cartesian exponents
 
   double operator()(const coordT &xyz) const {
     double arg = 0.0, prefac = 1.0;
@@ -147,11 +144,11 @@ struct ElectronResponseFunctions {
 /// Given a molecule and ground state orbitals, solve the response equations
 /// in the Tamm-Danchoff approximation.
 class TDHF {
-public:
+ public:
   // ResponseParameter object to hold all user input variables
   ResponseParameters Rparams;
 
-private:
+ private:
   // Member variables
 
   // GroundParameter object to hold all variables needed from
@@ -160,20 +157,20 @@ private:
 
   // Tensors for holding energies
   // residuals, and shifts
-  Tensor<double> omega;       // Energies of response functions
-  Tensor<double> e_residuals; // Residuals of energies
+  Tensor<double> omega;        // Energies of response functions
+  Tensor<double> e_residuals;  // Residuals of energies
 
   // Information that is inferred from input file
   std::vector<real_function_3d>
-      act_orbitals; // Ground state orbitals being used in calculation
+      act_orbitals;  // Ground state orbitals being used in calculation
   Tensor<double>
-      act_ground_energies; // Ground state energies being used for calculation
-  Tensor<double> hamiltonian; // Ground state hamiltonian tensor
-  Tensor<double> ham_no_diag; // Ground state ham. without diagonal (Used when
-                              // localized orbitals are given)
-  std::vector<int> active;    // The labels of orbitals selected as "active"
-  unsigned int act_num_orbitals; // Number of ground state orbitals being used
-                                 // in calculation
+      act_ground_energies;  // Ground state energies being used for calculation
+  Tensor<double> hamiltonian;  // Ground state hamiltonian tensor
+  Tensor<double> ham_no_diag;  // Ground state ham. without diagonal (Used when
+                               // localized orbitals are given)
+  std::vector<int> active;     // The labels of orbitals selected as "active"
+  unsigned int act_num_orbitals;  // Number of ground state orbitals being used
+                                  // in calculation
 
   // XCfunction object for DFT calculations
   XCfunctional xcf;
@@ -182,42 +179,42 @@ private:
   real_function_3d mask;
 
   // Functions
-  real_function_3d stored_v_nuc;  // Stored nuclear potential from ground state
-  real_function_3d stored_v_coul; // Stored coulomb potential from ground state
+  real_function_3d stored_v_nuc;   // Stored nuclear potential from ground state
+  real_function_3d stored_v_coul;  // Stored coulomb potential from ground state
 
   ResponseFunction
-      x_response; // Excited states to be solved for.
-                  //    Note on storage: The response functions are calculated
-                  //    by calculating each transition of occupied --> virtual,
-                  //    and thus the actual response function is a sum of of
-                  //    all contributions to a specific virtual.
+      x_response;  // Excited states to be solved for.
+                   //    Note on storage: The response functions are calculated
+                   //    by calculating each transition of occupied --> virtual,
+                   //    and thus the actual response function is a sum of of
+                   //    all contributions to a specific virtual.
 
   ResponseFunction
-      y_response; // De-excitation states to be solved for.
-                  //    Note on storage: The response functions are calculated
-                  //    by calculating each transition of occupied --> virtual,
-                  //    and thus the actual response function is a sum of of
-                  //    all contributions to a specific virtual.
+      y_response;  // De-excitation states to be solved for.
+                   //    Note on storage: The response functions are calculated
+                   //    by calculating each transition of occupied --> virtual,
+                   //    and thus the actual response function is a sum of of
+                   //    all contributions to a specific virtual.
 
-  ResponseFunction stored_potential; // The ground state potential, stored only
-                                     // if store_potential is true (default is
-                                     // false). Holds the integrals
-                                     //   \int dr \frac{\phi_i^\dagger
-                                     //   phi_j}{\left| r - r' \right|}
+  ResponseFunction stored_potential;  // The ground state potential, stored only
+                                      // if store_potential is true (default is
+                                      // false). Holds the integrals
+                                      //   \int dr \frac{\phi_i^\dagger
+                                      //   phi_j}{\left| r - r' \right|}
 
-public:
+ public:
   // Collective constructor for response uses contents of file \c filename and
   // broadcasts to all nodes
-  TDHF(World &world,            // MADNESS world object
-       const char *input_file); // Input file
+  TDHF(World &world,             // MADNESS world object
+       const char *input_file);  // Input file
 
   // Collective constructor for Response uses contens of steream \c input and
   // broadcasts to all nodes
-  TDHF(World &world,                         // MADNESS world object
-       std::shared_ptr<std::istream> input); // Pointer to input stream
+  TDHF(World &world,                          // MADNESS world object
+       std::shared_ptr<std::istream> input);  // Pointer to input stream
 
   // Saves a response calculation
-  void save(World &world);
+  void save(World &world, std::string name);
 
   // Loads a response calculation
   void load(World &world, std::string name);
@@ -243,19 +240,17 @@ public:
                                                                int n);
   // returns a map of real form spherical harmonics  n=level...returns (n+1)^2
   // functions
-  std::map<std::vector<int>, real_function_3d>
-  simple_spherical_harmonics(World &world, int n);
+  std::map<std::vector<int>, real_function_3d> simple_spherical_harmonics(
+      World &world, int n);
   // returns a map of real form spherical harmonics  n=level...returns (n+1)^2
   // functions
   std::vector<real_function_3d> createDipoleFunctionMap(World &world);
   // Returns initial response functions
-  ResponseFunction
-  create_trial_functions(World &world, int k,
-                         std::vector<real_function_3d> &orbitals,
-                         int print_level);
-  ResponseFunction
-  create_trial_functions2(World &world, std::vector<real_function_3d> &orbitals,
-                          int print_level);
+  ResponseFunction create_trial_functions(
+      World &world, int k, std::vector<real_function_3d> &orbitals,
+      int print_level);
+  ResponseFunction create_trial_functions2(
+      World &world, std::vector<real_function_3d> &orbitals, int print_level);
 
   // Returns dipole operator * molecular orbitals
   ResponseFunction dipole_guess(World &world,
@@ -263,36 +258,32 @@ public:
 
   // Returns the derivative of the coulomb operator, applied to ground state
   // orbitals
-  ResponseFunction
-  CreateCoulombDerivativeRF(World &world,
-                            ResponseFunction &f, // response functions
-                            std::vector<real_function_3d> &phi, // orbitals
-                            double small, double thresh);
+  ResponseFunction CreateCoulombDerivativeRF(
+      World &world,
+      ResponseFunction &f,                 // response functions
+      std::vector<real_function_3d> &phi,  // orbitals
+      double small, double thresh);
 
-  ResponseFunction
-  CreateCoulombDerivativeRFDagger(World &world, ResponseFunction &f,
-                                  std::vector<real_function_3d> &phi,
-                                  double small, double thresh);
+  ResponseFunction CreateCoulombDerivativeRFDagger(
+      World &world, ResponseFunction &f, std::vector<real_function_3d> &phi,
+      double small, double thresh);
 
   // Returns the derivative of the exchange operator, applied to the ground
   // state orbitals This is the function for TDA only
-  ResponseFunction
-  CreateExchangeDerivativeRF(World &world, ResponseFunction &f,
-                             std::vector<real_function_3d> &phi, double small,
-                             double thresh);
+  ResponseFunction CreateExchangeDerivativeRF(
+      World &world, ResponseFunction &f, std::vector<real_function_3d> &phi,
+      double small, double thresh);
 
-  ResponseFunction
-  CreateExchangeDerivativeRFDagger(World &world, ResponseFunction &f,
-                                   std::vector<real_function_3d> &phi,
-                                   double small, double thresh);
+  ResponseFunction CreateExchangeDerivativeRFDagger(
+      World &world, ResponseFunction &f, std::vector<real_function_3d> &phi,
+      double small, double thresh);
 
   ResponseFunction CreateXCDerivativeRF(World &world, ResponseFunction &f,
                                         std::vector<real_function_3d> &phi,
                                         double small, double thresh);
-  ResponseFunction
-  CreateXCDerivativeRFDagger(World &world, ResponseFunction &f,
-                             std::vector<real_function_3d> &phi, double small,
-                             double thresh);
+  ResponseFunction CreateXCDerivativeRFDagger(
+      World &world, ResponseFunction &f, std::vector<real_function_3d> &phi,
+      double small, double thresh);
 
   // Returns the diagonal (letter A) elements of response matrix
   ResponseFunction createAf(World &world, ResponseFunction &Vf,
@@ -350,11 +341,10 @@ public:
                               std::string xy);
 
   // Returns the hamiltonian matrix, equation 45 from the paper
-  Tensor<double>
-  createResponseMatrix(World &world, ResponseFunction &x,
-                       ElectronResponseFunctions &I,
-                       std::vector<real_function_3d> &ground_orbitals,
-                       int print_level, std::string xy);
+  Tensor<double> createResponseMatrix(
+      World &world, ResponseFunction &x, ElectronResponseFunctions &I,
+      std::vector<real_function_3d> &ground_orbitals, int print_level,
+      std::string xy);
 
   // Constructs full response matrix of
   // [ A  B ] [ X ] = w [ X ]
@@ -362,10 +352,10 @@ public:
 
   Tensor<double> createFullResponseMatrix(
       World &world,
-      ResponseFunction &x, // x response functions
-      ResponseFunction &y, // y response functions
+      ResponseFunction &x,  // x response functions
+      ResponseFunction &y,  // y response functions
       ElectronResponseFunctions &I,
-      std::vector<real_function_3d> &ground_orbitals, // ground state orbitals
+      std::vector<real_function_3d> &ground_orbitals,  // ground state orbitals
       double small, double thresh, int print_level);
   // Returns the shift needed for each orbital to make sure
   // -2.0 * (ground_state_energy + excited_state_energy) is positive
@@ -528,21 +518,20 @@ public:
 
   // Uses an XCOperator to construct v_xc for the ground state density
   // Returns d^2/d rho^2 E_xc[rho]
-  std::vector<real_function_3d>
-  create_fxc(World &world, std::vector<real_function_3d> &orbitals,
-             ResponseFunction &f, ResponseFunction &g);
+  std::vector<real_function_3d> create_fxc(
+      World &world, std::vector<real_function_3d> &orbitals,
+      ResponseFunction &f, ResponseFunction &g);
 
-  std::vector<real_function_3d>
-  GetWxcOnFDensities(World &world, std::vector<real_function_3d> &orbitals,
-                     ResponseFunction &f);
-  std::vector<real_function_3d>
-  GetConjugateWxcOnFDensities(World &world,
-                              std::vector<real_function_3d> &orbitals,
-                              ResponseFunction &f);
+  std::vector<real_function_3d> GetWxcOnFDensities(
+      World &world, std::vector<real_function_3d> &orbitals,
+      ResponseFunction &f);
+  std::vector<real_function_3d> GetConjugateWxcOnFDensities(
+      World &world, std::vector<real_function_3d> &orbitals,
+      ResponseFunction &f);
 
-  std::vector<real_function_3d>
-  CreateXCDerivative(World &world, std::vector<real_function_3d> &orbitals,
-                     ResponseFunction &f);
+  std::vector<real_function_3d> CreateXCDerivative(
+      World &world, std::vector<real_function_3d> &orbitals,
+      ResponseFunction &f);
 
   // Iterates the trial functions until covergence or it runs out of
   // iterations
@@ -566,17 +555,16 @@ public:
                                   double magnitude);
 
   // Creates the transition density
-  std::vector<real_function_3d>
-  transition_density(World &world, std::vector<real_function_3d> &orbitals,
-                     ResponseFunction &x, ResponseFunction &y);
+  std::vector<real_function_3d> transition_density(
+      World &world, std::vector<real_function_3d> &orbitals,
+      ResponseFunction &x, ResponseFunction &y);
   // Get transition density from f and orbitals
-  std::vector<real_function_3d>
-  GetTransitionDensities(World &world, std::vector<real_function_3d> &orbitals,
-                         ResponseFunction &f);
-  std::vector<real_function_3d>
-  GetConjugateTransitionDensities(World &world,
-                                  std::vector<real_function_3d> &orbitals,
-                                  ResponseFunction &f);
+  std::vector<real_function_3d> GetTransitionDensities(
+      World &world, std::vector<real_function_3d> &orbitals,
+      ResponseFunction &f);
+  std::vector<real_function_3d> GetConjugateTransitionDensities(
+      World &world, std::vector<real_function_3d> &orbitals,
+      ResponseFunction &f);
   // Creates the ground state hamiltonian for the orbitals in the active
   // subspace (aka the orbitals in tda_act_orbitals)
   Tensor<double> CreateGroundHamiltonian(World &world,
@@ -584,7 +572,8 @@ public:
                                          int print_level);
 
   // Sets the different k/thresh levels
-  template <std::size_t NDIM> void set_protocol(World &world, double thresh);
+  template <std::size_t NDIM>
+  void set_protocol(World &world, double thresh);
 
   // Verifies that correct order of polynomial is in use for all
   void check_k(World &world, double thresh, int k);
@@ -595,10 +584,9 @@ public:
                                        Molecule &molecule);
 
   // Creates random guess functions semi-intelligently(?)
-  std::vector<real_function_3d>
-  create_random_guess(World &world, int m,
-                      std::vector<real_function_3d> &grounds,
-                      Molecule &molecule);
+  std::vector<real_function_3d> create_random_guess(
+      World &world, int m, std::vector<real_function_3d> &grounds,
+      Molecule &molecule);
 
   // Creates an initial guess using NWChem outputs from a ground state
   // calculation Requires:
@@ -625,6 +613,7 @@ public:
 
   // Solves the response equations for the polarizability
   void solve_polarizability(World &world);
+  void compute_property_density(World &world);
 };
 
 #endif

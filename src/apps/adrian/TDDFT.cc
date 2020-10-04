@@ -193,9 +193,9 @@ TDHF::TDHF(World &world, std::shared_ptr<std::istream> input) {
 }
 
 // Save the current response calculation
-void TDHF::save(World &world) {
+void TDHF::save(World &world, std::string name) {
   // Archive to write everything to
-  archive::ParallelOutputArchive ar(world, Rparams.save_file, 1);
+  archive::ParallelOutputArchive ar(world, name.c_str(), 1);
   // Just going to enforce 1 io server
 
   // Saving, in this order;
@@ -3437,7 +3437,7 @@ void TDHF::Iterate(World &world) {
     // Save
     if (Rparams.save) {
       start_timer(world);
-      save(world);
+      save(world, Rparams.save_file);
       end_timer(world, "Saving:");
     }
 
@@ -5262,7 +5262,7 @@ void TDHF::iterate_polarizability(World &world, ResponseFunction &dipoles) {
     // Save
     if (Rparams.save) {
       start_timer(world);
-      save(world);
+      save(world, Rparams.save_file);
       end_timer(world, "Save:");
     }
     // Basic output
@@ -5304,6 +5304,94 @@ void TDHF::polarizability(World &world, Tensor<double> polar) {
 // Main function, makes sure everything happens in correct order
 // Solves for polarizability
 void TDHF::solve_polarizability(World &world) {
+  // Get start time
+  start_timer(world);
+
+  // Warm and fuzzy
+  if (world.rank() == 0) {
+    print("\n\n    Response Calculation");
+    print("   ------------------------");
+  }
+
+  // Create the polarizability tensor
+  Tensor<double> polar_tensor(3, 3);
+
+  // Keep a copy of dipoles * MO (needed explicitly in eq.)
+  ResponseFunction dipoles;
+
+  // For each protocol
+  for (unsigned int proto = 0; proto < Rparams.protocol_data.size(); proto++) {
+    // Set defaults inside here
+    set_protocol<3>(world, Rparams.protocol_data[proto]);
+
+    // Do something to ensure all functions have same k value
+    check_k(world, Rparams.protocol_data[proto], FunctionDefaults<3>::get_k());
+
+    // Create guesses if no response functions
+    // If restarting, load here
+    if (proto == 0) {
+      if (Rparams.restart) {
+        if (world.rank() == 0)
+          print("   Initial guess from file:", Rparams.restart_file);
+        load(world, Rparams.restart_file);
+        check_k(world, Rparams.protocol_data[proto],
+                FunctionDefaults<3>::get_k());
+      } else {  // Dipole guesses
+
+        x_response = dipole_guess(world, Gparams.orbitals);
+        y_response = x_response.copy();
+      }
+    }
+
+    // Set the dipoles (ground orbitals are probably
+    // more accurate now, so recalc the dipoles)
+    dipoles = dipole_guess(world, Gparams.orbitals);
+    // why is it called dipole guess.
+    // This is just orbitals times dipole operator
+
+    // Now actually ready to iterate...
+    iterate_polarizability(world, dipoles);
+  }
+
+  // Have response function, now calculate polarizability for this axis
+  polarizability(world, polar_tensor);
+
+  // Final polarizability analysis
+  // diagonalize
+  Tensor<double> V, epolar;
+  syev(polar_tensor, V, epolar);
+  double Dpolar_average = 0.0;
+  double Dpolar_iso = 0.0;
+  for (unsigned int i = 0; i < 3; ++i)
+    Dpolar_average = Dpolar_average + epolar[i];
+  Dpolar_average = Dpolar_average / 3.0;
+  Dpolar_iso =
+      sqrt(.5) * sqrt(std::pow(polar_tensor(0, 0) - polar_tensor(1, 1), 2) +
+                      std::pow(polar_tensor(1, 1) - polar_tensor(2, 2), 2) +
+                      std::pow(polar_tensor(2, 2) - polar_tensor(0, 0), 2));
+
+  if (world.rank() == 0) {
+    print("\nTotal Dynamic Polarizability Tensor");
+    printf("\nFrequency  = %.6f a.u.\n\n", Rparams.omega);
+    // printf("\nWavelength = %.6f a.u.\n\n", Rparams.omega * ???);
+    print(polar_tensor);
+    printf("\tEigenvalues = ");
+    printf("\t %.6f \t %.6f \t %.6f \n", epolar[0], epolar[1], epolar[2]);
+    printf("\tIsotropic   = \t %.6f \n", Dpolar_average);
+    printf("\tAnisotropic = \t %.6f \n", Dpolar_iso);
+    printf("\n");
+  }
+
+  // Print total time
+  // Precision is set to 10 coming in, drop it to 2
+  std::cout.precision(2);
+  std::cout << std::fixed;
+
+  // Get start time
+  end_timer(world, "total:");
+}
+
+void TDHF::compute_freq_density(World &world) {
   // Get start time
   start_timer(world);
 
