@@ -253,9 +253,11 @@ class TDHF {
       World &world, std::vector<real_function_3d> &orbitals, int print_level);
 
   // Returns dipole operator * molecular orbitals
-  ResponseFunction dipole_guess(World &world,
-                                std::vector<real_function_3d> orbitals);
+  ResponseFunction dipoleRHS(World &world,
+                             const std::vector<real_function_3d> orbitals);
 
+  ResponseFunction derivativesRHS(World &world, const Function<double, 3> &rho,
+                                  Molecule &molecule) const;
   // Returns the derivative of the coulomb operator, applied to ground state
   // orbitals
   ResponseFunction CreateCoulombDerivativeRF(
@@ -613,7 +615,7 @@ class TDHF {
 
   // Solves the response equations for the polarizability
   void solve_polarizability(World &world);
-  void compute_property_density(World &world);
+  void compute_freq_density(World &world);
 };
 
 #endif

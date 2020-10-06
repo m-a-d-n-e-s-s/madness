@@ -17,6 +17,7 @@
 #include <utility>
 
 #include "../chem/SCFOperators.h"
+#include "../chem/molecule.h"
 #include "NWChem.h"  // For nwchem interface
 #include "Plot_VTK.h"
 #include "TDHF_Basic_Operators2.h"
@@ -130,6 +131,27 @@ static void end_timer(World &world, const char *msg) {
     printf("   timer: %20.20s %8.2fs %8.2fs\n", msg, cpu, wall);
 }
 
+typedef Vector<double, 3> coordT;
+class MolecularDerivativeFunctor : public FunctionFunctorInterface<double, 3> {
+ private:
+  const Molecule &molecule;
+  const int atom;
+  const int axis;
+
+ public:
+  MolecularDerivativeFunctor(const Molecule &molecule, int atom, int axis)
+      : molecule(molecule), atom(atom), axis(axis) {}
+
+  double operator()(const coordT &x) const {
+    return molecule.nuclear_attraction_potential_derivative(atom, axis, x[0],
+                                                            x[1], x[2]);
+  }
+
+  std::vector<coordT> special_points() const {
+    return std::vector<coordT>(1, molecule.get_atom(atom).get_coords());
+  }
+};
+
 // Collective constructor
 TDHF::TDHF(World &world, const char *filename)
     : TDHF(world, (world.rank() == 0 ? std::make_shared<std::ifstream>(filename)
@@ -164,6 +186,7 @@ TDHF::TDHF(World &world, std::shared_ptr<std::istream> input) {
     Gparams.print_params();
     print_molecule(world);
   }
+  // Create the projector Qhat to be used in any calculation
 
   // Set some function defaults
   FunctionDefaults<3>::set_cubic_cell(-Gparams.L, Gparams.L);
@@ -659,34 +682,75 @@ std::vector<real_function_3d> TDHF::createDipoleFunctionMap(World &world) {
   return funcs;
 }
 
+typedef Tensor<double> tensorT;
+typedef Function<double, 3> functionT;
+typedef std::shared_ptr<FunctionFunctorInterface<double, 3>> functorT;
+typedef FunctionFactory<double, 3> factoryT;
+
 // Returns dipole operator * molecular orbitals
-ResponseFunction TDHF::dipole_guess(World &world,
-                                    std::vector<real_function_3d> orbitals) {
+ResponseFunction TDHF::dipoleRHS(World &world,
+                                 const std::vector<real_function_3d> orbitals) {
   // Return container
-  ResponseFunction dipole_guesses(world, 3, orbitals.size());
+  ResponseFunction QBP(world, 3, orbitals.size());
+  QProjector<double, 3> Qhat(world, Gparams.orbitals);
 
   for (int axis = 0; axis < 3; axis++) {
     // Create dipole operator in the 'axis' direction
     std::vector<int> f(3, 0);
     f[axis] = 1.0;  // why true
-    real_function_3d dip = real_factory_3d(world).functor(
+    real_function_3d dipole = real_factory_3d(world).functor(
         real_functor_3d(new BS_MomentFunctor(f)));
     // dip here returns x, y, or z function
 
     reconstruct(world, orbitals);
-
     // Create guesses
-    for (unsigned int i = 0; i < dipole_guesses[0].size(); i++) {
-      dipole_guesses[axis][i] = mul_sparse(dip, orbitals[i], false);
-    }
+    // multiply sparse dip * orbital i
+    QBP[axis] = mul_sparse(world, dipole, orbitals, Rparams.small);
+    QBP[axis] = Qhat(QBP[axis]);
     world.gop.fence();
   }
   // dipole_guesses.truncate_rf();
 
   // Done
-  return dipole_guesses;
+  return QBP;
 }
+ResponseFunction TDHF::derivativesRHS(World &world,
+                                      const Function<double, 3> &rho,
+                                      Molecule &molecule) const {
+  if (Rparams.print_level >= 1) {
+    start_timer(world);
+  }
+  ResponseFunction QBP(world, molecule.natom() * 3, Gparams.num_orbitals);
+  QProjector<double, 3> Qhat(world, Gparams.orbitals);
+  vecfuncT dv(molecule.natom() * 3);  // default constructor for vector?
 
+  for (size_t atom = 0; atom < molecule.natom(); ++atom) {
+    for (int axis = 0; axis < 3; ++axis) {
+      // question here....MolecularDerivativeFunctor takes derivative with
+      // respect to axis atom and axis
+      functorT func(new MolecularDerivativeFunctor(molecule, atom, axis));
+      // here we save
+      dv[atom * 3 + axis] = functionT(factoryT(world)
+                                          .functor(func)
+                                          .nofence()
+                                          .truncate_on_project()
+                                          .truncate_mode(0));
+      // need to project
+      QBP[atom * 3 + axis] = mul_sparse(world, dv[atom * 3 + axis],
+                                        Gparams.orbitals, Rparams.small);
+
+      // project rhs vectors for state
+      QBP[atom * 3 + axis] = Qhat(QBP[atom * 3 + axis]);
+
+      // core projector contribution
+    }
+  }
+
+  world.gop.fence();
+  // if (world.rank() == 0) print("derivatives:\n", r, ru, rc, ra);
+  end_timer(world, "derivatives");
+  return QBP;
+}
 // Returns the derivative of the coulomb operator, applied to ground state
 // orbitals Returns the Electron Interaction Gamma Response Function for all
 // states. This function assumes all orbitals and response functions are real f
@@ -969,7 +1033,7 @@ ResponseFunction TDHF::CreateGamma(World &world, ResponseFunction &f,
   gamma = deriv_J * 2.0 + deriv_XC - deriv_K * xcf.hf_exchange_coefficient();
 
   // Project out groundstate
-  QProjector<double, 3> projector(world, Gparams.orbitals);
+  QProjector < double, 3or(world, Gparams.orbitals);
   for (int i = 0; i < m; i++) gamma[i] = projector(gamma[i]);
 
   // Debugging output
