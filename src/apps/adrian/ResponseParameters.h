@@ -8,6 +8,8 @@
 #include <chem/molecule.h>
 #include <chem/xcfunctional.h>
 
+#include <string>
+
 namespace madness {
 
 struct ResponseParameters {
