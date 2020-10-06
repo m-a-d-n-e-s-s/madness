@@ -3,47 +3,52 @@
  */
 
 #ifndef MADNESS_APPS_TDHF_RESPONSEFUNC_INCLUDE
-#define MADNESS_APPS_TDHF_RESPONSEFUNC_INCLUDE
+  #define MADNESS_APPS_TDHF_RESPONSEFUNC_INCLUDE
 
-#include <madness/mra/mra.h>
-#include <madness/mra/operator.h>
+  #include <madness/mra/mra.h>
+  #include <madness/mra/operator.h>
 
-#include <memory>
-#include <vector>
+  #include <memory>
+  #include <vector>
 
 namespace madness {
 
 class ResponseFunction {
   // Member variables
-public:
-  unsigned int r_states; // Num. of resp. states
-  unsigned int g_states; // Num. of ground states
+ public:
+  unsigned int r_states;  // Num. of resp. states
+  unsigned int g_states;  // Num. of ground states
   std::vector<std::vector<Function<double, 3>>> x;
 
   // Member functions
-public:
+ public:
   // Default constructor
   ResponseFunction() : r_states(0), g_states(0) {}
 
   // Initializes functions to zero
-  ResponseFunction(World &world, unsigned int m, unsigned int n)
-      : r_states(m), g_states(n) {
-    for (unsigned int i = 0; i < m; i++)
-      x.push_back(zero_functions<double, 3>(world, n));
+  // m = number of response states
+  // n = number of ground state orbitals
+
+  // Zero Constructor
+  ResponseFunction(World &world, unsigned int num_states,
+                   unsigned int num_orbitals)
+      : r_states(num_states), g_states(num_orbitalsg) {
+    for (unsigned int i = 0; i < num_states; i++)
+      x.push_back(zero_functions<double, 3>(world, num_orbitals));
     x[0][0].world().gop.fence();
   }
 
   // Copy constructor
-  ResponseFunction(const ResponseFunction &b)
-      : r_states(b.r_states), g_states(b.g_states) {
+  ResponseFunction(const ResponseFunction &rf_copy)
+      : r_states(rf_copy.r_states), g_states(rf_copy.g_states) {
     for (unsigned int i = 0; i < r_states; i++)
-      x.push_back(madness::copy(b.x[0][0].world(), b.x[i]));
+      x.push_back(madness::copy(rf_copy.x[0][0].world(), rf_copy.x[i]));
     x[0][0].world().gop.fence();
   }
 
   // Determines if two ResponseFunctions are the same size
-  bool same_size(const ResponseFunction &b) const {
-    return (r_states == b.r_states && g_states == b.g_states);
+  bool same_size(const ResponseFunction &rf_copy) const {
+    return (r_states == rf_copy.r_states && g_states == rf_copy.g_states);
   }
 
   // 1D accessor for x
@@ -134,7 +139,7 @@ public:
     // Be smart with g_states
     if (g_states > 0) {
       MADNESS_ASSERT(g_states = f.size());
-    } else { // g_states == 0 (empty vector)
+    } else {  // g_states == 0 (empty vector)
       g_states = f.size();
     }
   }
@@ -144,7 +149,7 @@ public:
     r_states--;
 
     // Be smart with g_states
-    if (r_states == 0) { // removed last item
+    if (r_states == 0) {  // removed last item
       g_states = 0;
     }
   }
@@ -214,7 +219,7 @@ inline double inner(ResponseFunction &a, ResponseFunction &b) {
   return value;
 }
 
-} // End namespace madness
+}  // End namespace madness
 #endif
 
 // Deuces
