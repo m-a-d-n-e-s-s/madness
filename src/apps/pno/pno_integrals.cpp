@@ -376,6 +376,7 @@ int main(int argc, char** argv) {
 			calcx.param.set_user_defined_value("nvalpha", paramsint.compute_virtuals());
 			calcx.param.set_user_defined_value("restart", false);
 			calcx.param.set_user_defined_value("no_compute", false);
+	        calcx.param.set_user_defined_value("nmo_alpha",calc->param.nalpha() + paramsint.compute_virtuals());
 			calcx.param.print();
 			MolecularEnergy E(world, calcx);
 			double energy=E.value(calcx.molecule.get_all_coords().flat());
