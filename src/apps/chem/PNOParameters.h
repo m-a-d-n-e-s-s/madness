@@ -290,11 +290,13 @@ class PNOIntParameters: public PNOParameters {
 public:
 	PNOIntParameters(const PNOParameters& param) : PNOParameters(param){
 		initialize_pnoint_parameters();
+		set_derived_values(param);
 	}
 
 	PNOIntParameters(World& world, const std::string& inputfile, const PNOParameters& param, const std::string& TAG="pnoint") : PNOParameters(param){
 		initialize_pnoint_parameters();
 		QCCalculationParametersBase::read(world,inputfile,TAG);
+		set_derived_values(param);
 	}
 
 
@@ -343,8 +345,13 @@ public:
 	}
 	bool print_pno_overlap()const { return get<bool>("print_pno_overlap"); }
 
-	void set_derived_values() {
+	void set_derived_values(const PNOParameters& param) {
 		set_derived_value("cabs_thresh", thresh());
+		auto n_pno = param.maxrank;
+		if(n_pno>10){
+			n_pno=10;
+		}
+		set_derived_value("n_pno", n_pno);
 	}
 
 };
