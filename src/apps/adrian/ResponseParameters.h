@@ -265,6 +265,10 @@ struct ResponseParameters {
       }
     }
   }  // end read()
+  // sets the number of states based on the property type and
+  // number of molecules in the atoms
+  // for order calculations the number of states is the
+  // multiplication of states that the calculation is derived from
   void SetNumberOfStates(Molecule &molecule) {
     vector<std::string> calculation_type;
     vector<bool> calc_flags;
@@ -283,7 +287,6 @@ struct ResponseParameters {
           MADNESS_EXCEPTION("not a valid response state ", 0);
         }
       }
-
       states = std::accumulate(nstates.begin(), nstates.end(), 1,
                                std::multiplies<>());
     } else if (order3) {
@@ -362,7 +365,7 @@ struct ResponseParameters {
     calc_flags.push_back(nuclear);
     calc_flags.push_back(order2);
     calc_flags.push_back(order3);
-    for (int i = 0; i < calc_flags.size(); i++) {
+    for (std::size_t i = 0; i < calc_flags.size(); i++) {
       if (calc_flags[i]) {
         madness::print("                     Property: ", calculation_type[i]);
         madness::print("           Incident Frequency: ", omega);
@@ -371,4 +374,5 @@ struct ResponseParameters {
   }
 
 };  // namespace madness
+}  // namespace madness
 #endif

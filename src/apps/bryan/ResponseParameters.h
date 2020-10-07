@@ -59,7 +59,8 @@ struct ResponseParameters {
   int guess_max_iter;  ///< Maximum number of iterations for guess functions
 
   // Start of properties
-  bool property;        ///< Flag that this is a properties calculation
+  bool frequency_response;  ///< Flag that this is a properties calculation
+  std::string response_type;
   bool polarizability;  ///< Flag to indicate desired property is the
                         ///< polarizability
   double omega;         ///< Incident energy for polarizability
@@ -75,8 +76,8 @@ struct ResponseParameters {
         plot_L& plot_pts& max_iter& dconv& dconv_set& small& protocol_data&
             larger_subspace& k& random& store_potential& e_window& range_low&
                 range_high& plot_initial& restart& restart_file& kain& maxsub&
-                    xc& save& guess_max_iter& property& polarizability& omega&
-                        old;
+                    xc& save& guess_max_iter& frequency_response&
+                        polarizability& omega& old;
   }
 
   // Default constructor
@@ -111,7 +112,7 @@ struct ResponseParameters {
         xc("hf"),
         save(false),
         guess_max_iter(5),
-        property(false),
+        frequency_response(false),
         polarizability(false),
         omega(0.0),
         old(true) {}
@@ -211,8 +212,21 @@ struct ResponseParameters {
         save = true;
       } else if (s == "guess_iter") {
         f >> guess_max_iter;
-      } else if (s == "polarizability") {
-        property = true;
+      } else if (s == "frequency_response") {
+        frequency_response = true;
+        f >> response_type;
+        if (response_type == "polarizability") {
+          states = 3;
+          f >> omega;
+        } else if (response_type == "nuclear_displacement") {
+          states = 3 * Gparams.molecule.natom();
+        } else if (response_type == "2ndOrder") {
+          // states depends on the calculation it is built from
+        } else if (response_type == "3rdOrder") {
+        } else {
+          MADNESS_EXCEPTION("Unsupported frequency_response", 0);
+        }
+
         states = 3;  // One for each axis
         polarizability = true;
         f >> omega;
@@ -235,44 +249,46 @@ struct ResponseParameters {
     madness::print("            Ground State File:", archive);
     if (nwchem != "") madness::print("                  NWChem File:", nwchem);
     if (restart) madness::print("                 Restart File:", restart_file);
-    if (!property) madness::print("             States Requested:", states);
-    if (!property) madness::print("            TDA Approximation:", tda);
-    if (e_window and !property)
+    if (!frequency_response)
+      madness::print("             States Requested:", states);
+    if (!frequency_response)
+      madness::print("            TDA Approximation:", tda);
+    if (e_window and !frequency_response)
       madness::print("                Energy Window:", e_window,
                      " (Not yet implemented)");
-    if (e_window and !property)
+    if (e_window and !frequency_response)
       madness::print("           Energy Range Start:", range_low);
-    if (e_window and !property)
+    if (e_window and !frequency_response)
       madness::print("             Energy Range End:", range_high);
     if (k > 0) madness::print("                            k:", k);
-    if (!property and random)
+    if (!frequency_response and random)
       madness::print("                Initial Guess: Random");
-    if (!property and !random and nwchem == "")
+    if (!frequency_response and !random and nwchem == "")
       madness::print("                Initial Guess: Solid Harmonics * MOs");
     madness::print("              Store Potential:", store_potential);
     madness::print("         Max Guess Iterations:", guess_max_iter);
     madness::print("               Max Iterations:", max_iter);
-    if (!property)
+    if (!frequency_response)
       madness::print("   Larger Subspace Iterations:", larger_subspace);
     madness::print("                     Use KAIN:", kain);
     if (kain) madness::print("           KAIN Subspace Size:", maxsub);
     madness::print("                Save orbitals:", save);
     if (dconv != 0.0) madness::print("Density Convergence Threshold:", dconv);
-    if (!property)
+    if (!frequency_response)
       madness::print("                     Protocol:", protocol_data);
-    if (plot_initial and !property)
+    if (plot_initial and !frequency_response)
       madness::print("        Plot Initial Orbitals:", plot_initial);
-    if (plot and !property)
+    if (plot and !frequency_response)
       madness::print("          Plot Final Orbitals:", plot);
-    if (plot and plot_pts != 201 and !property)
+    if (plot and plot_pts != 201 and !frequency_response)
       madness::print("          Plot Num. of Points:", plot_pts);
-    if (plot and plot_L > 0.0 and !property)
+    if (plot and plot_L > 0.0 and !frequency_response)
       madness::print("                Plot Box Size:", plot_L);
-    if (plot and plot_range and !property)
+    if (plot and plot_range and !frequency_response)
       madness::print("                   Plot Start:", plot_data[0]);
-    if (plot and plot_range and !property)
+    if (plot and plot_range and !frequency_response)
       madness::print("                     Plot End:", plot_data.back());
-    if (plot and not plot_range and !property)
+    if (plot and not plot_range and !frequency_response)
       madness::print("       Orbitals to be Plotted:", plot_data);
     madness::print("                  Print Level:", print_level);
 
