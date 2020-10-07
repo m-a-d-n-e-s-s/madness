@@ -316,6 +316,7 @@ public:
 		initialize<bool>("project_virtuals", true, "project the pno basis out of the computed virtuals");
 	}
 
+	bool project_virtuals()const {return get<bool>("project_virtuals");}
 	int compute_virtuals()const {return get<int>("compute_virtuals");}
 	std::string orthogonalization()const { return get<std::string>("orthog");}
 	std::string cabs_orthogonalization()const { 
