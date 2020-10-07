@@ -323,6 +323,37 @@ int main(int argc, char** argv) {
 				std::cout << "corresponding to pairs:\n" << rest_ids << std::endl;
 			}
 		}
+
+		// include virtual orbitals if demanded
+		// not the most elegant solution ... but lets see if we need this first
+		vecfuncT virtuals;
+		std::vector<double> veps;
+		if (paramsint.compute_virtuals() > 0){
+			const auto refsize = reference.size();
+			SCF calcx(world, input);
+			calcx.param.set_user_defined_value("nvalpha", paramsint.compute_virtuals());
+			calcx.param.set_user_defined_value("restart", false);
+			calcx.param.set_user_defined_value("no_compute", false);
+	        calcx.param.set_user_defined_value("nmo_alpha",calc->param.nalpha() + paramsint.compute_virtuals());
+			calcx.param.print();
+			MolecularEnergy E(world, calcx);
+			double energy=E.value(calcx.molecule.get_all_coords().flat());
+			for (auto i=refsize; i<refsize+paramsint.compute_virtuals(); ++i){
+				virtuals.push_back(calcx.amo[i]);
+				veps.push_back(calcx.aeps(i));
+			}
+			if (paramsint.project_virtuals()){
+				if(world.rank()==0){
+					std::cout << "Projecting basis out of virtuals\n";
+				}
+				auto QB = QProjector<double,3>(world, basis);
+				virtuals = QB(virtuals);
+			}
+			basis.insert(basis.end(), virtuals.begin(), virtuals.end());
+			if(world.rank() ==0) std::cout << "added " << paramsint.compute_virtuals() << " virtuals\n";
+		}
+
+
 		// Save pair information to file after having picked the cherries
 		std::ofstream pairwriter ("pnoinfo.txt", std::ofstream::out|std::ofstream::trunc);
 		pairwriter << "MADNESS MRA-PNO INFORMATION" << std::endl;
@@ -337,17 +368,25 @@ int main(int argc, char** argv) {
 			if (!(i==pno_ids.size()-1))pairwriter << ",";
 		}
 		// print info of virtuals if there
-		for (auto i=0; i<paramsint.compute_virtuals(); ++i){
+		for (auto i=0; i<virtuals.size(); ++i){
 			pairwriter << ",";
 			pairwriter << reference.size() + i;
 		}
 
 		pairwriter << std::endl;
 		pairwriter << "nuclear_repulsion=" << nemo.get_calc()->molecule.nuclear_repulsion_energy() << std::endl;
-		pairwriter << "occ_numbers=";
+		pairwriter << "occinfo=";
+		for (auto i=0; i<reference.size();++i){
+			pairwriter << nemo.get_calc()-> aeps(i);
+			pairwriter << ",";
+		}
 		for (auto i=0; i<occ.size();++i){
 			pairwriter << occ[i];
 			if (!(i==occ.size()-1))pairwriter << ",";
+		}
+		for (auto i=0; i<veps.size();++i){
+			pairwriter << ",";
+			pairwriter << veps[i];
 		}
 		pairwriter.close();
 
@@ -372,33 +411,6 @@ int main(int argc, char** argv) {
 		// will include CIS orbitals for excited states
 		if(world.rank()==0) std::cout << "Adding " << reference.size() << " Reference orbitals\n";
 		basis.insert(basis.begin(), reference.begin(), reference.end());
-
-		// include virtual orbitals if demanded
-		// not the most elegant solution ... but lets see if we need this first
-		if (paramsint.compute_virtuals() > 0){
-			const auto refsize = reference.size();
-			SCF calcx(world, input);
-			calcx.param.set_user_defined_value("nvalpha", paramsint.compute_virtuals());
-			calcx.param.set_user_defined_value("restart", false);
-			calcx.param.set_user_defined_value("no_compute", false);
-	        calcx.param.set_user_defined_value("nmo_alpha",calc->param.nalpha() + paramsint.compute_virtuals());
-			calcx.param.print();
-			MolecularEnergy E(world, calcx);
-			double energy=E.value(calcx.molecule.get_all_coords().flat());
-			vecfuncT virtuals;
-			for (auto i=refsize; i<refsize+paramsint.compute_virtuals(); ++i){
-				virtuals.push_back(calcx.amo[i]);
-			}
-			if (paramsint.project_virtuals()){
-				if(world.rank()==0){
-					std::cout << "Projecting basis out of virtuals\n";
-				}
-				auto QB = QProjector<double,3>(world, basis);
-				virtuals = QB(virtuals);
-			}
-			basis.insert(basis.end(), virtuals.begin(), virtuals.end());
-			if(world.rank() ==0) std::cout << "added " << paramsint.compute_virtuals() << " virtuals\n";
-		}
 
 		auto size_obs = basis.size();
 
