@@ -393,7 +393,7 @@ int main(int argc, char** argv) {
 				if(world.rank()==0){
 					std::cout << "Projecting basis out of virtuals\n";
 				}
-				auto QB = QProjector<double,3>(basis);
+				auto QB = QProjector<double,3>(world, basis);
 				virtuals = QB(virtuals);
 			}
 			basis.insert(basis.end(), virtuals.begin(), virtuals.end());
