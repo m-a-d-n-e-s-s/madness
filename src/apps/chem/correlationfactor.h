@@ -524,9 +524,8 @@ public:
 
     /// functor for a local U1 dot U1 potential
 
-    /// the unit vector dotted with itself vanishes, so what's left is
     /// \f[
-    ///  U1\dot U1 = \frac{\left(S^r\right)^2}{S^2}
+    ///  U1\dot U1 = \frac{\left(S^r_A S^r_B\right)}{S_A S_B} n_A \cdot n_B
     /// \f]
     /// with positive sign!
     class U1_dot_U1_functor : public FunctionFunctorInterface<double,3> {
@@ -537,15 +536,26 @@ public:
         U1_dot_U1_functor(const NuclearCorrelationFactor* ncf) : ncf(ncf) {}
 
         double operator()(const coord_3d& xyz) const {
-            double result=0.0;
-            for (size_t i=0; i<ncf->molecule.natom(); ++i) {
-                const Atom& atom=ncf->molecule.get_atom(i);
-                const coord_3d vr1A=xyz-atom.get_coords();
-                const double r=vr1A.normf();
-                const double& Z=atom.q;
-                const double tmp=ncf->Sr_div_S(r,Z);
-                result+=tmp*tmp;
-            }
+			std::vector<double> Sr_div_S(ncf->molecule.natom());
+			std::vector<coord_3d> unitvec(ncf->molecule.natom());
+			for (size_t i=0; i<ncf->molecule.natom(); ++i) {
+				const Atom& atom=ncf->molecule.get_atom(i);
+				const coord_3d vr1A=xyz-atom.get_coords();
+				const double r=vr1A.normf();
+				Sr_div_S[i]=ncf->Sr_div_S(r,atom.q);
+				unitvec[i]=ncf->smoothed_unitvec(vr1A);
+			}
+
+			double result=0.0;
+			for (size_t i=0; i<ncf->molecule.natom(); ++i) {
+				for (size_t j=0; j<ncf->molecule.natom(); ++j) {
+					double tmp=Sr_div_S[i]*Sr_div_S[j];
+					if (i!=j) tmp*=inner(unitvec[i],unitvec[j]);
+					result+=tmp;
+				}
+			}
+
+
             return result;
         }
         std::vector<coord_3d> special_points() const {
