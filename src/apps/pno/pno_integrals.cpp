@@ -185,7 +185,7 @@ int main(int argc, char** argv) {
 			else if (!cabs_switch) std::cout << "No CABS used." << std::endl;
 		}
 		const bool only_diag = paramsint.only_diag();
-		const int basis_size = paramsint.basis_size();
+		const int basis_size = paramsint.n_pno();
 		int pno_cabs_size = paramsint.pno_cabs_size();
 
 		if(world.rank()==0) std::cout << "Tightening thresholds to 1.e-6 for post-processing\n";
@@ -337,19 +337,19 @@ int main(int argc, char** argv) {
 		// not the most elegant solution ... but lets see if we need this first
 		vecfuncT virtuals;
 		std::vector<double> veps;
-		if (paramsint.compute_virtuals() > 0){
+		if (paramsint.n_virt() > 0){
 			const auto refsize = reference.size();
 			SCF calcx(world, input);
-			calcx.param.set_user_defined_value("nvalpha", paramsint.compute_virtuals());
-			calcx.param.set_user_defined_value("nvbeta", paramsint.compute_virtuals());
+			calcx.param.set_user_defined_value("nvalpha", paramsint.n_virt());
+			calcx.param.set_user_defined_value("nvbeta", paramsint.n_virt());
 			calcx.param.set_user_defined_value("restart", false);
 			calcx.param.set_user_defined_value("no_compute", false);
-	        calcx.param.set_user_defined_value("nmo_alpha",calc->param.nalpha() + paramsint.compute_virtuals());
-	        calcx.param.set_user_defined_value("nmo_beta",calc->param.nbeta() + paramsint.compute_virtuals());
+	        calcx.param.set_user_defined_value("nmo_alpha",calc->param.nalpha() + paramsint.n_virt());
+	        calcx.param.set_user_defined_value("nmo_beta",calc->param.nbeta() + paramsint.n_virt());
 			calcx.param.print();
 			MolecularEnergy E(world, calcx);
 			double energy=E.value(calcx.molecule.get_all_coords().flat());
-			for (auto i=refsize; i<refsize+paramsint.compute_virtuals(); ++i){
+			for (auto i=refsize; i<refsize+paramsint.n_virt(); ++i){
 				virtuals.push_back(calcx.amo[i]);
 				veps.push_back(calcx.aeps(i));
 			}
@@ -357,7 +357,7 @@ int main(int argc, char** argv) {
 			virtuals = QB(virtuals);
 			madness::normalize(world, virtuals);
 			basis.insert(basis.end(), virtuals.begin(), virtuals.end());
-			if(world.rank() ==0) std::cout << "added " << paramsint.compute_virtuals() << " virtuals\n";
+			if(world.rank() ==0) std::cout << "added " << paramsint.n_virt() << " virtuals\n";
 		}
 
 		if (parameters.save_pnos()) {

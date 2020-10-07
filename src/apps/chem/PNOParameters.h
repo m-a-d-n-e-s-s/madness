@@ -301,7 +301,7 @@ public:
 	void initialize_pnoint_parameters() {
 		initialize<std::string>("orthog", "symmetric", "orthogonalization method for PNO basis, also current default for a potential CABS. options: symmetric, canonical, cholesky, rr_cholesky,  ");
 		initialize<std::string>("orthog_cabs", "default", "orthogonalization method for CABS basis. options: symmetric, canonical, cholesky, rr_cholesky, uses same as orbitals basis if default.");
-		initialize<int>("basis_size", 10, "desired size of PNO-basis (orbital space)");
+		initialize<int>("n_pno", 10, "desired size of PNO-basis (orbital space)");
 		initialize<std::string>("cabs_option", "none", "type of complementary auxiliary basis to be used. can be none ~ no CABS, gbs ~ Gaussian basis set as CABS, requires input via auxbas_file, pno ~ use superfluous PNOs as CABS, mixed ~ gbs&pno-option");
 		initialize<int>("pno_cabs_size", -1, "size of a potential pno-cabs. defaults to -1 ~ all remaining PNOs, if pno-cabs or mixed-cabs");
 		initialize<bool>("only_diag", false, "use only diagonal elements PNOs");
@@ -312,12 +312,10 @@ public:
 		initialize<std::string>("auxbas", "none", "atom centered partial wave guess of format like 'h-2s1p-o-3s2p1d' ");
 		initialize<std::string>("auxbas_file", "none", "Use external comp. aux. basis in addition to the pnos as auxbasis. Give the filename as parameter. Give the auxbas in turbomole format. Don't use contractions. If a file is specified the auxbas parameter has no effect");
 		initialize<bool>("print_pno_overlap", false, "Print overlap matrix at certain steps in computation, for debugging purposes.");
-		initialize<int>("compute_virtuals", 0, "Compute this number of virtuals and include them in the integral construction.");
-		initialize<bool>("project_virtuals", true, "project the pno basis out of the computed virtuals");
+		initialize<int>("n_virt", 0, "Compute this number of virtuals and include them in the integral construction.");
 	}
 
-	bool project_virtuals()const {return get<bool>("project_virtuals");}
-	int compute_virtuals()const {return get<int>("compute_virtuals");}
+	int n_virt()const {return get<int>("n_virt");}
 	std::string orthogonalization()const { return get<std::string>("orthog");}
 	std::string cabs_orthogonalization()const { 
 		if (get<std::string>("orthog_cabs") == "default")
@@ -327,7 +325,7 @@ public:
 	}
 
 	std::string cabs_option()const { return get<std::string>("cabs_option");}
-	int basis_size()const { return get<int >("basis_size");}
+	int n_pno()const { return get<int >("n_pno");}
 	int pno_cabs_size()const { return get<int >("pno_cabs_size");}
 	bool only_diag()const { return get<bool>("only_diag"); }
 	std::vector<int> cherry_pick()const { 
