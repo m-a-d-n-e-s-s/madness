@@ -371,11 +371,14 @@ int main(int argc, char** argv) {
 		// include virtual orbitals if demanded
 		if (paramsint.compute_virtuals() > 0){
 			const auto refsize = reference.size();
-			Nemo nemo(world, nemo.get_calc(), input);
-			nemo.get_calc() -> param.set_user_defined_value("nvalpha", paramsint.compute_virtuals());
-			nemo.value();
+			std::shared_ptr<SCF> calcx(new SCF(world, input));
+			Nemo nemox(world, calcx, input);
+			nemox.get_calc() -> param.set_user_defined_value("nvalpha", paramsint.compute_virtuals());
+			nemox.get_calc() -> param.set_user_defined_value("restart", false);
+			nemox.get_calc() -> param.set_user_defined_value("no_compute", false);
+			nemox.value();
 			for (auto i=refsize; i<refsize+paramsint.compute_virtuals(); ++i){
-				basis.push_back(nemo.get_calc()-> amo[i]);
+				basis.push_back(nemox.get_calc()-> amo[i]);
 			}
 			if(world.rank() ==0) std::cout << "added " << paramsint.compute_virtuals() << " virtuals\n";
 		}
