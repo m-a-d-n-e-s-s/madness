@@ -32,7 +32,7 @@ class ResponseFunction {
   // Zero Constructor
   ResponseFunction(World &world, unsigned int num_states,
                    unsigned int num_orbitals)
-      : r_states(num_states), g_states(num_orbitalsg) {
+      : r_states(num_states), g_states(num_orbitals) {
     for (unsigned int i = 0; i < num_states; i++)
       x.push_back(zero_functions<double, 3>(world, num_orbitals));
     x[0][0].world().gop.fence();
