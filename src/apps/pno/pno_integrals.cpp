@@ -324,6 +324,15 @@ int main(int argc, char** argv) {
 			}
 		}
 
+		// orthogonalize orbital basis
+		if (orthogonalize){
+			basis = orthonormalize_basis(basis, orthogonalization, thresh, world, paramsint.print_pno_overlap());
+		}
+
+		// will include CIS orbitals for excited states
+		if(world.rank()==0) std::cout << "Adding " << reference.size() << " Reference orbitals\n";
+		basis.insert(basis.begin(), reference.begin(), reference.end());
+
 		// include virtual orbitals if demanded
 		// not the most elegant solution ... but lets see if we need this first
 		vecfuncT virtuals;
@@ -332,9 +341,11 @@ int main(int argc, char** argv) {
 			const auto refsize = reference.size();
 			SCF calcx(world, input);
 			calcx.param.set_user_defined_value("nvalpha", paramsint.compute_virtuals());
+			calcx.param.set_user_defined_value("nvbeta", paramsint.compute_virtuals());
 			calcx.param.set_user_defined_value("restart", false);
 			calcx.param.set_user_defined_value("no_compute", false);
 	        calcx.param.set_user_defined_value("nmo_alpha",calc->param.nalpha() + paramsint.compute_virtuals());
+	        calcx.param.set_user_defined_value("nmo_beta",calc->param.nbeta() + paramsint.compute_virtuals());
 			calcx.param.print();
 			MolecularEnergy E(world, calcx);
 			double energy=E.value(calcx.molecule.get_all_coords().flat());
@@ -342,17 +353,17 @@ int main(int argc, char** argv) {
 				virtuals.push_back(calcx.amo[i]);
 				veps.push_back(calcx.aeps(i));
 			}
-			if (paramsint.project_virtuals()){
-				if(world.rank()==0){
-					std::cout << "Projecting basis out of virtuals\n";
-				}
-				auto QB = QProjector<double,3>(world, basis);
-				virtuals = QB(virtuals);
-			}
+			auto QB = QProjector<double,3>(world, basis);
+			virtuals = QB(virtuals);
 			basis.insert(basis.end(), virtuals.begin(), virtuals.end());
 			if(world.rank() ==0) std::cout << "added " << paramsint.compute_virtuals() << " virtuals\n";
 		}
 
+		if (parameters.save_pnos()) {
+			for(auto i=0; i<basis.size(); ++i){
+				madness::save(basis[i], "mra_orbital_"+std::to_string(i));
+			}
+		}
 
 		// Save pair information to file after having picked the cherries
 		std::ofstream pairwriter ("pnoinfo.txt", std::ofstream::out|std::ofstream::trunc);
@@ -370,7 +381,7 @@ int main(int argc, char** argv) {
 		// print info of virtuals if there
 		for (auto i=0; i<virtuals.size(); ++i){
 			pairwriter << ",";
-			pairwriter << reference.size() + i;
+			pairwriter << -(i+1);
 		}
 
 		pairwriter << std::endl;
@@ -390,27 +401,6 @@ int main(int argc, char** argv) {
 		}
 		pairwriter.close();
 
-
-		if (parameters.save_pnos()) {
-			for(auto i=0; i<basis.size(); ++i){
-				madness::save(basis[i], "pno_"+std::to_string(i));
-			}
-		}
-
-		// orthogonalize orbital basis
-		if (orthogonalize){
-			basis = orthonormalize_basis(basis, orthogonalization, thresh, world, paramsint.print_pno_overlap());
-		}
-
-		if (parameters.save_pnos()) {
-			for(auto i=0;i<basis.size();++i){
-				madness::save(basis[i], "orthonormalized_pno_"+std::to_string(i));
-			}
-		}
-
-		// will include CIS orbitals for excited states
-		if(world.rank()==0) std::cout << "Adding " << reference.size() << " Reference orbitals\n";
-		basis.insert(basis.begin(), reference.begin(), reference.end());
 
 		auto size_obs = basis.size();
 
