@@ -312,8 +312,10 @@ public:
 		initialize<std::string>("auxbas", "none", "atom centered partial wave guess of format like 'h-2s1p-o-3s2p1d' ");
 		initialize<std::string>("auxbas_file", "none", "Use external comp. aux. basis in addition to the pnos as auxbasis. Give the filename as parameter. Give the auxbas in turbomole format. Don't use contractions. If a file is specified the auxbas parameter has no effect");
 		initialize<bool>("print_pno_overlap", false, "Print overlap matrix at certain steps in computation, for debugging purposes.");
+		initialize<int>("compute_virtuals", 0, "Compute this number of virtuals and include them in the integral construction.");
 	}
 
+	int compute_virtuals()const {return get<int>("compute_virtuals");}
 	std::string orthogonalization()const { return get<std::string>("orthog");}
 	std::string cabs_orthogonalization()const { 
 		if (get<std::string>("orthog_cabs") == "default")

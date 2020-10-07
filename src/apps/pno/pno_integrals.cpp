@@ -368,6 +368,17 @@ int main(int argc, char** argv) {
 		if(world.rank()==0) std::cout << "Adding " << reference.size() << " Reference orbitals\n";
 		basis.insert(basis.begin(), reference.begin(), reference.end());
 
+		// include virtual orbitals if demanded
+		if (paramsint.compute_virtuals() > 0){
+			const auto refsize = reference.size();
+			nemo.get_calc() -> param.set_user_defined_value("nvalpha", paramsint.compute_virtuals());
+			nemo.value();
+			for (auto i=refsize; i<refsize+paramsint.compute_virtuals(); ++i){
+				basis.push_back(nemo.get_calc()-> amo[i]);
+			}
+			if(world.rank() ==0) std::cout << "added " << paramsint.compute_virtuals() << " virtuals\n";
+		}
+
 		auto size_obs = basis.size();
 
 		// if desired, build a CABS using either a Gaussian basis set or the remaining PNOs
