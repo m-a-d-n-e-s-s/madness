@@ -313,6 +313,7 @@ public:
 		initialize<std::string>("auxbas_file", "none", "Use external comp. aux. basis in addition to the pnos as auxbasis. Give the filename as parameter. Give the auxbas in turbomole format. Don't use contractions. If a file is specified the auxbas parameter has no effect");
 		initialize<bool>("print_pno_overlap", false, "Print overlap matrix at certain steps in computation, for debugging purposes.");
 		initialize<int>("compute_virtuals", 0, "Compute this number of virtuals and include them in the integral construction.");
+		initialize<bool>("project_virtuals", true, "project the pno basis out of the computed virtuals");
 	}
 
 	int compute_virtuals()const {return get<int>("compute_virtuals");}

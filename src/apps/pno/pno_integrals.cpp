@@ -330,13 +330,18 @@ int main(int argc, char** argv) {
 		for(auto i=0; i<reference.size(); ++i) {
 			pairwriter << i << ",";
 		}
-
 		// print total indices of pairs
 		const auto nfreeze = parameters.freeze();
 		for(auto i=0; i<pno_ids.size(); ++i) {
 			pairwriter << pno_ids[i].first+nfreeze << "." << pno_ids[i].second+nfreeze;
 			if (!(i==pno_ids.size()-1))pairwriter << ",";
 		}
+		// print info of virtuals if there
+		for (auto i=0; i<paramsint.compute_virtuals(); ++i){
+			pairwriter << ",";
+			pairwriter << reference.size() + i;
+		}
+
 		pairwriter << std::endl;
 		pairwriter << "nuclear_repulsion=" << nemo.get_calc()->molecule.nuclear_repulsion_energy() << std::endl;
 		pairwriter << "occ_numbers=";
@@ -380,9 +385,18 @@ int main(int argc, char** argv) {
 			calcx.param.print();
 			MolecularEnergy E(world, calcx);
 			double energy=E.value(calcx.molecule.get_all_coords().flat());
+			vecfuncT virtuals;
 			for (auto i=refsize; i<refsize+paramsint.compute_virtuals(); ++i){
-				basis.push_back(calcx.amo[i]);
+				virtuals.push_back(calcx.amo[i]);
 			}
+			if (paramsint.project_virtuals()){
+				if(world.rank()==0){
+					std::cout << "Projecting basis out of virtuals\n";
+				}
+				auto QB = QProjector<double,3>(basis);
+				virtuals = QB(virtuals);
+			}
+			basis.insert(basis.end(), virtuals.begin(), virtuals.end());
 			if(world.rank() ==0) std::cout << "added " << paramsint.compute_virtuals() << " virtuals\n";
 		}
 
