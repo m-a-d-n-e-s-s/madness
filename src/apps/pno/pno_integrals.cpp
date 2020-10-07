@@ -372,6 +372,9 @@ int main(int argc, char** argv) {
 		if (paramsint.compute_virtuals() > 0){
 			const auto refsize = reference.size();
 			std::shared_ptr<SCF> calcx(new SCF(world, input));
+			calcx -> param.set_user_defined_value("nvalpha", paramsint.compute_virtuals());
+			calcx -> param.set_user_defined_value("restart", false);
+			calcx -> param.set_user_defined_value("no_compute", false);
 			Nemo nemox(world, calcx, input);
 			nemox.get_calc() -> param.set_user_defined_value("nvalpha", paramsint.compute_virtuals());
 			nemox.get_calc() -> param.set_user_defined_value("restart", false);
