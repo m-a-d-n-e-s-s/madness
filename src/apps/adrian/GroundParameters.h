@@ -30,7 +30,6 @@ struct GroundParameters {
   Molecule molecule;  ///< The molecule used in ground state calculation
   std::vector<real_function_3d> orbitals;  ///< The ground state orbitals
   std::string xc;  ///< Name of xc functional used in ground state
-  QProjector<double, 3> Q;
 
   // Default constructor
   GroundParameters() {}
@@ -84,7 +83,6 @@ struct GroundParameters {
 
     // Clean up
     truncate(world, orbitals);
-    Qhat(world, orbitals)
   }
 
   // Prints all information
