@@ -347,11 +347,7 @@ public:
 
 	void set_derived_values(const PNOParameters& param) {
 		set_derived_value("cabs_thresh", thresh());
-		auto n_pno = param.maxrank;
-		if(n_pno>10){
-			n_pno=10;
-		}
-		set_derived_value("n_pno", n_pno);
+		set_derived_value("n_pno", std::min(10, param.maxrank()));
 	}
 
 };
