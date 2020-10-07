@@ -369,14 +369,15 @@ int main(int argc, char** argv) {
 		basis.insert(basis.begin(), reference.begin(), reference.end());
 
 		// include virtual orbitals if demanded
+		// not the most elegant solution ... but lets see if we need this first
 		if (paramsint.compute_virtuals() > 0){
 			const auto refsize = reference.size();
 			SCF calcx(world, input);
 			calcx.param.set_user_defined_value("nvalpha", paramsint.compute_virtuals());
 			calcx.param.set_user_defined_value("restart", false);
 			calcx.param.set_user_defined_value("no_compute", false);
-			MolecularEnergy E(world, calc);
-			double energy=E.value(calcx.molecule.get_all_coords().flat()); // ugh!
+			MolecularEnergy E(world, calcx);
+			double energy=E.value(calcx.molecule.get_all_coords().flat());
 			for (auto i=refsize; i<refsize+paramsint.compute_virtuals(); ++i){
 				basis.push_back(calcx.amo[i]);
 			}
