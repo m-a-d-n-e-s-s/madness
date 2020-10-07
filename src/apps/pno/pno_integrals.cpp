@@ -372,6 +372,7 @@ int main(int argc, char** argv) {
 		if (paramsint.compute_virtuals() > 0){
 			const auto refsize = reference.size();
 			nemo.get_calc() -> param.set_user_defined_value("nvalpha", paramsint.compute_virtuals());
+			nemo.coords_sum = 0.0;
 			nemo.value();
 			for (auto i=refsize; i<refsize+paramsint.compute_virtuals(); ++i){
 				basis.push_back(nemo.get_calc()-> amo[i]);
