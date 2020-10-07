@@ -355,6 +355,7 @@ int main(int argc, char** argv) {
 			}
 			auto QB = QProjector<double,3>(world, basis);
 			virtuals = QB(virtuals);
+			madness::normalize(world, virtuals);
 			basis.insert(basis.end(), virtuals.begin(), virtuals.end());
 			if(world.rank() ==0) std::cout << "added " << paramsint.compute_virtuals() << " virtuals\n";
 		}
