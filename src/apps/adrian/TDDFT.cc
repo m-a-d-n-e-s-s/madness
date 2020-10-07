@@ -166,26 +166,30 @@ TDHF::TDHF(World &world, std::shared_ptr<std::istream> input) {
   if (world.rank() == 0) {
     if (input->fail())
       MADNESS_EXCEPTION("Response failed to open input stream", 0);
-
     // Welcome user (future ASCII art of Robert goes here)
     print("\n   Preparing to solve the TDHF equations.\n");
-
     // Read input files
     Rparams.read(*input);
-
     // Print out what was read in
-    Rparams.print_params();
   }
-
-  // Broadcast to all other nodes
-  world.gop.broadcast_serializable(Rparams, 0);
-
-  // Read in archive
   Gparams.read(world, Rparams.archive);
   if (world.rank() == 0) {
     Gparams.print_params();
     print_molecule(world);
   }
+  // if a proerty calculation set the number of states
+  if (Rparams.property) {
+    Rparams.SetNumberOfStates(Gparams.molecule);
+  }
+
+  // print params
+  if (world.rank() == 0) {
+    Rparams.print_params();
+  }
+  // Broadcast to all other nodes
+  world.gop.broadcast_serializable(Rparams, 0);
+
+  // Read in archive
   // Create the projector Qhat to be used in any calculation
 
   // Set some function defaults
@@ -1033,7 +1037,7 @@ ResponseFunction TDHF::CreateGamma(World &world, ResponseFunction &f,
   gamma = deriv_J * 2.0 + deriv_XC - deriv_K * xcf.hf_exchange_coefficient();
 
   // Project out groundstate
-  QProjector < double, 3or(world, Gparams.orbitals);
+  QProjector<double, 3> projector(world, Gparams.orbitals);
   for (int i = 0; i < m; i++) gamma[i] = projector(gamma[i]);
 
   // Debugging output
@@ -3202,11 +3206,11 @@ void TDHF::Iterate(World &world) {
     if (not Rparams.tda) truncate(world, y_response);
 
     // Normalize after projection
-    if (Rparams.tda)
-      // Gotta checkout out what normalize does
+    if (Rparams.tda) {
       normalize(world, x_response);
-    else
+    } else {
       normalize(world, x_response, y_response);
+    }
     computeElectronResponse(world, ElectronResponses, x_response, y_response,
                             Gparams.orbitals, xc, hamiltonian, ham_no_diag,
                             Rparams.small, FunctionDefaults<3>::get_thresh(),
@@ -5402,14 +5406,14 @@ void TDHF::solve_polarizability(World &world) {
                 FunctionDefaults<3>::get_k());
       } else {  // Dipole guesses
 
-        x_response = dipole_guess(world, Gparams.orbitals);
+        x_response = dipoleRHS(world, Gparams.orbitals);
         y_response = x_response.copy();
       }
     }
 
     // Set the dipoles (ground orbitals are probably
     // more accurate now, so recalc the dipoles)
-    dipoles = dipole_guess(world, Gparams.orbitals);
+    dipoles = dipoleRHS(world, Gparams.orbitals);
     // why is it called dipole guess.
     // This is just orbitals times dipole operator
 
@@ -5490,14 +5494,14 @@ void TDHF::compute_freq_density(World &world) {
                 FunctionDefaults<3>::get_k());
       } else {  // Dipole guesses
 
-        x_response = dipole_guess(world, Gparams.orbitals);
+        x_response = dipoleRHS(world, Gparams.orbitals);
         y_response = x_response.copy();
       }
     }
 
     // Set the dipoles (ground orbitals are probably
     // more accurate now, so recalc the dipoles)
-    dipoles = dipole_guess(world, Gparams.orbitals);
+    dipoles = dipoleRHS(world, Gparams.orbitals);
     // why is it called dipole guess.
     // This is just orbitals times dipole operator
 

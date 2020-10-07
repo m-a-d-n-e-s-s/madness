@@ -8,7 +8,10 @@
 #include <chem/molecule.h>
 #include <chem/xcfunctional.h>
 
+#include <functional>
+#include <numeric>
 #include <string>
+#include <vector>
 
 namespace madness {
 
@@ -63,10 +66,17 @@ struct ResponseParameters {
   int guess_max_iter;     ///< Maximum number of iterations for guess functions
 
   // Start of properties
-  bool property;        ///< Flag that this is a properties calculation
-  bool polarizability;  ///< Flag to indicate desired property is the
-                        ///< polarizability
-  double omega;         ///< Incident energy for polarizability
+  bool property;              ///< Flag that this is a properties calculation
+  std::string response_type;  //
+
+  bool dipole;   ///< Flag that this is a properties calculation
+  bool nuclear;  ///< Flag that this is a properties calculation
+  bool order2;   ///< Flag that this is a properties calculation
+  bool order3;   ///< Flag that this is a properties calculation
+
+  vector<std::string> response_types;  // string holding response type 1
+
+  double omega;  ///< Incident energy for polarizability
 
   // TESTING
   bool old;
@@ -76,11 +86,12 @@ struct ResponseParameters {
   template <typename Archive>
   void serialize(Archive &ar) {
     ar &archive &nwchem &states &print_level &tda &plot &plot_range &plot_data
-        &plot_L &plot_pts &max_iter &dconv &dconv_set &guess_xyz &small
-            &protocol_data &larger_subspace &k &random &store_potential
-                &e_window &range_low &range_high &plot_initial &restart
-                    &restart_file &kain &maxsub &xc &save &save_file
-                        &guess_max_iter &property &polarizability &omega &old;
+        &plot_L &plot_pts &max_iter &dconv &dconv_set &guess_xyz &small &
+            protocol_data &larger_subspace &k &random &store_potential &e_window
+                &range_low &range_high &plot_initial &restart &restart_file
+                    &kain &maxsub &xc &save &save_file &guess_max_iter &property
+                        &response_type &dipole &nuclear &order2 &order3
+                            &response_types &omega &old;
   }
 
   // Default constructor
@@ -118,7 +129,12 @@ struct ResponseParameters {
         save_file(""),
         guess_max_iter(5),
         property(false),
-        polarizability(false),
+        response_type(),
+        dipole(false),
+        nuclear(false),
+        order2(false),
+        order3(false),
+        response_types({"", "", ""}),
         omega(0.0),
         old(true) {}
 
@@ -220,11 +236,25 @@ struct ResponseParameters {
         f >> save_file;
       } else if (s == "guess_iter") {
         f >> guess_max_iter;
-      } else if (s == "polarizability") {
+      } else if (s == "property") {
         property = true;
-        states = 3;  // One for each axis
-        polarizability = true;
-        f >> omega;
+        f >> response_type;
+        if (response_type == "dipole") {
+          f >> omega;
+        } else if (response_type == "nuclear") {
+          f >> omega;
+        } else if (response_type == "2ndOrder") {
+          f >> response_types[0];
+          f >> response_types[1];
+          f >> omega;
+        } else if (response_type == "3ndOrder") {
+          f >> response_types[0];
+          f >> response_types[1];
+          f >> response_types[2];
+          f >> omega;
+        } else {
+          MADNESS_EXCEPTION("Not a an avaible response type", 0);
+        }
       } else if (s == "new") {
         // Use potential manager, for debugging. Remove
         // after it works
@@ -235,6 +265,42 @@ struct ResponseParameters {
       }
     }
   }  // end read()
+  void SetNumberOfStates(Molecule &molecule) {
+    vector<std::string> calculation_type;
+    vector<bool> calc_flags;
+    if (dipole) {
+      states = 3;
+    } else if (nuclear) {
+      states = 3 * molecule.natom();
+    } else if (order2) {
+      vector<int> nstates;  // states 1
+      for (int i = 0; i < 2; i++) {
+        if (response_types[i] == "dipole") {
+          nstates.push_back(3);
+        } else if (response_types[i] == "nuclear") {
+          nstates.push_back(3 * molecule.natom());
+        } else {
+          MADNESS_EXCEPTION("not a valid response state ", 0);
+        }
+      }
+
+      states = std::accumulate(nstates.begin(), nstates.end(), 1,
+                               std::multiplies<>());
+    } else if (order3) {
+      vector<int> nstates;  // states 1
+      for (int i = 0; i < 3; i++) {
+        if (response_types[i] == "dipole") {
+          nstates.push_back(3);
+        } else if (response_types[i] == "nuclear") {
+          nstates.push_back(3 * molecule.natom());
+        } else {
+          MADNESS_EXCEPTION("not a valid response state ", 0);
+        }
+      }
+      states = std::accumulate(nstates.begin(), nstates.end(), 1,
+                               std::multiplies<>());
+    }
+  }
 
   // Prints all information
   void print_params() const {
@@ -286,12 +352,23 @@ struct ResponseParameters {
     madness::print("                  Print Level:", print_level);
 
     // Start of property printing
-    if (polarizability)
-      madness::print("                     Property: Polarizability");
-    if (polarizability)
-      madness::print("           Incident Frequency: ", omega);
+    vector<std::string> calculation_type;
+    calculation_type.push_back("Linear Dipole Perturbation");
+    calculation_type.push_back("Linear Nuclear Displacement");
+    calculation_type.push_back("2nd Order");
+    calculation_type.push_back("3rd Order");
+    vector<bool> calc_flags;
+    calc_flags.push_back(dipole);
+    calc_flags.push_back(nuclear);
+    calc_flags.push_back(order2);
+    calc_flags.push_back(order3);
+    for (int i = 0; i < calc_flags.size(); i++) {
+      if (calc_flags[i]) {
+        madness::print("                     Property: ", calculation_type[i]);
+        madness::print("           Incident Frequency: ", omega);
+      }
+    }
   }
-};
 
-}  // namespace madness
+};  // namespace madness
 #endif
