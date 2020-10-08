@@ -349,7 +349,7 @@ int main(int argc, char** argv) {
 	        calcx.initial_guess(world);
 			calcx.param.print();
 			calcx.amo = calc->amo;
-			auto F = Fock(world, calc->amo);
+			auto F = Fock(world, calc.get());
 			auto Fmat = F(calc->ao, calc->ao);
 			Tensor<double> U, evals;
 			syev(Fmat, U, evals);
