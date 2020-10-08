@@ -346,7 +346,21 @@ int main(int argc, char** argv) {
 			calcx.param.set_user_defined_value("no_compute", false);
 	        calcx.param.set_user_defined_value("nmo_alpha",calc->param.nalpha() + paramsint.n_virt());
 	        calcx.param.set_user_defined_value("nmo_beta",calc->param.nbeta() + paramsint.n_virt());
+	        calcx.initial_guess(world);
 			calcx.param.print();
+			calcx.amo = calc->amo;
+			auto F = Fock(world, calc->amo);
+			auto Fmat = F(calc->ao, calc->ao);
+			Tensor<double> U, evals;
+			syev(Fmat, U, evals);
+			auto vguess = madness::transform(world, calc->ao, U);
+			for (auto i=0;i<paramsint.n_virt();++i){
+				calcx.amo.push_back(vguess[i]);
+			}
+			calcx.aocc = tensorT(calcx.param.nmo_alpha());
+			for (int i = 0; i < calcx.param.nalpha(); ++i)
+				calcx.aocc[i] = 1.0;
+
 			MolecularEnergy E(world, calcx);
 			double energy=E.value(calcx.molecule.get_all_coords().flat());
 			for (auto i=refsize; i<refsize+paramsint.n_virt(); ++i){
@@ -356,7 +370,7 @@ int main(int argc, char** argv) {
 			auto QB = QProjector<double,3>(world, basis);
 			virtuals = QB(virtuals);
 			madness::normalize(world, virtuals);
-			basis.insert(basis.end(), virtuals.begin(), virtuals.end());
+			basis.insert(basis.begin(), virtuals.begin(), virtuals.end());
 			if(world.rank() ==0) std::cout << "added " << paramsint.n_virt() << " virtuals\n";
 		}
 
