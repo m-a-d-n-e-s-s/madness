@@ -52,6 +52,7 @@
   #include <cmath>
   #include <complex>
   #include <iomanip>
+  #include <map>
   #include <random>
   #include <vector>
 
@@ -257,8 +258,7 @@ class TDHF {
   ResponseFunction dipoleRHS(World &world,
                              const std::vector<real_function_3d> orbitals);
 
-  ResponseFunction derivativesRHS(World &world, const Function<double, 3> &rho,
-                                  Molecule &molecule) const;
+  ResponseFunction derivativesRHS(World &world, Molecule &molecule) const;
   // Returns the derivative of the coulomb operator, applied to ground state
   // orbitals
   ResponseFunction CreateCoulombDerivativeRF(
@@ -613,12 +613,13 @@ class TDHF {
   // alpha_ij(\omega) = -sum_{m occ} <psi_m(0)|r_i|psi_mj(1)(\omega)> +
   // <psi_mj(1)(-\omega)|r_i|psi_m(0)>
   void polarizability(World &world, Tensor<double> polar);
+  void PrintPolarizabilityAnalysis(World &world, Tensor<double> polar_tensor);
 
   // Solves the response equations for the polarizability
   void solve_polarizability(World &world);
   void compute_freq_density(World &world);
 };
 }  // namespace madness
-#endif
+#endif  // SRC_APPS_ADRIAN_TDDFT_H_
 
 // Deuces
