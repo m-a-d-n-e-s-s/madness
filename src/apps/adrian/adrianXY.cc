@@ -45,13 +45,14 @@ int main(int argc, char** argv) {
 
   // Check if calculating a property
   if (my_calc.Rparams.property) {
-    // Which property?
-    if (my_calc.Rparams.polarizability) {
-      my_calc.solve_polarizability(world);
-    }
-    if (my_calc.Rparams.property) {
-      my_calc.compute_freq_density(world);
-    }
+    // compute frequency density response will compute given
+    // the property asked for
+    // first computes the rhs for
+    // dipole
+    // nuclear
+    // order2
+    // order3
+    my_calc.compute_freq_density(world);
     // Future properties go here
     //
     // If not a property, just calculate response states

@@ -38,8 +38,8 @@
       10. Repeat steps 4-9 until the residual is within your tolerance
 */
 
-#ifndef MADNESS_APPS_TDHF_H_INCLUDED
-  #define MADNESS_APPS_TDHF_H_INCLUDED
+#ifndef SRC_APPS_ADRIAN_TDDFT_H_
+  #define SRC_APPS_ADRIAN_TDDFT_H_
 
   #include <madness/constants.h>
   #include <madness/mra/mra.h>
@@ -62,8 +62,9 @@
   #include "ResponseFunction2.h"
   #include "ResponseParameters.h"
   #include "ResponsePotential.h"
+  #include "TDHF_Basic_Operators2.h"
 
-using namespace madness;
+namespace madness {
 
 // Functor from SCF.cc (it wasn't linking right, no idea why, so just copied and
 // renamed here) A copy of a MADNESS functor to compute the cartesian moment x^i
@@ -617,7 +618,7 @@ class TDHF {
   void solve_polarizability(World &world);
   void compute_freq_density(World &world);
 };
-
+}  // namespace madness
 #endif
 
 // Deuces

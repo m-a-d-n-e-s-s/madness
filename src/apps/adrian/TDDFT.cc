@@ -20,6 +20,7 @@
 #include "../chem/molecule.h"
 #include "NWChem.h"  // For nwchem interface
 #include "Plot_VTK.h"
+#include "ResponseFunction2.h"
 #include "TDHF_Basic_Operators2.h"
 #include "chem/potentialmanager.h"
 #include "chem/projector.h"  // For easy calculation of (1 - \hat{\rho}^0)
@@ -562,7 +563,7 @@ ResponseFunction TDHF::create_trial_functions(
   }
 
   // Truncate
-  truncate(world, trials);
+  truncate(world, trials, madness::FunctionDefaults<3>::get_thresh(), true);
 
   // Done
   return trials;
@@ -5458,7 +5459,11 @@ void TDHF::solve_polarizability(World &world) {
   // Get start time
   end_timer(world, "total:");
 }
-
+// compute the frequency response, Rparams sets the the calculation type.
+// options are dipole,nuclear,order2, order3.  Computes the density respone
+// No matter the calculation type we do the same iteration.
+// The only difference is the number of response states as well as the number
+// of right hand side vectors.
 void TDHF::compute_freq_density(World &world) {
   // Get start time
   start_timer(world);
@@ -5468,83 +5473,99 @@ void TDHF::compute_freq_density(World &world) {
     print("\n\n    Response Calculation");
     print("   ------------------------");
   }
+  // Here we will set the
+  // we set the possible calcuation types;
+  vector<bool> calc_flags;
 
+  calc_flags.push_back(Rparams.dipole);
+  calc_flags.push_back(Rparams.nuclear);
+  calc_flags.push_back(Rparams.order2);
+  calc_flags.push_back(Rparams.order3);
   // Create the polarizability tensor
-  Tensor<double> polar_tensor(3, 3);
+  // first task is the set the initial guess as well as the rhs vectors
+  if (Rparams.dipole) {
+  } else if (Rparams.nuclear) {
+  } else if (Rparams.order2) {
+  } else if (Rparams.order3) {
+  } else {
+    MADNESS_EXCEPTION("not a valid response state ", 0);
+  }
+}
+Tensor<double> polar_tensor(3, 3);
 
-  // Keep a copy of dipoles * MO (needed explicitly in eq.)
-  ResponseFunction dipoles;
+// Keep a copy of dipoles * MO (needed explicitly in eq.)
+ResponseFunction dipoles;
 
-  // For each protocol
-  for (unsigned int proto = 0; proto < Rparams.protocol_data.size(); proto++) {
-    // Set defaults inside here
-    set_protocol<3>(world, Rparams.protocol_data[proto]);
+// For each protocol
+for (unsigned int proto = 0; proto < Rparams.protocol_data.size(); proto++) {
+  // Set defaults inside here
+  set_protocol<3>(world, Rparams.protocol_data[proto]);
 
-    // Do something to ensure all functions have same k value
-    check_k(world, Rparams.protocol_data[proto], FunctionDefaults<3>::get_k());
+  // Do something to ensure all functions have same k value
+  check_k(world, Rparams.protocol_data[proto], FunctionDefaults<3>::get_k());
 
-    // Create guesses if no response functions
-    // If restarting, load here
-    if (proto == 0) {
-      if (Rparams.restart) {
-        if (world.rank() == 0)
-          print("   Initial guess from file:", Rparams.restart_file);
-        load(world, Rparams.restart_file);
-        check_k(world, Rparams.protocol_data[proto],
-                FunctionDefaults<3>::get_k());
-      } else {  // Dipole guesses
+  // Create guesses if no response functions
+  // If restarting, load here
+  if (proto == 0) {
+    if (Rparams.restart) {
+      if (world.rank() == 0)
+        print("   Initial guess from file:", Rparams.restart_file);
+      load(world, Rparams.restart_file);
+      check_k(world, Rparams.protocol_data[proto],
+              FunctionDefaults<3>::get_k());
+    } else {  // Dipole guesses
 
-        x_response = dipoleRHS(world, Gparams.orbitals);
-        y_response = x_response.copy();
-      }
+      x_response = dipoleRHS(world, Gparams.orbitals);
+      y_response = x_response.copy();
     }
-
-    // Set the dipoles (ground orbitals are probably
-    // more accurate now, so recalc the dipoles)
-    dipoles = dipoleRHS(world, Gparams.orbitals);
-    // why is it called dipole guess.
-    // This is just orbitals times dipole operator
-
-    // Now actually ready to iterate...
-    iterate_polarizability(world, dipoles);
   }
 
-  // Have response function, now calculate polarizability for this axis
-  polarizability(world, polar_tensor);
+  // Set the dipoles (ground orbitals are probably
+  // more accurate now, so recalc the dipoles)
+  dipoles = dipoleRHS(world, Gparams.orbitals);
+  // why is it called dipole guess.
+  // This is just orbitals times dipole operator
 
-  // Final polarizability analysis
-  // diagonalize
-  Tensor<double> V, epolar;
-  syev(polar_tensor, V, epolar);
-  double Dpolar_average = 0.0;
-  double Dpolar_iso = 0.0;
-  for (unsigned int i = 0; i < 3; ++i)
-    Dpolar_average = Dpolar_average + epolar[i];
-  Dpolar_average = Dpolar_average / 3.0;
-  Dpolar_iso =
-      sqrt(.5) * sqrt(std::pow(polar_tensor(0, 0) - polar_tensor(1, 1), 2) +
-                      std::pow(polar_tensor(1, 1) - polar_tensor(2, 2), 2) +
-                      std::pow(polar_tensor(2, 2) - polar_tensor(0, 0), 2));
+  // Now actually ready to iterate...
+  iterate_polarizability(world, dipoles);
+}
 
-  if (world.rank() == 0) {
-    print("\nTotal Dynamic Polarizability Tensor");
-    printf("\nFrequency  = %.6f a.u.\n\n", Rparams.omega);
-    // printf("\nWavelength = %.6f a.u.\n\n", Rparams.omega * ???);
-    print(polar_tensor);
-    printf("\tEigenvalues = ");
-    printf("\t %.6f \t %.6f \t %.6f \n", epolar[0], epolar[1], epolar[2]);
-    printf("\tIsotropic   = \t %.6f \n", Dpolar_average);
-    printf("\tAnisotropic = \t %.6f \n", Dpolar_iso);
-    printf("\n");
-  }
+// Have response function, now calculate polarizability for this axis
+polarizability(world, polar_tensor);
 
-  // Print total time
-  // Precision is set to 10 coming in, drop it to 2
-  std::cout.precision(2);
-  std::cout << std::fixed;
+// Final polarizability analysis
+// diagonalize
+Tensor<double> V, epolar;
+syev(polar_tensor, V, epolar);
+double Dpolar_average = 0.0;
+double Dpolar_iso = 0.0;
+for (unsigned int i = 0; i < 3; ++i)
+  Dpolar_average = Dpolar_average + epolar[i];
+Dpolar_average = Dpolar_average / 3.0;
+Dpolar_iso =
+    sqrt(.5) * sqrt(std::pow(polar_tensor(0, 0) - polar_tensor(1, 1), 2) +
+                    std::pow(polar_tensor(1, 1) - polar_tensor(2, 2), 2) +
+                    std::pow(polar_tensor(2, 2) - polar_tensor(0, 0), 2));
 
-  // Get start time
-  end_timer(world, "total:");
+if (world.rank() == 0) {
+  print("\nTotal Dynamic Polarizability Tensor");
+  printf("\nFrequency  = %.6f a.u.\n\n", Rparams.omega);
+  // printf("\nWavelength = %.6f a.u.\n\n", Rparams.omega * ???);
+  print(polar_tensor);
+  printf("\tEigenvalues = ");
+  printf("\t %.6f \t %.6f \t %.6f \n", epolar[0], epolar[1], epolar[2]);
+  printf("\tIsotropic   = \t %.6f \n", Dpolar_average);
+  printf("\tAnisotropic = \t %.6f \n", Dpolar_iso);
+  printf("\n");
+}
+
+// Print total time
+// Precision is set to 10 coming in, drop it to 2
+std::cout.precision(2);
+std::cout << std::fixed;
+
+// Get start time
+end_timer(world, "total:");
 }
 // End solve_polar
 
