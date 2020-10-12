@@ -618,7 +618,7 @@ class TDHF {
 
   // Solves the response equations for the polarizability
   void solve_polarizability(World &world);
-  void compute_freq_density(World &world);
+  void ComputeFrequencyDensity(World &world);
 };
 }  // namespace madness
 #endif  // SRC_APPS_ADRIAN_TDDFT_H_
