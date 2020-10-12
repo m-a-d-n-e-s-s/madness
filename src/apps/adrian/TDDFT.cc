@@ -4998,7 +4998,7 @@ void TDHF::solve(World &world) {
 }
 
 // Iterates the response functions until converged or out of iterations
-void TDHF::iterate_polarizability(World &world, ResponseFunction &dipoles) {
+void TDHF::IteratePolarizability(World &world, ResponseFunction &dipoles) {
   // Variables needed to iterate
   int iteration = 0;  // Iteration counter
   QProjector<double, 3> projector(
@@ -5341,7 +5341,350 @@ void TDHF::iterate_polarizability(World &world, ResponseFunction &dipoles) {
     if (Rparams.print_level >= 1) end_timer(world, " This iteration:");
   }
 }  // Done with iterate_polarizability
+// Iterate Frequency Response
+void TDHF::IterateFrequencyResponse(World &world, ResponseFunction &dipoles) {
+  // Variables needed to iterate
+  int iteration = 0;  // Iteration counter
+  QProjector<double, 3> projector(
+      world, Gparams.orbitals);  // Projector to project out ground state
+  int n = Gparams.num_orbitals;  // Number of ground state orbitals
+  int m = Rparams.states;        // Number of excited states
+  Tensor<double> x_norms(m);
+  // Holds the norms of x function residuals (for convergence)
+  Tensor<double> y_norms(
+      m);  // Holds the norms of y function residuals (for convergence)
+  Tensor<double> x_shifts(m);      // Holds the shifted energy values
+  Tensor<double> y_shifts(m);      // Holds the shifted energy values
+  ResponseFunction bsh_x_resp;     // Holds wave function corrections
+  ResponseFunction bsh_y_resp;     // Holds wave function corrections
+  ResponseFunction x_differences;  // Holds wave function corrections
+  ResponseFunction y_differences;  // Holds wave function corrections
+  ResponseFunction x_gamma;        // Holds the perturbed two electron piece
+  ResponseFunction y_gamma;        // Holds the perturbed two electron piece
+  ResponseFunction Hx;             // Holds the perturbed two electron piece
+  ResponseFunction Hy;             // Holds the perturbed two electron piece
+  ResponseFunction Gx;             // Holds the perturbed two electron piece
+  ResponseFunction Gy;             // Holds the perturbed two electron piece
+  ResponseFunction x_fe;  // Holds the ground state-fock and energy scaled x
+  // response components
+  ResponseFunction y_fe;  // Holds the ground state-fock and energy scaled y
+  // response components
+  ResponseFunction V_x_response;  // Holds V^0 applied to response functions
+  ResponseFunction V_y_response;  // Holds V^0 applied to response functions
+  ResponseFunction B_x;  // Holds the off diagonal perturbed piece of y equation
+  ResponseFunction B_y;  // Holds the off diagonal perturbed piece of x equation
+  ResponseFunction shifted_V_x_response;  // Holds the shifted V^0 applied to
+  // response functions
+  ResponseFunction shifted_V_y_response;  // Holds the shifted V^0 applied to
+  // response functions
+  ResponseFunction
+      old_x_response;  // Holds the old x_response vector of vectors
+  ResponseFunction
+      old_y_response;      // Holds the old y_response vector of vectors
+  real_function_3d v_xc;   // For TDDFT
+  bool converged = false;  // Converged flag
 
+  // If DFT, initialize the XCOperator
+  XCOperator xc = create_xcoperator(world, Gparams.orbitals, Rparams.xc);
+
+  // The KAIN solver
+  XNonlinearSolver<ResponseFunction, double, TDHF_allocator> kain(
+      TDHF_allocator(world, (Rparams.omega != 0.0) ? 2 * m : m, n), false);
+
+  // Setting max sub size for KAIN solver
+  if (Rparams.kain) kain.set_maxsub(Rparams.maxsub);
+
+  // Set omega (its constant here,
+  // and has only 1 entry for each axis)
+  omega = Tensor<double>(3);
+  omega = Rparams.omega;
+
+  // Verify if any shift is needed (NEEDS CHECKING)
+  if ((Gparams.energies[n - 1] + Rparams.omega) > 0.0) {
+    // Calculate minimum shift needed such that \eps + \omega + shift < 0
+    // for all \eps, \omega
+    x_shifts =
+        create_shift(world, Gparams.energies, omega, Rparams.print_level, "x");
+    y_shifts = Gparams.energies[n - 1] + Rparams.omega + 0.05;
+  }
+
+  // Construct BSH operators
+  std::vector<std::vector<std::shared_ptr<real_convolution_3d>>>
+      bsh_x_operators = create_bsh_operators(world, x_shifts, Gparams.energies,
+                                             omega, Rparams.small,
+                                             FunctionDefaults<3>::get_thresh());
+  std::vector<std::vector<std::shared_ptr<real_convolution_3d>>>
+      bsh_y_operators;
+
+  // Negate omega to make this next set of BSH operators \eps - omega
+  if (Rparams.omega != 0.0) {
+    omega = -omega;
+    bsh_y_operators =
+        create_bsh_operators(world, y_shifts, Gparams.energies, omega,
+                             Rparams.small, FunctionDefaults<3>::get_thresh());
+  }
+
+  // Now to iterate
+  while (iteration < Rparams.max_iter and !converged) {
+    // Start a timer for this iteration
+    start_timer(world);
+
+    // Basic output
+    if (Rparams.print_level >= 1) {
+      if (world.rank() == 0)
+        printf("\n   Iteration %d at time %.1fs\n", iteration, wall_time());
+      if (world.rank() == 0) print(" -------------------------------");
+    }
+
+    // If omega = 0.0, x = y
+    if (Rparams.omega == 0.0) y_response = x_response.copy();
+
+    // Save current to old
+    old_x_response = x_response.copy();
+    if (Rparams.omega != 0.0) old_y_response = y_response.copy();
+    //      world.gop.fence(); // Norm calc. below sometimes hangs without
+    //      this
+    //      (?)
+
+    // Get norms
+    for (int i = 0; i < m; i++)
+      x_norms[i] = sqrt(inner(x_response[i], x_response[i]) -
+                        inner(y_response[i], y_response[i]));
+
+    // Scale x and y
+    Tensor<double> rec_norms(m);
+    for (int i = 0; i < m; i++) rec_norms(i) = 1.0 / std::max(1.0, x_norms(i));
+    x_response.scale(rec_norms);
+    y_response.scale(rec_norms);
+
+    // Here I will first compute Hx Hy Gx Gy
+    // Create gamma
+    // If TDA we only compute Hx and Gy
+    Hx = createHf(world, x_response, Gparams.orbitals, Rparams.small,
+                  FunctionDefaults<3>::get_thresh(), Rparams.print_level, "x");
+    Gy = createGf(world, y_response, Gparams.orbitals, Rparams.small,
+                  FunctionDefaults<3>::get_thresh(), Rparams.print_level, "y");
+    // else Compute everything
+    if (Rparams.omega != 0.0) {  // not sure why this is the condition
+      Hy =
+          createHf(world, y_response, Gparams.orbitals, Rparams.small,
+                   FunctionDefaults<3>::get_thresh(), Rparams.print_level, "y");
+      Gx =
+          createGf(world, x_response, Gparams.orbitals, Rparams.small,
+                   FunctionDefaults<3>::get_thresh(), Rparams.print_level, "x");
+    }
+
+    x_gamma = CreateGamma(world, x_response, y_response, Gparams.orbitals,
+                          Rparams.small, FunctionDefaults<3>::get_thresh(),
+                          Rparams.print_level, "x");
+
+    if (Rparams.omega != 0.0)  // what and why?
+      y_gamma = CreateGamma(world, y_response, x_response, Gparams.orbitals,
+                            Rparams.small, FunctionDefaults<3>::get_thresh(),
+                            Rparams.print_level, "y");
+
+    // Create \hat{V}^0 applied to response functions
+    V_x_response =
+        CreatePotential(world, x_response, xc, Rparams.print_level, "x");
+    if (Rparams.omega != 0.0)
+      V_y_response =
+          CreatePotential(world, y_response, xc, Rparams.print_level, "y");
+
+    // Apply shift
+    V_x_response = apply_shift(world, x_shifts, V_x_response, x_response);
+    if (Rparams.omega != 0.0)
+      V_y_response = apply_shift(world, y_shifts, V_y_response, y_response);
+
+    // Create \epsilon applied to response functions
+    x_fe = scale_2d(world, x_response, ham_no_diag);
+    if (Rparams.omega != 0.0) y_fe = scale_2d(world, y_response, ham_no_diag);
+    if (Rparams.print_level >= 2) {
+      Tensor<double> t = expectation(world, x_response, x_fe);
+      if (world.rank() == 0) {
+        print("   Energy scaled response orbitals for x components:");
+        print(t);
+      }
+
+      if (Rparams.omega != 0.0) {
+        t = expectation(world, y_response, y_fe);
+        if (world.rank() == 0) {
+          print("   Energy scaled response orbitals for y components:");
+          print(t);
+        }
+      }
+    }
+
+    // Load balance
+    // Only balancing on x-components. Smart?
+    // Only balance on first two iterations or every 5th iteration
+    if (world.size() > 1 && ((iteration < 2) or (iteration % 5 == 0))) {
+      // Start a timer
+      if (Rparams.print_level >= 1) start_timer(world);
+      if (world.rank() == 0) print("");  // Makes it more legible
+
+      LoadBalanceDeux<3> lb(world);
+      for (int j = 0; j < n; j++) {
+        for (int k = 0; k < Rparams.states; k++) {
+          lb.add_tree(x_response[k][j], lbcost<double, 3>(1.0, 8.0), true);
+          lb.add_tree(V_x_response[k][j], lbcost<double, 3>(1.0, 8.0), true);
+          lb.add_tree(x_gamma[k][j], lbcost<double, 3>(1.0, 8.0), true);
+        }
+      }
+      FunctionDefaults<3>::redistribute(world, lb.load_balance(2));
+
+      if (Rparams.print_level >= 1) end_timer(world, "Load balancing:");
+    }
+
+    // Calculate coupling terms
+    ResponseFunction B_y =
+        createBf(world, Gx, Gparams.orbitals, Rparams.print_level);
+    if (Rparams.omega != 0.0)
+      ResponseFunction B_x =
+          createBf(world, Gx, Gparams.orbitals, Rparams.print_level);
+
+    // Scale dipoles by same value
+    ResponseFunction dip_copy(dipoles);
+    dip_copy.scale(rec_norms);
+
+    // Construct RHS of equation
+    ResponseFunction rhs_x, rhs_y;
+    rhs_x = V_x_response - x_fe + dip_copy + x_gamma + B_y;
+    if (Rparams.omega != 0.0)
+      rhs_y = V_y_response - y_fe + dip_copy + y_gamma + B_x;
+
+    // Project out ground state
+    for (int i = 0; i < m; i++) rhs_x[i] = projector(rhs_x[i]);
+    if (Rparams.omega != 0.0) {
+      for (int i = 0; i < m; i++) rhs_y[i] = projector(rhs_y[i]);
+    }
+
+    // Debugging output
+    if (Rparams.print_level >= 2) {
+      if (world.rank() == 0)
+        print("   Norms of RHS of main equation x components:");
+      print_norms(world, rhs_x);
+
+      if (Rparams.omega != 0.0) {
+        if (world.rank() == 0)
+          print("   Norms of RHS of main equation y components:");
+        print_norms(world, rhs_y);
+      }
+    }
+
+    // Apply BSH and get updated response components
+    if (Rparams.print_level >= 1) start_timer(world);
+    bsh_x_resp = apply(world, bsh_x_operators, rhs_x);
+    if (Rparams.omega != 0.0) bsh_y_resp = apply(world, bsh_y_operators, rhs_y);
+    if (Rparams.print_level >= 1) end_timer(world, "Apply BSH:");
+
+    // Scale by -2.0 (coefficient in eq. 37 of reference paper)
+    for (int i = 0; i < m; i++)
+      bsh_x_resp[i] = bsh_x_resp[i] * (std::max(1.0, x_norms[i]) * -2.0);
+    if (Rparams.omega != 0.0) {
+      for (int i = 0; i < m; i++)
+        bsh_y_resp[i] = bsh_y_resp[i] * (std::max(1.0, x_norms[i]) * -2.0);
+    }
+
+    // Debugging output
+    if (Rparams.print_level >= 2) {
+      if (world.rank() == 0)
+        print("   Norms after application of BSH to x components:");
+      print_norms(world, bsh_x_resp);
+
+      if (Rparams.omega != 0.0) {
+        if (world.rank() == 0)
+          print("   Norms after application of BSH to y components:");
+        print_norms(world, bsh_y_resp);
+      }
+    }
+
+    // Update orbitals
+    x_response = bsh_x_resp;
+    if (Rparams.omega != 0.0) y_response = bsh_y_resp;
+
+    // Get the difference between old and new
+    x_differences = old_x_response - x_response;
+    if (Rparams.omega != 0.0) y_differences = old_y_response - y_response;
+
+    // Next calculate 2-norm of these vectors of differences
+    // Remember: the entire vector is one state
+    for (int i = 0; i < m; i++) x_norms(i) = norm2(world, x_differences[i]);
+    if (Rparams.omega != 0.0) {
+      for (int i = 0; i < m; i++) y_norms(i) = norm2(world, y_differences[i]);
+    }
+
+    // Basic output
+    if (Rparams.print_level >= 1 and world.rank() == 0) {
+      print("\n   2-norm of response function residuals of x components:");
+      print(x_norms);
+
+      if (Rparams.omega != 0.0) {
+        print("   2-norm of response function residuals of y components:");
+        print(y_norms);
+      }
+    }
+
+    // Check convergence
+    if (std::max(x_norms.absmax(), y_norms.absmax()) < Rparams.dconv and
+        iteration > 0) {
+      if (Rparams.print_level >= 1) end_timer(world, "This iteration:");
+      if (world.rank() == 0) print("\n   Converged!");
+      converged = true;
+      break;
+    }
+
+    // KAIN solver update
+    // Returns next set of components
+    // If not kain, save the new components
+    if (Rparams.kain) {
+      if (Rparams.omega != 0.0) {
+        // Add y functions to bottom of x functions
+        // (for KAIN)
+        for (int i = 0; i < m; i++) {
+          x_response.push_back(y_response[i]);
+          x_differences.push_back(y_differences[i]);
+        }
+      }
+
+      start_timer(world);
+      x_response = kain.update(x_response, x_differences,
+                               FunctionDefaults<3>::get_thresh(), 3.0);
+      end_timer(world, " KAIN update:");
+
+      if (Rparams.omega != 0.0) {
+        // Add new functions back into y and
+        // reduce x size back to original
+        for (int i = 0; i < m; i++) y_response[i] = x_response[m + i];
+        for (int i = 0; i < m; i++) {
+          x_response.pop_back();
+          x_differences.pop_back();
+        }
+      }
+    }
+
+    // Apply mask
+    for (int i = 0; i < m; i++) x_response[i] = mask * x_response[i];
+    if (Rparams.omega != 0.0) {
+      for (int i = 0; i < m; i++) y_response[i] = mask * y_response[i];
+    }
+
+    // Update counter
+    iteration += 1;
+
+    // Done with the iteration.. truncate
+    truncate(world, x_response);
+    if (Rparams.omega != 0.0) truncate(world, y_response);
+
+    // Save
+    if (Rparams.save) {
+      start_timer(world);
+      save(world, Rparams.save_file);
+      end_timer(world, "Save:");
+    }
+    // Basic output
+    if (Rparams.print_level >= 1) end_timer(world, " This iteration:");
+  }
+}
 // Calculates polarizability according to
 // alpha_ij(\omega) = -sum_{ directions } < x_j | r_i | 0 > + < 0 | r_i |
 // y_j
@@ -5563,7 +5906,7 @@ void TDHF::compute_freq_density(World &world) {
     }
 
     // Now actually ready to iterate...
-    iterate_polarizability(world, RHS_Vector);
+    IteratePolarizability(world, RHS_Vector);
   }  // end for --finished reponse density
 
   // Have response function, now calculate polarizability for this axis

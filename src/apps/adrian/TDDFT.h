@@ -607,7 +607,8 @@ class TDHF {
   void solve(World &world);
 
   // Iterates the response functions until converged or out of iterations
-  void iterate_polarizability(World &world, ResponseFunction &dipoles);
+  void IteratePolarizability(World &world, ResponseFunction &dipoles);
+  void IterateFrequencyResponse(World &world, ResponseFunction &RHS);
 
   // Calculates polarizability according to
   // alpha_ij(\omega) = -sum_{m occ} <psi_m(0)|r_i|psi_mj(1)(\omega)> +
