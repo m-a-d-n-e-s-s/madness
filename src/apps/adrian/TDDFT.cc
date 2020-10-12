@@ -5794,7 +5794,7 @@ void TDHF::solve_polarizability(World &world) {
     // This is just orbitals times dipole operator
 
     // Now actually ready to iterate...
-    iterate_polarizability(world, dipoles);
+    IteratePolarizability(world, dipoles);
   }
 
   // Have response function, now calculate polarizability for this axis
@@ -5839,7 +5839,7 @@ void TDHF::solve_polarizability(World &world) {
 // No matter the calculation type we do the same iteration.
 // The only difference is the number of response states as well as the number
 // of right hand side vectors.
-void TDHF::compute_freq_density(World &world) {
+void TDHF::ComputeFrequencyDensity(World &world) {
   // Get start time
   start_timer(world);
 
@@ -5849,7 +5849,7 @@ void TDHF::compute_freq_density(World &world) {
     print("   ------------------------");
   }
   // Here we will set the
-  // we set the possible calcuation types;
+  // we set the possible calcuation types
   vector<bool> calc_flags;
 
   calc_flags.push_back(Rparams.dipole);
