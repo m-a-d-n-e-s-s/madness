@@ -121,7 +121,10 @@ class GaussianGuess : public FunctionFunctorInterface<double, NDIM> {
     return prefac * exp(-e);
   }
 };
-
+struct Zfunctions {
+  ResponseFunction Z_x;
+  ResponseFunction Z_y;
+};
 struct ElectronResponseFunctions {
   // Potential Terms
   ResponseFunction Vx;
@@ -263,30 +266,30 @@ class TDHF {
   // orbitals
   ResponseFunction CreateCoulombDerivativeRF(
       World &world,
-      ResponseFunction &f,                 // response functions
-      std::vector<real_function_3d> &phi,  // orbitals
+      const ResponseFunction &f,                 // response functions
+      const std::vector<real_function_3d> &phi,  // orbitals
       double small, double thresh);
 
   ResponseFunction CreateCoulombDerivativeRFDagger(
-      World &world, ResponseFunction &f, std::vector<real_function_3d> &phi,
-      double small, double thresh);
+      World &world, const ResponseFunction &f,
+      const std::vector<real_function_3d> &phi, double small, double thresh);
 
   // Returns the derivative of the exchange operator, applied to the ground
   // state orbitals This is the function for TDA only
   ResponseFunction CreateExchangeDerivativeRF(
-      World &world, ResponseFunction &f, std::vector<real_function_3d> &phi,
-      double small, double thresh);
+      World &world, const ResponseFunction &f,
+      const std::vector<real_function_3d> &phi, double small, double thresh);
 
   ResponseFunction CreateExchangeDerivativeRFDagger(
-      World &world, ResponseFunction &f, std::vector<real_function_3d> &phi,
-      double small, double thresh);
+      World &world, const ResponseFunction &f,
+      const std::vector<real_function_3d> &phi, double small, double thresh);
 
-  ResponseFunction CreateXCDerivativeRF(World &world, ResponseFunction &f,
-                                        std::vector<real_function_3d> &phi,
-                                        double small, double thresh);
+  ResponseFunction CreateXCDerivativeRF(
+      World &world, const ResponseFunction &f,
+      const std::vector<real_function_3d> &phi, double small, double thresh);
   ResponseFunction CreateXCDerivativeRFDagger(
-      World &world, ResponseFunction &f, std::vector<real_function_3d> &phi,
-      double small, double thresh);
+      World &world, const ResponseFunction &f,
+      const std::vector<real_function_3d> &phi, double small, double thresh);
 
   // Returns the diagonal (letter A) elements of response matrix
   ResponseFunction createAf(World &world, ResponseFunction &Vf,
@@ -306,15 +309,15 @@ class TDHF {
                                std::vector<real_function_3d> &phi, double small,
                                double thresh, int print_level, std::string xy);
 
-  ResponseFunction createHf(World &world, ResponseFunction &f,
-                            std::vector<real_function_3d> &orbitals,
-                            double small, double thresh, int print_level,
-                            std::string xy);
+  ResponseFunction ComputeHf(World &world, const ResponseFunction &f,
+                             const std::vector<real_function_3d> &orbitals,
+                             double small, double thresh, int print_level,
+                             std::string xy);
 
-  ResponseFunction createGf(World &world, ResponseFunction &f,
-                            std::vector<real_function_3d> &orbitals,
-                            double small, double thresh, int print_level,
-                            std::string xy);
+  ResponseFunction ComputeGf(World &world, const ResponseFunction &f,
+                             const std::vector<real_function_3d> &orbitals,
+                             double small, double thresh, int print_level,
+                             std::string xy);
   // Returns the coulomb potential of the ground state
   // Note: No post multiplication involved here
   real_function_3d Coulomb(World &world);
@@ -323,7 +326,7 @@ class TDHF {
   ResponseFunction exchange(World &world, ResponseFunction &f);
 
   // Returns the ground state potential applied to response functions
-  ResponseFunction CreatePotential(World &world, ResponseFunction &f,
+  ResponseFunction CreatePotential(World &world, const ResponseFunction &f,
                                    XCOperator xc, int print_level,
                                    std::string xy);
 
@@ -335,14 +338,20 @@ class TDHF {
                                double thresh, int print_level, std::string xy);
 
   // Returns a tensor, where entry (i,j) = inner(a[i], b[j]).sum()
-  Tensor<double> expectation(World &world, ResponseFunction &a,
-                             ResponseFunction &b);
+  Tensor<double> expectation(World &world, const ResponseFunction &a,
+                             const ResponseFunction &b);
 
   // Returns the ground state fock operator applied to response functions
   ResponseFunction CreateFock(World &world, ResponseFunction &Vf,
                               ResponseFunction &f, int print_level,
                               std::string xy);
 
+  Zfunctions ComputeZFunctions(World &world, const ResponseFunction &x,
+                               const ResponseFunction &y, XCOperator xc,
+                               Tensor<double> x_shifts, Tensor<double> y_shifts,
+                               const GroundParameters &Gparams,
+                               const ResponseParameters &Rparams,
+                               Tensor<double> ham_no_diagonal, std::string xy);
   // Returns the hamiltonian matrix, equation 45 from the paper
   Tensor<double> createResponseMatrix(
       World &world, ResponseFunction &x, ElectronResponseFunctions &I,
@@ -526,15 +535,15 @@ class TDHF {
       ResponseFunction &f, ResponseFunction &g);
 
   std::vector<real_function_3d> GetWxcOnFDensities(
-      World &world, std::vector<real_function_3d> &orbitals,
-      ResponseFunction &f);
+      World &world, const std::vector<real_function_3d> &orbitals,
+      const ResponseFunction &f);
   std::vector<real_function_3d> GetConjugateWxcOnFDensities(
-      World &world, std::vector<real_function_3d> &orbitals,
-      ResponseFunction &f);
+      World &world, const std::vector<real_function_3d> &orbitals,
+      const ResponseFunction &f);
 
   std::vector<real_function_3d> CreateXCDerivative(
-      World &world, std::vector<real_function_3d> &orbitals,
-      ResponseFunction &f);
+      World &world, const std::vector<real_function_3d> &orbitals,
+      const ResponseFunction &f);
 
   // Iterates the trial functions until covergence or it runs out of
   // iterations
@@ -563,11 +572,12 @@ class TDHF {
       ResponseFunction &x, ResponseFunction &y);
   // Get transition density from f and orbitals
   std::vector<real_function_3d> GetTransitionDensities(
-      World &world, std::vector<real_function_3d> &orbitals,
-      ResponseFunction &f);
+      World &world, const std::vector<real_function_3d> &orbitals,
+      const ResponseFunction &f);
+
   std::vector<real_function_3d> GetConjugateTransitionDensities(
-      World &world, std::vector<real_function_3d> &orbitals,
-      ResponseFunction &f);
+      World &world, const std::vector<real_function_3d> &orbitals,
+      const ResponseFunction &f);
   // Creates the ground state hamiltonian for the orbitals in the active
   // subspace (aka the orbitals in tda_act_orbitals)
   Tensor<double> CreateGroundHamiltonian(World &world,
@@ -608,7 +618,8 @@ class TDHF {
 
   // Iterates the response functions until converged or out of iterations
   void IteratePolarizability(World &world, ResponseFunction &dipoles);
-  void IterateFrequencyResponse(World &world, ResponseFunction &RHS);
+  void IterateFrequencyResponse(World &world, ResponseFunction &rhs_x,
+                                ResponseFunction &rhs_y);
 
   // Calculates polarizability according to
   // alpha_ij(\omega) = -sum_{m occ} <psi_m(0)|r_i|psi_mj(1)(\omega)> +
