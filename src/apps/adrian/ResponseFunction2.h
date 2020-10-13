@@ -2,13 +2,14 @@
  *   Small class to hold response functions and to interact with KAIN solver.
  */
 
-#ifndef MADNESS_APPS_TDHF_RESPONSEFUNC_INCLUDE
-  #define MADNESS_APPS_TDHF_RESPONSEFUNC_INCLUDE
+#ifndef SRC_APPS_ADRIAN_RESPONSEFUNCTION2_H_
+  #define SRC_APPS_ADRIAN_RESPONSEFUNCTION2_H_
 
   #include <madness/mra/mra.h>
   #include <madness/mra/operator.h>
 
   #include <algorithm>
+  #include <cstdint>
   #include <memory>
   #include <vector>
 
@@ -53,10 +54,10 @@ class ResponseFunction {
   }
 
   // 1D accessor for x
-  // std::vector<Function<double, 3>> &operator[](long i) { return x[i]; }
-  std::vector<Function<double, 3>> &operator[](long i) { return x.at(i); }
+  // std::vector<Function<double, 3>> &operator[](int64_t i) { return x[i]; }
+  std::vector<Function<double, 3>> &operator[](int64_t i) { return x.at(i); }
 
-  const std::vector<Function<double, 3>> &operator[](long i) const {
+  const std::vector<Function<double, 3>> &operator[](int64_t i) const {
     return x.at(i);
   }
 
@@ -225,6 +226,6 @@ inline double inner(ResponseFunction &a, ResponseFunction &b) {
 }
 
 }  // End namespace madness
-#endif
+#endif  // SRC_APPS_ADRIAN_RESPONSEFUNCTION2_H_
 
 // Deuces

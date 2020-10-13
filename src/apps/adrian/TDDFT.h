@@ -121,10 +121,21 @@ class GaussianGuess : public FunctionFunctorInterface<double, NDIM> {
     return prefac * exp(-e);
   }
 };
+
 struct Zfunctions {
   ResponseFunction Z_x;
   ResponseFunction Z_y;
+
+  ResponseFunction v0_x;
+  ResponseFunction v0_y;
+
+  ResponseFunction y_f_no_diag;
+  ResponseFunction x_f_no_diag;
+
+  ResponseFunction Hx, Gy;
+  ResponseFunction Hy, Gx;
 };
+
 struct ElectronResponseFunctions {
   // Potential Terms
   ResponseFunction Vx;
@@ -326,7 +337,7 @@ class TDHF {
   ResponseFunction exchange(World &world, ResponseFunction &f);
 
   // Returns the ground state potential applied to response functions
-  ResponseFunction CreatePotential(World &world, const ResponseFunction &f,
+  ResponseFunction CreatePotential(World &world, ResponseFunction &f,
                                    XCOperator xc, int print_level,
                                    std::string xy);
 
@@ -346,14 +357,15 @@ class TDHF {
                               ResponseFunction &f, int print_level,
                               std::string xy);
 
-  Zfunctions ComputeZFunctions(World &world, const ResponseFunction &x,
-                               const ResponseFunction &y, XCOperator xc,
-                               Tensor<double> x_shifts, Tensor<double> y_shifts,
+  Zfunctions ComputeZFunctions(World &world, ResponseFunction &x,
+                               ResponseFunction &y, Zfunctions &Z,
+                               XCOperator xc, Tensor<double> x_shifts,
+                               Tensor<double> y_shifts,
                                const GroundParameters &Gparams,
                                const ResponseParameters &Rparams,
-                               Tensor<double> ham_no_diagonal, std::string xy);
+                               Tensor<double> ham_no_diagonal);
   // Returns the hamiltonian matrix, equation 45 from the paper
-  Tensor<double> createResponseMatrix(
+  Tensor<double> CreateResponseMatrix(
       World &world, ResponseFunction &x, ElectronResponseFunctions &I,
       std::vector<real_function_3d> &ground_orbitals, int print_level,
       std::string xy);
@@ -362,7 +374,7 @@ class TDHF {
   // [ A  B ] [ X ] = w [ X ]
   // [-B -A ] [ Y ]     [ Y ]
 
-  Tensor<double> createFullResponseMatrix(
+  Tensor<double> CreateFullResponseMatrix(
       World &world,
       ResponseFunction &x,  // x response functions
       ResponseFunction &y,  // y response functions
@@ -625,11 +637,12 @@ class TDHF {
   // alpha_ij(\omega) = -sum_{m occ} <psi_m(0)|r_i|psi_mj(1)(\omega)> +
   // <psi_mj(1)(-\omega)|r_i|psi_m(0)>
   void polarizability(World &world, Tensor<double> polar);
-  void PrintPolarizabilityAnalysis(World &world, Tensor<double> polar_tensor);
+  void PrintPolarizabilityAnalysis(World &world, Tensor<double> polar_tensor,
+                                   double omega);
 
   // Solves the response equations for the polarizability
   void solve_polarizability(World &world);
-  void ComputeFrequencyDensity(World &world);
+  void ComputeFrequencyResponse(World &world);
 };
 }  // namespace madness
 #endif  // SRC_APPS_ADRIAN_TDDFT_H_
