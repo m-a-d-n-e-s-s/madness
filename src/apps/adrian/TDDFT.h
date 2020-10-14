@@ -53,7 +53,9 @@
   #include <complex>
   #include <iomanip>
   #include <map>
+  #include <memory>
   #include <random>
+  #include <string>
   #include <vector>
 
   #include "../chem/SCFOperators.h"
@@ -163,6 +165,9 @@ class TDHF {
  public:
   // ResponseParameter object to hold all user input variables
   ResponseParameters Rparams;
+
+  // Get the response Function
+  ResponseFunction GetResponseFunctions(std::string xy);
 
  private:
   // Member variables
@@ -637,8 +642,9 @@ class TDHF {
   // alpha_ij(\omega) = -sum_{m occ} <psi_m(0)|r_i|psi_mj(1)(\omega)> +
   // <psi_mj(1)(-\omega)|r_i|psi_m(0)>
   void polarizability(World &world, Tensor<double> polar);
-  void PrintPolarizabilityAnalysis(World &world, Tensor<double> polar_tensor,
-                                   double omega);
+  void PrintPolarizabilityAnalysis(World &world,
+                                   const Tensor<double> polar_tensor,
+                                   const Tensor<double> omega);
 
   // Solves the response equations for the polarizability
   void solve_polarizability(World &world);

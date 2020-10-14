@@ -220,7 +220,15 @@ TDHF::TDHF(World &world, std::shared_ptr<std::istream> input) {
     if (Rparams.print_level >= 1) end_timer(world, "Load balancing:");
   }
 }
-
+ResponseFunction TDHF::GetResponseFunctions(std::string xy) {
+  if (xy == "x") {
+    return x_response;
+  } else if (xy == "y") {
+    return y_response;
+  } else {
+    MADNESS_EXCEPTION("not a valid response state", 0);
+  }
+}
 // Save the current response calculation
 void TDHF::save(World &world, std::string name) {
   // Archive to write everything to
@@ -5717,9 +5725,9 @@ void TDHF::polarizability(World &world, Tensor<double> polar) {
   }
 }
 
-void PrintPolarizabilityAnalysis(World &world,
-                                 const Tensor<double> polar_tensor,
-                                 const Tensor<double> omega) {
+void TDHF::PrintPolarizabilityAnalysis(World &world,
+                                       const Tensor<double> polar_tensor,
+                                       const Tensor<double> omega) {
   // Final polarizability analysis
   // diagonalize
   Tensor<double> V, epolar;
@@ -5907,7 +5915,7 @@ void TDHF::ComputeFrequencyResponse(World &world) {
     }
 
     // Now actually ready to iterate...
-    IteratePolarizability(world, RHS_Vector);
+    IterateFrequencyResponse(world, RHS_Vector, RHS_Vector);
   }  // end for --finished reponse density
 
   // Have response function, now calculate polarizability for this axis
