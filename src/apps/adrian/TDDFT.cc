@@ -24,6 +24,7 @@
 #include "TDHF_Basic_Operators2.h"
 #include "chem/potentialmanager.h"
 #include "chem/projector.h"  // For easy calculation of (1 - \hat{\rho}^0)
+#include "density_frequency_response_functions.h"
 #include "madness/mra/funcdefaults.h"
 
 namespace madness {  // NO LINT
