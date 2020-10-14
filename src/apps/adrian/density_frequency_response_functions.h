@@ -2,6 +2,7 @@
 #define SRC_APPS_ADRIAN_DENSITY_FREQUENCY_RESPONSE_FUNCTIONS_H_
 
 #include <ResponseFunction2.h>
+#include <TDDFT.h>
 
 #include <string>
 
@@ -10,6 +11,8 @@ namespace madness {
 // operator used to create it
 // homogeneous sol----x and y functions
 // particular sol --- depends on lower order functions used to create it
+// it also needs an xc functional
+// The Rparams and Gparmas used to create the density
 //
 class FirstOrderDensity {
  private:
@@ -20,9 +23,15 @@ class FirstOrderDensity {
   ResponseFunction y;
 
  public:
-  FirstOrderDensity(double frequency, std::string operator_property) {
-    omega = frequency;
-    property = operator_property;
+  FirstOrderDensity(World &world, std::shared_ptr<std::istream> density_input) {
+    TDHF calc(world, density_input);
+    if (calc.Rparams.property) {
+      calc.ComputeFrequencyResponse(world);
+    }
+    property = calc.Rparams.property;
+    omega = calc.Rparams.omega;
+    x = calc.GetResponseFunctions("x");
+    y = calc.GetResponseFunctions("y");
   }
 };
 
