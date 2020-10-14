@@ -52,7 +52,7 @@ int main(int argc, char** argv) {
     // nuclear
     // order2
     // order3
-    my_calc.compute_freq_density(world);
+    my_calc.ComputeFrequencyResponse(world);
     // Future properties go here
     //
     // If not a property, just calculate response states
