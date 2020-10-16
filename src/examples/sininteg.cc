@@ -34,9 +34,9 @@
 /*!
   \file examples/sininteg.cc
   \brief Compute the integral sin(x) x=0..10
-  \warning If you change this example, please update the "MADNESS Basics" module in the documentation (doc/getting_started/gstart_basics.dox).
-  \defgroup sininteg First example from getting started guide
-  \ingroup examples
+  \warning If you change this example, please update the "MADNESS Basics" module
+  in the documentation (doc/getting_started/gstart_basics.dox). \defgroup
+  sininteg First example from getting started guide \ingroup examples
 
   Computes the integral
   \f[
@@ -52,24 +52,22 @@
 
 using namespace madness;
 
-double myf(const coord_1d& r) {
-    return std::sin(r[0]);
-}
+double myf(const coord_1d& r) { return std::sin(r[0]); }
 
 int main(int argc, char** argv) {
-    initialize(argc, argv);
-    World world(SafeMPI::COMM_WORLD);
+  initialize(argc, argv);
+  World world(SafeMPI::COMM_WORLD);
 
-    startup(world,argc,argv);
+  startup(world, argc, argv);
 
-    FunctionDefaults<1>::set_cubic_cell(0,10);
+  FunctionDefaults<1>::set_cubic_cell(0, 10);
 
-    real_function_1d f = real_factory_1d(world).f(myf);
+  real_function_1d f = real_factory_1d(world).f(myf);
 
-    double integral = f.trace();
+  double integral = f.trace();
 
-    if (world.rank() == 0) print("The result is", integral);
+  if (world.rank() == 0) print("The result is", integral);
 
-    finalize();
-    return 0;
+  finalize();
+  return 0;
 }
