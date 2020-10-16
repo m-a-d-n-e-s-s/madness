@@ -168,6 +168,8 @@ class TDHF {
 
   // Get the response Function
   ResponseFunction GetResponseFunctions(std::string xy);
+  ResponseParameters GetResponseParameters();
+  GroundParameters GetGroundParameters();
 
  private:
   // Member variables

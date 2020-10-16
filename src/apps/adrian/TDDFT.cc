@@ -229,6 +229,9 @@ ResponseFunction TDHF::GetResponseFunctions(std::string xy) {
     MADNESS_EXCEPTION("not a valid response state", 0);
   }
 }
+// Get response parameters
+ResponseParameters TDHF::GetResponseParameters() { return Rparams; }
+GroundParameters TDHF::GetGroundParameters() { return Gparams; }
 // Save the current response calculation
 void TDHF::save(World &world, std::string name) {
   // Archive to write everything to
@@ -4414,7 +4417,7 @@ Tensor<double> TDHF::CreateGroundHamiltonian(World &world,
   return hamiltonian;
 }
 
-// Creates the transition density
+// Creates the transition densities
 std::vector<real_function_3d> TDHF::transition_density(
     World &world, std::vector<real_function_3d> &orbitals, ResponseFunction &x,
     ResponseFunction &y) {
@@ -4424,7 +4427,8 @@ std::vector<real_function_3d> TDHF::transition_density(
 
   // Return container
   std::vector<real_function_3d> densities = zero_functions<double, 3>(world, m);
-
+  // (REMARK) of course for future implementation with imaginary wavefunctions
+  // we need to create functions for conjugates
   // Run over virtual...
   for (int i = 0; i < m; i++) {
     // Run over occupied...
