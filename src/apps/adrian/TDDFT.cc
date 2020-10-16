@@ -5726,7 +5726,9 @@ void TDHF::PlotGroundandResponseOrbitals(World &world, int iteration,
   plot_line(plotname, 5001, lo, hi, Gparams.orbitals[0]);
   //
   // plot each x_k^p and the density
+  int n = x_response[0].size();
   int m = x_response.size();
+
   for (int i = 0; i < m; i++) {
     sprintf(plotname, "plot_orbital_%d_%d_x%d.plt",
             FunctionDefaults<3>::get_k(), i, iteration - 1);

@@ -8,6 +8,8 @@
 #include <string>
 #include <vector>
 
+#include "../../madness/mra/funcplot.h"
+
 namespace madness {
 // base class for a density
 // operator used to create it
@@ -64,6 +66,28 @@ class FirstOrderDensity {
     Gparams = calc.GetGroundParameters();
     // get the response densities for our states
     rho_omega = calc.transition_density(world, Gparams.orbitals, x, y);
+  }
+  void PlotResponseDensity(World &world) {
+    // Doing line plots along each axis
+    // Doing line plots along each axis
+    if (world.rank() == 0) print("\n\nStarting plots");
+    coord_3d lo, hi;
+    char plotname[500];
+    double Lp = std::min(Gparams.L, 24.0);
+    if (world.rank() == 0) print("x:");
+    // x axis
+    lo[0] = 0.0;
+    lo[1] = 0.0;
+    lo[2] = 0.0;
+    hi[0] = Lp;
+    hi[1] = 0.0;
+    hi[2] = 0.0;
+
+    for (int i = 0; i < num_response_states; i++) {
+      sprintf(plotname, "plot_transition_density_%d_%d_x.plt",
+              FunctionDefaults<3>::get_k(), i);
+      plot_line(plotname, 5001, lo, hi, rho_omega[i]);
+    }
   }
 };
 

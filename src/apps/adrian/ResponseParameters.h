@@ -197,9 +197,7 @@ struct ResponseParameters {
         f >> plot_pts;
       } else if (s == "plot_L") {
         f >> plot_L;
-      }
-
-      else if (s == "plot_all_orbitals") {
+      } else if (s == "plot_all_orbitals") {
         plot_all_orbitals = true;
       } else if (s == "max_iter") {
         f >> max_iter;
