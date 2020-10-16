@@ -38,7 +38,8 @@ struct ResponseParameters {
   std::vector<int> plot_data;  ///< Orbitals to plot
   double plot_L;               ///< Controls the plotting box size
   int plot_pts;                ///< Controls number of points in plots
-  int max_iter;                ///< Maximum number of iterations
+  bool plot_all_orbitals;
+  int max_iter;    ///< Maximum number of iterations
   double dconv;    ///< Convergence criterion for the orbital density
   bool dconv_set;  ///< Convergence flag for the orbital density
   bool guess_xyz;  ///< Convergence flag for the orbital density
@@ -86,12 +87,12 @@ struct ResponseParameters {
   template <typename Archive>
   void serialize(Archive &ar) {
     ar &archive &nwchem &states &print_level &tda &plot &plot_range &plot_data
-        &plot_L &plot_pts &max_iter &dconv &dconv_set &guess_xyz &small &
-            protocol_data &larger_subspace &k &random &store_potential &e_window
-                &range_low &range_high &plot_initial &restart &restart_file
-                    &kain &maxsub &xc &save &save_file &guess_max_iter &property
-                        &response_type &dipole &nuclear &order2 &order3
-                            &response_types &omega &old;
+        &plot_L &plot_pts &plot_all_orbitals &max_iter &dconv &dconv_set
+            &guess_xyz &small &protocol_data &larger_subspace &k &random
+                &store_potential &e_window &range_low &range_high &plot_initial
+                    &restart &restart_file &kain &maxsub &xc &save &save_file &
+                        guess_max_iter &property &response_type &dipole &nuclear
+                            &order2 &order3 &response_types &omega &old;
   }
 
   // Default constructor
@@ -106,6 +107,7 @@ struct ResponseParameters {
         plot_data(std::vector<int>{0}),
         plot_L(-1.0),
         plot_pts(201),
+        plot_all_orbitals(false),
         max_iter(20),
         dconv(0),
         dconv_set(false),
@@ -195,6 +197,10 @@ struct ResponseParameters {
         f >> plot_pts;
       } else if (s == "plot_L") {
         f >> plot_L;
+      }
+
+      else if (s == "plot_all_orbitals") {
+        plot_all_orbitals = true;
       } else if (s == "max_iter") {
         f >> max_iter;
       } else if (s == "dconv") {

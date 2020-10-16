@@ -587,8 +587,8 @@ class TDHF {
 
   // Creates the transition density
   std::vector<real_function_3d> transition_density(
-      World &world, std::vector<real_function_3d> &orbitals,
-      ResponseFunction &x, ResponseFunction &y);
+      World &world, std::vector<real_function_3d> const &orbitals,
+      const ResponseFunction &x, const ResponseFunction &y);
   // Get transition density from f and orbitals
   std::vector<real_function_3d> GetTransitionDensities(
       World &world, const std::vector<real_function_3d> &orbitals,
@@ -648,6 +648,11 @@ class TDHF {
                                    const Tensor<double> polar_tensor,
                                    const Tensor<double> omega);
 
+  void PlotGroundandResponseOrbitals(World &world, int iteration,
+                                     ResponseFunction const &x_response,
+                                     ResponseFunction const &y_response,
+                                     ResponseParameters const &Rparams,
+                                     GroundParameters const &Gparams);
   // Solves the response equations for the polarizability
   void solve_polarizability(World &world);
   void ComputeFrequencyResponse(World &world);

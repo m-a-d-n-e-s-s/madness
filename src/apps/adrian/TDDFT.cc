@@ -3585,71 +3585,10 @@ void TDHF::Iterate(World &world) {
     // Basic output
     if (Rparams.print_level >= 1) end_timer(world, " This iteration:");
 
-    // TESTING
-    // get transition density
-    // if(world.rank() == 0) print("Making density.");
-    // std::vector<real_function_3d> densities = transition_density(world,
-    // Gparams.orbitals, x_response, y_response);
-    //// Doing line plots along each axis
-    // if(world.rank() == 0) print("\n\nStarting plots");
-    // coord_3d lo,hi;
-    // char plotname[500];
-    // double Lp = std::min(Gparams.L, 24.0);
-    // if(world.rank() == 0) print("x:");
-    //// x axis
-    // lo[0] = 0.0; lo[1] = 0.0; lo[2] = 0.0;
-    // hi[0] =  Lp; hi[1] = 0.0; hi[2] = 0.0;
-    ////// plot ground state
-    //// sprintf(plotname, "plot_ground_x.plt");
-    //
-    //
-    //// plot_line(plotname, 5001, lo, hi, Gparams.orbitals[0]);
-    ////
-    //// plot each x_k^p and the density
-    // for(int i = 0; i < m; i++)
-    //{
-    //   sprintf(plotname, "plot_orbital_%d_%d_x%d.plt",
-    //   FunctionDefaults<3>::get_k(), i, iteration-1);
-    //   plot_line(plotname, 5001, lo, hi, x_response[i][0]);
-    //}
-    //
-    // if(world.rank() == 0) print("y:");
-    //// y axis
-    // lo[0] = 0.0; lo[1] = 0.0; lo[2] = 0.0;
-    // hi[0] = 0.0; hi[1] =  Lp; hi[2] = 0.0;
-    //// plot ground state
-    // sprintf(plotname, "plot_ground1_y.plt");
-    // plot_line(plotname, 5001, lo, hi, Gparams.orbitals[0]);
-    //
-    //// plot each x_k^p and the density
-    // for(int i = 0; i < m; i++)
-    //{
-    //   sprintf(plotname, "plot_orbital_%d_%d_y%d.plt",
-    //   FunctionDefaults<3>::get_k(), i, iteration-1);
-    //   plot_line(plotname, 5001, lo, hi, x_response[i][0]);
-    //}
-
-    // if(world.rank() == 0) print("z:");
-    // z axis
-    // lo[0] = 0.0; lo[1] = 0.0; lo[2] = -Lp;
-    // hi[0] = 0.0; hi[1] = 0.0; hi[2] =  Lp;
-    // plot ground state
-    // sprintf(plotname, "plot_ground1_z.plt");
-    // plot_line(plotname, 5001, lo, hi, Gparams.orbitals[0]);
-
-    // plot each x_k^p and the density
-    // for(int i = 0; i < m; i++)
-    //{
-    //   for(int j = 0; j < n; j++)
-    //   {
-    //      sprintf(plotname, "plot_orbital_%d_%d_%d_z%d.plt",
-    //      FunctionDefaults<3>::get_k(), i, j, iteration-1);
-    //      plot_line(plotname, 20001, lo, hi, x_response[i][j]);
-    //  }
-    //}
-    // world.gop.fence();
-    //
-    // END TESTING
+    if (Rparams.plot_all_orbitals) {
+      PlotGroundandResponseOrbitals(world, iteration, x_response, y_response,
+                                    Rparams, Gparams);
+    }
   }
 
   if (world.rank() == 0) print("\n");
@@ -4419,8 +4358,8 @@ Tensor<double> TDHF::CreateGroundHamiltonian(World &world,
 
 // Creates the transition densities
 std::vector<real_function_3d> TDHF::transition_density(
-    World &world, std::vector<real_function_3d> &orbitals, ResponseFunction &x,
-    ResponseFunction &y) {
+    World &world, std::vector<real_function_3d> const &orbitals,
+    ResponseFunction const &x, const ResponseFunction &y) {
   // Get sizes
   int m = x.size();
   int n = x[0].size();
@@ -5757,6 +5696,86 @@ void TDHF::PrintPolarizabilityAnalysis(World &world,
     printf("\tAnisotropic = \t %.6f \n", Dpolar_iso);
     printf("\n");
   }
+}
+void TDHF::PlotGroundandResponseOrbitals(World &world, int iteration,
+                                         ResponseFunction const &x_response,
+                                         ResponseFunction const &y_response,
+                                         ResponseParameters const &Rparams,
+                                         GroundParameters const &Gparams) {
+  // TESTING
+  // get transition density
+  if (world.rank() == 0) print("Making density.");
+  std::vector<real_function_3d> densities =
+      transition_density(world, Gparams.orbitals, x_response, y_response);
+  // Doing line plots along each axis
+  if (world.rank() == 0) print("\n\nStarting plots");
+  coord_3d lo, hi;
+  char plotname[500];
+  double Lp = std::min(Gparams.L, 24.0);
+  if (world.rank() == 0) print("x:");
+  // x axis
+  lo[0] = 0.0;
+  lo[1] = 0.0;
+  lo[2] = 0.0;
+  hi[0] = Lp;
+  hi[1] = 0.0;
+  hi[2] = 0.0;
+  //// plot ground state
+  sprintf(plotname, "plot_ground_x.plt");
+
+  plot_line(plotname, 5001, lo, hi, Gparams.orbitals[0]);
+  //
+  // plot each x_k^p and the density
+  int m = x_response.size();
+  for (int i = 0; i < m; i++) {
+    sprintf(plotname, "plot_orbital_%d_%d_x%d.plt",
+            FunctionDefaults<3>::get_k(), i, iteration - 1);
+    plot_line(plotname, 5001, lo, hi, x_response[i][0]);
+  }
+
+  if (world.rank() == 0) print("y:");
+  // y axis
+  lo[0] = 0.0;
+  lo[1] = 0.0;
+  lo[2] = 0.0;
+  hi[0] = 0.0;
+  hi[1] = Lp;
+  hi[2] = 0.0;
+  // plot ground state
+  sprintf(plotname, "plot_ground1_y.plt");
+  plot_line(plotname, 5001, lo, hi, Gparams.orbitals[0]);
+
+  // plot each x_k^p and the density
+  for (int i = 0; i < m; i++) {
+    sprintf(plotname, "plot_orbital_%d_%d_y%d.plt",
+            FunctionDefaults<3>::get_k(), i, iteration - 1);
+    plot_line(plotname, 5001, lo, hi, x_response[i][0]);
+  }
+
+  if (world.rank() == 0) print("z:");
+  // z axis
+  lo[0] = 0.0;
+  lo[1] = 0.0;
+  lo[2] = -Lp;
+  hi[0] = 0.0;
+  hi[1] = 0.0;
+  hi[2] = Lp;
+
+  // plot ground state
+  sprintf(plotname, "plot_ground1_z.plt");
+  plot_line(plotname, 5001, lo, hi, Gparams.orbitals[0]);
+
+  // plot each x_k ^ p and the density //
+  for (int i = 0; i < m; i++) {
+    for (int j = 0; j < n; j++) {
+      sprintf(plotname, "plot_orbital_%d_%d_%d_z%d.plt",
+              FunctionDefaults<3>::get_k(), i, j, iteration - 1);
+      plot_line(plotname, 20001, lo, hi, x_response[i][j]);
+    }
+  }
+  world.gop.fence();
+
+  // END TESTING
 }
 // Main function, makes sure everything happens in correct order
 // Solves for polarizability
