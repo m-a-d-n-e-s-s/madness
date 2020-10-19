@@ -695,7 +695,9 @@ namespace madness {
         }
 
         /// Broadcast a serializable object
-        template <typename objT>
+        template <typename objT,
+                  typename = std::enable_if_t<is_serializable<archive::BufferInputArchive,objT>::value &&
+                                              is_serializable<archive::BufferOutputArchive,objT>::value>>
         void broadcast_serializable(objT& obj, ProcessID root) {
             size_t BUFLEN;
             if (world_.rank() == root) {

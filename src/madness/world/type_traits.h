@@ -163,6 +163,8 @@ namespace madness {
     class MPIRawInputArchive;
     class MPIOutputArchive;
     class MPIInputArchive;
+    template <typename T>
+    class archive_array;
     }
     template <typename T>
     struct is_serializable<archive::BinaryFstreamOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
@@ -188,6 +190,8 @@ namespace madness {
     struct is_serializable<archive::MPIOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
     template <typename T>
     struct is_serializable<archive::MPIInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    template <typename Archive, typename T>
+    struct is_serializable<Archive, archive::archive_array<T>, std::enable_if_t<is_serializable<Archive,T>::value>> : std::true_type {};
 
     /// \brief This trait types tests if \c Archive is a text archive
     /// \tparam Archive an archive type
