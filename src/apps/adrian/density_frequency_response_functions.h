@@ -4,6 +4,7 @@
 #include <ResponseFunction2.h>
 #include <TDDFT.h>
 
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <vector>
@@ -71,7 +72,7 @@ class FirstOrderDensity {
     // print
     //
     print("Response Density Information");
-    print(property, " response at", omega, "frequency using ", Rparams.xc,
+    print(property, " response at", omega(0, 0), "frequency using ", Rparams.xc,
           " exchange functional");
     print("Number of Response States : ", num_response_states);
     print("Number of Ground States : ", num_ground_states);
@@ -94,8 +95,9 @@ class FirstOrderDensity {
     hi[2] = 0.0;
 
     for (int i = 0; i < num_response_states; i++) {
-      sprintf(plotname, "plot_transition_density_%d_%d_x.plt",
-              FunctionDefaults<3>::get_k(), i);
+      std::snprintf(plotname, sizeof(plotname),
+                    "plot_transition_density_%d_%d_x.plt",
+                    FunctionDefaults<3>::get_k(), i);
       plot_line(plotname, 5001, lo, hi, rho_omega[i]);
     }
   }
