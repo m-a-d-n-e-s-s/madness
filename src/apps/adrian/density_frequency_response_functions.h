@@ -67,6 +67,16 @@ class FirstOrderDensity {
     // get the response densities for our states
     rho_omega = calc.transition_density(world, Gparams.orbitals, x, y);
   }
+  void PrintDensityInformation() {
+    // print
+    //
+    print("Response Density Information");
+    print(property, " response at", omega, "frequency using ", Rparams.xc,
+          " exchange functional");
+    print("Number of Response States : ", num_response_states);
+    print("Number of Ground States : ", num_ground_states);
+  }
+
   void PlotResponseDensity(World &world) {
     // Doing line plots along each axis
     // Doing line plots along each axis

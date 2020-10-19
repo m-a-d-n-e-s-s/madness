@@ -243,19 +243,23 @@ struct ResponseParameters {
       } else if (s == "property") {
         property = true;
         f >> response_type;
-        if (response_type == "dipole") {
+        if (response_type.compare("dipole") == 0) {
           f >> omega;
-        } else if (response_type == "nuclear") {
+          dipole = true;
+        } else if (response_type.compare("nuclear") == 0) {
           f >> omega;
-        } else if (response_type == "2ndOrder") {
+          nuclear = true;
+        } else if (response_type.compare("2ndOrder") == 0) {
           f >> response_types[0];
           f >> response_types[1];
           f >> omega;
-        } else if (response_type == "3ndOrder") {
+          order2 = true;
+        } else if (response_type.compare("3rdOrder") == 0) {
           f >> response_types[0];
           f >> response_types[1];
           f >> response_types[2];
           f >> omega;
+          order3 = true;
         } else {
           MADNESS_EXCEPTION("Not a an avaible response type", 0);
         }
@@ -317,7 +321,7 @@ struct ResponseParameters {
     madness::print("            Ground State File:", archive);
     if (nwchem != "") madness::print("                  NWChem File:", nwchem);
     if (restart) madness::print("                 Restart File:", restart_file);
-    if (!property) madness::print("             States Requested:", states);
+    madness::print("             States Requested:", states);
     if (!property) madness::print("            TDA Approximation:", tda);
     if (e_window and !property)
       madness::print("                Energy Window:", e_window,
@@ -369,6 +373,7 @@ struct ResponseParameters {
     calc_flags.push_back(nuclear);
     calc_flags.push_back(order2);
     calc_flags.push_back(order3);
+
     for (std::size_t i = 0; i < calc_flags.size(); i++) {
       if (calc_flags[i]) {
         madness::print("                     Property: ", calculation_type[i]);
@@ -376,7 +381,6 @@ struct ResponseParameters {
       }
     }
   }
-
 };  // namespace madness
 }  // namespace madness
 #endif
