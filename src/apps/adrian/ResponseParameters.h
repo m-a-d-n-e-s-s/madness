@@ -167,6 +167,7 @@ struct ResponseParameters {
         f >> states;
       } else if (s == "print_level") {
         f >> print_level;
+        response_type = "Excited State";
       } else if (s == "tda") {
         tda = true;
       } else if (s == "larger_subspace") {
