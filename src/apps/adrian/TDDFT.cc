@@ -690,19 +690,16 @@ ResponseFunction TDHF::dipoleRHS(World &world,
   // Return container
   ResponseFunction QBP(world, 3, orbitals.size());
   QProjector<double, 3> Qhat(world, Gparams.orbitals);
+  Property dipole = Property(world, "dipole");
 
   for (int axis = 0; axis < 3; axis++) {
     // Create dipole operator in the 'axis' direction
-    std::vector<int> f(3, 0);
-    f[axis] = 1.0;  // why true
-    real_function_3d dipole = real_factory_3d(world).functor(
-        real_functor_3d(new BS_MomentFunctor(f)));
-    // dip here returns x, y, or z function
 
     reconstruct(world, orbitals);
     // Create guesses
     // multiply sparse dip * orbital i
-    QBP[axis] = mul_sparse(world, dipole, orbitals, Rparams.small);
+    QBP[axis] = mul_sparse(world, dipole.operator_vector[axis], orbitals,
+                           Rparams.small);
     QBP[axis] = Qhat(QBP[axis]);
     world.gop.fence();
   }
