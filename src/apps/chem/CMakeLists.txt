@@ -12,7 +12,8 @@ set(MADCHEM_HEADERS
     electronic_correlation_factor.h vibanal.h molopt.h TDHF.h CC2.h CCPotentials.h
     pcm.h SCFProtocol.h AC.h pointgroupoperator.h pointgroupsymmetry.h MolecularOrbitals.h 
 	znemo.h zcis.h  diamagneticpotentialfactor.h oep.h BSHApply.h
-    PNO.h PNOF12Potentials.h PNOGuessFunctions.h PNOParameters.h PNOStructures.h PNOTensors.h)
+    PNO.h PNOF12Potentials.h PNOGuessFunctions.h PNOParameters.h PNOStructures.h PNOTensors.h
+    basis.h polynomial.h gaussian.h ESInterface.h NWChem.h)
 set(MADCHEM_SOURCES
     correlationfactor.cc molecule.cc molecularbasis.cc vibanal.cc
     corepotential.cc atomutil.cc lda.cc
@@ -21,7 +22,8 @@ set(MADCHEM_SOURCES
     AC.cc pointgroupsymmetry.cc 
     znemo.cc zcis.cc diamagneticpotentialfactor.cc oep.cc
     PNO.cpp PNOF12Potentials.cpp PNOGuessFunctions.cpp PNOParameters.cpp PNOStructures.cpp
-    QCCalculationParametersBase.cc MolecularOrbitals.cc)
+    QCCalculationParametersBase.cc MolecularOrbitals.cc
+    polynomial.cc gaussian.cc NWChem.cc)
 if(LIBXC_FOUND)
   list(APPEND MADCHEM_SOURCES xcfunctional_libxc.cc)
 else()

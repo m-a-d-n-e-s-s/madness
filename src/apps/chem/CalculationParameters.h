@@ -137,6 +137,9 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<int> ("efield_axis",0,"finite field axis",{0l,1,2});
 //		initialize<std::map<std::string,std::string> generalkeyval;  ///< general new key/value pair
 
+          //Keyword to use nwchem output for initial guess
+          initialize<std::string> ("nwfile","none","Base name of nwchem output files (.out and .movecs extensions) to read from");
+
 	}
 
 	public:
@@ -236,6 +239,8 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	double gprec() const {return get<double>("gprec");}
 	bool ginitial_hessian() const {return get<bool>("ginitial_hessian");}
 
+     std::string nwfile() const {return get<std::string>("nwfile");}
+
 	Tensor<double> plot_cell() const {
 		std::vector<double> vcell=get<std::vector<double> >("plot_cell");
 		if (vcell.size()==0) return Tensor<double>();
@@ -316,6 +321,19 @@ struct CalculationParameters : public QCCalculationParametersBase {
         	error("\n\nsymmetry and localization cannot be used at the same time\n"
         			"switch from local to canonical orbitals (keyword canon)\n\n");
         }
+
+        //NWChem interface doesn't support geometry optimization
+        if (get<bool>("gopt") && nwfile() != "") error("NWchem initialization only supports single point energy calculations.");
+
+        //NWChem only supports Boys localization (or canonical)
+        if (nwfile() != "none") {
+             set_derived_value("localize",std::string("boys"));
+             //Error if user requested something other than Boys
+             if(localize_method() != "boys" and localize_method() != "canon") error("NWchem initialization only supports Boys localization");
+        }
+     
+
+
 	}
 
 };
