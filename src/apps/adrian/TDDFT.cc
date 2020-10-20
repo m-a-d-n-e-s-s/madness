@@ -22,9 +22,10 @@
 #include "Plot_VTK.h"
 #include "ResponseFunction2.h"
 #include "TDHF_Basic_Operators2.h"
+#include "adrian/density_frequency_response_functions.h"
+#include "adrian/property_operators.h"
 #include "chem/potentialmanager.h"
 #include "chem/projector.h"  // For easy calculation of (1 - \hat{\rho}^0)
-#include "density_frequency_response_functions.h"
 #include "madness/mra/funcdefaults.h"
 
 namespace madness {  // NO LINT
@@ -132,27 +133,6 @@ static void end_timer(World &world, const char *msg) {
   if (world.rank() == 0)
     printf("   timer: %20.20s %8.2fs %8.2fs\n", msg, cpu, wall);
 }
-
-typedef Vector<double, 3> coordT;
-class MolecularDerivativeFunctor : public FunctionFunctorInterface<double, 3> {
- private:
-  const Molecule &molecule;
-  const int atom;
-  const int axis;
-
- public:
-  MolecularDerivativeFunctor(const Molecule &molecule, int atom, int axis)
-      : molecule(molecule), atom(atom), axis(axis) {}
-
-  double operator()(const coordT &x) const {
-    return molecule.nuclear_attraction_potential_derivative(atom, axis, x[0],
-                                                            x[1], x[2]);
-  }
-
-  std::vector<coordT> special_points() const {
-    return std::vector<coordT>(1, molecule.get_atom(atom).get_coords());
-  }
-};
 
 // Collective constructor
 TDHF::TDHF(World &world, const char *filename)
