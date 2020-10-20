@@ -43,7 +43,7 @@ if(ENABLE_UNITTESTS)
   
   # Test executables that are not run with unit tests
   set(MRA_OTHER_TESTS testperiodic testbc testqm test6
-      testdiff1D testdiff2D testdiff3D )
+      testdiff1D testdiff2D testdiff3D test_vectormacrotask )
   
   foreach(_test ${MRA_OTHER_TESTS})  
     add_mad_executable(${_test} "${_test}.cc" "MADmra")
