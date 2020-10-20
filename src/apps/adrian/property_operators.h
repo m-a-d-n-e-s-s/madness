@@ -41,6 +41,8 @@ class MolecularDerivativeFunctor : public FunctionFunctorInterface<double, 3> {
     return std::vector<coordT>(1, molecule.get_atom(atom).get_coords());
   }
 };  // namespace madness
+// A proerty class...creates a object with operator vector and property name
+// Used to compute proerties or compute rhs vectors
 class Property {
  public:
   std::string property;

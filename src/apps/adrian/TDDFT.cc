@@ -721,6 +721,7 @@ ResponseFunction TDHF::derivativesRHS(World &world, Molecule &molecule) const {
   // more accurate now, so recalc the dipoles)
   // why is it called dipole guess.
   // This is just orbitals times dipole operator
+  Property nuclear_derivative = Property(world, "nuclear", molecule);
 
   vecfuncT dv(molecule.natom() * 3);  // default constructor for vector?
 
@@ -728,16 +729,11 @@ ResponseFunction TDHF::derivativesRHS(World &world, Molecule &molecule) const {
     for (int axis = 0; axis < 3; ++axis) {
       // question here....MolecularDerivativeFunctor takes derivative with
       // respect to axis atom and axis
-      functorT func(new MolecularDerivativeFunctor(molecule, atom, axis));
       // here we save
-      dv[atom * 3 + axis] = functionT(factoryT(world)
-                                          .functor(func)
-                                          .nofence()
-                                          .truncate_on_project()
-                                          .truncate_mode(0));
       // need to project
-      QBP[atom * 3 + axis] = mul_sparse(world, dv[atom * 3 + axis],
-                                        Gparams.orbitals, Rparams.small);
+      QBP[atom * 3 + axis] =
+          mul_sparse(world, nuclear_derivative.operator_vector[atom * 3 + axis],
+                     Gparams.orbitals, Rparams.small);
 
       // project rhs vectors for state
       QBP[atom * 3 + axis] = Qhat(QBP[atom * 3 + axis]);
