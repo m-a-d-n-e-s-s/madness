@@ -111,60 +111,60 @@ public:
 /// will write a test input and remove it from disk upon destruction
 struct write_test_input {
 
-    double eprec=1.e-6;
+	double eprec=1.e-6;
 
-    std::string filename_;
-    write_test_input(const TestCalculationParameters& param, const std::string& mol="lih") : filename_("test_input") {
-    	std::ofstream of(filename_);
-        of << "dft\n";
-        of << param.print_to_string(true);
-        of << "end\n";
+	std::string filename_;
+	write_test_input(const TestCalculationParameters& param, const std::string& mol="lih") : filename_("test_input") {
+		std::ofstream of(filename_);
+		of << "dft\n";
+		of << param.print_to_string(true);
+		of << "end\n";
 
-        if (mol=="lih") {
-            of << "geometry\n";
-            of << "eprec " << eprec << std::endl;
-            of << "Li 0.0    0.0 0.0\n";
-            of << "H  1.4375 0.0 0.0\n";
-            of << "end\n";
-        } else if (mol=="hf") {
-            double eprec=1.e-5;
-            of << "geometry\n";
-            of << "eprec " << eprec << std::endl;
-            of << "F  0.1    0.0 0.2\n";
-            of << "H  1.4375 0.0 0.0\n";
-            of << "end\n";
-        }
-        of.close();
-    }
+		if (mol=="lih") {
+			of << "geometry\n";
+			of << "eprec " << eprec << std::endl;
+			of << "Li 0.0    0.0 0.0\n";
+			of << "H  1.4375 0.0 0.0\n";
+			of << "end\n";
+		} else if (mol=="hf") {
+			double eprec=1.e-5;
+			of << "geometry\n";
+			of << "eprec " << eprec << std::endl;
+			of << "F  0.1    0.0 0.2\n";
+			of << "H  1.4375 0.0 0.0\n";
+			of << "end\n";
+		}
+		of.close();
+	}
 
-    ~write_test_input() {
-        std::remove(filename_.c_str());
-    }
+	~write_test_input() {
+		std::remove(filename_.c_str());
+	}
 
-    std::string filename() const {return filename_;}
+	std::string filename() const {return filename_;}
 };
 
 int run_all_calculations(World& world, const std::vector<CalculationParameters>& all_parameters,
 		bool test_result=false) {
 	int success=0;
-    for (auto cp : all_parameters) {
+	for (auto cp : all_parameters) {
 
-    	print(cp.print_to_string(true));
+		print(cp.print_to_string(true));
 
-        write_test_input test_input(cp,"lih");
+		write_test_input test_input(cp,"lih");
 
-        SCF calc(world,test_input.filename().c_str());
-        calc.set_protocol<3>(world, 1e-4);
-        MolecularEnergy ME(world, calc);
-        double energy=ME.value(calc.molecule.get_all_coords().flat()); // ugh!
-        print("energy(LiH)",energy);
-        if (test_result) {
-        	double thresh=cp.econv();
-            print("energy, hard-wire, diff",energy,7.703833,energy+7.703833e+00);
-            if (std::abs(energy+7.703833e+00)>thresh) success+=1;
-        }
-    }
-    return success;
+		SCF calc(world,test_input.filename().c_str());
+		calc.set_protocol<3>(world, 1e-4);
+		MolecularEnergy ME(world, calc);
+		double energy=ME.value(calc.molecule.get_all_coords().flat()); // ugh!
+		print("energy(LiH)",energy);
+		if (test_result) {
+			double thresh=cp.econv();
+			print("energy, hard-wire, diff",energy,7.703833,energy+7.703833e+00);
+			if (std::abs(energy+7.703833e+00)>thresh) success+=1;
+		}
+	}
+	return success;
 }
 
 int main(int argc, char** argv) {
@@ -195,32 +195,32 @@ int main(int argc, char** argv) {
     		TestCalculationParameters tparam(cparam);
 			tparam.set_user_defined_value("maxiter",1);
 
-                        if (small) {
-                            tparam.extend_parameters<double>("econv",{1.e-4});
-                            //tparam.extend_parameters<bool>("derivatives",{true}); // ,false
-                            //tparam.extend_parameters<int>("k",{6});
-                            //tparam.extend_parameters<double>("l",{25.0});
-                        }
-                        else {
-                            tparam.extend_parameters<double>("econv",{1.e-4,1.e-5}); // default and higher accuracy
-                            tparam.extend_parameters<std::string>("localize",{"canon","boys","new"}); //
-                            tparam.extend_parameters<bool>("spin_restricted",{false});
-                            tparam.extend_parameters<bool>("no_orient",{true});
-                            tparam.extend_parameters<bool>("derivatives",{true,false}); //
-                            tparam.extend_parameters<bool>("dipole",{true});
-                            tparam.extend_parameters<std::string>("xc",{"hf","lda"}); // 
-                            tparam.extend_parameters<int>("k",{6});
-                            tparam.extend_parameters<double>("l",{25.0});
-                        }
+			if (small) {
+				tparam.extend_parameters<double>("econv",{1.e-4});
+				//tparam.extend_parameters<bool>("derivatives",{true}); // ,false
+				//tparam.extend_parameters<int>("k",{6});
+				//tparam.extend_parameters<double>("l",{25.0});
+			}
+			else {
+				tparam.extend_parameters<double>("econv",{1.e-4,1.e-5}); // default and higher accuracy
+				tparam.extend_parameters<std::string>("localize",{"canon","boys","new"}); //
+				tparam.extend_parameters<bool>("spin_restricted",{false});
+				tparam.extend_parameters<bool>("no_orient",{true});
+				tparam.extend_parameters<bool>("derivatives",{true,false}); //
+				tparam.extend_parameters<bool>("dipole",{true});
+				tparam.extend_parameters<std::string>("xc",{"hf","lda"}); //
+				tparam.extend_parameters<int>("k",{6});
+				tparam.extend_parameters<double>("l",{25.0});
+			}
 
 			std::vector<CalculationParameters> all_singles=tparam.make_all_parameter_singles();
 			run_all_calculations(world, all_singles);
-    	}
+		}
 
-    	// need to modify two parameters for this test
-        if (! small)
-    	{
-    		// store the variations of the default set
+		// need to modify two parameters for this test
+		if (! small)
+		{
+			// store the variations of the default set
 			TestCalculationParameters tparam(cparam);
 			tparam.set_user_defined_value("charge",1.0);
 			tparam.set_user_defined_value("nopen",1);

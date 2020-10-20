@@ -377,7 +377,8 @@ int test_coulomb(World& world) {
 
     // compute the potential from the trial density
     Coulomb J(world);
-    J.potential()=J.compute_potential(density,1e-5);
+    J.reset_poisson_operator_ptr(1.e-5,FunctionDefaults<3>::get_thresh());
+    J.potential()=J.compute_potential(density);
     double Jpotnorm=J.potential().norm2();
     print("Jpotnorm  ",Jpotnorm);
 

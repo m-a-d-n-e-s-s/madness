@@ -15,7 +15,9 @@ namespace madness {
 struct test_output {
 	test_output(std::string line) {
 		int ncharacter=line.size();
-		std::cout << line << std::string(70-ncharacter, ' ' );
+		std::cout << line ;
+		if (line.size()<70) std::cout << std::string(70-ncharacter, ' ' );
+		logger << std::scientific << std::setprecision(8) ;
 	}
 
 	std::stringstream logger;
@@ -25,14 +27,14 @@ struct test_output {
 		logger.clear();
 	}
 
-	bool end(bool success) {
+	int end(bool success) {
 		if (success) std::cout << "\033[32m"   << "passed " << "\033[0m" << std::endl;
 		if (not success) {
 			std::cout << "\033[31m"   << "failed " << "\033[0m" << std::endl;
 			print_and_clear_log();
 		}
 //		MADNESS_ASSERT(success);
-		return success;
+		return (success) ? 0 : 1;
 	}
 };
 

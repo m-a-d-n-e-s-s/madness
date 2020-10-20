@@ -145,12 +145,22 @@ template class Laplacian<double,5>;
 template class Laplacian<double,6>;
 
 
+/// ctor with an SCF calculation providing the MOs and density
 Coulomb::Coulomb(World& world, const Nemo* nemo) : world(world),
         R_square(nemo->R_square) {
-
+	reset_poisson_operator_ptr(nemo->get_calc()->param.lo(),nemo->get_calc()->param.econv());
     vcoul=compute_potential(nemo);
 }
 
+/// ctor with an SCF calculation providing the MOs and density
+Coulomb::Coulomb(World& world, const SCF* calc) : world(world) {
+	reset_poisson_operator_ptr(calc->param.lo(),calc->param.econv());
+    vcoul=compute_potential(calc);
+}
+
+void Coulomb::reset_poisson_operator_ptr(const double lo, const double econv) {
+	poisson.reset(CoulombOperatorPtr(world, lo, econv));
+}
 
 real_function_3d Coulomb::compute_density(const SCF* calc) const {
     real_function_3d density = calc->make_density(world, calc->get_aocc(),
@@ -168,7 +178,7 @@ real_function_3d Coulomb::compute_density(const SCF* calc) const {
 
 real_function_3d Coulomb::compute_potential(const madness::SCF* calc) const {
     real_function_3d density=compute_density(calc);
-    return calc->make_coulomb_potential(density);
+	return (*poisson)(density).truncate();
 }
 
 /// same as above, but with the additional factor R^2 in the density
@@ -183,7 +193,7 @@ real_function_3d Coulomb::compute_potential(const madness::Nemo* nemo) const {
         density+=brho;
     }
     density=(density*R_square).truncate();
-    return nemo->get_calc()->make_coulomb_potential(density);
+	return (*poisson)(density).truncate();
 }
 
 
