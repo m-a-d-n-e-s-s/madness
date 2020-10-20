@@ -125,14 +125,21 @@ class GaussianGuess : public FunctionFunctorInterface<double, NDIM> {
 };
 
 struct Zfunctions {
+  // V^0 |x> + \sum_{\neq p} |x_i><i|F0|p>-H_x_p - G_x,p
   ResponseFunction Z_x;
   ResponseFunction Z_y;
 
+  // A_x
+
+  // V^0 |x>
   ResponseFunction v0_x;
   ResponseFunction v0_y;
-
-  ResponseFunction y_f_no_diag;
+  // +\sum_{i \neq p} | x_i><i|F0|p>
   ResponseFunction x_f_no_diag;
+  ResponseFunction y_f_no_diag;
+  // +\sum_{i } | x_i><i|F0|p>
+  // ResponseFunction x_f_with_diag;
+  // ResponseFunction y_f_with_diag;
 
   ResponseFunction Hx, Gy;
   ResponseFunction Hy, Gx;
