@@ -98,6 +98,30 @@ Molecule::Molecule(const std::string& filename) :
     read_file(filename);
 }
 
+void Molecule::read_structure_from_library(const std::string& name) {
+
+	// get the location of the structure library
+	std::string chemdata_dir(MRA_CHEMDATA_DIR);
+    if (getenv("MRA_CHEMDATA_DIR")) chemdata_dir=std::string(getenv("MRA_CHEMDATA_DIR"));
+	std::string library=chemdata_dir+"/structure_library";
+
+    std::ifstream f(library);
+    if(f.fail()) {
+        std::string errmsg = std::string("Failed to open structure library: ") + library;
+        MADNESS_EXCEPTION(errmsg.c_str(), 0);
+    }
+    try {
+    	madness::position_stream(f, name);
+    } catch (...) {
+        std::string errmsg = "could not find structure " + name + " in the library\n\n";
+        MADNESS_EXCEPTION(errmsg.c_str(), 0);
+    }
+
+    this->read(f);
+
+}
+
+
 std::vector<std::string> Molecule::cubefile_header() const {
 	std::vector<std::string> molecular_info;
 	for (unsigned int i = 0; i < natom(); ++i) {

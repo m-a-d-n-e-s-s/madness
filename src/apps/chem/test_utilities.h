@@ -38,6 +38,38 @@ struct test_output {
 	}
 };
 
+
+/// write an input file to disk and remove upon destruction
+
+/**
+ * usage: write data group mp3 with some parameters
+  	std::string inputlines=R"input(mp3
+			econv 1.e-4
+			dconv 1.e-4
+ 			# econv 1.e-3
+			maxiter 12# asd
+			ncf (slater,1.2)
+			localize no
+			LocAl CanON
+			end)input";
+	inputfile ifile("input1",inputlines);
+ */
+struct test_inputfile {
+	std::string fname;
+	bool keepfile=false;
+	test_inputfile(const std::string filename, const std::string lines) {
+		fname=filename;
+		std::ofstream myfile;
+		myfile.open (fname);
+		myfile << lines << std::endl;
+		myfile.close();
+	}
+
+	~test_inputfile() {
+		if (not keepfile) remove(fname.c_str());
+	}
+};
+
 }
 
 #endif /* SRC_APPS_CHEM_TEST_UTILITIES_H_ */

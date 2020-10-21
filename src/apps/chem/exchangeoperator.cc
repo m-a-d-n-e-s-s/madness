@@ -81,11 +81,18 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::operator()(
 		double lo=1.e-4;
 		double econv=FunctionDefaults<3>::get_thresh();
 
+		long batchsize=std::max(1l,nf/(ntask_per_subworld*world.size()));
+		if (world.rank()==0) print("batchsize",batchsize);
 		MacroTaskBase::taskqT vtask;
-		for (int i=0; i<nf; ++i) {
+		for (int i=0; i<nf; i+=batchsize) {
 			long inputrecord=nocc+nocc+i;
 			long outputrecord=nocc+nocc+nf+i;
-			taskq.cloud.store(world,vket[i],inputrecord);
+			auto it1=vket.begin()+i;
+			auto it2=std::min(it1+batchsize,vket.end());
+			if (world.rank()==0) {
+				print("storing vket: batch(begin,end), inputrecord",it1-vket.begin(),it2-vket.begin(),inputrecord);
+			}
+			taskq.cloud.store(world,vecfuncT(it1,it2),inputrecord);
 
 			MacroTaskExchange task(inputrecord,outputrecord,nocc,
 							lo, econv, mul_tol);
@@ -97,15 +104,20 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::operator()(
 	    FunctionDefaults<3>::set_default_pmap(taskq.get_subworld());
 	    taskq.run_all(vtask);
 		FunctionDefaults<3>::set_pmap(current_pmap);
-		for (int i=0; i<nf; ++i) {
-			print("loading results from outputrecord",nocc+nocc+nf+i);
-			taskq.cloud.load<functionT>(world,Kf[i],nocc+nocc+nf+i);
+		Kf.clear();
+		for (int i=0; i<nf; i+=batchsize) {
+//			print("loading results from outputrecord",nocc+nocc+nf+i);
+//			taskq.cloud.load<functionT>(world,Kf[i],nocc+nocc+nf+i);
+			vecfuncT dummy;
+			taskq.cloud.load<vecfuncT>(world,dummy,nocc+nocc+nf+i);
+			Kf=append(Kf,dummy);
 		}
 		taskq.cloud.print_timings(world);
 
 
     } else if (small_memory_) {     // Smaller memory algorithm ... possible 2x saving using i-j sym
-        for(int i=0; i<nocc; ++i){
+    	int ii=0;
+    	for(int i=0; i<nocc; ++i){
             if(occ[i] > 0.0){
                 vecfuncT psif = mul_sparse(world, mo_bra[i], vket, mul_tol); /// was vtol
                 truncate(world, psif);
@@ -114,7 +126,9 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::operator()(
                 psif = mul_sparse(world, mo_ket[i], psif, mul_tol); /// was vtol
                 gaxpy(world, 1.0, Kf, occ[i], psif);
             }
+            ii++;
         }
+    	print("N (small mem) ii",ii);
     } else {    // Larger memory algorithm ... use i-j sym if psi==f
         vecfuncT psif;
         for (int i = 0; i < nocc; ++i) {

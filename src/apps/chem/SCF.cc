@@ -138,8 +138,13 @@ SCF::SCF(World& world, const std::string& inputfile) : param(CalculationParamete
 		// read input parameters from the input file
 		param.read(world,inputfile,"dft");
 
-		std::ifstream ifile(inputfile);
-		molecule.read(ifile);
+		std::string molecular_structure=param.get<std::string>("molecular_structure");
+		if (molecular_structure=="inputfile") {
+			std::ifstream ifile(inputfile);
+			molecule.read(ifile);
+		} else {
+			molecule.read_structure_from_library(molecular_structure);
+		}
 
 		// set derived parameters for the molecule
 

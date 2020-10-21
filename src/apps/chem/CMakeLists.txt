@@ -72,7 +72,7 @@ if(ENABLE_UNITTESTS)
   add_unittests(chem "${CHEM_TEST_SOURCES}" "MADchem;MADgtest;MADgit")
   
   # Create other test executables not included in the unit tests
-  set(CHEM_OTHER_TESTS testxc)
+  set(CHEM_OTHER_TESTS testxc benchmark_exchange_operator)
   foreach(_test ${CHEM_OTHER_TESTS})  
     add_mad_executable(${_test} "${_test}.cc" "MADchem;MADgit")
   endforeach()

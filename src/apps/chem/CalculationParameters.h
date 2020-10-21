@@ -103,6 +103,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<std::string> ("ac_data","none","do a calculation with asymptotic correction (see ACParameters class in chem/AC.h for details)");
 		initialize<bool> ("pure_ae",true,"pure all electron calculation with no pseudo-atoms");
 		initialize<int>  ("print_level",3,"0: no output; 1: final energy; 2: iterations; 3: timings; 10: debug");
+		initialize<std::string>  ("molecular_structure","inputfile","where to read the molecule from: inputfile or name from the library");
 
 		// Next list inferred parameters
 		initialize<int> ("nalpha",-1,"number of alpha spin electrons");

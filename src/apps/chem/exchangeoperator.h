@@ -37,7 +37,8 @@ public:
 		double econv=1.e-6;
 		double mul_tol=1.e-7;
 
-		MacroTaskExchange(const long inputrecord, const long outputrecord, const long nocc,
+		MacroTaskExchange(const long inputrecord, const long outputrecord,
+				const long nocc,
 				const double lo, const double econv, const double mul_tol)
 			: inputrecord(inputrecord)
 			, outputrecord(outputrecord)
@@ -52,18 +53,29 @@ public:
 	    	            CoulombOperatorPtr(subworld, lo, econv));
 
 			// load the K operator argument and the orbitals of K
-			functionT f=cloud.load<functionT> (subworld,inputrecord);
+	    	vecfuncT vf=cloud.load<vecfuncT> (subworld,inputrecord);
 			vecfuncT mo_bra(nocc), mo_ket(nocc);
 			for (int i=0; i<nocc; ++i) {
 				mo_bra[i]=cloud.load<functionT>(subworld,i);
 				mo_ket[i]=cloud.load<functionT>(subworld,i+nocc);
 			}
 
-			vecfuncT psif = mul_sparse(subworld, f, mo_bra, mul_tol); /// was vtol
+			// psif is a flattened vector (f_i, bra)
+			vecfuncT psif;
+			const long batchsize=vf.size();
+			for (auto f : vf) psif=append(psif,mul_sparse(subworld, f, mo_bra, mul_tol)); /// was vtol
+
 			truncate(subworld, psif);
 			psif = apply(subworld, *poisson.get(), psif);
 			truncate(subworld, psif);
-			functionT Kf=dot(subworld,mo_ket,psif).truncate();
+
+			vecfuncT Kf(batchsize);
+			auto it=psif.begin();
+			for (int i=0; i<batchsize; ++i) {
+
+				vecfuncT psif_slice(it,it+mo_ket.size());
+				Kf[i]=dot(subworld,mo_ket,psif_slice).truncate();
+			}
 //	        psif = mul_sparse(subworld, mo_ket[i], psif, mul_tol); /// was vtol
 //	        gaxpy(world, 1.0, Kf, occ[i], psif);
 
@@ -169,10 +181,14 @@ private:
     World& world;
     bool small_memory_=true;
     bool same_=false;
-    bool multiworld_=false;
     vecfuncT mo_bra, mo_ket;    ///< MOs for bra and ket
     Tensor<double> occ;
     std::shared_ptr<real_convolution_3d> poisson;
+public:
+
+    bool multiworld_=false;
+    long ntask_per_subworld=4;
+
 };
 
 
