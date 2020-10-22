@@ -235,7 +235,7 @@ public:
     ElectronPairIterator pit()const{ return f12.pit();} /// convenience
     OrbitalIterator oit()const{return OrbitalIterator(nemo.get_calc()->amo.size(),param.freeze());}
     F12Potentials f12; // used to be private
-private:
+public:
     World& world;
     PNOParameters param;  ///< calculation parameters
     Nemo nemo;
