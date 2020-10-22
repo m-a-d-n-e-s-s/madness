@@ -11,7 +11,8 @@
 #include <stdlib.h>
 
 #include "TDDFT.h"  // All response functions/objects enter through this
-#include "density_frequency_response_functions.h"
+#include "adrian/density.h"
+#include "adrian/property_functions.h"
 
 #if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && \
     defined(HAVE_UNISTD_H)
@@ -48,6 +49,12 @@ int main(int argc, char** argv) {
   //
   densityTest.PlotResponseDensity(world);
   densityTest.PrintDensityInformation();
+
+  Property nuclear_operator(world, "nuclear", densityTest.GetMolecule());
+  Property dipole_operator(world, "dipole");
+
+  Tensor<double> alpha = densityTest.ComputeSecondOrderPropertyTensor(world);
+  PrintSecondOrderAnalysis(world, alpha, densityTest.GetFrequencyOmega());
 
   world.gop.fence();
   finalize();
