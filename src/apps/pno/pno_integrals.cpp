@@ -146,6 +146,7 @@ int main(int argc, char** argv) {
 		pno.param.set_user_defined_value<std::string>("restart", "all");
 		pno.param.set_user_defined_value<std::string>("no_opt", "all");
 		pno.param.set_user_defined_value<std::string>("no_guess", "all");
+		pno.param.set_user_defined_value<std::string>("adaptive_solver", "none");
 		std::vector<PNOPairs> all_pairs;
 		pno.solve(all_pairs);
 
