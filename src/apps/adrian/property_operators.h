@@ -45,22 +45,26 @@ class MolecularDerivativeFunctor : public FunctionFunctorInterface<double, 3> {
 // Used to compute proerties or compute rhs vectors
 class Property {
  public:
+  int num_operators;  // number of operators in vectors
   std::string property;
   std::vector<real_function_3d> operator_vector;
 
-  Property(World &world, std::string property_type) : operator_vector(3) {
+  // default constructor
+  Property() : num_operators(0), property(""), operator_vector() {}
+  Property(World &world, std::string property_type)
+      : num_operators(3), operator_vector(num_operators) {
     property = property_type;
     MADNESS_ASSERT(property.compare("dipole") == 0);
     for (int i = 0; i < 3; i++) {
       std::vector<int> f(3, 0);
       f[i] = 1;
-      operator_vector.push_back(real_factory_3d(world).functor(
-          real_functor_3d(new BS_MomentFunctor(f))));
+      operator_vector.at(i) = real_factory_3d(world).functor(
+          real_functor_3d(new BS_MomentFunctor(f)));
     }
   }
 
-  Property(World &world, std::string property_type, Molecule &molecule)
-      : operator_vector(molecule.natom() * 3) {
+  Property(World &world, std::string property_type, Molecule molecule)
+      : num_operators(molecule.natom() * 3), operator_vector(num_operators) {
     property = property_type;
     MADNESS_ASSERT(property.compare("nuclear") == 0);
 
@@ -72,11 +76,12 @@ class Property {
         // respect to axis atom and axis
         functorT func(new MolecularDerivativeFunctor(molecule, atom, axis));
         // here we save
-        operator_vector[atom * 3 + axis] = functionT(factoryT(world)
-                                                         .functor(func)
-                                                         .nofence()
-                                                         .truncate_on_project()
-                                                         .truncate_mode(0));
+        operator_vector.at(atom * 3 + axis) =
+            functionT(factoryT(world)
+                          .functor(func)
+                          .nofence()
+                          .truncate_on_project()
+                          .truncate_mode(0));
         // need to project
         //        operator_vector[atom * 3 + axis] = mul_sparse(
         //           world, dv[atom * 3 + axis], Gparams.orbitals,
