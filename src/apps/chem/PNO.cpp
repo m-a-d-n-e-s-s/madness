@@ -982,8 +982,9 @@ PNOPairs PNO::iterate_pairs(PNOPairs & pairs) const {
 	if(pairs.empty() or pairs.npairs==0){
 		msg.output("Initializing Pairs:");
 		pairs = initialize_pairs(pairs,param.guesstype());
-		// set the maxranks to zero (or to pno_ij size if there was a restart)
-		PAIRLOOP(it) pairs.maxranks_ij[it.ij()] = pairs.pno_ij[it.ij()].size();
+		// set the maxranks to maxrank (or to pno_ij size if there was a restart)
+		PAIRLOOP(it) pairs.maxranks_ij[it.ij()] = param.maxrank();
+		print_ranks(pairs);
 	}
 	else{
 		msg.warning("Standard solver expects empty pairs!");
