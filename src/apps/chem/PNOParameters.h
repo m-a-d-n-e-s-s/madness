@@ -96,6 +96,7 @@ public:
 		initialize<bool>("no_opt_in_first_iteration", false, "Do not optimize in the first iteration (then the potentials do not have to be evaluated, use this for large guesses)");
 		initialize<std::string>("exchange", "full", "approximate exchange with 'neglect' or xc functional -> same syntax as moldft");
 		initialize<bool>("save_pnos",true, "Save the OBS-PNOs to a file, before and after orthonormalization.");
+		initialize<bool>("diagonal", false, "Compute only diagonal PNOs");
 	}
 
 	void set_derived_values(const Molecule& molecule) {
@@ -146,6 +147,7 @@ public:
 		}
 		return result;
 	}
+	bool diagonal()const {return get<bool>("diagonal");}
 	std::string exchange()const {return get<std::string>("exchange");}
 	bool exop_trigo()const { return get<bool >("exop_trigo");}
 	int rank_increase()const { return get<int >("rank_increase");}
@@ -315,6 +317,7 @@ public:
 		initialize<std::string>("auxbas_file", "none", "Use external comp. aux. basis in addition to the pnos as auxbasis. Give the filename as parameter. Give the auxbas in turbomole format. Don't use contractions. If a file is specified the auxbas parameter has no effect");
 		initialize<bool>("print_pno_overlap", false, "Print overlap matrix at certain steps in computation, for debugging purposes.");
 		initialize<int>("n_virt", 0, "Compute this number of virtuals and include them in the integral construction.");
+		initialize<bool>("hardcore_boson", false, "compute only integrals for hardcore boson hamiltonian (restricted to double occupations)");
 	}
 
 	int n_virt()const {return get<int>("n_virt");}
@@ -326,6 +329,7 @@ public:
 			return get<std::string>("orthog_cabs");
 	}
 
+	bool hardcore_boson()const{return get<bool>("hardcore_boson");}
 	std::string cabs_option()const { return get<std::string>("cabs_option");}
 	int n_pno()const { return get<int >("n_pno");}
 	int pno_cabs_size()const { return get<int >("pno_cabs_size");}

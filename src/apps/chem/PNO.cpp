@@ -777,6 +777,7 @@ PNOPairs PNO::initialize_pairs(PNOPairs& pairs, const GuessType& inpgt) const {
 			virtuals = orthonormalize_rrcd(virtuals,0.1*param.thresh());
 			TIMER(timer);
 			PAIRLOOP(it){
+				if(param.diagonal() and not it.diagonal()) continue;
 				vector_real_function_3d& pno = pno_ij[it.ij()];
 				if (not pno.empty()) {
 					msg << it.name() << ": pnos not empty ... project out and assemble\n";
@@ -795,6 +796,7 @@ PNOPairs PNO::initialize_pairs(PNOPairs& pairs, const GuessType& inpgt) const {
 		TIMER(timer);
 		PAIRLOOP(it)
 		{
+			if(param.diagonal() and not it.diagonal()) continue;
 			vector_real_function_3d& pno = pno_ij[it.ij()];
 			vector_real_function_3d pair_mo;
 			pair_mo.push_back(nemo.get_calc()->amo[it.i() + param.freeze()]);
@@ -838,6 +840,7 @@ PNOPairs PNO::initialize_pairs(PNOPairs& pairs, const GuessType& inpgt) const {
 	TIMER(trt)
 
 	for (ElectronPairIterator it = pit(); it; ++it) {
+		if(param.diagonal() and not it.diagonal()) continue;
 		const double size1 = get_size(world, pno_ij[it.ij()]);
 		truncate(world, pno_ij[it.ij()], param.thresh());
 		const double size2 = get_size(world, pno_ij[it.ij()]);
@@ -853,17 +856,19 @@ PNOPairs PNO::initialize_pairs(PNOPairs& pairs, const GuessType& inpgt) const {
 	pairs.maxranks_ij=std::valarray<int>(param.maxrank(),npairs);
 	// init amplitudes as empty tensors
 	pairs.t_ij=std::valarray<Tensor<double> >(npairs);
-	if(guesstype==PSI4_GUESSTYPE){
-#if 1
-		MADNESS_EXCEPTION("Issues with new parameter structure",1);
-#else
-		Psi4Interface psi4(nocc());
+
+	// erase off-diagonal pairs and adapt maxranks
+	// if diagonal approximation is demanded
+	if(param.diagonal()){
 		for (ElectronPairIterator it = pit(); it; ++it) {
-			pairs.t_ij[it.ij()]=psi4.get_amplitudes_ij(it.i()+param.freeze,it.j()+param.freeze);
+			if(not it.diagonal()){
+				pairs.maxranks_ij[it.ij()]=0;
+				pairs.frozen_ij[it.ij()] = true;
+				pairs.pno_ij=vecfuncT();
+			}
 		}
-		pno_compress(pairs, param.tpno_tight);
-#endif
 	}
+
 
 	timer.stop().print("Initialize Pairs");
 	pairs.verify();

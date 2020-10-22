@@ -171,7 +171,6 @@ int main(int argc, char** argv) {
 
 		const std::string orthogonalization = paramsint.orthogonalization();
 		if (world.rank()==0) std::cout << "Orthonormalization technique used: " << orthogonalization << std::endl;
-		const bool canonicalize = orthogonalization == "canonical";
 		const bool orthogonalize = orthogonalization != "none";
 		const double h_thresh = 1.e-4;
 		const double thresh = parameters.thresh();
@@ -474,15 +473,6 @@ int main(int argc, char** argv) {
 		madness::Tensor<double> g(size_full, size_obs, size_full, size_obs); // using mulliken notation since thats more efficient to compute here: Tensor is (pq|g|rs) = <pr|g|qs>
 		madness::Tensor<double> f(size_full, size_obs, size_full, size_obs);
 
-		if(canonicalize){
-			if(world.rank()==0) std::cout << "canonicalizing!\n";
-			auto F = madness::Fock(world, &nemo);
-			const auto Fmat = F(basis, basis);
-			Tensor<double> U, evals;
-			syev(Fmat, U, evals);
-			basis = madness::transform(world, basis, U);
-		}
-
 		std::vector<vecfuncT> PQ;
 		for (const auto& x : basis){
 			PQ.push_back(madness::truncate(x*basis,thresh));
@@ -513,15 +503,20 @@ int main(int argc, char** argv) {
 					if (p>=q) {
 						for (int r=0; r<size_obs; r++){
 							for (int s=0; s<=r; s++){
+
+								if(paramsint.hardcore_boson()){
+									const auto c1 = p==q and r==s;
+									const auto c2 = p==r and q==s;
+									const auto c3 = p==s and q==r;
+									if (not(c1 or c2 or c3)){
+										continue;
+									}
+								}
+
 								if ((p*size_obs+q >= r*size_obs+s)) {
 									// g-tensor
 									if (GPQ[r][s].norm2() >= h_thresh){
 										g(p,q,r,s) = PQ[p][q].inner(GPQ[r][s]);
-										if(canonicalize and p==q){
-											g(p,q,r,s) += Kmat(r,s) - Jmat(r,s);
-										}else if(canonicalize and r==s){
-											g(p,q,r,s) += Kmat(p,q) - Jmat(p,q);
-										}
 										// symm
 										g(r,s,p,q) = g(p,q,r,s);
 										if(std::fabs(g(p,q,r,s)) > h_thresh ){
@@ -548,11 +543,6 @@ int main(int argc, char** argv) {
 							// g-tensor
 							if (GPQ[r][s].norm2() >= h_thresh)  {
 								g(p,q,r,s) = PQ[p][q].inner(GPQ[r][s]);
-								if(canonicalize and p==q){
-									g(p,q,r,s) += Kmat(r,s) - Jmat(r,s);
-								}else if(canonicalize and r==s){
-									g(p,q,r,s) += Kmat(p,q) - Jmat(p,q);
-								}
 								if(std::fabs(g(p,q,r,s)) > h_thresh ){
 									if(world.rank()==0 and basis.size() < 3) std::cout << " g " << p  << " "<<  q  << " "<<  r  << " "<<  s << " = " << g(p,q,r,s) << "\n";
 									++non_zero;
@@ -577,11 +567,6 @@ int main(int argc, char** argv) {
 								// g-tensor
 								if (GPQ[r][s].norm2() >= h_thresh)  {
 									g(p,q,r,s) = PQ[p][q].inner(GPQ[r][s]);
-									if(canonicalize and p==q){
-										g(p,q,r,s) += Kmat(r,s) - Jmat(r,s);
-									}else if(canonicalize and r==s){
-										g(p,q,r,s) += Kmat(p,q) - Jmat(p,q);
-									}
 									g(r,s,p,q) = g(p,q,r,s);
 									if(std::fabs(g(p,q,r,s)) > h_thresh ){
 										if(world.rank()==0 and basis.size() < 3) std::cout << " g " << p  << " "<<  q  << " "<<  r  << " "<<  s << " = " << g(p,q,r,s) << "\n";
@@ -605,11 +590,6 @@ int main(int argc, char** argv) {
 							// g-tensor
 							if (GPQ[r][s].norm2() >= h_thresh)  {
 								g(p,q,r,s) = PQ[p][q].inner(GPQ[r][s]);
-								if(canonicalize and p==q){
-									g(p,q,r,s) += Kmat(r,s) - Jmat(r,s);
-								}else if(canonicalize and r==s){
-									g(p,q,r,s) += Kmat(p,q) - Jmat(p,q);
-								}
 								if(std::fabs(g(p,q,r,s)) > h_thresh ){
 									if(world.rank()==0 and basis.size() < 3) std::cout << " g " << p  << " "<<  q  << " "<<  r  << " "<<  s << " = " << g(p,q,r,s) << "\n";
 									++non_zero;
@@ -661,10 +641,7 @@ int main(int argc, char** argv) {
 		int non_zero_h = 0;
 
 		Tensor<double> h;
-		if(canonicalize){
-			auto F = madness::Fock(world, &nemo);
-			h = F(basis, basis);
-		}else{
+		{
 			auto T = madness::Kinetic<double, 3>(world);
 			auto V = madness::Nuclear(world, &nemo);
 			h = T(basis,basis) + V(basis,basis);
