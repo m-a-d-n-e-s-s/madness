@@ -22,7 +22,7 @@
 #include "Plot_VTK.h"
 #include "ResponseFunction2.h"
 #include "TDHF_Basic_Operators2.h"
-#include "adrian/density_frequency_response_functions.h"
+#include "adrian/density.h"
 #include "adrian/property_operators.h"
 #include "chem/potentialmanager.h"
 #include "chem/projector.h"  // For easy calculation of (1 - \hat{\rho}^0)
@@ -698,7 +698,7 @@ ResponseFunction TDHF::dipoleRHS(World &world,
     reconstruct(world, orbitals);
     // Create guesses
     // multiply sparse dip * orbital i
-    QBP[axis] = mul_sparse(world, dipole.operator_vector[axis], orbitals,
+    QBP[axis] = mul_sparse(world, dipole.operator_vector.at(axis), orbitals,
                            Rparams.small);
     QBP[axis] = Qhat(QBP[axis]);
     world.gop.fence();
