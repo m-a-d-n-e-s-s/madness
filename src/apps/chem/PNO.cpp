@@ -864,7 +864,7 @@ PNOPairs PNO::initialize_pairs(PNOPairs& pairs, const GuessType& inpgt) const {
 			if(not it.diagonal()){
 				pairs.maxranks_ij[it.ij()]=0;
 				pairs.frozen_ij[it.ij()] = true;
-				pairs.pno_ij=vecfuncT();
+				pairs.pno_ij[it.ij()]=vecfuncT();
 			}
 		}
 	}
