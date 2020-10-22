@@ -999,6 +999,8 @@ PNOPairs PNO::adaptive_solver(PNOPairs& pairs)const{
 	if(pairs.empty() or pairs.npairs==0){
 		msg.output("Initializing empty Pairs:");
 		pairs = initialize_pairs(pairs,EMPTY_GUESSTYPE);
+		// set the maxranks to zero (or to pno_ij size if there was a restart)
+		PAIRLOOP(it) pairs.maxranks_ij[it.ij()] = pairs.pno_ij[it.ij()].size();
 	}
 	else{
 		msg.output("Set back intermediates of pairs:");
