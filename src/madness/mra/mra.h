@@ -136,7 +136,11 @@ class Function : public archive::ParallelSerializableObject {
   typedef Vector<double, NDIM> coordT;  ///< Type of vector holding coordinates
 
   /// Asserts that the function is initialized
-  inline void verify() const { MADNESS_ASSERT(impl); }
+  inline void verify() const {
+    if (!impl) {
+      MADNESS_EXCEPTION("Uninitialized Madness Function", 0);
+    };
+  }
 
   /// Returns true if the function is initialized
   bool is_initialized() const { return impl.get(); }
