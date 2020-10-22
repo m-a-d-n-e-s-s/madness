@@ -143,9 +143,9 @@ int main(int argc, char** argv) {
 		if(world.rank()==0){
 			std::cout << "restarting PNO to reload pairs that converged before and were frozen\n";
 		}
-		pno.param.set_user_defined_value("restart", "all");
-		pno.param.set_user_defined_value("no_opt", "all");
-		pno.param.set_user_defined_value("no_guess", "all");
+		pno.param.set_user_defined_value<std::string>("restart", "all");
+		pno.param.set_user_defined_value<std::string>("no_opt", "all");
+		pno.param.set_user_defined_value<std::string>("no_guess", "all");
 		std::vector<PNOPairs> all_pairs;
 		pno.solve(all_pairs);
 
