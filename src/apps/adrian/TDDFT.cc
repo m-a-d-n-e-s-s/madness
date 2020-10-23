@@ -5608,6 +5608,11 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseFunction &rhs_x,
     }
     // Basic output
     if (Rparams.print_level >= 1) end_timer(world, " This iteration:");
+    // plot orbitals
+    if (Rparams.plot_all_orbitals) {
+      PlotGroundandResponseOrbitals(world, iteration, x_response, y_response,
+                                    Rparams, Gparams);
+    }
   }
 }
 // Calculates polarizability according to
