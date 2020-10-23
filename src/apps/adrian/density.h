@@ -29,10 +29,10 @@ namespace madness {
 //
 class FirstOrderDensity {
  private:
-  Tensor<double> omega;
-  std::string property;
+  Tensor<double> omega;  // frequency or fruquencies
+  std::string property;  // excited state, nuclear,dipole
   // operator used create first order density
-  Property property_operator;
+  Property property_operator;  // dipole, nuclear, or none
 
   int num_response_states;
   int num_ground_states;
