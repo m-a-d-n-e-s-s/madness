@@ -165,9 +165,9 @@ struct ResponseParameters {
         f >> restart_file;
       } else if (s == "states") {
         f >> states;
+        response_type = "excited_state";
       } else if (s == "print_level") {
         f >> print_level;
-        response_type = "Excited State";
       } else if (s == "tda") {
         tda = true;
       } else if (s == "larger_subspace") {
