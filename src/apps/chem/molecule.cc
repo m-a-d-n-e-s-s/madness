@@ -151,7 +151,7 @@ void Molecule::read(std::istream& f) {
     rcut.clear();
     eprec = 1e-4;
     units = atomic;
-    madness::position_stream(f, "geometry");
+    madness::position_stream(f, "geometry",false);		// do not rewind
     double scale = 1.0; // Default is atomic units
 
     std::string s;

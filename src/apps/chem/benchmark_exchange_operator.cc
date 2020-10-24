@@ -61,7 +61,7 @@ end
 	K.ntask_per_subworld=100;
 	K.multiworld_=false;
 	K.small_memory(true);
-	K(calc.amo);
+	vecfuncT reference=K(calc.amo);
 	cpu1=cpu_time();
 	if (world.rank()==0) printf("\ntimings exchange operator no multiworld smallmem   %8.2fs\n",cpu1-cpu0);
 
@@ -70,28 +70,36 @@ end
 	K.multiworld_=false;
 	K.small_memory(false);
 	K.same(true);
-	K(calc.amo);
+	vecfuncT tmp=K(calc.amo);
 	cpu1=cpu_time();
 	if (world.rank()==0) printf("\ntimings exchange operator no multiworld largemem   %8.2fs\n",cpu1-cpu0);
+	double err=norm2(world,reference-tmp);
+	print("error wrt small-memory result",err);
 
 	cpu0=cpu1;
 	K.ntask_per_subworld=100;
 	K.multiworld_=true;
-	K(calc.amo);
+	tmp=K(calc.amo);
 	cpu1=cpu_time();
 	if (world.rank()==0) printf("\ntimings exchange operator (ntask_per_subworld=100) %8.2fs\n",cpu1-cpu0);
+	err=norm2(world,reference-tmp);
+	print("error wrt small-memory result",err);
 
 	cpu0=cpu1;
 	K.ntask_per_subworld=10;
-	K(calc.amo);
+	tmp=K(calc.amo);
 	cpu1=cpu_time();
 	if (world.rank()==0) printf("\ntimings exchange operator (ntask_per_subworld=10)  %8.2fs\n",cpu1-cpu0);
+	err=norm2(world,reference-tmp);
+	print("error wrt small-memory result",err);
 
 	cpu0=cpu1;
 	K.ntask_per_subworld=3;
-	K(calc.amo);
+	tmp=K(calc.amo);
 	cpu1=cpu_time();
 	if (world.rank()==0) printf("\ntimings exchange operator (ntask_per_subworld=3)   %8.2fs\n",cpu1-cpu0);
+	err=norm2(world,reference-tmp);
+	print("error wrt small-memory result",err);
 
     madness::finalize();
     return 0;

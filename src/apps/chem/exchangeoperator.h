@@ -75,6 +75,7 @@ public:
 
 				vecfuncT psif_slice(it,it+mo_ket.size());
 				Kf[i]=dot(subworld,mo_ket,psif_slice).truncate();
+				it+=mo_ket.size();
 			}
 //	        psif = mul_sparse(subworld, mo_ket[i], psif, mul_tol); /// was vtol
 //	        gaxpy(world, 1.0, Kf, occ[i], psif);

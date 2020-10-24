@@ -360,7 +360,7 @@ namespace madness {
     	struct Parameters : public QCCalculationParametersBase {
 
         	/// use OEP orbitals
-        	bool do_oep;
+        	bool do_oep=false;
 
         	/// ctor reading out the input file
         	Parameters(World& world) {

@@ -145,7 +145,7 @@ public:
 
 		for (auto t : vtask) if (universe.rank()==0) t->set_waiting();
 		for (int i=0; i<vtask.size(); ++i) add_replicated_task(vtask[i]);
-		print_taskq();
+//		print_taskq();
 
 		universe.gop.fence();
 
