@@ -50,11 +50,14 @@ int main(int argc, char** argv) {
   densityTest.PlotResponseDensity(world);
   densityTest.PrintDensityInformation();
 
-  Property nuclear_operator(world, "nuclear", densityTest.GetMolecule());
-  Property dipole_operator(world, "dipole");
+  ResponseParameters Rparams = densityTest.GetResponseParameters();
+  if (Rparams.property) {  //
+    Property nuclear_operator(world, "nuclear", densityTest.GetMolecule());
+    Property dipole_operator(world, "dipole");
 
-  Tensor<double> alpha = densityTest.ComputeSecondOrderPropertyTensor(world);
-  PrintSecondOrderAnalysis(world, alpha, densityTest.GetFrequencyOmega());
+    Tensor<double> alpha = densityTest.ComputeSecondOrderPropertyTensor(world);
+    PrintSecondOrderAnalysis(world, alpha, densityTest.GetFrequencyOmega());
+  }
 
   world.gop.fence();
   finalize();
