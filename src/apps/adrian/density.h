@@ -65,7 +65,8 @@ class FirstOrderDensity {
     }
     // right now everything uses copy
     property = calc.Rparams.response_type;
-    omega = calc.Rparams.omega;
+    omega = calc.GetFrequencyOmega();
+
     if (property.compare("dipole") == 0) {
       property_operator = Property(world, "dipole");
     } else if (property.compare("nuclear") == 0) {
@@ -89,6 +90,7 @@ class FirstOrderDensity {
   VectorFunction3DT GetDensityVector() { return rho_omega; }
   const Molecule GetMolecule() { return Gparams.molecule; }
   TensorT GetFrequencyOmega() { return omega; }
+  ResponseParameters GetResponseParameters() { return Rparams; }
 
   void PrintDensityInformation() {
     // print
