@@ -80,6 +80,9 @@ ResponseFunction apply(
     World &world,
     std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> &op,
     ResponseFunction &f) {
+  print("size of f", f.size());
+  print("size of op", op.size());
+
   MADNESS_ASSERT(f.size() > 0);
   MADNESS_ASSERT(f.size() == op.size());
   MADNESS_ASSERT(f[0].size() == op[0].size());

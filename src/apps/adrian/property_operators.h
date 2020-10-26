@@ -82,6 +82,8 @@ class Property {
                           .nofence()
                           .truncate_on_project()
                           .truncate_mode(0));
+
+        print("norm of vector ", operator_vector[atom * 3 + axis].norm2());
         // need to project
         //        operator_vector[atom * 3 + axis] = mul_sparse(
         //           world, dv[atom * 3 + axis], Gparams.orbitals,

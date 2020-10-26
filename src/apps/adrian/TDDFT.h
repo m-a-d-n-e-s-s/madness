@@ -177,6 +177,8 @@ class TDHF {
   ResponseFunction GetResponseFunctions(std::string xy);
   ResponseParameters GetResponseParameters();
   GroundParameters GetGroundParameters();
+  // Get Frequencies Omega
+  Tensor<double> GetFrequencyOmega();
 
  private:
   // Member variables
@@ -417,6 +419,11 @@ class TDHF {
                        Tensor<double> &ground, Tensor<double> &omega,
                        double small, double thresh);
 
+  // Returns a vector of BSH operators
+  std::vector<std::vector<std::shared_ptr<real_convolution_3d>>>
+  CreateBSHOperatorPropertyVector(World &world, Tensor<double> &shift,
+                                  Tensor<double> &ground, Tensor<double> &omega,
+                                  double small, double thresh);
   // Returns the second order update to the energy
   Tensor<double> calculate_energy_update(World &world, ResponseFunction &gamma,
                                          ResponseFunction &f_residuals,
