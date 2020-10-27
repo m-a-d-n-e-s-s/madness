@@ -5979,8 +5979,8 @@ void TDHF::ComputeFrequencyResponse(World &world) {
   }  // end for --finished reponse density
 
   // Have response function, now calculate polarizability for this axis
-  polarizability(world, polar_tensor);
-  PrintPolarizabilityAnalysis(world, polar_tensor, omega);
+  // polarizability(world, polar_tensor);
+  // PrintPolarizabilityAnalysis(world, polar_tensor, omega);
 
   // Print total time
   // Precision is set to 10 coming in, drop it to 2
