@@ -733,7 +733,7 @@ ResponseFunction TDHF::derivativesRHS(World &world, Molecule &molecule) const {
                      Gparams.orbitals, Rparams.small);
 
       for (size_t j = 0; j < Gparams.orbitals.size(); j++) {
-        print("norm of QBP vector i: ", QBP[atom * 3 + axis][j].norm2());
+        // print("norm of QBP vector i: ", QBP[atom * 3 + axis][j].norm2());
       }
 
       // project rhs vectors for state
@@ -1836,27 +1836,31 @@ TDHF::CreateBSHOperatorPropertyVector(World &world, Tensor<double> &shift,
 
   // Sizes inferred from ground and omega
   int n = ground.size();  // number of orbitals
-  int m = omega.size();   // number of frequency states
+  int num_states = Rparams.states;
+  int num_freq = omega.size();  // number of frequency states
+  // print("num of freq", num_freq);
 
   // Make the vector
   std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> operators;
 
   // Make a BSH operator for each response function
   // Run over excited components
-  for (int k = 0; k < m; k++) {
+  // print("num of states bsh step", num_states);
+  for (int k = 0; k < num_freq; k++) {
     // Container for intermediary
     std::vector<std::shared_ptr<real_convolution_3d>> temp(n);
-
-    // Run over occupied components
-    for (int p = 0; p < n; p++) {
-      temp[p] =
-          std::shared_ptr<SeparatedConvolution<double, 3>>(BSHOperatorPtr3D(
-              world, sqrt(-2.0 * (ground(p) + omega(k) + shift(k, p))), small,
-              thresh));
+    for (int state = 0; state < num_states; state++) {
+      // Run over occupied components
+      for (int p = 0; p < n; p++) {
+        temp[p] =
+            std::shared_ptr<SeparatedConvolution<double, 3>>(BSHOperatorPtr3D(
+                world, sqrt(-2.0 * (ground(p) + omega(k) + shift(k, p))), small,
+                thresh));
+      }
+      operators.push_back(temp);
     }
 
     // Add intermediary to return container
-    operators.push_back(temp);
   }
 
   // End timer
@@ -5415,7 +5419,7 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseFunction &rhs_x,
 
   // Set omega (its constant here,
   // and has only 1 entry for each axis)
-  omega = Tensor<double>(3);
+  omega = Tensor<double>(1);
   omega(0, 0) = Rparams.omega;
 
   // Verify if any shift is needed (NEEDS CHECKING)
@@ -5437,18 +5441,18 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseFunction &rhs_x,
 
   // Construct BSH operators
   std::vector<std::vector<std::shared_ptr<real_convolution_3d>>>
-      bsh_x_operators = create_bsh_operators(world, x_shifts, Gparams.energies,
-                                             omega, Rparams.small,
-                                             FunctionDefaults<3>::get_thresh());
+      bsh_x_operators = CreateBSHOperatorPropertyVector(
+          world, x_shifts, Gparams.energies, omega, Rparams.small,
+          FunctionDefaults<3>::get_thresh());
   std::vector<std::vector<std::shared_ptr<real_convolution_3d>>>
       bsh_y_operators;
 
   // Negate omega to make this next set of BSH operators \eps - omega
   if (Rparams.omega != 0.0) {
     omega = -omega;
-    bsh_y_operators =
-        create_bsh_operators(world, y_shifts, Gparams.energies, omega,
-                             Rparams.small, FunctionDefaults<3>::get_thresh());
+    bsh_y_operators = CreateBSHOperatorPropertyVector(
+        world, y_shifts, Gparams.energies, omega, Rparams.small,
+        FunctionDefaults<3>::get_thresh());
   }
 
   // Now to iterate
@@ -5950,14 +5954,14 @@ void TDHF::ComputeFrequencyResponse(World &world) {
           RHS_Vector = dipoleRHS(world, Gparams.orbitals);
         } else if (Rparams.nuclear) {
           // set guesses
-          print("Creating RHS for Nuclear Operators");
+          // print("Creating X for Nuclear Operators");
           // create zero guesses
           x_response =
               ResponseFunction(world, Rparams.states, Gparams.orbitals.size());
           y_response = x_response.copy();
 
-          print("x norms:");
-          print(x_response.norm2());
+          // print("x norms:");
+          // print(x_response.norm2());
 
           RHS_Vector = derivativesRHS(world, Gparams.molecule);
         } else if (Rparams.order2) {
