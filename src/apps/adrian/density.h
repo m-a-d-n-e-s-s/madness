@@ -63,13 +63,18 @@ class FirstOrderDensity {
     } else {
       calc.solve(world);
     }
+    // stuff i want to save
+    Rparams = calc.GetResponseParameters();
+    Gparams = calc.GetGroundParameters();
     // right now everything uses copy
     property = calc.Rparams.response_type;
     omega = calc.GetFrequencyOmega();
 
     if (property.compare("dipole") == 0) {
+      if (world.rank() == 0) print("creating dipole property operator");
       property_operator = Property(world, "dipole");
     } else if (property.compare("nuclear") == 0) {
+      if (world.rank() == 0) print("creating nuclear property operator");
       property_operator = Property(world, "nuclear", Gparams.molecule);
     }
 
@@ -78,9 +83,6 @@ class FirstOrderDensity {
 
     num_response_states = x.size();
     num_ground_states = x[0].size();
-    // stuff i want to save
-    Rparams = calc.GetResponseParameters();
-    Gparams = calc.GetGroundParameters();
     // get the response densities for our states
     rho_omega = calc.transition_density(world, Gparams.orbitals, x, y);
   }
@@ -126,6 +128,15 @@ class FirstOrderDensity {
     }
   }
   Tensor<double> ComputeSecondOrderPropertyTensor(World &world) {
+    // do some printing before we compute so we know what we are working with
+
+    for (size_t i = 0; i < property_operator.operator_vector.size(); i++) {
+      if (world.rank() == 0) {
+        print("property operator vector i = ", i,
+              "norm = ", property_operator.operator_vector[i].norm2());
+      }
+    }
+
     return matrix_inner(world, rho_omega, property_operator.operator_vector,
                         true);
   }
