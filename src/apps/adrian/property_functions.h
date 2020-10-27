@@ -25,7 +25,8 @@ Tensor<double> ComputeSecondOrderPropertyTensor(World &world,
 }
 
 void PrintSecondOrderAnalysis(World &world, const Tensor<double> alpha_tensor,
-                              const Tensor<double> omega) {
+                              const Tensor<double> omega,
+                              const ResponseParameters Rparams) {
   Tensor<double> V, epolar;
   syev(alpha_tensor, V, epolar);
   double Dpolar_average = 0.0;
@@ -38,6 +39,8 @@ void PrintSecondOrderAnalysis(World &world, const Tensor<double> alpha_tensor,
                       std::pow(alpha_tensor(1, 1) - alpha_tensor(2, 2), 2) +
                       std::pow(alpha_tensor(2, 2) - alpha_tensor(0, 0), 2));
 
+  int num_states = Rparams.states;
+
   if (world.rank() == 0) {
     print("\nTotal Dynamic Polarizability Tensor");
     printf("\nFrequency  = %.6f a.u.\n\n", omega(0, 0));
@@ -48,6 +51,10 @@ void PrintSecondOrderAnalysis(World &world, const Tensor<double> alpha_tensor,
     printf("\tIsotropic   = \t %.6f \n", Dpolar_average);
     printf("\tAnisotropic = \t %.6f \n", Dpolar_iso);
     printf("\n");
+
+    for (long i = 0; i < num_states; i++) {
+      print(epolar[i]);
+    }
   }
 }
 }  // namespace madness
