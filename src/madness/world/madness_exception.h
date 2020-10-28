@@ -45,84 +45,82 @@
 #ifndef MADNESS_WORLD_MADNESS_EXCEPTION_H__INCLUDED
 #define MADNESS_WORLD_MADNESS_EXCEPTION_H__INCLUDED
 
-#include <cstdlib>
-#include <iosfwd>
-#include <exception>
 #include <madness/madness_config.h>
+
+#include <cstdlib>
+#include <exception>
+#include <iosfwd>
 #ifdef MADNESS_ASSERTIONS_ASSERT
-#  include <cassert>
+  #include <cassert>
 #endif
 
 #ifndef MADNESS_DISPLAY_EXCEPTION_BREAK_MESSAGE
-/// Display the exception break message unless otherwise specified.
-#define MADNESS_DISPLAY_EXCEPTION_BREAK_MESSAGE 1
+  /// Display the exception break message unless otherwise specified.
+  #define MADNESS_DISPLAY_EXCEPTION_BREAK_MESSAGE 1
 #endif
 
 namespace madness {
 
-    /// Base class for exceptions thrown in MADNESS.
+/// Base class for exceptions thrown in MADNESS.
 
-    /// Most exceptions thrown in MADNESS should be derived from this.
-    class MadnessException : public std::exception {
-    public:
-        const char* msg; ///< The error message.
-        const char* assertion; ///< String describing the assertion.
-        const int value; ///< Value associated with the exception.
-        const int line; ///< Line number where the exception occurred.
-        const char *function; ///< Function where the exception occurred.
-        const char *filename; ///< File where the exception occurred.
+/// Most exceptions thrown in MADNESS should be derived from this.
+class MadnessException : public std::exception {
+ public:
+  const char* msg;        ///< The error message.
+  const char* assertion;  ///< String describing the assertion.
+  const int value;        ///< Value associated with the exception.
+  const int line;         ///< Line number where the exception occurred.
+  const char* function;   ///< Function where the exception occurred.
+  const char* filename;   ///< File where the exception occurred.
 
-        /// Constructor that processes the requisite information.
+  /// Constructor that processes the requisite information.
 
-        /// Capturing the line/function/filename info is best done with the
-        /// macros listed below.
-        /// \param[in] m The error message.
-        /// \param[in] a String describing the exception.
-        /// \param[in] v Value associated with the exception.
-        /// \param[in] l Line number where the exception occurred.
-        /// \param[in] fn Function where the exception occurred.
-        /// \param[in] f File where the exception occurred.
-        MadnessException(const char* m, const char *a, int v,
-                         int l, const char *fn, const char *f)
-                : msg(m)
-                , assertion(a)
-                , value(v)
-                , line(l)
-                , function(fn)
-                , filename(f) {}
+  /// Capturing the line/function/filename info is best done with the
+  /// macros listed below.
+  /// \param[in] m The error message.
+  /// \param[in] a String describing the exception.
+  /// \param[in] v Value associated with the exception.
+  /// \param[in] l Line number where the exception occurred.
+  /// \param[in] fn Function where the exception occurred.
+  /// \param[in] f File where the exception occurred.
+  MadnessException(const char* m, const char* a, int v, int l, const char* fn,
+                   const char* f)
+      : msg(m), assertion(a), value(v), line(l), function(fn), filename(f) {}
 
-        /// Returns the error message, as specified by `std::exception`.
+  /// Returns the error message, as specified by `std::exception`.
 
-        /// \return The error message.
-        virtual const char* what() const throw() {
-            return msg;
-        }
-    };
+  /// \return The error message.
+  virtual const char* what() const throw() { return msg; }
+};
 
-    /// Enables easy printing of a \c MadnessException.
+/// Enables easy printing of a \c MadnessException.
 
-    /// \param[in,out] out Output stream.
-    /// \param[in] e The \c MadnessException.
-    /// \return The output stream.
-    std::ostream& operator <<(std::ostream& out, const MadnessException& e);
+/// \param[in,out] out Output stream.
+/// \param[in] e The \c MadnessException.
+/// \return The output stream.
+std::ostream& operator<<(std::ostream& out, const MadnessException& e);
 
-    /// This function is executed just before a \c MadnessException is thrown.
+/// This function is executed just before a \c MadnessException is thrown.
 
-    /// \param[in] message True to print an error message to \c cerr; false otherwise.
-    void exception_break(bool message);
+/// \param[in] message True to print an error message to \c cerr; false
+/// otherwise.
+void exception_break(bool message);
 
 /// Macro for throwing a MADNESS exception.
 
 /// \throws A \c madness::MadnessException.
 /// \param[in] msg The error message.
 /// \param[in] value The value associated with the exception.
-#define MADNESS_EXCEPTION(msg,value)  { \
-    madness::exception_break(MADNESS_DISPLAY_EXCEPTION_BREAK_MESSAGE); \
-    throw madness::MadnessException(msg,0,value,__LINE__,__FUNCTION__,__FILE__); \
-}
+#define MADNESS_EXCEPTION(msg, value)                                      \
+  {                                                                        \
+    madness::exception_break(MADNESS_DISPLAY_EXCEPTION_BREAK_MESSAGE);     \
+    throw madness::MadnessException(msg, 0, value, __LINE__, __FUNCTION__, \
+                                    __FILE__);                             \
+  }
 
 // the following define/undef are for documentation purposes only.
-/// Assert a condition that should be free of side-effects since in release builds this might be a no-op.
+/// Assert a condition that should be free of side-effects since in release
+/// builds this might be a no-op.
 
 /// Depending on the configuration, one of the following happens if
 /// \c condition is false:
@@ -136,43 +134,58 @@ namespace madness {
 
 /// Same as MADNESS_ASSERT , but never throws
 
-/// Behaves like MADNESS_ASSERT, except when the latter throws madness::MadnessException this aborts
-/// \param[in] condition The condition to be asserted.
+/// Behaves like MADNESS_ASSERT, except when the latter throws
+/// madness::MadnessException this aborts \param[in] condition The condition to
+/// be asserted.
 #define MADNESS_ASSERT_NOEXCEPT(condition)
 #undef MADNESS_ASSERT_NOEXCEPT
 
 #ifdef MADNESS_ASSERTIONS_ABORT
-#  define MADNESS_ASSERT(condition) \
-     do {if (!(condition)) { std::abort(); }} while (0)
-#  define MADNESS_ASSERT_NOEXCEPT(condition) MADNESS_ASSERT(condition)
+  #define MADNESS_ASSERT(condition) \
+    do {                            \
+      if (!(condition)) {           \
+        std::abort();               \
+      }                             \
+    } while (0)
+  #define MADNESS_ASSERT_NOEXCEPT(condition) MADNESS_ASSERT(condition)
 #endif
 
 #ifdef MADNESS_ASSERTIONS_DISABLE
-// this avoid unused variable warnings, see http://cnicholson.net/2009/02/stupid-c-tricks-adventures-in-assert/
-#  define MADNESS_ASSERT(condition) do { (void)sizeof(condition);} while (0)    
-#  define MADNESS_ASSERT_NOEXCEPT(condition) MADNESS_ASSERT(condition)
+  // this avoid unused variable warnings, see
+  // http://cnicholson.net/2009/02/stupid-c-tricks-adventures-in-assert/
+  #define MADNESS_ASSERT(condition) \
+    do {                            \
+      (void)sizeof(condition);      \
+    } while (0)
+  #define MADNESS_ASSERT_NOEXCEPT(condition) MADNESS_ASSERT(condition)
 #endif
 
 #ifdef MADNESS_ASSERTIONS_ASSERT
-#  define MADNESS_ASSERT(condition) assert(condition)
-#  define MADNESS_ASSERT_NOEXCEPT(condition) MADNESS_ASSERT(condition)
+  #define MADNESS_ASSERT(condition) assert(condition)
+  #define MADNESS_ASSERT_NOEXCEPT(condition) MADNESS_ASSERT(condition)
 #endif
 
 #ifdef MADNESS_ASSERTIONS_THROW
-#  define MADNESS_ASSERT(condition) \
-    do { \
-        if (!(condition)) { \
-            madness::exception_break(MADNESS_DISPLAY_EXCEPTION_BREAK_MESSAGE); \
-            throw madness::MadnessException("MADNESS ASSERTION FAILED: " , \
-                                            (#condition),0,__LINE__,__FUNCTION__,__FILE__); \
-        } \
+  #define MADNESS_ASSERT(condition)                                        \
+    do {                                                                   \
+      if (!(condition)) {                                                  \
+        madness::exception_break(MADNESS_DISPLAY_EXCEPTION_BREAK_MESSAGE); \
+        throw madness::MadnessException(                                   \
+            "MADNESS ASSERTION FAILED: ", (#condition), 0, __LINE__,       \
+            __FUNCTION__, __FILE__);                                       \
+      }                                                                    \
     } while (0)
-#  define MADNESS_ASSERT_NOEXCEPT(condition) \
-     do {if (!(condition)) { std::abort(); }} while (0)
+  #define MADNESS_ASSERT_NOEXCEPT(condition) \
+    do {                                     \
+      if (!(condition)) {                    \
+        std::abort();                        \
+      }                                      \
+    } while (0)
 #endif
 
 // the following define/undef are for documentation purposes only.
-/// Check a condition --- even in a release build the condition is always evaluated so it can have side effects
+/// Check a condition --- even in a release build the condition is always
+/// evaluated so it can have side effects
 
 /// Depending on the configuration, one of the following happens if
 /// \c condition is false:
@@ -182,21 +195,27 @@ namespace madness {
 #define MADNESS_CHECK(condition)
 #undef MADNESS_CHECK
 
-// If madness assertions throw/assert/disabled, then madness checks throw.  Otherwise both assertions and checks abort.
+// If madness assertions throw/assert/disabled, then madness checks throw.
+// Otherwise both assertions and checks abort.
 #ifdef MADNESS_ASSERTIONS_ABORT
-#  define MADNESS_CHECK(condition)                      \
-    do {if (!(condition)) { std::abort(); }} while (0)
+  #define MADNESS_CHECK(condition) \
+    do {                           \
+      if (!(condition)) {          \
+        std::abort();              \
+      }                            \
+    } while (0)
 #else
-#  define MADNESS_CHECK(condition)              \
-    do { \
-        if (!(condition)) { \
-            madness::exception_break(MADNESS_DISPLAY_EXCEPTION_BREAK_MESSAGE); \
-            throw madness::MadnessException("MADNESS CHECK FAILED: " , \
-                                            (#condition),0,__LINE__,__FUNCTION__,__FILE__); \
-        } \
+  #define MADNESS_CHECK(condition)                                             \
+    do {                                                                       \
+      if (!(condition)) {                                                      \
+        madness::exception_break(MADNESS_DISPLAY_EXCEPTION_BREAK_MESSAGE);     \
+        throw madness::MadnessException(                                       \
+            "MADNESS CHECK FAILED: ", (#condition), 0, __LINE__, __FUNCTION__, \
+            __FILE__);                                                         \
+      }                                                                        \
     } while (0)
 #endif
 
-} // namespace madness
+}  // namespace madness
 
-#endif // MADNESS_WORLD_MADNESS_EXCEPTION_H__INCLUDED
+#endif  // MADNESS_WORLD_MADNESS_EXCEPTION_H__INCLUDED
