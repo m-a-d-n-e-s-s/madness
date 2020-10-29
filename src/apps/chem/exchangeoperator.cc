@@ -86,8 +86,13 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::K_macrotask(const vecfuncT& vke
 	MacroTaskQ taskq(world,world.size());
 
 	double cpu0=cpu_time();
-	taskq.cloud.store(world,mo_bra,0);
-	taskq.cloud.store(world,mo_ket,1);
+	for (int i=0; i<nocc; ++i) {
+		taskq.cloud.store(world,mo_bra[i],i);
+		taskq.cloud.store(world,mo_ket[i],i+nocc);
+	}
+
+//	taskq.cloud.store(world,mo_bra,0);
+//	taskq.cloud.store(world,mo_ket,1);
 	taskq.cloud.print_timings(world);
 	double cpu1=cpu_time();
 	print("cpu time for storing ",cpu1-cpu0);
@@ -126,6 +131,7 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::K_macrotask(const vecfuncT& vke
 	if (world.rank()==0) printf("loading wall time in collection step %4.1fs\n",cpu3-cpu2);
 
 	taskq.cloud.print_timings(world);
+	taskq.get_subworld().gop.fence();
 	return Kf;
 }
 

@@ -58,8 +58,26 @@ public:
 	    	double cpu0=cpu_time();
 	    	vecfuncT vf=cloud.load<vecfuncT> (subworld,inputrecord);
 
-	    	if (not mo_bra.get()) mo_bra.reset(new vecfuncT(cloud.load<vecfuncT>(subworld,0)));
-	    	if (not mo_ket.get()) mo_ket.reset(new vecfuncT(cloud.load<vecfuncT>(subworld,1)));
+
+//			for (int i=0; i<nocc; ++i) {
+//				(*mo_bra)[i]=cloud.load<functionT>(subworld,i);
+//				(*mo_ket)[i]=cloud.load<functionT>(subworld,i+nocc);
+//			}
+
+	    	if (not mo_bra.get()) {
+				mo_bra.reset(new vecfuncT(nocc));
+				for (int i=0; i<nocc; ++i) {
+					(*mo_bra)[i]=cloud.load<functionT>(subworld,i);
+				}
+//	    		mo_bra.reset(new vecfuncT(cloud.load<vecfuncT>(subworld,0)));
+	    	}
+	    	if (not mo_ket.get()) {
+				mo_ket.reset(new vecfuncT(nocc));
+				for (int i=0; i<nocc; ++i) {
+					(*mo_ket)[i]=cloud.load<functionT>(subworld,i+nocc);
+				}
+//	    		mo_ket.reset(new vecfuncT(cloud.load<vecfuncT>(subworld,1)));
+	    	}
 
 			// psif is a flattened vector (f_i, bra)
 			vecfuncT psif;
