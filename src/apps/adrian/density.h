@@ -65,69 +65,8 @@ class FirstOrderDensity {
   void PlotResponseDensity(World &world);
 
   Tensor<double> ComputeSecondOrderPropertyTensor(World &world);
-  void SaveDensity(World &world, std::string name) {
-    // Archive to write everything to
-    archive::ParallelOutputArchive ar(world, name.c_str(), 1);
-    // Just going to enforce 1 io server
-
-    ar &property;
-    ar &omega;
-    ar &num_response_states;
-    ar &num_ground_states;
-    ar &xcf;
-    // Save response functions x and y
-    // x first
-    for (int i = 0; i < num_response_states; i++) {
-      for (int j = 0; j < num_ground_states; j++) {
-        ar &x[i][j];
-      }
-    }
-
-    // y second
-    for (int i = 0; i < num_response_states; i++) {
-      for (int j = 0; j < num_ground_states; j++) {
-        ar &y[i][j];
-      }
-    }
-  }
+  void SaveDensity(World &world, std::string name);
   // Load a response calculation
-  void LoadDensity(World &world, std::string name) {
-    // The archive to read from
-    archive::ParallelInputArchive ar(world, name.c_str());
-    // Reading in, in this order;
-
-    ar &property;
-    if (property.compare("dipole") == 0) {
-      if (property.compare("dipole") == 0) {
-        if (world.rank() == 0) print("creating dipole property operator");
-        this->property_operator = Property(world, "dipole");
-      } else if (property.compare("nuclear") == 0) {
-        if (world.rank() == 0) print("creating nuclear property operator");
-        this->property_operator = Property(world, "nuclear", Gparams.molecule);
-      }
-    }
-
-    ar &omega;
-    ar &num_response_states;
-    ar &num_ground_states;
-    ar &xcf;
-
-    x = ResponseFunction(world, num_response_states, num_ground_states);
-    y = ResponseFunction(world, num_response_states, num_ground_states);
-
-    for (int i = 0; i < Rparams.states; i++) {
-      for (unsigned int j = 0; j < Gparams.num_orbitals; j++) {
-        ar &x[i][j];
-      }
-    }
-    world.gop.fence();
-
-    for (int i = 0; i < Rparams.states; i++) {
-      for (unsigned int j = 0; j < Gparams.num_orbitals; j++) {
-        ar &y[i][j];
-        world.gop.fence();
-      }
-    }
-  }
+  void LoadDensity(World &world, std::string name);
 };
 #endif  // SRC_APPS_ADRIAN_DENSITY_H_
