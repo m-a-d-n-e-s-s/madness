@@ -1,5 +1,6 @@
 cmake -DCMAKE_TOOLCHAIN_FILE=/gpfs/projects/rjh/adrian/madness/cmake/toolchains/generic-mkl-tbb.cmake \
       -DCMAKE_BUILD_TYPE=Debug \
+      -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
       -DBUILD_SHARED_LIBS=OFF \
       -DENABLE_TBB=OFF \
       -DLIBXC_LIBRARIES=/gpfs/projects/rjh/libxc-3.0.0/lib/libxc.a \
@@ -14,3 +15,4 @@ cmake -DCMAKE_TOOLCHAIN_FILE=/gpfs/projects/rjh/adrian/madness/cmake/toolchains/
       -DCMAKE_CXX_STANDARD=17 \
       ..
 #      -DBLA_STATIC=TRUE
+    #  -DCMAKE_CXX_FLAGS_RELEASE="g-O0" \
