@@ -64,7 +64,14 @@ struct ResponseParameters {
                    ///< functional is used
   bool save;       ///< Controls if orbitals will be saved each iteration
   std::string save_file;  ///< Flag to save to file
-  int guess_max_iter;     ///< Maximum number of iterations for guess functions
+
+  bool save_density;
+  std::string save_density_file;  ///< Flag to save to file
+
+  bool load_density;
+  std::string load_density_file;  ///< Flag to save to file
+
+  int guess_max_iter;  ///< Maximum number of iterations for guess functions
 
   // Start of properties
   bool property;              ///< Flag that this is a properties calculation
@@ -129,6 +136,10 @@ struct ResponseParameters {
         xc("hf"),
         save(false),
         save_file(""),
+        save_density(false),
+        save_density_file(""),
+        load_density(false),
+        load_density_file(""),
         guess_max_iter(5),
         property(false),
         response_type(),
@@ -239,6 +250,12 @@ struct ResponseParameters {
       } else if (s == "save") {
         save = true;
         f >> save_file;
+      } else if (s == "save_density") {
+        save_density = true;
+        f >> save_density_file;
+      } else if (s == "load_density") {
+        load_density = true;
+        f >> load_density_file;
       } else if (s == "guess_iter") {
         f >> guess_max_iter;
       } else if (s == "property") {
