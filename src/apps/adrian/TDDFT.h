@@ -67,8 +67,6 @@
   #include "ResponsePotential.h"
   #include "TDHF_Basic_Operators2.h"
 
-namespace madness {
-
 // Functor from SCF.cc (it wasn't linking right, no idea why, so just copied and
 // renamed here) A copy of a MADNESS functor to compute the cartesian moment x^i
 // * y^j * z^k (i, j, k integer and >= 0)
@@ -237,14 +235,15 @@ class TDHF {
  public:
   // Collective constructor for response uses contents of file \c filename and
   // broadcasts to all nodes
-  TDHF(World &world,             // MADNESS world object
-       const char *input_file);  // Input file
+  TDHF(World &world,           // MADNESS world object
+       const char *filename);  // Input file
 
   // Collective constructor for Response uses contens of steream \c input and
   // broadcasts to all nodes
   TDHF(World &world,                          // MADNESS world object
        std::shared_ptr<std::istream> input);  // Pointer to input stream
 
+  TDHF(World &world, ResponseParameters rparams, GroundParameters gparams);
   // Saves a response calculation
   void save(World &world, std::string name);
 
@@ -259,9 +258,6 @@ class TDHF {
 
   // Prints norms of the given vector
   void print_norms(World &world, ResponseFunction function);
-
-  // Prints molecule geometry
-  void print_molecule(World &world);
 
   // Returns a set of vector of vector of real_function_3d of proper size,
   // initialized to zero
@@ -671,7 +667,6 @@ class TDHF {
   void solve_polarizability(World &world);
   void ComputeFrequencyResponse(World &world);
 };
-}  // namespace madness
 #endif  // SRC_APPS_ADRIAN_TDDFT_H_
 
 // Deuces

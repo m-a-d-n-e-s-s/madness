@@ -23,12 +23,12 @@
 #include "ResponseFunction2.h"
 #include "TDHF_Basic_Operators2.h"
 #include "adrian/density.h"
+#include "adrian/global_functions.h"
+#include "adrian/property_functions.h"
 #include "adrian/property_operators.h"
 #include "chem/potentialmanager.h"
 #include "chem/projector.h"  // For easy calculation of (1 - \hat{\rho}^0)
 #include "madness/mra/funcdefaults.h"
-
-namespace madness {  // NO LINT
 
 // KAIN allocator for vectorfunctions
 struct TDHF_allocator {
@@ -157,7 +157,7 @@ TDHF::TDHF(World &world, std::shared_ptr<std::istream> input) {
   Gparams.read(world, Rparams.archive);
   if (world.rank() == 0) {
     Gparams.print_params();
-    print_molecule(world);
+    print_molecule(world, Gparams);
   }
   // if a proerty calculation set the number of states
   if (Rparams.property) {
@@ -168,6 +168,45 @@ TDHF::TDHF(World &world, std::shared_ptr<std::istream> input) {
   if (world.rank() == 0) {
     Rparams.print_params();
   }
+  // Broadcast to all other nodes
+  world.gop.broadcast_serializable(Rparams, 0);
+
+  // Read in archive
+  // Create the projector Qhat to be used in any calculation
+
+  // Set some function defaults
+  FunctionDefaults<3>::set_cubic_cell(-Gparams.L, Gparams.L);
+  FunctionDefaults<3>::set_truncate_mode(1);
+  FunctionDefaults<3>::set_truncate_on_project(true);
+
+  // Initialize response state xcfuntion object
+  xcf.initialize(Rparams.xc, false, world, true);
+
+  // Create the masking function
+  mask = real_function_3d(
+      real_factory_3d(world).f(mask3).initial_level(4).norefine());
+
+  if (world.size() > 1) {
+    // Start a timer
+    if (Rparams.print_level >= 1) start_timer(world);
+    if (world.rank() == 0) print("");  // Makes it more legible
+
+    LoadBalanceDeux<3> lb(world);
+    for (unsigned int j = 0; j < Gparams.num_orbitals; j++) {
+      lb.add_tree(Gparams.orbitals[j], lbcost<double, 3>(1.0, 8.0), true);
+    }
+    FunctionDefaults<3>::redistribute(world, lb.load_balance(2));
+
+    if (Rparams.print_level >= 1) end_timer(world, "Load balancing:");
+  }
+}
+// Constructor that actually does stuff
+TDHF::TDHF(World &world, ResponseParameters rparams, GroundParameters gparams) {
+  // Start the timer
+  this->Rparams = rparams;
+  this->Gparams = gparams;
+  start_timer(world);
+
   // Broadcast to all other nodes
   world.gop.broadcast_serializable(Rparams, 0);
 
@@ -348,36 +387,6 @@ void TDHF::print_norms(World &world, ResponseFunction f) {
 }
 
 // Small function to print geometry of a molecule nicely
-void TDHF::print_molecule(World &world) {
-  if (world.rank() == 0) {
-    // Precision is set to 10 coming in, drop it to 5
-    std::cout.precision(5);
-    std::cout << std::fixed;
-
-    // First get atoms
-    const std::vector<Atom> atoms = Gparams.molecule.get_atoms();
-    int num_atoms = atoms.size();
-
-    // Now print
-    print("\n   Geometry Information");
-    print("   --------------------\n");
-    print("   Units: a.u.\n");
-    print(" Atom            x                 y                 z");
-    print("----------------------------------------------------------------");
-    for (int j = 0; j < num_atoms; j++) {
-      Vector<double, 3> coords = atoms[j].get_coords();
-      std::cout << std::setw(3)
-                << atomic_number_to_symbol(atoms[j].get_atomic_number());
-      std::cout << std::setw(18) << std::right << coords[0] << std::setw(18)
-                << coords[1] << std::setw(18) << coords[2] << endl;
-    }
-    print("");
-
-    // Reset precision
-    std::cout.precision(10);
-    std::cout << std::scientific;
-  }
-}
 
 // Radial function
 static double kronecker(int l, int n) {
@@ -5989,9 +5998,7 @@ void TDHF::ComputeFrequencyResponse(World &world) {
 
   // Get start time
   end_timer(world, "total:");
-}
-}  // namespace madness
-// End solve_polar
+}  // end compute frequency response
 
 // Exactam eam
 // Deuces
