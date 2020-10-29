@@ -48,13 +48,5 @@ class Property {
 
   Property(World &world, std::string property_type, Molecule molecule);
 };
-// returns tensor alpha_ij=inner(rho_b,op_c)
-Tensor<double> ComputeSecondOrderPropertyTensor(World &world,
-                                                const VectorFunction3DT &rho_b,
-                                                const Property &op_c);
-
-void PrintSecondOrderAnalysis(World &world, const Tensor<double> alpha_tensor,
-                              const Tensor<double> omega,
-                              const ResponseParameters Rparams);
 
 #endif  // SRC_APPS_ADRIAN_PROPERTY_OPERATORS_H_
