@@ -50,6 +50,8 @@ public:
 	bool is_waiting() const {return stat==Waiting;}
 
 	virtual void run(World& world, Cloud& cloud, taskqT& taskq) = 0;
+	virtual void cleanup() = 0;		// clear static data (presumably persistent input data)
+
     virtual void print_me(std::string s="") const {}
 
 };
@@ -75,6 +77,8 @@ public:
 		dynamic_cast<macrotaskT*>(this)->run(world,cloud);
 		world.gop.fence();
 	}
+
+	void cleanup() {};
 };
 
 
@@ -169,6 +173,9 @@ public:
 		universe.gop.fence();
 		double cpu11=cpu_time();
 		if (universe.rank()==0) printf("completed taskqueue after %4.1fs\n",cpu11-cpu00);
+
+		// cleanup task-persistent input data
+		for (auto task : taskq) task->cleanup();
 
 
 	}

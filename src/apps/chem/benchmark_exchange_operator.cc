@@ -54,6 +54,16 @@ end
 	me.value(calc.molecule.get_all_coords());
 	Exchange<double,3> K=Exchange<double,3>(world,&calc,0).multiworld(true);
 
+	if (world.size() > 1) {
+		LoadBalanceDeux < 3 > lb(world);
+		for (unsigned int i = 0; i < calc.amo.size(); ++i) {
+			lb.add_tree(calc.amo[i], lbcost<double, 3>(1.0, 8.0), false);
+		}
+		world.gop.fence();
+		FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(calc.param.loadbalparts())); // 6.0 needs retuning after param.vnucextra
+		world.gop.fence();
+	}
+
 	double cpu1=cpu_time();
 	if (world.rank()==0) printf("\ntimings for preparation   %8.2fs\n",cpu1-cpu0);
 

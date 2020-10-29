@@ -16,7 +16,6 @@ namespace madness {
 class SCF;
 class Nemo;
 
-typedef std::vector<real_function_3d> vecfuncT;
 
 
 template<typename T, std::size_t NDIM>
@@ -29,7 +28,10 @@ public:
 
 		typedef std::vector<std::shared_ptr<MacroTaskBase> > taskqT;
 
+		static inline std::shared_ptr<vecfuncT> mo_ket, mo_bra;
 	public:
+
+
 		long inputrecord=0;
 		long outputrecord=0;
 		long nocc=0;
@@ -53,17 +55,16 @@ public:
 	    	            CoulombOperatorPtr(subworld, lo, econv));
 
 			// load the K operator argument and the orbitals of K
+	    	double cpu0=cpu_time();
 	    	vecfuncT vf=cloud.load<vecfuncT> (subworld,inputrecord);
-			vecfuncT mo_bra(nocc), mo_ket(nocc);
-			for (int i=0; i<nocc; ++i) {
-				mo_bra[i]=cloud.load<functionT>(subworld,i);
-				mo_ket[i]=cloud.load<functionT>(subworld,i+nocc);
-			}
+
+	    	if (not mo_bra.get()) mo_bra.reset(new vecfuncT(cloud.load<vecfuncT>(subworld,0)));
+	    	if (not mo_ket.get()) mo_ket.reset(new vecfuncT(cloud.load<vecfuncT>(subworld,1)));
 
 			// psif is a flattened vector (f_i, bra)
 			vecfuncT psif;
 			const long batchsize=vf.size();
-			for (auto f : vf) psif=append(psif,mul_sparse(subworld, f, mo_bra, mul_tol)); /// was vtol
+			for (auto f : vf) psif=append(psif,mul_sparse(subworld, f, *mo_bra, mul_tol)); /// was vtol
 
 			truncate(subworld, psif);
 			psif = apply(subworld, *poisson.get(), psif);
@@ -73,15 +74,23 @@ public:
 			auto it=psif.begin();
 			for (int i=0; i<batchsize; ++i) {
 
-				vecfuncT psif_slice(it,it+mo_ket.size());
-				Kf[i]=dot(subworld,mo_ket,psif_slice).truncate();
-				it+=mo_ket.size();
+				vecfuncT psif_slice(it,it+mo_ket->size());
+				Kf[i]=dot(subworld,*mo_ket,psif_slice).truncate();
+				it+=mo_ket->size();
 			}
 //	        psif = mul_sparse(subworld, mo_ket[i], psif, mul_tol); /// was vtol
 //	        gaxpy(world, 1.0, Kf, occ[i], psif);
 
 			subworld.gop.fence();
 			cloud.store(subworld,Kf,outputrecord);
+		}
+
+		void cleanup() {
+			if (mo_ket) {
+				print("clearing mo_ket");
+				mo_ket.reset();
+			}
+			if (mo_bra) mo_bra.reset();
 		}
 
 	    template <typename Archive>
@@ -178,6 +187,15 @@ public:
 
 
 private:
+
+    /// exchange using macrotasks, i.e. apply K on a function in individual worlds
+    vecfuncT K_macrotask(const vecfuncT& vket, const double mul_tol=0.0) const;
+
+    /// computing the full square of the double sum (over vket and the K orbitals)
+    vecfuncT K_small_memory(const vecfuncT& vket, const double mul_tol=0.0) const;
+
+    /// computing the upper triangle of the double sum (over vket and the K orbitals)
+    vecfuncT K_large_memory(const vecfuncT& vket, const double mul_tol=0.0) const;
 
     World& world;
     bool small_memory_=true;
