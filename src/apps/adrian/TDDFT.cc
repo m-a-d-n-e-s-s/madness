@@ -1,6 +1,7 @@
 /*
  *
  *
+ *
  *   Written by: bsundahl and Adrian
  *   Date: A long time ago... and today
  *
@@ -24,8 +25,7 @@
 #include "TDHF_Basic_Operators2.h"
 #include "adrian/density.h"
 #include "adrian/global_functions.h"
-#include "adrian/property_functions.h"
-#include "adrian/property_operators.h"
+#include "adrian/property.h"
 #include "chem/potentialmanager.h"
 #include "chem/projector.h"  // For easy calculation of (1 - \hat{\rho}^0)
 #include "madness/mra/funcdefaults.h"
@@ -251,6 +251,7 @@ ResponseFunction TDHF::GetResponseFunctions(std::string xy) {
 // Get response parameters
 ResponseParameters TDHF::GetResponseParameters() { return Rparams; }
 GroundParameters TDHF::GetGroundParameters() { return Gparams; }
+Property TDHF::GetPropertyObject() { return p; }
 // Get Frequencies Omega
 Tensor<double> TDHF::GetFrequencyOmega() { return omega; }
 // Save the current response calculation
@@ -695,67 +696,46 @@ typedef Function<double, 3> functionT;
 typedef std::shared_ptr<FunctionFunctorInterface<double, 3>> functorT;
 typedef FunctionFactory<double, 3> factoryT;
 
-// Returns dipole operator * molecular orbitals
-ResponseFunction TDHF::dipoleRHS(World &world,
-                                 const std::vector<real_function_3d> orbitals) {
-  // Return container
-  ResponseFunction QBP(world, 3, orbitals.size());
-  QProjector<double, 3> Qhat(world, Gparams.orbitals);
-  Property dipole = Property(world, "dipole");
-
-  for (int axis = 0; axis < 3; axis++) {
-    // Create dipole operator in the 'axis' direction
-
-    reconstruct(world, orbitals);
-    // Create guesses
-    // multiply sparse dip * orbital i
-    QBP[axis] = mul_sparse(world, dipole.operator_vector.at(axis), orbitals,
-                           Rparams.small);
-    QBP[axis] = Qhat(QBP[axis]);
-    world.gop.fence();
-  }
-  // dipole_guesses.truncate_rf();
-
-  // Done
-  return QBP;
-}
-ResponseFunction TDHF::derivativesRHS(World &world, Molecule &molecule) const {
+ResponseFunction TDHF::PropertyRHS(World &world, Property &p) const {
   if (Rparams.print_level >= 1) {
     start_timer(world);
   }
-  ResponseFunction QBP(world, molecule.natom() * 3, Gparams.num_orbitals);
+
+  print("Creating RHS for ", p.property, "operator");
+  ResponseFunction rhs(world, p.num_operators, Gparams.num_orbitals);
+
+  reconstruct(world, Gparams.orbitals);
   QProjector<double, 3> Qhat(world, Gparams.orbitals);
   // Set the dipoles (ground orbitals are probably
   // more accurate now, so recalc the dipoles)
   // why is it called dipole guess.
   // This is just orbitals times dipole operator
-  Property nuclear_derivative = Property(world, "nuclear", molecule);
+  std::vector<real_function_3d> orbitals = Gparams.orbitals;
 
-  for (size_t atom = 0; atom < molecule.natom(); ++atom) {
-    for (size_t axis = 0; axis < 3; ++axis) {
-      // question here....MolecularDerivativeFunctor takes derivative with
-      // respect to axis atom and axis
-      // here we save
-      // need to project
-      QBP[atom * 3 + axis] =
-          mul_sparse(world, nuclear_derivative.operator_vector[atom * 3 + axis],
-                     Gparams.orbitals, Rparams.small);
+  print("num operators ", p.num_operators);
+  for (int i = 0; i < p.num_operators; i++) {
+    // question here....MolecularDerivativeFunctor takes derivative with
+    // respect to axis atom and axis
+    // here we save
+    // need to project
 
-      for (size_t j = 0; j < Gparams.orbitals.size(); j++) {
-        // print("norm of QBP vector i: ", QBP[atom * 3 + axis][j].norm2());
-      }
+    rhs[i] = mul_sparse(world, p.operator_vector.at(i), Gparams.orbitals,
+                        Rparams.small);
 
-      // project rhs vectors for state
-      QBP[atom * 3 + axis] = Qhat(QBP[atom * 3 + axis]);
-
-      // core projector contribution
+    // project rhs vectors for state
+    rhs[i] = Qhat(rhs[i]);
+    for (int j = 0; j < Gparams.num_orbitals; j++) {
+      print("RHS norm for orbital ", j, "Response state  ", i, ": ",
+            rhs[i][j].norm2());
     }
+
+    world.gop.fence();
+    // core projector contribution
   }
 
-  world.gop.fence();
   // if (world.rank() ==dipole 0) print("derivatives:\n", r, ru, rc, ra);
   end_timer(world, "derivatives");
-  return QBP;
+  return rhs;
 }
 // Returns the derivative of the coulomb operator, applied to ground state
 // orbitals Returns the Electron Interaction Gamma Response Function for all
@@ -5819,7 +5799,7 @@ void TDHF::PlotGroundandResponseOrbitals(World &world, int iteration,
 }
 // Main function, makes sure everything happens in correct order
 // Solves for polarizability
-void TDHF::solve_polarizability(World &world) {
+void TDHF::solve_polarizability(World &world, Property &p) {
   // Get start time
   start_timer(world);
 
@@ -5854,14 +5834,14 @@ void TDHF::solve_polarizability(World &world) {
                 FunctionDefaults<3>::get_k());
       } else {  // Dipole guesses
 
-        x_response = dipoleRHS(world, Gparams.orbitals);
+        x_response = PropertyRHS(world, p);
         y_response = x_response.copy();
       }
     }
 
     // Set the dipoles (ground orbitals are probably
     // more accurate now, so recalc the dipoles)
-    dipoles = dipoleRHS(world, Gparams.orbitals);
+    dipoles = PropertyRHS(world, p);
     // why is it called dipole guess.
     // This is just orbitals times dipole operator
 
@@ -5911,7 +5891,7 @@ void TDHF::solve_polarizability(World &world) {
 // No matter the calculation type we do the same iteration.
 // The only difference is the number of response states as well as the number
 // of right hand side vectors.
-void TDHF::ComputeFrequencyResponse(World &world) {
+void TDHF::ComputeFrequencyResponse(World &world, std::string property) {
   // Get start time
   start_timer(world);
 
@@ -5920,18 +5900,6 @@ void TDHF::ComputeFrequencyResponse(World &world) {
     print("\n\n    Response Calculation");
     print("   ------------------------");
   }
-  // Here we will set the
-  // we set the possible calcuation types
-  vector<bool> calc_flags;
-
-  calc_flags.push_back(Rparams.dipole);
-  calc_flags.push_back(Rparams.nuclear);
-  calc_flags.push_back(Rparams.order2);
-  calc_flags.push_back(Rparams.order3);
-  // Create the polarizability tensor
-  // first task is the set the initial guess as well as the rhs vectors
-
-  Tensor<double> polar_tensor(3, 3);
 
   // Keep a copy of dipoles * MO (needed explicitly in eq.)
   ResponseFunction RHS_Vector;
@@ -5944,6 +5912,13 @@ void TDHF::ComputeFrequencyResponse(World &world) {
     // Do something to ensure all functions have same k value
     check_k(world, Rparams.protocol_data[proto], FunctionDefaults<3>::get_k());
 
+    if (property.compare("dipole") == 0) {
+      if (world.rank() == 0) print("creating dipole property operator");
+      p = Property(world, "dipole");
+    } else if (property.compare("nuclear") == 0) {
+      if (world.rank() == 0) print("creating nuclear property operator");
+      p = Property(world, "nuclear", Gparams.molecule);
+    }
     // Create guesses if no response functions
     // If restarting, load here
     if (proto == 0) {
@@ -5953,14 +5928,15 @@ void TDHF::ComputeFrequencyResponse(World &world) {
         load(world, Rparams.restart_file);
         check_k(world, Rparams.protocol_data[proto],
                 FunctionDefaults<3>::get_k());
+
       } else {  // Dipole guesses
 
         if (Rparams.dipole) {
           // set states
-          x_response = dipoleRHS(world, Gparams.orbitals);
+          x_response = PropertyRHS(world, p);
           y_response = x_response.copy();
           // set RHS_Vector
-          RHS_Vector = dipoleRHS(world, Gparams.orbitals);
+          RHS_Vector = PropertyRHS(world, p);
         } else if (Rparams.nuclear) {
           // set guesses
           // print("Creating X for Nuclear Operators");
@@ -5972,7 +5948,7 @@ void TDHF::ComputeFrequencyResponse(World &world) {
           // print("x norms:");
           // print(x_response.norm2());
 
-          RHS_Vector = derivativesRHS(world, Gparams.molecule);
+          RHS_Vector = PropertyRHS(world, p);
         } else if (Rparams.order2) {
           //
         } else if (Rparams.order3) {

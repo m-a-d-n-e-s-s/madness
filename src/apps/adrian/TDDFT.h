@@ -66,6 +66,7 @@
   #include "ResponseParameters.h"
   #include "ResponsePotential.h"
   #include "TDHF_Basic_Operators2.h"
+  #include "adrian/property.h"
 
 // Functor from SCF.cc (it wasn't linking right, no idea why, so just copied and
 // renamed here) A copy of a MADNESS functor to compute the cartesian moment x^i
@@ -175,6 +176,7 @@ class TDHF {
   ResponseFunction GetResponseFunctions(std::string xy);
   ResponseParameters GetResponseParameters();
   GroundParameters GetGroundParameters();
+  Property GetPropertyObject();
   // Get Frequencies Omega
   Tensor<double> GetFrequencyOmega();
 
@@ -231,6 +233,7 @@ class TDHF {
                                       // false). Holds the integrals
                                       //   \int dr \frac{\phi_i^\dagger
                                       //   phi_j}{\left| r - r' \right|}
+  Property p;                         // for frequency calculations
 
  public:
   // Collective constructor for response uses contents of file \c filename and
@@ -280,11 +283,7 @@ class TDHF {
   ResponseFunction create_trial_functions2(
       World &world, std::vector<real_function_3d> &orbitals, int print_level);
 
-  // Returns dipole operator * molecular orbitals
-  ResponseFunction dipoleRHS(World &world,
-                             const std::vector<real_function_3d> orbitals);
-
-  ResponseFunction derivativesRHS(World &world, Molecule &molecule) const;
+  ResponseFunction PropertyRHS(World &world, Property &p) const;
   // Returns the derivative of the coulomb operator, applied to ground state
   // orbitals
   ResponseFunction CreateCoulombDerivativeRF(
@@ -664,8 +663,8 @@ class TDHF {
                                      ResponseParameters const &Rparams,
                                      GroundParameters const &Gparams);
   // Solves the response equations for the polarizability
-  void solve_polarizability(World &world);
-  void ComputeFrequencyResponse(World &world);
+  void solve_polarizability(World &world, Property &p);
+  void ComputeFrequencyResponse(World &world, std::string property);
 };
 #endif  // SRC_APPS_ADRIAN_TDDFT_H_
 
