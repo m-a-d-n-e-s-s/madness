@@ -11,8 +11,7 @@
 
 #include "../../madness/mra/funcplot.h"
 #include "adrian/global_functions.h"
-#include "adrian/property_functions.h"
-#include "adrian/property_operators.h"
+#include "adrian/property.h"
 
 typedef Tensor<double> TensorT;
 typedef Function<double, 3> FunctionT;
@@ -28,32 +27,26 @@ typedef std::vector<real_function_3d> VectorFunction3DT;
 // it also needs an xc functional
 // The Rparams and Gparmas used to create the density
 //
-
-FirstOrderDensity::FirstOrderDensity(World &world, ResponseParameters Rparams,
+FirstOrderDensity::FirstOrderDensity(ResponseParameters Rparams,
                                      GroundParameters Gparams) {
   this->Rparams = Rparams;
   this->Gparams = Gparams;
+}
+void FirstOrderDensity::ComputeDensity(World &world) {
+  // right now everything uses copy
+  property = Rparams.response_type;
 
   TDHF calc(world, Rparams, Gparams);
   if (calc.Rparams.property) {
-    calc.ComputeFrequencyResponse(world);
+    calc.ComputeFrequencyResponse(world, property);
   } else {
     calc.solve(world);
   }
-  // stuff i want to save
-  Rparams = calc.GetResponseParameters();
-  Gparams = calc.GetGroundParameters();
-  // right now everything uses copy
-  property = calc.Rparams.response_type;
+  // omega is determined by the type of calculation
+  // property calculation at single frequency
+  // excited stat calculation at multipe frequencies
   omega = calc.GetFrequencyOmega();
-
-  if (property.compare("dipole") == 0) {
-    if (world.rank() == 0) print("creating dipole property operator");
-    property_operator = Property(world, "dipole");
-  } else if (property.compare("nuclear") == 0) {
-    if (world.rank() == 0) print("creating nuclear property operator");
-    property_operator = Property(world, "nuclear", Gparams.molecule);
-  }
+  property_operator = calc.GetPropertyObject();
 
   x = calc.GetResponseFunctions("x");
   y = calc.GetResponseFunctions("y");
@@ -62,6 +55,9 @@ FirstOrderDensity::FirstOrderDensity(World &world, ResponseParameters Rparams,
   num_ground_states = x[0].size();
   // get the response densities for our states
   rho_omega = calc.transition_density(world, Gparams.orbitals, x, y);
+  if (Rparams.save_density) {
+    SaveDensity(world, Rparams.save_density_file);
+  }
 }
 
 int FirstOrderDensity::GetNumberResponseStates() { return num_response_states; }
@@ -84,7 +80,6 @@ void FirstOrderDensity::PrintDensityInformation() {
 }
 
 void FirstOrderDensity::PlotResponseDensity(World &world) {
-  // Doing line plots along each axis
   // Doing line plots along each axis
   if (world.rank() == 0) print("\n\nStarting plots");
   coord_3d lo, hi;
@@ -109,16 +104,51 @@ void FirstOrderDensity::PlotResponseDensity(World &world) {
 Tensor<double> FirstOrderDensity::ComputeSecondOrderPropertyTensor(
     World &world) {
   // do some printing before we compute so we know what we are working with
-
   for (size_t i = 0; i < property_operator.operator_vector.size(); i++) {
     if (world.rank() == 0) {
       print("property operator vector i = ", i,
             "norm = ", property_operator.operator_vector[i].norm2());
     }
   }
+  for (int i = 0; i < num_response_states; i++) {
+    print("norm of rho i", rho_omega[i].norm2());
+  }
 
   return matrix_inner(world, rho_omega, property_operator.operator_vector,
                       true);
+}
+
+void FirstOrderDensity::PrintSecondOrderAnalysis(
+    World &world, const Tensor<double> alpha_tensor) {
+  Tensor<double> V, epolar;
+  syev(alpha_tensor, V, epolar);
+  double Dpolar_average = 0.0;
+  double Dpolar_iso = 0.0;
+  for (unsigned int i = 0; i < 3; ++i)
+    Dpolar_average = Dpolar_average + epolar[i];
+  Dpolar_average = Dpolar_average / 3.0;
+  Dpolar_iso =
+      sqrt(.5) * sqrt(std::pow(alpha_tensor(0, 0) - alpha_tensor(1, 1), 2) +
+                      std::pow(alpha_tensor(1, 1) - alpha_tensor(2, 2), 2) +
+                      std::pow(alpha_tensor(2, 2) - alpha_tensor(0, 0), 2));
+
+  int num_states = Rparams.states;
+
+  if (world.rank() == 0) {
+    print("\nTotal Dynamic Polarizability Tensor");
+    printf("\nFrequency  = %.6f a.u.\n\n", omega(0, 0));
+    // printf("\nWavelength = %.6f a.u.\n\n", Rparams.omega * ???);
+    print(alpha_tensor);
+    printf("\tEigenvalues = ");
+    printf("\t %.6f \t %.6f \t %.6f \n", epolar[0], epolar[1], epolar[2]);
+    printf("\tIsotropic   = \t %.6f \n", Dpolar_average);
+    printf("\tAnisotropic = \t %.6f \n", Dpolar_iso);
+    printf("\n");
+
+    for (long i = 0; i < num_states; i++) {
+      print(epolar[i]);
+    }
+  }
 }
 void FirstOrderDensity::SaveDensity(World &world, std::string name) {
   // Archive to write everything to
@@ -129,7 +159,6 @@ void FirstOrderDensity::SaveDensity(World &world, std::string name) {
   ar &omega;
   ar &num_response_states;
   ar &num_ground_states;
-  ar &xcf;
   // Save response functions x and y
   // x first
   for (int i = 0; i < num_response_states; i++) {
@@ -144,35 +173,48 @@ void FirstOrderDensity::SaveDensity(World &world, std::string name) {
       ar &y[i][j];
     }
   }
+  for (int i = 0; i < num_response_states; i++) {
+    ar &rho_omega[i];
+  }
+  for (int i = 0; i < property_operator.num_operators; i++) {
+    ar &property_operator.operator_vector[i];
+  }
 }
 // Load a response calculation
-void FirstOrderDensity::LoadDensity(World &world, std::string name) {
-  // The archive to read from
+void FirstOrderDensity::LoadDensity(World &world, std::string name,
+                                    ResponseParameters Rparams,
+                                    GroundParameters Gparams) {
+  // create XCF Object
+  xcf.initialize(Rparams.xc, false, world, true);
+
   archive::ParallelInputArchive ar(world, name.c_str());
   // Reading in, in this order;
 
   ar &property;
+
   if (property.compare("dipole") == 0) {
-    if (property.compare("dipole") == 0) {
-      if (world.rank() == 0) print("creating dipole property operator");
-      this->property_operator = Property(world, "dipole");
-    } else if (property.compare("nuclear") == 0) {
-      if (world.rank() == 0) print("creating nuclear property operator");
-      this->property_operator = Property(world, "nuclear", Gparams.molecule);
-    }
+    if (world.rank() == 0) print("creating dipole property operator");
+    this->property_operator = Property(world, "dipole");
+  } else if (property.compare("nuclear") == 0) {
+    if (world.rank() == 0) print("creating nuclear property operator");
+    this->property_operator = Property(world, "nuclear", Gparams.molecule);
   }
+  print("property:", property);
 
   ar &omega;
+  print("omega:", omega);
   ar &num_response_states;
+  print("num_response_states:", num_response_states);
   ar &num_ground_states;
-  ar &xcf;
+  print("num_ground_states:", num_ground_states);
 
-  x = ResponseFunction(world, num_response_states, num_ground_states);
-  y = ResponseFunction(world, num_response_states, num_ground_states);
+  this->x = ResponseFunction(world, num_response_states, num_ground_states);
+  this->y = ResponseFunction(world, num_response_states, num_ground_states);
 
   for (int i = 0; i < Rparams.states; i++) {
     for (unsigned int j = 0; j < Gparams.num_orbitals; j++) {
       ar &x[i][j];
+      print("norm of x ", x[i][j].norm2());
     }
   }
   world.gop.fence();
@@ -180,7 +222,22 @@ void FirstOrderDensity::LoadDensity(World &world, std::string name) {
   for (int i = 0; i < Rparams.states; i++) {
     for (unsigned int j = 0; j < Gparams.num_orbitals; j++) {
       ar &y[i][j];
-      world.gop.fence();
+      print("norm of y ", y[i][j].norm2());
     }
+  }
+
+  world.gop.fence();
+  this->rho_omega = zero_functions<double, 3>(world, num_response_states);
+  for (int i = 0; i < num_response_states; i++) {
+    ar &rho_omega[i];
+    print("norm of rho_omega ", rho_omega[i].norm2());
+  }
+
+  for (int i = 0; i < property_operator.num_operators; i++) {
+    print("norm of operator before ",
+          property_operator.operator_vector[i].norm2());
+    ar &property_operator.operator_vector[i];
+    print("norm of operator after",
+          property_operator.operator_vector[i].norm2());
   }
 }

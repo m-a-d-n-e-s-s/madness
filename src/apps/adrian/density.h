@@ -10,7 +10,7 @@
 #include <vector>
 
 #include "adrian/global_functions.h"
-#include "adrian/property_operators.h"
+#include "adrian/property.h"
 
 typedef Tensor<double> TensorT;
 typedef Function<double, 3> FunctionT;
@@ -49,9 +49,9 @@ class FirstOrderDensity {
 
  public:
   // Collective constructor
+  FirstOrderDensity(ResponseParameters Rparams, GroundParameters Gparams);
 
-  FirstOrderDensity(World &world, ResponseParameters Rparams,
-                    GroundParameters Gparams);
+  void ComputeDensity(World &world);
 
   int GetNumberResponseStates();
   int GetNumberGroundStates();
@@ -65,8 +65,11 @@ class FirstOrderDensity {
   void PlotResponseDensity(World &world);
 
   Tensor<double> ComputeSecondOrderPropertyTensor(World &world);
+  void PrintSecondOrderAnalysis(World &world,
+                                const Tensor<double> alpha_tensor);
   void SaveDensity(World &world, std::string name);
   // Load a response calculation
-  void LoadDensity(World &world, std::string name);
+  void LoadDensity(World &world, std::string name, ResponseParameters Rparams,
+                   GroundParameters Gparams);
 };
 #endif  // SRC_APPS_ADRIAN_DENSITY_H_
