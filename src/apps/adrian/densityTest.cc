@@ -5,7 +5,6 @@
 #include "TDDFT.h"  // All response functions/objects enter through this
 #include "adrian/density.h"
 #include "adrian/global_functions.h"
-#include "adrian/property_functions.h"
 
 #if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && \
     defined(HAVE_UNISTD_H)
@@ -66,19 +65,22 @@ int main(int argc, char** argv) {
     Rparams.print_params();
   }
   // Broadcast to all other nodes
-
+  FirstOrderDensity densityTest(Rparams, Gparams);
   // Create the TDHF object
-
-  FirstOrderDensity densityTest(world, Rparams, Gparams);
+  if (Rparams.load_density) {
+    print("Loading Density");
+    densityTest.LoadDensity(world, Rparams.load_density_file, Rparams, Gparams);
+  } else {
+    print("Computing Density");
+    densityTest.ComputeDensity(world);
+  }
   //
-  densityTest.PlotResponseDensity(world);
+  // densityTest.PlotResponseDensity(world);
   densityTest.PrintDensityInformation();
 
   if (Rparams.property) {  //
-
     Tensor<double> alpha = densityTest.ComputeSecondOrderPropertyTensor(world);
-    PrintSecondOrderAnalysis(world, alpha, densityTest.GetFrequencyOmega(),
-                             Rparams);
+    densityTest.PrintSecondOrderAnalysis(world, alpha);
   }
 
   world.gop.fence();
