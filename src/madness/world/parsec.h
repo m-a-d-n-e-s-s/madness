@@ -5,18 +5,20 @@
 
 #ifdef HAVE_PARSEC
 
-#include <dague.h>
-#include <dague/dague_internal.h>
-#include <dague/devices/device.h>
-#include <dague/execution_unit.h>
-#include <dague/scheduling.h>  
+#include <parsec.h>
+#include <parsec/parsec_config.h>
+#include <parsec/parsec_internal.h>
+#include <parsec/mca/device/device.h>
+#include <parsec/execution_stream.h>
+#include <parsec/scheduling.h>
+
 #include <iostream>
 
 namespace madness{
   extern "C"{
 
-    extern const dague_function_t madness_function;
-    extern dague_handle_t madness_handle;
+    extern const parsec_task_class_t madness_parsec_tc;
+    extern parsec_taskpool_t madness_parsec_tp;
   }
 
 }

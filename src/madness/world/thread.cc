@@ -67,7 +67,6 @@ extern "C" void HPM_Prof_stop(unsigned int);
 
 
 namespace madness {
-
     int ThreadBase::cpulo[3];
     int ThreadBase::cpuhi[3];
     bool ThreadBase::bind[3];
@@ -76,7 +75,7 @@ namespace madness {
     ThreadPool* ThreadPool::instance_ptr = 0;
     double ThreadPool::await_timeout = 900.0;
 #if HAVE_INTEL_TBB
-    tbb::task_scheduler_init* ThreadPool::tbb_scheduler = 0;
+    std::unique_ptr<tbb::global_control> ThreadPool::tbb_control = nullptr;
 #endif
 #ifdef MADNESS_TASK_PROFILING
     Mutex profiling::TaskProfiler::output_mutex_;
@@ -335,7 +334,7 @@ namespace madness {
 #endif // MADNESS_TASK_PROFILING
 
 #if HAVE_PARSEC
-  dague_context_t *ThreadPool::parsec = NULL;
+  parsec_context_t *ThreadPool::parsec = NULL;
 #endif
     // The constructor is private to enforce the singleton model
     ThreadPool::ThreadPool(int nthread) :
@@ -353,26 +352,26 @@ namespace madness {
 #if HAVE_PARSEC
         //////////// Parsec Related Begin ////////////////////
         /* Scheduler init*/
-	int argc = 1;
-	char ** argv = (char**)malloc(2*sizeof(char*));
-        argv[0]=(char*)malloc(2*sizeof(char));
-        char tmp[] = "t";
-        strcpy(argv[0], tmp);
-	argv[1] = NULL;
-	int nb_threads = ThreadPool::default_nthread() + 1;
-        ThreadPool::parsec = dague_init(nb_threads, &argc, &argv);
-#ifdef DAGUE_PROF_TRACE
-	madness_handle.profiling_array = (int*)malloc(2*sizeof(int));
-	dague_profiling_add_dictionary_keyword("MADNESS TASK", "fill:CC2828", 0, "",
-					       (int *)&madness_handle.profiling_array[0],
-					       (int *)&madness_handle.profiling_array[1]);
+        int argc = 1;
+        char ** argv = (char**)malloc(2*sizeof(char*));
+        argv[0] = strdup("madness-app");
+        argv[1] = NULL;
+        int nb_threads = ThreadPool::default_nthread() + 1;
+        ThreadPool::parsec = parsec_init(nb_threads, &argc, &argv);
+        MPI_Comm parsec_comm  = MPI_COMM_SELF;
+        parsec_remote_dep_set_ctx(ThreadPool::parsec, (intptr_t)parsec_comm);
+#ifdef PARSEC_PROF_TRACE
+        madness_parsec_tp.profiling_array = (int*)malloc(2*sizeof(int));
+        paresc__profiling_add_dictionary_keyword("MADNESS TASK", "fill:CC2828", 0, "",
+                                                 (int *)&madness_parsec_tp.profiling_array[0],
+                                                 (int *)&madness_parsec_tp.profiling_array[1]);
 #endif
-        if( 0 != dague_enqueue(ThreadPool::parsec, &madness_handle) ) {
-            std::cerr << "ERROR: dague_enqueue!!" << std::endl;
-	}
-        dague_atomic_add_32b(&madness_handle.nb_tasks, 1);
-        if( 0 != dague_context_start(ThreadPool::parsec) ) {
-            std::cerr << "ERROR: dague_context_start!!" << std::endl;
+        if( 0 != parsec_context_add_taskpool(ThreadPool::parsec, &madness_parsec_tp) ) {
+            std::cerr << "ERROR: parsec_context_add_taskpool failed!!" << std::endl;
+        }
+        parsec_taskpool_update_runtime_nbtask(&madness_parsec_tp, 1);
+        if( 0 != parsec_context_start(ThreadPool::parsec) ) {
+            std::cerr << "ERROR: context_context_start failed!!" << std::endl;
 	}
         //////////// Parsec Related End ////////////////////
 #elif HAVE_INTEL_TBB
@@ -381,17 +380,12 @@ namespace madness {
         if(nthreads < 1)
             nthreads = 1;
 
-        if (SafeMPI::COMM_WORLD.Get_size() > 1) {
-            // There are nthreads+2 because the main and communicator thread
-            // are counted as part of tbb.
-            tbb_scheduler = new tbb::task_scheduler_init(nthreads+2);
-        }
-        else {
-            // There are nthreads+1 because the main
-            // is counted as part of tbb.
-            tbb_scheduler = new tbb::task_scheduler_init(nthreads+1);
-
-        }
+        //  nranks > 1: there are nthreads+2 because the main and communicator thread
+        //              are counted as part of tbb.
+        // nranks == 1: there are nthreads+1 because the main
+        //              is counted as part of tbb.
+        const int num_tbb_threads = (SafeMPI::COMM_WORLD.Get_size() > 1) ? nthreads + 2 : nthreads + 1;
+        tbb_control = std::make_unique<tbb::global_control>(tbb::global_control::max_allowed_parallelism, num_tbb_threads);
 #else
 
         try {
@@ -533,12 +527,12 @@ namespace madness {
         for (int i=0; i<instance()->nthreads; ++i) {
             add(new PoolTaskNull);
         }
+	instance_ptr->flush_prebuf();
         while (instance_ptr->nfinished != instance_ptr->nthreads);
 #else  /* HAVE_PARSEC */
-	/* Remove the fake task we used to keep the engine up and running */
-        int remaining = dague_atomic_add_32b(&madness_handle.nb_tasks, -1);
-        dague_check_complete_cb(&madness_handle, parsec, remaining);
-	dague_context_wait(parsec);
+        /* Remove the fake task we used to keep the engine up and running */
+        parsec_taskpool_update_runtime_nbtask(&madness_parsec_tp, -1);
+        parsec_context_wait(parsec);
 #endif
 #ifdef MADNESS_TASK_PROFILING
         instance_ptr->main_thread.profiler().write_to_file();
@@ -558,5 +552,12 @@ namespace madness {
     const DQStats& ThreadPool::get_stats() {
         return instance()->queue.get_stats();
     }
+
+#if defined(MADNESS_DQ_USE_PREBUF) && defined(MADNESS_CXX_COMPILER_IS_ICC)
+    thread_local PoolTaskInterface* DQueue<PoolTaskInterface*>::prebuf[DQueue<PoolTaskInterface*>::NPREBUF] = {};
+    thread_local PoolTaskInterface* DQueue<PoolTaskInterface*>::prebufhi[DQueue<PoolTaskInterface*>::NPREBUF] = {};
+    thread_local size_t DQueue<PoolTaskInterface*>::ninprebuf = 0;
+    thread_local size_t DQueue<PoolTaskInterface*>::ninprebufhi = 0;
+#endif
 
 } // namespace madness

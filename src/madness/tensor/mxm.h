@@ -37,7 +37,9 @@
 
 #include <madness/madness_config.h>
 
-#ifdef HAVE_INTEL_MKL
+#define HAVE_FAST_BLAS
+#ifdef  HAVE_FAST_BLAS
+//#ifdef HAVE_INTEL_MKL
 #include <madness/tensor/cblas.h>
 #endif
 
@@ -179,8 +181,91 @@ namespace madness {
     }
     
 
-#ifdef HAVE_INTEL_MKL
+#if defined(HAVE_FAST_BLAS) && !defined(HAVE_MKL)
+    // MKL provides support for mixed real/complex operations but most other libraries do not
+    
+    /// Matrix += Matrix * matrix ... BLAS/MKL interface version
+    
+    /// Does \c C=C+A*B 
+    /// \code
+    ///    c(i,j) = c(i,j) + sum(k) a(i,k)*b(k,j)
+    /// \endcode
+    template <typename T>
+    void mxm(long dimi, long dimj, long dimk,
+              T* MADNESS_RESTRICT c, const T* a, const T* b) {
+        const T one = 1.0;  // alpha in *gemm
+        cblas::gemm(cblas::NoTrans,cblas::NoTrans,dimj,dimi,dimk,one,b,dimj,a,dimk,one,c,dimj);
+    }
 
+    /// Matrix += Matrix transpose * matrix ... MKL interface version
+    
+    /// Does \c C=C+AT*B 
+    /// \code
+    ///    c(i,j) = c(i,j) + sum(k) a(k,i)*b(k,j)
+    /// \endcode
+    template <typename T>
+    void mTxm(long dimi, long dimj, long dimk,
+              T* MADNESS_RESTRICT c, const T* a, const T* b) {
+        const T one = 1.0;  // alpha in *gemm
+        cblas::gemm(cblas::NoTrans,cblas::Trans,dimj,dimi,dimk,one,b,dimj,a,dimi,one,c,dimj);
+    }
+
+    /// Matrix += Matrix * matrix transpose ... MKL interface version
+    
+    /// Does \c C=C+A*BT
+    /// \code
+    ///    c(i,j) = c(i,j) + sum(k) a(i,k)*b(j,k)
+    /// \endcode
+    template <typename T>
+    void mxmT(long dimi, long dimj, long dimk,
+              T* MADNESS_RESTRICT c, const T* a, const T* b) {
+        const T one = 1.0;  // alpha in *gemm
+        cblas::gemm(cblas::Trans,cblas::NoTrans,dimj,dimi,dimk,one,b,dimk,a,dimk,one,c,dimj);
+    }
+    
+    /// Matrix += Matrix transpose * matrix transpose ... MKL interface version
+    
+    /// Does \c C=C+AT*BT
+    /// \code
+    ///    c(i,j) = c(i,j) + sum(k) a(k,i)*b(j,k)
+    /// \endcode
+    template <typename T>
+    void mTxmT(long dimi, long dimj, long dimk,
+               T* MADNESS_RESTRICT c, const T* a, const T* b) {
+        const T one = 1.0;  // alpha in *gemm
+        cblas::gemm(cblas::Trans,cblas::Trans,dimj,dimi,dimk,one,b,dimk,a,dimi,one,c,dimj);
+    }
+
+    /// Matrix = Matrix transpose * matrix ... MKL interface version
+    
+    /// Does \c C=AT*B whereas mTxm does C=C+AT*B.  
+    /// \code
+    ///    c(i,j) = sum(k) a(k,i)*b(k,j)  <------ does not accumulate into C
+    /// \endcode
+    ///
+    /// \c ldb is the last dimension of b in C storage (the leading dimension
+    /// in fortran storage).  It is here to accomodate multiplying by a matrix
+    /// stored with \c ldb>dimj which happens in madness when transforming with
+    /// low rank matrices.  A matrix in dense storage has \c ldb=dimj which is
+    /// the default for backward compatibility.
+    template <typename T>
+    void mTxmq(long dimi, long dimj, long dimk,
+               T* MADNESS_RESTRICT c, const T* a, const T* b, long ldb=-1) {
+        if (ldb == -1) ldb=dimj;
+        MADNESS_ASSERT(ldb>=dimj);
+
+        if (dimi==0 || dimj==0) return; // nothing to do and *GEMM will complain
+        if (dimk==0) {
+            for (long i=0; i<dimi*dimj; i++) c[i] = 0.0;
+        }
+        
+        const T one = 1.0;  // alpha in *gemm
+        const T zero = 0.0; // beta  in *gemm
+        cblas::gemm(cblas::NoTrans,cblas::Trans,dimj,dimi,dimk,one,b,ldb,a,dimi,zero,c,dimj);
+    }
+#endif
+    
+#ifdef HAVE_MKL
     /// Matrix += Matrix * matrix ... MKL interface version
     
     /// Does \c C=C+A*B 
@@ -618,7 +703,7 @@ namespace madness {
 //                double* MADNESS_RESTRICT c, const double* a, const double* b);
 #endif // HAVE_IBMBGQ
 
-#endif // HAVE_INTEL_MKL
+#endif // HAVE_MKL
     
 }    
 #endif // MADNESS_TENSOR_MXM_H__INCLUDED

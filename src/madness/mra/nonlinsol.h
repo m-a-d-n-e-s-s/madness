@@ -183,6 +183,7 @@ namespace madness {
         Alloc alloc;
         std::vector<T> ulist, rlist; ///< Subspace information
         Tensor<C> Q;
+        Tensor<C> c;		///< coefficients for linear combination
     public:
         bool do_print;
 
@@ -203,6 +204,7 @@ namespace madness {
 	std::vector<T>& get_rlist() {return rlist;}
 
 	void set_maxsub(int maxsub) {this->maxsub = maxsub;}
+	Tensor<C> get_c() const {return c;}
 
 	void clear_subspace() {
 		ulist.clear();
@@ -234,7 +236,7 @@ namespace madness {
 			Qnew(iter,i) = inner(ulist[iter],rlist[i]);
 		}
 		Q = Qnew;
-		Tensor<C> c = KAIN(Q);
+		c = KAIN(Q);
 
 		check_linear_dependence(Q,c,rcondtol,cabsmax,do_print);
 		if (do_print) print("subspace solution",c);

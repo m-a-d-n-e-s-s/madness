@@ -8,11 +8,11 @@
 #  MADNESS_FOUND                - System has the MADNESS package
 #  MADNESS_INCLUDE_DIRS         - The MADNESS include directory
 #  MADNESS_LIBRARIES            - The MADNESS libraries and their dependencies
+#  MADNESS_INSTALL_LIBRARY_DIR  - Where MADNESS libraries will be installed (same for CONFIG files imported from the build and install trees)
 #  MADNESS_<COMPONENT>_FOUND    - System has the specified MADNESS COMPONENT
 #  MADNESS_<COMPONENT>_LIBRARY  - The MADNESS COMPONENT library
-#  MADNESS_F77_INTEGER_SIZE     - The default F77 integer size used for BLAS calls 
-#  MADNESS_DISABLEPIE_LINKER_FLAG  - The flag to pass to the linker of executable targets using MADNESS
-#                                 via target_link_libraries
+#  MADNESS_F77_INTEGER_SIZE     - The default F77 integer size used for BLAS calls
+#  MADNESS_ASSUMES_ASLR_DISABLED - Whether MADNESS assumes ASLR to be disabled
 #
 # Additionally MADNESS exports the following variables from its dependent packages:
 # = LAPACK =
@@ -81,6 +81,7 @@ set(MADNESS_BINARY_DIR "@MADNESS_BINARY_DIR@")
 set(MADNESS_HAS_ELEMENTAL @MADNESS_HAS_ELEMENTAL@)
 set(MADNESS_HAS_ELEMENTAL_EMBEDDED @MADNESS_HAS_ELEMENTAL_EMBEDDED@)
 
+set(MADNESS_INSTALL_LIBRARY_DIR "@PACKAGE_MADNESS_INSTALL_LIBDIR@")
 set(MADNESS_BUILD_INCLUDE_DIRS "${MADNESS_SOURCE_DIR}/src" "${MADNESS_BINARY_DIR}/src")
 set(MADNESS_INSTALL_INCLUDE_DIRS "@PACKAGE_MADNESS_INSTALL_INCLUDEDIR@"
       "@PACKAGE_MADNESS_INSTALL_INCLUDEDIR@/madness/external")
@@ -139,8 +140,8 @@ endforeach()
 # Set the Fortran 77 integer size (4 or 8)
 set(MADNESS_F77_INTEGER_SIZE @FORTRAN_INTEGER_SIZE@)
 
-# Set the disable PIE linker flag, if any
-set(MADNESS_DISABLEPIE_LINKER_FLAG "@DISABLEPIE_LINKER_FLAG@")
+# whether MADNESS assumes ASLR to be disabled
+set(MADNESS_ASSUMES_ASLR_DISABLED "@MADNESS_ASSUMES_ASLR_DISABLED@")
 
 check_required_components(${MADNESS_TARGET_COMPONENT})
 
@@ -154,7 +155,7 @@ set(LAPACK_COMPILE_DEFINITIONS "@LAPACK_COMPILE_DEFINITIONS@")
 set(LAPACK_COMPILE_OPTIONS "@LAPACK_COMPILE_OPTIONS@")
 
 ########### MPI ############
-set(MPIEXEC_EXECUTABLE "@MPIEXEC_EXECUTABLE@")
-set(MPIEXEC_NUMPROC_FLAG "@MPIEXEC_NUMPROC_FLAG@")
-set(MPIEXEC_PREFLAGS "@MPIEXEC_PREFLAGS@")
-set(MPIEXEC_POSTFLAGS "@MPIEXEC_POSTFLAGS@")
+set(MPIEXEC_EXECUTABLE "@MPIEXEC_EXECUTABLE@" CACHE FILEPATH "Executable for running MPI programs")
+set(MPIEXEC_NUMPROC_FLAG "@MPIEXEC_NUMPROC_FLAG@" CACHE STRING "Maximum number of processors available to run MPI applications")
+set(MPIEXEC_PREFLAGS "@MPIEXEC_PREFLAGS@" CACHE STRING "Flag used by MPI to specify the number of processes for mpiexec")
+set(MPIEXEC_POSTFLAGS "@MPIEXEC_POSTFLAGS@" CACHE STRING "These flags will be placed after all flags passed to mpiexec")

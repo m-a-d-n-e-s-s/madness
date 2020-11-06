@@ -1,5 +1,5 @@
 language: cpp
-dist: xenial
+dist: bionic
 os:
   - linux
 compiler:
@@ -7,18 +7,17 @@ compiler:
   - clang
 env:
   - RUN_TEST=all
-  - RUN_TEST=mra CMAKE_EXTRA_OPTIONS="-D ENABLE_GENTENSOR=1"    
+  - RUN_TEST=mra CMAKE_EXTRA_OPTIONS="-D ENABLE_GENTENSOR=1"
+# MRA testsuite segfaults a la https://travis-ci.org/github/m-a-d-n-e-s-s/madness/jobs/665937224#L10269 ... can't reproduce, giving up
+#  - RUN_TEST=all BUILD_SHARED=1
 matrix:
   exclude:
     - os: linux
       compiler: clang
-      env: RUN_TEST=mra CMAKE_EXTRA_OPTIONS="-D ENABLE_GENTENSOR=1"    
+      env: RUN_TEST=mra CMAKE_EXTRA_OPTIONS="-D ENABLE_GENTENSOR=1"
 sudo: false
 addons:
   apt:
-    sources:
-      - ubuntu-toolchain-r-test
-      - llvm-toolchain-xenial-7
     update: true
     packages:
       - gcc-8
@@ -26,7 +25,6 @@ addons:
       - gfortran-8
       - libblas-dev
       - liblapack-dev
-      - libtbb-dev
 # if necessary to debug the install step, move all lines into
 # script step and add appropriate debugging analysis to the
 # after_failure step e.g. find . -name config.log -exec cat {} ";"
@@ -45,3 +43,4 @@ cache:
     - $HOME/libxc
     - $HOME/ccache
     - $HOME/cereal
+    - /opt/intel

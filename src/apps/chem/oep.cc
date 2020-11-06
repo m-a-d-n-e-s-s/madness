@@ -6,6 +6,10 @@
  */
 
 #include <chem/oep.h>
+#include <chem/BSHApply.h>
+#include <chem/test_utilities.h>
+
+
 
 namespace madness {
 
@@ -15,381 +19,131 @@ namespace madness {
 /// note that KS_nemo is a reference and changes oep->get_calc()->amo orbitals
 /// same for orbital energies (eigenvalues) KS_eigvals which is oep->get_calc()->aeps
 /// converged if norm, total energy difference and orbital energy differences (if not OAEP) are converged
-void OEP::solve_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
+void OEP::solve(const vecfuncT& HF_nemo1) {
 
-	double energy = 0.0;
-	bool converged = false;
-	unsigned int iter_counter = 0;
+	// recompute HF Fock matrix and orbitals
+	auto [HF_Fock, HF_nemo] = recompute_HF(HF_nemo1);
 
 	// compute Slater potential Vs and average IHF from HF orbitals and eigenvalues
-	const real_function_3d Vs = compute_slater_potential(HF_nemo, homo_ind(HF_eigvals));
-	const real_function_3d kin_tot_HF = compute_total_kinetic_density(HF_nemo, HF_eigvals);
-	const real_function_3d kin_P_HF = compute_Pauli_kinetic_density(HF_nemo, HF_eigvals);
-	const real_function_3d rho_HF = compute_density(HF_nemo);
+	const real_function_3d Vs = compute_slater_potential(HF_nemo);
 	if (oep_param.saving_amount() >= 1) save(Vs, "Slaterpotential");
-	if (oep_param.saving_amount() >= 2) {
-		save(rho_HF, "density_HF");
-        if (oep_param.is_dcep()) save(kin_tot_HF, "kin_tot_HF");
-        if (oep_param.is_mrks()) save(kin_P_HF, "kin_P_HF");
+	save(Vs, "Slaterpotential");
+
+	tensorT KS_Fock=copy(HF_Fock);
+	if (oep_param.restart()) {
+		load_restartdata(KS_Fock);
 	}
 
-	// compute ab initio HF exchange energy using equation (21) from Ospadov_2017 and HF kinetic energy
-	// edit: this is redundant because it is the same as -0.5*<phi|K|phi>
-	const double Ex_HF = 0.5*inner(rho_HF, Vs);
-	const double Ekin_HF = compute_kinetic_energy(R*HF_nemo); // like T in Ospadov_2017, equation (20)
+	// deep copy KS_nemo MOs
+	vecfuncT KS_nemo = copy(world,calc->amo);
+	real_function_3d Voep = copy(Vs);
 
-	// set KS_nemo as reference to MOs
-	vecfuncT& KS_nemo = calc->amo;
-	tensorT& KS_eigvals = calc->aeps; // 1d tensor of same length as KS_nemo
-	if (oep_param.saving_amount() >= 3) save(compute_density(KS_nemo), "density_start");
+	double energy=0.0;
+	for (std::string model : oep_param.model())
+		energy=iterate(model,HF_nemo,HF_Fock,KS_nemo,KS_Fock,Voep,Vs);
 
-	// if desired: save HF orbitals and orbital contributions to total density (orbital squares)
-	if (oep_param.saving_amount() >= 3) {
-		vecfuncT HF_nemo_square = square(world, HF_nemo);
-    	for (long i = 0; i < HF_nemo.size(); i++) {
-    		save(R*HF_nemo[i], "HF_orb_" + stringify(i));
-    		save(2.0*R_square*HF_nemo_square[i], "HF_orb_square_" + stringify(i)); // 2 because closed shell
-    	}
-	}
+	print("KS_Fock after convergence");
+	print(KS_Fock);
+	auto [eval, evec] = syev(KS_Fock);
+	calc->aeps=eval;
+	calc->amo=KS_nemo;
 
-	// all necessary operators applied on nemos
-	vecfuncT Jnemo, Unemo, Vnemo, Knemo;
-	real_function_3d Voep = Vs;
+	save(Voep,"OEPapprox_final");
+	save_restartdata(KS_Fock);
 
-	// copy Vs to all old potentials for damping
-	// attention: Voep_old is only used if damping is used, so if oep_param.damp_num() > 1
-	std::vector<real_function_3d> Voep_old;
-	if (oep_param.do_damping()) {
-		for (unsigned int i = 1; i < oep_param.damp_num(); i++) {
-			Voep_old.push_back(Vs);
-		}
-	}
+	printf("      +++ FINAL TOTAL %s ENERGY = %15.8f  Eh +++\n\n\n", oep_param.model().back().c_str(), energy);
 
-	// define the solver
-	typedef allocator<double, 3> allocT;
-	typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
-//    	typedef XNonlinearSolver<vecfunc<double, 3>, double, allocT> solverT;
-	allocT alloc(world, KS_nemo.size());
-	solverT solver(allocT(world, KS_nemo.size()));
+}
 
-	// iterate until self-consistency
-	for (int iter = 0; iter < oep_param.maxiter(); ++iter) {
-		iter_counter++;
-		print("\n     ***", oep_param.model(), "iteration", iter_counter, "***\n");
 
-		if (oep_param.is_ocep() or oep_param.is_dcep() or oep_param.is_mrks()) {
+void OEP::save_restartdata(const Tensor<double>& fock) const {
+	if (world.rank()==0) print("saving OEP orbitals to file restartdata_OEP");
+	MolecularOrbitals<double,3> amo=to_MO();
+	archive::ParallelOutputArchive ar(world, "restartdata_OEP");
+	ar & amo & fock;
+	print("aeps",amo.get_eps());
+}
 
-			// damping for better convergence of Voep
-			if (oep_param.do_damping()) {
-    			for (unsigned int i = 1; i < oep_param.damp_num() - 1; i++) {
-    				Voep_old[i] = Voep_old[i - 1];
-    			}
-    			Voep_old[0] = Voep;
-			}
+void OEP::load_restartdata(Tensor<double>& fock) {
+	if (world.rank()==0) print("loading OEP orbitals from file restartdata_OEP");
+	archive::ParallelInputArchive ar(world, "restartdata_OEP");
+	MolecularOrbitals<double,3> amo;
+	ar & amo & fock;
+	calc->amo=amo.get_mos();
+//	calc->aeps=amo.get_eps();
+}
 
-    		// compute OCEP potential from current nemos and eigenvalues
-			real_function_3d corr_ocep, corr_dcep, corr_mrks;
-			corr_ocep = compute_oep_correction("ocep", HF_nemo,HF_eigvals, KS_nemo, KS_eigvals);
-			if (oep_param.is_dcep()) corr_dcep = compute_oep_correction("dcep", HF_nemo,HF_eigvals, KS_nemo, KS_eigvals);
-			if (oep_param.is_mrks()) corr_mrks = compute_oep_correction("mrks", HF_nemo,HF_eigvals, KS_nemo, KS_eigvals);
+std::tuple<Tensor<double>, vecfuncT> OEP::recompute_HF(const vecfuncT& HF_nemo) const {
 
-			// and shift potential so that HOMO_HF = HOMO_KS, so potential += (HOMO_HF - HOMO_KS)
-			double shift = homo_diff(HF_eigvals, KS_eigvals);
-			print("building new Veop: orbital shift is", shift, "Eh");
+	timer timer1(world);
+    const vecfuncT R2nemo=truncate(R_square*HF_nemo);
+	vecfuncT psi, Jnemo, Knemo, pcmnemo, Unemo;
+	Nemo::compute_nemo_potentials(HF_nemo, psi, Jnemo, Knemo, pcmnemo, Unemo);
+	vecfuncT Vnemo=Unemo+Jnemo-Knemo;
+	if (do_pcm()) Vnemo+=pcmnemo;
+	tensorT HF_Fock=matrix_inner(world,R2nemo,Vnemo,false);   // not symmetric actually
+	Kinetic<double,3> T(world);
+	HF_Fock+=T(R2nemo,HF_nemo);
 
-			// damping
-			Voep = oep_param.damp_coeff()[0]*(Vs + corr_ocep + shift);
-			if (oep_param.is_dcep()) Voep += oep_param.damp_coeff()[0]*corr_dcep;
-			else if (oep_param.is_mrks()) Voep += oep_param.damp_coeff()[0]*corr_mrks;
-			if (oep_param.do_damping()) {
-				for (unsigned int i = 1; i < oep_param.damp_num(); i++) {
-					Voep += oep_param.damp_coeff()[i]*Voep_old[i - 1];
-				}
-			}
 
-			// save certain functions if desired
-			if (oep_param.save_iter_orbs() > 0) {
-				if (iter_counter == 2 or iter_counter % oep_param.save_iter_orbs() == 0) {
-			    	for (long i = 0; i < KS_nemo.size(); i++) {
-			    		save(R*KS_nemo[i], "KS_orb_" + stringify(i) + "_iter_" + stringify(iter_counter));
-			    	}
-				}
-			}
-			if (oep_param.save_iter_density() > 0) {
-				if (iter_counter == 2 or iter_counter % oep_param.save_iter_density() == 0) {
-					save(compute_density(KS_nemo), "density_iter_" + stringify(iter_counter));
-				}
-			}
-			if (oep_param.save_iter_kin_tot_KS() > 0 and oep_param.is_dcep()) {
-				if (iter_counter == 2 or iter_counter % oep_param.save_iter_kin_tot_KS() == 0) {
-					save(compute_total_kinetic_density(KS_nemo, KS_eigvals), "kin_tot_KS_iter_" + stringify(iter_counter));
-				}
-			}
-			if (oep_param.save_iter_kin_P_KS() > 0 and oep_param.is_mrks()) {
-				if (iter_counter == 2 or iter_counter % oep_param.save_iter_kin_P_KS() == 0) {
-					save(compute_Pauli_kinetic_density(KS_nemo, KS_eigvals), "kin_P_KS_iter_" + stringify(iter_counter));
-				}
-			}
-			if (oep_param.save_iter_ocep_correction() > 0) {
-				if (iter_counter == 2 or iter_counter % oep_param.save_iter_ocep_correction() == 0) {
-					save(corr_ocep + shift, "OCEP_correction_iter_" + stringify(iter_counter));
-				}
-			}
-			if (oep_param.save_iter_dcep_correction() > 0 and oep_param.is_dcep()) {
-				if (iter_counter == 2 or iter_counter % oep_param.save_iter_dcep_correction() == 0) {
-					save(corr_dcep + shift, "DCEP_correction_iter_" + stringify(iter_counter));
-				}
-			}
-			if (oep_param.save_iter_mrks_correction() > 0 and oep_param.is_mrks()) {
-				if (iter_counter == 2 or iter_counter % oep_param.save_iter_mrks_correction() == 0) {
-					save(corr_mrks + shift, "mRKS_correction_iter_" + stringify(iter_counter));
-				}
-			}
-			if (oep_param.save_iter_total_correction() > 0) {
-				if (oep_param.is_dcep() and (iter_counter == 2 or iter_counter % oep_param.save_iter_total_correction() == 0)) {
-					save(corr_ocep + corr_dcep + shift, "total_correction_iter_" + stringify(iter_counter));
-				}
-				else if (oep_param.is_mrks() and (iter_counter == 2 or iter_counter % oep_param.save_iter_total_correction() == 0)) {
-					save(corr_ocep + corr_mrks + shift, "total_correction_iter_" + stringify(iter_counter));
-				}
-			}
-			if (oep_param.save_iter_effective_potential() > 0) {
-				if (iter_counter == 2 or iter_counter % oep_param.save_iter_effective_potential() == 0) {
-					save(Voep, "effective_potential_iter_" + stringify(iter_counter));
-				}
-			}
+//	BSHApply<double,3> bsh_apply(world);
+//	bsh_apply.metric=R_square;
+//	bsh_apply.lo=get_calc()->param.lo();
+//	bsh_apply.do_coupling=calc->param.do_localize();
+//	auto [residual,eps_update] =bsh_apply(HF_nemo,HF_Fock,Vnemo);
+//
+//	vecfuncT nemo_new=HF_nemo-residual;
+//	if (param.print_level()>=10) {
+//		print("HF Fock matrix");
+//		print(HF_Fock);
+//		double rnorm=norm2(world,residual);
+//		print("residual for HF nemo recomputation",rnorm);
+//	}
+	vecfuncT nemo_new=HF_nemo;
+	timer1.end("recompute HF");
+	return std::make_tuple(HF_Fock, nemo_new);
+}
 
-		}
-
-		vecfuncT R2KS_nemo = R_square*KS_nemo;
-		truncate(world, R2KS_nemo);
-
-		// compute parts of the Fock matrix J, Unuc and Voep
-		compute_nemo_potentials(KS_nemo, Jnemo, Unemo, Voep, Vnemo);
-
-		// compute Fock matrix F = J + Voep + Vnuc and kinetic energy
-		vecfuncT Fnemo = Jnemo + Vnemo + Unemo;
-		truncate(world, Fnemo);
-		tensorT F = matrix_inner(world, R2KS_nemo, Fnemo, false); // matrix_inner gives 2d tensor
-		Kinetic<double,3> T(world);
-		F += T(R2KS_nemo, KS_nemo); // 2d tensor = Fock-matrix  // R_square in bra, no R in ket
-
-		// report the off-diagonal Fock matrix elements because canonical orbitals are used
-        tensorT F_offdiag = copy(F);
-        for (int i = 0; i < F.dim(0); ++i) F_offdiag(i, i) = 0.0;
-        double max_F_offidag = F_offdiag.absmax();
-        if (world.rank() == 0) print("F max off-diagonal ", max_F_offidag);
-
-		// compute new (current) energy
-        double old_energy = energy;
-        print("energy contributions of iteration", iter_counter);
-        double Ex_KS = compute_exchange_energy_vir(R*KS_nemo, Voep);
-		energy = compute_energy(R*KS_nemo, R*Jnemo, Ex_KS);
-		// compute_exchange_potential(KS_nemo, Knemo);
-		// double Ex_KS = compute_exchange_energy_conv(R*KS_nemo, R*Knemo);
-		// there should be no difference between these two methods, because energy is only needed
-		// for checking convergence threshold; but: Evir should be much faster because K is expensive
-
-		// copy old orbital energies for convergence criterium at the end
-		tensorT old_eigvals = copy(KS_eigvals);
-
-        // diagonalize the Fock matrix to get the eigenvalues and eigenvectors (canonical)
-		// FC = epsilonSC and X^dSX with transform matrix X, see Szabo/Ostlund (3.159) and (3.165)
-        tensorT X; // must be formed from R*nemos but can then be used for nemos also
-        tensorT overlap = matrix_inner(world, R*KS_nemo, R*KS_nemo, true);
-        X = calc->get_fock_transformation(world, overlap, F, KS_eigvals, calc->aocc,
-        		FunctionDefaults<3>::get_thresh());
-        KS_nemo = transform(world, KS_nemo, X, trantol(), true);
-        rotate_subspace(world, X, solver, 0, KS_nemo.size());
-
-        truncate(world, KS_nemo);
-        normalize(KS_nemo,R);
-
-		// calculate new orbital energies (current eigenvalues from Fock-matrix)
-		for (int i = 0; i < KS_nemo.size(); ++i) {
-			KS_eigvals(i) = std::min(-0.05, F(i, i)); // orbital energy is set to -0.05 if it was above
-		}
-
-		/// TODO: Question: is this necessary in our programme or even bad?
-		// if requested: subtract orbital shift from orbital energies
-		if (calc->param.orbitalshift() > 0.0) {
-			if (world.rank() == 0) print("shifting orbitals by ",
-					calc->param.orbitalshift(), " to lower energies");
-			KS_eigvals -= calc->param.orbitalshift();
-		}
-
-		// print orbital energies:
-		print("orbital energies of iteration", iter_counter);
-		print_orbens(KS_eigvals);
-		print("HF/KS HOMO energy difference of", homo_diff(HF_eigvals, KS_eigvals), "Eh is not yet included");
-
-		// construct the BSH operators ops
-		std::vector<poperatorT> G = calc->make_bsh_operators(world, KS_eigvals);
-
-		// remember Fock matrix * nemos from above; make sure it's in phase with nemo (transform)
-		Fnemo = transform(world, Fnemo, X, trantol(), true);
-		truncate(world, Fnemo);
-
-		// apply the BSH operators G (here ops) on the wave function
-		scale(world, Fnemo, -2.0);
-		vecfuncT GFnemo = apply(world, G, Fnemo);
-		truncate(world, GFnemo);
-
-		double n1 = norm2(world, KS_nemo);
-		double n2 = norm2(world, GFnemo);
-		print("\nnorm of nemo and GFnemo, ratio ", n1, n2, n1/n2);
-
-		// compute the residuals for KAIN
-		vecfuncT residual = KS_nemo - GFnemo;
-		const double norm = norm2(world, residual) / sqrt(KS_nemo.size());
-
-		// KAIN solver (helps to converge)
-		vecfuncT nemo_new;
-		if (norm < 5.0e-1) {
-			nemo_new = (solver.update(KS_nemo, residual, oep_param.kain_param()[0], oep_param.kain_param()[1]));
-		} else {
-			nemo_new = GFnemo;
-		}
-		truncate(world, nemo_new);
-		normalize(nemo_new,R);
-
-		// What is step restriction?
-		calc->do_step_restriction(world, KS_nemo, nemo_new, "ab spin case");
-		orthonormalize(nemo_new,R);
-		KS_nemo = nemo_new;
-
-		// evaluate convergence via norm error and energy difference
-		if ((norm < calc->param.dconv()) and (fabs(energy - old_energy) < oep_param.conv_thresh())) {
-
-			if (oep_param.is_oaep()) converged = true;  // if OAEP, the following evaluation is not necessary
-			else {
-				// build vector of convergence information of every orbital energy
-    			std::vector<bool> conv(KS_eigvals.size());
-    			for (long i = 0; i < KS_eigvals.size(); i++) {
-    				if (fabs(KS_eigvals(i) - old_eigvals(i)) < calc->param.dconv()) conv[i] = true;
-    				else conv[i] = false;
-    			}
-
-    			if (IsAlltrue(conv)) converged = true; // converged if all are converged
-			}
-
-		}
-
-		if (calc->param.save()) calc->save_mos(world);
-
-		if (world.rank() == 0) {
-			printf("\nfinished iteration %2d at time %8.1fs with energy %12.8f\n", iter_counter, wall_time(), energy);
-			print("current residual norm", norm, "\n");
-		}
-
-		if (converged) break;
-
-	}
-
-	if (converged) {
-		if (world.rank() == 0) {
-			print("\n     +++ Iterations converged +++\n");
-			print(oep_param.model(), "converged after", iter_counter, "iterations\n\n");
-		}
-	}
-	else {
-		if (world.rank() == 0) print("\n     --- Iterations failed ---\n\n");
-		energy = 0.0;
-	}
-
-	// calculate and print all final numbers
-	print("\n  computing final orbitals, IKS and density");
-
-	double shift_final = homo_diff(HF_eigvals, KS_eigvals);
-	real_function_3d kin_tot_KS = compute_total_kinetic_density(KS_nemo, KS_eigvals);
-	real_function_3d kin_P_KS = compute_Pauli_kinetic_density(KS_nemo, KS_eigvals);
-	real_function_3d rho_KS = compute_density(KS_nemo);
-	double Drho = compute_delta_rho(rho_HF, rho_KS);
-	if (oep_param.saving_amount() >= 1) save(rho_KS, "density_final");
-	if (oep_param.saving_amount() >= 2) {
-        if (oep_param.is_dcep()) save(kin_tot_KS, "kin_tot_KS_final");
-        if (oep_param.is_mrks()) save(kin_P_KS, "kin_P_KS_final");
-    	for (long i = 0; i < KS_nemo.size(); i++) {
-    		save(R*KS_nemo[i], "KS_orb_" + stringify(i) + "_final");
-    	}
-	}
-
-	// if desired: print final KS orbital contributions to total density (nemo squares)
-	if (oep_param.saving_amount() >= 3) {
-    	vecfuncT KS_nemo_square = square(world, KS_nemo);
-    	for (long i = 0; i < KS_nemo_square.size(); i++) {
-    		save(2.0*R_square*KS_nemo_square[i], "KS_orb_square_" + stringify(i)); // 2 because closed shell
-    	}
-	}
-
-	print("     done");
-
-	if (oep_param.is_oaep()) {
-		print("\n  computing final OAEP with converged OAEP orbitals and eigenvalues");
-    	Voep = Vs + shift_final;
-    	if (oep_param.saving_amount() >= 1) save(Voep, "OEPapprox_final");
-	}
-	if (oep_param.is_ocep()) {
-		print("\n  computing final OCEP with converged OCEP orbitals and eigenvalues");
-    	real_function_3d ocep_correction_final = compute_oep_correction("ocep", HF_nemo,HF_eigvals, KS_nemo, KS_eigvals);
-    	Voep = Vs + ocep_correction_final + shift_final;
-    	if (oep_param.saving_amount() >= 1) {
-    		save(ocep_correction_final + shift_final, "OCEP_correction_final");
-    		save(Voep, "OEPapprox_final");
-    	}
-	}
-	if (oep_param.is_dcep()) {
-		print("\n  computing final DCEP with converged DCEP orbitals and eigenvalues");
-    	real_function_3d ocep_correction_final = compute_oep_correction("ocep", HF_nemo,HF_eigvals, KS_nemo, KS_eigvals);
-    	real_function_3d dcep_correction_final = compute_oep_correction("dcep", HF_nemo,HF_eigvals, KS_nemo, KS_eigvals);
-    	Voep = Vs + ocep_correction_final + dcep_correction_final + shift_final;
-    	if (oep_param.saving_amount() >= 2) {
-        	save(ocep_correction_final + shift_final, "OCEP_correction_final");
-        	save(dcep_correction_final + shift_final, "DCEP_correction_final");
-    	}
-    	if (oep_param.saving_amount() >= 1) {
-    		save(ocep_correction_final + dcep_correction_final + shift_final, "total_correction_final");
-    		save(Voep, "OEPapprox_final");
-    	}
-	}
-	if (oep_param.is_mrks()) {
-		print("\n  computing final mRKS potential with converged mRKS orbitals and eigenvalues");
-    	real_function_3d ocep_correction_final = compute_oep_correction("ocep", HF_nemo,HF_eigvals, KS_nemo, KS_eigvals);
-    	real_function_3d mrks_correction_final = compute_oep_correction("mrks", HF_nemo,HF_eigvals, KS_nemo, KS_eigvals);
-    	Voep = Vs + ocep_correction_final + mrks_correction_final + shift_final;
-    	if (oep_param.saving_amount() >= 2) {
-        	save(ocep_correction_final + shift_final, "OCEP_correction_final");
-        	save(mrks_correction_final + shift_final, "mRKS_correction_final");
-    	}
-    	if (oep_param.saving_amount() >= 1) {
-    		save(ocep_correction_final + mrks_correction_final + shift_final, "total_correction_final");
-    		save(Voep, "OEPapprox_final");
-    	}
-	}
-	print("     done\n");
+double OEP::compute_and_print_final_energies(const std::string model, const real_function_3d& Voep,
+		const vecfuncT& KS_nemo, const tensorT& KS_Fock,
+		const vecfuncT& HF_nemo, const tensorT& HF_Fock) const {
 
 	// print final orbital energies
-	print("final shifted", oep_param.model(), "orbital energies:");
+	auto [HF_eigvals, evec] = syev(HF_Fock);
+	auto [KS_eigvals, evec1] = syev(KS_Fock);
+
+	print("final shifted", model, "orbital energies:");
 	print_orbens(KS_eigvals, homo_diff(HF_eigvals, KS_eigvals));
 	print("HF/KS HOMO energy difference of", homo_diff(HF_eigvals, KS_eigvals), "Eh is already included\n");
 
 	// final Jnemo and Knemo have to be computed again in order to calculate final energy
+	vecfuncT Jnemo, Knemo, Knemo_HF;
 	compute_coulomb_potential(KS_nemo, Jnemo);
 	compute_exchange_potential(KS_nemo, Knemo);
 
+	Exchange<double,3> K(world);
+	K.set_parameters(R_square*HF_nemo,HF_nemo,calc->aocc);
+	double Ex_HF=-inner(R_square*HF_nemo,K(HF_nemo));
+
 	// compute final exchange energy using different methods and final kinetic energy
-	double Ex_vir = compute_exchange_energy_vir(R*KS_nemo, Voep);
-	double Ex_conv = compute_exchange_energy_conv(R*KS_nemo, R*Knemo);
-	double Ekin_KS = compute_kinetic_energy(R*KS_nemo); // like Ts in Ospadov_2017, equation (22)
+	double Ex_vir = compute_exchange_energy_vir(KS_nemo, Voep);
+	double Ex_conv = compute_exchange_energy_conv(R_square*KS_nemo, Knemo);
+//	double Ex_HF = compute_exchange_energy_conv(R_square*HF_nemo, Knemo_HF);
+	double Ekin_KS = compute_kinetic_energy(KS_nemo); // like Ts in Ospadov_2017, equation (22)
+	double Ekin_HF = compute_kinetic_energy(HF_nemo); // like T in Ospadov_2017, equation (22)
 	double Tc = Ekin_HF - Ekin_KS; // like Tc = T - Ts in Ospadov_2017, equation (24)
 
-	print("FINAL", oep_param.model(), "ENERGY Evir:");
-	double Evir = compute_energy(R*KS_nemo, R*Jnemo, Ex_vir);
+	real_function_3d rho_KS = compute_density(KS_nemo);
+	real_function_3d rho_HF = compute_density(HF_nemo);
+	double Drho = compute_delta_rho(rho_HF, rho_KS);
 
-	print("FINAL", oep_param.model(), "ENERGY Econv:");
-	double Econv = compute_energy(R*KS_nemo, R*Jnemo, Ex_conv);
 
-	printf("      +++ FINAL TOTAL ENERGY = %15.8f  Eh +++\n\n\n", Econv);
+	print("FINAL", model, "ENERGY Evir:");
+	double Evir = compute_energy(KS_nemo, Ex_vir)[0];
+
+	print("FINAL", model, "ENERGY Econv:");
+	double Econv = compute_energy(KS_nemo, Ex_conv)[0];
+
 
 	printf("     Ex_vir       = %15.8f  Eh", Ex_vir);
 	printf("\n     Ex_conv      = %15.8f  Eh", Ex_conv);
@@ -402,168 +156,356 @@ void OEP::solve_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
 	printf("\n     DEvir_17     = %15.8f mEh\n", (Ex_vir - Ex_HF - 2.0*Tc)*1000.0); // like in Ospadov_2017, equation (28)
 	print("     Drho         =     ", Drho, "e\n\n");
 
-	print("---------------------------------------------------------------------------");
-	double E_0 = compute_E_zeroth(KS_eigvals);
-	double E_1 = compute_E_first(R*KS_nemo, R*Jnemo, R*Knemo, Voep);
+	if (not calc->param.do_localize()) {
+		print("---------------------------------------------------------------------------");
+		double E_0 = compute_E_zeroth(KS_eigvals);
+		double E_1 = compute_E_first(R*KS_nemo, R*Jnemo, R*Knemo, Voep);
 
-	printf("  E^(0)               = %15.8f  Eh", E_0);
-	printf("\n  E^(1)               = %15.8f  Eh", E_1);
-	printf("\n  E^(0) + E^(1)       = %15.8f  Eh", E_0 + E_1);
-	printf("\n  difference to Econv = %15.8f mEh\n\n", (E_0 + E_1 - Econv)*1000.0);
-
-	print("saving orbitals to restartdata");
+		printf("  E^(0)               = %15.8f  Eh", E_0);
+		printf("\n  E^(1)               = %15.8f  Eh", E_1);
+		printf("\n  E^(0) + E^(1)       = %15.8f  Eh", E_0 + E_1);
+		printf("\n  difference to Econv = %15.8f mEh\n\n", (E_0 + E_1 - Econv)*1000.0);
+	}
 	Tensor<double> f_pp = compute_fock_diagonal_elements(calc->aeps, KS_nemo, Knemo, Voep);
 
-	print("KS Fock matrix elements ", calc->aeps);
-	print("HF Fock matrix elements ", f_pp);
+//	print("KS Fock matrix elements using Voep/virial ", calc->aeps);
+	print("KS Fock matrix elements using K operator  ", f_pp);
 
-	calc->aeps = f_pp;
-	if (calc->param.save()) calc->save_mos(world);
+	return Econv;
+}
 
+double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tensorT& HF_Fock,
+		vecfuncT& KS_nemo, tensorT& KS_Fock, real_function_3d& Voep, const real_function_3d Vs) const {
+
+	bool print_debug=(calc->param.print_level()>=10) and (world.rank()==0);
+
+	// compute the constant HF contributions to the OEP hierarchy
+	const real_function_3d ocep_numerator_HF=-1.0*compute_energy_weighted_density_local(HF_nemo,HF_Fock);
+	const real_function_3d dcep_numerator_HF=compute_total_kinetic_density(HF_nemo);
+	const real_function_3d mrks_numerator_HF=compute_Pauli_kinetic_density(HF_nemo);
+	if (oep_param.saving_amount() >= 1) {
+		save(ocep_numerator_HF,"ocep_numerator_HF");
+		save(dcep_numerator_HF,"dcep_numerator_HF");
+		save(mrks_numerator_HF,"mrks_numerator_HF");
+	}
+
+
+	typedef allocator<double, 3> allocT;
+	typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
+	allocT alloc(world, KS_nemo.size());
+	solverT solver(allocT(world, KS_nemo.size()),calc->param.print_level()>4);
+	solver.set_maxsub(calc->param.maxsub());
+
+	double energy=0.0;
+	std::vector<double> energies(1,0.0);
+	bool converged=false;
+
+	timer timer1(world,calc->param.print_level()>=3);
+	for (int iter = 0; iter < oep_param.maxiter(); ++iter) {
+
+	    if (calc->param.do_localize()) {
+	    	for (int i=0; i<KS_nemo.size(); ++i) calc->aeps(i)=KS_Fock(i,i);
+	    	KS_nemo=localize(KS_nemo,calc->param.econv(),iter==0);
+	    	if (calc->param.print_level()>=10) calc->analyze_vectors(world,KS_nemo,calc->aocc,tensorT(),calc->aset);
+	    }
+	    if (do_symmetry()) {
+		    std::vector<std::string> str_irreps;
+	    	KS_nemo=symmetry_projector(KS_nemo,R_square,str_irreps);
+		    if (world.rank()==0) print("orbital irreps",str_irreps);
+	    }
+
+	    // compute parts of the KS Fock matrix J, Unuc and Voep
+		vecfuncT Jnemo, Unemo, Fnemo;
+		compute_nemo_potentials(KS_nemo, Jnemo, Unemo);
+		vecfuncT R2KS_nemo = truncate(R_square*KS_nemo);
+
+		timer1.tag("compute potentials");
+
+		Voep=copy(Vs);
+
+		// treat ocep correction separately as it depends on the KS Fock matrix
+		tensorT Fock_ocep;
+		if (need_ocep_correction(model)) {
+			real_function_3d ocep_correction = compute_ocep_correction(ocep_numerator_HF, HF_nemo,KS_nemo,HF_Fock,KS_Fock);
+			Fock_ocep=matrix_inner(world,R2KS_nemo,ocep_correction*KS_nemo);
+			if (oep_param.save_iter_corrections()>0 and (iter%oep_param.save_iter_corrections()==0))
+				save(ocep_correction,"ocep_correction"+std::to_string(iter));
+		}
+
+		if (need_dcep_correction(model)) {
+			real_function_3d dcep_correction=compute_dcep_correction(dcep_numerator_HF, HF_nemo,KS_nemo);
+			Voep += dcep_correction;
+			if (oep_param.save_iter_corrections()>0 and (iter%oep_param.save_iter_corrections()==0))
+				save(dcep_correction,"dcep_correction"+std::to_string(iter));
+		}
+
+		if (need_mrks_correction(model)) {
+			real_function_3d mrks_correction=compute_mrks_correction(mrks_numerator_HF, HF_nemo,KS_nemo);
+			Voep += mrks_correction;
+			if (oep_param.save_iter_corrections()>0 and (iter%oep_param.save_iter_corrections()==0))
+				save(mrks_correction,"mrks_correction"+std::to_string(iter));
+		}
+
+		Fnemo = (Jnemo + Unemo + Voep*KS_nemo);
+
+		tensorT Fock_no_ocep = matrix_inner(world, R2KS_nemo, Fnemo, false);
+		Kinetic<double,3> T(world);
+		Fock_no_ocep += T(R2KS_nemo, KS_nemo);
+
+		// recompute the OCEP correction with the updated Fock matrix
+		if (need_ocep_correction(model)) {
+			real_function_3d ocep_correction;
+			for (int i=0; i<5; ++i) {
+				ocep_correction= compute_ocep_correction(ocep_numerator_HF, HF_nemo,KS_nemo,HF_Fock,KS_Fock);
+				Fock_ocep=matrix_inner(world,R2KS_nemo,ocep_correction*KS_nemo);
+				tensorT KS_Fock_old=copy(KS_Fock);
+				KS_Fock=Fock_no_ocep+Fock_ocep;
+				if ((KS_Fock_old-KS_Fock).normf()<calc->param.econv()) break;
+				if (print_debug) {
+					print("fock with updated ocep Fock matrix, ocep micro",i);
+					print(KS_Fock);
+				}
+			}
+			Voep+=ocep_correction;
+			Fnemo+=(ocep_correction*KS_nemo);
+		} else {
+			KS_Fock=copy(Fock_no_ocep);
+		}
+
+		timer1.tag("compute oep");
+
+		if (not calc->param.do_localize()) {
+
+			// report the off-diagonal Fock matrix elements because canonical orbitals are used
+			tensorT F_offdiag = copy(KS_Fock);
+			for (int i = 0; i < KS_Fock.dim(0); ++i) F_offdiag(i, i) = 0.0;
+			double max_F_offidag = F_offdiag.absmax();
+			if (print_debug) print("F max off-diagonal ", max_F_offidag);
+
+			// diagonalize the Fock matrix to get the eigenvalues and eigenvectors (canonical)
+			// FC = epsilonSC and X^dSX with transform matrix X, see Szabo/Ostlund (3.159) and (3.165)
+			tensorT overlap = matrix_inner(world, R*KS_nemo, R*KS_nemo, true);
+			tensorT KSeig;
+			tensorT X = calc->get_fock_transformation(world, overlap, KS_Fock, KSeig, calc->aocc,
+					FunctionDefaults<3>::get_thresh());
+			KS_nemo = truncate(transform(world, KS_nemo, X));
+			normalize(KS_nemo,R);
+			rotate_subspace(world, X, solver, 0, KS_nemo.size());
+			Fnemo = transform(world, Fnemo, X);
+
+			timer1.tag("canonicalization");
+		}
+		Fnemo=truncate(Fnemo);
+
+		// compute new (current) energy
+        double old_energy = energy;
+        double Ex_KS = compute_exchange_energy_vir(KS_nemo, Voep);
+
+		std::vector<double> oldenergies=energies;
+        energies=compute_energy(KS_nemo, Ex_KS);
+        energy =energies[0];
+
+		timer1.tag("compute energy");
+
+		BSHApply<double,3> bsh_apply(world);
+		bsh_apply.metric=R_square;
+		bsh_apply.levelshift=oep_param.levelshift();
+		bsh_apply.lo=get_calc()->param.lo();
+		bsh_apply.do_coupling=calc->param.do_localize();
+		auto [residual,eps_update] =bsh_apply(KS_nemo,KS_Fock,Fnemo);
+		timer1.tag("apply BSH");
+
+		double bshnorm=norm2(world,residual)/sqrt(KS_nemo.size());
+
+		// KAIN solver (helps to converge)
+		vecfuncT nemo_new = (solver.update(KS_nemo, residual, oep_param.kain_param()[0], oep_param.kain_param()[1]));
+		truncate(world, nemo_new);
+		normalize(nemo_new,R);
+
+		// estimate the orbital energies, as they enter the potential
+		if (calc->param.print_level()>=10)  print(KS_Fock);
+
+		// What is step restriction?
+		calc->do_step_restriction(world, KS_nemo, nemo_new, "ab spin case");
+		orthonormalize(nemo_new,R);
+		KS_nemo = nemo_new;
+		timer1.tag("post-process");
+		if (oep_param.saving_amount() >= 3)
+			for (int n=0; n<KS_nemo.size(); ++n) save(KS_nemo[n], "KS_nemo"+stringify(n)+"iter"+stringify(iter));
+
+		double deltadensity=0.0;
+		converged=check_convergence(energies,oldenergies,bshnorm,deltadensity,calc->param,
+				calc->param.econv(),calc->param.dconv());
+		if (world.rank() == 0) {
+			printf("\nfinished %s iteration %2d at time %8.1fs with energy %12.8f; residual %12.8f\n\n",
+					model.c_str(), iter, wall_time(), energy,bshnorm);
+		}
+
+		if (converged) break;
+	}
+
+	if (world.rank()==0) {
+		if (converged) print("\n     +++ Iterations converged +++\n");
+		else print("\n     --- Iterations failed ---\n\n");
+	}
+	energy=compute_and_print_final_energies(model,Voep,KS_nemo,KS_Fock,HF_nemo,HF_Fock);
+	if (not converged) energy=0.0;
+	return energy;
 }
 
 
 /// The following function tests all essential parts of the OEP program qualitatively and some also quantitatively
-void OEP::test_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
+int OEP::test_oep(const vecfuncT& HF_nemo1) {
 
-    bool everything_ok = true;
+	int ierr=0;
+	set_protocol(calc->param.econv());
 
     // Start by testing all important functions. If something severe fails, they throw an exception
     print("\n   >> test calculation of all important functions - severe errors will cause an exception\n");
 
-    print("test calculation of HOMO index from HF calculation");
-    print("     the HOMO index is ...", homo_ind(HF_eigvals));
-    print("  HOMO index computed successfully\n");
+    test_output hfdens("test construction of HF density");
+    const real_function_3d rho_HF = compute_density(HF_nemo1);
+    hfdens.end(true);
 
-    print("test construction of HF density");
-    const real_function_3d rho_HF = compute_density(HF_nemo);
-    print("  HF density computed successfully\n");
+    test_output hf_recompute("test recomputation of HF orbitals and fock matrix");
+	auto [HF_Fock, HF_nemo] = recompute_HF(HF_nemo1);
+	double err_hf=norm2(world,HF_nemo1-HF_nemo);
+	hf_recompute.end(err_hf<param.econv());
 
-    print("test construction of Slater potential");
-    const real_function_3d Vs = compute_slater_potential(HF_nemo, homo_ind(HF_eigvals));
-    print("  Slater potential computed successfully\n");
+    test_output slater("test computation of the Slater potential");
+    const real_function_3d Vs = compute_slater_potential(HF_nemo);
+    double refn1=1.70581413e+01;
+    double n1=Vs.norm2();
+    slater.logger << "  norm of the Slater potential " << n1 << std::endl;
+    ierr+=slater.end(fabs(n1-refn1) < param.econv());
 
-    print("test construction of IHF");
-    const real_function_3d IHF = compute_energy_weighted_density(HF_nemo, HF_eigvals);
-    print("  compute_energy_weighted_density computed successfully\n");
+    test_output ihf("test computation of the energy_weighted density IHF");
+    const real_function_3d IHF = compute_energy_weighted_density_local(HF_nemo,HF_Fock);
+    double refn2=4.48800120e+00;
+    double n2=IHF.norm2();
+    ihf.logger << "  norm of the IHF potential " << n2 << std::endl;
+    ierr+=ihf.end(fabs(n2-refn2) < param.econv());
 
-    print("test construction of kin_tot_HF (tau/rho HF)");
-    const real_function_3d kin_tot_HF = compute_total_kinetic_density(HF_nemo, HF_eigvals);
-    print("  kin_tot_HF computed successfully\n");
+    test_output kinhf("test computation of the kinetic density for dcep");
+    const real_function_3d kin_tot_HF = compute_total_kinetic_density(HF_nemo);
+    double refn3=7.02281570e+00;
+    double n3=kin_tot_HF.norm2();
+    kinhf.logger << "  norm of the kin_tot_HF potential " << n3 << std::endl;
+    ierr+=kinhf.end(fabs(n3-refn3) < param.econv());
 
-    print("test construction of kin_P_HF (tau_P/rho HF)");
-    const real_function_3d kin_P_HF = compute_Pauli_kinetic_density(HF_nemo, HF_eigvals);
-    print("  kin_P_HF computed successfully\n");
+    test_output paulihf("test computation of the pauli kinetic density for mrks");
+    const real_function_3d kin_P_HF = compute_Pauli_kinetic_density(HF_nemo);
+    double refn4= 7.59945929e-02;
+    double n4=kin_P_HF.norm2();
+    paulihf.logger << "  norm of the kin_P_HF potential " << n4 << std::endl;
+    ierr+=paulihf.end(fabs(n4-refn4) < param.econv());
 
     print("\n   >> test some quantities based on the reference HF calculation\n");
 
     vecfuncT Knemo;
 	compute_exchange_potential(HF_nemo, Knemo);
 
-    print("test conventional HF exchange energy");
+    test_output conv_hf("test conventional HF exchange energy");
     const double Exconv_HF_correct = -2.66691504; // exchange energy from nemo calculation
-    print("HF exchange energy of the system should be", Exconv_HF_correct, "Eh");
+    conv_hf.logger << "HF exchange energy of the system should be " <<  Exconv_HF_correct << " Eh" << std::endl;
     const double Exconv_HF = compute_exchange_energy_conv(R*HF_nemo, R*Knemo);
     const double Exconv_HF_diff = fabs(Exconv_HF_correct - Exconv_HF);
-    print("     the HF exchange energy of the system is ...", Exconv_HF, "Eh");
-    print("     error:", Exconv_HF_diff, "Eh");
-    if (Exconv_HF_diff <= param.econv()) print("  conventional HF exchange energy is correct\n");
-    else {
-    	print("  ATTENTION: conventional HF exchange energy error is larger than energy convergence threshold (econv)!\n");
-    	everything_ok = false;
-    }
+    conv_hf.logger << "the HF exchange energy of the system is ... " <<  Exconv_HF <<" Eh" << std::endl;
+    conv_hf.logger << "the error is ... " <<  std::scientific << Exconv_HF_diff <<" Eh" << std::endl;
+    ierr+=conv_hf.end(Exconv_HF_diff < param.econv());
 
-    print("test HF exchange energy via Slater potential");
-    const double ExVs_HF_correct = -2.66691504; // exchange energy from nemo calculation
-    print("HF exchange energy of the system should be", ExVs_HF_correct, "Eh");
+
+    test_output slater_x("test HF exchange energy via Slater potential");
+    const double ExVs_HF_correct = -2.666912; // exchange energy from nemo calculation
+    slater_x.logger << "  HF exchange energy of the system should be "
+    		<< std::scientific << std::setprecision(8) <<  ExVs_HF_correct << " Eh"<<std::endl;
     const double ExVs_HF = 0.5*inner(rho_HF, Vs);
     const double ExVs_HF_diff = fabs(ExVs_HF_correct - ExVs_HF);
-    print("     the HF exchange energy of the system is ...", ExVs_HF, "Eh");
-    print("     error:", ExVs_HF_diff, "Eh");
-    if (ExVs_HF_diff <= param.econv()) print("  HF exchange energy via Slater potential is correct\n");
-    else {
-    	print("  ATTENTION: HF exchange energy (via Slater potential) error is larger than energy convergence threshold (econv)!\n");
-    	everything_ok = false;
-    }
+    slater_x.logger <<"  the HF exchange energy of the system is ... " << ExVs_HF << " Eh" << std::endl;
+    slater_x.logger <<"  error: "  << ExVs_HF_diff <<  " Eh" << std::endl;;
+    ierr+=slater_x.end(ExVs_HF_diff < param.econv());
 
-    print("test virial HF exchange energy (with Slater potential)");
-    const double Exvir_HF_correct = -3.00658754; // exchange energy from a test calculation with HF reference
-    print("HF virial exchange energy of the system should be", Exvir_HF_correct, "Eh");
-    const double Exvir_HF = compute_exchange_energy_vir(R*HF_nemo, Vs);
+
+    test_output slater_x_vir("test virial HF exchange energy (with Slater potential)");
+    const double Exvir_HF_correct = -3.00661935; // exchange energy from a test calculation with HF reference
+    slater_x_vir.logger << "  HF virial exchange energy of the system should be "
+    		<< std::scientific << std::setprecision(8) << Exvir_HF_correct << " Eh" << std::endl;
+    const double Exvir_HF = compute_exchange_energy_vir(HF_nemo, Vs);
     const double Exvir_HF_diff = fabs(Exvir_HF_correct - Exvir_HF);
-    print("     the virial HF exchange energy of the system is ...", Exvir_HF, "Eh");
-    print("     error:", Exvir_HF_diff, "Eh");
-    if (Exvir_HF_diff <= param.econv()) print("  virial HF exchange energy is correct\n");
-    else {
-    	print("  ATTENTION: virial HF exchange energy error is larger than energy convergence threshold (econv)!\n");
-    	everything_ok = false;
-    }
+    slater_x_vir.logger << "  the virial HF exchange energy of the system is ... " << Exvir_HF <<" Eh" << std::endl;
+    slater_x_vir.logger << "  error: " << Exvir_HF_diff << " Eh" << std::endl;
+    ierr+=slater_x_vir.end(Exvir_HF_diff < param.econv());
 
-    print("test virial HF exchange energy (with only HF OCEP: IKS = 0)");
-    real_function_3d V_HFocep = Vs + IHF;
-    const double Exvir_HFocep_correct = -0.47639487; // exchange energy from a test calculation with HF reference
-    print("HF OCEP virial exchange energy of the system should be", Exvir_HFocep_correct, "Eh");
-    const double Exvir_HFocep = compute_exchange_energy_vir(R*HF_nemo, V_HFocep);
+
+    print("\n   >> test solve_oep function with oaep model for 2 iterations\n");
+
+    tensorT KS_Fock=copy(HF_Fock);
+	vecfuncT KS_nemo = copy(world,calc->amo);
+	real_function_3d Voep = copy(Vs);
+    double energy=iterate("oaep",HF_nemo,HF_Fock,KS_nemo,KS_Fock,Voep,Vs);
+
+
+    test_output ihf_vir("test virial ocep exchange energy");
+    save(IHF,"IHF");
+    vecfuncT empty; tensorT fock0(2,2);
+    real_function_3d V_HFocep = compute_ocep_correction(IHF, HF_nemo, KS_nemo, HF_Fock, KS_Fock);
+    const double Exvir_HFocep_correct = -5.01251194e+00; // exchange energy from a test calculation with HF reference
+    ihf_vir.logger  << "HF OCEP virial exchange energy of the system should be "
+    		<< std::scientific << std::setprecision(8) << Exvir_HFocep_correct << " Eh" << std::endl;
+    const double Exvir_HFocep = compute_exchange_energy_vir(HF_nemo, V_HFocep);
     const double Exvir_HFocep_diff = fabs(Exvir_HFocep_correct - Exvir_HFocep);
-    print("     the virial HF OCEP exchange energy of the system is ...", Exvir_HFocep, "Eh");
-    print("     error:", Exvir_HFocep_diff, "Eh");
-    if (Exvir_HFocep_diff <= param.econv()) print("  virial HF OCEP exchange energy is correct\n");
-    else {
-    	print("  ATTENTION: virial HF OCEP exchange energy error is larger than energy convergence threshold (econv)!\n");
-    	everything_ok = false;
-    }
+    ihf_vir.logger << "  the virial HF OCEP exchange energy of the system is ... "<< Exvir_HFocep<<" Eh"<<std::endl;
+    ihf_vir.logger << " error: "<< Exvir_HFocep_diff << " Eh" << std::endl;
+    ierr+=ihf_vir.end(Exvir_HFocep_diff < param.econv());
 
-    print("test virial HF exchange energy (with only HF DCEP: IKS = 0, kin_tot_KS = 0)");
-    real_function_3d V_HFdcep = Vs + IHF + kin_tot_HF;
-    const double Exvir_HFdcep_correct = 4.03650400; // exchange energy from a test calculation with HF reference
-    print("HF DCEP virial exchange energy of the system should be", Exvir_HFdcep_correct, "Eh");
-    const double Exvir_HFdcep = compute_exchange_energy_vir(R*HF_nemo, V_HFdcep);
+
+    test_output ihf_kin_vir("test virial dcep exchange energy");
+    real_function_3d V_HFdcep = compute_dcep_correction(kin_tot_HF, HF_nemo, KS_nemo);
+    const double Exvir_HFdcep_correct = 7.83817133e-02; // exchange energy from a test calculation with HF reference
+    ihf_kin_vir.logger << "HF DCEP virial exchange energy of the system should be "
+    		<< std::scientific << std::setprecision(8) << Exvir_HFdcep_correct << " Eh" << std::endl;
+    const double Exvir_HFdcep = compute_exchange_energy_vir(HF_nemo, V_HFdcep);
     const double Exvir_HFdcep_diff = fabs(Exvir_HFdcep_correct - Exvir_HFdcep);
-    print("     the virial HF DCEP exchange energy of the system is ...", Exvir_HFdcep, "Eh");
-    print("     error:", Exvir_HFdcep_diff, "Eh");
-    if (Exvir_HFdcep_diff <= param.econv()) print("  virial HF DCEP exchange energy is correct\n");
-    else {
-    	print("  ATTENTION: virial HF DCEP exchange energy error is larger than energy convergence threshold (econv)!\n");
-    	everything_ok = false;
-    }
+    ihf_kin_vir.logger << "  the virial HF DCEP exchange energy of the system is ... " << Exvir_HFdcep << " Eh" << std::endl;
+    ihf_kin_vir.logger << "  error: " << Exvir_HFdcep_diff << " Eh" << std::endl;
+    ierr+=ihf_kin_vir.end(Exvir_HFdcep_diff < param.econv());
 
-    print("test virial HF exchange energy (with only HF mRKS: IKS = 0, kin_P_KS = 0)");
-    real_function_3d V_HFmrks = Vs + IHF + kin_P_HF;
-    const double Exvir_HFmrks_correct = -0.84506060; // exchange energy from a test calculation with HF reference
-    print("HF mRKS virial exchange energy of the system should be", Exvir_HFmrks_correct, "Eh");
-    const double Exvir_HFmrks = compute_exchange_energy_vir(R*HF_nemo, V_HFmrks);
+
+    test_output ihf_pauli_vir("test virial mrks exchange energy ");
+    real_function_3d V_HFmrks = compute_mrks_correction(kin_P_HF,HF_nemo, KS_nemo);
+    const double Exvir_HFmrks_correct = 2.97175117e-01; // exchange energy from a test calculation with HF reference
+    ihf_pauli_vir.logger << "HF mRKS virial exchange energy of the system should be"
+    		<< std::scientific << std::setprecision(8) << Exvir_HFmrks_correct << " Eh" << std::endl;
+    const double Exvir_HFmrks = compute_exchange_energy_vir(HF_nemo, V_HFmrks);
     const double Exvir_HFmrks_diff = fabs(Exvir_HFmrks_correct - Exvir_HFmrks);
-    print("     the virial HF mRKS exchange energy of the system is ...", Exvir_HFmrks, "Eh");
-    print("     error:", Exvir_HFmrks_diff, "Eh");
-    if (Exvir_HFmrks_diff <= param.econv()) print("  virial HF mRKS exchange energy is correct\n");
-    else {
-    	print("  ATTENTION: virial HF mRKS exchange energy error is larger than energy convergence threshold (econv)!\n");
-    	everything_ok = false;
-    }
+    ihf_pauli_vir.logger << "  the virial HF mRKS exchange energy of the system is ... " << Exvir_HFmrks << " Eh" << std::endl;;
+    ihf_pauli_vir.logger << "  error:" << Exvir_HFmrks_diff << " Eh" << std::endl;
+    ierr+=ihf_pauli_vir.end(Exvir_HFmrks_diff < param.econv());
 
-    print("test HF kinetic energy");
+
+    test_output hf_kinetic("test HF kinetic energy");
     const double Ekin_HF_correct = 14.57304144; // HF kinetic energy from a test calculation with HF reference (OEP: maxiter = 2)
-    print("HF kinetic energy of the system should be", Ekin_HF_correct, "Eh");
-    const double Ekin_HF = compute_kinetic_energy(R*HF_nemo);
+    hf_kinetic.logger << "HF kinetic energy of the system should be"
+    		<< std::scientific << std::setprecision(8) << Ekin_HF_correct << " Eh" << std::endl;
+    const double Ekin_HF = compute_kinetic_energy(HF_nemo);
     const double Ekin_HF_diff = fabs(Ekin_HF_correct - Ekin_HF);
-    print("     the HF kinetic energy of the system is ...", Ekin_HF, "Eh");
-    print("     error:", Ekin_HF_diff, "Eh");
-    if (Ekin_HF_diff <= param.econv()) print("  HF kinetic energy is correct\n");
-    else {
-    	print("  ATTENTION: HF kinetic energy error is larger than energy convergence threshold (econv)!\n");
-    	everything_ok = false;
-    }
+    hf_kinetic.logger << "  the HF kinetic energy of the system is ... " << Ekin_HF << " Eh" << std::endl;
+    hf_kinetic.logger << "  error:" << Ekin_HF_diff << " Eh" << std::endl;
+    ierr+=hf_kinetic.end(Ekin_HF_diff < param.econv());
+
+
+
+
 
     print("\n   >> test solve_oep function with mRKS model for 2 iterations\n");
-    solve_oep(HF_nemo, HF_eigvals);
+    solve(HF_nemo);
     print("\n   >> solve_oep test finished, calculating test quantities based on the new KS orbitals and eigenvalues\n");
 
-    vecfuncT& KS_nemo = calc->amo;
-    tensorT& KS_eigvals = calc->aeps;
+    KS_nemo = calc->amo;
+    //tensorT& KS_eigvals = calc->aeps;
 
     const real_function_3d rho_KS = compute_density(KS_nemo);
 
-    real_function_3d Voep = Vs;
     print("loading final potential ...");
     load(Voep, "OEPapprox_final");
     print(   "... done\n");
@@ -572,105 +514,88 @@ void OEP::test_oep(const vecfuncT& HF_nemo, const tensorT& HF_eigvals) {
     compute_coulomb_potential(KS_nemo, Jnemo);
     compute_exchange_potential(KS_nemo, Knemo);
 
-    print("test conventional KS exchange energy");
-    const double Ex_conv_correct = -2.68888478; // exchange energy from a test calculation with HF reference (OEP: maxiter = 2)
-    print("KS conventional exchange energy of the system should be", Ex_conv_correct, "Eh");
+    test_output conv_ks("test conventional KS exchange energy");
+    const double Ex_conv_correct = -2.68048325e+00;
+    conv_ks.logger << "KS conventional exchange energy of the system should be "
+    		<< std::scientific << std::setprecision(8) << Ex_conv_correct << " Eh" << std::endl;
     const double Ex_conv = compute_exchange_energy_conv(R*KS_nemo, R*Knemo);
     const double Ex_conv_diff = fabs(Ex_conv_correct - Ex_conv);
-    print("     the conventional KS exchange energy of the system is ...", Ex_conv, "Eh");
-    print("     error:", Ex_conv_diff, "Eh");
-    if (Ex_conv_diff <= param.econv()) print("  conventional KS exchange energy is correct\n");
-    else {
-    	print("  ATTENTION: conventional KS exchange energy error is larger than energy convergence threshold (econv)!\n");
-    	everything_ok = false;
-    }
+    conv_ks.logger << "  the conventional KS exchange energy of the system is ... " << Ex_conv << " Eh" << std::endl;;
+    conv_ks.logger << "  error: "<< Ex_conv_diff << " Eh" << std::endl;
+    ierr+=conv_ks.end(Ex_conv_diff < param.econv());
 
-    print("test virial KS exchange energy");
-    const double Ex_vir_correct = -2.81673416; // exchange energy from a test calculation with HF reference (OEP: maxiter = 2)
-    print("KS virial exchange energy of the system should be", Ex_vir_correct, "Eh");
-    const double Ex_vir = compute_exchange_energy_vir(R*KS_nemo, Voep);
+
+    test_output vir_ks("test virial KS exchange energy");
+    const double Ex_vir_correct = -2.67728104e+00; // exchange energy from a test calculation with HF reference (OEP: maxiter = 2)
+    vir_ks.logger << "KS virial exchange energy of the system should be"
+    		<< std::scientific << std::setprecision(8)  << Ex_vir_correct << " Eh" << std::endl;
+    const double Ex_vir = compute_exchange_energy_vir(KS_nemo, Voep);
     const double Ex_vir_diff = fabs(Ex_vir_correct - Ex_vir);
-    print("     the virial KS exchange energy of the system is ...", Ex_vir, "Eh");
-    print("     error:", Ex_vir_diff, "Eh");
-    if (Ex_vir_diff <= param.econv()) print("  virial KS exchange energy is correct\n");
-    else {
-    	print("  ATTENTION: virial KS exchange energy error is larger than energy convergence threshold (econv)!\n");
-    	everything_ok = false;
-    }
+    vir_ks.logger << "  the virial KS exchange energy of the system is ... " << Ex_vir << " Eh" << std::endl;
+    vir_ks.logger << "  error: " << Ex_vir_diff << " Eh" << std::endl;
+    ierr+=vir_ks.end(Ex_vir_diff < param.econv());
 
-    print("test final total energy");
-    const double Etot_correct = -14.56855740; // total energy (conv) from a test calculation with HF reference (OEP: maxiter = 2)
-    print("final total energy of the system should be", Etot_correct, "Eh");
-    const double Etot = compute_energy(R*KS_nemo, R*Jnemo, Ex_conv);
+
+    test_output total_energy("test final total energy");
+    const double Etot_correct = -1.45708107e+01; // total energy (conv) from a test calculation with HF reference (OEP: maxiter = 2)
+    total_energy.logger << "final total energy of the system should be "
+    		<< Etot_correct << " Eh" << std::endl;
+    const double Etot = compute_energy(KS_nemo, Ex_conv)[0];
     const double Etot_diff = fabs(Etot_correct - Etot);
-    print("     the final total energy of the system is ...", Etot, "Eh");
-    print("     error:", Etot_diff, "Eh");
-    if (Etot_diff <= param.econv()) print("  final total energy is correct\n");
-    else {
-    	print("  ATTENTION: final total energy error is larger than energy convergence threshold (econv)!\n");
-    	everything_ok = false;
-    }
+    total_energy.logger << "  the final total energy of the system is ... " << Etot << " Eh" << std::endl;
+    total_energy.logger << "  error: " << Etot_diff << "Eh" << std::endl;
+    ierr+=total_energy.end(Etot_diff < param.econv());
 
-    print("test KS kinetic energy");
-    const double Ekin_KS_correct = 14.75193175; // KS kinetic energy from a test calculation with HF reference (OEP: maxiter = 2)
-    print("KS kinetic energy of the system should be", Ekin_KS_correct, "Eh");
-    const double Ekin_KS = compute_kinetic_energy(R*KS_nemo);
+
+    test_output ks_kinetic_energy("test KS kinetic energy");
+    const double Ekin_KS_correct = 1.46848100e+01; // KS kinetic energy from a test calculation with HF reference (OEP: maxiter = 2)
+    ks_kinetic_energy.logger << "KS kinetic energy of the system should be " << Ekin_KS_correct << " Eh" << std::endl;
+    const double Ekin_KS = compute_kinetic_energy(KS_nemo);
     const double Ekin_KS_diff = fabs(Ekin_KS_correct - Ekin_KS);
-    print("     the KS kinetic energy of the system is ...", Ekin_KS, "Eh");
-    print("     error:", Ekin_KS_diff, "Eh");
-    if (Ekin_KS_diff <= param.econv()) print("  KS kinetic energy is correct\n");
-    else {
-    	print("  ATTENTION: KS kinetic energy error is larger than energy convergence threshold (econv)!\n");
-    	everything_ok = false;
-    }
+    ks_kinetic_energy.logger << "  the KS kinetic energy of the system is ... " << Ekin_KS << " Eh" << std::endl;
+    ks_kinetic_energy.logger << "  error: " << Ekin_KS_diff << " Eh" << std::endl;
+    ierr+=ks_kinetic_energy.end(Ekin_KS_diff < param.econv());
+
 
     const double Tc = Ekin_HF - Ekin_KS;
 
-    print("test quantity Delta Evir (14) after 2 iterations");
-    const double DEvir_14_correct = -127.84938639; // DEvir_14 (in mEh) from a test calculation with HF reference (OEP: maxiter = 2)
-    print("Delta Evir (14) of the system should be", DEvir_14_correct, "mEh");
+    test_output corr_energy("test quantity Delta Evir (14) after 2 iterations");
+    const double DEvir_14_correct = 3.20220918e+00; // DEvir_14 (in mEh) from a test calculation with HF reference (OEP: maxiter = 2)
+    corr_energy.logger << "Delta Evir (14) of the system should be " << DEvir_14_correct << " mEh" << std::endl;
     const double DEvir_14 = (Ex_vir - Ex_conv)*1000.0;
     const double DEvir_14_diff = fabs(DEvir_14_correct - DEvir_14);
-    print("     Delta Evir (14) of the system is ...", DEvir_14, "mEh");
-    print("     error:", DEvir_14_diff, "mEh");
-    if (DEvir_14_diff*0.001 <= param.econv()) print("  quantity Delta Evir (14) is correct\n"); // mind the units
-    else {
-    	print("  ATTENTION: error of quantity Delta Evir (14) is larger than energy convergence threshold (econv)!\n");
-    	everything_ok = false;
-    }
+    corr_energy.logger << "  Delta Evir (14) of the system is ... " << DEvir_14 << " mEh" << std::endl;
+    corr_energy.logger << "  error: "<< DEvir_14_diff << " mEh" << std::endl;
+    ierr+=corr_energy.end(DEvir_14_diff*0.001 < param.econv());
 
-    print("test quantity Delta Evir (17) after 2 iterations");
-    const double DEvir_17_correct = 207.96150201; // DEvir_17 (in mEh) from a test calculation with HF reference (OEP: maxiter = 2)
-    print("Delta Evir (17) of the system should be", DEvir_17_correct, "mEh");
+
+    test_output devir17("test quantity Delta Evir (17) after 2 iterations");
+    const double DEvir_17_correct = 2.13166331e+02; // DEvir_17 (in mEh) from a test calculation with HF reference (OEP: maxiter = 2)
+    devir17.logger << "Delta Evir (17) of the system should be " << DEvir_17_correct <<  " mEh" << std::endl;
     const double DEvir_17 = (Ex_vir - ExVs_HF - 2.0*Tc)*1000.0;
     const double DEvir_17_diff = fabs(DEvir_17_correct - DEvir_17);
-    print("     Delta Evir (17) of the system is ...", DEvir_17, "mEh");
-    print("     error:", DEvir_17_diff, "mEh");
-    if (DEvir_17_diff*0.001 <= param.econv()) print("  quantity Delta Evir (17) is correct\n"); // mind the units
-    else {
-    	print("  ATTENTION: error of quantity Delta Evir (17) is larger than energy convergence threshold (econv)!\n");
-    	everything_ok = false;
-    }
+    devir17.logger << "  Delta Evir (17) of the system is ... " << DEvir_17<< " mEh" << std::endl;
+    devir17.logger << "  error: " << DEvir_17_diff << " mEh" << std::endl;
+    ierr+=devir17.end(DEvir_17_diff*0.001 < param.econv());
 
-    print("test quantity Delta rho after 2 iterations");
-    const double Drho_correct = 0.05266930; // Drho from a test calculation with HF reference (OEP: maxiter = 2)
-    print("Delta rho of the system should be", Drho_correct);
+
+    test_output delta_rho("test quantity Delta rho after 2 iterations");
+    const double Drho_correct = 3.66404755e-02; // Drho from a test calculation with HF reference (OEP: maxiter = 2)
+    delta_rho.logger << "Delta rho of the system should be "<< Drho_correct << std::endl;
     const double Drho = compute_delta_rho(rho_HF, rho_KS);
     const double Drho_diff = fabs(Drho_correct - Drho);
-    print("     Delta rho of the system is ...", Drho);
-    print("     error:", Drho_diff);
-    if (Drho_diff <= param.econv()) print("  quantity Delta rho is correct\n"); // unitless
-    else {
-    	print("  ATTENTION: error of quantity Delta rho is larger than energy convergence threshold (econv)!\n");
-    	everything_ok = false;
-    }
+    delta_rho.logger << "  Delta rho of the system is ... " << Drho <<std::endl;
+    delta_rho.logger << "  error: " <<  Drho_diff << std::endl;
+    ierr+=delta_rho.end(Drho_diff < param.econv());
+
 
     // TODO: What else can be checked?
 
     print("+++ OEP test finished +++\n");
 
-    if (everything_ok) print("\n  All calculated results are correct, everything ok!\n");
+    if (ierr==0) print("\n  All calculated results are correct, everything ok!\n");
     else print("  ATTENTION! There are errors in the results, see above!\n");
+    return ierr;
 
 }
 

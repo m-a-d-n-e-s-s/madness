@@ -58,7 +58,7 @@ if(NOT TBB_FOUND)
   endif()
   
   # Search for TBB include directory
-  find_path(TBB_INCLUDE_DIRS NAMES tbb/tbb.h
+  find_path(TBB_INCLUDE_DIRS NAMES tbb/task.h
       HINTS ${TBB_INCLUDE_DIR})
   
   # Search for TBB libraries

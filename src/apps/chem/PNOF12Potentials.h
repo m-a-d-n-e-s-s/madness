@@ -31,8 +31,8 @@ public:
 	std::vector< std::shared_ptr< real_derivative_3d > > gradop;			///< Gradient Operator
 	std::vector< std::shared_ptr< real_convolution_3d > > slatergradop; 	/// Convolution with the gradient of the slater operator
 	std::vector< std::shared_ptr< real_convolution_3d > > slatergradop_sq;  /// Convolution with the gradient of the squared (\gamma*2) slater operator
-	vector_real_function_3d acmos;											///< Active Molecular Orbitals
 	vector_real_function_3d mos;											///< all molecular orbitals (needed for Q projection parts)
+	vector_real_function_3d acmos;											///< Active Molecular Orbitals
 	vector_real_function_3d acKmos; 										///< Intermediate for K(active_mos) (takes approx. as much memory than the mos itself. Since #mos<<<#PNOs this should not be a problem
 	ParametrizedExchange K;													///< Exchange Operator
 	QProjector<double, 3> Q;												///< Projector on virtual space: Q = 1-|k><k|
@@ -191,13 +191,13 @@ public:
 				const vector_real_function_3d fi=apply(world,*fop,moi*acmos);
 				const vector_real_function_3d fj=apply(world,*fop,moj*acmos);
 				{
-					const vector_real_function_3d& p1=acmos;
+				        //const vector_real_function_3d& p1=acmos;
 					const vector_real_function_3d& p2=Q(apply(world,*coulombop,moi*acmos)*moj);
 					part2 += 2.0*madness::inner(world,fi,moj*p2).sum() - madness::inner(world,fj,moi*p2).sum();
 				}
 				{
 					const vector_real_function_3d& p1=Q(apply(world,*coulombop,moj*acmos)*moi);
-					const vector_real_function_3d& p2=acmos;
+					// const vector_real_function_3d& p2=acmos;
 					part2 += 2.0*madness::inner(world,moi*p1,fj).sum() - madness::inner(world,moj*p1,fi).sum();
 				}
 			}

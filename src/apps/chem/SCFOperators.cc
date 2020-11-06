@@ -145,12 +145,22 @@ template class Laplacian<double,5>;
 template class Laplacian<double,6>;
 
 
+/// ctor with an SCF calculation providing the MOs and density
 Coulomb::Coulomb(World& world, const Nemo* nemo) : world(world),
         R_square(nemo->R_square) {
-
+	reset_poisson_operator_ptr(nemo->get_calc()->param.lo(),nemo->get_calc()->param.econv());
     vcoul=compute_potential(nemo);
 }
 
+/// ctor with an SCF calculation providing the MOs and density
+Coulomb::Coulomb(World& world, const SCF* calc) : world(world) {
+	reset_poisson_operator_ptr(calc->param.lo(),calc->param.econv());
+    vcoul=compute_potential(calc);
+}
+
+void Coulomb::reset_poisson_operator_ptr(const double lo, const double econv) {
+	poisson.reset(CoulombOperatorPtr(world, lo, econv));
+}
 
 real_function_3d Coulomb::compute_density(const SCF* calc) const {
     real_function_3d density = calc->make_density(world, calc->get_aocc(),
@@ -168,7 +178,7 @@ real_function_3d Coulomb::compute_density(const SCF* calc) const {
 
 real_function_3d Coulomb::compute_potential(const madness::SCF* calc) const {
     real_function_3d density=compute_density(calc);
-    return calc->make_coulomb_potential(density);
+	return (*poisson)(density).truncate();
 }
 
 /// same as above, but with the additional factor R^2 in the density
@@ -183,7 +193,7 @@ real_function_3d Coulomb::compute_potential(const madness::Nemo* nemo) const {
         density+=brho;
     }
     density=(density*R_square).truncate();
-    return nemo->get_calc()->make_coulomb_potential(density);
+	return (*poisson)(density).truncate();
 }
 
 
@@ -401,25 +411,33 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::operator()(
 
 /// custom ctor with information about the XC functional
 XCOperator::XCOperator(World& world, std::string xc_data, const bool spin_polarized,
-        const real_function_3d& arho, const real_function_3d& brho, std::string deriv)
-    : world(world), nbeta(0), ispin(0), extra_truncation(FunctionDefaults<3>::get_thresh()*0.01),
-      dft_deriv(deriv) {
-
-    nbeta=(brho.norm2()>0.0);   // does this make sense
-
-    xc=std::shared_ptr<XCfunctional> (new XCfunctional());
-    xc->initialize(xc_data, spin_polarized, world);
-
-    xc_args=prep_xc_args(arho,brho);
+		       const real_function_3d& arho, const real_function_3d& brho, std::string deriv)
+  : world(world)
+  , dft_deriv(deriv)
+  , nbeta(0)
+  , ispin(0)
+  , extra_truncation(FunctionDefaults<3>::get_thresh()*0.01)
+{
+  
+  nbeta=(brho.norm2()>0.0);   // does this make sense
+  
+  xc=std::shared_ptr<XCfunctional> (new XCfunctional());
+  xc->initialize(xc_data, spin_polarized, world);
+  
+  xc_args=prep_xc_args(arho,brho);
 }
-
-XCOperator::XCOperator(World& world, const SCF* calc, int ispin, std::string deriv) : world(world),
-        ispin(ispin), extra_truncation(FunctionDefaults<3>::get_thresh()*0.01), dft_deriv(deriv) {
+  
+  XCOperator::XCOperator(World& world, const SCF* calc, int ispin, std::string deriv)
+    : world(world)
+    , dft_deriv(deriv)
+    , ispin(ispin)
+    , extra_truncation(FunctionDefaults<3>::get_thresh()*0.01)
+  {
     xc=std::shared_ptr<XCfunctional> (new XCfunctional());
     xc->initialize(calc->param.xc(), !calc->param.spin_restricted(), world);
     nbeta=calc->param.nbeta();
     const bool have_beta=xc->is_spin_polarized() && nbeta != 0;
-
+    
     // compute the alpha and beta densities
     real_function_3d arho,brho;
     arho=calc->make_density(world,calc->aocc,calc->amo);
@@ -431,8 +449,11 @@ XCOperator::XCOperator(World& world, const SCF* calc, int ispin, std::string der
     xc_args=prep_xc_args(arho,brho);
 }
 
-XCOperator::XCOperator(World& world, const Nemo* nemo, int ispin) : world(world),
-        ispin(ispin), extra_truncation(FunctionDefaults<3>::get_thresh()*0.01) {
+  XCOperator::XCOperator(World& world, const Nemo* nemo, int ispin)
+    : world(world)
+    , ispin(ispin)
+    , extra_truncation(FunctionDefaults<3>::get_thresh()*0.01)
+  {
     xc=std::shared_ptr<XCfunctional> (new XCfunctional());
     xc->initialize(nemo->get_calc()->param.xc(),
             !nemo->get_calc()->param.spin_restricted(), world);
@@ -459,16 +480,24 @@ XCOperator::XCOperator(World& world, const Nemo* nemo, int ispin) : world(world)
 
 XCOperator::XCOperator(World& world, const SCF* calc, const real_function_3d& arho,
         const real_function_3d& brho, int ispin, std::string deriv)
-        : world(world), nbeta(calc->param.nbeta()), ispin(ispin),
-          extra_truncation(FunctionDefaults<3>::get_thresh()*0.01), dft_deriv(deriv) {
+  : world(world)
+  , dft_deriv(deriv)
+  , nbeta(calc->param.nbeta())
+  , ispin(ispin)
+  , extra_truncation(FunctionDefaults<3>::get_thresh()*0.01)
+{
     xc=std::shared_ptr<XCfunctional> (new XCfunctional());
     xc->initialize(calc->param.xc(), !calc->param.spin_restricted(), world);
     xc_args=prep_xc_args(arho,brho);
 }
 
 XCOperator::XCOperator(World& world, const Nemo* nemo, const real_function_3d& arho,
-        const real_function_3d& brho, int ispin) : world(world),
-        nbeta(nemo->get_calc()->param.nbeta()), ispin(ispin), extra_truncation(0.01) {
+        const real_function_3d& brho, int ispin)
+  : world(world)
+  , nbeta(nemo->get_calc()->param.nbeta())
+  , ispin(ispin)
+  , extra_truncation(0.01)
+{
     xc=std::shared_ptr<XCfunctional> (new XCfunctional());
     xc->initialize(nemo->get_calc()->param.xc(),
             not nemo->get_calc()->param.spin_restricted(), world);

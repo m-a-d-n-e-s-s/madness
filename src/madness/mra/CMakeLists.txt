@@ -18,8 +18,7 @@ set(MADMRA_SOURCES
 add_mad_library(mra MADMRA_SOURCES MADMRA_HEADERS "linalg;tinyxml;muparser" "madness/mra")
 
 # Create executables
-add_executable(mraplot mraplot.cc)
-target_link_libraries(mraplot MADmra)
+add_mad_executable(mraplot "mraplot.cc" "MADmra")
 
 # Install the MADmra library
 install(TARGETS mraplot DESTINATION "${MADNESS_INSTALL_BINDIR}")
@@ -37,18 +36,17 @@ if(ENABLE_UNITTESTS)
   set(MRA_TEST_SOURCES testbsh.cc testproj.cc 
       testpdiff.cc testdiff1Db.cc testgconv.cc testopdir.cc testinnerext.cc 
       testgaxpyext.cc testvmra.cc)
-  add_unittests(mra MRA_TEST_SOURCES "MADmra;MADgtest")
+  add_unittests(mra "${MRA_TEST_SOURCES}" "MADmra;MADgtest")
   set(MRA_SEPOP_TEST_SOURCES testsuite.cc
       testper.cc)
-  add_unittests(mra_sepop MRA_SEPOP_TEST_SOURCES "libtest_sepop;MADmra;MADgtest")
+  add_unittests(mra_sepop "${MRA_SEPOP_TEST_SOURCES}" "libtest_sepop;MADgtest")
   
   # Test executables that are not run with unit tests
   set(MRA_OTHER_TESTS testperiodic testbc testqm test6
       testdiff1D testdiff2D testdiff3D)
   
   foreach(_test ${MRA_OTHER_TESTS})  
-    add_executable(${_test} EXCLUDE_FROM_ALL ${_test}.cc)
-    target_link_libraries(${_test} MADmra "${DISABLEPIE_LINKER_FLAG}")
+    add_mad_executable(${_test} "${_test}.cc" "MADmra")
   endforeach()
   
 endif()

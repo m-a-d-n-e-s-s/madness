@@ -61,7 +61,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<double>("smear",0.0,"smearing parameter");
 		initialize<double>("econv",1.e-5,"energy convergence");
 		initialize<double>("dconv",1.e-4,"density convergence");
-		initialize<bool>  ("converge_each_energy",false,"converge all fock operator components");
+		initialize<std::vector<std::string> >("convergence_criteria",{"bsh_residual","total_energy"},"possible values are: bsh_residual, total_energy, each_energy, density");
 		initialize<int>   ("k",7,"polynomial order");
 		initialize<double>("l",20,"user coordinates box size");
 		initialize<std::string>("deriv","abgv","derivative method",{"abgv","bspline","ble"});
@@ -87,7 +87,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<bool>  ("no_compute",false,"if true use orbitals on disk, set value to computed");
 		initialize<bool>  ("no_orient",false,"if true the molecule coordinates will not be reoriented");
 		initialize<bool>  ("save",true,"if true save orbitals to disk");
-		initialize<int>   ("maxsub",5,"size of iterative subspace ... set to 0 or 1 to disable");
+		initialize<int>   ("maxsub",10,"size of iterative subspace ... set to 0 or 1 to disable");
 		initialize<double> ("orbitalshift",0.0,"scf orbital shift: shift the occ orbitals to lower energies");
 		initialize<int>    ("npt_plot",101,"no. of points to use in each dim for plots");
 //		initialize<Tensor<double> > ("plot_cell",Tensor<double>(),"lo hi in each dimension for plotting (default is all space)");
@@ -96,7 +96,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<std::string> ("core_type","none","core potential type",{"none","mpc"});
 		initialize<bool> ("derivatives",false,"if true calculate nuclear derivatives");
 		initialize<bool> ("dipole",false,"if true calculate dipole moment");
-		initialize<bool> ("conv_only_dens",false,"if true remove bsh_residual from convergence criteria");
+		initialize<bool> ("conv_only_dens",false,"if true remove bsh_residual from convergence criteria (deprecated)");
 		initialize<bool> ("psp_calc",false,"pseudopotential calculation for all atoms");
 		initialize<bool> ("print_dipole_matels",false,"if true output dipole matrix elements");
 		initialize<std::string> ("pcm_data","none","do a PCM (solvent) calculation");
@@ -137,6 +137,9 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<int> ("efield_axis",0,"finite field axis",{0l,1,2});
 //		initialize<std::map<std::string,std::string> generalkeyval;  ///< general new key/value pair
 
+          //Keyword to use nwchem output for initial guess
+          initialize<std::string> ("nwfile","none","Base name of nwchem output files (.out and .movecs extensions) to read from");
+
 	}
 
 	public:
@@ -145,7 +148,24 @@ struct CalculationParameters : public QCCalculationParametersBase {
 
 	double econv() const {return get<double>("econv");}
 	double dconv() const {return get<double>("dconv");}
-	bool converge_each_energy() {return get<bool>("converge_each_energy");}
+
+	bool converge_density() const {
+		std::vector<std::string> criteria=get<std::vector<std::string> >("convergence_criteria");
+		return std::find(criteria.begin(),criteria.end(),"density")!=criteria.end();
+	}
+	bool converge_bsh_residual() const {
+		std::vector<std::string> criteria=get<std::vector<std::string> >("convergence_criteria");
+		return std::find(criteria.begin(),criteria.end(),"bsh_residual")!=criteria.end();
+	}
+	bool converge_total_energy() const {
+		std::vector<std::string> criteria=get<std::vector<std::string> >("convergence_criteria");
+		return std::find(criteria.begin(),criteria.end(),"total_energy")!=criteria.end();
+	}
+	bool converge_each_energy() const {
+		std::vector<std::string> criteria=get<std::vector<std::string> >("convergence_criteria");
+		return std::find(criteria.begin(),criteria.end(),"each_energy")!=criteria.end();
+	}
+
 
 	int nopen() const {return get<int>("nopen");}
 	int nalpha() const {return get<int>("nalpha");}
@@ -219,6 +239,8 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	double gprec() const {return get<double>("gprec");}
 	bool ginitial_hessian() const {return get<bool>("ginitial_hessian");}
 
+     std::string nwfile() const {return get<std::string>("nwfile");}
+
 	Tensor<double> plot_cell() const {
 		std::vector<double> vcell=get<std::vector<double> >("plot_cell");
 		if (vcell.size()==0) return Tensor<double>();
@@ -246,9 +268,13 @@ struct CalculationParameters : public QCCalculationParametersBase {
 
 
         std::vector<double> proto=get<std::vector<double> >("protocol");
-        proto.back()=get<double>("econv");
-		set_derived_value("protocol",proto);
-		set_derived_value("dconv",sqrt(get<double>("econv"))*0.1);
+	// No ... The accuracy of computation is INDEPENDENT of the convergence requirement
+	// --- actually need more precision than convergence threshold in order to have
+	// variational principle working and for robust convergence
+        //proto.back()=get<double>("econv");
+	set_derived_value("protocol",proto);
+	// No ... the energy is variational!  Don't need more accuracy in dconv --- in fact the opposite is true.
+	// set_derived_value("dconv",sqrt(get<double>("econv"))*0.1);
 
         double z = molecule.total_nuclear_charge();
         const double charge=get<double>("charge");
@@ -295,6 +321,19 @@ struct CalculationParameters : public QCCalculationParametersBase {
         	error("\n\nsymmetry and localization cannot be used at the same time\n"
         			"switch from local to canonical orbitals (keyword canon)\n\n");
         }
+
+        //NWChem interface doesn't support geometry optimization
+        if (get<bool>("gopt") && nwfile() != "") error("NWchem initialization only supports single point energy calculations.");
+
+        //NWChem only supports Boys localization (or canonical)
+        if (nwfile() != "none") {
+             set_derived_value("localize",std::string("boys"));
+             //Error if user requested something other than Boys
+             if(localize_method() != "boys" and localize_method() != "canon") error("NWchem initialization only supports Boys localization");
+        }
+     
+
+
 	}
 
 };

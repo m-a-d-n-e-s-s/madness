@@ -84,7 +84,33 @@ struct allocator {
 	}
 };
 
+struct timer {
+    World& world;
+    double ttt,sss;
+    bool printme;
+    timer(World& world, bool print=true) : world(world), printme(print and world.rank()==0) {
+        world.gop.fence();
+        ttt=wall_time();
+        sss=cpu_time();
+    }
 
+    void tag(const std::string msg) {
+        world.gop.fence();
+        double tt1=wall_time()-ttt;
+        double ss1=cpu_time()-sss;
+        if (printme) printf("timer: %20.20s %8.2fs %8.2fs\n", msg.c_str(), ss1, tt1);
+        ttt=wall_time();
+        sss=cpu_time();
+    }
+
+    void end(const std::string msg) {
+        world.gop.fence();
+        double tt1=wall_time()-ttt;
+        double ss1=cpu_time()-sss;
+        if (printme) printf("timer: %20.20s %8.2fs %8.2fs\n", msg.c_str(), ss1, tt1);
+    }
+
+};
 class NemoBase : public MolecularOptimizationTargetInterface {
 
 public:
@@ -145,7 +171,7 @@ public:
 	}
 
 	template<typename T, std::size_t NDIM>
-	real_function_3d compute_density(const std::vector<Function<T,NDIM> > nemo) const {
+	Function<typename Tensor<T>::scalar_type,NDIM> compute_density(const std::vector<Function<T,NDIM> > nemo) const {
 		return sum(world,abssq(world,nemo)).truncate();
 	}
 
@@ -166,10 +192,138 @@ public:
 	    R_square.set_thresh(FunctionDefaults<3>::get_thresh());
 	}
 
-
 	/// compute the nuclear gradients
 	Tensor<double> compute_gradient(const real_function_3d& rhonemo,
 			const Molecule& molecule) const;
+
+    /// compute kinetic energy as square of the "analytical" expectation value
+
+	/// @param[in]	the nemo orbitals F
+	/// @return		T = 1/2 \sum_i \int R^2 U1.U1 F^2 + 2 R^2 U1.grad(F) + R^2 grad(F)^2
+	template<typename T, std::size_t NDIM>
+	double compute_kinetic_energy(const std::vector<Function<T,NDIM> >& nemo) const {
+//        timer timer1(world);
+
+		// T = 0.5\sum_i \int R^2 U1.U1 F^2 - 2 R^2 U1.grad(F) F + R^2 grad(F)^2
+		//   = 0.5 (<U1.U1 | rho > + <R^2|grad(F)^2> - 2<R^2 | U1.grad(F) >)
+		// note: U1=-grad(R)/R
+		real_function_3d dens=dot(world,nemo,nemo)*R_square;
+	    real_function_3d U1dotU1=real_factory_3d(world)
+	    		.functor(NuclearCorrelationFactor::U1_dot_U1_functor(ncf.get()));
+	    double ke1=inner(dens,U1dotU1);
+
+	    double ke2=0.0;
+	    double ke3=0.0;
+	    double ke3_real=0.0;
+	    double ke3_imag=0.0;
+
+	    for (int axis = 0; axis < NDIM; axis++) {
+	        real_derivative_3d D = free_space_derivative<double, NDIM>(world, axis);
+	        const std::vector<Function<T,NDIM> > dnemo = apply(world, D, nemo);
+
+	        real_function_3d term2=dot(world,dnemo,nemo)*ncf->U1(axis);
+	        double tmp=-2.0*inner(R_square,term2);
+//	        ke3_real -=2.0*std::real(tmp);
+//	        ke3_imag -=2.0*std::imag(tmp);
+	        ke3 +=tmp;
+
+	        const real_function_3d term1=dot(world,dnemo,dnemo);
+	        ke2 += inner(term1,R_square);
+
+	    }
+//	    if (ke3_imag>1.e-8) {
+//	    	print("kinetic energy, imaginary part: ",ke3_imag);
+//	    	MADNESS_EXCEPTION("imaginary kinetic energy",1);
+//	    }
+//	    double ke=2.0*(ke1+ke2+ke3_real); // closed shell
+	    double ke=2.0*(ke1+ke2+ke3); // closed shell
+//		timer1.end("compute_0_kinetic_energy1");
+	    return 0.5*ke;
+	}
+
+    /// compute kinetic energy as square of the "analytical" derivative of the orbitals
+
+	/// @param[in]	the nemo orbitals F
+	/// @return		T = 1/2 \sum_i || grad(R)*F_i + R*grad(F_i)||^2
+	template<typename T, std::size_t NDIM>
+	double compute_kinetic_energy1(const std::vector<Function<T,NDIM> >& nemo) const {
+        timer timer1(world);
+		double ke=0.0;
+		for (int i=0; i<nemo.size(); ++i) {
+			double fnorm2=norm2(world,-1.0*R*ncf->U1vec()*nemo[i] + R*grad(nemo[i]));
+			ke+=2.0*fnorm2*fnorm2;
+		}
+		timer1.end("compute_kinetic_energy1");
+		return 0.5*ke;
+	}
+
+
+    /// compute kinetic energy as square of the "analytical" derivative of the orbitals
+
+	/// @param[in]	the nemo orbitals F
+	/// @return		T = 1/2 \sum_i || grad(R)*F_i + R*grad(F_i)||^2
+	template<typename T, std::size_t NDIM>
+	double compute_kinetic_energy1a(const std::vector<Function<T,NDIM> >& nemo) const {
+        timer timer1(world);
+		double ke=0.0;
+		for (int i=0; i<NDIM; ++i) {
+	        std::vector< std::shared_ptr< Derivative<T,NDIM> > > grad=
+	                gradient_operator<T,NDIM>(world);
+			double fnorm2=norm2(world,R*(-1.0*ncf->U1(i)*nemo + apply(world,*(grad[i]),nemo)));
+			ke+=2.0*fnorm2*fnorm2;
+		}
+		timer1.end("compute_kinetic_energy1a");
+		return 0.5*ke;
+	}
+
+    /// compute kinetic energy as direct derivative of the orbitals (probably imprecise)
+
+	/// @param[in]	the nemo orbitals F
+	/// @return		T = 1/2 \sum_i || grad(R*F_i)||^2
+	template<typename T, std::size_t NDIM>
+    double compute_kinetic_energy2(const std::vector<Function<T,NDIM> >& nemo) const {
+
+    	// it's ok to use phi here, no regularization necessary for this eigenvalue
+    	double E_kin = 0.0;
+    	for (int axis = 0; axis < 3; axis++) {
+    		real_derivative_3d D = free_space_derivative<double, 3>(world, axis);
+    		const vecfuncT dphi = apply(world, D,R*nemo);
+    		E_kin += 0.5 * (inner(world, dphi, dphi)).sum();
+    		// -1/2 sum <Psi|Nabla^2|Psi> = 1/2 sum <NablaPsi|NablaPsi>   (integration by parts)
+    	}
+    	E_kin *= 2.0; // 2 because closed shell
+    	return E_kin;
+    }
+
+
+	bool check_convergence(const std::vector<double> energies,
+			const std::vector<double> oldenergies, const double bsh_norm,
+			const double delta_density, const CalculationParameters& param,
+			const double econv, const double dconv) const {
+
+        double maxenergychange=fabs(energies.size()-oldenergies.size());	// >0 if oldenergyvec not initialized
+        for (auto iter1=energies.begin(), iter2=oldenergies.begin();
+        		(iter1!=energies.end() and iter2!=oldenergies.end()); iter1++, iter2++) {
+        	maxenergychange=std::max(maxenergychange,fabs(*iter1 - *iter2));
+        }
+        double delta_energy=fabs(energies[0]-oldenergies[0]);
+
+		bool bsh_conv=param.converge_bsh_residual() ? bsh_norm<dconv : true;
+		bool total_energy_conv=param.converge_total_energy() ? delta_energy<econv : true;
+		bool each_energy_conv=param.converge_each_energy() ? maxenergychange<econv*3.0 : true;
+		bool density_conv=param.converge_density() ? delta_density<dconv : true;
+
+		if (world.rank()==0 and param.print_level()>=2) {
+			std::stringstream line;
+			line << "convergence: bshresidual, energy change, max energy change, density change "
+					<< std::scientific << std::setprecision(1)
+					<< bsh_norm << " " << delta_energy << " "
+					<< maxenergychange << " " << delta_density;
+			print(line.str());
+		}
+
+		return (bsh_conv and density_conv and each_energy_conv and total_energy_conv);
+	}
 
 	World& world;
 
@@ -205,7 +359,7 @@ public:
 		}
 
 		void initialize_nemo_parameters() {
-			initialize<std::pair<std::string,double> > ("ncf",{"none",0.0},"nuclear correlation factor",{{"none",0.0},{"slater",2.0}});
+			initialize<std::pair<std::string,double> > ("ncf",{"slater",2.0},"nuclear correlation factor");
 			initialize<bool> ("hessian",false,"compute the hessian matrix");
 			initialize<bool> ("read_cphf",false,"read the converged orbital response for nuclear displacements from file");
 			initialize<bool> ("restart_cphf",false,"read the guess orbital response for nuclear displacements from file");
@@ -396,9 +550,10 @@ protected:
 public:
     NemoCalculationParameters param;
 
-private:
-	projector_irrep symmetry_projector;
+protected:
+    projector_irrep symmetry_projector;
 
+private:
 	mutable double ttt, sss;
 	void START_TIMER(World& world) const {
 	    world.gop.fence(); ttt=wall_time(); sss=cpu_time();
@@ -414,32 +569,7 @@ private:
 	}
 
 public:
-	struct timer {
-        World& world;
-	    double ttt,sss;
-	    timer(World& world) : world(world) {
-	        world.gop.fence();
-	        ttt=wall_time();
-	        sss=cpu_time();
-	    }
 
-	    void tag(const std::string msg) {
-            world.gop.fence();
-	        double tt1=wall_time()-ttt;
-	        double ss1=cpu_time()-sss;
-	        if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg.c_str(), ss1, tt1);
-	        ttt=wall_time();
-	        sss=cpu_time();
-	    }
-
-	    void end(const std::string msg) {
-            world.gop.fence();
-            double tt1=wall_time()-ttt;
-            double ss1=cpu_time()-sss;
-            if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg.c_str(), ss1, tt1);
-        }
-
-	};
 
 public:
 
@@ -480,6 +610,7 @@ private:
 	PCM pcm;
 //	AC<3> ac;
 
+protected:
 	/// adapt the thresholds consistently to a common value
     void set_protocol(const double thresh) {
 
@@ -568,7 +699,7 @@ public:
 
 	bool do_symmetry() const {return (symmetry_projector.get_pointgroup()!="C1");}
 
-private:
+protected:
 
 	/// localize the nemo orbitals
     vecfuncT localize(const vecfuncT& nemo, const double dconv, const bool randomize) const;

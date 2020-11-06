@@ -14,6 +14,7 @@ add_definitions(-DMAD_ROOT_DIR="${PROJECT_SOURCE_DIR}")
 # Add module directory and modules =============================================
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules/")
+include(AddCustomTargetSubproject)
 include(AddOptions)
 include(AppendFlags)
 include(CheckIncludeFile)
@@ -21,8 +22,9 @@ include(CheckTypeSize)
 include(CheckCXXSourceCompiles)
 include(CheckFunctionExists)
 include(CMakeDependentOption)
-include(AddUnittests)
 include(AddMADLibrary)
+include(AddMADExecutable)
+include(AddUnittests)
 include(CMakePackageConfigHelpers)
 include(CopyTargetProperties)
 include(FeatureSummary)
@@ -30,9 +32,9 @@ include(RedefaultableOption)
 
 # Check compiler feature support ===============================================
 
-set(CMAKE_CXX_STANDARD 14 CACHE STRING  "C++ ISO Standard version")
-if (NOT(CMAKE_CXX_STANDARD EQUAL 14 OR CMAKE_CXX_STANDARD EQUAL 17 OR CMAKE_CXX_STANDARD EQUAL 20))
-  message(FATAL_ERROR "C++ 2014 ISO Standard or higher is required to compile MADNESS")
+set(CMAKE_CXX_STANDARD 17 CACHE STRING  "C++ ISO Standard version")
+if (NOT(CMAKE_CXX_STANDARD EQUAL 17 OR CMAKE_CXX_STANDARD EQUAL 20))
+  message(FATAL_ERROR "C++ 2017 ISO Standard or higher is required to compile MADNESS")
 endif()
 # C++20 is only configurable via compile features with cmake 3.12 and older
 if (CMAKE_CXX_STANDARD EQUAL 20 AND CMAKE_VERSION VERSION_LESS 3.12.0)
@@ -61,6 +63,10 @@ set(MADNESS_INSTALL_DOCDIR "share/doc/madness"
 set(MADNESS_INSTALL_CMAKEDIR "lib/cmake/madness"
     CACHE PATH "MADNESS CMAKE install directory")
 
+# Build options  ==============================================================
+
+redefaultable_option(MADNESS_BUILD_MADWORLD_ONLY "Build only MADWorld runtime (including BLAS/LAPACK interfaces, if found)" OFF)
+
 # Enable optional libraries ====================================================
 
 # Always search for libraries that are 'ON' by default. If a library is not
@@ -80,7 +86,10 @@ option(ENABLE_PAPI "Enables use of PAPI" OFF)
 option(ENABLE_LIBXC "Enables use of the libxc library of density functionals" ON)
 option(ENABLE_PCM "Enables use of the polarizable continuum model library" ON)
 
-redefaultable_option(ENABLE_TBB "Enables use of Intel Thread Building Blocks (TBB) as the task scheduler" ON)
+redefaultable_option(ENABLE_TBB "Enables use of Intel Thread Building Blocks (TBB) as the task scheduler" OFF)
+if (ENABLE_TBB)
+  redefaultable_option(MADNESS_EXPLOIT_TBB_PRIORITY "Enables use of Intel TBB task priorities" OFF)
+endif(ENABLE_TBB)
 option(ENABLE_PARSEC "Enables use of PaRSEC as the task scheduler" OFF)
 if(ENABLE_PARSEC AND ENABLE_TBB)
   message(FATAL_ERROR "TBB and PaRSEC cannot be both enabled.")
@@ -165,6 +174,16 @@ add_feature_info(NEVER_SPIN ENABLE_NEVER_SPIN
 set(NEVER_SPIN ${ENABLE_NEVER_SPIN} CACHE BOOL
     "Disables use of spinlocks (notably for use inside virtual machines)")
 
+option(ENABLE_DQ_PREBUF
+    "Enables thread-local buffer for task aggregation to reduce lock contention" ON)
+add_feature_info(DQ_PREBUF ENABLE_DQ_PREBUF
+    "Enables thread-local buffer for task aggregation to reduce lock contention")
+set(MADNESS_DQ_USE_PREBUF ${ENABLE_DQ_PREBUF} CACHE BOOL
+    "Enables thread-local buffer for task aggregation to reduce lock contention")
+
+set(MADNESS_DQ_PREBUF_SIZE 20 CACHE STRING "Numberof entries in the thread-pool prebuffer for task aggregation to reduce lock contention")
+#set(MADNESS_DQ_PREBUF_SZ ${MADNESS_DQ_PREBUF_SIZE} CACHE STRING "Numberof entries in the thread-pool prebuffer for task aggregation to reduce lock contention")
+
 option(ENABLE_BSEND_ACKS 
     "Use MPI Send instead of MPI Bsend for huge message acknowledgements" ON)
 add_feature_info(BSEND_ACKS ENABLE_BSEND_ACKS
@@ -232,16 +251,30 @@ add_feature_info("MPI_THREAD=${MPI_THREAD}" TRUE "controls the level of thread-s
 
 # Enable support for shared libraries ==========================================
 
+redefaultable_option(MADNESS_ASSUMES_ASLR_DISABLED "MADNESS runtime assumes the Address Space Layout Randomization (ASLR) to be disabled" OFF)
+add_feature_info(ASSUMES_ASLR_DISABLED MADNESS_ASSUMES_ASLR_DISABLED
+    "MADNESS runtime assumes the Address Space Layout Randomization (ASLR) to be disabled")
 get_property(SUPPORTS_SHARED GLOBAL PROPERTY TARGET_SUPPORTS_SHARED_LIBS)
-cmake_dependent_option(BUILD_SHARED_LIBS "Enable shared libraries" ON
-      "SUPPORTS_SHARED" OFF)
+if (SUPPORTS_SHARED AND MADNESS_ASSUMES_ASLR_DISABLED)
+  set(default_BUILD_SHARED_LIBS ON)
+else ()
+  set(default_BUILD_SHARED_LIBS OFF)
+endif()
+redefaultable_option(BUILD_SHARED_LIBS "Enable shared libraries" default_BUILD_SHARED_LIBS)
+if (BUILD_SHARED_LIBS OR NOT MADNESS_ASSUMES_ASLR_DISABLED)
+  set(default_CMAKE_POSITION_INDEPENDENT_CODE ON)
+else ()
+  set(default_CMAKE_POSITION_INDEPENDENT_CODE OFF)
+endif()
+redefaultable_option(CMAKE_POSITION_INDEPENDENT_CODE "Default value for POSITION_INDEPENDENT_CODE of targets" default_CMAKE_POSITION_INDEPENDENT_CODE)
+
 if(BUILD_SHARED_LIBS)
   set(BLA_STATIC_DEFAULT FALSE)
   set(CMAKE_MACOSX_RPATH TRUE)
-else()
+else(BUILD_SHARED_LIBS)
   set(BLA_STATIC_DEFAULT TRUE)
   set(CMAKE_MACOSX_RPATH FALSE)
-endif()
+endif(BUILD_SHARED_LIBS)
 if (NOT DEFINED BLA_STATIC)
   set(BLA_STATIC ${BLA_STATIC_DEFAULT})
 endif()
@@ -259,15 +292,23 @@ if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
   set(CMAKE_FIND_APPBUNDLE LAST)
 endif()
 
-if($ENV{USERNAME})
-set(MADNESS_CONFIGURATION_USER "$ENV{USERNAME}")
-elseif($ENV{USER})
-set(MADNESS_CONFIGURATION_USER "$ENV{USER}")
-else()
-set(MADNESS_CONFIGURATION_USER "$ENV{USER}")
-endif()
-cmake_host_system_information(RESULT MADNESS_CONFIGURATION_HOST QUERY HOSTNAME)
-string(TIMESTAMP MADNESS_CONFIGURATION_DATE)
+if (NOT DEFINED MADNESS_CONFIGURATION_USER)
+  if($ENV{USERNAME})
+    set(MADNESS_CONFIGURATION_USER "$ENV{USERNAME}" CACHE INTERNAL "")
+  elseif($ENV{USER})
+    set(MADNESS_CONFIGURATION_USER "$ENV{USER}" CACHE INTERNAL "")
+  else()
+    set(MADNESS_CONFIGURATION_USER "$ENV{USER}" CACHE INTERNAL "")
+  endif()
+endif (NOT DEFINED MADNESS_CONFIGURATION_USER)
+if (NOT DEFINED MADNESS_CONFIGURATION_HOST)
+  cmake_host_system_information(RESULT madness_configuration_host QUERY HOSTNAME)
+  set(MADNESS_CONFIGURATION_HOST "${madness_configuration_host}" CACHE INTERNAL "")
+endif (NOT DEFINED MADNESS_CONFIGURATION_HOST)
+if (NOT DEFINED MADNESS_CONFIGURATION_DATE)
+  string(TIMESTAMP madness_configuration_date)
+  set(MADNESS_CONFIGURATION_DATE "${madness_configuration_date}" CACHE INTERNAL "")
+endif (NOT DEFINED MADNESS_CONFIGURATION_DATE)
 
 set(MAD_BIND_DEFAULT "-1 -1 -1" CACHE STRING "The default binding for threads")
 
@@ -340,6 +381,30 @@ if(NOT USE_X86_64_ASM)
       " USE_X86_32_ASM)
 endif()
 
+# (try to) determine C++ ABI
+# ABI kinds are named as in https://clang.llvm.org/doxygen/classclang_1_1TargetCXXABI.html
+# we only need ABI for serializing member pointers, hence all ARM-based ABIs are represented by same kind
+set(MADNESS_CXX_ABI_GenericItanium 1)
+set(MADNESS_CXX_ABI_GenericARM 2)
+set(MADNESS_CXX_ABI_Microsoft 3)
+if (NOT CMAKE_SYSTEM_PROCESSOR)
+  set(processor_name ${CMAKE_HOST_SYSTEM_PROCESSOR})
+else(NOT CMAKE_SYSTEM_PROCESSOR)
+  set(processor_name ${CMAKE_SYSTEM_PROCESSOR})
+endif(NOT CMAKE_SYSTEM_PROCESSOR)
+if(processor_name MATCHES "^(aarch64.*|AARCH64.*|arm64.*|ARM64.*)" OR processor_name MATCHES "^(arm.*|ARM.*)" OR processor_name MATCHES "^(mips.*|MIPS.*)")
+  # on ARM everything, including Windows, targets ARM C++ ABI
+  set(MADNESS_CXX_ABI ${MADNESS_CXX_ABI_GenericARM})
+elseif(processor_name MATCHES "amd64.*|x86_64.*|AMD64.*" OR processor_name MATCHES "i686.*|i386.*|x86.*" OR processor_name MATCHES "^(powerpc|ppc)64le" OR processor_name MATCHES "^(powerpc|ppc)64")
+  if (CMAKE_SYSTEM_NAME STREQUAL Windows) # on x86 Windows all compilers (clang, intel) target Windows C++ ABI
+    set(MADNESS_CXX_ABI ${MADNESS_CXX_ABI_Microsoft})
+  else (CMAKE_SYSTEM_NAME STREQUAL Windows)  # everyone else uses Itanium C++ ABI
+    set(MADNESS_CXX_ABI ${MADNESS_CXX_ABI_GenericItanium})
+  endif (CMAKE_SYSTEM_NAME STREQUAL Windows)
+else()
+  message(FATAL_ERROR "Cannot determine C++ ABI for CMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR}, please file an issue")
+endif()
+
 # Check compiler feature support ===============================================
 
 # Check for system include files
@@ -362,10 +427,7 @@ check_cxx_source_compiles(
     "
     #include <sys/types.h>
     int main() { typedef pid_t test_t; return 0; }
-    " CHECK_SYS_TYPES_H_HAS_PID_T)
-if(NOT CHECK_SYS_TYPES_H_HAS_PID_T)
-  set(pid_t 1)
-endif()
+    " SYS_TYPES_H_HAS_PID_T)
 
 # Check function support
 check_function_exists(memset HAVE_MEMSET)
@@ -523,18 +585,19 @@ if(CCACHE)
 endif(CCACHE)
 
 # Check for external dependencies ==============================================
-add_custom_target(External)
 include(external/pthread.cmake)
 include(external/mpi.cmake)
 include(external/papi.cmake)
 include(external/lapack.cmake)
-include(external/libxc.cmake)
-include(external/pcm.cmake)
 include(external/libunwind.cmake)
 include(external/gperftools.cmake)
 include(external/tbb.cmake)
 include(external/parsec.cmake)
 include(external/boost.cmake)
+if (NOT MADNESS_BUILD_MADWORLD_ONLY)
+  include(external/libxc.cmake)
+  include(external/pcm.cmake)
+endif (NOT MADNESS_BUILD_MADWORLD_ONLY)
 
 if (DEFINED ELEMENTAL_TAG)
   include(external/elemental.cmake)
@@ -542,9 +605,19 @@ endif (DEFINED ELEMENTAL_TAG)
 
 # Add project subdirectories ===================================================
 
+# predefine targets
+add_custom_target(everything)
+add_dependencies(everything madness)
+
+if(NOT MADNESS_BUILD_MADWORLD_ONLY AND LAPACK_FOUND)
+	add_custom_target_subproject(madness numerical-examples)
+	add_custom_target_subproject(madness applications)
+endif()
+
 # Create build and install libraries libraries
-add_custom_target(libraries)
-add_custom_target(install-libraries)
+add_custom_target(madness-libraries)
+add_custom_target(install-madness-libraries)
+add_dependencies(everything madness-libraries)
 
 include_directories(${PROJECT_SOURCE_DIR}/src ${PROJECT_BINARY_DIR}/src)
 set(CMAKE_INCLUDE_CURRENT_DIR_IN_INTERFACE TRUE)
@@ -553,8 +626,9 @@ if(ENABLE_UNITTESTS)
   include(CTest)
   enable_testing()
   set(MADNESS_HAS_GOOGLE_TEST 1)
-  add_custom_target(unittests)
-  add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} USES_TERMINAL) # to be GNU compatible
+  add_custom_target_subproject(madness unittests)
+  add_custom_target_subproject(madness check COMMAND ${CMAKE_CTEST_COMMAND} USES_TERMINAL) # to be GNU compatible
+  add_dependencies(everything unittests)
 endif()
 add_subdirectory(src)
 add_subdirectory(doc)
@@ -608,7 +682,7 @@ write_basic_package_version_file(madness-config-version.cmake
 
 # Create the targets file
 export(EXPORT madness
-  FILE "${PROJECT_BINARY_DIR}/madness-targets.cmake")
+  	FILE "${PROJECT_BINARY_DIR}/madness-targets.cmake")
 export(EXPORT madworld
   FILE "${PROJECT_BINARY_DIR}/madworld-targets.cmake")
 
@@ -623,9 +697,9 @@ configure_package_config_file(cmake/madness-config.cmake.in
 
 # Install config, version, and target files
 install(EXPORT madness
-    FILE "madness-targets.cmake"
-    DESTINATION "${MADNESS_INSTALL_CMAKEDIR}" 
-    COMPONENT madness-config)
+   	FILE "madness-targets.cmake"
+   	DESTINATION "${MADNESS_INSTALL_CMAKEDIR}" 
+   	COMPONENT madness-config)
 install(EXPORT madworld
     FILE "madworld-targets.cmake"
     DESTINATION "${MADNESS_INSTALL_CMAKEDIR}" 
@@ -635,7 +709,7 @@ install(FILES
     "${MADNESS_BINARY_DIR}/madness-config-version.cmake"
     DESTINATION "${MADNESS_INSTALL_CMAKEDIR}" 
     COMPONENT madness-config)
-add_custom_target(install-config
+add_custom_target(install-madness-config
      COMMAND ${CMAKE_COMMAND} -DCOMPONENT=madness-config -P ${PROJECT_BINARY_DIR}/cmake_install.cmake
      COMMENT "Installing MADNESS config components"
      USES_TERMINAL)

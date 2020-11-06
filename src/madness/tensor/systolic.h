@@ -37,6 +37,10 @@
 #include <madness/tensor/tensor.h>
 #include <madness/tensor/distributed_matrix.h>
 
+#ifdef HAVE_INTEL_TBB
+# include <tbb/parallel_for.h>
+#endif
+
 namespace madness {
 
     /// Base class for parallel algorithms that employ a systolic loop to generate all row pairs in parallel

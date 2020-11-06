@@ -41,6 +41,12 @@
 #include <madness/madness_config.h>
 #include <madness/world/madness_exception.h>
 
+// MKL direct macros produce a zillion warning messages about unused variables --- disable this warning just in this header
+MADNESS_PRAGMA_GCC(diagnostic push)
+MADNESS_PRAGMA_GCC(diagnostic ignored "-Wunused-value")
+MADNESS_PRAGMA_CLANG(diagnostic push)
+MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wunused-value")
+
 #if defined(FORTRAN_LINKAGE_LC) || (defined(HAVE_INTEL_MKL) && defined(MKL_DIRECT_CALL))
 
 #   define F77_SGEMM sgemm
@@ -313,7 +319,9 @@ extern "C" {
             const integer*, complex_real8*, const integer*);
 }
 #else
+
 # include <mkl.h>
+
 #endif // !defined(MKL_DIRECT_CALL)
 
 // some BLAS libraries use custom complex types in their interface, so need to include their definitions here
@@ -700,6 +708,9 @@ namespace cblas {
 
 } // namespace cblas
 } // namespace madness
+
+MADNESS_PRAGMA_CLANG(diagnostic pop)
+MADNESS_PRAGMA_GCC(diagnostic pop)
 
 #endif // MADNESS_LINALG_CBLAS_H__INCLUDED
 

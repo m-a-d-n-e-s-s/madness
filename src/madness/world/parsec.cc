@@ -4,34 +4,35 @@
 #include "parsec.h"
 #include <iostream>
 #include "thread.h"
-#include <dague/dague_internal.h>
+#include <parsec/parsec_internal.h>
 
 // Here we initialize with the right child class
 namespace madness {
-    dague_hook_return_t complete_madness_task_execution (dague_execution_unit_t *eu, 
-                                                         dague_execution_context_t *exec_context)
+    parsec_hook_return_t complete_madness_task_execution (parsec_execution_stream_t *es,
+                                                          parsec_task_t *task)
     {
-        (void)eu;
-        dague_atomic_add_32b(&exec_context->dague_handle->nb_tasks, -1);
-        return DAGUE_HOOK_RETURN_DONE;
+        (void)es;
+        task->taskpool->tdm.module->taskpool_addto_nb_tasks(task->taskpool, -1);
+        return PARSEC_HOOK_RETURN_DONE;
     }
 
-    dague_hook_return_t release_madness_task (dague_execution_unit_t *eu, 
-                                              dague_execution_context_t *exec_context)
+    parsec_hook_return_t release_madness_task (parsec_execution_stream_t *es, 
+                                               parsec_task_t *task)
     {
-        PoolTaskInterface *c = ((PoolTaskInterface **)exec_context->locals)[0];
+        PoolTaskInterface *c = ((PoolTaskInterface **)task->locals)[0];
+        (void)es;
         delete(c);
-        return DAGUE_HOOK_RETURN_DONE;
+        return PARSEC_HOOK_RETURN_DONE;
     }
 
-    const dague_function_t* PoolTaskInterface::func = &madness_function;
+    const parsec_task_class_t* PoolTaskInterface::parsec_tc = &madness_parsec_tc;
 
-    dague_hook_return_t pointer_call(dague_execution_unit_t *eu, 
-                                     dague_execution_context_t *exec_context)
+    parsec_hook_return_t pointer_call(parsec_execution_stream_t *eu, 
+                                      parsec_task_t *task)
     {
-        PoolTaskInterface *c = ((PoolTaskInterface **)exec_context->locals)[0];
+        PoolTaskInterface *c = ((PoolTaskInterface **)task->locals)[0];
         c->run(TaskThreadEnv(1, 0, 0));
-        return DAGUE_HOOK_RETURN_DONE;
+        return PARSEC_HOOK_RETURN_DONE;
     }
 
 
@@ -39,32 +40,33 @@ namespace madness {
 
 #include <stdio.h>
 
-        static uint64_t RUN_hash(const dague_handle_t *handle, const assignment_t *a)
+        static uint64_t RUN_hash(const parsec_taskpool_t *tp, const parsec_assignment_t *a)
         {
-            (void)a; (void)handle;
+            (void)a; (void)tp;
             return 0;
         }
 
-        static dague_hook_return_t empty_hook (dague_execution_unit_t *eu, 
-                                               dague_execution_context_t *context)
+        static parsec_hook_return_t empty_hook (parsec_execution_stream_t *es, 
+                                                parsec_task_t *task)
         {
-            return DAGUE_HOOK_RETURN_DONE;
+            (void)es; (void)task;
+            return PARSEC_HOOK_RETURN_DONE;
         }
 
-        static const __dague_chore_t __RUN_chores[] = {
-            {.type = DAGUE_DEV_CPU,
+        static const __parsec_chore_t __RUN_chores[] = {
+            {.type = PARSEC_DEV_CPU,
              .evaluate = NULL,
              .hook = pointer_call},
-            {.type = DAGUE_DEV_NONE,
+            {.type = PARSEC_DEV_NONE,
              .evaluate = NULL,
-             .hook = (dague_hook_t *) NULL},
+             .hook = (parsec_hook_t *) NULL},
         };
 
 
-        const dague_function_t madness_function = {
+        const parsec_task_class_t madness_parsec_tc = {
             .name = "RUN",
-            .flags = DAGUE_HAS_IN_IN_DEPENDENCIES | DAGUE_USE_DEPS_MASK,
-            .function_id = 0,
+            .flags = PARSEC_HAS_IN_IN_DEPENDENCIES | PARSEC_USE_DEPS_MASK,
+            .task_class_id = 0,
             .nb_flows = 0,
             .nb_parameters = 0,
             .nb_locals = 0,
@@ -74,41 +76,60 @@ namespace madness {
             .in = {NULL, NULL, NULL, NULL},
             .out = {NULL, NULL, NULL, NULL},
             .priority = NULL,
+            .properties = NULL,
             .initial_data = NULL,
             .final_data = NULL,
             .data_affinity = NULL,
-            .key = (dague_functionkey_fn_t *) RUN_hash,
-#if defined(DAGUE_SIM)
-            .sim_cost_fct = (dague_sim_cost_fct_t*) NULL,
+            .key_generator = (parsec_functionkey_fn_t *) RUN_hash,
+            .key_functions = NULL,
+            .make_key = NULL,
+#if defined(PARSEC_SIM)
+            .sim_cost_fct = (parsec_sim_cost_fct_t*) NULL,
 #endif
-            .get_datatype = (dague_datatype_lookup_t *) NULL,
+            .get_datatype = (parsec_datatype_lookup_t *) NULL,
             .prepare_input = empty_hook,
             .incarnations = __RUN_chores,
-            .prepare_output = (dague_hook_t *) NULL,
-            .find_deps = (dague_find_dependency_fn_t*)NULL,
-            .iterate_successors = (dague_traverse_function_t *) NULL,
-            .iterate_predecessors = (dague_traverse_function_t *) NULL,
-            .release_deps = (dague_release_deps_t *) NULL,
+            .prepare_output = (parsec_hook_t *) NULL,
+            
+            .find_deps = (parsec_find_dependency_fn_t*)NULL,
+            .update_deps = NULL,
+
+            .iterate_successors = (parsec_traverse_function_t *) NULL,
+            .iterate_predecessors = (parsec_traverse_function_t *) NULL,
+            .release_deps = (parsec_release_deps_t *) NULL,
             .complete_execution = complete_madness_task_execution,
-            .new_task = (dague_new_task_function_t*) NULL,
+            .new_task = (parsec_new_task_function_t*) NULL,
             .release_task = release_madness_task, //object delete,
-            .fini = (dague_hook_t *) NULL,
+            .fini = (parsec_hook_t *) NULL,
         };
 
-        const dague_function_t* madness_function_array[]= {&(madness::madness_function), NULL};
+        const parsec_task_class_t* madness_parsec_tc_array[]= {&(madness::madness_parsec_tc), NULL};
 
-        dague_handle_t madness_handle = {
+        parsec_taskpool_t madness_parsec_tp = {
             .super = { 0x0, },
-            .handle_id = 0,
+            .taskpool_id = 0,
+            .taskpool_name = "MADNESS taskpool",
             .nb_tasks = 0,
-            .nb_functions = 1,
-            .devices_mask = DAGUE_DEVICES_ALL,
-            .initial_number_tasks = 0,
+            .taskpool_type = 0,
+            .devices_index_mask = PARSEC_DEVICES_ALL,
+            .nb_task_classes = 1,
             .priority = 0,
-            .nb_pending_actions = 1,
+            .nb_pending_actions = 0,
             .context = NULL,
+            .tdm = {0x0, },
             .startup_hook = NULL,
-            .functions_array = madness_function_array
+            .task_classes_array = madness_parsec_tc_array,
+#if defined(PARSEC_PROF_TRACE)
+            .profiling_array = NULL,
+#endif
+            .on_enqueue = NULL,
+            .on_enqueue_data = NULL,
+            .on_complete = NULL,
+            .on_complete_data = NULL,
+            .update_nb_runtime_task = NULL,
+            .destructor = NULL,
+            .dependencies_array = NULL,
+            .repo_array = NULL
         };
     }
 }

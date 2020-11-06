@@ -16,11 +16,11 @@
 namespace madness {
 
 template<typename T, std::size_t NDIM> class Function;
-class World;
+//class World;
 class AtomicBasisSet;
 
 template<typename T, std::size_t NDIM>
-class MolecularOrbitals {
+class MolecularOrbitals : public archive::ParallelSerializableObject {
 public:
 
 	MolecularOrbitals() {}
@@ -109,7 +109,11 @@ public:
 
 	template <typename Archive>
 	void serialize (Archive& ar) {
-		ar & mo & eps & irreps & occ & localize_sets;
+		std::size_t nmo=mo.size();
+		ar & nmo;
+		if (nmo!=mo.size()) mo.resize(nmo);
+		for (auto& m : mo) ar & m;
+		ar & eps & irreps & occ & localize_sets;
 	}
 
 	friend bool similar(const MolecularOrbitals& mo1, const MolecularOrbitals& mo2, const double thresh=1.e-6) {
@@ -132,11 +136,11 @@ public:
 
 	/// @return amo and bmo
 	std::pair<MolecularOrbitals<T,NDIM>, MolecularOrbitals<T,NDIM> >
-	static read_restartdata(World& world, const Molecule& molecule, const std::size_t nmo_alpha,
-			const std::size_t nmo_beta) {
+	static read_restartdata(World& world, const std::string filename, const Molecule& molecule,
+			const std::size_t nmo_alpha, const std::size_t nmo_beta) {
 		bool spinrestricted = false;
 		double current_energy;
-		archive::ParallelInputArchive ar(world, "restartdata");
+		archive::ParallelInputArchive ar(world, filename.c_str());
 		ar & current_energy & spinrestricted;
 
 		MolecularOrbitals<T,NDIM> amo, bmo;
@@ -151,11 +155,11 @@ public:
 	/// reads amo and bmo from the restartdata file
 
 	/// @return amo and bmo
-	void static save_restartdata(World& world, const Molecule& molecule,
+	void static save_restartdata(World& world, const std::string filename, const Molecule& molecule,
 			const MolecularOrbitals<T,NDIM>& amo, const MolecularOrbitals<T,NDIM>& bmo) {
 		bool spinrestricted = false;
 		double current_energy=0.0;
-		archive::ParallelOutputArchive ar(world, "restartdata");
+		archive::ParallelOutputArchive ar(world, filename.c_str());
 		ar & current_energy & spinrestricted;
 
 		amo.save_mos(ar,molecule);
@@ -193,7 +197,7 @@ public:
 		ar & eps & occ & localize_sets;
 		for (unsigned int i = 0; i < mo.size(); ++i)
 			ar & mo[i];
-		unsigned int n_core = molecule.n_core_orb_all();
+		//unsigned int n_core = molecule.n_core_orb_all();
 	}
 
 	void post_process_mos(World& world, const double thresh, const int k);
