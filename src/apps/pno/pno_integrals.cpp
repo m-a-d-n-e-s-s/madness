@@ -34,6 +34,15 @@ const std::string TAG_CP = "computeprotocol";
 // this needs to be added to include
 #include "NumCpp.hpp"
 
+template<typename T>
+std::ostream& operator << (std::ostream& os, const std::vector<T>& v){
+    os << "[";
+    for(auto k:v){
+        os << v << " ";
+    }
+    os << "]";
+}
+
 // Function for orthogonalization of a basis
 std::vector<real_function_3d> orthonormalize_basis(const std::vector<real_function_3d> &basis, const std::string orthogonalization,
 		const double thresh, World& world, const bool print_out) {
