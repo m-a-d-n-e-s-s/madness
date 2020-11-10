@@ -208,6 +208,17 @@ void FirstOrderDensity::SaveDensity(World &world, std::string name) {
   for (int i = 0; i < property_operator.num_operators; i++) {
     ar &property_operator.operator_vector[i];
   }
+
+  for (int i = 0; i < num_response_states; i++) {
+    for (int j = 0; j < num_ground_states; j++) {
+      ar &P[i][j];
+    }
+  }
+  for (int i = 0; i < num_response_states; i++) {
+    for (int j = 0; j < num_ground_states; j++) {
+      ar &Q[i][j];
+    }
+  }
 }
 // Load a response calculation
 void FirstOrderDensity::LoadDensity(World &world, std::string name,
@@ -240,6 +251,9 @@ void FirstOrderDensity::LoadDensity(World &world, std::string name,
   this->x = ResponseFunction(world, num_response_states, num_ground_states);
   this->y = ResponseFunction(world, num_response_states, num_ground_states);
 
+  this->P = ResponseFunction(world, num_response_states, num_ground_states);
+  this->Q = ResponseFunction(world, num_response_states, num_ground_states);
+
   for (int i = 0; i < Rparams.states; i++) {
     for (unsigned int j = 0; j < Gparams.num_orbitals; j++) {
       ar &x[i][j];
@@ -269,4 +283,21 @@ void FirstOrderDensity::LoadDensity(World &world, std::string name,
     print("norm of operator after",
           property_operator.operator_vector[i].norm2());
   }
+
+  for (int i = 0; i < Rparams.states; i++) {
+    for (unsigned int j = 0; j < Gparams.num_orbitals; j++) {
+      ar &P[i][j];
+      print("norm of P ", P[i][j].norm2());
+    }
+  }
+  world.gop.fence();
+
+  for (int i = 0; i < Rparams.states; i++) {
+    for (unsigned int j = 0; j < Gparams.num_orbitals; j++) {
+      ar &Q[i][j];
+      print("norm of y ", Q[i][j].norm2());
+    }
+  }
+
+  world.gop.fence();
 }
