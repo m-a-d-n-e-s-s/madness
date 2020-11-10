@@ -248,6 +248,8 @@ ResponseFunction TDHF::GetResponseFunctions(std::string xy) {
     MADNESS_EXCEPTION("not a valid response state", 0);
   }
 }
+ResponseFunction TDHF::GetPVector() { return P; }
+ResponseFunction TDHF::GetQVector() { return Q; }
 // Get response parameters
 ResponseParameters TDHF::GetResponseParameters() { return Rparams; }
 GroundParameters TDHF::GetGroundParameters() { return Gparams; }
@@ -339,7 +341,7 @@ void TDHF::normalize(World &world, ResponseFunction &f) {
   for (unsigned int i = 0; i < f.size(); i++) {
     // Get the normalization constant
     // (Sum included inside inner)
-    double norm = inner(f[i], f[i]);
+    double norm = inner(world, f[i], f[i]).sum();
     norm = sqrt(norm);
     // Doing this to deal with zero functions.
     // Maybe not smrt.
@@ -357,8 +359,8 @@ void TDHF::normalize(World &world, ResponseFunction &f, ResponseFunction &g) {
   for (unsigned int i = 0; i < f.size(); i++) {
     // Get the normalization constant
     // (Sum included inside inner)
-    double normf = inner(f[i], f[i]);
-    double normg = inner(g[i], g[i]);
+    double normf = inner(world, f[i], f[i]).sum();
+    double normg = inner(world, g[i], g[i]).sum();
     double norm = sqrt(normf - normg);
 
     // Doing this to deal with zero functions.
@@ -724,7 +726,7 @@ ResponseFunction TDHF::PropertyRHS(World &world, Property &p) const {
 
     // project rhs vectors for state
     rhs[i] = Qhat(rhs[i]);
-    for (int j = 0; j < Gparams.num_orbitals; j++) {
+    for (size_t j = 0; j < orbitals.size(); j++) {
       print("RHS norm for orbital ", j, "Response state  ", i, ": ",
             rhs[i][j].norm2());
     }
@@ -1076,7 +1078,6 @@ ResponseFunction TDHF::ComputeHf(World &world, const ResponseFunction &f,
   // Perturbed coulomb piece
   deriv_J = CreateCoulombDerivativeRF(world, f, phi, small, thresh);
   // Spin integration gives 2.0
-  deriv_J = deriv_J * 2.0;
 
   // If including any HF exchange:
   if (xcf.hf_exchange_coefficient()) {
@@ -1092,7 +1093,7 @@ ResponseFunction TDHF::ComputeHf(World &world, const ResponseFunction &f,
   // Spin integration gives 2.0
   // J+K+W
   world.gop.fence();
-  H = deriv_J - deriv_K + deriv_XC;
+  H = (deriv_J * 2) - deriv_K * xcf.hf_exchange_coefficient() + deriv_XC;
 
   // Project out groundstate
   QProjector<double, 3> projector(world, Gparams.orbitals);
@@ -1151,7 +1152,6 @@ ResponseFunction TDHF::ComputeGf(World &world, const ResponseFunction &f,
   ResponseFunction XCdagger(world, m, n);
 
   Jdagger = CreateCoulombDerivativeRFDagger(world, f, orbitals, small, thresh);
-  Jdagger = Jdagger * 2.0;
 
   // Exchange
   // Determine if including HF exchange
@@ -1170,7 +1170,7 @@ ResponseFunction TDHF::ComputeGf(World &world, const ResponseFunction &f,
   // Take care of coeficients
   // G = Jdagger * 2.0 + XCdagger - Kdagger * xcf.hf_exchange_coefficient();
   // (J-K)+W
-  G = Jdagger - Kdagger + XCdagger;
+  G = (Jdagger * 2) - Kdagger * xcf.hf_exchange_coefficient() + XCdagger;
   // Project out groundstate
   QProjector<double, 3> projector(world, Gparams.orbitals);
   for (int i = 0; i < m; i++) {
@@ -1191,13 +1191,13 @@ ResponseFunction TDHF::ComputeGf(World &world, const ResponseFunction &f,
       temp = expectation(world, f, XCdagger);
     }
     if (world.rank() == 0) print(temp);
-    if (world.rank() == 0) printf("   G matrix:\n");
+    printf("   G matrix for %s components:\n", xy.c_str());
     temp = expectation(world, f, G);
     if (world.rank() == 0) print(temp);
   }
 
   // End timer
-  if (print_level >= 1) end_timer(world, "   Creating B:");
+  if (print_level >= 1) end_timer(world, "   Creating G:");
 
   // Done
   return G;
@@ -1500,7 +1500,7 @@ Zfunctions TDHF::ComputeZFunctions(World &world, ResponseFunction &x,
                    FunctionDefaults<3>::get_thresh(), Rparams.print_level, "y");
 
   // put it all together
-  Z.Z_x = Z.v0_x + Z.x_f_no_diag - Z.Hx - Z.Gy;
+  Z.Z_x = Z.v0_x - Z.x_f_no_diag + Z.Hx + Z.Gy;
   // no 2-electron
 
   // y functions
@@ -1515,7 +1515,7 @@ Zfunctions TDHF::ComputeZFunctions(World &world, ResponseFunction &x,
         ComputeHf(world, y, Gparams.orbitals, Rparams.small,
                   FunctionDefaults<3>::get_thresh(), Rparams.print_level, "y");
 
-    Z.Z_y = Z.v0_y + Z.y_f_no_diag - Z.Hy - Z.Gx;
+    Z.Z_y = Z.v0_y - Z.y_f_no_diag + Z.Hy + Z.Gx;
   }
 
   if (Rparams.print_level >= 2) {
@@ -5466,6 +5466,7 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseFunction &rhs_x,
     //      this
     //      (?)
 
+    /*
     // Get norms
     for (int i = 0; i < m; i++)
       x_norms[i] = sqrt(inner(x_response[i], x_response[i]) -
@@ -5482,6 +5483,7 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseFunction &rhs_x,
 
     rhs_x.scale(rec_norms);
     rhs_y.scale(rec_norms);
+    */
 
     Z = ComputeZFunctions(world, x_response, y_response, Z, xc, x_shifts,
                           y_shifts, Gparams, Rparams, ham_no_diag);
@@ -5517,10 +5519,12 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseFunction &rhs_x,
     }
 
     // Project out ground state
+    /*
     for (int i = 0; i < m; i++) z_x_minus_p[i] = projector(z_x_minus_p[i]);
     if (Rparams.omega != 0.0) {
       for (int i = 0; i < m; i++) z_y_minus_q[i] = projector(z_y_minus_q[i]);
     }
+    */
 
     // Debugging output
     if (Rparams.print_level >= 2) {
@@ -5544,10 +5548,12 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseFunction &rhs_x,
 
     // Scale by -2.0 (coefficient in eq. 37 of reference paper)
     for (int i = 0; i < m; i++)
-      bsh_x_resp[i] = bsh_x_resp[i] * (std::max(1.0, x_norms[i]) * -2.0);
+      bsh_x_resp[i] =
+          -2 * bsh_x_resp[i];  // * (std::max(1.0, x_norms[i]) * -2.0);
     if (Rparams.omega != 0.0) {
       for (int i = 0; i < m; i++)
-        bsh_y_resp[i] = bsh_y_resp[i] * (std::max(1.0, x_norms[i]) * -2.0);
+        bsh_y_resp[i] =
+            -2 * bsh_y_resp[i];  // * (std::max(1.0, x_norms[i]) * -2.0);
     }
 
     // Debugging output
@@ -5902,7 +5908,6 @@ void TDHF::ComputeFrequencyResponse(World &world, std::string property) {
   }
 
   // Keep a copy of dipoles * MO (needed explicitly in eq.)
-  ResponseFunction RHS_Vector;
 
   // For each protocol
   for (unsigned int proto = 0; proto < Rparams.protocol_data.size(); proto++) {
@@ -5933,10 +5938,12 @@ void TDHF::ComputeFrequencyResponse(World &world, std::string property) {
 
         if (Rparams.dipole) {
           // set states
-          x_response = PropertyRHS(world, p);
+          this->P = PropertyRHS(world, p);
+          this->Q = P.copy();
+
+          x_response = P;
           y_response = x_response.copy();
           // set RHS_Vector
-          RHS_Vector = PropertyRHS(world, p);
         } else if (Rparams.nuclear) {
           // set guesses
           // print("Creating X for Nuclear Operators");
@@ -5948,7 +5955,8 @@ void TDHF::ComputeFrequencyResponse(World &world, std::string property) {
           // print("x norms:");
           // print(x_response.norm2());
 
-          RHS_Vector = PropertyRHS(world, p);
+          this->P = PropertyRHS(world, p);
+          this->Q = P.copy();
         } else if (Rparams.order2) {
           //
         } else if (Rparams.order3) {
@@ -5960,7 +5968,7 @@ void TDHF::ComputeFrequencyResponse(World &world, std::string property) {
     }
 
     // Now actually ready to iterate...
-    IterateFrequencyResponse(world, RHS_Vector, RHS_Vector);
+    IterateFrequencyResponse(world, P, Q);
   }  // end for --finished reponse density
 
   // Have response function, now calculate polarizability for this axis

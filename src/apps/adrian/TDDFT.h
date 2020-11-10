@@ -174,6 +174,8 @@ class TDHF {
 
   // Get the response Function
   ResponseFunction GetResponseFunctions(std::string xy);
+  ResponseFunction GetPVector();
+  ResponseFunction GetQVector();
   ResponseParameters GetResponseParameters();
   GroundParameters GetGroundParameters();
   Property GetPropertyObject();
@@ -234,6 +236,9 @@ class TDHF {
                                       //   \int dr \frac{\phi_i^\dagger
                                       //   phi_j}{\left| r - r' \right|}
   Property p;                         // for frequency calculations
+
+  ResponseFunction P;
+  ResponseFunction Q;
 
  public:
   // Collective constructor for response uses contents of file \c filename and
