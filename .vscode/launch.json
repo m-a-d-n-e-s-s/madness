@@ -1,27 +1,96 @@
-
 {
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "(gdb) Launch",
+            "name": "densityTest ",
             "type": "cppdbg",
             "request": "launch",
             // Resolved by CMake Tools:
             "program": "${command:cmake.launchTargetPath}",
-            "args": [],
+            "args": [
+                "/gpfs/projects/rjh/adrian/testing/h2/oct23/nuclear/SAVEINPUTS"
+            ],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
+            "cwd": "/gpfs/projects/rjh/adrian/testing/h2/oct23/nuclear",
             "environment": [
                 {
+                    // add the directory where our target was built to the PATHs
+                    // it gets resolved by CMake Tools:
                     "name": "PATH",
-                    "value": "$PATH:$HOME/some_path"
+                    "value": "$PATH:${command:cmake.launchTargetDirectory}"
                 },
                 {
-                    "name": "OTHER_VALUE",
-                    "value": "Something something"
-                }
+                    "name": "MAD_NUM_THREADS",
+                    "value": "8"
+                },
             ],
-            "externalConsole": true,
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
+            "name": "Load Test ",
+            "type": "cppdbg",
+            "request": "launch",
+            // Resolved by CMake Tools:
+            "program": "${command:cmake.launchTargetPath}",
+            "args": [
+                "/gpfs/projects/rjh/adrian/testing/h2/oct23/dipole/LOADINPUTS"
+            ],
+            "stopAtEntry": false,
+            "cwd": "/gpfs/projects/rjh/adrian/testing/h2/oct23/dipole",
+            "environment": [
+                {
+                    // add the directory where our target was built to the PATHs
+                    // it gets resolved by CMake Tools:
+                    "name": "PATH",
+                    "value": "$PATH:${command:cmake.launchTargetDirectory}"
+                },
+                {
+                    "name": "MAD_NUM_THREADS",
+                    "value": "8"
+                },
+            ],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
+            "name": "Save Test ",
+            "type": "cppdbg",
+            "request": "launch",
+            // Resolved by CMake Tools:
+            "program": "${command:cmake.launchTargetPath}",
+            "args": [
+                "/gpfs/projects/rjh/adrian/testing/h2/oct23/dipole/SAVEINPUTS"
+            ],
+            "stopAtEntry": false,
+            "cwd": "/gpfs/projects/rjh/adrian/testing/h2/oct23/dipole",
+            "environment": [
+                {
+                    // add the directory where our target was built to the PATHs
+                    // it gets resolved by CMake Tools:
+                    "name": "PATH",
+                    "value": "$PATH:${command:cmake.launchTargetDirectory}"
+                },
+                {
+                    "name": "MAD_NUM_THREADS",
+                    "value": "8"
+                },
+            ],
+            "externalConsole": false,
             "MIMode": "gdb",
             "setupCommands": [
                 {
