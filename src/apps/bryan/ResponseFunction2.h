@@ -197,7 +197,7 @@ class ResponseFunction {
 };
 
 // Final piece for KAIN
-inline double inner(ResponseFunction& a, ResponseFunction& b) {
+inline double ResponseFunctionInner(ResponseFunction& a, ResponseFunction& b) {
   MADNESS_ASSERT(a.size() > 0);
   MADNESS_ASSERT(a.size() == b.size());
   MADNESS_ASSERT(a[0].size() > 0);
