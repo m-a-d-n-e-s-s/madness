@@ -51,6 +51,9 @@ void FirstOrderDensity::ComputeDensity(World &world) {
   x = calc.GetResponseFunctions("x");
   y = calc.GetResponseFunctions("y");
 
+  P = calc.GetPVector();
+  Q = calc.GetQVector();
+
   num_response_states = x.size();
   num_ground_states = x[0].size();
   // get the response densities for our states
@@ -103,19 +106,45 @@ void FirstOrderDensity::PlotResponseDensity(World &world) {
 }
 Tensor<double> FirstOrderDensity::ComputeSecondOrderPropertyTensor(
     World &world) {
+  Tensor<double> H;
   // do some printing before we compute so we know what we are working with
+  vector<real_function_3d> p_density =
+      zero_functions<double, 3>(world, P.size());
+  vector<real_function_3d> q_density =
+      zero_functions<double, 3>(world, Q.size());
+  // Two ways to compute... -2()
+  for (size_t i = 0; i < P.size(); i++) {
+    for (size_t j = 0; j < P[0].size(); j++) {
+      p_density[i] += P[i][j];
+      q_density[i] += Q[i][j];
+    }
+  }
+
+  vector<real_function_3d> Pert_density =
+      zero_functions<double, 3>(world, P.size());
+  for (size_t i = 0; i < P.size(); i++) {
+    Pert_density[i] = p_density[i] + q_density[i];
+  }
+
   for (size_t i = 0; i < property_operator.operator_vector.size(); i++) {
     if (world.rank() == 0) {
       print("property operator vector i = ", i,
             "norm = ", property_operator.operator_vector[i].norm2());
     }
   }
+
   for (int i = 0; i < num_response_states; i++) {
     print("norm of rho i", rho_omega[i].norm2());
   }
 
-  return matrix_inner(world, rho_omega, property_operator.operator_vector,
-                      true);
+  H = matrix_inner(world, rho_omega, Pert_density, true);
+  H = -H;
+  for (int i = 0; i < num_response_states; i++) {
+    for (int j = 0; j < property_operator.num_operators; j++) {
+      print("norm of H  i: ", i, " j: ", j, " = ", H(i, j));
+    }
+  }
+  return H;
 }
 
 void FirstOrderDensity::PrintSecondOrderAnalysis(

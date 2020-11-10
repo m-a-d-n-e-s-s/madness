@@ -44,6 +44,9 @@ class FirstOrderDensity {
   ResponseFunction x;
   ResponseFunction y;
 
+  ResponseFunction P;
+  ResponseFunction Q;
+
   // first order frequency response densities
   VectorFunction3DT rho_omega;
 
