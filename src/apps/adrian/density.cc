@@ -106,45 +106,45 @@ void FirstOrderDensity::PlotResponseDensity(World &world) {
 }
 Tensor<double> FirstOrderDensity::ComputeSecondOrderPropertyTensor(
     World &world) {
-  Tensor<double> H;
+  Tensor<double> G(num_response_states, num_response_states);
+  Tensor<double> M(num_response_states, num_response_states);
   // do some printing before we compute so we know what we are working with
-  vector<real_function_3d> p_density =
-      zero_functions<double, 3>(world, P.size());
-  vector<real_function_3d> q_density =
-      zero_functions<double, 3>(world, Q.size());
-  // Two ways to compute... -2()
-  for (size_t i = 0; i < P.size(); i++) {
-    for (size_t j = 0; j < P[0].size(); j++) {
-      p_density[i] += P[i][j];
-      q_density[i] += Q[i][j];
-    }
-  }
+  std::vector<std::vector<Function<double, 3>>> px_qy;
+  std::vector<std::vector<Function<double, 3>>> px_qy_4;
 
-  vector<real_function_3d> Pert_density =
-      zero_functions<double, 3>(world, P.size());
-  for (size_t i = 0; i < P.size(); i++) {
-    Pert_density[i] = p_density[i] + q_density[i];
+  for (unsigned int i = 0; i < num_response_states; i++) {
+    px_qy.push_back(zero_functions<double, 3>(world, num_response_states));
+    px_qy_4.push_back(zero_functions<double, 3>(world, num_response_states));
   }
-
-  for (size_t i = 0; i < property_operator.operator_vector.size(); i++) {
-    if (world.rank() == 0) {
-      print("property operator vector i = ", i,
-            "norm = ", property_operator.operator_vector[i].norm2());
-    }
-  }
+  world.gop.fence();
+  //*******************************
+  // G algorithim
 
   for (int i = 0; i < num_response_states; i++) {
-    print("norm of rho i", rho_omega[i].norm2());
-  }
-
-  H = matrix_inner(world, rho_omega, Pert_density, true);
-  H = -H;
-  for (int i = 0; i < num_response_states; i++) {
-    for (int j = 0; j < property_operator.num_operators; j++) {
-      print("norm of H  i: ", i, " j: ", j, " = ", H(i, j));
+    for (int j = 0; j < num_response_states; j++) {
+      px_qy_4[i][j] = rho_omega[i] * property_operator.operator_vector[j];
+      for (int k = 0; k < num_ground_states; k++) {
+        px_qy[i][j] = px_qy[i][j] + P[i][k] * x[j][k] + Q[i][k] * y[j][k];
+      }
     }
   }
-  return H;
+  //*******************************
+
+  for (int i = 0; i < num_response_states; i++) {
+    // Run over occupied...
+    for (int j = 0; j < num_response_states; j++) {
+      G(i, j) = -2 * px_qy[i][j].trace();
+      M(i, j) = -2 * px_qy_4[i][j].trace();
+    }
+  }
+
+  print("G");
+  print(G);
+
+  print("M");
+  print(M);
+
+  return G;
 }
 
 void FirstOrderDensity::PrintSecondOrderAnalysis(
