@@ -14,6 +14,7 @@
 
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+#include <madness/world/print.h>
 #include <iomanip>
 #include <madness/mra/vmra.h>
 #include <chem/SCF.h>
@@ -34,13 +35,21 @@ const std::string TAG_CP = "computeprotocol";
 // this needs to be added to include
 #include "NumCpp.hpp"
 
+template<typename T1, typename T2>
+std::ostream& operator << (std::ostream& os, const std::pair<T1,T2>& v){
+    os << "(" << v.first << "," << v.second << ")";
+    return os;
+}
+
+
 template<typename T>
 std::ostream& operator << (std::ostream& os, const std::vector<T>& v){
     os << "[";
-    for(auto k:v){
-        os << v << " ";
+    for(auto i=0; i<v.size();++i){
+        os << v[i] << " ";
     }
     os << "]";
+    return os;
 }
 
 // Function for orthogonalization of a basis
@@ -306,6 +315,7 @@ int main(int argc, char** argv) {
 
 		if(world.rank()==0){
 			std::cout << "Before cherry pick" << std::endl;
+			std::cout << "rank is " << world.rank() << "\n";
 			std::cout << "all used occupation numbers:\n" << occ << std::endl;
 			std::cout << "corresponding to active pairs:\n" << pno_ids << std::endl;
 			if (cabs_option=="pno" || cabs_option=="mixed") {
