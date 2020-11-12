@@ -14,7 +14,6 @@
 
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <madness/world/print.h>
 #include <iomanip>
 #include <madness/mra/vmra.h>
 #include <chem/SCF.h>
@@ -98,6 +97,7 @@ int main(int argc, char** argv) {
 
 		startup(world,argc,argv,true);
 		print_meminfo(world.rank(), "startup");
+        FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap< Key<3> >(world)));
 
 		// Get the name of the input file (if given)
 		const std::string input = (argc > 1) ? argv[1] : "input";
@@ -114,16 +114,8 @@ int main(int argc, char** argv) {
 			std::cout << "\n\n";
 
 			std::cout << "This script will run PNO-MP2 and print out tensors in binary\n";
-			//std::cout << "Call as: pno_integrals inputfile orthogonalization basis_size";
 			std::cout << "Call as: pno_integrals inputfile";
 			std::cout << "input is " << input << "\n";
-			//std::cout << "orthogonalization is " << orthogonalization << "\n";
-			//std::cout << "basis size is " << basis_size << "\n";
-			//std::cout << "using CABS-option: " << cabs_option << "\n";
-			//std::cout << "with pno-OBS-size: " << pno_obs_size << "\n";
-
-			//std::cout << "only diag is " << only_diag << "\n";
-			//std::cout << "cherry_pick is " << cherry_pick << "\n";
 		}
 
 		// Compute the SCF Reference
@@ -135,6 +127,10 @@ int main(int argc, char** argv) {
 		if (world.rank() == 0) print("nemo energy: ", scf_energy);
 		if (world.rank() == 0) printf(" at time %.1f\n", wall_time());
 		const double time_scf_end = wall_time();
+		// assert that no nemo corrfactor is actually used (not yet supported in PNO-MP2)
+		if(nemo.ncf->type() != madness::NuclearCorrelationFactor::None){
+			MADNESS_EXCEPTION("Nuclear Correlation Factors not yet supported in MRA-PNOs. Add ncf (none,1.0) to your dft input",1);
+		}
 
 		// Compute MRA-PNO-MP2-F12
 		const double time_pno_start = wall_time();
@@ -200,8 +196,8 @@ int main(int argc, char** argv) {
 		const std::string orthogonalization = paramsint.orthogonalization();
 		if (world.rank()==0) std::cout << "Orthonormalization technique used: " << orthogonalization << std::endl;
 		const bool orthogonalize = orthogonalization != "none";
-		const double h_thresh = 1.e-4;
-		const double thresh = parameters.thresh();
+		const double h_thresh = 1.e-7; // neglect integrals
+		double thresh = parameters.thresh();
 
 		const std::string cabs_option = paramsint.cabs_option();
 		bool cabs_switch = false;
@@ -215,8 +211,9 @@ int main(int argc, char** argv) {
 		const int basis_size = paramsint.n_pno();
 		int pno_cabs_size = paramsint.pno_cabs_size();
 
-		if(world.rank()==0) std::cout << "Tightening thresholds to 1.e-6 for post-processing\n";
-		FunctionDefaults<3>::set_thresh(1.e-6);
+		thresh = std::min(thresh, 1.e-4);
+		if(world.rank()==0) std::cout << "Tightening thresholds to " << thresh << " for post-processing\n";
+		FunctionDefaults<3>::set_thresh(thresh);
 
 		vecfuncT reference = nemo.get_calc()->amo;
 		vecfuncT obs_pnos;
@@ -234,9 +231,9 @@ int main(int argc, char** argv) {
 			if (not is_gs){
 				const auto& x = pairs.cis.x;
 				reference.insert(reference.end(), x.begin(), x.end());
-				name = "ex" + std::to_string(pairs.cis.number);
+				name = "molecule_ex_" + std::to_string(pairs.cis.number);
 			}else{
-				name = "gs";
+				name = "molecule";
 			}
 
 			std::vector<real_function_3d> all_current_pnos;
@@ -358,8 +355,9 @@ int main(int argc, char** argv) {
 		}
 
 		// will include CIS orbitals for excited states
-		if(world.rank()==0) std::cout << "Adding " << reference.size() << " Reference orbitals\n";
+		if(world.rank()==0) std::cout << "Adding " << reference.size() << " HF orbitals\n";
 		basis.insert(basis.begin(), reference.begin(), reference.end());
+
 
 		// include virtual orbitals if demanded
 		// not the most elegant solution ... but lets see if we need this first
@@ -712,6 +710,11 @@ int main(int argc, char** argv) {
 			if(paramsint.print_pno_overlap()) {
 				if(world.rank()==0) std::cout << "Overlap over whole basis\n" << S << "\n";
 			}
+			for (auto x=0;x<basis.size();++x){
+				S(x,x) -=1.0;
+			}
+			const double offdiag=S.normf();
+			if (world.rank()==0) std::cout << "||S-1||=" << offdiag << "\n";
 			if (not orthogonalize) {
 				S = S.flat();
 				nc::NdArray<double> gg(S.ptr(), S.size(), 1);
@@ -719,15 +722,15 @@ int main(int argc, char** argv) {
 			}
 		}
 
-		auto Fop =  madness::Fock(world, &nemo);
-		auto F = Fop(basis, basis);
-		if(world.rank()==0) std::cout << "F\n" << F << "\n";
 
 		world.gop.fence();
 		if (world.rank() == 0) printf("finished at time %.1f\n", wall_time());
 
-		print_stats(world);
-	}
+	      // Nearly all memory will be freed at this point
+	    world.gop.fence();
+	    world.gop.fence();
+	    print_stats(world);
+	    } // world is dead -- ready to finalize
 	finalize();
 
 	return 0;

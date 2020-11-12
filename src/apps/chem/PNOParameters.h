@@ -303,7 +303,7 @@ public:
 
 
 	void initialize_pnoint_parameters() {
-		initialize<std::string>("orthog", "symmetric", "orthogonalization method for PNO basis, also current default for a potential CABS. options: symmetric, canonical, cholesky, rr_cholesky,  ");
+		initialize<std::string>("orthog", "cholesky", "orthogonalization method for PNO basis, also current default for a potential CABS. options: symmetric, canonical, cholesky, rr_cholesky,  ");
 		initialize<std::string>("orthog_cabs", "default", "orthogonalization method for CABS basis. options: symmetric, canonical, cholesky, rr_cholesky, uses same as orbitals basis if default.");
 		initialize<int>("n_pno", 10, "desired size of PNO-basis (orbital space)");
 		initialize<std::string>("cabs_option", "none", "type of complementary auxiliary basis to be used. can be none ~ no CABS, gbs ~ Gaussian basis set as CABS, requires input via auxbas_file, pno ~ use superfluous PNOs as CABS, mixed ~ gbs&pno-option");
@@ -315,8 +315,8 @@ public:
 		initialize<double>("cabs_thresh",1.e-4, " thresh for cabs part ");
 		initialize<std::string>("auxbas", "none", "atom centered partial wave guess of format like 'h-2s1p-o-3s2p1d' ");
 		initialize<std::string>("auxbas_file", "none", "Use external comp. aux. basis in addition to the pnos as auxbasis. Give the filename as parameter. Give the auxbas in turbomole format. Don't use contractions. If a file is specified the auxbas parameter has no effect");
-		initialize<bool>("print_pno_overlap", false, "Print overlap matrix at certain steps in computation, for debugging purposes.");
-		initialize<int>("n_virt", 0, "Compute this number of virtuals and include them in the integral construction.");
+		initialize<bool>("print_pno_overlap", true, "Print overlap matrix at certain steps in computation, for debugging purposes.");
+		initialize<int>("n_virt", 0, "Compute this number of virtuals and include them in the integral construction, experimental and not robust!.");
 		initialize<bool>("hardcore_boson", false, "compute only integrals for hardcore boson hamiltonian (restricted to double occupations)");
 	}
 
