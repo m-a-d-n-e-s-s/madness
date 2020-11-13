@@ -11,7 +11,10 @@ Follow the next section to install madness.
 
 `tequila` needs to find the executable `$MAD_ROOT_DIR/src/apps/pno/pno_integrals`.
 It can detect it automatically if you add the directory to your current `PATH` or if you export the `MAD_ROOT_DIR` variable:  
-`export MAD_ROOT_DIR=$MAD_ROOT_DIR` 
+```bash
+export MAD_ROOT_DIR=$MAD_ROOT_DIR
+```  
+
 `$MAD_ROOT_DIR` is the directory where madness was compiled.  
 
 # Install on Ubuntu or similar
@@ -34,17 +37,27 @@ To compile the pno_integrals executable that `tequila` needs, you furthermore ne
 This will install mkl into the directory:  
 `/opt/intel/compilers_and_libraries_2020.1.102/linux/mkl`  
 You can export that as MKLROOT, and cmake will be able to detect it later:  
-`export MKLROOT=/opt/intel/compilers_and_libraries_2020.1.102/linux/mkl`
+```bash
+export MKLROOT=/opt/intel/compilers_and_libraries_2020.1.102/linux/mkl
+```
 Alternatively you can pass the following to the cmake command:  
 `-D MKL_ROOT_DIR=/opt/intel/compilers_and_libraries_2020.1.102/linux/mkl`
 
 ## MPICH
 install with  
-`sudo apt-get install -y mpich`
+```bash
+sudo apt-get install -y mpich
+```
 and cmake will detect it automatically.
 
 ## cmake
-`pip install cmake` or `sudo apt-get install -y cmake`
+```bash
+pip install cmake
+``` 
+or 
+```bash
+sudo apt-get install -y cmake
+```
 
 ## NumCPP
 It is header only, you only need to get the code from github and remember where it is.  
