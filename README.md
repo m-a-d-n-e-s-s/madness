@@ -3,6 +3,14 @@ madness
 
 Multiresolution Adaptive Numerical Environment for Scientific Simulation
 
+# Summary
+
+MADNESS provides a high-level environment for the solution of integral and differential equations in many dimensions using adaptive, fast methods with guaranteed precision based on multi-resolution analysis and novel separated representations. There are three main components to MADNESS. At the lowest level is a new petascale parallel programming environment that increases programmer productivity and code performance/scalability while maintaining backward compatibility with current programming tools such as MPI and Global Arrays. The numerical capabilities built upon the parallel tools provide a high-level environment for composing and solving numerical problems in many (1-6+) dimensions. Finally, built upon the numerical tools are new applications with initial focus upon chemistry, atomic and molecular physics, material science, and nuclear structure.
+
+Please look in the [wiki](https://github.com/m-a-d-n-e-s-s/madness/wiki) for more information and project activity.
+
+Here's a [video](http://www.youtube.com/watch?v=dBwWjmf5Tic) about MADNESS.
+
 # Tequila Support
 
 This fork of madness holds the necessary structures to interface with [tequila](https://github.com/aspuru-guzik-group/tequila).  
@@ -81,28 +89,21 @@ We use the following directories:
 `$MAD_ROOT_DIR`: The directory with the compiled madness code
 
 Get the sources (note that the `tequila` branch should be checked out, it is the default in this fork):  
-`git clone https://github.com/kottmanj/madness.git $MADSOURCE`  
+```bash
+git clone https://github.com/kottmanj/madness.git $MADSOURCE
+```  
 
 Configure  
-`cd $MAD_ROOT_DIR`  
-`cmake -D ENABLE_MKL=ON -D CMAKE_CXX_FLAGS='-O3 -DNDEBUG -march=native -I/$NUMCPPROOT/include -I/$BOOSTROOT/include' $MADSOURCE/`  
+```bash
+cd $MAD_ROOT_DIR  
+cmake -D ENABLE_MKL=ON -D CMAKE_CXX_FLAGS='-O3 -DNDEBUG -march=native -I/$NUMCPPROOT/include -I/$BOOSTROOT/include' $MADSOURCE/
+```
 
 Compile
-`cd $MAD_ROOT_DIR`  
-`make`  
- 
-
-
-
-##
-
-# Summary
-
-MADNESS provides a high-level environment for the solution of integral and differential equations in many dimensions using adaptive, fast methods with guaranteed precision based on multi-resolution analysis and novel separated representations. There are three main components to MADNESS. At the lowest level is a new petascale parallel programming environment that increases programmer productivity and code performance/scalability while maintaining backward compatibility with current programming tools such as MPI and Global Arrays. The numerical capabilities built upon the parallel tools provide a high-level environment for composing and solving numerical problems in many (1-6+) dimensions. Finally, built upon the numerical tools are new applications with initial focus upon chemistry, atomic and molecular physics, material science, and nuclear structure.
-
-Please look in the [wiki](https://github.com/m-a-d-n-e-s-s/madness/wiki) for more information and project activity.
-
-Here's a [video](http://www.youtube.com/watch?v=dBwWjmf5Tic) about MADNESS.
+```bash
+cd $MAD_ROOT_DIR  
+make
+```
 
 # Funding
 The developers gratefully acknowledge the support of the Department of Energy, Office of Science, Office of Basic Energy Sciences and Office of Advanced Scientific Computing Research, under contract DE-AC05-00OR22725 with Oak Ridge National Laboratory.
