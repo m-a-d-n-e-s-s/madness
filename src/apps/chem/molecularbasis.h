@@ -511,6 +511,13 @@ public:
     /// @param[in]	filename	the name of the basis set (sto-3g, 6-31g, etc)
     void read_file(std::string filename);
 
+    /// read the atomic basis set from file
+
+    /// @param[in]	filename	the base name of nwchem files (.out and .movecs)
+    void read_nw_file(std::string filename);
+
+
+
     /// Makes map from atoms to first basis function on atom and number of basis functions on atom
     void atoms_to_bfn(const Molecule& molecule, std::vector<int>& at_to_bf, std::vector<int>& at_nbf) const {
         at_to_bf = std::vector<int>(molecule.natom());

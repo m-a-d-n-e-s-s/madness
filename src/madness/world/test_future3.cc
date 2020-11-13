@@ -36,15 +36,15 @@
 using namespace madness;
 
 class Foo : public WorldObject<Foo> {
-    const int bar;
+    std::vector<int> bar;
 public:
-    Foo(World& world, int bar) : WorldObject<Foo>(world), bar(bar) {
+    Foo(World& world, int bar) : WorldObject<Foo>(world), bar(1, bar) {
         process_pending();
     }
 
     virtual ~Foo() { }
 
-    int get() const {
+    decltype(auto) get() const {
         return bar;
     }
 };
@@ -57,11 +57,43 @@ int main(int argc, char** argv) {
     Foo a(world,world.rank()), b(world,world.rank()*10);
 
     for (ProcessID p=0; p<world.size(); ++p) {
-        Future<int> futa = a.send(p,&Foo::get);
-        Future<int> futb = b.send(p,&Foo::get);
+        auto futa = a.send(p,&Foo::get);
+        const auto futb = b.send(p,&Foo::get);
         // Could work here until the results are available
-        MADNESS_CHECK(futa.get() == p);
-        MADNESS_CHECK(futb.get() == p*10);
+        MADNESS_CHECK(futa.get() == std::vector<int>{p});
+        MADNESS_CHECK(futb.get() == std::vector<int>{p*10});
+
+      // test various flavors of Future::get:
+        {
+          // 1) Future &::get()
+          static_assert(
+              std::is_same_v<decltype(futa.get()), std::vector<int> &>);
+          std::vector<int> &vala_ref = futa.get();
+          MADNESS_CHECK(vala_ref == std::vector<int>{p});
+          // 2) Future const &::get()
+          static_assert(
+              std::is_same_v<decltype(futb.get()), std::vector<int> const &>);
+          std::vector<int> const &valb_ref = futb.get();
+          MADNESS_CHECK(valb_ref == std::vector<int>{p * 10});
+          // 2) Future &&::get()
+          static_assert(std::is_same_v<decltype(std::move(futa).get()),
+                                       std::vector<int>>);
+          std::vector<int> vala_copy = a.send(p, &Foo::get).get();
+          MADNESS_CHECK(vala_copy == std::vector<int>{p});
+        }
+
+      // test various flavors of Future<T>::operator T:
+        {
+          // 1) Future &::operator T&()
+          std::vector<int> &vala_ref = futa;
+          MADNESS_CHECK(vala_ref == std::vector<int>{p});
+          // 2) Future const &::operator T const&()
+          std::vector<int> const &valb_ref = futb;
+          MADNESS_CHECK(valb_ref == std::vector<int>{p * 10});
+          // 2) Future &&::operator T()
+          std::vector<int> vala_copy = a.send(p, &Foo::get);
+          MADNESS_CHECK(vala_copy == std::vector<int>{p});
+        }
     }
     world.gop.fence();
     if (world.rank() == 0) print("OK!");

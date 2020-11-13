@@ -1638,6 +1638,36 @@ namespace madness {
         return SeparatedConvolution<double,NDIM>(world, coeff, expnt, bc, k);
     }
 
+    /// Factory function generating separated kernel for convolution with BSH kernel in general NDIM
+    template <std::size_t NDIM>
+    static
+    inline
+    SeparatedConvolution<double,NDIM>* BSHOperatorPtr(World& world,
+                                                  double mu,
+                                                  double lo,
+                                                  double eps,
+                                                  const BoundaryConditions<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(),
+                                                  int k=FunctionDefaults<NDIM>::get_k())
+    {
+    	if (eps>1.e-4) {
+    		if (world.rank()==0) print("the accuracy in BSHOperator is too small, tighten the threshold",eps);
+    		MADNESS_EXCEPTION("0",1);
+    	}
+        const Tensor<double>& cell_width = FunctionDefaults<NDIM>::get_cell_width();
+        double hi = cell_width.normf(); // Diagonal width of cell
+        if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
+
+        GFit<double,NDIM> fit=GFit<double,NDIM>::BSHFit(mu,lo,hi,eps,false);
+		Tensor<double> coeff=fit.coeffs();
+		Tensor<double> expnt=fit.exponents();
+
+        if (bc(0,0) == BC_PERIODIC) {
+            fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
+        }
+
+        return new SeparatedConvolution<double,NDIM>(world, coeff, expnt, bc, k);
+    }
+
 
     /// Factory function generating separated kernel for convolution with exp(-mu*r)/(4*pi*r) in 3D
     static

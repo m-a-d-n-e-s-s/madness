@@ -49,7 +49,8 @@ namespace madness {
 
 //    // moved to vmra.h
 //    template <typename T, std::size_t NDIM>
-//    DistributedMatrix<T> matrix_inner(const DistributedMatrixDistribution& d,
+//    DistributedMatrix<T> matrix_inner(const DistributedMatrixDistribution&
+//    d,
 //                                      const std::vector< Function<T,NDIM> >&
 //                                      f, const std::vector< Function<T,NDIM>
 //                                      >& g, bool sym=false)
@@ -106,8 +107,8 @@ static void END_TIMER(World &world, const char *msg) {
     printf("timer: %20.20s %8.2fs %8.2fs\n", msg, cpu, wall);
 }
 
-/// Given overlap matrix, return rotation with 3rd order error to orthonormalize
-/// the vectors
+/// Given overlap matrix, return rotation with 3rd order error to
+/// orthonormalize the vectors
 tensorT Q3(const tensorT &s) {
   tensorT Q = inner(s, s);
   Q.gaxpy(0.2, s, -2.0 / 3.0);
@@ -115,8 +116,8 @@ tensorT Q3(const tensorT &s) {
   return Q.scale(15.0 / 8.0);
 }
 
-/// Given overlap matrix, return rotation with 2nd order error to orthonormalize
-/// the vectors
+/// Given overlap matrix, return rotation with 2nd order error to
+/// orthonormalize the vectors
 tensorT Q2(const tensorT &s) {
   tensorT Q = -0.5 * s;
   for (int i = 0; i < s.dim(0); ++i) Q(i, i) += 1.5;
@@ -216,7 +217,8 @@ void SCF::save_mos(World &world) {
 
 void SCF::load_mos(World &world) {
   PROFILE_MEMBER_FUNC(SCF);
-  //        const double trantol = vtol / std::min(30.0, double(param.nalpha));
+  //        const double trantol = vtol / std::min(30.0,
+  //        double(param.nalpha));
   const double thresh = FunctionDefaults<3>::get_thresh();
   const int k = FunctionDefaults<3>::get_k();
   unsigned int nmo = 0;
@@ -340,8 +342,8 @@ void SCF::load_mos(World &world) {
       set_thresh(world, amo, thresh);
 
       //                normalize(world, bmo);
-      //                bmo = transform(world, bmo, Q3(matrix_inner(world, bmo,
-      //                bmo)), trantol, true); truncate(world, bmo);
+      //                bmo = transform(world, bmo, Q3(matrix_inner(world,
+      //                bmo, bmo)), trantol, true); truncate(world, bmo);
       //                normalize(world, bmo);
     }
   }
@@ -482,7 +484,8 @@ distmatT SCF::localize_new(World &world, const vecfuncT &mo,
 
   tensorT C = matrix_inner(world, mo, ao);
   std::vector<int> at_to_bf,
-      at_nbf;  // OVERRIDE DATA IN CLASS OBJ TO USE ATOMS OR SHELLS FOR TESTING
+      at_nbf;  // OVERRIDE DATA IN CLASS OBJ TO USE ATOMS OR SHELLS FOR
+               // TESTING
 
   bool use_atomic_evecs = true;
   if (use_atomic_evecs) {
@@ -550,8 +553,9 @@ distmatT SCF::localize_new(World &world, const vecfuncT &mo,
       const double *Cj = &C(j, lo);
       double qij = 0.0;
       for (int mu = 0; mu < nbf; ++mu) qij += Ci[mu] * Cj[mu];
-      return qij * (1.0 + breaksym * a);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                                          // break symmetry
+      return qij *
+             (1.0 + breaksym * a);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                                    // break symmetry
     };
 
     auto makeGW = [&Q, &nmo, &natom, &QQ](const tensorT &C, double &W,
@@ -637,8 +641,8 @@ distmatT SCF::localize_new(World &world, const vecfuncT &mo,
 
       if (randomize && iter == 0) {
         rprev = true;  // since did not use real gradient
-      } else {  // perform quadratic fit using f(0), df(0)/dx=dxgrad, f(mu) ---
-                // actually now use f(0), df(0)/dx, df(mu)/dx for better
+      } else {  // perform quadratic fit using f(0), df(0)/dx=dxgrad, f(mu)
+                // --- actually now use f(0), df(0)/dx, df(mu)/dx for better
                 // accuracy
         double f0 = W;
         double f1 = newW;
@@ -795,7 +799,8 @@ distmatT SCF::localize_boys(World &world, const vecfuncT &mo,
     for (long iter = 0; iter < 1200; ++iter) {
       tensorT g(nmo, nmo);
       double W = 0.0;
-      // cannot restrict size of individual gradients if want to do line search
+      // cannot restrict size of individual gradients if want to do line
+      // search
       // --- should instead modify line search direction
       for (long i = 0; i < nmo; ++i) {
         W += DIP(dip, i, i, i, i);
@@ -826,9 +831,8 @@ distmatT SCF::localize_boys(World &world, const vecfuncT &mo,
           print("resetting since dxgrad -ve or due to dimension", dxgrad, iter,
                 N);
         x = copy(g);
-        dxgrad =
-            x.trace(g) *
-            2.0;  // 2*2 = 4 which should be prefactor on integrals in gradient
+        dxgrad = x.trace(g) * 2.0;  // 2*2 = 4 which should be prefactor on
+                                    // integrals in gradient
       }
       xprev = x;  // Save for next iteration, noting shallow copy
       gprev = g;
@@ -1248,8 +1252,8 @@ MolecularGuessDensityFunctor(molecule, aobasis))).truncate_on_project();
         vloc_ae = potentialmanager->vnuclear();
         vloc_ae.reconstruct();
         plot_line("vlocal_ae.dat",npt, {0.0,0.0,-50.0}, {0.0,0.0,50.0},
-vloc_ae); real_function_3d vloc_psp; vloc_psp = gthpseudopotential->vlocalpot();
-        vloc_psp.reconstruct();
+vloc_ae); real_function_3d vloc_psp; vloc_psp =
+gthpseudopotential->vlocalpot(); vloc_psp.reconstruct();
         plot_line("vlocal_psp.dat",npt, {0.0,0.0,-50.0}, {0.0,0.0,50.0},
 vloc_psp);
     }
@@ -1291,8 +1295,8 @@ kinetic(i,i) << std::endl;
 }
 
 if(world.rank() == 0){
-    printf("\n              epot, ekin, efock %16.8f  %16.8f  %16.8f\n", ek, ep,
-ek+ep);
+    printf("\n              epot, ekin, efock %16.8f  %16.8f  %16.8f\n", ek,
+ep, ek+ep);
      */
 
     END_TIMER(world, "guess fock");
@@ -1496,14 +1500,14 @@ std::vector<poperatorT> SCF::make_gradbsh_operators(World &world,
 /// @param[in]  f       the orbitals |i> that the operator is applied on
 /// @return     a vector of orbitals  K| i>
 //    vecfuncT SCF::apply_hf_exchange(World & world, const tensorT & occ,
-//                                    const vecfuncT & psi, const vecfuncT & f)
-//                                    const {
+//                                    const vecfuncT & psi, const vecfuncT &
+//                                    f) const {
 //        PROFILE_MEMBER_FUNC(SCF);
 //        const bool same = (&psi == &f);
 //        int nocc = psi.size();
 //        int nf = f.size();
-//        double tol = FunctionDefaults < 3 > ::get_thresh(); /// Important this
-//        is consistent with Coulomb vecfuncT Kf =
+//        double tol = FunctionDefaults < 3 > ::get_thresh(); /// Important
+//        this is consistent with Coulomb vecfuncT Kf =
 //        zero_functions_compressed<double, 3>(world, nf); reconstruct(world,
 //        psi); norm_tree(world, psi); if (!same) {
 //            reconstruct(world, f);
@@ -1514,7 +1518,8 @@ std::vector<poperatorT> SCF::make_gradbsh_operators(World &world,
 //        i-j sym
 //        //         for(int i=0; i<nocc; ++i){
 //        //             if(occ[i] > 0.0){
-//        //                 vecfuncT psif = mul_sparse(world, psi[i], f, tol);
+//        //                 vecfuncT psif = mul_sparse(world, psi[i], f,
+//        tol);
 //        /// was vtol
 //        //                 truncate(world, psif);
 //        //                 psif = apply(world, *coulop, psif);
@@ -1551,7 +1556,8 @@ std::vector<poperatorT> SCF::make_gradbsh_operators(World &world,
 //            for (int j = 0; j < jtop; ++j, ++ij) {
 //                psipsif[i * nf + j] = mul_sparse(psif[ij], psi[i], false);
 //                if (same && i != j) {
-//                    psipsif[j * nf + i] = mul_sparse(psif[ij], psi[j], false);
+//                    psipsif[j * nf + i] = mul_sparse(psif[ij], psi[j],
+//                    false);
 //                }
 //            }
 //        }
@@ -2022,7 +2028,8 @@ tensorT SCF::matrix_exponential(const tensorT &A) const {
 /// @param[inout]       fock    the fock matrix; diagonal upon exit
 /// @param[out] evals   the orbital energies
 /// @param[in]  occ     the occupation numbers
-/// @param[in]  thresh_degenerate       threshold for orbitals being degenerate
+/// @param[in]  thresh_degenerate       threshold for orbitals being
+/// degenerate
 /// @return             the unitary matrix U: U^T F U = evals
 tensorT SCF::get_fock_transformation(World &world, const tensorT &overlap,
                                      tensorT &fock, tensorT &evals,
@@ -2406,8 +2413,8 @@ double SCF::do_step_restriction(World &world, const vecfuncT &mo,
   return maxval;
 }
 
-/// orthonormalize the vectors (symmetric in occupied spaced, gramm-schmidt for
-/// virt to occ)
+/// orthonormalize the vectors (symmetric in occupied spaced, gramm-schmidt
+/// for virt to occ)
 
 /// @param[in]          world   the world
 /// @param[inout]       amo_new the vectors to be orthonormalized
@@ -2418,16 +2425,17 @@ void SCF::orthonormalize(World &world, vecfuncT &amo_new, int nocc) const {
   normalize(world, amo_new);
   double maxq;
   do {
-    tensorT Q = Q2(matrix_inner(
-        world, amo_new, amo_new));  // Q3(matrix_inner(world, amo_new, amo_new))
+    tensorT Q =
+        Q2(matrix_inner(world, amo_new,
+                        amo_new));  // Q3(matrix_inner(world, amo_new, amo_new))
     maxq = 0.0;
     for (int j = 1; j < Q.dim(0); j++)
       for (int i = 0; i < j; i++) maxq = std::max(std::abs(Q(j, i)), maxq);
 
     Q.screen(trantol);  // Is this really needed? Just for speed.
 
-    // make virt orthog to occ without changing occ states --- ASSUMES symmetric
-    // form for Q2
+    // make virt orthog to occ without changing occ states --- ASSUMES
+    // symmetric form for Q2
     for (int j = nocc; j < Q.dim(0); ++j) {
       for (int i = 0; i < nocc; ++i) {
         Q(j, i) = 0.0;
@@ -2458,8 +2466,9 @@ void SCF::orthonormalize(World &world, vecfuncT &amo_new) const {
   normalize(world, amo_new);
   double maxq;
   do {
-    tensorT Q = Q2(matrix_inner(
-        world, amo_new, amo_new));  // Q3(matrix_inner(world, amo_new, amo_new))
+    tensorT Q =
+        Q2(matrix_inner(world, amo_new,
+                        amo_new));  // Q3(matrix_inner(world, amo_new, amo_new))
     maxq = 0.0;
     for (int j = 1; j < Q.dim(0); j++)
       for (int i = 0; i < j; i++) maxq = std::max(std::abs(Q(j, i)), maxq);
@@ -2577,8 +2586,8 @@ void SCF::iterate_trotter(World &world, Convolution1D<double_complex> *G,
   cvecfuncT camo2 = zero_functions<double_complex, 3>(world, param.nalpha());
   cvecfuncT cbmo2 = zero_functions<double_complex, 3>(world, param.nbeta());
   for (int iorb = 0; iorb < param.nalpha(); iorb++) {
-    //        if (world.rank()) printf("Apply free-particle Green's function to
-    //        alpha orbital %d\n", iorb);
+    //        if (world.rank()) printf("Apply free-particle Green's function
+    //        to alpha orbital %d\n", iorb);
     camo2[iorb] = APPLY(G, camo[iorb]);
     camo2[iorb].truncate(thresh);
   }
@@ -2654,8 +2663,8 @@ void SCF::solve(World &world) {
   bool do_this_iter = true;
   bool converged = false;
 
-  // Shrink subspace until stop localizing/canonicalizing--- probably not a good
-  // idea int maxsub_save = param.maxsub; param.maxsub = 2;
+  // Shrink subspace until stop localizing/canonicalizing--- probably not a
+  // good idea int maxsub_save = param.maxsub; param.maxsub = 2;
 
   for (int iter = 0; iter < param.maxiter(); ++iter) {
     if (world.rank() == 0 and (param.print_level() > 1))
@@ -2798,7 +2807,8 @@ void SCF::solve(World &world) {
       if (!param.spin_restricted() && param.nbeta() != 0) {
         U = diag_fock_matrix(world, fockb, bmo, Vpsib, beps, bocc,
                              FunctionDefaults<3>::get_thresh());
-        // rotate_subspace(world, U, subspace, amo.size(), bmo.size(),trantol);
+        // rotate_subspace(world, U, subspace, amo.size(),
+        // bmo.size(),trantol);
       }
     }
 
@@ -3192,9 +3202,9 @@ void SCF::update_response_subspace(World &world, vecfuncT &ax, vecfuncT &ay,
   // double trantol = vtol / std::min(30.0, double(ax.size()));
   // normalize(world, ax_new);
   // normalize(world, ay_new);
-  // ax_new = transform(world, ax_new, Q3(matrix_inner(world, ax_new, ax_new)),
-  // trantol, true); ay_new = transform(world, ay_new, Q3(matrix_inner(world,
-  // ay_new, ay_new)), trantol, true);
+  // ax_new = transform(world, ax_new, Q3(matrix_inner(world, ax_new,
+  // ax_new)), trantol, true); ay_new = transform(world, ay_new,
+  // Q3(matrix_inner(world, ay_new, ay_new)), trantol, true);
   truncate(world, ax_new);
   truncate(world, ay_new);
   // normalize(world, ax_new);
@@ -3642,9 +3652,11 @@ double SCF::residual_response(World &world, const vecfuncT &x,
 /// bool response;                    // response function calculation
 /// double response_freq;             // Frequency for calculation response
 /// function std::vector<bool> response_axis;  // Calculation protocol bool
-/// nonrotate;                   // If true do not molcule orient double rconv;
-/// // Response convergence double efield;                    // eps for finite
-/// field double efield_axis;               // eps for finite field axis
+/// nonrotate;                   // If true do not molcule orient double
+/// rconv;
+/// // Response convergence double efield;                    // eps for
+/// finite field double efield_axis;               // eps for finite field
+/// axis
 
 void SCF::polarizability(World &world) {
   if (world.rank() == 0) {

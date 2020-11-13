@@ -38,6 +38,7 @@
 #ifndef MADNESS_WORLD_FUTURE_H__INCLUDED
 #define MADNESS_WORLD_FUTURE_H__INCLUDED
 
+#include <atomic>
 #include <vector>
 #include <stack>
 #include <new>
@@ -216,7 +217,7 @@ namespace madness {
         volatile mutable assignmentT assignments;
 
         /// A flag indicating if the future has been set.
-        volatile bool assigned;
+        std::atomic<bool> assigned;  // Use of atomic for necessary memory barriers/fences
 
         /// Reference to a remote future pimpl.
         RemoteReference< FutureImpl<T> > remote_ref;
@@ -322,7 +323,8 @@ namespace madness {
                 , assigned(false)
                 , remote_ref()
                 , t()
-        { }
+        {
+        }
 
 
         /// Constructor that uses a wrapper for a remote future.
@@ -335,7 +337,8 @@ namespace madness {
                 , assigned(false)
                 , remote_ref(remote_ref)
                 , t()
-        { }
+        {
+        }
 
 
         /// Checks if the value has been assigned.
@@ -506,7 +509,8 @@ namespace madness {
         /// Makes an unassigned future.
         Future() :
             f(new FutureImpl<T>()), value(nullptr)
-        { }
+        {
+        }
 
         /// Makes an assigned future.
 
@@ -514,7 +518,8 @@ namespace madness {
         /// \param[in] t Description needed.
         explicit Future(const T& t) :
             f(), value(new(static_cast<void*>(buffer)) T(t))
-        { }
+        {
+        }
 
 
         /// Makes a future wrapping a remote reference.
@@ -526,7 +531,8 @@ namespace madness {
                         std::make_shared<FutureImpl<T> >(remote_ref)),
                 //                        std::shared_ptr<FutureImpl<T> >(new FutureImpl<T>(remote_ref))),
                 value(nullptr)
-        { }
+        {
+        }
 
 
         /// Makes an assigned future from an input archive.
@@ -638,11 +644,10 @@ namespace madness {
         /// The value can only be set \em once.
         /// \param[in] value The value to be assigned.
         inline void set(const T& value) {
-            MADNESS_ASSERT(f);
+            MADNESS_CHECK(f);
             std::shared_ptr< FutureImpl<T> > ff = f; // manage life time of f
             ff->set(value);
         }
-
 
         /// Assigns the value.
 
@@ -650,7 +655,7 @@ namespace madness {
         /// \todo Description needed.
         /// \param[in] input_arch Description needed.
         inline void set(const archive::BufferInputArchive& input_arch) {
-            MADNESS_ASSERT(f);
+            MADNESS_CHECK(f);
             std::shared_ptr< FutureImpl<T> > ff = f; // manage life time of f
             ff->set(input_arch);
         }
@@ -658,23 +663,51 @@ namespace madness {
 
         /// Gets the value, waiting if necessary.
 
-        /// \attention Throws an error if this is not a local future.
+        /// \attention Throws an error if this is not a local future. 
         /// \return The value.
-        inline T& get() {
-            MADNESS_ASSERT(f || value); // Check that future is not default initialized
+        inline T& get() & {
+            MADNESS_CHECK(f || value); // Check that future is not default initialized
             return (f ? f->get() : *value);
         }
-
 
         /// Gets the value, waiting if necessary.
 
         /// \attention Throws an error if this is not a local future.
         /// \return The value.
-        inline const T& get() const {
-            MADNESS_ASSERT(f || value); // Check that future is not default initialized
+        inline const T& get() const & {
+            MADNESS_CHECK(f || value); // Check that future is not default initialized
             return (f ? f->get() : *value);
         }
 
+        /// Gets the value, waiting if necessary.
+
+        /// \attention Throws an error if this is not a local future.
+        /// \return The value.
+        inline T get() && {
+            // According to explanation here
+            // https://stackoverflow.com/questions/4986673/c11-rvalues-and-move-semantics-confusion-return-statement
+            // should not return && since that will still be a ref to
+            // local value.  Also, does not seem as if reference
+            // lifetime extension applies (see https://abseil.io/tips/107)
+            MADNESS_CHECK(f || value); // Check that future is not default initialized
+            if (f) {
+                // N.B. it is only safe to move the data out if f is the owner (i.e. it is the sole ref)
+                // it's not clear how to safely detect ownership beyond the obvious cases (see https://stackoverflow.com/questions/41142315/why-is-stdshared-ptrunique-deprecated)
+                // e.g. in the common case f is set by a task, hence its refcount is 2 until the task has completed *and* been destroyed
+                // so will tread lightly here ... don't move unless safe
+                auto &value_ref = f->get();
+                // if the task setting f is gone *and* this is the only ref, move out
+                // to prevent a race with another thread that will make a copy of this Future while we are moving the data
+                // atomically swap f with nullptr, then check use count of f's copy
+                auto fcopy = std::atomic_exchange(&f, {});  // N.B. deprecated in C++20! need to convert f to std::atomic<std::shared_ptr<FutureImpl>>
+                // f is now null and no new ref to the value can be created
+                if (fcopy.use_count() == 1)
+                    return std::move(value_ref);
+                else
+                    return value_ref;
+            } else
+                return std::move(*value);
+        }
 
         /// Check whether this future has been assigned.
 
@@ -683,42 +716,25 @@ namespace madness {
             return (f ? f->probe() : bool(value));
         }
 
-
-        /// Same as \c get().
+        /// Same as \c get()&.
 
         /// \return An lvalue reference to the value.
-        inline operator T&() & {
-            return get();
+        inline operator T&() & { // Must return & since taskfn uses it in argument holder
+            return static_cast<Future&>(*this).get();
         }
 
+        /// Same as `get() const&`.
 
-        /// Same as `get() const`.
-
-        /// \return An const lvalue reference to the value.
-        inline operator const T&() const& {
-            return get();
-        }
-
-        /// An rvalue analog of \c get().
-
-        /// \return An rvalue reference to the value.
-        /// \internal Rationale: the conversion operators unwrap the
-        ///           Future object (see also \c remove_future
-        ///           metafunction), hence the result should maintain
-        ///           the traits of the Future object. The rvalue conversion
-        ///           is made explicit to avoid accidents (perhaps this should
-        ///           be revisited to make easier moving Future objects into
-        ///           functions).
-        inline explicit operator T&&() && {
-            return std::move(get());
+        /// \return A const lvalue reference to the value.
+        inline operator const T&() const& { // Must return & since taskfn uses it in argument holder
+            return static_cast<const Future&>(*this).get();
         }
 
         /// An rvalue analog of \c get().
 
-        /// \return An rvalue reference to the value.
-        /// \internal Rationale: this makes possible to move the value from a mutable assigned future.
-        inline explicit operator T&&() & {
-            return std::move(get());
+        /// \return An rvalue reference to the value. 
+        inline operator T() && {
+            return static_cast<Future&&>(*this).get();
         }
 
         /// Returns a structure used to pass references to another process.

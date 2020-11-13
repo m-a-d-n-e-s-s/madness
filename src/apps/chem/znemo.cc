@@ -816,7 +816,7 @@ std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,
 Znemo::read_real_guess() const {
 
 	print("reading mos from restartdata");
-	auto mos=MolecularOrbitals<double,3>::read_restartdata(world, molecule(), cparam.nalpha(), cparam.nbeta());
+	auto mos=MolecularOrbitals<double,3>::read_restartdata(world, "restartdata", molecule(), cparam.nalpha(), cparam.nbeta());
 	MolecularOrbitals<double,3> amo=mos.first,bmo=mos.second;
 
     // confine the orbitals to an approximate Gaussian form corresponding to the
@@ -836,7 +836,7 @@ Znemo::read_real_guess() const {
 std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> >
 Znemo::read_complex_guess() const {
 	print("reading mos from complex restartdata");
-	auto zmos=MolecularOrbitals<double_complex,3>::read_restartdata(world, molecule(), cparam.nalpha(), cparam.nbeta());
+	auto zmos=MolecularOrbitals<double_complex,3>::read_restartdata(world, "restartdata", molecule(), cparam.nalpha(), cparam.nbeta());
 	return zmos;
 }
 
