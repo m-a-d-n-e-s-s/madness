@@ -35,7 +35,7 @@
             ]
         },
         {
-            "name": "Load Test ",
+            "name": "Load dipole ",
             "type": "cppdbg",
             "request": "launch",
             // Resolved by CMake Tools:
@@ -68,7 +68,7 @@
             ]
         },
         {
-            "name": "Save Test ",
+            "name": "Save dipole ",
             "type": "cppdbg",
             "request": "launch",
             // Resolved by CMake Tools:
@@ -99,6 +99,72 @@
                     "ignoreFailures": true
                 }
             ]
-        }
+        },
+        {
+            "name": "Save Nuclear ",
+            "type": "cppdbg",
+            "request": "launch",
+            // Resolved by CMake Tools:
+            "program": "${command:cmake.launchTargetPath}",
+            "args": [
+                "/gpfs/projects/rjh/adrian/testing/h2/oct23/nuclear/SAVEINPUTS"
+            ],
+            "stopAtEntry": false,
+            "cwd": "/gpfs/projects/rjh/adrian/testing/h2/oct23/nuclear",
+            "environment": [
+                {
+                    // add the directory where our target was built to the PATHs
+                    // it gets resolved by CMake Tools:
+                    "name": "PATH",
+                    "value": "$PATH:${command:cmake.launchTargetDirectory}"
+                },
+                {
+                    "name": "MAD_NUM_THREADS",
+                    "value": "8"
+                },
+            ],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
+            "name": "Load nuclear ",
+            "type": "cppdbg",
+            "request": "launch",
+            // Resolved by CMake Tools:
+            "program": "${command:cmake.launchTargetPath}",
+            "args": [
+                "/gpfs/projects/rjh/adrian/testing/h2/oct23/nuclear/LOADINPUTS"
+            ],
+            "stopAtEntry": false,
+            "cwd": "/gpfs/projects/rjh/adrian/testing/h2/oct23/nuclear",
+            "environment": [
+                {
+                    // add the directory where our target was built to the PATHs
+                    // it gets resolved by CMake Tools:
+                    "name": "PATH",
+                    "value": "$PATH:${command:cmake.launchTargetDirectory}"
+                },
+                {
+                    "name": "MAD_NUM_THREADS",
+                    "value": "8"
+                },
+            ],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
     ]
 }

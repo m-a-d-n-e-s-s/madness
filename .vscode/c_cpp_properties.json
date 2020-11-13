@@ -6,7 +6,6 @@
                 "${workspaceFolder}/**",
                 "${workspaceFolder}/src",
                 "${workspaceFolder}/**",
-                "/usr/lib/x86_64-linux-gnu",
                 "${workspaceFolder}/src/**",
                 "${workspaceFolder}/src",
                 "${workspaceFolder}/src/apps",
@@ -18,14 +17,15 @@
                 "${workspaceFolder}/src",
                 "${workspaceFolder}/src",
                 "${workspaceFolder}/src",
-                "${workspaceFolder}/src"
+                "${workspaceFolder}/src",
+                "${workspaceFolder}/src/apps/adrian"
             ],
             "defines": [],
             "cStandard": "c11",
             "cppStandard": "c++17",
             "intelliSenseMode": "${default}",
             "configurationProvider": "vector-of-bool.cmake-tools",
-            "compileCommands": "/home/agh/projects/madness/build/compile_commands.json"
+            "compileCommands": "/gpfs/projects/rjh/adrian/madness/build/compile_commands.json"
         }
     ],
     "version": 4
