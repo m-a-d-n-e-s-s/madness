@@ -58,6 +58,39 @@ sudo apt-get install -y mpich
 ```
 and cmake will detect it automatically.
 
+## MPICH on Clusters
+Check if you can load an mpich module.  
+Alternative OpenMPI or IntelMPI might work. It depends on compiler version and which c++ compiler is used in the end.  
+
+You can compile MPICH yourself with the following steps:  
+1. Get the sources and unpack them
+```bash
+cd $MPICHSOURCE
+wget http://www.mpich.org/static/downloads/3.3.2/mpich-3.3.2.tar.gz 
+tar -xzf mpich-3.3.2.tar.gz
+```
+2. Make sure you have gcc and g++ >= 7 (check if you can load modules)
+3. Configure and install mpich, the `CC` and `CXX` statements ensure that the right compilers are used. $MPICH_ROOT_DIR is the directory where you want mpich to be installed (chose one, where you have write permissions!)
+```bash
+cd $MPICHSOURCE/mpich-3.3.2
+mkdir build
+cd build
+../configure CC=gcc CXX=g++ --prefix=$MPICH_ROOT_DIR
+make
+make install
+```
+4. Make sure your OS finds mpich (you need to do this again, after every login; or add it to your .bashrc). `$PATH` is literally `$PATH` here (this adds the old content of PATH that they don't get lost).
+```bash
+export PATH=$MPICH_ROOT_DIR/bin/:$PATH
+```
+5. Test if it worked. 
+```bash
+# should result in $MPICH_ROOT_DIR/bin/mpicxx
+which mpicxx
+# should return the same as g++ --version
+mpicxx --version
+```
+
 ## cmake
 ```bash
 pip install cmake
@@ -98,6 +131,8 @@ Configure
 cd $MAD_ROOT_DIR  
 cmake -D ENABLE_MKL=ON -D CMAKE_CXX_FLAGS='-O3 -DNDEBUG -march=native -I/$NUMCPPROOT/include -I/$BOOSTROOT/include' $MADSOURCE/
 ```
+If you wish to specifiy which compilers are used: Do so with `-D MPI_CXX_COMPILER=...` and `-D MPI_C_COMPILER=...`.  
+If you have not exported MKLROOT you can add the MKL paths over `-D MKL_ROOT_DIR=...` (directory that contains `include` and `lib`).  
 
 Compile
 ```bash
