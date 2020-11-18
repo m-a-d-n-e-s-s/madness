@@ -1505,7 +1505,9 @@ void TDHF::ComputeZFunctions(World &world, ResponseFunction &x,
   // y functions
   if (Rparams.omega != 0.0) {
     Z.v0_y = CreatePotential(world, y, xc, Rparams.print_level, "y");
-    Z.v0_y = apply_shift(world, y_shifts, Z.v0_y, y);
+    // no need to apply shift in y case
+    // Z.v0_y = apply_shift(world, y_shifts, Z.v0_y, y);
+
     Z.y_f_no_diag = scale_2d(world, y, ham_no_diagonal);
     Z.Gx =
         ComputeGf(world, x, Gparams.orbitals, Rparams.small,
@@ -1771,7 +1773,7 @@ ResponseFunction TDHF::apply_shift(World &world, Tensor<double> &shifts,
 }
 
 // Returns the given shift applied to the given potential
-ResponseFunction TDHF::apply_shift(World &world, double &shifts,
+ResponseFunction TDHF::apply_shift(World &world, double &shift,
                                    ResponseFunction &V, ResponseFunction &f) {
   // Start timer
   if (Rparams.print_level >= 1) start_timer(world);
