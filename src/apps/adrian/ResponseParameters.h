@@ -2,8 +2,8 @@
 /// \file ResponseParameters
 /// \brief Input parameters for a response calculation.
 
-#ifndef MADNESS_APPS_RESPONSEPARAMS_H_INCLUDED
-#define MADNESS_APPS_RESPONSEPARAMS_H_INCLUDED
+#ifndef SRC_APPS_ADRIAN_RESPONSEPARAMETERS_H_INCLUDED
+#define SRC_APPS_ADRIAN_RESPONSEPARAMETERS_H_INCLUDED
 
 #include <chem/molecule.h>
 #include <chem/xcfunctional.h>
@@ -162,7 +162,7 @@ struct ResponseParameters {
     position_stream(f, "response");
     std::string s;
     xc = "hf";
-    protocol_data = madness::vector_factory(1e-6, 1e-6);
+    protocol_data = madness::vector_factory(1e-6, 1e-8);
 
     while (f >> s) {
       if (s == "end") {
@@ -401,4 +401,4 @@ struct ResponseParameters {
   }
 };  // namespace madness
 }  // namespace madness
-#endif
+#endif  // SRC_APPS_ADRIAN_RESPONSEPARAMETERS_H_INCLUDED
