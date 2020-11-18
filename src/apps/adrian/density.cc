@@ -38,8 +38,11 @@ void FirstOrderDensity::ComputeDensity(World &world) {
 
   TDHF calc(world, Rparams, Gparams);
   if (calc.Rparams.property) {
+
+    print("Entering Frequency Response Runner");
     calc.ComputeFrequencyResponse(world, property);
   } else {
+    print("Entering Excited State Response Runner");
     calc.solve(world);
   }
   // omega is determined by the type of calculation
