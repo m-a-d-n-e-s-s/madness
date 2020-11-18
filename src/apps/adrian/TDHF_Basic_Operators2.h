@@ -36,6 +36,10 @@ ResponseFunction apply(
     World& world,
     std::vector<std::vector<std::shared_ptr<real_convolution_3d>>>& op,
     ResponseFunction& f);
+// frequecy case
+ResponseFunction apply(World& world,
+                       std::vector<std::shared_ptr<real_convolution_3d>>& op,
+                       ResponseFunction& f);
 
 // Apply the derivative operator to a vector of vector of functions
 ResponseFunction apply(World& world, real_derivative_3d& op,

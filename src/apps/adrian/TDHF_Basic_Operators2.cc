@@ -93,6 +93,23 @@ ResponseFunction apply(
 
   return result;
 }
+// Here we are applying the same vector of operators to each of the response
+// states
+ResponseFunction apply(World &world,
+                       std::vector<std::shared_ptr<real_convolution_3d>> &op,
+                       ResponseFunction &f) {
+  MADNESS_ASSERT(f.size() > 0);
+  MADNESS_ASSERT(f[0].size() == op.size());
+
+  ResponseFunction result(f[0][0].world(), f.size(), f[0].size());
+
+  for (unsigned int i = 0; i < f.size(); i++) {
+    // Using vmra.h function, line 889
+    result[i] = apply(world, op, f[i]);
+  }
+
+  return result;
+}
 
 // Apply the derivative operator to a vector of vector of functions
 ResponseFunction apply(World &world, real_derivative_3d &op,
