@@ -373,13 +373,12 @@ class TDHF {
                               ResponseFunction &f, int print_level,
                               std::string xy);
 
-  Zfunctions ComputeZFunctions(World &world, ResponseFunction &x,
-                               ResponseFunction &y, Zfunctions &Z,
-                               XCOperator xc, Tensor<double> x_shifts,
-                               Tensor<double> y_shifts,
-                               const GroundParameters &Gparams,
-                               const ResponseParameters &Rparams,
-                               Tensor<double> ham_no_diagonal);
+  void ComputeZFunctions(World &world, ResponseFunction &x, ResponseFunction &y,
+                         Zfunctions &Z, XCOperator xc, Tensor<double> x_shifts,
+                         Tensor<double> y_shifts,
+                         const GroundParameters &Gparams,
+                         const ResponseParameters &Rparams,
+                         Tensor<double> ham_no_diagonal);
   // Returns the hamiltonian matrix, equation 45 from the paper
   Tensor<double> CreateResponseMatrix(
       World &world, ResponseFunction &x, ElectronResponseFunctions &I,
@@ -423,6 +422,11 @@ class TDHF {
   std::vector<std::vector<std::shared_ptr<real_convolution_3d>>>
   CreateBSHOperatorPropertyVector(World &world, Tensor<double> &shift,
                                   Tensor<double> &ground, Tensor<double> &omega,
+                                  double small, double thresh);
+  // here omega and shifts are doubles
+  std::vector<std::vector<std::shared_ptr<real_convolution_3d>>>
+  CreateBSHOperatorPropertyVector(World &world, double &shift,
+                                  Tensor<double> &ground, double &omega,
                                   double small, double thresh);
   // Returns the second order update to the energy
   Tensor<double> calculate_energy_update(World &world, ResponseFunction &gamma,

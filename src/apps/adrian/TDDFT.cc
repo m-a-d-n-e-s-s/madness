@@ -1478,13 +1478,12 @@ ResponseFunction TDHF::CreateFock(World &world, ResponseFunction &Vf,
   return fock;
 }
 
-Zfunctions TDHF::ComputeZFunctions(World &world, ResponseFunction &x,
-                                   ResponseFunction &y, Zfunctions &Z,
-                                   XCOperator xc, Tensor<double> x_shifts,
-                                   Tensor<double> y_shifts,
-                                   const GroundParameters &Gparams,
-                                   const ResponseParameters &Rparams,
-                                   Tensor<double> ham_no_diagonal) {
+void TDHF::ComputeZFunctions(World &world, ResponseFunction &x,
+                             ResponseFunction &y, Zfunctions &Z, XCOperator xc,
+                             Tensor<double> x_shifts, Tensor<double> y_shifts,
+                             const GroundParameters &Gparams,
+                             const ResponseParameters &Rparams,
+                             Tensor<double> ham_no_diagonal) {
   // x functions
   Z.v0_x = CreatePotential(world, x, xc, Rparams.print_level, "x");
 
@@ -1533,7 +1532,6 @@ Zfunctions TDHF::ComputeZFunctions(World &world, ResponseFunction &x,
       }
     }
   }
-  return Z;
 }
 // Construct the Hamiltonian
 Tensor<double> TDHF::CreateResponseMatrix(
@@ -1857,6 +1855,46 @@ TDHF::CreateBSHOperatorPropertyVector(World &world, Tensor<double> &shift,
 
   // Done
   return operators;
+}
+// creating a shift in a property calculation requires only one double for the
+// shift
+std::vector<std::vector<std::shared_ptr<real_convolution_3d>>>
+TDHF::CreateBSHOperatorPropertyVector(World &world, double &shift,
+                                      Tensor<double> &ground, double &omega,
+                                      double small, double thresh) {
+  // Start timer
+  if (Rparams.print_level >= 1) start_timer(world);
+
+  // Sizes inferred from ground and omega
+  int num_ground_states = ground.size();  // number of orbitals
+  int num_response_states = Rparams.states;
+  // print("num of freq", num_freq);
+
+  // Make the vector
+  std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> ghat_operators;
+
+  // Make a BSH operator for each response function
+  // Run over excited components
+  // print("num of states bsh step", num_states);
+  // Container for intermediary
+  for (int state = 0; state < num_response_states; state++) {
+    std::vector<std::shared_ptr<real_convolution_3d>> temp(num_response_states);
+    // Run over occupied components
+    for (int p = 0; p < num_ground_states; p++) {
+      temp[p] =
+          std::shared_ptr<SeparatedConvolution<double, 3>>(BSHOperatorPtr3D(
+              world, sqrt(-2.0 * (ground(p) + omega + shift)), small, thresh));
+    }
+    ghat_operators.push_back(temp);
+  }
+
+  // Add intermediary to return container
+
+  // End timer
+  if (Rparams.print_level >= 1) end_timer(world, "Creating BSH ops:");
+
+  // Done
+  return ghat_operators;
 }
 // Returns the second order update to the energies of the excited components
 // Not currently used.
@@ -4576,7 +4614,35 @@ void TDHF::check_k(World &world, double thresh, int k) {
   if (FunctionDefaults<3>::get_k() != mask.k()) {
     mask = project(mask, FunctionDefaults<3>::get_k(), thresh, false);
   }
+  // Don't forget right hand side
 
+  // Verify response functions have correct k
+  if (P.size() != 0) {
+    if (FunctionDefaults<3>::get_k() != P[0][0].k()) {
+      // Project all x components into correct k
+      for (unsigned int i = 0; i < x_response.size(); i++) {
+        reconstruct(world, P[i]);
+        for (unsigned int j = 0; j < P[0].size(); j++)
+          P[i][j] =
+              project(P[i][j], FunctionDefaults<3>::get_k(), thresh, false);
+        world.gop.fence();
+      }
+      truncate(world, x_response);
+
+      // Do same for y components if applicable
+      // (Always do this, as y will be zero
+      //  and still used in doing DFT and TDA)
+      // Project all y components into correct k
+      for (unsigned int i = 0; i < Q.size(); i++) {
+        reconstruct(world, Q[i]);
+        for (unsigned int j = 0; j < Q[0].size(); j++)
+          Q[i][j] =
+              project(Q[i][j], FunctionDefaults<3>::get_k(), thresh, false);
+        world.gop.fence();
+      }
+      truncate(world, y_response);
+    }
+  }
   // Make sure everything is done before leaving
   world.gop.fence();
 }
@@ -5408,8 +5474,11 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseFunction &rhs_x,
 
   // Set omega (its constant here,
   // and has only 1 entry for each axis)
-  omega = Tensor<double>(1);
-  omega(0, 0) = Rparams.omega;
+  double omega = Rparams.omega;
+  // We compute with positive frequencies
+  omega = abs(omega);
+  print("Warning input frequency is assumed to be positive");
+  print("Computing at positive frequency omega = ", omega);
 
   // Verify if any shift is needed (NEEDS CHECKING)
   // The assumption is that omega > 0
@@ -5418,7 +5487,7 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseFunction &rhs_x,
   // Therefore if ep are all negative we choose the least negative and shift
   // the x accordingly k_y should always be negative given that k_y uses
   // -omega
-  if ((Gparams.energies[n - 1] + Rparams.omega) > 0.0) {
+  if ((Gparams.energies[n - 1] + omega) > 0.0) {
     // Calculate minimum shift needed such that \eps + \omega + shift < 0
     // for all \eps, \omega
     double energy_shift = -(.05 + Rparams.omega + Gparams.energies[n - 1]);
@@ -5485,8 +5554,8 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseFunction &rhs_x,
     rhs_y.scale(rec_norms);
     */
 
-    Z = ComputeZFunctions(world, x_response, y_response, Z, xc, x_shifts,
-                          y_shifts, Gparams, Rparams, ham_no_diag);
+    ComputeZFunctions(world, x_response, y_response, Z, xc, x_shifts, y_shifts,
+                      Gparams, Rparams, ham_no_diag);
     // Load balance
     // Only balancing on x-components. Smart?
     // Only balance on first two iterations or every 5th iteration
@@ -5966,6 +6035,20 @@ void TDHF::ComputeFrequencyResponse(World &world, std::string property) {
         }
       }
     }
+    // Here i should print some information about the calculation we are about
+    // to do
+    print("Preiteration Information");
+    print("Property : ", property);
+    print("Number of Response States: ", Rparams.states);
+    print("Number of Ground States: ", Gparams.num_orbitals);
+    print("k = ", FunctionDefaults<3>::get_k());
+    print("protocol threshold = ", FunctionDefaults<3>::get_k());
+
+    print("Property rhs func k = ", P[0][0].k());
+    print("Property func k thresh= ", P[0][0].thresh());
+
+    print("Property rhs func Q k = ", Q[0][0].k());
+    print("Property func Q k thresh = ", Q[0][0].thresh());
 
     // Now actually ready to iterate...
     IterateFrequencyResponse(world, P, Q);
