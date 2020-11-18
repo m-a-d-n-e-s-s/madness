@@ -140,6 +140,35 @@ cd $MAD_ROOT_DIR
 make
 ```
 
+# Use with Docker
+If you are getting frustrated with the madness compilation you can resort to a Docker image.  
+In the following there will be a short description how to make it work with tequila.  
+Hereby it is assumed that you have installed Docker and are familiar with the basics.  
+Note that docker requires administrator priviliges, so everything has to be executed in su mode, so you might want to consider using docker in rootless mode ([see here](https://docs.docker.com/engine/security/rootless/), not tested by me).  
+
+1. Pull the docker image:  
+```bash
+docker pull kottmanj/mra-pno
+```
+2. Create a small script that will replace the madness executable in tequila. Let's also name it `pno_integrals`. This is what goes into the file:
+```bash
+#!/bin/bash" > pno_integrals
+name=$(docker run -t -d kottmanj/mra-pno)
+docker cp input $name:/
+docker exec $name pno_integrals
+docker cp $name:molecule_htensor.bin .
+docker cp $name:molecule_gtensor.bin .
+docker cp $name:pnoinfo.txt .
+docker stop $name
+docker rm $name
+```
+3. Initialize the tequila molecule like this:  
+```bash
+molecule = tq.Molecule(geometry=geomfile.xyz, n_pno=1, executable="/wherever/it/is/pno_integrals")
+```
+
+
+
 # Funding
 The developers gratefully acknowledge the support of the Department of Energy, Office of Science, Office of Basic Energy Sciences and Office of Advanced Scientific Computing Research, under contract DE-AC05-00OR22725 with Oak Ridge National Laboratory.
 
