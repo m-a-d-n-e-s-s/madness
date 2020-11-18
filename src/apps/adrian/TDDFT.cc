@@ -1890,7 +1890,7 @@ TDHF::CreateBSHOperatorPropertyVector(World &world, Tensor<double> &shift,
 }
 // creating a shift in a property calculation requires only one double for the
 // shift
-std::vector<std::vector<std::shared_ptr<real_convolution_3d>>>
+std::vector<std::shared_ptr<real_convolution_3d>>
 TDHF::CreateBSHOperatorPropertyVector(World &world, double &shift,
                                       Tensor<double> &ground, double &omega,
                                       double small, double thresh) {
@@ -1899,27 +1899,21 @@ TDHF::CreateBSHOperatorPropertyVector(World &world, double &shift,
 
   // Sizes inferred from ground and omega
   int num_ground_states = ground.size();  // number of orbitals
-  int num_response_states = Rparams.states;
   // print("num of freq", num_freq);
 
   // Make the vector
-  std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> ghat_operators;
+  std::vector<std::shared_ptr<real_convolution_3d>> ghat_operators;
 
   // Make a BSH operator for each response function
   // Run over excited components
   // print("num of states bsh step", num_states);
   // Container for intermediary
-  for (int state = 0; state < num_response_states; state++) {
-    std::vector<std::shared_ptr<real_convolution_3d>> temp(num_response_states);
-    // Run over occupied components
-    for (int p = 0; p < num_ground_states; p++) {
-      temp[p] =
-          std::shared_ptr<SeparatedConvolution<double, 3>>(BSHOperatorPtr3D(
-              world, sqrt(-2.0 * (ground(p) + omega + shift)), small, thresh));
-    }
-    ghat_operators.push_back(temp);
+  // Run over occupied components
+  for (int p = 0; p < num_ground_states; p++) {
+    ghat_operators[p] =
+        std::shared_ptr<SeparatedConvolution<double, 3>>(BSHOperatorPtr3D(
+            world, sqrt(-2.0 * (ground(p) + omega + shift)), small, thresh));
   }
-
   // Add intermediary to return container
 
   // End timer
@@ -5528,12 +5522,11 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseFunction &rhs_x,
   }
 
   // Construct BSH operators
-  std::vector<std::vector<std::shared_ptr<real_convolution_3d>>>
-      bsh_x_operators = CreateBSHOperatorPropertyVector(
-          world, x_shifts, Gparams.energies, omega, Rparams.small,
-          FunctionDefaults<3>::get_thresh());
-  std::vector<std::vector<std::shared_ptr<real_convolution_3d>>>
-      bsh_y_operators;
+  std::vector<std::shared_ptr<real_convolution_3d>> bsh_x_operators =
+      CreateBSHOperatorPropertyVector(world, x_shifts, Gparams.energies, omega,
+                                      Rparams.small,
+                                      FunctionDefaults<3>::get_thresh());
+  std::vector<std::shared_ptr<real_convolution_3d>> bsh_y_operators;
 
   // Negate omega to make this next set of BSH operators \eps - omega
   if (Rparams.omega != 0.0) {

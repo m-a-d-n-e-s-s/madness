@@ -426,7 +426,7 @@ class TDHF {
                                   Tensor<double> &ground, Tensor<double> &omega,
                                   double small, double thresh);
   // here omega and shifts are doubles
-  std::vector<std::vector<std::shared_ptr<real_convolution_3d>>>
+  std::vector<std::shared_ptr<real_convolution_3d>>
   CreateBSHOperatorPropertyVector(World &world, double &shift,
                                   Tensor<double> &ground, double &omega,
                                   double small, double thresh);
