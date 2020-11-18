@@ -1902,7 +1902,8 @@ TDHF::CreateBSHOperatorPropertyVector(World &world, double &shift,
   // print("num of freq", num_freq);
 
   // Make the vector
-  std::vector<std::shared_ptr<real_convolution_3d>> ghat_operators;
+  std::vector<std::shared_ptr<real_convolution_3d>> ghat_operators(
+      num_ground_states);
 
   // Make a BSH operator for each response function
   // Run over excited components
