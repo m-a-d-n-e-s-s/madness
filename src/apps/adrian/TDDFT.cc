@@ -1480,7 +1480,7 @@ ResponseFunction TDHF::CreateFock(World &world, ResponseFunction &Vf,
 
 void TDHF::ComputeZFunctions(World &world, ResponseFunction &x,
                              ResponseFunction &y, Zfunctions &Z, XCOperator xc,
-                             Tensor<double> x_shifts, Tensor<double> y_shifts,
+                             double x_shifts, double y_shifts,
                              const GroundParameters &Gparams,
                              const ResponseParameters &Rparams,
                              Tensor<double> ham_no_diagonal) {
@@ -1758,6 +1758,36 @@ ResponseFunction TDHF::apply_shift(World &world, Tensor<double> &shifts,
     // Run over virtual
     for (int p = 0; p < n; p++) {
       shifted_V[k][p] = V[k][p] + shifts(k, p) * f[k][p];
+    }
+  }
+
+  truncate(world, shifted_V);
+
+  // End timer
+  if (Rparams.print_level >= 1) end_timer(world, "Apply shift:");
+
+  // Done
+  return shifted_V;
+}
+
+// Returns the given shift applied to the given potential
+ResponseFunction TDHF::apply_shift(World &world, double &shifts,
+                                   ResponseFunction &V, ResponseFunction &f) {
+  // Start timer
+  if (Rparams.print_level >= 1) start_timer(world);
+
+  // Sizes inferred from V
+  int n = V[0].size();
+  int m = V.size();
+
+  // Container to return
+  ResponseFunction shifted_V(world, m, n);
+
+  // Run over occupied
+  for (int k = 0; k < m; k++) {
+    // Run over virtual
+    for (int p = 0; p < n; p++) {
+      shifted_V[k][p] = V[k][p] + shift * f[k][p];
     }
   }
 
@@ -5442,8 +5472,6 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseFunction &rhs_x,
   // Holds the norms of x function residuals (for convergence)
   Tensor<double> y_norms(m);
   // Holds the norms of y function residuals (for convergence)
-  Tensor<double> x_shifts(m);  // Holds the shifted energy values
-  Tensor<double> y_shifts(m);  // Holds the shifted energy values
 
   ResponseFunction bsh_x_resp;     // Holds wave function corrections
   ResponseFunction bsh_y_resp;     // Holds wave function corrections
@@ -5487,12 +5515,12 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseFunction &rhs_x,
   // Therefore if ep are all negative we choose the least negative and shift
   // the x accordingly k_y should always be negative given that k_y uses
   // -omega
+  double x_shifts = 0;
+  double y_shifts = 0;
   if ((Gparams.energies[n - 1] + omega) > 0.0) {
     // Calculate minimum shift needed such that \eps + \omega + shift < 0
     // for all \eps, \omega
-    double energy_shift = -(.05 + Rparams.omega + Gparams.energies[n - 1]);
-    x_shifts.fill(energy_shift);
-    y_shifts.fill(0);
+    x_shifts = -(.05 + Rparams.omega + Gparams.energies[n - 1]);
     //      x_shifts = create_shift(world, Gparams.energies, omega,
     //                             Rparams.print_level, "x");
   }

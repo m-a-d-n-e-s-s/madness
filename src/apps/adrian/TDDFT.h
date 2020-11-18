@@ -374,9 +374,8 @@ class TDHF {
                               std::string xy);
 
   void ComputeZFunctions(World &world, ResponseFunction &x, ResponseFunction &y,
-                         Zfunctions &Z, XCOperator xc, Tensor<double> x_shifts,
-                         Tensor<double> y_shifts,
-                         const GroundParameters &Gparams,
+                         Zfunctions &Z, XCOperator xc, double x_shifts,
+                         double y_shifts, const GroundParameters &Gparams,
                          const ResponseParameters &Rparams,
                          Tensor<double> ham_no_diagonal);
   // Returns the hamiltonian matrix, equation 45 from the paper
@@ -411,6 +410,9 @@ class TDHF {
   // Returns the given shift applied to the given potentials
   ResponseFunction apply_shift(World &world, Tensor<double> &shifts,
                                ResponseFunction &V, ResponseFunction &f);
+  // single shift value
+  ResponseFunction apply_shift(World &world, double &shift, ResponseFunction &V,
+                               ResponseFunction &f);
 
   // Returns a vector of BSH operators
   std::vector<std::vector<std::shared_ptr<real_convolution_3d>>>
