@@ -54,8 +54,6 @@
 #    if !__has_include(<lapacke.h>)
 #      error "MADNESS_LINALG_USE_LAPACKE defined, but lapacke.h not found. Provide -I/path/to/lapacke/dot/h to the compiler."
 #    endif
-//   NETLIB's lapacke.h can include <complex> inside extern "C"! Include <complex> to prevent that
-#    include <complex>
 #    include <lapacke.h>
 #  endif
 #  include <madness/tensor/lapacke_types.h>
