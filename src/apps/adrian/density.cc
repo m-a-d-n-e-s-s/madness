@@ -32,15 +32,18 @@ FirstOrderDensity::FirstOrderDensity(ResponseParameters Rparams,
   this->Rparams = Rparams;
   this->Gparams = Gparams;
 }
-void FirstOrderDensity::ComputeDensity(World &world) {
+void FirstOrderDensity::ComputeResponse(World &world) {
   // right now everything uses copy
   property = Rparams.response_type;
-
+  // TDHF sets the TDHF with paramaters...
+  // sets mask function
+  // brodcast serializable
+  // sets Function Defaults for calculation
+  // sets xcf
   TDHF calc(world, Rparams, Gparams);
   if (calc.Rparams.property) {
-
     print("Entering Frequency Response Runner");
-    calc.ComputeFrequencyResponse(world, property);
+    calc.ComputeFrequencyResponse(world, property, x, y);
   } else {
     print("Entering Excited State Response Runner");
     calc.solve(world);
@@ -60,11 +63,17 @@ void FirstOrderDensity::ComputeDensity(World &world) {
   num_response_states = x.size();
   num_ground_states = x[0].size();
   // get the response densities for our states
-  rho_omega = calc.transition_density(world, Gparams.orbitals, x, y);
+  if (omega(0, 0) == 0) {
+    rho_omega = calc.transition_density(world, Gparams.orbitals, x, x);
+  } else {
+    rho_omega = calc.transition_density(world, Gparams.orbitals, x, y);
+  }
   if (Rparams.save_density) {
     SaveDensity(world, Rparams.save_density_file);
   }
 }
+
+// right now everything uses copy
 
 int FirstOrderDensity::GetNumberResponseStates() { return num_response_states; }
 int FirstOrderDensity::GetNumberGroundStates() { return num_ground_states; }
@@ -115,7 +124,7 @@ Tensor<double> FirstOrderDensity::ComputeSecondOrderPropertyTensor(
   std::vector<std::vector<Function<double, 3>>> px_qy;
   std::vector<std::vector<Function<double, 3>>> px_qy_4;
 
-  for (unsigned int i = 0; i < num_response_states; i++) {
+  for (int i = 0; i < num_response_states; i++) {
     px_qy.push_back(zero_functions<double, 3>(world, num_response_states));
     px_qy_4.push_back(zero_functions<double, 3>(world, num_response_states));
   }
