@@ -1,5 +1,3 @@
-
-
 #include <stdlib.h>
 
 #include "TDDFT.h"  // All response functions/objects enter through this
@@ -17,6 +15,28 @@ static inline int file_exists(const char* inpname) {
   return (rc == 0);
 }
 #endif
+
+FirstOrderDensity SetDensityType(World& world, std::string response_type,
+                                 ResponseParameters R, GroundParameters G) {
+  if (response_type.compare("excited_state") == 0) {
+    return ExcitedStateDensity(world, R, G);
+  } else if (response_type.compare("dipole") == 0) {
+    return DipoleDensity(world, R, G);
+
+  } else if (response_type.compare("nuclear") == 0) {
+    return NuclearResponseDensity(world, R, G);
+  } else if (response_type.compare("2ndOrder") == 0) {
+    MADNESS_EXCEPTION("not implemented yet", 0);
+    return FirstOrderDensity(R, G);
+  } else if (response_type.compare("3rdOrder") == 0) {
+    MADNESS_EXCEPTION("not implemented yet", 0);
+    return FirstOrderDensity(R, G);
+
+  } else {
+    MADNESS_EXCEPTION("what is this????", 0);
+    return FirstOrderDensity(R, G);
+  }
+};
 
 int main(int argc, char** argv) {
   // Initialize MADNESS mpi
@@ -65,14 +85,15 @@ int main(int argc, char** argv) {
     Rparams.print_params();
   }
   // Broadcast to all other nodes
-  FirstOrderDensity densityTest(Rparams, Gparams);
+  FirstOrderDensity densityTest =
+      SetDensityType(world, Rparams.response_type, Rparams, Gparams);
   // Create the TDHF object
   if (Rparams.load_density) {
     print("Loading Density");
     densityTest.LoadDensity(world, Rparams.load_density_file, Rparams, Gparams);
   } else {
     print("Computing Density");
-    densityTest.ComputeDensity(world);
+    densityTest.ComputeResponse(world);
   }
   //
   // densityTest.PlotResponseDensity(world);
