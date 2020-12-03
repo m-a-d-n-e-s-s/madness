@@ -31,24 +31,24 @@ class FirstOrderDensity {
   std::string property;  // excited state, nuclear,dipole
   // operator used create first order density
   Property property_operator;  // dipole, nuclear, or none
-  Tensor<double> omega;        // frequency or fruquencies
+  Tensor<double> omega;        // frequency or frequencies
 
-  int num_response_states;
-  int num_ground_states;
+  int num_response_states;  // number of response states
+  int num_ground_states;    // number of ground state orbitals
 
-  XCfunctional xcf;
+  XCfunctional xcf;  // xc functional
 
-  ResponseParameters Rparams;
-  GroundParameters Gparams;
+  ResponseParameters Rparams;  // Response Parameters
+  GroundParameters Gparams;    // Ground Parameters
 
-  ResponseFunction x;
-  ResponseFunction y;
+  ResponseFunction x;  // The x response functions virt/occ
+  ResponseFunction y;  // occ/virt
 
-  ResponseFunction P;
-  ResponseFunction Q;
+  ResponseFunction P;  // rhs vector P
+  ResponseFunction Q;  // rhs vector Q
 
   // first order frequency response densities
-  VectorFunction3DT rho_omega;
+  VectorFunction3DT rho_omega;  // the response density vector
 
  public:
   // Collective constructor
@@ -57,6 +57,7 @@ class FirstOrderDensity {
   virtual void ComputeResponse(World &world);
 
   int GetNumberResponseStates();
+  VectorFunction3DT ComputeDensityVector(World &world, bool is_static);
   int GetNumberGroundStates();
   VectorFunction3DT GetDensityVector();
   const Molecule GetMolecule();
