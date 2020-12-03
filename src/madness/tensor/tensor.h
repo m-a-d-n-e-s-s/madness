@@ -2218,8 +2218,8 @@ class SliceTensor : public Tensor<T> {
       }
     }
     // For Python interface need to be able to return a scalar inside a tensor
-    // with nd=0 TENSOR_ASSERT(nd>0,"slicing produced a scalar, but cannot return
-    // one",nd,this);
+    // with nd=0 TENSOR_ASSERT(nd>0,"slicing produced a scalar, but cannot
+    // return one",nd,this);
     for (long i = nd; i < TENSOR_MAXDIM;
          ++i) {  // So can iterate over missing dimensions
       this->_dim[i] = 1;
