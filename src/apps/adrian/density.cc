@@ -40,6 +40,12 @@ void FirstOrderDensity::ComputeResponse(World &world) {
   // brodcast serializable
   // sets Function Defaults for calculation
   // sets xcf
+  //
+  // creating calc should also set up the x and y functions
+  //
+  x = ResponseFunction(world, Rparams.states, Gparams.num_orbitals);
+  y = ResponseFunction(world, Rparams.states, Gparams.num_orbitals);
+
   TDHF calc(world, Rparams, Gparams);
   if (calc.Rparams.property) {
     print("Entering Frequency Response Runner");
@@ -63,10 +69,10 @@ void FirstOrderDensity::ComputeResponse(World &world) {
   num_response_states = x.size();
   num_ground_states = x[0].size();
   // get the response densities for our states
-  if (omega(0, 0) == 0) {
-    rho_omega = calc.transition_density(world, Gparams.orbitals, x, x);
+  if (Rparams.omega == 0) {
+    rho_omega = ComputeDensityVector(world, true);
   } else {
-    rho_omega = calc.transition_density(world, Gparams.orbitals, x, y);
+    rho_omega = ComputeDensityVector(world, false);
   }
   if (Rparams.save_density) {
     SaveDensity(world, Rparams.save_density_file);
@@ -84,6 +90,44 @@ ResponseParameters FirstOrderDensity::GetResponseParameters() {
   return Rparams;
 }
 
+VectorFunction3DT FirstOrderDensity::ComputeDensityVector(World &world,
+                                                          bool is_static) {
+  std::vector<real_function_3d> densities =
+      zero_functions<double, 3>(world, num_response_states);
+/*
+  x.reconstruct_rf();
+  y.reconstruct_rf();
+  reconstruct(world, Gparams.orbitals);
+  */
+
+  if (is_static) {
+    for (int b = 0; b < num_response_states; b++) {
+      densities[b] = dot(world, x[b], Gparams.orbitals) +
+                     dot(world, x[b], Gparams.orbitals);
+      /*
+        for (int j = 0; j < num_ground_states; j++) {
+          densities[b] += mul_sparse(x[b][j], Gparams.orbitals[j],
+        Rparams.small); densities[b] += mul_sparse(x[b][j], Gparams.orbitals[j],
+        Rparams.small);
+        }
+        */
+    }
+  } else {
+    for (int b = 0; b < num_response_states; b++) {
+      densities[b] = dot(world, x[b], Gparams.orbitals) +
+                     dot(world, y[b], Gparams.orbitals);
+      /*
+        for (int j = 0; j < num_ground_states; j++) {
+          densities[b] += mul_sparse(x[b][j], Gparams.orbitals[j],
+        Rparams.small); densities[b] += mul_sparse(y[b][j], Gparams.orbitals[j],
+        Rparams.small);
+        }
+        */
+    }
+  }
+  truncate(world,densities);
+  return densities;
+}
 void FirstOrderDensity::PrintDensityInformation() {
   // print
   //
