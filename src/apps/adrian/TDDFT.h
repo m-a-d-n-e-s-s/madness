@@ -140,8 +140,15 @@ struct Zfunctions {
   // ResponseFunction x_f_with_diag;
   // ResponseFunction y_f_with_diag;
 
+  ResponseFunction gamma;
+  ResponseFunction gamma_conjugate;
+
   ResponseFunction Hx, Gy;
   ResponseFunction Hy, Gx;
+};
+struct GammaResponseFunctions {
+  ResponseFunction gamma;
+  ResponseFunction gamma_conjugate;
 };
 
 struct ElectronResponseFunctions {
@@ -345,6 +352,11 @@ class TDHF {
                              const std::vector<real_function_3d> &orbitals,
                              double small, double thresh, int print_level,
                              std::string xy);
+  GammaResponseFunctions ComputeGammaFunctions(
+      World &world, std::vector<real_function_3d> rho_omega,
+      ResponseFunction orbital_products, ResponseFunction &x,
+      ResponseFunction &y, XCOperator xc, const GroundParameters &Gparams,
+      const ResponseParameters &Rparams);
   // Returns the coulomb potential of the ground state
   // Note: No post multiplication involved here
   real_function_3d Coulomb(World &world);
@@ -373,11 +385,14 @@ class TDHF {
                               ResponseFunction &f, int print_level,
                               std::string xy);
 
-  void ComputeZFunctions(World &world, ResponseFunction &x, ResponseFunction &y,
-                         Zfunctions &Z, XCOperator xc, double x_shifts,
-                         double y_shifts, const GroundParameters &Gparams,
-                         const ResponseParameters &Rparams,
-                         Tensor<double> ham_no_diagonal);
+  Zfunctions ComputeZFunctions(World &world,
+                               const std::vector<real_function_3d> rho_omega,
+                               ResponseFunction orbital_products,
+                               ResponseFunction &x, ResponseFunction &y,
+                               XCOperator xc, double x_shifts, double y_shifts,
+                               const GroundParameters &Gparams,
+                               const ResponseParameters &Rparams,
+                               Tensor<double> ham_no_diagonal);
   // Returns the hamiltonian matrix, equation 45 from the paper
   Tensor<double> CreateResponseMatrix(
       World &world, ResponseFunction &x, ElectronResponseFunctions &I,
@@ -608,7 +623,7 @@ class TDHF {
   // Creates the transition density
   std::vector<real_function_3d> transition_density(
       World &world, std::vector<real_function_3d> const &orbitals,
-      const ResponseFunction &x, const ResponseFunction &y);
+      ResponseFunction &x, ResponseFunction &y);
   // Get transition density from f and orbitals
   std::vector<real_function_3d> GetTransitionDensities(
       World &world, const std::vector<real_function_3d> &orbitals,
@@ -669,13 +684,14 @@ class TDHF {
                                    const Tensor<double> omega);
 
   void PlotGroundandResponseOrbitals(World &world, int iteration,
-                                     ResponseFunction const &x_response,
-                                     ResponseFunction const &y_response,
+                                     ResponseFunction &x_response,
+                                     ResponseFunction &y_response,
                                      ResponseParameters const &Rparams,
                                      GroundParameters const &Gparams);
   // Solves the response equations for the polarizability
   void solve_polarizability(World &world, Property &p);
-  void ComputeFrequencyResponse(World &world, std::string property);
+  void ComputeFrequencyResponse(World &world, std::string property,
+                                ResponseFunction &x, ResponseFunction &y);
 };
 #endif  // SRC_APPS_ADRIAN_TDDFT_H_
 
