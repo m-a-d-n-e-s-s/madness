@@ -380,6 +380,8 @@ class TDHF {
   Tensor<double> expectation(World &world, const ResponseFunction &a,
                              const ResponseFunction &b);
 
+  void PrintRFExpectation(World &world, ResponseFunction f, ResponseFunction g,
+                          std::string fname, std::string gname);
   // Returns the ground state fock operator applied to response functions
   ResponseFunction CreateFock(World &world, ResponseFunction &Vf,
                               ResponseFunction &f, int print_level,
@@ -393,6 +395,15 @@ class TDHF {
                                const GroundParameters &Gparams,
                                const ResponseParameters &Rparams,
                                Tensor<double> ham_no_diagonal);
+  void IterateXY(
+      World &world, const std::vector<real_function_3d> rho_omega,
+      ResponseFunction orbital_products, ResponseFunction &x,
+      ResponseFunction &y, ResponseFunction rhs_x, ResponseFunction rhs_y,
+      XCOperator xc, double y_shifts, const GroundParameters &Gparams,
+      const ResponseParameters &Rparams,
+      std::vector<std::shared_ptr<real_convolution_3d>> bsh_x_operators,
+      std::vector<std::shared_ptr<real_convolution_3d>> bsh_y_operators,
+      Tensor<double> ham_no_diagonal, int iteration);
   // Returns the hamiltonian matrix, equation 45 from the paper
   Tensor<double> CreateResponseMatrix(
       World &world, ResponseFunction &x, ElectronResponseFunctions &I,
@@ -671,6 +682,7 @@ class TDHF {
   void solve(World &world);
 
   // Iterates the response functions until converged or out of iterations
+  //
   void IteratePolarizability(World &world, ResponseFunction &dipoles);
   void IterateFrequencyResponse(World &world, ResponseFunction &rhs_x,
                                 ResponseFunction &rhs_y);
