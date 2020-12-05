@@ -74,7 +74,8 @@ struct ResponseParameters {
   int guess_max_iter;  ///< Maximum number of iterations for guess functions
 
   // Start of properties
-  bool property;              ///< Flag that this is a properties calculation
+  bool property;  ///< Flag that this is a properties calculation
+
   std::string response_type;  //
 
   bool dipole;   ///< Flag that this is a properties calculation
@@ -88,6 +89,7 @@ struct ResponseParameters {
 
   // TESTING
   bool old;
+  bool old_two_electron;
   // END TESTING
 
   // Used to broadcast data to all mpi ranks
@@ -97,9 +99,10 @@ struct ResponseParameters {
         &plot_L &plot_pts &plot_all_orbitals &max_iter &dconv &dconv_set
             &guess_xyz &small &protocol_data &larger_subspace &k &random
                 &store_potential &e_window &range_low &range_high &plot_initial
-                    &restart &restart_file &kain &maxsub &xc &save &save_file &
-                        guess_max_iter &property &response_type &dipole &nuclear
-                            &order2 &order3 &response_types &omega &old;
+                    &restart &restart_file &kain &maxsub &xc &save &save_file
+                        &guess_max_iter &property &response_type &dipole
+                            &nuclear &order2 &order3 &response_types &omega &old
+                                &old_two_electron;
   }
 
   // Default constructor
@@ -149,7 +152,8 @@ struct ResponseParameters {
         order3(false),
         response_types({"", "", ""}),
         omega(0.0),
-        old(true) {}
+        old(true),
+        old_two_electron(false) {}
 
   // Initializes ResponseParameters using the contents of file \c filename
   void read_file(const std::string &filename) {
@@ -281,10 +285,10 @@ struct ResponseParameters {
         } else {
           MADNESS_EXCEPTION("Not a an avaible response type", 0);
         }
-      } else if (s == "new") {
+      } else if (s == "old_two_electron") {
         // Use potential manager, for debugging. Remove
         // after it works
-        old = false;
+        old_two_electron = true;
       } else {
         std::cout << "response: unrecognized input keyword " << s << std::endl;
         MADNESS_EXCEPTION("input error", 0);
