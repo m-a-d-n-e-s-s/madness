@@ -1223,7 +1223,7 @@ GammaResponseFunctions TDHF::ComputeGammaFunctions(
 
   int m = Rparams.states;
   int n = Gparams.num_orbitals;
-  double small = Rparams.small;Q
+  double small = Rparams.small;
   double thresh = FunctionDefaults<3>::get_thresh();
   // x functions
   real_convolution_3d op = CoulombOperator(world, small, thresh);
@@ -1245,12 +1245,14 @@ GammaResponseFunctions TDHF::ComputeGammaFunctions(
   // (xc_args_prep_response happens inside this call)
   //
   // Before we do any multiplications we should truncate the working functions
+  /*
   x.truncate_rf();
   if (Rparams.omega != 0.0) {
     y.truncate_rf();
   }
   phi_phi.truncate_rf();
   truncate(world, rho_omega);
+  */
   // apply the exchange kernel to rho if necessary
   if (xcf.hf_exchange_coefficient()) {
     for (unsigned int i = 0; i < m; i++) {
@@ -1285,11 +1287,15 @@ GammaResponseFunctions TDHF::ComputeGammaFunctions(
     }
     y_phi[b].truncate_rf();
   }
-  //
+  real_function_3d temp_J;
   // for each response state we compute the Gamma response functions
   for (int b = 0; b < m; b++) {
     // apply - save and truncate - multiply
-    J[b] = mul(world, apply(op, rho_omega[b]),
+    //
+    //
+    temp_J = apply(op, rho_omega[b]);
+    temp_J.truncate();
+    J[b] = mul(world, temp_J,
                Gparams.orbitals);  // multiply by k
     // if xcf not zero
     if (xcf.hf_exchange_coefficient()) {
@@ -1333,12 +1339,12 @@ GammaResponseFunctions TDHF::ComputeGammaFunctions(
   }
   // update gamma functions
   QProjector<double, 3> projector(world, Gparams.orbitals);
-    gamma.gamma = (J * 2) - (Kx + Ky) * xcf.hf_exchange_coefficient() + W;
-    if (Rparams.omega != 0.0) {
-      gamma.gamma_conjugate =
-          (J * 2) -
-          (Kx_conjugate + Ky_conjugate) * xcf.hf_exchange_coefficient() + W;
-    }
+  gamma.gamma = (J * 2) - (Kx + Ky) * xcf.hf_exchange_coefficient() + W;
+  if (Rparams.omega != 0.0) {
+    gamma.gamma_conjugate =
+        (J * 2) -
+        (Kx_conjugate + Ky_conjugate) * xcf.hf_exchange_coefficient() + W;
+  }
   // project out ground state
   for (int i = 0; i < m; i++) {
     gamma.gamma[i] = projector(gamma.gamma[i]);
@@ -1733,6 +1739,10 @@ void TDHF::IterateXY(
 
   // + \Delta xp
   Z.v0_x += scale(x, x_shifts);
+  Z.v0_x.truncate_rf();
+  print("norms of v0x");
+  print(Z.v0_x.norm2());
+
   // x response scaled by off diagonal ham
   Z.x_f_no_diag = scale_2d(world, x, ham_no_diagonal);
   // If not static we compute the y components
@@ -1749,13 +1759,38 @@ void TDHF::IterateXY(
     }
   }
   // Last we compute the 2-electron peices
-  GammaResponseFunctions gamma = ComputeGammaFunctions(
-      world, rho_omega, orbital_products, x, y, xc, Gparams, Rparams);
-  // we then assemble the right hand side vectors
-  Z.Z_x = Z.v0_x - Z.x_f_no_diag + gamma.gamma - rhs_x;
-  if (Rparams.omega != 0.0) {
-    Z.Z_y = Z.v0_y - Z.y_f_no_diag + gamma.gamma_conjugate - rhs_y;
+  //
+  //
+  if (Rparams.old_two_electron) {
+    Z.Hx = ComputeHf(world, x, Gparams.orbitals, small, thresh,
+                     Rparams.print_level, "x");
+
+    Z.Gy = ComputeGf(world, y, Gparams.orbitals, small, thresh,
+                     Rparams.print_level, "y");
+    if (Rparams.omega != 0.0) {
+      Z.Hy = ComputeHf(world, y, Gparams.orbitals, small, thresh,
+                       Rparams.print_level, "x");
+
+      Z.Gx = ComputeGf(world, x, Gparams.orbitals, small, thresh,
+                       Rparams.print_level, "y");
+    }
+
+    Z.Z_x = Z.v0_x - Z.x_f_no_diag + Z.Hx + Z.Gy + rhs_x;
+    if (Rparams.omega != 0.0) {
+      Z.Z_y = Z.v0_y - Z.y_f_no_diag + Z.Hy + Z.Gx + rhs_y;
+    }
+  } else {
+    GammaResponseFunctions gamma = ComputeGammaFunctions(
+        world, rho_omega, orbital_products, x, y, xc, Gparams, Rparams);
+    // We can use the old algorithm here for testings
+    // we then assemble the right hand side vectors
+    Z.Z_x = Z.v0_x - Z.x_f_no_diag + gamma.gamma + rhs_x;
+    if (Rparams.omega != 0.0) {
+      Z.Z_y = Z.v0_y - Z.y_f_no_diag + gamma.gamma_conjugate + rhs_y;
+    }
   }
+  Z.Z_x.truncate_rf();
+  Z.Z_y.truncate_rf();
 
   if (Rparams.print_level >= 2) {
     if (world.rank() == 0)
@@ -1815,6 +1850,8 @@ void TDHF::IterateXY(
   }
   x_response = bsh_x_resp;
   if (Rparams.omega != 0.0) y_response = bsh_y_resp;
+  x_response.truncate_rf();
+  y_response.truncate_rf();
 }
 
 // Construct the Hamiltonian
@@ -4733,11 +4770,11 @@ std::vector<real_function_3d> TDHF::transition_density(
   y.reconstruct_rf();
   reconstruct(world, Gparams.orbitals);
   */
- /*
-  x.truncate_rf();
-  y.truncate_rf();
-  truncate(world, Gparams.orbitals);
-  */
+  /*
+   x.truncate_rf();
+   y.truncate_rf();
+   truncate(world, Gparams.orbitals);
+   */
   for (int b = 0; b < m; b++) {
     // Run over occupied...
     // y functions are zero if TDA is active
@@ -5787,7 +5824,6 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseFunction &rhs_x,
   // Set omega (its constant here,
   // and has only 1 entry for each axis)
   double omega_n = Rparams.omega;
-
   omega_n = abs(omega_n);
   omega[0] = omega_n;
   // We compute with positive frequencies
@@ -5798,6 +5834,7 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseFunction &rhs_x,
   // if less negative orbital energy + frequency is positive or greater than 0
   if ((Gparams.energies[n - 1] + omega_n) >= 0.0) {
     // Calculate minimum shift needed such that \eps + \omega + shift < 0
+    print("*** we are shifting just so you know!!!");
     x_shifts = -(.05 + omega_n + Gparams.energies[n - 1]);
   }
 
@@ -5830,7 +5867,7 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseFunction &rhs_x,
   }
   orbital_products.truncate_rf();
 
-    vector_real_function_3d rho_omega;
+  vector_real_function_3d rho_omega;
   // Now to iterate
   while (iteration < Rparams.max_iter and !converged) {
     // Start a timer for this iteration
@@ -5845,24 +5882,10 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseFunction &rhs_x,
 
     // If omega = 0.0, x = y
     if (Rparams.omega == 0.0) y_response = x_response.copy();
-
-    for (int b = 0; b < m; b++) {
-      for (int k = 0; k < n; k++) {
-        print("start old x response b:", b, " k : ", k, " norm ",
-              old_x_response[b][k].norm2());
-      }
-    }
     // Save current to old
     // deep copy of response functions
     old_x_response = x_response.copy();
     if (omega_n != 0.0) old_y_response = y_response.copy();
-
-    for (int b = 0; b < m; b++) {
-      for (int k = 0; k < n; k++) {
-        print("after copy old x response b:", b, " k : ", k, " norm ",
-              old_x_response[b][k].norm2());
-      }
-    }
 
     if (omega_n == 0) {
       rho_omega =
@@ -5871,30 +5894,11 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseFunction &rhs_x,
       rho_omega =
           transition_density(world, Gparams.orbitals, x_response, y_response);
     }
-    for (int b = 0; b < m; b++) {
-      for (int k = 0; k < n; k++) {
-        print("x before iterate response b:", b, " k : ", k, " norm ",
-              x_response[b][k].norm2());
-      }
-    }
     IterateXY(world, rho_omega, orbital_products, x_response, y_response, rhs_x,
               rhs_y, xc, x_shifts, Gparams, Rparams, bsh_x_operators,
               bsh_y_operators, ham_no_diag, iteration);
-
-    for (int b = 0; b < m; b++) {
-      for (int k = 0; k < n; k++) {
-        print("after iterate? old x response b:", b, " k : ", k, " norm ",
-              old_x_response[b][k].norm2());
-      }
-    }
-
-    for (int b = 0; b < m; b++) {
-      for (int k = 0; k < n; k++) {
-        print("x response b:", b, " k : ", k, " norm ",
-              x_response[b][k].norm2());
-      }
-    }
     // Get the difference between old and new
+    //
     x_differences = old_x_response - x_response;
     if (omega_n != 0.0) y_differences = old_y_response - y_response;
 
@@ -5923,12 +5927,6 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseFunction &rhs_x,
       if (world.rank() == 0) print("\n   Converged!");
       converged = true;
       break;
-    }
-   for (int b = 0; b < m; b++) {
-      for (int k = 0; k < n; k++) {
-        print("x before kain response b:", b, " k : ", k, " norm ",
-              x_response[b][k].norm2());
-      }
     }
     // KAIN solver update
     // Returns next set of components
@@ -5959,19 +5957,11 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseFunction &rhs_x,
       }
     }
 
-   for (int b = 0; b < m; b++) {
-      for (int k = 0; k < n; k++) {
-        print("x after kain response b:", b, " k : ", k, " norm ",
-              x_response[b][k].norm2());
-      }
-    }
     // Apply mask
-    /*
     for (int i = 0; i < m; i++) x_response[i] = mask * x_response[i];
     if (omega_n != 0.0) {
       for (int i = 0; i < m; i++) y_response[i] = mask * y_response[i];
     }
-    */
 
     // Update counter
     iteration += 1;
@@ -5980,12 +5970,6 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseFunction &rhs_x,
     truncate(world, x_response);
     if (omega_n != 0.0) truncate(world, y_response);
 
-    for (int b = 0; b < m; b++) {
-      for (int k = 0; k < n; k++) {
-        print("x after truncate response b:", b, " k : ", k, " norm ",
-              x_response[b][k].norm2());
-      }
-    }
     // Save
     if (Rparams.save) {
       start_timer(world);
@@ -5998,13 +5982,6 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseFunction &rhs_x,
     if (Rparams.plot_all_orbitals) {
       PlotGroundandResponseOrbitals(world, iteration, x_response, y_response,
                                     Rparams, Gparams);
-    }
-
-   for (int b = 0; b < m; b++) {
-      for (int k = 0; k < n; k++) {
-        print("x after plotting response b:", b, " k : ", k, " norm ",
-              x_response[b][k].norm2());
-      }
     }
   }
 }
