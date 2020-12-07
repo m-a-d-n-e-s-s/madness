@@ -505,7 +505,7 @@ namespace madness {
     }
 
     template <typename T, std::size_t NDIM>
-    std::vector<Function<T,NDIM> > append(const std::vector< std::vector<Function<T,NDIM> > > vv){
+    std::vector<Function<T,NDIM> > flatten(const std::vector< std::vector<Function<T,NDIM> > >& vv){
     	std::vector<Function<T,NDIM> >result;
     	for(const auto& x:vv) result=append(result,x);
     	return result;
@@ -874,6 +874,40 @@ namespace madness {
         return vmulXX(a, v, tol, fence);
     }
 
+
+    /// Multiplies a vector of functions against a vector of functions using sparsity
+
+    /// \tparam T       type parameter for first factor
+    /// \tparam R       type parameter for second factor
+    /// \tparam NDIM    dimension of first and second factors
+    /// \param world    the world
+    /// \param f        first vector of function
+    /// \param g        second vector of functions
+    /// \param tol      threshold for multiplication
+    /// \param fence    force fence (will always fence if necessary)
+    /// \return         fg(i,j) = f(i) * f(j), as a vector of vectors
+    template <typename T, typename R, std::size_t NDIM>
+    std::vector<std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM> > >
+    matrix_mul_sparse(World &world,
+                      const std::vector<Function<R, NDIM> > &f,
+                      const std::vector<Function<R, NDIM> > &g,
+                      double tol,
+                      bool fence = true) {
+        PROFILE_BLOCK(Vmulsp);
+        bool same=(&f == &g);
+        reconstruct(world, f, false);
+        if (not same) reconstruct(world, g, false);
+        world.gop.fence();
+        for (auto& ff : f) ff.norm_tree(false);
+        if (not same) for (auto& gg : g) gg.norm_tree(false);
+        world.gop.fence();
+
+        std::vector<std::vector<Function<R,NDIM> > >result(f.size());
+        for (std::size_t i=0; i<f.size(); ++i) result[i]= vmulXX(f[i], g, tol, false);
+        if (fence) world.gop.fence();
+        return result;
+    }
+
     /// Makes the norm tree for all functions in a vector
     template <typename T, std::size_t NDIM>
     void norm_tree(World& world,
@@ -1096,6 +1130,7 @@ namespace madness {
         const std::vector< Function<T,NDIM> >& a,
         const std::vector< Function<R,NDIM> >& b,
         bool fence=true) {
+        MADNESS_CHECK(a.size()==b.size());
         return sum(world,mul(world,a,b,true),fence);
     }
 

@@ -3,7 +3,6 @@
 
 #include <chem/SCF.h>
 #include <chem/nemo.h>
-#include <chem/correlationfactor.h>
 
 using namespace madness;
 
@@ -58,14 +57,18 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::operator()(
     norm_tree(world, mo_ket,false);
     world.gop.fence();
 
-    if (!same) {
+//    if (!same) {
         reconstruct(world, vket);
         norm_tree(world, vket);
-    }
+//    }
 
     vecfuncT Kf;
     if (multiworld_) {
-    	Kf=K_macrotask(vket,mul_tol);
+        if (efficient_) {
+            Kf=K_macrotask_efficient(vket,mul_tol);
+        } else {
+            Kf=K_macrotask(vket,mul_tol);
+        }
     } else if (small_memory_) {
     	Kf=K_small_memory(vket,mul_tol);     // Smaller memory algorithm ... possible 2x saving using i-j sym
     } else {
@@ -136,7 +139,104 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::K_macrotask(const vecfuncT& vke
 }
 
 
-template<typename T, std::size_t NDIM>
+    /// apply the exchange operator by tiling the exchange matrix
+
+    /// compute the matrix N_{ik} = N \phi_i \phi_k by tiles, with i,k \in batches A,B,
+    /// do a local reduce within the tiles: K_{iB} = \sum_{k \in batch B} \phi_k N_{ik}
+    /// and a universe-wide reduce of the tiles: K\phi_i = \sum_{batches B} K_{iB}
+    /// saving up to half of the cpu time compared to the naive algorithm
+    /// \tparam T       number type
+    /// \tparam NDIM    physical dimension of the argument vket
+    /// \param vket     argument of the exchange operator
+    /// \param mul_tol  cutoff parameter for sparse multiplication
+    /// \return         the exchange operator applied on vket
+    template<typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > Exchange<T, NDIM>::K_macrotask_efficient(const vecfuncT &vket, const double mul_tol) const {
+
+        if (world.rank()==0) print("\nentering macrotask_efficient version");
+
+        int nf = vket.size();
+        const long nocc=mo_ket.size();
+        const long nsubworld=world.size();
+
+        MacroTaskQ taskq(world,nsubworld);
+
+        double wall0=wall_time();
+        for (int i=0; i<nocc; ++i) {
+            taskq.cloud.store(world,mo_bra[i],i);
+            taskq.cloud.store(world,mo_ket[i],i+nocc);
+            taskq.cloud.store(world,vket[i],i+2*nocc);
+        }
+
+        taskq.cloud.print_timings(world);
+        double wall1=wall_time();
+        print("wall time for storing ",wall1-wall0);
+
+        // split up the exchange matrix in chunks
+        long min_ntask_per_world=5;         // key control parameter for work balancing
+        long ntile_target=min_ntask_per_world*nsubworld;
+        long nbatch=long(ceil(sqrt(double(ntile_target))));
+        long ntile=nbatch*nbatch;
+        long batchsize=ceil(double(nocc)/nbatch);
+        if (world.rank()==0)
+            print("splitting nocc into",nbatch,"batches of size ",batchsize, "yielding", ntile,"tiles");
+        std::vector<std::pair<long,long> > ranges(nbatch);
+        for (long i=0; i<nbatch; ++i) {
+            ranges[i].first=i*batchsize;
+            ranges[i].second=std::min(nocc,(i+1)*batchsize);
+        }
+        if (world.rank()==0) {
+            print("ranges");
+            for (auto& r : ranges) printf(" %2ld to %2ld",r.first,r.second);
+            print("");
+        }
+
+        double lo=1.e-4;
+        double econv=FunctionDefaults<3>::get_thresh();
+
+        MacroTaskBase::taskqT vtask;
+        for (auto& row_r : ranges) {
+            for (auto& column_r : ranges) {
+                std::pair<long, long> row_range = row_r;
+                std::pair<long, long> column_range = column_r;
+
+                // compute only the the upper triangular matrix
+                if (row_range.first <= column_range.first) {
+                    MacroTaskExchangeEfficient task(row_range, column_range, nocc, lo, econv, mul_tol);
+                    vtask.push_back(std::shared_ptr<MacroTaskBase>(new MacroTaskExchangeEfficient(task)));
+                }
+            }
+        }
+        world.gop.fence();
+
+        auto current_pmap=FunctionDefaults<3>::get_pmap();
+        FunctionDefaults<3>::set_default_pmap(taskq.get_subworld());
+        taskq.run_all(vtask);
+        FunctionDefaults<3>::set_pmap(current_pmap);
+
+        // collect batches of result data
+        vecfuncT Kf;
+        double cpu2=cpu_time();
+        for (auto row_r : ranges) {
+            vecfuncT dummy1=zero_functions_compressed<T,NDIM>(world,row_r.second-row_r.first);
+            for (auto column_r : ranges) {
+                vecfuncT dummy;
+                long record = MacroTaskExchangeEfficient::outputrecord(row_r, column_r);
+                taskq.cloud.load<vecfuncT>(world, dummy,record);
+                dummy1+=dummy;
+            }
+            Kf = append(Kf, dummy1);
+        }
+        double cpu3=cpu_time();
+        if (world.rank()==0) printf("loading wall time in collection step %4.1fs\n",cpu3-cpu2);
+
+        taskq.cloud.print_timings(world);
+        taskq.get_subworld().gop.fence();
+        return Kf;
+    }
+
+
+    template<typename T, std::size_t NDIM>
 std::vector<Function<T,NDIM> > Exchange<T,NDIM>::K_small_memory(const vecfuncT& vket, const double mul_tol) const {
 
 	const long nocc=mo_ket.size();
@@ -144,12 +244,23 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::K_small_memory(const vecfuncT& 
 
 	for(int i=0; i<nocc; ++i){
 		if(occ[i] > 0.0){
+		    double cpu0=cpu_time();
 			vecfuncT psif = mul_sparse(world, mo_bra[i], vket, mul_tol); /// was vtol
 			truncate(world, psif);
+            double cpu1=cpu_time();
+            double mul1=cpu1-cpu0;
+            cpu0=cpu_time();
 			psif = apply(world, *poisson.get(), psif);
 			truncate(world, psif);
+            cpu1=cpu_time();
+            double apply1=cpu1-cpu0;
+            cpu0=cpu_time();
 			psif = mul_sparse(world, mo_ket[i], psif, mul_tol); /// was vtol
 			gaxpy(world, 1.0, Kf, occ[i], psif);
+            cpu1=cpu_time();
+            double dot=cpu1-cpu0;
+            printf("timings for mul1, apply, dot: %8.2fs %8.2fs %8.2fs\n",mul1,apply1,dot);
+
 		}
 	}
 	return Kf;
@@ -210,8 +321,7 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::K_large_memory(const vecfuncT& 
 	return Kf;
 }
 
-
-template class Exchange<double_complex,3>;
+    template class Exchange<double_complex,3>;
 template class Exchange<double,3>;
 
 template <> volatile std::list<detail::PendingMsg> WorldObject<MacroTaskQ>::pending = std::list<detail::PendingMsg>();

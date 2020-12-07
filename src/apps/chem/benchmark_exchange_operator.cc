@@ -16,7 +16,7 @@ int main(int argc, char** argv) {
     startup(world,argc,argv);
     srand (time(NULL));
 
-    std::string structure="water5";
+    std::string structure="water2";
     for(int i = 1; i < argc; i++) {
         const std::string arg=argv[i];
 
@@ -64,27 +64,43 @@ end
 		world.gop.fence();
 	}
 
+	vecfuncT tmp, tmp1, reference;
+	double err;
+
 	double cpu1=cpu_time();
 	if (world.rank()==0) printf("\ntimings for preparation   %8.2fs\n",cpu1-cpu0);
 
-	cpu0=cpu1;
-	K.ntask_per_subworld=100;
-	K.multiworld_=false;
-	K.small_memory(true);
-	vecfuncT reference=K(calc.amo);
-	cpu1=cpu_time();
-	if (world.rank()==0) printf("\ntimings exchange operator no multiworld smallmem   %8.2fs\n",cpu1-cpu0);
+    cpu0=cpu1;
+    K.ntask_per_subworld=100;
+    K.multiworld_=false;
+    K.small_memory(false);
+    K.same(true);
+    reference=K(calc.amo);
+    cpu1=cpu_time();
+    if (world.rank()==0) printf("\ntimings exchange operator no multiworld largemem   %8.2fs\n",cpu1-cpu0);
+//    err=norm2(world,reference-tmp);
+//    print("error wrt small-memory result",err);
+
+    cpu0=cpu1;
+    K.ntask_per_subworld=100;
+    K.multiworld_=true;
+    K.efficient_=true;
+    tmp=K(calc.amo);
+    cpu1=cpu_time();
+    if (world.rank()==0) printf("\ntimings exchange operator efficient (ntask_per_subworld=100) %8.2fs\n",cpu1-cpu0);
+    err=norm2(world,reference-tmp);
+    print("error wrt small-memory result",err);
 
 	cpu0=cpu1;
 	K.ntask_per_subworld=100;
 	K.multiworld_=false;
-	K.small_memory(false);
-	K.same(true);
-	vecfuncT tmp=K(calc.amo);
+    K.efficient_=false;
+	K.small_memory(true);
+	reference=K(calc.amo);
 	cpu1=cpu_time();
-	if (world.rank()==0) printf("\ntimings exchange operator no multiworld largemem   %8.2fs\n",cpu1-cpu0);
-	double err=norm2(world,reference-tmp);
-	print("error wrt small-memory result",err);
+	if (world.rank()==0) printf("\ntimings exchange operator no multiworld smallmem   %8.2fs\n",cpu1-cpu0);
+    err=norm2(world,reference-tmp);
+    print("error wrt small-memory result",err);
 
 	cpu0=cpu1;
 	K.ntask_per_subworld=100;
