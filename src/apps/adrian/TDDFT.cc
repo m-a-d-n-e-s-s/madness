@@ -733,9 +733,11 @@ ResponseFunction TDHF::PropertyRHS(World &world, Property &p) const {
 
     rhs[i] = mul_sparse(world, p.operator_vector.at(i), Gparams.orbitals,
                         Rparams.small);
+    truncate(world, rhs[i], true);
 
     // project rhs vectors for state
     rhs[i] = Qhat(rhs[i]);
+    truncate(world, rhs[i], true);
     for (size_t j = 0; j < orbitals.size(); j++) {
       print("RHS norm for orbital ", j, "Response state  ", i, ": ",
             rhs[i][j].norm2());
@@ -746,7 +748,7 @@ ResponseFunction TDHF::PropertyRHS(World &world, Property &p) const {
   }
 
   // if (world.rank() ==dipole 0) print("derivatives:\n", r, ru, rc, ra);
-  end_timer(world, "derivatives");
+  end_timer(world, "rhs vectors");
   return rhs;
 }
 // Returns the derivative of the coulomb operator, applied to ground state
@@ -1823,6 +1825,7 @@ void TDHF::IterateXY(
     if (Rparams.print_level >= 1) end_timer(world, "Load balancing:");
   }
   if (Rparams.print_level >= 1) start_timer(world);
+
   bsh_x_resp = apply(world, bsh_x_operators, Z.Z_x);
   if (Rparams.omega != 0.0) bsh_y_resp = apply(world, bsh_y_operators, Z.Z_y);
   if (Rparams.print_level >= 1) end_timer(world, "Apply BSH:");
@@ -4770,11 +4773,11 @@ std::vector<real_function_3d> TDHF::transition_density(
   y.reconstruct_rf();
   reconstruct(world, Gparams.orbitals);
   */
-  /*
-   x.truncate_rf();
-   y.truncate_rf();
-   truncate(world, Gparams.orbitals);
-   */
+  print("Thresh before truncate in t-density");
+  print(FunctionDefaults<3>::get_thresh());
+  x.truncate_rf();
+  y.truncate_rf();
+  truncate(world, Gparams.orbitals);
   for (int b = 0; b < m; b++) {
     // Run over occupied...
     // y functions are zero if TDA is active
@@ -5873,6 +5876,17 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseFunction &rhs_x,
     // Start a timer for this iteration
     start_timer(world);
 
+    print("x norms in iteration before  : ", iteration);
+    print(x_response.norm2());
+
+    print("y norms in iteration before: ", iteration);
+    print(y_response.norm2());
+
+    print("old x norms in iteration before  : ", iteration);
+    print(old_x_response.norm2());
+
+    print("old y norms in iteration before: ", iteration);
+    print(old_y_response.norm2());
     // Basic output
     if (Rparams.print_level >= 1) {
       if (world.rank() == 0)
@@ -5887,6 +5901,12 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseFunction &rhs_x,
     old_x_response = x_response.copy();
     if (omega_n != 0.0) old_y_response = y_response.copy();
 
+    print("old x norms in iteration after copy  : ", iteration);
+    print(old_x_response.norm2());
+
+    print("old y norms in iteration after copy: ", iteration);
+    print(old_y_response.norm2());
+
     if (omega_n == 0) {
       rho_omega =
           transition_density(world, Gparams.orbitals, x_response, x_response);
@@ -5894,10 +5914,24 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseFunction &rhs_x,
       rho_omega =
           transition_density(world, Gparams.orbitals, x_response, y_response);
     }
+    print(
+        "x norms in iteration before Iterate XY and after computing rho_omega "
+        ": ",
+        iteration);
+    print(x_response.norm2());
+
+    print("y norms in iteration before IterateXY and after computing rho_omega",
+          iteration);
+    print(y_response.norm2());
     IterateXY(world, rho_omega, orbital_products, x_response, y_response, rhs_x,
               rhs_y, xc, x_shifts, Gparams, Rparams, bsh_x_operators,
               bsh_y_operators, ham_no_diag, iteration);
     // Get the difference between old and new
+    print("x norms in iteration after Iterate XY : ", iteration);
+    print(x_response.norm2());
+
+    print("y norms in iteration after IterateXY: ", iteration);
+    print(y_response.norm2());
     //
     x_differences = old_x_response - x_response;
     if (omega_n != 0.0) y_differences = old_y_response - y_response;
@@ -5962,7 +5996,12 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseFunction &rhs_x,
     if (omega_n != 0.0) {
       for (int i = 0; i < m; i++) y_response[i] = mask * y_response[i];
     }
+    // print x norms
+    print("x norms in iteration after mask: ", iteration);
+    print(x_response.norm2());
 
+    print("y norms in iteration after mask: ", iteration);
+    print(y_response.norm2());
     // Update counter
     iteration += 1;
 
@@ -5970,6 +6009,11 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseFunction &rhs_x,
     truncate(world, x_response);
     if (omega_n != 0.0) truncate(world, y_response);
 
+    print("x norms in iteration after truncation: ", iteration);
+    print(x_response.norm2());
+
+    print("y norms in iteration after truncation: ", iteration);
+    print(y_response.norm2());
     // Save
     if (Rparams.save) {
       start_timer(world);
@@ -5983,6 +6027,11 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseFunction &rhs_x,
       PlotGroundandResponseOrbitals(world, iteration, x_response, y_response,
                                     Rparams, Gparams);
     }
+    print("x norms in iteration after truncation Plot: ", iteration);
+    print(x_response.norm2());
+
+    print("y norms in iteration after truncation Plot: ", iteration);
+    print(y_response.norm2());
   }
 }
 // Calculates polarizability according to
@@ -6235,6 +6284,7 @@ void TDHF::ComputeFrequencyResponse(World &world, std::string property,
   // For each protocol
   for (unsigned int proto = 0; proto < Rparams.protocol_data.size(); proto++) {
     // Set defaults inside here
+    // default value of
     set_protocol<3>(world, Rparams.protocol_data[proto]);
 
     // Do something to ensure all functions have same k value
@@ -6286,8 +6336,8 @@ void TDHF::ComputeFrequencyResponse(World &world, std::string property,
           this->P = PropertyRHS(world, p);
           this->Q = P.copy();
 
-          // x_response = P;
-          // y_response = x_response.copy();
+          x_response = P.copy();
+          y_response = x_response.copy();
           // set RHS_Vector
         } else if (Rparams.nuclear) {
           // set guesses
