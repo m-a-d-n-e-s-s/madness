@@ -93,8 +93,8 @@ ResponseFunction apply(
 
   return result;
 }
-// Here we are applying the same vector of operators to each of the response
-// states
+// Apply a vector of operators to a set of response states
+//
 ResponseFunction apply(World &world,
                        std::vector<std::shared_ptr<real_convolution_3d>> &op,
                        ResponseFunction &f) {
@@ -105,6 +105,8 @@ ResponseFunction apply(World &world,
 
   for (unsigned int i = 0; i < f.size(); i++) {
     // Using vmra.h function, line 889
+    /// Applies a vector of operators to a vector of functions --- q[i] =
+    /// apply(op[i],f[i])
     result[i] = apply(world, op, f[i]);
   }
 
