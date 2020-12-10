@@ -47,6 +47,13 @@ Property::Property(World &world, std::string property_type)
     // print k L truncation
     print("norm of dipole function ", operator_vector[i].norm2());
   }
+
+  truncate(world, operator_vector, true);
+
+  for (int i = 0; i < 3; i++) {
+    print("norm of dipole function after truncate ",
+          operator_vector[i].norm2());
+  }
 }
 
 Property::Property(World &world, std::string property_type, Molecule molecule)
@@ -70,6 +77,15 @@ Property::Property(World &world, std::string property_type, Molecule molecule)
                                                           .truncate_mode(0));
       // print k L truncation
       print("norm of derivative function ",
+            operator_vector[atom * 3 + axis].norm2());
+    }
+  }
+
+  truncate(world, operator_vector, true);
+
+  for (size_t atom = 0; atom < molecule.natom(); ++atom) {
+    for (int axis = 0; axis < 3; ++axis) {
+      print("norm of derivative function after truncate ",
             operator_vector[atom * 3 + axis].norm2());
     }
   }

@@ -45,6 +45,11 @@ void FirstOrderDensity::ComputeResponse(World &world) {
   //
   x = ResponseFunction(world, Rparams.states, Gparams.num_orbitals);
   y = ResponseFunction(world, Rparams.states, Gparams.num_orbitals);
+  print("Creating Response Functions for X and Y");
+  print("X Norms before Computing");
+  print(x.norm2());
+  print("Y Norms before Computing");
+  print(y.norm2());
 
   TDHF calc(world, Rparams, Gparams);
   if (calc.Rparams.property) {
@@ -63,6 +68,8 @@ void FirstOrderDensity::ComputeResponse(World &world) {
   x = calc.GetResponseFunctions("x");
   y = calc.GetResponseFunctions("y");
 
+  print("X Norms before Computing");
+  print(x.norm2());
   P = calc.GetPVector();
   Q = calc.GetQVector();
 
@@ -94,11 +101,11 @@ VectorFunction3DT FirstOrderDensity::ComputeDensityVector(World &world,
                                                           bool is_static) {
   std::vector<real_function_3d> densities =
       zero_functions<double, 3>(world, num_response_states);
-/*
-  x.reconstruct_rf();
-  y.reconstruct_rf();
-  reconstruct(world, Gparams.orbitals);
-  */
+  /*
+    x.reconstruct_rf();
+    y.reconstruct_rf();
+    reconstruct(world, Gparams.orbitals);
+    */
 
   if (is_static) {
     for (int b = 0; b < num_response_states; b++) {
@@ -125,7 +132,7 @@ VectorFunction3DT FirstOrderDensity::ComputeDensityVector(World &world,
         */
     }
   }
-  truncate(world,densities);
+  truncate(world, densities);
   return densities;
 }
 void FirstOrderDensity::PrintDensityInformation() {
