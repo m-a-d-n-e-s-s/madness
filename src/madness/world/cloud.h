@@ -85,6 +85,10 @@ public:
 		debug=value;
 	}
 
+	void set_fence(bool value) {
+		dofence=value;
+	}
+
 	void print_timings(World& universe) const {
 		double rtime=double(reading_time);
 		double wtime=double(writing_time);
@@ -157,6 +161,7 @@ public:
         if (debug) std::cout << "loading " << typeid(T).name() << " to world " << world.id() << " from record " << record << std::endl;
         madness::archive::ContainerRecordInputArchive ar(world,container,record);
         madness::archive::ParallelInputArchive<madness::archive::ContainerRecordInputArchive> par(world, ar);
+        par.set_dofence(dofence);
         par & target;
         if (dofence) world.gop.fence();
 	}

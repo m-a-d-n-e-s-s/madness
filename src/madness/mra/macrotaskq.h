@@ -52,7 +52,10 @@ public:
 	virtual void run(World& world, Cloud& cloud, taskqT& taskq) = 0;
 	virtual void cleanup() = 0;		// clear static data (presumably persistent input data)
 
-    virtual void print_me(std::string s="") const {}
+    virtual void print_me(std::string s="") const {
+        printf("this is task with priority",priority);
+    }
+    double get_priority() const {return priority;}
 
 };
 //
@@ -114,34 +117,6 @@ public:
 
 		universe.gop.fence();
 		return all_worlds;
-
-	//	if (universe.size()<nworld) {
-	//		print("trying to create ",nworld,"world with",universe.size(), "processes");
-	//		MADNESS_EXCEPTION("increase number of processes",1);
-	//	}
-	//
-	//	if (universe.rank()==0) print("== multiple worlds created with Intracomm::Create()==",nworld);
-	//    std::vector<std::vector<int> > process_list(nworld);
-	//    std::shared_ptr<World> all_worlds;
-	//
-	//	for (int i=0; i<universe.size(); ++i) process_list[i%nworld].push_back(i);
-	//	if (universe.rank()<nworld) print("process_list",process_list[universe.rank()]);
-	//
-	//
-	//	for (int i=0; i<process_list.size(); ++i) {
-	//		const std::vector<int>& pl=process_list[i];
-	//		bool found=(std::find(pl.begin(),pl.end(),universe.rank())!=pl.end());
-	//		if (found) {
-	//			print("assigning rank",universe.rank(),"to world group",pl);
-	//
-	//			SafeMPI::Group group = universe.mpi.comm().Get_group().Incl(pl.size(), &pl[0]);
-	//			SafeMPI::Intracomm comm_group = universe.mpi.comm().Create(group);
-	//
-	//			all_worlds.reset(new World(comm_group));
-	//		}
-	//	}
-	//	universe.gop.fence();
-	//	return all_worlds;
 	}
 
 	/// run all tasks, tasks may store the results in the cloud
@@ -149,7 +124,7 @@ public:
 
 		for (auto t : vtask) if (universe.rank()==0) t->set_waiting();
 		for (int i=0; i<vtask.size(); ++i) add_replicated_task(vtask[i]);
-//		print_taskq();
+		print_taskq();
 
 		universe.gop.fence();
 
@@ -157,22 +132,29 @@ public:
 
 		World& subworld=get_subworld();
 		print("I am subworld",subworld.id());
+		double tasktime=0.0;
 		while (true){
+		    double cpu000=cpu_time();
 			long element=get_scheduled_task_number(subworld);
+            double cpu111=cpu_time();
+            printf("getting scheduled task number task %4.1fs\n",cpu111-cpu000);
+            double cpu0=cpu_time();
 			if (element<0) break;
-			double cpu0=cpu_time();
 			std::shared_ptr<MacroTaskBase> task=taskq[element];
 
 			task->run(subworld,cloud, taskq);
 
 			double cpu1=cpu_time();
-			set_complete(element);
-			if (subworld.rank()==0) printf("completed task %3ld after %4.1fs\n",element,cpu1-cpu0);
+            set_complete(element);
+			tasktime+=(cpu1-cpu0);
+			if (subworld.rank()==0) printf("completed task %3ld after %6.1fs at time %6.1fs\n",element,cpu1-cpu0,wall_time());
 
 		};
 		universe.gop.fence();
-		double cpu11=cpu_time();
-		if (universe.rank()==0) printf("completed taskqueue after %4.1fs\n",cpu11-cpu00);
+		universe.gop.sum(tasktime);
+        double cpu11=cpu_time();
+		if (universe.rank()==0) printf("completed taskqueue after    %4.1fs at time %4.1fs\n",cpu11-cpu00,wall_time());
+        if (universe.rank()==0) printf(" total cpu time / per world  %4.1fs %4.1fs\n",tasktime,tasktime/universe.size());
 
 		// cleanup task-persistent input data
 		for (auto task : taskq) task->cleanup();
@@ -221,7 +203,7 @@ private:
 	/// scheduler is located on universe.rank==0
 	long get_scheduled_task_number(World& subworld) {
 		long number=0;
-		if (subworld.rank()==0) number=this->task(ProcessID(0), &MacroTaskQ::get_scheduled_task_number_local);
+		if (subworld.rank()==0) number=this->task(ProcessID(0), &MacroTaskQ::get_scheduled_task_number_local,TaskAttributes::hipri());
 		subworld.gop.broadcast_serializable(number, 0);
 		subworld.gop.fence();
 		return number;

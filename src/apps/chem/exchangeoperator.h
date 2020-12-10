@@ -153,6 +153,13 @@ public:
                 , lo(lo)
                 , econv(econv)
                 , mul_tol(mul_tol) {
+            this->priority=compute_priority();
+        }
+
+        double compute_priority() const {
+            long nrow=row_range.second-row_range.first;
+            long ncol=column_range.second-column_range.first;
+            return nrow*ncol;
         }
 
         void run(World& subworld, Cloud& cloud, taskqT& taskq) {
@@ -205,7 +212,6 @@ public:
                 vecfuncT result;
                 MADNESS_CHECK(s.start==0 && s.end==-1 && s.step==1);
                 for (int i=s.start; i<=s.end+ncolumn; ++i) {
-//                    print("Nslice: pushing back element", ij(irow,i), "for row",irow);
                     result.push_back(Nij[ij(irow,i)]);
                 }
                 return result;
@@ -214,13 +220,12 @@ public:
                 vecfuncT result;
                 MADNESS_CHECK(s.start==0 && s.end==-1 && s.step==1);
                 for (int i=s.start; i<=s.end+nrow; ++i) {
-//                    print("Nslice: pushing back element", ij(i,jcolumn), "for column",jcolumn);
                     result.push_back(Nij[ij(i,jcolumn)]);
                 }
                 return result;
             };
 
-
+            // corresponds to bra_batch and ket_beatch, but without the ncf R^2
             vecfuncT preintegral_row(mo_ket->begin()+row_range.first,mo_ket->begin()+row_range.second);
             vecfuncT preintegral_column(mo_ket->begin()+column_range.first,mo_ket->begin()+column_range.second);
 
@@ -235,6 +240,8 @@ public:
             cpu1=cpu_time();
             double dot1=cpu1-cpu0;
 
+            truncate(subworld,resultcolumn,false);
+            truncate(subworld,resultrow,false);
             subworld.gop.fence();
 
             // store results: columns as columns; transpose rows to columns
@@ -275,7 +282,7 @@ public:
         }
 
         void print_me(std::string s="") const {
-            print("K apply task", s, this->stat);
+            print("K apply task", s, this->stat, "priority",this->get_priority());
         }
 
     };

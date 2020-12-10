@@ -3,6 +3,7 @@
 
 #include <chem/SCF.h>
 #include <chem/nemo.h>
+#include <chem/orbital_partitioner.h>
 
 using namespace madness;
 
@@ -155,7 +156,6 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::K_macrotask(const vecfuncT& vke
 
         if (world.rank()==0) print("\nentering macrotask_efficient version");
 
-        int nf = vket.size();
         const long nocc=mo_ket.size();
         const long nsubworld=world.size();
 
@@ -167,26 +167,13 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::K_macrotask(const vecfuncT& vke
             taskq.cloud.store(world,mo_ket[i],i+nocc);
             taskq.cloud.store(world,vket[i],i+2*nocc);
         }
-
-        taskq.cloud.print_timings(world);
         double wall1=wall_time();
-        print("wall time for storing ",wall1-wall0);
+        if (world.rank()==0) printf("wall time for storing %4.1fs\n",wall1-wall0);
 
-        // split up the exchange matrix in chunks
-        long min_ntask_per_world=5;         // key control parameter for work balancing
-        long ntile_target=min_ntask_per_world*nsubworld;
-        long nbatch=long(ceil(sqrt(double(ntile_target))));
-        long ntile=nbatch*nbatch;
-        long batchsize=ceil(double(nocc)/nbatch);
-        if (world.rank()==0)
-            print("splitting nocc into",nbatch,"batches of size ",batchsize, "yielding", ntile,"tiles");
-        std::vector<std::pair<long,long> > ranges(nbatch);
-        for (long i=0; i<nbatch; ++i) {
-            ranges[i].first=i*batchsize;
-            ranges[i].second=std::min(nocc,(i+1)*batchsize);
-        }
+        // partition the exchange matrix into tiles, the tile structure must be symmetric
+        std::vector<std::pair<long,long> > ranges=OrbitalPartitioner::partition_for_exchange(5,nsubworld,nocc);
         if (world.rank()==0) {
-            print("ranges");
+            print("spliiting nocc into",ranges.size(),"ranges");
             for (auto& r : ranges) printf(" %2ld to %2ld",r.first,r.second);
             print("");
         }
@@ -195,11 +182,8 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::K_macrotask(const vecfuncT& vke
         double econv=FunctionDefaults<3>::get_thresh();
 
         MacroTaskBase::taskqT vtask;
-        for (auto& row_r : ranges) {
-            for (auto& column_r : ranges) {
-                std::pair<long, long> row_range = row_r;
-                std::pair<long, long> column_range = column_r;
-
+        for (auto& row_range : ranges) {
+            for (auto& column_range : ranges) {
                 // compute only the the upper triangular matrix
                 if (row_range.first <= column_range.first) {
                     MacroTaskExchangeEfficient task(row_range, column_range, nocc, lo, econv, mul_tol);
@@ -208,6 +192,9 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::K_macrotask(const vecfuncT& vke
             }
         }
         world.gop.fence();
+        // sort the tasks according to their tile size, assuming that's a proxy for how much time they take
+        std::sort(vtask.begin(),vtask.end(), [](auto a, auto b) {return a->get_priority() > b->get_priority(); });
+
 
         auto current_pmap=FunctionDefaults<3>::get_pmap();
         FunctionDefaults<3>::set_default_pmap(taskq.get_subworld());
@@ -219,7 +206,7 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::K_macrotask(const vecfuncT& vke
         double cpu2=cpu_time();
         for (auto row_r : ranges) {
             vecfuncT dummy1=zero_functions_compressed<T,NDIM>(world,row_r.second-row_r.first);
-            for (auto column_r : ranges) {
+        for (auto column_r : ranges) {
                 vecfuncT dummy;
                 long record = MacroTaskExchangeEfficient::outputrecord(row_r, column_r);
                 taskq.cloud.load<vecfuncT>(world, dummy,record);

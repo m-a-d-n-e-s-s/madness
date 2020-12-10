@@ -13,41 +13,43 @@ int main(int argc, char** argv) {
 
     madness::World world(SafeMPI::COMM_WORLD);
     world.gop.fence();
-    startup(world,argc,argv);
-    srand (time(NULL));
+    startup(world, argc, argv, true);
+    srand(time(NULL));
 
-    std::string structure="water2";
-    for(int i = 1; i < argc; i++) {
-        const std::string arg=argv[i];
+    std::string structure = "water2";
+    for (int i = 1; i < argc; i++) {
+        const std::string arg = argv[i];
 
         // break parameters into key and val
-        size_t pos=arg.find("=");
-        std::string key=arg.substr(0,pos);
-        std::string val=arg.substr(pos+1);
+        size_t pos = arg.find("=");
+        std::string key = arg.substr(0, pos);
+        std::string val = arg.substr(pos + 1);
 
-        if (key=="--structure") structure=val;
+        if (key == "--structure") structure = val;
     }
 
-    std::string input1=R"input(
+    std::string input1 = R"input(
 dft
     			econv 1.e-6
 				xc hf
 				protocol []
 				multiworld true
 )input";
-    std::string input2=R"input(
+    std::string input2 = R"input(
 end
 )input";
 
-	test_inputfile ifile("input",input1+"molecular_structure "+structure+"\n"+input2);
-	ifile.keepfile=true;
-	world.gop.fence();
+    test_inputfile ifile("input", input1 + "molecular_structure " + structure + "\n" + input2);
+    ifile.keepfile = true;
+    world.gop.fence();
 
-	double cpu0=cpu_time();
+    double cpu0 = cpu_time();
 
-    SCF calc(world,"input");
-    calc.param.print("","");
-    calc.molecule.print();
+    SCF calc(world, "input");
+    if (world.rank() == 0) {
+        calc.param.print("", "");
+        calc.molecule.print();
+    }
 
     calc.set_protocol<3>(world,1.e-4);
 	MolecularEnergy me(world, calc);

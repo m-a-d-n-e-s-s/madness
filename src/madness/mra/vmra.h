@@ -881,11 +881,11 @@ namespace madness {
     /// \tparam R       type parameter for second factor
     /// \tparam NDIM    dimension of first and second factors
     /// \param world    the world
-    /// \param f        first vector of function
+    /// \param f        first vector of functions
     /// \param g        second vector of functions
     /// \param tol      threshold for multiplication
     /// \param fence    force fence (will always fence if necessary)
-    /// \return         fg(i,j) = f(i) * f(j), as a vector of vectors
+    /// \return         fg(i,j) = f(i) * g(j), as a vector of vectors
     template <typename T, typename R, std::size_t NDIM>
     std::vector<std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM> > >
     matrix_mul_sparse(World &world,
