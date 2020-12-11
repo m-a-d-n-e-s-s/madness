@@ -735,13 +735,11 @@ ResponseFunction TDHF::PropertyRHS(World &world, Property &p) const {
                         Rparams.small);
 
     for (size_t j = 0; j < orbitals.size(); j++) {
-      print("RHS norm for before truncate orbital ", j, "Response state  ", i,
-            ": ", rhs[i][j].norm2());
     }
     truncate(world, rhs[i]);
 
     // project rhs vectors for state
-    // rhs[i] = Qhat(rhs[i]);
+    rhs[i] = Qhat(rhs[i]);
     // truncate(world, rhs[i], true);
     for (size_t j = 0; j < orbitals.size(); j++) {
       print("RHS norm for after orbital ", j, "Response state  ", i, ": ",
@@ -5928,13 +5926,14 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseFunction &rhs_x,
     // Save current to old
     // deep copy of response functions
     old_x_response = x_response.copy();
-    if (omega_n != 0.0) old_y_response = y_response.copy();
+    old_y_response = y_response.copy();
+    if (Rparams.print_level == 3) {
+      print("old x norms in iteration after copy  : ", iteration);
+      print(old_x_response.norm2());
 
-    print("old x norms in iteration after copy  : ", iteration);
-    print(old_x_response.norm2());
-
-    print("old y norms in iteration after copy: ", iteration);
-    print(old_y_response.norm2());
+      print("old y norms in iteration after copy: ", iteration);
+      print(old_y_response.norm2());
+    }
 
     if (omega_n == 0) {
       rho_omega =
@@ -5943,24 +5942,33 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseFunction &rhs_x,
       rho_omega =
           transition_density(world, Gparams.orbitals, x_response, y_response);
     }
-    print(
-        "x norms in iteration before Iterate XY and after computing rho_omega "
-        ": ",
-        iteration);
-    print(x_response.norm2());
-
-    print("y norms in iteration before IterateXY and after computing rho_omega",
+    // print level 3
+    if (Rparams.print_level == 3) {
+      print(
+          "x norms in iteration before Iterate XY and after computing "
+          "rho_omega "
+          ": ",
           iteration);
-    print(y_response.norm2());
+      print(x_response.norm2());
+
+      print(
+          "y norms in iteration before IterateXY and after computing rho_omega",
+          iteration);
+      print(y_response.norm2());
+    }
+
     IterateXY(world, rho_omega, orbital_products, x_response, y_response, rhs_x,
               rhs_y, xc, x_shifts, Gparams, Rparams, bsh_x_operators,
               bsh_y_operators, ham_no_diag, iteration);
     // Get the difference between old and new
-    print("x norms in iteration after Iterate XY : ", iteration);
-    print(x_response.norm2());
+    //
+    if (Rparams.print_level == 3) {
+      print("x norms in iteration after Iterate XY : ", iteration);
+      print(x_response.norm2());
 
-    print("y norms in iteration after IterateXY: ", iteration);
-    print(y_response.norm2());
+      print("y norms in iteration after IterateXY: ", iteration);
+      print(y_response.norm2());
+    }
     //
     x_differences = old_x_response - x_response;
     if (omega_n != 0.0) y_differences = old_y_response - y_response;
@@ -6035,8 +6043,8 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseFunction &rhs_x,
     iteration += 1;
 
     // Done with the iteration.. truncate
-    truncate(world, x_response);
-    if (omega_n != 0.0) truncate(world, y_response);
+    x_response.truncate_rf();
+    if (omega_n != 0.0) x_response.truncate_rf();
 
     print("x norms in iteration after truncation: ", iteration);
     print(x_response.norm2());
