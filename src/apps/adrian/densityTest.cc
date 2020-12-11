@@ -100,7 +100,9 @@ int main(int argc, char** argv) {
   densityTest.PrintDensityInformation();
 
   if (Rparams.property) {  //
+    print("Computing Alpha");
     Tensor<double> alpha = densityTest.ComputeSecondOrderPropertyTensor(world);
+    print("Second Order Analysis");
     densityTest.PrintSecondOrderAnalysis(world, alpha);
   }
 

@@ -77,9 +77,9 @@ void FirstOrderDensity::ComputeResponse(World &world) {
   num_ground_states = x[0].size();
   // get the response densities for our states
   if (Rparams.omega == 0) {
-    rho_omega = ComputeDensityVector(world, true);
+    rho_omega = calc.transition_density(world, Gparams.orbitals, x, x);
   } else {
-    rho_omega = ComputeDensityVector(world, false);
+    rho_omega = calc.transition_density(world, Gparams.orbitals, x, y);
   }
   if (Rparams.save_density) {
     SaveDensity(world, Rparams.save_density_file);
@@ -170,14 +170,14 @@ void FirstOrderDensity::PlotResponseDensity(World &world) {
 Tensor<double> FirstOrderDensity::ComputeSecondOrderPropertyTensor(
     World &world) {
   Tensor<double> G(num_response_states, num_response_states);
-  Tensor<double> M(num_response_states, num_response_states);
+  // Tensor<double> M(num_response_states, num_response_states);
   // do some printing before we compute so we know what we are working with
   std::vector<std::vector<Function<double, 3>>> px_qy;
-  std::vector<std::vector<Function<double, 3>>> px_qy_4;
+  // std::vector<std::vector<Function<double, 3>>> px_qy_4;
 
   for (int i = 0; i < num_response_states; i++) {
     px_qy.push_back(zero_functions<double, 3>(world, num_response_states));
-    px_qy_4.push_back(zero_functions<double, 3>(world, num_response_states));
+    // px_qy_4.push_back(zero_functions<double, 3>(world, num_response_states));
   }
   world.gop.fence();
   //*******************************
@@ -185,7 +185,7 @@ Tensor<double> FirstOrderDensity::ComputeSecondOrderPropertyTensor(
 
   for (int i = 0; i < num_response_states; i++) {
     for (int j = 0; j < num_response_states; j++) {
-      px_qy_4[i][j] = rho_omega[i] * property_operator.operator_vector[j];
+      // px_qy_4[i][j] = rho_omega[i] * property_operator.operator_vector[j];
       for (int k = 0; k < num_ground_states; k++) {
         px_qy[i][j] = px_qy[i][j] + P[i][k] * x[j][k] + Q[i][k] * y[j][k];
       }
@@ -197,7 +197,7 @@ Tensor<double> FirstOrderDensity::ComputeSecondOrderPropertyTensor(
     // Run over occupied...
     for (int j = 0; j < num_response_states; j++) {
       G(i, j) = -2 * px_qy[i][j].trace();
-      M(i, j) = -2 * px_qy_4[i][j].trace();
+      //    M(i, j) = -2 * px_qy_4[i][j].trace();
     }
   }
 
@@ -205,7 +205,7 @@ Tensor<double> FirstOrderDensity::ComputeSecondOrderPropertyTensor(
   print(G);
 
   print("M");
-  print(M);
+  // print(M);
 
   return G;
 }

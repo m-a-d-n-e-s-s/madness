@@ -733,13 +733,18 @@ ResponseFunction TDHF::PropertyRHS(World &world, Property &p) const {
 
     rhs[i] = mul_sparse(world, p.operator_vector.at(i), Gparams.orbitals,
                         Rparams.small);
-    truncate(world, rhs[i], true);
+
+    for (size_t j = 0; j < orbitals.size(); j++) {
+      print("RHS norm for before truncate orbital ", j, "Response state  ", i,
+            ": ", rhs[i][j].norm2());
+    }
+    truncate(world, rhs[i]);
 
     // project rhs vectors for state
-    rhs[i] = Qhat(rhs[i]);
-    truncate(world, rhs[i], true);
+    // rhs[i] = Qhat(rhs[i]);
+    // truncate(world, rhs[i], true);
     for (size_t j = 0; j < orbitals.size(); j++) {
-      print("RHS norm for orbital ", j, "Response state  ", i, ": ",
+      print("RHS norm for after orbital ", j, "Response state  ", i, ": ",
             rhs[i][j].norm2());
     }
 
@@ -1332,7 +1337,7 @@ GammaResponseFunctions TDHF::ComputeGammaFunctions(
     PrintRFExpectation(world, x, Kx + Ky, "x", "Kx+Ky");
     if (Rparams.omega != 0.0) {
       print("2-Electron Potential for Iteration of y");
-      PrintRFExpectation(world, y, J, "y", "J");
+      PrintRFExpectation(world, y, J * 2, "y", "J");
       PrintRFExpectation(world, x, Kx_conjugate, "x", "Kx_conjugate");
       PrintRFExpectation(world, y, Ky_conjugate, "y", "Ky_conjugate");
       PrintRFExpectation(world, y, Kx_conjugate + Ky_conjugate, "x",
@@ -1350,8 +1355,11 @@ GammaResponseFunctions TDHF::ComputeGammaFunctions(
   // project out ground state
   for (int i = 0; i < m; i++) {
     gamma.gamma[i] = projector(gamma.gamma[i]);
+    truncate(world, gamma.gamma[i]);
+
     if (Rparams.omega != 0.0) {
       gamma.gamma_conjugate[i] = projector(gamma.gamma_conjugate[i]);
+      truncate(world, gamma.gamma_conjugate[i]);
     }
   }
 
@@ -1739,14 +1747,25 @@ void TDHF::IterateXY(
   // V0 applied to x response function
   Z.v0_x = CreatePotential(world, x, xc, Rparams.print_level, "x");
 
-  // + \Delta xp
-  Z.v0_x += scale(x, x_shifts);
-  Z.v0_x.truncate_rf();
   print("norms of v0x");
   print(Z.v0_x.norm2());
+  // + \Delta xp
+  print("Value of xshift", x_shifts);
+
+  // Z.v0_x += scale(x, x_shifts);
+  // Z.v0_x.truncate_rf();
+  print("norms of v0x after scaling");
+  print(Z.v0_x.norm2());
+
+  print("norm of psi");
+  print(Gparams.orbitals[0].norm2());
+  print("trace of psi");
+  print(Gparams.orbitals[0].trace());
 
   // x response scaled by off diagonal ham
   Z.x_f_no_diag = scale_2d(world, x, ham_no_diagonal);
+  print("norms of x scaled by ham no diag");
+  print(Z.x_f_no_diag.norm2());
   // If not static we compute the y components
   if (Rparams.omega != 0.0) {
     Z.v0_y = CreatePotential(world, y, xc, Rparams.print_level, "y");
@@ -1777,9 +1796,11 @@ void TDHF::IterateXY(
                        Rparams.print_level, "y");
     }
 
-    Z.Z_x = Z.v0_x - Z.x_f_no_diag + Z.Hx + Z.Gy + rhs_x;
+    Z.Z_x = Z.v0_x - Z.x_f_no_diag + rhs_x;
+    // Z.Z_x = Z.v0_x - Z.x_f_no_diag + Z.Hx + Z.Gy + rhs_x;
     if (Rparams.omega != 0.0) {
-      Z.Z_y = Z.v0_y - Z.y_f_no_diag + Z.Hy + Z.Gx + rhs_y;
+      // Z.Z_y = Z.v0_y - Z.y_f_no_diag + Z.Hy + Z.Gx + rhs_y;
+      Z.Z_y = Z.v0_y - Z.y_f_no_diag + rhs_y;
     }
   } else {
     GammaResponseFunctions gamma = ComputeGammaFunctions(
@@ -1787,8 +1808,10 @@ void TDHF::IterateXY(
     // We can use the old algorithm here for testings
     // we then assemble the right hand side vectors
     Z.Z_x = Z.v0_x - Z.x_f_no_diag + gamma.gamma + rhs_x;
+    // Z.Z_x = Z.v0_x - Z.x_f_no_diag + rhs_x;
     if (Rparams.omega != 0.0) {
       Z.Z_y = Z.v0_y - Z.y_f_no_diag + gamma.gamma_conjugate + rhs_y;
+      // Z.Z_y = Z.v0_y - Z.y_f_no_diag + rhs_y;
     }
   }
   Z.Z_x.truncate_rf();
@@ -5869,11 +5892,17 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseFunction &rhs_x,
         apply(world, op, mul(world, Gparams.orbitals[k], Gparams.orbitals));
   }
   orbital_products.truncate_rf();
+  print("orbital_products norms");
+  print(orbital_products.norm2());
 
   vector_real_function_3d rho_omega;
   // Now to iterate
   while (iteration < Rparams.max_iter and !converged) {
     // Start a timer for this iteration
+    // print hamiltonain
+    print("hamiltonian information");
+    print(hamiltonian);
+    print(ham_no_diag);
     start_timer(world);
 
     print("x norms in iteration before  : ", iteration);
@@ -6335,18 +6364,13 @@ void TDHF::ComputeFrequencyResponse(World &world, std::string property,
           // set states
           this->P = PropertyRHS(world, p);
           this->Q = P.copy();
-
-          x_response = P.copy();
-          y_response = x_response.copy();
+          //
+          print("okay this is not a good idea if it comes up more than once");
           // set RHS_Vector
         } else if (Rparams.nuclear) {
           // set guesses
           // print("Creating X for Nuclear Operators");
           // create zero guesses
-          x_response =
-              ResponseFunction(world, Rparams.states, Gparams.orbitals.size());
-          y_response = x_response.copy();
-
           // print("x norms:");
           // print(x_response.norm2());
 

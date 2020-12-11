@@ -52,6 +52,7 @@ ResponseFunction scale(ResponseFunction a, double b) {
   MADNESS_ASSERT(a.size() > 0);
   MADNESS_ASSERT(a[0].size() > 0);
 
+  print("double b",b);
   ResponseFunction result;
 
   for (unsigned int i = 0; i < a.size(); i++) {
@@ -59,7 +60,10 @@ ResponseFunction scale(ResponseFunction a, double b) {
     // std::vector<real_function_3d> temp = a[i] * b;
     // result.push_back(temp);
     result.push_back(a[i] * b);
+    
   }
+  print("norms of scale result");
+  print(result.norm2());
 
   return result;
 }

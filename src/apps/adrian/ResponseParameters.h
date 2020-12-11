@@ -166,7 +166,7 @@ struct ResponseParameters {
     position_stream(f, "response");
     std::string s;
     xc = "hf";
-    protocol_data = madness::vector_factory(1e-6);
+    protocol_data = madness::vector_factory(1e-6,1e-8);
 
     while (f >> s) {
       if (s == "end") {

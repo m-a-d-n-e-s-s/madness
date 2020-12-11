@@ -187,7 +187,7 @@ class ResponseFunction {
 
   void truncate_rf() {
     for (unsigned int k = 0; k < r_states; k++) {
-      truncate(x[0][0].world(), x[k], true);
+      truncate(x[0][0].world(), x[k]);
     }
   }
 
