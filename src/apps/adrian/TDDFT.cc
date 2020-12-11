@@ -1248,7 +1248,7 @@ GammaResponseFunctions TDHF::ComputeGammaFunctions(
 
   // apply the exchange kernel to rho if necessary
   if (xcf.hf_exchange_coefficient()) {
-    for (unsigned int i = 0; i < m; i++) {
+    for ( int i = 0; i < m; i++) {
       Wphi.push_back(xc.apply_xc_kernel(rho_omega[i]));
     }
   }
@@ -1317,17 +1317,16 @@ GammaResponseFunctions TDHF::ComputeGammaFunctions(
 
   if (Rparams.print_level >= 2) {
     print("2-Electron Potential for Iteration of x");
-    PrintRFExpectation(world, x, J * 2, "x", "J");
-    PrintRFExpectation(world, x, Kx, "x", "Kx");
-    PrintRFExpectation(world, y, Ky, "y", "Ky");
-    PrintRFExpectation(world, x, Kx + Ky, "x", "Kx+Ky");
+    PrintResponseVectorNorms(world, J * 2, "J");
+    PrintResponseVectorNorms(world, Kx, "Kx");
+    PrintResponseVectorNorms(world, Ky, "Ky");
+    PrintResponseVectorNorms(world, Kx + Ky, "Kx+Ky");
     if (Rparams.omega != 0.0) {
       print("2-Electron Potential for Iteration of y");
-      PrintRFExpectation(world, y, J * 2, "y", "J");
-      PrintRFExpectation(world, x, Kx_conjugate, "x", "Kx_conjugate");
-      PrintRFExpectation(world, y, Ky_conjugate, "y", "Ky_conjugate");
-      PrintRFExpectation(world, y, Kx_conjugate + Ky_conjugate, "x",
-                         "Kx_conjugate+Ky_conjugate");
+      PrintResponseVectorNorms(world, Kx_conjugate, "Kx_conjugate");
+      PrintResponseVectorNorms(world, Ky_conjugate, "Ky_conjugate");
+      PrintResponseVectorNorms(world, Kx_conjugate + Ky_conjugate,
+                               "Kx_conjugate+Ky_conjugate");
     }
   }
   // update gamma functions
@@ -1604,6 +1603,13 @@ void TDHF::PrintRFExpectation(World &world, ResponseVectors f,
   if (world.rank() == 0) {
     print(" Expectation between ", fname, " and ", gname);
     print(t);
+  }
+}
+void TDHF::PrintResponseVectorNorms(World &world, ResponseVectors f,
+                                    std::string fname) {
+  if (world.rank() == 0) {
+    print(" Norms of ResVector: ", fname);
+    print(f.norm2());
   }
 }
 // Returns the ground state fock operator applied to functions f

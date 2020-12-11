@@ -238,11 +238,11 @@ class TDHF {
                    //    all contributions to a specific virtual.
 
   ResponseVectors stored_potential;  // The ground state potential, stored only
-                                      // if store_potential is true (default is
-                                      // false). Holds the integrals
-                                      //   \int dr \frac{\phi_i^\dagger
-                                      //   phi_j}{\left| r - r' \right|}
-  Property p;                         // for frequency calculations
+                                     // if store_potential is true (default is
+                                     // false). Holds the integrals
+                                     //   \int dr \frac{\phi_i^\dagger
+                                     //   phi_j}{\left| r - r' \right|}
+  Property p;                        // for frequency calculations
 
   ResponseVectors P;
   ResponseVectors Q;
@@ -300,7 +300,7 @@ class TDHF {
   // orbitals
   ResponseVectors CreateCoulombDerivativeRF(
       World &world,
-      const ResponseVectors &f,                 // response functions
+      const ResponseVectors &f,                  // response functions
       const std::vector<real_function_3d> &phi,  // orbitals
       double small, double thresh);
 
@@ -318,44 +318,44 @@ class TDHF {
       World &world, const ResponseVectors &f,
       const std::vector<real_function_3d> &phi, double small, double thresh);
 
-  ResponseVectors CreateXCDerivativeRF(
-      World &world, const ResponseVectors &f,
-      const std::vector<real_function_3d> &phi, double small, double thresh);
+  ResponseVectors CreateXCDerivativeRF(World &world, const ResponseVectors &f,
+                                       const std::vector<real_function_3d> &phi,
+                                       double small, double thresh);
   ResponseVectors CreateXCDerivativeRFDagger(
       World &world, const ResponseVectors &f,
       const std::vector<real_function_3d> &phi, double small, double thresh);
 
   // Returns the diagonal (letter A) elements of response matrix
   ResponseVectors createAf(World &world, ResponseVectors &Vf,
-                            ResponseVectors &F0_f, ResponseVectors &Epsilonf,
-                            ResponseVectors &Hf, ResponseVectors &f,
-                            std::vector<real_function_3d> &orbitals,
-                            int print_level, std::string xy);
+                           ResponseVectors &F0_f, ResponseVectors &Epsilonf,
+                           ResponseVectors &Hf, ResponseVectors &f,
+                           std::vector<real_function_3d> &orbitals,
+                           int print_level, std::string xy);
 
   // Returns the off diagonal (letter B) elements of response matrix
   ResponseVectors createBf(World &world, ResponseVectors &Gf,
-                            std::vector<real_function_3d> &orbitals,
-                            int print_level);
+                           std::vector<real_function_3d> &orbitals,
+                           int print_level);
 
   // Returns gamma (the perturbed 2 electron piece)
   ResponseVectors CreateGamma(World &world, ResponseVectors &f,
-                               ResponseVectors &g,
-                               std::vector<real_function_3d> &phi, double small,
-                               double thresh, int print_level, std::string xy);
+                              ResponseVectors &g,
+                              std::vector<real_function_3d> &phi, double small,
+                              double thresh, int print_level, std::string xy);
 
   ResponseVectors ComputeHf(World &world, const ResponseVectors &f,
-                             const std::vector<real_function_3d> &orbitals,
-                             double small, double thresh, int print_level,
-                             std::string xy);
+                            const std::vector<real_function_3d> &orbitals,
+                            double small, double thresh, int print_level,
+                            std::string xy);
 
   ResponseVectors ComputeGf(World &world, const ResponseVectors &f,
-                             const std::vector<real_function_3d> &orbitals,
-                             double small, double thresh, int print_level,
-                             std::string xy);
+                            const std::vector<real_function_3d> &orbitals,
+                            double small, double thresh, int print_level,
+                            std::string xy);
   GammaResponseFunctions ComputeGammaFunctions(
       World &world, std::vector<real_function_3d> rho_omega,
-      ResponseVectors orbital_products, ResponseVectors &x,
-      ResponseVectors &y, XCOperator xc, const GroundParameters &Gparams,
+      ResponseVectors orbital_products, ResponseVectors &x, ResponseVectors &y,
+      XCOperator xc, const GroundParameters &Gparams,
       const ResponseParameters &Rparams);
   // Returns the coulomb potential of the ground state
   // Note: No post multiplication involved here
@@ -366,8 +366,8 @@ class TDHF {
 
   // Returns the ground state potential applied to response functions
   ResponseVectors CreatePotential(World &world, ResponseVectors &f,
-                                   XCOperator xc, int print_level,
-                                   std::string xy);
+                                  XCOperator xc, int print_level,
+                                  std::string xy);
 
   void computeElectronResponse(World &world, ElectronResponseFunctions &I,
                                ResponseVectors &x, ResponseVectors &y,
@@ -382,10 +382,12 @@ class TDHF {
 
   void PrintRFExpectation(World &world, ResponseVectors f, ResponseVectors g,
                           std::string fname, std::string gname);
+  void PrintResponseVectorNorms(World &world, ResponseVectors f,
+                                      std::string fname);
   // Returns the ground state fock operator applied to response functions
   ResponseVectors CreateFock(World &world, ResponseVectors &Vf,
-                              ResponseVectors &f, int print_level,
-                              std::string xy);
+                             ResponseVectors &f, int print_level,
+                             std::string xy);
 
   Zfunctions ComputeZFunctions(World &world,
                                const std::vector<real_function_3d> rho_omega,
@@ -397,9 +399,9 @@ class TDHF {
                                Tensor<double> ham_no_diagonal);
   void IterateXY(
       World &world, const std::vector<real_function_3d> rho_omega,
-      ResponseVectors orbital_products, ResponseVectors &x,
-      ResponseVectors &y, ResponseVectors rhs_x, ResponseVectors rhs_y,
-      XCOperator xc, double y_shifts, const GroundParameters &Gparams,
+      ResponseVectors orbital_products, ResponseVectors &x, ResponseVectors &y,
+      ResponseVectors rhs_x, ResponseVectors rhs_y, XCOperator xc,
+      double y_shifts, const GroundParameters &Gparams,
       const ResponseParameters &Rparams,
       std::vector<std::shared_ptr<real_convolution_3d>> bsh_x_operators,
       std::vector<std::shared_ptr<real_convolution_3d>> bsh_y_operators,
@@ -435,10 +437,10 @@ class TDHF {
 
   // Returns the given shift applied to the given potentials
   ResponseVectors apply_shift(World &world, Tensor<double> &shifts,
-                               ResponseVectors &V, ResponseVectors &f);
+                              ResponseVectors &V, ResponseVectors &f);
   // single shift value
   ResponseVectors apply_shift(World &world, double &shift, ResponseVectors &V,
-                               ResponseVectors &f);
+                              ResponseVectors &f);
 
   // Returns a vector of BSH operators
   std::vector<std::vector<std::shared_ptr<real_convolution_3d>>>
@@ -479,8 +481,8 @@ class TDHF {
   // Selects from a list of functions and energies the k functions with the
   // lowest energy
   ResponseVectors select_functions(World &world, ResponseVectors &f,
-                                    Tensor<double> &energies, int k,
-                                    int print_level);
+                                   Tensor<double> &energies, int k,
+                                   int print_level);
 
   // Calculates the exponentiation of a matrix through first order (I think)
   Tensor<double> matrix_exponential(const Tensor<double> &A);
@@ -506,7 +508,7 @@ class TDHF {
   // Transforms the given matrix of functions according to the given
   // transformation matrix. Used to update orbitals / potentials
   ResponseVectors transform(World &world, ResponseVectors &f,
-                             Tensor<double> &U);
+                            Tensor<double> &U);
 
   // If using a larger subspace to diagonalize in, this will put everything in
   // the right spot
@@ -518,19 +520,21 @@ class TDHF {
 
   // If using a larger subspace to diagonalize in, this will put everything in
   // the right spot
-  void augment_full(
-      World &world, Tensor<double> &S, Tensor<double> &A, ResponseVectors &B_x,
-      ResponseVectors &x_gamma, ResponseVectors &x_response,
-      ResponseVectors &V_x_response, ResponseVectors &x_fe,
-      ResponseVectors &B_y, ResponseVectors &y_gamma,
-      ResponseVectors &y_response, ResponseVectors &V_y_response,
-      ResponseVectors &y_fe, Tensor<double> &old_S, Tensor<double> &old_A,
-      ResponseVectors &old_B_x, ResponseVectors &old_x_gamma,
-      ResponseVectors &old_x_response, ResponseVectors &old_V_x_response,
-      ResponseVectors &old_x_fe, ResponseVectors &old_B_y,
-      ResponseVectors &old_y_gamma, ResponseVectors &old_y_response,
-      ResponseVectors &old_V_y_response, ResponseVectors &old_y_fe,
-      int print_level);
+  void augment_full(World &world, Tensor<double> &S, Tensor<double> &A,
+                    ResponseVectors &B_x, ResponseVectors &x_gamma,
+                    ResponseVectors &x_response, ResponseVectors &V_x_response,
+                    ResponseVectors &x_fe, ResponseVectors &B_y,
+                    ResponseVectors &y_gamma, ResponseVectors &y_response,
+                    ResponseVectors &V_y_response, ResponseVectors &y_fe,
+                    Tensor<double> &old_S, Tensor<double> &old_A,
+                    ResponseVectors &old_B_x, ResponseVectors &old_x_gamma,
+                    ResponseVectors &old_x_response,
+                    ResponseVectors &old_V_x_response,
+                    ResponseVectors &old_x_fe, ResponseVectors &old_B_y,
+                    ResponseVectors &old_y_gamma,
+                    ResponseVectors &old_y_response,
+                    ResponseVectors &old_V_y_response,
+                    ResponseVectors &old_y_fe, int print_level);
 
   // If using a larger subspace to diagonalize in, after diagonalization this
   // will put everything in the right spot
@@ -596,8 +600,8 @@ class TDHF {
   // Uses an XCOperator to construct v_xc for the ground state density
   // Returns d^2/d rho^2 E_xc[rho]
   std::vector<real_function_3d> create_fxc(
-      World &world, std::vector<real_function_3d> &orbitals,
-      ResponseVectors &f, ResponseVectors &g);
+      World &world, std::vector<real_function_3d> &orbitals, ResponseVectors &f,
+      ResponseVectors &g);
 
   std::vector<real_function_3d> GetWxcOnFDensities(
       World &world, const std::vector<real_function_3d> &orbitals,
@@ -622,14 +626,16 @@ class TDHF {
   void IterateGuess(World &world, ResponseVectors &guesses);
 
   // Create and diagonalize the CIS matrix for improved initial guess
-  ResponseVectors diagonalize_CIS_guess(
-      World &world, std::vector<real_function_3d> &virtuals,
-      Tensor<double> &omega, std::vector<real_function_3d> &orbitals,
-      Tensor<double> &energies, double small, double thresh, int print_level);
+  ResponseVectors diagonalize_CIS_guess(World &world,
+                                        std::vector<real_function_3d> &virtuals,
+                                        Tensor<double> &omega,
+                                        std::vector<real_function_3d> &orbitals,
+                                        Tensor<double> &energies, double small,
+                                        double thresh, int print_level);
 
   // Adds random noise to function f
   ResponseVectors add_randomness(World &world, ResponseVectors &f,
-                                  double magnitude);
+                                 double magnitude);
 
   // Creates the transition density
   std::vector<real_function_3d> transition_density(
@@ -658,8 +664,8 @@ class TDHF {
 
   // Creates random guess functions semi-intelligently(?)
   ResponseVectors create_random_guess(World &world, int m, int n,
-                                       std::vector<real_function_3d> &grounds,
-                                       Molecule &molecule);
+                                      std::vector<real_function_3d> &grounds,
+                                      Molecule &molecule);
 
   // Creates random guess functions semi-intelligently(?)
   std::vector<real_function_3d> create_random_guess(
