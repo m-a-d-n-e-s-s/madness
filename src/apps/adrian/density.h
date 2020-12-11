@@ -41,11 +41,11 @@ class FirstOrderDensity {
   ResponseParameters Rparams;  // Response Parameters
   GroundParameters Gparams;    // Ground Parameters
 
-  ResponseFunction x;  // The x response functions virt/occ
-  ResponseFunction y;  // occ/virt
+  ResponseVectors x;  // The x response functions virt/occ
+  ResponseVectors y;  // occ/virt
 
-  ResponseFunction P;  // rhs vector P
-  ResponseFunction Q;  // rhs vector Q
+  ResponseVectors P;  // rhs vector P
+  ResponseVectors Q;  // rhs vector Q
 
   // first order frequency response densities
   VectorFunction3DT rho_omega;  // the response density vector
@@ -84,10 +84,10 @@ class DipoleDensity : public FirstOrderDensity {
     this->property = Rparams.response_type;
     this->num_response_states = 3;
     this->num_ground_states = Gparams.num_orbitals;
-    this->x = ResponseFunction(world, num_response_states, num_ground_states);
-    this->y = ResponseFunction(world, num_response_states, num_ground_states);
-    this->P = ResponseFunction(world, num_response_states, num_ground_states);
-    this->Q = ResponseFunction(world, num_response_states, num_ground_states);
+    this->x = ResponseVectors(world, num_response_states, num_ground_states);
+    this->y = ResponseVectors(world, num_response_states, num_ground_states);
+    this->P = ResponseVectors(world, num_response_states, num_ground_states);
+    this->Q = ResponseVectors(world, num_response_states, num_ground_states);
   }
 };
 
@@ -98,10 +98,10 @@ class NuclearResponseDensity : public FirstOrderDensity {
     this->property = Rparams.response_type;
     this->num_response_states = Rparams.states;
     this->num_ground_states = Gparams.num_orbitals;
-    this->x = ResponseFunction(world, num_response_states, num_ground_states);
-    this->y = ResponseFunction(world, num_response_states, num_ground_states);
-    this->P = ResponseFunction(world, num_response_states, num_ground_states);
-    this->Q = ResponseFunction(world, num_response_states, num_ground_states);
+    this->x = ResponseVectors(world, num_response_states, num_ground_states);
+    this->y = ResponseVectors(world, num_response_states, num_ground_states);
+    this->P = ResponseVectors(world, num_response_states, num_ground_states);
+    this->Q = ResponseVectors(world, num_response_states, num_ground_states);
   }
 };
 
@@ -112,10 +112,10 @@ class ExcitedStateDensity : public FirstOrderDensity {
     this->property = Rparams.response_type;
     this->num_response_states = Rparams.states;
     this->num_ground_states = Gparams.num_orbitals;
-    this->x = ResponseFunction(world, num_response_states, num_ground_states);
-    this->y = ResponseFunction(world, num_response_states, num_ground_states);
-    this->P = ResponseFunction(world, num_response_states, num_ground_states);
-    this->Q = ResponseFunction(world, num_response_states, num_ground_states);
+    this->x = ResponseVectors(world, num_response_states, num_ground_states);
+    this->y = ResponseVectors(world, num_response_states, num_ground_states);
+    this->P = ResponseVectors(world, num_response_states, num_ground_states);
+    this->Q = ResponseVectors(world, num_response_states, num_ground_states);
   }
 };
 #endif  // SRC_APPS_ADRIAN_DENSITY_H_

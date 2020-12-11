@@ -14,36 +14,36 @@
 
 namespace madness {
 // Returns a shallow copy of the transpose of a vector of vector of functions
-ResponseFunction transpose(ResponseFunction& f);
+ResponseVectors transpose(ResponseVectors& f);
 
 // Multiplication of a vector of vectors by a matrix,
 //  *  g[i][k] = \sum_{j} a[i][j] * b(j,k)
 // !  NOTE: NO BOUNDS CHECKING ON THE TENSOR b!!!!
-ResponseFunction scale_2d(World& world, const ResponseFunction& a,
+ResponseVectors scale_2d(World& world, const ResponseVectors& a,
                           const Tensor<double>& b);
 
 // Multiplication of a vector of vectors by a scalar g[i][j] = a[i][j] * b
-ResponseFunction scale(ResponseFunction a, double b);
+ResponseVectors scale(ResponseVectors a, double b);
 
 // Truncate a vector of vector of functions
-void truncate(World& world, ResponseFunction& v,
+void truncate(World& world, ResponseVectors& v,
               double tol = FunctionDefaults<3>::get_thresh(),
               bool fence = true);
 
 // Apply a vector of vector of operators to a vector of vector of functions
 // g[i][j] = op[i][j](f[i][j])
-ResponseFunction apply(
+ResponseVectors apply(
     World& world,
     std::vector<std::vector<std::shared_ptr<real_convolution_3d>>>& op,
-    ResponseFunction& f);
+    ResponseVectors& f);
 // frequecy case
-ResponseFunction apply(World& world,
+ResponseVectors apply(World& world,
                        std::vector<std::shared_ptr<real_convolution_3d>>& op,
-                       ResponseFunction& f);
+                       ResponseVectors& f);
 
 // Apply the derivative operator to a vector of vector of functions
-ResponseFunction apply(World& world, real_derivative_3d& op,
-                       ResponseFunction& f);
+ResponseVectors apply(World& world, real_derivative_3d& op,
+                       ResponseVectors& f);
 }  // namespace madness
 
 #endif  // SRC_APPS_ADRIAN_TDHF_BASIC_OPERATORS2_H_

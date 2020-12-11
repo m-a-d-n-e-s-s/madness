@@ -43,8 +43,8 @@ void FirstOrderDensity::ComputeResponse(World &world) {
   //
   // creating calc should also set up the x and y functions
   //
-  x = ResponseFunction(world, Rparams.states, Gparams.num_orbitals);
-  y = ResponseFunction(world, Rparams.states, Gparams.num_orbitals);
+  x = ResponseVectors(world, Rparams.states, Gparams.num_orbitals);
+  y = ResponseVectors(world, Rparams.states, Gparams.num_orbitals);
   print("Creating Response Functions for X and Y");
   print("X Norms before Computing");
   print(x.norm2());
@@ -311,11 +311,11 @@ void FirstOrderDensity::LoadDensity(World &world, std::string name,
   ar &num_ground_states;
   print("num_ground_states:", num_ground_states);
 
-  this->x = ResponseFunction(world, num_response_states, num_ground_states);
-  this->y = ResponseFunction(world, num_response_states, num_ground_states);
+  this->x = ResponseVectors(world, num_response_states, num_ground_states);
+  this->y = ResponseVectors(world, num_response_states, num_ground_states);
 
-  this->P = ResponseFunction(world, num_response_states, num_ground_states);
-  this->Q = ResponseFunction(world, num_response_states, num_ground_states);
+  this->P = ResponseVectors(world, num_response_states, num_ground_states);
+  this->Q = ResponseVectors(world, num_response_states, num_ground_states);
 
   for (int i = 0; i < Rparams.states; i++) {
     for (unsigned int j = 0; j < Gparams.num_orbitals; j++) {

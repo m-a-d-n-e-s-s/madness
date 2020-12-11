@@ -15,7 +15,7 @@
 
 namespace madness {
 
-class ResponseFunction {
+class ResponseVectors {
   // Member variables
  public:
   unsigned int r_states;  // Num. of resp. states
@@ -25,14 +25,14 @@ class ResponseFunction {
   // Member functions
  public:
   // Default constructor
-  ResponseFunction() : r_states(0), g_states(0) {}
+  ResponseVectors() : r_states(0), g_states(0) {}
 
   // Initializes functions to zero
   // m = number of response states
   // n = number of ground state orbitals
 
   // Zero Constructor
-  ResponseFunction(World &world, unsigned int num_states,
+  ResponseVectors(World &world, unsigned int num_states,
                    unsigned int num_orbitals)
       : r_states(num_states), g_states(num_orbitals) {
     for (unsigned int i = 0; i < num_states; i++)
@@ -41,7 +41,7 @@ class ResponseFunction {
   }
 
   // Copy constructor
-  ResponseFunction(const ResponseFunction &rf_copy)
+  ResponseVectors(const ResponseVectors &rf_copy)
       : r_states(rf_copy.r_states), g_states(rf_copy.g_states) {
     for (unsigned int i = 0; i < r_states; i++)
       x.push_back(madness::copy(rf_copy.x[0][0].world(), rf_copy.x[i]));
@@ -49,7 +49,7 @@ class ResponseFunction {
   }
 
   // Determines if two ResponseFunctions are the same size
-  bool same_size(const ResponseFunction &rf_copy) const {
+  bool same_size(const ResponseVectors &rf_copy) const {
     return (r_states == rf_copy.r_states && g_states == rf_copy.g_states);
   }
 
@@ -62,10 +62,10 @@ class ResponseFunction {
   }
 
   // KAIN must have this
-  ResponseFunction operator+(ResponseFunction &b) {
+  ResponseVectors operator+(ResponseVectors &b) {
     MADNESS_ASSERT(same_size(b));
 
-    ResponseFunction result(x[0][0].world(), r_states, g_states);
+    ResponseVectors result(x[0][0].world(), r_states, g_states);
 
     for (unsigned int i = 0; i < r_states; i++) {
       result[i] = add(x[0][0].world(), x[i], b[i]);
@@ -75,10 +75,10 @@ class ResponseFunction {
     return result;
   }
 
-  ResponseFunction operator-(const ResponseFunction &b) const {
+  ResponseVectors operator-(const ResponseVectors &b) const {
     MADNESS_ASSERT(same_size(b));
 
-    ResponseFunction result(x[0][0].world(), r_states, g_states);
+    ResponseVectors result(x[0][0].world(), r_states, g_states);
 
     for (unsigned int i = 0; i < r_states; i++) {
       result.x[i] = sub(x[0][0].world(), x[i], b.x[i]);
@@ -89,8 +89,8 @@ class ResponseFunction {
 
   // KAIN must have this
   // Scaling by a constant
-  ResponseFunction operator*(double a) const {
-    ResponseFunction result(*this);
+  ResponseVectors operator*(double a) const {
+    ResponseVectors result(*this);
 
     for (unsigned int i = 0; i < r_states; i++) {
       madness::scale(x[0][0].world(), result.x[i], a, false);
@@ -102,8 +102,8 @@ class ResponseFunction {
 
   // Scaling all internal functions by an external function
   // g[i][j] = x[i][j] * f
-  ResponseFunction operator*(const Function<double, 3> &f) {
-    ResponseFunction result;
+  ResponseVectors operator*(const Function<double, 3> &f) {
+    ResponseVectors result;
 
     for (unsigned int i = 0; i < r_states; i++) {
       // Using vmra.h funciton
@@ -115,7 +115,7 @@ class ResponseFunction {
   }
 
   // KAIN must have this
-  ResponseFunction operator+=(const ResponseFunction b) {
+  ResponseVectors operator+=(const ResponseVectors b) {
     MADNESS_ASSERT(same_size(b));
 
     for (unsigned int i = 0; i < r_states; i++) {
@@ -126,8 +126,8 @@ class ResponseFunction {
   }
 
   // Returns a deep copy
-  ResponseFunction copy() {
-    ResponseFunction result(x[0][0].world(), r_states, g_states);
+  ResponseVectors copy() {
+    ResponseVectors result(x[0][0].world(), r_states, g_states);
 
     for (unsigned int i = 0; i < r_states; i++) {
       result.x[i] = madness::copy(x[0][0].world(), x[i], false);
@@ -209,7 +209,7 @@ class ResponseFunction {
 };
 
 // Final piece for KAIN
-inline double inner(ResponseFunction &a, ResponseFunction &b) {
+inline double inner(ResponseVectors &a, ResponseVectors &b) {
   MADNESS_ASSERT(a.size() > 0);
   MADNESS_ASSERT(a.size() == b.size());
   MADNESS_ASSERT(a[0].size() > 0);
