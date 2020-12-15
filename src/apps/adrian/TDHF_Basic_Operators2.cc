@@ -52,7 +52,7 @@ ResponseVectors scale(ResponseVectors a, double b) {
   MADNESS_ASSERT(a.size() > 0);
   MADNESS_ASSERT(a[0].size() > 0);
 
-  print("double b",b);
+//  print("double b",b);
   ResponseVectors result;
 
   for (unsigned int i = 0; i < a.size(); i++) {
@@ -62,8 +62,8 @@ ResponseVectors scale(ResponseVectors a, double b) {
     result.push_back(a[i] * b);
     
   }
-  print("norms of scale result");
-  print(result.norm2());
+ // print("norms of scale result");
+ // print(result.norm2());
 
   return result;
 }

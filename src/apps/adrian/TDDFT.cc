@@ -1248,7 +1248,7 @@ GammaResponseFunctions TDHF::ComputeGammaFunctions(
 
   // apply the exchange kernel to rho if necessary
   if (xcf.hf_exchange_coefficient()) {
-    for ( int i = 0; i < m; i++) {
+    for (int i = 0; i < m; i++) {
       Wphi.push_back(xc.apply_xc_kernel(rho_omega[i]));
     }
   }
@@ -1738,26 +1738,32 @@ void TDHF::IterateXY(
   // x functions
   // V0 applied to x response function
   Z.v0_x = CreatePotential(world, x, xc, Rparams.print_level, "x");
-
-  print("norms of v0x");
-  print(Z.v0_x.norm2());
-  // + \Delta xp
-  print("Value of xshift", x_shifts);
+  if (Rparams.print_level == 3) {
+    print("norms of v0x");
+    print(Z.v0_x.norm2());
+    // + \Delta xp
+    print("Value of xshift", x_shifts);
+  }
 
   Z.v0_x += scale(x, x_shifts);
   Z.v0_x.truncate_rf();
-  print("norms of v0x after scaling");
-  print(Z.v0_x.norm2());
 
-  print("norm of psi");
-  print(Gparams.orbitals[0].norm2());
-  print("trace of psi");
-  print(Gparams.orbitals[0].trace());
+  if (Rparams.print_level == 3) {
+    print("norms of v0x after scaling");
+    print(Z.v0_x.norm2());
+
+    print("norm of psi");
+    print(Gparams.orbitals[0].norm2());
+    print("trace of psi");
+    print(Gparams.orbitals[0].trace());
+  }
 
   // x response scaled by off diagonal ham
   Z.x_f_no_diag = scale_2d(world, x, ham_no_diagonal);
-  print("norms of x scaled by ham no diag");
-  print(Z.x_f_no_diag.norm2());
+  if (Rparams.print_level == 3) {
+    print("norms of x scaled by ham no diag");
+    print(Z.x_f_no_diag.norm2());
+  }
   // If not static we compute the y components
   if (Rparams.omega != 0.0) {
     Z.v0_y = CreatePotential(world, y, xc, Rparams.print_level, "y");
@@ -4787,8 +4793,8 @@ std::vector<real_function_3d> TDHF::transition_density(
   y.reconstruct_rf();
   reconstruct(world, Gparams.orbitals);
   */
-  print("Thresh before truncate in t-density");
-  print(FunctionDefaults<3>::get_thresh());
+  // print("Thresh before truncate in t-density");
+  // print(FunctionDefaults<3>::get_thresh());
   x.truncate_rf();
   y.truncate_rf();
   truncate(world, Gparams.orbitals);
@@ -5793,7 +5799,7 @@ void TDHF::IteratePolarizability(World &world, ResponseVectors &dipoles) {
     if (Rparams.save) {
       start_timer(world);
       save(world, Rparams.save_file);
-      end_timer(world, "Save:");
+      if (Rparams.print_level >= 1) end_timer(world, "Save:");
     }
     // Basic output
     if (Rparams.print_level >= 1) end_timer(world, " This iteration:");
@@ -5889,22 +5895,20 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseVectors &rhs_x,
   while (iteration < Rparams.max_iter and !converged) {
     // Start a timer for this iteration
     // print hamiltonain
-    print("hamiltonian information");
-    print(hamiltonian);
-    print(ham_no_diag);
     start_timer(world);
+    /*
+        print("x norms in iteration before  : ", iteration);
+        print(x_response.norm2());
 
-    print("x norms in iteration before  : ", iteration);
-    print(x_response.norm2());
+        print("y norms in iteration before: ", iteration);
+        print(y_response.norm2());
 
-    print("y norms in iteration before: ", iteration);
-    print(y_response.norm2());
+        print("old x norms in iteration before  : ", iteration);
+        print(old_x_response.norm2());
 
-    print("old x norms in iteration before  : ", iteration);
-    print(old_x_response.norm2());
-
-    print("old y norms in iteration before: ", iteration);
-    print(old_y_response.norm2());
+        print("old y norms in iteration before: ", iteration);
+        print(old_y_response.norm2());
+        */
     // Basic output
     if (Rparams.print_level >= 1) {
       if (world.rank() == 0)
@@ -5972,14 +5976,30 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseVectors &rhs_x,
     }
 
     // Basic output
-    if (Rparams.print_level >= 1 and world.rank() == 0) {
-      print("\n   2-norm of response function residuals of x components:");
-      print(x_norms);
-
+    if (Rparams.print_level >= 0 and world.rank() == 0) {
       if (omega_n != 0.0) {
-        print("   2-norm of response function residuals of y components:");
-        print(y_norms);
+        std::cout << "res iter " << iteration;
+        std::cout << " x: ";
+        for (int b = 0; b < m; b++) {
+          for (int k = 0; k < n; k++) {
+            std::cout << x_norms(b, k) << " ";
+          }
+        }
+        std::cout << " y: ";
+        for (int b = 0; b < m; b++) {
+          for (int k = 0; k < n; k++) {
+            std::cout << y_norms(b, k) << " ";
+          }
+        }
+      } else {
+        std::cout << "residual x: ";
+        for (int b = 0; b < m; b++) {
+          for (int k = 0; k < n; k++) {
+            std::cout << x_norms(b, k) << " ";
+          }
+        }
       }
+      std::cout << endl;
     }
 
     // Check convergence
@@ -6025,28 +6045,31 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseVectors &rhs_x,
       for (int i = 0; i < m; i++) y_response[i] = mask * y_response[i];
     }
     // print x norms
+    /*
     print("x norms in iteration after mask: ", iteration);
     print(x_response.norm2());
 
     print("y norms in iteration after mask: ", iteration);
     print(y_response.norm2());
+    */
     // Update counter
     iteration += 1;
 
     // Done with the iteration.. truncate
     x_response.truncate_rf();
     if (omega_n != 0.0) x_response.truncate_rf();
+    /*
+        print("x norms in iteration after truncation: ", iteration);
+        print(x_response.norm2());
 
-    print("x norms in iteration after truncation: ", iteration);
-    print(x_response.norm2());
-
-    print("y norms in iteration after truncation: ", iteration);
-    print(y_response.norm2());
+        print("y norms in iteration after truncation: ", iteration);
+        print(y_response.norm2());
+        */
     // Save
     if (Rparams.save) {
       start_timer(world);
       save(world, Rparams.save_file);
-      end_timer(world, "Save:");
+      if (Rparams.print_level >= 1) end_timer(world, "Save:");
     }
     // Basic output
     if (Rparams.print_level >= 1) end_timer(world, " This iteration:");
@@ -6055,11 +6078,13 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseVectors &rhs_x,
       PlotGroundandResponseOrbitals(world, iteration, x_response, y_response,
                                     Rparams, Gparams);
     }
+    /*
     print("x norms in iteration after truncation Plot: ", iteration);
     print(x_response.norm2());
 
     print("y norms in iteration after truncation Plot: ", iteration);
     print(y_response.norm2());
+    */
   }
 }
 // Calculates polarizability according to
@@ -6136,7 +6161,7 @@ void TDHF::PlotGroundandResponseOrbitals(World &world, int iteration,
   char plotname[500];
   double Lp = std::min(Gparams.L, 24.0);
   // x axis
-  lo[0] = 0.0;
+  lo[0] = -Lp;
   lo[1] = 0.0;
   lo[2] = 0.0;
   hi[0] = Lp;
@@ -6159,7 +6184,7 @@ void TDHF::PlotGroundandResponseOrbitals(World &world, int iteration,
 
   // y axis
   lo[0] = 0.0;
-  lo[1] = 0.0;
+  lo[1] = -Lp;
   lo[2] = 0.0;
   hi[0] = 0.0;
   hi[1] = Lp;
