@@ -1194,7 +1194,7 @@ vecfuncT Nemo::make_cphf_constant_term(const size_t iatom, const int iaxis,
         Exchange<double,3> Kconst=Exchange<double,3>(world).small_memory(false);
         vecfuncT kbra=2.0*RXR*nemo;
         truncate(world,kbra);
-        Kconst.set_parameters(kbra,nemo,occ);
+        Kconst.set_parameters(kbra,nemo,occ,param.lo());
         Kconstnemo=Kconst(nemo);
         truncate(world,Kconstnemo);
     }
@@ -1294,11 +1294,11 @@ vecfuncT Nemo::solve_cphf(const size_t iatom, const int iaxis, const Tensor<doub
             Kp=truncate(gamma*nemo);
         } else {
             Exchange<double,3> Kp1=Exchange<double,3>(world).small_memory(false).same(true);
-            Kp1.set_parameters(R2nemo,xi_complete,occ);
+            Kp1.set_parameters(R2nemo,xi_complete,occ,calc->param.lo());
             vecfuncT R2xi=mul(world,R_square,xi_complete);
             truncate(world,R2xi);
             Exchange<double,3> Kp2=Exchange<double,3>(world).small_memory(false);
-            Kp2.set_parameters(R2xi,nemo,occ);
+            Kp2.set_parameters(R2xi,nemo,occ,calc->param.lo());
             Kp=truncate(Kp1(nemo) + Kp2(nemo));
         }
         vecfuncT Vpsi2=truncate(Jp(nemo)-Kp+rhsconst);

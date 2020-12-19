@@ -509,7 +509,7 @@ public:
     void compute_exchange_potential(const vecfuncT& nemo, vecfuncT& Knemo) const {
 
     	Exchange<double,3> K = Exchange<double,3>(world);
-    	K.set_parameters(R_square*nemo,nemo,this->get_calc()->aocc);
+    	K.set_parameters(R_square*nemo,nemo,this->get_calc()->aocc,param.lo());
     	Knemo = K(nemo);
     	truncate(world, Knemo);
 

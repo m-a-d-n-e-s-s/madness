@@ -66,7 +66,7 @@ end
 		world.gop.fence();
 	}
 
-	vecfuncT tmp, tmp1, reference;
+	vecfuncT tmp, tmp1;
 	double err;
 
 	double cpu1=cpu_time();
@@ -77,7 +77,7 @@ end
     K.multiworld_=false;
     K.small_memory(false);
     K.same(true);
-    reference=K(calc.amo);
+    const vecfuncT reference=K(calc.amo);
     cpu1=cpu_time();
     if (world.rank()==0) printf("\ntimings exchange operator no multiworld largemem   %8.2fs\n",cpu1-cpu0);
 //    err=norm2(world,reference-tmp);
@@ -91,14 +91,14 @@ end
     cpu1=cpu_time();
     if (world.rank()==0) printf("\ntimings exchange operator efficient (ntask_per_subworld=100) %8.2fs\n",cpu1-cpu0);
     err=norm2(world,reference-tmp);
-    print("error wrt small-memory result",err);
+    print("error wrt small-memory result",err,"\n\n");
 
 	cpu0=cpu1;
 	K.ntask_per_subworld=100;
 	K.multiworld_=false;
     K.efficient_=false;
 	K.small_memory(true);
-	reference=K(calc.amo);
+	tmp=K(calc.amo);
 	cpu1=cpu_time();
 	if (world.rank()==0) printf("\ntimings exchange operator no multiworld smallmem   %8.2fs\n",cpu1-cpu0);
     err=norm2(world,reference-tmp);

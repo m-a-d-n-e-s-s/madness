@@ -6,13 +6,14 @@
 #define MADNESS_ORBITAL_PARTITIONER_H
 
 #include<vector>
+#include<string>
 
 /// partition orbitals into sets for the multiworld/macrotask algorithms
 class OrbitalPartitioner {
 
 public:
     static std::vector<std::pair<long,long> > partition_for_exchange(
-            long min_ntask_per_world, long nsubworld, long nocc);
+            long min_ntask_per_world, long nsubworld, long nocc, std::string policy="guided");
 
 
 

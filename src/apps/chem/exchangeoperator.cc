@@ -12,7 +12,7 @@ namespace madness {
 
 template<typename T, std::size_t NDIM>
 Exchange<T,NDIM>::Exchange(World& world, const SCF* calc, const int ispin)
-        : world(world), small_memory_(true), same_(false) {
+        : world(world), small_memory_(true), same_(false), lo(calc->param.lo()) {
     if (ispin==0) { // alpha spin
         mo_ket=convert<double,T,NDIM>(world,calc->amo);		// deep copy necessary if T==double_complex
         occ=calc->aocc;
@@ -101,7 +101,6 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::K_macrotask(const vecfuncT& vke
 	double cpu1=cpu_time();
 	print("cpu time for storing ",cpu1-cpu0);
 
-	double lo=1.e-4;
 	double econv=FunctionDefaults<3>::get_thresh();
 
 	long batchsize=std::max(1l,nf/(ntask_per_subworld*world.size()));
@@ -115,7 +114,7 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::K_macrotask(const vecfuncT& vke
 
 		taskq.cloud.store(world,vecfuncT(it1,it2),inputrecord);
 
-		MacroTaskExchange task(inputrecord,outputrecord,nocc,lo, econv, mul_tol);
+		MacroTaskExchange task(inputrecord,outputrecord,lo,nocc, econv, mul_tol);
 		vtask.push_back(std::shared_ptr<MacroTaskBase>(new MacroTaskExchange(task)));
 	}
 	world.gop.fence();
@@ -178,7 +177,7 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::K_macrotask(const vecfuncT& vke
             print("");
         }
 
-        double lo=1.e-4;
+
         double econv=FunctionDefaults<3>::get_thresh();
 
         MacroTaskBase::taskqT vtask;
@@ -255,60 +254,70 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::K_small_memory(const vecfuncT& 
 
 template<typename T, std::size_t NDIM>
 std::vector<Function<T,NDIM> > Exchange<T,NDIM>::K_large_memory(const vecfuncT& vket, const double mul_tol) const {    // Larger memory algorithm ... use i-j sym if psi==f
-	vecfuncT psif;
-    const bool same = this->same();
 
-    const long nf = vket.size();
-	const long nocc=mo_ket.size();
-	vecfuncT Kf=zero_functions_compressed<T,NDIM>(world,nocc);
-    double tol = FunctionDefaults < 3 > ::get_thresh(); /// Important this is consistent with Coulomb
-
-
-	for (int i = 0; i < nocc; ++i) {
-		int jtop = nf;
-		if (same)
-			jtop = i + 1;
-		for (int j = 0; j < jtop; ++j) {
-			psif.push_back(mul_sparse(mo_bra[i], vket[j], mul_tol, false));
-		}
-	}
-
-	world.gop.fence();
-	truncate(world, psif,tol);
-	psif = apply(world, *poisson.get(), psif);
-	truncate(world, psif, tol);
-	reconstruct(world, psif);
-	norm_tree(world, psif);
-	vecfuncT psipsif = zero_functions<T,NDIM>(world, nf * nocc);
-	int ij = 0;
-	for (int i = 0; i < nocc; ++i) {
-		int jtop = nf;
-		if (same)
-			jtop = i + 1;
-		for (int j = 0; j < jtop; ++j, ++ij) {
-			psipsif[i * nf + j] = mul_sparse(psif[ij], mo_ket[i],mul_tol ,false);
-			if (same && i != j) {
-				psipsif[j * nf + i] = mul_sparse(psif[ij], mo_ket[j],mul_tol , false);
-			}
-		}
-	}
-	world.gop.fence();
-	psif.clear();
-	world.gop.fence();
-	compress(world, psipsif);
-	for (int i = 0; i < nocc; ++i) {
-		for (int j = 0; j < nf; ++j) {
-			Kf[j].gaxpy(1.0, psipsif[i * nf + j], occ[i], false);
-		}
-	}
-	world.gop.fence();
-	psipsif.clear();
-	world.gop.fence();
-	truncate(world, Kf, tol);
-	return Kf;
+    return compute_K_tile(world,mo_bra,mo_ket,vket,poisson,this->same(),occ,mul_tol);
 }
 
-    template class Exchange<double_complex,3>;
+template<typename T, std::size_t NDIM>
+std::vector<Function<T, NDIM> >
+Exchange<T, NDIM>::compute_K_tile(World &world, const vecfuncT &mo_bra, const vecfuncT &mo_ket,
+                                  const vecfuncT &vket, std::shared_ptr<real_convolution_3d> poisson,
+                                  const bool same, const Tensor<double> &occ, const double mul_tol) {
+
+    const long nf = vket.size();
+    const long nocc = mo_ket.size();
+    vecfuncT Kf = zero_functions_compressed<T, NDIM>(world, nocc);
+    double tol = FunctionDefaults<3>::get_thresh(); /// Important this is consistent with Coulomb
+
+    vecfuncT psif;
+    for (int i = 0; i < nocc; ++i) {
+        int jtop = nf;
+        if (same)
+            jtop = i + 1;
+        for (int j = 0; j < jtop; ++j) {
+            psif.push_back(mul_sparse(mo_bra[i], vket[j], mul_tol, false));
+        }
+    }
+
+    world.gop.fence();
+    truncate(world, psif, tol);
+    psif = apply(world, *poisson.get(), psif);
+    truncate(world, psif, tol);
+    reconstruct(world, psif);
+    norm_tree(world, psif);
+    vecfuncT psipsif = zero_functions<T, NDIM>(world, nf * nocc);
+    int ij = 0;
+    for (int i = 0; i < nocc; ++i) {
+        int jtop = nf;
+        if (same)
+            jtop = i + 1;
+        for (int j = 0; j < jtop; ++j, ++ij) {
+            psipsif[i * nf + j] = mul_sparse(psif[ij], mo_ket[i], mul_tol, false);
+            if (same && i != j) {
+                psipsif[j * nf + i] = mul_sparse(psif[ij], mo_ket[j], mul_tol, false);
+            }
+        }
+    }
+
+    world.gop.fence();
+    print(occ);
+    psif.clear();
+    world.gop.fence();
+    compress(world, psipsif);
+    for (int i = 0; i < nocc; ++i) {
+        for (int j = 0; j < nf; ++j) {
+            Kf[j].gaxpy(1.0, psipsif[i * nf + j], occ[i], false);
+        }
+    }
+    world.gop.fence();
+    psipsif.clear();
+    world.gop.fence();
+    truncate(world, Kf, tol);
+    return Kf;
+
+};
+
+template class Exchange<double_complex,3>;
 template class Exchange<double,3>;
 
 template <> volatile std::list<detail::PendingMsg> WorldObject<MacroTaskQ>::pending = std::list<detail::PendingMsg>();

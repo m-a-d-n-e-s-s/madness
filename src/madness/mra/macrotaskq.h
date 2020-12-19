@@ -53,7 +53,7 @@ public:
 	virtual void cleanup() = 0;		// clear static data (presumably persistent input data)
 
     virtual void print_me(std::string s="") const {
-        printf("this is task with priority",priority);
+        printf("this is task with priority %4.1f\n",priority);
     }
     double get_priority() const {return priority;}
 
