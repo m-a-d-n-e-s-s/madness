@@ -85,6 +85,8 @@ The following CMake cache variables turn MADNESS features on and off.
 * BUILD_SHARED_LIBS --- Enable shared libraries. This option is only available
       if the platform supports shared libraries; if that's true and MADNESS_ASSUMES_ASLR_DISABLED is ON (see below) the default is ON,
       otherwise the default is OFF.
+* MADNESS_BUILD_MADWORLD_ONLY --- whether to build the MADNESS runtime only; if `ON`, discovery of BLAS/LAPACK
+      and building of numerical components and applications will be disabled [default=`OFF`]
 
 # MADNESS Runtime and the Address Space Layout Randomization (ASLR)
 
