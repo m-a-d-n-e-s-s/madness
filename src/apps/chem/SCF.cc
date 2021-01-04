@@ -550,8 +550,9 @@ distmatT SCF::localize_new(World &world, const vecfuncT &mo,
       const double *Cj = &C(j, lo);
       double qij = 0.0;
       for (int mu = 0; mu < nbf; ++mu) qij += Ci[mu] * Cj[mu];
-      return qij * (1.0 + breaksym * a);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                                          // break symmetry
+      return qij *
+             (1.0 + breaksym * a);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                                    // break symmetry
     };
 
     auto makeGW = [&Q, &nmo, &natom, &QQ](const tensorT &C, double &W,
