@@ -12,6 +12,7 @@
 #include <math.h>
 
 #include <cstdint>
+#include <filesystem>
 #include <map>
 #include <memory>
 #include <string>
@@ -49,6 +50,27 @@ struct TDHF_allocator {
   // Copy constructor
   TDHF_allocator operator=(const TDHF_allocator &other) {
     TDHF_allocator tmp(world, other.num_occ, other.num_vir);
+    return tmp;
+  }
+};
+
+// KAIN allocator for vectorfunctions
+struct response_allocator {
+  // Member variables
+  World &world;
+  const int num_occ;  // Constructor
+  response_allocator(World &world, const int num_occ)
+      : world(world), num_occ(num_occ) {}
+
+  // Overloading () operator
+  vector_real_function_3d operator()() {
+    vector_real_function_3d f = zero_functions<double, 3>(world, num_occ);
+    return f;
+  }
+
+  // Copy constructor
+  response_allocator operator=(const response_allocator &other) {
+    response_allocator tmp(world, other.num_occ);
     return tmp;
   }
 };
@@ -352,35 +374,35 @@ void TDHF::normalize(World &world, ResponseVectors &f) {
   for (unsigned int i = 0; i < f.size(); i++) {
     // Get the normalization constant
     // (Sum included inside inner)
-    double norm = inner(world, f[i], f[i]).sum();
+    double norm = inner(f[i], f[i]);
     norm = sqrt(norm);
     // Doing this to deal with zero functions.
     // Maybe not smrt.
     if (norm == 0) continue;
 
     // And scale
-    scale(world, f[i], 1.0 / norm);
+    f[i] = f[i] * (1.0 / norm);
   }
 }
 
 // (Each state's norm should be 1, not the
 // individual functions norms)
+//  non-standard normalization for eigen value problem
 void TDHF::normalize(World &world, ResponseVectors &f, ResponseVectors &g) {
   // Run over rows
   for (unsigned int i = 0; i < f.size(); i++) {
     // Get the normalization constant
     // (Sum included inside inner)
-    double normf = inner(world, f[i], f[i]).sum();
-    double normg = inner(world, g[i], g[i]).sum();
+    double normf = inner(f[i], f[i]);
+    double normg = inner(g[i], g[i]);
     double norm = sqrt(normf - normg);
 
     // Doing this to deal with zero functions.
     // Maybe not smrt.
     if (norm == 0) continue;
-
     // And scale
-    scale(world, f[i], 1.0 / norm);
-    scale(world, g[i], 1.0 / norm);
+    scale(world, f[i], (1.0 / norm));
+    scale(world, g[i], (1.0 / norm));
   }
 }
 
@@ -737,6 +759,7 @@ ResponseVectors TDHF::PropertyRHS(World &world, Property &p) const {
     for (size_t j = 0; j < orbitals.size(); j++) {
     }
     truncate(world, rhs[i]);
+    // rhs[i].truncate_vec();
 
     // project rhs vectors for state
     rhs[i] = Qhat(rhs[i]);
@@ -1247,7 +1270,7 @@ GammaResponseFunctions TDHF::ComputeGammaFunctions(
   std::vector<real_function_3d> Wphi;
 
   // apply the exchange kernel to rho if necessary
-  if (xcf.hf_exchange_coefficient()) {
+  if (xcf.hf_exchange_coefficient() != 1.0) {
     for (int i = 0; i < m; i++) {
       Wphi.push_back(xc.apply_xc_kernel(rho_omega[i]));
     }
@@ -1291,7 +1314,7 @@ GammaResponseFunctions TDHF::ComputeGammaFunctions(
     J[b] = mul(world, temp_J,
                Gparams.orbitals);  // multiply by k
     // if xcf not zero
-    if (xcf.hf_exchange_coefficient()) {
+    if (xcf.hf_exchange_coefficient() != 1.0) {
       W[b] = mul(world, Wphi[b], Gparams.orbitals);
     }
     //  compute each of the k response parts...
@@ -1712,6 +1735,107 @@ Zfunctions TDHF::ComputeZFunctions(
 
   world.gop.fence();
   return Z;
+}
+ResidualResponseVectors TDHF::ComputeResponseResidual(
+    World &world, std::vector<real_function_3d> rho_omega,
+    ResponseVectors orbital_products, ResponseVectors &x, ResponseVectors &y,
+    ResponseVectors rhs_x, ResponseVectors rhs_y, XCOperator xc,
+    const GroundParameters &Gparams, const ResponseParameters &Rparams,
+    Tensor<double> hamiltonian, double omega, int iteration) {
+  // compute
+  int m = Rparams.states;
+  int n = Gparams.num_orbitals;
+  double small = Rparams.small;
+  double thresh = FunctionDefaults<3>::get_thresh();
+
+  real_convolution_3d op = CoulombOperator(world, small, thresh);
+  ResponseVectors v0x(world, m, n);
+  ResponseVectors v0y(world, m, n);
+  ResponseVectors F0x(world, m, n);
+  ResponseVectors F0y(world, m, n);
+  // x scaled by hamiltonian
+  ResponseVectors xham(world, m, n);
+  ResponseVectors yham(world, m, n);
+  // 2 electron terms
+  ResponseVectors Hx(world, m, n);
+  ResponseVectors Gy(world, m, n);
+  ResponseVectors Hy(world, m, n);
+  ResponseVectors Gx(world, m, n);
+
+  ResponseVectors omegaX(world, m, n);
+  ResponseVectors omegaY(world, m, n);
+
+  ResidualResponseVectors residual(world, m, n);
+  /* We first compute the 1 electron potentials
+   * We compute the the pieces that depend on x response functions
+   */
+  // x functions
+  // V0 applied to x response function
+  v0x = CreatePotential(world, x, xc, Rparams.print_level, "x");
+  F0x = CreateFock(world, v0x, x, Rparams.print_level, "x");
+  F0x.truncate_rf();
+
+  // x response scaled by off diagonal ham
+  xham = scale_2d(world, x, hamiltonian);
+  omegaX = x_response * omega;
+  if (Rparams.print_level == 3) {
+    print("norms of x scaled by ham no diag");
+    print(xham.norm2());
+  }
+  // If not static we compute the y components
+  if (Rparams.omega != 0.0) {
+    v0y = CreatePotential(world, y, xc, Rparams.print_level, "y");
+    F0y = CreateFock(world, v0y, y, Rparams.print_level, "y");
+    F0y.truncate_rf();
+    yham = scale_2d(world, y, hamiltonian);
+    omegaY = y_response * omega;
+  }
+  // Some printing for debugging
+  if (Rparams.print_level >= 2) {
+    { PrintRFExpectation(world, x, v0x, "x", "V0X"); }
+
+    if (Rparams.omega != 0.0) {
+      PrintRFExpectation(world, y, v0y, "y", "V0Y");
+    }
+  }
+  // Last we compute the 2-electron peices
+  //
+  //
+  if (Rparams.old_two_electron) {
+    Hx = ComputeHf(world, x, Gparams.orbitals, small, thresh,
+                   Rparams.print_level, "x");
+
+    Gy = ComputeGf(world, y, Gparams.orbitals, small, thresh,
+                   Rparams.print_level, "y");
+    if (Rparams.omega != 0.0) {
+      Hy = ComputeHf(world, y, Gparams.orbitals, small, thresh,
+                     Rparams.print_level, "x");
+
+      Gx = ComputeGf(world, x, Gparams.orbitals, small, thresh,
+                     Rparams.print_level, "y");
+    }
+
+    // Z.Z_x = (Z.v0_x - Z.x_f_no_diag + rhs_x) * -2;
+    residual.x = (F0x - xham + Hx + Gy + rhs_x - omegaX);
+    if (Rparams.omega != 0.0) {
+      residual.y = (F0y - yham + Hy + Gx + rhs_y + omegaY);
+      // Z.Z_y = (Z.v0_y - Z.y_f_no_diag + rhs_y) * -2;
+    }
+  } else {
+    GammaResponseFunctions gamma = ComputeGammaFunctions(
+        world, rho_omega, orbital_products, x, y, xc, Gparams, Rparams);
+    // We can use the old algorithm here for testings
+    // we then assemble the right hand side vectors
+    residual.x = (F0x - omegaX - xham + gamma.gamma + rhs_x);
+    // Z.Z_x = Z.v0_x - Z.x_f_no_diag + rhs_x;
+    if (Rparams.omega != 0.0) {
+      residual.y = (F0y + omegaY - yham + gamma.gamma_conjugate);
+      // Z.Z_y = Z.v0_y - Z.y_f_no_diag + rhs_y;
+    }
+  }
+  residual.x.truncate_rf();
+  residual.y.truncate_rf();
+  return residual;
 }
 void TDHF::IterateXY(
     World &world, std::vector<real_function_3d> rho_omega,
@@ -5823,7 +5947,11 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseVectors &rhs_x,
                                 n);  // Holds wave function corrections
   ResponseVectors y_differences(world, m,
                                 n);  // Holds wave function corrections
-
+  ResponseVectors x_residuals(world, m,
+                              n);  // Holds wave function corrections
+  ResponseVectors y_residuals(world, m,
+                              n);  // Holds wave function corrections
+  ResidualResponseVectors residuals(world, m, n);
   // response functions
   ResponseVectors old_x_response(
       world, m, n);  // Holds the old x_response vector of vectors
@@ -5836,11 +5964,21 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseVectors &rhs_x,
   XCOperator xc = create_xcoperator(world, Gparams.orbitals, Rparams.xc);
 
   // The KAIN solver
-  XNonlinearSolver<ResponseVectors, double, TDHF_allocator> kain(
-      TDHF_allocator(world, (Rparams.omega != 0.0) ? 2 * m : m, n), false);
+
+  std::vector<XNonlinearSolver<std::vector<Function<double, 3>>, double,
+                               response_allocator>>
+      kain_vec;
+
+  int nkain = (Rparams.omega != 0.0) ? 2 * m : m;
+  // we check one time for the size of kain vectors
+  for (int b = 0; b < nkain; b++) {
+    kain_vec.push_back(XNonlinearSolver<std::vector<Function<double, 3>>,
+                                        double, response_allocator>(
+        response_allocator(world, n), false));
+    if (Rparams.kain) kain_vec[b].set_maxsub(Rparams.maxsub);
+  }
 
   // Setting max sub size for KAIN solver
-  if (Rparams.kain) kain.set_maxsub(Rparams.maxsub);
 
   // Set omega (its constant here,
   // and has only 1 entry for each axis)
@@ -5965,7 +6103,9 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseVectors &rhs_x,
       print(y_response.norm2());
     }
     //
+    // I need to compute a residual in this new space
     x_differences = old_x_response - x_response;
+
     if (omega_n != 0.0) y_differences = old_y_response - y_response;
 
     // Next calculate 2-norm of these vectors of differences
@@ -5978,21 +6118,23 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseVectors &rhs_x,
     // Basic output
     if (Rparams.print_level >= 0 and world.rank() == 0) {
       if (omega_n != 0.0) {
-        std::cout << "res iter " << iteration;
-        std::cout << " x: ";
+        std::cout << "resX " << iteration << ":" << std::endl;
         for (int b = 0; b < m; b++) {
           for (int k = 0; k < n; k++) {
             std::cout << x_norms(b, k) << " ";
           }
         }
-        std::cout << " y: ";
+
+        std::cout << endl;
+        std::cout << "resY " << iteration << ":" << std::endl;
+
         for (int b = 0; b < m; b++) {
           for (int k = 0; k < n; k++) {
             std::cout << y_norms(b, k) << " ";
           }
         }
       } else {
-        std::cout << "residual x: ";
+        std::cout << "resX " << iteration << ":" << std::endl;
         for (int b = 0; b < m; b++) {
           for (int k = 0; k < n; k++) {
             std::cout << x_norms(b, k) << " ";
@@ -6014,19 +6156,34 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseVectors &rhs_x,
     // Returns next set of components
     // If not kain, save the new components
     if (Rparams.kain) {
+      if (omega_n == 0) {
+        rho_omega =
+            transition_density(world, Gparams.orbitals, x_response, x_response);
+      } else {
+        rho_omega =
+            transition_density(world, Gparams.orbitals, x_response, y_response);
+      }
+
       if (omega_n != 0.0) {
+        residuals = ComputeResponseResidual(
+            world, rho_omega, orbital_products, x_response, y_response, rhs_x,
+            rhs_y, xc, Gparams, Rparams, hamiltonian, omega_n, iteration);
         // Add y functions to bottom of x functions
         // (for KAIN)
         for (int i = 0; i < m; i++) {
           x_response.push_back(y_response[i]);
-          x_differences.push_back(y_differences[i]);
+          residuals.x.push_back(residuals.y[i]);
         }
       }
 
       start_timer(world);
-      x_response = kain.update(x_response, x_differences,
+      for (int b = 0; b < x_response.size(); b++) {
+        x_response[b] =
+            kain_vec[b].update(x_response[b], residuals.x[b],
                                FunctionDefaults<3>::get_thresh(), 3.0);
-      end_timer(world, " KAIN update:");
+        end_timer(world, " KAIN update:");
+      }
+      inner(world, x_response[0], y_response[0]);
 
       if (omega_n != 0.0) {
         // Add new functions back into y and
@@ -6034,18 +6191,18 @@ void TDHF::IterateFrequencyResponse(World &world, ResponseVectors &rhs_x,
         for (int i = 0; i < m; i++) y_response[i] = x_response[m + i];
         for (int i = 0; i < m; i++) {
           x_response.pop_back();
-          x_differences.pop_back();
+          residuals.x.pop_back();
         }
       }
     }
 
     // Apply mask
+    /*
     for (int i = 0; i < m; i++) x_response[i] = mask * x_response[i];
     if (omega_n != 0.0) {
       for (int i = 0; i < m; i++) y_response[i] = mask * y_response[i];
     }
     // print x norms
-    /*
     print("x norms in iteration after mask: ", iteration);
     print(x_response.norm2());
 
@@ -6147,77 +6304,53 @@ void TDHF::PrintPolarizabilityAnalysis(World &world,
     printf("\n");
   }
 }
+
 void TDHF::PlotGroundandResponseOrbitals(World &world, int iteration,
                                          ResponseVectors &x_response,
                                          ResponseVectors &y_response,
                                          ResponseParameters const &Rparams,
                                          GroundParameters const &Gparams) {
+  std::filesystem::create_directories("plots/xy");
+  std::filesystem::create_directory("plots/ground");
+  std::filesystem::create_directory("plots/transition_density");
+
   // TESTING
   // get transition density
-  std::vector<real_function_3d> densities =
-      transition_density(world, Gparams.orbitals, x_response, y_response);
-  // Doing line plots along each axis
-  coord_3d lo, hi;
-  char plotname[500];
-  double Lp = std::min(Gparams.L, 24.0);
-  // x axis
-  lo[0] = -Lp;
-  lo[1] = 0.0;
-  lo[2] = 0.0;
-  hi[0] = Lp;
-  hi[1] = 0.0;
-  hi[2] = 0.0;
-  //// plot ground state
-  sprintf(plotname, "plot_ground_x.plt");
-
-  plot_line(plotname, 5001, lo, hi, Gparams.orbitals[0]);
-  //
-  // plot each x_k^p and the density
   int n = x_response[0].size();
   int m = x_response.size();
+  real_function_3d ground_density =
+      dot(world, Gparams.orbitals, Gparams.orbitals);
+  std::vector<real_function_3d> densities =
+      transition_density(world, Gparams.orbitals, x_response, y_response);
+  std::string dir("xyz");
 
-  for (int i = 0; i < m; i++) {
-    sprintf(plotname, "plot_orbital_%d_%d_x%d.plt",
-            FunctionDefaults<3>::get_k(), i, iteration - 1);
-    plot_line(plotname, 5001, lo, hi, x_response[i][0]);
-  }
+  int buffSize = 500;
+  char plotname[buffSize];
+  double Lp = std::min(Gparams.L, 24.0);
+  // Doing line plots along each axis
+  for (int d = 0; d < 3; d++) {
+    // print ground_state
+    plotCoords plt(0, Lp);
+    if (iteration == 1) {
+      snprintf(plotname, buffSize, "plots/ground/ground_density_%c.plt",
+               dir[d]);
+      plot_line(plotname, 5001, plt.lo, plt.hi, ground_density);
+    }
+    for (int i = 0; i < n; i++) {
+      // print ground_state
+      snprintf(plotname, buffSize, "plots/ground/ground_%c_%d.plt", dir[d], i);
+      plot_line(plotname, 5001, plt.lo, plt.hi, Gparams.orbitals[i]);
+      for (int b = 0; b < m; b++) {
+        // plot x function  x_dir_b_i__k_iter
+        snprintf(plotname, buffSize, "plots/xy/x_%c_%d_%d__%d_%d.plt", dir[d],
+                 b, i, FunctionDefaults<3>::get_k(), iteration - 1);
+        plot_line(plotname, 5001, plt.lo, plt.hi, x_response[b][i]);
 
-  // y axis
-  lo[0] = 0.0;
-  lo[1] = -Lp;
-  lo[2] = 0.0;
-  hi[0] = 0.0;
-  hi[1] = Lp;
-  hi[2] = 0.0;
-  // plot ground state
-  sprintf(plotname, "plot_ground1_y.plt");
-  plot_line(plotname, 5001, lo, hi, Gparams.orbitals[0]);
-
-  // plot each x_k^p and the density
-  for (int i = 0; i < m; i++) {
-    sprintf(plotname, "plot_orbital_%d_%d_y%d.plt",
-            FunctionDefaults<3>::get_k(), i, iteration - 1);
-    plot_line(plotname, 5001, lo, hi, x_response[i][0]);
-  }
-
-  // z axis
-  lo[0] = 0.0;
-  lo[1] = 0.0;
-  lo[2] = -Lp;
-  hi[0] = 0.0;
-  hi[1] = 0.0;
-  hi[2] = Lp;
-
-  // plot ground state
-  sprintf(plotname, "plot_ground1_z.plt");
-  plot_line(plotname, 5001, lo, hi, Gparams.orbitals[0]);
-
-  // plot each x_k ^ p and the density //
-  for (int i = 0; i < m; i++) {
-    for (int j = 0; j < n; j++) {
-      sprintf(plotname, "plot_orbital_%d_%d_%d_z%d.plt",
-              FunctionDefaults<3>::get_k(), i, j, iteration - 1);
-      plot_line(plotname, 20001, lo, hi, x_response[i][j]);
+        // plot y function  y_dir_b_i__k_iter
+        snprintf(plotname, buffSize, "plots/xy/y_%c_%d_%d__%d_%d.plt", dir[d],
+                 b, i, FunctionDefaults<3>::get_k(), iteration - 1);
+        plot_line(plotname, 5001, plt.lo, plt.hi, y_response[b][i]);
+      }
     }
   }
   world.gop.fence();
