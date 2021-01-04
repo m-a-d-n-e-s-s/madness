@@ -51,6 +51,7 @@
   #include <algorithm>
   #include <cmath>
   #include <complex>
+  #include <filesystem>
   #include <iomanip>
   #include <map>
   #include <memory>
@@ -171,6 +172,15 @@ struct ElectronResponseFunctions {
   ResponseVectors EpsilonY;
   ResponseVectors EpsilonXNoDiag;
   ResponseVectors EpsilonYNoDiag;
+};
+class ResidualResponseVectors {
+ public:
+  ResponseVectors x;
+  ResponseVectors y;
+  ResidualResponseVectors(World &world, int m, int n) {
+    x = ResponseVectors(world, m, n);
+    y = ResponseVectors(world, m, n);
+  }
 };
 /// Given a molecule and ground state orbitals, solve the response equations
 /// in the Tamm-Danchoff approximation.
@@ -379,11 +389,10 @@ class TDHF {
   // Returns a tensor, where entry (i,j) = inner(a[i], b[j]).sum()
   Tensor<double> expectation(World &world, const ResponseVectors &a,
                              const ResponseVectors &b);
-
   void PrintRFExpectation(World &world, ResponseVectors f, ResponseVectors g,
                           std::string fname, std::string gname);
   void PrintResponseVectorNorms(World &world, ResponseVectors f,
-                                      std::string fname);
+                                std::string fname);
   // Returns the ground state fock operator applied to response functions
   ResponseVectors CreateFock(World &world, ResponseVectors &Vf,
                              ResponseVectors &f, int print_level,
@@ -397,11 +406,17 @@ class TDHF {
                                const GroundParameters &Gparams,
                                const ResponseParameters &Rparams,
                                Tensor<double> ham_no_diagonal);
+  ResidualResponseVectors ComputeResponseResidual(
+      World &world, const std::vector<real_function_3d> rho_omega,
+      ResponseVectors orbital_products, ResponseVectors &x, ResponseVectors &y,
+      ResponseVectors rhs_x, ResponseVectors rhs_y, XCOperator xc,
+      const GroundParameters &Gparams, const ResponseParameters &Rparams,
+      Tensor<double> ham_no_diagonal, double omega, int iteration);
   void IterateXY(
       World &world, const std::vector<real_function_3d> rho_omega,
       ResponseVectors orbital_products, ResponseVectors &x, ResponseVectors &y,
       ResponseVectors rhs_x, ResponseVectors rhs_y, XCOperator xc,
-      double y_shifts, const GroundParameters &Gparams,
+      double x_shifts, const GroundParameters &Gparams,
       const ResponseParameters &Rparams,
       std::vector<std::shared_ptr<real_convolution_3d>> bsh_x_operators,
       std::vector<std::shared_ptr<real_convolution_3d>> bsh_y_operators,
@@ -700,6 +715,31 @@ class TDHF {
   void PrintPolarizabilityAnalysis(World &world,
                                    const Tensor<double> polar_tensor,
                                    const Tensor<double> omega);
+
+  class plotCoords {
+   public:
+    coord_3d lo, hi;
+
+    plotCoords() {
+      lo[0] = 0.0;
+      lo[1] = 0.0;
+      lo[2] = 0.0;
+      hi[0] = 0.0;
+      hi[1] = 0.0;
+      hi[2] = 0.0;
+    }
+    plotCoords(int direction, double Lp) {
+      lo[0] = 0.0;
+      lo[1] = 0.0;
+      lo[2] = 0.0;
+      hi[0] = 0.0;
+      hi[1] = 0.0;
+      hi[2] = 0.0;
+      lo[0] = -Lp;
+      hi[0] = Lp;
+    }
+  };
+  plotCoords SetPlotCoord(int i, double Lp);
 
   void PlotGroundandResponseOrbitals(World &world, int iteration,
                                      ResponseVectors &x_response,
