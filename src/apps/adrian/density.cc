@@ -109,7 +109,8 @@ VectorFunction3DT FirstOrderDensity::ComputeDensityVector(World &world,
 
   if (is_static) {
     for (int b = 0; b < num_response_states; b++) {
-      densities[b] = dot(x[b], Gparams.orbitals) + dot(x[b], Gparams.orbitals);
+      densities[b] = dot(world, x[b], Gparams.orbitals) +
+                     dot(world, x[b], Gparams.orbitals);
       /*
         for (int j = 0; j < num_ground_states; j++) {
           densities[b] += mul_sparse(x[b][j], Gparams.orbitals[j],
@@ -120,7 +121,8 @@ VectorFunction3DT FirstOrderDensity::ComputeDensityVector(World &world,
     }
   } else {
     for (int b = 0; b < num_response_states; b++) {
-      densities[b] = dot(x[b], Gparams.orbitals) + dot(y[b], Gparams.orbitals);
+      densities[b] = dot(world, x[b], Gparams.orbitals) +
+                     dot(world, y[b], Gparams.orbitals);
       /*
         for (int j = 0; j < num_ground_states; j++) {
           densities[b] += mul_sparse(x[b][j], Gparams.orbitals[j],

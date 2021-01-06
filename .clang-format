@@ -1,2 +1,3 @@
-BasedOnStyle: Google
-IndentPPDirectives: BeforeHash
+BasedOnStyle: llvm
+PointerAlignment: Left
+Cpp11BracedListStyle: true
