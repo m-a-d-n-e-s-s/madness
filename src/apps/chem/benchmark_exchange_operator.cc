@@ -5,6 +5,7 @@
 #include <chem/SCF.h>
 #include <chem/nemo.h>
 #include <chem/test_utilities.h>
+#include <madness/misc/gitinfo.h>
 
 using namespace madness;
 
@@ -15,6 +16,8 @@ int main(int argc, char** argv) {
     world.gop.fence();
     startup(world, argc, argv, true);
     srand(time(NULL));
+    if (world.rank()==0) print(info::print_revision_information());
+
 
     std::string structure = "water2";
     for (int i = 1; i < argc; i++) {
@@ -54,7 +57,7 @@ end
     calc.set_protocol<3>(world,1.e-4);
 	MolecularEnergy me(world, calc);
 	me.value(calc.molecule.get_all_coords());
-	Exchange<double,3> K=Exchange<double,3>(world,&calc,0).multiworld(true);
+	Exchange<double,3> K=Exchange<double,3>(world,&calc,0);
 
 	if (world.size() > 1) {
 		LoadBalanceDeux < 3 > lb(world);
@@ -73,61 +76,26 @@ end
 	if (world.rank()==0) printf("\ntimings for preparation   %8.2fs\n",cpu1-cpu0);
 
     cpu0=cpu1;
-    K.ntask_per_subworld=100;
-    K.multiworld_=false;
-    K.small_memory(false);
+    K.set_algorithm(Exchange<double,3>::large_memory);
     K.same(true);
     const vecfuncT reference=K(calc.amo);
     cpu1=cpu_time();
-    if (world.rank()==0) printf("\ntimings exchange operator no multiworld largemem   %8.2fs\n",cpu1-cpu0);
-//    err=norm2(world,reference-tmp);
-//    print("error wrt small-memory result",err);
+    double norm=norm2(world,reference);
+    if (world.rank()==0) printf("timings exchange operator no multiworld largemem   %8.2fs, norm %.15e\n",cpu1-cpu0, norm);
 
     cpu0=cpu1;
-    K.ntask_per_subworld=100;
-    K.multiworld_=true;
-    K.efficient_=true;
+    K.set_algorithm(Exchange<double,3>::multiworld_efficient);
     tmp=K(calc.amo);
     cpu1=cpu_time();
-    if (world.rank()==0) printf("\ntimings exchange operator efficient (ntask_per_subworld=100) %8.2fs\n",cpu1-cpu0);
     err=norm2(world,reference-tmp);
-    print("error wrt small-memory result",err,"\n\n");
+    if (world.rank()==0) printf("timings exchange operator efficient                %8.2fs, error %.2e\n",cpu1-cpu0,err);
 
 	cpu0=cpu1;
-	K.ntask_per_subworld=100;
-	K.multiworld_=false;
-    K.efficient_=false;
-	K.small_memory(true);
+    K.set_algorithm(Exchange<double,3>::small_memory);
 	tmp=K(calc.amo);
 	cpu1=cpu_time();
-	if (world.rank()==0) printf("\ntimings exchange operator no multiworld smallmem   %8.2fs\n",cpu1-cpu0);
     err=norm2(world,reference-tmp);
-    print("error wrt small-memory result",err);
-
-	cpu0=cpu1;
-	K.ntask_per_subworld=100;
-	K.multiworld_=true;
-	tmp=K(calc.amo);
-	cpu1=cpu_time();
-	if (world.rank()==0) printf("\ntimings exchange operator (ntask_per_subworld=100) %8.2fs\n",cpu1-cpu0);
-	err=norm2(world,reference-tmp);
-	print("error wrt small-memory result",err);
-
-	cpu0=cpu1;
-	K.ntask_per_subworld=10;
-	tmp=K(calc.amo);
-	cpu1=cpu_time();
-	if (world.rank()==0) printf("\ntimings exchange operator (ntask_per_subworld=10)  %8.2fs\n",cpu1-cpu0);
-	err=norm2(world,reference-tmp);
-	print("error wrt small-memory result",err);
-
-	cpu0=cpu1;
-	K.ntask_per_subworld=3;
-	tmp=K(calc.amo);
-	cpu1=cpu_time();
-	if (world.rank()==0) printf("\ntimings exchange operator (ntask_per_subworld=3)   %8.2fs\n",cpu1-cpu0);
-	err=norm2(world,reference-tmp);
-	print("error wrt small-memory result",err);
+    if (world.rank()==0) printf("timings exchange operator no multiworld smallmem   %8.2fs, error %.2e\n",cpu1-cpu0,err);
 
     madness::finalize();
     return 0;

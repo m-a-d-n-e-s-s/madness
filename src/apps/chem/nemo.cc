@@ -547,8 +547,7 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo, vecfuncT& psi,
     Knemo=zero_functions_compressed<double,3>(world,nemo.size());
     if (calc->xc.hf_exchange_coefficient()>0.0) {
         START_TIMER(world);
-        Exchange<double,3> K=Exchange<double,3>(world,this,ispin).same(false).small_memory(false)
-        		.multiworld(param.multiworld());
+        Exchange<double,3> K=Exchange<double,3>(world,this,ispin).same(false);
         Knemo=K(nemo);
         scale(world,Knemo,calc->xc.hf_exchange_coefficient());
         truncate(world, Knemo);
@@ -1191,7 +1190,7 @@ vecfuncT Nemo::make_cphf_constant_term(const size_t iatom, const int iaxis,
     // linear in the density
     vecfuncT Kconstnemo=zero_functions_compressed<double,3>(world,nmo);
     if (not is_dft()) {
-        Exchange<double,3> Kconst=Exchange<double,3>(world).small_memory(false);
+        Exchange<double,3> Kconst=Exchange<double,3>(world);
         vecfuncT kbra=2.0*RXR*nemo;
         truncate(world,kbra);
         Kconst.set_parameters(kbra,nemo,occ,param.lo());
@@ -1257,7 +1256,7 @@ vecfuncT Nemo::solve_cphf(const size_t iatom, const int iaxis, const Tensor<doub
 
     // construct unperturbed operators
     const Coulomb J(world,this);
-    const Exchange<double,3> K=Exchange<double,3>(world,this,0).small_memory(false);
+    const Exchange<double,3> K=Exchange<double,3>(world,this,0);
     const XCOperator xc(world, xc_data, not calc->param.spin_restricted(), arho, arho);
     const Nuclear V(world,this);
 
@@ -1293,11 +1292,11 @@ vecfuncT Nemo::solve_cphf(const size_t iatom, const int iaxis, const Tensor<doub
             real_function_3d gamma=-1.0*xc.apply_xc_kernel(full_dens_pt);
             Kp=truncate(gamma*nemo);
         } else {
-            Exchange<double,3> Kp1=Exchange<double,3>(world).small_memory(false).same(true);
+            Exchange<double,3> Kp1=Exchange<double,3>(world).same(true);
             Kp1.set_parameters(R2nemo,xi_complete,occ,calc->param.lo());
             vecfuncT R2xi=mul(world,R_square,xi_complete);
             truncate(world,R2xi);
-            Exchange<double,3> Kp2=Exchange<double,3>(world).small_memory(false);
+            Exchange<double,3> Kp2=Exchange<double,3>(world);
             Kp2.set_parameters(R2xi,nemo,occ,calc->param.lo());
             Kp=truncate(Kp1(nemo) + Kp2(nemo));
         }

@@ -95,9 +95,11 @@ public:
 		universe.gop.sum(rtime);
 		universe.gop.sum(wtime);
 		if (universe.rank()==0) {
-			std::cout << std::fixed << std::setprecision(1);
+		    double precision = std::cout.precision();
+            std::cout << std::fixed << std::setprecision(1);
 			print("cloud storing cpu time", wtime*0.001);
 			print("cloud reading cpu time", rtime*0.001,std::defaultfloat);
+			std::cout << std::setprecision(precision) << std::scientific;
 		}
 	}
 

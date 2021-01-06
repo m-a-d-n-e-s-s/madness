@@ -137,7 +137,6 @@ public:
 		    double cpu000=cpu_time();
 			long element=get_scheduled_task_number(subworld);
             double cpu111=cpu_time();
-            printf("getting scheduled task number task %4.1fs\n",cpu111-cpu000);
             double cpu0=cpu_time();
 			if (element<0) break;
 			std::shared_ptr<MacroTaskBase> task=taskq[element];
@@ -203,7 +202,7 @@ private:
 	/// scheduler is located on universe.rank==0
 	long get_scheduled_task_number(World& subworld) {
 		long number=0;
-		if (subworld.rank()==0) number=this->task(ProcessID(0), &MacroTaskQ::get_scheduled_task_number_local,TaskAttributes::hipri());
+		if (subworld.rank()==0) number=this->send(ProcessID(0), &MacroTaskQ::get_scheduled_task_number_local);
 		subworld.gop.broadcast_serializable(number, 0);
 		subworld.gop.fence();
 		return number;

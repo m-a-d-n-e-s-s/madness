@@ -1741,7 +1741,9 @@ vecfuncT SCF::apply_potential(World & world, const tensorT & occ,
 	if (xc.hf_exchange_coefficient()) {
 		START_TIMER(world);
 		//            vecfuncT Kamo = apply_hf_exchange(world, occ, amo, amo);
-		Exchange<double,3> K=Exchange<double,3>(world,this,ispin).small_memory(false).same(true);
+		Exchange<double,3> K=Exchange<double,3>(world,this,ispin)
+		        .same(true).set_algorithm(Exchange<double,3>::large_memory);
+		if (world.rank()==0) print("using the large_memory algorithm in Exchange");
 		vecfuncT Kamo=K(amo);
 		tensorT excv = inner(world, Kamo, amo);
 		double exchf = 0.0;
@@ -3358,7 +3360,7 @@ vecfuncT SCF::apply_potential_response(World & world, const vecfuncT & dmo,
 	if(xc.hf_exchange_coefficient()){
 		START_TIMER(world);
 		vecfuncT Kdmo;
-		Exchange<double,3> K=Exchange<double,3>(world,this,ispin).small_memory(false).same(false);
+		Exchange<double,3> K=Exchange<double,3>(world,this,ispin).same(false);
 		if(ispin == 0)
 			Kdmo=K(amo);
 		if(ispin == 1)

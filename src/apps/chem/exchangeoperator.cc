@@ -12,7 +12,7 @@ namespace madness {
 
 template<typename T, std::size_t NDIM>
 Exchange<T,NDIM>::Exchange(World& world, const SCF* calc, const int ispin)
-        : world(world), small_memory_(true), same_(false), lo(calc->param.lo()) {
+        : world(world), same_(false), lo(calc->param.lo()) {
     if (ispin==0) { // alpha spin
         mo_ket=convert<double,T,NDIM>(world,calc->amo);		// deep copy necessary if T==double_complex
         occ=calc->aocc;
@@ -21,8 +21,6 @@ Exchange<T,NDIM>::Exchange(World& world, const SCF* calc, const int ispin)
         occ=calc->bocc;
     }
     mo_bra=conj(world,mo_ket);
-    poisson = std::shared_ptr<real_convolution_3d>(
-            CoulombOperatorPtr(world, calc->param.lo(), calc->param.econv()));
 }
 
 template<typename T, std::size_t NDIM>
@@ -39,17 +37,11 @@ Exchange<T,NDIM>::Exchange(World& world, const Nemo* nemo, const int ispin) // @
 
     mo_bra=mul(world,nemo->ncf->square(),mo_ket);
     truncate(world,mo_bra);
-    poisson = std::shared_ptr<real_convolution_3d>(
-            CoulombOperatorPtr(world, nemo->get_calc()->param.lo(),
-                    nemo->get_calc()->param.econv()));
-
 }
 
 template<typename T, std::size_t NDIM>
 std::vector<Function<T,NDIM> > Exchange<T,NDIM>::operator()(
 		const std::vector<Function<T,NDIM> >& vket, const double mul_tol) const {
-    const bool same = this->same();
-    double tol = FunctionDefaults < 3 > ::get_thresh(); /// Important this is consistent with Coulomb
 
     reconstruct(world, mo_bra,false);
     reconstruct(world, mo_ket,false);
@@ -58,86 +50,30 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::operator()(
     norm_tree(world, mo_ket,false);
     world.gop.fence();
 
-//    if (!same) {
-        reconstruct(world, vket);
-        norm_tree(world, vket);
-//    }
+    reconstruct(world, vket);
+    norm_tree(world, vket);
 
+    // pick your algorithm.
+    // Note that the macrotask algorithm partitions the exchange matrix into tiles. The final truncation
+    // takes place for each sum over tile elements, instead of the sum over all matrix elements.
+    // Truncation and addition doesn't commute, so the truncate_tol parameter is used to tighten the
+    // truncation threshold and minimize this effect.
+    // Other truncations are elementwise and are not affected.
+    reset_timer();
     vecfuncT Kf;
-    if (multiworld_) {
-        if (efficient_) {
-            Kf=K_macrotask_efficient(vket,mul_tol);
-        } else {
-            Kf=K_macrotask(vket,mul_tol);
-        }
-    } else if (small_memory_) {
-    	Kf=K_small_memory(vket,mul_tol);     // Smaller memory algorithm ... possible 2x saving using i-j sym
-    } else {
+    if (algorithm_==multiworld_efficient) {
+        Kf=K_macrotask_efficient(vket,mul_tol);
+    } else if (algorithm_==small_memory) {
+        Kf=K_small_memory(vket,mul_tol);     // Smaller memory algorithm ... possible 2x saving using i-j sym
+    } else if (algorithm_==large_memory) {
     	Kf=K_large_memory(vket,mul_tol);
+    } else {
+        MADNESS_EXCEPTION("unknown algorithm in exchangeoperator",1);
     }
-	return Kf;
-
+    truncate(world,Kf);
+    print_timer(world);
+    return Kf;
 }
-
-template<typename T, std::size_t NDIM>
-std::vector<Function<T,NDIM> > Exchange<T,NDIM>::K_macrotask(const vecfuncT& vket, const double mul_tol) const {
-
-	if (world.rank()==0) print("\nentering macrotask version");
-
-    int nf = vket.size();
-	const long nocc=mo_ket.size();
-
-	MacroTaskQ taskq(world,world.size());
-
-	double cpu0=cpu_time();
-	for (int i=0; i<nocc; ++i) {
-		taskq.cloud.store(world,mo_bra[i],i);
-		taskq.cloud.store(world,mo_ket[i],i+nocc);
-	}
-
-//	taskq.cloud.store(world,mo_bra,0);
-//	taskq.cloud.store(world,mo_ket,1);
-	taskq.cloud.print_timings(world);
-	double cpu1=cpu_time();
-	print("cpu time for storing ",cpu1-cpu0);
-
-	double econv=FunctionDefaults<3>::get_thresh();
-
-	long batchsize=std::max(1l,nf/(ntask_per_subworld*world.size()));
-	if (world.rank()==0) print("batchsize",batchsize);
-	MacroTaskBase::taskqT vtask;
-	for (int i=0; i<nf; i+=batchsize) {
-		long inputrecord=nocc+nocc+i;
-		long outputrecord=nocc+nocc+nf+i;
-		auto it1=vket.begin()+i;
-		auto it2=std::min(it1+batchsize,vket.end());
-
-		taskq.cloud.store(world,vecfuncT(it1,it2),inputrecord);
-
-		MacroTaskExchange task(inputrecord,outputrecord,lo,nocc, econv, mul_tol);
-		vtask.push_back(std::shared_ptr<MacroTaskBase>(new MacroTaskExchange(task)));
-	}
-	world.gop.fence();
-
-	auto current_pmap=FunctionDefaults<3>::get_pmap();
-	FunctionDefaults<3>::set_default_pmap(taskq.get_subworld());
-	taskq.run_all(vtask);
-	FunctionDefaults<3>::set_pmap(current_pmap);
-	vecfuncT Kf;
-	double cpu2=cpu_time();
-	for (int i=0; i<nf; i+=batchsize) {
-		vecfuncT dummy;
-		taskq.cloud.load<vecfuncT>(world,dummy,nocc+nocc+nf+i);		// spending nearly all i/o time in cloud.h:197
-		Kf=append(Kf,dummy);
-	}
-	double cpu3=cpu_time();
-	if (world.rank()==0) printf("loading wall time in collection step %4.1fs\n",cpu3-cpu2);
-
-	taskq.cloud.print_timings(world);
-	taskq.get_subworld().gop.fence();
-	return Kf;
-}
-
 
     /// apply the exchange operator by tiling the exchange matrix
 
@@ -172,7 +108,7 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::K_macrotask(const vecfuncT& vke
         // partition the exchange matrix into tiles, the tile structure must be symmetric
         std::vector<std::pair<long,long> > ranges=OrbitalPartitioner::partition_for_exchange(5,nsubworld,nocc);
         if (world.rank()==0) {
-            print("spliiting nocc into",ranges.size(),"ranges");
+            print("splitting nocc into",ranges.size(),"ranges");
             for (auto& r : ranges) printf(" %2ld to %2ld",r.first,r.second);
             print("");
         }
@@ -185,7 +121,7 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::K_macrotask(const vecfuncT& vke
             for (auto& column_range : ranges) {
                 // compute only the the upper triangular matrix
                 if (row_range.first <= column_range.first) {
-                    MacroTaskExchangeEfficient task(row_range, column_range, nocc, lo, econv, mul_tol);
+                    MacroTaskExchangeEfficient task(row_range, column_range, nocc, lo, econv, mul_tol, ranges.size());
                     vtask.push_back(std::shared_ptr<MacroTaskBase>(new MacroTaskExchangeEfficient(task)));
                 }
             }
@@ -205,7 +141,7 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::K_macrotask(const vecfuncT& vke
         double cpu2=cpu_time();
         for (auto row_r : ranges) {
             vecfuncT dummy1=zero_functions_compressed<T,NDIM>(world,row_r.second-row_r.first);
-        for (auto column_r : ranges) {
+            for (auto column_r : ranges) {
                 vecfuncT dummy;
                 long record = MacroTaskExchangeEfficient::outputrecord(row_r, column_r);
                 taskq.cloud.load<vecfuncT>(world, dummy,record);
@@ -213,6 +149,7 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::K_macrotask(const vecfuncT& vke
             }
             Kf = append(Kf, dummy1);
         }
+        truncate(world,Kf);
         double cpu3=cpu_time();
         if (world.rank()==0) printf("loading wall time in collection step %4.1fs\n",cpu3-cpu2);
 
@@ -227,6 +164,7 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::K_small_memory(const vecfuncT& 
 
 	const long nocc=mo_ket.size();
 	vecfuncT Kf=zero_functions_compressed<T,NDIM>(world,nocc);
+	auto poisson=set_poisson(world,lo,econv);
 
 	for(int i=0; i<nocc; ++i){
 		if(occ[i] > 0.0){
@@ -245,29 +183,33 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::K_small_memory(const vecfuncT& 
 			gaxpy(world, 1.0, Kf, occ[i], psif);
             cpu1=cpu_time();
             double dot=cpu1-cpu0;
-            printf("timings for mul1, apply, dot: %8.2fs %8.2fs %8.2fs\n",mul1,apply1,dot);
+//            printf("timings for mul1, apply, dot: %8.2fs %8.2fs %8.2fs\n",mul1,apply1,dot);
 
 		}
 	}
+    truncate(world, Kf);
 	return Kf;
 }
 
 template<typename T, std::size_t NDIM>
 std::vector<Function<T,NDIM> > Exchange<T,NDIM>::K_large_memory(const vecfuncT& vket, const double mul_tol) const {    // Larger memory algorithm ... use i-j sym if psi==f
 
-    return compute_K_tile(world,mo_bra,mo_ket,vket,poisson,this->same(),occ,mul_tol);
+    auto poisson=set_poisson(world,lo,econv);
+    double truncate_tol=FunctionDefaults<NDIM>::get_thresh();
+    return compute_K_tile(world,mo_bra,mo_ket,vket,poisson,this->same(),occ,mul_tol,truncate_tol);
 }
 
 template<typename T, std::size_t NDIM>
 std::vector<Function<T, NDIM> >
 Exchange<T, NDIM>::compute_K_tile(World &world, const vecfuncT &mo_bra, const vecfuncT &mo_ket,
                                   const vecfuncT &vket, std::shared_ptr<real_convolution_3d> poisson,
-                                  const bool same, const Tensor<double> &occ, const double mul_tol) {
+                                  const bool same, const Tensor<double> &occ, const double mul_tol,
+                                  const double truncate_tol) {
 
+    double cpu0=cpu_time();
     const long nf = vket.size();
     const long nocc = mo_ket.size();
     vecfuncT Kf = zero_functions_compressed<T, NDIM>(world, nocc);
-    double tol = FunctionDefaults<3>::get_thresh(); /// Important this is consistent with Coulomb
 
     vecfuncT psif;
     for (int i = 0; i < nocc; ++i) {
@@ -280,9 +222,17 @@ Exchange<T, NDIM>::compute_K_tile(World &world, const vecfuncT &mo_bra, const ve
     }
 
     world.gop.fence();
-    truncate(world, psif, tol);
+    truncate(world, psif);
+    double cpu1=cpu_time();
+    mul1_timer+=long((cpu1-cpu0)*1000l);
+
+    cpu0=cpu_time();
     psif = apply(world, *poisson.get(), psif);
-    truncate(world, psif, tol);
+    truncate(world, psif);
+    cpu1=cpu_time();
+    apply_timer+=long((cpu1-cpu0)*1000l);
+
+    cpu0=cpu_time();
     reconstruct(world, psif);
     norm_tree(world, psif);
     vecfuncT psipsif = zero_functions<T, NDIM>(world, nf * nocc);
@@ -300,7 +250,8 @@ Exchange<T, NDIM>::compute_K_tile(World &world, const vecfuncT &mo_bra, const ve
     }
 
     world.gop.fence();
-    print(occ);
+    cpu1=cpu_time();
+    mul2_timer+=long((cpu1-cpu0)*1000l);
     psif.clear();
     world.gop.fence();
     compress(world, psipsif);
@@ -312,7 +263,7 @@ Exchange<T, NDIM>::compute_K_tile(World &world, const vecfuncT &mo_bra, const ve
     world.gop.fence();
     psipsif.clear();
     world.gop.fence();
-    truncate(world, Kf, tol);
+    truncate(world, Kf, truncate_tol);
     return Kf;
 
 };
@@ -323,8 +274,8 @@ template class Exchange<double,3>;
 template <> volatile std::list<detail::PendingMsg> WorldObject<MacroTaskQ>::pending = std::list<detail::PendingMsg>();
 template <> Spinlock WorldObject<MacroTaskQ>::pending_mutex(0);
 
-template <> volatile std::list<detail::PendingMsg> WorldObject<WorldContainerImpl<long, Exchange<double,3>::MacroTaskExchange, madness::Hash<long> > >::pending = std::list<detail::PendingMsg>();
-template <> Spinlock WorldObject<WorldContainerImpl<long, Exchange<double,3>::MacroTaskExchange, madness::Hash<long> > >::pending_mutex(0);
+//template <> volatile std::list<detail::PendingMsg> WorldObject<WorldContainerImpl<long, Exchange<double,3>::MacroTaskExchange, madness::Hash<long> > >::pending = std::list<detail::PendingMsg>();
+//template <> Spinlock WorldObject<WorldContainerImpl<long, Exchange<double,3>::MacroTaskExchange, madness::Hash<long> > >::pending_mutex(0);
 
 template <> volatile std::list<detail::PendingMsg> WorldObject<WorldContainerImpl<long, std::vector<unsigned char>, madness::Hash<long> > >::pending = std::list<detail::PendingMsg>();
 template <> Spinlock WorldObject<WorldContainerImpl<long, std::vector<unsigned char>, madness::Hash<long> > >::pending_mutex(0);

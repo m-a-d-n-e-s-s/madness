@@ -482,7 +482,7 @@ int test_exchange(World& world) {
     FunctionDefaults<3>::set_cubic_cell(-10, 10);
 
     // construct exchange operator
-    Exchange<T,3> K=Exchange<T,3>(world).multiworld(true);
+    Exchange<T,3> K=Exchange<T,3>(world);
 
     const int nmo=2;
     Tensor<double> alpha(nmo);
@@ -499,7 +499,8 @@ int test_exchange(World& world) {
     Tensor<double> aocc(nmo);
     aocc.fill(1.0);
 
-    K.set_parameters(conj(world,amo),amo,aocc);
+    double lo=1.e-4;
+    K.set_parameters(conj(world,amo),amo,aocc,lo);
 
     // compare the exchange operator to precomputed reference values
     int success=0;
