@@ -107,7 +107,7 @@ public:
 
 	/// for each process create a world using a communicator shared with other processes by round-robin
 	/// copy-paste from test_world.cc
-	std::shared_ptr<World> create_worlds(World& universe, const std::size_t nsubworld) {
+	static std::shared_ptr<World> create_worlds(World& universe, const std::size_t nsubworld) {
 
 		int color = universe.rank() % nsubworld;
 		SafeMPI::Intracomm comm = universe.mpi.comm().Split(color, universe.rank() / nsubworld);
@@ -122,7 +122,7 @@ public:
 	/// run all tasks, tasks may store the results in the cloud
 	void run_all(std::vector<std::shared_ptr<MacroTaskBase> >& vtask) {
 
-		for (auto t : vtask) if (universe.rank()==0) t->set_waiting();
+		for (const auto& t : vtask) if (universe.rank()==0) t->set_waiting();
 		for (int i=0; i<vtask.size(); ++i) add_replicated_task(vtask[i]);
 		print_taskq();
 
@@ -134,9 +134,7 @@ public:
 		print("I am subworld",subworld.id());
 		double tasktime=0.0;
 		while (true){
-		    double cpu000=cpu_time();
 			long element=get_scheduled_task_number(subworld);
-            double cpu111=cpu_time();
             double cpu0=cpu_time();
 			if (element<0) break;
 			std::shared_ptr<MacroTaskBase> task=taskq[element];
@@ -148,7 +146,7 @@ public:
 			tasktime+=(cpu1-cpu0);
 			if (subworld.rank()==0) printf("completed task %3ld after %6.1fs at time %6.1fs\n",element,cpu1-cpu0,wall_time());
 
-		};
+		}
 		universe.gop.fence();
 		universe.gop.sum(tasktime);
         double cpu11=cpu_time();
@@ -156,7 +154,7 @@ public:
         if (universe.rank()==0) printf(" total cpu time / per world  %4.1fs %4.1fs\n",tasktime,tasktime/universe.size());
 
 		// cleanup task-persistent input data
-		for (auto task : taskq) task->cleanup();
+		for (auto& task : taskq) task->cleanup();
 
 
 	}
@@ -194,7 +192,7 @@ private:
 		universe.gop.fence();
 		if (universe.rank()==0) {
 			print("taskq on universe rank",universe.rank());
-			for (auto t : taskq) t->print_me();
+			for (const auto& t : taskq) t->print_me();
 		}
 		universe.gop.fence();
 	}
@@ -213,7 +211,7 @@ private:
 		MADNESS_ASSERT(universe.rank()==0);
 		std::lock_guard<std::mutex> lock(taskq_mutex);
 
-		auto is_Waiting = [](std::shared_ptr<MacroTaskBase> mtb_ptr) {return mtb_ptr->is_waiting();};
+		auto is_Waiting = [](const std::shared_ptr<MacroTaskBase>& mtb_ptr) {return mtb_ptr->is_waiting();};
 		auto it=std::find_if(taskq.begin(),taskq.end(),is_Waiting);
 		if (it!=taskq.end()) {
 			it->get()->set_running();

@@ -89,18 +89,23 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::operator()(
     template<typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > Exchange<T, NDIM>::K_macrotask_efficient(const vecfuncT &vket, const double mul_tol) const {
 
-        if (world.rank()==0) print("\nentering macrotask_efficient version");
+        MacroTaskExchangeEfficient::async_accumulation=true;
+        if (world.rank()==0) print("\nentering macrotask_efficient version, async_acc:",
+                                   MacroTaskExchangeEfficient::async_accumulation);
 
         const long nocc=mo_ket.size();
         const long nsubworld=world.size();
 
-        MacroTaskQ taskq(world,nsubworld);
+        // the result is a vector of Functions living in the universe
+        vecfuncT Kf=zero_functions_compressed<T,NDIM>(world,nocc);
 
         double wall0=wall_time();
+        MacroTaskQ taskq(world,nsubworld);
         for (int i=0; i<nocc; ++i) {
             taskq.cloud.store(world,mo_bra[i],i);
             taskq.cloud.store(world,mo_ket[i],i+nocc);
             taskq.cloud.store(world,vket[i],i+2*nocc);
+            taskq.cloud.store(world,Kf[i].get_impl(),i+3*nocc); // store pointer to FunctionImpl
         }
         double wall1=wall_time();
         if (world.rank()==0) printf("wall time for storing %4.1fs\n",wall1-wall0);
@@ -136,23 +141,26 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::operator()(
         taskq.run_all(vtask);
         FunctionDefaults<3>::set_pmap(current_pmap);
 
-        // collect batches of result data
-        vecfuncT Kf;
-        double cpu2=cpu_time();
-        for (auto row_r : ranges) {
-            vecfuncT dummy1=zero_functions_compressed<T,NDIM>(world,row_r.second-row_r.first);
-            for (auto column_r : ranges) {
-                vecfuncT dummy;
-                long record = MacroTaskExchangeEfficient::outputrecord(row_r, column_r);
-                taskq.cloud.load<vecfuncT>(world, dummy,record);
-                dummy1+=dummy;
-            }
-            Kf = append(Kf, dummy1);
-        }
-        truncate(world,Kf);
-        double cpu3=cpu_time();
-        if (world.rank()==0) printf("loading wall time in collection step %4.1fs\n",cpu3-cpu2);
 
+        if (not MacroTaskExchangeEfficient::async_accumulation) {
+            // collect batches of result data
+            Kf.clear();
+            double cpu2 = cpu_time();
+            for (auto row_r : ranges) {
+                vecfuncT dummy1 = zero_functions_compressed<T, NDIM>(world, row_r.second - row_r.first);
+                for (auto column_r : ranges) {
+                    vecfuncT dummy;
+                    long record = MacroTaskExchangeEfficient::outputrecord(row_r, column_r);
+                    taskq.cloud.load<vecfuncT>(world, dummy, record);
+                    dummy1 += dummy;
+                }
+                Kf = append(Kf, dummy1);
+            }
+            double cpu3 = cpu_time();
+            if (world.rank() == 0) printf("loading wall time in collection step %4.1fs\n", cpu3 - cpu2);
+        }
+
+        truncate(world,Kf);
         taskq.cloud.print_timings(world);
         taskq.get_subworld().gop.fence();
         return Kf;
@@ -168,23 +176,12 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::K_small_memory(const vecfuncT& 
 
 	for(int i=0; i<nocc; ++i){
 		if(occ[i] > 0.0){
-		    double cpu0=cpu_time();
 			vecfuncT psif = mul_sparse(world, mo_bra[i], vket, mul_tol); /// was vtol
 			truncate(world, psif);
-            double cpu1=cpu_time();
-            double mul1=cpu1-cpu0;
-            cpu0=cpu_time();
 			psif = apply(world, *poisson.get(), psif);
 			truncate(world, psif);
-            cpu1=cpu_time();
-            double apply1=cpu1-cpu0;
-            cpu0=cpu_time();
 			psif = mul_sparse(world, mo_ket[i], psif, mul_tol); /// was vtol
 			gaxpy(world, 1.0, Kf, occ[i], psif);
-            cpu1=cpu_time();
-            double dot=cpu1-cpu0;
-//            printf("timings for mul1, apply, dot: %8.2fs %8.2fs %8.2fs\n",mul1,apply1,dot);
-
 		}
 	}
     truncate(world, Kf);
@@ -266,7 +263,7 @@ Exchange<T, NDIM>::compute_K_tile(World &world, const vecfuncT &mo_bra, const ve
     truncate(world, Kf, truncate_tol);
     return Kf;
 
-};
+}
 
 template class Exchange<double_complex,3>;
 template class Exchange<double,3>;

@@ -63,7 +63,27 @@ public:
         double mul_tol=1.e-7;
         long nrange=1;
 
+        struct accumulate_into_result_op {
+            Function<T,NDIM> result;
+            accumulate_into_result_op(Function<T,NDIM>& r) {
+                result.set_impl(r.get_impl());
+            }
+
+            accumulate_into_result_op(Cloud& cloud, World& subworld, const int record) {
+                std::shared_ptr<FunctionImpl<T,NDIM> > rimpl;
+                cloud.load(subworld,rimpl,record);
+                result.set_impl(rimpl);
+            }
+
+            void operator()(const Key<NDIM>& key, FunctionNode<T,NDIM>& node) const {
+                auto coeffs = const_cast<typename FunctionImpl<T, NDIM>::dcT &>(result.get_impl()->get_coeffs());
+                coeffs.send(key, &FunctionNode<T,NDIM>:: template gaxpy_inplace<T,T>, 1.0, node, 1.0);
+            }
+        };
+
+
     public:
+        static inline bool async_accumulation=true;
         MacroTaskExchangeEfficient(const std::pair<long,long>& row_range, const std::pair<long,long>& column_range,
                           const long nocc, const double lo, const double econv, const double mul_tol, const long nrange)
                 : row_range(row_range)
@@ -98,9 +118,15 @@ public:
                 for (int i = 0; i < nocc; ++i) (*mo_ket)[i] = cloud.load<functionT>(subworld, i + nocc);
             }
 
-            // compute the tile [column_range,row_range], corresponding to bra[nrow], ket[ncolumn]
+            // make universe-living Kf accessible here in the subworld for result accumulation
+            vecfuncT Kf(nocc);
+            for (int i=0; i<nocc; ++i) {
+                std::shared_ptr<FunctionImpl<T,NDIM> > rimpl;
+                cloud.load(subworld,rimpl,i+3*nocc);
+                Kf[i].set_impl(rimpl);
+            }
 
-            // multiply the functions orbital_product_{ij}(r) = i(r) j(r)
+            // compute the tile [column_range,row_range], corresponding to bra[nrow], ket[ncolumn]
             vecfuncT bra_batch(mo_bra->begin() + row_range.first, mo_bra->begin() + row_range.second);
             vecfuncT ket_batch(mo_ket->begin() + column_range.first, mo_ket->begin() + column_range.second);
 
@@ -109,17 +135,31 @@ public:
             if (row_range == column_range) {
                 vecfuncT resultcolumn=compute_symmetric_batch(subworld, bra_batch, ket_batch, truncate_tol);
 
-                // store results: columns as columns
-                cloud.store(subworld,resultcolumn,outputrecord(row_range,column_range));
+                if (async_accumulation) {
+                    for (int i = column_range.first; i < column_range.second; ++i) {
+                        resultcolumn[i - column_range.first].unaryop_node(accumulate_into_result_op(Kf[i]));
+                    }
+                } else {
+                    // store results: columns as columns
+                    cloud.store(subworld, resultcolumn, outputrecord(row_range, column_range));
+                }
 
             } else {
                 auto [resultcolumn,resultrow]=compute_batch(subworld, bra_batch, ket_batch, truncate_tol);
 
-                // store results: columns as columns; transpose rows to columns
-                cloud.store(subworld,resultcolumn,outputrecord(row_range,column_range));
-                cloud.store(subworld,resultrow,outputrecord(column_range,row_range));
+                if (async_accumulation) {
+                    for (int i = column_range.first; i < column_range.second; ++i)
+                        resultrow[i - column_range.first].unaryop_node(accumulate_into_result_op(Kf[i]));
+                    for (int i = row_range.first; i < row_range.second; ++i)
+                        resultcolumn[i - row_range.first].unaryop_node(accumulate_into_result_op(Kf[i]));
+                } else {
+                    // store results: columns as columns; transpose rows to columns
+                    cloud.store(subworld, resultcolumn, outputrecord(row_range, column_range));
+                    cloud.store(subworld, resultrow, outputrecord(column_range, row_range));
+                }
 
             }
+            subworld.gop.fence();
         }
 
         /// compute a batch of the exchange matrix, with identical ranges, exploiting the matrix symmetry
@@ -137,22 +177,6 @@ public:
             return Exchange<T,NDIM>::compute_K_tile(subworld,bra_batch,ket_batch,ket_batch,poisson,same,occ,mul_tol,truncate_tol);
         }
 
-        /// compute a batch of the exchange matrix, with identical ranges, exploiting the matrix symmetry
-
-        /// \param subworld     the world we're computing in
-        /// \param cloud        where to store the results
-        /// \param bra_batch    the bra batch of orbitals (including the nuclear correlation factor square)
-        /// \param ket_batch    the ket batch of orbitals, also the orbitals to premultiply with
-        vecfuncT compute_nondiagonal_batch(World& subworld, const vecfuncT& bra_batch,
-                                         const vecfuncT& ket_batch, const double truncate_tol) const {
-            Tensor<double> occ(ket_batch.size());
-            occ=1.0;
-            double mul_tol=0.0;
-            double same=false;
-            return Exchange<T,NDIM>::compute_K_tile(subworld,bra_batch,ket_batch,ket_batch,poisson,same,occ,mul_tol,truncate_tol);
-        }
-
-
         /// compute a batch of the exchange matrix, with non-identical ranges
 
         /// \param subworld     the world we're computing in
@@ -169,13 +193,13 @@ public:
             vecfuncT orbital_product_flat=flatten(orbital_product); // convert into a flattened vector
             truncate(subworld, orbital_product_flat);
             double cpu1=cpu_time();
-            mul1_timer+=long((cpu_time()-cpu0)*1000l);
+            mul1_timer+=long((cpu1-cpu0)*1000l);
 
             cpu0=cpu_time();
             vecfuncT Nij = apply(subworld, *poisson.get(), orbital_product_flat);
             truncate(subworld, Nij);
             cpu1=cpu_time();
-            apply_timer+=long((cpu_time()-cpu0)*1000l);
+            apply_timer+=long((cpu1-cpu0)*1000l);
 
             // accumulate columns:      resultrow(i)=\sum_j j N_ij
             // accumulate rows:      resultcolumn(j)=\sum_i i N_ij
@@ -203,7 +227,7 @@ public:
                 return result;
             };
 
-            // corresponds to bra_batch and ket_beatch, but without the ncf R^2
+            // corresponds to bra_batch and ket_batch, but without the ncf R^2
             vecfuncT preintegral_row(mo_ket->begin()+row_range.first,mo_ket->begin()+row_range.second);
             vecfuncT preintegral_column(mo_ket->begin()+column_range.first,mo_ket->begin()+column_range.second);
 
@@ -216,7 +240,7 @@ public:
                 resultrow[icolumn]=dot(subworld,preintegral_row,Nslice1(_,icolumn));  // sum over rows result=sum_i ket[i] N[i,j]
             }
             cpu1=cpu_time();
-            mul2_timer+=long((cpu_time()-cpu0)*1000l);
+            mul2_timer+=long((cpu1-cpu0)*1000l);
 
             truncate(subworld,resultcolumn,truncate_tol,false);
             truncate(subworld,resultrow,truncate_tol,false);
@@ -306,16 +330,16 @@ public:
 
     /// compute the matrix element <bra | K | ket>
 
-    /// @param[in]  bra    real_funtion_3d, the bra state
-    /// @param[in]  ket    real_funtion_3d, the ket state
+    /// @param[in]  bra    real_function_3d, the bra state
+    /// @param[in]  ket    real_function_3d, the ket state
     T operator()(const Function<T,NDIM>& bra, const Function<T,NDIM>& ket) const {
         return inner(bra,this->operator()(ket));
     }
 
     /// compute the matrix < vbra | K | vket >
 
-    /// @param[in]  vbra    vector of real_funtion_3d, the set of bra states
-    /// @param[in]  vket    vector of real_funtion_3d, the set of ket states
+    /// @param[in]  vbra    vector of real_function_3d, the set of bra states
+    /// @param[in]  vket    vector of real_function_3d, the set of ket states
     /// @return K_ij
     Tensor<T> operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
         const auto bra_equiv_ket = &vbra == &vket;
