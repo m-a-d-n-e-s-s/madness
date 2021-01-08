@@ -61,19 +61,10 @@ public:
         double lo=1.e-4;
         double econv=1.e-6;
         double mul_tol=1.e-7;
-        long nrange=1;
 
         struct accumulate_into_result_op {
             Function<T,NDIM> result;
-            accumulate_into_result_op(Function<T,NDIM>& r) {
-                result.set_impl(r.get_impl());
-            }
-
-            accumulate_into_result_op(Cloud& cloud, World& subworld, const int record) {
-                std::shared_ptr<FunctionImpl<T,NDIM> > rimpl;
-                cloud.load(subworld,rimpl,record);
-                result.set_impl(rimpl);
-            }
+            explicit accumulate_into_result_op(Function<T,NDIM>& r) : result (r) {}
 
             void operator()(const Key<NDIM>& key, FunctionNode<T,NDIM>& node) const {
                 auto coeffs = const_cast<typename FunctionImpl<T, NDIM>::dcT &>(result.get_impl()->get_coeffs());
@@ -83,16 +74,14 @@ public:
 
 
     public:
-        static inline bool async_accumulation=true;
         MacroTaskExchangeEfficient(const std::pair<long,long>& row_range, const std::pair<long,long>& column_range,
-                          const long nocc, const double lo, const double econv, const double mul_tol, const long nrange)
+                          const long nocc, const double lo, const double econv, const double mul_tol)
                 : row_range(row_range)
                 , column_range(column_range)
                 , nocc(nocc)
                 , lo(lo)
                 , econv(econv)
-                , mul_tol(mul_tol)
-                , nrange(nrange){
+                , mul_tol(mul_tol) {
             this->priority=compute_priority();
         }
 
@@ -130,33 +119,19 @@ public:
             vecfuncT bra_batch(mo_bra->begin() + row_range.first, mo_bra->begin() + row_range.second);
             vecfuncT ket_batch(mo_ket->begin() + column_range.first, mo_ket->begin() + column_range.second);
 
-            const double truncate_tol=FunctionDefaults<NDIM>::get_thresh()/nrange*0.0001;
-
             if (row_range == column_range) {
-                vecfuncT resultcolumn=compute_symmetric_batch(subworld, bra_batch, ket_batch, truncate_tol);
+                vecfuncT resultcolumn=compute_symmetric_batch(subworld, bra_batch, ket_batch);
 
-                if (async_accumulation) {
-                    for (int i = column_range.first; i < column_range.second; ++i) {
-                        resultcolumn[i - column_range.first].unaryop_node(accumulate_into_result_op(Kf[i]));
-                    }
-                } else {
-                    // store results: columns as columns
-                    cloud.store(subworld, resultcolumn, outputrecord(row_range, column_range));
-                }
+                for (int i = column_range.first; i < column_range.second; ++i)
+                    resultcolumn[i - column_range.first].unaryop_node(accumulate_into_result_op(Kf[i]));
 
             } else {
-                auto [resultcolumn,resultrow]=compute_batch(subworld, bra_batch, ket_batch, truncate_tol);
+                auto [resultcolumn,resultrow]=compute_batch(subworld, bra_batch, ket_batch);
 
-                if (async_accumulation) {
-                    for (int i = column_range.first; i < column_range.second; ++i)
-                        resultrow[i - column_range.first].unaryop_node(accumulate_into_result_op(Kf[i]));
-                    for (int i = row_range.first; i < row_range.second; ++i)
-                        resultcolumn[i - row_range.first].unaryop_node(accumulate_into_result_op(Kf[i]));
-                } else {
-                    // store results: columns as columns; transpose rows to columns
-                    cloud.store(subworld, resultcolumn, outputrecord(row_range, column_range));
-                    cloud.store(subworld, resultrow, outputrecord(column_range, row_range));
-                }
+                for (int i = column_range.first; i < column_range.second; ++i)
+                    resultrow[i - column_range.first].unaryop_node(accumulate_into_result_op(Kf[i]));
+                for (int i = row_range.first; i < row_range.second; ++i)
+                    resultcolumn[i - row_range.first].unaryop_node(accumulate_into_result_op(Kf[i]));
 
             }
             subworld.gop.fence();
@@ -168,13 +143,12 @@ public:
         /// \param cloud        where to store the results
         /// \param bra_batch    the bra batch of orbitals (including the nuclear correlation factor square)
         /// \param ket_batch    the ket batch of orbitals, also the orbitals to premultiply with
-        vecfuncT compute_symmetric_batch(World& subworld, const vecfuncT& bra_batch,
-                                         const vecfuncT& ket_batch, const double truncate_tol) const {
+        vecfuncT compute_symmetric_batch(World& subworld, const vecfuncT& bra_batch, const vecfuncT& ket_batch) const {
             Tensor<double> occ(ket_batch.size());
             occ=1.0;
             double mul_tol=0.0;
             double same=true;
-            return Exchange<T,NDIM>::compute_K_tile(subworld,bra_batch,ket_batch,ket_batch,poisson,same,occ,mul_tol,truncate_tol);
+            return Exchange<T,NDIM>::compute_K_tile(subworld,bra_batch,ket_batch,ket_batch,poisson,same,occ,mul_tol);
         }
 
         /// compute a batch of the exchange matrix, with non-identical ranges
@@ -184,10 +158,8 @@ public:
         /// \param bra_batch    the bra batch of orbitals (including the nuclear correlation factor square)
         /// \param ket_batch    the ket batch of orbitals, also the orbitals to premultiply with
         std::pair<vecfuncT, vecfuncT> compute_batch(World& subworld, const vecfuncT& bra_batch,
-                                                    const vecfuncT& ket_batch, const double truncate_tol) const {
+                                                    const vecfuncT& ket_batch) const {
             // orbital_product is a vector of vectors
-
-
             double cpu0 = cpu_time();
             std::vector<vecfuncT> orbital_product=matrix_mul_sparse<T,T,NDIM>(subworld,bra_batch,ket_batch,mul_tol);
             vecfuncT orbital_product_flat=flatten(orbital_product); // convert into a flattened vector
@@ -221,7 +193,7 @@ public:
             auto Nslice1 = [&Nij, &ij, &nrow] (const Slice s, const long jcolumn) {
                 vecfuncT result;
                 MADNESS_CHECK(s.start==0 && s.end==-1 && s.step==1);
-                for (int i=s.start; i<=s.end+nrow; ++i) {
+                for (std::size_t i=s.start; i<=s.end+nrow; ++i) {
                     result.push_back(Nij[ij(i,jcolumn)]);
                 }
                 return result;
@@ -239,40 +211,23 @@ public:
             for (std::size_t icolumn=0; icolumn<ncolumn; ++icolumn) {
                 resultrow[icolumn]=dot(subworld,preintegral_row,Nslice1(_,icolumn));  // sum over rows result=sum_i ket[i] N[i,j]
             }
+
+            // !! NO TRUNCATION AT THIS POINT !!
+            subworld.gop.fence();
             cpu1=cpu_time();
             mul2_timer+=long((cpu1-cpu0)*1000l);
-
-//            truncate(subworld,resultcolumn,truncate_tol,false);
-//            truncate(subworld,resultrow,truncate_tol,false);
-            subworld.gop.fence();
 
             return std::make_pair(resultcolumn,resultrow);
         }
 
         void cleanup() {
-            if (mo_ket) {
-                print("clearing mo_ket");
-                mo_ket.reset();
-            }
+            if (mo_ket) mo_ket.reset();
             if (mo_bra) mo_bra.reset();
-        }
-
-        /// return the record to store the output based on the batch
-
-        /// \param range        the range of the batch
-        /// \param dimension    0: row, 1: column
-        /// \return             the record to store the result (positive for column, negative for row)
-        static long outputrecord(const std::pair<long,long>& rowrange, const std::pair<long,long>& columnrange) {
-            // Cantor pairing
-            auto cantor = [] (const long k1, const long k2) {
-                return ((k1 + k2) * (k1 + k2 + 1)/2 + k2);
-            };
-            return cantor(rowrange.first,columnrange.first);
         }
 
         template <typename Archive>
         void serialize(const Archive& ar) {
-            ar & row_range & column_range & nocc & lo & econv & mul_tol & nrange;
+            ar & row_range & column_range & nocc & lo & econv & mul_tol ;
         }
 
         void print_me(std::string s="") const {
@@ -379,7 +334,7 @@ private:
     /// computing the upper triangle of the double sum (over vket and the K orbitals)
     static vecfuncT compute_K_tile(World& world, const vecfuncT& mo_bra, const vecfuncT& mo_ket,
                     const vecfuncT& vket, std::shared_ptr<real_convolution_3d> poisson,
-                    const bool same, const Tensor<double>& occ, const double mul_tol=0.0, double trunc_tol=0.0);
+                    const bool same, const Tensor<double>& occ, const double mul_tol=0.0);
 
     World& world;
     bool same_=false;
