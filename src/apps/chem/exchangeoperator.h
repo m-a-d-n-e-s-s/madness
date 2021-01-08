@@ -130,7 +130,7 @@ public:
             vecfuncT bra_batch(mo_bra->begin() + row_range.first, mo_bra->begin() + row_range.second);
             vecfuncT ket_batch(mo_ket->begin() + column_range.first, mo_ket->begin() + column_range.second);
 
-            const double truncate_tol=FunctionDefaults<NDIM>::get_thresh()/nrange*0.01;
+            const double truncate_tol=FunctionDefaults<NDIM>::get_thresh()/nrange*0.0001;
 
             if (row_range == column_range) {
                 vecfuncT resultcolumn=compute_symmetric_batch(subworld, bra_batch, ket_batch, truncate_tol);
@@ -242,8 +242,8 @@ public:
             cpu1=cpu_time();
             mul2_timer+=long((cpu1-cpu0)*1000l);
 
-            truncate(subworld,resultcolumn,truncate_tol,false);
-            truncate(subworld,resultrow,truncate_tol,false);
+//            truncate(subworld,resultcolumn,truncate_tol,false);
+//            truncate(subworld,resultrow,truncate_tol,false);
             subworld.gop.fence();
 
             return std::make_pair(resultcolumn,resultrow);
