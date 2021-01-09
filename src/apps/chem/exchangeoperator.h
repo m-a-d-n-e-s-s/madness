@@ -53,14 +53,15 @@ public:
 
         typedef std::vector<std::shared_ptr<MacroTaskBase> > taskqT;
 
-        static inline std::shared_ptr<vecfuncT> mo_ket, mo_bra;
+        static inline std::shared_ptr<vecfuncT> mo_ket, mo_bra, vf;
         static inline std::shared_ptr<real_convolution_3d> poisson;
 
         std::pair<long,long> row_range, column_range;
         long nocc=0;
+        long nf=0;
         double lo=1.e-4;
-        double econv=1.e-6;
         double mul_tol=1.e-7;
+        bool same=true;
 
         struct accumulate_into_result_op {
             Function<T,NDIM> result;
@@ -75,80 +76,48 @@ public:
 
     public:
         MacroTaskExchangeEfficient(const std::pair<long,long>& row_range, const std::pair<long,long>& column_range,
-                          const long nocc, const double lo, const double econv, const double mul_tol)
+                          const long nocc, const long nf, const double lo, const double mul_tol, const bool same)
                 : row_range(row_range)
                 , column_range(column_range)
                 , nocc(nocc)
+                , nf(nf)
                 , lo(lo)
-                , econv(econv)
-                , mul_tol(mul_tol) {
+                , mul_tol(mul_tol)
+                , same(same) {
             this->priority=compute_priority();
         }
 
+        /// compute the priority of this task for non-dumb scheduling
+
+        /// \return the priority as double number (no limits)
         double compute_priority() const {
             long nrow=row_range.second-row_range.first;
             long ncol=column_range.second-column_range.first;
             return double(nrow*ncol);
         }
 
+        /// run a macrotask
 
-        void run(World& subworld, Cloud& cloud, taskqT& taskq) {
-
-            if (not poisson) poisson = Exchange<T,NDIM>::set_poisson(subworld,lo,econv);
-            // the argument of the exchange operator is the ket vector
-
-            // load bra and ket if not already loaded
-            if (not mo_bra.get()) {
-                mo_bra.reset(new vecfuncT(nocc));
-                for (int i = 0; i < nocc; ++i) (*mo_bra)[i] = cloud.load<functionT>(subworld, i);
-            }
-            if (not mo_ket.get()) {
-                mo_ket.reset(new vecfuncT(nocc));
-                for (int i = 0; i < nocc; ++i) (*mo_ket)[i] = cloud.load<functionT>(subworld, i + nocc);
-            }
-
-            // make universe-living Kf accessible here in the subworld for result accumulation
-            vecfuncT Kf(nocc);
-            for (int i=0; i<nocc; ++i) {
-                std::shared_ptr<FunctionImpl<T,NDIM> > rimpl;
-                cloud.load(subworld,rimpl,i+3*nocc);
-                Kf[i].set_impl(rimpl);
-            }
-
-            // compute the tile [column_range,row_range], corresponding to bra[nrow], ket[ncolumn]
-            vecfuncT bra_batch(mo_bra->begin() + row_range.first, mo_bra->begin() + row_range.second);
-            vecfuncT ket_batch(mo_ket->begin() + column_range.first, mo_ket->begin() + column_range.second);
-
-            if (row_range == column_range) {
-                vecfuncT resultcolumn=compute_symmetric_batch(subworld, bra_batch, ket_batch);
-
-                for (int i = column_range.first; i < column_range.second; ++i)
-                    resultcolumn[i - column_range.first].unaryop_node(accumulate_into_result_op(Kf[i]));
-
-            } else {
-                auto [resultcolumn,resultrow]=compute_batch(subworld, bra_batch, ket_batch);
-
-                for (int i = column_range.first; i < column_range.second; ++i)
-                    resultrow[i - column_range.first].unaryop_node(accumulate_into_result_op(Kf[i]));
-                for (int i = row_range.first; i < row_range.second; ++i)
-                    resultcolumn[i - row_range.first].unaryop_node(accumulate_into_result_op(Kf[i]));
-
-            }
-            subworld.gop.fence();
-        }
+        /// input and output is done through the cloud
+        /// \param subworld     the world this task is executed in
+        /// \param cloud        a storage class for input functions
+        /// \param taskq        the taskq (for later reference..)
+        void run(World& subworld, Cloud& cloud, taskqT& taskq);
 
         /// compute a batch of the exchange matrix, with identical ranges, exploiting the matrix symmetry
 
         /// \param subworld     the world we're computing in
         /// \param cloud        where to store the results
         /// \param bra_batch    the bra batch of orbitals (including the nuclear correlation factor square)
-        /// \param ket_batch    the ket batch of orbitals, also the orbitals to premultiply with
-        vecfuncT compute_symmetric_batch(World& subworld, const vecfuncT& bra_batch, const vecfuncT& ket_batch) const {
+        /// \param ket_batch    the ket batch of orbitals, i.e. the orbitals to premultiply with
+        /// \param vf_batch     the argument of the exchange operator
+        vecfuncT compute_diagonal_batch_in_symmetric_matrix(World& subworld,
+                                       const vecfuncT& bra_batch, const vecfuncT& ket_batch, const vecfuncT& vf_batch) const {
             Tensor<double> occ(ket_batch.size());
             occ=1.0;
             double mul_tol=0.0;
             double same=true;
-            return Exchange<T,NDIM>::compute_K_tile(subworld,bra_batch,ket_batch,ket_batch,poisson,same,occ,mul_tol);
+            return Exchange<T,NDIM>::compute_K_tile(subworld,bra_batch,ket_batch,vf_batch,poisson,same,occ,mul_tol);
         }
 
         /// compute a batch of the exchange matrix, with non-identical ranges
@@ -156,78 +125,36 @@ public:
         /// \param subworld     the world we're computing in
         /// \param cloud        where to store the results
         /// \param bra_batch    the bra batch of orbitals (including the nuclear correlation factor square)
-        /// \param ket_batch    the ket batch of orbitals, also the orbitals to premultiply with
-        std::pair<vecfuncT, vecfuncT> compute_batch(World& subworld, const vecfuncT& bra_batch,
-                                                    const vecfuncT& ket_batch) const {
-            // orbital_product is a vector of vectors
-            double cpu0 = cpu_time();
-            std::vector<vecfuncT> orbital_product=matrix_mul_sparse<T,T,NDIM>(subworld,bra_batch,ket_batch,mul_tol);
-            vecfuncT orbital_product_flat=flatten(orbital_product); // convert into a flattened vector
-            truncate(subworld, orbital_product_flat);
-            double cpu1=cpu_time();
-            mul1_timer+=long((cpu1-cpu0)*1000l);
-
-            cpu0=cpu_time();
-            vecfuncT Nij = apply(subworld, *poisson.get(), orbital_product_flat);
-            truncate(subworld, Nij);
-            cpu1=cpu_time();
-            apply_timer+=long((cpu1-cpu0)*1000l);
-
-            // accumulate columns:      resultrow(i)=\sum_j j N_ij
-            // accumulate rows:      resultcolumn(j)=\sum_i i N_ij
-            cpu0=cpu_time();
-
-            // some helper functions
-            std::size_t nrow=bra_batch.size();
-            std::size_t ncolumn=ket_batch.size();
-            auto ij = [&nrow, &ncolumn](const int i, const int j) {return i*ncolumn+j;};
-
-            auto Nslice = [&Nij, &ij, &ncolumn] (const long irow, const Slice s) {
-                vecfuncT result;
-                MADNESS_CHECK(s.start==0 && s.end==-1 && s.step==1);
-                for (std::size_t i=s.start; i<=s.end+ncolumn; ++i) {
-                    result.push_back(Nij[ij(irow,i)]);
-                }
-                return result;
-            };
-            auto Nslice1 = [&Nij, &ij, &nrow] (const Slice s, const long jcolumn) {
-                vecfuncT result;
-                MADNESS_CHECK(s.start==0 && s.end==-1 && s.step==1);
-                for (std::size_t i=s.start; i<=s.end+nrow; ++i) {
-                    result.push_back(Nij[ij(i,jcolumn)]);
-                }
-                return result;
-            };
-
-            // corresponds to bra_batch and ket_batch, but without the ncf R^2
-            vecfuncT preintegral_row(mo_ket->begin()+row_range.first,mo_ket->begin()+row_range.second);
-            vecfuncT preintegral_column(mo_ket->begin()+column_range.first,mo_ket->begin()+column_range.second);
-
-            vecfuncT resultcolumn(nrow);
-            for (std::size_t irow=0; irow<nrow; ++irow) {
-                resultcolumn[irow]=dot(subworld,preintegral_column,Nslice(irow,_));  // sum over columns result=sum_j ket[j] N[i,j]
-            }
-            vecfuncT resultrow(ncolumn);
-            for (std::size_t icolumn=0; icolumn<ncolumn; ++icolumn) {
-                resultrow[icolumn]=dot(subworld,preintegral_row,Nslice1(_,icolumn));  // sum over rows result=sum_i ket[i] N[i,j]
-            }
-
-            // !! NO TRUNCATION AT THIS POINT !!
-            subworld.gop.fence();
-            cpu1=cpu_time();
-            mul2_timer+=long((cpu1-cpu0)*1000l);
-
-            return std::make_pair(resultcolumn,resultrow);
+        /// \param ket_batch    the ket batch of orbitals, i.e. the orbitals to premultiply with
+        /// \param vf_batch     the argument of the exchange operator
+        vecfuncT compute_batch_in_asymmetric_matrix(World& subworld,
+                                       const vecfuncT& bra_batch, const vecfuncT& ket_batch, const vecfuncT& vf_batch) const {
+            Tensor<double> occ(ket_batch.size());
+            occ=1.0;
+            double mul_tol=0.0;
+            double same=false;
+            return Exchange<T,NDIM>::compute_K_tile(subworld,bra_batch,ket_batch,vf_batch,poisson,same,occ,mul_tol);
         }
+
+        /// compute a batch of the exchange matrix, with non-identical ranges
+
+        /// \param subworld     the world we're computing in
+        /// \param cloud        where to store the results
+        /// \param bra_batch    the bra batch of orbitals (including the nuclear correlation factor square)
+        /// \param ket_batch    the ket batch of orbitals, i.e. the orbitals to premultiply with
+        /// \param vf_batch     the argument of the exchange operator
+        std::pair<vecfuncT, vecfuncT> compute_offdiagonal_batch_in_symmetric_matrix(World &subworld,
+                                       const vecfuncT& bra_batch, const vecfuncT& ket_batch, const vecfuncT& vf_batch) const;
 
         void cleanup() {
             if (mo_ket) mo_ket.reset();
             if (mo_bra) mo_bra.reset();
+            if (vf) vf.reset();
         }
 
         template <typename Archive>
         void serialize(const Archive& ar) {
-            ar & row_range & column_range & nocc & lo & econv & mul_tol ;
+            ar & row_range & column_range & nocc & lo &  mul_tol ;
         }
 
         void print_me(std::string s="") const {
@@ -255,17 +182,14 @@ public:
     /// @param[in]	ket		ket space
     /// @param[in]	occ1	occupation numbers
     void set_parameters(const vecfuncT& bra, const vecfuncT& ket,
-            const Tensor<double>& occ1, const double lo1,
-            const double econv1=FunctionDefaults<3>::get_thresh()) {
+            const Tensor<double>& occ1, const double lo1) {
     	mo_bra=copy(world,bra);
     	mo_ket=copy(world,ket);
     	occ=copy(occ1);
-    	econv=econv1;
         lo=lo1;
     }
 
-    static auto set_poisson(World& world, const double lo, const double econv) {
-        print("setting the poisson operator with lo, econv", lo, econv);
+    static auto set_poisson(World& world, const double lo, const double econv=FunctionDefaults<3>::get_thresh()) {
         return std::shared_ptr<real_convolution_3d>(
                 CoulombOperatorPtr(world, std::min(lo,1.e-4), econv));
     }
@@ -299,6 +223,8 @@ public:
     Tensor<T> operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
         const auto bra_equiv_ket = &vbra == &vket;
         vecfuncT vKket=this->operator()(vket);
+        auto n=norm2s(world,vKket);
+        print("norms",n);
         auto result=matrix_inner(world,vbra,vKket,bra_equiv_ket);
         if (world.rank()==0) {
         	print("result matrix in K");
@@ -319,7 +245,6 @@ public:
         return *this;
     }
 
-
 private:
 
     /// exchange using macrotasks, i.e. apply K on a function in individual worlds
@@ -336,15 +261,17 @@ private:
                     const vecfuncT& vket, std::shared_ptr<real_convolution_3d> poisson,
                     const bool same, const Tensor<double>& occ, const double mul_tol=0.0);
 
+    inline bool printtimings() const {return (world.rank() == 0) and (printlevel >= 3);}
+    inline bool printdebug() const {return (world.rank()==0) and (printlevel>=10);}
+
     World& world;
     bool same_=false;
     vecfuncT mo_bra, mo_ket;    ///< MOs for bra and ket
     Tensor<double> occ;
     double lo=1.e-4;
-    double econv=FunctionDefaults<NDIM>::get_thresh();
+    long printlevel=0;
 
 };
-
 
 } /* namespace madness */
 

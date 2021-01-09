@@ -79,7 +79,7 @@ private:
 
 public:
 	/// @param[in]	universe	the universe world
-	Cloud(madness::World& universe) : container(universe), reading_time(0), writing_time(0){}
+	Cloud(madness::World& universe) : container(universe), reading_time(0l), writing_time(0l){}
 
 	void set_debug(bool value) {
 		debug=value;

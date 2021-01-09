@@ -655,7 +655,7 @@ vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x)const{
 		if(do_hf){
 			CCTimer timeKx(world,"Kx");
 			Exchange<double,3> K=Exchange<double,3>(world,&nemo,0);
-			K.set_parameters(mo_bra_.get_vecfunction(),mo_ket_.get_vecfunction(),occ,parameters.lo(),parameters.thresh());
+			K.set_parameters(mo_bra_.get_vecfunction(),mo_ket_.get_vecfunction(),occ,parameters.lo());
 			vector_real_function_3d Kx =K(x.get_vecfunction());
 			scale(world,Kx,hf_coeff);
 			Vpsi1 = sub(world, Vpsi1, Kx);

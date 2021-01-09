@@ -501,6 +501,7 @@ int test_exchange(World& world) {
 
     double lo=1.e-4;
     K.set_parameters(conj(world,amo),amo,aocc,lo);
+    K.set_algorithm(Exchange<double,3>::multiworld_efficient);
 
     // compare the exchange operator to precomputed reference values
     int success=0;

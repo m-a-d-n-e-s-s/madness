@@ -14,9 +14,11 @@
 /// \param policy               static, guided, akin to OMP scheduling
 /// \return                     a vector for pairs<long,long> [start,end) for each batch
 std::vector<std::pair<long, long> > OrbitalPartitioner::partition_for_exchange(
-        long min_ntask_per_world, long nsubworld, long nocc, std::string policy) {
+        long min_batch_size, long nsubworld, long nocc, std::string policy) {
 
     std::vector<std::pair<long, long>> ranges;
+
+    min_batch_size=std::min(min_batch_size,nocc);
 
     /* static
      * Divide the loop into equal-sized chunks or as equal as possible
@@ -28,26 +30,26 @@ std::vector<std::pair<long, long> > OrbitalPartitioner::partition_for_exchange(
      */
 
     // split up the exchange matrix in chunks
-    if (policy == "static") {
-        long ntile_target = min_ntask_per_world * nsubworld;
-        long nbatch = long(ceil(sqrt(double(ntile_target))));
-        long batchsize = ceil(double(nocc) / double(nbatch));
-        ranges.resize(nbatch);
-        for (long i = 0; i < nbatch; ++i) {
-            ranges[i].first = i * batchsize;
-            ranges[i].second = std::min(nocc, (i + 1) * batchsize);
-        }
-        // make one range large and one range smaller for better work balancing after sorting the tasks
-        if (batchsize > 8) {
-            ranges[nbatch - 2].second += batchsize / 2;
-            ranges[nbatch - 1].first += batchsize / 2;
-        }
+//    if (policy == "static") {
+//        long ntile_target = min_ntask_per_world * nsubworld;
+//        long nbatch = long(ceil(sqrt(double(ntile_target))));
+//        long batchsize = ceil(double(nocc) / double(nbatch));
+//        ranges.resize(nbatch);
+//        for (long i = 0; i < nbatch; ++i) {
+//            ranges[i].first = i * batchsize;
+//            ranges[i].second = std::min(nocc, (i + 1) * batchsize);
+//        }
+//        // make one range large and one range smaller for better work balancing after sorting the tasks
+//        if (batchsize > 8) {
+//            ranges[nbatch - 2].second += batchsize / 2;
+//            ranges[nbatch - 1].first += batchsize / 2;
+//        }
 
-    } else if (policy == "guided") {
+    if (policy == "guided") {
         long begin=0;
         long end=0;
         while (end<nocc) {
-            end+=std::max(min_ntask_per_world,((nocc-end)/nsubworld));
+            end+=std::max(min_batch_size,((nocc-end)/nsubworld));
             end=std::min(end,nocc);
             ranges.push_back(std::pair<long,long>(begin,end));
             begin=end;

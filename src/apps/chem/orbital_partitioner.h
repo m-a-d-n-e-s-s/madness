@@ -13,7 +13,7 @@ class OrbitalPartitioner {
 
 public:
     static std::vector<std::pair<long,long> > partition_for_exchange(
-            long min_ntask_per_world, long nsubworld, long nocc, std::string policy="guided");
+            long min_batch_size, long nsubworld, long nocc, std::string policy="guided");
 
 
 
