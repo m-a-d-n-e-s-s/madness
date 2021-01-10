@@ -30,13 +30,13 @@ template <typename T> struct response_space {
     World world = W.x[0].world();
     num_vectors = W.size();
     num_orbitals = W[0].size();
-    for (size_t b; b < num_vectors; b++) {
+    for (size_t b=0; b < num_vectors; b++) {
       V.push_back(response_vector(W[b]));
     }
   }
 
   // copy constructor
-  explicit response_space(const response_space& other) {
+   response_space(const response_space& other) {
     *this = response_space(other.V);
   }
 
@@ -190,6 +190,44 @@ template <typename T> struct response_space {
       values(b) = inner(V[b], W[b]);
     }
   }
+
+  // transponse space
+  friend response_space transponse(response_space& A) {
+    MADNESS_ASSERT(A.num_vectors > 0);
+    MADNESS_ASSERT(A.num_vectors > 0);
+    World world = A.V.x[0].world();
+    response_space A_transpose(world, A.num_vectors, A.num_orbitals);
+    for (size_t b = 0; b < A.num_vectors; b++) {
+      for (size_t k = 0; k < A.num_orbitals; k++) {
+        A_transpose[k][b] = A[b][k];
+      }
+    }
+  }
+  // scale... vector by vectors of matrix  G=A*B (A matrix of functions )(B
+  // doubles)
+  friend response_space scale_2d(response_space& A, const Tensor<double>& b) {
+    MADNESS_ASSERT(A.num_vectors > 0);
+    MADNESS_ASSERT(A.num_vectors > 0);
+    World world = A.V.x[0].world();
+    response_space A_transpose(world, A.num_vectors, A.num_orbitals);
+    for (size_t b = 0; b < A.num_vectors; b++) {
+      for (size_t k = 0; k < A.num_orbitals; k++) {
+        A_transpose[k][b] = A[b][k];
+      }
+    }
+  }
+  friend response_space scale(const response_space& A, double b) {
+
+    MADNESS_ASSERT(A.num_vectors > 0);
+    MADNESS_ASSERT(A.num_vectors > 0);
+    World world = A.V.x[0].world();
+
+    response_space A_times_b(world, A.num_vectors, A.num_orbitals);
+    for (size_t b = 0; b < A.num_vectors; b++) {
+      A_times_b[b] = A[b] * b;
+    }
+    return A_times_b;
+  }
 };
 
 // response allocator
@@ -212,6 +250,6 @@ template <typename T> struct response_space_allocator {
   }
 };
 
-} // namespace madness
+}; // namespace madness
 
 #endif // SRC_APPS_ADRIAN_RESPONSE_SPACE_H_

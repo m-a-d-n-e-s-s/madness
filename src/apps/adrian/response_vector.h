@@ -19,7 +19,7 @@ template <typename T> struct response_vector {
   typedef T value_type;
 
   // copy constructor
-  explicit response_vector(const response_vector& a)
+  response_vector(const response_vector& a)
       : num_orbitals(a.num_orbitals), x(madness::copy(a.x[0].world(), a.x)),
         y(madness::copy(a.y[0].world(), a.y)) {}
   // conversion from 2 vector functions to response_vector
@@ -42,7 +42,7 @@ template <typename T> struct response_vector {
   response_vector& operator=(const response_vector& a) {
     num_orbitals = a.num_orbitals;
     x = a.x;
-    y = y.x;
+    y = a.y;
     return *this;
   }
   // same_size predicate

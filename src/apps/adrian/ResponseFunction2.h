@@ -140,23 +140,18 @@ public:
   // n = number of ground state orbitals
 
   // Zero Constructor
-  ResponseVectors(World& world, int num_states, int num_orbitals)
-      : r_states(num_states), g_states(num_orbitals) {
-    for (unsigned int i = 0; i < r_states; i++) {
+  ResponseVectors(World& world, size_t num_states, size_t num_orbitals)
+      : r_states(num_states), g_states(num_orbitals), x(NULL) {
+    for (size_t i = 0; i < r_states; i++) {
       x.push_back(zero_functions<double, 3>(world, g_states, true));
     }
     x[0][0].world().gop.fence();
   }
   // Conversion from  Constructor
-  explicit ResponseVectors(const response_matrix& x) {
+  explicit ResponseVectors(const response_matrix& x)
+      : r_states(x.size()), g_states(x[0].size()), x(NULL) {
 
-    r_states = x.size();
-    g_states = x[0].size();
-    this->x.clear();
-    for (unsigned int i = 0; i < r_states; i++) {
-      this->x.push_back(x[i]);
-    }
-
+    this->x = x;
     x[0][0].world().gop.fence();
   }
 
@@ -165,6 +160,7 @@ public:
     r_states = other.r_states;
     g_states = other.g_states;
     x.clear();
+    //*this = ResponseVectors(other.x[0][0].world(), r_states, g_states);
     for (unsigned int i = 0; i < r_states; i++) {
       x.push_back(other.x[i]);
     }
@@ -172,6 +168,8 @@ public:
 
   ResponseVectors& operator=(const ResponseVectors& other) {
     //
+    if (this != &other) {
+    }
     r_states = other.r_states;
     g_states = other.g_states;
     x.clear();
