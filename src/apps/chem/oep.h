@@ -255,7 +255,7 @@ public:
     real_function_3d compute_slater_potential(const vecfuncT& nemo) const {
 
         Exchange<double,3> K(world);
-        K.set_parameters(R_square*nemo,nemo,calc->aocc,calc->param.lo());
+        K.set_parameters(R_square*nemo,nemo,calc->param.lo());
         const vecfuncT Knemo = K(nemo);
         // 2.0*R_square in numerator and density (rho) cancel out upon division
         real_function_3d numerator = -1.0*dot(world, nemo, Knemo);
@@ -509,7 +509,7 @@ public:
     void compute_exchange_potential(const vecfuncT& nemo, vecfuncT& Knemo) const {
 
     	Exchange<double,3> K = Exchange<double,3>(world);
-    	K.set_parameters(R_square*nemo,nemo,this->get_calc()->aocc,param.lo());
+    	K.set_parameters(R_square*nemo,nemo,param.lo());
     	Knemo = K(nemo);
     	truncate(world, Knemo);
 

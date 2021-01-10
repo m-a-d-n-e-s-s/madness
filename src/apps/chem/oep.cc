@@ -122,7 +122,7 @@ double OEP::compute_and_print_final_energies(const std::string model, const real
 	compute_exchange_potential(KS_nemo, Knemo);
 
 	Exchange<double,3> K(world);
-	K.set_parameters(R_square*HF_nemo,HF_nemo,calc->aocc,param.lo());
+	K.set_parameters(R_square*HF_nemo,HF_nemo,param.lo());
 	double Ex_HF=-inner(R_square*HF_nemo,K(HF_nemo));
 
 	// compute final exchange energy using different methods and final kinetic energy

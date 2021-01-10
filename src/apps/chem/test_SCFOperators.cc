@@ -500,8 +500,8 @@ int test_exchange(World& world) {
     aocc.fill(1.0);
 
     double lo=1.e-4;
-    K.set_parameters(conj(world,amo),amo,aocc,lo);
-    K.set_algorithm(Exchange<double,3>::multiworld_efficient);
+    K.set_parameters(conj(world,amo),amo,lo);
+    K.set_algorithm(Exchange<T,3>::multiworld_efficient);
 
     // compare the exchange operator to precomputed reference values
     int success=0;
@@ -883,7 +883,7 @@ int main(int argc, char** argv) {
 //    if (!smalltest) {
     	result+=test_exchange<double>(world);
 //#ifndef HAVE_GENTENSOR
-//    	result+=test_exchange<double_complex>(world);
+    	result+=test_exchange<double_complex>(world);
 //#endif
 //    	result+=test_XCOperator<double>(world);
 //#ifndef HAVE_GENTENSOR

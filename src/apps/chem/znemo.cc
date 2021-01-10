@@ -1025,7 +1025,7 @@ Znemo::potentials Znemo::compute_potentials(const std::vector<complex_function_3
 	Exchange<double_complex,3> K=Exchange<double_complex,3>(world);
 	Tensor<double> occ(mo.size());
 	occ=1.0;
-	K.set_parameters(conj(world,dia2mo),mo,occ,cparam.lo());
+	K.set_parameters(conj(world,dia2mo),mo,cparam.lo());
 
 	Nuclear nuc(world,ncf);
 

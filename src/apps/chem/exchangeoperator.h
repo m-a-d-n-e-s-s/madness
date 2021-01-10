@@ -113,11 +113,9 @@ public:
         /// \param vf_batch     the argument of the exchange operator
         vecfuncT compute_diagonal_batch_in_symmetric_matrix(World& subworld,
                                        const vecfuncT& bra_batch, const vecfuncT& ket_batch, const vecfuncT& vf_batch) const {
-            Tensor<double> occ(ket_batch.size());
-            occ=1.0;
             double mul_tol=0.0;
             double same=true;
-            return Exchange<T,NDIM>::compute_K_tile(subworld,bra_batch,ket_batch,vf_batch,poisson,same,occ,mul_tol);
+            return Exchange<T,NDIM>::compute_K_tile(subworld,bra_batch,ket_batch,vf_batch,poisson,same,mul_tol);
         }
 
         /// compute a batch of the exchange matrix, with non-identical ranges
@@ -129,11 +127,9 @@ public:
         /// \param vf_batch     the argument of the exchange operator
         vecfuncT compute_batch_in_asymmetric_matrix(World& subworld,
                                        const vecfuncT& bra_batch, const vecfuncT& ket_batch, const vecfuncT& vf_batch) const {
-            Tensor<double> occ(ket_batch.size());
-            occ=1.0;
             double mul_tol=0.0;
             double same=false;
-            return Exchange<T,NDIM>::compute_K_tile(subworld,bra_batch,ket_batch,vf_batch,poisson,same,occ,mul_tol);
+            return Exchange<T,NDIM>::compute_K_tile(subworld,bra_batch,ket_batch,vf_batch,poisson,same,mul_tol);
         }
 
         /// compute a batch of the exchange matrix, with non-identical ranges
@@ -168,7 +164,7 @@ public:
     Algorithm algorithm_=multiworld_efficient;
 
     /// default ctor
-    Exchange(World& world) : world(world), same_(false) {};
+    Exchange(World& world) : world(world), symmetric_(false) {};
 
     /// ctor with a conventional calculation
     Exchange(World& world, const SCF* calc, const int ispin);
@@ -180,12 +176,9 @@ public:
 
     /// @param[in]	bra		bra space, must be provided as complex conjugate
     /// @param[in]	ket		ket space
-    /// @param[in]	occ1	occupation numbers
-    void set_parameters(const vecfuncT& bra, const vecfuncT& ket,
-            const Tensor<double>& occ1, const double lo1) {
+    void set_parameters(const vecfuncT& bra, const vecfuncT& ket, const double lo1) {
     	mo_bra=copy(world,bra);
     	mo_ket=copy(world,ket);
-    	occ=copy(occ1);
         lo=lo1;
     }
 
@@ -224,19 +217,14 @@ public:
         const auto bra_equiv_ket = &vbra == &vket;
         vecfuncT vKket=this->operator()(vket);
         auto n=norm2s(world,vKket);
-        print("norms",n);
         auto result=matrix_inner(world,vbra,vKket,bra_equiv_ket);
-        if (world.rank()==0) {
-        	print("result matrix in K");
-        	print(result);
-        }
         return result;
     }
 
-    bool& same() {return same_;}
-    bool same() const {return same_;}
+    bool& same() {return symmetric_;}
+    bool same() const {return symmetric_;}
     Exchange& same(const bool flag) {
-        same_=flag;
+        symmetric_=flag;
         return *this;
     }
 
@@ -259,15 +247,14 @@ private:
     /// computing the upper triangle of the double sum (over vket and the K orbitals)
     static vecfuncT compute_K_tile(World& world, const vecfuncT& mo_bra, const vecfuncT& mo_ket,
                     const vecfuncT& vket, std::shared_ptr<real_convolution_3d> poisson,
-                    const bool same, const Tensor<double>& occ, const double mul_tol=0.0);
+                    const bool same, const double mul_tol=0.0);
 
     inline bool printtimings() const {return (world.rank() == 0) and (printlevel >= 3);}
     inline bool printdebug() const {return (world.rank()==0) and (printlevel>=10);}
 
     World& world;
-    bool same_=false;
+    bool symmetric_=false;      /// is the exchange matrix symmetric? K phi_i = \sum_k \phi_k \int \phi_k \phi_i
     vecfuncT mo_bra, mo_ket;    ///< MOs for bra and ket
-    Tensor<double> occ;
     double lo=1.e-4;
     long printlevel=0;
 

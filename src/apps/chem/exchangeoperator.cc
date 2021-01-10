@@ -12,13 +12,11 @@ namespace madness {
 
 template<typename T, std::size_t NDIM>
 Exchange<T,NDIM>::Exchange(World& world, const SCF* calc, const int ispin)
-        : world(world), same_(false), lo(calc->param.lo()) {
+        : world(world), symmetric_(false), lo(calc->param.lo()) {
     if (ispin==0) { // alpha spin
         mo_ket=convert<double,T,NDIM>(world,calc->amo);		// deep copy necessary if T==double_complex
-        occ=calc->aocc;
     } else if (ispin==1) {  // beta spin
         mo_ket=convert<double,T,NDIM>(world,calc->bmo);
-        occ=calc->bocc;
     }
     mo_bra=conj(world,mo_ket);
 }
@@ -29,10 +27,8 @@ Exchange<T,NDIM>::Exchange(World& world, const Nemo* nemo, const int ispin) // @
 
     if (ispin==0) { // alpha spin
         mo_ket=convert<double,T,NDIM>(world,nemo->get_calc()->amo);        // deep copy necessary if T==double_complex
-        occ=nemo->get_calc()->aocc;
     } else if (ispin==1) {  // beta spin
         mo_ket=convert<double,T,NDIM>(world,nemo->get_calc()->bmo);        // deep copy necessary if T==double_complex
-        occ=nemo->get_calc()->bocc;
     }
 
     mo_bra=mul(world,nemo->ncf->square(),mo_ket);
@@ -70,7 +66,7 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::operator()(
         MADNESS_EXCEPTION("unknown algorithm in exchangeoperator",1);
     }
     truncate(world,Kf);
-    print_timer(world);
+    if (printlevel>=3) print_timer(world);
     return Kf;
 }
 
@@ -88,7 +84,7 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::operator()(
     template<typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > Exchange<T, NDIM>::K_macrotask_efficient(const vecfuncT &vket, const double mul_tol) const {
 
-        if (world.rank()==0) print("\nentering macrotask_efficient version:");
+        if (printdebug()) print("\nentering macrotask_efficient version:");
 
         const long nocc=mo_ket.size();
         const long nsubworld=world.size();
@@ -126,7 +122,7 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::operator()(
             columnranges=OrbitalPartitioner::partition_for_exchange(5,nsubworld,nf);
         }
         if (printdebug()) {
-            print("same",same_);
+            print("symmetric", symmetric_);
             print("splitting nf into",rowranges.size(),"ranges");
             for (auto& r : rowranges) printf(" %2ld to %2ld",r.first,r.second);
             print("\nsplitting nocc into",columnranges.size(),"ranges");
@@ -140,7 +136,7 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::operator()(
                 // if the exchange matrix is symmetric compute only the the upper triangular matrix
                 if (same() and row_range.first > column_range.first) continue;
 
-                MacroTaskExchangeEfficient task(row_range, column_range, nocc, nf, lo,  mul_tol,same_);
+                MacroTaskExchangeEfficient task(row_range, column_range, nocc, nf, lo, mul_tol, symmetric_);
                 vtask.push_back(std::shared_ptr<MacroTaskBase>(new MacroTaskExchangeEfficient(task)));
             }
         }
@@ -169,14 +165,12 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::K_small_memory(const vecfuncT& 
 	auto poisson=set_poisson(world,lo);
 
 	for(int i=0; i<nocc; ++i){
-		if(occ[i] > 0.0){
-			vecfuncT psif = mul_sparse(world, mo_bra[i], vket, mul_tol); /// was vtol
-			truncate(world, psif);
-			psif = apply(world, *poisson.get(), psif);
-			truncate(world, psif);
-			psif = mul_sparse(world, mo_ket[i], psif, mul_tol); /// was vtol
-			gaxpy(world, 1.0, Kf, occ[i], psif);
-		}
+        vecfuncT psif = mul_sparse(world, mo_bra[i], vket, mul_tol); /// was vtol
+        truncate(world, psif);
+        psif = apply(world, *poisson.get(), psif);
+        truncate(world, psif);
+        psif = mul_sparse(world, mo_ket[i], psif, mul_tol); /// was vtol
+        gaxpy(world, 1.0, Kf, 1.0, psif);
 	}
     truncate(world, Kf);
 	return Kf;
@@ -186,7 +180,7 @@ template<typename T, std::size_t NDIM>
 std::vector<Function<T,NDIM> > Exchange<T,NDIM>::K_large_memory(const vecfuncT& vket, const double mul_tol) const {    // Larger memory algorithm ... use i-j sym if psi==f
 
     auto poisson=set_poisson(world,lo);
-    vecfuncT result=compute_K_tile(world,mo_bra,mo_ket,vket,poisson,this->same(),occ,mul_tol);
+    vecfuncT result=compute_K_tile(world,mo_bra,mo_ket,vket,poisson,this->same(),mul_tol);
     truncate(world,result);
     return result;
 }
@@ -195,7 +189,7 @@ template<typename T, std::size_t NDIM>
 std::vector<Function<T, NDIM> >
 Exchange<T, NDIM>::compute_K_tile(World &world, const vecfuncT &mo_bra, const vecfuncT &mo_ket,
                                   const vecfuncT &vket, std::shared_ptr<real_convolution_3d> poisson,
-                                  const bool same, const Tensor<double> &occ, const double mul_tol) {
+                                  const bool same, const double mul_tol) {
 
     double cpu0=cpu_time();
     const long nf = vket.size();
@@ -248,7 +242,7 @@ Exchange<T, NDIM>::compute_K_tile(World &world, const vecfuncT &mo_bra, const ve
     compress(world, psipsif);
     for (int i = 0; i < nocc; ++i) {
         for (int j = 0; j < nf; ++j) {
-            Kf[j].gaxpy(1.0, psipsif[i * nf + j], occ[i], false);
+            Kf[j].gaxpy(1.0, psipsif[i * nf + j], 1.0, false);
         }
     }
     // !! NO TRUNCATION AT THIS POINT !!
