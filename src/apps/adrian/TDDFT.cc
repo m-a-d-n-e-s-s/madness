@@ -1,6 +1,7 @@
 /*
  *
  *
+
  *
  *   Written by: bsundahl and Adrian
  *   Date: A long time ago... and today
@@ -230,6 +231,7 @@ TDHF::TDHF(World& world, ResponseParameters rparams, GroundParameters gparams) {
   // Start the timer
   this->Rparams = rparams;
   this->Gparams = gparams;
+
 
   if (rparams.response_type.compare("excited_state") == 0) {
     this->omega = Tensor<double>(rparams.states);
@@ -766,11 +768,9 @@ ResponseVectors TDHF::PropertyRHS(World& world, Property& p) const {
     // here we save
     // need to project
 
-    rhs[i] = mul_sparse(world, p.operator_vector.at(i), Gparams.orbitals,
+    rhs[i] = mul(world, p.operator_vector.at(i), Gparams.orbitals,
                         Rparams.small);
 
-    for (size_t j = 0; j < orbitals.size(); j++) {
-    }
     truncate(world, rhs[i]);
     // rhs[i].truncate_vec();
 
@@ -1516,7 +1516,7 @@ ResponseVectors TDHF::CreatePotential(World& world, ResponseVectors& f,
     start_timer(world);
 
   // Return container
-  ResponseVectors V_x_resp;
+  ResponseVectors V_x_resp(world, f.size(), f[0].size());
 
   // Computing \hat{V}^0 = v_nuc + v_coul + v_exch
   // v_nuc first
@@ -1554,8 +1554,7 @@ ResponseVectors TDHF::CreatePotential(World& world, ResponseVectors& f,
   }
 
   // Assemble all the pieces for V_x
-  V_x_resp =
-      f * (v_coul + v_nuc + v_xc) - v_exch * xcf.hf_exchange_coefficient();
+  V_x_resp = f * (v_coul + v_nuc + v_xc)- v_exch * xcf.hf_exchange_coefficient();
 
   // Debugging output
   if (print_level >= 2) {
@@ -6725,8 +6724,8 @@ void TDHF::ComputeFrequencyResponse(World& world, std::string property,
     // default value of
     set_protocol<3>(world, Rparams.protocol_data[proto]);
 
-    // Do something to ensure all functions have same k value
     check_k(world, Rparams.protocol_data[proto], FunctionDefaults<3>::get_k());
+    // Do something to ensure all functions have same k value
 
     if (property.compare("dipole") == 0) {
       if (world.rank() == 0)
@@ -6737,6 +6736,7 @@ void TDHF::ComputeFrequencyResponse(World& world, std::string property,
         print("creating nuclear property operator");
       p = Property(world, "nuclear", Gparams.molecule);
     }
+
     // Create guesses if no response functions
     // If restarting, load here
     if (proto == 0) {
@@ -6796,6 +6796,7 @@ void TDHF::ComputeFrequencyResponse(World& world, std::string property,
         }
       }
     }
+    //
     // Here i should print some information about the calculation we are about
     // to do
     print("Preiteration Information");

@@ -17,15 +17,15 @@
 namespace madness {
 class responseVector {
 public:
-  unsigned int g_states;
+  size_t g_states;
 
   vector_real_function_3d vec;
 
 public:
   // default constructor
-  responseVector() : g_states(0) {}
+  responseVector() : g_states(0), vec(NULL) {}
   // zero constructor
-  responseVector(World& world, unsigned int num_orbitals)
+  responseVector(World& world, size_t num_orbitals)
       : g_states(num_orbitals),
         vec(zero_functions<double, 3>(world, g_states)) {}
   // copy constructor
@@ -126,14 +126,14 @@ typedef std::vector<vector_real_function_3d> response_matrix;
 class ResponseVectors {
   // Member variables
 public:
-  int r_states; // Num. of resp. states
-  int g_states; // Num. of ground states
+  size_t r_states; // Num. of resp. states
+  size_t g_states; // Num. of ground states
   response_matrix x;
 
   // Member functions
 public:
   // Default constructor
-  ResponseVectors() : r_states(0), g_states(0) {}
+  ResponseVectors() : r_states(0), g_states(0), x(NULL) {}
 
   // Initializes functions to zero
   // m = number of response states
@@ -142,19 +142,44 @@ public:
   // Zero Constructor
   ResponseVectors(World& world, int num_states, int num_orbitals)
       : r_states(num_states), g_states(num_orbitals) {
-    for (unsigned int i = 0; i < num_states; i++) {
+    for (unsigned int i = 0; i < r_states; i++) {
       x.push_back(zero_functions<double, 3>(world, g_states, true));
     }
     x[0][0].world().gop.fence();
   }
+  // Conversion from  Constructor
+  explicit ResponseVectors(const response_matrix& x) {
+
+    r_states = x.size();
+    g_states = x[0].size();
+    this->x.clear();
+    for (unsigned int i = 0; i < r_states; i++) {
+      this->x.push_back(x[i]);
+    }
+
+    x[0][0].world().gop.fence();
+  }
 
   // Copy constructor
-  ResponseVectors(const ResponseVectors& rf_copy)
-      : r_states(rf_copy.r_states), g_states(rf_copy.g_states) {
+  ResponseVectors(const ResponseVectors& other) {
+    r_states = other.r_states;
+    g_states = other.g_states;
+    x.clear();
     for (unsigned int i = 0; i < r_states; i++) {
-      x.push_back(madness::copy(rf_copy[0][0].world(), rf_copy[i]));
+      x.push_back(other.x[i]);
     }
-    x[0][0].world().gop.fence();
+  }
+
+  ResponseVectors& operator=(const ResponseVectors& other) {
+    //
+    r_states = other.r_states;
+    g_states = other.g_states;
+    x.clear();
+    for (unsigned int i = 0; i < r_states; i++) {
+      // this->x.push_back(madness::copy(other[0][0].world(), other[i]));
+      x.push_back(other.x[i]);
+    }
+    return *this;
   }
 
   // Determines if two ResponseFunctions are the same size
@@ -192,6 +217,7 @@ public:
     for (unsigned int i = 0; i < a.r_states; i++) {
       result[i] = a[i] - b[i];
     }
+    return result;
   }
 
   // KAIN must have this
@@ -209,12 +235,38 @@ public:
 
   // Scaling all internal functions by an external function
   // g[i][j] = x[i][j] * f
+  friend ResponseVectors operator*(const ResponseVectors& X,
+                                   const Function<double, 3>& f) {
+    ResponseVectors result(X);
+
+    for (unsigned int i = 0; i < X.r_states; i++) {
+      // Using vmra.h funciton
+      result[i] = X.x[i] * f;
+    }
+
+    f.world().gop.fence();
+    return result;
+  }
+  // Scaling all internal functions by an external function
+  // g[i][j] = x[i][j] * f
+  friend ResponseVectors operator*(const Function<double, 3>& f,
+                                   const ResponseVectors& X) {
+    ResponseVectors result(X);
+
+    for (unsigned int i = 0; i < X.r_states; i++) {
+      // Using vmra.h funciton
+      result[i] = X.x[i] * f;
+    }
+
+    f.world().gop.fence();
+    return result;
+  }
   ResponseVectors operator*(const Function<double, 3>& f) {
     ResponseVectors result(*this);
 
     for (unsigned int i = 0; i < r_states; i++) {
       // Using vmra.h funciton
-      result[i] = x[i] * f;
+      result[i] = mul(f.world(), f, x[i]);
     }
 
     f.world().gop.fence();
