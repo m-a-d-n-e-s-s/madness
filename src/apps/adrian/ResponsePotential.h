@@ -131,7 +131,7 @@ class ResponsePotential {
                          response_space& groundJ) {
           // Calculate intermediaries
           // If store_potential is true, only calculate it once
-          if(!store_potential or potential.r_states == 0) {
+          if(!store_potential or potential.num_vectors == 0) {
              // Clear any old data
              potential.clear();
 
@@ -147,15 +147,15 @@ class ResponsePotential {
 
           // Calc. gammaK
           // (Will hold either exchange or v_xc)
-          gammaK = response_space(world, x.r_states, x.g_states);
+          gammaK = response_space(world, x.num_vectors, x.num_orbitals);
           if(is_dft) {
              // DFT, need d^2/drho^2 E[rho] 
              // Create vxc
              std::vector<real_function_3d> vxc = create_perturbed_vxc(x);
              
              // Apply vxc
-             for(unsigned int i = 0; i < x.r_states; i++) {
-                for(unsigned int j = 0; j < x.g_states; j++) {
+             for(unsigned int i = 0; i < x.num_vectors; i++) {
+                for(unsigned int j = 0; j < x.num_orbitals; j++) {
                    // Negative counters the subtraction of of 2*J-K 
                    // (K needs to be added for DFT)
                    gammaK[i][j] = -1.0 * vxc[i] * ground_orbitals[j];
@@ -165,9 +165,9 @@ class ResponsePotential {
           else {
              // Hartree-Fock perturbed exchange
              gammaK.compress_rf();
-             for(unsigned int p = 0; p < x.g_states; p++) {
-                for(unsigned int k = 0; k < x.r_states; k++) {
-                   for(unsigned int i = 0; i < x.g_states; i++) {
+             for(unsigned int p = 0; p < x.num_orbitals; p++) {
+                for(unsigned int k = 0; k < x.num_vectors; k++) {
+                   for(unsigned int i = 0; i < x.num_orbitals; i++) {
                       real_function_3d t1 = potential[i][p] * x[k][i];
                       t1.compress();
                       gammaK[k][p].gaxpy(1.0, t1, 1.0, true);
@@ -181,7 +181,7 @@ class ResponsePotential {
           potential.compress_rf();
           real_function_3d coulomb = 2.0 * potential[0][0];
           coulomb.compress();
-          for(unsigned int i = 1; i < x.g_states; i++) {
+          for(unsigned int i = 1; i < x.num_orbitals; i++) {
              coulomb.gaxpy(1.0, potential[i][i], 2.0, true);
           }
           // Add in nuclear potential
@@ -189,11 +189,11 @@ class ResponsePotential {
           groundJ = x * coulomb;
 
           // Project out ground states from gammaK
-          for(unsigned int i = 0; i < gammaK.r_states; i++) {
+          for(unsigned int i = 0; i < gammaK.num_vectors; i++) {
              gammaK[i] = projector(gammaK[i]);
           }
           // Project out ground states from groundJ 
-          for(unsigned int i = 0; i < groundJ.r_states; i++) {
+          for(unsigned int i = 0; i < groundJ.num_vectors; i++) {
              groundJ[i] = projector(groundJ[i]);
           }
       } 
@@ -223,13 +223,13 @@ class ResponsePotential {
              // Doing DFT 
              // Still need derivative of the coulomb operator
              real_function_3d rho = real_function_3d(world);
-             for(unsigned int k = 0; k < x.r_states; k++) {
+             for(unsigned int k = 0; k < x.num_vectors; k++) {
                 // Get transition density
                 rho = dot(world, x[k], ground_orbitals);
                 rho = apply(op, rho);
                
                 // Post multiply by ground states
-                for(unsigned int p = 0; p < x.g_states; p++) {
+                for(unsigned int p = 0; p < x.num_orbitals; p++) {
                    gammaJ[k][p] = rho * ground_orbitals[p];
                 }
              }
@@ -243,9 +243,9 @@ class ResponsePotential {
           }
           else {
              // Doing Hartree-Fock
-             for(unsigned int k = 0; k < x.r_states; k++) {
-                for(unsigned int p = 0; p < x.g_states; p++) {
-                   for(unsigned int i = 0; i < x.g_states; i++) {
+             for(unsigned int k = 0; k < x.num_vectors; k++) {
+                for(unsigned int p = 0; p < x.num_orbitals; p++) {
+                   for(unsigned int i = 0; i < x.num_orbitals; i++) {
                       // Get the transition density
                       real_function_3d rho = x[k][p] * ground_orbitals[i];
 
@@ -271,11 +271,11 @@ class ResponsePotential {
           gammaJ = gammaJ * 2.0;
 
           // Project out ground states from gammaK
-          for(unsigned int i = 0; i < gammaJ.r_states; i++) {
+          for(unsigned int i = 0; i < gammaJ.num_vectors; i++) {
              gammaJ[i] = projector(gammaJ[i]);
           }
           // Project out ground states from groundJ 
-          for(unsigned int i = 0; i < groundK.r_states; i++) {
+          for(unsigned int i = 0; i < groundK.num_vectors; i++) {
              groundK[i] = projector(groundK[i]);
           }
       
