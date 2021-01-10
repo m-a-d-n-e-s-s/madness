@@ -15,115 +15,11 @@
 
 // real_function_3d == Function<double,3>
 namespace madness {
-class responseVector {
-public:
-  size_t g_states;
 
-  vector_real_function_3d vec;
-
-public:
-  // default constructor
-  responseVector() : g_states(0), vec(NULL) {}
-  // zero constructor
-  responseVector(World& world, size_t num_orbitals)
-      : g_states(num_orbitals),
-        vec(zero_functions<double, 3>(world, g_states)) {}
-  // copy constructor
-  responseVector(const responseVector& y)
-      : g_states(y.g_states), vec(madness::copy(y[0].world(), y.vec)) {
-    vec[0].world().gop.fence();
-  }
-  // this time we are going to copy a vector_real_function_3d
-  explicit responseVector(const vector_real_function_3d vec)
-      : g_states(vec.size()), vec(madness::copy(vec[0].world(), vec)) {
-    vec[0].world().gop.fence();
-  };
-  // 1D accessor for vec  returns the function at position i
-  real_function_3d& operator[](int64_t i) { return vec.at(i); }
-  const real_function_3d& operator[](int64_t i) const { return vec.at(i); }
-  bool same_size(const responseVector& y) const {
-    // teseting asdfasdfad  iasdfasdf
-    //
-    //
-    //
-    // asdf   asd  a a
-    //
-    return (g_states == y.g_states);
-  }
-
-  // Kain
-  responseVector operator+(const responseVector& b) {
-    // assert that b is the same size of our vector vec
-    MADNESS_ASSERT(same_size(b));
-    responseVector result(vec[0].world(), g_states);
-    result.vec = add(vec[0].world(), vec, b.vec);
-    result[0].world().gop.fence();
-    return result;
-  }
-  // assert that b is the same size of our vector x
-  responseVector operator-(const responseVector& b) {
-    MADNESS_ASSERT(same_size(b));
-    responseVector result(vec[0].world(), g_states);
-    result.vec = sub(vec[0].world(), vec, b.vec);
-    result[0].world().gop.fence();
-    return result;
-  }
-  //+=
-  responseVector operator+=(const responseVector& b) {
-    MADNESS_ASSERT(same_size(b));
-    vec = add(vec[0].world(), vec, b.vec);
-    return *this;
-  }
-  responseVector operator+=(responseVector& b) {
-    MADNESS_ASSERT(same_size(b));
-    vec = add(vec[0].world(), vec, b.vec);
-    return *this;
-  }
-  // mul * a*V
-  responseVector operator*(double a) {
-    responseVector result(*this);
-    madness::scale(vec[0].world(), result.vec, a, false);
-    return result;
-    ;
-  }
-  responseVector operator*=(double a) {
-    madness::scale(vec[0].world(), this->vec, a, false);
-    return *this;
-  }
-  // mul f(x)*V
-  responseVector operator*(real_function_3d f) {
-    responseVector result(*this);
-    /// Multiplies a function against a vector of functions --- q[i] = a * v[i]
-    result.vec = mul(f.world(), f, result.vec, false);
-    return result;
-  }
-  responseVector copy() const {
-    responseVector result(vec[0].world(), g_states);
-    result.vec = madness::copy(vec[0].world(), vec, false);
-    return result;
-  }
-  // return size
-  unsigned int size() const { return g_states; }
-  void zero() { vec = zero_functions<double, 3>(vec[0].world(), g_states); }
-  void compress_vec() { compress(vec[0].world(), vec, true); };
-  void reconstruct_vec() { reconstruct(vec[0].world(), vec, true); };
-  void truncate_vec() { truncate(vec[0].world(), vec); };
-  double norm2() { return sqrt(inner(vec, vec)); }
-};
-
-inline double inner(responseVector& a, responseVector& b) {
-  MADNESS_ASSERT(a.size() > 0);
-  MADNESS_ASSERT(a.size() == b.size());
-  double value = 0.0;
-  // inner of two sets of vector functions
-  value = inner(a, b);
-  return value;
-}
-// real_function_3d dot(rvec a, rvec vf) { return dot(a[0].world(), a, vf); }
 
 typedef std::vector<vector_real_function_3d> response_matrix;
 
-class ResponseVectors {
+class response_space {
   // Member variables
 public:
   size_t r_states; // Num. of resp. states
@@ -133,14 +29,14 @@ public:
   // Member functions
 public:
   // Default constructor
-  ResponseVectors() : r_states(0), g_states(0), x(NULL) {}
+  response_space() : r_states(0), g_states(0), x(NULL) {}
 
   // Initializes functions to zero
   // m = number of response states
   // n = number of ground state orbitals
 
   // Zero Constructor
-  ResponseVectors(World& world, size_t num_states, size_t num_orbitals)
+  response_space(World& world, size_t num_states, size_t num_orbitals)
       : r_states(num_states), g_states(num_orbitals), x(NULL) {
     for (size_t i = 0; i < r_states; i++) {
       x.push_back(zero_functions<double, 3>(world, g_states, true));
@@ -148,7 +44,7 @@ public:
     x[0][0].world().gop.fence();
   }
   // Conversion from  Constructor
-  explicit ResponseVectors(const response_matrix& x)
+  explicit response_space(const response_matrix& x)
       : r_states(x.size()), g_states(x[0].size()), x(NULL) {
 
     this->x = x;
@@ -156,7 +52,7 @@ public:
   }
 
   // Copy constructor
-  ResponseVectors(const ResponseVectors& other) {
+  response_space(const response_space& other) {
     r_states = other.r_states;
     g_states = other.g_states;
     x.clear();
@@ -166,7 +62,7 @@ public:
     }
   }
 
-  ResponseVectors& operator=(const ResponseVectors& other) {
+  response_space& operator=(const response_space& other) {
     //
     if (this != &other) {
     }
@@ -181,7 +77,7 @@ public:
   }
 
   // Determines if two ResponseFunctions are the same size
-  bool same_size(const ResponseVectors& rf_copy) const {
+  bool same_size(const response_space& rf_copy) const {
     return (r_states == rf_copy.r_states && g_states == rf_copy.g_states);
   }
 
@@ -193,10 +89,10 @@ public:
 
   // KAIN must have this
   // element wise addition.  we add each vector separatly
-  ResponseVectors operator+(const ResponseVectors& b) {
+  response_space operator+(const response_space& b) {
     MADNESS_ASSERT(same_size(b));
 
-    ResponseVectors result(x[0][0].world(), r_states, g_states);
+    response_space result(x[0][0].world(), r_states, g_states);
 
     for (unsigned int i = 0; i < r_states; i++) {
       result[i] = x[i] + b[i];
@@ -206,11 +102,11 @@ public:
     return result;
   }
 
-  friend ResponseVectors operator-(const ResponseVectors& a,
-                                   const ResponseVectors& b) {
+  friend response_space operator-(const response_space& a,
+                                   const response_space& b) {
     MADNESS_ASSERT(a.same_size(b));
 
-    ResponseVectors result(a[0][0].world(), a.r_states, a.g_states);
+    response_space result(a[0][0].world(), a.r_states, a.g_states);
 
     for (unsigned int i = 0; i < a.r_states; i++) {
       result[i] = a[i] - b[i];
@@ -220,8 +116,8 @@ public:
 
   // KAIN must have this
   // Scaling by a constant
-  ResponseVectors operator*(double a) {
-    ResponseVectors result(*this);
+  response_space operator*(double a) {
+    response_space result(*this);
 
     for (unsigned int i = 0; i < r_states; i++) {
       x[i] = x[i] * a;
@@ -233,9 +129,9 @@ public:
 
   // Scaling all internal functions by an external function
   // g[i][j] = x[i][j] * f
-  friend ResponseVectors operator*(const ResponseVectors& X,
+  friend response_space operator*(const response_space& X,
                                    const Function<double, 3>& f) {
-    ResponseVectors result(X);
+    response_space result(X);
 
     for (unsigned int i = 0; i < X.r_states; i++) {
       // Using vmra.h funciton
@@ -247,9 +143,9 @@ public:
   }
   // Scaling all internal functions by an external function
   // g[i][j] = x[i][j] * f
-  friend ResponseVectors operator*(const Function<double, 3>& f,
-                                   const ResponseVectors& X) {
-    ResponseVectors result(X);
+  friend response_space operator*(const Function<double, 3>& f,
+                                   const response_space& X) {
+    response_space result(X);
 
     for (unsigned int i = 0; i < X.r_states; i++) {
       // Using vmra.h funciton
@@ -259,8 +155,8 @@ public:
     f.world().gop.fence();
     return result;
   }
-  ResponseVectors operator*(const Function<double, 3>& f) {
-    ResponseVectors result(*this);
+  response_space operator*(const Function<double, 3>& f) {
+    response_space result(*this);
 
     for (unsigned int i = 0; i < r_states; i++) {
       // Using vmra.h funciton
@@ -272,7 +168,7 @@ public:
   }
 
   // KAIN must have this
-  ResponseVectors operator+=(const ResponseVectors b) {
+  response_space operator+=(const response_space b) {
     MADNESS_ASSERT(same_size(b));
 
     for (unsigned int i = 0; i < r_states; i++) {
@@ -283,8 +179,8 @@ public:
   }
 
   // Returns a deep copy
-  ResponseVectors copy() const {
-    ResponseVectors result(x[0][0].world(), r_states, g_states);
+  response_space copy() const {
+    response_space result(x[0][0].world(), r_states, g_states);
 
     for (unsigned int i = 0; i < r_states; i++) {
       result.x[i] = madness::copy(x[0][0].world(), x[i]);
@@ -371,7 +267,7 @@ public:
   }
 };
 // Final piece for KAIN
-inline double inner(ResponseVectors& a, ResponseVectors& b) {
+inline double inner(response_space& a, response_space& b) {
   MADNESS_ASSERT(a.size() > 0);
   MADNESS_ASSERT(a.size() == b.size());
   MADNESS_ASSERT(a[0].size() > 0);

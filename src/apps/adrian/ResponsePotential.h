@@ -30,7 +30,7 @@ class ResponsePotential {
       const double small;                                              // Smallest lengthscale for coulomb op.
       const double thresh;                                             // Truncation threshold for coulomb op.
       real_convolution_3d op;                                          // Coulomb operator
-      ResponseVectors potential;                                      // For storing the ground state
+      response_space potential;                                      // For storing the ground state
       const bool is_dft;                                               // Flag for calc. dft potential   (default = false)
       const std::string xc_name;                                       // Name of xc functional          (default = "") 
       const bool store_potential;                                      // Flag for storing the potential (default = true)
@@ -53,7 +53,7 @@ class ResponsePotential {
       }
 
       // For TDA, y will be zero 
-      std::vector<real_function_3d> perturbed_density(ResponseVectors& x, ResponseVectors& y) {
+      std::vector<real_function_3d> perturbed_density(response_space& x, response_space& y) {
          // Get sizes
          int m = x.size();
          int n = x[0].size();
@@ -73,12 +73,12 @@ class ResponsePotential {
       }
 
       // For DFT, uses the XCOperator to construct perturubed vxc
-      std::vector<real_function_3d> create_perturbed_vxc(ResponseVectors& x) {
+      std::vector<real_function_3d> create_perturbed_vxc(response_space& x) {
          // Create XCoperator
          XCOperator xc(world, xc_name, false, ground_rho, ground_rho); // Assumes closed shell 
          
          // Need a blank ResponseFunction for y
-         ResponseVectors y(world, x.size(), x[0].size());
+         response_space y(world, x.size(), x[0].size());
 
          // Get transition density
          std::vector<real_function_3d> drho = perturbed_density(x, y);
@@ -117,7 +117,7 @@ class ResponsePotential {
             , small(small)
             , thresh(thresh)
             , op(CoulombOperator(world, small, thresh))
-            , potential(ResponseVectors()) 
+            , potential(response_space()) 
             , is_dft(is_dft)
             , xc_name(xc)
             , store_potential(store) {}
@@ -126,9 +126,9 @@ class ResponsePotential {
       /// @param[in]    x        current perturbed x orbitals
       /// @param[inout] gammaK   perturbed potential applied to ground state orbitals
       /// @param[inout] groundJ  ground state potential applied to perturbed orbitals
-      void coulomb_terms(ResponseVectors& x,
-                         ResponseVectors& gammaK,
-                         ResponseVectors& groundJ) {
+      void coulomb_terms(response_space& x,
+                         response_space& gammaK,
+                         response_space& groundJ) {
           // Calculate intermediaries
           // If store_potential is true, only calculate it once
           if(!store_potential or potential.r_states == 0) {
@@ -147,7 +147,7 @@ class ResponsePotential {
 
           // Calc. gammaK
           // (Will hold either exchange or v_xc)
-          gammaK = ResponseVectors(world, x.r_states, x.g_states);
+          gammaK = response_space(world, x.r_states, x.g_states);
           if(is_dft) {
              // DFT, need d^2/drho^2 E[rho] 
              // Create vxc
@@ -203,9 +203,9 @@ class ResponsePotential {
       /// @param[in]    x        current perturbed orbitals
       /// @param[inout] gammaJ   perturbed potential applied to ground state orbitals
       /// @param[inout] groundK  ground state potential applied to perturbed orbitals
-      void exchange_terms(ResponseVectors& x,
-                          ResponseVectors& gammaJ,
-                          ResponseVectors& groundK) {
+      void exchange_terms(response_space& x,
+                          response_space& gammaJ,
+                          response_space& groundK) {
           // Clear inputs
           gammaJ.clear();
           groundK.clear();
@@ -213,8 +213,8 @@ class ResponsePotential {
           // Going to calculate each transition density
           // and then use it to calculare correct pieces of
           // gammaJ and groundK before moving on
-          gammaJ = ResponseVectors(world, x.size(), x[0].size());
-          groundK = ResponseVectors(world, x.size(), x[0].size());
+          gammaJ = response_space(world, x.size(), x[0].size());
+          groundK = response_space(world, x.size(), x[0].size());
           x.compress_rf();
           gammaJ.compress_rf();
           groundK.compress_rf();

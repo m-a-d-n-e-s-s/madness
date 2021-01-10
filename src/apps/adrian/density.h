@@ -41,11 +41,11 @@ protected:
   ResponseParameters Rparams; // Response Parameters
   GroundParameters Gparams;   // Ground Parameters
 
-  ResponseVectors x; // The x response functions virt/occ
-  ResponseVectors y; // occ/virt
+  response_space x; // The x response functions virt/occ
+  response_space y; // occ/virt
 
-  ResponseVectors P; // rhs vector P
-  ResponseVectors Q; // rhs vector Q
+  response_space P; // rhs vector P
+  response_space Q; // rhs vector Q
 
   // first order frequency response densities
   VectorFunction3DT rho_omega; // the response density vector
@@ -84,10 +84,10 @@ public:
     this->property = Rparams.response_type;
     this->num_response_states = 3;
     this->num_ground_states = Gparams.num_orbitals;
-    this->x = ResponseVectors(world, num_response_states, num_ground_states);
-    this->y = ResponseVectors(world, num_response_states, num_ground_states);
-    this->P = ResponseVectors(world, num_response_states, num_ground_states);
-    this->Q = ResponseVectors(world, num_response_states, num_ground_states);
+    this->x = response_space(world, num_response_states, num_ground_states);
+    this->y = response_space(world, num_response_states, num_ground_states);
+    this->P = response_space(world, num_response_states, num_ground_states);
+    this->Q = response_space(world, num_response_states, num_ground_states);
   }
 };
 
@@ -98,10 +98,10 @@ public:
     this->property = Rparams.response_type;
     this->num_response_states = Rparams.states;
     this->num_ground_states = Gparams.num_orbitals;
-    this->x = ResponseVectors(world, num_response_states, num_ground_states);
-    this->y = ResponseVectors(world, num_response_states, num_ground_states);
-    this->P = ResponseVectors(world, num_response_states, num_ground_states);
-    this->Q = ResponseVectors(world, num_response_states, num_ground_states);
+    this->x = response_space(world, num_response_states, num_ground_states);
+    this->y = response_space(world, num_response_states, num_ground_states);
+    this->P = response_space(world, num_response_states, num_ground_states);
+    this->Q = response_space(world, num_response_states, num_ground_states);
   }
 };
 
@@ -112,10 +112,10 @@ public:
     this->property = Rparams.response_type;
     this->num_response_states = Rparams.states;
     this->num_ground_states = Gparams.num_orbitals;
-    this->x = ResponseVectors(world, num_response_states, num_ground_states);
-    this->y = ResponseVectors(world, num_response_states, num_ground_states);
-    this->P = ResponseVectors(world, num_response_states, num_ground_states);
-    this->Q = ResponseVectors(world, num_response_states, num_ground_states);
+    this->x = response_space(world, num_response_states, num_ground_states);
+    this->y = response_space(world, num_response_states, num_ground_states);
+    this->P = response_space(world, num_response_states, num_ground_states);
+    this->Q = response_space(world, num_response_states, num_ground_states);
   }
 };
 #endif // SRC_APPS_ADRIAN_DENSITY_H_

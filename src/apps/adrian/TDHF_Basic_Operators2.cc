@@ -6,7 +6,7 @@
 namespace madness {
 
 // Returns a shallow copy of the transpose of a vector of vector of functions
-ResponseVectors transpose(ResponseVectors &f) {
+response_space transpose(response_space &f) {
   MADNESS_ASSERT(f.size() > 0);
   MADNESS_ASSERT(f[0].size() > 0);
 
@@ -15,7 +15,7 @@ ResponseVectors transpose(ResponseVectors &f) {
   int n = f[0].size();
 
   // Return container
-  ResponseVectors g(f[0][0].world(), m, n);
+  response_space g(f[0][0].world(), m, n);
 
   // Now do shallow copies
   for (int i = 0; i < m; i++)
@@ -28,12 +28,12 @@ ResponseVectors transpose(ResponseVectors &f) {
 // Multiplication of a vector of vectors by a matrix,
 //  *  g[i][k] = \sum_{j} a[i][j] * b(j,k)
 // !  NOTE: NO BOUNDS CHECKING ON THE TENSOR b!!!!
-ResponseVectors scale_2d(World &world, const ResponseVectors &a,
+response_space scale_2d(World &world, const response_space &a,
                           const Tensor<double> &b) {
   MADNESS_ASSERT(a.size() > 0);
   MADNESS_ASSERT(a[0].size() > 0);
 
-  ResponseVectors result;
+  response_space result;
 
   for (unsigned int i = 0; i < a.size(); i++) {
     // Using vmra.h definitions
@@ -48,12 +48,12 @@ ResponseVectors scale_2d(World &world, const ResponseVectors &a,
 }
 
 // Multiplication of a vector of vectors by a scalar g[i][j] = a[i][j] * b
-ResponseVectors scale(ResponseVectors a, double b) {
+response_space scale(response_space a, double b) {
   MADNESS_ASSERT(a.size() > 0);
   MADNESS_ASSERT(a[0].size() > 0);
 
 //  print("double b",b);
-  ResponseVectors result;
+  response_space result;
 
   for (unsigned int i = 0; i < a.size(); i++) {
     // Using vmra.h definitions
@@ -69,7 +69,7 @@ ResponseVectors scale(ResponseVectors a, double b) {
 }
 
 // Truncate a vector of vector of functions
-void truncate(World &world, ResponseVectors &v, double tol, bool fence) {
+void truncate(World &world, response_space &v, double tol, bool fence) {
   MADNESS_ASSERT(v.size() > 0);
   MADNESS_ASSERT(v[0].size() > 0);
 
@@ -80,15 +80,15 @@ void truncate(World &world, ResponseVectors &v, double tol, bool fence) {
 
 // Apply a vector of vector of operators to a vector of vector of functions
 // g[i][j] = op[i][j](f[i][j])
-ResponseVectors apply(
+response_space apply(
     World &world,
     std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> &op,
-    ResponseVectors &f) {
+    response_space &f) {
   MADNESS_ASSERT(f.size() > 0);
   MADNESS_ASSERT(f.size() == op.size());
   MADNESS_ASSERT(f[0].size() == op[0].size());
 
-  ResponseVectors result(f[0][0].world(), f.size(), f[0].size());
+  response_space result(f[0][0].world(), f.size(), f[0].size());
 
   for (unsigned int i = 0; i < f.size(); i++) {
     // Using vmra.h function, line 889
@@ -99,13 +99,13 @@ ResponseVectors apply(
 }
 // Apply a vector of operators to a set of response states
 //
-ResponseVectors apply(World &world,
+response_space apply(World &world,
                        std::vector<std::shared_ptr<real_convolution_3d>> &op,
-                       ResponseVectors &f) {
+                       response_space &f) {
   MADNESS_ASSERT(f.size() > 0);
   MADNESS_ASSERT(f[0].size() == op.size());
 
-  ResponseVectors result(f[0][0].world(), f.size(), f[0].size());
+  response_space result(f[0][0].world(), f.size(), f[0].size());
 
   for (unsigned int i = 0; i < f.size(); i++) {
     // Using vmra.h function, line 889
@@ -118,11 +118,11 @@ ResponseVectors apply(World &world,
 }
 
 // Apply the derivative operator to a vector of vector of functions
-ResponseVectors apply(World &world, real_derivative_3d &op,
-                       ResponseVectors &f) {
+response_space apply(World &world, real_derivative_3d &op,
+                       response_space &f) {
   MADNESS_ASSERT(f.size() > 0);
 
-  ResponseVectors result;
+  response_space result;
 
   for (unsigned int i = 0; i < f.size(); i++) {
     std::vector<real_function_3d> temp = apply(world, op, f[i]);
