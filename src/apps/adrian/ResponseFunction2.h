@@ -28,16 +28,14 @@ public:
   // Member functions
 public:
   // Default constructor
-  response_space() : num_vectors(0), num_orbitals(0), x(NULL) {}
+  response_space() : num_vectors(0), num_orbitals(0), x(num_vectors) {}
 
   // Copy constructor
-  response_space(const response_space& other) {
-    num_vectors = other.num_vectors;
-    num_orbitals = other.num_orbitals;
-    x.clear();
-    //*this = ResponseVectors(other.x[0][0].world(), r_states, g_states);
+  response_space(const response_space& x)
+      : num_vectors(space_size(x)), num_orbitals(vector_size(x)),
+        x(num_vectors) {
     for (unsigned int i = 0; i < num_vectors; i++) {
-      x.push_back(other.x[i]);
+      (*this)[i] = x[i]; // copying x[i] into this
     }
   }
   // Initializes functions to zero
@@ -46,15 +44,15 @@ public:
 
   // Zero Constructor
   response_space(World& world, size_t num_states, size_t num_orbitals)
-      : num_vectors(num_states), num_orbitals(num_orbitals), x(NULL) {
+      : num_vectors(num_states), num_orbitals(num_orbitals), x(num_vectors) {
     for (size_t i = 0; i < num_vectors; i++) {
-      x.push_back(zero_functions<double, 3>(world, num_orbitals, true));
+      x[i] = zero_functions<double, 3>(world, num_orbitals, true);
     }
     x[0][0].world().gop.fence();
   }
   // Conversion from  Constructor
   explicit response_space(const response_matrix& x)
-      : num_vectors(x.size()), num_orbitals(x[0].size()), x(NULL) {
+      : num_vectors(x.size()), num_orbitals(x[0].size()), x(num_vectors) {
 
     this->x = x;
     x[0][0].world().gop.fence();
