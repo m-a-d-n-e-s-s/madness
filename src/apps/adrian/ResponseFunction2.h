@@ -18,25 +18,27 @@ namespace madness {
 
 typedef std::vector<vector_real_function_3d> response_matrix;
 
-class response_space {
+struct response_space {
   // Member variables
 public:
-  size_t num_vectors;  // Num. of resp. states
+  size_t num_states;   // Num. of resp. states
   size_t num_orbitals; // Num. of ground states
   response_matrix x;
 
   // Member functions
 public:
   // Default constructor
-  response_space() : num_vectors(0), num_orbitals(0), x(num_vectors) {}
+  response_space() : num_states(0), num_orbitals(0), x{} {}
 
   // Copy constructor
-  response_space(const response_space& x)
-      : num_vectors(space_size(x)), num_orbitals(vector_size(x)),
-        x(num_vectors) {
-    for (unsigned int i = 0; i < num_vectors; i++) {
-      (*this)[i] = x[i]; // copying x[i] into this
+  response_space(const response_space& y)
+      : num_states(y.size()), num_orbitals(y.vec_size()), x{} {
+        x=y.x;
+        /*
+    for (unsigned int i = 0; i < num_states; i++) {
+      this->x.push_back(x[i]); // copying x[i] into this
     }
+      */
   }
   // Initializes functions to zero
   // m = number of response states
@@ -44,32 +46,31 @@ public:
 
   // Zero Constructor
   response_space(World& world, size_t num_states, size_t num_orbitals)
-      : num_vectors(num_states), num_orbitals(num_orbitals), x(num_vectors) {
-    for (size_t i = 0; i < num_vectors; i++) {
-      x[i] = zero_functions<double, 3>(world, num_orbitals, true);
+      : num_states(num_states), num_orbitals(num_orbitals), x{} {
+    for (size_t i = 0; i < num_states; i++) {
+      this->x.push_back(zero_functions<double, 3>(world, num_orbitals, true));
     }
     x[0][0].world().gop.fence();
   }
   // Conversion from  Constructor
   explicit response_space(const response_matrix& x)
-      : num_vectors(x.size()), num_orbitals(x[0].size()), x(num_vectors) {
-
+      : num_states(x.size()), num_orbitals(x[0].size()), x{} {
     this->x = x;
     x[0][0].world().gop.fence();
   }
-  friend size_t space_size(const response_space& x) { return x.num_vectors; }
-  friend size_t vector_size(const response_space& x) { return x.num_orbitals; }
   // Determines if two ResponseFunctions are the same size
   friend bool same_size(const response_space& x, const response_space& y) {
-    return ((space_size(x) == space_size(x)) &&
-            (vector_size(y) == vector_size(x)));
+    return ((x.size() == y.size()) && (x.vec_size() == y.vec_size()));
   }
   // assignment
   response_space& operator=(const response_space& x) {
     //
     if (this != &x) {
       if (same_size(*this, x)) {
-      } else {
+        for (size_t b=0;b<x.size();b++){
+          (*this)[b]=x[b];
+        }
+      } else {// if not the same size
         this->~response_space();      // deconstruct
         new (this) response_space(x); // copy constructor
       }
@@ -88,9 +89,9 @@ public:
   response_space operator+(const response_space& b) {
     MADNESS_ASSERT(same_size(*this, b));
 
-    response_space result(x[0][0].world(), num_vectors, num_orbitals);
+    response_space result(x[0][0].world(), num_states, num_orbitals);
 
-    for (unsigned int i = 0; i < num_vectors; i++) {
+    for (unsigned int i = 0; i < num_states; i++) {
       result[i] = x[i] + b[i];
     }
 
@@ -102,9 +103,9 @@ public:
                                   const response_space& b) {
     MADNESS_ASSERT(same_size(a, b));
 
-    response_space result(a[0][0].world(), a.num_vectors, a.num_orbitals);
+    response_space result(a[0][0].world(), a.num_states, a.num_orbitals);
 
-    for (unsigned int i = 0; i < a.num_vectors; i++) {
+    for (unsigned int i = 0; i < a.num_states; i++) {
       result[i] = a[i] - b[i];
     }
     return result;
@@ -115,7 +116,7 @@ public:
   response_space operator*(double a) {
     response_space result(*this);
 
-    for (unsigned int i = 0; i < num_vectors; i++) {
+    for (unsigned int i = 0; i < num_states; i++) {
       x[i] = x[i] * a;
     }
 
@@ -128,8 +129,9 @@ public:
   friend response_space operator*(const response_space& X,
                                   const Function<double, 3>& f) {
     response_space result(X);
+    MADNESS_ASSERT(X == result);
 
-    for (unsigned int i = 0; i < X.num_vectors; i++) {
+    for (unsigned int i = 0; i < X.num_states; i++) {
       // Using vmra.h funciton
       result[i] = X.x[i] * f;
     }
@@ -143,7 +145,7 @@ public:
                                   const response_space& X) {
     response_space result(X);
 
-    for (unsigned int i = 0; i < X.num_vectors; i++) {
+    for (unsigned int i = 0; i < X.num_states; i++) {
       // Using vmra.h funciton
       result[i] = X.x[i] * f;
     }
@@ -154,7 +156,7 @@ public:
   response_space operator*(const Function<double, 3>& f) {
     response_space result(*this);
 
-    for (unsigned int i = 0; i < num_vectors; i++) {
+    for (unsigned int i = 0; i < num_states; i++) {
       // Using vmra.h funciton
       result[i] = mul(f.world(), f, x[i]);
     }
@@ -167,7 +169,7 @@ public:
   response_space operator+=(const response_space b) {
     MADNESS_ASSERT(same_size(*this, b));
 
-    for (unsigned int i = 0; i < num_vectors; i++) {
+    for (unsigned int i = 0; i < num_states; i++) {
       x[i] += b[i];
     }
 
@@ -176,9 +178,9 @@ public:
 
   // Returns a deep copy
   response_space copy() const {
-    response_space result(x[0][0].world(), num_vectors, num_orbitals);
+    response_space result(x[0][0].world(), num_states, num_orbitals);
 
-    for (unsigned int i = 0; i < num_vectors; i++) {
+    for (unsigned int i = 0; i < num_states; i++) {
       result.x[i] = madness::copy(x[0][0].world(), x[i]);
     }
     x[0][0].world().gop.fence();
@@ -189,7 +191,7 @@ public:
   // Mimicking std::vector with these 4
   void push_back(const vector_real_function_3d& f) {
     x.push_back(f);
-    num_vectors++;
+    num_states++;
 
     // Be smart with g_states
     if (num_orbitals > 0) {
@@ -199,56 +201,57 @@ public:
     }
   }
   void pop_back() {
-    MADNESS_ASSERT(num_vectors >= 1);
+    MADNESS_ASSERT(num_states >= 1);
     x.pop_back();
-    num_vectors--;
+    num_states--;
 
     // Be smart with g_states
-    if (num_vectors == 0) { // removed last item
+    if (num_states == 0) { // removed last item
       num_orbitals = 0;
     }
   }
   void clear() {
     x.clear();
-    num_vectors = 0;
+    num_states = 0;
     num_orbitals = 0;
   }
-  unsigned int size() const { return num_vectors; }
+  size_t size() const { return num_states; }
+  size_t vec_size() const { return num_orbitals; }
 
   // Mimicing standard madness calls with these 3
   void zero() {
-    for (unsigned int k = 0; k < num_vectors; k++) {
+    for (unsigned int k = 0; k < num_states; k++) {
       x[k] = zero_functions<double, 3>(x[0][0].world(), num_orbitals);
     }
   }
 
   void compress_rf() {
-    for (unsigned int k = 0; k < num_vectors; k++) {
+    for (unsigned int k = 0; k < num_states; k++) {
       compress(x[0][0].world(), x[k], true);
     }
   }
 
   void reconstruct_rf() {
-    for (unsigned int k = 0; k < num_vectors; k++) {
+    for (unsigned int k = 0; k < num_states; k++) {
       reconstruct(x[0][0].world(), x[k], true);
     }
   }
 
   void truncate_rf() {
-    for (unsigned int k = 0; k < num_vectors; k++) {
+    for (unsigned int k = 0; k < num_states; k++) {
       truncate(x[0][0].world(), x[k], FunctionDefaults<3>::get_thresh(), true);
     }
   }
   void truncate_rf(double tol) {
-    for (unsigned int k = 0; k < num_vectors; k++) {
+    for (unsigned int k = 0; k < num_states; k++) {
       truncate(x[0][0].world(), x[k], tol, true);
     }
   }
 
   // Returns norms of each state
   Tensor<double> norm2() {
-    Tensor<double> answer(num_vectors);
-    for (unsigned int i = 0; i < num_vectors; i++) {
+    Tensor<double> answer(num_states);
+    for (unsigned int i = 0; i < num_states; i++) {
       answer(i) = madness::norm2(x[0][0].world(), x[i]);
     }
     return answer;
@@ -257,9 +260,20 @@ public:
   // Scales each state (read: entire row) by corresponding vector element
   //     new[i] = old[i] * mat[i]
   void scale(Tensor<double>& mat) {
-    for (unsigned int i = 0; i < num_vectors; i++)
+    for (unsigned int i = 0; i < num_states; i++)
       x[i] = x[i] * mat[i];
     x[0][0].world().gop.fence();
+  }
+  friend bool operator==(const response_space& x, const response_space& y) {
+    if (!same_size(x, y))
+      return false;
+    for (size_t b = 0; b < x.size(); ++b) {
+      for (size_t k = 0; b < x.vec_size(); ++k) {
+        if (x[b][k].norm2() != y[b][k].norm2()) // this may be strict
+          return false;
+      }
+    }
+    return true;
   }
 };
 // Final piece for KAIN
