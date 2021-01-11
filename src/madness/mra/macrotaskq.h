@@ -91,7 +91,7 @@ class MacroTaskQ : public WorldObject< MacroTaskQ> {
     std::shared_ptr<World> subworld_ptr;
 	MacroTaskBase::taskqT taskq;
 	std::mutex taskq_mutex;
-	long printlevel=3;
+	long printlevel=0;
 
 	bool printdebug() const {return universe.rank()==0 and printlevel>=10;}
     bool printtimings() const {return universe.rank()==0 and printlevel>=3;}
@@ -100,10 +100,11 @@ public:
 
 	madness::Cloud cloud;
 	World& get_subworld() {return *subworld_ptr;}
+	void set_printlevel(const long p) {printlevel=p;}
 
     /// create an empty taskq and initialize the subworlds
-	MacroTaskQ(World& universe, int nworld)
-		  : universe(universe), WorldObject<MacroTaskQ>(universe), taskq(), cloud(universe) {
+	MacroTaskQ(World& universe, int nworld, const long printlevel=0)
+		  : universe(universe), WorldObject<MacroTaskQ>(universe), taskq(), cloud(universe), printlevel(printlevel) {
 
 		subworld_ptr=create_worlds(universe,nworld);
 		this->process_pending();

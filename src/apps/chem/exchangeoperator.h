@@ -49,7 +49,7 @@ class Exchange {
 
 public:
 
-    class MacroTaskExchangeEfficient : public MacroTaskIntermediate<MacroTaskExchangeEfficient> {
+    class MacroTaskExchange : public MacroTaskIntermediate<MacroTaskExchange> {
 
         typedef std::vector<std::shared_ptr<MacroTaskBase> > taskqT;
 
@@ -61,7 +61,7 @@ public:
         long nf=0;
         double lo=1.e-4;
         double mul_tol=1.e-7;
-        bool same=true;
+        bool symmetric=true;
 
         struct accumulate_into_result_op {
             Function<T,NDIM> result;
@@ -75,15 +75,15 @@ public:
 
 
     public:
-        MacroTaskExchangeEfficient(const std::pair<long,long>& row_range, const std::pair<long,long>& column_range,
-                          const long nocc, const long nf, const double lo, const double mul_tol, const bool same)
+        MacroTaskExchange(const std::pair<long,long>& row_range, const std::pair<long,long>& column_range,
+                          const long nocc, const long nf, const double lo, const double mul_tol, const bool symmetric)
                 : row_range(row_range)
                 , column_range(column_range)
                 , nocc(nocc)
                 , nf(nf)
                 , lo(lo)
                 , mul_tol(mul_tol)
-                , same(same) {
+                , symmetric(symmetric) {
             this->priority=compute_priority();
         }
 
@@ -114,8 +114,8 @@ public:
         vecfuncT compute_diagonal_batch_in_symmetric_matrix(World& subworld,
                                        const vecfuncT& bra_batch, const vecfuncT& ket_batch, const vecfuncT& vf_batch) const {
             double mul_tol=0.0;
-            double same=true;
-            return Exchange<T,NDIM>::compute_K_tile(subworld,bra_batch,ket_batch,vf_batch,poisson,same,mul_tol);
+            double symmetric=true;
+            return Exchange<T,NDIM>::compute_K_tile(subworld,bra_batch,ket_batch,vf_batch,poisson,symmetric,mul_tol);
         }
 
         /// compute a batch of the exchange matrix, with non-identical ranges
@@ -128,8 +128,8 @@ public:
         vecfuncT compute_batch_in_asymmetric_matrix(World& subworld,
                                        const vecfuncT& bra_batch, const vecfuncT& ket_batch, const vecfuncT& vf_batch) const {
             double mul_tol=0.0;
-            double same=false;
-            return Exchange<T,NDIM>::compute_K_tile(subworld,bra_batch,ket_batch,vf_batch,poisson,same,mul_tol);
+            double symmetric=false;
+            return Exchange<T,NDIM>::compute_K_tile(subworld,bra_batch,ket_batch,vf_batch,poisson,symmetric,mul_tol);
         }
 
         /// compute a batch of the exchange matrix, with non-identical ranges
@@ -146,6 +146,7 @@ public:
             if (mo_ket) mo_ket.reset();
             if (mo_bra) mo_bra.reset();
             if (vf) vf.reset();
+            if (poisson) poisson.reset();
         }
 
         template <typename Archive>
@@ -183,8 +184,7 @@ public:
     }
 
     static auto set_poisson(World& world, const double lo, const double econv=FunctionDefaults<3>::get_thresh()) {
-        return std::shared_ptr<real_convolution_3d>(
-                CoulombOperatorPtr(world, std::min(lo,1.e-4), econv));
+        return std::shared_ptr<real_convolution_3d>(CoulombOperatorPtr(world, lo, econv));
     }
 
     Function<T,NDIM> operator()(const Function<T,NDIM>& ket) const {
@@ -221,9 +221,9 @@ public:
         return result;
     }
 
-    bool& same() {return symmetric_;}
-    bool same() const {return symmetric_;}
-    Exchange& same(const bool flag) {
+    bool is_symmetric() const {return symmetric_;}
+
+    Exchange& symmetric(const bool flag) {
         symmetric_=flag;
         return *this;
     }
@@ -247,9 +247,9 @@ private:
     /// computing the upper triangle of the double sum (over vket and the K orbitals)
     static vecfuncT compute_K_tile(World& world, const vecfuncT& mo_bra, const vecfuncT& mo_ket,
                     const vecfuncT& vket, std::shared_ptr<real_convolution_3d> poisson,
-                    const bool same, const double mul_tol=0.0);
+                    const bool symmetric, const double mul_tol=0.0);
 
-    inline bool printtimings() const {return (world.rank() == 0) and (printlevel >= 3);}
+    inline bool do_print_timings() const {return (world.rank() == 0) and (printlevel >= 3);}
     inline bool printdebug() const {return (world.rank()==0) and (printlevel>=10);}
 
     World& world;

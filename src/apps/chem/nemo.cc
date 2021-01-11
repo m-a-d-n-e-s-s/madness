@@ -547,7 +547,7 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo, vecfuncT& psi,
     Knemo=zero_functions_compressed<double,3>(world,nemo.size());
     if (calc->xc.hf_exchange_coefficient()>0.0) {
         START_TIMER(world);
-        Exchange<double,3> K=Exchange<double,3>(world,this,ispin).same(false);
+        Exchange<double,3> K=Exchange<double,3>(world,this,ispin).symmetric(false);
         Knemo=K(nemo);
         scale(world,Knemo,calc->xc.hf_exchange_coefficient());
         truncate(world, Knemo);
@@ -1292,7 +1292,7 @@ vecfuncT Nemo::solve_cphf(const size_t iatom, const int iaxis, const Tensor<doub
             real_function_3d gamma=-1.0*xc.apply_xc_kernel(full_dens_pt);
             Kp=truncate(gamma*nemo);
         } else {
-            Exchange<double,3> Kp1=Exchange<double,3>(world).same(true);
+            Exchange<double,3> Kp1=Exchange<double,3>(world).symmetric(true);
             Kp1.set_parameters(R2nemo,xi_complete,calc->param.lo());
             vecfuncT R2xi=mul(world,R_square,xi_complete);
             truncate(world,R2xi);

@@ -106,14 +106,14 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::operator()(
             taskq.cloud.store(world,Kf[i].get_impl(),start+i+nf); // store pointer to FunctionImpl
         }
         double wall1=wall_time();
-        if (printtimings()) printf("wall time for storing %4.1fs\n", wall1 - wall0);
+        if (do_print_timings()) printf("wall time for storing %4.1fs\n", wall1 - wall0);
 
         // partition the exchange matrix into tiles
         // result[rowbatch] = \sum_{columnbatches} sum_{k in columnbatch} ket[k] \int bra[k] vf[rowbatch]
         std::vector<std::pair<long,long> > rowranges,columnranges;
 
         // symmetric exchange matrix, symmetric tiles
-        if (same()) {
+        if (is_symmetric()) {
             rowranges=OrbitalPartitioner::partition_for_exchange(5,nsubworld,nocc);
 //            rowranges=OrbitalPartitioner::partition_for_exchange(5,nsubworld,nocc);
             columnranges=rowranges;
@@ -134,10 +134,10 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::operator()(
         for (auto& row_range : rowranges) {
             for (auto& column_range : columnranges) {
                 // if the exchange matrix is symmetric compute only the the upper triangular matrix
-                if (same() and row_range.first > column_range.first) continue;
+                if (is_symmetric() and row_range.first > column_range.first) continue;
 
-                MacroTaskExchangeEfficient task(row_range, column_range, nocc, nf, lo, mul_tol, symmetric_);
-                vtask.push_back(std::shared_ptr<MacroTaskBase>(new MacroTaskExchangeEfficient(task)));
+                MacroTaskExchange task(row_range, column_range, nocc, nf, lo, mul_tol, symmetric_);
+                vtask.push_back(std::shared_ptr<MacroTaskBase>(new MacroTaskExchange(task)));
             }
         }
         world.gop.fence();
@@ -180,7 +180,7 @@ template<typename T, std::size_t NDIM>
 std::vector<Function<T,NDIM> > Exchange<T,NDIM>::K_large_memory(const vecfuncT& vket, const double mul_tol) const {    // Larger memory algorithm ... use i-j sym if psi==f
 
     auto poisson=set_poisson(world,lo);
-    vecfuncT result=compute_K_tile(world,mo_bra,mo_ket,vket,poisson,this->same(),mul_tol);
+    vecfuncT result=compute_K_tile(world,mo_bra,mo_ket,vket,poisson,is_symmetric(),mul_tol);
     truncate(world,result);
     return result;
 }
@@ -189,7 +189,7 @@ template<typename T, std::size_t NDIM>
 std::vector<Function<T, NDIM> >
 Exchange<T, NDIM>::compute_K_tile(World &world, const vecfuncT &mo_bra, const vecfuncT &mo_ket,
                                   const vecfuncT &vket, std::shared_ptr<real_convolution_3d> poisson,
-                                  const bool same, const double mul_tol) {
+                                  const bool symmetric, const double mul_tol) {
 
     double cpu0=cpu_time();
     const long nf = vket.size();
@@ -199,7 +199,7 @@ Exchange<T, NDIM>::compute_K_tile(World &world, const vecfuncT &mo_bra, const ve
     vecfuncT psif;
     for (int i = 0; i < nocc; ++i) {
         int jtop = nf;
-        if (same)
+        if (symmetric)
             jtop = i + 1;
         for (int j = 0; j < jtop; ++j) {
             psif.push_back(mul_sparse(mo_bra[i], vket[j], mul_tol, false));
@@ -224,11 +224,11 @@ Exchange<T, NDIM>::compute_K_tile(World &world, const vecfuncT &mo_bra, const ve
     int ij = 0;
     for (int i = 0; i < nocc; ++i) {
         int jtop = nf;
-        if (same)
+        if (symmetric)
             jtop = i + 1;
         for (int j = 0; j < jtop; ++j, ++ij) {
             psipsif[i * nf + j] = mul_sparse(psif[ij], mo_ket[i], mul_tol, false);
-            if (same && i != j) {
+            if (symmetric && i != j) {
                 psipsif[j * nf + i] = mul_sparse(psif[ij], mo_ket[j], mul_tol, false);
             }
         }
@@ -255,8 +255,8 @@ Exchange<T, NDIM>::compute_K_tile(World &world, const vecfuncT &mo_bra, const ve
 
 
 template<typename T, std::size_t NDIM>
-void Exchange<T,NDIM>::MacroTaskExchangeEfficient::run(World& subworld, Cloud& cloud,
-                                  std::vector<std::shared_ptr<MacroTaskBase> >& taskq) {
+void Exchange<T,NDIM>::MacroTaskExchange::run(World& subworld, Cloud& cloud,
+                                              std::vector<std::shared_ptr<MacroTaskBase> >& taskq) {
 
     if (not poisson) poisson = Exchange<T,NDIM>::set_poisson(subworld,lo);
     // the argument of the exchange operator is the ket vector
@@ -292,13 +292,13 @@ void Exchange<T,NDIM>::MacroTaskExchangeEfficient::run(World& subworld, Cloud& c
     vecfuncT bra_batch(mo_bra->begin() + row_range.first, mo_bra->begin() + row_range.second);
     vecfuncT vf_batch (vf->begin()     + column_range.first,    vf->begin()     + column_range.second);
 
-    if (same and (row_range == column_range)) {
+    if (symmetric and (row_range == column_range)) {
         vecfuncT resultcolumn = compute_diagonal_batch_in_symmetric_matrix(subworld, bra_batch, ket_batch, vf_batch);
 
         for (int i = row_range.first; i < row_range.second; ++i)
             resultcolumn[i - row_range.first].unaryop_node(accumulate_into_result_op(Kf[i]));
 
-    } else if (same and !(row_range == column_range)) {
+    } else if (symmetric and !(row_range == column_range)) {
         auto [resultcolumn,resultrow]=compute_offdiagonal_batch_in_symmetric_matrix(subworld, bra_batch, ket_batch, vf_batch);
 
         for (int i = column_range.first; i < column_range.second; ++i)
@@ -324,8 +324,8 @@ void Exchange<T,NDIM>::MacroTaskExchangeEfficient::run(World& subworld, Cloud& c
     /// \param vf_batch     the argument of the exchange operator
     template<typename T, std::size_t NDIM>
     std::pair<std::vector<Function<T,NDIM>>, std::vector<Function<T,NDIM>> >
-    Exchange<T,NDIM>::MacroTaskExchangeEfficient::compute_offdiagonal_batch_in_symmetric_matrix(World& subworld,
-                                     const vecfuncT& bra_batch, const vecfuncT& ket_batch, const vecfuncT& vf_batch) const {
+    Exchange<T,NDIM>::MacroTaskExchange::compute_offdiagonal_batch_in_symmetric_matrix(World& subworld,
+                           const vecfuncT& bra_batch, const vecfuncT& ket_batch, const vecfuncT& vf_batch) const {
         // orbital_product is a vector of vectors
         double cpu0 = cpu_time();
         std::vector<vecfuncT> orbital_product=matrix_mul_sparse<T,T,NDIM>(subworld,bra_batch,vf_batch,mul_tol);
