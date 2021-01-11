@@ -685,7 +685,7 @@ vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x)const{
 		const vector_real_function_3d active_bra = get_active_mo_bra();
 		// construct perturbed operators
 		CCTimer timeJ(world,"pXC");
-		Coulomb Jp(world);
+		Coulomb Jp(world,&nemo);
 		real_function_3d density_pert=2.0*nemo.make_density(occ,active_bra,x.get_vecfunction());
 		Jp.potential()=Jp.compute_potential(density_pert);
 

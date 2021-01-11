@@ -496,9 +496,8 @@ public:
     /// compute Coulomb potential
     void compute_coulomb_potential(const vecfuncT& nemo, vecfuncT& Jnemo) const {
 
-    	Coulomb J(world);
+    	Coulomb J(world, this);
     	real_function_3d density=this->compute_density(nemo);
-    	J.reset_poisson_operator_ptr(get_calc()->param.lo(),get_calc()->param.econv());
     	J.potential()=J.compute_potential(density);
     	Jnemo = J(nemo);
     	truncate(world, Jnemo);
@@ -554,8 +553,7 @@ public:
 
     	// compute external potential (nuclear attraction)
     	real_function_3d Vext = calc->potentialmanager->vnuclear();
-    	Coulomb J(world);
-    	J.reset_poisson_operator_ptr(param.lo(),param.econv());
+    	Coulomb J(world,this);
     	real_function_3d Jpotential=J.compute_potential(density);
 
     	// compute remaining energies: nuclear attraction, Coulomb, nuclear repulsion

@@ -204,7 +204,9 @@ public:
     /// ctor with a Nemo calculation providing the MOs and density
     Coulomb(World& world, const Nemo* nemo);
 
-    void reset_poisson_operator_ptr(const double lo, const double econv);
+    auto set_poisson(World& world, const double lo, const double econv=FunctionDefaults<3>::get_thresh()) {
+        return std::shared_ptr<real_convolution_3d>(CoulombOperatorPtr(world, lo, econv));
+    };
 
     void set_metric(const real_function_3d& metric) {
     	R_square=copy(metric);
@@ -268,6 +270,7 @@ public:
 private:
     World& world;
     std::shared_ptr<real_convolution_3d> poisson;
+    double lo=1.e-4;
     real_function_3d vcoul; ///< the coulomb potential
     real_function_3d R_square;    ///< square of the nuclear correlation factor, if any
 };

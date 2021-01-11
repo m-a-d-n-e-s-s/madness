@@ -148,19 +148,16 @@ template class Laplacian<double,6>;
 /// ctor with an SCF calculation providing the MOs and density
 Coulomb::Coulomb(World& world, const Nemo* nemo) : world(world),
         R_square(nemo->R_square) {
-	reset_poisson_operator_ptr(nemo->get_calc()->param.lo(),nemo->get_calc()->param.econv());
+    poisson=set_poisson(world,nemo->get_calc()->param.lo());
     vcoul=compute_potential(nemo);
 }
 
 /// ctor with an SCF calculation providing the MOs and density
 Coulomb::Coulomb(World& world, const SCF* calc) : world(world) {
-	reset_poisson_operator_ptr(calc->param.lo(),calc->param.econv());
+	poisson=set_poisson(world,calc->param.lo());
     vcoul=compute_potential(calc);
 }
 
-void Coulomb::reset_poisson_operator_ptr(const double lo, const double econv) {
-	poisson.reset(CoulombOperatorPtr(world, lo, econv));
-}
 
 real_function_3d Coulomb::compute_density(const SCF* calc) const {
     real_function_3d density = calc->make_density(world, calc->get_aocc(),
