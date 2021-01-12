@@ -131,7 +131,7 @@ end
 
     cpu0=cpu1;
     K.set_algorithm(Exchange<double,3>::large_memory);
-    K.same(true);
+    K.symmetric(true);
     const vecfuncT reference=K(calc.amo);
     cpu1=cpu_time();
     double norm=norm2(world,reference);
