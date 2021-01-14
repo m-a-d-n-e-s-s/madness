@@ -1742,7 +1742,6 @@ vecfuncT SCF::apply_potential(World & world, const tensorT & occ,
 		START_TIMER(world);
 		//            vecfuncT Kamo = apply_hf_exchange(world, occ, amo, amo);
 		Exchange<double,3> K=Exchange<double,3>(world,this,ispin).symmetric(true);
-		if (world.rank()==0) print("using the large_memory algorithm in Exchange");
 		vecfuncT Kamo=K(amo);
 		tensorT excv = inner(world, Kamo, amo);
 		double exchf = 0.0;

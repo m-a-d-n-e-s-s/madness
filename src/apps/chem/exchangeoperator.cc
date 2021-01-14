@@ -296,20 +296,20 @@ void Exchange<T,NDIM>::MacroTaskExchange::run(World& subworld, Cloud& cloud,
         vecfuncT resultcolumn = compute_diagonal_batch_in_symmetric_matrix(subworld, bra_batch, ket_batch, vf_batch);
 
         for (int i = row_range.first; i < row_range.second; ++i)
-            resultcolumn[i - row_range.first].unaryop_node(accumulate_into_result_op(Kf[i]));
+            Kf[i]+=resultcolumn[i - row_range.first];
 
     } else if (symmetric and !(row_range == column_range)) {
         auto [resultcolumn,resultrow]=compute_offdiagonal_batch_in_symmetric_matrix(subworld, bra_batch, ket_batch, vf_batch);
 
         for (int i = column_range.first; i < column_range.second; ++i)
-            resultrow[i - column_range.first].unaryop_node(accumulate_into_result_op(Kf[i]));
+            Kf[i]+=resultrow[i - column_range.first];
         for (int i = row_range.first; i < row_range.second; ++i)
-            resultcolumn[i - row_range.first].unaryop_node(accumulate_into_result_op(Kf[i]));
+            Kf[i]+=resultcolumn[i - row_range.first];
     } else {
         vecfuncT resultcolumn = compute_batch_in_asymmetric_matrix(subworld, bra_batch, ket_batch, vf_batch);
 
         for (int i = row_range.first; i < row_range.second; ++i)
-            resultcolumn[i - row_range.first].unaryop_node(accumulate_into_result_op(Kf[i]));
+            Kf[i]+=resultcolumn[i - row_range.first];
 
     }
     subworld.gop.fence();

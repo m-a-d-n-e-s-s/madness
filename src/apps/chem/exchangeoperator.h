@@ -63,16 +63,6 @@ public:
         double mul_tol=1.e-7;
         bool symmetric=true;
 
-        struct accumulate_into_result_op {
-            Function<T,NDIM> result;
-            explicit accumulate_into_result_op(Function<T,NDIM>& r) : result (r) {}
-
-            void operator()(const Key<NDIM>& key, FunctionNode<T,NDIM>& node) const {
-                auto coeffs = const_cast<typename FunctionImpl<T, NDIM>::dcT &>(result.get_impl()->get_coeffs());
-                coeffs.send(key, &FunctionNode<T,NDIM>:: template gaxpy_inplace<T,T>, 1.0, node, 1.0);
-            }
-        };
-
 
     public:
         MacroTaskExchange(const std::pair<long,long>& row_range, const std::pair<long,long>& column_range,

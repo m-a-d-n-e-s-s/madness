@@ -179,7 +179,7 @@ int main(int argc, char** argv) {
 
     // default set of parameters for closed shell
     CalculationParameters cparam;
-    cparam.set_user_defined_value("print_level",1);
+    cparam.set_user_defined_value("print_level",10);
     cparam.set_user_defined_value("save",false);
 
     try {

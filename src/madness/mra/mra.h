@@ -947,8 +947,15 @@ namespace madness {
             verify();
             other.verify();
             MADNESS_ASSERT(is_compressed() == other.is_compressed());
-            if (is_compressed()) impl->gaxpy_inplace(alpha,*other.get_impl(),beta,fence);
-            if (not is_compressed()) impl->gaxpy_inplace_reconstructed(alpha,*other.get_impl(),beta,fence);
+            bool same_world=this->world().id()==other.world().id();
+            MADNESS_ASSERT(same_world or is_compressed());
+
+            if (not same_world) {
+                impl->gaxpy_inplace(alpha,*other.get_impl(),beta,fence);
+            } else {
+                if (is_compressed()) impl->gaxpy_inplace(alpha, *other.get_impl(), beta, fence);
+                if (not is_compressed()) impl->gaxpy_inplace_reconstructed(alpha, *other.get_impl(), beta, fence);
+            }
             return *this;
         }
 
