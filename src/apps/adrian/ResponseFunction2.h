@@ -16,6 +16,19 @@
 // real_function_3d == Function<double,3>
 namespace madness {
 
+struct response_vector {
+
+private:
+  size_t num_orbitals;
+  vector_real_function_3d x, y;
+
+public:
+  // default constructor
+  response_vector() : num_orbitals(size_t(0)), x(), y() {}
+  // copy constructor
+  response_vector(const fvector_int& x);
+};
+
 typedef std::vector<vector_real_function_3d> response_matrix;
 
 struct response_space {
@@ -28,7 +41,7 @@ public:
   // Member functions
 public:
   // Default constructor
-  response_space() : num_states(0), num_orbitals(0), x(NULL) {}
+  response_space() : num_states(0), num_orbitals(0), x() {}
 
   // Copy constructor
   response_space(const response_space& y)
