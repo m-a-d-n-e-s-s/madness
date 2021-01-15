@@ -14,9 +14,10 @@ namespace madness {
 
 template <typename T> struct response_vector {
   size_t num_orbitals;
-  std::vector<Function<T, 3>> x, y;
   typedef Function<T, 3> function_T;
   typedef T value_type;
+
+  function_T x, y;
 
   // copy constructor
   response_vector(const response_vector& a)
