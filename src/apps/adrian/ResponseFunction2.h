@@ -28,17 +28,17 @@ public:
   // Member functions
 public:
   // Default constructor
-  response_space() : num_states(0), num_orbitals(0), x{} {}
+  response_space() : num_states(0), num_orbitals(0), x(NULL) {}
 
   // Copy constructor
   response_space(const response_space& y)
       : num_states(y.size()), num_orbitals(y.vec_size()), x{} {
-        x=y.x;
-        /*
-    for (unsigned int i = 0; i < num_states; i++) {
-      this->x.push_back(x[i]); // copying x[i] into this
-    }
-      */
+    x = y.x;
+    /*
+for (unsigned int i = 0; i < num_states; i++) {
+  this->x.push_back(x[i]); // copying x[i] into this
+}
+  */
   }
   // Initializes functions to zero
   // m = number of response states
@@ -46,7 +46,7 @@ public:
 
   // Zero Constructor
   response_space(World& world, size_t num_states, size_t num_orbitals)
-      : num_states(num_states), num_orbitals(num_orbitals), x{} {
+      : num_states(num_states), num_orbitals(num_orbitals), x() {
     for (size_t i = 0; i < num_states; i++) {
       this->x.push_back(zero_functions<double, 3>(world, num_orbitals, true));
     }
@@ -67,10 +67,10 @@ public:
     //
     if (this != &x) {
       if (same_size(*this, x)) {
-        for (size_t b=0;b<x.size();b++){
-          (*this)[b]=x[b];
+        for (size_t b = 0; b < x.size(); b++) {
+          (*this)[b] = x[b];
         }
-      } else {// if not the same size
+      } else {                        // if not the same size
         this->~response_space();      // deconstruct
         new (this) response_space(x); // copy constructor
       }
@@ -261,7 +261,8 @@ public:
   //     new[i] = old[i] * mat[i]
   void scale(Tensor<double>& mat) {
     for (unsigned int i = 0; i < num_states; i++)
-      x[i] = x[i] * mat[i];
+      madness::scale(x[0][0].world(), x[i], mat[i], false);
+    // x[i] = x[i] * mat[i];
     x[0][0].world().gop.fence();
   }
   friend bool operator==(const response_space& x, const response_space& y) {
@@ -269,7 +270,8 @@ public:
       return false;
     for (size_t b = 0; b < x.size(); ++b) {
       for (size_t k = 0; b < x.vec_size(); ++k) {
-        if (x[b][k].norm2() != y[b][k].norm2()) // this may be strict
+        if ((x[b][k] - y[b][k]).norm2() >
+            FunctionDefaults<3>::get_thresh()) // this may be strict
           return false;
       }
     }
