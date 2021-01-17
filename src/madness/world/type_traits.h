@@ -139,6 +139,9 @@ namespace madness {
     is_any_function_pointer_v<T> || \
     std::is_function<T>::value;
 
+    template <typename Archive, typename T, typename Enabler = void>
+    struct is_serializable_helper : public std::false_type {};
+
     /// \brief is \c std::true_type if \c T can be serialized to \c Archive
     ///        without specialized \c serialize() method
     ///
@@ -146,8 +149,10 @@ namespace madness {
     /// For other \c Archive types this is \c std::true_type if \c is_trivially_serializable<T>::value is true.
     /// \tparam Archive an Archive type
     /// \tparam T a type
-    template <typename Archive, typename T, typename = void>
-    struct is_serializable : std::false_type {};
+    template <typename Archive, typename T>
+    struct is_serializable {
+        static constexpr bool value = is_serializable_helper<Archive,T>::value;
+    };
 
     // forward declare archives to provide archive-specific overloads
     namespace archive {
@@ -189,9 +194,9 @@ namespace madness {
     template <typename T>
     struct is_serializable_helper<archive::MPIRawInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
     template <typename T>
-    struct is_serializable_helper<archive::MPIInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
-    template <typename T>
     struct is_serializable_helper<archive::MPIOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    template <typename T>
+    struct is_serializable_helper<archive::MPIInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
     template <typename T>
     struct is_serializable_helper<archive::ContainerRecordOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
     template <typename T>
