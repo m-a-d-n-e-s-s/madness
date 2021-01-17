@@ -1082,7 +1082,9 @@ namespace madness {
                 return true;
             }
             template <typename Archive>
-            void serialize(Archive& ar) {}
+            void serialize(Archive& ar) {
+                ar & f & alpha & beta;
+            }
         };
 
         /// Inplace general bilinear operation
@@ -1091,13 +1093,13 @@ namespace madness {
         /// @param[in]  beta    prefactor for other
         template <typename Q, typename R>
         void gaxpy_inplace(const T& alpha,const FunctionImpl<Q,NDIM>& other, const R& beta, bool fence) {
-            MADNESS_ASSERT(get_pmap() == other.get_pmap());
+//            MADNESS_ASSERT(get_pmap() == other.get_pmap());
             if (alpha != T(1.0)) scale_inplace(alpha,false);
             typedef Range<typename FunctionImpl<Q,NDIM>::dcT::const_iterator> rangeT;
             typedef do_gaxpy_inplace<Q,R> opT;
-            world.taskq.for_each<rangeT,opT>(rangeT(other.coeffs.begin(), other.coeffs.end()), opT(this, T(1.0), beta));
+            other.world.taskq. template for_each<rangeT,opT>(rangeT(other.coeffs.begin(), other.coeffs.end()), opT(this, T(1.0), beta));
             if (fence)
-                world.gop.fence();
+                other.world.gop.fence();
         }
 
         // loads a function impl from persistence
