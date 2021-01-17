@@ -133,7 +133,7 @@ struct response_space {
     MADNESS_ASSERT(same_size(a, b));
 
     World& world = a.x[0][0].world();
-    response_space result
+    response_space result(
         world, a.num_states, a.num_orbitals);  // create zero_functions
 
     for (unsigned int i = 0; i < a.num_states; i++) {
