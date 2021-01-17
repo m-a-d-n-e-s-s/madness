@@ -99,7 +99,7 @@ struct response_space {
         */
       } else {                         // if not the same size
         this->~response_space();       // deconstruct response_space
-        new (this) response_space(x);  //  call copy constructor
+        new (this) response_space(y);  //  call copy constructor
       }
     }
     return *this;  // shallow copy
@@ -172,6 +172,7 @@ struct response_space {
   // KAIN must have this
   // Scaling by a constant
   // return response_space scaled
+  /*
   response_space operator*(double a) {
     World& world = x[0][0].world();
     // response_space result(*this);// this a problem
@@ -183,6 +184,7 @@ struct response_space {
 
     return result;
   }
+  */
   friend response_space operator*(response_space y, double a) {
     World& world = y[0][0].world();
     response_space result = y.copy();  // deep copy
