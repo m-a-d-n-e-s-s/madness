@@ -6,7 +6,7 @@ macro(add_unittests _component _sources _libs)
 
   # Add a test that builds the unit tests
   add_test(build_${_component}_unittests
-      "${CMAKE_COMMAND}" --build ${PROJECT_BINARY_DIR} --target ${_component}_unittests-madness)
+      "${CMAKE_COMMAND}" --build ${CMAKE_BINARY_DIR} --target ${_component}_unittests-madness)
   
   foreach(_source ${_sources})
     # Get the test name (the file name of the first source)
