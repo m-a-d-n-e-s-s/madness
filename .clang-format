@@ -1,3 +1,8 @@
-BasedOnStyle: llvm
+BasedOnStyle: google
 PointerAlignment: Left
-Cpp11BracedListStyle: true
+
+BinPackArguments: false
+BinPackParameters: false
+
+ExperimentalAutoDetectBinPacking: false
+AllowAllParametersOfDeclarationOnNextLine: false
