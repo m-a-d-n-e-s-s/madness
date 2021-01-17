@@ -2,14 +2,16 @@
 #include <cstddef>
 
 // grabs the underlying type of a type...for example int
-template <typename T> struct underlying_type_traits {
+template <typename T>
+struct underlying_type_traits {
   typedef T underlying_type;
 };
 
 // macro
 #define UNDERLYING_TYPE(T) typename underlying_type_traits<T>::underlying_type
 
-template <typename T> inline void swap(T &x, T &y) {
+template <typename T>
+inline void swap(T &x, T &y) {
   // This underlying type does not call a destructor
   UNDERLYING_TYPE(T) tmp;
   move_raw(x, tmp);
@@ -19,23 +21,26 @@ template <typename T> inline void swap(T &x, T &y) {
   move_raw(tmp, y);
 }
 
-template <typename T> inline void cycle_left(T &x1, T &x2, T &x3) {
+template <typename T>
+inline void cycle_left(T &x1, T &x2, T &x3) {
   // x1->x2-x3-x1
   UNDERLYING_TYPE(T) tmp;
-  move_raw(x1, tmp); // tmp=x1
-  move_raw(x2, x1);  // x1=x2
-  move_raw(x3, x2);  // x2=x3
-  move_raw(tmp, x3); // x3=x1
+  move_raw(x1, tmp);  // tmp=x1
+  move_raw(x2, x1);   // x1=x2
+  move_raw(x3, x2);   // x2=x3
+  move_raw(tmp, x3);  // x3=x1
 }
-template <typename T> inline void cycle_right(T &x1, T &x2, T &x3) {
+template <typename T>
+inline void cycle_right(T &x1, T &x2, T &x3) {
   // x1->x2-x3-x1
-  cycle_left(x3, x2, x1); // just call cycle in reverse order
+  cycle_left(x3, x2, x1);  // just call cycle in reverse order
 }
 class fvector_int {
-private:
-  size_t length; // size of allocated area
-  int *v;        // v points to the allocated area
-public:
+ private:
+  size_t length;  // size of allocated area
+  int *v;         // v points to the allocated area
+
+ public:
   // default constructor
   fvector_int() : length(size_t(0)), v(NULL) {}
   // copy constructor
@@ -70,21 +75,21 @@ public:
     y.v = x.v;
   }
 };
-template <> struct underlying_type_traits<fvector_int> {
+template <>
+struct underlying_type_traits<fvector_int> {
   typedef fvector_int::underlying_type underlying_type;
 };
 
 fvector_int::fvector_int(const fvector_int &x)
     : length(size(x)), v(new int[size(x)]) {
-  for (std::size_t i = 0; i < length; ++i)
-    (*this)[i] = x[i];
+  for (std::size_t i = 0; i < length; ++i) (*this)[i] = x[i];
 }
 
 fvector_int &fvector_int ::operator=(const fvector_int &x) {
   if (this != &x) {
     if (size(*this) == size(x)) {
       for (size_t i = 0; i < size(*this); ++i) {
-        int tmp(x[i]); // uses more mem
+        int tmp(x[i]);  // uses more mem
         (*this)[i] = x[i];
       }
     } else {
@@ -93,16 +98,14 @@ fvector_int &fvector_int ::operator=(const fvector_int &x) {
     }
   }
   return *this;
-} // problem...if there is an exception during the construction
+}  // problem...if there is an exception during the construction
 
 inline void move(fvector_int &x, fvector_int &y) { swap(x, y); }
 
 bool operator==(const fvector_int &x, const fvector_int &y) {
-  if (size(x) != size(y))
-    return false;
+  if (size(x) != size(y)) return false;
   for (size_t i = 0; i < size(x); ++i)
-    if (x[i] != y[i])
-      return false;
+    if (x[i] != y[i]) return false;
   return true;
 }
 bool operator!=(const fvector_int &x, const fvector_int &y) {
@@ -110,14 +113,10 @@ bool operator!=(const fvector_int &x, const fvector_int &y) {
 }
 bool operator<(const fvector_int &x, const fvector_int &y) {
   for (size_t i(0);; ++i) {
-    if (i >= size(y))
-      return false;
-    if (i >= size(x))
-      return true;
-    if (y[i] < x[i])
-      return false;
-    if (x[i] < y[i])
-      return true;
+    if (i >= size(y)) return false;
+    if (i >= size(x)) return true;
+    if (y[i] < x[i]) return false;
+    if (x[i] < y[i]) return true;
   }
 }
 inline bool operator>(const fvector_int &x, const fvector_int &y) {
