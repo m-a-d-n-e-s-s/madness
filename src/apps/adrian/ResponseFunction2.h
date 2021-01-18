@@ -398,6 +398,54 @@ inline double inner(response_space& a, response_space& b) {
 
   return value;
 }
+struct X_space {
+ private:
+  size_t num_states;    // Num. of resp. states
+  size_t num_orbitals;  // Num. of ground states
+ public:
+  response_space X, Y;
+
+ public:
+  // default constructor
+  X_space() : num_states(0), num_orbitals(0), X(), Y() {}
+  // Copy constructor
+  X_space(const X_space& A)
+      : num_states(size_states(A)),
+        num_orbitals(size_orbitals(A)),
+        X(A.X),
+        Y(A.Y) {}
+  // Zero Constructor
+  X_space(World& world, size_t num_states, size_t num_orbitals)
+      : num_states(num_states),
+        num_orbitals(num_orbitals),
+        X(world, num_states, num_orbitals),
+        Y(world, num_states, num_orbitals) {}
+  // assignment
+  X_space& operator=(const X_space& B) {
+    if (this != &B) {             // is it the same object?
+      if (same_size(*this, B)) {  // is it same size?
+        this->X = B.X;
+        this->Y = B.Y;
+        /*
+        for (size_t b = 0; b < x.size(); b++) {
+          (*this)[b] = x[b];
+        }
+        */
+      } else {                  // if not the same size
+        this->~X_space();       // deconstruct response_space
+        new (this) X_space(B);  //  call copy constructor
+      }
+    }
+    return *this;  // shallow copy
+  }
+
+  friend size_t size_states(const X_space& x) { return x.num_states; }
+  friend size_t size_orbitals(const X_space& x) { return x.num_orbitals; }
+  friend bool same_size(const X_space& A, const X_space& B) {
+    return ((size_states(A) == size_states(B) &&
+             size_orbitals(A) == size_orbitals(B)));
+  }
+};
 
 }  // End namespace madness
 #endif  // SRC_APPS_ADRIAN_RESPONSEFUNCTION2_H_
