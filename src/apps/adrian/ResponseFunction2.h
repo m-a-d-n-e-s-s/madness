@@ -252,6 +252,20 @@ struct response_space {
     return result;
   }
 
+  friend response_space operator*(const response_space& a,
+                                  const Tensor<double>& b) {
+    MADNESS_ASSERT(a.size() > 0);
+    MADNESS_ASSERT(a[0].size() > 0);
+    World& world = a[0][0].world();
+    response_space result(world, a.num_states, a.num_orbitals);
+
+    for (unsigned int i = 0; i < a.size(); i++) {
+      // Using vmra.h definitions
+      result[i] = transform(world, a[i], b, false);
+    }
+
+    return result;
+  }
   // KAIN must have this
   response_space operator+=(const response_space b) {
     MADNESS_ASSERT(same_size(*this, b));

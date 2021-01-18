@@ -25,49 +25,6 @@ response_space transpose(response_space &f) {
   return g;
 }
 
-// Multiplication of a vector of vectors by a matrix,
-//  *  g[i][k] = \sum_{j} a[i][j] * b(j,k)
-// !  NOTE: NO BOUNDS CHECKING ON THE TENSOR b!!!!
-response_space scale_2d(World &world, const response_space &a,
-                          const Tensor<double> &b) {
-  MADNESS_ASSERT(a.size() > 0);
-  MADNESS_ASSERT(a[0].size() > 0);
-
-  response_space result;
-
-  for (unsigned int i = 0; i < a.size(); i++) {
-    // Using vmra.h definitions
-    std::vector<real_function_3d> tmp = transform(world, a[i], b, false);
-    result.push_back(tmp);
-  }
-
-  // Does this need to be here?
-  world.gop.fence();
-
-  return result;
-}
-
-// Multiplication of a vector of vectors by a scalar g[i][j] = a[i][j] * b
-response_space scale(response_space a, double b) {
-  MADNESS_ASSERT(a.size() > 0);
-  MADNESS_ASSERT(a[0].size() > 0);
-
-//  print("double b",b);
-  response_space result;
-
-  for (unsigned int i = 0; i < a.size(); i++) {
-    // Using vmra.h definitions
-    // std::vector<real_function_3d> temp = a[i] * b;
-    // result.push_back(temp);
-    result.push_back(a[i] * b);
-    
-  }
- // print("norms of scale result");
- // print(result.norm2());
-
-  return result;
-}
-
 // Truncate a vector of vector of functions
 void truncate(World &world, response_space &v, double tol, bool fence) {
   MADNESS_ASSERT(v.size() > 0);
@@ -100,8 +57,8 @@ response_space apply(
 // Apply a vector of operators to a set of response states
 //
 response_space apply(World &world,
-                       std::vector<std::shared_ptr<real_convolution_3d>> &op,
-                       response_space &f) {
+                     std::vector<std::shared_ptr<real_convolution_3d>> &op,
+                     response_space &f) {
   MADNESS_ASSERT(f.size() > 0);
   MADNESS_ASSERT(f[0].size() == op.size());
 
@@ -118,8 +75,7 @@ response_space apply(World &world,
 }
 
 // Apply the derivative operator to a vector of vector of functions
-response_space apply(World &world, real_derivative_3d &op,
-                       response_space &f) {
+response_space apply(World &world, real_derivative_3d &op, response_space &f) {
   MADNESS_ASSERT(f.size() > 0);
 
   response_space result;
