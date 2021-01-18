@@ -426,11 +426,6 @@ struct X_space {
       if (same_size(*this, B)) {  // is it same size?
         this->X = B.X;
         this->Y = B.Y;
-        /*
-        for (size_t b = 0; b < x.size(); b++) {
-          (*this)[b] = x[b];
-        }
-        */
       } else {                  // if not the same size
         this->~X_space();       // deconstruct response_space
         new (this) X_space(B);  //  call copy constructor
@@ -439,6 +434,121 @@ struct X_space {
     return *this;  // shallow copy
   }
 
+  X_space operator+(const X_space B) {
+    MADNESS_ASSERT(same_size(*this, B));
+    World& world = this->X[0][0].world();
+    X_space result(world, num_states, num_orbitals);
+    result.X = X + B.X;
+    result.Y = Y + B.Y;
+    return result;
+  }
+
+  friend X_space operator+(const X_space& A, const X_space& B) {
+    MADNESS_ASSERT(same_size(A, B));
+
+    World& world = A.X[0][0].world();
+    X_space result(
+        world, A.num_states, A.num_orbitals);  // create zero_functions
+
+    result.X = A.X + B.X;
+    result.Y = A.Y + B.Y;
+    return result;
+  }
+
+  X_space operator-(const X_space B) {
+    MADNESS_ASSERT(same_size(*this, B));
+    World& world = this->X[0][0].world();
+    X_space result(world, num_states, num_orbitals);
+    result.X = X - B.X;
+    result.Y = Y - B.Y;
+    return result;
+  }
+
+  friend X_space operator-(const X_space& A, const X_space& B) {
+    MADNESS_ASSERT(same_size(A, B));
+
+    World& world = A.X[0][0].world();
+    X_space result(
+        world, A.num_states, A.num_orbitals);  // create zero_functions
+
+    result.X = A.X - B.X;
+    result.Y = A.Y - B.Y;
+    return result;
+  }
+
+  friend X_space operator*(const X_space& A, const double& b) {
+    World& world = A.X[0][0].world();
+    X_space result(
+        world, A.num_states, A.num_orbitals);  // create zero_functions
+
+    result.X = A.X * b;
+    result.Y = A.Y * b;
+    return result;
+  }
+  friend X_space operator*(const double& b, const X_space& A) {
+    World& world = A.X[0][0].world();
+    X_space result(
+        world, A.num_states, A.num_orbitals);  // create zero_functions
+
+    result.X = A.X * b;
+    result.Y = A.Y * b;
+    return result;
+  }
+  X_space operator*(const double& b) {
+    this->X *= b;
+    this->Y *= b;
+    return *this;
+  }
+
+  friend X_space operator*(const X_space& A, const Function<double, 3>& f) {
+    World& world = A.X[0][0].world();
+    X_space result(
+        world, A.num_states, A.num_orbitals);  // create zero_functions
+
+    result.X = A.X * f;
+    result.Y = A.Y * f;
+    return result;
+  }
+  friend X_space operator*(const Function<double, 3>& f, const X_space& A) {
+    World& world = A.X[0][0].world();
+    X_space result(
+        world, A.num_states, A.num_orbitals);  // create zero_functions
+
+    result.X = A.X * f;
+    result.Y = A.Y * f;
+    return result;
+  }
+
+  friend X_space operator*(const X_space& A, const Tensor<double>& b) {
+    MADNESS_ASSERT(size_states(A) > 0);
+    MADNESS_ASSERT(size_orbitals(A) > 0);
+
+    World& world = A.X[0][0].world();
+    X_space result(world, A.num_states, A.num_orbitals);
+    result.X = A.X * b;
+    result.Y = A.Y * b;
+
+    return result;
+  }
+  inline friend Tensor<double> inner(X_space& A, X_space& B) {
+    MADNESS_ASSERT(size_states(A) > 0);
+    MADNESS_ASSERT(size_orbitals(A) > 0);
+    MADNESS_ASSERT(same_size(A, B));
+    Tensor<double> G(A.num_states, A.num_states);
+
+    World& world = A.X[0][0].world();
+    response_space Collapse(world, A.num_states, A.num_states);
+
+    for (size_t i(0); i < A.num_states; i++) {
+      for (size_t j(0); j < A.num_states; j++) {
+        Collapse[i][j] =
+            dot(world, A.X[i], B.X[j]) + dot(world, A.Y[i], B.Y[j]);
+        G(i, j) = Collapse[i][j].trace();
+      }
+    }
+
+    return G;
+  }
   friend size_t size_states(const X_space& x) { return x.num_states; }
   friend size_t size_orbitals(const X_space& x) { return x.num_orbitals; }
   friend bool same_size(const X_space& A, const X_space& B) {
