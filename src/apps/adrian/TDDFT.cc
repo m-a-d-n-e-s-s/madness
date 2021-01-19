@@ -6328,7 +6328,7 @@ void TDHF::IterateFrequencyResponse(World& world,
       world, Gparams.orbitals);     // Projector to project out ground state
   size_t n = Gparams.num_orbitals;  // Number of ground state orbitals
   size_t m = Rparams.states;        // Number of excited states
-  Tensor<double> x_norms(m);
+  Tensor<double> x_norms(m, m);
   // Holds the norms of x function residuals (for convergence)
   Tensor<double> y_norms(m);
   // Holds the norms of y function residuals (for convergence)
@@ -6345,19 +6345,28 @@ void TDHF::IterateFrequencyResponse(World& world,
   response_space old_y_response(world, m, n);
   real_function_3d v_xc;   // For TDDFT
   bool converged = false;  // Converged flag
+  X_space X(x_response, y_response);
 
   // If DFT, initialize the XCOperator
   XCOperator xc = create_xcoperator(world, Gparams.orbitals, Rparams.xc);
 
   // The KAIN solver
-
+  /*
   std::vector<XNonlinearSolver<std::vector<Function<double, 3>>,
                                double,
                                response_allocator>>
       kain_vec;
-
+      */
+  std::vector<XNonlinearSolver<X_space, double, X_space_allocator>>
+      kain_x_space;
   size_t nkain = (Rparams.omega != 0.0) ? 2 * m : m;
+  for (int b = 0; b < nkain; b++) {
+    kain_x_space.push_back(XNonlinearSolver<X_space, double, X_space_allocator>(
+        X_space_allocator(world, 1, n), false));
+    if (Rparams.kain) kain_x_space[b].set_maxsub(Rparams.maxsub);
+  }
   // we check one time for the size of kain vectors
+  /*
   for (int b = 0; b < nkain; b++) {
     kain_vec.push_back(XNonlinearSolver<std::vector<Function<double, 3>>,
                                         double,
@@ -6365,6 +6374,7 @@ void TDHF::IterateFrequencyResponse(World& world,
         response_allocator(world, n), false));
     if (Rparams.kain) kain_vec[b].set_maxsub(Rparams.maxsub);
   }
+  */
 
   // Setting max sub size for KAIN solver
 
@@ -6480,7 +6490,8 @@ void TDHF::IterateFrequencyResponse(World& world,
       print(x_response.norm2());
 
       print(
-          "y norms in iteration before IterateXY and after computing rho_omega",
+          "y norms in iteration before IterateXY and after computing "
+          "rho_omega",
           iteration);
       print(y_response.norm2());
     }
@@ -6594,11 +6605,9 @@ void TDHF::IterateFrequencyResponse(World& world,
       }
 
       start_timer(world);
-      for (size_t b = 0; b < x_response.size(); b++) {
-        x_response[b] = kain_vec[b].update(x_response[b],
-                                           residuals.x[b],
-                                           FunctionDefaults<3>::get_thresh(),
-                                           3.0);
+      for (size_t b = 0; b < nkain; b++) {
+        X_space[b] = kain_x_space[b].update(
+            X[b], residuals.x[b], FunctionDefaults<3>::get_thresh(), 3.0);
         end_timer(world, " KAIN update:");
       }
       inner(world, x_response[0], y_response[0]);
