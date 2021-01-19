@@ -1621,8 +1621,9 @@ void TDHF::computeElectronResponse(World& world,
   I.Vx = CreatePotential(world, x, xc, print_level, "x");
   I.F0_x = CreateFock(world, I.Vx, x, print_level, "x");
   // epsilon with diag for FullR matrix
-  I.EpsilonX =x*hamiltonian; //scale_2d(world, x, hamiltonian);
-  I.EpsilonXNoDiag = x*ham_no_diag;//scale_2d(world, x, ham_no_diag);  // for rhs
+  I.EpsilonX = x * hamiltonian;  // scale_2d(world, x, hamiltonian);
+  I.EpsilonXNoDiag =
+      x * ham_no_diag;  // scale_2d(world, x, ham_no_diag);  // for rhs
   // compute Electron Interaction Terms for this Iteration
   I.Hx = ComputeHf(world, x, orbitals, small, thresh, print_level, "x");
   // print(Hx);
@@ -1632,8 +1633,8 @@ void TDHF::computeElectronResponse(World& world,
 
     I.Vy = CreatePotential(world, y, xc, print_level, "y");
     I.F0_y = CreateFock(world, I.Vy, y, print_level, "y");
-    I.EpsilonY =y*hamiltonian;// scale_2d(world, y, hamiltonian);
-    I.EpsilonYNoDiag =y*ham_no_diag;// scale_2d(world, y, ham_no_diag);
+    I.EpsilonY = y * hamiltonian;        // scale_2d(world, y, hamiltonian);
+    I.EpsilonYNoDiag = y * ham_no_diag;  // scale_2d(world, y, ham_no_diag);
     I.Hy = ComputeHf(world, y, orbitals, small, thresh, print_level, "y");
     I.Gx = ComputeGf(world, x, orbitals, small, thresh, print_level, "x");
   }
@@ -1760,9 +1761,9 @@ Zfunctions TDHF::ComputeZFunctions(World& world,
   Z.v0_x = CreatePotential(world, x, xc, Rparams.print_level, "x");
 
   // + \Delta xp
-  Z.v0_x += x*x_shifts;//scale(Z.v0_x, x_shifts);
+  Z.v0_x += x * x_shifts;  // scale(Z.v0_x, x_shifts);
 
-  Z.x_f_no_diag = x*ham_no_diag;//scale_2d(world, x, ham_no_diagonal);
+  Z.x_f_no_diag = x * ham_no_diag;  // scale_2d(world, x, ham_no_diagonal);
 
   GammaResponseFunctions gamma = ComputeGammaFunctions(
       world, rho_omega, orbital_products, x, y, xc, Gparams, Rparams);
@@ -1772,7 +1773,7 @@ Zfunctions TDHF::ComputeZFunctions(World& world,
     // no need to apply shift in y case
     // Z.v0_y = apply_shift(world, y_shifts, Z.v0_y, y);
 
-    Z.y_f_no_diag =y*ham_no_diag;
+    Z.y_f_no_diag = y * ham_no_diag;
     // scale_2d(world, y, ham_no_diagonal);
   }
 
@@ -1848,7 +1849,7 @@ ResidualResponseVectors TDHF::ComputeResponseResidual(
   F0x.truncate_rf();
 
   // x response scaled by off diagonal ham
-  xham =x*hamiltonian;// scale_2d(world, x, hamiltonian);
+  xham = x * hamiltonian;  // scale_2d(world, x, hamiltonian);
   omegaX = x_response * omega;
   if (Rparams.print_level == 3) {
     print("norms of x scaled by ham no diag");
@@ -1859,7 +1860,7 @@ ResidualResponseVectors TDHF::ComputeResponseResidual(
     v0y = CreatePotential(world, y, xc, Rparams.print_level, "y");
     F0y = CreateFock(world, v0y, y, Rparams.print_level, "y");
     F0y.truncate_rf();
-    yham =y*hamiltonian;// scale_2d(world, y, hamiltonian);
+    yham = y * hamiltonian;  // scale_2d(world, y, hamiltonian);
     omegaY = y_response * omega;
   }
   // Some printing for debugging
@@ -4290,8 +4291,9 @@ void TDHF::Iterate(World& world) {
       }
     }
     // Scale by -2.0 (coefficient in eq. 37 of reference paper)
-    x_response =x_response*-2.0;// scale(x_response, -2.0);
-    if (not Rparams.tda) y_response =y_response*-2;// scale(x_response, -2.0);
+    x_response = x_response * -2.0;  // scale(x_response, -2.0);
+    if (not Rparams.tda)
+      y_response = y_response * -2;  // scale(x_response, -2.0);
 
     // Get the difference between old and new
     x_differences = old_x_response - x_response;
@@ -4871,7 +4873,7 @@ void TDHF::IterateGuess(World& world, response_space& guesses) {
 
       // Save new components
       guesses = bsh_resp;
-      guesses = guesses*-2.0;// scale(guesses, -2.0);
+      guesses = guesses * -2.0;  // scale(guesses, -2.0);
       // Apply mask
       for (int i = 0; i < Ni; i++) guesses[i] = mask * guesses[i];
     }
@@ -6124,8 +6126,11 @@ void TDHF::IteratePolarizability(World& world, response_space& dipoles) {
       V_y_response = apply_shift(world, y_shifts, V_y_response, y_response);
 
     // Create \epsilon applied to response functions
-    x_fe =x_response*ham_no_diag;// scale_2d(world, x_response, ham_no_diag);
-    if (Rparams.omega != 0.0) y_fe =y_response*ham_no_diag;// scale_2d(world, y_response, ham_no_diag);
+    x_fe =
+        x_response * ham_no_diag;  // scale_2d(world, x_response, ham_no_diag);
+    if (Rparams.omega != 0.0)
+      y_fe = y_response *
+             ham_no_diag;  // scale_2d(world, y_response, ham_no_diag);
     if (Rparams.print_level >= 2) {
       Tensor<double> t = expectation(world, x_response, x_fe);
       if (world.rank() == 0) {
