@@ -63,6 +63,24 @@ struct response_space {
       : num_states(y.size()), num_orbitals(y.vec_size()), x() {
     x = y.x;
   }
+  // assignment
+  response_space& operator=(const response_space& y) {
+    //
+    if (this != &y) {             // is it the same object?
+      if (same_size(*this, y)) {  // is it same size?
+        this->x = y.x;
+        /*
+        for (size_t b = 0; b < x.size(); b++) {
+          (*this)[b] = x[b];
+        }
+        */
+      } else {                         // if not the same size
+        this->~response_space();       // deconstruct response_space
+        new (this) response_space(y);  //  call copy constructor
+      }
+    }
+    return *this;  // shallow copy
+  }
   // Initializes functions to zero
   // m = number of response states
   // n = number of ground state orbitals
@@ -85,24 +103,6 @@ struct response_space {
   // Determines if two ResponseFunctions are the same size
   friend bool same_size(const response_space& x, const response_space& y) {
     return ((x.size() == y.size()) && (x.vec_size() == y.vec_size()));
-  }
-  // assignment
-  response_space& operator=(const response_space& y) {
-    //
-    if (this != &y) {             // is it the same object?
-      if (same_size(*this, y)) {  // is it same size?
-        this->x = y.x;
-        /*
-        for (size_t b = 0; b < x.size(); b++) {
-          (*this)[b] = x[b];
-        }
-        */
-      } else {                         // if not the same size
-        this->~response_space();       // deconstruct response_space
-        new (this) response_space(y);  //  call copy constructor
-      }
-    }
-    return *this;  // shallow copy
   }
 
   // 1D accessor for x
@@ -414,12 +414,6 @@ struct X_space {
         num_orbitals(size_orbitals(A)),
         X(A.X),
         Y(A.Y) {}
-  // Zero Constructor
-  X_space(World& world, size_t num_states, size_t num_orbitals)
-      : num_states(num_states),
-        num_orbitals(num_orbitals),
-        X(world, num_states, num_orbitals),
-        Y(world, num_states, num_orbitals) {}
   // assignment
   X_space& operator=(const X_space& B) {
     if (this != &B) {             // is it the same object?
@@ -433,6 +427,12 @@ struct X_space {
     }
     return *this;  // shallow copy
   }
+  // Zero Constructor
+  X_space(World& world, size_t num_states, size_t num_orbitals)
+      : num_states(num_states),
+        num_orbitals(num_orbitals),
+        X(world, num_states, num_orbitals),
+        Y(world, num_states, num_orbitals) {}
 
   X_space operator+(const X_space B) {
     MADNESS_ASSERT(same_size(*this, B));
