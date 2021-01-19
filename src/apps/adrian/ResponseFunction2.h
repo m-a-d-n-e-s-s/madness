@@ -433,6 +433,15 @@ struct X_space {
         num_orbitals(num_orbitals),
         X(world, num_states, num_orbitals),
         Y(world, num_states, num_orbitals) {}
+  // explicit constructor from 2 resonse_space
+  explicit X_space(response_space& X, response_space& Y) {
+    MADNESS_ASSERT(X.size() == Y.size());
+    MADNESS_ASSERT(X[0].size() == Y[0].size());
+    this->num_states = X.size();
+    this->num_orbitals = X[0].size();
+    this->X = X;
+    this->Y = Y;
+  }
 
   X_space operator+(const X_space B) {
     MADNESS_ASSERT(same_size(*this, B));
