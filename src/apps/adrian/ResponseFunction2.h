@@ -581,6 +581,23 @@ struct X_space {
 // The default constructor for functions does not initialize them to nahy value,
 // but the solver needs the functions initialized to zero for which we also need
 // the world object.
+
+struct X_vector : public X_space {
+  X_vector(World& world, size_t num_orbitals)
+      : X_space(world, size_t(1), num_orbitals) {}
+  inline friend double inner(X_vector& A, X_vector& B) {
+    MADNESS_ASSERT(size_states(A) == 1);
+    MADNESS_ASSERT(size_orbitals(A) > 0);
+    MADNESS_ASSERT(same_size(A, B));
+
+    World& world = A.X[0][0].world();
+
+    real_function_3d density =
+        dot(world, A.X[0], B.X[0]) + dot(world, A.Y[0], B.Y[0]);
+
+    return density.trace();
+  }
+};
 struct X_space_allocator {
   World& world;
   const size_t num_states;
@@ -588,7 +605,7 @@ struct X_space_allocator {
   X_space_allocator(World& world, size_t num_states, size_t num_orbitals)
       : world(world), num_states(num_states), num_orbitals(num_orbitals) {}
   // overloading the default constructor () operator
-  X_space operator()() { return X_space(world, num_states, num_orbitals); }
+  X_vector operator()() { return X_vector(world, num_orbitals); }
   // Copy constructor
 
   X_space_allocator operator=(const X_space_allocator& other) {
