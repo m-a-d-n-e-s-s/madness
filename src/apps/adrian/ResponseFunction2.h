@@ -428,6 +428,7 @@ struct X_space {
     return *this;  // shallow copy
   }
   // access...reshaper
+  /*
   X_space operator[](size_t n) {
     MADNESS_ASSERT(n < num_states);
     World& world = X[0][0].world();
@@ -440,6 +441,7 @@ struct X_space {
     newX.Y = response_space(single_Y);
     return newX;
   }
+  */
   // Zero Constructor
   X_space(World& world, size_t num_states, size_t num_orbitals)
       : num_states(num_states),
@@ -585,6 +587,16 @@ struct X_space {
 struct X_vector : public X_space {
   X_vector(World& world, size_t num_orbitals)
       : X_space(world, size_t(1), num_orbitals) {}
+  X_vector(X_space A, size_t b)
+      : X_space(A.X[0][0].world(), size_t(1), size_orbitals(A)) {
+    response_space single_X;
+    response_space single_Y;
+
+    single_X.push_back(A.X[b]);
+    single_Y.push_back(A.Y[b]);
+    this->X = single_X;
+    this->Y = single_Y;
+  }
   inline friend double inner(X_vector& A, X_vector& B) {
     MADNESS_ASSERT(size_states(A) == 1);
     MADNESS_ASSERT(size_orbitals(A) > 0);
