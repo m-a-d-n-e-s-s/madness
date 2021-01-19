@@ -43,7 +43,7 @@
 
 #include <madness/constants.h>
 #include <madness/mra/mra.h>
-#include <madness/mra/nonlinsol.h> // The kain solver
+#include <madness/mra/nonlinsol.h>  // The kain solver
 #include <madness/mra/operator.h>
 #include <math.h>
 #include <stdio.h>
@@ -63,7 +63,7 @@
 #include "../chem/molecule.h"
 #include "../chem/xcfunctional.h"
 #include "GroundParameters.h"
-  #include "ResponseFunction2.h"
+#include "ResponseFunction2.h"
 #include "ResponseParameters.h"
 #include "ResponsePotential.h"
 #include "TDHF_Basic_Operators2.h"
@@ -73,21 +73,18 @@
 // renamed here) A copy of a MADNESS functor to compute the cartesian moment x^i
 // * y^j * z^k (i, j, k integer and >= 0)
 class BS_MomentFunctor : public FunctionFunctorInterface<double, 3> {
-private:
+ private:
   const int i, j, k;
 
-public:
+ public:
   BS_MomentFunctor(int i, int j, int k) : i(i), j(j), k(k) {}
   explicit BS_MomentFunctor(const std::vector<int>& x)
       : i(x[0]), j(x[1]), k(x[2]) {}
   double operator()(const Vector<double, 3>& r) const {
     double xi = 1.0, yj = 1.0, zk = 1.0;
-    for (int p = 0; p < i; ++p)
-      xi *= r[0];
-    for (int p = 0; p < j; ++p)
-      yj *= r[1];
-    for (int p = 0; p < k; ++p)
-      zk *= r[2];
+    for (int p = 0; p < i; ++p) xi *= r[0];
+    for (int p = 0; p < j; ++p) yj *= r[1];
+    for (int p = 0; p < k; ++p) zk *= r[2];
     return xi * yj * zk;
   }
 };
@@ -102,19 +99,20 @@ template <std::size_t NDIM>
 class GaussianGuess : public FunctionFunctorInterface<double, NDIM> {
   typedef Vector<double, NDIM> coordT;
 
-public:
+ public:
   /// ctor
 
   /// @param[in]  origin  the origin of the Gauss function
   /// @param[in]  alpha   the exponent exp(-alpha r^2)
   /// @param[in]  ijk     the monomial x^i y^j z^k exp(-alpha r^2) (for NDIM)
-  GaussianGuess(const coordT& origin, const double alpha,
+  GaussianGuess(const coordT& origin,
+                const double alpha,
                 const std::vector<int> ijk = std::vector<int>(NDIM))
       : origin(origin), exponent(alpha), ijk(ijk) {}
 
   coordT origin;
-  double exponent;      ///< exponent of the guess
-  std::vector<int> ijk; ///< cartesian exponents
+  double exponent;       ///< exponent of the guess
+  std::vector<int> ijk;  ///< cartesian exponents
 
   double operator()(const coordT& xyz) const {
     double arg = 0.0, prefac = 1.0;
@@ -177,7 +175,7 @@ struct ElectronResponseFunctions {
   response_space EpsilonYNoDiag;
 };
 class ResidualResponseVectors {
-public:
+ public:
   response_space x;
   response_space y;
   ResidualResponseVectors(World& world, int m, int n) {
@@ -188,7 +186,7 @@ public:
 /// Given a molecule and ground state orbitals, solve the response equations
 /// in the Tamm-Danchoff approximation.
 class TDHF {
-public:
+ public:
   // ResponseParameter object to hold all user input variables
   ResponseParameters Rparams;
 
@@ -202,7 +200,7 @@ public:
   // Get Frequencies Omega
   Tensor<double> GetFrequencyOmega();
 
-private:
+ private:
   // Member variables
 
   // GroundParameter object to hold all variables needed from
@@ -211,20 +209,20 @@ private:
 
   // Tensors for holding energies
   // residuals, and shifts
-  Tensor<double> omega;       // Energies of response functions
-  Tensor<double> e_residuals; // Residuals of energies
+  Tensor<double> omega;        // Energies of response functions
+  Tensor<double> e_residuals;  // Residuals of energies
 
   // Information that is inferred from input file
   std::vector<real_function_3d>
-      act_orbitals; // Ground state orbitals being used in calculation
+      act_orbitals;  // Ground state orbitals being used in calculation
   Tensor<double>
-      act_ground_energies; // Ground state energies being used for calculation
-  Tensor<double> hamiltonian; // Ground state hamiltonian tensor
-  Tensor<double> ham_no_diag; // Ground state ham. without diagonal (Used when
-                              // localized orbitals are given)
-  std::vector<int> active;    // The labels of orbitals selected as "active"
-  unsigned int act_num_orbitals; // Number of ground state orbitals being used
-                                 // in calculation
+      act_ground_energies;  // Ground state energies being used for calculation
+  Tensor<double> hamiltonian;  // Ground state hamiltonian tensor
+  Tensor<double> ham_no_diag;  // Ground state ham. without diagonal (Used when
+                               // localized orbitals are given)
+  std::vector<int> active;     // The labels of orbitals selected as "active"
+  unsigned int act_num_orbitals;  // Number of ground state orbitals being used
+                                  // in calculation
 
   // XCfunction object for DFT calculations
   XCfunctional xcf;
@@ -233,24 +231,24 @@ private:
   real_function_3d mask;
 
   // Functions
-  real_function_3d stored_v_nuc;  // Stored nuclear potential from ground state
-  real_function_3d stored_v_coul; // Stored coulomb potential from ground state
+  real_function_3d stored_v_nuc;   // Stored nuclear potential from ground state
+  real_function_3d stored_v_coul;  // Stored coulomb potential from ground state
 
   response_space
-      x_response; // Excited states to be solved for.
-                  //    Note on storage: The response functions are calculated
-                  //    by calculating each transition of occupied --> virtual,
-                  //    and thus the actual response function is a sum of of
-                  //    all contributions to a specific virtual.
+      x_response;  // Excited states to be solved for.
+                   //    Note on storage: The response functions are calculated
+                   //    by calculating each transition of occupied --> virtual,
+                   //    and thus the actual response function is a sum of of
+                   //    all contributions to a specific virtual.
 
   response_space
-      y_response; // De-excitation states to be solved for.
-                  //    Note on storage: The response functions are calculated
-                  //    by calculating each transition of occupied --> virtual,
-                  //    and thus the actual response function is a sum of of
-                  //    all contributions to a specific virtual.
+      y_response;  // De-excitation states to be solved for.
+                   //    Note on storage: The response functions are calculated
+                   //    by calculating each transition of occupied --> virtual,
+                   //    and thus the actual response function is a sum of of
+                   //    all contributions to a specific virtual.
 
-  response_space stored_potential; // The ground state potential, stored only
+  response_space stored_potential;  // The ground state potential, stored only
                                     // if store_potential is true (default is
                                     // false). Holds the integrals
                                     //   \int dr \frac{\phi_i^\dagger
@@ -260,16 +258,16 @@ private:
   response_space P;
   response_space Q;
 
-public:
+ public:
   // Collective constructor for response uses contents of file \c filename and
   // broadcasts to all nodes
-  TDHF(World& world,          // MADNESS world object
-       const char* filename); // Input file
+  TDHF(World& world,           // MADNESS world object
+       const char* filename);  // Input file
 
   // Collective constructor for Response uses contens of steream \c input and
   // broadcasts to all nodes
-  TDHF(World& world,                         // MADNESS world object
-       std::shared_ptr<std::istream> input); // Pointer to input stream
+  TDHF(World& world,                          // MADNESS world object
+       std::shared_ptr<std::istream> input);  // Pointer to input stream
 
   TDHF(World& world, ResponseParameters rparams, GroundParameters gparams);
   // Saves a response calculation
@@ -296,87 +294,118 @@ public:
                                                                int n);
   // returns a map of real form spherical harmonics  n=level...returns (n+1)^2
   // functions
-  std::map<std::vector<int>, real_function_3d>
-  simple_spherical_harmonics(World& world, int n);
+  std::map<std::vector<int>, real_function_3d> simple_spherical_harmonics(
+      World& world,
+      int n);
   // returns a map of real form spherical harmonics  n=level...returns (n+1)^2
   // functions
   std::vector<real_function_3d> createDipoleFunctionMap(World& world);
   // Returns initial response functions
-  response_space
-  create_trial_functions(World& world, int k,
-                         std::vector<real_function_3d>& orbitals,
-                         int print_level);
-  response_space
-  create_trial_functions2(World& world, std::vector<real_function_3d>& orbitals,
-                          int print_level);
+  response_space create_trial_functions(World& world,
+                                        int k,
+                                        std::vector<real_function_3d>& orbitals,
+                                        int print_level);
+  response_space create_trial_functions2(
+      World& world,
+      std::vector<real_function_3d>& orbitals,
+      int print_level);
 
   response_space PropertyRHS(World& world, Property& p) const;
   // Returns the derivative of the coulomb operator, applied to ground state
   // orbitals
   response_space CreateCoulombDerivativeRF(
       World& world,
-      const response_space& f,                 // response functions
-      const std::vector<real_function_3d>& phi, // orbitals
-      double small, double thresh);
+      const response_space& f,                   // response functions
+      const std::vector<real_function_3d>& phi,  // orbitals
+      double small,
+      double thresh);
 
-  response_space
-  CreateCoulombDerivativeRFDagger(World& world, const response_space& f,
-                                  const std::vector<real_function_3d>& phi,
-                                  double small, double thresh);
+  response_space CreateCoulombDerivativeRFDagger(
+      World& world,
+      const response_space& f,
+      const std::vector<real_function_3d>& phi,
+      double small,
+      double thresh);
 
   // Returns the derivative of the exchange operator, applied to the ground
   // state orbitals This is the function for TDA only
-  response_space
-  CreateExchangeDerivativeRF(World& world, const response_space& f,
-                             const std::vector<real_function_3d>& phi,
-                             double small, double thresh);
+  response_space CreateExchangeDerivativeRF(
+      World& world,
+      const response_space& f,
+      const std::vector<real_function_3d>& phi,
+      double small,
+      double thresh);
 
-  response_space
-  CreateExchangeDerivativeRFDagger(World& world, const response_space& f,
-                                   const std::vector<real_function_3d>& phi,
-                                   double small, double thresh);
+  response_space CreateExchangeDerivativeRFDagger(
+      World& world,
+      const response_space& f,
+      const std::vector<real_function_3d>& phi,
+      double small,
+      double thresh);
 
-  response_space CreateXCDerivativeRF(World& world, const response_space& f,
-                                       const std::vector<real_function_3d>& phi,
-                                       double small, double thresh);
-  response_space
-  CreateXCDerivativeRFDagger(World& world, const response_space& f,
-                             const std::vector<real_function_3d>& phi,
-                             double small, double thresh);
+  response_space CreateXCDerivativeRF(World& world,
+                                      const response_space& f,
+                                      const std::vector<real_function_3d>& phi,
+                                      double small,
+                                      double thresh);
+  response_space CreateXCDerivativeRFDagger(
+      World& world,
+      const response_space& f,
+      const std::vector<real_function_3d>& phi,
+      double small,
+      double thresh);
 
   // Returns the diagonal (letter A) elements of response matrix
-  response_space createAf(World& world, response_space& Vf,
-                           response_space& F0_f, response_space& Epsilonf,
-                           response_space& Hf, response_space& f,
-                           std::vector<real_function_3d>& orbitals,
-                           int print_level, std::string xy);
+  response_space createAf(World& world,
+                          response_space& Vf,
+                          response_space& F0_f,
+                          response_space& Epsilonf,
+                          response_space& Hf,
+                          response_space& f,
+                          std::vector<real_function_3d>& orbitals,
+                          int print_level,
+                          std::string xy);
 
   // Returns the off diagonal (letter B) elements of response matrix
-  response_space createBf(World& world, response_space& Gf,
-                           std::vector<real_function_3d>& orbitals,
-                           int print_level);
+  response_space createBf(World& world,
+                          response_space& Gf,
+                          std::vector<real_function_3d>& orbitals,
+                          int print_level);
 
   // Returns gamma (the perturbed 2 electron piece)
-  response_space CreateGamma(World& world, response_space& f,
-                              response_space& g,
-                              std::vector<real_function_3d>& phi, double small,
-                              double thresh, int print_level, std::string xy);
+  response_space CreateGamma(World& world,
+                             response_space& f,
+                             response_space& g,
+                             std::vector<real_function_3d>& phi,
+                             double small,
+                             double thresh,
+                             int print_level,
+                             std::string xy);
 
-  response_space ComputeHf(World& world, const response_space& f,
-                            const std::vector<real_function_3d>& orbitals,
-                            double small, double thresh, int print_level,
-                            std::string xy);
+  response_space ComputeHf(World& world,
+                           const response_space& f,
+                           const std::vector<real_function_3d>& orbitals,
+                           double small,
+                           double thresh,
+                           int print_level,
+                           std::string xy);
 
-  response_space ComputeGf(World& world, const response_space& f,
-                            const std::vector<real_function_3d>& orbitals,
-                            double small, double thresh, int print_level,
-                            std::string xy);
-  GammaResponseFunctions
-  ComputeGammaFunctions(World& world, std::vector<real_function_3d> rho_omega,
-                        response_space orbital_products, response_space& x,
-                        response_space& y, XCOperator xc,
-                        const GroundParameters& Gparams,
-                        const ResponseParameters& Rparams);
+  response_space ComputeGf(World& world,
+                           const response_space& f,
+                           const std::vector<real_function_3d>& orbitals,
+                           double small,
+                           double thresh,
+                           int print_level,
+                           std::string xy);
+  GammaResponseFunctions ComputeGammaFunctions(
+      World& world,
+      std::vector<real_function_3d> rho_omega,
+      response_space orbital_products,
+      response_space& x,
+      response_space& y,
+      XCOperator xc,
+      const GroundParameters& Gparams,
+      const ResponseParameters& Rparams);
   // Returns the coulomb potential of the ground state
   // Note: No post multiplication involved here
   real_function_3d Coulomb(World& world);
@@ -385,58 +414,92 @@ public:
   response_space exchange(World& world, response_space& f);
 
   // Returns the ground state potential applied to response functions
-  response_space CreatePotential(World& world, response_space& f,
-                                  XCOperator xc, int print_level,
-                                  std::string xy);
+  response_space CreatePotential(World& world,
+                                 response_space& f,
+                                 XCOperator xc,
+                                 int print_level,
+                                 std::string xy);
 
-  void computeElectronResponse(World& world, ElectronResponseFunctions& I,
-                               response_space& x, response_space& y,
+  void computeElectronResponse(World& world,
+                               ElectronResponseFunctions& I,
+                               response_space& x,
+                               response_space& y,
                                std::vector<real_function_3d>& orbitals,
-                               XCOperator xc, Tensor<double>& hamiltonian,
-                               Tensor<double>& ham_no_diag, double small,
-                               double thresh, int print_level, std::string xy);
+                               XCOperator xc,
+                               Tensor<double>& hamiltonian,
+                               Tensor<double>& ham_no_diag,
+                               double small,
+                               double thresh,
+                               int print_level,
+                               std::string xy);
 
   // Returns a tensor, where entry (i,j) = inner(a[i], b[j]).sum()
-  Tensor<double> expectation(World& world, const response_space& a,
+  Tensor<double> expectation(World& world,
+                             const response_space& a,
                              const response_space& b);
-  void PrintRFExpectation(World& world, response_space f, response_space g,
-                          std::string fname, std::string gname);
-  void PrintResponseVectorNorms(World& world, response_space f,
+  void PrintRFExpectation(World& world,
+                          response_space f,
+                          response_space g,
+                          std::string fname,
+                          std::string gname);
+  void PrintResponseVectorNorms(World& world,
+                                response_space f,
                                 std::string fname);
   // Returns the ground state fock operator applied to response functions
-  response_space CreateFock(World& world, response_space& Vf,
-                             response_space& f, int print_level,
-                             std::string xy);
+  response_space CreateFock(World& world,
+                            response_space& Vf,
+                            response_space& f,
+                            int print_level,
+                            std::string xy);
 
   Zfunctions ComputeZFunctions(World& world,
                                const std::vector<real_function_3d> rho_omega,
                                response_space orbital_products,
-                               response_space& x, response_space& y,
-                               XCOperator xc, double x_shifts, double y_shifts,
+                               response_space& x,
+                               response_space& y,
+                               XCOperator xc,
+                               double x_shifts,
+                               double y_shifts,
                                const GroundParameters& Gparams,
                                const ResponseParameters& Rparams,
                                Tensor<double> ham_no_diagonal);
-  ResidualResponseVectors ComputeResponseResidual(
-      World& world, const std::vector<real_function_3d> rho_omega,
-      response_space orbital_products, response_space& x, response_space& y,
-      response_space rhs_x, response_space rhs_y, XCOperator xc,
-      const GroundParameters& Gparams, const ResponseParameters& Rparams,
-      Tensor<double> ham_no_diagonal, double omega, int iteration);
-  void
-  IterateXY(World& world, const std::vector<real_function_3d> rho_omega,
-            response_space orbital_products, response_space& x,
-            response_space& y, response_space rhs_x, response_space rhs_y,
-            XCOperator xc, double x_shifts, const GroundParameters& Gparams,
-            const ResponseParameters& Rparams,
-            std::vector<std::shared_ptr<real_convolution_3d>> bsh_x_operators,
-            std::vector<std::shared_ptr<real_convolution_3d>> bsh_y_operators,
-            Tensor<double> ham_no_diagonal, int iteration);
+  X_space ComputeResponseResidual(World& world,
+                                  const std::vector<real_function_3d> rho_omega,
+                                  response_space orbital_products,
+                                  response_space& x,
+                                  response_space& y,
+                                  response_space rhs_x,
+                                  response_space rhs_y,
+                                  XCOperator xc,
+                                  const GroundParameters& Gparams,
+                                  const ResponseParameters& Rparams,
+                                  Tensor<double> ham_no_diagonal,
+                                  double omega,
+                                  int iteration);
+  void IterateXY(
+      World& world,
+      const std::vector<real_function_3d> rho_omega,
+      response_space orbital_products,
+      response_space& x,
+      response_space& y,
+      response_space rhs_x,
+      response_space rhs_y,
+      XCOperator xc,
+      double x_shifts,
+      const GroundParameters& Gparams,
+      const ResponseParameters& Rparams,
+      std::vector<std::shared_ptr<real_convolution_3d>> bsh_x_operators,
+      std::vector<std::shared_ptr<real_convolution_3d>> bsh_y_operators,
+      Tensor<double> ham_no_diagonal,
+      int iteration);
   // Returns the hamiltonian matrix, equation 45 from the paper
-  Tensor<double>
-  CreateResponseMatrix(World& world, response_space& x,
-                       ElectronResponseFunctions& I,
-                       std::vector<real_function_3d>& ground_orbitals,
-                       int print_level, std::string xy);
+  Tensor<double> CreateResponseMatrix(
+      World& world,
+      response_space& x,
+      ElectronResponseFunctions& I,
+      std::vector<real_function_3d>& ground_orbitals,
+      int print_level,
+      std::string xy);
 
   // Constructs full response matrix of
   // [ A  B ] [ X ] = w [ X ]
@@ -444,51 +507,73 @@ public:
 
   Tensor<double> CreateFullResponseMatrix(
       World& world,
-      response_space& x, // x response functions
-      response_space& y, // y response functions
+      response_space& x,  // x response functions
+      response_space& y,  // y response functions
       ElectronResponseFunctions& I,
-      std::vector<real_function_3d>& ground_orbitals, // ground state orbitals
-      double small, double thresh, int print_level);
+      std::vector<real_function_3d>& ground_orbitals,  // ground state orbitals
+      double small,
+      double thresh,
+      int print_level);
   // Returns the shift needed for each orbital to make sure
   // -2.0 * (ground_state_energy + excited_state_energy) is positive
-  Tensor<double> create_shift(World& world, Tensor<double>& ground,
-                              Tensor<double>& omega, int print_level,
+  Tensor<double> create_shift(World& world,
+                              Tensor<double>& ground,
+                              Tensor<double>& omega,
+                              int print_level,
                               std::string xy);
 
   // Returns the shift needed for each orbital to make sure
   // (ground_state_energy + excited_state_energy + shift) = target
-  Tensor<double> create_shift_target(World& world, Tensor<double>& ground,
-                                     Tensor<double>& omega, double target,
-                                     int print_level, std::string xy);
+  Tensor<double> create_shift_target(World& world,
+                                     Tensor<double>& ground,
+                                     Tensor<double>& omega,
+                                     double target,
+                                     int print_level,
+                                     std::string xy);
 
   // Returns the given shift applied to the given potentials
-  response_space apply_shift(World& world, Tensor<double>& shifts,
-                              response_space& V, response_space& f);
+  response_space apply_shift(World& world,
+                             Tensor<double>& shifts,
+                             response_space& V,
+                             response_space& f);
   // single shift value
-  response_space apply_shift(World& world, double& shift, response_space& V,
-                              response_space& f);
+  response_space apply_shift(World& world,
+                             double& shift,
+                             response_space& V,
+                             response_space& f);
 
   // Returns a vector of BSH operators
   std::vector<std::vector<std::shared_ptr<real_convolution_3d>>>
-  create_bsh_operators(World& world, Tensor<double>& shift,
-                       Tensor<double>& ground, Tensor<double>& omega,
-                       double small, double thresh);
+  create_bsh_operators(World& world,
+                       Tensor<double>& shift,
+                       Tensor<double>& ground,
+                       Tensor<double>& omega,
+                       double small,
+                       double thresh);
 
   // Returns a vector of BSH operators
   std::vector<std::vector<std::shared_ptr<real_convolution_3d>>>
-  CreateBSHOperatorPropertyVector(World& world, Tensor<double>& shift,
-                                  Tensor<double>& ground, Tensor<double>& omega,
-                                  double small, double thresh);
+  CreateBSHOperatorPropertyVector(World& world,
+                                  Tensor<double>& shift,
+                                  Tensor<double>& ground,
+                                  Tensor<double>& omega,
+                                  double small,
+                                  double thresh);
   // here omega and shifts are doubles
   std::vector<std::shared_ptr<real_convolution_3d>>
-  CreateBSHOperatorPropertyVector(World& world, double& shift,
-                                  Tensor<double>& ground, double& omega,
-                                  double small, double thresh);
+  CreateBSHOperatorPropertyVector(World& world,
+                                  double& shift,
+                                  Tensor<double>& ground,
+                                  double& omega,
+                                  double small,
+                                  double thresh);
   // Returns the second order update to the energy
-  Tensor<double> calculate_energy_update(World& world, response_space& gamma,
+  Tensor<double> calculate_energy_update(World& world,
+                                         response_space& gamma,
                                          response_space& f_residuals,
                                          response_space& new_f,
-                                         int print_level, std::string xy);
+                                         int print_level,
+                                         std::string xy);
 
   // Returns response functions that have been orthonormalized via
   // modified Gram-Schmidt. Note: This is specifically designed for
@@ -506,25 +591,30 @@ public:
   void select_active_subspace(World& world);
   // Selects from a list of functions and energies the k functions with the
   // lowest energy
-  response_space select_functions(World& world, response_space& f,
-                                   Tensor<double>& energies, int k,
-                                   int print_level);
+  response_space select_functions(World& world,
+                                  response_space& f,
+                                  Tensor<double>& energies,
+                                  int k,
+                                  int print_level);
 
   // Calculates the exponentiation of a matrix through first order (I think)
   Tensor<double> matrix_exponential(const Tensor<double>& A);
 
   // Computes the unitary transformation that diagonalizes the fock matrix
-  Tensor<double> get_fock_transformation(World& world, Tensor<double>& overlap,
+  Tensor<double> get_fock_transformation(World& world,
+                                         Tensor<double>& overlap,
                                          Tensor<double>& fock,
                                          Tensor<double>& evals,
                                          const double thresh_degenerate);
 
   // Sorts the given Tensor of energies
-  Tensor<int> sort_eigenvalues(World& world, Tensor<double>& vals,
+  Tensor<int> sort_eigenvalues(World& world,
+                               Tensor<double>& vals,
                                Tensor<double>& vecs);
 
   // Diagonalizes the fock matrix, taking care of degerate states
-  Tensor<double> diagonalizeFockMatrix(World& world, Tensor<double>& fock,
+  Tensor<double> diagonalizeFockMatrix(World& world,
+                                       Tensor<double>& fock,
                                        response_space& psi,
                                        ElectronResponseFunctions& I,
                                        Tensor<double>& evals,
@@ -533,68 +623,113 @@ public:
 
   // Transforms the given matrix of functions according to the given
   // transformation matrix. Used to update orbitals / potentials
-  response_space transform(World& world, response_space& f,
-                            Tensor<double>& U);
+  response_space transform(World& world, response_space& f, Tensor<double>& U);
 
   // If using a larger subspace to diagonalize in, this will put everything in
   // the right spot
-  void augment(World& world, Tensor<double>& S_x, Tensor<double>& A_x,
+  void augment(World& world,
+               Tensor<double>& S_x,
+               Tensor<double>& A_x,
                ElectronResponseFunctions& Current,
-               ElectronResponseFunctions& Last, response_space& x_response,
-               Tensor<double>& old_S, Tensor<double>& old_A,
-               response_space& old_x_resopnse, int print_level);
+               ElectronResponseFunctions& Last,
+               response_space& x_response,
+               Tensor<double>& old_S,
+               Tensor<double>& old_A,
+               response_space& old_x_resopnse,
+               int print_level);
 
   // If using a larger subspace to diagonalize in, this will put everything in
   // the right spot
-  void augment_full(World& world, Tensor<double>& S, Tensor<double>& A,
-                    response_space& B_x, response_space& x_gamma,
-                    response_space& x_response, response_space& V_x_response,
-                    response_space& x_fe, response_space& B_y,
-                    response_space& y_gamma, response_space& y_response,
-                    response_space& V_y_response, response_space& y_fe,
-                    Tensor<double>& old_S, Tensor<double>& old_A,
-                    response_space& old_B_x, response_space& old_x_gamma,
+  void augment_full(World& world,
+                    Tensor<double>& S,
+                    Tensor<double>& A,
+                    response_space& B_x,
+                    response_space& x_gamma,
+                    response_space& x_response,
+                    response_space& V_x_response,
+                    response_space& x_fe,
+                    response_space& B_y,
+                    response_space& y_gamma,
+                    response_space& y_response,
+                    response_space& V_y_response,
+                    response_space& y_fe,
+                    Tensor<double>& old_S,
+                    Tensor<double>& old_A,
+                    response_space& old_B_x,
+                    response_space& old_x_gamma,
                     response_space& old_x_response,
                     response_space& old_V_x_response,
-                    response_space& old_x_fe, response_space& old_B_y,
+                    response_space& old_x_fe,
+                    response_space& old_B_y,
                     response_space& old_y_gamma,
                     response_space& old_y_response,
                     response_space& old_V_y_response,
-                    response_space& old_y_fe, int print_level);
+                    response_space& old_y_fe,
+                    int print_level);
 
   // If using a larger subspace to diagonalize in, after diagonalization this
   // will put everything in the right spot
-  void unaugment(World& world, int m, int iter, Tensor<double>& omega,
-                 Tensor<double>& S_x, Tensor<double>& A_x,
+  void unaugment(World& world,
+                 int m,
+                 int iter,
+                 Tensor<double>& omega,
+                 Tensor<double>& S_x,
+                 Tensor<double>& A_x,
                  ElectronResponseFunctions& Current,
-                 ElectronResponseFunctions& Last, response_space& x_response,
-                 Tensor<double>& old_S, Tensor<double>& old_A,
-                 response_space& old_x_response, int print_level);
+                 ElectronResponseFunctions& Last,
+                 response_space& x_response,
+                 Tensor<double>& old_S,
+                 Tensor<double>& old_A,
+                 response_space& old_x_response,
+                 int print_level);
 
   // If using a larger subspace to diagonalize in, after diagonalization this
   // will put everything in the right spot
-  void unaugment_full(
-      World& world, int m, int iter, Tensor<double>& U, Tensor<double>& omega,
-      Tensor<double>& S, Tensor<double>& A, response_space& x_gamma,
-      response_space& x_response, response_space& V_x_response,
-      response_space& x_fe, response_space& B_x, response_space& y_gamma,
-      response_space& y_response, response_space& V_y_response,
-      response_space& y_fe, response_space& B_y, Tensor<double>& old_S,
-      Tensor<double>& old_A, response_space& old_x_gamma,
-      response_space& old_x_response, response_space& old_V_x_response,
-      response_space& old_x_fe, response_space& old_B_x,
-      response_space& old_y_gamma, response_space& old_y_response,
-      response_space& old_V_y_response, response_space& old_y_fe,
-      response_space& old_B_y, int print_level);
+  void unaugment_full(World& world,
+                      int m,
+                      int iter,
+                      Tensor<double>& U,
+                      Tensor<double>& omega,
+                      Tensor<double>& S,
+                      Tensor<double>& A,
+                      response_space& x_gamma,
+                      response_space& x_response,
+                      response_space& V_x_response,
+                      response_space& x_fe,
+                      response_space& B_x,
+                      response_space& y_gamma,
+                      response_space& y_response,
+                      response_space& V_y_response,
+                      response_space& y_fe,
+                      response_space& B_y,
+                      Tensor<double>& old_S,
+                      Tensor<double>& old_A,
+                      response_space& old_x_gamma,
+                      response_space& old_x_response,
+                      response_space& old_V_x_response,
+                      response_space& old_x_fe,
+                      response_space& old_B_x,
+                      response_space& old_y_gamma,
+                      response_space& old_y_response,
+                      response_space& old_V_y_response,
+                      response_space& old_y_fe,
+                      response_space& old_B_y,
+                      int print_level);
 
   // Diagonalize the full response matrix, taking care of degenerate states
-  Tensor<double> diagonalizeFullResponseMatrix(
-      World& world, Tensor<double>& S, Tensor<double>& A, response_space& x,
-      response_space& y, ElectronResponseFunctions& I, Tensor<double>& omega,
-      const double thresh, int print_level);
+  Tensor<double> diagonalizeFullResponseMatrix(World& world,
+                                               Tensor<double>& S,
+                                               Tensor<double>& A,
+                                               response_space& x,
+                                               response_space& y,
+                                               ElectronResponseFunctions& I,
+                                               Tensor<double>& omega,
+                                               const double thresh,
+                                               int print_level);
 
   // Similar to what robert did above in "get_fock_transformation"
-  Tensor<double> GetFullResponseTransformation(World& world, Tensor<double>& S,
+  Tensor<double> GetFullResponseTransformation(World& world,
+                                               Tensor<double>& S,
                                                Tensor<double>& A,
                                                Tensor<double>& evals,
                                                const double thresh);
@@ -602,20 +737,31 @@ public:
   // Sorts the given Tensor and response functions in place
   void sort(World& world, Tensor<double>& vals, response_space& f);
 
-  void deflateTDA(World& world, Tensor<double>& S, Tensor<double> old_S,
-                  Tensor<double> old_A, response_space& x_response,
+  void deflateTDA(World& world,
+                  Tensor<double>& S,
+                  Tensor<double> old_S,
+                  Tensor<double> old_A,
+                  response_space& x_response,
                   response_space& old_x_response,
                   ElectronResponseFunctions& ElectronResponses,
                   ElectronResponseFunctions& OldElectronResponses,
-                  Tensor<double>& omega, int& iteration, int& m);
+                  Tensor<double>& omega,
+                  int& iteration,
+                  int& m);
 
-  void deflateFull(World& world, Tensor<double>& S, Tensor<double> old_S,
-                   Tensor<double> old_A, response_space& x_response,
-                   response_space& y, response_space& old_x_response,
+  void deflateFull(World& world,
+                   Tensor<double>& S,
+                   Tensor<double> old_S,
+                   Tensor<double> old_A,
+                   response_space& x_response,
+                   response_space& y,
+                   response_space& old_x_response,
                    response_space& old_y_response,
                    ElectronResponseFunctions& ElectronResponses,
                    ElectronResponseFunctions& OldElectronResponses,
-                   Tensor<double>& omega, int& iteration, int& m);
+                   Tensor<double>& omega,
+                   int& iteration,
+                   int& m);
 
   // Creates the XCOperator object and initializes it with correct
   // parameters
@@ -625,23 +771,25 @@ public:
 
   // Uses an XCOperator to construct v_xc for the ground state density
   // Returns d^2/d rho^2 E_xc[rho]
-  std::vector<real_function_3d>
-  create_fxc(World& world, std::vector<real_function_3d>& orbitals,
-             response_space& f, response_space& g);
+  std::vector<real_function_3d> create_fxc(
+      World& world,
+      std::vector<real_function_3d>& orbitals,
+      response_space& f,
+      response_space& g);
 
-  std::vector<real_function_3d>
-  GetWxcOnFDensities(World& world,
-                     const std::vector<real_function_3d>& orbitals,
-                     const response_space& f);
-  std::vector<real_function_3d>
-  GetConjugateWxcOnFDensities(World& world,
-                              const std::vector<real_function_3d>& orbitals,
-                              const response_space& f);
+  std::vector<real_function_3d> GetWxcOnFDensities(
+      World& world,
+      const std::vector<real_function_3d>& orbitals,
+      const response_space& f);
+  std::vector<real_function_3d> GetConjugateWxcOnFDensities(
+      World& world,
+      const std::vector<real_function_3d>& orbitals,
+      const response_space& f);
 
-  std::vector<real_function_3d>
-  CreateXCDerivative(World& world,
-                     const std::vector<real_function_3d>& orbitals,
-                     const response_space& f);
+  std::vector<real_function_3d> CreateXCDerivative(
+      World& world,
+      const std::vector<real_function_3d>& orbitals,
+      const response_space& f);
 
   // Iterates the trial functions until covergence or it runs out of
   // iterations
@@ -656,31 +804,35 @@ public:
 
   // Create and diagonalize the CIS matrix for improved initial guess
   response_space diagonalize_CIS_guess(World& world,
-                                        std::vector<real_function_3d>& virtuals,
-                                        Tensor<double>& omega,
-                                        std::vector<real_function_3d>& orbitals,
-                                        Tensor<double>& energies, double small,
-                                        double thresh, int print_level);
+                                       std::vector<real_function_3d>& virtuals,
+                                       Tensor<double>& omega,
+                                       std::vector<real_function_3d>& orbitals,
+                                       Tensor<double>& energies,
+                                       double small,
+                                       double thresh,
+                                       int print_level);
 
   // Adds random noise to function f
-  response_space add_randomness(World& world, response_space& f,
-                                 double magnitude);
+  response_space add_randomness(World& world,
+                                response_space& f,
+                                double magnitude);
 
   // Creates the transition density
-  std::vector<real_function_3d>
-  transition_density(World& world,
-                     std::vector<real_function_3d> const& orbitals,
-                     response_space& x, response_space& y);
+  std::vector<real_function_3d> transition_density(
+      World& world,
+      std::vector<real_function_3d> const& orbitals,
+      response_space& x,
+      response_space& y);
   // Get transition density from f and orbitals
-  std::vector<real_function_3d>
-  GetTransitionDensities(World& world,
-                         const std::vector<real_function_3d>& orbitals,
-                         const response_space& f);
+  std::vector<real_function_3d> GetTransitionDensities(
+      World& world,
+      const std::vector<real_function_3d>& orbitals,
+      const response_space& f);
 
-  std::vector<real_function_3d>
-  GetConjugateTransitionDensities(World& world,
-                                  const std::vector<real_function_3d>& orbitals,
-                                  const response_space& f);
+  std::vector<real_function_3d> GetConjugateTransitionDensities(
+      World& world,
+      const std::vector<real_function_3d>& orbitals,
+      const response_space& f);
   // Creates the ground state hamiltonian for the orbitals in the active
   // subspace (aka the orbitals in tda_act_orbitals)
   Tensor<double> CreateGroundHamiltonian(World& world,
@@ -688,21 +840,25 @@ public:
                                          int print_level);
 
   // Sets the different k/thresh levels
-  template <std::size_t NDIM> void set_protocol(World& world, double thresh);
+  template <std::size_t NDIM>
+  void set_protocol(World& world, double thresh);
 
   // Verifies that correct order of polynomial is in use for all
   void check_k(World& world, double thresh, int k);
 
   // Creates random guess functions semi-intelligently(?)
-  response_space create_random_guess(World& world, int m, int n,
-                                      std::vector<real_function_3d>& grounds,
-                                      Molecule& molecule);
+  response_space create_random_guess(World& world,
+                                     int m,
+                                     int n,
+                                     std::vector<real_function_3d>& grounds,
+                                     Molecule& molecule);
 
   // Creates random guess functions semi-intelligently(?)
-  std::vector<real_function_3d>
-  create_random_guess(World& world, int m,
-                      std::vector<real_function_3d>& grounds,
-                      Molecule& molecule);
+  std::vector<real_function_3d> create_random_guess(
+      World& world,
+      int m,
+      std::vector<real_function_3d>& grounds,
+      Molecule& molecule);
 
   // Creates an initial guess using NWChem outputs from a ground state
   // calculation Requires:
@@ -712,9 +868,12 @@ public:
 
   // Creates potentials using the ResponsePotential object
   // Potentials are modified in place
-  void create_all_potentials(World& world, response_space& x,
-                             response_space& x_gamma, response_space& x_V0,
-                             ResponsePotential& potentials, int print_level);
+  void create_all_potentials(World& world,
+                             response_space& x,
+                             response_space& x_gamma,
+                             response_space& x_V0,
+                             ResponsePotential& potentials,
+                             int print_level);
 
   // Solves the response equations for response states
   void solve(World& world);
@@ -722,7 +881,8 @@ public:
   // Iterates the response functions until converged or out of iterations
   //
   void IteratePolarizability(World& world, response_space& dipoles);
-  void IterateFrequencyResponse(World& world, response_space& rhs_x,
+  void IterateFrequencyResponse(World& world,
+                                response_space& rhs_x,
                                 response_space& rhs_y);
 
   // Calculates polarizability according to
@@ -734,7 +894,7 @@ public:
                                    const Tensor<double> omega);
 
   class plotCoords {
-  public:
+   public:
     coord_3d lo, hi;
 
     plotCoords() {
@@ -758,16 +918,19 @@ public:
   };
   plotCoords SetPlotCoord(int i, double Lp);
 
-  void PlotGroundandResponseOrbitals(World& world, int iteration,
+  void PlotGroundandResponseOrbitals(World& world,
+                                     int iteration,
                                      response_space& x_response,
                                      response_space& y_response,
                                      ResponseParameters const& Rparams,
                                      GroundParameters const& Gparams);
   // Solves the response equations for the polarizability
   void solve_polarizability(World& world, Property& p);
-  void ComputeFrequencyResponse(World& world, std::string property,
-                                response_space& x, response_space& y);
+  void ComputeFrequencyResponse(World& world,
+                                std::string property,
+                                response_space& x,
+                                response_space& y);
 };
-#endif // SRC_APPS_ADRIAN_TDDFT_H_
+#endif  // SRC_APPS_ADRIAN_TDDFT_H_
 
 // Deuces

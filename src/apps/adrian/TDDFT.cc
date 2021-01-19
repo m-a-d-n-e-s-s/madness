@@ -1801,20 +1801,19 @@ Zfunctions TDHF::ComputeZFunctions(World& world,
   world.gop.fence();
   return Z;
 }
-ResidualResponseVectors TDHF::ComputeResponseResidual(
-    World& world,
-    std::vector<real_function_3d> rho_omega,
-    response_space orbital_products,
-    response_space& x,
-    response_space& y,
-    response_space rhs_x,
-    response_space rhs_y,
-    XCOperator xc,
-    const GroundParameters& Gparams,
-    const ResponseParameters& Rparams,
-    Tensor<double> hamiltonian,
-    double omega,
-    int iteration) {
+X_space TDHF::ComputeResponseResidual(World& world,
+                                      std::vector<real_function_3d> rho_omega,
+                                      response_space orbital_products,
+                                      response_space& x,
+                                      response_space& y,
+                                      response_space rhs_x,
+                                      response_space rhs_y,
+                                      XCOperator xc,
+                                      const GroundParameters& Gparams,
+                                      const ResponseParameters& Rparams,
+                                      Tensor<double> hamiltonian,
+                                      double omega,
+                                      int iteration) {
   // compute
   int m = Rparams.states;
   int n = Gparams.num_orbitals;
@@ -1908,7 +1907,7 @@ ResidualResponseVectors TDHF::ComputeResponseResidual(
   }
   residual.x.truncate_rf();
   residual.y.truncate_rf();
-  return residual;
+  return X_space(residual.x, residual.y);
 }
 void TDHF::IterateXY(
     World& world,
@@ -6339,12 +6338,13 @@ void TDHF::IterateFrequencyResponse(World& world,
   response_space y_differences(world, m, n);
   response_space x_residuals(world, m, n);
   response_space y_residuals(world, m, n);
-  ResidualResponseVectors residuals(world, m, n);
   // response functions
   response_space old_x_response(world, m, n);
   response_space old_y_response(world, m, n);
   real_function_3d v_xc;   // For TDDFT
   bool converged = false;  // Converged flag
+
+  X_space residuals(world, m, n);
   X_space X(x_response, y_response);
 
   // If DFT, initialize the XCOperator
@@ -6598,425 +6598,429 @@ void TDHF::IterateFrequencyResponse(World& world,
                                             iteration);
         // Add y functions to bottom of x functions
         // (for KAIN)
-        for (int i = 0; i < m; i++) {
-          x_response.push_back(y_response[i]);
-          residuals.x.push_back(residuals.y[i]);
+
+        start_timer(world);
+        for (size_t b = 0; b < nkain; b++) {
+          X_space[b] = kain_x_space[b].update(
+              X[b], residuals.x[b], FunctionDefaults<3>::get_thresh(), 3.0);
+          end_timer(world, " KAIN update:");
+        }
+        inner(world, x_response[0], y_response[0]);
+
+        if (omega_n != 0.0) {
+          // Add new functions back into y and
+          // reduce x size back to original
+          for (int i = 0; i < m; i++) y_response[i] = x_response[m + i];
+          for (int i = 0; i < m; i++) {
+            x_response.pop_back();
+            residuals.x.pop_back();
+          }
         }
       }
 
-      start_timer(world);
-      for (size_t b = 0; b < nkain; b++) {
-        X_space[b] = kain_x_space[b].update(
-            X[b], residuals.x[b], FunctionDefaults<3>::get_thresh(), 3.0);
-        end_timer(world, " KAIN update:");
-      }
-      inner(world, x_response[0], y_response[0]);
-
+      // Apply mask
+      /*
+      for (int i = 0; i < m; i++) x_response[i] = mask * x_response[i];
       if (omega_n != 0.0) {
-        // Add new functions back into y and
-        // reduce x size back to original
-        for (int i = 0; i < m; i++) y_response[i] = x_response[m + i];
-        for (int i = 0; i < m; i++) {
-          x_response.pop_back();
-          residuals.x.pop_back();
-        }
+        for (int i = 0; i < m; i++) y_response[i] = mask * y_response[i];
+      }
+      // print x norms
+      print("x norms in iteration after mask: ", iteration);
+      print(x_response.norm2());
+
+      print("y norms in iteration after mask: ", iteration);
+      print(y_response.norm2());
+      */
+      // Update counter
+      iteration += 1;
+
+      // Done with the iteration.. truncate
+      x_response.truncate_rf();
+      if (omega_n != 0.0) x_response.truncate_rf();
+      /*
+          print("x norms in iteration after truncation: ", iteration);
+          print(x_response.norm2());
+
+          print("y norms in iteration after truncation: ", iteration);
+          print(y_response.norm2());
+          */
+      // Save
+      if (Rparams.save) {
+        start_timer(world);
+        save(world, Rparams.save_file);
+        if (Rparams.print_level >= 1) end_timer(world, "Save:");
+      }
+      // Basic output
+      if (Rparams.print_level >= 1) end_timer(world, " This iteration:");
+      // plot orbitals
+      if (Rparams.plot_all_orbitals) {
+        PlotGroundandResponseOrbitals(
+            world, iteration, x_response, y_response, Rparams, Gparams);
+      }
+      /*
+      print("x norms in iteration after truncation Plot: ", iteration);
+      print(x_response.norm2());
+
+      print("y norms in iteration after truncation Plot: ", iteration);
+      print(y_response.norm2());
+      */
+    }
+  }
+  // Calculates polarizability according to
+  // alpha_ij(\omega) = -sum_{ directions } < x_j | r_i | 0 > + < 0 | r_i |
+  // y_j
+  // >
+  void TDHF::polarizability(World & world, Tensor<double> polar) {
+    // Get transition density
+    // std::vector<real_function_3d> rhos = transition_density(world,
+    // Gparams.orbitals, x_response, y_response);
+    std::vector<real_function_3d> rhos;
+    if (Rparams.omega == 0)
+      rhos =
+          transition_density(world, Gparams.orbitals, x_response, x_response);
+    else
+      rhos =
+          transition_density(world, Gparams.orbitals, x_response, y_response);
+
+    // For each r_axis
+    for (int axis = 0; axis < 3; axis++) {
+      real_function_3d drho = rhos[axis];
+
+      // Run over axis and calc.
+      // the polarizability
+      for (int i = 0; i < 3; i++) {
+        // Create dipole operator in the 'i' direction
+        std::vector<int> f(3, 0);
+        f[i] = 1;
+        real_function_3d dip = real_factory_3d(world).functor(
+            real_functor_3d(new BS_MomentFunctor(f)));
+        polar(axis, i) = -2.0 * dip.inner(drho);
       }
     }
-
-    // Apply mask
-    /*
-    for (int i = 0; i < m; i++) x_response[i] = mask * x_response[i];
-    if (omega_n != 0.0) {
-      for (int i = 0; i < m; i++) y_response[i] = mask * y_response[i];
-    }
-    // print x norms
-    print("x norms in iteration after mask: ", iteration);
-    print(x_response.norm2());
-
-    print("y norms in iteration after mask: ", iteration);
-    print(y_response.norm2());
-    */
-    // Update counter
-    iteration += 1;
-
-    // Done with the iteration.. truncate
-    x_response.truncate_rf();
-    if (omega_n != 0.0) x_response.truncate_rf();
-    /*
-        print("x norms in iteration after truncation: ", iteration);
-        print(x_response.norm2());
-
-        print("y norms in iteration after truncation: ", iteration);
-        print(y_response.norm2());
-        */
-    // Save
-    if (Rparams.save) {
-      start_timer(world);
-      save(world, Rparams.save_file);
-      if (Rparams.print_level >= 1) end_timer(world, "Save:");
-    }
-    // Basic output
-    if (Rparams.print_level >= 1) end_timer(world, " This iteration:");
-    // plot orbitals
-    if (Rparams.plot_all_orbitals) {
-      PlotGroundandResponseOrbitals(
-          world, iteration, x_response, y_response, Rparams, Gparams);
-    }
-    /*
-    print("x norms in iteration after truncation Plot: ", iteration);
-    print(x_response.norm2());
-
-    print("y norms in iteration after truncation Plot: ", iteration);
-    print(y_response.norm2());
-    */
   }
-}
-// Calculates polarizability according to
-// alpha_ij(\omega) = -sum_{ directions } < x_j | r_i | 0 > + < 0 | r_i |
-// y_j
-// >
-void TDHF::polarizability(World& world, Tensor<double> polar) {
-  // Get transition density
-  // std::vector<real_function_3d> rhos = transition_density(world,
-  // Gparams.orbitals, x_response, y_response);
-  std::vector<real_function_3d> rhos;
-  if (Rparams.omega == 0)
-    rhos = transition_density(world, Gparams.orbitals, x_response, x_response);
-  else
-    rhos = transition_density(world, Gparams.orbitals, x_response, y_response);
 
-  // For each r_axis
-  for (int axis = 0; axis < 3; axis++) {
-    real_function_3d drho = rhos[axis];
+  void TDHF::PrintPolarizabilityAnalysis(World & world,
+                                         const Tensor<double> polar_tensor,
+                                         const Tensor<double> omega) {
+    // Final polarizability analysis
+    // diagonalize
+    Tensor<double> V, epolar;
+    syev(polar_tensor, V, epolar);
+    double Dpolar_average = 0.0;
+    double Dpolar_iso = 0.0;
+    for (unsigned int i = 0; i < 3; ++i)
+      Dpolar_average = Dpolar_average + epolar[i];
+    Dpolar_average = Dpolar_average / 3.0;
+    Dpolar_iso =
+        sqrt(.5) * sqrt(std::pow(polar_tensor(0, 0) - polar_tensor(1, 1), 2) +
+                        std::pow(polar_tensor(1, 1) - polar_tensor(2, 2), 2) +
+                        std::pow(polar_tensor(2, 2) - polar_tensor(0, 0), 2));
 
-    // Run over axis and calc.
-    // the polarizability
-    for (int i = 0; i < 3; i++) {
-      // Create dipole operator in the 'i' direction
-      std::vector<int> f(3, 0);
-      f[i] = 1;
-      real_function_3d dip = real_factory_3d(world).functor(
-          real_functor_3d(new BS_MomentFunctor(f)));
-      polar(axis, i) = -2.0 * dip.inner(drho);
+    if (world.rank() == 0) {
+      print("\nTotal Dynamic Polarizability Tensor");
+      printf("\nFrequency  = %.6f a.u.\n\n", omega(0, 0));
+      // printf("\nWavelength = %.6f a.u.\n\n", Rparams.omega * ???);
+      print(polar_tensor);
+      printf("\tEigenvalues = ");
+      printf("\t %.6f \t %.6f \t %.6f \n", epolar[0], epolar[1], epolar[2]);
+      printf("\tIsotropic   = \t %.6f \n", Dpolar_average);
+      printf("\tAnisotropic = \t %.6f \n", Dpolar_iso);
+      printf("\n");
     }
   }
-}
 
-void TDHF::PrintPolarizabilityAnalysis(World& world,
-                                       const Tensor<double> polar_tensor,
-                                       const Tensor<double> omega) {
-  // Final polarizability analysis
-  // diagonalize
-  Tensor<double> V, epolar;
-  syev(polar_tensor, V, epolar);
-  double Dpolar_average = 0.0;
-  double Dpolar_iso = 0.0;
-  for (unsigned int i = 0; i < 3; ++i)
-    Dpolar_average = Dpolar_average + epolar[i];
-  Dpolar_average = Dpolar_average / 3.0;
-  Dpolar_iso =
-      sqrt(.5) * sqrt(std::pow(polar_tensor(0, 0) - polar_tensor(1, 1), 2) +
-                      std::pow(polar_tensor(1, 1) - polar_tensor(2, 2), 2) +
-                      std::pow(polar_tensor(2, 2) - polar_tensor(0, 0), 2));
+  void TDHF::PlotGroundandResponseOrbitals(World & world,
+                                           int iteration,
+                                           response_space& x_response,
+                                           response_space& y_response,
+                                           ResponseParameters const& Rparams,
+                                           GroundParameters const& Gparams) {
+    std::filesystem::create_directories("plots/xy");
+    std::filesystem::create_directory("plots/ground");
+    std::filesystem::create_directory("plots/transition_density");
 
-  if (world.rank() == 0) {
-    print("\nTotal Dynamic Polarizability Tensor");
-    printf("\nFrequency  = %.6f a.u.\n\n", omega(0, 0));
-    // printf("\nWavelength = %.6f a.u.\n\n", Rparams.omega * ???);
-    print(polar_tensor);
-    printf("\tEigenvalues = ");
-    printf("\t %.6f \t %.6f \t %.6f \n", epolar[0], epolar[1], epolar[2]);
-    printf("\tIsotropic   = \t %.6f \n", Dpolar_average);
-    printf("\tAnisotropic = \t %.6f \n", Dpolar_iso);
-    printf("\n");
-  }
-}
+    // TESTING
+    // get transition density
+    int n = x_response[0].size();
+    int m = x_response.size();
+    real_function_3d ground_density =
+        dot(world, Gparams.orbitals, Gparams.orbitals);
+    std::vector<real_function_3d> densities =
+        transition_density(world, Gparams.orbitals, x_response, y_response);
+    std::string dir("xyz");
 
-void TDHF::PlotGroundandResponseOrbitals(World& world,
-                                         int iteration,
-                                         response_space& x_response,
-                                         response_space& y_response,
-                                         ResponseParameters const& Rparams,
-                                         GroundParameters const& Gparams) {
-  std::filesystem::create_directories("plots/xy");
-  std::filesystem::create_directory("plots/ground");
-  std::filesystem::create_directory("plots/transition_density");
-
-  // TESTING
-  // get transition density
-  int n = x_response[0].size();
-  int m = x_response.size();
-  real_function_3d ground_density =
-      dot(world, Gparams.orbitals, Gparams.orbitals);
-  std::vector<real_function_3d> densities =
-      transition_density(world, Gparams.orbitals, x_response, y_response);
-  std::string dir("xyz");
-
-  int buffSize = 500;
-  char plotname[buffSize];
-  double Lp = std::min(Gparams.L, 24.0);
-  // Doing line plots along each axis
-  for (int d = 0; d < 3; d++) {
-    // print ground_state
-    plotCoords plt(0, Lp);
-    if (iteration == 1) {
-      snprintf(
-          plotname, buffSize, "plots/ground/ground_density_%c.plt", dir[d]);
-      plot_line(plotname, 5001, plt.lo, plt.hi, ground_density);
-    }
-    for (int i = 0; i < n; i++) {
+    int buffSize = 500;
+    char plotname[buffSize];
+    double Lp = std::min(Gparams.L, 24.0);
+    // Doing line plots along each axis
+    for (int d = 0; d < 3; d++) {
       // print ground_state
-      snprintf(plotname, buffSize, "plots/ground/ground_%c_%d.plt", dir[d], i);
-      plot_line(plotname, 5001, plt.lo, plt.hi, Gparams.orbitals[i]);
-      for (int b = 0; b < m; b++) {
-        // plot x function  x_dir_b_i__k_iter
-        snprintf(plotname,
-                 buffSize,
-                 "plots/xy/x_%c_%d_%d__%d_%d.plt",
-                 dir[d],
-                 b,
-                 i,
-                 FunctionDefaults<3>::get_k(),
-                 iteration - 1);
-        plot_line(plotname, 5001, plt.lo, plt.hi, x_response[b][i]);
-
-        // plot y function  y_dir_b_i__k_iter
-        snprintf(plotname,
-                 buffSize,
-                 "plots/xy/y_%c_%d_%d__%d_%d.plt",
-                 dir[d],
-                 b,
-                 i,
-                 FunctionDefaults<3>::get_k(),
-                 iteration - 1);
-        plot_line(plotname, 5001, plt.lo, plt.hi, y_response[b][i]);
+      plotCoords plt(0, Lp);
+      if (iteration == 1) {
+        snprintf(
+            plotname, buffSize, "plots/ground/ground_density_%c.plt", dir[d]);
+        plot_line(plotname, 5001, plt.lo, plt.hi, ground_density);
       }
-    }
-  }
-  world.gop.fence();
+      for (int i = 0; i < n; i++) {
+        // print ground_state
+        snprintf(
+            plotname, buffSize, "plots/ground/ground_%c_%d.plt", dir[d], i);
+        plot_line(plotname, 5001, plt.lo, plt.hi, Gparams.orbitals[i]);
+        for (int b = 0; b < m; b++) {
+          // plot x function  x_dir_b_i__k_iter
+          snprintf(plotname,
+                   buffSize,
+                   "plots/xy/x_%c_%d_%d__%d_%d.plt",
+                   dir[d],
+                   b,
+                   i,
+                   FunctionDefaults<3>::get_k(),
+                   iteration - 1);
+          plot_line(plotname, 5001, plt.lo, plt.hi, x_response[b][i]);
 
-  // END TESTING
-}
-// Main function, makes sure everything happens in correct order
-// Solves for polarizability
-void TDHF::solve_polarizability(World& world, Property& p) {
-  // Get start time
-  start_timer(world);
-
-  // Warm and fuzzy
-  if (world.rank() == 0) {
-    print("\n\n    Response Calculation");
-    print("   ------------------------");
-  }
-
-  // Create the polarizability tensor
-  Tensor<double> polar_tensor(3, 3);
-
-  // Keep a copy of dipoles * MO (needed explicitly in eq.)
-  response_space dipoles;
-
-  // For each protocol
-  for (unsigned int proto = 0; proto < Rparams.protocol_data.size(); proto++) {
-    // Set defaults inside here
-    set_protocol<3>(world, Rparams.protocol_data[proto]);
-
-    // Do something to ensure all functions have same k value
-    check_k(world, Rparams.protocol_data[proto], FunctionDefaults<3>::get_k());
-
-    // Create guesses if no response functions
-    // If restarting, load here
-    if (proto == 0) {
-      if (Rparams.restart) {
-        if (world.rank() == 0)
-          print("   Initial guess from file:", Rparams.restart_file);
-        load(world, Rparams.restart_file);
-        check_k(
-            world, Rparams.protocol_data[proto], FunctionDefaults<3>::get_k());
-      } else {  // Dipole guesses
-
-        x_response = PropertyRHS(world, p);
-        y_response = x_response.copy();
-      }
-    }
-
-    // Set the dipoles (ground orbitals are probably
-    // more accurate now, so recalc the dipoles)
-    dipoles = PropertyRHS(world, p);
-    // why is it called dipole guess.
-    // This is just orbitals times dipole operator
-
-    // Now actually ready to iterate...
-    IteratePolarizability(world, dipoles);
-  }
-
-  // Have response function, now calculate polarizability for this axis
-  polarizability(world, polar_tensor);
-
-  // Final polarizability analysis
-  // diagonalize
-  Tensor<double> V, epolar;
-  syev(polar_tensor, V, epolar);
-  double Dpolar_average = 0.0;
-  double Dpolar_iso = 0.0;
-  for (unsigned int i = 0; i < 3; ++i)
-    Dpolar_average = Dpolar_average + epolar[i];
-  Dpolar_average = Dpolar_average / 3.0;
-  Dpolar_iso =
-      sqrt(.5) * sqrt(std::pow(polar_tensor(0, 0) - polar_tensor(1, 1), 2) +
-                      std::pow(polar_tensor(1, 1) - polar_tensor(2, 2), 2) +
-                      std::pow(polar_tensor(2, 2) - polar_tensor(0, 0), 2));
-
-  if (world.rank() == 0) {
-    print("\nTotal Dynamic Polarizability Tensor");
-    printf("\nFrequency  = %.6f a.u.\n\n", Rparams.omega);
-    // printf("\nWavelength = %.6f a.u.\n\n", Rparams.omega * ???);
-    print(polar_tensor);
-    printf("\tEigenvalues = ");
-    printf("\t %.6f \t %.6f \t %.6f \n", epolar[0], epolar[1], epolar[2]);
-    printf("\tIsotropic   = \t %.6f \n", Dpolar_average);
-    printf("\tAnisotropic = \t %.6f \n", Dpolar_iso);
-    printf("\n");
-  }
-
-  // Print total time
-  // Precision is set to 10 coming in, drop it to 2
-  std::cout.precision(2);
-  std::cout << std::fixed;
-
-  // Get start time
-  end_timer(world, "total:");
-}
-// compute the frequency response, Rparams sets the the calculation type.
-// options are dipole,nuclear,order2, order3.  Computes the density respone
-// No matter the calculation type we do the same iteration.
-// The only difference is the number of response states as well as the number
-// of right hand side vectors.
-void TDHF::ComputeFrequencyResponse(World& world,
-                                    std::string property,
-                                    response_space& x,
-                                    response_space& y) {
-  // Get start time
-  this->x_response = x;
-  this->y_response = y;
-
-  start_timer(world);
-
-  // Warm and fuzzy
-  if (world.rank() == 0) {
-    print("\n\n    Response Calculation");
-    print("   ------------------------");
-  }
-
-  // Keep a copy of dipoles * MO (needed explicitly in eq.)
-
-  // For each protocol
-  for (unsigned int proto = 0; proto < Rparams.protocol_data.size(); proto++) {
-    // Set defaults inside here
-    // default value of
-    set_protocol<3>(world, Rparams.protocol_data[proto]);
-
-    check_k(world, Rparams.protocol_data[proto], FunctionDefaults<3>::get_k());
-    // Do something to ensure all functions have same k value
-
-    if (property.compare("dipole") == 0) {
-      if (world.rank() == 0) print("creating dipole property operator");
-      p = Property(world, "dipole");
-    } else if (property.compare("nuclear") == 0) {
-      if (world.rank() == 0) print("creating nuclear property operator");
-      p = Property(world, "nuclear", Gparams.molecule);
-    }
-
-    // Create guesses if no response functions
-    // If restarting, load here
-    if (proto == 0) {
-      if (Rparams.restart) {
-        if (world.rank() == 0)
-          print("   Initial guess from file:", Rparams.restart_file);
-        load(world, Rparams.restart_file);
-        check_k(
-            world, Rparams.protocol_data[proto], FunctionDefaults<3>::get_k());
-
-        if (Rparams.dipole) {
-          // set states
-          this->P = PropertyRHS(world, p);
-          this->Q = P.copy();
-
-          // set RHS_Vector
-        } else if (Rparams.nuclear) {
-          // set guesses
-          // print("Creating X for Nuclear Operators");
-
-          // print("x norms:");
-          // print(x_response.norm2());
-
-          this->P = PropertyRHS(world, p);
-          this->Q = P.copy();
-        } else if (Rparams.order2) {
-          //
-        } else if (Rparams.order3) {
-          //
-        } else {
-          MADNESS_EXCEPTION("not a valid response state ", 0);
-        }
-      } else {  // Dipole guesses
-
-        if (Rparams.dipole) {
-          // set states
-          this->P = PropertyRHS(world, p);
-          this->Q = P.copy();
-          //
-          print("okay this is not a good idea if it comes up more than once");
-          // set RHS_Vector
-        } else if (Rparams.nuclear) {
-          // set guesses
-          // print("Creating X for Nuclear Operators");
-          // create zero guesses
-          // print("x norms:");
-          // print(x_response.norm2());
-
-          this->P = PropertyRHS(world, p);
-          this->Q = P.copy();
-        } else if (Rparams.order2) {
-          //
-        } else if (Rparams.order3) {
-          //
-        } else {
-          MADNESS_EXCEPTION("not a valid response state ", 0);
+          // plot y function  y_dir_b_i__k_iter
+          snprintf(plotname,
+                   buffSize,
+                   "plots/xy/y_%c_%d_%d__%d_%d.plt",
+                   dir[d],
+                   b,
+                   i,
+                   FunctionDefaults<3>::get_k(),
+                   iteration - 1);
+          plot_line(plotname, 5001, plt.lo, plt.hi, y_response[b][i]);
         }
       }
     }
-    //
-    // Here i should print some information about the calculation we are about
-    // to do
-    print("Preiteration Information");
-    print("Property : ", property);
-    print("Number of Response States: ", Rparams.states);
-    print("Number of Ground States: ", Gparams.num_orbitals);
-    print("k = ", FunctionDefaults<3>::get_k());
-    print("protocol threshold = ", FunctionDefaults<3>::get_k());
+    world.gop.fence();
 
-    print("Property rhs func k = ", P[0][0].k());
-    print("Property func k thresh= ", P[0][0].thresh());
+    // END TESTING
+  }
+  // Main function, makes sure everything happens in correct order
+  // Solves for polarizability
+  void TDHF::solve_polarizability(World & world, Property & p) {
+    // Get start time
+    start_timer(world);
 
-    print("Property rhs func Q k = ", Q[0][0].k());
-    print("Property func Q k thresh = ", Q[0][0].thresh());
+    // Warm and fuzzy
+    if (world.rank() == 0) {
+      print("\n\n    Response Calculation");
+      print("   ------------------------");
+    }
 
-    // Now actually ready to iterate...
-    IterateFrequencyResponse(world, P, Q);
-  }  // end for --finished reponse density
+    // Create the polarizability tensor
+    Tensor<double> polar_tensor(3, 3);
 
-  // Have response function, now calculate polarizability for this axis
-  // polarizability(world, polar_tensor);
-  // PrintPolarizabilityAnalysis(world, polar_tensor, omega);
+    // Keep a copy of dipoles * MO (needed explicitly in eq.)
+    response_space dipoles;
 
-  // Print total time
-  // Precision is set to 10 coming in, drop it to 2
-  std::cout.precision(2);
-  std::cout << std::fixed;
+    // For each protocol
+    for (unsigned int proto = 0; proto < Rparams.protocol_data.size();
+         proto++) {
+      // Set defaults inside here
+      set_protocol<3>(world, Rparams.protocol_data[proto]);
 
-  // Get start time
-  end_timer(world, "total:");
-}  // end compute frequency response
+      // Do something to ensure all functions have same k value
+      check_k(
+          world, Rparams.protocol_data[proto], FunctionDefaults<3>::get_k());
 
-// Exactam eam
-// Deuces
+      // Create guesses if no response functions
+      // If restarting, load here
+      if (proto == 0) {
+        if (Rparams.restart) {
+          if (world.rank() == 0)
+            print("   Initial guess from file:", Rparams.restart_file);
+          load(world, Rparams.restart_file);
+          check_k(world,
+                  Rparams.protocol_data[proto],
+                  FunctionDefaults<3>::get_k());
+        } else {  // Dipole guesses
+
+          x_response = PropertyRHS(world, p);
+          y_response = x_response.copy();
+        }
+      }
+
+      // Set the dipoles (ground orbitals are probably
+      // more accurate now, so recalc the dipoles)
+      dipoles = PropertyRHS(world, p);
+      // why is it called dipole guess.
+      // This is just orbitals times dipole operator
+
+      // Now actually ready to iterate...
+      IteratePolarizability(world, dipoles);
+    }
+
+    // Have response function, now calculate polarizability for this axis
+    polarizability(world, polar_tensor);
+
+    // Final polarizability analysis
+    // diagonalize
+    Tensor<double> V, epolar;
+    syev(polar_tensor, V, epolar);
+    double Dpolar_average = 0.0;
+    double Dpolar_iso = 0.0;
+    for (unsigned int i = 0; i < 3; ++i)
+      Dpolar_average = Dpolar_average + epolar[i];
+    Dpolar_average = Dpolar_average / 3.0;
+    Dpolar_iso =
+        sqrt(.5) * sqrt(std::pow(polar_tensor(0, 0) - polar_tensor(1, 1), 2) +
+                        std::pow(polar_tensor(1, 1) - polar_tensor(2, 2), 2) +
+                        std::pow(polar_tensor(2, 2) - polar_tensor(0, 0), 2));
+
+    if (world.rank() == 0) {
+      print("\nTotal Dynamic Polarizability Tensor");
+      printf("\nFrequency  = %.6f a.u.\n\n", Rparams.omega);
+      // printf("\nWavelength = %.6f a.u.\n\n", Rparams.omega * ???);
+      print(polar_tensor);
+      printf("\tEigenvalues = ");
+      printf("\t %.6f \t %.6f \t %.6f \n", epolar[0], epolar[1], epolar[2]);
+      printf("\tIsotropic   = \t %.6f \n", Dpolar_average);
+      printf("\tAnisotropic = \t %.6f \n", Dpolar_iso);
+      printf("\n");
+    }
+
+    // Print total time
+    // Precision is set to 10 coming in, drop it to 2
+    std::cout.precision(2);
+    std::cout << std::fixed;
+
+    // Get start time
+    end_timer(world, "total:");
+  }
+  // compute the frequency response, Rparams sets the the calculation type.
+  // options are dipole,nuclear,order2, order3.  Computes the density respone
+  // No matter the calculation type we do the same iteration.
+  // The only difference is the number of response states as well as the number
+  // of right hand side vectors.
+  void TDHF::ComputeFrequencyResponse(World & world,
+                                      std::string property,
+                                      response_space & x,
+                                      response_space & y) {
+    // Get start time
+    this->x_response = x;
+    this->y_response = y;
+
+    start_timer(world);
+
+    // Warm and fuzzy
+    if (world.rank() == 0) {
+      print("\n\n    Response Calculation");
+      print("   ------------------------");
+    }
+
+    // Keep a copy of dipoles * MO (needed explicitly in eq.)
+
+    // For each protocol
+    for (unsigned int proto = 0; proto < Rparams.protocol_data.size();
+         proto++) {
+      // Set defaults inside here
+      // default value of
+      set_protocol<3>(world, Rparams.protocol_data[proto]);
+
+      check_k(
+          world, Rparams.protocol_data[proto], FunctionDefaults<3>::get_k());
+      // Do something to ensure all functions have same k value
+
+      if (property.compare("dipole") == 0) {
+        if (world.rank() == 0) print("creating dipole property operator");
+        p = Property(world, "dipole");
+      } else if (property.compare("nuclear") == 0) {
+        if (world.rank() == 0) print("creating nuclear property operator");
+        p = Property(world, "nuclear", Gparams.molecule);
+      }
+
+      // Create guesses if no response functions
+      // If restarting, load here
+      if (proto == 0) {
+        if (Rparams.restart) {
+          if (world.rank() == 0)
+            print("   Initial guess from file:", Rparams.restart_file);
+          load(world, Rparams.restart_file);
+          check_k(world,
+                  Rparams.protocol_data[proto],
+                  FunctionDefaults<3>::get_k());
+
+          if (Rparams.dipole) {
+            // set states
+            this->P = PropertyRHS(world, p);
+            this->Q = P.copy();
+
+            // set RHS_Vector
+          } else if (Rparams.nuclear) {
+            // set guesses
+            // print("Creating X for Nuclear Operators");
+
+            // print("x norms:");
+            // print(x_response.norm2());
+
+            this->P = PropertyRHS(world, p);
+            this->Q = P.copy();
+          } else if (Rparams.order2) {
+            //
+          } else if (Rparams.order3) {
+            //
+          } else {
+            MADNESS_EXCEPTION("not a valid response state ", 0);
+          }
+        } else {  // Dipole guesses
+
+          if (Rparams.dipole) {
+            // set states
+            this->P = PropertyRHS(world, p);
+            this->Q = P.copy();
+            //
+            print("okay this is not a good idea if it comes up more than once");
+            // set RHS_Vector
+          } else if (Rparams.nuclear) {
+            // set guesses
+            // print("Creating X for Nuclear Operators");
+            // create zero guesses
+            // print("x norms:");
+            // print(x_response.norm2());
+
+            this->P = PropertyRHS(world, p);
+            this->Q = P.copy();
+          } else if (Rparams.order2) {
+            //
+          } else if (Rparams.order3) {
+            //
+          } else {
+            MADNESS_EXCEPTION("not a valid response state ", 0);
+          }
+        }
+      }
+      //
+      // Here i should print some information about the calculation we are about
+      // to do
+      print("Preiteration Information");
+      print("Property : ", property);
+      print("Number of Response States: ", Rparams.states);
+      print("Number of Ground States: ", Gparams.num_orbitals);
+      print("k = ", FunctionDefaults<3>::get_k());
+      print("protocol threshold = ", FunctionDefaults<3>::get_k());
+
+      print("Property rhs func k = ", P[0][0].k());
+      print("Property func k thresh= ", P[0][0].thresh());
+
+      print("Property rhs func Q k = ", Q[0][0].k());
+      print("Property func Q k thresh = ", Q[0][0].thresh());
+
+      // Now actually ready to iterate...
+      IterateFrequencyResponse(world, P, Q);
+    }  // end for --finished reponse density
+
+    // Have response function, now calculate polarizability for this axis
+    // polarizability(world, polar_tensor);
+    // PrintPolarizabilityAnalysis(world, polar_tensor, omega);
+
+    // Print total time
+    // Precision is set to 10 coming in, drop it to 2
+    std::cout.precision(2);
+    std::cout << std::fixed;
+
+    // Get start time
+    end_timer(world, "total:");
+  }  // end compute frequency response
+
+  // Exactam eam
+  // Deuces
