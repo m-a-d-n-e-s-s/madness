@@ -556,6 +556,23 @@ struct X_space {
              size_orbitals(A) == size_orbitals(B)));
   }
 };
+// The default constructor for functions does not initialize them to nahy value,
+// but the solver needs the functions initialized to zero for which we also need
+// the world object.
+struct X_space_allocator {
+  World& world;
+  const size_t num_states;
+  const size_t num_orbitals;
+  X_space_allocator(World& world, size_t num_states, size_t num_orbitals)
+      : world(world), num_states(num_states), num_orbitals(num_orbitals) {}
+  // overloading the default constructor () operator
+  X_space operator()() { return X_space(world, num_states, num_orbitals); }
+  // Copy constructor
+
+  X_space_allocator operator=(const X_space_allocator& other) {
+    return X_space_allocator(world, other.num_states, other.num_orbitals);
+  }
+};
 
 }  // End namespace madness
 #endif  // SRC_APPS_ADRIAN_RESPONSEFUNCTION2_H_
