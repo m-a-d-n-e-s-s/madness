@@ -6323,30 +6323,26 @@ void TDHF::IterateFrequencyResponse(World& world,
                                     response_space& rhs_x,
                                     response_space& rhs_y) {
   // Variables needed to iterate
-  int iteration = 0;  // Iteration counter
+  size_t iteration = 0;  // Iteration counter
   QProjector<double, 3> projector(
-      world, Gparams.orbitals);  // Projector to project out ground state
-  int n = Gparams.num_orbitals;  // Number of ground state orbitals
-  int m = Rparams.states;        // Number of excited states
+      world, Gparams.orbitals);     // Projector to project out ground state
+  size_t n = Gparams.num_orbitals;  // Number of ground state orbitals
+  size_t m = Rparams.states;        // Number of excited states
   Tensor<double> x_norms(m);
   // Holds the norms of x function residuals (for convergence)
   Tensor<double> y_norms(m);
   // Holds the norms of y function residuals (for convergence)
 
-  response_space x_differences(world, m,
-                               n);  // Holds wave function corrections
-  response_space y_differences(world, m,
-                               n);  // Holds wave function corrections
-  response_space x_residuals(world, m,
-                             n);  // Holds wave function corrections
-  response_space y_residuals(world, m,
-                             n);  // Holds wave function corrections
+  // Holds wave function corrections
+  response_space x_differences(world, m, n);
+  // Holds wave function corrections
+  response_space y_differences(world, m, n);
+  response_space x_residuals(world, m, n);
+  response_space y_residuals(world, m, n);
   ResidualResponseVectors residuals(world, m, n);
   // response functions
-  response_space old_x_response(
-      world, m, n);  // Holds the old x_response vector of vectors
-  response_space old_y_response(
-      world, m, n);        // Holds the old y_response vector of vectors
+  response_space old_x_response(world, m, n);
+  response_space old_y_response(world, m, n);
   real_function_3d v_xc;   // For TDDFT
   bool converged = false;  // Converged flag
 
@@ -6360,7 +6356,7 @@ void TDHF::IterateFrequencyResponse(World& world,
                                response_allocator>>
       kain_vec;
 
-  int nkain = (Rparams.omega != 0.0) ? 2 * m : m;
+  size_t nkain = (Rparams.omega != 0.0) ? 2 * m : m;
   // we check one time for the size of kain vectors
   for (int b = 0; b < nkain; b++) {
     kain_vec.push_back(XNonlinearSolver<std::vector<Function<double, 3>>,
