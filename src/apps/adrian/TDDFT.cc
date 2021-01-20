@@ -6347,6 +6347,13 @@ void TDHF::IterateFrequencyResponse(World& world,
   X_space residuals(world, m, n);
   X_space X(x_response, y_response);
 
+  std::vector<X_vector> Xvector;
+  std::vector<X_vector> Xresidual;
+
+  for (size_t b = 0; b < m; b++) {
+    Xvector.push_back(X_vector(X, b));
+    Xvector.push_back(X_vector(residuals, b));
+  }
   // If DFT, initialize the XCOperator
   XCOperator xc = create_xcoperator(world, Gparams.orbitals, Rparams.xc);
 
@@ -6573,8 +6580,6 @@ void TDHF::IterateFrequencyResponse(World& world,
     }
     // KAIN solver update
     // Returns next set of components
-    std::vector<X_vector> Xvector;
-    std::vector<X_vector> Xresidual;
     // If not kain, save the new components
     if (Rparams.kain) {
       if (omega_n == 0) {
@@ -6599,9 +6604,12 @@ void TDHF::IterateFrequencyResponse(World& world,
                                             hamiltonian,
                                             omega_n,
                                             iteration);
+        // create X_space from x y response functions
+        X = X_space(x_response, y_response);
+        // seperate X_space vectors into individual vectors
         for (size_t b = 0; b < m; b++) {
-          Xvector.push_back(X_vector(X, b));
-          Xresidual.push_back(X_vector(residuals, b));
+          Xvector[b] = (X_vector(X, b));
+          Xresidual[b] = (X_vector(residuals, b));
         }
 
         // Add y functions to bottom of x functions
@@ -6615,54 +6623,53 @@ void TDHF::IterateFrequencyResponse(World& world,
         }
         inner(world, x_response[0], y_response[0]);
       }
-
     }
-      // Apply mask
-      /*
-      for (int i = 0; i < m; i++) x_response[i] = mask * x_response[i];
-      if (omega_n != 0.0) {
-        for (int i = 0; i < m; i++) y_response[i] = mask * y_response[i];
-      }
-      // print x norms
-      print("x norms in iteration after mask: ", iteration);
-      print(x_response.norm2());
+    // Apply mask
+    /*
+    for (int i = 0; i < m; i++) x_response[i] = mask * x_response[i];
+    if (omega_n != 0.0) {
+      for (int i = 0; i < m; i++) y_response[i] = mask * y_response[i];
+    }
+    // print x norms
+    print("x norms in iteration after mask: ", iteration);
+    print(x_response.norm2());
 
-      print("y norms in iteration after mask: ", iteration);
-      print(y_response.norm2());
-      */
-      // Update counter
-      iteration += 1;
+    print("y norms in iteration after mask: ", iteration);
+    print(y_response.norm2());
+    */
+    // Update counter
+    iteration += 1;
 
-      // Done with the iteration.. truncate
-      x_response.truncate_rf();
-      if (omega_n != 0.0) x_response.truncate_rf();
-      /*
-          print("x norms in iteration after truncation: ", iteration);
-          print(x_response.norm2());
+    // Done with the iteration.. truncate
+    x_response.truncate_rf();
+    if (omega_n != 0.0) x_response.truncate_rf();
+    /*
+        print("x norms in iteration after truncation: ", iteration);
+        print(x_response.norm2());
 
-          print("y norms in iteration after truncation: ", iteration);
-          print(y_response.norm2());
-          */
-      // Save
-      if (Rparams.save) {
-        start_timer(world);
-        save(world, Rparams.save_file);
-        if (Rparams.print_level >= 1) end_timer(world, "Save:");
-      }
-      // Basic output
-      if (Rparams.print_level >= 1) end_timer(world, " This iteration:");
-      // plot orbitals
-      if (Rparams.plot_all_orbitals) {
-        PlotGroundandResponseOrbitals(
-            world, iteration, x_response, y_response, Rparams, Gparams);
-      }
-      /*
-      print("x norms in iteration after truncation Plot: ", iteration);
-      print(x_response.norm2());
+        print("y norms in iteration after truncation: ", iteration);
+        print(y_response.norm2());
+        */
+    // Save
+    if (Rparams.save) {
+      start_timer(world);
+      save(world, Rparams.save_file);
+      if (Rparams.print_level >= 1) end_timer(world, "Save:");
+    }
+    // Basic output
+    if (Rparams.print_level >= 1) end_timer(world, " This iteration:");
+    // plot orbitals
+    if (Rparams.plot_all_orbitals) {
+      PlotGroundandResponseOrbitals(
+          world, iteration, x_response, y_response, Rparams, Gparams);
+    }
+    /*
+    print("x norms in iteration after truncation Plot: ", iteration);
+    print(x_response.norm2());
 
-      print("y norms in iteration after truncation Plot: ", iteration);
-      print(y_response.norm2());
-      */
+    print("y norms in iteration after truncation Plot: ", iteration);
+    print(y_response.norm2());
+    */
   }
 }
 // Calculates polarizability according to
