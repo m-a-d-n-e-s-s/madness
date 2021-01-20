@@ -1918,13 +1918,22 @@ void TDHF::xy_from_XVector(response_space& x,
   MADNESS_ASSERT(x[0].size() == size_orbitals(Xvectors[0]));
   MADNESS_ASSERT(y[0].size() == size_orbitals(Xvectors[0]));
 
+  for (real_function_3d xs : Xvectors[0].X[0]) {
+    std::cout << "temp Xvector" << xs.norm2() << std::endl;
+  }
   vector_real_function_3d tmp_x;
   vector_real_function_3d tmp_y;
   for (size_t b = 0; b < x.size(); b++) {
     tmp_x = Xvectors[b].X[0];
     tmp_y = Xvectors[b].Y[0];
-    x[b] = tmp_x;
-    y[b] = tmp_y;
+    for (real_function_3d xs : tmp_x) {
+      std::cout << "temp xs" << xs.norm2() << std::endl;
+    }
+    x[b].assign(Xvectors[b].X[0].begin(), Xvectors[b].X[0].end());  //= tmp_x;
+    y[b].assign(Xvectors[b].Y[0].begin(), Xvectors[b].Y[0].end());  //= tmp_x;
+    for (real_function_3d xs : x[b]) {
+      std::cout << "norm xs" << xs.norm2() << std::endl;
+    }
   }
 }
 void TDHF::IterateXY(
@@ -6630,11 +6639,28 @@ void TDHF::IterateFrequencyResponse(World& world,
                                             omega_n,
                                             iteration);
         // create X_space from x y response functions
+        print("norms in x_response");
+
+        print(x_response.norm2());
+        print("norms in y_response");
+
+        print(y_response.norm2());
         X = X_space(x_response, y_response);
+        print("norms in X.X");
+        print(X.X.norm2());
+        print("norms in X.Y");
+        print(X.Y.norm2());
+
         // seperate X_space vectors into individual vectors
         for (size_t b = 0; b < m; b++) {
           Xvector[b] = (X_vector(X, b));
           Xresidual[b] = (X_vector(residuals, b));
+          for (real_function_3d fx : Xvector[b].X[0]) {
+            print("norm xvector x before kain ", fx.norm2());
+          }
+          for (real_function_3d fy : Xvector[b].Y[0]) {
+            print("norm xvector y before kain ", fy.norm2());
+          }
         }
 
         // Add y functions to bottom of x functions
@@ -6644,6 +6670,9 @@ void TDHF::IterateFrequencyResponse(World& world,
         for (size_t b = 0; b < nkain; b++) {
           Xvector[b] = kain_x_space[b].update(
               Xvector[b], Xresidual[b], FunctionDefaults<3>::get_thresh(), 3.0);
+    for (real_function_3d fx : Xvector[b].X[0]) {
+            print("norm xvector x after kain ", fx.norm2());
+          }
           end_timer(world, " KAIN update:");
         }
 
