@@ -6322,7 +6322,7 @@ void TDHF::IterateFrequencyResponse(World& world,
                                     response_space& rhs_x,
                                     response_space& rhs_y) {
   // Variables needed to iterate
-  size_t iteration = 0;  // Iteration counter
+  int iteration = 0;  // Iteration counter
   QProjector<double, 3> projector(
       world, Gparams.orbitals);     // Projector to project out ground state
   size_t n = Gparams.num_orbitals;  // Number of ground state orbitals
