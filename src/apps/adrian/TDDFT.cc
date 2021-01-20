@@ -6450,7 +6450,7 @@ void TDHF::IterateFrequencyResponse(World& world,
   // here I create the orbital products for elctron interaction terms
   response_space orbital_products(world, n, n);
 
-  for (size_t  k = 0; k < n; k++) {
+  for (size_t k = 0; k < n; k++) {
     // important to do orb[i]*all orbs
     orbital_products[k] =
         apply(world, op, mul(world, Gparams.orbitals[k], Gparams.orbitals));
@@ -6556,7 +6556,8 @@ void TDHF::IterateFrequencyResponse(World& world,
     // Remember: the entire vector is one state
     for (size_t i = 0; i < m; i++) x_norms(i) = norm2(world, x_differences[i]);
     if (omega_n != 0.0) {
-      for (size_t i = 0; i < m; i++) y_norms(i) = norm2(world, y_differences[i]);
+      for (size_t i = 0; i < m; i++)
+        y_norms(i) = norm2(world, y_differences[i]);
     }
 
     // Basic output
