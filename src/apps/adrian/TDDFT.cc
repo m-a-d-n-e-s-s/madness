@@ -6616,6 +6616,7 @@ void TDHF::IterateFrequencyResponse(World& world,
         inner(world, x_response[0], y_response[0]);
       }
 
+    }
       // Apply mask
       /*
       for (int i = 0; i < m; i++) x_response[i] = mask * x_response[i];
@@ -6662,7 +6663,6 @@ void TDHF::IterateFrequencyResponse(World& world,
       print("y norms in iteration after truncation Plot: ", iteration);
       print(y_response.norm2());
       */
-    }
   }
 }
 // Calculates polarizability according to
