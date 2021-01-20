@@ -1921,8 +1921,8 @@ void TDHF::xy_from_XVector(response_space& x,
   vector_real_function_3d tmp_x;
   vector_real_function_3d tmp_y;
   for (size_t b = 0; b < x.size(); b++) {
-    tmp_x = Xvectors[b].X[b];
-    tmp_y = Xvectors[b].Y[b];
+    tmp_x = Xvectors[b].X[0];
+    tmp_y = Xvectors[b].Y[0];
     x[b] = tmp_x;
     y[b] = tmp_y;
   }
