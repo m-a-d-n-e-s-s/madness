@@ -6385,7 +6385,7 @@ void TDHF::IterateFrequencyResponse(World& world,
   std::vector<XNonlinearSolver<X_vector, double, X_space_allocator>>
       kain_x_space;
   size_t nkain = m;  // (Rparams.omega != 0.0) ? 2 * m : m;
-  for (int b = 0; b < nkain; b++) {
+  for (size_t b = 0; b < nkain; b++) {
     kain_x_space.push_back(
         XNonlinearSolver<X_vector, double, X_space_allocator>(
             X_space_allocator(world, n), true));
@@ -6450,7 +6450,7 @@ void TDHF::IterateFrequencyResponse(World& world,
   // here I create the orbital products for elctron interaction terms
   response_space orbital_products(world, n, n);
 
-  for (int k = 0; k < n; k++) {
+  for (size_t  k = 0; k < n; k++) {
     // important to do orb[i]*all orbs
     orbital_products[k] =
         apply(world, op, mul(world, Gparams.orbitals[k], Gparams.orbitals));
@@ -6554,17 +6554,17 @@ void TDHF::IterateFrequencyResponse(World& world,
 
     // Next calculate 2-norm of these vectors of differences
     // Remember: the entire vector is one state
-    for (int i = 0; i < m; i++) x_norms(i) = norm2(world, x_differences[i]);
+    for (size_t i = 0; i < m; i++) x_norms(i) = norm2(world, x_differences[i]);
     if (omega_n != 0.0) {
-      for (int i = 0; i < m; i++) y_norms(i) = norm2(world, y_differences[i]);
+      for (size_t i = 0; i < m; i++) y_norms(i) = norm2(world, y_differences[i]);
     }
 
     // Basic output
     if (Rparams.print_level >= 0 and world.rank() == 0) {
       if (omega_n != 0.0) {
         std::cout << "resX " << iteration << ":" << std::endl;
-        for (int b = 0; b < m; b++) {
-          for (int k = 0; k < n; k++) {
+        for (size_t b = 0; b < m; b++) {
+          for (size_t k = 0; k < n; k++) {
             std::cout << x_norms(b, k) << " ";
           }
         }
@@ -6572,15 +6572,15 @@ void TDHF::IterateFrequencyResponse(World& world,
         std::cout << endl;
         std::cout << "resY " << iteration << ":" << std::endl;
 
-        for (int b = 0; b < m; b++) {
-          for (int k = 0; k < n; k++) {
+        for (size_t b = 0; b < m; b++) {
+          for (size_t k = 0; k < n; k++) {
             std::cout << y_norms(b, k) << " ";
           }
         }
       } else {
         std::cout << "resX " << iteration << ":" << std::endl;
-        for (int b = 0; b < m; b++) {
-          for (int k = 0; k < n; k++) {
+        for (size_t b = 0; b < m; b++) {
+          for (size_t k = 0; k < n; k++) {
             std::cout << x_norms(b, k) << " ";
           }
         }
