@@ -6352,7 +6352,7 @@ void TDHF::IterateFrequencyResponse(World& world,
 
   for (size_t b = 0; b < m; b++) {
     Xvector.push_back(X_vector(X, b));
-    Xvector.push_back(X_vector(residuals, b));
+    Xresidual.push_back(X_vector(residuals, b));
   }
   // If DFT, initialize the XCOperator
   XCOperator xc = create_xcoperator(world, Gparams.orbitals, Rparams.xc);
@@ -6370,7 +6370,7 @@ void TDHF::IterateFrequencyResponse(World& world,
   for (int b = 0; b < nkain; b++) {
     kain_x_space.push_back(
         XNonlinearSolver<X_vector, double, X_space_allocator>(
-            X_space_allocator(world, 1, n), false));
+            X_space_allocator(world,  n), true));
     if (Rparams.kain) kain_x_space[b].set_maxsub(Rparams.maxsub);
   }
   // we check one time for the size of kain vectors
@@ -6581,6 +6581,12 @@ void TDHF::IterateFrequencyResponse(World& world,
     // KAIN solver update
     // Returns next set of components
     // If not kain, save the new components
+    // print x norms
+    print("x norms in iteration before kain: ", iteration);
+    print(x_response.norm2());
+
+    print("y norms in iteration before kain: ", iteration);
+    print(y_response.norm2());
     if (Rparams.kain) {
       if (omega_n == 0) {
         rho_omega =
@@ -6624,19 +6630,25 @@ void TDHF::IterateFrequencyResponse(World& world,
         inner(world, x_response[0], y_response[0]);
       }
     }
+    // print x norms
+    print("x norms in iteration after kain: ", iteration);
+    print(x_response.norm2());
+
+    print("y norms in iteration after kain: ", iteration);
+    print(y_response.norm2());
     // Apply mask
     /*
     for (int i = 0; i < m; i++) x_response[i] = mask * x_response[i];
     if (omega_n != 0.0) {
       for (int i = 0; i < m; i++) y_response[i] = mask * y_response[i];
     }
+    */
     // print x norms
     print("x norms in iteration after mask: ", iteration);
     print(x_response.norm2());
 
     print("y norms in iteration after mask: ", iteration);
     print(y_response.norm2());
-    */
     // Update counter
     iteration += 1;
 
