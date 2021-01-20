@@ -629,14 +629,14 @@ struct X_space_allocator {
   World& world;
   const size_t num_states;
   const size_t num_orbitals;
-  X_space_allocator(World& world, size_t num_states, size_t num_orbitals)
-      : world(world), num_states(num_states), num_orbitals(num_orbitals) {}
+  X_space_allocator(World& world,  size_t num_orbitals)
+      : world(world), num_states(size_t(1)), num_orbitals(num_orbitals) {}
   // overloading the default constructor () operator
   X_vector operator()() { return X_vector(world, num_orbitals); }
   // Copy constructor
 
   X_space_allocator operator=(const X_space_allocator& other) {
-    return X_space_allocator(world, other.num_states, other.num_orbitals);
+    return X_space_allocator(world,  other.num_orbitals);
   }
 };
 
