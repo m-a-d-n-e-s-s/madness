@@ -1909,6 +1909,24 @@ X_space TDHF::ComputeResponseResidual(World& world,
   residual.y.truncate_rf();
   return X_space(residual.x, residual.y);
 }
+
+void TDHF::xy_from_XVector(response_space& x,
+                           response_space& y,
+                           std::vector<X_vector>& Xvectors) {
+  MADNESS_ASSERT(x.size() == Xvectors.size());
+  MADNESS_ASSERT(y.size() == Xvectors.size());
+  MADNESS_ASSERT(x[0].size() == size_orbitals(Xvectors[0]));
+  MADNESS_ASSERT(y[0].size() == size_orbitals(Xvectors[0]));
+
+  vector_real_function_3d tmp_x;
+  vector_real_function_3d tmp_y;
+  for (size_t b = 0; b < x.size(); b++) {
+    tmp_x = Xvectors[b].X[b];
+    tmp_y = Xvectors[b].Y[b];
+    x[b] = tmp_x;
+    y[b] = tmp_y;
+  }
+}
 void TDHF::IterateXY(
     World& world,
     std::vector<real_function_3d> rho_omega,
@@ -6370,7 +6388,7 @@ void TDHF::IterateFrequencyResponse(World& world,
   for (int b = 0; b < nkain; b++) {
     kain_x_space.push_back(
         XNonlinearSolver<X_vector, double, X_space_allocator>(
-            X_space_allocator(world,  n), true));
+            X_space_allocator(world, n), true));
     if (Rparams.kain) kain_x_space[b].set_maxsub(Rparams.maxsub);
   }
   // we check one time for the size of kain vectors
@@ -6627,15 +6645,17 @@ void TDHF::IterateFrequencyResponse(World& world,
               Xvector[b], Xresidual[b], FunctionDefaults<3>::get_thresh(), 3.0);
           end_timer(world, " KAIN update:");
         }
+
+        print("x norms in iteration after kain: ", iteration);
+        print(x_response.norm2());
+
+        print("y norms in iteration after kain: ", iteration);
+        print(y_response.norm2());
+        xy_from_XVector(x_response, y_response, Xvector);
         inner(world, x_response[0], y_response[0]);
       }
     }
     // print x norms
-    print("x norms in iteration after kain: ", iteration);
-    print(x_response.norm2());
-
-    print("y norms in iteration after kain: ", iteration);
-    print(y_response.norm2());
     // Apply mask
     /*
     for (int i = 0; i < m; i++) x_response[i] = mask * x_response[i];

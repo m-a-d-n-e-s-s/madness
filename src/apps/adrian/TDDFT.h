@@ -476,6 +476,10 @@ class TDHF {
                                   Tensor<double> ham_no_diagonal,
                                   double omega,
                                   int iteration);
+  void xy_from_XVector(response_space& x,
+                       response_space& y,
+                       std::vector<X_vector>& Xvectors);
+
   void IterateXY(
       World& world,
       const std::vector<real_function_3d> rho_omega,

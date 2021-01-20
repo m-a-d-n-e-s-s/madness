@@ -629,16 +629,34 @@ struct X_space_allocator {
   World& world;
   const size_t num_states;
   const size_t num_orbitals;
-  X_space_allocator(World& world,  size_t num_orbitals)
+  X_space_allocator(World& world, size_t num_orbitals)
       : world(world), num_states(size_t(1)), num_orbitals(num_orbitals) {}
   // overloading the default constructor () operator
   X_vector operator()() { return X_vector(world, num_orbitals); }
   // Copy constructor
 
   X_space_allocator operator=(const X_space_allocator& other) {
-    return X_space_allocator(world,  other.num_orbitals);
+    return X_space_allocator(world, other.num_orbitals);
   }
 };
+
+void xy_from_XVector(response_space& x,
+                     response_space& y,
+                     std::vector<X_vector>& Xvectors) {
+  MADNESS_ASSERT(x.size() == Xvectors.size());
+  MADNESS_ASSERT(y.size() == Xvectors.size());
+  MADNESS_ASSERT(x[0].size() == size_orbitals(Xvectors[0]));
+  MADNESS_ASSERT(y[0].size() == size_orbitals(Xvectors[0]));
+
+  vector_real_function_3d tmp_x;
+  vector_real_function_3d tmp_y;
+  for (size_t b = 0; b < x.size(); b++) {
+    tmp_x = Xvectors[b].X[b];
+    tmp_y = Xvectors[b].Y[b];
+    x[b] = tmp_x;
+    y[b] = tmp_y;
+  }
+}
 
 }  // End namespace madness
 #endif  // SRC_APPS_ADRIAN_RESPONSEFUNCTION2_H_
