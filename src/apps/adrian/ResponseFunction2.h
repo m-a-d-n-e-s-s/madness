@@ -466,6 +466,12 @@ struct X_space {
     result.Y = Y + B.Y;
     return result;
   }
+  X_space operator+=(const X_space B) {
+    MADNESS_ASSERT(same_size(*this, B));
+    this->X += B.X;
+    this->Y += B.Y;
+    return *this;
+  }
 
   friend X_space operator+(const X_space& A, const X_space& B) {
     MADNESS_ASSERT(same_size(A, B));
@@ -596,6 +602,15 @@ struct X_vector : public X_space {
     single_Y.push_back(A.Y[b]);
     this->X = single_X;
     this->Y = single_Y;
+  }
+  friend X_vector operator-(const X_vector& A, const X_vector& B) {
+    MADNESS_ASSERT(same_size(A, B));
+
+    World& world = A.X[0][0].world();
+    X_vector result(world, size_orbitals(A));  // create zero_functions
+    result.X = A.X - B.X;
+    result.Y = A.Y - B.Y;
+    return result;
   }
   inline friend double inner(X_vector& A, X_vector& B) {
     MADNESS_ASSERT(size_states(A) == 1);

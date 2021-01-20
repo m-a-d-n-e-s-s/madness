@@ -6359,7 +6359,7 @@ void TDHF::IterateFrequencyResponse(World& world,
       */
   std::vector<XNonlinearSolver<X_vector, double, X_space_allocator>>
       kain_x_space;
-  size_t nkain = (Rparams.omega != 0.0) ? 2 * m : m;
+  size_t nkain = m;  // (Rparams.omega != 0.0) ? 2 * m : m;
   for (int b = 0; b < nkain; b++) {
     kain_x_space.push_back(
         XNonlinearSolver<X_vector, double, X_space_allocator>(
@@ -6601,7 +6601,7 @@ void TDHF::IterateFrequencyResponse(World& world,
                                             iteration);
         for (size_t b = 0; b < m; b++) {
           Xvector.push_back(X_vector(X, b));
-          Xvector.push_back(X_vector(residuals, b));
+          Xresidual.push_back(X_vector(residuals, b));
         }
 
         // Add y functions to bottom of x functions
