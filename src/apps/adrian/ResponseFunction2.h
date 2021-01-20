@@ -612,6 +612,13 @@ struct X_vector : public X_space {
     result.Y = A.Y - B.Y;
     return result;
   }
+   X_vector operator+=(  const X_vector& B) {
+    MADNESS_ASSERT(same_size(*this, B));
+
+    this->X += B.X;
+    this->Y += B.Y;
+    return *this;
+  }
   inline friend double inner(X_vector& A, X_vector& B) {
     MADNESS_ASSERT(size_states(A) == 1);
     MADNESS_ASSERT(size_orbitals(A) > 0);
