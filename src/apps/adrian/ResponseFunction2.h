@@ -60,9 +60,7 @@ struct response_space {
 
   // Copy constructor
   response_space(const response_space& y)
-      : num_states(y.size()), num_orbitals(y.vec_size()), x() {
-    x = y.x;
-  }
+      : num_states(y.size()), num_orbitals(y.vec_size()), x(y.x) {}
   // assignment
   response_space& operator=(const response_space& y) {
     //
@@ -267,7 +265,7 @@ struct response_space {
     return result;
   }
   // KAIN must have this
-  response_space operator+=(const response_space b) {
+  response_space& operator+=(const response_space b) {
     MADNESS_ASSERT(same_size(*this, b));
     World& world = x[0][0].world();
     for (unsigned int i = 0; i < num_states; i++) {
@@ -612,7 +610,14 @@ struct X_vector : public X_space {
     result.Y = A.Y - B.Y;
     return result;
   }
-   X_vector operator+=(  const X_vector& B) {
+  friend X_vector operator*(const X_vector& A, const double& c) {
+    World& world = A.X[0][0].world();
+    X_vector result(world, size_orbitals(A));  // create zero_functions
+    result.X = A.X * c;
+    result.Y = A.Y * c;
+    return result;
+  }
+  X_vector operator+=(const X_vector& B) {
     MADNESS_ASSERT(same_size(*this, B));
 
     this->X += B.X;
