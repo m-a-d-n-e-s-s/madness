@@ -66,7 +66,7 @@ struct response_space {
     //
     if (this != &y) {             // is it the same object?
       if (same_size(*this, y)) {  // is it same size?
-        this->x = y.x;
+        this->x = y.x;            // copy vector y.x into x
         /*
         for (size_t b = 0; b < x.size(); b++) {
           (*this)[b] = x[b];
@@ -269,8 +269,18 @@ struct response_space {
     MADNESS_ASSERT(same_size(*this, b));
     World& world = x[0][0].world();
     for (unsigned int i = 0; i < num_states; i++) {
-      add(world, this->x[i], b[i]);
+      for (real_function_3d fx : b[i]) {
+        print("norm response_space b  += ", fx.norm2());
+      }
+      for (real_function_3d fx : x[i]) {
+        print("norm response_space x before add()  += ", fx.norm2());
+      }
+      this->x[i] = add(world, this->x[i], b[i]);
+      for (real_function_3d fx : this->x[i]) {
+        print("norm response_space x after add()  += ", fx.norm2());
+      }
     }
+
     return *this;
   }
 
@@ -593,13 +603,8 @@ struct X_vector : public X_space {
       : X_space(world, size_t(1), num_orbitals) {}
   X_vector(X_space A, size_t b)
       : X_space(A.X[0][0].world(), size_t(1), size_orbitals(A)) {
-    response_space single_X;
-    response_space single_Y;
-
-    single_X.push_back(A.X[b]);
-    single_Y.push_back(A.Y[b]);
-    this->X = single_X;
-    this->Y = single_Y;
+    this->X[0].assign(A.X[b].begin(), A.X[b].end());  // = single_X;
+    this->Y[0].assign(A.Y[b].begin(), A.Y[b].end());  // = single_X;
   }
   friend X_vector operator-(const X_vector& A, const X_vector& B) {
     MADNESS_ASSERT(same_size(A, B));
@@ -608,6 +613,12 @@ struct X_vector : public X_space {
     X_vector result(world, size_orbitals(A));  // create zero_functions
     result.X = A.X - B.X;
     result.Y = A.Y - B.Y;
+    for (real_function_3d fx : result.X[0]) {
+      print("norm xvector x  - ", fx.norm2());
+    }
+    for (real_function_3d fx : result.Y[0]) {
+      print("norm xvector x  - ", fx.norm2());
+    }
     return result;
   }
   friend X_vector operator*(const X_vector& A, const double& c) {
@@ -615,13 +626,32 @@ struct X_vector : public X_space {
     X_vector result(world, size_orbitals(A));  // create zero_functions
     result.X = A.X * c;
     result.Y = A.Y * c;
+    for (real_function_3d fx : result.X[0]) {
+      print("norm xvector x  * ", fx.norm2());
+    }
+    for (real_function_3d fx : result.Y[0]) {
+      print("norm xvector x  * ", fx.norm2());
+    }
     return result;
   }
   X_vector& operator+=(const X_vector& B) {
     MADNESS_ASSERT(same_size(*this, B));
 
+    for (real_function_3d fx : B.X[0]) {
+      print("norm xvector B  += ", fx.norm2());
+    }
+    for (real_function_3d fx : B.Y[0]) {
+      print("norm xvector B  += ", fx.norm2());
+    }
     this->X += B.X;
     this->Y += B.Y;
+
+    for (real_function_3d fx : this->X[0]) {
+      print("norm xvector x  += ", fx.norm2());
+    }
+    for (real_function_3d fx : this->Y[0]) {
+      print("norm xvector x  += ", fx.norm2());
+    }
     return *this;
   }
   inline friend double inner(X_vector& A, X_vector& B) {

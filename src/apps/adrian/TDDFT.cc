@@ -1400,6 +1400,9 @@ GammaResponseFunctions TDHF::ComputeGammaFunctions(
   // update gamma functions
   QProjector<double, 3> projector(world, Gparams.orbitals);
   gamma.gamma = (J * 2) - (Kx + Ky) * xcf.hf_exchange_coefficient() + W;
+  print("Gamma norms");
+  print(gamma.gamma.norm2());
+
   if (Rparams.omega != 0.0) {
     gamma.gamma_conjugate =
         (J * 2) -
@@ -1918,21 +1921,18 @@ void TDHF::xy_from_XVector(response_space& x,
   MADNESS_ASSERT(x[0].size() == size_orbitals(Xvectors[0]));
   MADNESS_ASSERT(y[0].size() == size_orbitals(Xvectors[0]));
 
-  for (real_function_3d xs : Xvectors[0].X[0]) {
-    std::cout << "temp Xvector" << xs.norm2() << std::endl;
-  }
-  vector_real_function_3d tmp_x;
-  vector_real_function_3d tmp_y;
   for (size_t b = 0; b < x.size(); b++) {
-    tmp_x = Xvectors[b].X[0];
-    tmp_y = Xvectors[b].Y[0];
-    for (real_function_3d xs : tmp_x) {
-      std::cout << "temp xs" << xs.norm2() << std::endl;
+    std::cout << "moving state " << b << std::endl;
+    for (auto xs : x[b]) {
+      std::cout << "norm xs before move" << xs.norm2() << std::endl;
     }
-    x[b].assign(Xvectors[b].X[0].begin(), Xvectors[b].X[0].end());  //= tmp_x;
-    y[b].assign(Xvectors[b].Y[0].begin(), Xvectors[b].Y[0].end());  //= tmp_x;
-    for (real_function_3d xs : x[b]) {
-      std::cout << "norm xs" << xs.norm2() << std::endl;
+    for (auto xs : Xvectors[b].X[0]) {
+      std::cout << "norm Xvector before move" << xs.norm2() << std::endl;
+    }
+    x[b] = Xvectors[b].X[0];
+    y[b] = Xvectors[b].Y[0];
+    for (auto xs : x[b]) {
+      std::cout << "norm xs after move" << xs.norm2() << std::endl;
     }
   }
 }
@@ -1967,6 +1967,8 @@ void TDHF::IterateXY(
    */
   // x functions
   // V0 applied to x response function
+  print("norms of x");
+  print(x.norm2());
   Z.v0_x = CreatePotential(world, x, xc, Rparams.print_level, "x");
   if (Rparams.print_level == 3) {
     print("norms of v0x");
@@ -6624,115 +6626,96 @@ void TDHF::IterateFrequencyResponse(World& world,
             transition_density(world, Gparams.orbitals, x_response, y_response);
       }
 
-      if (omega_n != 0.0) {
-        residuals = ComputeResponseResidual(world,
-                                            rho_omega,
-                                            orbital_products,
-                                            x_response,
-                                            y_response,
-                                            rhs_x,
-                                            rhs_y,
-                                            xc,
-                                            Gparams,
-                                            Rparams,
-                                            hamiltonian,
-                                            omega_n,
-                                            iteration);
-        // create X_space from x y response functions
-        print("norms in x_response");
+      X = X_space(x_response, y_response);
+      residuals = X_space(x_differences, y_differences);
 
-        print(x_response.norm2());
-        print("norms in y_response");
-
-        print(y_response.norm2());
-        X = X_space(x_response, y_response);
-        print("norms in X.X");
-        print(X.X.norm2());
-        print("norms in X.Y");
-        print(X.Y.norm2());
-
-        // seperate X_space vectors into individual vectors
-        for (size_t b = 0; b < m; b++) {
-          Xvector[b] = (X_vector(X, b));
-          Xresidual[b] = (X_vector(residuals, b));
-          for (real_function_3d fx : Xvector[b].X[0]) {
-            print("norm xvector x before kain ", fx.norm2());
-          }
-          for (real_function_3d fy : Xvector[b].Y[0]) {
-            print("norm xvector y before kain ", fy.norm2());
-          }
+      // seperate X_space vectors into individual vectors
+      for (size_t b = 0; b < m; b++) {
+        Xvector[b] = (X_vector(X, b));
+        Xresidual[b] = (X_vector(residuals, b));
+        for (real_function_3d fx : Xvector[b].X[0]) {
+          print("norm xvector x before kain ", fx.norm2());
         }
-
-        // Add y functions to bottom of x functions
-        // (for KAIN)
-
-        start_timer(world);
-        for (size_t b = 0; b < nkain; b++) {
-          Xvector[b] = kain_x_space[b].update(
-              Xvector[b], Xresidual[b], FunctionDefaults<3>::get_thresh(), 3.0);
-    for (real_function_3d fx : Xvector[b].X[0]) {
-            print("norm xvector x after kain ", fx.norm2());
-          }
-          end_timer(world, " KAIN update:");
+        for (real_function_3d fy : Xvector[b].Y[0]) {
+          print("norm xvector y before kain ", fy.norm2());
         }
-
-        print("x norms in iteration after kain: ", iteration);
-        print(x_response.norm2());
-
-        print("y norms in iteration after kain: ", iteration);
-        print(y_response.norm2());
-        xy_from_XVector(x_response, y_response, Xvector);
-        inner(world, x_response[0], y_response[0]);
       }
-    }
-    // print x norms
-    // Apply mask
-    /*
-    for (int i = 0; i < m; i++) x_response[i] = mask * x_response[i];
-    if (omega_n != 0.0) {
-      for (int i = 0; i < m; i++) y_response[i] = mask * y_response[i];
-    }
-    */
-    // print x norms
-    print("x norms in iteration after mask: ", iteration);
-    print(x_response.norm2());
 
-    print("y norms in iteration after mask: ", iteration);
-    print(y_response.norm2());
-    // Update counter
-    iteration += 1;
+      // Add y functions to bottom of x functions
+      // (for KAIN)
 
-    // Done with the iteration.. truncate
-    x_response.truncate_rf();
-    if (omega_n != 0.0) x_response.truncate_rf();
-    /*
-        print("x norms in iteration after truncation: ", iteration);
-        print(x_response.norm2());
-
-        print("y norms in iteration after truncation: ", iteration);
-        print(y_response.norm2());
-        */
-    // Save
-    if (Rparams.save) {
       start_timer(world);
-      save(world, Rparams.save_file);
-      if (Rparams.print_level >= 1) end_timer(world, "Save:");
-    }
-    // Basic output
-    if (Rparams.print_level >= 1) end_timer(world, " This iteration:");
-    // plot orbitals
-    if (Rparams.plot_all_orbitals) {
-      PlotGroundandResponseOrbitals(
-          world, iteration, x_response, y_response, Rparams, Gparams);
-    }
-    /*
-    print("x norms in iteration after truncation Plot: ", iteration);
-    print(x_response.norm2());
+      for (size_t b = 0; b < nkain; b++) {
+        Xvector[b] = kain_x_space[b].update(
+            Xvector[b], Xresidual[b], FunctionDefaults<3>::get_thresh(), 3.0);
 
-    print("y norms in iteration after truncation Plot: ", iteration);
-    print(y_response.norm2());
-    */
+        for (real_function_3d fx : Xvector[b].X[0]) {
+          print("norm xvector x after kain ", fx.norm2());
+        }
+        end_timer(world, " KAIN update:");
+      }
+
+      print("x norms in iteration after kain: ", iteration);
+      print(x_response.norm2());
+
+      print("y norms in iteration after kain: ", iteration);
+      print(y_response.norm2());
+      xy_from_XVector(x_response, y_response, Xvector);
+      print("x norms in iteration after transfer: ", iteration);
+      print(x_response.norm2());
+
+      print("y norms in iteration after transfer: ", iteration);
+      print(y_response.norm2());
+      inner(world, x_response[0], y_response[0]);
+    }
   }
+  // print x norms
+  // Apply mask
+  /*
+  for (int i = 0; i < m; i++) x_response[i] = mask * x_response[i];
+  if (omega_n != 0.0) {
+    for (int i = 0; i < m; i++) y_response[i] = mask * y_response[i];
+  }
+  */
+  // print x norms
+  print("x norms in iteration after mask: ", iteration);
+  print(x_response.norm2());
+
+  print("y norms in iteration after mask: ", iteration);
+  print(y_response.norm2());
+  // Update counter
+  iteration += 1;
+
+  // Done with the iteration.. truncate
+  x_response.truncate_rf();
+  if (omega_n != 0.0) x_response.truncate_rf();
+  /*
+      print("x norms in iteration after truncation: ", iteration);
+      print(x_response.norm2());
+
+      print("y norms in iteration after truncation: ", iteration);
+      print(y_response.norm2());
+      */
+  // Save
+  if (Rparams.save) {
+    start_timer(world);
+    save(world, Rparams.save_file);
+    if (Rparams.print_level >= 1) end_timer(world, "Save:");
+  }
+  // Basic output
+  if (Rparams.print_level >= 1) end_timer(world, " This iteration:");
+  // plot orbitals
+  if (Rparams.plot_all_orbitals) {
+    PlotGroundandResponseOrbitals(
+        world, iteration, x_response, y_response, Rparams, Gparams);
+  }
+  /*
+  print("x norms in iteration after truncation Plot: ", iteration);
+  print(x_response.norm2());
+
+  print("y norms in iteration after truncation Plot: ", iteration);
+  print(y_response.norm2());
+  */
 }
 // Calculates polarizability according to
 // alpha_ij(\omega) = -sum_{ directions } < x_j | r_i | 0 > + < 0 | r_i |
