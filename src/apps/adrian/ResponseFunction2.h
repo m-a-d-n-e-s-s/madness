@@ -203,7 +203,7 @@ struct response_space {
 
     return result;
   }
-  response_space operator*=(double a) {
+  response_space& operator*=(double a) {
     World& world = this->x[0][0].world();
 
     for (unsigned int i = 0; i < num_states; i++) {
@@ -464,7 +464,7 @@ struct X_space {
     result.Y = Y + B.Y;
     return result;
   }
-  X_space operator+=(const X_space B) {
+  X_space& operator+=(const X_space B) {
     MADNESS_ASSERT(same_size(*this, B));
     this->X += B.X;
     this->Y += B.Y;
@@ -617,7 +617,7 @@ struct X_vector : public X_space {
     result.Y = A.Y * c;
     return result;
   }
-  X_vector operator+=(const X_vector& B) {
+  X_vector& operator+=(const X_vector& B) {
     MADNESS_ASSERT(same_size(*this, B));
 
     this->X += B.X;
