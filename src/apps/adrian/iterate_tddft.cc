@@ -1,6 +1,4 @@
 
-#include "TDDFT.h"
-
 #include <math.h>
 
 #include <cstdint>
@@ -14,12 +12,13 @@
 #include "../chem/molecule.h"
 #include "NWChem.h"  // For nwchem interface
 #include "Plot_VTK.h"
-#include "adrian/timer.h"
+#include "TDDFT.h"
 #include "TDHF_Basic_Operators2.h"
 #include "adrian/ResponseFunction2.h"
 #include "adrian/density.h"
 #include "adrian/global_functions.h"
 #include "adrian/property.h"
+#include "adrian/timer.h"
 #include "chem/potentialmanager.h"
 #include "chem/projector.h"  // For easy calculation of (1 - \hat{\rho}^0)
 #include "madness/mra/funcdefaults.h"
@@ -34,7 +33,7 @@ void TDHF::IterateFrequencyResponse(World& world,
       world, Gparams.orbitals);     // Projector to project out ground state
   size_t n = Gparams.num_orbitals;  // Number of ground state orbitals
   size_t m = Rparams.states;        // Number of excited states
-  Tensor<double> x_norms(m, m);
+  Tensor<double> x_norms(m);
   // Holds the norms of x function residuals (for convergence)
   Tensor<double> y_norms(m);
   // Holds the norms of y function residuals (for convergence)
@@ -64,13 +63,6 @@ void TDHF::IterateFrequencyResponse(World& world,
   // If DFT, initialize the XCOperator
   XCOperator xc = create_xcoperator(world, Gparams.orbitals, Rparams.xc);
 
-  // The KAIN solver
-  /*
-  std::vector<XNonlinearSolver<std::vector<Function<double, 3>>,
-                               double,
-                               response_allocator>>
-      kain_vec;
-      */
   std::vector<XNonlinearSolver<X_vector, double, X_space_allocator>>
       kain_x_space;
   size_t nkain = m;  // (Rparams.omega != 0.0) ? 2 * m : m;
@@ -80,21 +72,7 @@ void TDHF::IterateFrequencyResponse(World& world,
             X_space_allocator(world, n), true));
     if (Rparams.kain) kain_x_space[b].set_maxsub(Rparams.maxsub);
   }
-  // we check one time for the size of kain vectors
-  /*
-  for (int b = 0; b < nkain; b++) {
-    kain_vec.push_back(XNonlinearSolver<std::vector<Function<double, 3>>,
-                                        double,
-                                        response_allocator>(
-        response_allocator(world, n), false));
-    if (Rparams.kain) kain_vec[b].set_maxsub(Rparams.maxsub);
-  }
-  */
 
-  // Setting max sub size for KAIN solver
-
-  // Set omega (its constant here,
-  // and has only 1 entry for each axis)
   double omega_n = Rparams.omega;
   omega_n = abs(omega_n);
   omega[0] = omega_n;
@@ -151,22 +129,7 @@ void TDHF::IterateFrequencyResponse(World& world,
   vector_real_function_3d rho_omega;
   // Now to iterate
   while (iteration < Rparams.max_iter and !converged) {
-    // Start a timer for this iteration
-    // print hamiltonain
     start_timer(world);
-    /*
-        print("x norms in iteration before  : ", iteration);
-        print(x_response.norm2());
-
-        print("y norms in iteration before: ", iteration);
-        print(y_response.norm2());
-
-        print("old x norms in iteration before  : ", iteration);
-        print(old_x_response.norm2());
-
-        print("old y norms in iteration before: ", iteration);
-        print(old_y_response.norm2());
-        */
     // Basic output
     if (Rparams.print_level >= 1) {
       if (world.rank() == 0)
@@ -253,27 +216,13 @@ void TDHF::IterateFrequencyResponse(World& world,
     if (Rparams.print_level >= 0 and world.rank() == 0) {
       if (omega_n != 0.0) {
         std::cout << "resX " << iteration << ":" << std::endl;
-        for (size_t b = 0; b < m; b++) {
-          for (size_t k = 0; k < n; k++) {
-            std::cout << x_norms(b, k) << " ";
-          }
-        }
-
+        print(x_norms);
         std::cout << endl;
         std::cout << "resY " << iteration << ":" << std::endl;
-
-        for (size_t b = 0; b < m; b++) {
-          for (size_t k = 0; k < n; k++) {
-            std::cout << y_norms(b, k) << " ";
-          }
-        }
+        print(y_norms);
       } else {
         std::cout << "resX " << iteration << ":" << std::endl;
-        for (size_t b = 0; b < m; b++) {
-          for (size_t k = 0; k < n; k++) {
-            std::cout << x_norms(b, k) << " ";
-          }
-        }
+        print(x_norms);
       }
       std::cout << endl;
     }
@@ -317,6 +266,12 @@ void TDHF::IterateFrequencyResponse(World& world,
         for (real_function_3d fy : Xvector[b].Y[0]) {
           print("norm xvector y before kain ", fy.norm2());
         }
+        for (real_function_3d fx : Xresidual[b].X[0]) {
+          print("norm xvector x before kain ", fx.norm2());
+        }
+        for (real_function_3d fy : Xresidual[b].Y[0]) {
+          print("norm xvector y before kain ", fy.norm2());
+        }
       }
 
       // Add y functions to bottom of x functions
@@ -324,12 +279,17 @@ void TDHF::IterateFrequencyResponse(World& world,
 
       start_timer(world);
       for (size_t b = 0; b < nkain; b++) {
-        Xvector[b] = kain_x_space[b].update(
+        X_vector kain_X = kain_x_space[b].update(
             Xvector[b], Xresidual[b], FunctionDefaults<3>::get_thresh(), 3.0);
 
-        for (real_function_3d fx : Xvector[b].X[0]) {
+        for (real_function_3d fx : kain_X.X[0]) {
           print("norm xvector x after kain ", fx.norm2());
         }
+        for (real_function_3d fx : kain_X.Y[0]) {
+          print("norm xvector y after kain ", fx.norm2());
+        }
+        x_response[b].assign(kain_X.X[0].begin(), kain_X.X[0].end());
+        y_response[b].assign(kain_X.Y[0].begin(), kain_X.Y[0].end());
         end_timer(world, " KAIN update:");
       }
 
@@ -338,54 +298,52 @@ void TDHF::IterateFrequencyResponse(World& world,
 
       print("y norms in iteration after kain: ", iteration);
       print(y_response.norm2());
-      xy_from_XVector(x_response, y_response, Xvector);
       print("x norms in iteration after transfer: ", iteration);
       print(x_response.norm2());
 
       print("y norms in iteration after transfer: ", iteration);
       print(y_response.norm2());
-      inner(world, x_response[0], y_response[0]);
     }
-  
-  // print x norms
-  // Apply mask
-  /*
-  for (int i = 0; i < m; i++) x_response[i] = mask * x_response[i];
-  if (omega_n != 0.0) {
-    for (int i = 0; i < m; i++) y_response[i] = mask * y_response[i];
-  }
-  */
-  // print x norms
-  print("x norms in iteration after mask: ", iteration);
-  print(x_response.norm2());
 
-  print("y norms in iteration after mask: ", iteration);
-  print(y_response.norm2());
-  // Update counter
-  iteration += 1;
+    // print x norms
+    // Apply mask
+    /*
+    for (int i = 0; i < m; i++) x_response[i] = mask * x_response[i];
+    if (omega_n != 0.0) {
+      for (int i = 0; i < m; i++) y_response[i] = mask * y_response[i];
+    }
+    */
+    // print x norms
+    print("x norms in iteration after mask: ", iteration);
+    print(x_response.norm2());
 
-  // Done with the iteration.. truncate
-  x_response.truncate_rf();
-  if (omega_n != 0.0) x_response.truncate_rf();
-  /*
-      print("x norms in iteration after truncation: ", iteration);
-      print(x_response.norm2());
+    print("y norms in iteration after mask: ", iteration);
+    print(y_response.norm2());
+    // Update counter
+    iteration += 1;
 
-      print("y norms in iteration after truncation: ", iteration);
-      print(y_response.norm2());
-      */
-  // Save
-  if (Rparams.save) {
-    start_timer(world);
-    save(world, Rparams.save_file);
-    if (Rparams.print_level >= 1) end_timer(world, "Save:");
+    // Done with the iteration.. truncate
+    x_response.truncate_rf();
+    if (omega_n != 0.0) x_response.truncate_rf();
+    /*
+        print("x norms in iteration after truncation: ", iteration);
+        print(x_response.norm2());
+
+        print("y norms in iteration after truncation: ", iteration);
+        print(y_response.norm2());
+        */
+    // Save
+    if (Rparams.save) {
+      start_timer(world);
+      save(world, Rparams.save_file);
+      if (Rparams.print_level >= 1) end_timer(world, "Save:");
+    }
+    // Basic output
+    if (Rparams.print_level >= 1) end_timer(world, " This iteration:");
+    // plot orbitals
+    if (Rparams.plot_all_orbitals) {
+      PlotGroundandResponseOrbitals(
+          world, iteration, x_response, y_response, Rparams, Gparams);
+    }
   }
-  // Basic output
-  if (Rparams.print_level >= 1) end_timer(world, " This iteration:");
-  // plot orbitals
-  if (Rparams.plot_all_orbitals) {
-    PlotGroundandResponseOrbitals(
-        world, iteration, x_response, y_response, Rparams, Gparams);
-  }
-  }
-                                    }
+}

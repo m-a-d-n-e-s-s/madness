@@ -66,7 +66,7 @@ struct response_space {
     //
     if (this != &y) {             // is it the same object?
       if (same_size(*this, y)) {  // is it same size?
-        this->x = y.x;            // copy vector y.x into x
+        this->x.assign(y.x.begin(),y.x.end()) ;            // copy vector y.x into x
         /*
         for (size_t b = 0; b < x.size(); b++) {
           (*this)[b] = x[b];
@@ -124,6 +124,7 @@ struct response_space {
     for (unsigned int i = 0; i < num_states; i++) {
       result[i] = add(world, x[i], rhs_y[i]);
     }
+    world.gop.fence();
     return result;
   }
   friend response_space operator+(const response_space& a,
@@ -137,6 +138,7 @@ struct response_space {
     for (unsigned int i = 0; i < a.num_states; i++) {
       result[i] = add(world, a[i], b[i]);
     }
+    world.gop.fence();
     return result;
   }
   response_space operator-(const response_space& rhs_y) {
@@ -150,6 +152,7 @@ struct response_space {
     for (unsigned int i = 0; i < num_states; i++) {
       result[i] = sub(world, x[i], rhs_y[i]);
     }
+    world.gop.fence();
     return result;
   }
 
@@ -164,6 +167,7 @@ struct response_space {
     for (unsigned int i = 0; i < a.num_states; i++) {
       result[i] = sub(world, a[i], b[i]);
     }
+    world.gop.fence();
     return result;
   }
 
@@ -191,6 +195,7 @@ struct response_space {
       madness::scale(world, result[i], a);
     }
 
+    world.gop.fence();
     return result;
   }
   friend response_space operator*(double a, response_space y) {
@@ -201,6 +206,7 @@ struct response_space {
       madness::scale(world, result[i], a);
     }
 
+    world.gop.fence();
     return result;
   }
   response_space& operator*=(double a) {
@@ -210,6 +216,7 @@ struct response_space {
       madness::scale(world, this->x[i], a);
     }
 
+    world.gop.fence();
     return *this;
   }
 
@@ -262,6 +269,7 @@ struct response_space {
       result[i] = transform(world, a[i], b, false);
     }
 
+    world.gop.fence();
     return result;
   }
   // KAIN must have this
@@ -281,6 +289,7 @@ struct response_space {
       }
     }
 
+    world.gop.fence();
     return *this;
   }
 
@@ -337,23 +346,27 @@ struct response_space {
     for (unsigned int k = 0; k < num_states; k++) {
       compress(x[0][0].world(), x[k], true);
     }
+    x[0][0].world().gop.fence();
   }
 
   void reconstruct_rf() {
     for (unsigned int k = 0; k < num_states; k++) {
       reconstruct(x[0][0].world(), x[k], true);
     }
+    x[0][0].world().gop.fence();
   }
 
   void truncate_rf() {
     for (unsigned int k = 0; k < num_states; k++) {
       truncate(x[0][0].world(), x[k], FunctionDefaults<3>::get_thresh(), true);
     }
+    x[0][0].world().gop.fence();
   }
   void truncate_rf(double tol) {
     for (unsigned int k = 0; k < num_states; k++) {
       truncate(x[0][0].world(), x[k], tol, true);
     }
+    x[0][0].world().gop.fence();
   }
 
   // Returns norms of each state
@@ -362,6 +375,7 @@ struct response_space {
     for (unsigned int i = 0; i < num_states; i++) {
       answer(i) = madness::norm2(x[0][0].world(), x[i]);
     }
+    x[0][0].world().gop.fence();
     return answer;
   }
 
@@ -382,6 +396,7 @@ struct response_space {
           return false;
       }
     }
+    x[0][0].world().gop.fence();
     return true;
   }
 };
