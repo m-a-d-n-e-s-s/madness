@@ -590,32 +590,14 @@ struct X_vector : public X_space {
     X_vector result(world, size_orbitals(A));  // create zero_functions
     result.X = A.X * c;
     result.Y = A.Y * c;
-    for (real_function_3d fx : result.X[0]) {
-      print("norm xvector x  * ", fx.norm2());
-    }
-    for (real_function_3d fx : result.Y[0]) {
-      print("norm xvector x  * ", fx.norm2());
-    }
     return result;
   }
   X_vector& operator+=(const X_vector& B) {
     MADNESS_ASSERT(same_size(*this, B));
 
-    for (real_function_3d fx : B.X[0]) {
-      print("norm xvector B  += ", fx.norm2());
-    }
-    for (real_function_3d fx : B.Y[0]) {
-      print("norm xvector B  += ", fx.norm2());
-    }
     this->X += B.X;
     this->Y += B.Y;
 
-    for (real_function_3d fx : this->X[0]) {
-      print("norm xvector x  += ", fx.norm2());
-    }
-    for (real_function_3d fx : this->Y[0]) {
-      print("norm xvector x  += ", fx.norm2());
-    }
     return *this;
   }
   inline friend double inner(X_vector& A, X_vector& B) {
