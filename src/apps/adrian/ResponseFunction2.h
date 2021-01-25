@@ -44,10 +44,10 @@ struct response_vector {
   }
 };
 
-typedef std::vector<vector_real_function_3d> response_matrix;
-
 struct response_space {
   // Member variables
+  typedef std::vector<vector_real_function_3d> response_matrix;
+
  public:
   size_t num_states;    // Num. of resp. states
   size_t num_orbitals;  // Num. of ground states
@@ -60,60 +60,50 @@ struct response_space {
 
   // Copy constructor
   response_space(const response_space& y)
-      : num_states(y.size()), num_orbitals(y.vec_size()), x(y.x) {}
+      : num_states(y.size()), num_orbitals(y.size_orbitals()), x(y.x) {}
   // assignment
   response_space& operator=(const response_space& y) {
     //
-    if (this != &y) {             // is it the same object?
-      if (same_size(*this, y)) {  // is it same size?
-        this->x.assign(y.x.begin(),y.x.end()) ;            // copy vector y.x into x
-        /*
-        for (size_t b = 0; b < x.size(); b++) {
-          (*this)[b] = x[b];
-        }
-        */
-      } else {                         // if not the same size
-        this->~response_space();       // deconstruct response_space
-        new (this) response_space(y);  //  call copy constructor
-      }
+    if (this != &y) {  // is it the same object?
+      this->num_states = y.size();
+      this->num_orbitals = y.size_orbitals();
+      this->x = y.x;
     }
-    return *this;  // shallow copy
+    return *this;  //
   }
   // Initializes functions to zero
   // m = number of response states
   // n = number of ground state orbitals
 
-  // Zero Constructor
+  // Zero Constructor constructs m vectors
   response_space(World& world, size_t num_states, size_t num_orbitals)
       : num_states(num_states), num_orbitals(num_orbitals), x() {
     for (size_t i = 0; i < num_states; i++) {
       this->x.emplace_back(
           zero_functions<double, 3>(world, num_orbitals, true));
     }
-    x[0][0].world().gop.fence();
   }
   // Conversion from  Constructor
   explicit response_space(const response_matrix& x)
       : num_states(x.size()), num_orbitals(x[0].size()), x() {
     this->x = x;
-    x[0][0].world().gop.fence();
   }
   // Determines if two ResponseFunctions are the same size
   friend bool same_size(const response_space& x, const response_space& y) {
-    return ((x.size() == y.size()) && (x.vec_size() == y.vec_size()));
+    return ((x.size() == y.size()) && (x.size_orbitals() == y.size_orbitals()));
   }
 
   // 1D accessor for x
   // std::vector<Function<double, 3>> &operator[](int64_t i) { return x[i]; }
-  vector_real_function_3d& operator[](int64_t i) { return x.at(i); }
+  vector_real_function_3d& operator[](size_t i) { return x.at(i); }
 
-  const vector_real_function_3d& operator[](int64_t i) const { return x.at(i); }
+  const vector_real_function_3d& operator[](size_t i) const { return x.at(i); }
 
   // KAIN must have this
   // element wise addition.  we add each vector separatly
   // addition c = this.x+b
   // we need a new function
-  response_space operator+(const response_space& rhs_y) {
+  response_space operator+(const response_space& rhs_y) const {
     MADNESS_ASSERT(same_size(*this, rhs_y));  // assert that same size
 
     World& world = this->x[0][0].world();
@@ -124,24 +114,15 @@ struct response_space {
     for (unsigned int i = 0; i < num_states; i++) {
       result[i] = add(world, x[i], rhs_y[i]);
     }
-    world.gop.fence();
     return result;
   }
+  /*
   friend response_space operator+(const response_space& a,
                                   const response_space& b) {
-    MADNESS_ASSERT(same_size(a, b));
-
-    World& world = a.x[0][0].world();
-    response_space result(
-        world, a.num_states, a.num_orbitals);  // create zero_functions
-
-    for (unsigned int i = 0; i < a.num_states; i++) {
-      result[i] = add(world, a[i], b[i]);
-    }
-    world.gop.fence();
-    return result;
+    return a.operator+(b);
   }
-  response_space operator-(const response_space& rhs_y) {
+  */
+  response_space operator-(const response_space& rhs_y) const {
     MADNESS_ASSERT(same_size(*this, rhs_y));  // assert that same size
 
     World& world = this->x[0][0].world();
@@ -155,21 +136,12 @@ struct response_space {
     world.gop.fence();
     return result;
   }
-
-  friend response_space operator-(const response_space& a,
-                                  const response_space& b) {
-    MADNESS_ASSERT(same_size(a, b));
-
-    World& world = a.x[0][0].world();
-    response_space result(
-        world, a.num_states, a.num_orbitals);  // create zero_functions
-
-    for (unsigned int i = 0; i < a.num_states; i++) {
-      result[i] = sub(world, a[i], b[i]);
+  /*
+    friend response_space operator-(const response_space& a,
+                                    const response_space& b) {
+      return a.operator-(b);
     }
-    world.gop.fence();
-    return result;
-  }
+    */
 
   // KAIN must have this
   // Scaling by a constant
@@ -276,6 +248,7 @@ struct response_space {
   response_space& operator+=(const response_space b) {
     MADNESS_ASSERT(same_size(*this, b));
     World& world = x[0][0].world();
+
     for (unsigned int i = 0; i < num_states; i++) {
       for (real_function_3d fx : b[i]) {
         print("norm response_space b  += ", fx.norm2());
@@ -300,7 +273,6 @@ struct response_space {
     for (unsigned int i = 0; i < num_states; i++) {
       result.x[i] = madness::copy(x[0][0].world(), x[i]);
     }
-    x[0][0].world().gop.fence();
 
     return result;
   }
@@ -333,7 +305,7 @@ struct response_space {
     num_orbitals = 0;
   }
   size_t size() const { return num_states; }
-  size_t vec_size() const { return num_orbitals; }
+  size_t size_orbitals() const { return num_orbitals; }
 
   // Mimicing standard madness calls with these 3
   void zero() {
@@ -390,7 +362,7 @@ struct response_space {
   friend bool operator==(const response_space& x, const response_space& y) {
     if (!same_size(x, y)) return false;
     for (size_t b = 0; b < x.size(); ++b) {
-      for (size_t k = 0; b < x.vec_size(); ++k) {
+      for (size_t k = 0; b < x.size_orbitals(); ++k) {
         if ((x[b][k] - y[b][k]).norm2() >
             FunctionDefaults<3>::get_thresh())  // this may be strict
           return false;
@@ -477,8 +449,8 @@ struct X_space {
     MADNESS_ASSERT(X[0].size() == Y[0].size());
     this->num_states = X.size();
     this->num_orbitals = X[0].size();
-    this->X = X;
-    this->Y = Y;
+    this->X = X.copy();
+    this->Y = Y.copy();
   }
 
   X_space operator+(const X_space B) {
@@ -616,10 +588,13 @@ struct X_space {
 struct X_vector : public X_space {
   X_vector(World& world, size_t num_orbitals)
       : X_space(world, size_t(1), num_orbitals) {}
+
   X_vector(X_space A, size_t b)
       : X_space(A.X[0][0].world(), size_t(1), size_orbitals(A)) {
-    this->X[0].assign(A.X[b].begin(), A.X[b].end());  // = single_X;
-    this->Y[0].assign(A.Y[b].begin(), A.Y[b].end());  // = single_X;
+    X[0] = A.X[b];
+    Y[0] = A.Y[b];
+    // this->X[0].assign(A.X[b].begin(), A.X[b].end());  // = single_X;
+    // this->Y[0].assign(A.Y[b].begin(), A.Y[b].end());  // = single_X;
   }
   friend X_vector operator-(const X_vector& A, const X_vector& B) {
     MADNESS_ASSERT(same_size(A, B));
@@ -628,12 +603,6 @@ struct X_vector : public X_space {
     X_vector result(world, size_orbitals(A));  // create zero_functions
     result.X = A.X - B.X;
     result.Y = A.Y - B.Y;
-    for (real_function_3d fx : result.X[0]) {
-      print("norm xvector x  - ", fx.norm2());
-    }
-    for (real_function_3d fx : result.Y[0]) {
-      print("norm xvector x  - ", fx.norm2());
-    }
     return result;
   }
   friend X_vector operator*(const X_vector& A, const double& c) {
