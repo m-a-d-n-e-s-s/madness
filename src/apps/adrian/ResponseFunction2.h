@@ -167,7 +167,6 @@ struct response_space {
       madness::scale(world, result[i], a);
     }
 
-    world.gop.fence();
     return result;
   }
   friend response_space operator*(double a, response_space y) {
@@ -178,7 +177,6 @@ struct response_space {
       madness::scale(world, result[i], a);
     }
 
-    world.gop.fence();
     return result;
   }
   response_space& operator*=(double a) {
@@ -188,7 +186,6 @@ struct response_space {
       madness::scale(world, this->x[i], a);
     }
 
-    world.gop.fence();
     return *this;
   }
 
@@ -205,7 +202,6 @@ struct response_space {
       result[i] = mul(f.world(), f, a[i]);
     }
 
-    f.world().gop.fence();
     return result;
   }
   // Scaling all internal functions by an external function
@@ -225,7 +221,6 @@ struct response_space {
       result[i] = mul(f.world(), f, x[i]);
     }
 
-    f.world().gop.fence();
     return result;
   }
 
@@ -241,7 +236,6 @@ struct response_space {
       result[i] = transform(world, a[i], b, false);
     }
 
-    world.gop.fence();
     return result;
   }
   // KAIN must have this
@@ -250,19 +244,9 @@ struct response_space {
     World& world = x[0][0].world();
 
     for (unsigned int i = 0; i < num_states; i++) {
-      for (real_function_3d fx : b[i]) {
-        print("norm response_space b  += ", fx.norm2());
-      }
-      for (real_function_3d fx : x[i]) {
-        print("norm response_space x before add()  += ", fx.norm2());
-      }
       this->x[i] = add(world, this->x[i], b[i]);
-      for (real_function_3d fx : this->x[i]) {
-        print("norm response_space x after add()  += ", fx.norm2());
-      }
     }
 
-    world.gop.fence();
     return *this;
   }
 
@@ -368,7 +352,6 @@ struct response_space {
           return false;
       }
     }
-    x[0][0].world().gop.fence();
     return true;
   }
 };
@@ -411,14 +394,11 @@ struct X_space {
         Y(A.Y) {}
   // assignment
   X_space& operator=(const X_space& B) {
-    if (this != &B) {             // is it the same object?
-      if (same_size(*this, B)) {  // is it same size?
-        this->X = B.X;
-        this->Y = B.Y;
-      } else {                  // if not the same size
-        this->~X_space();       // deconstruct response_space
-        new (this) X_space(B);  //  call copy constructor
-      }
+    if (this != &B) {  // is it the same object?
+      this->num_states = size_states(B);
+      this->num_orbitals = size_orbitals(B);
+      this->X = B.X;
+      this->Y = B.Y;
     }
     return *this;  // shallow copy
   }
