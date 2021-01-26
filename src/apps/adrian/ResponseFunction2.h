@@ -83,11 +83,9 @@ struct response_space {
           zero_functions<double, 3>(world, num_orbitals, true));
     }
   }
-  // Conversion from  Constructor
+  // Conversion from respones_matrix
   explicit response_space(const response_matrix& x)
-      : num_states(x.size()), num_orbitals(x[0].size()), x() {
-    this->x = x;
-  }
+      : num_states(x.size()), num_orbitals(x[0].size()), x(x) {}
   // Determines if two ResponseFunctions are the same size
   friend bool same_size(const response_space& x, const response_space& y) {
     return ((x.size() == y.size()) && (x.size_orbitals() == y.size_orbitals()));
@@ -104,6 +102,7 @@ struct response_space {
   // addition c = this.x+b
   // we need a new function
   response_space operator+(const response_space& rhs_y) const {
+    MADNESS_ASSERT(size() > 0);
     MADNESS_ASSERT(same_size(*this, rhs_y));  // assert that same size
 
     World& world = this->x[0][0].world();
@@ -123,6 +122,7 @@ struct response_space {
   }
   */
   response_space operator-(const response_space& rhs_y) const {
+    MADNESS_ASSERT(size() > 0);
     MADNESS_ASSERT(same_size(*this, rhs_y));  // assert that same size
 
     World& world = this->x[0][0].world();
@@ -160,7 +160,7 @@ struct response_space {
   }
   */
   friend response_space operator*(response_space y, double a) {
-    World& world = y[0][0].world();
+    World& world = y.x.at(0).at(0).world();
     response_space result = y.copy();  // deep copy
 
     for (unsigned int i = 0; i < y.num_states; i++) {
@@ -170,7 +170,7 @@ struct response_space {
     return result;
   }
   friend response_space operator*(double a, response_space y) {
-    World& world = y[0][0].world();
+    World& world = y.x.at(0).at(0).world();
     response_space result = y.copy();  // deep copy
 
     for (unsigned int i = 0; i < y.num_states; i++) {
@@ -193,7 +193,7 @@ struct response_space {
   // g[i][j] = x[i][j] * f
   friend response_space operator*(const response_space& a,
                                   const Function<double, 3>& f) {
-    World& world = a.x[0][0].world();
+    World& world = a.x.at(0).at(0).world();
     response_space result(
         world, a.num_states, a.num_orbitals);  // create zero_functions
 
@@ -242,8 +242,14 @@ struct response_space {
   response_space& operator+=(const response_space b) {
     MADNESS_ASSERT(same_size(*this, b));
     World& world = x[0][0].world();
-
-    for (unsigned int i = 0; i < num_states; i++) {
+    /*
+    for (size_t i = 0; i < num_states; i++) {
+      for (size_t j = 0; j < num_orbitals; j++) {
+        this->x[i][j] += b[i][j];
+      }
+    }
+    */
+for (unsigned int i = 0; i < num_states; i++) {
       this->x[i] = add(world, this->x[i], b[i]);
     }
 
@@ -254,7 +260,7 @@ struct response_space {
   response_space copy() const {
     response_space result(x[0][0].world(), num_states, num_orbitals);
 
-    for (unsigned int i = 0; i < num_states; i++) {
+    for (size_t i = 0; i < num_states; i++) {
       result.x[i] = madness::copy(x[0][0].world(), x[i]);
     }
 
@@ -302,27 +308,23 @@ struct response_space {
     for (unsigned int k = 0; k < num_states; k++) {
       compress(x[0][0].world(), x[k], true);
     }
-    x[0][0].world().gop.fence();
   }
 
   void reconstruct_rf() {
     for (unsigned int k = 0; k < num_states; k++) {
       reconstruct(x[0][0].world(), x[k], true);
     }
-    x[0][0].world().gop.fence();
   }
 
   void truncate_rf() {
     for (unsigned int k = 0; k < num_states; k++) {
       truncate(x[0][0].world(), x[k], FunctionDefaults<3>::get_thresh(), true);
     }
-    x[0][0].world().gop.fence();
   }
   void truncate_rf(double tol) {
     for (unsigned int k = 0; k < num_states; k++) {
       truncate(x[0][0].world(), x[k], tol, true);
     }
-    x[0][0].world().gop.fence();
   }
 
   // Returns norms of each state
@@ -331,7 +333,6 @@ struct response_space {
     for (unsigned int i = 0; i < num_states; i++) {
       answer(i) = madness::norm2(x[0][0].world(), x[i]);
     }
-    x[0][0].world().gop.fence();
     return answer;
   }
 
@@ -341,7 +342,6 @@ struct response_space {
     for (unsigned int i = 0; i < num_states; i++)
       madness::scale(x[0][0].world(), x[i], mat[i], false);
     // x[i] = x[i] * mat[i];
-    x[0][0].world().gop.fence();
   }
   friend bool operator==(const response_space& x, const response_space& y) {
     if (!same_size(x, y)) return false;
