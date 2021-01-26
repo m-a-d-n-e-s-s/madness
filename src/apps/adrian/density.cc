@@ -170,41 +170,25 @@ void FirstOrderDensity::PlotResponseDensity(World &world) {
 Tensor<double> FirstOrderDensity::ComputeSecondOrderPropertyTensor(
     World &world) {
   Tensor<double> G(num_response_states, num_response_states);
-  // Tensor<double> M(num_response_states, num_response_states);
-  // do some printing before we compute so we know what we are working with
-  std::vector<std::vector<Function<double, 3>>> px_qy;
-  // std::vector<std::vector<Function<double, 3>>> px_qy_4;
+  response_space grp(world,num_response_states,num_response_states);
 
-  for (int i = 0; i < num_response_states; i++) {
-    px_qy.push_back(zero_functions<double, 3>(world, num_response_states));
-    // px_qy_4.push_back(zero_functions<double, 3>(world, num_response_states));
-  }
-  world.gop.fence();
-  //*******************************
-  // G algorithim
-
-  for (int i = 0; i < num_response_states; i++) {
-    for (int j = 0; j < num_response_states; j++) {
-      // px_qy_4[i][j] = rho_omega[i] * property_operator.operator_vector[j];
-      for (int k = 0; k < num_ground_states; k++) {
-        px_qy[i][j] = px_qy[i][j] + P[i][k] * x[j][k] + Q[i][k] * y[j][k];
+    for (size_t i(0); i < num_response_states; i++) {
+      for (size_t j(0); j < num_response_states; j++) {
+        grp[i][j] =
+            dot(world, P[i], x[j]) + dot(world, Q[i], y[j]);
+        G(i, j) = grp[i][j].trace();
+        G(i, j) =-2*G(i,j);
       }
     }
-  }
+    
+  // Tensor<double> M(num_response_states, num_response_states);
+  // do some printing before we compute so we know what we are working with
   //*******************************
-
-  for (int i = 0; i < num_response_states; i++) {
-    // Run over occupied...
-    for (int j = 0; j < num_response_states; j++) {
-      G(i, j) = -2 * px_qy[i][j].trace();
-      //    M(i, j) = -2 * px_qy_4[i][j].trace();
-    }
-  }
+  // G algorithim
 
   print("G");
   print(G);
 
-  print("M");
   // print(M);
 
   return G;
