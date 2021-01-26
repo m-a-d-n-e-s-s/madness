@@ -21,6 +21,7 @@ static void start_timer(World& world) {
 }
 // Stops a timer
 static void end_timer(World& world, const char* msg) {
+  MADNESS_CHECK(ttt.size() > 0);
   double wall = wall_time() - pop(ttt);
   double cpu = cpu_time() - pop(sss);
   if (world.rank() == 0)
