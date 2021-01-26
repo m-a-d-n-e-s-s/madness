@@ -209,7 +209,7 @@ TDHF::TDHF(World& world, ResponseParameters rparams, GroundParameters gparams) {
     if (Rparams.print_level >= 1) end_timer(world, "Load balancing:");
   }
 }
-response_space TDHF::GetResponseFunctions(std::string xy) {
+response_space& TDHF::GetResponseFunctions(std::string xy) {
   if (xy == "x") {
     return x_response;
   } else if (xy == "y") {
@@ -218,8 +218,8 @@ response_space TDHF::GetResponseFunctions(std::string xy) {
     MADNESS_EXCEPTION("not a valid response state", 0);
   }
 }
-response_space TDHF::GetPVector() { return P; }
-response_space TDHF::GetQVector() { return Q; }
+response_space& TDHF::GetPVector() { return P; }
+response_space& TDHF::GetQVector() { return Q; }
 // Get response parameters
 ResponseParameters TDHF::GetResponseParameters() { return Rparams; }
 GroundParameters TDHF::GetGroundParameters() { return Gparams; }
@@ -1070,6 +1070,7 @@ response_space TDHF::CreatePotential(World& world,
   // v_nuc first
   real_function_3d v_nuc, v_coul;
   if (not Rparams.store_potential) {
+    // "a" is the core type
     PotentialManager manager(Gparams.molecule, "a");
     manager.make_nuclear_potential(world);
     // v_nuc = manager.vnuclear().truncate();
@@ -1085,10 +1086,12 @@ response_space TDHF::CreatePotential(World& world,
     v_nuc = stored_v_nuc;
     v_coul = stored_v_coul;
   }
+  world.gop.fence();
 
   // Intermediaries
+
   response_space v_exch(world, f.size(), f[0].size());
-  real_function_3d v_xc = real_factory_3d(world);
+  real_function_3d v_xc = real_factory_3d(world).fence(true);
 
   // If including any exact HF exchange
   if (xcf.hf_exchange_coefficient()) {
@@ -1096,14 +1099,17 @@ response_space TDHF::CreatePotential(World& world,
     // Multiplication by f functions is included in construction
     v_exch = exchange(world, f);
   }
+  world.gop.fence();
   if (xcf.hf_exchange_coefficient() != 1.0) {
     // Calculate DFT potential
     v_xc = xc.make_xc_potential();
   }
+  world.gop.fence();
 
   // Assemble all the pieces for V_x
   V_x_resp =
-      f * (v_coul + v_nuc + v_xc) - v_exch * xcf.hf_exchange_coefficient();
+      (f * (v_coul + v_nuc + v_xc));
+      V_x_resp=V_x_resp - (v_exch * xcf.hf_exchange_coefficient());
 
   // Debugging output
   if (print_level >= 2) {

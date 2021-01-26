@@ -193,9 +193,9 @@ class TDHF {
   ResponseParameters Rparams;
 
   // Get the response Function
-  response_space GetResponseFunctions(std::string xy);
-  response_space GetPVector();
-  response_space GetQVector();
+  response_space& GetResponseFunctions(std::string xy);
+  response_space &GetPVector();
+  response_space &GetQVector();
   ResponseParameters GetResponseParameters();
   GroundParameters GetGroundParameters();
   Property GetPropertyObject();
