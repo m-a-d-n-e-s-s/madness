@@ -1061,7 +1061,7 @@ response_space TDHF::CreatePotential(World& world,
                                      int print_level,
                                      std::string xy) {
   // Start a timer
-  if (print_level >= 1) start_timer(world);
+  if (print_level >= 3) start_timer(world);
 
   // Return container
   response_space V_x_resp(world, f.size(), f[0].size());
@@ -1086,7 +1086,6 @@ response_space TDHF::CreatePotential(World& world,
     v_nuc = stored_v_nuc;
     v_coul = stored_v_coul;
   }
-  world.gop.fence();
 
   // Intermediaries
 
@@ -1099,17 +1098,14 @@ response_space TDHF::CreatePotential(World& world,
     // Multiplication by f functions is included in construction
     v_exch = exchange(world, f);
   }
-  world.gop.fence();
   if (xcf.hf_exchange_coefficient() != 1.0) {
     // Calculate DFT potential
     v_xc = xc.make_xc_potential();
   }
-  world.gop.fence();
 
   // Assemble all the pieces for V_x
-  V_x_resp =
-      (f * (v_coul + v_nuc + v_xc));
-      V_x_resp=V_x_resp - (v_exch * xcf.hf_exchange_coefficient());
+  V_x_resp = (f * (v_coul + v_nuc + v_xc));
+  V_x_resp = V_x_resp - (v_exch * xcf.hf_exchange_coefficient());
 
   // Debugging output
   if (print_level >= 2) {
@@ -1144,7 +1140,7 @@ response_space TDHF::CreatePotential(World& world,
   truncate(world, V_x_resp);
 
   // Basic output
-  if (print_level >= 1) end_timer(world, "Creating V0 * x:");
+  if (print_level >= 3) end_timer(world, "Creating V0 * x:");
 
   truncate(world, V_x_resp);
 
