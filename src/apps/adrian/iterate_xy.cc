@@ -451,8 +451,6 @@ void TDHF::IterateXY(
    */
   // x functions
   // V0 applied to x response function
-  print("norms of x");
-  print(x.norm2());
   Z.v0_x = CreatePotential(world, x, xc, Rparams.print_level, "x");
   if (Rparams.print_level == 3) {
     print("norms of v0x");
