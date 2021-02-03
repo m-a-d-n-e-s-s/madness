@@ -1427,7 +1427,7 @@ namespace madness {
             /// Task run work.
 
             /// Sets the result future based on the status of all iterations.
-            virtual tbb::task* execute() {
+            virtual void run(World&, const TaskThreadEnv& ) /*override*/ {
 
                 // Note: We use parallel_reduce instead of parallel_foreach to
                 // accumulate result flags. Otherwise, this logically functions
@@ -1444,7 +1444,6 @@ namespace madness {
                         }
                     );
                 completion_status_.set(result);
-                return nullptr;
             }
 
         private:
