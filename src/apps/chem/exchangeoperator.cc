@@ -92,66 +92,69 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::operator()(
         // the result is a vector of functions living in the universe
         const long nf=vket.size();
         vecfuncT Kf=zero_functions_compressed<T,NDIM>(world,nf);
+        {
 
-        double wall0=wall_time();
-        MacroTaskQ taskq(world,nsubworld);
-        long start=0;
-        for (int i=0; i<nocc; ++i) {
-            taskq.cloud.store(world, mo_bra[i], i);
-            taskq.cloud.store(world, mo_ket[i], i + nocc);
-        }
-        start+=2*nocc;
-        for (int i=0; i<nf; ++i) {
-            taskq.cloud.store(world,vket[i],i+start);
-            taskq.cloud.store(world,Kf[i].get_impl(),start+i+nf); // store pointer to FunctionImpl
-        }
-        double wall1=wall_time();
-        if (do_print_timings()) printf("wall time for storing %4.1fs\n", wall1 - wall0);
-
-        // partition the exchange matrix into tiles
-        // result[rowbatch] = \sum_{columnbatches} sum_{k in columnbatch} ket[k] \int bra[k] vf[rowbatch]
-        std::vector<std::pair<long,long> > rowranges,columnranges;
-
-        // symmetric exchange matrix, symmetric tiles
-        if (is_symmetric()) {
-            rowranges=OrbitalPartitioner::partition_for_exchange(5,nsubworld,nocc);
-//            rowranges=OrbitalPartitioner::partition_for_exchange(5,nsubworld,nocc);
-            columnranges=rowranges;
-        } else {
-            rowranges=OrbitalPartitioner::partition_for_exchange(5,nsubworld,nocc);
-            columnranges=OrbitalPartitioner::partition_for_exchange(5,nsubworld,nf);
-        }
-        if (printdebug()) {
-            print("symmetric", symmetric_);
-            print("splitting nf into",rowranges.size(),"ranges");
-            for (auto& r : rowranges) printf(" %2ld to %2ld",r.first,r.second);
-            print("\nsplitting nocc into",columnranges.size(),"ranges");
-            for (auto& r : columnranges) printf(" %2ld to %2ld",r.first,r.second);
-            print("");
-        }
-
-        MacroTaskBase::taskqT vtask;
-        for (auto& row_range : rowranges) {
-            for (auto& column_range : columnranges) {
-                // if the exchange matrix is symmetric compute only the the upper triangular matrix
-                if (is_symmetric() and row_range.first > column_range.first) continue;
-
-                MacroTaskExchange task(row_range, column_range, nocc, nf, lo, mul_tol, symmetric_);
-                vtask.push_back(std::shared_ptr<MacroTaskBase>(new MacroTaskExchange(task)));
+            double wall0 = wall_time();
+            MacroTaskQ taskq(world, nsubworld);
+            long start = 0;
+            for (int i = 0; i < nocc; ++i) {
+                taskq.cloud.store(world, mo_bra[i], i);
+                taskq.cloud.store(world, mo_ket[i], i + nocc);
             }
+            start += 2 * nocc;
+            for (int i = 0; i < nf; ++i) {
+                taskq.cloud.store(world, vket[i], i + start);
+                taskq.cloud.store(world, Kf[i].get_impl(), start + i + nf); // store pointer to FunctionImpl
+            }
+            double wall1 = wall_time();
+            if (do_print_timings()) printf("wall time for storing %4.1fs\n", wall1 - wall0);
+
+            // partition the exchange matrix into tiles
+            // result[rowbatch] = \sum_{columnbatches} sum_{k in columnbatch} ket[k] \int bra[k] vf[rowbatch]
+            std::vector<std::pair<long, long> > rowranges, columnranges;
+
+            // symmetric exchange matrix, symmetric tiles
+            if (is_symmetric()) {
+                rowranges = OrbitalPartitioner::partition_for_exchange(5, nsubworld, nocc);
+//            rowranges=OrbitalPartitioner::partition_for_exchange(5,nsubworld,nocc);
+                columnranges = rowranges;
+            } else {
+                rowranges = OrbitalPartitioner::partition_for_exchange(5, nsubworld, nocc);
+                columnranges = OrbitalPartitioner::partition_for_exchange(5, nsubworld, nf);
+            }
+            if (printdebug()) {
+                print("symmetric", symmetric_);
+                print("splitting nf into", rowranges.size(), "ranges");
+                for (auto &r : rowranges) printf(" %2ld to %2ld", r.first, r.second);
+                print("\nsplitting nocc into", columnranges.size(), "ranges");
+                for (auto &r : columnranges) printf(" %2ld to %2ld", r.first, r.second);
+                print("");
+            }
+
+            MacroTaskBase::taskqT vtask;
+            for (auto &row_range : rowranges) {
+                for (auto &column_range : columnranges) {
+                    // if the exchange matrix is symmetric compute only the the upper triangular matrix
+                    if (is_symmetric() and row_range.first > column_range.first) continue;
+
+                    MacroTaskExchange task(row_range, column_range, nocc, nf, lo, mul_tol, symmetric_);
+                    vtask.push_back(std::shared_ptr<MacroTaskBase>(new MacroTaskExchange(task)));
+                }
+            }
+            world.gop.fence();
+            // sort the tasks according to their tile size, assuming that's a proxy for how much time they take
+            std::sort(vtask.begin(), vtask.end(), [](auto a, auto b) { return a->get_priority() > b->get_priority(); });
+
+            auto current_pmap = FunctionDefaults<3>::get_pmap();
+            FunctionDefaults<3>::set_default_pmap(taskq.get_subworld());
+            taskq.run_all(vtask);
+            FunctionDefaults<3>::set_pmap(current_pmap);
+
+            truncate(world, Kf);
+            if (printlevel >= 3) taskq.cloud.print_timings(world);
+            taskq.get_subworld().gop.fence();
         }
         world.gop.fence();
-        // sort the tasks according to their tile size, assuming that's a proxy for how much time they take
-        std::sort(vtask.begin(),vtask.end(), [](auto a, auto b) {return a->get_priority() > b->get_priority(); });
-
-        auto current_pmap=FunctionDefaults<3>::get_pmap();
-        FunctionDefaults<3>::set_default_pmap(taskq.get_subworld());
-        taskq.run_all(vtask);
-        FunctionDefaults<3>::set_pmap(current_pmap);
-
-        truncate(world,Kf);
-        if (printlevel >= 3) taskq.cloud.print_timings(world);
-        taskq.get_subworld().gop.fence();
         return Kf;
     }
 

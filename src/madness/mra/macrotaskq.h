@@ -162,6 +162,10 @@ public:
 
 		// cleanup task-persistent input data
 		for (auto& task : taskq) task->cleanup();
+		subworld.gop.fence();
+        subworld.gop.fence();
+        universe.gop.fence();
+        universe.gop.fence();
 	}
 
 //	/// run the task on the vector of input data, return vector of results
