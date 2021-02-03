@@ -853,21 +853,11 @@ namespace madness {
 
         const futureT& result() const { return result_; }
 
-
-#ifdef HAVE_INTEL_TBB
-        virtual tbb::task* execute() {
-            detail::run_function(result_, func_, arg1_, arg2_, arg3_, arg4_,
-                    arg5_, arg6_, arg7_, arg8_, arg9_);
-            return nullptr;
-        }
-#else
       protected:
-        virtual void run(const TaskThreadEnv& env) {
+        virtual void run(World&, const TaskThreadEnv&) /*override*/{
             detail::run_function(result_, func_, arg1_, arg2_, arg3_, arg4_,
                     arg5_, arg6_, arg7_, arg8_, arg9_);
         }
-#endif // HAVE_INTEL_TBB
-
     }; // class TaskFn
 
 } // namespace madness
