@@ -502,7 +502,7 @@ namespace madness{
     // plotting
     void plot(const std::string &msg="")const{
       for(auto& ktmp:functions){
-	ktmp.second.plot(msg);
+    	ktmp.second.plot(msg);
       }
     }
 

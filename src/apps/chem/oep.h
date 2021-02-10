@@ -84,6 +84,7 @@ public:
 		initialize<std::vector<std::string> >("model",{"dcep"},"comment on this: oaep ocep dcep mrks");
 		initialize<unsigned int>("maxiter",150,"maximum number of iterations in OEP algorithm");
 		initialize<bool>("restart",false,"restart from previous OEP calculation");
+        initialize<bool>("no_compute",false,"read from previous OEP calculation, no computation");
 		initialize<double>("levelshift",0.0,"shift occupied orbital energies in the BSH operator");
 //		initialize<double>("conv_threshold",1.e-5,"comment on this");
 		initialize<double>("density_threshold_high",1.e-6,"comment on this");
@@ -127,6 +128,7 @@ public:
 	bool is_mrks() const {return (get<std::string>("model")=="mrks");}
 
 	bool restart() const {return get<bool>("restart");}
+    bool no_compute() const {return get<bool>("no_compute");}
 	unsigned int maxiter() const {return get<unsigned int>("maxiter");}
 	double levelshift() const {return get<double>("levelshift");}
 //	double conv_thresh() const {return get<double>("conv_threshold");}
@@ -150,15 +152,10 @@ public:
 class OEP : public Nemo {
 
 private:
-	/// returns true if all members of a vector of booleans are true, otherwise false
-	bool IsAlltrue(std::vector<bool> vec) const {
-		for (int i = 0; i < vec.size(); i++) {
-			if (!vec[i]) return false;
-		}
-		return true;
-	}
 
 	OEP_Parameters oep_param;
+	vecfuncT HF_reference;
+	real_function_3d Vfinal;
 
 public:
 
@@ -169,11 +166,25 @@ public:
 
 	}
 
-    double value(const vecfuncT& HF_nemo) {
-    	set_protocol(calc->param.econv());
-    	solve(HF_nemo);
-    	return 0.0;
-    }
+	void set_HF_reference(const vecfuncT& reference) {
+	    HF_reference=copy(world,reference);
+	}
+
+	real_function_3d get_final_potential() const {return Vfinal;}
+
+    double value() {return value(calc->molecule.get_all_coords());}
+
+    double value(const Tensor<double>& x) {
+	    MADNESS_CHECK(not HF_reference.empty());
+        set_protocol(calc->param.econv());
+        double energy=0.0;
+        Tensor<double> fock;
+        bool load_mos=(oep_param.restart() or oep_param.no_compute());
+        if (load_mos) load_restartdata(fock);
+
+        if (not oep_param.no_compute())  energy=solve(HF_reference);
+        return energy;
+	};
 
     /// Iterative energy calculation for approximate OEP with EXACT EXCHANGE functional
 	/// for other functionals, slater potential must be modified
@@ -181,7 +192,7 @@ public:
 	/// note that KS_nemo is a reference and changes oep->get_calc()->amo orbitals
 	/// same for orbital energies (eigenvalues) KS_eigvals which is oep->get_calc()->aeps
 	/// converged if norm, total energy difference and orbital energy differences (if not OAEP) are converged
-    void solve(const vecfuncT& HF_nemo);
+    double solve(const vecfuncT& HF_nemo);
 
     double iterate(const std::string model, const vecfuncT& HF_nemo, const tensorT& HF_eigvals,
     		vecfuncT& KS_nemo, tensorT& KS_Fock, real_function_3d& Voep,
@@ -496,9 +507,8 @@ public:
     /// compute Coulomb potential
     void compute_coulomb_potential(const vecfuncT& nemo, vecfuncT& Jnemo) const {
 
-    	Coulomb J(world);
+    	Coulomb J(world, this);
     	real_function_3d density=this->compute_density(nemo);
-    	J.reset_poisson_operator_ptr(get_calc()->param.lo(),get_calc()->param.econv());
     	J.potential()=J.compute_potential(density);
     	Jnemo = J(nemo);
     	truncate(world, Jnemo);
@@ -554,8 +564,7 @@ public:
 
     	// compute external potential (nuclear attraction)
     	real_function_3d Vext = calc->potentialmanager->vnuclear();
-    	Coulomb J(world);
-    	J.reset_poisson_operator_ptr(param.lo(),param.econv());
+    	Coulomb J(world,this);
     	real_function_3d Jpotential=J.compute_potential(density);
 
     	// compute remaining energies: nuclear attraction, Coulomb, nuclear repulsion

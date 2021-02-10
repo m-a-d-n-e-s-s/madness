@@ -19,7 +19,7 @@ namespace madness {
 /// note that KS_nemo is a reference and changes oep->get_calc()->amo orbitals
 /// same for orbital energies (eigenvalues) KS_eigvals which is oep->get_calc()->aeps
 /// converged if norm, total energy difference and orbital energy differences (if not OAEP) are converged
-void OEP::solve(const vecfuncT& HF_nemo1) {
+double OEP::solve(const vecfuncT& HF_nemo1) {
 
 	// recompute HF Fock matrix and orbitals
 	auto [HF_Fock, HF_nemo] = recompute_HF(HF_nemo1);
@@ -30,13 +30,13 @@ void OEP::solve(const vecfuncT& HF_nemo1) {
 	save(Vs, "Slaterpotential");
 
 	tensorT KS_Fock=copy(HF_Fock);
+    real_function_3d Voep = copy(Vs);
 	if (oep_param.restart()) {
 		load_restartdata(KS_Fock);
 	}
 
 	// deep copy KS_nemo MOs
 	vecfuncT KS_nemo = copy(world,calc->amo);
-	real_function_3d Voep = copy(Vs);
 
 	double energy=0.0;
 	for (std::string model : oep_param.model())
@@ -49,10 +49,11 @@ void OEP::solve(const vecfuncT& HF_nemo1) {
 	calc->amo=KS_nemo;
 
 	save(Voep,"OEPapprox_final");
-	save_restartdata(KS_Fock);
+	Vfinal=copy(Voep);
+    save_restartdata(KS_Fock);
 
 	printf("      +++ FINAL TOTAL %s ENERGY = %15.8f  Eh +++\n\n\n", oep_param.model().back().c_str(), energy);
-
+	return energy;
 }
 
 
@@ -60,17 +61,15 @@ void OEP::save_restartdata(const Tensor<double>& fock) const {
 	if (world.rank()==0) print("saving OEP orbitals to file restartdata_OEP");
 	MolecularOrbitals<double,3> amo=to_MO();
 	archive::ParallelOutputArchive ar(world, "restartdata_OEP");
-	ar & amo & fock;
-	print("aeps",amo.get_eps());
+	ar & amo & fock & Vfinal;
 }
 
 void OEP::load_restartdata(Tensor<double>& fock) {
 	if (world.rank()==0) print("loading OEP orbitals from file restartdata_OEP");
 	archive::ParallelInputArchive ar(world, "restartdata_OEP");
 	MolecularOrbitals<double,3> amo;
-	ar & amo & fock;
+	ar & amo & fock & Vfinal;
 	calc->amo=amo.get_mos();
-//	calc->aeps=amo.get_eps();
 }
 
 std::tuple<Tensor<double>, vecfuncT> OEP::recompute_HF(const vecfuncT& HF_nemo) const {

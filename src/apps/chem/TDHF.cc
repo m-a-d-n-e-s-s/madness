@@ -6,6 +6,8 @@
  */
 
 #include "TDHF.h"
+#include<chem/oep.h>
+#include<chem/test_utilities.h>
 
 namespace madness {
 
@@ -59,11 +61,11 @@ TDHF::TDHF(World &world, const Nemo & nemo_, const std::string& input)
 
 	msg.debug = parameters.debug();
 
-	msg.subsection("General Information about settings from SCF object:\n");
-	msg << " is_dft() = " << nemo.get_calc()->xc.is_dft() << "\n";
-	msg << " hf_coeff = " << nemo.get_calc()->xc.hf_exchange_coefficient() << "\n";
-	msg << " do_pcm() = " << nemo.do_pcm() << "\n";
-	msg << " do_ac()  = " << nemo.do_ac() << "\n";
+//	msg.subsection("General Information about settings from SCF object:\n");
+//	msg << " is_dft() = " << nemo.get_calc()->xc.is_dft() << "\n";
+//	msg << " hf_coeff = " << nemo.get_calc()->xc.hf_exchange_coefficient() << "\n";
+//	msg << " do_pcm() = " << nemo.do_pcm() << "\n";
+//	msg << " do_ac()  = " << nemo.do_ac() << "\n";
 
 	parameters.print("response");
 	check_consistency();
@@ -80,7 +82,8 @@ TDHF::TDHF(World &world, const Nemo & nemo_, const std::string& input)
 
 	if (not parameters.no_compute()) {
 
-		if(nemo.get_calc()->xc.hf_exchange_coefficient()!=0.0){
+	    bool need_hf= (nemo.get_calc()->xc.hf_exchange_coefficient()!=0.0) and (parameters.do_oep()==false);
+		if(need_hf){
 			msg.subsection("Computing Exchange Intermediate");
 			CCTimer timer(world,"Computing ExIm");
 			g12.update_elements(mo_bra_,mo_ket_);
@@ -604,7 +607,11 @@ vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x)const{
 	const real_function_3d alpha_density=0.5*nemo.R_square*nemo_density;
 
 	real_function_3d voep=real_factory_3d(world);
-	if (parameters.do_oep()) load(voep,"OEPapprox_final");
+	if (parameters.do_oep()) {
+//	    load(voep,"OEPapprox_final");
+        const OEP& oep=dynamic_cast<const OEP&>(nemo);
+        voep=oep.get_final_potential();
+	}
 
 
 
@@ -685,7 +692,7 @@ vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x)const{
 		const vector_real_function_3d active_bra = get_active_mo_bra();
 		// construct perturbed operators
 		CCTimer timeJ(world,"pXC");
-		Coulomb Jp(world);
+		Coulomb Jp(world,&nemo);
 		real_function_3d density_pert=2.0*nemo.make_density(occ,active_bra,x.get_vecfunction());
 		Jp.potential()=Jp.compute_potential(density_pert);
 
@@ -1614,5 +1621,70 @@ void TDHF::check_consistency() const {
 	}
 }
 
+int TDHF::test(World& world) {
 
+    std::string input="bla";
+    std::ofstream of(input.c_str());
+    CalculationParameters scfparam;
+    scfparam.set_user_defined_value("econv",1.e-3);
+    TDHF::Parameters cisparam;
+    write_test_input::write_to_test_input("dft",&scfparam,of);
+    write_test_input::write_to_test_input("response",&cisparam,of);
+    write_test_input::write_molecule_to_test_input("lih",of);
+    of.close();
+
+
+    // Compute the SCF Reference
+    const double time_scf_start = wall_time();
+    std::shared_ptr<SCF> calc(new SCF(world, input));
+
+    std::shared_ptr<Nemo> nemo(new Nemo(world, calc, input));
+    std::shared_ptr<Nemo> reference=nemo;
+
+    nemo->param.print("nemo parameters");
+    const double scf_energy = nemo->value();
+    if (world.rank() == 0) print("nemo energy: ", scf_energy);
+    if (world.rank() == 0) printf(" at time %.1f\n", wall_time());
+    const double time_scf_end = wall_time();
+
+    TDHF::Parameters tdhf_parameters(world,calc,input);
+    if (tdhf_parameters.do_oep()) {
+        std::shared_ptr<OEP> oep(new OEP(world, nemo->get_calc(), "input"));
+        oep->set_HF_reference(nemo->get_calc()->amo);
+        double oep_energy=oep->value();
+        if (world.rank() == 0) print("oep energy: ", oep_energy);
+        if (world.rank() == 0) printf(" at time %.1f\n", wall_time());
+        reference=oep;
+    }
+
+    // Compute MRA-CIS
+    const double time_cis_start = wall_time();
+    TDHF tdhf(world,*reference,input);
+
+    // solve the CIS equations
+    std::vector<CC_vecfunction> roots=tdhf.solve_cis();
+
+    // check result
+    int error=0;
+    if (std::abs(roots[0].omega-1.2890128624e-01)>1.e-5) error++;
+
+    const double time_cis_end = wall_time();
+    if(world.rank()==0){
+        std::cout << std::setfill(' ');
+        std::cout << "\n\n\n";
+        std::cout << "--------------------------------------------------\n";
+        std::cout << "MRA-CIS ended \n";
+        std::cout << "--------------------------------------------------\n";
+        std::cout << std::setw(25) << "time scf" << " = " << time_scf_end - time_scf_start << "\n";
+        std::cout << std::setw(25) << "energy scf" << " = " << scf_energy << "\n";
+        std::cout << std::setw(25) << "time cis" << " = " << time_cis_end - time_cis_start << "\n";
+        std::cout << "--------------------------------------------------\n";
+    }
+    tdhf.analyze(roots);
+    std::remove(input.c_str());
+    if (error==0) print("\n\nCIS test passed\n\n");
+    if (error!=0) print("\n\nCIS test failed\n\n");
+    return error;
+
+}
 } /* namespace madness */

@@ -170,9 +170,12 @@ public:
 
 	TDHF(World & world,const Nemo &nemo, const std::string& input="input");
 	TDHF(World & world,const Nemo &nemo, const Parameters& param);
+    TDHF(World & world,const std::string input);
+
 	virtual
 	~TDHF() {};
 
+	static int test(World& world);
 
 	/// check consistency of the input parameters
 	void check_consistency() const;

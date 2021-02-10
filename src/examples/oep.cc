@@ -116,7 +116,8 @@ int main(int argc, char** argv) {
     	input = "test_input";
     }
 
-    std::shared_ptr<SCF> calc(new SCF(world, input.c_str())); /// see constructor in SCF.h
+    std::shared_ptr<SCF> calc(new SCF(world, input)); /// see constructor in SCF.h
+
 
     if (world.rank() == 0) calc->molecule.print();
 
@@ -133,7 +134,6 @@ int main(int argc, char** argv) {
     const double energy = nemo->value();
     // save converged HF MOs and orbital energies
     vecfuncT HF_nemos = copy(world, nemo->get_calc()->amo);
-    tensorT HF_orbens = copy(nemo->get_calc()->aeps);
 
     if (world.rank() == 0) {
         printf("final energy   %12.8f\n", energy);
@@ -145,9 +145,10 @@ int main(int argc, char** argv) {
 
     // do approximate OEP calculation or test the program
     std::shared_ptr<OEP> oep(new OEP(world, calc, input));
+    oep->set_HF_reference(HF_nemos);
     int ierr=0;
     if (test) ierr=oep->test_oep(HF_nemos);
-    else oep->value(HF_nemos);
+    else oep->value();
 
     finalize();
     return ierr;

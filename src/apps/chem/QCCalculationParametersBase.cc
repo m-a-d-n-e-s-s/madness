@@ -65,7 +65,7 @@ void QCCalculationParametersBase::read(World& world, const std::string filename,
 /// all others will be discarded.
 void QCCalculationParametersBase::read_internal(World& world, std::string& filecontents, std::string tag) {
 	std::stringstream f(filecontents);
-	position_stream(f, tag);
+	position_stream_to_word(f, tag);
 	std::string line, key,value;
 
 	// read input lines
