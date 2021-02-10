@@ -68,19 +68,10 @@ namespace madness {
         uniqueidT()
                 : worldid(0), objid(0) {};
 
-        /// Equality comparison operator
+        /// nonnull state tester
 
-        /// \param[in] other The \c uniqueidT to compare against.
-        /// \return True if both `uniqueidT`s are the same.
-        bool operator==(const uniqueidT& other) const {
-            return objid==other.objid && worldid==other.worldid;
-        }
-
-        /// \todo Brief description needed.
-
-        /// \todo Return description needed (probably obvious from the brief description).
-        /// \return Description needed.
-        operator bool() const {
+        /// \return return true if non-default initialized
+        explicit operator bool() const {
             return objid!=0;
         }
 
@@ -117,6 +108,33 @@ namespace madness {
             return s;
         }
     }; // class uniqueidT
+
+    /// Equality comparison operator
+
+    /// \param[in] a a \c uniqueidT object
+    /// \param[in] b a \c uniqueidT object
+    /// \return True if \p a and \b b refer to the same object in the same world
+    inline bool operator==(const uniqueidT& a, const uniqueidT& b) {
+        return a.get_obj_id() == b.get_obj_id() && a.get_world_id() == b.get_world_id();
+    }
+
+    /// Inequality comparison operator
+
+    /// \param[in] a a \c uniqueidT object
+    /// \param[in] b a \c uniqueidT object
+    /// \return True if \c a==b is false
+    inline bool operator!=(const uniqueidT& a, const uniqueidT& b) {
+        return !(a == b);
+    }
+
+    /// Ordering operator
+
+    /// \param[in] a a \c uniqueidT object
+    /// \param[in] b a \c uniqueidT object
+    /// \return True if \c a.get_world_id()<b.get_world_id() or \c a.get_world_id()==b.get_world_id()&&a.get_obj_id()<b.get_obj_id()
+    inline bool operator<(const uniqueidT& a, const uniqueidT& b) {
+        return a.get_world_id() < b.get_world_id() || (a.get_world_id() == b.get_world_id() && a.get_obj_id() < b.get_obj_id());
+    }
 
     /// Hash a \c uniqueidT.
 

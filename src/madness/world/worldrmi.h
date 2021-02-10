@@ -35,6 +35,7 @@
 #include <madness/world/safempi.h>
 #include <madness/world/thread.h>
 #include <madness/world/worldtypes.h>
+#include <madness/world/archive.h>
 #include <sstream>
 #include <utility>
 #include <list>
@@ -101,6 +102,7 @@ namespace madness {
 
     /// This is the generic low-level interface for a message handler
     typedef void (*rmi_handlerT)(void* buf, size_t nbyte);
+    typedef std::ptrdiff_t rel_fn_ptr_t;
 
     struct qmsg {
         typedef uint16_t counterT;
@@ -193,7 +195,7 @@ namespace madness {
         public:
 
             struct header {
-                rmi_handlerT func;
+                rel_fn_ptr_t func;
                 attrT attr;
             }; // struct header
 
@@ -345,7 +347,10 @@ namespace madness {
             return task_ptr->isend(buf, nbyte, dest, func, attr);
         }
 
-        static void assert_aslr_off(const SafeMPI::Intracomm& comm = SafeMPI::COMM_WORLD);  // will complain to std::cerr and throw if ASLR is on
+        /// will complain to std::cerr and throw if ASLR is on by making
+        /// sure that address of this function matches across @p comm
+        /// @param[in] comm the communicator
+        static void assert_aslr_off(const SafeMPI::Intracomm& comm = SafeMPI::COMM_WORLD);
 
         static void begin(const SafeMPI::Intracomm& comm = SafeMPI::COMM_WORLD);
 

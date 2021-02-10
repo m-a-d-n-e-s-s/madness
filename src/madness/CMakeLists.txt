@@ -1,28 +1,50 @@
 # src/madness
 
-# Add source subdirectories
-add_subdirectory(external)
-
-if (MADNESS_HAS_ELEMENTAL_EMBEDDED)
-  include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/elemental/include
-      ${CMAKE_CURRENT_BINARY_DIR}/external/elemental/include)
-elseif (MADNESS_HAS_ELEMENTAL)
-  include_directories(${ELEMENTAL_SOURCE_DIR}/include
-      ${ELEMENTAL_SOURCE_DIR}/external/suite_sparse/include
-      ${ELEMENTAL_BINARY_DIR}/include)
-endif ()
-
+### MADWorld runtime
 add_subdirectory(world)
-add_subdirectory(misc)
-add_subdirectory(tensor)
-add_subdirectory(mra)
+# may need to build elemental as part of MADWorld
+add_subdirectory(external)
+if (ENABLE_ELEMENTAL)
+	if (MADNESS_HAS_ELEMENTAL_EMBEDDED)
+		include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/elemental/include
+				${CMAKE_CURRENT_BINARY_DIR}/external/elemental/include)
+	elseif (MADNESS_HAS_ELEMENTAL)
+		include_directories(${ELEMENTAL_SOURCE_DIR}/include
+				${ELEMENTAL_SOURCE_DIR}/external/suite_sparse/include
+				${ELEMENTAL_BINARY_DIR}/include)
+	endif ()
+endif(ENABLE_ELEMENTAL)
+if(MADNESS_BUILD_MADWORLD_ONLY)  # madness library includes just madworld
+	add_library(madness $<TARGET_OBJECTS:MADworld-obj>)
+endif(MADNESS_BUILD_MADWORLD_ONLY)
 
+### CLAPACK will be build if BLAS/LAPACK is available
+if (LAPACK_FOUND)
+  set(MADCLAPACK_HEADERS tensor/cblas.h tensor/cblas_types.h
+		tensor/clapack.h tensor/clapack_fortran.h
+		tensor/lapacke_types.h) # this part of MADlinalg is purely independent of MADtensor
+  # add custom target for "installing" MADclapack headers
+  install(FILES ${MADCLAPACK_HEADERS}
+		DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}/madness/tensor"
+		COMPONENT clapack)
+  add_custom_target(install-madness-clapack
+		COMMAND ${CMAKE_COMMAND} -DCOMPONENT=clapack -P ${PROJECT_BINARY_DIR}/cmake_install.cmake
+		COMMENT "Installing clapack headers"
+		USES_TERMINAL)
+endif(LAPACK_FOUND)
+
+### numerics + apps
+if (NOT MADNESS_BUILD_MADWORLD_ONLY)
+	add_subdirectory(misc)
+	add_subdirectory(tensor)
+	add_subdirectory(mra)
 # Create the super library that contains all MADNESS libraries
-add_library(madness
-    $<TARGET_OBJECTS:MADworld-obj> $<TARGET_OBJECTS:MADmisc-obj>
-    $<TARGET_OBJECTS:MADtensor-obj> ${MADTENSOR_MTXMQ_OBJ}
-    $<TARGET_OBJECTS:MADlinalg-obj> $<TARGET_OBJECTS:MADmuparser-obj>
-    $<TARGET_OBJECTS:MADtinyxml-obj> $<TARGET_OBJECTS:MADmra-obj>)
+	add_library(madness
+    	$<TARGET_OBJECTS:MADworld-obj> $<TARGET_OBJECTS:MADmisc-obj>
+    	$<TARGET_OBJECTS:MADtensor-obj> ${MADTENSOR_MTXMQ_OBJ}
+    	$<TARGET_OBJECTS:MADlinalg-obj> $<TARGET_OBJECTS:MADmuparser-obj>
+    	$<TARGET_OBJECTS:MADtinyxml-obj> $<TARGET_OBJECTS:MADmra-obj>)
+endif(NOT MADNESS_BUILD_MADWORLD_ONLY)
 
 # Set the dependencies for the super-library
 if(CXX11_COMPILE_FLAG)
@@ -58,10 +80,13 @@ if(TBB_FOUND)
   else()
     target_link_libraries(madness PUBLIC ${TBB_LIBRARIES_RELEASE})
   endif()
+  if (TBB_COMPILE_FLAGS)
+    target_compile_definitions(madness PUBLIC "${TBB_COMPILE_FLAGS}")
+  endif(TBB_COMPILE_FLAGS)
 endif()
-if(PARSEC_FOUND)
-  target_include_directories(madness PUBLIC ${PARSEC_INCLUDE_DIRS})
-  target_link_libraries(madness PUBLIC ${PARSEC_LIBRARIES} ${PARSEC_LIBRARIES_DEP}  ${PARSEC_LIBRARY_DIRS_DEP_FLAGS})
+if(TARGET PaRSEC::parsec)
+  target_link_libraries(madness PUBLIC PaRSEC::parsec)
+	add_subproject_parsec_target_to_export_set("madness" "madness")
 endif()
 if(MPI_FOUND)
   target_include_directories(madness PUBLIC ${MPI_INCLUDE_PATH})
@@ -73,38 +98,41 @@ endif()
 if(HAVE_IBMBGQ OR HAVE_IBMBGP)
   target_link_libraries(madness PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/new_mtxmq/bests/libMADMTXM.a)
 endif()
-target_link_libraries(madness PUBLIC ${LAPACK_LIBRARIES})
+if (LAPACK_FOUND)
+  target_link_libraries(madness PUBLIC ${LAPACK_LIBRARIES})
+	if (LAPACK_INCLUDE_DIRS)
+		target_include_directories(madness PUBLIC ${LAPACK_INCLUDE_DIRS})
+	endif(LAPACK_INCLUDE_DIRS)
+	if (LAPACK_COMPILE_OPTIONS)
+		target_compile_options(madness PUBLIC ${LAPACK_COMPILE_OPTIONS})
+	endif(LAPACK_COMPILE_OPTIONS)
+	if (LAPACK_COMPILE_DEFINITIONS)
+		target_compile_definitions(madness PUBLIC ${LAPACK_COMPILE_DEFINITIONS})
+	endif(LAPACK_COMPILE_DEFINITIONS)
+endif(LAPACK_FOUND)
 target_link_libraries(madness PUBLIC Threads::Threads)
 if (WORLD_GET_DEFAULT_DISABLED)
   target_compile_definitions(madness PUBLIC -DMADNESS_DISABLE_WORLD_GET_DEFAULT=1)
 endif (WORLD_GET_DEFAULT_DISABLED)
-if (LAPACK_INCLUDE_DIRS)
-  target_include_directories(madness PUBLIC ${LAPACK_INCLUDE_DIRS})
-endif(LAPACK_INCLUDE_DIRS)
-if (LAPACK_COMPILE_OPTIONS)
-  target_compile_options(madness PUBLIC ${LAPACK_COMPILE_OPTIONS})
-endif(LAPACK_COMPILE_OPTIONS)
-if (LAPACK_COMPILE_DEFINITIONS)
-  target_compile_definitions(madness PUBLIC ${LAPACK_COMPILE_DEFINITIONS})
-endif(LAPACK_COMPILE_DEFINITIONS)
 
 # Add common header files and madness library to the install list
 install(FILES constants.h fortran_ctypes.h madness_config.h ${CMAKE_CURRENT_BINARY_DIR}/config.h
     DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}/madness"
     COMPONENT common)
-add_custom_target(install-common
+add_custom_target(install-madness-common
      COMMAND ${CMAKE_COMMAND} -DCOMPONENT=common -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
      COMMENT "Installing common library components"
      USES_TERMINAL)
+     
 install(TARGETS madness EXPORT madness
-    COMPONENT madness
-    LIBRARY DESTINATION "${MADNESS_INSTALL_LIBDIR}"
-    ARCHIVE DESTINATION "${MADNESS_INSTALL_LIBDIR}"
-    INCLUDES DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}")
+        COMPONENT madness
+        LIBRARY DESTINATION "${MADNESS_INSTALL_LIBDIR}"
+        ARCHIVE DESTINATION "${MADNESS_INSTALL_LIBDIR}"
+        INCLUDES DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}")
 add_custom_target(install-madness
-    COMMAND ${CMAKE_COMMAND} -DCOMPONENT=madness -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
-    COMMENT "Installing madness library components"
-    USES_TERMINAL)
-add_dependencies(install-madness madness)
-add_dependencies(install-madness install-common)
-add_dependencies(install-libraries install-madness)
+        COMMAND ${CMAKE_COMMAND} -DCOMPONENT=madness -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
+        COMMENT "Installing madness library components"
+        USES_TERMINAL)
+#add_dependencies(install-madness madness)
+add_dependencies(install-madness install-madness-common)
+add_dependencies(install-madness-libraries install-madness)

@@ -40,6 +40,7 @@
 
 #include <madness/world/uniqueid.h>
 #include <madness/world/worldtypes.h>
+#include <madness/world/print.h>
 
 namespace madness {
 
@@ -64,6 +65,11 @@ namespace madness {
     ///    not equal; otherwise false.
     inline bool operator!=(const DistributedID& left, const DistributedID& right) {
         return (left.first != right.first) || (left.second != right.second);
+    }
+
+    /// Overload redirect to std::ostream to be discoverable via ADL
+    inline std::ostream& operator<<(std::ostream& os, const DistributedID& did) {
+      return madness::operators::operator<<(os, did);
     }
 
     /// Key object that includes the process information.

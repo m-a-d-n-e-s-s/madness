@@ -375,7 +375,7 @@ public:
 		} else {
 			FunctionDefaults<NDIM>::set_k(param.k());
 		}
-		// don't forget to adapt the molecular smoothing parameter!!
+		// don't forget to adapt the molecular smoothing parameter!! NO ... it is independent
 		//        molecule.set_eprec(std::min(thresh,molecule.get_eprec()));
 		FunctionDefaults<NDIM>::set_thresh(thresh);
 		FunctionDefaults<NDIM>::set_refine(true);
@@ -839,8 +839,10 @@ public:
 				// If the basis for the inital guess was not sto-3g
 				// switch to sto-3g since this is needed for analysis
 				// of the MOs and orbital localization
+                    // Only do this if not starting from NWChem.
+                    // analysis will be done on NWChem orbitals.
 
-				if (calc.param.aobasis() != "sto-3g") {
+				if (calc.param.aobasis() != "sto-3g" && calc.param.nwfile() == "none") {
 					calc.reset_aobasis("sto-3g");
 					calc.ao=calc.project_ao_basis(world,calc.aobasis);
 				}

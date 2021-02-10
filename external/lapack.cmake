@@ -1,4 +1,15 @@
 # Find BLAS and LAPACK.
+
+set(lapack_is_optional 0)
+set(missing_lapack_message_level "FATAL_ERROR")
+
+# if building just the runtime, included this by mistake, warn and make optional
+if (MADNESS_BUILD_MADWORLD_ONLY)
+  message(WARNING "MADNESS_BUILD_MADWORLD_ONLY=ON, but included external/lapack.cmake; must be error in CMakeLists.txt")
+  set(lapack_is_optional 1)
+  set(missing_lapack_message_level "STATUS")
+endif (MADNESS_BUILD_MADWORLD_ONLY)
+
 include(CheckCFortranFunctionExists)
 include(CMakePushCheckState)
 include(CheckCXXSourceCompiles)
@@ -69,7 +80,7 @@ check_c_fortran_function_exists(sgemm BLAS_WORKS)
 if(BLAS_WORKS)
   message(STATUS "A library with BLAS API found.")
 else()
-  message(FATAL_ERROR "Unable to link against BLAS function. Specify the BLAS library in LAPACK_LIBRARIES.")
+  message("${missing_lapack_message_level}" "Unable to link against BLAS function. Specify the BLAS library in LAPACK_LIBRARIES.")
 endif()
 
 # Verify that we can link against LAPACK
@@ -78,7 +89,7 @@ check_c_fortran_function_exists(cheev LAPACK_WORKS)
 if(LAPACK_WORKS)
   message(STATUS "A library with LAPACK API found.")
 else()
-  message(FATAL_ERROR "Unable to link against LAPACK function. Specify the LAPACK library in LAPACK_LIBRARIES.")
+  message("${missing_lapack_message_level}" "Unable to link against LAPACK function. Specify the LAPACK library in LAPACK_LIBRARIES.")
 endif()
 
 set(LAPACK_FOUND TRUE)
@@ -145,7 +156,7 @@ if(USER_LAPACK_LIBRARIES_IS_MKL)
   }
   "  MADNESS_CAN_INCLUDE_MKL_H)
   if (NOT MADNESS_CAN_INCLUDE_MKL_H)
-    message(FATAL_ERROR "User-provided LAPACK_LIBRARIES provides MKL but cannot include its headers; ensure that corresponding LAPACK_INCLUDE_DIRS, LAPACK_COMPILE_DEFINITIONS, or LAPACK_COMPILE_OPTIONS were provided")
+    message("${missing_lapack_message_level}" "User-provided LAPACK_LIBRARIES provides MKL but cannot include its headers; ensure that corresponding LAPACK_INCLUDE_DIRS, LAPACK_COMPILE_DEFINITIONS, or LAPACK_COMPILE_OPTIONS were provided")
   endif()
 
   cmake_pop_check_state()

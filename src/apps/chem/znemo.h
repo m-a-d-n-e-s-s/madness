@@ -339,7 +339,7 @@ public:
 	    	std::vector<Function<double_complex, 3> > rnew = transform(world, r, U, trantol, true);
 
 	        world.gop.fence();
-	        for (int i=0; i<v.size(); i++) {
+	        for (size_t i=0; i<v.size(); i++) {
 	            v[i] = vnew[i];
 	            r[i] = rnew[i];
 	        }
@@ -385,7 +385,21 @@ public:
 	}
 
 
+	real_function_3d compute_nemo_spin_density(const std::vector<complex_function_3d>& amo,
+			const std::vector<complex_function_3d>& bmo) const {
+		if (cparam.spin_restricted()) return real_function_3d(world);
+
+		real_function_3d density=NemoBase::compute_density(amo);
+		if (have_beta()) density-=NemoBase::compute_density(bmo);
+		return density;
+	}
+
+
 	real_function_3d compute_density(const std::vector<complex_function_3d>& amo,
+			const std::vector<complex_function_3d>& bmo) const;
+
+
+	real_function_3d compute_spin_density(const std::vector<complex_function_3d>& amo,
 			const std::vector<complex_function_3d>& bmo) const;
 
 	std::vector<complex_function_3d> make_bra(const std::vector<complex_function_3d>& mo) const;
@@ -458,7 +472,7 @@ protected:
 
 			if (m==0) {
 				double theta=acos(xyz[2]/r);
-				double phi=atan2(xyz[1],xyz[0]);
+				//double phi=atan2(xyz[1],xyz[0]);
 				return r*exp(-exponent*r)*cos(theta);
 			} else {
 				double theta=acos(xyz[2]/r);

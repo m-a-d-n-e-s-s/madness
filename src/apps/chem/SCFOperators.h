@@ -197,12 +197,16 @@ public:
     Coulomb(World& world) : world(world) {};
 
     /// ctor with an SCF calculation providing the MOs and density
-    Coulomb(World& world, const SCF* calc) : world(world) {
-        vcoul=compute_potential(calc);
-    }
+    Coulomb(World& world, const SCF* calc);
 
-    /// ctor with an SCF calculation providing the MOs and density
+    /// ctor with a Nemo calculation providing the MOs and density
     Coulomb(World& world, const Nemo* nemo);
+
+    void reset_poisson_operator_ptr(const double lo, const double econv);
+
+    void set_metric(const real_function_3d& metric) {
+    	R_square=copy(metric);
+    }
 
     template<typename T, std::size_t NDIM>
     Function<T,NDIM> operator()(const Function<T,NDIM>& ket) const {
@@ -245,10 +249,8 @@ public:
     /// this function uses a newly constructed Poisson operator. Note that
     /// the accuracy parameters must be consistent with the exchange operator.
     template<typename T, std::size_t NDIM>
-    Function<T,NDIM> compute_potential(const Function<T,NDIM>& density,
-            double lo=1.e-4, double econv=FunctionDefaults<3>::get_thresh()) const {
-    	real_convolution_3d poisson = CoulombOperator(world, lo, econv);
-    	return poisson(density).truncate();
+    Function<T,NDIM> compute_potential(const Function<T,NDIM>& density) const {
+    	return (*poisson)(density).truncate();
     }
 
     /// given a set of MOs in an SCF calculation, compute the Coulomb potential
@@ -263,6 +265,7 @@ public:
 
 private:
     World& world;
+    std::shared_ptr<real_convolution_3d> poisson;
     real_function_3d vcoul; ///< the coulomb potential
     real_function_3d R_square;    ///< square of the nuclear correlation factor, if any
 };
@@ -312,6 +315,8 @@ private:
 
 /// takes real and complex functions as input, will return complex functions
 class Lz {
+private:
+    World& world;
 public:
 
 	bool use_bsplines=true;
@@ -365,8 +370,6 @@ public:
         return matrix_inner(world,vbra,vVket,bra_equiv_ket);
     }
 
-private:
-    World& world;
 };
 
 
@@ -573,22 +576,11 @@ public:
     std::shared_ptr<XCfunctional> xc;
 
 private:
-    /// the nuclear correlation factor, if it exists, for computing derivatives for GGA
-    std::shared_ptr<NuclearCorrelationFactor> ncf;
-
     /// number of beta orbitals
     int nbeta;
 
     /// the XC functionals depend on the spin of the orbitals they act on
     mutable int ispin;
-
-    /// functions that are need for the computation of the XC operator
-
-    /// the ordering of the intermediates is fixed, but the code can handle
-    /// non-initialized functions, so if e.g. no GGA is requested, all the
-    /// corresponding vector components may be left empty.
-    /// For the ordering of the intermediates see xcfunctional::xc_arg
-    mutable vecfuncT xc_args;
 
     /// additional truncation for the densities in the XC kernel
 
@@ -597,6 +589,17 @@ private:
     /// results. Extra truncation will tighten the truncation threshold by a
     /// specified factor, default is 0.01.
     double extra_truncation;
+
+    /// the nuclear correlation factor, if it exists, for computing derivatives for GGA
+    std::shared_ptr<NuclearCorrelationFactor> ncf;
+
+    /// functions that are need for the computation of the XC operator
+
+    /// the ordering of the intermediates is fixed, but the code can handle
+    /// non-initialized functions, so if e.g. no GGA is requested, all the
+    /// corresponding vector components may be left empty.
+    /// For the ordering of the intermediates see xcfunctional::xc_arg
+    mutable vecfuncT xc_args;
 
     /// compute the intermediates for the XC functionals
 

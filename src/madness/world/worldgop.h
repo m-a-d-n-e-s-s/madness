@@ -38,6 +38,7 @@
 /// If you can recall the Intel hypercubes, their comm lib used GOP as
 /// the abbreviation.
 
+#include <functional>
 #include <type_traits>
 #include <madness/world/worldtypes.h>
 #include <madness/world/buffer_archive.h>
@@ -612,6 +613,15 @@ namespace madness {
             return Future<result_type>::default_initializer();
         }
 
+        /// Implementation of fence
+
+        /// \param[in] epilogue the action to execute (by the calling thread) immediately after the fence
+        /// \param[in] pause_during_epilogue whether to suspend work while executing epilogue
+        /// \param[in] debug set to true to print progress statistics using madness::print(); the default is false.
+        /// \warning currently only \c pause_during_epilogue=false is supported
+        void fence_impl(std::function<void()> epilogue = []{},
+                        bool pause_during_epilogue = false,
+                        bool debug = false);
 
     public:
 
@@ -643,7 +653,7 @@ namespace madness {
 
         /// Synchronizes all processes in communicator AND globally ensures no pending AM or tasks
 
-        /// Runs Dykstra-like termination algorithm on binary tree by
+        /// \internal Runs Dykstra-like termination algorithm on binary tree by
         /// locally ensuring ntask=0 and all am sent and processed,
         /// and then participating in a global sum of nsent and nrecv.
         /// Then globally checks that nsent=nrecv and that both are
@@ -653,6 +663,10 @@ namespace madness {
         /// \param[in] debug set to true to print progress statistics using madness::print(); the default is false.
         void fence(bool debug = false);
 
+        /// Executes an action on single (this) thread after ensuring all other work is done
+
+        /// \param[in] action the action to execute (by the calling thread)
+        void serial_invoke(std::function<void()> action);
 
         /// Broadcasts bytes from process root while still processing AM & tasks
 
@@ -681,7 +695,9 @@ namespace madness {
         }
 
         /// Broadcast a serializable object
-        template <typename objT>
+        template <typename objT,
+                  typename = std::void_t<decltype(std::declval<archive::BufferInputArchive&>()&std::declval<objT&>())>,
+                  typename = std::void_t<decltype(std::declval<archive::BufferOutputArchive&>()&std::declval<const objT&>())>>
         void broadcast_serializable(objT& obj, ProcessID root) {
             size_t BUFLEN;
             if (world_.rank() == root) {

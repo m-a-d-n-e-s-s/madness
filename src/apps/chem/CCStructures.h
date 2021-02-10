@@ -91,6 +91,7 @@ namespace madness{
     }
     template<class T>
     CCMessenger operator<<(const T& t)const{
+        using madness::operators::operator<<;
     	if(world.rank()==0) os << t;
     	return *this;
     }

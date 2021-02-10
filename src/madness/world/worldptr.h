@@ -305,7 +305,7 @@ namespace madness {
             template <typename U>
             bool operator<(const WorldPtr<U>& other) const {
                 return (worldid_ < other.worldid_) ||
-                        ((worldid_ == worldid_) && ((rank_ < other.rank_) ||
+                        ((worldid_ == other.worldid_) && ((rank_ < other.rank_) ||
                         ((rank_ == other.rank_) && (pointer_ < other.pointer_))));
             }
 

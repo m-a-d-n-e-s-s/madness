@@ -11,11 +11,11 @@
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/mra/mra.h>
 #include <madness/tensor/solvers.h>
-using namespace madness;
-
 #include <chem/molecule.h>
 #include <chem/molecularbasis.h>
 #include <chem/xcfunctional.h>
+
+using namespace madness;
 
 #include "subspace.h"
 

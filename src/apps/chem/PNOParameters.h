@@ -169,7 +169,7 @@ public:
 			ss>>pw_string;
 			std::vector<int> numbers(pw_string.size()/2);
 			std::vector<char> control = {'s', 'p', 'd', 'f', 'g', 'h', 'i', 'k'};
-			for (int i=0; i<pw_string.size()/2; ++i){
+			for (size_t i=0; i<pw_string.size()/2; ++i){
 				char l = pw_string[2*i+1];
 				char n = pw_string[2*i];
 				MADNESS_ASSERT(l==control[i]);
