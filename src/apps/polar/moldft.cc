@@ -32,7 +32,7 @@
   $Id$
 */
 
-/// \file moldft.cc
+/// \file nemo->.cc
 /// \brief Molecular HF and DFT code
 /// \defgroup moldft The molecular density funcitonal and Hartree-Fock code
 

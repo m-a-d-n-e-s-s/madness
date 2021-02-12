@@ -785,6 +785,7 @@ namespace madness{
     const  std::string operation_name = "<"+assign_name(bra.type)+"|"+name()+"|"+assign_name(ket.type)+">";
     if(world.rank()==0) std::cout << "updating operator elements: " << operation_name << " (" << bra.size() <<"x"<<ket.size() <<")"<< std::endl;
     if(bra.type != HOLE) error("Can not create intermediate of type "+operation_name+" , bra-element has to be of type HOLE");
+    op.reset(init_op(operator_type,parameters));
     intermediateT xim;
     for(auto tmpk : bra.functions){
       const CCFunction & k=tmpk.second;

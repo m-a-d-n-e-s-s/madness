@@ -58,6 +58,7 @@
 #include <chem/pcm.h>
 #include <chem/AC.h>
 #include <chem/pointgroupsymmetry.h>
+#include <chem/commandlineparser.h>
 
 namespace madness {
 

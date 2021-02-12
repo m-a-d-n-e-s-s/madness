@@ -150,7 +150,7 @@ Nemo::Nemo(World& world, std::shared_ptr<SCF> calc, const std::string inputfile)
     		symmetry_projector.get_pointgroup());
 	if (symmetry_projector.get_verbosity()>1) symmetry_projector.print_character_table();
 
-	param.print("dft","end");
+//	param.print("dft","end");
 }
 
 

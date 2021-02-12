@@ -54,7 +54,7 @@ int main(int argc, char** argv) {
 	int error=0;
 	if (parser.key_exists("test")) {
 	    print("entering test mode");
-	    error=TDHF::test(world);
+	    error=TDHF::test(world,parser);
 	} else {
 
         // Compute the SCF Reference
@@ -82,7 +82,7 @@ int main(int argc, char** argv) {
 
         // Compute MRA-CIS
         const double time_cis_start = wall_time();
-        TDHF tdhf(world, *reference, input);
+        TDHF tdhf(world, reference, input);
 
         // solve the CIS equations
         std::vector<CC_vecfunction> roots = tdhf.solve_cis();
