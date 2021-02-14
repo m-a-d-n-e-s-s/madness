@@ -352,6 +352,20 @@ public:
 //	SCF(World & world, std::shared_ptr<std::istream> input);
 	SCF(World& world, const std::string& inputfile);
 
+	void copy_data(World& world, const SCF& other) {
+	    aeps=copy(other.aeps);
+        beps=copy(other.beps);
+        aocc=copy(other.aocc);
+        bocc=copy(other.bocc);
+        amo=copy(world,other.amo);
+        bmo=copy(world,other.bmo);
+        aset=other.aset;
+        bset=other.bset;
+        ao=copy(world,other.ao);
+        at_to_bf=other.at_to_bf;
+        at_nbf=other.at_nbf;
+    }
+
 	template<std::size_t NDIM>
 	void set_protocol(World & world, double thresh)
 	{

@@ -8,6 +8,7 @@
 #ifndef SRC_APPS_CHEM_TEST_UTILITIES_H_
 #define SRC_APPS_CHEM_TEST_UTILITIES_H_
 
+#include<chem/CalculationParameters.h>
 
 namespace madness {
 

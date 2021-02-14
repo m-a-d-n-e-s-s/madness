@@ -70,10 +70,11 @@ int main(int argc, char** argv) {
         if (world.rank() == 0) printf(" at time %.1f\n", wall_time());
         const double time_scf_end = wall_time();
 
-        TDHF::Parameters tdhf_parameters(world, calc, input);
+        TDHF::Parameters tdhf_parameters(world, input);
+        tdhf_parameters.set_derived_values(calc);
         if (tdhf_parameters.do_oep()) {
             std::shared_ptr<OEP> oep(new OEP(world, nemo->get_calc(), "input"));
-            oep->set_HF_reference(nemo->get_calc()->amo);
+            oep->set_reference(nemo);
             double oep_energy = oep->value();
             if (world.rank() == 0) print("oep energy: ", oep_energy);
             if (world.rank() == 0) printf(" at time %.1f\n", wall_time());

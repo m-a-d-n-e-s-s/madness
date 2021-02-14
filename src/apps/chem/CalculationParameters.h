@@ -50,8 +50,8 @@ namespace madness {
 #if 1
 struct CalculationParameters : public QCCalculationParametersBase {
 
-	CalculationParameters(const CalculationParameters& other) : QCCalculationParametersBase(other) {
-	}
+	CalculationParameters(const CalculationParameters& other) = default;
+
 
 	/// ctor reading out the input file
 	CalculationParameters() {

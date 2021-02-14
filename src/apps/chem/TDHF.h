@@ -30,13 +30,18 @@ public:
             initialize_all();
         }
 
-        Parameters(const Parameters &other) : QCCalculationParametersBase(other) {}
+        Parameters(const Parameters &other) = default;
 
         /// todo: read_from_file compatible with dist. memory computation
-        Parameters(World &world, const std::shared_ptr<SCF> &scf, const std::string &input) {
+//        Parameters(World &world, const std::shared_ptr<SCF> &scf, const std::string &input) {
+        Parameters(World &world, const std::string &input) {
             initialize_all();
-            read(world, input, "response");
-            set_derived_values(scf);
+            if (world.rank()==0) {
+                read(world, input, "response");
+//                set_derived_values(scf);
+            }
+            world.gop.broadcast_serializable(*this, 0);
+
         }
 
         void initialize_all() {
@@ -75,7 +80,6 @@ public:
 
             initialize < std::vector<size_t> >
             ("restart", std::vector<size_t>(), "excitations which will be read from disk");
-            initialize < double > ("lo", 1.e10, "smallest length scale we need to resolve");
 
             initialize < std::string >
             ("guess_excitation_operators", "dipole+", "guess typ", {"dipole+", "quadrupole", "big_fock_2",
@@ -146,8 +150,6 @@ public:
 
         double dconv() const { return get<double>("dconv"); }
 
-        double lo() const { return get<double>("lo"); }
-
         // restart and plotting
         bool debug() const { return get<bool>("debug"); }
 
@@ -167,11 +169,11 @@ public:
         bool store_potential() const { return get<bool>("store_potential"); }
 
         // guess parameters
-        std::size_t guess_occ_to_virt() const { return get<std::size_t>("guess_occ_to_virt"); }
+//        std::size_t guess_occ_to_virt() const { return get<std::size_t>("guess_occ_to_virt"); }
 
         std::vector<std::string> exops() const { return get<std::vector<std::string> >("exops"); }
 
-        std::size_t guess_active_orbitals() const { return get<std::size_t>("guess_active_orbitals"); }
+//        std::size_t guess_active_orbitals() const { return get<std::size_t>("guess_active_orbitals"); }
 
         bool guess_diag() const { return get<bool>("guess_diag"); }
 
@@ -190,10 +192,10 @@ public:
         std::size_t guess_maxiter() const { return get<std::size_t>("guess_maxiter"); }
 
         /// make parameters for convolution operator
-        typename CCConvolutionOperator::Parameters get_ccc_parameters() const {
+        typename CCConvolutionOperator::Parameters get_ccc_parameters(const double lo) const {
             typename CCConvolutionOperator::Parameters result;
             result.freeze = freeze();
-            result.lo = lo();
+            result.lo = lo;
             result.thresh_op = thresh();
             result.gamma = 1.0;
             return result;
@@ -219,6 +221,10 @@ public:
     }
 
     void prepare_calculation();
+
+    CalculationParameters& get_calcparam() const {
+        return get_nemo()->get_calc()->param;
+    }
 
     static int test(World &world, commandlineparser& parser);
 
@@ -285,7 +291,7 @@ public:
 
     /// Make the old CIS Guess
     /// the routine is now used to create virtuals
-    std::vector<CC_vecfunction> make_old_guess(const vector_real_function_3d &f) const;
+//    std::vector<CC_vecfunction> make_old_guess(const vector_real_function_3d &f) const;
 
     /// Create a set of virtual orbitals for the initial guess
     vector_real_function_3d make_virtuals() const;
@@ -457,10 +463,10 @@ public:
     /// The Nemo structure (convenience)
     std::shared_ptr<NemoBase> nemo;
     /// The Parameters for the Calculations
-    const Parameters parameters;
+    Parameters parameters;
     /// Operator Structure which can handle intermediates (use for exchange with GS orbitals)
     /// Can be replaced by another potential manager
-    CCConvolutionOperator g12;
+    std::shared_ptr<CCConvolutionOperator> g12;
     /// MO bra and ket
     CC_vecfunction mo_ket_;
     CC_vecfunction mo_bra_;

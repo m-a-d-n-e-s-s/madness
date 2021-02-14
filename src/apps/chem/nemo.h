@@ -63,6 +63,7 @@
 namespace madness {
 
 class PNO;
+class OEP;
 
 
 // The default constructor for functions does not initialize
@@ -118,6 +119,7 @@ public:
 
 	NemoBase(World& w) : world(w) {}
 
+	/// create an instance of the derived object based on the input parameters
 	std::shared_ptr<NuclearCorrelationFactor> get_ncf_ptr() const {
 		return ncf;
 	}
@@ -381,9 +383,9 @@ public:
 	/// @param[in]	calc	the SCF
 	Nemo(World& world1, std::shared_ptr<SCF> calc, const std::string inputfile);
 
-	double value() {return value(calc->molecule.get_all_coords());}
+    virtual double value() {return value(calc->molecule.get_all_coords());}
 
-	double value(const Tensor<double>& x);
+	virtual double value(const Tensor<double>& x);
 
 	/// compute the nuclear gradients
 	Tensor<double> gradient(const Tensor<double>& x);

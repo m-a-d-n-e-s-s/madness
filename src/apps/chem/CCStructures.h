@@ -623,16 +623,7 @@ struct CCConvolutionOperator {
                                                                                       op() {
     }
 
-    CCConvolutionOperator(const CCConvolutionOperator& other) :
-            parameters(other.parameters),
-            world(other.world),
-            operator_type(other.operator_type),
-            op(other.op),
-            imH(other.imH),
-            imP(other.imP),
-            imR(other.imR) {
-
-    }
+    CCConvolutionOperator(const CCConvolutionOperator& other) = default;
 
     /// @param[in] f: a 3D function
     /// @param[out] the convolution op(f), no intermediates are used

@@ -84,20 +84,6 @@ std::tuple<Tensor<double>, vecfuncT> OEP::recompute_HF(const vecfuncT& HF_nemo) 
 	Kinetic<double,3> T(world);
 	HF_Fock+=T(R2nemo,HF_nemo);
 
-
-//	BSHApply<double,3> bsh_apply(world);
-//	bsh_apply.metric=R_square;
-//	bsh_apply.lo=get_calc()->param.lo();
-//	bsh_apply.do_coupling=calc->param.do_localize();
-//	auto [residual,eps_update] =bsh_apply(HF_nemo,HF_Fock,Vnemo);
-//
-//	vecfuncT nemo_new=HF_nemo-residual;
-//	if (param.print_level()>=10) {
-//		print("HF Fock matrix");
-//		print(HF_Fock);
-//		double rnorm=norm2(world,residual);
-//		print("residual for HF nemo recomputation",rnorm);
-//	}
 	vecfuncT nemo_new=HF_nemo;
 	timer1.end("recompute HF");
 	return std::make_tuple(HF_Fock, nemo_new);
@@ -111,9 +97,8 @@ double OEP::compute_and_print_final_energies(const std::string model, const real
 	auto [HF_eigvals, evec] = syev(HF_Fock);
 	auto [KS_eigvals, evec1] = syev(KS_Fock);
 
-	print("final shifted", model, "orbital energies:");
-	print_orbens(KS_eigvals, homo_diff(HF_eigvals, KS_eigvals));
-	print("HF/KS HOMO energy difference of", homo_diff(HF_eigvals, KS_eigvals), "Eh is already included\n");
+	print("final", model, "orbital energies (no level alignment included):");
+	print_orbens(KS_eigvals);
 
 	// final Jnemo and Knemo have to be computed again in order to calculate final energy
 	vecfuncT Jnemo, Knemo, Knemo_HF;
@@ -155,7 +140,7 @@ double OEP::compute_and_print_final_energies(const std::string model, const real
 	printf("\n     DEvir_17     = %15.8f mEh\n", (Ex_vir - Ex_HF - 2.0*Tc)*1000.0); // like in Ospadov_2017, equation (28)
 	print("     Drho         =     ", Drho, "e\n\n");
 
-	if (not calc->param.do_localize()) {
+	if (not param.do_localize()) {
 		print("---------------------------------------------------------------------------");
 		double E_0 = compute_E_zeroth(KS_eigvals);
 		double E_1 = compute_E_first(R*KS_nemo, R*Jnemo, R*Knemo, Voep);
@@ -176,7 +161,7 @@ double OEP::compute_and_print_final_energies(const std::string model, const real
 double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tensorT& HF_Fock,
 		vecfuncT& KS_nemo, tensorT& KS_Fock, real_function_3d& Voep, const real_function_3d Vs) const {
 
-	bool print_debug=(calc->param.print_level()>=10) and (world.rank()==0);
+	bool print_debug=(param.print_level()>=10) and (world.rank()==0);
 
 	// compute the constant HF contributions to the OEP hierarchy
 	const real_function_3d ocep_numerator_HF=-1.0*compute_energy_weighted_density_local(HF_nemo,HF_Fock);
@@ -192,20 +177,20 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 	typedef allocator<double, 3> allocT;
 	typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
 	allocT alloc(world, KS_nemo.size());
-	solverT solver(allocT(world, KS_nemo.size()),calc->param.print_level()>4);
-	solver.set_maxsub(calc->param.maxsub());
+	solverT solver(allocT(world, KS_nemo.size()),param.print_level()>4);
+	solver.set_maxsub(param.maxsub());
 
 	double energy=0.0;
 	std::vector<double> energies(1,0.0);
 	bool converged=false;
 
-	timer timer1(world,calc->param.print_level()>=3);
+	timer timer1(world,param.print_level()>=3);
 	for (int iter = 0; iter < oep_param.maxiter(); ++iter) {
 
-	    if (calc->param.do_localize()) {
+	    if (param.do_localize()) {
 	    	for (int i=0; i<KS_nemo.size(); ++i) calc->aeps(i)=KS_Fock(i,i);
-	    	KS_nemo=localize(KS_nemo,calc->param.econv(),iter==0);
-	    	if (calc->param.print_level()>=10) calc->analyze_vectors(world,KS_nemo,calc->aocc,tensorT(),calc->aset);
+	    	KS_nemo=localize(KS_nemo,param.econv(),iter==0);
+	    	if (param.print_level()>=10) calc->analyze_vectors(world,KS_nemo,calc->aocc,tensorT(),calc->aset);
 	    }
 	    if (do_symmetry()) {
 		    std::vector<std::string> str_irreps;
@@ -259,7 +244,7 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 				Fock_ocep=matrix_inner(world,R2KS_nemo,ocep_correction*KS_nemo);
 				tensorT KS_Fock_old=copy(KS_Fock);
 				KS_Fock=Fock_no_ocep+Fock_ocep;
-				if ((KS_Fock_old-KS_Fock).normf()<calc->param.econv()) break;
+				if ((KS_Fock_old-KS_Fock).normf()<param.econv()) break;
 				if (print_debug) {
 					print("fock with updated ocep Fock matrix, ocep micro",i);
 					print(KS_Fock);
@@ -273,7 +258,7 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 
 		timer1.tag("compute oep");
 
-		if (not calc->param.do_localize()) {
+		if (not param.do_localize()) {
 
 			// report the off-diagonal Fock matrix elements because canonical orbitals are used
 			tensorT F_offdiag = copy(KS_Fock);
@@ -310,7 +295,7 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 		bsh_apply.metric=R_square;
 		bsh_apply.levelshift=oep_param.levelshift();
 		bsh_apply.lo=get_calc()->param.lo();
-		bsh_apply.do_coupling=calc->param.do_localize();
+		bsh_apply.do_coupling=param.do_localize();
 		auto [residual,eps_update] =bsh_apply(KS_nemo,KS_Fock,Fnemo);
 		timer1.tag("apply BSH");
 
@@ -322,7 +307,7 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 		normalize(nemo_new,R);
 
 		// estimate the orbital energies, as they enter the potential
-		if (calc->param.print_level()>=10)  print(KS_Fock);
+		if (param.print_level()>=10)  print(KS_Fock);
 
 		// What is step restriction?
 		calc->do_step_restriction(world, KS_nemo, nemo_new, "ab spin case");
@@ -333,8 +318,8 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 			for (int n=0; n<KS_nemo.size(); ++n) save(KS_nemo[n], "KS_nemo"+stringify(n)+"iter"+stringify(iter));
 
 		double deltadensity=0.0;
-		converged=check_convergence(energies,oldenergies,bshnorm,deltadensity,calc->param,
-				calc->param.econv(),calc->param.dconv());
+		converged=check_convergence(energies,oldenergies,bshnorm,deltadensity,param,
+				param.econv(),param.dconv());
 		if (world.rank() == 0) {
 			printf("\nfinished %s iteration %2d at time %8.1fs with energy %12.8f; residual %12.8f\n\n",
 					model.c_str(), iter, wall_time(), energy,bshnorm);
@@ -354,10 +339,16 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 
 
 /// The following function tests all essential parts of the OEP program qualitatively and some also quantitatively
-int OEP::test_oep(const vecfuncT& HF_nemo1) {
+int OEP::test_oep() {
 
+    printf("\n   +++ starting test of the OEP program +++\n\n");
+
+    reference->value();
+    calc->copy_data(world,*(reference->get_calc()));
+
+    const vecfuncT& HF_nemo1=reference->get_calc()->get_amo();
 	int ierr=0;
-	set_protocol(calc->param.econv());
+	set_protocol(param.econv());
 
     // Start by testing all important functions. If something severe fails, they throw an exception
     print("\n   >> test calculation of all important functions - severe errors will cause an exception\n");

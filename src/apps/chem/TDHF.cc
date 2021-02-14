@@ -5,10 +5,10 @@
  *      Author: kottmanj
  */
 
-#include "TDHF.h"
+#include<chem/TDHF.h>
 #include<chem/oep.h>
 #include<chem/test_utilities.h>
-#include <chem/commandlineparser.h>
+#include<chem/commandlineparser.h>
 
 
 namespace madness {
@@ -41,14 +41,27 @@ struct TDHF_allocator {
 /// \param parser   the parser
 TDHF::TDHF(World &world, const commandlineparser &parser)
         : world(world),
-          nemo(std::make_shared<Nemo>(world, std::shared_ptr<SCF>(new SCF(world, parser.value("input"))),
-                                      parser.value("input"))),
-          parameters(world, get_nemo()->get_calc(), parser.value("input")),
-        g12(world, OT_G12, parameters.get_ccc_parameters()),
+          nemo(),
+//          nemo(std::make_shared<Nemo>(world, std::shared_ptr<SCF>(new SCF(world, parser.value("input"))),
+//                                      parser.value("input"))),
+//          parameters(world, get_nemo()->get_calc(), parser.value("input")),
+          parameters(world, parser.value("input")),
+          g12(),
         mo_ket_(),
         mo_bra_(),
         Q(),
         msg(world) {
+
+
+    if (parameters.do_oep()) {
+        std::shared_ptr<OEP> oep(new OEP(world, parser));
+        set_reference(oep);
+    } else {
+        std::shared_ptr<SCF> scf(new SCF(world, parser.value("input")));
+        std::shared_ptr<Nemo> nemo1(new Nemo(world, scf, parser.value("input")));
+        set_reference(nemo1);
+    }
+    parameters.set_derived_values(get_nemo()->get_calc());
     initialize();
 }
 
@@ -56,12 +69,14 @@ TDHF::TDHF(World &world, const commandlineparser &parser)
 TDHF::TDHF(World &world, const std::shared_ptr<Nemo> nemo_, const std::string &input) :
         world(world),
         nemo(nemo_),
-        parameters(world, get_nemo()->get_calc(), input),
-        g12(world, OT_G12, parameters.get_ccc_parameters()),
+//        parameters(world, get_nemo()->get_calc(), input),
+        parameters(world, input),
+        g12(),
         mo_ket_(),
         mo_bra_(),
         Q(),
         msg(world) {
+    parameters.set_derived_values(get_nemo()->get_calc());
     initialize();
 }
 
@@ -71,6 +86,7 @@ void TDHF::initialize() {
     msg.debug = parameters.debug();
     parameters.print("response");
     check_consistency();
+    g12=std::make_shared<CCConvolutionOperator>(world, OT_G12, parameters.get_ccc_parameters(get_nemo()->get_calc()->param.lo()));
 
     const double old_thresh = FunctionDefaults<3>::get_thresh();
     if (old_thresh > parameters.thresh() * 0.1 and old_thresh > 1.e-5) {
@@ -103,7 +119,7 @@ void TDHF::prepare_calculation() {
         if (need_hf) {
             msg.subsection("Computing Exchange Intermediate");
             CCTimer timer(world, "Computing ExIm");
-            g12.update_elements(mo_bra_, mo_ket_);
+            g12->update_elements(mo_bra_, mo_ket_);
             timer.info();
         } else msg.output("No Exchange Intermediate Computed\n");
 
@@ -572,7 +588,7 @@ TDHF::apply_G(std::vector<CC_vecfunction> &x, std::vector<vector_real_function_3
                 eps = -1.0 * parameters.thresh();
             }
             MADNESS_ASSERT(not(eps > 0.0));
-            bsh[p] = poperatorT(BSHOperatorPtr3D(world, sqrt(-2.0 * eps), parameters.lo(), parameters.thresh()));
+            bsh[p] = poperatorT(BSHOperatorPtr3D(world, sqrt(-2.0 * eps), get_calcparam().lo(), parameters.thresh()));
         }
         world.gop.fence();
 
@@ -693,7 +709,7 @@ vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x) const {
         if (do_hf) {
             CCTimer timeKx(world, "Kx");
             Exchange<double, 3> K = Exchange<double, 3>(world, get_nemo().get(), 0).small_memory(false);
-            K.set_parameters(mo_bra_.get_vecfunction(), mo_ket_.get_vecfunction(), occ, parameters.lo(),
+            K.set_parameters(mo_bra_.get_vecfunction(), mo_ket_.get_vecfunction(), occ, get_calcparam().lo(),
                              parameters.thresh());
             vector_real_function_3d Kx = K(x.get_vecfunction());
             scale(world, Kx, hf_coeff);
@@ -755,7 +771,7 @@ vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x) const {
                 real_function_3d Ki = real_factory_3d(world);
                 for (const auto ktmp:x.functions) {
                     const size_t k = ktmp.first;
-                    Ki += (g12(mo_bra_(k), mo_ket_(i)) * x(k).function).truncate();
+                    Ki += ((*g12)(mo_bra_(k), mo_ket_(i)) * x(k).function).truncate();
                 }
                 Kp.push_back(Ki);
             }
@@ -1025,72 +1041,72 @@ Tensor<double> TDHF::make_perturbed_fock_matrix(const std::vector<CC_vecfunction
 }
 
 /// Makes the (old) guess functions by exciting active orbitals with excitation operators
-std::vector<CC_vecfunction> TDHF::make_old_guess(const vector_real_function_3d &f) const {
-    CCTimer time(world, "Making Guess Functions: " + parameters.guess_excitation_operators());
-    std::vector<std::string> exop_strings;
-    if (parameters.guess_excitation_operators() == "custom") {
-        exop_strings = parameters.exops();
-        msg << "Custom Excitation Operators Demanded:\n";
-        msg << exop_strings << "\n";
-    } else exop_strings = guessfactory::make_predefined_exop_strings(parameters.guess_excitation_operators());
-
-    // make the excitation operators
-    vector_real_function_3d exops;
-    for (const auto &exs:exop_strings) {
-        std::shared_ptr<FunctionFunctorInterface<double, 3> > exop_functor(
-                new guessfactory::PolynomialFunctor(exs));
-        real_function_3d exop = real_factory_3d(world).functor(exop_functor);
-        // do damp
-        if (parameters.damping_width() > 0.0) {
-            std::shared_ptr<FunctionFunctorInterface<double, 3> > damp_functor(
-                    new guessfactory::GaussFunctor(parameters.damping_width()));
-            real_function_3d damp = real_factory_3d(world).functor(damp_functor);
-            plot_plane(world, damp, "damping_function");
-            exop = (exop * damp).truncate();
-        }
-        exops.push_back(exop);
-    }
-
-    // Excite the last N unfrozen MOs
-
-    size_t N = std::min(parameters.guess_occ_to_virt(), f.size());
-    // if N was not assigned we use all orbitals
-    if (N == 0) {
-        N = f.size();
-    }
-
-    // making the guess
-    std::vector<CC_vecfunction> guess;
-    for (size_t i = 0; i < exops.size(); i++) {
-        const vector_real_function_3d &vm = f;
-        reconstruct(world, vm);
-        reconstruct(world, exops);
-        MADNESS_ASSERT(not(N > vm.size()));
-        vector_real_function_3d tmp = zero_functions<double, 3>(world, vm.size());
-        // exciting the first N orbitals (from the homo to the homo-N)
-        for (size_t k = 0; k < N; k++) {
-            real_function_3d xmo = (exops[i] * vm[vm.size() - 1 - k]).truncate();
-            tmp[tmp.size() - 1 - k] = xmo;
-            plot_plane(world, xmo, std::to_string(i) + "_cis_guess_" + "_" +
-                                   std::to_string(vm.size() - k - 1 + parameters.freeze()));
-        }
-        {
-            const double norm = sqrt(inner(world, make_bra(tmp), tmp).sum());
-            scale(world, tmp, 1.0 / norm);
-        }
-        tmp = Q(tmp);
-        {
-            const double norm = sqrt(inner(world, make_bra(tmp), tmp).sum());
-            scale(world, tmp, 1.0 / norm);
-        }
-        CC_vecfunction guess_tmp(tmp, RESPONSE, parameters.freeze());
-        guess.push_back(guess_tmp);
-    }
-
-    time.info();
-    return guess;
-}
-
+//std::vector<CC_vecfunction> TDHF::make_old_guess(const vector_real_function_3d &f) const {
+//    CCTimer time(world, "Making Guess Functions: " + parameters.guess_excitation_operators());
+//    std::vector<std::string> exop_strings;
+//    if (parameters.guess_excitation_operators() == "custom") {
+//        exop_strings = parameters.exops();
+//        msg << "Custom Excitation Operators Demanded:\n";
+//        msg << exop_strings << "\n";
+//    } else exop_strings = guessfactory::make_predefined_exop_strings(parameters.guess_excitation_operators());
+//
+//    // make the excitation operators
+//    vector_real_function_3d exops;
+//    for (const auto &exs:exop_strings) {
+//        std::shared_ptr<FunctionFunctorInterface<double, 3> > exop_functor(
+//                new guessfactory::PolynomialFunctor(exs));
+//        real_function_3d exop = real_factory_3d(world).functor(exop_functor);
+//        // do damp
+//        if (parameters.damping_width() > 0.0) {
+//            std::shared_ptr<FunctionFunctorInterface<double, 3> > damp_functor(
+//                    new guessfactory::GaussFunctor(parameters.damping_width()));
+//            real_function_3d damp = real_factory_3d(world).functor(damp_functor);
+//            plot_plane(world, damp, "damping_function");
+//            exop = (exop * damp).truncate();
+//        }
+//        exops.push_back(exop);
+//    }
+//
+//    // Excite the last N unfrozen MOs
+//
+//    size_t N = std::min(parameters.guess_occ_to_virt(), f.size());
+//    // if N was not assigned we use all orbitals
+//    if (N == 0) {
+//        N = f.size();
+//    }
+//
+//    // making the guess
+//    std::vector<CC_vecfunction> guess;
+//    for (size_t i = 0; i < exops.size(); i++) {
+//        const vector_real_function_3d &vm = f;
+//        reconstruct(world, vm);
+//        reconstruct(world, exops);
+//        MADNESS_ASSERT(not(N > vm.size()));
+//        vector_real_function_3d tmp = zero_functions<double, 3>(world, vm.size());
+//        // exciting the first N orbitals (from the homo to the homo-N)
+//        for (size_t k = 0; k < N; k++) {
+//            real_function_3d xmo = (exops[i] * vm[vm.size() - 1 - k]).truncate();
+//            tmp[tmp.size() - 1 - k] = xmo;
+//            plot_plane(world, xmo, std::to_string(i) + "_cis_guess_" + "_" +
+//                                   std::to_string(vm.size() - k - 1 + parameters.freeze()));
+//        }
+//        {
+//            const double norm = sqrt(inner(world, make_bra(tmp), tmp).sum());
+//            scale(world, tmp, 1.0 / norm);
+//        }
+//        tmp = Q(tmp);
+//        {
+//            const double norm = sqrt(inner(world, make_bra(tmp), tmp).sum());
+//            scale(world, tmp, 1.0 / norm);
+//        }
+//        CC_vecfunction guess_tmp(tmp, RESPONSE, parameters.freeze());
+//        guess.push_back(guess_tmp);
+//    }
+//
+//    time.info();
+//    return guess;
+//}
+//
 vector_real_function_3d TDHF::make_virtuals() const {
     CCTimer time(world, "make virtuals");
     // create virtuals
@@ -1112,7 +1128,8 @@ vector_real_function_3d TDHF::make_virtuals() const {
     } else {
         // create the seeds
         vector_real_function_3d xmo;
-        for (size_t i = 0; i < parameters.guess_occ_to_virt(); ++i)
+//        for (size_t i = 0; i < parameters.guess_occ_to_virt(); ++i)
+        for (size_t i = 0; i < get_active_mo_ket().size(); ++i)
             xmo.push_back(get_active_mo_ket()[get_active_mo_ket().size() - 1 - i]);
 
         bool use_trigo = true;
@@ -1410,7 +1427,8 @@ Tensor<double> TDHF::make_cis_matrix(const vector_real_function_3d virtuals,
     const int nocc = get_active_mo_ket().size();
     // determines for which orbitals (couting from the HOMO downwards) the off-diagonal elements will be computed
     // this simplifies the guess
-    int active_guess_orbitals = parameters.guess_active_orbitals();
+//    int active_guess_orbitals = parameters.guess_active_orbitals();
+    int active_guess_orbitals = get_active_mo_bra().size();
     const int nvirt = virtuals.size();
     auto get_com_idx = [nvirt](int i, int a) { return i * nvirt + a; };
     auto get_vir_idx = [nvirt](int I) { return I % nvirt; };
@@ -1471,7 +1489,7 @@ Tensor<double> TDHF::make_cis_matrix(const vector_real_function_3d virtuals,
         int I = -1; // combined index from i and a, start is -1 so that initial value is 0 (not so important anymore since I dont use ++I)
         for (size_t i = start_ij; i < get_active_mo_ket().size(); ++i) {
             const real_function_3d brai = get_active_mo_bra()[i];
-            const vector_real_function_3d igv = g12(brai * virtuals);
+            const vector_real_function_3d igv = (*g12)(brai * virtuals);
             for (size_t a = 0; a < virtuals.size(); ++a) {
                 I = get_com_idx(i, a);
                 int J = -1;
@@ -1480,7 +1498,7 @@ Tensor<double> TDHF::make_cis_matrix(const vector_real_function_3d virtuals,
                     for (size_t b = 0; b < virtuals.size(); ++b) {
                         J = get_com_idx(j, b);
                         if (J <= I) {
-                            const real_function_3d igj = g12(mo_bra_(i + parameters.freeze()), mo_ket_(j +
+                            const real_function_3d igj = (*g12)(mo_bra_(i + parameters.freeze()), mo_ket_(j +
                                                                                                        parameters.freeze())); // use exchange intermediate
                             const double rIJ = 2.0 * inner(braj * virtuals[b], igv[a]) -
                                                inner(virtuals_bra[a] * virtuals[b], igj);
@@ -1657,12 +1675,8 @@ void TDHF::Parameters::set_derived_values(const std::shared_ptr<SCF> &scf) {
     set_derived_value("iterating_excitations", std::min(excitations(), std::size_t(4)));
     set_derived_value("guess_excitations", std::min(excitations() + iterating_excitations(), 2 * excitations()));
 
-
-    set_derived_value("guess_occ_to_virt", scf->amo.size() - freeze());
-    set_derived_value("guess_active_orbitals", scf->amo.size() - freeze());
-
-    set_derived_value("lo", scf->molecule.smallest_length_scale());
-
+//    set_derived_value("guess_occ_to_virt", scf->amo.size() - freeze());
+//    set_derived_value("guess_active_orbitals", scf->amo.size() - freeze());
 }
 
 /// check consistency of the input parameters
@@ -1694,14 +1708,6 @@ int TDHF::test(World &world, commandlineparser& parser) {
 
     TDHF tdhf(world, parser);
 
-//    if (tdhf.parameters.do_oep()) {
-//        std::shared_ptr<OEP> oep(new OEP(world, nemo->get_calc(), "input"));
-//        oep->set_HF_reference(nemo->get_calc()->amo);
-//        double oep_energy = oep->value();
-//        if (world.rank() == 0) print("oep energy: ", oep_energy);
-//        if (world.rank() == 0) printf(" at time %.1f\n", wall_time());
-//        tdhf.set_reference(oep);
-//    }
 
     // Compute MRA-CIS
 
