@@ -27,7 +27,7 @@ struct TDHF_allocator {
         return zero_functions<double, 3>(world, noct);
     }
 
-    TDHF_allocator operator=(const TDHF_allocator &other) {
+    TDHF_allocator& operator=(const TDHF_allocator &other) {
         TDHF_allocator tmp(world, other.noct);
         return tmp;
     }
@@ -533,9 +533,7 @@ TDHF::apply_G(std::vector<CC_vecfunction> &x, std::vector<vector_real_function_3
         if (V.empty()) Vi = get_tda_potential(x[i]);
         else Vi = V[i];
         double omega = x[i].omega;
-        if (x[i].type == RESPONSE) MADNESS_ASSERT(omega > 0.0);
-        else
-            MADNESS_ASSERT(omega < 0.0);
+        MADNESS_ASSERT(omega < 0.0);
         if (x[i].type == UNDEFINED and V.empty()) msg.warning("Empty V but x is y state from TDHF");
 
         CCTimer time_N(world, "add nuclear potential");
@@ -1017,73 +1015,6 @@ Tensor<double> TDHF::make_perturbed_fock_matrix(const std::vector<CC_vecfunction
     return F;
 }
 
-/// Makes the (old) guess functions by exciting active orbitals with excitation operators
-//std::vector<CC_vecfunction> TDHF::make_old_guess(const vector_real_function_3d &f) const {
-//    CCTimer time(world, "Making Guess Functions: " + parameters.guess_excitation_operators());
-//    std::vector<std::string> exop_strings;
-//    if (parameters.guess_excitation_operators() == "custom") {
-//        exop_strings = parameters.exops();
-//        msg << "Custom Excitation Operators Demanded:\n";
-//        msg << exop_strings << "\n";
-//    } else exop_strings = guessfactory::make_predefined_exop_strings(parameters.guess_excitation_operators());
-//
-//    // make the excitation operators
-//    vector_real_function_3d exops;
-//    for (const auto &exs:exop_strings) {
-//        std::shared_ptr<FunctionFunctorInterface<double, 3> > exop_functor(
-//                new guessfactory::PolynomialFunctor(exs));
-//        real_function_3d exop = real_factory_3d(world).functor(exop_functor);
-//        // do damp
-//        if (parameters.damping_width() > 0.0) {
-//            std::shared_ptr<FunctionFunctorInterface<double, 3> > damp_functor(
-//                    new guessfactory::GaussFunctor(parameters.damping_width()));
-//            real_function_3d damp = real_factory_3d(world).functor(damp_functor);
-//            plot_plane(world, damp, "damping_function");
-//            exop = (exop * damp).truncate();
-//        }
-//        exops.push_back(exop);
-//    }
-//
-//    // Excite the last N unfrozen MOs
-//
-//    size_t N = std::min(parameters.guess_occ_to_virt(), f.size());
-//    // if N was not assigned we use all orbitals
-//    if (N == 0) {
-//        N = f.size();
-//    }
-//
-//    // making the guess
-//    std::vector<CC_vecfunction> guess;
-//    for (size_t i = 0; i < exops.size(); i++) {
-//        const vector_real_function_3d &vm = f;
-//        reconstruct(world, vm);
-//        reconstruct(world, exops);
-//        MADNESS_ASSERT(not(N > vm.size()));
-//        vector_real_function_3d tmp = zero_functions<double, 3>(world, vm.size());
-//        // exciting the first N orbitals (from the homo to the homo-N)
-//        for (size_t k = 0; k < N; k++) {
-//            real_function_3d xmo = (exops[i] * vm[vm.size() - 1 - k]).truncate();
-//            tmp[tmp.size() - 1 - k] = xmo;
-//            plot_plane(world, xmo, std::to_string(i) + "_cis_guess_" + "_" +
-//                                   std::to_string(vm.size() - k - 1 + parameters.freeze()));
-//        }
-//        {
-//            const double norm = sqrt(inner(world, make_bra(tmp), tmp).sum());
-//            scale(world, tmp, 1.0 / norm);
-//        }
-//        tmp = Q(tmp);
-//        {
-//            const double norm = sqrt(inner(world, make_bra(tmp), tmp).sum());
-//            scale(world, tmp, 1.0 / norm);
-//        }
-//        CC_vecfunction guess_tmp(tmp, RESPONSE, parameters.freeze());
-//        guess.push_back(guess_tmp);
-//    }
-//
-//    time.info();
-//    return guess;
-//}
-//
 vector_real_function_3d TDHF::make_virtuals() const {
     CCTimer time(world, "make virtuals");
     // create virtuals
@@ -1665,7 +1596,7 @@ void TDHF::check_consistency() const {
         and (parameters.irrep() != "all")) {
         print("irrep ", parameters.irrep(), " is not contained in point group ",
               get_nemo()->get_symmetry_projector().get_table().schoenflies_, "\n\n");
-        MADNESS_EXCEPTION("\ninconsistent input paramters\n\n", 1);
+        MADNESS_EXCEPTION("\ninconsistent input parameters\n\n", 1);
     }
 }
 
