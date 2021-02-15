@@ -41,41 +41,19 @@ struct TDHF_allocator {
 /// \param parser   the parser
 TDHF::TDHF(World &world, const commandlineparser &parser)
         : world(world),
-          nemo(),
-//          nemo(std::make_shared<Nemo>(world, std::shared_ptr<SCF>(new SCF(world, parser.value("input"))),
-//                                      parser.value("input"))),
-//          parameters(world, get_nemo()->get_calc(), parser.value("input")),
+          nemo(std::make_shared<Nemo>(world, parser)),
           parameters(world, parser.value("input")),
           g12(),
-        mo_ket_(),
-        mo_bra_(),
-        Q(),
-        msg(world) {
+          mo_ket_(),
+          mo_bra_(),
+          Q(),
+          msg(world) {
 
 
     if (parameters.do_oep()) {
         std::shared_ptr<OEP> oep(new OEP(world, parser));
         set_reference(oep);
-    } else {
-        std::shared_ptr<SCF> scf(new SCF(world, parser.value("input")));
-        std::shared_ptr<Nemo> nemo1(new Nemo(world, scf, parser.value("input")));
-        set_reference(nemo1);
     }
-    parameters.set_derived_values(get_nemo()->get_calc());
-    initialize();
-}
-
-
-TDHF::TDHF(World &world, const std::shared_ptr<Nemo> nemo_, const std::string &input) :
-        world(world),
-        nemo(nemo_),
-//        parameters(world, get_nemo()->get_calc(), input),
-        parameters(world, input),
-        g12(),
-        mo_ket_(),
-        mo_bra_(),
-        Q(),
-        msg(world) {
     parameters.set_derived_values(get_nemo()->get_calc());
     initialize();
 }
@@ -84,7 +62,6 @@ void TDHF::initialize() {
 
     msg.section("Initialize TDHF Class");
     msg.debug = parameters.debug();
-    parameters.print("response");
     check_consistency();
     g12=std::make_shared<CCConvolutionOperator>(world, OT_G12, parameters.get_ccc_parameters(get_nemo()->get_calc()->param.lo()));
 
@@ -1663,8 +1640,8 @@ void TDHF::analyze(const std::vector<CC_vecfunction> &x) const {
 }
 
 /// auto assigns all parameters which where not explicitly given and which depend on other parameters of the reference calculation
-//void TDHF::Parameters::complete_with_defaults(const std::shared_ptr<SCF>& scf) {
-void TDHF::Parameters::set_derived_values(const std::shared_ptr<SCF> &scf) {
+//void TDHF::TDHFParameters::complete_with_defaults(const std::shared_ptr<SCF>& scf) {
+void TDHF::TDHFParameters::set_derived_values(const std::shared_ptr<SCF> &scf) {
     //  double thresh=FunctionDefaults<3>::get_thresh();
 
     set_derived_value("econv", scf->param.econv());
@@ -1699,7 +1676,7 @@ int TDHF::test(World &world, commandlineparser& parser) {
     std::ofstream of(input.c_str());
     CalculationParameters scfparam;
     scfparam.set_user_defined_value("econv", 1.e-3);
-    TDHF::Parameters cisparam;
+    TDHF::TDHFParameters cisparam;
     write_test_input::write_to_test_input("dft", &scfparam, of);
     write_test_input::write_to_test_input("response", &cisparam, of);
     write_test_input::write_molecule_to_test_input("lih", of);
@@ -1707,6 +1684,8 @@ int TDHF::test(World &world, commandlineparser& parser) {
 
 
     TDHF tdhf(world, parser);
+    tdhf.get_calcparam().print("dft");
+    tdhf.parameters.print("response");
 
 
     // Compute MRA-CIS

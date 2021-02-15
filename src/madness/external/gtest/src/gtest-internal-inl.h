@@ -419,7 +419,7 @@ class OsStackTraceGetterInterface {
   OsStackTraceGetterInterface() {}
   virtual ~OsStackTraceGetterInterface() {}
 
-  // Returns the current OS stack trace as an std::string.  Parameters:
+  // Returns the current OS stack trace as an std::string.  TDHFParameters:
   //
   //   max_depth  - the maximum number of stack frames to be included
   //                in the trace.

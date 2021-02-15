@@ -525,7 +525,7 @@ namespace madness{
       if(test) std::cout << "\n\n\t\t\t!Test Mode is on!\n\n" << std::endl;
       std::cout << std::setfill('-') << std::setw(35) << std::setfill('-') << "\n";
       std::cout << std::setfill(' ');
-      std::cout << "\nMRA-Parameters:\n";
+      std::cout << "\nMRA-TDHFParameters:\n";
       std::cout << "lo                         :"<< lo << std::endl;
       std::cout << "dmin                       :"<< dmin << std::endl;
       std::cout << "k (3D)                     :"<< FunctionDefaults<3>::get_k() << std::endl;
@@ -543,7 +543,7 @@ namespace madness{
       std::cout << "thresh_Ue                  :"<< thresh_Ue << std::endl;
       std::cout << std::setfill('-') << std::setw(35) << std::setfill('-') << "\n";
       std::cout << std::setfill(' ');
-      std::cout << "\nAdvanced-MRA-Parameters:\n";
+      std::cout << "\nAdvanced-MRA-TDHFParameters:\n";
       std::cout << "truncation mode 3D         :"<< FunctionDefaults<3>::get_truncate_mode()  <<std::endl;
       std::cout << "truncation mode 6D         :"<< FunctionDefaults<6>::get_truncate_mode()  <<std::endl;
       std::cout << "tensor type                :"<< FunctionDefaults<6>::get_tensor_type()  <<std::endl;
@@ -554,7 +554,7 @@ namespace madness{
       std::cout << "Autorefine (3D, 6D)        :"<< FunctionDefaults<6>::get_autorefine() << ", " << FunctionDefaults<3>::get_autorefine()  <<std::endl;
       std::cout << std::setfill('-') << std::setw(35) << std::setfill('-') << "\n";
       std::cout << std::setfill(' ');
-      std::cout << "\nCC-Parameters:\n";
+      std::cout << "\nCC-TDHFParameters:\n";
       std::cout << "freeze      :"<< freeze << std::endl;
       std::cout << "restart     :"<< restart << std::endl;
       std::cout << "econv       :"<< econv << std::endl;

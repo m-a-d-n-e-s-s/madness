@@ -11,6 +11,10 @@ struct commandlineparser {
 
     std::map<std::string, std::string> keyval;
 
+    commandlineparser() {
+        set_defaults();
+    }
+
     // parse command line arguments
     commandlineparser(int argc, char **argv) {
         set_defaults();

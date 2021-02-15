@@ -383,6 +383,8 @@ public:
 	/// @param[in]	calc	the SCF
 	Nemo(World& world1, std::shared_ptr<SCF> calc, const std::string inputfile);
 
+    Nemo(World& world, const commandlineparser& parser);
+
     virtual double value() {return value(calc->molecule.get_all_coords());}
 
 	virtual double value(const Tensor<double>& x);

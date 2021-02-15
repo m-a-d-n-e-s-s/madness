@@ -45,9 +45,6 @@ int main(int argc, char** argv) {
 		std::cout << "\n\n";
 	}
 
-	// Get the name of the input file (if given)
-	const std::string input = (argc > 1) ? argv[1] : "input";
-
 	commandlineparser parser(argc,argv);
 	parser.print_map();
 
@@ -57,38 +54,22 @@ int main(int argc, char** argv) {
 	    error=TDHF::test(world,parser);
 	} else {
 
-        // Compute the SCF Reference
-        const double time_scf_start = wall_time();
-        std::shared_ptr<SCF> calc(new SCF(world, input));
+	    TDHF tdhf(world,parser);
 
-        std::shared_ptr<Nemo> nemo(new Nemo(world, calc, input));
-        std::shared_ptr<Nemo> reference = nemo;
-
-        nemo->param.print("nemo parameters");
-        const double scf_energy = nemo->value();
-        if (world.rank() == 0) print("nemo energy: ", scf_energy);
-        if (world.rank() == 0) printf(" at time %.1f\n", wall_time());
-        const double time_scf_end = wall_time();
-
-        TDHF::Parameters tdhf_parameters(world, input);
-        tdhf_parameters.set_derived_values(calc);
-        if (tdhf_parameters.do_oep()) {
-            std::shared_ptr<OEP> oep(new OEP(world, nemo->get_calc(), "input"));
-            oep->set_reference(nemo);
-            double oep_energy = oep->value();
-            if (world.rank() == 0) print("oep energy: ", oep_energy);
-            if (world.rank() == 0) printf(" at time %.1f\n", wall_time());
-            reference = oep;
-        }
-
-        // Compute MRA-CIS
-        const double time_cis_start = wall_time();
-        TDHF tdhf(world, reference, input);
+        tdhf.get_calcparam().print("dft");
+        tdhf.parameters.print("response");
 
         // solve the CIS equations
-        std::vector<CC_vecfunction> roots = tdhf.solve_cis();
+        const double time_scf_start = wall_time();
+        tdhf.prepare_calculation();
+        const double time_scf_end = wall_time();
+        if (world.rank() == 0) printf(" at time %.1f\n", wall_time());
 
+        const double time_cis_start = wall_time();
+        std::vector<CC_vecfunction> roots = tdhf.solve_cis();
         const double time_cis_end = wall_time();
+        if (world.rank() == 0) printf(" at time %.1f\n", wall_time());
+
         if (world.rank() == 0) {
             std::cout << std::setfill(' ');
             std::cout << "\n\n\n";
@@ -96,12 +77,10 @@ int main(int argc, char** argv) {
             std::cout << "MRA-CIS ended \n";
             std::cout << "--------------------------------------------------\n";
             std::cout << std::setw(25) << "time scf" << " = " << time_scf_end - time_scf_start << "\n";
-            std::cout << std::setw(25) << "energy scf" << " = " << scf_energy << "\n";
             std::cout << std::setw(25) << "time cis" << " = " << time_cis_end - time_cis_start << "\n";
             std::cout << "--------------------------------------------------\n";
         }
         tdhf.analyze(roots);
-
     }
 	world.gop.fence();
 	if (world.rank() == 0) printf("finished at time %.1f\n", wall_time());

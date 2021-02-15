@@ -11,7 +11,7 @@ c
 c     [2] P.A.M. Dirac, Proceedings of the Cambridge Philosophical
 c         Society, Vol. 26 (1930) 376.
 c
-c     Parameters:
+c     TDHFParameters:
 c
 c     r     the total electron density
 c     f     On return the functional value
@@ -54,7 +54,7 @@ c
 c     [2] P.A.M. Dirac, Proceedings of the Cambridge Philosophical
 c         Society, Vol. 26 (1930) 376.
 c
-c     Parameters:
+c     TDHFParameters:
 c
 c     ra    the alpha electron density
 c     rb    the beta  electron density
@@ -99,7 +99,7 @@ c         "Accurate spin-dependent electron liquid correlation energies
 c          for local spin density calculations: a critical analysis",
 c         Can.J.Phys, Vol. 58 (1980) 1200-1211.
 c
-c     Parameters:
+c     TDHFParameters:
 c
 c     r      the total electron density
 c     f      On return the functional value
@@ -188,7 +188,7 @@ c         "Accurate spin-dependent electron liquid correlation energies
 c          for local spin density calculations: a critical analysis",
 c         Can.J.Phys, Vol. 58 (1980) 1200-1211.
 c
-c     Parameters:
+c     TDHFParameters:
 c
 c     ra     the alpha-electron density
 c     rb     the beta-electron density

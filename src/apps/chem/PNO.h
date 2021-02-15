@@ -97,7 +97,7 @@ public:
 
 	/// change the state of insignificant pairs to frozen
 	/// This is based on:
-	/// 1. External Parameters (are some pairs demanded to be frozen)
+	/// 1. External TDHFParameters (are some pairs demanded to be frozen)
 	/// 2. Energies (if the current energy is significantly below the MRA threshold there is no point in further optimizing)
 	/// 3. Spatial overlapp (if the norm of the product of the originating MOs is small: i.e. if ||(phi_i)*(phi_j)||_2 is small then pair_ij is insignificant)
 	PNOPairs freeze_insignificant_pairs(PNOPairs& pairs)const;

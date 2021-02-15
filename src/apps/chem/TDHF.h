@@ -24,17 +24,17 @@ class TDHF {
 public:
 
     /// the TDHF parameter class
-    struct Parameters : public QCCalculationParametersBase {
+    struct TDHFParameters : public QCCalculationParametersBase {
 
-        Parameters() {
+        TDHFParameters() {
             initialize_all();
         }
 
-        Parameters(const Parameters &other) = default;
+        TDHFParameters(const TDHFParameters &other) = default;
 
         /// todo: read_from_file compatible with dist. memory computation
-//        Parameters(World &world, const std::shared_ptr<SCF> &scf, const std::string &input) {
-        Parameters(World &world, const std::string &input) {
+//        TDHFParameters(World &world, const std::shared_ptr<SCF> &scf, const std::string &input) {
+        TDHFParameters(World &world, const std::string &input) {
             initialize_all();
             if (world.rank()==0) {
                 read(world, input, "response");
@@ -202,8 +202,6 @@ public:
         }
     }; // end of parameter class
 
-    TDHF(World &world, const std::shared_ptr<Nemo> nemo, const std::string &input = "input");
-
     TDHF(World &world, const commandlineparser &parser);
 
     void initialize();
@@ -223,7 +221,7 @@ public:
     void prepare_calculation();
 
     CalculationParameters& get_calcparam() const {
-        return get_nemo()->get_calc()->param;
+        return get_nemo()->param;
     }
 
     static int test(World &world, commandlineparser& parser);
@@ -462,8 +460,8 @@ public:
     World &world;
     /// The Nemo structure (convenience)
     std::shared_ptr<NemoBase> nemo;
-    /// The Parameters for the Calculations
-    Parameters parameters;
+    /// The TDHFParameters for the Calculations
+    TDHFParameters parameters;
     /// Operator Structure which can handle intermediates (use for exchange with GS orbitals)
     /// Can be replaced by another potential manager
     std::shared_ptr<CCConvolutionOperator> g12;

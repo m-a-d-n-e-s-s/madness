@@ -204,7 +204,7 @@ public:
 
 };
 
-/// Calculation Parameters for CC2 and TDA calculations
+/// Calculation TDHFParameters for CC2 and TDA calculations
 /// Maybe merge this with calculation_parameters of SCF at some point, or split into TDA and CC
 struct CCParameters {
 
@@ -291,7 +291,7 @@ struct CCParameters {
     /// a vector containing the excitations which shall be optizmized later (with CIS(D) or CC2)
     std::vector<size_t> excitations_;
 
-    // Parameters for the TDA Algorithm
+    // TDHFParameters for the TDA Algorithm
 
     /// print out the parameters
     void information(World &world) const;
