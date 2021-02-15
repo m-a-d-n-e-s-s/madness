@@ -27,7 +27,7 @@ struct TDHF_allocator {
         return zero_functions<double, 3>(world, noct);
     }
 
-    TDHF_allocator& operator=(const TDHF_allocator &other) {
+    TDHF_allocator operator=(const TDHF_allocator &other) {
         TDHF_allocator tmp(world, other.noct);
         return tmp;
     }
@@ -106,7 +106,7 @@ void TDHF::prepare_calculation() {
 
     }
     if (get_nemo()->get_calc()->param.do_localize()) {
-        Fock F(world, get_nemo().get());
+        Fock<double,3> F(world, get_nemo().get());
         F_occ = F(get_active_mo_bra(), get_active_mo_ket());
         for (size_t i = 0; i < get_active_mo_ket().size(); ++i) {
             msg << std::scientific << std::setprecision(10);
@@ -538,7 +538,7 @@ TDHF::apply_G(std::vector<CC_vecfunction> &x, std::vector<vector_real_function_3
 
         CCTimer time_N(world, "add nuclear potential");
         // the potentials still need the nuclear potential
-        const Nuclear V(world, get_nemo().get());
+        const Nuclear<double,3> V(world, get_nemo().get());
         vector_real_function_3d VNi = V(x[i].get_vecfunction());
         Vi += VNi;
         time_N.info(parameters.debug());
@@ -641,7 +641,7 @@ vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x) const {
     vector_real_function_3d Vpsi1;
     {
         // construct unperturbed operators
-        const Coulomb J(world, get_nemo().get());
+        const Coulomb<double,3> J(world, get_nemo().get());
         // const Nuclear V(world,&nemo); // not included in the TDA potential anymore
 
 
@@ -660,7 +660,7 @@ vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x) const {
 
         if (get_nemo()->get_calc()->xc.is_dft()) {
             // XC Potential
-            const XCOperator xc(world, xc_data, not get_nemo()->get_calc()->param.spin_restricted(), alpha_density,
+            const XCOperator<double,3> xc(world, xc_data, not get_nemo()->get_calc()->param.spin_restricted(), alpha_density,
                                 alpha_density);
 
             // Applied XC Potential
@@ -715,14 +715,14 @@ vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x) const {
         const vector_real_function_3d active_bra = get_active_mo_bra();
         // construct perturbed operators
         CCTimer timeJ(world, "pXC");
-        Coulomb Jp(world, get_nemo().get());
+        Coulomb<double,3> Jp(world, get_nemo().get());
         real_function_3d density_pert = 2.0 * get_nemo()->make_density(occ, active_bra, x.get_vecfunction());
         Jp.potential() = Jp.compute_potential(density_pert);
 
         vector_real_function_3d XCp = zero_functions<double, 3>(world, get_active_mo_ket().size());
         if (get_nemo()->get_calc()->xc.is_dft()) {
             // XC Potential
-            const XCOperator xc(world, xc_data, not get_nemo()->get_calc()->param.spin_restricted(), alpha_density,
+            const XCOperator<double,3> xc(world, xc_data, not get_nemo()->get_calc()->param.spin_restricted(), alpha_density,
                                 alpha_density);
             // reconstruct the full perturbed density: do not truncate!
             real_function_3d gamma = xc.apply_xc_kernel(density_pert);
@@ -758,7 +758,7 @@ vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x) const {
 
         /// use alda approximation for the dft kernel
         if (parameters.do_oep()) {
-            const XCOperator xc(world, "lda_x", not get_nemo()->get_calc()->param.spin_restricted(), alpha_density,
+            const XCOperator<double,3> xc(world, "lda_x", not get_nemo()->get_calc()->param.spin_restricted(), alpha_density,
                                 alpha_density);
             real_function_3d gamma = xc.apply_xc_kernel(density_pert);
             vector_real_function_3d XCp = truncate(gamma * active_mo);
@@ -1303,7 +1303,7 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
 vector_real_function_3d TDHF::canonicalize(const vector_real_function_3d &v, Tensor<double> &veps) const {
     CCTimer time(world, "canonicalize");
 
-    Fock F(world, get_nemo().get());
+    Fock<double,3> F(world, get_nemo().get());
     const vector_real_function_3d vbra = make_bra(v);
     Tensor<double> Fmat = F(vbra, v);
 
@@ -1361,7 +1361,7 @@ Tensor<double> TDHF::make_cis_matrix(const vector_real_function_3d virtuals,
         const vector_real_function_3d virtuals_bra = make_bra(virtuals);
 
         // make Fock Matrix of virtuals for diagonal elements
-        Fock F(world, get_nemo().get());
+        Fock<double,3> F(world, get_nemo().get());
         Tensor<double> Fmat = F(virtuals_bra, virtuals);
 
         if (parameters.debug()) {

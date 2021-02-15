@@ -94,7 +94,6 @@ double OEP::compute_and_print_final_energies(const std::string model, const real
 		const vecfuncT& HF_nemo, const tensorT& HF_Fock) const {
 
 	// print final orbital energies
-	auto [HF_eigvals, evec] = syev(HF_Fock);
 	auto [KS_eigvals, evec1] = syev(KS_Fock);
 
 	print("final", model, "orbital energies (no level alignment included):");

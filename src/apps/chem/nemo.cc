@@ -435,7 +435,7 @@ double Nemo::compute_energy(const vecfuncT& psi, const vecfuncT& Jpsi,
 	int ispin=0;
 	double exc=0.0;
 	if (calc->xc.is_dft()) {
-	    XCOperator xcoperator(world,this,ispin);
+	    XCOperator<double,3> xcoperator(world,this,ispin);
 	    exc=xcoperator.compute_xc_energy();
 	}
 
@@ -495,7 +495,7 @@ std::vector<double> Nemo::compute_energy_regularized(const vecfuncT& nemo, const
     int ispin=0;
     double exc=0.0;
     if (calc->xc.is_dft()) {
-        XCOperator xcoperator(world,this,ispin);
+        XCOperator<double,3> xcoperator(world,this,ispin);
         exc=xcoperator.compute_xc_energy();
     }
 
@@ -555,7 +555,7 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo, vecfuncT& psi,
 
 	// compute the density and the coulomb potential
 	START_TIMER(world);
-	Coulomb J=Coulomb(world,this);
+	Coulomb<double,3> J=Coulomb<double,3>(world,this);
 	Jnemo = J(nemo);
 	truncate(world, Jnemo);
 	END_TIMER(world, "compute Jnemo");
@@ -575,7 +575,7 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo, vecfuncT& psi,
 	// compute the exchange-correlation potential
     if (calc->xc.is_dft()) {
         START_TIMER(world);
-        XCOperator xcoperator(world,this,ispin);
+        XCOperator<double,3> xcoperator(world,this,ispin);
         double exc=0.0;
         if (ispin==0) exc=xcoperator.compute_xc_energy();
         print("exc",exc);
@@ -607,7 +607,7 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo, vecfuncT& psi,
     }
 
 	START_TIMER(world);
-	Nuclear Unuc(world,this->ncf);
+	Nuclear<double,3> Unuc(world,this->ncf);
 	Unemo=Unuc(nemo);
     double size1=get_size(world,Unemo);
 	END_TIMER(world, "compute Unemo "+stringify(size1));
@@ -674,8 +674,8 @@ real_function_3d Nemo::make_laplacian_density(const real_function_3d& rhonemo) c
     real_function_3d result=(2.0*U1dot*rhonemo).truncate();
 
     // U2 operator
-    const Nuclear U_op(world,this->ncf);
-    const Nuclear V_op(world,this->get_calc().get());
+    const Nuclear<double,3> U_op(world,this->ncf);
+    const Nuclear<double,3> V_op(world,this->get_calc().get());
 
     const real_function_3d Vrho=V_op(rhonemo);  // eprec is important here!
     const real_function_3d Urho=U_op(rhonemo);
@@ -710,8 +710,8 @@ real_function_3d Nemo::make_laplacian_density(const real_function_3d& rhonemo) c
 
 real_function_3d Nemo::kinetic_energy_potential(const vecfuncT& nemo) const {
 
-    const Nuclear U_op(world,this->ncf);
-    const Nuclear V_op(world,this->get_calc().get());
+    const Nuclear<double,3> U_op(world,this->ncf);
+    const Nuclear<double,3> V_op(world,this->get_calc().get());
 
     const vecfuncT Vnemo=V_op(nemo);  // eprec is important here!
     const vecfuncT Unemo=U_op(nemo);
@@ -1187,7 +1187,7 @@ vecfuncT Nemo::make_cphf_constant_term(const size_t iatom, const int iaxis,
     const Tensor<double> occ=get_calc()->get_aocc();
     QProjector<double,3> Q(world,R2nemo,nemo);
 
-    DNuclear Dunuc(world,this,iatom,iaxis);
+    DNuclear<double,3> Dunuc(world,this,iatom,iaxis);
     vecfuncT Vpsi2b=Dunuc(nemo);
     truncate(world,Vpsi2b);
 
@@ -1197,7 +1197,7 @@ vecfuncT Nemo::make_cphf_constant_term(const size_t iatom, const int iaxis,
 
     // part of the Coulomb operator with the derivative of the NCF
     // J <- \int dr' 1/|r-r'| \sum_i R^XR F_iF_i
-    Coulomb Jconst(world);
+    Coulomb<double,3> Jconst(world);
     Jconst.potential()=Jconst.compute_potential(2.0*RXR*rhonemo);        // factor 2 for cphf
     vecfuncT Jconstnemo=Jconst(nemo);
     truncate(world,Jconstnemo);
@@ -1273,10 +1273,10 @@ vecfuncT Nemo::solve_cphf(const size_t iatom, const int iaxis, const Tensor<doub
     solver.set_maxsub(5);
 
     // construct unperturbed operators
-    const Coulomb J(world,this);
+    const Coulomb<double,3> J(world,this);
     const Exchange<double,3> K=Exchange<double,3>(world,this,0).small_memory(false);
-    const XCOperator xc(world, xc_data, not calc->param.spin_restricted(), arho, arho);
-    const Nuclear V(world,this);
+    const XCOperator<double,3> xc(world, xc_data, not calc->param.spin_restricted(), arho, arho);
+    const Nuclear<double,3> V(world,this);
 
     Tensor<double> h_diff(3l);
     for (int iter=0; iter<10; ++iter) {
@@ -1297,7 +1297,7 @@ vecfuncT Nemo::solve_cphf(const size_t iatom, const int iaxis, const Tensor<doub
         START_TIMER(world);
 
         // construct perturbed operators
-        Coulomb Jp(world);
+        Coulomb<double,3> Jp(world);
         const vecfuncT xi_complete=xi-parallel;
 
         // factor 4 from: closed shell (2) and cphf (2)

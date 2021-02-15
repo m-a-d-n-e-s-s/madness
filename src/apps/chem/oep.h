@@ -292,7 +292,7 @@ public:
 //        Coulomb J(world);
 //        J.reset_poisson_operator_ptr(param.lo(),param.econv());
 //        real_function_3d lra = -1.0*J.compute_potential(R_square*square(nemo[homo_ind]));
-        Coulomb J(world,this);
+        Coulomb<double,3> J(world,this);
         real_function_3d lra=-1.0/(param.nalpha()+param.nbeta())*J.compute_potential(this);
 //        print("compute long-range part of the Slater potential from the full molecular density");
         if (oep_param.saving_amount() >= 3) save(lra, "lra_slater");
@@ -494,7 +494,7 @@ public:
     	compute_coulomb_potential(nemo, Jnemo);
 
     	// compute nuclear potential part
-    	Nuclear Unuc(world, this->ncf);
+    	Nuclear<double,3> Unuc(world, this->ncf);
     	Unemo = Unuc(nemo);
 
     }
@@ -502,7 +502,7 @@ public:
     /// compute Coulomb potential
     void compute_coulomb_potential(const vecfuncT& nemo, vecfuncT& Jnemo) const {
 
-    	Coulomb J(world, this);
+    	Coulomb<double,3> J(world, this);
     	real_function_3d density=this->compute_density(nemo);
     	J.potential()=J.compute_potential(density);
     	Jnemo = J(nemo);
@@ -559,7 +559,7 @@ public:
 
     	// compute external potential (nuclear attraction)
     	real_function_3d Vext = calc->potentialmanager->vnuclear();
-    	Coulomb J(world,this);
+    	Coulomb<double,3> J(world,this);
     	real_function_3d Jpotential=J.compute_potential(density);
 
     	// compute remaining energies: nuclear attraction, Coulomb, nuclear repulsion

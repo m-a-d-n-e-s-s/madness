@@ -376,7 +376,7 @@ int test_coulomb(World& world) {
     print("refpotnorm",refpotnorm);
 
     // compute the potential from the trial density
-    Coulomb J(world);
+    Coulomb<double,3> J(world);
     J.reset_poisson_operator_ptr(1.e-5,FunctionDefaults<3>::get_thresh());
     J.potential()=J.compute_potential(density);
     double Jpotnorm=J.potential().norm2();
@@ -400,10 +400,10 @@ int test_coulomb(World& world) {
 
 
     // test hermiticity of the T operator
-    int success=test_hermiticity<T,Coulomb,3>(world, J, thresh);
+    int success=test_hermiticity<T,Coulomb<double,3>,3>(world, J, thresh);
     if (success>0) return 1;
 
-    success=test_asymmetric<T,Coulomb,3>(world, J, thresh);
+    success=test_asymmetric<T,Coulomb<double,3>,3>(world, J, thresh);
     if (err>thresh) return 1;
 
     return 0;
@@ -562,7 +562,7 @@ int test_XCOperator(World& world) {
         if (smalltest && xcfunc=="bp") break;
         
         /// custom ctor with information about the XC functional
-        XCOperator xc(world,xcfunc,false,arho,arho);
+        XCOperator<double,3> xc(world,xcfunc,false,arho,arho);
         double tol = 1e-6;
         if (xcfunc=="bp") tol = 2e-6;
         print("xc functional ",xcfunc,tol);
@@ -590,7 +590,7 @@ int test_XCOperator(World& world) {
 
         // do spin-polarized
         for (int ispin=0; ispin<2   ; ++ispin) {
-            XCOperator xc1(world,xcfunc,true,arho,arho);
+            XCOperator<double,3> xc1(world,xcfunc,true,arho,arho);
             xc1.set_ispin(ispin);
 
             double a0a=xc1.compute_xc_energy();
@@ -627,7 +627,7 @@ int nuclear_anchor_test(World& world) {
                 calc.molecule,calc.potentialmanager,1.0));
     ncf_none->initialize(FunctionDefaults<3>::get_thresh());
 
-    Nuclear Vnuc(world,ncf_none);
+    Nuclear<double,3> Vnuc(world,ncf_none);
 
     std::vector<int> ijk(3);
     Vector<double,3> origin{0,0.1,1.0};
@@ -649,7 +649,7 @@ int nuclear_anchor_test(World& world) {
     create_nuclear_correlation_factor(world, calc.molecule, calc.potentialmanager, nemo_param.ncf());
     ncf->initialize(FunctionDefaults<3>::get_thresh());
 
-    Nuclear Vnuc1(world,ncf);
+    Nuclear<double,3> Vnuc1(world,ncf);
     Kinetic<double,3> T(world);
     real_function_3d R2gaussian=(gaussian*ncf->square());
     real_function_3d Rgaussian=(gaussian*ncf->function());
@@ -706,7 +706,7 @@ int dnuclear_anchor_test(World& world) {
 
     for (int iaxis=0; iaxis<3; ++iaxis) {
         // compute matrix element and reference matrix element
-        DNuclear DVnuc(world,ncf_none,iatom,iaxis);
+        DNuclear<double,3> DVnuc(world,ncf_none,iatom,iaxis);
         double V=DVnuc(gaussian,gaussian);
         MolecularDerivativeFunctor mdf(calc.molecule, iatom, iaxis);
         double Vref=inner(gaussian2,mdf);
