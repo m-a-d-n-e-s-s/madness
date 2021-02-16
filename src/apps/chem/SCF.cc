@@ -178,7 +178,7 @@ SCF::SCF(World& world, const std::string& inputfile) : param(CalculationParamete
 
 	if (param.print_level()>2) print_timings=true;
 
-	xc.initialize(param.xc(), !param.spin_restricted(), world, param.print_level()>1);
+	xc.initialize(param.xc(), !param.spin_restricted(), world, param.print_level()>=10);
 	//xc.plot();
 
 	FunctionDefaults < 3 > ::set_cubic_cell(-param.L(), param.L());

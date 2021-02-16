@@ -211,6 +211,8 @@ public:
         nemo=reference;
     }
 
+    bool reference_is_oep() const;
+
     std::shared_ptr<Nemo> get_nemo() const {
         std::shared_ptr<Nemo> n;
         n=std::dynamic_pointer_cast<Nemo>(nemo);

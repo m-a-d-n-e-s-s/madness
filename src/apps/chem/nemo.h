@@ -354,7 +354,7 @@ public:
 	struct NemoCalculationParameters : public CalculationParameters {
 
 		NemoCalculationParameters(const CalculationParameters& param) : CalculationParameters(param) {
-			initialize_nemo_parameters();
+            initialize_nemo_parameters();
 		}
 
 		NemoCalculationParameters() : CalculationParameters() {
@@ -467,6 +467,8 @@ public:
             const vecfuncT& dens_pt) const;
 
 	std::shared_ptr<SCF> get_calc() const {return calc;}
+
+    NemoCalculationParameters get_param() const {return param;}
 
 	PCM get_pcm()const{return pcm;}
 

@@ -58,6 +58,10 @@ TDHF::TDHF(World &world, const commandlineparser &parser)
     initialize();
 }
 
+bool TDHF::reference_is_oep() const {
+    return (std::dynamic_pointer_cast<OEP>(nemo)!=0);
+}
+
 void TDHF::initialize() {
 
     msg.section("Initialize TDHF Class");

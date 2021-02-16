@@ -7,8 +7,9 @@
 
 #include <madness/world/worldmem.h>
 #include <chem/TDHF.h>
-#include <chem/oep.h>
 #include <chem/commandlineparser.h>
+#include <madness/misc/gitinfo.h>
+
 
 using namespace madness;
 
@@ -19,13 +20,7 @@ int main(int argc, char** argv) {
 	if (world.rank() == 0){
 		printf("starting at time %.1f\n", wall_time());
 		print("\nmain() compiled at ",__TIME__," on ",__DATE__);
-#ifdef GITREVISION
-			const  char* gitrev =  GITREVISION;
-			const std::string gitrevision(gitrev);
-			if (world.rank()==0) {
-				print("           git revision ...",gitrevision);
-			}
-#endif
+        print(info::print_revision_information());
 	}
 	//const double time_start = wall_time();
 	std::cout.precision(6);
