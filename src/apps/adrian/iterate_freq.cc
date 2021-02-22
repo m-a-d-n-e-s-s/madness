@@ -144,27 +144,16 @@ void TDHF::IterateFrequencyResponse(World& world,
       print(old_y_response.norm2());
     }
 
-    if (omega_n == 0) {
-      rho_omega =
-          transition_density(world, Gparams.orbitals, x_response, x_response);
-    } else {
       rho_omega =
           transition_density(world, Gparams.orbitals, x_response, y_response);
-    }
     // print level 3
-    if (Rparams.print_level == 3) {
+    if (Rparams.print_level >= 3) {
       print(
           "x norms in iteration before Iterate XY and after computing "
           "rho_omega "
           ": ",
-          iteration);
+          iteration," norm : ",x_response.norm2());
       print(x_response.norm2());
-
-      print(
-          "y norms in iteration before IterateXY and after computing "
-          "rho_omega",
-          iteration);
-      print(y_response.norm2());
     }
 
     IterateXY(world,

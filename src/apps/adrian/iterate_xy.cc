@@ -477,11 +477,9 @@ void TDHF::IterateXY(
     print(Z.x_f_no_diag.norm2());
   }
   // If not static we compute the y components
-  if (Rparams.omega != 0.0) {
     Z.v0_y = CreatePotential(world, y, xc, Rparams.print_level, "y");
     Z.y_f_no_diag = y * ham_no_diagonal;  // scale_2d(world, y,
                                           // ham_no_diagonal);
-  }
   // Some printing for debugging
   if (Rparams.print_level >= 2) {
     { PrintRFExpectation(world, x, Z.v0_x, "x", "V0X"); }
