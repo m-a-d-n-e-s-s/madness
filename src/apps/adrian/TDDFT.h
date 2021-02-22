@@ -194,8 +194,8 @@ class TDHF {
 
   // Get the response Function
   response_space& GetResponseFunctions(std::string xy);
-  response_space &GetPVector();
-  response_space &GetQVector();
+  response_space& GetPVector();
+  response_space& GetQVector();
   ResponseParameters GetResponseParameters();
   GroundParameters GetGroundParameters();
   Property GetPropertyObject();
@@ -481,6 +481,15 @@ class TDHF {
   void xy_from_XVector(response_space& x,
                        response_space& y,
                        std::vector<X_vector>& Xvectors);
+
+  void vector_stats(const std::vector<double>& v,
+                    double& rms,
+                    double& maxabsval) const;
+
+  double do_step_restriction(World& world,
+                             const vecfuncT& x,
+                             vecfuncT& x_new,
+                             std::string spin) const;
 
   void IterateXY(
       World& world,

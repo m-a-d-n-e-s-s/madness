@@ -380,8 +380,6 @@ GammaResponseFunctions TDHF::ComputeGammaFunctions(
   // update gamma functions
   QProjector<double, 3> projector(world, Gparams.orbitals);
   gamma.gamma = (J * 2) - (Kx + Ky) * xcf.hf_exchange_coefficient() + W;
-  print("Gamma norms");
-  print(gamma.gamma.norm2());
 
   if (Rparams.omega != 0.0) {
     gamma.gamma_conjugate =

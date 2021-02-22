@@ -1479,6 +1479,44 @@ void TDHF::xy_from_XVector(response_space& x,
   }
 }
 
+void TDHF::vector_stats(const std::vector<double>& v,
+                        double& rms,
+                        double& maxabsval) const {
+  rms = 0.0;
+  maxabsval = v[0];
+  for (size_t i = 0; i < v.size(); ++i) {
+    rms += v[i] * v[i];
+    maxabsval = std::max<double>(maxabsval, std::abs(v[i]));
+  }
+  rms = sqrt(rms / v.size());
+}
+double TDHF::do_step_restriction(World& world,
+                                 const vecfuncT& x,
+                                 vecfuncT& x_new,
+                                 std::string spin) const {
+  std::vector<double> anorm = norm2s(world, sub(world, x, x_new));
+  int nres = 0;
+  for (unsigned int i = 0; i < x.size(); ++i) {
+    if (anorm[i] > Rparams.maxrotn) {
+      double s = Rparams.maxrotn / anorm[i];
+      ++nres;
+      if (world.rank() == 0) {
+        if (nres == 1 and (Rparams.print_level > 1))
+          printf("  restricting step for %s orbitals:", spin.c_str());
+        printf(" %d", i);
+      }
+      x_new[i].gaxpy(s, x[i], 1.0 - s, false);
+    }
+  }
+  if (nres > 0 && world.rank() == 0 and (Rparams.print_level > 1)) printf("\n");
+
+  world.gop.fence();
+  double rms, maxval;
+  vector_stats(anorm, rms, maxval);
+  if (world.rank() == 0 and (Rparams.print_level > 1))
+    print("Norm of vector changes", spin, ": rms", rms, "   max", maxval);
+  return maxval;
+}
 // Construct the Hamiltonian
 Tensor<double> TDHF::CreateResponseMatrix(
     World& world,
@@ -1885,8 +1923,8 @@ TDHF::CreateBSHOperatorPropertyVector(World& world,
                                       double& shift,
                                       Tensor<double>& ground,
                                       double& omega,
-                                      double small,
-                                      double thresh) {
+                                      double lo,
+                                      double eps) {
   // Start timer
   if (Rparams.print_level >= 1) start_timer(world);
 
@@ -1904,9 +1942,9 @@ TDHF::CreateBSHOperatorPropertyVector(World& world,
   // Container for intermediary
   // Run over occupied components
   for (int p = 0; p < num_ground_states; p++) {
-    ghat_operators[p] =
-        std::shared_ptr<SeparatedConvolution<double, 3>>(BSHOperatorPtr3D(
-            world, sqrt(-2.0 * (ground(p) + omega + shift)), small, thresh));
+    double mu = sqrt(-2.0 * (ground(p) + omega + shift));
+    ghat_operators[p] = std::shared_ptr<SeparatedConvolution<double, 3>>(
+        BSHOperatorPtr3D(world, mu, lo, eps));
   }
   // Add intermediary to return container
 

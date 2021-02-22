@@ -79,35 +79,28 @@ void TDHF::IterateFrequencyResponse(World& world,
   // We compute with positive frequencies
   print("Warning input frequency is assumed to be positive");
   print("Computing at positive frequency omega = ", omega_n);
-  double x_shifts = 0;
-  double y_shifts = 0;
+  double x_shifts{0};
+  double y_shifts{0};
   // if less negative orbital energy + frequency is positive or greater than 0
+  print("Ground State orbitals");
+  print(Gparams.energies);
   if ((Gparams.energies[n - 1] + omega_n) >= 0.0) {
     // Calculate minimum shift needed such that \eps + \omega + shift < 0
     print("*** we are shifting just so you know!!!");
-    x_shifts = -(.05 + omega_n + Gparams.energies[n - 1]);
+    x_shifts = -(omega_n + Gparams.energies[n - 1]);
   }
 
   // Construct BSH operators
   std::vector<std::shared_ptr<real_convolution_3d>> bsh_x_operators =
-      CreateBSHOperatorPropertyVector(world,
-                                      x_shifts,
-                                      Gparams.energies,
-                                      omega_n,
-                                      Rparams.small,
-                                      FunctionDefaults<3>::get_thresh());
+      CreateBSHOperatorPropertyVector(
+          world, x_shifts, Gparams.energies, omega_n, .001, 1e-6);
   std::vector<std::shared_ptr<real_convolution_3d>> bsh_y_operators;
 
   // Negate omega to make this next set of BSH operators \eps - omega
   if (omega_n != 0.0) {
     omega_n = -omega_n;
-    bsh_y_operators =
-        CreateBSHOperatorPropertyVector(world,
-                                        y_shifts,
-                                        Gparams.energies,
-                                        omega_n,
-                                        Rparams.small,
-                                        FunctionDefaults<3>::get_thresh());
+    bsh_y_operators = CreateBSHOperatorPropertyVector(
+        world, y_shifts, Gparams.energies, omega_n, .001, 1e-6);
     omega_n = -omega_n;
   }
   // create couloumb operator
@@ -215,16 +208,18 @@ void TDHF::IterateFrequencyResponse(World& world,
     // Basic output
     if (Rparams.print_level >= 0 and world.rank() == 0) {
       if (omega_n != 0.0) {
-        std::cout << "resX " << iteration << ":" << std::endl;
-        print(x_norms);
+        std::cout << "res " << iteration << " X :";
+        for (size_t i(0); i < m; i++) {
+          std::cout << x_norms[i] << "  ";
+        }
+        std::cout << " Y :";
+        for (size_t i(0); i < m; i++) {
+          std::cout << y_norms[i] << "  ";
+        }
         std::cout << endl;
-        std::cout << "resY " << iteration << ":" << std::endl;
-        print(y_norms);
       } else {
-        std::cout << "resX " << iteration << ":" << std::endl;
-        print(x_norms);
+        print("resX ", iteration, " :", x_norms);
       }
-      std::cout << endl;
     }
 
     // Check convergence
@@ -235,17 +230,6 @@ void TDHF::IterateFrequencyResponse(World& world,
       converged = true;
       break;
     }
-    // KAIN solver update
-    // Returns next set of components
-    // If not kain, save the new components
-    // print x norms
-    /*
-    print("x norms in iteration before kain: ", iteration);
-    print(x_response.norm2());
-
-    print("y norms in iteration before kain: ", iteration);
-    print(y_response.norm2());
-    */
     if (Rparams.kain) {
       if (omega_n == 0) {
         rho_omega =
@@ -262,20 +246,6 @@ void TDHF::IterateFrequencyResponse(World& world,
       for (size_t b = 0; b < m; b++) {
         Xvector[b] = (X_vector(X, b));
         Xresidual[b] = (X_vector(residuals, b));
-        /*
-        for (real_function_3d fx : Xvector[b].X[0]) {
-          print("norm xvector x before kain ", fx.norm2());
-        }
-        for (real_function_3d fy : Xvector[b].Y[0]) {
-          print("norm xvector y before kain ", fy.norm2());
-        }
-        for (real_function_3d fx : Xresidual[b].X[0]) {
-          print("norm xvector x before kain ", fx.norm2());
-        }
-        for (real_function_3d fy : Xresidual[b].Y[0]) {
-          print("norm xvector y before kain ", fy.norm2());
-        }
-        */
       }
 
       // Add y functions to bottom of x functions
@@ -285,61 +255,34 @@ void TDHF::IterateFrequencyResponse(World& world,
       for (size_t b = 0; b < nkain; b++) {
         X_vector kain_X = kain_x_space[b].update(
             Xvector[b], Xresidual[b], FunctionDefaults<3>::get_thresh(), 3.0);
-
-        /*
-        for (real_function_3d fx : kain_X.X[0]) {
-          print("norm xvector x after kain ", fx.norm2());
-        }
-        for (real_function_3d fx : kain_X.Y[0]) {
-          print("norm xvector y after kain ", fx.norm2());
-        }
-        */
         x_response[b].assign(kain_X.X[0].begin(), kain_X.X[0].end());
         y_response[b].assign(kain_X.Y[0].begin(), kain_X.Y[0].end());
       }
       end_timer(world, " KAIN update:");
 
-      /*
-            print("x norms in iteration after kain: ", iteration);
-            print(x_response.norm2());
-
-            print("y norms in iteration after kain: ", iteration);
-            print(y_response.norm2());
-            print("x norms in iteration after transfer: ", iteration);
-            print(x_response.norm2());
-
-            print("y norms in iteration after transfer: ", iteration);
-            print(y_response.norm2());
-            */
-    }
-
+      for (size_t b = 0; b < m; b++) {
+        do_step_restriction(
+            world, old_x_response[b], x_response[b], "x_response");
+        if (omega_n != 0.0) {
+          do_step_restriction(
+              world, old_y_response[b], y_response[b], "y_response");
+        }
+      }
     // print x norms
-    // Apply mask
-    /*
-    for (int i = 0; i < m; i++) x_response[i] = mask * x_response[i];
-    if (omega_n != 0.0) {
-      for (int i = 0; i < m; i++) y_response[i] = mask * y_response[i];
-    }
-    */
-    // print x norms
-    print("x norms in iteration after mask: ", iteration);
-    print(x_response.norm2());
+    x_response.truncate_rf();
+    if (omega_n == 0.0) y_response=x_response.copy();
+    if (omega_n != 0.0) y_response.truncate_rf();
 
-    print("y norms in iteration after mask: ", iteration);
-    print(y_response.norm2());
+    if (Rparams.print_level >= 1) {
+      print("x norms in iteration after truncate: ", iteration);
+      print(x_response.norm2());
+
+      print("y norms in iteration after truncate: ", iteration);
+      print(y_response.norm2());
+    }
     // Update counter
     iteration += 1;
 
-    // Done with the iteration.. truncate
-    x_response.truncate_rf();
-    if (omega_n != 0.0) x_response.truncate_rf();
-    /*
-        print("x norms in iteration after truncation: ", iteration);
-        print(x_response.norm2());
-
-        print("y norms in iteration after truncation: ", iteration);
-        print(y_response.norm2());
-        */
     // Save
     if (Rparams.save) {
       start_timer(world);
@@ -360,3 +303,5 @@ void TDHF::IterateFrequencyResponse(World& world,
     Xresidual[b] = (X_vector(world, 0));
   }
 }
+
+                                  }

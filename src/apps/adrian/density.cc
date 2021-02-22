@@ -139,7 +139,11 @@ void FirstOrderDensity::PrintDensityInformation() {
   // print
   //
   print("Response Density Information");
-  print(property, " response at", omega(0, 0), "frequency using ", Rparams.xc,
+  print(property,
+        " response at",
+        omega(0, 0),
+        "frequency using ",
+        Rparams.xc,
         " exchange functional");
   print("Number of Response States : ", num_response_states);
   print("Number of Ground States : ", num_ground_states);
@@ -161,26 +165,27 @@ void FirstOrderDensity::PlotResponseDensity(World &world) {
   hi[2] = 0.0;
 
   for (int i = 0; i < num_response_states; i++) {
-    std::snprintf(plotname, sizeof(plotname),
+    std::snprintf(plotname,
+                  sizeof(plotname),
                   "plot_transition_density_%d_%d_x.plt",
-                  FunctionDefaults<3>::get_k(), i);
+                  FunctionDefaults<3>::get_k(),
+                  i);
     plot_line(plotname, 5001, lo, hi, rho_omega[i]);
   }
 }
 Tensor<double> FirstOrderDensity::ComputeSecondOrderPropertyTensor(
     World &world) {
   Tensor<double> G(num_response_states, num_response_states);
-  response_space grp(world,num_response_states,num_response_states);
+  response_space grp(world, num_response_states, num_response_states);
 
-    for (size_t i(0); i < num_response_states; i++) {
-      for (size_t j(0); j < num_response_states; j++) {
-        grp[i][j] =
-            dot(world, P[i], x[j]) + dot(world, Q[i], y[j]);
-        G(i, j) = grp[i][j].trace();
-        G(i, j) =-2*G(i,j);
-      }
+  for (size_t i(0); i < num_response_states; i++) {
+    for (size_t j(0); j < num_response_states; j++) {
+      grp[i][j] = dot(world, P[i], x[j]) + dot(world, Q[i], y[j]);
+      G(i, j) = grp[i][j].trace();
+      G(i, j) = -2 * G(i, j);
     }
-    
+  }
+
   // Tensor<double> M(num_response_states, num_response_states);
   // do some printing before we compute so we know what we are working with
   //*******************************
@@ -195,7 +200,8 @@ Tensor<double> FirstOrderDensity::ComputeSecondOrderPropertyTensor(
 }
 
 void FirstOrderDensity::PrintSecondOrderAnalysis(
-    World &world, const Tensor<double> alpha_tensor) {
+    World &world,
+    const Tensor<double> alpha_tensor) {
   Tensor<double> V, epolar;
   syev(alpha_tensor, V, epolar);
   double Dpolar_average = 0.0;
@@ -268,7 +274,8 @@ void FirstOrderDensity::SaveDensity(World &world, std::string name) {
   }
 }
 // Load a response calculation
-void FirstOrderDensity::LoadDensity(World &world, std::string name,
+void FirstOrderDensity::LoadDensity(World &world,
+                                    std::string name,
                                     ResponseParameters Rparams,
                                     GroundParameters Gparams) {
   // create XCF Object

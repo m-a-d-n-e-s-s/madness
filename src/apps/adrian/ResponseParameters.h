@@ -59,7 +59,8 @@ struct ResponseParameters {
   bool restart;       ///< Flag to restart from file
   std::string restart_file;  ///< Flag to restart from file
   bool kain;                 ///< Flag to use KAIN solver
-  int maxsub;                ///< How many previous iterations KAIN will store
+  double maxrotn;
+  int maxsub;      ///< How many previous iterations KAIN will store
   std::string xc;  ///< Controls the HF or DFT switch, as well as which DFT
                    ///< functional is used
   bool save;       ///< Controls if orbitals will be saved each iteration
@@ -99,10 +100,10 @@ struct ResponseParameters {
         &plot_L &plot_pts &plot_all_orbitals &max_iter &dconv &dconv_set
             &guess_xyz &small &protocol_data &larger_subspace &k &random
                 &store_potential &e_window &range_low &range_high &plot_initial
-                    &restart &restart_file &kain &maxsub &xc &save &save_file
-                        &guess_max_iter &property &response_type &dipole
-                            &nuclear &order2 &order3 &response_types &omega &old
-                                &old_two_electron;
+                    &restart &restart_file &kain &maxrotn &maxsub &xc &save
+                        &save_file &guess_max_iter &property &response_type
+                            &dipole &nuclear &order2 &order3 &response_types
+                                &omega &old &old_two_electron;
   }
 
   // Default constructor
@@ -118,7 +119,7 @@ struct ResponseParameters {
         plot_L(-1.0),
         plot_pts(201),
         plot_all_orbitals(false),
-        max_iter(20),
+        max_iter(40),
         dconv(0),
         dconv_set(false),
         guess_xyz(false),
@@ -135,6 +136,7 @@ struct ResponseParameters {
         restart(false),
         restart_file(""),
         kain(false),
+        maxrotn(.25),
         maxsub(5),
         xc("hf"),
         save(false),
@@ -249,6 +251,8 @@ struct ResponseParameters {
         while (s >> d) protocol_data.push_back(d);
       } else if (s == "kain") {
         kain = true;
+      } else if (s == "maxrotn") {
+        f >> maxrotn;
       } else if (s == "maxsub") {
         f >> maxsub;
       } else if (s == "save") {
@@ -317,8 +321,8 @@ struct ResponseParameters {
           MADNESS_EXCEPTION("not a valid response state ", 0);
         }
       }
-      states = std::accumulate(nstates.begin(), nstates.end(), 1,
-                               std::multiplies<>());
+      states = std::accumulate(
+          nstates.begin(), nstates.end(), 1, std::multiplies<>());
     } else if (order3) {
       vector<int> nstates;  // states 1
       for (int i = 0; i < 3; i++) {
@@ -330,8 +334,8 @@ struct ResponseParameters {
           MADNESS_EXCEPTION("not a valid response state ", 0);
         }
       }
-      states = std::accumulate(nstates.begin(), nstates.end(), 1,
-                               std::multiplies<>());
+      states = std::accumulate(
+          nstates.begin(), nstates.end(), 1, std::multiplies<>());
     }
   }
 
@@ -346,8 +350,8 @@ struct ResponseParameters {
     madness::print("             States Requested:", states);
     if (!property) madness::print("            TDA Approximation:", tda);
     if (e_window and !property)
-      madness::print("                Energy Window:", e_window,
-                     " (Not yet implemented)");
+      madness::print(
+          "                Energy Window:", e_window, " (Not yet implemented)");
     if (e_window and !property)
       madness::print("           Energy Range Start:", range_low);
     if (e_window and !property)
