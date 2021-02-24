@@ -23,7 +23,19 @@
 #include "load_balance.h"
 #include "madness/mra/funcdefaults.h"
 
-// Computes gamma(r) given the ground state orbitals and response functions
+/**
+ * @brief Computes two electron interaction functions
+ * 
+ * @param world 
+ * @param f 
+ * @param g 
+ * @param phi 
+ * @param small 
+ * @param thresh 
+ * @param print_level 
+ * @param xy 
+ * @return response_space 
+ */
 response_space TDHF::CreateGamma(World& world,
                                  response_space& f,
                                  response_space& g,
@@ -107,7 +119,18 @@ response_space TDHF::CreateGamma(World& world,
   // Done
   return gamma;
 }
-
+/**
+ * @brief Compute two electron interaction functions
+ * 
+ * @param world 
+ * @param f 
+ * @param phi 
+ * @param small 
+ * @param thresh 
+ * @param print_level 
+ * @param xy 
+ * @return response_space 
+ */
 response_space TDHF::ComputeHf(World& world,
                                const response_space& f,
                                const std::vector<real_function_3d>& phi,
@@ -187,7 +210,18 @@ response_space TDHF::ComputeHf(World& world,
   // Done
   return H;
 }
-
+/**
+ * @brief computes Gf function two electron conjugate interactions
+ * 
+ * @param world 
+ * @param f 
+ * @param orbitals 
+ * @param small 
+ * @param thresh 
+ * @param print_level 
+ * @param xy 
+ * @return response_space 
+ */
 response_space TDHF::ComputeGf(World& world,
                                const response_space& f,
                                const std::vector<real_function_3d>& orbitals,
@@ -260,7 +294,19 @@ response_space TDHF::ComputeGf(World& world,
   // Done
   return G;
 }
-
+/**
+ * @brief  Computes two electron interaction resonse_spaces 
+ * 
+ * @param world 
+ * @param rho_omega vector of response densities 
+ * @param phi_phi  orbital orbital products for exchange
+ * @param x x_response states
+ * @param y y_response states
+ * @param xc  xc functional
+ * @param Gparams 
+ * @param Rparams 
+ * @return GammaResponseFunctions 
+ */
 GammaResponseFunctions TDHF::ComputeGammaFunctions(
     World& world,
     std::vector<real_function_3d> rho_omega,
@@ -313,8 +359,7 @@ GammaResponseFunctions TDHF::ComputeGammaFunctions(
   //
   for (int b = 0; b < m; b++) {
     for (int k = 0; k < n; k++) {
-      // multiply the kth orbital to vector of y[b] response funtions...apply op
-      // to each product
+      // multiply the kth orbital to vector of y[b] response funtions...apply op      // to each product
       // (TODO) //split apply and
       y_phi[b][k] = apply(world, op, mul(world, Gparams.orbitals[k], y[b]));
       if (Rparams.omega != 0.0) {
@@ -417,6 +462,25 @@ GammaResponseFunctions TDHF::ComputeGammaFunctions(
   return gamma;
   // Get sizes
 }
+/**
+ * @brief 
+ * 
+ * @param world 
+ * @param rho_omega 
+ * @param orbital_products 
+ * @param x 
+ * @param y 
+ * @param rhs_x 
+ * @param rhs_y 
+ * @param xc 
+ * @param x_shift 
+ * @param Gparams 
+ * @param Rparams 
+ * @param bsh_x_operators 
+ * @param bsh_y_operators 
+ * @param ham_no_diagonal 
+ * @param iteration 
+ */
 void TDHF::IterateXY(
     World& world,
     std::vector<real_function_3d> rho_omega,
@@ -562,17 +626,6 @@ void TDHF::IterateXY(
   if (Rparams.omega != 0.0) bsh_y_resp = apply(world, bsh_y_operators, Z.Z_y);
   if (Rparams.print_level >= 1) end_timer(world, "Apply BSH:");
 
-  // Scale by -2.0 (coefficient in eq. 37 of reference paper)
-  /*
-  for (int i = 0; i < m; i++)
-    bsh_x_resp[i] =
-        -2 * bsh_x_resp[i];  // * (std::max(1.0, x_norms[i]) * -2.0);
-  if (Rparams.omega != 0.0) {
-    for (int i = 0; i < m; i++)
-      bsh_y_resp[i] =
-          -2 * bsh_y_resp[i];  // * (std::max(1.0, x_norms[i]) * -2.0);
-  }
-  */
   // Debugging output
   if (Rparams.print_level >= 2) {
     if (world.rank() == 0)
@@ -585,8 +638,13 @@ void TDHF::IterateXY(
       print_norms(world, bsh_y_resp);
     }
   }
-  x_response = bsh_x_resp;
-  if (Rparams.omega != 0.0) y_response = bsh_y_resp;
+  x_response = bsh_x_resp.copy();
+  if (Rparams.omega != 0.0){
+    y_response = bsh_y_resp.copy();
+  }else{
+    y_response = x_response.copy();
+  }
+  
   x_response.truncate_rf();
   y_response.truncate_rf();
 }

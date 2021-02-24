@@ -155,7 +155,6 @@ void TDHF::IterateFrequencyResponse(World& world,
           iteration," norm : ",x_response.norm2());
       print(x_response.norm2());
     }
-
     IterateXY(world,
               rho_omega,
               orbital_products,
