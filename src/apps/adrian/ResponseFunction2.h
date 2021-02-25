@@ -15,7 +15,10 @@
 
 // real_function_3d == Function<double,3>
 namespace madness {
-
+/**
+ * @brief response vector class holds a single x or y
+ * 
+ */
 struct response_vector {
  private:
   size_t num_orbitals;
@@ -44,8 +47,16 @@ struct response_vector {
   }
 };
 
+/**
+ * @brief response matrix holds response vectors for response state
+ * 
+ */
 struct response_space {
   // Member variables
+  /**
+   * @brief vector of vector of real 3d functions
+   * 
+   */
   typedef std::vector<vector_real_function_3d> response_matrix;
 
  public:
@@ -55,10 +66,21 @@ struct response_space {
 
   // Member functions
  public:
-  // Default constructor
+ /**
+  * @brief default Construct a new response space object
+  * num_states(0)
+  * num_orbitals(0)
+  * x() default constructor of std::vector
+  */
   response_space() : num_states(0), num_orbitals(0), x() {}
 
   // Copy constructor
+  /**
+   * @brief copy construct a new response space object
+   * we are using copying defined by std:vector
+   * we copy madness functions therefore we are copying pointers to function implementations
+   * @param y 
+   */
   response_space(const response_space& y)
       : num_states(y.size()), num_orbitals(y.size_orbitals()), x(y.x) {}
   // assignment
@@ -76,6 +98,13 @@ struct response_space {
   // n = number of ground state orbitals
 
   // Zero Constructor constructs m vectors
+  /**
+   * @brief Construct a new response space with zero functions
+   * 
+   * @param world 
+   * @param num_states 
+   * @param num_orbitals 
+   */
   response_space(World& world, size_t num_states, size_t num_orbitals)
       : num_states(num_states), num_orbitals(num_orbitals), x() {
     for (size_t i = 0; i < num_states; i++) {
@@ -84,6 +113,11 @@ struct response_space {
     }
   }
   // Conversion from respones_matrix
+  /**
+   * @brief Construct a new response space object from vector of functions
+   * 
+   * @param x 
+   */
   explicit response_space(const response_matrix& x)
       : num_states(x.size()), num_orbitals(x[0].size()), x(x) {}
   // Determines if two ResponseFunctions are the same size
@@ -93,14 +127,31 @@ struct response_space {
 
   // 1D accessor for x
   // std::vector<Function<double, 3>> &operator[](int64_t i) { return x[i]; }
+  /**
+   * @brief access vector of functions with std::vector.at()
+   * 
+   * @param i 
+   * @return vector_real_function_3d& 
+   */
   vector_real_function_3d& operator[](size_t i) { return x.at(i); }
-
+/**
+ * @brief access vector of functions const 
+ * 
+ * @param i 
+ * @return const vector_real_function_3d& 
+ */
   const vector_real_function_3d& operator[](size_t i) const { return x.at(i); }
 
   // KAIN must have this
   // element wise addition.  we add each vector separatly
   // addition c = this.x+b
   // we need a new function
+  /**
+   * @brief elementwise addition of response_space
+   * 
+   * @param rhs_y 
+   * @return response_space 
+   */
   response_space operator+(const response_space& rhs_y) const {
     MADNESS_ASSERT(size() > 0);
     MADNESS_ASSERT(same_size(*this, rhs_y));  // assert that same size
@@ -121,6 +172,13 @@ struct response_space {
     return a.operator+(b);
   }
   */
+
+  /**
+   * @brief elementwise subtraction of response space
+   * 
+   * @param rhs_y 
+   * @return response_space 
+   */
   response_space operator-(const response_space& rhs_y) const {
     MADNESS_ASSERT(size() > 0);
     MADNESS_ASSERT(same_size(*this, rhs_y));  // assert that same size
@@ -158,6 +216,14 @@ struct response_space {
 
     return result;
   }
+  */
+
+ /**
+  * @brief multiplication by scalar
+  * 
+  * @param y 
+  * @param a 
+  * @return response_space 
   */
   friend response_space operator*(response_space y, double a) {
     World& world = y.x.at(0).at(0).world();
