@@ -1,20 +1,23 @@
 {
     "C_Cpp.default.configurationProvider": "vector-of-bool.cmake-tools",
     "cmake.configureSettings": {
+        "CMAKE_TOOL_CHAIN_FILE": "/cmake/toolchains/generic-mkl-tbb.cmake",
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-        "CMAKE_MAKE_PROGRAM": "/usr/bin/make",
-        "ENABLE_GPERFTOOLS": "OFF",
-        "CMAKE_BUILD_TYPE": "Debug",
-        "ENABLE_MKL": "ON",
+        "BUILD_SHARED_LIBS": "OFF",
         "ENABLE_TBB": "OFF",
+        "LIBXC_LIBRARIES": "/gpfs/projects/rjh/libxc-3.0.0/lib/libxc.a",
+        "LIBXC_INCLUDE_DIRS": "/gpfs/projects/rjh/libxc-3.0.0/include",
+        //"MKL_INCLUDE_DIR": "/gpfs/software/intel/parallel-studio-xe/2018_2/compilers_and_libraries/linux/mkl/include",
+        //"MKL_LIBRARY": "/gpfs/software/intel/parallel-studio-xe/2018_2/compilers_and_libraries/linux/mkl/lib/intel64",
+        "CMAKE_BUILD_TYPE": "Debug",
+        "MPI_CXX_COMPILER": "/gpfs/software/mpich/gcc/3.2.1/bin/mpicc",
+        "MPI_C_COMPILER": "/gpfs/software/mpich/gcc/3.2.1/bin/mpicxx",
         "CMAKE_CXX_COMPILER": "mpicxx",
         "CMAKE_C_COMPILER": "mpicc",
         "CMAKE_CXX_STANDARD": 17,
-        "LIBXC_INCLUDE_DIRS": "/gpfs/projects/rjh/libxc-3.0.0/include",
-        "BUILD_SHARED_LIBS": "OFF",
+        "CMAKE_MAKE_PROGRAM": "/usr/bin/make",
     },
     "cmake.environment": {
-        "MKLROOT": "/gpfs/software/intel/parallel-studio-xe/2018_2/compilers_and_libraries/linux/mkl/lib/intel64",
     },
     "files.associations": {
         "*.tex": "latex",
@@ -28,7 +31,8 @@
     },
     "cquery.cacheDirectory": "${workspaceFolder}/.vscode/cquery_cached_index/",
     "C_Cpp.default.macFrameworkPath": [],
-    "C_Cpp.clang_format_fallbackStyle": "Google"
+    "C_Cpp.clang_format_fallbackStyle": "Google",
+    "editor.tabCompletion": "on"
 }
 //        "CMAKE_CXX_COMPILER": "mpicxx",
 //        "CMAKE_C_COMPILER": "mpicc",
