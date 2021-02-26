@@ -225,6 +225,8 @@ public:
     		vecfuncT& KS_nemo, tensorT& KS_Fock, real_function_3d& Voep,
 			const real_function_3d Vs) const;
 
+    virtual std::shared_ptr<Fock<double,3>> make_fock_operator() const;
+
     MolecularOrbitals<double,3> to_MO() const {
     	std::vector<std::string> str_irreps;
     	vecfuncT aaa=symmetry_projector(calc->amo,R_square,str_irreps);

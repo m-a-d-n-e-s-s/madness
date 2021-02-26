@@ -76,17 +76,20 @@ std::tuple<Tensor<double>, vecfuncT> OEP::recompute_HF(const vecfuncT& HF_nemo) 
 
 	timer timer1(world);
     const vecfuncT R2nemo=truncate(R_square*HF_nemo);
-	vecfuncT psi, Jnemo, Knemo, pcmnemo, Unemo;
-	Nemo::compute_nemo_potentials(HF_nemo, psi, Jnemo, Knemo, pcmnemo, Unemo);
-	vecfuncT Vnemo=Unemo+Jnemo-Knemo;
-	if (do_pcm()) Vnemo+=pcmnemo;
-	tensorT HF_Fock=matrix_inner(world,R2nemo,Vnemo,false);   // not symmetric actually
-	Kinetic<double,3> T(world);
-	HF_Fock+=T(R2nemo,HF_nemo);
-
+    Fock<double,3> F(world,get_reference().get());
+    Tensor<double> HF_Fock=F(R2nemo,HF_nemo);
 	vecfuncT nemo_new=HF_nemo;
 	timer1.end("recompute HF");
 	return std::make_tuple(HF_Fock, nemo_new);
+}
+
+/// the OEP Fock operator is the HF Fock operator without exchange but with the OEP
+std::shared_ptr<Fock<double,3>> OEP::make_fock_operator() const {
+    Fock<double,3> fock(world,get_reference().get());
+    MADNESS_CHECK(fock.remove_operator(("K")));
+    LocalPotentialOperator<double,3> Voep(world,"Voep",Vfinal);
+    fock.add_operator("Voep",std::make_shared<LocalPotentialOperator<double,3> >(Voep));
+    return std::make_shared<Fock<double,3>>(fock);
 }
 
 double OEP::compute_and_print_final_energies(const std::string model, const real_function_3d& Voep,
@@ -344,6 +347,9 @@ int OEP::test_oep() {
 
     reference->value();
     calc->copy_data(world,*(reference->get_calc()));
+
+    print("HF Fock operator ", reference->make_fock_operator()->info());
+    print("OEP Fock operator", make_fock_operator()->info());
 
     const vecfuncT& HF_nemo1=reference->get_calc()->get_amo();
 	int ierr=0;

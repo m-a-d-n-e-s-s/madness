@@ -758,31 +758,13 @@ void XCOperator<T,NDIM>::prep_xc_args_response(const real_function_3d& dens_pt,
 }
 
 
-template<typename T, std::size_t NDIM>
-Fock<T,NDIM>::Fock(World& world, const SCF* calc,
-           double scale_K)
-    : world(world),
-      J(world,calc),
-      K(world,calc,0),
-      kin(world),
-      V(world,calc),
-      scale_K(scale_K) {
+template<>
+Fock<double,3>::Fock(World& world, const Nemo* nemo) : world(world) {
+//    Fock<double,3>* tmp=nemo->make_fock_operator().get();
+    auto tmp=nemo->make_fock_operator();
+    if (tmp) std::swap(tmp->operators,operators);
+    else MADNESS_EXCEPTION("failed to construct fock operator",1);
 }
-template<typename T, std::size_t NDIM>
-Fock<T,NDIM>::Fock(World& world, const Nemo* nemo,
-           double scale_K)
-    : world(world),
-      J(world,nemo),
-      K(world,nemo,0),
-      kin(world),
-      V(world,nemo),
-      scale_K(scale_K) {
-}
-
-
-
-//template std::vector<Function<double,3> > XCOperator::operator()(const std::vector<Function<double,3> >& vket) const;
-//template std::vector<Function<double_complex,3> > XCOperator::operator()(const std::vector<Function<double_complex,3> >& vket) const;
 
 template class Exchange<double_complex,3>;
 template class Exchange<double,3>;

@@ -110,7 +110,7 @@ void TDHF::prepare_calculation() {
 
     }
     if (get_nemo()->get_calc()->param.do_localize()) {
-        Fock<double,3> F(world, get_nemo().get());
+        Fock<double,3> F(world,get_nemo().get());
         F_occ = F(get_active_mo_bra(), get_active_mo_ket());
         for (size_t i = 0; i < get_active_mo_ket().size(); ++i) {
             msg << std::scientific << std::setprecision(10);

@@ -111,8 +111,9 @@ struct timer {
         double ss1=cpu_time()-sss;
         if (printme) printf("timer: %20.20s %8.2fs %8.2fs\n", msg.c_str(), ss1, tt1);
     }
-
 };
+
+
 class NemoBase : public MolecularOptimizationTargetInterface {
 
 public:
@@ -396,6 +397,9 @@ public:
 
 	/// returns the molecular hessian matrix at structure x
 	Tensor<double> hessian(const Tensor<double>& x);
+
+	/// construct the fock operator based on the calculation parameters (K or XC?)
+	virtual std::shared_ptr<Fock<double,3>> make_fock_operator() const;
 
 	/// purify and symmetrize the hessian
 

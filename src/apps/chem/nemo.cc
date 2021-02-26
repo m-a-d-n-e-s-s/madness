@@ -269,6 +269,49 @@ vecfuncT Nemo::localize(const vecfuncT& nemo, const double dconv, const bool ran
         return localnemo;
 }
 
+std::shared_ptr<Fock<double,3>> Nemo::make_fock_operator() const {
+    MADNESS_CHECK(param.spin_restricted());
+    const int ispin=0;
+
+    std::shared_ptr<Fock<double,3> > fock(new Fock<double,3>(world));
+    Coulomb<double,3> J(world,this);
+    fock->add_operator("J",std::make_shared<Coulomb<double,3> >(J));
+    fock->add_operator("V",std::make_shared<Nuclear<double,3> >(world,this));
+    fock->add_operator("T",std::make_shared<Kinetic<double,3> >(world));
+    if (calc->xc.hf_exchange_coefficient()>0.0) {
+        Exchange<double,3> K=Exchange<double,3>(world,this,ispin).same(false).small_memory(false);
+        fock->add_operator("K",{-1.0,std::make_shared<Exchange<double,3>>(K)});
+    }
+    if (calc->xc.is_dft()) {
+        XCOperator<double,3> xcoperator(world,this,ispin);
+        real_function_3d xc_pot = xcoperator.make_xc_potential();
+
+        // compute the asymptotic correction of exchange-correlation potential
+        if(do_ac()) {
+            std::cout << "Computing asymtotic correction!\n";
+            double charge = double(molecule().total_nuclear_charge())-calc->param.charge();
+            real_function_3d scaledJ = -1.0/charge*J.potential()*(1.0-calc->xc.hf_exchange_coefficient());
+            xc_pot = ac.apply(xc_pot, scaledJ);
+        }
+        LocalPotentialOperator<double,3> xcpot(world);
+        xcpot.set_potential(xc_pot);
+        xcpot.set_info("xc potential");
+        if (do_ac()) xcpot.set_info("xc potential with ac");
+        fock->add_operator("Vxc",std::make_shared<LocalPotentialOperator<double,3>>(xcpot));
+    }
+
+
+    // compute the solvent (PCM) contribution to the potential
+    if (do_pcm()) {
+        const real_function_3d vpcm = pcm.compute_pcm_potential(J.potential());
+        LocalPotentialOperator<double,3> pcmpot(world);
+        pcmpot.set_potential(vpcm);
+        pcmpot.set_info("pcm potential");
+        fock->add_operator("Vpcm",std::make_shared<LocalPotentialOperator<double,3>>(pcmpot));
+    }
+    return fock;
+}
+
 /// compute the Fock matrix from scratch
 tensorT Nemo::compute_fock_matrix(const vecfuncT& nemo, const tensorT& occ) const {
 	// apply all potentials (J, K, Vnuc) on the nemos
