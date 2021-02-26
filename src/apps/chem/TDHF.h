@@ -206,12 +206,17 @@ public:
 
     void initialize();
 
-        ///  sets the reference wave function (nemo or oep)set th
+    ///  sets the reference wave function (nemo or oep)
     void set_reference(std::shared_ptr<NemoBase> reference) {
         nemo=reference;
     }
 
+    std::shared_ptr<NemoBase> get_reference() const {
+        return nemo;
+    }
+
     bool reference_is_oep() const;
+
 
     std::shared_ptr<Nemo> get_nemo() const {
         std::shared_ptr<Nemo> n;

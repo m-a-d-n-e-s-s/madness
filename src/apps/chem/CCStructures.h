@@ -802,11 +802,6 @@ public:
     }
 
 
-    /// @param[in]: Nuclear correlation factor
-    /// @param[out]: 6D self_overlap: <u|R(1)R(2)|u>
-    double
-    self_overlap(const real_function_3d &R) const;
-
     /// print the size of the functions
     void
     print_size() const;

@@ -120,7 +120,12 @@ public:
 
 	NemoBase(World& w) : world(w) {}
 
-	/// create an instance of the derived object based on the input parameters
+    virtual std::shared_ptr<Fock<double,3>> make_fock_operator() const {
+	    MADNESS_EXCEPTION("implement make_fock operator for your derived NemoBase class",1);
+	    return std::shared_ptr<Fock<double,3>>();
+	}
+
+        /// create an instance of the derived object based on the input parameters
 	std::shared_ptr<NuclearCorrelationFactor> get_ncf_ptr() const {
 		return ncf;
 	}

@@ -110,7 +110,7 @@ void TDHF::prepare_calculation() {
 
     }
     if (get_nemo()->get_calc()->param.do_localize()) {
-        Fock<double,3> F(world,get_nemo().get());
+        Fock<double,3> F(world,get_reference().get());
         F_occ = F(get_active_mo_bra(), get_active_mo_ket());
         for (size_t i = 0; i < get_active_mo_ket().size(); ++i) {
             msg << std::scientific << std::setprecision(10);
@@ -438,7 +438,7 @@ bool TDHF::iterate_vectors(std::vector<CC_vecfunction> &x, const std::vector<CC_
                 if (converged_roots.size() > 0) {
                     vector_real_function_3d bra_new_x0 = make_bra(new_x0);
                     CCTimer timeP(world, "project out converged roots");
-                    for (const auto it:converged_roots) {
+                    for (const auto& it : converged_roots) {
                         const double overlap = inner(world, it.get_vecfunction(), bra_new_x0).sum();
                         new_x0 -= overlap * it.get_vecfunction();
                     }
@@ -631,84 +631,15 @@ vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x) const {
     // Real Alpha density (with nuclear cusps)
     const real_function_3d alpha_density = 0.5 * get_nemo()->R_square * nemo_density;
 
-    real_function_3d voep = real_factory_3d(world);
-    if (parameters.do_oep()) {
-//	    load(voep,"OEPapprox_final");
-        const OEP *oep = dynamic_cast<const OEP *>(get_nemo().get());
-        voep = oep->get_final_potential();
-    }
-
-
-
 
     // Apply Ground State Potential to x-states
     vector_real_function_3d Vpsi1;
     {
-        // construct unperturbed operators
-        const Coulomb<double,3> J(world, get_nemo().get());
-        // const Nuclear V(world,&nemo); // not included in the TDA potential anymore
-
-
-        std::string xc_data = get_nemo()->get_calc()->param.xc();
-        xc_data = xc_data.erase(0, xc_data.find_first_not_of(" "));
-        xc_data = xc_data.erase(xc_data.find_last_not_of(" ") + 1);
-
-        // Nuclear Potential applied to x
-        //CCTimer timeN(world,"Nx");
-        //const vecfuncT Nx=V(x.get_vecfunction());
-        //timeN.info(parameters.debug);
-        // Applied Hartree Potential (J|x>) -> factor two is absorbed into the density for the J Operator
-        CCTimer timeJ(world, "Jx");
-        const vector_real_function_3d Jx = J(x.get_vecfunction());
-        timeJ.info(parameters.debug());
-
-        if (get_nemo()->get_calc()->xc.is_dft()) {
-            // XC Potential
-            const XCOperator<double,3> xc(world, xc_data, not get_nemo()->get_calc()->param.spin_restricted(), alpha_density,
-                                alpha_density);
-
-            // Applied XC Potential
-            CCTimer timeXCx(world, "XCx");
-            real_function_3d xc_pot = xc.make_xc_potential();
-
-            // compute the asymptotic correction of exchange-correlation potential
-            if (get_nemo()->do_ac()) {
-                double charge = double(get_nemo()->molecule().total_nuclear_charge());
-                real_function_3d scaledJ = -1.0 / charge * J.potential() * (1.0 - hf_coeff);
-                xc_pot = get_nemo()->get_ac().apply(xc_pot, scaledJ);
-            }
-
-            const vector_real_function_3d XCx = mul(world, xc_pot, x.get_vecfunction());
-            // Ground State Potential applied to x, without exchange
-            Vpsi1 = Jx + XCx; // Nx removed
-        } else Vpsi1 = Jx;
-
-        // add exchange if demanded
-        bool do_hf = (hf_coeff != 0.0) and (not parameters.do_oep());
-        if (do_hf) {
-            CCTimer timeKx(world, "Kx");
-            Exchange<double, 3> K = Exchange<double, 3>(world, get_nemo().get(), 0).small_memory(false);
-            K.set_parameters(mo_bra_.get_vecfunction(), mo_ket_.get_vecfunction(), occ, get_calcparam().lo(),
-                             parameters.thresh());
-            vector_real_function_3d Kx = K(x.get_vecfunction());
-            scale(world, Kx, hf_coeff);
-            Vpsi1 = sub(world, Vpsi1, Kx);
-            timeKx.info(parameters.debug());
-        }
-
-        if (parameters.do_oep()) {
-            Vpsi1 = Vpsi1 + voep * x.get_vecfunction();
-        }
-
-        // compute the solvent (PCM) contribution to the potential
-        if (pcm) {
-            CCTimer timepcm(world, "pcm:gs");
-            const real_function_3d vpcm = get_nemo()->get_pcm().compute_pcm_potential(J.potential(), false);
-            if (parameters.plot() or parameters.debug()) plot_plane(world, vpcm, "vpcm_gs");
-            const vector_real_function_3d pcm_x = vpcm * x.get_vecfunction();
-            timepcm.info(parameters.debug());
-            Vpsi1 = add(world, Vpsi1, pcm_x);
-        }
+        Fock<double,3> fock(world,get_reference().get());
+        fock.remove_operator("T");
+        fock.remove_operator("V");      // Vnuc is computed elsewhere (why?)
+        print("ground state potential fock operator",fock.info());
+        Vpsi1=fock(x.get_vecfunction());
     }
 
     // Apply the Perturbed Potential to the Active Ground State Orbitals
@@ -1301,6 +1232,7 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
     time.print();
     return xfunctions;
 }
+
 /// canonicalize a set of orbitals (here the virtuals for the guess)
 
 /// @param[out]	veps	orbital energies of the virtuals
@@ -1606,6 +1538,7 @@ void TDHF::check_consistency() const {
 
 int TDHF::test(World &world, commandlineparser& parser) {
 
+    // write the input file
     parser.set_keyval("input","bla");
     std::string input = parser.value("input");
     std::ofstream of(input.c_str());
@@ -1618,6 +1551,7 @@ int TDHF::test(World &world, commandlineparser& parser) {
     of.close();
 
 
+    // construct TDHF class
     TDHF tdhf(world, parser);
     tdhf.get_calcparam().print("dft");
     tdhf.parameters.print("response");
@@ -1657,4 +1591,5 @@ int TDHF::test(World &world, commandlineparser& parser) {
     return error;
 
 }
+
 } /* namespace madness */

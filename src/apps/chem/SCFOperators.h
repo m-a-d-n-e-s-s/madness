@@ -45,6 +45,8 @@ namespace madness {
 // forward declaration
 class SCF;
 class Nemo;
+class NemoBase;
+class OEP;
 class NuclearCorrelationFactor;
 class XCfunctional;
 
@@ -758,6 +760,8 @@ public:
     Fock(World& world) : world(world) {}
 
     Fock(World& world, const Nemo* nemo);
+    Fock(World& world, const OEP* nemo);
+    Fock(World& world, const NemoBase* nemo);
 
     /// pretty print what this is actually computing
     std::string info() const {
@@ -800,8 +804,14 @@ public:
       return result;
     }
 
-    std::vector<Function<T,NDIM>> operator()(const std::vector<Function<T,NDIM>>& ket) const {
-        MADNESS_EXCEPTION("Fock(ket) not yet implemented", 1);
+    std::vector<Function<T,NDIM>> operator()(const std::vector<Function<T,NDIM>>& vket) const {
+        // make sure T is not part of the Fock operator, it's numerically unstable!
+        MADNESS_CHECK(operators.count("T")==0);
+        std::vector<Function<T,NDIM>> result = zero_functions_compressed<T, NDIM>(world, vket.size());
+        for (const auto& op : operators) {
+            result+=std::get<0>(op.second) * (*std::get<1>(op.second))(vket);
+        }
+        return result;
     }
 
     T operator()(const Function<T,NDIM>& bra, const Function<T,NDIM>& ket) const {
