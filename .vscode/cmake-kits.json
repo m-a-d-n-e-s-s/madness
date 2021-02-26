@@ -1,10 +1,10 @@
 [
   {
     "name": "Madness with GCC 8.1.0 ",
+    "toolchainFile": "/gpfs/projects/rjh/adrian/madness/cmake/toolchains/generic-mkl-tbb.cmake",
     "compilers": {
       "C": "/gpfs/software/gcc/8.1.0/bin/gcc",
       "CXX": "/gpfs/software/gcc/8.1.0/bin/g++"
-    },
-    "toolchainFile": "/gpfs/projects/rjh/adrian/madness/cmake/toolchains/generic-mkl-tbb.cmake"
+    }
   }
 ]
