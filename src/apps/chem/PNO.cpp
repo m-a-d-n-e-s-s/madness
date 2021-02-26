@@ -1045,10 +1045,11 @@ PNOPairs PNO::adaptive_solver(PNOPairs& pairs)const{
 			bool maxrank_reached=true;
 			PAIRLOOP(it)
 			{
-			  if (pairs.pno_ij[it.ij()].size() < size_t(param.maxrank())) maxrank_reached = false;
+			  const bool frozen = pairs.frozen_ij[it.ij()];
+			  if (not frozen and pairs.pno_ij[it.ij()].size() < size_t(param.maxrank())) maxrank_reached = false;
 			}
 			if (maxrank_reached){
-				msg << "Maximum Rank of" << param.maxrank() << " reached, no need to iterate further";
+				msg << "Maximum Rank of" << param.maxrank() << " reached for all non-frozen pairs, no need to iterate further";
 				break;
 			}
 		}
