@@ -248,6 +248,8 @@ void TDHF::IterateFrequencyResponse(World& world,
       }
       end_timer(world, " KAIN update:");
 
+  }
+  if (iteration>0){
       for (size_t b = 0; b < m; b++) {
         do_step_restriction(
             world, old_x_response[b], x_response[b], "x_response");
@@ -256,6 +258,7 @@ void TDHF::IterateFrequencyResponse(World& world,
               world, old_y_response[b], y_response[b], "y_response");
         }
       }
+  }
     // print x norms
     x_response.truncate_rf();
     if (omega_n == 0.0) y_response=x_response.copy();
@@ -268,14 +271,27 @@ void TDHF::IterateFrequencyResponse(World& world,
       print("y norms in iteration after truncate: ", iteration);
       print(y_response.norm2());
     }
+
     // Update counter
     iteration += 1;
 
-    // Save
-    if (Rparams.save) {
-      start_timer(world);
-      save(world, Rparams.save_file);
-      if (Rparams.print_level >= 1) end_timer(world, "Save:");
+  Tensor<double> G(m, m);
+  response_space grp(world, m, m);
+
+  for (size_t i(0); i < m; i++) {
+    for (size_t j(0); j < m; j++) {
+      grp[i][j] = dot(world, P[i], x_response[j]) + dot(world, Q[i], y_response[j]);
+      G(i, j) = grp[i][j].trace();
+      G(i, j) = -2 * G(i, j);
+    }
+  }
+  print("polarizability tensor");
+  print(G);
+  // Save
+  if (Rparams.save) {
+    start_timer(world);
+    save(world, Rparams.save_file);
+    if (Rparams.print_level >= 1) end_timer(world, "Save:");
     }
     // Basic output
     if (Rparams.print_level >= 1) end_timer(world, " This iteration:");
@@ -284,7 +300,6 @@ void TDHF::IterateFrequencyResponse(World& world,
       PlotGroundandResponseOrbitals(
           world, iteration, x_response, y_response, Rparams, Gparams);
     }
-  }
   X = X_space(world, m, n);
   for (size_t b = 0; b < m; b++) {
     Xvector[b] = (X_vector(world, 0));

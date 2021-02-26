@@ -1497,6 +1497,7 @@ double TDHF::do_step_restriction(World& world,
   std::vector<double> anorm = norm2s(world, sub(world, x, x_new));
   int nres = 0;
   for (unsigned int i = 0; i < x.size(); ++i) {
+    print("anorm ", i, " : ", anorm[i]);
     if (anorm[i] > Rparams.maxrotn) {
       double s = Rparams.maxrotn / anorm[i];
       ++nres;
