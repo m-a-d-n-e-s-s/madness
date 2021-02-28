@@ -169,7 +169,7 @@ void FirstOrderDensity::PlotResponseDensity(World &world) {
                   sizeof(plotname),
                   "plot_transition_density_%d_%d_x.plt",
                   FunctionDefaults<3>::get_k(),
-                  i);
+                  int(i));
     plot_line(plotname, 5001, lo, hi, rho_omega[i]);
   }
 }
@@ -227,7 +227,7 @@ void FirstOrderDensity::PrintSecondOrderAnalysis(
     printf("\tAnisotropic = \t %.6f \n", Dpolar_iso);
     printf("\n");
 
-    for (long i = 0; i < num_states; i++) {
+    for (size_t i = 0; i < num_states; i++) {
       print(epolar[i]);
     }
   }
