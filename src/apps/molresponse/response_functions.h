@@ -2,8 +2,8 @@
  *   Small class to hold response functions and to interact with KAIN solver.
  */
 
-#ifndef SRC_APPS_molresponse_RESPONSEFUNCTION2_H_
-#define SRC_APPS_molresponse_RESPONSEFUNCTION2_H_
+#ifndef SRC_APPS_molresponse_response_functions_H_
+#define SRC_APPS_molresponse_response_functions_H_
 
 #include <madness/mra/mra.h>
 #include <madness/mra/operator.h>
@@ -695,6 +695,6 @@ struct X_space_allocator {
 };
 
 }  // End namespace madness
-#endif  // SRC_APPS_molresponse_RESPONSEFUNCTION2_H_
+#endif  // SRC_APPS_molresponse_response_functions_H_
 
 // Deuces

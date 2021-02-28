@@ -4,7 +4,7 @@
 #ifndef SRC_APPS_molresponse_TDHF_BASIC_OPERATORS2_H_
 #define SRC_APPS_molresponse_TDHF_BASIC_OPERATORS2_H_
 
-#include <ResponseFunction2.h>
+#include <response_functions.h>
 #include <madness/mra/mra.h>
 #include <madness/mra/operator.h>
 

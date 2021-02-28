@@ -1,7 +1,7 @@
 
 #include "molresponse/density.h"
 
-#include <ResponseFunction2.h>
+#include <response_functions.h>
 #include <TDDFT.h>
 
 #include <algorithm>

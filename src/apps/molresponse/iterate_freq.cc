@@ -13,7 +13,7 @@
 #include "Plot_VTK.h"
 #include "TDDFT.h"
 #include "TDHF_Basic_Operators2.h"
-#include "molresponse/ResponseFunction2.h"
+#include "molresponse/response_functions.h"
 #include "molresponse/density.h"
 #include "molresponse/global_functions.h"
 #include "molresponse/property.h"

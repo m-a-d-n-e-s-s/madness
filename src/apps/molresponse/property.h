@@ -2,7 +2,7 @@
 #ifndef SRC_APPS_molresponse_PROPERTY_H_
 #define SRC_APPS_molresponse_PROPERTY_H_
 
-#include <ResponseFunction2.h>
+#include <response_functions.h>
 
 #include <algorithm>
 #include <memory>

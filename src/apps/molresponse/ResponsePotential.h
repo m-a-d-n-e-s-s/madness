@@ -11,7 +11,7 @@
 
 #include "../chem/SCFOperators.h"
 #include "../chem/projector.h"
-#include "ResponseFunction2.h"
+#include "response_functions.h"
 #include <madness/mra/mra.h>
 #include <madness/mra/operator.h>
 #include <memory>

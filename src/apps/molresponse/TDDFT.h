@@ -62,7 +62,7 @@
 #include "../chem/molecule.h"
 #include "../chem/xcfunctional.h"
 #include "GroundParameters.h"
-#include "ResponseFunction2.h"
+#include "response_functions.h"
 #include "ResponseParameters.h"
 #include "ResponsePotential.h"
 #include "TDHF_Basic_Operators2.h"
