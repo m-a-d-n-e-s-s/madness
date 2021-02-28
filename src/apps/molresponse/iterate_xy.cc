@@ -49,8 +49,8 @@ response_space TDHF::CreateGamma(World& world,
   if (print_level >= 1) molresponse::start_timer(world);
 
   // Get sizes
-  int m = f.size();
-  int n = f[0].size();
+   size_t m = f.size();
+  size_t n = f[0].size();
 
   // The gamma function to be returned, intialized to zero
   response_space gamma(world, m, n);
@@ -142,8 +142,8 @@ response_space TDHF::ComputeHf(World& world,
   // Start timer
   if (print_level >= 1) molresponse::start_timer(world);
   // Get sizes
-  int m = f.size();
-  int n = f[0].size();
+  size_t m = f.size();
+  size_t n = f[0].size();
 
   // The gamma function to be returned, intialized to zero
   response_space H(world, m, n);
@@ -234,8 +234,8 @@ response_space TDHF::ComputeGf(World& world,
   if (print_level >= 1) molresponse::start_timer(world);
 
   // Get sizes
-  int m = f.size();
-  int n = f[0].size();
+  size_t m = f.size();
+  size_t n = f[0].size();
 
   response_space G(world, m, n);
 
@@ -320,7 +320,7 @@ GammaResponseFunctions TDHF::ComputeGammaFunctions(
   // Start a timer
   if (Rparams.print_level >= 1) molresponse::start_timer(world);
 
-  int m = Rparams.states;
+  size_t m = Rparams.states;
   int n = Gparams.num_orbitals;
   double small = Rparams.small;
   double thresh = FunctionDefaults<3>::get_thresh();
@@ -499,7 +499,7 @@ void TDHF::IterateXY(
     Tensor<double> ham_no_diagonal,
     int iteration) {
   // compute
-  int m = Rparams.states;
+  size_t m = Rparams.states;
   int n = Gparams.num_orbitals;
   double small = Rparams.small;
   double thresh = FunctionDefaults<3>::get_thresh();

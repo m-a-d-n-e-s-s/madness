@@ -22,7 +22,7 @@ struct ResponseParameters {
       nwchem;     ///< Root name of nwchem files for intelligent starting guess
   size_t states;  ///< Number of excited states requested
   int print_level;  ///< Controls the amount and style of printing. Higher
-                    ///< values print more
+                    ///< values prsize_t more
                     ///<   Values |   What gets printed
                     ///<   ----------------------------
                     ///<     1    |   Print out timing of each step in the
@@ -60,7 +60,7 @@ struct ResponseParameters {
   std::string restart_file;  ///< Flag to restart from file
   bool kain;                 ///< Flag to use KAIN solver
   double maxrotn;
-  int maxsub;      ///< How many previous iterations KAIN will store
+  size_t maxsub;      ///< How many previous iterations KAIN will store
   std::string xc;  ///< Controls the HF or DFT switch, as well as which DFT
                    ///< functional is used
   bool save;       ///< Controls if orbitals will be saved each iteration

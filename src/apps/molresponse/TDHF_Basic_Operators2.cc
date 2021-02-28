@@ -11,7 +11,7 @@ response_space transpose(response_space &f) {
   MADNESS_ASSERT(f[0].size() > 0);
 
   // Get sizes
-  int m = f.size();
+  size_t m = f.size();
   int n = f[0].size();
 
   // Return container

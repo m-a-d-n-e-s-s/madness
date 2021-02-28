@@ -411,13 +411,13 @@ std::map<std::vector<int>, real_function_3d> TDHF::solid_harmonics(World& world,
     result[std::vector<int>{l + 1, -l - 2}] = zero;
 
     // Run over quantum number m
-    for (int m = -l; m < l + 1; m++) {
+    for (size_t m = -l; m < l + 1; m++) {
       // Calculate remaining terms
-      result[std::vector<int>{l + 1, m}] =
+      result[std::vector<int>{l + 1, int(m)}] =
           1.0 / std::sqrt((l + m + 1) * (l - m + 1)) *
-          ((2 * l + 1) * z * result[std::vector<int>{l, m}] -
+          ((2 * l + 1) * z * result[std::vector<int>{l, int(m)}] -
            sqrt((l + m) * (l - m)) * (x * x + y * y + z * z) *
-               result[std::vector<int>{l - 1, m}]);
+               result[std::vector<int>{l - 1, int(m)}]);
     }
   }
 
@@ -479,7 +479,7 @@ std::map<std::vector<int>, real_function_3d> TDHF::simple_spherical_harmonics(
 
   int num = 0;
   for (int l = 0; l < n; l++) {
-    for (int m = -l; m <= l; m++) {
+    for (size_t m = -l; m <= l; m++) {
       result[vector<int>{l, m}] = funcs[num];
       num += 1;
     }
@@ -736,7 +736,7 @@ response_space TDHF::CreateCoulombDerivativeRF(
     double small,
     double thresh) {
   // Get sizes
-  int m = f.size();     // number of resposne states or frequencies
+  size_t m = f.size();     // number of resposne states or frequencies
   int n = f[0].size();  // number of ground states  x[m][n]
   // Zero function, to be returned
   response_space deriv_J(world, m, n);  // J_p--Jderivative
@@ -769,7 +769,7 @@ response_space TDHF::CreateCoulombDerivativeRFDagger(
     double small,
     double thresh) {
   // Get sizes
-  int m = f.size();     // number of resposne states or frequencies
+  size_t m = f.size();     // number of resposne states or frequencies
   int n = f[0].size();  // number of ground states  x[m][n]
   // Zero function, to be returned
   response_space deriv_J_dagger(world, m, n);  // J_p--Jderivative
@@ -797,7 +797,7 @@ response_space TDHF::CreateExchangeDerivativeRF(
     double small,
     double thresh) {
   // Get sizes
-  int m = f.size();
+  size_t m = f.size();
   int n = f[0].size();
 
   // Zero function, to be returned
@@ -844,7 +844,7 @@ response_space TDHF::CreateExchangeDerivativeRFDagger(
     double small,
     double thresh) {
   // Get sizes
-  int m = f.size();
+  size_t m = f.size();
   int n = f[0].size();
   // Zero function, to be returned
   response_space deriv_k_dagger(world, m, n);
@@ -876,7 +876,7 @@ response_space TDHF::CreateXCDerivativeRF(
     double small,
     double thresh) {
   // Get sizes
-  int m = f.size();
+  size_t m = f.size();
   int n = f[0].size();
 
   // Initialize response function
@@ -898,7 +898,7 @@ response_space TDHF::CreateXCDerivativeRFDagger(
     double small,
     double thresh) {
   // Get sizes
-  int m = f.size();
+  size_t m = f.size();
   int n = f[0].size();
 
   // Initialize response function
@@ -924,7 +924,7 @@ response_space TDHF::createAf(World& world,
                               std::vector<real_function_3d>& orbitals,
                               int print_level,
                               std::string xy) {
-  int m = f.size();
+  size_t m = f.size();
   int n = f[0].size();
 
   response_space Af(world, m, n);
@@ -967,7 +967,7 @@ response_space TDHF::createBf(World& world,
   // if (print_level >= 1) molresponse::start_timer(world);
 
   // Get sizes
-  // int m = Gf.size();
+  // size_t m = Gf.size();
   // int n = Gf[0].size();
   // ResponseFunction Bf(world, m, n);
   // Project out the ground state
@@ -1007,7 +1007,7 @@ real_function_3d TDHF::Coulomb(World& world) {
 // Calculates HF exchange between ground state orbitals and functions f
 response_space TDHF::exchange(World& world, response_space& f) {
   // Get sizes
-  int m = f.size();
+  size_t m = f.size();
   int n = f[0].size();
 
   // Coulomb operator
@@ -1358,7 +1358,7 @@ X_space TDHF::ComputeResponseResidual(World& world,
                                       double omega,
                                       int iteration) {
   // compute
-  int m = Rparams.states;
+  size_t m = Rparams.states;
   int n = Gparams.num_orbitals;
   double small = Rparams.small;
   double thresh = FunctionDefaults<3>::get_thresh();
@@ -1668,7 +1668,7 @@ Tensor<double> TDHF::create_shift(World& world,
   if (print_level >= 1) molresponse::start_timer(world);
 
   // Get sizes
-  int m = omega.size();
+  size_t m = omega.size();
   int n = ground.size();
 
   // Container to hold shift
@@ -1721,7 +1721,7 @@ Tensor<double> TDHF::create_shift_target(World& world,
   if (print_level >= 1) molresponse::start_timer(world);
 
   // Get sizes
-  int m = omega.size();
+  size_t m = omega.size();
   int n = ground.size();
 
   // Container to hold shift
@@ -1768,7 +1768,7 @@ response_space TDHF::apply_shift(World& world,
 
   // Sizes inferred from V
   int n = V[0].size();
-  int m = V.size();
+  size_t m = V.size();
 
   // Container to return
   response_space shifted_V(world, m, n);
@@ -1800,7 +1800,7 @@ response_space TDHF::apply_shift(World& world,
 
   // Sizes inferred from V
   int n = V[0].size();
-  int m = V.size();
+  size_t m = V.size();
 
   // Container to return
   response_space shifted_V(world, m, n);
@@ -1836,7 +1836,7 @@ TDHF::create_bsh_operators(World& world,
 
   // Sizes inferred from ground and omega
   int n = ground.size();
-  int m = omega.size();
+  size_t m = omega.size();
 
   // Make the vector
   std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> operators;
@@ -1979,7 +1979,7 @@ Tensor<double> TDHF::calculate_energy_update(World& world,
   }
 
   // Size inferred
-  int m = rhs.size();
+  size_t m = rhs.size();
 
   // Container for updates
   Tensor<double> updates(m);
@@ -2015,7 +2015,7 @@ Tensor<double> TDHF::calculate_energy_update(World& world,
 // functions
 response_space TDHF::gram_schmidt(World& world, response_space& f) {
   // Sizes inferred
-  int m = f.size();
+  size_t m = f.size();
 
   // Return container
   response_space result = f.copy();
@@ -2050,7 +2050,7 @@ response_space TDHF::gram_schmidt(World& world, response_space& f) {
 // functions
 void TDHF::gram_schmidt(World& world, response_space& f, response_space& g) {
   // Sizes inferred
-  int m = f.size();
+  size_t m = f.size();
 
   // Orthogonalize
   for (int j = 0; j < m; j++) {
@@ -2526,7 +2526,7 @@ void TDHF::augment(World& world,
   if (print_level >= 1) molresponse::start_timer(world);
 
   // Get sizes
-  int m = x_response.size();
+  size_t m = x_response.size();
 
   // Create work space, will overwrite S and A in the end
   Tensor<double> temp_S(2 * m, 2 * m);
@@ -2640,7 +2640,7 @@ void TDHF::augment_full(World& world,
   if (print_level >= 1) molresponse::start_timer(world);
 
   // Get sizes
-  int m = x_gamma.size();
+  size_t m = x_gamma.size();
 
   // Create work space, will overwrite S and A in the end
   Tensor<double> temp_S(2 * m, 2 * m);
@@ -2799,7 +2799,7 @@ void TDHF::unaugment(World& world,
 // If using a larger subspace to diagonalize in, after diagonalization this
 // will put everything in the right spot
 void TDHF::unaugment_full(World& world,
-                          int m,
+                          size_t m,
                           int iter,
                           Tensor<double>& U,
                           Tensor<double>& omega,
@@ -2958,7 +2958,7 @@ Tensor<double> TDHF::GetFullResponseTransformation(
   if (Rparams.print_level >= 1) molresponse::start_timer(world);
 
   // Get size
-  int m = S.dim(0);
+  size_t m = S.dim(0);
 
   // Run an SVD on the overlap matrix and ignore values
   // less than thresh_degenerate
@@ -3404,7 +3404,7 @@ std::vector<real_function_3d> TDHF::CreateXCDerivative(
     const response_space& f) {
   // Create the xcop
   XCOperator xc = create_xcoperator(world, Gparams.orbitals, Rparams.xc);
-  int m = f.size();     // get the number of response functions
+  size_t m = f.size();     // get the number of response functions
   int n = f[0].size();  // get the number of orbitals function
 
   std::vector<real_function_3d> drho = zero_functions<double, 3>(world, m);
@@ -3917,7 +3917,7 @@ void TDHF::Iterate(World& world) {
 void TDHF::analysis(World& world) {
   // Sizes get used a lot here, so lets get a local copy
   int n = x_response[0].size();
-  int m = x_response.size();
+  size_t m = x_response.size();
 
   // Per response function, want to print the contributions from each
   // ground state So print the norm of each function?
@@ -4116,7 +4116,7 @@ void TDHF::IterateGuess(World& world, response_space& guesses) {
   QProjector<double, 3> projector(
       world, Gparams.orbitals);  // Projector to project out ground state
   int n = guesses[0].size();     // Number of ground state orbitals
-  int m = guesses.size();        // number initial guess orbitals
+  size_t m = guesses.size();        // number initial guess orbitals
   Tensor<double> shifts;         // Holds the shifted energy values
   ElectronResponseFunctions I;
   response_space bsh_resp;  // Holds wave function corrections
@@ -4393,7 +4393,7 @@ response_space TDHF::diagonalize_CIS_guess(
                // value
   // is 0
 
-  const int m = virtuals.size();
+  const size_t m = virtuals.size();
   const int n = orbitals.size();
 
   Tensor<double> MCIS(m * n, m * n);
@@ -4510,7 +4510,7 @@ Tensor<double> TDHF::CreateGroundHamiltonian(World& world,
   // Basic output
   if (print_level >= 1) molresponse::start_timer(world);
   // Get sizes
-  int m = f.size();
+  size_t m = f.size();
   // Debugging
   if (print_level > 2) {
     Tensor<double> S = matrix_inner(world, f, f);
@@ -4662,7 +4662,7 @@ std::vector<real_function_3d> TDHF::transition_density(
     response_space& x,
     response_space& y) {
   // Get sizes
-  int m = x.size();
+  size_t m = x.size();
 
   // Return container
   std::vector<real_function_3d> densities = zero_functions<double, 3>(world, m);
@@ -4697,7 +4697,7 @@ std::vector<real_function_3d> TDHF::GetTransitionDensities(
     const std::vector<real_function_3d>& orbitals,
     const response_space& f) {
   // Get sizes
-  int m = f.size();
+  size_t m = f.size();
   int n = f[0].size();
   // Return container
   std::vector<real_function_3d> densities = zero_functions<double, 3>(world, m);
@@ -4722,7 +4722,7 @@ std::vector<real_function_3d> TDHF::GetConjugateTransitionDensities(
     const std::vector<real_function_3d>& orbitals,
     const response_space& f) {
   // Get sizes
-  int m = f.size();
+  size_t m = f.size();
   int n = f[0].size();
   // Return container
   std::vector<real_function_3d> densities = zero_functions<double, 3>(world, m);
@@ -4918,7 +4918,7 @@ void TDHF::check_k(World& world, double thresh, int k) {
 // Creates random guess functions semi-intelligently(?)
 response_space TDHF::create_random_guess(
     World& world,
-    int m,                                   // m response states
+    size_t m,                                   // m response states
     int n,                                   // n ground states
     std::vector<real_function_3d>& grounds,  // guess should have size n
     Molecule& molecule) {
@@ -4954,7 +4954,7 @@ response_space TDHF::create_random_guess(
 // Creates random guess functions semi-intelligently(?)
 std::vector<real_function_3d> TDHF::create_random_guess(
     World& world,
-    int m,
+    size_t m,
     std::vector<real_function_3d>& grounds,
     Molecule& molecule) {
   // Basic output
@@ -5007,7 +5007,7 @@ std::vector<real_function_3d> TDHF::create_random_guess(
 }
 
 // Creates an initial guess function from nwchem output files
-response_space TDHF::create_nwchem_guess(World& world, int m) {
+response_space TDHF::create_nwchem_guess(World& world, size_t m) {
   // Basic output
   if (world.rank() == 0)
     print("   Creating an initial guess from NWChem file", Rparams.nwchem);
@@ -5064,8 +5064,8 @@ response_space TDHF::create_nwchem_guess(World& world, int m) {
 
   // Now save the unoccupied orbitals
   std::vector<real_function_3d> temp2;
-  int num_virt = 0;
-  for (unsigned int i = 0; i < temp1.size(); i++) {
+  size_t num_virt = 0;
+  for ( size_t i = 0; i < temp1.size(); i++) {
     if (nwchem.occupancies[i] == 0) {
       temp2.push_back(temp[i]);
       num_virt++;
@@ -5387,7 +5387,7 @@ void TDHF::IteratePolarizability(World& world, response_space& dipoles) {
   QProjector<double, 3> projector(
       world, Gparams.orbitals);  // Projector to project out ground state
   int n = Gparams.num_orbitals;  // Number of ground state orbitals
-  int m = Rparams.states;        // Number of excited states
+  size_t m = Rparams.states;        // Number of excited states
   Tensor<double> x_norms(m);
   // Holds the norms of x function residuals (for convergence)
   Tensor<double> y_norms(
@@ -5845,7 +5845,7 @@ void TDHF::PlotGroundandResponseOrbitals(World& world,
   // TESTING
   // get transition density
   int n = x_response[0].size();
-  int m = x_response.size();
+  size_t m = x_response.size();
   real_function_3d ground_density =
       dot(world, Gparams.orbitals, Gparams.orbitals);
   std::vector<real_function_3d> densities =

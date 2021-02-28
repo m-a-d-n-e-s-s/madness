@@ -57,8 +57,8 @@ private:
   std::vector<real_function_3d> perturbed_density(response_space& x,
                                                   response_space& y) {
     // Get sizes
-    int m = x.size();
-    int n = x[0].size();
+    size_t m = x.size();
+    size_t n = x[0].size();
 
     // Return container
     std::vector<real_function_3d> densities =

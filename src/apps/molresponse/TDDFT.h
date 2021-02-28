@@ -179,7 +179,7 @@ class ResidualResponseVectors {
  public:
   response_space x;
   response_space y;
-  ResidualResponseVectors(World& world, int m, int n) {
+  ResidualResponseVectors(World& world, size_t m, int n) {
     x = response_space(world, m, n);
     y = response_space(world, m, n);
   }
@@ -288,7 +288,7 @@ class TDHF {
 
   // Returns a set of vector of vector of real_function_3d of proper size,
   // initialized to zero
-  response_space response_zero_functions(World& world, int m, int n);
+  response_space response_zero_functions(World& world, size_t m, int n);
 
   // Returns a list of solid harmonics
   std::map<std::vector<int>, real_function_3d> solid_harmonics(World& world,
@@ -700,7 +700,7 @@ class TDHF {
   // If using a larger subspace to diagonalize in, after diagonalization this
   // will put everything in the right spot
   void unaugment_full(World& world,
-                      int m,
+                      size_t m,
                       int iter,
                       Tensor<double>& U,
                       Tensor<double>& omega,
@@ -862,7 +862,7 @@ class TDHF {
 
   // Creates random guess functions semi-intelligently(?)
   response_space create_random_guess(World& world,
-                                     int m,
+                                     size_t m,
                                      int n,
                                      std::vector<real_function_3d>& grounds,
                                      Molecule& molecule);
@@ -870,7 +870,7 @@ class TDHF {
   // Creates random guess functions semi-intelligently(?)
   std::vector<real_function_3d> create_random_guess(
       World& world,
-      int m,
+      size_t m,
       std::vector<real_function_3d>& grounds,
       Molecule& molecule);
 
@@ -878,7 +878,7 @@ class TDHF {
   // calculation Requires:
   //    1. nwchem output file (named as "base_name.out")
   //    2. nwchem movecs file (named as "base_name.movecs")
-  response_space create_nwchem_guess(World& world, int m);
+  response_space create_nwchem_guess(World& world, size_t m);
 
   // Creates potentials using the ResponsePotential object
   // Potentials are modified in place

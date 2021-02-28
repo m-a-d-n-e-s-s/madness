@@ -58,7 +58,7 @@ protected:
   Properties::Properties my_properties; ///< The properties that have been read.
   BasisSet my_basis_set; ///< The basis set.
   Atoms my_atoms; ///< The atoms (symbols and positions, in angstroms).
-  unsigned int my_lineardeps; ///< Number of linear dependencies in the basis
+   size_t my_lineardeps; ///< Number of linear dependencies in the basis
   madness::Tensor<double> my_energies; ///< Alpha molecular orbital energies 
   madness::Tensor<double> my_MOs; ///< Alpha molecular orbital expansions coefficients. Column is the MO, row is the basis function.
   madness::Tensor<double> my_occupancies; ///< Alpha molecular orbital occupancies.

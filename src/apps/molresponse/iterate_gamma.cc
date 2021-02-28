@@ -37,7 +37,7 @@ GammaResponseFunctions TDHF::ComputeGammaFunctions(
   // Start a timer
   if (Rparams.print_level >= 1) molresponse::start_timer(world);
 
-  int m = Rparams.states;
+  size_t m = Rparams.states;
   int n = Gparams.num_orbitals;
   double small = Rparams.small;
   double thresh = FunctionDefaults<3>::get_thresh();
