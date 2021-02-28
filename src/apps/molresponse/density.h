@@ -33,8 +33,8 @@ protected:
   Property property_operator; // dipole, nuclear, or none
   Tensor<double> omega;       // frequency or frequencies
 
-  int num_response_states; // number of response states
-  int num_ground_states;   // number of ground state orbitals
+  size_t  num_states; // number of response states
+  size_t num_ground_states;   // number of ground state orbitals
 
   XCfunctional xcf; // xc functional
 
@@ -82,12 +82,12 @@ public:
   DipoleDensity(World& world, ResponseParameters R, GroundParameters G)
       : FirstOrderDensity(R, G) {
     this->property = Rparams.response_type;
-    this->num_response_states = 3;
+    this->num_states = 3;
     this->num_ground_states = Gparams.num_orbitals;
-    this->x = response_space(world, num_response_states, num_ground_states);
-    this->y = response_space(world, num_response_states, num_ground_states);
-    this->P = response_space(world, num_response_states, num_ground_states);
-    this->Q = response_space(world, num_response_states, num_ground_states);
+    this->x = response_space(world, num_states, num_ground_states);
+    this->y = response_space(world, num_states, num_ground_states);
+    this->P = response_space(world, num_states, num_ground_states);
+    this->Q = response_space(world, num_states, num_ground_states);
   }
 };
 
@@ -96,12 +96,12 @@ public:
   NuclearResponseDensity(World& world, ResponseParameters R, GroundParameters G)
       : FirstOrderDensity(R, G) {
     this->property = Rparams.response_type;
-    this->num_response_states = Rparams.states;
+    this->num_states = Rparams.states;
     this->num_ground_states = Gparams.num_orbitals;
-    this->x = response_space(world, num_response_states, num_ground_states);
-    this->y = response_space(world, num_response_states, num_ground_states);
-    this->P = response_space(world, num_response_states, num_ground_states);
-    this->Q = response_space(world, num_response_states, num_ground_states);
+    this->x = response_space(world, num_states, num_ground_states);
+    this->y = response_space(world, num_states, num_ground_states);
+    this->P = response_space(world, num_states, num_ground_states);
+    this->Q = response_space(world, num_states, num_ground_states);
   }
 };
 
@@ -110,12 +110,12 @@ public:
   ExcitedStateDensity(World& world, ResponseParameters R, GroundParameters G)
       : FirstOrderDensity(R, G) {
     this->property = Rparams.response_type;
-    this->num_response_states = Rparams.states;
+    this->num_states = Rparams.states;
     this->num_ground_states = Gparams.num_orbitals;
-    this->x = response_space(world, num_response_states, num_ground_states);
-    this->y = response_space(world, num_response_states, num_ground_states);
-    this->P = response_space(world, num_response_states, num_ground_states);
-    this->Q = response_space(world, num_response_states, num_ground_states);
+    this->x = response_space(world, num_states, num_ground_states);
+    this->y = response_space(world, num_states, num_ground_states);
+    this->P = response_space(world, num_states, num_ground_states);
+    this->Q = response_space(world, num_states, num_ground_states);
   }
 };
 #endif // SRC_APPS_molresponse_DENSITY_H_
