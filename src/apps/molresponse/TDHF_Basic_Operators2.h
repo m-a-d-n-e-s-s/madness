@@ -1,8 +1,8 @@
 /*
  * Some basic operators for ResponseFunction objects
  */
-#ifndef SRC_APPS_ADRIAN_TDHF_BASIC_OPERATORS2_H_
-#define SRC_APPS_ADRIAN_TDHF_BASIC_OPERATORS2_H_
+#ifndef SRC_APPS_molresponse_TDHF_BASIC_OPERATORS2_H_
+#define SRC_APPS_molresponse_TDHF_BASIC_OPERATORS2_H_
 
 #include <ResponseFunction2.h>
 #include <madness/mra/mra.h>
@@ -45,4 +45,4 @@ response_space apply(World& world,
 response_space apply(World& world, real_derivative_3d& op, response_space& f);
 } // namespace madness
 
-#endif // SRC_APPS_ADRIAN_TDHF_BASIC_OPERATORS2_H_
+#endif // SRC_APPS_molresponse_TDHF_BASIC_OPERATORS2_H_

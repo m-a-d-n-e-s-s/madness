@@ -1,6 +1,6 @@
 
-#ifndef SRC_APPS_ADRIAN_TIMER_H
-#define SRC_APPS_ADRIAN_TIMER_H
+#ifndef SRC_APPS_molresponse_TIMER_H
+#define SRC_APPS_molresponse_TIMER_H
 
 #include <vector>
 

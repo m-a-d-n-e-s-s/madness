@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-#include "adrian/property_operators.h"
+#include "molresponse/property_operators.h"
 
 typedef Tensor<double> TensorT;
 typedef Function<double, 3> FunctionT;

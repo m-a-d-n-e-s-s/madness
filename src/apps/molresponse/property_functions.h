@@ -1,12 +1,12 @@
-#ifndef SRC_APPS_ADRIAN_PROPERTY_FUNCTIONS_H_
-#define SRC_APPS_ADRIAN_PROPERTY_FUNCTIONS_H_
+#ifndef SRC_APPS_molresponse_PROPERTY_FUNCTIONS_H_
+#define SRC_APPS_molresponse_PROPERTY_FUNCTIONS_H_
 
 #include <algorithm>
 #include <memory>
 #include <string>
 #include <vector>
 
-#include "adrian/property_operators.h"
+#include "molresponse/property_operators.h"
 
 typedef Tensor<double> TensorT;
 typedef Function<double, 3> FunctionT;
@@ -24,4 +24,4 @@ void PrintSecondOrderAnalysis(World &world, const Tensor<double> alpha_tensor,
                               const Tensor<double> omega,
                               const ResponseParameters Rparams);
 
-#endif  // SRC_APPS_ADRIAN_PROPERTY_FUNCTIONS_H_
+#endif  // SRC_APPS_molresponse_PROPERTY_FUNCTIONS_H_

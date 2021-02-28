@@ -3,7 +3,7 @@
  *
 
  *
- *   Written by: bsundahl and Adrian
+ *   Written by: bsundahl and molresponse
  *   Date: A long time ago... and today
  *
  */
@@ -3176,7 +3176,7 @@ void TDHF::deflateTDA(World& world,
 
   // Augment S_x, A_x, x_gamma, x_response, V_x_response and x_gamma
   // if using a larger subspace and not iteration zero (TODO ---Gotta
-  // look at this and make sure it uses my new functions ADRIAN )
+  // look at this and make sure it uses my new functions molresponse )
   // by default Rparams.larger_subspace = 0 therefore never uses this
   if (iteration < Rparams.larger_subspace and iteration > 0) {
     print("Using augmented subspace");
@@ -4762,7 +4762,7 @@ void TDHF::set_protocol(World& world, double thresh) {
   FunctionDefaults<NDIM>::set_autorefine(false);
   FunctionDefaults<NDIM>::set_apply_randomize(false);
   FunctionDefaults<NDIM>::set_project_randomize(false);
-  // GaussianConvolution1DCache<double>::map.clear();//(TODO:Adrian-What
+  // GaussianConvolution1DCache<double>::map.clear();//(TODO:molresponse-What
   // is this? Do i need it?)
 
   // dconv defaults to thresh*100, overrirde by providing dconv in input

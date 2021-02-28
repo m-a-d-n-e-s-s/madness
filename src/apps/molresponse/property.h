@@ -1,6 +1,6 @@
 
-#ifndef SRC_APPS_ADRIAN_PROPERTY_H_
-#define SRC_APPS_ADRIAN_PROPERTY_H_
+#ifndef SRC_APPS_molresponse_PROPERTY_H_
+#define SRC_APPS_molresponse_PROPERTY_H_
 
 #include <ResponseFunction2.h>
 
@@ -50,4 +50,4 @@ class Property {
   Property(World &world, std::string property_type, Molecule molecule);
 };
 
-#endif  // SRC_APPS_ADRIAN_PROPERTY_H_
+#endif  // SRC_APPS_molresponse_PROPERTY_H_

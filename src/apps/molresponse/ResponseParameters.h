@@ -2,8 +2,8 @@
 /// \file ResponseParameters
 /// \brief Input parameters for a response calculation.
 
-#ifndef SRC_APPS_ADRIAN_RESPONSEPARAMETERS_H_INCLUDED
-#define SRC_APPS_ADRIAN_RESPONSEPARAMETERS_H_INCLUDED
+#ifndef SRC_APPS_molresponse_RESPONSEPARAMETERS_H_INCLUDED
+#define SRC_APPS_molresponse_RESPONSEPARAMETERS_H_INCLUDED
 
 #include <chem/molecule.h>
 #include <chem/xcfunctional.h>
@@ -409,4 +409,4 @@ struct ResponseParameters {
   }
 };  // namespace madness
 }  // namespace madness
-#endif  // SRC_APPS_ADRIAN_RESPONSEPARAMETERS_H_INCLUDED
+#endif  // SRC_APPS_molresponse_RESPONSEPARAMETERS_H_INCLUDED

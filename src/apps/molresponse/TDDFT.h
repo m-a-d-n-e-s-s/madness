@@ -38,8 +38,8 @@
       10. Repeat steps 4-9 until the residual is within your tolerance
 */
 
-#ifndef SRC_APPS_ADRIAN_TDDFT_H_
-#define SRC_APPS_ADRIAN_TDDFT_H_
+#ifndef SRC_APPS_molresponse_TDDFT_H_
+#define SRC_APPS_molresponse_TDDFT_H_
 
 #include <madness/constants.h>
 #include <madness/mra/mra.h>
@@ -945,6 +945,6 @@ class TDHF {
                                 response_space& x,
                                 response_space& y);
 };
-#endif  // SRC_APPS_ADRIAN_TDDFT_H_
+#endif  // SRC_APPS_molresponse_TDDFT_H_
 
 // Deuces

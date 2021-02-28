@@ -1,5 +1,5 @@
-#ifndef SRC_APPS_ADRIAN_DENSITY_H_
-#define SRC_APPS_ADRIAN_DENSITY_H_
+#ifndef SRC_APPS_molresponse_DENSITY_H_
+#define SRC_APPS_molresponse_DENSITY_H_
 
 #include <ResponseFunction2.h>
 #include <TDDFT.h>
@@ -9,8 +9,8 @@
 #include <string>
 #include <vector>
 
-#include "adrian/global_functions.h"
-#include "adrian/property.h"
+#include "molresponse/global_functions.h"
+#include "molresponse/property.h"
 
 typedef Tensor<double> TensorT;
 typedef Function<double, 3> FunctionT;
@@ -118,4 +118,4 @@ public:
     this->Q = response_space(world, num_response_states, num_ground_states);
   }
 };
-#endif // SRC_APPS_ADRIAN_DENSITY_H_
+#endif // SRC_APPS_molresponse_DENSITY_H_

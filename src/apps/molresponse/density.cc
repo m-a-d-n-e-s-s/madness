@@ -1,5 +1,5 @@
 
-#include "adrian/density.h"
+#include "molresponse/density.h"
 
 #include <ResponseFunction2.h>
 #include <TDDFT.h>
@@ -10,8 +10,8 @@
 #include <vector>
 
 #include "../../madness/mra/funcplot.h"
-#include "adrian/global_functions.h"
-#include "adrian/property.h"
+#include "molresponse/global_functions.h"
+#include "molresponse/property.h"
 
 typedef Tensor<double> TensorT;
 typedef Function<double, 3> FunctionT;
