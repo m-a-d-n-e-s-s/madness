@@ -411,7 +411,7 @@ std::map<std::vector<int>, real_function_3d> TDHF::solid_harmonics(World& world,
     result[std::vector<int>{l + 1, -l - 2}] = zero;
 
     // Run over quantum number m
-    for (size_t m = -l; m < l + 1; m++) {
+    for (int m = -l; m < l + 1; m++) {
       // Calculate remaining terms
       result[std::vector<int>{l + 1, int(m)}] =
           1.0 / std::sqrt((l + m + 1) * (l - m + 1)) *
@@ -479,7 +479,7 @@ std::map<std::vector<int>, real_function_3d> TDHF::simple_spherical_harmonics(
 
   int num = 0;
   for (int l = 0; l < n; l++) {
-    for (size_t m = -l; m <= l; m++) {
+    for (int m = -l; m <= l; m++) {
       result[vector<int>{l, m}] = funcs[num];
       num += 1;
     }
@@ -770,12 +770,12 @@ response_space TDHF::CreateCoulombDerivativeRFDagger(
     double thresh) {
   // Get sizes
   size_t m = f.size();     // number of resposne states or frequencies
-  int n = f[0].size();  // number of ground states  x[m][n]
+  size_t n = f[0].size();  // number of ground states  x[m][n]
   // Zero function, to be returned
   response_space deriv_J_dagger(world, m, n);  // J_p--Jderivative
   real_convolution_3d op = CoulombOperator(world, small, thresh);
   real_function_3d f_density = real_function_3d(world);
-  for (int k = 0; k < m; k++) {  // for each of the m response states
+  for (size_t k = 0; k < m; k++) {  // for each of the m response states
     // dot vector of response functions with orbitals phi
     f_density = apply(op, dot(world, phi, f[k]));
     // f_density = apply(op,dot(world,dagger(phi),f[k])));
@@ -811,17 +811,17 @@ response_space TDHF::CreateExchangeDerivativeRF(
   // Need to run over all virtual orbitals originating from orbital p
   // Need to sum over occupied orbitals
   if (Rparams.store_potential) {
-    for (int p = 0; p < n; p++) {
-      for (int k = 0; k < m; k++) {
-        for (int i = 0; i < n; i++) {
+    for (size_t p = 0; p < n; p++) {
+      for (size_t k = 0; k < m; k++) {
+        for (size_t i = 0; i < n; i++) {
           deriv_k[k][p] += stored_potential[i][p] * f[k][i];
         }
       }
     }
   } else {                         // But the storage can be turned off...{
-    for (int p = 0; p < n; p++) {  //
-      for (int k = 0; k < m; k++) {
-        for (int i = 0; i < n; i++) {
+    for (size_t p = 0; p < n; p++) {  //
+      for (size_t k = 0; k < m; k++) {
+        for (size_t i = 0; i < n; i++) {
           // and add to total
           real_function_3d rho = phi[i] * phi[p];
           // Apply coulomb operator
@@ -851,11 +851,11 @@ response_space TDHF::CreateExchangeDerivativeRFDagger(
   // Need the coulomb operator
   real_convolution_3d op = CoulombOperator(world, small, thresh);
   // Need to run over occupied orbitals
-  for (int p = 0; p < n; p++) {
+  for (size_t p = 0; p < n; p++) {
     // Need to run over all virtual orbitals originating from orbital p
-    for (int k = 0; k < m; k++) {
+    for (size_t k = 0; k < m; k++) {
       // Need to sum over occupied orbitals
-      for (int i = 0; i < n; i++) {
+      for (size_t i = 0; i < n; i++) {
         // Get density (ground state orbitals)
         real_function_3d rho = f[k][i] * phi[p];
         // real_function_3d rho = dagger(f[k][i]) * phi[p];TODO:DAGGER()
@@ -877,7 +877,7 @@ response_space TDHF::CreateXCDerivativeRF(
     double thresh) {
   // Get sizes
   size_t m = f.size();
-  int n = f[0].size();
+  size_t n = f[0].size();
 
   // Initialize response function
   response_space deriv_XC(world, m, n);
@@ -899,7 +899,7 @@ response_space TDHF::CreateXCDerivativeRFDagger(
     double thresh) {
   // Get sizes
   size_t m = f.size();
-  int n = f[0].size();
+  size_t n = f[0].size();
 
   // Initialize response function
   response_space deriv_XC(world, m, n);
@@ -925,7 +925,7 @@ response_space TDHF::createAf(World& world,
                               int print_level,
                               std::string xy) {
   size_t m = f.size();
-  int n = f[0].size();
+  size_t n = f[0].size();
 
   response_space Af(world, m, n);
   // Create the ground-state fock operator on response components
@@ -1008,7 +1008,7 @@ real_function_3d TDHF::Coulomb(World& world) {
 response_space TDHF::exchange(World& world, response_space& f) {
   // Get sizes
   size_t m = f.size();
-  int n = f[0].size();
+  size_t n = f[0].size();
 
   // Coulomb operator
   real_convolution_3d op =
@@ -1022,9 +1022,9 @@ response_space TDHF::exchange(World& world, response_space& f) {
   f.reconstruct_rf();
 
   // Run over each excited state
-  for (int k = 0; k < m; k++) {
+  for (size_t k = 0; k < m; k++) {
     // And run over each occupied state
-    for (int j = 0; j < n; j++) {
+    for (size_t j = 0; j < n; j++) {
       // Get a vector of transition densities
       auto phix = mul_sparse(
           world, Gparams.orbitals[j], f[k], FunctionDefaults<3>::get_thresh());

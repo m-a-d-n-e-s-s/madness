@@ -67,7 +67,7 @@ private:
     // Run over virtual...
     for (size_t i = 0; i < m; i++) {
       // Run over occupied...
-      for (int j = 0; j < n; j++) {
+      for (size_t j = 0; j < n; j++) {
         densities[i] += ground_orbitals[j] * (x[i][j] + y[i][j]);
       }
     }
