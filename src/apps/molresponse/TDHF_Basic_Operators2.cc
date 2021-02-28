@@ -1,4 +1,5 @@
 /*
+ * Copyright 2021 Adrian Hurtado
  * Some basic operators for ResponseFunction objects
  */
 #include "TDHF_Basic_Operators2.h"
