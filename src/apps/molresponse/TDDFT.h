@@ -66,9 +66,9 @@
 #include "ResponseParameters.h"
 #include "ResponsePotential.h"
 #include "TDHF_Basic_Operators2.h"
-#include "adrian/load_balance.h"
-#include "adrian/property.h"
-#include "adrian/timer.h"
+#include "molresponse/load_balance.h"
+#include "molresponse/property.h"
+#include "molresponse/timer.h"
 
 // Functor from SCF.cc (it wasn't linking right, no idea why, so just copied and
 // renamed here) A copy of a MADNESS functor to compute the cartesian moment x^i
