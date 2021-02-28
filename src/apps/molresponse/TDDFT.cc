@@ -24,11 +24,11 @@
 #include "NWChem.h"  // For nwchem interface
 #include "Plot_VTK.h"
 #include "TDHF_Basic_Operators2.h"
-#include "adrian/ResponseFunction2.h"
-#include "adrian/density.h"
-#include "adrian/global_functions.h"
-#include "adrian/property.h"
-#include "adrian/timer.h"
+#include "molresponse/ResponseFunction2.h"
+#include "molresponse/density.h"
+#include "molresponse/global_functions.h"
+#include "molresponse/property.h"
+#include "molresponse/timer.h"
 #include "chem/potentialmanager.h"
 #include "chem/projector.h"  // For easy calculation of (1 - \hat{\rho}^0)
 #include "madness/mra/funcdefaults.h"

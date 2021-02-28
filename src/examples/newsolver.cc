@@ -26,8 +26,11 @@ double rifunction(const coord_3d& r) {
   return r[2];  // z
 }
 
-double iterate_ground(World& world, NonlinearSolver& solver,
-                      real_function_3d& V, real_function_3d& psi, double& eps) {
+double iterate_ground(World& world,
+                      NonlinearSolver& solver,
+                      real_function_3d& V,
+                      real_function_3d& psi,
+                      double& eps) {
   real_convolution_3d op = BSHOperator3D(world, sqrt(-2 * eps), 0.001, 1e-6);
   real_function_3d Vpsi = (V * psi);
   Vpsi.scale(-2.0).truncate();
@@ -37,8 +40,14 @@ double iterate_ground(World& world, NonlinearSolver& solver,
   double rnorm = r.norm2();
   double eps_new = eps - 0.5 * inner(Vpsi, r) / (norm * norm);
   if (world.rank() == 0) {
-    print("norm=", norm, " eps=", eps, " err(psi)=", rnorm,
-          " err(eps)=", eps_new - eps);
+    print("norm=",
+          norm,
+          " eps=",
+          eps,
+          " err(psi)=",
+          rnorm,
+          " err(eps)=",
+          eps_new - eps);
   }
   psi = solver.update(psi, r);
   psi.scale(1.0 / psi.norm2());
@@ -46,9 +55,12 @@ double iterate_ground(World& world, NonlinearSolver& solver,
   return rnorm;
 }
 
-double iterate_excite(World& world, NonlinearSolver& solver,
-                      real_function_3d& V, real_function_3d& psi,
-                      real_function_3d& dpsi, double& eps,
+double iterate_excite(World& world,
+                      NonlinearSolver& solver,
+                      real_function_3d& V,
+                      real_function_3d& psi,
+                      real_function_3d& dpsi,
+                      double& eps,
                       real_function_3d& ri) {
   real_convolution_3d du = CoulombOperator(world, 0.001, 1e-6);
   real_function_3d Vdpsi = (V * dpsi);
@@ -115,10 +127,15 @@ struct allocator {
 /// @return		the current error in the residual of the response
 /// equations
 template <class solverT>
-double iterate_xy(World& world, solverT& solver, const real_function_3d& V,
-                  const real_function_3d& psi, double& eps,
-                  const real_function_3d& ri, real_function_3d& x,
-                  real_function_3d& y, const double omega) {
+double iterate_xy(World& world,
+                  solverT& solver,
+                  const real_function_3d& V,
+                  const real_function_3d& psi,
+                  double& eps,
+                  const real_function_3d& ri,
+                  real_function_3d& x,
+                  real_function_3d& y,
+                  const double omega) {
   real_convolution_3d gOpx =
       BSHOperator3D(world, sqrt(-2 * (eps + omega)), 0.001, 1e-6);
   real_convolution_3d gOpy =
@@ -269,7 +286,8 @@ int main(int argc, char** argv) {
   for (int j = 0; j <= 4; j++) {
     double omega = 0.365 + (j * 0.005);
     if (world.rank() == 0)
-      print("\nSolving for the dynamic response function with omega =", omega,
+      print("\nSolving for the dynamic response function with omega =",
+            omega,
             "\n");
 
     XNonlinearSolver<F, double, allocator> solver =

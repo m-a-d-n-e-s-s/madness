@@ -61,8 +61,10 @@ namespace madness {
 /// @param[in]     cabsmax  maximum element of c greater than this will cause
 /// the subspace to be shrunk due to linear dependence
 template <typename C>
-void check_linear_dependence(const Tensor<C>& Q, Tensor<C>& c,
-                             const double rcondtol, const double cabsmax,
+void check_linear_dependence(const Tensor<C>& Q,
+                             Tensor<C>& c,
+                             const double rcondtol,
+                             const double cabsmax,
                              bool do_print = true) {
   double rcond = 1e-12;
   int m = c.dim(0);
@@ -223,7 +225,9 @@ class XNonlinearSolver {
   /// to be shrunk due to linear dependence
   /// @param[in]          cabsmax  maximum element of c greater than this will
   /// cause the subspace to be shrunk due to li
-  T update(const T& u, const T& r, const double rcondtol = 1e-8,
+  T update(const T& u,
+           const T& r,
+           const double rcondtol = 1e-8,
            const double cabsmax = 1000.0) {
     if (maxsub == 1) return u - r;
     int iter = ulist.size();
@@ -248,6 +252,7 @@ class XNonlinearSolver {
     for (int i = 0; i <= iter; i++) {
       unew += (ulist[i] - rlist[i]) * c[i];
     }
+
 
     if (ulist.size() == maxsub) {
       ulist.erase(ulist.begin());

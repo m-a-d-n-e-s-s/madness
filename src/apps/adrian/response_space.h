@@ -15,6 +15,11 @@
 
 namespace madness {
 
+/**
+ * @brief 
+ * 
+ * @tparam T 
+ */
 template <typename T> struct response_space {
 
   typedef Function<T, 3> function_T;
