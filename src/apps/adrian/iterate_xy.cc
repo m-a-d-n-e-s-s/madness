@@ -1,7 +1,6 @@
 #include <math.h>
 
 #include <cstdint>
-#include <filesystem>
 #include <map>
 #include <memory>
 #include <string>
