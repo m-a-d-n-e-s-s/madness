@@ -13,7 +13,7 @@ response_space transpose(response_space &f) {
 
   // Get sizes
   size_t m = f.size();
-  int n = f[0].size();
+  size_t n= f[0].size();
 
   // Return container
   response_space g(f[0][0].world(), m, n);

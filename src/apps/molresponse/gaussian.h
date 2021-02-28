@@ -392,7 +392,7 @@ public:
        // From Robert: 
        // Pick initial level such that average gap between quadrature points
        // will find a significant value
-       const int N = 6; // looking for where exp(-a*x^2) < 10**-N
+       const size_t N = 6; // looking for where exp(-a*x^2) < 10**-N
        const size_t k = 6; // typically the lowest order of the polyn
        const double log10 = std::log(10.0);
        const double log2 = std::log(2.0); 
