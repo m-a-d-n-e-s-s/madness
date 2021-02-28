@@ -1,4 +1,5 @@
 /*
+ * Copyright 2021 Adrian Hurtado
  *
  *
 
@@ -413,11 +414,11 @@ std::map<std::vector<int>, real_function_3d> TDHF::solid_harmonics(World& world,
     // Run over quantum number m
     for (int m = -l; m < l + 1; m++) {
       // Calculate remaining terms
-      result[std::vector<int>{l + 1, int(m)}] =
+      result[std::vector<int>{l + 1, m}] =
           1.0 / std::sqrt((l + m + 1) * (l - m + 1)) *
-          ((2 * l + 1) * z * result[std::vector<int>{l, int(m)}] -
+          ((2 * l + 1) * z * result[std::vector<int>{l, m}] -
            sqrt((l + m) * (l - m)) * (x * x + y * y + z * z) *
-               result[std::vector<int>{l - 1, int(m)}]);
+               result[std::vector<int>{l - 1, m}]);
     }
   }
 
@@ -736,7 +737,7 @@ response_space TDHF::CreateCoulombDerivativeRF(
     double small,
     double thresh) {
   // Get sizes
-  size_t m = f.size();     // number of resposne states or frequencies
+  size_t m = f.size();  // number of resposne states or frequencies
   int n = f[0].size();  // number of ground states  x[m][n]
   // Zero function, to be returned
   response_space deriv_J(world, m, n);  // J_p--Jderivative
@@ -818,7 +819,7 @@ response_space TDHF::CreateExchangeDerivativeRF(
         }
       }
     }
-  } else {                         // But the storage can be turned off...{
+  } else {                            // But the storage can be turned off...{
     for (size_t p = 0; p < n; p++) {  //
       for (size_t k = 0; k < m; k++) {
         for (size_t i = 0; i < n; i++) {
@@ -1279,7 +1280,7 @@ response_space TDHF::CreateFock(World& world,
   }
   // Add in potential
   fock = fock + Vf;
-  truncate(world, fock);
+  fock.truncate_rf();
   // Done
   return fock;
 }
@@ -1781,7 +1782,7 @@ response_space TDHF::apply_shift(World& world,
     }
   }
 
-  truncate(world, shifted_V);
+  shifted_V.truncate_rf();
 
   // End timer
   if (Rparams.print_level >= 1) molresponse::end_timer(world, "Apply shift:");
@@ -1813,7 +1814,7 @@ response_space TDHF::apply_shift(World& world,
     }
   }
 
-  truncate(world, shifted_V);
+  shifted_V.truncate_rf();
 
   // End timer
   if (Rparams.print_level >= 1) molresponse::end_timer(world, "Apply shift:");
@@ -2040,7 +2041,7 @@ response_space TDHF::gram_schmidt(World& world, response_space& f) {
     }
   }
 
-  truncate(world, result);
+  result.truncate_rf();
 
   // Done
   return result;
@@ -2074,8 +2075,8 @@ void TDHF::gram_schmidt(World& world, response_space& f, response_space& g) {
     }
   }
 
-  truncate(world, f);
-  truncate(world, g);
+  f.truncate_rf();
+  g.truncate_rf();
 }
 
 // Returns the max norm of the given vector of functions
@@ -2177,7 +2178,7 @@ response_space TDHF::select_functions(World& world,
   // the first k
   while (static_cast<int>(f.size()) > k) f.pop_back();
   answer = f;
-  truncate(world, answer);
+  answer.truncate_rf();
 
   // Get rid of extra energies and save
   // the first k
@@ -2503,7 +2504,7 @@ response_space TDHF::transform(World& world,
     result.push_back(temp);
   }
 
-  truncate(world, result);
+  result.truncate_rf();
 
   // Done
   return result;
@@ -3404,7 +3405,7 @@ std::vector<real_function_3d> TDHF::CreateXCDerivative(
     const response_space& f) {
   // Create the xcop
   XCOperator xc = create_xcoperator(world, Gparams.orbitals, Rparams.xc);
-  size_t m = f.size();     // get the number of response functions
+  size_t m = f.size();  // get the number of response functions
   int n = f[0].size();  // get the number of orbitals function
 
   std::vector<real_function_3d> drho = zero_functions<double, 3>(world, m);
@@ -3497,14 +3498,16 @@ void TDHF::Iterate(World& world) {
     // Basic output
     if (Rparams.print_level >= 1) {
       if (world.rank() == 0)
-        printf("\n   Iteration %d at time %.1fs\n", iteration, wall_time());
+        printf("\n   Iteration %d at time %.1fs\n",
+               static_cast<int>(iteration),
+               wall_time());
       if (world.rank() == 0) print(" -------------------------------");
     }
     // Truncate before doing expensive things
     // Truncate x response and y response meaning??? remove coefficients
     // based(TODO) on a global paramater??
-    truncate(world, x_response);
-    if (not Rparams.tda) truncate(world, y_response);
+    x_response.truncate_rf();
+    if (not Rparams.tda) y_response.truncate_rf();
 
     // Normalize after projection
     if (Rparams.tda) {
@@ -3512,6 +3515,7 @@ void TDHF::Iterate(World& world) {
     } else {
       normalize(world, x_response, y_response);
     }
+
     computeElectronResponse(world,
                             ElectronResponses,
                             x_response,
@@ -3526,7 +3530,7 @@ void TDHF::Iterate(World& world) {
                             "x");
     // Load balance
     // Only balancing on x-components. Smart?
-    if (world.size() > 1 && ((iteration < 2) or (iteration % 5 == 0))) {
+    if ((world.size() > 1 && (iteration < 2 or iteration % 5 == 0))) {
       // Start a timer
       if (Rparams.print_level >= 1) molresponse::start_timer(world);
       if (world.rank() == 0) print("");  // Makes it more legible
@@ -3741,7 +3745,8 @@ void TDHF::Iterate(World& world) {
     // Remember: the entire vector is one state
     for (size_t i = 0; i < m; i++) x_norms(i) = norm2(world, x_differences[i]);
     if (not Rparams.tda) {
-      for (size_t i = 0; i < m; i++) y_norms(i) = norm2(world, y_differences[i]);
+      for (size_t i = 0; i < m; i++)
+        y_norms(i) = norm2(world, y_differences[i]);
     }
 
     // Basic output
@@ -3839,8 +3844,8 @@ void TDHF::Iterate(World& world) {
     iteration += 1;
 
     // Done with the iteration.. truncate
-    truncate(world, x_response);
-    if (not Rparams.tda) truncate(world, y_response);
+    x_response.truncate_rf();
+    if (not Rparams.tda) y_response.truncate_rf();
 
     // Save
     if (Rparams.save) {
@@ -4116,7 +4121,7 @@ void TDHF::IterateGuess(World& world, response_space& guesses) {
   QProjector<double, 3> projector(
       world, Gparams.orbitals);  // Projector to project out ground state
   int n = guesses[0].size();     // Number of ground state orbitals
-  size_t m = guesses.size();        // number initial guess orbitals
+  size_t m = guesses.size();     // number initial guess orbitals
   Tensor<double> shifts;         // Holds the shifted energy values
   ElectronResponseFunctions I;
   response_space bsh_resp;  // Holds wave function corrections
@@ -4210,7 +4215,7 @@ void TDHF::IterateGuess(World& world, response_space& guesses) {
     for (int i = 0; i < Ni; i++) guesses[i] = projector(guesses[i]);
 
     // Truncate before doing expensive things
-    truncate(world, guesses);
+    guesses.truncate_rf();
 
     // Normalize after projection
     if (Rparams.tda) normalize(world, guesses);
@@ -4322,7 +4327,7 @@ void TDHF::IterateGuess(World& world, response_space& guesses) {
     iteration += 1;
 
     // Done with the iteration.. truncate
-    truncate(world, guesses);
+    guesses.truncate_rf();
 
     // Basic output
     if (Rparams.print_level >= 1) {  //
@@ -4464,7 +4469,7 @@ response_space TDHF::diagonalize_CIS_guess(
     }
   }
 
-  truncate(world, f);
+  f.truncate_rf();
 
   // Done. Whew.
   return f;
@@ -4861,7 +4866,7 @@ void TDHF::check_k(World& world, double thresh, int k) {
               x_response[i][j], FunctionDefaults<3>::get_k(), thresh, false);
         world.gop.fence();
       }
-      truncate(world, x_response);
+      x_response.truncate_rf();
 
       // Do same for y components if applicable
       // (Always do this, as y will be zero
@@ -4874,7 +4879,7 @@ void TDHF::check_k(World& world, double thresh, int k) {
               y_response[i][j], FunctionDefaults<3>::get_k(), thresh, false);
         world.gop.fence();
       }
-      truncate(world, y_response);
+      y_response.truncate_rf();
     }
   }
 
@@ -4895,7 +4900,7 @@ void TDHF::check_k(World& world, double thresh, int k) {
               project(P[i][j], FunctionDefaults<3>::get_k(), thresh, false);
         world.gop.fence();
       }
-      truncate(world, x_response);
+      x_response.truncate_rf();
 
       // Do same for y components if applicable
       // (Always do this, as y will be zero
@@ -4908,7 +4913,7 @@ void TDHF::check_k(World& world, double thresh, int k) {
               project(Q[i][j], FunctionDefaults<3>::get_k(), thresh, false);
         world.gop.fence();
       }
-      truncate(world, y_response);
+      y_response.truncate_rf();
     }
   }
   // Make sure everything is done before leaving
@@ -4918,7 +4923,7 @@ void TDHF::check_k(World& world, double thresh, int k) {
 // Creates random guess functions semi-intelligently(?)
 response_space TDHF::create_random_guess(
     World& world,
-    size_t m,                                   // m response states
+    size_t m,                                // m response states
     int n,                                   // n ground states
     std::vector<real_function_3d>& grounds,  // guess should have size n
     Molecule& molecule) {
@@ -5065,7 +5070,7 @@ response_space TDHF::create_nwchem_guess(World& world, size_t m) {
   // Now save the unoccupied orbitals
   std::vector<real_function_3d> temp2;
   size_t num_virt = 0;
-  for ( size_t i = 0; i < temp1.size(); i++) {
+  for (size_t i = 0; i < temp1.size(); i++) {
     if (nwchem.occupancies[i] == 0) {
       temp2.push_back(temp[i]);
       num_virt++;
@@ -5118,7 +5123,7 @@ response_space TDHF::create_nwchem_guess(World& world, size_t m) {
   for (unsigned int i = 0; i < f.size(); i++) f[i] = projector(f[i]);
 
   // Truncate and normalize
-  truncate(world, f);
+  f.truncate_rf();
   normalize(world, f);
 
   return f;
@@ -5387,7 +5392,7 @@ void TDHF::IteratePolarizability(World& world, response_space& dipoles) {
   QProjector<double, 3> projector(
       world, Gparams.orbitals);  // Projector to project out ground state
   int n = Gparams.num_orbitals;  // Number of ground state orbitals
-  size_t m = Rparams.states;        // Number of excited states
+  size_t m = Rparams.states;     // Number of excited states
   Tensor<double> x_norms(m);
   // Holds the norms of x function residuals (for convergence)
   Tensor<double> y_norms(
@@ -5496,7 +5501,8 @@ void TDHF::IteratePolarizability(World& world, response_space& dipoles) {
 
     // Scale x and y
     Tensor<double> rec_norms(m);
-    for (size_t i = 0; i < m; i++) rec_norms(i) = 1.0 / std::max(1.0, x_norms(i));
+    for (size_t i = 0; i < m; i++)
+      rec_norms(i) = 1.0 / std::max(1.0, x_norms(i));
     x_response.scale(rec_norms);
     y_response.scale(rec_norms);
 
@@ -5591,7 +5597,7 @@ void TDHF::IteratePolarizability(World& world, response_space& dipoles) {
     // Load balance
     // Only balancing on x-components. Smart?
     // Only balance on first two iterations or every 5th iteration
-    if (world.size() > 1 && ((iteration < 2) or (iteration % 5 == 0))) {
+    if (world.size() > 1 && (iteration < 2 or iteration % 5 == 0)) {
       // Start a timer
       if (Rparams.print_level >= 1) molresponse::start_timer(world);
       if (world.rank() == 0) print("");  // Makes it more legible
@@ -5685,7 +5691,8 @@ void TDHF::IteratePolarizability(World& world, response_space& dipoles) {
     // Remember: the entire vector is one state
     for (size_t i = 0; i < m; i++) x_norms(i) = norm2(world, x_differences[i]);
     if (Rparams.omega != 0.0) {
-      for (size_t i = 0; i < m; i++) y_norms(i) = norm2(world, y_differences[i]);
+      for (size_t i = 0; i < m; i++)
+        y_norms(i) = norm2(world, y_differences[i]);
     }
 
     // Basic output
@@ -5748,8 +5755,8 @@ void TDHF::IteratePolarizability(World& world, response_space& dipoles) {
     iteration += 1;
 
     // Done with the iteration.. truncate
-    truncate(world, x_response);
-    if (Rparams.omega != 0.0) truncate(world, y_response);
+    x_response.truncate_rf();
+    if (Rparams.omega != 0.0) y_response.truncate_rf();
 
     // Save
     if (Rparams.save) {
