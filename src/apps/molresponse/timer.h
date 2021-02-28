@@ -9,7 +9,7 @@
 // Needed for timers
 double pop(std::vector<double>& v);
 // Pulled from SCF.cc, starts a timer
-std::vector<double> ttt, sss;
+static std::vector<double> ttt, sss;
 void start_timer(World& world);
 
 // Stops a timer
