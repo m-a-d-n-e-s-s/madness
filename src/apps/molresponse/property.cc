@@ -44,7 +44,7 @@ Property::Property(World &world, std::string property_type)
     f[i] = 1;
     operator_vector.at(i) = real_factory_3d(world).functor(
         real_functor_3d(new BS_MomentFunctor(f)));
-    // print k L truncation
+    // prsize_t k L truncation
     print("norm of dipole function ", operator_vector[i].norm2());
   }
 
@@ -75,7 +75,7 @@ Property::Property(World &world, std::string property_type, Molecule molecule)
                                                           .nofence()
                                                           .truncate_on_project()
                                                           .truncate_mode(0));
-      // print k L truncation
+      // prsize_t k L truncation
       print("norm of derivative function ",
             operator_vector[atom * 3 + axis].norm2());
     }

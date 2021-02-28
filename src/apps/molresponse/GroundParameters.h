@@ -26,7 +26,7 @@ struct GroundParameters {
   Tensor<double> energies;    ///< Energy of ground state orbitals
   Tensor<double> occ;         ///< Occupancy of ground state orbitals
   double L;  ///< Box size of ground state - response calcluation is in same box
-  int k;     ///< Order of polynomial used in ground state
+  size_t k;     ///< Order of polynomial used in ground state
   Molecule molecule;  ///< The molecule used in ground state calculation
   std::vector<real_function_3d> orbitals;  ///< The ground state orbitals
   std::string xc;  ///< Name of xc functional used in ground state

@@ -76,7 +76,7 @@ GammaResponseFunctions TDHF::ComputeGammaFunctions(
 
   //
   for (int b = 0; b < m; b++) {
-    for (int k = 0; k < n; k++) {
+    for (size_t k = 0; k < n; k++) {
       // multiply the kth orbital to vector of y[b] response funtions...apply op
       // to each product
       // (TODO) //split apply and
@@ -107,7 +107,7 @@ GammaResponseFunctions TDHF::ComputeGammaFunctions(
       W[b] = mul(world, Wphi[b], Gparams.orbitals);
     }
     //  compute each of the k response parts...
-    for (int k = 0; k < n; k++) {
+    for (size_t k = 0; k < n; k++) {
       // Jcoulb*orbital[k]
       //
       Kx[b][k] = dot(world, x[b], phi_phi[k]);

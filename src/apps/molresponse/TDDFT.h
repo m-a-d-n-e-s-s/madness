@@ -78,14 +78,14 @@ class BS_MomentFunctor : public FunctionFunctorInterface<double, 3> {
   const int i, j, k;
 
  public:
-  BS_MomentFunctor(int i, int j, int k) : i(i), j(j), k(k) {}
+  BS_MomentFunctor(int i, int j, size_t k) : i(i), j(j), k(k) {}
   explicit BS_MomentFunctor(const std::vector<int>& x)
       : i(x[0]), j(x[1]), k(x[2]) {}
   double operator()(const Vector<double, 3>& r) const {
     double xi = 1.0, yj = 1.0, zk = 1.0;
-    for (int p = 0; p < i; ++p) xi *= r[0];
-    for (int p = 0; p < j; ++p) yj *= r[1];
-    for (int p = 0; p < k; ++p) zk *= r[2];
+    for (size_t p =0; p < i; ++p) xi *= r[0];
+    for (size_t p =0; p < j; ++p) yj *= r[1];
+    for (size_t p =0; p < k; ++p) zk *= r[2];
     return xi * yj * zk;
   }
 };
@@ -303,7 +303,7 @@ class TDHF {
   std::vector<real_function_3d> createDipoleFunctionMap(World& world);
   // Returns initial response functions
   response_space create_trial_functions(World& world,
-                                        int k,
+                                        size_t k,
                                         std::vector<real_function_3d>& orbitals,
                                         int print_level);
   response_space create_trial_functions2(
@@ -608,7 +608,7 @@ class TDHF {
   response_space select_functions(World& world,
                                   response_space& f,
                                   Tensor<double>& energies,
-                                  int k,
+                                  size_t k,
                                   int print_level);
 
   // Calculates the exponentiation of a matrix through first order (I think)
@@ -858,7 +858,7 @@ class TDHF {
   void set_protocol(World& world, double thresh);
 
   // Verifies that correct order of polynomial is in use for all
-  void check_k(World& world, double thresh, int k);
+  void check_k(World& world, double thresh, size_t k);
 
   // Creates random guess functions semi-intelligently(?)
   response_space create_random_guess(World& world,

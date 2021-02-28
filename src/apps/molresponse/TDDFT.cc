@@ -494,7 +494,7 @@ std::map<std::vector<int>, real_function_3d> TDHF::simple_spherical_harmonics(
 // ground MO * solid harmonics
 response_space TDHF::create_trial_functions(
     World& world,
-    int k,
+    size_t k,
     std::vector<real_function_3d>& orbitals,
     int print_level) {
   // Get size
@@ -746,14 +746,14 @@ response_space TDHF::CreateCoulombDerivativeRF(
   // Temperary storage
   real_function_3d f_density = real_function_3d(world);
   // Need to run over each state
-  for (int k = 0; k < m; k++) {
+  for (size_t k = 0; k < m; k++) {
     // transition_density = dot(world, f[k] + g[k], orbitals); //sum the vector
     // of functions
     // This works because we assume x,y,phi_i all to be real
     // Apply coulomb operator
     f_density = apply(op, dot(world, f[k], phi));
     // transition_density = apply(op, rho);
-    for (int p = 0; p < n; p++) {
+    for (size_t p =0; p < n; p++) {
       // Multiply by ground state orbital p
       // and save the result
       deriv_J[k][p] = f_density * phi[p];
@@ -783,7 +783,7 @@ response_space TDHF::CreateCoulombDerivativeRFDagger(
     // TODO write or find a dagger function
     //
     // apply to each orbital to make up jdaggerKP
-    for (int p = 0; p < n; p++) {
+    for (size_t p =0; p < n; p++) {
       deriv_J_dagger[k][p] = f_density * phi[p];
     }
   }
@@ -1209,7 +1209,7 @@ Tensor<double> TDHF::expectation(World& world,
   Tensor<double> result(dim_1, dim_1);
 
   // Run over dimension two
-  for (int p = 0; p < dim_2; p++) {
+  for (size_t p =0; p < dim_2; p++) {
     result += matrix_inner(world, aT[p], bT[p]);
   }
 
@@ -1676,9 +1676,9 @@ Tensor<double> TDHF::create_shift(World& world,
   Tensor<double> result(m, n);
 
   // Run over excited components
-  for (int k = 0; k < m; k++) {
+  for (size_t k = 0; k < m; k++) {
     // Run over ground components
-    for (int p = 0; p < n; p++) {
+    for (size_t p =0; p < n; p++) {
       if (ground(p) + omega(k) > 0) {
         // Calculate the shift needed to get energy to -0.05,
         // which was arbitrary (same as moldft)
@@ -1729,9 +1729,9 @@ Tensor<double> TDHF::create_shift_target(World& world,
   Tensor<double> result(m, n);
 
   // Run over excited components
-  for (int k = 0; k < m; k++) {
+  for (size_t k = 0; k < m; k++) {
     // Run over ground components
-    for (int p = 0; p < n; p++) {
+    for (size_t p =0; p < n; p++) {
       // Calculate the shift needed to get energy to target
       result(k, p) = -(ground(p) + omega(k) - target);
 
@@ -1775,9 +1775,9 @@ response_space TDHF::apply_shift(World& world,
   response_space shifted_V(world, m, n);
 
   // Run over occupied
-  for (int k = 0; k < m; k++) {
+  for (size_t k = 0; k < m; k++) {
     // Run over virtual
-    for (int p = 0; p < n; p++) {
+    for (size_t p =0; p < n; p++) {
       shifted_V[k][p] = V[k][p] + shifts(k, p) * f[k][p];
     }
   }
@@ -1807,9 +1807,9 @@ response_space TDHF::apply_shift(World& world,
   response_space shifted_V(world, m, n);
 
   // Run over occupied
-  for (int k = 0; k < m; k++) {
+  for (size_t k = 0; k < m; k++) {
     // Run over virtual
-    for (int p = 0; p < n; p++) {
+    for (size_t p =0; p < n; p++) {
       shifted_V[k][p] = V[k][p] + shift * f[k][p];
     }
   }
@@ -1844,12 +1844,12 @@ TDHF::create_bsh_operators(World& world,
 
   // Make a BSH operator for each response function
   // Run over excited components
-  for (int k = 0; k < m; k++) {
+  for (size_t k = 0; k < m; k++) {
     // Container for intermediary
     std::vector<std::shared_ptr<real_convolution_3d>> temp(n);
 
     // Run over occupied components
-    for (int p = 0; p < n; p++) {
+    for (size_t p =0; p < n; p++) {
       temp[p] = std::shared_ptr<SeparatedConvolution<double, 3>>(
           BSHOperatorPtr3D(world,
                            sqrt(-2.0 * (ground(p) + omega(k) + shift(k, p))),
@@ -1893,12 +1893,12 @@ TDHF::CreateBSHOperatorPropertyVector(World& world,
   // Make a BSH operator for each response function
   // Run over excited components
   // print("num of states bsh step", num_states);
-  for (int k = 0; k < num_freq; k++) {
+  for (size_t k = 0; k < num_freq; k++) {
     // Container for intermediary
     std::vector<std::shared_ptr<real_convolution_3d>> temp(n);
     for (int state = 0; state < num_states; state++) {
       // Run over occupied components
-      for (int p = 0; p < n; p++) {
+      for (size_t p =0; p < n; p++) {
         temp[p] = std::shared_ptr<SeparatedConvolution<double, 3>>(
             BSHOperatorPtr3D(world,
                              sqrt(-2.0 * (ground(p) + omega(k) + shift(k, p))),
@@ -1943,7 +1943,7 @@ TDHF::CreateBSHOperatorPropertyVector(World& world,
   // print("num of states bsh step", num_states);
   // Container for intermediary
   // Run over occupied components
-  for (int p = 0; p < num_ground_states; p++) {
+  for (size_t p =0; p < num_ground_states; p++) {
     double mu = sqrt(-2.0 * (ground(p) + omega + shift));
     ghat_operators[p] = std::shared_ptr<SeparatedConvolution<double, 3>>(
         BSHOperatorPtr3D(world, mu, lo, eps));
@@ -1990,7 +1990,7 @@ Tensor<double> TDHF::calculate_energy_update(World& world,
   // is the ket.
 
   // Run over excited components
-  for (int k = 0; k < m; k++) {
+  for (size_t k = 0; k < m; k++) {
     // vmra.h function, line 627
     // Sum is included inside function call
     updates(k) = inner(f_residuals[k], rhs[k]);
@@ -2030,7 +2030,7 @@ response_space TDHF::gram_schmidt(World& world, response_space& f) {
     scale(world, result[j], 1.0 / norm);
 
     // Project out from the rest of the vectors
-    for (int k = j + 1; k < m; k++) {
+    for (size_t k = j + 1; k < m; k++) {
       // Temp function to hold the sum
       // of inner products
       // vmra.h function, line 627
@@ -2063,7 +2063,7 @@ void TDHF::gram_schmidt(World& world, response_space& f, response_space& g) {
     scale(world, g[j], 1.0 / sqrt(norm));
 
     // Project out from the rest of the vectors
-    for (int k = j + 1; k < m; k++) {
+    for (size_t k = j + 1; k < m; k++) {
       // Temp function to hold the sum
       // of inner products
       // vmra.h function, line 627
@@ -2163,7 +2163,7 @@ void TDHF::select_active_subspace(World& world) {
 response_space TDHF::select_functions(World& world,
                                       response_space& f,
                                       Tensor<double>& energies,
-                                      int k,
+                                      size_t k,
                                       int print_level) {
   // Container for result
   response_space answer;
@@ -2214,7 +2214,7 @@ Tensor<double> TDHF::matrix_exponential(const Tensor<double>& A) {
   Tensor<double> expB = Tensor<double>(2, B.dims());
   for (int i = 0; i < expB.dim(0); ++i) expB(i, i) = 1.0;
 
-  int k = 1;
+  size_t k = 1;
   Tensor<double> term = B;
   while (term.normf() > tol) {
     expB += term;
@@ -2387,7 +2387,7 @@ Tensor<int> TDHF::sort_eigenvalues(World& world,
                                    Tensor<double>& vals,
                                    Tensor<double>& vecs) {
   // Get relevant sizes
-  int k = vals.size();
+  size_t k = vals.size();
 
   // Tensor to hold selection order
   Tensor<int> selected(k);
@@ -3127,7 +3127,7 @@ Tensor<double> TDHF::GetFullResponseTransformation(
 // response functions
 void TDHF::sort(World& world, Tensor<double>& vals, response_space& f) {
   // Get relevant sizes
-  int k = vals.size();
+  size_t k = vals.size();
 
   // Copy everything...
   response_space f_copy(f);
@@ -4746,7 +4746,7 @@ std::vector<real_function_3d> TDHF::GetConjugateTransitionDensities(
 
 template <std::size_t NDIM>
 void TDHF::set_protocol(World& world, double thresh) {
-  int k;
+  size_t k;
   // Allow for imprecise conversion of threshold
   if (thresh >= 0.9e-2)
     k = 4;
@@ -4797,7 +4797,7 @@ void TDHF::set_protocol(World& world, double thresh) {
   }
 }
 
-void TDHF::check_k(World& world, double thresh, int k) {
+void TDHF::check_k(World& world, double thresh, size_t k) {
   // Boolean to redo ground hamiltonian calculation if
   // ground state orbitals change
   bool redo = false;

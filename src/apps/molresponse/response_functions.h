@@ -366,30 +366,30 @@ struct response_space {
 
   // Mimicing standard madness calls with these 3
   void zero() {
-    for (unsigned int k = 0; k < num_states; k++) {
+    for (size_t k = 0; k < num_states; k++) {
       x[k] = zero_functions<double, 3>(x[0][0].world(), num_orbitals);
     }
   }
 
   void compress_rf() {
-    for (unsigned int k = 0; k < num_states; k++) {
+    for (size_t k = 0; k < num_states; k++) {
       compress(x[0][0].world(), x[k], true);
     }
   }
 
   void reconstruct_rf() {
-    for (unsigned int k = 0; k < num_states; k++) {
+    for (size_t k = 0; k < num_states; k++) {
       reconstruct(x[0][0].world(), x[k], true);
     }
   }
 
   void truncate_rf() {
-    for (unsigned int k = 0; k < num_states; k++) {
+    for (size_t k = 0; k < num_states; k++) {
       truncate(x[0][0].world(), x[k], FunctionDefaults<3>::get_thresh(), true);
     }
   }
   void truncate_rf(double tol) {
-    for (unsigned int k = 0; k < num_states; k++) {
+    for (size_t k = 0; k < num_states; k++) {
       truncate(x[0][0].world(), x[k], tol, true);
     }
   }

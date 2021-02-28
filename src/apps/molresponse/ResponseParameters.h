@@ -48,7 +48,7 @@ struct ResponseParameters {
   std::vector<double> protocol_data;  ///< Different thresholds for truncation
   int larger_subspace;   ///< Number of iterations to diagonalize in a subspace
                          ///< consisting of old and new vectors
-  int k;                 ///< Polynomial order to use in calculation
+  size_t k;                 ///< Polynomial order to use in calculation
   bool random;           ///< Use a random guess for initial response functions
   bool store_potential;  ///< Store the potential instead of computing each
                          ///< iteration

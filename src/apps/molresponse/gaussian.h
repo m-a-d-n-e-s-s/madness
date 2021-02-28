@@ -393,7 +393,7 @@ public:
        // Pick initial level such that average gap between quadrature points
        // will find a significant value
        const int N = 6; // looking for where exp(-a*x^2) < 10**-N
-       const int K = 6; // typically the lowest order of the polyn
+       const size_t k = 6; // typically the lowest order of the polyn
        const double log10 = std::log(10.0);
        const double log2 = std::log(2.0); 
        const double L = madness::FunctionDefaults<3>::get_cell_min_width(); 
@@ -401,7 +401,7 @@ public:
        const double a = expnt*L*L;
        //const double fac = pow(2.0/(expnt*madness::constants::pi), 3.0/2.0); 
        const double fac = 100.0; 
-       double n = std::log(a/(4*K*K*(N*log10+std::log(fac))))/(2*log2);
+       double n = std::log(a/(4*k*k*(N*log10+std::log(fac))))/(2*log2);
        return (n < 2 ? 2.0 : std::ceil(n));
     }
 };

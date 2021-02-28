@@ -167,8 +167,8 @@ public:
     } else {
       // Hartree-Fock perturbed exchange
       gammaK.compress_rf();
-      for (unsigned int p = 0; p < x.num_orbitals; p++) {
-        for (unsigned int k = 0; k < x.num_states; k++) {
+      for (size_t p =0; p < x.num_orbitals; p++) {
+        for (size_t k = 0; k < x.num_states; k++) {
           for (unsigned int i = 0; i < x.num_orbitals; i++) {
             real_function_3d t1 = potential[i][p] * x[k][i];
             t1.compress();
@@ -225,13 +225,13 @@ public:
       // Doing DFT
       // Still need derivative of the coulomb operator
       real_function_3d rho = real_function_3d(world);
-      for (unsigned int k = 0; k < x.num_states; k++) {
+      for (size_t k = 0; k < x.num_states; k++) {
         // Get transition density
         rho = dot(world, x[k], ground_orbitals);
         rho = apply(op, rho);
 
         // Post multiply by ground states
-        for (unsigned int p = 0; p < x.num_orbitals; p++) {
+        for (size_t p =0; p<x.num_orbitals; p++) {
           gammaJ[k][p] = rho * ground_orbitals[p];
         }
       }
@@ -244,8 +244,8 @@ public:
       groundK = groundK * -1.0;
     } else {
       // Doing Hartree-Fock
-      for (unsigned int k = 0; k < x.num_states; k++) {
-        for (unsigned int p = 0; p < x.num_orbitals; p++) {
+      for (size_t k = 0; k < x.num_states; k++) {
+        for (size_t p =0; x.num_orbitals; p++) {
           for (unsigned int i = 0; i < x.num_orbitals; i++) {
             // Get the transition density
             real_function_3d rho = x[k][p] * ground_orbitals[i];
