@@ -88,8 +88,8 @@ void FirstOrderDensity::ComputeResponse(World &world) {
 
 // right now everything uses copy
 
-int FirstOrderDensity::GetNumberResponseStates() { return num_states; }
-int FirstOrderDensity::GetNumberGroundStates() { return num_ground_states; }
+size_t FirstOrderDensity::GetNumberResponseStates() { return num_states; }
+size_t FirstOrderDensity::GetNumberGroundStates() { return num_ground_states; }
 VectorFunction3DT FirstOrderDensity::GetDensityVector() { return rho_omega; }
 const Molecule FirstOrderDensity::GetMolecule() { return Gparams.molecule; }
 TensorT FirstOrderDensity::GetFrequencyOmega() { return omega; }
@@ -112,7 +112,7 @@ VectorFunction3DT FirstOrderDensity::ComputeDensityVector(World &world,
       densities[b] = dot(world, x[b], Gparams.orbitals) +
                      dot(world, x[b], Gparams.orbitals);
       /*
-        for (int j = 0; j < num_ground_states; j++) {
+        for (size_t    j = 0; j < num_ground_states; j++) {
           densities[b] += mul_sparse(x[b][j], Gparams.orbitals[j],
         Rparams.small); densities[b] += mul_sparse(x[b][j], Gparams.orbitals[j],
         Rparams.small);
@@ -124,7 +124,7 @@ VectorFunction3DT FirstOrderDensity::ComputeDensityVector(World &world,
       densities[b] = dot(world, x[b], Gparams.orbitals) +
                      dot(world, y[b], Gparams.orbitals);
       /*
-        for (int j = 0; j < num_ground_states; j++) {
+        for (size_t    j = 0; j < num_ground_states; j++) {
           densities[b] += mul_sparse(x[b][j], Gparams.orbitals[j],
         Rparams.small); densities[b] += mul_sparse(y[b][j], Gparams.orbitals[j],
         Rparams.small);

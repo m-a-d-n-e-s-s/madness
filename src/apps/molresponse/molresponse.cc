@@ -11,7 +11,7 @@
   #include <unistd.h>
 static inline int file_exists(const char* inpname) {
   struct stat buffer;
-  int rc = stat(inpname, &buffer);
+size_t   rc = stat(inpname, &buffer);
   return (rc == 0);
 }
 #endif
@@ -38,7 +38,7 @@ FirstOrderDensity SetDensityType(World& world, std::string response_type,
   }
 };
 
-int main(int argc, char** argv) {
+int main(int    argc, char** argv) {
   // Initialize MADNESS mpi
   initialize(argc, argv);
   World world(SafeMPI::COMM_WORLD);
@@ -47,7 +47,7 @@ int main(int argc, char** argv) {
   // This makes a default input file name of 'input'
   const char* input = "input";
 
-  for (int i = 1; i < argc; i++) {
+  for (int    i = 1; i < argc; i++) {
     if (argv[i][0] != '-') {
       input = argv[i];
       break;

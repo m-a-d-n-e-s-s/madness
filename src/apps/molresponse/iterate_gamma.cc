@@ -67,7 +67,7 @@ GammaResponseFunctions TDHF::ComputeGammaFunctions(
 
   std::vector<response_space> y_phi;
   std::vector<response_space> x_phi;
-  for (int b = 0; b < m; b++) {
+  for (size_t    b = 0; b < m; b++) {
     y_phi.push_back(response_space(world, n, n));
     if (Rparams.omega != 0.0) {
       x_phi.push_back(response_space(world, n, n));
@@ -75,7 +75,7 @@ GammaResponseFunctions TDHF::ComputeGammaFunctions(
   }
 
   //
-  for (int b = 0; b < m; b++) {
+  for (size_t    b = 0; b < m; b++) {
     for (size_t k = 0; k < n; k++) {
       // multiply the kth orbital to vector of y[b] response funtions...apply op
       // to each product
@@ -86,7 +86,7 @@ GammaResponseFunctions TDHF::ComputeGammaFunctions(
       }
     }
   }
-  for (int b = 0; b < m; b++) {
+  for (size_t    b = 0; b < m; b++) {
     if (Rparams.omega != 0.0) {
       x_phi[b].truncate_rf();
     }
@@ -94,7 +94,7 @@ GammaResponseFunctions TDHF::ComputeGammaFunctions(
   }
   real_function_3d temp_J;
   // for each response state we compute the Gamma response functions
-  for (int b = 0; b < m; b++) {
+  for (size_t    b = 0; b < m; b++) {
     // apply - save and truncate - multiply
     //
     //

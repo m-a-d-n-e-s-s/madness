@@ -43,7 +43,7 @@ response_space TDHF::CreateGamma(World& world,
                                  std::vector<real_function_3d>& phi,
                                  double small,
                                  double thresh,
-                                 int print_level,
+                               size_t   print_level,
                                  std::string xy) {
   // Start timer
   if (print_level >= 1) molresponse::start_timer(world);
@@ -137,7 +137,7 @@ response_space TDHF::ComputeHf(World& world,
                                const std::vector<real_function_3d>& phi,
                                double small,
                                double thresh,
-                               int print_level,
+                             size_t   print_level,
                                std::string xy) {
   // Start timer
   if (print_level >= 1) molresponse::start_timer(world);
@@ -228,7 +228,7 @@ response_space TDHF::ComputeGf(World& world,
                                const std::vector<real_function_3d>& orbitals,
                                double small,
                                double thresh,
-                               int print_level,
+                             size_t   print_level,
                                std::string xy) {
   // Start a timer
   if (print_level >= 1) molresponse::start_timer(world);
@@ -498,7 +498,7 @@ void TDHF::IterateXY(
     std::vector<std::shared_ptr<real_convolution_3d>> bsh_x_operators,
     std::vector<std::shared_ptr<real_convolution_3d>> bsh_y_operators,
     Tensor<double> ham_no_diagonal,
-    int iteration) {
+  size_t   iteration) {
   // compute
   size_t m = Rparams.states;
   size_t n= Gparams.num_orbitals;

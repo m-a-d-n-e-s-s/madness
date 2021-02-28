@@ -22,7 +22,7 @@ struct ResponseParameters {
   std::string
       nwchem;     ///< Root name of nwchem files for intelligent starting guess
   size_t states;  ///< Number of excited states requested
-  int print_level;  ///< Controls the amount and style of printing. Higher
+size_t   print_level;  ///< Controls the amount and style of printing. Higher
                     ///< values prsize_t more
                     ///<   Values |   What gets printed
                     ///<   ----------------------------
@@ -38,7 +38,7 @@ struct ResponseParameters {
   bool plot_range;             ///< Controls which orbitals will be plotted
   std::vector<int> plot_data;  ///< Orbitals to plot
   double plot_L;               ///< Controls the plotting box size
-  int plot_pts;                ///< Controls number of points in plots
+size_t   plot_pts;                ///< Controls number of points in plots
   bool plot_all_orbitals;
   size_t max_iter;  ///< Maximum number of iterations
   double dconv;     ///< Convergence criterion for the orbital density
@@ -46,7 +46,7 @@ struct ResponseParameters {
   bool guess_xyz;   ///< Convergence flag for the orbital density
   double small;     ///< Minimum length scale to be resolved
   std::vector<double> protocol_data;  ///< Different thresholds for truncation
-  int larger_subspace;   ///< Number of iterations to diagonalize in a subspace
+size_t   larger_subspace;   ///< Number of iterations to diagonalize in a subspace
                          ///< consisting of old and new vectors
   size_t k;                 ///< Polynomial order to use in calculation
   bool random;           ///< Use a random guess for initial response functions
@@ -73,7 +73,7 @@ struct ResponseParameters {
   bool load_density;
   std::string load_density_file;  ///< Flag to save to file
 
-  int guess_max_iter;  ///< Maximum number of iterations for guess functions
+size_t   guess_max_iter;  ///< Maximum number of iterations for guess functions
 
   // Start of properties
   bool property;  ///< Flag that this is a properties calculation
@@ -205,7 +205,7 @@ struct ResponseParameters {
           t >> d;
           plot_data.push_back(std::stoi(d));
           t >> d;
-          for (int z = plot_data[0] + 1; z <= std::stoi(d); z++)
+          for (int    z = plot_data[0] + 1; z <= std::stoi(d); z++)
             plot_data.push_back(z);
         } else {
           // Add in the one we just read
@@ -313,7 +313,7 @@ struct ResponseParameters {
       states = 3 * molecule.natom();
     } else if (order2) {
       vector<int> nstates;  // states 1
-      for (int i = 0; i < 2; i++) {
+      for (size_t    i = 0; i < 2; i++) {
         if (response_types[i] == "dipole") {
           nstates.push_back(3);
         } else if (response_types[i] == "nuclear") {
@@ -326,7 +326,7 @@ struct ResponseParameters {
           nstates.begin(), nstates.end(), 1, std::multiplies<>());
     } else if (order3) {
       vector<int> nstates;  // states 1
-      for (int i = 0; i < 3; i++) {
+      for (size_t    i = 0; i < 3; i++) {
         if (response_types[i] == "dipole") {
           nstates.push_back(3);
         } else if (response_types[i] == "nuclear") {

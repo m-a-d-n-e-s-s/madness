@@ -27,11 +27,11 @@ class MolecularDerivativeFunctor : public FunctionFunctorInterface<double, 3> {
 
  private:
   const Molecule &molecule;
-  const int atom;
-  const int axis;
+  const size_t atom;
+  const size_t axis;
 
  public:
-  MolecularDerivativeFunctor(const Molecule &molecule, int atom, int axis);
+  MolecularDerivativeFunctor(const Molecule &molecule, size_t atom, size_t axis);
   double operator()(const coordT &x) const;
   std::vector<coordT> special_points() const;
 };  // namespace madness

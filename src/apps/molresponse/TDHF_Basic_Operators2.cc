@@ -20,7 +20,7 @@ response_space transpose(response_space &f) {
 
   // Now do shallow copies
   for (size_t i = 0; i < m; i++)
-    for (int j = 0; j < n; j++) g[j][i] = f[i][j];
+    for (size_t    j = 0; j < n; j++) g[j][i] = f[i][j];
 
   // Done
   return g;

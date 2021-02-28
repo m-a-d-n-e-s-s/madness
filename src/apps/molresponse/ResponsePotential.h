@@ -112,7 +112,7 @@ public:
   // ResponsePotential constructor
   ResponsePotential(World& world, std::vector<real_function_3d>& ground,
                     real_function_3d& v_nuc, double small, double thresh,
-                    int r_states, int g_states, bool is_dft = false,
+                  size_t   r_states, int g_states, bool is_dft = false,
                     std::string xc = "", bool store = true)
       : world(world), ground_orbitals(ground), ground_rho(calc_density(ground)),
         v_nuc(v_nuc), projector(QProjector<double, 3>(world, ground_orbitals)),

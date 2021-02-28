@@ -78,14 +78,14 @@ class BS_MomentFunctor : public FunctionFunctorInterface<double, 3> {
   const int i, j, k;
 
  public:
-  BS_MomentFunctor(int i, int j, size_t k) : i(i), j(j), k(k) {}
+  BS_MomentFunctor(int    i, int j, int k) : i(i), j(j), k(k) {}
   explicit BS_MomentFunctor(const std::vector<int>& x)
       : i(x[0]), j(x[1]), k(x[2]) {}
   double operator()(const Vector<double, 3>& r) const {
     double xi = 1.0, yj = 1.0, zk = 1.0;
-    for (size_t p =0; p < i; ++p) xi *= r[0];
-    for (size_t p =0; p < j; ++p) yj *= r[1];
-    for (size_t p =0; p < k; ++p) zk *= r[2];
+    for (int p =0; p < i; ++p) xi *= r[0];
+    for (int p =0; p < j; ++p) yj *= r[1];
+    for (int p =0; p < k; ++p) zk *= r[2];
     return xi * yj * zk;
   }
 };
@@ -292,12 +292,12 @@ class TDHF {
 
   // Returns a list of solid harmonics
   std::map<std::vector<int>, real_function_3d> solid_harmonics(World& world,
-                                                               int n);
+                                                             int   n);
   // returns a map of real form spherical harmonics  n=level...returns (n+1)^2
   // functions
   std::map<std::vector<int>, real_function_3d> simple_spherical_harmonics(
       World& world,
-      int n);
+    int   n);
   // returns a map of real form spherical harmonics  n=level...returns (n+1)^2
   // functions
   std::vector<real_function_3d> createDipoleFunctionMap(World& world);
@@ -305,11 +305,11 @@ class TDHF {
   response_space create_trial_functions(World& world,
                                         size_t k,
                                         std::vector<real_function_3d>& orbitals,
-                                        int print_level);
+                                      size_t   print_level);
   response_space create_trial_functions2(
       World& world,
       std::vector<real_function_3d>& orbitals,
-      int print_level);
+    size_t   print_level);
 
   response_space PropertyRHS(World& world, Property& p) const;
   // Returns the derivative of the coulomb operator, applied to ground state
@@ -364,14 +364,14 @@ class TDHF {
                           response_space& Hf,
                           response_space& f,
                           std::vector<real_function_3d>& orbitals,
-                          int print_level,
+                        size_t   print_level,
                           std::string xy);
 
   // Returns the off diagonal (letter B) elements of response matrix
   response_space createBf(World& world,
                           response_space& Gf,
                           std::vector<real_function_3d>& orbitals,
-                          int print_level);
+                        size_t   print_level);
 
   // Returns gamma (the perturbed 2 electron piece)
   response_space CreateGamma(World& world,
@@ -380,7 +380,7 @@ class TDHF {
                              std::vector<real_function_3d>& phi,
                              double small,
                              double thresh,
-                             int print_level,
+                           size_t   print_level,
                              std::string xy);
 
   response_space ComputeHf(World& world,
@@ -388,7 +388,7 @@ class TDHF {
                            const std::vector<real_function_3d>& orbitals,
                            double small,
                            double thresh,
-                           int print_level,
+                         size_t   print_level,
                            std::string xy);
 
   response_space ComputeGf(World& world,
@@ -396,7 +396,7 @@ class TDHF {
                            const std::vector<real_function_3d>& orbitals,
                            double small,
                            double thresh,
-                           int print_level,
+                         size_t   print_level,
                            std::string xy);
   GammaResponseFunctions ComputeGammaFunctions(
       World& world,
@@ -418,7 +418,7 @@ class TDHF {
   response_space CreatePotential(World& world,
                                  response_space& f,
                                  XCOperator xc,
-                                 int print_level,
+                               size_t   print_level,
                                  std::string xy);
 
   void computeElectronResponse(World& world,
@@ -431,7 +431,7 @@ class TDHF {
                                Tensor<double>& ham_no_diag,
                                double small,
                                double thresh,
-                               int print_level,
+                             size_t   print_level,
                                std::string xy);
 
   // Returns a tensor, where entry (i,j) = inner(a[i], b[j]).sum()
@@ -450,7 +450,7 @@ class TDHF {
   response_space CreateFock(World& world,
                             response_space& Vf,
                             response_space& f,
-                            int print_level,
+                          size_t   print_level,
                             std::string xy);
 
   Zfunctions ComputeZFunctions(World& world,
@@ -476,7 +476,7 @@ class TDHF {
                                   const ResponseParameters& Rparams,
                                   Tensor<double> ham_no_diagonal,
                                   double omega,
-                                  int iteration);
+                                size_t   iteration);
   void xy_from_XVector(response_space& x,
                        response_space& y,
                        std::vector<X_vector>& Xvectors);
@@ -505,14 +505,14 @@ class TDHF {
       std::vector<std::shared_ptr<real_convolution_3d>> bsh_x_operators,
       std::vector<std::shared_ptr<real_convolution_3d>> bsh_y_operators,
       Tensor<double> ham_no_diagonal,
-      int iteration);
+    size_t   iteration);
   // Returns the hamiltonian matrix, equation 45 from the paper
   Tensor<double> CreateResponseMatrix(
       World& world,
       response_space& x,
       ElectronResponseFunctions& I,
       std::vector<real_function_3d>& ground_orbitals,
-      int print_level,
+    size_t   print_level,
       std::string xy);
 
   // Constructs full response matrix of
@@ -527,13 +527,13 @@ class TDHF {
       std::vector<real_function_3d>& ground_orbitals,  // ground state orbitals
       double small,
       double thresh,
-      int print_level);
+    size_t   print_level);
   // Returns the shift needed for each orbital to make sure
   // -2.0 * (ground_state_energy + excited_state_energy) is positive
   Tensor<double> create_shift(World& world,
                               Tensor<double>& ground,
                               Tensor<double>& omega,
-                              int print_level,
+                            size_t   print_level,
                               std::string xy);
 
   // Returns the shift needed for each orbital to make sure
@@ -542,7 +542,7 @@ class TDHF {
                                      Tensor<double>& ground,
                                      Tensor<double>& omega,
                                      double target,
-                                     int print_level,
+                                   size_t   print_level,
                                      std::string xy);
 
   // Returns the given shift applied to the given potentials
@@ -586,7 +586,7 @@ class TDHF {
                                          response_space& gamma,
                                          response_space& f_residuals,
                                          response_space& new_f,
-                                         int print_level,
+                                       size_t   print_level,
                                          std::string xy);
 
   // Returns response functions that have been orthonormalized via
@@ -609,7 +609,7 @@ class TDHF {
                                   response_space& f,
                                   Tensor<double>& energies,
                                   size_t k,
-                                  int print_level);
+                                size_t   print_level);
 
   // Calculates the exponentiation of a matrix through first order (I think)
   Tensor<double> matrix_exponential(const Tensor<double>& A);
@@ -650,7 +650,7 @@ class TDHF {
                Tensor<double>& old_S,
                Tensor<double>& old_A,
                response_space& old_x_resopnse,
-               int print_level);
+             size_t   print_level);
 
   // If using a larger subspace to diagonalize in, this will put everything in
   // the right spot
@@ -679,13 +679,13 @@ class TDHF {
                     response_space& old_y_response,
                     response_space& old_V_y_response,
                     response_space& old_y_fe,
-                    int print_level);
+                  size_t   print_level);
 
   // If using a larger subspace to diagonalize in, after diagonalization this
   // will put everything in the right spot
   void unaugment(World& world,
                  size_t num_states,
-                 int iter,
+               size_t   iter,
                  Tensor<double>& omega,
                  Tensor<double>& S_x,
                  Tensor<double>& A_x,
@@ -695,13 +695,13 @@ class TDHF {
                  Tensor<double>& old_S,
                  Tensor<double>& old_A,
                  response_space& old_x_response,
-                 int print_level);
+               size_t   print_level);
 
   // If using a larger subspace to diagonalize in, after diagonalization this
   // will put everything in the right spot
   void unaugment_full(World& world,
                       size_t m,
-                      int iter,
+                    size_t   iter,
                       Tensor<double>& U,
                       Tensor<double>& omega,
                       Tensor<double>& S,
@@ -728,7 +728,7 @@ class TDHF {
                       response_space& old_V_y_response,
                       response_space& old_y_fe,
                       response_space& old_B_y,
-                      int print_level);
+                    size_t   print_level);
 
   // Diagonalize the full response matrix, taking care of degenerate states
   Tensor<double> diagonalizeFullResponseMatrix(World& world,
@@ -739,7 +739,7 @@ class TDHF {
                                                ElectronResponseFunctions& I,
                                                Tensor<double>& omega,
                                                const double thresh,
-                                               int print_level);
+                                             size_t   print_level);
 
   // Similar to what robert did above in "get_fock_transformation"
   Tensor<double> GetFullResponseTransformation(World& world,
@@ -824,7 +824,7 @@ class TDHF {
                                        Tensor<double>& energies,
                                        double small,
                                        double thresh,
-                                       int print_level);
+                                     size_t   print_level);
 
   // Adds random noise to function f
   response_space add_randomness(World& world,
@@ -851,7 +851,7 @@ class TDHF {
   // subspace (aka the orbitals in tda_act_orbitals)
   Tensor<double> CreateGroundHamiltonian(World& world,
                                          std::vector<real_function_3d> f,
-                                         int print_level);
+                                       size_t   print_level);
 
   // Sets the different k/thresh levels
   template <std::size_t NDIM>
@@ -863,7 +863,7 @@ class TDHF {
   // Creates random guess functions semi-intelligently(?)
   response_space create_random_guess(World& world,
                                      size_t m,
-                                     int n,
+                                   size_t   n,
                                      std::vector<real_function_3d>& grounds,
                                      Molecule& molecule);
 
@@ -887,7 +887,7 @@ class TDHF {
                              response_space& x_gamma,
                              response_space& x_V0,
                              ResponsePotential& potentials,
-                             int print_level);
+                           size_t   print_level);
 
   // Solves the response equations for response states
   void solve(World& world);
@@ -919,7 +919,7 @@ class TDHF {
       hi[1] = 0.0;
       hi[2] = 0.0;
     }
-    plotCoords(int direction, double Lp) {
+    plotCoords(size_t    direction, double Lp) {
       lo[0] = 0.0;
       lo[1] = 0.0;
       lo[2] = 0.0;
@@ -930,10 +930,10 @@ class TDHF {
       hi[0] = Lp;
     }
   };
-  plotCoords SetPlotCoord(int i, double Lp);
+  plotCoords SetPlotCoord(size_t    i, double Lp);
 
   void PlotGroundandResponseOrbitals(World& world,
-                                     int iteration,
+                                   size_t   iteration,
                                      response_space& x_response,
                                      response_space& y_response,
                                      ResponseParameters const& Rparams,

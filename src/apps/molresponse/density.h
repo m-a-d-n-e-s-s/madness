@@ -56,9 +56,9 @@ public:
 
   virtual void ComputeResponse(World& world);
 
-  int GetNumberResponseStates();
+size_t   GetNumberResponseStates();
   VectorFunction3DT ComputeDensityVector(World& world, bool is_static);
-  int GetNumberGroundStates();
+size_t   GetNumberGroundStates();
   VectorFunction3DT GetDensityVector();
   const Molecule GetMolecule();
   TensorT GetFrequencyOmega();
