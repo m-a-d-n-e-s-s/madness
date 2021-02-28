@@ -22,11 +22,11 @@ struct GroundParameters {
   std::string inFile;   ///< Name of input archive to read in ground state
   bool spinrestricted;  ///< Indicates if ground state calc. was open or closed
                         ///< shell
-   size_t num_orbitals;  ///< Number of orbitals in ground state
+  unsigned int num_orbitals;  ///< Number of orbitals in ground state
   Tensor<double> energies;    ///< Energy of ground state orbitals
   Tensor<double> occ;         ///< Occupancy of ground state orbitals
   double L;  ///< Box size of ground state - response calcluation is in same box
-  size_t k;     ///< Order of polynomial used in ground state
+  int k;     ///< Order of polynomial used in ground state
   Molecule molecule;  ///< The molecule used in ground state calculation
   std::vector<real_function_3d> orbitals;  ///< The ground state orbitals
   std::string xc;  ///< Name of xc functional used in ground state
