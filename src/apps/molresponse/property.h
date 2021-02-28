@@ -39,7 +39,7 @@ class MolecularDerivativeFunctor : public FunctionFunctorInterface<double, 3> {
 // Used to compute proerties or compute rhs vectors
 class Property {
  public:
-  int num_operators;  // number of operators in vectors
+  size_t num_operators;  // number of operators in vectors
   std::string property;
   std::vector<real_function_3d> operator_vector;
 

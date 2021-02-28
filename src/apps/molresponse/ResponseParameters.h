@@ -20,7 +20,7 @@ struct ResponseParameters {
   std::string archive;  ///< Name of input archive to read in ground state
   std::string
       nwchem;  ///< Root name of nwchem files for intelligent starting guess
-  int states;  ///< Number of excited states requested
+  size_t states;  ///< Number of excited states requested
   int print_level;  ///< Controls the amount and style of printing. Higher
                     ///< values print more
                     ///<   Values |   What gets printed
