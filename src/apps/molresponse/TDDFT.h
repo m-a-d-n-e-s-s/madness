@@ -62,14 +62,13 @@
 #include "../chem/molecule.h"
 #include "../chem/xcfunctional.h"
 #include "GroundParameters.h"
-#include "molresponse/response_functions.h"
-#include "molresponse/x_space.h"
 #include "ResponseParameters.h"
 #include "ResponsePotential.h"
 #include "TDHF_Basic_Operators2.h"
 #include "molresponse/load_balance.h"
 #include "molresponse/property.h"
 #include "molresponse/timer.h"
+#include "response_functions.h"
 
 // Functor from SCF.cc (it wasn't linking right, no idea why, so just copied and
 // renamed here) A copy of a MADNESS functor to compute the cartesian moment x^i
@@ -685,7 +684,7 @@ class TDHF {
   // If using a larger subspace to diagonalize in, after diagonalization this
   // will put everything in the right spot
   void unaugment(World& world,
-                 int m,
+                 size_t num_states,
                  int iter,
                  Tensor<double>& omega,
                  Tensor<double>& S_x,
@@ -761,8 +760,8 @@ class TDHF {
                   ElectronResponseFunctions& ElectronResponses,
                   ElectronResponseFunctions& OldElectronResponses,
                   Tensor<double>& omega,
-                  int& iteration,
-                  int& m);
+                  size_t& iteration,
+                  size_t& m);
 
   void deflateFull(World& world,
                    Tensor<double>& S,
@@ -775,8 +774,8 @@ class TDHF {
                    ElectronResponseFunctions& ElectronResponses,
                    ElectronResponseFunctions& OldElectronResponses,
                    Tensor<double>& omega,
-                   int& iteration,
-                   int& m);
+                   size_t& iteration,
+                   size_t& m);
 
   // Creates the XCOperator object and initializes it with correct
   // parameters

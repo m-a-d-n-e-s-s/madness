@@ -46,7 +46,7 @@ response_space TDHF::CreateGamma(World& world,
                                  int print_level,
                                  std::string xy) {
   // Start timer
-  if (print_level >= 1) start_timer(world);
+  if (print_level >= 1) molresponse::start_timer(world);
 
   // Get sizes
   int m = f.size();
@@ -75,7 +75,7 @@ response_space TDHF::CreateGamma(World& world,
     std::vector<real_function_3d> vxc = create_fxc(world, phi, f, g);
 
     // Apply xc kernel to ground state orbitals
-    for (int i = 0; i < m; i++) {
+    for (size_t i = 0; i < m; i++) {
       deriv_XC[i] = mul_sparse(world, vxc[i], phi, thresh, false);
     }
     world.gop.fence();
@@ -87,7 +87,7 @@ response_space TDHF::CreateGamma(World& world,
 
   // Project out groundstate
   QProjector<double, 3> projector(world, Gparams.orbitals);
-  for (int i = 0; i < m; i++) gamma[i] = projector(gamma[i]);
+  for (size_t i = 0; i < m; i++) gamma[i] = projector(gamma[i]);
 
   // Debugging output
   if (print_level >= 2) {
@@ -113,7 +113,7 @@ response_space TDHF::CreateGamma(World& world,
   }
 
   // Basic output
-  if (print_level >= 1) end_timer(world, "Creating gamma:");
+  if (print_level >= 1) molresponse::end_timer(world, "Creating gamma:");
 
   truncate(world, gamma);
 
@@ -140,7 +140,7 @@ response_space TDHF::ComputeHf(World& world,
                                int print_level,
                                std::string xy) {
   // Start timer
-  if (print_level >= 1) start_timer(world);
+  if (print_level >= 1) molresponse::start_timer(world);
   // Get sizes
   int m = f.size();
   int n = f[0].size();
@@ -176,7 +176,7 @@ response_space TDHF::ComputeHf(World& world,
 
   // Project out groundstate
   QProjector<double, 3> projector(world, Gparams.orbitals);
-  for (int i = 0; i < m; i++) {
+  for (size_t i = 0; i < m; i++) {
     H[i] = projector(H[i]);
   }
 
@@ -204,7 +204,7 @@ response_space TDHF::ComputeHf(World& world,
   }
 
   // Basic output
-  if (print_level >= 1) end_timer(world, "Creating H:");
+  if (print_level >= 1) molresponse::end_timer(world, "Creating H:");
 
   truncate(world, H);
 
@@ -231,7 +231,7 @@ response_space TDHF::ComputeGf(World& world,
                                int print_level,
                                std::string xy) {
   // Start a timer
-  if (print_level >= 1) start_timer(world);
+  if (print_level >= 1) molresponse::start_timer(world);
 
   // Get sizes
   int m = f.size();
@@ -266,7 +266,7 @@ response_space TDHF::ComputeGf(World& world,
   G = (Jdagger * 2) - Kdagger * xcf.hf_exchange_coefficient() + XCdagger;
   // Project out groundstate
   QProjector<double, 3> projector(world, Gparams.orbitals);
-  for (int i = 0; i < m; i++) {
+  for (size_t i = 0; i < m; i++) {
     G[i] = projector(G[i]);
   }
 
@@ -290,7 +290,7 @@ response_space TDHF::ComputeGf(World& world,
   }
 
   // End timer
-  if (print_level >= 1) end_timer(world, "   Creating G:");
+  if (print_level >= 1) molresponse::end_timer(world, "   Creating G:");
 
   // Done
   return G;
@@ -318,7 +318,7 @@ GammaResponseFunctions TDHF::ComputeGammaFunctions(
     const GroundParameters& Gparams,
     const ResponseParameters& Rparams) {
   // Start a timer
-  if (Rparams.print_level >= 1) start_timer(world);
+  if (Rparams.print_level >= 1) molresponse::start_timer(world);
 
   int m = Rparams.states;
   int n = Gparams.num_orbitals;
@@ -343,7 +343,7 @@ GammaResponseFunctions TDHF::ComputeGammaFunctions(
 
   // apply the exchange kernel to rho if necessary
   if (xcf.hf_exchange_coefficient() != 1.0) {
-    for (int i = 0; i < m; i++) {
+    for (size_t i = 0; i < m; i++) {
       Wphi.push_back(xc.apply_xc_kernel(rho_omega[i]));
     }
   }
@@ -433,7 +433,7 @@ GammaResponseFunctions TDHF::ComputeGammaFunctions(
         (Kx_conjugate + Ky_conjugate) * xcf.hf_exchange_coefficient() + W;
   }
   // project out ground state
-  for (int i = 0; i < m; i++) {
+  for (size_t i = 0; i < m; i++) {
     gamma.gamma[i] = projector(gamma.gamma[i]);
     truncate(world, gamma.gamma[i]);
 
@@ -456,7 +456,7 @@ GammaResponseFunctions TDHF::ComputeGammaFunctions(
   }
 
   // End timer
-  if (Rparams.print_level >= 1) end_timer(world, "   Creating Gamma:");
+  if (Rparams.print_level >= 1) molresponse::end_timer(world, "   Creating Gamma:");
 
   // Done
   world.gop.fence();
@@ -605,12 +605,12 @@ void TDHF::IterateXY(
   // Load Balancing
   if (world.size() > 1 && ((iteration < 2) or (iteration % 5 == 0))) {
     // Start a timer
-    if (Rparams.print_level >= 1) start_timer(world);
+    if (Rparams.print_level >= 1) molresponse::start_timer(world);
     if (world.rank() == 0) print("");  // Makes it more legible
     // (TODO Ask Robert about load balancing)
     LoadBalanceDeux<3> lb(world);
-    for (int j = 0; j < n; j++) {
-      for (int k = 0; k < Rparams.states; k++) {
+    for (size_t j = 0; j < n; j++) {
+      for (size_t k = 0; k < Rparams.states; k++) {
         lb.add_tree(x_response[k][j], lbcost<double, 3>(1.0, 8.0), true);
         lb.add_tree(Z.v0_x[k][j], lbcost<double, 3>(1.0, 8.0), true);
         lb.add_tree(Z.Hx[k][j], lbcost<double, 3>(1.0, 8.0), true);
@@ -619,13 +619,13 @@ void TDHF::IterateXY(
     }
     FunctionDefaults<3>::redistribute(world, lb.load_balance(2));
 
-    if (Rparams.print_level >= 1) end_timer(world, "Load balancing:");
+    if (Rparams.print_level >= 1) molresponse::end_timer(world, "Load balancing:");
   }
-  if (Rparams.print_level >= 1) start_timer(world);
+  if (Rparams.print_level >= 1) molresponse::start_timer(world);
 
   bsh_x_resp = apply(world, bsh_x_operators, Z.Z_x);
   if (Rparams.omega != 0.0) bsh_y_resp = apply(world, bsh_y_operators, Z.Z_y);
-  if (Rparams.print_level >= 1) end_timer(world, "Apply BSH:");
+  if (Rparams.print_level >= 1) molresponse::end_timer(world, "Apply BSH:");
 
   // Debugging output
   if (Rparams.print_level >= 2) {

@@ -18,7 +18,7 @@ response_space transpose(response_space &f) {
   response_space g(f[0][0].world(), m, n);
 
   // Now do shallow copies
-  for (int i = 0; i < m; i++)
+  for (size_t i = 0; i < m; i++)
     for (int j = 0; j < n; j++) g[j][i] = f[i][j];
 
   // Done

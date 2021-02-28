@@ -65,7 +65,7 @@ private:
         zero_functions<double, 3>(world, m);
 
     // Run over virtual...
-    for (int i = 0; i < m; i++) {
+    for (size_t i = 0; i < m; i++) {
       // Run over occupied...
       for (int j = 0; j < n; j++) {
         densities[i] += ground_orbitals[j] * (x[i][j] + y[i][j]);

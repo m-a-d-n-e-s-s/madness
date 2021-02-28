@@ -17,7 +17,7 @@
 namespace madness {
 /**
  * @brief response vector class holds a single x or y
- * 
+ *
  */
 struct response_vector {
  private:
@@ -49,13 +49,13 @@ struct response_vector {
 
 /**
  * @brief response matrix holds response vectors for response state
- * 
+ *
  */
 struct response_space {
   // Member variables
   /**
    * @brief vector of vector of real 3d functions
-   * 
+   *
    */
   typedef std::vector<vector_real_function_3d> response_matrix;
 
@@ -66,20 +66,21 @@ struct response_space {
 
   // Member functions
  public:
- /**
-  * @brief default Construct a new response space object
-  * num_states(0)
-  * num_orbitals(0)
-  * x() default constructor of std::vector
-  */
+  /**
+   * @brief default Construct a new response space object
+   * num_states(0)
+   * num_orbitals(0)
+   * x() default constructor of std::vector
+   */
   response_space() : num_states(0), num_orbitals(0), x() {}
 
   // Copy constructor
   /**
    * @brief copy construct a new response space object
    * we are using copying defined by std:vector
-   * we copy madness functions therefore we are copying pointers to function implementations
-   * @param y 
+   * we copy madness functions therefore we are copying pointers to function
+   * implementations
+   * @param y
    */
   response_space(const response_space& y)
       : num_states(y.size()), num_orbitals(y.size_orbitals()), x(y.x) {}
@@ -100,10 +101,10 @@ struct response_space {
   // Zero Constructor constructs m vectors
   /**
    * @brief Construct a new response space with zero functions
-   * 
-   * @param world 
-   * @param num_states 
-   * @param num_orbitals 
+   *
+   * @param world
+   * @param num_states
+   * @param num_orbitals
    */
   response_space(World& world, size_t num_states, size_t num_orbitals)
       : num_states(num_states), num_orbitals(num_orbitals), x() {
@@ -115,8 +116,8 @@ struct response_space {
   // Conversion from respones_matrix
   /**
    * @brief Construct a new response space object from vector of functions
-   * 
-   * @param x 
+   *
+   * @param x
    */
   explicit response_space(const response_matrix& x)
       : num_states(x.size()), num_orbitals(x[0].size()), x(x) {}
@@ -129,17 +130,17 @@ struct response_space {
   // std::vector<Function<double, 3>> &operator[](int64_t i) { return x[i]; }
   /**
    * @brief access vector of functions with std::vector.at()
-   * 
-   * @param i 
-   * @return vector_real_function_3d& 
+   *
+   * @param i
+   * @return vector_real_function_3d&
    */
   vector_real_function_3d& operator[](size_t i) { return x.at(i); }
-/**
- * @brief access vector of functions const 
- * 
- * @param i 
- * @return const vector_real_function_3d& 
- */
+  /**
+   * @brief access vector of functions const
+   *
+   * @param i
+   * @return const vector_real_function_3d&
+   */
   const vector_real_function_3d& operator[](size_t i) const { return x.at(i); }
 
   // KAIN must have this
@@ -148,9 +149,9 @@ struct response_space {
   // we need a new function
   /**
    * @brief elementwise addition of response_space
-   * 
-   * @param rhs_y 
-   * @return response_space 
+   *
+   * @param rhs_y
+   * @return response_space
    */
   response_space operator+(const response_space& rhs_y) const {
     MADNESS_ASSERT(size() > 0);
@@ -161,7 +162,7 @@ struct response_space {
     response_space result(
         world, num_states, num_orbitals);  // create zero_functions
 
-    for (unsigned int i = 0; i < num_states; i++) {
+    for (size_t i = 0; i < num_states; i++) {
       result[i] = add(world, x[i], rhs_y[i]);
     }
     return result;
@@ -175,9 +176,9 @@ struct response_space {
 
   /**
    * @brief elementwise subtraction of response space
-   * 
-   * @param rhs_y 
-   * @return response_space 
+   *
+   * @param rhs_y
+   * @return response_space
    */
   response_space operator-(const response_space& rhs_y) const {
     MADNESS_ASSERT(size() > 0);
@@ -188,7 +189,7 @@ struct response_space {
     response_space result(
         world, num_states, num_orbitals);  // create zero_functions
 
-    for (unsigned int i = 0; i < num_states; i++) {
+    for (size_t i = 0; i < num_states; i++) {
       result[i] = sub(world, x[i], rhs_y[i]);
     }
     world.gop.fence();
@@ -210,7 +211,7 @@ struct response_space {
     // response_space result(*this);// this a problem
     response_space result = this->copy();  // deep copy
 
-    for (unsigned int i = 0; i < num_states; i++) {
+    for (size_t i = 0; i < num_states; i++) {
       madness::scale(world, result[i], a);
     }
 
@@ -218,13 +219,13 @@ struct response_space {
   }
   */
 
- /**
-  * @brief multiplication by scalar
-  * 
-  * @param y 
-  * @param a 
-  * @return response_space 
-  */
+  /**
+   * @brief multiplication by scalar
+   *
+   * @param y
+   * @param a
+   * @return response_space
+   */
   friend response_space operator*(response_space y, double a) {
     World& world = y.x.at(0).at(0).world();
     response_space result = y.copy();  // deep copy
@@ -248,7 +249,7 @@ struct response_space {
   response_space& operator*=(double a) {
     World& world = this->x[0][0].world();
 
-    for (unsigned int i = 0; i < num_states; i++) {
+    for (size_t i = 0; i < num_states; i++) {
       madness::scale(world, this->x[i], a);
     }
 
@@ -315,7 +316,7 @@ struct response_space {
       }
     }
     */
-for (unsigned int i = 0; i < num_states; i++) {
+    for (size_t i = 0; i < num_states; i++) {
       this->x[i] = add(world, this->x[i], b[i]);
     }
 
@@ -396,7 +397,7 @@ for (unsigned int i = 0; i < num_states; i++) {
   // Returns norms of each state
   Tensor<double> norm2() {
     Tensor<double> answer(num_states);
-    for (unsigned int i = 0; i < num_states; i++) {
+    for (size_t i = 0; i < num_states; i++) {
       answer(i) = madness::norm2(x[0][0].world(), x[i]);
     }
     return answer;
@@ -405,7 +406,7 @@ for (unsigned int i = 0; i < num_states; i++) {
   // Scales each state (read: entire row) by corresponding vector element
   //     new[i] = old[i] * mat[i]
   void scale(Tensor<double>& mat) {
-    for (unsigned int i = 0; i < num_states; i++)
+    for (size_t i = 0; i < num_states; i++)
       madness::scale(x[0][0].world(), x[i], mat[i], false);
     // x[i] = x[i] * mat[i];
   }

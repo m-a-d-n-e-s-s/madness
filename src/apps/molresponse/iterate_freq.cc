@@ -27,7 +27,7 @@ void TDHF::IterateFrequencyResponse(World& world,
                                     response_space& rhs_x,
                                     response_space& rhs_y) {
   // Variables needed to iterate
-  int iteration = 0;  // Iteration counter
+  size_t iteration = 0;  // Iteration counter
   QProjector<double, 3> projector(
       world, Gparams.orbitals);     // Projector to project out ground state
   size_t n = Gparams.num_orbitals;  // Number of ground state orbitals
@@ -121,11 +121,11 @@ void TDHF::IterateFrequencyResponse(World& world,
   vector_real_function_3d rho_omega;
   // Now to iterate
   while (iteration < Rparams.max_iter and !converged) {
-    start_timer(world);
+    molresponse::start_timer(world);
     // Basic output
     if (Rparams.print_level >= 1) {
       if (world.rank() == 0)
-        printf("\n   Iteration %d at time %.1fs\n", iteration, wall_time());
+        printf("\n   Iteration %d at time %.1fs\n", int(iteration), wall_time());
       if (world.rank() == 0) print(" -------------------------------");
     }
 
@@ -212,7 +212,7 @@ void TDHF::IterateFrequencyResponse(World& world,
     // Check convergence
     if (std::max(x_norms.absmax(), y_norms.absmax()) < Rparams.dconv and
         iteration > 0) {
-      if (Rparams.print_level >= 1) end_timer(world, "This iteration:");
+      if (Rparams.print_level >= 1) molresponse::end_timer(world, "This iteration:");
       if (world.rank() == 0) print("\n   Converged!");
       converged = true;
       break;
@@ -238,14 +238,14 @@ void TDHF::IterateFrequencyResponse(World& world,
       // Add y functions to bottom of x functions
       // (for KAIN)
 
-      start_timer(world);
+      molresponse::start_timer(world);
       for (size_t b = 0; b < nkain; b++) {
         X_vector kain_X = kain_x_space[b].update(
             Xvector[b], Xresidual[b], FunctionDefaults<3>::get_thresh(), 3.0);
         x_response[b].assign(kain_X.X[0].begin(), kain_X.X[0].end());
         y_response[b].assign(kain_X.Y[0].begin(), kain_X.Y[0].end());
       }
-      end_timer(world, " KAIN update:");
+      molresponse::end_timer(world, " KAIN update:");
 
   }
   if (iteration>0){
@@ -288,12 +288,12 @@ void TDHF::IterateFrequencyResponse(World& world,
   print(G);
   // Save
   if (Rparams.save) {
-    start_timer(world);
+    molresponse::start_timer(world);
     save(world, Rparams.save_file);
-    if (Rparams.print_level >= 1) end_timer(world, "Save:");
+    if (Rparams.print_level >= 1) molresponse::end_timer(world, "Save:");
     }
     // Basic output
-    if (Rparams.print_level >= 1) end_timer(world, " This iteration:");
+    if (Rparams.print_level >= 1) molresponse::end_timer(world, " This iteration:");
     // plot orbitals
     if (Rparams.plot_all_orbitals) {
       PlotGroundandResponseOrbitals(

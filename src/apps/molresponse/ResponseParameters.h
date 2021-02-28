@@ -19,7 +19,7 @@ struct ResponseParameters {
   // List of input parameters
   std::string archive;  ///< Name of input archive to read in ground state
   std::string
-      nwchem;  ///< Root name of nwchem files for intelligent starting guess
+      nwchem;     ///< Root name of nwchem files for intelligent starting guess
   size_t states;  ///< Number of excited states requested
   int print_level;  ///< Controls the amount and style of printing. Higher
                     ///< values print more
@@ -39,11 +39,11 @@ struct ResponseParameters {
   double plot_L;               ///< Controls the plotting box size
   int plot_pts;                ///< Controls number of points in plots
   bool plot_all_orbitals;
-  int max_iter;    ///< Maximum number of iterations
-  double dconv;    ///< Convergence criterion for the orbital density
-  bool dconv_set;  ///< Convergence flag for the orbital density
-  bool guess_xyz;  ///< Convergence flag for the orbital density
-  double small;    ///< Minimum length scale to be resolved
+  size_t max_iter;  ///< Maximum number of iterations
+  double dconv;     ///< Convergence criterion for the orbital density
+  bool dconv_set;   ///< Convergence flag for the orbital density
+  bool guess_xyz;   ///< Convergence flag for the orbital density
+  double small;     ///< Minimum length scale to be resolved
   std::vector<double> protocol_data;  ///< Different thresholds for truncation
   int larger_subspace;   ///< Number of iterations to diagonalize in a subspace
                          ///< consisting of old and new vectors
@@ -124,7 +124,7 @@ struct ResponseParameters {
         dconv_set(false),
         guess_xyz(false),
         small(1e-6),
-        protocol_data(madness::vector_factory(1e-6,1e-8)),
+        protocol_data(madness::vector_factory(1e-6, 1e-8)),
         larger_subspace(0),
         k(0),
         random(false),

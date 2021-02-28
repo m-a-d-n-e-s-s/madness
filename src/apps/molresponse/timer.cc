@@ -1,11 +1,13 @@
 
 
+#include "timer.h"
+
 #include <vector>
 
 #include "TDDFT.h"
-#include "timer.h"
 #include "madness/mra/mra.h"
 // Needed for timers
+namespace molresponse {
 double pop(std::vector<double>& v) {
   double x = v.back();
   v.pop_back();
@@ -25,3 +27,4 @@ void end_timer(World& world, const char* msg) {
   if (world.rank() == 0)
     printf("   timer: %20.20s %8.2fs %8.2fs\n", msg, cpu, wall);
 }
+}  // namespace molresponse

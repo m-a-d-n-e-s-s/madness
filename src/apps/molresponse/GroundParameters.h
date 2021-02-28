@@ -22,7 +22,7 @@ struct GroundParameters {
   std::string inFile;   ///< Name of input archive to read in ground state
   bool spinrestricted;  ///< Indicates if ground state calc. was open or closed
                         ///< shell
-  unsigned int num_orbitals;  ///< Number of orbitals in ground state
+   size_t num_orbitals;  ///< Number of orbitals in ground state
   Tensor<double> energies;    ///< Energy of ground state orbitals
   Tensor<double> occ;         ///< Occupancy of ground state orbitals
   double L;  ///< Box size of ground state - response calcluation is in same box

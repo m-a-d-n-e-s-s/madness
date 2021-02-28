@@ -35,7 +35,7 @@ GammaResponseFunctions TDHF::ComputeGammaFunctions(
     const GroundParameters& Gparams,
     const ResponseParameters& Rparams) {
   // Start a timer
-  if (Rparams.print_level >= 1) start_timer(world);
+  if (Rparams.print_level >= 1) molresponse::start_timer(world);
 
   int m = Rparams.states;
   int n = Gparams.num_orbitals;
@@ -60,7 +60,7 @@ GammaResponseFunctions TDHF::ComputeGammaFunctions(
 
   // apply the exchange kernel to rho if necessary
   if (xcf.hf_exchange_coefficient() != 1.0) {
-    for (int i = 0; i < m; i++) {
+    for (size_t i = 0; i < m; i++) {
       Wphi.push_back(xc.apply_xc_kernel(rho_omega[i]));
     }
   }
@@ -153,7 +153,7 @@ GammaResponseFunctions TDHF::ComputeGammaFunctions(
         (Kx_conjugate + Ky_conjugate) * xcf.hf_exchange_coefficient() + W;
   }
   // project out ground state
-  for (int i = 0; i < m; i++) {
+  for (size_t i = 0; i < m; i++) {
     gamma.gamma[i] = projector(gamma.gamma[i]);
     truncate(world, gamma.gamma[i]);
 
@@ -176,7 +176,7 @@ GammaResponseFunctions TDHF::ComputeGammaFunctions(
   }
 
   // End timer
-  if (Rparams.print_level >= 1) end_timer(world, "   Creating Gamma:");
+  if (Rparams.print_level >= 1) molresponse::end_timer(world, "   Creating Gamma:");
 
   // Done
   world.gop.fence();
