@@ -32,7 +32,8 @@
     "cquery.cacheDirectory": "${workspaceFolder}/.vscode/cquery_cached_index/",
     "C_Cpp.default.macFrameworkPath": [],
     "C_Cpp.clang_format_fallbackStyle": "Google",
-    "editor.tabCompletion": "on"
+    "editor.tabCompletion": "on",
+    "C_Cpp.dimInactiveRegions": false
 }
 //        "CMAKE_CXX_COMPILER": "mpicxx",
 //        "CMAKE_C_COMPILER": "mpicc",
