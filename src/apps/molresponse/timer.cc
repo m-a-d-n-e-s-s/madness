@@ -1,6 +1,7 @@
 
+// Copyright 2021 Adrian Hurtado
 
-#include "timer.h"
+#include "molresponse/timer.h"
 
 #include <vector>
 

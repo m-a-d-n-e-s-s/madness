@@ -1,6 +1,6 @@
-
-#ifndef SRC_APPS_molresponse_TIMER_H
-#define SRC_APPS_molresponse_TIMER_H
+// Copyright 2021 Adrian Hurtado
+#ifndef SRC_APPS_MOLRESPONSE_TIMER_H_
+#define SRC_APPS_MOLRESPONSE_TIMER_H_
 
 #include <vector>
 
@@ -17,4 +17,4 @@ void start_timer(World& world);
 void end_timer(World& world, const char* msg);
 }  // namespace molresponse
 
-#endif
+#endif  // SRC_APPS_MOLRESPONSE_TIMER_H_

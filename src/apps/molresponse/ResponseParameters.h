@@ -1,9 +1,10 @@
+// Copyright 2021 Adrian Hurtado
 
 /// \file ResponseParameters
 /// \brief Input parameters for a response calculation.
 
-#ifndef SRC_APPS_molresponse_RESPONSEPARAMETERS_H_INCLUDED
-#define SRC_APPS_molresponse_RESPONSEPARAMETERS_H_INCLUDED
+#ifndef SRC_APPS_MOLRESPONSE_RESPONSEPARAMETERS_H_
+#define SRC_APPS_MOLRESPONSE_RESPONSEPARAMETERS_H_
 
 #include <chem/molecule.h>
 #include <chem/xcfunctional.h>
@@ -60,7 +61,7 @@ struct ResponseParameters {
   std::string restart_file;  ///< Flag to restart from file
   bool kain;                 ///< Flag to use KAIN solver
   double maxrotn;
-  size_t maxsub;      ///< How many previous iterations KAIN will store
+  size_t maxsub;   ///< How many previous iterations KAIN will store
   std::string xc;  ///< Controls the HF or DFT switch, as well as which DFT
                    ///< functional is used
   bool save;       ///< Controls if orbitals will be saved each iteration
@@ -409,4 +410,4 @@ struct ResponseParameters {
   }
 };  // namespace madness
 }  // namespace madness
-#endif  // SRC_APPS_molresponse_RESPONSEPARAMETERS_H_INCLUDED
+#endif  // SRC_APPS_MOLRESPONSE_RESPONSEPARAMETERS_H_

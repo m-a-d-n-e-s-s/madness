@@ -1,11 +1,12 @@
-
+// Copyright 2021 Adrian Hurtado
 #ifndef SRC_APPS_ADRIAN_TIMER_H
 #define SRC_APPS_ADRIAN_TIMER_H
+
+#include "timer.h"
 
 #include <vector>
 
 #include "TDDFT.h"
-#include "timer.h"
 #include "madness/mra/mra.h"
 // Needed for timers
 static double pop(std::vector<double>& v) {
