@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-#include "ResponseParameters.h"
+#include "response_parameters.h"
 #include "molresponse/density.h"
 
 void print_molecule(World &world, GroundParameters Gparams);

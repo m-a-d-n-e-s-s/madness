@@ -60,7 +60,7 @@ size_t   Natoms = molecule.natom();
   real_function_3d rho = real_factory_3d(world);
 
   // Plot each orbital requested
-  for (size_t    i = plotlo; i < plothi; i++) {
+  for (int    i = plotlo; i < plothi; i++) {
     // Add to total
     rho += densities[i];
 

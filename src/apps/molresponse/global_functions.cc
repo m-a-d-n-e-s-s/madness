@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 
-#include "ResponseParameters.h"
+#include "response_parameters.h"
 
 void print_molecule(World &world, GroundParameters Gparams) {
   if (world.rank() == 0) {
