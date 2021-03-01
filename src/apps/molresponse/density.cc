@@ -51,7 +51,7 @@ void FirstOrderDensity::ComputeResponse(World &world) {
   print("Y Norms before Computing");
   print(y.norm2());
 
-  TDHF calc(world, Rparams, Gparams);
+  TDDFT calc(world, Rparams, Gparams);
   if (calc.Rparams.property) {
     print("Entering Frequency Response Runner");
     calc.ComputeFrequencyResponse(world, property, x, y);

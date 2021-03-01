@@ -24,7 +24,7 @@
 #include "molresponse/timer.h"
 
 // Iterate Frequency Response
-void TDHF::IterateFrequencyResponse(World& world,
+void TDDFT::IterateFrequencyResponse(World& world,
                                     response_space& rhs_x,
                                     response_space& rhs_y) {
   // Variables needed to iterate

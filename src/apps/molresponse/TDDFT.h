@@ -61,7 +61,7 @@
 #include "../chem/SCFOperators.h"
 #include "../chem/molecule.h"
 #include "../chem/xcfunctional.h"
-#include "GroundParameters.h"
+#include "ground_parameters.h"
 #include "ResponseParameters.h"
 #include "ResponsePotential.h"
 #include "TDHF_Basic_Operators2.h"
@@ -186,7 +186,7 @@ class ResidualResponseVectors {
 };
 /// Given a molecule and ground state orbitals, solve the response equations
 /// in the Tamm-Danchoff approximation.
-class TDHF {
+class TDDFT {
  public:
   // ResponseParameter object to hold all user input variables
   ResponseParameters Rparams;
@@ -262,15 +262,15 @@ class TDHF {
  public:
   // Collective constructor for response uses contents of file \c filename and
   // broadcasts to all nodes
-  TDHF(World& world,           // MADNESS world object
+  TDDFT(World& world,           // MADNESS world object
        const char* filename);  // Input file
 
   // Collective constructor for Response uses contens of steream \c input and
   // broadcasts to all nodes
-  TDHF(World& world,                          // MADNESS world object
+  TDDFT(World& world,                          // MADNESS world object
        std::shared_ptr<std::istream> input);  // Pointer to input stream
 
-  TDHF(World& world, ResponseParameters rparams, GroundParameters gparams);
+  TDDFT(World& world, ResponseParameters rparams, GroundParameters gparams);
   // Saves a response calculation
   void save(World& world, std::string name);
 

@@ -65,7 +65,7 @@ int main(int    argc, char** argv) {
     if (shared_input->fail())
       MADNESS_EXCEPTION("Response failed to open input stream", 0);
     // Welcome user (future ASCII art of Robert goes here)
-    print("\n   Preparing to solve the TDHF equations.\n");
+    print("\n   Preparing to solve the TDDFT equations.\n");
     // Read input files
     Rparams.read(*shared_input);
     // Print out what was read in
@@ -87,7 +87,7 @@ int main(int    argc, char** argv) {
   // Broadcast to all other nodes
   FirstOrderDensity densityTest =
       SetDensityType(world, Rparams.response_type, Rparams, Gparams);
-  // Create the TDHF object
+  // Create the TDDFT object
   if (Rparams.load_density) {
     print("Loading Density");
     densityTest.LoadDensity(world, Rparams.load_density_file, Rparams, Gparams);

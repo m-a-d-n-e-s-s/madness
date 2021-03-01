@@ -37,7 +37,7 @@
  * @param xy
  * @return response_space
  */
-response_space TDHF::CreateGamma(World& world,
+response_space TDDFT::CreateGamma(World& world,
                                  response_space& f,
                                  response_space& g,
                                  std::vector<real_function_3d>& phi,
@@ -132,7 +132,7 @@ response_space TDHF::CreateGamma(World& world,
  * @param xy
  * @return response_space
  */
-response_space TDHF::ComputeHf(World& world,
+response_space TDDFT::ComputeHf(World& world,
                                const response_space& f,
                                const std::vector<real_function_3d>& phi,
                                double small,
@@ -223,7 +223,7 @@ response_space TDHF::ComputeHf(World& world,
  * @param xy
  * @return response_space
  */
-response_space TDHF::ComputeGf(World& world,
+response_space TDDFT::ComputeGf(World& world,
                                const response_space& f,
                                const std::vector<real_function_3d>& orbitals,
                                double small,
@@ -308,7 +308,7 @@ response_space TDHF::ComputeGf(World& world,
  * @param Rparams
  * @return GammaResponseFunctions
  */
-GammaResponseFunctions TDHF::ComputeGammaFunctions(
+GammaResponseFunctions TDDFT::ComputeGammaFunctions(
     World& world,
     std::vector<real_function_3d> rho_omega,
     response_space phi_phi,
@@ -483,7 +483,7 @@ GammaResponseFunctions TDHF::ComputeGammaFunctions(
  * @param ham_no_diagonal
  * @param iteration
  */
-void TDHF::IterateXY(
+void TDDFT::IterateXY(
     World& world,
     std::vector<real_function_3d> rho_omega,
     response_space orbital_products,

@@ -25,7 +25,7 @@
 #include "load_balance.h"
 #include "madness/mra/funcdefaults.h"
 
-GammaResponseFunctions TDHF::ComputeGammaFunctions(
+GammaResponseFunctions TDDFT::ComputeGammaFunctions(
     World& world,
     std::vector<real_function_3d> rho_omega,
     response_space phi_phi,
@@ -184,7 +184,7 @@ GammaResponseFunctions TDHF::ComputeGammaFunctions(
   // Get sizes
 }
 // Calculates ground state coulomb potential
-real_function_3d TDHF::Coulomb(World& world) {
+real_function_3d TDDFT::Coulomb(World& world) {
   // Coulomb operator
   real_convolution_3d op =
       CoulombOperator(world, Rparams.small, FunctionDefaults<3>::get_thresh());
