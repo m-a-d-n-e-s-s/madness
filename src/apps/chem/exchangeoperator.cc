@@ -311,8 +311,8 @@ void Exchange<T,NDIM>::MacroTaskExchange::run(World& subworld, Cloud& cloud,
     } else {
         vecfuncT resultcolumn = compute_batch_in_asymmetric_matrix(subworld, bra_batch, ket_batch, vf_batch);
 
-        for (int i = row_range.first; i < row_range.second; ++i)
-            Kf[i]+=resultcolumn[i - row_range.first];
+        for (int i = column_range.first; i < column_range.second; ++i)
+            Kf[i]+=resultcolumn[i - column_range.first];
 
     }
     subworld.gop.fence();

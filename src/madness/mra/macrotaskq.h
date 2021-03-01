@@ -110,6 +110,8 @@ public:
 		this->process_pending();
 	}
 
+	~MacroTaskQ() {}
+
 	/// for each process create a world using a communicator shared with other processes by round-robin
 	/// copy-paste from test_world.cc
 	static std::shared_ptr<World> create_worlds(World& universe, const std::size_t nsubworld) {
