@@ -54,12 +54,8 @@ TDHF::TDHF(World &world, const commandlineparser &parser)
         std::shared_ptr<OEP> oep(new OEP(world, parser));
         set_reference(oep);
     }
-    parameters.set_derived_values(get_nemo()->get_calc());
+    parameters.set_derived_values(get_calc());
     initialize();
-}
-
-bool TDHF::reference_is_oep() const {
-    return (std::dynamic_pointer_cast<OEP>(nemo)!=0);
 }
 
 void TDHF::initialize() {
@@ -67,7 +63,7 @@ void TDHF::initialize() {
     msg.section("Initialize TDHF Class");
     msg.debug = parameters.debug();
     check_consistency();
-    g12=std::make_shared<CCConvolutionOperator>(world, OT_G12, parameters.get_ccc_parameters(get_nemo()->get_calc()->param.lo()));
+    g12=std::make_shared<CCConvolutionOperator>(world, OT_G12, parameters.get_ccc_parameters(get_calcparam().lo()));
 
     const double old_thresh = FunctionDefaults<3>::get_thresh();
     if (old_thresh > parameters.thresh() * 0.1 and old_thresh > 1.e-5) {
@@ -96,7 +92,7 @@ void TDHF::prepare_calculation() {
 
     if (not parameters.no_compute()) {
 
-        bool need_hf = (get_nemo()->get_calc()->xc.hf_exchange_coefficient() != 0.0) and (parameters.do_oep() == false);
+        bool need_hf = (get_calc()->xc.hf_exchange_coefficient() != 0.0) and (parameters.do_oep() == false);
         if (need_hf) {
             msg.subsection("Computing Exchange Intermediate");
             CCTimer timer(world, "Computing ExIm");
@@ -105,11 +101,11 @@ void TDHF::prepare_calculation() {
         } else msg.output("No Exchange Intermediate Computed\n");
 
         msg.output("Orbital Energies of Reference");
-        const Tensor<double> eps = get_nemo()->get_calc()->aeps;
+        const Tensor<double> eps = get_calc()->aeps;
         msg << eps << "\n";
 
     }
-    if (get_nemo()->get_calc()->param.do_localize()) {
+    if (get_calcparam().do_localize()) {
         Fock<double,3> F(world,get_reference().get());
         F_occ = F(get_active_mo_bra(), get_active_mo_ket());
         for (size_t i = 0; i < get_active_mo_ket().size(); ++i) {
@@ -133,7 +129,7 @@ void TDHF::prepare_calculation() {
 void TDHF::plot(const vector_real_function_3d &vf, const std::string &name) const {
     if (parameters.plot()) {
         CCTimer timer(world, "plot planes and cubes");
-        madness::plot(vf, name, get_nemo()->get_calc()->molecule.cubefile_header());
+        madness::plot(vf, name, get_calc()->molecule.cubefile_header());
         timer.print();
     }
 }
@@ -537,12 +533,14 @@ TDHF::apply_G(std::vector<CC_vecfunction> &x, std::vector<vector_real_function_3
         if (V.empty()) Vi = get_tda_potential(x[i]);
         else Vi = V[i];
         double omega = x[i].omega;
+        if (x[i].type == RESPONSE) MADNESS_ASSERT(omega > 0.0);
+        else
         MADNESS_ASSERT(omega < 0.0);
         if (x[i].type == UNDEFINED and V.empty()) msg.warning("Empty V but x is y state from TDHF");
 
         CCTimer time_N(world, "add nuclear potential");
         // the potentials still need the nuclear potential
-        const Nuclear<double,3> V(world, get_nemo().get());
+        const Nuclear<double,3> V(world, get_reference().get());
         vector_real_function_3d VNi = V(x[i].get_vecfunction());
         Vi += VNi;
         time_N.info(parameters.debug());
@@ -613,9 +611,9 @@ std::vector<vector_real_function_3d> TDHF::make_potentials(const std::vector<CC_
 
 vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x) const {
     // XC information
-    const std::string xc_data = get_nemo()->get_calc()->param.xc();
+    const std::string xc_data = get_calcparam().xc();
     // HF exchange Coefficient
-    double hf_coeff = get_nemo()->get_calc()->xc.hf_exchange_coefficient();
+    double hf_coeff = get_calc()->xc.hf_exchange_coefficient();
 
     // Use the PCMSolver
     bool pcm = get_nemo()->do_pcm();
@@ -625,11 +623,11 @@ vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x) const {
     if (hf_coeff < 0.0) msg.warning("hf_exchange_coefficient is negative");
 
     // Occupation numbers
-    const Tensor<double> occ = get_nemo()->get_calc()->get_aocc();
+    const Tensor<double> occ = get_calc()->get_aocc();
     // Closed shell full density of the nemo orbitals (without any nuclear cusps)
-    const real_function_3d nemo_density = 2.0 * get_nemo()->make_density(occ, mo_ket_.get_vecfunction());
+    const real_function_3d nemo_density = 2.0 * get_reference()->compute_density(mo_ket_.get_vecfunction());
     // Real Alpha density (with nuclear cusps)
-    const real_function_3d alpha_density = 0.5 * get_nemo()->R_square * nemo_density;
+    const real_function_3d alpha_density = 0.5 * get_reference()->R_square * nemo_density;
 
 
     // Apply Ground State Potential to x-states
@@ -655,9 +653,9 @@ vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x) const {
         Jp.potential() = Jp.compute_potential(density_pert);
 
         vector_real_function_3d XCp = zero_functions<double, 3>(world, get_active_mo_ket().size());
-        if (get_nemo()->get_calc()->xc.is_dft()) {
+        if (get_calc()->xc.is_dft()) {
             // XC Potential
-            const XCOperator<double,3> xc(world, xc_data, not get_nemo()->get_calc()->param.spin_restricted(), alpha_density,
+            const XCOperator<double,3> xc(world, xc_data, not get_calcparam().spin_restricted(), alpha_density,
                                 alpha_density);
             // reconstruct the full perturbed density: do not truncate!
             real_function_3d gamma = xc.apply_xc_kernel(density_pert);
@@ -693,7 +691,7 @@ vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x) const {
 
         /// use alda approximation for the dft kernel
         if (parameters.do_oep()) {
-            const XCOperator<double,3> xc(world, "lda_x", not get_nemo()->get_calc()->param.spin_restricted(), alpha_density,
+            const XCOperator<double,3> xc(world, "lda_x", not get_calcparam().spin_restricted(), alpha_density,
                                 alpha_density);
             real_function_3d gamma = xc.apply_xc_kernel(density_pert);
             vector_real_function_3d XCp = truncate(gamma * active_mo);
@@ -718,7 +716,7 @@ vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x) const {
     // canonical: -ei|xi> (part of greens function)
     // local:  -fik|xk> (fii|xi> part of greens functions, rest needs to be added)
 
-    if (get_nemo()->get_calc()->param.do_localize()) {
+    if (get_calcparam().do_localize()) {
         const vector_real_function_3d vx = x.get_vecfunction();
         vector_real_function_3d fock_coupling = madness::transform(world, vx, F_occ);
         // subtract the diagonal terms
@@ -764,7 +762,7 @@ void TDHF::orthonormalize(std::vector<CC_vecfunction> &x, std::vector<vector_rea
     // Diagonalize the F Matrix
     Tensor<double> U, evals;
     Tensor<double> dummy(x.size());
-    U = get_nemo()->get_calc()->get_fock_transformation(world, S, F, evals, dummy, 2.0 * parameters.thresh());
+    U = get_calc()->get_fock_transformation(world, S, F, evals, dummy, 2.0 * parameters.thresh());
 
     if (parameters.debug()) {
         msg << "Perturbed Fock-Matrix Eigenvalues\n";
@@ -852,14 +850,14 @@ Tensor<double> TDHF::make_perturbed_fock_matrix(const std::vector<CC_vecfunction
             // gradient operator
             std::vector<std::shared_ptr<real_derivative_3d> > D = gradient_operator<double, 3>(world);
 
-            real_function_3d Vnuc = get_nemo()->get_calc()->potentialmanager->vnuclear();
+            real_function_3d Vnuc = get_calc()->potentialmanager->vnuclear();
             if (not Vnuc.is_initialized()) {
                 msg.output("Compute Nuclear Potential");
-                get_nemo()->get_calc()->potentialmanager->make_nuclear_potential(world);
-                Vnuc = get_nemo()->get_calc()->potentialmanager->vnuclear();
+                get_calc()->potentialmanager->make_nuclear_potential(world);
+                Vnuc = get_calc()->potentialmanager->vnuclear();
             }
 
-            const real_function_3d R = get_nemo()->ncf->function();
+            const real_function_3d R = get_reference()->ncf->function();
             std::vector<vector_real_function_3d> Rx(x.size(), zero_functions<double, 3>(world, x.front().size()));
             CCTimer timeR(world, "make Rx");
             for (size_t k = 0; k < x.size(); k++) {
@@ -963,7 +961,7 @@ vector_real_function_3d TDHF::make_virtuals() const {
         }
     } else if (parameters.guess_excitation_operators() == "scf") {
         // use the ao basis set from the scf calculations as virtuals (like projected aos)
-        virtuals = (get_nemo()->get_calc()->ao);
+        virtuals = (get_calc()->ao);
         for (auto &x : virtuals) {
             const double norm = sqrt(inner(make_bra(x), x));
             x.scale(1.0 / norm);
@@ -989,7 +987,7 @@ vector_real_function_3d TDHF::make_virtuals() const {
         msg.subsection("adding center of mass functions with exponent homo/c and c=" + std::to_string(factor));
         msg.output("width=" + std::to_string(width));
 
-        Tensor<double> cm = get_nemo()->get_calc()->molecule.center_of_mass();
+        Tensor<double> cm = get_calc()->molecule.center_of_mass();
         msg << "center of mass is " << cm << "\n";
         guessfactory::PolynomialFunctor px("x 1.0", width, cm);
         guessfactory::PolynomialFunctor py("y 1.0", width, cm);
@@ -1085,9 +1083,9 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
 
     // determine the symmetry of the occupied and virtual orbitals
     std::vector<std::string> orbital_irreps, virtual_irreps;
-    projector_irrep proj = projector_irrep(symmetry_projector).set_verbosity(0).set_lindep(1.e-1);
-    virtuals = proj(virtuals, get_nemo()->R_square, virtual_irreps);
-    proj(get_active_mo_ket(), get_nemo()->R_square, orbital_irreps);
+    projector_irrep proj = projector_irrep(symmetry_projector).set_verbosity(10).set_lindep(1.e-1);
+    virtuals = proj(virtuals, get_reference()->R_square, virtual_irreps);
+    proj(get_active_mo_ket(), get_reference()->R_square, orbital_irreps);
 
     // canonicalize virtuals
     Tensor<double> veps;    // orbital energies of the virtuals
@@ -1095,7 +1093,7 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
 
     // make sure the virtual orbital energies are higher than the occupied orbtials
     double vmin = veps.min();
-    double omax = get_nemo()->get_calc()->aeps.max();
+    double omax = get_calc()->aeps.max();
     if (vmin < omax) {
         veps += (omax - vmin);
         if (world.rank() == 0) print("shifting guess virtual energies by ", omax - vmin + 1.e-1);
@@ -1207,7 +1205,7 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
         CCTimer time_symmetrize(world, "symmetrize guess");
         for (auto &x : xfunctions) {
             std::vector<std::string> x_irreps;
-            vector_real_function_3d tmp = proj(x.get_vecfunction(), get_nemo()->R_square, x_irreps);
+            vector_real_function_3d tmp = proj(x.get_vecfunction(), get_reference()->R_square, x_irreps);
             x.set_functions(tmp, RESPONSE, parameters.freeze());
             for (size_t i = 0; i < x_irreps.size(); ++i) {
                 std::string reduced = symmetry_projector.reduce(x_irreps[i], orbital_irreps[i])[0];
@@ -1252,7 +1250,7 @@ vector_real_function_3d TDHF::canonicalize(const vector_real_function_3d &v, Ten
     if (parameters.debug())
         msg << "Canonicalize: Overlap Matrix\n" << S(Slice(0, std::min(10, int(v.size())) - 1),
                                                      Slice(0, std::min(10, int(v.size())) - 1));
-    Tensor<double> U = get_nemo()->get_calc()->get_fock_transformation(world, S, Fmat, veps, occ,
+    Tensor<double> U = get_calc()->get_fock_transformation(world, S, Fmat, veps, occ,
                                                                  std::min(parameters.thresh(), 1.e-4));
     vector_real_function_3d result = madness::transform(world, v, U);
     time.print();
@@ -1291,13 +1289,13 @@ Tensor<double> TDHF::make_cis_matrix(const vector_real_function_3d virtuals,
 
     // make CIS matrix
     // first do the "diagonal" entries
-    if (get_nemo()->get_calc()->param.do_localize()) {
+    if (get_calcparam().do_localize()) {
 
         // make bra elements
         const vector_real_function_3d virtuals_bra = make_bra(virtuals);
 
         // make Fock Matrix of virtuals for diagonal elements
-        Fock<double,3> F(world, get_nemo().get());
+        Fock<double,3> F(world, get_reference().get());
         Tensor<double> Fmat = F(virtuals_bra, virtuals);
 
         if (parameters.debug()) {
@@ -1442,8 +1440,8 @@ double TDHF::oscillator_strength_length(const CC_vecfunction &x) const {
 double TDHF::oscillator_strength_velocity(const CC_vecfunction &x) const {
     Tensor<double> p_if(3);
     // compute the derivatives of the MOs in all 3 directions
-    const vector_real_function_3d Rroot = get_nemo()->R * x.get_vecfunction();
-    const vector_real_function_3d Rnemo = get_nemo()->R * get_active_mo_ket();
+    const vector_real_function_3d Rroot = get_reference()->R * x.get_vecfunction();
+    const vector_real_function_3d Rnemo = get_reference()->R * get_active_mo_ket();
 
     for (int idim = 0; idim < 3; idim++) {
         real_derivative_3d D = free_space_derivative<double, 3>(world, idim);
@@ -1464,7 +1462,7 @@ void TDHF::analyze(const std::vector<CC_vecfunction> &x) const {
     for (const CC_vecfunction &root : x) {
 
         const vector_real_function_3d Rroot =
-                get_nemo()->R * root.get_vecfunction(); // reintroduce the nuclear correlation factor
+                get_reference()->R * root.get_vecfunction(); // reintroduce the nuclear correlation factor
         std::vector<double> norms = norm2s(world, Rroot);
 
         // compute the oscillator strengths and dominant contributions
@@ -1527,11 +1525,11 @@ void TDHF::TDHFParameters::set_derived_values(const std::shared_ptr<SCF> &scf) {
 void TDHF::check_consistency() const {
 
     // check if the requested irrep is present in the computational point group
-    const std::vector<std::string> irreps = get_nemo()->get_symmetry_projector().get_table().mullikan_;
+    const std::vector<std::string> irreps = get_symmetry_projector().get_table().mullikan_;
     if (find(irreps.begin(), irreps.end(), parameters.irrep()) == irreps.end()
         and (parameters.irrep() != "all")) {
         print("irrep ", parameters.irrep(), " is not contained in point group ",
-              get_nemo()->get_symmetry_projector().get_table().schoenflies_, "\n\n");
+              get_symmetry_projector().get_table().schoenflies_, "\n\n");
         MADNESS_EXCEPTION("\ninconsistent input parameters\n\n", 1);
     }
 }

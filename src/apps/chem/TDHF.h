@@ -215,8 +215,11 @@ public:
         return nemo;
     }
 
-    bool reference_is_oep() const;
-
+    std::shared_ptr<SCF> get_calc() const {
+        auto n=std::dynamic_pointer_cast<Nemo>(nemo);
+        if (not n) MADNESS_EXCEPTION("could not cast NemoBase to Nemo",1);
+        return n->get_calc();
+    }
 
     std::shared_ptr<Nemo> get_nemo() const {
         std::shared_ptr<Nemo> n;
@@ -228,9 +231,14 @@ public:
     void prepare_calculation();
 
     CalculationParameters& get_calcparam() const {
-        return get_nemo()->param;
+        auto n=std::dynamic_pointer_cast<Nemo>(nemo);
+        if (not n) MADNESS_EXCEPTION("could not cast NemoBase to Nemo",1);
+        return n->param;
     }
 
+    projector_irrep get_symmetry_projector() const {
+        return symmetry_projector;
+    }
     static int test(World &world, commandlineparser& parser);
 
     /// check consistency of the input parameters
@@ -391,7 +399,9 @@ public:
     }
 
     double get_orbital_energy(const size_t i) const {
-        return get_nemo()->get_calc()->aeps(i);
+        auto n=std::dynamic_pointer_cast<Nemo>(nemo);
+        if (not n) MADNESS_EXCEPTION("could not cast NemoBase to Nemo",1);
+        return n->get_calc()->aeps(i);
     }
 
     /// convenience

@@ -322,7 +322,7 @@ public:
 
     Nuclear(World& world, const SCF* calc);
 
-    Nuclear(World& world, const Nemo* nemo);
+    Nuclear(World& world, const NemoBase* nemo);
 
     Nuclear(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf)
         : world(world), ncf(ncf) {}

@@ -246,7 +246,7 @@ Nuclear<T, NDIM>::Nuclear(World &world, const SCF *calc) : world(world) {
 }
 
 template<typename T, std::size_t NDIM>
-Nuclear<T, NDIM>::Nuclear(World &world, const Nemo *nemo) : world(world) {
+Nuclear<T, NDIM>::Nuclear(World &world, const NemoBase* nemo) : world(world) {
     ncf = nemo->ncf;
 }
 
