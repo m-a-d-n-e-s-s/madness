@@ -1328,26 +1328,57 @@ Tensor<double> TDHF::make_cis_matrix(const vector_real_function_3d virtuals,
     if (not parameters.guess_diag()) {
         const vector_real_function_3d virtuals_bra = make_bra(virtuals);
 
-        int I = -1; // combined index from i and a, start is -1 so that initial value is 0 (not so important anymore since I dont use ++I)
-        for (size_t i = start_ij; i < get_active_mo_ket().size(); ++i) {
-            const real_function_3d brai = get_active_mo_bra()[i];
-            const vector_real_function_3d igv = (*g12)(brai * virtuals);
-            for (size_t a = 0; a < virtuals.size(); ++a) {
-                I = get_com_idx(i, a);
-                int J = -1;
-                for (size_t j = start_ij; j < get_active_mo_ket().size(); ++j) {
-                    const real_function_3d braj = get_active_mo_bra()[j];
-                    for (size_t b = 0; b < virtuals.size(); ++b) {
-                        J = get_com_idx(j, b);
-                        if (J <= I) {
-                            const real_function_3d igj = (*g12)(mo_bra_(i + parameters.freeze()), mo_ket_(j +
-                                                                                                       parameters.freeze())); // use exchange intermediate
-                            const double rIJ = 2.0 * inner(braj * virtuals[b], igv[a]) -
-                                               inner(virtuals_bra[a] * virtuals[b], igj);
-                            MCIS(J, I) += rIJ;
-                            MCIS(I, J) += rIJ;
+        bool is_dft=(get_calc()->xc.is_dft()) or (parameters.do_oep());
+        if (not is_dft) {
+            int I = -1; // combined index from i and a, start is -1 so that initial value is 0 (not so important anymore since I dont use ++I)
+            for (size_t i = start_ij; i < get_active_mo_ket().size(); ++i) {
+                const real_function_3d brai = get_active_mo_bra()[i];
+                const vector_real_function_3d igv = (*g12)(brai * virtuals);
+                for (size_t a = 0; a < virtuals.size(); ++a) {
+                    I = get_com_idx(i, a);
+                    int J = -1;
+                    for (size_t j = start_ij; j < get_active_mo_ket().size(); ++j) {
+                        const real_function_3d braj = get_active_mo_bra()[j];
+                        for (size_t b = 0; b < virtuals.size(); ++b) {
+                            J = get_com_idx(j, b);
+                            if (J <= I) {
+                                const real_function_3d igj = (*g12)(mo_bra_(i + parameters.freeze()), mo_ket_(j +
+                                                                                                              parameters.freeze())); // use exchange intermediate
+                                const double rIJ = 2.0 * inner(braj * virtuals[b], igv[a]) -
+                                                   inner(virtuals_bra[a] * virtuals[b], igj);
+                                MCIS(J, I) += rIJ;
+                                MCIS(I, J) += rIJ;
+                            }
                         }
                     }
+                }
+            }
+        } else { // is_dft
+
+            std::string xc_data= (parameters.do_oep()) ? "lda_x" : get_calcparam().xc();
+            real_function_3d alpha_density=get_reference()->compute_density(mo_bra_.get_vecfunction());
+
+            const XCOperator<double,3> xc(world, xc_data, not get_calcparam().spin_restricted(),
+                                              alpha_density, alpha_density);
+//                real_function_3d gamma = xc.apply_xc_kernel(density_pert);
+//                vector_real_function_3d XCp = truncate(gamma * active_mo);
+//                Vpsi2 = Vpsi2 + XCp;
+            std::vector<real_function_3d> ia_func(dim);
+            for (int ia=0; ia<dim; ++ia) {
+                int i=get_occ_idx(ia);
+                int a=get_vir_idx(ia);
+                ia_func[ia]=get_active_mo_bra()[i]*virtuals[a];
+            }
+            for (int ia=0; ia<dim; ++ia) {
+
+                // make g | ia )  (Mullikan notation)
+                const real_function_3d igv = (*g12)(ia_func[ia]);
+                for (int jb=ia; jb<dim; ++jb) {
+
+                    const double coulomb=2.0*inner(ia_func[jb],igv);
+                    const double exchange=inner(ia_func[ia],xc.apply_xc_kernel(ia_func[jb]));
+                    MCIS(ia,jb)+= coulomb;
+                    MCIS(jb,ia)+= exchange;
                 }
             }
         }
