@@ -53,7 +53,7 @@ namespace madness{
 
                     //Code breaks if spinrestricted (state of archive) and Krestricted (requested by user) don't match
                     //This functionality could probably be added at some point, but it's a bit of work
-                    MADNESS_CHECK(spinrestricted != Krestricted);
+                    MADNESS_CHECK(spinrestricted == Krestricted);
 
                     // Set this so we can read in whats
                     // written in the archive 
