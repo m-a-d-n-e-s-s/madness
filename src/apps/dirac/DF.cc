@@ -1497,7 +1497,16 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
                Residuals.push_back(occupieds[j] - temp_function);
           }
           else{
-               occupieds[j] = temp_function; //if not using KAIN, then the result is the new orbital
+               //if not using KAIN, then the result is the new orbital, with some step restriction
+               residualnorm = (occupieds[j] - temp_function).norm2(); 
+               if(residualnorm > DFparams.maxrotn){
+                    double s = DFparams.maxrotn / residualnorm;
+                    if(world.rank()==0) print("     restricting step for orbital: ", j+1);
+                    occupieds[j] = temp_function*s + occupieds[j]*(1.0-s);
+               }
+               else{
+                    occupieds[j] = temp_function; 
+               }
           }
      }
 
