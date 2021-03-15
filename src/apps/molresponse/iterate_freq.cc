@@ -13,10 +13,10 @@
 #include "NWChem.h"  // For nwchem interface
 #include "Plot_VTK.h"
 #include "TDDFT.h"
-#include "basic_operators.h"
 #include "chem/potentialmanager.h"
 #include "chem/projector.h"  // For easy calculation of (1 - \hat{\rho}^0)
 #include "madness/mra/funcdefaults.h"
+#include "molresponse/basic_operators.h"
 #include "molresponse/density.h"
 #include "molresponse/global_functions.h"
 #include "molresponse/property.h"
@@ -25,8 +25,8 @@
 
 // Iterate Frequency Response
 void TDDFT::IterateFrequencyResponse(World& world,
-                                    response_space& rhs_x,
-                                    response_space& rhs_y) {
+                                     response_space& rhs_x,
+                                     response_space& rhs_y) {
   // Variables needed to iterate
   size_t iteration = 0;  // Iteration counter
   QProjector<double, 3> projector(
