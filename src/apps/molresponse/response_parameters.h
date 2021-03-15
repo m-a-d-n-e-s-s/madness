@@ -181,9 +181,6 @@ struct ResponseParameters {
       } else if (s == "restart") {
         restart = true;
         f >> restart_file;
-      } else if (s == "states") {
-        f >> states;
-        response_type = "excited_state";
       } else if (s == "print_level") {
         f >> print_level;
       } else if (s == "tda") {
@@ -287,6 +284,8 @@ struct ResponseParameters {
           f >> response_types[2];
           f >> omega;
           order3 = true;
+        } else if (response_type.compare("excited_state") == 0) {
+          f >> states;
         } else {
           MADNESS_EXCEPTION("Not a an avaible response type", 0);
         }
