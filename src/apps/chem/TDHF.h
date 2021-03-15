@@ -54,6 +54,8 @@ public:
             // physics
             initialize < std::string >
             ("calculation", "cis", "currently only cis=tda possible, TBD: thdf", {"cis"});
+            initialize < std::string >
+            ("response_kernel", "default", "default: corresponds to the ground state, libxc-notation otherwise");
             initialize < bool > ("triplet", false, "calculate triplet excitation energies (only works for CIS)");
             initialize < bool > ("do_oep", false, "use OEP potentials for the ground state exchange");
             initialize < std::size_t > ("excitations", 1);
@@ -142,6 +144,8 @@ public:
         bool triplet() const { return get<bool>("triplet"); }
 
         bool do_oep() const { return get<bool>("do_oep"); }
+
+        std::string response_kernel() const { return get<std::string>("response_kernel"); }
 
         // precision
         double thresh() const { return get<double>("thresh"); }

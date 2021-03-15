@@ -610,17 +610,6 @@ std::vector<vector_real_function_3d> TDHF::make_potentials(const std::vector<CC_
 }
 
 vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x) const {
-    // XC information
-    const std::string xc_data = get_calcparam().xc();
-    // HF exchange Coefficient
-    double hf_coeff = get_calc()->xc.hf_exchange_coefficient();
-
-    // Use the PCMSolver
-    bool pcm = get_nemo()->do_pcm();
-    if (parameters.debug()) {
-        msg << "TDA Potential is " << xc_data << ", hf_coeff=" << hf_coeff << ", pcm is=" << pcm << "\n";
-    }
-    if (hf_coeff < 0.0) msg.warning("hf_exchange_coefficient is negative");
 
     // Occupation numbers
     const Tensor<double> occ = get_calc()->get_aocc();
@@ -655,7 +644,8 @@ vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x) const {
         vector_real_function_3d XCp = zero_functions<double, 3>(world, get_active_mo_ket().size());
         if (get_calc()->xc.is_dft()) {
             // XC Potential
-            const XCOperator<double,3> xc(world, xc_data, not get_calcparam().spin_restricted(), alpha_density,
+            std::string kernel=parameters.response_kernel();
+            const XCOperator<double,3> xc(world, kernel, not get_calcparam().spin_restricted(), alpha_density,
                                 alpha_density);
             // reconstruct the full perturbed density: do not truncate!
             real_function_3d gamma = xc.apply_xc_kernel(density_pert);
@@ -669,6 +659,7 @@ vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x) const {
         } else Vpsi2 = Jp(active_mo) + XCp;
         timeJ.info(parameters.debug());
         // Exchange Part
+        double hf_coeff = get_calc()->xc.hf_exchange_coefficient();
         bool do_hf = (hf_coeff != 0.0) and (not parameters.do_oep());
         if (do_hf) {
             CCTimer timeK(world, "pK");
@@ -691,7 +682,8 @@ vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x) const {
 
         /// use alda approximation for the dft kernel
         if (parameters.do_oep()) {
-            const XCOperator<double,3> xc(world, "lda_x", not get_calcparam().spin_restricted(), alpha_density,
+            std::string kernel=parameters.response_kernel();
+            const XCOperator<double,3> xc(world, kernel, not get_calcparam().spin_restricted(), alpha_density,
                                 alpha_density);
             real_function_3d gamma = xc.apply_xc_kernel(density_pert);
             vector_real_function_3d XCp = truncate(gamma * active_mo);
@@ -699,7 +691,7 @@ vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x) const {
         }
 
         // compute the solvent (PCM) contribution to the kernel
-        if (pcm) {
+        if (get_nemo()->do_pcm()) {
             CCTimer timepcm(world, "pcm:ex");
             const real_function_3d vpcm = get_nemo()->get_pcm().compute_pcm_potential(Jp.potential(), true);
             if (parameters.plot() or parameters.debug()) plot_plane(world, vpcm, "vpcm_ex");
@@ -1355,11 +1347,11 @@ Tensor<double> TDHF::make_cis_matrix(const vector_real_function_3d virtuals,
             }
         } else { // is_dft
 
-            std::string xc_data= (parameters.do_oep()) ? "lda_x" : get_calcparam().xc();
             real_function_3d alpha_density=get_reference()->compute_density(mo_bra_.get_vecfunction());
             real_convolution_3d poisson=CoulombOperator(world,get_calc()->param.lo(),parameters.econv());
 
-            const XCOperator<double,3> xc(world, xc_data, not get_calcparam().spin_restricted(),
+            std::string kernel=parameters.response_kernel();
+            const XCOperator<double,3> xc(world, kernel, not get_calcparam().spin_restricted(),
                                               alpha_density, alpha_density);
 //                real_function_3d gamma = xc.apply_xc_kernel(density_pert);
 //                vector_real_function_3d XCp = truncate(gamma * active_mo);
@@ -1546,9 +1538,12 @@ void TDHF::TDHFParameters::set_derived_values(const std::shared_ptr<SCF> &scf) {
     set_derived_value("guess_econv", econv() * 10.0);
     set_derived_value("guess_dconv", dconv() * 10.0);
 
+    std::string kernel= do_oep() ? "lda_x" : scf->param.xc();
+    set_derived_value("response_kernel",kernel);
+
     set_derived_value("iterating_excitations", std::min(excitations(), std::size_t(4)));
 //    set_derived_value("guess_excitations", std::min(excitations() + iterating_excitations(), 2 * excitations()));
-    set_derived_value("guess_excitations", std::max(2*excitations(),10ul));
+    set_derived_value("guess_excitations", std::max(2*excitations(),5ul));
 
 //    set_derived_value("guess_occ_to_virt", scf->amo.size() - freeze());
 //    set_derived_value("guess_active_orbitals", scf->amo.size() - freeze());
@@ -1564,6 +1559,16 @@ void TDHF::check_consistency() const {
         print("irrep ", parameters.irrep(), " is not contained in point group ",
               get_symmetry_projector().get_table().schoenflies_, "\n\n");
         MADNESS_EXCEPTION("\ninconsistent input parameters\n\n", 1);
+    }
+
+    // check the response kernel input
+    try {
+        XCfunctional dummyxc;
+        dummyxc.initialize(parameters.response_kernel(), false, world);
+    } catch (...) {
+        print("failed to initialize the xc kernel in cis:\n");
+        print(parameters.response_kernel(),"\n");
+        MADNESS_EXCEPTION("input error",1);
     }
 }
 
