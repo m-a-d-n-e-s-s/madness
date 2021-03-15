@@ -3,8 +3,8 @@
 /// \file ResponseParameters
 /// \brief Input parameters for a response calculation.
 
-#ifndef SRC_APPS_MOLRESPONSE_RESPONSEPARAMETERS_H_
-#define SRC_APPS_MOLRESPONSE_RESPONSEPARAMETERS_H_
+#ifndef SRC_APPS_MOLRESPONSE_RESPONSE_PARAMETERS_H_
+#define SRC_APPS_MOLRESPONSE_RESPONSE_PARAMETERS_H_
 
 #include <chem/molecule.h>
 #include <chem/xcfunctional.h>
@@ -22,23 +22,23 @@ struct ResponseParameters {
   std::string
       nwchem;     ///< Root name of nwchem files for intelligent starting guess
   size_t states;  ///< Number of excited states requested
-size_t   print_level;  ///< Controls the amount and style of printing. Higher
-                    ///< values prsize_t more
-                    ///<   Values |   What gets printed
-                    ///<   ----------------------------
-                    ///<     1    |   Print out timing of each step in the
-                    ///<     calculation,
-                    ///<          |   along with energy, energy res., and func.
-                    ///<          res.
-                    ///<   ----------------------------
-                    ///<     2    |   Debug level. Prints EVERYTHING!!!
+  size_t print_level;  ///< Controls the amount and style of printing. Higher
+                       ///< values prsize_t more
+                       ///<   Values |   What gets printed
+                       ///<   ----------------------------
+                       ///<     1    |   Print out timing of each step in the
+                       ///<     calculation,
+                       ///<          |   along with energy, energy res., and
+                       ///<          func. res.
+                       ///<   ----------------------------
+                       ///<     2    |   Debug level. Prints EVERYTHING!!!
 
   bool tda;  ///< Turn on Tam-Danchof approximation (only calculate excitations)
   bool plot;  ///< Turn on plotting of final orbitals. Output format is .vts
   bool plot_range;             ///< Controls which orbitals will be plotted
   std::vector<int> plot_data;  ///< Orbitals to plot
   double plot_L;               ///< Controls the plotting box size
-size_t   plot_pts;                ///< Controls number of points in plots
+  size_t plot_pts;             ///< Controls number of points in plots
   bool plot_all_orbitals;
   size_t max_iter;  ///< Maximum number of iterations
   double dconv;     ///< Convergence criterion for the orbital density
@@ -46,9 +46,9 @@ size_t   plot_pts;                ///< Controls number of points in plots
   bool guess_xyz;   ///< Convergence flag for the orbital density
   double small;     ///< Minimum length scale to be resolved
   std::vector<double> protocol_data;  ///< Different thresholds for truncation
-size_t   larger_subspace;   ///< Number of iterations to diagonalize in a subspace
-                         ///< consisting of old and new vectors
-  size_t k;                 ///< Polynomial order to use in calculation
+  size_t larger_subspace;  ///< Number of iterations to diagonalize in a
+                           ///< subspace consisting of old and new vectors
+  size_t k;                ///< Polynomial order to use in calculation
   bool random;           ///< Use a random guess for initial response functions
   bool store_potential;  ///< Store the potential instead of computing each
                          ///< iteration
@@ -73,7 +73,7 @@ size_t   larger_subspace;   ///< Number of iterations to diagonalize in a subspa
   bool load_density;
   std::string load_density_file;  ///< Flag to save to file
 
-size_t   guess_max_iter;  ///< Maximum number of iterations for guess functions
+  size_t guess_max_iter;  ///< Maximum number of iterations for guess functions
 
   // Start of properties
   bool property;  ///< Flag that this is a properties calculation
@@ -205,7 +205,7 @@ size_t   guess_max_iter;  ///< Maximum number of iterations for guess functions
           t >> d;
           plot_data.push_back(std::stoi(d));
           t >> d;
-          for (int    z = plot_data[0] + 1; z <= std::stoi(d); z++)
+          for (int z = plot_data[0] + 1; z <= std::stoi(d); z++)
             plot_data.push_back(z);
         } else {
           // Add in the one we just read
@@ -313,7 +313,7 @@ size_t   guess_max_iter;  ///< Maximum number of iterations for guess functions
       states = 3 * molecule.natom();
     } else if (order2) {
       vector<int> nstates;  // states 1
-      for (size_t    i = 0; i < 2; i++) {
+      for (size_t i = 0; i < 2; i++) {
         if (response_types[i] == "dipole") {
           nstates.push_back(3);
         } else if (response_types[i] == "nuclear") {
@@ -326,7 +326,7 @@ size_t   guess_max_iter;  ///< Maximum number of iterations for guess functions
           nstates.begin(), nstates.end(), 1, std::multiplies<>());
     } else if (order3) {
       vector<int> nstates;  // states 1
-      for (size_t    i = 0; i < 3; i++) {
+      for (size_t i = 0; i < 3; i++) {
         if (response_types[i] == "dipole") {
           nstates.push_back(3);
         } else if (response_types[i] == "nuclear") {
@@ -410,4 +410,4 @@ size_t   guess_max_iter;  ///< Maximum number of iterations for guess functions
   }
 };  // namespace madness
 }  // namespace madness
-#endif  // SRC_APPS_MOLRESPONSE_RESPONSEPARAMETERS_H_
+#endif  // SRC_APPS_MOLRESPONSE_RESPONSE_PARAMETERS_H_
