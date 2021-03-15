@@ -24,10 +24,10 @@
 #include "../chem/molecule.h"
 #include "NWChem.h"  // For nwchem interface
 #include "Plot_VTK.h"
-#include "basic_operators.h"
 #include "chem/potentialmanager.h"
 #include "chem/projector.h"  // For easy calculation of (1 - \hat{\rho}^0)
 #include "madness/mra/funcdefaults.h"
+#include "molresponse/basic_operators.h"
 #include "molresponse/density.h"
 #include "molresponse/global_functions.h"
 #include "molresponse/property.h"
@@ -100,8 +100,8 @@ static double mask3(const coord_3d& ruser) {
 // Collective constructor
 TDDFT::TDDFT(World& world, const char* filename)
     : TDDFT(world,
-           (world.rank() == 0 ? std::make_shared<std::ifstream>(filename)
-                              : nullptr)) {}
+            (world.rank() == 0 ? std::make_shared<std::ifstream>(filename)
+                               : nullptr)) {}
 
 // Constructor that actually does stuff
 TDDFT::TDDFT(World& world, std::shared_ptr<std::istream> input) {
@@ -167,7 +167,9 @@ TDDFT::TDDFT(World& world, std::shared_ptr<std::istream> input) {
 }
 
 // Constructor that actually does stuff
-TDDFT::TDDFT(World& world, ResponseParameters rparams, GroundParameters gparams) {
+TDDFT::TDDFT(World& world,
+             ResponseParameters rparams,
+             GroundParameters gparams) {
   // Start the timer
   this->Rparams = rparams;
   this->Gparams = gparams;
@@ -242,8 +244,8 @@ void TDDFT::save(World& world, std::string name) {
   // Saving, in this order;
   //  string           ground-state archive name (garch_name)
   //  bool             TDA flag
-  //size_t                number of ground state orbitals (n)
-  //size_t                number of excited state orbitals (m)
+  // size_t                number of ground state orbitals (n)
+  // size_t                number of excited state orbitals (m)
   //  Tensor<double>   energies of m x-components
   //  for i from 0 to m-1
   //     for j from 0 to n-1
@@ -275,8 +277,8 @@ void TDDFT::load(World& world, std::string name) {
   // Reading in, in this order;
   //  string           ground-state archive name (garch_name)
   //  bool             TDA flag
-  //size_t                number of ground state orbitals (n)
-  //size_t                number of excited state orbitals (m)
+  // size_t                number of ground state orbitals (n)
+  // size_t                number of excited state orbitals (m)
   //  Tensor<double>   energies of m x-components
   //  for i from 0 to m-1
   //     for j from 0 to n-1
@@ -365,14 +367,15 @@ void TDDFT::print_norms(World& world, response_space f) {
 // Small function to print geometry of a molecule nicely
 
 // Radial function
-static double kronecker(size_t    l, size_t n) {
+static double kronecker(size_t l, size_t n) {
   if (l == n) return 1.0;
   return 0.0;
 }
 // Returns a list of solid harmonics such that:
 // solid_harm.size() * num_ground_orbs > 2 * num. resp. components
-std::map<std::vector<int>, real_function_3d> TDDFT::solid_harmonics(World& world,
-                                                                 int   n) {
+std::map<std::vector<int>, real_function_3d> TDDFT::solid_harmonics(
+    World& world,
+    int n) {
   // Container to return
   std::map<std::vector<int>, real_function_3d> result;
 
@@ -395,7 +398,7 @@ std::map<std::vector<int>, real_function_3d> TDDFT::solid_harmonics(World& world
   result[std::vector<int>{-1, 0}] = zero;
 
   // Generate the solid harmonics recursively from here
-  for (int    l = 0; l < n; l++) {
+  for (int l = 0; l < n; l++) {
     // Calculate ends of this row first
     result[std::vector<int>{l + 1, l + 1}] =
         sqrt(pow(2, kronecker(l, 0) * (2 * l) / (2 * l + 1))) *
@@ -412,7 +415,7 @@ std::map<std::vector<int>, real_function_3d> TDDFT::solid_harmonics(World& world
     result[std::vector<int>{l + 1, -l - 2}] = zero;
 
     // Run over quantum number m
-    for (int    m = -l; m < l + 1; m++) {
+    for (int m = -l; m < l + 1; m++) {
       // Calculate remaining terms
       result[std::vector<int>{l + 1, m}] =
           1.0 / std::sqrt((l + m + 1) * (l - m + 1)) *
@@ -441,7 +444,7 @@ std::map<std::vector<int>, real_function_3d> TDDFT::solid_harmonics(World& world
 // solid_harm.size() * num_ground_orbs > 2 * num. resp. components
 std::map<std::vector<int>, real_function_3d> TDDFT::simple_spherical_harmonics(
     World& world,
-  int   n) {
+    int n) {
   // Container to return
   std::map<std::vector<int>, real_function_3d> result;
 
@@ -478,9 +481,9 @@ std::map<std::vector<int>, real_function_3d> TDDFT::simple_spherical_harmonics(
   funcs[7] = funcs[7].scale(1 / (r * r));
   funcs[8] = funcs[8].scale(1 / (r * r));
 
-size_t   num = 0;
-  for (int    l = 0; l < n; l++) {
-    for (int    m = -l; m <= l; m++) {
+  size_t num = 0;
+  for (int l = 0; l < n; l++) {
+    for (int m = -l; m <= l; m++) {
       result[vector<int>{l, m}] = funcs[num];
       num += 1;
     }
@@ -496,7 +499,7 @@ response_space TDDFT::create_trial_functions(
     World& world,
     size_t k,
     std::vector<real_function_3d>& orbitals,
-  size_t   print_level) {
+    size_t print_level) {
   // Get size
   // /
   size_t n = orbitals.size();
@@ -556,7 +559,7 @@ response_space TDDFT::create_trial_functions(
 response_space TDDFT::create_trial_functions2(
     World& world,
     std::vector<real_function_3d>& orbitals,
-  size_t   print_level) {
+    size_t print_level) {
   // Get size
   size_t n = orbitals.size();
   size_t directions = 3;
@@ -571,7 +574,7 @@ response_space TDDFT::create_trial_functions2(
   print("Debug Norms", xyz[1].norm2());
   print("Debug Norms", xyz[2].norm2());
 
-  for (size_t    d = 0; d < directions; d++) {
+  for (size_t d = 0; d < directions; d++) {
     vector<real_function_3d> temp;
     for (size_t i = 0; i < n; i++) {
       // create x functions then y.. then z ..
@@ -585,7 +588,7 @@ response_space TDDFT::create_trial_functions2(
   print("number of orbitals: ", orbitals.size());
 
   // Container to return
-size_t   count = 0;
+  size_t count = 0;
 
   response_space trials(world, 3 * n * n, n);
   for (size_t i = 0; i < n; i++) {
@@ -917,14 +920,14 @@ response_space TDDFT::CreateXCDerivativeRFDagger(
 
 // Creates diagonal (letter A) portions of response matrix
 response_space TDDFT::createAf(World& world,
-                              response_space& Vf,
-                              response_space& F0_f,
-                              response_space& Epsilonf,
-                              response_space& Hf,
-                              response_space& f,
-                              std::vector<real_function_3d>& orbitals,
-                            size_t   print_level,
-                              std::string xy) {
+                               response_space& Vf,
+                               response_space& F0_f,
+                               response_space& Epsilonf,
+                               response_space& Hf,
+                               response_space& f,
+                               std::vector<real_function_3d>& orbitals,
+                               size_t print_level,
+                               std::string xy) {
   size_t m = f.size();
   size_t n = f[0].size();
 
@@ -961,9 +964,9 @@ response_space TDDFT::createAf(World& world,
 // Creates the off diagonal (letter B) portions of response matrix
 // Simply projects out ground state from Gf response functions
 response_space TDDFT::createBf(World& world,
-                              response_space& Gf,
-                              std::vector<real_function_3d>& orbitals,
-                            size_t   print_level) {
+                               response_space& Gf,
+                               std::vector<real_function_3d>& orbitals,
+                               size_t print_level) {
   // Start a timer
   // if (print_level >= 1) molresponse::start_timer(world);
 
@@ -1057,10 +1060,10 @@ response_space TDDFT::exchange(World& world, response_space& f) {
 
 // Returns the ground state potential applied to functions f
 response_space TDDFT::CreatePotential(World& world,
-                                     response_space& f,
-                                     XCOperator xc,
-                                   size_t   print_level,
-                                     std::string xy) {
+                                      response_space& f,
+                                      XCOperator xc,
+                                      size_t print_level,
+                                      std::string xy) {
   // Start a timer
   if (print_level >= 3) molresponse::start_timer(world);
 
@@ -1148,17 +1151,17 @@ response_space TDDFT::CreatePotential(World& world,
 }
 
 void TDDFT::computeElectronResponse(World& world,
-                                   ElectronResponseFunctions& I,
-                                   response_space& x,
-                                   response_space& y,
-                                   std::vector<real_function_3d>& orbitals,
-                                   XCOperator xc,
-                                   Tensor<double>& hamiltonian,
-                                   Tensor<double>& ham_no_diag,
-                                   double small,
-                                   double thresh,
-                                 size_t   print_level,
-                                   std::string xy) {
+                                    ElectronResponseFunctions& I,
+                                    response_space& x,
+                                    response_space& y,
+                                    std::vector<real_function_3d>& orbitals,
+                                    XCOperator xc,
+                                    Tensor<double>& hamiltonian,
+                                    Tensor<double>& ham_no_diag,
+                                    double small,
+                                    double thresh,
+                                    size_t print_level,
+                                    std::string xy) {
   // Start a timer
   if (print_level >= 1) molresponse::start_timer(world);
 
@@ -1189,17 +1192,17 @@ void TDDFT::computeElectronResponse(World& world,
 // Returns a Tensor of inner products, where
 // result(i,j) = inner(a[i],b[j]).sum()
 Tensor<double> TDDFT::expectation(World& world,
-                                 const response_space& a,
-                                 const response_space& b) {
+                                  const response_space& a,
+                                  const response_space& b) {
   // Get sizes
-size_t   dim_1 = a.size();
-size_t   dim_2 = a[0].size();
+  size_t dim_1 = a.size();
+  size_t dim_2 = a[0].size();
 
   // Need to take transpose of each input ResponseFunction
   response_space aT(world, dim_2, dim_1);
   response_space bT(world, dim_2, dim_1);
-  for (size_t    i = 0; i < dim_1; i++) {
-    for (size_t    j = 0; j < dim_2; j++) {
+  for (size_t i = 0; i < dim_1; i++) {
+    for (size_t j = 0; j < dim_2; j++) {
       aT[j][i] = a[i][j];
       bT[j][i] = b[i][j];
     }
@@ -1218,10 +1221,10 @@ size_t   dim_2 = a[0].size();
 }
 
 void TDDFT::PrintRFExpectation(World& world,
-                              response_space f,
-                              response_space g,
-                              std::string fname,
-                              std::string gname) {
+                               response_space f,
+                               response_space g,
+                               std::string fname,
+                               std::string gname) {
   Tensor<double> t = expectation(world, f, g);
   if (world.rank() == 0) {
     print(" Expectation between ", fname, " and ", gname);
@@ -1229,8 +1232,8 @@ void TDDFT::PrintRFExpectation(World& world,
   }
 }
 void TDDFT::PrintResponseVectorNorms(World& world,
-                                    response_space f,
-                                    std::string fname) {
+                                     response_space f,
+                                     std::string fname) {
   if (world.rank() == 0) {
     print(" Norms of ResVector: ", fname);
     print(f.norm2());
@@ -1238,10 +1241,10 @@ void TDDFT::PrintResponseVectorNorms(World& world,
 }
 // Returns the ground state fock operator applied to functions f
 response_space TDDFT::CreateFock(World& world,
-                                response_space& Vf,
-                                response_space& f,
-                              size_t   print_level,
-                                std::string xy) {
+                                 response_space& Vf,
+                                 response_space& f,
+                                 size_t print_level,
+                                 std::string xy) {
   // Debugging output
   if (print_level >= 2) {
     if (world.rank() == 0)
@@ -1286,16 +1289,16 @@ response_space TDDFT::CreateFock(World& world,
 }
 
 Zfunctions TDDFT::ComputeZFunctions(World& world,
-                                   std::vector<real_function_3d> rho_omega,
-                                   response_space orbital_products,
-                                   response_space& x,
-                                   response_space& y,
-                                   XCOperator xc,
-                                   double x_shifts,
-                                   double y_shifts,
-                                   const GroundParameters& Gparams,
-                                   const ResponseParameters& Rparams,
-                                   Tensor<double> ham_no_diagonal) {
+                                    std::vector<real_function_3d> rho_omega,
+                                    response_space orbital_products,
+                                    response_space& x,
+                                    response_space& y,
+                                    XCOperator xc,
+                                    double x_shifts,
+                                    double y_shifts,
+                                    const GroundParameters& Gparams,
+                                    const ResponseParameters& Rparams,
+                                    Tensor<double> ham_no_diagonal) {
   double small = Rparams.small;
   double thresh = FunctionDefaults<3>::get_thresh();
 
@@ -1346,18 +1349,18 @@ Zfunctions TDDFT::ComputeZFunctions(World& world,
   return Z;
 }
 X_space TDDFT::ComputeResponseResidual(World& world,
-                                      std::vector<real_function_3d> rho_omega,
-                                      response_space orbital_products,
-                                      response_space& x,
-                                      response_space& y,
-                                      response_space rhs_x,
-                                      response_space rhs_y,
-                                      XCOperator xc,
-                                      const GroundParameters& Gparams,
-                                      const ResponseParameters& Rparams,
-                                      Tensor<double> hamiltonian,
-                                      double omega,
-                                    size_t   iteration) {
+                                       std::vector<real_function_3d> rho_omega,
+                                       response_space orbital_products,
+                                       response_space& x,
+                                       response_space& y,
+                                       response_space rhs_x,
+                                       response_space rhs_y,
+                                       XCOperator xc,
+                                       const GroundParameters& Gparams,
+                                       const ResponseParameters& Rparams,
+                                       Tensor<double> hamiltonian,
+                                       double omega,
+                                       size_t iteration) {
   // compute
   size_t m = Rparams.states;
   size_t n = Gparams.num_orbitals;
@@ -1455,8 +1458,8 @@ X_space TDDFT::ComputeResponseResidual(World& world,
 }
 
 void TDDFT::xy_from_XVector(response_space& x,
-                           response_space& y,
-                           std::vector<X_vector>& Xvectors) {
+                            response_space& y,
+                            std::vector<X_vector>& Xvectors) {
   MADNESS_ASSERT(x.size() == Xvectors.size());
   MADNESS_ASSERT(y.size() == Xvectors.size());
   MADNESS_ASSERT(x[0].size() == size_orbitals(Xvectors[0]));
@@ -1479,8 +1482,8 @@ void TDDFT::xy_from_XVector(response_space& x,
 }
 
 void TDDFT::vector_stats(const std::vector<double>& v,
-                        double& rms,
-                        double& maxabsval) const {
+                         double& rms,
+                         double& maxabsval) const {
   rms = 0.0;
   maxabsval = v[0];
   for (size_t i = 0; i < v.size(); ++i) {
@@ -1490,11 +1493,11 @@ void TDDFT::vector_stats(const std::vector<double>& v,
   rms = sqrt(rms / v.size());
 }
 double TDDFT::do_step_restriction(World& world,
-                                 const vecfuncT& x,
-                                 vecfuncT& x_new,
-                                 std::string spin) const {
+                                  const vecfuncT& x,
+                                  vecfuncT& x_new,
+                                  std::string spin) const {
   std::vector<double> anorm = norm2s(world, sub(world, x, x_new));
-size_t      nres = 0;
+  size_t nres = 0;
   for (unsigned int i = 0; i < x.size(); ++i) {
     print("anorm ", i, " : ", anorm[i]);
     if (anorm[i] > Rparams.maxrotn) {
@@ -1523,7 +1526,7 @@ Tensor<double> TDDFT::CreateResponseMatrix(
     response_space& x,
     ElectronResponseFunctions& I,
     std::vector<real_function_3d>& ground_orbitals,
-  size_t      print_level,
+    size_t print_level,
     std::string xy) {
   // Start a timer
   if (print_level >= 1) molresponse::start_timer(world);
@@ -1545,8 +1548,8 @@ Tensor<double> TDDFT::CreateResponseMatrix(
 
   // Enforce symmetry....not sure if this is a good idea
   //
-  for (long      i = 0; i < xAx.dim(0); i++) {
-    for (long      j = i + 1; j < xAx.dim(1); j++) {
+  for (int64_t i = 0; i < xAx.dim(0); i++) {
+    for (int64_t j = i + 1; j < xAx.dim(1); j++) {
       //      print(i, j);
       //      print(xAx(i, j));
       //     print(xAx(j, i));
@@ -1579,7 +1582,7 @@ Tensor<double> TDDFT::CreateFullResponseMatrix(
     std::vector<real_function_3d>& ground_orbitals,  // ground state orbitals
     double small,
     double thresh,
-  size_t         print_level) {
+    size_t print_level) {
   // Start timer
   if (print_level >= 1) molresponse::start_timer(world);
 
@@ -1661,10 +1664,10 @@ Tensor<double> TDDFT::CreateFullResponseMatrix(
 // is negative. Please note: The same shift needs to
 // be applied to the potential.
 Tensor<double> TDDFT::create_shift(World& world,
-                                  Tensor<double>& ground,
-                                  Tensor<double>& omega,
-                                size_t      print_level,
-                                  std::string xy) {
+                                   Tensor<double>& ground,
+                                   Tensor<double>& omega,
+                                   size_t print_level,
+                                   std::string xy) {
   // Start a timer
   if (print_level >= 1) molresponse::start_timer(world);
 
@@ -1713,11 +1716,11 @@ Tensor<double> TDDFT::create_shift(World& world,
 // (ground_state_energy + excited_state_energy + shift) = target
 // Please note: The same shift needs to be applied to the potential.
 Tensor<double> TDDFT::create_shift_target(World& world,
-                                         Tensor<double>& ground,
-                                         Tensor<double>& omega,
-                                         double target,
-                                       size_t      print_level,
-                                         std::string xy) {
+                                          Tensor<double>& ground,
+                                          Tensor<double>& omega,
+                                          double target,
+                                          size_t print_level,
+                                          std::string xy) {
   // Start a timer
   if (print_level >= 1) molresponse::start_timer(world);
 
@@ -1761,9 +1764,9 @@ Tensor<double> TDDFT::create_shift_target(World& world,
 
 // Returns the given shift applied to the given potential
 response_space TDDFT::apply_shift(World& world,
-                                 Tensor<double>& shifts,
-                                 response_space& V,
-                                 response_space& f) {
+                                  Tensor<double>& shifts,
+                                  response_space& V,
+                                  response_space& f) {
   // Start timer
   if (Rparams.print_level >= 1) molresponse::start_timer(world);
 
@@ -1793,9 +1796,9 @@ response_space TDDFT::apply_shift(World& world,
 
 // Returns the given shift applied to the given potential
 response_space TDDFT::apply_shift(World& world,
-                                 double& shift,
-                                 response_space& V,
-                                 response_space& f) {
+                                  double& shift,
+                                  response_space& V,
+                                  response_space& f) {
   // Start timer
   if (Rparams.print_level >= 1) molresponse::start_timer(world);
 
@@ -1827,11 +1830,11 @@ response_space TDDFT::apply_shift(World& world,
 // state energies
 std::vector<std::vector<std::shared_ptr<real_convolution_3d>>>
 TDDFT::create_bsh_operators(World& world,
-                           Tensor<double>& shift,
-                           Tensor<double>& ground,
-                           Tensor<double>& omega,
-                           double small,
-                           double thresh) {
+                            Tensor<double>& shift,
+                            Tensor<double>& ground,
+                            Tensor<double>& omega,
+                            double small,
+                            double thresh) {
   // Start timer
   if (Rparams.print_level >= 1) molresponse::start_timer(world);
 
@@ -1873,11 +1876,11 @@ TDDFT::create_bsh_operators(World& world,
 // state energies
 std::vector<std::vector<std::shared_ptr<real_convolution_3d>>>
 TDDFT::CreateBSHOperatorPropertyVector(World& world,
-                                      Tensor<double>& shift,
-                                      Tensor<double>& ground,
-                                      Tensor<double>& omega,
-                                      double small,
-                                      double thresh) {
+                                       Tensor<double>& shift,
+                                       Tensor<double>& ground,
+                                       Tensor<double>& omega,
+                                       double small,
+                                       double thresh) {
   // Start timer
   if (Rparams.print_level >= 1) molresponse::start_timer(world);
 
@@ -1922,16 +1925,16 @@ TDDFT::CreateBSHOperatorPropertyVector(World& world,
 // shift
 std::vector<std::shared_ptr<real_convolution_3d>>
 TDDFT::CreateBSHOperatorPropertyVector(World& world,
-                                      double& shift,
-                                      Tensor<double>& ground,
-                                      double& omega,
-                                      double lo,
-                                      double eps) {
+                                       double& shift,
+                                       Tensor<double>& ground,
+                                       double& omega,
+                                       double lo,
+                                       double eps) {
   // Start timer
   if (Rparams.print_level >= 1) molresponse::start_timer(world);
 
   // Sizes inferred from ground and omega
-size_t   num_ground_states = ground.size();  // number of orbitals
+  size_t num_ground_states = ground.size();  // number of orbitals
   // print("num of freq", num_freq);
 
   // Make the vector
@@ -1960,11 +1963,11 @@ size_t   num_ground_states = ground.size();  // number of orbitals
 // Returns the second order update to the energies of the excited components
 // Not currently used.
 Tensor<double> TDDFT::calculate_energy_update(World& world,
-                                             response_space& rhs,
-                                             response_space& f_residuals,
-                                             response_space& new_f,
-                                           size_t   print_level,
-                                             std::string xy) {
+                                              response_space& rhs,
+                                              response_space& f_residuals,
+                                              response_space& new_f,
+                                              size_t print_level,
+                                              std::string xy) {
   /*
    *  The correction is:
    *      \delta \omega^{(k)} = - \frac{ \sum_p\left< \hat{V}^0 x_p^{(k)}(r) +
@@ -2022,7 +2025,7 @@ response_space TDDFT::gram_schmidt(World& world, response_space& f) {
   response_space result = f.copy();
 
   // Orthogonalize
-  for (size_t    j = 0; j < m; j++) {
+  for (size_t j = 0; j < m; j++) {
     // Need to normalize the row
     double norm = norm2(world, result[j]);
 
@@ -2054,7 +2057,7 @@ void TDDFT::gram_schmidt(World& world, response_space& f, response_space& g) {
   size_t m = f.size();
 
   // Orthogonalize
-  for (size_t    j = 0; j < m; j++) {
+  for (size_t j = 0; j < m; j++) {
     // Need to normalize the row
     double norm = inner(f[j], f[j]) - inner(g[j], g[j]);
 
@@ -2161,10 +2164,10 @@ void TDDFT::select_active_subspace(World& world) {
 // Selects from a list of functions and energies the k functions with the
 // lowest energy
 response_space TDDFT::select_functions(World& world,
-                                      response_space& f,
-                                      Tensor<double>& energies,
-                                      size_t k,
-                                    size_t   print_level) {
+                                       response_space& f,
+                                       Tensor<double>& energies,
+                                       size_t k,
+                                       size_t print_level) {
   // Container for result
   response_space answer;
 
@@ -2212,7 +2215,7 @@ Tensor<double> TDDFT::matrix_exponential(const Tensor<double>& A) {
 
   // Compute exp(B) using Taylor series
   Tensor<double> expB = Tensor<double>(2, B.dims());
-  for (long    i = 0; i < expB.dim(0); ++i) expB(i, i) = 1.0;
+  for (int64_t i = 0; i < expB.dim(0); ++i) expB(i, i) = 1.0;
 
   size_t k = 1;
   Tensor<double> term = B;
@@ -2241,10 +2244,10 @@ Tensor<double> TDDFT::matrix_exponential(const Tensor<double>& A) {
 /// degenerate
 /// @return             the unitary matrix U: U^T F U = evals
 Tensor<double> TDDFT::get_fock_transformation(World& world,
-                                             Tensor<double>& overlap,
-                                             Tensor<double>& fock,
-                                             Tensor<double>& evals,
-                                             const double thresh_degenerate) {
+                                              Tensor<double>& overlap,
+                                              Tensor<double>& fock,
+                                              Tensor<double>& evals,
+                                              const double thresh_degenerate) {
   // Run an SVD on the overlap matrix and ignore values
   // less than thresh_degenerate
   Tensor<double> r_vecs;
@@ -2262,8 +2265,8 @@ Tensor<double> TDDFT::get_fock_transformation(World& world,
   }
 
   // Check how many singular values are less than 10*thresh_degen
-size_t   num_sv = 0;
-  for (long      i = 0; i < s_vals.dim(0); i++) {
+  size_t num_sv = 0;
+  for (int64_t i = 0; i < s_vals.dim(0); i++) {
     if (s_vals(i) < 10 * thresh_degenerate) {
       if (world.rank() == 0 and num_sv == 0) print("");
       if (world.rank() == 0)
@@ -2278,8 +2281,8 @@ size_t   num_sv = 0;
   }
 
   // Going to use these a lot here, so just calculate them
-size_t   size_l = s_vals.dim(0);
-size_t   size_s = size_l - num_sv;
+  size_t size_l = s_vals.dim(0);
+  size_t size_s = size_l - num_sv;
   Tensor<double> l_vecs_s(size_l, num_sv);
 
   // Transform into this smaller space if necessary
@@ -2287,7 +2290,7 @@ size_t   size_s = size_l - num_sv;
     // Cut out the singular values that are small
     // (singular values come out in descending order)
     overlap = Tensor<double>(size_s, size_s);
-    for (size_t    i = 0; i < size_s; i++) overlap(i, i) = s_vals(i);
+    for (size_t i = 0; i < size_s; i++) overlap(i, i) = s_vals(i);
 
     // Copy the active vectors to a smaller container
     l_vecs_s = copy(l_vecs(_, Slice(0, size_s - 1)));
@@ -2310,13 +2313,13 @@ size_t   size_s = size_l - num_sv;
   Tensor<double> U;
   sygv(fock, overlap, 1, U, evals);
 
-  long nmo = fock.dim(0);  // NOLINT
+  int64_t nmo = fock.dim(0);  // NOLINT
 
   bool switched = true;
   while (switched) {
     switched = false;
-    for (long    i = 0; i < nmo; i++) {
-      for (long    j = i + 1; j < nmo; j++) {
+    for (int64_t i = 0; i < nmo; i++) {
+      for (int64_t j = i + 1; j < nmo; j++) {
         double sold = U(i, i) * U(i, i) + U(j, j) * U(j, j);
         double snew = U(i, j) * U(i, j) + U(j, i) * U(j, i);
         if (snew > sold) {
@@ -2331,20 +2334,20 @@ size_t   size_s = size_l - num_sv;
   }
 
   // Fix phases.
-  for (long i = 0; i < nmo; ++i)  // NOLINT
+  for (int64_t i = 0; i < nmo; ++i)  // NOLINT
     if (U(i, i) < 0.0) U(_, i).scale(-1.0);
 
   // Rotations between effectively degenerate components confound
   // the non-linear equation solver ... undo these rotations
-  long ilo = 0;  // first element of cluster NOLINT
+  int64_t ilo = 0;  // first element of cluster NOLINT
   while (ilo < nmo - 1) {
-    long ihi = ilo;  // NOLINT
+    int64_t ihi = ilo;  // NOLINT
     while (fabs(evals[ilo] - evals[ihi + 1]) <
            thresh_degenerate * 100.0 * std::max(fabs(evals[ilo]), 1.0)) {
       ++ihi;
       if (ihi == nmo - 1) break;
     }
-    long nclus = ihi - ilo + 1;  // NOLINT
+    int64_t nclus = ihi - ilo + 1;  // NOLINT
     if (nclus > 1) {
       Tensor<double> q = copy(U(Slice(ilo, ihi), Slice(ilo, ihi)));
 
@@ -2371,7 +2374,7 @@ size_t   size_s = size_l - num_sv;
 
     // Copy U back to larger size
     temp_U(Slice(0, size_s - 1), Slice(0, size_s - 1)) = copy(U);
-    for (size_t    i = size_s; i < size_l; i++) temp_U(i, i) = 1.0;
+    for (size_t i = size_s; i < size_l; i++) temp_U(i, i) = 1.0;
 
     // Transform back
     mxm(size_l, size_l, size_l, U2.ptr(), l_vecs.ptr(), temp_U.ptr());
@@ -2384,8 +2387,8 @@ size_t   size_s = size_l - num_sv;
 
 // Sorts the given Tensor of energies
 Tensor<int> TDDFT::sort_eigenvalues(World& world,
-                                   Tensor<double>& vals,
-                                   Tensor<double>& vecs) {
+                                    Tensor<double>& vals,
+                                    Tensor<double>& vecs) {
   // Get relevant sizes
   size_t k = vals.size();
 
@@ -2394,7 +2397,7 @@ Tensor<int> TDDFT::sort_eigenvalues(World& world,
 
   // Copy everything...
   std::vector<double> vals_copy;
-  for (size_t    i = 0; i < k; i++) vals_copy.push_back(vals[i]);
+  for (size_t i = 0; i < k; i++) vals_copy.push_back(vals[i]);
   Tensor<double> vals_copy2 = copy(vals);
   Tensor<double> vecs_copy = copy(vecs);
 
@@ -2403,9 +2406,9 @@ Tensor<int> TDDFT::sort_eigenvalues(World& world,
 
   // Now sort the rest of the things, using the sorted energy list
   // to find the correct indices
-  for (size_t    i = 0; i < k; i++) {
+  for (size_t i = 0; i < k; i++) {
     // Find matching index in sorted vals_copy
-  size_t   j = 0;
+    size_t j = 0;
     while (fabs(vals_copy[i] - vals_copy2[j]) > 1e-8 && j < k) j++;
 
     // Add in to list which one we're taking
@@ -2435,12 +2438,12 @@ Tensor<int> TDDFT::sort_eigenvalues(World& world,
 /// @param[in]  overlap  the overlap matrix
 /// @param[in]  thresh   threshold for rotation and truncation
 Tensor<double> TDDFT::diagonalizeFockMatrix(World& world,
-                                           Tensor<double>& fock,
-                                           response_space& psi,
-                                           ElectronResponseFunctions& I,
-                                           Tensor<double>& evals,
-                                           Tensor<double>& overlap,
-                                           const double thresh) {
+                                            Tensor<double>& fock,
+                                            response_space& psi,
+                                            ElectronResponseFunctions& I,
+                                            Tensor<double>& evals,
+                                            Tensor<double>& overlap,
+                                            const double thresh) {
   // compute the unitary transformation matrix U that diagonalizes
   // the fock matrix
   Tensor<double> U =
@@ -2485,8 +2488,8 @@ Tensor<double> TDDFT::diagonalizeFockMatrix(World& world,
 // Transforms the given matrix of functions according to the give
 // transformation matrix. Used to update orbitals / potential
 response_space TDDFT::transform(World& world,
-                               response_space& f,
-                               Tensor<double>& U) {
+                                response_space& f,
+                                Tensor<double>& U) {
   // Return container
   response_space result;
 
@@ -2513,16 +2516,16 @@ response_space TDDFT::transform(World& world,
 // If using a larger subspace to diagonalize in, this will put everything in
 // the right spot
 void TDDFT::augment(World& world,
-                   Tensor<double>& S_x,
-                   Tensor<double>& A_x,
-                   ElectronResponseFunctions& Current,
-                   ElectronResponseFunctions& Last,
-                   response_space& x_response,
-                   // Contains fock and energy scaled orbitals
-                   Tensor<double>& old_S,
-                   Tensor<double>& old_A,
-                   response_space& old_x_response,
-                 size_t   print_level) {
+                    Tensor<double>& S_x,
+                    Tensor<double>& A_x,
+                    ElectronResponseFunctions& Current,
+                    ElectronResponseFunctions& Last,
+                    response_space& x_response,
+                    // Contains fock and energy scaled orbitals
+                    Tensor<double>& old_S,
+                    Tensor<double>& old_A,
+                    response_space& old_x_response,
+                    size_t print_level) {
   // Basic output
   if (print_level >= 1) molresponse::start_timer(world);
 
@@ -2612,31 +2615,31 @@ void TDDFT::augment(World& world,
 // If using a larger subspace to diagonalize in, this will put everything in
 // the right spot
 void TDDFT::augment_full(World& world,
-                        Tensor<double>& S,
-                        Tensor<double>& A,
-                        response_space& B_x,
-                        response_space& x_gamma,
-                        response_space& x_response,
-                        response_space& V_x_response,
-                        response_space& x_fe,  // Contains V_x_response
-                        response_space& B_y,
-                        response_space& y_gamma,
-                        response_space& y_response,
-                        response_space& V_y_response,
-                        response_space& y_fe,  // Contains V_y_response
-                        Tensor<double>& old_S,
-                        Tensor<double>& old_A,
-                        response_space& old_B_x,
-                        response_space& old_x_gamma,
-                        response_space& old_x_response,
-                        response_space& old_V_x_response,
-                        response_space& old_x_fe,
-                        response_space& old_B_y,
-                        response_space& old_y_gamma,
-                        response_space& old_y_response,
-                        response_space& old_V_y_response,
-                        response_space& old_y_fe,
-                      size_t   print_level) {
+                         Tensor<double>& S,
+                         Tensor<double>& A,
+                         response_space& B_x,
+                         response_space& x_gamma,
+                         response_space& x_response,
+                         response_space& V_x_response,
+                         response_space& x_fe,  // Contains V_x_response
+                         response_space& B_y,
+                         response_space& y_gamma,
+                         response_space& y_response,
+                         response_space& V_y_response,
+                         response_space& y_fe,  // Contains V_y_response
+                         Tensor<double>& old_S,
+                         Tensor<double>& old_A,
+                         response_space& old_B_x,
+                         response_space& old_x_gamma,
+                         response_space& old_x_response,
+                         response_space& old_V_x_response,
+                         response_space& old_x_fe,
+                         response_space& old_B_y,
+                         response_space& old_y_gamma,
+                         response_space& old_y_response,
+                         response_space& old_V_y_response,
+                         response_space& old_y_fe,
+                         size_t print_level) {
   // Basic output
   if (print_level >= 1) molresponse::start_timer(world);
 
@@ -2733,18 +2736,18 @@ void TDDFT::augment_full(World& world,
 // If using a larger subspace to diagonalize in, after diagonalization this
 // will put everything in the right spot
 void TDDFT::unaugment(World& world,
-                     size_t num_states,
-                   size_t   iter,
-                     Tensor<double>& omega,
-                     Tensor<double>& S_x,
-                     Tensor<double>& A_x,
-                     ElectronResponseFunctions& Current,
-                     ElectronResponseFunctions& Last,
-                     response_space& x_response,
-                     Tensor<double>& old_S,
-                     Tensor<double>& old_A,
-                     response_space& old_x_response,
-                   size_t   print_level) {
+                      size_t num_states,
+                      size_t iter,
+                      Tensor<double>& omega,
+                      Tensor<double>& S_x,
+                      Tensor<double>& A_x,
+                      ElectronResponseFunctions& Current,
+                      ElectronResponseFunctions& Last,
+                      response_space& x_response,
+                      Tensor<double>& old_S,
+                      Tensor<double>& old_A,
+                      response_space& old_x_response,
+                      size_t print_level) {
   // Basic output
   if (print_level >= 1) molresponse::start_timer(world);
 
@@ -2800,35 +2803,35 @@ void TDDFT::unaugment(World& world,
 // If using a larger subspace to diagonalize in, after diagonalization this
 // will put everything in the right spot
 void TDDFT::unaugment_full(World& world,
-                          size_t m,
-                        size_t   iter,
-                          Tensor<double>& U,
-                          Tensor<double>& omega,
-                          Tensor<double>& S,
-                          Tensor<double>& A,
-                          response_space& x_gamma,
-                          response_space& x_response,
-                          response_space& V_x_response,
-                          response_space& x_fe,
-                          response_space& B_x,
-                          response_space& y_gamma,
-                          response_space& y_response,
-                          response_space& V_y_response,
-                          response_space& y_fe,
-                          response_space& B_y,
-                          Tensor<double>& old_S,
-                          Tensor<double>& old_A,
-                          response_space& old_x_gamma,
-                          response_space& old_x_response,
-                          response_space& old_V_x_response,
-                          response_space& old_x_fe,
-                          response_space& old_B_x,
-                          response_space& old_y_gamma,
-                          response_space& old_y_response,
-                          response_space& old_V_y_response,
-                          response_space& old_y_fe,
-                          response_space& old_B_y,
-                        size_t   print_level) {
+                           size_t m,
+                           size_t iter,
+                           Tensor<double>& U,
+                           Tensor<double>& omega,
+                           Tensor<double>& S,
+                           Tensor<double>& A,
+                           response_space& x_gamma,
+                           response_space& x_response,
+                           response_space& V_x_response,
+                           response_space& x_fe,
+                           response_space& B_x,
+                           response_space& y_gamma,
+                           response_space& y_response,
+                           response_space& V_y_response,
+                           response_space& y_fe,
+                           response_space& B_y,
+                           Tensor<double>& old_S,
+                           Tensor<double>& old_A,
+                           response_space& old_x_gamma,
+                           response_space& old_x_response,
+                           response_space& old_V_x_response,
+                           response_space& old_x_fe,
+                           response_space& old_B_x,
+                           response_space& old_y_gamma,
+                           response_space& old_y_response,
+                           response_space& old_V_y_response,
+                           response_space& old_y_fe,
+                           response_space& old_B_y,
+                           size_t print_level) {
   // Basic output
   if (print_level >= 1) molresponse::start_timer(world);
 
@@ -2892,15 +2895,16 @@ void TDDFT::unaugment_full(World& world,
 // Diagonalize the full response matrix, taking care of degenerate components
 // Why diagonalization and then transform the x_fe vectors
 
-Tensor<double> TDDFT::diagonalizeFullResponseMatrix(World& world,
-                                                   Tensor<double>& S,
-                                                   Tensor<double>& A,
-                                                   response_space& x,
-                                                   response_space& y,
-                                                   ElectronResponseFunctions& I,
-                                                   Tensor<double>& omega,
-                                                   const double thresh,
-                                                 size_t   print_level) {
+Tensor<double> TDDFT::diagonalizeFullResponseMatrix(
+    World& world,
+    Tensor<double>& S,
+    Tensor<double>& A,
+    response_space& x,
+    response_space& y,
+    ElectronResponseFunctions& I,
+    Tensor<double>& omega,
+    const double thresh,
+    size_t print_level) {
   // compute the unitary transformation matrix U that diagonalizes
   // the response matrix
   Tensor<double> vecs =
@@ -2976,8 +2980,8 @@ Tensor<double> TDDFT::GetFullResponseTransformation(
   }
 
   // Check how many singular values are less than 10*thresh_degen
-size_t   num_sv = 0;
-  for (long    i = 0; i < s_vals.dim(0); i++) {
+  size_t num_sv = 0;
+  for (int64_t i = 0; i < s_vals.dim(0); i++) {
     if (s_vals(i) < 10 * thresh_degenerate) {
       if (world.rank() == 0 and num_sv == 0) print("");
       if (world.rank() == 0)
@@ -2992,8 +2996,8 @@ size_t   num_sv = 0;
   }
 
   // Going to use these a lot here, so just calculate them
-size_t   size_l = s_vals.dim(0);    // number of singular values
-size_t   size_s = size_l - num_sv;  // smaller subspace size
+  size_t size_l = s_vals.dim(0);    // number of singular values
+  size_t size_s = size_l - num_sv;  // smaller subspace size
   Tensor<double> l_vecs_s(
       size_l,
       num_sv);                     // number of sv by number smaller than thress
@@ -3004,7 +3008,7 @@ size_t   size_s = size_l - num_sv;  // smaller subspace size
     // Cut out the singular values that are small
     // (singular values come out in descending order)
     S = Tensor<double>(size_s, size_s);  // create size of new size
-    for (size_t    i = 0; i < size_s; i++) S(i, i) = s_vals(i);
+    for (size_t i = 0; i < size_s; i++) S(i, i) = s_vals(i);
 
     // Copy the active vectors to a smaller container
     l_vecs_s = copy(l_vecs(_, Slice(0, size_s - 1)));
@@ -3054,7 +3058,7 @@ size_t   size_s = size_l - num_sv;  // smaller subspace size
   while (switched) {
     switched = false;
     for (size_t i = 0; i < m; i++) {
-      for (size_t    j = i + 1; j < m; j++) {
+      for (size_t j = i + 1; j < m; j++) {
         double sold = U(i, i) * U(i, i) + U(j, j) * U(j, j);
         double snew = U(i, j) * U(i, j) + U(j, i) * U(j, i);
         if (snew > sold) {
@@ -3106,7 +3110,7 @@ size_t   size_s = size_l - num_sv;  // smaller subspace size
 
     // Copy U back to larger size
     temp_U(Slice(0, size_s - 1), Slice(0, size_s - 1)) = copy(U);
-    for (size_t    i = size_s; i < size_l; i++) temp_U(i, i) = 1.0;
+    for (size_t i = size_s; i < size_l; i++) temp_U(i, i) = 1.0;
 
     // Transform U back
     mxm(size_l, size_l, size_l, U2.ptr(), l_vecs.ptr(), temp_U.ptr());
@@ -3139,9 +3143,9 @@ void TDDFT::sort(World& world, Tensor<double>& vals, response_space& f) {
 
   // Now sort the rest of the things, using the sorted energy list
   // to find the correct indices
-  for (size_t    i = 0; i < k; i++) {
+  for (size_t i = 0; i < k; i++) {
     // Find matching index in sorted vals_copy
-  size_t   j = 0;
+    size_t j = 0;
     while (fabs(vals_copy(i) - vals_copy2(j)) > 1e-8 && j < k) j++;
 
     // Put corresponding function, difference function, value residual and
@@ -3154,16 +3158,16 @@ void TDDFT::sort(World& world, Tensor<double>& vals, response_space& f) {
   }
 }
 void TDDFT::deflateTDA(World& world,
-                      Tensor<double>& S,
-                      Tensor<double> old_S,
-                      Tensor<double> old_A,
-                      response_space& x_response,
-                      response_space& old_x_response,
-                      ElectronResponseFunctions& ElectronResponses,
-                      ElectronResponseFunctions& OldElectronResponses,
-                      Tensor<double>& omega,
-                      size_t& iteration,
-                      size_t& m) {
+                       Tensor<double>& S,
+                       Tensor<double> old_S,
+                       Tensor<double> old_A,
+                       response_space& x_response,
+                       response_space& old_x_response,
+                       ElectronResponseFunctions& ElectronResponses,
+                       ElectronResponseFunctions& OldElectronResponses,
+                       Tensor<double>& omega,
+                       size_t& iteration,
+                       size_t& m) {
   S = expectation(world, x_response, x_response);
 
   // Debugging output
@@ -3228,18 +3232,18 @@ void TDDFT::deflateTDA(World& world,
 }
 
 void TDDFT::deflateFull(World& world,
-                       Tensor<double>& S,
-                       Tensor<double> old_S,
-                       Tensor<double> old_A,
-                       response_space& x_response,
-                       response_space& y,
-                       response_space& old_x_response,
-                       response_space& old_y_response,
-                       ElectronResponseFunctions& ElectronResponses,
-                       ElectronResponseFunctions& OldElectronResponses,
-                       Tensor<double>& omega,
-                       size_t& iteration,
-                       size_t& m) {
+                        Tensor<double>& S,
+                        Tensor<double> old_S,
+                        Tensor<double> old_A,
+                        response_space& x_response,
+                        response_space& y,
+                        response_space& old_x_response,
+                        response_space& old_y_response,
+                        ElectronResponseFunctions& ElectronResponses,
+                        ElectronResponseFunctions& OldElectronResponses,
+                        Tensor<double>& omega,
+                        size_t& iteration,
+                        size_t& m) {
   S = expectation(world, x_response, x_response) -
       expectation(world, y_response, y_response);
 
@@ -3303,8 +3307,8 @@ void TDDFT::deflateFull(World& world,
 // Creates the XCOperator object and initializes it with correct
 // parameters
 XCOperator TDDFT::create_xcoperator(World& world,
-                                   std::vector<real_function_3d> orbitals,
-                                   std::string xc) {
+                                    std::vector<real_function_3d> orbitals,
+                                    std::string xc) {
   // First calculate the ground state density
   std::vector<real_function_3d> vsq =
       square(world, Gparams.orbitals);  // we square each orbital
@@ -3412,7 +3416,7 @@ std::vector<real_function_3d> TDDFT::CreateXCDerivative(
   // Run over virtual...
   for (size_t i = 0; i < m; i++) {
     // Run over occupied...
-    for (size_t    j = 0; j < n; j++) {
+    for (size_t j = 0; j < n; j++) {
       // y functions are zero if TDA is active
       drho[i] = drho[i] + orbitals[j] * f[i][j];  //+ orbitals[j] * y[i][j];
     }
@@ -3438,15 +3442,15 @@ void TDDFT::Iterate(World& world) {
   size_t iteration = 0;  // Iteration counter
                          // Projector to project out ground state
   QProjector<double, 3> projector(world, Gparams.orbitals);
-  size_t m = Rparams.states;               // Number of excited states
-  size_t n = Gparams.num_orbitals;         // Number of ground state orbitals
-  bool all_converged = false;              // For convergence
-  bool relax = false;                      // For convergence
-size_t   relax_start = Rparams.max_iter + 1;  // For convergence
-size_t   num_conv = 0;                        // For convergence
-  std::vector<bool> converged(m, false);   // For convergence
-  Tensor<double> old_energy(m);            // Holds previous iteration's energy
-  Tensor<double> energy_residuals;         // Holds energy residuals
+  size_t m = Rparams.states;                  // Number of excited states
+  size_t n = Gparams.num_orbitals;            // Number of ground state orbitals
+  bool all_converged = false;                 // For convergence
+  bool relax = false;                         // For convergence
+  size_t relax_start = Rparams.max_iter + 1;  // For convergence
+  size_t num_conv = 0;                        // For convergence
+  std::vector<bool> converged(m, false);      // For convergence
+  Tensor<double> old_energy(m);     // Holds previous iteration's energy
+  Tensor<double> energy_residuals;  // Holds energy residuals
   // Holds the norms of x function residuals (for convergence)
   Tensor<double> x_norms(m);
   // Holds the norms of y function residuals (for convergence)
@@ -3945,7 +3949,7 @@ void TDDFT::analysis(World& world) {
   for (size_t i = 0; i < m; i++) {
     for (size_t j = 0; j < n; j++) {
       double x = cpy(i, _).max();
-    size_t   z = 0;
+      size_t z = 0;
       while (x != cpy(i, z)) z++;
       cpy(i, z) = -100.0;
       x_order(i, j) = z;
@@ -4061,7 +4065,9 @@ void TDDFT::analysis(World& world) {
   // Now print?
   if (world.rank() == 0) {
     for (size_t i = 0; i < m; i++) {
-      printf("   Response Function %d\t\t%7.8f a.u.", static_cast<int>(i), omega(i));
+      printf("   Response Function %d\t\t%7.8f a.u.",
+             static_cast<int>(i),
+             omega(i));
       print("\n   --------------------------------------------");
 
       print("\n   Transition Dipole Moments");
@@ -4117,7 +4123,7 @@ void TDDFT::analysis(World& world) {
 // Simplified iterate scheme for guesses
 void TDDFT::IterateGuess(World& world, response_space& guesses) {
   // Variables needed to iterate
-size_t   iteration = 0;  // Iteration counter
+  size_t iteration = 0;  // Iteration counter
   QProjector<double, 3> projector(
       world, Gparams.orbitals);  // Projector to project out ground state
   size_t n = guesses[0].size();  // Number of ground state orbitals
@@ -4151,15 +4157,15 @@ size_t   iteration = 0;  // Iteration counter
     // reduce the space progressively
     //  Starting number of response functions
     //
-  size_t   N0 = guesses.size();
+    size_t N0 = guesses.size();
     //  number of response functions after p-1 iterations
     //  I believe we don't iterate the last time
-  size_t   Np = 2 * Rparams.states;
+    size_t Np = 2 * Rparams.states;
     // this controls the final number of points to choose from
     // number of iterations
-  size_t   p = Rparams.guess_max_iter - 1;
+    size_t p = Rparams.guess_max_iter - 1;
     // Number of points after i iterations
-  size_t   Ni = N0;
+    size_t Ni = N0;
 
     // No*exp(log(Np/N0)/p*t) to exponential decay
     // the number of states down to 2*Rparams.states
@@ -4169,7 +4175,7 @@ size_t   iteration = 0;  // Iteration counter
                                    static_cast<double>(p) * iteration));
       sort(world, omega, guesses);
       print(omega);
-      for (size_t    i = 0; i < Ni; i++) {
+      for (size_t i = 0; i < Ni; i++) {
         Ni = 0;
         if (omega[i] < 1) {
           Ni++;
@@ -4183,8 +4189,9 @@ size_t   iteration = 0;  // Iteration counter
     // Basic output
     if (Rparams.print_level >= 1) {
       if (world.rank() == 0)
-        printf(
-            "\n   Guess Iteration %d at time %.1fs\n", static_cast<int>(iteration), wall_time());
+        printf("\n   Guess Iteration %d at time %.1fs\n",
+               static_cast<int>(iteration),
+               wall_time());
       if (world.rank() == 0) print(" -------------------------------------");
     }
 
@@ -4212,7 +4219,7 @@ size_t   iteration = 0;  // Iteration counter
     }
 
     // Project out ground state
-    for (size_t    i = 0; i < Ni; i++) guesses[i] = projector(guesses[i]);
+    for (size_t i = 0; i < Ni; i++) guesses[i] = projector(guesses[i]);
 
     // Truncate before doing expensive things
     guesses.truncate_rf();
@@ -4262,7 +4269,7 @@ size_t   iteration = 0;  // Iteration counter
               "diagonalizatoin).");
       Tensor<double> temp(Ni);
       temp(Slice(0, omega.dim(0) - 1)) = omega;
-      for (size_t    i = omega.dim(0); i < Ni; i++) temp[i] = 2.5 * i;
+      for (size_t i = omega.dim(0); i < Ni; i++) temp[i] = 2.5 * i;
       omega = copy(temp);
     }
 
@@ -4285,7 +4292,7 @@ size_t   iteration = 0;  // Iteration counter
       // Construct RHS of equation
       //      ResponseFunction rhs = gamma + shifted_V;
       rhs = I.Hx;
-      for (size_t    i = 0; i < Ni; i++) {
+      for (size_t i = 0; i < Ni; i++) {
         rhs[i] = projector(rhs[i]);
       }
 
@@ -4314,13 +4321,13 @@ size_t   iteration = 0;  // Iteration counter
       if (Rparams.print_level >= 1) molresponse::end_timer(world, "Apply BSH:");
 
       // Project out ground state
-      for (size_t    i = 0; i < Ni; i++) bsh_resp[i] = projector(bsh_resp[i]);
+      for (size_t i = 0; i < Ni; i++) bsh_resp[i] = projector(bsh_resp[i]);
 
       // Save new components
       guesses = bsh_resp;
       guesses = guesses * -2.0;  // scale(guesses, -2.0);
       // Apply mask
-      for (size_t    i = 0; i < Ni; i++) guesses[i] = mask * guesses[i];
+      for (size_t i = 0; i < Ni; i++) guesses[i] = mask * guesses[i];
     }
 
     // Update counter
@@ -4345,7 +4352,7 @@ response_space TDDFT::diagonalize_CIS_guess(
     Tensor<double>& energies,
     double small,
     double thresh,
-  size_t   print_level) {
+    size_t print_level) {
   // Projecter for removing ground state
   QProjector<double, 3> Q(world, orbitals);
 
@@ -4391,11 +4398,11 @@ response_space TDDFT::diagonalize_CIS_guess(
   // Start timer
   if (Rparams.print_level >= 1) molresponse::start_timer(world);
 
-size_t   I = -1;  // combined index from i and a, start is -1 so that initial
-               // value
+  size_t I = -1;  // combined index from i and a, start is -1 so that initial
+                  // value
   // is 0
-size_t   J = -1;  // combined index from j and b, start is -1 so that initial
-               // value
+  size_t J = -1;  // combined index from j and b, start is -1 so that initial
+                  // value
   // is 0
 
   const size_t m = virtuals.size();
@@ -4404,7 +4411,7 @@ size_t   J = -1;  // combined index from j and b, start is -1 so that initial
   Tensor<double> MCIS(m * n, m * n);
   real_convolution_3d op = CoulombOperator(world, small, thresh);
 
-  for (size_t    i = 0; i < n; i++) {
+  for (size_t i = 0; i < n; i++) {
     const real_function_3d brai = orbitals[i];
     const std::vector<real_function_3d> igv = apply(world, op, virtuals * brai);
     const std::vector<real_function_3d> igm = apply(world, op, orbitals * brai);
@@ -4477,8 +4484,8 @@ size_t   J = -1;  // combined index from j and b, start is -1 so that initial
 
 // Adds in random noise to a vector of vector of functions
 response_space TDDFT::add_randomness(World& world,
-                                    response_space& f,
-                                    double magnitude) {
+                                     response_space& f,
+                                     double magnitude) {
   // Copy input functions
   response_space f_copy = f.copy();
 
@@ -4510,8 +4517,8 @@ response_space TDDFT::add_randomness(World& world,
 
 // Creates the ground state hamiltonian from given functions f
 Tensor<double> TDDFT::CreateGroundHamiltonian(World& world,
-                                             std::vector<real_function_3d> f,
-                                           size_t   print_level) {
+                                              std::vector<real_function_3d> f,
+                                              size_t print_level) {
   // Basic output
   if (print_level >= 1) molresponse::start_timer(world);
   // Get sizes
@@ -4628,8 +4635,8 @@ Tensor<double> TDDFT::CreateGroundHamiltonian(World& world,
   // Now create the hamiltonian
   hamiltonian = T + V;
 
-  for (long    i = 0; i < hamiltonian.dim(0); i++) {
-    for (long    j = i + 1; j < hamiltonian.dim(1); j++) {
+  for (int64_t i = 0; i < hamiltonian.dim(0); i++) {
+    for (int64_t j = i + 1; j < hamiltonian.dim(1); j++) {
       //      print(i, j);
       //      print(xAx(i, j));
       //     print(xAx(j, i));
@@ -4637,7 +4644,7 @@ Tensor<double> TDDFT::CreateGroundHamiltonian(World& world,
     }
   }
   double traceOfHamiltonian(0);
-  for (long    i = 0; i < hamiltonian.dim(0); i++) {
+  for (int64_t i = 0; i < hamiltonian.dim(0); i++) {
     traceOfHamiltonian += hamiltonian(i, i);
   }
   print("Trace of Hamiltonian");
@@ -4684,7 +4691,7 @@ std::vector<real_function_3d> TDDFT::transition_density(
   x.truncate_rf();
   y.truncate_rf();
   truncate(world, Gparams.orbitals);
-  for (size_t    b = 0; b < m; b++) {
+  for (size_t b = 0; b < m; b++) {
     // Run over occupied...
     // y functions are zero if TDA is active
     densities[b] =
@@ -4710,7 +4717,7 @@ std::vector<real_function_3d> TDDFT::GetTransitionDensities(
   // Run over virtual...
   for (size_t i = 0; i < m; i++) {
     // Run over occupied...
-    for (size_t    j = 0; j < n; j++) {
+    for (size_t j = 0; j < n; j++) {
       // y functions are zero if TDA is active
       densities[i] = densities[i] + orbitals[j] * f[i][j];
       // densities[i] =densities[i] + orbitals[j] * dagger(f[i][j]);TODO:
@@ -4924,7 +4931,7 @@ void TDDFT::check_k(World& world, double thresh, size_t k) {
 response_space TDDFT::create_random_guess(
     World& world,
     size_t m,                                // m response states
-  size_t   n,                                   // n ground states
+    size_t n,                                // n ground states
     std::vector<real_function_3d>& grounds,  // guess should have size n
     Molecule& molecule) {
   // Basic output
@@ -5079,7 +5086,7 @@ response_space TDDFT::create_nwchem_guess(World& world, size_t m) {
 
   // Create as many vectors of functions as we can from these nwchem
   // virtual orbitals putting 1 virtual orbital from nwchem per vector
-  for (size_t    i = 0; i < std::max(m, num_virt); i++) {
+  for (size_t i = 0; i < std::max(m, num_virt); i++) {
     // Create the vector to add the new function to
     std::vector<real_function_3d> v1 =
         zero_functions_compressed<double, 3>(world, Gparams.orbitals.size());
@@ -5132,11 +5139,11 @@ response_space TDDFT::create_nwchem_guess(World& world, size_t m) {
 // Creates potentials using the ResponsePotential object
 // Potentials are modified in place
 void TDDFT::create_all_potentials(World& world,
-                                 response_space& x,
-                                 response_space& x_gamma,
-                                 response_space& x_V0,
-                                 ResponsePotential& potentials,
-                               size_t   print_level) {
+                                  response_space& x,
+                                  response_space& x_gamma,
+                                  response_space& x_V0,
+                                  ResponsePotential& potentials,
+                                  size_t print_level) {
   // Intermediaries
   response_space gammaJ, gammaK, groundJ, groundK;
 
@@ -5300,7 +5307,7 @@ void TDDFT::solve(World& world) {
           x_response[i] = projector(x_response[i]);
 
         // Ensure orthogonal guesses
-        for (size_t    i = 0; i < 2; i++) {
+        for (size_t i = 0; i < 2; i++) {
           molresponse::start_timer(world);
           // Orthog
           x_response = gram_schmidt(world, x_response);
@@ -5350,7 +5357,7 @@ void TDDFT::solve(World& world) {
 
     // For the instance where we don't plot all the orbitals
     std::vector<real_function_3d> plot_densities;
-    for (size_t    i : Rparams.plot_data) {
+    for (size_t i : Rparams.plot_data) {
       plot_densities.push_back(densities[i]);
     }
 
@@ -5388,7 +5395,7 @@ void TDDFT::solve(World& world) {
 // Iterates the response functions until converged or out of iterations
 void TDDFT::IteratePolarizability(World& world, response_space& dipoles) {
   // Variables needed to iterate
-size_t   iteration = 0;  // Iteration counter
+  size_t iteration = 0;  // Iteration counter
   QProjector<double, 3> projector(
       world, Gparams.orbitals);     // Projector to project out ground state
   size_t n = Gparams.num_orbitals;  // Number of ground state orbitals
@@ -5480,7 +5487,9 @@ size_t   iteration = 0;  // Iteration counter
     // Basic output
     if (Rparams.print_level >= 1) {
       if (world.rank() == 0)
-        printf("\n   Iteration %d at time %.1fs\n", static_cast<int>(iteration), wall_time());
+        printf("\n   Iteration %d at time %.1fs\n",
+               static_cast<int>(iteration),
+               wall_time());
       if (world.rank() == 0) print(" -------------------------------");
     }
 
@@ -5793,12 +5802,12 @@ void TDDFT::polarizability(World& world, Tensor<double> polar) {
     rhos = transition_density(world, Gparams.orbitals, x_response, y_response);
 
   // For each r_axis
-  for (size_t    axis = 0; axis < 3; axis++) {
+  for (size_t axis = 0; axis < 3; axis++) {
     real_function_3d drho = rhos[axis];
 
     // Run over axis and calc.
     // the polarizability
-    for (size_t    i = 0; i < 3; i++) {
+    for (size_t i = 0; i < 3; i++) {
       // Create dipole operator in the 'i' direction
       std::vector<int> f(3, 0);
       f[i] = 1;
@@ -5810,8 +5819,8 @@ void TDDFT::polarizability(World& world, Tensor<double> polar) {
 }
 
 void TDDFT::PrintPolarizabilityAnalysis(World& world,
-                                       const Tensor<double> polar_tensor,
-                                       const Tensor<double> omega) {
+                                        const Tensor<double> polar_tensor,
+                                        const Tensor<double> omega) {
   // Final polarizability analysis
   // diagonalize
   Tensor<double> V, epolar;
@@ -5838,28 +5847,43 @@ void TDDFT::PrintPolarizabilityAnalysis(World& world,
     printf("\n");
   }
 }
+// TODO It makes sense to align the plots with the direction of the perturbation
+// ??
+// TODO In excited state calculations we are going to get various directions.
+// We should plot the functions with respect to
 
+/* @brief plot tranistions and ground orbitals in x y z direction
+ *
+ * @param world
+ * @param iteration
+ * @param x_response
+ * @param y_response
+ * @param Rparams
+ * @param Gparams
+ */
 void TDDFT::PlotGroundandResponseOrbitals(World& world,
-                                       size_t   iteration,
-                                         response_space& x_response,
-                                         response_space& y_response,
-                                         ResponseParameters const& Rparams,
-                                         GroundParameters const& Gparams) {
+                                          size_t iteration,
+                                          response_space& x_response,
+                                          response_space& y_response,
+                                          ResponseParameters const& Rparams,
+                                          GroundParameters const& Gparams) {
   std::filesystem::create_directories("plots/xy");
   std::filesystem::create_directory("plots/ground");
   std::filesystem::create_directory("plots/transition_density");
 
   // TESTING
   // get transition density
+  // num orbitals
   size_t n = x_response[0].size();
   size_t m = x_response.size();
+
   real_function_3d ground_density =
       dot(world, Gparams.orbitals, Gparams.orbitals);
   std::vector<real_function_3d> densities =
       transition_density(world, Gparams.orbitals, x_response, y_response);
   std::string dir("xyz");
 
-size_t   buffSize = 500;
+  size_t buffSize = 500;
   char plotname[buffSize];
   double Lp = std::min(Gparams.L, 24.0);
   // Doing line plots along each axis
@@ -5873,7 +5897,11 @@ size_t   buffSize = 500;
     }
     for (int i = 0; i < static_cast<int>(n); i++) {
       // print ground_state
-      snprintf(plotname, buffSize, "plots/ground/ground_%c_%d.plt", dir[d], static_cast<int>(i));
+      snprintf(plotname,
+               buffSize,
+               "plots/ground/ground_%c_%d.plt",
+               dir[d],
+               static_cast<int>(i));
       plot_line(plotname, 5001, plt.lo, plt.hi, Gparams.orbitals[i]);
       for (int b = 0; b < static_cast<int>(m); b++) {
         // plot x function  x_dir_b_i__k_iter
@@ -5999,9 +6027,9 @@ void TDDFT::solve_polarizability(World& world, Property& p) {
 // The only difference is the number of response states as well as the
 // number of right hand side vectors.
 void TDDFT::ComputeFrequencyResponse(World& world,
-                                    std::string property,
-                                    response_space& x,
-                                    response_space& y) {
+                                     std::string property,
+                                     response_space& x,
+                                     response_space& y) {
   // Get start time
   this->x_response = x;
   this->y_response = y;
