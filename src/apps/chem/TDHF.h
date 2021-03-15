@@ -82,7 +82,7 @@ public:
             ("restart", std::vector<size_t>(), "excitations which will be read from disk");
 
             initialize < std::string >
-            ("guess_excitation_operators", "dipole+", "guess typ", {"dipole+", "quadrupole", "big_fock_2",
+            ("guess_excitation_operators", "big_fock_2", "guess typ", {"dipole+", "quadrupole", "big_fock_2",
                                                                     "big_fock_3", "big_fock_4", "custom"});
 
             /// add center of mass functions determined by the homo-energy
@@ -104,7 +104,7 @@ public:
             initialize < bool >
             ("store_potential", true, "store the potential for orthogonalizations or recalculate it");
 
-            initialize < size_t > ("guess_maxiter", 0, "maximum number of guess iterations ");
+            initialize < size_t > ("guess_maxiter", 5, "maximum number of guess iterations ");
 
             //		/// determine how the virtuals for the guess are constructed: scf, external, custom, dipole, quadrupole
             //		/// scf: read in the ao set from scf (scales with system size)

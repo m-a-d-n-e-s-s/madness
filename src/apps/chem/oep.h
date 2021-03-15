@@ -210,6 +210,10 @@ public:
         if (load_mos) load_restartdata(fock);
 
         if (not oep_param.no_compute())  energy=solve(reference->get_calc()->get_amo());
+        // save the converged orbitals and nemos
+        for (std::size_t imo = 0; imo < calc->amo.size(); ++imo) {
+            save(calc->amo[imo], "oep_nemo" + stringify(imo));
+        }
         return energy;
 	};
 

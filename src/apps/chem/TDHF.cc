@@ -62,7 +62,6 @@ void TDHF::initialize() {
 
     msg.section("Initialize TDHF Class");
     msg.debug = parameters.debug();
-    check_consistency();
     g12=std::make_shared<CCConvolutionOperator>(world, OT_G12, parameters.get_ccc_parameters(get_calcparam().lo()));
 
     const double old_thresh = FunctionDefaults<3>::get_thresh();
@@ -81,6 +80,7 @@ void TDHF::initialize() {
     symmetry_projector.set_lindep(1.e-2).set_orthonormalize_irreps(false).set_verbosity(0);
     symmetry_projector.print_info(world);
 
+    check_consistency();
 }
 
 /// compute non-trivial prerequisites for the calculation
@@ -1083,7 +1083,7 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
 
     // determine the symmetry of the occupied and virtual orbitals
     std::vector<std::string> orbital_irreps, virtual_irreps;
-    projector_irrep proj = projector_irrep(symmetry_projector).set_verbosity(10).set_lindep(1.e-1);
+    projector_irrep proj = projector_irrep(symmetry_projector).set_verbosity(0).set_lindep(1.e-1);
     virtuals = proj(virtuals, get_reference()->R_square, virtual_irreps);
     proj(get_active_mo_ket(), get_reference()->R_square, orbital_irreps);
 
@@ -1357,6 +1357,7 @@ Tensor<double> TDHF::make_cis_matrix(const vector_real_function_3d virtuals,
 
             std::string xc_data= (parameters.do_oep()) ? "lda_x" : get_calcparam().xc();
             real_function_3d alpha_density=get_reference()->compute_density(mo_bra_.get_vecfunction());
+            real_convolution_3d poisson=CoulombOperator(world,get_calc()->param.lo(),parameters.econv());
 
             const XCOperator<double,3> xc(world, xc_data, not get_calcparam().spin_restricted(),
                                               alpha_density, alpha_density);
@@ -1372,7 +1373,7 @@ Tensor<double> TDHF::make_cis_matrix(const vector_real_function_3d virtuals,
             for (int ia=0; ia<dim; ++ia) {
 
                 // make g | ia )  (Mullikan notation)
-                const real_function_3d igv = (*g12)(ia_func[ia]);
+                const real_function_3d igv = poisson(ia_func[ia]);
                 for (int jb=ia; jb<dim; ++jb) {
 
                     const double coulomb=2.0*inner(ia_func[jb],igv);
@@ -1546,7 +1547,8 @@ void TDHF::TDHFParameters::set_derived_values(const std::shared_ptr<SCF> &scf) {
     set_derived_value("guess_dconv", dconv() * 10.0);
 
     set_derived_value("iterating_excitations", std::min(excitations(), std::size_t(4)));
-    set_derived_value("guess_excitations", std::min(excitations() + iterating_excitations(), 2 * excitations()));
+//    set_derived_value("guess_excitations", std::min(excitations() + iterating_excitations(), 2 * excitations()));
+    set_derived_value("guess_excitations", std::max(2*excitations(),10ul));
 
 //    set_derived_value("guess_occ_to_virt", scf->amo.size() - freeze());
 //    set_derived_value("guess_active_orbitals", scf->amo.size() - freeze());
