@@ -5882,7 +5882,7 @@ void TDDFT::PlotGroundandResponseOrbitals(World& world,
   std::vector<real_function_3d> densities =
       transition_density(world, Gparams.orbitals, x_response, y_response);
   std::string dir("xyz");
-
+  // for plotname size
   size_t buffSize = 500;
   char plotname[buffSize];
   double Lp = std::min(Gparams.L, 24.0);
@@ -5895,35 +5895,39 @@ void TDDFT::PlotGroundandResponseOrbitals(World& world,
           plotname, buffSize, "plots/ground/ground_density_%c.plt", dir[d]);
       plot_line(plotname, 5001, plt.lo, plt.hi, ground_density);
     }
-    for (int i = 0; i < static_cast<int>(n); i++) {
-      // print ground_state
-      snprintf(plotname,
-               buffSize,
-               "plots/ground/ground_%c_%d.plt",
-               dir[d],
-               static_cast<int>(i));
-      plot_line(plotname, 5001, plt.lo, plt.hi, Gparams.orbitals[i]);
-      for (int b = 0; b < static_cast<int>(m); b++) {
+
+    for (int b = 0; b < static_cast<int>(m); b++) {
+      for (int i = 0; i < static_cast<int>(n); i++) {
+        // print ground_state
+        snprintf(plotname,
+                 buffSize,
+                 "plots/ground/ground_%c_%d.plt",
+                 dir[d],
+                 static_cast<int>(i));
+        plot_line(plotname, 5001, plt.lo, plt.hi, Gparams.orbitals[i]);
+      }
+      for (int i = 0; i < static_cast<int>(n); i++) {
+        // print ground_state
         // plot x function  x_dir_b_i__k_iter
         snprintf(plotname,
                  buffSize,
-                 "plots/xy/x_%c_%d_%d__%d_%d.plt",
+                 "plots/xy/x_K_%d_iter_%d_dir_%d_res_%d_orb_%d",
+                 FunctionDefaults<3>::get_k(),
+                 static_cast<int>(iteration - 1),
                  dir[d],
                  static_cast<int>(b),
-                 static_cast<int>(i),
-                 FunctionDefaults<3>::get_k(),
-                 static_cast<int>(iteration - 1));
+                 static_cast<int>(i));
         plot_line(plotname, 5001, plt.lo, plt.hi, x_response[b][i]);
 
         // plot y function  y_dir_b_i__k_iter
         snprintf(plotname,
                  buffSize,
-                 "plots/xy/y_%c_%d_%d__%d_%d.plt",
-                 dir[d],
-                 b,
-                 i,
+                 "plots/xy/y_K_%d_iter_%d_dir_%d_res_%d_orb_%d",
                  FunctionDefaults<3>::get_k(),
-                 static_cast<int>(iteration - 1));
+                 static_cast<int>(iteration - 1),
+                 dir[d],
+                 static_cast<int>(b),
+                 static_cast<int>(i));
         plot_line(plotname, 5001, plt.lo, plt.hi, y_response[b][i]);
       }
     }
