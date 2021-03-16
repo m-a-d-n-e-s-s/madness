@@ -1,8 +1,5 @@
-
+// Copyright 2021 Adrian Hurtado
 #include "molresponse/density.h"
-
-#include <response_functions.h>
-#include <TDDFT.h>
 
 #include <algorithm>
 #include <memory>
@@ -10,8 +7,10 @@
 #include <vector>
 
 #include "../../madness/mra/funcplot.h"
+#include "TDDFT.h"
 #include "molresponse/global_functions.h"
 #include "molresponse/property.h"
+#include "molresponse/response_functions.h"
 
 typedef Tensor<double> TensorT;
 typedef Function<double, 3> FunctionT;
@@ -52,12 +51,12 @@ void FirstOrderDensity::ComputeResponse(World &world) {
   print(y.norm2());
 
   TDDFT calc(world, Rparams, Gparams);
-  if (calc.Rparams.property) {
-    print("Entering Frequency Response Runner");
-    calc.ComputeFrequencyResponse(world, property, x, y);
-  } else {
+  if (calc.Rparams.response_type.compare("excited_state") == 0) {
     print("Entering Excited State Response Runner");
     calc.solve(world);
+  } else {
+    print("Entering Frequency Response Runner");
+    calc.ComputeFrequencyResponse(world, property, x, y);
   }
   // omega is determined by the type of calculation
   // property calculation at single frequency
@@ -169,7 +168,7 @@ void FirstOrderDensity::PlotResponseDensity(World &world) {
                   sizeof(plotname),
                   "plot_transition_density_%d_%d_x.plt",
                   FunctionDefaults<3>::get_k(),
-                  int(i));
+                  static_cast<int>(i));
     plot_line(plotname, 5001, lo, hi, rho_omega[i]);
   }
 }
@@ -206,8 +205,7 @@ void FirstOrderDensity::PrintSecondOrderAnalysis(
   syev(alpha_tensor, V, epolar);
   double Dpolar_average = 0.0;
   double Dpolar_iso = 0.0;
-  for ( size_t i = 0; i < 3; ++i)
-    Dpolar_average = Dpolar_average + epolar[i];
+  for (size_t i = 0; i < 3; ++i) Dpolar_average = Dpolar_average + epolar[i];
   Dpolar_average = Dpolar_average / 3.0;
   Dpolar_iso =
       sqrt(.5) * sqrt(std::pow(alpha_tensor(0, 0) - alpha_tensor(1, 1), 2) +
@@ -309,15 +307,15 @@ void FirstOrderDensity::LoadDensity(World &world,
   this->Q = response_space(world, num_states, num_ground_states);
 
   for (size_t i = 0; i < Rparams.states; i++) {
-    for ( size_t j = 0; j < Gparams.num_orbitals; j++) {
+    for (size_t j = 0; j < Gparams.num_orbitals; j++) {
       ar &x[i][j];
       print("norm of x ", x[i][j].norm2());
     }
   }
   world.gop.fence();
 
-  for ( size_t i = 0; i < Rparams.states; i++) {
-    for (size_t  j = 0; j < Gparams.num_orbitals; j++) {
+  for (size_t i = 0; i < Rparams.states; i++) {
+    for (size_t j = 0; j < Gparams.num_orbitals; j++) {
       ar &y[i][j];
       print("norm of y ", y[i][j].norm2());
     }
@@ -339,7 +337,7 @@ void FirstOrderDensity::LoadDensity(World &world,
   }
 
   for (size_t i = 0; i < Rparams.states; i++) {
-    for ( size_t j = 0; j < Gparams.num_orbitals; j++) {
+    for (size_t j = 0; j < Gparams.num_orbitals; j++) {
       ar &P[i][j];
       print("norm of P ", P[i][j].norm2());
     }
@@ -347,7 +345,7 @@ void FirstOrderDensity::LoadDensity(World &world,
   world.gop.fence();
 
   for (size_t i = 0; i < Rparams.states; i++) {
-    for ( size_t j = 0; j < Gparams.num_orbitals; j++) {
+    for (size_t j = 0; j < Gparams.num_orbitals; j++) {
       ar &Q[i][j];
       print("norm of y ", Q[i][j].norm2());
     }
