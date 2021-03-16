@@ -48,8 +48,7 @@ double OEP::solve(const vecfuncT& HF_nemo1) {
 	calc->aeps=eval;
 	calc->amo=KS_nemo;
 
-
-    save(Voep,"OEPapprox_final");
+	save(Voep,"OEPapprox_final");
 	Vfinal=copy(Voep);
     save_restartdata(KS_Fock);
 
@@ -60,17 +59,38 @@ double OEP::solve(const vecfuncT& HF_nemo1) {
 
 void OEP::save_restartdata(const Tensor<double>& fock) const {
 	if (world.rank()==0) print("saving OEP orbitals to file restartdata_OEP");
-	MolecularOrbitals<double,3> amo=to_MO();
-	archive::ParallelOutputArchive ar(world, "restartdata_OEP");
-	ar & amo & fock & Vfinal;
+    MolecularOrbitals<double,3> mo;
+    mo.update_mos_and_eps(get_calc()->get_amo(),get_calc()->aeps);
+    mo.update_occ(get_calc()->aocc);
+    mo.recompute_irreps(get_calc()->param.pointgroup(),R_square);
+
+    projector_irrep p=projector_irrep(calc->param.pointgroup())
+            .set_ordering("keep").set_verbosity(0).set_orthonormalize_irreps(false);
+    auto Vfinal1=p(Vfinal)[0];
+
+    archive::ParallelOutputArchive ar(world, "restartdata_OEP");
+    ar & mo & fock & Vfinal1;
+//    MolecularOrbitals<double,3> amo=to_MO();
+//    archive::ParallelOutputArchive ar(world, "restartdata_OEP");
+//	ar & amo & fock & Vfinal;
 }
 
 void OEP::load_restartdata(Tensor<double>& fock) {
 	if (world.rank()==0) print("loading OEP orbitals from file restartdata_OEP");
 	archive::ParallelInputArchive ar(world, "restartdata_OEP");
-	MolecularOrbitals<double,3> amo;
-	ar & amo & fock & Vfinal;
-	calc->amo=amo.get_mos();
+	MolecularOrbitals<double,3> mo;
+	ar & mo & fock & Vfinal;
+	mo.pretty_print("OEP MOs from file");
+	get_calc()->amo=mo.get_mos();
+    get_calc()->aeps=mo.get_eps();
+    get_calc()->aset=mo.get_localize_sets();
+    get_calc()->aocc=mo.get_occ();
+//    MolecularOrbitals<double,3> amo;
+//    ar & amo & fock & Vfinal;
+    projector_irrep p=projector_irrep(calc->param.pointgroup())
+            .set_ordering("keep").set_verbosity(0).set_orthonormalize_irreps(false);
+    Vfinal=p(Vfinal)[0];
+//    calc->amo=amo.get_mos();
 }
 
 std::tuple<Tensor<double>, vecfuncT> OEP::recompute_HF(const vecfuncT& HF_nemo) const {
@@ -198,7 +218,7 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 	    if (do_symmetry()) {
 		    std::vector<std::string> str_irreps;
 	    	KS_nemo=symmetry_projector(KS_nemo,R_square,str_irreps);
-		    if (world.rank()==0) print("orbital irreps",str_irreps);
+            if (world.rank()==0) print("orbital irreps",str_irreps);
 	    }
 
 	    // compute parts of the KS Fock matrix J, Unuc and Voep
@@ -284,7 +304,11 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 		}
 		Fnemo=truncate(Fnemo);
 
-		// compute new (current) energy
+        projector_irrep p=projector_irrep(calc->param.pointgroup())
+                .set_ordering("keep").set_verbosity(0).set_orthonormalize_irreps(false);
+        Voep=p(Voep)[0];
+
+        // compute new (current) energy
         double old_energy = energy;
         double Ex_KS = compute_exchange_energy_vir(KS_nemo, Voep);
 

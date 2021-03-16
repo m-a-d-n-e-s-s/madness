@@ -231,11 +231,11 @@ public:
 
     virtual std::shared_ptr<Fock<double,3>> make_fock_operator() const;
 
-    MolecularOrbitals<double,3> to_MO() const {
-    	std::vector<std::string> str_irreps;
-    	vecfuncT aaa=symmetry_projector(calc->amo,R_square,str_irreps);
-    	return MolecularOrbitals<double,3>(aaa,this->get_calc()->aeps,str_irreps,this->get_calc()->aocc,this->get_calc()->aset);
-    }
+//    MolecularOrbitals<double,3> to_MO() const {
+//    	std::vector<std::string> str_irreps;
+//    	vecfuncT aaa=symmetry_projector(calc->amo,R_square,str_irreps);
+//    	return MolecularOrbitals<double,3>(aaa,this->get_calc()->aeps,str_irreps,this->get_calc()->aocc,this->get_calc()->aset);
+//    }
 
     void save_restartdata(const Tensor<double>& fock) const;
 

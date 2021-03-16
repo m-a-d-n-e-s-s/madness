@@ -330,7 +330,7 @@ public:
 
     /// @param[in]	virtuals	the virtual orbitals
     /// @param[in]	veps		the orbital energies of the virtuals
-    Tensor<double> make_cis_matrix(const vector_real_function_3d virtuals, const Tensor<double> &veps) const;
+    Tensor<double> make_cis_matrix(const vector_real_function_3d& virtuals, const Tensor<double> &veps) const;
 
     /// initialize the excitation functions
     bool
