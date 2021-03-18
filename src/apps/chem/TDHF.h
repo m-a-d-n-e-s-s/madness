@@ -212,22 +212,22 @@ public:
 
     ///  sets the reference wave function (nemo or oep)
     void set_reference(std::shared_ptr<NemoBase> reference) {
-        nemo=reference;
+        reference_=reference;
     }
 
     std::shared_ptr<NemoBase> get_reference() const {
-        return nemo;
+        return reference_;
     }
 
     std::shared_ptr<SCF> get_calc() const {
-        auto n=std::dynamic_pointer_cast<Nemo>(nemo);
+        auto n=std::dynamic_pointer_cast<Nemo>(reference_);
         if (not n) MADNESS_EXCEPTION("could not cast NemoBase to Nemo",1);
         return n->get_calc();
     }
 
     std::shared_ptr<Nemo> get_nemo() const {
         std::shared_ptr<Nemo> n;
-        n=std::dynamic_pointer_cast<Nemo>(nemo);
+        n=std::dynamic_pointer_cast<Nemo>(reference_);
         if (not n) MADNESS_EXCEPTION("could not cast NemoBase to Nemo",1);
         return n;
     }
@@ -235,7 +235,7 @@ public:
     void prepare_calculation();
 
     CalculationParameters& get_calcparam() const {
-        auto n=std::dynamic_pointer_cast<Nemo>(nemo);
+        auto n=std::dynamic_pointer_cast<Nemo>(reference_);
         if (not n) MADNESS_EXCEPTION("could not cast NemoBase to Nemo",1);
         return n->param;
     }
@@ -383,9 +383,8 @@ public:
 
 
     /// Helper function to initialize the const mo_bra and ket elements
-    CC_vecfunction make_mo_bra(const Nemo &nemo) const {
-        vector_real_function_3d tmp = mul(world, nemo.ncf->square(),
-                                          nemo.get_calc()->amo);
+    CC_vecfunction make_mo_bra() const {
+        vector_real_function_3d tmp = get_reference()->get_ncf_ptr()->square()* get_calc()->amo;
         set_thresh(world, tmp, parameters.thresh());
         truncate(world, tmp);
         reconstruct(world, tmp);
@@ -393,8 +392,8 @@ public:
         return mo_bra;
     }
 
-    CC_vecfunction make_mo_ket(const Nemo &nemo) const {
-        vector_real_function_3d tmp = nemo.get_calc()->amo;
+    CC_vecfunction make_mo_ket() const {
+        vector_real_function_3d tmp = copy(world,get_calc()->amo);
         set_thresh(world, tmp, parameters.thresh());
         truncate(world, tmp);
         reconstruct(world, tmp);
@@ -403,7 +402,7 @@ public:
     }
 
     double get_orbital_energy(const size_t i) const {
-        auto n=std::dynamic_pointer_cast<Nemo>(nemo);
+        auto n=std::dynamic_pointer_cast<Nemo>(reference_);
         if (not n) MADNESS_EXCEPTION("could not cast NemoBase to Nemo",1);
         return n->get_calc()->aeps(i);
     }
@@ -422,7 +421,7 @@ public:
     /// maybe move this into nuclear_correlation class ?
     vector_real_function_3d make_bra(const vector_real_function_3d &ket) const {
         CCTimer time(world, "Make Bra");
-        real_function_3d nucf = nemo->ncf->square();
+        real_function_3d nucf = reference_->ncf->square();
         vector_real_function_3d result = mul(world, nucf, ket);
         time.info(parameters.debug());
         return result;
@@ -480,7 +479,7 @@ public:
     /// The MPI Communicator
     World &world;
     /// The Nemo structure (convenience)
-    std::shared_ptr<NemoBase> nemo;
+    std::shared_ptr<NemoBase> reference_;
     /// The TDHFParameters for the Calculations
     TDHFParameters parameters;
     /// Operator Structure which can handle intermediates (use for exchange with GS orbitals)

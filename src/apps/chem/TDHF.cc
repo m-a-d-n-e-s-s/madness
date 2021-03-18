@@ -41,7 +41,7 @@ struct TDHF_allocator {
 /// \param parser   the parser
 TDHF::TDHF(World &world, const commandlineparser &parser)
         : world(world),
-          nemo(std::make_shared<Nemo>(world, parser)),
+          reference_(std::make_shared<Nemo>(world, parser)),
           parameters(world, parser.value("input")),
           g12(),
           mo_ket_(),
@@ -62,7 +62,6 @@ void TDHF::initialize() {
 
     msg.section("Initialize TDHF Class");
     msg.debug = parameters.debug();
-    check_consistency();
     g12=std::make_shared<CCConvolutionOperator>(world, OT_G12, parameters.get_ccc_parameters(get_calcparam().lo()));
 
     const double old_thresh = FunctionDefaults<3>::get_thresh();
@@ -80,14 +79,15 @@ void TDHF::initialize() {
     // do not normalize the x vectors individually!
     symmetry_projector.set_lindep(1.e-2).set_orthonormalize_irreps(false).set_verbosity(0);
     symmetry_projector.print_info(world);
+    check_consistency();
 
 }
 
 /// compute non-trivial prerequisites for the calculation
 void TDHF::prepare_calculation() {
     get_nemo()->value();
-    mo_ket_ = make_mo_ket(*get_nemo());
-    mo_bra_ = make_mo_bra(*get_nemo());
+    mo_ket_ = make_mo_ket();
+    mo_bra_ = make_mo_bra();
     Q = QProjector(world, mo_bra_.get_vecfunction(), mo_ket_.get_vecfunction());
 
     if (not parameters.no_compute()) {
@@ -610,17 +610,7 @@ std::vector<vector_real_function_3d> TDHF::make_potentials(const std::vector<CC_
 }
 
 vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x) const {
-    // XC information
-    const std::string xc_data = get_calcparam().xc();
-    // HF exchange Coefficient
-    double hf_coeff = get_calc()->xc.hf_exchange_coefficient();
 
-    // Use the PCMSolver
-    bool pcm = get_nemo()->do_pcm();
-    if (parameters.debug()) {
-        msg << "TDA Potential is " << xc_data << ", hf_coeff=" << hf_coeff << ", pcm is=" << pcm << "\n";
-    }
-    if (hf_coeff < 0.0) msg.warning("hf_exchange_coefficient is negative");
 
     // Occupation numbers
     const Tensor<double> occ = get_calc()->get_aocc();
@@ -653,14 +643,14 @@ vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x) const {
         Jp.potential() = Jp.compute_potential(density_pert);
 
         vector_real_function_3d XCp = zero_functions<double, 3>(world, get_active_mo_ket().size());
-        if (get_calc()->xc.is_dft()) {
+        if (parameters.response_kernel()!="hf") {
             // XC Potential
+            const std::string xc_data = parameters.response_kernel();
             const XCOperator<double,3> xc(world, xc_data, not get_calcparam().spin_restricted(), alpha_density,
                                 alpha_density);
             // reconstruct the full perturbed density: do not truncate!
             real_function_3d gamma = xc.apply_xc_kernel(density_pert);
-            vector_real_function_3d XCp = mul(world, gamma, active_mo);
-            truncate(world, XCp);
+            XCp = truncate(gamma * active_mo);
         }
 
         if (parameters.triplet()) {
@@ -669,6 +659,7 @@ vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x) const {
         } else Vpsi2 = Jp(active_mo) + XCp;
         timeJ.info(parameters.debug());
         // Exchange Part
+        double hf_coeff = get_calc()->xc.hf_exchange_coefficient();
         bool do_hf = (hf_coeff != 0.0) and (not parameters.do_oep());
         if (do_hf) {
             CCTimer timeK(world, "pK");
@@ -689,17 +680,9 @@ vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x) const {
             truncate(world, Vpsi2);
         }
 
-        /// use alda approximation for the dft kernel
-        if (parameters.do_oep()) {
-            const XCOperator<double,3> xc(world, "lda_x", not get_calcparam().spin_restricted(), alpha_density,
-                                alpha_density);
-            real_function_3d gamma = xc.apply_xc_kernel(density_pert);
-            vector_real_function_3d XCp = truncate(gamma * active_mo);
-            Vpsi2 = Vpsi2 + XCp;
-        }
 
         // compute the solvent (PCM) contribution to the kernel
-        if (pcm) {
+        if (get_nemo()->do_pcm()) {
             CCTimer timepcm(world, "pcm:ex");
             const real_function_3d vpcm = get_nemo()->get_pcm().compute_pcm_potential(Jp.potential(), true);
             if (parameters.plot() or parameters.debug()) plot_plane(world, vpcm, "vpcm_ex");
@@ -1555,6 +1538,8 @@ void TDHF::TDHFParameters::set_derived_values(const std::shared_ptr<SCF> &scf) {
     set_derived_value("iterating_excitations", std::min(excitations(), std::size_t(4)));
     set_derived_value("guess_excitations", std::min(excitations() + iterating_excitations(), 2 * excitations()));
 
+    set_derived_value("response_kernel", scf->param.xc());
+    if (do_oep()) set_derived_value("response_kernel",std::string("lda_x"));
 //    set_derived_value("guess_occ_to_virt", scf->amo.size() - freeze());
 //    set_derived_value("guess_active_orbitals", scf->amo.size() - freeze());
 }
