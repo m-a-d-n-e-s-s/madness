@@ -12,10 +12,10 @@
 #include "NWChem.h"  // For nwchem interface
 #include "Plot_VTK.h"
 #include "TDDFT.h"
-#include "basic_operators.h"
 #include "chem/potentialmanager.h"
 #include "chem/projector.h"  // For easy calculation of (1 - \hat{\rho}^0)
 #include "madness/mra/funcdefaults.h"
+#include "molresponse/basic_operators.h"
 #include "molresponse/density.h"
 #include "molresponse/global_functions.h"
 #include "molresponse/load_balance.h"
@@ -38,13 +38,13 @@
  * @return response_space
  */
 response_space TDDFT::CreateGamma(World& world,
-                                 response_space& f,
-                                 response_space& g,
-                                 std::vector<real_function_3d>& phi,
-                                 double small,
-                                 double thresh,
-                               size_t   print_level,
-                                 std::string xy) {
+                                  response_space& f,
+                                  response_space& g,
+                                  std::vector<real_function_3d>& phi,
+                                  double small,
+                                  double thresh,
+                                  size_t print_level,
+                                  std::string xy) {
   // Start timer
   if (print_level >= 1) molresponse::start_timer(world);
 
@@ -133,12 +133,12 @@ response_space TDDFT::CreateGamma(World& world,
  * @return response_space
  */
 response_space TDDFT::ComputeHf(World& world,
-                               const response_space& f,
-                               const std::vector<real_function_3d>& phi,
-                               double small,
-                               double thresh,
-                             size_t   print_level,
-                               std::string xy) {
+                                const response_space& f,
+                                const std::vector<real_function_3d>& phi,
+                                double small,
+                                double thresh,
+                                size_t print_level,
+                                std::string xy) {
   // Start timer
   if (print_level >= 1) molresponse::start_timer(world);
   // Get sizes
@@ -224,12 +224,12 @@ response_space TDDFT::ComputeHf(World& world,
  * @return response_space
  */
 response_space TDDFT::ComputeGf(World& world,
-                               const response_space& f,
-                               const std::vector<real_function_3d>& orbitals,
-                               double small,
-                               double thresh,
-                             size_t   print_level,
-                               std::string xy) {
+                                const response_space& f,
+                                const std::vector<real_function_3d>& orbitals,
+                                double small,
+                                double thresh,
+                                size_t print_level,
+                                std::string xy) {
   // Start a timer
   if (print_level >= 1) molresponse::start_timer(world);
 
@@ -498,10 +498,10 @@ void TDDFT::IterateXY(
     std::vector<std::shared_ptr<real_convolution_3d>> bsh_x_operators,
     std::vector<std::shared_ptr<real_convolution_3d>> bsh_y_operators,
     Tensor<double> ham_no_diagonal,
-  size_t   iteration) {
+    size_t iteration) {
   // compute
   size_t m = Rparams.states;
-  size_t n= Gparams.num_orbitals;
+  size_t n = Gparams.num_orbitals;
   double small = Rparams.small;
   double thresh = FunctionDefaults<3>::get_thresh();
 

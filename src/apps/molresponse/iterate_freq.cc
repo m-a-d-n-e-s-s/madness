@@ -50,19 +50,27 @@ void TDDFT::IterateFrequencyResponse(World& world,
   real_function_3d v_xc;   // For TDDFT
   bool converged = false;  // Converged flag
 
-  X_space residuals(world, m, n);
-  X_space X(x_response, y_response);
+  // initialize DFT XC functional operator
+  XCOperator xc = create_xcoperator(world, Gparams.orbitals, Rparams.xc);
 
+  /*
+   * X space refers to X and Y vector spaces |X,Y>
+   * X vector is a single |X_b,Y_b> b is a single response state
+   * For kain we need a vector of X_vectors
+   */
+
+  // create X space residuals
+  X_space residuals(world, m, n);
+  // Create the X space
+  X_space X(x_response, y_response);
+  // vector of Xvectors
   std::vector<X_vector> Xvector;
   std::vector<X_vector> Xresidual;
-
   for (size_t b = 0; b < m; b++) {
     Xvector.push_back(X_vector(X, b));
     Xresidual.push_back(X_vector(residuals, b));
   }
   // If DFT, initialize the XCOperator
-  XCOperator xc = create_xcoperator(world, Gparams.orbitals, Rparams.xc);
-
   std::vector<XNonlinearSolver<X_vector, double, X_space_allocator>>
       kain_x_space;
   size_t nkain = m;  // (Rparams.omega != 0.0) ? 2 * m : m;
@@ -214,16 +222,8 @@ void TDDFT::IterateFrequencyResponse(World& world,
       }
     }
 
-    // Check convergence
-    if (std::max(x_norms.absmax(), y_norms.absmax()) < Rparams.dconv and
-        iteration > 0) {
-      if (Rparams.print_level >= 1)
-        molresponse::end_timer(world, "This iteration:");
-      if (world.rank() == 0) print("\n   Converged!");
-      converged = true;
-      break;
-    }
     if (Rparams.kain) {
+      /*
       if (omega_n == 0) {
         rho_omega =
             transition_density(world, Gparams.orbitals, x_response, x_response);
@@ -231,6 +231,7 @@ void TDDFT::IterateFrequencyResponse(World& world,
         rho_omega =
             transition_density(world, Gparams.orbitals, x_response, y_response);
       }
+      */
 
       X = X_space(x_response, y_response);
       residuals = X_space(x_differences, y_differences);
@@ -276,6 +277,15 @@ void TDDFT::IterateFrequencyResponse(World& world,
       print(y_response.norm2());
     }
 
+    // Check convergence
+    if (std::max(x_norms.absmax(), y_norms.absmax()) < Rparams.dconv and
+        iteration > 0) {
+      if (Rparams.print_level >= 1)
+        molresponse::end_timer(world, "This iteration:");
+      if (world.rank() == 0) print("\n   Converged!");
+      converged = true;
+      break;
+    }
     // Update counter
     iteration += 1;
 

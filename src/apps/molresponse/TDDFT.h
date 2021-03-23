@@ -439,6 +439,9 @@ class TDDFT {
   Tensor<double> expectation(World& world,
                              const response_space& a,
                              const response_space& b);
+  Tensor<double> expectation2(World& world,
+                             const response_space& a,
+                             const response_space& b);
   void PrintRFExpectation(World& world,
                           response_space f,
                           response_space g,
@@ -891,7 +894,7 @@ class TDDFT {
                              size_t print_level);
 
   // Solves the response equations for response states
-  void solve(World& world);
+  void solve_excited_states(World& world);
 
   // Iterates the response functions until converged or out of iterations
   //

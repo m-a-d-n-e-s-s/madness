@@ -53,7 +53,7 @@ void FirstOrderDensity::ComputeResponse(World &world) {
   TDDFT calc(world, Rparams, Gparams);
   if (calc.Rparams.response_type.compare("excited_state") == 0) {
     print("Entering Excited State Response Runner");
-    calc.solve(world);
+    calc.solve_excited_states(world);
   } else {
     print("Entering Frequency Response Runner");
     calc.ComputeFrequencyResponse(world, property, x, y);

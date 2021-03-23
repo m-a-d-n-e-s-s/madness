@@ -1,6 +1,6 @@
-
-#ifndef SRC_APPS_molresponse_x_space_H_
-#define SRC_APPS_molresponse_x_space_H_
+// Copyright 2021 Adrian Hurtado
+#ifndef SRC_APPS_MOLRESPONSE_X_SPACE_H_
+#define SRC_APPS_MOLRESPONSE_X_SPACE_H_
 
 #include <madness/mra/mra.h>
 #include <madness/mra/operator.h>
@@ -10,12 +10,14 @@
 #include <memory>
 #include <vector>
 
+#include "molresponse/response_functions.h"
 
 namespace madness {
 struct X_space {
  private:
   size_t num_states;    // Num. of resp. states
   size_t num_orbitals;  // Num. of ground states
+
  public:
   response_space X, Y;
 
@@ -179,14 +181,16 @@ struct X_space {
 
     World& world = A.X[0][0].world();
     response_space Collapse(world, A.num_states, A.num_states);
-
-    for (size_t i(0); i < A.num_states; i++) {
-      for (size_t j(0); j < A.num_states; j++) {
-        Collapse[i][j] =
-            dot(world, A.X[i], B.X[j]) + dot(world, A.Y[i], B.Y[j]);
-        G(i, j) = Collapse[i][j].trace();
-      }
-    }
+    G = response_space_inner(A.X, B.X) + response_space_inner(A.Y, B.Y);
+    /*
+        for (size_t i(0); i < A.num_states; i++) {
+          for (size_t j(0); j < A.num_states; j++) {
+            Collapse[i][j] =
+                dot(world, A.X[i], B.X[j]) + dot(world, A.Y[i], B.Y[j]);
+            G(i, j) = Collapse[i][j].trace();
+          }
+        }
+        */
 
     return G;
   }
@@ -242,11 +246,7 @@ struct X_vector : public X_space {
     MADNESS_ASSERT(same_size(A, B));
 
     World& world = A.X[0][0].world();
-
-    real_function_3d density =
-        dot(world, A.X[0], B.X[0]) + dot(world, A.Y[0], B.Y[0]);
-
-    return density.trace();
+    return inner(world, A.X[0], B.X[0]).sum() + inner(world, A.Y[0],B.X[0]).sum();
   }
 };
 struct X_space_allocator {
@@ -263,6 +263,6 @@ struct X_space_allocator {
     return X_space_allocator(world, other.num_orbitals);
   }
 };
-}
+}  // namespace madness
 
-#endif  // SRC_APPS_molresponse_x_space_H_
+#endif  // SRC_APPS_MOLRESPONSE_X_SPACE_H_

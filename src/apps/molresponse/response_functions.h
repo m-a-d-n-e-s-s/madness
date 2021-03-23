@@ -1,9 +1,9 @@
-/*
+/* Copyright 2021 Adrian Hurtado
  *   Small class to hold response functions and to interact with KAIN solver.
  */
 
-#ifndef SRC_APPS_molresponse_response_functions_H_
-#define SRC_APPS_molresponse_response_functions_H_
+#ifndef SRC_APPS_MOLRESPONSE_RESPONSE_FUNCTIONS_H_
+#define SRC_APPS_MOLRESPONSE_RESPONSE_FUNCTIONS_H_
 
 #include <madness/mra/mra.h>
 #include <madness/mra/operator.h>
@@ -421,6 +421,40 @@ struct response_space {
     }
     return true;
   }
+  friend Tensor<double> response_space_inner(response_space& a,
+                                             response_space& b) {
+    MADNESS_ASSERT(a.size() > 0);
+    MADNESS_ASSERT(a.size() == b.size());
+    MADNESS_ASSERT(a[0].size() > 0);
+    MADNESS_ASSERT(a[0].size() == b[0].size());
+
+    World& world = a[0][0].world();
+
+    size_t dim_1 = a.size();
+    size_t dim_2 = b[0].size();
+    // Need to take transpose of each input ResponseFunction
+    response_space aT(world, dim_2, dim_1);
+    response_space bT(world, dim_2, dim_1);
+    for (size_t i = 0; i < dim_1; i++) {
+      for (size_t j = 0; j < dim_2; j++) {
+        aT[j][i] = a[i][j];
+        bT[j][i] = b[i][j];
+      }
+    }
+    // Container for result
+    Tensor<double> result(dim_1, dim_1);
+    /**
+     * @brief
+     * [x1 x2 x3]T[x1 x2 x3]
+     *
+     */
+    // Run over dimension two
+    // each vector in orbital has dim_1 response functoins associated
+    for (size_t p = 0; p < dim_2; p++) {
+      result += matrix_inner(world, aT[p], bT[p]);
+    }
+    return result;
+  }
 };
 // Final piece for KAIN
 inline double inner(response_space& a, response_space& b) {
@@ -443,8 +477,9 @@ inline double inner(response_space& a, response_space& b) {
 
   return value;
 }
+// Final piece for KAIN
 
 }  // End namespace madness
-#endif  // SRC_APPS_molresponse_response_functions_H_
+#endif  // SRC_APPS_MOLRESPONSE_RESPONSE_FUNCTIONS_H_
 
 // Deuces
