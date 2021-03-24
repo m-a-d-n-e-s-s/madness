@@ -112,22 +112,6 @@ void TDDFT::IterateFrequencyResponse(World& world,
     omega_n = -omega_n;
   }
   // create couloumb operator
-  real_convolution_3d op =
-      CoulombOperator(world, Rparams.small, FunctionDefaults<3>::get_thresh());
-  // Two ways single vector or vector vector style
-  // here I create the orbital products for elctron interaction terms
-  response_space orbital_products(world, n, n);
-
-  for (size_t k = 0; k < n; k++) {
-    // important to do orb[i]*all orbs
-    orbital_products[k] =
-        apply(world, op, mul(world, Gparams.orbitals[k], Gparams.orbitals));
-  }
-  orbital_products.truncate_rf();
-  print("orbital_products norms");
-  print(orbital_products.norm2());
-
-  vector_real_function_3d rho_omega;
   // Now to iterate
   while (iteration < Rparams.max_iter and !converged) {
     molresponse::start_timer(world);
@@ -154,8 +138,6 @@ void TDDFT::IterateFrequencyResponse(World& world,
       print(old_y_response.norm2());
     }
 
-    rho_omega =
-        transition_density(world, Gparams.orbitals, x_response, y_response);
     // print level 3
     if (Rparams.print_level >= 3) {
       print(
@@ -168,8 +150,6 @@ void TDDFT::IterateFrequencyResponse(World& world,
       print(x_response.norm2());
     }
     IterateXY(world,
-              rho_omega,
-              orbital_products,
               x_response,
               y_response,
               rhs_x,

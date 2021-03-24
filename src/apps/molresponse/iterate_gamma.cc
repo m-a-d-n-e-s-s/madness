@@ -14,26 +14,25 @@
 #include "Plot_VTK.h"
 #include "TDDFT.h"
 #include "basic_operators.h"
-#include "molresponse/response_functions.h"
-#include "molresponse/x_space.h"
-#include "molresponse/density.h"
-#include "molresponse/global_functions.h"
-#include "molresponse/property.h"
-#include "molresponse/timer.h"
 #include "chem/potentialmanager.h"
 #include "chem/projector.h"  // For easy calculation of (1 - \hat{\rho}^0)
 #include "load_balance.h"
 #include "madness/mra/funcdefaults.h"
+#include "molresponse/density.h"
+#include "molresponse/global_functions.h"
+#include "molresponse/property.h"
+#include "molresponse/response_functions.h"
+#include "molresponse/timer.h"
+#include "molresponse/x_space.h"
 
 GammaResponseFunctions TDDFT::ComputeGammaFunctions(
     World& world,
-    std::vector<real_function_3d> rho_omega,
-    response_space phi_phi,
     response_space& x,
     response_space& y,
     XCOperator xc,
     const GroundParameters& Gparams,
-    const ResponseParameters& Rparams) {
+    const ResponseParameters& Rparams,
+    bool compute_Y) {
   // Start a timer
   if (Rparams.print_level >= 1) molresponse::start_timer(world);
 
@@ -43,7 +42,21 @@ GammaResponseFunctions TDDFT::ComputeGammaFunctions(
   double thresh = FunctionDefaults<3>::get_thresh();
   // x functions
   real_convolution_3d op = CoulombOperator(world, small, thresh);
+  // Two ways single vector or vector vector style
+  // here I create the orbital products for elctron interaction terms
+  response_space phi_phi(world, n, n);
 
+  for (size_t k = 0; k < n; k++) {
+    // important to do orb[i]*all orbs
+    phi_phi[k] =
+        apply(world, op, mul(world, Gparams.orbitals[k], Gparams.orbitals));
+  }
+  phi_phi.truncate_rf();
+  print("orbital_products norms");
+  print(phi_phi.norm2());
+
+  vector_real_function_3d rho_omega =
+      transition_density(world, Gparams.orbitals, x_response, y_response);
   GammaResponseFunctions gamma;
   gamma.gamma = response_space(world, m, n);
   gamma.gamma_conjugate = response_space(world, m, n);
@@ -67,34 +80,34 @@ GammaResponseFunctions TDDFT::ComputeGammaFunctions(
 
   std::vector<response_space> y_phi;
   std::vector<response_space> x_phi;
-  for (size_t    b = 0; b < m; b++) {
+  for (size_t b = 0; b < m; b++) {
     y_phi.push_back(response_space(world, n, n));
-    if (Rparams.omega != 0.0) {
+    if (compute_Y) {
       x_phi.push_back(response_space(world, n, n));
     }
   }
 
   //
-  for (size_t    b = 0; b < m; b++) {
+  for (size_t b = 0; b < m; b++) {
     for (size_t k = 0; k < n; k++) {
       // multiply the kth orbital to vector of y[b] response funtions...apply op
       // to each product
       // (TODO) //split apply and
       y_phi[b][k] = apply(world, op, mul(world, Gparams.orbitals[k], y[b]));
-      if (Rparams.omega != 0.0) {
+      if (compute_Y) {
         x_phi[b][k] = apply(world, op, mul(world, Gparams.orbitals[k], x[b]));
       }
     }
   }
-  for (size_t    b = 0; b < m; b++) {
-    if (Rparams.omega != 0.0) {
+  for (size_t b = 0; b < m; b++) {
+    if (compute_Y) {
       x_phi[b].truncate_rf();
     }
     y_phi[b].truncate_rf();
   }
   real_function_3d temp_J;
   // for each response state we compute the Gamma response functions
-  for (size_t    b = 0; b < m; b++) {
+  for (size_t b = 0; b < m; b++) {
     // apply - save and truncate - multiply
     //
     //
@@ -113,7 +126,7 @@ GammaResponseFunctions TDDFT::ComputeGammaFunctions(
       Kx[b][k] = dot(world, x[b], phi_phi[k]);
       Ky[b][k] = dot(world, y_phi[b][k], Gparams.orbitals);
 
-      if (Rparams.omega != 0.0) {
+      if (compute_Y) {
         Ky_conjugate[b][k] = dot(world, y[b], phi_phi[k]);
         Kx_conjugate[b][k] = dot(world, x_phi[b][k], Gparams.orbitals);
       }
@@ -133,7 +146,7 @@ GammaResponseFunctions TDDFT::ComputeGammaFunctions(
     PrintResponseVectorNorms(world, Kx, "Kx");
     PrintResponseVectorNorms(world, Ky, "Ky");
     PrintResponseVectorNorms(world, Kx + Ky, "Kx+Ky");
-    if (Rparams.omega != 0.0) {
+    if (compute_Y) {
       print("2-Electron Potential for Iteration of y");
       PrintResponseVectorNorms(world, Kx_conjugate, "Kx_conjugate");
       PrintResponseVectorNorms(world, Ky_conjugate, "Ky_conjugate");
@@ -147,7 +160,7 @@ GammaResponseFunctions TDDFT::ComputeGammaFunctions(
   print("Gamma norms");
   print(gamma.gamma.norm2());
 
-  if (Rparams.omega != 0.0) {
+  if (compute_Y) {
     gamma.gamma_conjugate =
         (J * 2) -
         (Kx_conjugate + Ky_conjugate) * xcf.hf_exchange_coefficient() + W;
@@ -157,7 +170,7 @@ GammaResponseFunctions TDDFT::ComputeGammaFunctions(
     gamma.gamma[i] = projector(gamma.gamma[i]);
     truncate(world, gamma.gamma[i]);
 
-    if (Rparams.omega != 0.0) {
+    if (compute_Y) {
       gamma.gamma_conjugate[i] = projector(gamma.gamma_conjugate[i]);
       truncate(world, gamma.gamma_conjugate[i]);
     }
@@ -169,41 +182,18 @@ GammaResponseFunctions TDDFT::ComputeGammaFunctions(
   if (Rparams.print_level >= 2) {
     print("<X ,Gamma(X,Y) Phi>");
     PrintRFExpectation(world, x, gamma.gamma, "x", "Gamma)");
-    if (Rparams.omega != 0.0) {
+    if (compute_Y) {
       print("<Y ,Gamma_Conjugate(X,Y) Phi>");
       PrintRFExpectation(world, y, gamma.gamma_conjugate, "x", "Gamma)");
     }
   }
 
   // End timer
-  if (Rparams.print_level >= 1) molresponse::end_timer(world, "   Creating Gamma:");
+  if (Rparams.print_level >= 1)
+    molresponse::end_timer(world, "   Creating Gamma:");
 
   // Done
   world.gop.fence();
   return gamma;
   // Get sizes
-}
-// Calculates ground state coulomb potential
-real_function_3d TDDFT::Coulomb(World& world) {
-  // Coulomb operator
-  real_convolution_3d op =
-      CoulombOperator(world, Rparams.small, FunctionDefaults<3>::get_thresh());
-
-  // Get density
-  std::vector<real_function_3d> vsq = square(world, Gparams.orbitals);
-  compress(world, vsq);
-  real_function_3d rho = real_factory_3d(world);
-  rho.compress();
-  for (unsigned int i = 0; i < vsq.size(); ++i) {
-    rho.gaxpy(1.0, vsq[i], 1.0, false);
-  }
-  world.gop.fence();
-  vsq.clear();
-
-  // Apply operator and truncate
-  rho = apply(op, rho);
-  rho.truncate();
-
-  // Done
-  return rho;
 }

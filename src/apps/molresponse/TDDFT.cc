@@ -1350,7 +1350,7 @@ Zfunctions TDDFT::ComputeZFunctions(World& world,
   Z.x_f_no_diag = x * ham_no_diag;  // scale_2d(world, x, ham_no_diagonal);
 
   GammaResponseFunctions gamma = ComputeGammaFunctions(
-      world, rho_omega, orbital_products, x, y, xc, Gparams, Rparams);
+      world,  x, y, xc, Gparams, Rparams,Rparams.omega != 0.0);
   // y functions
   if (Rparams.omega != 0.0) {
     Z.v0_y = CreatePotential(world, y, xc, Rparams.print_level, "y");
@@ -1479,7 +1479,7 @@ X_space TDDFT::ComputeResponseResidual(World& world,
     }
   } else {
     GammaResponseFunctions gamma = ComputeGammaFunctions(
-        world, rho_omega, orbital_products, x, y, xc, Gparams, Rparams);
+        world,  x, y, xc, Gparams, Rparams,Rparams.omega != 0.0);
     // We can use the old algorithm here for testings
     // we then assemble the right hand side vectors
     residual.x = (F0x - omegaX - xham + gamma.gamma + rhs_x);
@@ -3017,6 +3017,12 @@ Tensor<double> TDDFT::GetFullResponseTransformation(
   // less than thresh_degenerate
   Tensor<double> r_vecs, s_vals, l_vecs;
   Tensor<double> S_copy = copy(S);
+  /**
+   * @brief SVD on overlap matrix S
+   * S=UsVT
+   * S, U, s , VT
+   * 
+   */
   svd(S_copy, l_vecs, s_vals, r_vecs);
 
   // Debugging output
@@ -3046,6 +3052,11 @@ Tensor<double> TDDFT::GetFullResponseTransformation(
   // Going to use these a lot here, so just calculate them
   size_t size_l = s_vals.dim(0);    // number of singular values
   size_t size_s = size_l - num_sv;  // smaller subspace size
+  /**
+   * @brief l_vecs_s(m,1)
+   * 
+   * @return Tensor<double> 
+   */
   Tensor<double> l_vecs_s(
       size_l,
       num_sv);                     // number of sv by number smaller than thress
@@ -3055,10 +3066,12 @@ Tensor<double> TDDFT::GetFullResponseTransformation(
   if (num_sv > 0) {
     // Cut out the singular values that are small
     // (singular values come out in descending order)
+
+    // S(m-sl,m-sl)
     S = Tensor<double>(size_s, size_s);  // create size of new size
     for (size_t i = 0; i < size_s; i++) S(i, i) = s_vals(i);
-
     // Copy the active vectors to a smaller container
+    // left vectors [m,m-sl]
     l_vecs_s = copy(l_vecs(_, Slice(0, size_s - 1)));
 
     // Debugging output
@@ -3068,10 +3081,23 @@ Tensor<double> TDDFT::GetFullResponseTransformation(
     }
 
     // Transform
+    // Work(m,m-sl)
     Tensor<double> work(size_l, size_s);
+        /*
+          c(i,j) = c(i,j) + sum(k) a(i,k)*b(k,j)
+          
+          where it is assumed that the last index in each array is has unit
+          stride and the dimensions are as provided.
+          
+          4-way unrolled k loop ... empirically fastest on PIII
+          compared to 2/3 way unrolling (though not by much).
+        */
+   // dimi,dimj,dimk,c,a,b 
     mxm(size_l, size_s, size_l, work.ptr(), A.ptr(), l_vecs_s.ptr());
+    // A*left
     copyA = Tensor<double>(size_s, size_s);
     Tensor<double> l_vecs_t = transpose(l_vecs);
+    // s s l, copyA=lvect_t*A*left
     mxm(size_s, size_s, size_l, copyA.ptr(), l_vecs_t.ptr(), work.ptr());
 
     // Debugging output

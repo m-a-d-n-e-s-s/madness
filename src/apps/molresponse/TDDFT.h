@@ -401,13 +401,12 @@ class TDDFT {
                            std::string xy);
   GammaResponseFunctions ComputeGammaFunctions(
       World& world,
-      std::vector<real_function_3d> rho_omega,
-      response_space orbital_products,
       response_space& x,
       response_space& y,
       XCOperator xc,
       const GroundParameters& Gparams,
-      const ResponseParameters& Rparams);
+      const ResponseParameters& Rparams,
+      bool compute_Y);
   // Returns the coulomb potential of the ground state
   // Note: No post multiplication involved here
   real_function_3d Coulomb(World& world);
@@ -440,8 +439,8 @@ class TDDFT {
                              const response_space& a,
                              const response_space& b);
   Tensor<double> expectation2(World& world,
-                             const response_space& a,
-                             const response_space& b);
+                              const response_space& a,
+                              const response_space& b);
   void PrintRFExpectation(World& world,
                           response_space f,
                           response_space g,
@@ -496,8 +495,6 @@ class TDDFT {
 
   void IterateXY(
       World& world,
-      const std::vector<real_function_3d> rho_omega,
-      response_space orbital_products,
       response_space& x,
       response_space& y,
       response_space rhs_x,
@@ -510,6 +507,20 @@ class TDDFT {
       std::vector<std::shared_ptr<real_convolution_3d>> bsh_y_operators,
       Tensor<double> ham_no_diagonal,
       size_t iteration);
+  X_space Compute_Theta_X(World& world,
+                          X_space &Chi,
+                          XCOperator xc,
+                          const GroundParameters& Gparams,
+                          const ResponseParameters& Rparams,
+                          Tensor<double> ham_no_diag,
+                          bool compute_Y);
+  X_space Compute_Lambda_X(World& world,
+                           X_space& Chi,
+                           XCOperator xc,
+                           const GroundParameters& Gparams,
+                           const ResponseParameters& Rparams,
+                           Tensor<double> hamiltonian,
+                           bool compute_Y);
   // Returns the hamiltonian matrix, equation 45 from the paper
   Tensor<double> CreateResponseMatrix(
       World& world,

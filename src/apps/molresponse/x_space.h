@@ -40,21 +40,6 @@ struct X_space {
     }
     return *this;  // shallow copy
   }
-  // access...reshaper
-  /*
-  X_space operator[](size_t n) {
-    MADNESS_ASSERT(n < num_states);
-    World& world = X[0][0].world();
-    X_space newX(world, size_t(1), num_orbitals);
-    response_space single_X(world, 1, num_states);
-    response_space single_Y(world, 1, num_states);
-    single_X.push_back(X[n]);
-    single_Y.push_back(Y[n]);
-    newX.X = response_space(single_X);
-    newX.Y = response_space(single_Y);
-    return newX;
-  }
-  */
   // Zero Constructor
   X_space(World& world, size_t num_states, size_t num_orbitals)
       : num_states(num_states),
@@ -246,7 +231,8 @@ struct X_vector : public X_space {
     MADNESS_ASSERT(same_size(A, B));
 
     World& world = A.X[0][0].world();
-    return inner(world, A.X[0], B.X[0]).sum() + inner(world, A.Y[0],B.X[0]).sum();
+    return inner(world, A.X[0], B.X[0]).sum() +
+           inner(world, A.Y[0], B.X[0]).sum();
   }
 };
 struct X_space_allocator {
