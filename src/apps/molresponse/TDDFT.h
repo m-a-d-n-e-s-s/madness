@@ -914,6 +914,9 @@ class TDDFT {
                                 response_space& rhs_x,
                                 response_space& rhs_y);
 
+  void IterateFrequencyResponse2(World& world,
+                                response_space& rhs_x,
+                                response_space& rhs_y);
   // Calculates polarizability according to
   // alpha_ij(\omega) = -sum_{m occ} <psi_m(0)|r_i|psi_mj(1)(\omega)> +
   // <psi_mj(1)(-\omega)|r_i|psi_m(0)>
