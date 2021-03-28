@@ -348,8 +348,6 @@ void TDDFT::IterateXY(
   if (Rparams.print_level == 3) {
     print("norms of v0x");
     print(Z.v0_x.norm2());
-    // + \Delta xp
-    print("Value of xshift", x_shift);
   }
 
   Z.v0_x += (x * x_shift);  // scale(x, x_shifts);
@@ -407,8 +405,8 @@ void TDDFT::IterateXY(
       // Z.Z_y = (Z.v0_y - Z.y_f_no_diag + rhs_y) * -2;
     }
   } else {
-    GammaResponseFunctions gamma =
-        ComputeGammaFunctions(world, x, y, xc, Gparams, Rparams,Rparams.omega != 0.0);
+    GammaResponseFunctions gamma = ComputeGammaFunctions(
+        world, x, y, xc, Gparams, Rparams, Rparams.omega != 0.0);
     // We can use the old algorithm here for testings
     // we then assemble the right hand side vectors
     Z.Z_x = (Z.v0_x - Z.x_f_no_diag + gamma.gamma + rhs_x) * -2;

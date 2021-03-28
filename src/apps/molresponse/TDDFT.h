@@ -194,6 +194,7 @@ class TDDFT {
 
   // Get the response Function
   response_space& GetResponseFunctions(std::string xy);
+  X_space& GetXspace();
   response_space& GetPVector();
   response_space& GetQVector();
   ResponseParameters GetResponseParameters();
@@ -235,6 +236,8 @@ class TDDFT {
   // Functions
   real_function_3d stored_v_nuc;   // Stored nuclear potential from ground state
   real_function_3d stored_v_coul;  // Stored coulomb potential from ground state
+
+  X_space Chi;
 
   response_space
       x_response;  // Excited states to be solved for.
@@ -283,6 +286,8 @@ class TDDFT {
 
   // Normalizes in the response sense
   void normalize(World& world, response_space& f, response_space& g);
+  // Normalize X_space xx-yy=1
+  void normalize(World& world, X_space& Chi);
 
   // Prints norms of the given vector
   void print_norms(World& world, response_space function);
@@ -508,18 +513,12 @@ class TDDFT {
       Tensor<double> ham_no_diagonal,
       size_t iteration);
   X_space Compute_Theta_X(World& world,
-                          X_space &Chi,
+                          X_space& Chi,
                           XCOperator xc,
-                          const GroundParameters& Gparams,
-                          const ResponseParameters& Rparams,
-                          Tensor<double> ham_no_diag,
                           bool compute_Y);
   X_space Compute_Lambda_X(World& world,
                            X_space& Chi,
                            XCOperator xc,
-                           const GroundParameters& Gparams,
-                           const ResponseParameters& Rparams,
-                           Tensor<double> hamiltonian,
                            bool compute_Y);
   // Returns the hamiltonian matrix, equation 45 from the paper
   Tensor<double> CreateResponseMatrix(
@@ -650,6 +649,13 @@ class TDDFT {
                                        Tensor<double>& overlap,
                                        const double thresh);
 
+  Tensor<double> diagonalizeFockMatrix(World& world,
+                                       X_space& Chi,
+                                       X_space& Lambda_X,
+                                       Tensor<double>& evals,
+                                       Tensor<double>& A,
+                                       Tensor<double>& S,
+                                       const double thresh);
   // Transforms the given matrix of functions according to the given
   // transformation matrix. Used to update orbitals / potentials
   response_space transform(World& world, response_space& f, Tensor<double>& U);
@@ -667,6 +673,16 @@ class TDDFT {
                response_space& old_x_resopnse,
                size_t print_level);
 
+  void augment(World& world,
+               X_space& Chi,
+               X_space& old_Chi,
+               X_space& Lambda_X,
+               X_space& last_Lambda_X,
+               Tensor<double>& S_x,
+               Tensor<double>& A_x,
+               Tensor<double>& old_S,
+               Tensor<double>& old_A,
+               size_t print_level);
   // If using a larger subspace to diagonalize in, this will put everything in
   // the right spot
   void augment_full(World& world,
@@ -695,6 +711,16 @@ class TDDFT {
                     response_space& old_V_y_response,
                     response_space& old_y_fe,
                     size_t print_level);
+  void augment_full(World& world,
+                    X_space& Chi,
+                    X_space& old_Chi,
+                    X_space& Lambda_X,
+                    X_space& last_Lambda_X,
+                    Tensor<double>& S_x,
+                    Tensor<double>& A_x,
+                    Tensor<double>& old_S,
+                    Tensor<double>& old_A,
+                    size_t print_level);
 
   // If using a larger subspace to diagonalize in, after diagonalization this
   // will put everything in the right spot
@@ -712,6 +738,19 @@ class TDDFT {
                  response_space& old_x_response,
                  size_t print_level);
 
+  void unaugment(World& world,
+                 X_space& Chi,
+                 X_space& old_Chi,
+                 X_space& Lambda_X,
+                 X_space& last_Lambda_X,
+                 Tensor<double>& omega,
+                 Tensor<double>& S_x,
+                 Tensor<double>& A_x,
+                 Tensor<double>& old_S,
+                 Tensor<double>& old_A,
+                 size_t num_states,
+                 size_t iter,
+                 size_t print_level);
   // If using a larger subspace to diagonalize in, after diagonalization this
   // will put everything in the right spot
   void unaugment_full(World& world,
@@ -745,6 +784,19 @@ class TDDFT {
                       response_space& old_B_y,
                       size_t print_level);
 
+  void unaugment_full(World& world,
+                      X_space& Chi,
+                      X_space& old_Chi,
+                      X_space& Lambda_X,
+                      X_space& last_Lambda_X,
+                      Tensor<double>& omega,
+                      Tensor<double>& S_x,
+                      Tensor<double>& A_x,
+                      Tensor<double>& old_S,
+                      Tensor<double>& old_A,
+                      size_t num_states,
+                      size_t iter,
+                      size_t print_level);
   // Diagonalize the full response matrix, taking care of degenerate states
   Tensor<double> diagonalizeFullResponseMatrix(World& world,
                                                Tensor<double>& S,
@@ -753,6 +805,14 @@ class TDDFT {
                                                response_space& y,
                                                ElectronResponseFunctions& I,
                                                Tensor<double>& omega,
+                                               const double thresh,
+                                               size_t print_level);
+  Tensor<double> diagonalizeFullResponseMatrix(World& world,
+                                               X_space& Chi,
+                                               X_space& Lambda_X,
+                                               Tensor<double>& omega,
+                                               Tensor<double>& S,
+                                               Tensor<double>& A,
                                                const double thresh,
                                                size_t print_level);
 
@@ -777,6 +837,17 @@ class TDDFT {
                   Tensor<double>& omega,
                   size_t& iteration,
                   size_t& m);
+  void deflateTDA(World& world,
+                  X_space& Chi,
+                  X_space& old_Chi,
+                  X_space& Lambda_X,
+                  X_space& old_Lambda_X,
+                  Tensor<double>& S,
+                  Tensor<double> old_S,
+                  Tensor<double> old_A,
+                  Tensor<double>& omega,
+                  size_t& iteration,
+                  size_t& m);
 
   void deflateFull(World& world,
                    Tensor<double>& S,
@@ -792,6 +863,17 @@ class TDDFT {
                    size_t& iteration,
                    size_t& m);
 
+  void deflateFull(World& world,
+                   X_space& Chi,
+                   X_space& old_Chi,
+                   X_space& Lambda_X,
+                   X_space& old_Lambda_X,
+                   Tensor<double>& S,
+                   Tensor<double> old_S,
+                   Tensor<double> old_A,
+                   Tensor<double>& omega,
+                   size_t& iteration,
+                   size_t& m);
   // Creates the XCOperator object and initializes it with correct
   // parameters
   XCOperator create_xcoperator(World& world,
@@ -823,6 +905,7 @@ class TDDFT {
   // Iterates the trial functions until covergence or it runs out of
   // iterations
   void Iterate(World& world);
+  void Iterate(World& world, X_space& Chi);
 
   // Constructs and prints a more detailed analysis of response functions
   // Uses member variables
@@ -915,8 +998,8 @@ class TDDFT {
                                 response_space& rhs_y);
 
   void IterateFrequencyResponse2(World& world,
-                                response_space& rhs_x,
-                                response_space& rhs_y);
+                                 response_space& rhs_x,
+                                 response_space& rhs_y);
   // Calculates polarizability according to
   // alpha_ij(\omega) = -sum_{m occ} <psi_m(0)|r_i|psi_mj(1)(\omega)> +
   // <psi_mj(1)(-\omega)|r_i|psi_m(0)>
@@ -960,6 +1043,7 @@ class TDDFT {
   void solve_polarizability(World& world, Property& p);
   void ComputeFrequencyResponse(World& world,
                                 std::string property,
+                                X_space& Chi,
                                 response_space& x,
                                 response_space& y);
 };

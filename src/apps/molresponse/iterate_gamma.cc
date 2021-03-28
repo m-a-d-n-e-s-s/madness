@@ -34,7 +34,15 @@ GammaResponseFunctions TDDFT::ComputeGammaFunctions(
     const ResponseParameters& Rparams,
     bool compute_Y) {
   // Start a timer
+  //
   if (Rparams.print_level >= 1) molresponse::start_timer(world);
+  //
+  print("-------------------Gamma Functions-------------------");
+
+  print("x_norms in Gamma Functions ");
+  print(x.norm2());
+  print("y_norms in Gamma Functions ");
+  print(y.norm2());
 
   size_t m = Rparams.states;
   size_t n = Gparams.num_orbitals;
@@ -56,7 +64,7 @@ GammaResponseFunctions TDDFT::ComputeGammaFunctions(
   print(phi_phi.norm2());
 
   vector_real_function_3d rho_omega =
-      transition_density(world, Gparams.orbitals, x_response, y_response);
+      transition_density(world, Gparams.orbitals, x, x);
   GammaResponseFunctions gamma;
   gamma.gamma = response_space(world, m, n);
   gamma.gamma_conjugate = response_space(world, m, n);

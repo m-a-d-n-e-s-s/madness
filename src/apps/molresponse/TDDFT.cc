@@ -224,6 +224,7 @@ response_space& TDDFT::GetResponseFunctions(std::string xy) {
     MADNESS_EXCEPTION("not a valid response state", 0);
   }
 }
+X_space& TDDFT::GetXspace() { return Chi; }
 response_space& TDDFT::GetPVector() { return P; }
 response_space& TDDFT::GetQVector() { return Q; }
 // Get response parameters
@@ -345,6 +346,24 @@ void TDDFT::normalize(World& world, response_space& f, response_space& g) {
     // And scale
     scale(world, f[i], (1.0 / norm));
     scale(world, g[i], (1.0 / norm));
+  }
+}
+void TDDFT::normalize(World& world, X_space& Chi) {
+
+  // Run over rows
+  for (size_t i = 0; i < size_states(Chi); i++) {
+    // Get the normalization constant
+    // (Sum included inside inner)
+    double normf = inner(Chi.X[i], Chi.X[i]);
+    double normg = inner(Chi.Y[i], Chi.Y[i]);
+    double norm = sqrt(normf - normg);
+
+    // Doing this to deal with zero functions.
+    // Maybe not smrt.
+    if (norm == 0) continue;
+    // And scale
+    scale(world, Chi.X[i], (1.0 / norm));
+    scale(world, Chi.Y[i], (1.0 / norm));
   }
 }
 
@@ -2521,6 +2540,50 @@ Tensor<double> TDDFT::diagonalizeFockMatrix(World& world,
   return U;
 }
 
+Tensor<double> TDDFT::diagonalizeFockMatrix(World& world,
+                                            X_space& Chi,
+                                            X_space& Lambda_X,
+                                            Tensor<double>& evals,
+                                            Tensor<double>& A,
+                                            Tensor<double>& S,
+                                            const double thresh) {
+  // compute the unitary transformation matrix U that diagonalizes
+  // the fock matrix
+  Tensor<double> U =
+      get_fock_transformation(world, S, A, evals, thresh);
+
+  // Sort into ascending order
+  Tensor<int> selected = sort_eigenvalues(world, evals, U);
+
+  // Debugging output
+  if (Rparams.print_level >= 2 and world.rank() == 0) {
+    print("   U:");
+    print(U);
+  }
+
+  // Start timer
+  if (Rparams.print_level >= 1) molresponse::start_timer(world);
+
+  // transform the orbitals and the potential
+  // Truncate happens inside here
+  Chi.X=transform(world,Chi.X,U);
+  Lambda_X.X=transform(world,Lambda_X.X,U);
+
+  // End timer
+  if (Rparams.print_level >= 1)
+    molresponse::end_timer(world, "Transform orbs.:");
+
+  // Normalize x
+  normalize(world, Chi.X);
+
+  // Debugging output
+  if (Rparams.print_level >= 2 and world.rank() == 0) {
+    print("   Eigenvector coefficients from diagonalization:");
+    print(U);
+  }
+
+  return U;
+}
 // Transforms the given matrix of functions according to the give
 // transformation matrix. Used to update orbitals / potential
 response_space TDDFT::transform(World& world,
@@ -2553,17 +2616,17 @@ response_space TDDFT::transform(World& world,
 // the right spot
 /**
  * @brief Diagonolize in larger subspace x
- * 
- * @param world 
- * @param S <x|x> 
+ *
+ * @param world
+ * @param S <x|x>
  * @param A <x|Ax>
  * @param Current Ax
  * @param Last Axold
- * @param x_response 
- * @param old_S 
- * @param old_A 
- * @param old_x_response 
- * @param print_level 
+ * @param x_response
+ * @param old_S
+ * @param old_A
+ * @param old_x_response
+ * @param print_level
  */
 void TDDFT::augment(World& world,
                     Tensor<double>& S,
@@ -2589,7 +2652,7 @@ void TDDFT::augment(World& world,
    *  A=
    *  [xAx      xAx_old ]
    *  [xoldAx  xoldAxold]
-   * 
+   *
    */
   // Need to create off diagonal blocks of A, so
   response_space TempCurrentAf = Current.Hx + Current.F0_x - Current.EpsilonX;// Ax
@@ -2636,6 +2699,97 @@ void TDDFT::augment(World& world,
     Current.EpsilonX.push_back(Last.EpsilonX[i]);
     Current.F0_x.push_back(Last.F0_x[i]);
     Current.Vx.push_back(Last.Vx[i]);
+  }
+
+  // End the timer
+  if (print_level >= 1) molresponse::end_timer(world, "Aug. resp. matrix:");
+
+  // Debugging output
+  if (print_level >= 2 and world.rank() == 0) {
+    print("\n   Augmented response matrix:");
+    print(A);
+  }
+
+  // Debugging output
+  if (print_level >= 2 and world.rank() == 0) {
+    print("   Augmented overlap matrix:");
+    print(S);
+  }
+
+  // SUPER debugging
+  if (print_level >= 3) {
+    if (world.rank() == 0)
+      print("   Calculating condition number of aug. response matrix");
+  }
+}
+
+void TDDFT::augment(World& world,
+               X_space& Chi,
+               X_space& old_Chi,
+               X_space& Lambda_X,
+               X_space& last_Lambda_X,
+                    Tensor<double>& S,
+                    Tensor<double>& A,
+                    Tensor<double>& old_S,
+                    Tensor<double>& old_A,
+                    size_t print_level) {
+  // Basic output
+  if (print_level >= 1) molresponse::start_timer(world);
+
+  // Get sizes
+  size_t m = x_response.size();
+  // Create work space, will overwrite S and A in the end
+  Tensor<double> temp_S(2 * m, 2 * m);
+  Tensor<double> temp_A(2 * m, 2 * m);
+  /**
+   * @brief Need to create off diagonal blocks of A
+   *  A=
+   *  [xAx      xAx_old ]
+   *  [xoldAx  xoldAxold]
+   *
+   */
+  // Calculate correct inner products of upper off diagonal
+
+
+  Tensor<double>off = response_space_inner(Chi.X, last_Lambda_X.X);
+  temp_A(Slice(0, m - 1), Slice(m, 2 * m - 1)) = copy(off);//top right
+  // Now for lower off diagonal
+  off = response_space_inner(old_Chi.X, Lambda_X.X);
+  temp_A(Slice(m, 2 * m - 1), Slice(0, m - 1)) = copy(off);//bottom left
+  temp_A(Slice(0, m - 1), Slice(0, m - 1)) = copy(A);// xAx top left
+  temp_A(Slice(m, 2 * m - 1), Slice(m, 2 * m - 1)) = copy(old_A);// xoldAxold bottom right
+  // Debugging output
+  if (print_level >= 2 and world.rank() == 0) {
+    print("   Before symmeterizing A:");
+    print(temp_A);
+  }
+  // Save temp_A as A_x
+  // Need to symmeterize A as well (?)
+  A = 0.5 * (temp_A + transpose(temp_A));
+  /**
+   * @brief Creating S
+   * S= [<x|x>    <x|xold>   ]
+   *    [<xold|x> <xold|xold>]
+   */
+  // Now create upper off diagonal block of S
+  off = expectation(world, Chi.X, old_Chi.X);
+  // Use slicing to put in correct spot
+  temp_S(Slice(0, m - 1), Slice(m, 2 * m - 1)) = copy(off);// top right <x|xold>
+  // Now the lower off diagonal block
+  // (Go ahead and cheat and use the transpose...)
+  off = transpose(off);// just transpose <xold|x>
+  // Use slicing to put in correct spot
+  temp_S(Slice(m, 2 * m - 1), Slice(0, m - 1)) = copy(off);// bottom right <xold|x>
+  // Put together the rest of S
+  temp_S(Slice(0, m - 1), Slice(0, m - 1)) = copy(S);//top left <x|x>
+  temp_S(Slice(m, 2 * m - 1), Slice(m, 2 * m - 1)) = copy(old_S);//<xold|xold>
+  // Save temp_S as S_x
+  S = copy(temp_S);
+  // Add in old vectors to current vectors for the appropriate ones
+  // Augment the vectors step
+  for (size_t i = 0; i < m; i++) {
+	Chi.X.push_back(old_Chi.X[i]);
+	Lambda_X.X.push_back(last_Lambda_X.X[i]);
   }
 
   // End the timer
@@ -2781,6 +2935,98 @@ void TDDFT::augment_full(World& world,
   }
 }
 
+void TDDFT::augment_full(World& world,
+               X_space& Chi,
+               X_space& old_Chi,
+               X_space& Lambda_X,
+               X_space& last_Lambda_X,
+                    Tensor<double>& S,
+                    Tensor<double>& A,
+                    Tensor<double>& old_S,
+                    Tensor<double>& old_A,
+                    size_t print_level) {
+  // Basic output
+  if (print_level >= 1) molresponse::start_timer(world);
+
+  // Get sizes
+  size_t m = x_response.size();
+  // Create work space, will overwrite S and A in the end
+  Tensor<double> temp_S(2 * m, 2 * m);
+  Tensor<double> temp_A(2 * m, 2 * m);
+  /**
+   * @brief Need to create off diagonal blocks of A
+   *  A=
+   *  [xAx      xAx_old ]
+   *  [xoldAx  xoldAxold]
+   *
+   */
+  // Calculate correct inner products of upper off diagonal
+
+
+  Tensor<double>off = inner(Chi, last_Lambda_X);
+  temp_A(Slice(0, m - 1), Slice(m, 2 * m - 1)) = copy(off);//top right
+  // Now for lower off diagonal
+  off = inner(old_Chi, Lambda_X);
+  temp_A(Slice(m, 2 * m - 1), Slice(0, m - 1)) = copy(off);//bottom left
+  temp_A(Slice(0, m - 1), Slice(0, m - 1)) = copy(A);// xAx top left
+  temp_A(Slice(m, 2 * m - 1), Slice(m, 2 * m - 1)) = copy(old_A);// xoldAxold bottom right
+  // Debugging output
+  if (print_level >= 2 and world.rank() == 0) {
+    print("   Before symmeterizing A:");
+    print(temp_A);
+  }
+  // Save temp_A as A_x
+  // Need to symmeterize A as well (?)
+  A = 0.5 * (temp_A + transpose(temp_A));
+  /**
+   * @brief Creating S
+   * S= [<x|x>    <x|xold>   ]
+   *    [<xold|x> <xold|xold>]
+   */
+  // Now create upper off diagonal block of S
+  off = response_space_inner(Chi.X, old_Chi.X)-response_space_inner(Chi.Y,old_Chi.Y);
+  // Use slicing to put in correct spot
+  temp_S(Slice(0, m - 1), Slice(m, 2 * m - 1)) = copy(off);// top right <x|xold>
+  // Now the lower off diagonal block
+  // (Go ahead and cheat and use the transpose...)
+  off = transpose(off);// just transpose <xold|x>
+  // Use slicing to put in correct spot
+  temp_S(Slice(m, 2 * m - 1), Slice(0, m - 1)) = copy(off);// bottom right <xold|x>
+  // Put together the rest of S
+  temp_S(Slice(0, m - 1), Slice(0, m - 1)) = copy(S);//top left <x|x>
+  temp_S(Slice(m, 2 * m - 1), Slice(m, 2 * m - 1)) = copy(old_S);//<xold|xold>
+  // Save temp_S as S_x
+  S = copy(temp_S);
+  // Add in old vectors to current vectors for the appropriate ones
+  // Augment the vectors step
+  for (size_t i = 0; i < m; i++) {
+	Chi.X.push_back(old_Chi.X[i]);
+	Chi.Y.push_back(old_Chi.X[i]);
+	Lambda_X.X.push_back(last_Lambda_X.X[i]);
+	Lambda_X.Y.push_back(last_Lambda_X.X[i]);
+  }
+
+  // End the timer
+  if (print_level >= 1) molresponse::end_timer(world, "Aug. resp. matrix:");
+
+  // Debugging output
+  if (print_level >= 2 and world.rank() == 0) {
+    print("\n   Augmented response matrix:");
+    print(A);
+  }
+
+  // Debugging output
+  if (print_level >= 2 and world.rank() == 0) {
+    print("   Augmented overlap matrix:");
+    print(S);
+  }
+
+  // SUPER debugging
+  if (print_level >= 3) {
+    if (world.rank() == 0)
+      print("   Calculating condition number of aug. response matrix");
+  }
+}
 // If using a larger subspace to diagonalize in, after diagonalization this
 // will put everything in the right spot
 void TDDFT::unaugment(World& world,
@@ -2848,6 +3094,64 @@ void TDDFT::unaugment(World& world,
   if (print_level >= 1) molresponse::end_timer(world, "Unaug. resp. mat.:");
 }
 
+void TDDFT::unaugment(World& world,
+                      X_space& Chi,
+                      X_space& old_Chi,
+                      X_space& Lambda_X,
+                      X_space& last_Lambda_X,
+                      Tensor<double>& omega,
+                      Tensor<double>& S_x,
+                      Tensor<double>& A_x,
+                      Tensor<double>& old_S,
+                      Tensor<double>& old_A,
+                      size_t num_states,
+                      size_t iter,
+                      size_t print_level) {
+  // Basic output
+  if (print_level >= 1) molresponse::start_timer(world);
+
+  // Note: the eigenvalues and vectors were sorted after diagonalization
+  // and hence all the functions are sorted in ascending order of energy
+
+  // Quick copy of m lowest eigenvalues
+  omega = omega(Slice(0, num_states - 1));
+
+  // Pop off the "m" vectors off the back end of appropriate vectors
+  // (only after first iteration)
+  if (iter > 0) {
+    for (size_t i = 0; i < num_states; i++) {
+		Chi.X.pop_back();
+		Lambda_X.X.pop_back();
+      //  x_fe.pop_back();
+      // V_x_response.pop_back();
+      // x_gamma.pop_back();
+      // x_response.pop_back();
+    }
+  }
+
+  // Save the "current" into "old"
+  // old_x_fe = x_fe.copy();
+  // old_x_gamma = x_gamma.copy();
+  // old_V_x_response = V_x_response.copy();
+
+  // Project out ground state
+  // QProjector<double, 3> projector(world, Gparams.orbitals);
+  // for(size_t i = 0; i < m; i++) x_response[i] = projector(x_response[i]);
+  old_Chi.X = Chi.X.copy();
+  last_Lambda_X.X = Lambda_X.X.copy();
+
+  // Copy S into old_S
+  // S is identity
+  old_S=response_space_inner(Chi.X,Chi.X);
+
+  // Copy A into old_A
+  // A is (nearly?) diagonal
+  old_A = Tensor<double>(num_states, num_states);
+  for (size_t i = 0; i < num_states; i++) old_A(i, i) = omega(i);
+
+  // End the timer
+  if (print_level >= 1) molresponse::end_timer(world, "Unaug. resp. mat.:");
+}
 // If using a larger subspace to diagonalize in, after diagonalization this
 // will put everything in the right spot
 void TDDFT::unaugment_full(World& world,
@@ -2940,6 +3244,49 @@ void TDDFT::unaugment_full(World& world,
   if (print_level >= 1) molresponse::end_timer(world, "Unaug. resp. mat.:");
 }
 
+void TDDFT::unaugment_full(World& world,
+                      X_space& Chi,
+                      X_space& old_Chi,
+                      X_space& Lambda_X,
+                      X_space& last_Lambda_X,
+                      Tensor<double>& omega,
+                      Tensor<double>& S_x,
+                      Tensor<double>& A_x,
+                      Tensor<double>& old_S,
+                      Tensor<double>& old_A,
+                      size_t num_states,
+                      size_t iter,
+                      size_t print_level) {
+  // Basic output
+  if (print_level >= 1) molresponse::start_timer(world);
+
+  // Note: the eigenvalues and vectors were sorted after diagonalization
+  // and hence all the functions are sorted in ascending order of energy
+
+  // Quick copy of m lowest eigenvalues
+  omega = omega(Slice(0, num_states - 1));
+
+  // Pop off the "m" vectors off the back end of appropriate vectors
+  // (only after first iteration)
+  if (iter > 0) {
+    for (size_t i = 0; i < num_states; i++) {
+		Chi.X.pop_back();
+		Lambda_X.X.pop_back();
+		Chi.Y.pop_back();
+		Lambda_X.Y.pop_back();
+    }
+  }
+  old_Chi=Chi.copy();
+  last_Lambda_X=Lambda_X.copy();
+
+  old_S = response_space_inner(Chi.X, Chi.X)-response_space_inner(Chi.Y,Chi.Y);
+
+  old_A = Tensor<double>(num_states, num_states);
+  for (size_t i = 0; i < num_states; i++) old_A(i, i) = omega(i);
+
+  // End the timer
+  if (print_level >= 1) molresponse::end_timer(world, "Unaug. resp. mat.:");
+}
 // Diagonalize the full response matrix, taking care of degenerate components
 // Why diagonalization and then transform the x_fe vectors
 
@@ -3000,6 +3347,46 @@ Tensor<double> TDDFT::diagonalizeFullResponseMatrix(
   return vecs;
 }
 
+Tensor<double> TDDFT::diagonalizeFullResponseMatrix(
+		World& world,
+                                               X_space& Chi,
+                                               X_space& Lambda_X,
+                                               Tensor<double>& omega,
+                                               Tensor<double>& S,
+                                               Tensor<double>& A,
+                                               const double thresh,
+                                               size_t print_level)
+  {
+  // compute the unitary transformation matrix U that diagonalizes
+  // the response matrix
+  Tensor<double> vecs =
+      GetFullResponseTransformation(world, S, A, omega, thresh);
+
+  // Start timer
+  if (Rparams.print_level >= 1) molresponse::start_timer(world);
+
+  Chi.X=transform(world,Chi.X,vecs);
+  Chi.Y=transform(world,Chi.X,vecs);
+  Lambda_X.Y=transform(world,Lambda_X.X,vecs);
+  // Transform the vectors of functions
+  // Truncate happens in here
+  // we do transform here
+  // End timer
+  if (Rparams.print_level >= 1)
+    molresponse::end_timer(world, "Transform orbs.:");
+
+  // Normalize x and y
+  normalize(world,Chi);
+
+  // Debugging output
+  if (world.rank() == 0 and print_level >= 2) {
+    print("   Eigenvector coefficients from diagonalization:");
+    print(vecs);
+  }
+
+  // Return the selected functions
+  return vecs;
+}
 // Similar to what robert did above in "get_fock_transformation"
 Tensor<double> TDDFT::GetFullResponseTransformation(
     World& world,
@@ -3021,7 +3408,7 @@ Tensor<double> TDDFT::GetFullResponseTransformation(
    * @brief SVD on overlap matrix S
    * S=UsVT
    * S, U, s , VT
-   * 
+   *
    */
   svd(S_copy, l_vecs, s_vals, r_vecs);
 
@@ -3054,8 +3441,8 @@ Tensor<double> TDDFT::GetFullResponseTransformation(
   size_t size_s = size_l - num_sv;  // smaller subspace size
   /**
    * @brief l_vecs_s(m,1)
-   * 
-   * @return Tensor<double> 
+   *
+   * @return Tensor<double>
    */
   Tensor<double> l_vecs_s(
       size_l,
@@ -3085,14 +3472,14 @@ Tensor<double> TDDFT::GetFullResponseTransformation(
     Tensor<double> work(size_l, size_s);
         /*
           c(i,j) = c(i,j) + sum(k) a(i,k)*b(k,j)
-          
+
           where it is assumed that the last index in each array is has unit
           stride and the dimensions are as provided.
-          
+
           4-way unrolled k loop ... empirically fastest on PIII
           compared to 2/3 way unrolling (though not by much).
         */
-   // dimi,dimj,dimk,c,a,b 
+   // dimi,dimj,dimk,c,a,b
     mxm(size_l, size_s, size_l, work.ptr(), A.ptr(), l_vecs_s.ptr());
     // A*left
     copyA = Tensor<double>(size_s, size_s);
@@ -3233,18 +3620,18 @@ void TDDFT::sort(World& world, Tensor<double>& vals, response_space& f) {
 }
 /**
  * @brief Diagonalize AX=SX omega
- * 
- * @param world 
- * @param S 
- * @param old_S 
- * @param old_A 
- * @param x_response 
- * @param old_x_response 
- * @param ElectronResponses 
- * @param OldElectronResponses 
- * @param omega 
- * @param iteration 
- * @param m 
+ *
+ * @param world
+ * @param S
+ * @param old_S
+ * @param old_A
+ * @param x_response
+ * @param old_x_response
+ * @param ElectronResponses
+ * @param OldElectronResponses
+ * @param omega
+ * @param iteration
+ * @param m
  */
 void TDDFT::deflateTDA(World& world,
                        Tensor<double>& S,
@@ -3321,6 +3708,74 @@ void TDDFT::deflateTDA(World& world,
   }
 }
 
+void TDDFT::deflateTDA(World& world,
+				  X_space& Chi,
+				  X_space& old_Chi,
+                  X_space& Lambda_X,
+                  X_space& old_Lambda_X,
+                       Tensor<double>& S,
+                       Tensor<double> old_S,
+                  Tensor<double> old_A,
+                       Tensor<double>& omega,
+                       size_t& iteration,
+                       size_t& m) {
+
+  S = response_space_inner(Chi.X, Chi.X);
+  Tensor<double>XAX = response_space_inner(Chi.X, Lambda_X.X);
+
+  // Debugging output
+  if (Rparams.print_level >= 2 and world.rank() == 0) {
+    print("   Overlap matrix:");
+    print(S);
+  }
+
+  // Augment S_x, A_x, x_gamma, x_response, V_x_response and x_gamma
+  // if using a larger subspace and not iteration zero (TODO ---Gotta
+  // look at this and make sure it uses my new functions molresponse )
+  // by default Rparams.larger_subspace = 0 therefore never uses this
+  if (iteration < Rparams.larger_subspace and iteration > 0) {
+    print("Using augmented subspace");
+    augment(world,
+			Chi,
+			old_Chi,
+			Lambda_X,
+			old_Lambda_X,
+			S,
+			XAX,
+			old_S,
+			old_A,
+            Rparams.print_level);
+  }
+
+  // Solve Ax = Sxw
+  // Just to be sure dimensions work out, clear omega
+  omega.clear();
+  diagonalizeFockMatrix(world,
+                        Chi,
+                        Lambda_X,
+                        omega,
+                        XAX,
+                        S,
+                        FunctionDefaults<3>::get_thresh());
+
+  // If larger subspace, need to "un-augment" everything
+  if (iteration < Rparams.larger_subspace) {
+    print("Unaugmenting subspace");
+    unaugment(world,
+             Chi,
+			 old_Chi,
+			 Lambda_X,
+			 old_Lambda_X,
+			 omega,
+			 S,
+			 XAX,
+			 old_S,
+			 old_A,
+			 Rparams.states,
+			 iteration,
+              Rparams.print_level);
+  }
+}
 void TDDFT::deflateFull(World& world,
                         Tensor<double>& S,
                         Tensor<double> old_S,
@@ -3378,6 +3833,66 @@ void TDDFT::deflateFull(World& world,
                                     y_response,
                                     ElectronResponses,
                                     omega,
+                                    FunctionDefaults<3>::get_thresh(),
+                                    Rparams.print_level);
+  // Larger subspace un-augmentation BROKEN!!!!
+  // if(iteration < Rparams.larger_subspace)
+  //{
+  //   unaugment_full(world, m, iteration, U, omega, S, A,
+  //                  x_gamma, x_response, V_x_response, x_fe, B_x,
+  //                  y_gamma, y_response, V_y_response, y_fe, B_y,
+  //                  old_S, old_A,
+  //                  old_x_gamma, old_x_response, old_V_x_response,
+  //                  old_x_fe, old_B_x, old_y_gamma, old_y_response,
+  //                  old_V_y_response, old_y_fe, old_B_y,/
+  //                  Rparams.print_level);
+  //}
+}
+void TDDFT::deflateFull(World& world,
+                        X_space& Chi,
+                        X_space& old_Chi,
+                        X_space& Lambda_X,
+                        X_space& old_Lambda_X,
+                        Tensor<double>& S,
+                        Tensor<double> old_S,
+                        Tensor<double> old_A,
+                        Tensor<double>& omega,
+                        size_t& iteration,
+                        size_t& m) {
+
+  S = response_space_inner(Chi.X, Chi.X)-response_space_inner(Chi.Y,Chi.Y);
+  Tensor<double> A=inner(Chi,Lambda_X);
+  // Debugging output
+  if (world.rank() == 0 and Rparams.print_level >= 2) {
+    print("\n   Overlap Matrix:");
+    print(S);
+  }
+
+
+  // Larger subspace augmentation BROKEN!!!!!
+  // if(iteration < Rparams.larger_subspace and iteration > 0)
+  //{
+  //   augment_full(world, S, A,
+  //                B_x, x_gamma, x_response, V_x_response, x_fe,
+  //                B_y, y_gamma, y_response, V_y_response, y_fe,
+  //                old_S, old_A,
+  //                old_B_x, old_x_gamma, old_x_response,
+  //                old_V_x_response, old_x_fe, old_B_y, old_y_gamma,
+  //                old_y_response, old_V_y_response, old_y_fe,
+  //                Rparams.print_level);
+  //}
+
+  // Diagonalize
+  // Just to be sure dimensions work out, clear omega
+  omega.clear();
+
+  Tensor<double> U =
+      diagonalizeFullResponseMatrix(world,
+			  Chi,
+			  Lambda_X,
+                                    omega,
+                                    S,
+                                    A,
                                     FunctionDefaults<3>::get_thresh(),
                                     Rparams.print_level);
   // Larger subspace un-augmentation BROKEN!!!!
@@ -4294,6 +4809,33 @@ void TDDFT::check_k(World& world, double thresh, size_t k) {
         world.gop.fence();
       }
       y_response.truncate_rf();
+    }
+  }
+  // Verify response functions have correct k
+  if (Chi.X.size() != 0) {
+    if (FunctionDefaults<3>::get_k() != Chi.X[0][0].k()) {
+      // Project all x components into correct k
+      for (unsigned int i = 0; i < Chi.X.size(); i++) {
+        reconstruct(world, Chi.X[i]);
+        for (unsigned int j = 0; j < Chi.X[0].size(); j++)
+          Chi.X[i][j] = project(
+              Chi.X[i][j], FunctionDefaults<3>::get_k(), thresh, false);
+        world.gop.fence();
+      }
+      Chi.X.truncate_rf();
+
+      // Do same for y components if applicable
+      // (Always do this, as y will be zero
+      //  and still used in doing DFT and TDA)
+      // Project all y components into correct k
+      for (unsigned int i = 0; i < Chi.Y.size(); i++) {
+        reconstruct(world, Chi.Y[i]);
+        for (unsigned int j = 0; j < Chi.Y[0].size(); j++)
+          Chi.Y[i][j] = project(
+              Chi.Y[i][j], FunctionDefaults<3>::get_k(), thresh, false);
+        world.gop.fence();
+      }
+      Chi.Y.truncate_rf();
     }
   }
 
@@ -5246,9 +5788,11 @@ void TDDFT::solve_polarizability(World& world, Property& p) {
 // number of right hand side vectors.
 void TDDFT::ComputeFrequencyResponse(World& world,
                                      std::string property,
+									 X_space & Chi,
                                      response_space& x,
                                      response_space& y) {
   // Get start time
+  this->Chi = Chi;
   this->x_response = x;
   this->y_response = y;
 
@@ -5355,7 +5899,8 @@ void TDDFT::ComputeFrequencyResponse(World& world,
     print("Property func Q k thresh = ", Q[0][0].thresh());
 
     // Now actually ready to iterate...
-    IterateFrequencyResponse(world, P, Q);
+    IterateFrequencyResponse2(world, P, Q);
+    //IterateFrequencyResponse(world, P, Q);
   }  // end for --finished reponse density
 
   // Have response function, now calculate polarizability for this axis

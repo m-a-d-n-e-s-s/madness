@@ -30,6 +30,12 @@ struct X_space {
         num_orbitals(size_orbitals(A)),
         X(A.X),
         Y(A.Y) {}
+  X_space copy() const {
+    X_space copyX(X[0][0].world(), num_states, num_orbitals);
+    copyX.X = X.copy();
+    copyX.Y = Y.copy();
+    return copyX;
+  }
   // assignment
   X_space& operator=(const X_space& B) {
     if (this != &B) {  // is it the same object?
@@ -64,6 +70,7 @@ struct X_space {
     result.Y = Y + B.Y;
     return result;
   }
+
   X_space& operator+=(const X_space B) {
     MADNESS_ASSERT(same_size(*this, B));
     this->X += B.X;
@@ -179,6 +186,7 @@ struct X_space {
 
     return G;
   }
+
   friend size_t size_states(const X_space& x) { return x.num_states; }
   friend size_t size_orbitals(const X_space& x) { return x.num_orbitals; }
   friend bool same_size(const X_space& A, const X_space& B) {

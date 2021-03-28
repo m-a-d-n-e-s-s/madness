@@ -42,6 +42,8 @@ void FirstOrderDensity::ComputeResponse(World &world) {
   //
   // creating calc should also set up the x and y functions
   //
+
+  Chi = X_space(world, Rparams.states, Gparams.num_orbitals);
   x = response_space(world, Rparams.states, Gparams.num_orbitals);
   y = response_space(world, Rparams.states, Gparams.num_orbitals);
   print("Creating Response Functions for X and Y");
@@ -56,7 +58,7 @@ void FirstOrderDensity::ComputeResponse(World &world) {
     calc.solve_excited_states(world);
   } else {
     print("Entering Frequency Response Runner");
-    calc.ComputeFrequencyResponse(world, property, x, y);
+    calc.ComputeFrequencyResponse(world, property, Chi, x, y);
   }
   // omega is determined by the type of calculation
   // property calculation at single frequency
@@ -64,6 +66,7 @@ void FirstOrderDensity::ComputeResponse(World &world) {
   omega = calc.GetFrequencyOmega();
   property_operator = calc.GetPropertyObject();
 
+  Chi = calc.GetXspace();
   x = calc.GetResponseFunctions("x");
   y = calc.GetResponseFunctions("y");
 
@@ -174,6 +177,8 @@ void FirstOrderDensity::PlotResponseDensity(World &world) {
 }
 Tensor<double> FirstOrderDensity::ComputeSecondOrderPropertyTensor(
     World &world) {
+  X_space PQ(P, P);
+  Tensor<double> H = -2 * inner(Chi, PQ);
   Tensor<double> G(num_states, num_states);
   response_space grp(world, num_states, num_states);
 
@@ -189,13 +194,15 @@ Tensor<double> FirstOrderDensity::ComputeSecondOrderPropertyTensor(
   // do some printing before we compute so we know what we are working with
   //*******************************
   // G algorithim
+  print("version 1");
+  print(H);
 
-  print("G");
+  print("version 2");
   print(G);
 
   // print(M);
 
-  return G;
+  return H;
 }
 
 void FirstOrderDensity::PrintSecondOrderAnalysis(

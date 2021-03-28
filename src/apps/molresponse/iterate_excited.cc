@@ -871,7 +871,7 @@ void TDDFT::solve_excited_states(World& world) {
           print("\n   Final initial guess excitation energies:");
           print(omega);
         }
-
+        Chi = X_space(world, Rparams.states, Gparams.num_orbitals);
         // Select lowest energy functions from guess
         x_response = select_functions(
             world, x_response, omega, Rparams.states, Rparams.print_level);
@@ -879,11 +879,13 @@ void TDDFT::solve_excited_states(World& world) {
         // Initial guess for y are zero functions
         y_response =
             response_space(world, Rparams.states, Gparams.num_orbitals);
+        Chi.X = x_response.copy();
+        Chi.Y = y_response.copy();
       }
     }
 
     // Now actually ready to iterate...
-    Iterate(world);
+    Iterate(world, Chi);
   }
 
   // Plot the response function if desired

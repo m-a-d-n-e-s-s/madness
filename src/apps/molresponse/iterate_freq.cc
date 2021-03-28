@@ -28,25 +28,24 @@ void TDDFT::IterateFrequencyResponse(World& world,
                                      response_space& rhs_x,
                                      response_space& rhs_y) {
   // Variables needed to iterate
-  size_t iteration = 0;  // Iteration counter
-  QProjector<double, 3> projector(
-      world, Gparams.orbitals);     // Projector to project out ground state
+  size_t iteration = 0;             // Iteration counter
   size_t n = Gparams.num_orbitals;  // Number of ground state orbitals
   size_t m = Rparams.states;        // Number of excited states
-  Tensor<double> x_norms(m);
-  // Holds the norms of x function residuals (for convergence)
-  Tensor<double> y_norms(m);
+
   // Holds the norms of y function residuals (for convergence)
+  Tensor<double> x_norms(m);
+  Tensor<double> y_norms(m);
 
   // Holds wave function corrections
   response_space x_differences(world, m, n);
-  // Holds wave function corrections
   response_space y_differences(world, m, n);
+
   response_space x_residuals(world, m, n);
   response_space y_residuals(world, m, n);
   // response functions
   response_space old_x_response(world, m, n);
   response_space old_y_response(world, m, n);
+
   real_function_3d v_xc;   // For TDDFT
   bool converged = false;  // Converged flag
 
@@ -130,25 +129,15 @@ void TDDFT::IterateFrequencyResponse(World& world,
     // deep copy of response functions
     old_x_response = x_response.copy();
     old_y_response = y_response.copy();
+
     if (Rparams.print_level == 3) {
       print("old x norms in iteration after copy  : ", iteration);
       print(old_x_response.norm2());
-
       print("old y norms in iteration after copy: ", iteration);
       print(old_y_response.norm2());
     }
 
     // print level 3
-    if (Rparams.print_level >= 3) {
-      print(
-          "x norms in iteration before Iterate XY and after computing "
-          "rho_omega "
-          ": ",
-          iteration,
-          " norm : ",
-          x_response.norm2());
-      print(x_response.norm2());
-    }
     IterateXY(world,
               x_response,
               y_response,
@@ -162,15 +151,6 @@ void TDDFT::IterateFrequencyResponse(World& world,
               bsh_y_operators,
               ham_no_diag,
               iteration);
-    // Get the difference between old and new
-    //
-    if (Rparams.print_level == 3) {
-      print("x norms in iteration after Iterate XY : ", iteration);
-      print(x_response.norm2());
-
-      print("y norms in iteration after IterateXY: ", iteration);
-      print(y_response.norm2());
-    }
     //
     // I need to compute a residual in this new space
     x_differences = old_x_response - x_response;
@@ -203,16 +183,6 @@ void TDDFT::IterateFrequencyResponse(World& world,
     }
 
     if (Rparams.kain) {
-      /*
-      if (omega_n == 0) {
-        rho_omega =
-            transition_density(world, Gparams.orbitals, x_response, x_response);
-      } else {
-        rho_omega =
-            transition_density(world, Gparams.orbitals, x_response, y_response);
-      }
-      */
-
       X = X_space(x_response, y_response);
       residuals = X_space(x_differences, y_differences);
 

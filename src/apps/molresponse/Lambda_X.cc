@@ -33,15 +33,12 @@
 X_space TDDFT::Compute_Lambda_X(World& world,
                                 X_space& Chi,
                                 XCOperator xc,
-                                const GroundParameters& Gparams,
-                                const ResponseParameters& Rparams,
-                                Tensor<double> hamiltonian,
                                 bool compute_Y) {
   // compute
   GammaResponseFunctions gamma = ComputeGammaFunctions(
       world, Chi.X, Chi.Y, xc, Gparams, Rparams, compute_Y);
 
-  X_space Lambda_X;
+  X_space Lambda_X=X_space(world,size_states(Chi),size_orbitals(Chi));
   // Compute (V0-ham_no_diag)X
   // V0 appliedo x response function
   response_space v0_X =
