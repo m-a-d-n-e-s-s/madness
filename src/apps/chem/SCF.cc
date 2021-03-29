@@ -192,7 +192,7 @@ void SCF::save_mos(World& world) {
 	archive::ParallelOutputArchive ar(world, "restartdata", param.get<int>("nio"));
 	ar & current_energy & param.spin_restricted();
 	ar & (unsigned int) (amo.size());
-	ar & aeps & aocc & aset;
+	ar & aeps & aocc & aset & param.L() & param.k() & molecule;
 	for (unsigned int i = 0; i < amo.size(); ++i)
 		ar & amo[i];
 	if (!param.spin_restricted()) {
