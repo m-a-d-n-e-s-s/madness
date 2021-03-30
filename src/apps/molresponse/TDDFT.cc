@@ -263,10 +263,10 @@ void TDDFT::save(World& world, std::string name) {
   ar& omega;
 
   for (size_t i = 0; i < Rparams.states; i++)
-    for (size_t j = 0; j < Gparams.num_orbitals; j++) ar& x_response[i][j];
+    for (size_t j = 0; j < Gparams.num_orbitals; j++) ar& Chi.X[i][j];
   if (not Rparams.tda) {
     for (size_t i = 0; i < Rparams.states; i++)
-      for (size_t j = 0; j < Gparams.num_orbitals; j++) ar& y_response[i][j];
+      for (size_t j = 0; j < Gparams.num_orbitals; j++) ar& Chi.Y[i][j];
   }
 }
 
@@ -299,13 +299,13 @@ void TDDFT::load(World& world, std::string name) {
   x_response = response_space(world, Rparams.states, Gparams.num_orbitals);
 
   for (size_t i = 0; i < Rparams.states; i++)
-    for (size_t j = 0; j < Gparams.num_orbitals; j++) ar& x_response[i][j];
+    for (size_t j = 0; j < Gparams.num_orbitals; j++) ar& Chi.X[i][j];
   world.gop.fence();
 
   y_response = response_space(world, Rparams.states, Gparams.num_orbitals);
   if (not Rparams.tda) {
     for (size_t i = 0; i < Rparams.states; i++)
-      for (size_t j = 0; j < Gparams.num_orbitals; j++) ar& y_response[i][j];
+      for (size_t j = 0; j < Gparams.num_orbitals; j++) ar& Chi.Y[i][j];
     world.gop.fence();
   }
 }
@@ -355,8 +355,12 @@ void TDDFT::normalize(World& world, X_space& Chi) {
     // Get the normalization constant
     // (Sum included inside inner)
     double normf = inner(Chi.X[i], Chi.X[i]);
+	print("---------------------Normalize--------------");
+	print(normf);
     double normg = inner(Chi.Y[i], Chi.Y[i]);
+	print(normg);
     double norm = sqrt(normf - normg);
+	print(norm);
 
     // Doing this to deal with zero functions.
     // Maybe not smrt.
@@ -3366,8 +3370,9 @@ Tensor<double> TDDFT::diagonalizeFullResponseMatrix(
   if (Rparams.print_level >= 1) molresponse::start_timer(world);
 
   Chi.X=transform(world,Chi.X,vecs);
-  Chi.Y=transform(world,Chi.X,vecs);
-  Lambda_X.Y=transform(world,Lambda_X.X,vecs);
+  Chi.Y=transform(world,Chi.Y,vecs);
+  Lambda_X.X=transform(world,Lambda_X.X,vecs);
+  Lambda_X.Y=transform(world,Lambda_X.Y,vecs);
   // Transform the vectors of functions
   // Truncate happens in here
   // we do transform here
@@ -3860,12 +3865,17 @@ void TDDFT::deflateFull(World& world,
                         size_t& iteration,
                         size_t& m) {
 
-  S = response_space_inner(Chi.X, Chi.X)-response_space_inner(Chi.Y,Chi.Y);
-  Tensor<double> A=inner(Chi,Lambda_X);
   // Debugging output
+  S = response_space_inner(Chi.X, Chi.X)-response_space_inner(Chi.Y,Chi.Y);
   if (world.rank() == 0 and Rparams.print_level >= 2) {
     print("\n   Overlap Matrix:");
     print(S);
+  }
+
+  Tensor<double> A=inner(Chi,Lambda_X);
+  if (world.rank() == 0 and Rparams.print_level >= 2) {
+    print("\n   Lambda Matrix:");
+    print(A);
   }
 
 

@@ -910,6 +910,7 @@ class TDDFT {
   // Constructs and prints a more detailed analysis of response functions
   // Uses member variables
   void analysis(World& world);
+  void analysis(World& world, X_space& Chi);
 
   // Simplified iterate scheme for guesses
   void IterateGuess(World& world, response_space& guesses);
