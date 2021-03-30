@@ -1,12 +1,13 @@
 # Find BLAS and LAPACK.
 
-# they are optional if building just the runtime
+set(lapack_is_optional 0)
+set(missing_lapack_message_level "FATAL_ERROR")
+
+# if building just the runtime, included this by mistake, warn and make optional
 if (MADNESS_BUILD_MADWORLD_ONLY)
+  message(WARNING "MADNESS_BUILD_MADWORLD_ONLY=ON, but included external/lapack.cmake; must be error in CMakeLists.txt")
   set(lapack_is_optional 1)
   set(missing_lapack_message_level "STATUS")
-else (MADNESS_BUILD_MADWORLD_ONLY)
-  set(lapack_is_optional 0)
-  set(missing_lapack_message_level "FATAL_ERROR")
 endif (MADNESS_BUILD_MADWORLD_ONLY)
 
 include(CheckCFortranFunctionExists)

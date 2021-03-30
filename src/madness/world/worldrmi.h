@@ -347,7 +347,10 @@ namespace madness {
             return task_ptr->isend(buf, nbyte, dest, func, attr);
         }
 
-        static void assert_aslr_off(const SafeMPI::Intracomm& comm = SafeMPI::COMM_WORLD);  // will complain to std::cerr and throw if ASLR is on
+        /// will complain to std::cerr and throw if ASLR is on by making
+        /// sure that address of this function matches across @p comm
+        /// @param[in] comm the communicator
+        static void assert_aslr_off(const SafeMPI::Intracomm& comm = SafeMPI::COMM_WORLD);
 
         static void begin(const SafeMPI::Intracomm& comm = SafeMPI::COMM_WORLD);
 

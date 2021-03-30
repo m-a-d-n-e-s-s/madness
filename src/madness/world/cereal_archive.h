@@ -140,7 +140,7 @@ struct is_text_archive<
     : std::true_type {};
 
 template <typename Muesli, typename T>
-struct is_serializable<
+struct is_serializable_helper<
     archive::CerealOutputArchive<Muesli>, T,
     std::enable_if_t<(is_trivially_serializable<T>::value &&
         !cereal::traits::is_text_archive<Muesli>::value) ||
@@ -148,7 +148,7 @@ struct is_serializable<
          cereal::traits::is_text_archive<Muesli>::value)>>
     : std::true_type {};
 template <typename Muesli, typename T>
-struct is_serializable<
+struct is_serializable_helper<
     archive::CerealInputArchive<Muesli>, T,
     std::enable_if_t<
         (is_trivially_serializable<T>::value &&
