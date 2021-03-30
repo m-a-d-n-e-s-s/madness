@@ -453,6 +453,10 @@ struct response_space {
     for (size_t p = 0; p < dim_2; p++) {
       result += matrix_inner(world, aT[p], bT[p]);
     }
+    
+    print("----------------Results Response Space Inner  -----------------");
+    print("Result");
+    print(result);
     return result;
   }
 };
