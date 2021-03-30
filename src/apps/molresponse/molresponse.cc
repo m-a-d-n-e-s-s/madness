@@ -99,7 +99,7 @@ int main(int    argc, char** argv) {
   // densityTest.PlotResponseDensity(world);
   densityTest.PrintDensityInformation();
 
-  if (Rparams.property) {  //
+  if (Rparams.response_type.compare("dipole")==0) {  //
     print("Computing Alpha");
     Tensor<double> alpha = densityTest.ComputeSecondOrderPropertyTensor(world);
     print("Second Order Analysis");
