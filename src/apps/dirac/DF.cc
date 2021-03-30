@@ -13,7 +13,7 @@
 #include "DF.h"
 //#include "Plot_VTK.h"
 #include "fcwf.h"
-#include "../chem/potentialmanager.h"
+#include <chem/potentialmanager.h>
 
 using namespace madness;
 

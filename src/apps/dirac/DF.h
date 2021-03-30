@@ -13,7 +13,7 @@
 #include <cmath>
 #include <string>
 #include <algorithm> 
-#include "../chem/molecule.h"
+#include <chem/molecule.h>
 #include "DFParameters.h"
 #include "InitParameters.h"
 

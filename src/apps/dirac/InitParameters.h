@@ -7,7 +7,7 @@
 #define MADNESS_APPS_DFGUESSPARAMS_H_INCLUDED
 
 #include "fcwf.h"
-#include "../chem/NWChem.h"
+#include <chem/NWChem.h>
 
 Function<std::complex<double>,3> function_real2complex(const Function<double,3>& r);
 double myxfunc(const madness::coord_3d& r);
