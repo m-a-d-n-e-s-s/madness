@@ -173,7 +173,7 @@ struct X_space {
 
     World& world = A.X[0][0].world();
     response_space Collapse(world, A.num_states, A.num_states);
-    G = response_space_inner(A.X, B.X) + response_space_inner(A.Y, B.Y);
+    G = response_space_inner(A.X, B.X) + response_space_inner(B.Y, A.Y);
     /*
         for (size_t i(0); i < A.num_states; i++) {
           for (size_t j(0); j < A.num_states; j++) {
