@@ -38,8 +38,8 @@ X_space TDDFT::Compute_Lambda_X(World& world,
   GammaResponseFunctions gamma = ComputeGammaFunctions(
       world, Chi.X, Chi.Y, xc, Gparams, Rparams, compute_Y);
 
-  X_space Lambda_X=X_space(world,size_states(Chi),size_orbitals(Chi));
-  // Compute (V0-ham_no_diag)X
+  X_space Lambda_X = X_space(world, size_states(Chi), size_orbitals(Chi));
+  // Compute (V0-ham)X
   // V0 appliedo x response function
   response_space v0_X =
       CreatePotential(world, Chi.X, xc, Rparams.print_level, "x");
@@ -52,7 +52,7 @@ X_space TDDFT::Compute_Lambda_X(World& world,
   }
   v0_X.truncate_rf();
   response_space HX =
-      Chi.X * ham_no_diag;  // scale_2d(world, x, ham_no_diagonal);
+      Chi.X * hamiltonian;  // scale_2d(world, x, ham_no_diagonal);
   if (Rparams.print_level == 3) {
     print("norms of x scaled by ham no diag");
     print(HX.norm2());
@@ -73,7 +73,7 @@ X_space TDDFT::Compute_Lambda_X(World& world,
     }
     v0_Y.truncate_rf();
     response_space HY =
-        Chi.Y * ham_no_diag;  // scale_2d(world, x, ham_no_diagonal);
+        Chi.Y * hamiltonian;  // scale_2d(world, x, ham_no_diagonal);
     if (Rparams.print_level == 3) {
       print("norms of x scaled by ham no diag");
       print(HY.norm2());
