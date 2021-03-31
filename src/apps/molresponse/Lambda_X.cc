@@ -35,8 +35,13 @@ X_space TDDFT::Compute_Lambda_X(World& world,
                                 XCOperator xc,
                                 bool compute_Y) {
   // compute
-  GammaResponseFunctions gamma = ComputeGammaFunctions(
-      world, Chi.X, Chi.Y, xc, Gparams, Rparams, compute_Y);
+  X_space gamma;
+  // compute
+  if (compute_Y) {
+    gamma = ComputeGammaFull(world, Chi, xc);
+  } else {
+    gamma = ComputeGammaStatic(world, Chi, xc);
+  }
 
   X_space Lambda_X = X_space(world, size_states(Chi), size_orbitals(Chi));
   // Compute (V0-ham)X
@@ -58,7 +63,7 @@ X_space TDDFT::Compute_Lambda_X(World& world,
     print(HX.norm2());
   }
   // Assemble Lambda_X and truncate
-  Lambda_X.X = F0_X - HX + gamma.gamma;
+  Lambda_X.X = F0_X - HX + gamma.X;
   Lambda_X.X.truncate_rf();
   if (compute_Y) {
     // Compute (V0-ham_no_diag)X
@@ -78,7 +83,7 @@ X_space TDDFT::Compute_Lambda_X(World& world,
       print("norms of x scaled by ham no diag");
       print(HY.norm2());
     }
-    Lambda_X.Y = F0_Y - HY + gamma.gamma_conjugate;
+    Lambda_X.Y = F0_Y - HY + gamma.Y;
     Lambda_X.Y.truncate_rf();
   }
   return Lambda_X;

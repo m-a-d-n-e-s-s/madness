@@ -39,11 +39,16 @@ X_space TDDFT::Compute_Theta_X(World& world,
   print(Chi.X.norm2());
   print("y_norms in Theta X ");
   print(Chi.Y.norm2());
-  // compute
-  GammaResponseFunctions gamma = ComputeGammaFunctions(
-      world, Chi.X, Chi.Y, xc, Gparams, Rparams, compute_Y);
 
-  X_space Theta_X=X_space(world,size_states(Chi),size_orbitals(Chi));
+  X_space gamma;
+  // compute
+  if (compute_Y) {
+    gamma = ComputeGammaFull(world, Chi, xc);
+  } else {
+    gamma = ComputeGammaStatic(world, Chi, xc);
+  }
+
+  X_space Theta_X = X_space(world, size_states(Chi), size_orbitals(Chi));
   // Compute (V0-ham_no_diag)X
   // V0 appliedo x response function
   response_space v0_X =
@@ -64,7 +69,7 @@ X_space TDDFT::Compute_Theta_X(World& world,
     print(HX.norm2());
   }
   // Assemble Theta_X and truncate
-  Theta_X.X = v0_X - HX + gamma.gamma;
+  Theta_X.X = v0_X - HX + gamma.X;
 
   if (compute_Y) {
     // Compute (V0-ham_no_diag)X
@@ -79,13 +84,13 @@ X_space TDDFT::Compute_Theta_X(World& world,
     if (Rparams.print_level >= 2) {
       PrintRFExpectation(world, Chi.Y, v0_Y, "y", "V0Y");
     }
-    response_space HY =
-        Chi.Y * ham_no_diag;  // scale_2d(world, x, ham_no_diagonal);
+    // scale_2d(world, x, ham_no_diagonal);
+    response_space HY = Chi.Y * ham_no_diag;
     if (Rparams.print_level == 3) {
       print("norms of x scaled by ham no diag");
       print(HY.norm2());
     }
-    Theta_X.Y = v0_Y - HY + gamma.gamma_conjugate;
+    Theta_X.Y = v0_Y - HY + gamma.Y;
   }
 
   return Theta_X;

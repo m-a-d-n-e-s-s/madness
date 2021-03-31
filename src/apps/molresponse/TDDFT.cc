@@ -4610,16 +4610,6 @@ std::vector<real_function_3d> TDDFT::transition_density(
 
   // Return container
   std::vector<real_function_3d> densities = zero_functions<double, 3>(world, m);
-  // (REMARK)  implementation with imaginary wavefunctions
-  // we need to create functions for conjugates
-  // Run over virtual...
-  /*
-  x.reconstruct_rf();
-  y.reconstruct_rf();
-  reconstruct(world, Gparams.orbitals);
-  */
-  // print("Thresh before truncate in t-density");
-  // print(FunctionDefaults<3>::get_thresh());
   x.truncate_rf();
   y.truncate_rf();
   truncate(world, Gparams.orbitals);
@@ -4627,7 +4617,29 @@ std::vector<real_function_3d> TDDFT::transition_density(
     // Run over occupied...
     // y functions are zero if TDA is active
     densities[b] =
-        dot(world, x[b], Gparams.orbitals) + dot(world, y[b], Gparams.orbitals);
+        dot(world, x[b], Gparams.orbitals) + dot(world, Gparams.orbitals,y[b]);
+  }
+
+  truncate(world, densities);
+  world.gop.fence();
+  // Done!
+  return densities;
+}
+std::vector<real_function_3d> TDDFT::transition_densityTDA(
+    World& world,
+    std::vector<real_function_3d> const& orbitals,
+    response_space& x
+    ) {
+  // Get sizes
+  size_t m = x.size();
+  // Return container
+  std::vector<real_function_3d> densities = zero_functions<double, 3>(world, m);
+  x.truncate_rf();
+  truncate(world, Gparams.orbitals);
+  for (size_t b = 0; b < m; b++) {
+    // y functions are zero if TDA is active
+    densities[b] =
+        dot(world, x[b], Gparams.orbitals);
   }
 
   truncate(world, densities);

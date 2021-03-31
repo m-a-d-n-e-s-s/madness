@@ -523,29 +523,7 @@ void TDDFT::Iterate(World& world, X_space& Chi) {
     }
   }
 
-  // A little more detailed analysis
   analysis(world);
-
-  // TEST
-  // Doing line plots along z axis
-  // if(world.rank() == 0) print("\n\nStarting plots");
-  // coord_3d lo,hi;
-  // char plotname[500];
-  //// z axis
-  // lo[0] = 0.0; lo[1] = 0.0; lo[2] = -Gparams.L;
-  // hi[0] = 0.0; hi[1] = 0.0; hi[2] =  Gparams.L;
-  // for(size_t    i = 0; i < Rparams.states; i++) {
-  //  for(unsigned int j = 0; j < Gparams.num_orbitals; j++) {
-  //    sprintf(plotname, "plot_exX_%d_%d.plt", i, j);
-  //    plot_line(plotname, 500001, lo, hi, x_response[i][j]);
-  //    sprintf(plotname, "plot_exY_%d_%d.plt", i, j);
-  //    plot_line(plotname, 500001, lo, hi, y_response[i][j]);
-  //  }
-  //}
-  // END TEST
-
-  // More detailed analysis of the response functions
-  // Uses member variables
 }
 
 void TDDFT::analysis(World& world, X_space& Chi) {

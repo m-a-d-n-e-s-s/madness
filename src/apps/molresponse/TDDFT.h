@@ -412,7 +412,9 @@ class TDDFT {
       const GroundParameters& Gparams,
       const ResponseParameters& Rparams,
       bool compute_Y);
-  // Returns the coulomb potential of the ground state
+  X_space ComputeGammaFull(World& world, X_space& Chi, XCOperator xc);
+  X_space ComputeGammaStatic(World& world, X_space& Chi, XCOperator xc);
+  X_space ComputeGammaTDA(World& world, X_space& Chi, XCOperator xc);
   // Note: No post multiplication involved here
   real_function_3d Coulomb(World& world);
 
@@ -936,6 +938,10 @@ class TDDFT {
       std::vector<real_function_3d> const& orbitals,
       response_space& x,
       response_space& y);
+  std::vector<real_function_3d> transition_densityTDA(
+      World& world,
+      std::vector<real_function_3d> const& orbitals,
+      response_space& x);
   // Get transition density from f and orbitals
   std::vector<real_function_3d> GetTransitionDensities(
       World& world,
