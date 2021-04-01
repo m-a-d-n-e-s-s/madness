@@ -35,7 +35,7 @@
 
 #include <madness/madness_config.h>
 
-#ifdef HAVE_MKL
+#ifdef HAVE_INTEL_MKL
 #include <mkl.h>
 
 #elif defined(HAVE_ACML)
