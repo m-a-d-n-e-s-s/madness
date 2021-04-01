@@ -296,13 +296,12 @@ void TDDFT::load(World& world, std::string name) {
   ar& Rparams.states;
   ar& omega;
 
-  x_response = response_space(world, Rparams.states, Gparams.num_orbitals);
+  X_space Chi=X_space(world,Rparams.states,Gparams.num_orbitals);
 
   for (size_t i = 0; i < Rparams.states; i++)
     for (size_t j = 0; j < Gparams.num_orbitals; j++) ar& Chi.X[i][j];
   world.gop.fence();
 
-  y_response = response_space(world, Rparams.states, Gparams.num_orbitals);
   if (not Rparams.tda) {
     for (size_t i = 0; i < Rparams.states; i++)
       for (size_t j = 0; j < Gparams.num_orbitals; j++) ar& Chi.Y[i][j];
