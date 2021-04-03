@@ -325,8 +325,8 @@ namespace madness {
                 archive::ParallelInputArchive ar(world, name.c_str(), 1);
                 ar & *this;
             	if (world.rank()==0) printf(" %s\n",(converged)?" converged":" not converged");
-            	function.set_thresh(FunctionDefaults<6>::get_thresh());
-                constant_term.set_thresh(FunctionDefaults<6>::get_thresh());
+            	if (function.is_initialized()) function.set_thresh(FunctionDefaults<6>::get_thresh());
+            	if (constant_term.is_initialized()) constant_term.set_thresh(FunctionDefaults<6>::get_thresh());
             } else {
 		    	if (world.rank()==0) print("could not find pair ",i,j," on disk");
             }
