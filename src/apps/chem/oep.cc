@@ -48,7 +48,6 @@ double OEP::solve(const vecfuncT& HF_nemo1) {
 	calc->aeps=eval;
 	calc->amo=KS_nemo;
 
-	save(Voep,"OEPapprox_final");
 	Vfinal=copy(Voep);
     save_restartdata(KS_Fock);
 
@@ -56,6 +55,22 @@ double OEP::solve(const vecfuncT& HF_nemo1) {
 	return energy;
 }
 
+void OEP::analyze() {
+    set_protocol(param.econv());
+    Tensor<double> Fock;
+    reference->get_calc()->load_mos(world);
+    load_restartdata(Fock);
+    save(Vfinal,"OEPapprox_final");
+    // save the converged orbitals and nemos
+    for (std::size_t imo = 0; imo < calc->amo.size(); ++imo) {
+        save(calc->amo[imo], "oep_nemo" + stringify(imo));
+    }
+    double n1=R_square.norm2();
+    double n2=norm2(world,calc->get_amo());
+    real_function_3d Slater=compute_slater_potential(calc->get_amo());
+    real_function_3d Slater_dcep_diff=Slater-Vfinal;
+    save(Slater,"Slater_oepnemo");
+}
 
 void OEP::save_restartdata(const Tensor<double>& fock) const {
 	if (world.rank()==0) print("saving OEP orbitals to file restartdata_OEP");
@@ -120,10 +135,16 @@ double OEP::compute_and_print_final_energies(const std::string model, const real
 	// print final orbital energies
 	auto [KS_eigvals, evec1] = syev(KS_Fock);
 
-	print("final", model, "orbital energies (no level alignment included):");
+	print("final", model, "canonical orbital energies (no level alignment included):");
 	print_orbens(KS_eigvals);
 
-	// final Jnemo and Knemo have to be computed again in order to calculate final energy
+    auto [eval1, evec2] = syev(HF_Fock);
+    double homoHF = eval1.max();
+    double homoKS = KS_eigvals.max();
+    print("canonical HF HOMO energy",homoHF);
+    print("canonical KS HOMO energy",homoKS);
+
+    // final Jnemo and Knemo have to be computed again in order to calculate final energy
 	vecfuncT Jnemo, Knemo, Knemo_HF;
 	compute_coulomb_potential(KS_nemo, Jnemo);
 	compute_exchange_potential(KS_nemo, Knemo);

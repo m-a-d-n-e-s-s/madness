@@ -32,7 +32,7 @@ C     $Id: dgemm.F,v 1.2 1999/07/28 00:23:38 d3e129 Exp $
 *     alpha and beta are scalars,and A,B and C are matrices,with op(A)
 *     an m by k matrix, op(B)  a  k by n matrix and  C an m by n matrix.
 *     
-*     TDHFParameters
+*     Parameters
 *     ==========
 *     
 *     TRANSA - CHARACTER*1.
@@ -149,7 +149,7 @@ C     $Id: dgemm.F,v 1.2 1999/07/28 00:23:38 d3e129 Exp $
       LOGICAL            NOTA,NOTB
       INTEGER            I,INFO,J,L,NCOLA,NROWA,NROWB
       DOUBLE PRECISION   TEMP
-*     .. TDHFParameters ..
+*     .. Parameters ..
       DOUBLE PRECISION   ONE         ,ZERO
       PARAMETER        (ONE = 1.0D+0,ZERO = 0.0D+0)
 c

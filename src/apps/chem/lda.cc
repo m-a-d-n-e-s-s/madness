@@ -65,7 +65,7 @@ int x_rks_s__(const double *r__, double *f, double * dfdra) {
     /*     [1] F. Bloch, Zeitschrift fuer Physik, Vol. 57 (1929) 545. */
     /*     [2] P.A.M. Dirac, Proceedings of the Cambridge Philosophical Society, Vol. 26 (1930) 376. */
 
-    /*     TDHFParameters: */
+    /*     Parameters: */
     /*     r     the total electron density */
     /*     f     On return the functional value */
     /*     dfdra On return the derivative of f with respect to alpha electron density */
@@ -93,7 +93,7 @@ int x_uks_s__(double *ra, double *rb, double *f, double *dfdra, double *dfdrb) {
     /*     [1] F. Bloch, Zeitschrift fuer Physik, Vol. 57 (1929) 545. */
     /*     [2] P.A.M. Dirac, Proceedings of the Cambridge Philosophical Society, Vol. 26 (1930) 376. */
 
-    /*     TDHFParameters: */
+    /*     Parameters: */
     /*     ra    the alpha electron density */
     /*     rb    the beta  electron density */
     /*     f     On return the functional value */
@@ -127,7 +127,7 @@ int c_rks_vwn5__(const double *r__, double *f, double * dfdra) {
     /*          for local spin density calculations: a critical analysis", */
     /*         Can.J.Phys, Vol. 58 (1980) 1200-1211. */
 
-    /*     TDHFParameters: */
+    /*     Parameters: */
     /*     r      the total electron density */
     /*     f      On return the functional value */
     /*     dfdra  On return the derivative of f with respect to the alpha */
@@ -192,7 +192,7 @@ int c_uks_vwn5__(double *ra, double *rb, double * f, double *dfdra, double *dfdr
     /*          for local spin density calculations: a critical analysis", */
     /*         Can.J.Phys, Vol. 58 (1980) 1200-1211. */
 
-    /*     TDHFParameters: */
+    /*     Parameters: */
     /*     ra     the alpha-electron density */
     /*     rb     the beta-electron density */
     /*     f      On return the functional value */

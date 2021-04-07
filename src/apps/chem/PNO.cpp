@@ -55,9 +55,9 @@ void PNO::solve(std::vector<PNOPairs>& all_pairs) const {
 	// (hard to be more precise ... the energy contribution of PNO ~ Lowdin's formula for the increments
 	//  in He (n+1/2)^{-6} ... will change when F12 added)
 	FunctionDefaults < 3 > ::set_thresh(param.thresh());
-	param.print("PNO TDHFParameters\npno","end");
+	param.print("PNO Parameters\npno","end");
 	if (param.f12()){
-		f12.param.print("F12 TDHFParameters\nf12", "end");
+		f12.param.print("F12 Parameters\nf12", "end");
 	}
 	if (param.debug()) {
 		print("ElectronPairIterator will iterate the pairs: pair_ij, i , j , ij");
@@ -1144,7 +1144,7 @@ PNOPairs PNO::iterate_pairs_internal(PNOPairs& pairs, const int maxiter, const d
 	}
 
 	// information about the current iteration cycle
-	msg << "SolveInternal: TDHFParameters are assigned as\n";
+	msg << "SolveInternal: Parameters are assigned as\n";
 	msg << "no_compute        = " << no_compute << "\n";
 	msg << "no_opt            = " << no_opt << "\n";
 	msg << "restart           = " << restart << "\n";

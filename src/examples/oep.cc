@@ -99,6 +99,7 @@ int main(int argc, char** argv) {
 
     // to allow to test the program
     bool test = parser.key_exists("test");
+    bool analyze = parser.key_exists("analyze");
 
     // create test input file if program is tested
     if (test) {
@@ -111,6 +112,7 @@ int main(int argc, char** argv) {
     oep->print_parameters({"reference","oep","oep_calc"});
     int ierr=0;
     if (test) ierr=oep->test_oep();
+    else if (analyze)  oep->analyze();
     else oep->value();
 
     finalize();

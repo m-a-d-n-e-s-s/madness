@@ -65,7 +65,7 @@ enum EErrorCodes
   ecOPRT_TYPE_CONFLICT  = 16, ///< binary operators may only be applied to value items of the same type
   ecSTR_RESULT          = 17, ///< result is a string
 
-  // Invalid Parser input TDHFParameters
+  // Invalid Parser input Parameters
   ecINVALID_NAME        = 18, ///< Invalid function, variable or constant name.
   ecBUILTIN_OVERLOAD    = 19, ///< Trying to overload builtin operator
   ecINVALID_FUN_PTR     = 20, ///< Invalid callback function pointer 

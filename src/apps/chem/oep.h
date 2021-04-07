@@ -210,10 +210,6 @@ public:
         if (load_mos) load_restartdata(fock);
 
         if (not oep_param.no_compute())  energy=solve(reference->get_calc()->get_amo());
-        // save the converged orbitals and nemos
-        for (std::size_t imo = 0; imo < calc->amo.size(); ++imo) {
-            save(calc->amo[imo], "oep_nemo" + stringify(imo));
-        }
         return energy;
 	};
 
@@ -224,6 +220,8 @@ public:
 	/// same for orbital energies (eigenvalues) KS_eigvals which is oep->get_calc()->aeps
 	/// converged if norm, total energy difference and orbital energy differences (if not OAEP) are converged
     double solve(const vecfuncT& HF_nemo);
+
+    void analyze();
 
     double iterate(const std::string model, const vecfuncT& HF_nemo, const tensorT& HF_eigvals,
     		vecfuncT& KS_nemo, tensorT& KS_Fock, real_function_3d& Voep,

@@ -274,7 +274,7 @@ InternalRunDeathTestFlag* ParseInternalRunDeathTestFlag();
 // on a system that does not support death tests and be sure that it will
 // compile on a death-test supporting system.
 //
-// TDHFParameters:
+// Parameters:
 //   statement -  A statement that a macro such as EXPECT_DEATH would test
 //                for program termination. This macro has to make sure this
 //                statement is compiled but not executed, to ensure that
