@@ -223,7 +223,16 @@ int main(int argc, char** argv) {
 		std::vector<std::pair<size_t,size_t>> pno_ids;
 		std::vector<std::pair<size_t,size_t>> rest_ids;
 		std::string name;
+                
+
 		for(auto& pairs: all_pairs){
+                        // list of pairs to ignore:
+                        std::vector<bool> ignore_pair(pairs.npairs, false);
+                        for(auto x : paramsint.ignore_pair()){
+                            ignore_pair[x] = true;
+                            if(world.rank()==0) std::cout << "will ignore pair " << x << "\n";
+                        } 
+
 			const auto& pno_ij = pairs.pno_ij;
 			const auto& rdm_evals = pairs.rdm_evals_ij;
 			const bool is_gs = pairs.type == MP2_PAIRTYPE;
@@ -240,9 +249,13 @@ int main(int argc, char** argv) {
 			// collect PNOs from all pairs and sort by occupation number, keeping pair information via name
 			for(ElectronPairIterator it=pno.pit();it;++it){
 				if (only_diag and not it.diagonal()){
-					if(world.rank()==0) std::cout << "skipping pair " << it.name() << "\n";
+					if(world.rank()==0) std::cout << "skipping pair (not diagonal) " << it.name() << "\n";
+					continue;
+                                }else if(ignore_pair[it.ij()]){
+					if(world.rank()==0) std::cout << "skipping pair (demanded by input) " << it.name() << "\n";
 					continue;
 				}else{
+					if(world.rank()==0) std::cout << "adding " << it.name() << "\n";
 					const auto& pair = pno_ij[it.ij()];
 					all_current_pnos.insert(all_current_pnos.end(), pair.begin(), pair.end());
 					for (auto ii=0; ii<rdm_evals[it.ij()].size();++ii){
@@ -370,16 +383,37 @@ int main(int argc, char** argv) {
 			calcx.param.set_user_defined_value("nvbeta", paramsint.n_virt());
 			calcx.param.set_user_defined_value("restart", false);
 			calcx.param.set_user_defined_value("no_compute", false);
-	        calcx.param.set_user_defined_value("nmo_alpha",calc->param.nalpha() + paramsint.n_virt());
-	        calcx.param.set_user_defined_value("nmo_beta",calc->param.nbeta() + paramsint.n_virt());
-	        calcx.initial_guess(world);
+	                calcx.param.set_user_defined_value("nmo_alpha",calc->param.nalpha() + paramsint.n_virt());
+	                calcx.param.set_user_defined_value("nmo_beta",calc->param.nbeta() + paramsint.n_virt());
+	                calcx.set_protocol<3>(world,pno.param.thresh());
+			calcx.reset_aobasis(calcx.param.aobasis());
+			calcx.ao=calcx.project_ao_basis(world,calcx.aobasis);
+			calcx.make_nuclear_potential(world);
+			calcx.initial_guess(world);
 			calcx.param.print();
 			calcx.amo = calc->amo;
 			auto F = Fock(world, calc.get());
 			auto Fmat = F(calc->ao, calc->ao);
 			Tensor<double> U, evals;
 			syev(Fmat, U, evals);
-			auto vguess = madness::transform(world, calc->ao, U);
+			auto vguess = vecfuncT();
+
+			if (false){ // standard guess, but pnos usually better
+			auto F = Fock(world, calc.get());
+			auto Fmat = F(calc->ao, calc->ao);
+			Tensor<double> U, evals;
+			syev(Fmat, U, evals);
+			vguess = madness::transform(world, calc->ao, U);
+			}else{
+				auto pnos = vecfuncT(basis.begin()+reference.size(), basis.end());
+				auto F = Fock(world, calc.get());
+				auto Fmat = F(pnos, pnos);
+				Tensor<double> U, evals;
+				syev(Fmat, U, evals);
+                                if(world.rank()==0){ std::cout << " evals = " << evals << "\n";}
+				vguess = madness::transform(world, pnos, U);
+			}
+
 			for (auto i=0;i<paramsint.n_virt();++i){
 				calcx.amo.push_back(vguess[i]);
 			}

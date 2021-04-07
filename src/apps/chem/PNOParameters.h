@@ -116,8 +116,8 @@ public:
 		}
 		set_derived_value("freeze", freeze);
 
-		set_derived_value("no_guess", get<std::string >("no_opt"));
-		set_derived_value("restart", get<std::string>("no_guess"));
+		set_derived_value("no_guess", get<std::string >("no_compute"));
+		set_derived_value("restart", get<std::string>("no_compute"));
 		set_derived_value("tpno_tight", 0.01*tpno());
 
 		// set default values for adaptive solver
@@ -310,7 +310,7 @@ public:
 		initialize<int>("pno_cabs_size", -1, "size of a potential pno-cabs. defaults to -1 ~ all remaining PNOs, if pno-cabs or mixed-cabs");
 		initialize<bool>("only_diag", false, "use only diagonal elements PNOs");
 		initialize<std::vector<int> >("cherry_pick", std::vector<int>(), "cherry pick option to choose particular set of PNOs, not just blindly by occupation number. can be useful, if only a restricted number of PNOs can be used, to avoid separating degenerate pairs. can be envoked by passing a vector via [ elem1, elem2, ... ]");
-
+		initialize<std::vector<int> >("ignore_pair", std::vector<int>(), "ignore certain pairs in the selection of pnos numbering is 00-0, 01-1, 02-2 ... ");
 		initialize<double>("gamma",1.4, "The f12 length scale, here to be used to compute f12-integrals");
 		initialize<double>("cabs_thresh",1.e-4, " thresh for cabs part ");
 		initialize<std::string>("auxbas", "none", "atom centered partial wave guess of format like 'h-2s1p-o-3s2p1d' ");
@@ -337,6 +337,9 @@ public:
 	std::vector<int> cherry_pick()const { 
 		return get<std::vector<int> >("cherry_pick");
 	}
+	std::vector<int> ignore_pair()const { 
+		return get<std::vector<int> >("ignore_pair");
+	}
 	double cabs_thresh()const { return get<double >("cabs_thresh");}
 	std::string auxbas_file()const {
 		return get<std::string >("auxbas_file");
@@ -352,6 +355,7 @@ public:
 	void set_derived_values(const PNOParameters& param) {
 		set_derived_value("cabs_thresh", thresh());
 		set_derived_value("n_pno", std::min(10, param.maxrank()));
+                set_derived_value("only_diag", diagonal());
 	}
 
 };

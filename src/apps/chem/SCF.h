@@ -763,8 +763,7 @@ public:
 		if (calc.param.pcm_data() != "none") {
 			calc.pcm=PCM(world,calc.molecule,calc.param.pcm_data(),true);
 		}
-
-		bool have_initial_guess=false;
+                bool have_initial_guess = (calc.amo.size() > 0);
 		// get initial orbitals
 		if (calc.param.restart()) {
 			calc.load_mos(world);
