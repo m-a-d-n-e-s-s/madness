@@ -267,13 +267,13 @@ X_space TDDFT::ComputeGammaFull(World& world, X_space& Chi, XCOperator xc) {
       k1_y[b][p] = dot(world, Chi.Y[b], phi_phi);
 
       // K2
-      y_phi = mul(world, Chi.Y[b], Gparams.orbitals);
+      y_phi = mul(world, Gparams.orbitals[p], Chi.Y[b]);
       truncate(world, y_phi);
       y_phi = apply(world, op, y_phi);
       truncate(world, y_phi);
       k2_y[b][p] = dot(world, Chi.Y[b], phi_phi);
 
-      x_phi = mul(world, Chi.X[b], Gparams.orbitals);
+      x_phi = mul(world, Gparams.orbitals[p], Chi.X[b]);
       truncate(world, x_phi);
       x_phi = apply(world, op, x_phi);
       truncate(world, x_phi);
@@ -398,9 +398,10 @@ X_space TDDFT::ComputeGammaStatic(World& world, X_space& Chi, XCOperator xc) {
 
       // K2
 
-      x_phi = mul(world, Chi.X[b], Gparams.orbitals);
+      x_phi = mul(world, Gparams.orbitals[p], Chi.X[b]);
       truncate(world, x_phi);
       x_phi = apply(world, op, x_phi);
+      // TODO maybe do not truncate here
       truncate(world, x_phi);
       k2_x[b][p] = dot(world, Gparams.orbitals, x_phi);
     }
