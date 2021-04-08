@@ -377,11 +377,11 @@ void TDDFT::Iterate(World& world, X_space& Chi) {
         if (world.rank() == 0)
           print("\n   2-norm of response function residuals:");
         if (world.rank() == 0) print("   x components:");
-        if (world.rank() == 0) print(x_norms);
+        if (world.rank() == 0) print("resX i: ", iteration, " ", x_norms);
 
         if (not Rparams.tda) {
           if (world.rank() == 0) print("   y components:");
-          if (world.rank() == 0) print(y_norms);
+          if (world.rank() == 0) print("resY i: ", iteration, " ", y_norms);
         }
       }
       if (Rparams.kain) {
