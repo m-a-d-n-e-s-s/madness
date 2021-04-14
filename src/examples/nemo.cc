@@ -68,23 +68,18 @@ int main(int argc, char** argv) {
 
     try {
 
-        const std::string input="input";
-        std::shared_ptr<SCF> calc(new SCF(world,input.c_str()));
-        if (world.rank()==0) {
-            calc->molecule.print();
-            print("\n");
-//            calc->param.print("dft");
-        }
-
-        std::shared_ptr<Nemo> nemo(new Nemo(world,calc,input));
+        commandlineparser parser(argc,argv);
+        std::shared_ptr<Nemo> nemo(new Nemo(world,parser));
+        if (world.rank()==0) nemo->get_param().print("dft","end");
+        if (world.rank()==0) nemo->get_calc()->param.print("dft","end");
 
         // optimize the geometry if requested
-        if (calc->param.gopt()) {
+        if (nemo->get_param().gopt()) {
             print("\n\n Geometry Optimization                      ");
             print(" ----------------------------------------------------------\n");
 //            calc->param.gprint(world);
 
-            Tensor<double> geomcoord = calc->molecule.get_all_coords().flat();
+            Tensor<double> geomcoord =nemo->get_calc()->molecule.get_all_coords().flat();
 //            MolecularOptimizer geom(std::shared_ptr<MolecularOptimizationTargetInterface>(new Nemo(world, calc)),
             MolecularOptimizer geom(world,nemo);
 //            MolecularOptimizer geom(nemo,
@@ -96,9 +91,9 @@ int main(int argc, char** argv) {
 //            geom.set_test(calc->param.gtest);
 
             // compute initial hessian
-            if (calc->param.ginitial_hessian()) {
+            if (nemo->get_param().ginitial_hessian()) {
                 nemo->value();
-                Tensor<double> hess=nemo->hessian(calc->molecule.get_all_coords());
+                Tensor<double> hess=nemo->hessian(nemo->get_calc()->molecule.get_all_coords());
                 geom.set_hessian(hess);
             }
             geom.optimize(geomcoord);
@@ -115,7 +110,7 @@ int main(int argc, char** argv) {
         }
 
         // compute the hessian
-        if (nemo->param.hessian()) nemo->hessian(calc->molecule.get_all_coords());
+        if (nemo->param.hessian()) nemo->hessian(nemo->get_calc()->molecule.get_all_coords());
 
 
     } catch (const SafeMPI::Exception& e) {
