@@ -4883,9 +4883,8 @@ void TDDFT::check_k(World& world, double thresh, size_t k) {
       // (Always do this, as y will be zero
       //  and still used in doing DFT and TDA)
       // Project all y components into correct k
-      for (unsigned int i = 0; i < Q.size(); i++) {
-        reconstruct(world, Q[i]);
-        for (unsigned int j = 0; j < Q[0].size(); j++)
+      for (unsigned int i = 0; i < Q.size(); i++) { reconstruct(world, Q[i]);
+                      for (unsigned int j = 0; j < Q[0].size(); j++)
           Q[i][j] =
               project(Q[i][j], FunctionDefaults<3>::get_k(), thresh, false);
         world.gop.fence();
@@ -5688,9 +5687,7 @@ void TDDFT::PlotGroundandResponseOrbitals(World& world,
         // plot x function  x_dir_b_i__k_iter
         snprintf(plotname,
                  buffSize,
-                 "plots/xy/x_K_%d_iter_%d_dir_%d_res_%d_orb_%d",
-                 FunctionDefaults<3>::get_k(),
-                 static_cast<int>(iteration - 1),
+                 "plots/xy/x_direction_%c_res_%d_orb_%d",
                  dir[d],
                  static_cast<int>(b),
                  static_cast<int>(i));
@@ -5699,9 +5696,7 @@ void TDDFT::PlotGroundandResponseOrbitals(World& world,
         // plot y functione  y_dir_b_i__k_iter
         snprintf(plotname,
                  buffSize,
-                 "plots/xy/y_K_%d_iter_%d_dir_%d_res_%d_orb_%d",
-                 FunctionDefaults<3>::get_k(),
-                 static_cast<int>(iteration - 1),
+                 "plots/xy/y_direction_%c_res_%d_orb_%d",
                  dir[d],
                  static_cast<int>(b),
                  static_cast<int>(i));

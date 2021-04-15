@@ -473,22 +473,21 @@ void TDDFT::Iterate(World& world, X_space& Chi) {
 
       // Update counter
       iteration += 1;
+    // Save
+    if (Rparams.save) {
+      molresponse::start_timer(world);
+      save(world, Rparams.save_file);
+      molresponse::end_timer(world, "Saving:");
+    }
 
-      // Save
-      if (Rparams.save) {
-        molresponse::start_timer(world);
-        save(world, Rparams.save_file);
-        molresponse::end_timer(world, "Saving:");
-      }
+    // Basic output
+    if (Rparams.print_level >= 1)
+      molresponse::end_timer(world, " This iteration:");
 
-      // Basic output
-      if (Rparams.print_level >= 1)
-        molresponse::end_timer(world, " This iteration:");
-
-      if (Rparams.plot_all_orbitals) {
-        PlotGroundandResponseOrbitals(
-            world, iteration, Chi.X, Chi.Y, Rparams, Gparams);
-      }
+    }
+    if (Rparams.plot_all_orbitals) {
+      PlotGroundandResponseOrbitals(
+          world, iteration, Chi.X, Chi.Y, Rparams, Gparams);
     }
 
   }  // Done with iterate.
