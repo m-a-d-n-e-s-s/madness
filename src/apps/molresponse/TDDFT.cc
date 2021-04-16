@@ -22,7 +22,7 @@
 
 #include "../chem/SCFOperators.h"
 #include "../chem/molecule.h"
-#include "../chem/NWCHEM.h"  // For nwchem interface
+#include "../chem/NWChem.h"  // For nwchem interface
 #include "Plot_VTK.h"
 #include "chem/potentialmanager.h"
 #include "chem/projector.h"  // For easy calculation of (1 - \hat{\rho}^0)
