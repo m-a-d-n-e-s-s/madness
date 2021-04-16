@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-#include "adrian/property_operators.h"
+#include "molresponse/property_operators.h"
 
 typedef Tensor<double> TensorT;
 typedef Function<double, 3> FunctionT;
@@ -36,7 +36,7 @@ void PrintSecondOrderAnalysis(World &world, const Tensor<double> alpha_tensor,
                       std::pow(alpha_tensor(1, 1) - alpha_tensor(2, 2), 2) +
                       std::pow(alpha_tensor(2, 2) - alpha_tensor(0, 0), 2));
 
-  int num_states = Rparams.states;
+size_t   num_states = Rparams.states;
 
   if (world.rank() == 0) {
     print("\nTotal Dynamic Polarizability Tensor");

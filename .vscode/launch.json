@@ -2,16 +2,49 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "densityTest ",
+            "name": "Excited States H2 ",
             "type": "cppdbg",
             "request": "launch",
             // Resolved by CMake Tools:
             "program": "${command:cmake.launchTargetPath}",
             "args": [
-                "/gpfs/projects/rjh/adrian/testing/h2/oct23/nuclear/SAVEINPUTS"
+                "/gpfs/projects/rjh/adrian/responseTestingNovember2020/h2/excited_states/r_input"
             ],
             "stopAtEntry": false,
-            "cwd": "/gpfs/projects/rjh/adrian/testing/h2/oct23/nuclear",
+            "cwd": "/gpfs/projects/rjh/adrian/responseTestingNovember2020/h2/excited_states",
+            "environment": [
+                {
+                    // add the directory where our target was built to the PATHs
+                    // it gets resolved by CMake Tools:
+                    "name": "PATH",
+                    "value": "$PATH:${command:cmake.launchTargetDirectory}"
+                },
+                {
+                    "name": "MAD_NUM_THREADS",
+                    "value": "8"
+                },
+            ],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
+            "name": "Excited States Neon ",
+            "type": "cppdbg",
+            "request": "launch",
+            // Resolved by CMake Tools:
+            "program": "${command:cmake.launchTargetPath}",
+            "args": [
+                "/gpfs/projects/rjh/adrian/responseTestingNovember2020/test_suite/cleanCopy/outputs/11_Ne/excited_state_kain/r_input"
+            ],
+            "stopAtEntry": false,
+            "cwd": "/gpfs/projects/rjh/adrian/responseTestingNovember2020/test_suite/cleanCopy/outputs/11_Ne/excited_state_kain",
             "environment": [
                 {
                     // add the directory where our target was built to the PATHs

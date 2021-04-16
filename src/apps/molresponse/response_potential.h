@@ -1,4 +1,5 @@
 /*
+ Copyright 2021 Adrian Hurtado
  *
  *   Small class to hold all the functionality needed in creating/manipulating
  *   the  term in the response equations. (Gamma is the perturbed two
@@ -6,39 +7,44 @@
  *
  */
 
-#ifndef MADNESS_APPS_TDHF_RESPONSEPOTENTIAL_INCLUDE
-#define MADNESS_APPS_TDHF_RESPONSEPOTENTIAL_INCLUDE
+#ifndef SRC_APPS_MOLRESPONSE_RESPONSE_POTENTIAL_H_
+#define SRC_APPS_MOLRESPONSE_RESPONSE_POTENTIAL_H_
+
+#include <madness/mra/mra.h>
+#include <madness/mra/operator.h>
+
+#include <memory>
+#include <string>
+#include <vector>
 
 #include "../chem/SCFOperators.h"
 #include "../chem/projector.h"
-#include "ResponseFunction2.h"
-#include <madness/mra/mra.h>
-#include <madness/mra/operator.h>
-#include <memory>
-#include <vector>
+#include "molresponse/response_functions.h"
+#include "molresponse/x_space.h"
 
 namespace madness {
 
 class ResponsePotential {
   // Member Variables
-private:
-  World& world; // MPI communicator
+ private:
+  World& world;  // MPI communicator
   std::vector<real_function_3d>
-      ground_orbitals;             // Pointer to ground state orbitals
-  real_function_3d ground_rho;     // Pointer to ground state density
-  real_function_3d v_nuc;          // Pointer to nuclear potential
-  QProjector<double, 3> projector; // Will project out ground state
-  const double small;              // Smallest lengthscale for coulomb op.
-  const double thresh;             // Truncation threshold for coulomb op.
-  real_convolution_3d op;          // Coulomb operator
-  response_space potential;        // For storing the ground state
-  const bool is_dft;         // Flag for calc. dft potential   (default = false)
-  const std::string xc_name; // Name of xc functional          (default = "")
-  const bool store_potential; // Flag for storing the potential (default = true)
+      ground_orbitals;              // Pointer to ground state orbitals
+  real_function_3d ground_rho;      // Pointer to ground state density
+  real_function_3d v_nuc;           // Pointer to nuclear potential
+  QProjector<double, 3> projector;  // Will project out ground state
+  const double small;               // Smallest lengthscale for coulomb op.
+  const double thresh;              // Truncation threshold for coulomb op.
+  real_convolution_3d op;           // Coulomb operator
+  response_space potential;         // For storing the ground state
+  const bool is_dft;  // Flag for calc. dft potential   (default = false)
+  const std::string xc_name;  // Name of xc functional          (default = "")
+  const bool
+      store_potential;  // Flag for storing the potential (default = true)
 
-public:
+ public:
   // Member Functions
-private:
+ private:
   // Calculates ground state density
   real_function_3d calc_density(std::vector<real_function_3d>& orbs) {
     std::vector<real_function_3d> vsq = square(world, orbs);
@@ -56,17 +62,17 @@ private:
   std::vector<real_function_3d> perturbed_density(response_space& x,
                                                   response_space& y) {
     // Get sizes
-    int m = x.size();
-    int n = x[0].size();
+    size_t m = x.size();
+    size_t n = x[0].size();
 
     // Return container
     std::vector<real_function_3d> densities =
         zero_functions<double, 3>(world, m);
 
     // Run over virtual...
-    for (int i = 0; i < m; i++) {
+    for (size_t i = 0; i < m; i++) {
       // Run over occupied...
-      for (int j = 0; j < n; j++) {
+      for (size_t j = 0; j < n; j++) {
         densities[i] += ground_orbitals[j] * (x[i][j] + y[i][j]);
       }
     }
@@ -77,8 +83,11 @@ private:
   // For DFT, uses the XCOperator to construct perturubed vxc
   std::vector<real_function_3d> create_perturbed_vxc(response_space& x) {
     // Create XCoperator
-    XCOperator xc(world, xc_name, false, ground_rho,
-                  ground_rho); // Assumes closed shell
+    XCOperator xc(world,
+                  xc_name,
+                  false,
+                  ground_rho,
+                  ground_rho);  // Assumes closed shell
 
     // Need a blank ResponseFunction for y
     response_space y(world, x.size(), x[0].size());
@@ -100,23 +109,39 @@ private:
   // For DFT, uses the XCOperator to construct ground vxc
   real_function_3d create_ground_vxc() {
     // Create XCoperator
-    XCOperator xc(world, xc_name, false, ground_rho,
-                  ground_rho); // Assumes closed shell
+    XCOperator xc(world,
+                  xc_name,
+                  false,
+                  ground_rho,
+                  ground_rho);  // Assumes closed shell
 
     // Return its potential
     return xc.make_xc_potential();
   }
 
-public:
+ public:
   // ResponsePotential constructor
-  ResponsePotential(World& world, std::vector<real_function_3d>& ground,
-                    real_function_3d& v_nuc, double small, double thresh,
-                    int r_states, int g_states, bool is_dft = false,
-                    std::string xc = "", bool store = true)
-      : world(world), ground_orbitals(ground), ground_rho(calc_density(ground)),
-        v_nuc(v_nuc), projector(QProjector<double, 3>(world, ground_orbitals)),
-        small(small), thresh(thresh), op(CoulombOperator(world, small, thresh)),
-        potential(response_space()), is_dft(is_dft), xc_name(xc),
+  ResponsePotential(World& world,
+                    std::vector<real_function_3d>& ground,
+                    real_function_3d& v_nuc,
+                    double small,
+                    double thresh,
+                    size_t r_states,
+                    int g_states,
+                    bool is_dft = false,
+                    std::string xc = "",
+                    bool store = true)
+      : world(world),
+        ground_orbitals(ground),
+        ground_rho(calc_density(ground)),
+        v_nuc(v_nuc),
+        projector(QProjector<double, 3>(world, ground_orbitals)),
+        small(small),
+        thresh(thresh),
+        op(CoulombOperator(world, small, thresh)),
+        potential(response_space()),
+        is_dft(is_dft),
+        xc_name(xc),
         store_potential(store) {}
 
   /// Calculates coulomb like terms in the potential
@@ -125,7 +150,8 @@ public:
   /// orbitals
   /// @param[inout] groundJ  ground state potential applied to perturbed
   /// orbitals
-  void coulomb_terms(response_space& x, response_space& gammaK,
+  void coulomb_terms(response_space& x,
+                     response_space& gammaK,
                      response_space& groundJ) {
     // Calculate intermediaries
     // If store_potential is true, only calculate it once
@@ -166,8 +192,8 @@ public:
     } else {
       // Hartree-Fock perturbed exchange
       gammaK.compress_rf();
-      for (unsigned int p = 0; p < x.num_orbitals; p++) {
-        for (unsigned int k = 0; k < x.num_states; k++) {
+      for (size_t p = 0; p < x.num_orbitals; p++) {
+        for (size_t k = 0; k < x.num_states; k++) {
           for (unsigned int i = 0; i < x.num_orbitals; i++) {
             real_function_3d t1 = potential[i][p] * x[k][i];
             t1.compress();
@@ -205,7 +231,8 @@ public:
   /// orbitals
   /// @param[inout] groundK  ground state potential applied to perturbed
   /// orbitals
-  void exchange_terms(response_space& x, response_space& gammaJ,
+  void exchange_terms(response_space& x,
+                      response_space& gammaJ,
                       response_space& groundK) {
     // Clear inputs
     gammaJ.clear();
@@ -224,13 +251,13 @@ public:
       // Doing DFT
       // Still need derivative of the coulomb operator
       real_function_3d rho = real_function_3d(world);
-      for (unsigned int k = 0; k < x.num_states; k++) {
+      for (size_t k = 0; k < x.num_states; k++) {
         // Get transition density
         rho = dot(world, x[k], ground_orbitals);
         rho = apply(op, rho);
 
         // Post multiply by ground states
-        for (unsigned int p = 0; p < x.num_orbitals; p++) {
+        for (size_t p = 0; p < x.num_orbitals; p++) {
           gammaJ[k][p] = rho * ground_orbitals[p];
         }
       }
@@ -243,8 +270,8 @@ public:
       groundK = groundK * -1.0;
     } else {
       // Doing Hartree-Fock
-      for (unsigned int k = 0; k < x.num_states; k++) {
-        for (unsigned int p = 0; p < x.num_orbitals; p++) {
+      for (size_t k = 0; k < x.num_states; k++) {
+        for (size_t p = 0; x.num_orbitals; p++) {
           for (unsigned int i = 0; i < x.num_orbitals; i++) {
             // Get the transition density
             real_function_3d rho = x[k][p] * ground_orbitals[i];
@@ -281,8 +308,7 @@ public:
   }
 };
 
-} // End namespace madness
+}  // End namespace madness
 
-#endif
-
+#endif  // SRC_APPS_MOLRESPONSE_RESPONSE_POTENTIAL_H_
 // Dueces

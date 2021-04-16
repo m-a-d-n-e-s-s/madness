@@ -1,7 +1,7 @@
+// Copyright 2021 Adrian Hurtado
 #include <math.h>
 
 #include <cstdint>
-#include <filesystem>
 #include <map>
 #include <memory>
 #include <string>
@@ -9,47 +9,48 @@
 
 #include "../chem/SCFOperators.h"
 #include "../chem/molecule.h"
-#include "NWChem.h"  // For nwchem interface
+#include "../chem/NWChem.h"  // For nwchem interface
 #include "Plot_VTK.h"
 #include "TDDFT.h"
-#include "TDHF_Basic_Operators2.h"
-#include "adrian/ResponseFunction2.h"
-#include "adrian/density.h"
-#include "adrian/global_functions.h"
-#include "adrian/property.h"
-#include "adrian/timer.h"
 #include "chem/potentialmanager.h"
 #include "chem/projector.h"  // For easy calculation of (1 - \hat{\rho}^0)
-#include "load_balance.h"
 #include "madness/mra/funcdefaults.h"
+#include "molresponse/basic_operators.h"
+#include "molresponse/density.h"
+#include "molresponse/global_functions.h"
+#include "molresponse/load_balance.h"
+#include "molresponse/property.h"
+#include "molresponse/response_functions.h"
+#include "molresponse/timer.h"
+#include "molresponse/x_space.h"
 
 /**
  * @brief Computes two electron interaction functions
- * 
- * @param world 
- * @param f 
- * @param g 
- * @param phi 
- * @param small 
- * @param thresh 
- * @param print_level 
- * @param xy 
- * @return response_space 
+ *
+ * @param world
+ * @param f
+ * @param g
+ * @param phi
+ * @param small
+ * @param thresh
+ * @param print_level
+ * @param xy
+ * @return response_space
  */
-response_space TDHF::CreateGamma(World& world,
-                                 response_space& f,
-                                 response_space& g,
-                                 std::vector<real_function_3d>& phi,
-                                 double small,
-                                 double thresh,
-                                 int print_level,
-                                 std::string xy) {
+response_space TDDFT::CreateGamma(World& world,
+                                  response_space& f,
+                                  response_space& g,
+                                  std::vector<real_function_3d>& phi,
+                                  double small,
+                                  double thresh,
+                                  size_t print_level,
+                                  std::string xy) {
   // Start timer
-  if (print_level >= 1) start_timer(world);
+  if (print_level >= 1) molresponse::start_timer(world);
 
   // Get sizes
-  int m = f.size();
-  int n = f[0].size();
+  size_t m = f.size();
+  size_t n = f[0].size();
 
   // The gamma function to be returned, intialized to zero
   response_space gamma(world, m, n);
@@ -74,7 +75,7 @@ response_space TDHF::CreateGamma(World& world,
     std::vector<real_function_3d> vxc = create_fxc(world, phi, f, g);
 
     // Apply xc kernel to ground state orbitals
-    for (int i = 0; i < m; i++) {
+    for (size_t i = 0; i < m; i++) {
       deriv_XC[i] = mul_sparse(world, vxc[i], phi, thresh, false);
     }
     world.gop.fence();
@@ -86,7 +87,7 @@ response_space TDHF::CreateGamma(World& world,
 
   // Project out groundstate
   QProjector<double, 3> projector(world, Gparams.orbitals);
-  for (int i = 0; i < m; i++) gamma[i] = projector(gamma[i]);
+  for (size_t i = 0; i < m; i++) gamma[i] = projector(gamma[i]);
 
   // Debugging output
   if (print_level >= 2) {
@@ -112,7 +113,7 @@ response_space TDHF::CreateGamma(World& world,
   }
 
   // Basic output
-  if (print_level >= 1) end_timer(world, "Creating gamma:");
+  if (print_level >= 1) molresponse::end_timer(world, "Creating gamma:");
 
   truncate(world, gamma);
 
@@ -121,28 +122,28 @@ response_space TDHF::CreateGamma(World& world,
 }
 /**
  * @brief Compute two electron interaction functions
- * 
- * @param world 
- * @param f 
- * @param phi 
- * @param small 
- * @param thresh 
- * @param print_level 
- * @param xy 
- * @return response_space 
+ *
+ * @param world
+ * @param f
+ * @param phi
+ * @param small
+ * @param thresh
+ * @param print_level
+ * @param xy
+ * @return response_space
  */
-response_space TDHF::ComputeHf(World& world,
-                               const response_space& f,
-                               const std::vector<real_function_3d>& phi,
-                               double small,
-                               double thresh,
-                               int print_level,
-                               std::string xy) {
+response_space TDDFT::ComputeHf(World& world,
+                                const response_space& f,
+                                const std::vector<real_function_3d>& phi,
+                                double small,
+                                double thresh,
+                                size_t print_level,
+                                std::string xy) {
   // Start timer
-  if (print_level >= 1) start_timer(world);
+  if (print_level >= 1) molresponse::start_timer(world);
   // Get sizes
-  int m = f.size();
-  int n = f[0].size();
+  size_t m = f.size();
+  size_t n = f[0].size();
 
   // The gamma function to be returned, intialized to zero
   response_space H(world, m, n);
@@ -175,7 +176,7 @@ response_space TDHF::ComputeHf(World& world,
 
   // Project out groundstate
   QProjector<double, 3> projector(world, Gparams.orbitals);
-  for (int i = 0; i < m; i++) {
+  for (size_t i = 0; i < m; i++) {
     H[i] = projector(H[i]);
   }
 
@@ -203,7 +204,7 @@ response_space TDHF::ComputeHf(World& world,
   }
 
   // Basic output
-  if (print_level >= 1) end_timer(world, "Creating H:");
+  if (print_level >= 1) molresponse::end_timer(world, "Creating H:");
 
   truncate(world, H);
 
@@ -212,29 +213,29 @@ response_space TDHF::ComputeHf(World& world,
 }
 /**
  * @brief computes Gf function two electron conjugate interactions
- * 
- * @param world 
- * @param f 
- * @param orbitals 
- * @param small 
- * @param thresh 
- * @param print_level 
- * @param xy 
- * @return response_space 
+ *
+ * @param world
+ * @param f
+ * @param orbitals
+ * @param small
+ * @param thresh
+ * @param print_level
+ * @param xy
+ * @return response_space
  */
-response_space TDHF::ComputeGf(World& world,
-                               const response_space& f,
-                               const std::vector<real_function_3d>& orbitals,
-                               double small,
-                               double thresh,
-                               int print_level,
-                               std::string xy) {
+response_space TDDFT::ComputeGf(World& world,
+                                const response_space& f,
+                                const std::vector<real_function_3d>& orbitals,
+                                double small,
+                                double thresh,
+                                size_t print_level,
+                                std::string xy) {
   // Start a timer
-  if (print_level >= 1) start_timer(world);
+  if (print_level >= 1) molresponse::start_timer(world);
 
   // Get sizes
-  int m = f.size();
-  int n = f[0].size();
+  size_t m = f.size();
+  size_t n = f[0].size();
 
   response_space G(world, m, n);
 
@@ -265,7 +266,7 @@ response_space TDHF::ComputeGf(World& world,
   G = (Jdagger * 2) - Kdagger * xcf.hf_exchange_coefficient() + XCdagger;
   // Project out groundstate
   QProjector<double, 3> projector(world, Gparams.orbitals);
-  for (int i = 0; i < m; i++) {
+  for (size_t i = 0; i < m; i++) {
     G[i] = projector(G[i]);
   }
 
@@ -289,202 +290,32 @@ response_space TDHF::ComputeGf(World& world,
   }
 
   // End timer
-  if (print_level >= 1) end_timer(world, "   Creating G:");
+  if (print_level >= 1) molresponse::end_timer(world, "   Creating G:");
 
   // Done
   return G;
 }
 /**
- * @brief  Computes two electron interaction resonse_spaces 
- * 
- * @param world 
- * @param rho_omega vector of response densities 
- * @param phi_phi  orbital orbital products for exchange
- * @param x x_response states
- * @param y y_response states
- * @param xc  xc functional
- * @param Gparams 
- * @param Rparams 
- * @return GammaResponseFunctions 
+ * @brief
+ *
+ * @param world
+ * @param rho_omega
+ * @param orbital_products
+ * @param x
+ * @param y
+ * @param rhs_x
+ * @param rhs_y
+ * @param xc
+ * @param x_shift
+ * @param Gparams
+ * @param Rparams
+ * @param bsh_x_operators
+ * @param bsh_y_operators
+ * @param ham_no_diagonal
+ * @param iteration
  */
-GammaResponseFunctions TDHF::ComputeGammaFunctions(
+void TDDFT::IterateXY(
     World& world,
-    std::vector<real_function_3d> rho_omega,
-    response_space phi_phi,
-    response_space& x,
-    response_space& y,
-    XCOperator xc,
-    const GroundParameters& Gparams,
-    const ResponseParameters& Rparams) {
-  // Start a timer
-  if (Rparams.print_level >= 1) start_timer(world);
-
-  int m = Rparams.states;
-  int n = Gparams.num_orbitals;
-  double small = Rparams.small;
-  double thresh = FunctionDefaults<3>::get_thresh();
-  // x functions
-  real_convolution_3d op = CoulombOperator(world, small, thresh);
-
-  GammaResponseFunctions gamma;
-  gamma.gamma = response_space(world, m, n);
-  gamma.gamma_conjugate = response_space(world, m, n);
-  response_space J(world, m, n);
-
-  response_space Kx(world, m, n);
-  response_space Kx_conjugate(world, m, n);
-
-  response_space Ky(world, m, n);
-  response_space Ky_conjugate(world, m, n);
-
-  response_space W(world, m, n);
-  std::vector<real_function_3d> Wphi;
-
-  // apply the exchange kernel to rho if necessary
-  if (xcf.hf_exchange_coefficient() != 1.0) {
-    for (int i = 0; i < m; i++) {
-      Wphi.push_back(xc.apply_xc_kernel(rho_omega[i]));
-    }
-  }
-
-  std::vector<response_space> y_phi;
-  std::vector<response_space> x_phi;
-  for (int b = 0; b < m; b++) {
-    y_phi.push_back(response_space(world, n, n));
-    if (Rparams.omega != 0.0) {
-      x_phi.push_back(response_space(world, n, n));
-    }
-  }
-
-  //
-  for (int b = 0; b < m; b++) {
-    for (int k = 0; k < n; k++) {
-      // multiply the kth orbital to vector of y[b] response funtions...apply op      // to each product
-      // (TODO) //split apply and
-      y_phi[b][k] = apply(world, op, mul(world, Gparams.orbitals[k], y[b]));
-      if (Rparams.omega != 0.0) {
-        x_phi[b][k] = apply(world, op, mul(world, Gparams.orbitals[k], x[b]));
-      }
-    }
-  }
-  for (int b = 0; b < m; b++) {
-    if (Rparams.omega != 0.0) {
-      x_phi[b].truncate_rf();
-    }
-    y_phi[b].truncate_rf();
-  }
-  real_function_3d temp_J;
-  // for each response state we compute the Gamma response functions
-  for (int b = 0; b < m; b++) {
-    // apply - save and truncate - multiply
-    //
-    //
-    temp_J = apply(op, rho_omega[b]);
-    temp_J.truncate();
-    J[b] = mul(world, temp_J,
-               Gparams.orbitals);  // multiply by k
-    // if xcf not zero
-    if (xcf.hf_exchange_coefficient() != 1.0) {
-      W[b] = mul(world, Wphi[b], Gparams.orbitals);
-    }
-    //  compute each of the k response parts...
-    for (int k = 0; k < n; k++) {
-      // Jcoulb*orbital[k]
-      //
-      Kx[b][k] = dot(world, x[b], phi_phi[k]);
-      Ky[b][k] = dot(world, y_phi[b][k], Gparams.orbitals);
-
-      if (Rparams.omega != 0.0) {
-        Ky_conjugate[b][k] = dot(world, y[b], phi_phi[k]);
-        Kx_conjugate[b][k] = dot(world, x_phi[b][k], Gparams.orbitals);
-      }
-    }
-  }
-  // trucate all response functions
-  J.truncate_rf();
-  Kx_conjugate.truncate_rf();
-  Ky_conjugate.truncate_rf();
-  Kx.truncate_rf();
-  Ky.truncate_rf();
-  W.truncate_rf();
-
-  if (Rparams.print_level >= 2) {
-    print("2-Electron Potential for Iteration of x");
-    PrintResponseVectorNorms(world, J * 2, "J");
-    PrintResponseVectorNorms(world, Kx, "Kx");
-    PrintResponseVectorNorms(world, Ky, "Ky");
-    PrintResponseVectorNorms(world, Kx + Ky, "Kx+Ky");
-    if (Rparams.omega != 0.0) {
-      print("2-Electron Potential for Iteration of y");
-      PrintResponseVectorNorms(world, Kx_conjugate, "Kx_conjugate");
-      PrintResponseVectorNorms(world, Ky_conjugate, "Ky_conjugate");
-      PrintResponseVectorNorms(
-          world, Kx_conjugate + Ky_conjugate, "Kx_conjugate+Ky_conjugate");
-    }
-  }
-  // update gamma functions
-  QProjector<double, 3> projector(world, Gparams.orbitals);
-  gamma.gamma = (J * 2) - (Kx + Ky) * xcf.hf_exchange_coefficient() + W;
-
-  if (Rparams.omega != 0.0) {
-    gamma.gamma_conjugate =
-        (J * 2) -
-        (Kx_conjugate + Ky_conjugate) * xcf.hf_exchange_coefficient() + W;
-  }
-  // project out ground state
-  for (int i = 0; i < m; i++) {
-    gamma.gamma[i] = projector(gamma.gamma[i]);
-    truncate(world, gamma.gamma[i]);
-
-    if (Rparams.omega != 0.0) {
-      gamma.gamma_conjugate[i] = projector(gamma.gamma_conjugate[i]);
-      truncate(world, gamma.gamma_conjugate[i]);
-    }
-  }
-
-  // put it all together
-  // no 2-electron
-
-  if (Rparams.print_level >= 2) {
-    print("<X ,Gamma(X,Y) Phi>");
-    PrintRFExpectation(world, x, gamma.gamma, "x", "Gamma)");
-    if (Rparams.omega != 0.0) {
-      print("<Y ,Gamma_Conjugate(X,Y) Phi>");
-      PrintRFExpectation(world, y, gamma.gamma_conjugate, "x", "Gamma)");
-    }
-  }
-
-  // End timer
-  if (Rparams.print_level >= 1) end_timer(world, "   Creating Gamma:");
-
-  // Done
-  world.gop.fence();
-  return gamma;
-  // Get sizes
-}
-/**
- * @brief 
- * 
- * @param world 
- * @param rho_omega 
- * @param orbital_products 
- * @param x 
- * @param y 
- * @param rhs_x 
- * @param rhs_y 
- * @param xc 
- * @param x_shift 
- * @param Gparams 
- * @param Rparams 
- * @param bsh_x_operators 
- * @param bsh_y_operators 
- * @param ham_no_diagonal 
- * @param iteration 
- */
-void TDHF::IterateXY(
-    World& world,
-    std::vector<real_function_3d> rho_omega,
-    response_space orbital_products,
     response_space& x,
     response_space& y,
     response_space rhs_x,
@@ -496,10 +327,10 @@ void TDHF::IterateXY(
     std::vector<std::shared_ptr<real_convolution_3d>> bsh_x_operators,
     std::vector<std::shared_ptr<real_convolution_3d>> bsh_y_operators,
     Tensor<double> ham_no_diagonal,
-    int iteration) {
+    size_t iteration) {
   // compute
-  int m = Rparams.states;
-  int n = Gparams.num_orbitals;
+  size_t m = Rparams.states;
+  size_t n = Gparams.num_orbitals;
   double small = Rparams.small;
   double thresh = FunctionDefaults<3>::get_thresh();
 
@@ -517,8 +348,6 @@ void TDHF::IterateXY(
   if (Rparams.print_level == 3) {
     print("norms of v0x");
     print(Z.v0_x.norm2());
-    // + \Delta xp
-    print("Value of xshift", x_shift);
   }
 
   Z.v0_x += (x * x_shift);  // scale(x, x_shifts);
@@ -541,9 +370,9 @@ void TDHF::IterateXY(
     print(Z.x_f_no_diag.norm2());
   }
   // If not static we compute the y components
-    Z.v0_y = CreatePotential(world, y, xc, Rparams.print_level, "y");
-    Z.y_f_no_diag = y * ham_no_diagonal;  // scale_2d(world, y,
-                                          // ham_no_diagonal);
+  Z.v0_y = CreatePotential(world, y, xc, Rparams.print_level, "y");
+  Z.y_f_no_diag = y * ham_no_diagonal;  // scale_2d(world, y,
+                                        // ham_no_diagonal);
   // Some printing for debugging
   if (Rparams.print_level >= 2) {
     { PrintRFExpectation(world, x, Z.v0_x, "x", "V0X"); }
@@ -577,7 +406,7 @@ void TDHF::IterateXY(
     }
   } else {
     GammaResponseFunctions gamma = ComputeGammaFunctions(
-        world, rho_omega, orbital_products, x, y, xc, Gparams, Rparams);
+        world, x, y, xc, Gparams, Rparams, Rparams.omega != 0.0);
     // We can use the old algorithm here for testings
     // we then assemble the right hand side vectors
     Z.Z_x = (Z.v0_x - Z.x_f_no_diag + gamma.gamma + rhs_x) * -2;
@@ -602,14 +431,14 @@ void TDHF::IterateXY(
     }
   }
   // Load Balancing
-  if (world.size() > 1 && ((iteration < 2) or (iteration % 5 == 0))) {
+  if (world.size() > 1 && (iteration < 2 or iteration % 5 == 0)) {
     // Start a timer
-    if (Rparams.print_level >= 1) start_timer(world);
+    if (Rparams.print_level >= 1) molresponse::start_timer(world);
     if (world.rank() == 0) print("");  // Makes it more legible
     // (TODO Ask Robert about load balancing)
     LoadBalanceDeux<3> lb(world);
-    for (int j = 0; j < n; j++) {
-      for (int k = 0; k < Rparams.states; k++) {
+    for (size_t j = 0; j < n; j++) {
+      for (size_t k = 0; k < Rparams.states; k++) {
         lb.add_tree(x_response[k][j], lbcost<double, 3>(1.0, 8.0), true);
         lb.add_tree(Z.v0_x[k][j], lbcost<double, 3>(1.0, 8.0), true);
         lb.add_tree(Z.Hx[k][j], lbcost<double, 3>(1.0, 8.0), true);
@@ -618,13 +447,14 @@ void TDHF::IterateXY(
     }
     FunctionDefaults<3>::redistribute(world, lb.load_balance(2));
 
-    if (Rparams.print_level >= 1) end_timer(world, "Load balancing:");
+    if (Rparams.print_level >= 1)
+      molresponse::end_timer(world, "Load balancing:");
   }
-  if (Rparams.print_level >= 1) start_timer(world);
+  if (Rparams.print_level >= 1) molresponse::start_timer(world);
 
   bsh_x_resp = apply(world, bsh_x_operators, Z.Z_x);
   if (Rparams.omega != 0.0) bsh_y_resp = apply(world, bsh_y_operators, Z.Z_y);
-  if (Rparams.print_level >= 1) end_timer(world, "Apply BSH:");
+  if (Rparams.print_level >= 1) molresponse::end_timer(world, "Apply BSH:");
 
   // Debugging output
   if (Rparams.print_level >= 2) {
@@ -639,12 +469,12 @@ void TDHF::IterateXY(
     }
   }
   x_response = bsh_x_resp.copy();
-  if (Rparams.omega != 0.0){
+  if (Rparams.omega != 0.0) {
     y_response = bsh_y_resp.copy();
-  }else{
+  } else {
     y_response = x_response.copy();
   }
-  
+
   x_response.truncate_rf();
   y_response.truncate_rf();
 }

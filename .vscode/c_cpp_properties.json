@@ -17,8 +17,7 @@
                 "${workspaceFolder}/src",
                 "${workspaceFolder}/src",
                 "${workspaceFolder}/src",
-                "${workspaceFolder}/src",
-                "${workspaceFolder}/src/apps/adrian"
+                "${workspaceFolder}/src"
             ],
             "defines": [],
             "cStandard": "c11",
