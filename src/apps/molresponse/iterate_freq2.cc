@@ -11,7 +11,7 @@
 
 #include "../chem/SCFOperators.h"
 #include "../chem/molecule.h"
-#include "NWChem.h"  // For nwchem interface
+#include "../chem/NWCHEM.h"  // For nwchem interface
 #include "Plot_VTK.h"
 #include "TDDFT.h"
 #include "chem/potentialmanager.h"
