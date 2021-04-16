@@ -114,15 +114,26 @@ if(NOT TBB_FOUND)
   
   # Get TBB version
   if(TBB_INCLUDE_DIRS)
-    file(READ "${TBB_INCLUDE_DIRS}/tbb/tbb_stddef.h" _tbb_version_file)
-    string(REGEX REPLACE ".*#define TBB_VERSION_MAJOR ([0-9]+).*" "\\1"
-            TBB_VERSION_MAJOR "${_tbb_version_file}")
-    string(REGEX REPLACE ".*#define TBB_VERSION_MINOR ([0-9]+).*" "\\1"
-            TBB_VERSION_MINOR "${_tbb_version_file}")
-    string(REGEX REPLACE ".*#define TBB_INTERFACE_VERSION ([0-9]+).*" "\\1"
-            TBB_INTERFACE_VERSION "${_tbb_version_file}")
-    set(TBB_VERSION "${TBB_VERSION_MAJOR}.${TBB_VERSION_MINOR}")
-    unset(_tbb_version_header)
+    # locate the header file defining the TBB version macros
+    # pre-OneAPI
+    set(_tbb_version_filename "${TBB_INCLUDE_DIRS}/tbb/tbb_stddef.h")
+    if (NOT EXISTS "${_tbb_version_filename}")
+      # OneAPI
+      set(_tbb_version_filename "${TBB_INCLUDE_DIRS}/oneapi/tbb/version.h")
+    endif()
+    if (EXISTS "${_tbb_version_filename}")
+      file(READ "${_tbb_version_filename}" _tbb_version_file)
+      string(REGEX REPLACE ".*#define TBB_VERSION_MAJOR ([0-9]+).*" "\\1"
+             TBB_VERSION_MAJOR "${_tbb_version_file}")
+      string(REGEX REPLACE ".*#define TBB_VERSION_MINOR ([0-9]+).*" "\\1"
+             TBB_VERSION_MINOR "${_tbb_version_file}")
+      string(REGEX REPLACE ".*#define TBB_INTERFACE_VERSION ([0-9]+).*" "\\1"
+             TBB_INTERFACE_VERSION "${_tbb_version_file}")
+      set(TBB_VERSION "${TBB_VERSION_MAJOR}.${TBB_VERSION_MINOR}")
+      unset(_tbb_version_file)
+    else()
+      set(TBB_VERSION "unknown")
+    endif()
   endif()
 
   # handle the QUIETLY and REQUIRED arguments and set TBB_FOUND to TRUE

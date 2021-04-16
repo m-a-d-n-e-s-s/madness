@@ -385,7 +385,7 @@ namespace madness {
 
     void RMI::begin(const SafeMPI::Intracomm& comm) {
 
-      // if MADNESS was told to assume ASLR is disabled check ... RMI can work with ALSR on, but that requires loading all RMI-using code as one giant shared library
+      // if MADNESS was told to assume ASLR is disabled *completely*, check ... RMI can work with ALSR on, but that requires loading all RMI-using code as one giant shared library
 #ifdef MADNESS_ASSUMES_ASLR_DISABLED
             // complain loudly and throw if ASLR is on ... RMI requires ASLR to be off
             assert_aslr_off(comm);
