@@ -42,6 +42,10 @@ struct gaussian {
 		double x=r[0], y=r[1], z=r[2], aa=r[3];
 		return exp(-a*(x*x + y*y + z*z * aa*aa));//*abs(sin(abs(2.0*x))) *cos(y);
 	}
+    double operator()(const coord_3d& r) const {
+        double x=r[0], y=r[1], z=r[2];
+        return exp(-a*(x*x + y*y + z*z ));//*abs(sin(abs(2.0*x))) *cos(y);
+    }
 };
 
 
@@ -93,6 +97,116 @@ public:
 
 };
 
+
+template<typename taskT>
+class MacroTask_2G {
+
+    typedef std::pair<long,hashT> batchT;
+    typedef std::list<batchT> partitionT;
+    typedef typename taskT::resultT resultT;
+    taskT task;
+public:
+    class MacroTaskInternal : public MacroTaskIntermediate<MacroTask> {
+
+        typedef typename taskT::argT1 argT1;
+        typedef typename taskT::argT2 argT2;
+        typedef typename taskT::resultT resultT;
+        batchT batch;
+    public:
+        taskT task;
+        MacroTaskInternal(const taskT& task, const batchT& batch) : task(task), batch(batch) {}
+
+        void run(World& subworld, Cloud& cloud, MacroTaskBase::taskqT& taskq) {
+
+            argT1 arg1=get_input<argT1>(subworld,cloud);
+            argT2 arg2=argT2(2);//=get_input<argT2>(subworld,cloud);
+            resultT result=get_output(subworld, cloud);
+            result+=task(arg1,arg2);
+        };
+
+        resultT get_output(World& subworld, Cloud& cloud) {
+            resultT result;
+            std::shared_ptr<FunctionImpl<double,3> > rimpl;
+            cloud.load(subworld,rimpl,0);
+            result.set_impl(rimpl);
+            return result;
+        }
+
+        template<typename argT>
+        argT get_input(World& subworld, Cloud& cloud) {
+            hashT inputrecord=batch.second;
+            argT arg;
+            cloud.load(subworld,arg,inputrecord);
+            return arg;
+        }
+    };
+
+public:
+    MacroTask_2G(World& world, taskT& task) : world(world), task(task), taskq_ptr() {}
+    MacroTask_2G(World& world, taskT& task, std::shared_ptr<MacroTaskQ> taskq_ptr) : world(world), task(task), taskq_ptr(taskq_ptr) {}
+
+    template<typename argT1, typename argT2>
+    resultT operator()(const argT1& arg1, const argT2& arg2) {
+        partitionT partition;//=OrbitalPartitioner::partition_tasks(arg1);
+        partition.push_back(batchT(0,1));
+
+        prepare_input(partition,arg1,arg2);
+        resultT result=prepare_output(taskq_ptr->cloud);
+
+        MacroTaskBase::taskqT vtask;
+        for (const batchT& batch : partition) {
+            vtask.push_back(std::shared_ptr<MacroTaskBase>(new MacroTaskInternal(task,batch)));
+        }
+
+        if (not deferred_execution())  {
+            MacroTaskQ taskq(world, world.size());
+            taskq.add_tasks(vtask);
+            taskq.run_all(vtask);
+            world.gop.fence();
+        } else {
+            taskq_ptr->add_tasks(vtask);
+        }
+        return result;
+    }
+
+
+private:
+    bool deferred_execution() const {return (taskq_ptr) ? true : false;}
+
+    template<typename argT1, typename argT2>
+    void prepare_input(const partitionT& partition, const argT1& arg1, const argT2& arg2) {
+        hashT inputrecord=partition.front().second;
+//        auto storage=std::tie(arg1,arg2);
+//        taskq_ptr->cloud.store(world,storage,inputrecord);
+        if (std::is_constructible<argT1,World&>::value) taskq_ptr->cloud.store(world,arg1,inputrecord);
+        if (std::is_constructible<argT2,World&>::value) taskq_ptr->cloud.store(world,arg2,inputrecord);
+    }
+
+    resultT prepare_output(Cloud& cloud) {
+        resultT result(world);
+        cloud.store(world, result.get_impl(), 0); // store pointer to FunctionImpl
+        return result;
+    }
+
+
+    World& world;
+    std::shared_ptr<MacroTaskQ> taskq_ptr;
+
+};
+
+class MicroTask {
+public:
+    typedef real_function_3d resultT;
+    typedef real_function_3d argT1;
+    typedef double argT2;
+    resultT operator()(const real_function_3d& arg1, const double arg2) const {
+        print("Hello world from MicroTask", arg2);
+        myusleep(2.e6);
+        return arg2*arg1;
+    }
+};
+
+
 /// similar to MacroTask, for testing heterogeneous task queues
 class MacroTask1 : public MacroTaskIntermediate<MacroTask1> {
 
@@ -138,7 +252,7 @@ int main(int argc, char** argv) {
     int nworld=universe.size();
     if (universe.rank()==0) print("creating nworld",nworld);
 
-    {
+    if (0) {
     	MacroTaskQ taskq(universe,nworld);
 
 		long ntask=15;
@@ -172,6 +286,28 @@ int main(int argc, char** argv) {
 	//    print_size(universe,result,"result after map");
     }
 	universe.gop.fence();
+
+    {
+        // execution in a taskq, result will be complete only after the taskq is finished
+        real_function_3d f1=real_factory_3d(universe).functor(gaussian(1.0));
+
+        MicroTask t;
+        real_function_3d f3=t(f1,2.0);
+
+        auto taskq=std::shared_ptr<MacroTaskQ> (new MacroTaskQ(universe,nworld));
+        taskq->set_printlevel(10);
+        MacroTask_2G<MicroTask> task(universe,t,taskq);
+        real_function_3d f2=task(f1,2.0);
+        double norm2a=(f2).norm2();
+
+        print("before running all tasks");
+        taskq->run_all();
+        universe.gop.fence();
+        double norm2=(f2).norm2();
+        double norm3=(f3).norm2();
+        double error=(f3-f2).norm2();
+        print("norm2/2a/3, error",norm2, norm2a, norm3, error);
+    }
 
     madness::finalize();
     return 0;

@@ -127,7 +127,7 @@ public:
 	}
 
 	/// run all tasks, tasks may store the results in the cloud
-	void run_all(std::vector<std::shared_ptr<MacroTaskBase> >& vtask) {
+	void run_all(MacroTaskBase::taskqT vtask=MacroTaskBase::taskqT()) {
 
 		for (const auto& t : vtask) if (universe.rank()==0) t->set_waiting();
 		for (int i=0; i<vtask.size(); ++i) add_replicated_task(vtask[i]);
@@ -168,6 +168,13 @@ public:
         subworld.gop.fence();
         universe.gop.fence();
         universe.gop.fence();
+	}
+
+	void add_tasks(MacroTaskBase::taskqT& vtask) {
+        for (const auto& t : vtask) {
+            if (universe.rank()==0) t->set_waiting();
+            add_replicated_task(t);
+        }
 	}
 
 //	/// run the task on the vector of input data, return vector of results
