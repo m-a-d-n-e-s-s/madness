@@ -32,6 +32,7 @@ build*
 .cproject
 .project
 .settings
+.idea
 Makefile.in
 src/madness/config.h.in
 aclocal.m4

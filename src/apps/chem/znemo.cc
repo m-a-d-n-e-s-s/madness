@@ -375,7 +375,7 @@ double Znemo::analyze() {
 	save(j[1],"j1");
 	save(j[2],"j2");
 
-	Lz lz(world);
+	Lz<double_complex,3> lz(world);
 	// compute the expectation values of the Lz operator
 	std::vector<complex_function_3d> lzamo=0.5*B[2]*lz(amo);
 	std::vector<complex_function_3d> lzbmo=0.5*B[2]*lz(bmo);
@@ -675,7 +675,7 @@ std::vector<real_function_3d> Znemo::compute_current_density(
 
 void Znemo::test_compute_current_density() const {
 
-	Lz lz(world);
+	Lz<double_complex,3> lz(world);
 	complex_function_3d pp=complex_factory_3d(world).functor(p_orbital(1,1.0,{0,0,0}));
 	double norm=pp.norm2();
 	pp.scale(1/norm);
@@ -700,7 +700,7 @@ void Znemo::test_landau_wave_function() {
 	double fnorm=f.norm2();
 	f.scale(1.0/fnorm);
 
-	Lz lz(world);
+	Lz<double_complex,3> lz(world);
 	double_complex expval=0.5*B*lz(f,f);
 	print("<f(m) | Lz | f(m)> ", m, expval);
 	double_complex diaexpval=inner(f,diafac->bare_diamagnetic_potential()*f);
@@ -916,7 +916,7 @@ std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,
 Znemo::custom_guess() const {
 	MADNESS_ASSERT(molecule().natom()==1);
 
-	Lz lz(world);
+	Lz<double_complex,3> lz(world);
 
 	std::vector<std::string> guess=param.guess();
 	std::vector<complex_function_3d> guess_vector;
@@ -981,7 +981,7 @@ Znemo::hcore_guess() const {
 	Tensor<double_complex> potential=matrix_inner(world,aos,vlocal*aos);
 
 	// zeeman term
-	Lz lz_operator(world,false);
+	Lz<double_complex,3> lz_operator(world,false);
 	Tensor<double_complex> lzmat=0.5*B[2]*lz_operator(aos,aos);
 	potential+=lzmat;
 
@@ -1027,7 +1027,7 @@ Znemo::potentials Znemo::compute_potentials(const std::vector<complex_function_3
 	occ=1.0;
 	K.set_parameters(conj(world,dia2mo),mo,occ,cparam.lo(),cparam.econv());
 
-	Nuclear nuc(world,ncf);
+	Nuclear<double_complex,3> nuc(world,ncf);
 
 	potentials pot(world,rhs.size());
 
@@ -1035,7 +1035,7 @@ Znemo::potentials Znemo::compute_potentials(const std::vector<complex_function_3
 	pot.K_mo=K(rhs);
 	pot.vnuc_mo=nuc(rhs);
 
-	pot.lz_mo=0.5*B[2]*Lz(world,false)(rhs);
+	pot.lz_mo=0.5*B[2]*Lz<double_complex,3>(world,false)(rhs);
 	pot.lz_commutator=diafac->compute_lz_commutator()*rhs;
 
 	pot.diamagnetic_mo=diafac->apply_potential(rhs);

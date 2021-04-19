@@ -78,6 +78,7 @@ void write_test_input() {
 }
 
 int main(int argc, char** argv) {
+<<<<<<< HEAD
   initialize(argc, argv);
   World world(SafeMPI::COMM_WORLD);
   if (world.rank() == 0) {
@@ -147,6 +148,39 @@ int main(int argc, char** argv) {
       ierr = oep->test_oep(HF_nemos);
     else
       oep->value(HF_nemos);
+=======
+
+    initialize(argc, argv);
+    World world(SafeMPI::COMM_WORLD);
+    if (world.rank() == 0) {
+    	print("\n  OEP -- optimized effective potentials for DFT  \n");
+    	printf("starting at time %.1f\n", wall_time());
+    }
+    startup(world, argc, argv,true);
+    std::cout.precision(6);
+
+    if (world.rank()==0) print(info::print_revision_information());
+
+    commandlineparser parser(argc,argv);
+
+    // to allow to test the program
+    bool test = parser.key_exists("test");
+    bool analyze = parser.key_exists("analyze");
+
+    // create test input file if program is tested
+    if (test) {
+    	write_test_input();
+    	parser.set_keyval("input","test_input");
+    }
+
+    // do approximate OEP calculation or test the program
+    std::shared_ptr<OEP> oep(new OEP(world, parser));
+    oep->print_parameters({"reference","oep","oep_calc"});
+    int ierr=0;
+    if (test) ierr=oep->test_oep();
+    else if (analyze)  oep->analyze();
+    else oep->value();
+>>>>>>> e1ef6eb23e1fb2f3d4f9517687363a0eebe5fc57
 
     finalize();
     return ierr;
