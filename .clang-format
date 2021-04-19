@@ -3,6 +3,7 @@ PointerAlignment: Left
 
 BinPackArguments: false
 BinPackParameters: false
+ColumnLimit: 120
 
 ExperimentalAutoDetectBinPacking: false
 AllowAllParametersOfDeclarationOnNextLine: false

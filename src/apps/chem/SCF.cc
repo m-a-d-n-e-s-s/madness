@@ -492,7 +492,7 @@ distmatT SCF::localize_new(World & world, const vecfuncT & mo,
 		MADNESS_ASSERT(std::accumulate(at_nbf.begin(),at_nbf.end(),0)==nao);
 		MADNESS_ASSERT(at_to_bf.back()+at_nbf.back()==nao);
 		//print(at_to_bf, at_nbf);
-	} 
+	}
 	else {
 		aobasis.shells_to_bfn(molecule, at_to_bf, at_nbf);
 		//aobasis.atoms_to_bfn(molecule, at_to_bf, at_nbf);
@@ -1172,7 +1172,7 @@ void SCF::initial_guess(World & world) {
                      functionT vlda=make_lda_potential(world, rhotmp);
                      functionT coul=apply(*coulop, rhotmp);
                      plot_line("vlocal.dat",npt, {0.0,0.0,-50.0}, {0.0,0.0,50.0}, vlocal);
-                     plot_line("vcoul.dat",npt, {0.0,0.0,-50.0}, {0.0,0.0,50.0}, vcoul);    
+                     plot_line("vcoul.dat",npt, {0.0,0.0,-50.0}, {0.0,0.0,50.0}, vcoul);
                      plot_line("vlda.dat",npt, {0.0,0.0,-50.0}, {0.0,0.0,50.0}, vlda);
                      plot_line("dens.dat",npt, {0.0,0.0,-50.0}, {0.0,0.0,50.0}, rhotmp);
 
@@ -1283,13 +1283,13 @@ void SCF::initial_guess(World & world) {
 
              // Construct interfact object from slymer namespace
              slymer::NWChem_Interface nwchem(param.nwfile(), std::cout);
-             
+
              // For parallel runs, silencing all but 1 slymer instance
              // If print_level is too low, silence all
              if(world.rank() != 0 or param.print_level() < 4) {
                 std::ostream dev_null(nullptr);
                 nwchem.err = dev_null;
-             }              
+             }
 
              // Read in basis set
              nwchem.read(slymer::Properties::Basis);
@@ -1322,7 +1322,7 @@ void SCF::initial_guess(World & world) {
              std::vector<double> mad_coc(3,0);
              for (int i = 0; i < molecule.natom(); ++i) {
                 const Atom& atom = molecule.get_atom(i);
-                int charge = atom.atomic_number;                  
+                int charge = atom.atomic_number;
                 mad_coc[0] += atom.x * charge;
                 mad_coc[1] += atom.y * charge;
                 mad_coc[2] += atom.z * charge;
@@ -1336,7 +1336,7 @@ void SCF::initial_guess(World & world) {
              }
              molecule.translate(translation);
 
-             // Now construct the rotation such that the overlap between NWChem 
+             // Now construct the rotation such that the overlap between NWChem
              // and MADNESS is maximized.
              // First need the locations in a tensor for manipulations
              Tensor<double> nw_coords(nwchem.atoms.size(),4);
@@ -1353,7 +1353,7 @@ void SCF::initial_guess(World & world) {
                 mad_coords(i,2) = atom.z;
                 mad_coords(i,3) = atom.atomic_number * 1000.0;
              }
-             
+
              // Using polar decomp to construct rotation
              Tensor<double> q = inner(transpose(mad_coords), nw_coords);
              Tensor<double> VT(4,4);
@@ -1367,11 +1367,11 @@ void SCF::initial_guess(World & world) {
              if(world.rank() == 0 && param.print_level()>3) print("New MADNESS coordinates:");
              for (int i = 0; i < molecule.natom(); ++i) {
                 const Atom& atom = molecule.get_atom(i);
-                if(world.rank() == 0 && param.print_level()>3) print(atomic_number_to_symbol(atom.atomic_number),  atom.x, atom.y, atom.z); 
-             } 
+                if(world.rank() == 0 && param.print_level()>3) print(atomic_number_to_symbol(atom.atomic_number),  atom.x, atom.y, atom.z);
+             }
 
              // Construct nuclear potential
-             make_nuclear_potential(world); 
+             make_nuclear_potential(world);
              real_function_3d vnuc = potentialmanager->vnuclear();
 
              // Pull out occupation numbers
@@ -1387,7 +1387,7 @@ void SCF::initial_guess(World & world) {
                 // (alpha and beta) with occupation 1
                 aocc[i] = 1.0;
              }
-             
+
              // Pull out energies
              aeps = tensorT(param.nalpha());
              for (int i = 0; i < param.nalpha(); i++) {
@@ -1397,14 +1397,14 @@ void SCF::initial_guess(World & world) {
              // Create the orbitals as madness functions
              // Just create the vector of atomic orbitals
              // and use the vector of MO coefficients and
-             // the transform function, then take only 
+             // the transform function, then take only
              // the occupied orbitals.
              if(world.rank() == 0 && param.print_level()>3) print("\nCreating MADNESS functions from the NWChem orbitals.");
-                           
+
              // Cast the 'basis_set' into a gaussian basis
-             // and iterate over it 
+             // and iterate over it
              vector_real_function_3d temp1;
-             int i = 0; 
+             int i = 0;
              for(auto basis : slymer::cast_basis<slymer::GaussianFunction>(nwchem.basis_set)) {
                  // Get the center of gaussian as its special point
                  std::vector<coord_3d> centers;
@@ -1414,13 +1414,13 @@ void SCF::initial_guess(World & world) {
 
                  // Now make the function
                  temp1.push_back(factoryT(world).functor(functorT(new slymer::Gaussian_Functor(basis.get(), centers))));
-                 if(world.rank() == 0 and i % 10 == 0 and i != 0 && param.print_level()>3) print("Created", i, "functions."); 
+                 if(world.rank() == 0 and i % 10 == 0 and i != 0 && param.print_level()>3) print("Created", i, "functions.");
                  i++;
-             } 
-             if(world.rank() == 0 && param.print_level()>3) print("Finished creating", temp1.size(), "functions.");    
- 
+             }
+             if(world.rank() == 0 && param.print_level()>3) print("Finished creating", temp1.size(), "functions.");
+
              // Transform ao's now
-             vector_real_function_3d temp = transform(world, temp1, nwchem.MOs, vtol, true); 
+             vector_real_function_3d temp = transform(world, temp1, nwchem.MOs, vtol, true);
 
              // Now save all aos and only the occupied amo
              for(unsigned int i = 0; i < temp1.size(); i++) {
@@ -1450,19 +1450,19 @@ void SCF::initial_guess(World & world) {
                     MADNESS_ASSERT(nwchem.beta_occupancies[i] == 1.0);
                     bocc[i] = 1.0;
                  }
-                 
+
                  // Pull out energies
                  beps = tensorT(param.nbeta());
                  for (int i = 0; i < param.nbeta(); i++) {
                     beps[i] = nwchem.beta_energies[i];
                  }
-                  
+
                  // Transform ao's now
-                 temp = transform(world, temp1, nwchem.beta_MOs, vtol, true); 
+                 temp = transform(world, temp1, nwchem.beta_MOs, vtol, true);
 
                  // Now only take the occupied bmo
-                 for(unsigned int i = 0; i < temp1.size(); i++) { 
-                     if(nwchem.beta_occupancies[i] > 0) { 
+                 for(unsigned int i = 0; i < temp1.size(); i++) {
+                     if(nwchem.beta_occupancies[i] > 0) {
                          bmo.push_back(copy(temp[i]));
                      }
                  }
@@ -1477,7 +1477,7 @@ void SCF::initial_guess(World & world) {
 
              END_TIMER(world, "read nwchem file");
           }
-          
+
 	}
 }
 
@@ -2094,10 +2094,10 @@ tensorT SCF::matrix_exponential(const tensorT& A) const {
 	}
 	else if (anorm > 4.5e-8) {
 		expB = I + B + inner(B,B).scale(0.5);
-	} 
+	}
 	else {
 		expB = I + B;
-	} 
+	}
 
 	// // Old algorithm
 	// tensorT oldexpB = copy(I);
@@ -4126,7 +4126,7 @@ void SCF::polarizability(World & world)
 													byx.push_back(by_old[p]);
 												}
 											}
-#endif 
+#endif
 ax_old.clear();
 ay_old.clear();
 bx_old.clear();
