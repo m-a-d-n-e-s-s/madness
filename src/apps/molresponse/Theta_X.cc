@@ -32,7 +32,7 @@
 
 X_space TDDFT::Compute_Theta_X(World& world,
                                X_space& Chi,
-                               XCOperator xc,
+                               XCOperator<double,3>  xc,
                                bool compute_Y) {
   print("-------------------Compute Theta X-------------------");
   print("x_norms in Theta X ");

@@ -29,7 +29,7 @@ GammaResponseFunctions TDDFT::ComputeGammaFunctions(
     World& world,
     response_space& x,
     response_space& y,
-    XCOperator xc,
+    XCOperator<double,3>  xc,
     const GroundParameters& Gparams,
     const ResponseParameters& Rparams,
     bool compute_Y) {
@@ -208,7 +208,7 @@ GammaResponseFunctions TDDFT::ComputeGammaFunctions(
   // Get sizes
 }
 
-X_space TDDFT::ComputeGammaFull(World& world, X_space& Chi, XCOperator xc) {
+X_space TDDFT::ComputeGammaFull(World& world, X_space& Chi, XCOperator<double,3>  xc) {
   if (Rparams.print_level >= 1) molresponse::start_timer(world);
   print("-------------------Gamma Functions-------------------");
   print("x_norms in Gamma Functions ");
@@ -342,7 +342,7 @@ X_space TDDFT::ComputeGammaFull(World& world, X_space& Chi, XCOperator xc) {
   // Get sizes
 }
 
-X_space TDDFT::ComputeGammaStatic(World& world, X_space& Chi, XCOperator xc) {
+X_space TDDFT::ComputeGammaStatic(World& world, X_space& Chi, XCOperator<double,3>  xc) {
   if (Rparams.print_level >= 1) molresponse::start_timer(world);
   print("-------------------Gamma Functions-------------------");
   print("x_norms in Gamma Functions ");
@@ -454,7 +454,7 @@ X_space TDDFT::ComputeGammaStatic(World& world, X_space& Chi, XCOperator xc) {
   // Get sizes
 }
 
-X_space TDDFT::ComputeGammaTDA(World& world, X_space& Chi, XCOperator xc) {
+X_space TDDFT::ComputeGammaTDA(World& world, X_space& Chi, XCOperator<double,3>  xc) {
   // Start a timer
   //
   if (Rparams.print_level >= 1) molresponse::start_timer(world);

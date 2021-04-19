@@ -68,7 +68,7 @@ void TDDFT::Iterate(World& world) {
   Tensor<double> old_S;
 
   // initialize DFT XC functional operator
-  XCOperator xc = create_xcoperator(world, Gparams.orbitals, Rparams.xc);
+  XCOperator<double,3>  xc = create_XCOperator(world, Gparams.orbitals, Rparams.xc);
 
   /*
    * X space refers to X and Y vector spaces |X,Y>
@@ -92,7 +92,7 @@ void TDDFT::Iterate(World& world) {
     Xvector.push_back(X_vector(X, b));
     Xresidual.push_back(X_vector(residuals, b));
   }
-  // If DFT, initialize the XCOperator
+  // If DFT, initialize the XCOperator<double,3>
   std::vector<XNonlinearSolver<X_vector, double, X_space_allocator>>
       kain_x_space;
   size_t nkain = m;  // (Rparams.omega != 0.0) ? 2 * m : m;

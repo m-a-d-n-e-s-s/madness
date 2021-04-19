@@ -80,10 +80,10 @@ class ResponsePotential {
     return densities;
   }
 
-  // For DFT, uses the XCOperator to construct perturubed vxc
+  // For DFT, uses the XCOperator<double,3>  to construct perturubed vxc
   std::vector<real_function_3d> create_perturbed_vxc(response_space& x) {
-    // Create XCoperator
-    XCOperator xc(world,
+    // Create XCOperator<double,3> 
+    XCOperator<double,3>  xc(world,
                   xc_name,
                   false,
                   ground_rho,
@@ -106,10 +106,10 @@ class ResponsePotential {
     return vxc;
   }
 
-  // For DFT, uses the XCOperator to construct ground vxc
+  // For DFT, uses the XCOperator<double,3>  to construct ground vxc
   real_function_3d create_ground_vxc() {
-    // Create XCoperator
-    XCOperator xc(world,
+    // Create XCOperator<double,3> 
+    XCOperator<double,3>  xc(world,
                   xc_name,
                   false,
                   ground_rho,

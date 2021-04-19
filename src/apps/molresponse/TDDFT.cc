@@ -1089,7 +1089,7 @@ response_space TDDFT::exchange(World& world, response_space& f) {
 // Returns the ground state potential applied to functions f
 response_space TDDFT::CreatePotential(World& world,
                                       response_space& f,
-                                      XCOperator xc,
+                                      XCOperator<double,3>  xc,
                                       size_t print_level,
                                       std::string xy) {
   // Start a timer
@@ -1183,7 +1183,7 @@ void TDDFT::computeElectronResponse(World& world,
                                     response_space& x,
                                     response_space& y,
                                     std::vector<real_function_3d>& orbitals,
-                                    XCOperator xc,
+                                    XCOperator<double,3>  xc,
                                     Tensor<double>& hamiltonian,
                                     Tensor<double>& ham_no_diag,
                                     double small,
@@ -1352,7 +1352,7 @@ Zfunctions TDDFT::ComputeZFunctions(World& world,
                                     response_space orbital_products,
                                     response_space& x,
                                     response_space& y,
-                                    XCOperator xc,
+                                    XCOperator<double,3>  xc,
                                     double x_shifts,
                                     double y_shifts,
                                     const GroundParameters& Gparams,
@@ -1414,7 +1414,7 @@ X_space TDDFT::ComputeResponseResidual(World& world,
                                        response_space& y,
                                        response_space rhs_x,
                                        response_space rhs_y,
-                                       XCOperator xc,
+                                       XCOperator<double,3>  xc,
                                        const GroundParameters& Gparams,
                                        const ResponseParameters& Rparams,
                                        Tensor<double> hamiltonian,
@@ -3918,9 +3918,9 @@ void TDDFT::deflateFull(World& world,
   //}
 }
 // const double thresh, int print_level) {
-// Creates the XCOperator object and initializes it with correct
+// Creates the XCOperator<double,3>  object and initializes it with correct
 // parameters
-XCOperator TDDFT::create_xcoperator(World& world,
+XCOperator<double,3>  TDDFT::create_XCOperator (World& world,
                                     std::vector<real_function_3d> orbitals,
                                     std::string xc) {
   // First calculate the ground state density
@@ -3935,7 +3935,7 @@ XCOperator TDDFT::create_xcoperator(World& world,
   world.gop.fence();
 
   // And create the object using Gparams.xc
-  XCOperator xcop(world,
+  XCOperator<double,3>  xcop(world,
                   xc,
                   false,
                   rho,
@@ -3944,7 +3944,7 @@ XCOperator TDDFT::create_xcoperator(World& world,
   return xcop;
 }
 
-// Uses an XCOperator to construct v_xc for the ground state density
+// Uses an XCOperator<double,3>  to construct v_xc for the ground state density
 // Returns d^2/d rho^2 E_xc[rho]
 std::vector<real_function_3d> TDDFT::create_fxc(
     World& world,
@@ -3952,7 +3952,7 @@ std::vector<real_function_3d> TDDFT::create_fxc(
     response_space& f,
     response_space& g) {
   // Create the xcop
-  XCOperator xc = create_xcoperator(world, Gparams.orbitals, Rparams.xc);
+  XCOperator<double,3>  xc = create_XCOperator(world, Gparams.orbitals, Rparams.xc);
 
   // Next need the perturbed density
   std::vector<real_function_3d> drho =
@@ -3971,14 +3971,14 @@ std::vector<real_function_3d> TDDFT::create_fxc(
   return vxc;
 }
 
-// Uses an XCOperator to construct v_xc for the ground state density
+// Uses an XCOperator<double,3>  to construct v_xc for the ground state density
 // Returns d^2/d rho^2 E_xc[rho]
 std::vector<real_function_3d> TDDFT::GetWxcOnFDensities(
     World& world,
     const std::vector<real_function_3d>& orbitals,
     const response_space& f) {
   // Create the xcop
-  XCOperator xc = create_xcoperator(world, Gparams.orbitals, Rparams.xc);
+  XCOperator<double,3>  xc = create_XCOperator(world, Gparams.orbitals, Rparams.xc);
   // Next need the perturbed density
   std::vector<real_function_3d> drhoM =
       GetTransitionDensities(world, orbitals, f);
@@ -3999,7 +3999,7 @@ std::vector<real_function_3d> TDDFT::GetConjugateWxcOnFDensities(
     const std::vector<real_function_3d>& orbitals,
     const response_space& f) {
   // Create the xcop
-  XCOperator xc = create_xcoperator(world, Gparams.orbitals, Rparams.xc);
+  XCOperator<double,3>  xc = create_XCOperator(world, Gparams.orbitals, Rparams.xc);
 
   // Next need the perturbed density
   std::vector<real_function_3d> drhoM =
@@ -4022,7 +4022,7 @@ std::vector<real_function_3d> TDDFT::CreateXCDerivative(
     const std::vector<real_function_3d>& orbitals,
     const response_space& f) {
   // Create the xcop
-  XCOperator xc = create_xcoperator(world, Gparams.orbitals, Rparams.xc);
+  XCOperator<double,3>  xc = create_XCOperator(world, Gparams.orbitals, Rparams.xc);
   size_t m = f.size();     // get the number of response functions
   size_t n = f[0].size();  // get the number of orbitals function
 
@@ -4072,8 +4072,8 @@ void TDDFT::IterateGuess(World& world, response_space& guesses) {
   Tensor<double> S;       // Overlap matrix of response components for x states
   real_function_3d v_xc;  // For TDDFT
 
-  // If DFT, initialize the XCOperator
-  XCOperator xc = create_xcoperator(world, Gparams.orbitals, Rparams.xc);
+  // If DFT, initialize the XCOperator<double,3>
+  XCOperator<double,3>  xc = create_XCOperator(world, Gparams.orbitals, Rparams.xc);
 
   // Useful to have
   response_space zeros(world, m, n);
@@ -4550,13 +4550,13 @@ Tensor<double> TDDFT::CreateGroundHamiltonian(World& world,
     V = matrix_inner(world, f, vf) - matrix_inner(world, f, Kf);
   } else {  // DFT
 
-    XCOperator xcop = create_xcoperator(world, f, Gparams.xc);
+    XCOperator<double,3>  xcop = create_XCOperator(world, f, Gparams.xc);
 
     real_function_3d v_xc = xcop.make_xc_potential();
     v = v + v_xc;
     std::vector<real_function_3d> vf = v * f;
     if ((*xcop.xc).hf_exchange_coefficient() > 0.0) {
-      // XCOperator has member variable xc, which is an xcfunctional
+      // XCOperator<double,3>  has member variable xc, which is an xcfunctional
       // which has the hf_exchange_coeff we need here
       gaxpy(world, 1.0, vf, -(*xcop.xc).hf_exchange_coefficient(), Kf);
     }
@@ -5209,8 +5209,8 @@ void TDDFT::IteratePolarizability(World& world, response_space& dipoles) {
   real_function_3d v_xc;          // For TDDFT
   bool converged = false;         // Converged flag
 
-  // If DFT, initialize the XCOperator
-  XCOperator xc = create_xcoperator(world, Gparams.orbitals, Rparams.xc);
+  // If DFT, initialize the XCOperator<double,3>
+  XCOperator<double,3>  xc = create_XCOperator(world, Gparams.orbitals, Rparams.xc);
 
   // The KAIN solver
   XNonlinearSolver<response_space, double, TDHF_allocator> kain(

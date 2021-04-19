@@ -32,7 +32,7 @@
 
 X_space TDDFT::Compute_Lambda_X(World& world,
                                 X_space& Chi,
-                                XCOperator xc,
+                                XCOperator<double,3>  xc,
                                 bool compute_Y) {
   // compute
   X_space gamma;

@@ -408,13 +408,13 @@ class TDDFT {
       World& world,
       response_space& x,
       response_space& y,
-      XCOperator xc,
+      XCOperator<double,3>  xc,
       const GroundParameters& Gparams,
       const ResponseParameters& Rparams,
       bool compute_Y);
-  X_space ComputeGammaFull(World& world, X_space& Chi, XCOperator xc);
-  X_space ComputeGammaStatic(World& world, X_space& Chi, XCOperator xc);
-  X_space ComputeGammaTDA(World& world, X_space& Chi, XCOperator xc);
+  X_space ComputeGammaFull(World& world, X_space& Chi, XCOperator<double,3>  xc);
+  X_space ComputeGammaStatic(World& world, X_space& Chi, XCOperator<double,3>  xc);
+  X_space ComputeGammaTDA(World& world, X_space& Chi, XCOperator<double,3>  xc);
   // Note: No post multiplication involved here
   real_function_3d Coulomb(World& world);
 
@@ -424,7 +424,7 @@ class TDDFT {
   // Returns the ground state potential applied to response functions
   response_space CreatePotential(World& world,
                                  response_space& f,
-                                 XCOperator xc,
+                                 XCOperator<double,3>  xc,
                                  size_t print_level,
                                  std::string xy);
 
@@ -433,7 +433,7 @@ class TDDFT {
                                response_space& x,
                                response_space& y,
                                std::vector<real_function_3d>& orbitals,
-                               XCOperator xc,
+                               XCOperator<double,3>  xc,
                                Tensor<double>& hamiltonian,
                                Tensor<double>& ham_no_diag,
                                double small,
@@ -468,7 +468,7 @@ class TDDFT {
                                response_space orbital_products,
                                response_space& x,
                                response_space& y,
-                               XCOperator xc,
+                               XCOperator<double,3>  xc,
                                double x_shifts,
                                double y_shifts,
                                const GroundParameters& Gparams,
@@ -481,7 +481,7 @@ class TDDFT {
                                   response_space& y,
                                   response_space rhs_x,
                                   response_space rhs_y,
-                                  XCOperator xc,
+                                  XCOperator<double,3>  xc,
                                   const GroundParameters& Gparams,
                                   const ResponseParameters& Rparams,
                                   Tensor<double> ham_no_diagonal,
@@ -506,7 +506,7 @@ class TDDFT {
       response_space& y,
       response_space rhs_x,
       response_space rhs_y,
-      XCOperator xc,
+      XCOperator<double,3>  xc,
       double x_shifts,
       const GroundParameters& Gparams,
       const ResponseParameters& Rparams,
@@ -516,11 +516,11 @@ class TDDFT {
       size_t iteration);
   X_space Compute_Theta_X(World& world,
                           X_space& Chi,
-                          XCOperator xc,
+                          XCOperator<double,3>  xc,
                           bool compute_Y);
   X_space Compute_Lambda_X(World& world,
                            X_space& Chi,
-                           XCOperator xc,
+                           XCOperator<double,3>  xc,
                            bool compute_Y);
   // Returns the hamiltonian matrix, equation 45 from the paper
   Tensor<double> CreateResponseMatrix(
@@ -876,13 +876,13 @@ class TDDFT {
                    Tensor<double>& omega,
                    size_t& iteration,
                    size_t& m);
-  // Creates the XCOperator object and initializes it with correct
+  // Creates the XCOperator<double,3>  object and initializes it with correct
   // parameters
-  XCOperator create_xcoperator(World& world,
+  XCOperator<double,3>  create_XCOperator(World& world,
                                std::vector<real_function_3d> orbitals,
                                std::string xc);
 
-  // Uses an XCOperator to construct v_xc for the ground state density
+  // Uses an XCOperator<double,3>  to construct v_xc for the ground state density
   // Returns d^2/d rho^2 E_xc[rho]
   std::vector<real_function_3d> create_fxc(
       World& world,

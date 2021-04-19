@@ -320,7 +320,7 @@ void TDDFT::IterateXY(
     response_space& y,
     response_space rhs_x,
     response_space rhs_y,
-    XCOperator xc,
+    XCOperator<double,3>  xc,
     double x_shift,
     const GroundParameters& Gparams,
     const ResponseParameters& Rparams,
