@@ -200,7 +200,7 @@ void SCF::save_mos(World& world) {
 	ar &version;
   ar& current_energy& param.spin_restricted();
   ar&(unsigned int)(amo.size());
-  ar& aeps& aocc& aset,&param.L() & FunctionDefaults<3>::get_k() &molecule &param.xc();
+  ar& aeps& aocc& aset &param.L() & FunctionDefaults<3>::get_k() &molecule &param.xc();
   for (unsigned int i = 0; i < amo.size(); ++i) ar& amo[i];
   if (!param.spin_restricted()) {
     ar&(unsigned int)(bmo.size());
