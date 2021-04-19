@@ -65,7 +65,7 @@ set(MADNESS_INSTALL_CMAKEDIR "lib/cmake/madness"
 
 # Build options  ==============================================================
 
-redefaultable_option(MADNESS_BUILD_MADWORLD_ONLY "Build only MADWorld runtime (including BLAS/LAPACK interfaces, if found)" OFF)
+redefaultable_option(MADNESS_BUILD_MADWORLD_ONLY "Build only MADWorld runtime (excluding BLAS/LAPACK interfaces)" OFF)
 
 # Enable optional libraries ====================================================
 
@@ -588,13 +588,13 @@ endif(CCACHE)
 include(external/pthread.cmake)
 include(external/mpi.cmake)
 include(external/papi.cmake)
-include(external/lapack.cmake)
 include(external/libunwind.cmake)
 include(external/gperftools.cmake)
 include(external/tbb.cmake)
 include(external/parsec.cmake)
 include(external/boost.cmake)
 if (NOT MADNESS_BUILD_MADWORLD_ONLY)
+  include(external/lapack.cmake)
   include(external/libxc.cmake)
   include(external/pcm.cmake)
 endif (NOT MADNESS_BUILD_MADWORLD_ONLY)

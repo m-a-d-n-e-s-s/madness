@@ -139,6 +139,9 @@ namespace madness {
     is_any_function_pointer_v<T> || \
     std::is_function<T>::value;
 
+    template <typename Archive, typename T, typename Enabler = void>
+    struct is_serializable_helper : public std::false_type {};
+
     /// \brief is \c std::true_type if \c T can be serialized to \c Archive
     ///        without specialized \c serialize() method
     ///
@@ -146,8 +149,10 @@ namespace madness {
     /// For other \c Archive types this is \c std::true_type if \c is_trivially_serializable<T>::value is true.
     /// \tparam Archive an Archive type
     /// \tparam T a type
-    template <typename Archive, typename T, typename = void>
-    struct is_serializable : std::false_type {};
+    template <typename Archive, typename T>
+    struct is_serializable {
+      static constexpr bool value = is_serializable_helper<Archive,T>::value;
+    };
 
     // forward declare archives to provide archive-specific overloads
     namespace archive {
@@ -163,31 +168,35 @@ namespace madness {
     class MPIRawInputArchive;
     class MPIOutputArchive;
     class MPIInputArchive;
+    template <typename T>
+    class archive_array;
     }
     template <typename T>
-    struct is_serializable<archive::BinaryFstreamOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    struct is_serializable_helper<archive::BinaryFstreamOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
     template <typename T>
-    struct is_serializable<archive::BinaryFstreamInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    struct is_serializable_helper<archive::BinaryFstreamInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
     template <typename T>
-    struct is_serializable<archive::BufferOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    struct is_serializable_helper<archive::BufferOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
     template <typename T>
-    struct is_serializable<archive::BufferInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    struct is_serializable_helper<archive::BufferInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
     template <typename T>
-    struct is_serializable<archive::VectorOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    struct is_serializable_helper<archive::VectorOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
     template <typename T>
-    struct is_serializable<archive::VectorInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    struct is_serializable_helper<archive::VectorInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
     template <typename T>
-    struct is_serializable<archive::TextFstreamOutputArchive, T, std::enable_if_t<is_iostreammable_v<T>>> : std::true_type {};
+    struct is_serializable_helper<archive::TextFstreamOutputArchive, T, std::enable_if_t<is_iostreammable_v<T>>> : std::true_type {};
     template <typename T>
-    struct is_serializable<archive::TextFstreamInputArchive, T, std::enable_if_t<is_iostreammable_v<T>>> : std::true_type {};
+    struct is_serializable_helper<archive::TextFstreamInputArchive, T, std::enable_if_t<is_iostreammable_v<T>>> : std::true_type {};
     template <typename T>
-    struct is_serializable<archive::MPIRawOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    struct is_serializable_helper<archive::MPIRawOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
     template <typename T>
-    struct is_serializable<archive::MPIRawInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    struct is_serializable_helper<archive::MPIRawInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
     template <typename T>
-    struct is_serializable<archive::MPIOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    struct is_serializable_helper<archive::MPIOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
     template <typename T>
-    struct is_serializable<archive::MPIInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    struct is_serializable_helper<archive::MPIInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    template <typename Archive, typename T>
+    struct is_serializable_helper<Archive, archive::archive_array<T>, std::enable_if_t<is_serializable_helper<Archive,T>::value>> : std::true_type {};
 
     /// \brief This trait types tests if \c Archive is a text archive
     /// \tparam Archive an archive type

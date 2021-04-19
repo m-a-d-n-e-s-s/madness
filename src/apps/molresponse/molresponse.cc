@@ -11,7 +11,7 @@
   #include <unistd.h>
 static inline int file_exists(const char* inpname) {
   struct stat buffer;
-  int rc = stat(inpname, &buffer);
+size_t   rc = stat(inpname, &buffer);
   return (rc == 0);
 }
 #endif
@@ -38,7 +38,7 @@ FirstOrderDensity SetDensityType(World& world, std::string response_type,
   }
 };
 
-int main(int argc, char** argv) {
+int main(int    argc, char** argv) {
   // Initialize MADNESS mpi
   initialize(argc, argv);
   World world(SafeMPI::COMM_WORLD);
@@ -47,7 +47,7 @@ int main(int argc, char** argv) {
   // This makes a default input file name of 'input'
   const char* input = "input";
 
-  for (int i = 1; i < argc; i++) {
+  for (int    i = 1; i < argc; i++) {
     if (argv[i][0] != '-') {
       input = argv[i];
       break;
@@ -65,7 +65,7 @@ int main(int argc, char** argv) {
     if (shared_input->fail())
       MADNESS_EXCEPTION("Response failed to open input stream", 0);
     // Welcome user (future ASCII art of Robert goes here)
-    print("\n   Preparing to solve the TDHF equations.\n");
+    print("\n   Preparing to solve the TDDFT equations.\n");
     // Read input files
     Rparams.read(*shared_input);
     // Print out what was read in
@@ -87,7 +87,7 @@ int main(int argc, char** argv) {
   // Broadcast to all other nodes
   FirstOrderDensity densityTest =
       SetDensityType(world, Rparams.response_type, Rparams, Gparams);
-  // Create the TDHF object
+  // Create the TDDFT object
   if (Rparams.load_density) {
     print("Loading Density");
     densityTest.LoadDensity(world, Rparams.load_density_file, Rparams, Gparams);
@@ -99,7 +99,7 @@ int main(int argc, char** argv) {
   // densityTest.PlotResponseDensity(world);
   densityTest.PrintDensityInformation();
 
-  if (Rparams.property) {  //
+  if (Rparams.response_type.compare("dipole")==0) {  //
     print("Computing Alpha");
     Tensor<double> alpha = densityTest.ComputeSecondOrderPropertyTensor(world);
     print("Second Order Analysis");

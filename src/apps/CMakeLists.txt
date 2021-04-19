@@ -11,6 +11,8 @@ add_subdirectory(molresponse)
 add_subdirectory(pno)
 add_subdirectory(cis)
 
+#add_subdirectory(bryan)
+#add_subdirectory(adrian)
 #add_subdirectory(exciting)
 #add_subdirectory(hf)
 #add_subdirectory(ii)

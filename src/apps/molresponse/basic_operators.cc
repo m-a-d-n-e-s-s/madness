@@ -1,7 +1,8 @@
 /*
+ * Copyright 2021 Adrian Hurtado
  * Some basic operators for ResponseFunction objects
  */
-#include "TDHF_Basic_Operators2.h"
+#include "basic_operators.h"
 
 namespace madness {
 
@@ -11,15 +12,15 @@ response_space transpose(response_space &f) {
   MADNESS_ASSERT(f[0].size() > 0);
 
   // Get sizes
-  int m = f.size();
-  int n = f[0].size();
+  size_t m = f.size();
+  size_t n= f[0].size();
 
   // Return container
   response_space g(f[0][0].world(), m, n);
 
   // Now do shallow copies
-  for (int i = 0; i < m; i++)
-    for (int j = 0; j < n; j++) g[j][i] = f[i][j];
+  for (size_t i = 0; i < m; i++)
+    for (size_t    j = 0; j < n; j++) g[j][i] = f[i][j];
 
   // Done
   return g;

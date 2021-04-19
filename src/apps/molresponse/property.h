@@ -1,8 +1,8 @@
 
-#ifndef SRC_APPS_ADRIAN_PROPERTY_H_
-#define SRC_APPS_ADRIAN_PROPERTY_H_
+#ifndef SRC_APPS_molresponse_PROPERTY_H_
+#define SRC_APPS_molresponse_PROPERTY_H_
 
-#include <ResponseFunction2.h>
+#include <response_functions.h>
 
 #include <algorithm>
 #include <memory>
@@ -27,11 +27,11 @@ class MolecularDerivativeFunctor : public FunctionFunctorInterface<double, 3> {
 
  private:
   const Molecule &molecule;
-  const int atom;
-  const int axis;
+  const size_t atom;
+  const size_t axis;
 
  public:
-  MolecularDerivativeFunctor(const Molecule &molecule, int atom, int axis);
+  MolecularDerivativeFunctor(const Molecule &molecule, size_t atom, size_t axis);
   double operator()(const coordT &x) const;
   std::vector<coordT> special_points() const;
 };  // namespace madness
@@ -39,7 +39,7 @@ class MolecularDerivativeFunctor : public FunctionFunctorInterface<double, 3> {
 // Used to compute proerties or compute rhs vectors
 class Property {
  public:
-  int num_operators;  // number of operators in vectors
+  size_t num_operators;  // number of operators in vectors
   std::string property;
   std::vector<real_function_3d> operator_vector;
 
@@ -50,4 +50,4 @@ class Property {
   Property(World &world, std::string property_type, Molecule molecule);
 };
 
-#endif  // SRC_APPS_ADRIAN_PROPERTY_H_
+#endif  // SRC_APPS_molresponse_PROPERTY_H_

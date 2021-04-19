@@ -11,8 +11,8 @@
  *       name      -  name you would like for orbital plots
  */
 
-#ifndef SRC_APPS_ADRIAN_PLOT_VTK_H_
-  #define SRC_APPS_ADRIAN_PLOT_VTK_H_
+#ifndef SRC_APPS_molresponse_PLOT_VTK_H_
+  #define SRC_APPS_molresponse_PLOT_VTK_H_
 
   #include <madness/mra/mra.h>
 
@@ -27,6 +27,6 @@ void do_vtk_plots(World &world, int npt_plot, double L, int plotlo, int plothi,
                   std::string name);
 
 }  // namespace madness
-#endif  // SRC_APPS_ADRIAN_PLOT_VTK_H_
+#endif  // SRC_APPS_molresponse_PLOT_VTK_H_
 
 // Dueces

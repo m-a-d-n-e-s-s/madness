@@ -1,5 +1,5 @@
-#ifndef SRC_APPS_ADRIAN_LOAD_BALANCE_H
-#define SRC_APPS_ADRIAN_LOAD_BALANCE_H
+#ifndef SRC_APPS_molresponse_LOAD_BALANCE_H
+#define SRC_APPS_molresponse_LOAD_BALANCE_H
 #include "TDDFT.h"
 // Needed for rebalancing
 template <typename T, int NDIM>

@@ -8,7 +8,7 @@
 #include "TDHF2.h"
 
 #include "../chem/SCFOperators.h"
-#include "NWChem.h"  // For nwchem interface
+#include <chem/NWChem.h>  // For nwchem interface
 #include "Plot_VTK.h"
 #include "TDHF_Basic_Operators2.h"
 #include "potentialmanager.h"

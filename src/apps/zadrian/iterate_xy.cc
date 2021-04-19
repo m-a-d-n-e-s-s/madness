@@ -1,7 +1,8 @@
+// Copyright 2021 Adrian Hurtado
+//
 #include <math.h>
 
 #include <cstdint>
-#include <filesystem>
 #include <map>
 #include <memory>
 #include <string>
@@ -25,16 +26,16 @@
 
 /**
  * @brief Computes two electron interaction functions
- * 
- * @param world 
- * @param f 
- * @param g 
- * @param phi 
- * @param small 
- * @param thresh 
- * @param print_level 
- * @param xy 
- * @return response_space 
+ *
+ * @param world
+ * @param f
+ * @param g
+ * @param phi
+ * @param small
+ * @param thresh
+ * @param print_level
+ * @param xy
+ * @return response_space
  */
 response_space TDHF::CreateGamma(World& world,
                                  response_space& f,
@@ -121,15 +122,15 @@ response_space TDHF::CreateGamma(World& world,
 }
 /**
  * @brief Compute two electron interaction functions
- * 
- * @param world 
- * @param f 
- * @param phi 
- * @param small 
- * @param thresh 
- * @param print_level 
- * @param xy 
- * @return response_space 
+ *
+ * @param world
+ * @param f
+ * @param phi
+ * @param small
+ * @param thresh
+ * @param print_level
+ * @param xy
+ * @return response_space
  */
 response_space TDHF::ComputeHf(World& world,
                                const response_space& f,
@@ -212,15 +213,15 @@ response_space TDHF::ComputeHf(World& world,
 }
 /**
  * @brief computes Gf function two electron conjugate interactions
- * 
- * @param world 
- * @param f 
- * @param orbitals 
- * @param small 
- * @param thresh 
- * @param print_level 
- * @param xy 
- * @return response_space 
+ *
+ * @param world
+ * @param f
+ * @param orbitals
+ * @param small
+ * @param thresh
+ * @param print_level
+ * @param xy
+ * @return response_space
  */
 response_space TDHF::ComputeGf(World& world,
                                const response_space& f,
@@ -295,17 +296,17 @@ response_space TDHF::ComputeGf(World& world,
   return G;
 }
 /**
- * @brief  Computes two electron interaction resonse_spaces 
- * 
- * @param world 
- * @param rho_omega vector of response densities 
+ * @brief  Computes two electron interaction resonse_spaces
+ *
+ * @param world
+ * @param rho_omega vector of response densities
  * @param phi_phi  orbital orbital products for exchange
  * @param x x_response states
  * @param y y_response states
  * @param xc  xc functional
- * @param Gparams 
- * @param Rparams 
- * @return GammaResponseFunctions 
+ * @param Gparams
+ * @param Rparams
+ * @return GammaResponseFunctions
  */
 GammaResponseFunctions TDHF::ComputeGammaFunctions(
     World& world,
@@ -359,8 +360,8 @@ GammaResponseFunctions TDHF::ComputeGammaFunctions(
   //
   for (int b = 0; b < m; b++) {
     for (int k = 0; k < n; k++) {
-      // multiply the kth orbital to vector of y[b] response funtions...apply op      // to each product
-      // (TODO) //split apply and
+      // multiply the kth orbital to vector of y[b] response funtions...apply op
+      // // to each product (TODO) //split apply and
       y_phi[b][k] = apply(world, op, mul(world, Gparams.orbitals[k], y[b]));
       if (Rparams.omega != 0.0) {
         x_phi[b][k] = apply(world, op, mul(world, Gparams.orbitals[k], x[b]));
@@ -463,23 +464,23 @@ GammaResponseFunctions TDHF::ComputeGammaFunctions(
   // Get sizes
 }
 /**
- * @brief 
- * 
- * @param world 
- * @param rho_omega 
- * @param orbital_products 
- * @param x 
- * @param y 
- * @param rhs_x 
- * @param rhs_y 
- * @param xc 
- * @param x_shift 
- * @param Gparams 
- * @param Rparams 
- * @param bsh_x_operators 
- * @param bsh_y_operators 
- * @param ham_no_diagonal 
- * @param iteration 
+ * @brief
+ *
+ * @param world
+ * @param rho_omega
+ * @param orbital_products
+ * @param x
+ * @param y
+ * @param rhs_x
+ * @param rhs_y
+ * @param xc
+ * @param x_shift
+ * @param Gparams
+ * @param Rparams
+ * @param bsh_x_operators
+ * @param bsh_y_operators
+ * @param ham_no_diagonal
+ * @param iteration
  */
 void TDHF::IterateXY(
     World& world,
@@ -541,9 +542,9 @@ void TDHF::IterateXY(
     print(Z.x_f_no_diag.norm2());
   }
   // If not static we compute the y components
-    Z.v0_y = CreatePotential(world, y, xc, Rparams.print_level, "y");
-    Z.y_f_no_diag = y * ham_no_diagonal;  // scale_2d(world, y,
-                                          // ham_no_diagonal);
+  Z.v0_y = CreatePotential(world, y, xc, Rparams.print_level, "y");
+  Z.y_f_no_diag = y * ham_no_diagonal;  // scale_2d(world, y,
+                                        // ham_no_diagonal);
   // Some printing for debugging
   if (Rparams.print_level >= 2) {
     { PrintRFExpectation(world, x, Z.v0_x, "x", "V0X"); }
@@ -639,12 +640,12 @@ void TDHF::IterateXY(
     }
   }
   x_response = bsh_x_resp.copy();
-  if (Rparams.omega != 0.0){
+  if (Rparams.omega != 0.0) {
     y_response = bsh_y_resp.copy();
-  }else{
+  } else {
     y_response = x_response.copy();
   }
-  
+
   x_response.truncate_rf();
   y_response.truncate_rf();
 }

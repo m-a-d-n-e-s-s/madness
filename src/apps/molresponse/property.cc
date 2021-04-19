@@ -1,6 +1,6 @@
-#include "adrian/property.h"
+#include "molresponse/property.h"
 
-#include <ResponseFunction2.h>
+#include <response_functions.h>
 #include <TDDFT.h>
 
 #include <algorithm>
@@ -21,7 +21,7 @@ typedef Vector<double, 3> coordT;
 typedef std::vector<real_function_3d> VectorFunction3DT;
 
 MolecularDerivativeFunctor::MolecularDerivativeFunctor(const Molecule &molecule,
-                                                       int atom, int axis)
+                                                     size_t   atom, size_t axis)
     : molecule(molecule), atom(atom), axis(axis) {}
 
 double MolecularDerivativeFunctor::operator()(const coordT &x) const {
@@ -39,18 +39,18 @@ Property::Property(World &world, std::string property_type)
     : num_operators(3), operator_vector(num_operators) {
   property = property_type;
   MADNESS_ASSERT(property.compare("dipole") == 0);
-  for (int i = 0; i < 3; i++) {
+  for (size_t    i = 0; i < 3; i++) {
     std::vector<int> f(3, 0);
     f[i] = 1;
     operator_vector.at(i) = real_factory_3d(world).functor(
         real_functor_3d(new BS_MomentFunctor(f)));
-    // print k L truncation
+    // prsize_t k L truncation
     print("norm of dipole function ", operator_vector[i].norm2());
   }
 
   truncate(world, operator_vector, true);
 
-  for (int i = 0; i < 3; i++) {
+  for (size_t    i = 0; i < 3; i++) {
     print("norm of dipole function after truncate ",
           operator_vector[i].norm2());
   }
@@ -65,7 +65,7 @@ Property::Property(World &world, std::string property_type, Molecule molecule)
 
   print("Creating Nuclear Derivative Operator");
   for (size_t atom = 0; atom < molecule.natom(); ++atom) {
-    for (int axis = 0; axis < 3; ++axis) {
+    for (size_t    axis = 0; axis < 3; ++axis) {
       // question here....MolecularDerivativeFunctor takes derivative with
       // respect to axis atom and axis
       FunctorT func(new MolecularDerivativeFunctor(molecule, atom, axis));
@@ -75,7 +75,7 @@ Property::Property(World &world, std::string property_type, Molecule molecule)
                                                           .nofence()
                                                           .truncate_on_project()
                                                           .truncate_mode(0));
-      // print k L truncation
+      // prsize_t k L truncation
       print("norm of derivative function ",
             operator_vector[atom * 3 + axis].norm2());
     }
@@ -84,7 +84,7 @@ Property::Property(World &world, std::string property_type, Molecule molecule)
   truncate(world, operator_vector, true);
 
   for (size_t atom = 0; atom < molecule.natom(); ++atom) {
-    for (int axis = 0; axis < 3; ++axis) {
+    for (size_t    axis = 0; axis < 3; ++axis) {
       print("norm of derivative function after truncate ",
             operator_vector[atom * 3 + axis].norm2());
     }

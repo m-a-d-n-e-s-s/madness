@@ -1,9 +1,10 @@
+// Copyright 2021 Adrian Hurtado
 
 /// \file ResponseParameters
 /// \brief Input parameters for a response calculation.
 
-#ifndef SRC_APPS_ADRIAN_RESPONSEPARAMETERS_H_INCLUDED
-#define SRC_APPS_ADRIAN_RESPONSEPARAMETERS_H_INCLUDED
+#ifndef SRC_APPS_MOLRESPONSE_RESPONSE_PARAMETERS_H_
+#define SRC_APPS_MOLRESPONSE_RESPONSE_PARAMETERS_H_
 
 #include <chem/molecule.h>
 #include <chem/xcfunctional.h>
@@ -19,35 +20,35 @@ struct ResponseParameters {
   // List of input parameters
   std::string archive;  ///< Name of input archive to read in ground state
   std::string
-      nwchem;  ///< Root name of nwchem files for intelligent starting guess
-  int states;  ///< Number of excited states requested
-  int print_level;  ///< Controls the amount and style of printing. Higher
-                    ///< values print more
-                    ///<   Values |   What gets printed
-                    ///<   ----------------------------
-                    ///<     1    |   Print out timing of each step in the
-                    ///<     calculation,
-                    ///<          |   along with energy, energy res., and func.
-                    ///<          res.
-                    ///<   ----------------------------
-                    ///<     2    |   Debug level. Prints EVERYTHING!!!
+      nwchem;     ///< Root name of nwchem files for intelligent starting guess
+  size_t states;  ///< Number of excited states requested
+  size_t print_level;  ///< Controls the amount and style of printing. Higher
+                       ///< values prsize_t more
+                       ///<   Values |   What gets printed
+                       ///<   ----------------------------
+                       ///<     1    |   Print out timing of each step in the
+                       ///<     calculation,
+                       ///<          |   along with energy, energy res., and
+                       ///<          func. res.
+                       ///<   ----------------------------
+                       ///<     2    |   Debug level. Prints EVERYTHING!!!
 
   bool tda;  ///< Turn on Tam-Danchof approximation (only calculate excitations)
   bool plot;  ///< Turn on plotting of final orbitals. Output format is .vts
   bool plot_range;             ///< Controls which orbitals will be plotted
   std::vector<int> plot_data;  ///< Orbitals to plot
   double plot_L;               ///< Controls the plotting box size
-  int plot_pts;                ///< Controls number of points in plots
+  size_t plot_pts;             ///< Controls number of points in plots
   bool plot_all_orbitals;
-  int max_iter;    ///< Maximum number of iterations
-  double dconv;    ///< Convergence criterion for the orbital density
-  bool dconv_set;  ///< Convergence flag for the orbital density
-  bool guess_xyz;  ///< Convergence flag for the orbital density
-  double small;    ///< Minimum length scale to be resolved
+  size_t max_iter;  ///< Maximum number of iterations
+  double dconv;     ///< Convergence criterion for the orbital density
+  bool dconv_set;   ///< Convergence flag for the orbital density
+  bool guess_xyz;   ///< Convergence flag for the orbital density
+  double small;     ///< Minimum length scale to be resolved
   std::vector<double> protocol_data;  ///< Different thresholds for truncation
-  int larger_subspace;   ///< Number of iterations to diagonalize in a subspace
-                         ///< consisting of old and new vectors
-  int k;                 ///< Polynomial order to use in calculation
+  size_t larger_subspace;  ///< Number of iterations to diagonalize in a
+                           ///< subspace consisting of old and new vectors
+  size_t k;                ///< Polynomial order to use in calculation
   bool random;           ///< Use a random guess for initial response functions
   bool store_potential;  ///< Store the potential instead of computing each
                          ///< iteration
@@ -60,7 +61,7 @@ struct ResponseParameters {
   std::string restart_file;  ///< Flag to restart from file
   bool kain;                 ///< Flag to use KAIN solver
   double maxrotn;
-  int maxsub;      ///< How many previous iterations KAIN will store
+  size_t maxsub;   ///< How many previous iterations KAIN will store
   std::string xc;  ///< Controls the HF or DFT switch, as well as which DFT
                    ///< functional is used
   bool save;       ///< Controls if orbitals will be saved each iteration
@@ -72,7 +73,7 @@ struct ResponseParameters {
   bool load_density;
   std::string load_density_file;  ///< Flag to save to file
 
-  int guess_max_iter;  ///< Maximum number of iterations for guess functions
+  size_t guess_max_iter;  ///< Maximum number of iterations for guess functions
 
   // Start of properties
   bool property;  ///< Flag that this is a properties calculation
@@ -124,7 +125,7 @@ struct ResponseParameters {
         dconv_set(false),
         guess_xyz(false),
         small(1e-6),
-        protocol_data(madness::vector_factory(1e-6,1e-8)),
+        protocol_data(madness::vector_factory(1e-6, 1e-8)),
         larger_subspace(0),
         k(0),
         random(false),
@@ -180,9 +181,6 @@ struct ResponseParameters {
       } else if (s == "restart") {
         restart = true;
         f >> restart_file;
-      } else if (s == "states") {
-        f >> states;
-        response_type = "excited_state";
       } else if (s == "print_level") {
         f >> print_level;
       } else if (s == "tda") {
@@ -286,6 +284,8 @@ struct ResponseParameters {
           f >> response_types[2];
           f >> omega;
           order3 = true;
+        } else if (response_type.compare("excited_state") == 0) {
+          f >> states;
         } else {
           MADNESS_EXCEPTION("Not a an avaible response type", 0);
         }
@@ -312,7 +312,7 @@ struct ResponseParameters {
       states = 3 * molecule.natom();
     } else if (order2) {
       vector<int> nstates;  // states 1
-      for (int i = 0; i < 2; i++) {
+      for (size_t i = 0; i < 2; i++) {
         if (response_types[i] == "dipole") {
           nstates.push_back(3);
         } else if (response_types[i] == "nuclear") {
@@ -325,7 +325,7 @@ struct ResponseParameters {
           nstates.begin(), nstates.end(), 1, std::multiplies<>());
     } else if (order3) {
       vector<int> nstates;  // states 1
-      for (int i = 0; i < 3; i++) {
+      for (size_t i = 0; i < 3; i++) {
         if (response_types[i] == "dipole") {
           nstates.push_back(3);
         } else if (response_types[i] == "nuclear") {
@@ -409,4 +409,4 @@ struct ResponseParameters {
   }
 };  // namespace madness
 }  // namespace madness
-#endif  // SRC_APPS_ADRIAN_RESPONSEPARAMETERS_H_INCLUDED
+#endif  // SRC_APPS_MOLRESPONSE_RESPONSE_PARAMETERS_H_
