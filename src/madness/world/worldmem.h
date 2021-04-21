@@ -141,18 +141,17 @@ namespace madness {
     template <typename String> void print_meminfo(
         int rank, const String& tag,
         const std::string filename_prefix = std::string("MEMORY")) {
-      using namespace std;
 #if defined(WORLD_MEM_PROFILE_ENABLE)
       if (print_meminfo_enabled()) {
         using Char = typename std::iterator_traits<decltype(
             std::begin(tag))>::value_type;
-        basic_ofstream<Char> memoryfile;
-        ostringstream filename;
+        std::basic_ofstream<Char> memoryfile;
+        std::ostringstream filename;
 
         filename << filename_prefix << "." << rank;
 
-        memoryfile.open(filename.str().c_str(), ios::out | ios::app);
-        memoryfile << tag << endl;
+        memoryfile.open(filename.str().c_str(), std::ios::out | std::ios::app);
+        memoryfile << tag << std::endl;
 
         const double to_MiB =
             1 / (1024.0 * 1024.0); /* Convert from bytes to MiB */
@@ -170,41 +169,41 @@ namespace madness {
         Kernel_GetMemorySize(KERNEL_MEMSIZE_MMAP, &mmap);
 
         memoryfile << "Heap size (MiB): " << (heap * to_MiB)
-                   << ", available: " << (heapavail * to_MiB) << endl;
+                   << ", available: " << (heapavail * to_MiB) << std::endl;
         memoryfile << "Stack size (MiB): " << (stack * to_MiB)
-                   << ", available: " << (stackavail * to_MiB) << endl;
+                   << ", available: " << (stackavail * to_MiB) << std::endl;
         memoryfile << "Memory (MiB): shared: " << (shared * to_MiB)
                    << ", persist: " << (persist * to_MiB)
                    << ", guard: " << (guard * to_MiB) << ", mmap: " << (mmap * to_MiB)
-                   << endl;
+                   << std::endl;
 #elif defined(ON_A_MAC)
         /* Mac OS X specific hack - un-tested post Snow Leopard */
         struct malloc_statistics_t mi; /* structure in bytes */
 
         malloc_zone_statistics(nullptr, &mi);
 
-        memoryfile << "Heap allocated  (MiB): " << (mi.size_allocated * to_MiB) << endl;
-        memoryfile << "Heap used       (MiB): " << (mi.size_in_use * to_MiB) << endl;
-        memoryfile << "Heap max used   (MiB): " << (mi.max_size_in_use * to_MiB) << endl;
+        memoryfile << "Heap allocated  (MiB): " << (mi.size_allocated * to_MiB) << std::endl;
+        memoryfile << "Heap used       (MiB): " << (mi.size_in_use * to_MiB) << std::endl;
+        memoryfile << "Heap max used   (MiB): " << (mi.max_size_in_use * to_MiB) << std::endl;
 #elif defined(X86_32) // 32-bit Linux
         struct mallinfo mi; /* structure in bytes */
 
         mi = mallinfo();
 
-        memoryfile << "Non-mmap (MiB): " << (mi.arena * to_MiB) << endl;
-        memoryfile << "Mmap (MiB): " << (mi.hblkhd * to_MiB) << endl;
+        memoryfile << "Non-mmap (MiB): " << (mi.arena * to_MiB) << std::endl;
+        memoryfile << "Mmap (MiB): " << (mi.hblkhd * to_MiB) << std::endl;
         memoryfile << "Total malloc chunks (MiB): " << (mi.uordblks * to_MiB)
-                   << endl;
+                   << std::endl;
 #elif defined(X86_64) // 64-bit Linux
         // try parsing /proc/PID/status first, fallback on sysinfo
-        string status_fname =
-            string("/proc/") + to_string(getpid()) + string("/status");
-        basic_ifstream<Char> status_stream(status_fname);
+        std::string status_fname =
+            std::string("/proc/") + std::to_string(getpid()) + std::string("/status");
+        std::basic_ifstream<Char> status_stream(status_fname);
         if (status_stream.good()) {
-          basic_string<Char> line;
-          while (getline(status_stream, line)) {
+          std::basic_string<Char> line;
+          while (std::getline(status_stream, line)) {
             if (line.find(detail::Vm_cstr<Char>()) == 0)
-              memoryfile << line << endl;
+              memoryfile << line << std::endl;
           }
           status_stream.close();
         } else {
@@ -216,12 +215,12 @@ namespace madness {
 
           sysinfo(&si);
 
-          memoryfile << "Total RAM (MiB): " << (si.totalram * to_MiB) << endl;
-          memoryfile << "Free RAM (MiB): " << (si.freeram * to_MiB) << endl;
-          memoryfile << "Buffer (MiB): " << (si.bufferram * to_MiB) << endl;
+          memoryfile << "Total RAM (MiB): " << (si.totalram * to_MiB) << std::endl;
+          memoryfile << "Free RAM (MiB): " << (si.freeram * to_MiB) << std::endl;
+          memoryfile << "Buffer (MiB): " << (si.bufferram * to_MiB) << std::endl;
           memoryfile << "RAM in use (MiB): "
                      << ((si.totalram - si.freeram + si.bufferram) * to_MiB)
-                     << endl;
+                     << std::endl;
         }
 #endif                // platform specific
         memoryfile.close();
