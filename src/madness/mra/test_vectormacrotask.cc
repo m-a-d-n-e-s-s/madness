@@ -33,6 +33,16 @@
 using namespace madness;
 using namespace archive;
 
+namespace madness {
+
+
+template<typename T>
+bool is_function(const T &arg) {
+    return is_madness_function<typename std::decay<decltype(arg)>::type>::value;
+}
+}
+
+
 
 struct gaussian {
 	double a;
@@ -97,19 +107,24 @@ public:
 
 };
 
+template <typename ... Ts>
+constexpr auto decay_types (std::tuple<Ts...> const &)
+-> std::tuple<std::remove_cv_t<std::remove_reference_t<Ts>>...>;
+
+template <typename T>
+using decay_tuple = decltype(decay_types(std::declval<T>()));
 
 template<typename taskT>
 class MacroTask_2G {
-
-    typedef std::pair<long,hashT> batchT;
+    typedef std::pair<long,hashT> batchT;     // vector index (if applicable), hashvalue for cloud storing
     typedef std::list<batchT> partitionT;
     typedef typename taskT::resultT resultT;
+    typedef typename taskT::argtupleT argtupleT;
     taskT task;
 public:
     class MacroTaskInternal : public MacroTaskIntermediate<MacroTask> {
 
-        typedef typename taskT::argT1 argT1;
-        typedef typename taskT::argT2 argT2;
+        typedef decay_tuple<typename taskT::argtupleT> argtupleT;
         typedef typename taskT::resultT resultT;
         batchT batch;
     public:
@@ -118,17 +133,35 @@ public:
 
         void run(World& subworld, Cloud& cloud, MacroTaskBase::taskqT& taskq) {
 
-            argT1 arg1=get_input<argT1>(subworld,cloud);
-            argT2 arg2=argT2(2);//=get_input<argT2>(subworld,cloud);
+            argtupleT argtuple=get_input<argtupleT>(subworld,cloud);
             resultT result=get_output(subworld, cloud);
-            result+=task(arg1,arg2);
+
+            constexpr std::size_t narg=(std::tuple_size<argtupleT>::value);
+            if constexpr (narg==1) result+=task(std::get<0>(argtuple));
+            if constexpr (narg==2) result+=task(std::get<0>(argtuple),std::get<1>(argtuple));
+            if constexpr (narg==3) result+=task(std::get<0>(argtuple),std::get<1>(argtuple),
+                                                std::get<2>(argtuple));
+            if constexpr (narg==4) result+=task(std::get<0>(argtuple),std::get<1>(argtuple),
+                                                std::get<2>(argtuple),std::get<3>(argtuple));
+            if constexpr (narg==5) result+=task(std::get<0>(argtuple),std::get<1>(argtuple),
+                                                std::get<2>(argtuple),std::get<3>(argtuple),
+                                                std::get<4>(argtuple));
+            if constexpr (narg==6) result+=task(std::get<0>(argtuple),std::get<1>(argtuple),
+                                                std::get<2>(argtuple),std::get<3>(argtuple),
+                                                std::get<4>(argtuple),std::get<5>(argtuple));
+            MADNESS_CHECK(is_madness_function<resultT>::value);
         };
 
         resultT get_output(World& subworld, Cloud& cloud) {
             resultT result;
-            std::shared_ptr<FunctionImpl<double,3> > rimpl;
-            cloud.load(subworld,rimpl,0);
-            result.set_impl(rimpl);
+            if constexpr (is_madness_function<resultT>::value) {
+                std::shared_ptr<typename resultT::implT> rimpl;
+                cloud.load(subworld,rimpl,0);
+                result.set_impl(rimpl);
+            } else {
+                MADNESS_CHECK(is_madness_function<resultT>::value);
+            }
+
             return result;
         }
 
@@ -145,12 +178,24 @@ public:
     MacroTask_2G(World& world, taskT& task) : world(world), task(task), taskq_ptr() {}
     MacroTask_2G(World& world, taskT& task, std::shared_ptr<MacroTaskQ> taskq_ptr) : world(world), task(task), taskq_ptr(taskq_ptr) {}
 
-    template<typename argT1, typename argT2>
-    resultT operator()(const argT1& arg1, const argT2& arg2) {
+    template<typename ... Ts>
+    resultT operator()(const Ts& ... args) {
+
+        auto allargs=std::tie(args...);
+        static_assert(std::is_same<decltype(allargs),argtupleT>::value,"type or number of arguments incorrect");
+
+
+//        constexpr std::size_t a=(std::tuple_size<decltype(allargs)>::value);
+//        print("tuple size",a);
+//        test<a,decltype(allargs)>(allargs);
+//
+//        auto f1=std::get<0>(allargs);
+//        print("is function 1 ", is_madness_function<decltype(f1)>::value);
+//        std::apply([](auto &&... arg) { ((madness::print("is Function, ", typeid(arg).name(), is_function(arg) )), ...); }, allargs);
+
         partitionT partition;//=OrbitalPartitioner::partition_tasks(arg1);
         partition.push_back(batchT(0,1));
-
-        prepare_input(partition,arg1,arg2);
+        prepare_input(partition,allargs);
         resultT result=prepare_output(taskq_ptr->cloud);
 
         MacroTaskBase::taskqT vtask;
@@ -166,26 +211,67 @@ public:
         } else {
             taskq_ptr->add_tasks(vtask);
         }
+
         return result;
     }
+
+    template<std::size_t N, typename tupleT>
+    void test(const tupleT& tuple) {
+        print("template N",N);
+
+    }
+
+//    template<typename argT1, typename argT2>
+//    resultT operator()(const argT1& arg1, const argT2& arg2) {
+//        partitionT partition;//=OrbitalPartitioner::partition_tasks(arg1);
+//        partition.push_back(batchT(0,1));
+//
+//        prepare_input(partition,arg1,arg2);
+//        resultT result=prepare_output(taskq_ptr->cloud);
+//
+//        MacroTaskBase::taskqT vtask;
+//        for (const batchT& batch : partition) {
+//            vtask.push_back(std::shared_ptr<MacroTaskBase>(new MacroTaskInternal(task,batch)));
+//        }
+//
+//        if (not deferred_execution())  {
+//            MacroTaskQ taskq(world, world.size());
+//            taskq.add_tasks(vtask);
+//            taskq.run_all(vtask);
+//            world.gop.fence();
+//        } else {
+//            taskq_ptr->add_tasks(vtask);
+//        }
+//        return result;
+//    }
 
 
 private:
     bool deferred_execution() const {return (taskq_ptr) ? true : false;}
 
+    template<typename T>
+    void prepare_input(const partitionT& partition, const T& arg) {
+        hashT inputrecord=partition.front().second;
+        taskq_ptr->cloud.store(world,arg,inputrecord);
+    }
+
     template<typename argT1, typename argT2>
     void prepare_input(const partitionT& partition, const argT1& arg1, const argT2& arg2) {
         hashT inputrecord=partition.front().second;
-//        auto storage=std::tie(arg1,arg2);
-//        taskq_ptr->cloud.store(world,storage,inputrecord);
-        if (std::is_constructible<argT1,World&>::value) taskq_ptr->cloud.store(world,arg1,inputrecord);
-        if (std::is_constructible<argT2,World&>::value) taskq_ptr->cloud.store(world,arg2,inputrecord);
+        taskq_ptr->cloud.store(world,arg2,inputrecord);
     }
 
+    /// prepare the output of the macrotask: WorldObjects must be created in the universe
     resultT prepare_output(Cloud& cloud) {
-        resultT result(world);
-        cloud.store(world, result.get_impl(), 0); // store pointer to FunctionImpl
-        return result;
+        if constexpr (is_madness_function<resultT>::value) {
+            resultT result(world);
+            cloud.store(world, result.get_impl(), 0); // store pointer to FunctionImpl
+            return result;
+        } else {
+            resultT result;
+            cloud.store(world, result, 0); // store result
+            return result;
+        }
     }
 
 
@@ -197,11 +283,11 @@ private:
 class MicroTask {
 public:
     typedef real_function_3d resultT;
-    typedef real_function_3d argT1;
-    typedef double argT2;
-    resultT operator()(const real_function_3d& arg1, const double arg2) const {
+    typedef std::tuple<const real_function_3d&, const double&> argtupleT;
+//    typedef std::tuple<real_function_3d, double> argtupleT;
+
+    resultT operator()(const real_function_3d& arg1, const double& arg2) const {
         print("Hello world from MicroTask", arg2);
-        myusleep(2.e6);
         return arg2*arg1;
     }
 };
@@ -236,6 +322,8 @@ public:
 
 };
 
+template <typename> struct is_vector: std::false_type {};
+template <typename T> struct is_vector<std::vector<T>>: std::true_type {};
 
 
 
@@ -297,6 +385,17 @@ int main(int argc, char** argv) {
         auto taskq=std::shared_ptr<MacroTaskQ> (new MacroTaskQ(universe,nworld));
         taskq->set_printlevel(10);
         MacroTask_2G<MicroTask> task(universe,t,taskq);
+//        task(f1);
+//        task(f1,2.0,f1);
+//        std::vector<double> vd;
+//        double d;
+//        print("is vector vd", is_vector<decltype(vd)>::value);
+//        print("is vector d ", is_vector<decltype(d)>::value);
+//
+//        print("is function vd", is_function(vd));
+//        print("is function d ", is_function(d));
+//        print("is function f1", is_function(f1));
+
         real_function_3d f2=task(f1,2.0);
         double norm2a=(f2).norm2();
 

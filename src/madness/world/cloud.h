@@ -52,6 +52,7 @@ private:
 	struct is_vector {
 	    static const bool value = false;
 	};
+
 	template <typename T>
 	struct is_vector< T, typename std::enable_if<
 		  std::is_same<T,std::vector< typename T::value_type,
@@ -59,6 +60,12 @@ private:
 	{
 	    static const bool value = true;
 	};
+
+    template <typename> struct is_tuple: std::false_type {};
+    template <typename ...T> struct is_tuple<std::tuple<T...>>: std::true_type {};
+
+    template <typename> struct is_madness_function: std::false_type {};
+    template <typename T, std::size_t NDIM> struct is_madness_function<Function<T,NDIM>> : std::true_type {};
 
 	struct storetimer {
 		double cpu0;
@@ -104,21 +111,43 @@ public:
 		}
 	}
 
-	template<typename T>
-	void store(madness::World& world, const T& source, const int record) {
-		storetimer t(writing_time);
-		if (debug)
-			std::cout << "storing " << typeid(T).name() << " to record " << record << std::endl;
-		// scope is important because of destruction ordering of world objects and fence
-		{
-			madness::archive::ContainerRecordOutputArchive ar(world,container,record);
-			madness::archive::ParallelOutputArchive<madness::archive::ContainerRecordOutputArchive> par(world, ar);
-			par & source;
-		}
-		if (dofence) world.gop.fence();
+    template<typename T>
+    void store(madness::World& world, const T& arg, const int record) {
+        storetimer t(writing_time);
+        if (debug)
+            std::cout << "storing " << typeid(T).name() << " to record " << record << std::endl;
+        // scope is important because of destruction ordering of world objects and fence
+        {
+            madness::archive::ContainerRecordOutputArchive ar(world,container,record);
+            madness::archive::ParallelOutputArchive<madness::archive::ContainerRecordOutputArchive> par(world, ar);
+            if constexpr (is_tuple<T>::value) {
+                std::apply([par](auto &&... args) { ((par & args), ...); }, arg);
+            } else {
+                par & arg;
+            }
+        }
+        if (dofence) world.gop.fence();
 
-		if (debug) std::cout << "done with storing; container size " << container.size() << std::endl;
-	}
+        if (debug) std::cout << "done with storing; container size " << container.size() << std::endl;
+    }
+
+//	template<typename T>
+//    typename std::enable_if<!is_tuple<T>::value, void>::type
+//    store(madness::World& world, const T& source, const int record) {
+//		storetimer t(writing_time);
+//		if (debug)
+//			std::cout << "storing " << typeid(T).name() << " to record " << record << std::endl;
+//		// scope is important because of destruction ordering of world objects and fence
+//		{
+//			madness::archive::ContainerRecordOutputArchive ar(world,container,record);
+//			madness::archive::ParallelOutputArchive<madness::archive::ContainerRecordOutputArchive> par(world, ar);
+//			par & source;
+//		}
+//		if (dofence) world.gop.fence();
+//
+//		if (debug) std::cout << "done with storing; container size " << container.size() << std::endl;
+//	}
+
 
 
 	template<typename T>
@@ -165,8 +194,13 @@ public:
         madness::archive::ContainerRecordInputArchive ar(world,container,record);
         madness::archive::ParallelInputArchive<madness::archive::ContainerRecordInputArchive> par(world, ar);
         par.set_dofence(dofence);
-        par & target;
-        if (dofence) world.gop.fence();
+		if constexpr (is_tuple<T>::value) {
+			std::apply([par](auto &&... args) { ((par & args), ...); }, target);
+		} else {
+			par & target;
+		}
+
+		if (dofence) world.gop.fence();
 	}
 
 	// call this load to pass in an uninitialized vector, default-constructible

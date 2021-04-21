@@ -113,6 +113,7 @@ namespace madness {
 
 
 namespace madness {
+
     /// \ingroup mra
     /// \addtogroup function
 
@@ -2530,6 +2531,17 @@ namespace madness {
     }
 
 }
+
+namespace madness {
+    // type traits to check if a template parameter is a Function
+    template<typename>
+    struct is_madness_function : std::false_type {};
+
+    template<typename T, std::size_t NDIM>
+    struct is_madness_function<madness::Function<T, NDIM>> : std::true_type {};
+}
+
+
 /* @} */
 
 #include <madness/mra/derivative.h>
