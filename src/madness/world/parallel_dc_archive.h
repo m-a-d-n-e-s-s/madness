@@ -12,7 +12,9 @@ namespace madness {
     namespace archive {
         
         class ContainerRecordOutputArchive : public BaseOutputArchive {
+        public:
             using keyT = long;
+        private:
             using containerT = WorldContainer<keyT,std::vector<unsigned char>>;
             World& subworld;
             keyT key;

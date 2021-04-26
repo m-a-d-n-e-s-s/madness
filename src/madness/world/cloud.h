@@ -47,19 +47,23 @@ public:
 	mutable std::atomic<long> writing_time;	// in ms
 
 private:
-	/// vector helper function
-	template <typename T, typename _ = void>
-	struct is_vector {
-	    static const bool value = false;
-	};
+    template <typename> struct is_vector: std::false_type {};
+    template <typename T> struct is_vector<std::vector<T>>: std::true_type {};
+    using keyT=madness::archive::ContainerRecordOutputArchive::keyT;
 
-	template <typename T>
-	struct is_vector< T, typename std::enable_if<
-		  std::is_same<T,std::vector< typename T::value_type,
-			   typename T::allocator_type > >::value>::type>
-	{
-	    static const bool value = true;
-	};
+//    /// vector helper function
+//	template <typename T, typename _ = void>
+//	struct is_vector {
+//	    static const bool value = false;
+//	};
+//
+//	template <typename T>
+//	struct is_vector< T, typename std::enable_if<
+//		  std::is_same<T,std::vector< typename T::value_type,
+//			   typename T::allocator_type > >::value>::type>
+//	{
+//	    static const bool value = true;
+//	};
 
     template <typename> struct is_tuple: std::false_type {};
     template <typename ...T> struct is_tuple<std::tuple<T...>>: std::true_type {};
@@ -112,7 +116,7 @@ public:
 	}
 
     template<typename T>
-    void store(madness::World& world, const T& arg, const int record) {
+    void store(madness::World& world, const T& arg, const keyT record) {
         storetimer t(writing_time);
         if (debug)
             std::cout << "storing " << typeid(T).name() << " to record " << record << std::endl;
@@ -133,7 +137,7 @@ public:
 
 //	template<typename T>
 //    typename std::enable_if<!is_tuple<T>::value, void>::type
-//    store(madness::World& world, const T& source, const int record) {
+//    store(madness::World& world, const T& source, const keyT record) {
 //		storetimer t(writing_time);
 //		if (debug)
 //			std::cout << "storing " << typeid(T).name() << " to record " << record << std::endl;
@@ -151,7 +155,7 @@ public:
 
 
 	template<typename T>
-	void store(madness::World& world, const std::vector<T>& source, const int record) {
+	void store(madness::World& world, const std::vector<T>& source, const keyT record) {
 		storetimer t(writing_time);
 		if (debug)
 			std::cout << "storing vector of " << typeid(T).name() << " of size " << source.size() << " to record " << record << std::endl;
@@ -167,10 +171,62 @@ public:
 		if (debug) std::cout << "done with vector storing; container size " << container.size() << std::endl;
 	}
 
-	// call this load if your argument has a constructor taking world as argument (e.g. WorldContainer)
+	/// compute the record of the argument
+
+	/// distinguish 3 cases for the argument: Function, vector<Function>, everything else
+	/// TODO: fix hash value for vector of functions,
+    template<typename T>
+    static hashT compute_record(const T& arg) {
+        if constexpr (is_madness_function<T>::value) return hash_value(arg.get_impl()->id());
+        else if constexpr (is_vector<T>::value) {
+            if constexpr (is_madness_function<typename T::value_type>::value) {
+                return hash_value(arg.front().get_impl()->id());
+            }
+        }
+        else return hash_value(arg);
+    }
+
+    /// store a tuple in multiple records
+    template<typename... Ts>
+    std::list<hashT> store(World& world, const std::tuple<Ts...>& input) {
+        std::list<hashT> v;
+        auto storeaway=[&](const auto& arg) {
+            hashT record=this->compute_record(arg);
+            v.push_back(record);
+            print("long(record)", keyT(record), typeid(arg).name());
+            store(world,arg,keyT(record));
+        };
+        auto l=[&](Ts const &... arg) {
+            ((storeaway(arg)),...);
+        };
+        std::apply(l,input);
+        print("stored data away into records",v);
+        return v;
+    }
+
+    template<typename argT>
+    argT load(World& subworld, std::list<hashT>& inputrecords) const {
+        argT target;
+        auto l1=[&](auto&& arg) {
+            hashT record=inputrecords.front();
+            inputrecords.pop_front();
+            print("long(record)", keyT(record), typeid(arg).name());
+//            std::decay<decltype(arg)> a;
+//            arg=load<std::remove_cv_t<std::remove_reference_t<decltype(arg)>>>(subworld,keyT(record));
+            arg=load<std::remove_cv_t<std::remove_reference_t<decltype(arg)>>>(subworld,keyT(record));
+//            arg=load<decltype(arg)>(subworld,keyT(record));
+        };
+        auto l=[&](auto&&... arg) {
+            ((l1(arg)),...);
+        };
+        std::apply(l,target);
+        return target;
+    }
+
+    // call this load if your argument has a constructor taking world as argument (e.g. WorldContainer)
 	template<typename T>
 	typename std::enable_if<std::is_constructible<T,World&>::value, T>::type
-	load(madness::World& world, const int record) const {
+	load(madness::World& world, const keyT record) const {
 		T target(world);
 		load(world, target, record);
         return target;
@@ -179,7 +235,7 @@ public:
 	// call this load for simple types
 	template<typename T>
 	typename std::enable_if<!std::is_constructible<T,World&>::value, T>::type
-	load(madness::World& world, const int record) const {
+	load(madness::World& world, const keyT record) const {
 		T target;
 		load(world, target, record);
         return target;
@@ -188,7 +244,7 @@ public:
 	// call this load to pass in an already constructed argument (not a vector)
 	template<typename T>
 	typename std::enable_if<!is_vector<T>::value, void>::type
-	load(madness::World& world, T& target, const int record) const {
+	load(madness::World& world, T& target, const keyT record) const {
 		loadtimer t(reading_time);
         if (debug) std::cout << "loading " << typeid(T).name() << " to world " << world.id() << " from record " << record << std::endl;
         madness::archive::ContainerRecordInputArchive ar(world,container,record);
@@ -206,7 +262,7 @@ public:
 	// call this load to pass in an uninitialized vector, default-constructible
 	template<typename vecT>
 	typename std::enable_if<is_vector<vecT>::value && !std::is_constructible<typename vecT::value_type,World&>::value, void>::type
-	load(madness::World& world, vecT& target, const int record) const {
+	load(madness::World& world, vecT& target, const keyT record) const {
 		loadtimer t(reading_time);
 		typedef typename vecT::value_type T;
         if (debug) std::cout << "loading vector of type " << typeid(T).name() << " to world " << world.id() << " from record " << record << std::endl;
@@ -225,7 +281,7 @@ public:
 	// call this load to pass in an uninitialized vector, world-constructible
 	template<typename vecT>
 	typename std::enable_if<is_vector<vecT>::value && std::is_constructible<typename vecT::value_type,World&>::value, void>::type
-	load(madness::World& world, vecT& target, const int record) const {
+	load(madness::World& world, vecT& target, const keyT record) const {
 		loadtimer t(reading_time);
 		typedef typename vecT::value_type T;
         if (debug) std::cout << "loading vector of type " << typeid(T).name() << " to world " << world.id() << " from record " << record << std::endl;

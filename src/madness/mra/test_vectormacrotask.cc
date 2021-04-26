@@ -120,20 +120,89 @@ class MacroTask_2G {
     typedef std::list<batchT> partitionT;
     typedef typename taskT::resultT resultT;
     typedef typename taskT::argtupleT argtupleT;
+    typedef std::list<hashT> recordlistT;
     taskT task;
+
 public:
+    MacroTask_2G(World& world, taskT& task) : world(world), task(task), taskq_ptr() {}
+    MacroTask_2G(World& world, taskT& task, std::shared_ptr<MacroTaskQ> taskq_ptr) : world(world), task(task), taskq_ptr(taskq_ptr) {}
+
+    template<typename ... Ts>
+    resultT operator()(const Ts& ... args) {
+
+        auto allargs=std::tie(args...);
+        static_assert(std::is_same<decltype(allargs),argtupleT>::value,"type or number of arguments incorrect");
+
+        // TODO: do the partitioning
+        partitionT partition;//=OrbitalPartitioner::partition_tasks(arg1);
+        partition.push_back(batchT(0,1));
+
+//        inputrecords=prepare_input(allargs);
+        inputrecords=taskq_ptr->cloud.store(world,allargs);
+        resultT result=prepare_output(taskq_ptr->cloud);
+
+        MacroTaskBase::taskqT vtask;
+        for (const batchT& batch : partition) {
+            vtask.push_back(std::shared_ptr<MacroTaskBase>(new MacroTaskInternal(task,batch,inputrecords,outputrecords)));
+        }
+
+        if (not deferred_execution())  {
+            MacroTaskQ taskq(world, world.size());
+            taskq.add_tasks(vtask);
+            taskq.run_all(vtask);
+        } else {
+            taskq_ptr->add_tasks(vtask);
+        }
+
+        return result;
+    }
+
+private:
+
+    World& world;
+    std::shared_ptr<MacroTaskQ> taskq_ptr;
+    recordlistT inputrecords;
+    recordlistT outputrecords;
+
+
+    bool deferred_execution() const {return (taskq_ptr) ? true : false;}
+
+    // TODO: return bookkeeping information, serialize
+    /// prepare the output of the macrotask: WorldObjects must be created in the universe
+    resultT prepare_output(Cloud& cloud) {
+        // TODO: generalize this
+        static_assert(is_madness_function<resultT>::value);
+        if constexpr (is_madness_function<resultT>::value) {
+            resultT result(world);
+            hashT record=Cloud::compute_record(result);
+            cloud.store(world, result.get_impl(), record); // store pointer to FunctionImpl
+            outputrecords.push_back(record);
+            print("outputrecord", record);
+            return result;
+        } else {
+            resultT result;
+            cloud.store(world, result, 0); // store result
+            return result;
+        }
+    }
+
     class MacroTaskInternal : public MacroTaskIntermediate<MacroTask> {
 
-        typedef decay_tuple<typename taskT::argtupleT> argtupleT;
+        typedef decay_tuple<typename taskT::argtupleT> argtupleT;   // removes const, &, etc
         typedef typename taskT::resultT resultT;
         batchT batch;
+        recordlistT inputrecords;
+        recordlistT outputrecords;
     public:
         taskT task;
-        MacroTaskInternal(const taskT& task, const batchT& batch) : task(task), batch(batch) {}
+        MacroTaskInternal(const taskT& task, const batchT& batch,
+                          const recordlistT& inputrecords, const recordlistT& outputrecords)
+                          : task(task), batch(batch), inputrecords(inputrecords), outputrecords(outputrecords) {}
 
         void run(World& subworld, Cloud& cloud, MacroTaskBase::taskqT& taskq) {
 
-            argtupleT argtuple=get_input<argtupleT>(subworld,cloud);
+//            argtupleT argtuple=get_input<argtupleT>(subworld,cloud,inputrecords);
+            argtupleT argtuple=cloud.load<argtupleT>(subworld,inputrecords);
             resultT result=get_output(subworld, cloud);
 
             constexpr std::size_t narg=(std::tuple_size<argtupleT>::value);
@@ -156,7 +225,7 @@ public:
             resultT result;
             if constexpr (is_madness_function<resultT>::value) {
                 std::shared_ptr<typename resultT::implT> rimpl;
-                cloud.load(subworld,rimpl,0);
+                cloud.load(subworld,rimpl,outputrecords.front());
                 result.set_impl(rimpl);
             } else {
                 MADNESS_CHECK(is_madness_function<resultT>::value);
@@ -165,130 +234,53 @@ public:
             return result;
         }
 
-        template<typename argT>
-        argT get_input(World& subworld, Cloud& cloud) {
-            hashT inputrecord=batch.second;
-            argT arg;
-            cloud.load(subworld,arg,inputrecord);
-            return arg;
-        }
     };
-
-public:
-    MacroTask_2G(World& world, taskT& task) : world(world), task(task), taskq_ptr() {}
-    MacroTask_2G(World& world, taskT& task, std::shared_ptr<MacroTaskQ> taskq_ptr) : world(world), task(task), taskq_ptr(taskq_ptr) {}
-
-    template<typename ... Ts>
-    resultT operator()(const Ts& ... args) {
-
-        auto allargs=std::tie(args...);
-        static_assert(std::is_same<decltype(allargs),argtupleT>::value,"type or number of arguments incorrect");
-
-
-//        constexpr std::size_t a=(std::tuple_size<decltype(allargs)>::value);
-//        print("tuple size",a);
-//        test<a,decltype(allargs)>(allargs);
-//
-//        auto f1=std::get<0>(allargs);
-//        print("is function 1 ", is_madness_function<decltype(f1)>::value);
-//        std::apply([](auto &&... arg) { ((madness::print("is Function, ", typeid(arg).name(), is_function(arg) )), ...); }, allargs);
-
-        partitionT partition;//=OrbitalPartitioner::partition_tasks(arg1);
-        partition.push_back(batchT(0,1));
-        prepare_input(partition,allargs);
-        resultT result=prepare_output(taskq_ptr->cloud);
-
-        MacroTaskBase::taskqT vtask;
-        for (const batchT& batch : partition) {
-            vtask.push_back(std::shared_ptr<MacroTaskBase>(new MacroTaskInternal(task,batch)));
-        }
-
-        if (not deferred_execution())  {
-            MacroTaskQ taskq(world, world.size());
-            taskq.add_tasks(vtask);
-            taskq.run_all(vtask);
-            world.gop.fence();
-        } else {
-            taskq_ptr->add_tasks(vtask);
-        }
-
-        return result;
-    }
-
-    template<std::size_t N, typename tupleT>
-    void test(const tupleT& tuple) {
-        print("template N",N);
-
-    }
-
-//    template<typename argT1, typename argT2>
-//    resultT operator()(const argT1& arg1, const argT2& arg2) {
-//        partitionT partition;//=OrbitalPartitioner::partition_tasks(arg1);
-//        partition.push_back(batchT(0,1));
-//
-//        prepare_input(partition,arg1,arg2);
-//        resultT result=prepare_output(taskq_ptr->cloud);
-//
-//        MacroTaskBase::taskqT vtask;
-//        for (const batchT& batch : partition) {
-//            vtask.push_back(std::shared_ptr<MacroTaskBase>(new MacroTaskInternal(task,batch)));
-//        }
-//
-//        if (not deferred_execution())  {
-//            MacroTaskQ taskq(world, world.size());
-//            taskq.add_tasks(vtask);
-//            taskq.run_all(vtask);
-//            world.gop.fence();
-//        } else {
-//            taskq_ptr->add_tasks(vtask);
-//        }
-//        return result;
-//    }
-
-
-private:
-    bool deferred_execution() const {return (taskq_ptr) ? true : false;}
-
-    template<typename T>
-    void prepare_input(const partitionT& partition, const T& arg) {
-        hashT inputrecord=partition.front().second;
-        taskq_ptr->cloud.store(world,arg,inputrecord);
-    }
-
-    template<typename argT1, typename argT2>
-    void prepare_input(const partitionT& partition, const argT1& arg1, const argT2& arg2) {
-        hashT inputrecord=partition.front().second;
-        taskq_ptr->cloud.store(world,arg2,inputrecord);
-    }
-
-    /// prepare the output of the macrotask: WorldObjects must be created in the universe
-    resultT prepare_output(Cloud& cloud) {
-        if constexpr (is_madness_function<resultT>::value) {
-            resultT result(world);
-            cloud.store(world, result.get_impl(), 0); // store pointer to FunctionImpl
-            return result;
-        } else {
-            resultT result;
-            cloud.store(world, result, 0); // store result
-            return result;
-        }
-    }
-
-
-    World& world;
-    std::shared_ptr<MacroTaskQ> taskq_ptr;
 
 };
 
 class MicroTask {
 public:
+    // you need to define the result type
+    // resultT must implement operator+=(const resultT&)
     typedef real_function_3d resultT;
-    typedef std::tuple<const real_function_3d&, const double&> argtupleT;
-//    typedef std::tuple<real_function_3d, double> argtupleT;
 
-    resultT operator()(const real_function_3d& arg1, const double& arg2) const {
-        print("Hello world from MicroTask", arg2);
-        return arg2*arg1;
+    // you need to define the exact argument(s) of operator() as tuple
+    typedef std::tuple<const real_function_3d&, const double&,
+            const std::vector<real_function_3d>&> argtupleT;
+
+    std::pair<long,hashT> partition(const argtupleT& argtuple) {
+        return std::make_pair<long,hashT>(0,0);
+    }
+
+    resultT operator()(const real_function_3d& f1, const double& arg2,
+            const std::vector<real_function_3d>& f2) const {
+        print("Hello world from MicroTask");
+        World& world=f1.world();
+        return arg2*f1*dot(world,f2,f2);
+    }
+};
+
+
+class MicroTask1 {
+public:
+    // you need to define the result type
+    // resultT must implement operator+=(const resultT&)
+    typedef real_function_3d resultT;
+
+    // you need to define the exact argument(s) of operator() as tuple
+    typedef std::tuple<const real_function_3d&, const double&,
+            const std::vector<real_function_3d>&> argtupleT;
+
+    std::pair<long,hashT> partition(const argtupleT& argtuple) {
+        return std::make_pair<long,hashT>(0,0);
+    }
+
+    resultT operator()(const real_function_3d& f1, const double& arg2,
+                       const std::vector<real_function_3d>& f2) const {
+        print("Hello world from MicroTask 1");
+        World& world=f1.world();
+        Derivative<double,3> D(world,1);
+        return arg2*f1*inner(D(f1),f1);
     }
 };
 
@@ -321,9 +313,6 @@ public:
     }
 
 };
-
-template <typename> struct is_vector: std::false_type {};
-template <typename T> struct is_vector<std::vector<T>>: std::true_type {};
 
 
 
@@ -378,25 +367,22 @@ int main(int argc, char** argv) {
     {
         // execution in a taskq, result will be complete only after the taskq is finished
         real_function_3d f1=real_factory_3d(universe).functor(gaussian(1.0));
+        real_function_3d i2=real_factory_3d(universe).functor(gaussian(2.0));
+        std::vector<real_function_3d> v2={2.0*f1,i2};
 
         MicroTask t;
-        real_function_3d f3=t(f1,2.0);
+        MicroTask1 t1;
+        real_function_3d f3=t(f1,2.0,v2);
+        real_function_3d f3_1=t1(f1,2.0,v2);
+        print("f3.unique_id",f3.get_impl()->id());
 
         auto taskq=std::shared_ptr<MacroTaskQ> (new MacroTaskQ(universe,nworld));
         taskq->set_printlevel(10);
-        MacroTask_2G<MicroTask> task(universe,t,taskq);
-//        task(f1);
-//        task(f1,2.0,f1);
-//        std::vector<double> vd;
-//        double d;
-//        print("is vector vd", is_vector<decltype(vd)>::value);
-//        print("is vector d ", is_vector<decltype(d)>::value);
-//
-//        print("is function vd", is_function(vd));
-//        print("is function d ", is_function(d));
-//        print("is function f1", is_function(f1));
+        MacroTask_2G task(universe,t,taskq);
+        MacroTask_2G task1(universe,t1,taskq);
 
-        real_function_3d f2=task(f1,2.0);
+        real_function_3d f2=task(f1,2.0, v2);
+        real_function_3d f2_1=task1(f1,2.0, v2);
         double norm2a=(f2).norm2();
 
         print("before running all tasks");
@@ -405,7 +391,13 @@ int main(int argc, char** argv) {
         double norm2=(f2).norm2();
         double norm3=(f3).norm2();
         double error=(f3-f2).norm2();
+        double norm_f2_1=(f2_1).norm2();
+        double norm_f3_1=(f3_1).norm2();
+        double error1=(f3_1-f2_1).norm2();
         print("norm2/2a/3, error",norm2, norm2a, norm3, error);
+        print("norm2_1/3_1, error", norm_f2_1,norm_f3_1, error1);
+        if (error<1.e-10) print("test_vectormacrotask \033[32m"  ,"passed ", "\033[0m");
+        if (error1<1.e-10) print("test_vectormacrotask \033[32m"  ,"passed ", "\033[0m");
     }
 
     madness::finalize();
