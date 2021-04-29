@@ -33,17 +33,6 @@
 using namespace madness;
 using namespace archive;
 
-namespace madness {
-
-
-template<typename T>
-bool is_function(const T &arg) {
-    return is_madness_function<typename std::decay<decltype(arg)>::type>::value;
-}
-}
-
-
-
 struct gaussian {
 	double a;
 	gaussian() : a() {};
@@ -62,50 +51,50 @@ struct gaussian {
 static std::atomic<int> atomic_idx;
 
 /// a macro task for top-level operations requiring a world
-class MacroTask : public MacroTaskIntermediate<MacroTask> {
-public:
-	int inputrecord=0;
-	int outputrecord=1000;
-	int idx=0;
-	double exponent=1.0;
-
-	MacroTask(double e) : idx(atomic_idx++), exponent(e) {}
-
-    template <typename Archive>
-    void serialize(const Archive& ar) {
-    	ar & inputrecord & outputrecord & idx;
-    }
-
-    /// implement this
-	void run(World& world, Cloud& cloud, taskqT& taskq) {
-		{
-			// read the input data
-			if (world.rank()==0) print("task",idx,"is reading from record",inputrecord);
-			Function<double,4> f=real_factory_4d(world);
-			cloud.load(world,f,inputrecord);
-
-			// do the work
-			Function<double,4> g=real_factory_4d(world).functor(gaussian(exponent));
-			Function<double,4> f2=square(f)+g;
-			Derivative<double,4> D(world,1);
-			Function<double,4> df2=(D(f2)).truncate();
-			Function<double,4> df3=(D(df2)).truncate();
-			double trace=df2.trace();
-			world.gop.fence();
-
-			// store the result data
-			if (world.rank()==0) print("task",idx,"is writing to record", outputrecord);
-			cloud.store(world,f2,outputrecord);
-		}
-		world.gop.fence();
-	}
-
-
-    void print_me(std::string s="") const {
-    	print("task",s, idx,this,this->stat);
-    }
-
-};
+//class MacroTask : public MacroTaskIntermediate<MacroTask> {
+//public:
+//	int inputrecord=0;
+//	int outputrecord=1000;
+//	int idx=0;
+//	double exponent=1.0;
+//
+//	MacroTask(double e) : idx(atomic_idx++), exponent(e) {}
+//
+//    template <typename Archive>
+//    void serialize(const Archive& ar) {
+//    	ar & inputrecord & outputrecord & idx;
+//    }
+//
+//    /// implement this
+//	void run(World& world, Cloud& cloud, taskqT& taskq) {
+//		{
+//			// read the input data
+//			if (world.rank()==0) print("task",idx,"is reading from record",inputrecord);
+//			Function<double,4> f=real_factory_4d(world);
+//			cloud.load(world,f,inputrecord);
+//
+//			// do the work
+//			Function<double,4> g=real_factory_4d(world).functor(gaussian(exponent));
+//			Function<double,4> f2=square(f)+g;
+//			Derivative<double,4> D(world,1);
+//			Function<double,4> df2=(D(f2)).truncate();
+//			Function<double,4> df3=(D(df2)).truncate();
+//			double trace=df2.trace();
+//			world.gop.fence();
+//
+//			// store the result data
+//			if (world.rank()==0) print("task",idx,"is writing to record", outputrecord);
+//			cloud.store(world,f2,outputrecord);
+//		}
+//		world.gop.fence();
+//	}
+//
+//
+//    void print_me(std::string s="") const {
+//    	print("task",s, idx,this,this->stat);
+//    }
+//
+//};
 
 template <typename ... Ts>
 constexpr auto decay_types (std::tuple<Ts...> const &)
@@ -114,13 +103,20 @@ constexpr auto decay_types (std::tuple<Ts...> const &)
 template <typename T>
 using decay_tuple = decltype(decay_types(std::declval<T>()));
 
+
+template <typename>
+struct is_madness_function_vector: std::false_type {};
+
+template <typename T, std::size_t NDIM>
+struct is_madness_function_vector<std::vector<typename std::is_same<T,typename madness::Function<T, NDIM>>>>: std::true_type {};
+
 template<typename taskT>
 class MacroTask_2G {
-    typedef std::pair<long,hashT> batchT;     // vector index (if applicable), hashvalue for cloud storing
+    typedef std::pair<long,hashT> batchT;
     typedef std::list<batchT> partitionT;
     typedef typename taskT::resultT resultT;
     typedef typename taskT::argtupleT argtupleT;
-    typedef std::list<hashT> recordlistT;
+    typedef Cloud::recordlistT recordlistT;
     taskT task;
 
 public:
@@ -138,6 +134,7 @@ public:
         partition.push_back(batchT(0,1));
 
 //        inputrecords=prepare_input(allargs);
+        taskq_ptr->cloud.set_debug(true);
         inputrecords=taskq_ptr->cloud.store(world,allargs);
         resultT result=prepare_output(taskq_ptr->cloud);
 
@@ -174,10 +171,8 @@ private:
         static_assert(is_madness_function<resultT>::value);
         if constexpr (is_madness_function<resultT>::value) {
             resultT result(world);
-            hashT record=Cloud::compute_record(result);
-            cloud.store(world, result.get_impl(), record); // store pointer to FunctionImpl
-            outputrecords.push_back(record);
-            print("outputrecord", record);
+            result.compress();
+            outputrecords+=cloud.store(world, result.get_impl().get()); // store pointer to FunctionImpl
             return result;
         } else {
             resultT result;
@@ -186,7 +181,7 @@ private:
         }
     }
 
-    class MacroTaskInternal : public MacroTaskIntermediate<MacroTask> {
+    class MacroTaskInternal : public MacroTaskIntermediate<MacroTask_2G> {
 
         typedef decay_tuple<typename taskT::argtupleT> argtupleT;   // removes const, &, etc
         typedef typename taskT::resultT resultT;
@@ -201,7 +196,9 @@ private:
 
         void run(World& subworld, Cloud& cloud, MacroTaskBase::taskqT& taskq) {
 
+//            argtupleT  argtuple(subworld);
 //            argtupleT argtuple=get_input<argtupleT>(subworld,cloud,inputrecords);
+            cloud.set_debug(true);
             argtupleT argtuple=cloud.load<argtupleT>(subworld,inputrecords);
             resultT result=get_output(subworld, cloud);
 
@@ -224,8 +221,9 @@ private:
         resultT get_output(World& subworld, Cloud& cloud) {
             resultT result;
             if constexpr (is_madness_function<resultT>::value) {
-                std::shared_ptr<typename resultT::implT> rimpl;
-                cloud.load(subworld,rimpl,outputrecords.front());
+                typedef std::shared_ptr<typename resultT::implT> impl_ptrT;
+                impl_ptrT rimpl;
+                rimpl=cloud.load<impl_ptrT>(subworld,outputrecords);
                 result.set_impl(rimpl);
             } else {
                 MADNESS_CHECK(is_madness_function<resultT>::value);
@@ -258,6 +256,13 @@ public:
         World& world=f1.world();
         return arg2*f1*dot(world,f2,f2);
     }
+
+    real_function_3d density;
+
+    void store_member_variables_to_cloud() const {
+
+    }
+
 };
 
 
@@ -286,33 +291,33 @@ public:
 
 
 /// similar to MacroTask, for testing heterogeneous task queues
-class MacroTask1 : public MacroTaskIntermediate<MacroTask1> {
-
-public:
-	int idx=0;
-	int inputrecord=0;
-	int outputrecord=1000;
-
-	MacroTask1(): idx(atomic_idx++) {}
-
-	void run(World& world, Cloud& cloud, taskqT& taskq) {
-		Function<double,4> f=cloud.load<Function<double,4> > (world,inputrecord);
-		Function<double,4> g=real_factory_4d(world).functor(gaussian(2.0));
-		Function<double,4> f2=square(f)+g;
-		world.gop.fence();
-		cloud.store(world,g,outputrecord);
-	}
-
-    template <typename Archive>
-    void serialize(const Archive& ar) {
-    	ar & inputrecord & outputrecord & idx;
-    }
-
-    void print_me(std::string s="") const {
-    	print("macro task 1",s, idx,this,this->stat);
-    }
-
-};
+//class MacroTask1 : public MacroTaskIntermediate<MacroTask1> {
+//
+//public:
+//	int idx=0;
+//	int inputrecord=0;
+//	int outputrecord=1000;
+//
+//	MacroTask1(): idx(atomic_idx++) {}
+//
+//	void run(World& world, Cloud& cloud, taskqT& taskq) {
+//		Function<double,4> f=cloud.load<Function<double,4> > (world,inputrecord);
+//		Function<double,4> g=real_factory_4d(world).functor(gaussian(2.0));
+//		Function<double,4> f2=square(f)+g;
+//		world.gop.fence();
+//		cloud.store(world,g,outputrecord);
+//	}
+//
+//    template <typename Archive>
+//    void serialize(const Archive& ar) {
+//    	ar & inputrecord & outputrecord & idx;
+//    }
+//
+//    void print_me(std::string s="") const {
+//    	print("macro task 1",s, idx,this,this->stat);
+//    }
+//
+//};
 
 
 
@@ -329,39 +334,39 @@ int main(int argc, char** argv) {
     int nworld=universe.size();
     if (universe.rank()==0) print("creating nworld",nworld);
 
-    if (0) {
-    	MacroTaskQ taskq(universe,nworld);
-
-		long ntask=15;
-
-		Function<double,4> f=real_factory_4d(universe);
-		f=f+1.0;
-		taskq.cloud.store(universe,f,0);
-		universe.gop.fence();
-
-		MacroTaskBase::taskqT vtask;
-		for (int i=0; i<ntask; ++i) {
-			MacroTask task(double(ntask-i)/2.0);
-			task.inputrecord=0;
-			task.outputrecord=i+1;
-			vtask.push_back(std::shared_ptr<MacroTaskBase>(new MacroTask(task)));
-		}
-		universe.gop.fence();
-
-		// try heterogeneous task list
-	    vtask.push_back(std::shared_ptr<MacroTaskBase>(new MacroTask1()));
-
-	    FunctionDefaults<4>::set_default_pmap(taskq.get_subworld());
-	    taskq.run_all(vtask);
-		FunctionDefaults<4>::set_default_pmap(universe);
-
-		taskq.cloud.print_timings(universe);
-	//    MacroTask<real_function_4d, dataT> task;
-	//    task.idx=3;
-	//    std::vector<Function<double,4> > result=taskq.map(task,vdata);
-
-	//    print_size(universe,result,"result after map");
-    }
+//    if (0) {
+//    	MacroTaskQ taskq(universe,nworld);
+//
+//		long ntask=15;
+//
+//		Function<double,4> f=real_factory_4d(universe);
+//		f=f+1.0;
+//		taskq.cloud.store(universe,f,0);
+//		universe.gop.fence();
+//
+//		MacroTaskBase::taskqT vtask;
+//		for (int i=0; i<ntask; ++i) {
+//			MacroTask task(double(ntask-i)/2.0);
+//			task.inputrecord=0;
+//			task.outputrecord=i+1;
+//			vtask.push_back(std::shared_ptr<MacroTaskBase>(new MacroTask(task)));
+//		}
+//		universe.gop.fence();
+//
+//		// try heterogeneous task list
+//	    vtask.push_back(std::shared_ptr<MacroTaskBase>(new MacroTask1()));
+//
+//	    FunctionDefaults<4>::set_default_pmap(taskq.get_subworld());
+//	    taskq.run_all(vtask);
+//		FunctionDefaults<4>::set_default_pmap(universe);
+//
+//		taskq.cloud.print_timings(universe);
+//	//    MacroTask<real_function_4d, dataT> task;
+//	//    task.idx=3;
+//	//    std::vector<Function<double,4> > result=taskq.map(task,vdata);
+//
+//	//    print_size(universe,result,"result after map");
+//    }
 	universe.gop.fence();
 
     {
@@ -407,8 +412,8 @@ int main(int argc, char** argv) {
 template <> volatile std::list<detail::PendingMsg> WorldObject<MacroTaskQ>::pending = std::list<detail::PendingMsg>();
 template <> Spinlock WorldObject<MacroTaskQ>::pending_mutex(0);
 
-template <> volatile std::list<detail::PendingMsg> WorldObject<WorldContainerImpl<long, MacroTask, madness::Hash<long> > >::pending = std::list<detail::PendingMsg>();
-template <> Spinlock WorldObject<WorldContainerImpl<long, MacroTask, madness::Hash<long> > >::pending_mutex(0);
+//template <> volatile std::list<detail::PendingMsg> WorldObject<WorldContainerImpl<long, MacroTask, madness::Hash<long> > >::pending = std::list<detail::PendingMsg>();
+//template <> Spinlock WorldObject<WorldContainerImpl<long, MacroTask, madness::Hash<long> > >::pending_mutex(0);
 
 template <> volatile std::list<detail::PendingMsg> WorldObject<WorldContainerImpl<long, std::vector<unsigned char>, madness::Hash<long> > >::pending = std::list<detail::PendingMsg>();
 template <> Spinlock WorldObject<WorldContainerImpl<long, std::vector<unsigned char>, madness::Hash<long> > >::pending_mutex(0);

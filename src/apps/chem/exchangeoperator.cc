@@ -97,15 +97,15 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::operator()(
             double wall0 = wall_time();
             MacroTaskQ taskq(world, nsubworld);
             long start = 0;
-            for (int i = 0; i < nocc; ++i) {
-                taskq.cloud.store(world, mo_bra[i], i);
-                taskq.cloud.store(world, mo_ket[i], i + nocc);
-            }
-            start += 2 * nocc;
-            for (int i = 0; i < nf; ++i) {
-                taskq.cloud.store(world, vket[i], i + start);
-                taskq.cloud.store(world, Kf[i].get_impl(), start + i + nf); // store pointer to FunctionImpl
-            }
+//            for (int i = 0; i < nocc; ++i) {
+//                taskq.cloud.store(world, mo_bra[i], i);
+//                taskq.cloud.store(world, mo_ket[i], i + nocc);
+//            }
+//            start += 2 * nocc;
+//            for (int i = 0; i < nf; ++i) {
+//                taskq.cloud.store(world, vket[i], i + start);
+//                taskq.cloud.store(world, Kf[i].get_impl(), start + i + nf); // store pointer to FunctionImpl
+//            }
             double wall1 = wall_time();
             if (do_print_timings()) printf("wall time for storing %4.1fs\n", wall1 - wall0);
 
