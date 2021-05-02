@@ -134,7 +134,9 @@ public:
 		if (printdebug()) print_taskq();
 
         universe.gop.fence();
-		double cpu00=cpu_time();
+        set_pmap(get_subworld());
+
+        double cpu00=cpu_time();
 
 		World& subworld=get_subworld();
 		if (printdebug()) print("I am subworld",subworld.id());
@@ -154,13 +156,9 @@ public:
 			if (subworld.rank()==0 and printlevel>=3) printf("completed task %3ld after %6.1fs at time %6.1fs\n",element,cpu1-cpu0,wall_time());
 
 		}
-		print("hello 1a");
 		universe.gop.fence();
-        print("hello 1b");
 		universe.gop.sum(tasktime);
-        print("hello 1c");
         double cpu11=cpu_time();
-        print("hello 1d");
         if (printtimings()) {
             printf("completed taskqueue after    %4.1fs at time %4.1fs\n", cpu11 - cpu00, wall_time());
             printf(" total cpu time / per world  %4.1fs %4.1fs\n", tasktime, tasktime / universe.size());
@@ -172,6 +170,7 @@ public:
         subworld.gop.fence();
         universe.gop.fence();
         universe.gop.fence();
+        set_pmap(universe);
 	}
 
 	void add_tasks(MacroTaskBase::taskqT& vtask) {
@@ -253,6 +252,15 @@ private:
 	void set_complete_local(const long task_number) const {
 		MADNESS_ASSERT(universe.rank()==0);
 		taskq[task_number]->set_complete();
+	}
+
+	void set_pmap(World& world) {
+        FunctionDefaults<1>::set_default_pmap(world);
+        FunctionDefaults<2>::set_default_pmap(world);
+        FunctionDefaults<3>::set_default_pmap(world);
+        FunctionDefaults<4>::set_default_pmap(world);
+        FunctionDefaults<5>::set_default_pmap(world);
+        FunctionDefaults<6>::set_default_pmap(world);
 	}
 
 	std::size_t size() const {
