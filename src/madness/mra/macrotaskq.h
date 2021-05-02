@@ -93,7 +93,7 @@ class MacroTaskQ : public WorldObject< MacroTaskQ> {
 	std::mutex taskq_mutex;
 	long printlevel=0;
 
-	bool printdebug() const {return universe.rank()==0 and printlevel>=10;}
+	bool printdebug() const {return printlevel>=10;}
     bool printtimings() const {return universe.rank()==0 and printlevel>=3;}
 
 public:
@@ -133,8 +133,7 @@ public:
 		for (int i=0; i<vtask.size(); ++i) add_replicated_task(vtask[i]);
 		if (printdebug()) print_taskq();
 
-		universe.gop.fence();
-
+        universe.gop.fence();
 		double cpu00=cpu_time();
 
 		World& subworld=get_subworld();
@@ -145,6 +144,7 @@ public:
             double cpu0=cpu_time();
 			if (element<0) break;
 			std::shared_ptr<MacroTaskBase> task=taskq[element];
+            if (printdebug()) print("starting task no",element, "in subworld",subworld.id(),"at time",wall_time());
 
 			task->run(subworld,cloud, taskq);
 
@@ -154,9 +154,13 @@ public:
 			if (subworld.rank()==0 and printlevel>=3) printf("completed task %3ld after %6.1fs at time %6.1fs\n",element,cpu1-cpu0,wall_time());
 
 		}
+		print("hello 1a");
 		universe.gop.fence();
+        print("hello 1b");
 		universe.gop.sum(tasktime);
+        print("hello 1c");
         double cpu11=cpu_time();
+        print("hello 1d");
         if (printtimings()) {
             printf("completed taskqueue after    %4.1fs at time %4.1fs\n", cpu11 - cpu00, wall_time());
             printf(" total cpu time / per world  %4.1fs %4.1fs\n", tasktime, tasktime / universe.size());
@@ -209,7 +213,7 @@ private:
 	void print_taskq() const {
 		universe.gop.fence();
 		if (universe.rank()==0) {
-			print("taskq on universe rank",universe.rank());
+			print("\ntaskq on universe rank",universe.rank());
 			for (const auto& t : taskq) t->print_me();
 		}
 		universe.gop.fence();

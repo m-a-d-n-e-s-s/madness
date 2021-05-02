@@ -126,6 +126,14 @@ public:
     template<typename ... Ts>
     resultT operator()(const Ts& ... args) {
 
+        // a MacroTask cannot be called twice, because the output will be overwritten
+        // feel free to add this functionality if you need
+        if (outputrecords.size()!=0) {
+            print("\n\nU can call a MacroTask only once because otherwise the output ",
+                  "will be overwritten.\nFeel free to add this functionality\n");
+            MADNESS_EXCEPTION("missing feature",1);
+        }
+
         auto allargs=std::tie(args...);
         static_assert(std::is_same<decltype(allargs),argtupleT>::value,"type or number of arguments incorrect");
 
@@ -133,8 +141,6 @@ public:
         partitionT partition;//=OrbitalPartitioner::partition_tasks(arg1);
         partition.push_back(batchT(0,1));
 
-//        inputrecords=prepare_input(allargs);
-        taskq_ptr->cloud.set_debug(true);
         inputrecords=taskq_ptr->cloud.store(world,allargs);
         resultT result=prepare_output(taskq_ptr->cloud);
 
@@ -198,9 +204,11 @@ private:
 
 //            argtupleT  argtuple(subworld);
 //            argtupleT argtuple=get_input<argtupleT>(subworld,cloud,inputrecords);
-            cloud.set_debug(true);
+//            cloud.set_debug(true);
             argtupleT argtuple=cloud.load<argtupleT>(subworld,inputrecords);
             resultT result=get_output(subworld, cloud);
+            print("result.id in run()",result.get_impl()->id());
+
 
             constexpr std::size_t narg=(std::tuple_size<argtupleT>::value);
             if constexpr (narg==1) result+=task(std::get<0>(argtuple));
@@ -252,9 +260,13 @@ public:
 
     resultT operator()(const real_function_3d& f1, const double& arg2,
             const std::vector<real_function_3d>& f2) const {
-        print("Hello world from MicroTask");
+        double norm=f1.norm2();
+        print("Hello world from MicroTask",norm);
         World& world=f1.world();
-        return arg2*f1*dot(world,f2,f2);
+        resultT result= arg2*f1*dot(world,f2,f2);
+        double normresult=result.norm2();
+        print("normresult in task",normresult);
+        return result;
     }
 
     real_function_3d density;
@@ -332,6 +344,7 @@ int main(int argc, char** argv) {
     universe.gop.fence();
 //    int nworld=std::min(int(universe.size()),int(3));
     int nworld=universe.size();
+//    int nworld=2;
     if (universe.rank()==0) print("creating nworld",nworld);
 
 //    if (0) {
@@ -379,7 +392,6 @@ int main(int argc, char** argv) {
         MicroTask1 t1;
         real_function_3d f3=t(f1,2.0,v2);
         real_function_3d f3_1=t1(f1,2.0,v2);
-        print("f3.unique_id",f3.get_impl()->id());
 
         auto taskq=std::shared_ptr<MacroTaskQ> (new MacroTaskQ(universe,nworld));
         taskq->set_printlevel(10);
@@ -391,7 +403,12 @@ int main(int argc, char** argv) {
         double norm2a=(f2).norm2();
 
         print("before running all tasks");
+	    FunctionDefaults<3>::set_default_pmap(taskq->get_subworld());
+	    taskq->set_printlevel(10);
+        universe.gop.fence();
+
         taskq->run_all();
+		FunctionDefaults<3>::set_default_pmap(universe);
         universe.gop.fence();
         double norm2=(f2).norm2();
         double norm3=(f3).norm2();
@@ -402,7 +419,9 @@ int main(int argc, char** argv) {
         print("norm2/2a/3, error",norm2, norm2a, norm3, error);
         print("norm2_1/3_1, error", norm_f2_1,norm_f3_1, error1);
         if (error<1.e-10) print("test_vectormacrotask \033[32m"  ,"passed ", "\033[0m");
+        else print("test_vectormacrotask \033[31m", "failed \033[0m ");
         if (error1<1.e-10) print("test_vectormacrotask \033[32m"  ,"passed ", "\033[0m");
+        else print("test_vectormacrotask \033[31m", "failed \033[0m ");
     }
 
     madness::finalize();
