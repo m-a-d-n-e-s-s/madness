@@ -193,8 +193,8 @@ class TDDFT {
   ResponseParameters Rparams;
 
   // Get the response Function
-  response_space& GetResponseFunctions(std::string xy);
   X_space& GetXspace();
+  X_space& GetPQspace();
   response_space& GetPVector();
   response_space& GetQVector();
   ResponseParameters GetResponseParameters();
@@ -238,20 +238,7 @@ class TDDFT {
   real_function_3d stored_v_coul;  // Stored coulomb potential from ground state
 
   X_space Chi;
-
-  response_space
-      x_response;  // Excited states to be solved for.
-                   //    Note on storage: The response functions are calculated
-                   //    by calculating each transition of occupied --> virtual,
-                   //    and thus the actual response function is a sum of of
-                   //    all contributions to a specific virtual.
-
-  response_space
-      y_response;  // De-excitation states to be solved for.
-                   //    Note on storage: The response functions are calculated
-                   //    by calculating each transition of occupied --> virtual,
-                   //    and thus the actual response function is a sum of of
-                   //    all contributions to a specific virtual.
+  X_space PQ;
 
   response_space stored_potential;  // The ground state potential, stored only
                                     // if store_potential is true (default is
@@ -260,8 +247,6 @@ class TDDFT {
                                     //   phi_j}{\left| r - r' \right|}
   Property p;                       // for frequency calculations
 
-  response_space P;
-  response_space Q;
 
  public:
   // Collective constructor for response uses contents of file \c filename and
@@ -474,19 +459,6 @@ class TDDFT {
                                const GroundParameters& Gparams,
                                const ResponseParameters& Rparams,
                                Tensor<double> ham_no_diagonal);
-  X_space ComputeResponseResidual(World& world,
-                                  const std::vector<real_function_3d> rho_omega,
-                                  response_space orbital_products,
-                                  response_space& x,
-                                  response_space& y,
-                                  response_space rhs_x,
-                                  response_space rhs_y,
-                                  XCOperator<double,3>  xc,
-                                  const GroundParameters& Gparams,
-                                  const ResponseParameters& Rparams,
-                                  Tensor<double> ham_no_diagonal,
-                                  double omega,
-                                  size_t iteration);
   void xy_from_XVector(response_space& x,
                        response_space& y,
                        std::vector<X_vector>& Xvectors);
@@ -500,20 +472,6 @@ class TDDFT {
                              vecfuncT& x_new,
                              std::string spin) const;
 
-  void IterateXY(
-      World& world,
-      response_space& x,
-      response_space& y,
-      response_space rhs_x,
-      response_space rhs_y,
-      XCOperator<double,3>  xc,
-      double x_shifts,
-      const GroundParameters& Gparams,
-      const ResponseParameters& Rparams,
-      std::vector<std::shared_ptr<real_convolution_3d>> bsh_x_operators,
-      std::vector<std::shared_ptr<real_convolution_3d>> bsh_y_operators,
-      Tensor<double> ham_no_diagonal,
-      size_t iteration);
   X_space Compute_Theta_X(World& world,
                           X_space& Chi,
                           XCOperator<double,3>  xc,
@@ -688,32 +646,6 @@ class TDDFT {
   // If using a larger subspace to diagonalize in, this will put everything in
   // the right spot
   void augment_full(World& world,
-                    Tensor<double>& S,
-                    Tensor<double>& A,
-                    response_space& B_x,
-                    response_space& x_gamma,
-                    response_space& x_response,
-                    response_space& V_x_response,
-                    response_space& x_fe,
-                    response_space& B_y,
-                    response_space& y_gamma,
-                    response_space& y_response,
-                    response_space& V_y_response,
-                    response_space& y_fe,
-                    Tensor<double>& old_S,
-                    Tensor<double>& old_A,
-                    response_space& old_B_x,
-                    response_space& old_x_gamma,
-                    response_space& old_x_response,
-                    response_space& old_V_x_response,
-                    response_space& old_x_fe,
-                    response_space& old_B_y,
-                    response_space& old_y_gamma,
-                    response_space& old_y_response,
-                    response_space& old_V_y_response,
-                    response_space& old_y_fe,
-                    size_t print_level);
-  void augment_full(World& world,
                     X_space& Chi,
                     X_space& old_Chi,
                     X_space& Lambda_X,
@@ -852,20 +784,6 @@ class TDDFT {
                   size_t& m);
 
   void deflateFull(World& world,
-                   Tensor<double>& S,
-                   Tensor<double> old_S,
-                   Tensor<double> old_A,
-                   response_space& x_response,
-                   response_space& y,
-                   response_space& old_x_response,
-                   response_space& old_y_response,
-                   ElectronResponseFunctions& ElectronResponses,
-                   ElectronResponseFunctions& OldElectronResponses,
-                   Tensor<double>& omega,
-                   size_t& iteration,
-                   size_t& m);
-
-  void deflateFull(World& world,
                    X_space& Chi,
                    X_space& old_Chi,
                    X_space& Lambda_X,
@@ -999,14 +917,11 @@ class TDDFT {
 
   // Iterates the response functions until converged or out of iterations
   //
-  void IteratePolarizability(World& world, response_space& dipoles);
   void IterateFrequencyResponse(World& world,
                                 response_space& rhs_x,
                                 response_space& rhs_y);
 
-  void IterateFrequencyResponse2(World& world,
-                                 response_space& rhs_x,
-                                 response_space& rhs_y);
+  void iterate_freq_2(World& world);
   // Calculates polarizability according to
   // alpha_ij(\omega) = -sum_{m occ} <psi_m(0)|r_i|psi_mj(1)(\omega)> +
   // <psi_mj(1)(-\omega)|r_i|psi_m(0)>
@@ -1053,12 +968,11 @@ class TDDFT {
                                      ResponseParameters const& Rparams,
                                      GroundParameters const& Gparams);
   // Solves the response equations for the polarizability
-  void solve_polarizability(World& world, Property& p);
-  void ComputeFrequencyResponse(World& world,
+  void compute_freq_response(World& world,
                                 std::string property,
                                 X_space& Chi,
-                                response_space& x,
-                                response_space& y);
+                                X_space& PQ
+                                );
 };
 #endif  // SRC_APPS_MOLRESPONSE_TDDFT_H_
 

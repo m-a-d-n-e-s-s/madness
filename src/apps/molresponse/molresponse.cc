@@ -16,25 +16,25 @@ size_t   rc = stat(inpname, &buffer);
 }
 #endif
 
-FirstOrderDensity SetDensityType(World& world, std::string response_type,
+density_vector SetDensityType(World& world, std::string response_type,
                                  ResponseParameters R, GroundParameters G) {
   if (response_type.compare("excited_state") == 0) {
-    return ExcitedStateDensity(world, R, G);
+    return excited_state_density_vector(world, R, G);
   } else if (response_type.compare("dipole") == 0) {
-    return DipoleDensity(world, R, G);
+    return dipole_density_vector(world, R, G);
 
   } else if (response_type.compare("nuclear") == 0) {
-    return NuclearResponseDensity(world, R, G);
+    return nuclear_density_vector(world, R, G);
   } else if (response_type.compare("2ndOrder") == 0) {
     MADNESS_EXCEPTION("not implemented yet", 0);
-    return FirstOrderDensity(R, G);
+    return density_vector(R, G);
   } else if (response_type.compare("3rdOrder") == 0) {
     MADNESS_EXCEPTION("not implemented yet", 0);
-    return FirstOrderDensity(R, G);
+    return density_vector(R, G);
 
   } else {
     MADNESS_EXCEPTION("what is this????", 0);
-    return FirstOrderDensity(R, G);
+    return density_vector(R, G);
   }
 };
 
@@ -85,7 +85,7 @@ int main(int    argc, char** argv) {
     Rparams.print_params();
   }
   // Broadcast to all other nodes
-  FirstOrderDensity densityTest =
+  density_vector densityTest =
       SetDensityType(world, Rparams.response_type, Rparams, Gparams);
   // Create the TDDFT object
   if (Rparams.load_density) {
@@ -93,7 +93,7 @@ int main(int    argc, char** argv) {
     densityTest.LoadDensity(world, Rparams.load_density_file, Rparams, Gparams);
   } else {
     print("Computing Density");
-    densityTest.ComputeResponse(world);
+    densityTest.compute_response(world);
   }
   //
   // densityTest.PlotResponseDensity(world);

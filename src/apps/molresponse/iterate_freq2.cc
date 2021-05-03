@@ -25,9 +25,7 @@
 #include "molresponse/timer.h"
 
 // Iterate Frequency Response
-void TDDFT::IterateFrequencyResponse2(World& world,
-                                      response_space& rhs_x,
-                                      response_space& rhs_y) {
+void TDDFT::iterate_freq_2(World& world) {
   // Variables needed to iterate
   size_t iteration = 0;  // Iteration counter
   QProjector<double, 3> projector(world, Gparams.orbitals);
@@ -73,7 +71,7 @@ void TDDFT::IterateFrequencyResponse2(World& world,
     Xvector.push_back(X_vector(Chi, b));
     Xresidual.push_back(X_vector(residuals, b));
   }
-  // If DFT, initialize the XCOperator<double,3> 
+  // If DFT, initialize the XCOperator<double,3>
   std::vector<XNonlinearSolver<X_vector, double, X_space_allocator>>
       kain_x_space;
   size_t nkain = m;  // (Rparams.omega != 0.0) ? 2 * m : m;
@@ -151,12 +149,12 @@ void TDDFT::IterateFrequencyResponse2(World& world,
     X_space theta_X = Compute_Theta_X(world, Chi, xc, omega_n != 0.0);
     // Apply shifts and rhs
     theta_X.X += Chi.X * x_shifts;
-    theta_X.X += rhs_x;
+    theta_X.X += PQ.X;
     theta_X.X = theta_X.X * -2;
     theta_X.X.truncate_rf();
 
     if (Rparams.omega != 0.0) {
-      theta_X.Y += rhs_y;
+      theta_X.Y += PQ.Y;
       theta_X.Y = theta_X.Y * -2;
       theta_X.Y.truncate_rf();
     }
@@ -301,7 +299,7 @@ void TDDFT::IterateFrequencyResponse2(World& world,
     }
     // Update counter
     iteration += 1;
-    X_space PQ(rhs_x, rhs_y);
+    //X_space PQ(P, rhs_y);
     Tensor<double> G = -2 * inner(Chi, PQ);
     // Polarizability Tensor
     print("Polarizability Tensor");

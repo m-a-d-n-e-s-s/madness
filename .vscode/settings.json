@@ -19,6 +19,7 @@
     "cmake.environment": {
         "MKLROOT": "/gpfs/software/intel/parallel-studio-xe/2018_2/compilers_and_libraries/linux/mkl/",
     },
+    "cmake.generator": "Unix Makefiles",
     "files.associations": {
         "*.tex": "latex",
         "*.tcc": "cpp",
