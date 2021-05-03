@@ -85,7 +85,7 @@ void TDDFT::Iterate(World& world, X_space& Chi) {
     Xvector.push_back(X_vector(Chi, b));
     Xresidual.push_back(X_vector(residuals, b));
   }
-  // If DFT, initialize the XCOperator<double,3> 
+  // If DFT, initialize the XCOperator<double,3>
   std::vector<XNonlinearSolver<X_vector, double, X_space_allocator>>
       kain_x_space;
   size_t nkain = m;  // (Rparams.omega != 0.0) ? 2 * m : m;
@@ -486,13 +486,13 @@ void TDDFT::Iterate(World& world, X_space& Chi) {
 
     }
     if (Rparams.plot_all_orbitals) {
-      PlotGroundandResponseOrbitals(
+      plot_excited_states(
           world, iteration, Chi.X, Chi.Y, Rparams, Gparams);
     }
 
   }  // Done with iterate.
   if (world.rank() == 0) print("\n");
-  if (world.rank() == 0) print("   Finished TDHF Calculation ");
+  if (world.rank() == 0) print("   Finished Excited State Calculation ");
   if (world.rank() == 0) print("   ------------------------");
   if (world.rank() == 0) print("\n");
 

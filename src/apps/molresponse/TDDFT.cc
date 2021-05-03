@@ -5708,6 +5708,54 @@ void TDDFT::PlotGroundandResponseOrbitals(World& world,
 
   // END TESTING
 }
+
+void TDDFT::plot_excited_states(World& world,
+                                          size_t iteration,
+                                          response_space& x_response,
+                                          response_space& y_response,
+                                          ResponseParameters const& Rparams,
+                                          GroundParameters const& Gparams) {
+  std::filesystem::create_directories("plots/virtual");
+  // num orbitals
+  size_t n = x_response[0].size();
+  size_t m = x_response.size();
+
+  std::string dir("xyz");
+  // for plotname size
+  size_t buffSize = 500;
+  char plotname[buffSize];
+  double Lp = std::min(Gparams.L, 24.0);
+  // Doing line plots along each axis
+  for (int d = 0; d < 3; d++) {
+    // print ground_state
+    plotCoords plt(0, Lp);
+    for (int b = 0; b < static_cast<int>(m); b++) {
+      for (int i = 0; i < static_cast<int>(n); i++) {
+        // print ground_state
+        // plot x function  x_dir_b_i__k_iter
+        snprintf(plotname,
+                 buffSize,
+                 "plots/virtual/x_direction_%c_res_%d_orb_%d",
+                 dir[d],
+                 static_cast<int>(b),
+                 static_cast<int>(i));
+        plot_line(plotname, 5001, plt.lo, plt.hi, x_response[b][i]);
+
+        // plot y functione  y_dir_b_i__k_iter
+        snprintf(plotname,
+                 buffSize,
+                 "plots/xy/y_direction_%c_res_%d_orb_%d",
+                 dir[d],
+                 static_cast<int>(b),
+                 static_cast<int>(i));
+        plot_line(plotname, 5001, plt.lo, plt.hi, y_response[b][i]);
+      }
+    }
+  }
+  world.gop.fence();
+
+  // END TESTING
+}
 // Main function, makes sure everything happens in correct order
 // Solves for polarizability
 void TDDFT::solve_polarizability(World& world, Property& p) {

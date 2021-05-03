@@ -1046,6 +1046,12 @@ class TDDFT {
                                      response_space& y_response,
                                      ResponseParameters const& Rparams,
                                      GroundParameters const& Gparams);
+  void plot_excited_states(World& world,
+                                     size_t iteration,
+                                     response_space& x_response,
+                                     response_space& y_response,
+                                     ResponseParameters const& Rparams,
+                                     GroundParameters const& Gparams);
   // Solves the response equations for the polarizability
   void solve_polarizability(World& world, Property& p);
   void ComputeFrequencyResponse(World& world,
