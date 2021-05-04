@@ -1429,7 +1429,17 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > operator+=(std::vector<Function<T,NDIM> >& rhs,
             const std::vector<Function<T,NDIM> >& lhs) {
-        if (rhs.size()>0) rhs=add(rhs[0].world(),rhs,lhs);
+        if (rhs.size()==0) return rhs;
+        MADNESS_CHECK(rhs.size()==lhs.size());
+        if (rhs.front().world().id()==lhs.front().world().id()) {
+            rhs=add(rhs[0].world(),rhs,lhs);
+        } else {
+            MADNESS_CHECK(rhs.front().is_compressed());
+            MADNESS_CHECK(lhs.front().is_compressed());
+            for (auto i=0; i<rhs.size(); ++i) {
+                rhs[i].gaxpy(T(1.0), lhs[i], T(1.0), false);
+            }
+        }
         return rhs;
     }
 

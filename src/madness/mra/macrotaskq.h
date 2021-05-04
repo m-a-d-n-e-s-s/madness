@@ -134,6 +134,7 @@ public:
 		if (printdebug()) print_taskq();
 
         universe.gop.fence();
+        universe.gop.set_forbid_fence(true); // make sure there are no hidden universe fences
         set_pmap(get_subworld());
 
         double cpu00=cpu_time();
@@ -156,6 +157,7 @@ public:
 			if (subworld.rank()==0 and printlevel>=3) printf("completed task %3ld after %6.1fs at time %6.1fs\n",element,cpu1-cpu0,wall_time());
 
 		}
+        universe.gop.set_forbid_fence(false);
 		universe.gop.fence();
 		universe.gop.sum(tasktime);
         double cpu11=cpu_time();

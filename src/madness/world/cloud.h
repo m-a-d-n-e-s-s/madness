@@ -47,26 +47,26 @@ public:
 	mutable std::atomic<long> writing_time;	// in ms
     using keyT=madness::archive::ContainerRecordOutputArchive::keyT;
 
-    struct recordlistT {
-    private:
-        std::list<keyT> list;
-    public:
-        recordlistT() : list() {};
-        recordlistT(const keyT& key) : list{key} {};
-        recordlistT(const recordlistT& other) : list(other.list) {};
 
-        recordlistT& operator+=(const recordlistT& list2) {
+    template<typename T>
+    struct recordlist {
+        std::list<T> list;
+        recordlist() : list() {};
+        recordlist(const T& key) : list{key} {};
+        recordlist(const recordlist& other) : list(other.list) {};
+
+        recordlist& operator+=(const recordlist& list2) {
             for (auto& l2 : list2.list) list.push_back(l2);
             return *this;
         }
 
-        recordlistT& operator+=(const keyT& key) {
+        recordlist& operator+=(const T& key) {
             list.push_back(key);
             return *this;
         }
 
-        keyT pop_front_and_return() {
-            keyT key=list.front();
+        T pop_front_and_return() {
+            T key=list.front();
             list.pop_front();
             return key;
         }
@@ -75,14 +75,26 @@ public:
             return list.size();
         }
 
-        friend std::ostream& operator<<(std::ostream& os, const recordlistT& arg) {
+        friend std::ostream& operator<<(std::ostream& os, const recordlist& arg) {
             using namespace madness::operators;
             os << arg.list ;
             return os;
         }
 
     };
+    using recordlistT = recordlist<keyT>;
+    using lookuplistT = std::map<keyT,std::string>;
 
+    lookuplistT lookuplist;
+    template<typename T>
+    void add_to_lookuplist(const keyT& key, const T& arg) {
+        lookuplist[key]=typeid(arg).name();
+    }
+    void print_lookuplist() const {
+        print("lookuplist of the cloud");
+        print("record/key    typeid");
+        for (const auto l : lookuplist) printf("%12zu %s\n",l.first,l.second.c_str());
+    }
 
 private:
     template <typename T> struct is_vector: std::false_type {};
@@ -196,6 +208,7 @@ public:
 			madness::archive::ContainerRecordOutputArchive ar(world,container,record);
 			madness::archive::ParallelOutputArchive<madness::archive::ContainerRecordOutputArchive> par(world, ar);
 			par & source.size();
+            add_to_lookuplist(record,source);
 			for (const auto& s : source) par & s;
 		}
 		if (dofence) world.gop.fence();
@@ -215,6 +228,7 @@ public:
             madness::archive::ContainerRecordOutputArchive ar(world,container,record);
             madness::archive::ParallelOutputArchive<madness::archive::ContainerRecordOutputArchive> par(world, ar);
             par & source;
+            add_to_lookuplist(record,source);
         }
         if (dofence) world.gop.fence();
         if (debug) std::cout << "done with function storing; container size " << container.size() << std::endl;
@@ -234,6 +248,7 @@ public:
             madness::archive::ContainerRecordOutputArchive ar(world,container,record);
             madness::archive::ParallelOutputArchive<madness::archive::ContainerRecordOutputArchive> par(world, ar);
             par & source.size();
+            add_to_lookuplist(record,source.size());
         }
         for (auto s : source) l+=store(world,s);
         if (dofence) world.gop.fence();
@@ -253,6 +268,7 @@ public:
             madness::archive::ContainerRecordOutputArchive ar(world,container,record);
             madness::archive::ParallelOutputArchive<madness::archive::ContainerRecordOutputArchive> par(world, ar);
             par & source;
+            add_to_lookuplist(record,source);
         }
         if (dofence) world.gop.fence();
         if (debug) std::cout << "done with vector storing; container size " << container.size() << std::endl;
@@ -270,7 +286,6 @@ public:
             ((storeaway(arg)),...);
         };
         std::apply(l,input);
-        print("stored data away into records",v);
         return v;
     }
 
@@ -287,6 +302,7 @@ public:
         madness::archive::ParallelInputArchive<madness::archive::ContainerRecordInputArchive> par(world, ar);
         std::size_t sz;
         par & sz;
+        add_to_lookuplist(record,target);
         for (auto& i : target) recordlist+=store(world,i);
         if (dofence) world.gop.fence();
     }
@@ -363,13 +379,6 @@ public:
         T target;
         std::apply([&](auto &&... args) { ((args=load<typename std::remove_reference<decltype(args)>::type>(world,recordlist)), ...); }, target);
         return target;
-    }
-
-    auto open_archive(World& world, recordlistT& recordlist) const {
-        keyT record=recordlist.pop_front_and_return();
-        madness::archive::ContainerRecordInputArchive ar(world,container,record);
-        madness::archive::ParallelInputArchive<madness::archive::ContainerRecordInputArchive> par(world, ar);
-        return par;
     }
 
 };

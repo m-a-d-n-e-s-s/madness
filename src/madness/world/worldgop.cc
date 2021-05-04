@@ -51,6 +51,7 @@ namespace madness {
                                    bool pause_during_epilogue,
                                    bool debug) {
         PROFILE_MEMBER_FUNC(WorldGopInterface);
+        MADNESS_CHECK(not forbid_fence_);
         unsigned long nsent_prev=0, nrecv_prev=1; // invalid initial condition
         SafeMPI::Request req0, req1;
         ProcessID parent, child0, child1;
