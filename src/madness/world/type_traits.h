@@ -53,7 +53,19 @@ namespace madness {
    class __x {};
    std::ostream& operator<<(std::ostream&, const __x&);
    std::ostream& operator>>(std::ostream&, __x&);
-   }
+   }  // namespace operators
+
+   // fwd decls
+   namespace archive {
+     template <typename Archive, typename T, typename Enabler = void>
+     struct ArchiveSerializeImpl;
+
+     template <class Archive, class T, typename Enabler = void>
+     struct ArchiveLoadImpl;
+
+     template <class Archive, class T, typename Enabler = void>
+     struct ArchiveStoreImpl;
+    }
 
     template <typename> class Future;
     template <typename> struct add_future;
@@ -103,7 +115,7 @@ namespace madness {
                                                                  meta::is_detected_exact<std::ostream&, left_shift_in_ns_madness_operators, std::ostream&, const T&>> {};
     }  // namespace is_ostreammable_ns
 
-    /// True for types that are "serialiable" to a std::ostream
+    /// True for types that are "serializable" to a std::ostream
     /// \note \c operator<<(std::ostream&,const T&) must be visible via ADL or defined in namespace madness::operators
     template <typename T>
     struct is_ostreammable : public is_ostreammable_ns::impl<T> {};
@@ -139,8 +151,117 @@ namespace madness {
     is_any_function_pointer_v<T> || \
     std::is_function<T>::value;
 
+    /// helps to detect that `T` has a member serialization method that
+    /// accepts single argument of type `Archive`
+    /// @note use in combination with madness::meta::is_detected_v
+    template<typename T, typename Archive>
+    using has_member_serialize_t = decltype(std::declval<T&>().serialize(std::declval<Archive&>()));
+
+    /// helps to detect that `T` has a member serialization method that
+    /// accepts one argument of type `Archive` and an unsigned version
+    /// @note use in combination with madness::meta::is_detected_v
+    template<typename T, typename Archive>
+    using has_member_serialize_with_version_t = decltype(std::declval<T&>().serialize(std::declval<Archive&>(),0u));
+
+    /// helps to detect that `T` supports nonintrusive symmetric serialization
+    /// @note use in combination with madness::meta::is_detected_v
+    template<typename T, typename Archive>
+    using has_nonmember_serialize_t = decltype(madness::archive::ArchiveSerializeImpl<Archive, T>::serialize(std::declval<Archive&>(), std::declval<T&>()));
+
+    /// helps to detect that `T` supports nonintrusive asymmetric serialization via load
+    /// @note use in combination with madness::meta::is_detected_v
+    template<typename T, typename Archive>
+    using has_nonmember_load_t = decltype(madness::archive::ArchiveLoadImpl<Archive, T>::load(std::declval<Archive&>(), std::declval<T&>()));
+
+    /// helps to detect that `T` supports nonintrusive asymmetric serialization via load
+    /// @note use in combination with madness::meta::is_detected_v
+    template<typename T, typename Archive>
+    using has_nonmember_store_t = decltype(madness::archive::ArchiveStoreImpl<Archive, T>::store(std::declval<Archive&>(), std::declval<T&>()));
+
+    /// helps to detect that `T` supports freestanding serialize function
+    /// @note use in combination with madness::meta::is_detected_v
+    template<typename T, typename Archive>
+    using has_freestanding_serialize_t = decltype(serialize(std::declval<Archive&>(), std::declval<T&>()));
+
+    /// helps to detect that `T=U*` supports freestanding serialize function
+    /// @note use in combination with madness::meta::is_detected_v
+    template<typename T, typename Archive, typename = std::enable_if_t<std::is_pointer_v<T>>>
+    using has_freestanding_serialize_with_size_t = decltype(serialize(std::declval<Archive&>(), std::declval<T&>(), 1u));
+
+    /// helps to detect that `T` supports freestanding serialize function that accepts version
+    /// @note use in combination with madness::meta::is_detected_v
+    template<typename T, typename Archive, typename = std::enable_if_t<!std::is_pointer_v<T>>>
+    using has_freestanding_serialize_with_version_t = decltype(serialize(std::declval<Archive&>(), std::declval<T&>(), 0u));
+
+    /// true if this is well-formed:
+    /// \code
+    ///   // T t; Archive ar;
+    ///   t.serialize(ar);
+    /// \endcode
+    template <typename T, typename Archive>
+    inline constexpr bool has_member_serialize_v = madness::meta::is_detected_v<madness::has_member_serialize_t,T,Archive>;
+
+    /// true if this is well-formed:
+    /// \code
+    ///   // T t; Archive ar;
+    ///   t.serialize(ar, 0u);
+    /// \endcode
+    template <typename T, typename Archive>
+    inline constexpr bool has_member_serialize_with_version_v = madness::meta::is_detected_v<madness::has_member_serialize_with_version_t,T,Archive>;
+
+    /// true if this is well-formed:
+    /// \code
+    ///   // T t; Archive ar;
+    ///   madness::archive::ArchiveSerializeImpl<Archive, T>::serialize(ar, t);
+    /// \endcode
+    template <typename T, typename Archive>
+    inline constexpr bool has_nonmember_serialize_v = madness::meta::is_detected_v<madness::has_nonmember_serialize_t,T,Archive>;
+
+    /// true if this is well-formed:
+    /// \code
+    ///   // T t; Archive ar;
+    ///   madness::archive::ArchiveLoadImpl<Archive, T>::load(ar, t);
+    /// \endcode
+    template <typename T, typename Archive>
+    inline constexpr bool has_nonmember_load_v = madness::meta::is_detected_v<madness::has_nonmember_load_t,T,Archive>;
+
+    /// true if this is well-formed:
+    /// \code
+    ///   // T t; Archive ar;
+    ///   madness::archive::ArchiveStoreImpl<Archive, T>::store(ar, t);
+    /// \endcode
+    template <typename T, typename Archive>
+    inline constexpr bool has_nonmember_store_v = madness::meta::is_detected_v<madness::has_nonmember_store_t,T,Archive>;
+
+    template <typename T, typename Archive>
+    inline constexpr bool has_nonmember_load_and_store_v = has_nonmember_load_v<T, Archive> && has_nonmember_store_v<T, Archive>;
+
+    /// true if this is well-formed:
+    /// \code
+    ///   // T t; Archive ar;
+    ///   serialize(ar, t);
+    /// \endcode
+    template <typename T, typename Archive>
+    inline constexpr bool has_freestanding_serialize_v = madness::meta::is_detected_v<madness::has_freestanding_serialize_t,T,Archive>;
+
+    /// true if this is well-formed:
+    /// \code
+    ///   // T t; Archive ar;
+    ///   serialize(ar, t, 1u);
+    /// \endcode
+    template <typename T, typename Archive>
+    inline constexpr bool has_freestanding_serialize_with_size_v = madness::meta::is_detected_v<madness::has_freestanding_serialize_with_size_t,T,Archive>;
+
+    /// true if this is well-formed:
+    /// \code
+    ///   // T t; Archive ar;
+    ///   serialize(ar, t, 0u);
+    /// \endcode
+    template <typename T, typename Archive>
+    inline constexpr bool has_freestanding_serialize_with_version_v = madness::meta::is_detected_v<madness::has_freestanding_serialize_with_version_t,T,Archive>;
+
     template <typename Archive, typename T, typename Enabler = void>
-    struct is_serializable_helper : public std::false_type {};
+    struct is_default_serializable_helper : public std::false_type {};
 
     /// \brief is \c std::true_type if \c T can be serialized to \c Archive
     ///        without specialized \c serialize() method
@@ -150,12 +271,19 @@ namespace madness {
     /// \tparam Archive an Archive type
     /// \tparam T a type
     template <typename Archive, typename T>
-    struct is_serializable {
-      static constexpr bool value = is_serializable_helper<Archive,T>::value;
+    struct is_default_serializable {
+      static constexpr bool value = is_default_serializable_helper<Archive,T>::value;
     };
+
+    template <typename Archive, typename T>
+    inline constexpr bool is_default_serializable_v = is_default_serializable<Archive, T>::value;
+
 
     // forward declare archives to provide archive-specific overloads
     namespace archive {
+    class BaseArchive;
+    class BaseInputArchive;
+    class BaseOutputArchive;
     class BinaryFstreamOutputArchive;
     class BinaryFstreamInputArchive;
     class BufferOutputArchive;
@@ -170,33 +298,84 @@ namespace madness {
     class MPIInputArchive;
     template <typename T>
     class archive_array;
-    }
+    }  // namespace archive
+
+    /// Checks if \c T is an archive type.
+
+    /// If \c T is an archive type, then \c is_archive will be inherited
+    /// from \c std::true_type, otherwise it is inherited from
+    /// \c std::false_type.
+    /// \tparam T The type to check.
     template <typename T>
-    struct is_serializable_helper<archive::BinaryFstreamOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    struct is_archive : public std::is_base_of<archive::BaseArchive, T>{};
+
     template <typename T>
-    struct is_serializable_helper<archive::BinaryFstreamInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    inline constexpr bool is_archive_v = is_archive<T>::value;
+
+    /// Checks if \c T is an input archive type.
+
+    /// If \c T is an input archive type, then \c is_input_archive will be
+    /// inherited from \c std::true_type, otherwise it is inherited from
+    /// \c std::false_type.
+    /// \tparam T The type to check.
     template <typename T>
-    struct is_serializable_helper<archive::BufferOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    struct is_input_archive : public std::is_base_of<archive::BaseInputArchive, T> {};
+
     template <typename T>
-    struct is_serializable_helper<archive::BufferInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    inline constexpr bool is_input_archive_v = is_input_archive<T>::value;
+
+    /// Checks if \c T is an output archive type.
+
+    /// If \c T is an output archive type, then \c is_output_archive will
+    /// be inherited from \c std::true_type, otherwise it is inherited from
+    /// \c std::false_type.
+    /// \tparam T The type to check.
     template <typename T>
-    struct is_serializable_helper<archive::VectorOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    struct is_output_archive : public std::is_base_of<archive::BaseOutputArchive, T> {};
+
     template <typename T>
-    struct is_serializable_helper<archive::VectorInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    inline constexpr bool is_output_archive_v = is_output_archive<T>::value;
+
     template <typename T>
-    struct is_serializable_helper<archive::TextFstreamOutputArchive, T, std::enable_if_t<is_iostreammable_v<T>>> : std::true_type {};
+    struct is_default_serializable_helper<archive::BinaryFstreamOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
     template <typename T>
-    struct is_serializable_helper<archive::TextFstreamInputArchive, T, std::enable_if_t<is_iostreammable_v<T>>> : std::true_type {};
+    struct is_default_serializable_helper<archive::BinaryFstreamInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
     template <typename T>
-    struct is_serializable_helper<archive::MPIRawOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    struct is_default_serializable_helper<archive::BufferOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
     template <typename T>
-    struct is_serializable_helper<archive::MPIRawInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    struct is_default_serializable_helper<archive::BufferInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
     template <typename T>
-    struct is_serializable_helper<archive::MPIOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    struct is_default_serializable_helper<archive::VectorOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
     template <typename T>
-    struct is_serializable_helper<archive::MPIInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    struct is_default_serializable_helper<archive::VectorInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    template <typename T>
+    struct is_default_serializable_helper<archive::TextFstreamOutputArchive, T, std::enable_if_t<is_iostreammable_v<T>>> : std::true_type {};
+    template <typename T>
+    struct is_default_serializable_helper<archive::TextFstreamInputArchive, T, std::enable_if_t<is_iostreammable_v<T>>> : std::true_type {};
+    template <typename T>
+    struct is_default_serializable_helper<archive::MPIRawOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    template <typename T>
+    struct is_default_serializable_helper<archive::MPIRawInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    template <typename T>
+    struct is_default_serializable_helper<archive::MPIOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    template <typename T>
+    struct is_default_serializable_helper<archive::MPIInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
     template <typename Archive, typename T>
-    struct is_serializable_helper<Archive, archive::archive_array<T>, std::enable_if_t<is_serializable_helper<Archive,T>::value>> : std::true_type {};
+    struct is_default_serializable_helper<Archive, archive::archive_array<T>, std::enable_if_t<is_default_serializable_helper<Archive,T>::value>> : std::true_type {};
+
+    /// Evaluates to true is can serialize an object of type `T` to an object of type `Archive`
+    /// \tparam Archive
+    /// \tparam T
+    template <typename Archive, typename T>
+    inline constexpr bool is_serializable_v = is_archive_v<Archive> && (is_default_serializable_v<Archive, T> ||
+        has_member_serialize_v<Archive, T> ||
+        has_member_serialize_with_version_v<Archive, T> ||
+        has_nonmember_serialize_v<Archive, T> ||
+        (has_nonmember_load_v<Archive, T> && is_input_archive_v<Archive>) ||
+        (has_nonmember_store_v<Archive, T> && is_output_archive_v<Archive>));
+
+    template <typename Archive, typename T>
+    struct is_serializable : std::bool_constant<is_serializable_v<Archive,T>> {};
 
     /// \brief This trait types tests if \c Archive is a text archive
     /// \tparam Archive an archive type

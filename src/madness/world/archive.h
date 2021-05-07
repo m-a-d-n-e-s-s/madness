@@ -370,10 +370,10 @@ namespace madness {
         /// Base class for all archive classes.
         class BaseArchive {
         public:
-            static const bool is_archive = true; ///< Flag to determine if this object is an archive.
-            static const bool is_input_archive = false; ///< Flag to determine if this object is an input archive.
-            static const bool is_output_archive = false; ///< Flag to determine if this object is an output archive.
-            static const bool is_parallel_archive = false; ///< Flag to determine if this object is a parallel archive.
+            static constexpr bool is_archive = true; ///< Flag to determine if this object is an archive.
+            static constexpr bool is_input_archive = false; ///< Flag to determine if this object is an input archive.
+            static constexpr bool is_output_archive = false; ///< Flag to determine if this object is an output archive.
+            static constexpr bool is_parallel_archive = false; ///< Flag to determine if this object is a parallel archive.
 
             BaseArchive() {
                 archive_initialize_type_names();
@@ -384,45 +384,15 @@ namespace madness {
         /// Base class for input archive classes.
         class BaseInputArchive : public BaseArchive {
         public:
-            static const bool is_input_archive = true; ///< Flag to determine if this object is an input archive.
+            static constexpr bool is_input_archive = true; ///< Flag to determine if this object is an input archive.
         }; // class BaseInputArchive
 
 
         /// Base class for output archive classes.
         class BaseOutputArchive : public BaseArchive {
         public:
-            static const bool is_output_archive = true; ///< Flag to determine if this object is an output archive.
+            static constexpr bool is_output_archive = true; ///< Flag to determine if this object is an output archive.
         }; // class BaseOutputArchive
-
-
-        /// Checks if \c T is an archive type.
-
-        /// If \c T is an archive type, then \c is_archive will be inherited
-        /// from \c std::true_type, otherwise it is inherited from
-        /// \c std::false_type.
-        /// \tparam T The type to check.
-        template <typename T>
-        struct is_archive : public std::is_base_of<BaseArchive, T>{};
-
-
-        /// Checks if \c T is an input archive type.
-
-        /// If \c T is an input archive type, then \c is_input_archive will be
-        /// inherited from \c std::true_type, otherwise it is inherited from
-        /// \c std::false_type.
-        /// \tparam T The type to check.
-        template <typename T>
-        struct is_input_archive : public std::is_base_of<BaseInputArchive, T> {};
-
-
-        /// Checks if \c T is an output archive type.
-
-        /// If \c T is an output archive type, then \c is_output_archive will
-        /// be inherited from \c std::true_type, otherwise it is inherited from
-        /// \c std::false_type.
-        /// \tparam T The type to check.
-        template <typename T>
-        struct is_output_archive : public std::is_base_of<BaseOutputArchive, T> {};
 
 
         /// Serialize an array of fundamental stuff.
@@ -435,7 +405,8 @@ namespace madness {
         /// \param[in] t Pointer to the start of the array.
         /// \param[in] n Number of data items to be serialized.
         template <class Archive, class T>
-        typename std::enable_if_t< is_serializable<Archive,T>::value && is_output_archive<Archive>::value &&
+        typename std::enable_if_t< is_output_archive<Archive>::value &&
+                                   is_default_serializable<Archive,T>::value &&
                                    is_function_pointer_v<T>, void>
         serialize(const Archive& ar, const T* t, unsigned int n) {
             MAD_ARCHIVE_DEBUG(std::cout << "serialize fund array" << std::endl);
@@ -448,7 +419,8 @@ namespace madness {
         }
 
         template <class Archive, class T>
-        typename std::enable_if_t< is_serializable<Archive,T>::value && is_output_archive<Archive>::value &&
+        typename std::enable_if_t< is_output_archive<Archive>::value &&
+                                   is_default_serializable<Archive,T>::value &&
                                    std::is_member_function_pointer<T>::value, void>
         serialize(const Archive& ar, const T* t, unsigned int n) {
             MAD_ARCHIVE_DEBUG(std::cout << "serialize fund array" << std::endl);
@@ -463,8 +435,10 @@ namespace madness {
         }
 
         template <class Archive, class T>
-        typename std::enable_if_t< is_serializable<Archive,T>::value && is_output_archive<Archive>::value &&
-                                   !(is_function_pointer_v<T> || std::is_member_function_pointer<T>::value), void>
+        typename std::enable_if_t< is_output_archive<Archive>::value &&
+                                      !(is_function_pointer_v<T> || std::is_member_function_pointer<T>::value) &&
+                                      is_serializable<Archive,T>::value
+                                   , void>
         serialize(const Archive& ar, const T* t, unsigned int n) {
             MAD_ARCHIVE_DEBUG(std::cout << "serialize fund array" << std::endl);
             ar.store(t, n);
@@ -481,7 +455,8 @@ namespace madness {
         /// \param[in] t Pointer to the start of the array.
         /// \param[in] n Number of data items to be deserialized.
         template <class Archive, class T>
-        typename std::enable_if_t< is_serializable<Archive,T>::value && is_input_archive<Archive>::value &&
+        typename std::enable_if_t< is_input_archive<Archive>::value &&
+                                   is_default_serializable<Archive,T>::value &&
                                    is_function_pointer_v<T>, void>
         serialize(const Archive& ar, const T* t, unsigned int n) {
             MAD_ARCHIVE_DEBUG(std::cout << "deserialize fund array" << std::endl);
@@ -494,7 +469,8 @@ namespace madness {
         }
 
         template <class Archive, class T>
-        typename std::enable_if_t< is_serializable<Archive,T>::value && is_input_archive<Archive>::value &&
+        typename std::enable_if_t< is_input_archive<Archive>::value &&
+                                   is_default_serializable<Archive,T>::value &&
                                    std::is_member_function_pointer<T>::value, void>
         serialize(const Archive& ar, const T* t, unsigned int n) {
             MAD_ARCHIVE_DEBUG(std::cout << "deserialize fund array" << std::endl);
@@ -509,7 +485,7 @@ namespace madness {
         }
 
         template <class Archive, class T>
-        typename std::enable_if_t< is_serializable<Archive,T>::value && is_input_archive<Archive>::value &&
+        typename std::enable_if_t< is_input_archive<Archive>::value && is_serializable<Archive,T>::value &&
                                    !(is_function_pointer_v<T> || std::is_member_function_pointer<T>::value), void>
         serialize(const Archive& ar, const T* t, unsigned int n) {
             MAD_ARCHIVE_DEBUG(std::cout << "deserialize fund array" << std::endl);
@@ -578,18 +554,29 @@ namespace madness {
         };
 
 
-        /// Default symmetric serialization of a non-fundamental type.
+        /// Default symmetric serialization of a non-fundamental type that has `serialize` method
 
         /// \tparam Archive The archive type.
         /// \tparam T The type to symmetrically serialize.
-        template <class Archive, class T>
+        template <class Archive, class T, typename Enabler>
         struct ArchiveSerializeImpl {
             /// Serializes the type.
 
             /// \param[in] ar The archive.
             /// \param[in,out] t The data.
+            template <typename A = Archive, typename U = T, typename = std::enable_if_t<has_member_serialize_v<U,A>||has_member_serialize_with_version_v<U,A>>>
             static inline void serialize(const Archive& ar, T& t) {
+              constexpr auto has_serialize = has_member_serialize_v<T,Archive>;
+              constexpr auto has_serialize_with_version = has_member_serialize_with_version_v<T,Archive>;
+              if constexpr (has_serialize)
                 t.serialize(ar);
+
+              else if constexpr (has_serialize_with_version)
+                t.serialize(ar, 0);
+              else {  // this is never instantiated
+                constexpr auto T_has_serialize_method = !has_serialize && !has_serialize_with_version;
+                static_assert(T_has_serialize_method);
+              }
             }
         };
 
@@ -604,7 +591,7 @@ namespace madness {
         /// \param[in] t The data to be serialized.
         template <class Archive, class T>
         inline
-        std::enable_if_t< is_serializable<Archive,T>::value && is_archive<Archive>::value, void>
+        std::enable_if_t< is_default_serializable<Archive,T>::value && is_archive<Archive>::value, void>
         serialize(const Archive& ar, const T& t) {
             MAD_ARCHIVE_DEBUG(std::cout << "serialize(ar,t) -> serialize(ar,&t,1)" << std::endl);
             serialize(ar, &t, 1);
@@ -621,7 +608,7 @@ namespace madness {
         /// \param[in] t The data to be serialized.
         template <class Archive, class T>
         inline
-        std::enable_if_t< !is_serializable<Archive,T>::value && is_archive<Archive>::value, void >
+        std::enable_if_t< !is_default_serializable<Archive,T>::value && is_archive<Archive>::value, void >
         serialize(const Archive& ar, const T& t) {
             MAD_ARCHIVE_DEBUG(std::cout << "serialize(ar,t) -> ArchiveSerializeImpl" << std::endl);
             ArchiveSerializeImpl<Archive, T>::serialize(ar, const_cast<T&>(t));
@@ -632,25 +619,50 @@ namespace madness {
 
         /// \tparam Archive The archive type.
         /// \tparam T The data type.
-        template <class Archive, class T>
+        template <class Archive, class T, typename Enabler>
         struct ArchiveStoreImpl {
-            /// Store an object.
 
-            /// \param[in] ar The archive.
-            /// \param[in] t The data.
-            template <typename U = T, typename = std::enable_if_t<std::is_function<U>::value>>
-            static inline void store(const Archive& ar, const U& t) {
+            template <typename A = Archive, typename U = T>
+            static inline std::enable_if_t<is_output_archive_v<A> &&
+                !std::is_function<U>::value &&
+                (has_member_serialize_v<U,A> || has_member_serialize_with_version_v<U,A> ||
+                 has_nonmember_serialize_v<U,A> ||
+                 has_freestanding_serialize_v<U, A> || has_freestanding_serialize_with_version_v<U, A>),
+                                           void>
+            store(const A& ar, const U& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "store(ar,t) default" << std::endl);
-                // convert function to function ptr
-                auto* fn_ptr = &t;
-                serialize(ar,fn_ptr);
-            }
-
-            template <typename U = T>
-            static inline std::enable_if_t<!std::is_function<U>::value, void> store(const Archive& ar, const U& t) {
-                MAD_ARCHIVE_DEBUG(std::cout << "store(ar,t) default" << std::endl);
-                serialize(ar,t);
+                if constexpr (has_member_serialize_v<U,A>) {
+                  const_cast<U&>(t).serialize(ar);
+                }
+                else if constexpr (has_member_serialize_with_version_v<U,A>) {
+                  const_cast<U&>(t).serialize(ar, 0u);
+                }
+                else if constexpr (has_nonmember_serialize_v<U,A>) {
+                  ArchiveSerializeImpl<A, U>::serialize(ar, const_cast<U&>(t));
+                }
+                else if constexpr (has_freestanding_serialize_v<U, A>) {
+                  serialize(ar, const_cast<U&>(t));
+                }
+                else if constexpr (has_freestanding_serialize_with_version_v<U, A>)
+                  serialize(ar, const_cast<U&>(t) ,0u);
+                else  // unreachable
+                  assert(false);
              }
+
+          /// Store function reference as a function pointer
+
+          /// \param[in] ar The archive.
+          /// \param[in] t The data.
+          template <typename A = Archive, typename U = T,
+              typename = std::enable_if_t<is_output_archive_v<A> &&
+                                          std::is_function<U>::value>>
+          static inline void store(const Archive& ar, const U& t) {
+            MAD_ARCHIVE_DEBUG(std::cout << "store(ar,t) default" << std::endl);
+            // convert function to function ptr
+            auto* fn_ptr = &t;
+            serialize(ar,fn_ptr);
+          }
+
         };
 
 
@@ -658,16 +670,53 @@ namespace madness {
 
         /// \tparam Archive The archive type.
         /// \tparam T The data type.
-        template <class Archive, class T>
+        template <class Archive, class T, typename Enabler>
         struct ArchiveLoadImpl {
             /// Load an object.
 
             /// \param[in] ar The archive.
             /// \param[in] t The data.
-            static inline void load(const Archive& ar, const T& t) {
+            template <typename A = Archive,
+                      typename U = T,
+                      typename = std::enable_if_t<is_input_archive_v<A> &&
+                          (has_member_serialize_v<U,A> || has_member_serialize_with_version_v<U,A> ||
+                           has_nonmember_serialize_v<U,A> ||
+                           has_freestanding_serialize_v<U, A> || has_freestanding_serialize_with_version_v<U, A>)>>
+            static inline void load(const A& ar, const U& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "load(ar,t) default" << std::endl);
-                serialize(ar,t);
+              if constexpr (has_member_serialize_v<U,A>) {
+                const_cast<U&>(t).serialize(ar);
+              }
+              else if constexpr (has_member_serialize_with_version_v<U,A>) {
+                const_cast<U&>(t).serialize(ar, 0u);
+              }
+              else if constexpr (has_nonmember_serialize_v<U,A>) {
+                ArchiveSerializeImpl<A, U>::serialize(ar, const_cast<U&>(t));
+              }
+              else if constexpr (has_freestanding_serialize_v<U, A>) {
+                serialize(ar, const_cast<U&>(t));
+              }
+              else if constexpr (has_freestanding_serialize_with_version_v<U, A>)
+                serialize(ar, const_cast<U&>(t) ,0u);
+              else  // unreachable
+                assert(false);
             }
+
+          /// Load function reference stored as function pointer
+
+          /// \param[in] ar The archive.
+          /// \param[in] t The data.
+          template <typename A = Archive, typename U = T,
+              typename = std::enable_if_t<is_input_archive_v<A> &&
+                                          std::is_function<U>::value>>
+          static inline void load(const Archive& ar, U& t) {
+            MAD_ARCHIVE_DEBUG(std::cout << "load(ar,t) default" << std::endl);
+            // convert function ptr to function ref
+            std::add_pointer_t<U> fn_ptr;
+            serialize(ar,fn_ptr);
+            t = *fn_ptr;
+          }
+
         };
 
 
@@ -684,6 +733,7 @@ namespace madness {
             /// \param[in] ar The archive.
             /// \param[in] t The data.
             /// \return The archive.
+            template <typename A = Archive, typename = std::enable_if_t<is_output_archive_v<A>>>
             static inline const Archive& wrap_store(const Archive& ar, const T& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "wrap_store for default" << std::endl);
                 ArchivePrePostImpl<Archive,T>::preamble_store(ar);
@@ -697,10 +747,11 @@ namespace madness {
             /// \param[in] ar The archive.
             /// \param[in] t The data.
             /// \return The archive.
+            template <typename A = Archive, typename = std::enable_if_t<is_input_archive_v<A>>>
             static inline const Archive& wrap_load(const Archive& ar, const T& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "wrap_load for default" << std::endl);
                 ArchivePrePostImpl<Archive,T>::preamble_load(ar);
-                ArchiveLoadImpl<Archive,T>::load(ar,(T&) t);  // Loses constness here!
+                ArchiveLoadImpl<Archive,T>::load(ar,const_cast<T&>(t));  // Loses constness here!
                 ArchivePrePostImpl<Archive,T>::postamble_load(ar);
                 return ar;
             }
@@ -876,7 +927,7 @@ namespace madness {
         /// \tparam resT The function's return type.
         /// \tparam paramT Parameter pack for the function's arguments.
         template <class Archive, typename resT, typename... paramT>
-        struct ArchiveSerializeImpl<Archive, resT(*)(paramT...)> {
+        struct ArchiveSerializeImpl<Archive, resT(*)(paramT...), std::enable_if_t<!is_default_serializable_v<Archive, resT(*)(paramT...)> >> {
             /// Serialize the function pointer.
 
             /// \param[in] ar The archive.
@@ -902,7 +953,8 @@ namespace madness {
         /// \tparam objT The object type.
         /// \tparam paramT Parameter pack for the member function's arguments.
         template <class Archive, typename resT, typename objT, typename... paramT>
-        struct ArchiveSerializeImpl<Archive, resT(objT::*)(paramT...)> {
+        struct ArchiveSerializeImpl<Archive, resT(objT::*)(paramT...),
+                                    std::enable_if_t<!is_default_serializable_v<Archive, resT(objT::*)(paramT...)>>> {
             /// Serialize the member function pointer.
 
             /// \param[in] ar The archive.
@@ -928,7 +980,9 @@ namespace madness {
         /// \tparam objT The object type.
         /// \tparam paramT Parameter pack for the const member function's arguments.
         template <class Archive, typename resT, typename objT, typename... paramT>
-        struct ArchiveSerializeImpl<Archive, resT(objT::*)(paramT...) const> {
+        struct ArchiveSerializeImpl<Archive, resT(objT::*)(paramT...) const,
+            std::enable_if_t<!is_default_serializable_v<Archive, resT(objT::*)(paramT...) const>>
+            > {
             /// Serialize the const member function pointer.
 
             /// \param[in] ar The archive.
