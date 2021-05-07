@@ -81,7 +81,7 @@ public:
           cereal::traits::is_text_archive<Cereal>::value,void>
   store(const T *t, long n) const {
     for (long i = 0; i != n; ++i)
-      *muesli & t[i];
+      (*muesli)(t[i]);
   }
 
   void open(std::size_t hint) {}
@@ -119,7 +119,7 @@ public:
       void>
   load(T *t, long n) const {
     for (long i = 0; i != n; ++i)
-      *muesli & t[i];
+      (*muesli)(t[i]);
   }
 
   void open(std::size_t hint) {}
@@ -161,6 +161,12 @@ template <typename Muesli>
 struct is_cereal_archive<archive::CerealOutputArchive<Muesli>> : std::true_type {};
 template <typename Muesli>
 struct is_cereal_archive<archive::CerealInputArchive<Muesli>> : std::true_type {};
+
+// must also be able to introspect bare cereal archives to be able to reuse serialize methods for both
+template <typename T>
+struct is_output_archive<T, std::enable_if_t<std::is_base_of_v<cereal::detail::OutputArchiveBase, T>>> : std::true_type {};
+template <typename T>
+struct is_input_archive<T, std::enable_if_t<std::is_base_of_v<cereal::detail::InputArchiveBase, T>>> : std::true_type {};
 
 }  // namespace madness
 

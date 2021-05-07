@@ -318,8 +318,11 @@ namespace madness {
     /// inherited from \c std::true_type, otherwise it is inherited from
     /// \c std::false_type.
     /// \tparam T The type to check.
+    template <typename T, typename Enabler = void>
+    struct is_input_archive : std::false_type {};
+
     template <typename T>
-    struct is_input_archive : public std::is_base_of<archive::BaseInputArchive, T> {};
+    struct is_input_archive<T, std::enable_if_t<std::is_base_of_v<archive::BaseInputArchive, T>>> : std::true_type {};
 
     template <typename T>
     inline constexpr bool is_input_archive_v = is_input_archive<T>::value;
@@ -330,8 +333,11 @@ namespace madness {
     /// be inherited from \c std::true_type, otherwise it is inherited from
     /// \c std::false_type.
     /// \tparam T The type to check.
+    template <typename T, typename Enabler = void>
+    struct is_output_archive : std::false_type {};
+
     template <typename T>
-    struct is_output_archive : public std::is_base_of<archive::BaseOutputArchive, T> {};
+    struct is_output_archive<T, std::enable_if_t<std::is_base_of_v<archive::BaseOutputArchive, T>>> : std::true_type {};
 
     template <typename T>
     inline constexpr bool is_output_archive_v = is_output_archive<T>::value;
