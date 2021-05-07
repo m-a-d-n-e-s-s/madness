@@ -12,10 +12,17 @@
 
 
 #include <madness/world/parallel_dc_archive.h>
+#include<variant>
 #include<iomanip>
 
 namespace madness {
 
+// forward declaration
+template<typename T, std::size_t NDIM>
+class Function;
+
+template<typename T, std::size_t NDIM>
+class FunctionImpl;
 
 
 /// cloud class
@@ -47,6 +54,12 @@ public:
 	mutable std::atomic<long> writing_time;	// in ms
     using keyT=madness::archive::ContainerRecordOutputArchive::keyT;
 
+// type traits to check if a template parameter is a Function
+    template<typename>
+    struct is_madness_function : std::false_type {};
+
+    template<typename T, std::size_t NDIM>
+    struct is_madness_function<::madness::Function<T, NDIM>> : std::true_type {};
 
     template<typename T>
     struct recordlist {
@@ -112,10 +125,13 @@ private:
     template<typename T> struct is_funcimpl_ptr : std::false_type {};
     template<typename T, std::size_t NDIM> struct is_funcimpl_ptr<madness::FunctionImpl<T,NDIM>*> : std::true_type {};
 
-//    template<typename T> using is_world_constructible=std::is_constructible<T, World&>;
-//    template<typename T> using is_vector_of_world_constructible=is_vector<std::vector<std::is_constructible<T, World&>>>;
+    template<typename T> using is_world_constructible=std::is_constructible<T, World&>;
+    template<typename T> using is_vector_of_world_constructible=is_vector<std::vector<std::is_constructible<T, World&>>>;
 
+//    template <typename T> static constexpr bool is_vector_of_world_objects = is_vector<T>::value && is_world_constructible<typename T::value_type>::value;
 
+    template <typename> struct is_vector_of_world_objects: std::false_type {};
+    template <typename T> struct is_vector_of_world_objects<std::vector<std::is_constructible<T, World&>>> : std::true_type {};
 
     struct storetimer {
 		double cpu0;
@@ -378,6 +394,72 @@ public:
         if (debug) std::cout << "loading tuple of type " << typeid(T).name() << " to world " << world.id() << std::endl;
         T target;
         std::apply([&](auto &&... args) { ((args=load<typename std::remove_reference<decltype(args)>::type>(world,recordlist)), ...); }, target);
+        return target;
+    }
+
+    typedef std::variant<std::size_t, int, long, double, Function<double,3>, std::vector<Function<double,3>> > cached_objT;
+	typedef std::map<keyT, cached_objT > cacheT;
+    cacheT cached_objects;
+
+    template<typename T>
+    void cache(madness::World& world, const T& obj, const keyT& record) const {
+        const_cast<cacheT&>(cached_objects)[record]=obj;
+	}
+
+    template<typename T>
+//    typename std::enable_if<!is_vector<T>::value && !is_tuple<T>::value && std::is_constructible<T, World&>::value, T>::type
+    T load_from_cache(madness::World& world, const keyT& record) const {
+        if (debug) print("loading",typeid(T).name(),"from cache record", record, "to world",world.id());
+        if (auto obj=std::get_if<T>(&cached_objects.find(record)->second)) return *obj;
+        MADNESS_EXCEPTION("failed to load from cloud-cache",1);
+        return T();
+    }
+
+    void clear_cache() {
+        cached_objects.clear();
+    }
+
+    template<typename T>
+    T load1(madness::World& world, recordlistT recordlist) const {
+        T result;
+        if constexpr (is_madness_function_vector<T>::value) {
+            result=load_madness_function_vector<T>(world,recordlist);
+        } else {
+            result=load_internal<T>(world, recordlist);
+        }
+        return result;
+    }
+
+    bool is_cached(const keyT& key) const {
+        return (cached_objects.count(key)==1);
+    }
+
+    template<typename T>
+    T allocator(World& world) const {
+        if constexpr (is_world_constructible<T>::value) return T(world);
+        return T();
+    }
+
+    template<typename T>
+    T load_internal(World& world, recordlistT& recordlist) const {
+        keyT record=recordlist.pop_front_and_return();
+        if (is_cached(record)) return load_from_cache<T>(world,record);
+        if (debug) print("loading",typeid(T).name(),"from container record", record, "to world",world.id());
+        T target=allocator<T>(world);
+        madness::archive::ContainerRecordInputArchive ar(world,container,record);
+        madness::archive::ParallelInputArchive<madness::archive::ContainerRecordInputArchive> par(world, ar);
+        par & target;
+        cache(world,target,record);
+        return target;
+    }
+
+    template<typename T>
+    T load_madness_function_vector(World& world, recordlistT& recordlist) const {
+        std::size_t sz=load_internal<std::size_t>(world,recordlist);
+        T target(sz);
+        for (std::size_t i=0; i<sz; ++i) {
+            target[i]=load_internal<typename T::value_type>(world,recordlist);
+        }
         return target;
     }
 

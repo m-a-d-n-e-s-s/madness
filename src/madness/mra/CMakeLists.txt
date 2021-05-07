@@ -35,7 +35,7 @@ if(ENABLE_UNITTESTS)
   
   set(MRA_TEST_SOURCES testbsh.cc testproj.cc 
       testpdiff.cc testdiff1Db.cc testgconv.cc testopdir.cc testinnerext.cc 
-      testgaxpyext.cc testvmra.cc)
+      testgaxpyext.cc testvmra.cc, test_vectormacrotask.cc test_cloud.cc)
   add_unittests(mra "${MRA_TEST_SOURCES}" "MADmra;MADgtest")
   set(MRA_SEPOP_TEST_SOURCES testsuite.cc
       testper.cc)
@@ -43,7 +43,7 @@ if(ENABLE_UNITTESTS)
   
   # Test executables that are not run with unit tests
   set(MRA_OTHER_TESTS testperiodic testbc testqm test6
-      testdiff1D testdiff2D testdiff3D test_vectormacrotask )
+      testdiff1D testdiff2D testdiff3D)
   
   foreach(_test ${MRA_OTHER_TESTS})  
     add_mad_executable(${_test} "${_test}.cc" "MADmra")

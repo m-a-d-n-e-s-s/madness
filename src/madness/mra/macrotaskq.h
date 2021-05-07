@@ -256,7 +256,8 @@ private:
 		taskq[task_number]->set_complete();
 	}
 
-	void set_pmap(World& world) {
+public:
+	void static set_pmap(World& world) {
         FunctionDefaults<1>::set_default_pmap(world);
         FunctionDefaults<2>::set_default_pmap(world);
         FunctionDefaults<3>::set_default_pmap(world);
@@ -264,6 +265,7 @@ private:
         FunctionDefaults<5>::set_default_pmap(world);
         FunctionDefaults<6>::set_default_pmap(world);
 	}
+private:
 
 	std::size_t size() const {
 		return taskq.size();

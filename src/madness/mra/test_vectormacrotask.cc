@@ -24,10 +24,11 @@
 */
 
 
+#include <madness/world/cloud.h>
+
 #include <madness/mra/mra.h>
 
 #include <madness/mra/macrotaskq.h>
-#include <madness/world/cloud.h>
 #include <madness/world/world.h>
 
 using namespace madness;
@@ -159,10 +160,8 @@ private:
     World& world;
     std::shared_ptr<MacroTaskQ> taskq_ptr;
 
-    // TODO: return bookkeeping information, serialize
     /// prepare the output of the macrotask: WorldObjects must be created in the universe
     std::pair<recordlistT, resultT> prepare_output(Cloud& cloud, const argtupleT& argtuple) {
-        // TODO: generalize this
         static_assert(is_madness_function<resultT>::value || is_madness_function_vector<resultT>::value);
         resultT result=task.allocator(world,argtuple);
         recordlistT outputrecords;
