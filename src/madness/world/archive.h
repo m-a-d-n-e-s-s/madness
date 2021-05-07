@@ -42,6 +42,7 @@
 #include <type_traits>
 #include <complex>
 #include <iostream>
+#include <cassert>
 #include <cstdio>
 #include <cstddef>
 #include <cstring>
