@@ -438,7 +438,7 @@ namespace madness {
         template <class Archive, class T>
         typename std::enable_if_t< is_output_archive<Archive>::value &&
                                       !(is_function_pointer_v<T> || std::is_member_function_pointer<T>::value) &&
-                                      is_serializable<Archive,T>::value
+                                      is_default_serializable<Archive,T>::value
                                    , void>
         serialize(const Archive& ar, const T* t, unsigned int n) {
             MAD_ARCHIVE_DEBUG(std::cout << "serialize fund array" << std::endl);
@@ -486,7 +486,7 @@ namespace madness {
         }
 
         template <class Archive, class T>
-        typename std::enable_if_t< is_input_archive<Archive>::value && is_serializable<Archive,T>::value &&
+        typename std::enable_if_t< is_input_archive<Archive>::value && is_default_serializable<Archive,T>::value &&
                                    !(is_function_pointer_v<T> || std::is_member_function_pointer<T>::value), void>
         serialize(const Archive& ar, const T* t, unsigned int n) {
             MAD_ARCHIVE_DEBUG(std::cout << "deserialize fund array" << std::endl);
@@ -503,7 +503,7 @@ namespace madness {
         /// \param[in] t Pointer to the start of the array.
         /// \param[in] n Number of data items to be serialized.
         template <class Archive, class T>
-        typename std::enable_if_t< ! is_serializable<Archive,T>::value && is_archive<Archive>::value, void>
+        typename std::enable_if_t< ! is_default_serializable<Archive,T>::value && is_archive<Archive>::value, void>
         serialize(const Archive& ar, const T* t, unsigned int n) {
             MAD_ARCHIVE_DEBUG(std::cout << "(de)serialize non-fund array" << std::endl);
             for (unsigned int i=0; i<n; ++i)
@@ -609,7 +609,7 @@ namespace madness {
         /// \param[in] t The data to be serialized.
         template <class Archive, class T>
         inline
-        std::enable_if_t< !is_default_serializable<Archive,T>::value && is_archive<Archive>::value, void >
+        std::enable_if_t< (!is_default_serializable<Archive,T>::value && has_nonmember_serialize_v<T, Archive>) && is_archive<Archive>::value, void >
         serialize(const Archive& ar, const T& t) {
             MAD_ARCHIVE_DEBUG(std::cout << "serialize(ar,t) -> ArchiveSerializeImpl" << std::endl);
             ArchiveSerializeImpl<Archive, T>::serialize(ar, const_cast<T&>(t));
@@ -727,14 +727,14 @@ namespace madness {
         /// postamble around the data to provide runtime type-checking.
         /// \tparam Archive The archive type.
         /// \tparam T The data type.
-        template <class Archive, class T>
+        template <class Archive, class T, typename Enabler>
         struct ArchiveImpl {
             /// Store an object sandwiched between its preamble and postamble.
 
             /// \param[in] ar The archive.
             /// \param[in] t The data.
             /// \return The archive.
-            template <typename A = Archive, typename = std::enable_if_t<is_output_archive_v<A>>>
+            template <typename A = Archive, typename = std::enable_if_t<is_output_archive_v<A> && has_nonmember_store_v<T,Archive>>>
             static inline const Archive& wrap_store(const Archive& ar, const T& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "wrap_store for default" << std::endl);
                 ArchivePrePostImpl<Archive,T>::preamble_store(ar);
@@ -748,7 +748,7 @@ namespace madness {
             /// \param[in] ar The archive.
             /// \param[in] t The data.
             /// \return The archive.
-            template <typename A = Archive, typename = std::enable_if_t<is_input_archive_v<A>>>
+            template <typename A = Archive, typename = std::enable_if_t<is_input_archive_v<A> && has_nonmember_load_v<T,Archive>>>
             static inline const Archive& wrap_load(const Archive& ar, const T& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "wrap_load for default" << std::endl);
                 ArchivePrePostImpl<Archive,T>::preamble_load(ar);
@@ -769,8 +769,13 @@ namespace madness {
         /// \param[in] t The data.
         template <class Archive, class T>
         inline
-        std::enable_if_t<is_output_archive<Archive>::value, const Archive&>
+        std::enable_if_t<is_output_archive_v<Archive>, const Archive&>
         operator<<(const Archive& ar, const T& t) {
+            // assert that T is serializable
+            if constexpr (!is_serializable_v<Archive,T>) {
+              constexpr bool T_is_serializable = is_serializable_v<Archive,T>;
+              static_assert(T_is_serializable, "T is neither trivially serializable not provided serialization methods");
+            }
             //PROFILE_FUNC;
             return ArchiveImpl<Archive,T>::wrap_store(ar,t);
         }
@@ -785,8 +790,13 @@ namespace madness {
         /// \param[in] t The data.
         template <class Archive, class T>
         inline
-        std::enable_if_t<is_input_archive<Archive>::value, const Archive&>
+        std::enable_if_t<is_input_archive_v<Archive>, const Archive&>
         operator>>(const Archive& ar, const T& t) {
+            // assert that T is serializable
+            if constexpr (!is_serializable_v<Archive,T>) {
+              constexpr bool T_is_serializable = is_serializable_v<Archive,T>;
+              static_assert(T_is_serializable, "T is neither trivially serializable not provided serialization methods");
+            }
             //PROFILE_FUNC;
             return ArchiveImpl<Archive,T>::wrap_load(ar,t);
         }
@@ -801,8 +811,13 @@ namespace madness {
         /// \param[in] t The data.
         template <class Archive, class T>
         inline
-        std::enable_if_t<is_output_archive<Archive>::value, const Archive&>
+        std::enable_if_t<is_output_archive_v<Archive>, const Archive&>
         operator&(const Archive& ar, const T& t) {
+            // assert that T is serializable
+            if constexpr (!is_serializable_v<Archive,T>) {
+              constexpr bool T_is_serializable = is_serializable_v<Archive,T>;
+              static_assert(T_is_serializable, "T is neither trivially serializable not provided serialization methods");
+            }
             //PROFILE_FUNC;
             return ArchiveImpl<Archive,T>::wrap_store(ar,t);
         }
@@ -817,8 +832,13 @@ namespace madness {
         /// \param[in] t The data.
         template <class Archive, class T>
         inline
-        std::enable_if_t<is_input_archive<Archive>::value, const Archive&>
+        std::enable_if_t<is_input_archive_v<Archive>, const Archive&>
         operator&(const Archive& ar, const T& t) {
+            // assert that T is serializable
+            if constexpr (!is_serializable_v<Archive,T>) {
+              constexpr bool T_is_serializable = is_serializable_v<Archive,T>;
+              static_assert(T_is_serializable, "T is neither trivially serializable not provided serialization methods");
+            }
             //PROFILE_FUNC;
             return ArchiveImpl<Archive,T>::wrap_load(ar,t);
         }
@@ -1116,7 +1136,7 @@ namespace madness {
 
             /// \param[in] ar The archive.
             /// \param[in] v The \c vector.
-            template <typename U = T, typename = std::enable_if_t<is_serializable<Archive,U>::value>>
+            template <typename U = T, typename = std::enable_if_t<is_default_serializable<Archive,U>::value>>
             static inline void store(const Archive& ar, const std::vector<U, Alloc>& v) {
                 MAD_ARCHIVE_DEBUG(std::cout << "serialize std::vector of plain data" << std::endl);
                 ar & v.size();
@@ -1128,7 +1148,7 @@ namespace madness {
             /// \param[in] ar The archive.
             /// \param[in] v The \c vector.
             template <typename U = T>
-            static inline void store(const Archive& ar, const std::vector<U, Alloc>& v, std::enable_if_t<!is_serializable<Archive,U>::value>* = nullptr) {
+            static inline void store(const Archive& ar, const std::vector<U, Alloc>& v, std::enable_if_t<!is_default_serializable<Archive,U>::value>* = nullptr) {
                 MAD_ARCHIVE_DEBUG(std::cout << "serialize std::vector of non-plain data" << std::endl);
                 ar & v.size();
                 for(const auto& elem: v) {
@@ -1152,7 +1172,7 @@ namespace madness {
             /// Clears and resizes the \c vector as necessary.
             /// \param[in] ar The archive.
             /// \param[out] v The \c vector.
-            template <typename U = T, typename = std::enable_if_t<is_serializable<Archive,U>::value>>
+            template <typename U = T, typename = std::enable_if_t<is_default_serializable<Archive,U>::value>>
             static void load(const Archive& ar, std::vector<U, Alloc>& v) {
                 MAD_ARCHIVE_DEBUG(std::cout << "deserialize std::vector of plain data" << std::endl);
                 std::size_t n = 0ul;
@@ -1170,7 +1190,7 @@ namespace madness {
             /// \param[in] ar The archive.
             /// \param[out] v The \c vector.
             template <typename U = T>
-            static void load(const Archive& ar, std::vector<U, Alloc>& v, std::enable_if_t<!is_serializable<Archive,U>::value>* = nullptr) {
+            static void load(const Archive& ar, std::vector<U, Alloc>& v, std::enable_if_t<!is_default_serializable<Archive,U>::value>* = nullptr) {
                 MAD_ARCHIVE_DEBUG(std::cout << "deserialize std::vector of non-plain data" << std::endl);
                 std::size_t n = 0ul;
                 ar & n;

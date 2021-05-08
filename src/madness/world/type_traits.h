@@ -65,7 +65,10 @@ namespace madness {
 
      template <class Archive, class T, typename Enabler = void>
      struct ArchiveStoreImpl;
-    }
+
+     template <class Archive, class T, typename Enabler = void>
+     struct ArchiveImpl;
+   }
 
     template <typename> class Future;
     template <typename> struct add_future;
@@ -173,10 +176,20 @@ namespace madness {
     template<typename T, typename Archive>
     using has_nonmember_load_t = decltype(madness::archive::ArchiveLoadImpl<Archive, T>::load(std::declval<Archive&>(), std::declval<T&>()));
 
-    /// helps to detect that `T` supports nonintrusive asymmetric serialization via load
+    /// helps to detect that `T` supports nonintrusive asymmetric serialization via store
     /// @note use in combination with madness::meta::is_detected_v
     template<typename T, typename Archive>
     using has_nonmember_store_t = decltype(madness::archive::ArchiveStoreImpl<Archive, T>::store(std::declval<Archive&>(), std::declval<T&>()));
+
+    /// helps to detect that `T` supports nonintrusive asymmetric serialization via wrap_load
+    /// @note use in combination with madness::meta::is_detected_v
+    template<typename T, typename Archive>
+    using has_nonmember_wrap_load_t = decltype(madness::archive::ArchiveImpl<Archive, T>::wrap_load(std::declval<Archive&>(), std::declval<T&>()));
+
+    /// helps to detect that `T` supports nonintrusive asymmetric serialization via wrap_store
+    /// @note use in combination with madness::meta::is_detected_v
+    template<typename T, typename Archive>
+    using has_nonmember_wrap_store_t = decltype(madness::archive::ArchiveImpl<Archive, T>::wrap_store(std::declval<Archive&>(), std::declval<T&>()));
 
     /// helps to detect that `T` supports freestanding serialize function
     /// @note use in combination with madness::meta::is_detected_v
@@ -235,6 +248,25 @@ namespace madness {
 
     template <typename T, typename Archive>
     inline constexpr bool has_nonmember_load_and_store_v = has_nonmember_load_v<T, Archive> && has_nonmember_store_v<T, Archive>;
+
+    /// true if this is well-formed:
+    /// \code
+    ///   // T t; Archive ar;
+    ///   madness::archive::ArchiveImpl<Archive, T>::wrap_load(ar, t);
+   /// \endcode
+    template <typename T, typename Archive>
+    inline constexpr bool has_nonmember_wrap_load_v = madness::meta::is_detected_v<madness::has_nonmember_wrap_load_t,T,Archive>;
+
+    /// true if this is well-formed:
+    /// \code
+    ///   // T t; Archive ar;
+    ///   madness::archive::ArchiveImpl<Archive, T>::wrap_store(ar, t);
+    /// \endcode
+    template <typename T, typename Archive>
+    inline constexpr bool has_nonmember_wrap_store_v = madness::meta::is_detected_v<madness::has_nonmember_wrap_store_t,T,Archive>;
+
+    template <typename T, typename Archive>
+    inline constexpr bool has_nonmember_wrap_load_and_store_v = has_nonmember_wrap_load_v<T, Archive> && has_nonmember_wrap_store_v<T, Archive>;
 
     /// true if this is well-formed:
     /// \code
@@ -374,11 +406,11 @@ namespace madness {
     /// \tparam T
     template <typename Archive, typename T>
     inline constexpr bool is_serializable_v = is_archive_v<Archive> && (is_default_serializable_v<Archive, T> ||
-        has_member_serialize_v<Archive, T> ||
-        has_member_serialize_with_version_v<Archive, T> ||
-        has_nonmember_serialize_v<Archive, T> ||
-        (has_nonmember_load_v<Archive, T> && is_input_archive_v<Archive>) ||
-        (has_nonmember_store_v<Archive, T> && is_output_archive_v<Archive>));
+        has_member_serialize_v<T, Archive> ||
+        has_member_serialize_with_version_v<T, Archive> ||
+        has_nonmember_serialize_v<T, Archive> ||
+        ((has_nonmember_load_v<T, Archive> || has_nonmember_wrap_load_v<T, Archive>) && is_input_archive_v<Archive>) ||
+        ((has_nonmember_store_v<T, Archive> || has_nonmember_wrap_store_v<T, Archive>) && is_output_archive_v<Archive>));
 
     template <typename Archive, typename T>
     struct is_serializable : std::bool_constant<is_serializable_v<Archive,T>> {};
