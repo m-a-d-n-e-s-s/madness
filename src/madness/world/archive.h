@@ -409,7 +409,7 @@ namespace madness {
         typename std::enable_if_t< is_output_archive<Archive>::value &&
                                    is_default_serializable<Archive,T>::value &&
                                    is_function_pointer_v<T>, void>
-        serialize(const Archive& ar, const T* t, unsigned int n) {
+        default_serialize(const Archive& ar, const T* t, unsigned int n) {
             MAD_ARCHIVE_DEBUG(std::cout << "serialize fund array" << std::endl);
             // transform function pointers to relative pointers
             std::vector<std::ptrdiff_t> t_rel(n);
@@ -423,7 +423,7 @@ namespace madness {
         typename std::enable_if_t< is_output_archive<Archive>::value &&
                                    is_default_serializable<Archive,T>::value &&
                                    std::is_member_function_pointer<T>::value, void>
-        serialize(const Archive& ar, const T* t, unsigned int n) {
+        default_serialize(const Archive& ar, const T* t, unsigned int n) {
             MAD_ARCHIVE_DEBUG(std::cout << "serialize fund array" << std::endl);
             using rel_memfn_ptr_t = decltype(to_rel_memfn_ptr(t[0]));
             static_assert(sizeof(rel_memfn_ptr_t) % sizeof(std::ptrdiff_t) == 0);
@@ -440,7 +440,7 @@ namespace madness {
                                       !(is_function_pointer_v<T> || std::is_member_function_pointer<T>::value) &&
                                       is_default_serializable<Archive,T>::value
                                    , void>
-        serialize(const Archive& ar, const T* t, unsigned int n) {
+        default_serialize(const Archive& ar, const T* t, unsigned int n) {
             MAD_ARCHIVE_DEBUG(std::cout << "serialize fund array" << std::endl);
             ar.store(t, n);
         }
@@ -459,7 +459,7 @@ namespace madness {
         typename std::enable_if_t< is_input_archive<Archive>::value &&
                                    is_default_serializable<Archive,T>::value &&
                                    is_function_pointer_v<T>, void>
-        serialize(const Archive& ar, const T* t, unsigned int n) {
+        default_serialize(const Archive& ar, const T* t, unsigned int n) {
             MAD_ARCHIVE_DEBUG(std::cout << "deserialize fund array" << std::endl);
             // transform function pointers to relative offsets
             std::vector<std::ptrdiff_t> t_rel(n);
@@ -473,7 +473,7 @@ namespace madness {
         typename std::enable_if_t< is_input_archive<Archive>::value &&
                                    is_default_serializable<Archive,T>::value &&
                                    std::is_member_function_pointer<T>::value, void>
-        serialize(const Archive& ar, const T* t, unsigned int n) {
+        default_serialize(const Archive& ar, const T* t, unsigned int n) {
             MAD_ARCHIVE_DEBUG(std::cout << "deserialize fund array" << std::endl);
             using rel_memfn_ptr_t = decltype(to_rel_memfn_ptr(t[0]));
             static_assert(sizeof(rel_memfn_ptr_t) % sizeof(std::ptrdiff_t) == 0);
@@ -488,7 +488,7 @@ namespace madness {
         template <class Archive, class T>
         typename std::enable_if_t< is_input_archive<Archive>::value && is_default_serializable<Archive,T>::value &&
                                    !(is_function_pointer_v<T> || std::is_member_function_pointer<T>::value), void>
-        serialize(const Archive& ar, const T* t, unsigned int n) {
+        default_serialize(const Archive& ar, const T* t, unsigned int n) {
             MAD_ARCHIVE_DEBUG(std::cout << "deserialize fund array" << std::endl);
             ar.load((T*) t,n);
         }
@@ -593,9 +593,9 @@ namespace madness {
         template <class Archive, class T>
         inline
         std::enable_if_t< is_default_serializable<Archive,T>::value && is_archive<Archive>::value, void>
-        serialize(const Archive& ar, const T& t) {
-            MAD_ARCHIVE_DEBUG(std::cout << "serialize(ar,t) -> serialize(ar,&t,1)" << std::endl);
-            serialize(ar, &t, 1);
+        default_serialize(const Archive& ar, const T& t) {
+            MAD_ARCHIVE_DEBUG(std::cout << "default_serialize(ar,t) -> default_serialize(ar,&t,1)" << std::endl);
+            default_serialize(ar, &t, 1);
         }
 
 
@@ -628,7 +628,8 @@ namespace madness {
                 !std::is_function<U>::value &&
                 (has_member_serialize_v<U,A> || has_member_serialize_with_version_v<U,A> ||
                  has_nonmember_serialize_v<U,A> ||
-                 has_freestanding_serialize_v<U, A> || has_freestanding_serialize_with_version_v<U, A>),
+                 has_freestanding_serialize_v<U, A> || has_freestanding_serialize_with_version_v<U, A> ||
+                 has_freestanding_default_serialize_v<U, A>),
                                            void>
             store(const A& ar, const U& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "store(ar,t) default" << std::endl);
@@ -644,8 +645,12 @@ namespace madness {
                 else if constexpr (has_freestanding_serialize_v<U, A>) {
                   serialize(ar, const_cast<U&>(t));
                 }
-                else if constexpr (has_freestanding_serialize_with_version_v<U, A>)
-                  serialize(ar, const_cast<U&>(t) ,0u);
+                else if constexpr (has_freestanding_serialize_with_version_v<U, A>) {
+                  serialize(ar, const_cast<U &>(t), 0u);
+                }
+                else if constexpr (has_freestanding_default_serialize_v<U, A>) {
+                  default_serialize(ar, const_cast<U&>(t));
+                }
                 else  // unreachable
                   assert(false);
              }
@@ -660,8 +665,13 @@ namespace madness {
           static inline void store(const Archive& ar, const U& t) {
             MAD_ARCHIVE_DEBUG(std::cout << "store(ar,t) default" << std::endl);
             // convert function to function ptr
-            auto* fn_ptr = &t;
-            serialize(ar,fn_ptr);
+            std::add_pointer_t<U> fn_ptr = &t;
+            if constexpr (has_freestanding_default_serialize_v<std::add_pointer_t<U>,A>)
+              default_serialize(ar,fn_ptr);
+            else if constexpr (has_freestanding_serialize_v<std::add_pointer_t<U>,A>)
+              serialize(ar,fn_ptr);
+            else
+              assert(false);
           }
 
         };
@@ -682,7 +692,8 @@ namespace madness {
                       typename = std::enable_if_t<is_input_archive_v<A> &&
                           (has_member_serialize_v<U,A> || has_member_serialize_with_version_v<U,A> ||
                            has_nonmember_serialize_v<U,A> ||
-                           has_freestanding_serialize_v<U, A> || has_freestanding_serialize_with_version_v<U, A>)>>
+                           has_freestanding_serialize_v<U, A> || has_freestanding_serialize_with_version_v<U, A> ||
+                           has_freestanding_default_serialize_v<U, A>)>>
             static inline void load(const A& ar, const U& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "load(ar,t) default" << std::endl);
               if constexpr (has_member_serialize_v<U,A>) {
@@ -697,8 +708,12 @@ namespace madness {
               else if constexpr (has_freestanding_serialize_v<U, A>) {
                 serialize(ar, const_cast<U&>(t));
               }
-              else if constexpr (has_freestanding_serialize_with_version_v<U, A>)
-                serialize(ar, const_cast<U&>(t) ,0u);
+              else if constexpr (has_freestanding_serialize_with_version_v<U, A>) {
+                serialize(ar, const_cast<U &>(t), 0u);
+              }
+              else if constexpr (has_freestanding_default_serialize_v<U, A>) {
+                default_serialize(ar, const_cast<U&>(t));
+              }
               else  // unreachable
                 assert(false);
             }
@@ -714,7 +729,12 @@ namespace madness {
             MAD_ARCHIVE_DEBUG(std::cout << "load(ar,t) default" << std::endl);
             // convert function ptr to function ref
             std::add_pointer_t<U> fn_ptr;
-            serialize(ar,fn_ptr);
+            if constexpr (has_freestanding_default_serialize_v<std::add_pointer_t<U>,A>)
+              default_serialize(ar,fn_ptr);
+            else if constexpr (has_freestanding_serialize_v<std::add_pointer_t<U>,A>)
+              serialize(ar,fn_ptr);
+            else
+              assert(false);
             t = *fn_ptr;
           }
 
@@ -1030,7 +1050,12 @@ namespace madness {
                 ArchivePrePostImpl<Archive,T*>::preamble_store(ar);
                 //ar << t.n;
                 //ArchivePrePostImpl<Archive,T>::preamble_store(ar);
-                serialize(ar,(T *) t.ptr,t.n);
+                if constexpr (has_freestanding_serialize_with_size_v<std::add_pointer_t<T>, Archive>)
+                  serialize(ar,(T *) t.ptr,t.n);
+                else if constexpr (has_freestanding_default_serialize_with_size_v<std::add_pointer_t<T>, Archive>)
+                  default_serialize(ar,(T *) t.ptr,t.n);
+                else
+                  assert(false);
                 //ArchivePrePostImpl<Archive,T>::postamble_store(ar);
                 ArchivePrePostImpl<Archive,T*>::postamble_store(ar);
                 return ar;
@@ -1049,7 +1074,12 @@ namespace madness {
                 //if (n != t.n)
                 //    MADNESS_EXCEPTION("deserializing archive_array: dimension mismatch", n);
                 //ArchivePrePostImpl<Archive,T>::preamble_load(ar);
-                serialize(ar,(T *) t.ptr,t.n);
+                if constexpr (has_freestanding_serialize_with_size_v<std::add_pointer_t<T>, Archive>)
+                  serialize(ar,(T *) t.ptr,t.n);
+                else if constexpr (has_freestanding_default_serialize_with_size_v<std::add_pointer_t<T>, Archive>)
+                  default_serialize(ar,(T *) t.ptr,t.n);
+                else
+                  assert(false);
                 //ArchivePrePostImpl<Archive,T>::postamble_load(ar);
                 ArchivePrePostImpl<Archive,T*>::postamble_load(ar);
                 return ar;
@@ -1478,7 +1508,7 @@ namespace madness {
 
         /// @}
 
-}
-}
+}  // namespace madness::archive
+}  // namespace madness
 
 #endif // MADNESS_WORLD_ARCHIVE_H__INCLUDED

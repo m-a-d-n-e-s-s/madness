@@ -87,6 +87,33 @@ static_assert(madness::is_text_archive_v<CerealXMLOutputArchive>, "ouch");
 #include <madness/world/world.h>
 #include <madness/world/worldgop.h>
 
+template <typename T>
+struct type_printer;
+
+///// basic traits tests
+
+static_assert(!madness::has_member_serialize_v<int, madness::archive::BufferOutputArchive>);
+static_assert(!madness::has_member_serialize_v<int, madness::archive::BufferInputArchive>);
+static_assert(!madness::has_member_serialize_with_version_v<int, madness::archive::BufferOutputArchive>);
+static_assert(!madness::has_member_serialize_with_version_v<int, madness::archive::BufferInputArchive>);
+static_assert(!madness::has_nonmember_serialize_v<int, madness::archive::BufferOutputArchive>);
+static_assert(!madness::has_nonmember_serialize_v<int, madness::archive::BufferInputArchive>);
+static_assert(!madness::has_freestanding_serialize_v<int, madness::archive::BufferOutputArchive>);
+static_assert(!madness::has_freestanding_serialize_v<int, madness::archive::BufferInputArchive>);
+static_assert(!madness::has_freestanding_serialize_with_size_v<int*, madness::archive::BufferOutputArchive>);
+static_assert(!madness::has_freestanding_serialize_with_size_v<int*, madness::archive::BufferInputArchive>);
+static_assert(!madness::has_freestanding_serialize_with_version_v<int, madness::archive::BufferOutputArchive>);
+static_assert(!madness::has_freestanding_serialize_with_version_v<int, madness::archive::BufferInputArchive>);
+static_assert(madness::has_freestanding_default_serialize_v<int, madness::archive::BufferOutputArchive>);
+static_assert(madness::has_freestanding_default_serialize_v<int, madness::archive::BufferInputArchive>);
+static_assert(madness::has_freestanding_default_serialize_with_size_v<int*, madness::archive::BufferOutputArchive>);
+static_assert(madness::has_freestanding_default_serialize_with_size_v<int*, madness::archive::BufferInputArchive>);
+static_assert(madness::has_freestanding_default_serialize_with_size_v<int*, madness::archive::BinaryFstreamOutputArchive>);
+static_assert(madness::has_nonmember_store_v<int, madness::archive::BufferOutputArchive>);
+static_assert(madness::has_nonmember_load_v<int, madness::archive::BufferInputArchive>);
+static_assert(!madness::is_user_serializable_v<int, madness::archive::BufferOutputArchive>);
+static_assert(!madness::is_user_serializable_v<int, madness::archive::BufferInputArchive>);
+
 // A is a class that provides a symmetric serialize method
 class A {
 public:
@@ -234,17 +261,6 @@ static_assert(madness::is_istreammable_v<int>, "int is istreammable");
 static_assert(!madness::is_istreammable_v<std::array<int,3>>, "std::array<int,3> is not istreammable");
 static_assert(!madness::is_istreammable_v<std::vector<int>>, "std::vector<int> is not istreammable");
 static_assert(!madness::is_istreammable_v<NotStreammable>, "NotStreammable is not istreammable");
-
-static_assert(!madness::has_member_serialize_v<C, madness::archive::BufferOutputArchive>);
-static_assert(!madness::has_member_serialize_v<C, madness::archive::BufferInputArchive>);
-static_assert(!madness::has_member_serialize_with_version_v<C, madness::archive::BufferOutputArchive>);
-static_assert(!madness::has_member_serialize_with_version_v<C, madness::archive::BufferInputArchive>);
-static_assert(!madness::has_nonmember_serialize_v<C, madness::archive::BufferOutputArchive>);
-static_assert(!madness::has_nonmember_serialize_v<C, madness::archive::BufferInputArchive>);
-static_assert(madness::has_nonmember_store_v<C, madness::archive::BufferOutputArchive>);
-static_assert(madness::has_nonmember_load_v<C, madness::archive::BufferInputArchive>);
-static_assert(madness::has_nonmember_load_and_store_v<C, madness::archive::BufferOutputArchive>);
-static_assert(madness::has_nonmember_load_and_store_v<C, madness::archive::BufferInputArchive>);
 
 // serialization of trivially-serializable types can be overloaded
 struct G1 {

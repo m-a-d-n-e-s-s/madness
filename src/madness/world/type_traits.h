@@ -191,20 +191,30 @@ namespace madness {
     template<typename T, typename Archive>
     using has_nonmember_wrap_store_t = decltype(madness::archive::ArchiveImpl<Archive, T>::wrap_store(std::declval<Archive&>(), std::declval<T&>()));
 
-    /// helps to detect that `T` supports freestanding serialize function
+    /// helps to detect that `T` supports freestanding `serialize` function
     /// @note use in combination with madness::meta::is_detected_v
     template<typename T, typename Archive>
     using has_freestanding_serialize_t = decltype(serialize(std::declval<Archive&>(), std::declval<T&>()));
 
-    /// helps to detect that `T=U*` supports freestanding serialize function
+    /// helps to detect that `T=U*` supports freestanding `serialize` function
     /// @note use in combination with madness::meta::is_detected_v
     template<typename T, typename Archive, typename = std::enable_if_t<std::is_pointer_v<T>>>
     using has_freestanding_serialize_with_size_t = decltype(serialize(std::declval<Archive&>(), std::declval<T&>(), 1u));
 
-    /// helps to detect that `T` supports freestanding serialize function that accepts version
+    /// helps to detect that `T` supports freestanding `serialize` function that accepts version
     /// @note use in combination with madness::meta::is_detected_v
     template<typename T, typename Archive, typename = std::enable_if_t<!std::is_pointer_v<T>>>
     using has_freestanding_serialize_with_version_t = decltype(serialize(std::declval<Archive&>(), std::declval<T&>(), 0u));
+
+    /// helps to detect that `T` supports freestanding `default_serialize` function
+    /// @note use in combination with madness::meta::is_detected_v
+    template<typename T, typename Archive>
+    using has_freestanding_default_serialize_t = decltype(default_serialize(std::declval<Archive&>(), std::declval<T&>()));
+
+    /// helps to detect that `T=U*` supports freestanding `default_serialize` function
+    /// @note use in combination with madness::meta::is_detected_v
+    template<typename T, typename Archive, typename = std::enable_if_t<std::is_pointer_v<T>>>
+    using has_freestanding_default_serialize_with_size_t = decltype(default_serialize(std::declval<Archive&>(), std::declval<const T&>(), 1u));
 
     /// true if this is well-formed:
     /// \code
@@ -279,7 +289,7 @@ namespace madness {
     /// true if this is well-formed:
     /// \code
     ///   // T t; Archive ar;
-    ///   serialize(ar, t, 1u);
+    ///   serialize(ar, &t, 1u);
     /// \endcode
     template <typename T, typename Archive>
     inline constexpr bool has_freestanding_serialize_with_size_v = madness::meta::is_detected_v<madness::has_freestanding_serialize_with_size_t,T,Archive>;
@@ -291,6 +301,22 @@ namespace madness {
     /// \endcode
     template <typename T, typename Archive>
     inline constexpr bool has_freestanding_serialize_with_version_v = madness::meta::is_detected_v<madness::has_freestanding_serialize_with_version_t,T,Archive>;
+
+    /// true if this is well-formed:
+    /// \code
+    ///   // T t; Archive ar;
+    ///   default_serialize(ar, t);
+    /// \endcode
+    template <typename T, typename Archive>
+    inline constexpr bool has_freestanding_default_serialize_v = madness::meta::is_detected_v<madness::has_freestanding_default_serialize_t,T,Archive>;
+
+    /// true if this is well-formed:
+    /// \code
+    ///   // T t; Archive ar;
+    ///   default_serialize(ar, &t, 1u);
+    /// \endcode
+    template <typename T, typename Archive>
+    inline constexpr bool has_freestanding_default_serialize_with_size_v = madness::meta::is_detected_v<madness::has_freestanding_default_serialize_with_size_t,T,Archive>;
 
     template <typename Archive, typename T, typename Enabler = void>
     struct is_default_serializable_helper : public std::false_type {};
@@ -401,16 +427,24 @@ namespace madness {
     template <typename Archive, typename T>
     struct is_default_serializable_helper<Archive, archive::archive_array<T>, std::enable_if_t<is_default_serializable_helper<Archive,T>::value>> : std::true_type {};
 
-    /// Evaluates to true is can serialize an object of type `T` to an object of type `Archive`
+    /// Evaluates to true if can serialize an object of type `T` to an object of type `Archive` using user-provided methods
+    /// \tparam Archive
+    /// \tparam T
+    template <typename Archive, typename T>
+    inline constexpr bool is_user_serializable_v = is_archive_v<Archive> && (has_member_serialize_v<T, Archive> ||
+                                                                    has_member_serialize_with_version_v<T, Archive> ||
+                                                                    has_nonmember_serialize_v<T, Archive> ||
+                                                                    ((has_nonmember_load_v<T, Archive> || has_nonmember_wrap_load_v<T, Archive>) && is_input_archive_v<Archive> && !has_freestanding_default_serialize_v<T, Archive>) ||
+                                                                    ((has_nonmember_store_v<T, Archive> || has_nonmember_wrap_store_v<T, Archive>) && is_output_archive_v<Archive> && !has_freestanding_default_serialize_v<T, Archive>));
+
+    /// Evaluates to true if can serialize an object of type `T` to an object of type `Archive`,
+    /// using either user-provided methods or, if `T` is default-serializable to `Archive`,
+    /// using default method for this `Archive`
     /// \tparam Archive
     /// \tparam T
     template <typename Archive, typename T>
     inline constexpr bool is_serializable_v = is_archive_v<Archive> && (is_default_serializable_v<Archive, T> ||
-        has_member_serialize_v<T, Archive> ||
-        has_member_serialize_with_version_v<T, Archive> ||
-        has_nonmember_serialize_v<T, Archive> ||
-        ((has_nonmember_load_v<T, Archive> || has_nonmember_wrap_load_v<T, Archive>) && is_input_archive_v<Archive>) ||
-        ((has_nonmember_store_v<T, Archive> || has_nonmember_wrap_store_v<T, Archive>) && is_output_archive_v<Archive>));
+        is_user_serializable_v<Archive,T>);
 
     template <typename Archive, typename T>
     struct is_serializable : std::bool_constant<is_serializable_v<Archive,T>> {};
