@@ -4,7 +4,7 @@
 #include <chem/SCFOperators.h>
 #include <chem/SCF.h>
 #include <chem/nemo.h>
-#include <chem/test_utilities.h>
+#include <madness/world/test_utilities.h>
 #include <madness/misc/gitinfo.h>
 
 using namespace madness;

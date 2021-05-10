@@ -8,7 +8,7 @@
 #include <madness/mra/mra.h>
 #include "znemo.h"
 #include <chem/diamagneticpotentialfactor.h>
-#include <chem/test_utilities.h>
+#include <madness/world/test_utilities.h>
 #include <chem/masks_and_boxes.h>
 #include <chem/MolecularOrbitals.h>
 
