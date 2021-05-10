@@ -354,6 +354,8 @@ namespace madness {
     class MPIRawInputArchive;
     class MPIOutputArchive;
     class MPIInputArchive;
+    class ParallelOutputArchive;
+    class ParallelInputArchive;
     template <typename T>
     class archive_array;
     }  // namespace archive
@@ -460,6 +462,10 @@ namespace madness {
     struct is_archive<archive::MPIOutputArchive> : std::true_type {};
     template <>
     struct is_archive<archive::MPIInputArchive> : std::true_type {};
+    template <>
+    struct is_archive<archive::ParallelOutputArchive> : std::true_type {};
+    template <>
+    struct is_archive<archive::ParallelInputArchive> : std::true_type {};
 
     template <>
     struct is_output_archive<archive::BinaryFstreamOutputArchive> : std::true_type {};
@@ -473,6 +479,8 @@ namespace madness {
     struct is_output_archive<archive::MPIRawOutputArchive> : std::true_type {};
     template <>
     struct is_output_archive<archive::MPIOutputArchive> : std::true_type {};
+    template <>
+    struct is_output_archive<archive::ParallelOutputArchive> : std::true_type {};
 
     template <>
     struct is_input_archive<archive::BinaryFstreamInputArchive> : std::true_type {};
@@ -486,6 +494,8 @@ namespace madness {
     struct is_input_archive<archive::MPIRawInputArchive> : std::true_type {};
     template <>
     struct is_input_archive<archive::MPIInputArchive> : std::true_type {};
+    template <>
+    struct is_input_archive<archive::ParallelInputArchive> : std::true_type {};
 
     /// Evaluates to true if can serialize an object of type `T` to an object of type `Archive` using user-provided methods
     /// \tparam Archive
