@@ -39,6 +39,9 @@ using std::endl;
 #include <madness/world/array_addons.h>
 #include <madness/world/print.h>
 
+template <typename T>
+struct type_printer;
+
 /// \file test.cc
 /// \brief Tests serialization by some of the archives
 
@@ -65,6 +68,9 @@ using madness::archive::BufferOutputArchive;
 #include <cereal/archives/binary.hpp>
 using CerealBinaryInputArchive = madness::archive::CerealInputArchive<cereal::BinaryInputArchive>;
 using CerealBinaryOutputArchive = madness::archive::CerealOutputArchive<cereal::BinaryOutputArchive>;
+static_assert(madness::is_archive_v<CerealBinaryInputArchive>);
+static_assert(madness::is_input_archive_v<CerealBinaryInputArchive>);
+static_assert(!madness::is_output_archive_v<CerealBinaryInputArchive>);
 static_assert(!madness::is_text_archive_v<CerealBinaryInputArchive>, "ouch");
 static_assert(!madness::is_text_archive_v<CerealBinaryInputArchive>, "ouch");
 #include <cereal/archives/portable_binary.hpp>
@@ -261,6 +267,9 @@ static_assert(madness::is_istreammable_v<int>, "int is istreammable");
 static_assert(!madness::is_istreammable_v<std::array<int,3>>, "std::array<int,3> is not istreammable");
 static_assert(!madness::is_istreammable_v<std::vector<int>>, "std::vector<int> is not istreammable");
 static_assert(!madness::is_istreammable_v<NotStreammable>, "NotStreammable is not istreammable");
+
+static_assert(!madness::is_default_serializable_v<madness::archive::TextFstreamOutputArchive,std::vector<std::vector<int>>>);
+static_assert(!madness::is_default_serializable_v<madness::archive::TextFstreamInputArchive,std::vector<std::vector<int>>>);
 
 // serialization of trivially-serializable types can be overloaded
 struct G1 {
@@ -715,6 +724,10 @@ void test_in(const InputArchive& iar) {
     if constexpr(ptr_is_serializable) {
       MAD_ARCHIVE_DEBUG(std::cout << std::endl
                                   << " function pointer" << std::endl);
+      static_assert(!madness::is_istreammable_v<void(*)()>);
+      static_assert(madness::is_ostreammable_v<void(*)()>);
+      static_assert(madness::is_default_serializable_v<madness::archive::TextFstreamInputArchive, void (*)()>);
+      static_assert(madness::is_default_serializable_v<madness::archive::TextFstreamInputArchive, void (*)()>);
       iar & free_fn_ptr1;
       iar >> free_fn_ptr2;
       MAD_ARCHIVE_DEBUG(std::cout << std::endl

@@ -1166,7 +1166,7 @@ namespace madness {
 
             /// \param[in] ar The archive.
             /// \param[in] v The \c vector.
-            template <typename U = T, typename = std::enable_if_t<is_default_serializable<Archive,U>::value>>
+            template <typename U = T, typename = std::enable_if_t<is_default_serializable_v<Archive,U>>>
             static inline void store(const Archive& ar, const std::vector<U, Alloc>& v) {
                 MAD_ARCHIVE_DEBUG(std::cout << "serialize std::vector of plain data" << std::endl);
                 ar & v.size();
@@ -1178,7 +1178,7 @@ namespace madness {
             /// \param[in] ar The archive.
             /// \param[in] v The \c vector.
             template <typename U = T>
-            static inline void store(const Archive& ar, const std::vector<U, Alloc>& v, std::enable_if_t<!is_default_serializable<Archive,U>::value>* = nullptr) {
+            static inline void store(const Archive& ar, const std::vector<U, Alloc>& v, std::enable_if_t<!is_default_serializable_v<Archive,U>>* = nullptr) {
                 MAD_ARCHIVE_DEBUG(std::cout << "serialize std::vector of non-plain data" << std::endl);
                 ar & v.size();
                 for(const auto& elem: v) {
@@ -1202,7 +1202,7 @@ namespace madness {
             /// Clears and resizes the \c vector as necessary.
             /// \param[in] ar The archive.
             /// \param[out] v The \c vector.
-            template <typename U = T, typename = std::enable_if_t<is_default_serializable<Archive,U>::value>>
+            template <typename U = T, typename = std::enable_if_t<is_default_serializable_v<Archive,U>>>
             static void load(const Archive& ar, std::vector<U, Alloc>& v) {
                 MAD_ARCHIVE_DEBUG(std::cout << "deserialize std::vector of plain data" << std::endl);
                 std::size_t n = 0ul;
@@ -1220,7 +1220,7 @@ namespace madness {
             /// \param[in] ar The archive.
             /// \param[out] v The \c vector.
             template <typename U = T>
-            static void load(const Archive& ar, std::vector<U, Alloc>& v, std::enable_if_t<!is_default_serializable<Archive,U>::value>* = nullptr) {
+            static void load(const Archive& ar, std::vector<U, Alloc>& v, std::enable_if_t<!is_default_serializable_v<Archive,U>>* = nullptr) {
                 MAD_ARCHIVE_DEBUG(std::cout << "deserialize std::vector of non-plain data" << std::endl);
                 std::size_t n = 0ul;
                 ar & n;

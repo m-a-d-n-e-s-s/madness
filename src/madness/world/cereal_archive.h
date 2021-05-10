@@ -164,6 +164,18 @@ struct is_cereal_archive<archive::CerealInputArchive<Muesli>> : std::true_type {
 
 // must also be able to introspect bare cereal archives to be able to reuse serialize methods for both
 template <typename T>
+struct is_archive<archive::CerealOutputArchive<T>, std::enable_if_t<std::is_base_of_v<cereal::detail::OutputArchiveBase, T>>> : std::true_type {};
+template <typename T>
+struct is_archive<archive::CerealInputArchive<T>, std::enable_if_t<std::is_base_of_v<cereal::detail::InputArchiveBase, T>>> : std::true_type {};
+template <typename T>
+struct is_output_archive<archive::CerealOutputArchive<T>, std::enable_if_t<std::is_base_of_v<cereal::detail::OutputArchiveBase, T>>> : std::true_type {};
+template <typename T>
+struct is_input_archive<archive::CerealInputArchive<T>, std::enable_if_t<std::is_base_of_v<cereal::detail::InputArchiveBase, T>>> : std::true_type {};
+template <typename T>
+struct is_archive<T, std::enable_if_t<std::is_base_of_v<cereal::detail::OutputArchiveBase, T>>> : std::true_type {};
+template <typename T>
+struct is_archive<T, std::enable_if_t<std::is_base_of_v<cereal::detail::InputArchiveBase, T>>> : std::true_type {};
+template <typename T>
 struct is_output_archive<T, std::enable_if_t<std::is_base_of_v<cereal::detail::OutputArchiveBase, T>>> : std::true_type {};
 template <typename T>
 struct is_input_archive<T, std::enable_if_t<std::is_base_of_v<cereal::detail::InputArchiveBase, T>>> : std::true_type {};
