@@ -57,14 +57,6 @@ namespace madness {
 //    template <typename T>
 //    std::ostream& operator<<(std::ostream& s, const RemoteReference<T>& ref);
 
-    namespace archive {
-        template <typename, typename>
-        struct ArchiveLoadImpl;
-
-        template <typename, typename>
-        struct ArchiveStoreImpl;
-    }
-
     namespace detail {
 
 
@@ -345,10 +337,10 @@ namespace madness {
 
         private:
 
-            template <typename, typename>
+            template <typename, typename, typename>
             friend struct archive::ArchiveLoadImpl;
 
-            template <typename, typename>
+            template <typename, typename, typename>
             friend struct archive::ArchiveStoreImpl;
 
             template <typename Archive>
