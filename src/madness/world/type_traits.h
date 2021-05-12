@@ -71,8 +71,126 @@ namespace madness {
    }
 
     template <typename> class Future;
-    template <typename> struct add_future;
-    template <typename> struct remove_future;
+
+    /// test if a type is a future.
+
+    /// \tparam T The type to test.
+    template <typename T>
+    struct is_future : public std::false_type { };
+
+    template <typename T>
+    struct is_future< Future<T> > : public std::true_type { };
+
+    /// maps type \c T to \c Future<T>.
+
+    /// \tparam T The type to have future added.
+    template <typename T>
+    struct add_future {
+        /// Type with \c Future added.
+        typedef Future<T> type;
+    };
+
+    /// maps \c Future<T> to \c Future<T>.
+
+    /// Specialization of \c add_future<T> that properly forbids the type
+    /// \c Future< Future<T> >.
+    /// \tparam T The underlying data type.
+    template <typename T>
+    struct add_future< Future<T> > {
+       /// Type with \c Future added.
+       typedef Future<T> type;
+    };
+
+    /// maps \c Future<T> to \c T.
+
+    /// \tparam T The type to have future removed; in this case, do nothing.
+    template <typename T>
+    struct remove_future {
+        /// Type with \c Future removed.
+        typedef T type;
+    };
+
+    /// This metafunction maps \c Future<T> to \c T.
+
+    /// \internal Future is a wrapper for T (it acts like an Identity monad), so this
+    /// unwraps T. It makes sense that the result should preserve the access traits
+    /// of the Future, i.e. const Future<T> should map to const T, etc.
+
+    /// Specialization of \c remove_future for \c Future<T>
+    /// \tparam T The type to have future removed.
+    template <typename T>
+    struct remove_future< Future<T> > {
+        /// Type with \c Future removed.
+        typedef T type;
+    };
+
+    /// Specialization of \c remove_future for \c Future<T>
+    /// \tparam T The type to have future removed.
+    template <typename T>
+    struct remove_future< const Future<T> > {
+        /// Type with \c Future removed.
+        typedef const T type;
+    };
+
+    /// Specialization of \c remove_future for \c Future<T>&
+    /// \tparam T The type to have future removed.
+    template <typename T>
+    struct remove_future< Future<T>& > {
+        /// Type with \c Future removed.
+        typedef T& type;
+    };
+
+    /// Specialization of \c remove_future for \c Future<T>&&
+    /// \tparam T The type to have future removed.
+    template <typename T>
+    struct remove_future< Future<T>&& > {
+        /// Type with \c Future removed.
+        typedef T&& type;
+    };
+
+    /// Specialization of \c remove_future for \c const \c Future<T>&
+    /// \tparam T The type to have future removed.
+    template <typename T>
+    struct remove_future< const Future<T>& > {
+        /// Type with \c Future removed.
+        typedef const T& type;
+    };
+
+    /// Macro to determine type of future (by removing wrapping \c Future template).
+
+    /// \param T The type (possibly with \c Future).
+    #define REMFUTURE(T) typename remove_future< T >::type
+
+    /// C++11 version of REMFUTURE
+    template <typename T>
+    using remove_future_t = typename remove_future< T >::type;
+
+    /// Similar to remove_future , but future_to_ref<Future<T>> evaluates to T& ,whereas
+    /// remove_future<Future<T>> evaluates to T .
+    /// \tparam T The type to have future removed; in this case, do nothing.
+    template <typename T>
+    struct future_to_ref {
+        typedef T type;
+    };
+    template <typename T>
+    struct future_to_ref<Future<T>> {
+        typedef T& type;
+    };
+    template <typename T>
+    struct future_to_ref<Future<T>*> {
+        typedef T& type;
+    };
+    template <typename T>
+    struct future_to_ref<Future<T>&> {
+        typedef T& type;
+    };
+    template <typename T>
+    struct future_to_ref<const Future<T>&> {
+         typedef T& type;
+    };
+    template <typename T>
+    using future_to_ref_t = typename future_to_ref< T >::type;
+
 
     // Remove Future, const, volatile, and reference qualifiers from the type
     template <typename T>
@@ -107,6 +225,9 @@ namespace madness {
         (std::is_pod<T>::value && !std::is_pointer<T>::value);
 //        ((std::is_class<T>::value || std::is_array<T>::value) && std::is_trivially_copyable<T>::value);
     };
+
+    template <typename T>
+    inline constexpr bool is_trivially_serializable_v = is_trivially_serializable<T>::value;
 
     // namespace hiding implementation details of is_ostreammable ... by ensuring that the detector lives in a different namespace branch than the operators we do not accidentally pick them up
     namespace is_ostreammable_ns {
@@ -336,6 +457,8 @@ namespace madness {
     template <typename Archive, typename T>
     inline constexpr bool is_default_serializable_v = is_default_serializable<Archive, T>::value;
 
+    template <typename Archive, typename T>
+    inline constexpr bool is_default_serializable_v<Archive, const T> = is_default_serializable_v<Archive, T>;
 
     // forward declare archives to provide archive-specific overloads
     namespace archive {
@@ -435,6 +558,10 @@ namespace madness {
     struct is_default_serializable_helper<archive::MPIOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
     template <typename T>
     struct is_default_serializable_helper<archive::MPIInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    template <typename T>
+    struct is_default_serializable_helper<archive::ParallelOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    template <typename T>
+    struct is_default_serializable_helper<archive::ParallelInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
     template <typename Archive, typename T>
     struct is_default_serializable_helper<Archive, archive::archive_array<T>, std::enable_if_t<is_default_serializable_helper<Archive,T>::value>> : std::true_type {};
 
@@ -506,6 +633,9 @@ namespace madness {
                                                                     ((has_nonmember_load_v<T, Archive> || has_nonmember_wrap_load_v<T, Archive>) && is_input_archive_v<Archive> && !has_freestanding_default_serialize_v<T, Archive>) ||
                                                                     ((has_nonmember_store_v<T, Archive> || has_nonmember_wrap_store_v<T, Archive>) && is_output_archive_v<Archive> && !has_freestanding_default_serialize_v<T, Archive>));
 
+    template <typename Archive, typename T>
+    inline constexpr bool is_user_serializable_v<Archive, const T> = is_user_serializable_v<Archive, T>;
+
     /// Evaluates to true if can serialize an object of type `T` to an object of type `Archive`,
     /// using either user-provided methods or, if `T` is default-serializable to `Archive`,
     /// using default method for this `Archive`
@@ -514,6 +644,9 @@ namespace madness {
     template <typename Archive, typename T>
     inline constexpr bool is_serializable_v = is_archive_v<Archive> && (is_default_serializable_v<Archive, T> ||
         is_user_serializable_v<Archive,T>);
+
+    template <typename Archive, typename T>
+    inline constexpr bool is_serializable_v<Archive, const T> = is_serializable_v<Archive, T>;
 
     template <typename Archive, typename T>
     struct is_serializable : std::bool_constant<is_serializable_v<Archive,T>> {};
