@@ -17,12 +17,13 @@
 #include <string>
 #include <vector>
 
-using namespace madness;
+namespace madness {
+#if 1
 
-class ResponseParameters : public QCCalculationParametersBase {
- public:
-  ResponseParameters() : QCCalculationParametersBase() {
-    // initialize with: key, value, comment (optional), allowed values (optional)
+struct ResponseParameters : public QCCalculationParametersBase {
+  ResponseParameters(const ResponseParameters &other) = default;
+
+  ResponseParameters() {
     initialize<std::string>("archive", "restartdata", "file to read ground parameters from");
     initialize<std::string>("nwchem", "", "Root name of nwchem files for intelligent starting guess");
     initialize<size_t>("states", 1, "Number of excited states requested");
@@ -85,6 +86,61 @@ class ResponseParameters : public QCCalculationParametersBase {
     initialize<double>("omega", 0.0, "Incident energy for dynamic response");
   }
 
+ public:
+  using QCCalculationParametersBase::read;
+
+  std::string archive() const { return get<std::string>("archive"); }
+  std::string nwchem() const { return get<std::string>("nwchem"); }
+  size_t n_states() const { return get<size_t>("states"); }
+  int print_level() const { return get<int>("print_level"); }
+  bool tda() const { return get<bool>("tda"); }
+  bool plot() const { return get<bool>("plot"); }
+  bool plot_range() const { return get<bool>("plot_range"); }
+  std::vector<int> plot_data() const { return get<std::vector<int>>("plot_data"); }
+  std::vector<double> plot_cell() const { return get<std::vector<double>>("plot_cell"); }
+
+  double plot_L() const { return get<double>("plot_L"); }
+  size_t plot_pts() const { return get<size_t>("plot_pts"); }
+  bool plot_all_orbitals() const { return get<bool>("plot_all_orbitals"); }
+  size_t maxiter() const { return get<size_t>("maxiter"); }
+  double dconv() const { return get<double>("dconv"); }
+  bool dconv_set() const { return get<bool>("dconv_set"); }
+  bool guess_xyz() const { return get<bool>("guess_xyz"); }
+  double small() const { return get<double>("small"); }
+  std::vector<double> protocol() const { return get<std::vector<double>>("protocol_data"); }
+  size_t larger_subspace() const { return get<size_t>("larger_subspace"); }
+  int k() const { return get<int>("k"); }
+  bool random() const { return get<bool>("random"); }
+  bool store_potential() const { return get<bool>("store_potential"); }
+  bool e_range() const { return get<bool>("e_range"); }
+
+  double e_range_lo() const { return get<double>("e_range_lo"); }
+  double e_range_hi() const { return get<double>("e_range_hi"); }
+
+  bool plot_initial() const { return get<bool>("plot_initial"); }
+  bool restart() const { return get<bool>("restart"); }
+  std::string restart_file() const { return get<std::string>("restart_file"); }
+  bool kain() const { return get<bool>("kain"); }
+  double maxrotn() const { return get<double>("maxrotn"); }
+  size_t maxsub() const { return get<size_t>("maxsub"); }
+  std::string xc() const { return get<std::string>("xc"); }
+  bool save() const { return get<bool>("save"); }
+  std::string save_file() const { return get<std::string>("save_file"); }
+  bool save_density() const { return get<bool>("save_density"); }
+  std::string save_density_file() const { return get<std::string>("save_density_file"); }
+  bool load_density() const { return get<bool>("load_density"); }
+  std::string load_density_file() const { return get<std::string>("load_density_file"); }
+  size_t guess_max_iter() const { return get<size_t>("guess_max_iter"); }
+  bool property() const { return get<bool>("property"); }
+  std::string response_type() const { return get<std::string>("response_type"); }
+  bool dipole() const { return get<bool>("dipole"); }
+  bool nuclear() const { return get<bool>("nuclear"); }
+  bool order2() const { return get<bool>("order2"); }
+  bool order3() const { return get<bool>("order3"); }
+  vector<std::string> response_types const { return get<vector<std::string>>("response_types"); }
+  double omega() const { return get<double>("omega"); }
+  /*
+   */
   void read_and_set_derived_values(World &world, std::string inputfile, std::string tag) {
     // read the parameters from file and brodcast
     // tag
@@ -97,11 +153,10 @@ class ResponseParameters : public QCCalculationParametersBase {
   double dconv() const { return get<double>("dconv"); }
   bool localize() const { return get<bool>("localize"); }
   std::string local() const { return get<std::string>("local"); }
-  std::pair<std::string, double> ncf() const { return get<std::pair<std::string, double>>("ncf"); }
   int maxiter() const { return get<int>("maxiter"); }
 };
 
-namespace madness {
+#else
 
 struct ResponseParameters {
   // List of input parameters
