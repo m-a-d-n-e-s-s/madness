@@ -14,6 +14,116 @@
 #include <string>
 #include <vector>
 
+#include<chem/QCCalculationParametersBase.h>
+#include<madness/mra/mra.h>
+#include<madness/world/parallel_archive.h>
+
+using namespace madness;
+
+class ResponseParameters: public QCCalculationParametersBase{
+	public:
+		ResponseParameters() : QCCalculationParametersBase(){
+
+		// initialize with: key, value, comment (optional), allowed values (optional)
+		initialize<std::string>("archive","restartdata","file to read ground parameters from");
+		initialize<std::string>("nwchem","","Root name of nwchem files for intelligent starting guess");
+		initialize<size_t>("states",1,"Number of excited states requested");
+		initialize<int>  ("print_level",3,"0: no output; 1: final energy; 2: iterations; 3: timings; 10: debug");
+		initialize<bool> ("tda",false,"turn on Tam-Danchof approximation (excitations energy");
+		initialize<bool> ("plot",false,"turn on plotting of final orbitals. Output format is .vts");
+		initialize<bool> ("plot_range",false,"controls which orbitals will be plotted");
+		initialize<std::vector<int>>  ("plot_data",std::vector<int>{0},"Orbitals to plot");
+		initialize<std::vector<double> > ("plot_cell",std::vector<double>(),"lo hi in each dimension for plotting (default is all space)");
+		initialize<double>("plot_L",-1.0,"Controls the plotting box size");
+		initialize<size_t>("plot_pts",201,"Controls number of points in plots");
+		initialize<bool> ("plot_all_orbitals",false,"Turn on 2D plotting of response orbitals ");
+
+		initialize<size_t>   ("maxiter",25,"maximum number of iterations");
+
+		initialize<double>("dconv",3.e-4,"recommended values: 1.e-4 < dconv < 1.e-8");
+		initialize<bool> ("dconv_set",false,"Convergence flage for the orbtial density");
+
+		initialize<bool> ("dconv_set",false,"Convergence flage for the orbtial density");
+
+		initialize<bool>("guess_xyz",false,"TODO : check what this is for");
+
+		initialize<double> ("small",1.e10,"smallest length scale we need to resolve");
+		initialize<std::vector<double> > ("protocol_data",{1.e-4,1.e-6},"calculation protocol");
+
+		initialize<size_t>   ("larger_subspace",0,"Number of iterations to diagonalize in a subspace consisting of old and new vectors");
+		initialize<int>   ("k",7,"polynomial order");
+
+		initialize<bool> ("random",false,"Use random guess for initial response functions");
+		initialize<bool> ("store_potential",true,"Store the potential instead of computing each iteration");
+		initialize<bool> ("e_range",false,"Use an energy range to excite from");
+		initialize<double> ("e_range_lo",0,"Energy range (lower end) for orbitals to excite from");
+		initialize<double> ("e_range_hi",1,"Energy range (upper end) for orbitals to excite from");
+		initialize<bool> ("plot_initial",false,"Flag to plot the ground state orbitals read in from archivie");
+		// Restart Parameters
+		initialize<bool>("restart",false,"file to read ground parameters from");
+		initialize<std::string>("restart_file","","file to read ground parameters from");
+/*
+  bool e_window;         ///< Use an energy window to excite from
+  double range_low;   ///< Energy range (lower end) for orbitals to excite from
+  double range_high;  ///< Energy range (upper end) for orbitals to excite from
+  bool plot_initial;  ///< Flag to plot the ground state orbitals read in from
+                      ///< archive
+  bool restart;       ///< Flag to restart from file
+  std::string restart_file;  ///< Flag to restart from file
+  bool kain;                 ///< Flag to use KAIN solver
+  double maxrotn;
+  size_t maxsub;   ///< How many previous iterations KAIN will store
+  std::string xc;  ///< Controls the HF or DFT switch, as well as which DFT
+                   ///< functional is used
+  bool save;       ///< Controls if orbitals will be saved each iteration
+  std::string save_file;  ///< Flag to save to file
+
+  bool save_density;
+  std::string save_density_file;  ///< Flag to save to file
+
+  bool load_density;
+  std::string load_density_file;  ///< Flag to save to file
+
+  size_t guess_max_iter;  ///< Maximum number of iterations for guess functions
+
+  // Start of properties
+  bool property;  ///< Flag that this is a properties calculation
+
+  std::string response_type;  //
+
+  bool dipole;   ///< Flag that this is a properties calculation
+  bool nuclear;  ///< Flag that this is a properties calculation
+  bool order2;   ///< Flag that this is a properties calculation
+  bool order3;   ///< Flag that this is a properties calculation
+
+  vector<std::string> response_types;  // string holding response type 1
+
+  double omega;  ///< Incident energy for polarizability
+
+  // TESTING
+  bool old;
+  bool old_two_electron;
+  */
+		}
+
+	void read_and_set_derived_values(World& world, std::string inputfile, std::string tag) {
+		// read the parameters from file and brodcast
+		// tag
+		read(world,inputfile,tag);
+		set_derived_value("dconv",sqrt(get<double>("econv"))*0.1);
+	}
+
+	// convenience getters
+	double econv() const {return get<double>("econv");}
+	double dconv() const {return get<double>("dconv");}
+	bool localize() const {return get<bool>("localize");}
+	std::string local() const {return get<std::string>("local");}
+	std::pair<std::string,double> ncf() const {return get<std::pair<std::string,double> >("ncf");}
+	int maxiter() const {return get<int>("maxiter");}
+
+};
+
+
 namespace madness {
 
 struct ResponseParameters {
@@ -39,7 +149,7 @@ struct ResponseParameters {
   std::vector<int> plot_data;  ///< Orbitals to plot
   double plot_L;               ///< Controls the plotting box size
   size_t plot_pts;             ///< Controls number of points in plots
-  bool plot_all_orbitals;
+  bool plot_all_orbitals; // Turn on 2D plotting of response orbitals
   size_t max_iter;  ///< Maximum number of iterations
   double dconv;     ///< Convergence criterion for the orbital density
   bool dconv_set;   ///< Convergence flag for the orbital density
