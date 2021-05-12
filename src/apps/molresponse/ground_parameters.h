@@ -21,22 +21,34 @@ namespace madness {
 
 #if 1
 
-struct GroundParameters {
+class GroundStateCalculation {
   // Ground state parameters that are read in from archive
-  std::string inFile;                      ///< Name of input archive to read in ground state
-  bool spinrestricted;                     ///< Indicates if ground state calc. was open or closed
-                                           ///< shell
-  unsigned int num_orbitals;               ///< Number of orbitals in ground state
-  Tensor<double> energies;                 ///< Energy of ground state orbitals
-  Tensor<double> occ;                      ///< Occupancy of ground state orbitals
-  double L;                                ///< Box size of ground state - response calcluation is in same box
-  int k;                                   ///< Order of polynomial used in ground state
-  Molecule molecule;                       ///< The molecule used in ground state calculation
-  std::vector<real_function_3d> orbitals;  ///< The ground state orbitals
-  std::string xc;                          ///< Name of xc functional used in ground state
+  std::string inFile;                        ///< Name of input archive to read in ground state
+  bool spinrestricted;                       ///< Indicates if ground state calc. was open or closed
+                                             ///< shell
+  unsigned int num_orbitals;                 ///< Number of orbitals in ground state
+  Tensor<double> energies;                   ///< Energy of ground state orbitals
+  Tensor<double> occ;                        ///< Occupancy of ground state orbitals
+  double L;                                  ///< Box size of ground state - response calcluation is in same box
+  int k;                                     ///< Order of polynomial used in ground state
+  Molecule molecule_in;                      ///< The molecule used in ground state calculation
+  std::vector<real_function_3d> g_orbitals;  ///< The ground state orbitals
+  std::string xc;                            ///< Name of xc functional used in ground state
 
   // Default constructor
-  GroundParameters() {}
+ public:
+  GroundStateCalculation() {}
+
+  bool is_spinrestricted() const { return spinrestricted; }
+  unsigned int n_orbitals() const { return num_orbitals; }
+  Tensor<double> get_energies() const { return energies; }
+  Tensor<double> get_occ() const { return occ; }
+  Molecule molecule() const { return molecule_in; }
+
+  double get_L() const { return L; }
+  int get_k() const { return k; }
+  vector_real_function_3d orbitals() const { return g_orbitals; }
+  std::string get_xc() const { return xc; }
 
   // Initializes ResponseParameters using the contents of file \c filename
   void read(World& world, const std::string& filename) {
@@ -57,7 +69,7 @@ struct GroundParameters {
     input& dummy2;          // std::vector<int>  sets of orbitals(?)
     input& L;               // double            box size
     input& k;               // int               wavelet order
-    input& molecule;        // Molecule
+    input& molecule_in;     // Molecule
     input& xc;              // std:string        xc functional
 
     // Check that order is positive and less than 30
@@ -76,17 +88,17 @@ struct GroundParameters {
 
     // Possible to call this function multiple times now
     // Do this to ensure everything works.
-    orbitals.clear();
+    g_orbitals.clear();
 
     // Read in ground state orbitals
     for (unsigned int i = 0; i < num_orbitals; i++) {
       real_function_3d reader;
       input& reader;
-      orbitals.push_back(reader);
+      g_orbitals.push_back(reader);
     }
 
     // Clean up
-    truncate(world, orbitals);
+    truncate(world, g_orbitals);
   }
 
   // Prints all information
