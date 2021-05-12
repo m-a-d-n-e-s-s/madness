@@ -68,7 +68,7 @@ void simple_example(World &universe) {
     {
         Cloud cloud(universe);
 
-        // store f_universel into the cloud, the return value holds the record to find the function again.
+        // store f_universal into the cloud, the return value holds the record to find the function again.
         auto recordlist = cloud.store(universe, f_universe);
 
         // begin subworld section
@@ -81,7 +81,7 @@ void simple_example(World &universe) {
         // when the subworld is destroyed all objects living in it must
         // have been destroyed before
         {
-            // create subworlds
+            // reset process map to subworlds
             MacroTaskQ::set_pmap(subworld);
 
             // load f into the worlds by passing in the recordlist

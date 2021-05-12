@@ -19,6 +19,8 @@
 /*!
   \file cloud.h
   \brief Defines and implements most of madness cloud storage
+
+  TODO: check use of preprocessor directives
 */
 
 namespace madness {
@@ -63,10 +65,15 @@ public:
 
     // these are all allowed types for storing
     typedef std::variant<std::size_t, int, long, double,
+#ifdef MADNESS_TENSOR_TENSOR_H__INCLUDED
             Tensor<double>,
+#endif
+#ifdef MADNESS_MRA_MRA_H__INCLUDED
             Function<double, 3>,
             std::vector<Function<double, 3>>,
-            std::shared_ptr<FunctionImpl<double, 3>>
+            std::shared_ptr<FunctionImpl<double, 3>>,
+#endif
+            std::monostate
     > cached_objT;
 
     using keyT = madness::archive::ContainerRecordOutputArchive::keyT;
@@ -221,7 +228,15 @@ private:
 
 public:
     /// @param[in]	universe	the universe world
-    Cloud(madness::World &universe) : container(universe), reading_time(0l), writing_time(0l) {}
+    Cloud(madness::World &universe) : container(universe), reading_time(0l), writing_time(0l) {
+#ifndef MADNESS_TENSOR_TENSOR_H__INCLUDED
+        static_assert(0,"You must #include<tensor/tensor.h> before cloud.h");
+#endif
+#ifndef MADNESS_MRA_MRA_H__INCLUDED
+        static_assert(0,"You must #include<mra/mra.h> before cloud.h");
+#endif
+
+    }
 
     void set_debug(bool value) {
         debug = value;
