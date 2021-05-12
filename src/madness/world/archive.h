@@ -1081,7 +1081,7 @@ namespace madness {
         /// \tparam T The data type.
         /// \tparam n The array size.
         template <class Archive, class T, std::size_t n>
-        struct ArchiveImpl<Archive, T[n], std::enable_if_t<is_serializable_v<Archive, T>>> {
+        struct ArchiveImpl<Archive, T[n], std::enable_if_t<!std::is_same_v<T,char> && is_serializable_v<Archive, T>>> {
             /// Store the array, wrapped by the preamble/postamble.
 
             /// \param[in] ar The archive.
