@@ -374,6 +374,8 @@ namespace madness {
             static constexpr bool is_archive = true; ///< Flag to determine if this object is an archive.
             static constexpr bool is_input_archive = false; ///< Flag to determine if this object is an input archive.
             static constexpr bool is_output_archive = false; ///< Flag to determine if this object is an output archive.
+            using is_loading = std::false_type; ///< Type used by Boost.Serialization to determine if this object is an input archive.
+            using is_saving = std::false_type; ///< Type used by Boost.Serialization to determine if this object is an output archive.
             static constexpr bool is_parallel_archive = false; ///< Flag to determine if this object is a parallel archive.
 
             BaseArchive() {
@@ -386,6 +388,7 @@ namespace madness {
         class BaseInputArchive : public BaseArchive {
         public:
             static constexpr bool is_input_archive = true; ///< Flag to determine if this object is an input archive.
+            using is_loading = std::true_type; ///< Type used by Boost.Serialization to determine if this object is an input archive.
         }; // class BaseInputArchive
 
 
@@ -393,6 +396,7 @@ namespace madness {
         class BaseOutputArchive : public BaseArchive {
         public:
             static constexpr bool is_output_archive = true; ///< Flag to determine if this object is an output archive.
+            using is_saving = std::true_type; ///< Type used by Boost.Serialization to determine if this object is an output archive.
         }; // class BaseOutputArchive
 
 
@@ -565,17 +569,13 @@ namespace madness {
 
             /// \param[in] ar The archive.
             /// \param[in,out] t The data.
-            template <typename A = Archive, typename U = T, typename = std::enable_if_t<has_member_serialize_v<U,A>||has_member_serialize_with_version_v<U,A>>>
+            template <typename A = Archive, typename U = T, typename = std::enable_if_t<has_member_serialize_v<U,A>>>
             static inline void serialize(const Archive& ar, T& t) {
               constexpr auto has_serialize = has_member_serialize_v<T,Archive>;
-              constexpr auto has_serialize_with_version = has_member_serialize_with_version_v<T,Archive>;
               if constexpr (has_serialize)
                 t.serialize(ar);
-
-              else if constexpr (has_serialize_with_version)
-                t.serialize(ar, 0);
               else {  // this is never instantiated
-                constexpr auto T_has_serialize_method = !has_serialize && !has_serialize_with_version;
+                constexpr auto T_has_serialize_method = !has_serialize;
                 static_assert(T_has_serialize_method);
               }
             }
@@ -626,9 +626,9 @@ namespace madness {
             template <typename A = Archive, typename U = T>
             static inline std::enable_if_t<is_output_archive_v<A> &&
                 !std::is_function<U>::value &&
-                (has_member_serialize_v<U,A> || has_member_serialize_with_version_v<U,A> ||
+                (has_member_serialize_v<U,A> ||
                  has_nonmember_serialize_v<U,A> ||
-                 has_freestanding_serialize_v<U, A> || has_freestanding_serialize_with_version_v<U, A> ||
+                 has_freestanding_serialize_v<U, A> ||
                  has_freestanding_default_serialize_v<U, A>),
                                            void>
             store(const A& ar, const U& t) {
@@ -636,17 +636,11 @@ namespace madness {
                 if constexpr (has_member_serialize_v<U,A>) {
                   const_cast<U&>(t).serialize(ar);
                 }
-                else if constexpr (has_member_serialize_with_version_v<U,A>) {
-                  const_cast<U&>(t).serialize(ar, 0u);
-                }
                 else if constexpr (has_nonmember_serialize_v<U,A>) {
                   ArchiveSerializeImpl<A, U>::serialize(ar, const_cast<U&>(t));
                 }
                 else if constexpr (has_freestanding_serialize_v<U, A>) {
                   serialize(ar, const_cast<U&>(t));
-                }
-                else if constexpr (has_freestanding_serialize_with_version_v<U, A>) {
-                  serialize(ar, const_cast<U &>(t), 0u);
                 }
                 else if constexpr (has_freestanding_default_serialize_v<U, A>) {
                   default_serialize(ar, const_cast<U&>(t));
@@ -690,26 +684,20 @@ namespace madness {
             template <typename A = Archive,
                       typename U = T,
                       typename = std::enable_if_t<is_input_archive_v<A> &&
-                          (has_member_serialize_v<U,A> || has_member_serialize_with_version_v<U,A> ||
+                          (has_member_serialize_v<U,A>  ||
                            has_nonmember_serialize_v<U,A> ||
-                           has_freestanding_serialize_v<U, A> || has_freestanding_serialize_with_version_v<U, A> ||
+                           has_freestanding_serialize_v<U, A> ||
                            has_freestanding_default_serialize_v<U, A>)>>
             static inline void load(const A& ar, const U& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "load(ar,t) default" << std::endl);
               if constexpr (has_member_serialize_v<U,A>) {
                 const_cast<U&>(t).serialize(ar);
               }
-              else if constexpr (has_member_serialize_with_version_v<U,A>) {
-                const_cast<U&>(t).serialize(ar, 0u);
-              }
               else if constexpr (has_nonmember_serialize_v<U,A>) {
                 ArchiveSerializeImpl<A, U>::serialize(ar, const_cast<U&>(t));
               }
               else if constexpr (has_freestanding_serialize_v<U, A>) {
                 serialize(ar, const_cast<U&>(t));
-              }
-              else if constexpr (has_freestanding_serialize_with_version_v<U, A>) {
-                serialize(ar, const_cast<U &>(t), 0u);
               }
               else if constexpr (has_freestanding_default_serialize_v<U, A>) {
                 default_serialize(ar, const_cast<U&>(t));

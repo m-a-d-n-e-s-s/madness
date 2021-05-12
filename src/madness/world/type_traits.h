@@ -502,7 +502,6 @@ namespace madness {
     /// \tparam T
     template <typename Archive, typename T>
     inline constexpr bool is_user_serializable_v = is_archive_v<Archive> && (has_member_serialize_v<T, Archive> ||
-                                                                    has_member_serialize_with_version_v<T, Archive> ||
                                                                     has_nonmember_serialize_v<T, Archive> ||
                                                                     ((has_nonmember_load_v<T, Archive> || has_nonmember_wrap_load_v<T, Archive>) && is_input_archive_v<Archive> && !has_freestanding_default_serialize_v<T, Archive>) ||
                                                                     ((has_nonmember_store_v<T, Archive> || has_nonmember_wrap_store_v<T, Archive>) && is_output_archive_v<Archive> && !has_freestanding_default_serialize_v<T, Archive>));
