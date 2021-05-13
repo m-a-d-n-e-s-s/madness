@@ -21,6 +21,7 @@
   \brief Defines and implements most of madness cloud storage
 
   TODO: check use of preprocessor directives
+  TODO: clear cache in destructor won't work because no subworld is present -> must be explicitly called, error prone
 */
 
 namespace madness {
@@ -72,6 +73,7 @@ public:
             Function<double, 3>,
             std::vector<Function<double, 3>>,
             std::shared_ptr<FunctionImpl<double, 3>>,
+            std::vector<std::shared_ptr<FunctionImpl<double, 3>>>,
 #endif
             std::monostate
     > cached_objT;

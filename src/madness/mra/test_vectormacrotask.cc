@@ -169,8 +169,7 @@ private:
         if constexpr (is_madness_function<resultT>::value) {
             outputrecords+=cloud.store(world, result.get_impl().get()); // store pointer to FunctionImpl
         } else if constexpr (is_vector<resultT>::value) {
-            outputrecords+=cloud.store(world,result.size());
-            for (auto& r : result) outputrecords+= cloud.store(world, r.get_impl().get());
+            outputrecords+=cloud.store(world,get_impl(result));
         } else {
             MADNESS_EXCEPTION("\n\n  unknown result type in prepare_input ",1);
         }
@@ -223,12 +222,9 @@ private:
                 result.set_impl(cloud.load<impl_ptrT>(subworld,outputrecords));
             } else if constexpr (is_madness_function_vector<resultT>::value){
                 typedef std::shared_ptr<typename resultT::value_type::implT> impl_ptrT;
-                std::size_t n=cloud.load<std::size_t>(subworld,outputrecords);
-                result.resize(n);
-                std::vector<impl_ptrT> rimpl(n);
-                for (std::size_t i=0; i<n; ++i) {
-                    result[i].set_impl(cloud.load<impl_ptrT>(subworld,outputrecords));
-                }
+                std::vector<impl_ptrT> rimpl=cloud.load<std::vector<impl_ptrT>>(subworld,outputrecords);
+                result.resize(rimpl.size());
+                set_impl(result,rimpl);
             } else {
                 MADNESS_EXCEPTION("unknown result type in get_output",1);
             }
@@ -291,7 +287,8 @@ public:
         print("Hello world from MicroTask 1");
         World& world=f1.world();
         Derivative<double,3> D(world,1);
-        return arg2*f1*inner(D(f1),f1);
+        auto result=arg2*f1*inner(D(f1),f1);
+        return result;
     }
 };
 
@@ -335,7 +332,7 @@ int main(int argc, char** argv) {
 
     universe.gop.fence();
     int nworld=universe.size();
-    if (universe.rank()==0) print("creating nworld",nworld);
+    if (universe.rank()==0) print("creating nworld",nworld,universe.id());
 
     // TODO: compute batches
     // TODO: cache input functions
@@ -383,7 +380,7 @@ int main(int argc, char** argv) {
         real_function_3d ref_t1=t1(f1,2.0,v3);
 
         auto taskq=std::shared_ptr<MacroTaskQ> (new MacroTaskQ(universe,nworld));
-//        taskq->set_printlevel(10);
+        taskq->set_printlevel(10);
         MacroTask_2G task(universe,t,taskq);
         MacroTask_2G task_immediate(universe,t);
         MacroTask_2G task1(universe,t1,taskq);

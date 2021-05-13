@@ -168,6 +168,7 @@ public:
 
 		// cleanup task-persistent input data
 		for (auto& task : taskq) task->cleanup();
+		cloud.clear_cache(subworld);
 		subworld.gop.fence();
         subworld.gop.fence();
         universe.gop.fence();

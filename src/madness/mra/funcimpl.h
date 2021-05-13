@@ -5883,6 +5883,24 @@ namespace madness {
             if (fence)
                 world.gop.fence();
         }
+
+        /// Hash a pointer to \c FunctionImpl
+
+        /// \param[in] impl pointer to a FunctionImpl
+        /// \return The hash.
+        inline friend hashT hash_value(const FunctionImpl<T,NDIM>* pimpl) {
+            hashT seed = hash_value(pimpl->id().get_world_id());
+            detail::combine_hash(seed, hash_value(pimpl->id().get_obj_id()));
+            return seed;
+        }
+
+        /// Hash a shared_ptr to \c FunctionImpl
+
+        /// \param[in] impl pointer to a FunctionImpl
+        /// \return The hash.
+        inline friend hashT hash_value(const std::shared_ptr<FunctionImpl<T,NDIM>> impl) {
+            return hash_value(impl.get());
+        }
     };
 
     namespace archive {

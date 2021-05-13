@@ -511,7 +511,21 @@ namespace madness {
     	return result;
     }
 
-    /// Transforms a vector of functions according to new[i] = sum[j] old[j]*c[j,i]
+    template<typename T, std::size_t NDIM>
+    std::vector<std::shared_ptr<FunctionImpl<T,NDIM>>> get_impl(const std::vector<Function<T,NDIM>>& v) {
+        std::vector<std::shared_ptr<FunctionImpl<T,NDIM>>> result;
+        for (auto& f : v) result.push_back(f.get_impl());
+        return result;
+    }
+
+    template<typename T, std::size_t NDIM>
+    void set_impl(std::vector<Function<T,NDIM>>& v, const std::vector<std::shared_ptr<FunctionImpl<T,NDIM>>> vimpl) {
+        MADNESS_CHECK(vimpl.size()==v.size());
+        for (std::size_t i=0; i<vimpl.size(); ++i) v[i].set_impl(vimpl[i]);
+    }
+
+
+/// Transforms a vector of functions according to new[i] = sum[j] old[j]*c[j,i]
 
     /// Uses sparsity in the transformation matrix --- set small elements to
     /// zero to take advantage of this.
