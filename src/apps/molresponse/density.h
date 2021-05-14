@@ -10,7 +10,9 @@
 #include <vector>
 
 #include "molresponse/global_functions.h"
+#include "molresponse/ground_parameters.h"
 #include "molresponse/property.h"
+#include "molresponse/response_parameters.h"
 
 typedef Tensor<double> TensorT;
 typedef Function<double, 3> FunctionT;
@@ -24,7 +26,7 @@ typedef std::vector<real_function_3d> VectorFunction3DT;
 // homogeneous sol----x and y functions
 // particular sol --- depends on lower order functions used to create it
 // it also needs an xc functional
-// The Rparams and Gparmas used to create the density
+// The r_params and Gparmas used to create the density
 //
 class density_vector {
  protected:
@@ -38,8 +40,8 @@ class density_vector {
 
   XCfunctional xcf;  // xc functional
 
-  ResponseParameters Rparams;  // Response Parameters
-  GroundParameters Gparams;    // Ground Parameters
+  ResponseParameters r_params;  // Response Parameters
+  GroundParameters g_params;    // Ground Parameters
 
   X_space Chi;
   X_space PQ;
@@ -49,7 +51,7 @@ class density_vector {
 
  public:
   // Collective constructor
-  density_vector(ResponseParameters Rparams, GroundParameters Gparams);
+  density_vector(ResponseParameters r_params, GroundParameters g_params);
 
   virtual void compute_response(World& world);
 
@@ -66,23 +68,18 @@ class density_vector {
   void PlotResponseDensity(World& world);
 
   Tensor<double> ComputeSecondOrderPropertyTensor(World& world);
-  void PrintSecondOrderAnalysis(World& world,
-                                const Tensor<double> alpha_tensor);
+  void PrintSecondOrderAnalysis(World& world, const Tensor<double> alpha_tensor);
   void SaveDensity(World& world, std::string name);
   // Load a response calculation
-  void LoadDensity(World& world,
-                   std::string name,
-                   ResponseParameters Rparams,
-                   GroundParameters Gparams);
+  void LoadDensity(World& world, std::string name, ResponseParameters r_params, GroundParameters g_params);
 };
 
 class dipole_density_vector : public density_vector {
  public:
-  dipole_density_vector(World& world, ResponseParameters R, GroundParameters G)
-      : density_vector(R, G) {
-    this->property = Rparams.response_type;
+  dipole_density_vector(World& world, ResponseParameters R, GroundParameters G) : density_vector(R, G) {
+    this->property = r_params.response_type();
     this->num_states = 3;
-    this->num_ground_states = Gparams.num_orbitals;
+    this->num_ground_states = g_params.n_orbitals();
     this->Chi = X_space(world, num_states, num_ground_states);
     this->PQ = X_space(world, num_states, num_ground_states);
   }
@@ -90,11 +87,10 @@ class dipole_density_vector : public density_vector {
 
 class nuclear_density_vector : public density_vector {
  public:
-  nuclear_density_vector(World& world, ResponseParameters R, GroundParameters G)
-      : density_vector(R, G) {
-    this->property = Rparams.response_type;
-    this->num_states = Rparams.states;
-    this->num_ground_states = Gparams.num_orbitals;
+  nuclear_density_vector(World& world, ResponseParameters R, GroundParameters G) : density_vector(R, G) {
+    this->property = r_params.response_type();
+    this->num_states = r_params.n_states();
+    this->num_ground_states = g_params.n_orbitals();
     this->Chi = X_space(world, num_states, num_ground_states);
     this->PQ = X_space(world, num_states, num_ground_states);
   }
@@ -102,11 +98,10 @@ class nuclear_density_vector : public density_vector {
 
 class excited_state_density_vector : public density_vector {
  public:
-  excited_state_density_vector(World& world, ResponseParameters R, GroundParameters G)
-      : density_vector(R, G) {
-    this->property = Rparams.response_type;
-    this->num_states = Rparams.states;
-    this->num_ground_states = Gparams.num_orbitals;
+  excited_state_density_vector(World& world, ResponseParameters R, GroundParameters G) : density_vector(R, G) {
+    this->property = r_params.response_type();
+    this->num_states = r_params.n_states();
+    this->num_ground_states = g_params.n_orbitals();
     this->Chi = X_space(world, num_states, num_ground_states);
     this->PQ = X_space(world, num_states, num_ground_states);
   }
