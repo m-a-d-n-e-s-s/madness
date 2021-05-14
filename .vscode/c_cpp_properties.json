@@ -24,7 +24,7 @@
             "cppStandard": "c++17",
             "intelliSenseMode": "${default}",
             "configurationProvider": "vector-of-bool.cmake-tools",
-            "compileCommands": "/gpfs/projects/rjh/adrian/madness/build/compile_commands.json"
+            "compileCommands": "/gpfs/projects/rjh/adrian/worktrees/madness.git/master/build/compile_commands.json"
         }
     ],
     "version": 4
