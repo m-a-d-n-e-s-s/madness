@@ -71,6 +71,7 @@ int main(int argc, char** argv) {
   print_meminfo(world.rank(), "startup");
 
   FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3> >(world)));
+
   GroundParameters g_params;
 
   std::cout.precision(6);

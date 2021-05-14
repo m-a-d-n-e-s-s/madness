@@ -128,7 +128,7 @@ int main(int argc, char** argv) {
   ResponseParameters r_params;
   r_params.print();
 
-  const std::string ground_file = "restartdata";
+  const std::string ground_file = "../restartdata";
   GroundParameters g_params;
   g_params.read(world, ground_file);
   g_params.print_params();
