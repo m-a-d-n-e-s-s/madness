@@ -313,8 +313,8 @@ class TDDFT {
                                                response_space& x,
                                                response_space& y,
                                                XCOperator<double, 3> xc,
-                                               const GroundParameters& Gparams,
-                                               const ResponseParameters& Rparams,
+                                               const GroundParameters& g_params,
+                                               const ResponseParameters& r_params,
                                                bool compute_Y);
   X_space ComputeGammaFull(World& world, X_space& Chi, XCOperator<double, 3> xc);
   X_space ComputeGammaStatic(World& world, X_space& Chi, XCOperator<double, 3> xc);
@@ -332,19 +332,6 @@ class TDDFT {
                                  size_t print_level,
                                  std::string xy);
 
-  void computeElectronResponse(World& world,
-                               ElectronResponseFunctions& I,
-                               response_space& x,
-                               response_space& y,
-                               std::vector<real_function_3d>& orbitals,
-                               XCOperator<double, 3> xc,
-                               Tensor<double>& hamiltonian,
-                               Tensor<double>& ham_no_diag,
-                               double small,
-                               double thresh,
-                               size_t print_level,
-                               std::string xy);
-
   // Returns a tensor, where entry (i,j) = inner(a[i], b[j]).sum()
   Tensor<double> expectation(World& world, const response_space& a, const response_space& b);
   Tensor<double> expectation2(World& world, const response_space& a, const response_space& b);
@@ -352,18 +339,6 @@ class TDDFT {
   void PrintResponseVectorNorms(World& world, response_space f, std::string fname);
   // Returns the ground state fock operator applied to response functions
   response_space CreateFock(World& world, response_space& Vf, response_space& f, size_t print_level, std::string xy);
-
-  Zfunctions ComputeZFunctions(World& world,
-                               const std::vector<real_function_3d> rho_omega,
-                               response_space orbital_products,
-                               response_space& x,
-                               response_space& y,
-                               XCOperator<double, 3> xc,
-                               double x_shifts,
-                               double y_shifts,
-                               const GroundParameters& Gparams,
-                               const ResponseParameters& Rparams,
-                               Tensor<double> ham_no_diagonal);
   void xy_from_XVector(response_space& x, response_space& y, std::vector<X_vector>& Xvectors);
 
   void vector_stats(const std::vector<double>& v, double& rms, double& maxabsval) const;
@@ -373,26 +348,6 @@ class TDDFT {
   X_space Compute_Theta_X(World& world, X_space& Chi, XCOperator<double, 3> xc, bool compute_Y);
   X_space Compute_Lambda_X(World& world, X_space& Chi, XCOperator<double, 3> xc, bool compute_Y);
   // Returns the hamiltonian matrix, equation 45 from the paper
-  Tensor<double> CreateResponseMatrix(World& world,
-                                      response_space& x,
-                                      ElectronResponseFunctions& I,
-                                      std::vector<real_function_3d>& ground_orbitals,
-                                      size_t print_level,
-                                      std::string xy);
-
-  // Constructs full response matrix of
-  // [ A  B ] [ X ] = w [ X ]
-  // [-B -A ] [ Y ]     [ Y ]
-
-  Tensor<double> CreateFullResponseMatrix(World& world,
-                                          response_space& x,  // x response functions
-                                          response_space& y,  // y response functions
-                                          ElectronResponseFunctions& I,
-                                          std::vector<real_function_3d>& ground_orbitals,  // ground state orbitals
-                                          double small,
-                                          double thresh,
-                                          size_t print_level);
-  // Returns the shift needed for each orbital to make sure
   // -2.0 * (ground_state_energy + excited_state_energy) is positive
   Tensor<double> create_shift(World& world,
                               Tensor<double>& ground,
@@ -456,7 +411,7 @@ class TDDFT {
 
   // Selects the 'active' orbitals from ground state orbitals to be used in
   // the calculation (based on energy distance from the HOMO.) Function needs
-  // knowledge of Gparams.orbitals and Gparams.ground_energies. Function sets
+  // knowledge of g_params.orbitals and g_params.ground_energies. Function sets
   void select_active_subspace(World& world);
   // Selects from a list of functions and energies the k functions with the
   // lowest energy
@@ -480,13 +435,6 @@ class TDDFT {
   Tensor<int> sort_eigenvalues(World& world, Tensor<double>& vals, Tensor<double>& vecs);
 
   // Diagonalizes the fock matrix, taking care of degerate states
-  Tensor<double> diagonalizeFockMatrix(World& world,
-                                       Tensor<double>& fock,
-                                       response_space& psi,
-                                       ElectronResponseFunctions& I,
-                                       Tensor<double>& evals,
-                                       Tensor<double>& overlap,
-                                       const double thresh);
 
   Tensor<double> diagonalizeFockMatrix(World& world,
                                        X_space& Chi,
@@ -500,17 +448,6 @@ class TDDFT {
   response_space transform(World& world, response_space& f, Tensor<double>& U);
 
   // If using a larger subspace to diagonalize in, this will put everything in
-  // the right spot
-  void augment(World& world,
-               Tensor<double>& S_x,
-               Tensor<double>& A_x,
-               ElectronResponseFunctions& Current,
-               ElectronResponseFunctions& Last,
-               response_space& x_response,
-               Tensor<double>& old_S,
-               Tensor<double>& old_A,
-               response_space& old_x_resopnse,
-               size_t print_level);
 
   void augment(World& world,
                X_space& Chi,
@@ -537,20 +474,6 @@ class TDDFT {
 
   // If using a larger subspace to diagonalize in, after diagonalization this
   // will put everything in the right spot
-  void unaugment(World& world,
-                 size_t num_states,
-                 size_t iter,
-                 Tensor<double>& omega,
-                 Tensor<double>& S_x,
-                 Tensor<double>& A_x,
-                 ElectronResponseFunctions& Current,
-                 ElectronResponseFunctions& Last,
-                 response_space& x_response,
-                 Tensor<double>& old_S,
-                 Tensor<double>& old_A,
-                 response_space& old_x_response,
-                 size_t print_level);
-
   void unaugment(World& world,
                  X_space& Chi,
                  X_space& old_Chi,
@@ -610,16 +533,6 @@ class TDDFT {
                       size_t num_states,
                       size_t iter,
                       size_t print_level);
-  // Diagonalize the full response matrix, taking care of degenerate states
-  Tensor<double> diagonalizeFullResponseMatrix(World& world,
-                                               Tensor<double>& S,
-                                               Tensor<double>& A,
-                                               response_space& x,
-                                               response_space& y,
-                                               ElectronResponseFunctions& I,
-                                               Tensor<double>& omega,
-                                               const double thresh,
-                                               size_t print_level);
   Tensor<double> diagonalizeFullResponseMatrix(World& world,
                                                X_space& Chi,
                                                X_space& Lambda_X,
@@ -639,17 +552,6 @@ class TDDFT {
   // Sorts the given Tensor and response functions in place
   void sort(World& world, Tensor<double>& vals, response_space& f);
 
-  void deflateTDA(World& world,
-                  Tensor<double>& S,
-                  Tensor<double> old_S,
-                  Tensor<double> old_A,
-                  response_space& x_response,
-                  response_space& old_x_response,
-                  ElectronResponseFunctions& ElectronResponses,
-                  ElectronResponseFunctions& OldElectronResponses,
-                  Tensor<double>& omega,
-                  size_t& iteration,
-                  size_t& m);
   void deflateTDA(World& world,
                   X_space& Chi,
                   X_space& old_Chi,
@@ -819,14 +721,14 @@ class TDDFT {
                                      size_t iteration,
                                      response_space& x_response,
                                      response_space& y_response,
-                                     ResponseParameters const& Rparams,
-                                     GroundParameters const& Gparams);
+                                     ResponseParameters const& r_params,
+                                     GroundParameters const& g_params);
   void plot_excited_states(World& world,
                            size_t iteration,
                            response_space& x_response,
                            response_space& y_response,
-                           ResponseParameters const& Rparams,
-                           GroundParameters const& Gparams);
+                           ResponseParameters const& r_params,
+                           GroundParameters const& g_params);
   // Solves the response equations for the polarizability
   void compute_freq_response(World& world, std::string property, X_space& Chi, X_space& PQ);
 };
