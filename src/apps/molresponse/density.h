@@ -22,6 +22,7 @@ typedef Vector<double, 3> CoordinateT;
 typedef std::vector<real_function_3d> VectorFunction3DT;
 
 // base class for a density
+
 // operator used to create it
 // homogeneous sol----x and y functions
 // particular sol --- depends on lower order functions used to create it

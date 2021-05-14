@@ -1,5 +1,6 @@
 #include <chem/SCF.h>
 #include <madness/world/worldmem.h>
+#include <molresponse/density.h>
 #include <molresponse/ground_parameters.h>
 #include <molresponse/response_parameters.h>
 #include <stdlib.h>

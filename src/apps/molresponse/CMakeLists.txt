@@ -6,6 +6,8 @@ test_response.cc
 target_link_libraries(test_resp -lstdc++fs MADchem  )
 add_executable(molresponse
 molresponse.cc
+density.cc
+property.cc
 )
 #density.cc
 # property.cc
@@ -21,3 +23,4 @@ molresponse.cc
 	#  basic_operators
 	#  Plot_VTK.cc timer.cc)
 target_link_libraries(molresponse -lstdc++fs MADchem  )
+
