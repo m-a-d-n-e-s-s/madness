@@ -167,7 +167,7 @@ int main(int argc, char **argv) {
         auto tpair = std::make_tuple(t, cloud.store(universe, t), norm(t));
         auto vdpair = std::make_tuple(vd, cloud.store(universe, vd), norm(vd));
 
-        tester(ipair, lpair, fpair, vpair, tpair);
+        tester(ipair, lpair, fpair, vpair, tpair, vdpair);
         universe.gop.fence();
 
         MacroTaskQ::set_pmap(universe);
@@ -234,8 +234,19 @@ int main(int argc, char **argv) {
                     {norm1[0] - norm2[0], norm1[1] - norm2[1], norm1[2] - norm2[2], norm1[0] - norm3[0],
                      norm1[1] - norm3[1], norm1[2] - norm3[2]});
             success += test_tuple.end(error < 1.e-10 && error1 > -1.e-10);
+            cloud.set_force_load_from_cache(false);
         }
-        cloud.clear_cache(subworld);
+
+        // test storing twice (using cache)
+        {
+            cloud.clear_timings();
+            cloud.store(universe, vd);
+            auto recordlist = cloud.store(universe, vd);
+            auto vd1 = cloud.load<std::vector<double>>(universe, recordlist);
+            vd1 = cloud.load<std::vector<double>>(universe, recordlist);
+            cloud.print_timings(universe);
+            cloud.clear_cache(subworld);
+        }
     }
     universe.gop.fence();
     madness::finalize();

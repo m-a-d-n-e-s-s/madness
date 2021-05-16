@@ -482,9 +482,17 @@ int main(int argc, char **argv) {
         taskq->print_taskq();
         taskq->run_all();
         taskq->cloud.print_timings(universe);
+        taskq->cloud.clear_timings();
         timer1.tag("deferred taskq execution");
 
         if (universe.rank()==0) print("\nstarting Microtask twice (check caching)\n");
+        std::vector<real_function_3d> f2a1 = task(f1, 2.0, v3);
+        std::vector<real_function_3d> f2a2 = task(f1, 2.0, v3);
+        taskq->print_taskq();
+        taskq->run_all();
+        taskq->cloud.print_timings(universe);
+        timer1.tag("executing a task twice");
+
         if (universe.rank()==0) print("\nstarting Microtask1\n");
 
 
