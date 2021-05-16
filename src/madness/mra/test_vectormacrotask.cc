@@ -38,10 +38,23 @@
 #include <madness/world/cloud.h>
 #include <madness/mra/macrotaskq.h>
 #include <madness/world/world.h>
+#include <madness/world/timing_utilities.h>
 
 
 using namespace madness;
 using namespace archive;
+
+struct slater {
+    double a=1.0;
+
+    slater(double aa) : a(aa) {}
+
+    template<std::size_t NDIM>
+    double operator()(const Vector<double,NDIM> &r) const {
+        double x = inner(r,r);
+        return exp(-a *sqrt(x));
+    }
+};
 
 struct gaussian {
     double a;
@@ -50,65 +63,17 @@ struct gaussian {
 
     gaussian(double aa) : a(aa) {}
 
-    double operator()(const coord_4d &r) const {
-        double x = r[0], y = r[1], z = r[2], aa = r[3];
-        return exp(-a * (x * x + y * y + z * z * aa * aa));//*abs(sin(abs(2.0*x))) *cos(y);
+    template<std::size_t NDIM>
+    double operator()(const Vector<double,NDIM> &r) const {
+        double r2 = inner(r,r);
+        return exp(-a * r2);//*abs(sin(abs(2.0*x))) *cos(y);
     }
 
-    double operator()(const coord_3d &r) const {
-        double x = r[0], y = r[1], z = r[2];
-        return exp(-a * (x * x + y * y + z * z));//*abs(sin(abs(2.0*x))) *cos(y);
-    }
 };
 
 
 static std::atomic<int> atomic_idx;
 
-/// a macro task for top-level operations requiring a world
-//class MacroTask : public MacroTaskIntermediate<MacroTask> {
-//public:
-//	int inputrecord=0;
-//	int outputrecord=1000;
-//	int idx=0;
-//	double exponent=1.0;
-//
-//	MacroTask(double e) : idx(atomic_idx++), exponent(e) {}
-//
-//    template <typename Archive>
-//    void serialize(const Archive& ar) {
-//    	ar & inputrecord & outputrecord & idx;
-//    }
-//
-//    /// implement this
-//	void run(World& world, Cloud& cloud, taskqT& taskq) {
-//		{
-//			// read the input data
-//			if (world.rank()==0) print("task",idx,"is reading from record",inputrecord);
-//			Function<double,4> f=real_factory_4d(world);
-//			cloud.load(world,f,inputrecord);
-//
-//			// do the work
-//			Function<double,4> g=real_factory_4d(world).functor(gaussian(exponent));
-//			Function<double,4> f2=square(f)+g;
-//			Derivative<double,4> D(world,1);
-//			Function<double,4> df2=(D(f2)).truncate();
-//			Function<double,4> df3=(D(df2)).truncate();
-//			double trace=df2.trace();
-//			world.gop.fence();
-//
-//			// store the result data
-//			if (world.rank()==0) print("task",idx,"is writing to record", outputrecord);
-//			cloud.store(world,f2,outputrecord);
-//		}
-//		world.gop.fence();
-//	}
-//
-//
-//    void print_me(std::string s="") const {
-//    	print("task",s, idx,this,this->stat);
-//    }
-//
-//};
 
 template<typename ... Ts>
 constexpr auto decay_types(std::tuple<Ts...> const &)
@@ -176,7 +141,9 @@ public:
     }
 
     friend std::ostream& operator<<(std::ostream& os, const Batch& batch) {
-        os << "[" << batch.begin << ", " << batch.end << ")";
+        std::stringstream ss;
+        ss << "[" << std::setw(3) << batch.begin << ", " << batch.end << ")";
+        os << ss.str();
         return os;
     }
 
@@ -263,15 +230,15 @@ public:
         auto argtuple = std::tie(args...);
         static_assert(std::is_same<decltype(argtuple), argtupleT>::value, "type or number of arguments incorrect");
 
-        // TODO: do the partitioning
+        // partition the argument vector into batches
         OrbitalPartitioner op(taskq_ptr->get_nsubworld());
         partitionT partition = op.partition_tasks(argtuple);
-        if (world.rank()==0) print(partition);
 
-
+        // store input and output: output being a pointer to a universe function (vector)
         recordlistT inputrecords = taskq_ptr->cloud.store(world, argtuple);
         auto[outputrecords, result] =prepare_output(taskq_ptr->cloud, argtuple);
 
+        // create tasks and add them to the taskq
         MacroTaskBase::taskqT vtask;
         for (const Batch &batch : partition) {
             vtask.push_back(
@@ -322,7 +289,20 @@ private:
 
 
         virtual void print_me(std::string s="") const {
-            print("this is task with batch",batch);
+            print("this is task",typeid(task).name(),"with batch", batch,"priority",this->get_priority());
+        }
+
+        virtual void print_me_as_table(std::string s="") const {
+            std::stringstream ss;
+            std::string name=typeid(task).name();
+            std::size_t namesize=name.size();
+            name += std::string(20-namesize,' ');
+
+            ss  << name
+                << std::setw(10) << batch
+                << std::setw(5) << this->get_priority() << "        "
+                <<this->stat ;
+            print(ss.str());
         }
 
         void run(World &subworld, Cloud &cloud, MacroTaskBase::taskqT &taskq) {
@@ -387,7 +367,9 @@ public:
 
     resultT operator()(const real_function_3d &f1, const double &arg2,
                        const std::vector<real_function_3d> &f2) const {
-        return arg2 * f1 * f2;
+        World& world=f1.world();
+        real_convolution_3d op=CoulombOperator(world,1.e-4,1.e-5);
+        return arg2 * f1 * apply(world,op,f2);
     }
 
     real_function_3d density;
@@ -415,43 +397,12 @@ public:
 
     resultT operator()(const real_function_3d &f1, const double &arg2,
                        const std::vector<real_function_3d> &f2) const {
-        print("Hello world from MicroTask 1");
         World &world = f1.world();
         Derivative<double, 3> D(world, 1);
         auto result = arg2 * f1 * inner(apply(world,D,f2), f2);
         return result;
     }
 };
-
-
-/// similar to MacroTask, for testing heterogeneous task queues
-//class MacroTask1 : public MacroTaskIntermediate<MacroTask1> {
-//
-//public:
-//	int idx=0;
-//	int inputrecord=0;
-//	int outputrecord=1000;
-//
-//	MacroTask1(): idx(atomic_idx++) {}
-//
-//	void run(World& world, Cloud& cloud, taskqT& taskq) {
-//		Function<double,4> f=cloud.load<Function<double,4> > (world,inputrecord);
-//		Function<double,4> g=real_factory_4d(world).functor(gaussian(2.0));
-//		Function<double,4> f2=square(f)+g;
-//		world.gop.fence();
-//		cloud.store(world,g,outputrecord);
-//	}
-//
-//    template <typename Archive>
-//    void serialize(const Archive& ar) {
-//    	ar & inputrecord & outputrecord & idx;
-//    }
-//
-//    void print_me(std::string s="") const {
-//    	print("macro task 1",s, idx,this,this->stat);
-//    }
-//
-//};
 
 int test_orbital_partitioner(World &world) {
     std::tuple<double, int, std::vector<real_function_4d>, std::vector<real_function_3d>> tuple;
@@ -466,8 +417,9 @@ int test_orbital_partitioner(World &world) {
 int main(int argc, char **argv) {
     madness::World &universe = madness::initialize(argc, argv);
     startup(universe, argc, argv);
-    FunctionDefaults<4>::set_thresh(1.e-9);
-    FunctionDefaults<4>::set_k(7);
+    FunctionDefaults<3>::set_thresh(1.e-5);
+    FunctionDefaults<3>::set_k(9);
+    FunctionDefaults<3>::set_cubic_cell(-20,20);
 
 
     universe.gop.fence();
@@ -506,39 +458,52 @@ int main(int argc, char **argv) {
         };
 
         // execution in a taskq, result will be complete only after the taskq is finished
-        real_function_3d f1 = real_factory_3d(universe).functor(gaussian(1.0));
-        real_function_3d i2 = real_factory_3d(universe).functor(gaussian(2.0));
-        real_function_3d i3 = real_factory_3d(universe).functor(gaussian(2.0));
+        real_function_3d f1 = real_factory_3d(universe).functor(slater(1.0));
+        real_function_3d i2 = real_factory_3d(universe).functor(slater(2.0));
+        real_function_3d i3 = real_factory_3d(universe).functor(slater(2.0));
         std::vector<real_function_3d> v2 = {2.0 * f1, i2};
         std::vector<real_function_3d> v3;
-        for (int i=0; i<20; ++i) v3.push_back(real_factory_3d(universe).functor(gaussian(double(i))));
+        for (int i=0; i<20; ++i) v3.push_back(real_factory_3d(universe).functor(slater(sqrt(double(i)))));
 
 
+        timer timer1(universe);
         MicroTask t;
-        MicroTask1 t1;
         std::vector<real_function_3d> ref_t = t(f1, 2.0, v3);
-        real_function_3d ref_t1 = t1(f1, 2.0, v3);
+        timer1.tag("direct exection");
+
+        MacroTask_2G task_immediate(universe, t);
+        std::vector<real_function_3d> f2b = task_immediate(f1, 2.0, v3);
+        timer1.tag("immediate taskq exection");
 
         auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(universe, nworld));
-        taskq->set_printlevel(10);
+        taskq->set_printlevel(3);
         MacroTask_2G task(universe, t, taskq);
-        MacroTask_2G task_immediate(universe, t);
-        MacroTask_2G task1(universe, t1, taskq);
-
-        std::vector<real_function_3d> f2b = task_immediate(f1, 2.0, v3);
-
-        std::vector<real_function_3d> f2 = task(f1, 2.0, v3);
         std::vector<real_function_3d> f2a = task(f1, 2.0, v3);
-
-        real_function_3d f2_1 = task1(f1, 2.0, v3);
-
+        taskq->print_taskq();
         taskq->run_all();
+        taskq->cloud.print_timings(universe);
+        timer1.tag("deferred taskq execution");
+
+        if (universe.rank()==0) print("\nstarting Microtask twice (check caching)\n");
+        if (universe.rank()==0) print("\nstarting Microtask1\n");
+
+
+        timer t2(universe);
+        MicroTask1 t1;
+        real_function_3d ref_t1 = t1(f1, 2.0, v3);
+        t2.tag("immediate execution");
+
+        auto taskq2 = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(universe, nworld));
+        taskq2->set_printlevel(3);
+        MacroTask_2G task1(universe, t1, taskq2);
+        real_function_3d r1 = task1(f1, 2.0, v3);
+        taskq2->run_all();
+        t2.tag("deferred execution");
 
         bool success = true;
-        success = success && check_vector(ref_t, f2, "task1");
-        success = success && check_vector(ref_t, f2a, "task1 again");
-        success = success && check_vector(ref_t, f2b, "task1 immediate");
-        success = success && check(ref_t1, f2_1, "task2");
+        success = success && check(ref_t1, r1, "task1");
+        success = success && check_vector(ref_t, f2a, "task again");
+        success = success && check_vector(ref_t, f2b, "task immediate");
 
         if (universe.rank() == 0) {
             if (success) print("\n --> all tests \033[32m", "passed ", "\033[0m\n");

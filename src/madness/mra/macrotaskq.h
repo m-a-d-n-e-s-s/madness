@@ -38,7 +38,7 @@ public:
 	MacroTaskBase() {}
 	virtual ~MacroTaskBase() {};
 
-	double priority=0.0;
+	double priority=1.0;
 	enum Status {Running, Waiting, Complete, Unknown} stat=Unknown;
 
 	void set_complete() {stat=Complete;}
@@ -55,17 +55,20 @@ public:
     virtual void print_me(std::string s="") const {
         printf("this is task with priority %4.1f\n",priority);
     }
+    virtual void print_me_as_table(std::string s="") const {
+        print("nothing to print");
+    }
     double get_priority() const {return priority;}
 
 };
-//
-//std::ostream& operator<<(std::ostream& os, const MacroTaskBase::Status s) {
-//	if (s==MacroTaskBase::Status::Running) os << "Running";
-//	if (s==MacroTaskBase::Status::Waiting) os << "Waiting";
-//	if (s==MacroTaskBase::Status::Complete) os << "Complete";
-//	if (s==MacroTaskBase::Status::Unknown) os << "Unknown";
-//	return os;
-//}
+
+std::ostream& operator<<(std::ostream& os, const MacroTaskBase::Status s) {
+	if (s==MacroTaskBase::Status::Running) os << "Running";
+	if (s==MacroTaskBase::Status::Waiting) os << "Waiting";
+	if (s==MacroTaskBase::Status::Complete) os << "Complete";
+	if (s==MacroTaskBase::Status::Unknown) os << "Unknown";
+	return os;
+}
 
 template<typename macrotaskT>
 class MacroTaskIntermediate : public MacroTaskBase {
@@ -143,7 +146,7 @@ public:
         double cpu00=cpu_time();
 
 		World& subworld=get_subworld();
-		if (printdebug()) print("I am subworld",subworld.id());
+//		if (printdebug()) print("I am subworld",subworld.id());
 		double tasktime=0.0;
 		while (true){
 			long element=get_scheduled_task_number(subworld);
@@ -186,6 +189,17 @@ public:
         }
 	}
 
+    void print_taskq() const {
+        universe.gop.fence();
+        if (universe.rank()==0) {
+            print("\ntaskq on universe rank",universe.rank());
+            print(" task                   batch  priority  status");
+            for (const auto& t : taskq) t->print_me_as_table();
+        }
+        universe.gop.fence();
+    }
+
+
 //	/// run the task on the vector of input data, return vector of results
 //	template<typename taskT>
 //	std::vector<typename taskT::result_type> map(taskT& task1,
@@ -213,15 +227,6 @@ public:
 private:
 	void add_replicated_task(const std::shared_ptr<MacroTaskBase>& task) {
 		taskq.push_back(task);
-	}
-
-	void print_taskq() const {
-		universe.gop.fence();
-		if (universe.rank()==0) {
-			print("\ntaskq on universe rank",universe.rank());
-			for (const auto& t : taskq) t->print_me();
-		}
-		universe.gop.fence();
 	}
 
 	/// scheduler is located on universe.rank==0

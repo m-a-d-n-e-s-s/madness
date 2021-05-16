@@ -21,7 +21,7 @@
   \brief Defines and implements most of madness cloud storage
 
   TODO: check use of preprocessor directives
-  TODO: clear cache in destructor won't work because no subworld is present -> must be explicitly called, error prone
+  TODO: clear cache in destructor won't work because no subworld is present -> must be explicitly called, error prone/
 */
 
 namespace madness {
@@ -134,6 +134,7 @@ public:
     template<typename T>
     T load(madness::World &world, const recordlistT recordlist) const {
         recordlistT rlist = recordlist;
+        loadtimer t(world, reading_time);
         if constexpr (is_tuple<T>::value) {
             return load_tuple<T>(world, rlist);
         } else {
@@ -208,22 +209,24 @@ private:
     struct storetimer {
         double cpu0;
         std::atomic<long> &wtime;
+        World& world;
 
-        storetimer(std::atomic<long> &writetime) : cpu0(cpu_time()), wtime(writetime) {}
+        storetimer(World& world, std::atomic<long> &writetime) : world(world), cpu0(cpu_time()), wtime(writetime) {}
 
         ~storetimer() {
-            wtime += long((cpu_time() - cpu0) * 1000l);
+            if (world.rank()==0) wtime += long((cpu_time() - cpu0) * 1000l);
         }
     };
 
     struct loadtimer {
         double cpu0;
         std::atomic<long> &rtime;
+        World& world;
 
-        loadtimer(std::atomic<long> &readtime) : cpu0(cpu_time()), rtime(readtime) {}
+        loadtimer(World& world, std::atomic<long> &readtime) : world(world), cpu0(cpu_time()), rtime(readtime) {}
 
         ~loadtimer() {
-            rtime += long((cpu_time() - cpu0) * 1000l);
+            if (world.rank()==0) rtime += long((cpu_time() - cpu0) * 1000l);
         }
     };
 
@@ -298,7 +301,7 @@ public:
 
     template<typename T, std::size_t NDIM>
     recordlistT store(madness::World &world, const std::vector<Function<T, NDIM>> &source) {
-        storetimer t(writing_time);
+        storetimer t(world,writing_time);
         if (debug)
             std::cout << "storing " << typeid(source).name() << " of size " << source.size() << std::endl;
         recordlistT l = store(world, source.size());
@@ -310,7 +313,7 @@ public:
 
     template<typename T>
     recordlistT store(madness::World &world, const T &source) {
-        storetimer t(writing_time);
+        storetimer t(world,writing_time);
         auto record = compute_record(source);
         if (debug)
             std::cout << "storing object of " << typeid(T).name() << " to record " << record << std::endl;
