@@ -3,7 +3,7 @@
 
 #include <chem/SCF.h>
 #include <chem/nemo.h>
-#include <chem/orbital_partitioner.h>
+#include <madness/mra/macrotaskpartitioner.h>
 
 using namespace madness;
 
@@ -115,12 +115,12 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::operator()(
 
             // symmetric exchange matrix, symmetric tiles
             if (is_symmetric()) {
-                rowranges = OrbitalPartitioner::partition_for_exchange(5, nsubworld, nocc);
-//            rowranges=OrbitalPartitioner::partition_for_exchange(5,nsubworld,nocc);
+                rowranges = MacroTaskPartitioner::partition_for_exchange(5, nsubworld, nocc);
+//            rowranges=MacroTaskPartitioner::partition_for_exchange(5,nsubworld,nocc);
                 columnranges = rowranges;
             } else {
-                rowranges = OrbitalPartitioner::partition_for_exchange(5, nsubworld, nocc);
-                columnranges = OrbitalPartitioner::partition_for_exchange(5, nsubworld, nf);
+                rowranges = MacroTaskPartitioner::partition_for_exchange(5, nsubworld, nocc);
+                columnranges = MacroTaskPartitioner::partition_for_exchange(5, nsubworld, nf);
             }
             if (printdebug()) {
                 print("symmetric", symmetric_);
