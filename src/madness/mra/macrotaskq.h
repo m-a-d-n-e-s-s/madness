@@ -167,6 +167,7 @@ public:
 		universe.gop.fence();
 		universe.gop.sum(tasktime);
         double cpu11=cpu_time();
+        if (printlevel>=3) cloud.print_timings(universe);
         if (printtimings()) {
             printf("completed taskqueue after    %4.1fs at time %4.1fs\n", cpu11 - cpu00, wall_time());
             printf(" total cpu time / per world  %4.1fs %4.1fs\n", tasktime, tasktime / universe.size());

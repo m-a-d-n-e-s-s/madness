@@ -26,6 +26,63 @@
 
 namespace madness {
 
+template<typename keyT>
+struct Recordlist {
+    std::list<keyT> list;
+
+    Recordlist() : list() {};
+
+    explicit Recordlist(const keyT &key) : list{key} {};
+
+    Recordlist(const Recordlist &other) : list(other.list) {};
+
+    Recordlist &operator+=(const Recordlist &list2) {
+        for (auto &l2 : list2.list) list.push_back(l2);
+        return *this;
+    }
+
+    Recordlist &operator+=(const keyT &key) {
+        list.push_back(key);
+        return *this;
+    }
+
+    keyT pop_front_and_return() {
+        keyT key = list.front();
+        list.pop_front();
+        return key;
+    }
+
+    std::size_t size() const {
+        return list.size();
+    }
+
+    template<typename T, std::size_t NDIM>
+    static keyT compute_record(const Function<T,NDIM>& arg) {return hash_value(arg.get_impl()->id());}
+
+    template<typename T, std::size_t NDIM>
+    static keyT compute_record(const FunctionImpl<T,NDIM>* arg) {return hash_value(arg->id());}
+
+    template<typename T, std::size_t NDIM>
+    static keyT compute_record(const std::shared_ptr<madness::FunctionImpl<T, NDIM>>& arg) {return hash_value(arg->id());}
+
+    template<typename T>
+    static keyT compute_record(const std::vector<T>& arg) {return hash_range(arg.begin(), arg.end());}
+
+    template<typename T>
+    static keyT compute_record(const Tensor<T>& arg) {return hash_value(arg.normf());}
+
+    template<typename T>
+    static keyT compute_record(const T& arg) {return hash_value(arg);}
+
+
+    friend std::ostream &operator<<(std::ostream &os, const Recordlist &arg) {
+        using namespace madness::operators;
+        os << arg.list;
+        return os;
+    }
+
+};
+
 /// cloud class
 
 /// store and load data to/from the cloud into arbitrary worlds
@@ -49,44 +106,6 @@ namespace madness {
 ///  }
 ///  subworld.gop.fence();
 class Cloud {
-
-    template<typename T>
-    struct Recordlist {
-        std::list<T> list;
-
-        Recordlist() : list() {};
-
-        explicit Recordlist(const T &key) : list{key} {};
-
-        Recordlist(const Recordlist &other) : list(other.list) {};
-
-        Recordlist &operator+=(const Recordlist &list2) {
-            for (auto &l2 : list2.list) list.push_back(l2);
-            return *this;
-        }
-
-        Recordlist &operator+=(const T &key) {
-            list.push_back(key);
-            return *this;
-        }
-
-        T pop_front_and_return() {
-            T key = list.front();
-            list.pop_front();
-            return key;
-        }
-
-        std::size_t size() const {
-            return list.size();
-        }
-
-        friend std::ostream &operator<<(std::ostream &os, const Recordlist &arg) {
-            using namespace madness::operators;
-            os << arg.list;
-            return os;
-        }
-
-    };
 
     bool debug = false;       ///< prints debug output
     bool dofence = true;      ///< fences after load/store
@@ -113,6 +132,7 @@ public:
     typedef std::map<keyT, cached_objT> cacheT;
     typedef Recordlist<keyT> recordlistT;
 
+
 private:
     madness::WorldContainer<keyT, std::vector<unsigned char> > container;
     cacheT cached_objects;
@@ -121,7 +141,8 @@ private:
 public:
 
     /// @param[in]	universe	the universe world
-    Cloud(madness::World &universe) : container(universe), reading_time(0l), writing_time(0l) {
+    Cloud(madness::World &universe) : container(universe), reading_time(0l), writing_time(0l),
+        cache_reads(0l), cache_stores(0l) {
 #ifndef MADNESS_TENSOR_TENSOR_H__INCLUDED
         static_assert(0,"You must #include<tensor/tensor.h> before cloud.h");
 #endif
@@ -147,12 +168,12 @@ public:
         double wtime = double(writing_time);
         universe.gop.sum(rtime);
         universe.gop.sum(wtime);
-        double creads = double(cache_reads);
-        double cstores = double(cache_stores);
+        long creads = long(cache_reads);
+        long cstores = long(cache_stores);
         universe.gop.sum(creads);
         universe.gop.sum(cstores);
         if (universe.rank() == 0) {
-            double precision = std::cout.precision();
+            auto precision = std::cout.precision();
             std::cout << std::fixed << std::setprecision(1);
             print("cloud storing cpu time", wtime * 0.001);
             print("cloud reading cpu time", rtime * 0.001, std::defaultfloat);
@@ -163,8 +184,6 @@ public:
     }
     void clear_cache(World &subworld) {
         cached_objects.clear();
-        cache_stores=0l;
-        cache_reads=0l;
         local_list_of_container_keys.list.clear();
         subworld.gop.fence();
     }
@@ -174,14 +193,12 @@ public:
         writing_time=0l;
         cache_stores=0l;
         cache_reads=0l;
-        local_list_of_container_keys.list.clear();
     }
-
 
     template<typename T>
     T load(madness::World &world, const recordlistT recordlist) const {
         recordlistT rlist = recordlist;
-        loadtimer t(world, reading_time);
+        cloudtimer t(world, reading_time);
         if constexpr (is_tuple<T>::value) {
             return load_tuple<T>(world, rlist);
         } else {
@@ -191,7 +208,7 @@ public:
 
     template<typename T>
     recordlistT store(madness::World &world, const T &source) {
-        storetimer t(world,writing_time);
+        cloudtimer t(world,writing_time);
         recordlistT recordlist;
         if constexpr (is_tuple<T>::value) {
             recordlist+=store_tuple(world,source);
@@ -204,24 +221,10 @@ public:
 
 private:
 
-    mutable std::atomic<long> reading_time;    // in ms
-    mutable std::atomic<long> writing_time;    // in ms
-    mutable std::atomic<long> cache_reads;
-    mutable std::atomic<long> cache_stores;
-
-    template<typename T>
-    struct is_vector : std::false_type {
-    };
-    template<typename T>
-    struct is_vector<std::vector<T>> : std::true_type {
-    };
-
-    template<typename T>
-    struct is_madness_tensor : std::false_type {
-    };
-    template<typename T>
-    struct is_madness_tensor<Tensor<T>> : std::true_type {
-    };
+    mutable std::atomic<long> reading_time=0l;    // in ms
+    mutable std::atomic<long> writing_time=0l;    // in ms
+    mutable std::atomic<long> cache_reads=0l;
+    mutable std::atomic<long> cache_stores=0l;
 
     template<typename>
     struct is_tuple : std::false_type {
@@ -237,82 +240,19 @@ private:
     struct is_madness_function_vector<std::vector<Function<T, NDIM>>> : std::true_type {
     };
 
-    template<typename T>
-    struct is_world_object : std::false_type {
-    };
-    template<typename T>
-    struct is_world_object<madness::WorldObject<T>> : std::true_type {
-    };
-
-    template<typename T>
-    struct is_funcimpl_ptr : std::false_type {
-    };
-    template<typename T, std::size_t NDIM>
-    struct is_funcimpl_ptr<madness::FunctionImpl<T, NDIM> *> : std::true_type {
-    };
-
-    template<typename T>
-    struct is_funcimpl_shared_ptr : std::false_type {
-    };
-    template<typename T, std::size_t NDIM>
-    struct is_funcimpl_shared_ptr<std::shared_ptr<madness::FunctionImpl<T, NDIM>>> : std::true_type {
-    };
-
     template<typename T> using is_world_constructible = std::is_constructible<T, World &>;
 
-    struct storetimer {
-        double cpu0;
-        std::atomic<long> &wtime;
-        World& world;
-
-        storetimer(World& world, std::atomic<long> &writetime) : world(world), cpu0(cpu_time()), wtime(writetime) {}
-
-        ~storetimer() {
-            if (world.rank()==0) wtime += long((cpu_time() - cpu0) * 1000l);
-        }
-    };
-
-    struct loadtimer {
+    struct cloudtimer {
         double cpu0;
         std::atomic<long> &rtime;
         World& world;
 
-        loadtimer(World& world, std::atomic<long> &readtime) : world(world), cpu0(cpu_time()), rtime(readtime) {}
+        cloudtimer(World& world, std::atomic<long> &readtime) : world(world), cpu0(cpu_time()), rtime(readtime) {}
 
-        ~loadtimer() {
+        ~cloudtimer() {
             if (world.rank()==0) rtime += long((cpu_time() - cpu0) * 1000l);
         }
     };
-
-    /// compute the record of the argument
-    template<typename T>
-    static keyT compute_record(const T &arg) {
-        if constexpr (is_madness_function_vector<T>::value) {
-            print("hurray");
-        }
-        if constexpr (is_madness_function<T>::value) {
-//            print("hashing madness::Function");
-            return hash_value(arg.get_impl()->id());
-        } else if constexpr (is_madness_tensor<T>::value) {
-//            print("hashing madness::Function");
-            return hash_value(arg.normf());
-        } else if constexpr (is_world_object<T>::value) {
-//            print("hashing WorldObject");
-            return hash_value(arg.id());
-        } else if constexpr (is_funcimpl_ptr<T>::value) {
-//            print("hashing pointer to FunctionImpl");
-            return hash_value(arg->id());
-        } else if constexpr (is_funcimpl_shared_ptr<T>::value) {
-//            print("hashing pointer to FunctionImpl");
-            return hash_value(arg->id());
-        } else if constexpr (is_vector<T>::value) {
-            return hash_range(arg.begin(), arg.end());
-        } else {
-//            print("hashing simple ", typeid(T).name());
-            return keyT(hash_value(arg));
-        }
-    }
-
 
 
     template<typename T>
@@ -362,7 +302,7 @@ private:
 
     template<typename T>
     recordlistT store_other(madness::World &world, const T &source) {
-        auto record = compute_record(source);
+        auto record = Recordlist<keyT>::compute_record(source);
         bool is_already_present= is_in_container(record);
         if (debug) {
             if (is_already_present) std::cout << "skipping ";
