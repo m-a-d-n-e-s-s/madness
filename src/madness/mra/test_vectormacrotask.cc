@@ -79,17 +79,10 @@ template<typename Q>
 struct is_vector<std::vector<Q>> : std::true_type {
 };
 
-
-
 template<typename taskT>
 class MacroTask_2G {
     using partitionT = MacroTaskPartitioner::partitionT;
 
-//    template<typename ... Ts>
-//    constexpr auto decay_types(std::tuple<Ts...> const &)
-//    -> std::tuple<std::remove_cv_t<std::remove_reference_t<Ts>>...>;
-//
-//    template<typename T> using decay_tuple = decltype(decay_types(std::declval<T>()));
     typedef typename taskT::resultT resultT;
     typedef typename taskT::argtupleT argtupleT;
     typedef Cloud::recordlistT recordlistT;
@@ -110,8 +103,9 @@ public:
         static_assert(std::is_same<decltype(argtuple), argtupleT>::value, "type or number of arguments incorrect");
 
         // partition the argument vector into batches
-        MacroTaskPartitioner op(taskq_ptr->get_nsubworld());
-        partitionT partition = op.partition_tasks(argtuple);
+        auto partitioner=task.partitioner;
+        partitioner.set_nsubworld(world.size());
+        partitionT partition = partitioner.partition_tasks(argtuple);
 
         // store input and output: output being a pointer to a universe function (vector)
         recordlistT inputrecords = taskq_ptr->cloud.store(world, argtuple);
@@ -187,7 +181,7 @@ private:
         void run(World &subworld, Cloud &cloud, MacroTaskBase::taskqT &taskq) {
 
             const argtupleT argtuple = cloud.load<argtupleT>(subworld, inputrecords);
-            const argtupleT batched_argtuple = batch(argtuple);
+            const argtupleT batched_argtuple = batch.template copy_input_batch(argtuple);
 
             resultT result_tmp = std::apply(task, batched_argtuple);
 
@@ -198,8 +192,10 @@ private:
             } else if constexpr(is_madness_function_vector<resultT>::value) {
                 compress(subworld, result_tmp);
                 resultT tmp1=task.allocator(subworld,argtuple);
-                std::copy(result_tmp.begin(),result_tmp.end(),tmp1.begin()+batch.begin);
+                tmp1=batch.template insert_result_batch(tmp1,result_tmp);
                 result += tmp1;
+            } else {
+                MADNESS_EXCEPTION("failing result",1);
             }
 
         };
@@ -224,7 +220,14 @@ private:
 
 };
 
-class MicroTask {
+class MicroTaskBase {
+public:
+    Batch inputbatch;
+    Batch outputbatch;
+    MacroTaskPartitioner partitioner;
+};
+
+class MicroTask : public MicroTaskBase {
 public:
     // you need to define the exact argument(s) of operator() as tuple
     typedef std::tuple<const real_function_3d &, const double &,
@@ -249,7 +252,7 @@ public:
 };
 
 
-class MicroTask1 {
+class MicroTask1 : public MicroTaskBase{
 public:
     // you need to define the result type
     // resultT must implement operator+=(const resultT&)
@@ -296,11 +299,11 @@ int main(int argc, char **argv) {
             double error = norm2(universe, ref - test);
             bool success = error < 1.e-10;
             if (universe.rank() == 0) {
-//                print("norm ref, test, diff", norm_ref, norm_test, error);
+                print("norm ref, test, diff", norm_ref, norm_test, error);
                 if (success) print("test", msg, " \033[32m", "passed ", "\033[0m");
                 else print("test", msg, " \033[31m", "failed \033[0m ");
             }
-            return success;
+            return (success) ? 0 : 1;
         };
         auto check = [&](const real_function_3d &ref, const real_function_3d &test, const std::string msg) {
             double norm_ref = ref.norm2();
@@ -312,7 +315,7 @@ int main(int argc, char **argv) {
                 if (success) print("test", msg, " \033[32m", "passed ", "\033[0m");
                 else print("test", msg, " \033[31m", "failed \033[0m ");
             }
-            return success;
+            return (success) ? 0 : 1;
         };
 
         // execution in a taskq, result will be complete only after the taskq is finished
@@ -366,13 +369,15 @@ int main(int argc, char **argv) {
         taskq2->run_all();
         t2.tag("deferred execution");
 
-        bool success = true;
-        success = success && check(ref_t1, r1, "task1");
-        success = success && check_vector(ref_t, f2a, "task again");
-        success = success && check_vector(ref_t, f2b, "task immediate");
+        int success = 0;
+        success += check(ref_t1, r1, "task1");
+        success += check_vector(ref_t, f2a, "task again");
+        success += check_vector(ref_t, f2a1, "task again");
+        success += check_vector(ref_t, f2a2, "task again");
+        success += check_vector(ref_t, f2b, "task immediate");
 
         if (universe.rank() == 0) {
-            if (success) print("\n --> all tests \033[32m", "passed ", "\033[0m\n");
+            if (success==0) print("\n --> all tests \033[32m", "passed ", "\033[0m\n");
             else print("\n --> all tests \033[31m", "failed \033[0m \n");
         }
     }

@@ -49,6 +49,122 @@ class Exchange {
 
 public:
 
+    class MacroTaskExchangeSimple {
+
+        long nocc=0;
+        long nf=0;
+        double lo=1.e-4;
+        double mul_tol=1.e-7;
+        bool symmetric=true;
+
+
+    public:
+        MacroTaskExchangeSimple(
+                          const long nocc, const long nf, const double lo, const double mul_tol, const bool symmetric)
+                : nocc(nocc)
+                , nf(nf)
+                , lo(lo)
+                , mul_tol(mul_tol)
+                , symmetric(symmetric) {
+            this->priority=compute_priority();
+        }
+
+        /// compute the priority of this task for non-dumb scheduling
+
+        /// \return the priority as double number (no limits)
+        double compute_priority() const {
+            long nrow=row_range.second-row_range.first;
+            long ncol=column_range.second-column_range.first;
+            return double(nrow*ncol);
+        }
+
+        std::vector<real_function_3d> operator()(const std::vector<real_function_3d>& vf,
+                const std::vector<real_function_3d>& vbra, const std::vector<real_function_3d>& vket,
+                const double lo, const double mul_tol, const bool symmetric, const bool diagonal_block) {
+
+            World& world=vf.front().world();
+            auto poisson = Exchange<T,NDIM>::set_poisson(world,lo);
+
+            if (symmetric and diagonal_block) {
+                vecfuncT resultcolumn = compute_diagonal_batch_in_symmetric_matrix(world, vbra, vket, vf);
+
+                for (int i = row_range.first; i < row_range.second; ++i)
+                    Kf[i]+=resultcolumn[i - row_range.first];
+
+            } else if (symmetric and not diagonal_block) {
+                auto [resultcolumn,resultrow]=compute_offdiagonal_batch_in_symmetric_matrix(subworld, bra_batch, ket_batch, vf_batch);
+
+                for (int i = column_range.first; i < column_range.second; ++i)
+                    Kf[i]+=resultrow[i - column_range.first];
+                for (int i = row_range.first; i < row_range.second; ++i)
+                    Kf[i]+=resultcolumn[i - row_range.first];
+            } else {
+                vecfuncT resultcolumn = compute_batch_in_asymmetric_matrix(subworld, bra_batch, ket_batch, vf_batch);
+
+                for (int i = column_range.first; i < column_range.second; ++i)
+                    Kf[i]+=resultcolumn[i - column_range.first];
+
+            }
+
+
+        }
+
+        /// compute a batch of the exchange matrix, with identical ranges, exploiting the matrix symmetry
+
+        /// \param subworld     the world we're computing in
+        /// \param cloud        where to store the results
+        /// \param bra_batch    the bra batch of orbitals (including the nuclear correlation factor square)
+        /// \param ket_batch    the ket batch of orbitals, i.e. the orbitals to premultiply with
+        /// \param vf_batch     the argument of the exchange operator
+        vecfuncT compute_diagonal_batch_in_symmetric_matrix(World& subworld,
+                                                            const vecfuncT& bra_batch, const vecfuncT& ket_batch, const vecfuncT& vf_batch) const {
+            double mul_tol=0.0;
+            double symmetric=true;
+            return Exchange<T,NDIM>::compute_K_tile(subworld,bra_batch,ket_batch,vf_batch,poisson,symmetric,mul_tol);
+        }
+
+        /// compute a batch of the exchange matrix, with non-identical ranges
+
+        /// \param subworld     the world we're computing in
+        /// \param cloud        where to store the results
+        /// \param bra_batch    the bra batch of orbitals (including the nuclear correlation factor square)
+        /// \param ket_batch    the ket batch of orbitals, i.e. the orbitals to premultiply with
+        /// \param vf_batch     the argument of the exchange operator
+        vecfuncT compute_batch_in_asymmetric_matrix(World& subworld,
+                                                    const vecfuncT& bra_batch, const vecfuncT& ket_batch, const vecfuncT& vf_batch) const {
+            double mul_tol=0.0;
+            double symmetric=false;
+            return Exchange<T,NDIM>::compute_K_tile(subworld,bra_batch,ket_batch,vf_batch,poisson,symmetric,mul_tol);
+        }
+
+        /// compute a batch of the exchange matrix, with non-identical ranges
+
+        /// \param subworld     the world we're computing in
+        /// \param cloud        where to store the results
+        /// \param bra_batch    the bra batch of orbitals (including the nuclear correlation factor square)
+        /// \param ket_batch    the ket batch of orbitals, i.e. the orbitals to premultiply with
+        /// \param vf_batch     the argument of the exchange operator
+        std::pair<vecfuncT, vecfuncT> compute_offdiagonal_batch_in_symmetric_matrix(World &subworld,
+                                                                                    const vecfuncT& bra_batch, const vecfuncT& ket_batch, const vecfuncT& vf_batch) const;
+
+        void cleanup() {
+            if (mo_ket) mo_ket.reset();
+            if (mo_bra) mo_bra.reset();
+            if (vf) vf.reset();
+            if (poisson) poisson.reset();
+        }
+
+        template <typename Archive>
+        void serialize(const Archive& ar) {
+            ar & row_range & column_range & nocc & lo &  mul_tol ;
+        }
+
+        void print_me(std::string s="") const {
+            print("K apply task", s, this->stat, "priority",this->get_priority());
+        }
+
+    };
+public:
     class MacroTaskExchange : public MacroTaskIntermediate<MacroTaskExchange> {
 
         typedef std::vector<std::shared_ptr<MacroTaskBase> > taskqT;

@@ -35,7 +35,8 @@ if(ENABLE_UNITTESTS)
   
   set(MRA_TEST_SOURCES testbsh.cc testproj.cc 
       testpdiff.cc testdiff1Db.cc testgconv.cc testopdir.cc testinnerext.cc 
-      testgaxpyext.cc testvmra.cc, test_vectormacrotask.cc test_cloud.cc)
+      testgaxpyext.cc testvmra.cc, test_vectormacrotask.cc test_cloud.cc
+      test_macrotaskpartitioner.cc)
   add_unittests(mra "${MRA_TEST_SOURCES}" "MADmra;MADgtest")
   set(MRA_SEPOP_TEST_SOURCES testsuite.cc
       testper.cc)
