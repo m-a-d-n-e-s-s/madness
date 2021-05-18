@@ -91,7 +91,13 @@ class MacroTask_2G {
 public:
 
     MacroTask_2G(World &world, taskT &task, std::shared_ptr<MacroTaskQ> taskq_ptr = 0)
-            : world(world), task(task), taskq_ptr(taskq_ptr) {}
+            : world(world), task(task), taskq_ptr(taskq_ptr) {
+        if (taskq_ptr) {
+            // for the time being this condition must hold because tasks are
+            // constructed as replicated objects and are not broadcast to other ranks
+            MADNESS_CHECK(world.id()==taskq_ptr->get_world().id());
+        }
+    }
 
     template<typename ... Ts>
     resultT operator()(const Ts &... args) {
@@ -149,7 +155,6 @@ private:
 
         typedef decay_tuple<typename taskT::argtupleT> argtupleT;   // removes const, &, etc
         typedef typename taskT::resultT resultT;
-        Batch batch;
         recordlistT inputrecords;
         recordlistT outputrecords;
     public:
@@ -157,13 +162,14 @@ private:
 
         MacroTaskInternal(const taskT &task, const Batch &batch,
                           const recordlistT &inputrecords, const recordlistT &outputrecords)
-                : task(task), batch(batch), inputrecords(inputrecords), outputrecords(outputrecords) {
+                : task(task), inputrecords(inputrecords), outputrecords(outputrecords) {
             static_assert(is_madness_function<resultT>::value || is_madness_function_vector<resultT>::value);
+            this->task.batch=batch;
         }
 
 
         virtual void print_me(std::string s="") const {
-            print("this is task",typeid(task).name(),"with batch", batch,"priority",this->get_priority());
+            print("this is task",typeid(task).name(),"with batch", task.batch,"priority",this->get_priority());
         }
 
         virtual void print_me_as_table(std::string s="") const {
@@ -173,7 +179,7 @@ private:
             name += std::string(20-namesize,' ');
 
             ss  << name
-                << std::setw(10) << batch
+                << std::setw(10) << task.batch
                 << std::setw(5) << this->get_priority() << "        "
                 <<this->stat ;
             print(ss.str());
@@ -182,7 +188,7 @@ private:
         void run(World &subworld, Cloud &cloud, MacroTaskBase::taskqT &taskq) {
 
             const argtupleT argtuple = cloud.load<argtupleT>(subworld, inputrecords);
-            const argtupleT batched_argtuple = batch.template copy_input_batch(argtuple);
+            const argtupleT batched_argtuple = task.batch.template copy_input_batch(argtuple);
 
             resultT result_tmp = std::apply(task, batched_argtuple);
 
@@ -193,7 +199,7 @@ private:
             } else if constexpr(is_madness_function_vector<resultT>::value) {
                 compress(subworld, result_tmp);
                 resultT tmp1=task.allocator(subworld,argtuple);
-                tmp1=batch.template insert_result_batch(tmp1,result_tmp);
+                tmp1=task.batch.template insert_result_batch(tmp1,result_tmp);
                 result += tmp1;
             } else {
                 MADNESS_EXCEPTION("failing result",1);
@@ -436,14 +442,14 @@ int main(int argc, char **argv) {
         std::vector<real_function_3d> ref = t(v3[0], 2.0, v3);
         timer1.tag("direct execution");
 
-//        success+=test_immediate(universe,v3,ref);
-//        timer1.tag("immediate taskq execution");
-//
-//        success+=test_deferred(universe,v3,ref);
-//        timer1.tag("deferred taskq execution");
-//
-//        success+=test_twice(universe,v3,ref);
-//        timer1.tag("executing a task twice");
+        success+=test_immediate(universe,v3,ref);
+        timer1.tag("immediate taskq execution");
+
+        success+=test_deferred(universe,v3,ref);
+        timer1.tag("deferred taskq execution");
+
+        success+=test_twice(universe,v3,ref);
+        timer1.tag("executing a task twice");
 
         success+=test_task1(universe,v3);
         timer1.tag("task1 immediate execution");
