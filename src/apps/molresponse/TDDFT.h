@@ -655,7 +655,7 @@ class TDDFT {
   response_space create_random_guess(World& world,
                                      size_t m,
                                      size_t n,
-                                     std::vector<real_function_3d>& grounds,
+                                     vector_real_function_3d& grounds,
                                      Molecule& molecule);
 
   // Creates random guess functions semi-intelligently(?)

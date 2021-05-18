@@ -3675,7 +3675,8 @@ response_space TDDFT::create_nwchem_guess(World& world, size_t m) {
             "Augmenting with random functions.");
 
     // Create the random guess
-    response_space rand = create_random_guess(world, m - n, n, ground_orbitals, g_params.molecule());
+    Molecule mol = g_params.molecule();
+    response_space rand = create_random_guess(world, m - n, n, ground_orbitals, mol);
 
     // Add to vector of functions
     for (unsigned int i = 0; i < rand.size(); i++) f.push_back(rand[i]);
