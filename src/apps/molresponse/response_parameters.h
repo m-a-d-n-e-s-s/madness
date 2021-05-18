@@ -81,6 +81,7 @@ struct ResponseParameters : public QCCalculationParametersBase {
     initialize<bool>("order3", false, "Flag to turn on frequency dependent property calc");
     initialize<std::string>("d2_types", "", "possible values are: dd nd dn nn");
     initialize<double>("omega", 0.0, "Incident energy for dynamic response");
+    initialize<double>("L", 0.0, "Box size");
     // ground-state stuff
     initialize<size_t>("num_orbitals", 0, "number of groun_state orbtials");
     initialize<bool>("spinrestricted", true, "is spinrestricted calculation");
@@ -140,6 +141,7 @@ struct ResponseParameters : public QCCalculationParametersBase {
   bool order3() const { return get<bool>("order3"); }
   std::string d2_types() const { return get<std::string>("d2_types"); }
   double omega() const { return get<double>("omega"); }
+  double L() const { return get<double>("L"); }
 
   bool spinrestricted() const { return get<bool>("spinrestricted"); }
 
