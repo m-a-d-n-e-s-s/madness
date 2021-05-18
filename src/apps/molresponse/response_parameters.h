@@ -81,6 +81,9 @@ struct ResponseParameters : public QCCalculationParametersBase {
     initialize<bool>("order3", false, "Flag to turn on frequency dependent property calc");
     initialize<std::string>("d2_types", "", "possible values are: dd nd dn nn");
     initialize<double>("omega", 0.0, "Incident energy for dynamic response");
+    // ground-state stuff
+    initialize<size_t>("num_orbitals", 0, "number of groun_state orbtials");
+    initialize<bool>("spinrestricted", true, "is spinrestricted calculation");
   }
 
  public:
@@ -89,6 +92,7 @@ struct ResponseParameters : public QCCalculationParametersBase {
   std::string archive() const { return get<std::string>("archive"); }
   std::string nwchem() const { return get<std::string>("nwchem"); }
   size_t n_states() const { return get<size_t>("states"); }
+  size_t num_orbitals() const { return get<size_t>("states"); }
   int print_level() const { return get<int>("print_level"); }
   bool tda() const { return get<bool>("tda"); }
   bool plot() const { return get<bool>("plot"); }
@@ -136,42 +140,8 @@ struct ResponseParameters : public QCCalculationParametersBase {
   bool order3() const { return get<bool>("order3"); }
   std::string d2_types() const { return get<std::string>("d2_types"); }
   double omega() const { return get<double>("omega"); }
-  /*
-            void SetNumberOfStates(Molecule &molecule) {
-    vector<std::string> calculation_type;
-    vector<bool> calc_flags;
-    if (dipole) {
-      states = 3;
-    } else if (nuclear) {
-      states = 3 * molecule.natom();
-    } else if (order2) {
-      vector<int> nstates;  // states 1
-      for (size_t i = 0; i < 2; i++) {
-        if (response_types[i] == "dipole") {
-          nstates.push_back(3);
-        } else if (response_types[i] == "nuclear") {
-          nstates.push_back(3 * molecule.natom());
-        } else {
-          MADNESS_EXCEPTION("not a valid response state ", 0);
-        }
-      }
-      states = std::accumulate(nstates.begin(), nstates.end(), 1, std::multiplies<>());
-    } else if (order3) {
-      vector<int> nstates;  // states 1
-      for (size_t i = 0; i < 3; i++) {
-        if (response_types[i] == "dipole") {
-          nstates.push_back(3);
-        } else if (response_types[i] == "nuclear") {
-          nstates.push_back(3 * molecule.natom());
-        } else {
-          MADNESS_EXCEPTION("not a valid response state ", 0);
-        }
-      }
-      states = std::accumulate(nstates.begin(), nstates.end(), 1, std::multiplies<>());
-    }
-  }
 
-   */
+  bool spinrestricted() const { return get<bool>("spinrestricted"); }
 
   void read_and_set_derived_values(World &world, std::string inputfile, std::string tag) {
     // read the parameters from file and brodcast
@@ -182,10 +152,16 @@ struct ResponseParameters : public QCCalculationParametersBase {
 
     g_params.read(world, ground_file);
     g_params.print_params();
+    // Ground state params
+    set_derived_value<size_t>("num_orbitals", g_params.n_orbitals());
+    set_derived_value<bool>("spinrestricted", g_params.is_spinrestricted());
+    set_derived_value<double>("L", g_params.get_L());
+    set_derived_value<int>("k", g_params.get_k());
+    set_derived_value<std::string>("xc", g_params.get_xc());
 
+    Molecule molecule = g_params.molecule();
     vector<std::string> calculation_type;
     vector<bool> calc_flags;
-    Molecule molecule = g_params.molecule();
 
     if (dipole()) {
       set_derived_value<size_t>("states", 3);
