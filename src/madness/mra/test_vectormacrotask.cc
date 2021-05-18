@@ -104,8 +104,9 @@ public:
 
         // partition the argument vector into batches
         auto partitioner=task.partitioner;
-        partitioner.set_nsubworld(world.size());
-        partitionT partition = partitioner.partition_tasks(argtuple);
+        if (not partitioner) partitioner.reset(new MacroTaskPartitioner);
+        partitioner->set_nsubworld(world.size());
+        partitionT partition = partitioner->partition_tasks(argtuple);
 
         // store input and output: output being a pointer to a universe function (vector)
         recordlistT inputrecords = taskq_ptr->cloud.store(world, argtuple);
@@ -222,9 +223,9 @@ private:
 
 class MicroTaskBase {
 public:
-    Batch inputbatch;
-    Batch outputbatch;
-    MacroTaskPartitioner partitioner;
+    Batch batch;
+    std::shared_ptr<MacroTaskPartitioner> partitioner=0;
+    MicroTaskBase() : batch(Batch(_,_,_)),  partitioner(new MacroTaskPartitioner) {}
 };
 
 class MicroTask : public MicroTaskBase {
@@ -270,11 +271,140 @@ public:
     resultT operator()(const real_function_3d &f1, const double &arg2,
                        const std::vector<real_function_3d> &f2) const {
         World &world = f1.world();
-        Derivative<double, 3> D(world, 1);
-        auto result = arg2 * f1 * inner(apply(world,D,f2), f2);
+        auto result = arg2 * f1 * inner(f2, f2);
         return result;
     }
 };
+
+class MicroTask2 : public MicroTaskBase{
+public:
+    // you need to define the result type
+    // resultT must implement operator+=(const resultT&)
+    typedef std::vector<real_function_3d> resultT;
+
+    // you need to define the exact argument(s) of operator() as tuple
+    typedef std::tuple<const std::vector<real_function_3d> &, const double &,
+            const std::vector<real_function_3d> &> argtupleT;
+
+    resultT allocator(World &world, const argtupleT &argtuple) const {
+        std::size_t n = std::get<2>(argtuple).size();
+        resultT result = zero_functions_compressed<double, 3>(world, n);
+        return result;
+    }
+
+    resultT operator()(const std::vector<real_function_3d>& f1, const double &arg2,
+                       const std::vector<real_function_3d>& f2) const {
+        World &world = f1[0].world();
+        // // won't work because of nested loop over f1
+        // if (batch.input[0]==batch.input[1]) {
+        //     return arg2 * f1 * inner(f1,f2);
+        // }
+
+        // // won't work because result batches are the same as f1 batches
+        // return arg2*f2*inner(f1,f1);
+
+        // will work
+        return arg2*f1*inner(f2,f2);
+
+    }
+};
+
+int check_vector(World& universe, const std::vector<real_function_3d> &ref, const std::vector<real_function_3d> &test,
+                        const std::string msg) {
+    double norm_ref = norm2(universe, ref);
+    double norm_test = norm2(universe, test);
+    double error = norm2(universe, ref - test);
+    bool success = error/norm_ref < 1.e-10;
+    if (universe.rank() == 0) {
+        print("norm ref, test, diff", norm_ref, norm_test, error);
+        if (success) print("test", msg, " \033[32m", "passed ", "\033[0m");
+        else print("test", msg, " \033[31m", "failed \033[0m ");
+    }
+    return (success) ? 0 : 1;
+};
+int check(World& universe, const real_function_3d &ref, const real_function_3d &test, const std::string msg) {
+    double norm_ref = ref.norm2();
+    double norm_test = test.norm2();
+    double error = (ref - test).norm2();
+    bool success = error/norm_ref < 1.e-10;
+    if (universe.rank() == 0) {
+                print("norm ref, test, diff", norm_ref, norm_test, error);
+        if (success) print("test", msg, " \033[32m", "passed ", "\033[0m");
+        else print("test", msg, " \033[31m", "failed \033[0m ");
+    }
+    return (success) ? 0 : 1;
+};
+
+int test_immediate(World& universe, const std::vector<real_function_3d>& v3,
+                   const std::vector<real_function_3d>& ref) {
+    if (universe.rank() == 0) print("\nstarting immediate execution");
+    MicroTask t;
+    MacroTask_2G task_immediate(universe, t);
+    std::vector<real_function_3d> v = task_immediate(v3[0], 2.0, v3);
+    int success=check_vector(universe,ref,v,"test_immediate execution of task");
+    return success;
+}
+
+int test_deferred(World& universe, const std::vector<real_function_3d>& v3,
+                   const std::vector<real_function_3d>& ref) {
+    if (universe.rank() == 0) print("\nstarting deferred execution");
+    auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(universe, universe.size()));
+    taskq->set_printlevel(3);
+    MicroTask t;
+    MacroTask_2G task(universe, t, taskq);
+    std::vector<real_function_3d> f2a = task(v3[0], 2.0, v3);
+    taskq->print_taskq();
+    taskq->run_all();
+    taskq->cloud.print_timings(universe);
+    taskq->cloud.clear_timings();
+    int success=check_vector(universe,ref,f2a,"test_deferred execution of task");
+    return success;
+}
+
+int test_twice(World& universe, const std::vector<real_function_3d>& v3,
+                  const std::vector<real_function_3d>& ref) {
+    if (universe.rank() == 0) print("\nstarting Microtask twice (check caching)\n");
+    auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(universe, universe.size()));
+    taskq->set_printlevel(3);
+    MicroTask t;
+    MacroTask_2G task(universe, t, taskq);
+    std::vector<real_function_3d> f2a1 = task(v3[0], 2.0, v3);
+    std::vector<real_function_3d> f2a2 = task(v3[0], 2.0, v3);
+    taskq->print_taskq();
+    taskq->run_all();
+    taskq->cloud.print_timings(universe);
+    int success=0;
+    success += check_vector(universe, ref, f2a1, "taske twice a");
+    success += check_vector(universe, ref, f2a2, "taske twice b");
+    return success;
+}
+
+int test_task1(World& universe, const std::vector<real_function_3d>& v3) {
+    if (universe.rank()==0) print("\nstarting Microtask1\n");
+    MicroTask1 t1;
+    real_function_3d ref_t1 = t1(v3[0], 2.0, v3);
+    MacroTask_2G task1(universe,t1);
+    real_function_3d ref_t2 = task1(v3[0], 2.0, v3);
+    int success = check(universe,ref_t1, ref_t2, "task1 immediate");
+    return success;
+}
+
+int test_2d_partitioning(World& universe, const std::vector<real_function_3d>& v3) {
+    if (universe.rank() == 0) print("\nstarting 2d partitioning");
+    auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(universe, universe.size()));
+    taskq->set_printlevel(3);
+    MicroTask2 t;
+    auto ref=t(v3,2.0,v3);
+    t.partitioner->set_dimension(2);
+    MacroTask_2G task(universe, t, taskq);
+    std::vector<real_function_3d> f2a = task(v3, 2.0, v3);
+    taskq->print_taskq();
+    taskq->run_all();
+    taskq->cloud.print_timings(universe);
+    taskq->cloud.clear_timings();
+    int success=check_vector(universe,ref,f2a,"test 2d partitioning");
+    return success;
+}
 
 int main(int argc, char **argv) {
     madness::World &universe = madness::initialize(argc, argv);
@@ -283,6 +413,7 @@ int main(int argc, char **argv) {
     FunctionDefaults<3>::set_k(9);
     FunctionDefaults<3>::set_cubic_cell(-20,20);
 
+    int success = 0;
 
     universe.gop.fence();
     int nworld = universe.size();
@@ -290,34 +421,8 @@ int main(int argc, char **argv) {
 
     // TODO: serialize member variables of tasks
     // TODO: pretty-print cloud content/input/output records
+
     {
-
-        auto check_vector = [&](const std::vector<real_function_3d> &ref, const std::vector<real_function_3d> &test,
-                                const std::string msg) {
-            double norm_ref = norm2(universe, ref);
-            double norm_test = norm2(universe, test);
-            double error = norm2(universe, ref - test);
-            bool success = error < 1.e-10;
-            if (universe.rank() == 0) {
-                print("norm ref, test, diff", norm_ref, norm_test, error);
-                if (success) print("test", msg, " \033[32m", "passed ", "\033[0m");
-                else print("test", msg, " \033[31m", "failed \033[0m ");
-            }
-            return (success) ? 0 : 1;
-        };
-        auto check = [&](const real_function_3d &ref, const real_function_3d &test, const std::string msg) {
-            double norm_ref = ref.norm2();
-            double norm_test = test.norm2();
-            double error = (ref - test).norm2();
-            bool success = error < 1.e-10;
-            if (universe.rank() == 0) {
-//                print("norm ref, test, diff", norm_ref, norm_test, error);
-                if (success) print("test", msg, " \033[32m", "passed ", "\033[0m");
-                else print("test", msg, " \033[31m", "failed \033[0m ");
-            }
-            return (success) ? 0 : 1;
-        };
-
         // execution in a taskq, result will be complete only after the taskq is finished
         real_function_3d f1 = real_factory_3d(universe).functor(slater(1.0));
         real_function_3d i2 = real_factory_3d(universe).functor(slater(2.0));
@@ -326,55 +431,25 @@ int main(int argc, char **argv) {
         std::vector<real_function_3d> v3;
         for (int i=0; i<20; ++i) v3.push_back(real_factory_3d(universe).functor(slater(sqrt(double(i)))));
 
-
         timer timer1(universe);
         MicroTask t;
-        std::vector<real_function_3d> ref_t = t(f1, 2.0, v3);
-        timer1.tag("direct exection");
+        std::vector<real_function_3d> ref = t(v3[0], 2.0, v3);
+        timer1.tag("direct execution");
 
-        MacroTask_2G task_immediate(universe, t);
-        std::vector<real_function_3d> f2b = task_immediate(f1, 2.0, v3);
-        timer1.tag("immediate taskq exection");
+//        success+=test_immediate(universe,v3,ref);
+//        timer1.tag("immediate taskq execution");
+//
+//        success+=test_deferred(universe,v3,ref);
+//        timer1.tag("deferred taskq execution");
+//
+//        success+=test_twice(universe,v3,ref);
+//        timer1.tag("executing a task twice");
 
-        auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(universe, nworld));
-        taskq->set_printlevel(3);
-        MacroTask_2G task(universe, t, taskq);
-        std::vector<real_function_3d> f2a = task(f1, 2.0, v3);
-        taskq->print_taskq();
-        taskq->run_all();
-        taskq->cloud.print_timings(universe);
-        taskq->cloud.clear_timings();
-        timer1.tag("deferred taskq execution");
+        success+=test_task1(universe,v3);
+        timer1.tag("task1 immediate execution");
 
-        if (universe.rank()==0) print("\nstarting Microtask twice (check caching)\n");
-        std::vector<real_function_3d> f2a1 = task(f1, 2.0, v3);
-        std::vector<real_function_3d> f2a2 = task(f1, 2.0, v3);
-        taskq->print_taskq();
-        taskq->run_all();
-        taskq->cloud.print_timings(universe);
-        timer1.tag("executing a task twice");
-
-        if (universe.rank()==0) print("\nstarting Microtask1\n");
-
-
-        timer t2(universe);
-        MicroTask1 t1;
-        real_function_3d ref_t1 = t1(f1, 2.0, v3);
-        t2.tag("immediate execution");
-
-        auto taskq2 = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(universe, nworld));
-        taskq2->set_printlevel(3);
-        MacroTask_2G task1(universe, t1, taskq2);
-        real_function_3d r1 = task1(f1, 2.0, v3);
-        taskq2->run_all();
-        t2.tag("deferred execution");
-
-        int success = 0;
-        success += check(ref_t1, r1, "task1");
-        success += check_vector(ref_t, f2a, "task again");
-        success += check_vector(ref_t, f2a1, "task again");
-        success += check_vector(ref_t, f2a2, "task again");
-        success += check_vector(ref_t, f2b, "task immediate");
+        success+=test_2d_partitioning(universe,v3);
+        timer1.tag("2D partitioning");
 
         if (universe.rank() == 0) {
             if (success==0) print("\n --> all tests \033[32m", "passed ", "\033[0m\n");

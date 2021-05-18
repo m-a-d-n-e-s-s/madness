@@ -62,7 +62,14 @@ public:
     std::size_t begin=0, end=-1; ///< first and first past last index [begin,end)
 
     Batch_1D() {}
+    Batch_1D(const Slice& s) : begin(s.start), end(s.end) {
+        MADNESS_CHECK(s.step==1);
+    }
     Batch_1D(const std::size_t& begin, const std::size_t& end) : begin(begin), end(end) {}
+
+    bool operator==(const Batch_1D& other) const {
+        return (end==other.end && begin==other.begin);
+    }
 
     std::size_t size() const {
         return is_full_size() ? SIZE_MAX : end - begin;
@@ -116,6 +123,16 @@ public:
     std::vector<Batch_1D> input;
 
     Batch() {}
+    Batch(const Batch& other) {
+        *this=other;
+    }
+    Batch& operator=(const Batch& other) {
+        if (this==&other) return *this;
+        result=other.result;
+        input=other.input;
+        return *this;
+    }
+
     Batch(Batch_1D input1,  Batch_1D result) : input{input1}, result(result) {}
     Batch(Batch_1D input1, Batch_1D input2, Batch_1D result)
             : input{input1,input2}, result(result) {}
@@ -150,7 +167,7 @@ class MacroTaskPartitioner {
 public:
     typedef std::list<Batch> partitionT;
     std::size_t min_batch_size=5;
-    std::size_t max_batch_size = 20;
+    std::size_t max_batch_size = 10;
     std::size_t nsubworld=1;
     std::string policy = "guided";
     std::size_t dimension = 1;
@@ -205,8 +222,8 @@ public:
         else {
             std::string msg="confused partitioning dimension: "+std::to_string(dimension) +" typeid " + typeid(tupleT).name();
             MADNESS_EXCEPTION(msg.c_str(),1);
-            return partitionT();
         }
+        return partitionT();
     }
 
     partitionT do_1d_partition(const std::size_t vsize, const std::string policy) const {
