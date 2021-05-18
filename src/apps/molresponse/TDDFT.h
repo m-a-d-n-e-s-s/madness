@@ -138,13 +138,14 @@ class TDDFT {
 
   // Information that is inferred from input file
   std::vector<real_function_3d> act_orbitals;  // Ground state orbitals being used in calculation
-  Tensor<double> act_ground_energies;          // Ground state energies being used for calculation
-  Tensor<double> hamiltonian;                  // Ground state hamiltonian tensor
-  Tensor<double> ham_no_diag;                  // Ground state ham. without diagonal (Used when
-                                               // localized orbitals are given)
-  std::vector<int> active;                     // The labels of orbitals selected as "active"
-  unsigned int act_num_orbitals;               // Number of ground state orbitals being used
-                                               // in calculation
+  vector_real_function_3d ground_orbitals;
+  Tensor<double> act_ground_energies;  // Ground state energies being used for calculation
+  Tensor<double> hamiltonian;          // Ground state hamiltonian tensor
+  Tensor<double> ham_no_diag;          // Ground state ham. without diagonal (Used when
+                                       // localized orbitals are given)
+  std::vector<int> active;             // The labels of orbitals selected as "active"
+  unsigned int act_num_orbitals;       // Number of ground state orbitals being used
+                                       // in calculation
 
   // XCfunction object for DFT calculations
   XCfunctional xcf;
