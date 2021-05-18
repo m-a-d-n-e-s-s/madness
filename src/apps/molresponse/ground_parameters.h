@@ -43,6 +43,7 @@ class GroundParameters {
   int get_k() const { return k; }
   vector_real_function_3d orbitals() const { return g_orbitals; }
   std::string get_xc() const { return xc; }
+  std::string get_archive() const { return xc; }
 
   // Initializes ResponseParameters using the contents of file \c filename
   void read(World& world, const std::string& filename) {
