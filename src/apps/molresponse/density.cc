@@ -28,15 +28,20 @@ typedef std::vector<real_function_3d> VectorFunction3DT;
 // it also needs an xc functional
 // The r_params and Gparmas used to create the density
 //
-density_vector::density_vector(ResponseParameters r_params, GroundParameters g_params) {
+density_vector::density_vector(World &world, ResponseParameters r_params, GroundParameters g_params) {
   this->r_params = r_params;
   this->g_params = g_params;
+  this->property = r_params.response_type();
+  this->num_states = r_params.n_states();
+  this->num_ground_states = r_params.num_orbitals();
+  this->Chi = X_space(world, num_states, num_ground_states);
+  this->PQ = X_space(world, num_states, num_ground_states);
 }
 void density_vector::compute_response(World &world) {
   // right now everything uses copy
   property = r_params.response_type();
   size_t m_states = r_params.n_states();
-  size_t n_orbitals = r_params.n_states();
+  size_t n_orbitals = r_params.num_orbitals();
 
   Chi = X_space(world, m_states, n_orbitals);
   PQ = X_space(world, m_states, n_orbitals);
@@ -90,33 +95,13 @@ ResponseParameters density_vector::GetResponseParameters() { return r_params; }
 
 VectorFunction3DT density_vector::ComputeDensityVector(World &world, bool is_static) {
   std::vector<real_function_3d> densities = zero_functions<double, 3>(world, num_states);
-  /*
-    x.reconstruct_rf();
-    y.reconstruct_rf();
-    reconstruct(world, g_params.orbitals());
-    */
-
   if (is_static) {
     for (size_t b = 0; b < num_states; b++) {
       densities[b] = dot(world, Chi.X[b], g_params.orbitals()) + dot(world, Chi.X[b], g_params.orbitals());
-      /*
-        for (size_t    j = 0; j < num_ground_states; j++) {
-          densities[b] += mul_sparse(x[b][j], g_params.orbitals()[j],
-        r_params.small); densities[b] += mul_sparse(x[b][j], g_params.orbitals()[j],
-        r_params.small);
-        }
-        */
     }
   } else {
     for (size_t b = 0; b < num_states; b++) {
       densities[b] = dot(world, Chi.X[b], g_params.orbitals()) + dot(world, Chi.Y[b], g_params.orbitals());
-      /*
-        for (size_t    j = 0; j < num_ground_states; j++) {
-          densities[b] += mul_sparse(x[b][j], g_params.orbitals()[j],
-        r_params.small); densities[b] += mul_sparse(y[b][j], g_params.orbitals()[j],
-        r_params.small);
-        }
-        */
     }
   }
   truncate(world, densities);

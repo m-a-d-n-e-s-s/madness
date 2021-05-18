@@ -42,7 +42,7 @@ class density_vector {
   XCfunctional xcf;  // xc functional
 
   ResponseParameters r_params;  // Response Parameters
-  GroundParameters g_params;    // Ground Parameters
+  GroundParameters g_params;
 
   X_space Chi;
   X_space PQ;
@@ -52,7 +52,7 @@ class density_vector {
 
  public:
   // Collective constructor
-  density_vector(ResponseParameters r_params, GroundParameters g_params);
+  density_vector(World& world, ResponseParameters r_params, GroundParameters g_params);
 
   virtual void compute_response(World& world);
 
@@ -77,34 +77,37 @@ class density_vector {
 
 class dipole_density_vector : public density_vector {
  public:
-  dipole_density_vector(World& world, ResponseParameters R, GroundParameters G) : density_vector(R, G) {
-    this->property = r_params.response_type();
-    this->num_states = 3;
-    this->num_ground_states = g_params.n_orbitals();
-    this->Chi = X_space(world, num_states, num_ground_states);
-    this->PQ = X_space(world, num_states, num_ground_states);
-  }
+  dipole_density_vector(World& world, ResponseParameters R, GroundParameters G) : density_vector(world, R, G) {}
 };
 
 class nuclear_density_vector : public density_vector {
  public:
-  nuclear_density_vector(World& world, ResponseParameters R, GroundParameters G) : density_vector(R, G) {
-    this->property = r_params.response_type();
-    this->num_states = r_params.n_states();
-    this->num_ground_states = g_params.n_orbitals();
-    this->Chi = X_space(world, num_states, num_ground_states);
-    this->PQ = X_space(world, num_states, num_ground_states);
-  }
+  nuclear_density_vector(World& world, ResponseParameters R, GroundParameters G) : density_vector(world, R, G) {}
 };
 
 class excited_state_density_vector : public density_vector {
  public:
-  excited_state_density_vector(World& world, ResponseParameters R, GroundParameters G) : density_vector(R, G) {
-    this->property = r_params.response_type();
-    this->num_states = r_params.n_states();
-    this->num_ground_states = g_params.n_orbitals();
-    this->Chi = X_space(world, num_states, num_ground_states);
-    this->PQ = X_space(world, num_states, num_ground_states);
+  excited_state_density_vector(World& world, ResponseParameters R, GroundParameters G) : density_vector(world, R, G) {}
+};
+
+density_vector set_density_type(World& world, ResponseParameters R, GroundParameters G) {
+  if (R.response_type().compare("excited_state") == 0) {
+    return excited_state_density_vector(world, R, G);
+  } else if (R.response_type().compare("dipole") == 0) {
+    return dipole_density_vector(world, R, G);
+
+  } else if (R.response_type().compare("nuclear") == 0) {
+    return nuclear_density_vector(world, R, G);
+  } else if (R.response_type().compare("order2") == 0) {
+    MADNESS_EXCEPTION("not implemented yet", 0);
+    return density_vector(world, R, G);
+  } else if (R.response_type().compare("order3") == 0) {
+    MADNESS_EXCEPTION("not implemented yet", 0);
+    return density_vector(world, R, G);
+
+  } else {
+    MADNESS_EXCEPTION("what is this????", 0);
+    return density_vector(world, R, G);
   }
 };
 #endif  // SRC_APPS_molresponse_DENSITY_H_
