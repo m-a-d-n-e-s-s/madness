@@ -92,17 +92,28 @@ bool test_read_archive_set_states(World& world) {
 			)input";
   inputfile ifile("input1", inputlines);
 
+  GroundParameters g_params;
   ResponseParameters param1;
+  std::string ground_file = param1.archive();
+
+  g_params.read(world, ground_file);
+  g_params.print_params();
   param1.read_and_set_derived_values(world, "input1", "dipole_test");
   param1.print();
+  density_vector d1 = set_density_type(world, param1, g_params);
+  d1.PrintDensityInformation();
 
   ResponseParameters param2;
   param2.read_and_set_derived_values(world, "input1", "nuclear_test");
   param2.print();
+  density_vector d2 = set_density_type(world, param2, g_params);
+  d2.PrintDensityInformation();
 
   ResponseParameters param3;
   param3.read_and_set_derived_values(world, "input1", "order2_dd");
   param3.print();
+  density_vector d3 = set_density_type(world, param3, g_params);
+  d3.PrintDensityInformation();
 
   ResponseParameters param4;
   param4.read_and_set_derived_values(world, "input1", "order2_dn");
@@ -117,96 +128,79 @@ bool test_read_archive_set_states(World& world) {
   return true;
 }
 
+bool test_create_density(World& world) {
+  print("entering test_derived");
+  std::string inputlines = R"input(dipole
+			archive restartdata
+			dipole True
+			#dconv 1.e-4
+			maxiter 12# asd
+			end
+			)input";
+
+  inputfile ifile("input1", inputlines);
+
+  ResponseParameters param1;
+  param1.read_and_set_derived_values(world, "input1", "dipole_test");
+  param1.print();
+
+  // test_same(param.econv(), 1.e-4);
+  // test_same(param.dconv(), sqrt(param.econv()) * 0.1);
+  return true;
+}
+
 int main(int argc, char** argv) {
   // Initialize MADNESS mpi
   initialize(argc, argv);
-  //{  // limite lifetime of world so that finalize() can execute cleanly
-  World world(SafeMPI::COMM_WORLD);
-  startup(world, argc, argv, true);
-  print_meminfo(world.rank(), "startup");
-
-  ResponseParameters r_params;
-  r_params.print();
-
-  const std::string ground_file = "../restartdata";
-  GroundParameters g_params;
-  g_params.read(world, ground_file);
-  g_params.print_params();
-
-  FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3> >(world)));
-
-  std::cout.precision(6);
-  // This makes a default input file name of 'input'
   int success = 0;
-  try {
-    test_derived(world);
-    test_read_archive_set_states(world);
-  } catch (std::exception& e) {
-    print("\n\tan error occurred .. ");
-    print(e.what());
-    success = 1;
-  } catch (...) {
-    print("\n\tan unknown error occurred .. ");
-    success = 1;
+  {
+    //{  // limite lifetime of world so that finalize() can execute cleanly
+    World world(SafeMPI::COMM_WORLD);
+    startup(world, argc, argv, true);
+    print_meminfo(world.rank(), "startup");
+
+    ResponseParameters r_params;
+    r_params.print();
+
+    const std::string ground_file = "restartdata";
+    GroundParameters g_params;
+    g_params.read(world, ground_file);
+    g_params.print_params();
+
+    FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3> >(world)));
+
+    std::cout.precision(6);
+    // This makes a default input file name of 'input'
+    try {
+      test_derived(world);
+      test_read_archive_set_states(world);
+    } catch (std::exception& e) {
+      print("\n\tan error occurred .. ");
+      print(e.what());
+      success = 1;
+    } catch (const SafeMPI::Exception& e) {
+      print(e);
+      error("caught an MPI exception");
+    } catch (const madness::MadnessException& e) {
+      print(e);
+      error("caught a MADNESS exception");
+    } catch (const madness::TensorException& e) {
+      print(e);
+      error("caught a Tensor exception");
+    } catch (const char* s) {
+      print(s);
+      error("caught a string exception");
+    } catch (const std::string& s) {
+      print(s);
+      error("caught a string (class) exception");
+    } catch (...) {
+      print("\n\tan unknown error occurred .. ");
+      success = 1;
+    }
+    if (world.rank() == 0) printf("\nfinished at time %.1fs\n\n", wall_time());
+    world.gop.fence();
+    world.gop.fence();
   }
-  /*
-      const char* inpname = "input";
-      // Process 0 reads input information and broadcasts
-      for (int i = 1; i < argc; i++) {
-        if (argv[i][0] != '-') {
-          inpname = argv[i];
-          break;
-        }
-      }
-      ResponseParameters r_params;
-
-      GroundStateCalculation g_params;
-      if (world.rank() == 0) print("input filename: ", inpname);
-      if (!file_exists(inpname)) throw "input file not found";
-
-                  */
-  // first step is to read the input for Rparams and Gparams
-  /*
-      // Read the ground parameters from the archive
-      Gparams.read(world, Rparams.archive);
-      if (world.rank() == 0) {
-        Gparams.print_params();
-        print_molecule(world, Gparams);
-      }
-      // if a proerty calculation set the number of states
-      if (Rparams.property) {
-        Rparams.SetNumberOfStates(Gparams.molecule);
-      }
-
-      // print params
-      if (world.rank() == 0) {
-        Rparams.print_params();
-      }
-      // Broadcast to all other nodes
-      density_vector densityTest = SetDensityType(world, Rparams.response_type, Rparams, Gparams);
-      // Create the TDDFT object
-      if (Rparams.load_density) {
-        print("Loading Density");
-        densityTest.LoadDensity(world, Rparams.load_density_file, Rparams, Gparams);
-      } else {
-        print("Computing Density");
-        densityTest.compute_response(world);
-      }
-      //
-      // densityTest.PlotResponseDensity(world);
-      densityTest.PrintDensityInformation();
-
-      if (Rparams.response_type.compare("dipole") == 0) {  //
-        print("Computing Alpha");
-        Tensor<double> alpha = densityTest.ComputeSecondOrderPropertyTensor(world);
-        print("Second Order Analysis");
-        densityTest.PrintSecondOrderAnalysis(world, alpha);
-      }
-  */
-  if (world.rank() == 0) printf("\nfinished at time %.1fs\n\n", wall_time());
-  world.gop.fence();
-  world.gop.fence();
-  //}  // world is dead -- ready to finalize
   finalize();
 
   return success;
