@@ -5,9 +5,9 @@
 #include <molresponse/response_parameters.h>
 #include <stdlib.h>
 
-//#include "TDDFT.h"  // All response functions/objects enter through this
+#include "TDDFT.h"  // All response functions/objects enter through this
 //#include "molresponse/density.h"
-#//include "molresponse/global_functions.h"
+#include "molresponse/global_functions.h"
 
 #if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
 #include <sys/stat.h>
