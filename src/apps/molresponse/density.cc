@@ -21,13 +21,6 @@ typedef FunctionFactory<double, 3> FactoryT;
 typedef Vector<double, 3> CoordinateT;
 typedef std::vector<real_function_3d> VectorFunction3DT;
 
-// base class for a density
-// operator used to create it
-// homogeneous sol----x and y functions
-// particular sol --- depends on lower order functions used to create it
-// it also needs an xc functional
-// The r_params and Gparmas used to create the density
-//
 density_vector::density_vector(World &world, ResponseParameters r_params, GroundParameters g_params) {
   this->r_params = r_params;
   this->g_params = g_params;
