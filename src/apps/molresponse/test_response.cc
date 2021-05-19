@@ -174,10 +174,6 @@ int main(int argc, char** argv) {
     try {
       test_derived(world);
       test_read_archive_set_states(world);
-    } catch (std::exception& e) {
-      print("\n\tan error occurred .. ");
-      print(e.what());
-      success = 1;
     } catch (const SafeMPI::Exception& e) {
       print(e);
       error("caught an MPI exception");

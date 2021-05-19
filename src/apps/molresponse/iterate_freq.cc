@@ -8,9 +8,9 @@
 #include <string>
 #include <utility>
 
+#include "../chem/NWChem.h"  // For nwchem interface
 #include "../chem/SCFOperators.h"
 #include "../chem/molecule.h"
-#include "../chem/NWChem.h"  // For nwchem interface
 #include "Plot_VTK.h"
 #include "TDDFT.h"
 #include "chem/potentialmanager.h"
@@ -24,13 +24,11 @@
 #include "molresponse/timer.h"
 
 // Iterate Frequency Response
-void TDDFT::IterateFrequencyResponse(World& world,
-                                     response_space& rhs_x,
-                                     response_space& rhs_y) {
+void TDDFT::IterateFrequencyResponse(World& world, response_space& rhs_x, response_space& rhs_y) {
   // Variables needed to iterate
-  size_t iteration = 0;             // Iteration counter
-  size_t n = Gparams.num_orbitals;  // Number of ground state orbitals
-  size_t m = Rparams.states;        // Number of excited states
+  size_t iteration = 0;                // Iteration counter
+  size_t n = r_params.num_orbitals();  // Number of ground state orbitals
+  size_t m = r_params.n_states();      // Number of excited states
 
   // Holds the norms of y function residuals (for convergence)
   Tensor<double> x_norms(m);
@@ -50,7 +48,7 @@ void TDDFT::IterateFrequencyResponse(World& world,
   bool converged = false;  // Converged flag
 
   // initialize DFT XC functional operator
-  XCOperator<double,3>  xc = create_XCOperator (world, Gparams.orbitals, Rparams.xc);
+  XCOperator<double, 3> xc = create_XCOperator(world, ground_orbitals, r_params.xc());
 
   /*
    * X space refers to X and Y vector spaces |X,Y>
@@ -69,18 +67,15 @@ void TDDFT::IterateFrequencyResponse(World& world,
     Xvector.push_back(X_vector(X, b));
     Xresidual.push_back(X_vector(residuals, b));
   }
-  // If DFT, initialize the XCOperator<double,3> 
-  std::vector<XNonlinearSolver<X_vector, double, X_space_allocator>>
-      kain_x_space;
-  size_t nkain = m;  // (Rparams.omega != 0.0) ? 2 * m : m;
+  // If DFT, initialize the XCOperator<double,3>
+  std::vector<XNonlinearSolver<X_vector, double, X_space_allocator>> kain_x_space;
+  size_t nkain = m;  // (r_params.omega != 0.0) ? 2 * m : m;
   for (size_t b = 0; b < nkain; b++) {
-    kain_x_space.push_back(
-        XNonlinearSolver<X_vector, double, X_space_allocator>(
-            X_space_allocator(world, n), false));
-    if (Rparams.kain) kain_x_space[b].set_maxsub(Rparams.maxsub);
+    kain_x_space.push_back(XNonlinearSolver<X_vector, double, X_space_allocator>(X_space_allocator(world, n), false));
+    if (r_params.kain()) kain_x_space[b].set_maxsub(r_params.maxsub());
   }
 
-  double omega_n = Rparams.omega;
+  double omega_n = r_params.omega;
   omega_n = abs(omega_n);
   omega[0] = omega_n;
   // We compute with positive frequencies
@@ -90,47 +85,42 @@ void TDDFT::IterateFrequencyResponse(World& world,
   double y_shifts{0};
   // if less negative orbital energy + frequency is positive or greater than 0
   print("Ground State orbitals");
-  print(Gparams.energies);
-  if ((Gparams.energies[n - 1] + omega_n) >= 0.0) {
+  print(ground_energies);
+  if ((ground_energies[n - 1] + omega_n) >= 0.0) {
     // Calculate minimum shift needed such that \eps + \omega + shift < 0
     print("*** we are shifting just so you know!!!");
-    x_shifts = -(omega_n + Gparams.energies[n - 1]);
+    x_shifts = -(omega_n + ground_energies[n - 1]);
   }
 
   // Construct BSH operators
   std::vector<std::shared_ptr<real_convolution_3d>> bsh_x_operators =
-      CreateBSHOperatorPropertyVector(
-          world, x_shifts, Gparams.energies, omega_n, .001, 1e-6);
+      CreateBSHOperatorPropertyVector(world, x_shifts, ground_energies, omega_n, .001, 1e-6);
   std::vector<std::shared_ptr<real_convolution_3d>> bsh_y_operators;
 
   // Negate omega to make this next set of BSH operators \eps - omega
   if (omega_n != 0.0) {
     omega_n = -omega_n;
-    bsh_y_operators = CreateBSHOperatorPropertyVector(
-        world, y_shifts, Gparams.energies, omega_n, .001, 1e-6);
+    bsh_y_operators = CreateBSHOperatorPropertyVector(world, y_shifts, ground_energies, omega_n, .001, 1e-6);
     omega_n = -omega_n;
   }
   // create couloumb operator
   // Now to iterate
-  while (iteration < Rparams.max_iter and !converged) {
+  while (iteration < r_params.maxiter() and !converged) {
     molresponse::start_timer(world);
     // Basic output
-    if (Rparams.print_level >= 1) {
-      if (world.rank() == 0)
-        printf("\n   Iteration %d at time %.1fs\n",
-               static_cast<int>(iteration),
-               wall_time());
+    if (r_params.print_level() >= 1) {
+      if (world.rank() == 0) printf("\n   Iteration %d at time %.1fs\n", static_cast<int>(iteration), wall_time());
       if (world.rank() == 0) print(" -------------------------------");
     }
 
     // If omega = 0.0, x = y
-    if (Rparams.omega == 0.0) y_response = x_response.copy();
+    if (r_params.omega == 0.0) y_response = x_response.copy();
     // Save current to old
     // deep copy of response functions
     old_x_response = x_response.copy();
     old_y_response = y_response.copy();
 
-    if (Rparams.print_level == 3) {
+    if (r_params.print_level() == 3) {
       print("old x norms in iteration after copy  : ", iteration);
       print(old_x_response.norm2());
       print("old y norms in iteration after copy: ", iteration);
@@ -145,8 +135,8 @@ void TDDFT::IterateFrequencyResponse(World& world,
               rhs_y,
               xc,
               x_shifts,
-              Gparams,
-              Rparams,
+              g_params,
+              r_params,
               bsh_x_operators,
               bsh_y_operators,
               ham_no_diag,
@@ -161,12 +151,11 @@ void TDDFT::IterateFrequencyResponse(World& world,
     // Remember: the entire vector is one state
     for (size_t i = 0; i < m; i++) x_norms(i) = norm2(world, x_differences[i]);
     if (omega_n != 0.0) {
-      for (size_t i = 0; i < m; i++)
-        y_norms(i) = norm2(world, y_differences[i]);
+      for (size_t i = 0; i < m; i++) y_norms(i) = norm2(world, y_differences[i]);
     }
 
     // Basic output
-    if (Rparams.print_level >= 0 and world.rank() == 0) {
+    if (r_params.print_level() >= 0 and world.rank() == 0) {
       if (omega_n != 0.0) {
         std::cout << "res " << iteration << " X :";
         for (size_t i(0); i < m; i++) {
@@ -182,7 +171,7 @@ void TDDFT::IterateFrequencyResponse(World& world,
       }
     }
 
-    if (Rparams.kain) {
+    if (r_params.kain()) {
       X = X_space(x_response, y_response);
       residuals = X_space(x_differences, y_differences);
 
@@ -197,8 +186,7 @@ void TDDFT::IterateFrequencyResponse(World& world,
 
       molresponse::start_timer(world);
       for (size_t b = 0; b < nkain; b++) {
-        X_vector kain_X = kain_x_space[b].update(
-            Xvector[b], Xresidual[b], FunctionDefaults<3>::get_thresh(), 3.0);
+        X_vector kain_X = kain_x_space[b].update(Xvector[b], Xresidual[b], FunctionDefaults<3>::get_thresh(), 3.0);
         x_response[b].assign(kain_X.X[0].begin(), kain_X.X[0].end());
         y_response[b].assign(kain_X.Y[0].begin(), kain_X.Y[0].end());
       }
@@ -206,11 +194,9 @@ void TDDFT::IterateFrequencyResponse(World& world,
     }
     if (iteration > 0) {
       for (size_t b = 0; b < m; b++) {
-        do_step_restriction(
-            world, old_x_response[b], x_response[b], "x_response");
+        do_step_restriction(world, old_x_response[b], x_response[b], "x_response");
         if (omega_n != 0.0) {
-          do_step_restriction(
-              world, old_y_response[b], y_response[b], "y_response");
+          do_step_restriction(world, old_y_response[b], y_response[b], "y_response");
         }
       }
     }
@@ -219,7 +205,7 @@ void TDDFT::IterateFrequencyResponse(World& world,
     if (omega_n == 0.0) y_response = x_response.copy();
     if (omega_n != 0.0) y_response.truncate_rf();
 
-    if (Rparams.print_level >= 1) {
+    if (r_params.print_level() >= 1) {
       print("x norms in iteration after truncate: ", iteration);
       print(x_response.norm2());
 
@@ -228,10 +214,8 @@ void TDDFT::IterateFrequencyResponse(World& world,
     }
 
     // Check convergence
-    if (std::max(x_norms.absmax(), y_norms.absmax()) < Rparams.dconv and
-        iteration > 0) {
-      if (Rparams.print_level >= 1)
-        molresponse::end_timer(world, "This iteration:");
+    if (std::max(x_norms.absmax(), y_norms.absmax()) < r_params.dconv() and iteration > 0) {
+      if (r_params.print_level() >= 1) molresponse::end_timer(world, "This iteration:");
       if (world.rank() == 0) print("\n   Converged!");
       converged = true;
       break;
@@ -244,8 +228,7 @@ void TDDFT::IterateFrequencyResponse(World& world,
 
     for (size_t i(0); i < m; i++) {
       for (size_t j(0); j < m; j++) {
-        grp[i][j] =
-            dot(world, P[i], x_response[j]) + dot(world, Q[i], y_response[j]);
+        grp[i][j] = dot(world, P[i], x_response[j]) + dot(world, Q[i], y_response[j]);
         G(i, j) = grp[i][j].trace();
         G(i, j) = -2 * G(i, j);
       }
@@ -253,18 +236,16 @@ void TDDFT::IterateFrequencyResponse(World& world,
     print("polarizability tensor");
     print(G);
     // Save
-    if (Rparams.save) {
+    if (r_params.save()) {
       molresponse::start_timer(world);
-      save(world, Rparams.save_file);
-      if (Rparams.print_level >= 1) molresponse::end_timer(world, "Save:");
+      save(world, r_params.save_file());
+      if (r_params.print_level() >= 1) molresponse::end_timer(world, "Save:");
     }
     // Basic output
-    if (Rparams.print_level >= 1)
-      molresponse::end_timer(world, " This iteration:");
+    if (r_params.print_level() >= 1) molresponse::end_timer(world, " This iteration:");
     // plot orbitals
-    if (Rparams.plot_all_orbitals) {
-      PlotGroundandResponseOrbitals(
-          world, iteration, x_response, y_response, Rparams, Gparams);
+    if (r_params.plot_all_orbitals()) {
+      PlotGroundandResponseOrbitals(world, iteration, x_response, y_response, r_params, g_params);
     }
     X = X_space(world, m, n);
     for (size_t b = 0; b < m; b++) {

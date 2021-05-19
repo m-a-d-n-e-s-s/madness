@@ -25,7 +25,6 @@ void end_timer(World& world, const char* msg) {
   MADNESS_CHECK(ttt.size() > 0);
   double wall = wall_time() - pop(ttt);
   double cpu = cpu_time() - pop(sss);
-  if (world.rank() == 0)
-    printf("   timer: %20.20s %8.2fs %8.2fs\n", msg, cpu, wall);
+  if (world.rank() == 0) printf("   timer: %20.20s %8.2fs %8.2fs\n", msg, cpu, wall);
 }
 }  // namespace molresponse

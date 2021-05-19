@@ -97,20 +97,17 @@ static double mask3(const coord_3d& ruser) {
   return result;
 }
 
-// Collective constructor
-TDDFT::TDDFT(World& world, const char* filename)
-    : TDDFT(world, (world.rank() == 0 ? std::make_shared<std::ifstream>(filename) : nullptr)) {}
-
 // Constructor that actually does stuff
-TDDFT::TDDFT(World& world, ResponseParameters rparams, GroundParameters gparams) {
+TDDFT::TDDFT(World& world, ResponseParameters r_params, GroundParameters g_params) {
   // Start the timer
-  this->r_params = rparams;
-  this->g_params = gparams;
+  this->r_params = r_params;
+  this->g_params = g_params;
 
   ground_orbitals = g_params.orbitals();
+  ground_energies = g_params.get_energies();
 
-  if (rparams.response_type().compare("excited_state") == 0) {
-    this->omega = Tensor<double>(rparams.n_states());
+  if (r_params.response_type().compare("excited_state") == 0) {
+    this->omega = Tensor<double>(r_params.n_states());
   } else {
     this->omega = Tensor<double>(1);
   }
@@ -825,76 +822,7 @@ response_space TDDFT::CreateXCDerivativeRFDagger(World& world,
   return deriv_XC;
 }
 
-// Creates diagonal (letter A) portions of response matrix
-response_space TDDFT::createAf(World& world,
-                               response_space& Vf,
-                               response_space& F0_f,
-                               response_space& Epsilonf,
-                               response_space& Hf,
-                               response_space& f,
-                               std::vector<real_function_3d>& orbitals,
-                               size_t print_level,
-                               std::string xy) {
-  size_t m = f.size();
-  size_t n = f[0].size();
-
-  response_space Af(world, m, n);
-  // Create the ground-state fock operator on response components
-  // Create F0 on x or y response  (Fx-xF)
-  // Af = F0*xp -Fpp*xp +Hf,p -\sum_{neq p} xi*Fip
-
-  // ResponseFunction F0_f = CreateFock(world, Vf, f, print_level, xy); // Fx
-  // Debugging output
-  if (print_level >= 2) {
-    if (world.rank() == 0) printf("   Ground Fock matrix for %s components:\n", xy.c_str());
-    Tensor<double> temp2 = expectation(world, f, F0_f);
-    if (world.rank() == 0) print(temp2);
-    printf("   Testing Expectation Ground Fock matrix for %s components:\n", xy.c_str());
-    // if (print_level >= 1) molresponse::start_timer(world);
-    // Tensor<double> temp3 = expectation2(world, f, F0_f);
-    // if (print_level >= 1) molresponse::end_timer(world, " Expectation 2");
-    // if (world.rank() == 0) print(temp3);
-  }
-  //
-  Af = Hf + F0_f;
-  Af = Af - Epsilonf;
-  // Need to project
-  // It actually should not be necessary here if we project G and H
-  // lets not project and have G and H projected
-  /*
-  QProjector<double, 3> projector(world, orbitals);
-  for (size_t i = 0; i < m; i++)
-    Af[i] = projector(Af[i]);
-
-    */
-  return Af;
-
-  // And return the sum
-}
-
-// Creates the off diagonal (letter B) portions of response matrix
-// Simply projects out ground state from Gf response functions
-response_space TDDFT::createBf(World& world,
-                               response_space& Gf,
-                               std::vector<real_function_3d>& orbitals,
-                               size_t print_level) {
-  // Start a timer
-  // if (print_level >= 1) molresponse::start_timer(world);
-
-  // Get sizes
-  // size_t m = Gf.size();
-  // size_t n = Gf[0].size();
-  // ResponseFunction Bf(world, m, n);
-  // Project out the ground state
-  // QProjector<double, 3> projector(world, orbitals);
-  // for (size_t i = 0; i < m; i++) Bf[i] = projector(Gf[i]);
-
-  // End timer
-  // if (print_level >= 1) molresponse::end_timer(world, "   Creating Bf:");
-
-  // Done
-  return Gf;
-}
+// Calculates HF exchange between ground state orbitals and functions f
 // Calculates ground state coulomb potential
 real_function_3d TDDFT::Coulomb(World& world) {
   // Coulomb operator
@@ -918,7 +846,6 @@ real_function_3d TDDFT::Coulomb(World& world) {
   // Done
   return rho;
 }
-// Calculates HF exchange between ground state orbitals and functions f
 response_space TDDFT::exchange(World& world, response_space& f) {
   // Get sizes
   size_t m = f.size();
@@ -1049,6 +976,37 @@ response_space TDDFT::CreatePotential(World& world,
 
   // Done
   return V_x_resp;
+}
+
+// result(i,j) = inner(a[i],b[j]).sum()
+Tensor<double> TDDFT::expectation(World& world, const response_space& A, const response_space& B) {
+  // Get sizes
+  size_t dim_1 = A.size();
+  size_t dim_2 = A[0].size();
+  // Need to take transpose of each input ResponseFunction
+  response_space A_t(world, dim_2, dim_1);
+  response_space B_t(world, dim_2, dim_1);
+  for (size_t i = 0; i < dim_1; i++) {
+    for (size_t j = 0; j < dim_2; j++) {
+      A_t[j][i] = A[i][j];
+      B_t[j][i] = B[i][j];
+    }
+  }
+  // Container for result
+  Tensor<double> result(dim_1, dim_1);
+  /**
+   * @brief
+   * [x1 x2 x3]T[x1 x2 x3]
+   *
+   */
+  // Run over dimension two
+  // each vector in orbital has dim_1 response functoins associated
+  for (size_t p = 0; p < dim_2; p++) {
+    result += matrix_inner(world, A_t[p], B_t[p]);
+  }
+
+  // Done
+  return result;
 }
 
 Tensor<double> TDDFT::expectation2(World& world, const response_space& a, const response_space& b) {
@@ -3794,7 +3752,7 @@ void TDDFT::PrintPolarizabilityAnalysis(World& world, const Tensor<double> polar
   if (world.rank() == 0) {
     print("\nTotal Dynamic Polarizability Tensor");
     printf("\nFrequency  = %.6f a.u.\n\n", omega(0, 0));
-    // printf("\nWavelength = %.6f a.u.\n\n", r_params.omega * ???);
+    // printf("\nWavelength = %.6f a.u.\n\n", r_params.omega() * ???);
     print(polar_tensor);
     printf("\tEigenvalues = ");
     printf("\t %.6f \t %.6f \t %.6f \n", epolar[0], epolar[1], epolar[2]);

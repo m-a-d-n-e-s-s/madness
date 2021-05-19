@@ -7,9 +7,9 @@
 #include <string>
 #include <utility>
 
+#include "../chem/NWChem.h"  // For nwchem interface
 #include "../chem/SCFOperators.h"
 #include "../chem/molecule.h"
-#include "../chem/NWChem.h"  // For nwchem interface
 #include "Plot_VTK.h"
 #include "TDDFT.h"
 #include "chem/potentialmanager.h"
@@ -60,8 +60,7 @@ response_space TDDFT::CreateGamma(World& world,
   response_space deriv_XC(world, m, n);
 
   // Perturbed coulomb piece
-  response_space deriv_J =
-      CreateCoulombDerivativeRF(world, f, phi, small, thresh);
+  response_space deriv_J = CreateCoulombDerivativeRF(world, f, phi, small, thresh);
   // ResponseFunction deriv_XC=CreateXCDerivative
 
   // If including any HF exchange:
@@ -86,28 +85,24 @@ response_space TDDFT::CreateGamma(World& world,
   gamma = deriv_J * 2.0 + deriv_XC - deriv_K * xcf.hf_exchange_coefficient();
 
   // Project out groundstate
-  QProjector<double, 3> projector(world, Gparams.orbitals);
+  QProjector<double, 3> projector(world, ground_orbitals);
   for (size_t i = 0; i < m; i++) gamma[i] = projector(gamma[i]);
 
   // Debugging output
   if (print_level >= 2) {
-    if (world.rank() == 0)
-      printf("   Coulomb Deriv matrix for %s components:\n", xy.c_str());
+    if (world.rank() == 0) printf("   Coulomb Deriv matrix for %s components:\n", xy.c_str());
     response_space t = deriv_J * 2.0;
     Tensor<double> temp = expectation(world, f, t);
     if (world.rank() == 0) print(temp);
-    if (Rparams.xc == "hf") {
-      if (world.rank() == 0)
-        printf("   Exchange Deriv matrix for %s components:\n", xy.c_str());
+    if (r_params.xc() == "hf") {
+      if (world.rank() == 0) printf("   Exchange Deriv matrix for %s components:\n", xy.c_str());
       temp = expectation(world, f, deriv_K);
     } else {
-      if (world.rank() == 0)
-        printf("   XC Deriv matrix for %s components:\n", xy.c_str());
+      if (world.rank() == 0) printf("   XC Deriv matrix for %s components:\n", xy.c_str());
       temp = expectation(world, f, deriv_XC);
     }
     if (world.rank() == 0) print(temp);
-    if (world.rank() == 0)
-      printf("   Gamma matrix for %s components:\n", xy.c_str());
+    if (world.rank() == 0) printf("   Gamma matrix for %s components:\n", xy.c_str());
     temp = expectation(world, f, gamma);
     if (world.rank() == 0) print(temp);
   }
@@ -175,30 +170,26 @@ response_space TDDFT::ComputeHf(World& world,
   H = (deriv_J * 2) - deriv_K * xcf.hf_exchange_coefficient() + deriv_XC;
 
   // Project out groundstate
-  QProjector<double, 3> projector(world, Gparams.orbitals);
+  QProjector<double, 3> projector(world, ground_orbitals);
   for (size_t i = 0; i < m; i++) {
     H[i] = projector(H[i]);
   }
 
   // Debugging output
   if (print_level >= 2) {
-    if (world.rank() == 0)
-      printf("   Coulomb Deriv matrix for %s components:\n", xy.c_str());
+    if (world.rank() == 0) printf("   Coulomb Deriv matrix for %s components:\n", xy.c_str());
     response_space t = deriv_J * 2.0;
     Tensor<double> temp = expectation(world, f, t);
     if (world.rank() == 0) print(temp);
-    if (Rparams.xc == "hf") {
-      if (world.rank() == 0)
-        printf("   Exchange Deriv matrix for %s components:\n", xy.c_str());
+    if (r_params.xc() == "hf") {
+      if (world.rank() == 0) printf("   Exchange Deriv matrix for %s components:\n", xy.c_str());
       temp = expectation(world, f, deriv_K);
     } else {
-      if (world.rank() == 0)
-        printf("   XC Deriv matrix for %s components:\n", xy.c_str());
+      if (world.rank() == 0) printf("   XC Deriv matrix for %s components:\n", xy.c_str());
       temp = expectation(world, f, deriv_XC);
     }
     if (world.rank() == 0) print(temp);
-    if (world.rank() == 0)
-      printf("   H matrix for %s components:\n", xy.c_str());
+    if (world.rank() == 0) printf("   H matrix for %s components:\n", xy.c_str());
     temp = expectation(world, f, H);
     if (world.rank() == 0) print(temp);
   }
@@ -249,8 +240,7 @@ response_space TDDFT::ComputeGf(World& world,
   // Exchange
   // Determine if including HF exchange
   if (xcf.hf_exchange_coefficient()) {
-    Kdagger =
-        CreateExchangeDerivativeRFDagger(world, f, orbitals, small, thresh);
+    Kdagger = CreateExchangeDerivativeRFDagger(world, f, orbitals, small, thresh);
   }
   Kdagger = Kdagger * xcf.hf_exchange_coefficient();
   // Determine if DFT potential is needed
@@ -265,7 +255,7 @@ response_space TDDFT::ComputeGf(World& world,
   // (J-K)+W
   G = (Jdagger * 2) - Kdagger * xcf.hf_exchange_coefficient() + XCdagger;
   // Project out groundstate
-  QProjector<double, 3> projector(world, Gparams.orbitals);
+  QProjector<double, 3> projector(world, ground_orbitals);
   for (size_t i = 0; i < m; i++) {
     G[i] = projector(G[i]);
   }
@@ -276,7 +266,7 @@ response_space TDDFT::ComputeGf(World& world,
     response_space t = Jdagger * 2.0;
     Tensor<double> temp = expectation(world, f, t);
     if (world.rank() == 0) print(temp);
-    if (Rparams.xc == "hf") {
+    if (r_params.xc() == "hf") {
       if (world.rank() == 0) printf("   G exchange deriv matrix:\n");
       temp = expectation(world, f, Kdagger);
     } else {

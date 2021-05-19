@@ -13,14 +13,14 @@ response_space transpose(response_space &f) {
 
   // Get sizes
   size_t m = f.size();
-  size_t n= f[0].size();
+  size_t n = f[0].size();
 
   // Return container
   response_space g(f[0][0].world(), m, n);
 
   // Now do shallow copies
   for (size_t i = 0; i < m; i++)
-    for (size_t    j = 0; j < n; j++) g[j][i] = f[i][j];
+    for (size_t j = 0; j < n; j++) g[j][i] = f[i][j];
 
   // Done
   return g;
@@ -38,10 +38,9 @@ void truncate(World &world, response_space &v, double tol, bool fence) {
 
 // Apply a vector of vector of operators to a vector of vector of functions
 // g[i][j] = op[i][j](f[i][j])
-response_space apply(
-    World &world,
-    std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> &op,
-    response_space &f) {
+response_space apply(World &world,
+                     std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> &op,
+                     response_space &f) {
   MADNESS_ASSERT(f.size() > 0);
   MADNESS_ASSERT(f.size() == op.size());
   MADNESS_ASSERT(f[0].size() == op[0].size());
@@ -57,9 +56,7 @@ response_space apply(
 }
 // Apply a vector of operators to a set of response states
 //
-response_space apply(World &world,
-                     std::vector<std::shared_ptr<real_convolution_3d>> &op,
-                     response_space &f) {
+response_space apply(World &world, std::vector<std::shared_ptr<real_convolution_3d>> &op, response_space &f) {
   MADNESS_ASSERT(f.size() > 0);
   MADNESS_ASSERT(f[0].size() == op.size());
 

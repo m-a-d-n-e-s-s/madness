@@ -4,16 +4,17 @@
 #include <string>
 #include <vector>
 
+#include "molresponse/density.h"
 #include "response_parameters.h"
 
-void print_molecule(World &world, GroundParameters Gparams) {
+void print_molecule(World &world, GroundParameters g_params) {
   if (world.rank() == 0) {
     // Precision is set to 10 coming in, drop it to 5
     std::cout.precision(5);
     std::cout << std::fixed;
 
-    // First get atoms
-    const std::vector<Atom> atoms = Gparams.molecule().get_atoms();
+    // First get atom
+    const std::vector<Atom> atoms = g_params.molecule().get_atoms();
     size_t num_atoms = atoms.size();
 
     // Now print

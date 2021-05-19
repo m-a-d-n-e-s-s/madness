@@ -4,7 +4,7 @@ Here we will get an overview of how the solve function from `void TDHF::solve(Wo
 
 ## The main iteration
 
-We iterate for a number set by by the size of the vector `Rparams.protocol_data.size();`
+We iterate for a number set by by the size of the vector `r_params.protocol_data.size();`
 So it looks like we iterate with a set of threshold values for truncation.
 This way we can increase the accuracy progressively per iteration.
 
@@ -19,9 +19,9 @@ Q? Any how would this change between iterations?
 
 Returns a bool to redo the groundstate hamiltonian calculation if groundstate orbitals change
 
-If the default wavelet order does not equal to the wavelet order of the GS orbitals then we re-read the orbitals from the archive.  We then reconstruct the orbitals with `reconstruct(world, Gparams.orbitals);`
+If the default wavelet order does not equal to the wavelet order of the GS orbitals then we re-read the orbitals from the archive.  We then reconstruct the orbitals with `reconstruct(world, ground_orbitals);`
 
-`reconstruct(world, Gparams.orbitals);`
+`reconstruct(world, ground_orbitals);`
 ``` reconstruct a vector of functions
 set fence to false
 for f in vF:

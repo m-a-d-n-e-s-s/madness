@@ -94,16 +94,16 @@ void TDDFT::solve_excited_states(World& world) {
           Chi.X = create_nwchem_guess(world, 2 * r_params.n_states());
         } else if (r_params.guess_xyz()) {
           // Use a symmetry adapted operator on ground state functions
-          Chi.X = create_trial_functions2(world, ground_orbitals, r_params.print_level());
+          Chi.X = create_trial_functions2(world, ground_orbitals, r_params.num_orbitals());
         } else {
-          Chi.X = create_trial_functions(world, 2 * r_params.n_states(), ground_orbitals, r_params.print_level());
+          Chi.X = create_trial_functions(world, 2 * r_params.n_states(), ground_orbitals, r_params.num_orbitals());
         }
 
         // Load balance
         // Only balancing on x-components. Smart?
         if (world.size() > 1) {
           // Start a timer
-          if (r_params.print_level() >= 1) molresponse::start_timer(world);
+          if (r_params.num_orbitals() >= 1) molresponse::start_timer(world);
           if (world.rank() == 0) print("");  // Makes it more legible
 
           LoadBalanceDeux<3> lb(world);
@@ -117,7 +117,7 @@ void TDDFT::solve_excited_states(World& world) {
           }
           FunctionDefaults<3>::redistribute(world, lb.load_balance(2));
 
-          if (r_params.print_level() >= 1) molresponse::end_timer(world, "Load balancing:");
+          if (r_params.num_orbitals() >= 1) molresponse::end_timer(world, "Load balancing:");
         }
 
         // Project out groundstate from guesses
@@ -146,13 +146,13 @@ void TDDFT::solve_excited_states(World& world) {
         // Sort
         sort(world, omega, Chi.X);
         // Basic output
-        if (r_params.print_level() >= 1 and world.rank() == 0) {
+        if (r_params.num_orbitals() >= 1 and world.rank() == 0) {
           print("\n   Final initial guess excitation energies:");
           print(omega);
         }
-        // Chi = X_space(world, r_params.n_states(), r_params.num_orbitals);
+        // Chi = X_space(world, r_params.n_states(), r_params.num_orbitals());
         // Select lowest energy functions from guess
-        Chi.X = select_functions(world, Chi.X, omega, r_params.n_states(), r_params.print_level());
+        Chi.X = select_functions(world, Chi.X, omega, r_params.n_states(), r_params.num_orbitals());
         Chi.Y = response_space(world, r_params.n_states(), r_params.num_orbitals());
         // Initial guess for y are zero functions
       }

@@ -124,7 +124,6 @@ class TDDFT {
   std::shared_ptr<PotentialManager> potentialmanager;
   Molecule molecule;
   // CalculationParameters param;
-  XCfunctional xc;
   functionT mask;
 
   ResponseParameters r_params;
@@ -138,6 +137,7 @@ class TDDFT {
   // Information that is inferred from input file
   std::vector<real_function_3d> act_orbitals;  // Ground state orbitals being used in calculation
   vector_real_function_3d ground_orbitals;
+  Tensor<double> ground_energies;      // Ground state hamiltonian tensor
   Tensor<double> act_ground_energies;  // Ground state energies being used for calculation
   Tensor<double> hamiltonian;          // Ground state hamiltonian tensor
   Tensor<double> ham_no_diag;          // Ground state ham. without diagonal (Used when
@@ -180,7 +180,7 @@ class TDDFT {
  public:
   // Collective constructor for response uses contents of file \c filename and
 
-  TDDFT(World& world, ResponseParameters rparams, GroundParameters gparams);
+  TDDFT(World& world, ResponseParameters r_params, GroundParameters g_params);
   // Saves a response calculation
   void save(World& world, std::string name);
 
@@ -258,47 +258,6 @@ class TDDFT {
                                             double thresh);
 
   // Returns the diagonal (letter A) elements of response matrix
-  response_space createAf(World& world,
-                          response_space& Vf,
-                          response_space& F0_f,
-                          response_space& Epsilonf,
-                          response_space& Hf,
-                          response_space& f,
-                          std::vector<real_function_3d>& orbitals,
-                          size_t print_level,
-                          std::string xy);
-
-  // Returns the off diagonal (letter B) elements of response matrix
-  response_space createBf(World& world,
-                          response_space& Gf,
-                          std::vector<real_function_3d>& orbitals,
-                          size_t print_level);
-
-  // Returns gamma (the perturbed 2 electron piece)
-  response_space CreateGamma(World& world,
-                             response_space& f,
-                             response_space& g,
-                             std::vector<real_function_3d>& phi,
-                             double small,
-                             double thresh,
-                             size_t print_level,
-                             std::string xy);
-
-  response_space ComputeHf(World& world,
-                           const response_space& f,
-                           const std::vector<real_function_3d>& orbitals,
-                           double small,
-                           double thresh,
-                           size_t print_level,
-                           std::string xy);
-
-  response_space ComputeGf(World& world,
-                           const response_space& f,
-                           const std::vector<real_function_3d>& orbitals,
-                           double small,
-                           double thresh,
-                           size_t print_level,
-                           std::string xy);
   GammaResponseFunctions ComputeGammaFunctions(World& world,
                                                response_space& x,
                                                response_space& y,

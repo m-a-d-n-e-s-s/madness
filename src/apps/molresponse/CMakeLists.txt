@@ -7,6 +7,14 @@ property.cc
 TDDFT.cc
 global_functions.cc
 iterate_excited.cc
+timer.cc
+basic_operators.cc
+Plot_VTK.cc
+iterate_freq2.cc
+iterate_excited2.cc
+Lambda_X.cc
+Theta_X.cc
+iterate_gamma.cc
 )
 target_link_libraries(test_resp -lstdc++fs MADchem  )
 add_executable(molresponse
@@ -18,9 +26,6 @@ molresponse.cc
 # iterate_freq2.cc
 # iterate_excited2.cc
 # iterate_xy.cc
-# iterate_gamma.cc
-# Lambda_X.cc
-# Theta_X.cc
 #global_functions.cc
 	#  basic_operators
 	#  Plot_VTK.cc timer.cc)

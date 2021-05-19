@@ -103,29 +103,29 @@ int main(int argc, char** argv) {
       if (!file_exists(inpname)) throw "input file not found";
 
                   */
-  // first step is to read the input for Rparams and Gparams
+  // first step is to read the input for r_params and g_params
   /*
       // Read the ground parameters from the archive
-      Gparams.read(world, Rparams.archive);
+      g_params.read(world, r_params.archive);
       if (world.rank() == 0) {
-        Gparams.print_params();
-        print_molecule(world, Gparams);
+        g_params.print_params();
+        print_molecule(world, g_params);
       }
       // if a proerty calculation set the number of states
-      if (Rparams.property) {
-        Rparams.SetNumberOfStates(Gparams.molecule);
+      if (r_params.property) {
+        r_params.SetNumberOfStates(g_params.molecule);
       }
 
       // print params
       if (world.rank() == 0) {
-        Rparams.print_params();
+        r_params.print_params();
       }
       // Broadcast to all other nodes
-      density_vector densityTest = SetDensityType(world, Rparams.response_type, Rparams, Gparams);
+      density_vector densityTest = SetDensityType(world, r_params.response_type, r_params, g_params);
       // Create the TDDFT object
-      if (Rparams.load_density) {
+      if (r_params.load_density) {
         print("Loading Density");
-        densityTest.LoadDensity(world, Rparams.load_density_file, Rparams, Gparams);
+        densityTest.LoadDensity(world, r_params.load_density_file, r_params, g_params);
       } else {
         print("Computing Density");
         densityTest.compute_response(world);
@@ -134,7 +134,7 @@ int main(int argc, char** argv) {
       // densityTest.PlotResponseDensity(world);
       densityTest.PrintDensityInformation();
 
-      if (Rparams.response_type.compare("dipole") == 0) {  //
+      if (r_params.response_type.compare("dipole") == 0) {  //
         print("Computing Alpha");
         Tensor<double> alpha = densityTest.ComputeSecondOrderPropertyTensor(world);
         print("Second Order Analysis");

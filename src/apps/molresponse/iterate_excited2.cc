@@ -28,15 +28,15 @@
 void TDDFT::Iterate(World& world, X_space& Chi) {
   // Variables needed to iterate
   size_t iteration = 0;  // Iteration counter
-  QProjector<double, 3> projector(world, Gparams.orbitals);
-  size_t m = Rparams.states;        // Number of excited states
-  size_t n = Gparams.num_orbitals;  // Number of ground state orbitals
+  QProjector<double, 3> projector(world, ground_orbitals);
+  size_t m = r_params.n_states();      // Number of excited states
+  size_t n = r_params.num_orbitals();  // Number of ground state orbitals
 
-  bool all_converged = false;                 // For convergence
-  bool relax = false;                         // For convergence
-  size_t relax_start = Rparams.max_iter + 1;  // For convergence
-  size_t num_conv = 0;                        // For convergence
-  std::vector<bool> converged(m, false);      // For convergence
+  bool all_converged = false;                    // For convergence
+  bool relax = false;                            // For convergence
+  size_t relax_start = r_params.maxiter() + 1;  // For convergence
+  size_t num_conv = 0;                           // For convergence
+  std::vector<bool> converged(m, false);         // For convergence
 
   response_space bsh_x_resp(world, m, n);  // Holds wave function corrections
   response_space bsh_y_resp(world, m, n);  // Holds wave function corrections
@@ -61,7 +61,7 @@ void TDDFT::Iterate(World& world, X_space& Chi) {
   Tensor<double> old_A;
   Tensor<double> old_S;
   // initialize DFT XC functional operator
-  XCOperator<double, 3> xc = create_XCOperator(world, Gparams.orbitals, Rparams.xc);
+  XCOperator<double, 3> xc = create_XCOperator(world, ground_orbitals, r_params.xc());
 
   /*
    * X space refers to X and Y vector spaces |X,Y>
@@ -87,10 +87,10 @@ void TDDFT::Iterate(World& world, X_space& Chi) {
   }
   // If DFT, initialize the XCOperator<double,3>
   std::vector<XNonlinearSolver<X_vector, double, X_space_allocator>> kain_x_space;
-  size_t nkain = m;  // (Rparams.omega != 0.0) ? 2 * m : m;
+  size_t nkain = m;  // (r_params.omega != 0.0) ? 2 * m : m;
   for (size_t b = 0; b < nkain; b++) {
     kain_x_space.push_back(XNonlinearSolver<X_vector, double, X_space_allocator>(X_space_allocator(world, n), false));
-    if (Rparams.kain) kain_x_space[b].set_maxsub(Rparams.maxsub);
+    if (r_params.kain()) kain_x_space[b].set_maxsub(r_params.maxsub());
   }
 
   // Here we create the kain solver for response
@@ -98,29 +98,29 @@ void TDDFT::Iterate(World& world, X_space& Chi) {
   // size With correct number of occ and virtual orbitals all set to zero.
 
   // Set y things if not doing TDA
-  if (not Rparams.tda) old_Chi.Y = response_space(world, m, n);
+  if (not r_params.tda()) old_Chi.Y = response_space(world, m, n);
 
   // Now to iterate
-  while (iteration < Rparams.max_iter && !all_converged) {
+  while (iteration < r_params.maxiter() && !all_converged) {
     // Start a timer for this iteration
     molresponse::start_timer(world);
     // Basic output
-    if (Rparams.print_level >= 1) {
+    if (r_params.print_level() >= 1) {
       if (world.rank() == 0) printf("\n   Iteration %d at time %.1fs\n", static_cast<int>(iteration), wall_time());
       if (world.rank() == 0) print(" -------------------------------");
     }
     Chi.X.truncate_rf();
-    if (not Rparams.tda) Chi.Y.truncate_rf();
+    if (not r_params.tda()) Chi.Y.truncate_rf();
 
     print("----------------Before Normalize   ", "-----------------");
-    if (Rparams.print_level == 3) {
+    if (r_params.print_level() == 3) {
       print("x norms in iteration after copy  : ", iteration);
       print(Chi.X.norm2());
       print("y norms in iteration after copy: ", iteration);
       print(Chi.Y.norm2());
     }
     // Normalize after projection
-    if (Rparams.tda) {
+    if (r_params.tda()) {
       normalize(world, Chi.X);
     } else {
       normalize(world, Chi);
@@ -129,15 +129,15 @@ void TDDFT::Iterate(World& world, X_space& Chi) {
     print(
         "----------------Before Compute_Lambda_X   "
         "-----------------");
-    if (Rparams.print_level == 3) {
+    if (r_params.print_level() == 3) {
       print("x norms in iteration after copy  : ", iteration);
       print(Chi.X.norm2());
       print("y norms in iteration after copy: ", iteration);
       print(Chi.Y.norm2());
     }
-    X_space Lambda_X = Compute_Lambda_X(world, Chi, xc, not Rparams.tda);
+    X_space Lambda_X = Compute_Lambda_X(world, Chi, xc, not r_params.tda());
     print("----------------After Compute_Lambda_X -----------------");
-    if (Rparams.print_level == 3) {
+    if (r_params.print_level() == 3) {
       print("x norms in iteration after copy  : ", iteration);
       print(Chi.X.norm2());
       print("y norms in iteration after copy: ", iteration);
@@ -147,29 +147,29 @@ void TDDFT::Iterate(World& world, X_space& Chi) {
     // Only balancing on x-components. Smart?
     if ((world.size() > 1 && (iteration < 2 or iteration % 5 == 0))) {
       // Start a timer
-      if (Rparams.print_level >= 1) molresponse::start_timer(world);
+      if (r_params.print_level() >= 1) molresponse::start_timer(world);
       if (world.rank() == 0) print("");  // Makes it more legible
 
       // TODO Ask about load balancing
       LoadBalanceDeux<3> lb(world);
       for (size_t j = 0; j < n; j++) {
-        for (size_t k = 0; k < Rparams.states; k++) {
+        for (size_t k = 0; k < r_params.n_states(); k++) {
           lb.add_tree(Chi.X[k][j], lbcost<double, 3>(1.0, 8.0), true);
           lb.add_tree(Lambda_X.X[k][j], lbcost<double, 3>(1.0, 8.0), true);
         }
       }
       FunctionDefaults<3>::redistribute(world, lb.load_balance(2));
 
-      if (Rparams.print_level >= 1) molresponse::end_timer(world, "Load balancing:");
+      if (r_params.print_level() >= 1) molresponse::end_timer(world, "Load balancing:");
     }
 
-    if (Rparams.print_level >= 1 and world.rank() == 0) {
+    if (r_params.print_level() >= 1 and world.rank() == 0) {
       print("Before Deflate");
       print("\n   Excitation Energies:");
       print("i=", iteration, " roots: ", iteration, omega);
     }
     // TDA approximation
-    if (Rparams.tda) {
+    if (r_params.tda()) {
       deflateTDA(world, Chi, old_Chi, Lambda_X, old_Lambda_X, S, old_S, old_A, omega, iteration, m);
       // Constructing S
       // Full TDHF
@@ -179,7 +179,7 @@ void TDDFT::Iterate(World& world, X_space& Chi) {
     }
 
     // Basic output
-    if (Rparams.print_level >= 1 and world.rank() == 0) {
+    if (r_params.print_level() >= 1 and world.rank() == 0) {
       print("After Deflate");
       print("\n   Excitation Energies:");
       print("i=", iteration, " roots: ", iteration, omega);
@@ -197,31 +197,32 @@ void TDDFT::Iterate(World& world, X_space& Chi) {
     old_energy = copy(omega);
 
     // Basic output
-    if (Rparams.print_level >= 1) {
+    if (r_params.print_level() >= 1) {
       if (world.rank() == 0) print("   Energy residuals:");
       if (world.rank() == 0) print("er: ", iteration, " ", energy_residuals);
     }
 
     // Analysis gets messed up if BSH is last thing applied
     // so exit early if last iteration
-    if (iteration == Rparams.max_iter - 1) {
+    if (iteration == r_params.maxiter() - 1) {
       molresponse::end_timer(world, " This iteration:");
       break;
     }
 
     //  Calculates shifts needed for potential / energies
     //  If none needed, the zero tensor is returned
-    x_shifts = create_shift(world, Gparams.energies, omega, Rparams.print_level, "x");
-    if (not Rparams.tda) {
+    x_shifts = create_shift(world, ground_energies, omega, r_params.print_level(), "x");
+    if (not r_params.tda()) {
       omega = -omega;  // Negative here is so that these Greens functions are
       // (eps - omega)
-      y_shifts = create_shift_target(world, Gparams.energies, omega, Gparams.energies[n - 1], Rparams.print_level, "y");
+      y_shifts =
+          create_shift_target(world, ground_energies, omega, ground_energies[n - 1], r_params.print_level(), "y");
       omega = -omega;
     }
     print(
         "----------------Before Compute_Theta_X After Deflate "
         "-----------------");
-    if (Rparams.print_level == 3) {
+    if (r_params.print_level() == 3) {
       print("x norms in iteration after copy  : ", iteration);
       print(Chi.X.norm2());
       print("y norms in iteration after copy: ", iteration);
@@ -229,8 +230,8 @@ void TDDFT::Iterate(World& world, X_space& Chi) {
     }
 
     // Compute Theta X
-    X_space theta_X = Compute_Theta_X(world, Chi, xc, not Rparams.tda);
-    if (Rparams.print_level == 3) {
+    X_space theta_X = Compute_Theta_X(world, Chi, xc, not r_params.tda());
+    if (r_params.print_level() == 3) {
       print(
           "----------------After Compute Theta_X After Deflate "
           "-----------------");
@@ -243,20 +244,20 @@ void TDDFT::Iterate(World& world, X_space& Chi) {
     theta_X.X = apply_shift(world, x_shifts, theta_X.X, Chi.X);
     theta_X.X = theta_X.X * -2;
     theta_X.X.truncate_rf();
-    if (not Rparams.tda) {
+    if (not r_params.tda()) {
       y_shifts = -y_shifts;
       theta_X.Y = apply_shift(world, y_shifts, theta_X.Y, Chi.Y);
       theta_X.Y = theta_X.Y * -2;
       theta_X.Y.truncate_rf();
     }
-    if (not Rparams.tda) {
+    if (not r_params.tda()) {
       // Debugging output
-      if (Rparams.print_level >= 2) {
+      if (r_params.print_level() >= 2) {
         if (world.rank() == 0) print("   Norms of RHS of main equation:");
         if (world.rank() == 0) print("   x components:");
         print_norms(world, theta_X.X);
 
-        if (not Rparams.tda) {
+        if (not r_params.tda()) {
           if (world.rank() == 0) print("   y components:");
           print_norms(world, theta_X.Y);
         }
@@ -264,12 +265,12 @@ void TDDFT::Iterate(World& world, X_space& Chi) {
 
       // Construct BSH operators
       std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> bsh_x_operators = create_bsh_operators(
-          world, x_shifts, Gparams.energies, omega, Rparams.small, FunctionDefaults<3>::get_thresh());
+          world, x_shifts, ground_energies, omega, r_params.small(), FunctionDefaults<3>::get_thresh());
       std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> bsh_y_operators;
-      if (not Rparams.tda) {
+      if (not r_params.tda()) {
         omega = -omega;
         bsh_y_operators = create_bsh_operators(
-            world, y_shifts, Gparams.energies, omega, Rparams.small, FunctionDefaults<3>::get_thresh());
+            world, y_shifts, ground_energies, omega, r_params.small(), FunctionDefaults<3>::get_thresh());
         omega = -omega;
       }
 
@@ -277,18 +278,18 @@ void TDDFT::Iterate(World& world, X_space& Chi) {
       old_Chi = Chi.copy();
 
       // Apply BSH and get updated response components
-      if (Rparams.print_level >= 1) molresponse::start_timer(world);
+      if (r_params.print_level() >= 1) molresponse::start_timer(world);
       bsh_x_resp = apply(world, bsh_x_operators, theta_X.X);
-      if (not Rparams.tda) bsh_y_resp = apply(world, bsh_y_operators, theta_X.Y);
-      if (Rparams.print_level >= 1) molresponse::end_timer(world, "Apply BSH:");
+      if (not r_params.tda()) bsh_y_resp = apply(world, bsh_y_operators, theta_X.Y);
+      if (r_params.print_level() >= 1) molresponse::end_timer(world, "Apply BSH:");
 
       // Debugging output
-      if (Rparams.print_level >= 2) {
+      if (r_params.print_level() >= 2) {
         if (world.rank() == 0) print("   Norms after application of BSH");
         if (world.rank() == 0) print("   x-components:");
         print_norms(world, bsh_x_resp);
 
-        if (not Rparams.tda) {
+        if (not r_params.tda()) {
           if (world.rank() == 0) print("   y-components:");
           print_norms(world, bsh_y_resp);
         }
@@ -296,7 +297,7 @@ void TDDFT::Iterate(World& world, X_space& Chi) {
 
       // Project out ground state
       for (size_t i = 0; i < m; i++) bsh_x_resp[i] = projector(bsh_x_resp[i]);
-      if (not Rparams.tda) {
+      if (not r_params.tda()) {
         for (size_t i = 0; i < m; i++) bsh_y_resp[i] = projector(bsh_y_resp[i]);
       }
 
@@ -304,38 +305,38 @@ void TDDFT::Iterate(World& world, X_space& Chi) {
       for (size_t i = 0; i < m; i++) {
         if (not converged[i]) {
           Chi.X[i] = bsh_x_resp[i];
-          if (not Rparams.tda) Chi.Y[i] = bsh_y_resp[i];
+          if (not r_params.tda()) Chi.Y[i] = bsh_y_resp[i];
         }
       }
       // Scale by -2.0 (coefficient in eq. 37 of reference paper)
 
       Chi.X.truncate_rf();
-      if (not Rparams.tda) {
+      if (not r_params.tda()) {
         Chi.Y.truncate_rf();
       }
       // Get the difference between old and new
       x_differences = old_Chi.X - Chi.X;
-      if (not Rparams.tda) y_differences = old_Chi.Y - Chi.Y;
+      if (not r_params.tda()) y_differences = old_Chi.Y - Chi.Y;
 
       // Next calculate 2-norm of these vectors of differences
       // Remember: the entire vector is one state
       for (size_t i = 0; i < m; i++) x_norms(i) = norm2(world, x_differences[i]);
-      if (not Rparams.tda) {
+      if (not r_params.tda()) {
         for (size_t i = 0; i < m; i++) y_norms(i) = norm2(world, y_differences[i]);
       }
 
       // Basic output
-      if (Rparams.print_level >= 1) {
+      if (r_params.print_level() >= 1) {
         if (world.rank() == 0) print("\n   2-norm of response function residuals:");
         if (world.rank() == 0) print("   x components:");
         if (world.rank() == 0) print("resX i: ", iteration, " ", x_norms);
 
-        if (not Rparams.tda) {
+        if (not r_params.tda()) {
           if (world.rank() == 0) print("   y components:");
           if (world.rank() == 0) print("resY i: ", iteration, " ", y_norms);
         }
       }
-      if (Rparams.kain) {
+      if (r_params.kain()) {
         residuals = X_space(x_differences, y_differences);
 
         // seperate X_space vectors into individual vectors
@@ -359,20 +360,20 @@ void TDDFT::Iterate(World& world, X_space& Chi) {
       if (iteration > 0) {
         for (size_t b = 0; b < m; b++) {
           do_step_restriction(world, old_Chi.X[b], Chi.X[b], "x_response");
-          if (not Rparams.tda) {
+          if (not r_params.tda()) {
             do_step_restriction(world, old_Chi.Y[b], Chi.Y[b], "y_response");
           }
         }
       }
       // Apply mask
       for (size_t i = 0; i < m; i++) Chi.X[i] = mask * Chi.X[i];
-      if (not Rparams.tda) {
+      if (not r_params.tda()) {
         for (size_t i = 0; i < m; i++) Chi.Y[i] = mask * Chi.Y[i];
       }
       Chi.X.truncate_rf();
-      if (not Rparams.tda) Chi.Y.truncate_rf();
+      if (not r_params.tda()) Chi.Y.truncate_rf();
       // temp-> Chi
-      if (Rparams.print_level >= 1) {
+      if (r_params.print_level() >= 1) {
         print("Chi.x norms in iteration after truncate: ", iteration);
         print(Chi.X.norm2());
 
@@ -383,7 +384,7 @@ void TDDFT::Iterate(World& world, X_space& Chi) {
       // Only checking on X components even for full as Y are so small
       if (not relax) {
         for (size_t i = 0; i < m; i++) {
-          if (iteration >= 1 && not converged[i] && fabs(x_norms[i]) < Rparams.dconv) {
+          if (iteration >= 1 && not converged[i] && fabs(x_norms[i]) < r_params.dconv()) {
             converged[i] = true;
             num_conv++;
             if (world.rank() == 0) print("   Response function", i, " has converged. Freezing it.");
@@ -410,7 +411,7 @@ void TDDFT::Iterate(World& world, X_space& Chi) {
         if (iteration >= relax_start + 2) {
           // Check each state again
           for (size_t i = 0; i < m; i++) {
-            if (not converged[i] && fabs(x_norms[i]) < Rparams.dconv) {
+            if (not converged[i] && fabs(x_norms[i]) < r_params.dconv()) {
               converged[i] = true;
               num_conv++;
             }
@@ -422,17 +423,17 @@ void TDDFT::Iterate(World& world, X_space& Chi) {
       // Update counter
       iteration += 1;
       // Save
-      if (Rparams.save) {
+      if (r_params.save()) {
         molresponse::start_timer(world);
-        save(world, Rparams.save_file);
+        save(world, r_params.save_file());
         molresponse::end_timer(world, "Saving:");
       }
 
       // Basic output
-      if (Rparams.print_level >= 1) molresponse::end_timer(world, " This iteration:");
+      if (r_params.print_level() >= 1) molresponse::end_timer(world, " This iteration:");
     }
-    if (Rparams.plot_all_orbitals) {
-      plot_excited_states(world, iteration, Chi.X, Chi.Y, Rparams, Gparams);
+    if (r_params.plot_all_orbitals()) {
+      plot_excited_states(world, iteration, Chi.X, Chi.Y, r_params, g_params);
     }
 
   }  // Done with iterate.
@@ -442,7 +443,7 @@ void TDDFT::Iterate(World& world, X_space& Chi) {
   if (world.rank() == 0) print("\n");
 
   // Did we converge?
-  if (iteration == Rparams.max_iter && not all_converged) {
+  if (iteration == r_params.maxiter() && not all_converged) {
     if (world.rank() == 0) print("   Failed to converge. Reason:");
     if (world.rank() == 0) print("\n  ***  Ran out of iterations  ***\n");
     if (world.rank() == 0) print("    Running analysis on current values.\n");
@@ -460,7 +461,7 @@ void TDDFT::Iterate(World& world, X_space& Chi) {
     print(" Final x-state response function residuals:");
     print(x_norms);
 
-    if (not Rparams.tda) {
+    if (not r_params.tda()) {
       if (world.rank() == 0) print(" Final y-state response function residuals:");
       if (world.rank() == 0) print(y_norms);
     }
@@ -484,7 +485,7 @@ void TDDFT::analysis(World& world, X_space& Chi) {
     for (size_t j = 0; j < n; j++) {
       x_norms(i, j) = Chi.X[i][j].norm2();
 
-      if (not Rparams.tda) y_norms(i, j) = Chi.Y[i][j].norm2();
+      if (not r_params.tda()) y_norms(i, j) = Chi.Y[i][j].norm2();
     }
   }
 
@@ -501,7 +502,7 @@ void TDDFT::analysis(World& world, X_space& Chi) {
       x_order(i, j) = z;
 
       // Also sort y if full response
-      if (not Rparams.tda) {
+      if (not r_params.tda()) {
         y_order(i, j) = z;
       }
     }
@@ -519,14 +520,14 @@ void TDDFT::analysis(World& world, X_space& Chi) {
   for (size_t i = 0; i < m; i++) {
     // Add in contribution from each ground state
     for (size_t j = 0; j < n; j++) {
-      dipoles(i, 0) += inner(Gparams.orbitals[j], x * Chi.X[i][j]);
-      dipoles(i, 1) += inner(Gparams.orbitals[j], y * Chi.X[i][j]);
-      dipoles(i, 2) += inner(Gparams.orbitals[j], z * Chi.X[i][j]);
+      dipoles(i, 0) += inner(ground_orbitals[j], x * Chi.X[i][j]);
+      dipoles(i, 1) += inner(ground_orbitals[j], y * Chi.X[i][j]);
+      dipoles(i, 2) += inner(ground_orbitals[j], z * Chi.X[i][j]);
 
-      if (not Rparams.tda) {
-        dipoles(i, 0) += inner(Gparams.orbitals[j], x * Chi.Y[i][j]);
-        dipoles(i, 1) += inner(Gparams.orbitals[j], y * Chi.Y[i][j]);
-        dipoles(i, 2) += inner(Gparams.orbitals[j], z * Chi.Y[i][j]);
+      if (not r_params.tda()) {
+        dipoles(i, 0) += inner(ground_orbitals[j], x * Chi.Y[i][j]);
+        dipoles(i, 1) += inner(ground_orbitals[j], y * Chi.Y[i][j]);
+        dipoles(i, 2) += inner(ground_orbitals[j], z * Chi.Y[i][j]);
       }
     }
 
@@ -551,26 +552,26 @@ void TDDFT::analysis(World& world, X_space& Chi) {
   for (size_t i = 0; i < m; i++) {
     // Add in contribution from each ground state
     for (size_t j = 0; j < n; j++) {
-      quadrupoles(i, 0, 0) += inner(Gparams.orbitals[j], x * x * Chi.X[i][j]);
-      quadrupoles(i, 0, 1) += inner(Gparams.orbitals[j], x * y * Chi.X[i][j]);
-      quadrupoles(i, 0, 2) += inner(Gparams.orbitals[j], x * z * Chi.X[i][j]);
-      quadrupoles(i, 1, 0) += inner(Gparams.orbitals[j], y * x * Chi.X[i][j]);
-      quadrupoles(i, 1, 1) += inner(Gparams.orbitals[j], y * y * Chi.X[i][j]);
-      quadrupoles(i, 1, 2) += inner(Gparams.orbitals[j], y * z * Chi.X[i][j]);
-      quadrupoles(i, 2, 0) += inner(Gparams.orbitals[j], z * x * Chi.X[i][j]);
-      quadrupoles(i, 2, 1) += inner(Gparams.orbitals[j], z * y * Chi.X[i][j]);
-      quadrupoles(i, 2, 2) += inner(Gparams.orbitals[j], z * z * Chi.X[i][j]);
+      quadrupoles(i, 0, 0) += inner(ground_orbitals[j], x * x * Chi.X[i][j]);
+      quadrupoles(i, 0, 1) += inner(ground_orbitals[j], x * y * Chi.X[i][j]);
+      quadrupoles(i, 0, 2) += inner(ground_orbitals[j], x * z * Chi.X[i][j]);
+      quadrupoles(i, 1, 0) += inner(ground_orbitals[j], y * x * Chi.X[i][j]);
+      quadrupoles(i, 1, 1) += inner(ground_orbitals[j], y * y * Chi.X[i][j]);
+      quadrupoles(i, 1, 2) += inner(ground_orbitals[j], y * z * Chi.X[i][j]);
+      quadrupoles(i, 2, 0) += inner(ground_orbitals[j], z * x * Chi.X[i][j]);
+      quadrupoles(i, 2, 1) += inner(ground_orbitals[j], z * y * Chi.X[i][j]);
+      quadrupoles(i, 2, 2) += inner(ground_orbitals[j], z * z * Chi.X[i][j]);
 
-      if (not Rparams.tda) {
-        quadrupoles(i, 0, 0) += inner(Gparams.orbitals[j], x * x * Chi.Y[i][j]);
-        quadrupoles(i, 0, 1) += inner(Gparams.orbitals[j], x * y * Chi.Y[i][j]);
-        quadrupoles(i, 0, 2) += inner(Gparams.orbitals[j], x * z * Chi.Y[i][j]);
-        quadrupoles(i, 1, 0) += inner(Gparams.orbitals[j], y * x * Chi.Y[i][j]);
-        quadrupoles(i, 1, 1) += inner(Gparams.orbitals[j], y * y * Chi.Y[i][j]);
-        quadrupoles(i, 1, 2) += inner(Gparams.orbitals[j], y * z * Chi.Y[i][j]);
-        quadrupoles(i, 2, 0) += inner(Gparams.orbitals[j], z * x * Chi.Y[i][j]);
-        quadrupoles(i, 2, 1) += inner(Gparams.orbitals[j], z * y * Chi.Y[i][j]);
-        quadrupoles(i, 2, 2) += inner(Gparams.orbitals[j], z * z * Chi.Y[i][j]);
+      if (not r_params.tda()) {
+        quadrupoles(i, 0, 0) += inner(ground_orbitals[j], x * x * Chi.Y[i][j]);
+        quadrupoles(i, 0, 1) += inner(ground_orbitals[j], x * y * Chi.Y[i][j]);
+        quadrupoles(i, 0, 2) += inner(ground_orbitals[j], x * z * Chi.Y[i][j]);
+        quadrupoles(i, 1, 0) += inner(ground_orbitals[j], y * x * Chi.Y[i][j]);
+        quadrupoles(i, 1, 1) += inner(ground_orbitals[j], y * y * Chi.Y[i][j]);
+        quadrupoles(i, 1, 2) += inner(ground_orbitals[j], y * z * Chi.Y[i][j]);
+        quadrupoles(i, 2, 0) += inner(ground_orbitals[j], z * x * Chi.Y[i][j]);
+        quadrupoles(i, 2, 1) += inner(ground_orbitals[j], z * y * Chi.Y[i][j]);
+        quadrupoles(i, 2, 2) += inner(ground_orbitals[j], z * z * Chi.Y[i][j]);
       }
     }
     // Normalization
@@ -604,7 +605,7 @@ void TDDFT::analysis(World& world, X_space& Chi) {
 
       // Print contributions
       // Only print the top 5?
-      if (Rparams.tda) {
+      if (r_params.tda()) {
         print("\n   Dominant Contributions:");
         for (size_t j = 0; j < std::min(size_t(5), n); j++) {
           printf("   Occupied %d   %7.8f\n", x_order(i, j), x_norms(i, x_order(i, j)));
