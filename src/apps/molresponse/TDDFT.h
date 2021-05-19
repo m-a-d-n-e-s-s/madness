@@ -128,7 +128,6 @@ class TDDFT {
   functionT mask;
 
   ResponseParameters r_params;
-
   GroundParameters g_params;
 
   // Tensors for holding energies
@@ -180,16 +179,6 @@ class TDDFT {
   // Member variables
  public:
   // Collective constructor for response uses contents of file \c filename and
-  // broadcasts to all nodes
-  TDDFT(World& world,                   // MADNESS world object
-        const char* filename);          // Input file
-  TDDFT(World& world,                   // MADNESS world object
-        const std::string& inputfile);  // Input file
-
-  // Collective constructor for Response uses contens of steream \c input and
-  // broadcasts to all nodes
-  TDDFT(World& world,                          // MADNESS world object
-        std::shared_ptr<std::istream> input);  // Pointer to input stream
 
   TDDFT(World& world, ResponseParameters rparams, GroundParameters gparams);
   // Saves a response calculation
