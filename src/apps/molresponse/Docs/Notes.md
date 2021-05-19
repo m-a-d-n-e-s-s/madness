@@ -22,6 +22,7 @@ Returns a bool to redo the groundstate hamiltonian calculation if groundstate or
 If the default wavelet order does not equal to the wavelet order of the GS orbitals then we re-read the orbitals from the archive.  We then reconstruct the orbitals with `reconstruct(world, ground_orbitals);`
 
 `reconstruct(world, ground_orbitals);`
+
 ``` reconstruct a vector of functions
 set fence to false
 for f in vF:
@@ -31,10 +32,3 @@ for f in vF:
 ## Calculation Parameters
 
 call initialize with `key value, comment, and vector of allowed values`
-
-
-
-
-
-
-
