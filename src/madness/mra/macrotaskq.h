@@ -202,31 +202,6 @@ public:
         universe.gop.fence();
     }
 
-
-//	/// run the task on the vector of input data, return vector of results
-//	template<typename taskT>
-//	std::vector<typename taskT::result_type> map(taskT& task1,
-//			std::vector<typename taskT::data_type>& vdata) {
-//
-//		// create copies of the input task instance and fill with the data
-//		std::vector<std::shared_ptr<MacroTaskBase> > vtask(vdata.size());
-//		for (int i=0; i<vdata.size(); ++i) {
-//			vtask[i]=std::shared_ptr<MacroTaskBase>(new taskT(task1));
-//			dynamic_cast<taskT&>(*vtask[i].get()).set_data(vdata[i]);
-//		}
-//
-//		// execute the task list
-//		run_all(vtask);
-//
-//		// localize the result into universe
-//		std::vector<typename taskT::result_type> vresult(vdata.size());
-//		for (int i=0; i<vresult.size(); ++i) {
-//			vtask[i]->load_result(universe,"result_of_task"+std::to_string(i));
-//			vresult[i]=dynamic_cast<taskT&>(*(vtask[i].get())).get_result();
-//		}
-//		return vresult;
-//	}
-
 private:
 	void add_replicated_task(const std::shared_ptr<MacroTaskBase>& task) {
 		taskq.push_back(task);
@@ -278,68 +253,9 @@ public:
         FunctionDefaults<6>::set_default_pmap(world);
 	}
 private:
-
 	std::size_t size() const {
 		return taskq.size();
 	}
-
-//	void add_task(const std::shared_ptr<MacroTaskBase>& task) {
-//		ProcessID master=0;
-//		task->print_me("in add_task, universe.rank()="+std::to_string(universe.rank()));
-//		MacroTaskBase* taskptr=task.get();
-//		thistype::send(master,&thistype::add_task_local,taskptr);
-//	};
-//
-//	void add_task_local(const basetaskptr& task) {
-//		MADNESS_ASSERT(universe.rank()==0);
-//		std::shared_ptr<MacroTaskBase> task1;
-//		task1.reset(task);
-//		task1->print_me("in add_task_local");
-//		taskq.push(task1);
-//	};
-//
-//	std::shared_ptr<MacroTaskBase> get_task_from_tasklist(World& regional) {
-//
-//		// only root may pop from the task list
-//		std::vector<unsigned char> buffer;
-//		if (regional.rank()==0) buffer=pop();
-//		regional.gop.broadcast_serializable(buffer, 0);
-//		regional.gop.fence();
-//
-//		std::shared_ptr<MacroTaskBase> task;
-//		MacroTaskBase* task_ptr;
-//		BufferInputArchive ar(&buffer[0],buffer.size());
-//		ar & task_ptr;
-//
-//		task.reset(task_ptr);
-//		return task;
-//	}
-//
-//	/// pass serialized task from universe.rank()==0 to world.rank()==0
-//	std::vector<unsigned char> pop() {
-//		return this->task(ProcessID(0), &macro_taskq<taskT>::pop_local);
-//	}
-//
-//	/// pop highest-priority task and return it as serialized buffer
-//	std::vector<unsigned char> pop_local() {
-//		const std::lock_guard<std::mutex> lock(taskq_mutex);
-//		std::shared_ptr<MacroTaskBase> task(NULL);
-//
-//		if (not taskq.empty()) {
-//			task=taskq.top();
-//			taskq.pop();
-//		}
-//
-//		BufferOutputArchive ar_c;
-//		ar_c & task.get();
-//		long nbyte=ar_c.size();
-//		std::vector<unsigned char> buffer(nbyte);
-//
-//		BufferOutputArchive ar2(&buffer[0],buffer.size());
-//		ar2 & task.get();
-//
-//		return buffer;
-//	}
 
 };
 
@@ -353,7 +269,7 @@ struct is_vector<std::vector<Q>> : std::true_type {
 
 
 template<typename taskT>
-class MacroTask_2G {
+class MacroTask {
     using partitionT = MacroTaskPartitioner::partitionT;
 
     typedef typename taskT::resultT resultT;
@@ -363,7 +279,7 @@ class MacroTask_2G {
 
 public:
 
-    MacroTask_2G(World &world, taskT &task, std::shared_ptr<MacroTaskQ> taskq_ptr = 0)
+    MacroTask(World &world, taskT &task, std::shared_ptr<MacroTaskQ> taskq_ptr = 0)
             : world(world), task(task), taskq_ptr(taskq_ptr) {
         if (taskq_ptr) {
             // for the time being this condition must hold because tasks are
@@ -424,7 +340,7 @@ private:
         return std::make_pair(outputrecords, result);
     }
 
-    class MacroTaskInternal : public MacroTaskIntermediate<MacroTask_2G> {
+    class MacroTaskInternal : public MacroTaskIntermediate<MacroTask> {
 
         typedef decay_tuple<typename taskT::argtupleT> argtupleT;   // removes const, &, etc
         typedef typename taskT::resultT resultT;

@@ -184,7 +184,7 @@ int test_immediate(World& universe, const std::vector<real_function_3d>& v3,
                    const std::vector<real_function_3d>& ref) {
     if (universe.rank() == 0) print("\nstarting immediate execution");
     MicroTask t;
-    MacroTask_2G task_immediate(universe, t);
+    MacroTask task_immediate(universe, t);
     std::vector<real_function_3d> v = task_immediate(v3[0], 2.0, v3);
     int success=check_vector(universe,ref,v,"test_immediate execution of task");
     return success;
@@ -196,7 +196,7 @@ int test_deferred(World& universe, const std::vector<real_function_3d>& v3,
     auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(universe, universe.size()));
     taskq->set_printlevel(3);
     MicroTask t;
-    MacroTask_2G task(universe, t, taskq);
+    MacroTask task(universe, t, taskq);
     std::vector<real_function_3d> f2a = task(v3[0], 2.0, v3);
     taskq->print_taskq();
     taskq->run_all();
@@ -212,7 +212,7 @@ int test_twice(World& universe, const std::vector<real_function_3d>& v3,
     auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(universe, universe.size()));
     taskq->set_printlevel(3);
     MicroTask t;
-    MacroTask_2G task(universe, t, taskq);
+    MacroTask task(universe, t, taskq);
     std::vector<real_function_3d> f2a1 = task(v3[0], 2.0, v3);
     std::vector<real_function_3d> f2a2 = task(v3[0], 2.0, v3);
     taskq->print_taskq();
@@ -228,7 +228,7 @@ int test_task1(World& universe, const std::vector<real_function_3d>& v3) {
     if (universe.rank()==0) print("\nstarting Microtask1\n");
     MicroTask1 t1;
     real_function_3d ref_t1 = t1(v3[0], 2.0, v3);
-    MacroTask_2G task1(universe,t1);
+    MacroTask task1(universe, t1);
     real_function_3d ref_t2 = task1(v3[0], 2.0, v3);
     int success = check(universe,ref_t1, ref_t2, "task1 immediate");
     return success;
@@ -241,7 +241,7 @@ int test_2d_partitioning(World& universe, const std::vector<real_function_3d>& v
     MicroTask2 t;
     auto ref=t(v3,2.0,v3);
     t.partitioner->set_dimension(2);
-    MacroTask_2G task(universe, t, taskq);
+    MacroTask task(universe, t, taskq);
     std::vector<real_function_3d> f2a = task(v3, 2.0, v3);
     taskq->print_taskq();
     taskq->run_all();

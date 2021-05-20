@@ -1,6 +1,3 @@
-
-
-
 #ifndef SRC_APPS_CHEM_EXCHANGEOPERATOR_H_
 #define SRC_APPS_CHEM_EXCHANGEOPERATOR_H_
 
@@ -47,109 +44,6 @@ class Exchange {
         }
     }
 
-public:
-
-public:
-//    class MacroTaskExchange : public MacroTaskIntermediate<MacroTaskExchange> {
-//
-//        typedef std::vector<std::shared_ptr<MacroTaskBase> > taskqT;
-//
-//        static inline std::shared_ptr<vecfuncT> mo_ket, mo_bra, vf;
-//        static inline std::shared_ptr<real_convolution_3d> poisson;
-//
-//        std::pair<long,long> row_range, column_range;
-//        long nocc=0;
-//        long nf=0;
-//        double lo=1.e-4;
-//        double mul_tol=1.e-7;
-//        bool symmetric=true;
-//
-//
-//    public:
-//        MacroTaskExchange(const std::pair<long,long>& row_range, const std::pair<long,long>& column_range,
-//                          const long nocc, const long nf, const double lo, const double mul_tol, const bool symmetric)
-//                : row_range(row_range)
-//                , column_range(column_range)
-//                , nocc(nocc)
-//                , nf(nf)
-//                , lo(lo)
-//                , mul_tol(mul_tol)
-//                , symmetric(symmetric) {
-//            this->priority=compute_priority();
-//        }
-//
-//        /// compute the priority of this task for non-dumb scheduling
-//
-//        /// \return the priority as double number (no limits)
-//        double compute_priority() const {
-//            long nrow=row_range.second-row_range.first;
-//            long ncol=column_range.second-column_range.first;
-//            return double(nrow*ncol);
-//        }
-//
-//        /// run a macrotask
-//
-//        /// input and output is done through the cloud
-//        /// \param subworld     the world this task is executed in
-//        /// \param cloud        a storage class for input functions
-//        /// \param taskq        the taskq (for later reference..)
-//        void run(World& subworld, Cloud& cloud, taskqT& taskq);
-//
-//        /// compute a batch of the exchange matrix, with identical ranges, exploiting the matrix symmetry
-//
-//        /// \param subworld     the world we're computing in
-//        /// \param cloud        where to store the results
-//        /// \param bra_batch    the bra batch of orbitals (including the nuclear correlation factor square)
-//        /// \param ket_batch    the ket batch of orbitals, i.e. the orbitals to premultiply with
-//        /// \param vf_batch     the argument of the exchange operator
-//        vecfuncT compute_diagonal_batch_in_symmetric_matrix(World& subworld,
-//                                       const vecfuncT& bra_batch, const vecfuncT& ket_batch, const vecfuncT& vf_batch) const {
-//            double mul_tol=0.0;
-//            double symmetric=true;
-//            return Exchange<T,NDIM>::compute_K_tile(subworld,bra_batch,ket_batch,vf_batch,poisson,symmetric,mul_tol);
-//        }
-//
-//        /// compute a batch of the exchange matrix, with non-identical ranges
-//
-//        /// \param subworld     the world we're computing in
-//        /// \param cloud        where to store the results
-//        /// \param bra_batch    the bra batch of orbitals (including the nuclear correlation factor square)
-//        /// \param ket_batch    the ket batch of orbitals, i.e. the orbitals to premultiply with
-//        /// \param vf_batch     the argument of the exchange operator
-//        vecfuncT compute_batch_in_asymmetric_matrix(World& subworld,
-//                                       const vecfuncT& bra_batch, const vecfuncT& ket_batch, const vecfuncT& vf_batch) const {
-//            double mul_tol=0.0;
-//            double symmetric=false;
-//            return Exchange<T,NDIM>::compute_K_tile(subworld,bra_batch,ket_batch,vf_batch,poisson,symmetric,mul_tol);
-//        }
-//
-//        /// compute a batch of the exchange matrix, with non-identical ranges
-//
-//        /// \param subworld     the world we're computing in
-//        /// \param cloud        where to store the results
-//        /// \param bra_batch    the bra batch of orbitals (including the nuclear correlation factor square)
-//        /// \param ket_batch    the ket batch of orbitals, i.e. the orbitals to premultiply with
-//        /// \param vf_batch     the argument of the exchange operator
-//        std::pair<vecfuncT, vecfuncT> compute_offdiagonal_batch_in_symmetric_matrix(World &subworld,
-//                                       const vecfuncT& bra_batch, const vecfuncT& ket_batch, const vecfuncT& vf_batch) const;
-//
-//        void cleanup() {
-//            if (mo_ket) mo_ket.reset();
-//            if (mo_bra) mo_bra.reset();
-//            if (vf) vf.reset();
-//            if (poisson) poisson.reset();
-//        }
-//
-//        template <typename Archive>
-//        void serialize(const Archive& ar) {
-//            ar & row_range & column_range & nocc & lo &  mul_tol ;
-//        }
-//
-//        void print_me(std::string s="") const {
-//            print("K apply task", s, this->stat, "priority",this->get_priority());
-//        }
-//
-//    };
 public:
 
     enum Algorithm {
@@ -244,7 +138,7 @@ private:
 
     inline bool do_print_timings() const { return (world.rank() == 0) and (printlevel >= 3); }
 
-    inline bool printdebug() const { return (world.rank() == 0) and (printlevel >= 10); }
+    inline bool printdebug() const {return printlevel >= 10; }
 
     World& world;
     bool symmetric_ = false;      /// is the exchange matrix symmetric? K phi_i = \sum_k \phi_k \int \phi_k \phi_i
@@ -257,7 +151,7 @@ private:
         long nresult;
         double lo = 1.e-4;
         double mul_tol = 1.e-7;
-        bool symmetric = true;
+        bool symmetric = false;
 
         /// custom partitioning for the exchange operator in exchangeoperator.h
 
@@ -266,21 +160,23 @@ private:
         class MacroTaskPartitionerExchange : public MacroTaskPartitioner {
         public:
             MacroTaskPartitionerExchange(const bool symmetric) : symmetric(symmetric) {}
-            bool symmetric=false;
-            partitionT do_partitioning(const std::size_t &vsize1, const std::size_t &vsize2,
+
+            bool symmetric = false;
+
+            partitionT do_partitioning(const std::size_t& vsize1, const std::size_t& vsize2,
                                        const std::string policy) const override {
 
-                partitionT partition1=do_1d_partition(vsize1,policy);
-                partitionT partition2=do_1d_partition(vsize2,policy);
+                partitionT partition1 = do_1d_partition(vsize1, policy);
+                partitionT partition2 = do_1d_partition(vsize2, policy);
                 partitionT result;
-                for (auto i=partition1.begin(); i!=partition1.end(); ++i) {
+                for (auto i = partition1.begin(); i != partition1.end(); ++i) {
                     if (symmetric) {
-                        for (auto j=i; j!=partition1.end(); ++j) {
-                            result.push_back(Batch(i->input[0],j->input[0],_));
+                        for (auto j = i; j != partition1.end(); ++j) {
+                            result.push_back(Batch(i->input[0], j->input[0], _));
                         }
                     } else {
-                        for (auto j=partition2.begin(); j!=partition2.end(); ++j) {
-                            result.push_back(Batch(i->input[0],j->input[0],_));
+                        for (auto j = partition2.begin(); j != partition2.end(); ++j) {
+                            result.push_back(Batch(i->input[0], j->input[0], _));
                         }
                     }
                 }
@@ -305,55 +201,58 @@ private:
         }
 
         // you need to define the exact argument(s) of operator() as tuple
-        typedef std::tuple<const std::vector<Function<T,NDIM>>&,
-                           const std::vector<Function<T,NDIM>>&,
-                           const std::vector<Function<T,NDIM>>&> argtupleT;
+        typedef std::tuple<const std::vector<Function<T, NDIM>>&,
+                const std::vector<Function<T, NDIM>>&,
+                const std::vector<Function<T, NDIM>>&> argtupleT;
 
-        using resultT = std::vector<Function<T,NDIM>>;
+        using resultT = std::vector<Function<T, NDIM>>;
 
         // you need to define an empty constructor for the result
         // resultT must implement operator+=(const resultT&)
         resultT allocator(World& world, const argtupleT& argtuple) const {
             std::size_t n = std::get<0>(argtuple).size();
-            resultT result = zero_functions_compressed<T,NDIM>(world, n);
+            resultT result = zero_functions_compressed<T, NDIM>(world, n);
             return result;
         }
 
-        std::vector<Function<T,NDIM>> operator()(const std::vector<Function<T,NDIM>>& vf_batch,     // will be batched (column)
-                                                 const std::vector<Function<T,NDIM>>& bra_batch,    // will be batched (row)
-                                                 const std::vector<Function<T,NDIM>>& vket) {       // will not be batched
+        std::vector<Function<T, NDIM>>
+        operator()(const std::vector<Function<T, NDIM>>& vf_batch,     // will be batched (column)
+                   const std::vector<Function<T, NDIM>>& bra_batch,    // will be batched (row)
+                   const std::vector<Function<T, NDIM>>& vket) {       // will not be batched
 
             World& world = vf_batch.front().world();
-            resultT Kf = zero_functions_compressed<T,NDIM>(world, nresult);
+            resultT Kf = zero_functions_compressed<T, NDIM>(world, nresult);
 
             bool diagonal_block = batch.input[0] == batch.input[1];
             auto& bra_range = batch.input[1];    // corresponds to vbra
             auto& vf_range = batch.input[0];       // corresponds to vf_batch
 
-            if (vf_range.is_full_size()) vf_range.end=vf_batch.size();
-            if (bra_range.is_full_size()) bra_range.end=bra_batch.size();
+            if (vf_range.is_full_size()) vf_range.end = vf_batch.size();
+            if (bra_range.is_full_size()) bra_range.end = bra_batch.size();
 
             MADNESS_CHECK(vf_range.end <= nresult);
             if (symmetric) MADNESS_CHECK(bra_range.end <= nresult);
 
             if (symmetric and diagonal_block) {
-                auto ket_batch=bra_range.copy_batch(vket);
-                vecfuncT resultcolumn = compute_diagonal_batch_in_symmetric_matrix(world, ket_batch, bra_batch, vf_batch);
+                auto ket_batch = bra_range.copy_batch(vket);
+                vecfuncT resultcolumn = compute_diagonal_batch_in_symmetric_matrix(world, ket_batch, bra_batch,
+                                                                                   vf_batch);
 
                 for (int i = vf_range.begin; i < vf_range.end; ++i)
                     Kf[i] += resultcolumn[i - vf_range.begin];
 
             } else if (symmetric and not diagonal_block) {
-                auto[resultcolumn, resultrow]=compute_offdiagonal_batch_in_symmetric_matrix(world, vket, bra_batch, vf_batch);
+                auto[resultcolumn, resultrow]=compute_offdiagonal_batch_in_symmetric_matrix(world, vket, bra_batch,
+                                                                                            vf_batch);
 
                 for (int i = bra_range.begin; i < bra_range.end; ++i)
                     Kf[i] += resultcolumn[i - bra_range.begin];
                 for (int i = vf_range.begin; i < vf_range.end; ++i)
                     Kf[i] += resultrow[i - vf_range.begin];
             } else {
-                auto ket_batch=vf_range.copy_batch(vket);
+                auto ket_batch = bra_range.copy_batch(vket);
                 vecfuncT resultcolumn = compute_batch_in_asymmetric_matrix(world, ket_batch, bra_batch, vf_batch);
-                for (int i = bra_range.begin; i < bra_range.end; ++i)
+                for (int i = vf_range.begin; i < vf_range.end; ++i)
                     Kf[i] += resultcolumn[i - bra_range.begin];
             }
             return Kf;
@@ -370,7 +269,7 @@ private:
                                                             const vecfuncT& ket_batch,      // is batched
                                                             const vecfuncT& bra_batch,      // is batched
                                                             const vecfuncT& vf_batch        // is batched
-                                                            ) const {
+        ) const {
             double mul_tol = 0.0;
             double symmetric = true;
             auto poisson = Exchange<double, 3>::set_poisson(subworld, lo);
