@@ -142,7 +142,7 @@ void TDDFT::solve_excited_states(World& world) {
           print(
               "\n   Iterating trial functions for an improved initial "
               "guess.\n");
-        IterateGuess(world, Chi.X);
+        IterateGuess(world, Chi);
         // Sort
         sort(world, omega, Chi.X);
         // Basic output

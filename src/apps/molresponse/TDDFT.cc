@@ -2637,6 +2637,25 @@ void TDDFT::sort(World& world, Tensor<double>& vals, response_space& f) {
  * @param m
  */
 
+void TDDFT::deflateGuesses(World& world,
+                           X_space& Chi,
+                           X_space& Lambda_X,
+                           Tensor<double>& S,
+                           Tensor<double>& omega,
+                           size_t& iteration,
+                           size_t& m) {
+  S = response_space_inner(Chi.X, Chi.X);
+  Tensor<double> XAX = response_space_inner(Chi.X, Lambda_X.X);
+
+  // Debugging output
+  if (r_params.print_level() >= 2 and world.rank() == 0) {
+    print("   Overlap matrix:");
+    print(S);
+  }
+  // Just to be sure dimensions work out, clear omega
+  omega.clear();
+  diagonalizeFockMatrix(world, Chi, Lambda_X, omega, XAX, S, FunctionDefaults<3>::get_thresh());
+}
 void TDDFT::deflateTDA(World& world,
                        X_space& Chi,
                        X_space& old_Chi,
@@ -3000,6 +3019,181 @@ response_space TDDFT::diagonalize_CIS_guess(World& world,
   // Done. Whew.
   return f;
 }
+
+// Simplified iterate scheme for guesses
+void TDDFT::IterateGuess(World& world, X_space& guesses) {
+  // Variables needed to iterate
+  size_t iteration = 0;                                     // Iteration counter
+  QProjector<double, 3> projector(world, ground_orbitals);  // Projector to project out ground state
+  size_t m = r_params.n_states();                           // Number of excited states
+  size_t n = r_params.num_orbitals();                       // Number of ground state orbitals
+  Tensor<double> x_shifts;                                  // Holds the shifted energy values
+  response_space bsh_resp(world, m, n);                     // Holds wave function corrections
+  response_space gamma;                                     // Holds the perturbed two electron piece
+  response_space rhs;
+  response_space fe;  // Holds the ground state-fock and energy scaled x
+  // response components
+  response_space V;          // Holds V^0 applied to response functions
+  response_space shifted_V;  // Holds the shifted V^0 applied to response functions
+  Tensor<double> S;          // Overlap matrix of response components for x states
+  real_function_3d v_xc;     // For TDDFT
+
+  XCOperator<double, 3> xc = create_XCOperator(world, ground_orbitals, r_params.xc());
+  // Useful to have
+  response_space zeros(world, m, n);
+
+  // Now to iterate
+  while (iteration < r_params.guess_max_iter()) {
+    // Start a timer for this iteration
+    molresponse::start_timer(world);
+    // (Eventually take symmtry into consideration
+    //  We need a number of points that takes into account the number
+    //  of degenerate states)
+    // reduce the space progressively
+    //  Starting number of response functions
+    //
+    size_t N0 = guesses.X.size();
+    //  number of response functions after p-1 iterations
+    //  I believe we don't iterate the last time
+    size_t Np = 2 * m;
+    // this controls the final number of points to choose from
+    // number of iterations
+    size_t p = r_params.guess_max_iter() - 1;
+    // Number of points after i iterations
+    size_t Ni = N0;
+
+    // No*exp(log(Np/N0)/p*t) to exponential decay
+    // the number of states down to 2*r_params.states
+    if (iteration > 1 && r_params.guess_xyz() && Ni > Np) {
+      Ni = std::ceil(N0 * std::exp(std::log(static_cast<double>(Np) / static_cast<double>(N0)) /
+                                   static_cast<double>(p) * iteration));
+      sort(world, omega, guesses.X);
+      print(omega);
+      for (size_t i = 0; i < Ni; i++) {
+        Ni = 0;
+        if (omega[i] < 1) {
+          Ni++;
+        }
+      }
+      // this function selects k functions
+      guesses.X = select_functions(world, guesses.X, omega, Ni, r_params.print_level());
+    }
+
+    // Basic output
+    if (r_params.print_level() >= 1) {
+      if (world.rank() == 0)
+        printf("\n   Guess Iteration %d at time %.1fs\n", static_cast<int>(iteration), wall_time());
+      if (world.rank() == 0) print(" -------------------------------------");
+    }
+
+    // Load balance
+    // Only balancing on x-components. Smart?
+    if (world.size() > 1 && ((iteration < 2) or (iteration % 5 == 0)) and
+
+        iteration != 0) {
+      // Start a timer
+      if (r_params.print_level() >= 1) molresponse::start_timer(world);
+      if (world.rank() == 0) print("");  // Makes it more legible
+
+      LoadBalanceDeux<3> lb(world);
+      for (size_t j = 0; j < n; j++) {
+        for (size_t k = 0; k < r_params.n_states(); k++) {
+          lb.add_tree(guesses.X[k][j], lbcost<double, 3>(1.0, 8.0), true);
+          // lb.add_tree(V[k][j], lbcost<double,3>(1.0,8.0), true);
+          // lb.add_tree(gamma[k][j], lbcost<double,3>(1.0,8.0), true);
+        }
+      }
+      FunctionDefaults<3>::redistribute(world, lb.load_balance(2));
+
+      if (r_params.print_level() >= 1) molresponse::end_timer(world, "Load balancing:");
+    }
+
+    // Project out ground state
+    for (size_t i = 0; i < Ni; i++) guesses.X[i] = projector(guesses.X[i]);
+
+    // Truncate before doing expensive things
+    guesses.X.truncate_rf();
+
+    // Normalize after projection
+    if (r_params.tda()) normalize(world, guesses.X);
+    // (TODO why not normalize if not tda)
+    // compute Y = false
+    X_space Lambda_X = Compute_Lambda_X(world, Chi, xc, false);
+    // Create gamma
+    //    gamma = CreateGamma(world, guesses, zeros, ground_orbitals,
+    //    r_params.small,
+    //                        FunctionDefaults<3>::get_thresh(),
+    //                        Rparams.print_level,
+    //                       "x");
+    //
+    deflateGuesses(world, guesses, Lambda_X, S, omega, iteration, m);
+    // Debugging output
+
+    // Ensure right number of omegas
+    if (size_t(omega.dim(0)) != Ni) {
+      if (world.rank() == 0)
+        print("\n   Adding",
+              Ni - omega.dim(0),
+              "eigenvalue(s) (counters subspace size "
+              "reduction in "
+              "diagonalizatoin).");
+      Tensor<double> temp(Ni);
+      temp(Slice(0, omega.dim(0) - 1)) = omega;
+      for (size_t i = omega.dim(0); i < Ni; i++) temp[i] = 2.5 * i;
+      omega = copy(temp);
+    }
+
+    // Basic output
+    if (r_params.print_level() >= 1 and world.rank() == 0) {
+      print("\n   Excitation Energies:");
+      print("gi=", iteration, " roots: ", omega);
+    }
+
+    // Only do BSH if not the last iteration
+    if (iteration + 1 < r_params.guess_max_iter()) {
+      //  Calculates shifts needed for potential / energies
+      //  If none needed, the zero tensor is returned
+      x_shifts = create_shift(world, ground_energies, omega, r_params.print_level(), "x");
+
+      X_space theta_X = Compute_Theta_X(world, Chi, xc, false);
+      theta_X.X = apply_shift(world, x_shifts, theta_X.X, Chi.X);
+      theta_X.X = theta_X.X * -2;
+      theta_X.X.truncate_rf();
+
+      // Construct BSH operators
+      std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> bsh_x_operators = create_bsh_operators(
+          world, x_shifts, ground_energies, omega, r_params.small(), FunctionDefaults<3>::get_thresh());
+
+      // Scale by -2.0 (coefficient in eq. 37 of reference
+      // paper)
+
+      // Apply BSH and get updated components
+      if (r_params.print_level() >= 1) molresponse::start_timer(world);
+      bsh_resp = apply(world, bsh_x_operators, rhs);
+      if (r_params.print_level() >= 1) molresponse::end_timer(world, "Apply BSH:");
+
+      // Project out ground state
+      for (size_t i = 0; i < Ni; i++) bsh_resp[i] = projector(bsh_resp[i]);
+
+      // Save new components
+      guesses.X = bsh_resp;
+      // Apply mask
+      for (size_t i = 0; i < Ni; i++) guesses.X[i] = mask * guesses.X[i];
+    }
+
+    // Update counter
+    iteration += 1;
+
+    // Done with the iteration.. truncate
+    guesses.X.truncate_rf();
+
+    // Basic output
+    if (r_params.print_level() >= 1) {  //
+      molresponse::end_timer(world, " This iteration:");
+    }
+  }
+}  // Done with iterate gues
+// Simplified iterate scheme for guesses
 
 // Adds in random noise to a vector of vector of functions
 response_space TDDFT::add_randomness(World& world, response_space& f, double magnitude) {

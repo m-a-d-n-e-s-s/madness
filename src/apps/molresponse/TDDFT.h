@@ -501,6 +501,13 @@ class TDDFT {
   // Sorts the given Tensor and response functions in place
   void sort(World& world, Tensor<double>& vals, response_space& f);
 
+  void deflateGuesses(World& world,
+                      X_space& Chi,
+                      X_space& Lambda_X,
+                      Tensor<double>& S,
+                      Tensor<double>& omega,
+                      size_t& iteration,
+                      size_t& m);
   void deflateTDA(World& world,
                   X_space& Chi,
                   X_space& old_Chi,
@@ -557,7 +564,7 @@ class TDDFT {
   void analysis(World& world, X_space& Chi);
 
   // Simplified iterate scheme for guesses
-  void IterateGuess(World& world, response_space& guesses);
+  void IterateGuess(World& world, X_space& guesses);
 
   // Create and diagonalize the CIS matrix for improved initial guess
   response_space diagonalize_CIS_guess(World& world,

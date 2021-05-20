@@ -25,7 +25,6 @@ molresponse.cc
 # TDDFT.cc
 # iterate_freq2.cc
 # iterate_excited2.cc
-# iterate_xy.cc
 #global_functions.cc
 	#  basic_operators
 	#  Plot_VTK.cc timer.cc)
