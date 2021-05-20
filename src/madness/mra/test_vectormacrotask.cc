@@ -264,9 +264,6 @@ int main(int argc, char **argv) {
     int nworld = universe.size();
     if (universe.rank() == 0) print("creating nworld", nworld, universe.id());
 
-    // TODO: serialize member variables of tasks
-    // TODO: pretty-print cloud content/input/output records
-
     {
         // execution in a taskq, result will be complete only after the taskq is finished
         real_function_3d f1 = real_factory_3d(universe).functor(slater(1.0));

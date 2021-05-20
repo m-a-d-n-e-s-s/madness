@@ -17,6 +17,9 @@
  The user-defined macrotask is derived from MacroTaskIntermediate and must implement the run()
  method. A heterogeneous task queue is possible.
 
+ TODO: update documentation
+ TODO: consider serializing task
+
 */
 
 
