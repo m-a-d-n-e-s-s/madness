@@ -129,7 +129,7 @@ int main(int argc, char **argv) {
 
     madness::World &universe = madness::initialize(argc, argv);
     startup(universe, argc, argv);
-    int success=1;
+    int success=0;
 
     success+=test_batch_1D(universe);
     success+=test_batch(universe);

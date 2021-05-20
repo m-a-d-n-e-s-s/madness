@@ -78,11 +78,11 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::operator()(
     /// saving up to half of the cpu time compared to the naive algorithm
     /// \tparam T       number type
     /// \tparam NDIM    physical dimension of the argument vket
-    /// \param vket     argument of the exchange operator
+    /// \param vf     argument of the exchange operator
     /// \param mul_tol  cutoff parameter for sparse multiplication
     /// \return         the exchange operator applied on vket
     template<typename T, std::size_t NDIM>
-    std::vector<Function<T,NDIM> > Exchange<T, NDIM>::K_macrotask_efficient(const vecfuncT &vket, const double mul_tol) const {
+    std::vector<Function<T,NDIM> > Exchange<T, NDIM>::K_macrotask_efficient(const vecfuncT &vf, const double mul_tol) const {
 
         if (printdebug()) print("\nentering macrotask_efficient version:");
 
@@ -90,13 +90,21 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::operator()(
         const long nsubworld=world.size();
 
         // the result is a vector of functions living in the universe
-        const long nf=vket.size();
-        vecfuncT Kf=zero_functions_compressed<T,NDIM>(world,nf);
-        {
+        const long nf=vf.size();
 
-            double wall0 = wall_time();
-            MacroTaskQ taskq(world, nsubworld);
-            long start = 0;
+        MacroTaskExchangeSimple xtask(nf,lo,mul_tol,is_symmetric());
+        auto taskq_ptr=std::shared_ptr<MacroTaskQ> (new MacroTaskQ(world, world.size()));
+        MacroTask_2G mtask(world,xtask,taskq_ptr);
+        vecfuncT Kf=mtask(vf,mo_bra,mo_ket);
+        taskq_ptr->print_taskq();
+        taskq_ptr->run_all();
+        taskq_ptr->cloud.print_timings(world);
+        taskq_ptr->cloud.clear_timings();
+
+//        {
+//            double wall0 = wall_time();
+//            MacroTaskQ taskq(world, nsubworld);
+//            long start = 0;
 //            for (int i = 0; i < nocc; ++i) {
 //                taskq.cloud.store(world, mo_bra[i], i);
 //                taskq.cloud.store(world, mo_ket[i], i + nocc);
@@ -106,54 +114,54 @@ std::vector<Function<T,NDIM> > Exchange<T,NDIM>::operator()(
 //                taskq.cloud.store(world, vket[i], i + start);
 //                taskq.cloud.store(world, Kf[i].get_impl(), start + i + nf); // store pointer to FunctionImpl
 //            }
-            double wall1 = wall_time();
-            if (do_print_timings()) printf("wall time for storing %4.1fs\n", wall1 - wall0);
-
-            // partition the exchange matrix into tiles
-            // result[rowbatch] = \sum_{columnbatches} sum_{k in columnbatch} ket[k] \int bra[k] vf[rowbatch]
-            std::vector<std::pair<long, long> > rowranges, columnranges;
-
-            // symmetric exchange matrix, symmetric tiles
-            if (is_symmetric()) {
-                rowranges = MacroTaskPartitioner::partition_for_exchange(5, nsubworld, nocc);
-//            rowranges=MacroTaskPartitioner::partition_for_exchange(5,nsubworld,nocc);
-                columnranges = rowranges;
-            } else {
-                rowranges = MacroTaskPartitioner::partition_for_exchange(5, nsubworld, nocc);
-                columnranges = MacroTaskPartitioner::partition_for_exchange(5, nsubworld, nf);
-            }
-            if (printdebug()) {
-                print("symmetric", symmetric_);
-                print("splitting nf into", rowranges.size(), "ranges");
-                for (auto &r : rowranges) printf(" %2ld to %2ld", r.first, r.second);
-                print("\nsplitting nocc into", columnranges.size(), "ranges");
-                for (auto &r : columnranges) printf(" %2ld to %2ld", r.first, r.second);
-                print("");
-            }
-
-            MacroTaskBase::taskqT vtask;
-            for (auto &row_range : rowranges) {
-                for (auto &column_range : columnranges) {
-                    // if the exchange matrix is symmetric compute only the the upper triangular matrix
-                    if (is_symmetric() and row_range.first > column_range.first) continue;
-
-                    MacroTaskExchange task(row_range, column_range, nocc, nf, lo, mul_tol, symmetric_);
-                    vtask.push_back(std::shared_ptr<MacroTaskBase>(new MacroTaskExchange(task)));
-                }
-            }
-            world.gop.fence();
-            // sort the tasks according to their tile size, assuming that's a proxy for how much time they take
-            std::sort(vtask.begin(), vtask.end(), [](auto a, auto b) { return a->get_priority() > b->get_priority(); });
-
-            auto current_pmap = FunctionDefaults<3>::get_pmap();
-            FunctionDefaults<3>::set_default_pmap(taskq.get_subworld());
-            taskq.run_all(vtask);
-            FunctionDefaults<3>::set_pmap(current_pmap);
-
-            truncate(world, Kf);
-            if (printlevel >= 3) taskq.cloud.print_timings(world);
-            taskq.get_subworld().gop.fence();
-        }
+//            double wall1 = wall_time();
+//            if (do_print_timings()) printf("wall time for storing %4.1fs\n", wall1 - wall0);
+//
+//            // partition the exchange matrix into tiles
+//            // result[rowbatch] = \sum_{columnbatches} sum_{k in columnbatch} ket[k] \int bra[k] vf[rowbatch]
+//            std::vector<std::pair<long, long> > rowranges, columnranges;
+//
+//            // symmetric exchange matrix, symmetric tiles
+//            if (is_symmetric()) {
+//                rowranges = MacroTaskPartitioner::partition_for_exchange(5, nsubworld, nocc);
+////            rowranges=MacroTaskPartitioner::partition_for_exchange(5,nsubworld,nocc);
+//                columnranges = rowranges;
+//            } else {
+//                rowranges = MacroTaskPartitioner::partition_for_exchange(5, nsubworld, nocc);
+//                columnranges = MacroTaskPartitioner::partition_for_exchange(5, nsubworld, nf);
+//            }
+//            if (printdebug()) {
+//                print("symmetric", symmetric_);
+//                print("splitting nf into", rowranges.size(), "ranges");
+//                for (auto &r : rowranges) printf(" %2ld to %2ld", r.first, r.second);
+//                print("\nsplitting nocc into", columnranges.size(), "ranges");
+//                for (auto &r : columnranges) printf(" %2ld to %2ld", r.first, r.second);
+//                print("");
+//            }
+//
+//            MacroTaskBase::taskqT vtask;
+//            for (auto &row_range : rowranges) {
+//                for (auto &column_range : columnranges) {
+//                    // if the exchange matrix is symmetric compute only the the upper triangular matrix
+//                    if (is_symmetric() and row_range.first > column_range.first) continue;
+//
+//                    MacroTaskExchange task(row_range, column_range, nocc, nf, lo, mul_tol, symmetric_);
+//                    vtask.push_back(std::shared_ptr<MacroTaskBase>(new MacroTaskExchange(task)));
+//                }
+//            }
+//            world.gop.fence();
+//            // sort the tasks according to their tile size, assuming that's a proxy for how much time they take
+//            std::sort(vtask.begin(), vtask.end(), [](auto a, auto b) { return a->get_priority() > b->get_priority(); });
+//
+//            auto current_pmap = FunctionDefaults<3>::get_pmap();
+//            FunctionDefaults<3>::set_default_pmap(taskq.get_subworld());
+//            taskq.run_all(vtask);
+//            FunctionDefaults<3>::set_pmap(current_pmap);
+//
+//            truncate(world, Kf);
+//            if (printlevel >= 3) taskq.cloud.print_timings(world);
+//            taskq.get_subworld().gop.fence();
+//        }
         world.gop.fence();
         return Kf;
     }
@@ -220,6 +228,15 @@ Exchange<T, NDIM>::compute_K_tile(World &world, const vecfuncT &mo_bra, const ve
     cpu1=cpu_time();
     apply_timer+=long((cpu1-cpu0)*1000l);
 
+    int ij1=0;
+    Tensor<double> k(nocc,nocc);
+    for (int i=0; i<nocc; ++i) {
+        for (int j=0; j<=i; ++j, ij1++) {
+            k(i,j)=psif[ij1].norm2();
+        }
+    }
+    print("exchange-intermediate ");
+    print(k);
     cpu0=cpu_time();
     reconstruct(world, psif);
     norm_tree(world, psif);
@@ -257,66 +274,66 @@ Exchange<T, NDIM>::compute_K_tile(World &world, const vecfuncT &mo_bra, const ve
 }
 
 
-template<typename T, std::size_t NDIM>
-void Exchange<T,NDIM>::MacroTaskExchange::run(World& subworld, Cloud& cloud,
-                                              std::vector<std::shared_ptr<MacroTaskBase> >& taskq) {
-
-    if (not poisson) poisson = Exchange<T,NDIM>::set_poisson(subworld,lo);
-    // the argument of the exchange operator is the ket vector
-
-    // load bra and ket if not already loaded
-    if (not mo_bra.get()) {
-        mo_bra.reset(new vecfuncT(nocc));
-        for (int i = 0; i < nocc; ++i) (*mo_bra)[i] = cloud.load<functionT>(subworld, i);
-    }
-    if (not mo_ket.get()) {
-        mo_ket.reset(new vecfuncT(nocc));
-        for (int i = 0; i < nocc; ++i) (*mo_ket)[i] = cloud.load<functionT>(subworld, i + nocc);
-    }
-
-    if (not vf.get()) {
-        vf.reset(new vecfuncT(nf));
-        for (int i = 0; i < nf; ++i) (*vf)[i] = cloud.load<functionT>(subworld, i + 2*nocc);
-    }
-
-    // make universe-living Kf accessible here in the subworld for result accumulation
-    vecfuncT Kf(nf);
-    for (int i=0; i<nf; ++i) {
-        std::shared_ptr<FunctionImpl<T,NDIM> > rimpl;
-        cloud.load(subworld,rimpl,i+2*nocc+nf);
-        Kf[i].set_impl(rimpl);
-    }
-
-    // compute the tile [column_range,row_range], corresponding to bra[nrow], ket[ncolumn]
-    // partition the exchange matrix into tiles
-    // result[i]        =                      sum_{k}                ket[k] \int bra[k] vf[i]
-    // result[rowbatch] = \sum_{columnbatches} sum_{k in columnbatch} ket[k] \int bra[k] vf[rowbatch]
-    vecfuncT ket_batch(mo_ket->begin() + row_range.first, mo_ket->begin() + row_range.second);
-    vecfuncT bra_batch(mo_bra->begin() + row_range.first, mo_bra->begin() + row_range.second);
-    vecfuncT vf_batch (vf->begin()     + column_range.first,    vf->begin()     + column_range.second);
-
-    if (symmetric and (row_range == column_range)) {
-        vecfuncT resultcolumn = compute_diagonal_batch_in_symmetric_matrix(subworld, bra_batch, ket_batch, vf_batch);
-
-        for (int i = row_range.first; i < row_range.second; ++i)
-            Kf[i]+=resultcolumn[i - row_range.first];
-
-    } else if (symmetric and !(row_range == column_range)) {
-        auto [resultcolumn,resultrow]=compute_offdiagonal_batch_in_symmetric_matrix(subworld, bra_batch, ket_batch, vf_batch);
-
-        for (int i = column_range.first; i < column_range.second; ++i)
-            Kf[i]+=resultrow[i - column_range.first];
-        for (int i = row_range.first; i < row_range.second; ++i)
-            Kf[i]+=resultcolumn[i - row_range.first];
-    } else {
-        vecfuncT resultcolumn = compute_batch_in_asymmetric_matrix(subworld, bra_batch, ket_batch, vf_batch);
-
-        for (int i = column_range.first; i < column_range.second; ++i)
-            Kf[i]+=resultcolumn[i - column_range.first];
-
-    }
-    subworld.gop.fence();
-}
+//template<typename T, std::size_t NDIM>
+//void Exchange<T,NDIM>::MacroTaskExchange::run(World& subworld, Cloud& cloud,
+//                                              std::vector<std::shared_ptr<MacroTaskBase> >& taskq) {
+//
+//    if (not poisson) poisson = Exchange<T,NDIM>::set_poisson(subworld,lo);
+//    // the argument of the exchange operator is the ket vector
+//
+//    // load bra and ket if not already loaded
+//    if (not mo_bra.get()) {
+//        mo_bra.reset(new vecfuncT(nocc));
+//        for (int i = 0; i < nocc; ++i) (*mo_bra)[i] = cloud.load<functionT>(subworld, i);
+//    }
+//    if (not mo_ket.get()) {
+//        mo_ket.reset(new vecfuncT(nocc));
+//        for (int i = 0; i < nocc; ++i) (*mo_ket)[i] = cloud.load<functionT>(subworld, i + nocc);
+//    }
+//
+//    if (not vf.get()) {
+//        vf.reset(new vecfuncT(nf));
+//        for (int i = 0; i < nf; ++i) (*vf)[i] = cloud.load<functionT>(subworld, i + 2*nocc);
+//    }
+//
+//    // make universe-living Kf accessible here in the subworld for result accumulation
+//    vecfuncT Kf(nf);
+//    for (int i=0; i<nf; ++i) {
+//        std::shared_ptr<FunctionImpl<T,NDIM> > rimpl;
+//        cloud.load(subworld,rimpl,i+2*nocc+nf);
+//        Kf[i].set_impl(rimpl);
+//    }
+//
+//    // compute the tile [column_range,row_range], corresponding to bra[nrow], ket[ncolumn]
+//    // partition the exchange matrix into tiles
+//    // result[i]        =                      sum_{k}                ket[k] \int bra[k] vf[i]
+//    // result[rowbatch] = \sum_{columnbatches} sum_{k in columnbatch} ket[k] \int bra[k] vf[rowbatch]
+//    vecfuncT ket_batch(mo_ket->begin() + row_range.first, mo_ket->begin() + row_range.second);
+//    vecfuncT bra_batch(mo_bra->begin() + row_range.first, mo_bra->begin() + row_range.second);
+//    vecfuncT vf_batch (vf->begin()     + column_range.first,    vf->begin()     + column_range.second);
+//
+//    if (symmetric and (row_range == column_range)) {
+//        vecfuncT resultcolumn = compute_diagonal_batch_in_symmetric_matrix(subworld, bra_batch, ket_batch, vf_batch);
+//
+//        for (int i = row_range.first; i < row_range.second; ++i)
+//            Kf[i]+=resultcolumn[i - row_range.first];
+//
+//    } else if (symmetric and !(row_range == column_range)) {
+//        auto [resultcolumn,resultrow]=compute_offdiagonal_batch_in_symmetric_matrix(subworld, bra_batch, ket_batch, vf_batch);
+//
+//        for (int i = column_range.first; i < column_range.second; ++i)
+//            Kf[i]+=resultrow[i - column_range.first];
+//        for (int i = row_range.first; i < row_range.second; ++i)
+//            Kf[i]+=resultcolumn[i - row_range.first];
+//    } else {
+//        vecfuncT resultcolumn = compute_batch_in_asymmetric_matrix(subworld, bra_batch, ket_batch, vf_batch);
+//
+//        for (int i = column_range.first; i < column_range.second; ++i)
+//            Kf[i]+=resultcolumn[i - column_range.first];
+//
+//    }
+//    subworld.gop.fence();
+//}
 
     /// compute a batch of the exchange matrix, with non-identical ranges
 
@@ -327,8 +344,10 @@ void Exchange<T,NDIM>::MacroTaskExchange::run(World& subworld, Cloud& cloud,
     /// \param vf_batch     the argument of the exchange operator
     template<typename T, std::size_t NDIM>
     std::pair<std::vector<Function<T,NDIM>>, std::vector<Function<T,NDIM>> >
-    Exchange<T,NDIM>::MacroTaskExchange::compute_offdiagonal_batch_in_symmetric_matrix(World& subworld,
-                           const vecfuncT& bra_batch, const vecfuncT& ket_batch, const vecfuncT& vf_batch) const {
+    Exchange<T,NDIM>::MacroTaskExchangeSimple::compute_offdiagonal_batch_in_symmetric_matrix(World& subworld,
+                           const vecfuncT& mo_ket,      // not batched
+                           const vecfuncT& bra_batch,   // batched
+                           const vecfuncT& vf_batch) const { // batched
         // orbital_product is a vector of vectors
         double cpu0 = cpu_time();
         std::vector<vecfuncT> orbital_product=matrix_mul_sparse<T,T,NDIM>(subworld,bra_batch,vf_batch,mul_tol);
@@ -338,6 +357,7 @@ void Exchange<T,NDIM>::MacroTaskExchange::run(World& subworld, Cloud& cloud,
         mul1_timer+=long((cpu1-cpu0)*1000l);
 
         cpu0=cpu_time();
+        auto poisson=set_poisson(subworld,lo);
         vecfuncT Nij = apply(subworld, *poisson.get(), orbital_product_flat);
         truncate(subworld, Nij);
         cpu1=cpu_time();
@@ -369,11 +389,29 @@ void Exchange<T,NDIM>::MacroTaskExchange::run(World& subworld, Cloud& cloud,
             return result;
         };
 
+        Tensor<double> k(nrow,ncolumn);
+        for (int i=0; i<nrow; ++i) {
+            for (int j=0; j<ncolumn; ++j) {
+                k(i,j)=Nij[ij(i,j)].norm2();
+            }
+        }
+        print("exchange-intermediate in off-diagonal batch",batch);
+        print(k);
+
         // corresponds to bra_batch and ket_batch, but without the ncf R^2
         // result[i]        =                      sum_{k}                ket[k] \int bra[k] vf[i]
         // result[rowbatch] = \sum_{columnbatches} sum_{k in columnbatch} ket[k] \int bra[k] vf[rowbatch]
-        vecfuncT to_dot_with_bra(mo_ket->begin()+row_range.first,mo_ket->begin()+row_range.second);      // regular
-        vecfuncT to_dot_with_vf (mo_ket->begin()+column_range.first,mo_ket->begin()+column_range.second);            // transposed
+        MADNESS_CHECK(batch.input.size()==2);
+//        auto bra_range = batch.input[1];            // corresponds to bra_batch
+//        auto vf_range = batch.input[0];         // corresponds to f_batch
+//        vecfuncT to_dot_with_bra=bra_range.copy_batch(mo_ket);
+//        vecfuncT to_dot_with_vf=vf_range.copy_batch(mo_ket);
+
+        auto row_range = batch.input[0];            // corresponds to bra_batch
+        auto column_range = batch.input[1];         // corresponds to f_batch
+        vecfuncT to_dot_with_bra=column_range.copy_batch(mo_ket);
+        vecfuncT to_dot_with_vf=row_range.copy_batch(mo_ket);
+
 
         vecfuncT resultcolumn(nrow);
         for (std::size_t irow=0; irow<nrow; ++irow) {

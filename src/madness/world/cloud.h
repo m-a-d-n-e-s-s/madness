@@ -121,9 +121,11 @@ public:
 #endif
 #ifdef MADNESS_MRA_MRA_H__INCLUDED
             Function<double, 3>,
-            std::vector<Function<double, 3>>,
+            Function<double_complex, 3>,
             std::shared_ptr<FunctionImpl<double, 3>>,
+            std::shared_ptr<FunctionImpl<double_complex, 3>>,
             std::vector<std::shared_ptr<FunctionImpl<double, 3>>>,
+            std::vector<std::shared_ptr<FunctionImpl<double_complex, 3>>>,
 #endif
             std::monostate
     > cached_objT;

@@ -59,20 +59,20 @@ class Batch_1D {
     friend class MacroTaskPartitioner;
 
 public:
-    std::size_t begin=0, end=-1; ///< first and first past last index [begin,end)
+    long begin=0, end=-1; ///< first and first past last index [begin,end)
 
     Batch_1D() {}
     Batch_1D(const Slice& s) : begin(s.start), end(s.end) {
         MADNESS_CHECK(s.step==1);
     }
-    Batch_1D(const std::size_t& begin, const std::size_t& end) : begin(begin), end(end) {}
+    Batch_1D(const long& begin, const long& end) : begin(begin), end(end) {}
 
     bool operator==(const Batch_1D& other) const {
         return (end==other.end && begin==other.begin);
     }
 
-    std::size_t size() const {
-        return is_full_size() ? SIZE_MAX : end - begin;
+    long size() const {
+        return end - begin;
     }
 
     bool is_full_size() const {
@@ -90,9 +90,7 @@ public:
             return arg;
         } else {
             auto v = std::get<index>(arg);
-            decltype(v) v_batch;
-            std::size_t end1 = (end > 0) ? end : v.end() - v.begin();
-            std::copy(v.begin() + begin, v.begin() + end1, std::back_inserter(v_batch));
+            auto v_batch=copy_batch(v);
             tupleT batched_arg = arg;
             std::get<index>(batched_arg) = v_batch;
             return batched_arg;
@@ -104,6 +102,14 @@ public:
         MADNESS_CHECK(v_batch.size()==this->size() or this->is_full_size());
         std::copy(v_batch.begin(), v_batch.end(), v.begin()+begin);
         return v;
+    }
+
+    template<typename vecT>
+    vecT copy_batch(const vecT v) const {
+        vecT result_batch;
+        long end1 = (end > 0) ? end : v.end() - v.begin();
+        std::copy(v.begin() + begin, v.begin() + end1, std::back_inserter(result_batch));
+        return result_batch;
     }
 
     friend std::ostream& operator<<(std::ostream& os, const Batch_1D& batch) {
@@ -172,8 +178,7 @@ public:
     std::string policy = "guided";
     std::size_t dimension = 1;
 
-    MacroTaskPartitioner() {
-    }
+    MacroTaskPartitioner() {}
 
     MacroTaskPartitioner& set_nsubworld(const long& n) {
         nsubworld=n;
@@ -196,32 +201,35 @@ public:
         return *this;
     }
 
+    /// this will be called by MacroTask, it will *always* partition first (and possibly second) vector of arguments
     template<typename tupleT>
     partitionT partition_tasks(const tupleT& argtuple) const {
 
         constexpr std::size_t I1 = get_index_of_first_vector_argument<tupleT, 0>();
         constexpr std::size_t I2 = get_index_of_second_vector_argument<tupleT, 1>();
+        std::size_t vsize1,vsize2;
         if constexpr (I2 < std::tuple_size_v<tupleT>) {     // found at least 2 vectors of madness functions
-            if (dimension == 1) {
-                constexpr std::size_t I = get_index_of_first_vector_argument<tupleT, 0>();
-                auto v = std::get<I>(argtuple);
-                return do_1d_partition(v.size(), "guided");
-            } else if (dimension == 2) {
-                constexpr std::size_t I = get_index_of_first_vector_argument<tupleT, 0>();
-                auto v = std::get<I>(argtuple);
-                constexpr std::size_t I2 = get_index_of_second_vector_argument<tupleT, 0>();
-                auto v2 = std::get<I2>(argtuple);
-                return do_2d_partition(v.size(), v2.size(), "guided");
-            }
+            constexpr std::size_t I2 = get_index_of_second_vector_argument<tupleT, 0>();
+            vsize2 = std::get<I2>(argtuple).size();
         }
-        else if constexpr (I1 < std::tuple_size_v<tupleT>) { // found 1 vector
-            MADNESS_CHECK(dimension==1);
-            auto v = std::get<I1>(argtuple);
-            return do_1d_partition(v.size(),"guided");
-        }
-        else {
+        if constexpr (I1 < std::tuple_size_v<tupleT>) { // found 1 vector
+            constexpr std::size_t I1 = get_index_of_first_vector_argument<tupleT, 0>();
+            vsize1 = std::get<I1>(argtuple).size();
+        } else {
             std::string msg="confused partitioning dimension: "+std::to_string(dimension) +" typeid " + typeid(tupleT).name();
             MADNESS_EXCEPTION(msg.c_str(),1);
+        }
+
+        return do_partitioning(vsize1,vsize2,policy);
+    }
+
+    /// override this if you want your own partitioning
+    virtual partitionT do_partitioning(const std::size_t& vsize1, const std::size_t& vsize2,
+                                               const std::string policy) const {
+        if (dimension == 1) {
+            return do_1d_partition(vsize1, policy);
+        } else if (dimension == 2) {
+            return do_2d_partition(vsize1, vsize2, policy);
         }
         return partitionT();
     }
@@ -229,11 +237,11 @@ public:
     partitionT do_1d_partition(const std::size_t vsize, const std::string policy) const {
         partitionT result;
         if (policy == "guided") {
-            std::size_t begin = 0;
-            std::size_t end = 0;
+            long begin = 0;
+            long end = 0;
             while (end < vsize) {
                 end += std::min(max_batch_size, std::max(min_batch_size, ((vsize - end) / nsubworld)));
-                end = std::min(end, vsize);
+                end = std::min(end, long(vsize));
                 result.push_back(Batch(Batch_1D(begin, end),Batch_1D(begin,end)));
                 begin = end;
             }
@@ -254,8 +262,8 @@ public:
             }
         }
         return result;
-
     }
+
 };
 
 }

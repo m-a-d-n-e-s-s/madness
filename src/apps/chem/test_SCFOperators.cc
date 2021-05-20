@@ -832,11 +832,11 @@ int test_dnuclear(World& world) {
     return ierr;
 }
 
-int test_macrotask(World& world) {
-    auto J=Coulomb<double,3>(world);
-    auto Jtasks=J.make_macrotasks();
-
-}
+//int test_macrotask(World& world) {
+//    auto J=Coulomb<double,3>(world);
+//    auto Jtasks=J.make_macrotasks();
+//
+//}
 
 int test_nemo(World& world) {
     FunctionDefaults<3>::set_thresh(1.e-5);
