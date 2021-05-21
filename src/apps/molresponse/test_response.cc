@@ -46,106 +46,64 @@ struct inputfile {
 
   ~inputfile() { remove(fname.c_str()); }
 };
-
-bool test_derived(World& world) {
-  print("entering test_derived");
-  std::string inputlines = R"input(mp3
-			archive restartdata
-			dipole True
-			#dconv 1.e-4
-			maxiter 12# asd
-			end)input";
-  inputfile ifile("input1", inputlines);
-
-  ResponseParameters param;
-  param.read_and_set_derived_values(world, "input1", "mp3");
-  param.print();
-
-  // test_same(param.econv(), 1.e-4);
-  // test_same(param.dconv(), sqrt(param.econv()) * 0.1);
-  return true;
+void read_and_create_density(World& world, inputfile ifile, std::string tag) {
+  GroundParameters g_params;
+  ResponseParameters param1;
+  param1.read_and_set_derived_values(world, "input1", tag);
+  std::string ground_file = param1.archive();
+  g_params.read(world, ground_file);
+  g_params.print_params();
+  param1.print();
+  density_vector d1 = set_density_type(world, param1, g_params);
+  d1.PrintDensityInformation();
 }
-bool test_read_archive_set_states(World& world) {
-  print("entering test_derived");
+bool test_create_dipole(World& world) {
+  print("entering test_dipole");
   std::string inputlines = R"input(dipole_test
 			archive restartdata
 			dipole True
 			#dconv 1.e-4
 			maxiter 12# asd
 			end
-			nuclear_test
+			)input";
+  inputfile ifile("input1", inputlines);
+  read_and_create_density(world, ifile, "dipole_test");
+  return true;
+}
+bool test_create_nuclear(World& world) {
+  print("entering test_create_nuclear");
+  std::string inputlines = R"input(nuclear_test
+			archive restartdata
 			nuclear True
 			end
-			order2_dd
-			print_level 10
+			)input";
+  inputfile ifile("input1", inputlines);
+  read_and_create_density(world, ifile, "nuclear_test");
+
+  return true;
+}
+bool test_create_order2_dd(World& world) {
+  print("entering test_create_order2_dd");
+  std::string inputlines = R"input(order2_dd
+			archive restartdata
 			order2 True
 			d2_types dd
 			end
-			order2_dn
+			)input";
+  inputfile ifile("input1", inputlines);
+  read_and_create_density(world, ifile, "order2_dd");
+  return true;
+}
+bool test_create_order2_dn(World& world) {
+  print("entering test_create_order2_dn");
+  std::string inputlines = R"input(order2_dn
+			archive restartdata
 			order2 True
 			d2_types dn
 			end
-			order2_nn
-			order2 True
-			d2_types nn
-			end
 			)input";
   inputfile ifile("input1", inputlines);
-
-  GroundParameters g_params;
-  ResponseParameters param1;
-  std::string ground_file = param1.archive();
-
-  g_params.read(world, ground_file);
-  g_params.print_params();
-  param1.read_and_set_derived_values(world, "input1", "dipole_test");
-  param1.print();
-  density_vector d1 = set_density_type(world, param1, g_params);
-  d1.PrintDensityInformation();
-
-  ResponseParameters param2;
-  param2.read_and_set_derived_values(world, "input1", "nuclear_test");
-  param2.print();
-  density_vector d2 = set_density_type(world, param2, g_params);
-  d2.PrintDensityInformation();
-
-  ResponseParameters param3;
-  param3.read_and_set_derived_values(world, "input1", "order2_dd");
-  param3.print();
-  density_vector d3 = set_density_type(world, param3, g_params);
-  d3.PrintDensityInformation();
-
-  ResponseParameters param4;
-  param4.read_and_set_derived_values(world, "input1", "order2_dn");
-  param4.print();
-
-  ResponseParameters param5;
-  param5.read_and_set_derived_values(world, "input1", "order2_nn");
-  param5.print();
-
-  // test_same(param.econv(), 1.e-4);
-  // test_same(param.dconv(), sqrt(param.econv()) * 0.1);
-  return true;
-}
-
-bool test_create_density(World& world) {
-  print("entering test_derived");
-  std::string inputlines = R"input(dipole
-			archive restartdata
-			dipole True
-			#dconv 1.e-4
-			maxiter 12# asd
-			end
-			)input";
-
-  inputfile ifile("input1", inputlines);
-
-  ResponseParameters param1;
-  param1.read_and_set_derived_values(world, "input1", "dipole_test");
-  param1.print();
-
-  // test_same(param.econv(), 1.e-4);
-  // test_same(param.dconv(), sqrt(param.econv()) * 0.1);
+  read_and_create_density(world, ifile, "order2_dn");
   return true;
 }
 
@@ -156,39 +114,40 @@ int main(int argc, char** argv) {
   {
     //{  // limite lifetime of world so that finalize() can execute cleanly
     World world(SafeMPI::COMM_WORLD);
+    molresponse::start_timer(world);
     startup(world, argc, argv, true);
     print_meminfo(world.rank(), "startup");
-
-    ResponseParameters r_params;
-    r_params.print();
-
-    const std::string ground_file = "restartdata";
-    GroundParameters g_params;
-    g_params.read(world, ground_file);
-    g_params.print_params();
-
-    FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3> >(world)));
-
     std::cout.precision(6);
-    // This makes a default input file name of 'input'
+    //      FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3> >(world)));
     try {
-      test_derived(world);
-      test_read_archive_set_states(world);
+      test_create_dipole(world);
+      test_create_nuclear(world);
+      // test_create_order2_dd(world);
+      // test_create_order2_dn(world);
     } catch (const SafeMPI::Exception& e) {
       print(e);
       error("caught an MPI exception");
+      success = 1;
     } catch (const madness::MadnessException& e) {
       print(e);
       error("caught a MADNESS exception");
+      success = 1;
     } catch (const madness::TensorException& e) {
       print(e);
       error("caught a Tensor exception");
+      success = 1;
     } catch (const char* s) {
       print(s);
       error("caught a string exception");
+      success = 1;
     } catch (const std::string& s) {
       print(s);
       error("caught a string (class) exception");
+      success = 1;
+    } catch (std::exception& e) {
+      print("\n\tan error occurred .. ");
+      print(e.what());
+      success = 1;
     } catch (...) {
       print("\n\tan unknown error occurred .. ");
       success = 1;
