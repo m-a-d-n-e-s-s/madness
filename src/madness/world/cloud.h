@@ -259,7 +259,7 @@ private:
 
     template<typename T>
     void cache(madness::World &world, const T &obj, const keyT &record) const {
-        const_cast<cacheT &>(cached_objects)[record] = obj;
+        const_cast<cacheT &>(cached_objects).insert({record,obj});
     }
 
     template<typename T>
