@@ -29,6 +29,12 @@ density_vector::density_vector(World &world, ResponseParameters r_params, Ground
   this->num_ground_states = r_params.num_orbitals();
   this->Chi = X_space(world, num_states, num_ground_states);
   this->PQ = X_space(world, num_states, num_ground_states);
+  if (r_params.response_type().compare("excited_state") == 0) {
+    this->omega = Tensor<double>(r_params.n_states());
+  } else {
+    this->omega = Tensor<double>(1);
+    this->omega(0, 0) = r_params.omega();
+  }
 }
 void density_vector::compute_response(World &world) {
   // right now everything uses copy
