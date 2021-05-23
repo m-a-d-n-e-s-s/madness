@@ -17,8 +17,10 @@
  The user-defined macrotask is derived from MacroTaskIntermediate and must implement the run()
  method. A heterogeneous task queue is possible.
 
+ TODO: priority q
+ TODO: task submission from inside task (serialize task instead of replicate)
  TODO: update documentation
- TODO: consider serializing task
+ TODO: consider serializing task member variables
 
 */
 
@@ -62,17 +64,23 @@ public:
     virtual void print_me_as_table(std::string s="") const {
         print("nothing to print");
     }
+    std::string print_priority_and_status_to_string() const {
+        std::stringstream ss;
+        ss << std::setw(5) << this->get_priority() << "  " <<this->stat;
+        return ss.str();
+    }
+
     double get_priority() const {return priority;}
 
+    friend std::ostream& operator<<(std::ostream& os, const MacroTaskBase::Status s) {
+    	if (s==MacroTaskBase::Status::Running) os << "Running";
+    	if (s==MacroTaskBase::Status::Waiting) os << "Waiting";
+    	if (s==MacroTaskBase::Status::Complete) os << "Complete";
+    	if (s==MacroTaskBase::Status::Unknown) os << "Unknown";
+    	return os;
+    }
 };
 
-//std::ostream& operator<<(std::ostream& os, const MacroTaskBase::Status s) {
-//	if (s==MacroTaskBase::Status::Running) os << "Running";
-//	if (s==MacroTaskBase::Status::Waiting) os << "Waiting";
-//	if (s==MacroTaskBase::Status::Complete) os << "Complete";
-//	if (s==MacroTaskBase::Status::Unknown) os << "Unknown";
-//	return os;
-//}
 
 template<typename macrotaskT>
 class MacroTaskIntermediate : public MacroTaskBase {
@@ -199,7 +207,7 @@ public:
         universe.gop.fence();
         if (universe.rank()==0) {
             print("\ntaskq on universe rank",universe.rank());
-            print(" task                   batch  priority  status");
+            print(" task                                   batch                 priority  status");
             for (const auto& t : taskq) t->print_me_as_table();
         }
         universe.gop.fence();
@@ -286,11 +294,15 @@ public:
             : world(world), task(task), taskq_ptr(taskq_ptr) {
         if (taskq_ptr) {
             // for the time being this condition must hold because tasks are
-            // constructed as replicated objects and are not broadcast to other ranks
+            // constructed as replicated objects and are not broadcast to other processes
             MADNESS_CHECK(world.id()==taskq_ptr->get_world().id());
         }
     }
 
+    /// this mimicks the original call to the task functor, called from the universe
+
+    /// store all input to the cloud, create output Function<T,NDIM> in the universe,
+    /// create the batched task and shove it into the taskq. Possibly execute the taskq.
     template<typename ... Ts>
     resultT operator()(const Ts &... args) {
 
@@ -328,7 +340,7 @@ private:
     World &world;
     std::shared_ptr<MacroTaskQ> taskq_ptr;
 
-    /// prepare the output of the macrotask: WorldObjects must be created in the universe
+    /// prepare the output of the macrotask: Function<T,NDIM> must be created in the universe
     std::pair<recordlistT, resultT> prepare_output(Cloud &cloud, const argtupleT &argtuple) {
         static_assert(is_madness_function<resultT>::value || is_madness_function_vector<resultT>::value);
         resultT result = task.allocator(world, argtuple);
@@ -367,13 +379,18 @@ private:
         virtual void print_me_as_table(std::string s="") const {
             std::stringstream ss;
             std::string name=typeid(task).name();
-            std::size_t namesize=std::min(std::size_t(30),name.size());
-            name += std::string(30-namesize,' ');
+            std::size_t namesize=std::min(std::size_t(28),name.size());
+            name += std::string(28-namesize,' ');
+
+            std::stringstream ssbatch;
+            ssbatch << task.batch;
+            std::string strbatch=ssbatch.str();
+            int nspaces=std::max(int(0),35-int(ssbatch.str().size()));
+            strbatch+=std::string(nspaces,' ');
 
             ss  << name
-                << std::setw(10) << task.batch
-                << std::setw(5) << this->get_priority() << "        "
-                <<this->stat ;
+                << std::setw(10) << strbatch
+                << this->print_priority_and_status_to_string();
             print(ss.str());
         }
 
@@ -399,6 +416,10 @@ private:
 
         };
 
+        /// get the pointers to the output functions living in the universe
+
+        /// the result of a task living in subworld will be accumulated into result
+        /// living in the universe
         resultT get_output(World &subworld, Cloud &cloud, const argtupleT &argtuple) {
             resultT result;
             if constexpr (is_madness_function<resultT>::value) {

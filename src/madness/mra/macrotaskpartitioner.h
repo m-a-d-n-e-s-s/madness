@@ -29,6 +29,7 @@ template<typename T, std::size_t NDIM>
 struct is_madness_function_vector<std::vector<typename madness::Function<T, NDIM>>> : std::true_type {
 };
 
+/// given a tuple return the index of the first argument that is a vector of Function<T,NDIM>
 template<typename tupleT, std::size_t I>
 constexpr std::size_t get_index_of_first_vector_argument() {
 
@@ -49,6 +50,7 @@ constexpr std::size_t get_index_of_first_vector_argument() {
     }
 }
 
+/// given a tuple return the index of the second argument that is a vector of Function<T,NDIM>
 template<typename tupleT, std::size_t I>
 constexpr std::size_t get_index_of_second_vector_argument() {
     constexpr std::size_t index0=get_index_of_first_vector_argument<tupleT,0>();
@@ -97,6 +99,7 @@ public:
         }
     }
 
+    /// given vector v, copy vector elements of v_batch into vector
     template<typename vecT>
     vecT insert_batch(vecT v, const vecT& v_batch) const {
         MADNESS_CHECK(v_batch.size()==this->size() or this->is_full_size());
@@ -104,6 +107,7 @@ public:
         return v;
     }
 
+    /// given vector v, return those vector elements inside this batch
     template<typename vecT>
     vecT copy_batch(const vecT v) const {
         vecT result_batch;
@@ -153,30 +157,37 @@ public:
         return arg1;
     }
 
+    /// copy v_batch into the result vector
     template<typename vecT>
     vecT insert_result_batch(vecT v, const vecT& v_batch) const {
         return result.template insert_batch(v,v_batch);
     }
 
+    /// pretty print this batch
     friend std::ostream& operator<<(std::ostream& os, const Batch& batch) {
-        os << batch.result<< " <-- [ ";
-        if (batch.input.size()>0)  os << batch.input[0];
-        if (batch.input.size()>1) os << ", " << batch.input[1];
-        os << " ]";
+        std::stringstream ss;
+        ss << batch.result<< " <-- ";
+        if (batch.input.size()>0)  ss << batch.input[0];
+        if (batch.input.size()>1) ss << ", " << batch.input[1];
+        os << ss.str();
         return os;
     }
 };
 
+/// partition one (two) vectors into 1D (2D) batches.
+
+/// derive from this class and override the \it{do_partitioning} method if you want to implement
+/// your custom partitioner
 class MacroTaskPartitioner {
     friend class Batch;
 
 public:
     typedef std::list<Batch> partitionT;
-    std::size_t min_batch_size=5;
-    std::size_t max_batch_size = 10;
-    std::size_t nsubworld=1;
-    std::string policy = "guided";
-    std::size_t dimension = 1;
+    std::size_t min_batch_size=5;           ///< minimum batch size
+    std::size_t max_batch_size = 10;        ///< maximum batch size (for memory management)
+    std::size_t nsubworld=1;                ///< number of worlds (try to have enough batches for all worlds)
+    std::string policy = "guided";          ///< how to partition the batches
+    std::size_t dimension = 1;              ///< partition one or two vectors
 
     MacroTaskPartitioner() {}
 
@@ -212,7 +223,7 @@ public:
             constexpr std::size_t I2 = get_index_of_second_vector_argument<tupleT, 0>();
             vsize2 = std::get<I2>(argtuple).size();
         }
-        if constexpr (I1 < std::tuple_size_v<tupleT>) { // found 1 vector
+        if constexpr (I1 < std::tuple_size_v<tupleT>) { // found at least 1 vector
             constexpr std::size_t I1 = get_index_of_first_vector_argument<tupleT, 0>();
             vsize1 = std::get<I1>(argtuple).size();
         } else {
@@ -252,6 +263,9 @@ public:
         return result;
     }
 
+    /// outer product of 2 1d-partitionings -- result batches correspond to first input batches
+
+    /// [begin1,end1)   <-- [begin1,end1) [begin2,end2)
     partitionT do_2d_partition(const std::size_t vsize, const std::size_t v2size, const std::string policy) const {
         partitionT partition1=do_1d_partition(vsize,policy);
         partitionT partition2=do_1d_partition(v2size,policy);
