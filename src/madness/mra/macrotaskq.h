@@ -324,9 +324,9 @@ public:
 
         // create tasks and add them to the taskq
         MacroTaskBase::taskqT vtask;
-        for (const Batch &batch : partition) {
+        for (const auto& batch_prio : partition) {
             vtask.push_back(
-                    std::shared_ptr<MacroTaskBase>(new MacroTaskInternal(task, batch, inputrecords, outputrecords)));
+                    std::shared_ptr<MacroTaskBase>(new MacroTaskInternal(task, batch_prio, inputrecords, outputrecords)));
         }
         taskq_ptr->add_tasks(vtask);
 
@@ -364,11 +364,12 @@ private:
     public:
         taskT task;
 
-        MacroTaskInternal(const taskT &task, const Batch &batch,
+        MacroTaskInternal(const taskT &task, const std::pair<Batch,double> &batch_prio,
                           const recordlistT &inputrecords, const recordlistT &outputrecords)
                 : task(task), inputrecords(inputrecords), outputrecords(outputrecords) {
             static_assert(is_madness_function<resultT>::value || is_madness_function_vector<resultT>::value);
-            this->task.batch=batch;
+            this->task.batch=batch_prio.first;
+            this->priority=batch_prio.second;
         }
 
 

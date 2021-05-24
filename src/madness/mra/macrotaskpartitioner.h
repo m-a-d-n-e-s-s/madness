@@ -147,6 +147,12 @@ public:
     Batch(Batch_1D input1, Batch_1D input2, Batch_1D result)
             : input{input1,input2}, result(result) {}
 
+    std::size_t size_of_input() const {
+        std::size_t result=1;
+        for (auto i: input) result*=i.size();
+        return  result;
+    }
+
     /// select the relevant vector elements from the argument tuple
     template<typename tupleT>
     tupleT copy_input_batch(const tupleT& arg) const {
@@ -182,7 +188,7 @@ class MacroTaskPartitioner {
     friend class Batch;
 
 public:
-    typedef std::list<Batch> partitionT;
+    typedef std::list<std::pair<Batch,double>> partitionT;
     std::size_t min_batch_size=5;           ///< minimum batch size
     std::size_t max_batch_size = 10;        ///< maximum batch size (for memory management)
     std::size_t nsubworld=1;                ///< number of worlds (try to have enough batches for all worlds)
@@ -253,7 +259,9 @@ public:
             while (end < vsize) {
                 end += std::min(max_batch_size, std::max(min_batch_size, ((vsize - end) / nsubworld)));
                 end = std::min(end, long(vsize));
-                result.push_back(Batch(Batch_1D(begin, end),Batch_1D(begin,end)));
+                Batch batch(Batch_1D(begin, end),Batch_1D(begin,end));
+                double priority=compute_priority(batch);
+                result.push_back(std::make_pair(batch,priority));
                 begin = end;
             }
         } else {
@@ -272,10 +280,16 @@ public:
         partitionT result;
         for (auto p1 : partition1) {
             for (auto p2 : partition2) {
-                result.push_back(Batch(p1.input[0],p2.input[0],p1.result));
+                Batch batch(p1.first.input[0],p2.first.input[0],p1.first.result);
+                double priority=compute_priority(batch);
+                result.push_back(std::make_pair(batch,priority));
             }
         }
         return result;
+    }
+
+    virtual double compute_priority(const Batch& batch) const {
+        return batch.size_of_input();
     }
 
 };
