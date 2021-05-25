@@ -172,11 +172,13 @@ private:
                 for (auto i = partition1.begin(); i != partition1.end(); ++i) {
                     if (symmetric) {
                         for (auto j = i; j != partition1.end(); ++j) {
-                            result.push_back(Batch(i->input[0], j->input[0], _));
+                            double priority=compute_priority(i->first);
+                            result.push_back(std::make_pair(Batch(i->first.input[0], j->first.input[0], _),priority));
                         }
                     } else {
                         for (auto j = partition2.begin(); j != partition2.end(); ++j) {
-                            result.push_back(Batch(i->input[0], j->input[0], _));
+                            double priority=compute_priority(i->first);
+                            result.push_back(std::make_pair(Batch(i->first.input[0], j->first.input[0], _),priority));
                         }
                     }
                 }
