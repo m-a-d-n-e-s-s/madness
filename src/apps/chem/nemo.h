@@ -58,10 +58,12 @@
 #include <chem/pcm.h>
 #include <chem/AC.h>
 #include <chem/pointgroupsymmetry.h>
+#include <chem/commandlineparser.h>
 
 namespace madness {
 
 class PNO;
+class OEP;
 
 
 // The default constructor for functions does not initialize
@@ -109,14 +111,21 @@ struct timer {
         double ss1=cpu_time()-sss;
         if (printme) printf("timer: %20.20s %8.2fs %8.2fs\n", msg.c_str(), ss1, tt1);
     }
-
 };
+
+
 class NemoBase : public MolecularOptimizationTargetInterface {
 
 public:
 
 	NemoBase(World& w) : world(w) {}
 
+    virtual std::shared_ptr<Fock<double,3>> make_fock_operator() const {
+	    MADNESS_EXCEPTION("implement make_fock operator for your derived NemoBase class",1);
+	    return std::shared_ptr<Fock<double,3>>();
+	}
+
+        /// create an instance of the derived object based on the input parameters
 	std::shared_ptr<NuclearCorrelationFactor> get_ncf_ptr() const {
 		return ncf;
 	}
@@ -351,7 +360,7 @@ public:
 	struct NemoCalculationParameters : public CalculationParameters {
 
 		NemoCalculationParameters(const CalculationParameters& param) : CalculationParameters(param) {
-			initialize_nemo_parameters();
+            initialize_nemo_parameters();
 		}
 
 		NemoCalculationParameters() : CalculationParameters() {
@@ -382,9 +391,11 @@ public:
 	/// @param[in]	calc	the SCF
 	Nemo(World& world1, std::shared_ptr<SCF> calc, const std::string inputfile);
 
-	double value() {return value(calc->molecule.get_all_coords());}
+    Nemo(World& world, const commandlineparser& parser);
 
-	double value(const Tensor<double>& x);
+    virtual double value() {return value(calc->molecule.get_all_coords());}
+
+	virtual double value(const Tensor<double>& x);
 
 	/// compute the nuclear gradients
 	Tensor<double> gradient(const Tensor<double>& x);
@@ -393,6 +404,9 @@ public:
 
 	/// returns the molecular hessian matrix at structure x
 	Tensor<double> hessian(const Tensor<double>& x);
+
+	/// construct the fock operator based on the calculation parameters (K or XC?)
+	virtual std::shared_ptr<Fock<double,3>> make_fock_operator() const;
 
 	/// purify and symmetrize the hessian
 
@@ -464,6 +478,8 @@ public:
             const vecfuncT& dens_pt) const;
 
 	std::shared_ptr<SCF> get_calc() const {return calc;}
+
+    NemoCalculationParameters get_param() const {return param;}
 
 	PCM get_pcm()const{return pcm;}
 

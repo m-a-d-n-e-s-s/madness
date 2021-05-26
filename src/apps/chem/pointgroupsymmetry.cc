@@ -108,7 +108,7 @@ std::vector<Function<T,NDIM> > projector_irrep::project_on_irreps(
 template<typename T, std::size_t NDIM>
 std::vector<Function<T,NDIM> > projector_irrep::apply_symmetry_operators(
 		const std::vector<Function<T,NDIM> >& vrhs,
-		Function<T,NDIM> metric,
+        Function<typename Tensor<T>::scalar_type,NDIM> metric,
 		std::vector<std::string>& sirreps) const {
 
 	World& world=vrhs.begin()->world();
@@ -177,9 +177,13 @@ std::vector<Function<T,NDIM> > projector_irrep::apply_symmetry_operators(
 
 		if (verbosity_>1) print("working on irrep ",all_irreps[j]);
 		// compute overlap, include metric if necessary
-		Tensor<double> ovlp;
-		if (metric.is_initialized()) ovlp=matrix_inner(world,lc_op_vrhs[j],metric*lc_op_vrhs[j]);
-		else ovlp=matrix_inner(world,lc_op_vrhs[j],lc_op_vrhs[j]);
+		Tensor<T> ovlp_t;
+		if (metric.is_initialized()) ovlp_t=matrix_inner(world,lc_op_vrhs[j],metric*lc_op_vrhs[j]);
+		else ovlp_t=matrix_inner(world,lc_op_vrhs[j],lc_op_vrhs[j]);
+		// overlap matrix should be real
+		Tensor<double> ovlp=real(ovlp_t);
+        Tensor<double> imag_ovlp=imag(ovlp_t);
+        MADNESS_CHECK(imag_ovlp.normf()<1.e-10);
 
 //			for (int i=0; i<ovlp.dim(0); ++i) ovlp(i,i)+=1.e-6;
 
@@ -276,7 +280,11 @@ std::vector<Function<T,NDIM> > projector_irrep::apply_symmetry_operators(
 		// if there are double elements we have to recompute the overlap matrix
 		// to safely determine the mapping
 		if (double_elements.size()>0) {
-			Tensor<double> ovlp1=matrix_inner(world,result1,vrhs);
+			Tensor<T> ovlp2=matrix_inner(world,result1,vrhs);
+            Tensor<double> ovlp1=real(ovlp2);
+            Tensor<double> imag_ovlp=imag(ovlp2);
+            MADNESS_CHECK(imag_ovlp.normf()<1.e-10);
+
 
 			long index[2];
 			// find the largest overlap matrix element in each column
@@ -510,6 +518,11 @@ projector_irrep::apply_symmetry_operators(
 		Function<double,3> metric,
 		std::vector<std::string>& sirreps) const;
 
+template std::vector<Function<double_complex,3> >
+projector_irrep::apply_symmetry_operators(
+        const std::vector<Function<double_complex,3> >& vrhs,
+        Function<double,3> metric,
+        std::vector<std::string>& sirreps) const;
 
 //template void Class::function(int);
 //template class Kinetic<double,2>;

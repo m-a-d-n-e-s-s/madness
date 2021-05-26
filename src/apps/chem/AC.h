@@ -439,14 +439,9 @@ private:
 
 public:
     bool initialized()const{return initialized_;}
-    AC(){
-    	// TODO Auto-generated constructor stub
-    	std::cout << "Called AC default Constructor\n";
-    };
+    AC() = default;
 
-   ~AC(){}
-
-   AC(ACParameters<NDIM> ac_param): ac_param_(ac_param) {}
+   AC(const ACParameters<NDIM>& ac_param): ac_param_(ac_param) {}
 
    AC(World &world, std::shared_ptr<SCF> calc){
 	   if(world.rank()==0){
@@ -454,7 +449,7 @@ public:
 	   }
 	   world.gop.broadcast_serializable(initialized_,0);
 	   world.gop.broadcast_serializable(ac_param_, 0);
-	   ac_param_.print(world);
+//	   ac_param_.print(world);
 	   if(calc->param.ac_data()!="none") ac_param_.check(world);
    }
 

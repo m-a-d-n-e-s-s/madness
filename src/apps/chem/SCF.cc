@@ -183,7 +183,7 @@ SCF::SCF(World& world, const std::string& inputfile) : param(CalculationParamete
 
 	if (param.print_level()>2) print_timings=true;
 
-	xc.initialize(param.xc(), !param.spin_restricted(), world, param.print_level()>1);
+	xc.initialize(param.xc(), !param.spin_restricted(), world, param.print_level()>=10);
 	//xc.plot();
 
 	FunctionDefaults < 3 > ::set_cubic_cell(-param.L(), param.L());
@@ -1720,7 +1720,7 @@ vecfuncT SCF::apply_potential(World & world, const tensorT & occ,
 	if (xc.is_dft() && !(xc.hf_exchange_coefficient() == 1.0)) {
 		START_TIMER(world);
 
-		XCOperator xcoperator(world,this,ispin,param.dft_deriv());
+		XCOperator<double,3> xcoperator(world,this,ispin,param.dft_deriv());
 		if (ispin==0) exc=xcoperator.compute_xc_energy();
 		vloc+=xcoperator.make_xc_potential();
 
@@ -3310,7 +3310,7 @@ void SCF::update_response_subspace(World & world,
 }
 
 vecfuncT SCF::apply_potential_response(World & world, const vecfuncT & dmo,
-		const XCOperator& xcop,  const functionT & vlocal, int ispin)
+		const XCOperator<double,3>& xcop,  const functionT & vlocal, int ispin)
 {
 	functionT vloc = copy(vlocal);
 
@@ -3528,7 +3528,7 @@ functionT SCF::calc_exchange_function(World & world,  const int & p,
 
 
 /// param[in]   drho    the perturbed density
-vecfuncT SCF::calc_xc_function(World & world, XCOperator& xc_alda,
+vecfuncT SCF::calc_xc_function(World & world, XCOperator<double,3>& xc_alda,
 		const vecfuncT & mo,  const functionT & drho)
 {
 	START_TIMER(world);
@@ -3553,7 +3553,7 @@ vecfuncT SCF::calc_xc_function(World & world, XCOperator& xc_alda,
 }
 
 /// @param[in]  drho    the perturbed density
-vecfuncT SCF::calc_djkmo(World & world, XCOperator& xc_alda, const vecfuncT & dmo1,
+vecfuncT SCF::calc_djkmo(World & world, XCOperator<double,3>& xc_alda, const vecfuncT & dmo1,
 		const vecfuncT & dmo2,  const functionT & drho, const vecfuncT & mo,
 		const functionT & drhos,
 		int  spin)
@@ -3906,11 +3906,11 @@ void SCF::polarizability(World & world)
 
 											// construct xc operator only once since the ground state density
 											// will not change during the iterations.
-											XCOperator xcop(world,this,arho,brho);
+											XCOperator<double,3> xcop(world,this,arho,brho);
 
 											// construct xc operator for acting on the perturbed density --
 											// use only the LDA approximation
-											XCOperator xc_alda(world, "LDA", not param.spin_restricted(), arho, brho);
+											XCOperator<double,3> xc_alda(world, "LDA", not param.spin_restricted(), arho, brho);
 
 											for(int iter = 0; iter < param.maxiter(); ++iter) {
 												if(world.rank() == 0)

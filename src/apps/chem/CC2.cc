@@ -5,7 +5,9 @@
  *      Author: kottmanj
  */
 
-#include "CC2.h"
+#include <chem/CC2.h>
+#include <chem/commandlineparser.h>
+
 namespace madness {
 
 /// solve the CC2 ground state equations, returns the correlation energy
@@ -17,7 +19,11 @@ CC2::solve() {
 	const CalcType ctype = parameters.calculation;
 
 	if(ctype==CT_TDHF){
-		TDHF tdhf(world,nemo);
+//		TDHF tdhf(world,nemo);
+		commandlineparser parser;
+        TDHF tdhf(world,parser);
+        tdhf.set_reference(nemo);
+        MADNESS_EXCEPTION("check if the previous 4 lines are OK",1);
 		std::vector<CC_vecfunction> ccs;
 		for(size_t k=0;k<parameters.excitations_.size();k++){
 			CC_vecfunction tmp;

@@ -8,6 +8,7 @@
 #ifndef SRC_APPS_CHEM_TEST_UTILITIES_H_
 #define SRC_APPS_CHEM_TEST_UTILITIES_H_
 
+#include<chem/CalculationParameters.h>
 
 namespace madness {
 
@@ -39,36 +40,52 @@ struct test_output {
 };
 
 
-/// write an input file to disk and remove upon destruction
+    /// will write a test input and remove it from disk upon destruction
+    struct write_test_input {
 
-/**
- * usage: write data group mp3 with some parameters
-  	std::string inputlines=R"input(mp3
-			econv 1.e-4
-			dconv 1.e-4
- 			# econv 1.e-3
-			maxiter 12# asd
-			ncf (slater,1.2)
-			localize no
-			LocAl CanON
-			end)input";
-	inputfile ifile("input1",inputlines);
- */
-struct test_inputfile {
-	std::string fname;
-	bool keepfile=false;
-	test_inputfile(const std::string filename, const std::string lines) {
-		fname=filename;
-		std::ofstream myfile;
-		myfile.open (fname);
-		myfile << lines << std::endl;
-		myfile.close();
-	}
+        double eprec=1.e-3; // was 1e-4 ... trying to make test faster
 
-	~test_inputfile() {
-		if (not keepfile) remove(fname.c_str());
-	}
-};
+        std::string filename_;
+        write_test_input() : filename_("testinput") {}
+
+        write_test_input(const CalculationParameters& param, const std::string& mol="lih") : filename_("test_MO_input") {
+            std::ofstream of(filename_);
+            write_to_test_input("dft",&param,of);
+            write_molecule_to_test_input(mol,of);
+            of.close();
+        }
+
+        ~write_test_input() {
+            std::remove(filename_.c_str());
+        }
+
+        std::string filename() const {return filename_;}
+
+        static std::ostream& write_to_test_input(const std::string groupname, const QCCalculationParametersBase* param, std::ostream& of) {
+            of << groupname << endl;
+            of << param->print_to_string(true);
+            of << "end\n";
+            return of;
+        }
+
+        static std::ostream& write_molecule_to_test_input(std::string mol, std::ostream& of) {
+            if (mol=="lih") {
+                of << "geometry\n";
+                of << "Li 0.0    0.0 0.0\n";
+                of << "H  1.4375 0.0 0.0\n";
+                of << "end\n";
+            } else if (mol=="hf") {
+                //double eprec=1.e-5; // trying to make test faster
+                of << "geometry\n";
+                of << "F  0.1    0.0 0.2\n";
+                of << "H  1.4375 0.0 0.0\n";
+                of << "end\n";
+            }
+            return of;
+        }
+
+    };
+
 
 }
 
