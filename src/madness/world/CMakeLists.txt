@@ -33,6 +33,11 @@ add_mad_library(world MADWORLD_SOURCES MADWORLD_HEADERS "common;${ELEMENTAL_PACK
 
   set(targetname MADworld)
 
+  if(ENABLE_CEREAL)
+      include(FindCereal)
+      target_link_libraries(${targetname} PUBLIC cereal)
+  endif()
+
   # create an additional, MADworld-only, export
   install(TARGETS ${targetname} EXPORT madworld
       COMPONENT world

@@ -66,6 +66,7 @@ set(MADNESS_INSTALL_CMAKEDIR "lib/cmake/madness"
 # Build options  ==============================================================
 
 redefaultable_option(MADNESS_BUILD_MADWORLD_ONLY "Build only MADWorld runtime (excluding BLAS/LAPACK interfaces)" OFF)
+redefaultable_option(ENABLE_CEREAL "Use Cereal library along with MADNESS archive for serialization" OFF)
 
 # Enable optional libraries ====================================================
 
@@ -716,4 +717,4 @@ add_custom_target(install-madness-config
 
 feature_summary(WHAT ALL
                 DESCRIPTION "=== MADNESS Package/Feature Info ===")
-    
+
