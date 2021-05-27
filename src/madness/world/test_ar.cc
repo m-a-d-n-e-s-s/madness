@@ -100,16 +100,12 @@ struct type_printer;
 
 static_assert(!madness::has_member_serialize_v<int, madness::archive::BufferOutputArchive>);
 static_assert(!madness::has_member_serialize_v<int, madness::archive::BufferInputArchive>);
-static_assert(!madness::has_member_serialize_with_version_v<int, madness::archive::BufferOutputArchive>);
-static_assert(!madness::has_member_serialize_with_version_v<int, madness::archive::BufferInputArchive>);
 static_assert(!madness::has_nonmember_serialize_v<int, madness::archive::BufferOutputArchive>);
 static_assert(!madness::has_nonmember_serialize_v<int, madness::archive::BufferInputArchive>);
 static_assert(!madness::has_freestanding_serialize_v<int, madness::archive::BufferOutputArchive>);
 static_assert(!madness::has_freestanding_serialize_v<int, madness::archive::BufferInputArchive>);
 static_assert(!madness::has_freestanding_serialize_with_size_v<int*, madness::archive::BufferOutputArchive>);
 static_assert(!madness::has_freestanding_serialize_with_size_v<int*, madness::archive::BufferInputArchive>);
-static_assert(!madness::has_freestanding_serialize_with_version_v<int, madness::archive::BufferOutputArchive>);
-static_assert(!madness::has_freestanding_serialize_with_version_v<int, madness::archive::BufferInputArchive>);
 static_assert(madness::has_freestanding_default_serialize_v<int, madness::archive::BufferOutputArchive>);
 static_assert(madness::has_freestanding_default_serialize_v<int, madness::archive::BufferInputArchive>);
 static_assert(madness::has_freestanding_default_serialize_with_size_v<int*, madness::archive::BufferOutputArchive>);
@@ -134,8 +130,6 @@ public:
 
 static_assert(madness::has_member_serialize_v<A, madness::archive::BufferOutputArchive>);
 static_assert(madness::has_member_serialize_v<A, madness::archive::BufferInputArchive>);
-static_assert(!madness::has_member_serialize_with_version_v<A, madness::archive::BufferOutputArchive>);
-static_assert(!madness::has_member_serialize_with_version_v<A, madness::archive::BufferInputArchive>);
 // N.B. nonmember serialize is provided for types with serialize member
 static_assert(madness::has_nonmember_serialize_v<A, madness::archive::BufferOutputArchive>);
 static_assert(madness::has_nonmember_serialize_v<A, madness::archive::BufferInputArchive>);
@@ -166,8 +160,6 @@ namespace madness {
 
 static_assert(!madness::has_member_serialize_v<B, madness::archive::BufferOutputArchive>);
 static_assert(!madness::has_member_serialize_v<B, madness::archive::BufferInputArchive>);
-static_assert(!madness::has_member_serialize_with_version_v<B, madness::archive::BufferOutputArchive>);
-static_assert(!madness::has_member_serialize_with_version_v<B, madness::archive::BufferInputArchive>);
 static_assert(madness::has_nonmember_serialize_v<B, madness::archive::BufferOutputArchive>);
 static_assert(madness::has_nonmember_serialize_v<B, madness::archive::BufferInputArchive>);
 // N.B. nonmember load/store is provided for types with nonmember serialize
@@ -203,8 +195,6 @@ namespace madness {
 
 static_assert(!madness::has_member_serialize_v<C, madness::archive::BufferOutputArchive>);
 static_assert(!madness::has_member_serialize_v<C, madness::archive::BufferInputArchive>);
-static_assert(!madness::has_member_serialize_with_version_v<C, madness::archive::BufferOutputArchive>);
-static_assert(!madness::has_member_serialize_with_version_v<C, madness::archive::BufferInputArchive>);
 static_assert(!madness::has_nonmember_serialize_v<C, madness::archive::BufferOutputArchive>);
 static_assert(!madness::has_nonmember_serialize_v<C, madness::archive::BufferInputArchive>);
 static_assert(madness::has_nonmember_store_v<C, madness::archive::BufferOutputArchive>);
@@ -220,8 +210,6 @@ struct D {
 
 static_assert(!madness::has_member_serialize_v<D, madness::archive::BufferOutputArchive>);
 static_assert(!madness::has_member_serialize_v<D, madness::archive::BufferInputArchive>);
-static_assert(!madness::has_member_serialize_with_version_v<D, madness::archive::BufferOutputArchive>);
-static_assert(!madness::has_member_serialize_with_version_v<D, madness::archive::BufferInputArchive>);
 static_assert(!madness::has_nonmember_serialize_v<D, madness::archive::BufferOutputArchive>);
 static_assert(!madness::has_nonmember_serialize_v<D, madness::archive::BufferInputArchive>);
 // N.B. nonmember load/store is provided for default-serializable types
