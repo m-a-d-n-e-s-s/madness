@@ -39,6 +39,9 @@ using std::endl;
 #include <madness/world/array_addons.h>
 #include <madness/world/print.h>
 
+template <typename T>
+struct type_printer;
+
 /// \file test.cc
 /// \brief Tests serialization by some of the archives
 
@@ -65,6 +68,9 @@ using madness::archive::BufferOutputArchive;
 #include <cereal/archives/binary.hpp>
 using CerealBinaryInputArchive = madness::archive::CerealInputArchive<cereal::BinaryInputArchive>;
 using CerealBinaryOutputArchive = madness::archive::CerealOutputArchive<cereal::BinaryOutputArchive>;
+static_assert(madness::is_archive_v<CerealBinaryInputArchive>);
+static_assert(madness::is_input_archive_v<CerealBinaryInputArchive>);
+static_assert(!madness::is_output_archive_v<CerealBinaryInputArchive>);
 static_assert(!madness::is_text_archive_v<CerealBinaryInputArchive>, "ouch");
 static_assert(!madness::is_text_archive_v<CerealBinaryInputArchive>, "ouch");
 #include <cereal/archives/portable_binary.hpp>
@@ -87,6 +93,29 @@ static_assert(madness::is_text_archive_v<CerealXMLOutputArchive>, "ouch");
 #include <madness/world/world.h>
 #include <madness/world/worldgop.h>
 
+template <typename T>
+struct type_printer;
+
+///// basic traits tests
+
+static_assert(!madness::has_member_serialize_v<int, madness::archive::BufferOutputArchive>);
+static_assert(!madness::has_member_serialize_v<int, madness::archive::BufferInputArchive>);
+static_assert(!madness::has_nonmember_serialize_v<int, madness::archive::BufferOutputArchive>);
+static_assert(!madness::has_nonmember_serialize_v<int, madness::archive::BufferInputArchive>);
+static_assert(!madness::has_freestanding_serialize_v<int, madness::archive::BufferOutputArchive>);
+static_assert(!madness::has_freestanding_serialize_v<int, madness::archive::BufferInputArchive>);
+static_assert(!madness::has_freestanding_serialize_with_size_v<int*, madness::archive::BufferOutputArchive>);
+static_assert(!madness::has_freestanding_serialize_with_size_v<int*, madness::archive::BufferInputArchive>);
+static_assert(madness::has_freestanding_default_serialize_v<int, madness::archive::BufferOutputArchive>);
+static_assert(madness::has_freestanding_default_serialize_v<int, madness::archive::BufferInputArchive>);
+static_assert(madness::has_freestanding_default_serialize_with_size_v<int*, madness::archive::BufferOutputArchive>);
+static_assert(madness::has_freestanding_default_serialize_with_size_v<int*, madness::archive::BufferInputArchive>);
+static_assert(madness::has_freestanding_default_serialize_with_size_v<int*, madness::archive::BinaryFstreamOutputArchive>);
+static_assert(madness::has_nonmember_store_v<int, madness::archive::BufferOutputArchive>);
+static_assert(madness::has_nonmember_load_v<int, madness::archive::BufferInputArchive>);
+static_assert(!madness::is_user_serializable_v<int, madness::archive::BufferOutputArchive>);
+static_assert(!madness::is_user_serializable_v<int, madness::archive::BufferInputArchive>);
+
 // A is a class that provides a symmetric serialize method
 class A {
 public:
@@ -98,6 +127,17 @@ public:
         ar & a;
     }
 };
+
+static_assert(madness::has_member_serialize_v<A, madness::archive::BufferOutputArchive>);
+static_assert(madness::has_member_serialize_v<A, madness::archive::BufferInputArchive>);
+// N.B. nonmember serialize is provided for types with serialize member
+static_assert(madness::has_nonmember_serialize_v<A, madness::archive::BufferOutputArchive>);
+static_assert(madness::has_nonmember_serialize_v<A, madness::archive::BufferInputArchive>);
+// N.B. nonmember load/store is provided for types with serialize member
+static_assert(madness::has_nonmember_store_v<A, madness::archive::BufferOutputArchive>);
+static_assert(madness::has_nonmember_load_v<A, madness::archive::BufferInputArchive>);
+static_assert(!madness::has_nonmember_load_and_store_v<A, madness::archive::BufferOutputArchive>);
+static_assert(!madness::has_nonmember_load_and_store_v<A, madness::archive::BufferInputArchive>);
 
 // B is a class without a serialize method but with symmetric serialization.
 class B {
@@ -117,6 +157,16 @@ namespace madness {
         };
     }
 }
+
+static_assert(!madness::has_member_serialize_v<B, madness::archive::BufferOutputArchive>);
+static_assert(!madness::has_member_serialize_v<B, madness::archive::BufferInputArchive>);
+static_assert(madness::has_nonmember_serialize_v<B, madness::archive::BufferOutputArchive>);
+static_assert(madness::has_nonmember_serialize_v<B, madness::archive::BufferInputArchive>);
+// N.B. nonmember load/store is provided for types with nonmember serialize
+static_assert(madness::has_nonmember_store_v<B, madness::archive::BufferOutputArchive>);
+static_assert(madness::has_nonmember_load_v<B, madness::archive::BufferInputArchive>);
+static_assert(!madness::has_nonmember_load_and_store_v<B, madness::archive::BufferOutputArchive>);
+static_assert(!madness::has_nonmember_load_and_store_v<B, madness::archive::BufferInputArchive>);
 
 // C is a class with asymmetric load/store.
 class C {
@@ -143,11 +193,30 @@ namespace madness {
     }
 }
 
+static_assert(!madness::has_member_serialize_v<C, madness::archive::BufferOutputArchive>);
+static_assert(!madness::has_member_serialize_v<C, madness::archive::BufferInputArchive>);
+static_assert(!madness::has_nonmember_serialize_v<C, madness::archive::BufferOutputArchive>);
+static_assert(!madness::has_nonmember_serialize_v<C, madness::archive::BufferInputArchive>);
+static_assert(madness::has_nonmember_store_v<C, madness::archive::BufferOutputArchive>);
+static_assert(madness::has_nonmember_load_v<C, madness::archive::BufferInputArchive>);
+static_assert(madness::has_nonmember_load_and_store_v<C, madness::archive::BufferOutputArchive>);
+static_assert(madness::has_nonmember_load_and_store_v<C, madness::archive::BufferInputArchive>);
+
 // POD can be serialized to most (except text stream) archives without any effort
 struct D {
   int32_t i;
   int64_t l;
 };
+
+static_assert(!madness::has_member_serialize_v<D, madness::archive::BufferOutputArchive>);
+static_assert(!madness::has_member_serialize_v<D, madness::archive::BufferInputArchive>);
+static_assert(!madness::has_nonmember_serialize_v<D, madness::archive::BufferOutputArchive>);
+static_assert(!madness::has_nonmember_serialize_v<D, madness::archive::BufferInputArchive>);
+// N.B. nonmember load/store is provided for default-serializable types
+static_assert(madness::has_nonmember_store_v<D, madness::archive::BufferOutputArchive>);
+static_assert(madness::has_nonmember_load_v<D, madness::archive::BufferInputArchive>);
+static_assert(!madness::has_nonmember_load_and_store_v<D, madness::archive::BufferOutputArchive>);
+static_assert(!madness::has_nonmember_load_and_store_v<D, madness::archive::BufferInputArchive>);
 
 // to serialize a POD to a text stream just overload stream redirection operators
 struct F {
@@ -186,6 +255,28 @@ static_assert(madness::is_istreammable_v<int>, "int is istreammable");
 static_assert(!madness::is_istreammable_v<std::array<int,3>>, "std::array<int,3> is not istreammable");
 static_assert(!madness::is_istreammable_v<std::vector<int>>, "std::vector<int> is not istreammable");
 static_assert(!madness::is_istreammable_v<NotStreammable>, "NotStreammable is not istreammable");
+
+static_assert(!madness::is_default_serializable_v<madness::archive::TextFstreamOutputArchive,std::vector<std::vector<int>>>);
+static_assert(!madness::is_default_serializable_v<madness::archive::TextFstreamInputArchive,std::vector<std::vector<int>>>);
+
+// serialization of trivially-serializable types can be overloaded
+struct G1 {
+  int32_t i;
+  int64_t l;
+  template <typename Archive>
+  void serialize(Archive& ar) {
+    ar & i & l;
+    if constexpr (madness::is_input_archive_v<Archive>) {
+      int junk;
+      ar >> junk;
+      MADNESS_ASSERT(junk == 17);
+    }
+    else {
+      static_assert(madness::is_output_archive_v<Archive>);
+      ar << 17;
+    }
+  }
+};
 
 // A better example of a class with asym load/store
 class linked_list {
@@ -319,6 +410,7 @@ void test_out(const OutputArchive& oar) {
     C c, cn[n];
     D d, dn[n];
     F f, fn[n];
+    G1 g1, g1n[n];
     int i, in[n];
     double *p = new double[n];
     A *q = new A[n];
@@ -338,12 +430,15 @@ void test_out(const OutputArchive& oar) {
     a.a = 1; b.b = 1; c.c = 1; i = 1;
     d.i = 1;  d.l = 2;
     f.i = 1;  f.l = 2;
+    g1.i = 1; g1.l = 2;
     for (int k=0; k<n; ++k) {
         p[k] = q[k].a = an[k].a = v[k] = arr[k] = cn[k].c = in[k] = k;
         dn[k].i = k+1;
         dn[k].l = k+2;
         fn[k].i = k+3;
         fn[k].l = k+4;
+        g1n[k].i = k+5;
+        g1n[k].l = k+6;
         vv[k] = {k+1, k+2, k+3, k+4};
         bn[k].b = k&1;
         m[k] = double_complex(k,k);
@@ -383,6 +478,9 @@ void test_out(const OutputArchive& oar) {
       MAD_ARCHIVE_DEBUG(std::cout << std::endl << " F" << std::endl);
       pod_serialize_dispatch<F_is_serializable>{}(oar, f);
     }
+    MAD_ARCHIVE_DEBUG(std::cout << std::endl << " G1" << std::endl);
+    oar & g1;
+    oar << g1;
     MAD_ARCHIVE_DEBUG(std::cout << std::endl << " int[]" << std::endl);
     oar & in;
     oar << in;
@@ -405,6 +503,9 @@ void test_out(const OutputArchive& oar) {
       MAD_ARCHIVE_DEBUG(std::cout << std::endl << " F[]" << std::endl);
       pod_serialize_dispatch<F_is_serializable>{}(oar, fn);
     }
+    MAD_ARCHIVE_DEBUG(std::cout << std::endl << " G1[]" << std::endl);
+    oar << g1n;
+    oar & g1n;
     MAD_ARCHIVE_DEBUG(std::cout << std::endl << " double *p wrapped" << std::endl);
     oar << wrap(p,n);
     oar & wrap(p,n);
@@ -437,12 +538,12 @@ void test_out(const OutputArchive& oar) {
     if constexpr(ptr_is_serializable) {
       MAD_ARCHIVE_DEBUG(std::cout << std::endl
                                   << " function pointer" << std::endl);
-      oar &free_fn;
+      oar & free_fn;  // no difference between storing function ref and function pointer
       oar << (&free_fn);
       MAD_ARCHIVE_DEBUG(std::cout << std::endl
                                   << " static member function pointer"
                                   << std::endl);
-      oar &Member::static_fn;
+      oar & Member::static_fn;  // no difference between storing function ref and function pointer
       oar << (&Member::static_fn);
       MAD_ARCHIVE_DEBUG(std::cout << std::endl
                                   << " non-static member function pointer"
@@ -458,7 +559,7 @@ void test_out(const OutputArchive& oar) {
 
     oar & 1.0 & i & a & b & c & in & an & bn & cn & wrap(p,n) & wrap(q,n) & pp & m & t & str;
     if constexpr(ptr_is_serializable) {
-      oar &free_fn &(&free_fn) & Member::static_fn & (&Member::static_fn) & (&Member::fn) & (&Member::virtual_fn);
+      oar & free_fn &(&free_fn) & Member::static_fn & (&Member::static_fn) & (&Member::fn) & (&Member::virtual_fn);
     }
 
     if (D_is_serializable) {
@@ -479,6 +580,7 @@ void test_in(const InputArchive& iar) {
     C c, cn[n];
     D d, dn[n];
     F f, fn[n];
+    G1 g1, g1n[n];
     int i, in[n];
     double *p = new double[n];
     A *q = new A[n];
@@ -500,12 +602,15 @@ void test_in(const InputArchive& iar) {
     a.a = 0; b.b = 0; c.c = 0; i = 0;
     d.i = -1;  d.l = -1;
     f.i = -1;  f.l = -1;
+    g1.i = -1; g1.l = -1;
     for (int k=0; k<n; ++k) {
         p[k] = q[k].a = an[k].a = v[k] = arr[k] = cn[k].c = in[k] = -1;
         dn[k].i = -1;
         dn[k].l = -1;
         fn[k].i = -1;
         fn[k].l = -1;
+        g1n[k].i = -1;
+        g1n[k].l = -1;
         vv[k] = {};
         bn[k].b = (k+1)&1;
         m[k] = double_complex(0,0);
@@ -549,6 +654,9 @@ void test_in(const InputArchive& iar) {
       MAD_ARCHIVE_DEBUG(std::cout << std::endl << " F" << std::endl);
       pod_deserialize_dispatch<F_is_serializable>{}(iar, f);
     }
+    MAD_ARCHIVE_DEBUG(std::cout << std::endl << " G1" << std::endl);
+    iar & g1;
+    iar >> g1;
     MAD_ARCHIVE_DEBUG(std::cout << std::endl << " int[]" << std::endl);
     iar & in;
     iar >> in;
@@ -569,6 +677,9 @@ void test_in(const InputArchive& iar) {
       MAD_ARCHIVE_DEBUG(std::cout << std::endl << " F[]" << std::endl);
       pod_deserialize_dispatch<F_is_serializable>{}(iar, fn);
     }
+    MAD_ARCHIVE_DEBUG(std::cout << std::endl << " G1[]" << std::endl);
+    iar & g1n;
+    iar >> g1n;
     MAD_ARCHIVE_DEBUG(std::cout << std::endl << " double *p wrapped" << std::endl);
     iar & wrap(p,n);
     iar >> wrap(p,n);
@@ -597,16 +708,20 @@ void test_in(const InputArchive& iar) {
     iar & str;
     iar >> str;
 
-    constexpr const bool ptr_is_serializable = !madness::is_cereal_archive<InputArchive>::value;
+    constexpr const bool ptr_is_serializable = true && !madness::is_cereal_archive<InputArchive>::value;
     if constexpr(ptr_is_serializable) {
       MAD_ARCHIVE_DEBUG(std::cout << std::endl
                                   << " function pointer" << std::endl);
-      iar &free_fn_ptr1;
+      static_assert(!madness::is_istreammable_v<void(*)()>);
+      static_assert(madness::is_ostreammable_v<void(*)()>);
+      static_assert(madness::is_default_serializable_v<madness::archive::TextFstreamInputArchive, void (*)()>);
+      static_assert(madness::is_default_serializable_v<madness::archive::TextFstreamInputArchive, void (*)()>);
+      iar & free_fn_ptr1;
       iar >> free_fn_ptr2;
       MAD_ARCHIVE_DEBUG(std::cout << std::endl
                                   << " static member function pointer"
                                   << std::endl);
-      iar &static_member_fn_ptr1;
+      iar & static_member_fn_ptr1;
       iar >> static_member_fn_ptr2;
       MAD_ARCHIVE_DEBUG(std::cout << std::endl
                                   << " non-static member function pointer"
@@ -651,6 +766,8 @@ void test_in(const InputArchive& iar) {
       TEST(f.i == 1);
       TEST(f.l == 2);
     }
+    TEST(g1.i == 1);
+    TEST(g1.l == 2);
     TEST(i == 1);
     for (int k=0; k<n; ++k) {
         TEST(an[k].a == k);
@@ -664,6 +781,8 @@ void test_in(const InputArchive& iar) {
           TEST(fn[k].i == k + 3);
           TEST(fn[k].l == k + 4);
         }
+        TEST(g1n[k].i == k + 5);
+        TEST(g1n[k].l == k + 6);
         TEST(in[k] == k);
         TEST(p[k] == k);
         TEST(q[k].a == k);

@@ -269,10 +269,7 @@ namespace madness {
 
     public:
     	/// default ctor; initialize energies with a large number
-    	ElectronPair()
-    		: i(-1), j(-1), e_singlet(uninitialized()), e_triplet(uninitialized()),
-    			ij_gQf_ij(uninitialized()), ji_gQf_ij(uninitialized()), iteration(0), converged(false) {
-    	}
+    	ElectronPair() : ElectronPair(-1,-1) {}
 
     	/// ctor; initialize energies with a large number
     	ElectronPair(const int i, const int j)
@@ -328,7 +325,7 @@ namespace madness {
             	if (function.is_initialized()) function.set_thresh(FunctionDefaults<6>::get_thresh());
             	if (constant_term.is_initialized()) constant_term.set_thresh(FunctionDefaults<6>::get_thresh());
             } else {
-		    	if (world.rank()==0) print("could not find pair ",i,j," on disk");
+                if (world.rank()==0) print("could not find pair ",i,j," on disk");
             }
             return exists;
         }
