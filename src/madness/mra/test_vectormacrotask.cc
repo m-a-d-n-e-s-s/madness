@@ -9,30 +9,10 @@
  lightweight and carry only bookkeeping information, actual input and output are stored in a
  cloud (see cloud.h)
 
- The user-defined MacroTask is derived from MacroTaskIntermediate and must implement the run()
+ The user-defined MacroTask is derived from MacroTaskOperationBase and must implement the call operator
  method. A heterogeneous task queue is possible.
 
- When running the taskq with Functions make sure the process map is reset before and after the
- task execution:
-
- 	    FunctionDefaults<NDIM>::set_default_pmap(taskq.get_subworld());
-	    taskq.run_all(task_list);
-		FunctionDefaults<NDIM>::set_default_pmap(universe);
-
- Also make sure the subworld objects are properly destroyed after the execution
-
 */
-
-/*
- * for_each i
- *      result[i] = op(arg[i],other_args)
- *
- * for_each i
- *      result[j] = op(arg[i],other_args)
- *
- */
-
-
 
 #include <madness/mra/mra.h>
 #include <madness/world/cloud.h>
@@ -73,7 +53,7 @@ struct gaussian {
 
 
 
-class MicroTask : public MicroTaskBase {
+class MicroTask : public MacroTaskOperationBase {
 public:
     // you need to define the exact argument(s) of operator() as tuple
     typedef std::tuple<const real_function_3d &, const double &,
@@ -98,7 +78,7 @@ public:
 };
 
 
-class MicroTask1 : public MicroTaskBase{
+class MicroTask1 : public MacroTaskOperationBase{
 public:
     // you need to define the result type
     // resultT must implement operator+=(const resultT&)
@@ -121,7 +101,7 @@ public:
     }
 };
 
-class MicroTask2 : public MicroTaskBase{
+class MicroTask2 : public MacroTaskOperationBase{
 public:
     // you need to define the result type
     // resultT must implement operator+=(const resultT&)

@@ -71,7 +71,11 @@ CC2::solve() {
 		if(world.rank()==0) std::cout << std::fixed << std::setprecision(10) << " CC2 Correlation Energy =" << cc2_correlation_energy << "\n";
 
 	}else if(ctype==CT_LRCCS){
-		TDHF tdhf(world,nemo);
+//		TDHF tdhf(world,nemo);
+        commandlineparser parser;
+        TDHF tdhf(world,parser);
+        tdhf.set_reference(nemo);
+        MADNESS_EXCEPTION("check if the previous 4 lines are OK",1);
 		std::vector<CC_vecfunction> ccs;
 		for(size_t k=0;k<parameters.excitations_.size();k++){
 			CC_vecfunction tmp;
@@ -366,7 +370,11 @@ CC2::solve() {
 // Solve the CCS equations for the ground state (debug potential and check HF convergence)
 std::vector<CC_vecfunction> CC2::solve_ccs() {
 	output.section("SOLVE CCS");
-	TDHF tdhf(world,nemo);
+    //    TDHF tdhf(world,nemo);
+    commandlineparser parser;
+    TDHF tdhf(world,parser);
+    tdhf.set_reference(nemo);
+    MADNESS_EXCEPTION("check if the previous 4 lines are OK",1);
 	std::vector<CC_vecfunction> excitations;
 	for(size_t k=0;k<parameters.excitations_.size();k++){
 		CC_vecfunction tmp;

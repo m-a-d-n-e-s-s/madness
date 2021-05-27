@@ -40,7 +40,7 @@ Exchange<T, NDIM>::Exchange(World& world, const Nemo *nemo,
 
 template<typename T, std::size_t NDIM>
 std::vector<Function<T, NDIM> > Exchange<T, NDIM>::operator()(
-        const std::vector<Function<T, NDIM> >& vket, const double mul_tol) const {
+        const std::vector<Function<T, NDIM> >& vket) const {
 
     reconstruct(world, mo_bra, false);
     reconstruct(world, mo_ket, false);

@@ -38,7 +38,6 @@
 #define MADNESS_CHEM_SCFOPERATORS_H_
 
 #include <madness.h>
-#include <chem/exchangeoperator.h>
 
 using namespace madness;
 
@@ -252,9 +251,9 @@ public:
     /// ctor with a Nemo calculation providing the MOs and density
     Coulomb(World& world, const Nemo* nemo);
 
-    auto set_poisson(World& world, const double lo, const double econv=FunctionDefaults<3>::get_thresh()) {
-        return std::shared_ptr<real_convolution_3d>(CoulombOperatorPtr(world, lo, econv));
-    };
+    std::string info() const {return "J";}
+
+    void reset_poisson_operator_ptr(const double lo, const double econv);
 
     void set_metric(const real_function_3d& metric) {
     	R_square=copy(metric);
@@ -460,6 +459,46 @@ private:
 
 };
 
+template<typename T, std::size_t NDIM>
+class LocalPotentialOperator : public SCFOperatorBase<T,NDIM> {
+public:
+    LocalPotentialOperator(World& world) : world(world) {};
+    LocalPotentialOperator(World& world, const std::string info, const Function<T,NDIM> potential)
+            : world(world), info_str(info), potential(potential) {};
+
+    std::string info() const {return info_str;}
+
+    void set_info(const std::string new_info) {
+        info_str=new_info;
+    }
+
+    void set_potential(const Function<T,NDIM>& new_potential) {
+        potential=copy(new_potential);
+    }
+
+    Function<T,NDIM> operator()(const Function<T,NDIM>& ket) const {
+        return (potential*ket).truncate();
+    }
+
+    std::vector<Function<T,NDIM> > operator()(const std::vector<Function<T,NDIM> >& vket) const {
+        return truncate(potential*vket);
+    }
+
+    T operator()(const Function<T,NDIM>& bra, const Function<T,NDIM>& ket) const {
+        return inner(bra,potential*ket);
+    }
+
+    Tensor<T> operator()(const std::vector<Function<T,NDIM> >& vbra,
+                         const std::vector<Function<T,NDIM> >& vket) const {
+        const auto bra_equiv_ket = &vbra == &vket;
+        return matrix_inner(world,vbra,potential*vket,bra_equiv_ket);
+    }
+
+private:
+    World& world;
+    std::string info_str="Vlocal";
+    Function<T,NDIM> potential;
+};
 
 /// operator class for the handling of DFT exchange-correlation functionals
 template<typename T, std::size_t NDIM>
@@ -722,4 +761,5 @@ private:
 };
 
 }
+#include <chem/exchangeoperator.h>
 #endif /* MADNESS_CHEM_SCFOPERATORS_H_ */

@@ -281,7 +281,7 @@ std::shared_ptr<Fock<double,3>> Nemo::make_fock_operator() const {
     fock->add_operator("V",std::make_shared<Nuclear<double,3> >(world,this));
     fock->add_operator("T",std::make_shared<Kinetic<double,3> >(world));
     if (calc->xc.hf_exchange_coefficient()>0.0) {
-        Exchange<double,3> K=Exchange<double,3>(world,this,ispin).same(false).small_memory(false);
+        Exchange<double,3> K=Exchange<double,3>(world,this,ispin).symmetric(false);
         fock->add_operator("K",{-1.0,std::make_shared<Exchange<double,3>>(K)});
     }
     if (calc->xc.is_dft()) {
@@ -1319,7 +1319,7 @@ vecfuncT Nemo::solve_cphf(const size_t iatom, const int iaxis, const Tensor<doub
 
     // construct unperturbed operators
     const Coulomb<double,3> J(world,this);
-    const Exchange<double,3> K=Exchange<double,3>(world,this,0).small_memory(false);
+    const Exchange<double,3> K=Exchange<double,3>(world,this,0);
     const XCOperator<double,3> xc(world, xc_data, not calc->param.spin_restricted(), arho, arho);
     const Nuclear<double,3> V(world,this);
 

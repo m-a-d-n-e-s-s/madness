@@ -952,7 +952,7 @@ int main(int argc, char** argv) {
 #endif
     if (!smalltest) {
     	result+=test_exchange<double>(world);
-//#ifndef HAVE_GENTENSOR
+#ifndef HAVE_GENTENSOR
     	result+=test_exchange<double_complex>(world);
 #endif
     	result+=test_XCOperator<double>(world);

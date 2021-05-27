@@ -13,7 +13,7 @@ set(MADCHEM_HEADERS
     pcm.h SCFProtocol.h AC.h pointgroupoperator.h pointgroupsymmetry.h MolecularOrbitals.h 
 	znemo.h zcis.h  diamagneticpotentialfactor.h oep.h BSHApply.h
     PNO.h PNOF12Potentials.h PNOGuessFunctions.h PNOParameters.h PNOStructures.h PNOTensors.h
-    basis.h polynomial.h gaussian.h ESInterface.h NWChem.h )
+    basis.h polynomial.h gaussian.h ESInterface.h NWChem.h write_test_input.h)
 set(MADCHEM_SOURCES
     correlationfactor.cc molecule.cc molecularbasis.cc vibanal.cc
     corepotential.cc atomutil.cc lda.cc

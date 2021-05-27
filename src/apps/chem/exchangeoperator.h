@@ -4,6 +4,7 @@
 #include<madness.h>
 #include<madness/world/cloud.h>
 #include<madness/mra/macrotaskq.h>
+#include<chem/SCFOperators.h>
 
 using namespace madness;
 
@@ -16,7 +17,7 @@ class Nemo;
 
 
 template<typename T, std::size_t NDIM>
-class Exchange {
+class Exchange : public SCFOperatorBase<T,NDIM> {
     typedef Function<T, NDIM> functionT;
     typedef std::vector<functionT> vecfuncT;
 
@@ -70,6 +71,8 @@ public:
         lo = lo1;
     }
 
+    std::string info() const {return "K";}
+
     static auto set_poisson(World& world, const double lo, const double econv = FunctionDefaults<3>::get_thresh()) {
         return std::shared_ptr<real_convolution_3d>(CoulombOperatorPtr(world, lo, econv));
     }
@@ -85,7 +88,7 @@ public:
     /// note that only one spin is used (either alpha or beta orbitals)
     /// @param[in]  vket       the orbitals |i> that the operator is applied on
     /// @return     a vector of orbitals  K| i>
-    vecfuncT operator()(const vecfuncT& vket, const double mul_tol = 0.0) const;
+    vecfuncT operator()(const vecfuncT& vket) const;
 
     /// compute the matrix element <bra | K | ket>
 
@@ -145,8 +148,9 @@ private:
     vecfuncT mo_bra, mo_ket;    ///< MOs for bra and ket
     double lo = 1.e-4;
     long printlevel = 0;
+    double mul_tol = 1.e-7;
 
-    class MacroTaskExchangeSimple : public MicroTaskBase {
+    class MacroTaskExchangeSimple : public MacroTaskOperationBase {
 
         long nresult;
         double lo = 1.e-4;
@@ -255,7 +259,7 @@ private:
                 auto ket_batch = bra_range.copy_batch(vket);
                 vecfuncT resultcolumn = compute_batch_in_asymmetric_matrix(world, ket_batch, bra_batch, vf_batch);
                 for (int i = vf_range.begin; i < vf_range.end; ++i)
-                    Kf[i] += resultcolumn[i - bra_range.begin];
+                    Kf[i] += resultcolumn[i - vf_range.begin];
             }
             return Kf;
         }

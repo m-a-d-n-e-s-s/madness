@@ -441,11 +441,11 @@ private:
 
 };
 
-class MicroTaskBase {
+class MacroTaskOperationBase {
 public:
     Batch batch;
     std::shared_ptr<MacroTaskPartitioner> partitioner=0;
-    MicroTaskBase() : batch(Batch(_,_,_)),  partitioner(new MacroTaskPartitioner) {}
+    MacroTaskOperationBase() : batch(Batch(_, _, _)), partitioner(new MacroTaskPartitioner) {}
 };
 
 
