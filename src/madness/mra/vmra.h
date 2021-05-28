@@ -1726,7 +1726,7 @@ namespace madness {
     void load_function(World& world, std::vector<Function<T,NDIM> >& f,
             const std::string name) {
         if (world.rank()==0) print("loading vector of functions",name);
-        archive::ParallelInputArchive ar(world, name.c_str(), 1);
+        archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, name.c_str(), 1);
         std::size_t fsize=0;
         ar & fsize;
         f.resize(fsize);
@@ -1739,7 +1739,7 @@ namespace madness {
         if (f.size()>0) {
             World& world=f.front().world();
             if (world.rank()==0) print("saving vector of functions",name);
-            archive::ParallelOutputArchive ar(world, name.c_str(), 1);
+            archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, name.c_str(), 1);
             std::size_t fsize=f.size();
             ar & fsize;
             for (std::size_t i=0; i<fsize; ++i) ar & f[i];
