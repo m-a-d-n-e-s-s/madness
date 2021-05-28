@@ -305,7 +305,7 @@ std::vector<Zcis::root> Zcis::read_guess() const {
 	std::string name="cis_guess";
 	print("reading cis guess from file",name);
 
-	archive::ParallelInputArchive ar(world, name.c_str(), 1);
+	archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, name.c_str(), 1);
 	std::size_t size1, size2, size3, size4;
 
 	for (root& g : guess) {
@@ -326,7 +326,7 @@ std::vector<Zcis::root> Zcis::read_guess() const {
 void Zcis::save_guess(const std::vector<root>& roots) const {
 	std::string name="cis_guess";
 	print("saving cis guess to file",name);
-	archive::ParallelOutputArchive ar(world, name.c_str(), 1);
+	archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, name.c_str(), 1);
 	for (const root& g : roots) {
 		ar & g.omega & g.delta & g.energy_change ;
 		std::size_t size1=g.afunction.size();

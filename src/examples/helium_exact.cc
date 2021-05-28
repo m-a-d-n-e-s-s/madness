@@ -362,12 +362,12 @@ double compute_energy(World& world, const real_function_6d& psi,
 }
 
 void save(World& world, const real_function_6d& f, std::string filename) {
-	archive::ParallelOutputArchive ar(world, filename.c_str(), 1);
+	archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, filename.c_str(), 1);
 	ar & f;
 }
 
 void load(World& world, real_function_6d& f, std::string filename) {
-	archive::ParallelInputArchive ar(world, filename.c_str(), 1);
+	archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, filename.c_str(), 1);
 	ar & f;
 }
 
@@ -504,7 +504,7 @@ int main(int argc, char** argv) {
 			filename.c_str());
 	if (exists) {
 		if (world.rank() == 0) print("reading wave function from file");
-		archive::ParallelInputArchive iar(world, filename.c_str(), 1);
+		archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> iar(world, filename.c_str(), 1);
 		iar & psi & eps;
 		psi.set_thresh(FunctionDefaults<6>::get_thresh());
 		real_function_3d vnuc=copy(calc->potentialmanager->vnuclear());
@@ -581,7 +581,7 @@ int main(int argc, char** argv) {
 					print("updating energy");
 				eps = eps_new;
 			}
-			archive::ParallelOutputArchive ar(world, filename.c_str(), 1);
+			archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, filename.c_str(), 1);
 			ar & psi & eps;
 
 			real_function_3d vnuc=copy(calc->potentialmanager->vnuclear());

@@ -894,7 +894,7 @@ Znemo::read_reference() const {
 
 	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> > zmos;
 
-	archive::ParallelInputArchive ar(world, name.c_str(), 1);
+	archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, name.c_str(), 1);
 	std::size_t namo, nbmo;
 
 	std::vector<complex_function_3d> amos,bmos;

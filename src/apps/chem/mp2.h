@@ -319,7 +319,7 @@ namespace madness {
         	bool exists=archive::ParallelInputArchive<archive::BinaryFstreamInputArchive>::exists(world,name.c_str());
             if (exists) {
             	if (world.rank()==0) printf("loading matrix elements %s",name.c_str());
-                archive::ParallelInputArchive ar(world, name.c_str(), 1);
+                archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, name.c_str(), 1);
                 ar & *this;
             	if (world.rank()==0) printf(" %s\n",(converged)?" converged":" not converged");
             	if (function.is_initialized()) function.set_thresh(FunctionDefaults<6>::get_thresh());
@@ -333,7 +333,7 @@ namespace madness {
         void store_pair(World& world) {
         	std::string name="pair_"+stringify(i)+stringify(j);
         	if (world.rank()==0) printf("storing matrix elements %s\n",name.c_str());
-            archive::ParallelOutputArchive ar(world, name.c_str(), 1);
+            archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, name.c_str(), 1);
         	ar & *this;
         }
 

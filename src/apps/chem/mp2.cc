@@ -622,7 +622,7 @@ void MP2::save_function(const Function<T, NDIM>& f,
 	if (world.rank() == 0)
 		print("saving function", name);
 	f.print_size(name);
-	archive::ParallelOutputArchive ar(world, name.c_str(), 1);
+	archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, name.c_str(), 1);
 	ar & f;
 }
 
@@ -631,7 +631,7 @@ template<typename T, size_t NDIM>
 void MP2::load_function(Function<T, NDIM>& f, const std::string name) const {
 	if (world.rank() == 0)
 		print("loading function", name);
-	archive::ParallelInputArchive ar(world, name.c_str());
+	archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, name.c_str());
 	ar & f;
 	f.print_size(name);
 }

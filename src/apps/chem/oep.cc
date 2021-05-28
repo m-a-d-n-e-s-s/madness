@@ -83,7 +83,7 @@ void OEP::save_restartdata(const Tensor<double>& fock) const {
             .set_ordering("keep").set_verbosity(0).set_orthonormalize_irreps(false);
     auto Vfinal1=p(Vfinal)[0];
 
-    archive::ParallelOutputArchive ar(world, "restartdata_OEP");
+    archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, "restartdata_OEP");
     ar & mo & fock & Vfinal1;
 //    MolecularOrbitals<double,3> amo=to_MO();
 //    archive::ParallelOutputArchive ar(world, "restartdata_OEP");
@@ -92,7 +92,7 @@ void OEP::save_restartdata(const Tensor<double>& fock) const {
 
 void OEP::load_restartdata(Tensor<double>& fock) {
 	if (world.rank()==0) print("loading OEP orbitals from file restartdata_OEP");
-	archive::ParallelInputArchive ar(world, "restartdata_OEP");
+	archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, "restartdata_OEP");
 	MolecularOrbitals<double,3> mo;
 	ar & mo & fock & Vfinal;
 	mo.pretty_print("OEP MOs from file");

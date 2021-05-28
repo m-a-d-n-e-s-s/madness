@@ -195,7 +195,7 @@ SCF::SCF(World& world, const std::string& inputfile) : param(CalculationParamete
 
 void SCF::save_mos(World& world) {
 	PROFILE_MEMBER_FUNC(SCF);
-	archive::ParallelOutputArchive ar(world, "restartdata", param.get<int>("nio"));
+	archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, "restartdata", param.get<int>("nio"));
 	ar & current_energy & param.spin_restricted();
 	ar & (unsigned int) (amo.size());
 	ar & aeps & aocc & aset;
@@ -231,7 +231,7 @@ void SCF::load_mos(World& world) {
 	amo.clear();
 	bmo.clear();
 
-	archive::ParallelInputArchive ar(world, "restartdata");
+	archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, "restartdata");
 
 	/*
           File format:

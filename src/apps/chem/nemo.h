@@ -777,7 +777,7 @@ void Nemo::rotate_subspace(World& world, const tensorT& U, solverT& solver,
 template<typename T, size_t NDIM>
 void Nemo::save_function(const std::vector<Function<T,NDIM> >& f, const std::string name) const {
     if (world.rank()==0) print("saving vector of functions",name);
-    archive::ParallelOutputArchive ar(world, name.c_str(), 1);
+    archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, name.c_str(), 1);
     ar & f.size();
     for (const Function<T,NDIM>& ff:f)  ar & ff;
 }
@@ -786,7 +786,7 @@ void Nemo::save_function(const std::vector<Function<T,NDIM> >& f, const std::str
 template<typename T, size_t NDIM>
 void Nemo::load_function(std::vector<Function<T,NDIM> >& f, const std::string name) const {
     if (world.rank()==0) print("loading vector of functions",name);
-    archive::ParallelInputArchive ar(world, name.c_str(), 1);
+    archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, name.c_str(), 1);
     std::size_t fsize=0;
     ar & fsize;
     f.resize(fsize);

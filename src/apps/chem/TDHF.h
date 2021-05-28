@@ -432,7 +432,7 @@ public:
         bool exists = archive::ParallelInputArchive<archive::BinaryFstreamInputArchive>::exists(world, name.c_str());
         if (exists) {
             if (world.rank() == 0) print("loading function", name);
-            archive::ParallelInputArchive ar(world, name.c_str());
+            archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, name.c_str());
             ar & f;
             f.print_size(name);
             return true;
