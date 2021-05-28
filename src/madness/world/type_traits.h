@@ -597,6 +597,10 @@ namespace madness {
     struct is_archive<archive::MPIOutputArchive> : std::true_type {};
     template <>
     struct is_archive<archive::MPIInputArchive> : std::true_type {};
+    template <>
+    struct is_archive<archive::ContainerRecordOutputArchive> : std::true_type {};
+    template <>
+    struct is_archive<archive::ContainerRecordInputArchive> : std::true_type {};
     template <class localarchiveT>
     struct is_archive<archive::ParallelOutputArchive<localarchiveT> > : std::true_type {};
     template <class localarchiveT>
@@ -614,6 +618,8 @@ namespace madness {
     struct is_output_archive<archive::MPIRawOutputArchive> : std::true_type {};
     template <>
     struct is_output_archive<archive::MPIOutputArchive> : std::true_type {};
+    template <>
+    struct is_output_archive<archive::ContainerRecordOutputArchive> : std::true_type {};
     template <class localarchiveT>
     struct is_output_archive<archive::ParallelOutputArchive<localarchiveT> > : std::true_type {};
 
@@ -629,6 +635,8 @@ namespace madness {
     struct is_input_archive<archive::MPIRawInputArchive> : std::true_type {};
     template <>
     struct is_input_archive<archive::MPIInputArchive> : std::true_type {};
+    template <>
+    struct is_input_archive<archive::ContainerRecordInputArchive> : std::true_type {};
     template <class localarchiveT>
     struct is_input_archive<archive::ParallelInputArchive<localarchiveT> > : std::true_type {};
 

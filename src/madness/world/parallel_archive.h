@@ -400,17 +400,41 @@ namespace madness {
         /// \attention No type-checking is performed.
         /// \tparam T The data type.
         template <class T, class localarchiveT>
-        struct ArchiveImpl<ParallelOutputArchive<localarchiveT>, T, std::enable_if_t<!std::is_base_of_v<ParallelSerializableObject, T>>> {
+        struct ArchiveImpl<ParallelOutputArchive<localarchiveT>, T> {
+            /// Store the data in the archive.
+
+            /// Parallel objects are forwarded to their implementation of parallel store.
+            ///
+            /// The function only appears (due to \c enable_if) if \c Q is a parallel
+            /// serializable object.
+            /// \todo Is \c Q necessary? I'm sure it is, but can't figure out why at a first glance.
+            /// \tparam Q Description needed.
+            /// \param[in] ar The parallel archive.
+            /// \param[in] t The parallel object to store.
+            /// \return The parallel archive.
+            template <typename Q>
+            static inline
+            typename std::enable_if<std::is_base_of<ParallelSerializableObject, Q>::value, const ParallelOutputArchive<localarchiveT>&>::type
+            wrap_store(const ParallelOutputArchive<localarchiveT>& ar, const Q& t) {
+                ArchiveStoreImpl<ParallelOutputArchive<localarchiveT>,T>::store(ar,t);
+                return ar;
+            }
+
             /// Store the data in the archive.
 
             /// Serial objects write only from process 0.
             ///
+            /// The function only appears (due to \c enable_if) if \c Q is not
+            /// a parallel serializable object.
+            /// \todo Same question about \c Q.
+            /// \tparam Q Description needed.
             /// \param[in] ar The parallel archive.
             /// \param[in] t The serial data.
             /// \return The parallel archive.
+            template <typename Q>
             static inline
-            const ParallelOutputArchive<localarchiveT>&
-            wrap_store(const ParallelOutputArchive<localarchiveT>& ar, const T& t) {
+            typename std::enable_if<!std::is_base_of<ParallelSerializableObject, Q>::value, const ParallelOutputArchive<localarchiveT>&>::type
+            wrap_store(const ParallelOutputArchive<localarchiveT>& ar, const Q& t) {
                 if (ar.get_world()->rank()==0) {
                     ar.local_archive() & t;
                 }
@@ -423,17 +447,41 @@ namespace madness {
         /// \attention No type-checking is performed.
         /// \tparam T The data type.
         template <class T, class localarchiveT>
-        struct ArchiveImpl<ParallelInputArchive<localarchiveT>, T, std::enable_if_t<!std::is_base_of_v<ParallelSerializableObject, T>>> {
+        struct ArchiveImpl<ParallelInputArchive<localarchiveT>, T> {
+            /// Load the data from the archive.
+
+            /// Parallel objects are forwarded to their implementation of parallel load.
+            ///
+            /// The function only appears (due to \c enable_if) if \c Q is a parallel
+            /// serializable object.
+            /// \todo Is \c Q necessary? I'm sure it is, but can't figure out why at a first glance.
+            /// \tparam Q Description needed.
+            /// \param[in] ar The parallel archive.
+            /// \param[out] t Where to put the loaded parallel object.
+            /// \return The parallel archive.
+            template <typename Q>
+            static inline
+            typename std::enable_if<std::is_base_of<ParallelSerializableObject, Q>::value, const ParallelInputArchive<localarchiveT>&>::type
+            wrap_load(const ParallelInputArchive<localarchiveT>& ar, const Q& t) {
+                ArchiveLoadImpl<ParallelInputArchive<localarchiveT>,T>::load(ar,const_cast<T&>(t));
+                return ar;
+            }
+
             /// Load the data from the archive.
 
             /// Serial objects are read only from process 0 and then broadcasted.
             ///
+            /// The function only appears (due to \c enable_if) if \c Q is not
+            /// a parallel serializable object.
+            /// \todo Same question about \c Q.
+            /// \tparam Q Description needed.
             /// \param[in] ar The parallel archive.
             /// \param[out] t Where to put the loaded data.
             /// \return The parallel archive.
+            template <typename Q>
             static inline
-            const ParallelInputArchive<localarchiveT>&
-            wrap_load(const ParallelInputArchive<localarchiveT>& ar, const T& t) {
+            typename std::enable_if<!std::is_base_of<ParallelSerializableObject, Q>::value, const ParallelInputArchive<localarchiveT>&>::type
+            wrap_load(const ParallelInputArchive<localarchiveT>& ar, const Q& t) {
                 if (ar.get_world()->rank()==0) {
                     ar.local_archive() & t;
                 }
