@@ -113,6 +113,9 @@ namespace madness {
         if(rc != 0)
             MADNESS_EXCEPTION("pthread_setspecific failed", rc);
 
+        // mark as a MADNESS thread
+        set_thread_tag(ThreadTag_MADNESS);
+
         try {
             ((ThreadBase*)(self))->run();
         }
