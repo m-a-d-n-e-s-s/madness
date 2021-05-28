@@ -547,12 +547,12 @@ int test(World& world, const long& k, const double thresh) {
     print("entering test");
     int nerror=0;
 
-    typedef Key<3> keyT;
+    typedef Key<6> keyT;
 
     real_function_3d phi=real_factory_3d(world).f(gauss_3d);
 
-//    real_function_6d ij=hartree_product(phi,phi);
-    real_function_3d ij=phi;
+    real_function_6d ij=hartree_product(phi,phi);
+//    real_function_3d ij=phi;
     ij.compress();
 
     // get the root NS coeffs
@@ -567,7 +567,7 @@ int test(World& world, const long& k, const double thresh) {
 		Tensor<double> Scoeff=ij.get_impl()->unfilter(NScoeff).full_tensor_copy();
 		Tensor<double> val2(ij.get_impl()->get_cdata().v2k);
 
-		for (KeyChildIterator<3> kit(key0); kit; ++kit) {
+		for (KeyChildIterator<6> kit(key0); kit; ++kit) {
 			const keyT& child = kit.key();
 			std::vector<Slice> cp = ij.get_impl()->child_patch(child);
 			Tensor<double> child_s_coeff=Scoeff(cp);
@@ -590,7 +590,7 @@ int test(World& world, const long& k, const double thresh) {
 		Scoeff=ij.get_impl()->unfilter(Scoeff);
 		Tensor<double> val2(ij.get_impl()->get_cdata().v2k);
 
-		for (KeyChildIterator<3> kit(key0); kit; ++kit) {
+		for (KeyChildIterator<6> kit(key0); kit; ++kit) {
 			const keyT& child = kit.key();
 			std::vector<Slice> cp = ij.get_impl()->child_patch(child);
 			Tensor<double> child_s_coeff=Scoeff(cp);
@@ -613,7 +613,7 @@ int test(World& world, const long& k, const double thresh) {
 		Scoeff=ij.get_impl()->unfilter(Scoeff);
 		Tensor<double> val2(ij.get_impl()->get_cdata().v2k);
 
-		for (KeyChildIterator<3> kit(key0); kit; ++kit) {
+		for (KeyChildIterator<6> kit(key0); kit; ++kit) {
 			const keyT& child = kit.key();
 			std::vector<Slice> cp = ij.get_impl()->child_patch(child);
 			Tensor<double> child_s_coeff=Scoeff(cp);
@@ -695,22 +695,22 @@ int main(int argc, char**argv) {
 
 
     int error=0;
-//
-//    real_function_3d phi=real_factory_3d(world).f(gauss_3d);
-//    double norm=phi.norm2();
-//    if (world.rank()==0) printf("phi.norm2()   %12.8f\n",norm);
-//
-//    real_function_3d phi2=2.0*phi*phi;
-//    norm=phi2.norm2();
-//    if (world.rank()==0) printf("phi2.norm2()  %12.8f\n",norm);
+
+    real_function_3d phi=real_factory_3d(world).f(gauss_3d);
+    double norm=phi.norm2();
+    if (world.rank()==0) printf("phi.norm2()   %12.8f\n",norm);
+
+    real_function_3d phi2=2.0*phi*phi;
+    norm=phi2.norm2();
+    if (world.rank()==0) printf("phi2.norm2()  %12.8f\n",norm);
 
     test(world,k,thresh);
-//    error+=test_hartree_product(world,k,thresh);
-//    error+=test_convolution(world,k,thresh);
-//    error+=test_multiply(world,k,thresh);
-//    error+=test_add(world,k,thresh);
-//    error+=test_exchange(world,k,thresh);
-//    error+=test_inner(world,k,thresh);
+    error+=test_hartree_product(world,k,thresh);
+    error+=test_convolution(world,k,thresh);
+    error+=test_multiply(world,k,thresh);
+    error+=test_add(world,k,thresh);
+    error+=test_exchange(world,k,thresh);
+    error+=test_inner(world,k,thresh);
     error+=test_replicate(world,k,thresh);
 
     print(ok(error==0),error,"finished test suite\n");
