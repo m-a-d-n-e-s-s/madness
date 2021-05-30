@@ -88,7 +88,7 @@ using CerealXMLInputArchive = madness::archive::CerealInputArchive<cereal::XMLIn
 using CerealXMLOutputArchive = madness::archive::CerealOutputArchive<cereal::XMLOutputArchive>;
 static_assert(madness::is_text_archive_v<CerealXMLInputArchive>, "ouch");
 static_assert(madness::is_text_archive_v<CerealXMLOutputArchive>, "ouch");
-#endif
+#endif // MADNESS_HAS_CEREAL
 
 #include <madness/world/world.h>
 #include <madness/world/worldgop.h>
