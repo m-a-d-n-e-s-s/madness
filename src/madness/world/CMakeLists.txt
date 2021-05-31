@@ -36,6 +36,7 @@ add_mad_library(world MADWORLD_SOURCES MADWORLD_HEADERS "common;${ELEMENTAL_PACK
   if(MADNESS_ENABLE_CEREAL)
       include(FindCereal)
       target_link_libraries(${targetname} PUBLIC cereal)
+      target_compile_definitions(${targetname} PUBLIC MADNESS_HAS_CEREAL)
   endif()
 
   # create an additional, MADworld-only, export
