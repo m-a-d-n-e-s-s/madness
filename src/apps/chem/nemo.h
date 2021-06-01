@@ -59,6 +59,7 @@
 #include <chem/AC.h>
 #include <chem/pointgroupsymmetry.h>
 #include <chem/commandlineparser.h>
+#include <madness/world/timing_utilities.h>
 
 namespace madness {
 
@@ -84,33 +85,6 @@ struct allocator {
 	std::vector<Function<T, NDIM> > operator()() {
 		return zero_functions<T, NDIM>(world, n);
 	}
-};
-
-struct timer {
-    World& world;
-    double ttt,sss;
-    bool printme;
-    timer(World& world, bool print=true) : world(world), printme(print and world.rank()==0) {
-        world.gop.fence();
-        ttt=wall_time();
-        sss=cpu_time();
-    }
-
-    void tag(const std::string msg) {
-        world.gop.fence();
-        double tt1=wall_time()-ttt;
-        double ss1=cpu_time()-sss;
-        if (printme) printf("timer: %20.20s %8.2fs %8.2fs\n", msg.c_str(), ss1, tt1);
-        ttt=wall_time();
-        sss=cpu_time();
-    }
-
-    void end(const std::string msg) {
-        world.gop.fence();
-        double tt1=wall_time()-ttt;
-        double ss1=cpu_time()-sss;
-        if (printme) printf("timer: %20.20s %8.2fs %8.2fs\n", msg.c_str(), ss1, tt1);
-    }
 };
 
 
@@ -211,7 +185,6 @@ public:
 	/// @return		T = 1/2 \sum_i \int R^2 U1.U1 F^2 + 2 R^2 U1.grad(F) + R^2 grad(F)^2
 	template<typename T, std::size_t NDIM>
 	double compute_kinetic_energy(const std::vector<Function<T,NDIM> >& nemo) const {
-//        timer timer1(world);
 
 		// T = 0.5\sum_i \int R^2 U1.U1 F^2 - 2 R^2 U1.grad(F) F + R^2 grad(F)^2
 		//   = 0.5 (<U1.U1 | rho > + <R^2|grad(F)^2> - 2<R^2 | U1.grad(F) >)
@@ -246,7 +219,6 @@ public:
 //	    }
 //	    double ke=2.0*(ke1+ke2+ke3_real); // closed shell
 	    double ke=2.0*(ke1+ke2+ke3); // closed shell
-//		timer1.end("compute_0_kinetic_energy1");
 	    return 0.5*ke;
 	}
 
@@ -369,7 +341,6 @@ public:
 
 		void initialize_nemo_parameters() {
 			initialize<std::pair<std::string,double> > ("ncf",{"slater",2.0},"nuclear correlation factor");
-			initialize<bool> ("multiworld",false,"use macrotask/multiworld algorithm");
 			initialize<bool> ("hessian",false,"compute the hessian matrix");
 			initialize<bool> ("read_cphf",false,"read the converged orbital response for nuclear displacements from file");
 			initialize<bool> ("restart_cphf",false,"read the guess orbital response for nuclear displacements from file");
@@ -378,7 +349,6 @@ public:
 
 		std::pair<std::string,double> ncf() const {return get<std::pair<std::string,double> >("ncf");}
 		bool hessian() const {return get<bool>("hessian");}
-		bool multiworld() const {return get<bool>("multiworld");}
 
 	};
 
@@ -571,24 +541,6 @@ public:
 protected:
     projector_irrep symmetry_projector;
 
-private:
-	mutable double ttt, sss;
-	void START_TIMER(World& world) const {
-	    world.gop.fence(); ttt=wall_time(); sss=cpu_time();
-	}
-
-	void END_TIMER(World& world, const std::string msg) const {
-	    END_TIMER(world,msg.c_str());
-	}
-
-	void END_TIMER(World& world, const char* msg) const {
-	    ttt=wall_time()-ttt; sss=cpu_time()-sss;
-	    if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss, ttt);
-	}
-
-public:
-
-
 public:
 
     /// return the symmetry_projector
@@ -648,7 +600,7 @@ protected:
 
         // (re) construct the Poisson solver
         poisson = std::shared_ptr<real_convolution_3d>(
-                CoulombOperatorPtr(world, calc->param.lo(), FunctionDefaults<3>::get_thresh()));
+                CoulombOperatorPtr(world, param.lo(), FunctionDefaults<3>::get_thresh()));
 
         // set thresholds for the MOs
         set_thresh(world,calc->amo,thresh);
@@ -709,9 +661,9 @@ public:
 
 	bool is_dft() const {return calc->xc.is_dft();}
 
-	bool do_pcm() const {return calc->param.pcm_data() != "none";}
+	bool do_pcm() const {return param.pcm_data() != "none";}
 	
-	bool do_ac() const {return calc->param.ac_data() != "none";}
+	bool do_ac() const {return param.ac_data() != "none";}
 
 	AC<3> get_ac() const {return ac;}
 
