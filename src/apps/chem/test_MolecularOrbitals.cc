@@ -71,8 +71,10 @@ int test_read_restartdata(World& world) {
 
 	// write restart file
 	write_test_input test_input(param1);
-	SCF calc(world,test_input.filename().c_str());
-        calc.set_protocol<3>(world, 1e-4);
+	commandlineparser parser;
+	parser.set_keyval("input",test_input.filename());
+	SCF calc(world,parser);
+    calc.set_protocol<3>(world, 1e-4);
 	MolecularEnergy ME(world, calc);
 	//double energy=ME.value(calc.molecule.get_all_coords().flat()); // ugh!
 	ME.value(calc.molecule.get_all_coords().flat()); // ugh!
@@ -108,9 +110,11 @@ int test_read_restartaodata(World& world) {
 	param1.set_user_defined_value("protocol",std::vector<double>({1.e-3}));
 
 	// write restart file
-	write_test_input test_input(param1);
-	SCF calc(world,test_input.filename().c_str());
-        calc.set_protocol<3>(world, 1e-4);
+    write_test_input test_input(param1);
+    commandlineparser parser;
+    parser.set_keyval("input",test_input.filename());
+    SCF calc(world,parser);
+    calc.set_protocol<3>(world, 1e-4);
 	MolecularEnergy ME(world, calc);
 	//double energy=ME.value(calc.molecule.get_all_coords().flat()); // ugh!
 	ME.value(calc.molecule.get_all_coords().flat()); // ugh!

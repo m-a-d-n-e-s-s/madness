@@ -43,6 +43,7 @@
 #include <chem/molecule.h>
 #include <chem/molecularbasis.h>
 #include <chem/QCCalculationParametersBase.h>
+#include <chem/commandlineparser.h>
 
 
 namespace madness {
@@ -52,6 +53,9 @@ struct CalculationParameters : public QCCalculationParametersBase {
 
 	CalculationParameters(const CalculationParameters& other) = default;
 
+	CalculationParameters(World& world, const commandlineparser& parser) : CalculationParameters() {
+        read(world, parser.value("input"), "dft");
+    }
 
 	/// ctor reading out the input file
 	CalculationParameters() {

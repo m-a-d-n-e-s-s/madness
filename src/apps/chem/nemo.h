@@ -389,7 +389,7 @@ public:
 
 	/// @param[in]	world1	the world
 	/// @param[in]	calc	the SCF
-	Nemo(World& world1, std::shared_ptr<SCF> calc, const std::string inputfile);
+//	Nemo(World& world1, std::shared_ptr<SCF> calc, const std::string inputfile);
 
     Nemo(World& world, const commandlineparser& parser);
 

@@ -129,33 +129,34 @@ Tensor<double> NemoBase::compute_gradient(const real_function_3d& rhonemo, const
 }
 
 
-/// ctor
-
-/// @param[in]	world1	the world
-/// @param[in]	calc	the SCF
-Nemo::Nemo(World& world, std::shared_ptr<SCF> calc, const std::string inputfile) :
-		NemoBase(world), calc(calc), param(calc->param),
-		ttt(0.0), sss(0.0), coords_sum(-1.0), ac(world,calc) {
-
-    if (do_pcm()) pcm=PCM(world,this->molecule(),calc->param.pcm_data(),true);
-
-    // reading will not overwrite the derived and defined values
-    if (world.rank()==0) param.read(world,inputfile,"dft");
-    world.gop.broadcast_serializable(param, 0);
-
-
-    symmetry_projector=projector_irrep(calc->param.pointgroup())
-    		.set_ordering("keep").set_verbosity(0).set_orthonormalize_irreps(true);;
-    if (world.rank()==0) print("constructed symmetry operator for point group",
-    		symmetry_projector.get_pointgroup());
-	if (symmetry_projector.get_verbosity()>1) symmetry_projector.print_character_table();
-
-	if (world.rank()==0) param.print("dft","end");
-}
+///// ctor
+//
+///// @param[in]	world1	the world
+///// @param[in]	calc	the SCF
+//Nemo::Nemo(World& world, std::shared_ptr<SCF> calc, const std::string inputfile) :
+//		NemoBase(world), calc(calc), param(calc->param),
+//		ttt(0.0), sss(0.0), coords_sum(-1.0), ac(world,calc) {
+//
+//    if (do_pcm()) pcm=PCM(world,this->molecule(),calc->param.pcm_data(),true);
+//
+//    // reading will not overwrite the derived and defined values
+//    if (world.rank()==0) param.read(world,inputfile,"dft");
+//    world.gop.broadcast_serializable(param, 0);
+//
+//
+//    symmetry_projector=projector_irrep(calc->param.pointgroup())
+//    		.set_ordering("keep").set_verbosity(0).set_orthonormalize_irreps(true);;
+//    if (world.rank()==0) print("constructed symmetry operator for point group",
+//    		symmetry_projector.get_pointgroup());
+//	if (symmetry_projector.get_verbosity()>1) symmetry_projector.print_character_table();
+//
+//	if (world.rank()==0) param.print("dft","end");
+//}
 
 Nemo::Nemo(World& world, const commandlineparser &parser) :
         NemoBase(world),
-        calc(std::make_shared<SCF>(world, parser.value("input"))),
+//        calc(std::make_shared<SCF>(world, parser.value("input"))),
+        calc(std::make_shared<SCF>(world, parser)),
         param(calc->param),
         ttt(0.0),
         sss(0.0),
@@ -165,7 +166,6 @@ Nemo::Nemo(World& world, const commandlineparser &parser) :
 
     // reading will not overwrite the derived and defined values
     if (world.rank()==0) param.read(world,parser.value("input"),"dft");
-    world.gop.broadcast_serializable(param, 0);
 
 
     symmetry_projector=projector_irrep(calc->param.pointgroup())

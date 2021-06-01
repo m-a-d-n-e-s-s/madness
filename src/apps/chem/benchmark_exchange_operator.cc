@@ -5,6 +5,7 @@
 #include <chem/SCF.h>
 #include <chem/nemo.h>
 #include <madness/world/test_utilities.h>
+#include <chem/write_test_input.h>
 #include <madness/misc/gitinfo.h>
 
 using namespace madness;
@@ -20,37 +21,21 @@ int main(int argc, char** argv) {
             srand(time(nullptr));
             if (world.rank() == 0) print(info::print_revision_information());
 
+            commandlineparser parser(argc, argv);
+            if (not parser.key_exists("structure")) parser.set_keyval("structure","water2");
+            CalculationParameters param;
+            param.set_user_defined_value("econv",1.e-6);
+            std::vector<double> protocol;   // empty protocol
+            param.set_user_defined_value("protocol",protocol);
+            param.set_user_defined_value("molecular_structure",parser.value("structure"));
 
-            std::string structure = "water2";
-            for (int i = 1; i < argc; i++) {
-                const std::string arg = argv[i];
-
-                // break parameters into key and val
-                size_t pos = arg.find("=");
-                std::string key = arg.substr(0, pos);
-                std::string val = arg.substr(pos + 1);
-
-                if (key == "--structure") structure = val;
-            }
-
-            std::string input1 = R"input(
-dft
-    			econv 1.e-6
-				xc hf
-				protocol []
-				multiworld true
-)input";
-            std::string input2 = R"input(
-end
-)input";
-
-            test_inputfile ifile("input", input1 + "molecular_structure " + structure + "\n" + input2);
-            ifile.keepfile = true;
+            write_test_input inputfile(param);
+            inputfile.keepfile=true;
             world.gop.fence();
 
             double cpu0 = cpu_time();
 
-            SCF calc(world, "input");
+            SCF calc(world, inputfile.filename());
             if (world.rank() == 0) {
                 calc.param.print("", "");
                 calc.molecule.print();

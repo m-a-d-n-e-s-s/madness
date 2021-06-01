@@ -621,7 +621,9 @@ int test_XCOperator(World& world) {
 int nuclear_anchor_test(World& world) {
     double thresh=FunctionDefaults<3>::get_thresh();
     write_test_input test_input;
-    SCF calc(world,test_input.filename().c_str());
+    commandlineparser parser;
+    parser.set_keyval("input",test_input.filename());
+    SCF calc(world,parser);
     calc.make_nuclear_potential(world);
 
     // test ncf=none
@@ -688,7 +690,9 @@ int test_nuclear(World& world) {
 int dnuclear_anchor_test(World& world) {
     double thresh=FunctionDefaults<3>::get_thresh();
     write_test_input test_input("hf");
-    SCF calc(world,test_input.filename().c_str());
+    commandlineparser parser;
+    parser.set_keyval("input",test_input.filename());
+    SCF calc(world,parser);
     calc.make_nuclear_potential(world);
 
     // derivative of atom wrt axis
@@ -845,8 +849,10 @@ int test_nemo(World& world) {
     if (world.rank()==0) print("\nentering test_nemo",thresh);
 
     write_test_input test_input;
-    std::shared_ptr<SCF> calc_ptr(new SCF(world,test_input.filename().c_str()));
-    Nemo nemo(world,calc_ptr,test_input.filename());
+    commandlineparser parser;
+    parser.set_keyval("input",test_input.filename());
+    Nemo nemo(world,parser);
+    auto calc_ptr=nemo.get_calc();
     double energy=nemo.value(calc_ptr->molecule.get_all_coords().flat()); // ugh!
     print("energy(LiH)",energy);
     // hard-wire test
@@ -872,9 +878,11 @@ int test_fock(World& world) {
     if (world.rank()==0) print("\nentering test_nemo",thresh);
 
     write_test_input test_input;
-    std::shared_ptr<SCF> calc_ptr(new SCF(world,test_input.filename().c_str()));
+    commandlineparser parser;
+    parser.set_keyval("input",test_input.filename());
+    Nemo nemo(world,parser);
+    auto calc_ptr=nemo.get_calc();
     calc_ptr->param.set_user_defined_value("maxiter",0);
-    Nemo nemo(world,calc_ptr,test_input.filename().c_str());
     nemo.value();
 
     Fock<double,3> f(world,&nemo);

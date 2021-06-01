@@ -155,7 +155,7 @@ private:
 public:
 
     OEP(World& world, const commandlineparser& parser)
-            : Nemo(world, std::make_shared<SCF>(world,parser.value("input")),parser.value("input")),
+            : Nemo(world, parser),
               oep_param(world, parser.value("input")) {
 
         // add tight convergence criteria
@@ -167,8 +167,7 @@ public:
         calc->param.set_derived_value("convergence_criteria",convergence_crit);
 
         // set reference
-        auto scf=std::make_shared<SCF>(world,parser.value("input"));
-        set_reference(std::make_shared<Nemo>(world,scf,parser.value("input")));
+        set_reference(std::make_shared<Nemo>(world,parser));
         reference->param.set_derived_value("convergence_criteria",convergence_crit);
         reference->get_calc()->param.set_derived_value("convergence_criteria",convergence_crit);
 

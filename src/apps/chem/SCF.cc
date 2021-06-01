@@ -129,18 +129,19 @@ tensorT Q2(const tensorT& s) {
 //    }
 
 /// collective constructor, reads \c input on rank 0, broadcasts to all
-SCF::SCF(World& world, const std::string& inputfile) : param(CalculationParameters()) {
+SCF::SCF(World& world, const commandlineparser& parser) : param(CalculationParameters(world,parser)) {
 	FunctionDefaults<3>::set_truncate_mode(1);
 	PROFILE_MEMBER_FUNC(SCF);
 
+//    param.read(world,parser.value("input"),"dft");
 	if (world.rank() == 0) {
 
 		// read input parameters from the input file
-		param.read(world,inputfile,"dft");
+		if (parser.key_exists("structure")) param.set_user_defined_value("molecular_structure",parser.value("structure"));
 
 		std::string molecular_structure=param.get<std::string>("molecular_structure");
 		if (molecular_structure=="inputfile") {
-			std::ifstream ifile(inputfile);
+			std::ifstream ifile(parser.value("input"));
 			molecule.read(ifile);
 		} else {
 			molecule.read_structure_from_library(molecular_structure);

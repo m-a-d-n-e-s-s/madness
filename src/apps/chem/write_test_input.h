@@ -15,6 +15,7 @@ struct write_test_input {
     double eprec = 1.e-3; // was 1e-4 ... trying to make test faster
 
     std::string filename_;
+    bool keepfile=false;
 
     write_test_input() : filename_("testinput") {}
 
@@ -26,7 +27,7 @@ struct write_test_input {
     }
 
     ~write_test_input() {
-        std::remove(filename_.c_str());
+        if (not keepfile) std::remove(filename_.c_str());
     }
 
     std::string filename() const { return filename_; }

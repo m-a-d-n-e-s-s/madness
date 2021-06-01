@@ -52,6 +52,7 @@
 #include <chem/nemo.h>
 #include <chem/correlationfactor.h>
 #include <chem/electronic_correlation_factor.h>
+#include <chem/commandlineparser.h>
 
 
 // switch the electronic interaction on or off
@@ -436,7 +437,7 @@ void test_U_el(World& world, const real_function_6d& psi,
 int main(int argc, char** argv) {
 	initialize(argc, argv);
 	World world(SafeMPI::COMM_WORLD);
-	startup(world, argc, argv);
+	startup(world, argc, argv,true);
 	std::cout.precision(6);
 
 	if (world.rank()==0) {
@@ -449,9 +450,9 @@ int main(int argc, char** argv) {
 	}
 
 	// read out input and stuff
-	std::string input = "input";
-	std::shared_ptr<SCF> calc(new SCF(world, input.c_str()));
-	Nemo nemo(world, calc,input);
+	commandlineparser parser(argc,argv);
+	Nemo nemo(world, parser);
+	auto calc=nemo.get_calc();
 
 	TensorType tt = TT_2D;
 	FunctionDefaults<6>::set_tensor_type(tt);
