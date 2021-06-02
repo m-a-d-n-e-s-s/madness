@@ -918,6 +918,7 @@ response_space TDDFT::CreatePotential(World& world,
     // v_coul next
     // This does not include final multiplication of each orbital
     // 2.0 scale is from spin integration
+    // J^0 x^alpha
     v_coul = Coulomb(world);
     v_coul.scale(2.0);
   } else {  // Already pre-computed
@@ -1336,8 +1337,9 @@ std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> TDDFT::create_bsh
 
     // Run over occupied components
     for (size_t p = 0; p < n; p++) {
-      temp[p] = std::shared_ptr<SeparatedConvolution<double, 3>>(
-          BSHOperatorPtr3D(world, sqrt(-2.0 * (ground(p) + omega(k) + shift(k, p))), small, thresh));
+      double mu = sqrt(-2.0 * (ground(p) + omega(k) + shift(k, p)));
+      print("res state ", k, " orb ", p, " bsh exponent mu :", mu);
+      temp[p] = std::shared_ptr<SeparatedConvolution<double, 3>>(BSHOperatorPtr3D(world, mu, small, thresh));
     }
 
     // Add intermediary to return container
