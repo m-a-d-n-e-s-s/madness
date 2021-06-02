@@ -58,14 +58,14 @@ X_space TDDFT::Compute_Theta_X(World& world, X_space& Chi, XCOperator<double, 3>
     print("norms of v0x");
     print(v0_X.norm2());
   }
-  response_space HX = Chi.X * ham_no_diag;
+  response_space ham_no_diag_X = Chi.X * ham_no_diag;
   // scale_2d(world, x, ham_no_diagonal);
   if (r_params.print_level() == 3) {
     print("norms of x scaled by ham no diag");
-    print(HX.norm2());
+    print(ham_no_diag_X.norm2());
   }
   // Assemble Theta_X and truncate
-  Theta_X.X = v0_X - HX + gamma.X;
+  Theta_X.X = v0_X - ham_no_diag_X + gamma.X;
 
   if (compute_Y) {
     // Compute (V0-ham_no_diag)X
@@ -80,12 +80,12 @@ X_space TDDFT::Compute_Theta_X(World& world, X_space& Chi, XCOperator<double, 3>
       PrintRFExpectation(world, Chi.Y, v0_Y, "y", "V0Y");
     }
     // scale_2d(world, x, ham_no_diagonal);
-    response_space HY = Chi.Y * ham_no_diag;
+    response_space ham_no_diag_Y = Chi.Y * ham_no_diag;
     if (r_params.print_level() == 3) {
       print("norms of x scaled by ham no diag");
-      print(HY.norm2());
+      print(ham_no_diag_Y.norm2());
     }
-    Theta_X.Y = v0_Y - HY + gamma.Y;
+    Theta_X.Y = v0_Y - ham_no_diag_Y + gamma.Y;
   }
 
   return Theta_X;
