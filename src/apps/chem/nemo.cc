@@ -254,7 +254,7 @@ std::shared_ptr<Fock<double,3>> Nemo::make_fock_operator() const {
     fock->add_operator("V",std::make_shared<Nuclear<double,3> >(world,this));
     fock->add_operator("T",std::make_shared<Kinetic<double,3> >(world));
     if (calc->xc.hf_exchange_coefficient()>0.0) {
-        Exchange<double,3> K=Exchange<double,3>(world,this,ispin).symmetric(false);
+        Exchange<double,3> K=Exchange<double,3>(world,this,ispin).set_symmetric(false);
         fock->add_operator("K",{-1.0,std::make_shared<Exchange<double,3>>(K)});
     }
     if (calc->xc.is_dft()) {
@@ -587,7 +587,7 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo, vecfuncT& psi,
     int ispin=0;
     Knemo=zero_functions_compressed<double,3>(world,nemo.size());
     if (calc->xc.hf_exchange_coefficient()>0.0) {
-        Exchange<double,3> K=Exchange<double,3>(world,this,ispin).symmetric(true);
+        Exchange<double,3> K=Exchange<double,3>(world,this,ispin).set_symmetric(true);
         Knemo=K(nemo);
         scale(world,Knemo,calc->xc.hf_exchange_coefficient());
         truncate(world, Knemo);
@@ -1167,7 +1167,7 @@ vecfuncT Nemo::make_cphf_constant_term(const size_t iatom, const int iaxis,
     // linear in the density
     vecfuncT Kconstnemo=zero_functions_compressed<double,3>(world,nmo);
     if (not is_dft()) {
-        Exchange<double,3> Kconst=Exchange<double,3>(world);
+        Exchange<double,3> Kconst;
         vecfuncT kbra=2.0*RXR*nemo;
         truncate(world,kbra);
         Kconst.set_parameters(kbra,nemo,param.lo());
@@ -1266,11 +1266,11 @@ vecfuncT Nemo::solve_cphf(const size_t iatom, const int iaxis, const Tensor<doub
             real_function_3d gamma=-1.0*xc.apply_xc_kernel(full_dens_pt);
             Kp=truncate(gamma*nemo);
         } else {
-            Exchange<double,3> Kp1=Exchange<double,3>(world).symmetric(true);
-            Kp1.set_parameters(R2nemo,xi_complete,param.lo());
+            Exchange<double,3> Kp1;
+            Kp1.set_parameters(R2nemo,xi_complete,param.lo()).set_symmetric(true);
             vecfuncT R2xi=mul(world,R_square,xi_complete);
             truncate(world,R2xi);
-            Exchange<double,3> Kp2=Exchange<double,3>(world);
+            Exchange<double,3> Kp2;
             Kp2.set_parameters(R2xi,nemo,param.lo());
             Kp=truncate(Kp1(nemo) + Kp2(nemo));
         }

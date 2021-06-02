@@ -50,6 +50,7 @@ class NemoBase;
 class OEP;
 class NuclearCorrelationFactor;
 class XCfunctional;
+class MacroTaskQ;
 
 typedef std::vector<real_function_3d> vecfuncT;
 
@@ -60,6 +61,8 @@ public:
     typedef Function<T,NDIM> functionT;
     typedef std::vector<functionT> vecfuncT;
     typedef Tensor<T> tensorT;
+
+    std::shared_ptr<MacroTaskQ> taskq_ptr=0;
 
     /// print some information about this operator
     virtual std::string info() const = 0;
@@ -91,6 +94,80 @@ public:
     virtual tensorT operator()(const vecfuncT& vbra, const vecfuncT& vket) const = 0;
 
 };
+
+template<typename T, std::size_t NDIM>
+class Exchange : public SCFOperatorBase<T,NDIM> {
+public:
+
+    class ExchangeImpl;
+    using implT = std::shared_ptr<ExchangeImpl>;
+    typedef Function<T,NDIM> functionT;
+    typedef std::vector<functionT> vecfuncT;
+    typedef Tensor<T> tensorT;
+private:
+    implT impl;
+
+public:
+    enum Algorithm {
+        small_memory, large_memory, multiworld_efficient
+    };
+
+    /// default ctor
+    Exchange() = default;
+
+    /// ctor with a conventional calculation
+    Exchange(World& world, const SCF *calc, const int ispin);
+
+    /// ctor with a nemo calculation
+    Exchange(World& world, const Nemo *nemo, const int ispin);
+
+    std::string info() const {return "K";}
+
+    bool is_symmetric() const;
+
+    Exchange& set_symmetric(const bool flag);
+
+    Exchange& set_algorithm(const Algorithm& alg);
+
+    Exchange& set_parameters(const vecfuncT& bra, const vecfuncT& ket, const double lo1);
+
+    Function<T, NDIM> operator()(const Function<T, NDIM>& ket) const {
+        vecfuncT vket(1, ket);
+        vecfuncT vKket = this->operator()(vket);
+        return vKket[0];
+    }
+
+    /// apply the exchange operator on a vector of functions
+
+    /// note that only one spin is used (either alpha or beta orbitals)
+    /// @param[in]  vket       the orbitals |i> that the operator is applied on
+    /// @return     a vector of orbitals  K| i>
+    vecfuncT operator()(const vecfuncT& vket) const;
+
+    /// compute the matrix element <bra | K | ket>
+
+    /// @param[in]  bra    real_function_3d, the bra state
+    /// @param[in]  ket    real_function_3d, the ket state
+    T operator()(const Function<T, NDIM>& bra, const Function<T, NDIM>& ket) const {
+        return inner(bra, this->operator()(ket));
+    }
+
+    /// compute the matrix < vbra | K | vket >
+
+    /// @param[in]  vbra    vector of real_function_3d, the set of bra states
+    /// @param[in]  vket    vector of real_function_3d, the set of ket states
+    /// @return K_ij
+    Tensor<T> operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
+        const auto bra_equiv_ket = &vbra == &vket;
+        vecfuncT vKket = this->operator()(vket);
+        World& world=vket[0].world();
+        auto result = matrix_inner(world, vbra, vKket, bra_equiv_ket);
+        return result;
+    }
+
+
+};
+
 
 template<typename T, std::size_t NDIM>
 class Kinetic : public SCFOperatorBase<T,NDIM> {
@@ -761,5 +838,4 @@ private:
 };
 
 }
-#include <chem/exchangeoperator.h>
 #endif /* MADNESS_CHEM_SCFOPERATORS_H_ */

@@ -40,6 +40,8 @@
 #include <chem/oep.h>
 #include <chem/correlationfactor.h>
 #include <chem/xcfunctional.h>
+#include <chem/exchangeoperator.h>
+
 
 using namespace madness;
 
@@ -661,6 +663,51 @@ void XCOperator<T, NDIM>::prep_xc_args_response(const real_function_3d &dens_pt,
     truncate(world, xc_args, extra_truncation);
 }
 
+/// ctor with a conventional calculation
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>::Exchange(World& world, const SCF *calc, const int ispin) : impl(new Exchange<T,NDIM>::ExchangeImpl(world,calc,ispin)) {};
+
+/// ctor with a nemo calculation
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>::Exchange(World& world, const Nemo *nemo, const int ispin) : impl(new Exchange<T,NDIM>::ExchangeImpl(world,nemo,ispin)) {};
+
+/// apply the exchange operator on a vector of functions
+
+/// note that only one spin is used (either alpha or beta orbitals)
+/// @param[in]  vket       the orbitals |i> that the operator is applied on
+/// @return     a vector of orbitals  K| i>
+template<typename T, std::size_t NDIM>
+std::vector<Function<T,NDIM>> Exchange<T,NDIM>::operator()(const std::vector<Function<T,NDIM>>& vket) const {
+    return impl->operator()(vket);
+};
+
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_parameters(const vecfuncT& bra, const vecfuncT& ket, const double lo1) {
+    if (not impl) {
+        World& world=bra.front().world();
+        impl.reset(new Exchange<T,NDIM>::ExchangeImpl(world));
+    }
+    impl->set_parameters(bra,ket,lo1);
+    return *this;
+}
+
+template<typename T, std::size_t NDIM>
+bool Exchange<T,NDIM>::is_symmetric() const {
+    return impl->is_symmetric();
+}
+
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_symmetric(const bool flag) {
+    impl->symmetric(flag);
+    return *this;
+}
+
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_algorithm(const Algorithm& alg) {
+    impl->set_algorithm(alg);
+    return *this;
+}
+
 
 template<>
 Fock<double, 3>::Fock(World &world, const Nemo *nemo) : world(world) {
@@ -682,6 +729,7 @@ Fock<double, 3>::Fock(World &world, const NemoBase *nemobase) : world(world) {
     if (tmp) std::swap(tmp->operators, operators);
     else MADNESS_EXCEPTION("failed to construct fock operator", 1);
 }
+
 
 template class Exchange<double_complex,3>;
 template class Exchange<double,3>;

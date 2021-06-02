@@ -149,7 +149,7 @@ double OEP::compute_and_print_final_energies(const std::string model, const real
 	compute_coulomb_potential(KS_nemo, Jnemo);
 	compute_exchange_potential(KS_nemo, Knemo);
 
-	Exchange<double,3> K(world);
+	Exchange<double,3> K;
 	K.set_parameters(R_square*HF_nemo,HF_nemo,param.lo());
 	double Ex_HF=-inner(R_square*HF_nemo,K(HF_nemo));
 

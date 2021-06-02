@@ -12,12 +12,11 @@ namespace madness {
 
 // forward declaration
 class SCF;
-
 class Nemo;
 
 
 template<typename T, std::size_t NDIM>
-class Exchange : public SCFOperatorBase<T,NDIM> {
+class Exchange<T,NDIM>::ExchangeImpl {
     typedef Function<T, NDIM> functionT;
     typedef std::vector<functionT> vecfuncT;
 
@@ -47,19 +46,17 @@ class Exchange : public SCFOperatorBase<T,NDIM> {
 
 public:
 
-    enum Algorithm {
-        small_memory, large_memory, multiworld_efficient
-    };
+    typedef Exchange<T,NDIM>::Algorithm Algorithm;
     Algorithm algorithm_ = multiworld_efficient;
 
     /// default ctor
-    Exchange(World& world) : world(world), symmetric_(false) {};
+    ExchangeImpl(World& world) : world(world) {}
 
     /// ctor with a conventional calculation
-    Exchange(World& world, const SCF *calc, const int ispin);
+    ExchangeImpl(World& world, const SCF *calc, const int ispin) ;
 
     /// ctor with a nemo calculation
-    Exchange(World& world, const Nemo *nemo, const int ispin);
+    ExchangeImpl(World& world, const Nemo *nemo, const int ispin);
 
     /// set the bra and ket orbital spaces, and the occupation
 
@@ -77,12 +74,6 @@ public:
         return std::shared_ptr<real_convolution_3d>(CoulombOperatorPtr(world, lo, econv));
     }
 
-    Function<T, NDIM> operator()(const Function<T, NDIM>& ket) const {
-        vecfuncT vket(1, ket);
-        vecfuncT vKket = this->operator()(vket);
-        return vKket[0];
-    }
-
     /// apply the exchange operator on a vector of functions
 
     /// note that only one spin is used (either alpha or beta orbitals)
@@ -90,35 +81,14 @@ public:
     /// @return     a vector of orbitals  K| i>
     vecfuncT operator()(const vecfuncT& vket) const;
 
-    /// compute the matrix element <bra | K | ket>
-
-    /// @param[in]  bra    real_function_3d, the bra state
-    /// @param[in]  ket    real_function_3d, the ket state
-    T operator()(const Function<T, NDIM>& bra, const Function<T, NDIM>& ket) const {
-        return inner(bra, this->operator()(ket));
-    }
-
-    /// compute the matrix < vbra | K | vket >
-
-    /// @param[in]  vbra    vector of real_function_3d, the set of bra states
-    /// @param[in]  vket    vector of real_function_3d, the set of ket states
-    /// @return K_ij
-    Tensor<T> operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
-        const auto bra_equiv_ket = &vbra == &vket;
-        vecfuncT vKket = this->operator()(vket);
-        auto n = norm2s(world, vKket);
-        auto result = matrix_inner(world, vbra, vKket, bra_equiv_ket);
-        return result;
-    }
-
     bool is_symmetric() const { return symmetric_; }
 
-    Exchange& symmetric(const bool flag) {
+    ExchangeImpl& symmetric(const bool flag) {
         symmetric_ = flag;
         return *this;
     }
 
-    Exchange& set_algorithm(const Algorithm& alg) {
+    ExchangeImpl& set_algorithm(const Algorithm& alg) {
         algorithm_ = alg;
         return *this;
     }
@@ -278,8 +248,8 @@ private:
         ) const {
             double mul_tol = 0.0;
             double symmetric = true;
-            auto poisson = Exchange<double, 3>::set_poisson(subworld, lo);
-            return Exchange<T, NDIM>::compute_K_tile(subworld, bra_batch, ket_batch, vf_batch, poisson, symmetric,
+            auto poisson = Exchange<double, 3>::ExchangeImpl::set_poisson(subworld, lo);
+            return Exchange<T, NDIM>::ExchangeImpl::compute_K_tile(subworld, bra_batch, ket_batch, vf_batch, poisson, symmetric,
                                                      mul_tol);
         }
 
@@ -296,8 +266,8 @@ private:
                                                     const vecfuncT& vf_batch) const {
             double mul_tol = 0.0;
             double symmetric = false;
-            auto poisson = Exchange<double, 3>::set_poisson(subworld, lo);
-            return Exchange<T, NDIM>::compute_K_tile(subworld, bra_batch, ket_batch, vf_batch, poisson, symmetric,
+            auto poisson = Exchange<double, 3>::ExchangeImpl::set_poisson(subworld, lo);
+            return Exchange<T, NDIM>::ExchangeImpl::compute_K_tile(subworld, bra_batch, ket_batch, vf_batch, poisson, symmetric,
                                                      mul_tol);
         }
 

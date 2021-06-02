@@ -205,7 +205,7 @@ void Zcis::compute_potentials(std::vector<root>& roots, const real_function_3d& 
 			Coulomb<double_complex,3> Jp(world);
 			complex_function_3d Jp_pot = Jp.compute_potential(denspt);
 
-			Exchange<double_complex,3> Kp(world);
+			Exchange<double_complex,3> Kp;
 			Kp.set_parameters(conj(world,act_mo),x,nemo->cparam.lo());
 			pot+=Q(Jp_pot*act_mo - Kp(act_mo));
 			truncate(world,pot);

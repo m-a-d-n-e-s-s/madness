@@ -11,7 +11,7 @@ namespace madness {
 
 
 template<typename T, std::size_t NDIM>
-Exchange<T, NDIM>::Exchange(World& world, const SCF *calc, const int ispin)
+Exchange<T, NDIM>::ExchangeImpl::ExchangeImpl(World& world, const SCF *calc, const int ispin)
         : world(world), symmetric_(false), lo(calc->param.lo()) {
     if (ispin == 0) { // alpha spin
         mo_ket = convert<double, T, NDIM>(world, calc->amo);        // deep copy necessary if T==double_complex
@@ -22,9 +22,9 @@ Exchange<T, NDIM>::Exchange(World& world, const SCF *calc, const int ispin)
 }
 
 template<typename T, std::size_t NDIM>
-Exchange<T, NDIM>::Exchange(World& world, const Nemo *nemo,
+Exchange<T, NDIM>::ExchangeImpl::ExchangeImpl(World& world, const Nemo *nemo,
                             const int ispin) // @suppress("Class members should be properly initialized")
-        : Exchange<T, NDIM>(world, nemo->get_calc().get(), ispin) {
+        : ExchangeImpl(world, nemo->get_calc().get(), ispin) {
 
     if (ispin == 0) { // alpha spin
         mo_ket = convert<double, T, NDIM>(world,
@@ -39,7 +39,7 @@ Exchange<T, NDIM>::Exchange(World& world, const Nemo *nemo,
 }
 
 template<typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM> > Exchange<T, NDIM>::operator()(
+std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
         const std::vector<Function<T, NDIM> >& vket) const {
 
     reconstruct(world, mo_bra, false);
@@ -86,7 +86,7 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::operator()(
 /// \return         the exchange operator applied on vket
 template<typename T, std::size_t NDIM>
 std::vector<Function<T, NDIM> >
-Exchange<T, NDIM>::K_macrotask_efficient(const vecfuncT& vf, const double mul_tol) const {
+Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const double mul_tol) const {
 
     if (printdebug()) print("\nentering macrotask_efficient version:");
 
@@ -107,7 +107,7 @@ Exchange<T, NDIM>::K_macrotask_efficient(const vecfuncT& vf, const double mul_to
 
 
 template<typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM> > Exchange<T, NDIM>::K_small_memory(const vecfuncT& vket, const double mul_tol) const {
+std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::K_small_memory(const vecfuncT& vket, const double mul_tol) const {
 
     const long nocc = mo_ket.size();
     const long nf = vket.size();
@@ -127,7 +127,7 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::K_small_memory(const vecfuncT
 }
 
 template<typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM> > Exchange<T, NDIM>::K_large_memory(const vecfuncT& vket,
+std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::K_large_memory(const vecfuncT& vket,
                                                                   const double mul_tol) const {    // Larger memory algorithm ... use i-j sym if psi==f
 
     auto poisson = set_poisson(world, lo);
@@ -138,7 +138,7 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::K_large_memory(const vecfuncT
 
 template<typename T, std::size_t NDIM>
 std::vector<Function<T, NDIM> >
-Exchange<T, NDIM>::compute_K_tile(World& world, const vecfuncT& mo_bra, const vecfuncT& mo_ket,
+Exchange<T, NDIM>::ExchangeImpl::compute_K_tile(World& world, const vecfuncT& mo_bra, const vecfuncT& mo_ket,
                                   const vecfuncT& vket, std::shared_ptr<real_convolution_3d> poisson,
                                   const bool symmetric, const double mul_tol) {
 
@@ -214,7 +214,7 @@ Exchange<T, NDIM>::compute_K_tile(World& world, const vecfuncT& mo_bra, const ve
 /// \param vf_batch     the argument of the exchange operator
 template<typename T, std::size_t NDIM>
 std::pair<std::vector<Function<T, NDIM>>, std::vector<Function<T, NDIM>>>
-Exchange<T, NDIM>::MacroTaskExchangeSimple::compute_offdiagonal_batch_in_symmetric_matrix(World& subworld,
+Exchange<T, NDIM>::ExchangeImpl::MacroTaskExchangeSimple::compute_offdiagonal_batch_in_symmetric_matrix(World& subworld,
                                                                                           const vecfuncT& mo_ket,      // not batched
                                                                                           const vecfuncT& bra_batch,   // batched
                                                                                           const vecfuncT& vf_batch) const { // batched
@@ -289,10 +289,10 @@ Exchange<T, NDIM>::MacroTaskExchangeSimple::compute_offdiagonal_batch_in_symmetr
 
 
 template
-class Exchange<double_complex, 3>;
+class Exchange<double_complex, 3>::ExchangeImpl;
 
 template
-class Exchange<double, 3>;
+class Exchange<double, 3>::ExchangeImpl;
 
 template<> volatile std::list<detail::PendingMsg> WorldObject<MacroTaskQ>::pending = std::list<detail::PendingMsg>();
 template<> Spinlock WorldObject<MacroTaskQ>::pending_mutex(0);

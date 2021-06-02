@@ -283,7 +283,7 @@ public:
      /// compute Slater potential (Kohut, 2014, equation (15))
     real_function_3d compute_slater_potential(const vecfuncT& nemo) const {
 
-        Exchange<double,3> K(world);
+        Exchange<double,3> K;
         K.set_parameters(R_square*nemo,nemo,reference->get_calc()->param.lo());
         const vecfuncT Knemo = K(nemo);
         // 2.0*R_square in numerator and density (rho) cancel out upon division
@@ -516,7 +516,7 @@ public:
     /// compute exchange potential (needed for Econv)
     void compute_exchange_potential(const vecfuncT& nemo, vecfuncT& Knemo) const {
 
-    	Exchange<double,3> K = Exchange<double,3>(world);
+    	Exchange<double,3> K;
     	K.set_parameters(R_square*nemo,nemo,this->get_calc()->param.lo());
     	Knemo = K(nemo);
     	truncate(world, Knemo);

@@ -482,7 +482,7 @@ int test_exchange(World& world) {
     FunctionDefaults<3>::set_cubic_cell(-10, 10);
 
     // construct exchange operator
-    Exchange<T,3> K=Exchange<T,3>(world);
+    Exchange<T,3> K;
 
     const int nmo=2;
     Tensor<double> alpha(nmo);
