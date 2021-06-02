@@ -54,78 +54,89 @@ static inline int file_exists(const char* inpname) {
 }
 #endif
 
-namespace madness {
+using namespace madness;
+
 int main(int argc, char** argv) {
-  // Initialize MADNESS mpi
   initialize(argc, argv);
   {  // limite lifetime of world so that finalize() can execute cleanly
     World world(SafeMPI::COMM_WORLD);
-    startup(world, argc, argv, true);
-    print_meminfo(world.rank(), "startup");
+    molresponse::start_timer(world);
+    try {
+      startup(world, argc, argv, true);
+      print_meminfo(world.rank(), "startup");
+      FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3> >(world)));
 
-    FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3> >(world)));
-
-    std::cout.precision(6);
-    // This makes a default input file name of 'input'
-    const char* inpname = "input";
-    // Process 0 reads input information and broadcasts
-    for (int i = 1; i < argc; i++) {
-      if (argv[i][0] != '-') {
-        inpname = argv[i];
-        break;
+      std::cout.precision(6);
+      // This makes a default input file name of 'input'
+      const char* inpname = "input";
+      // Process 0 reads input information and broadcasts
+      for (int i = 1; i < argc; i++) {
+        if (argv[i][0] != '-') {
+          inpname = argv[i];
+          break;
+        }
       }
-    }
 
-    if (world.rank() == 0) print("input filename: ", inpname);
-    if (!file_exists(inpname)) throw "input file not found";
-    // first step is to read the input for r_params and g_params
-    ResponseParameters r_params;
+      if (world.rank() == 0) print("input filename: ", inpname);
+      if (!file_exists(inpname)) throw "input file not found";
+      // first step is to read the input for r_params and g_params
+      GroundParameters g_params;
+      ResponseParameters r_params;
+      r_params.read_and_set_derived_values(world, inpname, "response");
+      std::string ground_file = r_params.archive();
+      g_params.read(world, ground_file);
 
-    r_params.read_and_set_derived_values(world, inpname, "response");
+      density_vector d1 = set_density_type(world, r_params, g_params);
+      if (world.rank() == 0) {
+        g_params.print_params();
+        r_params.print();
+        d1.PrintDensityInformation();
+      }
+      // Create the TDDFT object
+      if (r_params.load_density()) {
+        print("Loading Density");
+        d1.LoadDensity(world, r_params.load_density_file(), r_params, g_params);
+      } else {
+        print("Computing Density");
+        d1.compute_response(world);
+      }
+      //
+      // densityTest.PlotResponseDensity(world);
+      d1.PrintDensityInformation();
 
-    TDDFT calc(world, inpname);
-
-    // Read the ground parameters from the archive
-    g_params.read(world, r_params.archive);
-    if (world.rank() == 0) {
-      g_params.print_params();
-      print_molecule(world, g_params);
-    }
-    // if a proerty calculation set the number of states
-    if (r_params.property) {
-      r_params.SetNumberOfStates(g_params.molecule);
-    }
-
-    // print params
-    if (world.rank() == 0) {
-      r_params.print_params();
-    }
-    // Broadcast to all other nodes
-    density_vector densityTest = SetDensityType(world, r_params.response_type, r_params, g_params);
-    // Create the TDDFT object
-    if (r_params.load_density) {
-      print("Loading Density");
-      densityTest.LoadDensity(world, r_params.load_density_file, r_params, g_params);
-    } else {
-      print("Computing Density");
-      densityTest.compute_response(world);
-    }
-    //
-    // densityTest.PlotResponseDensity(world);
-    densityTest.PrintDensityInformation();
-
-    if (r_params.response_type.compare("dipole") == 0) {  //
-      print("Computing Alpha");
-      Tensor<double> alpha = densityTest.ComputeSecondOrderPropertyTensor(world);
-      print("Second Order Analysis");
-      densityTest.PrintSecondOrderAnalysis(world, alpha);
+      if (r_params.response_type().compare("dipole") == 0) {  //
+        print("Computing Alpha");
+        Tensor<double> alpha = d1.ComputeSecondOrderPropertyTensor(world);
+        print("Second Order Analysis");
+        d1.PrintSecondOrderAnalysis(world, alpha);
+      }
+    } catch (const SafeMPI::Exception& e) {
+      print(e);
+      error("caught an MPI exception");
+    } catch (const madness::MadnessException& e) {
+      print(e);
+      error("caught a MADNESS exception");
+    } catch (const madness::TensorException& e) {
+      print(e);
+      error("caught a Tensor exception");
+    } catch (const char* s) {
+      print(s);
+      error("caught a string exception");
+    } catch (const std::string& s) {
+      print(s);
+      error("caught a string (class) exception");
+    } catch (const std::exception& e) {
+      print(e.what());
+      error("caught an STL exception");
+    } catch (...) {
+      error("caught unhandled exception");
     }
 
     world.gop.fence();
     world.gop.fence();
-  }  // world is dead -- ready to finalize
+  }
+
   finalize();
 
   return 0;
 }
-}  // namespace madness
