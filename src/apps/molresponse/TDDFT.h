@@ -223,13 +223,13 @@ class TDDFT {
   response_space CreateCoulombDerivativeRF(World& world,
                                            const response_space& f,                   // response functions
                                            const std::vector<real_function_3d>& phi,  // orbitals
-                                           double small,
+                                           double lo,
                                            double thresh);
 
   response_space CreateCoulombDerivativeRFDagger(World& world,
                                                  const response_space& f,
                                                  const std::vector<real_function_3d>& phi,
-                                                 double small,
+                                                 double lo,
                                                  double thresh);
 
   // Returns the derivative of the exchange operator, applied to the ground
@@ -237,24 +237,24 @@ class TDDFT {
   response_space CreateExchangeDerivativeRF(World& world,
                                             const response_space& f,
                                             const std::vector<real_function_3d>& phi,
-                                            double small,
+                                            double lo,
                                             double thresh);
 
   response_space CreateExchangeDerivativeRFDagger(World& world,
                                                   const response_space& f,
                                                   const std::vector<real_function_3d>& phi,
-                                                  double small,
+                                                  double lo,
                                                   double thresh);
 
   response_space CreateXCDerivativeRF(World& world,
                                       const response_space& f,
                                       const std::vector<real_function_3d>& phi,
-                                      double small,
+                                      double lo,
                                       double thresh);
   response_space CreateXCDerivativeRFDagger(World& world,
                                             const response_space& f,
                                             const std::vector<real_function_3d>& phi,
-                                            double small,
+                                            double lo,
                                             double thresh);
 
   // Returns the diagonal (letter A) elements of response matrix
@@ -323,7 +323,7 @@ class TDDFT {
                                                                                       Tensor<double>& shift,
                                                                                       Tensor<double>& ground,
                                                                                       Tensor<double>& omega,
-                                                                                      double small,
+                                                                                      double lo,
                                                                                       double thresh);
 
   // Returns a vector of BSH operators
@@ -331,14 +331,14 @@ class TDDFT {
                                                                                                  Tensor<double>& shift,
                                                                                                  Tensor<double>& ground,
                                                                                                  Tensor<double>& omega,
-                                                                                                 double small,
+                                                                                                 double lo,
                                                                                                  double thresh);
   // here omega and shifts are doubles
   std::vector<std::shared_ptr<real_convolution_3d>> CreateBSHOperatorPropertyVector(World& world,
                                                                                     double& shift,
                                                                                     Tensor<double>& ground,
                                                                                     double& omega,
-                                                                                    double small,
+                                                                                    double lo,
                                                                                     double thresh);
   // Returns the second order update to the energy
   Tensor<double> calculate_energy_update(World& world,
@@ -572,7 +572,7 @@ class TDDFT {
                                        Tensor<double>& omega,
                                        std::vector<real_function_3d>& orbitals,
                                        Tensor<double>& energies,
-                                       double small,
+                                       double lo,
                                        double thresh,
                                        size_t print_level);
 

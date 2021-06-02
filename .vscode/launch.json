@@ -2,7 +2,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Test Response Code",
+            "name": "Test Response Code H2",
             "type": "cppdbg",
             "request": "launch",
             // Resolved by CMake Tools:
@@ -11,7 +11,64 @@
                 ""
             ],
             "stopAtEntry": false,
-            "cwd": "/gpfs/projects/rjh/adrian/responseTestingNovember2020/test_suite/x_space_tests/outputs/hf_canon/1_h2",
+            "cwd": "/gpfs/projects/rjh/adrian/responseTestingNovember2020/test_suite/new_params_test/outputs/hf_canon/1_h2",
+            "environment": [
+                {
+                    // add the directory where our target was built to the PATHs
+                    // it gets resolved by CMake Tools:
+                    "name": "PATH",
+                    "value": "$PATH:${command:cmake.launchTargetDirectory}"
+                },
+                {
+                    "name": "MAD_NUM_THREADS",
+                    "value": "8"
+                },
+            ],
+        },
+        {
+            "name": "Test Response Code Ne",
+            "type": "cppdbg",
+            "request": "launch",
+            // Resolved by CMake Tools:
+            "program": "${command:cmake.launchTargetPath}",
+            "args": [
+                ""
+            ],
+            "stopAtEntry": false,
+            "cwd": "/gpfs/projects/rjh/adrian/responseTestingNovember2020/test_suite/new_params_test/outputs/hf_canon/11_Ne",
+            "environment": [
+                {
+                    // add the directory where our target was built to the PATHs
+                    // it gets resolved by CMake Tools:
+                    "name": "PATH",
+                    "value": "$PATH:${command:cmake.launchTargetDirectory}"
+                },
+                {
+                    "name": "MAD_NUM_THREADS",
+                    "value": "8"
+                },
+            ],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
+            "name": "Test Response Code Be",
+            "type": "cppdbg",
+            "request": "launch",
+            // Resolved by CMake Tools:
+            "program": "${command:cmake.launchTargetPath}",
+            "args": [
+                ""
+            ],
+            "stopAtEntry": false,
+            "cwd": "/gpfs/projects/rjh/adrian/responseTestingNovember2020/test_suite/new_params_test/outputs/hf_canon/10_Be",
             "environment": [
                 {
                     // add the directory where our target was built to the PATHs

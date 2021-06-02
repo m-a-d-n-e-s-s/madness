@@ -46,24 +46,47 @@ struct inputfile {
 
   ~inputfile() { remove(fname.c_str()); }
 };
+void run_density(World& world, density_vector d1, ResponseParameters r_params, GroundParameters g_params) {
+  // Create the TDDFT object
+  if (r_params.load_density()) {
+    print("Loading Density");
+    d1.LoadDensity(world, r_params.load_density_file(), r_params, g_params);
+  } else {
+    print("Computing Density");
+    d1.compute_response(world);
+  }
+  //
+  // densityTest.PlotResponseDensity(world);
+  d1.PrintDensityInformation();
+
+  if (r_params.response_type().compare("dipole") == 0) {  //
+    print("Computing Alpha");
+    Tensor<double> alpha = d1.ComputeSecondOrderPropertyTensor(world);
+    print("Second Order Analysis");
+    d1.PrintSecondOrderAnalysis(world, alpha);
+  }
+}
 void read_and_create_density(World& world, inputfile ifile, std::string tag) {
   GroundParameters g_params;
-  ResponseParameters param1;
-  param1.read_and_set_derived_values(world, "input1", tag);
-  std::string ground_file = param1.archive();
+  ResponseParameters r_params;
+  r_params.read_and_set_derived_values(world, "input1", tag);
+  std::string ground_file = r_params.archive();
   g_params.read(world, ground_file);
   g_params.print_params();
-  param1.print();
-  density_vector d1 = set_density_type(world, param1, g_params);
+  g_params.molecule().print();
+  r_params.print();
+  density_vector d1 = set_density_type(world, r_params, g_params);
   d1.PrintDensityInformation();
+  run_density(world, d1, r_params, g_params);
 }
-bool test_create_dipole(World& world) {
+bool test_create_dipole_save(World& world) {
   print("entering test_dipole");
   std::string inputlines = R"input(dipole_test
 			archive restartdata
 			dipole True
-			#dconv 1.e-4
-			maxiter 12# asd
+			save True
+			save_file "restart_orbs"
+			maxiter 5# asd
 			end
 			)input";
   inputfile ifile("input1", inputlines);
@@ -119,39 +142,10 @@ int main(int argc, char** argv) {
     print_meminfo(world.rank(), "startup");
     std::cout.precision(6);
     //      FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3> >(world)));
-    try {
-      test_create_dipole(world);
-      test_create_nuclear(world);
-      // test_create_order2_dd(world);
-      // test_create_order2_dn(world);
-    } catch (const SafeMPI::Exception& e) {
-      print(e);
-      error("caught an MPI exception");
-      success = 1;
-    } catch (const madness::MadnessException& e) {
-      print(e);
-      error("caught a MADNESS exception");
-      success = 1;
-    } catch (const madness::TensorException& e) {
-      print(e);
-      error("caught a Tensor exception");
-      success = 1;
-    } catch (const char* s) {
-      print(s);
-      error("caught a string exception");
-      success = 1;
-    } catch (const std::string& s) {
-      print(s);
-      error("caught a string (class) exception");
-      success = 1;
-    } catch (std::exception& e) {
-      print("\n\tan error occurred .. ");
-      print(e.what());
-      success = 1;
-    } catch (...) {
-      print("\n\tan unknown error occurred .. ");
-      success = 1;
-    }
+    test_create_dipole_save(world);
+    test_create_nuclear(world);
+    // test_create_order2_dd(world);
+    // test_create_order2_dn(world);
     if (world.rank() == 0) printf("\nfinished at time %.1fs\n\n", wall_time());
     world.gop.fence();
     world.gop.fence();

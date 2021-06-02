@@ -110,6 +110,9 @@ int main(int argc, char** argv) {
         print("Second Order Analysis");
         d1.PrintSecondOrderAnalysis(world, alpha);
       }
+    } catch (std::exception& e) {
+      print("\n\tan error occurred .. ");
+      print(e.what());
     } catch (const SafeMPI::Exception& e) {
       print(e);
       error("caught an MPI exception");

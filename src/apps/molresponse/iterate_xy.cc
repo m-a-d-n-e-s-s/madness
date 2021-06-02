@@ -31,7 +31,7 @@
  * @param f
  * @param g
  * @param phi
- * @param small
+ * @param lo
  * @param thresh
  * @param print_level
  * @param xy
@@ -41,7 +41,7 @@ response_space TDDFT::CreateGamma(World& world,
                                   response_space& f,
                                   response_space& g,
                                   std::vector<real_function_3d>& phi,
-                                  double small,
+                                  double lo,
                                   double thresh,
                                   size_t print_level,
                                   std::string xy) {
@@ -60,14 +60,14 @@ response_space TDDFT::CreateGamma(World& world,
   response_space deriv_XC(world, m, n);
 
   // Perturbed coulomb piece
-  response_space deriv_J = CreateCoulombDerivativeRF(world, f, phi, small, thresh);
+  response_space deriv_J = CreateCoulombDerivativeRF(world, f, phi, lo, thresh);
   // ResponseFunction deriv_XC=CreateXCDerivative
 
   // If including any HF exchange:
   if (xcf.hf_exchange_coefficient()) {
-    deriv_K = CreateExchangeDerivativeRF(world, f, phi, small, thresh);
+    deriv_K = CreateExchangeDerivativeRF(world, f, phi, lo, thresh);
   }
-  // CreateXcDerivativeOnF(world,f,phi,small,thresh);
+  // CreateXcDerivativeOnF(world,f,phi,lo,thresh);
   // Get the DFT contribution
   if (xcf.hf_exchange_coefficient() != 1.0) {
     // Get v_xc
@@ -121,7 +121,7 @@ response_space TDDFT::CreateGamma(World& world,
  * @param world
  * @param f
  * @param phi
- * @param small
+ * @param lo
  * @param thresh
  * @param print_level
  * @param xy
@@ -130,7 +130,7 @@ response_space TDDFT::CreateGamma(World& world,
 response_space TDDFT::ComputeHf(World& world,
                                 const response_space& f,
                                 const std::vector<real_function_3d>& phi,
-                                double small,
+                                double lo,
                                 double thresh,
                                 size_t print_level,
                                 std::string xy) {
@@ -150,18 +150,18 @@ response_space TDDFT::ComputeHf(World& world,
   response_space deriv_XC(world, m, n);
 
   // Perturbed coulomb piece
-  deriv_J = CreateCoulombDerivativeRF(world, f, phi, small, thresh);
+  deriv_J = CreateCoulombDerivativeRF(world, f, phi, lo, thresh);
   // Spin integration gives 2.0
 
   // If including any HF exchange:
   if (xcf.hf_exchange_coefficient()) {
-    deriv_K = CreateExchangeDerivativeRF(world, f, phi, small, thresh);
+    deriv_K = CreateExchangeDerivativeRF(world, f, phi, lo, thresh);
   }
   deriv_K = deriv_K * xcf.hf_exchange_coefficient();
   // Get the DFT contribution
   if (xcf.hf_exchange_coefficient() != 1.0) {
     // Get v_xc
-    deriv_XC = CreateXCDerivativeRF(world, f, phi, small, thresh);
+    deriv_XC = CreateXCDerivativeRF(world, f, phi, lo, thresh);
   }
   // Now assemble pieces together to get gamma
   // Spin integration gives 2.0
@@ -208,7 +208,7 @@ response_space TDDFT::ComputeHf(World& world,
  * @param world
  * @param f
  * @param orbitals
- * @param small
+ * @param lo
  * @param thresh
  * @param print_level
  * @param xy
@@ -217,7 +217,7 @@ response_space TDDFT::ComputeHf(World& world,
 response_space TDDFT::ComputeGf(World& world,
                                 const response_space& f,
                                 const std::vector<real_function_3d>& orbitals,
-                                double small,
+                                double lo,
                                 double thresh,
                                 size_t print_level,
                                 std::string xy) {
@@ -235,18 +235,18 @@ response_space TDDFT::ComputeGf(World& world,
   response_space Kdagger(world, m, n);
   response_space XCdagger(world, m, n);
 
-  Jdagger = CreateCoulombDerivativeRFDagger(world, f, orbitals, small, thresh);
+  Jdagger = CreateCoulombDerivativeRFDagger(world, f, orbitals, lo, thresh);
 
   // Exchange
   // Determine if including HF exchange
   if (xcf.hf_exchange_coefficient()) {
-    Kdagger = CreateExchangeDerivativeRFDagger(world, f, orbitals, small, thresh);
+    Kdagger = CreateExchangeDerivativeRFDagger(world, f, orbitals, lo, thresh);
   }
   Kdagger = Kdagger * xcf.hf_exchange_coefficient();
   // Determine if DFT potential is needed
   if (xcf.hf_exchange_coefficient() != 1.0) {
     // Get v_xc
-    XCdagger = CreateXCDerivativeRFDagger(world, f, orbitals, small, thresh);
+    XCdagger = CreateXCDerivativeRFDagger(world, f, orbitals, lo, thresh);
   }
   world.gop.fence();
 

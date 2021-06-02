@@ -265,12 +265,12 @@ void TDDFT::Iterate(World& world, X_space& Chi) {
 
       // Construct BSH operators
       std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> bsh_x_operators = create_bsh_operators(
-          world, x_shifts, ground_energies, omega, r_params.small(), FunctionDefaults<3>::get_thresh());
+          world, x_shifts, ground_energies, omega, r_params.lo(), FunctionDefaults<3>::get_thresh());
       std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> bsh_y_operators;
       if (not r_params.tda()) {
         omega = -omega;
         bsh_y_operators = create_bsh_operators(
-            world, y_shifts, ground_energies, omega, r_params.small(), FunctionDefaults<3>::get_thresh());
+            world, y_shifts, ground_energies, omega, r_params.lo(), FunctionDefaults<3>::get_thresh());
         omega = -omega;
       }
 

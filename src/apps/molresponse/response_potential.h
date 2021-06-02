@@ -1,7 +1,7 @@
 /*
  Copyright 2021 Adrian Hurtado
  *
- *   Small class to hold all the functionality needed in creating/manipulating
+ *   lo class to hold all the functionality needed in creating/manipulating
  *   the  term in the response equations. (Gamma is the perturbed two
  *   electron piece.)
  *
@@ -33,7 +33,7 @@ class ResponsePotential {
   real_function_3d ground_rho;      // Pointer to ground state density
   real_function_3d v_nuc;           // Pointer to nuclear potential
   QProjector<double, 3> projector;  // Will project out ground state
-  const double small;               // Smallest lengthscale for coulomb op.
+  const double lo;               // loest lengthscale for coulomb op.
   const double thresh;              // Truncation threshold for coulomb op.
   real_convolution_3d op;           // Coulomb operator
   response_space potential;         // For storing the ground state
@@ -124,7 +124,7 @@ class ResponsePotential {
   ResponsePotential(World& world,
                     std::vector<real_function_3d>& ground,
                     real_function_3d& v_nuc,
-                    double small,
+                    double lo,
                     double thresh,
                     size_t r_states,
                     int g_states,
@@ -136,9 +136,9 @@ class ResponsePotential {
         ground_rho(calc_density(ground)),
         v_nuc(v_nuc),
         projector(QProjector<double, 3>(world, ground_orbitals)),
-        small(small),
+        lo(lo),
         thresh(thresh),
-        op(CoulombOperator(world, small, thresh)),
+        op(CoulombOperator(world, lo, thresh)),
         potential(response_space()),
         is_dft(is_dft),
         xc_name(xc),

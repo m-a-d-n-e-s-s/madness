@@ -44,7 +44,7 @@ struct ResponseParameters : public QCCalculationParametersBase {
 
     initialize<bool>("guess_xyz", false, "TODO : check what this is for");
 
-    initialize<double>("small", 1.e10, "smallest length scale we need to resolve");
+    initialize<double>("lo", 1.e10, "smallest length scale we need to resolve");
     initialize<std::vector<double>>("protocol_data", {1.e-4, 1.e-6}, "calculation protocol");
 
     initialize<size_t>(
@@ -108,7 +108,7 @@ struct ResponseParameters : public QCCalculationParametersBase {
   double dconv() const { return get<double>("dconv"); }
   bool dconv_set() const { return get<bool>("dconv_set"); }
   bool guess_xyz() const { return get<bool>("guess_xyz"); }
-  double small() const { return get<double>("small"); }
+  double lo() const { return get<double>("lo"); }
   std::vector<double> protocol() const { return get<std::vector<double>>("protocol_data"); }
   size_t larger_subspace() const { return get<size_t>("larger_subspace"); }
   int k() const { return get<int>("k"); }
@@ -158,6 +158,7 @@ struct ResponseParameters : public QCCalculationParametersBase {
     set_derived_value<size_t>("num_orbitals", g_params.n_orbitals());
     set_derived_value<bool>("spinrestricted", g_params.is_spinrestricted());
     set_derived_value<double>("l", g_params.get_L());
+    set_derived_value<double>("lo", g_params.molecule().smallest_length_scale());
     set_derived_value<int>("k", g_params.get_k());
     set_derived_value<std::string>("xc", g_params.get_xc());
 
@@ -167,12 +168,12 @@ struct ResponseParameters : public QCCalculationParametersBase {
 
     if (dipole()) {
       set_derived_value<size_t>("states", 3);
-      set_derived_value<std::string>("response_type","dipole");
+      set_derived_value<std::string>("response_type", "dipole");
     } else if (nuclear()) {
       set_derived_value<size_t>("states", 3 * molecule.natom());
-      set_derived_value<std::string>("response_type","nuclear");
+      set_derived_value<std::string>("response_type", "nuclear");
     } else if (order2()) {
-      set_derived_value<std::string>("response_type","order2");
+      set_derived_value<std::string>("response_type", "order2");
       vector<int> nstates;  // states 1
       for (size_t i = 0; i < 2; i++) {
         if (d2_types().at(i) == 'd') {
@@ -187,7 +188,7 @@ struct ResponseParameters : public QCCalculationParametersBase {
       states = std::accumulate(nstates.begin(), nstates.end(), 1, std::multiplies<>());
       set_derived_value<size_t>("states", states);
     } else if (order3()) {
-      set_derived_value<std::string>("response_type","order3");
+      set_derived_value<std::string>("response_type", "order3");
       vector<int> nstates;  // states 1
       for (size_t i = 0; i < 3; i++) {
         if (d2_types()[i] == 'd') {

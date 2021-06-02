@@ -45,10 +45,10 @@ GammaResponseFunctions TDDFT::ComputeGammaFunctions(World& world,
 
   size_t m = r_params.n_states();
   size_t n = r_params.num_orbitals();
-  double small = r_params.small();
+  double lo = r_params.lo();
   double thresh = FunctionDefaults<3>::get_thresh();
   // x functions
-  real_convolution_3d op = CoulombOperator(world, small, thresh);
+  real_convolution_3d op = CoulombOperator(world, lo, thresh);
   // Two ways single vector or vector vector style
   // here I create the orbital products for elctron interaction terms
   response_space phi_phi(world, n, n);
@@ -212,12 +212,12 @@ X_space TDDFT::ComputeGammaFull(World& world, X_space& Chi, XCOperator<double, 3
 
   size_t m = r_params.n_states();
   size_t n = r_params.num_orbitals();
-  double small = r_params.small();
+  double lo = r_params.lo();
   double thresh = FunctionDefaults<3>::get_thresh();
 
   X_space gamma(world, m, n);
   // x functions
-  real_convolution_3d op = CoulombOperator(world, small, thresh);
+  real_convolution_3d op = CoulombOperator(world, lo, thresh);
   // Two ways single vector or vector vector style
   // here I create the orbital products for elctron interaction terms
   vector_real_function_3d rho_omega;
@@ -345,12 +345,12 @@ X_space TDDFT::ComputeGammaStatic(World& world, X_space& Chi, XCOperator<double,
 
   size_t m = r_params.n_states();
   size_t n = r_params.num_orbitals();
-  double small = r_params.small();
+  double lo = r_params.lo();
   double thresh = FunctionDefaults<3>::get_thresh();
 
   X_space gamma(world, m, n);
   // x functions
-  real_convolution_3d op = CoulombOperator(world, small, thresh);
+  real_convolution_3d op = CoulombOperator(world, lo, thresh);
   // Two ways single vector or vector vector style
   // here I create the orbital products for elctron interaction terms
   vector_real_function_3d rho_omega;
@@ -459,12 +459,12 @@ X_space TDDFT::ComputeGammaTDA(World& world, X_space& Chi, XCOperator<double, 3>
 
   size_t m = r_params.n_states();
   size_t n = r_params.num_orbitals();
-  double small = r_params.small();
+  double lo = r_params.lo();
   double thresh = FunctionDefaults<3>::get_thresh();
 
   X_space gamma(world, m, n);
   // x functions
-  real_convolution_3d op = CoulombOperator(world, small, thresh);
+  real_convolution_3d op = CoulombOperator(world, lo, thresh);
   // Two ways single vector or vector vector style
   // here I create the orbital products for elctron interaction terms
 

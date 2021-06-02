@@ -619,7 +619,7 @@ response_space TDDFT::PropertyRHS(World& world, Property& p) const {
     // here we save
     // need to project
 
-    rhs[i] = mul(world, p.operator_vector.at(i), ground_orbitals, r_params.small());
+    rhs[i] = mul(world, p.operator_vector.at(i), ground_orbitals, r_params.lo());
 
     truncate(world, rhs[i]);
     // rhs[i].truncate_vec();
@@ -647,7 +647,7 @@ response_space TDDFT::PropertyRHS(World& world, Property& p) const {
 response_space TDDFT::CreateCoulombDerivativeRF(World& world,
                                                 const response_space& f,
                                                 const std::vector<real_function_3d>& phi,
-                                                double small,
+                                                double lo,
                                                 double thresh) {
   // Get sizes
   size_t m = f.size();     // number of resposne states or frequencies
@@ -655,7 +655,7 @@ response_space TDDFT::CreateCoulombDerivativeRF(World& world,
   // Zero function, to be returned
   response_space deriv_J(world, m, n);  // J_p--Jderivative
   // Need the coulomb operator
-  real_convolution_3d op = CoulombOperator(world, small, thresh);
+  real_convolution_3d op = CoulombOperator(world, lo, thresh);
   // Temperary storage
   real_function_3d f_density = real_function_3d(world);
   // Need to run over each state
@@ -679,14 +679,14 @@ response_space TDDFT::CreateCoulombDerivativeRF(World& world,
 response_space TDDFT::CreateCoulombDerivativeRFDagger(World& world,
                                                       const response_space& f,
                                                       const std::vector<real_function_3d>& phi,
-                                                      double small,
+                                                      double lo,
                                                       double thresh) {
   // Get sizes
   size_t m = f.size();     // number of resposne states or frequencies
   size_t n = f[0].size();  // number of ground states  x[m][n]
   // Zero function, to be returned
   response_space deriv_J_dagger(world, m, n);  // J_p--Jderivative
-  real_convolution_3d op = CoulombOperator(world, small, thresh);
+  real_convolution_3d op = CoulombOperator(world, lo, thresh);
   real_function_3d f_density = real_function_3d(world);
   for (size_t k = 0; k < m; k++) {  // for each of the m response states
     // dot vector of response functions with orbitals phi
@@ -706,7 +706,7 @@ response_space TDDFT::CreateCoulombDerivativeRFDagger(World& world,
 response_space TDDFT::CreateExchangeDerivativeRF(World& world,
                                                  const response_space& f,
                                                  const std::vector<real_function_3d>& phi,
-                                                 double small,
+                                                 double lo,
                                                  double thresh) {
   // Get sizes
   size_t m = f.size();
@@ -716,7 +716,7 @@ response_space TDDFT::CreateExchangeDerivativeRF(World& world,
   response_space deriv_k(world, m, n);
 
   // Need the coulomb operator
-  real_convolution_3d op = CoulombOperator(world, small, thresh);
+  real_convolution_3d op = CoulombOperator(world, lo, thresh);
 
   // Potential is not stored by default
   // Need to run over occupied orbitals
@@ -752,7 +752,7 @@ response_space TDDFT::CreateExchangeDerivativeRF(World& world,
 response_space TDDFT::CreateExchangeDerivativeRFDagger(World& world,
                                                        const response_space& f,
                                                        const std::vector<real_function_3d>& phi,
-                                                       double small,
+                                                       double lo,
                                                        double thresh) {
   // Get sizes
   size_t m = f.size();
@@ -760,7 +760,7 @@ response_space TDDFT::CreateExchangeDerivativeRFDagger(World& world,
   // Zero function, to be returned
   response_space deriv_k_dagger(world, m, n);
   // Need the coulomb operator
-  real_convolution_3d op = CoulombOperator(world, small, thresh);
+  real_convolution_3d op = CoulombOperator(world, lo, thresh);
   // Need to run over occupied orbitals
   for (size_t p = 0; p < n; p++) {
     // Need to run over all virtual orbitals originating from orbital p
@@ -783,7 +783,7 @@ response_space TDDFT::CreateExchangeDerivativeRFDagger(World& world,
 response_space TDDFT::CreateXCDerivativeRF(World& world,
                                            const response_space& f,
                                            const std::vector<real_function_3d>& phi,
-                                           double small,
+                                           double lo,
                                            double thresh) {
   // Get sizes
   size_t m = f.size();
@@ -804,7 +804,7 @@ response_space TDDFT::CreateXCDerivativeRF(World& world,
 response_space TDDFT::CreateXCDerivativeRFDagger(World& world,
                                                  const response_space& f,
                                                  const std::vector<real_function_3d>& phi,
-                                                 double small,
+                                                 double lo,
                                                  double thresh) {
   // Get sizes
   size_t m = f.size();
@@ -826,7 +826,7 @@ response_space TDDFT::CreateXCDerivativeRFDagger(World& world,
 // Calculates ground state coulomb potential
 real_function_3d TDDFT::Coulomb(World& world) {
   // Coulomb operator
-  real_convolution_3d op = CoulombOperator(world, r_params.small(), FunctionDefaults<3>::get_thresh());
+  real_convolution_3d op = CoulombOperator(world, r_params.lo(), FunctionDefaults<3>::get_thresh());
 
   // Get density
   std::vector<real_function_3d> vsq = square(world, ground_orbitals);
@@ -852,7 +852,7 @@ response_space TDDFT::exchange(World& world, response_space& f) {
   size_t n = f[0].size();
 
   // Coulomb operator
-  real_convolution_3d op = CoulombOperator(world, r_params.small(), FunctionDefaults<3>::get_thresh());
+  real_convolution_3d op = CoulombOperator(world, r_params.lo(), FunctionDefaults<3>::get_thresh());
 
   // Container for results and others
   response_space result(world, m, n);
@@ -1317,7 +1317,7 @@ std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> TDDFT::create_bsh
                                                                                            Tensor<double>& shift,
                                                                                            Tensor<double>& ground,
                                                                                            Tensor<double>& omega,
-                                                                                           double small,
+                                                                                           double lo,
                                                                                            double thresh) {
   // Start timer
   if (r_params.print_level() >= 1) molresponse::start_timer(world);
@@ -1339,7 +1339,7 @@ std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> TDDFT::create_bsh
     for (size_t p = 0; p < n; p++) {
       double mu = sqrt(-2.0 * (ground(p) + omega(k) + shift(k, p)));
       print("res state ", k, " orb ", p, " bsh exponent mu :", mu);
-      temp[p] = std::shared_ptr<SeparatedConvolution<double, 3>>(BSHOperatorPtr3D(world, mu, small, thresh));
+      temp[p] = std::shared_ptr<SeparatedConvolution<double, 3>>(BSHOperatorPtr3D(world, mu, lo, thresh));
     }
 
     // Add intermediary to return container
@@ -1360,7 +1360,7 @@ std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> TDDFT::CreateBSHO
     Tensor<double>& shift,
     Tensor<double>& ground,
     Tensor<double>& omega,
-    double small,
+    double lo,
     double thresh) {
   // Start timer
   if (r_params.print_level() >= 1) molresponse::start_timer(world);
@@ -1384,7 +1384,7 @@ std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> TDDFT::CreateBSHO
       // Run over occupied components
       for (size_t p = 0; p < n; p++) {
         temp[p] = std::shared_ptr<SeparatedConvolution<double, 3>>(
-            BSHOperatorPtr3D(world, sqrt(-2.0 * (ground(p) + omega(k) + shift(k, p))), small, thresh));
+            BSHOperatorPtr3D(world, sqrt(-2.0 * (ground(p) + omega(k) + shift(k, p))), lo, thresh));
       }
       operators.push_back(temp);
     }
@@ -2894,7 +2894,7 @@ response_space TDDFT::diagonalize_CIS_guess(World& world,
                                             Tensor<double>& omega,
                                             std::vector<real_function_3d>& orbitals,
                                             Tensor<double>& energies,
-                                            double small,
+                                            double lo,
                                             double thresh,
                                             size_t print_level) {
   // Projecter for removing ground state
@@ -2949,7 +2949,7 @@ response_space TDDFT::diagonalize_CIS_guess(World& world,
   const size_t n = orbitals.size();
 
   Tensor<double> MCIS(m * n, m * n);
-  real_convolution_3d op = CoulombOperator(world, small, thresh);
+  real_convolution_3d op = CoulombOperator(world, lo, thresh);
 
   for (size_t i = 0; i < n; i++) {
     const real_function_3d brai = orbitals[i];
@@ -3123,7 +3123,7 @@ void TDDFT::IterateGuess(World& world, X_space& guesses) {
     X_space Lambda_X = Compute_Lambda_X(world, Chi, xc, false);
     // Create gamma
     //    gamma = CreateGamma(world, guesses, zeros, ground_orbitals,
-    //    r_params.small,
+    //    r_params.lo,
     //                        FunctionDefaults<3>::get_thresh(),
     //                        Rparams.print_level,
     //                       "x");
@@ -3164,7 +3164,7 @@ void TDDFT::IterateGuess(World& world, X_space& guesses) {
 
       // Construct BSH operators
       std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> bsh_x_operators = create_bsh_operators(
-          world, x_shifts, ground_energies, omega, r_params.small(), FunctionDefaults<3>::get_thresh());
+          world, x_shifts, ground_energies, omega, r_params.lo(), FunctionDefaults<3>::get_thresh());
 
       // Scale by -2.0 (coefficient in eq. 37 of reference
       // paper)
@@ -3299,7 +3299,7 @@ Tensor<double> TDDFT::CreateGroundHamiltonian(World& world, std::vector<real_fun
   // ALWAYS DO THIS FOR THE STORED POTENTIAL!!
   // exchange last
   // 'small memory' algorithm from SCF.cc
-  real_convolution_3d op = CoulombOperator(world, r_params.small(), FunctionDefaults<3>::get_thresh());
+  real_convolution_3d op = CoulombOperator(world, r_params.lo(), FunctionDefaults<3>::get_thresh());
   std::vector<real_function_3d> Kf = zero_functions_compressed<double, 3>(world, m);
   for (size_t i = 0; i < m; ++i) {
     std::vector<real_function_3d> psif = mul_sparse(world, f[i], f, FunctionDefaults<3>::get_thresh());
@@ -3385,11 +3385,14 @@ std::vector<real_function_3d> TDDFT::transition_density(World& world,
   std::vector<real_function_3d> densities = zero_functions<double, 3>(world, m);
   x.truncate_rf();
   y.truncate_rf();
-  truncate(world, ground_orbitals);
+  x.compress_rf();
+  y.compress_rf();
+  compress(world,orbitals);
+  truncate(world, orbitals);
   for (size_t b = 0; b < m; b++) {
     // Run over occupied...
     // y functions are zero if TDA is active
-    densities[b] = dot(world, x[b], ground_orbitals) + dot(world, ground_orbitals, y[b]);
+    densities[b] = dot(world, x[b], orbitals) + dot(world, orbitals, y[b]);
   }
 
   truncate(world, densities);
