@@ -17,8 +17,22 @@ Theta_X.cc
 iterate_gamma.cc
 )
 target_link_libraries(test_resp -lstdc++fs MADchem  )
+
 add_executable(molresponse
 molresponse.cc
+density.cc
+property.cc
+TDDFT.cc
+global_functions.cc
+iterate_excited.cc
+timer.cc
+basic_operators.cc
+Plot_VTK.cc
+iterate_freq2.cc
+iterate_excited2.cc
+Lambda_X.cc
+Theta_X.cc
+iterate_gamma.cc
 )
 #density.cc
 # property.cc
