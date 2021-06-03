@@ -183,8 +183,7 @@ class Laplacian<double, 6>;
 
 /// ctor with an SCF calculation providing the MOs and density
 template<typename T, std::size_t NDIM>
-Coulomb<T, NDIM>::Coulomb(World &world, const Nemo *nemo) : world(world),
-                                                            R_square(nemo->R_square) {
+Coulomb<T, NDIM>::Coulomb(World &world, const Nemo *nemo) : world(world) {
     reset_poisson_operator_ptr(nemo->get_calc()->param.lo(), nemo->get_calc()->param.econv());
     vcoul = compute_potential(nemo);
 }
@@ -235,7 +234,7 @@ real_function_3d Coulomb<T, NDIM>::compute_potential(const madness::Nemo *nemo) 
                                                                nemo->get_calc()->get_bmo());
         density += brho;
     }
-    density = (density * R_square).truncate();
+    density = (density * nemo->R_square).truncate();
     return (*poisson)(density).truncate();
 }
 
@@ -678,6 +677,7 @@ Exchange<T,NDIM>::Exchange(World& world, const Nemo *nemo, const int ispin) : im
 /// @return     a vector of orbitals  K| i>
 template<typename T, std::size_t NDIM>
 std::vector<Function<T,NDIM>> Exchange<T,NDIM>::operator()(const std::vector<Function<T,NDIM>>& vket) const {
+    impl->set_taskq(this->taskq);
     return impl->operator()(vket);
 };
 

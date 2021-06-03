@@ -83,6 +83,11 @@ public:
 
     bool is_symmetric() const { return symmetric_; }
 
+    ExchangeImpl& set_taskq(std::shared_ptr<MacroTaskQ> taskq1) {
+        this->taskq=taskq1;
+        return *this;
+    }
+
     ExchangeImpl& symmetric(const bool flag) {
         symmetric_ = flag;
         return *this;
@@ -114,6 +119,7 @@ private:
     inline bool printdebug() const {return printlevel >= 10; }
 
     World& world;
+    std::shared_ptr<MacroTaskQ> taskq;
     bool symmetric_ = false;      /// is the exchange matrix symmetric? K phi_i = \sum_k \phi_k \int \phi_k \phi_i
     vecfuncT mo_bra, mo_ket;    ///< MOs for bra and ket
     double lo = 1.e-4;

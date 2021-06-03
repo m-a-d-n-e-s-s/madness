@@ -92,16 +92,23 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
 
     // the result is a vector of functions living in the universe
     const long nresult = vf.size();
-
     MacroTaskExchangeSimple xtask(nresult, lo, mul_tol, is_symmetric());
-    auto taskq_ptr = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world, world.size()));
-    MacroTask mtask(world, xtask, taskq_ptr);
-    vecfuncT Kf = mtask(vf, mo_bra, mo_ket);
-    if (printdebug()) taskq_ptr->print_taskq();
-    taskq_ptr->run_all();
-    if (printdebug()) taskq_ptr->cloud.print_timings(world);
-    taskq_ptr->cloud.clear_timings();
-    world.gop.fence();
+    vecfuncT Kf;
+
+    // deferred execution if a taskq is provided by the user
+    if (taskq) {
+        MacroTask mtask(world, xtask, taskq);
+        Kf = mtask(vf, mo_bra, mo_ket);
+    } else {
+        auto taskq_ptr = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world, world.size()));
+        MacroTask mtask(world, xtask, taskq_ptr);
+        Kf = mtask(vf, mo_bra, mo_ket);
+        if (printdebug()) taskq_ptr->print_taskq();
+        taskq_ptr->run_all();
+        if (printdebug()) taskq_ptr->cloud.print_timings(world);
+        taskq_ptr->cloud.clear_timings();
+        world.gop.fence();
+    }
     return Kf;
 }
 

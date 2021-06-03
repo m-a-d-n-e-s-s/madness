@@ -50,6 +50,7 @@
 #include <chem/pcm.h>
 #include <chem/pointgroupsymmetry.h>
 #include <chem/BSHApply.h>
+#include <madness/mra/macrotaskq.h>
 
 
 namespace madness {
@@ -138,9 +139,7 @@ Nemo::Nemo(World& world, const commandlineparser &parser) :
     if (do_pcm()) pcm=PCM(world,this->molecule(),param.pcm_data(),true);
 
     // reading will not overwrite the derived and defined values
-    if (world.rank()==0) param.read(world,parser.value("input"),"dft");
-
-
+    param.read(world,parser.value("input"),"dft");
     symmetry_projector=projector_irrep(param.pointgroup())
             .set_ordering("keep").set_verbosity(0).set_orthonormalize_irreps(true);;
     if (symmetry_projector.get_verbosity()>1) symmetry_projector.print_character_table();
@@ -299,7 +298,9 @@ tensorT Nemo::compute_fock_matrix(const vecfuncT& nemo, const tensorT& occ) cons
 	compute_nemo_potentials(nemo, psi, Jnemo, Knemo, pcmnemo, Unemo);
 
 //    vecfuncT JKUpsi=add(world, sub(world, Jnemo, Knemo), Unemo);
+print("bla 1",Unemo.front().world().id(),Knemo.front().world().id());
     vecfuncT JKUpsi=Unemo+Jnemo-Knemo;
+    print("bla 2");
     if (do_pcm()) JKUpsi+=pcmnemo;
     tensorT fock=matrix_inner(world,R2nemo,JKUpsi,false);   // not symmetric actually
     Kinetic<double,3> T(world);
@@ -571,65 +572,72 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo, vecfuncT& psi,
 		vecfuncT& Jnemo, vecfuncT& Knemo, vecfuncT& pcmnemo,
 		vecfuncT& Unemo) const {
 
-	// reconstruct the orbitals
-	timer t(world);
-	psi = mul(world, R, nemo);
-	truncate(world, psi);
-	t.tag("reconstruct psi");
+    {
+        timer t(world);
+        real_function_3d vcoul;
+        int ispin = 0;
+        auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world, world.size()));
+        Coulomb<double, 3> J = Coulomb<double, 3>(world, this).set_taskq(taskq);
+        {
+            t.tag("initialize Coulomb operator");
 
-	// compute the density and the coulomb potential
-	Coulomb<double,3> J=Coulomb<double,3>(world,this);
-	Jnemo = J(nemo);
-	truncate(world, Jnemo);
-    t.tag( "compute Jnemo");
+            // compute the density and the coulomb potential
+            Jnemo = J(nemo);
 
-	// compute the exchange potential
-    int ispin=0;
-    Knemo=zero_functions_compressed<double,3>(world,nemo.size());
-    if (calc->xc.hf_exchange_coefficient()>0.0) {
-        Exchange<double,3> K=Exchange<double,3>(world,this,ispin).set_symmetric(true);
-        Knemo=K(nemo);
-        scale(world,Knemo,calc->xc.hf_exchange_coefficient());
-        truncate(world, Knemo);
-        t.tag( "compute Knemo");
-    }
-
-	// compute the exchange-correlation potential
-    if (calc->xc.is_dft()) {
-        XCOperator<double,3> xcoperator(world,this,ispin);
-        double exc=0.0;
-        if (ispin==0) exc=xcoperator.compute_xc_energy();
-        print("exc",exc);
-        // copy???
-        real_function_3d xc_pot = xcoperator.make_xc_potential();
-
-        // compute the asymptotic correction of exchange-correlation potential
-        if(do_ac()) {
-        	std::cout << "Computing asymtotic correction!\n";
-        	double charge = double(molecule().total_nuclear_charge())-param.charge();
-        	real_function_3d scaledJ = -1.0/charge*J.potential()*(1.0-calc->xc.hf_exchange_coefficient());
-        	xc_pot = ac.apply(xc_pot, scaledJ);
+            // compute the exchange potential
+            int ispin = 0;
+            Knemo = zero_functions_compressed<double, 3>(world, nemo.size());
+            if (calc->xc.hf_exchange_coefficient() > 0.0) {
+                Exchange<double, 3> K = Exchange<double, 3>(world, this, ispin).set_symmetric(true).set_taskq(taskq);
+                Knemo = K(nemo);
+                scale(world, Knemo, calc->xc.hf_exchange_coefficient());
+                truncate(world, Knemo);
+                t.tag("compute Knemo");
+            }
+            t.tag("initialize K operator");
+            taskq->set_printlevel(3);
+            taskq->print_taskq();
+            taskq->run_all();
         }
 
-        Knemo=sub(world,Knemo,mul(world,xc_pot,nemo));   // minus times minus gives plus
-        truncate(world,Knemo);
-        double size=get_size(world,Knemo);
-        t.tag( "compute XCnemo "+stringify(size));
+        // compute the exchange-correlation potential
+        if (calc->xc.is_dft()) {
+            XCOperator<double, 3> xcoperator(world, this, ispin);
+            double exc = 0.0;
+            if (ispin == 0) exc = xcoperator.compute_xc_energy();
+            print("exc", exc);
+            // copy???
+            real_function_3d xc_pot = xcoperator.make_xc_potential();
+
+            // compute the asymptotic correction of exchange-correlation potential
+            if (do_ac()) {
+                std::cout << "Computing asymtotic correction!\n";
+                double charge = double(molecule().total_nuclear_charge()) - param.charge();
+                real_function_3d scaledJ = -1.0 / charge * J.potential() * (1.0 - calc->xc.hf_exchange_coefficient());
+                xc_pot = ac.apply(xc_pot, scaledJ);
+            }
+
+            Knemo = sub(world, Knemo, mul(world, xc_pot, nemo));   // minus times minus gives plus
+            truncate(world, Knemo);
+            double size = get_size(world, Knemo);
+            t.tag("compute XCnemo " + stringify(size));
+        }
+
+
+        // compute the solvent (PCM) contribution to the potential
+        if (do_pcm()) {
+            const real_function_3d vpcm = pcm.compute_pcm_potential(J.potential());
+            pcmnemo = vpcm * nemo;
+            double size = get_size(world, pcmnemo);
+            t.tag("compute PCMnemo " + stringify(size));
+        }
+
+        Nuclear<double, 3> Unuc(world, this->ncf);
+        Unemo = Unuc(nemo);
+        double size1 = get_size(world, Unemo);
+        t.tag("compute Unemo " + stringify(size1));
     }
-
-
-    // compute the solvent (PCM) contribution to the potential
-    if (do_pcm()) {
-        const real_function_3d vpcm = pcm.compute_pcm_potential(J.potential());
-        pcmnemo=vpcm*nemo;
-        double size=get_size(world,pcmnemo);
-        t.tag( "compute PCMnemo "+stringify(size));
-    }
-
-	Nuclear<double,3> Unuc(world,this->ncf);
-	Unemo=Unuc(nemo);
-    double size1=get_size(world,Unemo);
-	t.tag("compute Unemo "+stringify(size1));
+    world.gop.fence();
 
 }
 

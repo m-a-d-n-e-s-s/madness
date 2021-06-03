@@ -189,15 +189,25 @@ public:
 		// T = 0.5\sum_i \int R^2 U1.U1 F^2 - 2 R^2 U1.grad(F) F + R^2 grad(F)^2
 		//   = 0.5 (<U1.U1 | rho > + <R^2|grad(F)^2> - 2<R^2 | U1.grad(F) >)
 		// note: U1=-grad(R)/R
+		print("B1");
+		auto id=nemo.front().world().id();
+        auto id1=R_square.world().id();
+        auto worldid=world.id();
+		print("nemo.id",id, id1,worldid);
+		world.gop.fence();
 		real_function_3d dens=dot(world,nemo,nemo)*R_square;
+        print("B1a");
 	    real_function_3d U1dotU1=real_factory_3d(world)
 	    		.functor(NuclearCorrelationFactor::U1_dot_U1_functor(ncf.get()));
+        print("B1b");
 	    double ke1=inner(dens,U1dotU1);
+        print("B2");
 
 	    double ke2=0.0;
 	    double ke3=0.0;
 	    double ke3_real=0.0;
 	    double ke3_imag=0.0;
+        print("B3");
 
 	    for (int axis = 0; axis < NDIM; axis++) {
 	        real_derivative_3d D = free_space_derivative<double, NDIM>(world, axis);
@@ -210,9 +220,11 @@ public:
 	        ke3 +=tmp;
 
 	        const real_function_3d term1=dot(world,dnemo,dnemo);
+	        world.gop.fence();
 	        ke2 += inner(term1,R_square);
 
 	    }
+        print("B4");
 //	    if (ke3_imag>1.e-8) {
 //	    	print("kinetic energy, imaginary part: ",ke3_imag);
 //	    	MADNESS_EXCEPTION("imaginary kinetic energy",1);

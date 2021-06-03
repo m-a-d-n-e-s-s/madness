@@ -38,6 +38,7 @@
 #define MADNESS_CHEM_SCFOPERATORS_H_
 
 #include <madness.h>
+#include <macrotaskq.h>
 
 using namespace madness;
 
@@ -62,7 +63,10 @@ public:
     typedef std::vector<functionT> vecfuncT;
     typedef Tensor<T> tensorT;
 
-    std::shared_ptr<MacroTaskQ> taskq_ptr=0;
+    SCFOperatorBase() = default;
+    SCFOperatorBase(std::shared_ptr<MacroTaskQ> taskq) : taskq(taskq) {}
+
+    std::shared_ptr<MacroTaskQ> taskq=0;
 
     /// print some information about this operator
     virtual std::string info() const = 0;
@@ -115,6 +119,8 @@ public:
     /// default ctor
     Exchange() = default;
 
+    Exchange(std::shared_ptr<MacroTaskQ> taskq) : SCFOperatorBase<T, NDIM>(taskq) {}
+
     /// ctor with a conventional calculation
     Exchange(World& world, const SCF *calc, const int ispin);
 
@@ -128,6 +134,11 @@ public:
     Exchange& set_symmetric(const bool flag);
 
     Exchange& set_algorithm(const Algorithm& alg);
+
+    Exchange& set_taskq(std::shared_ptr<MacroTaskQ> taskq1) {
+        this->taskq=taskq1;
+        return *this;
+    }
 
     Exchange& set_parameters(const vecfuncT& bra, const vecfuncT& ket, const double lo1);
 
@@ -319,6 +330,39 @@ template<typename T, std::size_t NDIM>
 class Coulomb : public SCFOperatorBase<T,NDIM> {
 public:
 
+    class MacroTaskCoulomb : public MacroTaskOperationBase {
+    public:
+        // you need to define the exact argument(s) of operator() as tuple
+        typedef std::tuple<const Function<double,NDIM>&, const std::vector<Function<T,NDIM>> &> argtupleT;
+
+        using resultT = std::vector<Function<T,NDIM>>;
+
+        class MacroTaskPartitionerCoulomb : public MacroTaskPartitioner {
+        public:
+            partitionT do_partitioning(const std::size_t& vsize1, const std::size_t& vsize2,
+                                       const std::string policy) const override {
+                partitionT p={std::pair(Batch(_,_),1.0)};
+                return p;
+            }
+        };
+
+        MacroTaskCoulomb() {
+            partitioner.reset(new MacroTaskPartitionerCoulomb());
+        }
+
+        // you need to define an empty constructor for the result
+        // resultT must implement operator+=(const resultT&)
+        resultT allocator(World &world, const argtupleT &argtuple) const {
+            std::size_t n = std::get<1>(argtuple).size();
+            resultT result = zero_functions_compressed<T,NDIM>(world, n);
+            return result;
+        }
+
+        resultT operator()(const Function<double,NDIM>& vcoul, const std::vector<Function<T,NDIM>> &arg) const {
+            return truncate(vcoul * arg);
+        }
+    };
+
     /// default empty ctor
     Coulomb(World& world) : world(world) {};
 
@@ -330,20 +374,24 @@ public:
 
     std::string info() const {return "J";}
 
-    void reset_poisson_operator_ptr(const double lo, const double econv);
-
-    void set_metric(const real_function_3d& metric) {
-    	R_square=copy(metric);
+    Coulomb& set_taskq(std::shared_ptr<MacroTaskQ> taskq1) {
+        this->taskq=taskq1;
+        return *this;
     }
 
+    void reset_poisson_operator_ptr(const double lo, const double econv);
+
     Function<T,NDIM> operator()(const Function<T,NDIM>& ket) const {
-        return (vcoul*ket).truncate();
+        std::vector<Function<T,NDIM> > vket(1,ket);
+        return this->operator()(vket)[0];
     }
 
     std::vector<Function<T,NDIM> > operator()(const std::vector<Function<T,NDIM> >& vket) const {
-        std::vector<Function<T,NDIM> > tmp=mul(world,vcoul,vket);
-        truncate(world,tmp);
-        return tmp;
+        MacroTaskCoulomb t;
+        World& world=vket.front().world();
+        MacroTask task(world, t, this->taskq);
+        auto result=task(vcoul,vket);
+        return result;
     }
 
     T operator()(const Function<T,NDIM>& bra, const Function<T,NDIM>& ket) const {
@@ -391,7 +439,6 @@ private:
     std::shared_ptr<real_convolution_3d> poisson;
     double lo=1.e-4;
     real_function_3d vcoul; ///< the coulomb potential
-    real_function_3d R_square;    ///< square of the nuclear correlation factor, if any
 };
 
 
