@@ -41,7 +41,7 @@ class GroundParameters {
 
   double get_L() const { return L; }
   int get_k() const { return k; }
-  vector_real_function_3d orbitals() const { return g_orbitals; }
+  vector_real_function_3d& orbitals() { return g_orbitals; }
   std::string get_xc() const { return xc; }
   std::string get_archive() const { return xc; }
 
