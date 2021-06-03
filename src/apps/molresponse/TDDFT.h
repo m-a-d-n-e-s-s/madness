@@ -136,7 +136,7 @@ class TDDFT {
 
   // Information that is inferred from input file
   std::vector<real_function_3d> act_orbitals;  // Ground state orbitals being used in calculation
-  vector_real_function_3d ground_orbitals;
+  std::vector<real_function_3d>ground_orbitals;
   Tensor<double> ground_energies;      // Ground state hamiltonian tensor
   Tensor<double> act_ground_energies;  // Ground state energies being used for calculation
   Tensor<double> hamiltonian;          // Ground state hamiltonian tensor
@@ -581,7 +581,7 @@ class TDDFT {
 
   // Creates the transition density
   std::vector<real_function_3d> transition_density(World& world,
-                                                   std::vector<real_function_3d> const& orbitals,
+                                                   std::vector<real_function_3d> & orbitals,
                                                    response_space& x,
                                                    response_space& y);
   std::vector<real_function_3d> transition_densityTDA(World& world,
