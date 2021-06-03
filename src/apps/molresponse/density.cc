@@ -21,14 +21,13 @@ typedef FunctionFactory<double, 3> FactoryT;
 typedef Vector<double, 3> CoordinateT;
 typedef std::vector<real_function_3d> VectorFunction3DT;
 
-density_vector::density_vector(World &world, ResponseParameters r_params, GroundParameters g_params) {
+density_vector::density_vector(World &world, ResponseParameters r_params, GroundParameters g_params)
+    : num_states(r_params.n_states()), num_orbitals(r_params.num_orbitals()) {
   this->r_params = r_params;
   this->g_params = g_params;
   this->property = r_params.response_type();
-  this->num_states = r_params.n_states();
-  this->num_ground_states = r_params.num_orbitals();
-  this->Chi = X_space(world, num_states, num_ground_states);
-  this->PQ = X_space(world, num_states, num_ground_states);
+  this->Chi = X_space(world, num_states, num_orbitals);
+  this->PQ = X_space(world, num_states, num_orbitals);
   if (r_params.response_type().compare("excited_state") == 0) {
     this->omega = Tensor<double>(r_params.n_states());
   } else {
@@ -38,18 +37,6 @@ density_vector::density_vector(World &world, ResponseParameters r_params, Ground
 }
 void density_vector::compute_response(World &world) {
   // right now everything uses copy
-  property = r_params.response_type();
-  size_t m_states = r_params.n_states();
-  size_t n_orbitals = r_params.num_orbitals();
-
-  Chi = X_space(world, m_states, n_orbitals);
-  PQ = X_space(world, m_states, n_orbitals);
-  print("Creating Response Functions for X and Y");
-  print("X Norms before Computing");
-  print(Chi.X.norm2());
-  print("Y Norms before Computing");
-  print(Chi.Y.norm2());
-
   TDDFT calc(world, r_params, g_params);
   if (calc.r_params.response_type().compare("excited_state") == 0) {
     print("Entering Excited State Response Runner");
@@ -61,19 +48,16 @@ void density_vector::compute_response(World &world) {
   // omega is determined by the type of calculation
   // property calculation at single frequency
   // excited stat calculation at multipe frequencies
-  omega = calc.GetFrequencyOmega();
   property_operator = calc.GetPropertyObject();
-
-  Chi = calc.GetXspace();
+  Chi=calc.GetXspace();
+  PQ=calc.GetPQspace();
 
   print("X Norms before Computing");
   print(Chi.X.norm2());
   PQ = calc.GetPQspace();
 
-  num_states = Chi.X.size();
-  num_ground_states = Chi.X[0].size();
   // get the response densities for our states
-  if (r_params.omega() == 0) {
+  if (omega[0] == 0) {
     rho_omega = calc.transition_density(world, g_params.orbitals(), Chi.X, Chi.X);
   } else {
     rho_omega = calc.transition_density(world, g_params.orbitals(), Chi.X, Chi.Y);
@@ -86,7 +70,7 @@ void density_vector::compute_response(World &world) {
 // right now everything uses copy
 
 size_t density_vector::GetNumberResponseStates() { return num_states; }
-size_t density_vector::GetNumberGroundStates() { return num_ground_states; }
+size_t density_vector::GetNumberGroundStates() { return num_orbitals; }
 VectorFunction3DT density_vector::GetDensityVector() { return rho_omega; }
 const Molecule density_vector::GetMolecule() { return g_params.molecule(); }
 TensorT density_vector::GetFrequencyOmega() { return omega; }
@@ -112,7 +96,7 @@ void density_vector::PrintDensityInformation() {
   print("Response Density Information");
   print(property, " response at", omega(0, 0), "frequency using ", r_params.xc(), " exchange functional");
   print("Number of Response States : ", num_states);
-  print("Number of Ground States : ", num_ground_states);
+  print("Number of Ground States : ", num_orbitals);
 }
 
 void density_vector::PlotResponseDensity(World &world) {
@@ -204,18 +188,18 @@ void density_vector::SaveDensity(World &world, std::string name) {
   ar &property;
   ar &omega;
   ar &num_states;
-  ar &num_ground_states;
+  ar &num_orbitals;
   // Save response functions x and y
   // x first
   for (size_t i = 0; i < num_states; i++) {
-    for (size_t j = 0; j < num_ground_states; j++) {
+    for (size_t j = 0; j < num_orbitals; j++) {
       ar &Chi.X[i][j];
     }
   }
 
   // y second
   for (size_t i = 0; i < num_states; i++) {
-    for (size_t j = 0; j < num_ground_states; j++) {
+    for (size_t j = 0; j < num_orbitals; j++) {
       ar &Chi.Y[i][j];
     }
   }
@@ -227,12 +211,12 @@ void density_vector::SaveDensity(World &world, std::string name) {
   }
 
   for (size_t i = 0; i < num_states; i++) {
-    for (size_t j = 0; j < num_ground_states; j++) {
+    for (size_t j = 0; j < num_orbitals; j++) {
       ar &PQ.X[i][j];
     }
   }
   for (size_t i = 0; i < num_states; i++) {
-    for (size_t j = 0; j < num_ground_states; j++) {
+    for (size_t j = 0; j < num_orbitals; j++) {
       ar &PQ.Y[i][j];
     }
   }
@@ -263,14 +247,14 @@ void density_vector::LoadDensity(World &world,
   print("omega:", omega);
   ar &num_states;
   print("num_response_states:", num_states);
-  ar &num_ground_states;
-  print("num_ground_states:", num_ground_states);
+  ar &num_orbitals;
+  print("num_ground_states:", num_orbitals);
 
-  this->Chi.X = response_space(world, num_states, num_ground_states);
-  this->Chi.Y = response_space(world, num_states, num_ground_states);
+  this->Chi.X = response_space(world, num_states, num_orbitals);
+  this->Chi.Y = response_space(world, num_states, num_orbitals);
 
-  this->PQ.X = response_space(world, num_states, num_ground_states);
-  this->PQ.Y = response_space(world, num_states, num_ground_states);
+  this->PQ.X = response_space(world, num_states, num_orbitals);
+  this->PQ.Y = response_space(world, num_states, num_orbitals);
 
   for (size_t i = 0; i < r_params.n_states(); i++) {
     for (size_t j = 0; j < g_params.n_orbitals(); j++) {

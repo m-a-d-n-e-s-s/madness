@@ -36,8 +36,8 @@ class density_vector {
   Property property_operator;  // dipole, nuclear, or none
   Tensor<double> omega;        // frequency or frequencies
 
-  size_t num_states;         // number of response states
-  size_t num_ground_states;  // number of ground state orbitals
+  const size_t num_states;    // number of response states
+  const size_t num_orbitals;  // number of ground state orbitals
 
   XCfunctional xcf;  // xc functional
 
