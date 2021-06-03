@@ -83,7 +83,7 @@ struct ResponseParameters : public QCCalculationParametersBase {
     initialize<double>("omega", 0.0, "Incident energy for dynamic response");
     initialize<double>("l", 20, "user coordinates box size");
     // ground-state stuff
-    initialize<size_t>("num_orbitals", 0, "number of groun_state orbtials");
+    initialize<size_t>("num_orbitals", 0, "number of ground state orbtials");
     initialize<bool>("spinrestricted", true, "is spinrestricted calculation");
   }
 
@@ -93,7 +93,7 @@ struct ResponseParameters : public QCCalculationParametersBase {
   std::string archive() const { return get<std::string>("archive"); }
   std::string nwchem() const { return get<std::string>("nwchem"); }
   size_t n_states() const { return get<size_t>("states"); }
-  size_t num_orbitals() const { return get<size_t>("states"); }
+  size_t num_orbitals() const { return get<size_t>("num_orbitals"); }
   int print_level() const { return get<int>("print_level"); }
   bool tda() const { return get<bool>("tda"); }
   bool plot() const { return get<bool>("plot"); }
