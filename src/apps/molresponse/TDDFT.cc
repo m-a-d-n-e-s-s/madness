@@ -3375,7 +3375,7 @@ Tensor<double> TDDFT::CreateGroundHamiltonian(World& world, std::vector<real_fun
 
 // Creates the transition densities
 std::vector<real_function_3d> TDDFT::transition_density(World& world,
-                                                        std::vector<real_function_3d> const& orbitals,
+                                                        std::vector<real_function_3d> & orbitals,
                                                         response_space& x,
                                                         response_space& y) {
   // Get sizes
@@ -3385,14 +3385,12 @@ std::vector<real_function_3d> TDDFT::transition_density(World& world,
   std::vector<real_function_3d> densities = zero_functions<double, 3>(world, m);
   x.truncate_rf();
   y.truncate_rf();
-  x.compress_rf();
-  y.compress_rf();
-  compress(world,orbitals);
   truncate(world, orbitals);
   for (size_t b = 0; b < m; b++) {
     // Run over occupied...
     // y functions are zero if TDA is active
-    densities[b] = dot(world, x[b], orbitals) + dot(world, orbitals, y[b]);
+    densities[b] = dot(world, x[b], orbitals);
+    densities[b] += dot(world, orbitals, y[b]);
   }
 
   truncate(world, densities);
@@ -3804,7 +3802,7 @@ response_space TDDFT::create_nwchem_guess(World& world, size_t m) {
   // virtual orbitals putting 1 virtual orbital from nwchem per vector
   for (size_t i = 0; i < std::max(m, num_virt); i++) {
     // Create the vector to add the new function to
-    std::vector<real_function_3d> v1 = zero_functions_compressed<double, 3>(world, ground_orbitals.size());
+    std::vector<real_function_3d> v1 = zero_functions_compressed<double, 3>(world, g_params.orbitals().size());
 
     // Put the "new" function into the vector
     v1[i % v1.size()] = temp2[i];
@@ -3917,7 +3915,7 @@ void TDDFT::polarizability(World& world, Tensor<double> polar) {
   if (r_params.omega() == 0)
     rhos = transition_density(world, ground_orbitals, Chi.X, Chi.X);
   else
-    rhos = transition_density(world, ground_orbitals, Chi.X, Chi.Y);
+    rhos = transition_density(world, ground_orbitals,Chi.X, Chi.Y);
 
   // For each r_axis
   for (size_t axis = 0; axis < 3; axis++) {
