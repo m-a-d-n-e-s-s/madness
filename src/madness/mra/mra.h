@@ -1699,7 +1699,8 @@ Function<TENSOR_RESULT_TYPE(L, R), NDIM> mul_sparse(
   PROFILE_FUNC;
   left.verify();
   right.verify();
-  MADNESS_ASSERT(!(left.is_compressed() || right.is_compressed()));
+  MADNESS_ASSERT(!(left.is_compressed()));
+  MADNESS_ASSERT(!( right.is_compressed()));
   if (VERIFY_TREE) left.verify_tree();
   if (VERIFY_TREE) right.verify_tree();
 
