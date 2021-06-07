@@ -109,6 +109,12 @@ class MacroTaskQ : public WorldObject< MacroTaskQ> {
 	std::mutex taskq_mutex;
 	long printlevel=0;
 	long nsubworld=1;
+    std::shared_ptr< WorldDCPmapInterface< Key<1> > > pmap1;
+    std::shared_ptr< WorldDCPmapInterface< Key<2> > > pmap2;
+    std::shared_ptr< WorldDCPmapInterface< Key<3> > > pmap3;
+    std::shared_ptr< WorldDCPmapInterface< Key<4> > > pmap4;
+    std::shared_ptr< WorldDCPmapInterface< Key<5> > > pmap5;
+    std::shared_ptr< WorldDCPmapInterface< Key<6> > > pmap6;
 
 	bool printdebug() const {return printlevel>=10;}
     bool printtimings() const {return universe.rank()==0 and printlevel>=3;}
@@ -154,6 +160,12 @@ public:
 
         universe.gop.fence();
         universe.gop.set_forbid_fence(true); // make sure there are no hidden universe fences
+        pmap1=FunctionDefaults<1>::get_pmap();
+        pmap2=FunctionDefaults<2>::get_pmap();
+        pmap3=FunctionDefaults<3>::get_pmap();
+        pmap4=FunctionDefaults<4>::get_pmap();
+        pmap5=FunctionDefaults<5>::get_pmap();
+        pmap6=FunctionDefaults<6>::get_pmap();
         set_pmap(get_subworld());
 
         double cpu00=cpu_time();
@@ -192,8 +204,13 @@ public:
 		subworld.gop.fence();
         subworld.gop.fence();
         universe.gop.fence();
+        FunctionDefaults<1>::set_pmap(pmap1);
+        FunctionDefaults<2>::set_pmap(pmap2);
+        FunctionDefaults<3>::set_pmap(pmap3);
+        FunctionDefaults<4>::set_pmap(pmap4);
+        FunctionDefaults<5>::set_pmap(pmap5);
+        FunctionDefaults<6>::set_pmap(pmap6);
         universe.gop.fence();
-        set_pmap(universe);
 	}
 
 	void add_tasks(MacroTaskBase::taskqT& vtask) {
