@@ -708,6 +708,11 @@ Exchange<T,NDIM>& Exchange<T,NDIM>::set_algorithm(const Algorithm& alg) {
     return *this;
 }
 
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_printlevel(const long& level) {
+    impl->set_printlevel(level);
+    return *this;
+}
 
 template<>
 Fock<double, 3>::Fock(World &world, const Nemo *nemo) : world(world) {

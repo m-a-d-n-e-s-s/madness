@@ -135,6 +135,8 @@ public:
 
     Exchange& set_algorithm(const Algorithm& alg);
 
+    Exchange& set_printlevel(const long& level);
+
     Exchange& set_taskq(std::shared_ptr<MacroTaskQ> taskq1) {
         this->taskq=taskq1;
         return *this;

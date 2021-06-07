@@ -260,7 +260,7 @@ public:
                 end += std::min(max_batch_size, std::max(min_batch_size, ((vsize - end) / nsubworld)));
                 end = std::min(end, long(vsize));
                 Batch batch(Batch_1D(begin, end),Batch_1D(begin,end));
-                double priority=compute_priority(batch);
+                double priority=MacroTaskPartitioner::compute_priority(batch);
                 result.push_back(std::make_pair(batch,priority));
                 begin = end;
             }

@@ -122,6 +122,7 @@ int main(int argc, char** argv) {
             cpu0 = cpu1;
             K.set_algorithm(Exchange<double, 3>::large_memory);
             K.set_symmetric(true);
+            K.set_printlevel(10);
             const vecfuncT reference = K(calc.amo);
             cpu1 = cpu_time();
             double norm = norm2(world, reference);

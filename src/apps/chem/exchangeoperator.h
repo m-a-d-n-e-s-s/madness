@@ -98,6 +98,11 @@ public:
         return *this;
     }
 
+    ExchangeImpl& set_printlevel(const long& level) {
+        printlevel=level;
+        return *this;
+    }
+
 private:
 
     /// exchange using macrotasks, i.e. apply K on a function in individual worlds
@@ -124,7 +129,7 @@ private:
     vecfuncT mo_bra, mo_ket;    ///< MOs for bra and ket
     double lo = 1.e-4;
     long printlevel = 0;
-    double mul_tol = 1.e-7;
+    double mul_tol = 0.0;
 
     class MacroTaskExchangeSimple : public MacroTaskOperationBase {
 
@@ -139,7 +144,9 @@ private:
         /// with f and vbra being batched, result and vket being passed on as a whole
         class MacroTaskPartitionerExchange : public MacroTaskPartitioner {
         public:
-            MacroTaskPartitionerExchange(const bool symmetric) : symmetric(symmetric) {}
+            MacroTaskPartitionerExchange(const bool symmetric) : symmetric(symmetric) {
+                max_batch_size=30;
+            }
 
             bool symmetric = false;
 
@@ -152,17 +159,29 @@ private:
                 for (auto i = partition1.begin(); i != partition1.end(); ++i) {
                     if (symmetric) {
                         for (auto j = i; j != partition1.end(); ++j) {
-                            double priority=compute_priority(i->first);
-                            result.push_back(std::make_pair(Batch(i->first.input[0], j->first.input[0], _),priority));
+                            Batch batch(i->first.input[0], j->first.input[0], _);
+                            double priority=compute_priority(batch);
+                            result.push_back(std::make_pair(batch,priority));
                         }
                     } else {
                         for (auto j = partition2.begin(); j != partition2.end(); ++j) {
-                            double priority=compute_priority(i->first);
-                            result.push_back(std::make_pair(Batch(i->first.input[0], j->first.input[0], _),priority));
+                            Batch batch(i->first.input[0], j->first.input[0], _);
+                            double priority=compute_priority(batch);
+                            result.push_back(std::make_pair(batch,priority));
                         }
                     }
                 }
                 return result;
+            }
+
+            /// compute the priority of this task for non-dumb scheduling
+
+            /// \return the priority as double number (no limits)
+            double compute_priority(const Batch& batch) const {
+                MADNESS_CHECK(batch.input.size() == 2);   // must be quadratic batches
+                long nrow = batch.input[0].size();
+                long ncol = batch.input[1].size();
+                return double(nrow * ncol);
             }
         };
 
@@ -172,15 +191,6 @@ private:
             partitioner.reset(new MacroTaskPartitionerExchange(symmetric));
         }
 
-        /// compute the priority of this task for non-dumb scheduling
-
-        /// \return the priority as double number (no limits)
-        double compute_priority() const {
-            MADNESS_CHECK(batch.input.size() == 2);   // must be quadratic batches
-            long nrow = batch.input[0].size();
-            long ncol = batch.input[1].size();
-            return double(nrow * ncol);
-        }
 
         // you need to define the exact argument(s) of operator() as tuple
         typedef std::tuple<const std::vector<Function<T, NDIM>>&,
