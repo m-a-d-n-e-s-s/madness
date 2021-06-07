@@ -19,7 +19,7 @@ struct write_test_input {
 
     write_test_input() : filename_("testinput") {}
 
-    write_test_input(const CalculationParameters& param, const std::string& mol = "lih") : filename_("test_MO_input") {
+    write_test_input(const CalculationParameters& param, const std::string& mol = "lih") : filename_("test_mo_input") {
         std::ofstream of(filename_);
         write_to_test_input("dft", &param, of);
         write_molecule_to_test_input(mol, of);

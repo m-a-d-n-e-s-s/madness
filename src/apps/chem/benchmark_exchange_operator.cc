@@ -11,6 +11,7 @@
 using namespace madness;
 
 int main(int argc, char** argv) {
+    commandlineparser parser(argc,argv);
     madness::initialize(argc, argv);
     {
         madness::World world(SafeMPI::COMM_WORLD);
@@ -31,11 +32,12 @@ int main(int argc, char** argv) {
 
             write_test_input inputfile(param);
             inputfile.keepfile=true;
+            parser.set_keyval("input",inputfile.filename());
             world.gop.fence();
 
             double cpu0 = cpu_time();
 
-            SCF calc(world, inputfile.filename());
+            SCF calc(world, parser);
             if (world.rank() == 0) {
                 calc.param.print("", "");
                 calc.molecule.print();
@@ -119,7 +121,7 @@ int main(int argc, char** argv) {
 
             cpu0 = cpu1;
             K.set_algorithm(Exchange<double, 3>::large_memory);
-            K.symmetric(true);
+            K.set_symmetric(true);
             const vecfuncT reference = K(calc.amo);
             cpu1 = cpu_time();
             double norm = norm2(world, reference);
