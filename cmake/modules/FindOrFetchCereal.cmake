@@ -1,31 +1,34 @@
-if(NOT TARGET cereal)
+if (NOT TARGET cereal)
     find_package(cereal QUIET CONFIG)
-    message(STATUS "Found Cereal: cereal_CONFIG=${cereal_CONFIG}")
-    target_compile_definitions(cereal INTERFACE
-      "CEREAL_THREAD_SAFE=1")
-else()
-    include(FetchContent)
-    FetchContent_Declare(
-      cereal
-      GIT_REPOSITORY https://github.com/USCiLab/cereal.git
-      GIT_TAG v1.3.0)
 
-    # configure cereal
-    set(JUST_INSTALL_CEREAL ON CACHE BOOL "")
-    set(THREAD_SAFE ON CACHE BOOL "")
+    if (TARGET cereal)
+        message(STATUS "Found Cereal: cereal_CONFIG=${cereal_CONFIG}")
+        target_compile_definitions(cereal INTERFACE
+                "CEREAL_THREAD_SAFE=1")
+    else (TARGET cereal)
+        include(FetchContent)
+        FetchContent_Declare(
+                cereal
+                GIT_REPOSITORY https://github.com/USCiLab/cereal.git
+                GIT_TAG v1.3.0)
 
-    FetchContent_MakeAvailable(cereal)
+        # configure cereal
+        set(JUST_INSTALL_CEREAL ON CACHE BOOL "")
+        set(THREAD_SAFE ON CACHE BOOL "")
 
-    # set cereal_CONFIG to the install location so that we know where to find it
-    set(cereal_CONFIG ${CMAKE_INSTALL_PREFIX}/share/cmake/cereal/cereal-config.cmake)
+        FetchContent_MakeAvailable(cereal)
 
-    export(EXPORT cereal
-           FILE "${PROJECT_BINARY_DIR}/cereal-targets.cmake")
+        # set cereal_CONFIG to the install location so that we know where to find it
+        set(cereal_CONFIG ${CMAKE_INSTALL_PREFIX}/share/cmake/cereal/cereal-config.cmake)
 
-endif()
+        export(EXPORT cereal
+                FILE "${PROJECT_BINARY_DIR}/cereal-targets.cmake")
+
+    endif (TARGET cereal)
+endif (NOT TARGET cereal)
 
 if (TARGET cereal)
     set(MADNESS_HAS_CEREAL ON CACHE BOOL "MADNESS has access to Cereal")
-else(TARGET cereal)
+else (TARGET cereal)
     message(FATAL_ERROR "MADNESS_ENABLE_CEREAL=ON but could not find or fetch Cereal")
-endif(TARGET cereal)
+endif (TARGET cereal)
