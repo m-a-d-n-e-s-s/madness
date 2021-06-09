@@ -177,7 +177,7 @@ private:
             /// compute the priority of this task for non-dumb scheduling
 
             /// \return the priority as double number (no limits)
-            double compute_priority(const Batch& batch) const {
+            double compute_priority(const Batch& batch) const override {
                 MADNESS_CHECK(batch.input.size() == 2);   // must be quadratic batches
                 long nrow = batch.input[0].size();
                 long ncol = batch.input[1].size();
