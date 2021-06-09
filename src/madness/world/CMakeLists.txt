@@ -37,13 +37,12 @@ add_mad_library(world MADWORLD_SOURCES MADWORLD_HEADERS "common;${ELEMENTAL_PACK
 
 set(targetname MADworld)
 
+# N.B. If cereal is fetched it will be part of madworld export set
 if(MADNESS_ENABLE_CEREAL)
-    message(STATUS "Cereal enabled.")
-    include(FindCereal)
-    target_link_libraries(${targetname} PUBLIC cereal)
-    target_compile_definitions(${targetname} PUBLIC MADNESS_HAS_CEREAL)
+  include(FindOrFetchCereal)
+  target_link_libraries(${targetname} PUBLIC cereal)
+  target_compile_definitions(${targetname} PUBLIC MADNESS_HAS_CEREAL)
 endif()
-
 
 # create an additional, MADworld-only, export
 install(TARGETS ${targetname} EXPORT madworld
