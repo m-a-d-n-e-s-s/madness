@@ -3,6 +3,7 @@
 
 #include <TDDFT.h>
 #include <response_functions.h>
+#include <x_space.h>
 
 #include <algorithm>
 #include <memory>
@@ -52,9 +53,10 @@ class density_vector {
  public:
   friend class TDDFT;
   // Collective constructor
-  density_vector(World& world, ResponseParameters r_params, GroundParameters g_params);
-
-  virtual void compute_response(World& world);
+  density_vector(World& world,
+                 ResponseParameters r_params,
+                 GroundParameters g_params);
+  density_vector(const density_vector& other) = default;
 
   size_t GetNumberResponseStates();
   VectorFunction3DT ComputeDensityVector(World& world, bool is_static);
@@ -69,26 +71,37 @@ class density_vector {
   void PlotResponseDensity(World& world);
 
   Tensor<double> ComputeSecondOrderPropertyTensor(World& world);
-  void PrintSecondOrderAnalysis(World& world, const Tensor<double> alpha_tensor);
+  void PrintSecondOrderAnalysis(World& world,
+                                const Tensor<double> alpha_tensor);
   void SaveDensity(World& world, std::string name);
   // Load a response calculation
-  void LoadDensity(World& world, std::string name, ResponseParameters r_params, GroundParameters g_params);
+  void LoadDensity(World& world,
+                   std::string name,
+                   ResponseParameters r_params,
+                   GroundParameters g_params);
 };
 
 class dipole_density_vector : public density_vector {
  public:
-  dipole_density_vector(World& world, ResponseParameters R, GroundParameters G) : density_vector(world, R, G) {}
+  dipole_density_vector(World& world, ResponseParameters R, GroundParameters G)
+      : density_vector(world, R, G) {}
 };
 
 class nuclear_density_vector : public density_vector {
  public:
-  nuclear_density_vector(World& world, ResponseParameters R, GroundParameters G) : density_vector(world, R, G) {}
+  nuclear_density_vector(World& world, ResponseParameters R, GroundParameters G)
+      : density_vector(world, R, G) {}
 };
 
 class excited_state_density_vector : public density_vector {
  public:
-  excited_state_density_vector(World& world, ResponseParameters R, GroundParameters G) : density_vector(world, R, G) {}
+  excited_state_density_vector(World& world,
+                               ResponseParameters R,
+                               GroundParameters G)
+      : density_vector(world, R, G) {}
 };
 
-density_vector set_density_type(World& world, ResponseParameters R, GroundParameters G);
+density_vector set_density_type(World& world,
+                                ResponseParameters R,
+                                GroundParameters G);
 #endif  // SRC_APPS_molresponse_DENSITY_H_

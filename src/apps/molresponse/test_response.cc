@@ -9,7 +9,8 @@
 //#include "molresponse/density.h"
 #include "molresponse/global_functions.h"
 
-#if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
+#if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && \
+    defined(HAVE_UNISTD_H)
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -46,24 +47,25 @@ struct inputfile {
 
   ~inputfile() { remove(fname.c_str()); }
 };
-void run_density(World& world, density_vector d1, ResponseParameters r_params, GroundParameters g_params) {
+void run_density(World& world, density_vector& rho) {
   // Create the TDDFT object
-  if (r_params.load_density()) {
-    print("Loading Density");
-    d1.LoadDensity(world, r_params.load_density_file(), r_params, g_params);
+  print("Computing Density");
+  TDDFT calc(world, rho);
+  if (calc.r_params.response_type().compare("excited_state") == 0) {
+    print("Entering Excited State Response Runner");
+    calc.solve_excited_states(world);
   } else {
-    print("Computing Density");
-    d1.compute_response(world);
+    print("Entering Frequency Response Runner");
+    calc.compute_freq_response(world);
   }
   //
   // densityTest.PlotResponseDensity(world);
-  d1.PrintDensityInformation();
 
-  if (r_params.response_type().compare("dipole") == 0) {  //
+  if (calc.r_params.response_type().compare("dipole") == 0) {  //
     print("Computing Alpha");
-    Tensor<double> alpha = d1.ComputeSecondOrderPropertyTensor(world);
+    Tensor<double> alpha = rho.ComputeSecondOrderPropertyTensor(world);
     print("Second Order Analysis");
-    d1.PrintSecondOrderAnalysis(world, alpha);
+    rho.PrintSecondOrderAnalysis(world, alpha);
   }
 }
 void read_and_create_density(World& world, inputfile ifile, std::string tag) {
@@ -77,7 +79,7 @@ void read_and_create_density(World& world, inputfile ifile, std::string tag) {
   r_params.print();
   density_vector d1 = set_density_type(world, r_params, g_params);
   d1.PrintDensityInformation();
-  run_density(world, d1, r_params, g_params);
+  run_density(world, d1);
 }
 bool test_create_dipole_save(World& world) {
   print("entering test_dipole");
