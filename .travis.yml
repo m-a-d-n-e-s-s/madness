@@ -8,6 +8,9 @@ compiler:
 env:
   - RUN_TEST=all
   - RUN_TEST=mra CMAKE_EXTRA_OPTIONS="-D ENABLE_GENTENSOR=1"
+branches:
+  only:
+    - master
 # MRA testsuite segfaults a la https://travis-ci.org/github/m-a-d-n-e-s-s/madness/jobs/665937224#L10269 ... can't reproduce, giving up
 #  - RUN_TEST=all BUILD_SHARED=1
 jobs:
