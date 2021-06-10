@@ -5,7 +5,7 @@ test_response.cc
 density.cc
 property.cc
 global_functions.cc
-iterate_excited.cc
+response_runner.cc
 iterate_excited2.cc
 timer.cc
 basic_operators.cc
@@ -24,7 +24,7 @@ density.cc
 property.cc
 TDDFT.cc
 global_functions.cc
-iterate_excited.cc
+response_runner.cc
 timer.cc
 basic_operators.cc
 Plot_VTK.cc
