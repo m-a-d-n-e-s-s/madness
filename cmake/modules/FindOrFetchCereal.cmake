@@ -6,6 +6,7 @@ if (NOT TARGET cereal)
         target_compile_definitions(cereal INTERFACE
                 "CEREAL_THREAD_SAFE=1")
     else (TARGET cereal)
+        cmake_minimum_required (VERSION 3.14.0)  # for FetchContent_MakeAvailable
         include(FetchContent)
         FetchContent_Declare(
                 cereal
