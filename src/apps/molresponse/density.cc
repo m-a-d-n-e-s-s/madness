@@ -21,13 +21,15 @@ typedef FunctionFactory<double, 3> FactoryT;
 typedef Vector<double, 3> CoordinateT;
 typedef std::vector<real_function_3d> VectorFunction3DT;
 
-density_vector::density_vector(World &world, ResponseParameters r_params, GroundParameters g_params)
-    : num_states(r_params.n_states()), num_orbitals(r_params.num_orbitals()) {
-  this->r_params = r_params;
-  this->g_params = g_params;
-  this->property = r_params.response_type();
-  this->Chi = X_space(world, num_states, num_orbitals);
-  this->PQ = X_space(world, num_states, num_orbitals);
+density_vector::density_vector(World &world, ResponseParameters other_rparams, GroundParameters other_gparams)
+    : num_states(other_rparams.n_states()),
+      num_orbitals(other_rparams.num_orbitals()),
+      property(other_rparams.response_type()),
+      r_params(other_rparams),
+      g_params(other_gparams),
+      Chi(world, num_states, num_orbitals),
+      PQ(world, num_states, num_orbitals),
+      orbitals(copy(world, other_gparams.orbitals())) {
   if (r_params.response_type().compare("excited_state") == 0) {
     this->omega = Tensor<double>(r_params.n_states());
   } else {
@@ -43,14 +45,14 @@ void density_vector::compute_response(World &world) {
     calc.solve_excited_states(world);
   } else {
     print("Entering Frequency Response Runner");
-    calc.compute_freq_response(world, property, Chi, PQ);
+    calc.compute_freq_response(world);
   }
   // omega is determined by the type of calculation
   // property calculation at single frequency
   // excited stat calculation at multipe frequencies
   property_operator = calc.GetPropertyObject();
-  Chi=calc.GetXspace();
-  PQ=calc.GetPQspace();
+  Chi = calc.GetXspace();
+  PQ = calc.GetPQspace();
 
   print("X Norms before Computing");
   print(Chi.X.norm2());
@@ -58,9 +60,9 @@ void density_vector::compute_response(World &world) {
 
   // get the response densities for our states
   if (omega[0] == 0) {
-    rho_omega = calc.transition_density(world, g_params.orbitals(), Chi.X, Chi.X);
+    rho_omega = calc.transition_density(world, orbitals, Chi.X, Chi.X);
   } else {
-    rho_omega = calc.transition_density(world, g_params.orbitals(), Chi.X, Chi.Y);
+    rho_omega = calc.transition_density(world, orbitals, Chi.X, Chi.Y);
   }
   if (r_params.save_density()) {
     SaveDensity(world, r_params.save_density_file());
@@ -80,11 +82,11 @@ VectorFunction3DT density_vector::ComputeDensityVector(World &world, bool is_sta
   std::vector<real_function_3d> densities = zero_functions<double, 3>(world, num_states);
   if (is_static) {
     for (size_t b = 0; b < num_states; b++) {
-      densities[b] = dot(world, Chi.X[b], g_params.orbitals()) + dot(world, Chi.X[b], g_params.orbitals());
+      densities[b] = dot(world, Chi.X[b], orbitals) + dot(world, Chi.X[b], orbitals);
     }
   } else {
     for (size_t b = 0; b < num_states; b++) {
-      densities[b] = dot(world, Chi.X[b], g_params.orbitals()) + dot(world, Chi.Y[b], g_params.orbitals());
+      densities[b] = dot(world, Chi.X[b], orbitals) + dot(world, Chi.Y[b], orbitals);
     }
   }
   truncate(world, densities);

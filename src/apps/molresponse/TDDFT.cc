@@ -102,6 +102,54 @@ TDDFT::TDDFT(World& world, ResponseParameters r_params, GroundParameters g_param
   // Start the timer
   this->r_params = r_params;
   this->g_params = g_params;
+  Chi = X_space(world, r_params.n_states(), r_params.num_orbitals());
+
+  ground_orbitals = g_params.orbitals();
+  ground_energies = g_params.get_energies();
+
+  if (r_params.response_type().compare("excited_state") == 0) {
+    this->omega = Tensor<double>(r_params.n_states());
+  } else {
+    this->omega = Tensor<double>(1);
+  }
+
+  molresponse::start_timer(world);
+
+  // Broadcast to all other nodes
+  world.gop.broadcast_serializable(r_params, 0);
+
+  // Read in archive
+  // Create the projector Qhat to be used in any calculation
+
+  // Set some function defaults
+  FunctionDefaults<3>::set_cubic_cell(-r_params.L(), r_params.L());
+  FunctionDefaults<3>::set_truncate_mode(1);
+  FunctionDefaults<3>::set_truncate_on_project(true);
+
+  // Initialize response state xcfuntion object
+  xcf.initialize(r_params.xc(), false, world, true);
+
+  // Create the masking function
+  mask = real_function_3d(real_factory_3d(world).f(mask3).initial_level(4).norefine());
+
+  if (world.size() > 1) {
+    // Start a timer
+    if (r_params.print_level() >= 1) molresponse::start_timer(world);
+    if (world.rank() == 0) print("");  // Makes it more legible
+
+    LoadBalanceDeux<3> lb(world);
+    for (unsigned int j = 0; j < r_params.num_orbitals(); j++) {
+      lb.add_tree(ground_orbitals[j], lbcost<double, 3>(1.0, 8.0), true);
+    }
+    FunctionDefaults<3>::redistribute(world, lb.load_balance(2));
+
+    if (r_params.print_level() >= 1) molresponse::end_timer(world, "Load balancing:");
+  }
+}
+
+TDDFT::TDDFT(World& world, density_vector& rho) : rho(rho) {
+  // Start the timer
+  Chi = X_space(world, rho.r_params.n_states(), r_params.num_orbitals());
 
   ground_orbitals = g_params.orbitals();
   ground_energies = g_params.get_energies();
@@ -3375,7 +3423,7 @@ Tensor<double> TDDFT::CreateGroundHamiltonian(World& world, std::vector<real_fun
 
 // Creates the transition densities
 std::vector<real_function_3d> TDDFT::transition_density(World& world,
-                                                        std::vector<real_function_3d> & orbitals,
+                                                        std::vector<real_function_3d>& orbitals,
                                                         response_space& x,
                                                         response_space& y) {
   // Get sizes
@@ -3915,7 +3963,7 @@ void TDDFT::polarizability(World& world, Tensor<double> polar) {
   if (r_params.omega() == 0)
     rhos = transition_density(world, ground_orbitals, Chi.X, Chi.X);
   else
-    rhos = transition_density(world, ground_orbitals,Chi.X, Chi.Y);
+    rhos = transition_density(world, ground_orbitals, Chi.X, Chi.Y);
 
   // For each r_axis
   for (size_t axis = 0; axis < 3; axis++) {
@@ -4090,13 +4138,9 @@ void TDDFT::plot_excited_states(World& world,
 // No matter the calculation type we do the same iteration.
 // The only difference is the number of response states as well as the
 // number of right hand side vectors.
-void TDDFT::compute_freq_response(World& world, std::string property, X_space& Chi, X_space& PQ) {
-  // Get start time
-  this->Chi = Chi;
-  this->PQ = PQ;
-
+void TDDFT::compute_freq_response(World& world) {
   molresponse::start_timer(world);
-
+  std::string property = r_params.response_type();
   // Warm and fuzzy
   if (world.rank() == 0) {
     print("\n\n    Response Calculation");
@@ -4132,8 +4176,10 @@ void TDDFT::compute_freq_response(World& world, std::string property, X_space& C
 
         if (r_params.dipole()) {
           // set states
-          this->PQ.X = PropertyRHS(world, p);
-          this->PQ.Y = PQ.X.copy();
+          PQ.X = PropertyRHS(world, p);
+          PQ.Y = PQ.X.copy();
+          print("P: ", PQ.X.norm2());
+          print("Q: ", PQ.Y.norm2());
 
           // set RHS_Vector
         } else if (r_params.nuclear()) {
@@ -4142,8 +4188,8 @@ void TDDFT::compute_freq_response(World& world, std::string property, X_space& C
 
           // print("x norms:");
           // print(x_response.norm2());
-          this->PQ.X = PropertyRHS(world, p);
-          this->PQ.Y = PQ.X.copy();
+          PQ.X = PropertyRHS(world, p);
+          PQ.Y = PQ.X.copy();
 
         } else if (r_params.order2()) {
           //
@@ -4155,15 +4201,15 @@ void TDDFT::compute_freq_response(World& world, std::string property, X_space& C
       } else {  // Dipole guesses
 
         if (r_params.dipole()) {
-          this->PQ.X = PropertyRHS(world, p);
-          this->PQ.Y = PQ.X.copy();
+          PQ.X = PropertyRHS(world, p);
+          PQ.Y = PQ.X.copy();
           // set states
           //
           print("okay this is not a good idea if it comes up more than once");
           // set RHS_Vector
         } else if (r_params.nuclear()) {
-          this->PQ.X = PropertyRHS(world, p);
-          this->PQ.Y = PQ.X.copy();
+          PQ.X = PropertyRHS(world, p);
+          PQ.Y = PQ.X.copy();
         } else if (r_params.order2()) {
           //
         } else if (r_params.order3()) {
@@ -4188,6 +4234,9 @@ void TDDFT::compute_freq_response(World& world, std::string property, X_space& C
 
     print("Property rhs func Q k = ", PQ.Y[0][0].k());
     print("Property func Q k thresh = ", PQ.Y[0][0].thresh());
+
+    print("Property rhs func P norms", PQ.X.norm2());
+    print("Property rhs func Q norms", PQ.Y.norm2());
 
     // Now actually ready to iterate...
     iterate_freq_2(world);

@@ -32,6 +32,7 @@ class GroundParameters {
   // Default constructor
  public:
   GroundParameters() {}
+  GroundParameters(const GroundParameters& other) = default;
 
   bool is_spinrestricted() const { return spinrestricted; }
   unsigned int n_orbitals() const { return num_orbitals; }

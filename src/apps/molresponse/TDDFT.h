@@ -28,6 +28,7 @@
 #include "../chem/molecule.h"
 #include "../chem/xcfunctional.h"
 #include "molresponse/basic_operators.h"
+#include "molresponse/density.h"
 #include "molresponse/ground_parameters.h"
 #include "molresponse/load_balance.h"
 #include "molresponse/property.h"
@@ -126,6 +127,9 @@ class TDDFT {
   // CalculationParameters param;
   functionT mask;
 
+  friend class density_vector;
+  density_vector rho;
+
   ResponseParameters r_params;
   GroundParameters g_params;
 
@@ -136,7 +140,7 @@ class TDDFT {
 
   // Information that is inferred from input file
   std::vector<real_function_3d> act_orbitals;  // Ground state orbitals being used in calculation
-  std::vector<real_function_3d>ground_orbitals;
+  std::vector<real_function_3d> ground_orbitals;
   Tensor<double> ground_energies;      // Ground state hamiltonian tensor
   Tensor<double> act_ground_energies;  // Ground state energies being used for calculation
   Tensor<double> hamiltonian;          // Ground state hamiltonian tensor
@@ -181,6 +185,7 @@ class TDDFT {
   // Collective constructor for response uses contents of file \c filename and
 
   TDDFT(World& world, ResponseParameters r_params, GroundParameters g_params);
+  TDDFT(World& world, density_vector& rho);
   // Saves a response calculation
   void save(World& world, std::string name);
 
@@ -581,7 +586,7 @@ class TDDFT {
 
   // Creates the transition density
   std::vector<real_function_3d> transition_density(World& world,
-                                                   std::vector<real_function_3d> & orbitals,
+                                                   std::vector<real_function_3d>& orbitals,
                                                    response_space& x,
                                                    response_space& y);
   std::vector<real_function_3d> transition_densityTDA(World& world,
@@ -686,7 +691,7 @@ class TDDFT {
                            ResponseParameters const& r_params,
                            GroundParameters const& g_params);
   // Solves the response equations for the polarizability
-  void compute_freq_response(World& world, std::string property, X_space& Chi, X_space& PQ);
+  void compute_freq_response(World& world);
 };
 #endif  // SRC_APPS_MOLRESPONSE_TDDFT_H_
 

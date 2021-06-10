@@ -170,9 +170,10 @@ struct X_space {
     MADNESS_ASSERT(size_orbitals(A) > 0);
     MADNESS_ASSERT(same_size(A, B));
     Tensor<double> G(A.num_states, A.num_states);
-
-    World& world = A.X[0][0].world();
-    response_space Collapse(world, A.num_states, A.num_states);
+    print(A.X.norm2());
+    print(A.Y.norm2());
+    print(B.X.norm2());
+    print(B.Y.norm2());
     G = response_space_inner(A.X, B.X) + response_space_inner(B.Y, A.Y);
     /*
         for (size_t i(0); i < A.num_states; i++) {

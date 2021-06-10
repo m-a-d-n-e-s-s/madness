@@ -31,26 +31,26 @@ typedef std::vector<real_function_3d> VectorFunction3DT;
 //
 class density_vector {
  protected:
-  std::string property;  // excited state, nuclear,dipole
   // operator used create first order density
-  Property property_operator;  // dipole, nuclear, or none
   Tensor<double> omega;        // frequency or frequencies
+  const size_t num_states;     // number of response states
+  const size_t num_orbitals;   // number of ground state orbitals
+  const std::string property;  // excited state, nuclear,dipole
 
-  const size_t num_states;    // number of response states
-  const size_t num_orbitals;  // number of ground state orbitals
+  const ResponseParameters r_params;  // Response Parameters
+  const GroundParameters g_params;
 
-  XCfunctional xcf;  // xc functional
-
-  ResponseParameters r_params;  // Response Parameters
-  GroundParameters g_params;
-
+  XCfunctional xcf;            // xc functional
+  Property property_operator;  // dipole, nuclear, or none
   X_space Chi;
   X_space PQ;
+  VectorFunction3DT orbitals;
 
   // first order frequency response densities
   VectorFunction3DT rho_omega;  // the response density vector
 
  public:
+  friend class TDDFT;
   // Collective constructor
   density_vector(World& world, ResponseParameters r_params, GroundParameters g_params);
 

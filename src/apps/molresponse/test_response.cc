@@ -84,8 +84,8 @@ bool test_create_dipole_save(World& world) {
   std::string inputlines = R"input(dipole_test
 			archive restartdata
 			dipole True
-			save True
-			save_file "restart_orbs"
+			save_density True
+			save_density_file "restart"
 			maxiter 5# asd
 			end
 			)input";
@@ -143,7 +143,7 @@ int main(int argc, char** argv) {
     std::cout.precision(6);
     //      FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3> >(world)));
     test_create_dipole_save(world);
-    //test_create_nuclear(world);
+    // test_create_nuclear(world);
     // test_create_order2_dd(world);
     // test_create_order2_dn(world);
     if (world.rank() == 0) printf("\nfinished at time %.1fs\n\n", wall_time());
