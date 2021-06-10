@@ -1,7 +1,6 @@
 #ifndef SRC_APPS_molresponse_DENSITY_H_
 #define SRC_APPS_molresponse_DENSITY_H_
 
-#include <TDDFT.h>
 #include <response_functions.h>
 #include <x_space.h>
 

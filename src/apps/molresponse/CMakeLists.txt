@@ -6,11 +6,11 @@ density.cc
 property.cc
 global_functions.cc
 iterate_excited.cc
+iterate_excited2.cc
 timer.cc
 basic_operators.cc
 Plot_VTK.cc
-iterate_freq2.cc
-iterate_excited2.cc
+iterate_freq.cc
 Lambda_X.cc
 Theta_X.cc
 iterate_gamma.cc
@@ -28,7 +28,7 @@ iterate_excited.cc
 timer.cc
 basic_operators.cc
 Plot_VTK.cc
-iterate_freq2.cc
+iterate_freq.cc
 iterate_excited2.cc
 Lambda_X.cc
 Theta_X.cc

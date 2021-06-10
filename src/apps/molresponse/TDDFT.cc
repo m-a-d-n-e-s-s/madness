@@ -20,7 +20,6 @@
 #include <string>
 #include <utility>
 
-#include <molresponse/density.h>
 #include <../chem/NWChem.h>  // For nwchem interface
 #include <../chem/SCFOperators.h>
 #include <../chem/molecule.h>
@@ -29,6 +28,7 @@
 #include <chem/projector.h>  // For easy calculation of (1 - \hat{\rho}^0)
 #include <madness/mra/funcdefaults.h>
 #include <molresponse/basic_operators.h>
+#include <molresponse/density.h>
 #include <molresponse/global_functions.h>
 #include <molresponse/property.h>
 #include <molresponse/response_functions.h>
@@ -102,9 +102,11 @@ TDDFT::TDDFT(World& world, density_vector& rho)
       g_params(rho.g_params),
       molecule(rho.g_params.molecule()),
       omega(rho.omega),
-      xcf(rho.xcf) {
+      xcf(rho.xcf),
+      rho(rho) {
   // Start the timer
   Chi = rho.Chi;
+  PQ = rho.PQ;
 
   ground_orbitals = g_params.orbitals();
   ground_energies = g_params.get_energies();
@@ -4428,7 +4430,7 @@ void TDDFT::compute_freq_response(World& world) {
     print("Property rhs func Q norms", PQ.Y.norm2());
 
     // Now actually ready to iterate...
-    iterate_freq_2(world);
+    iterate_freq(world);
     // IterateFrequencyResponse(world, P, Q);
   }  // end for --finished reponse density
 

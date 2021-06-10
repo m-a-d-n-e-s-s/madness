@@ -6,7 +6,13 @@
 #include <chem/SCFOperators.h>
 #include <chem/molecule.h>
 #include <chem/xcfunctional.h>
-
+#include <madness/constants.h>
+#include <madness/mra/mra.h>
+#include <madness/mra/nonlinsol.h>  // The kain solver
+#include <madness/mra/operator.h>
+#include <madness/tensor/distributed_matrix.h>
+#include <madness/tensor/solvers.h>
+#include <math.h>
 #include <molresponse/basic_operators.h>
 #include <molresponse/density.h>
 #include <molresponse/ground_parameters.h>
@@ -17,14 +23,6 @@
 #include <molresponse/response_potential.h>
 #include <molresponse/timer.h>
 #include <molresponse/x_space.h>
-
-#include <madness/constants.h>
-#include <madness/mra/mra.h>
-#include <madness/mra/nonlinsol.h>  // The kain solver
-#include <madness/mra/operator.h>
-#include <madness/tensor/distributed_matrix.h>
-#include <madness/tensor/solvers.h>
-#include <math.h>
 #include <stdio.h>
 
 #include <algorithm>
@@ -163,6 +161,7 @@ class TDDFT {
 
   X_space Chi;
   X_space PQ;
+  density_vector rho;
 
   response_space stored_potential;  // The ground state potential, stored only
                                     // if store_potential is true (default is
@@ -719,7 +718,7 @@ class TDDFT {
                                 response_space& rhs_x,
                                 response_space& rhs_y);
 
-  void iterate_freq_2(World& world);
+  void iterate_freq(World& world);
   // Calculates polarizability according to
   // alpha_ij(\omega) = -sum_{m occ} <psi_m(0)|r_i|psi_mj(1)(\omega)> +
   // <psi_mj(1)(-\omega)|r_i|psi_m(0)>
