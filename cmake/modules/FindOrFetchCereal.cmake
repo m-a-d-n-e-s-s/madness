@@ -6,24 +6,52 @@ if (NOT TARGET cereal)
         target_compile_definitions(cereal INTERFACE
                 "CEREAL_THREAD_SAFE=1")
     else (TARGET cereal)
-        cmake_minimum_required (VERSION 3.14.0)  # for FetchContent_MakeAvailable
-        include(FetchContent)
-        FetchContent_Declare(
+        # try looking for header-only cereal
+        find_path(cereal_header_paths_tmp
+                NAMES
+                cereal.hpp
+                PATH_SUFFIXES
+                include
                 cereal
-                GIT_REPOSITORY https://github.com/USCiLab/cereal.git
-                GIT_TAG v1.3.0)
+                cereal/include
+                )
 
-        # configure cereal
-        set(JUST_INSTALL_CEREAL ON CACHE BOOL "")
-        set(THREAD_SAFE ON CACHE BOOL "")
+        get_filename_component(cereal_INCLUDE_DIRS ${cereal_header_paths_tmp} PATH)
 
-        FetchContent_MakeAvailable(cereal)
+        include(FindPackageHandleStandardArgs)
+        set(cereal_FIND_QUIETLY 1)
+        find_package_handle_standard_args(cereal
+                REQUIRED_VARS cereal_INCLUDE_DIRS)
 
-        # set cereal_CONFIG to the install location so that we know where to find it
-        set(cereal_CONFIG ${CMAKE_INSTALL_PREFIX}/share/cmake/cereal/cereal-config.cmake)
+        if (cereal_FOUND)
+            message(STATUS "Found Cereal (header-only, at ${cereal_INCLUDE_DIRS})")
+            add_library(cereal INTERFACE IMPORTED)
+            set_target_properties(cereal PROPERTIES
+                    INTERFACE_INCLUDE_DIRECTORIES "${cereal_INCLUDE_DIRS}"
+                    INTERFACE_COMPILE_DEFINITIONS "CEREAL_THREAD_SAFE=1")
+        endif ()
 
-        export(EXPORT cereal
-                FILE "${PROJECT_BINARY_DIR}/cereal-targets.cmake")
+        # if header-only cereal not found either fetchcontent it over
+        if (NOT TARGET cereal)
+            cmake_minimum_required(VERSION 3.14.0)  # for FetchContent_MakeAvailable
+            include(FetchContent)
+            FetchContent_Declare(
+                    cereal
+                    GIT_REPOSITORY https://github.com/USCiLab/cereal.git
+                    GIT_TAG v1.3.0)
+
+            # configure cereal
+            set(JUST_INSTALL_CEREAL ON CACHE BOOL "")
+            set(THREAD_SAFE ON CACHE BOOL "")
+
+            FetchContent_MakeAvailable(cereal)
+
+            # set cereal_CONFIG to the install location so that we know where to find it
+            set(cereal_CONFIG ${CMAKE_INSTALL_PREFIX}/share/cmake/cereal/cereal-config.cmake)
+
+            export(EXPORT cereal
+                   FILE "${PROJECT_BINARY_DIR}/cereal-targets.cmake")
+        endif (NOT TARGET cereal)
 
     endif (TARGET cereal)
 endif (NOT TARGET cereal)

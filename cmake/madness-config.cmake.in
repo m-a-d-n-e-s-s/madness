@@ -55,7 +55,13 @@ endif()
 set(MADNESS_HAS_CEREAL @MADNESS_HAS_CEREAL@)
 if (MADNESS_HAS_CEREAL)
   get_filename_component(cereal_DIR "@cereal_CONFIG@" DIRECTORY)
-  find_package(cereal QUIET CONFIG REQUIRED HINTS "${cereal_DIR}")
+  find_package(cereal QUIET CONFIG HINTS "${cereal_DIR}")
+  if (NOT TARGET cereal)
+    add_library(cereal INTERFACE IMPORTED)
+    set_target_properties(cereal PROPERTIES
+          INTERFACE_INCLUDE_DIRECTORIES "${cereal_INCLUDE_DIRS}"
+          INTERFACE_COMPILE_DEFINITIONS "CEREAL_THREAD_SAFE=1")
+  endif(NOT TARGET cereal)
 endif(MADNESS_HAS_CEREAL)
 
 # determine if only looking for MADworld ... this is a common scenario that loads a subset of targets
