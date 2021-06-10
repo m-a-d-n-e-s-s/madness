@@ -15,11 +15,6 @@ if [ "$CXX" = "clang++" ]; then
     export EXTRACXXFLAGS="-DMKL_DIRECT_CALL"
 fi
 
-# add cereal header files to include dirs
-if [ -f "${HOME}/cereal/include/cereal/cereal.hpp" ]; then
-    export EXTRACXXFLAGS="${EXTRACXXFLAGS} -I${HOME}/cereal/include"
-fi
-
 # Set up paths to stuff we installed
 export MPIDIR=$HOME/mpich
 export LIBXCDIR=$HOME/libxc
@@ -71,6 +66,7 @@ cmake \
     -D CMAKE_CXX_FLAGS="${EXTRACXXFLAGS}" \
     -D LIBXC_LIBRARIES=$LIBXCDIR/lib/libxc.${LIBEXT} \
     -D LIBXC_INCLUDE_DIRS=$LIBXCDIR/include \
+    -D MADNESS_ENABLE_CEREAL=ON \
     $CMAKE_EXTRA_OPTIONS \
     ..
 

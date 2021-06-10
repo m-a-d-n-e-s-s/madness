@@ -36,11 +36,10 @@ namespace madness {
 template <typename Archive> struct is_cereal_archive;
 }
 
-#if __has_include(<cereal/cereal.hpp>)
-
-#ifndef MADNESS_HAS_CEREAL
-#define MADNESS_HAS_CEREAL 1
-#endif
+#ifdef MADNESS_HAS_CEREAL
+#  if ! __has_include(<cereal/cereal.hpp>)
+#    error "MADNESS_ENABLE_CEREAL is on, but cereal/cereal.hpp was not found."
+#  endif
 
 #include <memory>
 #include <cereal/cereal.hpp>
@@ -182,7 +181,7 @@ struct is_input_archive<T, std::enable_if_t<std::is_base_of_v<cereal::detail::In
 
 }  // namespace madness
 
-#endif  // have cereal/cereal.hpp
+#endif  // MADNESS_HAS_CEREAL
 
 namespace madness {
 template <typename Archive> struct is_cereal_archive : std::false_type {};

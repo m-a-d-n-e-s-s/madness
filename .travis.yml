@@ -1,5 +1,5 @@
 language: cpp
-dist: bionic
+dist: focal
 os:
   - linux
 compiler:
@@ -41,5 +41,4 @@ cache:
     - $HOME/mpich
     - $HOME/libxc
     - $HOME/ccache
-    - $HOME/cereal
     - /opt/intel
