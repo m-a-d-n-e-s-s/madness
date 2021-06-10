@@ -44,7 +44,9 @@
 #include <fstream>
 #include <sstream>
 
-#if defined(HAVE_IBMBGQ)
+#if defined(MADNESS_HAS_GOOGLE_PERF_MINIMAL)
+#include <gperftools/malloc_extension.h>
+#elif defined(HAVE_IBMBGQ)
 #include <spi/include/kernel/memory.h>
 #elif defined(ON_A_MAC)
 #include <malloc/malloc.h>
@@ -133,6 +135,7 @@ namespace madness {
     /// \param[in] rank process rank
     /// \param[in] tag record tag as any string type, e.g. \c const char[] , \c std::string , or \c std::wstring
     /// \param[in] filename_prefix file name prefix; the default value is "MEMORY"
+    /// \param[in] verbose if true, will produce verbose output; is only currently used if TCMalloc is used
     /// \note To make print_meminfo() usable must set the ENABLE_MEM_PROFILE CMake cache variable to ON; this makes print_meminfo() enabled by default.
     ///       To disable/enable programmatically use print_meminfo_disable()/print_meminfo_enable() .
     /// \note must set global locale properly with \c std::locale::global() if \c tag has
@@ -140,7 +143,8 @@ namespace madness {
     /// \warning this does not fence, it is up to the user to ensure proper synchronization
     template <typename String> void print_meminfo(
         int rank, const String& tag,
-        const std::string filename_prefix = std::string("MEMORY")) {
+        const std::string filename_prefix = std::string("MEMORY"),
+        bool verbose = false) {
 #if defined(WORLD_MEM_PROFILE_ENABLE)
       if (print_meminfo_enabled()) {
         using Char = typename std::iterator_traits<decltype(
@@ -155,7 +159,18 @@ namespace madness {
 
         const double to_MiB =
             1 / (1024.0 * 1024.0); /* Convert from bytes to MiB */
-#if defined(HAVE_IBMBGQ)
+#if defined(MADNESS_HAS_GOOGLE_PERF_MINIMAL)
+        if (verbose) {
+          char buf[100000];
+          MallocExtension::instance()->GetStats(&buf[0], 100000);
+          memoryfile << buf << std::endl;
+        }
+        else {  // <10000 => level-1 printing
+          char buf[9999];
+          MallocExtension::instance()->GetStats(&buf[0], 9999);
+          memoryfile << buf << std::endl;
+        }
+#elif defined(HAVE_IBMBGQ)
         uint64_t shared, persist, heapavail, stackavail, stack, heap, guard,
             mmap;
 
