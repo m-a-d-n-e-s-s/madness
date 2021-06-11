@@ -114,7 +114,14 @@ int main(int argc, char** argv) {
         calc.r_params.print(tag);
       }
       molresponse::end_timer(world, "initialize");
-
+      // Come up with an initial OK data map
+      if (world.size() > 1) {
+        calc.set_protocol<3>(world, 1e-4);
+        calc.make_nuclear_potential(world);
+        calc.initial_load_bal(world);
+      }
+      // vama
+      calc.set_protocol<3>(world, calc.r_params.protocol()[0]);
       if (calc.r_params.load_density()) {
         print("Loading Density");
         rho.LoadDensity(world,
