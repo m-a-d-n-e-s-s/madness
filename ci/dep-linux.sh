@@ -121,21 +121,9 @@ else
     find ${HOME}/mpich -name mpicxx
 fi
 
-# Install Cereal (headers only)
-if [ ! -f "${HOME}/cereal/include/cereal/cereal.hpp" ]; then
-    cd
-    git clone https://github.com/USCiLab/cereal cereal_repo
-    cd cereal_repo
-    git checkout a5a30953125e70b115a2
-    mkdir build
-    cd build
-    cmake -D JUST_INSTALL_CEREAL=ON -D CMAKE_INSTALL_PREFIX=${HOME}/cereal ..
-    make install
-    cd 
-    rm -rf cereal_repo
-else
-    echo "Cereal installed..."
-    find ${HOME}/cereal/include/cereal -name "cereal.hpp"
+# Install system package for Cereal if using clang only, to test both fetch and find
+if [ "X${COMPILER}" = "Xclang++" ]; then
+  sudo apt-get install libcereal-dev
 fi
 
 # Do not exit on error because MKL is optional
