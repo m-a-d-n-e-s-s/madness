@@ -7,46 +7,9 @@
 
 #include<chem/MolecularOrbitals.h>
 #include <chem/SCF.h>
+#include <chem/write_test_input.h>
 
 using namespace madness;
-
-
-/// will write a test input and remove it from disk upon destruction
-struct write_test_input {
-
-    double eprec=1.e-3; // was 1e-4 ... trying to make test faster
-
-    std::string filename_;
-    write_test_input(const CalculationParameters& param, const std::string& mol="lih") : filename_("test_MO_input") {
-    	std::ofstream of(filename_);
-        of << "dft\n";
-        of << param.print_to_string(true);
-        of << "end\n";
-
-        if (mol=="lih") {
-            of << "geometry\n";
-            of << "eprec " << eprec << std::endl;
-            of << "Li 0.0    0.0 0.0\n";
-            of << "H  1.4375 0.0 0.0\n";
-            of << "end\n";
-        } else if (mol=="hf") {
-            //double eprec=1.e-5; // trying to make test faster
-            of << "geometry\n";
-            of << "eprec " << eprec << std::endl;
-            of << "F  0.1    0.0 0.2\n";
-            of << "H  1.4375 0.0 0.0\n";
-            of << "end\n";
-        }
-        of.close();
-    }
-
-    ~write_test_input() {
-        std::remove(filename_.c_str());
-    }
-
-    std::string filename() const {return filename_;}
-};
-
 
 int compare_calc_and_mos(World& world, const SCF& calc, const MolecularOrbitals<double,3>& amo) {
 	int success=0;
