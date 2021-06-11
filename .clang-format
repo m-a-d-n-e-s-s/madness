@@ -1,7 +1,7 @@
-BasedOnStyle: Google
+BasedOnStyle: LLVM
 
 PointerAlignment: Left
-ColumnLimit: 80
+ColumnLimit: 120
 
 BinPackArguments: false
 BinPackParameters: false
