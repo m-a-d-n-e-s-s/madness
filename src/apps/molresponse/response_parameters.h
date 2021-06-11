@@ -20,7 +20,7 @@
 namespace madness {
 
 struct ResponseParameters : public QCCalculationParametersBase {
-  ResponseParameters(const ResponseParameters &other) = default;
+  ResponseParameters(const ResponseParameters& other) = default;
 
   ResponseParameters() {
     initialize<std::string>("archive", "restartdata", "file to read ground parameters from");
@@ -33,13 +33,14 @@ struct ResponseParameters : public QCCalculationParametersBase {
     initialize<std::vector<int>>("plot_data", std::vector<int>{0}, "Orbitals to plot");
     initialize<std::vector<double>>(
         "plot_cell", std::vector<double>(), "lo hi in each dimension for plotting (default is all space)");
+    initialize<std::string>("core_type", "none", "core potential type", {"none", "mpc"});
     initialize<double>("plot_L", -1.0, "Controls the plotting box size");
     initialize<size_t>("plot_pts", 201, "Controls number of points in plots");
     initialize<bool>("plot_all_orbitals", false, "Turn on 2D plotting of response orbitals ");
 
     initialize<size_t>("maxiter", 25, "maximum number of iterations");
 
-    initialize<double>("dconv", 3.e-4, "recommended values: 1.e-4 < dconv < 1.e-8");
+    initialize<double>("dconv", 1.e-4, "recommended values: 1.e-4 < dconv < 1.e-8");
     initialize<bool>("dconv_set", false, "Convergence flage for the orbtial density");
 
     initialize<bool>("guess_xyz", false, "TODO : check what this is for");
@@ -47,8 +48,10 @@ struct ResponseParameters : public QCCalculationParametersBase {
     initialize<double>("lo", 1.e10, "smallest length scale we need to resolve");
     initialize<std::vector<double>>("protocol_data", {1.e-4, 1.e-6}, "calculation protocol");
 
-    initialize<size_t>(
-        "larger_subspace", 0, "Number of iterations to diagonalize in a subspace consisting of old and new vectors");
+    initialize<size_t>("larger_subspace",
+                       0,
+                       "Number of iterations to diagonalize in a subspace "
+                       "consisting of old and new vectors");
     initialize<int>("k", 7, "polynomial order");
 
     initialize<bool>("random", false, "Use random guess for initial response functions");
@@ -68,6 +71,8 @@ struct ResponseParameters : public QCCalculationParametersBase {
     initialize<bool>("save", false, "if true save orbitals to disk");
     initialize<std::string>("save_file", "", "File name to save orbitals for restart");
     initialize<bool>("save_density", false, "Flag to save density at each iteration");
+    initialize<int>("vnucextra", 2, "load balance parameter for nuclear pot");
+    initialize<int>("loadbalparts", 2, "??");
     initialize<std::string>("save_density_file", "", "File name to save density for restart");
     initialize<bool>("load_density", false, "Flag to load density for restart");
     initialize<std::string>("load_density_file", "", "File name to load density for restart");
@@ -87,7 +92,7 @@ struct ResponseParameters : public QCCalculationParametersBase {
     initialize<bool>("spinrestricted", true, "is spinrestricted calculation");
   }
 
- public:
+public:
   using QCCalculationParametersBase::read;
 
   std::string archive() const { return get<std::string>("archive"); }
@@ -100,6 +105,7 @@ struct ResponseParameters : public QCCalculationParametersBase {
   bool plot_range() const { return get<bool>("plot_range"); }
   std::vector<int> plot_data() const { return get<std::vector<int>>("plot_data"); }
   std::vector<double> plot_cell() const { return get<std::vector<double>>("plot_cell"); }
+  std::string core_type() const { return get<std::string>("core_type"); }
 
   double plot_L() const { return get<double>("plot_L"); }
   size_t plot_pts() const { return get<size_t>("plot_pts"); }
@@ -135,6 +141,8 @@ struct ResponseParameters : public QCCalculationParametersBase {
   size_t guess_max_iter() const { return get<size_t>("guess_max_iter"); }
   bool property() const { return get<bool>("property"); }
   std::string response_type() const { return get<std::string>("response_type"); }
+  int vnucextra() const { return get<int>("vnucextra"); }
+  int loadbalparts() const { return get<int>("loadbalparts"); }
   bool dipole() const { return get<bool>("dipole"); }
   bool nuclear() const { return get<bool>("nuclear"); }
   bool order2() const { return get<bool>("order2"); }
@@ -145,7 +153,7 @@ struct ResponseParameters : public QCCalculationParametersBase {
 
   bool spinrestricted() const { return get<bool>("spinrestricted"); }
 
-  void read_and_set_derived_values(World &world, std::string inputfile, std::string tag) {
+  void read_and_set_derived_values(World& world, std::string inputfile, std::string tag) {
     // read the parameters from file and brodcast
     // tag
     read(world, inputfile, tag);
@@ -174,7 +182,7 @@ struct ResponseParameters : public QCCalculationParametersBase {
       set_derived_value<std::string>("response_type", "nuclear");
     } else if (order2()) {
       set_derived_value<std::string>("response_type", "order2");
-      vector<int> nstates;  // states 1
+      vector<int> nstates; // states 1
       for (size_t i = 0; i < 2; i++) {
         if (d2_types().at(i) == 'd') {
           nstates.push_back(3);
@@ -189,7 +197,7 @@ struct ResponseParameters : public QCCalculationParametersBase {
       set_derived_value<size_t>("states", states);
     } else if (order3()) {
       set_derived_value<std::string>("response_type", "order3");
-      vector<int> nstates;  // states 1
+      vector<int> nstates; // states 1
       for (size_t i = 0; i < 3; i++) {
         if (d2_types()[i] == 'd') {
           nstates.push_back(3);
@@ -209,7 +217,7 @@ struct ResponseParameters : public QCCalculationParametersBase {
   double econv() const { return get<double>("econv"); }
   bool localize() const { return get<bool>("localize"); }
   std::string local() const { return get<std::string>("local"); }
-};  // namespace madness
-}  // namespace madness
+}; // namespace madness
+} // namespace madness
 
-#endif  // SRC_APPS_MOLRESPONSE_RESPONSE_PARAMETERS_H_
+#endif // SRC_APPS_MOLRESPONSE_RESPONSE_PARAMETERS_H_

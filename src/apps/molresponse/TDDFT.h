@@ -181,6 +181,10 @@ class TDDFT {
   // Get Frequencies Omega
   Tensor<double> GetFrequencyOmega();
 
+  poperatorT coulop;
+  std::vector<std::shared_ptr<real_derivative_3d>> gradop;
+  double vtol;
+
   // Member variables
  public:
   // Collective constructor for response uses contents of file \c filename and
@@ -191,7 +195,8 @@ class TDDFT {
 
   // Loads a response calculation
   void load(World& world, std::string name);
-
+  // Initial load balance using vnuc
+  void initial_load_bal(World& world);
   // Normalizes in the response sense
   void normalize(World& world, response_space& f);
 
@@ -296,6 +301,7 @@ class TDDFT {
   response_space exchange(World& world, response_space& f);
 
   // Returns the ground state potential applied to response functions
+  void make_nuclear_potential(World& world);
   response_space CreatePotential(World& world,
                                  response_space& f,
                                  XCOperator<double, 3> xc,
@@ -417,7 +423,8 @@ class TDDFT {
 
   // Selects the 'active' orbitals from ground state orbitals to be used in
   // the calculation (based on energy distance from the HOMO.) Function needs
-  // knowledge of g_params.orbitals and g_params.ground_energies. Function sets
+  // knowledge of g_params.orbitals and g_params.ground_energies. Function
+  // sets
   void select_active_subspace(World& world);
   // Selects from a list of functions and energies the k functions with the
   // lowest energy

@@ -228,6 +228,18 @@ void TDDFT::load(World& world, std::string name) {
   }
 }
 
+void TDDFT::initial_load_bal(World& world) {
+  LoadBalanceDeux<3> lb(world);
+  real_function_3d vnuc;
+  vnuc = potentialmanager->vnuclear();
+  lb.add_tree(vnuc,
+              lbcost<double, 3>(r_params.vnucextra() * 1.0,
+                                r_params.vnucextra() * 8.0));
+
+  FunctionDefaults<3>::redistribute(world,
+                                    lb.load_balance(r_params.loadbalparts()));
+}
+
 // (Each state's norm should be 1, not the
 // individual functions norms)
 void TDDFT::normalize(World& world, response_space& f) {
@@ -932,6 +944,13 @@ response_space TDDFT::exchange(World& world, response_space& f) {
   return result;
 }
 
+void TDDFT::make_nuclear_potential(World& world) {
+  molresponse::start_timer(world);
+  potentialmanager = std::shared_ptr<PotentialManager>(
+      new PotentialManager(molecule, r_params.core_type()));
+  potentialmanager->make_nuclear_potential(world);
+}
+
 // Returns the ground state potential applied to functions f
 response_space TDDFT::CreatePotential(World& world,
                                       response_space& f,
@@ -950,9 +969,10 @@ response_space TDDFT::CreatePotential(World& world,
   if (not r_params.store_potential()) {
     // "a" is the core type
     PotentialManager manager(g_params.molecule(), "a");
+
     manager.make_nuclear_potential(world);
     // v_nuc = manager.vnuclear().truncate();
-    v_nuc = manager.vnuclear();
+    v_nuc = potentialmanager->vnuclear();
     v_nuc.truncate();
 
     // v_coul next
