@@ -22,6 +22,6 @@ Tensor<double> ComputeSecondOrderPropertyTensor(World &world,
 
 void PrintSecondOrderAnalysis(World &world, const Tensor<double> alpha_tensor,
                               const Tensor<double> omega,
-                              const ResponseParameters Rparams);
+                              const ResponseParameters r_params);
 
 #endif  // SRC_APPS_molresponse_PROPERTY_FUNCTIONS_H_

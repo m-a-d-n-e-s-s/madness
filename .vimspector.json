@@ -24,6 +24,30 @@
         "MIMode": "gdb"
       }
     },
+    "Test Response": {
+      "adapter": "vscode-cpptools",
+      "configuration": {
+        "request": "launch",
+        "program": "/gpfs/projects/rjh/adrian/worktrees/madness.git/master/build/src/apps/molresponse/test_resp",
+        "args": [
+          ""
+        ],
+        "stopAtEntry": false,
+        "cwd": "/gpfs/projects/rjh/adrian/responseTestingNovember2020/test_suite/x_space_tests/outputs/hf_canon/1_h2",
+        "environment": [
+          {
+            "name": "PATH",
+            "value": "$PATH:$/gpfs/projects/rjh/adrian/worktrees/madness.git/master/build/src/apps/molresponse"
+          },
+          {
+            "name": "MAD_NUM_THREADS",
+            "value": "8"
+          }
+        ],
+        "externalConsole": false,
+        "MIMode": "gdb"
+      }
+    },
     "KAIN H2": {
       "adapter": "vscode-cpptools",
       "configuration": {

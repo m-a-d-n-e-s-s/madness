@@ -30,10 +30,7 @@
 #include "molresponse/timer.h"
 #include "molresponse/x_space.h"
 
-X_space TDDFT::Compute_Lambda_X(World& world,
-                                X_space& Chi,
-                                XCOperator<double,3>  xc,
-                                bool compute_Y) {
+X_space TDDFT::Compute_Lambda_X(World& world, X_space& Chi, XCOperator<double, 3> xc, bool compute_Y) {
   // compute
   X_space gamma;
   // compute
@@ -46,19 +43,16 @@ X_space TDDFT::Compute_Lambda_X(World& world,
   X_space Lambda_X = X_space(world, size_states(Chi), size_orbitals(Chi));
   // Compute (V0-ham)X
   // V0 appliedo x response function
-  response_space v0_X =
-      CreatePotential(world, Chi.X, xc, Rparams.print_level, "x");
-  response_space F0_X =
-      CreateFock(world, v0_X, Chi.X, Rparams.print_level, "x");
+  response_space v0_X = CreatePotential(world, Chi.X, xc, r_params.print_level(), "x");
+  response_space F0_X = CreateFock(world, v0_X, Chi.X, r_params.print_level(), "x");
 
-  if (Rparams.print_level == 3) {
+  if (r_params.print_level() == 3) {
     print("norms of v0x");
     print(v0_X.norm2());
   }
   v0_X.truncate_rf();
-  response_space HX =
-      Chi.X * hamiltonian;  // scale_2d(world, x, ham_no_diagonal);
-  if (Rparams.print_level == 3) {
+  response_space HX = Chi.X * hamiltonian;  // scale_2d(world, x, ham_no_diagonal);
+  if (r_params.print_level() == 3) {
     print("norms of x scaled by ham no diag");
     print(HX.norm2());
   }
@@ -68,18 +62,15 @@ X_space TDDFT::Compute_Lambda_X(World& world,
   if (compute_Y) {
     // Compute (V0-ham_no_diag)X
 
-    response_space v0_Y =
-        CreatePotential(world, Chi.Y, xc, Rparams.print_level, "y");
-    response_space F0_Y =
-        CreateFock(world, v0_Y, Chi.Y, Rparams.print_level, "y");
-    if (Rparams.print_level == 3) {
+    response_space v0_Y = CreatePotential(world, Chi.Y, xc, r_params.print_level(), "y");
+    response_space F0_Y = CreateFock(world, v0_Y, Chi.Y, r_params.print_level(), "y");
+    if (r_params.print_level() == 3) {
       print("norms of v0x");
       print(v0_Y.norm2());
     }
     v0_Y.truncate_rf();
-    response_space HY =
-        Chi.Y * hamiltonian;  // scale_2d(world, x, ham_no_diagonal);
-    if (Rparams.print_level == 3) {
+    response_space HY = Chi.Y * hamiltonian;  // scale_2d(world, x, ham_no_diagonal);
+    if (r_params.print_level() == 3) {
       print("norms of x scaled by ham no diag");
       print(HY.norm2());
     }
