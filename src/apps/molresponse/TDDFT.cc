@@ -100,7 +100,7 @@ static double mask3(const coord_3d& ruser) {
 TDDFT::TDDFT(World& world, density_vector& rho)
     : r_params(rho.r_params),
       g_params(rho.g_params),
-      molecule(rho.g_params.molecule()),
+      molecule(rho.molecule),
       omega(rho.omega),
       xcf(rho.xcf),
       rho(rho) {
@@ -115,6 +115,7 @@ TDDFT::TDDFT(World& world, density_vector& rho)
 
   // Broadcast to all other nodes
   world.gop.broadcast_serializable(r_params, 0);
+  world.gop.broadcast_serializable(molecule, 0);
 
   // Read in archive
   // Create the projector Qhat to be used in any calculation
@@ -3655,7 +3656,6 @@ std::vector<real_function_3d> TDDFT::GetConjugateTransitionDensities(
   // Done!
   return densities;
 }
-
 
 void TDDFT::polarizability(World& world, Tensor<double> polar) {
   // Get transition density

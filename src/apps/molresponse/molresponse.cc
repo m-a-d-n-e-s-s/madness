@@ -54,11 +54,26 @@ static inline int file_exists(const char* inpname) {
   return (rc == 0);
 }
 #endif
+density_vector read_and_create_density(World& world,
+                                       const char* inpname,
+                                       std::string tag) {
+  GroundParameters g_params;
+  ResponseParameters r_params;
+  if (world.rank() == 0) {
+    r_params.read_and_set_derived_values(world, "input1", tag);
+    std::string ground_file = r_params.archive();
+    g_params.read(world, ground_file);
+  }
+  density_vector d1 = set_density_type(world, r_params, g_params);
+
+  return d1;
+}
 
 using namespace madness;
 
 int main(int argc, char** argv) {
   initialize(argc, argv);
+
   {  // limite lifetime of world so that finalize() can execute cleanly
     World world(SafeMPI::COMM_WORLD);
     molresponse::start_timer(world);
@@ -80,26 +95,30 @@ int main(int argc, char** argv) {
 
       if (world.rank() == 0) print("input filename: ", inpname);
       if (!file_exists(inpname)) throw "input file not found";
+      std::string tag = "molresponse";
+      density_vector rho = read_and_create_density(world, inpname, tag);
       // first step is to read the input for r_params and g_params
-      GroundParameters g_params;
-      ResponseParameters r_params;
-      // Read response input
-      r_params.read_and_set_derived_values(world, inpname, "response");
-      std::string ground_file = r_params.archive();
-      g_params.read(world, ground_file);
-      // create the density from parameters
-      density_vector rho = set_density_type(world, r_params, g_params);
-      if (world.rank() == 0) {
-        g_params.print_params();
-        r_params.print();
-        rho.PrintDensityInformation();
-      }
       // Create the TDDFT object
-      TDDFT calc(world, rho);
-      if (r_params.load_density()) {
+      TDDFT calc = TDDFT(world, rho);
+
+      // Warm and fuzzy for the user
+      if (world.rank() == 0) {
+        print("\n\n");
+        print(" MADNESS Hartree-Fock and Density Functional Theory Program");
+        print(" ----------------------------------------------------------\n");
+        print("\n");
+        calc.molecule.print();
+        print("\n");
+        calc.r_params.print(tag);
+      }
+      molresponse::end_timer(world, "initialize");
+
+      if (calc.r_params.load_density()) {
         print("Loading Density");
-        rho.LoadDensity(
-            world, r_params.load_density_file(), r_params, g_params);
+        rho.LoadDensity(world,
+                        calc.r_params.load_density_file(),
+                        calc.r_params,
+                        calc.g_params);
       } else {
         print("Computing Density");
         calc.compute_freq_response(world);
@@ -107,7 +126,7 @@ int main(int argc, char** argv) {
       //
       // densityTest.PlotResponseDensity(world);
 
-      if (r_params.response_type().compare("dipole") == 0) {  //
+      if (calc.r_params.response_type().compare("dipole") == 0) {  //
         print("Computing Alpha");
         Tensor<double> alpha = rho.ComputeSecondOrderPropertyTensor(world);
         print("Second Order Analysis");

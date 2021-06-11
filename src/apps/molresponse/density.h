@@ -48,6 +48,7 @@ class density_vector {
 
   // first order frequency response densities
   VectorFunction3DT rho_omega;  // the response density vector
+  Molecule molecule;
 
  public:
   friend class TDDFT;
