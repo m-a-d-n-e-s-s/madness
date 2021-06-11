@@ -574,7 +574,7 @@ void TDDFT::solve_excited_states(World& world) {
 
   // Warm and fuzzy
   if (world.rank() == 0) {
-    print("\n\n     Response Calculation");
+    print("\n\n     Excited State Calculation");
     print("   ------------------------");
   }
   // Here print the relevant parameters
@@ -586,10 +586,6 @@ void TDDFT::solve_excited_states(World& world) {
 
     // Do something to ensure all functions have same k value
     check_k(world, r_params.protocol()[proto], FunctionDefaults<3>::get_k());
-
-    // Create the active subspace (select which ground state orbitals to
-    // calculate excitations from)
-    // if(r_params.e_window) select_active_subspace(world);
 
     if (proto == 0) {
       if (r_params.restart()) {
@@ -664,7 +660,7 @@ void TDDFT::solve_excited_states(World& world) {
         if (world.rank() == 0)
           print("\n   Iterating trial functions for an improved initial "
                 "guess.\n");
-        IterateGuess(world, Chi);
+        iterate_guess(world, Chi);
         // Sort
         sort(world, omega, Chi.X);
         // Basic output

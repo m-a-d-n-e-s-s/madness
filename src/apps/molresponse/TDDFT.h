@@ -550,16 +550,13 @@ public:
 
   // Iterates the trial functions until covergence or it runs out of
   // iterations
-  void Iterate(World& world);
-  void Iterate(World& world, X_space& Chi);
+  void iterate_excited(World& world, X_space& Chi);
 
-  // Constructs and prints a more detailed analysis of response functions
   // Uses member variables
-  void analysis(World& world);
   void analysis(World& world, X_space& Chi);
 
   // Simplified iterate scheme for guesses
-  void IterateGuess(World& world, X_space& guesses);
+  void iterate_guess(World& world, X_space& guesses);
 
   // Create and diagonalize the CIS matrix for improved initial guess
   response_space diagonalize_CIS_guess(World& world,

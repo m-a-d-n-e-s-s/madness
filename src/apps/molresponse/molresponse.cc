@@ -128,16 +128,6 @@ int main(int argc, char** argv) {
       } else {
       }
 
-      if (calc.r_params.load_density()) {
-        print("Loading Density");
-        rho.LoadDensity(world, calc.r_params.load_density_file(), calc.r_params, calc.g_params);
-      } else {
-        print("Computing Density");
-        calc.solve_response_states(world);
-      }
-      //
-      // densityTest.PlotResponseDensity(world);
-
       if (calc.r_params.response_type().compare("dipole") == 0) { //
         print("Computing Alpha");
         Tensor<double> alpha = rho.ComputeSecondOrderPropertyTensor(world);
