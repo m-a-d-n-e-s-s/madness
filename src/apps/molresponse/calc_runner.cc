@@ -677,7 +677,7 @@ void TDDFT::solve_excited_states(World& world) {
     }
 
     // Now actually ready to iterate...
-    Iterate(world, Chi);
+    iterate_excited(world, Chi);
   }
 
   // Plot the response function if desired
