@@ -80,6 +80,10 @@ struct ResponseParameters : public QCCalculationParametersBase {
     // properties
     initialize<bool>("property", false, "Flag to turn on frequency dependent property calc");
     initialize<std::string>("response_type", "excited_state", "dipole,nuclear,order2,order3");
+    initialize<bool>("excited_state", false, "Flag to turn on excited state calc");
+    initialize<bool>("first_order", false, "Flag to turn on first order response calc");
+    initialize<bool>("second_order", false, "Flag to turn on second order response calc ");
+    initialize<bool>("third_order", false, "Flag to turn on second order response calc ");
     initialize<bool>("dipole", false, "Flag to turn on frequency dependent property calc");
     initialize<bool>("nuclear", false, "Flag to turn on frequency dependent property calc");
     initialize<bool>("order2", false, "Flag to turn on frequency dependent property calc");
@@ -143,6 +147,10 @@ public:
   std::string response_type() const { return get<std::string>("response_type"); }
   int vnucextra() const { return get<int>("vnucextra"); }
   int loadbalparts() const { return get<int>("loadbalparts"); }
+  bool excited_state() const { return get<bool>("excited_state"); }
+  bool first_order() const { return get<bool>("first_order"); }
+  bool second_order() const { return get<bool>("second_order"); }
+  bool third_order() const { return get<bool>("third_order"); }
   bool dipole() const { return get<bool>("dipole"); }
   bool nuclear() const { return get<bool>("nuclear"); }
   bool order2() const { return get<bool>("order2"); }
@@ -173,14 +181,15 @@ public:
     Molecule molecule = g_params.molecule();
     vector<std::string> calculation_type;
     vector<bool> calc_flags;
-
-    if (dipole()) {
-      set_derived_value<size_t>("states", 3);
-      set_derived_value<std::string>("response_type", "dipole");
-    } else if (nuclear()) {
-      set_derived_value<size_t>("states", 3 * molecule.natom());
-      set_derived_value<std::string>("response_type", "nuclear");
-    } else if (order2()) {
+    if (first_order()) {
+      if (dipole()) {
+        set_derived_value<size_t>("states", 3);
+        set_derived_value<std::string>("response_type", "dipole");
+      } else if (nuclear()) {
+        set_derived_value<size_t>("states", 3 * molecule.natom());
+        set_derived_value<std::string>("response_type", "nuclear");
+      }
+    } else if (second_order()) {
       set_derived_value<std::string>("response_type", "order2");
       vector<int> nstates; // states 1
       for (size_t i = 0; i < 2; i++) {
@@ -195,7 +204,7 @@ public:
       size_t states;
       states = std::accumulate(nstates.begin(), nstates.end(), 1, std::multiplies<>());
       set_derived_value<size_t>("states", states);
-    } else if (order3()) {
+    } else if (third_order()) {
       set_derived_value<std::string>("response_type", "order3");
       vector<int> nstates; // states 1
       for (size_t i = 0; i < 3; i++) {

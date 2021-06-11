@@ -39,12 +39,11 @@
 #include <madness/world/worldmem.h>
 #include <stdlib.h>
 
-#include "TDDFT.h"  // All response functions/objects enter through this
+#include "TDDFT.h" // All response functions/objects enter through this
 #include "molresponse/density.h"
 #include "molresponse/global_functions.h"
 
-#if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && \
-    defined(HAVE_UNISTD_H)
+#if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -54,9 +53,7 @@ static inline int file_exists(const char* inpname) {
   return (rc == 0);
 }
 #endif
-density_vector read_and_create_density(World& world,
-                                       const char* inpname,
-                                       std::string tag) {
+density_vector read_and_create_density(World& world, const char* inpname, std::string tag) {
   GroundParameters g_params;
   ResponseParameters r_params;
   if (world.rank() == 0) {
@@ -74,13 +71,13 @@ using namespace madness;
 int main(int argc, char** argv) {
   initialize(argc, argv);
 
-  {  // limite lifetime of world so that finalize() can execute cleanly
+  { // limite lifetime of world so that finalize() can execute cleanly
     World world(SafeMPI::COMM_WORLD);
     molresponse::start_timer(world);
     try {
       startup(world, argc, argv, true);
       print_meminfo(world.rank(), "startup");
-      FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3> >(world)));
+      FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3>>(world)));
 
       std::cout.precision(6);
       // This makes a default input file name of 'input'
@@ -93,8 +90,10 @@ int main(int argc, char** argv) {
         }
       }
 
-      if (world.rank() == 0) print("input filename: ", inpname);
-      if (!file_exists(inpname)) throw "input file not found";
+      if (world.rank() == 0)
+        print("input filename: ", inpname);
+      if (!file_exists(inpname))
+        throw "input file not found";
       std::string tag = "molresponse";
       density_vector rho = read_and_create_density(world, inpname, tag);
       // first step is to read the input for r_params and g_params
@@ -104,9 +103,8 @@ int main(int argc, char** argv) {
       // Warm and fuzzy for the user
       if (world.rank() == 0) {
         print("\n\n");
-        print(
-            " MADNESS Time-Dependent Density Functional Theory Response "
-            "Program");
+        print(" MADNESS Time-Dependent Density Functional Theory Response "
+              "Program");
         print(" ----------------------------------------------------------\n");
         print("\n");
         calc.molecule.print();
@@ -120,14 +118,17 @@ int main(int argc, char** argv) {
         calc.make_nuclear_potential(world);
         calc.initial_load_bal(world);
       }
-      // vama
+      // set protocol to the first
       calc.set_protocol<3>(world, calc.r_params.protocol()[0]);
+      if (calc.r_params.excited_state()) {
+      } else if (calc.r_params.first_order()) {
+      } else if (calc.r_params.second_order()) {
+      } else {
+      }
+
       if (calc.r_params.load_density()) {
         print("Loading Density");
-        rho.LoadDensity(world,
-                        calc.r_params.load_density_file(),
-                        calc.r_params,
-                        calc.g_params);
+        rho.LoadDensity(world, calc.r_params.load_density_file(), calc.r_params, calc.g_params);
       } else {
         print("Computing Density");
         calc.compute_freq_response(world);
@@ -135,7 +136,7 @@ int main(int argc, char** argv) {
       //
       // densityTest.PlotResponseDensity(world);
 
-      if (calc.r_params.response_type().compare("dipole") == 0) {  //
+      if (calc.r_params.response_type().compare("dipole") == 0) { //
         print("Computing Alpha");
         Tensor<double> alpha = rho.ComputeSecondOrderPropertyTensor(world);
         print("Second Order Analysis");
