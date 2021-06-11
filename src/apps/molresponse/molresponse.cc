@@ -121,7 +121,9 @@ int main(int argc, char** argv) {
       // set protocol to the first
       calc.set_protocol<3>(world, calc.r_params.protocol()[0]);
       if (calc.r_params.excited_state()) {
+        calc.solve_excited_states(world);
       } else if (calc.r_params.first_order()) {
+        calc.solve_response_states(world);
       } else if (calc.r_params.second_order()) {
       } else {
       }
@@ -131,7 +133,7 @@ int main(int argc, char** argv) {
         rho.LoadDensity(world, calc.r_params.load_density_file(), calc.r_params, calc.g_params);
       } else {
         print("Computing Density");
-        calc.compute_freq_response(world);
+        calc.solve_response_states(world);
       }
       //
       // densityTest.PlotResponseDensity(world);
