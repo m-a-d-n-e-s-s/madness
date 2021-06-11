@@ -5,8 +5,8 @@ test_response.cc
 density.cc
 property.cc
 global_functions.cc
-response_runner.cc
-iterate_excited2.cc
+calc_runner.cc
+iterate_excited.cc
 timer.cc
 basic_operators.cc
 Plot_VTK.cc
@@ -24,12 +24,12 @@ density.cc
 property.cc
 TDDFT.cc
 global_functions.cc
-response_runner.cc
+calc_runner.cc
 timer.cc
 basic_operators.cc
 Plot_VTK.cc
 iterate_freq.cc
-iterate_excited2.cc
+iterate_excited.cc
 Lambda_X.cc
 Theta_X.cc
 iterate_gamma.cc
