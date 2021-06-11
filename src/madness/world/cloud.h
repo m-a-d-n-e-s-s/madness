@@ -12,7 +12,7 @@
 
 
 #include <madness/world/parallel_dc_archive.h>
-#include<variant>
+#include<any>
 #include<iomanip>
 
 
@@ -113,27 +113,10 @@ class Cloud {
 
 public:
 
-    // these are all allowed types for storing
-    typedef std::variant<std::size_t, int, long, double,
-            std::vector<double>,
-#ifdef MADNESS_TENSOR_TENSOR_H__INCLUDED
-            Tensor<double>,
-#endif
-#ifdef MADNESS_MRA_MRA_H__INCLUDED
-            Function<double, 3>,
-            Function<double_complex, 3>,
-            std::shared_ptr<FunctionImpl<double, 3>>,
-            std::shared_ptr<FunctionImpl<double_complex, 3>>,
-            std::vector<std::shared_ptr<FunctionImpl<double, 3>>>,
-            std::vector<std::shared_ptr<FunctionImpl<double_complex, 3>>>,
-#endif
-            std::monostate
-    > cached_objT;
-
+    typedef std::any cached_objT;
     using keyT = madness::archive::ContainerRecordOutputArchive::keyT;
     typedef std::map<keyT, cached_objT> cacheT;
     typedef Recordlist<keyT> recordlistT;
-
 
 private:
     madness::WorldContainer<keyT, std::vector<unsigned char> > container;
@@ -145,12 +128,6 @@ public:
     /// @param[in]	universe	the universe world
     Cloud(madness::World &universe) : container(universe), reading_time(0l), writing_time(0l),
         cache_reads(0l), cache_stores(0l) {
-#ifndef MADNESS_TENSOR_TENSOR_H__INCLUDED
-        static_assert(0,"You must #include<tensor/tensor.h> before cloud.h");
-#endif
-#ifndef MADNESS_MRA_MRA_H__INCLUDED
-        static_assert(0,"You must #include<mra/mra.h> before cloud.h");
-#endif
     }
 
     void set_debug(bool value) {
@@ -259,14 +236,15 @@ private:
 
     template<typename T>
     void cache(madness::World &world, const T &obj, const keyT &record) const {
-        const_cast<cacheT &>(cached_objects).insert({record,obj});
+        const_cast<cacheT &>(cached_objects).insert({record,std::make_any<T>(obj)});
     }
 
     template<typename T>
     T load_from_cache(madness::World &world, const keyT &record) const {
         if (world.rank()==0) cache_reads++;
         if (debug) print("loading", typeid(T).name(), "from cache record", record, "to world", world.id());
-        if (auto obj = std::get_if<T>(&cached_objects.find(record)->second)) return *obj;
+//        if (auto obj = std::get_if<T>(&cached_objects.find(record)->second)) return *obj;
+        if (auto obj = std::any_cast<T>(&cached_objects.find(record)->second)) return *obj;
         MADNESS_EXCEPTION("failed to load from cloud-cache", 1);
         return T();
     }
