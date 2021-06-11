@@ -15,7 +15,7 @@ if(NOT TBB_FOUND)
 
   # Set default sarch paths for TBB
   if(NOT TBB_ROOT_DIR AND NOT DEFINED TBB_ROOT_DIR)
-    if(EXISTS $ENV{TBBROOT})
+    if(DEFINED ENV{TBBROOT})
       set(TBB_ROOT_DIR "$ENV{TBBROOT}")
     elseif(EXISTS /opt/intel/tbb)
       set(TBB_ROOT_DIR /opt/intel/tbb)
