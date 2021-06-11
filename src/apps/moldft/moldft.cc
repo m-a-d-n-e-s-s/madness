@@ -44,8 +44,7 @@
 //   int     MKL_Set_Num_Threads_Local(int nth);
 // }
 
-#if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && \
-    defined(HAVE_UNISTD_H)
+#if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -77,14 +76,14 @@ int main(int argc, char** argv) {
 
   // MKL_Set_Num_Threads_Local(1);
 
-  {  // limit lifetime of world so that finalize() can execute cleanly
+  { // limit lifetime of world so that finalize() can execute cleanly
     World world(SafeMPI::COMM_WORLD);
     START_TIMER(world);
     try {
       // Load info for MADNESS numerical routines
       startup(world, argc, argv, true);
       print_meminfo(world.rank(), "startup");
-      FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3> >(world)));
+      FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3>>(world)));
 
       std::cout.precision(6);
 
@@ -96,7 +95,8 @@ int main(int argc, char** argv) {
           break;
         }
       }
-      if (world.rank() == 0) print("input filename: ", inpname);
+      if (world.rank() == 0)
+        print("input filename: ", inpname);
       if (!file_exists(inpname)) {
         throw "input file not found!";
       }
@@ -147,10 +147,10 @@ int main(int argc, char** argv) {
                    0.1,
                    calc.param.gval(),
                    calc.param.gtol(),
-                   1e-3,  // XTOL
-                   1e-5,  // EPREC
+                   1e-3, // XTOL
+                   1e-5, // EPREC
                    calc.param.gprec(),
-                   (world.rank() == 0) ? 1 : 0,  // print_level
+                   (world.rank() == 0) ? 1 : 0, // print_level
                    calc.param.algopt());
 
         MolecularEnergy target(world, calc);
@@ -163,7 +163,7 @@ int main(int argc, char** argv) {
         calc.propagate(world, 0.1, 0);
       } else {
         MolecularEnergy E(world, calc);
-        double energy = E.value(calc.molecule.get_all_coords().flat());  // ugh!
+        double energy = E.value(calc.molecule.get_all_coords().flat()); // ugh!
         if ((world.rank() == 0) and (calc.param.print_level() > 0))
           printf("final energy=%16.8f ", energy);
 
@@ -173,9 +173,12 @@ int main(int argc, char** argv) {
           brho = calc.make_density(world, calc.bocc, calc.bmo);
         rho.gaxpy(1.0, brho, 1.0);
 
-        if (calc.param.derivatives()) calc.derivatives(world, rho);
-        if (calc.param.dipole()) calc.dipole(world, rho);
-        if (calc.param.response()) calc.polarizability(world);
+        if (calc.param.derivatives())
+          calc.derivatives(world, rho);
+        if (calc.param.dipole())
+          calc.dipole(world, rho);
+        if (calc.param.response())
+          calc.polarizability(world);
       }
 
       //        if (calc.param.twoint) {
@@ -211,7 +214,7 @@ int main(int argc, char** argv) {
     world.gop.fence();
     world.gop.fence();
     print_stats(world);
-  }  // world is dead -- ready to finalize
+  } // world is dead -- ready to finalize
   finalize();
 
   return 0;
