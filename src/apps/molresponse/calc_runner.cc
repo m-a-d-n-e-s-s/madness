@@ -25,6 +25,45 @@
 #include "molresponse/timer.h"
 #include "molresponse/x_space.h"
 
+// Masking function to switch from 0 to 1 smoothly at boundary
+// Pulled from SCF.h
+inline double mask1(double x) {
+  /* Iterated first beta function to switch smoothly
+     from 0->1 in [0,1].  n iterations produce 2*n-1
+     zero derivatives at the end points. Order of polyn
+     is 3^n.
+
+     Currently use one iteration so that first deriv.
+     is zero at interior boundary and is exactly representable
+     by low order multiwavelet without refinement */
+
+  x = (x * x * (3. - 2. * x));
+  return x;
+}
+
+static double mask3(const coord_3d& ruser) {
+  coord_3d rsim;
+  user_to_sim(ruser, rsim);
+  double x = rsim[0], y = rsim[1], z = rsim[2];
+  double lo = 0.0625, hi = 1.0 - lo, result = 1.0;
+  double rlo = 1.0 / lo;
+
+  if (x < lo)
+    result *= mask1(x * rlo);
+  else if (x > hi)
+    result *= mask1((1.0 - x) * rlo);
+  if (y < lo)
+    result *= mask1(y * rlo);
+  else if (y > hi)
+    result *= mask1((1.0 - y) * rlo);
+  if (z < lo)
+    result *= mask1(z * rlo);
+  else if (z > hi)
+    result *= mask1((1.0 - z) * rlo);
+
+  return result;
+}
+
 template <std::size_t NDIM>
 void TDDFT::set_protocol(World& world, double thresh) {
   size_t k;
@@ -52,12 +91,21 @@ void TDDFT::set_protocol(World& world, double thresh) {
   FunctionDefaults<NDIM>::set_thresh(thresh);
   FunctionDefaults<NDIM>::set_refine(true);
   FunctionDefaults<NDIM>::set_initial_level(2);
+
   FunctionDefaults<NDIM>::set_autorefine(false);
   FunctionDefaults<NDIM>::set_apply_randomize(false);
   FunctionDefaults<NDIM>::set_project_randomize(false);
+  GaussianConvolution1DCache<double>::map.clear();
+  double safety = 0.1;
+  vtol = FunctionDefaults<NDIM>::get_thresh() * safety;
+  coulop = poperatorT(CoulombOperatorPtr(world, r_params.lo(), thresh));
+  gradop = gradient_operator<double, 3>(world);
   // GaussianConvolution1DCache<double>::map.clear();//(TODO:molresponse-What
   // is this? Do i need it?)
 
+  // Create the masking function
+  mask = real_function_3d(
+      real_factory_3d(world).f(mask3).initial_level(4).norefine());
   // dconv defaults to thresh*100, overrirde by providing dconv in input
   // file
   if (r_params.dconv_set() == false) {
@@ -500,7 +548,6 @@ void TDDFT::create_all_potentials(World& world,
     if (world.rank() == 0) print(temp);
   }
 }
-
 
 // Main function, makes sure everything happens in correcct order
 // Solves for response components
