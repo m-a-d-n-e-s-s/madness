@@ -43,7 +43,8 @@
 #include "molresponse/density.h"
 #include "molresponse/global_functions.h"
 
-#if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
+#if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && \
+    defined(HAVE_UNISTD_H)
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -82,33 +83,35 @@ int main(int argc, char** argv) {
       // first step is to read the input for r_params and g_params
       GroundParameters g_params;
       ResponseParameters r_params;
+      // Read response input
       r_params.read_and_set_derived_values(world, inpname, "response");
       std::string ground_file = r_params.archive();
       g_params.read(world, ground_file);
-
-      density_vector d1 = set_density_type(world, r_params, g_params);
+      // create the density from parameters
+      density_vector rho = set_density_type(world, r_params, g_params);
       if (world.rank() == 0) {
         g_params.print_params();
         r_params.print();
-        d1.PrintDensityInformation();
+        rho.PrintDensityInformation();
       }
       // Create the TDDFT object
+      TDDFT calc(world, rho);
       if (r_params.load_density()) {
         print("Loading Density");
-        d1.LoadDensity(world, r_params.load_density_file(), r_params, g_params);
+        rho.LoadDensity(
+            world, r_params.load_density_file(), r_params, g_params);
       } else {
         print("Computing Density");
-        d1.compute_response(world);
+        calc.compute_freq_response(world);
       }
       //
       // densityTest.PlotResponseDensity(world);
-      d1.PrintDensityInformation();
 
       if (r_params.response_type().compare("dipole") == 0) {  //
         print("Computing Alpha");
-        Tensor<double> alpha = d1.ComputeSecondOrderPropertyTensor(world);
+        Tensor<double> alpha = rho.ComputeSecondOrderPropertyTensor(world);
         print("Second Order Analysis");
-        d1.PrintSecondOrderAnalysis(world, alpha);
+        rho.PrintSecondOrderAnalysis(world, alpha);
       }
     } catch (std::exception& e) {
       print("\n\tan error occurred .. ");
