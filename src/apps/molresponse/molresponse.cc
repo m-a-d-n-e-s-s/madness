@@ -104,7 +104,9 @@ int main(int argc, char** argv) {
       // Warm and fuzzy for the user
       if (world.rank() == 0) {
         print("\n\n");
-        print(" MADNESS Hartree-Fock and Density Functional Theory Program");
+        print(
+            " MADNESS Time-Dependent Density Functional Theory Response "
+            "Program");
         print(" ----------------------------------------------------------\n");
         print("\n");
         calc.molecule.print();
