@@ -101,6 +101,7 @@ template <std::size_t NDIM> void TDDFT::set_protocol(World& world, double thresh
   gradop = gradient_operator<double, 3>(world);
   // GaussianConvolution1DCache<double>::map.clear();//(TODO:molresponse-What
   // is this? Do i need it?)
+  rho0 = make_ground_density(world, ground_orbitals);
 
   // Create the masking function
   mask = real_function_3d(real_factory_3d(world).f(mask3).initial_level(4).norefine());
@@ -678,6 +679,8 @@ void TDDFT::solve_excited_states(World& world) {
 
     // Now actually ready to iterate...
     iterate_excited(world, Chi);
+    if (r_params.save())
+      save(world, r_params.save_file());
   }
 
   // Plot the response function if desired
