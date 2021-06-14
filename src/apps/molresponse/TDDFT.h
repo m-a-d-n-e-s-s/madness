@@ -161,6 +161,7 @@ public:
   X_space Chi;
   X_space PQ;
   density_vector rho;
+  functionT rho0;
 
   response_space stored_potential; // The ground state potential, stored only
                                    // if store_potential is true (default is
@@ -571,6 +572,8 @@ public:
   // Adds random noise to function f
   response_space add_randomness(World& world, response_space& f, double magnitude);
 
+  // Creates the transition density
+  functionT make_ground_density(World& world, const vecfuncT& v);
   // Creates the transition density
   std::vector<real_function_3d>
   transition_density(World& world, std::vector<real_function_3d>& orbitals, response_space& x, response_space& y);
