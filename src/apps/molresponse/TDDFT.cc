@@ -913,11 +913,13 @@ void TDDFT::make_nuclear_potential(World& world) {
 }
 
 // Returns the ground state potential applied to functions f
+// (V0 f) V0=(Vnuc+J0-K0+EXC0)
+// J0=J[rho0]
+// K0=K[rho0]f
+// EXC0=EXC[rho0]
 response_space
 TDDFT::CreatePotential(World& world, response_space& f, XCOperator<double, 3> xc, size_t print_level, std::string xy) {
   // Start a timer
-  if (print_level >= 3)
-    molresponse::start_timer(world);
 
   // Return container
   response_space V_x_resp(world, f.size(), f[0].size());
@@ -925,25 +927,29 @@ TDDFT::CreatePotential(World& world, response_space& f, XCOperator<double, 3> xc
   // Computing \hat{V}^0 = v_nuc + v_coul + v_exch
   // v_nuc first
   real_function_3d v_nuc, v_coul;
+
+  molresponse::start_timer(world);
   if (not r_params.store_potential()) {
     // "a" is the core type
-    PotentialManager manager(g_params.molecule(), "a");
-
-    manager.make_nuclear_potential(world);
-    // v_nuc = manager.vnuclear().truncate();
     v_nuc = potentialmanager->vnuclear();
     v_nuc.truncate();
-
-    // v_coul next
-    // This does not include final multiplication of each orbital
-    // 2.0 scale is from spin integration
+  } else { // Already pre-computed
+    v_nuc = stored_v_nuc;
+    v_coul = stored_v_coul;
+  }
+  molresponse::end_timer(world, "Nuclear energy");
+  // Coulomb Potential J0*f
+  molresponse::start_timer(world);
+  if (not r_params.store_potential()) {
+    // "a" is the core type
     // J^0 x^alpha
-    v_coul = Coulomb(world);
+    v_coul = apply(*coulop, rho0);
     v_coul.scale(2.0);
   } else { // Already pre-computed
     v_nuc = stored_v_nuc;
     v_coul = stored_v_coul;
   }
+  molresponse::end_timer(world, "Coulomb Potential J[rho0]");
 
   // Intermediaries
 
@@ -3480,6 +3486,21 @@ Tensor<double> TDDFT::CreateGroundHamiltonian(World& world, std::vector<real_fun
     molresponse::end_timer(world, "   Create grnd ham:");
 
   return hamiltonian;
+}
+
+functionT TDDFT::make_ground_density(World& world, const vecfuncT& v) {
+  tensorT occ = g_params.get_occ();
+  vecfuncT vsq = square(world, v);
+  compress(world, vsq);
+  functionT rho = factoryT(world);
+  rho.compress();
+  for (unsigned int i = 0; i < vsq.size(); ++i) {
+    if (occ[i])
+      rho.gaxpy(1.0, vsq[i], occ[i], false);
+  }
+  world.gop.fence();
+  vsq.clear();
+  return rho;
 }
 
 // Creates the transition densities
