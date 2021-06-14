@@ -54,7 +54,7 @@ void run_density(World& world, density_vector& rho) {
     calc.solve_excited_states(world);
   } else {
     print("Entering Frequency Response Runner");
-    calc.compute_freq_response(world);
+    calc.solve_response_states(world);
   }
   //
   // densityTest.PlotResponseDensity(world);
