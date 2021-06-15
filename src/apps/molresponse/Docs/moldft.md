@@ -23,7 +23,7 @@ For each iteration
 - compute the density
 	- arho
 	- brho
-- if (iter < 2|| iter %10) loadbalance
+- `if (iter < 2|| iter %10) loadbalance`
 - compute da and db. density differences
 - compute total density rho=arho+brho
 
@@ -109,7 +109,45 @@ print
 
 ## Update subspace
 
+`typedef std::pair<vecfuncT, vecfuncT> pairvecfuncT;`
 
+- world
+- Vpsia
+- Vpsib
+- focka
+- fockb
+- subspace typedef std::vector<pairvecfuncT> subspaceT;
+- Q
+- bsh_residual
+- update_residual
+
+1. First zero off diagonal lagrange mulitpliers of focka
+2. Compute_residual
+	- set diagonal to min of 0.05 or fock(i,i)
+	- fpsi= psi*fock
+	- Vpsi=Vpsi-fpsi
+	- scale: 2*Vpsi
+	- create bsh_operators
+	- set thresh for Vpsi
+	- newpsi=apply op to Vpsi
+	- clear ops and Vpsi and fence
+	- truncate newpsi
+	- r=psi-newpsi
+	- rnorm=nrom2s(world,r)
+	- BSH residual: rms and max
+	- r is the residual in wavefunctions
+3. If spin beta
+	- compute residual
+	- insert beta to vm=amo
+	- insert residuals
+4. BSH residual is max (aerr,berr)
+
+
+
+        /// Transforms a vector of functions left[i] = sum[j] right[j]*c[j,i] using sparsity
+        /// @param[in] vright vector of functions (impl's) on which to be transformed
+        /// @param[in] c the tensor (matrix) transformer
+        /// @param[in] vleft vector of of the *newly* transformed functions (impl's)
 
 
 

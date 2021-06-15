@@ -2014,7 +2014,13 @@ void SCF::vector_stats(const std::vector<double>& v, double& rms, double& maxabs
   }
   rms = sqrt(rms / v.size());
 }
-
+/**
+ Returns the residual
+ @param occ occupancies tensor
+ @param fock Fock tensor
+ @param psi wavefunction orbitals
+ @param err
+ */
 vecfuncT SCF::compute_residual(World& world,
                                tensorT& occ,
                                tensorT& fock,
@@ -2517,14 +2523,20 @@ void SCF::update_subspace(World& world,
   world.gop.fence();
 
 restart:
+  // supspace becomes the pair of vm and rm
   subspace.push_back(pairvecfuncT(vm, rm));
   int m = subspace.size();
+  // ms and sm
   tensorT ms(m);
   tensorT sm(m);
+  //
   for (int s = 0; s < m; ++s) {
+    // vs is first vm
     const vecfuncT& vs = subspace[s].first;
+    // rs is first residual
     const vecfuncT& rs = subspace[s].second;
     for (unsigned int i = 0; i < vm.size(); ++i) {
+      // inner between vm[i] and residual[i]
       ms[s] += vm[i].inner_local(rs[i]);
       sm[s] += vs[i].inner_local(rm[i]);
     }
