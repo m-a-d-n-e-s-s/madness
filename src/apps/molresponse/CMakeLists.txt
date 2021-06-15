@@ -29,6 +29,7 @@ timer.cc
 basic_operators.cc
 Plot_VTK.cc
 iterate_freq.cc
+iter_freq2.cc
 iterate_excited.cc
 Lambda_X.cc
 Theta_X.cc
