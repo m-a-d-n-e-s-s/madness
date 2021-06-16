@@ -1569,15 +1569,20 @@ X_space TDDFT::compute_residual_response(World& world,
   if (r_params.omega() != 0.0) {
     res.Y = old_Chi.Y - newChi.Y;
   }
-
+  // rmsX and maxvalX for each m response states
   std::vector<double> rmsX(m), maxvalX(m);
   std::vector<std::vector<double>> rnormsX;
   std::vector<std::vector<double>> rnormsY;
+  // find the norms of each of the residual response vectors
   for (size_t i = 0; i < m; i++) {
+    // the 2norms of each of the orbitals in response vector
     rnormsX.push_back(norm2s(world, res.X[i]));
     if (world.rank() == 0 and (r_params.print_level() > 1))
       print("residuals X: state ", i, " : ", rnormsX[i]);
+    // maxabsval = std::max<double>(maxabsval, std::abs(v[i]));
+    // maxvalX= largest abs(v[i])
     vector_stats(rnormsX[i], rmsX[i], maxvalX[i]);
+    // errX[i] is the largest residual orbital value
     errX[i] = maxvalX[i];
     if (world.rank() == 0 and (r_params.print_level() > 1))
       print("BSH residual: rms", rmsX[i], "   max", maxvalX[i]);
