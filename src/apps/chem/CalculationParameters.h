@@ -55,15 +55,13 @@ struct CalculationParameters : public QCCalculationParametersBase {
     initialize<double>("smear", 0.0, "smearing parameter");
     initialize<double>("econv", 1.e-5, "energy convergence");
     initialize<double>("dconv", 1.e-4, "density convergence");
-    initialize<std::vector<std::string> >(
-        "convergence_criteria",
-        {"bsh_residual", "total_energy"},
-        "possible values are: bsh_residual, total_energy, each_energy, density");
+    initialize<std::vector<std::string> >("convergence_criteria",
+                                          {"bsh_residual", "total_energy"},
+                                          "possible values are: bsh_residual, total_energy, each_energy, density");
     initialize<int>("k", 7, "polynomial order");
     initialize<double>("l", 20, "user coordinates box size");
     initialize<std::string>("deriv", "abgv", "derivative method", {"abgv", "bspline", "ble"});
-    initialize<std::string>(
-        "dft_deriv", "abgv", "derivative method for gga potentials", {"abgv", "bspline", "ble"});
+    initialize<std::string>("dft_deriv", "abgv", "derivative method for gga potentials", {"abgv", "bspline", "ble"});
     initialize<double>("maxrotn", 0.25, "step restriction used in autoshift algorithm");
     initialize<int>("nvalpha", 0, "number of alpha virtuals to compute");
     initialize<int>("nvbeta", 0, "number of beta virtuals to compute");
@@ -75,8 +73,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
     initialize<int>("plothi", -1, "range of MOs to print (for both spins if polarized");
     initialize<bool>("plotdens", false, "If true print the density at convergence");
     initialize<bool>("plotcoul", false, "If true plot the total coulomb potential at convergence");
-    initialize<std::string>(
-        "localize", "new", "localization method", {"pm", "boys", "new", "canon"});
+    initialize<std::string>("localize", "new", "localization method", {"pm", "boys", "new", "canon"});
     //		initialize<bool localize_pm;           ///< If true use PM for localization
     //		initialize<bool localize_boys;         ///< If true use boys for localization
     //		initialize<bool localize_new;          ///< If true use new for localization
@@ -85,39 +82,31 @@ struct CalculationParameters : public QCCalculationParametersBase {
                             "use point (sub) group symmetry if not localized",
                             {"c1", "c2", "ci", "cs", "c2v", "c2h", "d2", "d2h"});
     initialize<bool>("restart", false, "if true restart from orbitals on disk");
-    initialize<bool>("restartao",
-                     false,
-                     "if true restart from orbitals projected into AO basis (STO3G) on disk");
+    initialize<bool>("restartao", false, "if true restart from orbitals projected into AO basis (STO3G) on disk");
     initialize<bool>("no_compute", false, "if true use orbitals on disk, set value to computed");
     initialize<bool>("no_orient", false, "if true the molecule coordinates will not be reoriented");
     initialize<bool>("save", true, "if true save orbitals to disk");
     initialize<int>("maxsub", 10, "size of iterative subspace ... set to 0 or 1 to disable");
-    initialize<double>(
-        "orbitalshift", 0.0, "scf orbital shift: shift the occ orbitals to lower energies");
+    initialize<double>("orbitalshift", 0.0, "scf orbital shift: shift the occ orbitals to lower energies");
     initialize<int>("npt_plot", 101, "no. of points to use in each dim for plots");
-    //		initialize<Tensor<double> > ("plot_cell",Tensor<double>(),"lo hi in each dimension
-    // for plotting (default is all space)");
-    initialize<std::vector<double> >("plot_cell",
-                                     std::vector<double>(),
-                                     "lo hi in each dimension for plotting (default is all space)");
-    initialize<std::string>(
-        "aobasis", "6-31g", "AO basis used for initial guess (6-31g or sto-3g)");
+    //		initialize<Tensor<double> > ("plot_cell",Tensor<double>(),"lo hi in each dimension for plotting (default
+    // is all space)");
+    initialize<std::vector<double> >(
+        "plot_cell", std::vector<double>(), "lo hi in each dimension for plotting (default is all space)");
+    initialize<std::string>("aobasis", "6-31g", "AO basis used for initial guess (6-31g or sto-3g)");
     initialize<std::string>("core_type", "none", "core potential type", {"none", "mpc"});
     initialize<bool>("derivatives", false, "if true calculate nuclear derivatives");
     initialize<bool>("dipole", false, "if true calculate dipole moment");
-    initialize<bool>("onv_only_dens",
-                     false,
-                     "if true remove bsh_residual from convergence criteria (deprecated)");
+    initialize<bool>("onv_only_dens", false, "if true remove bsh_residual from convergence criteria (deprecated)");
     initialize<bool>("psp_calc", false, "pseudopotential calculation for all atoms");
     initialize<bool>("print_dipole_matels", false, "if true output dipole matrix elements");
     initialize<std::string>("pcm_data", "none", "do a PCM (solvent) calculation");
-    initialize<std::string>("ac_data",
-                            "none",
-                            "do a calculation with asymptotic correction (see ACParameters class "
-                            "in chem/AC.h for details)");
+    initialize<std::string>(
+        "ac_data",
+        "none",
+        "do a calculation with asymptotic correction (see ACParameters class in chem/AC.h for details)");
     initialize<bool>("pure_ae", true, "pure all electron calculation with no pseudo-atoms");
-    initialize<int>(
-        "print_level", 3, "0: no output; 1: final energy; 2: iterations; 3: timings; 10: debug");
+    initialize<int>("print_level", 3, "0: no output; 1: final energy; 2: iterations; 3: timings; 10: debug");
 
     // Next list inferred parameters
     initialize<int>("nalpha", -1, "number of alpha spin electrons");
@@ -139,9 +128,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
     initialize<std::string>("algopt", "bfgs", "algorithm used for optimization", {"bfgs", "cg"});
     initialize<bool>("tdksprop", false, "time-dependent Kohn-Sham equation propagate");
     initialize<int>(
-        "nv_factor",
-        1,
-        "factor to multiply number of virtual orbitals with when automatically decreasing nvirt");
+        "nv_factor", 1, "factor to multiply number of virtual orbitals with when automatically decreasing nvirt");
     initialize<int>("vnucextra", 2, "load balance parameter for nuclear pot");
     initialize<int>("loadbalparts", 2, "??");
 
@@ -153,14 +140,11 @@ struct CalculationParameters : public QCCalculationParametersBase {
     initialize<double>("rconv", 1.e-6, "Response convergence");
     initialize<double>("efield", 0.0, "eps for finite field");
     initialize<int>("efield_axis", 0, "finite field axis", {0l, 1, 2});
-    //		initialize<std::map<std::string,std::string> generalkeyval;  ///< general new
-    // key/value pair
+    //		initialize<std::map<std::string,std::string> generalkeyval;  ///< general new key/value pair
 
     // Keyword to use nwchem output for initial guess
     initialize<std::string>(
-        "nwfile",
-        "none",
-        "Base name of nwchem output files (.out and .movecs extensions) to read from");
+        "nwfile", "none", "Base name of nwchem output files (.out and .movecs extensions) to read from");
   }
 
  public:
@@ -290,8 +274,8 @@ struct CalculationParameters : public QCCalculationParametersBase {
     // variational principle working and for robust convergence
     // proto.back()=get<double>("econv");
     set_derived_value("protocol", proto);
-    // No ... the energy is variational!  Don't need more accuracy in dconv --- in fact the opposite
-    // is true. set_derived_value("dconv",sqrt(get<double>("econv"))*0.1);
+    // No ... the energy is variational!  Don't need more accuracy in dconv --- in fact the opposite is true.
+    // set_derived_value("dconv",sqrt(get<double>("econv"))*0.1);
 
     double z = molecule.total_nuclear_charge();
     const double charge = get<double>("charge");
@@ -366,43 +350,42 @@ struct CalculationParameters {
   // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   // First list input parameters
-  double charge;         ///< Total molecular charge
-  double smear;          ///< Smearing parameter
-  double econv;          ///< Energy convergence
-  double dconv;          ///< Density convergence
-  int k;                 ///< polynomial order
-  double L;              ///< User coordinates box size
-  double maxrotn;        ///< Step restriction used in autoshift algorithm
-  int nvalpha;           ///< Number of alpha virtuals to compute
-  int nvbeta;            ///< Number of beta virtuals to compute
-  int nopen;             ///< Number of unpaired electrons = napha-nbeta
-  int maxiter;           ///< Maximum number of iterations
-  int nio;               ///< No. of io servers to use
-  bool spin_restricted;  ///< True if spin restricted
-  int plotlo, plothi;    ///< Range of MOs to print (for both spins if polarized)
-  bool plotdens;         ///< If true print the density at convergence
-  bool plotcoul;         ///< If true plot the total coulomb potential at convergence
-  bool localize;         ///< If true solve for localized orbitals
-  bool localize_pm;      ///< If true use PM for localization
-  bool localize_boys;    ///< If true use boys for localization
-  bool localize_new;     ///< If true use new for localization
-  std::string symmetry;  ///< use point group symmetry for all orbitals: default/full/schoenflies
-  bool restart;          ///< If true restart from orbitals on disk
-  bool restartao;        ///< If true restart from orbitals projected into AO basis (STO3G) on disk
-  bool no_compute;       ///< If true use orbitals on disk, set value to computed
-  bool no_orient;        ///< If true the molecule coordinates will not be reoriented
-  bool save;             ///< If true save orbitals to disk
-  unsigned int maxsub;   ///< Size of iterative subspace ... set to 0 or 1 to disable
-  double orbitalshift;   ///< scf orbital shift: shift the occ orbitals to lower energies
-  int npt_plot;          ///< No. of points to use in each dim for plots
+  double charge;             ///< Total molecular charge
+  double smear;              ///< Smearing parameter
+  double econv;              ///< Energy convergence
+  double dconv;              ///< Density convergence
+  int k;                     ///< polynomial order
+  double L;                  ///< User coordinates box size
+  double maxrotn;            ///< Step restriction used in autoshift algorithm
+  int nvalpha;               ///< Number of alpha virtuals to compute
+  int nvbeta;                ///< Number of beta virtuals to compute
+  int nopen;                 ///< Number of unpaired electrons = napha-nbeta
+  int maxiter;               ///< Maximum number of iterations
+  int nio;                   ///< No. of io servers to use
+  bool spin_restricted;      ///< True if spin restricted
+  int plotlo, plothi;        ///< Range of MOs to print (for both spins if polarized)
+  bool plotdens;             ///< If true print the density at convergence
+  bool plotcoul;             ///< If true plot the total coulomb potential at convergence
+  bool localize;             ///< If true solve for localized orbitals
+  bool localize_pm;          ///< If true use PM for localization
+  bool localize_boys;        ///< If true use boys for localization
+  bool localize_new;         ///< If true use new for localization
+  std::string symmetry;      ///< use point group symmetry for all orbitals: default/full/schoenflies
+  bool restart;              ///< If true restart from orbitals on disk
+  bool restartao;            ///< If true restart from orbitals projected into AO basis (STO3G) on disk
+  bool no_compute;           ///< If true use orbitals on disk, set value to computed
+  bool no_orient;            ///< If true the molecule coordinates will not be reoriented
+  bool save;                 ///< If true save orbitals to disk
+  unsigned int maxsub;       ///< Size of iterative subspace ... set to 0 or 1 to disable
+  double orbitalshift;       ///< scf orbital shift: shift the occ orbitals to lower energies
+  int npt_plot;              ///< No. of points to use in each dim for plots
   Tensor<double> plot_cell;  ///< lo hi in each dimension for plotting (default is all space)
   std::string aobasis;       ///< AO basis used for initial guess (6-31g or sto-3g)
   std::string core_type;     ///< core potential type ("" or "mcp")
   bool derivatives;          ///< If true calculate derivatives
   bool dipole;               ///< If true calculate dipole moment
-  bool conv_only_dens;  ///< If true remove bsh_residual from convergence criteria   how ugly name
-                        ///< is...
-  bool psp_calc;        ///< pseudopotential calculation for all atoms
+  bool conv_only_dens;       ///< If true remove bsh_residual from convergence criteria   how ugly name is...
+  bool psp_calc;             ///< pseudopotential calculation for all atoms
   bool print_dipole_matels;  ///< If true output dipole matrix elements
   // Next list inferred parameters
   int nalpha;                         ///< Number of alpha spin electrons
@@ -421,28 +404,27 @@ struct CalculationParameters {
   bool ginitial_hessian;              ///< compute inital hessian for optimization
   std::string algopt;                 ///< algorithm used for optimization
   bool hessian;                       ///< compute the hessian matrix
-  bool read_cphf;       ///< read the converged orbital response for nuclear displacements from file
-  bool restart_cphf;    ///< read the guess orbital response for nuclear displacements from file
-  bool purify_hessian;  ///< symmetrize the hessian matrix based on atomic charges
-  bool tdksprop;        ///< time-dependent Kohn-Sham equation propagate
-  std::string nuclear_corrfac;  ///< nuclear correlation factor
-  bool pure_ae;                 ///< pure all electron calculation with no pseudo-atoms
-  int nv_factor;         ///< factor to multiply number of virtual orbitals with when automatically
-                         ///< decreasing nvirt
+  bool read_cphf;                     ///< read the converged orbital response for nuclear displacements from file
+  bool restart_cphf;                  ///< read the guess orbital response for nuclear displacements from file
+  bool purify_hessian;                ///< symmetrize the hessian matrix based on atomic charges
+  bool tdksprop;                      ///< time-dependent Kohn-Sham equation propagate
+  std::string nuclear_corrfac;        ///< nuclear correlation factor
+  bool pure_ae;                       ///< pure all electron calculation with no pseudo-atoms
+  int nv_factor;         ///< factor to multiply number of virtual orbitals with when automatically decreasing nvirt
   int vnucextra;         // load balance parameter for nuclear pot.
   int loadbalparts = 2;  // was 6
   std::string pcm_data;  ///< do a PCM (solvent) calculation
-  std::string ac_data;   ///< do a calculation with asymptotic correction (see ACParameters class in
-                         ///< chem/AC.h for details)
+  std::string
+      ac_data;  ///< do a calculation with asymptotic correction (see ACParameters class in chem/AC.h for details)
 
   // Next list for response code from a4v4
-  bool response;                    ///< response function calculation
-  double response_freq;             ///< Frequency for calculation response function
-  std::vector<bool> response_axis;  ///< Calculation protocol
-  bool nonrotate;                   ///< If true do not molcule orient
-  double rconv;                     ///< Response convergence
-  double efield;                    ///< eps for finite field
-  double efield_axis;               ///< eps for finite field axis
+  bool response;                                     ///< response function calculation
+  double response_freq;                              ///< Frequency for calculation response function
+  std::vector<bool> response_axis;                   ///< Calculation protocol
+  bool nonrotate;                                    ///< If true do not molcule orient
+  double rconv;                                      ///< Response convergence
+  double efield;                                     ///< eps for finite field
+  double efield_axis;                                ///< eps for finite field axis
   std::map<std::string, std::string> generalkeyval;  ///< general new key/value pair
 
   // Different derivatives can be used
@@ -459,17 +441,15 @@ struct CalculationParameters {
 
   template <typename Archive>
   void serialize(Archive& ar) {
-    ar& charge& smear& econv& dconv& k& L& maxrotn& nvalpha& nvbeta& nopen& maxiter& nio&
-        spin_restricted;
-    ar& plotlo& plothi& plotdens& plotcoul& localize& localize_pm& localize_boys& localize_new&
-        symmetry& restart& restartao& save& no_compute& no_orient& maxsub& orbitalshift& npt_plot&
-            plot_cell& aobasis;
+    ar& charge& smear& econv& dconv& k& L& maxrotn& nvalpha& nvbeta& nopen& maxiter& nio& spin_restricted;
+    ar& plotlo& plothi& plotdens& plotcoul& localize& localize_pm& localize_boys& localize_new& symmetry& restart&
+        restartao& save& no_compute& no_orient& maxsub& orbitalshift& npt_plot& plot_cell& aobasis;
     ar& nalpha& nbeta& nmo_alpha& nmo_beta& lo;
     ar& core_type& derivatives& conv_only_dens& dipole;
     ar& xc_data& protocol_data;
-    ar& gopt& gtol& gtest& gval& gprec& gmaxiter& ginitial_hessian& algopt& tdksprop&
-        nuclear_corrfac& psp_calc& print_dipole_matels& pure_ae& hessian& read_cphf& restart_cphf&
-            purify_hessian& vnucextra& loadbalparts& pcm_data& ac_data& deriv& dft_deriv;
+    ar& gopt& gtol& gtest& gval& gprec& gmaxiter& ginitial_hessian& algopt& tdksprop& nuclear_corrfac& psp_calc&
+        print_dipole_matels& pure_ae& hessian& read_cphf& restart_cphf& purify_hessian& vnucextra& loadbalparts&
+            pcm_data& ac_data& deriv& dft_deriv;
   }
 
   CalculationParameters()
@@ -614,14 +594,13 @@ struct CalculationParameters {
         f >> npt_plot;
       } else if (s == "plotcell") {
         plot_cell = Tensor<double>(3L, 2L);
-        f >> plot_cell(0, 0) >> plot_cell(0, 1) >> plot_cell(1, 0) >> plot_cell(1, 1) >>
-            plot_cell(2, 0) >> plot_cell(2, 1);
+        f >> plot_cell(0, 0) >> plot_cell(0, 1) >> plot_cell(1, 0) >> plot_cell(1, 1) >> plot_cell(2, 0) >>
+            plot_cell(2, 1);
       } else if (s == "aobasis") {
         f >> aobasis;
         if (aobasis != "sto-3g" && aobasis != "sto-6g" && aobasis != "6-31g") {
-          std::cout
-              << "moldft: unrecognized aobasis (sto-3g or sto-6g or 6-31g only): proceed with care "
-              << aobasis << std::endl;
+          std::cout << "moldft: unrecognized aobasis (sto-3g or sto-6g or 6-31g only): proceed with care " << aobasis
+                    << std::endl;
           // MADNESS_EXCEPTION("input_error", 0);
         }
       } else if (s == "canon") {
@@ -657,8 +636,7 @@ struct CalculationParameters {
         } else if (tmp_save == "false") {
           save = false;
         } else {
-          std::cout << "moldft: unrecognized value for save (true or false only): " << tmp_save
-                    << std::endl;
+          std::cout << "moldft: unrecognized value for save (true or false only): " << tmp_save << std::endl;
           MADNESS_EXCEPTION("input_error", 0);
         }
       } else if (s == "no_compute") {
@@ -784,9 +762,7 @@ struct CalculationParameters {
     if (nvalpha || nvbeta) localize = false;  // must use canonical orbitals if computing virtuals
   }
 
-  void set_molecular_info(const Molecule& molecule,
-                          const AtomicBasisSet& aobasis,
-                          unsigned int n_core) {
+  void set_molecular_info(const Molecule& molecule, const AtomicBasisSet& aobasis, unsigned int n_core) {
     double z = molecule.total_nuclear_charge();
     int nelec = int(z - charge - n_core * 2);
     if (fabs(nelec + charge + n_core * 2 - z) > 1e-6) {
