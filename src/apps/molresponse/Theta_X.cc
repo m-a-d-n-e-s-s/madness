@@ -1,7 +1,7 @@
 
 #include <madness/constants.h>
 #include <madness/mra/mra.h>
-#include <madness/mra/nonlinsol.h> // The kain solver
+#include <madness/mra/nonlinsol.h>  // The kain solver
 #include <madness/mra/operator.h>
 #include <math.h>
 #include <stdio.h>
@@ -30,8 +30,7 @@
 #include "molresponse/timer.h"
 #include "molresponse/x_space.h"
 
-X_space
-TDDFT::Compute_Theta_X(World& world, X_space& Chi, XCOperator<double, 3> xc, bool compute_Y) {
+X_space TDDFT::Compute_Theta_X(World& world, X_space& Chi, XCOperator<double, 3> xc, bool compute_Y) {
   print("-------------------Compute Theta X-------------------");
   print("x_norms in Theta X ");
   print(Chi.X.norm2());
@@ -41,9 +40,9 @@ TDDFT::Compute_Theta_X(World& world, X_space& Chi, XCOperator<double, 3> xc, boo
   X_space gamma;
   // compute
   if (compute_Y) {
-    gamma = ComputeGammaFull(world, Chi, xc);
+    gamma = compute_gamma_full(world, Chi, xc);
   } else {
-    gamma = ComputeGammaStatic(world, Chi, xc);
+    gamma = compute_gamma_static(world, Chi, xc);
   }
 
   X_space Theta_X = X_space(world, size_states(Chi), size_orbitals(Chi));

@@ -35,9 +35,9 @@ X_space TDDFT::Compute_Lambda_X(World& world, X_space& Chi, XCOperator<double, 3
   X_space gamma;
   // compute
   if (compute_Y) {
-    gamma = ComputeGammaFull(world, Chi, xc);
+    gamma = compute_gamma_full(world, Chi, xc);
   } else {
-    gamma = ComputeGammaStatic(world, Chi, xc);
+    gamma = compute_gamma_static(world, Chi, xc);
   }
 
   X_space Lambda_X = X_space(world, size_states(Chi), size_orbitals(Chi));
