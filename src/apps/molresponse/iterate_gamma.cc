@@ -8,14 +8,14 @@
 #include <string>
 #include <utility>
 
-#include "../chem/NWChem.h"  // For nwchem interface
+#include "../chem/NWChem.h" // For nwchem interface
 #include "../chem/SCFOperators.h"
 #include "../chem/molecule.h"
 #include "Plot_VTK.h"
 #include "TDDFT.h"
 #include "basic_operators.h"
 #include "chem/potentialmanager.h"
-#include "chem/projector.h"  // For easy calculation of (1 - \hat{\rho}^0)
+#include "chem/projector.h" // For easy calculation of (1 - \hat{\rho}^0)
 #include "load_balance.h"
 #include "madness/mra/funcdefaults.h"
 #include "molresponse/density.h"
@@ -34,7 +34,8 @@ GammaResponseFunctions TDDFT::ComputeGammaFunctions(World& world,
                                                     bool compute_Y) {
   // Start a timer
   //
-  if (r_params.print_level() >= 1) molresponse::start_timer(world);
+  if (r_params.print_level() >= 1)
+    molresponse::start_timer(world);
   //
   print("-------------------Gamma Functions-------------------");
 
@@ -122,7 +123,7 @@ GammaResponseFunctions TDDFT::ComputeGammaFunctions(World& world,
     temp_J = apply(op, rho_omega[b]);
     temp_J.truncate();
     J[b] = mul(world, temp_J,
-               ground_orbitals);  // multiply by k
+               ground_orbitals); // multiply by k
     // if xcf not zero
     if (xcf.hf_exchange_coefficient() != 1.0) {
       W[b] = mul(world, Wphi[b], ground_orbitals);
@@ -168,7 +169,8 @@ GammaResponseFunctions TDDFT::ComputeGammaFunctions(World& world,
   print(gamma.gamma.norm2());
 
   if (compute_Y) {
-    gamma.gamma_conjugate = (J * 2) - (Kx_conjugate + Ky_conjugate) * xcf.hf_exchange_coefficient() + W;
+    gamma.gamma_conjugate =
+        (J * 2) - (Kx_conjugate + Ky_conjugate) * xcf.hf_exchange_coefficient() + W;
   }
   // project out ground state
   for (size_t i = 0; i < m; i++) {
@@ -194,7 +196,8 @@ GammaResponseFunctions TDDFT::ComputeGammaFunctions(World& world,
   }
 
   // End timer
-  if (r_params.print_level() >= 1) molresponse::end_timer(world, "   Creating Gamma:");
+  if (r_params.print_level() >= 1)
+    molresponse::end_timer(world, "   Creating Gamma:");
 
   // Done
   world.gop.fence();
@@ -202,8 +205,9 @@ GammaResponseFunctions TDDFT::ComputeGammaFunctions(World& world,
   // Get sizes
 }
 
-X_space TDDFT::ComputeGammaFull(World& world, X_space& Chi, XCOperator<double, 3> xc) {
-  if (r_params.print_level() >= 1) molresponse::start_timer(world);
+X_space TDDFT::compute_gamma_full(World& world, X_space& Chi, XCOperator<double, 3> xc) {
+  if (r_params.print_level() >= 1)
+    molresponse::start_timer(world);
   print("-------------------Gamma Functions-------------------");
   print("x_norms in Gamma Functions ");
   print(Chi.X.norm2());
@@ -327,7 +331,8 @@ X_space TDDFT::ComputeGammaFull(World& world, X_space& Chi, XCOperator<double, 3
   }
 
   // End timer
-  if (r_params.print_level() >= 1) molresponse::end_timer(world, "   Creating Gamma:");
+  if (r_params.print_level() >= 1)
+    molresponse::end_timer(world, "   Creating Gamma:");
 
   // Done
   world.gop.fence();
@@ -335,8 +340,9 @@ X_space TDDFT::ComputeGammaFull(World& world, X_space& Chi, XCOperator<double, 3
   // Get sizes
 }
 
-X_space TDDFT::ComputeGammaStatic(World& world, X_space& Chi, XCOperator<double, 3> xc) {
-  if (r_params.print_level() >= 1) molresponse::start_timer(world);
+X_space TDDFT::compute_gamma_static(World& world, X_space& Chi, XCOperator<double, 3> xc) {
+  if (r_params.print_level() >= 1)
+    molresponse::start_timer(world);
   print("-------------------Gamma Functions-------------------");
   print("x_norms in Gamma Functions ");
   print(Chi.X.norm2());
@@ -438,7 +444,8 @@ X_space TDDFT::ComputeGammaStatic(World& world, X_space& Chi, XCOperator<double,
   }
 
   // End timer
-  if (r_params.print_level() >= 1) molresponse::end_timer(world, "   Creating Gamma:");
+  if (r_params.print_level() >= 1)
+    molresponse::end_timer(world, "   Creating Gamma:");
 
   // Done
   world.gop.fence();
@@ -446,10 +453,11 @@ X_space TDDFT::ComputeGammaStatic(World& world, X_space& Chi, XCOperator<double,
   // Get sizes
 }
 
-X_space TDDFT::ComputeGammaTDA(World& world, X_space& Chi, XCOperator<double, 3> xc) {
+X_space TDDFT::compute_gamma_TDA(World& world, X_space& Chi, XCOperator<double, 3> xc) {
   // Start a timer
   //
-  if (r_params.print_level() >= 1) molresponse::start_timer(world);
+  if (r_params.print_level() >= 1)
+    molresponse::start_timer(world);
   //
   print("-------------------Gamma Functions-------------------");
   print("x_norms in Gamma Functions ");
@@ -491,7 +499,7 @@ X_space TDDFT::ComputeGammaTDA(World& world, X_space& Chi, XCOperator<double, 3>
     temp_J = apply(op, rho_omega[b]);
     temp_J.truncate();
     J[b] = mul(world, temp_J,
-               ground_orbitals);  // multiply by k
+               ground_orbitals); // multiply by k
     for (size_t p = 0; p < n; p++) {
       // multiply the kth orbital to vector of y[b] response funtions...apply
       // op
@@ -532,7 +540,8 @@ X_space TDDFT::ComputeGammaTDA(World& world, X_space& Chi, XCOperator<double, 3>
   }
 
   // End timer
-  if (r_params.print_level() >= 1) molresponse::end_timer(world, "   Creating Gamma X:");
+  if (r_params.print_level() >= 1)
+    molresponse::end_timer(world, "   Creating Gamma X:");
 
   // Done
   world.gop.fence();
