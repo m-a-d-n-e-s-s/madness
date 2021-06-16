@@ -141,6 +141,11 @@ print
 	- insert beta to vm=amo
 	- insert residuals
 4. BSH residual is max (aerr,berr)
+5. broadcast(bsh_residual)
+6. compress vm and rm
+7. Subspace = pair of vm and residuals
+
+
 
 
 
