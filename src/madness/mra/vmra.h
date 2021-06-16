@@ -96,9 +96,7 @@ namespace madness {
 
 /// Compress a vector of functions
 template <typename T, std::size_t NDIM>
-void compress(World& world,
-              const std::vector<Function<T, NDIM>>& v,
-              bool fence = true) {
+void compress(World& world, const std::vector<Function<T, NDIM>>& v, bool fence = true) {
   PROFILE_BLOCK(Vcompress);
   bool must_fence = false;
   for (unsigned int i = 0; i < v.size(); ++i) {
@@ -113,9 +111,7 @@ void compress(World& world,
 
 /// Reconstruct a vector of functions
 template <typename T, std::size_t NDIM>
-void reconstruct(World& world,
-                 const std::vector<Function<T, NDIM>>& v,
-                 bool fence = true) {
+void reconstruct(World& world, const std::vector<Function<T, NDIM>>& v, bool fence = true) {
   PROFILE_BLOCK(Vreconstruct);
   bool must_fence = false;
   for (unsigned int i = 0; i < v.size(); ++i) {
@@ -130,9 +126,7 @@ void reconstruct(World& world,
 
 /// refine the functions according to the autorefine criteria
 template <typename T, std::size_t NDIM>
-void refine(World& world,
-            const std::vector<Function<T, NDIM>>& vf,
-            bool fence = true) {
+void refine(World& world, const std::vector<Function<T, NDIM>>& vf, bool fence = true) {
   for (const auto& f : vf) f.refine(false);
   if (fence) world.gop.fence();
 }
@@ -141,9 +135,7 @@ void refine(World& world,
 
 /// if functions are not initialized (impl==NULL) they are ignored
 template <typename T, std::size_t NDIM>
-void refine_to_common_level(World& world,
-                            std::vector<Function<T, NDIM>>& vf,
-                            bool fence = true) {
+void refine_to_common_level(World& world, std::vector<Function<T, NDIM>>& vf, bool fence = true) {
   reconstruct(world, vf);
   Key<NDIM> key0(0, Vector<Translation, NDIM>(0));
   std::vector<FunctionImpl<T, NDIM>*> v_ptr;
@@ -168,9 +160,7 @@ void refine_to_common_level(World& world,
 
 /// Generates non-standard form of a vector of functions
 template <typename T, std::size_t NDIM>
-void nonstandard(World& world,
-                 std::vector<Function<T, NDIM>>& v,
-                 bool fence = true) {
+void nonstandard(World& world, std::vector<Function<T, NDIM>>& v, bool fence = true) {
   PROFILE_BLOCK(Vnonstandard);
   reconstruct(world, v);
   for (unsigned int i = 0; i < v.size(); ++i) {
@@ -181,9 +171,7 @@ void nonstandard(World& world,
 
 /// Generates standard form of a vector of functions
 template <typename T, std::size_t NDIM>
-void standard(World& world,
-              std::vector<Function<T, NDIM>>& v,
-              bool fence = true) {
+void standard(World& world, std::vector<Function<T, NDIM>>& v, bool fence = true) {
   PROFILE_BLOCK(Vstandard);
   for (unsigned int i = 0; i < v.size(); ++i) {
     v[i].standard(false);
@@ -193,10 +181,7 @@ void standard(World& world,
 
 /// Truncates a vector of functions
 template <typename T, std::size_t NDIM>
-void truncate(World& world,
-              std::vector<Function<T, NDIM>>& v,
-              double tol = 0.0,
-              bool fence = true) {
+void truncate(World& world, std::vector<Function<T, NDIM>>& v, double tol = 0.0, bool fence = true) {
   PROFILE_BLOCK(Vtruncate);
 
   compress(world, v);
@@ -212,9 +197,7 @@ void truncate(World& world,
 
 /// @return the truncated vector for chaining
 template <typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM>> truncate(std::vector<Function<T, NDIM>> v,
-                                        double tol = 0.0,
-                                        bool fence = true) {
+std::vector<Function<T, NDIM>> truncate(std::vector<Function<T, NDIM>> v, double tol = 0.0, bool fence = true) {
   if (v.size() > 0) truncate(v[0].world(), v, tol, fence);
   return v;
 }
@@ -236,13 +219,10 @@ std::vector<Function<T, NDIM>> apply(World& world,
 
 /// Generates a vector of zero functions (reconstructed)
 template <typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM>> zero_functions(World& world,
-                                              int n,
-                                              bool fence = true) {
+std::vector<Function<T, NDIM>> zero_functions(World& world, int n, bool fence = true) {
   PROFILE_BLOCK(Vzero_functions);
   std::vector<Function<T, NDIM>> r(n);
-  for (int i = 0; i < n; ++i)
-    r[i] = Function<T, NDIM>(FunctionFactory<T, NDIM>(world).fence(false));
+  for (int i = 0; i < n; ++i) r[i] = Function<T, NDIM>(FunctionFactory<T, NDIM>(world).fence(false));
 
   if (n && fence) world.gop.fence();
 
@@ -251,16 +231,11 @@ std::vector<Function<T, NDIM>> zero_functions(World& world,
 
 /// Generates a vector of zero functions (compressed)
 template <typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM>> zero_functions_compressed(World& world,
-                                                         int n,
-                                                         bool fence = true) {
+std::vector<Function<T, NDIM>> zero_functions_compressed(World& world, int n, bool fence = true) {
   PROFILE_BLOCK(Vzero_functions);
   std::vector<Function<T, NDIM>> r(n);
   for (int i = 0; i < n; ++i)
-    r[i] = Function<T, NDIM>(FunctionFactory<T, NDIM>(world)
-                                 .fence(false)
-                                 .compressed(true)
-                                 .initial_level(1));
+    r[i] = Function<T, NDIM>(FunctionFactory<T, NDIM>(world).fence(false).compressed(true).initial_level(1));
 
   if (n && fence) world.gop.fence();
 
@@ -271,9 +246,8 @@ std::vector<Function<T, NDIM>> zero_functions_compressed(World& world,
 /// @param[in] the vector to orthonormalize
 /// @param[in] overlap matrix
 template <typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM>> orthonormalize_symmetric(
-    const std::vector<Function<T, NDIM>>& v,
-    const Tensor<T>& ovlp) {
+std::vector<Function<T, NDIM>> orthonormalize_symmetric(const std::vector<Function<T, NDIM>>& v,
+                                                        const Tensor<T>& ovlp) {
   if (v.empty()) return v;
 
   Tensor<T> U;
@@ -300,8 +274,7 @@ std::vector<Function<T, NDIM>> orthonormalize_symmetric(
 /// Szabo/Ostlund) overlap matrix is calculated
 /// @param[in] the vector to orthonormalize
 template <typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM>> orthonormalize_symmetric(
-    const std::vector<Function<T, NDIM>>& v) {
+std::vector<Function<T, NDIM>> orthonormalize_symmetric(const std::vector<Function<T, NDIM>>& v) {
   if (v.empty()) return v;
 
   World& world = v.front().world();
@@ -316,10 +289,9 @@ std::vector<Function<T, NDIM>> orthonormalize_symmetric(
 /// @param[in]	lindep	linear dependency threshold relative to largest
 /// eigenvalue
 template <typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM>> orthonormalize_canonical(
-    const std::vector<Function<T, NDIM>>& v,
-    const Tensor<T>& ovlp,
-    double lindep) {
+std::vector<Function<T, NDIM>> orthonormalize_canonical(const std::vector<Function<T, NDIM>>& v,
+                                                        const Tensor<T>& ovlp,
+                                                        double lindep) {
   if (v.empty()) return v;
 
   Tensor<T> U;
@@ -356,9 +328,7 @@ std::vector<Function<T, NDIM>> orthonormalize_canonical(
 /// (see e.g. Szabo/Ostlund) overlap matrix is calculated
 /// @param[in] the vector to orthonormalize
 template <typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM>> orthonormalize_canonical(
-    const std::vector<Function<T, NDIM>>& v,
-    const double lindep) {
+std::vector<Function<T, NDIM>> orthonormalize_canonical(const std::vector<Function<T, NDIM>>& v, const double lindep) {
   if (v.empty()) return v;
 
   World& world = v.front().world();
@@ -371,9 +341,7 @@ std::vector<Function<T, NDIM>> orthonormalize_canonical(
 /// @param[in] the vector to orthonormalize
 /// @param[in] overlap matrix, destroyed on return!
 template <typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM>> orthonormalize_cd(
-    const std::vector<Function<T, NDIM>>& v,
-    Tensor<T>& ovlp) {
+std::vector<Function<T, NDIM>> orthonormalize_cd(const std::vector<Function<T, NDIM>>& v, Tensor<T>& ovlp) {
   if (v.empty()) return v;
 
   cholesky(ovlp);  // destroys ovlp and gives back Upper ∆ Matrix from CD
@@ -390,8 +358,7 @@ std::vector<Function<T, NDIM>> orthonormalize_cd(
 /// @param[in] the vector to orthonormalize
 /// @param[in] overlap matrix
 template <typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM>> orthonormalize_cd(
-    const std::vector<Function<T, NDIM>>& v) {
+std::vector<Function<T, NDIM>> orthonormalize_cd(const std::vector<Function<T, NDIM>>& v) {
   if (v.empty()) return v;
 
   World& world = v.front().world();
@@ -407,19 +374,16 @@ std::vector<Function<T, NDIM>> orthonormalize_cd(
 /// @param[out] rank
 /// @return orthonrormalized vector (may or may not be truncated)
 template <typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM>> orthonormalize_rrcd(
-    const std::vector<Function<T, NDIM>>& v,
-    Tensor<T>& ovlp,
-    const double tol,
-    Tensor<integer>& piv,
-    int& rank) {
+std::vector<Function<T, NDIM>> orthonormalize_rrcd(const std::vector<Function<T, NDIM>>& v,
+                                                   Tensor<T>& ovlp,
+                                                   const double tol,
+                                                   Tensor<integer>& piv,
+                                                   int& rank) {
   if (v.empty()) {
     return v;
   }
 
-  rr_cholesky(ovlp,
-              tol,
-              piv,
+  rr_cholesky(ovlp, tol, piv,
               rank);  // destroys ovlp and gives back Upper ∆ Matrix from CCD
 
   // rearrange and truncate the functions according to the pivoting of the
@@ -444,10 +408,9 @@ std::vector<Function<T, NDIM>> orthonormalize_rrcd(
 /// @param[in] overlap matrix
 /// @param[in] tolerance for numerical rank reduction
 template <typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM>> orthonormalize_rrcd(
-    const std::vector<Function<T, NDIM>>& v,
-    Tensor<T> ovlp,
-    const double tol) {
+std::vector<Function<T, NDIM>> orthonormalize_rrcd(const std::vector<Function<T, NDIM>>& v,
+                                                   Tensor<T> ovlp,
+                                                   const double tol) {
   Tensor<integer> piv;
   int rank;
   return orthonormalize_rrcd(v, ovlp, tol, piv, rank);
@@ -458,9 +421,7 @@ std::vector<Function<T, NDIM>> orthonormalize_rrcd(
 /// @param[in] the vector to orthonormalize
 /// @param[in] tolerance for numerical rank reduction
 template <typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM>> orthonormalize_rrcd(
-    const std::vector<Function<T, NDIM>>& v,
-    const double tol) {
+std::vector<Function<T, NDIM>> orthonormalize_rrcd(const std::vector<Function<T, NDIM>>& v, const double tol) {
   if (v.empty()) {
     return v;
   }
@@ -472,17 +433,15 @@ std::vector<Function<T, NDIM>> orthonormalize_rrcd(
 
 /// combine two vectors
 template <typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM>> append(
-    const std::vector<Function<T, NDIM>>& lhs,
-    const std::vector<Function<T, NDIM>>& rhs) {
+std::vector<Function<T, NDIM>> append(const std::vector<Function<T, NDIM>>& lhs,
+                                      const std::vector<Function<T, NDIM>>& rhs) {
   std::vector<Function<T, NDIM>> v = lhs;
   for (std::size_t i = 0; i < rhs.size(); ++i) v.push_back(rhs[i]);
   return v;
 }
 
 template <typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM>> append(
-    const std::vector<std::vector<Function<T, NDIM>>> vv) {
+std::vector<Function<T, NDIM>> append(const std::vector<std::vector<Function<T, NDIM>>> vv) {
   std::vector<Function<T, NDIM>> result;
   for (const auto& x : vv) result = append(result, x);
   return result;
@@ -493,25 +452,22 @@ std::vector<Function<T, NDIM>> append(
 /// Uses sparsity in the transformation matrix --- set small elements to
 /// zero to take advantage of this.
 template <typename T, typename R, std::size_t NDIM>
-std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> transform(
-    World& world,
-    const std::vector<Function<T, NDIM>>& v,
-    const Tensor<R>& c,
-    bool fence = true) {
+std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> transform(World& world,
+                                                                const std::vector<Function<T, NDIM>>& v,
+                                                                const Tensor<R>& c,
+                                                                bool fence = true) {
   PROFILE_BLOCK(Vtransformsp);
   typedef TENSOR_RESULT_TYPE(T, R) resultT;
   int n = v.size();  // n is the old dimension
   int m = c.dim(1);  // m is the new dimension
   MADNESS_ASSERT(n == c.dim(0));
 
-  std::vector<Function<resultT, NDIM>> vc =
-      zero_functions_compressed<resultT, NDIM>(world, m);
+  std::vector<Function<resultT, NDIM>> vc = zero_functions_compressed<resultT, NDIM>(world, m);
   compress(world, v);
 
   for (int i = 0; i < m; ++i) {
     for (int j = 0; j < n; ++j) {
-      if (c(j, i) != R(0.0))
-        vc[i].gaxpy(resultT(1.0), v[j], resultT(c(j, i)), false);
+      if (c(j, i) != R(0.0)) vc[i].gaxpy(resultT(1.0), v[j], resultT(c(j, i)), false);
     }
   }
 
@@ -520,18 +476,16 @@ std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> transform(
 }
 
 template <typename L, typename R, std::size_t NDIM>
-std::vector<Function<TENSOR_RESULT_TYPE(L, R), NDIM>> transform(
-    World& world,
-    const std::vector<Function<L, NDIM>>& v,
-    const Tensor<R>& c,
-    double tol,
-    bool fence) {
+std::vector<Function<TENSOR_RESULT_TYPE(L, R), NDIM>> transform(World& world,
+                                                                const std::vector<Function<L, NDIM>>& v,
+                                                                const Tensor<R>& c,
+                                                                double tol,
+                                                                bool fence) {
   PROFILE_BLOCK(Vtransform);
   MADNESS_ASSERT(v.size() == (unsigned int)(c.dim(0)));
 
   std::vector<Function<TENSOR_RESULT_TYPE(L, R), NDIM>> vresult =
-      zero_functions_compressed<TENSOR_RESULT_TYPE(L, R), NDIM>(world,
-                                                                c.dim(1));
+      zero_functions_compressed<TENSOR_RESULT_TYPE(L, R), NDIM>(world, c.dim(1));
 
   compress(world, v, true);
   vresult[0].vtransform(v, c, vresult, tol, fence);
@@ -539,11 +493,10 @@ std::vector<Function<TENSOR_RESULT_TYPE(L, R), NDIM>> transform(
 }
 
 template <typename T, typename R, std::size_t NDIM>
-std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> transform(
-    World& world,
-    const std::vector<Function<T, NDIM>>& v,
-    const DistributedMatrix<R>& c,
-    bool fence = true) {
+std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> transform(World& world,
+                                                                const std::vector<Function<T, NDIM>>& v,
+                                                                const DistributedMatrix<R>& c,
+                                                                bool fence = true) {
   PROFILE_FUNC;
 
   typedef TENSOR_RESULT_TYPE(T, R) resultT;
@@ -557,8 +510,7 @@ std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> transform(
   c.copy_to_replicated(tmp);  // for debugging
   tmp = transpose(tmp);
 
-  std::vector<Function<resultT, NDIM>> vc =
-      zero_functions_compressed<resultT, NDIM>(world, m);
+  std::vector<Function<resultT, NDIM>> vc = zero_functions_compressed<resultT, NDIM>(world, m);
   compress(world, v);
 
   for (int i = 0; i < m; ++i) {
@@ -573,10 +525,7 @@ std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> transform(
 
 /// Scales inplace a vector of functions by distinct values
 template <typename T, typename Q, std::size_t NDIM>
-void scale(World& world,
-           std::vector<Function<T, NDIM>>& v,
-           const std::vector<Q>& factors,
-           bool fence = true) {
+void scale(World& world, std::vector<Function<T, NDIM>>& v, const std::vector<Q>& factors, bool fence = true) {
   PROFILE_BLOCK(Vscale);
   for (unsigned int i = 0; i < v.size(); ++i) v[i].scale(factors[i], false);
   if (fence) world.gop.fence();
@@ -584,10 +533,7 @@ void scale(World& world,
 
 /// Scales inplace a vector of functions by the same
 template <typename T, typename Q, std::size_t NDIM>
-void scale(World& world,
-           std::vector<Function<T, NDIM>>& v,
-           const Q factor,
-           bool fence = true) {
+void scale(World& world, std::vector<Function<T, NDIM>>& v, const Q factor, bool fence = true) {
   PROFILE_BLOCK(Vscale);
   for (unsigned int i = 0; i < v.size(); ++i) v[i].scale(factor, false);
   if (fence) world.gop.fence();
@@ -595,8 +541,7 @@ void scale(World& world,
 
 /// Computes the 2-norms of a vector of functions
 template <typename T, std::size_t NDIM>
-std::vector<double> norm2s(World& world,
-                           const std::vector<Function<T, NDIM>>& v) {
+std::vector<double> norm2s(World& world, const std::vector<Function<T, NDIM>>& v) {
   PROFILE_BLOCK(Vnorm2);
   std::vector<double> norms(v.size());
   for (unsigned int i = 0; i < v.size(); ++i) norms[i] = v[i].norm2sq_local();
@@ -691,11 +636,10 @@ DistributedMatrix<T> matrix_inner(const DistributedMatrixDistribution& d,
 ///
 /// The current parallel loop is non-optimal but functional.
 template <typename T, typename R, std::size_t NDIM>
-Tensor<TENSOR_RESULT_TYPE(T, R)> matrix_inner(
-    World& world,
-    const std::vector<Function<T, NDIM>>& f,
-    const std::vector<Function<R, NDIM>>& g,
-    bool sym = false) {
+Tensor<TENSOR_RESULT_TYPE(T, R)> matrix_inner(World& world,
+                                              const std::vector<Function<T, NDIM>>& f,
+                                              const std::vector<Function<R, NDIM>>& g,
+                                              bool sym = false) {
   world.gop.fence();
   compress(world, f);
   if ((void*)(&f) != (void*)(&g)) compress(world, g);
@@ -705,8 +649,7 @@ Tensor<TENSOR_RESULT_TYPE(T, R)> matrix_inner(
   for (unsigned int i = 0; i < f.size(); i++) left[i] = f[i].get_impl().get();
   for (unsigned int i = 0; i < g.size(); i++) right[i] = g[i].get_impl().get();
 
-  Tensor<TENSOR_RESULT_TYPE(T, R)> r =
-      FunctionImpl<T, NDIM>::inner_local(left, right, sym);
+  Tensor<TENSOR_RESULT_TYPE(T, R)> r = FunctionImpl<T, NDIM>::inner_local(left, right, sym);
 
   world.gop.fence();
   world.gop.sum(r.ptr(), f.size() * g.size());
@@ -721,11 +664,10 @@ Tensor<TENSOR_RESULT_TYPE(T, R)> matrix_inner(
 ///
 /// The current parallel loop is non-optimal but functional.
 template <typename T, typename R, std::size_t NDIM>
-Tensor<TENSOR_RESULT_TYPE(T, R)> matrix_inner_old(
-    World& world,
-    const std::vector<Function<T, NDIM>>& f,
-    const std::vector<Function<R, NDIM>>& g,
-    bool sym = false) {
+Tensor<TENSOR_RESULT_TYPE(T, R)> matrix_inner_old(World& world,
+                                                  const std::vector<Function<T, NDIM>>& f,
+                                                  const std::vector<Function<R, NDIM>>& g,
+                                                  bool sym = false) {
   PROFILE_BLOCK(Vmatrix_inner);
   long n = f.size(), m = g.size();
   Tensor<TENSOR_RESULT_TYPE(T, R)> r(n, m);
@@ -766,10 +708,9 @@ Tensor<TENSOR_RESULT_TYPE(T, R)> matrix_inner_old(
 /// Computes the element-wise inner product of two function vectors - q(i) =
 /// inner(f[i],g[i])
 template <typename T, typename R, std::size_t NDIM>
-Tensor<TENSOR_RESULT_TYPE(T, R)> inner(
-    World& world,
-    const std::vector<Function<T, NDIM>>& f,
-    const std::vector<Function<R, NDIM>>& g) {
+Tensor<TENSOR_RESULT_TYPE(T, R)> inner(World& world,
+                                       const std::vector<Function<T, NDIM>>& f,
+                                       const std::vector<Function<R, NDIM>>& g) {
   PROFILE_BLOCK(Vinnervv);
   long n = f.size(), m = g.size();
   MADNESS_CHECK(n == m);
@@ -791,10 +732,9 @@ Tensor<TENSOR_RESULT_TYPE(T, R)> inner(
 /// Computes the inner product of a function with a function vector - q(i) =
 /// inner(f,g[i])
 template <typename T, typename R, std::size_t NDIM>
-Tensor<TENSOR_RESULT_TYPE(T, R)> inner(
-    World& world,
-    const Function<T, NDIM>& f,
-    const std::vector<Function<R, NDIM>>& g) {
+Tensor<TENSOR_RESULT_TYPE(T, R)> inner(World& world,
+                                       const Function<T, NDIM>& f,
+                                       const std::vector<Function<R, NDIM>>& g) {
   PROFILE_BLOCK(Vinner);
   long n = g.size();
   Tensor<TENSOR_RESULT_TYPE(T, R)> r(n);
@@ -816,8 +756,7 @@ Tensor<TENSOR_RESULT_TYPE(T, R)> inner(
 /// this is needed for the KAIN solvers and other functions
 template <typename T, typename R, std::size_t NDIM>
 TENSOR_RESULT_TYPE(T, R)
-inner(const std::vector<Function<T, NDIM>>& f,
-      const std::vector<Function<R, NDIM>>& g) {
+inner(const std::vector<Function<T, NDIM>>& f, const std::vector<Function<R, NDIM>>& g) {
   MADNESS_ASSERT(f.size() == g.size());
   if (f.empty())
     return 0.0;
@@ -827,11 +766,10 @@ inner(const std::vector<Function<T, NDIM>>& f,
 
 /// Multiplies a function against a vector of functions --- q[i] = a * v[i]
 template <typename T, typename R, std::size_t NDIM>
-std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> mul(
-    World& world,
-    const Function<T, NDIM>& a,
-    const std::vector<Function<R, NDIM>>& v,
-    bool fence = true) {
+std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> mul(World& world,
+                                                          const Function<T, NDIM>& a,
+                                                          const std::vector<Function<R, NDIM>>& v,
+                                                          bool fence = true) {
   PROFILE_BLOCK(Vmul);
   a.reconstruct(false);
   reconstruct(world, v, false);
@@ -842,12 +780,11 @@ std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> mul(
 /// Multiplies a function against a vector of functions using sparsity of a and
 /// v[i] --- q[i] = a * v[i]
 template <typename T, typename R, std::size_t NDIM>
-std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> mul_sparse(
-    World& world,
-    const Function<T, NDIM>& a,
-    const std::vector<Function<R, NDIM>>& v,
-    double tol,
-    bool fence = true) {
+std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> mul_sparse(World& world,
+                                                                 const Function<T, NDIM>& a,
+                                                                 const std::vector<Function<R, NDIM>>& v,
+                                                                 double tol,
+                                                                 bool fence = true) {
   PROFILE_BLOCK(Vmulsp);
   a.reconstruct(false);
   reconstruct(world, v, false);
@@ -861,9 +798,7 @@ std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> mul_sparse(
 
 /// Makes the norm tree for all functions in a vector
 template <typename T, std::size_t NDIM>
-void norm_tree(World& world,
-               const std::vector<Function<T, NDIM>>& v,
-               bool fence = true) {
+void norm_tree(World& world, const std::vector<Function<T, NDIM>>& v, bool fence = true) {
   PROFILE_BLOCK(Vnorm_tree);
   for (unsigned int i = 0; i < v.size(); ++i) {
     v[i].norm_tree(false);
@@ -873,11 +808,10 @@ void norm_tree(World& world,
 
 /// Multiplies two vectors of functions q[i] = a[i] * b[i]
 template <typename T, typename R, std::size_t NDIM>
-std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> mul(
-    World& world,
-    const std::vector<Function<T, NDIM>>& a,
-    const std::vector<Function<R, NDIM>>& b,
-    bool fence = true) {
+std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> mul(World& world,
+                                                          const std::vector<Function<T, NDIM>>& a,
+                                                          const std::vector<Function<R, NDIM>>& b,
+                                                          bool fence = true) {
   PROFILE_BLOCK(Vmulvv);
   reconstruct(world, a, true);
   reconstruct(world, b, true);
@@ -894,9 +828,7 @@ std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> mul(
 
 /// Computes the square of a vector of functions --- q[i] = v[i]**2
 template <typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM>> square(World& world,
-                                      const std::vector<Function<T, NDIM>>& v,
-                                      bool fence = true) {
+std::vector<Function<T, NDIM>> square(World& world, const std::vector<Function<T, NDIM>>& v, bool fence = true) {
   return mul<T, T, NDIM>(world, v, v, fence);
   //         std::vector< Function<T,NDIM> > vsq(v.size());
   //         for (unsigned int i=0; i<v.size(); ++i) {
@@ -908,10 +840,9 @@ std::vector<Function<T, NDIM>> square(World& world,
 
 /// Computes the square of a vector of functions --- q[i] = abs(v[i])**2
 template <typename T, std::size_t NDIM>
-std::vector<Function<typename Tensor<T>::scalar_type, NDIM>> abssq(
-    World& world,
-    const std::vector<Function<T, NDIM>>& v,
-    bool fence = true) {
+std::vector<Function<typename Tensor<T>::scalar_type, NDIM>> abssq(World& world,
+                                                                   const std::vector<Function<T, NDIM>>& v,
+                                                                   bool fence = true) {
   typedef typename Tensor<T>::scalar_type scalartype;
   reconstruct(world, v);
   std::vector<Function<scalartype, NDIM>> result(v.size());
@@ -922,10 +853,7 @@ std::vector<Function<typename Tensor<T>::scalar_type, NDIM>> abssq(
 
 /// Sets the threshold in a vector of functions
 template <typename T, std::size_t NDIM>
-void set_thresh(World& world,
-                std::vector<Function<T, NDIM>>& v,
-                double thresh,
-                bool fence = true) {
+void set_thresh(World& world, std::vector<Function<T, NDIM>>& v, double thresh, bool fence = true) {
   for (unsigned int j = 0; j < v.size(); ++j) {
     v[j].set_thresh(thresh, false);
   }
@@ -934,12 +862,9 @@ void set_thresh(World& world,
 
 /// Returns the complex conjugate of the vector of functions
 template <typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM>> conj(World& world,
-                                    const std::vector<Function<T, NDIM>>& v,
-                                    bool fence = true) {
+std::vector<Function<T, NDIM>> conj(World& world, const std::vector<Function<T, NDIM>>& v, bool fence = true) {
   PROFILE_BLOCK(Vconj);
-  std::vector<Function<T, NDIM>> r =
-      copy(world, v);  // Currently don't have oop conj
+  std::vector<Function<T, NDIM>> r = copy(world, v);  // Currently don't have oop conj
   for (unsigned int i = 0; i < v.size(); ++i) {
     r[i].conj(false);
   }
@@ -949,9 +874,7 @@ std::vector<Function<T, NDIM>> conj(World& world,
 
 /// Returns a deep copy of a vector of functions
 template <typename T, typename R, std::size_t NDIM>
-std::vector<Function<R, NDIM>> convert(World& world,
-                                       const std::vector<Function<T, NDIM>>& v,
-                                       bool fence = true) {
+std::vector<Function<R, NDIM>> convert(World& world, const std::vector<Function<T, NDIM>>& v, bool fence = true) {
   PROFILE_BLOCK(Vcopy);
   std::vector<Function<R, NDIM>> r(v.size());
   for (unsigned int i = 0; i < v.size(); ++i) {
@@ -963,9 +886,7 @@ std::vector<Function<R, NDIM>> convert(World& world,
 
 /// Returns a deep copy of a vector of functions
 template <typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM>> copy(World& world,
-                                    const std::vector<Function<T, NDIM>>& v,
-                                    bool fence = true) {
+std::vector<Function<T, NDIM>> copy(World& world, const std::vector<Function<T, NDIM>>& v, bool fence = true) {
   PROFILE_BLOCK(Vcopy);
   std::vector<Function<T, NDIM>> r(v.size());
   for (unsigned int i = 0; i < v.size(); ++i) {
@@ -977,10 +898,7 @@ std::vector<Function<T, NDIM>> copy(World& world,
 
 /// Returns a vector of deep copies of of a function
 template <typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM>> copy(World& world,
-                                    const Function<T, NDIM>& v,
-                                    const unsigned int n,
-                                    bool fence = true) {
+std::vector<Function<T, NDIM>> copy(World& world, const Function<T, NDIM>& v, const unsigned int n, bool fence = true) {
   PROFILE_BLOCK(Vcopy1);
   std::vector<Function<T, NDIM>> r(n);
   for (unsigned int i = 0; i < n; ++i) {
@@ -992,11 +910,10 @@ std::vector<Function<T, NDIM>> copy(World& world,
 
 /// Returns new vector of functions --- q[i] = a[i] + b[i]
 template <typename T, typename R, std::size_t NDIM>
-std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> add(
-    World& world,
-    const std::vector<Function<T, NDIM>>& a,
-    const std::vector<Function<R, NDIM>>& b,
-    bool fence = true) {
+std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> add(World& world,
+                                                          const std::vector<Function<T, NDIM>>& a,
+                                                          const std::vector<Function<R, NDIM>>& b,
+                                                          bool fence = true) {
   PROFILE_BLOCK(Vadd);
   MADNESS_ASSERT(a.size() == b.size());
   compress(world, a);
@@ -1012,11 +929,10 @@ std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> add(
 
 /// Returns new vector of functions --- q[i] = a + b[i]
 template <typename T, typename R, std::size_t NDIM>
-std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> add(
-    World& world,
-    const Function<T, NDIM>& a,
-    const std::vector<Function<R, NDIM>>& b,
-    bool fence = true) {
+std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> add(World& world,
+                                                          const Function<T, NDIM>& a,
+                                                          const std::vector<Function<R, NDIM>>& b,
+                                                          bool fence = true) {
   PROFILE_BLOCK(Vadd1);
   a.compress();
   compress(world, b);
@@ -1029,21 +945,19 @@ std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> add(
   return r;
 }
 template <typename T, typename R, std::size_t NDIM>
-inline std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> add(
-    World& world,
-    const std::vector<Function<R, NDIM>>& b,
-    const Function<T, NDIM>& a,
-    bool fence = true) {
+inline std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> add(World& world,
+                                                                 const std::vector<Function<R, NDIM>>& b,
+                                                                 const Function<T, NDIM>& a,
+                                                                 bool fence = true) {
   return add(world, a, b, fence);
 }
 
 /// Returns new vector of functions --- q[i] = a[i] - b[i]
 template <typename T, typename R, std::size_t NDIM>
-std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> sub(
-    World& world,
-    const std::vector<Function<T, NDIM>>& a,
-    const std::vector<Function<R, NDIM>>& b,
-    bool fence = true) {
+std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> sub(World& world,
+                                                          const std::vector<Function<T, NDIM>>& a,
+                                                          const std::vector<Function<R, NDIM>>& b,
+                                                          bool fence = true) {
   PROFILE_BLOCK(Vsub);
   MADNESS_ASSERT(a.size() == b.size());
   compress(world, a);
@@ -1059,9 +973,7 @@ std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> sub(
 
 /// Returns new function --- q = sum_i f[i]
 template <typename T, std::size_t NDIM>
-Function<T, NDIM> sum(World& world,
-                      const std::vector<Function<T, NDIM>>& f,
-                      bool fence = true) {
+Function<T, NDIM> sum(World& world, const std::vector<Function<T, NDIM>>& f, bool fence = true) {
   compress(world, f);
   Function<T, NDIM> r = FunctionFactory<T, NDIM>(world).compressed();
 
@@ -1072,22 +984,21 @@ Function<T, NDIM> sum(World& world,
 
 /// Multiplies and sums two vectors of functions r = \sum_i a[i] * b[i]
 template <typename T, typename R, std::size_t NDIM>
-Function<TENSOR_RESULT_TYPE(T, R), NDIM> dot(
-    World& world,
-    const std::vector<Function<T, NDIM>>& a,
-    const std::vector<Function<R, NDIM>>& b,
-    bool fence = true) {
+Function<TENSOR_RESULT_TYPE(T, R), NDIM> dot(World& world,
+                                             const std::vector<Function<T, NDIM>>& a,
+                                             const std::vector<Function<R, NDIM>>& b,
+                                             bool fence = true) {
   return sum(world, mul(world, a, b, true), fence);
 }
 
 /// out-of-place gaxpy for two vectors: result[i] = alpha * a[i] + beta * b[i]
 template <typename T, typename Q, typename R, std::size_t NDIM>
-std::vector<Function<TENSOR_RESULT_TYPE(Q, TENSOR_RESULT_TYPE(T, R)), NDIM>>
-gaxpy_oop(Q alpha,
-          const std::vector<Function<T, NDIM>>& a,
-          Q beta,
-          const std::vector<Function<R, NDIM>>& b,
-          bool fence = true) {
+std::vector<Function<TENSOR_RESULT_TYPE(Q, TENSOR_RESULT_TYPE(T, R)), NDIM>> gaxpy_oop(
+    Q alpha,
+    const std::vector<Function<T, NDIM>>& a,
+    Q beta,
+    const std::vector<Function<R, NDIM>>& b,
+    bool fence = true) {
   MADNESS_ASSERT(a.size() == b.size());
   typedef TENSOR_RESULT_TYPE(Q, TENSOR_RESULT_TYPE(T, R)) resultT;
   if (a.size() == 0) return std::vector<Function<resultT, NDIM>>();
@@ -1107,11 +1018,7 @@ gaxpy_oop(Q alpha,
 /// beta * b
 template <typename T, typename Q, typename R, std::size_t NDIM>
 std::vector<Function<TENSOR_RESULT_TYPE(Q, TENSOR_RESULT_TYPE(T, R)), NDIM>>
-gaxpy_oop(Q alpha,
-          const std::vector<Function<T, NDIM>>& a,
-          Q beta,
-          const Function<R, NDIM>& b,
-          bool fence = true) {
+gaxpy_oop(Q alpha, const std::vector<Function<T, NDIM>>& a, Q beta, const Function<R, NDIM>& b, bool fence = true) {
   typedef TENSOR_RESULT_TYPE(Q, TENSOR_RESULT_TYPE(T, R)) resultT;
   if (a.size() == 0) return std::vector<Function<resultT, NDIM>>();
 
@@ -1149,21 +1056,18 @@ void gaxpy(World& world,
 /// Applies a vector of operators to a vector of functions --- q[i] =
 /// apply(op[i],f[i])
 template <typename opT, typename R, std::size_t NDIM>
-std::vector<Function<TENSOR_RESULT_TYPE(typename opT::opT, R), NDIM>> apply(
-    World& world,
-    const std::vector<std::shared_ptr<opT>>& op,
-    const std::vector<Function<R, NDIM>> f) {
+std::vector<Function<TENSOR_RESULT_TYPE(typename opT::opT, R), NDIM>> apply(World& world,
+                                                                            const std::vector<std::shared_ptr<opT>>& op,
+                                                                            const std::vector<Function<R, NDIM>> f) {
   PROFILE_BLOCK(Vapplyv);
   MADNESS_ASSERT(f.size() == op.size());
 
-  std::vector<Function<R, NDIM>>& ncf =
-      *const_cast<std::vector<Function<R, NDIM>>*>(&f);
+  std::vector<Function<R, NDIM>>& ncf = *const_cast<std::vector<Function<R, NDIM>>*>(&f);
 
   reconstruct(world, f);
   nonstandard(world, ncf);
 
-  std::vector<Function<TENSOR_RESULT_TYPE(typename opT::opT, R), NDIM>> result(
-      f.size());
+  std::vector<Function<TENSOR_RESULT_TYPE(typename opT::opT, R), NDIM>> result(f.size());
   for (unsigned int i = 0; i < f.size(); ++i) {
     MADNESS_ASSERT(not op[i]->is_slaterf12);
     result[i] = apply_only(*op[i], f[i], false);
@@ -1180,14 +1084,12 @@ std::vector<Function<TENSOR_RESULT_TYPE(typename opT::opT, R), NDIM>> apply(
 
 /// Applies an operator to a vector of functions --- q[i] = apply(op,f[i])
 template <typename T, typename R, std::size_t NDIM>
-std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> apply(
-    World& world,
-    const SeparatedConvolution<T, NDIM>& op,
-    const std::vector<Function<R, NDIM>> f) {
+std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> apply(World& world,
+                                                            const SeparatedConvolution<T, NDIM>& op,
+                                                            const std::vector<Function<R, NDIM>> f) {
   PROFILE_BLOCK(Vapply);
 
-  std::vector<Function<R, NDIM>>& ncf =
-      *const_cast<std::vector<Function<R, NDIM>>*>(&f);
+  std::vector<Function<R, NDIM>>& ncf = *const_cast<std::vector<Function<R, NDIM>>*>(&f);
 
   reconstruct(world, f);
   nonstandard(world, ncf);
@@ -1216,9 +1118,7 @@ std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> apply(
 
 /// Normalizes a vector of functions --- v[i] = v[i].scale(1.0/v[i].norm2())
 template <typename T, std::size_t NDIM>
-void normalize(World& world,
-               std::vector<Function<T, NDIM>>& v,
-               bool fence = true) {
+void normalize(World& world, std::vector<Function<T, NDIM>>& v, bool fence = true) {
   PROFILE_BLOCK(Vnormalize);
   std::vector<double> nn = norm2s(world, v);
   for (unsigned int i = 0; i < v.size(); ++i) v[i].scale(1.0 / nn[i], false);
@@ -1226,12 +1126,9 @@ void normalize(World& world,
 }
 
 template <typename T, std::size_t NDIM>
-void print_size(World& world,
-                const std::vector<Function<T, NDIM>>& v,
-                const std::string& msg = "vectorfunction") {
+void print_size(World& world, const std::vector<Function<T, NDIM>>& v, const std::string& msg = "vectorfunction") {
   if (v.empty()) {
-    if (world.rank() == 0)
-      std::cout << "print_size: " << msg << " is empty" << std::endl;
+    if (world.rank() == 0) std::cout << "print_size: " << msg << " is empty" << std::endl;
   } else if (v.size() == 1) {
     v.front().print_size(msg);
   } else {
@@ -1273,17 +1170,15 @@ double get_size(const Function<T, NDIM>& f) {
 /// level!
 /// @return vector of output Functions vout = op(vin)
 template <typename T, typename opT, std::size_t NDIM>
-std::vector<Function<T, NDIM>> multi_to_multi_op_values(
-    const opT& op,
-    const std::vector<Function<T, NDIM>>& vin,
-    const bool fence = true) {
+std::vector<Function<T, NDIM>> multi_to_multi_op_values(const opT& op,
+                                                        const std::vector<Function<T, NDIM>>& vin,
+                                                        const bool fence = true) {
   MADNESS_ASSERT(vin.size() > 0);
   MADNESS_ASSERT(vin[0].is_initialized());  // might be changed
   World& world = vin[0].world();
   Function<T, NDIM> dummy;
   dummy.set_impl(vin[0], false);
-  std::vector<Function<T, NDIM>> vout =
-      zero_functions<T, NDIM>(world, op.get_result_size());
+  std::vector<Function<T, NDIM>> vout = zero_functions<T, NDIM>(world, op.get_result_size());
   for (auto& out : vout) out.set_impl(vin[0], false);
   dummy.multi_to_multi_op_values(op, vin, vout, fence);
   return vout;
@@ -1293,56 +1188,45 @@ std::vector<Function<T, NDIM>> multi_to_multi_op_values(
 
 /// result[i] = a[i] + b[i]
 template <typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM>> operator+(
-    const std::vector<Function<T, NDIM>>& lhs,
-    const std::vector<Function<T, NDIM>>& rhs) {
+std::vector<Function<T, NDIM>> operator+(const std::vector<Function<T, NDIM>>& lhs,
+                                         const std::vector<Function<T, NDIM>>& rhs) {
   return gaxpy_oop(1.0, lhs, 1.0, rhs);
 }
 
 /// result[i] = a[i] - b[i]
 template <typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM>> operator-(
-    const std::vector<Function<T, NDIM>>& lhs,
-    const std::vector<Function<T, NDIM>>& rhs) {
+std::vector<Function<T, NDIM>> operator-(const std::vector<Function<T, NDIM>>& lhs,
+                                         const std::vector<Function<T, NDIM>>& rhs) {
   return gaxpy_oop(1.0, lhs, -1.0, rhs);
 }
 
 /// result[i] = a[i] + b
 template <typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM>> operator+(
-    const std::vector<Function<T, NDIM>>& lhs,
-    const Function<T, NDIM>& rhs) {
+std::vector<Function<T, NDIM>> operator+(const std::vector<Function<T, NDIM>>& lhs, const Function<T, NDIM>& rhs) {
   return gaxpy_oop(1.0, lhs, 1.0, rhs);
 }
 
 /// result[i] = a[i] - b
 template <typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM>> operator-(
-    const std::vector<Function<T, NDIM>>& lhs,
-    const Function<T, NDIM>& rhs) {
+std::vector<Function<T, NDIM>> operator-(const std::vector<Function<T, NDIM>>& lhs, const Function<T, NDIM>& rhs) {
   return gaxpy_oop(1.0, lhs, -1.0, rhs);
 }
 
 /// result[i] = a + b[i]
 template <typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM>> operator+(
-    const Function<T, NDIM>& lhs,
-    const std::vector<Function<T, NDIM>>& rhs) {
+std::vector<Function<T, NDIM>> operator+(const Function<T, NDIM>& lhs, const std::vector<Function<T, NDIM>>& rhs) {
   return gaxpy_oop(1.0, rhs, 1.0, lhs);
 }
 
 /// result[i] = a - b[i]
 template <typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM>> operator-(
-    const Function<T, NDIM>& lhs,
-    const std::vector<Function<T, NDIM>>& rhs) {
+std::vector<Function<T, NDIM>> operator-(const Function<T, NDIM>& lhs, const std::vector<Function<T, NDIM>>& rhs) {
   return gaxpy_oop(-1.0, rhs, 1.0, lhs);
 }
 
 template <typename T, typename R, std::size_t NDIM>
-std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> operator*(
-    const R fac,
-    const std::vector<Function<T, NDIM>>& rhs) {
+std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> operator*(const R fac,
+                                                                const std::vector<Function<T, NDIM>>& rhs) {
   if (rhs.size() > 0) {
     std::vector<Function<T, NDIM>> tmp = copy(rhs[0].world(), rhs);
     scale(tmp[0].world(), tmp, TENSOR_RESULT_TYPE(T, R)(fac));
@@ -1352,12 +1236,9 @@ std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> operator*(
 }
 
 template <typename T, typename R, std::size_t NDIM>
-std::vector<Function<T, NDIM>> operator*(
-    const std::vector<Function<T, NDIM>>& rhs,
-    const R fac) {
+std::vector<Function<T, NDIM>> operator*(const std::vector<Function<T, NDIM>>& rhs, const R fac) {
   if (rhs.size() > 0) {
-    std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> tmp =
-        copy(rhs[0].world(), rhs);
+    std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> tmp = copy(rhs[0].world(), rhs);
     scale(tmp[0].world(), tmp, TENSOR_RESULT_TYPE(T, R)(fac));
     return tmp;
   }
@@ -1366,43 +1247,38 @@ std::vector<Function<T, NDIM>> operator*(
 
 /// multiply a vector of functions with a function: r[i] = v[i] * a
 template <typename T, typename R, std::size_t NDIM>
-std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> operator*(
-    const Function<T, NDIM>& a,
-    const std::vector<Function<R, NDIM>>& v) {
+std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> operator*(const Function<T, NDIM>& a,
+                                                                const std::vector<Function<R, NDIM>>& v) {
   if (v.size() > 0) return mul(v[0].world(), a, v, true);
   return std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>>();
 }
 
 /// multiply a vector of functions with a function: r[i] = a * v[i]
 template <typename T, typename R, std::size_t NDIM>
-std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> operator*(
-    const std::vector<Function<T, NDIM>>& v,
-    const Function<R, NDIM>& a) {
+std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> operator*(const std::vector<Function<T, NDIM>>& v,
+                                                                const Function<R, NDIM>& a) {
   if (v.size() > 0) return mul(v[0].world(), a, v, true);
   return std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>>();
 }
 
 template <typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM>> operator+=(
-    std::vector<Function<T, NDIM>>& rhs,
-    const std::vector<Function<T, NDIM>>& lhs) {
+std::vector<Function<T, NDIM>> operator+=(std::vector<Function<T, NDIM>>& rhs,
+                                          const std::vector<Function<T, NDIM>>& lhs) {
   if (rhs.size() > 0) rhs = add(rhs[0].world(), rhs, lhs);
   return rhs;
 }
 
 template <typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM>> operator-=(
-    std::vector<Function<T, NDIM>>& rhs,
-    const std::vector<Function<T, NDIM>>& lhs) {
+std::vector<Function<T, NDIM>> operator-=(std::vector<Function<T, NDIM>>& rhs,
+                                          const std::vector<Function<T, NDIM>>& lhs) {
   if (rhs.size() > 0) rhs = sub(rhs[0].world(), rhs, lhs);
   return rhs;
 }
 
 /// return the real parts of the vector's function (if complex)
 template <typename T, std::size_t NDIM>
-std::vector<Function<typename Tensor<T>::scalar_type, NDIM>> real(
-    const std::vector<Function<T, NDIM>>& v,
-    bool fence = true) {
+std::vector<Function<typename Tensor<T>::scalar_type, NDIM>> real(const std::vector<Function<T, NDIM>>& v,
+                                                                  bool fence = true) {
   std::vector<Function<typename Tensor<T>::scalar_type, NDIM>> result(v.size());
   for (std::size_t i = 0; i < v.size(); ++i) result[i] = real(v[i], false);
   if (fence and result.size() > 0) result[0].world().gop.fence();
@@ -1411,9 +1287,8 @@ std::vector<Function<typename Tensor<T>::scalar_type, NDIM>> real(
 
 /// return the imaginary parts of the vector's function (if complex)
 template <typename T, std::size_t NDIM>
-std::vector<Function<typename Tensor<T>::scalar_type, NDIM>> imag(
-    const std::vector<Function<T, NDIM>>& v,
-    bool fence = true) {
+std::vector<Function<typename Tensor<T>::scalar_type, NDIM>> imag(const std::vector<Function<T, NDIM>>& v,
+                                                                  bool fence = true) {
   std::vector<Function<typename Tensor<T>::scalar_type, NDIM>> result(v.size());
   for (std::size_t i = 0; i < v.size(); ++i) result[i] = imag(v[i], false);
   if (fence and result.size() > 0) result[0].world().gop.fence();
@@ -1430,15 +1305,12 @@ std::vector<Function<typename Tensor<T>::scalar_type, NDIM>> imag(
 /// always fence
 /// @return     the vector \frac{\partial}{\partial x_i} f
 template <typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM>> grad(const Function<T, NDIM>& f,
-                                    bool refine = false,
-                                    bool fence = true) {
+std::vector<Function<T, NDIM>> grad(const Function<T, NDIM>& f, bool refine = false, bool fence = true) {
   World& world = f.world();
   f.reconstruct();
   if (refine) f.refine();  // refine to make result more precise
 
-  std::vector<std::shared_ptr<Derivative<T, NDIM>>> grad =
-      gradient_operator<T, NDIM>(world);
+  std::vector<std::shared_ptr<Derivative<T, NDIM>>> grad = gradient_operator<T, NDIM>(world);
 
   std::vector<Function<T, NDIM>> result(NDIM);
   for (size_t i = 0; i < NDIM; ++i) result[i] = apply(*(grad[i]), f, false);
@@ -1448,110 +1320,90 @@ std::vector<Function<T, NDIM>> grad(const Function<T, NDIM>& f,
 
 // BLM first derivative
 template <typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM>> grad_ble_one(const Function<T, NDIM>& f,
-                                            bool refine = false,
-                                            bool fence = true) {
+std::vector<Function<T, NDIM>> grad_ble_one(const Function<T, NDIM>& f, bool refine = false, bool fence = true) {
   World& world = f.world();
   f.reconstruct();
   if (refine) f.refine();  // refine to make result more precise
 
-  std::vector<std::shared_ptr<Derivative<T, NDIM>>> grad =
-      gradient_operator<T, NDIM>(world);
+  std::vector<std::shared_ptr<Derivative<T, NDIM>>> grad = gradient_operator<T, NDIM>(world);
 
   // Read in new coeff for each operator
   for (unsigned int i = 0; i < NDIM; ++i) (*grad[i]).set_ble1();
 
   std::vector<Function<T, NDIM>> result(NDIM);
-  for (unsigned int i = 0; i < NDIM; ++i)
-    result[i] = apply(*(grad[i]), f, false);
+  for (unsigned int i = 0; i < NDIM; ++i) result[i] = apply(*(grad[i]), f, false);
   if (fence) world.gop.fence();
   return result;
 }
 
 // BLM second derivative
 template <typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM>> grad_ble_two(const Function<T, NDIM>& f,
-                                            bool refine = false,
-                                            bool fence = true) {
+std::vector<Function<T, NDIM>> grad_ble_two(const Function<T, NDIM>& f, bool refine = false, bool fence = true) {
   World& world = f.world();
   f.reconstruct();
   if (refine) f.refine();  // refine to make result more precise
 
-  std::vector<std::shared_ptr<Derivative<T, NDIM>>> grad =
-      gradient_operator<T, NDIM>(world);
+  std::vector<std::shared_ptr<Derivative<T, NDIM>>> grad = gradient_operator<T, NDIM>(world);
 
   // Read in new coeff for each operator
   for (unsigned int i = 0; i < NDIM; ++i) (*grad[i]).set_ble2();
 
   std::vector<Function<T, NDIM>> result(NDIM);
-  for (unsigned int i = 0; i < NDIM; ++i)
-    result[i] = apply(*(grad[i]), f, false);
+  for (unsigned int i = 0; i < NDIM; ++i) result[i] = apply(*(grad[i]), f, false);
   if (fence) world.gop.fence();
   return result;
 }
 
 // Bspline first derivative
 template <typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM>> grad_bspline_one(const Function<T, NDIM>& f,
-                                                bool refine = false,
-                                                bool fence = true) {
+std::vector<Function<T, NDIM>> grad_bspline_one(const Function<T, NDIM>& f, bool refine = false, bool fence = true) {
   World& world = f.world();
   f.reconstruct();
   if (refine) f.refine();  // refine to make result more precise
 
-  std::vector<std::shared_ptr<Derivative<T, NDIM>>> grad =
-      gradient_operator<T, NDIM>(world);
+  std::vector<std::shared_ptr<Derivative<T, NDIM>>> grad = gradient_operator<T, NDIM>(world);
 
   // Read in new coeff for each operator
   for (unsigned int i = 0; i < NDIM; ++i) (*grad[i]).set_bspline1();
 
   std::vector<Function<T, NDIM>> result(NDIM);
-  for (unsigned int i = 0; i < NDIM; ++i)
-    result[i] = apply(*(grad[i]), f, false);
+  for (unsigned int i = 0; i < NDIM; ++i) result[i] = apply(*(grad[i]), f, false);
   if (fence) world.gop.fence();
   return result;
 }
 
 // Bpsline second derivative
 template <typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM>> grad_bpsline_two(const Function<T, NDIM>& f,
-                                                bool refine = false,
-                                                bool fence = true) {
+std::vector<Function<T, NDIM>> grad_bpsline_two(const Function<T, NDIM>& f, bool refine = false, bool fence = true) {
   World& world = f.world();
   f.reconstruct();
   if (refine) f.refine();  // refine to make result more precise
 
-  std::vector<std::shared_ptr<Derivative<T, NDIM>>> grad =
-      gradient_operator<T, NDIM>(world);
+  std::vector<std::shared_ptr<Derivative<T, NDIM>>> grad = gradient_operator<T, NDIM>(world);
 
   // Read in new coeff for each operator
   for (unsigned int i = 0; i < NDIM; ++i) (*grad[i]).set_bspline2();
 
   std::vector<Function<T, NDIM>> result(NDIM);
-  for (unsigned int i = 0; i < NDIM; ++i)
-    result[i] = apply(*(grad[i]), f, false);
+  for (unsigned int i = 0; i < NDIM; ++i) result[i] = apply(*(grad[i]), f, false);
   if (fence) world.gop.fence();
   return result;
 }
 
 // Bspline third derivative
 template <typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM>> grad_bspline_three(const Function<T, NDIM>& f,
-                                                  bool refine = false,
-                                                  bool fence = true) {
+std::vector<Function<T, NDIM>> grad_bspline_three(const Function<T, NDIM>& f, bool refine = false, bool fence = true) {
   World& world = f.world();
   f.reconstruct();
   if (refine) f.refine();  // refine to make result more precise
 
-  std::vector<std::shared_ptr<Derivative<T, NDIM>>> grad =
-      gradient_operator<T, NDIM>(world);
+  std::vector<std::shared_ptr<Derivative<T, NDIM>>> grad = gradient_operator<T, NDIM>(world);
 
   // Read in new coeff for each operator
   for (unsigned int i = 0; i < NDIM; ++i) (*grad[i]).set_bspline3();
 
   std::vector<Function<T, NDIM>> result(NDIM);
-  for (unsigned int i = 0; i < NDIM; ++i)
-    result[i] = apply(*(grad[i]), f, false);
+  for (unsigned int i = 0; i < NDIM; ++i) result[i] = apply(*(grad[i]), f, false);
   if (fence) world.gop.fence();
   return result;
 }
@@ -1567,16 +1419,13 @@ std::vector<Function<T, NDIM>> grad_bspline_three(const Function<T, NDIM>& f,
 /// @return     the vector \frac{\partial}{\partial x_i} f
 /// TODO: add this to operator fusion
 template <typename T, std::size_t NDIM>
-Function<T, NDIM> div(const std::vector<Function<T, NDIM>>& v,
-                      bool do_refine = false,
-                      bool fence = true) {
+Function<T, NDIM> div(const std::vector<Function<T, NDIM>>& v, bool do_refine = false, bool fence = true) {
   MADNESS_ASSERT(v.size() > 0);
   World& world = v[0].world();
   reconstruct(world, v);
   if (do_refine) refine(world, v);  // refine to make result more precise
 
-  std::vector<std::shared_ptr<Derivative<T, NDIM>>> grad =
-      gradient_operator<T, NDIM>(world);
+  std::vector<std::shared_ptr<Derivative<T, NDIM>>> grad = gradient_operator<T, NDIM>(world);
 
   std::vector<Function<T, NDIM>> result(NDIM);
   for (size_t i = 0; i < NDIM; ++i) result[i] = apply(*(grad[i]), v[i], false);
@@ -1595,16 +1444,13 @@ Function<T, NDIM> div(const std::vector<Function<T, NDIM>>& v,
 /// @return     the vector \frac{\partial}{\partial x_i} f
 /// TODO: add this to operator fusion
 template <typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM>> rot(const std::vector<Function<T, NDIM>>& v,
-                                   bool do_refine = false,
-                                   bool fence = true) {
+std::vector<Function<T, NDIM>> rot(const std::vector<Function<T, NDIM>>& v, bool do_refine = false, bool fence = true) {
   MADNESS_ASSERT(v.size() == 3);
   World& world = v[0].world();
   reconstruct(world, v);
   if (do_refine) refine(world, v);  // refine to make result more precise
 
-  std::vector<std::shared_ptr<Derivative<T, NDIM>>> grad =
-      gradient_operator<T, NDIM>(world);
+  std::vector<std::shared_ptr<Derivative<T, NDIM>>> grad = gradient_operator<T, NDIM>(world);
 
   std::vector<Function<T, NDIM>> d(NDIM), dd(NDIM);
   d[0] = apply(*(grad[1]), v[2], false);   // Dy z
@@ -1634,19 +1480,17 @@ std::vector<Function<T, NDIM>> rot(const std::vector<Function<T, NDIM>>& v,
 /// @return     the vector \frac{\partial}{\partial x_i} f
 /// TODO: add this to operator fusion
 template <typename T, typename R, std::size_t NDIM>
-std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> cross(
-    const std::vector<Function<T, NDIM>>& f,
-    const std::vector<Function<R, NDIM>>& g,
-    bool do_refine = false,
-    bool fence = true) {
+std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> cross(const std::vector<Function<T, NDIM>>& f,
+                                                            const std::vector<Function<R, NDIM>>& g,
+                                                            bool do_refine = false,
+                                                            bool fence = true) {
   MADNESS_ASSERT(f.size() == 3);
   MADNESS_ASSERT(g.size() == 3);
   World& world = f[0].world();
   reconstruct(world, f, false);
   reconstruct(world, g);
 
-  std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> d(f.size()),
-      dd(f.size());
+  std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> d(f.size()), dd(f.size());
 
   d[0] = mul(f[1], g[2], false);
   d[1] = mul(f[2], g[0], false);
@@ -1670,9 +1514,7 @@ std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>> cross(
 
 /// load a vector of functions
 template <typename T, size_t NDIM>
-void load_function(World& world,
-                   std::vector<Function<T, NDIM>>& f,
-                   const std::string name) {
+void load_function(World& world, std::vector<Function<T, NDIM>>& f, const std::string name) {
   if (world.rank() == 0) print("loading vector of functions", name);
   archive::ParallelInputArchive ar(world, name.c_str(), 1);
   std::size_t fsize = 0;
@@ -1683,8 +1525,7 @@ void load_function(World& world,
 
 /// save a vector of functions
 template <typename T, size_t NDIM>
-void save_function(const std::vector<Function<T, NDIM>>& f,
-                   const std::string name) {
+void save_function(const std::vector<Function<T, NDIM>>& f, const std::string name) {
   if (f.size() > 0) {
     World& world = f.front().world();
     if (world.rank() == 0) print("saving vector of functions", name);
