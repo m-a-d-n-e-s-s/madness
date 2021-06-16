@@ -236,42 +236,6 @@ public:
   response_space PropertyRHS(World& world, Property& p) const;
   // Returns the derivative of the coulomb operator, applied to ground state
   // orbitals
-  response_space CreateCoulombDerivativeRF(World& world,
-                                           const response_space& f, // response functions
-                                           const std::vector<real_function_3d>& phi, // orbitals
-                                           double lo,
-                                           double thresh);
-
-  response_space CreateCoulombDerivativeRFDagger(World& world,
-                                                 const response_space& f,
-                                                 const std::vector<real_function_3d>& phi,
-                                                 double lo,
-                                                 double thresh);
-
-  // Returns the derivative of the exchange operator, applied to the ground
-  // state orbitals This is the function for TDA only
-  response_space CreateExchangeDerivativeRF(World& world,
-                                            const response_space& f,
-                                            const std::vector<real_function_3d>& phi,
-                                            double lo,
-                                            double thresh);
-
-  response_space CreateExchangeDerivativeRFDagger(World& world,
-                                                  const response_space& f,
-                                                  const std::vector<real_function_3d>& phi,
-                                                  double lo,
-                                                  double thresh);
-
-  response_space CreateXCDerivativeRF(World& world,
-                                      const response_space& f,
-                                      const std::vector<real_function_3d>& phi,
-                                      double lo,
-                                      double thresh);
-  response_space CreateXCDerivativeRFDagger(World& world,
-                                            const response_space& f,
-                                            const std::vector<real_function_3d>& phi,
-                                            double lo,
-                                            double thresh);
 
   // Returns the diagonal (letter A) elements of response matrix
   X_space compute_gamma_full(World& world, X_space& Chi, XCOperator<double, 3> xc);
