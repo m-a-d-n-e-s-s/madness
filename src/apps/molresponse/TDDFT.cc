@@ -1528,7 +1528,24 @@ TDDFT::CreateBSHOperatorPropertyVector(World& world,
   // Done
   return operators;
 }
-// creating a shift in a property calculation requires only one double for the
+
+std::vector<poperatorT>
+TDDFT::make_bsh_operators_response(World& world, double& shift, double& omega) const {
+  if (r_params.print_level() >= 1)
+    molresponse::start_timer(world);
+  double tol = FunctionDefaults<3>::get_thresh();
+
+  // Sizes inferred from ground and omega
+  size_t num_orbitals = ground_energies.size(); // number of orbitals
+  std::vector<poperatorT> ops(num_orbitals);
+  // Run over occupied components
+  for (size_t p = 0; p < num_orbitals; p++) {
+    double mu = sqrt(-2.0 * (ground_energies(p) + omega + shift));
+    ops[p] = poperatorT(BSHOperatorPtr3D(world, mu, r_params.lo(), tol));
+  }
+  return ops;
+  // End timer
+}
 // shift
 std::vector<std::shared_ptr<real_convolution_3d>>
 TDDFT::CreateBSHOperatorPropertyVector(World& world,
@@ -1567,6 +1584,205 @@ TDDFT::CreateBSHOperatorPropertyVector(World& world,
   // Done
   return ghat_operators;
 }
+void TDDFT::update_x_space_response(World& world,
+                                    X_space& old_Chi,
+                                    X_space& Chi,
+                                    X_space& newChi,
+                                    XCOperator<double, 3>& xc,
+                                    std::vector<poperatorT>& bsh_x_ops,
+                                    std::vector<poperatorT>& bsh_y_ops,
+                                    QProjector<double, 3>& projector,
+                                    double& x_shifts,
+                                    double& omega_n,
+                                    NonLinearXsolver kain_x_space,
+                                    std::vector<X_vector> Xvector,
+                                    std::vector<X_vector> Xresidual,
+                                    Tensor<double>& bsh_residualsX,
+                                    Tensor<double>& bsh_residualsY,
+                                    size_t iteration) {
+
+  size_t m = Chi.X.size();
+  size_t n = Chi.X.size_orbitals();
+  Tensor<double> errX(m);
+  Tensor<double> errY(m);
+
+  X_space theta_X = Compute_Theta_X(world, Chi, xc, omega_n != 0.0);
+  X_space res = compute_residual_response(
+      world, old_Chi, Chi, newChi, theta_X, bsh_x_ops, bsh_y_ops, projector, x_shifts, errX, errY);
+  if (r_params.print_level() >= 1) {
+    print("res.X norms in iteration after compute_residual function: ");
+    print(res.X.norm2());
+
+    print("res.Y norms in iteration after compute_residual function: ");
+    print(res.Y.norm2());
+  }
+  if (r_params.print_level() >= 1) {
+    print("newChi.X norms in iteration after compute_residual function: ");
+    print(newChi.X.norm2());
+
+    print("newChi.Y norms in iteration after compute_residual function: ");
+    print(newChi.Y.norm2());
+  }
+
+  bsh_residualsX = errX;
+  bsh_residualsY = errY;
+  // Apply shifts and rhs
+  // Next calculate 2-norm of these vectors of differences
+
+  if (r_params.kain()) {
+    molresponse::start_timer(world);
+    for (size_t b = 0; b < m; b++) {
+      Xvector[b] = (X_vector(newChi, b));
+      Xresidual[b] = (X_vector(res, b));
+    }
+
+    for (size_t b = 0; b < m; b++) {
+      X_vector kain_X =
+          kain_x_space[b].update(Xvector[b], Xresidual[b], FunctionDefaults<3>::get_thresh(), 3.0);
+      newChi.X[b].assign(kain_X.X[0].begin(), kain_X.X[0].end());
+      newChi.Y[b].assign(kain_X.Y[0].begin(), kain_X.Y[0].end());
+    }
+    molresponse::end_timer(world, " KAIN update:");
+  }
+  if (r_params.print_level() >= 1) {
+    print("newChi.X norms in iteration after kain update");
+    print(newChi.X.norm2());
+
+    print("newChi.Y norms in iteration after kain update:");
+    print(newChi.Y.norm2());
+  }
+  //
+  if (iteration > 0) {
+    molresponse::start_timer(world);
+    for (size_t b = 0; b < m; b++) {
+      do_step_restriction(world, old_Chi.X[b], newChi.X[b], "x_response");
+      if (omega_n != 0.0) {
+        do_step_restriction(world, old_Chi.Y[b], newChi.X[b], "y_response");
+      }
+    }
+    molresponse::end_timer(world, " KAIN update:");
+  }
+
+  if (r_params.print_level() >= 1) {
+    print("newChi.x norms in iteration after step restriction: ", iteration);
+    print(newChi.X.norm2());
+
+    print("newChi.y norms in iteration after step restriction: ", iteration);
+    print(newChi.Y.norm2());
+  }
+  // print x norms
+  newChi.X.truncate_rf();
+  if (omega_n == 0.0)
+    newChi.Y = newChi.X.copy();
+  if (omega_n != 0.0)
+    newChi.Y.truncate_rf();
+  // temp-> Chi
+  Chi = newChi.copy();
+  if (r_params.print_level() >= 1) {
+    print("Chi.x norms in iteration after copy: ", iteration);
+    print(Chi.X.norm2());
+
+    print("Chi.y norms in iteration after copy: ", iteration);
+    print(Chi.Y.norm2());
+  }
+  // Load Balancing
+}
+X_space TDDFT::compute_residual_response(World& world,
+                                         X_space& old_Chi,
+                                         const X_space& Chi,
+                                         X_space& newChi,
+                                         X_space& theta_X,
+                                         std::vector<poperatorT>& bsh_x_ops,
+                                         std::vector<poperatorT>& bsh_y_ops,
+                                         QProjector<double, 3>& projector,
+                                         double& x_shifts,
+                                         Tensor<double>& errX,
+                                         Tensor<double>& errY) {
+  size_t m = Chi.X.size();
+  size_t n = Chi.X.size_orbitals();
+  X_space res(world, m, n);
+
+  molresponse::start_timer(world);
+  theta_X.X += Chi.X * x_shifts;
+  theta_X.X += PQ.X;
+  theta_X.X = theta_X.X * -2;
+  theta_X.X.truncate_rf();
+  if (r_params.omega() != 0.0) {
+    theta_X.Y += PQ.Y;
+    theta_X.Y = theta_X.Y * -2;
+    theta_X.Y.truncate_rf();
+  }
+  molresponse::end_timer(world, "Compute residual stuff theta_X");
+
+  // apply bsh
+  molresponse::start_timer(world);
+  newChi.X = apply(world, bsh_x_ops, theta_X.X);
+  if (r_params.omega() != 0.0) {
+    newChi.Y = apply(world, bsh_y_ops, theta_X.Y);
+  }
+  molresponse::end_timer(world, "Apply BSH to theta_X");
+
+  if (r_params.print_level() >= 1) {
+    print("newChi.X norms in iteration after bsh apply: ");
+    print(newChi.X.norm2());
+
+    print("newChi.Y norms in iteration after bsh apply: ");
+    print(newChi.Y.norm2());
+  }
+
+  molresponse::start_timer(world);
+  newChi.X.truncate_rf();
+  if (r_params.omega() != 0.0) {
+    newChi.Y.truncate_rf();
+  }
+  molresponse::end_timer(world, "Trucate newChi");
+
+  molresponse::start_timer(world);
+  // Project out ground state
+  for (size_t i = 0; i < m; i++)
+    newChi.X[i] = projector(newChi.X[i]);
+  if (not r_params.omega()) {
+    for (size_t i = 0; i < m; i++)
+      newChi.Y[i] = projector(newChi.Y[i]);
+  }
+  molresponse::end_timer(world, "Project out newChi");
+
+  //	compute residual
+  molresponse::start_timer(world);
+  res.X = old_Chi.X - newChi.X;
+  if (r_params.omega() != 0.0) {
+    res.Y = old_Chi.Y - newChi.Y;
+  }
+
+  std::vector<double> rmsX(m), maxvalX(m);
+  std::vector<std::vector<double>> rnormsX;
+  std::vector<std::vector<double>> rnormsY;
+  for (size_t i = 0; i < m; i++) {
+    rnormsX.push_back(norm2s(world, res.X[i]));
+    if (world.rank() == 0 and (r_params.print_level() > 1))
+      print("residuals X: state ", i, " : ", rnormsX[i]);
+    vector_stats(rnormsX[i], rmsX[i], maxvalX[i]);
+    errX[i] = maxvalX[i];
+    if (world.rank() == 0 and (r_params.print_level() > 1))
+      print("BSH residual: rms", rmsX[i], "   max", maxvalX[i]);
+  }
+  if (r_params.omega() != 0.0) {
+    std::vector<double> rmsY(m), maxvalY(m);
+    for (size_t i = 0; i < m; i++) {
+      rnormsX.push_back(norm2s(world, res.Y[i]));
+      if (world.rank() == 0 and (r_params.print_level() > 1))
+        print("residuals Y: state ", i, " : ", rnormsY[i]);
+      vector_stats(rnormsY[i], rmsY[i], maxvalY[i]);
+      errY[i] = maxvalY[i];
+      if (world.rank() == 0 and (r_params.print_level() > 1))
+        print("BSH residual: rms", rmsY[i], "   max", maxvalY[i]);
+    }
+  }
+  molresponse::end_timer(world, "BSH residual");
+
+  return res;
+}
+
 // Returns the second order update to the energies of the excited components
 // Not currently used.
 Tensor<double> TDDFT::calculate_energy_update(World& world,

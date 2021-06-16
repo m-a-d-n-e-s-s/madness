@@ -120,6 +120,7 @@ typedef std::shared_ptr<operatorT> poperatorT;
 typedef Function<std::complex<double>, 3> complex_functionT;
 typedef std::vector<complex_functionT> cvecfuncT;
 typedef Convolution1D<double_complex> complex_operatorT;
+typedef std::vector<XNonlinearSolver<X_vector, double, X_space_allocator>> NonLinearXsolver;
 
 class TDDFT {
 public:
@@ -353,7 +354,10 @@ public:
                        double lo,
                        double thresh);
 
-  // Returns a vector of BSH operators
+  std::vector<poperatorT>
+  make_bsh_operators_response(World& world,
+                              double& shift,
+                              double& omega) const; // Returns a vector of BSH operators
   std::vector<std::vector<std::shared_ptr<real_convolution_3d>>>
   CreateBSHOperatorPropertyVector(World& world,
                                   Tensor<double>& shift,
@@ -369,6 +373,35 @@ public:
                                   double& omega,
                                   double lo,
                                   double thresh);
+
+  void update_x_space_response(World& world,
+                               X_space& old_Chi,
+                               X_space& Chi,
+                               X_space& newChi,
+                               XCOperator<double, 3>& xc,
+                               std::vector<poperatorT>& bsh_x_ops,
+                               std::vector<poperatorT>& bsh_y_ops,
+                               QProjector<double, 3>& projector,
+                               double& x_shifts,
+                               double& omega_n,
+                               NonLinearXsolver kain_x_space,
+                               std::vector<X_vector> Xvector,
+                               std::vector<X_vector> Xresidual,
+                               Tensor<double>& bsh_residualsX,
+                               Tensor<double>& bsh_residualsY,
+                               size_t iteration);
+
+  X_space compute_residual_response(World& world,
+                                    X_space& old_Chi,
+                                    const X_space& Chi,
+                                    X_space& newChi,
+                                    X_space& theta_X,
+                                    std::vector<poperatorT>& bsh_x_ops,
+                                    std::vector<poperatorT>& bsh_y_ops,
+                                    QProjector<double, 3>& projector,
+                                    double& x_shifts,
+                                    Tensor<double>& errX,
+                                    Tensor<double>& errY);
   // Returns the second order update to the energy
   Tensor<double> calculate_energy_update(World& world,
                                          response_space& gamma,
