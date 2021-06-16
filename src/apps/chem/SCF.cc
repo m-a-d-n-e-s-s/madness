@@ -2005,7 +2005,8 @@ tensorT SCF::make_fock_matrix(World& world,
   START_TIMER(world);
   tensorT pe = matrix_inner(world, Vpsi, psi, true);
   END_TIMER(world, "PE matrix");
-
+  // copy old key map
+  //
   std::shared_ptr<WorldDCPmapInterface<Key<3>>> oldpmap = FunctionDefaults<3>::get_pmap();
   vecfuncT psicopy = psi;  // Functions are shallow copy so this is lightweight
   if (world.size() > 1) {
@@ -2019,9 +2020,11 @@ tensorT SCF::make_fock_matrix(World& world,
 
     START_TIMER(world);
     std::shared_ptr<WorldDCPmapInterface<Key<3>>> newpmap = lb.load_balance(param.loadbalparts());
-    FunctionDefaults<3>::set_pmap(newpmap);
+    // default process map
+    FunctionDefaults<3>::set_pmap(newpmap);  // set default to be new
 
     world.gop.fence();
+    // copy orbitals using new pmap
     for (unsigned int i = 0; i < psi.size(); ++i) psicopy[i] = copy(psi[i], newpmap, false);
     world.gop.fence();
     END_TIMER(world, "KE redist");
@@ -2301,7 +2304,8 @@ tensorT SCF::diag_fock_matrix(World& world,
   END_TIMER(world, "Diagonalization rest");
   return U;
 }
-
+// we load adding more weight cost to the vnuc
+// the default to vnucextra is 2.0
 void SCF::loadbal(World& world,
                   functionT& arho,
                   functionT& brho,
@@ -2311,6 +2315,7 @@ void SCF::loadbal(World& world,
   if (world.size() == 1) return;
 
   LoadBalanceDeux<3> lb(world);
+  // get local vnuc
   real_function_3d vnuc;
   if (param.psp_calc()) {
     vnuc = gthpseudopotential->vlocalpot();
@@ -2320,6 +2325,9 @@ void SCF::loadbal(World& world,
     vnuc = potentialmanager->vnuclear();
     vnuc = vnuc + gthpseudopotential->vlocalpot();
   }
+  //                                         leaf/ interior
+  //                                       // leaf value // parent value
+  //                 cost function                      accumlates cost of a function
   lb.add_tree(vnuc, lbcost<double, 3>(param.vnucextra() * 1.0, param.vnucextra() * 8.0), false);
   lb.add_tree(arho, lbcost<double, 3>(1.0, 8.0), false);
   for (unsigned int i = 0; i < amo.size(); ++i) {
