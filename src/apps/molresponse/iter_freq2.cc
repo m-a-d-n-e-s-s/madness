@@ -27,7 +27,6 @@
 // Iterate Frequency Response
 void TDDFT::iterate_freq2(World& world) {
   // Variables needed to iterate
-  size_t iteration = 0; // Iteration counter
   QProjector<double, 3> projector(world, ground_orbitals);
   size_t n = r_params.num_orbitals(); // Number of ground state orbitals
   size_t m = r_params.n_states();     // Number of excited states
@@ -93,12 +92,12 @@ void TDDFT::iterate_freq2(World& world) {
   // Now to iterate
   // while (iteration < r_params.maxiter() and !converged) {
 
-  for (int iter = 0; iter < r_params.maxiter(); ++iter) {
+  for (size_t iter = 0; iter < r_params.maxiter(); ++iter) {
     // Basic output
     if (r_params.print_level() >= 1) {
       molresponse::start_timer(world);
       if (world.rank() == 0)
-        printf("\n   Iteration %d at time %.1fs\n", static_cast<int>(iteration), wall_time());
+        printf("\n   Iteration %d at time %.1fs\n", static_cast<int>(iter), wall_time());
       if (world.rank() == 0)
         print(" -------------------------------");
     }
@@ -113,11 +112,6 @@ void TDDFT::iterate_freq2(World& world) {
     molresponse::end_timer(world, "Make density omega");
     print_meminfo(world.rank(), "Make density omega");
 
-    if (iter > 0) {
-      if (world.rank() == 0 and (r_params.print_level() > 2))
-        print("residuals", bsh_residualsX, bsh_residualsY);
-    }
-
     if (iter < 2 || (iter % 10) == 0) {
       molresponse::start_timer(world);
       loadbal(world, rho_omega, Chi, old_Chi);
@@ -125,8 +119,8 @@ void TDDFT::iterate_freq2(World& world) {
       print_meminfo(world.rank(), "Load balancing");
     }
 
+    // compute density residuals
     vector<double> density_residuals;
-
     if (iter > 0) {
       density_residuals = norm2s(world, (rho_omega - rho_omega_old));
       if (world.rank() == 0 and (r_params.print_level() > 2))
@@ -137,6 +131,13 @@ void TDDFT::iterate_freq2(World& world) {
     if (r_params.omega() == 0.0)
       Chi.Y = Chi.X.copy();
     old_Chi = Chi.copy();
+    rho_omega_old = rho_omega;
+    // TODO compute all the energies
+    //
+    //
+    //
+    //
+    //
 
     update_x_space_response(world,
                             old_Chi,
@@ -153,48 +154,48 @@ void TDDFT::iterate_freq2(World& world) {
                             Xresidual,
                             bsh_residualsX,
                             bsh_residualsY,
-                            iteration);
+                            iter);
 
     // apply bsh
     // x_norm is the norm of the res vector
     // Check convergence
-    if (std::max(bsh_residualsX.absmax(), bsh_residualsY.absmax()) < dconv * 5.0 and
-        iteration > 0) {
-      if (r_params.print_level() >= 1)
-        molresponse::end_timer(world, "This iteration:");
-      if (world.rank() == 0)
-        print("\n   Converged!");
-      converged = true;
-      break;
+
+    if (iter > 0) {
+      double d_residual = *std::max_element(density_residuals.begin(), density_residuals.end());
+      if (d_residual < dconv * std::max(size_t(5), molecule.natom()) and
+          std::max(bsh_residualsX.absmax(), bsh_residualsY.absmax()) < dconv * 5.0) {
+
+        converged = true;
+
+        if (converged || iter == r_params.maxiter() - 1) {
+          if (world.rank() == 0 && converged and (r_params.print_level() > 1)) {
+            print("\nConverged!\n");
+          }
+
+          if (r_params.save()) {
+            molresponse::start_timer(world);
+            save(world, r_params.save_file());
+            if (r_params.print_level() >= 1)
+              molresponse::end_timer(world, "Save:");
+          }
+          // Basic output
+          if (r_params.print_level() >= 1)
+            molresponse::end_timer(world, " This iteration:");
+          // plot orbitals
+          if (r_params.plot_all_orbitals()) {
+            PlotGroundandResponseOrbitals(world, iter, Chi.X, Chi.Y, r_params, g_params);
+          }
+          break;
+        }
+      }
     }
     // Update counter
-    iteration += 1;
+    iter += 1;
     // X_space PQ(P, rhs_y);
 
     Tensor<double> G = polarizability();
     // Polarizability Tensor
     print("Polarizability Tensor");
     print(G);
-    // Save
-    if (r_params.save()) {
-      molresponse::start_timer(world);
-      save(world, r_params.save_file());
-      if (r_params.print_level() >= 1)
-        molresponse::end_timer(world, "Save:");
-    }
-    // Basic output
-    if (r_params.print_level() >= 1)
-      molresponse::end_timer(world, " This iteration:");
-    // plot orbitals
-    if (r_params.plot_all_orbitals()) {
-      PlotGroundandResponseOrbitals(world, iteration, Chi.X, Chi.Y, r_params, g_params);
-    }
-    /*
-for (size_t b = 0; b < m; b++) {
-Xvector[b] = (X_vector(world, 0));
-Xresidual[b] = (X_vector(world, 0));
-}
-    */
-
   } // while converged
 }

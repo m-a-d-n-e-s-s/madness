@@ -74,7 +74,8 @@ int main(int argc, char** argv) {
   { // limite lifetime of world so that finalize() can execute cleanly
     World world(SafeMPI::COMM_WORLD);
     molresponse::start_timer(world);
-    try {
+    // try catch would start here
+    {
       startup(world, argc, argv, true);
       print_meminfo(world.rank(), "startup");
       FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3>>(world)));
@@ -135,26 +136,6 @@ int main(int argc, char** argv) {
         print("Second Order Analysis");
         calc.PrintPolarizabilityAnalysis(world, alpha);
       }
-    } catch (const SafeMPI::Exception& e) {
-      print(e);
-      error("caught an MPI exception");
-    } catch (const madness::MadnessException& e) {
-      print(e);
-      error("caught a MADNESS exception");
-    } catch (const madness::TensorException& e) {
-      print(e);
-      error("caught a Tensor exception");
-    } catch (const char* s) {
-      print(s);
-      error("caught a string exception");
-    } catch (const std::string& s) {
-      print(s);
-      error("caught a string (class) exception");
-    } catch (const std::exception& e) {
-      print(e.what());
-      error("caught an STL exception");
-    } catch (...) {
-      error("caught unhandled exception");
     }
     world.gop.fence();
     world.gop.fence();
