@@ -274,16 +274,9 @@ public:
                                             double thresh);
 
   // Returns the diagonal (letter A) elements of response matrix
-  GammaResponseFunctions ComputeGammaFunctions(World& world,
-                                               response_space& x,
-                                               response_space& y,
-                                               XCOperator<double, 3> xc,
-                                               const GroundParameters& g_params,
-                                               const ResponseParameters& r_params,
-                                               bool compute_Y);
-  X_space ComputeGammaFull(World& world, X_space& Chi, XCOperator<double, 3> xc);
-  X_space ComputeGammaStatic(World& world, X_space& Chi, XCOperator<double, 3> xc);
-  X_space ComputeGammaTDA(World& world, X_space& Chi, XCOperator<double, 3> xc);
+  X_space compute_gamma_full(World& world, X_space& Chi, XCOperator<double, 3> xc);
+  X_space compute_gamma_static(World& world, X_space& Chi, XCOperator<double, 3> xc);
+  X_space compute_gamma_TDA(World& world, X_space& Chi, XCOperator<double, 3> xc);
   // Note: No post multiplication involved here
   real_function_3d Coulomb(World& world);
 
