@@ -1466,7 +1466,6 @@ void TDDFT::update_x_space_response(World& world,
                                     size_t iteration) {
 
   size_t m = Chi.X.size();
-  size_t n = Chi.X.size_orbitals();
   Tensor<double> errX(m);
   Tensor<double> errY(m);
 
