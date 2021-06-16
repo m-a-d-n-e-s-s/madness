@@ -1,7 +1,7 @@
 BasedOnStyle: LLVM
 
 PointerAlignment: Left
-ColumnLimit: 100
+ColumnLimit: 80
 
 BinPackArguments: false
 BinPackParameters: false
