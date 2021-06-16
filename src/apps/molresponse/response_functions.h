@@ -300,13 +300,6 @@ public:
   response_space& operator+=(const response_space b) {
     MADNESS_ASSERT(same_size(*this, b));
     World& world = x[0][0].world();
-    /*
-    for (size_t i = 0; i < num_states; i++) {
-      for (size_t j = 0; j < num_orbitals; j++) {
-        this->x[i][j] += b[i][j];
-      }
-    }
-    */
     for (size_t i = 0; i < num_states; i++) {
       this->x[i] = add(world, this->x[i], b[i]);
     }
