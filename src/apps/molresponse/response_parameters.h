@@ -41,6 +41,7 @@ struct ResponseParameters : public QCCalculationParametersBase {
     initialize<size_t>("maxiter", 25, "maximum number of iterations");
 
     initialize<double>("dconv", 1.e-4, "recommended values: 1.e-4 < dconv < 1.e-8");
+    initialize<bool>("conv_only_dens", false, "if true remove bsh_residual from convergence criteria (deprecated)");
     initialize<bool>("dconv_set", false, "Convergence flage for the orbtial density");
 
     initialize<bool>("guess_xyz", false, "TODO : check what this is for");
@@ -96,7 +97,7 @@ struct ResponseParameters : public QCCalculationParametersBase {
     initialize<bool>("spinrestricted", true, "is spinrestricted calculation");
   }
 
-public:
+ public:
   using QCCalculationParametersBase::read;
 
   std::string archive() const { return get<std::string>("archive"); }
@@ -191,7 +192,7 @@ public:
       }
     } else if (second_order()) {
       set_derived_value<std::string>("response_type", "order2");
-      vector<int> nstates; // states 1
+      vector<int> nstates;  // states 1
       for (size_t i = 0; i < 2; i++) {
         if (d2_types().at(i) == 'd') {
           nstates.push_back(3);
@@ -206,7 +207,7 @@ public:
       set_derived_value<size_t>("states", states);
     } else if (third_order()) {
       set_derived_value<std::string>("response_type", "order3");
-      vector<int> nstates; // states 1
+      vector<int> nstates;  // states 1
       for (size_t i = 0; i < 3; i++) {
         if (d2_types()[i] == 'd') {
           nstates.push_back(3);
@@ -226,7 +227,7 @@ public:
   double econv() const { return get<double>("econv"); }
   bool localize() const { return get<bool>("localize"); }
   std::string local() const { return get<std::string>("local"); }
-}; // namespace madness
-} // namespace madness
+};  // namespace madness
+}  // namespace madness
 
-#endif // SRC_APPS_MOLRESPONSE_RESPONSE_PARAMETERS_H_
+#endif  // SRC_APPS_MOLRESPONSE_RESPONSE_PARAMETERS_H_
