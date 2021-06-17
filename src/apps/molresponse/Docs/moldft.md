@@ -145,14 +145,20 @@ print
 6. compress vm and rm
 7. Subspace = pair of vm and residuals
 
+## When do we loadbalance
 
+We enter solve with the initial loadbalance using
+v_nuc and densities and amo and bmo
 
+resdistribute(world,lb.load_balance(6.0))// this is the main loadbalance
 
-
-        /// Transforms a vector of functions left[i] = sum[j] right[j]*c[j,i] using sparsity
-        /// @param[in] vright vector of functions (impl's) on which to be transformed
-        /// @param[in] c the tensor (matrix) transformer
-        /// @param[in] vleft vector of of the *newly* transformed functions (impl's)
+next we want a pmap based only on the orbitals
+We don't want to alter the first pmap therefore
+we keep a copy of the old
+make the new
+set the new
+compute what we need to compute.
+and then reset pmap to the original
 
 
 
