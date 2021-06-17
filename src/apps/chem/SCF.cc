@@ -2005,31 +2005,35 @@ tensorT SCF::make_fock_matrix(World& world,
   START_TIMER(world);
   tensorT pe = matrix_inner(world, Vpsi, psi, true);
   END_TIMER(world, "PE matrix");
-  // copy old key map
+  // copy old key map because we are going to move things around
   //
   std::shared_ptr<WorldDCPmapInterface<Key<3>>> oldpmap = FunctionDefaults<3>::get_pmap();
+  // get a shallow copy of orbitals
   vecfuncT psicopy = psi;  // Functions are shallow copy so this is lightweight
   if (world.size() > 1) {
     START_TIMER(world);
     LoadBalanceDeux<3> lb(world);
     for (unsigned int i = 0; i < psi.size(); ++i) {
+      // add a tree for orbitals
       lb.add_tree(psi[i], lbcost<double, 3>(1.0, 8.0), false);
     }
     world.gop.fence();
     END_TIMER(world, "KE compute loadbal");
 
     START_TIMER(world);
+    // newpamap is the new pmap just based on the orbitals
     std::shared_ptr<WorldDCPmapInterface<Key<3>>> newpmap = lb.load_balance(param.loadbalparts());
     // default process map
+    // We set the newpmap
     FunctionDefaults<3>::set_pmap(newpmap);  // set default to be new
 
     world.gop.fence();
     // copy orbitals using new pmap
     for (unsigned int i = 0; i < psi.size(); ++i) psicopy[i] = copy(psi[i], newpmap, false);
-    world.gop.fence();
+    world.gop.fence();  // then fence
     END_TIMER(world, "KE redist");
   }
-
+  // we do the work to compute the KE matrix using the new pmap
   START_TIMER(world);
   tensorT ke(psi.size(), psi.size());
   {
@@ -2340,7 +2344,7 @@ void SCF::loadbal(World& world,
     }
   }
   world.gop.fence();
-
+  // This sets the new process map and redistributes all functions using process map
   FunctionDefaults<3>::redistribute(world,
                                     lb.load_balance(param.loadbalparts()));  // 6.0 needs retuning after param.vnucextra
 
