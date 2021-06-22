@@ -84,7 +84,7 @@ void TDDFT::iterate_freq2(World& world) {
   // Negate omega to make this next set of BSH operators \eps - omega
   if (omega_n != 0.0) {
     omega_n = -omega_n;
-     bsh_y_ops = make_bsh_operators_response(world, y_shifts, omega_n);
+    bsh_y_ops = make_bsh_operators_response(world, y_shifts, omega_n);
     omega_n = -omega_n;
   }
   // create couloumb operator
