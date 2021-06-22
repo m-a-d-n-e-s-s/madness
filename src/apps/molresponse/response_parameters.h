@@ -47,7 +47,7 @@ struct ResponseParameters : public QCCalculationParametersBase {
     initialize<bool>("guess_xyz", false, "TODO : check what this is for");
 
     initialize<double>("lo", 1.e10, "smallest length scale we need to resolve");
-    initialize<std::vector<double>>("protocol_data", {1.e-4, 1.e-6}, "calculation protocol");
+    initialize<std::vector<double>>("protocol", {1.e-4, 1.e-6}, "calculation protocol");
 
     initialize<size_t>("larger_subspace",
                        0,
@@ -79,7 +79,6 @@ struct ResponseParameters : public QCCalculationParametersBase {
     initialize<std::string>("load_density_file", "", "File name to load density for restart");
     initialize<size_t>("guess_max_iter", 5, "maximum number of guess iterations");
     // properties
-    initialize<bool>("property", false, "Flag to turn on frequency dependent property calc");
     initialize<std::string>("response_type", "excited_state", "dipole,nuclear,order2,order3");
     initialize<bool>("excited_state", false, "Flag to turn on excited state calc");
     initialize<bool>("first_order", false, "Flag to turn on first order response calc");
@@ -120,7 +119,7 @@ struct ResponseParameters : public QCCalculationParametersBase {
   bool dconv_set() const { return get<bool>("dconv_set"); }
   bool guess_xyz() const { return get<bool>("guess_xyz"); }
   double lo() const { return get<double>("lo"); }
-  std::vector<double> protocol() const { return get<std::vector<double>>("protocol_data"); }
+  std::vector<double> protocol() const { return get<std::vector<double>>("protocol"); }
   size_t larger_subspace() const { return get<size_t>("larger_subspace"); }
   int k() const { return get<int>("k"); }
   bool random() const { return get<bool>("random"); }

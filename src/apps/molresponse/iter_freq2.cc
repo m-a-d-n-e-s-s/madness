@@ -37,6 +37,7 @@ void TDDFT::iterate_freq2(World& world) {
 
   Tensor<double> bsh_residualsX(m);
   Tensor<double> bsh_residualsY(m);
+
   vecfuncT rho_omega_old(m);
 
   // initialize DFT XC functional operator
@@ -83,7 +84,7 @@ void TDDFT::iterate_freq2(World& world) {
   // Negate omega to make this next set of BSH operators \eps - omega
   if (omega_n != 0.0) {
     omega_n = -omega_n;
-    std::vector<poperatorT> bsh_x_ops = make_bsh_operators_response(world, y_shifts, omega_n);
+    std::vector<poperatorT> bsh_y_ops = make_bsh_operators_response(world, y_shifts, omega_n);
     omega_n = -omega_n;
   }
   // create couloumb operator
@@ -98,7 +99,6 @@ void TDDFT::iterate_freq2(World& world) {
       if (world.rank() == 0) print(" -------------------------------");
     }
     // compute rho_omega
-    vecfuncT rho_omega(m);
     molresponse::start_timer(world);
     if (r_params.omega() == 0.0) {
       rho_omega = transition_density(world, ground_orbitals, Chi.X, Chi.X);

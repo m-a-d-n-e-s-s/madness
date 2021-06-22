@@ -884,6 +884,28 @@ std::vector<Function<R, NDIM>> convert(World& world, const std::vector<Function<
   return r;
 }
 
+/// Create a new copy of the function with different distribution and optional
+/// fence
+
+/// Works in either basis.  Different distributions imply
+/// asynchronous communication and the optional fence is
+/// collective.
+//
+/// Returns a deep copy of a vector of functions
+
+template <typename T, std::size_t NDIM>
+std::vector<Function<T, NDIM>> copy(World& world,
+                                    const std::vector<Function<T, NDIM>>& v,
+                                    const std::shared_ptr<WorldDCPmapInterface<Key<NDIM>>>& pmap,
+                                    bool fence = true) {
+  PROFILE_BLOCK(Vcopy);
+  std::vector<Function<T, NDIM>> r(v.size());
+  for (unsigned int i = 0; i < v.size(); ++i) {
+    r[i] = copy(v[i], pmap, false);
+  }
+  if (fence) world.gop.fence();
+  return r;
+}
 /// Returns a deep copy of a vector of functions
 template <typename T, std::size_t NDIM>
 std::vector<Function<T, NDIM>> copy(World& world, const std::vector<Function<T, NDIM>>& v, bool fence = true) {
