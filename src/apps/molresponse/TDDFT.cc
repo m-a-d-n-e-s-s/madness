@@ -1535,7 +1535,7 @@ X_space TDDFT::compute_residual_response(World& world,
   if (r_params.omega() != 0.0) {
     std::vector<double> rmsY(m), maxvalY(m);
     for (size_t i = 0; i < m; i++) {
-      rnormsX.push_back(norm2s(world, res.Y[i]));
+      rnormsY.push_back(norm2s(world, res.Y[i]));
       if (world.rank() == 0 and (r_params.print_level() > 1)) print("residuals Y: state ", i, " : ", rnormsY[i]);
       vector_stats(rnormsY[i], rmsY[i], maxvalY[i]);
       errY[i] = maxvalY[i];
