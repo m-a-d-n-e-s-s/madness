@@ -303,11 +303,11 @@ class TDDFT {
   X_space Compute_Theta_X(World& world,
                           X_space& Chi,
                           XCOperator<double, 3> xc,
-                          bool compute_Y);
+                          std::string calc_type);
   X_space Compute_Lambda_X(World& world,
                            X_space& Chi,
                            XCOperator<double, 3> xc,
-                           bool compute_Y);
+                           std::string calc_type);
   // Returns the hamiltonian matrix, equation 45 from the paper
   // -2.0 * (ground_state_energy + excited_state_energy) is positive
   Tensor<double> create_shift(World& world,

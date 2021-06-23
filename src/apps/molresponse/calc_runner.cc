@@ -372,13 +372,14 @@ std::vector<real_function_3d> TDDFT::create_random_guess(
 response_space TDDFT::create_nwchem_guess(World& world, size_t m) {
   // Basic output
   if (world.rank() == 0)
-    print("   Creating an initial guess from NWChem file", r_params.nwchem());
+    print("   Creating an initial guess from NWChem file",
+          r_params.nwchem_dir());
 
   // Create empty containers
   response_space f;
 
   // Create the nwchem reader
-  slymer::NWChem_Interface nwchem(r_params.nwchem(), std::cout);
+  slymer::NWChem_Interface nwchem(r_params.nwchem_dir(), std::cout);
 
   // For parallel runs, silencing all but 1 slymer instance
   if (world.rank() != 0) {
@@ -614,7 +615,7 @@ void TDDFT::solve_excited_states(World& world) {
                                       r_params.num_orbitals(),
                                       ground_orbitals,
                                       molecule);
-        } else if (r_params.nwchem().compare("") != 0) {
+        } else if (r_params.nwchem()) {
           // Virtual orbitals from NWChem
           Chi.X = create_nwchem_guess(world, 2 * r_params.n_states());
         } else if (r_params.guess_xyz()) {

@@ -536,7 +536,7 @@ response_space TDDFT::create_trial_functions(
     std::vector<real_function_3d>& orbitals,
     size_t print_level) {
   // Get size
-  // /
+  print("In create trial functions");
   size_t n = orbitals.size();
 
   // Create solid harmonics such that num. solids * num. orbitals > k.
@@ -1478,7 +1478,7 @@ void TDDFT::update_x_space_response(World& world,
   Tensor<double> errX(m);
   Tensor<double> errY(m);
 
-  X_space theta_X = Compute_Theta_X(world, Chi, xc, omega_n != 0.0);
+  X_space theta_X = Compute_Theta_X(world, Chi, xc, r_params.calc_type());
   // compute residual X_space
   // compute errX and errY which are max orbital residuals for each response
   // state
@@ -1708,7 +1708,7 @@ void TDDFT::update_x_space_excited(World& world,
     normalize(world, Chi);
   }
 
-  X_space Lambda_X = Compute_Lambda_X(world, Chi, xc, not r_params.tda());
+  X_space Lambda_X = Compute_Lambda_X(world, Chi, xc, r_params.calc_type());
   // Load balance
   // TDA approximation
   if (r_params.tda()) {
@@ -1795,7 +1795,7 @@ void TDDFT::update_x_space_excited(World& world,
     }
 
     // Compute Theta X
-    X_space theta_X = Compute_Theta_X(world, Chi, xc, not r_params.tda());
+    X_space theta_X = Compute_Theta_X(world, Chi, xc, r_params.calc_type());
     if (r_params.print_level() == 3) {
       print(
           "----------------After Compute Theta_X After Deflate "
@@ -3860,7 +3860,7 @@ void TDDFT::iterate_guess(World& world, X_space& guesses) {
     if (r_params.tda()) normalize(world, guesses.X);
     // (TODO why not normalize if not tda)
     // compute Y = false
-    X_space Lambda_X = Compute_Lambda_X(world, Chi, xc, false);
+    X_space Lambda_X = Compute_Lambda_X(world, Chi, xc, r_params.calc_type());
     // Create gamma
     //    gamma = CreateGamma(world, guesses, zeros, ground_orbitals,
     //    r_params.lo,
@@ -3898,7 +3898,7 @@ void TDDFT::iterate_guess(World& world, X_space& guesses) {
       x_shifts = create_shift(
           world, ground_energies, omega, r_params.print_level(), "x");
 
-      X_space theta_X = Compute_Theta_X(world, Chi, xc, false);
+      X_space theta_X = Compute_Theta_X(world, Chi, xc, r_params.calc_type());
       theta_X.X = apply_shift(world, x_shifts, theta_X.X, Chi.X);
       theta_X.X = theta_X.X * -2;
       theta_X.X.truncate_rf();
