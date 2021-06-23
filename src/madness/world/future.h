@@ -244,7 +244,7 @@ namespace madness {
         /// \tparam U Description needed.
         /// \param[in] value Description needed.
         template <typename U>
-        void set(const U& value) {
+        void set(U&& value) {
             ScopedMutex<Spinlock> fred(this);
             if(remote_ref) {
                 // Copy world and owner from remote_ref since sending remote_ref
@@ -253,9 +253,9 @@ namespace madness {
                 const ProcessID owner = remote_ref.owner();
                 world.am.send(owner, FutureImpl<T>::set_handler,
                         new_am_arg(remote_ref, value));
-                set_assigned(value);
+                set_assigned(std::forward<U>(value));
             } else {
-                set_assigned((const_cast<T&>(t) = value));
+                set_assigned((const_cast<T&>(t) = std::forward<U>(value)));
             }
         }
 
@@ -522,6 +522,16 @@ namespace madness {
             MADNESS_CHECK(f);
             std::shared_ptr< FutureImpl<T> > ff = f; // manage life time of f
             ff->set(value);
+        }
+
+        /// Assigns the value.
+
+        /// The value can only be set \em once.
+        /// \param[in] value The value to be assigned.
+        inline void set(T&& value) {
+            MADNESS_CHECK(f);
+            std::shared_ptr< FutureImpl<T> > ff = f; // manage life time of f
+            ff->set(std::move(value));
         }
 
         /// Assigns the value.
