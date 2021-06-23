@@ -32,6 +32,18 @@ struct X_space {
     copyX.Y = Y.copy();
     return copyX;
   }
+  /// Create a new copy of the function with different distribution and optional
+  /// fence
+
+  /// Works in either basis.  Different distributions imply
+  /// asynchronous communication and the optional fence is
+  /// collective.
+  X_space copy(const std::shared_ptr<WorldDCPmapInterface<Key<3> > >& pmap, bool fence = false) const {
+    X_space copyX(X[0][0].world(), num_states, num_orbitals);
+    copyX.X = X.copy(pmap, fence);
+    copyX.Y = Y.copy(pmap, fence);
+    return copyX;
+  }
   // assignment
   X_space& operator=(const X_space& B) {
     if (this != &B) {  // is it the same object?
@@ -57,7 +69,10 @@ struct X_space {
     this->X = X.copy();
     this->Y = Y.copy();
   }
-
+  void clear() {
+    X.clear();
+    Y.clear();
+  }
   X_space operator+(const X_space B) {
     MADNESS_ASSERT(same_size(*this, B));
     World& world = this->X[0][0].world();
@@ -160,21 +175,7 @@ struct X_space {
     MADNESS_ASSERT(size_orbitals(A) > 0);
     MADNESS_ASSERT(same_size(A, B));
     Tensor<double> G(A.num_states, A.num_states);
-    print(A.X.norm2());
-    print(A.Y.norm2());
-    print(B.X.norm2());
-    print(B.Y.norm2());
     G = response_space_inner(A.X, B.X) + response_space_inner(B.Y, A.Y);
-    /*
-        for (size_t i(0); i < A.num_states; i++) {
-          for (size_t j(0); j < A.num_states; j++) {
-            Collapse[i][j] =
-                dot(world, A.X[i], B.X[j]) + dot(world, A.Y[i], B.Y[j]);
-            G(i, j) = Collapse[i][j].trace();
-          }
-        }
-        */
-
     return G;
   }
 

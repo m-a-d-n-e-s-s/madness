@@ -25,6 +25,45 @@
 #include "molresponse/timer.h"
 #include "molresponse/x_space.h"
 
+// Masking function to switch from 0 to 1 smoothly at boundary
+// Pulled from SCF.h
+inline double mask1(double x) {
+  /* Iterated first beta function to switch smoothly
+     from 0->1 in [0,1].  n iterations produce 2*n-1
+     zero derivatives at the end points. Order of polyn
+     is 3^n.
+
+     Currently use one iteration so that first deriv.
+     is zero at interior boundary and is exactly representable
+     by low order multiwavelet without refinement */
+
+  x = (x * x * (3. - 2. * x));
+  return x;
+}
+
+static double mask3(const coord_3d& ruser) {
+  coord_3d rsim;
+  user_to_sim(ruser, rsim);
+  double x = rsim[0], y = rsim[1], z = rsim[2];
+  double lo = 0.0625, hi = 1.0 - lo, result = 1.0;
+  double rlo = 1.0 / lo;
+
+  if (x < lo)
+    result *= mask1(x * rlo);
+  else if (x > hi)
+    result *= mask1((1.0 - x) * rlo);
+  if (y < lo)
+    result *= mask1(y * rlo);
+  else if (y > hi)
+    result *= mask1((1.0 - y) * rlo);
+  if (z < lo)
+    result *= mask1(z * rlo);
+  else if (z > hi)
+    result *= mask1((1.0 - z) * rlo);
+
+  return result;
+}
+
 template <std::size_t NDIM>
 void TDDFT::set_protocol(World& world, double thresh) {
   size_t k;
@@ -52,12 +91,22 @@ void TDDFT::set_protocol(World& world, double thresh) {
   FunctionDefaults<NDIM>::set_thresh(thresh);
   FunctionDefaults<NDIM>::set_refine(true);
   FunctionDefaults<NDIM>::set_initial_level(2);
+
   FunctionDefaults<NDIM>::set_autorefine(false);
   FunctionDefaults<NDIM>::set_apply_randomize(false);
   FunctionDefaults<NDIM>::set_project_randomize(false);
+  GaussianConvolution1DCache<double>::map.clear();
+  double safety = 0.1;
+  vtol = FunctionDefaults<NDIM>::get_thresh() * safety;
+  coulop = poperatorT(CoulombOperatorPtr(world, r_params.lo(), thresh));
+  gradop = gradient_operator<double, 3>(world);
   // GaussianConvolution1DCache<double>::map.clear();//(TODO:molresponse-What
   // is this? Do i need it?)
+  rho0 = make_ground_density(world, ground_orbitals);
 
+  // Create the masking function
+  mask = real_function_3d(
+      real_factory_3d(world).f(mask3).initial_level(4).norefine());
   // dconv defaults to thresh*100, overrirde by providing dconv in input
   // file
   if (r_params.dconv_set() == false) {
@@ -323,13 +372,14 @@ std::vector<real_function_3d> TDDFT::create_random_guess(
 response_space TDDFT::create_nwchem_guess(World& world, size_t m) {
   // Basic output
   if (world.rank() == 0)
-    print("   Creating an initial guess from NWChem file", r_params.nwchem());
+    print("   Creating an initial guess from NWChem file",
+          r_params.nwchem_dir());
 
   // Create empty containers
   response_space f;
 
   // Create the nwchem reader
-  slymer::NWChem_Interface nwchem(r_params.nwchem(), std::cout);
+  slymer::NWChem_Interface nwchem(r_params.nwchem_dir(), std::cout);
 
   // For parallel runs, silencing all but 1 slymer instance
   if (world.rank() != 0) {
@@ -501,7 +551,6 @@ void TDDFT::create_all_potentials(World& world,
   }
 }
 
-
 // Main function, makes sure everything happens in correcct order
 // Solves for response components
 void TDDFT::solve_excited_states(World& world) {
@@ -533,7 +582,7 @@ void TDDFT::solve_excited_states(World& world) {
 
   // Warm and fuzzy
   if (world.rank() == 0) {
-    print("\n\n     Response Calculation");
+    print("\n\n     Excited State Calculation");
     print("   ------------------------");
   }
   // Here print the relevant parameters
@@ -545,10 +594,6 @@ void TDDFT::solve_excited_states(World& world) {
 
     // Do something to ensure all functions have same k value
     check_k(world, r_params.protocol()[proto], FunctionDefaults<3>::get_k());
-
-    // Create the active subspace (select which ground state orbitals to
-    // calculate excitations from)
-    // if(r_params.e_window) select_active_subspace(world);
 
     if (proto == 0) {
       if (r_params.restart()) {
@@ -570,7 +615,7 @@ void TDDFT::solve_excited_states(World& world) {
                                       r_params.num_orbitals(),
                                       ground_orbitals,
                                       molecule);
-        } else if (r_params.nwchem() != "") {
+        } else if (r_params.nwchem()) {
           // Virtual orbitals from NWChem
           Chi.X = create_nwchem_guess(world, 2 * r_params.n_states());
         } else if (r_params.guess_xyz()) {
@@ -629,7 +674,7 @@ void TDDFT::solve_excited_states(World& world) {
           print(
               "\n   Iterating trial functions for an improved initial "
               "guess.\n");
-        IterateGuess(world, Chi);
+        iterate_guess(world, Chi);
         // Sort
         sort(world, omega, Chi.X);
         // Basic output
@@ -648,7 +693,8 @@ void TDDFT::solve_excited_states(World& world) {
     }
 
     // Now actually ready to iterate...
-    Iterate(world, Chi);
+    iterate_excited(world, Chi);
+    if (r_params.save()) save(world, r_params.save_file());
   }
 
   // Plot the response function if desired
@@ -694,7 +740,7 @@ void TDDFT::solve_excited_states(World& world) {
   molresponse::end_timer(world, "total:");
 }
 
-void TDDFT::compute_freq_response(World& world) {
+void TDDFT::solve_response_states(World& world) {
   molresponse::start_timer(world);
   std::string property = r_params.response_type();
   // Warm and fuzzy
@@ -702,10 +748,6 @@ void TDDFT::compute_freq_response(World& world) {
     print("\n\n    Response Calculation");
     print("   ------------------------");
   }
-
-  // Keep a copy of dipoles * MO (needed explicitly in eq.)
-
-  // For each protocol
   for (unsigned int proto = 0; proto < r_params.protocol().size(); proto++) {
     // Set defaults inside here
     // default value of
@@ -721,9 +763,6 @@ void TDDFT::compute_freq_response(World& world) {
       if (world.rank() == 0) print("creating nuclear property operator");
       p = Property(world, "nuclear", g_params.molecule());
     }
-
-    // Create guesses if no response functions
-    // If restarting, load here
     if (proto == 0) {
       if (r_params.restart()) {
         if (world.rank() == 0)
@@ -741,11 +780,6 @@ void TDDFT::compute_freq_response(World& world) {
 
           // set RHS_Vector
         } else if (r_params.nuclear()) {
-          // set guesses
-          // print("Creating X for Nuclear Operators");
-
-          // print("x norms:");
-          // print(x_response.norm2());
           PQ.X = PropertyRHS(world, p);
           PQ.Y = PQ.X.copy();
 
@@ -797,7 +831,8 @@ void TDDFT::compute_freq_response(World& world) {
     print("Property rhs func Q norms", PQ.Y.norm2());
 
     // Now actually ready to iterate...
-    iterate_freq(world);
+    // iterate_freq(world);
+    iterate_freq2(world);
     // IterateFrequencyResponse(world, P, Q);
   }  // end for --finished reponse density
 

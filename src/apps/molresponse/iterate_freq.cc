@@ -45,6 +45,8 @@ void TDDFT::iterate_freq(World& world) {
 
   real_function_3d v_xc;   // For TDDFT
   bool converged = false;  // Converged flag
+  const double dconv =
+      std::max(FunctionDefaults<3>::get_thresh(), r_params.dconv());
 
   response_space bsh_x_resp(world, m, n);  // Holds wave function corrections
   response_space bsh_y_resp(world, m, n);  // Holds wave function corrections
@@ -114,10 +116,12 @@ void TDDFT::iterate_freq(World& world) {
   }
   // create couloumb operator
   // Now to iterate
-  while (iteration < r_params.maxiter() and !converged) {
-    molresponse::start_timer(world);
+  // while (iteration < r_params.maxiter() and !converged) {
+
+  for (int iter = 0; iter < r_params.maxiter(); ++iter) {
     // Basic output
     if (r_params.print_level() >= 1) {
+      molresponse::start_timer(world);
       if (world.rank() == 0)
         printf("\n   Iteration %d at time %.1fs\n",
                static_cast<int>(iteration),
@@ -131,23 +135,7 @@ void TDDFT::iterate_freq(World& world) {
     // deep copy of response functions
     old_Chi = Chi.copy();
 
-    if (r_params.print_level() == 3) {
-      print("old x norms in iteration after copy  : ", iteration);
-      print(old_Chi.X.norm2());
-      print("old y norms in iteration after copy: ", iteration);
-      print(old_Chi.Y.norm2());
-    }
-    print("----------------Before Compute_Theta_X -----------------");
-    if (r_params.print_level() == 3) {
-      print("x norms in iteration after copy  : ", iteration);
-      print(Chi.X.norm2());
-      print("y norms in iteration after copy: ", iteration);
-      print(Chi.Y.norm2());
-    }
-
-    // print level 3
-
-    X_space theta_X = Compute_Theta_X(world, Chi, xc, omega_n != 0.0);
+    X_space theta_X = Compute_Theta_X(world, Chi, xc, r_params.calc_type());
     // Apply shifts and rhs
     theta_X.X += Chi.X * x_shifts;
     theta_X.X += PQ.X;
@@ -199,18 +187,7 @@ void TDDFT::iterate_freq(World& world) {
     if (not r_params.tda()) {
       for (size_t i = 0; i < m; i++) bsh_y_resp[i] = projector(bsh_y_resp[i]);
     }
-    // Debugging output
-    if (r_params.print_level() >= 2) {
-      if (world.rank() == 0)
-        print("   Norms after application of BSH to x components:");
-      print_norms(world, bsh_x_resp);
 
-      if (r_params.omega() != 0.0) {
-        if (world.rank() == 0)
-          print("   Norms after application of BSH to y components:");
-        print_norms(world, bsh_y_resp);
-      }
-    }
     temp.X = bsh_x_resp.copy();
     if (r_params.omega() != 0.0) {
       temp.Y = bsh_y_resp.copy();
@@ -255,9 +232,6 @@ void TDDFT::iterate_freq(World& world) {
         Xresidual[b] = (X_vector(residuals, b));
       }
 
-      // Add y functions to bottom of x functions
-      // (for KAIN)
-
       molresponse::start_timer(world);
       for (size_t b = 0; b < nkain; b++) {
         X_vector kain_X = kain_x_space[b].update(
@@ -290,7 +264,7 @@ void TDDFT::iterate_freq(World& world) {
     }
 
     // Check convergence
-    if (std::max(x_norms.absmax(), y_norms.absmax()) < r_params.dconv() and
+    if (std::max(x_norms.absmax(), y_norms.absmax()) < dconv and
         iteration > 0) {
       if (r_params.print_level() >= 1)
         molresponse::end_timer(world, "This iteration:");

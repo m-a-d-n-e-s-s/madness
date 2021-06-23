@@ -33,7 +33,6 @@
 /// \brief Operators for the molecular HF and DFT code
 /// \defgroup chem The molecular density functional and Hartree-Fock code
 
-
 #ifndef MADNESS_CHEM_SCFOPERATORS_H_
 #define MADNESS_CHEM_SCFOPERATORS_H_
 
@@ -52,142 +51,132 @@ class XCfunctional;
 
 typedef std::vector<real_function_3d> vecfuncT;
 
-template<typename T, std::size_t NDIM>
+template <typename T, std::size_t NDIM>
 class SCFOperatorBase {
+ public:
+  typedef Function<T, NDIM> functionT;
+  typedef std::vector<functionT> vecfuncT;
+  typedef Tensor<T> tensorT;
 
-public:
-    typedef Function<T,NDIM> functionT;
-    typedef std::vector<functionT> vecfuncT;
-    typedef Tensor<T> tensorT;
+  /// print some information about this operator
+  virtual std::string info() const = 0;
 
-    /// print some information about this operator
-    virtual std::string info() const = 0;
+  /// apply this operator on the argument function
+  ///
+  /// \param  ket the argument function
+  /// \return op(ket)
+  virtual functionT operator()(const functionT& ket) const = 0;
 
-    /// apply this operator on the argument function
-    ///
-    /// \param  ket the argument function
-    /// \return op(ket)
-    virtual functionT operator()(const functionT& ket) const = 0;
+  /// apply this operator on the argument vector of functions
 
-    /// apply this operator on the argument vector of functions
+  /// \param vket     argument vector
+  /// \return         op(vket)
+  virtual vecfuncT operator()(const vecfuncT& vket) const = 0;
 
-    /// \param vket     argument vector
-    /// \return         op(vket)
-    virtual vecfuncT operator()(const vecfuncT& vket) const = 0;
+  /// compute the matrix element <bra | op | ket>
 
-    /// compute the matrix element <bra | op | ket>
+  /// \param bra  bra state
+  /// \param ket  ket state
+  /// \return     the matrix element <bra | op | ket>
+  virtual T operator()(const functionT& bra, const functionT& ket) const = 0;
 
-    /// \param bra  bra state
-    /// \param ket  ket state
-    /// \return     the matrix element <bra | op | ket>
-    virtual T operator()(const functionT& bra, const functionT& ket) const = 0;
+  /// compute the matrix <vbra | op | vket>
 
-    /// compute the matrix <vbra | op | vket>
-
-    /// \param vbra  vector of bra states
-    /// \param vket  vector of ket states
-    /// \return     the matrix <vbra | op | vket>
-    virtual tensorT operator()(const vecfuncT& vbra, const vecfuncT& vket) const = 0;
-
+  /// \param vbra  vector of bra states
+  /// \param vket  vector of ket states
+  /// \return     the matrix <vbra | op | vket>
+  virtual tensorT operator()(const vecfuncT& vbra, const vecfuncT& vket) const = 0;
 };
 
-template<typename T, std::size_t NDIM>
-class Kinetic : public SCFOperatorBase<T,NDIM> {
-    typedef DistributedMatrix<T> distmatT;
-    typedef Function<T,NDIM> functionT;
-    typedef std::vector<functionT> vecfuncT;
-    typedef Tensor<T> tensorT;
+template <typename T, std::size_t NDIM>
+class Kinetic : public SCFOperatorBase<T, NDIM> {
+  typedef DistributedMatrix<T> distmatT;
+  typedef Function<T, NDIM> functionT;
+  typedef std::vector<functionT> vecfuncT;
+  typedef Tensor<T> tensorT;
 
-public:
-    Kinetic(World& world) : world(world) {
-        gradop = gradient_operator<T,NDIM>(world);
+ public:
+  Kinetic(World& world) : world(world) { gradop = gradient_operator<T, NDIM>(world); }
+
+  std::string info() const { return "T"; }
+
+  functionT operator()(const functionT& ket) const {
+    MADNESS_EXCEPTION("do not apply the kinetic energy operator on a function!", 1);
+    return ket;
+  }
+
+  vecfuncT operator()(const vecfuncT& vket) const {
+    MADNESS_EXCEPTION("do not apply the kinetic energy operator on a function!", 1);
+    return vket;
+  }
+
+  T operator()(const functionT& bra, const functionT& ket) const {
+    vecfuncT vbra(1, bra), vket(1, ket);
+    Tensor<T> tmat = this->operator()(vbra, vket);
+    return tmat(0l, 0l);
+  }
+
+  tensorT operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
+    distmatT dkinetic;
+    if (&vbra == &vket) {
+      dkinetic = kinetic_energy_matrix(world, vbra);
+    } else {
+      dkinetic = kinetic_energy_matrix(world, vbra, vket);
     }
+    tensorT kinetic(vbra.size(), vket.size());
+    dkinetic.copy_to_replicated(kinetic);
+    return kinetic;
+  }
 
-    std::string info() const {return "T";}
+ private:
+  World& world;
+  std::vector<std::shared_ptr<Derivative<T, NDIM>>> gradop;
 
-    functionT operator()(const functionT& ket) const {
-        MADNESS_EXCEPTION("do not apply the kinetic energy operator on a function!",1);
-        return ket;
-    }
-
-    vecfuncT operator()(const vecfuncT& vket) const {
-        MADNESS_EXCEPTION("do not apply the kinetic energy operator on a function!",1);
-        return vket;
-    }
-
-    T operator()(const functionT& bra, const functionT& ket) const {
-        vecfuncT vbra(1,bra), vket(1,ket);
-        Tensor<T> tmat=this->operator()(vbra,vket);
-        return tmat(0l,0l);
-    }
-
-    tensorT operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
-        distmatT dkinetic;
-        if (&vbra==&vket) {
-            dkinetic = kinetic_energy_matrix(world,vbra);
-        } else {
-            dkinetic = kinetic_energy_matrix(world,vbra,vket);
-        }
-        tensorT kinetic(vbra.size(),vket.size());
-        dkinetic.copy_to_replicated(kinetic);
-        return kinetic;
-    }
-
-private:
-    World& world;
-    std::vector< std::shared_ptr<Derivative<T,NDIM> > > gradop;
-
-    distmatT kinetic_energy_matrix(World & world, const vecfuncT & v) const;
-    distmatT kinetic_energy_matrix(World & world, const vecfuncT & vbra,
-            const vecfuncT & vket) const;
-
+  distmatT kinetic_energy_matrix(World& world, const vecfuncT& v) const;
+  distmatT kinetic_energy_matrix(World& world, const vecfuncT& vbra, const vecfuncT& vket) const;
 };
 
+template <typename T, std::size_t NDIM>
+class DerivativeOperator : public SCFOperatorBase<T, NDIM> {
+  typedef Function<T, NDIM> functionT;
+  typedef std::vector<functionT> vecfuncT;
+  typedef Tensor<T> tensorT;
 
-template<typename T, std::size_t NDIM>
-class DerivativeOperator : public SCFOperatorBase<T,NDIM> {
-    typedef Function<T,NDIM> functionT;
-    typedef std::vector<functionT> vecfuncT;
-    typedef Tensor<T> tensorT;
+ public:
+  DerivativeOperator(World& world, const int axis1) : world(world), axis(axis1) {
+    gradop = free_space_derivative<T, NDIM>(world, axis);
+  }
 
-public:
+  std::string info() const { return "D"; }
 
-    DerivativeOperator(World& world, const int axis1) : world(world), axis(axis1) {
-        gradop = free_space_derivative<T,NDIM>(world, axis);
-    }
+  functionT operator()(const functionT& ket) const {
+    vecfuncT vket(1, ket);
+    return this->operator()(vket)[0];
+  }
 
-    std::string info() const {return "D";}
+  vecfuncT operator()(const vecfuncT& vket) const {
+    vecfuncT dvket = apply(world, gradop, vket, false);
+    world.gop.fence();
+    return dvket;
+  }
 
-    functionT operator()(const functionT& ket) const {
-        vecfuncT vket(1,ket);
-        return this->operator()(vket)[0];
-    }
+  T operator()(const functionT& bra, const functionT& ket) const {
+    vecfuncT vbra(1, bra), vket(1, ket);
+    Tensor<T> tmat = this->operator()(vbra, vket);
+    return tmat(0l, 0l);
+  }
 
-    vecfuncT operator()(const vecfuncT& vket) const {
-        vecfuncT dvket=apply(world, gradop, vket, false);
-        world.gop.fence();
-        return dvket;
-    }
+  tensorT operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
+    const auto bra_equiv_ket = &vbra == &vket;
+    vecfuncT dvket = this->operator()(vket);
+    return matrix_inner(world, vbra, dvket, bra_equiv_ket);
+  }
 
-    T operator()(const functionT& bra, const functionT& ket) const {
-        vecfuncT vbra(1,bra), vket(1,ket);
-        Tensor<T> tmat=this->operator()(vbra,vket);
-        return tmat(0l,0l);
-    }
-
-    tensorT operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
-        const auto bra_equiv_ket = &vbra == &vket;
-        vecfuncT dvket=this->operator()(vket);
-        return matrix_inner(world,vbra,dvket, bra_equiv_ket);
-    }
-
-private:
-    World& world;
-    int axis;
-    Derivative<T,NDIM> gradop;
-
+ private:
+  World& world;
+  int axis;
+  Derivative<T, NDIM> gradop;
 };
-
 
 /// the Laplacian operator: \sum_i \nabla^2_i
 
@@ -197,657 +186,613 @@ private:
 /// !!! BE SURE YOU KNOW WHAT YOU ARE DOING !!!
 ///
 /// For computing matrix elements, which is reasonably stable, we refer
-template<typename T, std::size_t NDIM>
-class Laplacian : public SCFOperatorBase<T,NDIM> {
-    typedef Function<T,NDIM> functionT;
-    typedef std::vector<functionT> vecfuncT;
-    typedef Tensor<T> tensorT;
+template <typename T, std::size_t NDIM>
+class Laplacian : public SCFOperatorBase<T, NDIM> {
+  typedef Function<T, NDIM> functionT;
+  typedef std::vector<functionT> vecfuncT;
+  typedef Tensor<T> tensorT;
 
-public:
+ public:
+  Laplacian(World& world, const double e = 0.0) : world(world), eps(e) { gradop = gradient_operator<T, NDIM>(world); }
 
-    Laplacian(World& world, const double e=0.0) : world(world), eps(e) {
-        gradop = gradient_operator<T,NDIM>(world);
-    }
+  std::string info() const { return "D^2"; }
 
-    std::string info() const {return "D^2";}
+  functionT operator()(const functionT& ket) const {
+    vecfuncT vket(1, ket);
+    return this->operator()(vket)[0];
+  }
 
-    functionT operator()(const functionT& ket) const {
-        vecfuncT vket(1,ket);
-        return this->operator()(vket)[0];
-    }
+  vecfuncT operator()(const vecfuncT& vket) const;
 
-    vecfuncT operator()(const vecfuncT& vket) const;
+  T operator()(const functionT& bra, const functionT& ket) const {
+    vecfuncT vbra(1, bra), vket(1, ket);
+    Tensor<T> tmat = this->operator()(vbra, vket);
+    return tmat(0l, 0l);
+  }
 
-    T operator()(const functionT& bra, const functionT& ket) const {
-        vecfuncT vbra(1,bra), vket(1,ket);
-        Tensor<T> tmat=this->operator()(vbra,vket);
-        return tmat(0l,0l);
-    }
+  tensorT operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
+    Kinetic<T, NDIM> t(world);
+    return -2.0 * t(vbra, vket);
+  }
 
-    tensorT operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
-        Kinetic<T,NDIM> t(world);
-        return -2.0*t(vbra,vket);
-    }
-
-private:
-    World& world;
-    std::vector< std::shared_ptr< Derivative<T,NDIM> > > gradop;
-    double eps;
+ private:
+  World& world;
+  std::vector<std::shared_ptr<Derivative<T, NDIM>>> gradop;
+  double eps;
 };
 
+template <typename T, std::size_t NDIM>
+class Coulomb : public SCFOperatorBase<T, NDIM> {
+ public:
+  /// default empty ctor
+  Coulomb(World& world) : world(world){};
 
+  /// ctor with an SCF calculation providing the MOs and density
+  Coulomb(World& world, const SCF* calc);
 
-template<typename T, std::size_t NDIM>
-class Coulomb : public SCFOperatorBase<T,NDIM> {
-public:
+  /// ctor with a Nemo calculation providing the MOs and density
+  Coulomb(World& world, const Nemo* nemo);
 
-    /// default empty ctor
-    Coulomb(World& world) : world(world) {};
+  std::string info() const { return "J"; }
 
-    /// ctor with an SCF calculation providing the MOs and density
-    Coulomb(World& world, const SCF* calc);
+  void reset_poisson_operator_ptr(const double lo, const double econv);
 
-    /// ctor with a Nemo calculation providing the MOs and density
-    Coulomb(World& world, const Nemo* nemo);
+  void set_metric(const real_function_3d& metric) { R_square = copy(metric); }
 
-    std::string info() const {return "J";}
+  Function<T, NDIM> operator()(const Function<T, NDIM>& ket) const { return (vcoul * ket).truncate(); }
 
-    void reset_poisson_operator_ptr(const double lo, const double econv);
+  std::vector<Function<T, NDIM>> operator()(const std::vector<Function<T, NDIM>>& vket) const {
+    std::vector<Function<T, NDIM>> tmp = mul(world, vcoul, vket);
+    truncate(world, tmp);
+    return tmp;
+  }
 
-    void set_metric(const real_function_3d& metric) {
-    	R_square=copy(metric);
+  T operator()(const Function<T, NDIM>& bra, const Function<T, NDIM>& ket) const { return inner(bra, vcoul * ket); }
+
+  Tensor<T> operator()(const std::vector<Function<T, NDIM>>& vbra, const std::vector<Function<T, NDIM>>& vket) const {
+    const auto bra_equiv_ket = &vbra == &vket;
+    std::vector<Function<T, NDIM>> vJket;
+    for (std::size_t i = 0; i < vket.size(); ++i) {
+      vJket.push_back(this->operator()(vket[i]));
     }
+    return matrix_inner(world, vbra, vJket, bra_equiv_ket);
+  }
 
-    Function<T,NDIM> operator()(const Function<T,NDIM>& ket) const {
-        return (vcoul*ket).truncate();
-    }
+  /// getter for the Coulomb potential
+  const real_function_3d& potential() const { return vcoul; }
 
-    std::vector<Function<T,NDIM> > operator()(const std::vector<Function<T,NDIM> >& vket) const {
-        std::vector<Function<T,NDIM> > tmp=mul(world,vcoul,vket);
-        truncate(world,tmp);
-        return tmp;
-    }
+  /// setter for the Coulomb potential
+  real_function_3d& potential() { return vcoul; }
 
-    T operator()(const Function<T,NDIM>& bra, const Function<T,NDIM>& ket) const {
-        return inner(bra,vcoul*ket);
-    }
+  real_function_3d compute_density(const SCF* calc) const;
 
-    Tensor<T> operator()(const std::vector<Function<T,NDIM> >& vbra,
-    		const std::vector<Function<T,NDIM> >& vket) const {
-        const auto bra_equiv_ket = &vbra == &vket;
-        std::vector<Function<T,NDIM> > vJket;
-        for (std::size_t i=0; i<vket.size(); ++i) {
-            vJket.push_back(this->operator()(vket[i]));
-        }
-        return matrix_inner(world,vbra,vJket,bra_equiv_ket);
-    }
+  /// given a density compute the Coulomb potential
 
-    /// getter for the Coulomb potential
-    const real_function_3d& potential() const {return vcoul;}
+  /// this function uses a newly constructed Poisson operator. Note that
+  /// the accuracy parameters must be consistent with the exchange operator.
+  Function<T, NDIM> compute_potential(const Function<T, NDIM>& density) const { return (*poisson)(density).truncate(); }
 
-    /// setter for the Coulomb potential
-    real_function_3d& potential() {return vcoul;}
+  /// given a set of MOs in an SCF calculation, compute the Coulomb potential
 
-    real_function_3d compute_density(const SCF* calc) const;
+  /// this function uses the Poisson operator of the SCF calculation
+  real_function_3d compute_potential(const SCF* calc) const;
 
-    /// given a density compute the Coulomb potential
+  /// given a set of MOs in an SCF calculation, compute the Coulomb potential
 
-    /// this function uses a newly constructed Poisson operator. Note that
-    /// the accuracy parameters must be consistent with the exchange operator.
-    Function<T,NDIM> compute_potential(const Function<T,NDIM>& density) const {
-    	return (*poisson)(density).truncate();
-    }
+  /// this function uses the Poisson operator of the SCF calculation
+  real_function_3d compute_potential(const Nemo* nemo) const;
 
-    /// given a set of MOs in an SCF calculation, compute the Coulomb potential
-
-    /// this function uses the Poisson operator of the SCF calculation
-    real_function_3d compute_potential(const SCF* calc) const;
-
-    /// given a set of MOs in an SCF calculation, compute the Coulomb potential
-
-    /// this function uses the Poisson operator of the SCF calculation
-    real_function_3d compute_potential(const Nemo* nemo) const;
-
-private:
-    World& world;
-    std::shared_ptr<real_convolution_3d> poisson;
-    real_function_3d vcoul; ///< the coulomb potential
-    real_function_3d R_square;    ///< square of the nuclear correlation factor, if any
+ private:
+  World& world;
+  std::shared_ptr<real_convolution_3d> poisson;
+  real_function_3d vcoul;     ///< the coulomb potential
+  real_function_3d R_square;  ///< square of the nuclear correlation factor, if any
 };
 
+template <typename T, std::size_t NDIM>
+class Nuclear : public SCFOperatorBase<T, NDIM> {
+ public:
+  Nuclear(World& world, const SCF* calc);
 
-template<typename T, std::size_t NDIM>
-class Nuclear : public SCFOperatorBase<T,NDIM> {
-public:
+  Nuclear(World& world, const NemoBase* nemo);
 
-    Nuclear(World& world, const SCF* calc);
+  Nuclear(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf) : world(world), ncf(ncf) {}
 
-    Nuclear(World& world, const NemoBase* nemo);
+  std::string info() const { return "Vnuc"; }
 
-    Nuclear(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf)
-        : world(world), ncf(ncf) {}
+  Function<T, NDIM> operator()(const Function<T, NDIM>& ket) const {
+    std::vector<Function<T, NDIM>> vket(1, ket);
+    return this->operator()(vket)[0];
+  }
 
-    std::string info() const {return "Vnuc";}
+  std::vector<Function<T, NDIM>> operator()(const std::vector<Function<T, NDIM>>& vket) const;
 
-    Function<T,NDIM> operator()(const Function<T,NDIM>& ket) const {
-        std::vector<Function<T,NDIM> > vket(1,ket);
-        return this->operator()(vket)[0];
-    }
+  T operator()(const Function<T, NDIM>& bra, const Function<T, NDIM>& ket) const {
+    return inner(bra, this->operator()(ket));
+  }
 
-    std::vector<Function<T,NDIM> > operator()(const std::vector<Function<T,NDIM> >& vket) const;
+  Tensor<T> operator()(const std::vector<Function<T, NDIM>>& vbra, const std::vector<Function<T, NDIM>>& vket) const {
+    const auto bra_equiv_ket = &vbra == &vket;
+    std::vector<Function<T, NDIM>> vVket = this->operator()(vket);
+    return matrix_inner(world, vbra, vVket, bra_equiv_ket);
+  }
 
-    T operator()(const Function<T,NDIM>& bra, const Function<T,NDIM>& ket) const {
-        return inner(bra,this->operator()(ket));
-    }
-
-    Tensor<T> operator()(const  std::vector<Function<T,NDIM> >& vbra,
-    		const  std::vector<Function<T,NDIM> >& vket) const {
-        const auto bra_equiv_ket = &vbra == &vket;
-        std::vector<Function<T,NDIM> > vVket=this->operator()(vket);
-        return matrix_inner(world,vbra,vVket,bra_equiv_ket);
-    }
-
-private:
-    World& world;
-    std::shared_ptr<NuclearCorrelationFactor> ncf;
-
+ private:
+  World& world;
+  std::shared_ptr<NuclearCorrelationFactor> ncf;
 };
-
 
 /// the z component of the angular momentum
 
 /// takes real and complex functions as input, will return complex functions
-template<typename T, std::size_t NDIM>
-class Lz : public SCFOperatorBase<T,NDIM> {
-private:
-    World& world;
-public:
+template <typename T, std::size_t NDIM>
+class Lz : public SCFOperatorBase<T, NDIM> {
+ private:
+  World& world;
 
-	bool use_bsplines=true;
+ public:
+  bool use_bsplines = true;
 
-	Lz(World& world, bool use_bspline_derivative=true) : world(world), use_bsplines(use_bspline_derivative) {};
+  Lz(World& world, bool use_bspline_derivative = true) : world(world), use_bsplines(use_bspline_derivative){};
 
-    std::string info() const {return "Lz";}
+  std::string info() const { return "Lz"; }
 
+  Function<T, NDIM> operator()(const Function<T, NDIM>& ket) const {
+    std::vector<Function<T, NDIM>> vket(1, ket);
+    return this->operator()(vket)[0];
+  }
 
-    Function<T,NDIM> operator()(const Function<T,NDIM>& ket) const {
-		std::vector<Function<T,NDIM> > vket(1,ket);
-        return this->operator()(vket)[0];
+  std::vector<Function<T, NDIM>> operator()(const std::vector<Function<T, NDIM>>& vket) const {
+    // the operator in cartesian components as
+    // L_z =  - i (x del_y - y del_x)
+
+    if (vket.size() == 0) return std::vector<complex_function_3d>(0);
+
+    real_function_3d x = real_factory_3d(world).functor([](const coord_3d& r) { return r[0]; });
+    real_function_3d y = real_factory_3d(world).functor([](const coord_3d& r) { return r[1]; });
+
+    Derivative<T, NDIM> Dx = free_space_derivative<T, NDIM>(world, 0);
+    Derivative<T, NDIM> Dy = free_space_derivative<T, NDIM>(world, 1);
+    if (use_bsplines) {
+      Dx.set_bspline1();
+      Dy.set_bspline1();
     }
 
-    std::vector<Function<T,NDIM> > operator()(const std::vector<Function<T,NDIM> >& vket) const {
+    reconstruct(world, vket, true);
+    std::vector<Function<T, NDIM>> delx = apply(world, Dx, vket, false);
+    std::vector<Function<T, NDIM>> dely = apply(world, Dy, vket, true);
 
-		// the operator in cartesian components as
-		// L_z =  - i (x del_y - y del_x)
+    std::vector<Function<T, NDIM>> result1 = x * dely - y * delx;
+    std::vector<complex_function_3d> cresult1 = convert<T, double_complex, NDIM>(world, result1);
+    std::vector<complex_function_3d> result = double_complex(0.0, -1.0) * cresult1;
+    return result;
+  }
 
-		if (vket.size()==0) return std::vector<complex_function_3d>(0);
+  T operator()(const Function<T, NDIM>& bra, const Function<T, NDIM>& ket) const {
+    return inner(bra, this->operator()(ket));
+  }
 
-	    real_function_3d x=real_factory_3d(world).functor([] (const coord_3d& r) {return r[0];});
-	    real_function_3d y=real_factory_3d(world).functor([] (const coord_3d& r) {return r[1];});
-
-	    Derivative<T,NDIM> Dx = free_space_derivative<T,NDIM>(world, 0);
-		Derivative<T,NDIM> Dy = free_space_derivative<T,NDIM>(world, 1);
-		if (use_bsplines) {
-			Dx.set_bspline1();
-			Dy.set_bspline1();
-		}
-
-		reconstruct(world,vket,true);
-	    std::vector<Function<T,NDIM> > delx=apply(world,Dx,vket,false);
-	    std::vector<Function<T,NDIM> > dely=apply(world,Dy,vket,true);
-
-	    std::vector<Function<T,NDIM> > result1=x*dely - y*delx;
-	    std::vector<complex_function_3d> cresult1=convert<T,double_complex,NDIM>(world,result1);
-	    std::vector<complex_function_3d> result=double_complex(0.0,-1.0)*cresult1;
-		return result;
-	}
-
-    T operator()(const Function<T,NDIM>& bra, const Function<T,NDIM>& ket) const {
-        return inner(bra,this->operator()(ket));
-    }
-
-    Tensor<T> operator()(const std::vector<Function<T,NDIM> >& vbra,
-    		const std::vector<Function<T,NDIM> >& vket) const {
-        const auto bra_equiv_ket = &vbra == &vket;
-        std::vector<complex_function_3d> vVket=this->operator()(vket);
-        return matrix_inner(world,vbra,vVket,bra_equiv_ket);
-    }
-
+  Tensor<T> operator()(const std::vector<Function<T, NDIM>>& vbra, const std::vector<Function<T, NDIM>>& vket) const {
+    const auto bra_equiv_ket = &vbra == &vket;
+    std::vector<complex_function_3d> vVket = this->operator()(vket);
+    return matrix_inner(world, vbra, vVket, bra_equiv_ket);
+  }
 };
-
-
 
 /// derivative of the (regularized) nuclear potential wrt nuclear displacements
-template<typename T, std::size_t NDIM>
-class DNuclear : public SCFOperatorBase<T,NDIM> {
-public:
+template <typename T, std::size_t NDIM>
+class DNuclear : public SCFOperatorBase<T, NDIM> {
+ public:
+  DNuclear(World& world, const SCF* calc, const int iatom, const int iaxis);
 
-    DNuclear(World& world, const SCF* calc, const int iatom, const int iaxis);
+  DNuclear(World& world, const Nemo* nemo, const int iatom, const int iaxis);
 
-    DNuclear(World& world, const Nemo* nemo, const int iatom, const int iaxis);
+  DNuclear(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const int iatom, const int iaxis)
+      : world(world), ncf(ncf), iatom(iatom), iaxis(iaxis) {}
 
-    DNuclear(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf,
-            const int iatom, const int iaxis)
-        : world(world), ncf(ncf), iatom(iatom), iaxis(iaxis) {}
+  std::string info() const { return "DVnuc"; }
 
-    std::string info() const {return "DVnuc";}
+  Function<T, NDIM> operator()(const Function<T, NDIM>& ket) const {
+    std::vector<Function<T, NDIM>> vket(1, ket);
+    return this->operator()(vket)[0];
+  }
 
-    Function<T,NDIM> operator()(const Function<T,NDIM>& ket) const {
-        std::vector<Function<T,NDIM>> vket(1,ket);
-        return this->operator()(vket)[0];
-    }
+  std::vector<Function<T, NDIM>> operator()(const std::vector<Function<T, NDIM>>& vket) const;
 
-    std::vector<Function<T,NDIM>> operator()(const std::vector<Function<T,NDIM>>& vket) const;
+  T operator()(const Function<T, NDIM>& bra, const Function<T, NDIM>& ket) const {
+    return inner(bra, this->operator()(ket));
+  }
 
-    T operator()(const Function<T,NDIM>& bra, const Function<T,NDIM>& ket) const {
-        return inner(bra,this->operator()(ket));
-    }
+  Tensor<T> operator()(const std::vector<Function<T, NDIM>>& vbra, const std::vector<Function<T, NDIM>>& vket) const {
+    const auto bra_equiv_ket = &vbra == &vket;
+    std::vector<Function<T, NDIM>> vVket = this->operator()(vket);
+    return matrix_inner(world, vbra, vVket, bra_equiv_ket);
+  }
 
-    Tensor<T> operator()(const std::vector<Function<T,NDIM>>& vbra, const std::vector<Function<T,NDIM>>& vket) const {
-        const auto bra_equiv_ket = &vbra == &vket;
-        std::vector<Function<T,NDIM>> vVket=this->operator()(vket);
-        return matrix_inner(world,vbra,vVket,bra_equiv_ket);
-    }
-
-private:
-    World& world;
-    std::shared_ptr<NuclearCorrelationFactor> ncf;
-    int iatom;  ///< index of the atom which is displaced
-    int iaxis;  ///< x,y,z component of the atom
-
+ private:
+  World& world;
+  std::shared_ptr<NuclearCorrelationFactor> ncf;
+  int iatom;  ///< index of the atom which is displaced
+  int iaxis;  ///< x,y,z component of the atom
 };
 
-template<typename T, std::size_t NDIM>
-class Exchange : public SCFOperatorBase<T,NDIM> {
-	typedef Function<T,NDIM> functionT;
-	typedef std::vector<functionT> vecfuncT;
+template <typename T, std::size_t NDIM>
+class Exchange : public SCFOperatorBase<T, NDIM> {
+  typedef Function<T, NDIM> functionT;
+  typedef std::vector<functionT> vecfuncT;
 
-public:
+ public:
+  /// default ctor
+  Exchange(World& world) : world(world), small_memory_(true), same_(false){};
 
-    /// default ctor
-    Exchange(World& world) : world(world), small_memory_(true), same_(false) {};
+  /// ctor with a conventional calculation
+  Exchange(World& world, const SCF* calc, const int ispin);
 
-    /// ctor with a conventional calculation
-    Exchange(World& world, const SCF* calc, const int ispin);
+  /// ctor with a nemo calculation
+  Exchange(World& world, const Nemo* nemo, const int ispin);
 
-    /// ctor with a nemo calculation
-    Exchange(World& world, const Nemo* nemo, const int ispin);
+  std::string info() const { return "K"; }
 
-    std::string info() const {return "K";}
+  /// set the bra and ket orbital spaces, and the occupation
 
-    /// set the bra and ket orbital spaces, and the occupation
+  /// @param[in]	bra		bra space, must be provided as complex conjugate
+  /// @param[in]	ket		ket space
+  /// @param[in]	occ1	occupation numbers
+  void set_parameters(const vecfuncT& bra,
+                      const vecfuncT& ket,
+                      const Tensor<double>& occ1,
+                      const double lo = 1.e-4,
+                      const double econv = FunctionDefaults<3>::get_thresh()) {
+    mo_bra = copy(world, bra);
+    mo_ket = copy(world, ket);
+    occ = copy(occ1);
+    poisson = std::shared_ptr<real_convolution_3d>(CoulombOperatorPtr(world, lo, econv));
+  }
 
-    /// @param[in]	bra		bra space, must be provided as complex conjugate
-    /// @param[in]	ket		ket space
-    /// @param[in]	occ1	occupation numbers
-    void set_parameters(const vecfuncT& bra, const vecfuncT& ket,
-            const Tensor<double>& occ1, const double lo=1.e-4,
-            const double econv=FunctionDefaults<3>::get_thresh()) {
-    	mo_bra=copy(world,bra);
-    	mo_ket=copy(world,ket);
-    	occ=copy(occ1);
-    	poisson = std::shared_ptr<real_convolution_3d>(
-    	            CoulombOperatorPtr(world, lo, econv));
-    }
+  Function<T, NDIM> operator()(const Function<T, NDIM>& ket) const {
+    vecfuncT vket(1, ket);
+    vecfuncT vKket = this->operator()(vket);
+    return vKket[0];
+  }
 
-    Function<T,NDIM> operator()(const Function<T,NDIM>& ket) const {
-        vecfuncT vket(1,ket);
-        vecfuncT vKket=this->operator()(vket);
-        return vKket[0];
-    }
+  /// apply the exchange operator on a vector of functions
 
-    /// apply the exchange operator on a vector of functions
+  /// note that only one spin is used (either alpha or beta orbitals)
+  /// @param[in]  vket       the orbitals |i> that the operator is applied on
+  /// @return     a vector of orbitals  K| i>
+  //    vecfuncT operator()(const vecfuncT& vket,const double& mul_tol=0.0) const;
+  vecfuncT operator()(const vecfuncT& vket) const;
 
-    /// note that only one spin is used (either alpha or beta orbitals)
-    /// @param[in]  vket       the orbitals |i> that the operator is applied on
-    /// @return     a vector of orbitals  K| i>
-//    vecfuncT operator()(const vecfuncT& vket,const double& mul_tol=0.0) const;
-    vecfuncT operator()(const vecfuncT& vket) const;
+  /// compute the matrix element <bra | K | ket>
 
-    /// compute the matrix element <bra | K | ket>
+  /// @param[in]  bra    real_funtion_3d, the bra state
+  /// @param[in]  ket    real_funtion_3d, the ket state
+  T operator()(const Function<T, NDIM>& bra, const Function<T, NDIM>& ket) const {
+    return inner(bra, this->operator()(ket));
+  }
 
-    /// @param[in]  bra    real_funtion_3d, the bra state
-    /// @param[in]  ket    real_funtion_3d, the ket state
-    T operator()(const Function<T,NDIM>& bra, const Function<T,NDIM>& ket) const {
-        return inner(bra,this->operator()(ket));
-    }
+  /// compute the matrix < vbra | K | vket >
 
-    /// compute the matrix < vbra | K | vket >
+  /// @param[in]  vbra    vector of real_funtion_3d, the set of bra states
+  /// @param[in]  vket    vector of real_funtion_3d, the set of ket states
+  /// @return K_ij
+  Tensor<T> operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
+    const auto bra_equiv_ket = &vbra == &vket;
+    vecfuncT vKket = this->operator()(vket);
+    return matrix_inner(world, vbra, vKket, bra_equiv_ket);
+  }
 
-    /// @param[in]  vbra    vector of real_funtion_3d, the set of bra states
-    /// @param[in]  vket    vector of real_funtion_3d, the set of ket states
-    /// @return K_ij
-    Tensor<T> operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
-        const auto bra_equiv_ket = &vbra == &vket;
-        vecfuncT vKket=this->operator()(vket);
-        return matrix_inner(world,vbra,vKket,bra_equiv_ket);
-    }
+  bool& small_memory() { return small_memory_; }
+  bool small_memory() const { return small_memory_; }
+  Exchange& small_memory(const bool flag) {
+    small_memory_ = flag;
+    return *this;
+  }
 
-    bool& small_memory() {return small_memory_;}
-    bool small_memory() const {return small_memory_;}
-    Exchange& small_memory(const bool flag) {
-        small_memory_=flag;
-        return *this;
-    }
+  bool& same() { return same_; }
+  bool same() const { return same_; }
+  Exchange& same(const bool flag) {
+    same_ = flag;
+    return *this;
+  }
 
-    bool& same() {return same_;}
-    bool same() const {return same_;}
-    Exchange& same(const bool flag) {
-        same_=flag;
-        return *this;
-    }
-
-private:
-
-    World& world;
-    bool small_memory_=true;
-    bool same_=false;
-    vecfuncT mo_bra, mo_ket;    ///< MOs for bra and ket
-    Tensor<double> occ;
-    std::shared_ptr<real_convolution_3d> poisson;
-    double mul_tol=0.0;
+ private:
+  World& world;
+  bool small_memory_ = true;
+  bool same_ = false;
+  vecfuncT mo_bra, mo_ket;  ///< MOs for bra and ket
+  Tensor<double> occ;
+  std::shared_ptr<real_convolution_3d> poisson;
+  double mul_tol = 0.0;
 };
 
-template<typename T, std::size_t NDIM>
-class LocalPotentialOperator : public SCFOperatorBase<T,NDIM> {
-public:
-    LocalPotentialOperator(World& world) : world(world) {};
-    LocalPotentialOperator(World& world, const std::string info, const Function<T,NDIM> potential)
-            : world(world), info_str(info), potential(potential) {};
+template <typename T, std::size_t NDIM>
+class LocalPotentialOperator : public SCFOperatorBase<T, NDIM> {
+ public:
+  LocalPotentialOperator(World& world) : world(world){};
+  LocalPotentialOperator(World& world, const std::string info, const Function<T, NDIM> potential)
+      : world(world), info_str(info), potential(potential){};
 
-    std::string info() const {return info_str;}
+  std::string info() const { return info_str; }
 
-    void set_info(const std::string new_info) {
-        info_str=new_info;
-    }
+  void set_info(const std::string new_info) { info_str = new_info; }
 
-    void set_potential(const Function<T,NDIM>& new_potential) {
-        potential=copy(new_potential);
-    }
+  void set_potential(const Function<T, NDIM>& new_potential) { potential = copy(new_potential); }
 
-    Function<T,NDIM> operator()(const Function<T,NDIM>& ket) const {
-        return (potential*ket).truncate();
-    }
+  Function<T, NDIM> operator()(const Function<T, NDIM>& ket) const { return (potential * ket).truncate(); }
 
-    std::vector<Function<T,NDIM> > operator()(const std::vector<Function<T,NDIM> >& vket) const {
-        return truncate(potential*vket);
-    }
+  std::vector<Function<T, NDIM>> operator()(const std::vector<Function<T, NDIM>>& vket) const {
+    return truncate(potential * vket);
+  }
 
-    T operator()(const Function<T,NDIM>& bra, const Function<T,NDIM>& ket) const {
-        return inner(bra,potential*ket);
-    }
+  T operator()(const Function<T, NDIM>& bra, const Function<T, NDIM>& ket) const { return inner(bra, potential * ket); }
 
-    Tensor<T> operator()(const std::vector<Function<T,NDIM> >& vbra,
-                         const std::vector<Function<T,NDIM> >& vket) const {
-        const auto bra_equiv_ket = &vbra == &vket;
-        return matrix_inner(world,vbra,potential*vket,bra_equiv_ket);
-    }
+  Tensor<T> operator()(const std::vector<Function<T, NDIM>>& vbra, const std::vector<Function<T, NDIM>>& vket) const {
+    const auto bra_equiv_ket = &vbra == &vket;
+    return matrix_inner(world, vbra, potential * vket, bra_equiv_ket);
+  }
 
-private:
-    World& world;
-    std::string info_str="Vlocal";
-    Function<T,NDIM> potential;
+ private:
+  World& world;
+  std::string info_str = "Vlocal";
+  Function<T, NDIM> potential;
 };
 
 /// operator class for the handling of DFT exchange-correlation functionals
-template<typename T, std::size_t NDIM>
-class XCOperator : public SCFOperatorBase<T,NDIM> {
-public:
+template <typename T, std::size_t NDIM>
+class XCOperator : public SCFOperatorBase<T, NDIM> {
+ public:
+  /// default ctor without information about the XC functional
+  XCOperator(World& world)
+      : world(world), nbeta(0), ispin(0), extra_truncation(FunctionDefaults<3>::get_thresh() * 0.01) {}
 
-    /// default ctor without information about the XC functional
-    XCOperator(World& world) : world(world), nbeta(0), ispin(0),
-        extra_truncation(FunctionDefaults<3>::get_thresh()*0.01) {}
+  /// custom ctor with information about the XC functional
+  XCOperator(World& world,
+             std::string xc_data,
+             const bool spin_polarized,
+             const real_function_3d& arho,
+             const real_function_3d& brho,
+             std::string deriv = "abgv");
 
-    /// custom ctor with information about the XC functional
-    XCOperator(World& world, std::string xc_data, const bool spin_polarized,
-            const real_function_3d& arho, const real_function_3d& brho,
-            std::string deriv="abgv");
+  /// ctor with an SCF calculation, will initialize the necessary intermediates
+  XCOperator(World& world, const SCF* scf, int ispin = 0, std::string deriv = "abgv");
 
-    /// ctor with an SCF calculation, will initialize the necessary intermediates
-    XCOperator(World& world, const SCF* scf, int ispin=0, std::string deriv="abgv");
+  /// ctor with a Nemo calculation, will initialize the necessary intermediates
+  XCOperator(World& world, const Nemo* nemo, int ispin = 0);
 
-    /// ctor with a Nemo calculation, will initialize the necessary intermediates
-    XCOperator(World& world, const Nemo* nemo, int ispin=0);
+  /// ctor with an SCF calculation, will initialize the necessary intermediates
+  XCOperator(World& world,
+             const SCF* scf,
+             const real_function_3d& arho,
+             const real_function_3d& brho,
+             int ispin = 0,
+             std::string deriv = "abgv");
 
-    /// ctor with an SCF calculation, will initialize the necessary intermediates
-    XCOperator(World& world, const SCF* scf, const real_function_3d& arho,
-            const real_function_3d& brho, int ispin=0, std::string deriv="abgv");
+  /// ctor with an Nemo calculation, will initialize the necessary intermediates
+  XCOperator(World& world, const Nemo* scf, const real_function_3d& arho, const real_function_3d& brho, int ispin = 0);
 
-    /// ctor with an Nemo calculation, will initialize the necessary intermediates
-    XCOperator(World& world, const Nemo* scf, const real_function_3d& arho,
-            const real_function_3d& brho, int ispin=0);
+  std::string info() const { return "Vxc"; }
 
-    std::string info() const {return "Vxc";}
+  XCOperator& set_extra_truncation(const double& fac) {
+    extra_truncation = fac;
+    if (world.rank() == 0) print("set extra truncation in XCOperator to", extra_truncation);
+    return *this;
+  }
 
-    XCOperator& set_extra_truncation(const double& fac) {
-        extra_truncation=fac;
-        if (world.rank()==0)
-            print("set extra truncation in XCOperator to", extra_truncation);
-        return *this;
-    }
+  /// set the spin state this operator is acting on
+  void set_ispin(const int i) const { ispin = i; }
 
-    /// set the spin state this operator is acting on
-    void set_ispin(const int i) const {ispin=i;}
+  /// apply the xc potential on a set of orbitals
+  std::vector<Function<T, NDIM>> operator()(const std::vector<Function<T, NDIM>>& vket) const;
 
-    /// apply the xc potential on a set of orbitals
-    std::vector<Function<T,NDIM> > operator()(const std::vector<Function<T,NDIM> >& vket) const;
+  /// apply the xc potential on an orbitals
+  Function<T, NDIM> operator()(const Function<T, NDIM>& ket) const {
+    std::vector<Function<T, 3>> vket(1, ket);
+    std::vector<Function<T, 3>> vKket = this->operator()(vket);
+    return vKket[0];
+  }
 
-    /// apply the xc potential on an orbitals
-    Function<T,NDIM> operator()(const Function<T,NDIM>& ket) const {
-    	std::vector<Function<T,3> > vket(1,ket);
-    	std::vector<Function<T,3> > vKket=this->operator()(vket);
-        return vKket[0];
-    }
+  T operator()(const Function<T, NDIM>& bra, const Function<T, NDIM>& ket) const {
+    MADNESS_EXCEPTION("no implementation of matrix elements of the xc operator", 1);
+  };
 
-    T operator()(const Function<T,NDIM>& bra, const Function<T,NDIM>& ket) const {
-         MADNESS_EXCEPTION("no implementation of matrix elements of the xc operator",1);
+  Tensor<T> operator()(const std::vector<Function<T, NDIM>>& vbra, const std::vector<Function<T, NDIM>>& vket) const {
+    MADNESS_EXCEPTION("no implementation of matrix elements of the xc operator", 1);
+  }
+
+  /// compute the xc energy using the precomputed intermediates vf and delrho
+  double compute_xc_energy() const;
+
+  /// return the local xc potential
+  real_function_3d make_xc_potential() const;
+
+  /// construct the xc kernel and apply it directly on the (response) density
+
+  /// the xc kernel is the second derivative of the xc functions wrt the density
+  /// @param[in]  density the (response) density on which the kernel is applied
+  /// @return     kernel * density
+  real_function_3d apply_xc_kernel(const real_function_3d& density, const vecfuncT grad_dens_pt = vecfuncT()) const;
+
+ private:
+  /// the world
+  World& world;
+
+  /// which derivative operator to use
+  std::string dft_deriv;
+
+ public:
+  /// interface to the actual XC functionals
+  std::shared_ptr<XCfunctional> xc;
+
+ private:
+  /// number of beta orbitals
+  int nbeta;
+
+  /// the XC functionals depend on the spin of the orbitals they act on
+  mutable int ispin;
+
+  /// additional truncation for the densities in the XC kernel
+
+  /// the densities in the DFT kernal are processed as their inverses,
+  /// so noise in the small density regions might amplify and lead to inaccurate
+  /// results. Extra truncation will tighten the truncation threshold by a
+  /// specified factor, default is 0.01.
+  double extra_truncation;
+
+  /// the nuclear correlation factor, if it exists, for computing derivatives for GGA
+  std::shared_ptr<NuclearCorrelationFactor> ncf;
+
+  /// functions that are need for the computation of the XC operator
+
+  /// the ordering of the intermediates is fixed, but the code can handle
+  /// non-initialized functions, so if e.g. no GGA is requested, all the
+  /// corresponding vector components may be left empty.
+  /// For the ordering of the intermediates see xcfunctional::xc_arg
+  mutable vecfuncT xc_args;
+
+  /// compute the intermediates for the XC functionals
+
+  /// @param[in]  arho    density of the alpha orbitals
+  /// @param[in]  brho    density of the beta orbitals (necessary only if spin-polarized)
+  /// @return xc_args vector of intermediates as described above
+  vecfuncT prep_xc_args(const real_function_3d& arho, const real_function_3d& brho) const;
+
+  /// compute the intermediates for the XC functionals
+
+  /// @param[in]  dens_pt     perturbed densities from CPHF or TDDFT equations
+  /// @param[in,out] xc_args   vector of intermediates as described above
+  /// @param[out] ddens_pt    xyz-derivatives of dens_pt
+  void prep_xc_args_response(const real_function_3d& dens_pt, vecfuncT& xc_args, vecfuncT& ddens_pt) const;
+
+  /// check if the intermediates are initialized
+  bool is_initialized() const { return (xc_args.size() > 0); }
+
+  /// simple structure to take the pointwise logarithm of a function, shifted by +14
+  struct logme {
+    typedef double resultT;
+    struct logme1 {
+      double operator()(const double& val) { return log(std::max(1.e-14, val)) + 14.0; }
     };
-
-    Tensor<T> operator()(const std::vector<Function<T,NDIM>>& vbra, const std::vector<Function<T,NDIM>>& vket) const {
-        MADNESS_EXCEPTION("no implementation of matrix elements of the xc operator", 1);
+    Tensor<double> operator()(const Key<3>& key, const Tensor<double>& val) const {
+      Tensor<double> result = copy(val);
+      logme1 op;
+      return result.unaryop(op);
     }
 
-    /// compute the xc energy using the precomputed intermediates vf and delrho
-    double compute_xc_energy() const;
+    template <typename Archive>
+    void serialize(Archive& ar) {}
+  };
 
-    /// return the local xc potential
-    real_function_3d make_xc_potential() const;
-
-    /// construct the xc kernel and apply it directly on the (response) density
-
-    /// the xc kernel is the second derivative of the xc functions wrt the density
-    /// @param[in]  density the (response) density on which the kernel is applied
-    /// @return     kernel * density
-    real_function_3d apply_xc_kernel(const real_function_3d& density,
-            const vecfuncT grad_dens_pt=vecfuncT()) const;
-
-private:
-
-    /// the world
-    World& world;
-
-    /// which derivative operator to use
-    std::string dft_deriv;
-
-public:
-    /// interface to the actual XC functionals
-    std::shared_ptr<XCfunctional> xc;
-
-private:
-    /// number of beta orbitals
-    int nbeta;
-
-    /// the XC functionals depend on the spin of the orbitals they act on
-    mutable int ispin;
-
-    /// additional truncation for the densities in the XC kernel
-
-    /// the densities in the DFT kernal are processed as their inverses,
-    /// so noise in the small density regions might amplify and lead to inaccurate
-    /// results. Extra truncation will tighten the truncation threshold by a
-    /// specified factor, default is 0.01.
-    double extra_truncation;
-
-    /// the nuclear correlation factor, if it exists, for computing derivatives for GGA
-    std::shared_ptr<NuclearCorrelationFactor> ncf;
-
-    /// functions that are need for the computation of the XC operator
-
-    /// the ordering of the intermediates is fixed, but the code can handle
-    /// non-initialized functions, so if e.g. no GGA is requested, all the
-    /// corresponding vector components may be left empty.
-    /// For the ordering of the intermediates see xcfunctional::xc_arg
-    mutable vecfuncT xc_args;
-
-    /// compute the intermediates for the XC functionals
-
-    /// @param[in]  arho    density of the alpha orbitals
-    /// @param[in]  brho    density of the beta orbitals (necessary only if spin-polarized)
-    /// @return xc_args vector of intermediates as described above
-    vecfuncT prep_xc_args(const real_function_3d& arho, const real_function_3d& brho) const;
-
-    /// compute the intermediates for the XC functionals
-
-    /// @param[in]  dens_pt     perturbed densities from CPHF or TDDFT equations
-    /// @param[in,out] xc_args   vector of intermediates as described above
-    /// @param[out] ddens_pt    xyz-derivatives of dens_pt
-    void prep_xc_args_response(const real_function_3d& dens_pt,
-            vecfuncT& xc_args, vecfuncT& ddens_pt) const;
-
-    /// check if the intermediates are initialized
-    bool is_initialized() const {
-        return (xc_args.size()>0);
+  /// simple structure to take the pointwise exponential of a function, shifted by +14
+  struct expme {
+    typedef double resultT;
+    struct expme1 {
+      double operator()(const double& val) { return exp(val - 14.0); }
+    };
+    Tensor<double> operator()(const Key<3>& key, const Tensor<double>& val) const {
+      Tensor<double> result = copy(val);
+      expme1 op;
+      return result.unaryop(op);
     }
 
-    /// simple structure to take the pointwise logarithm of a function, shifted by +14
-    struct logme{
-        typedef double resultT;
-        struct logme1 {
-            double operator()(const double& val) {return log(std::max(1.e-14,val))+14.0;}
-        };
-        Tensor<double> operator()(const Key<3>& key, const Tensor<double>& val) const {
-            Tensor<double> result=copy(val);
-            logme1 op;
-            return result.unaryop(op);
-        }
-
-        template <typename Archive>
-        void serialize(Archive& ar) {}
-    };
-
-    /// simple structure to take the pointwise exponential of a function, shifted by +14
-    struct expme{
-        typedef double resultT;
-        struct expme1 {
-            double operator()(const double& val) {return exp(val-14.0);}
-        };
-        Tensor<double> operator()(const Key<3>& key, const Tensor<double>& val) const {
-            Tensor<double> result=copy(val);
-            expme1 op;
-            return result.unaryop(op);
-        }
-
-        template <typename Archive>
-        void serialize(Archive& ar) {}
-
-    };
+    template <typename Archive>
+    void serialize(Archive& ar) {}
+  };
 };
 
 /// Computes matrix representation of the Fock operator
-template<typename T, std::size_t NDIM>
-class Fock : public SCFOperatorBase<T,NDIM> {
-public:
-    Fock(World& world) : world(world) {}
+template <typename T, std::size_t NDIM>
+class Fock : public SCFOperatorBase<T, NDIM> {
+ public:
+  Fock(World& world) : world(world) {}
 
-    Fock(World& world, const Nemo* nemo);
-    Fock(World& world, const OEP* nemo);
-    Fock(World& world, const NemoBase* nemo);
+  Fock(World& world, const Nemo* nemo);
+  Fock(World& world, const OEP* nemo);
+  Fock(World& world, const NemoBase* nemo);
 
-    /// pretty print what this is actually computing
-    std::string info() const {
-        std::string s;
-        for (auto& op : operators) {
-            double number=std::get<0>(op.second);
-            if (number==-1.0) {
-                s+=" - ";
-            } else if (number!=1.0) {
-                std::stringstream snumber;
-                snumber << std::fixed << std::setw(2) << number;
-                s+=" "+snumber.str()+ " ";
-            } else {
-                MADNESS_CHECK(number==1.0);
-                s+=" + ";
-            }
-            s+=op.first;
-        }
-        return s;
+  /// pretty print what this is actually computing
+  std::string info() const {
+    std::string s;
+    for (auto& op : operators) {
+      double number = std::get<0>(op.second);
+      if (number == -1.0) {
+        s += " - ";
+      } else if (number != 1.0) {
+        std::stringstream snumber;
+        snumber << std::fixed << std::setw(2) << number;
+        s += " " + snumber.str() + " ";
+      } else {
+        MADNESS_CHECK(number == 1.0);
+        s += " + ";
+      }
+      s += op.first;
     }
+    return s;
+  }
 
-    /// add an operator with default prefactor 1.0
-    void add_operator(std::string name, std::shared_ptr<SCFOperatorBase<T,NDIM>> new_op) {
-        operators.insert({name,valueT(1.0,new_op)});
+  /// add an operator with default prefactor 1.0
+  void add_operator(std::string name, std::shared_ptr<SCFOperatorBase<T, NDIM>> new_op) {
+    operators.insert({name, valueT(1.0, new_op)});
+  }
+
+  /// add an operator with custom prefactor (e.g. -1.0 for the exchange, supposedly)
+  void add_operator(std::string name, std::tuple<double, std::shared_ptr<SCFOperatorBase<T, NDIM>>> new_op) {
+    operators.insert({name, new_op});
+  }
+
+  /// remove operator, returns 0 if no operator was found
+  int remove_operator(std::string name) { return operators.erase(name); }
+
+  Function<T, NDIM> operator()(const Function<T, NDIM>& ket) const {
+    MADNESS_EXCEPTION("Fock(ket) not yet implemented", 1);
+    Function<T, NDIM> result;
+    return result;
+  }
+
+  std::vector<Function<T, NDIM>> operator()(const std::vector<Function<T, NDIM>>& vket) const {
+    // make sure T is not part of the Fock operator, it's numerically unstable!
+    MADNESS_CHECK(operators.count("T") == 0);
+    std::vector<Function<T, NDIM>> result = zero_functions_compressed<T, NDIM>(world, vket.size());
+    for (const auto& op : operators) {
+      result += std::get<0>(op.second) * (*std::get<1>(op.second))(vket);
     }
+    return result;
+  }
 
-    /// add an operator with custom prefactor (e.g. -1.0 for the exchange, supposedly)
-    void add_operator(std::string name, std::tuple<double,std::shared_ptr<SCFOperatorBase<T,NDIM>>> new_op) {
-        operators.insert({name,new_op});
+  T operator()(const Function<T, NDIM>& bra, const Function<T, NDIM>& ket) const {
+    std::vector<Function<T, NDIM>> vbra(1, bra), vket(1, ket);
+    return (*this)(vbra, vket)(0, 0);
+  }
+
+  /// compute the Fock matrix by summing up all contributions
+  Tensor<T> operator()(const std::vector<Function<T, NDIM>>& vbra, const std::vector<Function<T, NDIM>>& vket) const {
+    return this->operator()(vbra, vket, false);
+  }
+
+  /// compute the Fock matrix by summing up all contributions
+  Tensor<T> operator()(const std::vector<Function<T, NDIM>>& vbra,
+                       const std::vector<Function<T, NDIM>>& vket,
+                       const bool symmetric) const {
+    Tensor<T> fock(vbra.size(), vket.size());
+    for (const auto& op : operators) {
+      Tensor<T> tmp = std::get<0>(op.second) * (*std::get<1>(op.second))(vbra, vket);
+      //            print("Operator",std::get<1>(op.second)->info());
+      //            print(tmp);
+      fock += tmp;
     }
+    return fock;
+  }
 
-    /// remove operator, returns 0 if no operator was found
-    int remove_operator(std::string name) {
-        return operators.erase(name);
-    }
+ private:
+  /// the world
+  World& world;
 
-    Function<T,NDIM> operator()(const Function<T,NDIM>& ket) const {
-      MADNESS_EXCEPTION("Fock(ket) not yet implemented",1);
-      Function<T,NDIM> result;
-      return result;
-    }
+  /// type defining Fock operator contribution including prefactor
+  typedef std::tuple<double, std::shared_ptr<SCFOperatorBase<T, NDIM>>> valueT;
 
-    std::vector<Function<T,NDIM>> operator()(const std::vector<Function<T,NDIM>>& vket) const {
-        // make sure T is not part of the Fock operator, it's numerically unstable!
-        MADNESS_CHECK(operators.count("T")==0);
-        std::vector<Function<T,NDIM>> result = zero_functions_compressed<T, NDIM>(world, vket.size());
-        for (const auto& op : operators) {
-            result+=std::get<0>(op.second) * (*std::get<1>(op.second))(vket);
-        }
-        return result;
-    }
-
-    T operator()(const Function<T,NDIM>& bra, const Function<T,NDIM>& ket) const {
-        std::vector<Function<T,NDIM>> vbra(1,bra), vket(1,ket);
-        return (*this)(vbra,vket)(0,0);
-    }
-
-    /// compute the Fock matrix by summing up all contributions
-    Tensor<T> operator()(const std::vector<Function<T,NDIM>>& vbra, const std::vector<Function<T,NDIM>>& vket) const {
-        return this->operator()(vbra,vket,false);
-    }
-
-    /// compute the Fock matrix by summing up all contributions
-    Tensor<T> operator()(const std::vector<Function<T,NDIM>>& vbra, const std::vector<Function<T,NDIM>>& vket,
-            const bool symmetric) const {
-        Tensor<T> fock(vbra.size(),vket.size());
-        for (const auto& op : operators) {
-            Tensor<T> tmp=std::get<0>(op.second) * (*std::get<1>(op.second))(vbra,vket);
-//            print("Operator",std::get<1>(op.second)->info());
-//            print(tmp);
-            fock+=tmp;
-        }
-        return fock;
-    }
-
-
-private:
-    /// the world
-    World& world;
-
-    /// type defining Fock operator contribution including prefactor
-    typedef std::tuple<double,std::shared_ptr<SCFOperatorBase<T,NDIM> > > valueT;
-
-    /// all the Fock operator contribution
-    std::map<std::string,valueT> operators;
+  /// all the Fock operator contribution
+  std::map<std::string, valueT> operators;
 };
 
-}
+}  // namespace madness
 #endif /* MADNESS_CHEM_SCFOPERATORS_H_ */

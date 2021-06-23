@@ -5,12 +5,11 @@
 #include <molresponse/response_parameters.h>
 #include <stdlib.h>
 
-#include "TDDFT.h"  // All response functions/objects enter through this
+#include "TDDFT.h" // All response functions/objects enter through this
 //#include "molresponse/density.h"
 #include "molresponse/global_functions.h"
 
-#if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && \
-    defined(HAVE_UNISTD_H)
+#if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -22,8 +21,7 @@ static inline int file_exists(const char* inpname) {
 }
 #endif
 
-template <typename T>
-void test_same(const T& t1, const T& t2) {
+template <typename T> void test_same(const T& t1, const T& t2) {
   if (t1 != t2) {
     print("t1, t2", t1, t2);
     using madness::operators::operator<<;
@@ -56,12 +54,12 @@ void run_density(World& world, density_vector& rho) {
     calc.solve_excited_states(world);
   } else {
     print("Entering Frequency Response Runner");
-    calc.compute_freq_response(world);
+    calc.solve_response_states(world);
   }
   //
   // densityTest.PlotResponseDensity(world);
 
-  if (calc.r_params.response_type().compare("dipole") == 0) {  //
+  if (calc.r_params.response_type().compare("dipole") == 0) { //
     print("Computing Alpha");
     Tensor<double> alpha = rho.ComputeSecondOrderPropertyTensor(world);
     print("Second Order Analysis");
@@ -85,6 +83,7 @@ bool test_create_dipole_save(World& world) {
   print("entering test_dipole");
   std::string inputlines = R"input(dipole_test
 			archive restartdata
+			first_order True
 			dipole True
 			save_density True
 			save_density_file "restart"
@@ -148,7 +147,8 @@ int main(int argc, char** argv) {
     // test_create_nuclear(world);
     // test_create_order2_dd(world);
     // test_create_order2_dn(world);
-    if (world.rank() == 0) printf("\nfinished at time %.1fs\n\n", wall_time());
+    if (world.rank() == 0)
+      printf("\nfinished at time %.1fs\n\n", wall_time());
     world.gop.fence();
     world.gop.fence();
   }

@@ -298,13 +298,6 @@ struct response_space {
   response_space& operator+=(const response_space b) {
     MADNESS_ASSERT(same_size(*this, b));
     World& world = x[0][0].world();
-    /*
-    for (size_t i = 0; i < num_states; i++) {
-      for (size_t j = 0; j < num_orbitals; j++) {
-        this->x[i][j] += b[i][j];
-      }
-    }
-    */
     for (size_t i = 0; i < num_states; i++) {
       this->x[i] = add(world, this->x[i], b[i]);
     }
@@ -318,6 +311,16 @@ struct response_space {
 
     for (size_t i = 0; i < num_states; i++) {
       result.x[i] = madness::copy(x[0][0].world(), x[i]);
+    }
+
+    return result;
+  }
+
+  response_space copy(const std::shared_ptr<WorldDCPmapInterface<Key<3> > >& pmap, bool fence = false) const {
+    response_space result(x[0][0].world(), num_states, num_orbitals);
+
+    for (size_t i = 0; i < num_states; i++) {
+      result.x[i] = madness::copy(x[0][0].world(), x[i], pmap, fence);
     }
 
     return result;
@@ -429,20 +432,9 @@ struct response_space {
     }
     // Container for result
     Tensor<double> result(dim_1, dim_1);
-    /**
-     * @brief
-     * [x1 x2 x3]T[x1 x2 x3]
-     *
-     */
-    // Run over dimension two
-    // each vector in orbital has dim_1 response functoins associated
     for (size_t p = 0; p < dim_2; p++) {
       result += matrix_inner(world, aT[p], bT[p]);
     }
-
-    print("----------------Results Response Space Inner  -----------------");
-    print("Result");
-    print(result);
     return result;
   }
 };

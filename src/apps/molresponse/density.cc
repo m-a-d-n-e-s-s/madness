@@ -31,8 +31,12 @@ density_vector::density_vector(World &world,
       g_params(other_gparams),
       Chi(world, num_states, num_orbitals),
       PQ(world, num_states, num_orbitals),
-      orbitals(copy(world, other_gparams.orbitals())) {
-  xcf.initialize(r_params.xc(), false, world, true);
+      orbitals(copy(world, other_gparams.orbitals())),
+      molecule(other_gparams.molecule()) {
+  xcf.initialize(r_params.xc(),
+                 !r_params.spinrestricted(),
+                 world,
+                 r_params.print_level() >= 10);
   if (r_params.response_type().compare("excited_state") == 0) {
     this->omega = Tensor<double>(r_params.n_states());
   } else {

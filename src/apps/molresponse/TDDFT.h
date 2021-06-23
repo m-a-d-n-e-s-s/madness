@@ -91,11 +91,6 @@ class GaussianGuess : public FunctionFunctorInterface<double, NDIM> {
   }
 };
 
-struct GammaResponseFunctions {
-  response_space gamma;
-  response_space gamma_conjugate;
-};
-
 class ResidualResponseVectors {
  public:
   response_space x;
@@ -119,6 +114,8 @@ typedef std::shared_ptr<operatorT> poperatorT;
 typedef Function<std::complex<double>, 3> complex_functionT;
 typedef std::vector<complex_functionT> cvecfuncT;
 typedef Convolution1D<double_complex> complex_operatorT;
+typedef std::vector<XNonlinearSolver<X_vector, double, X_space_allocator>>
+    NonLinearXsolver;
 
 class TDDFT {
  public:
@@ -162,6 +159,8 @@ class TDDFT {
   X_space Chi;
   X_space PQ;
   density_vector rho;
+  functionT rho0;
+  vecfuncT rho_omega;
 
   response_space stored_potential;  // The ground state potential, stored only
                                     // if store_potential is true (default is
@@ -181,6 +180,10 @@ class TDDFT {
   // Get Frequencies Omega
   Tensor<double> GetFrequencyOmega();
 
+  poperatorT coulop;
+  std::vector<std::shared_ptr<real_derivative_3d>> gradop;
+  double vtol;
+
   // Member variables
  public:
   // Collective constructor for response uses contents of file \c filename and
@@ -191,7 +194,14 @@ class TDDFT {
 
   // Loads a response calculation
   void load(World& world, std::string name);
-
+  // Initial load balance using vnuc
+  void initial_load_bal(World& world);
+  void loadbal(World& world, vecfuncT rho_omega, X_space Chi, X_space Chi_old);
+  void orbital_load_balance(World& world,
+                            vecfuncT& psi0,
+                            vecfuncT& psi0_copy,
+                            X_space& Chi,
+                            X_space& Chi_copy);
   // Normalizes in the response sense
   void normalize(World& world, response_space& f);
 
@@ -231,64 +241,17 @@ class TDDFT {
   response_space PropertyRHS(World& world, Property& p) const;
   // Returns the derivative of the coulomb operator, applied to ground state
   // orbitals
-  response_space CreateCoulombDerivativeRF(
-      World& world,
-      const response_space& f,                   // response functions
-      const std::vector<real_function_3d>& phi,  // orbitals
-      double lo,
-      double thresh);
-
-  response_space CreateCoulombDerivativeRFDagger(
-      World& world,
-      const response_space& f,
-      const std::vector<real_function_3d>& phi,
-      double lo,
-      double thresh);
-
-  // Returns the derivative of the exchange operator, applied to the ground
-  // state orbitals This is the function for TDA only
-  response_space CreateExchangeDerivativeRF(
-      World& world,
-      const response_space& f,
-      const std::vector<real_function_3d>& phi,
-      double lo,
-      double thresh);
-
-  response_space CreateExchangeDerivativeRFDagger(
-      World& world,
-      const response_space& f,
-      const std::vector<real_function_3d>& phi,
-      double lo,
-      double thresh);
-
-  response_space CreateXCDerivativeRF(World& world,
-                                      const response_space& f,
-                                      const std::vector<real_function_3d>& phi,
-                                      double lo,
-                                      double thresh);
-  response_space CreateXCDerivativeRFDagger(
-      World& world,
-      const response_space& f,
-      const std::vector<real_function_3d>& phi,
-      double lo,
-      double thresh);
 
   // Returns the diagonal (letter A) elements of response matrix
-  GammaResponseFunctions ComputeGammaFunctions(
-      World& world,
-      response_space& x,
-      response_space& y,
-      XCOperator<double, 3> xc,
-      const GroundParameters& g_params,
-      const ResponseParameters& r_params,
-      bool compute_Y);
-  X_space ComputeGammaFull(World& world,
-                           X_space& Chi,
-                           XCOperator<double, 3> xc);
-  X_space ComputeGammaStatic(World& world,
+  X_space compute_gamma_full(World& world,
                              X_space& Chi,
                              XCOperator<double, 3> xc);
-  X_space ComputeGammaTDA(World& world, X_space& Chi, XCOperator<double, 3> xc);
+  X_space compute_gamma_static(World& world,
+                               X_space& Chi,
+                               XCOperator<double, 3> xc);
+  X_space compute_gamma_TDA(World& world,
+                            X_space& Chi,
+                            XCOperator<double, 3> xc);
   // Note: No post multiplication involved here
   real_function_3d Coulomb(World& world);
 
@@ -296,6 +259,7 @@ class TDDFT {
   response_space exchange(World& world, response_space& f);
 
   // Returns the ground state potential applied to response functions
+  void make_nuclear_potential(World& world);
   response_space CreatePotential(World& world,
                                  response_space& f,
                                  XCOperator<double, 3> xc,
@@ -339,11 +303,11 @@ class TDDFT {
   X_space Compute_Theta_X(World& world,
                           X_space& Chi,
                           XCOperator<double, 3> xc,
-                          bool compute_Y);
+                          std::string calc_type);
   X_space Compute_Lambda_X(World& world,
                            X_space& Chi,
                            XCOperator<double, 3> xc,
-                           bool compute_Y);
+                           std::string calc_type);
   // Returns the hamiltonian matrix, equation 45 from the paper
   // -2.0 * (ground_state_energy + excited_state_energy) is positive
   Tensor<double> create_shift(World& world,
@@ -381,7 +345,10 @@ class TDDFT {
                        double lo,
                        double thresh);
 
-  // Returns a vector of BSH operators
+  std::vector<poperatorT> make_bsh_operators_response(
+      World& world,
+      double& shift,
+      double& omega) const;  // Returns a vector of BSH operators
   std::vector<std::vector<std::shared_ptr<real_convolution_3d>>>
   CreateBSHOperatorPropertyVector(World& world,
                                   Tensor<double>& shift,
@@ -397,6 +364,92 @@ class TDDFT {
                                   double& omega,
                                   double lo,
                                   double thresh);
+
+  void update_x_space_response(World& world,
+                               X_space& old_Chi,
+                               X_space& Chi,
+                               X_space& newChi,
+                               XCOperator<double, 3>& xc,
+                               std::vector<poperatorT>& bsh_x_ops,
+                               std::vector<poperatorT>& bsh_y_ops,
+                               QProjector<double, 3>& projector,
+                               double& x_shifts,
+                               double& omega_n,
+                               NonLinearXsolver kain_x_space,
+                               std::vector<X_vector> Xvector,
+                               std::vector<X_vector> Xresidual,
+                               Tensor<double>& bsh_residualsX,
+                               Tensor<double>& bsh_residualsY,
+                               size_t iteration);
+
+  X_space compute_residual_response(World& world,
+                                    X_space& old_Chi,
+                                    const X_space& Chi,
+                                    X_space& newChi,
+                                    X_space& theta_X,
+                                    std::vector<poperatorT>& bsh_x_ops,
+                                    std::vector<poperatorT>& bsh_y_ops,
+                                    QProjector<double, 3>& projector,
+                                    double& x_shifts,
+                                    Tensor<double>& bsh_residualsX,
+                                    Tensor<double>& bsh_residualsY);
+  void update_x_space_excited(World& world,
+                              X_space& old_Chi,
+                              X_space& Chi,
+                              X_space& newChi,
+                              X_space& old_Lambda_X,
+                              XCOperator<double, 3>& xc,
+                              QProjector<double, 3>& projector,
+                              Tensor<double>& omega,
+                              NonLinearXsolver kain_x_space,
+                              std::vector<X_vector> Xvector,
+                              std::vector<X_vector> Xresidual,
+                              Tensor<double>& energy_residuals,
+                              Tensor<double>& old_energy,
+                              Tensor<double>& bsh_residualsX,
+                              Tensor<double>& bsh_residualsY,
+                              Tensor<double>& S,
+                              Tensor<double>& old_S,
+                              Tensor<double>& A,
+                              Tensor<double>& old_A,
+                              std::vector<bool>& converged,
+                              size_t iteration);
+  void compute_new_omegas(World& world,
+                          X_space& old_Chi,
+                          X_space& Chi,
+                          X_space& old_Lambda_X,
+                          X_space& Lambda_X,
+                          Tensor<double>& omega,
+                          Tensor<double>& old_energy,
+                          Tensor<double>& S,
+                          Tensor<double>& old_S,
+                          Tensor<double>& A,
+                          Tensor<double>& old_A,
+                          Tensor<double>& energy_residuals,
+                          size_t iteration);
+
+  X_space compute_residual_excited(World& world,
+                                   X_space& old_Chi,
+                                   X_space& Chi,
+                                   X_space& newChi,
+                                   XCOperator<double, 3>& xc,
+                                   QProjector<double, 3>& projector,
+                                   Tensor<double>& bsh_residualsX,
+                                   Tensor<double>& bsh_residualsY,
+                                   std::vector<bool>& converged);
+  void kain_x_space_update(World& world,
+                           X_space& old_Chi,
+                           X_space& Chi,
+                           X_space& newChi,
+                           X_space& res,
+                           NonLinearXsolver kain_x_space,
+                           std::vector<X_vector> Xvector,
+                           std::vector<X_vector> Xresidual);
+  void x_space_step_restriction(World& world,
+                                X_space& old_Chi,
+                                X_space& Chi,
+                                X_space& newChi,
+                                bool restrict_y);
   // Returns the second order update to the energy
   Tensor<double> calculate_energy_update(World& world,
                                          response_space& gamma,
@@ -417,7 +470,8 @@ class TDDFT {
 
   // Selects the 'active' orbitals from ground state orbitals to be used in
   // the calculation (based on energy distance from the HOMO.) Function needs
-  // knowledge of g_params.orbitals and g_params.ground_energies. Function sets
+  // knowledge of g_params.orbitals and g_params.ground_energies. Function
+  // sets
   void select_active_subspace(World& world);
   // Selects from a list of functions and energies the k functions with the
   // lowest energy
@@ -621,16 +675,13 @@ class TDDFT {
 
   // Iterates the trial functions until covergence or it runs out of
   // iterations
-  void Iterate(World& world);
-  void Iterate(World& world, X_space& Chi);
+  void iterate_excited(World& world, X_space& Chi);
 
-  // Constructs and prints a more detailed analysis of response functions
   // Uses member variables
-  void analysis(World& world);
   void analysis(World& world, X_space& Chi);
 
   // Simplified iterate scheme for guesses
-  void IterateGuess(World& world, X_space& guesses);
+  void iterate_guess(World& world, X_space& guesses);
 
   // Create and diagonalize the CIS matrix for improved initial guess
   response_space diagonalize_CIS_guess(World& world,
@@ -647,6 +698,8 @@ class TDDFT {
                                 response_space& f,
                                 double magnitude);
 
+  // Creates the transition density
+  functionT make_ground_density(World& world, const vecfuncT& v);
   // Creates the transition density
   std::vector<real_function_3d> transition_density(
       World& world,
@@ -713,19 +766,14 @@ class TDDFT {
   void solve_excited_states(World& world);
 
   // Iterates the response functions until converged or out of iterations
-  //
-  void IterateFrequencyResponse(World& world,
-                                response_space& rhs_x,
-                                response_space& rhs_y);
 
-  void iterate_freq(World& world);
+  void iterate_freq2(World& world);
   // Calculates polarizability according to
   // alpha_ij(\omega) = -sum_{m occ} <psi_m(0)|r_i|psi_mj(1)(\omega)> +
   // <psi_mj(1)(-\omega)|r_i|psi_m(0)>
-  void polarizability(World& world, Tensor<double> polar);
+  Tensor<double> polarizability();
   void PrintPolarizabilityAnalysis(World& world,
-                                   const Tensor<double> polar_tensor,
-                                   const Tensor<double> omega);
+                                   const Tensor<double> polar_tensor);
 
   class plotCoords {
    public:
@@ -765,7 +813,7 @@ class TDDFT {
                            ResponseParameters const& r_params,
                            GroundParameters const& g_params);
   // Solves the response equations for the polarizability
-  void compute_freq_response(World& world);
+  void solve_response_states(World& world);
 };
 #endif  // SRC_APPS_MOLRESPONSE_TDDFT_H_
 

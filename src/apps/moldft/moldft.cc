@@ -82,7 +82,7 @@ int main(int argc, char** argv) {
       // Load info for MADNESS numerical routines
       startup(world, argc, argv, true);
       print_meminfo(world.rank(), "startup");
-      FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3> >(world)));
+      FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3>>(world)));
 
       std::cout.precision(6);
 
@@ -98,7 +98,7 @@ int main(int argc, char** argv) {
       if (!file_exists(inpname)) {
         throw "input file not found!";
       }
-      SCF calc(world, inpname);
+      SCF calc = SCF(world, inpname);
 
       // Warm and fuzzy for the user
       if (world.rank() == 0) {
@@ -122,11 +122,13 @@ int main(int argc, char** argv) {
 
       if (calc.param.gopt()) {
         // print("\n\n Geometry Optimization                      ");
-        // print(" ----------------------------------------------------------\n");
+        // print("
+        // ----------------------------------------------------------\n");
         // calc.param.gprint(world);
 
         // Tensor<double> geomcoord = calc.molecule.get_all_coords().flat();
-        // QuasiNewton geom(std::shared_ptr<OptimizationTargetInterface>(new MolecularEnergy(world, calc)),
+        // QuasiNewton geom(std::shared_ptr<OptimizationTargetInterface>(new
+        // MolecularEnergy(world, calc)),
         //                  calc.param.gmaxiter,
         //                  calc.param.gtol,  //tol
         //                  calc.param.gval,  //value prec
@@ -154,7 +156,8 @@ int main(int argc, char** argv) {
       } else if (calc.param.tdksprop()) {
         print("\n\n Propagation of Kohn-Sham equation                      ");
         print(" ----------------------------------------------------------\n");
-        //          calc.propagate(world,VextCosFunctor<double>(world,new DipoleFunctor(2),0.1),0);
+        //          calc.propagate(world,VextCosFunctor<double>(world,new
+        //          DipoleFunctor(2),0.1),0);
         calc.propagate(world, 0.1, 0);
       } else {
         MolecularEnergy E(world, calc);
