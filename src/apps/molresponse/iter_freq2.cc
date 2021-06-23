@@ -139,12 +139,6 @@ void TDDFT::iterate_freq2(World& world) {
     if (r_params.omega() == 0.0) Chi.Y = Chi.X.copy();
     old_Chi = Chi.copy();
     rho_omega_old = rho_omega;
-    // TODO compute all the energies
-    //
-    //
-    //
-    //
-    //
     // compute bsh_residual which is norm of residual functions
     update_x_space_response(world,
                             old_Chi,

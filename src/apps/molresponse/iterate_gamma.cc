@@ -25,11 +25,14 @@
 #include "molresponse/timer.h"
 #include "molresponse/x_space.h"
 
-X_space TDDFT::compute_gamma_full(World& world, X_space& Chi, XCOperator<double, 3> xc) {
+X_space TDDFT::compute_gamma_full(World& world,
+                                  X_space& Chi,
+                                  XCOperator<double, 3> xc) {
   size_t m = r_params.n_states();
   size_t n = r_params.num_orbitals();
   // shallow copy
-  std::shared_ptr<WorldDCPmapInterface<Key<3>>> oldpmap = FunctionDefaults<3>::get_pmap();
+  std::shared_ptr<WorldDCPmapInterface<Key<3>>> oldpmap =
+      FunctionDefaults<3>::get_pmap();
 
   X_space Chi_copy = Chi;
   vecfuncT phi0_copy = ground_orbitals;
@@ -180,11 +183,14 @@ X_space TDDFT::compute_gamma_full(World& world, X_space& Chi, XCOperator<double,
   // Get sizes
 }
 
-X_space TDDFT::compute_gamma_static(World& world, X_space& Chi, XCOperator<double, 3> xc) {
+X_space TDDFT::compute_gamma_static(World& world,
+                                    X_space& Chi,
+                                    XCOperator<double, 3> xc) {
   size_t m = r_params.n_states();
   size_t n = r_params.num_orbitals();
   // shallow copy
-  std::shared_ptr<WorldDCPmapInterface<Key<3>>> oldpmap = FunctionDefaults<3>::get_pmap();
+  std::shared_ptr<WorldDCPmapInterface<Key<3>>> oldpmap =
+      FunctionDefaults<3>::get_pmap();
 
   X_space Chi_copy = Chi;
   vecfuncT phi0_copy = ground_orbitals;
@@ -312,7 +318,9 @@ X_space TDDFT::compute_gamma_static(World& world, X_space& Chi, XCOperator<doubl
   // Get sizes
 }
 
-X_space TDDFT::compute_gamma_TDA(World& world, X_space& Chi, XCOperator<double, 3> xc) {
+X_space TDDFT::compute_gamma_TDA(World& world,
+                                 X_space& Chi,
+                                 XCOperator<double, 3> xc) {
   // Start a timer
   //
   if (r_params.print_level() >= 1) molresponse::start_timer(world);
@@ -323,8 +331,8 @@ X_space TDDFT::compute_gamma_TDA(World& world, X_space& Chi, XCOperator<double, 
   print("y_norms in Gamma Functions ");
   print(Chi.Y.norm2());
 
-  size_t m = r_params.n_states();
-  size_t n = r_params.num_orbitals();
+  size_t m = Chi.X.size();
+  size_t n = Chi.X.size_orbitals();
   double lo = r_params.lo();
   double thresh = FunctionDefaults<3>::get_thresh();
 
@@ -391,12 +399,11 @@ X_space TDDFT::compute_gamma_TDA(World& world, X_space& Chi, XCOperator<double, 
   if (r_params.print_level() >= 2) {
     print("<X ,Gamma(X,Y) Phi>");
     PrintRFExpectation(world, Chi.X, gamma.X, "x", "Gamma)");
-    print("<Y ,Gamma_Conjugate(X,Y) Phi>");
-    PrintRFExpectation(world, Chi.Y, gamma.Y, "y", "Gamma)");
   }
 
   // End timer
-  if (r_params.print_level() >= 1) molresponse::end_timer(world, "   Creating Gamma X:");
+  if (r_params.print_level() >= 1)
+    molresponse::end_timer(world, "   Creating Gamma X:");
 
   // Done
   world.gop.fence();

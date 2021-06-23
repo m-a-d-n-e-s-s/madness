@@ -116,9 +116,9 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
   // Now to iterate
   while (iter < r_params.maxiter() && !all_converged) {
     // Start a timer for this iteration
-    molresponse::start_timer(world);
     // Basic output
     if (r_params.print_level() >= 1) {
+      molresponse::start_timer(world);
       if (world.rank() == 0)
         printf("\n   Iteration %d at time %.1fs\n",
                static_cast<int>(iter),
@@ -154,6 +154,8 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
               bsh_residualsX,
               bsh_residualsY);
     }
+    old_Chi = Chi.copy();
+    rho_omega_old = rho_omega;
 
     update_x_space_excited(world,
                            old_Chi,

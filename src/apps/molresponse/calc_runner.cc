@@ -748,10 +748,6 @@ void TDDFT::solve_response_states(World& world) {
     print("\n\n    Response Calculation");
     print("   ------------------------");
   }
-
-  // Keep a copy of dipoles * MO (needed explicitly in eq.)
-
-  // For each protocol
   for (unsigned int proto = 0; proto < r_params.protocol().size(); proto++) {
     // Set defaults inside here
     // default value of
@@ -767,9 +763,6 @@ void TDDFT::solve_response_states(World& world) {
       if (world.rank() == 0) print("creating nuclear property operator");
       p = Property(world, "nuclear", g_params.molecule());
     }
-
-    // Create guesses if no response functions
-    // If restarting, load here
     if (proto == 0) {
       if (r_params.restart()) {
         if (world.rank() == 0)
@@ -787,11 +780,6 @@ void TDDFT::solve_response_states(World& world) {
 
           // set RHS_Vector
         } else if (r_params.nuclear()) {
-          // set guesses
-          // print("Creating X for Nuclear Operators");
-
-          // print("x norms:");
-          // print(x_response.norm2());
           PQ.X = PropertyRHS(world, p);
           PQ.Y = PQ.X.copy();
 

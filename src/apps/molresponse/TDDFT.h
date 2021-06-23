@@ -391,8 +391,8 @@ class TDDFT {
                                     std::vector<poperatorT>& bsh_y_ops,
                                     QProjector<double, 3>& projector,
                                     double& x_shifts,
-                                    Tensor<double>& errX,
-                                    Tensor<double>& errY);
+                                    Tensor<double>& bsh_residualsX,
+                                    Tensor<double>& bsh_residualsY);
   void update_x_space_excited(World& world,
                               X_space& old_Chi,
                               X_space& Chi,
@@ -414,18 +414,42 @@ class TDDFT {
                               Tensor<double>& old_A,
                               std::vector<bool>& converged,
                               size_t iteration);
+  void compute_new_omegas(World& world,
+                          X_space& old_Chi,
+                          X_space& Chi,
+                          X_space& old_Lambda_X,
+                          X_space& Lambda_X,
+                          Tensor<double>& omega,
+                          Tensor<double>& old_energy,
+                          Tensor<double>& S,
+                          Tensor<double>& old_S,
+                          Tensor<double>& A,
+                          Tensor<double>& old_A,
+                          Tensor<double>& energy_residuals,
+                          size_t iteration);
 
   X_space compute_residual_excited(World& world,
                                    X_space& old_Chi,
-                                   const X_space& Chi,
+                                   X_space& Chi,
                                    X_space& newChi,
-                                   X_space& theta_X,
-                                   std::vector<poperatorT>& bsh_x_ops,
-                                   std::vector<poperatorT>& bsh_y_ops,
+                                   XCOperator<double, 3>& xc,
                                    QProjector<double, 3>& projector,
-                                   double& x_shifts,
-                                   Tensor<double>& errX,
-                                   Tensor<double>& errY);
+                                   Tensor<double>& bsh_residualsX,
+                                   Tensor<double>& bsh_residualsY,
+                                   std::vector<bool>& converged);
+  void kain_x_space_update(World& world,
+                           X_space& old_Chi,
+                           X_space& Chi,
+                           X_space& newChi,
+                           X_space& res,
+                           NonLinearXsolver kain_x_space,
+                           std::vector<X_vector> Xvector,
+                           std::vector<X_vector> Xresidual);
+  void x_space_step_restriction(World& world,
+                                X_space& old_Chi,
+                                X_space& Chi,
+                                X_space& newChi,
+                                bool restrict_y);
   // Returns the second order update to the energy
   Tensor<double> calculate_energy_update(World& world,
                                          response_space& gamma,
@@ -743,7 +767,6 @@ class TDDFT {
 
   // Iterates the response functions until converged or out of iterations
 
-  void iterate_freq(World& world);
   void iterate_freq2(World& world);
   // Calculates polarizability according to
   // alpha_ij(\omega) = -sum_{m occ} <psi_m(0)|r_i|psi_mj(1)(\omega)> +
