@@ -34,7 +34,7 @@ void TDDFT::iterate_freq2(World& world) {
   real_function_3d v_xc;   // For TDDFT
   bool converged = false;  // Converged flag
   const double dconv = std::max(FunctionDefaults<3>::get_thresh(), r_params.dconv());
-
+  // m residuals for x and y
   Tensor<double> bsh_residualsX(m);
   Tensor<double> bsh_residualsY(m);
 
