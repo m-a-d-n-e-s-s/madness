@@ -8,8 +8,7 @@ struct lbcost {
   double parent_value;
   explicit lbcost(double leaf_value = 1.0, double parent_value = 0.0)
       : leaf_value(leaf_value), parent_value(parent_value) {}
-  double operator()(const Key<NDIM>& key,
-                    const FunctionNode<T, NDIM>& node) const {
+  double operator()(const Key<NDIM>& key, const FunctionNode<T, NDIM>& node) const {
     if (key.level() < 1) {
       return 100.0 * (leaf_value + parent_value);
     } else if (node.is_leaf()) {
@@ -19,4 +18,5 @@ struct lbcost {
     }
   }
 };
+
 #endif

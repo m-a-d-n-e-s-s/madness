@@ -30,8 +30,7 @@ struct response_vector {
   // copy constructor
   response_vector(const response_vector& x);
   // zero function constructor
-  explicit response_vector(World& world, size_t num_orbs)
-      : num_orbitals(num_orbs) {
+  explicit response_vector(World& world, size_t num_orbs) : num_orbitals(num_orbs) {
     x = zero_functions<double, 3>(world, num_orbitals);
   }
   ~response_vector() {}
@@ -82,8 +81,7 @@ struct response_space {
    * implementations
    * @param y
    */
-  response_space(const response_space& y)
-      : num_states(y.size()), num_orbitals(y.size_orbitals()), x(y.x) {}
+  response_space(const response_space& y) : num_states(y.size()), num_orbitals(y.size_orbitals()), x(y.x) {}
   // assignment
   response_space& operator=(const response_space& y) {
     //
@@ -109,8 +107,7 @@ struct response_space {
   response_space(World& world, size_t num_states, size_t num_orbitals)
       : num_states(num_states), num_orbitals(num_orbitals), x() {
     for (size_t i = 0; i < num_states; i++) {
-      this->x.emplace_back(
-          zero_functions<double, 3>(world, num_orbitals, true));
+      this->x.emplace_back(zero_functions<double, 3>(world, num_orbitals, true));
     }
   }
   // Conversion from respones_matrix
@@ -119,8 +116,7 @@ struct response_space {
    *
    * @param x
    */
-  explicit response_space(const response_matrix& x)
-      : num_states(x.size()), num_orbitals(x[0].size()), x(x) {}
+  explicit response_space(const response_matrix& x) : num_states(x.size()), num_orbitals(x[0].size()), x(x) {}
   // Determines if two ResponseFunctions are the same size
   friend bool same_size(const response_space& x, const response_space& y) {
     return ((x.size() == y.size()) && (x.size_orbitals() == y.size_orbitals()));
@@ -159,8 +155,7 @@ struct response_space {
 
     World& world = this->x[0][0].world();
 
-    response_space result(
-        world, num_states, num_orbitals);  // create zero_functions
+    response_space result(world, num_states, num_orbitals);  // create zero_functions
 
     for (size_t i = 0; i < num_states; i++) {
       result[i] = add(world, x[i], rhs_y[i]);
@@ -186,8 +181,7 @@ struct response_space {
 
     World& world = this->x[0][0].world();
 
-    response_space result(
-        world, num_states, num_orbitals);  // create zero_functions
+    response_space result(world, num_states, num_orbitals);  // create zero_functions
 
     for (size_t i = 0; i < num_states; i++) {
       result[i] = sub(world, x[i], rhs_y[i]);
@@ -258,11 +252,9 @@ struct response_space {
 
   // Scaling all internal functions by an external function
   // g[i][j] = x[i][j] * f
-  friend response_space operator*(const response_space& a,
-                                  const Function<double, 3>& f) {
+  friend response_space operator*(const response_space& a, const Function<double, 3>& f) {
     World& world = a.x.at(0).at(0).world();
-    response_space result(
-        world, a.num_states, a.num_orbitals);  // create zero_functions
+    response_space result(world, a.num_states, a.num_orbitals);  // create zero_functions
 
     for (unsigned int i = 0; i < a.num_states; i++) {
       // Using vmra.h funciton
@@ -273,15 +265,13 @@ struct response_space {
   }
   // Scaling all internal functions by an external function
   // g[i][j] = x[i][j] * f
-  friend response_space operator*(const Function<double, 3>& f,
-                                  const response_space& a) {
+  friend response_space operator*(const Function<double, 3>& f, const response_space& a) {
     // commutative property
     return a * f;
   }
   response_space operator*(const Function<double, 3>& f) {
     World& world = x[0][0].world();
-    response_space result(
-        world, num_states, num_orbitals);  // create zero_functions
+    response_space result(world, num_states, num_orbitals);  // create zero_functions
 
     for (size_t i = 0; i < num_states; i++) {
       // Using vmra.h funciton
@@ -291,8 +281,7 @@ struct response_space {
     return result;
   }
 
-  friend response_space operator*(const response_space& a,
-                                  const Tensor<double>& b) {
+  friend response_space operator*(const response_space& a, const Tensor<double>& b) {
     MADNESS_ASSERT(a.size() > 0);
     MADNESS_ASSERT(a[0].size() > 0);
     World& world = a[0][0].world();
@@ -309,13 +298,6 @@ struct response_space {
   response_space& operator+=(const response_space b) {
     MADNESS_ASSERT(same_size(*this, b));
     World& world = x[0][0].world();
-    /*
-    for (size_t i = 0; i < num_states; i++) {
-      for (size_t j = 0; j < num_orbitals; j++) {
-        this->x[i][j] += b[i][j];
-      }
-    }
-    */
     for (size_t i = 0; i < num_states; i++) {
       this->x[i] = add(world, this->x[i], b[i]);
     }
@@ -329,6 +311,16 @@ struct response_space {
 
     for (size_t i = 0; i < num_states; i++) {
       result.x[i] = madness::copy(x[0][0].world(), x[i]);
+    }
+
+    return result;
+  }
+
+  response_space copy(const std::shared_ptr<WorldDCPmapInterface<Key<3> > >& pmap, bool fence = false) const {
+    response_space result(x[0][0].world(), num_states, num_orbitals);
+
+    for (size_t i = 0; i < num_states; i++) {
+      result.x[i] = madness::copy(x[0][0].world(), x[i], pmap, fence);
     }
 
     return result;
@@ -406,23 +398,20 @@ struct response_space {
   // Scales each state (read: entire row) by corresponding vector element
   //     new[i] = old[i] * mat[i]
   void scale(Tensor<double>& mat) {
-    for (size_t i = 0; i < num_states; i++)
-      madness::scale(x[0][0].world(), x[i], mat[i], false);
+    for (size_t i = 0; i < num_states; i++) madness::scale(x[0][0].world(), x[i], mat[i], false);
     // x[i] = x[i] * mat[i];
   }
   friend bool operator==(const response_space& x, const response_space& y) {
     if (!same_size(x, y)) return false;
     for (size_t b = 0; b < x.size(); ++b) {
       for (size_t k = 0; b < x.size_orbitals(); ++k) {
-        if ((x[b][k] - y[b][k]).norm2() >
-            FunctionDefaults<3>::get_thresh())  // this may be strict
+        if ((x[b][k] - y[b][k]).norm2() > FunctionDefaults<3>::get_thresh())  // this may be strict
           return false;
       }
     }
     return true;
   }
-  friend Tensor<double> response_space_inner(response_space& a,
-                                             response_space& b) {
+  friend Tensor<double> response_space_inner(response_space& a, response_space& b) {
     MADNESS_ASSERT(a.size() > 0);
     MADNESS_ASSERT(a.size() == b.size());
     MADNESS_ASSERT(a[0].size() > 0);
@@ -443,20 +432,9 @@ struct response_space {
     }
     // Container for result
     Tensor<double> result(dim_1, dim_1);
-    /**
-     * @brief
-     * [x1 x2 x3]T[x1 x2 x3]
-     *
-     */
-    // Run over dimension two
-    // each vector in orbital has dim_1 response functoins associated
     for (size_t p = 0; p < dim_2; p++) {
       result += matrix_inner(world, aT[p], bT[p]);
     }
-    
-    print("----------------Results Response Space Inner  -----------------");
-    print("Result");
-    print(result);
     return result;
   }
 };

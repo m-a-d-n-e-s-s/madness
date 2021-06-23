@@ -1,8 +1,8 @@
 #ifndef SRC_APPS_molresponse_DENSITY_H_
 #define SRC_APPS_molresponse_DENSITY_H_
 
-#include <TDDFT.h>
 #include <response_functions.h>
+#include <x_space.h>
 
 #include <algorithm>
 #include <memory>
@@ -10,7 +10,9 @@
 #include <vector>
 
 #include "molresponse/global_functions.h"
+#include "molresponse/ground_parameters.h"
 #include "molresponse/property.h"
+#include "molresponse/response_parameters.h"
 
 typedef Tensor<double> TensorT;
 typedef Function<double, 3> FunctionT;
@@ -20,42 +22,41 @@ typedef Vector<double, 3> CoordinateT;
 typedef std::vector<real_function_3d> VectorFunction3DT;
 
 // base class for a density
+
 // operator used to create it
 // homogeneous sol----x and y functions
 // particular sol --- depends on lower order functions used to create it
 // it also needs an xc functional
-// The Rparams and Gparmas used to create the density
+// The r_params and Gparmas used to create the density
 //
-class FirstOrderDensity {
+class density_vector {
  protected:
-  std::string property;  // excited state, nuclear,dipole
   // operator used create first order density
-  Property property_operator;  // dipole, nuclear, or none
   Tensor<double> omega;        // frequency or frequencies
+  const size_t num_states;     // number of response states
+  const size_t num_orbitals;   // number of ground state orbitals
+  const std::string property;  // excited state, nuclear,dipole
 
-  size_t num_states;         // number of response states
-  size_t num_ground_states;  // number of ground state orbitals
+  const ResponseParameters r_params;  // Response Parameters
+  const GroundParameters g_params;
 
-  XCfunctional xcf;  // xc functional
-
-  ResponseParameters Rparams;  // Response Parameters
-  GroundParameters Gparams;    // Ground Parameters
-
+  XCfunctional xcf;            // xc functional
+  Property property_operator;  // dipole, nuclear, or none
   X_space Chi;
-  response_space x;  // The x response functions virt/occ
-  response_space y;  // occ/virt
-
-  response_space P;  // rhs vector P
-  response_space Q;  // rhs vector Q
+  X_space PQ;
+  VectorFunction3DT orbitals;
 
   // first order frequency response densities
   VectorFunction3DT rho_omega;  // the response density vector
+  Molecule molecule;
 
  public:
+  friend class TDDFT;
   // Collective constructor
-  FirstOrderDensity(ResponseParameters Rparams, GroundParameters Gparams);
-
-  virtual void ComputeResponse(World& world);
+  density_vector(World& world,
+                 ResponseParameters r_params,
+                 GroundParameters g_params);
+  density_vector(const density_vector& other) = default;
 
   size_t GetNumberResponseStates();
   VectorFunction3DT ComputeDensityVector(World& world, bool is_static);
@@ -76,49 +77,31 @@ class FirstOrderDensity {
   // Load a response calculation
   void LoadDensity(World& world,
                    std::string name,
-                   ResponseParameters Rparams,
-                   GroundParameters Gparams);
+                   ResponseParameters r_params,
+                   GroundParameters g_params);
 };
 
-class DipoleDensity : public FirstOrderDensity {
+class dipole_density_vector : public density_vector {
  public:
-  DipoleDensity(World& world, ResponseParameters R, GroundParameters G)
-      : FirstOrderDensity(R, G) {
-    this->property = Rparams.response_type;
-    this->num_states = 3;
-    this->num_ground_states = Gparams.num_orbitals;
-    this->x = response_space(world, num_states, num_ground_states);
-    this->y = response_space(world, num_states, num_ground_states);
-    this->P = response_space(world, num_states, num_ground_states);
-    this->Q = response_space(world, num_states, num_ground_states);
-  }
+  dipole_density_vector(World& world, ResponseParameters R, GroundParameters G)
+      : density_vector(world, R, G) {}
 };
 
-class NuclearResponseDensity : public FirstOrderDensity {
+class nuclear_density_vector : public density_vector {
  public:
-  NuclearResponseDensity(World& world, ResponseParameters R, GroundParameters G)
-      : FirstOrderDensity(R, G) {
-    this->property = Rparams.response_type;
-    this->num_states = Rparams.states;
-    this->num_ground_states = Gparams.num_orbitals;
-    this->x = response_space(world, num_states, num_ground_states);
-    this->y = response_space(world, num_states, num_ground_states);
-    this->P = response_space(world, num_states, num_ground_states);
-    this->Q = response_space(world, num_states, num_ground_states);
-  }
+  nuclear_density_vector(World& world, ResponseParameters R, GroundParameters G)
+      : density_vector(world, R, G) {}
 };
 
-class ExcitedStateDensity : public FirstOrderDensity {
+class excited_state_density_vector : public density_vector {
  public:
-  ExcitedStateDensity(World& world, ResponseParameters R, GroundParameters G)
-      : FirstOrderDensity(R, G) {
-    this->property = Rparams.response_type;
-    this->num_states = Rparams.states;
-    this->num_ground_states = Gparams.num_orbitals;
-    this->x = response_space(world, num_states, num_ground_states);
-    this->y = response_space(world, num_states, num_ground_states);
-    this->P = response_space(world, num_states, num_ground_states);
-    this->Q = response_space(world, num_states, num_ground_states);
-  }
+  excited_state_density_vector(World& world,
+                               ResponseParameters R,
+                               GroundParameters G)
+      : density_vector(world, R, G) {}
 };
+
+density_vector set_density_type(World& world,
+                                ResponseParameters R,
+                                GroundParameters G);
 #endif  // SRC_APPS_molresponse_DENSITY_H_

@@ -1,4 +1,3 @@
-
 #ifndef SRC_APPS_molresponse_PROPERTY_H_
 #define SRC_APPS_molresponse_PROPERTY_H_
 

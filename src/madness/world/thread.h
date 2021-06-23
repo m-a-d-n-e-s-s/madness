@@ -38,6 +38,7 @@
  \ingroup threads
 */
 
+#include <madness/world/thread_info.h>
 #include <madness/world/dqueue.h>
 #include <madness/world/function_traits.h>
 #include <vector>

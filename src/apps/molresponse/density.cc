@@ -9,8 +9,10 @@
 #include "../../madness/mra/funcplot.h"
 #include "TDDFT.h"
 #include "molresponse/global_functions.h"
+#include "molresponse/ground_parameters.h"
 #include "molresponse/property.h"
 #include "molresponse/response_functions.h"
+#include "molresponse/response_parameters.h"
 
 typedef Tensor<double> TensorT;
 typedef Function<double, 3> FunctionT;
@@ -19,125 +21,58 @@ typedef FunctionFactory<double, 3> FactoryT;
 typedef Vector<double, 3> CoordinateT;
 typedef std::vector<real_function_3d> VectorFunction3DT;
 
-// base class for a density
-// operator used to create it
-// homogeneous sol----x and y functions
-// particular sol --- depends on lower order functions used to create it
-// it also needs an xc functional
-// The Rparams and Gparmas used to create the density
-//
-FirstOrderDensity::FirstOrderDensity(ResponseParameters Rparams,
-                                     GroundParameters Gparams) {
-  this->Rparams = Rparams;
-  this->Gparams = Gparams;
-}
-void FirstOrderDensity::ComputeResponse(World &world) {
-  // right now everything uses copy
-  property = Rparams.response_type;
-  // TDHF sets the TDHF with paramaters...
-  // sets mask function
-  // brodcast serializable
-  // sets Function Defaults for calculation
-  // sets xcf
-  //
-  // creating calc should also set up the x and y functions
-  //
-
-  Chi = X_space(world, Rparams.states, Gparams.num_orbitals);
-  x = response_space(world, Rparams.states, Gparams.num_orbitals);
-  y = response_space(world, Rparams.states, Gparams.num_orbitals);
-  print("Creating Response Functions for X and Y");
-  print("X Norms before Computing");
-  print(x.norm2());
-  print("Y Norms before Computing");
-  print(y.norm2());
-
-  TDDFT calc(world, Rparams, Gparams);
-  if (calc.Rparams.response_type.compare("excited_state") == 0) {
-    print("Entering Excited State Response Runner");
-    calc.solve_excited_states(world);
+density_vector::density_vector(World &world,
+                               ResponseParameters other_rparams,
+                               GroundParameters other_gparams)
+    : num_states(other_rparams.n_states()),
+      num_orbitals(other_rparams.num_orbitals()),
+      property(other_rparams.response_type()),
+      r_params(other_rparams),  // should be a copy
+      g_params(other_gparams),
+      Chi(world, num_states, num_orbitals),
+      PQ(world, num_states, num_orbitals),
+      orbitals(copy(world, other_gparams.orbitals())),
+      molecule(other_gparams.molecule()) {
+  xcf.initialize(r_params.xc(),
+                 !r_params.spinrestricted(),
+                 world,
+                 r_params.print_level() >= 10);
+  if (r_params.response_type().compare("excited_state") == 0) {
+    this->omega = Tensor<double>(r_params.n_states());
   } else {
-    print("Entering Frequency Response Runner");
-    calc.ComputeFrequencyResponse(world, property, Chi, x, y);
-  }
-  // omega is determined by the type of calculation
-  // property calculation at single frequency
-  // excited stat calculation at multipe frequencies
-  omega = calc.GetFrequencyOmega();
-  property_operator = calc.GetPropertyObject();
-
-  Chi = calc.GetXspace();
-  x = calc.GetResponseFunctions("x");
-  y = calc.GetResponseFunctions("y");
-
-  print("X Norms before Computing");
-  print(x.norm2());
-  P = calc.GetPVector();
-  Q = calc.GetQVector();
-
-  num_states = x.size();
-  num_ground_states = x[0].size();
-  // get the response densities for our states
-  if (Rparams.omega == 0) {
-    rho_omega = calc.transition_density(world, Gparams.orbitals, x, x);
-  } else {
-    rho_omega = calc.transition_density(world, Gparams.orbitals, x, y);
-  }
-  if (Rparams.save_density) {
-    SaveDensity(world, Rparams.save_density_file);
+    this->omega = Tensor<double>(1);
+    this->omega(0, 0) = r_params.omega();
   }
 }
 
 // right now everything uses copy
 
-size_t FirstOrderDensity::GetNumberResponseStates() { return num_states; }
-size_t FirstOrderDensity::GetNumberGroundStates() { return num_ground_states; }
-VectorFunction3DT FirstOrderDensity::GetDensityVector() { return rho_omega; }
-const Molecule FirstOrderDensity::GetMolecule() { return Gparams.molecule; }
-TensorT FirstOrderDensity::GetFrequencyOmega() { return omega; }
-ResponseParameters FirstOrderDensity::GetResponseParameters() {
-  return Rparams;
-}
+size_t density_vector::GetNumberResponseStates() { return num_states; }
+size_t density_vector::GetNumberGroundStates() { return num_orbitals; }
+VectorFunction3DT density_vector::GetDensityVector() { return rho_omega; }
+const Molecule density_vector::GetMolecule() { return g_params.molecule(); }
+TensorT density_vector::GetFrequencyOmega() { return omega; }
+ResponseParameters density_vector::GetResponseParameters() { return r_params; }
 
-VectorFunction3DT FirstOrderDensity::ComputeDensityVector(World &world,
-                                                          bool is_static) {
+VectorFunction3DT density_vector::ComputeDensityVector(World &world,
+                                                       bool is_static) {
   std::vector<real_function_3d> densities =
       zero_functions<double, 3>(world, num_states);
-  /*
-    x.reconstruct_rf();
-    y.reconstruct_rf();
-    reconstruct(world, Gparams.orbitals);
-    */
-
   if (is_static) {
     for (size_t b = 0; b < num_states; b++) {
-      densities[b] = dot(world, x[b], Gparams.orbitals) +
-                     dot(world, x[b], Gparams.orbitals);
-      /*
-        for (size_t    j = 0; j < num_ground_states; j++) {
-          densities[b] += mul_sparse(x[b][j], Gparams.orbitals[j],
-        Rparams.small); densities[b] += mul_sparse(x[b][j], Gparams.orbitals[j],
-        Rparams.small);
-        }
-        */
+      densities[b] =
+          dot(world, Chi.X[b], orbitals) + dot(world, Chi.X[b], orbitals);
     }
   } else {
     for (size_t b = 0; b < num_states; b++) {
-      densities[b] = dot(world, x[b], Gparams.orbitals) +
-                     dot(world, y[b], Gparams.orbitals);
-      /*
-        for (size_t    j = 0; j < num_ground_states; j++) {
-          densities[b] += mul_sparse(x[b][j], Gparams.orbitals[j],
-        Rparams.small); densities[b] += mul_sparse(y[b][j], Gparams.orbitals[j],
-        Rparams.small);
-        }
-        */
+      densities[b] =
+          dot(world, Chi.X[b], orbitals) + dot(world, Chi.Y[b], orbitals);
     }
   }
   truncate(world, densities);
   return densities;
 }
-void FirstOrderDensity::PrintDensityInformation() {
+void density_vector::PrintDensityInformation() {
   // print
   //
   print("Response Density Information");
@@ -145,18 +80,18 @@ void FirstOrderDensity::PrintDensityInformation() {
         " response at",
         omega(0, 0),
         "frequency using ",
-        Rparams.xc,
+        r_params.xc(),
         " exchange functional");
   print("Number of Response States : ", num_states);
-  print("Number of Ground States : ", num_ground_states);
+  print("Number of Ground States : ", num_orbitals);
 }
 
-void FirstOrderDensity::PlotResponseDensity(World &world) {
+void density_vector::PlotResponseDensity(World &world) {
   // Doing line plots along each axis
   if (world.rank() == 0) print("\n\nStarting plots");
   coord_3d lo, hi;
   char plotname[500];
-  double Lp = std::min(Gparams.L, 24.0);
+  double Lp = std::min(g_params.get_L(), 24.0);
   if (world.rank() == 0) print("x:");
   // x axis
   lo[0] = 0.0;
@@ -175,16 +110,14 @@ void FirstOrderDensity::PlotResponseDensity(World &world) {
     plot_line(plotname, 5001, lo, hi, rho_omega[i]);
   }
 }
-Tensor<double> FirstOrderDensity::ComputeSecondOrderPropertyTensor(
-    World &world) {
-  X_space PQ(P, P);
+Tensor<double> density_vector::ComputeSecondOrderPropertyTensor(World &world) {
   Tensor<double> H = -2 * inner(Chi, PQ);
   Tensor<double> G(num_states, num_states);
   response_space grp(world, num_states, num_states);
 
   for (size_t i(0); i < num_states; i++) {
     for (size_t j(0); j < num_states; j++) {
-      grp[i][j] = dot(world, P[i], x[j]) + dot(world, Q[i], y[j]);
+      grp[i][j] = dot(world, PQ.X[i], Chi.X[j]) + dot(world, PQ.Y[i], Chi.Y[j]);
       G(i, j) = grp[i][j].trace();
       G(i, j) = -2 * G(i, j);
     }
@@ -205,7 +138,7 @@ Tensor<double> FirstOrderDensity::ComputeSecondOrderPropertyTensor(
   return H;
 }
 
-void FirstOrderDensity::PrintSecondOrderAnalysis(
+void density_vector::PrintSecondOrderAnalysis(
     World &world,
     const Tensor<double> alpha_tensor) {
   Tensor<double> V, epolar;
@@ -219,12 +152,12 @@ void FirstOrderDensity::PrintSecondOrderAnalysis(
                       std::pow(alpha_tensor(1, 1) - alpha_tensor(2, 2), 2) +
                       std::pow(alpha_tensor(2, 2) - alpha_tensor(0, 0), 2));
 
-  size_t num_states = Rparams.states;
+  size_t num_states = r_params.n_states();
 
   if (world.rank() == 0) {
     print("\nTotal Dynamic Polarizability Tensor");
     printf("\nFrequency  = %.6f a.u.\n\n", omega(0, 0));
-    // printf("\nWavelength = %.6f a.u.\n\n", Rparams.omega * ???);
+    // printf("\nWavelength = %.6f a.u.\n\n", r_params.omega() * ???);
     print(alpha_tensor);
     printf("\tEigenvalues = ");
     printf("\t %.6f \t %.6f \t %.6f \n", epolar[0], epolar[1], epolar[2]);
@@ -237,7 +170,7 @@ void FirstOrderDensity::PrintSecondOrderAnalysis(
     }
   }
 }
-void FirstOrderDensity::SaveDensity(World &world, std::string name) {
+void density_vector::SaveDensity(World &world, std::string name) {
   // Archive to write everything to
   archive::ParallelOutputArchive ar(world, name.c_str(), 1);
   // Just going to enforce 1 io server
@@ -245,19 +178,19 @@ void FirstOrderDensity::SaveDensity(World &world, std::string name) {
   ar &property;
   ar &omega;
   ar &num_states;
-  ar &num_ground_states;
+  ar &num_orbitals;
   // Save response functions x and y
   // x first
   for (size_t i = 0; i < num_states; i++) {
-    for (size_t j = 0; j < num_ground_states; j++) {
-      ar &x[i][j];
+    for (size_t j = 0; j < num_orbitals; j++) {
+      ar &Chi.X[i][j];
     }
   }
 
   // y second
   for (size_t i = 0; i < num_states; i++) {
-    for (size_t j = 0; j < num_ground_states; j++) {
-      ar &y[i][j];
+    for (size_t j = 0; j < num_orbitals; j++) {
+      ar &Chi.Y[i][j];
     }
   }
   for (size_t i = 0; i < num_states; i++) {
@@ -268,23 +201,23 @@ void FirstOrderDensity::SaveDensity(World &world, std::string name) {
   }
 
   for (size_t i = 0; i < num_states; i++) {
-    for (size_t j = 0; j < num_ground_states; j++) {
-      ar &P[i][j];
+    for (size_t j = 0; j < num_orbitals; j++) {
+      ar &PQ.X[i][j];
     }
   }
   for (size_t i = 0; i < num_states; i++) {
-    for (size_t j = 0; j < num_ground_states; j++) {
-      ar &Q[i][j];
+    for (size_t j = 0; j < num_orbitals; j++) {
+      ar &PQ.Y[i][j];
     }
   }
 }
 // Load a response calculation
-void FirstOrderDensity::LoadDensity(World &world,
-                                    std::string name,
-                                    ResponseParameters Rparams,
-                                    GroundParameters Gparams) {
+void density_vector::LoadDensity(World &world,
+                                 std::string name,
+                                 ResponseParameters r_params,
+                                 GroundParameters g_params) {
   // create XCF Object
-  xcf.initialize(Rparams.xc, false, world, true);
+  xcf.initialize(r_params.xc(), false, world, true);
 
   archive::ParallelInputArchive ar(world, name.c_str());
   // Reading in, in this order;
@@ -296,7 +229,7 @@ void FirstOrderDensity::LoadDensity(World &world,
     this->property_operator = Property(world, "dipole");
   } else if (property.compare("nuclear") == 0) {
     if (world.rank() == 0) print("creating nuclear property operator");
-    this->property_operator = Property(world, "nuclear", Gparams.molecule);
+    this->property_operator = Property(world, "nuclear", g_params.molecule());
   }
   print("property:", property);
 
@@ -304,27 +237,27 @@ void FirstOrderDensity::LoadDensity(World &world,
   print("omega:", omega);
   ar &num_states;
   print("num_response_states:", num_states);
-  ar &num_ground_states;
-  print("num_ground_states:", num_ground_states);
+  ar &num_orbitals;
+  print("num_ground_states:", num_orbitals);
 
-  this->x = response_space(world, num_states, num_ground_states);
-  this->y = response_space(world, num_states, num_ground_states);
+  this->Chi.X = response_space(world, num_states, num_orbitals);
+  this->Chi.Y = response_space(world, num_states, num_orbitals);
 
-  this->P = response_space(world, num_states, num_ground_states);
-  this->Q = response_space(world, num_states, num_ground_states);
+  this->PQ.X = response_space(world, num_states, num_orbitals);
+  this->PQ.Y = response_space(world, num_states, num_orbitals);
 
-  for (size_t i = 0; i < Rparams.states; i++) {
-    for (size_t j = 0; j < Gparams.num_orbitals; j++) {
-      ar &x[i][j];
-      print("norm of x ", x[i][j].norm2());
+  for (size_t i = 0; i < r_params.n_states(); i++) {
+    for (size_t j = 0; j < g_params.n_orbitals(); j++) {
+      ar &Chi.X[i][j];
+      print("norm of x ", Chi.X[i][j].norm2());
     }
   }
   world.gop.fence();
 
-  for (size_t i = 0; i < Rparams.states; i++) {
-    for (size_t j = 0; j < Gparams.num_orbitals; j++) {
-      ar &y[i][j];
-      print("norm of y ", y[i][j].norm2());
+  for (size_t i = 0; i < r_params.n_states(); i++) {
+    for (size_t j = 0; j < g_params.n_orbitals(); j++) {
+      ar &Chi.Y[i][j];
+      print("norm of y ", Chi.Y[i][j].norm2());
     }
   }
 
@@ -343,20 +276,43 @@ void FirstOrderDensity::LoadDensity(World &world,
           property_operator.operator_vector[i].norm2());
   }
 
-  for (size_t i = 0; i < Rparams.states; i++) {
-    for (size_t j = 0; j < Gparams.num_orbitals; j++) {
-      ar &P[i][j];
-      print("norm of P ", P[i][j].norm2());
+  for (size_t i = 0; i < r_params.n_states(); i++) {
+    for (size_t j = 0; j < g_params.n_orbitals(); j++) {
+      ar &PQ.X[i][j];
+      print("norm of P ", PQ.X[i][j].norm2());
     }
   }
   world.gop.fence();
 
-  for (size_t i = 0; i < Rparams.states; i++) {
-    for (size_t j = 0; j < Gparams.num_orbitals; j++) {
-      ar &Q[i][j];
-      print("norm of y ", Q[i][j].norm2());
+  for (size_t i = 0; i < r_params.n_states(); i++) {
+    for (size_t j = 0; j < g_params.n_orbitals(); j++) {
+      ar &PQ.Y[i][j];
+      print("norm of y ", PQ.Y[i][j].norm2());
     }
   }
 
   world.gop.fence();
 }
+
+density_vector set_density_type(World &world,
+                                ResponseParameters R,
+                                GroundParameters G) {
+  if (R.response_type().compare("excited_state") == 0) {
+    return excited_state_density_vector(world, R, G);
+  } else if (R.response_type().compare("dipole") == 0) {
+    return dipole_density_vector(world, R, G);
+
+  } else if (R.response_type().compare("nuclear") == 0) {
+    return nuclear_density_vector(world, R, G);
+  } else if (R.response_type().compare("order2") == 0) {
+    MADNESS_EXCEPTION("not implemented yet", 0);
+    return density_vector(world, R, G);
+  } else if (R.response_type().compare("order3") == 0) {
+    MADNESS_EXCEPTION("not implemented yet", 0);
+    return density_vector(world, R, G);
+
+  } else {
+    MADNESS_EXCEPTION("what is this????", 0);
+    return density_vector(world, R, G);
+  }
+};

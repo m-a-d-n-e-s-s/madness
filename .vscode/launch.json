@@ -2,16 +2,40 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Excited States H2 ",
+            "name": "Test Response Code H2",
             "type": "cppdbg",
             "request": "launch",
             // Resolved by CMake Tools:
             "program": "${command:cmake.launchTargetPath}",
             "args": [
-                "/gpfs/projects/rjh/adrian/responseTestingNovember2020/h2/excited_states/r_input"
+                ""
             ],
             "stopAtEntry": false,
-            "cwd": "/gpfs/projects/rjh/adrian/responseTestingNovember2020/h2/excited_states",
+            "cwd": "/gpfs/projects/rjh/adrian/responseTestingNovember2020/test_suite/new_params_test/outputs/hf_canon/1_h2",
+            "environment": [
+                {
+                    // add the directory where our target was built to the PATHs
+                    // it gets resolved by CMake Tools:
+                    "name": "PATH",
+                    "value": "$PATH:${command:cmake.launchTargetDirectory}"
+                },
+                {
+                    "name": "MAD_NUM_THREADS",
+                    "value": "8"
+                },
+            ],
+        },
+        {
+            "name": "Test Response Code Ne",
+            "type": "cppdbg",
+            "request": "launch",
+            // Resolved by CMake Tools:
+            "program": "${command:cmake.launchTargetPath}",
+            "args": [
+                ""
+            ],
+            "stopAtEntry": false,
+            "cwd": "/gpfs/projects/rjh/adrian/responseTestingNovember2020/test_suite/new_params_test/outputs/hf_canon/11_Ne",
             "environment": [
                 {
                     // add the directory where our target was built to the PATHs
@@ -35,16 +59,49 @@
             ]
         },
         {
-            "name": "Excited States Neon ",
+            "name": "Test Response Code Be",
             "type": "cppdbg",
             "request": "launch",
             // Resolved by CMake Tools:
             "program": "${command:cmake.launchTargetPath}",
             "args": [
-                "/gpfs/projects/rjh/adrian/responseTestingNovember2020/test_suite/cleanCopy/outputs/11_Ne/excited_state_kain/r_input"
+                ""
             ],
             "stopAtEntry": false,
-            "cwd": "/gpfs/projects/rjh/adrian/responseTestingNovember2020/test_suite/cleanCopy/outputs/11_Ne/excited_state_kain",
+            "cwd": "/gpfs/projects/rjh/adrian/responseTestingNovember2020/test_suite/new_params_test/outputs/hf_canon/10_Be",
+            "environment": [
+                {
+                    // add the directory where our target was built to the PATHs
+                    // it gets resolved by CMake Tools:
+                    "name": "PATH",
+                    "value": "$PATH:${command:cmake.launchTargetDirectory}"
+                },
+                {
+                    "name": "MAD_NUM_THREADS",
+                    "value": "8"
+                },
+            ],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+                {
+            "name": "static h2 ",
+            "type": "cppdbg",
+            "request": "launch",
+            // Resolved by CMake Tools:
+            "program": "${command:cmake.launchTargetPath}",
+            "args": [
+                "/gpfs/projects/rjh/adrian/responseTestingNovember2020/test_suite/new_params_test/outputs/hf_canon/1_h2/static_04/r_input"
+            ],
+            "stopAtEntry": false,
+            "cwd": "/gpfs/projects/rjh/adrian/responseTestingNovember2020/test_suite/new_params_test/outputs/hf_canon/1_h2/static_04",
             "environment": [
                 {
                     // add the directory where our target was built to the PATHs
@@ -68,16 +125,16 @@
             ]
         },
         {
-            "name": "Load dipole ",
+            "name": "dynamic .1 h2 ",
             "type": "cppdbg",
             "request": "launch",
             // Resolved by CMake Tools:
             "program": "${command:cmake.launchTargetPath}",
             "args": [
-                "/gpfs/projects/rjh/adrian/testing/h2/oct23/dipole/LOADINPUTS"
+                "/gpfs/projects/rjh/adrian/responseTestingNovember2020/test_suite/new_params_test/outputs/hf_canon/1_h2/dynamic_p1_04/r_input"
             ],
             "stopAtEntry": false,
-            "cwd": "/gpfs/projects/rjh/adrian/testing/h2/oct23/dipole",
+            "cwd": "/gpfs/projects/rjh/adrian/responseTestingNovember2020/test_suite/new_params_test/outputs/hf_canon/1_h2/dynamic_p1_04",
             "environment": [
                 {
                     // add the directory where our target was built to the PATHs
@@ -101,16 +158,16 @@
             ]
         },
         {
-            "name": "no kain static h2 ",
+            "name": "dynamic .2 h2 ",
             "type": "cppdbg",
             "request": "launch",
             // Resolved by CMake Tools:
             "program": "${command:cmake.launchTargetPath}",
             "args": [
-                "/gpfs/projects/rjh/adrian/responseTestingNovember2020/h2/dipole/static_h2"
+                "/gpfs/projects/rjh/adrian/responseTestingNovember2020/test_suite/new_params_test/outputs/hf_canon/1_h2/dynamic_p2_04/r_input"
             ],
             "stopAtEntry": false,
-            "cwd": "/gpfs/projects/rjh/adrian/responseTestingNovember2020/h2/dipole",
+            "cwd": "/gpfs/projects/rjh/adrian/responseTestingNovember2020/test_suite/new_params_test/outputs/hf_canon/1_h2/dynamic_p2_04",
             "environment": [
                 {
                     // add the directory where our target was built to the PATHs
@@ -134,280 +191,16 @@
             ]
         },
         {
-            "name": "kain  h2 ",
+            "name": "excited state h2 ",
             "type": "cppdbg",
             "request": "launch",
             // Resolved by CMake Tools:
             "program": "${command:cmake.launchTargetPath}",
             "args": [
-                "/gpfs/projects/rjh/adrian/responseTestingNovember2020/h2/dipole/kain_test"
+                "/gpfs/projects/rjh/adrian/responseTestingNovember2020/test_suite/new_params_test/outputs/hf_canon/1_h2/excited_state_04/r_input"
             ],
             "stopAtEntry": false,
-            "cwd": "/gpfs/projects/rjh/adrian/responseTestingNovember2020/h2/dipole",
-            "environment": [
-                {
-                    // add the directory where our target was built to the PATHs
-                    // it gets resolved by CMake Tools:
-                    "name": "PATH",
-                    "value": "$PATH:${command:cmake.launchTargetDirectory}"
-                },
-                {
-                    "name": "MAD_NUM_THREADS",
-                    "value": "8"
-                },
-            ],
-            "externalConsole": false,
-            "MIMode": "gdb",
-            "setupCommands": [
-                {
-                    "description": "Enable pretty-printing for gdb",
-                    "text": "-enable-pretty-printing",
-                    "ignoreFailures": true
-                }
-            ]
-        },
-        {
-            "name": "static  neon ",
-            "type": "cppdbg",
-            "request": "launch",
-            // Resolved by CMake Tools:
-            "program": "${command:cmake.launchTargetPath}",
-            "args": [
-                "/gpfs/projects/rjh/adrian/responseTestingNovember2020/test_suite/cleanCopy/outputs/11_Ne/static_kain_step_25/r_input"
-            ],
-            "stopAtEntry": false,
-            "cwd": "/gpfs/projects/rjh/adrian/responseTestingNovember2020/test_suite/cleanCopy/outputs/11_Ne/static_kain_step_25",
-            "environment": [
-                {
-                    // add the directory where our target was built to the PATHs
-                    // it gets resolved by CMake Tools:
-                    "name": "PATH",
-                    "value": "$PATH:${command:cmake.launchTargetDirectory}"
-                },
-                {
-                    "name": "MAD_NUM_THREADS",
-                    "value": "8"
-                },
-            ],
-            "externalConsole": false,
-            "MIMode": "gdb",
-            "setupCommands": [
-                {
-                    "description": "Enable pretty-printing for gdb",
-                    "text": "-enable-pretty-printing",
-                    "ignoreFailures": true
-                }
-            ]
-        },
-        {
-            "name": "kain  h20 ",
-            "type": "cppdbg",
-            "request": "launch",
-            // Resolved by CMake Tools:
-            "program": "${command:cmake.launchTargetPath}",
-            "args": [
-                "/gpfs/projects/rjh/adrian/responseTestingNovember2020/h20/dipole/kain_test"
-            ],
-            "stopAtEntry": false,
-            "cwd": "/gpfs/projects/rjh/adrian/responseTestingNovember2020/h20/dipole",
-            "environment": [
-                {
-                    // add the directory where our target was built to the PATHs
-                    // it gets resolved by CMake Tools:
-                    "name": "PATH",
-                    "value": "$PATH:${command:cmake.launchTargetDirectory}"
-                },
-                {
-                    "name": "MAD_NUM_THREADS",
-                    "value": "8"
-                },
-            ],
-            "externalConsole": false,
-            "MIMode": "gdb",
-            "setupCommands": [
-                {
-                    "description": "Enable pretty-printing for gdb",
-                    "text": "-enable-pretty-printing",
-                    "ignoreFailures": true
-                }
-            ]
-        },
-        {
-            "name": "Save dipole h2 new",
-            "type": "cppdbg",
-            "request": "launch",
-            // Resolved by CMake Tools:
-            "program": "${command:cmake.launchTargetPath}",
-            "args": [
-                "/gpfs/projects/rjh/adrian/responseTestingNovember2020/h2/dipole/new_two_electron"
-            ],
-            "stopAtEntry": false,
-            "cwd": "/gpfs/projects/rjh/adrian/responseTestingNovember2020/h2/dipole",
-            "environment": [
-                {
-                    // add the directory where our target was built to the PATHs
-                    // it gets resolved by CMake Tools:
-                    "name": "PATH",
-                    "value": "$PATH:${command:cmake.launchTargetDirectory}"
-                },
-                {
-                    "name": "MAD_NUM_THREADS",
-                    "value": "8"
-                },
-            ],
-            "externalConsole": false,
-            "MIMode": "gdb",
-            "setupCommands": [
-                {
-                    "description": "Enable pretty-printing for gdb",
-                    "text": "-enable-pretty-printing",
-                    "ignoreFailures": true
-                }
-            ]
-        },
-        {
-            "name": "Save dipole h2 old",
-            "type": "cppdbg",
-            "request": "launch",
-            // Resolved by CMake Tools:
-            "program": "${command:cmake.launchTargetPath}",
-            "args": [
-                "/gpfs/projects/rjh/adrian/responseTestingNovember2020/h2/dipole/old_two_electron"
-            ],
-            "stopAtEntry": false,
-            "cwd": "/gpfs/projects/rjh/adrian/responseTestingNovember2020/h2/dipole",
-            "environment": [
-                {
-                    // add the directory where our target was built to the PATHs
-                    // it gets resolved by CMake Tools:
-                    "name": "PATH",
-                    "value": "$PATH:${command:cmake.launchTargetDirectory}"
-                },
-                {
-                    "name": "MAD_NUM_THREADS",
-                    "value": "8"
-                },
-            ],
-            "externalConsole": false,
-            "MIMode": "gdb",
-            "setupCommands": [
-                {
-                    "description": "Enable pretty-printing for gdb",
-                    "text": "-enable-pretty-printing",
-                    "ignoreFailures": true
-                }
-            ]
-        },
-        {
-            "name": "load dipole h2",
-            "type": "cppdbg",
-            "request": "launch",
-            // Resolved by CMake Tools:
-            "program": "${command:cmake.launchTargetPath}",
-            "args": [
-                "/gpfs/projects/rjh/adrian/responseTestingNovember2020/h2/dipole/LOADINPUTS"
-            ],
-            "stopAtEntry": false,
-            "cwd": "/gpfs/projects/rjh/adrian/responseTestingNovember2020/h2/dipole",
-            "environment": [
-                {
-                    // add the directory where our target was built to the PATHs
-                    // it gets resolved by CMake Tools:
-                    "name": "PATH",
-                    "value": "$PATH:${command:cmake.launchTargetDirectory}"
-                },
-                {
-                    "name": "MAD_NUM_THREADS",
-                    "value": "8"
-                },
-            ],
-            "externalConsole": false,
-            "MIMode": "gdb",
-            "setupCommands": [
-                {
-                    "description": "Enable pretty-printing for gdb",
-                    "text": "-enable-pretty-printing",
-                    "ignoreFailures": true
-                }
-            ]
-        },
-        {
-            "name": "Save dipole Be ",
-            "type": "cppdbg",
-            "request": "launch",
-            // Resolved by CMake Tools:
-            "program": "${command:cmake.launchTargetPath}",
-            "args": [
-                "/gpfs/projects/rjh/adrian/responseTestingNovember2020/Be/dipole/SAVEINPUTS"
-            ],
-            "stopAtEntry": false,
-            "cwd": "/gpfs/projects/rjh/adrian/responseTestingNovember2020/Be/dipole",
-            "environment": [
-                {
-                    // add the directory where our target was built to the PATHs
-                    // it gets resolved by CMake Tools:
-                    "name": "PATH",
-                    "value": "$PATH:${command:cmake.launchTargetDirectory}"
-                },
-                {
-                    "name": "MAD_NUM_THREADS",
-                    "value": "8"
-                },
-            ],
-            "externalConsole": false,
-            "MIMode": "gdb",
-            "setupCommands": [
-                {
-                    "description": "Enable pretty-printing for gdb",
-                    "text": "-enable-pretty-printing",
-                    "ignoreFailures": true
-                }
-            ]
-        },
-        {
-            "name": "Save Nuclear ",
-            "type": "cppdbg",
-            "request": "launch",
-            // Resolved by CMake Tools:
-            "program": "${command:cmake.launchTargetPath}",
-            "args": [
-                "/gpfs/projects/rjh/adrian/testing/h2/oct23/nuclear/SAVEINPUTS"
-            ],
-            "stopAtEntry": false,
-            "cwd": "/gpfs/projects/rjh/adrian/testing/h2/oct23/nuclear",
-            "environment": [
-                {
-                    // add the directory where our target was built to the PATHs
-                    // it gets resolved by CMake Tools:
-                    "name": "PATH",
-                    "value": "$PATH:${command:cmake.launchTargetDirectory}"
-                },
-                {
-                    "name": "MAD_NUM_THREADS",
-                    "value": "8"
-                },
-            ],
-            "externalConsole": false,
-            "MIMode": "gdb",
-            "setupCommands": [
-                {
-                    "description": "Enable pretty-printing for gdb",
-                    "text": "-enable-pretty-printing",
-                    "ignoreFailures": true
-                }
-            ]
-        },
-        {
-            "name": "Load nuclear ",
-            "type": "cppdbg",
-            "request": "launch",
-            // Resolved by CMake Tools:
-            "program": "${command:cmake.launchTargetPath}",
-            "args": [
-                "/gpfs/projects/rjh/adrian/testing/h2/oct23/nuclear/LOADINPUTS"
-            ],
-            "stopAtEntry": false,
-            "cwd": "/gpfs/projects/rjh/adrian/testing/h2/oct23/nuclear",
+            "cwd": "/gpfs/projects/rjh/adrian/responseTestingNovember2020/test_suite/new_params_test/outputs/hf_canon/1_h2/excited_state_04",
             "environment": [
                 {
                     // add the directory where our target was built to the PATHs

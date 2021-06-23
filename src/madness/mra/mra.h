@@ -48,9 +48,9 @@
 #define FUNCTION_INSTANTIATE_2
 #define FUNCTION_INSTANTIATE_3
 #if !defined(HAVE_IBMBGP) || !defined(HAVE_IBMBGQ)
-  #define FUNCTION_INSTANTIATE_4
-  #define FUNCTION_INSTANTIATE_5
-  #define FUNCTION_INSTANTIATE_6
+#define FUNCTION_INSTANTIATE_4
+#define FUNCTION_INSTANTIATE_5
+#define FUNCTION_INSTANTIATE_6
 #endif
 
 static const bool VERIFY_TREE = false;  // true
@@ -153,9 +153,7 @@ class Function : public archive::ParallelSerializableObject {
 
   /// Constructor from FunctionFactory provides named parameter idiom.  Possible
   /// non-blocking communication.
-  Function(const factoryT& factory) : impl(new FunctionImpl<T, NDIM>(factory)) {
-    PROFILE_MEMBER_FUNC(Function);
-  }
+  Function(const factoryT& factory) : impl(new FunctionImpl<T, NDIM>(factory)) { PROFILE_MEMBER_FUNC(Function); }
 
   /// Copy constructor is \em shallow.  No communication, works in either basis.
   Function(const Function<T, NDIM>& f) : impl(f.impl) {}
@@ -211,8 +209,7 @@ class Function : public archive::ParallelSerializableObject {
 
   /// maxlevel is the maximum depth to search down to --- the max local depth
   /// can be computed with max_local_depth();
-  std::pair<bool, T> eval_local_only(const Vector<double, NDIM>& xuser,
-                                     Level maxlevel) const {
+  std::pair<bool, T> eval_local_only(const Vector<double, NDIM>& xuser, Level maxlevel) const {
     const double eps = 1e-15;
     verify();
     MADNESS_ASSERT(!is_compressed());
@@ -319,10 +316,8 @@ class Function : public archive::ParallelSerializableObject {
   /// @param[in] npt How many points to evaluate in each dimension
   /// @param[in] eval_refine Wether to return the refinment levels of the given
   /// function
-  Tensor<T> eval_cube(const Tensor<double>& cell, const std::vector<long>& npt,
-                      bool eval_refine = false) const {
-    MADNESS_ASSERT(static_cast<std::size_t>(cell.dim(0)) >= NDIM &&
-                   cell.dim(1) == 2 && npt.size() >= NDIM);
+  Tensor<T> eval_cube(const Tensor<double>& cell, const std::vector<long>& npt, bool eval_refine = false) const {
+    MADNESS_ASSERT(static_cast<std::size_t>(cell.dim(0)) >= NDIM && cell.dim(1) == 2 && npt.size() >= NDIM);
     PROFILE_MEMBER_FUNC(Function);
     const double eps = 1e-14;
     verify();
@@ -375,8 +370,7 @@ class Function : public archive::ParallelSerializableObject {
   /// operation.
 
   /// See "operator()(const coordT& xuser)" for more info
-  T operator()(double x, double y = 0, double z = 0, double xx = 0,
-               double yy = 0, double zz = 0) const {
+  T operator()(double x, double y = 0, double z = 0, double xx = 0, double yy = 0, double zz = 0) const {
     coordT r;
     r[0] = x;
     if (NDIM >= 2) r[1] = y;
@@ -419,8 +413,7 @@ class Function : public archive::ParallelSerializableObject {
   double errsq_local(const funcT& func) const {
     PROFILE_MEMBER_FUNC(Function);
     verify();
-    if (is_compressed())
-      MADNESS_EXCEPTION("Function:errsq_local:not reconstructed", 0);
+    if (is_compressed()) MADNESS_EXCEPTION("Function:errsq_local:not reconstructed", 0);
     return impl->errsq_local(func);
   }
 
@@ -593,8 +586,7 @@ class Function : public archive::ParallelSerializableObject {
   /// presumably the new functor will be a CompositeFunctor, which will
   /// change the behavior of the function: multiply the functor with the
   /// function
-  void set_functor(
-      const std::shared_ptr<FunctionFunctorInterface<T, NDIM> > functor) {
+  void set_functor(const std::shared_ptr<FunctionFunctorInterface<T, NDIM> > functor) {
     this->impl->set_functor(functor);
     print("set functor in mra.h");
   }
@@ -674,8 +666,7 @@ class Function : public archive::ParallelSerializableObject {
     PROFILE_MEMBER_FUNC(Function);
     if (!impl || is_compressed()) return *this;
     if (VERIFY_TREE) verify_tree();
-    const_cast<Function<T, NDIM>*>(this)->impl->compress(false, false, false,
-                                                         fence);
+    const_cast<Function<T, NDIM>*>(this)->impl->compress(false, false, false, fence);
     return *this;
   }
 
@@ -730,8 +721,7 @@ class Function : public archive::ParallelSerializableObject {
     PROFILE_MEMBER_FUNC(Function);
     if (!impl || !is_compressed()) return *this;
     const_cast<Function<T, NDIM>*>(this)->impl->reconstruct(fence);
-    if (fence && VERIFY_TREE)
-      verify_tree();  // Must be after in case nonstandard
+    if (fence && VERIFY_TREE) verify_tree();  // Must be after in case nonstandard
     return *this;
   }
 
@@ -742,8 +732,7 @@ class Function : public archive::ParallelSerializableObject {
     verify();
     MADNESS_ASSERT(!is_compressed());
     const_cast<Function<T, NDIM>*>(this)->impl->sum_down(fence);
-    if (fence && VERIFY_TREE)
-      verify_tree();  // Must be after in case nonstandard
+    if (fence && VERIFY_TREE) verify_tree();  // Must be after in case nonstandard
   }
 
   /// Inplace autorefines the function.  Optional fence. Possible non-blocking
@@ -774,9 +763,7 @@ class Function : public archive::ParallelSerializableObject {
   }
 
   /// Inplace broadens support in scaling function basis
-  void broaden(
-      const BoundaryConditions<NDIM>& bc = FunctionDefaults<NDIM>::get_bc(),
-      bool fence = true) const {
+  void broaden(const BoundaryConditions<NDIM>& bc = FunctionDefaults<NDIM>::get_bc(), bool fence = true) const {
     verify();
     reconstruct();
     impl->broaden(bc.is_periodic(), fence);
@@ -828,9 +815,7 @@ class Function : public archive::ParallelSerializableObject {
   struct SimpleUnaryOpWrapper {
     T (*f)(T);
     SimpleUnaryOpWrapper(T (*f)(T)) : f(f) {}
-    void operator()(const Key<NDIM>& key, Tensor<T>& t) const {
-      UNARY_OPTIMIZED_ITERATOR(T, t, *_p0 = f(*_p0));
-    }
+    void operator()(const Key<NDIM>& key, Tensor<T>& t) const { UNARY_OPTIMIZED_ITERATOR(T, t, *_p0 = f(*_p0)); }
     template <typename Archive>
     void serialize(Archive& ar) {}
   };
@@ -914,16 +899,13 @@ class Function : public archive::ParallelSerializableObject {
   ///
   /// this <-- this*alpha + other*beta
   template <typename Q, typename R>
-  Function<T, NDIM>& gaxpy(const T& alpha, const Function<Q, NDIM>& other,
-                           const R& beta, bool fence = true) {
+  Function<T, NDIM>& gaxpy(const T& alpha, const Function<Q, NDIM>& other, const R& beta, bool fence = true) {
     PROFILE_MEMBER_FUNC(Function);
     verify();
     other.verify();
     MADNESS_ASSERT(is_compressed() == other.is_compressed());
-    if (is_compressed())
-      impl->gaxpy_inplace(alpha, *other.get_impl(), beta, fence);
-    if (not is_compressed())
-      impl->gaxpy_inplace_reconstructed(alpha, *other.get_impl(), beta, fence);
+    if (is_compressed()) impl->gaxpy_inplace(alpha, *other.get_impl(), beta, fence);
+    if (not is_compressed()) impl->gaxpy_inplace_reconstructed(alpha, *other.get_impl(), beta, fence);
     return *this;
   }
 
@@ -972,8 +954,7 @@ class Function : public archive::ParallelSerializableObject {
 
   /// Using operator notation forces a global fence after every operation
   template <typename Q>
-  typename IsSupported<TensorTypeData<Q>, Function<T, NDIM> >::type& operator*=(
-      const Q q) {
+  typename IsSupported<TensorTypeData<Q>, Function<T, NDIM> >::type& operator*=(const Q q) {
     PROFILE_MEMBER_FUNC(Function);
     scale(q, true);
     return *this;
@@ -1071,8 +1052,7 @@ class Function : public archive::ParallelSerializableObject {
     // clear what we have
     impl->get_coeffs().clear();
     Specialbox_op<T, NDIM> sbox;
-    Leaf_op<T, NDIM, opT, Specialbox_op<T, NDIM> > leaf_op(
-        this->get_impl().get(), &op, sbox);
+    Leaf_op<T, NDIM, opT, Specialbox_op<T, NDIM> > leaf_op(this->get_impl().get(), &op, sbox);
     impl->make_Vphi(leaf_op, fence);
     return *this;
   }
@@ -1083,9 +1063,7 @@ class Function : public archive::ParallelSerializableObject {
     MADNESS_ASSERT(is_on_demand());
     // clear what we have
     impl->get_coeffs().clear();
-    Leaf_op<T, NDIM, SeparatedConvolution<double, NDIM>,
-            Specialbox_op<T, NDIM> >
-        leaf_op(this->get_impl().get());
+    Leaf_op<T, NDIM, SeparatedConvolution<double, NDIM>, Specialbox_op<T, NDIM> > leaf_op(this->get_impl().get());
     impl->make_Vphi(leaf_op, fence);
     return *this;
   }
@@ -1099,8 +1077,7 @@ class Function : public archive::ParallelSerializableObject {
     impl->get_coeffs().clear();
     ElectronCuspyBox_op<T, NDIM> sbox;
 
-    Leaf_op<T, NDIM, opT, ElectronCuspyBox_op<T, NDIM> > leaf_op(
-        this->get_impl().get(), &op, sbox);
+    Leaf_op<T, NDIM, opT, ElectronCuspyBox_op<T, NDIM> > leaf_op(this->get_impl().get(), &op, sbox);
     impl->make_Vphi(leaf_op, fence);
 
     return *this;
@@ -1113,9 +1090,8 @@ class Function : public archive::ParallelSerializableObject {
     impl->get_coeffs().clear();
     ElectronCuspyBox_op<T, NDIM> sbox;
 
-    Leaf_op<T, NDIM, SeparatedConvolution<double, NDIM>,
-            ElectronCuspyBox_op<T, NDIM> >
-        leaf_op(this->get_impl().get(), sbox);
+    Leaf_op<T, NDIM, SeparatedConvolution<double, NDIM>, ElectronCuspyBox_op<T, NDIM> > leaf_op(this->get_impl().get(),
+                                                                                                sbox);
     impl->make_Vphi(leaf_op, fence);
 
     return *this;
@@ -1125,16 +1101,13 @@ class Function : public archive::ParallelSerializableObject {
   /// with cusp, non-regularized with singularity)
   /// @param[in]  op  the convolution operator for screening
   template <typename opT>
-  Function<T, NDIM>& fill_nuclear_cuspy_tree(const opT& op,
-                                             const size_t particle,
-                                             const bool fence = true) {
+  Function<T, NDIM>& fill_nuclear_cuspy_tree(const opT& op, const size_t particle, const bool fence = true) {
     MADNESS_ASSERT(is_on_demand());
     // clear what we have
     impl->get_coeffs().clear();
     NuclearCuspyBox_op<T, NDIM> sbox(particle);
 
-    Leaf_op<T, NDIM, opT, NuclearCuspyBox_op<T, NDIM> > leaf_op(
-        this->get_impl().get(), &op, sbox);
+    Leaf_op<T, NDIM, opT, NuclearCuspyBox_op<T, NDIM> > leaf_op(this->get_impl().get(), &op, sbox);
     impl->make_Vphi(leaf_op, fence);
 
     return *this;
@@ -1142,16 +1115,14 @@ class Function : public archive::ParallelSerializableObject {
 
   /// Special refinement on 6D boxes for the nuclear potentials (regularized
   /// with cusp, non-regularized with singularity)
-  Function<T, NDIM>& fill_nuclear_cuspy_tree(const size_t particle,
-                                             const bool fence = true) {
+  Function<T, NDIM>& fill_nuclear_cuspy_tree(const size_t particle, const bool fence = true) {
     MADNESS_ASSERT(is_on_demand());
     // clear what we have
     impl->get_coeffs().clear();
     NuclearCuspyBox_op<T, NDIM> sbox(particle);
 
-    Leaf_op<T, NDIM, SeparatedConvolution<double, NDIM>,
-            NuclearCuspyBox_op<T, NDIM> >
-        leaf_op(this->get_impl().get(), sbox);
+    Leaf_op<T, NDIM, SeparatedConvolution<double, NDIM>, NuclearCuspyBox_op<T, NDIM> > leaf_op(this->get_impl().get(),
+                                                                                               sbox);
     impl->make_Vphi(leaf_op, fence);
 
     return *this;
@@ -1159,19 +1130,16 @@ class Function : public archive::ParallelSerializableObject {
 
   /// perform the hartree product of f*g, invoked by result
   template <size_t LDIM, size_t KDIM, typename opT>
-  void do_hartree_product(const FunctionImpl<T, LDIM>* left,
-                          const FunctionImpl<T, KDIM>* right, const opT* op) {
+  void do_hartree_product(const FunctionImpl<T, LDIM>* left, const FunctionImpl<T, KDIM>* right, const opT* op) {
     // get the right leaf operator
-    hartree_convolute_leaf_op<T, KDIM + LDIM, LDIM, opT> leaf_op(impl.get(),
-                                                                 left, op);
+    hartree_convolute_leaf_op<T, KDIM + LDIM, LDIM, opT> leaf_op(impl.get(), left, op);
     impl->hartree_product(left, right, leaf_op, true);
     this->truncate(0.0, false);
   }
 
   /// perform the hartree product of f*g, invoked by result
   template <size_t LDIM, size_t KDIM>
-  void do_hartree_product(const FunctionImpl<T, LDIM>* left,
-                          const FunctionImpl<T, KDIM>* right) {
+  void do_hartree_product(const FunctionImpl<T, LDIM>* left, const FunctionImpl<T, KDIM>* right) {
     //            hartree_leaf_op<T,KDIM+LDIM> leaf_op(impl.get(),cdata.s0);
     hartree_leaf_op<T, KDIM + LDIM> leaf_op(impl.get(), k());
     impl->hartree_product(left, right, leaf_op, true);
@@ -1213,8 +1181,7 @@ class Function : public archive::ParallelSerializableObject {
 
     if (this->is_compressed() and g.is_compressed()) {
     } else {
-      if (not this->get_impl()->is_redundant())
-        this->get_impl()->make_redundant(false);
+      if (not this->get_impl()->is_redundant()) this->get_impl()->make_redundant(false);
       if (not g.get_impl()->is_redundant()) g.get_impl()->make_redundant(false);
       impl->world.gop.fence();
     }
@@ -1223,8 +1190,7 @@ class Function : public archive::ParallelSerializableObject {
     impl->world.gop.sum(local);
     impl->world.gop.fence();
 
-    if (this->get_impl()->is_redundant())
-      this->get_impl()->undo_redundant(false);
+    if (this->get_impl()->is_redundant()) this->get_impl()->undo_redundant(false);
     if (g.get_impl()->is_redundant()) g.get_impl()->undo_redundant(false);
     impl->world.gop.fence();
 
@@ -1283,8 +1249,7 @@ class Function : public archive::ParallelSerializableObject {
   /// @param[in] leaf_refine boolean switch to turn on/off refinement past leaf
   /// nodes
   /// @return Returns the inner product
-  T inner_adaptive(const std::shared_ptr<FunctionFunctorInterface<T, NDIM> > f,
-                   const bool leaf_refine = true) const {
+  T inner_adaptive(const std::shared_ptr<FunctionFunctorInterface<T, NDIM> > f, const bool leaf_refine = true) const {
     PROFILE_MEMBER_FUNC(Function);
     reconstruct();
     T local = impl->inner_adaptive_local(f, leaf_refine);
@@ -1300,8 +1265,8 @@ class Function : public archive::ParallelSerializableObject {
   /// This is the externally provided function
   /// @param[in] beta prefactor for f
   template <typename L>
-  void gaxpy_ext(const Function<L, NDIM>& left, T (*f)(const coordT&), T alpha,
-                 T beta, double tol, bool fence = true) const {
+  void gaxpy_ext(const Function<L, NDIM>& left, T (*f)(const coordT&), T alpha, T beta, double tol, bool fence = true)
+      const {
     PROFILE_MEMBER_FUNC(Function);
     if (left.is_compressed()) left.reconstruct();
     impl->gaxpy_ext(left.get_impl().get(), f, alpha, beta, tol, fence);
@@ -1323,8 +1288,7 @@ class Function : public archive::ParallelSerializableObject {
     this->reconstruct();
 
     // save for later, will be removed by make_Vphi
-    std::shared_ptr<FunctionFunctorInterface<T, NDIM> > func =
-        g.get_impl()->get_functor();
+    std::shared_ptr<FunctionFunctorInterface<T, NDIM> > func = g.get_impl()->get_functor();
     // leaf_op<T,NDIM> fnode_is_leaf(this->get_impl().get());
     Leaf_op_other<T, NDIM> fnode_is_leaf(this->get_impl().get());
     g.get_impl()->make_Vphi(fnode_is_leaf, true);  // fence here
@@ -1349,21 +1313,17 @@ class Function : public archive::ParallelSerializableObject {
   /// LDIM..NDIM-1
   /// @return     new function of dimension NDIM-LDIM
   template <typename R, size_t LDIM>
-  Function<TENSOR_RESULT_TYPE(T, R), NDIM - LDIM> project_out(
-      const Function<R, LDIM>& g, const int dim) const {
-    if (NDIM <= LDIM)
-      MADNESS_EXCEPTION("confused dimensions in project_out?", 1);
+  Function<TENSOR_RESULT_TYPE(T, R), NDIM - LDIM> project_out(const Function<R, LDIM>& g, const int dim) const {
+    if (NDIM <= LDIM) MADNESS_EXCEPTION("confused dimensions in project_out?", 1);
     MADNESS_ASSERT(dim == 0 or dim == 1);
     verify();
     typedef TENSOR_RESULT_TYPE(T, R) resultT;
     static const size_t KDIM = NDIM - LDIM;
 
-    FunctionFactory<resultT, KDIM> factory =
-        FunctionFactory<resultT, KDIM>(world()).k(g.k()).thresh(g.thresh());
+    FunctionFactory<resultT, KDIM> factory = FunctionFactory<resultT, KDIM>(world()).k(g.k()).thresh(g.thresh());
     Function<resultT, KDIM> result = factory;  // no empty() here!
 
-    FunctionImpl<R, LDIM>* gimpl =
-        const_cast<FunctionImpl<R, LDIM>*>(g.get_impl().get());
+    FunctionImpl<R, LDIM>* gimpl = const_cast<FunctionImpl<R, LDIM>*>(g.get_impl().get());
 
     this->reconstruct();
     gimpl->make_redundant(true);
@@ -1378,8 +1338,7 @@ class Function : public archive::ParallelSerializableObject {
   template <std::size_t LDIM>
   Function<T, LDIM> dirac_convolution(const bool fence = true) const {
     //        	// this will be the result function
-    FunctionFactory<T, LDIM> factory =
-        FunctionFactory<T, LDIM>(world()).k(this->k());
+    FunctionFactory<T, LDIM> factory = FunctionFactory<T, LDIM>(world()).k(this->k());
     Function<T, LDIM> f = factory;
     if (this->is_compressed()) this->reconstruct();
     this->get_impl()->do_dirac_convolution(f.get_impl().get(), fence);
@@ -1399,8 +1358,7 @@ class Function : public archive::ParallelSerializableObject {
     // checking
     long magic = 0l, id = 0l, ndim = 0l, k = 0l;
     ar& magic& id& ndim& k;
-    MADNESS_ASSERT(magic ==
-                   7776768);  // Mellow Mushroom Pizza tel.# in Knoxville
+    MADNESS_ASSERT(magic == 7776768);  // Mellow Mushroom Pizza tel.# in Knoxville
     MADNESS_ASSERT(id == TensorTypeData<T>::id);
     MADNESS_ASSERT(ndim == NDIM);
 
@@ -1434,8 +1392,7 @@ class Function : public archive::ParallelSerializableObject {
 
   /// This is replaced with left*right ...  private
   template <typename Q, typename opT>
-  Function<typename opT::resultT, NDIM>& unary_op_coeffs(
-      const Function<Q, NDIM>& func, const opT& op, bool fence) {
+  Function<typename opT::resultT, NDIM>& unary_op_coeffs(const Function<Q, NDIM>& func, const opT& op, bool fence) {
     PROFILE_MEMBER_FUNC(Function);
     func.verify();
     MADNESS_ASSERT(!(func.is_compressed()));
@@ -1448,8 +1405,7 @@ class Function : public archive::ParallelSerializableObject {
   /// Returns vector of FunctionImpl pointers corresponding to vector of
   /// functions
   template <typename Q, std::size_t D>
-  static std::vector<std::shared_ptr<FunctionImpl<Q, D> > > vimpl(
-      const std::vector<Function<Q, D> >& v) {
+  static std::vector<std::shared_ptr<FunctionImpl<Q, D> > > vimpl(const std::vector<Function<Q, D> >& v) {
     PROFILE_MEMBER_FUNC(Function);
     std::vector<std::shared_ptr<FunctionImpl<Q, D> > > r(v.size());
     for (unsigned int i = 0; i < v.size(); ++i) r[i] = v[i].get_impl();
@@ -1458,8 +1414,7 @@ class Function : public archive::ParallelSerializableObject {
 
   /// This is replaced with op(vector of functions) ... private
   template <typename opT>
-  Function<T, NDIM>& multiop_values(const opT& op,
-                                    const std::vector<Function<T, NDIM> >& vf) {
+  Function<T, NDIM>& multiop_values(const opT& op, const std::vector<Function<T, NDIM> >& vf) {
     std::vector<implT*> v(vf.size(), NULL);
     for (unsigned int i = 0; i < v.size(); ++i) {
       if (vf[i].is_initialized()) v[i] = vf[i].get_impl().get();
@@ -1501,7 +1456,9 @@ class Function : public archive::ParallelSerializableObject {
   template <typename L, typename R>
   void vmulXX(const Function<L, NDIM>& left,
               const std::vector<Function<R, NDIM> >& right,
-              std::vector<Function<T, NDIM> >& result, double tol, bool fence) {
+              std::vector<Function<T, NDIM> >& result,
+              double tol,
+              bool fence) {
     PROFILE_MEMBER_FUNC(Function);
 
     std::vector<FunctionImpl<T, NDIM>*> vresult(right.size());
@@ -1521,8 +1478,7 @@ class Function : public archive::ParallelSerializableObject {
 
   /// f or g are on-demand functions
   template <typename L, typename R>
-  void mul_on_demand(const Function<L, NDIM>& f, const Function<R, NDIM>& g,
-                     bool fence = true) {
+  void mul_on_demand(const Function<L, NDIM>& f, const Function<R, NDIM>& g, bool fence = true) {
     const FunctionImpl<L, NDIM>* fimpl = f.get_impl().get();
     const FunctionImpl<R, NDIM>* gimpl = g.get_impl().get();
     if (fimpl->is_on_demand() and gimpl->is_on_demand()) {
@@ -1540,8 +1496,10 @@ class Function : public archive::ParallelSerializableObject {
 
   /// sparse transformation of a vector of functions ... private
   template <typename R, typename Q>
-  void vtransform(const std::vector<Function<R, NDIM> >& v, const Tensor<Q>& c,
-                  std::vector<Function<T, NDIM> >& vresult, double tol,
+  void vtransform(const std::vector<Function<R, NDIM> >& v,
+                  const Tensor<Q>& c,
+                  std::vector<Function<T, NDIM> >& vresult,
+                  double tol,
                   bool fence = true) {
     PROFILE_MEMBER_FUNC(Function);
     vresult[0].impl->vtransform(vimpl(v), c, vimpl(vresult), tol, fence);
@@ -1549,8 +1507,11 @@ class Function : public archive::ParallelSerializableObject {
 
   /// This is replaced with alpha*left + beta*right ...  private
   template <typename L, typename R>
-  Function<T, NDIM>& gaxpy_oop(T alpha, const Function<L, NDIM>& left, T beta,
-                               const Function<R, NDIM>& right, bool fence) {
+  Function<T, NDIM>& gaxpy_oop(T alpha,
+                               const Function<L, NDIM>& left,
+                               T beta,
+                               const Function<R, NDIM>& right,
+                               bool fence) {
     PROFILE_MEMBER_FUNC(Function);
     left.verify();
     right.verify();
@@ -1563,13 +1524,11 @@ class Function : public archive::ParallelSerializableObject {
   }
 
   /// This is replaced with mapdim(f) ...  private
-  Function<T, NDIM>& mapdim(const Function<T, NDIM>& f,
-                            const std::vector<long>& map, bool fence) {
+  Function<T, NDIM>& mapdim(const Function<T, NDIM>& f, const std::vector<long>& map, bool fence) {
     PROFILE_MEMBER_FUNC(Function);
     f.verify();
     if (VERIFY_TREE) f.verify_tree();
-    for (std::size_t i = 0; i < NDIM; ++i)
-      MADNESS_ASSERT(map[i] >= 0 && static_cast<std::size_t>(map[i]) < NDIM);
+    for (std::size_t i = 0; i < NDIM; ++i) MADNESS_ASSERT(map[i] >= 0 && static_cast<std::size_t>(map[i]) < NDIM);
     impl.reset(new implT(*f.impl, f.get_pmap(), false));
     impl->mapdim(*f.impl, map, fence);
     return *this;
@@ -1581,13 +1540,11 @@ class Function : public archive::ParallelSerializableObject {
   /// Example: mirror a 3d function on the xy plane: mirror={1,1,-1}
   /// @param[in]	mirror	array of -1 and 1, corresponding to mirror or
   /// not
-  Function<T, NDIM>& mirror(const Function<T, NDIM>& f,
-                            const std::vector<long>& mirrormap, bool fence) {
+  Function<T, NDIM>& mirror(const Function<T, NDIM>& f, const std::vector<long>& mirrormap, bool fence) {
     PROFILE_MEMBER_FUNC(Function);
     f.verify();
     if (VERIFY_TREE) f.verify_tree();
-    for (std::size_t i = 0; i < NDIM; ++i)
-      MADNESS_ASSERT((mirrormap[i] == 1) or (mirrormap[i] == -1));
+    for (std::size_t i = 0; i < NDIM; ++i) MADNESS_ASSERT((mirrormap[i] == 1) or (mirrormap[i] == -1));
     impl.reset(new implT(*f.impl, f.get_pmap(), false));
     impl->mirror(*f.impl, mirrormap, fence);
     return *this;
@@ -1610,10 +1567,8 @@ class Function : public archive::ParallelSerializableObject {
     PROFILE_MEMBER_FUNC(Function);
     f.verify();
     if (VERIFY_TREE) f.verify_tree();
-    for (std::size_t i = 0; i < mirror.size(); ++i)
-      MADNESS_ASSERT((mirror[i] == 1) or (mirror[i] == -1));
-    for (std::size_t i = 0; i < map.size(); ++i)
-      MADNESS_ASSERT(map[i] >= 0 && static_cast<std::size_t>(map[i]) < NDIM);
+    for (std::size_t i = 0; i < mirror.size(); ++i) MADNESS_ASSERT((mirror[i] == 1) or (mirror[i] == -1));
+    for (std::size_t i = 0; i < map.size(); ++i) MADNESS_ASSERT(map[i] >= 0 && static_cast<std::size_t>(map[i]) < NDIM);
 
     impl.reset(new implT(*f.impl, f.get_pmap(), false));
     impl->map_and_mirror(*f.impl, map, mirror, fence);
@@ -1642,8 +1597,7 @@ class Function : public archive::ParallelSerializableObject {
 };
 
 template <typename T, typename opT, std::size_t NDIM>
-Function<T, NDIM> multiop_values(const opT& op,
-                                 const std::vector<Function<T, NDIM> >& vf) {
+Function<T, NDIM> multiop_values(const opT& op, const std::vector<Function<T, NDIM> >& vf) {
   Function<T, NDIM> r;
   r.set_impl(vf[0], false);
   r.multiop_values(op, vf);
@@ -1652,9 +1606,7 @@ Function<T, NDIM> multiop_values(const opT& op,
 
 /// Returns new function equal to alpha*f(x) with optional fence
 template <typename Q, typename T, std::size_t NDIM>
-Function<TENSOR_RESULT_TYPE(Q, T), NDIM> mul(const Q alpha,
-                                             const Function<T, NDIM>& f,
-                                             bool fence = true) {
+Function<TENSOR_RESULT_TYPE(Q, T), NDIM> mul(const Q alpha, const Function<T, NDIM>& f, bool fence = true) {
   PROFILE_FUNC;
   f.verify();
   if (VERIFY_TREE) f.verify_tree();
@@ -1666,8 +1618,7 @@ Function<TENSOR_RESULT_TYPE(Q, T), NDIM> mul(const Q alpha,
 
 /// Returns new function equal to f(x)*alpha with optional fence
 template <typename Q, typename T, std::size_t NDIM>
-Function<TENSOR_RESULT_TYPE(Q, T), NDIM> mul(const Function<T, NDIM>& f,
-                                             const Q alpha, bool fence = true) {
+Function<TENSOR_RESULT_TYPE(Q, T), NDIM> mul(const Function<T, NDIM>& f, const Q alpha, bool fence = true) {
   PROFILE_FUNC;
   return mul(alpha, f, fence);
 }
@@ -1676,8 +1627,7 @@ Function<TENSOR_RESULT_TYPE(Q, T), NDIM> mul(const Function<T, NDIM>& f,
 
 /// Using operator notation forces a global fence after each operation
 template <typename Q, typename T, std::size_t NDIM>
-Function<TENSOR_RESULT_TYPE(Q, T), NDIM> operator*(const Function<T, NDIM>& f,
-                                                   const Q alpha) {
+Function<TENSOR_RESULT_TYPE(Q, T), NDIM> operator*(const Function<T, NDIM>& f, const Q alpha) {
   return mul(alpha, f, true);
 }
 
@@ -1685,28 +1635,28 @@ Function<TENSOR_RESULT_TYPE(Q, T), NDIM> operator*(const Function<T, NDIM>& f,
 
 /// Using operator notation forces a global fence after each operation
 template <typename Q, typename T, std::size_t NDIM>
-Function<TENSOR_RESULT_TYPE(Q, T), NDIM> operator*(const Q alpha,
-                                                   const Function<T, NDIM>& f) {
+Function<TENSOR_RESULT_TYPE(Q, T), NDIM> operator*(const Q alpha, const Function<T, NDIM>& f) {
   return mul(alpha, f, true);
 }
 
 /// Sparse multiplication --- left and right must be reconstructed and if tol!=0
 /// have tree of norms already created
 template <typename L, typename R, std::size_t NDIM>
-Function<TENSOR_RESULT_TYPE(L, R), NDIM> mul_sparse(
-    const Function<L, NDIM>& left, const Function<R, NDIM>& right, double tol,
-    bool fence = true) {
+Function<TENSOR_RESULT_TYPE(L, R), NDIM> mul_sparse(const Function<L, NDIM>& left,
+                                                    const Function<R, NDIM>& right,
+                                                    double tol,
+                                                    bool fence = true) {
   PROFILE_FUNC;
   left.verify();
   right.verify();
-  MADNESS_ASSERT(!(left.is_compressed() || right.is_compressed()));
+  MADNESS_ASSERT(!(left.is_compressed()));
+  MADNESS_ASSERT(!(right.is_compressed()));
   if (VERIFY_TREE) left.verify_tree();
   if (VERIFY_TREE) right.verify_tree();
 
   Function<TENSOR_RESULT_TYPE(L, R), NDIM> result;
   result.set_impl(left, false);
-  result.get_impl()->mulXX(left.get_impl().get(), right.get_impl().get(), tol,
-                           fence);
+  result.get_impl()->mulXX(left.get_impl().get(), right.get_impl().get(), tol, fence);
   return result;
 }
 
@@ -1720,26 +1670,24 @@ Function<TENSOR_RESULT_TYPE(L, R), NDIM> mul(const Function<L, NDIM>& left,
 
 /// Generate new function = op(left,right) where op acts on the function values
 template <typename L, typename R, typename opT, std::size_t NDIM>
-Function<TENSOR_RESULT_TYPE(L, R), NDIM> binary_op(
-    const Function<L, NDIM>& left, const Function<R, NDIM>& right,
-    const opT& op, bool fence = true) {
+Function<TENSOR_RESULT_TYPE(L, R), NDIM> binary_op(const Function<L, NDIM>& left,
+                                                   const Function<R, NDIM>& right,
+                                                   const opT& op,
+                                                   bool fence = true) {
   PROFILE_FUNC;
   if (left.is_compressed()) left.reconstruct();
   if (right.is_compressed()) right.reconstruct();
 
   Function<TENSOR_RESULT_TYPE(L, R), NDIM> result;
   result.set_impl(left, false);
-  result.get_impl()->binaryXX(left.get_impl().get(), right.get_impl().get(), op,
-                              fence);
+  result.get_impl()->binaryXX(left.get_impl().get(), right.get_impl().get(), op, fence);
   return result;
 }
 
 /// Out of place application of unary operation to function values with optional
 /// fence
 template <typename Q, typename opT, std::size_t NDIM>
-Function<typename opT::resultT, NDIM> unary_op(const Function<Q, NDIM>& func,
-                                               const opT& op,
-                                               bool fence = true) {
+Function<typename opT::resultT, NDIM> unary_op(const Function<Q, NDIM>& func, const opT& op, bool fence = true) {
   if (func.is_compressed()) func.reconstruct();
   Function<typename opT::resultT, NDIM> result;
   if (VERIFY_TREE) func.verify_tree();
@@ -1751,8 +1699,7 @@ Function<typename opT::resultT, NDIM> unary_op(const Function<Q, NDIM>& func,
 /// Out of place application of unary operation to scaling function coefficients
 /// with optional fence
 template <typename Q, typename opT, std::size_t NDIM>
-Function<typename opT::resultT, NDIM> unary_op_coeffs(
-    const Function<Q, NDIM>& func, const opT& op, bool fence = true) {
+Function<typename opT::resultT, NDIM> unary_op_coeffs(const Function<Q, NDIM>& func, const opT& op, bool fence = true) {
   if (func.is_compressed()) func.reconstruct();
   Function<typename opT::resultT, NDIM> result;
   return result.unary_op_coeffs(func, op, fence);
@@ -1765,11 +1712,11 @@ Function<typename opT::resultT, NDIM> unary_op_coeffs(
 /// If using sparsity (tol != 0) you must have created the tree of norms
 /// already for both left and right.
 template <typename L, typename R, std::size_t D>
-std::vector<Function<TENSOR_RESULT_TYPE(L, R), D> > vmulXX(
-    const Function<L, D>& left, const std::vector<Function<R, D> >& vright,
-    double tol, bool fence = true) {
-  if (vright.size() == 0)
-    return std::vector<Function<TENSOR_RESULT_TYPE(L, R), D> >();
+std::vector<Function<TENSOR_RESULT_TYPE(L, R), D> > vmulXX(const Function<L, D>& left,
+                                                           const std::vector<Function<R, D> >& vright,
+                                                           double tol,
+                                                           bool fence = true) {
+  if (vright.size() == 0) return std::vector<Function<TENSOR_RESULT_TYPE(L, R), D> >();
   std::vector<Function<TENSOR_RESULT_TYPE(L, R), D> > vresult(vright.size());
   vresult[0].vmulXX(left, vright, vresult, tol, fence);
   return vresult;
@@ -1781,8 +1728,7 @@ std::vector<Function<TENSOR_RESULT_TYPE(L, R), D> > vmulXX(
 /// Using operator notation forces a global fence after each operation but also
 /// enables us to automatically reconstruct the input functions as required.
 template <typename L, typename R, std::size_t NDIM>
-Function<TENSOR_RESULT_TYPE(L, R), NDIM> operator*(
-    const Function<L, NDIM>& left, const Function<R, NDIM>& right) {
+Function<TENSOR_RESULT_TYPE(L, R), NDIM> operator*(const Function<L, NDIM>& left, const Function<R, NDIM>& right) {
   if (left.is_compressed()) left.reconstruct();
   if (right.is_compressed()) right.reconstruct();
   MADNESS_ASSERT(not(left.is_on_demand() or right.is_on_demand()));
@@ -1791,16 +1737,14 @@ Function<TENSOR_RESULT_TYPE(L, R), NDIM> operator*(
 
 /// Performs a Hartree product on the two given low-dimensional functions
 template <typename T, std::size_t KDIM, std::size_t LDIM>
-Function<T, KDIM + LDIM> hartree_product(const Function<T, KDIM>& left2,
-                                         const Function<T, LDIM>& right2) {
+Function<T, KDIM + LDIM> hartree_product(const Function<T, KDIM>& left2, const Function<T, LDIM>& right2) {
   // we need both sum and difference coeffs for error estimation
   Function<T, KDIM>& left = const_cast<Function<T, KDIM>&>(left2);
   Function<T, LDIM>& right = const_cast<Function<T, LDIM>&>(right2);
 
   const double thresh = FunctionDefaults<KDIM + LDIM>::get_thresh();
 
-  FunctionFactory<T, KDIM + LDIM> factory =
-      FunctionFactory<T, KDIM + LDIM>(left.world()).k(left.k()).thresh(thresh);
+  FunctionFactory<T, KDIM + LDIM> factory = FunctionFactory<T, KDIM + LDIM>(left.world()).k(left.k()).thresh(thresh);
   Function<T, KDIM + LDIM> result = factory.empty();
 
   bool same = (left2.get_impl() == right2.get_impl());
@@ -1829,8 +1773,7 @@ Function<T, KDIM + LDIM> hartree_product(const Function<T, KDIM>& left2,
 
   const double thresh = FunctionDefaults<KDIM + LDIM>::get_thresh();
 
-  FunctionFactory<T, KDIM + LDIM> factory =
-      FunctionFactory<T, KDIM + LDIM>(left.world()).k(left.k()).thresh(thresh);
+  FunctionFactory<T, KDIM + LDIM> factory = FunctionFactory<T, KDIM + LDIM>(left.world()).k(left.k()).thresh(thresh);
   Function<T, KDIM + LDIM> result = factory.empty();
 
   if (result.world().rank() == 0) {
@@ -1855,10 +1798,11 @@ Function<T, KDIM + LDIM> hartree_product(const Function<T, KDIM>& left2,
 /// Returns new function alpha*left + beta*right optional fence and no automatic
 /// compression
 template <typename L, typename R, std::size_t NDIM>
-Function<TENSOR_RESULT_TYPE(L, R), NDIM> gaxpy_oop(
-    TENSOR_RESULT_TYPE(L, R) alpha, const Function<L, NDIM>& left,
-    TENSOR_RESULT_TYPE(L, R) beta, const Function<R, NDIM>& right,
-    bool fence = true) {
+Function<TENSOR_RESULT_TYPE(L, R), NDIM> gaxpy_oop(TENSOR_RESULT_TYPE(L, R) alpha,
+                                                   const Function<L, NDIM>& left,
+                                                   TENSOR_RESULT_TYPE(L, R) beta,
+                                                   const Function<R, NDIM>& right,
+                                                   bool fence = true) {
   PROFILE_FUNC;
   Function<TENSOR_RESULT_TYPE(L, R), NDIM> result;
   return result.gaxpy_oop(alpha, left, beta, right, fence);
@@ -1869,8 +1813,7 @@ template <typename L, typename R, std::size_t NDIM>
 Function<TENSOR_RESULT_TYPE(L, R), NDIM> add(const Function<L, NDIM>& left,
                                              const Function<R, NDIM>& right,
                                              bool fence = true) {
-  return gaxpy_oop(TENSOR_RESULT_TYPE(L, R)(1.0), left,
-                   TENSOR_RESULT_TYPE(L, R)(1.0), right, fence);
+  return gaxpy_oop(TENSOR_RESULT_TYPE(L, R)(1.0), left, TENSOR_RESULT_TYPE(L, R)(1.0), right, fence);
 }
 
 /// Returns new function alpha*left + beta*right optional fence, having both
@@ -1886,8 +1829,7 @@ Function<T, NDIM> gaxpy_oop_reconstructed(const double alpha,
 
   MADNESS_ASSERT(not left.is_compressed());
   MADNESS_ASSERT(not right.is_compressed());
-  result.get_impl()->gaxpy_oop_reconstructed(alpha, *left.get_impl(), beta,
-                                             *right.get_impl(), fence);
+  result.get_impl()->gaxpy_oop_reconstructed(alpha, *left.get_impl(), beta, *right.get_impl(), fence);
   return result;
 }
 
@@ -1895,8 +1837,7 @@ Function<T, NDIM> gaxpy_oop_reconstructed(const double alpha,
 
 /// Using operator notation forces a global fence after each operation
 template <typename L, typename R, std::size_t NDIM>
-Function<TENSOR_RESULT_TYPE(L, R), NDIM> operator+(
-    const Function<L, NDIM>& left, const Function<R, NDIM>& right) {
+Function<TENSOR_RESULT_TYPE(L, R), NDIM> operator+(const Function<L, NDIM>& left, const Function<R, NDIM>& right) {
   if (VERIFY_TREE) left.verify_tree();
   if (VERIFY_TREE) right.verify_tree();
 
@@ -1917,8 +1858,7 @@ template <typename L, typename R, std::size_t NDIM>
 Function<TENSOR_RESULT_TYPE(L, R), NDIM> sub(const Function<L, NDIM>& left,
                                              const Function<R, NDIM>& right,
                                              bool fence = true) {
-  return gaxpy_oop(TENSOR_RESULT_TYPE(L, R)(1.0), left,
-                   TENSOR_RESULT_TYPE(L, R)(-1.0), right, fence);
+  return gaxpy_oop(TENSOR_RESULT_TYPE(L, R)(1.0), left, TENSOR_RESULT_TYPE(L, R)(-1.0), right, fence);
 }
 
 /// Subtracts two functions with the new result being of type
@@ -1926,8 +1866,7 @@ Function<TENSOR_RESULT_TYPE(L, R), NDIM> sub(const Function<L, NDIM>& left,
 
 /// Using operator notation forces a global fence after each operation
 template <typename L, typename R, std::size_t NDIM>
-Function<TENSOR_RESULT_TYPE(L, R), NDIM> operator-(
-    const Function<L, NDIM>& left, const Function<R, NDIM>& right) {
+Function<TENSOR_RESULT_TYPE(L, R), NDIM> operator-(const Function<L, NDIM>& left, const Function<R, NDIM>& right) {
   PROFILE_FUNC;
   // no compression for high-dimensional functions
   if (NDIM == 6) {
@@ -1948,16 +1887,14 @@ Function<TENSOR_RESULT_TYPE(L, R), NDIM> operator-(
 /// asynchronous communication and the optional fence is
 /// collective.
 template <typename T, std::size_t NDIM>
-Function<T, NDIM> copy(
-    const Function<T, NDIM>& f,
-    const std::shared_ptr<WorldDCPmapInterface<Key<NDIM> > >& pmap,
-    bool fence = true) {
+Function<T, NDIM> copy(const Function<T, NDIM>& f,
+                       const std::shared_ptr<WorldDCPmapInterface<Key<NDIM> > >& pmap,
+                       bool fence = true) {
   PROFILE_FUNC;
   f.verify();
   Function<T, NDIM> result;
   typedef FunctionImpl<T, NDIM> implT;
-  result.set_impl(
-      std::shared_ptr<implT>(new implT(*f.get_impl(), pmap, false)));
+  result.set_impl(std::shared_ptr<implT>(new implT(*f.get_impl(), pmap, false)));
   result.get_impl()->copy_coeffs(*f.get_impl(), fence);
   if (VERIFY_TREE) result.verify_tree();
   return result;
@@ -2014,9 +1951,10 @@ Function<T, NDIM> conj(const Function<T, NDIM>& f, bool fence = true) {
 /// @param[in]	fence if we shall fence
 /// @return		a function of dimension NDIM=LDIM+LDIM
 template <typename opT, typename T, std::size_t LDIM>
-Function<TENSOR_RESULT_TYPE(typename opT::opT, T), LDIM + LDIM> apply(
-    const opT& op, const Function<T, LDIM>& f1, const Function<T, LDIM>& f2,
-    bool fence = true) {
+Function<TENSOR_RESULT_TYPE(typename opT::opT, T), LDIM + LDIM> apply(const opT& op,
+                                                                      const Function<T, LDIM>& f1,
+                                                                      const Function<T, LDIM>& f2,
+                                                                      bool fence = true) {
   typedef TENSOR_RESULT_TYPE(T, typename opT::opT) resultT;
 
   Function<T, LDIM>& ff1 = const_cast<Function<T, LDIM>&>(f1);
@@ -2030,17 +1968,14 @@ Function<TENSOR_RESULT_TYPE(typename opT::opT, T), LDIM + LDIM> apply(
   ff2.nonstandard(true, true);
 
   FunctionFactory<T, LDIM + LDIM> factory =
-      FunctionFactory<resultT, LDIM + LDIM>(f1.world())
-          .k(f1.k())
-          .thresh(FunctionDefaults<LDIM + LDIM>::get_thresh());
+      FunctionFactory<resultT, LDIM + LDIM>(f1.world()).k(f1.k()).thresh(FunctionDefaults<LDIM + LDIM>::get_thresh());
   Function<resultT, LDIM + LDIM> result = factory.empty().fence();
 
   result.get_impl()->reset_timer();
   op.reset_timer();
 
   // will fence here
-  result.get_impl()->recursive_apply(op, f1.get_impl().get(),
-                                     f2.get_impl().get(), true);
+  result.get_impl()->recursive_apply(op, f1.get_impl().get(), f2.get_impl().get(), true);
 
   result.get_impl()->print_timer();
   op.print_timer();
@@ -2060,8 +1995,9 @@ Function<TENSOR_RESULT_TYPE(typename opT::opT, T), LDIM + LDIM> apply(
 
 /// Apply operator ONLY in non-standard form - required other steps missing !!
 template <typename opT, typename R, std::size_t NDIM>
-Function<TENSOR_RESULT_TYPE(typename opT::opT, R), NDIM> apply_only(
-    const opT& op, const Function<R, NDIM>& f, bool fence = true) {
+Function<TENSOR_RESULT_TYPE(typename opT::opT, R), NDIM> apply_only(const opT& op,
+                                                                    const Function<R, NDIM>& f,
+                                                                    bool fence = true) {
   Function<TENSOR_RESULT_TYPE(typename opT::opT, R), NDIM> result;
 
   // specialized version for 3D
@@ -2085,8 +2021,7 @@ Function<TENSOR_RESULT_TYPE(typename opT::opT, R), NDIM> apply_only(
     // result.get_impl()->recursive_apply(op, f.get_impl().get(),
     //        r1.get_impl().get(),true);          // will fence here
 
-    double time = result.get_impl()->finalize_apply(
-        fence);  // need fence before reconstruction
+    double time = result.get_impl()->finalize_apply(fence);  // need fence before reconstruction
     result.world().gop.fence();
     if (print_timings) {
       result.get_impl()->print_timer();
@@ -2104,8 +2039,9 @@ Function<TENSOR_RESULT_TYPE(typename opT::opT, R), NDIM> apply_only(
 ///
 /// !!! For the moment does NOT respect fence option ... always fences
 template <typename opT, typename R, std::size_t NDIM>
-Function<TENSOR_RESULT_TYPE(typename opT::opT, R), NDIM> apply(
-    const opT& op, const Function<R, NDIM>& f, bool fence = true) {
+Function<TENSOR_RESULT_TYPE(typename opT::opT, R), NDIM> apply(const opT& op,
+                                                               const Function<R, NDIM>& f,
+                                                               bool fence = true) {
   typedef TENSOR_RESULT_TYPE(typename opT::opT, R) resultT;
   Function<R, NDIM>& ff = const_cast<Function<R, NDIM>&>(f);
   Function<resultT, NDIM> result;
@@ -2157,9 +2093,10 @@ Function<TENSOR_RESULT_TYPE(typename opT::opT, R), NDIM> apply(
 }
 
 template <typename opT, typename R, std::size_t NDIM>
-Function<TENSOR_RESULT_TYPE(typename opT::opT, R), NDIM>
-apply_1d_realspace_push(const opT& op, const Function<R, NDIM>& f, int axis,
-                        bool fence = true) {
+Function<TENSOR_RESULT_TYPE(typename opT::opT, R), NDIM> apply_1d_realspace_push(const opT& op,
+                                                                                 const Function<R, NDIM>& f,
+                                                                                 int axis,
+                                                                                 bool fence = true) {
   PROFILE_FUNC;
   Function<R, NDIM>& ff = const_cast<Function<R, NDIM>&>(f);
   if (VERIFY_TREE) ff.verify_tree();
@@ -2168,8 +2105,7 @@ apply_1d_realspace_push(const opT& op, const Function<R, NDIM>& f, int axis,
   Function<TENSOR_RESULT_TYPE(typename opT::opT, R), NDIM> result;
 
   result.set_impl(ff, false);
-  result.get_impl()->apply_1d_realspace_push(op, ff.get_impl().get(), axis,
-                                             fence);
+  result.get_impl()->apply_1d_realspace_push(op, ff.get_impl().get(), axis, fence);
   return result;
 }
 
@@ -2185,8 +2121,7 @@ apply_1d_realspace_push(const opT& op, const Function<R, NDIM>& f, int axis,
 /// Would be easy to modify this to also change the procmap here
 /// if desired but presently it uses the same procmap as f.
 template <typename T, std::size_t NDIM>
-Function<T, NDIM> mapdim(const Function<T, NDIM>& f,
-                         const std::vector<long>& map, bool fence = true) {
+Function<T, NDIM> mapdim(const Function<T, NDIM>& f, const std::vector<long>& map, bool fence = true) {
   PROFILE_FUNC;
   Function<T, NDIM> result;
   return result.mapdim(f, map, fence);
@@ -2198,9 +2133,7 @@ Function<T, NDIM> mapdim(const Function<T, NDIM>& f,
 /// @param[in]	mirror	array with -1 and 1, corresponding to mirror this
 /// dimension or not
 template <typename T, std::size_t NDIM>
-Function<T, NDIM> mirror(const Function<T, NDIM>& f,
-                         const std::vector<long>& mirrormap,
-                         bool fence = true) {
+Function<T, NDIM> mirror(const Function<T, NDIM>& f, const std::vector<long>& mirrormap, bool fence = true) {
   PROFILE_FUNC;
   Function<T, NDIM> result;
   return result.mirror(f, mirrormap, fence);
@@ -2249,8 +2182,7 @@ Function<T, 6> swap_particles(const Function<T, 6>& f) {
 ///                 "antisy_particle") symmetric mirror plane ("xy", "xz", "yz")
 /// @return     a new function symmetrized according to the input parameter
 template <typename T, std::size_t NDIM>
-Function<T, NDIM> symmetrize(const Function<T, NDIM>& f,
-                             const std::string symmetry, bool fence = true) {
+Function<T, NDIM> symmetrize(const Function<T, NDIM>& f, const std::string symmetry, bool fence = true) {
   Function<T, NDIM> result;
 
   MADNESS_ASSERT(NDIM == 6);  // works only for pair functions
@@ -2308,8 +2240,10 @@ Function<T, NDIM> symmetrize(const Function<T, NDIM>& f,
 /// @param[in]  particle    if g=g(1) or g=g(2)
 /// @return     h(1,2) = f(1,2) * g(p)
 template <typename T, std::size_t NDIM, std::size_t LDIM>
-Function<T, NDIM> multiply(const Function<T, NDIM> f, const Function<T, LDIM> g,
-                           const int particle, const bool fence = true) {
+Function<T, NDIM> multiply(const Function<T, NDIM> f,
+                           const Function<T, LDIM> g,
+                           const int particle,
+                           const bool fence = true) {
   MADNESS_ASSERT(LDIM + LDIM == NDIM);
   MADNESS_ASSERT(particle == 1 or particle == 2);
 
@@ -2325,8 +2259,7 @@ Function<T, NDIM> multiply(const Function<T, NDIM> f, const Function<T, LDIM> g,
     ff.nonstandard(true, false);
     result.world().gop.fence();
 
-    result.get_impl()->multiply(ff.get_impl().get(), gg.get_impl().get(),
-                                particle);
+    result.get_impl()->multiply(ff.get_impl().get(), gg.get_impl().get(), particle);
     result.world().gop.fence();
 
     gg.standard(false);
@@ -2360,8 +2293,7 @@ Function<T, NDIM> project(const Function<T, NDIM>& other,
                           double thresh = FunctionDefaults<NDIM>::get_thresh(),
                           bool fence = true) {
   PROFILE_FUNC;
-  Function<T, NDIM> result =
-      FunctionFactory<T, NDIM>(other.world()).k(k).thresh(thresh).empty();
+  Function<T, NDIM> result = FunctionFactory<T, NDIM>(other.world()).k(k).thresh(thresh).empty();
   other.reconstruct();
   result.get_impl()->project(*other.get_impl(), fence);
   return result;
@@ -2410,30 +2342,30 @@ inner(const opT& g, const Function<T, NDIM>& f) {
 }
 
 template <typename T, typename R, std::size_t NDIM>
-typename IsSupported<TensorTypeData<R>,
-                     Function<TENSOR_RESULT_TYPE(T, R), NDIM> >::type
-operator+(const Function<T, NDIM>& f, R r) {
+typename IsSupported<TensorTypeData<R>, Function<TENSOR_RESULT_TYPE(T, R), NDIM> >::type operator+(
+    const Function<T, NDIM>& f,
+    R r) {
   return (f * R(1.0)).add_scalar(r);
 }
 
 template <typename T, typename R, std::size_t NDIM>
-typename IsSupported<TensorTypeData<R>,
-                     Function<TENSOR_RESULT_TYPE(T, R), NDIM> >::type
-operator+(R r, const Function<T, NDIM>& f) {
+typename IsSupported<TensorTypeData<R>, Function<TENSOR_RESULT_TYPE(T, R), NDIM> >::type operator+(
+    R r,
+    const Function<T, NDIM>& f) {
   return (f * R(1.0)).add_scalar(r);
 }
 
 template <typename T, typename R, std::size_t NDIM>
-typename IsSupported<TensorTypeData<R>,
-                     Function<TENSOR_RESULT_TYPE(T, R), NDIM> >::type
-operator-(const Function<T, NDIM>& f, R r) {
+typename IsSupported<TensorTypeData<R>, Function<TENSOR_RESULT_TYPE(T, R), NDIM> >::type operator-(
+    const Function<T, NDIM>& f,
+    R r) {
   return (f * R(1.0)).add_scalar(-r);
 }
 
 template <typename T, typename R, std::size_t NDIM>
-typename IsSupported<TensorTypeData<R>,
-                     Function<TENSOR_RESULT_TYPE(T, R), NDIM> >::type
-operator-(R r, const Function<T, NDIM>& f) {
+typename IsSupported<TensorTypeData<R>, Function<TENSOR_RESULT_TYPE(T, R), NDIM> >::type operator-(
+    R r,
+    const Function<T, NDIM>& f) {
   return (f * R(-1.0)).add_scalar(r);
 }
 
@@ -2441,10 +2373,7 @@ namespace detail {
 template <std::size_t NDIM>
 struct realop {
   typedef double resultT;
-  Tensor<double> operator()(const Key<NDIM>& key,
-                            const Tensor<double_complex>& t) const {
-    return real(t);
-  }
+  Tensor<double> operator()(const Key<NDIM>& key, const Tensor<double_complex>& t) const { return real(t); }
 
   template <typename Archive>
   void serialize(Archive& ar) {}
@@ -2453,10 +2382,7 @@ struct realop {
 template <std::size_t NDIM>
 struct imagop {
   typedef double resultT;
-  Tensor<double> operator()(const Key<NDIM>& key,
-                            const Tensor<double_complex>& t) const {
-    return imag(t);
-  }
+  Tensor<double> operator()(const Key<NDIM>& key, const Tensor<double_complex>& t) const { return imag(t); }
 
   template <typename Archive>
   void serialize(Archive& ar) {}
@@ -2465,8 +2391,7 @@ struct imagop {
 template <std::size_t NDIM>
 struct abssqop {
   typedef double resultT;
-  Tensor<double> operator()(const Key<NDIM>& key,
-                            const Tensor<double_complex>& t) const {
+  Tensor<double> operator()(const Key<NDIM>& key, const Tensor<double_complex>& t) const {
     Tensor<double> r = abs(t);
     return r.emul(r);
   }
@@ -2478,8 +2403,7 @@ struct abssqop {
 template <std::size_t NDIM>
 struct absop {
   typedef double resultT;
-  Tensor<double> operator()(const Key<NDIM>& key,
-                            const Tensor<double_complex>& t) const {
+  Tensor<double> operator()(const Key<NDIM>& key, const Tensor<double_complex>& t) const {
     Tensor<double> r = abs(t);
     return r;
   }
@@ -2492,22 +2416,19 @@ struct absop {
 
 /// Returns a new function that is the real part of the input
 template <std::size_t NDIM>
-Function<double, NDIM> real(const Function<double_complex, NDIM>& z,
-                            bool fence = true) {
+Function<double, NDIM> real(const Function<double_complex, NDIM>& z, bool fence = true) {
   return unary_op_coeffs(z, detail::realop<NDIM>(), fence);
 }
 
 /// Returns a new function that is the real part of the input
 template <std::size_t NDIM>
-Function<double, NDIM> real(const Function<double, NDIM>& z,
-                            bool fence = true) {
+Function<double, NDIM> real(const Function<double, NDIM>& z, bool fence = true) {
   return copy(z);
 }
 
 /// Returns a new function that is the imaginary part of the input
 template <std::size_t NDIM>
-Function<double, NDIM> imag(const Function<double_complex, NDIM>& z,
-                            bool fence = true) {
+Function<double, NDIM> imag(const Function<double_complex, NDIM>& z, bool fence = true) {
   return unary_op_coeffs(z, detail::imagop<NDIM>(), fence);
 }
 
@@ -2516,10 +2437,8 @@ Function<double, NDIM> imag(const Function<double_complex, NDIM>& z,
 template <typename T, std::size_t NDIM>
 Function<T, NDIM> square(const Function<T, NDIM>& f, bool fence = true) {
   PROFILE_FUNC;
-  Function<T, NDIM> result =
-      copy(f, true);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  return result.square(
-      true);  // fence);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  Function<T, NDIM> result = copy(f, true);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  return result.square(true);                // fence);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 }
 
 /// Create a new function that is the abs of f - global comm only if not
@@ -2527,44 +2446,37 @@ Function<T, NDIM> square(const Function<T, NDIM>& f, bool fence = true) {
 template <typename T, std::size_t NDIM>
 Function<T, NDIM> abs(const Function<T, NDIM>& f, bool fence = true) {
   PROFILE_FUNC;
-  Function<T, NDIM> result =
-      copy(f, true);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  return result.abs(
-      true);  // fence);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  Function<T, NDIM> result = copy(f, true);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  return result.abs(true);                   // fence);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 }
 
 /// Create a new function that is the abs_square of f - global comm only if not
 /// reconstructed
 template <typename T, std::size_t NDIM>
-typename std::enable_if<!TensorTypeData<T>::iscomplex, Function<T, NDIM> >::type
-abs_square(const Function<T, NDIM>& f, bool fence = true) {
+typename std::enable_if<!TensorTypeData<T>::iscomplex, Function<T, NDIM> >::type abs_square(const Function<T, NDIM>& f,
+                                                                                            bool fence = true) {
   PROFILE_FUNC;
-  Function<T, NDIM> result =
-      copy(f, true);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  return result.abs_square(
-      true);  // fence);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  Function<T, NDIM> result = copy(f, true);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  return result.abs_square(true);            // fence);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 }
 
 /// Create a new function that is the abs_square of f - global comm only if not
 /// reconstructed
 template <typename T, std::size_t NDIM>
-typename std::enable_if<TensorTypeData<T>::iscomplex,
-                        Function<typename Tensor<T>::scalar_type, NDIM> >::type
+typename std::enable_if<TensorTypeData<T>::iscomplex, Function<typename Tensor<T>::scalar_type, NDIM> >::type
 abs_square(const Function<T, NDIM>& f, bool fence = true) {
   return unary_op(f, detail::abssqop<NDIM>(), fence);
 }
 
 /// Returns a new function that is the square of the absolute value of the input
 template <std::size_t NDIM>
-Function<double, NDIM> abssq(const Function<double_complex, NDIM>& z,
-                             bool fence = true) {
+Function<double, NDIM> abssq(const Function<double_complex, NDIM>& z, bool fence = true) {
   return unary_op(z, detail::abssqop<NDIM>(), fence);
 }
 
 /// Returns a new function that is the absolute value of the input
 template <std::size_t NDIM>
-Function<double, NDIM> abs(const Function<double_complex, NDIM>& z,
-                           bool fence = true) {
+Function<double, NDIM> abs(const Function<double_complex, NDIM>& z, bool fence = true) {
   return unary_op(z, detail::absop<NDIM>(), fence);
 }
 
@@ -2576,18 +2488,12 @@ namespace madness {
 namespace archive {
 template <class T, std::size_t NDIM>
 struct ArchiveLoadImpl<ParallelInputArchive, Function<T, NDIM> > {
-  static inline void load(const ParallelInputArchive& ar,
-                          Function<T, NDIM>& f) {
-    f.load(*ar.get_world(), ar);
-  }
+  static inline void load(const ParallelInputArchive& ar, Function<T, NDIM>& f) { f.load(*ar.get_world(), ar); }
 };
 
 template <class T, std::size_t NDIM>
 struct ArchiveStoreImpl<ParallelOutputArchive, Function<T, NDIM> > {
-  static inline void store(const ParallelOutputArchive& ar,
-                           const Function<T, NDIM>& f) {
-    f.store(ar);
-  }
+  static inline void store(const ParallelOutputArchive& ar, const Function<T, NDIM>& f) { f.store(ar); }
 };
 }  // namespace archive
 

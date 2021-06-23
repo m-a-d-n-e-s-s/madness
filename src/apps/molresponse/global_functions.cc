@@ -4,17 +4,18 @@
 #include <string>
 #include <vector>
 
+#include "molresponse/density.h"
 #include "response_parameters.h"
 
-void print_molecule(World &world, GroundParameters Gparams) {
+void print_molecule(World &world, GroundParameters g_params) {
   if (world.rank() == 0) {
     // Precision is set to 10 coming in, drop it to 5
     std::cout.precision(5);
     std::cout << std::fixed;
 
-    // First get atoms
-    const std::vector<Atom> atoms = Gparams.molecule.get_atoms();
-  size_t   num_atoms = atoms.size();
+    // First get atom
+    const std::vector<Atom> atoms = g_params.molecule().get_atoms();
+    size_t num_atoms = atoms.size();
 
     // Now print
     print("\n   Geometry Information");
@@ -22,12 +23,11 @@ void print_molecule(World &world, GroundParameters Gparams) {
     print("   Units: a.u.\n");
     print(" Atom            x                 y                 z");
     print("----------------------------------------------------------------");
-    for (size_t    j = 0; j < num_atoms; j++) {
+    for (size_t j = 0; j < num_atoms; j++) {
       Vector<double, 3> coords = atoms[j].get_coords();
-      std::cout << std::setw(3)
-                << atomic_number_to_symbol(atoms[j].get_atomic_number());
-      std::cout << std::setw(18) << std::right << coords[0] << std::setw(18)
-                << coords[1] << std::setw(18) << coords[2] << endl;
+      std::cout << std::setw(3) << atomic_number_to_symbol(atoms[j].get_atomic_number());
+      std::cout << std::setw(18) << std::right << coords[0] << std::setw(18) << coords[1] << std::setw(18) << coords[2]
+                << endl;
     }
     print("");
 
