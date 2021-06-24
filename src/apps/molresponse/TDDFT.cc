@@ -23,11 +23,11 @@
 #include <../chem/NWChem.h>  // For nwchem interface
 #include <../chem/SCFOperators.h>
 #include <../chem/molecule.h>
-#include <Plot_VTK.h>
 #include <chem/potentialmanager.h>
 #include <chem/projector.h>  // For easy calculation of (1 - \hat{\rho}^0)
 #include <madness/mra/funcdefaults.h>
 #include <madness/world/worldmem.h>
+#include <molresponse/Plot_VTK.h>
 #include <molresponse/basic_operators.h>
 #include <molresponse/density.h>
 #include <molresponse/global_functions.h>
@@ -1491,8 +1491,8 @@ void TDDFT::update_x_space_response(World& world,
                                           bsh_y_ops,
                                           projector,
                                           x_shifts,
-                                          errX,
-                                          errY);
+                                          bsh_residualsX,
+                                          bsh_residualsY);
 
   if (r_params.kain()) {
     kain_x_space_update(
@@ -1928,7 +1928,6 @@ X_space TDDFT::compute_residual_excited(World& world,
         print("BSH residual: rms", rmsY[i], "   max", maxvalY[i]);
     }
   }
-  molresponse::end_timer(world, "BSH residual");
 
   bsh_residualsX = errX;
   bsh_residualsY = errY;
@@ -1947,7 +1946,6 @@ void TDDFT::kain_x_space_update(World& world,
                                 std::vector<X_vector> Xvector,
                                 std::vector<X_vector> Xresidual) {
   size_t m = Chi.X.size();
-  size_t n = Chi.X.size_orbitals();
   molresponse::start_timer(world);
   for (size_t b = 0; b < m; b++) {
     Xvector[b] = (X_vector(newChi, b));
@@ -1968,7 +1966,6 @@ void TDDFT::x_space_step_restriction(World& world,
                                      X_space& newChi,
                                      bool restrict_y) {
   size_t m = Chi.X.size();
-  size_t n = Chi.X.size_orbitals();
   molresponse::start_timer(world);
   for (size_t b = 0; b < m; b++) {
     do_step_restriction(world, old_Chi.X[b], newChi.X[b], "x_response");

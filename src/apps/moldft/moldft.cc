@@ -44,7 +44,8 @@
 //   int     MKL_Set_Num_Threads_Local(int nth);
 // }
 
-#if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
+#if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && \
+    defined(HAVE_UNISTD_H)
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -67,7 +68,8 @@ static void START_TIMER(World& world) {
 static void END_TIMER(World& world, const char* msg) {
   ttt = wall_time() - ttt;
   sss = cpu_time() - sss;
-  if (world.rank() == 0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss, ttt);
+  if (world.rank() == 0)
+    printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss, ttt);
 }
 
 int main(int argc, char** argv) {
@@ -162,7 +164,8 @@ int main(int argc, char** argv) {
       } else {
         MolecularEnergy E(world, calc);
         double energy = E.value(calc.molecule.get_all_coords().flat());  // ugh!
-        if ((world.rank() == 0) and (calc.param.print_level() > 0)) printf("final energy=%16.8f ", energy);
+        if ((world.rank() == 0) and (calc.param.print_level() > 0))
+          printf("final energy=%16.8f ", energy);
 
         functionT rho = calc.make_density(world, calc.aocc, calc.amo);
         functionT brho = rho;

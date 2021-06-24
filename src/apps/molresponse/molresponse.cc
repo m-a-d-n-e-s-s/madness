@@ -43,8 +43,7 @@
 #include "molresponse/density.h"
 #include "molresponse/global_functions.h"
 
-#if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && \
-    defined(HAVE_UNISTD_H)
+#if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -54,9 +53,7 @@ static inline int file_exists(const char* inpname) {
   return (rc == 0);
 }
 #endif
-density_vector read_and_create_density(World& world,
-                                       const char* inpname,
-                                       std::string tag) {
+density_vector read_and_create_density(World& world, const char* inpname, std::string tag) {
   GroundParameters g_params;
   ResponseParameters r_params;
   if (world.rank() == 0) {
@@ -136,7 +133,6 @@ int main(int argc, char** argv) {
       print("Second Order Analysis");
       calc.PrintPolarizabilityAnalysis(world, alpha);
     }
-    world.gop.fence();
     world.gop.fence();
     print_stats(world);
   }
