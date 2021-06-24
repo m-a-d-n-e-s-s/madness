@@ -48,7 +48,7 @@ struct ResponseParameters : public QCCalculationParametersBase {
                        0,
                        "Number of iterations to diagonalize in a subspace "
                        "consisting of old and new vectors");
-    initialize<int>("k", 7, "polynomial order");
+    initialize<int>("k", -1, "polynomial order");
     initialize<bool>("random", false, "Use random guess for initial response functions");
     initialize<bool>("store_potential", true, "Store the potential instead of computing each iteration");
     initialize<bool>("e_range", false, "Use an energy range to excite from");
