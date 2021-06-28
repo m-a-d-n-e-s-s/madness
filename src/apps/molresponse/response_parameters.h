@@ -172,7 +172,6 @@ struct ResponseParameters : public QCCalculationParametersBase {
     set_derived_value<bool>("spinrestricted", g_params.is_spinrestricted());
     set_derived_value<double>("l", g_params.get_L());
     set_derived_value<double>("lo", g_params.molecule().smallest_length_scale());
-    set_derived_value<int>("k", g_params.get_k());
     set_derived_value<std::string>("xc", g_params.get_xc());
 
     Molecule molecule = g_params.molecule();
