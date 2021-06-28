@@ -170,12 +170,10 @@ namespace madness {
     }
 
     /// Broadcasts bytes from process root while still processing AM & tasks
-    void broadcast(void* buf, int nbyte, ProcessID root, bool dowork, Tag bcast_tag, World &world) {
+    static void broadcast_impl(void* buf, int nbyte, ProcessID root, bool dowork, Tag bcast_tag, World &world) {
         SafeMPI::Request req0, req1;
         ProcessID parent, child0, child1;
         world.mpi.binary_tree_info(root, parent, child0, child1);
-        if(bcast_tag < 0)
-            bcast_tag = world.mpi.unique_tag();
 
         //print("BCAST TAG", bcast_tag);
 
@@ -193,12 +191,14 @@ namespace madness {
 
     /// Optimizations can be added for long messages
     void WorldGopInterface::broadcast(void* buf, size_t nbyte, ProcessID root, bool dowork, Tag bcast_tag) {
-      size_t max = (size_t)std::numeric_limits<int>::max();
+      if(bcast_tag < 0)
+        bcast_tag = world_.mpi.unique_tag();
+      const size_t max = static_cast<size_t>(std::numeric_limits<int>::max());
       while (nbyte) {
-        int n = (int)std::min(max, nbyte);
-        madness::broadcast(buf, nbyte, root, dowork, bcast_tag, world_);
+        const int n = static_cast<int>(std::min(max, nbyte));
+        broadcast_impl(buf, n, root, dowork, bcast_tag, world_);
         nbyte -= n;
-        buf = (char*)buf + n;
+        buf = static_cast<char*>(buf) + n;
       }
     }
 
