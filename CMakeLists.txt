@@ -431,6 +431,7 @@ check_cxx_source_compiles(
     " SYS_TYPES_H_HAS_PID_T)
 
 # Check function support
+check_function_exists(fork HAVE_FORK)
 check_function_exists(memset HAVE_MEMSET)
 check_function_exists(posix_memalign HAVE_POSIX_MEMALIGN)
 if(HAVE_POSIX_MEMALIGN)
@@ -574,6 +575,11 @@ find_program(GDB_EXECUTABLE gdb)
 if(GDB_EXECUTABLE)
   set(HAVE_GDB 1)
   message(STATUS "Found gdb: ${GDB_EXECUTABLE}")
+endif()
+find_program(LLDB_EXECUTABLE lldb)
+if(LLDB_EXECUTABLE)
+  set(HAVE_LLDB 1)
+  message(STATUS "Found lldb: ${LLDB_EXECUTABLE}")
 endif()
 find_package(PythonInterp)
 
