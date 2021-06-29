@@ -143,7 +143,7 @@ X_space& TDDFT::GetPQspace() { return PQ; }
 // Get response parameters
 ResponseParameters TDDFT::GetResponseParameters() { return r_params; }
 GroundParameters TDDFT::GetGroundParameters() { return g_params; }
-Property TDDFT::GetPropertyObject() { return p; }
+PropertyBase TDDFT::GetPropertyObject() { return p; }
 // Get Frequencies Omega
 Tensor<double> TDDFT::GetFrequencyOmega() {
   print("Frequencies : ", omega);
@@ -668,12 +668,10 @@ typedef Function<double, 3> functionT;
 typedef std::shared_ptr<FunctionFunctorInterface<double, 3>> functorT;
 typedef FunctionFactory<double, 3> factoryT;
 
-response_space TDDFT::PropertyRHS(World& world, Property& p) const {
+response_space TDDFT::PropertyRHS(World& world, PropertyBase& p) const {
   if (r_params.print_level() >= 1) {
     molresponse::start_timer(world);
   }
-
-  print("Creating RHS for ", p.property, "operator");
   response_space rhs(world, p.num_operators, r_params.num_orbitals());
 
   reconstruct(world, ground_orbitals);

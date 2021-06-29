@@ -1,7 +1,7 @@
 #include "molresponse/property.h"
 
-#include <TDDFT.h>
-#include <response_functions.h>
+#include <molresponse/TDDFT.h>
+#include <molresponse/response_functions.h>
 
 #include <algorithm>
 #include <memory>
@@ -31,11 +31,11 @@ std::vector<coordT> MolecularDerivativeFunctor::special_points() const {
   return std::vector<coordT>(1, molecule.get_atom(atom).get_coords());
 }
 
-Property::Property() : num_operators(0), property(""), operator_vector() {}
+PropertyBase::PropertyBase() : num_operators(0), operator_vector() {}
 
-Property::Property(World &world, std::string property_type) : num_operators(3), operator_vector(num_operators) {
-  property = property_type;
-  MADNESS_ASSERT(property.compare("dipole") == 0);
+DipoleVector::DipoleVector(World &world) : PropertyBase() {
+  num_operators = 3;
+  operator_vector = vecfuncT(num_operators);
   for (size_t i = 0; i < 3; i++) {
     std::vector<int> f(3, 0);
     f[i] = 1;
@@ -49,12 +49,11 @@ Property::Property(World &world, std::string property_type) : num_operators(3), 
   for (size_t i = 0; i < 3; i++) {
     print("norm of dipole function after truncate ", operator_vector[i].norm2());
   }
-}
+};
 
-Property::Property(World &world, std::string property_type, Molecule molecule)
-    : num_operators(molecule.natom() * 3), operator_vector(num_operators) {
-  property = property_type;
-  MADNESS_ASSERT(property.compare("nuclear") == 0);
+NuclearVector::NuclearVector(World &world, Molecule &molecule) : PropertyBase() {
+  num_operators = size_t(molecule.natom() * 3);
+  operator_vector = vecfuncT(num_operators);
 
   vecfuncT dv(molecule.natom() * 3);  // default constructor for vector?
 

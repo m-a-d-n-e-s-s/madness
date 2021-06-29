@@ -163,7 +163,7 @@ class TDDFT {
                                     // false). Holds the integrals
                                     //   \int dr \frac{\phi_i^\dagger
                                     //   phi_j}{\left| r - r' \right|}
-  Property p;                       // for frequency calculations
+  PropertyBase p;                   // for frequency calculations
 
   // Get the response Function
   X_space& GetXspace();
@@ -172,7 +172,7 @@ class TDDFT {
   response_space& GetQVector();
   ResponseParameters GetResponseParameters();
   GroundParameters GetGroundParameters();
-  Property GetPropertyObject();
+  PropertyBase GetPropertyObject();
   // Get Frequencies Omega
   Tensor<double> GetFrequencyOmega();
 
@@ -224,7 +224,7 @@ class TDDFT {
                                         size_t print_level);
   response_space create_trial_functions2(World& world, std::vector<real_function_3d>& orbitals, size_t print_level);
 
-  response_space PropertyRHS(World& world, Property& p) const;
+  response_space PropertyRHS(World& world, PropertyBase& p) const;
   // Returns the derivative of the coulomb operator, applied to ground state
   // orbitals
 

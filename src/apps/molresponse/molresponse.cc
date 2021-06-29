@@ -135,8 +135,7 @@ int main(int argc, char** argv) {
     }
     world.gop.fence();
     print_stats(world);
-  finalize();
-  
+    finalize();
   }
 
   return 0;

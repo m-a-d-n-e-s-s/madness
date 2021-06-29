@@ -21,23 +21,18 @@ typedef FunctionFactory<double, 3> FactoryT;
 typedef Vector<double, 3> CoordinateT;
 typedef std::vector<real_function_3d> VectorFunction3DT;
 
-density_vector::density_vector(World &world,
-                               ResponseParameters other_rparams,
-                               GroundParameters other_gparams)
+density_vector::density_vector(World &world, ResponseParameters other_rparams, GroundParameters other_gparams)
     : num_states(other_rparams.n_states()),
       num_orbitals(other_rparams.num_orbitals()),
-      property(other_rparams.response_type()),
+      property(),
       r_params(other_rparams),  // should be a copy
       g_params(other_gparams),
       Chi(world, num_states, num_orbitals),
       PQ(world, num_states, num_orbitals),
       orbitals(copy(world, other_gparams.orbitals())),
       molecule(other_gparams.molecule()) {
-  xcf.initialize(r_params.xc(),
-                 !r_params.spinrestricted(),
-                 world,
-                 r_params.print_level() >= 10);
-  if (r_params.response_type().compare("excited_state") == 0) {
+  xcf.initialize(r_params.xc(), !r_params.spinrestricted(), world, r_params.print_level() >= 10);
+  if (r_params.excited_state()) {
     this->omega = Tensor<double>(r_params.n_states());
   } else {
     this->omega = Tensor<double>(1);
@@ -54,19 +49,15 @@ const Molecule density_vector::GetMolecule() { return g_params.molecule(); }
 TensorT density_vector::GetFrequencyOmega() { return omega; }
 ResponseParameters density_vector::GetResponseParameters() { return r_params; }
 
-VectorFunction3DT density_vector::ComputeDensityVector(World &world,
-                                                       bool is_static) {
-  std::vector<real_function_3d> densities =
-      zero_functions<double, 3>(world, num_states);
+VectorFunction3DT density_vector::ComputeDensityVector(World &world, bool is_static) {
+  std::vector<real_function_3d> densities = zero_functions<double, 3>(world, num_states);
   if (is_static) {
     for (size_t b = 0; b < num_states; b++) {
-      densities[b] =
-          dot(world, Chi.X[b], orbitals) + dot(world, Chi.X[b], orbitals);
+      densities[b] = dot(world, Chi.X[b], orbitals) + dot(world, Chi.X[b], orbitals);
     }
   } else {
     for (size_t b = 0; b < num_states; b++) {
-      densities[b] =
-          dot(world, Chi.X[b], orbitals) + dot(world, Chi.Y[b], orbitals);
+      densities[b] = dot(world, Chi.X[b], orbitals) + dot(world, Chi.Y[b], orbitals);
     }
   }
   truncate(world, densities);
@@ -76,12 +67,7 @@ void density_vector::PrintDensityInformation() {
   // print
   //
   print("Response Density Information");
-  print(property,
-        " response at",
-        omega(0, 0),
-        "frequency using ",
-        r_params.xc(),
-        " exchange functional");
+  print(property, " response at", omega(0, 0), "frequency using ", r_params.xc(), " exchange functional");
   print("Number of Response States : ", num_states);
   print("Number of Ground States : ", num_orbitals);
 }
@@ -138,19 +124,16 @@ Tensor<double> density_vector::ComputeSecondOrderPropertyTensor(World &world) {
   return H;
 }
 
-void density_vector::PrintSecondOrderAnalysis(
-    World &world,
-    const Tensor<double> alpha_tensor) {
+void density_vector::PrintSecondOrderAnalysis(World &world, const Tensor<double> alpha_tensor) {
   Tensor<double> V, epolar;
   syev(alpha_tensor, V, epolar);
   double Dpolar_average = 0.0;
   double Dpolar_iso = 0.0;
   for (size_t i = 0; i < 3; ++i) Dpolar_average = Dpolar_average + epolar[i];
   Dpolar_average = Dpolar_average / 3.0;
-  Dpolar_iso =
-      sqrt(.5) * sqrt(std::pow(alpha_tensor(0, 0) - alpha_tensor(1, 1), 2) +
-                      std::pow(alpha_tensor(1, 1) - alpha_tensor(2, 2), 2) +
-                      std::pow(alpha_tensor(2, 2) - alpha_tensor(0, 0), 2));
+  Dpolar_iso = sqrt(.5) * sqrt(std::pow(alpha_tensor(0, 0) - alpha_tensor(1, 1), 2) +
+                               std::pow(alpha_tensor(1, 1) - alpha_tensor(2, 2), 2) +
+                               std::pow(alpha_tensor(2, 2) - alpha_tensor(0, 0), 2));
 
   size_t num_states = r_params.n_states();
 
@@ -223,13 +206,14 @@ void density_vector::LoadDensity(World &world,
   // Reading in, in this order;
 
   ar &property;
+  Molecule molecule = g_params.molecule();
 
   if (property.compare("dipole") == 0) {
     if (world.rank() == 0) print("creating dipole property operator");
-    this->property_operator = Property(world, "dipole");
+    this->property_operator = DipoleVector(world);
   } else if (property.compare("nuclear") == 0) {
     if (world.rank() == 0) print("creating nuclear property operator");
-    this->property_operator = Property(world, "nuclear", g_params.molecule());
+    this->property_operator = NuclearVector(world, molecule);
   }
   print("property:", property);
 
@@ -269,11 +253,9 @@ void density_vector::LoadDensity(World &world,
   }
 
   for (size_t i = 0; i < property_operator.num_operators; i++) {
-    print("norm of operator before ",
-          property_operator.operator_vector[i].norm2());
+    print("norm of operator before ", property_operator.operator_vector[i].norm2());
     ar &property_operator.operator_vector[i];
-    print("norm of operator after",
-          property_operator.operator_vector[i].norm2());
+    print("norm of operator after", property_operator.operator_vector[i].norm2());
   }
 
   for (size_t i = 0; i < r_params.n_states(); i++) {
@@ -294,9 +276,7 @@ void density_vector::LoadDensity(World &world,
   world.gop.fence();
 }
 
-density_vector set_density_type(World &world,
-                                ResponseParameters R,
-                                GroundParameters G) {
+density_vector set_density_type(World &world, ResponseParameters R, GroundParameters G) {
   if (R.excited_state()) {
     return excited_state_density_vector(world, R, G);
   } else if (R.dipole()) {

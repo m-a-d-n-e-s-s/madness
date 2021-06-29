@@ -695,7 +695,6 @@ void TDDFT::solve_excited_states(World& world) {
 
 void TDDFT::solve_response_states(World& world) {
   molresponse::start_timer(world);
-  std::string property = r_params.response_type();
   // Warm and fuzzy
   if (world.rank() == 0) {
     print("\n\n    Response Calculation");
@@ -709,12 +708,13 @@ void TDDFT::solve_response_states(World& world) {
     check_k(world, r_params.protocol()[proto], FunctionDefaults<3>::get_k());
     // Do something to ensure all functions have same k value
 
-    if (property.compare("dipole") == 0) {
+    if (r_params.dipole()) {
       if (world.rank() == 0) print("creating dipole property operator");
-      p = Property(world, "dipole");
-    } else if (property.compare("nuclear") == 0) {
+      p = DipoleVector(world);
+    } else if (r_params.nuclear()) {
+      Molecule molecule = g_params.molecule();
       if (world.rank() == 0) print("creating nuclear property operator");
-      p = Property(world, "nuclear", g_params.molecule());
+      p = NuclearVector(world, molecule);
     }
     if (proto == 0) {
       if (r_params.restart()) {
@@ -766,7 +766,6 @@ void TDDFT::solve_response_states(World& world) {
     // Here i should print some information about the calculation we are
     // about to do
     print("Preiteration Information");
-    print("Property : ", property);
     print("Number of Response States: ", r_params.n_states());
     print("Number of Ground States: ", r_params.num_orbitals());
     print("k = ", FunctionDefaults<3>::get_k());

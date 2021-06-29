@@ -1,7 +1,7 @@
 #ifndef SRC_APPS_molresponse_PROPERTY_H_
 #define SRC_APPS_molresponse_PROPERTY_H_
 
-#include <response_functions.h>
+#include <molresponse/response_functions.h>
 
 #include <algorithm>
 #include <memory>
@@ -36,17 +36,25 @@ class MolecularDerivativeFunctor : public FunctionFunctorInterface<double, 3> {
 };  // namespace madness
 // A proerty class...creates a object with operator vector and property name
 // Used to compute proerties or compute rhs vectors
-class Property {
+class PropertyBase {
  public:
   size_t num_operators;  // number of operators in vectors
-  std::string property;
   std::vector<real_function_3d> operator_vector;
 
   // default constructor
-  Property();
-  Property(World &world, std::string property_type);
+  PropertyBase();
 
-  Property(World &world, std::string property_type, Molecule molecule);
+  PropertyBase(World &world, std::string property_type, Molecule molecule);
+};
+
+class DipoleVector : public PropertyBase {
+ public:
+  DipoleVector(World &world);
+};
+
+class NuclearVector : public PropertyBase {
+ public:
+  NuclearVector(World &world, Molecule &molecule);
 };
 
 #endif  // SRC_APPS_molresponse_PROPERTY_H_
