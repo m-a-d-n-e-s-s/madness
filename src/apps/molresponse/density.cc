@@ -297,17 +297,17 @@ void density_vector::LoadDensity(World &world,
 density_vector set_density_type(World &world,
                                 ResponseParameters R,
                                 GroundParameters G) {
-  if (R.response_type().compare("excited_state") == 0) {
+  if (R.excited_state()) {
     return excited_state_density_vector(world, R, G);
-  } else if (R.response_type().compare("dipole") == 0) {
+  } else if (R.dipole()) {
     return dipole_density_vector(world, R, G);
 
-  } else if (R.response_type().compare("nuclear") == 0) {
+  } else if (R.nuclear()) {
     return nuclear_density_vector(world, R, G);
-  } else if (R.response_type().compare("order2") == 0) {
+  } else if (R.second_order()) {
     MADNESS_EXCEPTION("not implemented yet", 0);
     return density_vector(world, R, G);
-  } else if (R.response_type().compare("order3") == 0) {
+  } else if (R.third_order()) {
     MADNESS_EXCEPTION("not implemented yet", 0);
     return density_vector(world, R, G);
 
