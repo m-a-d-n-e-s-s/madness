@@ -127,7 +127,7 @@ int main(int argc, char** argv) {
       print("NOT GOOD");
     }
 
-    if (calc.r_params.response_type().compare("dipole") == 0) {  //
+    if (calc.r_params.dipole() == 0) {  //
       print("Computing Alpha");
       Tensor<double> alpha = calc.polarizability();
       print("Second Order Analysis");
