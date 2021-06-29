@@ -77,64 +77,87 @@ int main(int argc, char** argv) {
     World world(SafeMPI::COMM_WORLD);
     molresponse::start_timer(world);
     // try catch would start here
-    startup(world, argc, argv, true);
-    print_meminfo(world.rank(), "startup");
-    FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3>>(world)));
+    try {
+      startup(world, argc, argv, true);
+      print_meminfo(world.rank(), "startup");
+      FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3>>(world)));
 
-    std::cout.precision(6);
-    // This makes a default input file name of 'input'
-    const char* inpname = "input";
-    // Process 0 reads input information and broadcasts
-    for (int i = 1; i < argc; i++) {
-      if (argv[i][0] != '-') {
-        inpname = argv[i];
-        break;
+      std::cout.precision(6);
+      // This makes a default input file name of 'input'
+      const char* inpname = "input";
+      // Process 0 reads input information and broadcasts
+      for (int i = 1; i < argc; i++) {
+        if (argv[i][0] != '-') {
+          inpname = argv[i];
+          break;
+        }
       }
-    }
 
-    if (world.rank() == 0) print("input filename: ", inpname);
-    if (!file_exists(inpname)) throw "input file not found";
-    std::string tag = "response";
-    density_vector rho = read_and_create_density(world, inpname, tag);
-    // first step is to read the input for r_params and g_params
-    // Create the TDDFT object
-    TDDFT calc = TDDFT(world, rho);
+      if (world.rank() == 0) print("input filename: ", inpname);
+      if (!file_exists(inpname)) throw "input file not found";
+      std::string tag = "response";
+      density_vector rho = read_and_create_density(world, inpname, tag);
+      // first step is to read the input for r_params and g_params
+      // Create the TDDFT object
+      TDDFT calc = TDDFT(world, rho);
 
-    // Warm and fuzzy for the user
-    if (world.rank() == 0) {
-      print("\n\n");
-      print(
-          " MADNESS Time-Dependent Density Functional Theory Response "
-          "Program");
-      print(" ----------------------------------------------------------\n");
-      print("\n");
-      calc.molecule.print();
-      print("\n");
-      calc.r_params.print(tag);
-    }
-    molresponse::end_timer(world, "initialize");
-    // Come up with an initial OK data map
-    if (world.size() > 1) {
-      calc.set_protocol<3>(world, 1e-4);
-      calc.make_nuclear_potential(world);
-      calc.initial_load_bal(world);
-    }
-    // set protocol to the first
-    calc.set_protocol<3>(world, calc.r_params.protocol()[0]);
-    if (calc.r_params.excited_state()) {
-      calc.solve_excited_states(world);
-    } else if (calc.r_params.first_order()) {
-      calc.solve_response_states(world);
-    } else if (calc.r_params.second_order()) {
-    } else {
-      print("NOT GOOD");
-    }
+      // Warm and fuzzy for the user
+      if (world.rank() == 0) {
+        print("\n\n");
+        print(
+            " MADNESS Time-Dependent Density Functional Theory Response "
+            "Program");
+        print(" ----------------------------------------------------------\n");
+        print("\n");
+        calc.molecule.print();
+        print("\n");
+        calc.r_params.print(tag);
+      }
+      molresponse::end_timer(world, "initialize");
+      // Come up with an initial OK data map
+      if (world.size() > 1) {
+        calc.set_protocol<3>(world, 1e-4);
+        calc.make_nuclear_potential(world);
+        calc.initial_load_bal(world);
+      }
+      // set protocol to the first
+      calc.set_protocol<3>(world, calc.r_params.protocol()[0]);
+      if (calc.r_params.excited_state()) {
+        calc.solve_excited_states(world);
+      } else if (calc.r_params.first_order()) {
+        calc.solve_response_states(world);
+      } else if (calc.r_params.second_order()) {
+      } else {
+        print("NOT GOOD");
+      }
 
-    if (calc.r_params.response_type().compare("dipole") == 0) {  //
-      print("Computing Alpha");
-      Tensor<double> alpha = calc.polarizability();
-      print("Second Order Analysis");
-      calc.PrintPolarizabilityAnalysis(world, alpha);
+      if (calc.r_params.response_type().compare("dipole") == 0) {  //
+        print("Computing Alpha");
+        Tensor<double> alpha = calc.polarizability();
+        print("Second Order Analysis");
+        calc.PrintPolarizabilityAnalysis(world, alpha);
+      }
+
+    } catch (const SafeMPI::Exception& e) {
+      print(e);
+      error("caught an MPI exception");
+    } catch (const madness::MadnessException& e) {
+      print(e);
+      error("caught a MADNESS exception");
+    } catch (const madness::TensorException& e) {
+      print(e);
+      error("caught a Tensor exception");
+    } catch (const char* s) {
+      print(s);
+      error("caught a string exception");
+    } catch (const std::string& s) {
+      print(s);
+      error("caught a string (class) exception");
+    } catch (const std::exception& e) {
+      print(e.what());
+      error("caught an STL exception");
+    } catch (...) {
+      error("caught unhandled exception");
     }
     world.gop.fence();
     world.gop.fence();
