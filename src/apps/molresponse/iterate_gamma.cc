@@ -25,14 +25,11 @@
 #include "molresponse/timer.h"
 #include "molresponse/x_space.h"
 
-X_space TDDFT::compute_gamma_full(World& world,
-                                  X_space& Chi,
-                                  XCOperator<double, 3> xc) {
+X_space TDDFT::compute_gamma_full(World& world, X_space& Chi, XCOperator<double, 3> xc) {
   size_t m = r_params.n_states();
   size_t n = r_params.num_orbitals();
   // shallow copy
-  std::shared_ptr<WorldDCPmapInterface<Key<3>>> oldpmap =
-      FunctionDefaults<3>::get_pmap();
+  std::shared_ptr<WorldDCPmapInterface<Key<3>>> oldpmap = FunctionDefaults<3>::get_pmap();
 
   X_space Chi_copy = Chi;
   vecfuncT phi0_copy = ground_orbitals;
@@ -183,14 +180,11 @@ X_space TDDFT::compute_gamma_full(World& world,
   // Get sizes
 }
 
-X_space TDDFT::compute_gamma_static(World& world,
-                                    X_space& Chi,
-                                    XCOperator<double, 3> xc) {
+X_space TDDFT::compute_gamma_static(World& world, X_space& Chi, XCOperator<double, 3> xc) {
   size_t m = r_params.n_states();
   size_t n = r_params.num_orbitals();
   // shallow copy
-  std::shared_ptr<WorldDCPmapInterface<Key<3>>> oldpmap =
-      FunctionDefaults<3>::get_pmap();
+  std::shared_ptr<WorldDCPmapInterface<Key<3>>> oldpmap = FunctionDefaults<3>::get_pmap();
 
   X_space Chi_copy = Chi;
   vecfuncT phi0_copy = ground_orbitals;
@@ -318,9 +312,7 @@ X_space TDDFT::compute_gamma_static(World& world,
   // Get sizes
 }
 
-X_space TDDFT::compute_gamma_TDA(World& world,
-                                 X_space& Chi,
-                                 XCOperator<double, 3> xc) {
+X_space TDDFT::compute_gamma_TDA(World& world, X_space& Chi, XCOperator<double, 3> xc) {
   // Start a timer
   //
   if (r_params.print_level() >= 1) molresponse::start_timer(world);
@@ -402,8 +394,7 @@ X_space TDDFT::compute_gamma_TDA(World& world,
   }
 
   // End timer
-  if (r_params.print_level() >= 1)
-    molresponse::end_timer(world, "   Creating Gamma X:");
+  if (r_params.print_level() >= 1) molresponse::end_timer(world, "   Creating Gamma X:");
 
   // Done
   world.gop.fence();

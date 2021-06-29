@@ -38,8 +38,7 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
   size_t relax_start = r_params.maxiter() + 1;  // For convergence
   size_t num_conv = 0;                          // For convergence
   std::vector<bool> converged(m, false);        // For convergence
-  const double dconv =
-      std::max(FunctionDefaults<3>::get_thresh(), r_params.dconv());
+  const double dconv = std::max(FunctionDefaults<3>::get_thresh(), r_params.dconv());
 
   // m residuals for x and y
   Tensor<double> bsh_residualsX(m);
@@ -47,8 +46,7 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
   // saved response densities
   vecfuncT rho_omega_old(m);
   // initialize DFT XC functional operator
-  XCOperator<double, 3> xc =
-      create_XCOperator(world, ground_orbitals, r_params.xc());
+  XCOperator<double, 3> xc = create_XCOperator(world, ground_orbitals, r_params.xc());
 
   // create X space residuals
   X_space residuals(world, m, n);
@@ -69,9 +67,7 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
   NonLinearXsolver kain_x_space;
   size_t nkain = m;  // (r_params.omega() != 0.0) ? 2 * m : m;
   for (size_t b = 0; b < nkain; b++) {
-    kain_x_space.push_back(
-        XNonlinearSolver<X_vector, double, X_space_allocator>(
-            X_space_allocator(world, n), false));
+    kain_x_space.push_back(XNonlinearSolver<X_vector, double, X_space_allocator>(X_space_allocator(world, n), false));
     if (r_params.kain()) kain_x_space[b].set_maxsub(r_params.maxsub());
   }
 
@@ -98,6 +94,7 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
   Tensor<double> old_A;
   Tensor<double> A;
   Tensor<double> old_S;
+  bool compute_y = !r_params.tda();
   // initialize DFT XC functional operator
 
   /*
@@ -111,7 +108,7 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
    */
 
   // Set y things if not doing TDA
-  if (not r_params.tda()) old_Chi.Y = response_space(world, m, n);
+  if (compute_y) old_Chi.Y = response_space(world, m, n);
 
   // Now to iterate
   while (iter < r_params.maxiter() && !all_converged) {
@@ -119,21 +116,13 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
     // Basic output
     if (r_params.print_level() >= 1) {
       molresponse::start_timer(world);
-      if (world.rank() == 0)
-        printf("\n   Iteration %d at time %.1fs\n",
-               static_cast<int>(iter),
-               wall_time());
+      if (world.rank() == 0) printf("\n   Iteration %d at time %.1fs\n", static_cast<int>(iter), wall_time());
       if (world.rank() == 0) print(" -------------------------------");
     }
 
     // compute rho_omega
-    molresponse::start_timer(world);
-    if (r_params.omega() == 0.0) {
-      rho_omega = transition_density(world, ground_orbitals, Chi.X, Chi.X);
-    } else {
-      rho_omega = transition_density(world, ground_orbitals, Chi.X, Chi.Y);
-    }
-    molresponse::end_timer(world, "Make density omega");
+    rho_omega = compute_density(world, Chi, compute_y);
+
     print_meminfo(world.rank(), "Make density omega");
 
     if (iter < 2 || (iter % 10) == 0) {
@@ -148,11 +137,7 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
     if (iter > 0) {
       density_residuals = norm2s(world, (rho_omega - rho_omega_old));
       if (world.rank() == 0 and (r_params.print_level() > 2))
-        print("delta rho",
-              density_residuals,
-              "residuals",
-              bsh_residualsX,
-              bsh_residualsY);
+        print("delta rho", density_residuals, "residuals", bsh_residualsX, bsh_residualsY);
     }
     old_Chi = Chi.copy();
     rho_omega_old = rho_omega;
@@ -187,8 +172,7 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
             fabs(bsh_residualsX[i]) < dconv) {
           converged[i] = true;
           num_conv++;
-          if (world.rank() == 0)
-            print("   Response function", i, " has converged. Freezing it.");
+          if (world.rank() == 0) print("   Response function", i, " has converged. Freezing it.");
         }
       }
       // Check if relaxing needs to start
@@ -231,8 +215,7 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
     }
 
     // Basic output
-    if (r_params.print_level() >= 1)
-      molresponse::end_timer(world, " This iteration:");
+    if (r_params.print_level() >= 1) molresponse::end_timer(world, " This iteration:");
   }
   if (r_params.plot_all_orbitals()) {
     plot_excited_states(world, iter, Chi.X, Chi.Y, r_params, g_params);
@@ -263,8 +246,7 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
     print(x_norms);
 
     if (not r_params.tda()) {
-      if (world.rank() == 0)
-        print(" Final y-state response function residuals:");
+      if (world.rank() == 0) print(" Final y-state response function residuals:");
       if (world.rank() == 0) print(y_norms);
     }
   }
@@ -311,12 +293,9 @@ void TDDFT::analysis(World& world, X_space& Chi) {
   }
 
   // Need these to calculate dipole/quadrapole
-  real_function_3d x = real_factory_3d(world).functor(
-      real_functor_3d(new BS_MomentFunctor(std::vector<int>{1, 0, 0})));
-  real_function_3d y = real_factory_3d(world).functor(
-      real_functor_3d(new BS_MomentFunctor(std::vector<int>{0, 1, 0})));
-  real_function_3d z = real_factory_3d(world).functor(
-      real_functor_3d(new BS_MomentFunctor(std::vector<int>{0, 0, 1})));
+  real_function_3d x = real_factory_3d(world).functor(real_functor_3d(new BS_MomentFunctor(std::vector<int>{1, 0, 0})));
+  real_function_3d y = real_factory_3d(world).functor(real_functor_3d(new BS_MomentFunctor(std::vector<int>{0, 1, 0})));
+  real_function_3d z = real_factory_3d(world).functor(real_functor_3d(new BS_MomentFunctor(std::vector<int>{0, 0, 1})));
 
   // Calculate transition dipole moments for each response function
   Tensor<double> dipoles(m, 3);
@@ -345,11 +324,9 @@ void TDDFT::analysis(World& world, X_space& Chi) {
   // Calculate oscillator strength
   Tensor<double> oscillator(m);
   for (size_t i = 0; i < m; i++) {
-    oscillator(i) =
-        2.0 / 3.0 *
-        (dipoles(i, 0) * dipoles(i, 0) + dipoles(i, 1) * dipoles(i, 1) +
-         dipoles(i, 2) * dipoles(i, 2)) *
-        omega(i);
+    oscillator(i) = 2.0 / 3.0 *
+                    (dipoles(i, 0) * dipoles(i, 0) + dipoles(i, 1) * dipoles(i, 1) + dipoles(i, 2) * dipoles(i, 2)) *
+                    omega(i);
   }
 
   // Calculate transition quadrapole moments
@@ -396,42 +373,26 @@ void TDDFT::analysis(World& world, X_space& Chi) {
   // Now print?
   if (world.rank() == 0) {
     for (size_t i = 0; i < m; i++) {
-      printf("   Response Function %d\t\t%7.8f a.u.",
-             static_cast<int>(i),
-             omega(i));
+      printf("   Response Function %d\t\t%7.8f a.u.", static_cast<int>(i), omega(i));
       print("\n   --------------------------------------------");
 
       print("\n   Transition Dipole Moments");
-      printf("   X: %7.8f   Y: %7.8f   Z: %7.8f\n",
-             dipoles(i, 0),
-             dipoles(i, 1),
-             dipoles(i, 2));
+      printf("   X: %7.8f   Y: %7.8f   Z: %7.8f\n", dipoles(i, 0), dipoles(i, 1), dipoles(i, 2));
 
       printf("\n   Dipole Oscillator Strength: %7.8f\n", oscillator(i));
 
       print("\n   Transition Quadrupole Moments");
       printf("   %16s %16s %16s\n", "X", "Y", "Z");
-      printf("   X %16.8f %16.8f %16.8f\n",
-             quadrupoles(i, 0, 0),
-             quadrupoles(i, 0, 1),
-             quadrupoles(i, 0, 2));
-      printf("   Y %16.8f %16.8f %16.8f\n",
-             quadrupoles(i, 1, 0),
-             quadrupoles(i, 1, 1),
-             quadrupoles(i, 1, 2));
-      printf("   Z %16.8f %16.8f %16.8f\n",
-             quadrupoles(i, 2, 0),
-             quadrupoles(i, 2, 1),
-             quadrupoles(i, 2, 2));
+      printf("   X %16.8f %16.8f %16.8f\n", quadrupoles(i, 0, 0), quadrupoles(i, 0, 1), quadrupoles(i, 0, 2));
+      printf("   Y %16.8f %16.8f %16.8f\n", quadrupoles(i, 1, 0), quadrupoles(i, 1, 1), quadrupoles(i, 1, 2));
+      printf("   Z %16.8f %16.8f %16.8f\n", quadrupoles(i, 2, 0), quadrupoles(i, 2, 1), quadrupoles(i, 2, 2));
 
       // Print contributions
       // Only print the top 5?
       if (r_params.tda()) {
         print("\n   Dominant Contributions:");
         for (size_t j = 0; j < std::min(size_t(5), n); j++) {
-          printf("   Occupied %d   %7.8f\n",
-                 x_order(i, j),
-                 x_norms(i, x_order(i, j)));
+          printf("   Occupied %d   %7.8f\n", x_order(i, j), x_norms(i, x_order(i, j)));
         }
 
         print("\n");
@@ -439,10 +400,7 @@ void TDDFT::analysis(World& world, X_space& Chi) {
         print("\n   Dominant Contributions:");
         print("                  x          y");
         for (size_t j = 0; j < std::min(size_t(5), n); j++) {
-          printf("   Occupied %d   %7.8f %7.8f\n",
-                 x_order(i, j),
-                 x_norms(i, x_order(i, j)),
-                 y_norms(i, y_order(i, j)));
+          printf("   Occupied %d   %7.8f %7.8f\n", x_order(i, j), x_norms(i, x_order(i, j)), y_norms(i, y_order(i, j)));
         }
 
         print("\n");

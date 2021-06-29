@@ -1842,6 +1842,19 @@ Tensor<double> TDDFT::calculate_energy_update(World& world,
   return updates;
 }
 
+vecfuncT TDDFT::compute_density(World& world, X_space& Chi, bool compute_y) {
+  molresponse::start_timer(world);
+  vecfuncT rho_omega;
+  if (compute_y) {
+    rho_omega = transition_density(world, ground_orbitals, Chi.X, Chi.X);
+  } else {
+    rho_omega = transition_density(world, ground_orbitals, Chi.X, Chi.Y);
+  }
+
+  molresponse::end_timer(world, "Make density omega");
+  print_meminfo(world.rank(), "Make density omega");
+}
+
 // Specialized for response calculations that returns orthonormalized
 // functions
 response_space TDDFT::gram_schmidt(World& world, response_space& f) {
