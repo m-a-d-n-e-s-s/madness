@@ -11,6 +11,7 @@
 #include "../chem/molecule.h"
 #include "Plot_VTK.h"
 #include "basic_operators.h"
+#include "chem/pointgroupsymmetry.h"
 #include "chem/potentialmanager.h"
 #include "chem/projector.h"  // For easy calculation of (1 - \hat{\rho}^0)
 #include "madness/mra/funcdefaults.h"
@@ -92,6 +93,9 @@ class GroundParameters {
       input& reader;
       g_orbitals.push_back(reader);
     }
+
+    projector_irrep c2v("c2v");
+    g_orbitals = c2v(g_orbitals);
 
     // Clean up
     truncate(world, g_orbitals);
