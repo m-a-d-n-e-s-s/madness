@@ -82,6 +82,7 @@ void TDDFT::iterate_freq2(World& world) {
   std::vector<poperatorT> bsh_y_ops;
 
   bool not_static = omega_n != 0.0;
+  bool static_res = !not_static;
   // Negate omega to make this next set of BSH operators \eps - omega
   if (not_static) {
     omega_n = -omega_n;
@@ -119,7 +120,7 @@ void TDDFT::iterate_freq2(World& world) {
     }
 
     // If omega = 0.0, x = y
-    if (r_params.omega() == 0.0) Chi.Y = Chi.X.copy();
+    if (static_res) Chi.Y = Chi.X.copy();
     old_Chi = Chi.copy();
     rho_omega_old = rho_omega;
     // compute bsh_residual which is norm of residual functions
