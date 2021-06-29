@@ -73,7 +73,6 @@ struct ResponseParameters : public QCCalculationParametersBase {
     initialize<std::string>("load_density_file", "", "File name to load density for restart");
     initialize<size_t>("guess_max_iter", 5, "maximum number of guess iterations");
     // properties
-    initialize<std::string>("response_type", "excited_state", "dipole,nuclear,order2,order3");
     initialize<std::string>("calc_type", "full", "full,static,tda");
     initialize<bool>("excited_state", false, "Flag to turn on excited state calc");
     initialize<bool>("first_order", false, "Flag to turn on first order response calc");
@@ -141,7 +140,6 @@ struct ResponseParameters : public QCCalculationParametersBase {
   std::string load_density_file() const { return get<std::string>("load_density_file"); }
   size_t guess_max_iter() const { return get<size_t>("guess_max_iter"); }
   bool property() const { return get<bool>("property"); }
-  std::string response_type() const { return get<std::string>("response_type"); }
   int vnucextra() const { return get<int>("vnucextra"); }
   int loadbalparts() const { return get<int>("loadbalparts"); }
   bool excited_state() const { return get<bool>("excited_state"); }
@@ -186,10 +184,8 @@ struct ResponseParameters : public QCCalculationParametersBase {
 
       if (dipole()) {
         set_derived_value<size_t>("states", 3);
-        set_derived_value<std::string>("response_type", "dipole");
       } else if (nuclear()) {
         set_derived_value<size_t>("states", 3 * molecule.natom());
-        set_derived_value<std::string>("response_type", "nuclear");
       }
     } else if (second_order()) {
       if (omega() == 0) {
@@ -197,7 +193,6 @@ struct ResponseParameters : public QCCalculationParametersBase {
       } else {
         set_derived_value<std::string>("calc_type", "full");
       }
-      set_derived_value<std::string>("response_type", "order2");
       vector<int> nstates;  // states 1
       for (size_t i = 0; i < 2; i++) {
         if (d2_types().at(i) == 'd') {
@@ -217,7 +212,6 @@ struct ResponseParameters : public QCCalculationParametersBase {
       } else {
         set_derived_value<std::string>("calc_type", "full");
       }
-      set_derived_value<std::string>("response_type", "order3");
       vector<int> nstates;  // states 1
       for (size_t i = 0; i < 3; i++) {
         if (d2_types()[i] == 'd') {
