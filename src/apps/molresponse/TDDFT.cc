@@ -1853,6 +1853,7 @@ vecfuncT TDDFT::compute_density(World& world, X_space& Chi, bool compute_y) {
 
   molresponse::end_timer(world, "Make density omega");
   print_meminfo(world.rank(), "Make density omega");
+  return rho_omega;
 }
 
 // Specialized for response calculations that returns orthonormalized
