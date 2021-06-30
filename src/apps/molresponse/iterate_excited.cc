@@ -123,8 +123,6 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
     // compute rho_omega
     rho_omega = compute_density(world, Chi, compute_y);
 
-    print_meminfo(world.rank(), "Make density omega");
-
     if (iter < 2 || (iter % 10) == 0) {
       molresponse::start_timer(world);
       loadbal(world, rho_omega, Chi, old_Chi);
