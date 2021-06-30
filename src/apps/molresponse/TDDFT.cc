@@ -1555,7 +1555,7 @@ void TDDFT::update_x_space_excited(World& world,
 
   X_space Lambda_X = Compute_Lambda_X(world, Chi, xc, r_params.calc_type());
   // This diagonalizes XAX and computes new omegas
-  compute_new_omegas(
+  compute_new_omegas_transform(
       world, old_Chi, Chi, old_Lambda_X, Lambda_X, omega, old_energy, S, old_S, A, old_A, energy_residuals, iter);
 
   // Analysis gets messed up if BSH is last thing applied
@@ -1601,26 +1601,31 @@ void TDDFT::update_x_space_excited(World& world,
 
   // Load Balancing
 }
-void TDDFT::compute_new_omegas(World& world,
-                               X_space& old_Chi,
-                               X_space& Chi,
-                               X_space& old_Lambda_X,
-                               X_space& Lambda_X,
-                               Tensor<double>& omega,
-                               Tensor<double>& old_energy,
-                               Tensor<double>& S,
-                               Tensor<double>& old_S,
-                               Tensor<double>& A,
-                               Tensor<double>& old_A,
-                               Tensor<double>& energy_residuals,
-                               size_t iter) {
+void TDDFT::compute_new_omegas_transform(World& world,
+                                         X_space& old_Chi,
+                                         X_space& Chi,
+                                         X_space& old_Lambda_X,
+                                         X_space& Lambda_X,
+                                         Tensor<double>& omega,
+                                         Tensor<double>& old_energy,
+                                         Tensor<double>& S,
+                                         Tensor<double>& old_S,
+                                         Tensor<double>& A,
+                                         Tensor<double>& old_A,
+                                         Tensor<double>& energy_residuals,
+                                         size_t iter) {
   size_t m = Chi.X.size();
   if (r_params.tda()) {
     deflateTDA(world, Chi, old_Chi, Lambda_X, old_Lambda_X, S, old_S, old_A, omega, iter, m);
     // Constructing S
     // Full TDHF
   } else {
-    // Constructing S
+    // Construct S
+    // Construct A
+    // Compute U
+    // Compute omega
+    // transform Lambda
+
     deflateFull(world, Chi, old_Chi, Lambda_X, old_Lambda_X, S, old_S, old_A, omega, iter, m);
   }
 
@@ -2737,16 +2742,16 @@ Tensor<double> TDDFT::diagonalizeFullResponseMatrix(World& world,
                                                     size_t print_level) {
   // compute the unitary transformation matrix U that diagonalizes
   // the response matrix
-  Tensor<double> vecs = GetFullResponseTransformation(world, S, A, omega, thresh);
+  Tensor<double> U = GetFullResponseTransformation(world, S, A, omega, thresh);
 
   // Start timer
   if (r_params.print_level() >= 1) molresponse::start_timer(world);
 
-  Chi.X = transform(world, Chi.X, vecs);
-  Chi.Y = transform(world, Chi.Y, vecs);
+  Chi.X = transform(world, Chi.X, U);
+  Chi.Y = transform(world, Chi.Y, U);
 
-  // Lambda_X.X = transform(world, Lambda_X.X, vecs);
-  // Lambda_X.Y = transform(world, Lambda_X.Y, vecs);
+  Lambda_X.X = transform(world, Lambda_X.X, U);
+  Lambda_X.Y = transform(world, Lambda_X.Y, U);
   // Transform the vectors of functions
   // Truncate happens in here
   // we do transform here
@@ -2759,11 +2764,11 @@ Tensor<double> TDDFT::diagonalizeFullResponseMatrix(World& world,
   // Debugging output
   if (world.rank() == 0 and print_level >= 2) {
     print("   Eigenvector coefficients from diagonalization:");
-    print(vecs);
+    print(U);
   }
 
   // Return the selected functions
-  return vecs;
+  return U;
 }
 // Similar to what robert did above in "get_fock_transformation"
 Tensor<double> TDDFT::GetFullResponseTransformation(World& world,
@@ -2798,35 +2803,35 @@ Tensor<double> TDDFT::GetFullResponseTransformation(World& world,
   }
 
   // Check how many singular values are less than 10*thresh_degen
-  size_t num_sv = 0;
+  size_t num_zero = 0;
   for (int64_t i = 0; i < s_vals.dim(0); i++) {
     if (s_vals(i) < 10 * thresh_degenerate) {
-      if (world.rank() == 0 and num_sv == 0) print("");
+      if (world.rank() == 0 and num_zero == 0) print("");
       if (world.rank() == 0)
         printf(
             "   Detected singular value (%.8f) below threshold (%.8f). "
             "Reducing subspace size.\n",
             s_vals(i),
             10 * thresh_degenerate);
-      num_sv++;
+      num_zero++;
     }
-    if (world.rank() == 0 and i == s_vals.dim(0) - 1 and num_sv > 0) print("");
+    if (world.rank() == 0 and i == s_vals.dim(0) - 1 and num_zero > 0) print("");
   }
 
   // Going to use these a lot here, so just calculate them
-  size_t size_l = s_vals.dim(0);    // number of singular values
-  size_t size_s = size_l - num_sv;  // smaller subspace size
+  size_t size_l = s_vals.dim(0);      // number of singular values
+  size_t size_s = size_l - num_zero;  // smaller subspace size
   /**
    * @brief l_vecs_s(m,1)
    *
    * @return Tensor<double>
    */
   Tensor<double> l_vecs_s(size_l,
-                          num_sv);  // number of sv by number smaller than thress
-  Tensor<double> copyA = copy(A);   // we copy xAx
+                          num_zero);  // number of sv by number smaller than thress
+  Tensor<double> copyA = copy(A);     // we copy xAx
 
   // Transform into this smaller space if necessary
-  if (num_sv > 0) {
+  if (num_zero > 0) {
     // Cut out the singular values that are small
     // (singular values come out in descending order)
 
@@ -2939,7 +2944,7 @@ Tensor<double> TDDFT::GetFullResponseTransformation(World& world,
   }
 
   // If we transformed into the smaller subspace, time to transform back
-  if (num_sv > 0) {
+  if (num_zero > 0) {
     // Temp. storage
     Tensor<double> temp_U(size_l, size_l);
     Tensor<double> U2(size_l, size_l);
