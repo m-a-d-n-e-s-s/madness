@@ -175,7 +175,14 @@ struct X_space {
     MADNESS_ASSERT(size_orbitals(A) > 0);
     MADNESS_ASSERT(same_size(A, B));
     Tensor<double> G(A.num_states, A.num_states);
-    G = response_space_inner(A.X, B.X) + response_space_inner(B.Y, A.Y);
+    Tensor<double> G1(A.num_states, A.num_states);
+    Tensor<double> G2(A.num_states, A.num_states);
+    G1 = response_space_inner(A.X, B.X);
+    print("inner(A.X,B.X)\n", G1);
+    G2 = response_space_inner(B.Y, A.Y);
+    print("inner(B.Y,A.Y)\n", G2);
+    G = G1 + G2;
+    print("total inner\n", G);
     return G;
   }
 
