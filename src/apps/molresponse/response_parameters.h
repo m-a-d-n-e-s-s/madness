@@ -225,7 +225,7 @@ struct ResponseParameters : public QCCalculationParametersBase {
       size_t states;
       states = std::accumulate(nstates.begin(), nstates.end(), 1, std::multiplies<>());
       set_derived_value<size_t>("states", states);
-    } else {
+    } else if (excited_state()) {
       if (tda()) {
         set_derived_value<std::string>("calc_type", "tda");
       } else {
