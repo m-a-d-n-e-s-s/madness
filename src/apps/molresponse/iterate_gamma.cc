@@ -9,7 +9,6 @@
 #include <utility>
 
 #include "../chem/NWChem.h"  // For nwchem interface
-#include "../chem/SCFOperators.h"
 #include "../chem/molecule.h"
 #include "Plot_VTK.h"
 #include "TDDFT.h"
@@ -18,12 +17,51 @@
 #include "chem/projector.h"  // For easy calculation of (1 - \hat{\rho}^0)
 #include "load_balance.h"
 #include "madness/mra/funcdefaults.h"
+#include "madness/mra/vmra.h"
 #include "molresponse/density.h"
 #include "molresponse/global_functions.h"
 #include "molresponse/property.h"
 #include "molresponse/response_functions.h"
 #include "molresponse/timer.h"
 #include "molresponse/x_space.h"
+
+// compute exchange |i><i|J|p>
+vecfuncT K(vecfuncT& ket, vecfuncT& bra, vecfuncT& vf) {
+  World& world = ket[0].world();
+  int n = bra.size();
+  int nf = ket.size();
+  double tol = FunctionDefaults<3>::get_thresh();  /// Important this is
+  double mul_tol = 0.0;
+  const double lo = 1.e-4;
+  const double econv = FunctionDefaults<3>::get_thresh();
+
+  std::shared_ptr<real_convolution_3d> poisson;
+  poisson = std::shared_ptr<real_convolution_3d>(CoulombOperatorPtr(world, lo, econv));
+  /// consistent with Coulomb
+  vecfuncT Kf = zero_functions_compressed<double, 3>(world, nf);
+
+  reconstruct(world, bra);
+  reconstruct(world, ket);
+  reconstruct(world, vf);
+
+  // i-j sym
+  for (int i = 0; i < n; ++i) {
+    // for each |i> <i|phi>
+    vecfuncT psif = mul_sparse(world, bra[i], vf, mul_tol);  /// was vtol
+    truncate(world, psif);
+    // apply to vector of products <i|phi>..<i|1> <i|2>...<i|N>
+    psif = apply(world, *poisson.get(), psif);
+    truncate(world, psif);
+    // multiply by ket i  <i|phi>|i>: <i|1>|i> <i|2>|i> <i|2>|i>
+    psif = mul_sparse(world, ket[i], psif, mul_tol);  /// was vtol
+    /// Generalized A*X+Y for vectors of functions ---- a[i] = alpha*a[i] +
+    // 1*Kf+occ[i]*psif
+    gaxpy(world, double(1.0), Kf, double(1.0), psif);
+  }
+  truncate(world, Kf, tol);
+  return Kf;
+}
+// sum_i |i><i|J|p> for each p
 
 X_space TDDFT::compute_gamma_full(World& world, X_space& Chi, XCOperator<double, 3> xc) {
   size_t m = r_params.n_states();
@@ -76,28 +114,44 @@ X_space TDDFT::compute_gamma_full(World& world, X_space& Chi, XCOperator<double,
 
   molresponse::start_timer(world);
   for (size_t b = 0; b < m; b++) {
-    for (size_t p = 0; p < n; p++) {
-      phi_phi = mul(world, phi0_copy[p], phi0_copy);
-      truncate(world, phi_phi);
-      phi_phi = apply(world, *coulop, phi_phi);
-      truncate(world, phi_phi);
-      k1_x[b][p] = dot(world, Chi_copy.X[b], phi_phi);
-      k1_y[b][p] = dot(world, Chi_copy.Y[b], phi_phi);
-
-      // K2
-      y_phi = mul(world, phi0_copy[p], Chi_copy.Y[b]);
-      truncate(world, y_phi);
-      y_phi = apply(world, *coulop, y_phi);
-      truncate(world, y_phi);
-      k2_y[b][p] = dot(world, Chi_copy.Y[b], phi_phi);
-
-      x_phi = mul(world, phi0_copy[p], Chi_copy.X[b]);
-      truncate(world, x_phi);
-      x_phi = apply(world, *coulop, x_phi);
-      truncate(world, x_phi);
-      k2_x[b][p] = dot(world, phi0_copy, x_phi);
-    }
+    vecfuncT x, y;
+    x = Chi_copy.X[b];
+    y = Chi_copy.Y[b];
+    // |x><i|p>
+    k1_x[b] = K(x, phi0_copy, phi0_copy);
+    // |i><x|p>
+    k2_y[b] = K(phi0_copy, y, phi0_copy);
+    // |y><i|p>
+    k1_y[b] = K(y, phi0_copy, phi0_copy);
+    k2_x[b] = K(phi0_copy, x, phi0_copy);
+    // |i><x|p>
   }
+  molresponse::end_timer(world, "K[omega] phi:");
+  /*
+for (size_t b = 0; b < m; b++) {
+for (size_t p = 0; p < n; p++) {
+phi_phi = mul(world, phi0_copy[p], phi0_copy);
+truncate(world, phi_phi);
+phi_phi = apply(world, *coulop, phi_phi);
+truncate(world, phi_phi);
+k1_x[b][p] = dot(world, Chi_copy.X[b], phi_phi);
+k1_y[b][p] = dot(world, Chi_copy.Y[b], phi_phi);
+
+// K2
+y_phi = mul(world, phi0_copy[p], Chi_copy.Y[b]);
+truncate(world, y_phi);
+y_phi = apply(world, *coulop, y_phi);
+truncate(world, y_phi);
+k2_y[b][p] = dot(world, Chi_copy.Y[b], phi_phi);
+
+x_phi = mul(world, phi0_copy[p], Chi_copy.X[b]);
+truncate(world, x_phi);
+x_phi = apply(world, *coulop, x_phi);
+truncate(world, x_phi);
+k2_x[b][p] = dot(world, phi0_copy, x_phi);
+}
+}
+  */
 
   // for each response state we compute the Gamma response functions
   // trucate all response functions
@@ -107,7 +161,6 @@ X_space TDDFT::compute_gamma_full(World& world, X_space& Chi, XCOperator<double,
   k1_y.truncate_rf();
   k2_y.truncate_rf();
   W.truncate_rf();
-  molresponse::end_timer(world, "K[omega] phi:");
 
   molresponse::start_timer(world);
   if (r_params.print_level() >= 2) {
@@ -202,7 +255,7 @@ X_space TDDFT::compute_gamma_static(World& world, X_space& Chi, XCOperator<doubl
   response_space W(world, m, n);
   response_space J(world, m, n);
   response_space k1_x(world, m, n);
-  response_space k2_x(world, m, n);
+  response_space k2_y(world, m, n);
   molresponse::end_timer(world, "Create Zero functions for Gamma calc");
 
   // apply the exchange kernel to rho if necessary
@@ -227,29 +280,25 @@ X_space TDDFT::compute_gamma_static(World& world, X_space& Chi, XCOperator<doubl
   }
 
   molresponse::start_timer(world);
+
   for (size_t b = 0; b < m; b++) {
-    for (size_t p = 0; p < n; p++) {
-      phi_phi = mul(world, phi0_copy[p], phi0_copy);
-      truncate(world, phi_phi);
-      phi_phi = apply(world, *coulop, phi_phi);
-      truncate(world, phi_phi);
-      k1_x[b][p] = dot(world, Chi_copy.X[b], phi_phi);
-      x_phi = mul(world, phi0_copy[p], Chi_copy.X[b]);
-      truncate(world, x_phi);
-      x_phi = apply(world, *coulop, x_phi);
-      // TODO maybe do not truncate here
-      truncate(world, x_phi);
-      k2_x[b][p] = dot(world, phi0_copy, x_phi);
-    }
+    vecfuncT x, y;
+    x = Chi_copy.X[b];
+    y = Chi_copy.Y[b];
+    // |x><i|p>
+    k1_x[b] = K(x, phi0_copy, phi0_copy);
+    // |i><x|p>
+    k2_y[b] = K(phi0_copy, y, phi0_copy);
+    // |y><i|p>
   }
 
+  molresponse::end_timer(world, "K[omega] phi:");
   // for each response state we compute the Gamma response functions
   // trucate all response functions
   J.truncate_rf();
   k1_x.truncate_rf();
-  k2_x.truncate_rf();
+  k2_y.truncate_rf();
   W.truncate_rf();
-  molresponse::end_timer(world, "K[omega] phi:");
 
   molresponse::start_timer(world);
   if (r_params.print_level() >= 2) {
@@ -257,13 +306,13 @@ X_space TDDFT::compute_gamma_static(World& world, X_space& Chi, XCOperator<doubl
     print("2-Electron Potential for Iteration of x");
     PrintResponseVectorNorms(world, J * 2, "J");
     PrintResponseVectorNorms(world, k1_x, "k1_x");
-    PrintResponseVectorNorms(world, k1_x + k2_x, "k1_x+k2_x");
+    PrintResponseVectorNorms(world, k1_x + k2_y, "k1_x+k2_y");
   }
   molresponse::end_timer(world, "Print Response Vector Norms:");
   molresponse::start_timer(world);
   // update gamma functions
   QProjector<double, 3> projector(world, phi0_copy);
-  gamma.X = (J * 2) - (k1_x + k2_x) * xcf.hf_exchange_coefficient() + W;
+  gamma.X = (J * 2) - (k1_x + k2_y) * xcf.hf_exchange_coefficient() + W;
   molresponse::end_timer(world, "Add Gamma parts J-K+W  :");
 
   // project out ground state
@@ -297,7 +346,7 @@ X_space TDDFT::compute_gamma_static(World& world, X_space& Chi, XCOperator<doubl
 
   J.clear();
   k1_x.clear();
-  k2_x.clear();
+  k2_y.clear();
   W.clear();
   Chi_copy.clear();
 
@@ -327,6 +376,12 @@ X_space TDDFT::compute_gamma_TDA(World& world, X_space& Chi, XCOperator<double, 
   size_t n = Chi.X.size_orbitals();
   double lo = r_params.lo();
   double thresh = FunctionDefaults<3>::get_thresh();
+  std::shared_ptr<WorldDCPmapInterface<Key<3>>> oldpmap = FunctionDefaults<3>::get_pmap();
+
+  X_space Chi_copy = Chi;
+  vecfuncT phi0_copy = ground_orbitals;
+
+  orbital_load_balance(world, ground_orbitals, phi0_copy, Chi, Chi_copy);
 
   X_space gamma(world, m, n);
   // x functions
@@ -356,15 +411,12 @@ X_space TDDFT::compute_gamma_TDA(World& world, X_space& Chi, XCOperator<double, 
     temp_J.truncate();
     J[b] = mul(world, temp_J,
                ground_orbitals);  // multiply by k
-    for (size_t p = 0; p < n; p++) {
-      // multiply the kth orbital to vector of y[b] response funtions...apply
-      // op
-      phi_phi = mul(world, ground_orbitals[p], ground_orbitals);
-      truncate(world, phi_phi);
-      phi_phi = apply(world, op, phi_phi);
-      truncate(world, phi_phi);
-      k1_x[b][p] = dot(world, Chi.X[b], phi_phi);
-    }
+
+    vecfuncT x, y;
+    x = Chi_copy.X[b];
+    y = Chi_copy.Y[b];
+    // |x><i|p>
+    k1_x[b] = K(x, phi0_copy, phi0_copy);
   }
   k1_x.truncate_rf();
   J.truncate_rf();
@@ -393,6 +445,18 @@ X_space TDDFT::compute_gamma_TDA(World& world, X_space& Chi, XCOperator<double, 
     PrintRFExpectation(world, Chi.X, gamma.X, "x", "Gamma)");
   }
 
+  molresponse::start_timer(world);
+
+  J.clear();
+  k1_x.clear();
+  W.clear();
+  Chi_copy.clear();
+
+  if (world.size() > 1) {
+    FunctionDefaults<3>::set_pmap(oldpmap);  // ! DON'T FORGET !
+  }
+
+  molresponse::end_timer(world, "Clear functions and set old pmap");
   // End timer
   if (r_params.print_level() >= 1) molresponse::end_timer(world, "   Creating Gamma X:");
 
