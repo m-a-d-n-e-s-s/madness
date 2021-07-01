@@ -166,7 +166,7 @@ option(ENABLE_SPINLOCKS
 add_feature_info(SPINLOCKS ENABLE_SPINLOCKS
     "Enables use of spinlocks instead of mutexes (faster unless over subscribing processors)")
 set(USE_SPINLOCKS ${ENABLE_SPINLOCKS} CACHE BOOL
-    "Enables use of spinlocks instead of mutexs (faster unless over subscribing processors)")
+    "Enables use of spinlocks instead of mutexes (faster unless over subscribing processors)")
 
 option(ENABLE_NEVER_SPIN
     "Disables use of spinlocks (notably for use inside virtual machines)" OFF)
