@@ -231,6 +231,7 @@ void TDDFT::initial_load_bal(World& world) {
 }
 
 void TDDFT::loadbal(World& world, vecfuncT rho_omega, X_space Chi, X_space Chi_old) {
+  molresponse::start_timer(world);
   if (world.size() == 1) return;
 
   LoadBalanceDeux<3> lb(world);
@@ -260,6 +261,8 @@ void TDDFT::loadbal(World& world, vecfuncT rho_omega, X_space Chi, X_space Chi_o
                                                                                 // param.vnucextra
 
   world.gop.fence();
+  molresponse::end_timer(world, "Load balancing");
+  print_meminfo(world.rank(), "Load balancing");
 }
 // compute pmap based on ground and first order orbitals
 // set default pmap to new pmap
@@ -1845,7 +1848,7 @@ Tensor<double> TDDFT::calculate_energy_update(World& world,
   return updates;
 }
 
-vecfuncT TDDFT::compute_density(World& world, X_space& Chi, bool compute_y) {
+vecfuncT TDDFT::make_density(World& world, X_space& Chi, bool compute_y) {
   molresponse::start_timer(world);
   vecfuncT rho_omega;
   if (compute_y) {
