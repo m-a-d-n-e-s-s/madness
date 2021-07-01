@@ -94,8 +94,8 @@ class GroundParameters {
       g_orbitals.push_back(reader);
     }
 
-    projector_irrep c2v("c2v");
-    g_orbitals = c2v(g_orbitals);
+    // projector_irrep c2v("c2v");
+    // g_orbitals = c2v(g_orbitals);
 
     // Clean up
     truncate(world, g_orbitals);
