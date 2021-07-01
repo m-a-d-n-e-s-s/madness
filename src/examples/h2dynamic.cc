@@ -215,7 +215,7 @@ int main(int argc, char** argv) {
 
     double omega = 0.0;
     for(int j=0; j<=4; j++) {
-      omega = 0.365 + (j*0.005);
+      omega = 0.100 + (j*0.050);
 
       if (world.rank() == 0)
           print("\n  Solving for the dynamic response function at omega =",omega,"\n");

@@ -284,7 +284,7 @@ int main(int argc, char** argv) {
   real_function_3d x = real_factory_3d(world);  // zero
   real_function_3d y = real_factory_3d(world);  // zero
   for (int j = 0; j <= 4; j++) {
-    double omega = 0.365 + (j * 0.005);
+    double omega = 0.100 + (j * 0.050);
     if (world.rank() == 0)
       print("\nSolving for the dynamic response function with omega =",
             omega,
