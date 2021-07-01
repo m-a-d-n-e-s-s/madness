@@ -45,8 +45,7 @@ using namespace madness;
 namespace madness {
 
 template <typename T, std::size_t NDIM>
-DistributedMatrix<T> Kinetic<T, NDIM>::kinetic_energy_matrix(World& world,
-                                                             const vecfuncT& v) const {
+DistributedMatrix<T> Kinetic<T, NDIM>::kinetic_energy_matrix(World& world, const vecfuncT& v) const {
   int n = v.size();
   DistributedMatrix<T> r = column_distributed_matrix<T>(world, n, n);
   reconstruct(world, v);
@@ -124,23 +123,20 @@ template class Kinetic<double_complex, 5>;
 template class Kinetic<double_complex, 6>;
 
 template <typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM>> Laplacian<T, NDIM>::
-operator()(const std::vector<Function<T, NDIM>>& vket) const {
-  refine(world, vket); // for better accuracy
+std::vector<Function<T, NDIM>> Laplacian<T, NDIM>::operator()(const std::vector<Function<T, NDIM>>& vket) const {
+  refine(world, vket);  // for better accuracy
   vecfuncT result = zero_functions_compressed<T, NDIM>(world, vket.size());
   SeparatedConvolution<T, NDIM> smooth = SmoothingOperator<NDIM>(world, eps);
 
   for (size_t idim = 0; idim < NDIM; ++idim) {
     vecfuncT dvket = apply(world, *gradop[idim].get(), vket);
     refine(world, dvket);
-    if (eps > 0.0)
-      dvket = apply(world, smooth, dvket);
+    if (eps > 0.0) dvket = apply(world, smooth, dvket);
     vecfuncT ddvket = apply(world, *gradop[idim].get(), dvket);
     result = add(world, result, ddvket);
   }
 
-  if (eps > 0.0)
-    result = apply(world, smooth, result);
+  if (eps > 0.0) result = apply(world, smooth, result);
 
   return result;
 }
@@ -203,8 +199,8 @@ real_function_3d Coulomb<T, NDIM>::compute_potential(const madness::Nemo* nemo) 
   if (nemo->get_calc()->is_spin_restricted()) {
     density.scale(2.0);
   } else {
-    real_function_3d brho = nemo->get_calc()->make_density(
-        world, nemo->get_calc()->get_bocc(), nemo->get_calc()->get_bmo());
+    real_function_3d brho =
+        nemo->get_calc()->make_density(world, nemo->get_calc()->get_bocc(), nemo->get_calc()->get_bmo());
     density += brho;
   }
   density = (density * R_square).truncate();
@@ -223,8 +219,7 @@ Nuclear<T, NDIM>::Nuclear(World& world, const NemoBase* nemo) : world(world) {
 }
 
 template <typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM>> Nuclear<T, NDIM>::
-operator()(const std::vector<Function<T, NDIM>>& vket) const {
+std::vector<Function<T, NDIM>> Nuclear<T, NDIM>::operator()(const std::vector<Function<T, NDIM>>& vket) const {
   typedef Function<T, NDIM> functionT;
   typedef std::vector<functionT> vecfuncT;
 
@@ -262,14 +257,12 @@ DNuclear<T, NDIM>::DNuclear(World& world, const Nemo* nemo, const int iatom, con
 }
 
 template <typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM>> DNuclear<T, NDIM>::
-operator()(const std::vector<Function<T, NDIM>>& vket) const {
+std::vector<Function<T, NDIM>> DNuclear<T, NDIM>::operator()(const std::vector<Function<T, NDIM>>& vket) const {
   const double vthresh = FunctionDefaults<NDIM>::get_thresh() * 0.1;
 
   // compute the U2 potential/ the derivative nuclear potential
   NuclearCorrelationFactor::U2X_functor u2x(ncf.get(), iatom, iaxis);
-  real_function_3d u2x_f =
-      real_factory_3d(world).functor(u2x).thresh(vthresh).truncate_on_project();
+  real_function_3d u2x_f = real_factory_3d(world).functor(u2x).thresh(vthresh).truncate_on_project();
   std::vector<Function<T, NDIM>> result = mul(world, u2x_f, vket);
   truncate(world, result, vthresh);
 
@@ -310,33 +303,30 @@ operator()(const std::vector<Function<T, NDIM>>& vket) const {
 template <typename T, std::size_t NDIM>
 Exchange<T, NDIM>::Exchange(World& world, const SCF* calc, const int ispin)
     : world(world), small_memory_(true), same_(false) {
-  if (ispin == 0) {                                      // alpha spin
-    mo_ket = convert<double, T, NDIM>(world, calc->amo); // deep copy necessary if T==double_complex
+  if (ispin == 0) {                                       // alpha spin
+    mo_ket = convert<double, T, NDIM>(world, calc->amo);  // deep copy necessary if T==double_complex
     occ = calc->aocc;
-  } else if (ispin == 1) { // beta spin
+  } else if (ispin == 1) {  // beta spin
     mo_ket = convert<double, T, NDIM>(world, calc->bmo);
     occ = calc->bocc;
   }
   mo_bra = conj(world, mo_ket);
-  poisson = std::shared_ptr<real_convolution_3d>(
-      CoulombOperatorPtr(world, calc->param.lo(), calc->param.econv()));
+  poisson = std::shared_ptr<real_convolution_3d>(CoulombOperatorPtr(world, calc->param.lo(), calc->param.econv()));
 }
 
 template <typename T, std::size_t NDIM>
 Exchange<T, NDIM>::Exchange(World& world,
                             const Nemo* nemo,
-                            const int ispin) // @suppress("Class members should
-                                             // be properly initialized")
+                            const int ispin)  // @suppress("Class members should
+                                              // be properly initialized")
     : Exchange<T, NDIM>(world, nemo->get_calc().get(), ispin) {
-  if (ispin == 0) { // alpha spin
-    mo_ket =
-        convert<double, T, NDIM>(world,
-                                 nemo->get_calc()->amo); // deep copy necessary if T==double_complex
+  if (ispin == 0) {  // alpha spin
+    mo_ket = convert<double, T, NDIM>(world,
+                                      nemo->get_calc()->amo);  // deep copy necessary if T==double_complex
     occ = nemo->get_calc()->aocc;
-  } else if (ispin == 1) { // beta spin
-    mo_ket =
-        convert<double, T, NDIM>(world,
-                                 nemo->get_calc()->bmo); // deep copy necessary if T==double_complex
+  } else if (ispin == 1) {  // beta spin
+    mo_ket = convert<double, T, NDIM>(world,
+                                      nemo->get_calc()->bmo);  // deep copy necessary if T==double_complex
     occ = nemo->get_calc()->bocc;
   }
 
@@ -347,13 +337,12 @@ Exchange<T, NDIM>::Exchange(World& world,
 }
 
 template <typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM>> Exchange<T, NDIM>::
-operator()(const std::vector<Function<T, NDIM>>& vket) const {
+std::vector<Function<T, NDIM>> Exchange<T, NDIM>::operator()(const std::vector<Function<T, NDIM>>& vket) const {
   const bool same = this->same();
   int nocc = mo_bra.size();
   int nf = vket.size();
-  double tol = FunctionDefaults<3>::get_thresh(); /// Important this is
-                                                  /// consistent with Coulomb
+  double tol = FunctionDefaults<3>::get_thresh();  /// Important this is
+                                                   /// consistent with Coulomb
   vecfuncT Kf = zero_functions_compressed<T, NDIM>(world, nf);
   reconstruct(world, mo_bra);
   norm_tree(world, mo_bra);
@@ -365,29 +354,28 @@ operator()(const std::vector<Function<T, NDIM>>& vket) const {
   }
   // sum_i |i><i|J|p> for each p
   // for each occ orbital
-  if (small_memory_) { // Smaller memory algorithm ... possible 2x saving using
-                       // i-j sym
+  if (small_memory_) {  // Smaller memory algorithm ... possible 2x saving using
+                        // i-j sym
     for (int i = 0; i < nocc; ++i) {
       if (occ[i] > 0.0) {
         // for each |i> <i|phi>
-        vecfuncT psif = mul_sparse(world, mo_bra[i], vket, mul_tol); /// was vtol
+        vecfuncT psif = mul_sparse(world, mo_bra[i], vket, mul_tol);  /// was vtol
         truncate(world, psif);
         // apply to vector of products <i|phi>..<i|1> <i|2>...<i|N>
         psif = apply(world, *poisson.get(), psif);
         truncate(world, psif);
         // multiply by ket i  <i|phi>|i>: <i|1>|i> <i|2>|i> <i|2>|i>
-        psif = mul_sparse(world, mo_ket[i], psif, mul_tol); /// was vtol
+        psif = mul_sparse(world, mo_ket[i], psif, mul_tol);  /// was vtol
         /// Generalized A*X+Y for vectors of functions ---- a[i] = alpha*a[i] +
         // 1*Kf+occ[i]*psif
         gaxpy(world, 1.0, Kf, occ[i], psif);
       }
     }
-  } else { // Larger memory algorithm ... use i-j sym if psi==f
+  } else {  // Larger memory algorithm ... use i-j sym if psi==f
     vecfuncT psif;
     for (int i = 0; i < nocc; ++i) {
       int jtop = nf;
-      if (same)
-        jtop = i + 1;
+      if (same) jtop = i + 1;
       for (int j = 0; j < jtop; ++j) {
         psif.push_back(mul_sparse(mo_bra[i], vket[j], mul_tol, false));
       }
@@ -403,8 +391,7 @@ operator()(const std::vector<Function<T, NDIM>>& vket) const {
     int ij = 0;
     for (int i = 0; i < nocc; ++i) {
       int jtop = nf;
-      if (same)
-        jtop = i + 1;
+      if (same) jtop = i + 1;
       for (int j = 0; j < jtop; ++j, ++ij) {
         psipsif[i * nf + j] = mul_sparse(psif[ij], mo_ket[i], mul_tol, false);
         if (same && i != j) {
@@ -437,9 +424,8 @@ XCOperator<T, NDIM>::XCOperator(World& world,
                                 const real_function_3d& arho,
                                 const real_function_3d& brho,
                                 std::string deriv)
-    : world(world), dft_deriv(deriv), nbeta(0), ispin(0),
-      extra_truncation(FunctionDefaults<3>::get_thresh() * 0.01) {
-  nbeta = (brho.norm2() > 0.0); // does this make sense
+    : world(world), dft_deriv(deriv), nbeta(0), ispin(0), extra_truncation(FunctionDefaults<3>::get_thresh() * 0.01) {
+  nbeta = (brho.norm2() > 0.0);  // does this make sense
 
   xc = std::shared_ptr<XCfunctional>(new XCfunctional());
   xc->initialize(xc_data, spin_polarized, world);
@@ -449,8 +435,7 @@ XCOperator<T, NDIM>::XCOperator(World& world,
 
 template <typename T, std::size_t NDIM>
 XCOperator<T, NDIM>::XCOperator(World& world, const SCF* calc, int ispin, std::string deriv)
-    : world(world), dft_deriv(deriv), ispin(ispin),
-      extra_truncation(FunctionDefaults<3>::get_thresh() * 0.01) {
+    : world(world), dft_deriv(deriv), ispin(ispin), extra_truncation(FunctionDefaults<3>::get_thresh() * 0.01) {
   xc = std::shared_ptr<XCfunctional>(new XCfunctional());
   xc->initialize(calc->param.xc(), !calc->param.spin_restricted(), world);
   nbeta = calc->param.nbeta();
@@ -499,7 +484,10 @@ XCOperator<T, NDIM>::XCOperator(World& world,
                                 const real_function_3d& brho,
                                 int ispin,
                                 std::string deriv)
-    : world(world), dft_deriv(deriv), nbeta(calc->param.nbeta()), ispin(ispin),
+    : world(world),
+      dft_deriv(deriv),
+      nbeta(calc->param.nbeta()),
+      ispin(ispin),
       extra_truncation(FunctionDefaults<3>::get_thresh() * 0.01) {
   xc = std::shared_ptr<XCfunctional>(new XCfunctional());
   xc->initialize(calc->param.xc(), !calc->param.spin_restricted(), world);
@@ -514,22 +502,21 @@ XCOperator<T, NDIM>::XCOperator(World& world,
                                 int ispin)
     : world(world), nbeta(nemo->get_calc()->param.nbeta()), ispin(ispin), extra_truncation(0.01) {
   xc = std::shared_ptr<XCfunctional>(new XCfunctional());
-  xc->initialize(
-      nemo->get_calc()->param.xc(), not nemo->get_calc()->param.spin_restricted(), world);
+  xc->initialize(nemo->get_calc()->param.xc(), not nemo->get_calc()->param.spin_restricted(), world);
   ncf = nemo->ncf;
 
   xc_args = prep_xc_args(arho, brho);
 }
 
 template <typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM>> XCOperator<T, NDIM>::
-operator()(const std::vector<Function<T, NDIM>>& vket) const {
+std::vector<Function<T, NDIM>> XCOperator<T, NDIM>::operator()(const std::vector<Function<T, NDIM>>& vket) const {
   real_function_3d xc_pot = make_xc_potential();
-  double vtol = FunctionDefaults<3>::get_thresh() * 0.1; // safety
+  double vtol = FunctionDefaults<3>::get_thresh() * 0.1;  // safety
   return mul_sparse(world, xc_pot, vket, vtol);
 }
 
-template <typename T, std::size_t NDIM> double XCOperator<T, NDIM>::compute_xc_energy() const {
+template <typename T, std::size_t NDIM>
+double XCOperator<T, NDIM>::compute_xc_energy() const {
   if (not is_initialized()) {
     MADNESS_EXCEPTION("calling xc energy without intermediates ", 1);
   }
@@ -622,8 +609,8 @@ real_function_3d XCOperator<T, NDIM>::make_xc_potential() const {
 template <typename T, std::size_t NDIM>
 real_function_3d XCOperator<T, NDIM>::apply_xc_kernel(const real_function_3d& dens_pt,
                                                       const vecfuncT grad_dens_pt) const {
-  MADNESS_ASSERT(not xc->is_spin_polarized()); // for now
-  MADNESS_ASSERT(ispin == 0);                  // for now
+  MADNESS_ASSERT(not xc->is_spin_polarized());  // for now
+  MADNESS_ASSERT(ispin == 0);                   // for now
 
   if (not is_initialized()) {
     MADNESS_EXCEPTION("calling apply_xc_kernel without intermediates ", 1);
@@ -659,16 +646,14 @@ real_function_3d XCOperator<T, NDIM>::apply_xc_kernel(const real_function_3d& de
 
 /// prepare xc args
 template <typename T, std::size_t NDIM>
-vecfuncT XCOperator<T, NDIM>::prep_xc_args(const real_function_3d& arho,
-                                           const real_function_3d& brho) const {
+vecfuncT XCOperator<T, NDIM>::prep_xc_args(const real_function_3d& arho, const real_function_3d& brho) const {
   World& world = arho.world();
   vecfuncT xcargs(XCfunctional::number_xc_args);
   const bool have_beta = (xc->is_spin_polarized()) and (nbeta > 0);
 
   // assign the densities (alpha, beta)
-  xcargs[XCfunctional::enum_rhoa] = copy(arho.reconstruct()); // alpha density
-  if (have_beta)
-    xcargs[XCfunctional::enum_rhob] = copy(brho.reconstruct()); // beta density
+  xcargs[XCfunctional::enum_rhoa] = copy(arho.reconstruct());                 // alpha density
+  if (have_beta) xcargs[XCfunctional::enum_rhob] = copy(brho.reconstruct());  // beta density
   world.gop.fence();
 
   // compute the chi quantity such that sigma = rho^2 * chi
@@ -676,11 +661,11 @@ vecfuncT XCOperator<T, NDIM>::prep_xc_args(const real_function_3d& arho,
     real_function_3d logdensa = unary_op(arho, logme());
     vecfuncT grada;
     if (dft_deriv == "bspline")
-      grada = grad_bspline_one(logdensa); // b-spline
+      grada = grad_bspline_one(logdensa);  // b-spline
     else if (dft_deriv == "ble")
-      grada = grad_ble_one(logdensa); // BLE
+      grada = grad_ble_one(logdensa);  // BLE
     else
-      grada = grad(logdensa); // Default is abgv
+      grada = grad(logdensa);  // Default is abgv
     real_function_3d chi = dot(world, grada, grada);
     xcargs[XCfunctional::enum_chi_aa] = chi;
     xcargs[XCfunctional::enum_zetaa_x] = grada[0];
@@ -692,11 +677,11 @@ vecfuncT XCOperator<T, NDIM>::prep_xc_args(const real_function_3d& arho,
       // Bryan's edits for derivatives
       vecfuncT gradb;
       if (dft_deriv == "bspline")
-        gradb = grad_bspline_one(logdensa); // b-spline
+        gradb = grad_bspline_one(logdensa);  // b-spline
       else if (dft_deriv == "ble")
-        gradb = grad_ble_one(logdensa); // BLE
+        gradb = grad_ble_one(logdensa);  // BLE
       else
-        gradb = grad(logdensa); // Default is abgv
+        gradb = grad(logdensa);  // Default is abgv
       real_function_3d chib = dot(world, gradb, gradb);
       real_function_3d chiab = dot(world, grada, gradb);
       xcargs[XCfunctional::enum_zetab_x] = gradb[0];
@@ -735,7 +720,7 @@ void XCOperator<T, NDIM>::prep_xc_args_response(const real_function_3d& dens_pt,
   // we save the functions without multiplying the ground state density rho
   if (xc->is_gga()) {
     if (ddens_pt.size() == 0)
-      ddens_pt = grad(dens_pt); // spin free
+      ddens_pt = grad(dens_pt);  // spin free
     else
       print(" using provided ddens_pt in prep_xc_args_response");
 
@@ -747,7 +732,7 @@ void XCOperator<T, NDIM>::prep_xc_args_response(const real_function_3d& dens_pt,
     zeta[0] = xc_args[XCfunctional::enum_zetaa_x];
     zeta[1] = xc_args[XCfunctional::enum_zetaa_y];
     zeta[2] = xc_args[XCfunctional::enum_zetaa_z];
-    xc_args[XCfunctional::enum_sigma_pta_div_rho] = dot(world, zeta, ddens_pt); // sigma_a
+    xc_args[XCfunctional::enum_sigma_pta_div_rho] = dot(world, zeta, ddens_pt);  // sigma_a
     // for RHF add factor 2 on rho; will be done in
     // xcfunctional_libxc::make_libxc_args \sigma_pt = 2 * rho_a *
     // sigma_pta_div_rho
@@ -757,7 +742,7 @@ void XCOperator<T, NDIM>::prep_xc_args_response(const real_function_3d& dens_pt,
       zeta[0] = xc_args[XCfunctional::enum_zetab_x];
       zeta[1] = xc_args[XCfunctional::enum_zetab_y];
       zeta[2] = xc_args[XCfunctional::enum_zetab_z];
-      xc_args[XCfunctional::enum_sigma_ptb_div_rho] = dot(world, zeta, ddens_pt); // sigma_b
+      xc_args[XCfunctional::enum_sigma_ptb_div_rho] = dot(world, zeta, ddens_pt);  // sigma_b
     }
     world.gop.fence();
   }
@@ -765,7 +750,8 @@ void XCOperator<T, NDIM>::prep_xc_args_response(const real_function_3d& dens_pt,
   truncate(world, xc_args, extra_truncation);
 }
 
-template <> Fock<double, 3>::Fock(World& world, const Nemo* nemo) : world(world) {
+template <>
+Fock<double, 3>::Fock(World& world, const Nemo* nemo) : world(world) {
   auto tmp = nemo->make_fock_operator();
   if (tmp)
     std::swap(tmp->operators, operators);
@@ -773,7 +759,8 @@ template <> Fock<double, 3>::Fock(World& world, const Nemo* nemo) : world(world)
     MADNESS_EXCEPTION("failed to construct fock operator", 1);
 }
 
-template <> Fock<double, 3>::Fock(World& world, const OEP* oep) : world(world) {
+template <>
+Fock<double, 3>::Fock(World& world, const OEP* oep) : world(world) {
   auto tmp = oep->make_fock_operator();
   if (tmp)
     std::swap(tmp->operators, operators);
@@ -781,7 +768,8 @@ template <> Fock<double, 3>::Fock(World& world, const OEP* oep) : world(world) {
     MADNESS_EXCEPTION("failed to construct fock operator", 1);
 }
 
-template <> Fock<double, 3>::Fock(World& world, const NemoBase* nemobase) : world(world) {
+template <>
+Fock<double, 3>::Fock(World& world, const NemoBase* nemobase) : world(world) {
   auto tmp = nemobase->make_fock_operator();
   if (tmp)
     std::swap(tmp->operators, operators);
@@ -807,4 +795,4 @@ template class DNuclear<double, 3>;
 template class Fock<double_complex, 3>;
 template class Fock<double, 3>;
 
-} // namespace madness
+}  // namespace madness
