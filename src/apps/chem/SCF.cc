@@ -2977,9 +2977,10 @@ printf("                total %32.24f\n\n", etot);*/
       // print("##convergence criteria: density delta=", da < dconv *
       // molecule.natom() && db < dconv * molecule.natom(), ", bsh_residual=",
       // (param.conv_only_dens || bsh_residual < 5.0*dconv));
-      if (da < dconv * std::max(size_t(5), molecule.natom()) && db < dconv * std::max(size_t(5), molecule.natom()) &&
-          (param.get<bool>("conv_only_dens") || bsh_residual < 5.0 * dconv))
-        converged = true;
+      double d_conv = dconv*std::max(size_t(5),molecule.natom());
+      if (da < d_conv && db < d_conv &&
+          (param.get<bool>("conv_only_dens") || bsh_residual < 5.0 * dconv)){
+        converged = true;}
       // previous conv was too tight for small systems
       // if (da < dconv * molecule.natom() && db < dconv * molecule.natom()
       //     && (param.conv_only_dens || bsh_residual < 5.0 * dconv))
