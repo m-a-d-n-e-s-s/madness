@@ -98,17 +98,14 @@ void TDDFT::iterate_freq2(World& world) {
     if (r_params.print_level() >= 1) {
       molresponse::start_timer(world);
       if (world.rank() == 0) printf("\n   Iteration %d at time %.1fs\n", static_cast<int>(iter), wall_time());
-      if (world.rank() == 0) print(" -------------------------------");
     }
 
-    rho_omega = compute_density(world, Chi, not_static);
     // compute rho_omega
+    rho_omega = make_density(world, Chi, not_static);
 
     if (iter < 2 || (iter % 10) == 0) {
-      molresponse::start_timer(world);
       loadbal(world, rho_omega, Chi, old_Chi);
       molresponse::end_timer(world, "Load balancing");
-      print_meminfo(world.rank(), "Load balancing");
     }
 
     // compute density residuals
@@ -124,6 +121,39 @@ void TDDFT::iterate_freq2(World& world) {
     old_Chi = Chi.copy();
     rho_omega_old = rho_omega;
     // compute bsh_residual which is norm of residual functions
+    // apply bsh
+    // x_norm is the norm of the res vector
+    // Check convergence
+
+    if (iter > 0) {
+      double d_residual = *std::max_element(density_residuals.begin(), density_residuals.end());
+      double d_conv = dconv * std::max(size_t(5), molecule.natom());
+      // Test convergence and set to true
+      if (d_residual < d_conv and (std::max(bsh_residualsX.absmax(), bsh_residualsY.absmax()) < dconv * 5.0 or
+                                   r_params.get<bool>("conv_only_dens"))) {
+        converged = true;
+      }
+
+      if (converged || iter == r_params.maxiter() - 1) {
+        // if converged print converged
+        if (world.rank() == 0 && converged and (r_params.print_level() > 1)) {
+          print("\nConverged!\n");
+        }
+
+        if (r_params.save()) {
+          molresponse::start_timer(world);
+          save(world, r_params.save_file());
+          if (r_params.print_level() >= 1) molresponse::end_timer(world, "Save:");
+        }
+        // Basic output
+        if (r_params.print_level() >= 1) molresponse::end_timer(world, " This iteration:");
+        // plot orbitals
+        if (r_params.plot_all_orbitals()) {
+          PlotGroundandResponseOrbitals(world, iter, Chi.X, Chi.Y, r_params, g_params);
+        }
+        break;
+      }
+    }
     update_x_space_response(world,
                             old_Chi,
                             Chi,
@@ -141,44 +171,10 @@ void TDDFT::iterate_freq2(World& world) {
                             bsh_residualsY,
                             iter);
 
-    // apply bsh
-    // x_norm is the norm of the res vector
-    // Check convergence
-
-    if (iter > 0) {
-      double d_residual = *std::max_element(density_residuals.begin(), density_residuals.end());
-      if (d_residual < dconv * std::max(size_t(5), molecule.natom()) and
-          (std::max(bsh_residualsX.absmax(), bsh_residualsY.absmax()) < dconv * 5.0 or
-           r_params.get<bool>("conv_only_dens"))) {
-        converged = true;
-
-        if (converged || iter == r_params.maxiter() - 1) {
-          if (world.rank() == 0 && converged and (r_params.print_level() > 1)) {
-            print("\nConverged!\n");
-          }
-
-          if (r_params.save()) {
-            molresponse::start_timer(world);
-            save(world, r_params.save_file());
-            if (r_params.print_level() >= 1) molresponse::end_timer(world, "Save:");
-          }
-          // Basic output
-          if (r_params.print_level() >= 1) molresponse::end_timer(world, " This iteration:");
-          // plot orbitals
-          if (r_params.plot_all_orbitals()) {
-            PlotGroundandResponseOrbitals(world, iter, Chi.X, Chi.Y, r_params, g_params);
-          }
-          break;
-        }
-      }
-    }
-    // Update counter
-    iter += 1;
-    // X_space PQ(P, rhs_y);
-
     Tensor<double> G = polarizability();
     // Polarizability Tensor
     print("Polarizability Tensor");
     print(G);
-  }  // while converged
-}
+  }
+
+}  // while converged

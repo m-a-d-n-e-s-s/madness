@@ -121,13 +121,10 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
     }
 
     // compute rho_omega
-    rho_omega = compute_density(world, Chi, compute_y);
+    rho_omega = make_density(world, Chi, compute_y);
 
     if (iter < 2 || (iter % 10) == 0) {
-      molresponse::start_timer(world);
       loadbal(world, rho_omega, Chi, old_Chi);
-      molresponse::end_timer(world, "Load balancing");
-      print_meminfo(world.rank(), "Load balancing");
     }
 
     // compute density residuals
@@ -137,6 +134,7 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
       if (world.rank() == 0 and (r_params.print_level() > 2))
         print("delta rho", density_residuals, "residuals", bsh_residualsX, bsh_residualsY);
     }
+    //
     old_Chi = Chi.copy();
     rho_omega_old = rho_omega;
 
