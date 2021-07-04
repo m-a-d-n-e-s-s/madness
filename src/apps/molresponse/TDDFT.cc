@@ -496,10 +496,10 @@ std::map<std::vector<int>, real_function_3d> TDDFT::simple_spherical_harmonics(W
 
 // Returns initial guess functions as
 // ground MO * solid harmonics
-response_space TDDFT::create_trial_functions(World& world,
-                                             size_t k,
-                                             std::vector<real_function_3d>& orbitals,
-                                             size_t print_level) {
+X_space TDDFT::create_trial_functions(World& world,
+                                      size_t k,
+                                      std::vector<real_function_3d>& orbitals,
+                                      size_t print_level) {
   // Get size
   print("In create trial functions");
   size_t n = orbitals.size();
@@ -515,7 +515,7 @@ response_space TDDFT::create_trial_functions(World& world,
   if (world.rank() == 0) print("   Created", solids.size(), "solid harmonics.\n");
 
   // Container to return
-  response_space trials;
+  response_space trials_X;
 
   // Counter for number of trials created
   size_t count = 0;
@@ -529,7 +529,7 @@ response_space TDDFT::create_trial_functions(World& world,
 
       // Create one non-zero function and add to trials
       temp[count % n] = key.second * orbitals[n - count % n - 1];
-      trials.push_back(temp);
+      trials_X.push_back(temp);
       count++;
     }
 
@@ -540,11 +540,15 @@ response_space TDDFT::create_trial_functions(World& world,
   // Debugging output
   if (print_level >= 2) {
     if (world.rank() == 0) print("   Norms of guess functions:");
-    print_norms(world, trials);
+    print_norms(world, trials_X);
   }
 
   // Truncate
-  madness::truncate(world, trials, madness::FunctionDefaults<3>::get_thresh(), true);
+  madness::truncate(world, trials_X, madness::FunctionDefaults<3>::get_thresh(), true);
+
+  X_space trials(world, count, n);
+  trials.X = trials_X.copy();
+  trials_X.clear();
 
   // Done
   return trials;
@@ -552,9 +556,7 @@ response_space TDDFT::create_trial_functions(World& world,
 
 // Returns initial guess functions as
 // ground MO * <x,y,z>
-response_space TDDFT::create_trial_functions2(World& world,
-                                              std::vector<real_function_3d>& orbitals,
-                                              size_t print_level) {
+X_space TDDFT::create_trial_functions2(World& world, std::vector<real_function_3d>& orbitals, size_t print_level) {
   // Get size
   size_t n = orbitals.size();
   size_t directions = 3;
@@ -585,12 +587,12 @@ response_space TDDFT::create_trial_functions2(World& world,
   // Container to return
   size_t count = 0;
 
-  response_space trials(world, 3 * n * n, n);
+  X_space trials(world, 3 * n * n, n);
   for (size_t i = 0; i < n; i++) {
     for (size_t d = 0; d < directions; d++) {
       for (size_t o = 0; o < n; o++) {
         //        trials[i + j + o][o] = functions[i][j];
-        trials[count][o] = copy(functions.at(d).at(o));
+        trials.X[count][o] = copy(functions.at(d).at(o));
         count++;
       }
     }
@@ -635,11 +637,11 @@ response_space TDDFT::create_trial_functions2(World& world,
   // Debugging output
   if (print_level >= 2) {
     if (world.rank() == 0) print("   Norms of guess functions:");
-    print_norms(world, trials);
+    print_norms(world, trials.X);
   }
 
   // Truncate
-  madness::truncate(world, trials);
+  madness::truncate(world, trials.X);
 
   // Done
   return trials;
@@ -886,6 +888,11 @@ response_space TDDFT::CreatePotential(World& world,
 // result(i,j) = inner(a[i],b[j]).sum()
 Tensor<double> TDDFT::expectation(World& world, const response_space& A, const response_space& B) {
   // Get sizes
+  MADNESS_ASSERT(A.size() > 0);
+  MADNESS_ASSERT(A.size() == B.size());
+  MADNESS_ASSERT(A[0].size() > 0);
+  MADNESS_ASSERT(A[0].size() == B[0].size());
+
   size_t dim_1 = A.size();
   size_t dim_2 = A[0].size();
   // Need to take transpose of each input ResponseFunction
@@ -3487,7 +3494,7 @@ void TDDFT::iterate_guess(World& world, X_space& guesses) {
     if (r_params.tda()) normalize(world, guesses.X);
     // (TODO why not normalize if not tda)
     // compute Y = false
-    X_space Lambda_X = Compute_Lambda_X(world, Chi, xc, "tda");
+    X_space Lambda_X = Compute_Lambda_X(world, guesses, xc, "tda");
     deflateGuesses(world, guesses, Lambda_X, S, omega, iteration, m);
     // Debugging output
 
@@ -3517,8 +3524,8 @@ void TDDFT::iterate_guess(World& world, X_space& guesses) {
       //  If none needed, the zero tensor is returned
       x_shifts = create_shift(world, ground_energies, omega, r_params.print_level(), "x");
 
-      X_space theta_X = Compute_Theta_X(world, Chi, xc, "tda");
-      theta_X.X = apply_shift(world, x_shifts, theta_X.X, Chi.X);
+      X_space theta_X = Compute_Theta_X(world, guesses, xc, "tda");
+      theta_X.X = apply_shift(world, x_shifts, theta_X.X, guesses.X);
       theta_X.X = theta_X.X * -2;
       theta_X.X.truncate_rf();
 

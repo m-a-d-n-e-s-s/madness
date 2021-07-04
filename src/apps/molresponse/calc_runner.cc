@@ -264,17 +264,17 @@ void TDDFT::check_k(World& world, double thresh, size_t k) {
 }
 
 // Creates random guess functions semi-intelligently(?)
-response_space TDDFT::create_random_guess(World& world,
-                                          size_t m,                                // m response states
-                                          size_t n,                                // n ground states
-                                          std::vector<real_function_3d>& grounds,  // guess should have size n
-                                          Molecule& molecule) {
+X_space TDDFT::create_random_guess(World& world,
+                                   size_t m,                                // m response states
+                                   size_t n,                                // n ground states
+                                   std::vector<real_function_3d>& grounds,  // guess should have size n
+                                   Molecule& molecule) {
   // Basic output
   if (world.rank() == 0) print("   Using a random guess for initial response functions.\n");
 
   // Create empty container and add in randomness
-  response_space f(world, m, n);
-  f = add_randomness(world, f, 1e3);  // noise all over the world
+  X_space f(world, m, n);
+  f.X = add_randomness(world, f.X, 1e3);  // noise all over the world
 
   // Create and apply a centered gaussian on each atom so that the
   // randomness is localized around the atoms
@@ -288,10 +288,10 @@ response_space TDDFT::create_random_guess(World& world,
 
   // Project out groundstate from guesses
   QProjector<double, 3> projector(world, grounds);
-  for (unsigned int i = 0; i < f.size(); i++) f[i] = projector(f[i]);
+  for (unsigned int i = 0; i < f.num_states(); i++) f.X[i] = projector(f.X[i]);
 
   // Normalize
-  normalize(world, f);
+  normalize(world, f.X);
 
   return f;
 }
@@ -348,7 +348,7 @@ std::vector<real_function_3d> TDDFT::create_random_guess(World& world,
 }
 
 // Creates an initial guess function from nwchem output files
-response_space TDDFT::create_nwchem_guess(World& world, size_t m) {
+X_space TDDFT::create_nwchem_guess(World& world, size_t m) {
   // Basic output
   if (world.rank() == 0) print("   Creating an initial guess from NWChem file", r_params.nwchem_dir());
 
@@ -441,10 +441,10 @@ response_space TDDFT::create_nwchem_guess(World& world, size_t m) {
 
     // Create the random guess
     Molecule mol = g_params.molecule();
-    response_space rand = create_random_guess(world, m - n, n, ground_orbitals, mol);
+    X_space rand = create_random_guess(world, m - n, n, ground_orbitals, mol);
 
     // Add to vector of functions
-    for (unsigned int i = 0; i < rand.size(); i++) f.push_back(rand[i]);
+    for (unsigned int i = 0; i < rand.num_states(); i++) f.push_back(rand.X[i]);
   }
 
   // Project out groundstate from guesses
@@ -455,7 +455,10 @@ response_space TDDFT::create_nwchem_guess(World& world, size_t m) {
   f.truncate_rf();
   normalize(world, f);
 
-  return f;
+  X_space trial(world, f.size(), n);
+  trial.X = f;
+
+  return trial;
 }
 
 // Creates potentials using the ResponsePotential object
@@ -569,22 +572,23 @@ void TDDFT::solve_excited_states(World& world) {
         load(world, r_params.restart_file());
         check_k(world, r_params.protocol()[proto], FunctionDefaults<3>::get_k());
       } else {
+        X_space trial(world, 2 * r_params.n_states(), r_params.num_orbitals());
         // Create trial functions by...
         // (Always creating (at least) twice the amount requested for
         // initial diagonalization)
         if (world.rank() == 0) print("\n   Creating trial functions.\n");
         if (r_params.random()) {
           // Random guess
-          Chi.X =
+          trial =
               create_random_guess(world, 2 * r_params.n_states(), r_params.num_orbitals(), ground_orbitals, molecule);
         } else if (r_params.nwchem()) {
           // Virtual orbitals from NWChem
-          Chi.X = create_nwchem_guess(world, 2 * r_params.n_states());
+          trial = create_nwchem_guess(world, 2 * r_params.n_states());
         } else if (r_params.guess_xyz()) {
           // Use a symmetry adapted operator on ground state functions
-          Chi.X = create_trial_functions2(world, ground_orbitals, r_params.num_orbitals());
+          trial = create_trial_functions2(world, ground_orbitals, r_params.num_orbitals());
         } else {
-          Chi.X = create_trial_functions(world, 2 * r_params.n_states(), ground_orbitals, r_params.num_orbitals());
+          trial = create_trial_functions(world, 2 * r_params.n_states(), ground_orbitals, r_params.num_orbitals());
         }
 
         // Load balance
@@ -597,7 +601,7 @@ void TDDFT::solve_excited_states(World& world) {
           LoadBalanceDeux<3> lb(world);
           for (size_t j = 0; j < r_params.n_states(); j++) {
             for (size_t k = 0; k < r_params.num_orbitals(); k++) {
-              lb.add_tree(Chi.X[j][k], lbcost<double, 3>(1.0, 8.0), true);
+              lb.add_tree(trial.X[j][k], lbcost<double, 3>(1.0, 8.0), true);
             }
           }
           for (size_t j = 0; j < r_params.num_orbitals(); j++) {
@@ -610,18 +614,18 @@ void TDDFT::solve_excited_states(World& world) {
 
         // Project out groundstate from guesses
         QProjector<double, 3> projector(world, ground_orbitals);
-        for (unsigned int i = 0; i < Chi.X.size(); i++) Chi.X[i] = projector(Chi.X[i]);
+        for (unsigned int i = 0; i < trial.X.size(); i++) trial.X[i] = projector(trial.X[i]);
 
         // Ensure orthogonal guesses
         for (size_t i = 0; i < 2; i++) {
           molresponse::start_timer(world);
           // Orthog
-          Chi.X = gram_schmidt(world, Chi.X);
+          trial.X = gram_schmidt(world, trial.X);
           molresponse::end_timer(world, "orthog");
 
           molresponse::start_timer(world);
           // Normalize
-          normalize(world, Chi.X);
+          normalize(world, trial.X);
           molresponse::end_timer(world, "normalize");
         }
 
@@ -630,9 +634,9 @@ void TDDFT::solve_excited_states(World& world) {
           print(
               "\n   Iterating trial functions for an improved initial "
               "guess.\n");
-        iterate_guess(world, Chi);
+        iterate_guess(world, trial);
         // Sort
-        sort(world, omega, Chi.X);
+        sort(world, omega, trial.X);
         // Basic output
         if (r_params.num_orbitals() >= 1 and world.rank() == 0) {
           print("\n   Final initial guess excitation energies:");
@@ -640,8 +644,10 @@ void TDDFT::solve_excited_states(World& world) {
         }
         // Chi = X_space(world, r_params.n_states(), r_params.num_orbitals());
         // Select lowest energy functions from guess
-        Chi.X = select_functions(world, Chi.X, omega, r_params.n_states(), r_params.num_orbitals());
+        Chi.X = select_functions(world, trial.X, omega, r_params.n_states(), r_params.num_orbitals());
         Chi.Y = response_space(world, r_params.n_states(), r_params.num_orbitals());
+
+        trial.clear();
         // Initial guess for y are zero functions
       }
     }

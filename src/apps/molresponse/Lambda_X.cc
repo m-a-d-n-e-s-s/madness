@@ -43,7 +43,7 @@ X_space TDDFT::Compute_Lambda_X(World& world, X_space& Chi, XCOperator<double, 3
   } else if (calc_type.compare("static") == 0) {
     gamma = compute_gamma_static(world, Chi, xc);
   } else {
-    gamma = compute_gamma_TDA(world, Chi, xc);
+    gamma = compute_gamma_tda(world, Chi, xc);
   }
 
   X_space Lambda_X = X_space(world, size_states(Chi), size_orbitals(Chi));

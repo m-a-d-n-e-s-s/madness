@@ -138,6 +138,60 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
     old_Chi = Chi.copy();
     rho_omega_old = rho_omega;
 
+    if (iter > 0) {
+      // Only checking on X components even for full as Y are so small
+      if (not relax) {
+        for (size_t i = 0; i < m; i++) {
+          // bsh_residual max orbital change after bsh apply
+          if (not converged[i] && fabs(bsh_residualsX[i]) < dconv) {
+            converged[i] = true;
+            num_conv++;
+            if (world.rank() == 0) print("   Response function", i, " has converged. Freezing it.");
+          }
+        }
+        // Check if relaxing needs to start
+        if (num_conv == m) {
+          relax_start = iter;
+          relax = true;
+          if (world.rank() == 0)
+            print(
+                "   All components converged. Unfreezing all states for "
+                "final "
+                "relaxation.");
+
+          num_conv = 0;
+          for (size_t i = 0; i < m; i++) {
+            converged[i] = false;
+          }
+        }
+      } else {
+        // Relaxing
+        // Run at least 2 iterations
+        if (iter >= relax_start + 2) {
+          // Check each state again
+          for (size_t i = 0; i < m; i++) {
+            if (not converged[i] && fabs(bsh_residualsX[i]) < dconv) {
+              converged[i] = true;
+              num_conv++;
+            }
+          }
+          if (num_conv == m || iter == r_params.maxiter() - 1) {
+            all_converged = true;
+            // Save
+            if (r_params.save()) {
+              molresponse::start_timer(world);
+              save(world, r_params.save_file());
+              molresponse::end_timer(world, "Saving:");
+            }
+
+            if (r_params.plot_all_orbitals()) {
+              plot_excited_states(world, iter, Chi.X, Chi.Y, r_params, g_params);
+            }
+            break;
+          }
+        }
+      }
+    }
     update_x_space_excited(world,
                            old_Chi,
                            Chi,
@@ -160,61 +214,8 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
                            converged,
                            iter);
 
-    // Only checking on X components even for full as Y are so small
-    if (not relax) {
-      for (size_t i = 0; i < m; i++) {
-        if (iter >= 1 && not converged[i] &&
-            // bsh_residual max orbital change after bsh apply
-            fabs(bsh_residualsX[i]) < dconv) {
-          converged[i] = true;
-          num_conv++;
-          if (world.rank() == 0) print("   Response function", i, " has converged. Freezing it.");
-        }
-      }
-      // Check if relaxing needs to start
-      if (num_conv == m) {
-        relax_start = iter;
-        relax = true;
-        if (world.rank() == 0)
-          print(
-              "   All components converged. Unfreezing all states for "
-              "final "
-              "relaxation.");
-
-        num_conv = 0;
-        for (size_t i = 0; i < m; i++) {
-          converged[i] = false;
-        }
-      }
-    } else {
-      // Relaxing
-      // Run at least 2 iterations
-      if (iter >= relax_start + 2) {
-        // Check each state again
-        for (size_t i = 0; i < m; i++) {
-          if (not converged[i] && fabs(bsh_residualsX[i]) < dconv) {
-            converged[i] = true;
-            num_conv++;
-          }
-        }
-        if (num_conv == m) all_converged = true;
-      }
-    }
-
-    // Update counter
-    iter += 1;
-    // Save
-    if (r_params.save()) {
-      molresponse::start_timer(world);
-      save(world, r_params.save_file());
-      molresponse::end_timer(world, "Saving:");
-    }
-
     // Basic output
     if (r_params.print_level() >= 1) molresponse::end_timer(world, " This iteration:");
-  }
-  if (r_params.plot_all_orbitals()) {
-    plot_excited_states(world, iter, Chi.X, Chi.Y, r_params, g_params);
   }
 
   if (world.rank() == 0) print("\n");
@@ -229,7 +230,7 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
     if (world.rank() == 0) print("    Running analysis on current values.\n");
   }
 
-  // Sort
+  // Sorstatict
   sort(world, omega, Chi.X);
 
   // Print final things

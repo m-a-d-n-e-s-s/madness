@@ -30,10 +30,7 @@
 #include "molresponse/timer.h"
 #include "molresponse/x_space.h"
 
-X_space TDDFT::Compute_Theta_X(World& world,
-                               X_space& Chi,
-                               XCOperator<double, 3> xc,
-                               std::string calc_type) {
+X_space TDDFT::Compute_Theta_X(World& world, X_space& Chi, XCOperator<double, 3> xc, std::string calc_type) {
   print("-------------------Compute Theta X-------------------");
   print("x_norms in Theta X ");
   print(Chi.X.norm2());
@@ -50,14 +47,13 @@ X_space TDDFT::Compute_Theta_X(World& world,
   } else if (calc_type.compare("static") == 0) {
     gamma = compute_gamma_static(world, Chi, xc);
   } else {
-    gamma = compute_gamma_TDA(world, Chi, xc);
+    gamma = compute_gamma_tda(world, Chi, xc);
   }
 
   X_space Theta_X = X_space(world, size_states(Chi), size_orbitals(Chi));
   // Compute (V0-ham_no_diag)X
   // V0 appliedo x response function
-  response_space v0_X =
-      CreatePotential(world, Chi.X, xc, r_params.print_level(), "x");
+  response_space v0_X = CreatePotential(world, Chi.X, xc, r_params.print_level(), "x");
 
   if (r_params.print_level() >= 2) {
     PrintRFExpectation(world, Chi.X, v0_X, "x", "V0X");
@@ -80,8 +76,7 @@ X_space TDDFT::Compute_Theta_X(World& world,
   if (compute_Y) {
     // Compute (V0-ham_no_diag)X
 
-    response_space v0_Y =
-        CreatePotential(world, Chi.Y, xc, r_params.print_level(), "y");
+    response_space v0_Y = CreatePotential(world, Chi.Y, xc, r_params.print_level(), "y");
     if (r_params.print_level() == 3) {
       print("norms of v0x");
       print(v0_Y.norm2());

@@ -218,11 +218,8 @@ class TDDFT {
   // functions
   std::vector<real_function_3d> createDipoleFunctionMap(World& world);
   // Returns initial response functions
-  response_space create_trial_functions(World& world,
-                                        size_t k,
-                                        std::vector<real_function_3d>& orbitals,
-                                        size_t print_level);
-  response_space create_trial_functions2(World& world, std::vector<real_function_3d>& orbitals, size_t print_level);
+  X_space create_trial_functions(World& world, size_t k, std::vector<real_function_3d>& orbitals, size_t print_level);
+  X_space create_trial_functions2(World& world, std::vector<real_function_3d>& orbitals, size_t print_level);
 
   response_space PropertyRHS(World& world, PropertyBase& p) const;
   // Returns the derivative of the coulomb operator, applied to ground state
@@ -231,7 +228,7 @@ class TDDFT {
   // Returns the diagonal (letter A) elements of response matrix
   X_space compute_gamma_full(World& world, X_space& Chi, XCOperator<double, 3> xc);
   X_space compute_gamma_static(World& world, X_space& Chi, XCOperator<double, 3> xc);
-  X_space compute_gamma_TDA(World& world, X_space& Chi, XCOperator<double, 3> xc);
+  X_space compute_gamma_tda(World& world, X_space& Chi, XCOperator<double, 3> xc);
   // Note: No post multiplication involved here
   real_function_3d Coulomb(World& world);
 
@@ -657,11 +654,7 @@ class TDDFT {
   void check_k(World& world, double thresh, size_t k);
 
   // Creates random guess functions semi-intelligently(?)
-  response_space create_random_guess(World& world,
-                                     size_t m,
-                                     size_t n,
-                                     vector_real_function_3d& grounds,
-                                     Molecule& molecule);
+  X_space create_random_guess(World& world, size_t m, size_t n, vector_real_function_3d& grounds, Molecule& molecule);
 
   // Creates random guess functions semi-intelligently(?)
   std::vector<real_function_3d> create_random_guess(World& world,
@@ -673,7 +666,7 @@ class TDDFT {
   // calculation Requires:
   //    1. nwchem output file (named as "base_name.out")
   //    2. nwchem movecs file (named as "base_name.movecs")
-  response_space create_nwchem_guess(World& world, size_t m);
+  X_space create_nwchem_guess(World& world, size_t m);
 
   // Creates potentials using the ResponsePotential object
   // Potentials are modified in place
