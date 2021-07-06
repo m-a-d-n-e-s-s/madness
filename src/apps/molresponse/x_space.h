@@ -177,11 +177,8 @@ struct X_space {
     Tensor<double> G1(A.n_states, A.n_states);
     Tensor<double> G2(A.n_states, A.n_states);
     G1 = response_space_inner(A.X, B.X);
-    print("inner(A.X,B.X)\n", G1);
     G2 = response_space_inner(B.Y, A.Y);
-    print("inner(B.Y,A.Y)\n", G2);
     G = G1 + G2;
-    print("total inner\n", G);
     return G;
   }
 
