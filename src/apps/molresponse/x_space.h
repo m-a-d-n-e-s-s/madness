@@ -185,6 +185,11 @@ struct X_space {
     return G;
   }
 
+  void truncate() {
+    X.truncate_rf();
+    Y.truncate_rf();
+  }
+
   friend size_t size_states(const X_space& x) { return x.n_states; }
   friend size_t size_orbitals(const X_space& x) { return x.n_orbtials; }
   friend bool same_size(const X_space& A, const X_space& B) {

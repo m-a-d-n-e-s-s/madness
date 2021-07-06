@@ -81,10 +81,9 @@ void TDDFT::iterate_freq2(World& world) {
   std::vector<poperatorT> bsh_x_ops = make_bsh_operators_response(world, x_shifts, omega_n);
   std::vector<poperatorT> bsh_y_ops;
 
-  bool not_static = omega_n != 0.0;
-  bool static_res = !not_static;
+  bool static_res = omega_n == 0.0;
   // Negate omega to make this next set of BSH operators \eps - omega
-  if (not_static) {
+  if (not static_res) {
     omega_n = -omega_n;
     bsh_y_ops = make_bsh_operators_response(world, y_shifts, omega_n);
     omega_n = -omega_n;
@@ -101,7 +100,7 @@ void TDDFT::iterate_freq2(World& world) {
     }
 
     // compute rho_omega
-    rho_omega = make_density(world, Chi, not_static);
+    rho_omega = make_density(world, Chi, not static_res);
 
     if (iter < 2 || (iter % 10) == 0) {
       loadbal(world, rho_omega, Chi, old_Chi);

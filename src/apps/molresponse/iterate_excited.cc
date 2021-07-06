@@ -95,23 +95,10 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
   Tensor<double> A;
   Tensor<double> old_S;
   bool compute_y = !r_params.tda();
-  // initialize DFT XC functional operator
 
-  /*
-   * X space refers to X and Y vector spaces |X,Y>
-   * X vector is a single |X_b,Y_b> b is a single response state
-   * For kain we need a vector of X_vectors
-   */
-
-  /**
-   * IF TDA then y_response =0
-   */
-
-  // Set y things if not doing TDA
   if (compute_y) old_Chi.Y = response_space(world, m, n);
-
   // Now to iterate
-  while (iter < r_params.maxiter() && !all_converged) {
+  for (size_t iter = 0; iter < r_params.maxiter(); ++iter) {
     // Start a timer for this iteration
     // Basic output
     if (r_params.print_level() >= 1) {

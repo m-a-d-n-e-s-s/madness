@@ -50,7 +50,7 @@ X_space TDDFT::Compute_Theta_X(World& world, X_space& Chi, XCOperator<double, 3>
     gamma = compute_gamma_tda(world, Chi, xc);
   }
 
-  X_space Theta_X = X_space(world, size_states(Chi), size_orbitals(Chi));
+  X_space Theta_X = X_space(world, Chi.num_states(), Chi.num_orbitals());
   // Compute (V0-ham_no_diag)X
   // V0 appliedo x response function
   response_space v0_X = CreatePotential(world, Chi.X, xc, r_params.print_level(), "x");

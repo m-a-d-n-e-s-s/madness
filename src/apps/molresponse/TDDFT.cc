@@ -1430,6 +1430,7 @@ X_space TDDFT::compute_residual_response(World& world,
   X_space res(world, m, n);
 
   molresponse::start_timer(world);
+
   theta_X.X += Chi.X * x_shifts;
   theta_X.X += PQ.X;
   theta_X.X = theta_X.X * -2;
@@ -3740,7 +3741,7 @@ functionT TDDFT::make_ground_density(World& world, const vecfuncT& v) {
   functionT rho = factoryT(world);
   rho.compress();
   for (unsigned int i = 0; i < vsq.size(); ++i) {
-    if (occ[i]) rho.gaxpy(1.0, vsq[i], occ[i], false);
+    rho.gaxpy(1.0, vsq[i], double(1.0), false);
   }
   world.gop.fence();
   vsq.clear();
