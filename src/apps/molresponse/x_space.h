@@ -187,6 +187,22 @@ struct X_space {
     Y.truncate_rf();
   }
 
+  void print_norm2() {
+    for (size_t i = 0; i < num_states(); i++) {
+      std::cout << "state " << i;
+      std::cout << " X: ";
+
+      for (size_t j = 0; j < num_orbitals(); j++) {
+        std::cout << " " << X[i][j].norm2() << " ";
+      }
+      std::cout << " Y: ";
+      for (size_t j = 0; j < num_orbitals(); j++) {
+        std::cout << " " << Y[i][j].norm2() << " ";
+      }
+      std::cout << std::endl;
+    }
+  }
+
   friend size_t size_states(const X_space& x) { return x.n_states; }
   friend size_t size_orbitals(const X_space& x) { return x.n_orbtials; }
   friend bool same_size(const X_space& A, const X_space& B) {
@@ -203,8 +219,6 @@ struct X_vector : public X_space {
   X_vector(X_space A, size_t b) : X_space(A.X[0][0].world(), size_t(1), size_orbitals(A)) {
     X[0] = A.X[b];
     Y[0] = A.Y[b];
-    // this->X[0].assign(A.X[b].begin(), A.X[b].end());  // = single_X;
-    // this->Y[0].assign(A.Y[b].begin(), A.Y[b].end());  // = single_X;
   }
   friend X_vector operator-(const X_vector& A, const X_vector& B) {
     MADNESS_ASSERT(same_size(A, B));

@@ -138,13 +138,14 @@ X_space TDDFT::compute_gamma_full(World& world, X_space& Chi, XCOperator<double,
 
   molresponse::start_timer(world);
   if (r_params.print_level() >= 2) {
-    print("<X|J|X>");
-    print(inner(Chi, J));
-    print("<X|KX|X>");
-    print(inner(Chi, KX));
-    print("<X|KY|X>");
-    print(inner(Chi, KY));
-    PrintRFExpectation(world, Chi_copy.Y, gamma.Y, "y", "Gamma)");
+    print("J(rho1)phi0>");
+    J.print_norm2();
+    print("K(rho1X)phi0>");
+    KX.print_norm2();
+    print("K(rho1Y)phi0>");
+    KY.print_norm2();
+    print("W(rho1)phi0>");
+    W.print_norm2();
   }
   // End timer
   molresponse::end_timer(world, "Print Expectation Creating Gamma:");
@@ -261,6 +262,20 @@ X_space TDDFT::compute_gamma_static(World& world, X_space& Chi, XCOperator<doubl
   KX.truncate();
   KY.truncate();
   W.truncate();
+
+  molresponse::start_timer(world);
+  if (r_params.print_level() >= 2) {
+    print("J(rho1)phi0>");
+    J.print_norm2();
+    print("K(rho1X)phi0>");
+    KX.print_norm2();
+    print("K(rho1Y)phi0>");
+    KY.print_norm2();
+    print("W(rho1)phi0>");
+    W.print_norm2();
+  }
+  // End timer
+  molresponse::end_timer(world, "Print Expectation Creating Gamma:");
 
   // update gamma functions
   QProjector<double, 3> projector(world, phi0_copy);
