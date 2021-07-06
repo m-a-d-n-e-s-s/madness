@@ -4,14 +4,15 @@ set(MADWORLD_HEADERS
     info.h archive.h print.h worldam.h future.h worldmpi.h
     world_task_queue.h array_addons.h stack.h vector.h worldgop.h 
     world_object.h buffer_archive.h nodefaults.h dependency_interface.h 
-    worldhash.h worldref.h worldtypes.h dqueue.h parallel_archive.h 
+    worldhash.h worldref.h worldtypes.h dqueue.h parallel_archive.h parallel_dc_archive.h
     vector_archive.h madness_exception.h worldmem.h thread.h worldrmi.h 
     safempi.h worldpapi.h worldmutex.h print_seq.h worldhashmap.h range.h 
     atomicint.h posixmem.h worldptr.h deferred_cleanup.h MADworld.h world.h 
     uniqueid.h worldprofile.h timers.h binary_fstream_archive.h mpi_archive.h 
     text_fstream_archive.h worlddc.h mem_func_wrapper.h taskfn.h group.h 
     dist_cache.h distributed_id.h type_traits.h function_traits.h stubmpi.h 
-    bgq_atomics.h binsorter.h parsec.h meta.h worldinit.h thread_info.h)
+    bgq_atomics.h binsorter.h parsec.h meta.h worldinit.h thread_info.h
+    cloud.h test_utilities.h timing_utilities.h)
 set(MADWORLD_SOURCES
     madness_exception.cc world.cc timers.cc future.cc redirectio.cc
     archive_type_names.cc info.cc debug.cc print.cc worldmem.cc worldrmi.cc
@@ -110,7 +111,8 @@ if(ENABLE_UNITTESTS)
       test_atomicint.cc test_future.cc test_future2.cc test_future3.cc 
       test_dc.cc test_hashthreaded.cc test_queue.cc test_world.cc 
       test_worldprofile.cc test_binsorter.cc test_vector.cc test_worldptr.cc 
-      test_worldref.cc test_stack.cc test_googletest.cc test_tree.cc)
+      test_worldref.cc test_stack.cc test_googletest.cc test_tree.cc
+          )
 
   add_unittests(world "${WORLD_TEST_SOURCES}" "MADworld;MADgtest")    
 

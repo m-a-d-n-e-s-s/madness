@@ -40,6 +40,8 @@
 #include <chem/oep.h>
 #include <chem/correlationfactor.h>
 #include <chem/xcfunctional.h>
+#include <chem/exchangeoperator.h>
+
 
 using namespace madness;
 
@@ -181,8 +183,7 @@ class Laplacian<double, 6>;
 
 /// ctor with an SCF calculation providing the MOs and density
 template<typename T, std::size_t NDIM>
-Coulomb<T, NDIM>::Coulomb(World &world, const Nemo *nemo) : world(world),
-                                                            R_square(nemo->R_square) {
+Coulomb<T, NDIM>::Coulomb(World &world, const Nemo *nemo) : world(world) {
     reset_poisson_operator_ptr(nemo->get_calc()->param.lo(), nemo->get_calc()->param.econv());
     vcoul = compute_potential(nemo);
 }
@@ -233,7 +234,7 @@ real_function_3d Coulomb<T, NDIM>::compute_potential(const madness::Nemo *nemo) 
                                                                nemo->get_calc()->get_bmo());
         density += brho;
     }
-    density = (density * R_square).truncate();
+    density = (density * nemo->R_square).truncate();
     return (*poisson)(density).truncate();
 }
 
@@ -338,121 +339,6 @@ std::vector<Function<T, NDIM>> DNuclear<T, NDIM>::operator()(const std::vector<F
     truncate(world, result);
 
     return result;
-}
-
-
-template<typename T, std::size_t NDIM>
-Exchange<T, NDIM>::Exchange(World &world, const SCF *calc, const int ispin)
-        : world(world), small_memory_(true), same_(false) {
-    if (ispin == 0) { // alpha spin
-        mo_ket = convert<double, T, NDIM>(world, calc->amo);        // deep copy necessary if T==double_complex
-        occ = calc->aocc;
-    } else if (ispin == 1) {  // beta spin
-        mo_ket = convert<double, T, NDIM>(world, calc->bmo);
-        occ = calc->bocc;
-    }
-    mo_bra = conj(world, mo_ket);
-    poisson = std::shared_ptr<real_convolution_3d>(
-            CoulombOperatorPtr(world, calc->param.lo(), calc->param.econv()));
-}
-
-template<typename T, std::size_t NDIM>
-Exchange<T, NDIM>::Exchange(World &world, const Nemo *nemo,
-                            const int ispin) // @suppress("Class members should be properly initialized")
-        : Exchange<T, NDIM>(world, nemo->get_calc().get(), ispin) {
-
-    if (ispin == 0) { // alpha spin
-        mo_ket = convert<double, T, NDIM>(world,
-                                          nemo->get_calc()->amo);        // deep copy necessary if T==double_complex
-        occ = nemo->get_calc()->aocc;
-    } else if (ispin == 1) {  // beta spin
-        mo_ket = convert<double, T, NDIM>(world,
-                                          nemo->get_calc()->bmo);        // deep copy necessary if T==double_complex
-        occ = nemo->get_calc()->bocc;
-    }
-
-    mo_bra = mul(world, nemo->ncf->square(), mo_ket);
-    truncate(world, mo_bra);
-    poisson = std::shared_ptr<real_convolution_3d>(
-            CoulombOperatorPtr(world, nemo->get_calc()->param.lo(),
-                               nemo->get_calc()->param.econv()));
-
-}
-
-template<typename T, std::size_t NDIM>
-std::vector<Function<T, NDIM> > Exchange<T, NDIM>::operator()(
-        const std::vector<Function<T, NDIM> > &vket) const {
-    const bool same = this->same();
-    int nocc = mo_bra.size();
-    int nf = vket.size();
-    double tol = FunctionDefaults<3>::get_thresh(); /// Important this is consistent with Coulomb
-    vecfuncT Kf = zero_functions_compressed<T, NDIM>(world, nf);
-    reconstruct(world, mo_bra);
-    norm_tree(world, mo_bra);
-    reconstruct(world, mo_ket);
-    norm_tree(world, mo_ket);
-    if (!same) {
-        reconstruct(world, vket);
-        norm_tree(world, vket);
-    }
-
-    if (small_memory_) {     // Smaller memory algorithm ... possible 2x saving using i-j sym
-        for (int i = 0; i < nocc; ++i) {
-            if (occ[i] > 0.0) {
-                vecfuncT psif = mul_sparse(world, mo_bra[i], vket, mul_tol); /// was vtol
-                truncate(world, psif);
-                psif = apply(world, *poisson.get(), psif);
-                truncate(world, psif);
-                psif = mul_sparse(world, mo_ket[i], psif, mul_tol); /// was vtol
-                gaxpy(world, 1.0, Kf, occ[i], psif);
-            }
-        }
-    } else {    // Larger memory algorithm ... use i-j sym if psi==f
-        vecfuncT psif;
-        for (int i = 0; i < nocc; ++i) {
-            int jtop = nf;
-            if (same)
-                jtop = i + 1;
-            for (int j = 0; j < jtop; ++j) {
-                psif.push_back(mul_sparse(mo_bra[i], vket[j], mul_tol, false));
-            }
-        }
-
-        world.gop.fence();
-        truncate(world, psif, tol);
-        psif = apply(world, *poisson.get(), psif);
-        truncate(world, psif, tol);
-        reconstruct(world, psif);
-        norm_tree(world, psif);
-        vecfuncT psipsif = zero_functions<T, NDIM>(world, nf * nocc);
-        int ij = 0;
-        for (int i = 0; i < nocc; ++i) {
-            int jtop = nf;
-            if (same)
-                jtop = i + 1;
-            for (int j = 0; j < jtop; ++j, ++ij) {
-                psipsif[i * nf + j] = mul_sparse(psif[ij], mo_ket[i], mul_tol, false);
-                if (same && i != j) {
-                    psipsif[j * nf + i] = mul_sparse(psif[ij], mo_ket[j], mul_tol, false);
-                }
-            }
-        }
-        world.gop.fence();
-        psif.clear();
-        world.gop.fence();
-        compress(world, psipsif);
-        for (int i = 0; i < nocc; ++i) {
-            for (int j = 0; j < nf; ++j) {
-                Kf[j].gaxpy(1.0, psipsif[i * nf + j], occ[i], false);
-            }
-        }
-        world.gop.fence();
-        psipsif.clear();
-        world.gop.fence();
-    }
-    truncate(world, Kf, tol);
-    return Kf;
-
 }
 
 
@@ -776,6 +662,57 @@ void XCOperator<T, NDIM>::prep_xc_args_response(const real_function_3d &dens_pt,
     truncate(world, xc_args, extra_truncation);
 }
 
+/// ctor with a conventional calculation
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>::Exchange(World& world, const SCF *calc, const int ispin) : impl(new Exchange<T,NDIM>::ExchangeImpl(world,calc,ispin)) {};
+
+/// ctor with a nemo calculation
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>::Exchange(World& world, const Nemo *nemo, const int ispin) : impl(new Exchange<T,NDIM>::ExchangeImpl(world,nemo,ispin)) {};
+
+/// apply the exchange operator on a vector of functions
+
+/// note that only one spin is used (either alpha or beta orbitals)
+/// @param[in]  vket       the orbitals |i> that the operator is applied on
+/// @return     a vector of orbitals  K| i>
+template<typename T, std::size_t NDIM>
+std::vector<Function<T,NDIM>> Exchange<T,NDIM>::operator()(const std::vector<Function<T,NDIM>>& vket) const {
+    impl->set_taskq(this->taskq);
+    return impl->operator()(vket);
+};
+
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_parameters(const vecfuncT& bra, const vecfuncT& ket, const double lo1) {
+    if (not impl) {
+        World& world=bra.front().world();
+        impl.reset(new Exchange<T,NDIM>::ExchangeImpl(world));
+    }
+    impl->set_parameters(bra,ket,lo1);
+    return *this;
+}
+
+template<typename T, std::size_t NDIM>
+bool Exchange<T,NDIM>::is_symmetric() const {
+    return impl->is_symmetric();
+}
+
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_symmetric(const bool flag) {
+    impl->symmetric(flag);
+    return *this;
+}
+
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_algorithm(const Algorithm& alg) {
+    impl->set_algorithm(alg);
+    return *this;
+}
+
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_printlevel(const long& level) {
+    impl->set_printlevel(level);
+    return *this;
+}
 
 template<>
 Fock<double, 3>::Fock(World &world, const Nemo *nemo) : world(world) {
@@ -797,6 +734,7 @@ Fock<double, 3>::Fock(World &world, const NemoBase *nemobase) : world(world) {
     if (tmp) std::swap(tmp->operators, operators);
     else MADNESS_EXCEPTION("failed to construct fock operator", 1);
 }
+
 
 template class Exchange<double_complex,3>;
 template class Exchange<double,3>;

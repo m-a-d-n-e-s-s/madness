@@ -1270,8 +1270,8 @@ public:
     GenTensor<T>(const SRConf<T>& sr1) : LowRankTensor<T>(SVDTensor<T>(sr1)) {
     }
 
-    operator LowRankTensor<T>() const {return *this;}
-    operator LowRankTensor<T>() {return *this;}
+//    operator LowRankTensor<T>() const {return *this;}
+//    operator LowRankTensor<T>() {return *this;}
 
     /// general slicing, shallow; for temporary use only!
     SliceGenTensor<T> operator()(const std::vector<Slice>& s) {
@@ -1318,8 +1318,8 @@ public:
     SliceGenTensor<T>(const SliceGenTensor<T>& g) : SliceLowRankTensor<T>(g) {}
     SliceGenTensor<T>(const SliceLowRankTensor<T>& g) : SliceLowRankTensor<T>(g) {}
 
-    operator SliceLowRankTensor<T>() const {return *this;}
-    operator SliceLowRankTensor<T>() {return *this;}
+//    operator SliceLowRankTensor<T>() const {return *this;}
+//    operator SliceLowRankTensor<T>() {return *this;}
 
     /// inplace zero-ing as in g(s)=0.0
     SliceGenTensor<T>& operator=(const T& number) {

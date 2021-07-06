@@ -8,7 +8,7 @@
 #include <madness/mra/mra.h>
 #include "znemo.h"
 #include <chem/diamagneticpotentialfactor.h>
-#include <chem/test_utilities.h>
+#include <madness/world/test_utilities.h>
 #include <chem/masks_and_boxes.h>
 #include <chem/MolecularOrbitals.h>
 
@@ -894,7 +894,7 @@ Znemo::read_reference() const {
 
 	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> > zmos;
 
-	archive::ParallelInputArchive ar(world, name.c_str(), 1);
+	archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, name.c_str(), 1);
 	std::size_t namo, nbmo;
 
 	std::vector<complex_function_3d> amos,bmos;
@@ -1022,10 +1022,10 @@ Znemo::potentials Znemo::compute_potentials(const std::vector<complex_function_3
 	std::vector<complex_function_3d> dia2mo=make_bra(mo);
 
 	// prepare exchange operator
-	Exchange<double_complex,3> K=Exchange<double_complex,3>(world);
+	Exchange<double_complex,3> K;
 	Tensor<double> occ(mo.size());
 	occ=1.0;
-	K.set_parameters(conj(world,dia2mo),mo,occ,cparam.lo(),cparam.econv());
+	K.set_parameters(conj(world,dia2mo),mo,cparam.lo());
 
 	Nuclear<double_complex,3> nuc(world,ncf);
 

@@ -7,7 +7,7 @@
 
 #include<madness/mra/mra.h>
 #include<chem/BSHApply.h>
-#include<chem/test_utilities.h>
+#include<madness/world/test_utilities.h>
 
 using namespace madness;
 

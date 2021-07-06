@@ -67,16 +67,28 @@ namespace madness {
             World* world; ///< The world.
             mutable Archive ar; ///< The local archive.
             int nio; ///< Number of I/O nodes (always includes node zero).
-            bool do_fence; ///< If true (default), a read/write of parallel objects fences before and after I/O.
+            bool do_fence=true; ///< If true (default), a read/write of parallel objects fences before and after I/O.
             char fname[256]; ///< Name of the archive.
             int nclient; ///< Number of clients of this node, including self. Zero if not I/O node.
 
         public:
             static const bool is_parallel_archive = true; ///< Mark this class as a parallel archive.
 
+            BaseParallelArchive(World& world, Archive& ar, int nio)
+                : world(&world)
+                , ar(ar)
+                , nio(nio)
+            {
+            	fname[0] = 0;
+            	set_nclient(world);
+            }
+
+
             /// Default constructor.
-            BaseParallelArchive()
-                : world(nullptr), ar(), nio(0), do_fence(true) {}
+            template <typename X=Archive>
+            BaseParallelArchive(typename std::enable_if_t<std::is_same<X,BinaryFstreamInputArchive>::value || std::is_same<X,BinaryFstreamOutputArchive>::value,int> nio=0)
+                : world(nullptr), ar(), nio(nio), do_fence(true) {
+            }
 
             /// Returns the process doing I/O for given node.
 
@@ -137,7 +149,11 @@ namespace madness {
             /// \param[in] world The world.
             /// \param[in] filename Name of the file.
             /// \param[in] nwriter The number of writers.
-            void open(World& world, const char* filename, int nwriter=1) {
+
+            template <typename X=Archive>
+            typename std::enable_if_t<std::is_same<X,BinaryFstreamInputArchive>::value || std::is_same<X,BinaryFstreamOutputArchive>::value,
+                                      void>
+            open(World& world, const char* filename, int nwriter=1) {
                 this->world = &world;
                 nio = nwriter;
 #if defined(HAVE_IBMBGP) || defined(HAVE_IBMBGQ)
@@ -171,17 +187,21 @@ namespace madness {
                     ar.open(buf);
                 }
 
-                // Count #client
-                ProcessID me = world.rank();
-                nclient=0;
-                for (ProcessID p=0; p<world.size(); ++p) if (io_node(p) == me) ++nclient;
+                set_nclient(world);
+            }
 
-//                 if (is_io_node()) {
-//                     madness::print("I am an IO node with",nclient,"clients and file",buf);
-//                 }
-//                 else {
-//                     madness::print("I am a client served by",my_io_node(),fname);
-//                 }
+            // Count #client
+            void set_nclient(World& world) {
+				ProcessID me = world.rank();
+				nclient=0;
+				for (ProcessID p=0; p<world.size(); ++p) if (io_node(p) == me) ++nclient;
+
+		//                 if (is_io_node()) {
+		//                     madness::print("I am an IO node with",nclient,"clients and file",buf);
+		//                 }
+		//                 else {
+		//                     madness::print("I am a client served by",my_io_node(),fname);
+		//                 }
             }
 
             /// Returns true if the named, unopened archive exists on disk with read access.
@@ -190,7 +210,11 @@ namespace madness {
             /// \param[in] world The world.
             /// \param[in] filename Name of the file.
             /// \return True if the named, unopened archive exists and is readable.
-            static bool exists(World& world, const char* filename) {
+            template <typename X=Archive>
+            static
+            typename std::enable_if_t<std::is_same<X,BinaryFstreamInputArchive>::value || std::is_same<X,BinaryFstreamOutputArchive>::value,
+                                      bool>
+            exists(World& world, const char* filename) {
                 char buf[256];
                 MADNESS_ASSERT(strlen(filename)+7 <= sizeof(buf));
                 sprintf(buf, "%s.%5.5d", filename, world.rank());
@@ -235,7 +259,11 @@ namespace madness {
             /// deleting.
             /// \param[in] world The world.
             /// \param[in] filename Base name of the file.
-            static void remove(World& world, const char* filename) {
+            template <typename X=Archive>
+            static
+            typename std::enable_if_t<std::is_same<X,BinaryFstreamInputArchive>::value || std::is_same<X,BinaryFstreamOutputArchive>::value,
+                                      void>
+            remove(World& world, const char* filename) {
                 if (world.rank() == 0) {
                     char buf[268];
                     MADNESS_ASSERT(strlen(filename)+7 <= sizeof(buf));
@@ -280,10 +308,15 @@ namespace madness {
         ///
         /// Process zero records the number of writers so that, when the archive is opened
         /// for reading, the number of readers is forced to match.
-        class ParallelOutputArchive : public BaseParallelArchive<BinaryFstreamOutputArchive>, public BaseOutputArchive {
+        template <class localarchiveT=BinaryFstreamOutputArchive>
+        class ParallelOutputArchive : public BaseParallelArchive<localarchiveT>, public BaseOutputArchive {
         public:
+            using basear = BaseParallelArchive<localarchiveT>;
+
             /// Default constructor.
-            ParallelOutputArchive() {}
+            //ParallelOutputArchive() {}
+
+            ParallelOutputArchive(World& world, localarchiveT& ar, int nio=1) : basear(world, ar, nio) {}
 
             /// Creates a parallel archive for output with given base filename and number of I/O nodes.
 
@@ -291,12 +324,12 @@ namespace madness {
             /// \param[in] filename Base name of the file.
             /// \param[in] nio The number of I/O nodes.
             ParallelOutputArchive(World& world, const char* filename, int nio=1)  {
-                open(world, filename, nio);
+                basear::open(world, filename, nio);
             }
 
             /// Flush any data in the archive.
             void flush() {
-                if (is_io_node()) local_archive().flush();
+                if (basear::is_io_node()) basear::local_archive().flush();
             }
         };
 
@@ -311,10 +344,14 @@ namespace madness {
         /// forced to be the same as the original number of writers and,
         /// therefore, you cannot presently read an archive from a parallel job
         /// with fewer total processes than the number of writers.
-        class ParallelInputArchive : public BaseParallelArchive<BinaryFstreamInputArchive>, public  BaseInputArchive {
+        template <class localarchiveT=BinaryFstreamInputArchive>
+        class ParallelInputArchive : public BaseParallelArchive<localarchiveT>, public  BaseInputArchive {
         public:
+            using basear = BaseParallelArchive<localarchiveT>;
             /// Default constructor.
-            ParallelInputArchive() {}
+            //ParallelInputArchive() {}
+
+            ParallelInputArchive(World& world, localarchiveT& ar, int nio=1) : basear(world, ar, nio) {}
 
             /// Creates a parallel archive for input.
 
@@ -322,58 +359,82 @@ namespace madness {
             /// \param[in] filename Base name of the file.
             /// \param[in] nio The number of writers. Ignored, see above.
             ParallelInputArchive(World& world, const char* filename, int nio=1) {
-                open(world, filename, nio);
+                basear::open(world, filename, nio);
             }
         };
 
         /// Disable type info for parallel output archives.
 
         /// \tparam T The data type.
-        template <class T>
-        struct ArchivePrePostImpl<ParallelOutputArchive,T> {
+        template <class T, class localarchiveT>
+        struct ArchivePrePostImpl<ParallelOutputArchive<localarchiveT>,T> {
             /// Store the preamble for this data type in the parallel archive.
 
             /// \param[in] ar The archive.
-            static void preamble_store(const ParallelOutputArchive& ar) {}
+            static void preamble_store(const ParallelOutputArchive<localarchiveT>& ar) {}
 
             /// Store the postamble for this data type in the parallel archive.
 
             /// \param[in] ar The archive.
-            static inline void postamble_store(const ParallelOutputArchive& ar) {}
+            static inline void postamble_store(const ParallelOutputArchive<localarchiveT>& ar) {}
         };
 
         /// Disable type info for parallel input archives.
 
         /// \tparam T The data type.
-        template <class T>
-        struct ArchivePrePostImpl<ParallelInputArchive,T> {
+        template <class T, class localarchiveT>
+        struct ArchivePrePostImpl<ParallelInputArchive<localarchiveT>,T> {
             /// Load the preamble for this data type in the parallel archive.
 
             /// \param[in] ar The archive.
-            static inline void preamble_load(const ParallelInputArchive& ar) {}
+            static inline void preamble_load(const ParallelInputArchive<localarchiveT>& ar) {}
 
             /// Load the postamble for this data type in the parallel archive.
 
             /// \param[in] ar The archive.
-            static inline void postamble_load(const ParallelInputArchive& ar) {}
+            static inline void postamble_load(const ParallelInputArchive<localarchiveT>& ar) {}
         };
 
         /// Specialization of \c ArchiveImpl for parallel output archives.
 
         /// \attention No type-checking is performed.
         /// \tparam T The data type.
-        template <class T>
-        struct ArchiveImpl<ParallelOutputArchive, T, std::enable_if_t<!std::is_base_of_v<ParallelSerializableObject, T>>> {
+        template <class T, class localarchiveT>
+        struct ArchiveImpl<ParallelOutputArchive<localarchiveT>, T> {
+            /// Store the data in the archive.
+
+            /// Parallel objects are forwarded to their implementation of parallel store.
+            ///
+            /// The function only appears (due to \c enable_if) if \c Q is a parallel
+            /// serializable object.
+            /// \todo Is \c Q necessary? I'm sure it is, but can't figure out why at a first glance.
+            /// \tparam Q Description needed.
+            /// \param[in] ar The parallel archive.
+            /// \param[in] t The parallel object to store.
+            /// \return The parallel archive.
+            template <typename Q>
+            static inline
+            typename std::enable_if<std::is_base_of<ParallelSerializableObject, Q>::value, const ParallelOutputArchive<localarchiveT>&>::type
+            wrap_store(const ParallelOutputArchive<localarchiveT>& ar, const Q& t) {
+                ArchiveStoreImpl<ParallelOutputArchive<localarchiveT>,T>::store(ar,t);
+                return ar;
+            }
+
             /// Store the data in the archive.
 
             /// Serial objects write only from process 0.
             ///
+            /// The function only appears (due to \c enable_if) if \c Q is not
+            /// a parallel serializable object.
+            /// \todo Same question about \c Q.
+            /// \tparam Q Description needed.
             /// \param[in] ar The parallel archive.
             /// \param[in] t The serial data.
             /// \return The parallel archive.
+            template <typename Q>
             static inline
-            const ParallelOutputArchive&
-            wrap_store(const ParallelOutputArchive& ar, const T& t) {
+            typename std::enable_if<!std::is_base_of<ParallelSerializableObject, Q>::value, const ParallelOutputArchive<localarchiveT>&>::type
+            wrap_store(const ParallelOutputArchive<localarchiveT>& ar, const Q& t) {
                 if (ar.get_world()->rank()==0) {
                     ar.local_archive() & t;
                 }
@@ -385,18 +446,42 @@ namespace madness {
 
         /// \attention No type-checking is performed.
         /// \tparam T The data type.
-        template <class T>
-        struct ArchiveImpl<ParallelInputArchive, T, std::enable_if_t<!std::is_base_of_v<ParallelSerializableObject, T>>> {
+        template <class T, class localarchiveT>
+        struct ArchiveImpl<ParallelInputArchive<localarchiveT>, T> {
+            /// Load the data from the archive.
+
+            /// Parallel objects are forwarded to their implementation of parallel load.
+            ///
+            /// The function only appears (due to \c enable_if) if \c Q is a parallel
+            /// serializable object.
+            /// \todo Is \c Q necessary? I'm sure it is, but can't figure out why at a first glance.
+            /// \tparam Q Description needed.
+            /// \param[in] ar The parallel archive.
+            /// \param[out] t Where to put the loaded parallel object.
+            /// \return The parallel archive.
+            template <typename Q>
+            static inline
+            typename std::enable_if<std::is_base_of<ParallelSerializableObject, Q>::value, const ParallelInputArchive<localarchiveT>&>::type
+            wrap_load(const ParallelInputArchive<localarchiveT>& ar, const Q& t) {
+                ArchiveLoadImpl<ParallelInputArchive<localarchiveT>,T>::load(ar,const_cast<T&>(t));
+                return ar;
+            }
+
             /// Load the data from the archive.
 
             /// Serial objects are read only from process 0 and then broadcasted.
             ///
+            /// The function only appears (due to \c enable_if) if \c Q is not
+            /// a parallel serializable object.
+            /// \todo Same question about \c Q.
+            /// \tparam Q Description needed.
             /// \param[in] ar The parallel archive.
             /// \param[out] t Where to put the loaded data.
             /// \return The parallel archive.
+            template <typename Q>
             static inline
-            const ParallelInputArchive&
-            wrap_load(const ParallelInputArchive& ar, const T& t) {
+            typename std::enable_if<!std::is_base_of<ParallelSerializableObject, Q>::value, const ParallelInputArchive<localarchiveT>&>::type
+            wrap_load(const ParallelInputArchive<localarchiveT>& ar, const Q& t) {
                 if (ar.get_world()->rank()==0) {
                     ar.local_archive() & t;
                 }
@@ -409,14 +494,14 @@ namespace madness {
         /// Write the archive array only from process zero.
 
         /// \tparam T The array data type.
-        template <class T>
-        struct ArchiveImpl< ParallelOutputArchive, archive_array<T> > {
+        template <class T, class localarchiveT>
+        struct ArchiveImpl< ParallelOutputArchive<localarchiveT>, archive_array<T> > {
             /// Store the \c archive_array in the parallel archive.
 
             /// \param[in] ar The parallel archive.
             /// \param[in] t The array to store.
             /// \return The parallel archive.
-            static inline const ParallelOutputArchive& wrap_store(const ParallelOutputArchive& ar, const archive_array<T>& t) {
+            static inline const ParallelOutputArchive<localarchiveT>& wrap_store(const ParallelOutputArchive<localarchiveT>& ar, const archive_array<T>& t) {
                 if (ar.get_world()->rank() == 0) ar.local_archive() & t;
                 return ar;
             }
@@ -425,16 +510,50 @@ namespace madness {
         /// Read the archive array and broadcast.
 
         /// \tparam T The array data type.
-        template <class T>
-        struct ArchiveImpl< ParallelInputArchive, archive_array<T> > {
+        template <class T, class localarchiveT>
+        struct ArchiveImpl< ParallelInputArchive<localarchiveT>, archive_array<T> > {
             /// Load the \c archive_array from the parallel archive and broadcast it.
 
             /// \param[in] ar The parallel archive.
             /// \param[out] t Where to put the loaded array.
             /// \return The parallel archive.
-            static inline const ParallelInputArchive& wrap_load(const ParallelInputArchive& ar, const archive_array<T>& t) {
+            static inline const ParallelInputArchive<localarchiveT>& wrap_load(const ParallelInputArchive<localarchiveT>& ar, const archive_array<T>& t) {
                 if (ar.get_world()->rank() == 0) ar.local_archive() & t;
                 ar.broadcast(t, 0);
+                return ar;
+            }
+        };
+
+        /// Forward a fixed-size array to \c archive_array.
+
+        /// \tparam T The array data type.
+        /// \tparam n The number of items in the array.
+        template <class T, std::size_t n, typename localarchiveT>
+        struct ArchiveImpl<ParallelOutputArchive<localarchiveT>, T[n]> {
+            /// Store the array in the parallel archive.
+
+            /// \param[in] ar The parallel archive.
+            /// \param[in] t The array to store.
+            /// \return The parallel archive.
+            static inline const ParallelOutputArchive<localarchiveT>& wrap_store(const ParallelOutputArchive<localarchiveT>& ar, const T(&t)[n]) {
+                ar << wrap(&t[0],n);
+                return ar;
+            }
+        };
+
+        /// Forward a fixed-size array to \c archive_array.
+
+        /// \tparam T The array data type.
+        /// \tparam n The number of items in the array.
+        template <class T, std::size_t n, typename localarchiveT>
+        struct ArchiveImpl<ParallelInputArchive<localarchiveT>, T[n]> {
+            /// Load the array from the parallel archive.
+
+            /// \param[in] ar The parallel archive.
+            /// \param[out] t Where to put the loaded array.
+            /// \return The parallel archive.
+            static inline const ParallelInputArchive<localarchiveT>& wrap_load(const ParallelInputArchive<localarchiveT>& ar, const T(&t)[n]) {
+                ar >> wrap(&t[0],n);
                 return ar;
             }
         };

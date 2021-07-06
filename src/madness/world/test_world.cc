@@ -1084,13 +1084,13 @@ void test12(World& world) {
 void test13(World& world) {
     PROFILE_FUNC;
     // Basic functionality with 1 (default) writer
-    archive::ParallelOutputArchive fout(world, "fred");
+    archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> fout(world, "fred");
     fout & 1.0 & "hello";
     fout.close();
 
     double v;
     char s[6];
-    archive::ParallelInputArchive fin(world, "fred");
+    archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> fin(world, "fred");
     fin & v & s;
     fin.close();
     fin.remove();
@@ -1130,7 +1130,7 @@ void test13(World& world) {
     }
 
     fin.close();
-    archive::ParallelOutputArchive::remove(world, "fred");
+    archive::ParallelOutputArchive<>::remove(world, "fred");
 
     print("Test13 OK");
     world.gop.fence();

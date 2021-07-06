@@ -996,6 +996,16 @@ namespace madness {
 
         const std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >& get_pmap() const;
 
+        void replicate(bool fence=true) {
+        	coeffs.replicate(fence);
+        }
+
+        void distribute(std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > newmap) const {
+        	auto currentmap=coeffs.get_pmap();
+        	currentmap->redistribute(world,newmap);
+        }
+
+
         /// Copy coeffs from other into self
         template <typename Q>
         void copy_coeffs(const FunctionImpl<Q,NDIM>& other, bool fence) {
@@ -1072,7 +1082,9 @@ namespace madness {
                 return true;
             }
             template <typename Archive>
-            void serialize(Archive& ar) {}
+            void serialize(Archive& ar) {
+                ar & f & alpha & beta;
+            }
         };
 
         /// Inplace general bilinear operation
@@ -1081,13 +1093,13 @@ namespace madness {
         /// @param[in]  beta    prefactor for other
         template <typename Q, typename R>
         void gaxpy_inplace(const T& alpha,const FunctionImpl<Q,NDIM>& other, const R& beta, bool fence) {
-            MADNESS_ASSERT(get_pmap() == other.get_pmap());
+//            MADNESS_ASSERT(get_pmap() == other.get_pmap());
             if (alpha != T(1.0)) scale_inplace(alpha,false);
             typedef Range<typename FunctionImpl<Q,NDIM>::dcT::const_iterator> rangeT;
             typedef do_gaxpy_inplace<Q,R> opT;
-            world.taskq.for_each<rangeT,opT>(rangeT(other.coeffs.begin(), other.coeffs.end()), opT(this, T(1.0), beta));
+            other.world.taskq. template for_each<rangeT,opT>(rangeT(other.coeffs.begin(), other.coeffs.end()), opT(this, T(1.0), beta));
             if (fence)
-                world.gop.fence();
+                other.world.gop.fence();
         }
 
         // loads a function impl from persistence
@@ -5870,6 +5882,24 @@ namespace madness {
             }
             if (fence)
                 world.gop.fence();
+        }
+
+        /// Hash a pointer to \c FunctionImpl
+
+        /// \param[in] impl pointer to a FunctionImpl
+        /// \return The hash.
+        inline friend hashT hash_value(const FunctionImpl<T,NDIM>* pimpl) {
+            hashT seed = hash_value(pimpl->id().get_world_id());
+            detail::combine_hash(seed, hash_value(pimpl->id().get_obj_id()));
+            return seed;
+        }
+
+        /// Hash a shared_ptr to \c FunctionImpl
+
+        /// \param[in] impl pointer to a FunctionImpl
+        /// \return The hash.
+        inline friend hashT hash_value(const std::shared_ptr<FunctionImpl<T,NDIM>> impl) {
+            return hash_value(impl.get());
         }
     };
 
