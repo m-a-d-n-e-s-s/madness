@@ -202,7 +202,7 @@ void Zcis::compute_potentials(std::vector<root>& roots, const real_function_3d& 
 			truncate(world,pot);
 
 			// perturbed Fock operator acting on the reference orbitals
-			Coulomb Jp(world);
+			Coulomb<double_complex,3> Jp(world);
 			complex_function_3d Jp_pot = Jp.compute_potential(denspt);
 
 			Exchange<double_complex,3> Kp(world);

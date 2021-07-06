@@ -79,7 +79,7 @@ int test_slater_exchange(World& world) {
     // construct the XC operator
     const bool spin_polarized=false;
     const std::string xc_data="LDA_X";
-    XCOperator xc(world,xc_data,spin_polarized,copy(dens),copy(dens));
+    XCOperator<double,3> xc(world,xc_data,spin_polarized,copy(dens),copy(dens));
 
     double energy=xc.compute_xc_energy();
     print("xc energy:",energy);

@@ -42,13 +42,14 @@
 // If defined capture stats on dqueue class --- seems to have small overhead
 #define MADNESS_DQ_STATS
 
-#include <madness/config.h>
-#include <madness/world/worldmutex.h>
-#include <cstddef>
-#include <utility>
 #include <algorithm>
+#include <cstddef>
 #include <iostream>
+#include <madness/config.h>
+#include <madness/world/thread_info.h>
+#include <madness/world/worldmutex.h>
 #include <stdint.h>
+#include <utility>
 
 /// \file dqueue.h
 /// \brief Implements DQueue
@@ -341,7 +342,7 @@ namespace madness {
     template <typename T>
     void DQueue<T>::push_front(const T& value) {
 #ifdef MADNESS_DQ_USE_PREBUF
-        if (ninprebufhi < NPREBUF) {
+        if (is_madness_thread() && ninprebufhi < NPREBUF) {
              prebufhi[ninprebufhi++] = value;
              return;
         }
@@ -355,7 +356,7 @@ namespace madness {
     template <typename T>
     void DQueue<T>::push_back(const T& value, int ncopy) {
 #ifdef MADNESS_DQ_USE_PREBUF
-        if (ncopy==1 && ninprebuf < NPREBUF) {
+        if (is_madness_thread() && ncopy==1 && ninprebuf < NPREBUF) {
              prebuf[ninprebuf++] = value;
              return;
         }

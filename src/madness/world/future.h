@@ -57,131 +57,6 @@ namespace madness {
     // forward decl
     template <typename T> class Future;
 
-
-    /// Boost-type-trait-like test if a type is a future.
-
-    /// \tparam T The type to test.
-    template <typename T>
-    struct is_future : public std::false_type { };
-
-
-    /// Boost-type-trait-like test if a type is a future.
-
-    /// \tparam T The type to test.
-    template <typename T>
-    struct is_future< Future<T> > : public std::true_type { };
-
-
-    /// Boost-type-trait-like mapping of type \c T to \c Future<T>.
-
-    /// \tparam T The type to have future added.
-    template <typename T>
-    struct add_future {
-        /// Type with \c Future added.
-        typedef Future<T> type;
-    };
-
-    /// Boost-type-trait-like mapping of \c Future<T> to \c Future<T>.
-
-    /// Specialization of \c add_future<T> that properly forbids the type
-    /// \c Future< Future<T> >.
-    /// \tparam T The underlying data type.
-    template <typename T>
-    struct add_future< Future<T> > {
-        /// Type with \c Future added.
-        typedef Future<T> type;
-    };
-
-    /// Boost-type-trait-like mapping of \c Future<T> to \c T.
-
-    /// \tparam T The type to have future removed; in this case, do nothing.
-    template <typename T>
-    struct remove_future {
-        /// Type with \c Future removed.
-        typedef T type;
-    };
-
-    /// This metafunction maps \c Future<T> to \c T.
-
-    /// \internal Future is a wrapper for T (it acts like an Identity monad), so this
-    /// unwraps T. It makes sense that the result should preserve the access traits
-    /// of the Future, i.e. const Future<T> should map to const T, etc.
-
-    /// Specialization of \c remove_future for \c Future<T>
-    /// \tparam T The type to have future removed.
-    template <typename T>
-    struct remove_future< Future<T> > {
-        /// Type with \c Future removed.
-        typedef T type;
-    };
-
-    /// Specialization of \c remove_future for \c Future<T>
-    /// \tparam T The type to have future removed.
-    template <typename T>
-    struct remove_future< const Future<T> > {
-        /// Type with \c Future removed.
-        typedef const T type;
-    };
-
-    /// Specialization of \c remove_future for \c Future<T>&
-    /// \tparam T The type to have future removed.
-    template <typename T>
-    struct remove_future< Future<T>& > {
-        /// Type with \c Future removed.
-        typedef T& type;
-    };
-
-    /// Specialization of \c remove_future for \c Future<T>&&
-    /// \tparam T The type to have future removed.
-    template <typename T>
-    struct remove_future< Future<T>&& > {
-        /// Type with \c Future removed.
-        typedef T&& type;
-    };
-
-    /// Specialization of \c remove_future for \c const \c Future<T>&
-    /// \tparam T The type to have future removed.
-    template <typename T>
-    struct remove_future< const Future<T>& > {
-        /// Type with \c Future removed.
-        typedef const T& type;
-    };
-
-    /// Macro to determine type of future (by removing wrapping \c Future template).
-
-    /// \param T The type (possibly with \c Future).
-#define REMFUTURE(T) typename remove_future< T >::type
-
-    /// C++11 version of REMFUTURE
-    template <typename T>
-    using remove_future_t = typename remove_future< T >::type;
-
-    /// Similar to remove_future , but future_to_ref<Future<T>> evaluates to T& ,whereas
-    /// remove_future<Future<T>> evaluates to T .
-    /// \tparam T The type to have future removed; in this case, do nothing.
-    template <typename T>
-    struct future_to_ref {
-        typedef T type;
-    };
-    template <typename T>
-    struct future_to_ref<Future<T>> {
-      typedef T& type;
-    };
-    template <typename T>
-    struct future_to_ref<Future<T>*> {
-      typedef T& type;
-    };
-    template <typename T>
-    struct future_to_ref<Future<T>&> {
-      typedef T& type;
-    };
-    template <typename T>
-    struct future_to_ref<const Future<T>&> {
-      typedef T& type;
-    };
-    template <typename T>
-    using future_to_ref_t = typename future_to_ref< T >::type;
-
     /// Human readable printing of a \c Future to a stream.
 
     /// \tparam T The type of future.
@@ -369,7 +244,7 @@ namespace madness {
         /// \tparam U Description needed.
         /// \param[in] value Description needed.
         template <typename U>
-        void set(const U& value) {
+        void set(U&& value) {
             ScopedMutex<Spinlock> fred(this);
             if(remote_ref) {
                 // Copy world and owner from remote_ref since sending remote_ref
@@ -378,9 +253,9 @@ namespace madness {
                 const ProcessID owner = remote_ref.owner();
                 world.am.send(owner, FutureImpl<T>::set_handler,
                         new_am_arg(remote_ref, value));
-                set_assigned(value);
+                set_assigned(std::forward<U>(value));
             } else {
-                set_assigned((const_cast<T&>(t) = value));
+                set_assigned((const_cast<T&>(t) = std::forward<U>(value)));
             }
         }
 
@@ -647,6 +522,16 @@ namespace madness {
             MADNESS_CHECK(f);
             std::shared_ptr< FutureImpl<T> > ff = f; // manage life time of f
             ff->set(value);
+        }
+
+        /// Assigns the value.
+
+        /// The value can only be set \em once.
+        /// \param[in] value The value to be assigned.
+        inline void set(T&& value) {
+            MADNESS_CHECK(f);
+            std::shared_ptr< FutureImpl<T> > ff = f; // manage life time of f
+            ff->set(std::move(value));
         }
 
         /// Assigns the value.
@@ -985,13 +870,16 @@ namespace madness {
         /// \tparam Archive Archive type.
         /// \tparam T Future type.
         template <class Archive, typename T>
-        struct ArchiveStoreImpl< Archive, Future<T> > {
+        struct ArchiveStoreImpl< Archive, Future<T>, std::enable_if_t<!std::is_void_v<T>> > {
 
             /// Store the assigned future in an archive.
 
             /// \param[in,out] ar The archive.
             /// \param[in] f The future.
-            static inline void store(const Archive& ar, const Future<T>& f) {
+            template <typename U = T, typename A = Archive>
+            static inline
+                std::enable_if_t<is_serializable_v<A, U>,void>
+                store(const Archive& ar, const Future<T>& f) {
                 MAD_ARCHIVE_DEBUG(std::cout << "serializing future" << std::endl);
                 MADNESS_ASSERT(f.probe());
                 ar & f.get();
@@ -1004,13 +892,15 @@ namespace madness {
         /// \tparam Archive Archive type.
         /// \tparam T Future type.
         template <class Archive, typename T>
-        struct ArchiveLoadImpl< Archive, Future<T> > {
+        struct ArchiveLoadImpl< Archive, Future<T>, std::enable_if_t<!std::is_void_v<T>> > {
 
             /// Read into an unassigned future.
 
             /// \param[in,out] ar The archive.
             /// \param[out] f The future.
-            static inline void load(const Archive& ar, Future<T>& f) {
+            template <typename U = T, typename A = Archive>
+            static inline
+                std::enable_if_t<is_serializable_v<A, U>,void> load(const Archive& ar, Future<T>& f) {
                 MAD_ARCHIVE_DEBUG(std::cout << "deserializing future" << std::endl);
                 MADNESS_ASSERT(!f.probe());
                 T value;

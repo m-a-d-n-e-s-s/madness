@@ -352,6 +352,20 @@ public:
 //	SCF(World & world, std::shared_ptr<std::istream> input);
 	SCF(World& world, const std::string& inputfile);
 
+	void copy_data(World& world, const SCF& other) {
+	    aeps=copy(other.aeps);
+        beps=copy(other.beps);
+        aocc=copy(other.aocc);
+        bocc=copy(other.bocc);
+        amo=copy(world,other.amo);
+        bmo=copy(world,other.bmo);
+        aset=other.aset;
+        bset=other.bset;
+        ao=copy(world,other.ao);
+        at_to_bf=other.at_to_bf;
+        at_nbf=other.at_nbf;
+    }
+
 	template<std::size_t NDIM>
 	void set_protocol(World & world, double thresh)
 	{
@@ -569,7 +583,7 @@ public:
 
 
 	vecfuncT apply_potential_response(World & world, const vecfuncT & dmo,
-			const XCOperator& xc,  const functionT & vlocal, int ispin);
+			const XCOperator<double,3>& xc,  const functionT & vlocal, int ispin);
 	void this_axis(World & world, const int axis);
 	vecfuncT calc_dipole_mo(World & world,  vecfuncT & mo, const int axis);
 	void calc_freq(World & world, double & omega, tensorT & ak, tensorT & bk, int sign);
@@ -583,9 +597,9 @@ public:
 	functionT calc_exchange_function(World & world,  const int & p,
 			const vecfuncT & dmo1,  const vecfuncT & dmo2,
 			const vecfuncT & mo, int & spin);
-	vecfuncT calc_xc_function(World & world, XCOperator& xc_alda,
+	vecfuncT calc_xc_function(World & world, XCOperator<double,3>& xc_alda,
 			const vecfuncT & mo,  const functionT & drho);
-	vecfuncT calc_djkmo(World & world, XCOperator& xc_alda, const vecfuncT & dmo1,
+	vecfuncT calc_djkmo(World & world, XCOperator<double,3>& xc_alda, const vecfuncT & dmo1,
 			const vecfuncT & dmo2,  const functionT & drho, const vecfuncT & mo,
 			const functionT & drhos,
 			int  spin);

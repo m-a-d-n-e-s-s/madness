@@ -75,7 +75,9 @@ namespace madness {
             inline
             typename std::enable_if< is_trivially_serializable<T>::value, void >::type
             store(const T* t, long n) const {
-                world->mpi.Send(t, n, dest, tag);
+                if (n > 0) {
+                    world->mpi.Send(t, n, dest, tag);
+                }
             }
         };
 
@@ -106,7 +108,9 @@ namespace madness {
             inline
             typename std::enable_if< is_trivially_serializable<T>::value, void >::type
             load(T* t, long n) const {
-                world->mpi.Recv(t, n, src, tag);
+                if (n > 0) {
+                    world->mpi.Recv(t, n, src, tag);
+                }
             }
         };
 
@@ -142,8 +146,10 @@ namespace madness {
             typename std::enable_if< is_trivially_serializable<T>::value, void >::type
             store(const T* t, long n) const {
                 if (v.size() > bufsize) flush();
-                var.store(t,n);
-                if (v.size() > bufsize) flush();
+                if (n > 0) {
+                    var.store(t, n);
+                    if (v.size() > bufsize) flush();
+                }
             }
 
             /// Send all data in the buffer to the destination process.
@@ -198,14 +204,16 @@ namespace madness {
             inline
             typename std::enable_if< is_trivially_serializable<T>::value, void >::type
             load(T* t, long n) const {
-                if (!var.nbyte_avail()) {
-                    var.rewind();
-                    std::size_t m;
-                    world->mpi.Recv(m, src, tag);
-                    v.resize(m);
-                    world->mpi.Recv(v.data(), m, src, tag);
+                if (n > 0) {
+                    if (!var.nbyte_avail()) {
+                        var.rewind();
+                        std::size_t m;
+                        world->mpi.Recv(m, src, tag);
+                        v.resize(m);
+                        world->mpi.Recv(v.data(), m, src, tag);
+                    }
+                    var.load(t, n);
                 }
-                var.load(t,n);
             }
         };
 

@@ -95,59 +95,25 @@ int main(int argc, char** argv) {
 
     if (world.rank()==0) print(info::print_revision_information());
 
-    // to allow to test the program
-    bool test = false;
+    commandlineparser parser(argc,argv);
 
-    // parse command line arguments
-    std::vector<std::string> allArgs(argv, argv + argc);
-    for (auto& a : allArgs) {
-        std::replace_copy(a.begin(), a.end(), a.begin(), '=', ' ');
-        std::replace_copy(a.begin(), a.end(), a.begin(), '-', ' ');
-        std::string key;
-        std::stringstream sa(a);
-        sa >> key;
-        if (key == "test") test = true;
-    }
+    // to allow to test the program
+    bool test = parser.key_exists("test");
+    bool analyze = parser.key_exists("analyze");
 
     // create test input file if program is tested
-    std::string input = "input";
     if (test) {
     	write_test_input();
-    	input = "test_input";
+    	parser.set_keyval("input","test_input");
     }
-
-    std::shared_ptr<SCF> calc(new SCF(world, input.c_str())); /// see constructor in SCF.h
-
-    if (world.rank() == 0) calc->molecule.print();
-
-	// add tight convergence criteria
-	std::vector<std::string> convergence_crit=calc->param.get<std::vector<std::string> >("convergence_criteria");
-	if (std::find(convergence_crit.begin(),convergence_crit.end(),"each_energy")==convergence_crit.end()) {
-		convergence_crit.push_back("each_energy");
-	}
-	calc->param.set_derived_value("convergence_criteria",convergence_crit);
-
-
-	// compute the reference HF orbitals and orbittal energies
-	std::shared_ptr<Nemo> nemo(new Nemo(world, calc, input));
-    const double energy = nemo->value();
-    // save converged HF MOs and orbital energies
-    vecfuncT HF_nemos = copy(world, nemo->get_calc()->amo);
-    tensorT HF_orbens = copy(nemo->get_calc()->aeps);
-
-    if (world.rank() == 0) {
-        printf("final energy   %12.8f\n", energy);
-        printf("finished at time %.1f\n", wall_time());
-    }
-
-    if (test) printf("\n   +++ starting test of the OEP program +++\n\n");
-    else printf("\n   +++ starting approximate OEP iterative calculation +++\n\n");
 
     // do approximate OEP calculation or test the program
-    std::shared_ptr<OEP> oep(new OEP(world, calc, input));
+    std::shared_ptr<OEP> oep(new OEP(world, parser));
+    oep->print_parameters({"reference","oep","oep_calc"});
     int ierr=0;
-    if (test) ierr=oep->test_oep(HF_nemos);
-    else oep->value(HF_nemos);
+    if (test) ierr=oep->test_oep();
+    else if (analyze)  oep->analyze();
+    else oep->value();
 
     finalize();
     return ierr;

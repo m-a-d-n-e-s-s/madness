@@ -47,11 +47,12 @@ namespace madness {
         std::cout << "xterm_debug_breakpoint" << std::endl;
     }
 
-#if defined(HAVE_XTERM) && defined(HAVE_FORK) && defined(HAVE_GDB) && defined(HAVE_SLEEP)
+#if defined(HAVE_XTERM) && defined(HAVE_FORK) && (defined(HAVE_GDB) || defined(HAVE_LLDB)) && defined(HAVE_SLEEP)
     void xterm_debug(const char* path, const char* display) {
         int rank = SafeMPI::COMM_WORLD.Get_rank();
         pid_t child;
-        const char *argv[20], *xterm = "/usr/bin/xterm";
+        const char *argv[20];
+        const char xterm[] = XTERM_EXECUTABLE;
         char title[256], pid[256], geometry[256];
         int ix=(rank/3)%3;
         int iy=rank%3;
@@ -63,6 +64,7 @@ namespace madness {
         if (display == 0) display = getenv("DISPLAY");
         if (display == 0) return ;
 
+        int nargs = 0;
         argv[0] = xterm;
         argv[1] = "-T";
         argv[2] = title;
@@ -73,11 +75,19 @@ namespace madness {
         argv[7] = "-geometry";
         argv[8] = geometry;
         argv[9] = "-e";
-        argv[10] = "gdb";
+#if defined(HAVE_GDB)
+        argv[10] = GDB_EXECUTABLE;
         argv[11] = "-q";
         argv[12] = path;
         argv[13] = pid;
-        argv[14] = 0;
+        nargs = 14;
+#elif defined(HAVE_LLDB)
+        argv[10] = LLDB_EXECUTABLE;
+        argv[11] = "-p";
+        argv[12] = pid;
+        nargs = 13;
+#endif
+        argv[nargs] = 0;
         if (rank == 0) {
             int i;
             printf("\n Starting xterms with debugger using command\n\n    ");

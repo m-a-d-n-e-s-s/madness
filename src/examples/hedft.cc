@@ -199,7 +199,7 @@ int main(int argc, char** argv) {
 //	                vxc = vxc - vxc2;
 //	            }
 //	        }
-            XCOperator xc(world,xc_data,false,rho,rho);
+            XCOperator<double,3> xc(world,xc_data,false,rho,rho);
             real_function_3d vxc=xc.make_xc_potential();
 
 	        real_function_3d potential = Vnuc + 2* op(rho).truncate() +vxc.truncate();
@@ -295,7 +295,7 @@ int main(int argc, char** argv) {
 //    vf[XCfunctional::enum_rhoa]=rho;
 
 //	vecfuncT delrho;
-    XCOperator xc(world,xc_data,false,rho,rho);
+    XCOperator<double,3> xc(world,xc_data,false,rho,rho);
     real_function_3d vxc=xc.make_xc_potential();
 
 //	if (xc.is_gga()) {

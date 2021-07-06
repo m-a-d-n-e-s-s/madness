@@ -139,7 +139,7 @@ int main(int argc, char** argv) {
     //xc_data="GGA_C_PBE 1.";
     //xc_data="GGA_X_B88 1.";
     //	xc.initialize(xc_data, false, world);
-    XCOperator xc(world,xc_data,false,psi,psi);
+    XCOperator<double,3> xc(world,xc_data,false,psi,psi);
 
     gradop = gradient_operator<double,3>(world);
 

@@ -146,12 +146,30 @@ Nemo::Nemo(World& world, std::shared_ptr<SCF> calc, const std::string inputfile)
 
     symmetry_projector=projector_irrep(calc->param.pointgroup())
     		.set_ordering("keep").set_verbosity(0).set_orthonormalize_irreps(true);;
-    if (world.rank()==0) print("constructed symmetry operator for point group",
-    		symmetry_projector.get_pointgroup());
 	if (symmetry_projector.get_verbosity()>1) symmetry_projector.print_character_table();
 
-	param.print("dft","end");
+//	param.print("dft","end");
 }
+
+Nemo::Nemo(World& world, const commandlineparser &parser) :
+        NemoBase(world),
+        calc(std::make_shared<SCF>(world, parser.value("input"))),
+        param(calc->param),
+        ttt(0.0),
+        sss(0.0),
+        coords_sum(-1.0),
+        ac(world,calc) {
+    if (do_pcm()) pcm=PCM(world,this->molecule(),calc->param.pcm_data(),true);
+
+    // reading will not overwrite the derived and defined values
+    if (world.rank()==0) param.read(world,parser.value("input"),"dft");
+    world.gop.broadcast_serializable(param, 0);
+
+
+    symmetry_projector=projector_irrep(calc->param.pointgroup())
+            .set_ordering("keep").set_verbosity(0).set_orthonormalize_irreps(true);;
+    if (symmetry_projector.get_verbosity()>1) symmetry_projector.print_character_table();
+};
 
 
 double Nemo::value(const Tensor<double>& x) {
@@ -249,6 +267,49 @@ vecfuncT Nemo::localize(const vecfuncT& nemo, const double dconv, const bool ran
         truncate(world, localnemo);
         normalize(localnemo,R);
         return localnemo;
+}
+
+std::shared_ptr<Fock<double,3>> Nemo::make_fock_operator() const {
+    MADNESS_CHECK(param.spin_restricted());
+    const int ispin=0;
+
+    std::shared_ptr<Fock<double,3> > fock(new Fock<double,3>(world));
+    Coulomb<double,3> J(world,this);
+    fock->add_operator("J",std::make_shared<Coulomb<double,3> >(J));
+    fock->add_operator("V",std::make_shared<Nuclear<double,3> >(world,this));
+    fock->add_operator("T",std::make_shared<Kinetic<double,3> >(world));
+    if (calc->xc.hf_exchange_coefficient()>0.0) {
+        Exchange<double,3> K=Exchange<double,3>(world,this,ispin).same(false).small_memory(false);
+        fock->add_operator("K",{-1.0,std::make_shared<Exchange<double,3>>(K)});
+    }
+    if (calc->xc.is_dft()) {
+        XCOperator<double,3> xcoperator(world,this,ispin);
+        real_function_3d xc_pot = xcoperator.make_xc_potential();
+
+        // compute the asymptotic correction of exchange-correlation potential
+        if(do_ac()) {
+            std::cout << "Computing asymtotic correction!\n";
+            double charge = double(molecule().total_nuclear_charge())-calc->param.charge();
+            real_function_3d scaledJ = -1.0/charge*J.potential()*(1.0-calc->xc.hf_exchange_coefficient());
+            xc_pot = ac.apply(xc_pot, scaledJ);
+        }
+        LocalPotentialOperator<double,3> xcpot(world);
+        xcpot.set_potential(xc_pot);
+        xcpot.set_info("xc potential");
+        if (do_ac()) xcpot.set_info("xc potential with ac");
+        fock->add_operator("Vxc",std::make_shared<LocalPotentialOperator<double,3>>(xcpot));
+    }
+
+
+    // compute the solvent (PCM) contribution to the potential
+    if (do_pcm()) {
+        const real_function_3d vpcm = pcm.compute_pcm_potential(J.potential());
+        LocalPotentialOperator<double,3> pcmpot(world);
+        pcmpot.set_potential(vpcm);
+        pcmpot.set_info("pcm potential");
+        fock->add_operator("Vpcm",std::make_shared<LocalPotentialOperator<double,3>>(pcmpot));
+    }
+    return fock;
 }
 
 /// compute the Fock matrix from scratch
@@ -417,7 +478,7 @@ double Nemo::compute_energy(const vecfuncT& psi, const vecfuncT& Jpsi,
 	int ispin=0;
 	double exc=0.0;
 	if (calc->xc.is_dft()) {
-	    XCOperator xcoperator(world,this,ispin);
+	    XCOperator<double,3> xcoperator(world,this,ispin);
 	    exc=xcoperator.compute_xc_energy();
 	}
 
@@ -477,7 +538,7 @@ std::vector<double> Nemo::compute_energy_regularized(const vecfuncT& nemo, const
     int ispin=0;
     double exc=0.0;
     if (calc->xc.is_dft()) {
-        XCOperator xcoperator(world,this,ispin);
+        XCOperator<double,3> xcoperator(world,this,ispin);
         exc=xcoperator.compute_xc_energy();
     }
 
@@ -537,7 +598,7 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo, vecfuncT& psi,
 
 	// compute the density and the coulomb potential
 	START_TIMER(world);
-	Coulomb J=Coulomb(world,this);
+	Coulomb<double,3> J=Coulomb<double,3>(world,this);
 	Jnemo = J(nemo);
 	truncate(world, Jnemo);
 	END_TIMER(world, "compute Jnemo");
@@ -557,7 +618,7 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo, vecfuncT& psi,
 	// compute the exchange-correlation potential
     if (calc->xc.is_dft()) {
         START_TIMER(world);
-        XCOperator xcoperator(world,this,ispin);
+        XCOperator<double,3> xcoperator(world,this,ispin);
         double exc=0.0;
         if (ispin==0) exc=xcoperator.compute_xc_energy();
         print("exc",exc);
@@ -589,7 +650,7 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo, vecfuncT& psi,
     }
 
 	START_TIMER(world);
-	Nuclear Unuc(world,this->ncf);
+	Nuclear<double,3> Unuc(world,this->ncf);
 	Unemo=Unuc(nemo);
     double size1=get_size(world,Unemo);
 	END_TIMER(world, "compute Unemo "+stringify(size1));
@@ -656,8 +717,8 @@ real_function_3d Nemo::make_laplacian_density(const real_function_3d& rhonemo) c
     real_function_3d result=(2.0*U1dot*rhonemo).truncate();
 
     // U2 operator
-    const Nuclear U_op(world,this->ncf);
-    const Nuclear V_op(world,this->get_calc().get());
+    const Nuclear<double,3> U_op(world,this->ncf);
+    const Nuclear<double,3> V_op(world,this->get_calc().get());
 
     const real_function_3d Vrho=V_op(rhonemo);  // eprec is important here!
     const real_function_3d Urho=U_op(rhonemo);
@@ -692,8 +753,8 @@ real_function_3d Nemo::make_laplacian_density(const real_function_3d& rhonemo) c
 
 real_function_3d Nemo::kinetic_energy_potential(const vecfuncT& nemo) const {
 
-    const Nuclear U_op(world,this->ncf);
-    const Nuclear V_op(world,this->get_calc().get());
+    const Nuclear<double,3> U_op(world,this->ncf);
+    const Nuclear<double,3> V_op(world,this->get_calc().get());
 
     const vecfuncT Vnemo=V_op(nemo);  // eprec is important here!
     const vecfuncT Unemo=U_op(nemo);
@@ -1169,7 +1230,7 @@ vecfuncT Nemo::make_cphf_constant_term(const size_t iatom, const int iaxis,
     const Tensor<double> occ=get_calc()->get_aocc();
     QProjector<double,3> Q(world,R2nemo,nemo);
 
-    DNuclear Dunuc(world,this,iatom,iaxis);
+    DNuclear<double,3> Dunuc(world,this,iatom,iaxis);
     vecfuncT Vpsi2b=Dunuc(nemo);
     truncate(world,Vpsi2b);
 
@@ -1179,7 +1240,7 @@ vecfuncT Nemo::make_cphf_constant_term(const size_t iatom, const int iaxis,
 
     // part of the Coulomb operator with the derivative of the NCF
     // J <- \int dr' 1/|r-r'| \sum_i R^XR F_iF_i
-    Coulomb Jconst(world);
+    Coulomb<double,3> Jconst(world);
     Jconst.potential()=Jconst.compute_potential(2.0*RXR*rhonemo);        // factor 2 for cphf
     vecfuncT Jconstnemo=Jconst(nemo);
     truncate(world,Jconstnemo);
@@ -1255,10 +1316,10 @@ vecfuncT Nemo::solve_cphf(const size_t iatom, const int iaxis, const Tensor<doub
     solver.set_maxsub(5);
 
     // construct unperturbed operators
-    const Coulomb J(world,this);
+    const Coulomb<double,3> J(world,this);
     const Exchange<double,3> K=Exchange<double,3>(world,this,0).small_memory(false);
-    const XCOperator xc(world, xc_data, not calc->param.spin_restricted(), arho, arho);
-    const Nuclear V(world,this);
+    const XCOperator<double,3> xc(world, xc_data, not calc->param.spin_restricted(), arho, arho);
+    const Nuclear<double,3> V(world,this);
 
     Tensor<double> h_diff(3l);
     for (int iter=0; iter<10; ++iter) {
@@ -1279,7 +1340,7 @@ vecfuncT Nemo::solve_cphf(const size_t iatom, const int iaxis, const Tensor<doub
         START_TIMER(world);
 
         // construct perturbed operators
-        Coulomb Jp(world);
+        Coulomb<double,3> Jp(world);
         const vecfuncT xi_complete=xi-parallel;
 
         // factor 4 from: closed shell (2) and cphf (2)

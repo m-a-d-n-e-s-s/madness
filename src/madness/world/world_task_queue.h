@@ -601,7 +601,7 @@ namespace madness {
         add(fnT&& fn, argsT&&... args) {
           using taskT = typename meta::drop_last_arg_and_apply<TaskFn,
                                                                std::decay_t<fnT>,
-                                                               std::remove_const_t<std::remove_reference_t<argsT>>...>::type;
+                                                               std::remove_cv_t<std::remove_reference_t<argsT>>...>::type;
           return add(new taskT(typename taskT::futureT(), std::forward<fnT>(fn),
                                std::forward<argsT>(args)...));
         }
@@ -611,7 +611,7 @@ namespace madness {
                       !meta::taskattr_is_last_arg<argsT...>::value>>
         typename detail::function_enabler<fnT(future_to_ref_t<argsT>...)>::type add(
             fnT&& fn, argsT&&... args) {
-          using taskT = TaskFn<std::decay_t<fnT>, std::remove_const_t<std::remove_reference_t<argsT>>...>;
+          using taskT = TaskFn<std::decay_t<fnT>, std::remove_cv_t<std::remove_reference_t<argsT>>...>;
           return add(new taskT(typename taskT::futureT(), std::forward<fnT>(fn),
                                std::forward<argsT>(args)..., TaskAttributes()));
         }

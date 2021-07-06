@@ -351,9 +351,9 @@ bool Diamagnetic_potential_factor::test_lz_commutator() const {
 	test_output t("entering Znemo::test_lz_commutator .. ");
 	double thresh=FunctionDefaults<3>::get_thresh();
 
-	Lz lz(world);
+	Lz<double_complex,3> lz(world);
 
-	complex_function_3d lzR=0.5*explicit_B[2]*lz(factor());
+	complex_function_3d lzR=0.5*explicit_B[2]*lz(convert<double,double_complex,3>(factor()));
 	complex_function_3d lz_commR=compute_lz_commutator()*factor();
 	double norm1=lzR.norm2();
 	double norm2=lz_commR.norm2();

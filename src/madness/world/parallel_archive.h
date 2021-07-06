@@ -363,41 +363,17 @@ namespace madness {
         /// \attention No type-checking is performed.
         /// \tparam T The data type.
         template <class T>
-        struct ArchiveImpl<ParallelOutputArchive, T> {
-            /// Store the data in the archive.
-
-            /// Parallel objects are forwarded to their implementation of parallel store.
-            ///
-            /// The function only appears (due to \c enable_if) if \c Q is a parallel
-            /// serializable object.
-            /// \todo Is \c Q necessary? I'm sure it is, but can't figure out why at a first glance.
-            /// \tparam Q Description needed.
-            /// \param[in] ar The parallel archive.
-            /// \param[in] t The parallel object to store.
-            /// \return The parallel archive.
-            template <typename Q>
-            static inline
-            typename std::enable_if<std::is_base_of<ParallelSerializableObject, Q>::value, const ParallelOutputArchive&>::type
-            wrap_store(const ParallelOutputArchive& ar, const Q& t) {
-                ArchiveStoreImpl<ParallelOutputArchive,T>::store(ar,t);
-                return ar;
-            }
-
+        struct ArchiveImpl<ParallelOutputArchive, T, std::enable_if_t<!std::is_base_of_v<ParallelSerializableObject, T>>> {
             /// Store the data in the archive.
 
             /// Serial objects write only from process 0.
             ///
-            /// The function only appears (due to \c enable_if) if \c Q is not
-            /// a parallel serializable object.
-            /// \todo Same question about \c Q.
-            /// \tparam Q Description needed.
             /// \param[in] ar The parallel archive.
             /// \param[in] t The serial data.
             /// \return The parallel archive.
-            template <typename Q>
             static inline
-            typename std::enable_if<!std::is_base_of<ParallelSerializableObject, Q>::value, const ParallelOutputArchive&>::type
-            wrap_store(const ParallelOutputArchive& ar, const Q& t) {
+            const ParallelOutputArchive&
+            wrap_store(const ParallelOutputArchive& ar, const T& t) {
                 if (ar.get_world()->rank()==0) {
                     ar.local_archive() & t;
                 }
@@ -410,41 +386,17 @@ namespace madness {
         /// \attention No type-checking is performed.
         /// \tparam T The data type.
         template <class T>
-        struct ArchiveImpl<ParallelInputArchive, T> {
-            /// Load the data from the archive.
-
-            /// Parallel objects are forwarded to their implementation of parallel load.
-            ///
-            /// The function only appears (due to \c enable_if) if \c Q is a parallel
-            /// serializable object.
-            /// \todo Is \c Q necessary? I'm sure it is, but can't figure out why at a first glance.
-            /// \tparam Q Description needed.
-            /// \param[in] ar The parallel archive.
-            /// \param[out] t Where to put the loaded parallel object.
-            /// \return The parallel archive.
-            template <typename Q>
-            static inline
-            typename std::enable_if<std::is_base_of<ParallelSerializableObject, Q>::value, const ParallelInputArchive&>::type
-            wrap_load(const ParallelInputArchive& ar, const Q& t) {
-                ArchiveLoadImpl<ParallelInputArchive,T>::load(ar,const_cast<T&>(t));
-                return ar;
-            }
-
+        struct ArchiveImpl<ParallelInputArchive, T, std::enable_if_t<!std::is_base_of_v<ParallelSerializableObject, T>>> {
             /// Load the data from the archive.
 
             /// Serial objects are read only from process 0 and then broadcasted.
             ///
-            /// The function only appears (due to \c enable_if) if \c Q is not
-            /// a parallel serializable object.
-            /// \todo Same question about \c Q.
-            /// \tparam Q Description needed.
             /// \param[in] ar The parallel archive.
             /// \param[out] t Where to put the loaded data.
             /// \return The parallel archive.
-            template <typename Q>
             static inline
-            typename std::enable_if<!std::is_base_of<ParallelSerializableObject, Q>::value, const ParallelInputArchive&>::type
-            wrap_load(const ParallelInputArchive& ar, const Q& t) {
+            const ParallelInputArchive&
+            wrap_load(const ParallelInputArchive& ar, const T& t) {
                 if (ar.get_world()->rank()==0) {
                     ar.local_archive() & t;
                 }
@@ -483,40 +435,6 @@ namespace madness {
             static inline const ParallelInputArchive& wrap_load(const ParallelInputArchive& ar, const archive_array<T>& t) {
                 if (ar.get_world()->rank() == 0) ar.local_archive() & t;
                 ar.broadcast(t, 0);
-                return ar;
-            }
-        };
-
-        /// Forward a fixed-size array to \c archive_array.
-
-        /// \tparam T The array data type.
-        /// \tparam n The number of items in the array.
-        template <class T, std::size_t n>
-        struct ArchiveImpl<ParallelOutputArchive, T[n]> {
-            /// Store the array in the parallel archive.
-
-            /// \param[in] ar The parallel archive.
-            /// \param[in] t The array to store.
-            /// \return The parallel archive.
-            static inline const ParallelOutputArchive& wrap_store(const ParallelOutputArchive& ar, const T(&t)[n]) {
-                ar << wrap(&t[0],n);
-                return ar;
-            }
-        };
-
-        /// Forward a fixed-size array to \c archive_array.
-
-        /// \tparam T The array data type.
-        /// \tparam n The number of items in the array.
-        template <class T, std::size_t n>
-        struct ArchiveImpl<ParallelInputArchive, T[n]> {
-            /// Load the array from the parallel archive.
-
-            /// \param[in] ar The parallel archive.
-            /// \param[out] t Where to put the loaded array.
-            /// \return The parallel archive.
-            static inline const ParallelInputArchive& wrap_load(const ParallelInputArchive& ar, const T(&t)[n]) {
-                ar >> wrap(&t[0],n);
                 return ar;
             }
         };

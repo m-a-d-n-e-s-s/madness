@@ -376,7 +376,7 @@ int test_coulomb(World& world) {
     print("refpotnorm",refpotnorm);
 
     // compute the potential from the trial density
-    Coulomb J(world);
+    Coulomb<double,3> J(world);
     J.reset_poisson_operator_ptr(1.e-5,FunctionDefaults<3>::get_thresh());
     J.potential()=J.compute_potential(density);
     double Jpotnorm=J.potential().norm2();
@@ -400,10 +400,10 @@ int test_coulomb(World& world) {
 
 
     // test hermiticity of the T operator
-    int success=test_hermiticity<T,Coulomb,3>(world, J, thresh);
+    int success=test_hermiticity<T,Coulomb<double,3>,3>(world, J, thresh);
     if (success>0) return 1;
 
-    success=test_asymmetric<T,Coulomb,3>(world, J, thresh);
+    success=test_asymmetric<T,Coulomb<double,3>,3>(world, J, thresh);
     if (err>thresh) return 1;
 
     return 0;
@@ -562,7 +562,7 @@ int test_XCOperator(World& world) {
         if (smalltest && xcfunc=="bp") break;
         
         /// custom ctor with information about the XC functional
-        XCOperator xc(world,xcfunc,false,arho,arho);
+        XCOperator<double,3> xc(world,xcfunc,false,arho,arho);
         double tol = 1e-6;
         if (xcfunc=="bp") tol = 2e-6;
         print("xc functional ",xcfunc,tol);
@@ -590,7 +590,7 @@ int test_XCOperator(World& world) {
 
         // do spin-polarized
         for (int ispin=0; ispin<2   ; ++ispin) {
-            XCOperator xc1(world,xcfunc,true,arho,arho);
+            XCOperator<double,3> xc1(world,xcfunc,true,arho,arho);
             xc1.set_ispin(ispin);
 
             double a0a=xc1.compute_xc_energy();
@@ -627,7 +627,7 @@ int nuclear_anchor_test(World& world) {
                 calc.molecule,calc.potentialmanager,1.0));
     ncf_none->initialize(FunctionDefaults<3>::get_thresh());
 
-    Nuclear Vnuc(world,ncf_none);
+    Nuclear<double,3> Vnuc(world,ncf_none);
 
     std::vector<int> ijk(3);
     Vector<double,3> origin{0,0.1,1.0};
@@ -649,7 +649,7 @@ int nuclear_anchor_test(World& world) {
     create_nuclear_correlation_factor(world, calc.molecule, calc.potentialmanager, nemo_param.ncf());
     ncf->initialize(FunctionDefaults<3>::get_thresh());
 
-    Nuclear Vnuc1(world,ncf);
+    Nuclear<double,3> Vnuc1(world,ncf);
     Kinetic<double,3> T(world);
     real_function_3d R2gaussian=(gaussian*ncf->square());
     real_function_3d Rgaussian=(gaussian*ncf->function());
@@ -706,7 +706,7 @@ int dnuclear_anchor_test(World& world) {
 
     for (int iaxis=0; iaxis<3; ++iaxis) {
         // compute matrix element and reference matrix element
-        DNuclear DVnuc(world,ncf_none,iatom,iaxis);
+        DNuclear<double,3> DVnuc(world,ncf_none,iatom,iaxis);
         double V=DVnuc(gaussian,gaussian);
         MolecularDerivativeFunctor mdf(calc.molecule, iatom, iaxis);
         double Vref=inner(gaussian2,mdf);
@@ -841,6 +841,69 @@ int test_nemo(World& world) {
     print("energy(LiH)",energy);
     // hard-wire test
     if (check_err(energy+7.703832e+00,thresh,"nemo error")) return 1;
+
+
+    // test other functionality
+    auto fock = nemo.make_fock_operator();
+    Tensor<double> fmat=(*fock)(nemo.R_square*nemo.get_calc()->get_amo(),nemo.get_calc()->get_amo());
+    print("Fock matrix new");
+    print(fmat);
+    Tensor<double> fmat2=nemo.compute_fock_matrix(nemo.get_calc()->get_amo(),nemo.get_calc()->get_aocc());
+    print("Fock matrix old");
+    print(fmat2);
+    if (check_err((fmat-fmat2).normf(),thresh,"fock matrix error")) return 1;
+
+    return 0;
+}
+
+int test_fock(World& world) {
+    FunctionDefaults<3>::set_thresh(1.e-5);
+    double thresh=FunctionDefaults<3>::get_thresh();
+    if (world.rank()==0) print("\nentering test_nemo",thresh);
+
+    write_test_input test_input;
+    std::shared_ptr<SCF> calc_ptr(new SCF(world,test_input.filename().c_str()));
+    calc_ptr->param.set_user_defined_value("maxiter",0);
+    Nemo nemo(world,calc_ptr,test_input.filename().c_str());
+    nemo.value();
+
+    Fock<double,3> f(world,&nemo);
+    print("computing Fock operator:",f.info());
+
+    coord_3d origin({0.3,0,-1.0});
+    std::vector<int> ijk={0,1,1};
+    std::vector<Function<double,3> > amo(2);
+    amo[0]=FunctionFactory<double,3>(world).functor(GaussianGuess<double,3>(origin,1.0,ijk)).truncate_on_project();
+    amo[1]=FunctionFactory<double,3>(world).functor(GaussianGuess<double,3>(origin,2.0,ijk)).truncate_on_project();
+
+    Tensor<double> fmat=f(amo,amo);
+
+    // reference
+    Coulomb<double,3> J(world,&nemo);
+    Exchange<double,3> K(world,&nemo,0);
+    Nuclear<double,3> V(world,&nemo);
+    Kinetic<double,3> T(world);
+    Tensor<double> ref=T(amo,amo) + J(amo,amo) - K(amo,amo) + V(amo,amo);
+    print("T");
+    print(T(amo,amo));
+    print("J");
+    print(J(amo,amo));
+    print("K");
+    print(K(amo,amo));
+    print("V");
+    print(V(amo,amo));
+    print(fmat);
+    print(ref);
+    if (check_err((fmat-ref).normf(),thresh,"fock error")) return 1;
+
+
+    Fock<double,3> f1(world);
+    f1.add_operator("J",std::make_shared<Coulomb<double,3> >(world,&nemo));
+    Tensor<double> f1mat=f1(amo,amo);
+    Tensor<double> ref1=J(amo,amo);
+    print(f1mat);
+    print(ref1);
+    if (check_err((f1mat-ref1).normf(),thresh,"custom fock error")) return 1;
     return 0;
 }
 
@@ -860,6 +923,7 @@ int main(int argc, char** argv) {
     FunctionDefaults<3>::set_k(8); // needed for XC test to work
 
     int result=0;
+    result+=test_fock(world);
     result+=test_kinetic<double,1>(world);
     result+=test_kinetic<double,2>(world);
     result+=test_kinetic<double,3>(world);

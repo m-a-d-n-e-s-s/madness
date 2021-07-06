@@ -127,7 +127,10 @@ vecfuncT ParametrizedExchange::operator ()(const vecfuncT& vket,
 	if (type == "neglect") {
 		return zero_functions<double, 3>(world, vket.size());
 	} else if (type == "full") {
-		return K(vket, mul_tol);
+//		return K(vket, mul_tol);
+        print("set mul_tol =0");
+		return K(vket);
+
 	} else {
 		// Occupation numbers
 		const Tensor<double> occ = nemo.get_calc()->get_aocc();
@@ -140,7 +143,7 @@ vecfuncT ParametrizedExchange::operator ()(const vecfuncT& vket,
 		std::string xc_data = type;
 		xc_data = xc_data.erase(0, xc_data.find_first_not_of(" "));
 		xc_data = xc_data.erase(xc_data.find_last_not_of(" ") + 1);
-		const XCOperator xc(world, xc_data,
+		const XCOperator<double,3> xc(world, xc_data,
 				!nemo.get_calc()->param.spin_restricted(), alpha_density,
 				alpha_density);
 		real_function_3d xc_pot = xc.make_xc_potential();

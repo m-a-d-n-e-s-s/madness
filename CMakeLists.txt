@@ -66,6 +66,7 @@ set(MADNESS_INSTALL_CMAKEDIR "lib/cmake/madness"
 # Build options  ==============================================================
 
 redefaultable_option(MADNESS_BUILD_MADWORLD_ONLY "Build only MADWorld runtime (excluding BLAS/LAPACK interfaces)" OFF)
+redefaultable_option(MADNESS_ENABLE_CEREAL "Support use of Cereal archives as backends for MADNESS serialization" OFF)
 
 # Enable optional libraries ====================================================
 
@@ -165,7 +166,7 @@ option(ENABLE_SPINLOCKS
 add_feature_info(SPINLOCKS ENABLE_SPINLOCKS
     "Enables use of spinlocks instead of mutexes (faster unless over subscribing processors)")
 set(USE_SPINLOCKS ${ENABLE_SPINLOCKS} CACHE BOOL
-    "Enables use of spinlocks instead of mutexs (faster unless over subscribing processors)")
+    "Enables use of spinlocks instead of mutexes (faster unless over subscribing processors)")
 
 option(ENABLE_NEVER_SPIN
     "Disables use of spinlocks (notably for use inside virtual machines)" OFF)
@@ -430,6 +431,7 @@ check_cxx_source_compiles(
     " SYS_TYPES_H_HAS_PID_T)
 
 # Check function support
+check_function_exists(fork HAVE_FORK)
 check_function_exists(memset HAVE_MEMSET)
 check_function_exists(posix_memalign HAVE_POSIX_MEMALIGN)
 if(HAVE_POSIX_MEMALIGN)
@@ -574,6 +576,11 @@ if(GDB_EXECUTABLE)
   set(HAVE_GDB 1)
   message(STATUS "Found gdb: ${GDB_EXECUTABLE}")
 endif()
+find_program(LLDB_EXECUTABLE lldb)
+if(LLDB_EXECUTABLE)
+  set(HAVE_LLDB 1)
+  message(STATUS "Found lldb: ${LLDB_EXECUTABLE}")
+endif()
 find_package(PythonInterp)
 
 # ccache for caching builds
@@ -716,4 +723,4 @@ add_custom_target(install-madness-config
 
 feature_summary(WHAT ALL
                 DESCRIPTION "=== MADNESS Package/Feature Info ===")
-    
+

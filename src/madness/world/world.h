@@ -541,11 +541,6 @@ namespace madness {
 
     namespace archive {
 
-        template <typename, typename>
-        struct ArchiveLoadImpl;
-        template <typename, typename>
-        struct ArchiveStoreImpl;
-
         /// Specialization of \c ArchiveLoadImpl for \c World pointers.
 
         /// Helps in archiving (reading) \c World objects.

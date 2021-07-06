@@ -609,7 +609,7 @@ namespace madness {
 
         try {
             std::ifstream f("input");
-            position_stream(f, "plot");
+            position_stream_to_word(f, "plot",'#',true,true);
             std::string s;
             while (f >> s) {
                 if (s == "end") {

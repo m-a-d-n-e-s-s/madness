@@ -210,7 +210,7 @@ public:
 	std::vector<Function<T,NDIM> > operator()(
 			const std::vector<Function<T,NDIM> >& vrhs) const {
 
-		Function<T,NDIM> metric;
+        Function<typename Tensor<T>::scalar_type,NDIM> metric;
 		std::vector<std::string> sirrep;
 		return apply_symmetry_operators(vrhs,metric,sirrep);
 	}
@@ -221,7 +221,7 @@ public:
 	template<typename T, std::size_t NDIM>
 	std::vector<Function<T,NDIM> > operator()(
 			const std::vector<Function<T,NDIM> >& vrhs,
-			const Function<T,NDIM>& metric) const {
+			const Function<typename Tensor<T>::scalar_type,NDIM>& metric) const {
 
 		std::vector<std::string> sirrep;
 		return apply_symmetry_operators(vrhs,metric,sirrep);
@@ -233,7 +233,7 @@ public:
 	template<typename T, std::size_t NDIM>
 	std::vector<Function<T,NDIM> > operator()(
 			const std::vector<Function<T,NDIM> >& vrhs,
-			const Function<T,NDIM>& metric,
+			const Function<typename Tensor<T>::scalar_type,NDIM>& metric,
 			std::vector<std::string>& sirreps) const {
 
 		return apply_symmetry_operators(vrhs,metric,sirreps);
@@ -247,7 +247,7 @@ public:
 			const std::vector<Function<T,NDIM> >& vrhs,
 			std::vector<std::string>& sirreps) const {
 
-		Function<T,NDIM> metric;
+        Function<typename Tensor<T>::scalar_type,NDIM> metric;
 		return apply_symmetry_operators(vrhs,metric,sirreps);
 	}
 
@@ -257,7 +257,7 @@ public:
 	template<typename T, std::size_t NDIM>
 	std::vector<Function<T,NDIM> > create_symmetry_adapted_basis(
 			const Function<T,NDIM>& rhs,
-			const Function<T,NDIM>& metric,
+			const Function<typename Tensor<T>::scalar_type,NDIM>& metric,
 			std::vector<std::string>& sirreps) {
 
 		std::vector<Function<T,NDIM> > vrhs(1,rhs);
@@ -274,7 +274,7 @@ public:
 			std::vector<std::string>& sirreps) {
 
 		std::vector<Function<T,NDIM> > vrhs(1,rhs);
-		Function<T,NDIM> metric;
+        Function<typename Tensor<T>::scalar_type,NDIM> metric;
 		return apply_symmetry_operators(vrhs,metric,sirreps);
 
 	}
@@ -432,7 +432,7 @@ private:
 	template<typename T, std::size_t NDIM>
 	std::vector<Function<T,NDIM> > apply_symmetry_operators(
 			const std::vector<Function<T,NDIM> >& vrhs,
-			Function<T,NDIM> metric,
+            Function<typename Tensor<T>::scalar_type,NDIM> metric,
 			std::vector<std::string>& sirreps) const;
 
 	/// sort the functions according to their irreps

@@ -24,11 +24,11 @@
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
 
-  email: harrisonrj@ornl.gov 
+  email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
 */
-  
+
 #ifndef MADNESS_MISC_MISC_H__INCLUDED
 #define MADNESS_MISC_MISC_H__INCLUDED
 
@@ -41,7 +41,9 @@
 
 namespace madness {
     unsigned long checksum_file(const char* filename);
-    std::istream& position_stream(std::istream& f, const std::string& tag);
+    std::istream& position_stream(std::istream& f, const std::string& tag, bool rewind=true);
+    std::istream& position_stream_to_word(std::istream& f, const std::string& tag,
+                                          const char comment='#', bool rewind=true, bool silent=false);
     std::string lowercase(const std::string& s);
     void gprofexit(int id, int nproc);
 }

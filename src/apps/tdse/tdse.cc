@@ -646,7 +646,7 @@ void line_plot(World& world, int step, complex_functionT& psi) {
         double z = -param.Llarge + 2.0*i*param.Llarge/(npt-1);
         coordT r(0.0);
         r[2] = z;
-        v[i] = psi.eval(r);
+        v[i] = psi.eval(r).get();
     }
     world.gop.fence();
     world.gop.sum(v, npt);

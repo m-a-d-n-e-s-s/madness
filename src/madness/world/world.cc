@@ -219,6 +219,8 @@ namespace madness {
         elem::Initialize(argc,argv);
 #endif // HAVE_ELEMENTAL
 
+        // mark this thread as part of MADNESS pool
+        set_thread_tag(ThreadTag_MADNESS | ThreadTag_Main);
         madness_initialized_ = true;
         if(!quiet && comm.Get_rank() == 0)
             std::cout << "MADNESS runtime initialized with " << ThreadPool::size()

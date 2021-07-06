@@ -232,11 +232,11 @@ private:
 	World& world;
 	PNOParameters param;  ///< calculation parameters
 	Nemo nemo;
-	Coulomb J;
+	Coulomb<double,3> J;
 	ParametrizedExchange K;
 	Kinetic<double, 3> T;
-	Nuclear V;
-	Fock F;
+	Nuclear<double,3> V;
+	Fock<double,3> F;
 	QProjector<double, 3> Q;
 	std::shared_ptr<real_convolution_3d> poisson;
 	BasisFunctions basis; ///< class which holds all methods to read or create guess functions for PNO or CABS

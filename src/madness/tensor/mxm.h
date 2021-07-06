@@ -181,7 +181,7 @@ namespace madness {
     }
     
 
-#if defined(HAVE_FAST_BLAS) && !defined(HAVE_MKL)
+#if defined(HAVE_FAST_BLAS) && !defined(HAVE_INTEL_MKL)
     // MKL provides support for mixed real/complex operations but most other libraries do not
     
     /// Matrix += Matrix * matrix ... BLAS/MKL interface version
@@ -265,7 +265,7 @@ namespace madness {
     }
 #endif
     
-#ifdef HAVE_MKL
+#ifdef HAVE_INTEL_MKL
     /// Matrix += Matrix * matrix ... MKL interface version
     
     /// Does \c C=C+A*B 
@@ -703,7 +703,7 @@ namespace madness {
 //                double* MADNESS_RESTRICT c, const double* a, const double* b);
 #endif // HAVE_IBMBGQ
 
-#endif // HAVE_MKL
+#endif // HAVE_INTEL_MKL
     
 }    
 #endif // MADNESS_TENSOR_MXM_H__INCLUDED

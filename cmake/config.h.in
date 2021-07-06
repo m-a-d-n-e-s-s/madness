@@ -150,3 +150,5 @@
 #cmakedefine XTERM_EXECUTABLE "@XTERM_EXECUTABLE@"
 #cmakedefine HAVE_GDB 1
 #cmakedefine GDB_EXECUTABLE "@GDB_EXECUTABLE@"
+#cmakedefine HAVE_LLDB 1
+#cmakedefine LLDB_EXECUTABLE "@LLDB_EXECUTABLE@"
