@@ -370,19 +370,18 @@ void TDDFT::normalize(World& world, X_space& Chi) {
     // Get the normalization constant
     // (Sum included inside inner)
     double normf = inner(Chi.X[i], Chi.X[i]);
+    double normg = inner(Chi.Y[i], Chi.Y[i]);
+    double norm = sqrt(normf - normg);
     print("---------------------Normalize--------------");
     print(normf);
-    double normg = inner(Chi.Y[i], Chi.Y[i]);
     print(normg);
-    double norm = sqrt(normf - normg);
     print(norm);
 
     // Doing this to deal with zero functions.
     // Maybe not smrt.
     if (norm == 0) continue;
-    // And scale
-    scale(world, Chi.X[i], (1.0 / norm));
-    scale(world, Chi.Y[i], (1.0 / norm));
+    Chi.X[i] = Chi.X[i] * (1.0 / norm);
+    Chi.Y[i] = Chi.Y[i] * (1.0 / norm);
   }
 }
 
@@ -2769,6 +2768,9 @@ Tensor<double> TDDFT::diagonalizeFullResponseMatrix(World& world,
   // compute the unitary transformation matrix U that diagonalizes
   // the response matrix
   Tensor<double> U = GetFullResponseTransformation(world, S, A, omega, thresh);
+
+  // Sort into ascending order
+  Tensor<int> selected = sort_eigenvalues(world, omega, U);
 
   // Start timer
   if (r_params.print_level() >= 1) molresponse::start_timer(world);

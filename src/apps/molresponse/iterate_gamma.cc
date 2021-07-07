@@ -124,7 +124,6 @@ X_space TDDFT::compute_gamma_full(World& world,
     y = Chi_copy.Y[b];
     // |x><i|p>
     KX.X[b] = K(x, phi0_copy, phi0_copy);
-    // |i><x|p>
     KY.X[b] = K(phi0_copy, y, phi0_copy);
     // |y><i|p>
     KY.Y[b] = K(y, phi0_copy, phi0_copy);
