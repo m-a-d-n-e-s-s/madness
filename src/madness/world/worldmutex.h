@@ -35,6 +35,7 @@
 
 #include <madness/madness_config.h>
 #include <pthread.h>
+#include <thread>
 #include <cstdio>
 #ifdef ON_A_MAC
 #if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 101200
@@ -493,40 +494,40 @@ namespace madness {
         static const int MAX_NTHREAD = 64;
         mutable volatile int back;
         mutable volatile int front;
-        mutable volatile bool* volatile q[MAX_NTHREAD]; // Circular buffer of flags
+        struct state_t {
+          bool ready = false;
+          bool yield = true;
+        };
+        mutable volatile state_t* volatile fifo[MAX_NTHREAD]; // Circular buffer of flags
 
     public:
-        ConditionVariable() : back(0), front(0) { }
+      ConditionVariable() : back(0), front(0), fifo() { }
 
         /// You should acquire the mutex before waiting
         void wait() const {
             // We put a pointer to a thread-local variable at the
             // end of the queue and wait for that value to be set,
             // thus generate no memory traffic while waiting.
-            volatile bool myturn = false;
-            int b = back;
-            q[b] = &myturn;
-            ++b;
-            if (b >= MAX_NTHREAD) back = 0;
-            else back = b;
+            volatile state_t state;
+            int b = this->back;
+            fifo[b] = &state;
+            this->back = (b+1 < MAX_NTHREAD ? b+1 : 0);
 
             unlock(); // Release lock before blocking
-            while (!myturn) cpu_relax();
+            //while (!state.ready && state.yield) std::this_thread::yield();
+            while (!state.ready) cpu_relax();
             lock();
+            //fifo[b] = nullptr;
         }
 
         /// You should acquire the mutex before signalling
         void signal() const {
-            if (front != back) {
-                int f = front;
-                int ff = f + 1;
-                if (ff >= MAX_NTHREAD)
-                    front = 0;
-                else
-                    front = ff;
-
-                *q[f] = true;
-            }
+          int f = this->front;
+          if (f == this->back) return;
+          fifo[f]->ready = true;
+          int next = (f + 1 < MAX_NTHREAD ? f+1 : 0);
+          //if (fifo[next]) fifo[next]->yield = false;
+          this->front = next;
         }
 
         /// You should acquire the mutex before broadcasting
