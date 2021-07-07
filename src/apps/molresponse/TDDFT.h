@@ -304,7 +304,6 @@ class TDDFT {
   void update_x_space_response(World& world,
                                X_space& old_Chi,
                                X_space& Chi,
-                               X_space& newChi,
                                XCOperator<double, 3>& xc,
                                std::vector<poperatorT>& bsh_x_ops,
                                std::vector<poperatorT>& bsh_y_ops,
@@ -320,8 +319,7 @@ class TDDFT {
 
   X_space compute_residual_response(World& world,
                                     X_space& old_Chi,
-                                    const X_space& Chi,
-                                    X_space& newChi,
+                                    X_space& Chi,
                                     X_space& theta_X,
                                     std::vector<poperatorT>& bsh_x_ops,
                                     std::vector<poperatorT>& bsh_y_ops,
@@ -332,7 +330,6 @@ class TDDFT {
   void update_x_space_excited(World& world,
                               X_space& old_Chi,
                               X_space& Chi,
-                              X_space& newChi,
                               X_space& old_Lambda_X,
                               XCOperator<double, 3>& xc,
                               QProjector<double, 3>& projector,
@@ -367,21 +364,18 @@ class TDDFT {
   X_space compute_residual_excited(World& world,
                                    X_space& old_Chi,
                                    X_space& Chi,
-                                   X_space& newChi,
                                    XCOperator<double, 3>& xc,
                                    QProjector<double, 3>& projector,
                                    Tensor<double>& bsh_residualsX,
                                    Tensor<double>& bsh_residualsY,
                                    std::vector<bool>& converged);
   void kain_x_space_update(World& world,
-                           X_space& old_Chi,
                            X_space& Chi,
-                           X_space& newChi,
                            X_space& res,
                            NonLinearXsolver kain_x_space,
                            std::vector<X_vector> Xvector,
                            std::vector<X_vector> Xresidual);
-  void x_space_step_restriction(World& world, X_space& old_Chi, X_space& Chi, X_space& newChi, bool restrict_y);
+  void x_space_step_restriction(World& world, X_space& old_Chi, X_space& Chi, bool restrict_y);
   // Returns the second order update to the energy
   Tensor<double> calculate_energy_update(World& world,
                                          response_space& gamma,

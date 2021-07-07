@@ -46,7 +46,6 @@ void TDDFT::iterate_freq2(World& world) {
   // create X space residuals
   X_space residuals(world, m, n);
   X_space old_Chi(world, m, n);
-  X_space newChi(world, m, n);
   // Create the X space
   // vector of Xvectors
   std::vector<X_vector> Xvector;
@@ -156,7 +155,6 @@ void TDDFT::iterate_freq2(World& world) {
     update_x_space_response(world,
                             old_Chi,
                             Chi,
-                            newChi,
                             xc,
                             bsh_x_ops,
                             bsh_y_ops,

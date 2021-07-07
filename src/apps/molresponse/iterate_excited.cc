@@ -27,8 +27,7 @@
 #include "molresponse/x_space.h"
 
 void TDDFT::iterate_excited(World& world, X_space& Chi) {
-  // Variables needed to iterate
-  size_t iter = 0;  // Iteration counter
+  size_t iter;
   QProjector<double, 3> projector(world, ground_orbitals);
   size_t m = r_params.n_states();      // Number of excited states
   size_t n = r_params.num_orbitals();  // Number of ground state orbitals
@@ -52,7 +51,6 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
   X_space residuals(world, m, n);
   X_space old_Chi(world, m, n);
   X_space old_Lambda_X(world, m, n);
-  X_space newChi(world, m, n);
 
   // Create the X space
   // vector of Xvectors
@@ -96,9 +94,8 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
   Tensor<double> old_S;
   bool compute_y = !r_params.tda();
 
-  if (compute_y) old_Chi.Y = response_space(world, m, n);
   // Now to iterate
-  for (size_t iter = 0; iter < r_params.maxiter(); ++iter) {
+  for (iter = 0; iter < r_params.maxiter(); ++iter) {
     // Start a timer for this iteration
     // Basic output
     if (r_params.print_level() >= 1) {
@@ -109,6 +106,14 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
 
     // compute rho_omega
     rho_omega = make_density(world, Chi, compute_y);
+    Chi.truncate();
+
+    // Normalize after projection
+    if (r_params.tda()) {
+      normalize(world, Chi.X);
+    } else {
+      normalize(world, Chi);
+    }
 
     if (iter < 2 || (iter % 10) == 0) {
       loadbal(world, rho_omega, Chi, old_Chi);
@@ -182,7 +187,6 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
     update_x_space_excited(world,
                            old_Chi,
                            Chi,
-                           newChi,
                            old_Lambda_X,
                            xc,
                            projector,
