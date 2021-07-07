@@ -793,97 +793,6 @@ void TDDFT::make_nuclear_potential(World& world) {
 // J0=J[rho0]
 // K0=K[rho0]f
 // EXC0=EXC[rho0]
-response_space TDDFT::CreatePotential(World& world,
-                                      response_space& f,
-                                      XCOperator<double, 3> xc,
-                                      size_t print_level,
-                                      std::string xy) {
-  // Start a timer
-
-  // Return container
-  response_space V_x_resp(world, f.size(), f[0].size());
-
-  // Computing \hat{V}^0 = v_nuc + v_coul + v_exch
-  // v_nuc first
-  real_function_3d v_nuc, v_coul;
-
-  molresponse::start_timer(world);
-  if (not r_params.store_potential()) {
-    // "a" is the core type
-    v_nuc = potentialmanager->vnuclear();
-    v_nuc.truncate();
-  } else {  // Already pre-computed
-    v_nuc = stored_v_nuc;
-    v_coul = stored_v_coul;
-  }
-  molresponse::end_timer(world, "Nuclear energy");
-  // Coulomb Potential J0*f
-  molresponse::start_timer(world);
-  if (not r_params.store_potential()) {
-    // "a" is the core type
-    // scale rho by 2 TODO
-    // J^0 x^alpha
-    v_coul = apply(*coulop, rho0);
-    v_coul.scale(2.0);
-  } else {  // Already pre-computed
-    v_nuc = stored_v_nuc;
-    v_coul = stored_v_coul;
-  }
-  molresponse::end_timer(world, "Coulomb Potential J[rho0]");
-
-  // Intermediaries
-
-  molresponse::start_timer(world);
-  response_space v_exch(world, f.size(), f[0].size());
-  real_function_3d v_xc = real_factory_3d(world).fence(true);
-
-  // If including any exact HF exchange
-  if (xcf.hf_exchange_coefficient()) {
-    // V_exch last
-    // Multiplication by f functions is included in construction
-    v_exch = exchange(world, f);
-  }
-  if (xcf.hf_exchange_coefficient() != 1.0) {
-    // Calculate DFT potential
-    v_xc = xc.make_xc_potential();
-  }
-
-  // Assemble all the pieces for V_x
-  V_x_resp = (f * (v_coul + v_nuc + v_xc));
-  V_x_resp = V_x_resp - (v_exch * xcf.hf_exchange_coefficient());
-
-  // Debugging output
-  if (print_level >= 2) {
-    // Print potential energy matrices
-    if (world.rank() == 0) printf("   Nuclear potential matrix for %s components:\n", xy.c_str());
-    response_space temp1 = f * v_nuc;
-    Tensor<double> temp = expectation(world, f, temp1);
-    if (world.rank() == 0) print(temp);
-    if (world.rank() == 0) printf("   Coulomb potential matrix for %s components:\n", xy.c_str());
-    response_space temp2 = f * v_coul;
-    temp = expectation(world, f, temp2);
-    if (world.rank() == 0) print(temp);
-    if (xcf.hf_exchange_coefficient()) {
-      if (world.rank() == 0) printf("   Exchange potential matrix for %s components:\n", xy.c_str());
-      temp = expectation(world, f, v_exch);
-    } else if (xcf.hf_exchange_coefficient() != 1.0) {
-      if (world.rank() == 0) printf("   XC potential matrix for %s components:\n", xy.c_str());
-      v_exch = f * v_xc;
-      temp = expectation(world, f, v_exch);
-    }
-    if (world.rank() == 0) print(temp);
-    if (world.rank() == 0) printf("   Total Potential Energy matrix for %s components:\n", xy.c_str());
-    temp = expectation(world, f, V_x_resp);
-    if (world.rank() == 0) print(temp);
-  }
-  V_x_resp.truncate_rf();
-
-  // Basic output
-  if (print_level >= 3) molresponse::end_timer(world, "Creating V0 * x:");
-
-  // Done
-  return V_x_resp;
-}
 
 // result(i,j) = inner(a[i],b[j]).sum()
 Tensor<double> TDDFT::expectation(World& world, const response_space& A, const response_space& B) {
@@ -960,50 +869,7 @@ void TDDFT::PrintResponseVectorNorms(World& world, response_space f, std::string
     print(f.norm2());
   }
 }
-// Returns the ground state fock operator applied to functions f
-response_space TDDFT::CreateFock(World& world,
-                                 response_space& Vf,
-                                 response_space& f,
-                                 size_t print_level,
-                                 std::string xy) {
-  // Debugging output
-  if (print_level >= 2) {
-    if (world.rank() == 0) printf("   Creating perturbed fock matrix for %s components\n", xy.c_str());
-  }
-  // Container to return
-  response_space fock;  // Fock = (T + V) * orbitals
-                        // Already have V (input parameter)
-  // Create T
-  // Make the derivative operators in each direction
-  real_derivative_3d Dx(world, 0);
-  real_derivative_3d Dy(world, 1);
-  real_derivative_3d Dz(world, 2);
-  // Apply derivatives to orbitals
-  f.reconstruct_rf();
-  response_space dvx = apply(world, Dx, f);
-  response_space dvy = apply(world, Dy, f);
-  response_space dvz = apply(world, Dz, f);
-  // Apply again for 2nd derivatives
-  response_space dvx2 = apply(world, Dx, dvx);
-  response_space dvy2 = apply(world, Dy, dvy);
-  response_space dvz2 = apply(world, Dz, dvz);
-  // Add together derivatives
-  fock = (dvx2 + dvy2 + dvz2) * (-0.5);
-  // Debugging output
-  if (print_level >= 2) {
-    if (world.rank() == 0) printf("   Kinetic energy matrix for %s components:\n", xy.c_str());
-    Tensor<double> temp = expectation(world, f, fock);
-    if (world.rank() == 0) print(temp);
-    if (world.rank() == 0) printf("   Potential energy matrix for %s components:\n", xy.c_str());
-    temp = expectation(world, f, Vf);
-    if (world.rank() == 0) print(temp);
-  }
-  // Add in potential
-  fock = fock + Vf;
-  fock.truncate_rf();
-  // Done
-  return fock;
-}
+
 
 void TDDFT::xy_from_XVector(response_space& x, response_space& y, std::vector<X_vector>& Xvectors) {
   MADNESS_ASSERT(x.size() == Xvectors.size());

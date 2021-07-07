@@ -237,11 +237,8 @@ class TDDFT {
 
   // Returns the ground state potential applied to response functions
   void make_nuclear_potential(World& world);
-  response_space CreatePotential(World& world,
-                                 response_space& f,
-                                 XCOperator<double, 3> xc,
-                                 size_t print_level,
-                                 std::string xy);
+  X_space compute_V0X(World& world, X_space& Chi, XCOperator<double, 3> xc, bool compute_Y);
+  X_space compute_F0X(World& world, X_space& Chi, XCOperator<double, 3> xc, bool compute_Y);
 
   // Returns a tensor, where entry (i,j) = inner(a[i], b[j]).sum()
   Tensor<double> expectation(World& world, const response_space& a, const response_space& b);
@@ -249,7 +246,6 @@ class TDDFT {
   void PrintRFExpectation(World& world, response_space f, response_space g, std::string fname, std::string gname);
   void PrintResponseVectorNorms(World& world, response_space f, std::string fname);
   // Returns the ground state fock operator applied to response functions
-  response_space CreateFock(World& world, response_space& Vf, response_space& f, size_t print_level, std::string xy);
   void xy_from_XVector(response_space& x, response_space& y, std::vector<X_vector>& Xvectors);
 
   void vector_stats(const std::vector<double>& v, double& rms, double& maxabsval) const;

@@ -31,16 +31,20 @@
 #include "molresponse/x_space.h"
 
 X_space TDDFT::Compute_Theta_X(World& world, X_space& Chi, XCOperator<double, 3> xc, std::string calc_type) {
-  print("-------------------Compute Theta X-------------------");
-  print("x_norms in Theta X ");
-  print(Chi.X.norm2());
-  print("y_norms in Theta X ");
-  print(Chi.Y.norm2());
+  bool compute_Y = calc_type.compare("full") == 0;
+  X_space Theta_X = X_space(world, Chi.num_states(), Chi.num_orbitals());
+  // compute
+
+  X_space V0X = compute_V0X(world, Chi, xc, compute_Y);
+  V0X.truncate();
+
+  X_space E0X = Chi.copy();
+  E0X.X = E0X.X * ham_no_diag;
+  if (compute_Y) {
+    E0X.Y = E0X.Y * ham_no_diag;
+  }
 
   X_space gamma;
-  // compute
-  bool compute_Y = calc_type.compare("full") == 0;
-
   // compute
   if (calc_type.compare("full") == 0) {
     gamma = compute_gamma_full(world, Chi, xc);
@@ -50,49 +54,8 @@ X_space TDDFT::Compute_Theta_X(World& world, X_space& Chi, XCOperator<double, 3>
     gamma = compute_gamma_tda(world, Chi, xc);
   }
 
-  X_space Theta_X = X_space(world, Chi.num_states(), Chi.num_orbitals());
-  // Compute (V0-ham_no_diag)X
-  // V0 appliedo x response function
-  response_space v0_X = CreatePotential(world, Chi.X, xc, r_params.print_level(), "x");
-
-  if (r_params.print_level() >= 2) {
-    PrintRFExpectation(world, Chi.X, v0_X, "x", "V0X");
-  }
-  v0_X.truncate_rf();
-
-  if (r_params.print_level() == 3) {
-    print("norms of v0x");
-    print(v0_X.norm2());
-  }
-  response_space ham_no_diag_X = Chi.X * ham_no_diag;
-  // scale_2d(world, x, ham_no_diagonal);
-  if (r_params.print_level() == 3) {
-    print("norms of x scaled by ham no diag");
-    print(ham_no_diag_X.norm2());
-  }
-  // Assemble Theta_X and truncate
-  Theta_X.X = v0_X - ham_no_diag_X + gamma.X;
-
-  if (compute_Y) {
-    // Compute (V0-ham_no_diag)X
-
-    response_space v0_Y = CreatePotential(world, Chi.Y, xc, r_params.print_level(), "y");
-    if (r_params.print_level() == 3) {
-      print("norms of v0x");
-      print(v0_Y.norm2());
-    }
-    v0_Y.truncate_rf();
-    if (r_params.print_level() >= 2) {
-      PrintRFExpectation(world, Chi.Y, v0_Y, "y", "V0Y");
-    }
-    // scale_2d(world, x, ham_no_diagonal);
-    response_space ham_no_diag_Y = Chi.Y * ham_no_diag;
-    if (r_params.print_level() == 3) {
-      print("norms of x scaled by ham no diag");
-      print(ham_no_diag_Y.norm2());
-    }
-    Theta_X.Y = v0_Y - ham_no_diag_Y + gamma.Y;
-  }
+  Theta_X = (V0X - E0X) + gamma;
+  Theta_X.truncate();
 
   return Theta_X;
 }

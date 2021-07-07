@@ -431,3 +431,115 @@ X_space TDDFT::compute_gamma_tda(World& world, X_space& Chi, XCOperator<double, 
   world.gop.fence();
   return gamma;
 }
+
+// Returns the ground state potential applied to functions f
+// (V0 f) V0=(Vnuc+J0-K0+W0)
+// J0=J[rho0]
+// K0=K[rho0]f
+// EXC0=W[rho0]
+X_space TDDFT::compute_V0X(World& world, X_space& Chi, XCOperator<double, 3> xc, bool compute_Y) {
+  // Start a timer
+
+  size_t m = Chi.num_states();
+  size_t n = Chi.num_orbitals();
+
+  X_space V0 = X_space(world, m, n);
+  X_space K0 = X_space(world, m, n);
+
+  vecfuncT phi0 = ground_orbitals;
+  // v_nuc first
+  real_function_3d v_nuc, v_j0, v_k0, v_xc;
+
+  molresponse::start_timer(world);
+  if (not r_params.store_potential()) {
+    v_nuc = potentialmanager->vnuclear();
+    v_nuc.truncate();
+  } else {  // Already pre-computed
+    v_nuc = stored_v_nuc;
+  }
+  molresponse::end_timer(world, "Nuclear energy");
+  // Coulomb Potential J0*f
+  molresponse::start_timer(world);
+  if (not r_params.store_potential()) {
+    // "a" is the core type
+    // scale rho by 2 TODO
+    // J^0 x^alpha
+    v_j0 = apply(*coulop, rho0);
+    v_j0.scale(2.0);
+  } else {  // Already pre-computed
+    v_j0 = stored_v_coul;
+  }
+  molresponse::end_timer(world, "Coulomb Potential J[rho0]");
+
+  if (xcf.hf_exchange_coefficient() != 1.0) {
+    v_xc = xc.make_xc_potential();
+  } else {
+    v_xc = Function<double, 3>(FunctionFactory<double, 3>(world).fence(false).initial_level(1));
+  }
+
+  // Intermediaries
+
+  molresponse::start_timer(world);
+
+  // If including any exact HF exchange
+  if (xcf.hf_exchange_coefficient()) {
+    for (size_t b = 0; b < m; b++) {
+      K0.X[b] = K(phi0, phi0, Chi.X[b]);
+      if (compute_Y) {
+        K0.Y[b] = K(phi0, phi0, Chi.Y[b]);
+      }
+    }
+  }
+  real_function_3d v0 = v_j0 + v_nuc + v_xc;
+
+  V0.X = v0 * Chi.X;
+  V0.X += (-1 * K0.X * xcf.hf_exchange_coefficient());
+
+  if (compute_Y) {
+    V0.X = v0 * Chi.Y;
+    V0.X += (-1 * K0.Y * xcf.hf_exchange_coefficient());
+  }
+
+  // Basic output
+
+  // Done
+  return V0;
+}
+// kinetic energy operator on response vector
+response_space T(World& world, response_space& f) {
+  response_space T;  // Fock = (T + V) * orbitals
+  real_derivative_3d Dx(world, 0);
+  real_derivative_3d Dy(world, 1);
+  real_derivative_3d Dz(world, 2);
+  // Apply derivatives to orbitals
+  f.reconstruct_rf();
+  response_space dvx = apply(world, Dx, f);
+  response_space dvy = apply(world, Dy, f);
+  response_space dvz = apply(world, Dz, f);
+  // Apply again for 2nd derivatives
+  response_space dvx2 = apply(world, Dx, dvx);
+  response_space dvy2 = apply(world, Dy, dvy);
+  response_space dvz2 = apply(world, Dz, dvz);
+  T = (dvx2 + dvy2 + dvz2) * (-0.5);
+  return T;
+}
+// Returns the ground state fock operator applied to functions f
+X_space TDDFT::compute_F0X(World& world, X_space& Chi, XCOperator<double, 3> xc, bool compute_Y) {
+  // Debugging output
+  size_t m = Chi.num_states();
+  size_t n = Chi.num_orbitals();
+
+  X_space F0X = X_space(world, m, n);
+  X_space T0X = X_space(world, m, n);
+  T0X.X = T(world, Chi.X);
+  if (compute_Y) {
+    T0X.Y = T(world, Chi.Y);
+  }
+
+  X_space V0X = compute_V0X(world, Chi, xc, compute_Y);
+
+  F0X = T0X + V0X;
+
+  // Done
+  return F0X;
+}
