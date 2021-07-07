@@ -1580,6 +1580,12 @@ void TDDFT::compute_new_omegas_transform(World& world,
                                          Tensor<double>& energy_residuals,
                                          size_t iter) {
   size_t m = Chi.X.size();
+  // Basic output
+  if (r_params.print_level() >= 1 and world.rank() == 0) {
+    print("Before Deflate");
+    print("\n   Excitation Energies:");
+    print("i=", iter, " roots: ", iter, omega);
+  }
   if (r_params.tda()) {
     deflateTDA(world,
                Chi,
