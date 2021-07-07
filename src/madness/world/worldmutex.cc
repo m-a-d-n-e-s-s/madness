@@ -146,5 +146,7 @@ namespace madness {
         Mutex printmutex;
     }
 
-} // namespace madness
+  bool ConditionVariable::wait_busy = true;
+  int ConditionVariable::wait_usleep = 0;
 
+} // namespace madness
