@@ -1016,7 +1016,7 @@ namespace madness {
                 ((PoolTaskInterface **)parsec_task.locals)[0] = this;
             }
             //////////// Parsec Related End   ///////////////////
-        
+
 #endif
 
 #else
@@ -1024,7 +1024,7 @@ namespace madness {
     public:
 
         /// Default constructor.
-        PoolTaskInterface() : TaskAttributes() { 
+        PoolTaskInterface() : TaskAttributes() {
 	}
 
         /// \todo Brief description needed.
@@ -1498,9 +1498,27 @@ namespace madness {
           ////////////////// Parsec related End /////////////////
 #elif HAVE_INTEL_TBB
 #else
-            delete[] threads;           
+            delete[] threads;
 #endif
         }
+
+        // clang-format off
+        /// Controls how aggressively ThreadPool holds on to the OS threads
+        /// while waiting for work. Currently useful only for Pthread pool,
+        /// not used for TBB or PaRSEC.
+        /// \param policy specifies how to wait for work;
+        ///        - WaitPolicy::Busy -- threads are kept busy (default); recommended when intensive work is only performed by MADNESS threads
+        ///        - WaitPolicy::Yield -- thread yields; recommended when intensive work is performed primarily by non-MADNESS threads
+        ///        - WaitPolicy::Sleep -- thread sleeps for \p sleep_duration_in_microseconds ; recommended when intensive work is performed by MADNESS nd non-MADNESS threads
+        /// \param sleep_duration_in_microseconds if `policy==WaitPolicy::Sleep` this specifies the duration of sleep, in microseconds
+        // clang-format on
+        static void set_wait_policy(
+          WaitPolicy policy,
+          int sleep_duration_in_microseconds = 0)
+        {
+          instance()->queue.set_wait_policy(policy, sleep_duration_in_microseconds);
+        }
+
     };
 
     /// @}
