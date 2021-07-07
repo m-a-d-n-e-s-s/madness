@@ -36,7 +36,8 @@ vecfuncT K(vecfuncT& ket, vecfuncT& bra, vecfuncT& vf) {
   const double econv = FunctionDefaults<3>::get_thresh();
 
   std::shared_ptr<real_convolution_3d> poisson;
-  poisson = std::shared_ptr<real_convolution_3d>(CoulombOperatorPtr(world, lo, econv));
+  poisson = std::shared_ptr<real_convolution_3d>(
+      CoulombOperatorPtr(world, lo, econv));
   /// consistent with Coulomb
   vecfuncT Kf = zero_functions_compressed<double, 3>(world, nf);
 
@@ -63,11 +64,14 @@ vecfuncT K(vecfuncT& ket, vecfuncT& bra, vecfuncT& vf) {
 }
 // sum_i |i><i|J|p> for each p
 
-X_space TDDFT::compute_gamma_full(World& world, X_space& Chi, XCOperator<double, 3> xc) {
+X_space TDDFT::compute_gamma_full(World& world,
+                                  X_space& Chi,
+                                  XCOperator<double, 3> xc) {
   size_t m = Chi.num_states();
   size_t n = Chi.num_orbitals();
   //  copy old pmap
-  std::shared_ptr<WorldDCPmapInterface<Key<3>>> oldpmap = FunctionDefaults<3>::get_pmap();
+  std::shared_ptr<WorldDCPmapInterface<Key<3>>> oldpmap =
+      FunctionDefaults<3>::get_pmap();
 
   X_space Chi_copy = Chi;
   vecfuncT phi0_copy = ground_orbitals;
@@ -195,11 +199,14 @@ X_space TDDFT::compute_gamma_full(World& world, X_space& Chi, XCOperator<double,
   // Get sizes
 }
 
-X_space TDDFT::compute_gamma_static(World& world, X_space& Chi, XCOperator<double, 3> xc) {
+X_space TDDFT::compute_gamma_static(World& world,
+                                    X_space& Chi,
+                                    XCOperator<double, 3> xc) {
   size_t m = r_params.n_states();
   size_t n = r_params.num_orbitals();
   // shallow copy
-  std::shared_ptr<WorldDCPmapInterface<Key<3>>> oldpmap = FunctionDefaults<3>::get_pmap();
+  std::shared_ptr<WorldDCPmapInterface<Key<3>>> oldpmap =
+      FunctionDefaults<3>::get_pmap();
 
   X_space Chi_copy = Chi;
   vecfuncT phi0_copy = ground_orbitals;
@@ -326,11 +333,14 @@ X_space TDDFT::compute_gamma_static(World& world, X_space& Chi, XCOperator<doubl
   // Get sizes
 }
 
-X_space TDDFT::compute_gamma_tda(World& world, X_space& Chi, XCOperator<double, 3> xc) {
+X_space TDDFT::compute_gamma_tda(World& world,
+                                 X_space& Chi,
+                                 XCOperator<double, 3> xc) {
   size_t m = Chi.num_states();
   size_t n = Chi.num_orbitals();
 
-  std::shared_ptr<WorldDCPmapInterface<Key<3>>> oldpmap = FunctionDefaults<3>::get_pmap();
+  std::shared_ptr<WorldDCPmapInterface<Key<3>>> oldpmap =
+      FunctionDefaults<3>::get_pmap();
 
   X_space Chi_copy = Chi;
   vecfuncT phi0_copy = ground_orbitals;
@@ -437,7 +447,10 @@ X_space TDDFT::compute_gamma_tda(World& world, X_space& Chi, XCOperator<double, 
 // J0=J[rho0]
 // K0=K[rho0]f
 // EXC0=W[rho0]
-X_space TDDFT::compute_V0X(World& world, X_space& Chi, XCOperator<double, 3> xc, bool compute_Y) {
+X_space TDDFT::compute_V0X(World& world,
+                           X_space& Chi,
+                           XCOperator<double, 3> xc,
+                           bool compute_Y) {
   // Start a timer
 
   size_t m = Chi.num_states();
@@ -474,7 +487,8 @@ X_space TDDFT::compute_V0X(World& world, X_space& Chi, XCOperator<double, 3> xc,
   if (xcf.hf_exchange_coefficient() != 1.0) {
     v_xc = xc.make_xc_potential();
   } else {
-    v_xc = Function<double, 3>(FunctionFactory<double, 3>(world).fence(false).initial_level(1));
+    v_xc = Function<double, 3>(
+        FunctionFactory<double, 3>(world).fence(false).initial_level(1));
   }
 
   // Intermediaries
@@ -524,7 +538,10 @@ response_space T(World& world, response_space& f) {
   return T;
 }
 // Returns the ground state fock operator applied to functions f
-X_space TDDFT::compute_F0X(World& world, X_space& Chi, XCOperator<double, 3> xc, bool compute_Y) {
+X_space TDDFT::compute_F0X(World& world,
+                           X_space& Chi,
+                           XCOperator<double, 3> xc,
+                           bool compute_Y) {
   // Debugging output
   size_t m = Chi.num_states();
   size_t n = Chi.num_orbitals();

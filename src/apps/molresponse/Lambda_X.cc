@@ -30,7 +30,10 @@
 #include "molresponse/timer.h"
 #include "molresponse/x_space.h"
 
-X_space TDDFT::Compute_Lambda_X(World& world, X_space& Chi, XCOperator<double, 3> xc, std::string calc_type) {
+X_space TDDFT::Compute_Lambda_X(World& world,
+                                X_space& Chi,
+                                XCOperator<double, 3> xc,
+                                std::string calc_type) {
   // compute
   bool compute_Y = calc_type.compare("full") == 0;
   X_space Lambda_X = X_space(world, Chi.num_states(), Chi.num_orbitals());

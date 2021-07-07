@@ -1595,12 +1595,6 @@ void TDDFT::compute_new_omegas_transform(World& world,
     // Constructing S
     // Full TDHF
   } else {
-    // Construct S
-    // Construct A
-    // Compute U
-    // Compute omega
-    // transform Lambda
-
     deflateFull(world,
                 Chi,
                 old_Chi,
@@ -1682,38 +1676,31 @@ X_space TDDFT::compute_residual_excited(World& world,
                                      FunctionDefaults<3>::get_thresh());
     omega = -omega;
   }
-
+  X_space bsh_update;
   // Apply BSH and get updated response components
   if (r_params.print_level() >= 1) molresponse::start_timer(world);
-  Chi.X = apply(world, bsh_x_ops, theta_X.X);
-  if (not r_params.tda()) Chi.Y = apply(world, bsh_y_ops, theta_X.Y);
+  bsh_update.X = apply(world, bsh_x_ops, theta_X.X);
+  if (not r_params.tda()) bsh_update.Y = apply(world, bsh_y_ops, theta_X.Y);
   if (r_params.print_level() >= 1) molresponse::end_timer(world, "Apply BSH:");
 
-  // Debugging output
-  if (r_params.print_level() >= 2) {
-    if (world.rank() == 0) print("   Norms after application of BSH");
-    if (world.rank() == 0) print("   x-components:");
-    print_norms(world, Chi.X);
-
-    if (not r_params.tda()) {
-      if (world.rank() == 0) print("   y-components:");
-      print_norms(world, Chi.Y);
-    }
-  }
-
   // Project out ground state
-  for (size_t i = 0; i < m; i++) Chi.X[i] = projector(Chi.X[i]);
+  for (size_t i = 0; i < m; i++) bsh_update.X[i] = projector(bsh_update.X[i]);
   if (not r_params.tda()) {
-    for (size_t i = 0; i < m; i++) Chi.Y[i] = projector(Chi.Y[i]);
+    for (size_t i = 0; i < m; i++) bsh_update.Y[i] = projector(bsh_update.Y[i]);
   }
 
   // Only update non-converged components
   for (size_t i = 0; i < m; i++) {
     if (not converged[i]) {
-      Chi.X[i] = Chi.X[i];
-      if (not r_params.tda()) Chi.Y[i] = Chi.Y[i];
+      Chi.X[i] = bsh_update.X[i];
+      Chi.X[i] = mask * Chi.X[i];
+      if (not r_params.tda()) {
+        Chi.Y[i] = bsh_update.Y[i];
+        Chi.Y[i] = mask * Chi.Y[i];
+      }
     }
   }
+
   // Scale by -2.0 (coefficient in eq. 37 of reference paper)
 
   // Get the difference between old and new
