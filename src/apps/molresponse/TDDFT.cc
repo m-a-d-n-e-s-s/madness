@@ -1503,8 +1503,8 @@ void TDDFT::update_x_space_excited(World& world,
                                    Tensor<double>& old_A,
                                    std::vector<bool>& converged,
                                    size_t iter) {
-  size_t m = Chi.X.size();
-  size_t n = r_params.num_orbitals();  // Number of ground state orbitals
+  size_t m = Chi.num_states();
+  size_t n = Chi.num_orbitals();  // Number of ground state orbitals
   Tensor<double> errX(m);
   Tensor<double> errY(m);
   X_space res(world, m, n);
