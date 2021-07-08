@@ -322,7 +322,7 @@ namespace madness {
         }
 
         /// Accumulate inplace and if necessary connect node to parent
-        double accumulate2(const tensorT& t, const typename FunctionNode<T,NDIM>::dcT& c,
+        void accumulate2(const tensorT& t, const typename FunctionNode<T,NDIM>::dcT& c,
                            const Key<NDIM>& key) {
             double cpu0=cpu_time();
             if (has_coeff()) {
@@ -351,17 +351,14 @@ namespace madness {
                 }
             }
             double cpu1=cpu_time();
-            return cpu1-cpu0;
         }
 
 
         /// Accumulate inplace and if necessary connect node to parent
-        double accumulate(const coeffT& t, const typename FunctionNode<T,NDIM>::dcT& c,
+        void accumulate(const coeffT& t, const typename FunctionNode<T,NDIM>::dcT& c,
                           const Key<NDIM>& key, const TensorArgs& args) {
             double cpu0=cpu_time();
             if (has_coeff()) {
-
-#if 1
                 coeff().add_SVD(t,args.thresh);
                 if (buffer.rank()<coeff().rank()) {
                     if (buffer.has_data()) {
@@ -371,12 +368,6 @@ namespace madness {
                     }
                     coeff()=coeffT();
                 }
-
-#else
-                // always do low rank
-                coeff().add_SVD(t,args.thresh);
-
-#endif
 
             } else {
                 // No coeff and no children means the node is newly
@@ -392,7 +383,6 @@ namespace madness {
                 }
             }
             double cpu1=cpu_time();
-            return cpu1-cpu0;
         }
 
         void consolidate_buffer(const TensorArgs& args) {
@@ -4323,7 +4313,7 @@ namespace madness {
             // and also to ensure we don't needlessly widen the tree when
             // applying the operator
             if (result.normf()> 0.3*args.tol/args.fac) {
-                Future<double> time=coeffs.task(args.dest, &nodeT::accumulate2, result, coeffs, args.dest, TaskAttributes::hipri());
+                coeffs.task(args.dest, &nodeT::accumulate2, result, coeffs, args.dest, TaskAttributes::hipri());
                 //woT::task(world.rank(),&implT::accumulate_timer,time,TaskAttributes::hipri());
                 // UGLY BUT ADDED THE OPTIMIZATION BACK IN HERE EXPLICITLY/
                 if (args.dest == world.rank()) {
@@ -4363,7 +4353,7 @@ namespace madness {
                 //double cpu1=cpu_time();
                 //timer_lr_result.accumulate(cpu1-cpu0);
 
-                Future<double> time=coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, apply_targs,
+                coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, apply_targs,
                                                 TaskAttributes::hipri());
 
                 //woT::task(world.rank(),&implT::accumulate_timer,time,TaskAttributes::hipri());
@@ -4401,9 +4391,9 @@ namespace madness {
                 timer_lr_result.accumulate(cpu1-cpu0);
 
                 // accumulate also expects result in SVD form
-                Future<double> time=coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, apply_targs,
+                coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, apply_targs,
                                                 TaskAttributes::hipri());
-                woT::task(world.rank(),&implT::accumulate_timer,time,TaskAttributes::hipri());
+//                woT::task(world.rank(),&implT::accumulate_timer,time,TaskAttributes::hipri());
 
             }
             return result_norm;
