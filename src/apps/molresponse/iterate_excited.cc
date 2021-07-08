@@ -200,6 +200,7 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
                            old_Chi,
                            Chi,
                            old_Lambda_X,
+                           residuals,
                            xc,
                            projector,
                            omega,
