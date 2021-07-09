@@ -958,7 +958,7 @@ void TDDFT::xy_from_XVector(response_space& x,
     }
   }
 }
-
+// compute rms and maxabsval of vector of doubles
 void TDDFT::vector_stats(const std::vector<double>& v,
                          double& rms,
                          double& maxabsval) const {
@@ -1323,7 +1323,7 @@ TDDFT::CreateBSHOperatorPropertyVector(World& world,
 void TDDFT::update_x_space_response(World& world,
                                     X_space& old_Chi,
                                     X_space& Chi,
-                                    X_space& residual,
+                                    X_space& res,
                                     XCOperator<double, 3>& xc,
                                     std::vector<poperatorT>& bsh_x_ops,
                                     std::vector<poperatorT>& bsh_y_ops,
@@ -1349,8 +1349,9 @@ void TDDFT::update_x_space_response(World& world,
   X_space temp = bsh_update_response(
       world, old_Chi, Chi, theta_X, bsh_x_ops, bsh_y_ops, projector, x_shifts);
 
-  X_space res = compute_residual(
+  res = compute_residual(
       world, old_Chi, temp, bsh_residualsX, bsh_residualsY, compute_y);
+
   print_residual_norms(world, res, compute_y, iteration);
 
   if (r_params.kain()) {
@@ -1366,10 +1367,15 @@ void TDDFT::update_x_space_response(World& world,
   if (compute_y) temp.Y.truncate_rf();
 
   // print x norms
-  Chi.X.truncate_rf();
-  if (not compute_y) Chi.Y = Chi.X.copy();
-  if (compute_y) Chi.Y.truncate_rf();
+
   Chi = temp.copy();
+  if (r_params.print_level() >= 1) {
+    print("Chi.x norms in iteration after truncate: ", iteration);
+    print(Chi.X.norm2());
+
+    print("Chi.y norms in iteration after truncate: ", iteration);
+    print(Chi.Y.norm2());
+  }
 }
 X_space TDDFT::compute_residual(World& world,
                                 X_space& old_Chi,
@@ -1528,7 +1534,7 @@ void TDDFT::update_x_space_excited(World& world,
                                    X_space& old_Chi,
                                    X_space& Chi,
                                    X_space& old_Lambda_X,
-                                   X_space& residuals,
+                                   X_space& res,
                                    XCOperator<double, 3>& xc,
                                    QProjector<double, 3>& projector,
                                    Tensor<double>& omega,
@@ -1569,20 +1575,20 @@ void TDDFT::update_x_space_excited(World& world,
                                old_A,
                                energy_residuals,
                                iter);
-  old_Chi = Chi.copy();
 
-  X_space theta_X = Compute_Theta_X(world, Chi, xc, r_params.calc_type());
+  old_Chi = Chi.copy();
 
   // Analysis gets messed up if BSH is last thing applied
   // so exit early if last iteration
   if (iter == r_params.maxiter() - 1) {
     print("Reached max iter");
   } else {
+    X_space theta_X = Compute_Theta_X(world, Chi, xc, r_params.calc_type());
     //  Calculates shifts needed for potential / energies
     X_space temp =
         bsh_update_excited(world, old_Chi, Chi, theta_X, projector, converged);
 
-    X_space res = compute_residual(
+    res = compute_residual(
         world, old_Chi, temp, bsh_residualsX, bsh_residualsY, compute_y);
 
     if (r_params.kain()) {
@@ -1594,10 +1600,14 @@ void TDDFT::update_x_space_excited(World& world,
     temp.X.truncate_rf();
     if (!compute_y) temp.Y = temp.X.copy();
     if (compute_y) temp.Y.truncate_rf();
+    if (r_params.print_level() >= 1) {
+      print("Chi.x norms in iteration after truncate: ", iter);
+      print(Chi.X.norm2());
 
+      print("Chi.y norms in iteration after truncate: ", iter);
+      print(Chi.Y.norm2());
+    }
     // print x norms
-    Chi.X.truncate_rf();
-    if (compute_y) Chi.Y.truncate_rf();
     Chi = temp.copy();
   }
 
@@ -1757,9 +1767,9 @@ X_space TDDFT::bsh_update_excited(World& world,
 void TDDFT::kain_x_space_update(World& world,
                                 X_space& temp,
                                 X_space& res,
-                                NonLinearXsolver kain_x_space,
-                                std::vector<X_vector> Xvector,
-                                std::vector<X_vector> Xresidual) {
+                                NonLinearXsolver& kain_x_space,
+                                std::vector<X_vector>& Xvector,
+                                std::vector<X_vector>& Xresidual) {
   size_t m = Chi.X.size();
   molresponse::start_timer(world);
   for (size_t b = 0; b < m; b++) {
@@ -1775,6 +1785,7 @@ void TDDFT::kain_x_space_update(World& world,
   }
   molresponse::end_timer(world, " KAIN update:");
 }
+
 void TDDFT::x_space_step_restriction(World& world,
                                      X_space& old_Chi,
                                      X_space& temp,
