@@ -452,9 +452,9 @@ class TDDFT {
   void kain_x_space_update(World& world,
                            X_space& temp,
                            X_space& res,
-                           NonLinearXsolver kain_x_space,
-                           std::vector<X_vector> Xvector,
-                           std::vector<X_vector> Xresidual);
+                           NonLinearXsolver& kain_x_space,
+                           std::vector<X_vector>& Xvector,
+                           std::vector<X_vector>& Xresidual);
   void x_space_step_restriction(World& world,
                                 X_space& old_Chi,
                                 X_space& temp,
