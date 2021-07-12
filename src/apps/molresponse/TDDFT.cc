@@ -1521,8 +1521,6 @@ X_space TDDFT::bsh_update_response(World& world,
   temp.X = bsh_X.X.copy();
   if (compute_y) {
     temp.Y = bsh_X.Y.copy();
-  } else {
-    temp.Y = bsh_X.Y.copy();
   }
   temp.truncate();
   molresponse::end_timer(world, "Trucate bsh_X");
