@@ -292,7 +292,6 @@ X_space TDDFT::compute_gamma_static(World& world,
   molresponse::start_timer(world);
   for (size_t i = 0; i < m; i++) {
     gamma.X[i] = projector(gamma.X[i]);
-    truncate(world, gamma.X[i]);
   }
   molresponse::end_timer(world, "Project Gamma:");
   if (r_params.print_level() >= 2) {
@@ -509,8 +508,8 @@ X_space TDDFT::compute_V0X(World& world,
   V0.X += (-1 * K0.X * xcf.hf_exchange_coefficient());
 
   if (compute_Y) {
-    V0.X = v0 * Chi.Y;
-    V0.X += (-1 * K0.Y * xcf.hf_exchange_coefficient());
+    V0.Y = v0 * Chi.Y;
+    V0.Y += (-1 * K0.Y * xcf.hf_exchange_coefficient());
   }
 
   // Basic output
