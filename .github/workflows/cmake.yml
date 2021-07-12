@@ -11,13 +11,14 @@ jobs:
       matrix:
         build_type : [ Release, Debug ]
         os : [ macos-latest, ubuntu-20.04 ]
+        task_backend : [Pthreads, TBB]
         include:
           - os: ubuntu-20.04
             cxx: /usr/bin/g++-9
           - os: macos-latest
             cxx: clang++
 
-    name: "${{ matrix.os }}: ${{ matrix.cxx }} ${{ matrix.build_type }}"
+    name: "${{ matrix.os }}: ${{ matrix.cxx }} ${{ matrix.build_type }} ${{ matrix.task_backend }}"
     runs-on: ${{ matrix.os }}
     env:
       CXX : ${{ matrix.cxx }}
@@ -34,6 +35,8 @@ jobs:
         -DMPIEXEC_PREFLAGS='--bind-to;none;--allow-run-as-root'
         -DENABLE_UNITTESTS=ON
         -DMADNESS_ENABLE_CEREAL=ON
+        -DMADNESS_TASK_BACKEND=${{ matrix.task_backend }}
+        -DMADNESS_BUILD_MADWORLD_ONLY=${{ matrix.task_backend != 'Pthreads' }}
 
     steps:
     - uses: actions/checkout@v2
@@ -46,7 +49,7 @@ jobs:
     - name: Install prerequisite MacOS packages
       if: ${{ matrix.os == 'macos-latest' }}
       run: |
-        brew install ninja gcc@10 boost eigen open-mpi bison ccache
+        brew install ninja gcc@10 boost eigen open-mpi bison tbb@2020 ccache
         if [ "X${{ matrix.build_type }}" = "XDebug" ]; then
           brew install cereal
         fi
