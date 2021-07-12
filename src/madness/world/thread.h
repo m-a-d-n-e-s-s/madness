@@ -1502,24 +1502,32 @@ namespace madness {
 #endif
         }
 
-        // clang-format off
-        /// Controls how aggressively ThreadPool holds on to the OS threads
-        /// while waiting for work. Currently useful only for Pthread pool,
-        /// not used for TBB or PaRSEC.
-        /// \param policy specifies how to wait for work;
-        ///        - WaitPolicy::Busy -- threads are kept busy (default); recommended when intensive work is only performed by MADNESS threads
-        ///        - WaitPolicy::Yield -- thread yields; recommended when intensive work is performed primarily by non-MADNESS threads
-        ///        - WaitPolicy::Sleep -- thread sleeps for \p sleep_duration_in_microseconds ; recommended when intensive work is performed by MADNESS nd non-MADNESS threads
-        /// \param sleep_duration_in_microseconds if `policy==WaitPolicy::Sleep` this specifies the duration of sleep, in microseconds
-        // clang-format on
+        /// \sa madness::threadpool_wait_policy
         static void set_wait_policy(
           WaitPolicy policy,
-          int sleep_duration_in_microseconds = 0)
-        {
-          instance()->queue.set_wait_policy(policy, sleep_duration_in_microseconds);
+          int sleep_duration_in_microseconds = 0) {
+#if !HAVE_INTEL_TBB && !HAVE_PARSEC
+          instance()->queue.set_wait_policy(policy,
+                                            sleep_duration_in_microseconds);
+#endif
         }
 
     };
+
+    // clang-format off
+    /// Controls how aggressively ThreadPool holds on to the OS threads
+    /// while waiting for work. Currently useful only for Pthread pool when it's using spinlocks;
+    /// NOT used for TBB or PaRSEC.
+    /// \param policy specifies how to wait for work;
+    ///        - WaitPolicy::Busy -- threads are kept busy (default); recommended when intensive work is only performed by MADNESS threads
+    ///        - WaitPolicy::Yield -- thread yields; recommended when intensive work is performed primarily by non-MADNESS threads
+    ///        - WaitPolicy::Sleep -- thread sleeps for \p sleep_duration_in_microseconds ; recommended when intensive work is performed by MADNESS nd non-MADNESS threads
+    /// \param sleep_duration_in_microseconds if `policy==WaitPolicy::Sleep` this specifies the duration of sleep, in microseconds
+    // clang-format on
+    inline void threadpool_wait_policy(WaitPolicy policy,
+                                       int sleep_duration_in_microseconds = 0) {
+      ThreadPool::set_wait_policy(policy, sleep_duration_in_microseconds);
+    }
 
     /// @}
 }
