@@ -199,6 +199,13 @@ namespace madness {
 	}
 
     public:
+
+        void set_wait_policy(WaitPolicy p, int us = 0) {
+#ifdef USE_SPINLOCKS
+          ConditionVariable::set_wait_policy(p, us);
+#endif
+        }
+
         DQueue(size_t hint=200000) // was 32768
                 : n(0)
                 , sz(hint>2 ? hint : 2)

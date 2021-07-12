@@ -147,4 +147,3 @@ namespace madness {
     }
 
 } // namespace madness
-
