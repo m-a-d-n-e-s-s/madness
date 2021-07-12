@@ -123,7 +123,7 @@ if(ENABLE_UNITTESTS)
     target_link_libraries(test_world PRIVATE MADtest_cuda)
   endif ()
 
-  set_tests_properties(world-test_googletest PROPERTIES WILL_FAIL TRUE)
+  set_tests_properties(madness/test/world/test_googletest/run PROPERTIES WILL_FAIL TRUE)
   
 endif()
 

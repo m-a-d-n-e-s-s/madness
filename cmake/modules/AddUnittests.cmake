@@ -5,7 +5,7 @@ macro(add_unittests _component _sources _libs)
   add_dependencies(unittests-madness ${_component}_unittests-madness)
 
   # Add a test that builds the unit tests
-  add_test(build_${_component}_unittests
+  add_test(madness/test/${_component}/build
       "${CMAKE_COMMAND}" --build ${CMAKE_BINARY_DIR} --target ${_component}_unittests-madness)
   
   foreach(_source ${_sources})
@@ -18,10 +18,10 @@ macro(add_unittests _component _sources _libs)
     add_mad_executable(${_test} "${_source_list}" "${_libs}")
 
     # Add the test and set dependencies
-    add_test(NAME ${_component}-${_test} COMMAND ${_test})
+    add_test(NAME madness/test/${_component}/${_test}/run COMMAND ${_test})
     add_dependencies(${_component}_unittests-madness ${_test})
-    set_tests_properties(${_component}-${_test} 
-        PROPERTIES DEPENDS build_${_component}_unittests)
+    set_tests_properties(madness/test/${_component}/${_test}/run
+        PROPERTIES DEPENDS madness/test/${_component}/build)
  
   endforeach()
 

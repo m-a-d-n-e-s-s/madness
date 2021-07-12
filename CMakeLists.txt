@@ -659,7 +659,7 @@ if(ENABLE_UNITTESTS)
   enable_testing()
   set(MADNESS_HAS_GOOGLE_TEST 1)
   add_custom_target_subproject(madness unittests)
-  add_custom_target_subproject(madness check COMMAND ${CMAKE_CTEST_COMMAND} USES_TERMINAL) # to be GNU compatible
+  add_custom_target_subproject(madness check COMMAND ${CMAKE_CTEST_COMMAND} -V -R "madness/test/" USES_TERMINAL) # to be GNU compatible
   add_dependencies(everything unittests)
 endif()
 add_subdirectory(src)
