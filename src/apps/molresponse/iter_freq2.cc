@@ -73,8 +73,8 @@ void TDDFT::iterate_freq2(World& world) {
   // We compute with positive frequencies
   print("Warning input frequency is assumed to be positive");
   print("Computing at positive frequency omega = ", omega_n);
-  double x_shifts(0);
-  double y_shifts(0);
+  double x_shifts = 0.0;
+  double y_shifts = 0.0;
   // if less negative orbital energy + frequency is positive or greater than 0
   if ((ground_energies[n - 1] + omega_n) >= 0.0) {
     // Calculate minimum shift needed such that \eps + \omega + shift < 0

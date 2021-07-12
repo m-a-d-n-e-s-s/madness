@@ -485,6 +485,7 @@ X_space TDDFT::compute_V0X(World& world,
   if (xcf.hf_exchange_coefficient() != 1.0) {
     v_xc = xc.make_xc_potential();
   } else {
+    // make a zero function
     v_xc = Function<double, 3>(
         FunctionFactory<double, 3>(world).fence(false).initial_level(1));
   }
@@ -502,6 +503,7 @@ X_space TDDFT::compute_V0X(World& world,
       }
     }
   }
+  // Vnuc+V0+VXC
   real_function_3d v0 = v_j0 + v_nuc + v_xc;
 
   V0.X = v0 * Chi.X;
