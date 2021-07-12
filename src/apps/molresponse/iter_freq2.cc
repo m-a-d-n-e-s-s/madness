@@ -88,7 +88,7 @@ void TDDFT::iterate_freq2(World& world) {
   bool static_res = omega_n == 0.0;
   bool compute_y = not static_res;
   // Negate omega to make this next set of BSH operators \eps - omega
-  if (not static_res) {
+  if (compute_y) {
     omega_n = -omega_n;
     bsh_y_ops = make_bsh_operators_response(world, y_shifts, omega_n);
     omega_n = -omega_n;
@@ -109,8 +109,11 @@ void TDDFT::iterate_freq2(World& world) {
         print("-------------------------------------------");
     }
 
+    old_Chi = Chi.copy();
+    rho_omega_old = rho_omega;
     // compute rho_omega
-    rho_omega = make_density(world, Chi, compute_y);
+    rho_omega = transition_density(world, ground_orbitals, Chi.X, Chi.Y);
+    // rho_omega = make_density(world, Chi, compute_y);
 
     if (iter < 2 || (iter % 10) == 0) {
       loadbal(world, rho_omega, Chi, old_Chi);
@@ -128,15 +131,6 @@ void TDDFT::iterate_freq2(World& world) {
               bsh_residualsX,
               bsh_residualsY);
     }
-
-    // If omega = 0.0, x = y
-    if (static_res) Chi.Y = Chi.X.copy();
-    old_Chi = Chi.copy();
-    rho_omega_old = rho_omega;
-    // compute bsh_residual which is norm of residual functions
-    // apply bsh
-    // x_norm is the norm of the res vector
-    // Check convergence
 
     if (iter > 0) {
       double d_residual =
