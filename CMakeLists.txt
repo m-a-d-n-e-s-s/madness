@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.8.0)
+cmake_minimum_required (VERSION 3.11.0)
 project(MADNESS CXX C ASM)
 
 # Set MADNESS version
@@ -29,6 +29,7 @@ include(CMakePackageConfigHelpers)
 include(CopyTargetProperties)
 include(FeatureSummary)
 include(RedefaultableOption)
+include(FetchContent)
 
 # Check compiler feature support ===============================================
 
@@ -69,6 +70,9 @@ redefaultable_option(MADNESS_BUILD_MADWORLD_ONLY "Build only MADWorld runtime (e
 redefaultable_option(MADNESS_ENABLE_CEREAL "Support use of Cereal archives as backends for MADNESS serialization" OFF)
 
 # Enable optional libraries ====================================================
+
+# Preload versions/tags of all dependencies ====================================
+include(external/versions.cmake)
 
 # Always search for libraries that are 'ON' by default. If a library is not
 # found, it is disabled without error. If the library is 'OFF' by default,
@@ -655,7 +659,7 @@ if(ENABLE_UNITTESTS)
   enable_testing()
   set(MADNESS_HAS_GOOGLE_TEST 1)
   add_custom_target_subproject(madness unittests)
-  add_custom_target_subproject(madness check COMMAND ${CMAKE_CTEST_COMMAND} USES_TERMINAL) # to be GNU compatible
+  add_custom_target_subproject(madness check COMMAND ${CMAKE_CTEST_COMMAND} -V -R "madness/test/" USES_TERMINAL) # to be GNU compatible
   add_dependencies(everything unittests)
 endif()
 add_subdirectory(src)
