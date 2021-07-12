@@ -1349,26 +1349,43 @@ void TDDFT::update_x_space_response(World& world,
   X_space temp = bsh_update_response(
       world, old_Chi, Chi, theta_X, bsh_x_ops, bsh_y_ops, projector, x_shifts);
 
+  Tensor<double> G;
+  G = -2 * inner(temp, PQ);
+  print("Polarizability Tensor bsh update");
+  print(G);
+
+  // computes residual from old Chi and temp
   res = compute_residual(
       world, old_Chi, temp, bsh_residualsX, bsh_residualsY, compute_y);
 
   print_residual_norms(world, res, compute_y, iteration);
 
+  // kain update with temp adjusts temp
   if (r_params.kain()) {
     kain_x_space_update(world, temp, res, kain_x_space, Xvector, Xresidual);
+    G = -2 * inner(temp, PQ);
+    print("Polarizability Tensor kain update");
+    print(G);
   }
+
   //
-  if (iteration > 0) {
+  if (iteration > 0 && false) {
     x_space_step_restriction(world, old_Chi, temp, compute_y);
+    G = -2 * inner(temp, PQ);
+    print("Polarizability Tensor step restriction update");
+    print(G);
   }
 
   temp.X.truncate_rf();
   if (!compute_y) temp.Y = temp.X.copy();
   if (compute_y) temp.Y.truncate_rf();
 
+  Chi = temp.copy();
+  G = -2 * inner(Chi, PQ);
+  print("Polarizability Tensor  copy temp into Chi update");
+  print(G);
   // print x norms
 
-  Chi = temp.copy();
   if (r_params.print_level() >= 1) {
     print("Chi.x norms in iteration after truncate: ", iteration);
     print(Chi.X.norm2());
