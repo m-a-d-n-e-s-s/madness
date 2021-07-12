@@ -53,6 +53,7 @@ jobs:
         if [ "X${{ matrix.build_type }}" = "XDebug" ]; then
           brew install cereal
         fi
+        echo "TBBROOT=/usr/local/opt/tbb@2020" >> $GITHUB_ENV
 
     - name: Install prerequisites Ubuntu packages
       if: ${{ matrix.os == 'ubuntu-20.04' }}
