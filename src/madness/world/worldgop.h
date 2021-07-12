@@ -146,6 +146,7 @@ namespace madness {
         World& world_; ///< MPI interface
         std::shared_ptr<detail::DeferredCleanup> deferred_; ///< Deferred cleanup object.
         bool debug_; ///< Debug mode
+        bool forbid_fence_=false; ///< forbid calling fence() in case of several active worlds
 
         friend class detail::DeferredCleanup;
 
@@ -643,6 +644,12 @@ namespace madness {
             return status;
         }
 
+        /// Set forbid_fence flag to new value and return old value
+        bool set_forbid_fence(bool value) {
+            bool status = forbid_fence_;
+            forbid_fence_ = value;
+            return status;
+        }
         /// Synchronizes all processes in communicator ... does NOT fence pending AM or tasks
         void barrier() {
             long i = world_.rank();
@@ -695,7 +702,9 @@ namespace madness {
         }
 
         /// Broadcast a serializable object
-        template <typename objT>
+        template <typename objT,
+                  typename = std::void_t<decltype(std::declval<archive::BufferInputArchive&>()&std::declval<objT&>())>,
+                  typename = std::void_t<decltype(std::declval<archive::BufferOutputArchive&>()&std::declval<const objT&>())>>
         void broadcast_serializable(objT& obj, ProcessID root) {
             size_t BUFLEN;
             if (world_.rank() == root) {

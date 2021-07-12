@@ -74,6 +74,7 @@ namespace madness {
 			if (tt==TT_2D) return 2;
 			print("unknown TensorType",tt);
 			MADNESS_ASSERT(0);
+			return 0;
 		}
 
 		/// the scalar type of T

@@ -322,7 +322,7 @@ namespace madness {
         }
 
         /// Accumulate inplace and if necessary connect node to parent
-        double accumulate2(const tensorT& t, const typename FunctionNode<T,NDIM>::dcT& c,
+        void accumulate2(const tensorT& t, const typename FunctionNode<T,NDIM>::dcT& c,
                            const Key<NDIM>& key) {
             double cpu0=cpu_time();
             if (has_coeff()) {
@@ -351,17 +351,14 @@ namespace madness {
                 }
             }
             double cpu1=cpu_time();
-            return cpu1-cpu0;
         }
 
 
         /// Accumulate inplace and if necessary connect node to parent
-        double accumulate(const coeffT& t, const typename FunctionNode<T,NDIM>::dcT& c,
+        void accumulate(const coeffT& t, const typename FunctionNode<T,NDIM>::dcT& c,
                           const Key<NDIM>& key, const TensorArgs& args) {
             double cpu0=cpu_time();
             if (has_coeff()) {
-
-#if 1
                 coeff().add_SVD(t,args.thresh);
                 if (buffer.rank()<coeff().rank()) {
                     if (buffer.has_data()) {
@@ -371,12 +368,6 @@ namespace madness {
                     }
                     coeff()=coeffT();
                 }
-
-#else
-                // always do low rank
-                coeff().add_SVD(t,args.thresh);
-
-#endif
 
             } else {
                 // No coeff and no children means the node is newly
@@ -392,7 +383,6 @@ namespace madness {
                 }
             }
             double cpu1=cpu_time();
-            return cpu1-cpu0;
         }
 
         void consolidate_buffer(const TensorArgs& args) {
@@ -996,6 +986,16 @@ namespace madness {
 
         const std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >& get_pmap() const;
 
+        void replicate(bool fence=true) {
+        	coeffs.replicate(fence);
+        }
+
+        void distribute(std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > newmap) const {
+        	auto currentmap=coeffs.get_pmap();
+        	currentmap->redistribute(world,newmap);
+        }
+
+
         /// Copy coeffs from other into self
         template <typename Q>
         void copy_coeffs(const FunctionImpl<Q,NDIM>& other, bool fence) {
@@ -1072,7 +1072,9 @@ namespace madness {
                 return true;
             }
             template <typename Archive>
-            void serialize(Archive& ar) {}
+            void serialize(Archive& ar) {
+                ar & f & alpha & beta;
+            }
         };
 
         /// Inplace general bilinear operation
@@ -1081,13 +1083,13 @@ namespace madness {
         /// @param[in]  beta    prefactor for other
         template <typename Q, typename R>
         void gaxpy_inplace(const T& alpha,const FunctionImpl<Q,NDIM>& other, const R& beta, bool fence) {
-            MADNESS_ASSERT(get_pmap() == other.get_pmap());
+//            MADNESS_ASSERT(get_pmap() == other.get_pmap());
             if (alpha != T(1.0)) scale_inplace(alpha,false);
             typedef Range<typename FunctionImpl<Q,NDIM>::dcT::const_iterator> rangeT;
             typedef do_gaxpy_inplace<Q,R> opT;
-            world.taskq.for_each<rangeT,opT>(rangeT(other.coeffs.begin(), other.coeffs.end()), opT(this, T(1.0), beta));
+            other.world.taskq. template for_each<rangeT,opT>(rangeT(other.coeffs.begin(), other.coeffs.end()), opT(this, T(1.0), beta));
             if (fence)
-                world.gop.fence();
+                other.world.gop.fence();
         }
 
         // loads a function impl from persistence
@@ -4311,7 +4313,7 @@ namespace madness {
             // and also to ensure we don't needlessly widen the tree when
             // applying the operator
             if (result.normf()> 0.3*args.tol/args.fac) {
-                Future<double> time=coeffs.task(args.dest, &nodeT::accumulate2, result, coeffs, args.dest, TaskAttributes::hipri());
+                coeffs.task(args.dest, &nodeT::accumulate2, result, coeffs, args.dest, TaskAttributes::hipri());
                 //woT::task(world.rank(),&implT::accumulate_timer,time,TaskAttributes::hipri());
                 // UGLY BUT ADDED THE OPTIMIZATION BACK IN HERE EXPLICITLY/
                 if (args.dest == world.rank()) {
@@ -4351,7 +4353,7 @@ namespace madness {
                 //double cpu1=cpu_time();
                 //timer_lr_result.accumulate(cpu1-cpu0);
 
-                Future<double> time=coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, apply_targs,
+                coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, apply_targs,
                                                 TaskAttributes::hipri());
 
                 //woT::task(world.rank(),&implT::accumulate_timer,time,TaskAttributes::hipri());
@@ -4389,9 +4391,9 @@ namespace madness {
                 timer_lr_result.accumulate(cpu1-cpu0);
 
                 // accumulate also expects result in SVD form
-                Future<double> time=coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, apply_targs,
+                coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, apply_targs,
                                                 TaskAttributes::hipri());
-                woT::task(world.rank(),&implT::accumulate_timer,time,TaskAttributes::hipri());
+//                woT::task(world.rank(),&implT::accumulate_timer,time,TaskAttributes::hipri());
 
             }
             return result_norm;
@@ -5870,6 +5872,24 @@ namespace madness {
             }
             if (fence)
                 world.gop.fence();
+        }
+
+        /// Hash a pointer to \c FunctionImpl
+
+        /// \param[in] impl pointer to a FunctionImpl
+        /// \return The hash.
+        inline friend hashT hash_value(const FunctionImpl<T,NDIM>* pimpl) {
+            hashT seed = hash_value(pimpl->id().get_world_id());
+            detail::combine_hash(seed, hash_value(pimpl->id().get_obj_id()));
+            return seed;
+        }
+
+        /// Hash a shared_ptr to \c FunctionImpl
+
+        /// \param[in] impl pointer to a FunctionImpl
+        /// \return The hash.
+        inline friend hashT hash_value(const std::shared_ptr<FunctionImpl<T,NDIM>> impl) {
+            return hash_value(impl.get());
         }
     };
 

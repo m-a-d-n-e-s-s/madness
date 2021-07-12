@@ -1958,7 +1958,7 @@ namespace madness {
     scale(world,vK,-1.0);
     timer_K.info(true,norm2(world,vK));
     // apply nuclear potential
-    Nuclear Uop(world,&nemo_);
+    Nuclear<double,3> Uop(world,&nemo_);
     vector_real_function_3d Upot=Uop(singles.get_vecfunction());
     vector_real_function_3d KU=add(world,vK,Upot);
     return add(world,J,KU);
@@ -2123,7 +2123,7 @@ namespace madness {
   double
   CCPotentials::x_s3a(const CC_vecfunction& x,const CC_vecfunction& t) const {
     MADNESS_ASSERT(x.size() == t.size());
-    Nuclear Uop(world,&nemo_);
+    Nuclear<double,3> Uop(world,&nemo_);
     vector_real_function_3d Ut=Uop(t.get_vecfunction());
     const double nuc=inner(world,x.get_vecfunction(),Ut).sum();
     double pot=0.0;

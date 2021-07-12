@@ -55,41 +55,25 @@ int main(int argc, char** argv) {
 
     if (world.rank()==0) print(info::print_revision_information());
 
-
-    if (world.rank()==0) {
-#ifdef MADNESS_HAS_GOOGLE_PERF_MINIMAL
-    	print("using gperftools, clearing memory at each fence()");
-#endif
-    }
+    commandlineparser parser(argc,argv);
 
     TensorType tt=TT_2D;
-
-    // get command line parameters (overrides input file)
+    if (parser.key_exists("TT")) {
+        if (parser.value("TT")=="TT_2D") tt=TT_2D;
+        if (parser.value("TT")=="TT_TENSORTRAIN") tt=TT_TENSORTRAIN;
+    }
     bool do_test=false;
     std::string testfilename;
-    for(int ii = 1; ii < argc; ii++) {
-        const std::string arg=argv[ii];
-
-        // break parameters into key and val
-        size_t pos=arg.find("=");
-        std::string key=arg.substr(0,pos);
-        std::string val=arg.substr(pos+1);
-
-        if (key=="test") {
-        	do_test=true;
-        	testfilename=val;
-        }
-        if (key=="TT") {
-            if (val=="TT_2D") tt=TT_2D;
-            if (val=="TT_TENSORTRAIN") tt=TT_TENSORTRAIN;
-        }
+    if (parser.key_exists("test")) {
+        do_test = true;
+        testfilename=parser.value("test");
     }
 
     FunctionDefaults<6>::set_tensor_type(tt);
     FunctionDefaults<6>::set_apply_randomize(true);
 
     try {
-    	MP2 mp2(world,"input");
+    	MP2 mp2(world,parser);
 
     	if(world.rank() == 0) printf("\nstarting at time %.1fs\n", wall_time());
 

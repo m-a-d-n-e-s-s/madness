@@ -36,11 +36,10 @@ namespace madness {
 template <typename Archive> struct is_cereal_archive;
 }
 
-#if __has_include(<cereal/cereal.hpp>)
-
-#ifndef MADNESS_HAS_CEREAL
-#define MADNESS_HAS_CEREAL 1
-#endif
+#ifdef MADNESS_HAS_CEREAL
+#  if ! __has_include(<cereal/cereal.hpp>)
+#    error "MADNESS_ENABLE_CEREAL is on, but cereal/cereal.hpp was not found."
+#  endif
 
 #include <memory>
 #include <cereal/cereal.hpp>
@@ -81,7 +80,7 @@ public:
           cereal::traits::is_text_archive<Cereal>::value,void>
   store(const T *t, long n) const {
     for (long i = 0; i != n; ++i)
-      *muesli & t[i];
+      (*muesli)(t[i]);
   }
 
   void open(std::size_t hint) {}
@@ -119,7 +118,7 @@ public:
       void>
   load(T *t, long n) const {
     for (long i = 0; i != n; ++i)
-      *muesli & t[i];
+      (*muesli)(t[i]);
   }
 
   void open(std::size_t hint) {}
@@ -140,7 +139,7 @@ struct is_text_archive<
     : std::true_type {};
 
 template <typename Muesli, typename T>
-struct is_serializable<
+struct is_default_serializable_helper<
     archive::CerealOutputArchive<Muesli>, T,
     std::enable_if_t<(is_trivially_serializable<T>::value &&
         !cereal::traits::is_text_archive<Muesli>::value) ||
@@ -148,7 +147,7 @@ struct is_serializable<
          cereal::traits::is_text_archive<Muesli>::value)>>
     : std::true_type {};
 template <typename Muesli, typename T>
-struct is_serializable<
+struct is_default_serializable_helper<
     archive::CerealInputArchive<Muesli>, T,
     std::enable_if_t<
         (is_trivially_serializable<T>::value &&
@@ -162,9 +161,27 @@ struct is_cereal_archive<archive::CerealOutputArchive<Muesli>> : std::true_type 
 template <typename Muesli>
 struct is_cereal_archive<archive::CerealInputArchive<Muesli>> : std::true_type {};
 
+// must also be able to introspect bare cereal archives to be able to reuse serialize methods for both
+template <typename T>
+struct is_archive<archive::CerealOutputArchive<T>, std::enable_if_t<std::is_base_of_v<cereal::detail::OutputArchiveBase, T>>> : std::true_type {};
+template <typename T>
+struct is_archive<archive::CerealInputArchive<T>, std::enable_if_t<std::is_base_of_v<cereal::detail::InputArchiveBase, T>>> : std::true_type {};
+template <typename T>
+struct is_output_archive<archive::CerealOutputArchive<T>, std::enable_if_t<std::is_base_of_v<cereal::detail::OutputArchiveBase, T>>> : std::true_type {};
+template <typename T>
+struct is_input_archive<archive::CerealInputArchive<T>, std::enable_if_t<std::is_base_of_v<cereal::detail::InputArchiveBase, T>>> : std::true_type {};
+template <typename T>
+struct is_archive<T, std::enable_if_t<std::is_base_of_v<cereal::detail::OutputArchiveBase, T>>> : std::true_type {};
+template <typename T>
+struct is_archive<T, std::enable_if_t<std::is_base_of_v<cereal::detail::InputArchiveBase, T>>> : std::true_type {};
+template <typename T>
+struct is_output_archive<T, std::enable_if_t<std::is_base_of_v<cereal::detail::OutputArchiveBase, T>>> : std::true_type {};
+template <typename T>
+struct is_input_archive<T, std::enable_if_t<std::is_base_of_v<cereal::detail::InputArchiveBase, T>>> : std::true_type {};
+
 }  // namespace madness
 
-#endif  // have cereal/cereal.hpp
+#endif  // MADNESS_HAS_CEREAL
 
 namespace madness {
 template <typename Archive> struct is_cereal_archive : std::false_type {};

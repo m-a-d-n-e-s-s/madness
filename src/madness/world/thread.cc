@@ -113,6 +113,9 @@ namespace madness {
         if(rc != 0)
             MADNESS_EXCEPTION("pthread_setspecific failed", rc);
 
+        // mark as a MADNESS thread
+        set_thread_tag(ThreadTag_MADNESS);
+
         try {
             ((ThreadBase*)(self))->run();
         }
@@ -362,9 +365,9 @@ namespace madness {
         parsec_remote_dep_set_ctx(ThreadPool::parsec, (intptr_t)parsec_comm);
 #ifdef PARSEC_PROF_TRACE
         madness_parsec_tp.profiling_array = (int*)malloc(2*sizeof(int));
-        paresc__profiling_add_dictionary_keyword("MADNESS TASK", "fill:CC2828", 0, "",
-                                                 (int *)&madness_parsec_tp.profiling_array[0],
-                                                 (int *)&madness_parsec_tp.profiling_array[1]);
+        parsec_profiling_add_dictionary_keyword("MADNESS TASK", "fill:CC2828", 0, "",
+                                                (int *)&madness_parsec_tp.profiling_array[0],
+                                                (int *)&madness_parsec_tp.profiling_array[1]);
 #endif
         if( 0 != parsec_context_add_taskpool(ThreadPool::parsec, &madness_parsec_tp) ) {
             std::cerr << "ERROR: parsec_context_add_taskpool failed!!" << std::endl;
