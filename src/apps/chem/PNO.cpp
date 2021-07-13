@@ -629,7 +629,7 @@ std::vector<PNOPairs> PNO::solve_cispd(std::vector<PNOPairs>& result) const {
 	return result;
 }
 
-std::pair<unsigned long int, unsigned long int> PNO::get_average_rank(const std::valarray<vector_real_function_3d>& va) const {
+std::pair<size_t, size_t> PNO::get_average_rank(const std::valarray<vector_real_function_3d>& va) const {
 	size_t sum = 0;
 	size_t vectors = va.size();
 	size_t max = 0;
