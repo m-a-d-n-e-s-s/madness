@@ -622,7 +622,7 @@ void wave_function_store(World& world, int step, const complex_functionT& psi) {
 }
 
 bool wave_function_exists(World& world, int step) {
-    return archive::ParallelInputArchive::exists(world, wave_function_filename(step));
+    return archive::ParallelInputArchive<madness::archive::BinaryFstreamInputArchive>::exists(world, wave_function_filename(step));
 }
 
 void doplot(World& world, int step, const complex_functionT& psi, double Lplot, long numpt, const char* fname) {
@@ -646,7 +646,7 @@ void line_plot(World& world, int step, complex_functionT& psi) {
         double z = -param.Llarge + 2.0*i*param.Llarge/(npt-1);
         coordT r(0.0);
         r[2] = z;
-        v[i] = psi.eval(r);
+        v[i] = psi.eval(r).get();
     }
     world.gop.fence();
     world.gop.sum(v, npt);

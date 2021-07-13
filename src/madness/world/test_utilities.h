@@ -38,6 +38,7 @@ struct test_output {
 	}
 };
 
+
 }
 
 #endif /* SRC_APPS_CHEM_TEST_UTILITIES_H_ */

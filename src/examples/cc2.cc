@@ -98,14 +98,15 @@ for (int i=1; i<argc; i++) {
 if (world.rank() == 0) print("input filename: ", inpname);
 
 //SCF calc(world,input.c_str());
-std::shared_ptr<SCF> calc(new SCF(world,inpname));
-Nemo nemo(world,calc,inpname);
+commandlineparser parser(argc,argv);
+std::shared_ptr<Nemo> nemo(new Nemo(world,parser));
+std::shared_ptr<SCF> calc=nemo->get_calc();
 if (world.rank()==0) {
     calc->molecule.print();
     print("\n");
     calc->param.print("cc2");
 }
-double hf_energy = nemo.value();
+double hf_energy = nemo->value();
 if(world.rank()==0) std::cout << "\n\n\n\n\n\n Reference Calclation Ended\n SCF Energy is: " << hf_energy
 		<<"\n current wall-time: " << wall_time()
 		<<"\n current cpu-time: " << cpu_time()<< "\n\n\n";

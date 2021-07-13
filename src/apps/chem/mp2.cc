@@ -75,13 +75,12 @@ void load_balance(const real_function_6d& f, const bool leaf) {
 }
 
 /// ctor
-MP2::MP2(World& world, const std::string& input) : world(world),
+MP2::MP2(World& world, const commandlineparser& parser) : world(world),
 		param(world), corrfac(world), correlation_energy(0.0),
 		coords_sum(-1.0), Q12(world), ttt(0.0), sss(0.0) {
 
 	{
-		std::shared_ptr<SCF> calc = std::shared_ptr<SCF>(
-				new SCF(world, input.c_str()));
+		std::shared_ptr<Nemo> nemo = std::shared_ptr<Nemo>(new Nemo(world, parser));
 
 		// by default SCF sets the truncate_mode to 1
 		FunctionDefaults<3>::set_truncate_mode(3);
@@ -90,46 +89,27 @@ MP2::MP2(World& world, const std::string& input) : world(world),
 		// get parameters form input file for hf
 		if (world.rank() == 0)
 			print("accuracy from dft will be overriden by mp2 to 0.01*thresh");
-		calc->set_protocol<6>(world, param.thresh());
-		calc->param.set_derived_value("econv",param.thresh() * 0.01);
-		calc->set_protocol<3>(world, calc->param.econv());
+		nemo->get_calc()->set_protocol<6>(world, param.thresh());
+		nemo->param.set_derived_value("econv",param.thresh() * 0.01);
+		nemo->get_calc()->set_protocol<3>(world, nemo->param.econv());
 
-		// override computed parameters if they are provided explicitly
-		double eprec = calc->param.econv() * 0.1;
+		if (world.rank() == 0) nemo->get_calc()->molecule.print();
 
-		std::ifstream f(input.c_str());
-		position_stream(f, "geometry");
-		std::string s;
-		while (std::getline(f, s)) {
-			std::istringstream ss(s);
-			std::string tag;
-			ss >> tag;
-			if (tag == "end")
-				break;
-			else if (tag == "eprec")
-				ss >> eprec;
-			else
-				continue;
-		}
-
-		calc->molecule.set_eprec(eprec);
-		if (world.rank() == 0) calc->molecule.print();
-
-		hf = std::shared_ptr<HartreeFock>(new HartreeFock(world, calc));
+		hf = std::shared_ptr<HartreeFock>(new HartreeFock(world, nemo));
 		poisson = std::shared_ptr<real_convolution_3d>(
-				CoulombOperatorPtr(world, 0.0001, calc->param.econv()));
+				CoulombOperatorPtr(world, 0.0001, nemo->param.econv()));
 
 		// construct electronic correlation factor only, nuclear correlation
 		// factor depends on the coordinates and must be reassigned for
 		// for each geometric structure
-		corrfac = CorrelationFactor(world, 1.0, dcut, calc->molecule);
+		corrfac = CorrelationFactor(world, 1.0, dcut, nemo->get_calc()->molecule);
 
 	}
 
 
 	// print some output for the user
 	if (world.rank() == 0) {
-		hf->get_calc().param.print("reference");
+		hf->nemo_ptr->param.print("reference");
 		param.print("mp2","mp2_end");
 	}
 
@@ -166,7 +146,7 @@ double MP2::value(const Tensor<double>& x) {
 		return correlation_energy;
 
 	// nuclear correlation factor depends on the coordinates
-	nuclear_corrfac = hf->nemo_calc.ncf;
+	nuclear_corrfac = hf->nemo_ptr->ncf;
 
 	// make sure HF used the same geometry as we do
 	coords_sum = xsq;
@@ -438,7 +418,7 @@ double MP2::solve_coupled_equations(Pairs<ElectronPair>& pairs,
 
 
 real_function_6d MP2::make_Rpsi(const ElectronPair& pair) const {
-	const real_function_3d R = hf->nemo_calc.R;
+	const real_function_3d R = hf->nemo_ptr->R;
 	real_function_6d Rpair1 = multiply(pair.function, R, 1).truncate();
 	real_function_6d Rpair = multiply(Rpair1, R, 2).truncate();
 	int i = pair.i, j = pair.j;
@@ -622,7 +602,7 @@ void MP2::save_function(const Function<T, NDIM>& f,
 	if (world.rank() == 0)
 		print("saving function", name);
 	f.print_size(name);
-	archive::ParallelOutputArchive ar(world, name.c_str(), 1);
+	archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, name.c_str(), 1);
 	ar & f;
 }
 
@@ -631,7 +611,7 @@ template<typename T, size_t NDIM>
 void MP2::load_function(Function<T, NDIM>& f, const std::string name) const {
 	if (world.rank() == 0)
 		print("loading function", name);
-	archive::ParallelInputArchive ar(world, name.c_str());
+	archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, name.c_str());
 	ar & f;
 	f.print_size(name);
 }
@@ -687,7 +667,7 @@ real_function_6d MP2::make_Uphi0(ElectronPair& pair) const {
 			op_mod.modified() = true;
 
 			const real_function_3d u1_nuc =
-					hf->nemo_calc.ncf->U1(axis);
+					hf->nemo_ptr->ncf->U1(axis);
 			const real_function_3d u1_nuc_nemo_i = u1_nuc * hf->nemo(i);
 			const real_function_3d u1_nuc_nemo_j = u1_nuc * hf->nemo(j);
 			const real_function_6d u1_el = corrfac.U1(axis);
@@ -979,7 +959,7 @@ void MP2::guess_mp1_3(ElectronPair& pair) const {
 
 	// compute some intermediates
 	const tensorT occ=hf->get_calc().aocc;
-	tensorT fock=hf->nemo_calc.compute_fock_matrix(hf->nemos(),occ);
+	tensorT fock=hf->nemo_ptr->compute_fock_matrix(hf->nemos(),occ);
 	if (hf->get_calc().param.do_localize()) {
 		// local orbitals -- add coupling
 		vecfuncT amotilde=transform(world,hf->orbitals(),fock);
@@ -1403,7 +1383,7 @@ real_function_6d MP2::multiply_with_0th_order_Hamiltonian(
 
 		// the purely local part: Coulomb and U2
 		real_function_3d v_local = hf->get_coulomb_potential()
-									+ hf->nemo_calc.ncf->U2();
+									+ hf->nemo_ptr->ncf->U2();
 		if (param.do_oep) {
 			real_function_3d voep=real_factory_3d(world);
 			load(voep,"mRKS_potential_final");
@@ -1435,7 +1415,7 @@ real_function_6d MP2::multiply_with_0th_order_Hamiltonian(
 			if (world.rank() == 0)
 				print("axis, axis^%3, axis/3+1", axis, axis % 3, axis / 3 + 1);
 			const real_function_3d U1_axis =
-					hf->nemo_calc.ncf->U1(axis % 3);
+					hf->nemo_ptr->ncf->U1(axis % 3);
 			//                    real_function_6d x=multiply(copy(Drhs),copy(U1_axis),axis/3+1).truncate();
 
 			double tight_thresh = std::min(FunctionDefaults<6>::get_thresh(), 1.e-4);

@@ -43,6 +43,7 @@
 #include <chem/molecule.h>
 #include <chem/molecularbasis.h>
 #include <chem/QCCalculationParametersBase.h>
+#include <chem/commandlineparser.h>
 
 
 namespace madness {
@@ -50,8 +51,11 @@ namespace madness {
 #if 1
 struct CalculationParameters : public QCCalculationParametersBase {
 
-	CalculationParameters(const CalculationParameters& other) : QCCalculationParametersBase(other) {
-	}
+	CalculationParameters(const CalculationParameters& other) = default;
+
+	CalculationParameters(World& world, const commandlineparser& parser) : CalculationParameters() {
+        read(world, parser.value("input"), "dft");
+    }
 
 	/// ctor reading out the input file
 	CalculationParameters() {
@@ -103,6 +107,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<std::string> ("ac_data","none","do a calculation with asymptotic correction (see ACParameters class in chem/AC.h for details)");
 		initialize<bool> ("pure_ae",true,"pure all electron calculation with no pseudo-atoms");
 		initialize<int>  ("print_level",3,"0: no output; 1: final energy; 2: iterations; 3: timings; 10: debug");
+		initialize<std::string>  ("molecular_structure","inputfile","where to read the molecule from: inputfile or name from the library");
 
 		// Next list inferred parameters
 		initialize<int> ("nalpha",-1,"number of alpha spin electrons");
@@ -323,7 +328,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
         }
 
         //NWChem interface doesn't support geometry optimization
-        if (get<bool>("gopt") && nwfile() != "") error("NWchem initialization only supports single point energy calculations.");
+        if (get<bool>("gopt") && nwfile() != "none") error("NWchem initialization only supports single point energy calculations.");
 
         //NWChem only supports Boys localization (or canonical)
         if (nwfile() != "none") {

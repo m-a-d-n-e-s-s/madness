@@ -8,7 +8,7 @@
 #include <madness/mra/mra.h>
 #include "znemo.h"
 #include <chem/diamagneticpotentialfactor.h>
-#include <chem/test_utilities.h>
+#include <madness/world/test_utilities.h>
 #include <chem/masks_and_boxes.h>
 #include <chem/MolecularOrbitals.h>
 
@@ -375,7 +375,7 @@ double Znemo::analyze() {
 	save(j[1],"j1");
 	save(j[2],"j2");
 
-	Lz lz(world);
+	Lz<double_complex,3> lz(world);
 	// compute the expectation values of the Lz operator
 	std::vector<complex_function_3d> lzamo=0.5*B[2]*lz(amo);
 	std::vector<complex_function_3d> lzbmo=0.5*B[2]*lz(bmo);
@@ -675,7 +675,7 @@ std::vector<real_function_3d> Znemo::compute_current_density(
 
 void Znemo::test_compute_current_density() const {
 
-	Lz lz(world);
+	Lz<double_complex,3> lz(world);
 	complex_function_3d pp=complex_factory_3d(world).functor(p_orbital(1,1.0,{0,0,0}));
 	double norm=pp.norm2();
 	pp.scale(1/norm);
@@ -700,7 +700,7 @@ void Znemo::test_landau_wave_function() {
 	double fnorm=f.norm2();
 	f.scale(1.0/fnorm);
 
-	Lz lz(world);
+	Lz<double_complex,3> lz(world);
 	double_complex expval=0.5*B*lz(f,f);
 	print("<f(m) | Lz | f(m)> ", m, expval);
 	double_complex diaexpval=inner(f,diafac->bare_diamagnetic_potential()*f);
@@ -894,7 +894,7 @@ Znemo::read_reference() const {
 
 	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> > zmos;
 
-	archive::ParallelInputArchive ar(world, name.c_str(), 1);
+	archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, name.c_str(), 1);
 	std::size_t namo, nbmo;
 
 	std::vector<complex_function_3d> amos,bmos;
@@ -916,7 +916,7 @@ std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,
 Znemo::custom_guess() const {
 	MADNESS_ASSERT(molecule().natom()==1);
 
-	Lz lz(world);
+	Lz<double_complex,3> lz(world);
 
 	std::vector<std::string> guess=param.guess();
 	std::vector<complex_function_3d> guess_vector;
@@ -981,7 +981,7 @@ Znemo::hcore_guess() const {
 	Tensor<double_complex> potential=matrix_inner(world,aos,vlocal*aos);
 
 	// zeeman term
-	Lz lz_operator(world,false);
+	Lz<double_complex,3> lz_operator(world,false);
 	Tensor<double_complex> lzmat=0.5*B[2]*lz_operator(aos,aos);
 	potential+=lzmat;
 
@@ -1022,12 +1022,12 @@ Znemo::potentials Znemo::compute_potentials(const std::vector<complex_function_3
 	std::vector<complex_function_3d> dia2mo=make_bra(mo);
 
 	// prepare exchange operator
-	Exchange<double_complex,3> K=Exchange<double_complex,3>(world);
+	Exchange<double_complex,3> K;
 	Tensor<double> occ(mo.size());
 	occ=1.0;
-	K.set_parameters(conj(world,dia2mo),mo,occ,cparam.lo(),cparam.econv());
+	K.set_parameters(conj(world,dia2mo),mo,cparam.lo());
 
-	Nuclear nuc(world,ncf);
+	Nuclear<double_complex,3> nuc(world,ncf);
 
 	potentials pot(world,rhs.size());
 
@@ -1035,7 +1035,7 @@ Znemo::potentials Znemo::compute_potentials(const std::vector<complex_function_3
 	pot.K_mo=K(rhs);
 	pot.vnuc_mo=nuc(rhs);
 
-	pot.lz_mo=0.5*B[2]*Lz(world,false)(rhs);
+	pot.lz_mo=0.5*B[2]*Lz<double_complex,3>(world,false)(rhs);
 	pot.lz_commutator=diafac->compute_lz_commutator()*rhs;
 
 	pot.diamagnetic_mo=diafac->apply_potential(rhs);

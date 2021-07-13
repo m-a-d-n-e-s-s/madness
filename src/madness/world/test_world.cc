@@ -1084,13 +1084,13 @@ void test12(World& world) {
 void test13(World& world) {
     PROFILE_FUNC;
     // Basic functionality with 1 (default) writer
-    archive::ParallelOutputArchive fout(world, "fred");
+    archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> fout(world, "fred");
     fout & 1.0 & "hello";
     fout.close();
 
     double v;
     char s[6];
-    archive::ParallelInputArchive fin(world, "fred");
+    archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> fin(world, "fred");
     fin & v & s;
     fin.close();
     fin.remove();
@@ -1130,10 +1130,29 @@ void test13(World& world) {
     }
 
     fin.close();
-    archive::ParallelOutputArchive::remove(world, "fred");
+    archive::ParallelOutputArchive<>::remove(world, "fred");
 
     print("Test13 OK");
     world.gop.fence();
+}
+
+void test14(World& world) {
+
+  if (world.size() > 1) {
+    const auto n = 1 + std::numeric_limits<int>::max()/sizeof(int);
+    auto iarray = std::make_unique<int[]>(n);
+    iarray[0] = -1;
+    iarray[n-1] = -1;
+    world.gop.broadcast(iarray.get(), n, 0);
+
+    if (world.rank() == 1) {
+      MADNESS_CHECK(iarray[0] == -1);
+      MADNESS_CHECK(iarray[n-1] == -1);
+    }
+
+    print("Test14 OK");
+  }
+  world.gop.fence();
 }
 
 inline bool is_odd(int i) {
@@ -1155,6 +1174,7 @@ void work_odd(World& world) {
     //test11(world);
     // test12(world); cannot run due to filename collision
     // test13(world);
+    test14(world);
     world.gop.fence();
 }
 
@@ -1169,6 +1189,7 @@ void work_even(World& world) {
     //test11(world);
     // test12(world); cannot run due to filename collision
     // test13(world);
+    test14(world);
     world.gop.fence();
 }
 
@@ -1303,6 +1324,7 @@ int main(int argc, char** argv) {
         //test11(world);
         test12(world);
         test13(world);
+        test14(world);
 
         for (int i=0; i<10; ++i) {
           print("REPETITION",i);

@@ -44,7 +44,9 @@
 #include <fstream>
 #include <sstream>
 
-#if defined(HAVE_IBMBGQ)
+#if defined(MADNESS_HAS_GOOGLE_PERF_MINIMAL)
+#include <gperftools/malloc_extension.h>
+#elif defined(HAVE_IBMBGQ)
 #include <spi/include/kernel/memory.h>
 #elif defined(ON_A_MAC)
 #include <malloc/malloc.h>
@@ -133,6 +135,7 @@ namespace madness {
     /// \param[in] rank process rank
     /// \param[in] tag record tag as any string type, e.g. \c const char[] , \c std::string , or \c std::wstring
     /// \param[in] filename_prefix file name prefix; the default value is "MEMORY"
+    /// \param[in] verbose if true, will produce verbose output; is only currently used if TCMalloc is used
     /// \note To make print_meminfo() usable must set the ENABLE_MEM_PROFILE CMake cache variable to ON; this makes print_meminfo() enabled by default.
     ///       To disable/enable programmatically use print_meminfo_disable()/print_meminfo_enable() .
     /// \note must set global locale properly with \c std::locale::global() if \c tag has
@@ -140,23 +143,34 @@ namespace madness {
     /// \warning this does not fence, it is up to the user to ensure proper synchronization
     template <typename String> void print_meminfo(
         int rank, const String& tag,
-        const std::string filename_prefix = std::string("MEMORY")) {
-      using namespace std;
+        const std::string filename_prefix = std::string("MEMORY"),
+        bool verbose = false) {
 #if defined(WORLD_MEM_PROFILE_ENABLE)
       if (print_meminfo_enabled()) {
         using Char = typename std::iterator_traits<decltype(
             std::begin(tag))>::value_type;
-        basic_ofstream<Char> memoryfile;
-        ostringstream filename;
+        std::basic_ofstream<Char> memoryfile;
+        std::ostringstream filename;
 
         filename << filename_prefix << "." << rank;
 
-        memoryfile.open(filename.str().c_str(), ios::out | ios::app);
-        memoryfile << tag << endl;
+        memoryfile.open(filename.str().c_str(), std::ios::out | std::ios::app);
+        memoryfile << tag << std::endl;
 
         const double to_MiB =
             1 / (1024.0 * 1024.0); /* Convert from bytes to MiB */
-#if defined(HAVE_IBMBGQ)
+#if defined(MADNESS_HAS_GOOGLE_PERF_MINIMAL)
+        if (verbose) {
+          char buf[100000];
+          MallocExtension::instance()->GetStats(&buf[0], 100000);
+          memoryfile << buf << std::endl;
+        }
+        else {  // <10000 => level-1 printing
+          char buf[9999];
+          MallocExtension::instance()->GetStats(&buf[0], 9999);
+          memoryfile << buf << std::endl;
+        }
+#elif defined(HAVE_IBMBGQ)
         uint64_t shared, persist, heapavail, stackavail, stack, heap, guard,
             mmap;
 
@@ -170,41 +184,41 @@ namespace madness {
         Kernel_GetMemorySize(KERNEL_MEMSIZE_MMAP, &mmap);
 
         memoryfile << "Heap size (MiB): " << (heap * to_MiB)
-                   << ", available: " << (heapavail * to_MiB) << endl;
+                   << ", available: " << (heapavail * to_MiB) << std::endl;
         memoryfile << "Stack size (MiB): " << (stack * to_MiB)
-                   << ", available: " << (stackavail * to_MiB) << endl;
+                   << ", available: " << (stackavail * to_MiB) << std::endl;
         memoryfile << "Memory (MiB): shared: " << (shared * to_MiB)
                    << ", persist: " << (persist * to_MiB)
                    << ", guard: " << (guard * to_MiB) << ", mmap: " << (mmap * to_MiB)
-                   << endl;
+                   << std::endl;
 #elif defined(ON_A_MAC)
         /* Mac OS X specific hack - un-tested post Snow Leopard */
         struct malloc_statistics_t mi; /* structure in bytes */
 
         malloc_zone_statistics(nullptr, &mi);
 
-        memoryfile << "Heap allocated  (MiB): " << (mi.size_allocated * to_MiB) << endl;
-        memoryfile << "Heap used       (MiB): " << (mi.size_in_use * to_MiB) << endl;
-        memoryfile << "Heap max used   (MiB): " << (mi.max_size_in_use * to_MiB) << endl;
+        memoryfile << "Heap allocated  (MiB): " << (mi.size_allocated * to_MiB) << std::endl;
+        memoryfile << "Heap used       (MiB): " << (mi.size_in_use * to_MiB) << std::endl;
+        memoryfile << "Heap max used   (MiB): " << (mi.max_size_in_use * to_MiB) << std::endl;
 #elif defined(X86_32) // 32-bit Linux
         struct mallinfo mi; /* structure in bytes */
 
         mi = mallinfo();
 
-        memoryfile << "Non-mmap (MiB): " << (mi.arena * to_MiB) << endl;
-        memoryfile << "Mmap (MiB): " << (mi.hblkhd * to_MiB) << endl;
+        memoryfile << "Non-mmap (MiB): " << (mi.arena * to_MiB) << std::endl;
+        memoryfile << "Mmap (MiB): " << (mi.hblkhd * to_MiB) << std::endl;
         memoryfile << "Total malloc chunks (MiB): " << (mi.uordblks * to_MiB)
-                   << endl;
+                   << std::endl;
 #elif defined(X86_64) // 64-bit Linux
         // try parsing /proc/PID/status first, fallback on sysinfo
-        string status_fname =
-            string("/proc/") + to_string(getpid()) + string("/status");
-        basic_ifstream<Char> status_stream(status_fname);
+        std::string status_fname =
+            std::string("/proc/") + std::to_string(getpid()) + std::string("/status");
+        std::basic_ifstream<Char> status_stream(status_fname);
         if (status_stream.good()) {
-          basic_string<Char> line;
-          while (getline(status_stream, line)) {
+          std::basic_string<Char> line;
+          while (std::getline(status_stream, line)) {
             if (line.find(detail::Vm_cstr<Char>()) == 0)
-              memoryfile << line << endl;
+              memoryfile << line << std::endl;
           }
           status_stream.close();
         } else {
@@ -216,12 +230,12 @@ namespace madness {
 
           sysinfo(&si);
 
-          memoryfile << "Total RAM (MiB): " << (si.totalram * to_MiB) << endl;
-          memoryfile << "Free RAM (MiB): " << (si.freeram * to_MiB) << endl;
-          memoryfile << "Buffer (MiB): " << (si.bufferram * to_MiB) << endl;
+          memoryfile << "Total RAM (MiB): " << (si.totalram * to_MiB) << std::endl;
+          memoryfile << "Free RAM (MiB): " << (si.freeram * to_MiB) << std::endl;
+          memoryfile << "Buffer (MiB): " << (si.bufferram * to_MiB) << std::endl;
           memoryfile << "RAM in use (MiB): "
                      << ((si.totalram - si.freeram + si.bufferram) * to_MiB)
-                     << endl;
+                     << std::endl;
         }
 #endif                // platform specific
         memoryfile.close();

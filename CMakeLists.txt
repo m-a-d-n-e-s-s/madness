@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.8.0)
+cmake_minimum_required (VERSION 3.11.0)
 project(MADNESS CXX C ASM)
 
 # Set MADNESS version
@@ -29,6 +29,7 @@ include(CMakePackageConfigHelpers)
 include(CopyTargetProperties)
 include(FeatureSummary)
 include(RedefaultableOption)
+include(FetchContent)
 
 # Check compiler feature support ===============================================
 
@@ -66,8 +67,12 @@ set(MADNESS_INSTALL_CMAKEDIR "lib/cmake/madness"
 # Build options  ==============================================================
 
 redefaultable_option(MADNESS_BUILD_MADWORLD_ONLY "Build only MADWorld runtime (excluding BLAS/LAPACK interfaces)" OFF)
+redefaultable_option(MADNESS_ENABLE_CEREAL "Support use of Cereal archives as backends for MADNESS serialization" OFF)
 
 # Enable optional libraries ====================================================
+
+# Preload versions/tags of all dependencies ====================================
+include(external/versions.cmake)
 
 # Always search for libraries that are 'ON' by default. If a library is not
 # found, it is disabled without error. If the library is 'OFF' by default,
@@ -86,14 +91,35 @@ option(ENABLE_PAPI "Enables use of PAPI" OFF)
 option(ENABLE_LIBXC "Enables use of the libxc library of density functionals" ON)
 option(ENABLE_PCM "Enables use of the polarizable continuum model library" ON)
 
-redefaultable_option(ENABLE_TBB "Enables use of Intel Thread Building Blocks (TBB) as the task scheduler" OFF)
+####### preferred task backend
+set(MADNESS_TASK_VALID_BACKENDS Pthreads TBB PaRSEC)
+set(MADNESS_TASK_BACKEND Pthreads CACHE STRING "The backend to use for dispatching tasks")
+set_property(CACHE MADNESS_TASK_BACKEND PROPERTY STRINGS ${MADNESS_TASK_VALID_BACKENDS})
+
+if (DEFINED MADNESS_TASK_BACKEND)
+  if(NOT MADNESS_TASK_BACKEND IN_LIST MADNESS_TASK_VALID_BACKENDS)
+    message(FATAL_ERROR "MADNESS_TASK_BACKEND must be one of ${MADNESS_TASK_VALID_BACKENDS}")
+  endif()
+  if (MADNESS_TASK_BACKEND STREQUAL TBB)
+    set(ENABLE_TBB ON)
+  else()
+    set(ENABLE_TBB OFF)
+  endif()
+  if (MADNESS_TASK_BACKEND STREQUAL PaRSEC)
+    set(ENABLE_PARSEC ON)
+  else()
+    set(ENABLE_PARSEC OFF)
+  endif()
+else (DEFINED MADNESS_TASK_BACKEND)
+  redefaultable_option(ENABLE_TBB "Enables use of Intel Thread Building Blocks (TBB) as the task scheduler" OFF)
+  option(ENABLE_PARSEC "Enables use of PaRSEC as the task scheduler" OFF)
+  if(ENABLE_PARSEC AND ENABLE_TBB)
+    message(FATAL_ERROR "TBB and PaRSEC cannot be both enabled.")
+  endif()
+endif(DEFINED MADNESS_TASK_BACKEND)
 if (ENABLE_TBB)
   redefaultable_option(MADNESS_EXPLOIT_TBB_PRIORITY "Enables use of Intel TBB task priorities" OFF)
 endif(ENABLE_TBB)
-option(ENABLE_PARSEC "Enables use of PaRSEC as the task scheduler" OFF)
-if(ENABLE_PARSEC AND ENABLE_TBB)
-  message(FATAL_ERROR "TBB and PaRSEC cannot be both enabled.")
-endif()
 
 option(ENABLE_ELEMENTAL "Enable Elemental library for distributed-memory linear algebra" OFF)
 if (ENABLE_ELEMENTAL)
@@ -165,7 +191,7 @@ option(ENABLE_SPINLOCKS
 add_feature_info(SPINLOCKS ENABLE_SPINLOCKS
     "Enables use of spinlocks instead of mutexes (faster unless over subscribing processors)")
 set(USE_SPINLOCKS ${ENABLE_SPINLOCKS} CACHE BOOL
-    "Enables use of spinlocks instead of mutexs (faster unless over subscribing processors)")
+    "Enables use of spinlocks instead of mutexes (faster unless over subscribing processors)")
 
 option(ENABLE_NEVER_SPIN
     "Disables use of spinlocks (notably for use inside virtual machines)" OFF)
@@ -430,6 +456,7 @@ check_cxx_source_compiles(
     " SYS_TYPES_H_HAS_PID_T)
 
 # Check function support
+check_function_exists(fork HAVE_FORK)
 check_function_exists(memset HAVE_MEMSET)
 check_function_exists(posix_memalign HAVE_POSIX_MEMALIGN)
 if(HAVE_POSIX_MEMALIGN)
@@ -574,6 +601,11 @@ if(GDB_EXECUTABLE)
   set(HAVE_GDB 1)
   message(STATUS "Found gdb: ${GDB_EXECUTABLE}")
 endif()
+find_program(LLDB_EXECUTABLE lldb)
+if(LLDB_EXECUTABLE)
+  set(HAVE_LLDB 1)
+  message(STATUS "Found lldb: ${LLDB_EXECUTABLE}")
+endif()
 find_package(PythonInterp)
 
 # ccache for caching builds
@@ -627,7 +659,7 @@ if(ENABLE_UNITTESTS)
   enable_testing()
   set(MADNESS_HAS_GOOGLE_TEST 1)
   add_custom_target_subproject(madness unittests)
-  add_custom_target_subproject(madness check COMMAND ${CMAKE_CTEST_COMMAND} USES_TERMINAL) # to be GNU compatible
+  add_custom_target_subproject(madness check COMMAND ${CMAKE_CTEST_COMMAND} -V -R "madness/test/" USES_TERMINAL) # to be GNU compatible
   add_dependencies(everything unittests)
 endif()
 add_subdirectory(src)
@@ -716,4 +748,4 @@ add_custom_target(install-madness-config
 
 feature_summary(WHAT ALL
                 DESCRIPTION "=== MADNESS Package/Feature Info ===")
-    
+

@@ -51,6 +51,19 @@ if (NOT TARGET Threads::Threads)
   find_package(Threads REQUIRED)
 endif()
 
+# 2. Cereal
+set(MADNESS_HAS_CEREAL @MADNESS_HAS_CEREAL@)
+if (MADNESS_HAS_CEREAL)
+  get_filename_component(cereal_DIR "@cereal_CONFIG@" DIRECTORY)
+  find_package(cereal QUIET CONFIG HINTS "${cereal_DIR}")
+  if (NOT TARGET cereal)
+    add_library(cereal INTERFACE IMPORTED)
+    set_target_properties(cereal PROPERTIES
+          INTERFACE_INCLUDE_DIRECTORIES "${cereal_INCLUDE_DIRS}"
+          INTERFACE_COMPILE_DEFINITIONS "CEREAL_THREAD_SAFE=1")
+  endif(NOT TARGET cereal)
+endif(MADNESS_HAS_CEREAL)
+
 # determine if only looking for MADworld ... this is a common scenario that loads a subset of targets
 set(MADNESS_FIND_WORLD_ONLY FALSE)
 list(LENGTH MADNESS_FIND_COMPONENTS MADNESS_FIND_NUM_COMPONENTS)
@@ -159,3 +172,20 @@ set(MPIEXEC_EXECUTABLE "@MPIEXEC_EXECUTABLE@" CACHE FILEPATH "Executable for run
 set(MPIEXEC_NUMPROC_FLAG "@MPIEXEC_NUMPROC_FLAG@" CACHE STRING "Maximum number of processors available to run MPI applications")
 set(MPIEXEC_PREFLAGS "@MPIEXEC_PREFLAGS@" CACHE STRING "Flag used by MPI to specify the number of processes for mpiexec")
 set(MPIEXEC_POSTFLAGS "@MPIEXEC_POSTFLAGS@" CACHE STRING "These flags will be placed after all flags passed to mpiexec")
+
+########### PaRSEC ############
+# if MADworld depends on PaRSEC, enable C language and load MPI_C
+get_target_property(_madworld_link_libraries MADworld INTERFACE_LINK_LIBRARIES)
+if (MPI::MPI_CXX IN_LIST _madworld_link_libraries)
+    set(_mpi_languages CXX)
+    if (PaRSEC::parsec IN_LIST _madworld_link_libraries)
+        enable_language(C)
+        list(APPEND _mpi_languages C)
+        if (NOT TARGET PaRSEC::parsec)
+           include( CMakeFindDependencyMacro )
+           get_filename_component(_parsec_config_dir "@PaRSEC_CONFIG@" DIRECTORY)
+           find_dependency(PaRSEC CONFIG REQUIRED COMPONENTS parsec PATHS "${_parsec_config_dir}" NO_DEFAULT_PATH)
+        endif()
+    endif()
+    find_package(MPI REQUIRED COMPONENTS "${_mpi_languages}")
+endif()

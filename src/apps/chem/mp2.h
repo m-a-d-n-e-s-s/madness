@@ -77,7 +77,9 @@ namespace madness {
 
     class HartreeFock {
         World& world;
-        std::shared_ptr<SCF> calc;
+    public:
+        std::shared_ptr<Nemo> nemo_ptr;
+    private:
         mutable double coords_sum;     // sum of square of coords at last solved geometry
 
         // save the Coulomb potential
@@ -92,32 +94,30 @@ namespace madness {
 
     public:
 
-        Nemo nemo_calc;
-
-        HartreeFock(World& world, std::shared_ptr<SCF> calc1) :
-        	world(world), calc(calc1), coords_sum(-1.0), nemo_calc(world,calc1,"input") {
+        HartreeFock(World& world, std::shared_ptr<Nemo> nemo) :
+        	world(world), nemo_ptr(nemo), coords_sum(-1.0) {
         }
 
         bool provides_gradient() const {return true;}
 
         double value() {
-            return value(calc->molecule.get_all_coords());
+            return value(nemo_ptr->get_calc()->molecule.get_all_coords());
         }
 
         double value(const Tensor<double>& x) {
 
         	// fast return if the reference is already solved at this geometry
             double xsq = x.sumsq();
-            if (xsq == coords_sum) return calc->current_energy;
+            if (xsq == coords_sum) return nemo_ptr->get_calc()->current_energy;
 
-            calc->molecule.set_all_coords(x.reshape(calc->molecule.natom(),3));
+            nemo_ptr->get_calc()->molecule.set_all_coords(x.reshape(nemo_ptr->get_calc()->molecule.natom(),3));
             coords_sum = xsq;
 
             // some extra steps if we have a nuclear correlation factor
 //            if (1) {
 //        	if (nemo_calc.nuclear_correlation->type()==NuclearCorrelationFactor::GaussSlater) {
         		// converge the nemo equations
-        		nemo_calc.value(x);
+        		nemo_ptr->value(x);
 
 //        	} else {
 //				// Make the nuclear potential, initial orbitals, etc.
@@ -164,30 +164,30 @@ namespace madness {
 //			}
 
             // compute the full, reconstructed orbitals from nemo
-            orbitals_=mul(world,nemo_calc.R,nemo_calc.get_calc()->amo);
-            real_function_3d R2=nemo_calc.ncf->square();
-            R2orbitals_=mul(world,R2,nemo_calc.get_calc()->amo);
+            orbitals_=mul(world,nemo_ptr->R,nemo_ptr->get_calc()->amo);
+            real_function_3d R2=nemo_ptr->ncf->square();
+            R2orbitals_=mul(world,R2,nemo_ptr->get_calc()->amo);
 
-            return calc->current_energy;
+            return nemo_ptr->get_calc()->current_energy;
         }
 
         Tensor<double> gradient(const Tensor<double>& x) {
 
             value(x); // Ensures DFT equations are solved at this geometry
-            return nemo_calc.gradient(x);
+            return nemo_ptr->gradient(x);
         }
 
         double coord_chksum() const {return coords_sum;}
 
-        const SCF& get_calc() const {return *calc;}
-        SCF& get_calc() {return *calc;}
+        const SCF& get_calc() const {return *nemo_ptr->get_calc();}
+        SCF& get_calc() {return *nemo_ptr->get_calc();}
 
         /// return full orbital i, multiplied with the nuclear correlation factor
 
         /// note that nemo() and orbital() are the same if no nuclear
         /// correlation factor is used
         real_function_3d orbital(const int i) const {
-            MADNESS_ASSERT(calc->param.spin_restricted());
+            MADNESS_ASSERT(nemo_ptr->get_param().spin_restricted());
             return orbitals_[i];
         }
 
@@ -196,7 +196,7 @@ namespace madness {
         /// note that nemo() and orbital() are the same if no nuclear
         /// correlation factor is used
         std::vector<real_function_3d> orbitals() const {
-            MADNESS_ASSERT(calc->param.spin_restricted());
+            MADNESS_ASSERT(nemo_ptr->get_param().spin_restricted());
             return orbitals_;
         }
 
@@ -205,7 +205,7 @@ namespace madness {
         /// note that nemo() and orbital() are the same if no nuclear
         /// correlation factor is used
         std::vector<real_function_3d> R2orbitals() const {
-            MADNESS_ASSERT(calc->param.spin_restricted());
+            MADNESS_ASSERT(nemo_ptr->get_param().spin_restricted());
             return R2orbitals_;
         }
 
@@ -214,7 +214,7 @@ namespace madness {
         /// note that nemo() and orbital() are the same if no nuclear
         /// correlation factor is used
         real_function_3d R2orbital(const int i) const {
-            MADNESS_ASSERT(calc->param.spin_restricted());
+            MADNESS_ASSERT(nemo_ptr->get_param().spin_restricted());
             return R2orbitals_[i];
         }
 
@@ -223,8 +223,8 @@ namespace madness {
         /// note that nemo() and orbital() are the same if no nuclear
         /// correlation factor is used
         real_function_3d nemo(const int i) const {
-            MADNESS_ASSERT(calc->param.spin_restricted());
-            return calc->amo[i];
+            MADNESS_ASSERT(nemo_ptr->get_param().spin_restricted());
+            return nemo_ptr->get_calc()->amo[i];
         }
 
         /// return nemo, which are the regularized orbitals
@@ -232,34 +232,34 @@ namespace madness {
         /// note that nemo() and orbital() are the same if no nuclear
         /// correlation factor is used
         std::vector<real_function_3d> nemos() const {
-            MADNESS_ASSERT(calc->param.spin_restricted());
-            return calc->amo;
+            MADNESS_ASSERT(nemo_ptr->get_param().spin_restricted());
+            return nemo_ptr->get_calc()->amo;
         }
 
         /// return orbital energy i
         double orbital_energy(const int i) const {
-            MADNESS_ASSERT(calc->param.spin_restricted());
-            return calc->aeps[i];
+            MADNESS_ASSERT(nemo_ptr->get_param().spin_restricted());
+            return nemo_ptr->get_calc()->aeps[i];
         }
 
         /// return the Coulomb potential
         real_function_3d get_coulomb_potential() const {
-            MADNESS_ASSERT(calc->param.spin_restricted());
+            MADNESS_ASSERT(nemo_ptr->get_param().spin_restricted());
             if (coulomb.is_initialized()) return copy(coulomb);
-            functionT rho = calc->make_density(world, calc->aocc, orbitals()).scale(2.0);
-            coulomb=calc->make_coulomb_potential(rho);
+            functionT rho = nemo_ptr->compute_density(nemos());
+            coulomb=nemo_ptr->get_calc()->make_coulomb_potential(rho);
             return copy(coulomb);
         }
 
         /// return the nuclear potential
         real_function_3d get_nuclear_potential() const {
-            return calc->potentialmanager->vnuclear();
+            return nemo_ptr->get_calc()->potentialmanager->vnuclear();
         }
 
         /// return the number of occupied orbitals
         int nocc() const {
-            MADNESS_ASSERT(calc->param.spin_restricted());
-            return calc->param.nalpha();
+            MADNESS_ASSERT(nemo_ptr->get_param().spin_restricted());
+            return nemo_ptr->get_param().nalpha();
         }
     };
 
@@ -269,10 +269,7 @@ namespace madness {
 
     public:
     	/// default ctor; initialize energies with a large number
-    	ElectronPair()
-    		: i(-1), j(-1), e_singlet(uninitialized()), e_triplet(uninitialized()),
-    			ij_gQf_ij(uninitialized()), ji_gQf_ij(uninitialized()), iteration(0), converged(false) {
-    	}
+    	ElectronPair() : ElectronPair(-1,-1) {}
 
     	/// ctor; initialize energies with a large number
     	ElectronPair(const int i, const int j)
@@ -319,16 +316,16 @@ namespace madness {
 
         bool load_pair(World& world) {
         	std::string name="pair_"+stringify(i)+stringify(j);
-        	bool exists=archive::ParallelInputArchive::exists(world,name.c_str());
+        	bool exists=archive::ParallelInputArchive<archive::BinaryFstreamInputArchive>::exists(world,name.c_str());
             if (exists) {
             	if (world.rank()==0) printf("loading matrix elements %s",name.c_str());
-                archive::ParallelInputArchive ar(world, name.c_str(), 1);
+                archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, name.c_str(), 1);
                 ar & *this;
             	if (world.rank()==0) printf(" %s\n",(converged)?" converged":" not converged");
-            	function.set_thresh(FunctionDefaults<6>::get_thresh());
-                constant_term.set_thresh(FunctionDefaults<6>::get_thresh());
+            	if (function.is_initialized()) function.set_thresh(FunctionDefaults<6>::get_thresh());
+            	if (constant_term.is_initialized()) constant_term.set_thresh(FunctionDefaults<6>::get_thresh());
             } else {
-		    	if (world.rank()==0) print("could not find pair ",i,j," on disk");
+                if (world.rank()==0) print("could not find pair ",i,j," on disk");
             }
             return exists;
         }
@@ -336,7 +333,7 @@ namespace madness {
         void store_pair(World& world) {
         	std::string name="pair_"+stringify(i)+stringify(j);
         	if (world.rank()==0) printf("storing matrix elements %s\n",name.c_str());
-            archive::ParallelOutputArchive ar(world, name.c_str(), 1);
+            archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, name.c_str(), 1);
         	ar & *this;
         }
 
@@ -360,7 +357,7 @@ namespace madness {
     	struct Parameters : public QCCalculationParametersBase {
 
         	/// use OEP orbitals
-        	bool do_oep;
+        	bool do_oep=false;
 
         	/// ctor reading out the input file
         	Parameters(World& world) {
@@ -452,7 +449,7 @@ namespace madness {
         	f = Q12(f);
         }
         /// ctor
-        MP2(World& world, const std::string& input);
+        MP2(World& world, const commandlineparser& parser);
 
         /// return a checksum for the geometry
         double coord_chksum() const {return coords_sum;}
@@ -676,7 +673,7 @@ namespace madness {
         real_function_6d get_residue(const real_function_6d& f,
 		const int i, const int j){
         	hf->value();		// make sure the reference is converged
-        	nuclear_corrfac = hf->nemo_calc.ncf;
+        	nuclear_corrfac = hf->nemo_ptr->ncf;
         	// set all orbitals spaces
         	// When a nuclear correlation factor is used the residual equations
         	// are similarity transformed. Therefore the orbitals in the
@@ -702,7 +699,7 @@ namespace madness {
         Tensor<double> get_fock_matrix() const {
         	if (fock.has_data()) return copy(fock);
     		const tensorT occ=hf->get_calc().aocc;
-    		fock=hf->nemo_calc.compute_fock_matrix(hf->nemos(),occ);
+    		fock=hf->nemo_ptr->compute_fock_matrix(hf->nemos(),occ);
     		if (world.rank()==0 and hf->nocc()<10) {
     			print("The Fock matrix");
     			print(fock);

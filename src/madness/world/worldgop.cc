@@ -51,6 +51,7 @@ namespace madness {
                                    bool pause_during_epilogue,
                                    bool debug) {
         PROFILE_MEMBER_FUNC(WorldGopInterface);
+        MADNESS_CHECK(not forbid_fence_);
         unsigned long nsent_prev=0, nrecv_prev=1; // invalid initial condition
         SafeMPI::Request req0, req1;
         ProcessID parent, child0, child1;
@@ -170,28 +171,36 @@ namespace madness {
     }
 
     /// Broadcasts bytes from process root while still processing AM & tasks
-
-    /// Optimizations can be added for long messages
-    void WorldGopInterface::broadcast(void* buf, size_t nbyte, ProcessID root, bool dowork, Tag bcast_tag) {
-        MADNESS_ASSERT(nbyte <= size_t(std::numeric_limits<int>::max()));
+    static void broadcast_impl(void* buf, int nbyte, ProcessID root, bool dowork, Tag bcast_tag, World &world) {
         SafeMPI::Request req0, req1;
         ProcessID parent, child0, child1;
-        world_.mpi.binary_tree_info(root, parent, child0, child1);
-        if(bcast_tag < 0)
-            bcast_tag = world_.mpi.unique_tag();
+        world.mpi.binary_tree_info(root, parent, child0, child1);
 
         //print("BCAST TAG", bcast_tag);
 
         if (parent != -1) {
-            req0 = world_.mpi.Irecv(buf, nbyte, MPI_BYTE, parent, bcast_tag);
+            req0 = world.mpi.Irecv(buf, nbyte, MPI_BYTE, parent, bcast_tag);
             World::await(req0, dowork);
         }
 
-        if (child0 != -1) req0 = world_.mpi.Isend(buf, nbyte, MPI_BYTE, child0, bcast_tag);
-        if (child1 != -1) req1 = world_.mpi.Isend(buf, nbyte, MPI_BYTE, child1, bcast_tag);
+        if (child0 != -1) req0 = world.mpi.Isend(buf, nbyte, MPI_BYTE, child0, bcast_tag);
+        if (child1 != -1) req1 = world.mpi.Isend(buf, nbyte, MPI_BYTE, child1, bcast_tag);
 
         if (child0 != -1) World::await(req0, dowork);
         if (child1 != -1) World::await(req1, dowork);
+    }
+
+    /// Optimizations can be added for long messages
+    void WorldGopInterface::broadcast(void* buf, size_t nbyte, ProcessID root, bool dowork, Tag bcast_tag) {
+      if(bcast_tag < 0)
+        bcast_tag = world_.mpi.unique_tag();
+      const size_t max = static_cast<size_t>(std::numeric_limits<int>::max());
+      while (nbyte) {
+        const int n = static_cast<int>(std::min(max, nbyte));
+        broadcast_impl(buf, n, root, dowork, bcast_tag, world_);
+        nbyte -= n;
+        buf = static_cast<char*>(buf) + n;
+      }
     }
 
 } // namespace madness

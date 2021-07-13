@@ -129,17 +129,23 @@ tensorT Q2(const tensorT& s) {
 //    }
 
 /// collective constructor, reads \c input on rank 0, broadcasts to all
-SCF::SCF(World& world, const std::string& inputfile) : param(CalculationParameters()) {
+SCF::SCF(World& world, const commandlineparser& parser) : param(CalculationParameters(world,parser)) {
 	FunctionDefaults<3>::set_truncate_mode(1);
 	PROFILE_MEMBER_FUNC(SCF);
 
+//    param.read(world,parser.value("input"),"dft");
 	if (world.rank() == 0) {
 
 		// read input parameters from the input file
-		param.read(world,inputfile,"dft");
+		if (parser.key_exists("structure")) param.set_user_defined_value("molecular_structure",parser.value("structure"));
 
-		std::ifstream ifile(inputfile);
-		molecule.read(ifile);
+		std::string molecular_structure=param.get<std::string>("molecular_structure");
+		if (molecular_structure=="inputfile") {
+			std::ifstream ifile(parser.value("input"));
+			molecule.read(ifile);
+		} else {
+			molecule.read_structure_from_library(molecular_structure);
+		}
 
 		// set derived parameters for the molecule
 
@@ -178,7 +184,7 @@ SCF::SCF(World& world, const std::string& inputfile) : param(CalculationParamete
 
 	if (param.print_level()>2) print_timings=true;
 
-	xc.initialize(param.xc(), !param.spin_restricted(), world, param.print_level()>1);
+	xc.initialize(param.xc(), !param.spin_restricted(), world, param.print_level()>=10);
 	//xc.plot();
 
 	FunctionDefaults < 3 > ::set_cubic_cell(-param.L(), param.L());
@@ -190,7 +196,7 @@ SCF::SCF(World& world, const std::string& inputfile) : param(CalculationParamete
 
 void SCF::save_mos(World& world) {
 	PROFILE_MEMBER_FUNC(SCF);
-	archive::ParallelOutputArchive ar(world, "restartdata", param.get<int>("nio"));
+	archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, "restartdata", param.get<int>("nio"));
 	ar & current_energy & param.spin_restricted();
 	ar & (unsigned int) (amo.size());
 	ar & aeps & aocc & aset;
@@ -226,7 +232,7 @@ void SCF::load_mos(World& world) {
 	amo.clear();
 	bmo.clear();
 
-	archive::ParallelInputArchive ar(world, "restartdata");
+	archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, "restartdata");
 
 	/*
           File format:
@@ -1715,7 +1721,7 @@ vecfuncT SCF::apply_potential(World & world, const tensorT & occ,
 	if (xc.is_dft() && !(xc.hf_exchange_coefficient() == 1.0)) {
 		START_TIMER(world);
 
-		XCOperator xcoperator(world,this,ispin,param.dft_deriv());
+		XCOperator<double,3> xcoperator(world,this,ispin,param.dft_deriv());
 		if (ispin==0) exc=xcoperator.compute_xc_energy();
 		vloc+=xcoperator.make_xc_potential();
 
@@ -1736,7 +1742,7 @@ vecfuncT SCF::apply_potential(World & world, const tensorT & occ,
 	if (xc.hf_exchange_coefficient()) {
 		START_TIMER(world);
 		//            vecfuncT Kamo = apply_hf_exchange(world, occ, amo, amo);
-		Exchange<double,3> K=Exchange<double,3>(world,this,ispin).small_memory(false).same(true);
+		Exchange<double,3> K=Exchange<double,3>(world,this,ispin).set_symmetric(true);
 		vecfuncT Kamo=K(amo);
 		tensorT excv = inner(world, Kamo, amo);
 		double exchf = 0.0;
@@ -3305,7 +3311,7 @@ void SCF::update_response_subspace(World & world,
 }
 
 vecfuncT SCF::apply_potential_response(World & world, const vecfuncT & dmo,
-		const XCOperator& xcop,  const functionT & vlocal, int ispin)
+		const XCOperator<double,3>& xcop,  const functionT & vlocal, int ispin)
 {
 	functionT vloc = copy(vlocal);
 
@@ -3353,7 +3359,7 @@ vecfuncT SCF::apply_potential_response(World & world, const vecfuncT & dmo,
 	if(xc.hf_exchange_coefficient()){
 		START_TIMER(world);
 		vecfuncT Kdmo;
-		Exchange<double,3> K=Exchange<double,3>(world,this,ispin).small_memory(false).same(false);
+		Exchange<double,3> K=Exchange<double,3>(world,this,ispin).set_symmetric(false);
 		if(ispin == 0)
 			Kdmo=K(amo);
 		if(ispin == 1)
@@ -3523,7 +3529,7 @@ functionT SCF::calc_exchange_function(World & world,  const int & p,
 
 
 /// param[in]   drho    the perturbed density
-vecfuncT SCF::calc_xc_function(World & world, XCOperator& xc_alda,
+vecfuncT SCF::calc_xc_function(World & world, XCOperator<double,3>& xc_alda,
 		const vecfuncT & mo,  const functionT & drho)
 {
 	START_TIMER(world);
@@ -3548,7 +3554,7 @@ vecfuncT SCF::calc_xc_function(World & world, XCOperator& xc_alda,
 }
 
 /// @param[in]  drho    the perturbed density
-vecfuncT SCF::calc_djkmo(World & world, XCOperator& xc_alda, const vecfuncT & dmo1,
+vecfuncT SCF::calc_djkmo(World & world, XCOperator<double,3>& xc_alda, const vecfuncT & dmo1,
 		const vecfuncT & dmo2,  const functionT & drho, const vecfuncT & mo,
 		const functionT & drhos,
 		int  spin)
@@ -3901,11 +3907,11 @@ void SCF::polarizability(World & world)
 
 											// construct xc operator only once since the ground state density
 											// will not change during the iterations.
-											XCOperator xcop(world,this,arho,brho);
+											XCOperator<double,3> xcop(world,this,arho,brho);
 
 											// construct xc operator for acting on the perturbed density --
 											// use only the LDA approximation
-											XCOperator xc_alda(world, "LDA", not param.spin_restricted(), arho, brho);
+											XCOperator<double,3> xc_alda(world, "LDA", not param.spin_restricted(), arho, brho);
 
 											for(int iter = 0; iter < param.maxiter(); ++iter) {
 												if(world.rank() == 0)

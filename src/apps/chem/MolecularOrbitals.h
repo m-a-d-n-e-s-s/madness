@@ -73,8 +73,8 @@ public:
 		eps=copy(eps_new);
 	}
 
-	void recompute_irreps() {
-	}
+	void recompute_irreps(const std::string pointgroup,
+                       const Function<typename Tensor<T>::scalar_type,NDIM>& metric);
 
 	void recompute_localize_sets() {
 	}
@@ -107,6 +107,16 @@ public:
 		localize_sets.clear();
 	}
 
+	void pretty_print(std::string message) {
+	    print(message);
+	    print("orbital #   irrep   energy    occupation  localize_set");
+        for (int i=mo.size()-1; i>=0; --i) {
+//            double n=get_mos()[i].norm2();
+            printf("%5d %10s %12.8f  %6.2f  %8d\n", i, get_irreps()[i].c_str(),get_eps()[i],
+                   get_occ()[i],get_localize_sets()[i]);
+	    }
+	}
+
 	template <typename Archive>
 	void serialize (Archive& ar) {
 		std::size_t nmo=mo.size();
@@ -114,6 +124,12 @@ public:
 		if (nmo!=mo.size()) mo.resize(nmo);
 		for (auto& m : mo) ar & m;
 		ar & eps & irreps & occ & localize_sets;
+		if (ar.is_input_archive) {
+		    if (irreps.size()==0) irreps=std::vector<std::string>(nmo,"unknown");
+            if (localize_sets.size()==0) localize_sets=std::vector<int>(nmo,0);
+            if (occ.size()==0) occ=Tensor<double>(nmo);
+            if (eps.size()==0) eps=Tensor<double>(nmo);
+		}
 	}
 
 	friend bool similar(const MolecularOrbitals& mo1, const MolecularOrbitals& mo2, const double thresh=1.e-6) {
@@ -140,7 +156,7 @@ public:
 			const std::size_t nmo_alpha, const std::size_t nmo_beta) {
 		bool spinrestricted = false;
 		double current_energy;
-		archive::ParallelInputArchive ar(world, filename.c_str());
+		archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, filename.c_str());
 		ar & current_energy & spinrestricted;
 
 		MolecularOrbitals<T,NDIM> amo, bmo;
@@ -159,7 +175,7 @@ public:
 			const MolecularOrbitals<T,NDIM>& amo, const MolecularOrbitals<T,NDIM>& bmo) {
 		bool spinrestricted = false;
 		double current_energy=0.0;
-		archive::ParallelOutputArchive ar(world, filename.c_str());
+		archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, filename.c_str());
 		ar & current_energy & spinrestricted;
 
 		amo.save_mos(ar,molecule);
@@ -167,7 +183,7 @@ public:
 	}
 
 	/// legacy code
-	void load_mos(archive::ParallelInputArchive& ar, const Molecule& molecule, const std::size_t nmo_from_input) {
+        void load_mos(archive::ParallelInputArchive<>& ar, const Molecule& molecule, const std::size_t nmo_from_input) {
 
 		unsigned int nmo = 0;
 
@@ -189,7 +205,7 @@ public:
 	}
 
 	/// legacy code
-	void save_mos(archive::ParallelOutputArchive& ar, const Molecule& molecule) const {
+        void save_mos(archive::ParallelOutputArchive<>& ar, const Molecule& molecule) const {
 
 		unsigned int nmo=mo.size();
 
