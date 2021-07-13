@@ -87,14 +87,14 @@ bool test_serialize(World& world) {
 	param.print("defined parameters","foot\n\n");
 
 	const std::string name = "test.dat";
-	madness::archive::ParallelOutputArchive oar(world, name.c_str(), 1);
+	madness::archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> oar(world, name.c_str(), 1);
 	oar & param;
 	oar.close();
 
 	Parameters param1;
 	param1.print("default parameters","foot\n\n");
 
-	madness::archive::ParallelInputArchive iar(world, name.c_str(), 1);
+	madness::archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> iar(world, name.c_str(), 1);
 	iar & param1;
 	iar.close();
 

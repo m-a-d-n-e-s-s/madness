@@ -156,7 +156,7 @@ public:
 			const std::size_t nmo_alpha, const std::size_t nmo_beta) {
 		bool spinrestricted = false;
 		double current_energy;
-		archive::ParallelInputArchive ar(world, filename.c_str());
+		archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, filename.c_str());
 		ar & current_energy & spinrestricted;
 
 		MolecularOrbitals<T,NDIM> amo, bmo;
@@ -175,7 +175,7 @@ public:
 			const MolecularOrbitals<T,NDIM>& amo, const MolecularOrbitals<T,NDIM>& bmo) {
 		bool spinrestricted = false;
 		double current_energy=0.0;
-		archive::ParallelOutputArchive ar(world, filename.c_str());
+		archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, filename.c_str());
 		ar & current_energy & spinrestricted;
 
 		amo.save_mos(ar,molecule);
@@ -183,7 +183,7 @@ public:
 	}
 
 	/// legacy code
-	void load_mos(archive::ParallelInputArchive& ar, const Molecule& molecule, const std::size_t nmo_from_input) {
+        void load_mos(archive::ParallelInputArchive<>& ar, const Molecule& molecule, const std::size_t nmo_from_input) {
 
 		unsigned int nmo = 0;
 
@@ -205,7 +205,7 @@ public:
 	}
 
 	/// legacy code
-	void save_mos(archive::ParallelOutputArchive& ar, const Molecule& molecule) const {
+        void save_mos(archive::ParallelOutputArchive<>& ar, const Molecule& molecule) const {
 
 		unsigned int nmo=mo.size();
 

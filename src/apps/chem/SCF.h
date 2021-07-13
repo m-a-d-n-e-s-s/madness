@@ -47,6 +47,7 @@
 #include <madness/mra/mra.h>
 
 #include <chem/CalculationParameters.h>
+#include <chem/commandlineparser.h>
 #include <chem/molecule.h>
 #include <chem/molecularbasis.h>
 #include <chem/corepotential.h>
@@ -350,7 +351,8 @@ public:
 //	SCF(World & world, const char *filename);
 	/// collective constructor for SCF uses contents of stream \c input and broadcasts to all nodes
 //	SCF(World & world, std::shared_ptr<std::istream> input);
-	SCF(World& world, const std::string& inputfile);
+//	SCF(World& world, const std::string& inputfile);
+    SCF(World& world, const commandlineparser& parser);
 
 	void copy_data(World& world, const SCF& other) {
 	    aeps=copy(other.aeps);

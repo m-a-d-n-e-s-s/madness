@@ -7,7 +7,8 @@
 
 #include<chem/TDHF.h>
 #include<chem/oep.h>
-#include<chem/test_utilities.h>
+#include<madness/world/test_utilities.h>
+#include<chem/write_test_input.h>
 #include<chem/commandlineparser.h>
 
 

@@ -98,8 +98,9 @@ for (int i=1; i<argc; i++) {
 if (world.rank() == 0) print("input filename: ", inpname);
 
 //SCF calc(world,input.c_str());
-std::shared_ptr<SCF> calc(new SCF(world,inpname));
-std::shared_ptr<Nemo> nemo(new Nemo(world,calc,inpname));
+commandlineparser parser(argc,argv);
+std::shared_ptr<Nemo> nemo(new Nemo(world,parser));
+std::shared_ptr<SCF> calc=nemo->get_calc();
 if (world.rank()==0) {
     calc->molecule.print();
     print("\n");

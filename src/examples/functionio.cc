@@ -119,14 +119,14 @@ int main(int argc, char** argv) {
 
     if (world.rank() == 0) print("Writing test functions -->", filename);
     {
-        archive::ParallelOutputArchive out(world, filename);
+        archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> out(world, filename);
         out & f & g & h;
     }
 
     if (world.rank() == 0) print("Reading test functions <--", filename);
     real_function_3d ftest, gtest, htest;
     {
-        archive::ParallelInputArchive input(world, filename);
+        archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> input(world, filename);
         input & ftest & gtest & htest;
     }
 

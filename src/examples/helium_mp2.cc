@@ -400,13 +400,13 @@ real_function_6d multiply_by_V(const real_function_6d& psi) {
 template<size_t NDIM>
 void save_function(World& world, const Function<double,NDIM>& pair, const std::string name) {
     if (world.rank()==0) print("saving function",name);
-    archive::ParallelOutputArchive ar(world, name.c_str(), 1);
+    archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, name.c_str(), 1);
     ar & pair & FunctionDefaults<NDIM>::get_cell();
 }
 
 template<size_t NDIM>
 void load_function(World& world, Function<double,NDIM>& pair, const std::string name) {
-    archive::ParallelInputArchive ar(world, name.c_str());
+    archive::ParallelInputArchive<archive::BinaryFstreamIn putArchive> ar(world, name.c_str());
 //    archive::ParallelInputArchive ar(world, "restart");
     Tensor<double> cell;
     ar & pair & cell;

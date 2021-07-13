@@ -38,6 +38,8 @@
 #define MADNESS_CHEM_SCFOPERATORS_H_
 
 #include <madness.h>
+#include <macrotaskq.h>
+
 using namespace madness;
 
 namespace madness {
@@ -49,6 +51,7 @@ class NemoBase;
 class OEP;
 class NuclearCorrelationFactor;
 class XCfunctional;
+class MacroTaskQ;
 
 typedef std::vector<real_function_3d> vecfuncT;
 
@@ -59,6 +62,11 @@ public:
     typedef Function<T,NDIM> functionT;
     typedef std::vector<functionT> vecfuncT;
     typedef Tensor<T> tensorT;
+
+    SCFOperatorBase() = default;
+    SCFOperatorBase(std::shared_ptr<MacroTaskQ> taskq) : taskq(taskq) {}
+
+    std::shared_ptr<MacroTaskQ> taskq=0;
 
     /// print some information about this operator
     virtual std::string info() const = 0;
@@ -90,6 +98,89 @@ public:
     virtual tensorT operator()(const vecfuncT& vbra, const vecfuncT& vket) const = 0;
 
 };
+
+template<typename T, std::size_t NDIM>
+class Exchange : public SCFOperatorBase<T,NDIM> {
+public:
+
+    class ExchangeImpl;
+    using implT = std::shared_ptr<ExchangeImpl>;
+    typedef Function<T,NDIM> functionT;
+    typedef std::vector<functionT> vecfuncT;
+    typedef Tensor<T> tensorT;
+private:
+    implT impl;
+
+public:
+    enum Algorithm {
+        small_memory, large_memory, multiworld_efficient
+    };
+
+    /// default ctor
+    Exchange() = default;
+
+    Exchange(std::shared_ptr<MacroTaskQ> taskq) : SCFOperatorBase<T, NDIM>(taskq) {}
+
+    /// ctor with a conventional calculation
+    Exchange(World& world, const SCF *calc, const int ispin);
+
+    /// ctor with a nemo calculation
+    Exchange(World& world, const Nemo *nemo, const int ispin);
+
+    std::string info() const {return "K";}
+
+    bool is_symmetric() const;
+
+    Exchange& set_symmetric(const bool flag);
+
+    Exchange& set_algorithm(const Algorithm& alg);
+
+    Exchange& set_printlevel(const long& level);
+
+    Exchange& set_taskq(std::shared_ptr<MacroTaskQ> taskq1) {
+        this->taskq=taskq1;
+        return *this;
+    }
+
+    Exchange& set_parameters(const vecfuncT& bra, const vecfuncT& ket, const double lo1);
+
+    Function<T, NDIM> operator()(const Function<T, NDIM>& ket) const {
+        vecfuncT vket(1, ket);
+        vecfuncT vKket = this->operator()(vket);
+        return vKket[0];
+    }
+
+    /// apply the exchange operator on a vector of functions
+
+    /// note that only one spin is used (either alpha or beta orbitals)
+    /// @param[in]  vket       the orbitals |i> that the operator is applied on
+    /// @return     a vector of orbitals  K| i>
+    vecfuncT operator()(const vecfuncT& vket) const;
+
+    /// compute the matrix element <bra | K | ket>
+
+    /// @param[in]  bra    real_function_3d, the bra state
+    /// @param[in]  ket    real_function_3d, the ket state
+    T operator()(const Function<T, NDIM>& bra, const Function<T, NDIM>& ket) const {
+        return inner(bra, this->operator()(ket));
+    }
+
+    /// compute the matrix < vbra | K | vket >
+
+    /// @param[in]  vbra    vector of real_function_3d, the set of bra states
+    /// @param[in]  vket    vector of real_function_3d, the set of ket states
+    /// @return K_ij
+    Tensor<T> operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
+        const auto bra_equiv_ket = &vbra == &vket;
+        vecfuncT vKket = this->operator()(vket);
+        World& world=vket[0].world();
+        auto result = matrix_inner(world, vbra, vKket, bra_equiv_ket);
+        return result;
+    }
+
+
+};
+
 
 template<typename T, std::size_t NDIM>
 class Kinetic : public SCFOperatorBase<T,NDIM> {
@@ -241,6 +332,39 @@ template<typename T, std::size_t NDIM>
 class Coulomb : public SCFOperatorBase<T,NDIM> {
 public:
 
+    class MacroTaskCoulomb : public MacroTaskOperationBase {
+    public:
+        // you need to define the exact argument(s) of operator() as tuple
+        typedef std::tuple<const Function<double,NDIM>&, const std::vector<Function<T,NDIM>> &> argtupleT;
+
+        using resultT = std::vector<Function<T,NDIM>>;
+
+        class MacroTaskPartitionerCoulomb : public MacroTaskPartitioner {
+        public:
+            partitionT do_partitioning(const std::size_t& vsize1, const std::size_t& vsize2,
+                                       const std::string policy) const override {
+                partitionT p={std::pair(Batch(_,_),1.0)};
+                return p;
+            }
+        };
+
+        MacroTaskCoulomb() {
+            partitioner.reset(new MacroTaskPartitionerCoulomb());
+        }
+
+        // you need to define an empty constructor for the result
+        // resultT must implement operator+=(const resultT&)
+        resultT allocator(World &world, const argtupleT &argtuple) const {
+            std::size_t n = std::get<1>(argtuple).size();
+            resultT result = zero_functions_compressed<T,NDIM>(world, n);
+            return result;
+        }
+
+        resultT operator()(const Function<double,NDIM>& vcoul, const std::vector<Function<T,NDIM>> &arg) const {
+            return truncate(vcoul * arg);
+        }
+    };
+
     /// default empty ctor
     Coulomb(World& world) : world(world) {};
 
@@ -252,20 +376,24 @@ public:
 
     std::string info() const {return "J";}
 
-    void reset_poisson_operator_ptr(const double lo, const double econv);
-
-    void set_metric(const real_function_3d& metric) {
-    	R_square=copy(metric);
+    Coulomb& set_taskq(std::shared_ptr<MacroTaskQ> taskq1) {
+        this->taskq=taskq1;
+        return *this;
     }
 
+    void reset_poisson_operator_ptr(const double lo, const double econv);
+
     Function<T,NDIM> operator()(const Function<T,NDIM>& ket) const {
-        return (vcoul*ket).truncate();
+        std::vector<Function<T,NDIM> > vket(1,ket);
+        return this->operator()(vket)[0];
     }
 
     std::vector<Function<T,NDIM> > operator()(const std::vector<Function<T,NDIM> >& vket) const {
-        std::vector<Function<T,NDIM> > tmp=mul(world,vcoul,vket);
-        truncate(world,tmp);
-        return tmp;
+        MacroTaskCoulomb t;
+        World& world=vket.front().world();
+        MacroTask task(world, t, this->taskq);
+        auto result=task(vcoul,vket);
+        return result;
     }
 
     T operator()(const Function<T,NDIM>& bra, const Function<T,NDIM>& ket) const {
@@ -311,8 +439,8 @@ public:
 private:
     World& world;
     std::shared_ptr<real_convolution_3d> poisson;
+    double lo=1.e-4;
     real_function_3d vcoul; ///< the coulomb potential
-    real_function_3d R_square;    ///< square of the nuclear correlation factor, if any
 };
 
 
@@ -455,97 +583,6 @@ private:
     int iatom;  ///< index of the atom which is displaced
     int iaxis;  ///< x,y,z component of the atom
 
-};
-
-template<typename T, std::size_t NDIM>
-class Exchange : public SCFOperatorBase<T,NDIM> {
-	typedef Function<T,NDIM> functionT;
-	typedef std::vector<functionT> vecfuncT;
-
-public:
-
-    /// default ctor
-    Exchange(World& world) : world(world), small_memory_(true), same_(false) {};
-
-    /// ctor with a conventional calculation
-    Exchange(World& world, const SCF* calc, const int ispin);
-
-    /// ctor with a nemo calculation
-    Exchange(World& world, const Nemo* nemo, const int ispin);
-
-    std::string info() const {return "K";}
-
-    /// set the bra and ket orbital spaces, and the occupation
-
-    /// @param[in]	bra		bra space, must be provided as complex conjugate
-    /// @param[in]	ket		ket space
-    /// @param[in]	occ1	occupation numbers
-    void set_parameters(const vecfuncT& bra, const vecfuncT& ket,
-            const Tensor<double>& occ1, const double lo=1.e-4,
-            const double econv=FunctionDefaults<3>::get_thresh()) {
-    	mo_bra=copy(world,bra);
-    	mo_ket=copy(world,ket);
-    	occ=copy(occ1);
-    	poisson = std::shared_ptr<real_convolution_3d>(
-    	            CoulombOperatorPtr(world, lo, econv));
-    }
-
-    Function<T,NDIM> operator()(const Function<T,NDIM>& ket) const {
-        vecfuncT vket(1,ket);
-        vecfuncT vKket=this->operator()(vket);
-        return vKket[0];
-    }
-
-    /// apply the exchange operator on a vector of functions
-
-    /// note that only one spin is used (either alpha or beta orbitals)
-    /// @param[in]  vket       the orbitals |i> that the operator is applied on
-    /// @return     a vector of orbitals  K| i>
-//    vecfuncT operator()(const vecfuncT& vket,const double& mul_tol=0.0) const;
-    vecfuncT operator()(const vecfuncT& vket) const;
-
-    /// compute the matrix element <bra | K | ket>
-
-    /// @param[in]  bra    real_funtion_3d, the bra state
-    /// @param[in]  ket    real_funtion_3d, the ket state
-    T operator()(const Function<T,NDIM>& bra, const Function<T,NDIM>& ket) const {
-        return inner(bra,this->operator()(ket));
-    }
-
-    /// compute the matrix < vbra | K | vket >
-
-    /// @param[in]  vbra    vector of real_funtion_3d, the set of bra states
-    /// @param[in]  vket    vector of real_funtion_3d, the set of ket states
-    /// @return K_ij
-    Tensor<T> operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
-        const auto bra_equiv_ket = &vbra == &vket;
-        vecfuncT vKket=this->operator()(vket);
-        return matrix_inner(world,vbra,vKket,bra_equiv_ket);
-    }
-
-    bool& small_memory() {return small_memory_;}
-    bool small_memory() const {return small_memory_;}
-    Exchange& small_memory(const bool flag) {
-        small_memory_=flag;
-        return *this;
-    }
-
-    bool& same() {return same_;}
-    bool same() const {return same_;}
-    Exchange& same(const bool flag) {
-        same_=flag;
-        return *this;
-    }
-
-private:
-
-    World& world;
-    bool small_memory_=true;
-    bool same_=false;
-    vecfuncT mo_bra, mo_ket;    ///< MOs for bra and ket
-    Tensor<double> occ;
-    std::shared_ptr<real_convolution_3d> poisson;
-    double mul_tol=0.0;
 };
 
 template<typename T, std::size_t NDIM>

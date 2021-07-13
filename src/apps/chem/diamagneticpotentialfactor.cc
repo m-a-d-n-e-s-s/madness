@@ -6,7 +6,7 @@
  */
 
 #include <chem/diamagneticpotentialfactor.h>
-#include <chem/test_utilities.h>
+#include <madness/world/test_utilities.h>
 #include <chem/masks_and_boxes.h>
 
 namespace madness {

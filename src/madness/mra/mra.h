@@ -66,6 +66,7 @@ namespace madness {
 #include <madness/mra/legendre.h>
 #include <madness/mra/indexit.h>
 #include <madness/world/parallel_archive.h>
+#include <madness/world/binary_fstream_archive.h>
 #include <madness/world/worlddc.h>
 #include <madness/mra/funcdefaults.h>
 #include <madness/mra/function_factory.h>
@@ -112,6 +113,7 @@ namespace madness {
 
 
 namespace madness {
+
     /// \ingroup mra
     /// \addtogroup function
 
@@ -635,6 +637,18 @@ namespace madness {
             return impl->get_pmap();
         }
 
+        /// replicate this function, generating a unique pmap
+        void replicate(bool fence=true) const {
+            verify();
+            impl->replicate(fence);
+        }
+
+        /// distribute this function according to newmap
+        void distribute(std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > newmap) const {
+            verify();
+            impl->distribute(newmap);
+        }
+
 
         /// Returns the square of the norm of the local function ... no communication
 
@@ -934,8 +948,15 @@ namespace madness {
             verify();
             other.verify();
             MADNESS_ASSERT(is_compressed() == other.is_compressed());
-            if (is_compressed()) impl->gaxpy_inplace(alpha,*other.get_impl(),beta,fence);
-            if (not is_compressed()) impl->gaxpy_inplace_reconstructed(alpha,*other.get_impl(),beta,fence);
+            bool same_world=this->world().id()==other.world().id();
+            MADNESS_ASSERT(same_world or is_compressed());
+
+            if (not same_world) {
+                impl->gaxpy_inplace(alpha,*other.get_impl(),beta,fence);
+            } else {
+                if (is_compressed()) impl->gaxpy_inplace(alpha, *other.get_impl(), beta, fence);
+                if (not is_compressed()) impl->gaxpy_inplace_reconstructed(alpha, *other.get_impl(), beta, fence);
+            }
             return *this;
         }
 
@@ -2482,16 +2503,16 @@ namespace madness {
 
 namespace madness {
     namespace archive {
-        template <class T, std::size_t NDIM>
-        struct ArchiveLoadImpl< ParallelInputArchive, Function<T,NDIM> > {
-            static inline void load(const ParallelInputArchive& ar, Function<T,NDIM>& f) {
+        template <class archiveT, class T, std::size_t NDIM>
+        struct ArchiveLoadImpl< ParallelInputArchive<archiveT>, Function<T,NDIM> > {
+            static inline void load(const ParallelInputArchive<archiveT>& ar, Function<T,NDIM>& f) {
                 f.load(*ar.get_world(), ar);
             }
         };
 
-        template <class T, std::size_t NDIM>
-        struct ArchiveStoreImpl< ParallelOutputArchive, Function<T,NDIM> > {
-            static inline void store(const ParallelOutputArchive& ar, const Function<T,NDIM>& f) {
+        template <class archiveT, class T, std::size_t NDIM>
+        struct ArchiveStoreImpl< ParallelOutputArchive<archiveT>, Function<T,NDIM> > {
+            static inline void store(const ParallelOutputArchive<archiveT>& ar, const Function<T,NDIM>& f) {
                 f.store(ar);
             }
         };
@@ -2499,17 +2520,28 @@ namespace madness {
 
     template <class T, std::size_t NDIM>
     void save(const Function<T,NDIM>& f, const std::string name) {
-        archive::ParallelOutputArchive ar2(f.world(), name.c_str(), 1);
+        archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar2(f.world(), name.c_str(), 1);
         ar2 & f;
     }
 
     template <class T, std::size_t NDIM>
     void load(Function<T,NDIM>& f, const std::string name) {
-        archive::ParallelInputArchive ar2(f.world(), name.c_str(), 1);
+        archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar2(f.world(), name.c_str(), 1);
         ar2 & f;
     }
 
 }
+
+namespace madness {
+    // type traits to check if a template parameter is a Function
+    template<typename>
+    struct is_madness_function : std::false_type {};
+
+    template<typename T, std::size_t NDIM>
+    struct is_madness_function<madness::Function<T, NDIM>> : std::true_type {};
+}
+
+
 /* @} */
 
 #include <madness/mra/derivative.h>

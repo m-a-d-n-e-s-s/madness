@@ -52,6 +52,7 @@
 #include <chem/nemo.h>
 #include <chem/correlationfactor.h>
 #include <chem/electronic_correlation_factor.h>
+#include <chem/commandlineparser.h>
 
 
 // switch the electronic interaction on or off
@@ -362,12 +363,12 @@ double compute_energy(World& world, const real_function_6d& psi,
 }
 
 void save(World& world, const real_function_6d& f, std::string filename) {
-	archive::ParallelOutputArchive ar(world, filename.c_str(), 1);
+	archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, filename.c_str(), 1);
 	ar & f;
 }
 
 void load(World& world, real_function_6d& f, std::string filename) {
-	archive::ParallelInputArchive ar(world, filename.c_str(), 1);
+	archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, filename.c_str(), 1);
 	ar & f;
 }
 
@@ -436,7 +437,7 @@ void test_U_el(World& world, const real_function_6d& psi,
 int main(int argc, char** argv) {
 	initialize(argc, argv);
 	World world(SafeMPI::COMM_WORLD);
-	startup(world, argc, argv);
+	startup(world, argc, argv,true);
 	std::cout.precision(6);
 
 	if (world.rank()==0) {
@@ -449,9 +450,9 @@ int main(int argc, char** argv) {
 	}
 
 	// read out input and stuff
-	std::string input = "input";
-	std::shared_ptr<SCF> calc(new SCF(world, input.c_str()));
-	Nemo nemo(world, calc,input);
+	commandlineparser parser(argc,argv);
+	Nemo nemo(world, parser);
+	auto calc=nemo.get_calc();
 
 	TensorType tt = TT_2D;
 	FunctionDefaults<6>::set_tensor_type(tt);
@@ -500,11 +501,11 @@ int main(int argc, char** argv) {
 	real_function_6d psi;
 
 	std::string filename = "he_psi_exact";
-	bool exists = archive::ParallelInputArchive::exists(world,
+	bool exists = archive::ParallelInputArchive<madness::archive::BinaryFstreamInputArchive>::exists(world,
 			filename.c_str());
 	if (exists) {
 		if (world.rank() == 0) print("reading wave function from file");
-		archive::ParallelInputArchive iar(world, filename.c_str(), 1);
+		archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> iar(world, filename.c_str(), 1);
 		iar & psi & eps;
 		psi.set_thresh(FunctionDefaults<6>::get_thresh());
 		real_function_3d vnuc=copy(calc->potentialmanager->vnuclear());
@@ -581,7 +582,7 @@ int main(int argc, char** argv) {
 					print("updating energy");
 				eps = eps_new;
 			}
-			archive::ParallelOutputArchive ar(world, filename.c_str(), 1);
+			archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, filename.c_str(), 1);
 			ar & psi & eps;
 
 			real_function_3d vnuc=copy(calc->potentialmanager->vnuclear());

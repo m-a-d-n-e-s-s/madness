@@ -32,8 +32,8 @@ static const double twopi = 2.0*constants::pi;
 static const double L = 10.6591; // Unit cell size in au for NaCl
 
 static const int maxR = 3; // periodic sums from -R to +R inclusive
-static const double thresh = 1e-6;
-static const double kwavelet = 20;
+static const double thresh = 1e-5;
+static const double kwavelet = 14;
 static const int truncate_mode = 0;
 
 static Molecule molecule;
@@ -925,10 +925,10 @@ int main(int argc, char** argv) {
     subspace = new Subspace[nkpt];
 
     // // FCC unit cell for ne
-    //molecule.add_atom(  0,  0,  0, 10.0, 10);
-    // molecule.add_atom(L/2,L/2,  0, 10.0, 10);
-    // molecule.add_atom(L/2,  0,L/2, 10.0, 10);
-    // molecule.add_atom(  0,L/2,L/2, 10.0, 10);
+    molecule.add_atom(  0,  0,  0, 10.0, 10);
+     molecule.add_atom(L/2,L/2,  0, 10.0, 10);
+     molecule.add_atom(L/2,  0,L/2, 10.0, 10);
+     molecule.add_atom(  0,L/2,L/2, 10.0, 10);
 
     // Cubic cell for LiF
     // molecule.add_atom(  0,  0,  0, 9.0, 9);
@@ -955,14 +955,14 @@ int main(int argc, char** argv) {
     // molecule.add_atom(0.75*L, 0.25*L, 0.25*L, 9.0, 9);    
 
     // Cubic cell for NaCl
-    molecule.add_atom(0.0*L, 0.0*L, 0.0*L, 11.0, 11); 
-    molecule.add_atom(0.0*L, 0.5*L, 0.5*L, 11.0, 11);
-    molecule.add_atom(0.5*L, 0.0*L, 0.5*L, 11.0, 11);
-    molecule.add_atom(0.5*L, 0.5*L, 0.0*L, 11.0, 11);
-    molecule.add_atom(0.5*L, 0.5*L, 0.5*L, 17.0, 17); 
-    molecule.add_atom(0.5*L, 0.0*L, 0.0*L, 17.0, 17);
-    molecule.add_atom(0.0*L, 0.5*L, 0.0*L, 17.0, 17);
-    molecule.add_atom(0.0*L, 0.0*L, 0.5*L, 17.0, 17);
+//    molecule.add_atom(0.0*L, 0.0*L, 0.0*L, 11.0, 11);
+//    molecule.add_atom(0.0*L, 0.5*L, 0.5*L, 11.0, 11);
+//    molecule.add_atom(0.5*L, 0.0*L, 0.5*L, 11.0, 11);
+//    molecule.add_atom(0.5*L, 0.5*L, 0.0*L, 11.0, 11);
+//    molecule.add_atom(0.5*L, 0.5*L, 0.5*L, 17.0, 17);
+//    molecule.add_atom(0.5*L, 0.0*L, 0.0*L, 17.0, 17);
+//    molecule.add_atom(0.0*L, 0.5*L, 0.0*L, 17.0, 17);
+//    molecule.add_atom(0.0*L, 0.0*L, 0.5*L, 17.0, 17);
 
     // Cubic cell for Si
     //molecule.add_atom(  0,     0,     0,     14.0, 14);

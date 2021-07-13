@@ -301,6 +301,60 @@ void test_rot(World& world) {
 
 }
 
+template<typename T, int NDIM>
+void test_matrix_mul_sparse(World &world) {
+    typedef std::shared_ptr<FunctionFunctorInterface<T, NDIM> > ffunctorT;
+
+    if (world.rank()==0) print("entering test_mul_sparse");
+    const double thresh = 1.e-7;
+    Tensor<double> cell(NDIM, 2);
+    for (std::size_t i = 0; i < NDIM; ++i) {
+        cell(i, 0) = -11.0 - 2 * i;  // Deliberately asymmetric bounding box
+        cell(i, 1) = 10.0 + i;
+    }
+    FunctionDefaults<NDIM>::set_cell(cell);
+    FunctionDefaults<NDIM>::set_k(8);
+    FunctionDefaults<NDIM>::set_thresh(thresh);
+    FunctionDefaults<NDIM>::set_refine(true);
+    FunctionDefaults<NDIM>::set_initial_level(3);
+    FunctionDefaults<NDIM>::set_truncate_mode(1);
+
+    START_TIMER;
+    const long nrow = 3;
+    const long ncolumn = 4;
+    std::vector<Function<T, NDIM> > row(nrow);
+    for (long i = 0; i < nrow; ++i) {
+        ffunctorT f(RandomGaussian<T, NDIM>(FunctionDefaults<NDIM>::get_cell(), 0.5));
+        row[i] = FunctionFactory<T, NDIM>(world).functor(f);
+    }
+    std::vector<Function<T, NDIM> > column(ncolumn);
+    for (long i = 0; i < ncolumn; ++i) {
+        ffunctorT f(RandomGaussian<T, NDIM>(FunctionDefaults<NDIM>::get_cell(), 0.5));
+        column[i] = FunctionFactory<T, NDIM>(world).functor(f);
+    }
+    END_TIMER("project");
+
+    START_TIMER;
+    auto result = matrix_mul_sparse<T, T, NDIM>(world, row, column, 0.0);
+    END_TIMER("matrix_mul_sparse");
+
+
+
+    MADNESS_CHECK(result.size()==nrow);
+    for (long i = 0; i < nrow; ++i) {
+        MADNESS_CHECK(result[i].size()==ncolumn);
+        for (long j = 0; j < ncolumn; ++j) {
+            Function<T, NDIM> tmp = row[i] * column[j];
+            double err=(tmp-result[i][j]).norm2();
+            MADNESS_CHECK(err<1.e-10);
+        }
+    }
+
+    if (world.rank()==0) print("leaving test_mul_sparse");
+}
+
+
+
 
 template <std::size_t NDIM>
 void test_multi_to_multi_op(World& world) {
@@ -373,6 +427,9 @@ int main(int argc, char**argv) {
 
         test_rot<double,3>(world);
         test_rot<std::complex<double>,3>(world);
+
+        test_matrix_mul_sparse<double,2>(world);
+        test_matrix_mul_sparse<double,3>(world);
 
         if (!smalltest) test_multi_to_multi_op<3>(world);
 #if !HAVE_GENTENSOR

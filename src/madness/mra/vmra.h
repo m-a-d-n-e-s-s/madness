@@ -505,13 +505,27 @@ namespace madness {
     }
 
     template <typename T, std::size_t NDIM>
-    std::vector<Function<T,NDIM> > append(const std::vector< std::vector<Function<T,NDIM> > > vv){
+    std::vector<Function<T,NDIM> > flatten(const std::vector< std::vector<Function<T,NDIM> > >& vv){
     	std::vector<Function<T,NDIM> >result;
     	for(const auto& x:vv) result=append(result,x);
     	return result;
     }
 
-    /// Transforms a vector of functions according to new[i] = sum[j] old[j]*c[j,i]
+    template<typename T, std::size_t NDIM>
+    std::vector<std::shared_ptr<FunctionImpl<T,NDIM>>> get_impl(const std::vector<Function<T,NDIM>>& v) {
+        std::vector<std::shared_ptr<FunctionImpl<T,NDIM>>> result;
+        for (auto& f : v) result.push_back(f.get_impl());
+        return result;
+    }
+
+    template<typename T, std::size_t NDIM>
+    void set_impl(std::vector<Function<T,NDIM>>& v, const std::vector<std::shared_ptr<FunctionImpl<T,NDIM>>> vimpl) {
+        MADNESS_CHECK(vimpl.size()==v.size());
+        for (std::size_t i=0; i<vimpl.size(); ++i) v[i].set_impl(vimpl[i]);
+    }
+
+
+/// Transforms a vector of functions according to new[i] = sum[j] old[j]*c[j,i]
 
     /// Uses sparsity in the transformation matrix --- set small elements to
     /// zero to take advantage of this.
@@ -874,6 +888,40 @@ namespace madness {
         return vmulXX(a, v, tol, fence);
     }
 
+
+    /// Multiplies a vector of functions against a vector of functions using sparsity
+
+    /// \tparam T       type parameter for first factor
+    /// \tparam R       type parameter for second factor
+    /// \tparam NDIM    dimension of first and second factors
+    /// \param world    the world
+    /// \param f        first vector of functions
+    /// \param g        second vector of functions
+    /// \param tol      threshold for multiplication
+    /// \param fence    force fence (will always fence if necessary)
+    /// \return         fg(i,j) = f(i) * g(j), as a vector of vectors
+    template <typename T, typename R, std::size_t NDIM>
+    std::vector<std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM> > >
+    matrix_mul_sparse(World &world,
+                      const std::vector<Function<R, NDIM> > &f,
+                      const std::vector<Function<R, NDIM> > &g,
+                      double tol,
+                      bool fence = true) {
+        PROFILE_BLOCK(Vmulsp);
+        bool same=(&f == &g);
+        reconstruct(world, f, false);
+        if (not same) reconstruct(world, g, false);
+        world.gop.fence();
+        for (auto& ff : f) ff.norm_tree(false);
+        if (not same) for (auto& gg : g) gg.norm_tree(false);
+        world.gop.fence();
+
+        std::vector<std::vector<Function<R,NDIM> > >result(f.size());
+        for (std::size_t i=0; i<f.size(); ++i) result[i]= vmulXX(f[i], g, tol, false);
+        if (fence) world.gop.fence();
+        return result;
+    }
+
     /// Makes the norm tree for all functions in a vector
     template <typename T, std::size_t NDIM>
     void norm_tree(World& world,
@@ -1096,6 +1144,7 @@ namespace madness {
         const std::vector< Function<T,NDIM> >& a,
         const std::vector< Function<R,NDIM> >& b,
         bool fence=true) {
+        MADNESS_CHECK(a.size()==b.size());
         return sum(world,mul(world,a,b,true),fence);
     }
 
@@ -1394,7 +1443,17 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > operator+=(std::vector<Function<T,NDIM> >& rhs,
             const std::vector<Function<T,NDIM> >& lhs) {
-        if (rhs.size()>0) rhs=add(rhs[0].world(),rhs,lhs);
+        if (rhs.size()==0) return rhs;
+        MADNESS_CHECK(rhs.size()==lhs.size());
+        if (rhs.front().world().id()==lhs.front().world().id()) {
+            rhs=add(rhs[0].world(),rhs,lhs);
+        } else {
+            MADNESS_CHECK(rhs.front().is_compressed());
+            MADNESS_CHECK(lhs.front().is_compressed());
+            for (auto i=0; i<rhs.size(); ++i) {
+                rhs[i].gaxpy(T(1.0), lhs[i], T(1.0), false);
+            }
+        }
         return rhs;
     }
 
@@ -1667,7 +1726,7 @@ namespace madness {
     void load_function(World& world, std::vector<Function<T,NDIM> >& f,
             const std::string name) {
         if (world.rank()==0) print("loading vector of functions",name);
-        archive::ParallelInputArchive ar(world, name.c_str(), 1);
+        archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, name.c_str(), 1);
         std::size_t fsize=0;
         ar & fsize;
         f.resize(fsize);
@@ -1680,7 +1739,7 @@ namespace madness {
         if (f.size()>0) {
             World& world=f.front().world();
             if (world.rank()==0) print("saving vector of functions",name);
-            archive::ParallelOutputArchive ar(world, name.c_str(), 1);
+            archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, name.c_str(), 1);
             std::size_t fsize=f.size();
             ar & fsize;
             for (std::size_t i=0; i<fsize; ++i) ar & f[i];

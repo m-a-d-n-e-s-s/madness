@@ -1206,13 +1206,13 @@ int test_io(World& world) {
     Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor);
 
     int nio = (world.size()-1)/20 + 1;
-    archive::ParallelOutputArchive out(world, "mary", nio);
+    archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> out(world, "mary", nio);
     out & f;
     out.close();
 
     Function<T,NDIM> g;
 
-    archive::ParallelInputArchive in(world, "mary", nio);
+    archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> in(world, "mary", nio);
     in & g;
     in.close();
     in.remove();

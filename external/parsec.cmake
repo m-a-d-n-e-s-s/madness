@@ -1,7 +1,5 @@
 if(ENABLE_PARSEC)
-  if (NOT TARGET PaRSEC::parsec)
-    find_package(PARSEC REQUIRED)
-  endif(NOT TARGET PaRSEC::parsec)
+  include(FindOrFetchPARSEC)
 
   if(TARGET PaRSEC::parsec)
     set(HAVE_PARSEC 1)

@@ -139,6 +139,8 @@ public:
 
     Molecule(const std::string& filename);
 
+    void read_structure_from_library(const std::string& name);
+
     /// print out a Gaussian cubefile header
 	std::vector<std::string> cubefile_header() const;
 

@@ -152,8 +152,9 @@ int run_all_calculations(World& world, const std::vector<CalculationParameters>&
 		print(cp.print_to_string(true));
 
 		write_test_input test_input(cp,"lih");
-
-		SCF calc(world,test_input.filename().c_str());
+        commandlineparser parser;
+        parser.set_keyval("input",test_input.filename());
+        SCF calc(world,parser);
 		calc.set_protocol<3>(world, 1e-4);
 		MolecularEnergy ME(world, calc);
 		double energy=ME.value(calc.molecule.get_all_coords().flat()); // ugh!
@@ -179,7 +180,7 @@ int main(int argc, char** argv) {
 
     // default set of parameters for closed shell
     CalculationParameters cparam;
-    cparam.set_user_defined_value("print_level",1);
+    cparam.set_user_defined_value("print_level",10);
     cparam.set_user_defined_value("save",false);
 
     try {

@@ -61,7 +61,7 @@ int main(int argc, char** argv) {
     	printf("starting at time %.1f\n", wall_time());
 
     }
-    startup(world,argc,argv);
+    startup(world,argc,argv,true);
     std::cout.precision(6);
 
     if (world.rank()==0) print(info::print_revision_information());
@@ -71,7 +71,7 @@ int main(int argc, char** argv) {
         commandlineparser parser(argc,argv);
         std::shared_ptr<Nemo> nemo(new Nemo(world,parser));
         if (world.rank()==0) nemo->get_param().print("dft","end");
-        if (world.rank()==0) nemo->get_calc()->param.print("dft","end");
+//        if (world.rank()==0) nemo->get_calc()->param.print("dft","end");
 
         // optimize the geometry if requested
         if (nemo->get_param().gopt()) {

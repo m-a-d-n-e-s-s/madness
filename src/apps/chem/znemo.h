@@ -309,7 +309,7 @@ public:
 		std::string name="reference";
 		print("saving orbitals to file",name);
 
-		archive::ParallelOutputArchive ar(world, name.c_str(), 1);
+		archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, name.c_str(), 1);
 
 		ar & amo.size() & bmo.size() & aeps & beps;
 		for (auto& a: amo) ar & a;

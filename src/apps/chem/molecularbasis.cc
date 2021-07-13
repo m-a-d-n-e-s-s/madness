@@ -217,8 +217,8 @@ void AtomicBasisSet::read_nw_file(std::string filename) {
         if (ag[atn].nbf() == 0) {
             std::vector<ContractedGaussianShell> g;
             for(int i = 0; i < atn; i++) {
-               g.push_back(ContractedGaussianShell(0,{{1}},{{1}}));
-               g.push_back(ContractedGaussianShell(1,{{2}},{{2}}));
+               g.push_back(ContractedGaussianShell(0,{1},{1}));
+               g.push_back(ContractedGaussianShell(1,{2},{2}));
             }
             ag[atn] = AtomicBasis(g);
         }
