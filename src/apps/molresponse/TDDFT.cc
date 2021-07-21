@@ -1000,6 +1000,40 @@ double TDDFT::do_step_restriction(World& world,
     print("Norm of vector changes", spin, ": rms", rms, "   max", maxval);
   return maxval;
 }
+
+double TDDFT::do_step_restriction(World& world,
+                                  const vecfuncT& x,
+                                  const vecfuncT& y,
+                                  vecfuncT& x_new,
+                                  vecfuncT& y_new,
+                                  std::string spin) const {
+
+  std::vector<double> anorm = norm2s(world, sub(world, x, x_new)+sub(world,y,y_new));
+  size_t nres = 0;
+  for (unsigned int i = 0; i < x.size(); ++i) {
+    print("anorm ", i, " : ", anorm[i]);
+    if (anorm[i] > r_params.maxrotn()) {
+      double s = r_params.maxrotn() / anorm[i];
+      ++nres;
+      if (world.rank() == 0) {
+        if (nres == 1 and (r_params.print_level() > 1))
+          printf("  restricting step for %s orbitals:", spin.c_str());
+        printf(" %d", i);
+      }
+      x_new[i].gaxpy(s, x[i], 1.0 - s, false);
+      y_new[i].gaxpy(s, y[i], 1.0 - s, false);
+    }
+  }
+  if (nres > 0 && world.rank() == 0 and (r_params.print_level() > 1))
+    printf("\n");
+
+  world.gop.fence();
+  double rms, maxval;
+  vector_stats(anorm, rms, maxval);
+  if (world.rank() == 0 and (r_params.print_level() > 1))
+    print("Norm of vector changes", spin, ": rms", rms, "   max", maxval);
+  return maxval;
+}
 // Construct the Hamiltonian
 // Returns the shift needed to make sure that
 // -2.0 * (ground_state_energy + excited_state_energy)
