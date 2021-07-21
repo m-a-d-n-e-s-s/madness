@@ -974,6 +974,7 @@ double TDDFT::do_step_restriction(World& world,
                                   const vecfuncT& x,
                                   vecfuncT& x_new,
                                   std::string spin) const {
+
   std::vector<double> anorm = norm2s(world, sub(world, x, x_new));
   size_t nres = 0;
   for (unsigned int i = 0; i < x.size(); ++i) {

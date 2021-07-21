@@ -297,6 +297,13 @@ class TDDFT {
                              vecfuncT& x_new,
                              std::string spin) const;
 
+  double do_step_restriction(World& world,
+                             const vecfuncT& x,
+                             const vecfuncT& y,
+                             vecfuncT& x_new,
+                             vecfuncT& y_new,
+                             std::string spin) const;
+
   X_space Compute_Theta_X(World& world,
                           X_space& Chi,
                           XCOperator<double, 3> xc,
