@@ -11,15 +11,6 @@
 
 #include "TDDFT.h"
 
-#include <math.h>
-
-#include <cstdint>
-#include <filesystem>
-#include <map>
-#include <memory>
-#include <string>
-#include <utility>
-
 #include <../chem/NWChem.h>  // For nwchem interface
 #include <../chem/SCFOperators.h>
 #include <../chem/molecule.h>
@@ -27,6 +18,7 @@
 #include <chem/projector.h>  // For easy calculation of (1 - \hat{\rho}^0)
 #include <madness/mra/funcdefaults.h>
 #include <madness/world/worldmem.h>
+#include <math.h>
 #include <molresponse/Plot_VTK.h>
 #include <molresponse/basic_operators.h>
 #include <molresponse/density.h>
@@ -35,6 +27,13 @@
 #include <molresponse/response_functions.h>
 #include <molresponse/timer.h>
 #include <molresponse/x_space.h>
+
+#include <cstdint>
+#include <filesystem>
+#include <map>
+#include <memory>
+#include <string>
+#include <utility>
 
 // KAIN allocator for vectorfunctions
 struct TDHF_allocator {
@@ -974,7 +973,6 @@ double TDDFT::do_step_restriction(World& world,
                                   const vecfuncT& x,
                                   vecfuncT& x_new,
                                   std::string spin) const {
-
   std::vector<double> anorm = norm2s(world, sub(world, x, x_new));
   size_t nres = 0;
   for (unsigned int i = 0; i < x.size(); ++i) {
@@ -1007,8 +1005,8 @@ double TDDFT::do_step_restriction(World& world,
                                   vecfuncT& x_new,
                                   vecfuncT& y_new,
                                   std::string spin) const {
-
-  std::vector<double> anorm = norm2s(world, sub(world, x, x_new)+sub(world,y,y_new));
+  std::vector<double> anorm =
+      norm2s(world, sub(world, x, x_new) + sub(world, y, y_new));
   size_t nres = 0;
   for (unsigned int i = 0; i < x.size(); ++i) {
     print("anorm ", i, " : ", anorm[i]);
@@ -1845,9 +1843,15 @@ void TDDFT::x_space_step_restriction(World& world,
   size_t m = Chi.X.size();
   molresponse::start_timer(world);
   for (size_t b = 0; b < m; b++) {
-    do_step_restriction(world, old_Chi.X[b], temp.X[b], "x_response");
     if (restrict_y) {
-      do_step_restriction(world, old_Chi.Y[b], temp.Y[b], "y_response");
+      do_step_restriction(world,
+                          old_Chi.X[b],
+                          temp.X[b],
+                          old_Chi.Y[b],
+                          temp.Y[b],
+                          "x and y_response");
+    } else {
+      do_step_restriction(world, old_Chi.X[b], temp.X[b], "x_response");
     }
   }
   molresponse::end_timer(world, " Step Restriction:");
