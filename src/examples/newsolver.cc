@@ -23,7 +23,7 @@ static double V(const coord_3d& r) {
 }
 
 double rifunction(const coord_3d& r) {
-  return r[2];  // z
+  return r[0];  // x
 }
 
 double iterate_ground(World& world,

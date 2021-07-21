@@ -1361,20 +1361,22 @@ void TDDFT::update_x_space_response(World& world,
   print_residual_norms(world, res, compute_y, iteration);
 
   // kain update with temp adjusts temp
-  if (r_params.kain()) {
+  // TODO test if default zero init guess
+  if (r_params.kain() && iteration > 0) {
     kain_x_space_update(world, temp, res, kain_x_space, Xvector, Xresidual);
     G = -2 * inner(temp, PQ);
     print("Polarizability Tensor kain update");
     print(G);
   }
 
-  //
-  if (iteration > 0 && false) {
+  if (iteration > 0 && true) {
     x_space_step_restriction(world, old_Chi, temp, compute_y);
     G = -2 * inner(temp, PQ);
     print("Polarizability Tensor step restriction update");
     print(G);
   }
+
+  //
 
   temp.X.truncate_rf();
   if (!compute_y) temp.Y = temp.X.copy();
@@ -1606,11 +1608,11 @@ void TDDFT::update_x_space_excited(World& world,
     res = compute_residual(
         world, old_Chi, temp, bsh_residualsX, bsh_residualsY, compute_y);
 
-    if (r_params.kain()) {
-      kain_x_space_update(world, temp, res, kain_x_space, Xvector, Xresidual);
-    }
     if (iter > 0) {
       x_space_step_restriction(world, old_Chi, temp, compute_y);
+    }
+    if (r_params.kain()) {
+      kain_x_space_update(world, temp, res, kain_x_space, Xvector, Xresidual);
     }
     temp.X.truncate_rf();
     if (!compute_y) temp.Y = temp.X.copy();
@@ -1810,7 +1812,7 @@ void TDDFT::x_space_step_restriction(World& world,
   for (size_t b = 0; b < m; b++) {
     do_step_restriction(world, old_Chi.X[b], temp.X[b], "x_response");
     if (restrict_y) {
-      do_step_restriction(world, old_Chi.Y[b], temp.X[b], "y_response");
+      do_step_restriction(world, old_Chi.Y[b], temp.Y[b], "y_response");
     }
   }
   molresponse::end_timer(world, " Step Restriction:");
