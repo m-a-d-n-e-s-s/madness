@@ -786,6 +786,9 @@ void TDDFT::solve_response_states(World& world) {
     print("Property rhs func P norms", PQ.X.norm2());
     print("Property rhs func Q norms", PQ.Y.norm2());
 
+    if (proto > 0) {
+      r_params.set_derived_value<bool>("first_run", false);
+    }
     // Now actually ready to iterate...
     // iterate_freq(world);
     iterate_freq2(world);

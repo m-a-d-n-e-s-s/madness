@@ -29,6 +29,7 @@ struct ResponseParameters : public QCCalculationParametersBase {
     initialize<size_t>("states", 1, "Number of excited states requested");
     initialize<int>("print_level", 3, "0: no output; 1: final energy; 2: iterations; 3: timings; 10: debug");
     initialize<bool>("tda", false, "turn on Tam-Danchof approximation (excitations energy");
+    initialize<bool>("first_run", true, "Are we on the default guess");
     initialize<bool>("plot", false, "turn on plotting of final orbitals. Output format is .vts");
     initialize<bool>("plot_range", false, "controls which orbitals will be plotted");
     initialize<std::vector<int>>("plot_data", std::vector<int>{0}, "Orbitals to plot");
@@ -237,6 +238,7 @@ struct ResponseParameters : public QCCalculationParametersBase {
   // convenience getters
   double econv() const { return get<double>("econv"); }
   bool localize() const { return get<bool>("localize"); }
+  bool first_run() const { return get<bool>("first_run"); }
   std::string local() const { return get<std::string>("local"); }
 };  // namespace madness
 }  // namespace madness

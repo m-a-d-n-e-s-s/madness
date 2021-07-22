@@ -1644,7 +1644,7 @@ void TDDFT::update_x_space_excited(World& world,
     if (iter > 0) {
       x_space_step_restriction(world, old_Chi, temp, compute_y);
     }
-    if (r_params.kain()) {
+    if (r_params.kain()&& (iter >0 ||  r_params.first_run())) {
       kain_x_space_update(world, temp, res, kain_x_space, Xvector, Xresidual);
     }
     temp.X.truncate_rf();
