@@ -113,9 +113,9 @@ X_space TDDFT::compute_gamma_full(World& world,
       Wphi.push_back(xc.apply_xc_kernel(rho_omega[b]));
       W.X[b] = mul(world, Wphi[b], phi0_copy);
     }
+    W.Y = W.X.copy();
     molresponse::end_timer(world, "XC[omega] phi:");
   }
-  W.Y = W.X.copy();
 
   molresponse::start_timer(world);
   for (size_t b = 0; b < m; b++) {
@@ -134,13 +134,15 @@ X_space TDDFT::compute_gamma_full(World& world,
 
   // for each response state we compute the Gamma response functions
   // trucate all response functions
+  molresponse::start_timer(world);
   J.truncate();
   W.truncate();
   KX.truncate();
   KY.truncate();
+  molresponse::end_timer(world, "Truncate J W K");
 
-  molresponse::start_timer(world);
-  if (r_params.print_level() >= 2) {
+  if (r_params.print_level() >= 3) {
+    molresponse::start_timer(world);
     print("J(rho1)phi0>");
     J.print_norm2();
     print("K(rho1X)phi0>");
@@ -149,9 +151,9 @@ X_space TDDFT::compute_gamma_full(World& world,
     KY.print_norm2();
     print("W(rho1)phi0>");
     W.print_norm2();
+    molresponse::end_timer(world, "Print Expectation Creating Gamma:");
   }
   // End timer
-  molresponse::end_timer(world, "Print Expectation Creating Gamma:");
 
   // update gamma functions
   molresponse::start_timer(world);
@@ -171,15 +173,15 @@ X_space TDDFT::compute_gamma_full(World& world,
 
   // put it all together
   // no 2-electron
-  molresponse::start_timer(world);
-  if (r_params.print_level() >= 2) {
+  if (r_params.print_level() >= 3) {
+    molresponse::start_timer(world);
     print("<X ,Gamma(X,Y) Phi>");
     PrintRFExpectation(world, Chi_copy.X, gamma.X, "x", "Gamma)");
     print("<Y ,Gamma_Conjugate(X,Y) Phi>");
     PrintRFExpectation(world, Chi_copy.Y, gamma.Y, "y", "Gamma)");
+    molresponse::end_timer(world, "Print Expectation Creating Gamma:");
   }
   // End timer
-  molresponse::end_timer(world, "Print Expectation Creating Gamma:");
 
   molresponse::start_timer(world);
   J.clear();
