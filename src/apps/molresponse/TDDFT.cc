@@ -1312,7 +1312,6 @@ std::vector<poperatorT> TDDFT::make_bsh_operators_response(
     double& omega) const {
   if (r_params.print_level() >= 1) molresponse::start_timer(world);
   double tol = FunctionDefaults<3>::get_thresh();
-
   // Sizes inferred from ground and omega
   size_t num_orbitals = ground_energies.size();  // number of orbitals
   std::vector<poperatorT> ops(num_orbitals);
@@ -1320,6 +1319,9 @@ std::vector<poperatorT> TDDFT::make_bsh_operators_response(
   for (size_t p = 0; p < num_orbitals; p++) {
     double mu = sqrt(-2.0 * (ground_energies(p) + omega + shift));
     ops[p] = poperatorT(BSHOperatorPtr3D(world, mu, r_params.lo(), tol));
+  }
+  if (r_params.print_level() >= 1) {
+    molresponse::end_timer(world, "make bsh operators response");
   }
   return ops;
   // End timer
@@ -1392,11 +1394,9 @@ void TDDFT::update_x_space_response(World& world,
   X_space temp = bsh_update_response(
       world, old_Chi, Chi, theta_X, bsh_x_ops, bsh_y_ops, projector, x_shifts);
 
-  Tensor<double> G;
-  G = -2 * inner(temp, PQ);
-  print("Polarizability Tensor bsh update <temp|r|PQ>");
-  print(G);
-
+  if (r_params.print_level() >= 1) {
+    compute_and_print_polarizability(world, temp, PQ, "<BSHX|PQ>");
+  }
   // computes residual from old Chi and temp
   res = compute_residual(
       world, old_Chi, temp, bsh_residualsX, bsh_residualsY, compute_y);
@@ -1407,19 +1407,17 @@ void TDDFT::update_x_space_response(World& world,
   // kain update with temp adjusts temp
   // TODO test if default zero init guess
   if (r_params.kain() && iteration > 0) {
-    print("Kain update iter = ", iteration);
     kain_x_space_update(world, temp, res, kain_x_space, Xvector, Xresidual);
-    G = -2 * inner(temp, PQ);
-    print("Polarizability Tensor kain update");
-    print(G);
+    if (r_params.print_level() >= 1) {
+      compute_and_print_polarizability(world, temp, PQ, "<KAIN|PQ>");
+    }
   }
 
   if (iteration > 0 && true) {
-    print("Restrict Step update iter = ", iteration);
     x_space_step_restriction(world, old_Chi, temp, compute_y);
-    G = -2 * inner(temp, PQ);
-    print("Polarizability Tensor step restriction update");
-    print(G);
+    if (r_params.print_level() >= 1) {
+      compute_and_print_polarizability(world, temp, PQ, "<STEP_RESTRICTED|PQ>");
+    }
   }
 
   // truncate x
@@ -1427,21 +1425,13 @@ void TDDFT::update_x_space_response(World& world,
   // truncate y if compute y
   if (compute_y) temp.Y.truncate_rf();
   //	if not compute y then copy x in to y
-  if (not compute_y) temp.Y = temp.X.copy();
+  if (!compute_y) temp.Y = temp.X.copy();
 
   Chi = temp.copy();
-  G = -2 * inner(Chi, PQ);
-  print("Polarizability Tensor  copy temp into Chi update");
-  print(G);
-  // print x norms
-
   if (r_params.print_level() >= 1) {
-    print("Chi.x norms in iteration after truncate: ", iteration);
-    print(Chi.X.norm2());
-
-    print("Chi.y norms in iteration after truncate: ", iteration);
-    print(Chi.Y.norm2());
+    compute_and_print_polarizability(world, Chi, PQ, "<ChiNew|PQ>");
   }
+  // print x norms
 }
 X_space TDDFT::compute_residual(World& world,
                                 X_space& old_Chi,
@@ -1578,6 +1568,7 @@ X_space TDDFT::bsh_update_response(World& world,
   molresponse::start_timer(world);
   // Project out ground state
   for (size_t i = 0; i < m; i++) bsh_X.X[i] = projector(bsh_X.X[i]);
+
   if (compute_y) {
     for (size_t i = 0; i < m; i++) {
       bsh_X.Y[i] = projector(bsh_X.Y[i]);
@@ -4125,6 +4116,17 @@ void TDDFT::PlotGroundandResponseOrbitals(World& world,
   world.gop.fence();
 
   // END TESTING
+}
+
+void TDDFT::compute_and_print_polarizability(World& world,
+                                             X_space& Chi,
+                                             X_space& PQ,
+                                             std::string message) {
+  Tensor<double> G = -2 * inner(Chi, PQ);
+  if (world.rank() == 0) {
+    print("Polarizability", message);
+    print(G);
+  }
 }
 
 void TDDFT::plot_excited_states(World& world,

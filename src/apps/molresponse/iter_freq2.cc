@@ -85,7 +85,7 @@ void TDDFT::iterate_freq2(World& world) {
       make_bsh_operators_response(world, x_shifts, omega_n);
   std::vector<poperatorT> bsh_y_ops;
 
-  bool static_res = omega_n == 0.0;
+  bool static_res = (omega_n == 0.0);
   bool compute_y = not static_res;
   // Negate omega to make this next set of BSH operators \eps - omega
   if (compute_y) {
@@ -108,6 +108,14 @@ void TDDFT::iterate_freq2(World& world) {
       if (world.rank() == 0)
         print("-------------------------------------------");
     }
+    if (r_params.print_level() >= 1) {
+      if (world.rank() == 0) {
+        print("Chi.x norms at start of iteration: ", iter);
+        print(Chi.X.norm2());
+        print("Chi.y norms :t start of iteration ", iter);
+        print(Chi.Y.norm2());
+      }
+    }
 
     old_Chi = Chi.copy();
     rho_omega_old = rho_omega;
@@ -124,8 +132,9 @@ void TDDFT::iterate_freq2(World& world) {
     vector<double> density_residuals;
     if (iter > 0) {
       density_residuals = norm2s(world, (rho_omega - rho_omega_old));
-      if (world.rank() == 0 and (r_params.print_level() > 2)) {
-        print("delta rho", density_residuals);
+      if (world.rank() == 0 and (r_params.print_level() > 1)) {
+        print("delta rho");
+        print(density_residuals);
         print("BSH  residuals");
         print("x", bsh_residualsX);
         print("y", bsh_residualsY);
@@ -137,9 +146,9 @@ void TDDFT::iterate_freq2(World& world) {
           *std::max_element(density_residuals.begin(), density_residuals.end());
       double d_conv = dconv * std::max(size_t(5), molecule.natom());
       // Test convergence and set to true
-      if (d_residual < d_conv and
-          (std::max(bsh_residualsX.absmax(), bsh_residualsY.absmax()) <
-               dconv * 5.0 or
+      if ((d_residual < d_conv) and
+          ((std::max(bsh_residualsX.absmax(), bsh_residualsY.absmax()) <
+            dconv * 5.0) or
            r_params.get<bool>("conv_only_dens"))) {
         converged = true;
       }
@@ -183,11 +192,5 @@ void TDDFT::iterate_freq2(World& world) {
                             bsh_residualsX,
                             bsh_residualsY,
                             iter);
-
-    Tensor<double> G = polarizability();
-    // Polarizability Tensor
-    print("Polarizability Tensor");
-    print(G);
   }
-
-}  // while converged
+}

@@ -823,6 +823,10 @@ class TDDFT {
                                      response_space& y_response,
                                      ResponseParameters const& r_params,
                                      GroundParameters const& g_params);
+  void compute_and_print_polarizability(World& world,
+                                        X_space& Chi,
+                                        X_space& PQ,
+                                        std::string message);
   void plot_excited_states(World& world,
                            size_t iteration,
                            response_space& x_response,
