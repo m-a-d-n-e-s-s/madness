@@ -70,7 +70,7 @@ extern "C" {
 #endif // MADNESS_TASK_PROFILING
 
 #ifdef HAVE_INTEL_TBB
-#include <tbb/task.h>
+#include <tbb/task_arena.h>
 #ifndef TBB_PREVIEW_GLOBAL_CONTROL
 # define TBB_PREVIEW_GLOBAL_CONTROL 1
 #endif
@@ -820,11 +820,7 @@ namespace madness {
 
     /// The pool invokes \c run_multi_threaded(), which does any necessary
     /// setup for multiple threads, and then invokes the user's \c run() method.
-    class PoolTaskInterface :
-#ifdef HAVE_INTEL_TBB
-            public tbb::task,
-#endif // HAVE_INTEL_TBB
-            public TaskAttributes
+    class PoolTaskInterface : public TaskAttributes
     {
         friend class ThreadPool;
 
@@ -1053,31 +1049,9 @@ namespace madness {
 
         /// \todo Descriptions needed.
         /// \return Description needed.
-        tbb::task* execute() {
+        void execute() {
             const int nthread = get_nthread();
             run( TaskThreadEnv(nthread, 0) );
-            return nullptr;
-        }
-
-        /// \todo Brief description needed.
-
-        /// \todo Descriptions needed.
-        /// \throw std::bad_alloc Description needed.
-        /// \param[in] size Description needed.
-        /// \return Description needed.
-        static inline void * operator new(std::size_t size) {
-             return ::operator new(size, tbb::task::allocate_root());
-        }
-
-        /// Destroy a task object.
-
-        /// \param[in,out] p Pointer to the task object (or array of task
-        ///     objects) to be destroyed.
-        /// \param[in] size The size of the array.
-        static inline void operator delete(void* p, std::size_t size) noexcept {
-            if(p != nullptr) {
-                tbb::task::destroy(*reinterpret_cast<tbb::task*>(p));
-            }
         }
 
 #endif // HAVE_INTEL_TBB
@@ -1298,6 +1272,7 @@ namespace madness {
 
 #if HAVE_INTEL_TBB
         static std::unique_ptr<tbb::global_control> tbb_control; ///< \todo Description needed.
+        static std::unique_ptr<tbb::task_arena>     tbb_arena;
 #endif
 
         /// Please invoke while in a single-threaded environment.
@@ -1314,7 +1289,6 @@ namespace madness {
         /// \todo Description needed.
         /// \param[in,out] task Description needed.
         static void add(PoolTaskInterface* task) {
-
 #ifdef MADNESS_TASK_PROFILING
             task->submit();
 #endif // MADNESS_TASK_PROFILING
@@ -1328,12 +1302,15 @@ namespace madness {
             __parsec_schedule(parsec->virtual_processes[0]->execution_streams[0], parsec_task, 0);
             //////////// Parsec Related End ////////////////////
 #elif HAVE_INTEL_TBB
-#ifdef MADNESS_CAN_USE_TBB_PRIORITY
-            if(task->is_high_priority())
-                tbb::task::enqueue(*task, tbb::priority_high);
-            else
-#endif  // MADNESS_CAN_USE_TBB_PRIORITY
-                tbb::task::enqueue(*task);
+//#ifdef MADNESS_CAN_USE_TBB_PRIORITY
+//            if(task->is_high_priority())
+//                tbb::task::enqueue(*task, tbb::priority_high);
+//            else
+//#endif  // MADNESS_CAN_USE_TBB_PRIORITY
+            tbb_arena->enqueue(
+                    [task_p = std::unique_ptr<PoolTaskInterface>(task)](){
+                        task_p->execute();
+            });
 #else
             if (!task) MADNESS_EXCEPTION("ThreadPool: inserting a NULL task pointer", 1);
             int task_threads = task->get_nthread();
@@ -1377,20 +1354,6 @@ namespace madness {
         /// \return True if a task was run.
         static bool run_task() {
 #ifdef HAVE_INTEL_TBB
-
-            // Construct a the parent task
-            tbb::task& waiter = *new( tbb::task::allocate_root() ) tbb::empty_task;
-            waiter.set_ref_count(2);
-
-            // Create a dummy task that we send throught the queue.
-            tbb::task& dummy = *new( waiter.allocate_child() ) tbb::empty_task;
-            tbb::task::enqueue(dummy);
-
-            // Run tasks while we wait for the dummy task.
-            waiter.wait_for_all();
-
-            // destroy the waiter
-            tbb::task::destroy(waiter);
             return false;
 #else
 
