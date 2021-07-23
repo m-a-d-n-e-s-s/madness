@@ -124,12 +124,12 @@ void TDDFT::iterate_freq2(World& world) {
     vector<double> density_residuals;
     if (iter > 0) {
       density_residuals = norm2s(world, (rho_omega - rho_omega_old));
-      if (world.rank() == 0 and (r_params.print_level() > 2))
-        print("delta rho",
-              density_residuals,
-              "residuals",
-              bsh_residualsX,
-              bsh_residualsY);
+      if (world.rank() == 0 and (r_params.print_level() > 2)) {
+        print("delta rho", density_residuals);
+        print("BSH  residuals");
+        print("x", bsh_residualsX);
+        print("y", bsh_residualsY);
+      }
     }
 
     if (iter > 0) {
