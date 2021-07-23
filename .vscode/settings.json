@@ -3,7 +3,7 @@
     "cmake.configureSettings": {
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
         "BUILD_SHARED_LIBS": "OFF",
-        "ENABLE_MKL":"ON",
+        "ENABLE_MKL": "ON",
         "ENABLE_TBB": "OFF",
         "LIBXC_LIBRARIES": "/gpfs/projects/rjh/libxc-3.0.0/lib/libxc.a",
         "LIBXC_INCLUDE_DIRS": "/gpfs/projects/rjh/libxc-3.0.0/include",
@@ -15,10 +15,9 @@
         "CMAKE_C_COMPILER": "/gpfs/software/gcc/8.1.0/bin/cc",
         "CMAKE_CXX_STANDARD": 17,
         "CMAKE_MAKE_PROGRAM": "/usr/bin/make",
-        "MKL_ROOT_DIR":"/gpfs/software/intel/parallel-studio-xe/2018_2/compilers_and_libraries/linux/mkl",
+        "MKL_ROOT_DIR": "/gpfs/software/intel/parallel-studio-xe/2018_2/compilers_and_libraries/linux/mkl",
     },
-    "cmake.environment": {
-    },
+    "cmake.environment": {},
     "cmake.generator": "Unix Makefiles",
     "files.associations": {
         "*.tex": "latex",
@@ -40,7 +39,8 @@
     "C_Cpp.default.macFrameworkPath": [],
     "C_Cpp.clang_format_fallbackStyle": "Google",
     "editor.tabCompletion": "on",
-    "C_Cpp.dimInactiveRegions": false
+    "C_Cpp.dimInactiveRegions": true,
+    "editor.fontFamily": "'CascadiaMono','Droid Sans Mono', 'monospace', monospace, 'Droid Sans Fallback'"
 }
 //        "CMAKE_CXX_COMPILER": "mpicxx",
 //        "CMAKE_C_COMPILER": "mpicc",
