@@ -1427,7 +1427,7 @@ void TDDFT::update_x_space_response(World& world,
   // truncate y if compute y
   if (compute_y) temp.Y.truncate_rf();
   //	if not compute y then copy x in to y
-  if (!compute_y) temp.Y = temp.X.copy();
+  if (not compute_y) temp.Y = temp.X.copy();
 
   Chi = temp.copy();
   G = -2 * inner(Chi, PQ);
@@ -1579,20 +1579,17 @@ X_space TDDFT::bsh_update_response(World& world,
   // Project out ground state
   for (size_t i = 0; i < m; i++) bsh_X.X[i] = projector(bsh_X.X[i]);
   if (compute_y) {
-    for (size_t i = 0; i < m; i++) bsh_X.Y[i] = projector(bsh_X.Y[i]);
+    for (size_t i = 0; i < m; i++) {
+      bsh_X.Y[i] = projector(bsh_X.Y[i]);
+    }
+    bsh_X.truncate();
+  } else {
+    bsh_X.X.truncate_rf();
+    bsh_X.Y = bsh_X.X.copy();
   }
-  molresponse::end_timer(world, "Project out BSH_X");
+  molresponse::end_timer(world, "Project and truncate BSH_X");
 
-  molresponse::start_timer(world);
-  X_space temp(world, m, n);
-  temp.X = bsh_X.X.copy();
-  if (compute_y) {
-    temp.Y = bsh_X.Y.copy();
-  }
-  temp.truncate();
-  molresponse::end_timer(world, "Trucate bsh_X");
-
-  return temp;
+  return bsh_X;
 }
 
 void TDDFT::update_x_space_excited(World& world,
