@@ -186,7 +186,7 @@ namespace madness {
 
         class RmiTask
 #if HAVE_INTEL_TBB
-                : public tbb::task, private madness::Mutex
+                : private madness::Mutex
 #else
                 : public madness::ThreadBase, private madness::Mutex
 #endif // HAVE_INTEL_TBB
@@ -205,7 +205,7 @@ namespace madness {
             SafeMPI::Intracomm comm;
             const int nproc;            // No. of processes in comm world
             const ProcessID rank;       // Rank of this process
-            volatile bool finished;     // True if finished
+            std::atomic<bool> finished;     // True if finished
 
             std::unique_ptr<volatile counterT[]> send_counters;
             std::unique_ptr<counterT[]> recv_counters;
@@ -231,17 +231,17 @@ namespace madness {
             static void set_rmi_task_is_running(bool flag = true);
 
 #if HAVE_INTEL_TBB
-            tbb::task* execute() {
+            void run() {
                 set_rmi_task_is_running(true);
                 RMI::set_this_thread_is_server(true);
 
                 while (! finished) process_some();
-                finished = false;  // to ensure that RmiTask::exit() that
-                                   // triggered the exit proceeds to completion
 
                 RMI::set_this_thread_is_server(false);
                 set_rmi_task_is_running(false);
-                return nullptr;
+
+                finished = false;  // to ensure that RmiTask::exit() that
+                                   // triggered the exit proceeds to completion
             }
 #else
             void run() {
@@ -287,9 +287,6 @@ namespace madness {
 
         }; // class RmiTask
 
-#if HAVE_INTEL_TBB
-        static tbb::task* tbb_rmi_parent_task;
-#endif // HAVE_INTEL_TBB
 
         static RmiTask* task_ptr;    // Pointer to the singleton instance
         static RMIStats stats;
@@ -357,12 +354,8 @@ namespace madness {
         static void end() {
             if(task_ptr) {
                 task_ptr->exit();
-#if HAVE_INTEL_TBB
-                tbb_rmi_parent_task->wait_for_all();
-                tbb::task::destroy(*tbb_rmi_parent_task);
-#else
+                //exit insures that RMI task is completed, therefore it is OK to delete it
                 delete task_ptr;
-#endif // HAVE_INTEL_TBB
                 task_ptr = nullptr;
             }
         }
