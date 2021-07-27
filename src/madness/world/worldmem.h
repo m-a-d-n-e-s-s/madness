@@ -44,7 +44,7 @@
 #include <fstream>
 #include <sstream>
 
-#if defined(MADNESS_HAS_GOOGLE_PERF_MINIMAL)
+#if defined(MADNESS_HAS_GOOGLE_PERF_TCMALLOC)
 #include <gperftools/malloc_extension.h>
 #elif defined(HAVE_IBMBGQ)
 #include <spi/include/kernel/memory.h>
@@ -159,7 +159,7 @@ namespace madness {
 
         const double to_MiB =
             1 / (1024.0 * 1024.0); /* Convert from bytes to MiB */
-#if defined(MADNESS_HAS_GOOGLE_PERF_MINIMAL)
+#if defined(MADNESS_HAS_GOOGLE_PERF_TCMALLOC)
         if (verbose) {
           char buf[100000];
           MallocExtension::instance()->GetStats(&buf[0], 100000);

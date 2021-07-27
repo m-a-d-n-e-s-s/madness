@@ -184,7 +184,9 @@ If MKL_ROOT_DIR is not given, it will be set to the value of the MKLROOT environ
 # Google Performance Tools (Gperftools):
 
 * ENABLE_GPERFTOOLS --- Enable use of gperftools, including tcmalloc.
-      [default=ON]
+      [default=OFF]
+* ENABLE_TCMALLOC_MINIMAL --- Enable use of the minimal tcmalloc library only.
+      [default=OFF]
 * GPERFTOOLS_ROOT_DIR --- The install prefix for gperftools.
 * GPERFTOOLS_INCLUDE_DIR --- The path to the gperftools include directory.
 * GPERFTOOLS_LIBRARY --- The path to the gperftools library directory.
