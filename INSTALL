@@ -243,3 +243,10 @@ madness::initialize will call El::initialize() .
 * ELEMENTAL_TAG --- specifies the version of Elemental to be downloaded, compiled, and installed alongside
                     MADNESS (numerical codes of MADNESS will not use Elemental).
                     If not set, will use the included Elemental source.
+
+# Parallel Runtime Scheduling and Execution Controller (PaRSEC):
+
+* ENABLE_PARSEC --- Enables use of PaRSEC as the task scheduler [default=OFF]. The use of Intel TBB should be disabled
+                    to use PaRSEC.
+
+If ENABLE_PARSEC is set but PaRSEC is not found, it will be built from source.
