@@ -34,6 +34,9 @@
 
 #include <type_traits>
 #include <iterator>
+#ifdef HAVE_INTEL_TBB
+# include <tbb/partitioner.h>
+#endif
 
 /**
  \file range.h
