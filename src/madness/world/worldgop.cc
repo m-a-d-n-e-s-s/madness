@@ -32,7 +32,7 @@
 #include <limits>
 #include <madness/world/worldgop.h>
 #include <madness/world/MADworld.h>
-#ifdef MADNESS_HAS_GOOGLE_PERF_MINIMAL
+#ifdef MADNESS_HAS_GOOGLE_PERF_TCMALLOC
 #include <gperftools/malloc_extension.h>
 #endif
 namespace madness {
@@ -150,7 +150,7 @@ namespace madness {
         epilogue();
         world_.am.free_managed_buffers(); // free up communication buffers
         deferred_->do_cleanup();
-#ifdef MADNESS_HAS_GOOGLE_PERF_MINIMAL
+#ifdef MADNESS_HAS_GOOGLE_PERF_TCMALLOC
         MallocExtension::instance()->ReleaseFreeMemory();
 //        print("clearing memory");
 #endif
