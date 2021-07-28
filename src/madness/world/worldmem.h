@@ -154,7 +154,7 @@ namespace madness {
 
         filename << filename_prefix << "." << rank;
 
-        memoryfile.open(filename.str().c_str(), std::ios::out | std::ios::app);
+        memoryfile.open(filename.str().c_str(), std::basic_ios<Char>::out | std::basic_ios<Char>::app);
         memoryfile << tag << std::endl;
 
         const double to_MiB =
