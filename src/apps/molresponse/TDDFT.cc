@@ -1642,7 +1642,7 @@ void TDDFT::update_x_space_excited(World& world,
     res = compute_residual(
         world, old_Chi, temp, bsh_residualsX, bsh_residualsY, compute_y);
 
-    if (iter > 0) {
+    if (iter > 0 && false) {
       x_space_step_restriction(world, old_Chi, temp, compute_y);
     }
     if (r_params.kain() && (iter > 0 || r_params.first_run())) {
