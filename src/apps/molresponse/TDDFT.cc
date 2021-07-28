@@ -1401,11 +1401,9 @@ void TDDFT::update_x_space_response(World& world,
   res = compute_residual(
       world, old_Chi, temp, bsh_residualsX, bsh_residualsY, compute_y);
 
-  print("print residual norms from bsh update");
-  print_residual_norms(world, res, compute_y, iteration);
+  // print_residual_norms(world, res, compute_y, iteration);
 
   // kain update with temp adjusts temp
-  // TODO test if default zero init guess
   if (r_params.kain() && iteration > 0) {
     kain_x_space_update(world, temp, res, kain_x_space, Xvector, Xresidual);
     if (r_params.print_level() >= 1) {
@@ -1413,7 +1411,7 @@ void TDDFT::update_x_space_response(World& world,
     }
   }
 
-  if (iteration > 0 && true) {
+  if (iteration > 0 && false) {
     x_space_step_restriction(world, old_Chi, temp, compute_y);
     if (r_params.print_level() >= 1) {
       compute_and_print_polarizability(world, temp, PQ, "<STEP_RESTRICTED|PQ>");
