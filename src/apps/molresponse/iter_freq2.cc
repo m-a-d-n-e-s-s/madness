@@ -112,7 +112,7 @@ void TDDFT::iterate_freq2(World& world) {
       if (world.rank() == 0) {
         print("Chi.x norms at start of iteration: ", iter);
         print(Chi.X.norm2());
-        print("Chi.y norms :t start of iteration ", iter);
+        print("Chi.y norms at start of iteration ", iter);
         print(Chi.Y.norm2());
       }
     }
