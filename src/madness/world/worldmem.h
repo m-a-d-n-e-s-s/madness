@@ -245,7 +245,7 @@ namespace madness {
           std::basic_string<char> line;
           while (std::getline(status_stream, line)) {
             if (line.find(detail::Vm_cstr<char>()) == 0)
-              memoryfile << line << std::endl;
+              memoryfile << line.c_str() << std::endl;
           }
           status_stream.close();
         } else {
