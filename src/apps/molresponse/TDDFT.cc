@@ -1008,14 +1008,15 @@ double TDDFT::do_step_restriction(World& world,
   // sub(world, x, x_new)
   vecfuncT x_diff = sub(world, x, x_new);
   vecfuncT y_diff = sub(world, y, y_new);
+
   // sub(world, x, x_new)
-  std::vector<double> anorm_x = norm2s(world, x_diff);
-  std::vector<double> anorm_y = norm2s(world, y_diff);
-  std::vector<double> anorm;
+  Tensor<double> anorm_x = norm2s(world, x_diff);
+  Tensor<double> anorm_y = norm2s(world, y_diff);
+  Tensor<double> anorm_y(x.size());
   for (unsigned int i = 0; i < x.size(); ++i) {
-    anorm.push_back(std::sqrt(anorm_x.at(i) * anorm_x.at(i) +
-                              anorm_y.at(i) * anorm_y.at(i)));
+    anorm[i] = std::sqrt(anorm_x[i] * anorm_x[i] + anorm_y[i] * anorm_y[i]);
   }
+
   size_t nres = 0;
   for (unsigned int i = 0; i < x.size(); ++i) {
     print("anorm ", i, " : ", anorm[i]);
