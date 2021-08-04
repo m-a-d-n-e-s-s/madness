@@ -607,7 +607,7 @@ std::vector<double> norm2s(World& world,
 }
 /// Computes the 2-norms of a vector of functions
 template <typename T, std::size_t NDIM>
-Tensor<double> norm2s(World& world, const std::vector<Function<T, NDIM>>& v) {
+Tensor<double> norm2s_T(World& world, const std::vector<Function<T, NDIM>>& v) {
   PROFILE_BLOCK(Vnorm2);
   Tensor<double> norms(v.size());
   for (unsigned int i = 0; i < v.size(); ++i) norms[i] = v[i].norm2sq_local();
