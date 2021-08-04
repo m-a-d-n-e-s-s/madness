@@ -969,6 +969,15 @@ void TDDFT::vector_stats(const std::vector<double>& v,
   }
   rms = sqrt(rms / v.size());
 }
+void TDDFT::vector_stats_new(Tensor<double> v, double& rms, double& maxabsval) {
+  rms = 0.0;
+  maxabsval = v[0];
+  for (size_t i = 0; i < v.size(); ++i) {
+    rms += v[i] * v[i];
+    maxabsval = std::max<double>(maxabsval, std::abs(v[i]));
+  }
+  rms = sqrt(rms / v.size());
+}
 double TDDFT::do_step_restriction(World& world,
                                   const vecfuncT& x,
                                   vecfuncT& x_new,
@@ -1010,19 +1019,18 @@ double TDDFT::do_step_restriction(World& world,
   vecfuncT y_diff = sub(world, y, y_new);
 
   // sub(world, x, x_new)
-  Tensor<double> anorm_x = norm2s(world, x_diff);
-  Tensor<double> anorm_y = norm2s(world, y_diff);
-  Tensor<double> anorm_y(x.size());
+  Tensor<double> anorm_x = norm2s_T(world, x_diff);
+  Tensor<double> anorm_y = norm2s_T(world, y_diff);
+  Tensor<double> anorm(x.size());
   for (unsigned int i = 0; i < x.size(); ++i) {
     anorm[i] = std::sqrt(anorm_x[i] * anorm_x[i] + anorm_y[i] * anorm_y[i]);
   }
+  double max_norm = anorm.max();
 
-  size_t nres = 0;
-  for (unsigned int i = 0; i < x.size(); ++i) {
-    print("anorm ", i, " : ", anorm[i]);
-    if (anorm[i] > r_params.maxrotn()) {
-      double s = r_params.maxrotn() / anorm[i];
-      ++nres;
+  if (max_norm > r_params.maxrotn()) {
+    double s = r_params.maxrotn() / max_norm;
+    for (unsigned int i = 0; i < x.size(); ++i) {
+      size_t nres = 0;
       if (world.rank() == 0) {
         if (nres == 1 and (r_params.print_level() > 1))
           printf("  restricting step for %s orbitals:", spin.c_str());
@@ -1032,15 +1040,10 @@ double TDDFT::do_step_restriction(World& world,
       y_new[i].gaxpy(s, y[i], 1.0 - s, false);
     }
   }
-  if (nres > 0 && world.rank() == 0 and (r_params.print_level() > 1))
-    printf("\n");
 
   world.gop.fence();
-  double rms, maxval;
-  vector_stats(anorm, rms, maxval);
-  if (world.rank() == 0 and (r_params.print_level() > 1))
-    print("Norm of vector changes", spin, ": rms", rms, "   max", maxval);
-  return maxval;
+
+  return max_norm;
 }
 // Construct the Hamiltonian
 // Returns the shift needed to make sure that
@@ -1412,7 +1415,7 @@ void TDDFT::update_x_space_response(World& world,
     }
   }
 
-  if (iteration > 0 && false) {
+  if (iteration > 0 && true) {
     x_space_step_restriction(world, old_Chi, temp, compute_y);
     if (r_params.print_level() >= 1) {
       compute_and_print_polarizability(world, temp, PQ, "<STEP_RESTRICTED|PQ>");
@@ -1868,8 +1871,8 @@ Tensor<double> TDDFT::calculate_energy_update(World& world,
                                               std::string xy) {
   /*
    *  The correction is:
-   *      \delta \omega^{(k)} = - \frac{ \sum_p\left< \hat{V}^0 x_p^{(k)}(r) +
-   * (1 - \hat{\rho}^0) \Gamma_p^{(k)}(r)\right| \left. x_p^{(k)} -
+   *      \delta \omega^{(k)} = - \frac{ \sum_p\left< \hat{V}^0 x_p^{(k)}(r)
+   * + (1 - \hat{\rho}^0) \Gamma_p^{(k)}(r)\right| \left. x_p^{(k)} -
    * \~{x}_p^{(k)} \right> } { \sum_p \left| \left| \~{x}_p^{(k)} \right|
    * \right|^2 }
    */
@@ -2016,8 +2019,8 @@ double TDDFT::calculate_max_residual(World& world, response_space& f) {
   return max;
 }
 
-// Selects the 'active' orbitals from ground state orbitals to be used in the
-// calculation (based on energy distance from the HOMO). Function needs
+// Selects the 'active' orbitals from ground state orbitals to be used in
+// the calculation (based on energy distance from the HOMO). Function needs
 // knowledge of ground_orbitals and g_params.energies. Function sets
 // act_orbitals and num_act_orbitals.
 void TDDFT::select_active_subspace(World& world) {
@@ -2824,8 +2827,8 @@ void TDDFT::unaugment_full(World& world,
   // End the timer
   if (print_level >= 1) molresponse::end_timer(world, "Unaug. resp. mat.:");
 }
-// Diagonalize the full response matrix, taking care of degenerate components
-// Why diagonalization and then transform the x_fe vectors
+// Diagonalize the full response matrix, taking care of degenerate
+// components Why diagonalization and then transform the x_fe vectors
 
 Tensor<double> TDDFT::diagonalizeFullResponseMatrix(World& world,
                                                     X_space& Chi,
@@ -3459,11 +3462,11 @@ response_space TDDFT::diagonalize_CIS_guess(
   // Start timer
   if (r_params.print_level() >= 1) molresponse::start_timer(world);
 
-  size_t I = -1;  // combined index from i and a, start is -1 so that initial
-                  // value
+  size_t I = -1;  // combined index from i and a, start is -1 so that
+                  // initial value
   // is 0
-  size_t J = -1;  // combined index from j and b, start is -1 so that initial
-                  // value
+  size_t J = -1;  // combined index from j and b, start is -1 so that
+                  // initial value
   // is 0
 
   const size_t m = virtuals.size();
@@ -4033,8 +4036,8 @@ void TDDFT::PrintPolarizabilityAnalysis(World& world,
 // TODO It makes sense to align the plots with the direction of the
 // perturbation
 // ??
-// TODO In excited state calculations we are going to get various directions.
-// We should plot the functions with respect to
+// TODO In excited state calculations we are going to get various
+// directions. We should plot the functions with respect to
 
 /* @brief plot tranistions and ground orbitals in x y z direction
  *

@@ -292,6 +292,8 @@ class TDDFT {
                     double& rms,
                     double& maxabsval) const;
 
+  void vector_stats_new(Tensor<double> v, double& rms, double& maxabsval);
+
   double do_step_restriction(World& world,
                              const vecfuncT& x,
                              vecfuncT& x_new,
