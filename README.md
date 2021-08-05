@@ -25,6 +25,51 @@ export MAD_ROOT_DIR=$MAD_ROOT_DIR
 
 `$MAD_ROOT_DIR` is the directory where madness was compiled.  
 
+# Install dependcies with conda
+If you have `conda` available you can install madness like this.  
+In the following $MAD_SRC_DIR will denote the directory where you have the madness code and $MAD_ROOT_DIR will denote the directory where you will compile the code.  
+Optional you can install the `pno_integrals` executable and change the install dir with $MAD_INSTALL_DIR.  
+If you will install the `pno_integrals` executable will be in `$MAD_INSTALL_DIR/bin/pno_integrals`.  
+In the following code replace those placeholders: e.g.  
+$MAD_ROOT_DIR --> /whereever/you/want/to/have/it
+or set the variables like  
+`MAD_ROOT_DIR=/wherever/you/want/to/have/it`
+
+```bash
+# define your target directories
+export MAD_SRC_DIR=... # add path to directory where you want the source code
+export MAD_ROOT_DIR=...# add path to directory where you want the compiled code
+export NUMCPP_SRC_DIR=...# add path to directory where you want the numcpp dependency
+export MAD_INSTALL_DIR=...# add path to directory where you want the pno_integrals executable to be installed
+
+# get the sources
+git clone https://github.com/kottmanj/madness.git $MAD_SRC_DIR
+git clone https://github.com/dpilger26/numcpp $NUMCPP_SRC_DIR
+
+# install dependencies
+conda install cmake mkl mpich boost
+
+# export paths to dependencies
+export CPLUS_INCLUDE_PATH=$(realpath $NUMCPP_SRC_DIR/include):$CPLUS_INCLUDE_PATH
+
+# use this if you are having trouble with boost (there might be an older boost on your system, with this you make sure you are using the one installed above)
+# export CPLUS_INCLUDE_PATH=$(realpath ~/anaconda3/envs/$ENVNAME/include/):$CPLUS_INCLUDE_PATH # replace $ENVNAME with the name of your environment
+
+# configure
+cd $MAD_ROOT_DIR
+cmake -D ENABLE_MKL=ON -D CMAKE_CXX_FLAGS='-O3 -DNDEBUG -march=native' $MAD_SRC_DIR
+
+# compile
+make -j4 
+
+# install (optional)
+make install
+```
+
+If you used `make_install` and the $MAD_INSTALL_DIR/bin directory is in your PATH tequila can detect the executable automatically.  
+If not, just make sure you export the MAD_ROOT_DIR variable.
+
+
 # Install on Ubuntu or similar
 
 In order to get the most out of madness you should install intel-mkl and configure madness with it. 
