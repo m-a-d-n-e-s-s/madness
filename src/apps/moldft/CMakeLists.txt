@@ -11,4 +11,4 @@ add_mad_executable(testpg testpg.cc MADchem)
 add_mad_executable(testperiodicdft testperiodicdft.cc MADchem)
 
 # removed mcpfit since it is likely only of historic interest
-install(TARGETS moldft DESTINATION "${MADNESS_INSTALL_BINDIR}")
+#install(TARGETS moldft DESTINATION "${MADNESS_INSTALL_BINDIR}")

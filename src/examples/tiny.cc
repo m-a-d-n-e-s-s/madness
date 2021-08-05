@@ -59,7 +59,7 @@ extern std::vector<std::string> cubefile_header(std::string filename="input", co
 template<size_t NDIM>
 void load_function(World& world, Function<double,NDIM>& pair, const std::string name) {
     if (world.rank()==0)  print("loading function ", name);
-
+    
     archive::ParallelInputArchive ar(world, name.c_str());
     ar & pair;
 
@@ -70,6 +70,7 @@ void load_function(World& world, Function<double,NDIM>& pair, const std::string 
     FunctionDefaults<6>::set_thresh(pair.thresh());
 
     std::string line="loaded function "+name;
+    pair.truncate(1.e-3);
     pair.print_size(line);
 
 }

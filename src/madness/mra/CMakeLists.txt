@@ -18,10 +18,10 @@ set(MADMRA_SOURCES
 add_mad_library(mra MADMRA_SOURCES MADMRA_HEADERS "linalg;tinyxml;muparser" "madness/mra")
 
 # Create executables
-add_mad_executable(mraplot "mraplot.cc" "MADmra")
+#add_mad_executable(mraplot "mraplot.cc" "MADmra")
 
 # Install the MADmra library
-install(TARGETS mraplot DESTINATION "${MADNESS_INSTALL_BINDIR}")
+#install(TARGETS mraplot DESTINATION "${MADNESS_INSTALL_BINDIR}")
 install(FILES autocorr coeffs gaussleg
     DESTINATION "${MADNESS_INSTALL_DATADIR}"
     COMPONENT mra)
