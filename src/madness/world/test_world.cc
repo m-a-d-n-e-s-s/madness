@@ -31,6 +31,7 @@
 
 #include <vector>
 #include <numeric>
+#include <algorithm>
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/world/MADworld.h>
@@ -1155,6 +1156,29 @@ void test14(World& world) {
   world.gop.fence();
 }
 
+void test15(World& world) {
+
+  if (world.size() > 1) {
+    const auto n = 1 + std::numeric_limits<int>::max()/sizeof(int);
+    auto iarray = std::make_unique<int[]>(n);
+
+    if (world.rank() == 1)
+      std::iota(iarray.get(), iarray.get()+n, 0);
+    else
+      std::fill(iarray.get(), iarray.get()+n, 0);
+
+    world.gop.max(iarray.get(), n);
+
+    if (world.rank() == 1) {
+      MADNESS_CHECK(iarray[0] == 0);
+      MADNESS_CHECK(iarray[n-1] == n-1);
+    }
+
+    print("Test15 OK");
+  }
+  world.gop.fence();
+}
+
 inline bool is_odd(int i) {
     return i & 0x1;
 }
@@ -1175,6 +1199,7 @@ void work_odd(World& world) {
     // test12(world); cannot run due to filename collision
     // test13(world);
     test14(world);
+    test15(world);
     world.gop.fence();
 }
 
@@ -1190,6 +1215,7 @@ void work_even(World& world) {
     // test12(world); cannot run due to filename collision
     // test13(world);
     test14(world);
+    test15(world);
     world.gop.fence();
 }
 
@@ -1325,6 +1351,7 @@ int main(int argc, char** argv) {
         test12(world);
         test13(world);
         test14(world);
+        test15(world);
 
         for (int i=0; i<10; ++i) {
           print("REPETITION",i);
