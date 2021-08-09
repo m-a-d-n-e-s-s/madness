@@ -46,7 +46,7 @@
 
 namespace madness {
 
-    RMI::RmiTask* RMI::task_ptr = nullptr;
+    std::unique_ptr<RMI::RmiTask> RMI::task_ptr = nullptr;
     RMIStats RMI::stats;
     volatile bool RMI::debugging = false;
     std::list< std::unique_ptr<RMISendReq> > RMI::send_req;
@@ -399,10 +399,9 @@ namespace madness {
             }
 
             MADNESS_ASSERT(task_ptr == nullptr);
-            task_ptr = new RmiTask(comm);
+            task_ptr.reset(new RmiTask(comm));
 
 #if HAVE_INTEL_TBB
-            //TODO: fix  MADNESS_CAN_USE_TBB_PRIORITY case
             ThreadPool::tbb_arena->enqueue([]{
                 task_ptr->run();
             });

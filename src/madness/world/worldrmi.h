@@ -288,7 +288,7 @@ namespace madness {
         }; // class RmiTask
 
 
-        static RmiTask* task_ptr;    // Pointer to the singleton instance
+        static std::unique_ptr<RmiTask> task_ptr;    // Pointer to the singleton instance
         static RMIStats stats;
         static volatile bool debugging;    // True if debugging
 
@@ -355,7 +355,6 @@ namespace madness {
             if(task_ptr) {
                 task_ptr->exit();
                 //exit insures that RMI task is completed, therefore it is OK to delete it
-                delete task_ptr;
                 task_ptr = nullptr;
             }
         }
