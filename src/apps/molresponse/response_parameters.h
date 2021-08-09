@@ -99,6 +99,7 @@ struct ResponseParameters : public QCCalculationParametersBase {
     initialize<bool>(
         "kain", false, "Turn on Krylov Accelarated Inexact Newton Solver");
     initialize<double>("maxrotn", 1.0, "Max orbital rotation per iteration");
+    initialize<double>("maxbsh", 10, "Max bsh residual");
     initialize<size_t>(
         "maxsub",
         10,
