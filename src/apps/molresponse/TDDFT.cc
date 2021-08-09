@@ -365,7 +365,7 @@ void TDDFT::normalize(World& world, response_space& f, response_space& g) {
 }
 void TDDFT::normalize(World& world, X_space& Chi) {
   // Run over rows
-  for (size_t i = 0; i < size_states(Chi); i++) {
+  for (size_t i = 0; i < Chi.num_states(); i++) {
     // Get the normalization constant
     // (Sum included inside inner)
     double normf = inner(Chi.X[i], Chi.X[i]);
@@ -919,7 +919,7 @@ void TDDFT::PrintRFExpectation(World& world,
                                response_space g,
                                std::string fname,
                                std::string gname) {
-  Tensor<double> t = expectation(world, f, g);
+  Tensor<double> t = response_space_inner(f, g);
   if (world.rank() == 0) {
     print(" Expectation between ", fname, " and ", gname);
     print(t);
@@ -1408,14 +1408,14 @@ void TDDFT::update_x_space_response(World& world,
   // print_residual_norms(world, res, compute_y, iteration);
 
   // kain update with temp adjusts temp
-  if (r_params.kain() && iteration > 0) {
+  if (r_params.kain() && (iteration > 0 || !r_params.first_run())) {
     kain_x_space_update(world, temp, res, kain_x_space, Xvector, Xresidual);
     if (r_params.print_level() >= 1) {
       compute_and_print_polarizability(world, temp, PQ, "<KAIN|PQ>");
     }
   }
 
-  if (iteration > 0 && true) {
+  if (iteration > 0 && false) {
     x_space_step_restriction(world, old_Chi, temp, compute_y);
     if (r_params.print_level() >= 1) {
       compute_and_print_polarizability(world, temp, PQ, "<STEP_RESTRICTED|PQ>");
@@ -1617,6 +1617,8 @@ void TDDFT::update_x_space_excited(World& world,
   X_space Lambda_X = Compute_Lambda_X(world, Chi, xc, r_params.calc_type());
   // This diagonalizes XAX and computes new omegas
   // updates Chi
+  print("omega before transform");
+  print(omega);
   compute_new_omegas_transform(world,
                                old_Chi,
                                Chi,
@@ -1630,9 +1632,8 @@ void TDDFT::update_x_space_excited(World& world,
                                old_A,
                                energy_residuals,
                                iter);
-
-  old_Chi = Chi.copy();
-
+  print("omega after transform");
+  print(omega);
   // Analysis gets messed up if BSH is last thing applied
   // so exit early if last iteration
   if (iter == r_params.maxiter() - 1) {
@@ -1649,19 +1650,11 @@ void TDDFT::update_x_space_excited(World& world,
     if (iter > 0 && false) {
       x_space_step_restriction(world, old_Chi, temp, compute_y);
     }
-    if (r_params.kain() && (iter > 0 || r_params.first_run())) {
+    if (r_params.kain() && (iter > 0 || !r_params.first_run())) {
       kain_x_space_update(world, temp, res, kain_x_space, Xvector, Xresidual);
     }
     temp.X.truncate_rf();
-    if (!compute_y) temp.Y = temp.X.copy();
     if (compute_y) temp.Y.truncate_rf();
-    if (r_params.print_level() >= 1) {
-      print("Chi.x norms in iteration after truncate: ", iter);
-      print(Chi.X.norm2());
-
-      print("Chi.y norms in iteration after truncate: ", iter);
-      print(Chi.Y.norm2());
-    }
     // print x norms
     Chi = temp.copy();
   }
@@ -1690,13 +1683,14 @@ void TDDFT::compute_new_omegas_transform(World& world,
                                          Tensor<double>& energy_residuals,
                                          size_t iter) {
   size_t m = Chi.X.size();
+  bool compute_y = not r_params.tda();
   // Basic output
   if (r_params.print_level() >= 1 and world.rank() == 0) {
     print("Before Deflate");
     print("\n   Excitation Energies:");
     print("i=", iter, " roots: ", iter, omega);
   }
-  if (r_params.tda()) {
+  if (!compute_y) {
     deflateTDA(world,
                Chi,
                old_Chi,
@@ -1741,32 +1735,32 @@ X_space TDDFT::bsh_update_excited(World& world,
                                   X_space& theta_X,
                                   QProjector<double, 3>& projector,
                                   std::vector<bool>& converged) {
-  size_t m = Chi.X.size();
-  size_t n = Chi.X.size_orbitals();
+  size_t m = Chi.num_states();
+  size_t n = Chi.num_orbitals();
   X_space res(world, m, n);
   Tensor<double> x_shifts(m);
   Tensor<double> y_shifts(m);
+  print("omega before shifts");
+  print(omega);
   x_shifts =
       create_shift(world, ground_energies, omega, r_params.print_level(), "x");
-  if (not r_params.tda()) {
-    omega = -omega;  // Negative here is so that these Greens functions are
-    // (eps - omega)
-    y_shifts = create_shift_target(world,
-                                   ground_energies,
-                                   omega,
-                                   ground_energies[n - 1],
-                                   r_params.print_level(),
-                                   "y");
-    omega = -omega;
-  }
+  bool compute_y = !r_params.tda();
+  /*
+if (compute_y) {
+omega = -omega;  // Negative here is so that these Greens functions are
+// (eps - omega)
+y_shifts = create_shift(
+  world, ground_energies, omega, r_params.print_level(), "y");
+omega = -omega;
+}
+  */
   // Compute Theta X
   // Apply the shifts
   theta_X.X = apply_shift(world, x_shifts, theta_X.X, Chi.X);
   theta_X.X = theta_X.X * -2;
   theta_X.X.truncate_rf();
-  if (not r_params.tda()) {
-    y_shifts = -y_shifts;
-    theta_X.Y = apply_shift(world, y_shifts, theta_X.Y, Chi.Y);
+  if (compute_y) {
+    //   theta_X.Y = apply_shift(world, y_shifts, theta_X.Y, Chi.Y);
     theta_X.Y = theta_X.Y * -2;
     theta_X.Y.truncate_rf();
   }
@@ -1793,12 +1787,12 @@ X_space TDDFT::bsh_update_excited(World& world,
   // Apply BSH and get updated response components
   if (r_params.print_level() >= 1) molresponse::start_timer(world);
   bsh_update.X = apply(world, bsh_x_ops, theta_X.X);
-  if (not r_params.tda()) bsh_update.Y = apply(world, bsh_y_ops, theta_X.Y);
+  if (compute_y) bsh_update.Y = apply(world, bsh_y_ops, theta_X.Y);
   if (r_params.print_level() >= 1) molresponse::end_timer(world, "Apply BSH:");
 
   // Project out ground state
   for (size_t i = 0; i < m; i++) bsh_update.X[i] = projector(bsh_update.X[i]);
-  if (not r_params.tda()) {
+  if (compute_y) {
     for (size_t i = 0; i < m; i++) bsh_update.Y[i] = projector(bsh_update.Y[i]);
   }
 
@@ -1808,7 +1802,7 @@ X_space TDDFT::bsh_update_excited(World& world,
     if (not converged[i]) {
       temp.X[i] = bsh_update.X[i];
       temp.X[i] = mask * temp.X[i];
-      if (not r_params.tda()) {
+      if (compute_y) {
         temp.Y[i] = bsh_update.Y[i];
         temp.Y[i] = mask * temp.Y[i];
       }
