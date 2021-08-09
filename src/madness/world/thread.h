@@ -1308,7 +1308,9 @@ namespace madness {
 //            else
 //#endif  // MADNESS_CAN_USE_TBB_PRIORITY
             tbb_arena->enqueue(
-                    [task_p = std::unique_ptr<PoolTaskInterface>(task)](){
+                    //use unique_ptr to automatically delete task ptr
+                    [task_p = std::unique_ptr<PoolTaskInterface>(task)] () noexcept {
+                        //exceptions are not expected here, as nobody will catch them for enqueued tasks
                         task_p->execute();
             });
 #else
