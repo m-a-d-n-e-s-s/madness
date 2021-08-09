@@ -27,7 +27,11 @@ struct X_space {
   // default constructor
   X_space() : n_states(0), n_orbtials(0), X(), Y() {}
   // Copy constructor
-  X_space(const X_space& A) : n_states(size_states(A)), n_orbtials(size_orbitals(A)), X(A.X), Y(A.Y) {}
+  X_space(const X_space& A)
+      : n_states(size_states(A)),
+        n_orbtials(size_orbitals(A)),
+        X(A.X),
+        Y(A.Y) {}
   X_space copy() const {
     X_space copyX(X[0][0].world(), n_states, n_orbtials);
     copyX.X = X.copy();
@@ -40,7 +44,8 @@ struct X_space {
   /// Works in either basis.  Different distributions imply
   /// asynchronous communication and the optional fence is
   /// collective.
-  X_space copy(const std::shared_ptr<WorldDCPmapInterface<Key<3> > >& pmap, bool fence = false) const {
+  X_space copy(const std::shared_ptr<WorldDCPmapInterface<Key<3> > >& pmap,
+               bool fence = false) const {
     X_space copyX(X[0][0].world(), n_states, n_orbtials);
     copyX.X = X.copy(pmap, fence);
     copyX.Y = Y.copy(pmap, fence);
@@ -58,7 +63,10 @@ struct X_space {
   }
   // Zero Constructor
   X_space(World& world, size_t n_states, size_t n_orbtials)
-      : n_states(n_states), n_orbtials(n_orbtials), X(world, n_states, n_orbtials), Y(world, n_states, n_orbtials) {}
+      : n_states(n_states),
+        n_orbtials(n_orbtials),
+        X(world, n_states, n_orbtials),
+        Y(world, n_states, n_orbtials) {}
   // explicit constructor from 2 resonse_space
   explicit X_space(response_space& X, response_space& Y) {
     MADNESS_ASSERT(X.size() == Y.size());
@@ -177,7 +185,13 @@ struct X_space {
     Tensor<double> G1(A.n_states, A.n_states);
     Tensor<double> G2(A.n_states, A.n_states);
     G1 = response_space_inner(A.X, B.X);
-    G2 = response_space_inner(B.Y, A.Y);
+    G2 = response_space_inner(A.Y, B.Y);
+    // TODO find a way to print seperate pieces based on a flag
+    print("inner <AX|BX>");
+    print(G1);
+    print("inner <AY|BY>");
+    print(G2);
+
     G = G1 + G2;
     return G;
   }
@@ -206,7 +220,8 @@ struct X_space {
   friend size_t size_states(const X_space& x) { return x.n_states; }
   friend size_t size_orbitals(const X_space& x) { return x.n_orbtials; }
   friend bool same_size(const X_space& A, const X_space& B) {
-    return ((size_states(A) == size_states(B) && size_orbitals(A) == size_orbitals(B)));
+    return ((size_states(A) == size_states(B) &&
+             size_orbitals(A) == size_orbitals(B)));
   }
 };
 // The default constructor for functions does not initialize them to nahy value,
@@ -214,9 +229,11 @@ struct X_space {
 // the world object.
 
 struct X_vector : public X_space {
-  X_vector(World& world, size_t n_orbtials) : X_space(world, size_t(1), n_orbtials) {}
+  X_vector(World& world, size_t n_orbtials)
+      : X_space(world, size_t(1), n_orbtials) {}
 
-  X_vector(X_space A, size_t b) : X_space(A.X[0][0].world(), size_t(1), size_orbitals(A)) {
+  X_vector(X_space A, size_t b)
+      : X_space(A.X[0][0].world(), size_t(1), size_orbitals(A)) {
     X[0] = A.X[b];
     Y[0] = A.Y[b];
   }
@@ -250,19 +267,23 @@ struct X_vector : public X_space {
     MADNESS_ASSERT(same_size(A, B));
 
     World& world = A.X[0][0].world();
-    return inner(world, A.X[0], B.X[0]).sum() + inner(world, A.Y[0], B.X[0]).sum();
+    return inner(world, A.X[0], B.X[0]).sum() +
+           inner(world, A.Y[0], B.X[0]).sum();
   }
 };
 struct X_space_allocator {
   World& world;
   const size_t n_states;
   const size_t n_orbtials;
-  X_space_allocator(World& world, size_t n_orbtials) : world(world), n_states(size_t(1)), n_orbtials(n_orbtials) {}
+  X_space_allocator(World& world, size_t n_orbtials)
+      : world(world), n_states(size_t(1)), n_orbtials(n_orbtials) {}
   // overloading the default constructor () operator
   X_vector operator()() { return X_vector(world, n_orbtials); }
   // Copy constructor
 
-  X_space_allocator operator=(const X_space_allocator& other) { return X_space_allocator(world, other.n_orbtials); }
+  X_space_allocator operator=(const X_space_allocator& other) {
+    return X_space_allocator(world, other.n_orbtials);
+  }
 };
 }  // namespace madness
 
