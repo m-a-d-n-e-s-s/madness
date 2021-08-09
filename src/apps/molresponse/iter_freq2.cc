@@ -125,13 +125,12 @@ void TDDFT::iterate_freq2(World& world) {
 
     if (iter < 2 || (iter % 10) == 0) {
       loadbal(world, rho_omega, Chi, old_Chi);
-      molresponse::end_timer(world, "Load balancing");
     }
 
     // compute density residuals
-    vector<double> density_residuals;
+    Tensor<double> density_residuals;
     if (iter > 0) {
-      density_residuals = norm2s(world, (rho_omega - rho_omega_old));
+      density_residuals = norm2s_T(world, (rho_omega - rho_omega_old));
       if (world.rank() == 0 and (r_params.print_level() > 1)) {
         print("delta rho");
         print(density_residuals);
@@ -142,8 +141,7 @@ void TDDFT::iterate_freq2(World& world) {
     }
 
     if (iter > 0) {
-      double d_residual =
-          *std::max_element(density_residuals.begin(), density_residuals.end());
+      double d_residual = density_residuals.max();
       double d_conv = dconv * std::max(size_t(5), molecule.natom());
       // Test convergence and set to true
       if ((d_residual < d_conv) and
