@@ -456,12 +456,15 @@ namespace madness {
         }
 
 
-  void RMI::RmiTask::set_rmi_task_is_running(bool flag) {
-              rmi_task_is_running = flag; // Yipeeeeeeeeeeeeeeeeeeeeee ... fighting TBB laziness
-  }
+    void RMI::RmiTask::set_rmi_task_is_running(bool flag) {
+        rmi_task_is_running = flag; // Yipeeeeeeeeeeeeeeeeeeeeee ... fighting TBB laziness
+    }
 
     RMI::Request
     RMI::RmiTask::RmiTask::isend(const void* buf, size_t nbyte, ProcessID dest, rmi_handlerT func, attrT attr) {
+
+        MADNESS_ASSERT(nbyte <= std::numeric_limits<int>::max());
+
         int tag = SafeMPI::RMI_TAG;
         static std::size_t numsent = 0; // for tracking synchronous sends
 
