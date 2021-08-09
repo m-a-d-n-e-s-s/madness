@@ -130,6 +130,24 @@ namespace madness {
     void print_meminfo_enable();
     /// @return true if print_meminfo() will generate profiling data.
     bool print_meminfo_enabled();
+    /// @param[in] keep_open if true, the stream used by print_meminfo() will be
+    ///            kept open
+    /// @note by default the stream is opened and closed every time
+    void print_meminfo_keep_ostream_open(bool keep_open);
+    /// @return true if the stream used by print_meminfo() is open between calls
+    bool print_meminfo_keep_ostream_open();
+
+    /// @param[in] rank process rank; the default is -1
+    /// @param[in] filename_prefix file name prefix; the default is empty string
+    /// @return open stream used by print_meminfo()
+    /// @throw std::runtime_error if:
+    ///    - print_meminfo_keep_ostream_open() returns false, or
+    ///    - called for the first time with default values of @p rank or
+    ///      @p filename_prefix , or
+    ///    - if this was previously called with different values of @p rank or
+    ///      @p filename_prefix
+    std::basic_ofstream<wchar_t>& print_meminfo_ostream(
+        int rank = -1, const std::string filename_prefix = std::string(""));
 
     /// \brief print aggregate memory stats to file \c filename_prefix.<rank> , tagged with \c tag
     /// \param[in] rank process rank
@@ -147,15 +165,24 @@ namespace madness {
         bool verbose = false) {
 #if defined(WORLD_MEM_PROFILE_ENABLE)
       if (print_meminfo_enabled()) {
-        using Char = typename std::iterator_traits<decltype(
-            std::begin(tag))>::value_type;
-        std::basic_ofstream<Char> memoryfile;
-        std::ostringstream filename;
+        std::basic_ofstream<wchar_t> local_ofstream;
+        if (!print_meminfo_keep_ostream_open()) {
+          std::ostringstream filename;
 
-        filename << filename_prefix << "." << rank;
+          filename << filename_prefix << "." << rank;
 
-        memoryfile.open(filename.str().c_str(), std::ios::out | std::ios::app);
-        memoryfile << tag << std::endl;
+          local_ofstream.open(filename.str().c_str(),
+                          std::basic_ios<wchar_t>::out |
+                              std::basic_ios<wchar_t>::app);
+        }
+        std::basic_ofstream<wchar_t>& memoryfile = print_meminfo_keep_ostream_open() ? print_meminfo_ostream(rank, filename_prefix) : local_ofstream;
+        if constexpr (std::is_same_v<String, std::basic_string<char>> || std::is_same_v<String, std::basic_string_view<char>>) {
+          std::wstring wtag; wtag.resize(tag.size());
+          std::copy(tag.begin(), tag.end(), wtag.begin());
+          memoryfile << wtag << std::endl;
+        }
+        else
+          memoryfile << tag << std::endl;
 
         const double to_MiB =
             1 / (1024.0 * 1024.0); /* Convert from bytes to MiB */
@@ -213,12 +240,12 @@ namespace madness {
         // try parsing /proc/PID/status first, fallback on sysinfo
         std::string status_fname =
             std::string("/proc/") + std::to_string(getpid()) + std::string("/status");
-        std::basic_ifstream<Char> status_stream(status_fname);
+        std::basic_ifstream<char> status_stream(status_fname);
         if (status_stream.good()) {
-          std::basic_string<Char> line;
+          std::basic_string<char> line;
           while (std::getline(status_stream, line)) {
-            if (line.find(detail::Vm_cstr<Char>()) == 0)
-              memoryfile << line << std::endl;
+            if (line.find(detail::Vm_cstr<char>()) == 0)
+              memoryfile << line.c_str() << std::endl;
           }
           status_stream.close();
         } else {
@@ -238,7 +265,9 @@ namespace madness {
                      << std::endl;
         }
 #endif                // platform specific
-        memoryfile.close();
+        if (!print_meminfo_keep_ostream_open()) {
+          memoryfile.close();
+        }
       }
 #else   // WORLD_MEM_PROFILE_ENABLE
       return;
