@@ -727,11 +727,9 @@ namespace madness {
             delete [] buf;
         }
 
-        /// Inplace global reduction (like MPI all_reduce) while still processing AM & tasks
-
-        /// Optimizations can be added for long messages and to reduce the memory footprint
+      private:
         template <typename T, class opT>
-        void reduce(T* buf, size_t nelem, opT op) {
+        void reduce_impl(T* buf, int nelem, opT op) {
             SafeMPI::Request req0, req1;
             ProcessID parent, child0, child1;
             world_.mpi.binary_tree_info(0, parent, child0, child1);
@@ -761,6 +759,21 @@ namespace madness {
             }
 
             broadcast(buf, nelem, 0);
+        }
+
+      public:
+        /// Inplace global reduction (like MPI all_reduce) while still processing AM & tasks
+
+        /// Optimizations can be added for long messages and to reduce the memory footprint
+        template <typename T, class opT>
+            void reduce(T* buf, std::size_t nelem, opT op) {
+          const std::size_t nelem_per_intmax_nbytes = std::numeric_limits<int>::max() / sizeof(T);
+          while (nelem) {
+            const int n = std::min(nelem_per_intmax_nbytes, nelem);
+            reduce_impl(buf, n, op);
+            nelem -= n;
+            buf += n;
+          }
         }
 
         /// Inplace global sum while still processing AM & tasks
@@ -843,12 +856,18 @@ namespace madness {
         }
 
         /// Concatenate an STL vector of serializable stuff onto node 0
+
+        /// \param[in] v input vector
+        /// \param[in] bufsz the max of the result' must be less than std::numeric_limits<int>::max()
+        /// \return on rank 0 returns the concatenated vector, elsewhere returns an empty vector
         template <typename T>
         std::vector<T> concat0(const std::vector<T>& v, size_t bufsz=1024*1024) {
             SafeMPI::Request req0, req1;
             ProcessID parent, child0, child1;
             world_.mpi.binary_tree_info(0, parent, child0, child1);
             Tag gsum_tag = world_.mpi.unique_tag();
+
+            MADNESS_ASSERT(bufsz <= std::numeric_limits<int>::max());
 
             unsigned char* buf0 = new unsigned char[bufsz];
             unsigned char* buf1 = new unsigned char[bufsz];
