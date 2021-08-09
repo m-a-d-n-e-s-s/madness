@@ -89,6 +89,8 @@ X_space TDDFT::compute_gamma_full(World& world,
   functionT temp_J;
 
   X_space J(world, m, n);
+  X_space JX(world, m, n);
+  X_space JY(world, m, n);
   X_space W(world, m, n);
   X_space KX(world, m, n);
   X_space KY(world, m, n);
@@ -97,12 +99,27 @@ X_space TDDFT::compute_gamma_full(World& world,
   // apply the exchange kernel to rho if necessary
   molresponse::start_timer(world);
   // Create Coulomb potential on ground_orbitals
+  functionT rho_x_b;
+  functionT rho_y_b;
+
+  Chi_copy.truncate();
+  truncate(world, phi0_copy);
+
   for (size_t b = 0; b < m; b++) {
-    temp_J = apply(*coulop, rho_omega[b]);
-    temp_J.truncate();
-    J.X[b] = mul(world, temp_J, phi0_copy);
+    rho_x_b = dot(world, Chi_copy.X[b], phi0_copy);
+    rho_y_b = dot(world, Chi_copy.Y[b], phi0_copy);
+    rho_x_b.truncate();
+    rho_y_b.truncate();
+    rho_x_b = apply(*coulop, rho_x_b);
+    rho_y_b = apply(*coulop, rho_y_b);
+    rho_x_b.truncate();
+    rho_y_b.truncate();
+    JX.X[b] = JX.Y[b] = mul(world, rho_x_b, phi0_copy);
+    JY.X[b] = JY.Y[b] = mul(world, rho_y_b, phi0_copy);
   }
-  J.Y = J.X.copy();
+  JX.truncate();
+  JY.truncate();
+  J = JX + JY;
   molresponse::end_timer(world, "J[omega] phi:");
 
   // Create Coulomb potential on ground_orbitals
@@ -141,28 +158,14 @@ X_space TDDFT::compute_gamma_full(World& world,
   KY.truncate();
   molresponse::end_timer(world, "Truncate J W K");
 
-  if (r_params.print_level() >= 3) {
-    molresponse::start_timer(world);
-    print("J(rho1)phi0>");
-    J.print_norm2();
-    print("K(rho1X)phi0>");
-    KX.print_norm2();
-    print("K(rho1Y)phi0>");
-    KY.print_norm2();
-    print("W(rho1)phi0>");
-    W.print_norm2();
-    molresponse::end_timer(world, "Print Expectation Creating Gamma:");
-  }
-  // End timer
-
   // update gamma functions
   molresponse::start_timer(world);
-  QProjector<double, 3> projector(world, phi0_copy);
   gamma = (2 * J) - (KX + KY) * xcf.hf_exchange_coefficient() + W;
   molresponse::end_timer(world, "Add Gamma parts J-K+W  :");
 
   // project out ground state
   molresponse::start_timer(world);
+  QProjector<double, 3> projector(world, phi0_copy);
   for (size_t i = 0; i < m; i++) {
     gamma.X[i] = projector(gamma.X[i]);
     gamma.Y[i] = projector(gamma.Y[i]);
@@ -171,6 +174,28 @@ X_space TDDFT::compute_gamma_full(World& world,
 
   molresponse::end_timer(world, "Project Gamma:");
 
+  if (r_params.print_level() >= 3) {
+    molresponse::start_timer(world);
+    print("inner <X|JX|X>");
+    print(inner(Chi_copy, JX));
+    print("inner <X|JY|X>");
+    print(inner(Chi_copy, JY));
+    print("inner <X|J|X>");
+    print(inner(Chi_copy, J));
+    print("inner <X|KX|X>");
+    print(inner(Chi_copy, KX));
+    print("inner <X|KY|X>");
+    print(inner(Chi_copy, KY));
+    print("inner <X|K|X>");
+    X_space K = KX + KY;
+    print(inner(Chi_copy, K));
+    print("inner <X|W|X>");
+    print(inner(Chi_copy, W));
+    print("inner <X|Gamma|X>");
+    print(inner(Chi_copy, gamma));
+
+    molresponse::end_timer(world, "Print Expectation Creating Gamma:");
+  }
   // put it all together
   // no 2-electron
   if (r_params.print_level() >= 3) {
