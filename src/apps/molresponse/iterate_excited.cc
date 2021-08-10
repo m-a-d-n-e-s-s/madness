@@ -42,6 +42,7 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
 
   // m residuals for x and y
   Tensor<double> bsh_residualsX(m);
+  Tensor<double> density_residuals(m);
   Tensor<double> bsh_residualsY(m);
   // saved response densities
   vecfuncT rho_omega_old(m);
@@ -139,19 +140,22 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
     }
 
     // compute density residuals
-    Tensor<double> density_residuals;
     if (iter > 0) {
       density_residuals = norm2s_T(world, (rho_omega - rho_omega_old));
-      if (world.rank() == 0 and (r_params.print_level() > 2))
-        print("delta rho",
-              density_residuals,
-              "residuals",
-              bsh_residualsX,
-              bsh_residualsY);
+      if (world.rank() == 0 and (r_params.print_level() > 2)) {
+        print("Density residuals");
+        print("dres", density_residuals);
+        print("BSH  residuals");
+        print("xres", bsh_residualsX);
+        print("yres", bsh_residualsY);
+      }
     }
 
     if (iter > 0) {
       // Only checking on X components even for full as Y are so small
+      if (density_residuals.max() > 2) {
+        break;
+      }
       if (not relax) {
         for (size_t i = 0; i < m; i++) {
           // bsh_residual max orbital change after bsh apply
@@ -260,10 +264,12 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
   if (world.rank() == 0) {
     print(" Final excitation energies:");
     print(omega);
-    print(" Final energy residuals:");
-    print(energy_residuals);
-    print(" Final x-state response function residuals:");
-    print(x_norms);
+    print(" Final energy residuals X:");
+    print(bsh_residualsX);
+    print(" Final energy residuals Y:");
+    print(bsh_residualsX);
+    print(" Final density residuals:");
+    print(density_residuals);
 
     if (not r_params.tda()) {
       if (world.rank() == 0)
