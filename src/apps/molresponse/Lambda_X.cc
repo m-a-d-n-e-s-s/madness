@@ -35,12 +35,14 @@ X_space TDDFT::Compute_Lambda_X(World& world,
                                 XCOperator<double, 3> xc,
                                 std::string calc_type) {
   // compute
+
   bool compute_Y = calc_type.compare("full") == 0;
 
   X_space Lambda_X = X_space(world, Chi.num_states(), Chi.num_orbitals());
   X_space F0X = compute_F0X(world, Chi, xc, compute_Y);
   F0X.truncate();
   if (r_params.print_level() >= 3) {
+    print("---------------Lambda ----------------");
     print("<X|F0|X>");
     print(inner(Chi, F0X));
   }
