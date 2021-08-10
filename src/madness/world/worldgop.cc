@@ -32,7 +32,7 @@
 #include <limits>
 #include <madness/world/worldgop.h>
 #include <madness/world/MADworld.h>
-#ifdef MADNESS_HAS_GOOGLE_PERF_MINIMAL
+#ifdef MADNESS_HAS_GOOGLE_PERF_TCMALLOC
 #include <gperftools/malloc_extension.h>
 #endif
 namespace madness {
@@ -150,7 +150,7 @@ namespace madness {
         epilogue();
         world_.am.free_managed_buffers(); // free up communication buffers
         deferred_->do_cleanup();
-#ifdef MADNESS_HAS_GOOGLE_PERF_MINIMAL
+#ifdef MADNESS_HAS_GOOGLE_PERF_TCMALLOC
         MallocExtension::instance()->ReleaseFreeMemory();
 //        print("clearing memory");
 #endif
@@ -194,9 +194,9 @@ namespace madness {
     void WorldGopInterface::broadcast(void* buf, size_t nbyte, ProcessID root, bool dowork, Tag bcast_tag) {
       if(bcast_tag < 0)
         bcast_tag = world_.mpi.unique_tag();
-      const size_t max = static_cast<size_t>(std::numeric_limits<int>::max());
+      const size_t int_max = static_cast<size_t>(std::numeric_limits<int>::max());
       while (nbyte) {
-        const int n = static_cast<int>(std::min(max, nbyte));
+        const int n = static_cast<int>(std::min(int_max, nbyte));
         broadcast_impl(buf, n, root, dowork, bcast_tag, world_);
         nbyte -= n;
         buf = static_cast<char*>(buf) + n;
