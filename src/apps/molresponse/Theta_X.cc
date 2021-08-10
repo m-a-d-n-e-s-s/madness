@@ -41,20 +41,25 @@ X_space TDDFT::Compute_Theta_X(World& world,
 
   V0X.truncate();
   if (r_params.print_level() >= 3) {
+    print("---------------Theta ----------------");
     print("<X|V0|X>");
     print(inner(Chi, V0X));
   }
 
-  X_space E0X = Chi.copy();
-  E0X.truncate();
-  E0X.X = E0X.X * ham_no_diag;
-  if (compute_Y) {
-    E0X.Y = E0X.Y * ham_no_diag;
+  X_space E0X(world, Chi.num_states(), Chi.num_orbitals());
+  if (r_params.localize().compare("canon") == 0) {
+    E0X = Chi.copy();
+    E0X.truncate();
+    E0X.X = E0X.X * ham_no_diag;
+    if (compute_Y) {
+      E0X.Y = E0X.Y * ham_no_diag;
+    }
+
+    E0X.truncate();
   }
-  E0X.truncate();
 
   if (r_params.print_level() >= 3) {
-    print("<X|E0|X>");
+    print("<X|(E0-diag(E0)|X>");
     print(inner(Chi, E0X));
   }
 
