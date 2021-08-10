@@ -39,14 +39,12 @@ X_space TDDFT::Compute_Lambda_X(World& world,
 
   X_space Lambda_X = X_space(world, Chi.num_states(), Chi.num_orbitals());
   X_space F0X = compute_F0X(world, Chi, xc, compute_Y);
-
+  F0X.truncate();
   if (r_params.print_level() >= 3) {
     print("<X|F0|X>");
     print(inner(Chi, F0X));
   }
   // put it all together
-
-  F0X.truncate();
 
   X_space E0X = Chi.copy();
   E0X.truncate();
@@ -78,6 +76,7 @@ X_space TDDFT::Compute_Lambda_X(World& world,
   }
 
   Lambda_X = (F0X - E0X) + gamma;
+  Lambda_X.truncate();
 
   if (r_params.print_level() >= 3) {
     print("<X|Lambda|X>");

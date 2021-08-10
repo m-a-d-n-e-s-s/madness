@@ -37,14 +37,25 @@ X_space TDDFT::Compute_Theta_X(World& world,
   bool compute_Y = calc_type.compare("full") == 0;
   X_space Theta_X = X_space(world, Chi.num_states(), Chi.num_orbitals());
   // compute
-
   X_space V0X = compute_V0X(world, Chi, xc, compute_Y);
+
   V0X.truncate();
+  if (r_params.print_level() >= 3) {
+    print("<X|V0|X>");
+    print(inner(Chi, V0X));
+  }
 
   X_space E0X = Chi.copy();
+  E0X.truncate();
   E0X.X = E0X.X * ham_no_diag;
   if (compute_Y) {
     E0X.Y = E0X.Y * ham_no_diag;
+  }
+  E0X.truncate();
+
+  if (r_params.print_level() >= 3) {
+    print("<X|E0|X>");
+    print(inner(Chi, E0X));
   }
 
   X_space gamma;
@@ -59,6 +70,11 @@ X_space TDDFT::Compute_Theta_X(World& world,
 
   Theta_X = (V0X - E0X) + gamma;
   Theta_X.truncate();
+
+  if (r_params.print_level() >= 3) {
+    print("<X|Theta|X>");
+    print(inner(Chi, Theta_X));
+  }
 
   return Theta_X;
 }
