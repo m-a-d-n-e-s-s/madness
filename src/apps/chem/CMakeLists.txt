@@ -8,7 +8,8 @@ set(MADCHEM_HEADERS
     corepotential.h atomutil.h SCF.h xcfunctional.h
     mp2.h nemo.h potentialmanager.h gth_pseudopotential.h
     molecular_optimizer.h projector.h
-    SCFOperators.h exchangeoperator.h CCStructures.h CalculationParameters.h
+    SCFOperators.h exchangeoperator.h CCStructures.h CalculationParameters.h QCCalculationParametersBase.h
+    commandlineparser.h GuessFactory.h CC2.h
     electronic_correlation_factor.h vibanal.h molopt.h TDHF.h CC2.h CCPotentials.h
     pcm.h SCFProtocol.h AC.h pointgroupoperator.h pointgroupsymmetry.h MolecularOrbitals.h 
 	znemo.h zcis.h  diamagneticpotentialfactor.h oep.h BSHApply.h

@@ -15,8 +15,8 @@ using namespace madness;
 
 
 int main(int argc, char** argv) {
-	initialize(argc, argv);
-	World world(SafeMPI::COMM_WORLD);
+	{
+	World& =initialize(argc, argv);
 	if (world.rank() == 0){
 		printf("starting at time %.1f\n", wall_time());
 		print("\nmain() compiled at ",__TIME__," on ",__DATE__);
@@ -80,6 +80,7 @@ int main(int argc, char** argv) {
 	world.gop.fence();
 	if (world.rank() == 0) printf("finished at time %.1f\n", wall_time());
 	print_stats(world);
+	}
 	finalize();
 	return error;
 }

@@ -84,8 +84,8 @@ public:
             ("restart", std::vector<size_t>(), "excitations which will be read from disk");
 
             initialize < std::string >
-            ("guess_excitation_operators", "big_fock_2", "guess typ", {"dipole+", "quadrupole", "big_fock_2",
-                                                                    "big_fock_3", "big_fock_4", "custom"});
+            ("guess_excitation_operators", "quadrupole", "guess type", {"dipole+", "quadrupole",
+                                                                    "octopole", "custom"});
 
             /// add center of mass functions determined by the homo-energy
             /// will add s,px,py,pz functions in the center of mass with exponent: -(e_homo/c) and c=guess_cm is the value of this parameter
