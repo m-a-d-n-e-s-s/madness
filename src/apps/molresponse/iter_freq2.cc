@@ -26,6 +26,7 @@
 
 // Iterate Frequency Response
 void TDDFT::iterate_freq2(World& world) {
+  size_t iter;
   // Variables needed to iterate
   QProjector<double, 3> projector(world, ground_orbitals);
   size_t n = r_params.num_orbitals();  // Number of ground state orbitals
@@ -97,7 +98,7 @@ void TDDFT::iterate_freq2(World& world) {
   // Now to iterate
   // while (iteration < r_params.maxiter() and !converged) {
 
-  for (size_t iter = 0; iter < r_params.maxiter(); ++iter) {
+  for (iter = 0; iter < r_params.maxiter(); ++iter) {
     // Basic output
     if (r_params.print_level() >= 1) {
       molresponse::start_timer(world);
@@ -132,7 +133,7 @@ void TDDFT::iterate_freq2(World& world) {
     if (iter > 0) {
       density_residuals = norm2s_T(world, (rho_omega - rho_omega_old));
       if (world.rank() == 0 and (r_params.print_level() > 1)) {
-        print("delta rho");
+        print("Density residuals");
         print(density_residuals);
         print("BSH  residuals");
         print("x", bsh_residualsX);
@@ -141,6 +142,9 @@ void TDDFT::iterate_freq2(World& world) {
     }
 
     if (iter > 0) {
+      if (density_residuals.max() > 2) {
+        break;
+      }
       double d_residual = density_residuals.max();
       double d_conv = dconv * std::max(size_t(5), molecule.natom());
       // Test convergence and set to true
@@ -190,5 +194,16 @@ void TDDFT::iterate_freq2(World& world) {
                             bsh_residualsX,
                             bsh_residualsY,
                             iter);
+  }
+  if (world.rank() == 0) print("\n");
+  if (world.rank() == 0) print("   Finished Response Calculation ");
+  if (world.rank() == 0) print("   ------------------------");
+  if (world.rank() == 0) print("\n");
+
+  // Did we converge?
+  if (iter == r_params.maxiter() && not converged) {
+    if (world.rank() == 0) print("   Failed to converge. Reason:");
+    if (world.rank() == 0) print("\n  ***  Ran out of iterations  ***\n");
+    if (world.rank() == 0) print("    Running analysis on current values.\n");
   }
 }
