@@ -349,11 +349,6 @@ void TDDFT::normalize(World& world, X_space& Chi) {
     double normf = inner(Chi.X[i], Chi.X[i]);
     double normg = inner(Chi.Y[i], Chi.Y[i]);
     double norm = sqrt(normf - normg);
-    print("---------------------Normalize--------------");
-    print(normf);
-    print(normg);
-    print(norm);
-
     // Doing this to deal with zero functions.
     // Maybe not smrt.
     if (norm == 0) continue;
@@ -1514,6 +1509,8 @@ void TDDFT::update_x_space_excited(World& world,
   print(omega);
   compute_new_omegas_transform(
       world, old_Chi, Chi, old_Lambda_X, Lambda_X, omega, old_energy, S, old_S, A, old_A, energy_residuals, iter);
+  print("omega before transform");
+  print(old_energy);
   print("omega after transform");
   print(omega);
   // Analysis gets messed up if BSH is last thing applied
@@ -3009,8 +3006,9 @@ void TDDFT::deflateFull(World& world,
     print("\n   Overlap Matrix:");
     print(S);
   }
-
-  Tensor<double> A = inner(Chi, Lambda_X);
+  X_space Chi_copy = Chi.copy();
+  Chi_copy.truncate();
+  Tensor<double> A = inner(Chi_copy, Lambda_X);
   if (world.rank() == 0 and r_params.print_level() >= 2) {
     print("\n   Lambda Matrix:");
     print(A);
