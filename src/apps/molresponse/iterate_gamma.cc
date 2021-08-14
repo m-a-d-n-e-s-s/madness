@@ -71,10 +71,8 @@ X_space TDDFT::compute_gamma_full(World& world, X_space& Chi, XCOperator<double,
 
   X_space Chi_copy = Chi;
   vecfuncT phi0_copy = ground_orbitals;
-  /*
-truncate(world, phi0_copy);
+  truncate(world, phi0_copy);
   Chi_copy.truncate();
-  */
 
   orbital_load_balance(world, ground_orbitals, phi0_copy, Chi, Chi_copy);
 
@@ -166,7 +164,7 @@ truncate(world, phi0_copy);
 
   molresponse::end_timer(world, "Project Gamma:");
 
-  if (r_params.print_level() >= 3) {
+  if (r_params.print_level() >= 10) {
     molresponse::start_timer(world);
     print("inner <X|JX|X>");
     print(inner(Chi_copy, JX));
@@ -190,14 +188,6 @@ truncate(world, phi0_copy);
   }
   // put it all together
   // no 2-electron
-  if (r_params.print_level() >= 3) {
-    molresponse::start_timer(world);
-    print("<X ,Gamma(X,Y) Phi>");
-    PrintRFExpectation(world, Chi_copy.X, gamma.X, "x", "Gamma)");
-    print("<Y ,Gamma_Conjugate(X,Y) Phi>");
-    PrintRFExpectation(world, Chi_copy.Y, gamma.Y, "y", "Gamma)");
-    molresponse::end_timer(world, "Print Expectation Creating Gamma:");
-  }
   // End timer
 
   molresponse::start_timer(world);
@@ -285,20 +275,6 @@ X_space TDDFT::compute_gamma_static(World& world, X_space& Chi, XCOperator<doubl
   KY.truncate();
   W.truncate();
 
-  molresponse::start_timer(world);
-  if (r_params.print_level() >= 2) {
-    print("J(rho1)phi0>");
-    J.print_norm2();
-    print("K(rho1X)phi0>");
-    KX.print_norm2();
-    print("K(rho1Y)phi0>");
-    KY.print_norm2();
-    print("W(rho1)phi0>");
-    W.print_norm2();
-  }
-  // End timer
-  molresponse::end_timer(world, "Print Expectation Creating Gamma:");
-
   // update gamma functions
   QProjector<double, 3> projector(world, phi0_copy);
   gamma = (2 * J) - (KX + KY) * xcf.hf_exchange_coefficient() + W;
@@ -310,23 +286,6 @@ X_space TDDFT::compute_gamma_static(World& world, X_space& Chi, XCOperator<doubl
     gamma.X[i] = projector(gamma.X[i]);
   }
   molresponse::end_timer(world, "Project Gamma:");
-  if (r_params.print_level() >= 2) {
-    print("------------------------ Gamma Functions Norms  ------------------");
-    print("Gamma X norms");
-    print(gamma.X.norm2());
-  }
-
-  // put it all together
-  // no 2-electron
-
-  molresponse::start_timer(world);
-  if (r_params.print_level() >= 2) {
-    print("<X ,Gamma(X,Y) Phi>");
-    PrintRFExpectation(world, Chi_copy.X, gamma.X, "x", "Gamma)");
-  }
-  molresponse::end_timer(world, "Print Expectation Creating Gamma:");
-
-  // End timer
 
   molresponse::start_timer(world);
 
@@ -515,11 +474,13 @@ X_space TDDFT::compute_V0X(World& world, X_space& Chi, XCOperator<double, 3> xc,
       }
     }
   }
-  if (r_params.print_level() >= 3) {
+  if (r_params.print_level() >= 10) {
     print("inner <X|K0|X>");
     print(inner(Chi_copy, K0));
   }
+  molresponse::end_timer(world, "K[rho0]");
   // Vnuc+V0+VXC
+  molresponse::start_timer(world);
   real_function_3d v0 = v_j0 + v_nuc + v_xc;
 
   V0.X = v0 * Chi.X;
@@ -533,6 +494,7 @@ X_space TDDFT::compute_V0X(World& world, X_space& Chi, XCOperator<double, 3> xc,
     print("inner <X|V0|X>");
     print(inner(Chi_copy, V0));
   }
+  molresponse::end_timer(world, "V0X");
 
   // Basic output
 
@@ -560,6 +522,8 @@ response_space T(World& world, response_space& f) {
 // Returns the ground state fock operator applied to functions f
 X_space TDDFT::compute_F0X(World& world, X_space& Chi, XCOperator<double, 3> xc, bool compute_Y) {
   // Debugging output
+
+  molresponse::start_timer(world);
   size_t m = Chi.num_states();
   size_t n = Chi.num_orbitals();
 
@@ -592,6 +556,7 @@ X_space TDDFT::compute_F0X(World& world, X_space& Chi, XCOperator<double, 3> xc,
     print(inner(chi_copy, F0X));
   }
 
+  molresponse::end_timer(world, "F0X:");
   // Done
   return F0X;
 }

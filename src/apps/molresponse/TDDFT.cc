@@ -894,7 +894,7 @@ void TDDFT::vector_stats(const std::vector<double>& v, double& rms, double& maxa
   }
   rms = sqrt(rms / v.size());
 }
-void TDDFT::vector_stats_new(Tensor<double> v, double& rms, double& maxabsval) {
+void TDDFT::vector_stats_new(const Tensor<double> v, double& rms, double& maxabsval) const {
   rms = 0.0;
   maxabsval = v[0];
   for (size_t i = 0; i < v.size(); ++i) {
@@ -916,6 +916,37 @@ double TDDFT::do_step_restriction(World& world, const vecfuncT& x, vecfuncT& x_n
         printf(" %d", i);
       }
       x_new[i].gaxpy(s, x[i], 1.0 - s, false);
+      x_new[i].truncate();
+    }
+  }
+  if (nres > 0 && world.rank() == 0 and (r_params.print_level() > 1)) printf("\n");
+
+  world.gop.fence();
+  double rms, maxval;
+  vector_stats(anorm, rms, maxval);
+  if (world.rank() == 0 and (r_params.print_level() > 1))
+    print("Norm of vector changes", spin, ": rms", rms, "   max", maxval);
+  return maxval;
+}
+double TDDFT::do_step_restriction(World& world,
+                                  const vecfuncT& x,
+                                  vecfuncT& x_new,
+                                  std::string spin,
+                                  double maxrotn) const {
+  std::vector<double> anorm = norm2s(world, sub(world, x, x_new));
+  size_t nres = 0;
+  print("maxrotn: ", maxrotn);
+  for (unsigned int i = 0; i < x.size(); ++i) {
+    print("anorm ", i, " : ", anorm[i]);
+    if (anorm[i] > maxrotn) {
+      double s = maxrotn / anorm[i];
+      ++nres;
+      if (world.rank() == 0) {
+        if (nres == 1 and (r_params.print_level() > 1)) printf("  restricting step for %s orbitals:", spin.c_str());
+        printf(" %d", i);
+      }
+      x_new[i].gaxpy(s, x[i], 1.0 - s, false);
+      x_new[i].truncate();
     }
   }
   if (nres > 0 && world.rank() == 0 and (r_params.print_level() > 1)) printf("\n");
@@ -945,11 +976,10 @@ double TDDFT::do_step_restriction(World& world,
   for (unsigned int i = 0; i < x.size(); ++i) {
     anorm[i] = std::sqrt(anorm_x[i] * anorm_x[i] + anorm_y[i] * anorm_y[i]);
   }
-  double max_norm = anorm.max();
 
-  if (max_norm > r_params.maxrotn()) {
-    double s = r_params.maxrotn() / max_norm;
-    for (unsigned int i = 0; i < x.size(); ++i) {
+  for (unsigned int i = 0; i < x.size(); ++i) {
+    if (anorm[i] > r_params.maxrotn()) {
+      double s = r_params.maxrotn() / anorm[i];
       size_t nres = 0;
       if (world.rank() == 0) {
         if (nres == 1 and (r_params.print_level() > 1)) printf("  restricting step for %s orbitals:", spin.c_str());
@@ -961,8 +991,11 @@ double TDDFT::do_step_restriction(World& world,
   }
 
   world.gop.fence();
-
-  return max_norm;
+  double rms, maxval;
+  vector_stats_new(anorm, rms, maxval);
+  if (world.rank() == 0 and (r_params.print_level() > 1))
+    print("Norm of vector changes", spin, ": rms", rms, "   max", maxval);
+  return maxval;
 }
 // Construct the Hamiltonian
 // Returns the shift needed to make sure that
@@ -1280,7 +1313,8 @@ void TDDFT::update_x_space_response(World& world,
                                     std::vector<X_vector> Xresidual,
                                     Tensor<double>& bsh_residualsX,
                                     Tensor<double>& bsh_residualsY,
-                                    size_t iteration) {
+                                    size_t iteration,
+                                    Tensor<double>& maxrotn) {
   size_t m = Chi.num_states();
   bool compute_y = r_params.omega() != 0.0;
   // size_t n = Chi.num_orbitals();
@@ -1294,26 +1328,24 @@ void TDDFT::update_x_space_response(World& world,
   print("BSH update iter = ", iteration);
   X_space temp = bsh_update_response(world, old_Chi, Chi, theta_X, bsh_x_ops, bsh_y_ops, projector, x_shifts);
 
-  if (r_params.print_level() >= 1) {
-    compute_and_print_polarizability(world, temp, PQ, "<BSHX|PQ>");
-  }
-  // computes residual from old Chi and temp
-  res = compute_residual(world, old_Chi, temp, bsh_residualsX, bsh_residualsY, compute_y);
-
-  // print_residual_norms(world, res, compute_y, iteration);
-
-  // kain update with temp adjusts temp
-  if (r_params.kain() && (iteration > 0 || !r_params.first_run())) {
-    kain_x_space_update(world, temp, res, kain_x_space, Xvector, Xresidual);
+  if (true) {
+    x_space_step_restriction(world, old_Chi, temp, compute_y, maxrotn);
     if (r_params.print_level() >= 1) {
-      compute_and_print_polarizability(world, temp, PQ, "<KAIN|PQ>");
+      compute_and_print_polarizability(world, temp, PQ, "<STEP_RESTRICTED|PQ>");
     }
   }
 
-  if (iteration > 0 && false) {
-    x_space_step_restriction(world, old_Chi, temp, compute_y);
+  if (r_params.print_level() >= 1) {
+    compute_and_print_polarizability(world, temp, PQ, "<BSHX|PQ>");
+  }
+  res = compute_residual(world, old_Chi, temp, bsh_residualsX, bsh_residualsY, compute_y);
+  // computes residual from old Chi and temp
+
+  // kain update with temp adjusts temp
+  if (r_params.kain() && (iteration > 0 || (r_params.first_run() && !r_params.restart()))) {
+    kain_x_space_update(world, temp, res, kain_x_space, Xvector, Xresidual);
     if (r_params.print_level() >= 1) {
-      compute_and_print_polarizability(world, temp, PQ, "<STEP_RESTRICTED|PQ>");
+      compute_and_print_polarizability(world, temp, PQ, "<KAIN|PQ>");
     }
   }
 
@@ -1385,7 +1417,7 @@ X_space TDDFT::compute_residual(World& world,
     print("res.Y norms in iteration after compute_residual function: ");
     print(res.Y.norm2());
   }
-
+  // the max error in residual
   bsh_residualsX = errX;
   bsh_residualsY = errY;
   // Apply shifts and rhs
@@ -1493,7 +1525,8 @@ void TDDFT::update_x_space_excited(World& world,
                                    Tensor<double>& A,
                                    Tensor<double>& old_A,
                                    std::vector<bool>& converged,
-                                   size_t iter) {
+                                   size_t iter,
+                                   Tensor<double>& maxrotn) {
   size_t m = Chi.num_states();
   bool compute_y = not r_params.tda();
 
@@ -1509,6 +1542,8 @@ void TDDFT::update_x_space_excited(World& world,
   print(omega);
   compute_new_omegas_transform(
       world, old_Chi, Chi, old_Lambda_X, Lambda_X, omega, old_energy, S, old_S, A, old_A, energy_residuals, iter);
+  // now Chi is rotated to new position
+  old_Chi = Chi.copy();
   print("omega before transform");
   print(old_energy);
   print("omega after transform");
@@ -1522,12 +1557,12 @@ void TDDFT::update_x_space_excited(World& world,
     //  Calculates shifts needed for potential / energies
     X_space temp = bsh_update_excited(world, old_Chi, Chi, theta_X, projector, converged);
 
-    res = compute_residual(world, old_Chi, temp, bsh_residualsX, bsh_residualsY, compute_y);
-
-    if (iter > 0 && false) {
-      x_space_step_restriction(world, old_Chi, temp, compute_y);
+    if (true) {
+      x_space_step_restriction(world, old_Chi, temp, compute_y, maxrotn);
+      res = compute_residual(world, old_Chi, temp, bsh_residualsX, bsh_residualsY, compute_y);
     }
-    if (r_params.kain() && (iter > 0 || !r_params.first_run())) {
+    // kain if iteration >0 or first run where there should not be a problem
+    if (r_params.kain() && (iter > 0 || (r_params.first_run() && !r_params.restart()))) {
       kain_x_space_update(world, temp, res, kain_x_space, Xvector, Xresidual);
     }
     temp.X.truncate_rf();
@@ -1584,7 +1619,6 @@ void TDDFT::compute_new_omegas_transform(World& world,
 
   // Calculate energy residual and update old_energy
   energy_residuals = abs(omega - old_energy);
-  old_energy = copy(omega);
 }
 X_space TDDFT::bsh_update_excited(World& world,
                                   X_space& old_Chi,
@@ -1681,16 +1715,28 @@ void TDDFT::kain_x_space_update(World& world,
   molresponse::end_timer(world, " KAIN update:");
 }
 
-void TDDFT::x_space_step_restriction(World& world, X_space& old_Chi, X_space& temp, bool restrict_y) {
-  size_t m = Chi.X.size();
+void TDDFT::x_space_step_restriction(World& world,
+                                     X_space& old_Chi,
+                                     X_space& temp,
+                                     bool restrict_y,
+                                     Tensor<double>& maxrotn) {
+  size_t m = old_Chi.num_states();
   molresponse::start_timer(world);
+  print(maxrotn);
+
   for (size_t b = 0; b < m; b++) {
     if (restrict_y) {
-      do_step_restriction(world, old_Chi.X[b], temp.X[b], old_Chi.Y[b], temp.Y[b], "x and y_response");
+      // do_step_restriction(world, old_Chi.X[b], temp.X[b], old_Chi.Y[b], temp.Y[b], "x and y_response");
+      // if the norm(new-old) > max
+      do_step_restriction(world, old_Chi.X[b], temp.X[b], "x_response", maxrotn[b]);
+      do_step_restriction(world, old_Chi.Y[b], temp.Y[b], "y_response", maxrotn[b]);
+      // do_step_restriction(world, old_Chi.X[b], temp.X[b], "x_response");
+      // do_step_restriction(world, old_Chi.Y[b], temp.Y[b], "y_response");
     } else {
       do_step_restriction(world, old_Chi.X[b], temp.X[b], "x_response");
     }
   }
+
   molresponse::end_timer(world, " Step Restriction:");
 }
 // Returns the second order update to the energies of the excited components
@@ -3002,14 +3048,14 @@ void TDDFT::deflateFull(World& world,
                         size_t& m) {
   // Debugging output
   S = response_space_inner(Chi.X, Chi.X) - response_space_inner(Chi.Y, Chi.Y);
-  if (world.rank() == 0 and r_params.print_level() >= 2) {
+  if (world.rank() == 0 and r_params.print_level() >= 10) {
     print("\n   Overlap Matrix:");
     print(S);
   }
   X_space Chi_copy = Chi.copy();
   Chi_copy.truncate();
   Tensor<double> A = inner(Chi_copy, Lambda_X);
-  if (world.rank() == 0 and r_params.print_level() >= 2) {
+  if (world.rank() == 0 and r_params.print_level() >= 10) {
     print("\n   Lambda Matrix:");
     print(A);
   }
