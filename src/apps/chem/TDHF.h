@@ -8,12 +8,12 @@
 #ifndef SRC_APPS_CHEM_TDHF_H_
 #define SRC_APPS_CHEM_TDHF_H_
 
-#include "CCStructures.h"
-#include "nemo.h"
-#include "projector.h"
-#include "SCFOperators.h"
+#include <chem/CCStructures.h>
+#include <chem/nemo.h>
+#include <chem/projector.h>
+#include <chem/SCFOperators.h>
 #include <math.h>
-#include "GuessFactory.h"
+#include <chem/GuessFactory.h>
 #include <chem/commandlineparser.h>
 
 

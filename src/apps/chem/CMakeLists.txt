@@ -4,27 +4,94 @@ add_definitions(-DMRA_CHEMDATA_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}\")
 
 # Set the CHEM sources and header files
 set(MADCHEM_HEADERS
-    correlationfactor.h molecule.h molecularbasis.h
-    corepotential.h atomutil.h SCF.h xcfunctional.h
-    mp2.h nemo.h potentialmanager.h gth_pseudopotential.h
-    molecular_optimizer.h projector.h
-    SCFOperators.h exchangeoperator.h CCStructures.h CalculationParameters.h QCCalculationParametersBase.h
-    commandlineparser.h GuessFactory.h CC2.h
-    electronic_correlation_factor.h vibanal.h molopt.h TDHF.h CC2.h CCPotentials.h
-    pcm.h SCFProtocol.h AC.h pointgroupoperator.h pointgroupsymmetry.h MolecularOrbitals.h 
-	znemo.h zcis.h  diamagneticpotentialfactor.h oep.h BSHApply.h
-    PNO.h PNOF12Potentials.h PNOGuessFunctions.h PNOParameters.h PNOStructures.h PNOTensors.h
-    basis.h polynomial.h gaussian.h ESInterface.h NWChem.h write_test_input.h)
+    AC.h
+    atomutil.h
+    basis.h
+    BSHApply.h
+    CalculationParameters.h
+    CC2.h
+    CCPotentials.h
+    CCStructures.h
+    commandlineparser.h
+    corepotential.h
+    correlationfactor.h
+    diamagneticpotentialfactor.h
+    electronic_correlation_factor.h
+    ESInterface.h
+    exchangeoperator.h
+    gaussian.h
+    gth_pseudopotential.h
+    GuessFactory.h
+    masks_and_boxes.h
+    molecularbasis.h
+    molecular_optimizer.h
+    MolecularOrbitals.h
+    molecule.h
+    molopt.h
+    mp2.h
+    nemo.h
+    NWChem.h
+    oep.h
+    pcm.h
+    PNOF12Potentials.h
+    PNOGuessFunctions.h
+    PNO.h
+    PNOParameters.h
+    PNOStructures.h
+    PNOTensors.h
+    pointgroupoperator.h
+    pointgroupsymmetry.h
+    polynomial.h
+    potentialmanager.h
+    projector.h
+    QCCalculationParametersBase.h
+    SCF.h
+    SCFOperators.h
+    SCFProtocol.h
+    TDHF.h
+    test_correlation_factor.h
+    vibanal.h
+    write_test_input.h
+    xcfunctional.h
+    zcis.h
+    znemo.h
+)
 set(MADCHEM_SOURCES
-    correlationfactor.cc molecule.cc molecularbasis.cc vibanal.cc
-    corepotential.cc atomutil.cc lda.cc
-    distpm.cc SCF.cc gth_pseudopotential.cc nemo.cc mp2.cc pcm.cc
-    SCFOperators.cc  exchangeoperator.cc TDHF.cc GuessFactory.cc CCStructures.cc CC2.cc CCPotentials.cc 
-    AC.cc pointgroupsymmetry.cc 
-    znemo.cc zcis.cc diamagneticpotentialfactor.cc oep.cc
-    PNO.cpp PNOF12Potentials.cpp PNOGuessFunctions.cpp PNOParameters.cpp PNOStructures.cpp
-    QCCalculationParametersBase.cc MolecularOrbitals.cc
-    polynomial.cc gaussian.cc NWChem.cc )
+    AC.cc
+    atomutil.cc
+    benchmark_exchange_operator.cc
+    CC2.cc
+    CCPotentials.cc
+    CCStructures.cc
+    corepotential.cc
+    correlationfactor.cc
+    diamagneticpotentialfactor.cc
+    distpm.cc
+    exchangeoperator.cc
+    gaussian.cc
+    gth_pseudopotential.cc
+    GuessFactory.cc
+    lda.cc
+    molecularbasis.cc
+    MolecularOrbitals.cc
+    molecule.cc
+    mp2.cc
+    nemo.cc
+    NWChem.cc
+    oep.cc
+    pcm.cc
+    plotxc.cc
+    pointgroupsymmetry.cc
+    polynomial.cc
+    QCCalculationParametersBase.cc
+    SCF.cc
+    SCFOperators.cc
+    TDHF.cc
+    vibanal.cc
+    zcis.cc
+    znemo.cc
+    PNO.cpp  PNOF12Potentials.cpp  PNOGuessFunctions.cpp  PNOParameters.cpp  PNOStructures.cpp
+)
 if(LIBXC_FOUND)
   list(APPEND MADCHEM_SOURCES xcfunctional_libxc.cc)
 else()

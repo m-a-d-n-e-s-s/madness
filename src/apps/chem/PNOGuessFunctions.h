@@ -16,7 +16,7 @@
 #include <numeric>
 #include <valarray>
 #include <stdio.h>
-#include "madness.h"
+#include <madness.h>
 #include <chem/PNOStructures.h>
 #include <chem/projector.h>
 #include <chem/GuessFactory.h>
