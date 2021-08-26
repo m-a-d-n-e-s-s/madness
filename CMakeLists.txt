@@ -605,7 +605,6 @@ if(LLDB_EXECUTABLE)
   set(HAVE_LLDB 1)
   message(STATUS "Found lldb: ${LLDB_EXECUTABLE}")
 endif()
-find_package(PythonInterp)
 
 # ccache for caching builds
 find_program(CCACHE ccache)
