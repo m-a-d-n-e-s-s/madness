@@ -1,11 +1,12 @@
 # src/madness/tensor
 
 # Add targets for generated header files
-if(PYTHONINTERP_FOUND)
+find_package(Python3)
+if(Python3_Interpreter_FOUND)
   add_custom_command(
       OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/tensoriter_spec.h
              ${CMAKE_CURRENT_SOURCE_DIR}/tensor_spec.h
-      COMMAND ${PYTHON_EXECUTABLE} tempspec.py
+      COMMAND ${Python3_EXECUTABLE} tempspec.py
       MAIN_DEPENDENCY tempspec.py
       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
       COMMENT "Generating tensoriter_spec.h and tensor_spec.h")
