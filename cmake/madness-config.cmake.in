@@ -73,16 +73,16 @@ if (MADNESS_FIND_NUM_COMPONENTS EQUAL 1 AND MADNESS_FIND_COMPONENTS_world_idx GR
 endif()
 
 # Include library IMPORT targets
-if(NOT TARGET madness AND NOT MADNESS_FIND_WORLD_ONLY)
+if(NOT TARGET MADworld)
   include("${CMAKE_CURRENT_LIST_DIR}/madness-targets.cmake")
+endif(NOT TARGET MADworld)
+if(NOT MADNESS_FIND_WORLD_ONLY)
   set(MADNESS_TOP_TARGET_LIBRARY madness)
   set(MADNESS_TARGET_COMPONENT madness)
-endif()
-if(NOT TARGET MADworld AND MADNESS_FIND_WORLD_ONLY)
-  include("${CMAKE_CURRENT_LIST_DIR}/madworld-targets.cmake")
+else(NOT MADNESS_FIND_WORLD_ONLY)
   set(MADNESS_TOP_TARGET_LIBRARY MADworld)
   set(MADNESS_TARGET_COMPONENT world)
-endif()
+endif(NOT MADNESS_FIND_WORLD_ONLY)
 
 # Set the madness libraries target
 set(MADNESS_LIBRARIES ${MADNESS_TOP_TARGET_LIBRARY})

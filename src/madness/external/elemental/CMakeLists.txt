@@ -297,10 +297,6 @@ install(TARGETS elemental EXPORT madness
     COMPONENT elemental
     DESTINATION "${MADNESS_INSTALL_LIBDIR}"
     INCLUDES DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}/madness/external")
-install(TARGETS elemental EXPORT madworld
-    COMPONENT elemental
-    DESTINATION "${MADNESS_INSTALL_LIBDIR}"
-    INCLUDES DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}/madness/external")
 
 # Define the header-file preparation rules
 set(PREPARED_HEADERS)
