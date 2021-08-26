@@ -93,7 +93,7 @@ if (TARGET PaRSEC::parsec)
   add_subproject_parsec_target_to_export_set("madness" "world")
 endif()
 
-if(ENABLE_UNITTESTS)
+if(BUILD_TESTING)
 
   # The list of unit test source files
   set(WORLD_TEST_SOURCES test_prof.cc test_ar.cc test_hashdc.cc test_hello.cc

@@ -221,10 +221,6 @@ add_feature_info(WORLD_GET_DEFAULT_DISABLE DISABLE_WORLD_GET_DEFAULT "Disables W
 set(WORLD_GET_DEFAULT_DISABLED ${DISABLE_WORLD_GET_DEFAULT} CACHE BOOL 
     "Disables World::get_default()")
 
-option(ENABLE_UNITTESTS "Enables unit tests targets" ON)
-add_feature_info(UNITTESTS ENABLE_UNITTESTS
-    "Enables unit tests targets")
-
 option(ENABLE_TASK_DEBUG_TRACE
         "Enable task debug tracing." OFF)
 add_feature_info(TASK_DEBUG_TRACE ENABLE_TASK_DEBUG_TRACE "supports debug trace of task engine")
@@ -652,9 +648,8 @@ add_dependencies(everything madness-libraries)
 include_directories(${PROJECT_SOURCE_DIR}/src ${PROJECT_BINARY_DIR}/src)
 set(CMAKE_INCLUDE_CURRENT_DIR_IN_INTERFACE TRUE)
 set(CMAKE_INCLUDE_CURRENT_DIR TRUE)
-if(ENABLE_UNITTESTS)
-  include(CTest)
-  enable_testing()
+include(CTest)
+if(BUILD_TESTING)
   set(MADNESS_HAS_GOOGLE_TEST 1)
   add_custom_target_subproject(madness unittests)
   add_custom_target_subproject(madness check COMMAND ${CMAKE_CTEST_COMMAND} -V -R "madness/test/" USES_TERMINAL) # to be GNU compatible

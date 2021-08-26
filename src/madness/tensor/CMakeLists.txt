@@ -71,7 +71,7 @@ add_mad_library(linalg MADLINALG_SOURCES MADLINALG_HEADERS "tensor" "madness/ten
   endif ()
 
 # Add unit tests
-if(ENABLE_UNITTESTS)
+if(BUILD_TESTING)
   
   # The list of unit test source files
   set(TENSOR_TEST_SOURCES test_tensor.cc oldtest.cc test_mtxmq.cc
