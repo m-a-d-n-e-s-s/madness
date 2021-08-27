@@ -1,10 +1,11 @@
-find_package(PaRSEC CONFIG QUIET COMPONENTS parsec HINTS ${PaRSEC_ROOT_DIR})
+if (NOT TARGET PaRSEC::parsec)
+  find_package(PaRSEC CONFIG QUIET COMPONENTS parsec HINTS ${PaRSEC_ROOT_DIR})
+  if (TARGET PaRSEC::parsec)
+    message(STATUS "Found PaRSEC CONFIG at ${PaRSEC_CONFIG}")
+  endif (TARGET PaRSEC::parsec)
+endif (NOT TARGET PaRSEC::parsec)
 
-if (TARGET PaRSEC::parsec)
-
-  message(STATUS "Found PaRSEC CONFIG at ${PaRSEC_CONFIG}")
-
-else (TARGET PaRSEC::parsec)
+if (NOT TARGET PaRSEC::parsec)
 
   # configure PaRSEC
   set(SUPPORT_FORTRAN OFF CACHE BOOL "Disable Fortran support in PaRSEC")
@@ -27,7 +28,11 @@ else (TARGET PaRSEC::parsec)
   # this is where PaRSECConfig.cmake will end up
   # must be in sync with the "install(FILES ...PaRSECConfig.cmake" statement in PaRSEC source
   set(PaRSEC_CONFIG "${CMAKE_INSTALL_PREFIX}/share/cmake/parsec/PaRSECConfig.cmake" CACHE INTERNAL "The location of installed PaRSECConfig.cmake file")
-endif(TARGET PaRSEC::parsec)
+
+  # export parsec targets from the build tree for the same to be possible for madness targets
+  export(EXPORT parsec-targets FILE "${PROJECT_BINARY_DIR}/parsec-targets.cmake")
+
+endif(NOT TARGET PaRSEC::parsec)
 
 # postcond check
 if (NOT TARGET PaRSEC::parsec)
