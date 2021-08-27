@@ -11,6 +11,8 @@ else (TARGET PaRSEC::parsec)
   set(CMAKE_CROSSCOMPILING OFF)
   set(CMAKE_SYSTEM_PROCESSOR ${CMAKE_HOST_SYSTEM_PROCESSOR})
   set(PARSEC_WITH_DEVEL_HEADERS ON CACHE BOOL "Install PaRSEC headers")
+  set(BUILD_TOOLS OFF CACHE BOOL "Don't build the tools by default")
+  set(BUILD_TESTING OFF)  # Don't build the tests by default
 
   FetchContent_Declare(
           PARSEC
@@ -22,7 +24,6 @@ else (TARGET PaRSEC::parsec)
           SOURCE_DIR PARSEC_SOURCE_DIR
           BINARY_DIR PARSEC_BINARY_DIR
           )
-  set_property(DIRECTORY ${PARSEC_SOURCE_DIR} PROPERTY EXCLUDE_FROM_ALL TRUE)
 
   # this is where PaRSECConfig.cmake will end up
   # must be in sync with the "install(FILES ...PaRSECConfig.cmake" statement in PaRSEC source
