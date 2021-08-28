@@ -12,7 +12,6 @@ else (TARGET PaRSEC::parsec)
   set(CMAKE_SYSTEM_PROCESSOR ${CMAKE_HOST_SYSTEM_PROCESSOR})
   set(PARSEC_WITH_DEVEL_HEADERS ON CACHE BOOL "Install PaRSEC headers")
   set(BUILD_TOOLS OFF CACHE BOOL "Don't build the tools by default")
-  set(BUILD_TESTING OFF)  # Don't build the tests by default
 
   FetchContent_Declare(
           PARSEC
