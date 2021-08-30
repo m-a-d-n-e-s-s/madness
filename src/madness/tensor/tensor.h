@@ -60,9 +60,9 @@
 #include <madness/tensor/tensoriter.h>
 
 #ifdef USE_GENTENSOR
-  #define HAVE_GENTENSOR 1
+#define HAVE_GENTENSOR 1
 #else
-  #define HAVE_GENTENSOR 0
+#define HAVE_GENTENSOR 0
 #endif
 
 /*!
@@ -209,15 +209,15 @@
 */
 
 #ifndef HAVE_STD_ABS_LONG
-  #ifndef HAVE_STD_LABS
+#ifndef HAVE_STD_LABS
 namespace std {
 static long abs(long a) { return a >= 0 ? a : -a; }
 }  // namespace std
-  #else
+#else
 namespace std {
 static long abs(long a) { return std::labs(a); }
 }  // namespace std
-  #endif
+#endif
 #endif
 
 namespace madness {
@@ -272,7 +272,7 @@ static inline std::ostream& operator<<(std::ostream& s, const TensorType& tt) {
 
 //#define TENSOR_USE_SHARED_ALIGNED_ARRAY
 #ifdef TENSOR_USE_SHARED_ALIGNED_ARRAY
-  #define TENSOR_SHARED_PTR detail::SharedAlignedArray
+#define TENSOR_SHARED_PTR detail::SharedAlignedArray
 // this code has been tested and seems to work correctly on all
 // tests and moldft ... however initial testing indicated a hard
 // to measure improvement in thread scaling (from 20 to 60 threads
@@ -298,8 +298,7 @@ class SharedAlignedArray {
  public:
   SharedAlignedArray() : p(0), cnt(0) {}
   T* allocate(std::size_t size, unsigned int alignment) {
-    std::size_t offset = (size * sizeof(T) - 1) / sizeof(AtomicInt) +
-                         1;  // Where the counter will be
+    std::size_t offset = (size * sizeof(T) - 1) / sizeof(AtomicInt) + 1;  // Where the counter will be
     std::size_t nbyte = (offset + 1) * sizeof(AtomicInt);
     if (posix_memalign((void**)&p, alignment, nbyte)) throw 1;
     cnt = (AtomicInt*)(p) + offset;
@@ -323,7 +322,7 @@ class SharedAlignedArray {
 };
 }  // namespace detail
 #else
-  #define TENSOR_SHARED_PTR std::shared_ptr
+#define TENSOR_SHARED_PTR std::shared_ptr
 #endif
 
 /// A tensor is a multidimension array
@@ -348,33 +347,30 @@ class Tensor : public BaseTensor {
       return;
     }
 
-    TENSOR_ASSERT(nd > 0 && nd <= TENSOR_MAXDIM, "invalid ndim in new tensor",
-                  nd, 0);
+    TENSOR_ASSERT(nd > 0 && nd <= TENSOR_MAXDIM, "invalid ndim in new tensor", nd, 0);
     // sanity check ... 2GB in doubles
     for (int i = 0; i < nd; ++i) {
-      TENSOR_ASSERT(d[i] >= 0 && d[i] < 268435456,
-                    "invalid dimension size in new tensor", d[i], 0);
+      TENSOR_ASSERT(d[i] >= 0 && d[i] < 268435456, "invalid dimension size in new tensor", d[i], 0);
     }
     set_dims_and_size(nd, d);
     if (_size) {
-      TENSOR_ASSERT(_size >= 0 && _size < 268435456,
-                    "invalid size in new tensor", _size, 0);
+      TENSOR_ASSERT(_size >= 0 && _size < 268435456, "invalid size in new tensor", _size, 0);
       try {
 #if HAVE_IBMBGP
-  #define TENSOR_ALIGNMENT 16
+#define TENSOR_ALIGNMENT 16
 #elif HAVE_IBMBGQ
-  #define TENSOR_ALIGNMENT 32
+#define TENSOR_ALIGNMENT 32
 #elif MADNESS_HAVE_AVX2
-  /* 32B alignment is best for performance according to
-   * http://www.nas.nasa.gov/hecc/support/kb/haswell-processors_492.html */
-  #define TENSOR_ALIGNMENT 32
+/* 32B alignment is best for performance according to
+ * http://www.nas.nasa.gov/hecc/support/kb/haswell-processors_492.html */
+#define TENSOR_ALIGNMENT 32
 #elif MADNESS_HAVE_AVX512
-  /* One can infer from the AVX2 case that 64B alignment helps with 512b SIMD.
-   */
-  #define TENSOR_ALIGNMENT 64
+/* One can infer from the AVX2 case that 64B alignment helps with 512b SIMD.
+ */
+#define TENSOR_ALIGNMENT 64
 #else
-  // Typical cache line size
-  #define TENSOR_ALIGNMENT 64
+// Typical cache line size
+#define TENSOR_ALIGNMENT 64
 #endif
 
 #ifdef TENSOR_USE_SHARED_ALIGNED_ARRAY
@@ -383,8 +379,7 @@ class Tensor : public BaseTensor {
         _p = new T[_size];
         _shptr = std::shared_ptr<T>(_p);
 #else
-        if (posix_memalign((void**)&_p, TENSOR_ALIGNMENT, sizeof(T) * _size))
-          throw 1;
+        if (posix_memalign((void**)&_p, TENSOR_ALIGNMENT, sizeof(T) * _size)) throw 1;
         _shptr.reset(_p, &free);
 #endif
       } catch (...) {
@@ -393,8 +388,7 @@ class Tensor : public BaseTensor {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Warray-bounds"
         std::printf("new failed nd=%ld type=%ld size=%ld\n", nd, id(), _size);
-        std::printf("  %ld %ld %ld %ld %ld %ld\n", d[0], d[1], d[2], d[3], d[4],
-                    d[5]);
+        std::printf("  %ld %ld %ld %ld %ld %ld\n", d[0], d[1], d[2], d[3], d[4], d[5]);
 #pragma GCC diagnostic pop
         TENSOR_EXCEPTION("new failed", _size, this);
       }
@@ -578,9 +572,7 @@ class Tensor : public BaseTensor {
   /// @param[in] nd Number of dimensions
   /// @param[in] d Size of each dimension
   /// @param[in] dozero If true (default) the tensor is initialized to zero
-  explicit Tensor(long nd, const long d[], bool dozero = true) : _p(0) {
-    allocate(nd, d, dozero);
-  }
+  explicit Tensor(long nd, const long d[], bool dozero = true) : _p(0) { allocate(nd, d, dozero); }
 
   /// Inplace fill tensor with scalar
 
@@ -628,8 +620,7 @@ class Tensor : public BaseTensor {
   Tensor<TENSOR_RESULT_TYPE(T, Q)> operator+(const Tensor<Q>& t) const {
     typedef TENSOR_RESULT_TYPE(T, Q) resultT;
     Tensor<resultT> result(_ndim, _dim, false);
-    TERNARY_OPTIMIZED_ITERATOR(resultT, result, const T, (*this), const Q, t,
-                               *_p0 = *_p1 + *_p2);
+    TERNARY_OPTIMIZED_ITERATOR(resultT, result, const T, (*this), const Q, t, *_p0 = *_p1 + *_p2);
     return result;
   }
 
@@ -642,8 +633,7 @@ class Tensor : public BaseTensor {
   Tensor<TENSOR_RESULT_TYPE(T, Q)> operator-(const Tensor<Q>& t) const {
     typedef TENSOR_RESULT_TYPE(T, Q) resultT;
     Tensor<resultT> result(_ndim, _dim, false);
-    TERNARY_OPTIMIZED_ITERATOR(resultT, result, const T, (*this), const Q, t,
-                               *_p0 = *_p1 - *_p2);
+    TERNARY_OPTIMIZED_ITERATOR(resultT, result, const T, (*this), const Q, t, *_p0 = *_p1 - *_p2);
     return result;
   }
 
@@ -653,13 +643,10 @@ class Tensor : public BaseTensor {
   /// @param[in] x Scalar value
   /// @return New tensor
   template <typename Q>
-  typename IsSupported<TensorTypeData<Q>,
-                       Tensor<TENSOR_RESULT_TYPE(T, Q)> >::type
-  operator*(const Q& x) const {
+  typename IsSupported<TensorTypeData<Q>, Tensor<TENSOR_RESULT_TYPE(T, Q)> >::type operator*(const Q& x) const {
     typedef TENSOR_RESULT_TYPE(T, Q) resultT;
     Tensor<resultT> result(_ndim, _dim, false);
-    BINARY_OPTIMIZED_ITERATOR(resultT, result, const T, (*this),
-                              *_p0 = *_p1 * x);
+    BINARY_OPTIMIZED_ITERATOR(resultT, result, const T, (*this), *_p0 = *_p1 * x);
     return result;
   }
 
@@ -668,13 +655,10 @@ class Tensor : public BaseTensor {
   /// @param[in] x Scalar value
   /// @return New tensor
   template <typename Q>
-  typename IsSupported<TensorTypeData<Q>,
-                       Tensor<TENSOR_RESULT_TYPE(T, Q)> >::type
-  operator/(const Q& x) const {
+  typename IsSupported<TensorTypeData<Q>, Tensor<TENSOR_RESULT_TYPE(T, Q)> >::type operator/(const Q& x) const {
     typedef TENSOR_RESULT_TYPE(T, Q) resultT;
     Tensor<resultT> result(_ndim, _dim);
-    BINARY_OPTIMIZED_ITERATOR(resultT, result, const T, (*this),
-                              *_p0 = *_p1 / x);
+    BINARY_OPTIMIZED_ITERATOR(resultT, result, const T, (*this), *_p0 = *_p1 / x);
     return result;
   }
 
@@ -684,13 +668,10 @@ class Tensor : public BaseTensor {
   /// @param[in] x Scalar value
   /// @return New tensor
   template <typename Q>
-  typename IsSupported<TensorTypeData<Q>,
-                       Tensor<TENSOR_RESULT_TYPE(T, Q)> >::type
-  operator+(const Q& x) const {
+  typename IsSupported<TensorTypeData<Q>, Tensor<TENSOR_RESULT_TYPE(T, Q)> >::type operator+(const Q& x) const {
     typedef TENSOR_RESULT_TYPE(T, Q) resultT;
     Tensor<resultT> result(_ndim, _dim);
-    BINARY_OPTIMIZED_ITERATOR(resultT, result, const T, (*this),
-                              *_p0 = *_p1 + x);
+    BINARY_OPTIMIZED_ITERATOR(resultT, result, const T, (*this), *_p0 = *_p1 + x);
     return result;
   }
 
@@ -700,9 +681,7 @@ class Tensor : public BaseTensor {
   /// @param[in] x Scalar value
   /// @return New tensor
   template <typename Q>
-  typename IsSupported<TensorTypeData<Q>,
-                       Tensor<TENSOR_RESULT_TYPE(T, Q)> >::type
-  operator-(const Q& x) const {
+  typename IsSupported<TensorTypeData<Q>, Tensor<TENSOR_RESULT_TYPE(T, Q)> >::type operator-(const Q& x) const {
     return (*this) + (-x);
   }
 
@@ -720,8 +699,7 @@ class Tensor : public BaseTensor {
   /// @param[in] x Scalar value
   /// @return %Reference to this tensor
   template <typename Q>
-  typename IsSupported<TensorTypeData<Q>, Tensor<T>&>::type operator*=(
-      const Q& x) {
+  typename IsSupported<TensorTypeData<Q>, Tensor<T>&>::type operator*=(const Q& x) {
     UNARY_OPTIMIZED_ITERATOR(T, (*this), *_p0 *= x);
     return *this;
   }
@@ -740,8 +718,7 @@ class Tensor : public BaseTensor {
   /// @param[in] x Scalar value
   /// @return %Reference to this tensor
   template <typename Q>
-  typename IsSupported<TensorTypeData<Q>, Tensor<T>&>::type operator+=(
-      const Q& x) {
+  typename IsSupported<TensorTypeData<Q>, Tensor<T>&>::type operator+=(const Q& x) {
     UNARY_OPTIMIZED_ITERATOR(T, (*this), *_p0 += x);
     return *this;
   }
@@ -751,8 +728,7 @@ class Tensor : public BaseTensor {
   /// @param[in] x Scalar value
   /// @return %Reference to this tensor
   template <typename Q>
-  typename IsSupported<TensorTypeData<Q>, Tensor<T>&>::type operator-=(
-      const Q& x) {
+  typename IsSupported<TensorTypeData<Q>, Tensor<T>&>::type operator-=(const Q& x) {
     UNARY_OPTIMIZED_ITERATOR(T, (*this), *_p0 -= x);
     return *this;
   }
@@ -825,8 +801,7 @@ class Tensor : public BaseTensor {
   /// @return %Reference to element
   T& operator[](long i) {
 #ifdef TENSOR_BOUNDS_CHECKING
-    TENSOR_ASSERT(i >= 0 && i < _dim[0], "1d bounds check failed dim=0", i,
-                  this);
+    TENSOR_ASSERT(i >= 0 && i < _dim[0], "1d bounds check failed dim=0", i, this);
 #endif
     return _p[i * _stride[0]];
   }
@@ -837,8 +812,7 @@ class Tensor : public BaseTensor {
   /// @return %Reference to element
   const T& operator[](long i) const {
 #ifdef TENSOR_BOUNDS_CHECKING
-    TENSOR_ASSERT(i >= 0 && i < _dim[0], "1d bounds check failed dim=0", i,
-                  this);
+    TENSOR_ASSERT(i >= 0 && i < _dim[0], "1d bounds check failed dim=0", i, this);
 #endif
     return _p[i * _stride[0]];
   }
@@ -849,8 +823,7 @@ class Tensor : public BaseTensor {
   /// @return %Reference to element
   T& operator()(long i) {
 #ifdef TENSOR_BOUNDS_CHECKING
-    TENSOR_ASSERT(i >= 0 && i < _dim[0], "1d bounds check failed dim=0", i,
-                  this);
+    TENSOR_ASSERT(i >= 0 && i < _dim[0], "1d bounds check failed dim=0", i, this);
 #endif
     return _p[i * _stride[0]];
   }
@@ -861,8 +834,7 @@ class Tensor : public BaseTensor {
   /// @return %Reference to element
   const T& operator()(long i) const {
 #ifdef TENSOR_BOUNDS_CHECKING
-    TENSOR_ASSERT(i >= 0 && i < _dim[0], "1d bounds check failed dim=0", i,
-                  this);
+    TENSOR_ASSERT(i >= 0 && i < _dim[0], "1d bounds check failed dim=0", i, this);
 #endif
     return _p[i * _stride[0]];
   }
@@ -874,10 +846,8 @@ class Tensor : public BaseTensor {
   /// @return %Reference to element
   T& operator()(long i, long j) {
 #ifdef TENSOR_BOUNDS_CHECKING
-    TENSOR_ASSERT(i >= 0 && i < _dim[0], "2d bounds check failed dim=0", i,
-                  this);
-    TENSOR_ASSERT(j >= 0 && j < _dim[1], "2d bounds check failed dim=1", j,
-                  this);
+    TENSOR_ASSERT(i >= 0 && i < _dim[0], "2d bounds check failed dim=0", i, this);
+    TENSOR_ASSERT(j >= 0 && j < _dim[1], "2d bounds check failed dim=1", j, this);
 #endif
     return _p[i * _stride[0] + j * _stride[1]];
   }
@@ -889,10 +859,8 @@ class Tensor : public BaseTensor {
   /// @return %Reference to element
   const T& operator()(long i, long j) const {
 #ifdef TENSOR_BOUNDS_CHECKING
-    TENSOR_ASSERT(i >= 0 && i < _dim[0], "2d bounds check failed dim=0", i,
-                  this);
-    TENSOR_ASSERT(j >= 0 && j < _dim[1], "2d bounds check failed dim=1", j,
-                  this);
+    TENSOR_ASSERT(i >= 0 && i < _dim[0], "2d bounds check failed dim=0", i, this);
+    TENSOR_ASSERT(j >= 0 && j < _dim[1], "2d bounds check failed dim=1", j, this);
 #endif
     return _p[i * _stride[0] + j * _stride[1]];
   }
@@ -905,12 +873,9 @@ class Tensor : public BaseTensor {
   /// @return %Reference to element
   T& operator()(long i, long j, long k) {
 #ifdef TENSOR_BOUNDS_CHECKING
-    TENSOR_ASSERT(i >= 0 && i < _dim[0], "3d bounds check failed dim=0", i,
-                  this);
-    TENSOR_ASSERT(j >= 0 && j < _dim[1], "3d bounds check failed dim=1", j,
-                  this);
-    TENSOR_ASSERT(k >= 0 && k < _dim[2], "3d bounds check failed dim=2", k,
-                  this);
+    TENSOR_ASSERT(i >= 0 && i < _dim[0], "3d bounds check failed dim=0", i, this);
+    TENSOR_ASSERT(j >= 0 && j < _dim[1], "3d bounds check failed dim=1", j, this);
+    TENSOR_ASSERT(k >= 0 && k < _dim[2], "3d bounds check failed dim=2", k, this);
 #endif
     return _p[i * _stride[0] + j * _stride[1] + k * _stride[2]];
   }
@@ -923,12 +888,9 @@ class Tensor : public BaseTensor {
   /// @return %Reference to element
   const T& operator()(long i, long j, long k) const {
 #ifdef TENSOR_BOUNDS_CHECKING
-    TENSOR_ASSERT(i >= 0 && i < _dim[0], "3d bounds check failed dim=0", i,
-                  this);
-    TENSOR_ASSERT(j >= 0 && j < _dim[1], "3d bounds check failed dim=1", j,
-                  this);
-    TENSOR_ASSERT(k >= 0 && k < _dim[2], "3d bounds check failed dim=2", k,
-                  this);
+    TENSOR_ASSERT(i >= 0 && i < _dim[0], "3d bounds check failed dim=0", i, this);
+    TENSOR_ASSERT(j >= 0 && j < _dim[1], "3d bounds check failed dim=1", j, this);
+    TENSOR_ASSERT(k >= 0 && k < _dim[2], "3d bounds check failed dim=2", k, this);
 #endif
     return _p[i * _stride[0] + j * _stride[1] + k * _stride[2]];
   }
@@ -942,17 +904,12 @@ class Tensor : public BaseTensor {
   /// @return %Reference to element
   T& operator()(long i, long j, long k, long l) {
 #ifdef TENSOR_BOUNDS_CHECKING
-    TENSOR_ASSERT(i >= 0 && i < _dim[0], "4d bounds check failed dim=0", i,
-                  this);
-    TENSOR_ASSERT(j >= 0 && j < _dim[1], "4d bounds check failed dim=1", j,
-                  this);
-    TENSOR_ASSERT(k >= 0 && k < _dim[2], "4d bounds check failed dim=2", k,
-                  this);
-    TENSOR_ASSERT(l >= 0 && l < _dim[3], "4d bounds check failed dim=3", l,
-                  this);
+    TENSOR_ASSERT(i >= 0 && i < _dim[0], "4d bounds check failed dim=0", i, this);
+    TENSOR_ASSERT(j >= 0 && j < _dim[1], "4d bounds check failed dim=1", j, this);
+    TENSOR_ASSERT(k >= 0 && k < _dim[2], "4d bounds check failed dim=2", k, this);
+    TENSOR_ASSERT(l >= 0 && l < _dim[3], "4d bounds check failed dim=3", l, this);
 #endif
-    return _p[i * _stride[0] + j * _stride[1] + k * _stride[2] +
-              l * _stride[3]];
+    return _p[i * _stride[0] + j * _stride[1] + k * _stride[2] + l * _stride[3]];
   }
 
   /// 4-d indexing operation \em without bounds checking.
@@ -964,17 +921,12 @@ class Tensor : public BaseTensor {
   /// @return %Reference to element
   const T& operator()(long i, long j, long k, long l) const {
 #ifdef TENSOR_BOUNDS_CHECKING
-    TENSOR_ASSERT(i >= 0 && i < _dim[0], "4d bounds check failed dim=0", i,
-                  this);
-    TENSOR_ASSERT(j >= 0 && j < _dim[1], "4d bounds check failed dim=1", j,
-                  this);
-    TENSOR_ASSERT(k >= 0 && k < _dim[2], "4d bounds check failed dim=2", k,
-                  this);
-    TENSOR_ASSERT(l >= 0 && l < _dim[3], "4d bounds check failed dim=3", l,
-                  this);
+    TENSOR_ASSERT(i >= 0 && i < _dim[0], "4d bounds check failed dim=0", i, this);
+    TENSOR_ASSERT(j >= 0 && j < _dim[1], "4d bounds check failed dim=1", j, this);
+    TENSOR_ASSERT(k >= 0 && k < _dim[2], "4d bounds check failed dim=2", k, this);
+    TENSOR_ASSERT(l >= 0 && l < _dim[3], "4d bounds check failed dim=3", l, this);
 #endif
-    return _p[i * _stride[0] + j * _stride[1] + k * _stride[2] +
-              l * _stride[3]];
+    return _p[i * _stride[0] + j * _stride[1] + k * _stride[2] + l * _stride[3]];
   }
 
   /// 5-d indexing operation \em without bounds checking.
@@ -987,19 +939,13 @@ class Tensor : public BaseTensor {
   /// @return %Reference to element
   T& operator()(long i, long j, long k, long l, long m) {
 #ifdef TENSOR_BOUNDS_CHECKING
-    TENSOR_ASSERT(i >= 0 && i < _dim[0], "5d bounds check failed dim=0", i,
-                  this);
-    TENSOR_ASSERT(j >= 0 && j < _dim[1], "5d bounds check failed dim=1", j,
-                  this);
-    TENSOR_ASSERT(k >= 0 && k < _dim[2], "5d bounds check failed dim=2", k,
-                  this);
-    TENSOR_ASSERT(l >= 0 && l < _dim[3], "5d bounds check failed dim=3", l,
-                  this);
-    TENSOR_ASSERT(m >= 0 && m < _dim[4], "5d bounds check failed dim=4", m,
-                  this);
+    TENSOR_ASSERT(i >= 0 && i < _dim[0], "5d bounds check failed dim=0", i, this);
+    TENSOR_ASSERT(j >= 0 && j < _dim[1], "5d bounds check failed dim=1", j, this);
+    TENSOR_ASSERT(k >= 0 && k < _dim[2], "5d bounds check failed dim=2", k, this);
+    TENSOR_ASSERT(l >= 0 && l < _dim[3], "5d bounds check failed dim=3", l, this);
+    TENSOR_ASSERT(m >= 0 && m < _dim[4], "5d bounds check failed dim=4", m, this);
 #endif
-    return _p[i * _stride[0] + j * _stride[1] + k * _stride[2] +
-              l * _stride[3] + m * _stride[4]];
+    return _p[i * _stride[0] + j * _stride[1] + k * _stride[2] + l * _stride[3] + m * _stride[4]];
   }
 
   /// 5-d indexing operation \em without bounds checking.
@@ -1012,19 +958,13 @@ class Tensor : public BaseTensor {
   /// @return %Reference to element
   const T& operator()(long i, long j, long k, long l, long m) const {
 #ifdef TENSOR_BOUNDS_CHECKING
-    TENSOR_ASSERT(i >= 0 && i < _dim[0], "5d bounds check failed dim=0", i,
-                  this);
-    TENSOR_ASSERT(j >= 0 && j < _dim[1], "5d bounds check failed dim=1", j,
-                  this);
-    TENSOR_ASSERT(k >= 0 && k < _dim[2], "5d bounds check failed dim=2", k,
-                  this);
-    TENSOR_ASSERT(l >= 0 && l < _dim[3], "5d bounds check failed dim=3", l,
-                  this);
-    TENSOR_ASSERT(m >= 0 && m < _dim[4], "5d bounds check failed dim=4", m,
-                  this);
+    TENSOR_ASSERT(i >= 0 && i < _dim[0], "5d bounds check failed dim=0", i, this);
+    TENSOR_ASSERT(j >= 0 && j < _dim[1], "5d bounds check failed dim=1", j, this);
+    TENSOR_ASSERT(k >= 0 && k < _dim[2], "5d bounds check failed dim=2", k, this);
+    TENSOR_ASSERT(l >= 0 && l < _dim[3], "5d bounds check failed dim=3", l, this);
+    TENSOR_ASSERT(m >= 0 && m < _dim[4], "5d bounds check failed dim=4", m, this);
 #endif
-    return _p[i * _stride[0] + j * _stride[1] + k * _stride[2] +
-              l * _stride[3] + m * _stride[4]];
+    return _p[i * _stride[0] + j * _stride[1] + k * _stride[2] + l * _stride[3] + m * _stride[4]];
   }
 
   /// 6-d indexing operation \em without bounds checking.
@@ -1038,21 +978,14 @@ class Tensor : public BaseTensor {
   /// @return %Reference to element
   T& operator()(long i, long j, long k, long l, long m, long n) {
 #ifdef TENSOR_BOUNDS_CHECKING
-    TENSOR_ASSERT(i >= 0 && i < _dim[0], "6d bounds check failed dim=0", i,
-                  this);
-    TENSOR_ASSERT(j >= 0 && j < _dim[1], "6d bounds check failed dim=1", j,
-                  this);
-    TENSOR_ASSERT(k >= 0 && k < _dim[2], "6d bounds check failed dim=2", k,
-                  this);
-    TENSOR_ASSERT(l >= 0 && l < _dim[3], "6d bounds check failed dim=3", l,
-                  this);
-    TENSOR_ASSERT(m >= 0 && m < _dim[4], "6d bounds check failed dim=4", m,
-                  this);
-    TENSOR_ASSERT(n >= 0 && n < _dim[5], "6d bounds check failed dim=5", n,
-                  this);
+    TENSOR_ASSERT(i >= 0 && i < _dim[0], "6d bounds check failed dim=0", i, this);
+    TENSOR_ASSERT(j >= 0 && j < _dim[1], "6d bounds check failed dim=1", j, this);
+    TENSOR_ASSERT(k >= 0 && k < _dim[2], "6d bounds check failed dim=2", k, this);
+    TENSOR_ASSERT(l >= 0 && l < _dim[3], "6d bounds check failed dim=3", l, this);
+    TENSOR_ASSERT(m >= 0 && m < _dim[4], "6d bounds check failed dim=4", m, this);
+    TENSOR_ASSERT(n >= 0 && n < _dim[5], "6d bounds check failed dim=5", n, this);
 #endif
-    return _p[i * _stride[0] + j * _stride[1] + k * _stride[2] +
-              l * _stride[3] + m * _stride[4] + n * _stride[5]];
+    return _p[i * _stride[0] + j * _stride[1] + k * _stride[2] + l * _stride[3] + m * _stride[4] + n * _stride[5]];
   }
 
   /// 6-d indexing operation \em without bounds checking.
@@ -1066,21 +999,14 @@ class Tensor : public BaseTensor {
   /// @return %Reference to element
   const T& operator()(long i, long j, long k, long l, long m, long n) const {
 #ifdef TENSOR_BOUNDS_CHECKING
-    TENSOR_ASSERT(i >= 0 && i < _dim[0], "6d bounds check failed dim=0", i,
-                  this);
-    TENSOR_ASSERT(j >= 0 && j < _dim[1], "6d bounds check failed dim=1", j,
-                  this);
-    TENSOR_ASSERT(k >= 0 && k < _dim[2], "6d bounds check failed dim=2", k,
-                  this);
-    TENSOR_ASSERT(l >= 0 && l < _dim[3], "6d bounds check failed dim=3", l,
-                  this);
-    TENSOR_ASSERT(m >= 0 && m < _dim[4], "6d bounds check failed dim=4", m,
-                  this);
-    TENSOR_ASSERT(n >= 0 && n < _dim[5], "6d bounds check failed dim=5", n,
-                  this);
+    TENSOR_ASSERT(i >= 0 && i < _dim[0], "6d bounds check failed dim=0", i, this);
+    TENSOR_ASSERT(j >= 0 && j < _dim[1], "6d bounds check failed dim=1", j, this);
+    TENSOR_ASSERT(k >= 0 && k < _dim[2], "6d bounds check failed dim=2", k, this);
+    TENSOR_ASSERT(l >= 0 && l < _dim[3], "6d bounds check failed dim=3", l, this);
+    TENSOR_ASSERT(m >= 0 && m < _dim[4], "6d bounds check failed dim=4", m, this);
+    TENSOR_ASSERT(n >= 0 && n < _dim[5], "6d bounds check failed dim=5", n, this);
 #endif
-    return _p[i * _stride[0] + j * _stride[1] + k * _stride[2] +
-              l * _stride[3] + m * _stride[4] + n * _stride[5]];
+    return _p[i * _stride[0] + j * _stride[1] + k * _stride[2] + l * _stride[3] + m * _stride[4] + n * _stride[5]];
   }
 
   /// Politically incorrect general indexing operation \em without bounds
@@ -1093,9 +1019,7 @@ class Tensor : public BaseTensor {
     for (int d = 0; d < _ndim; ++d) {
       long i = ind[d];
 #ifdef TENSOR_BOUNDS_CHECKING
-      TENSOR_ASSERT(i >= 0 && i < _dim[0],
-                    "non-PC general indexing bounds check failed dim=", d,
-                    this);
+      TENSOR_ASSERT(i >= 0 && i < _dim[0], "non-PC general indexing bounds check failed dim=", d, this);
 #endif
       offset += i * _stride[d];
     }
@@ -1112,9 +1036,7 @@ class Tensor : public BaseTensor {
     for (int d = 0; d < _ndim; ++d) {
       long i = ind[d];
 #ifdef TENSOR_BOUNDS_CHECKING
-      TENSOR_ASSERT(i >= 0 && i < _dim[0],
-                    "non-PC general indexing bounds check failed dim=", d,
-                    this);
+      TENSOR_ASSERT(i >= 0 && i < _dim[0], "non-PC general indexing bounds check failed dim=", d, this);
 #endif
       offset += i * _stride[d];
     }
@@ -1126,12 +1048,10 @@ class Tensor : public BaseTensor {
   /// @param[in] ind Vector containing index for each dimension
   /// @return %Reference to element
   T& operator()(const std::vector<long> ind) {
-    TENSOR_ASSERT(ind.size() >= (unsigned int)_ndim,
-                  "invalid number of dimensions", ind.size(), this);
+    TENSOR_ASSERT(ind.size() >= (unsigned int)_ndim, "invalid number of dimensions", ind.size(), this);
     long index = 0;
     for (long d = 0; d < _ndim; ++d) {
-      TENSOR_ASSERT(ind[d] >= 0 && ind[d] < _dim[d], "out-of-bounds access",
-                    ind[d], this);
+      TENSOR_ASSERT(ind[d] >= 0 && ind[d] < _dim[d], "out-of-bounds access", ind[d], this);
       index += ind[d] * _stride[d];
     }
     return _p[index];
@@ -1142,12 +1062,10 @@ class Tensor : public BaseTensor {
   /// @param[in] ind Vector containing index for each dimension
   /// @return %Reference to element
   const T& operator()(const std::vector<long> ind) const {
-    TENSOR_ASSERT(ind.size() >= (unsigned int)_ndim,
-                  "invalid number of dimensions", ind.size(), this);
+    TENSOR_ASSERT(ind.size() >= (unsigned int)_ndim, "invalid number of dimensions", ind.size(), this);
     long index = 0;
     for (long d = 0; d < _ndim; ++d) {
-      TENSOR_ASSERT(ind[d] >= 0 && ind[d] < _dim[d], "out-of-bounds access",
-                    ind[d], this);
+      TENSOR_ASSERT(ind[d] >= 0 && ind[d] < _dim[d], "out-of-bounds access", ind[d], this);
       index += ind[d] * _stride[d];
     }
     return _p[index];
@@ -1158,8 +1076,7 @@ class Tensor : public BaseTensor {
   /// @param[in] s Vector containing slice for each dimension
   /// @return SliceTensor viewing patch of original tensor
   SliceTensor<T> operator()(const std::vector<Slice>& s) {
-    TENSOR_ASSERT(s.size() >= (unsigned)(this->ndim()),
-                  "invalid number of dimensions", this->ndim(), this);
+    TENSOR_ASSERT(s.size() >= (unsigned)(this->ndim()), "invalid number of dimensions", this->ndim(), this);
     return SliceTensor<T>(*this, &(s[0]));
   }
 
@@ -1168,8 +1085,7 @@ class Tensor : public BaseTensor {
   /// @param[in] s Vector containing slice for each dimension
   /// @return Constant Tensor viewing patch of original tensor
   const Tensor<T> operator()(const std::vector<Slice>& s) const {
-    TENSOR_ASSERT(s.size() >= (unsigned)(this->ndim()),
-                  "invalid number of dimensions", this->ndim(), this);
+    TENSOR_ASSERT(s.size() >= (unsigned)(this->ndim()), "invalid number of dimensions", this->ndim(), this);
     return SliceTensor<T>(*this, &(s[0]));
   }
 
@@ -1177,8 +1093,7 @@ class Tensor : public BaseTensor {
 
   /// @return SliceTensor viewing patch of original tensor
   SliceTensor<T> operator()(const Slice& s0) {
-    TENSOR_ASSERT(this->ndim() == 1, "invalid number of dimensions",
-                  this->ndim(), this);
+    TENSOR_ASSERT(this->ndim() == 1, "invalid number of dimensions", this->ndim(), this);
     Slice s[1] = {s0};
     return SliceTensor<T>(*this, s);
   }
@@ -1188,8 +1103,7 @@ class Tensor : public BaseTensor {
   /// @return Constant Tensor viewing patch of original tensor: \f$
   /// R(*,*,\ldots) \rightarrow I(*,*,\ldots) \f$
   const Tensor<T> operator()(const Slice& s0) const {
-    TENSOR_ASSERT(this->ndim() == 1, "invalid number of dimensions",
-                  this->ndim(), this);
+    TENSOR_ASSERT(this->ndim() == 1, "invalid number of dimensions", this->ndim(), this);
     Slice s[1] = {s0};
     return SliceTensor<T>(*this, s);
   }
@@ -1199,8 +1113,7 @@ class Tensor : public BaseTensor {
   /// @return SliceTensor viewing patch of original tensor: \f$ R(*) \rightarrow
   /// I(i,*) \f$
   SliceTensor<T> operator()(long i, const Slice& s1) {
-    TENSOR_ASSERT(this->ndim() == 2, "invalid number of dimensions",
-                  this->ndim(), this);
+    TENSOR_ASSERT(this->ndim() == 2, "invalid number of dimensions", this->ndim(), this);
     Slice s[2] = {Slice(i, i, 0), s1};
     return SliceTensor<T>(*this, s);
   }
@@ -1209,8 +1122,7 @@ class Tensor : public BaseTensor {
 
   /// @return Constant Tensor viewing patch of original tensor
   const Tensor<T> operator()(long i, const Slice& s1) const {
-    TENSOR_ASSERT(this->ndim() == 2, "invalid number of dimensions",
-                  this->ndim(), this);
+    TENSOR_ASSERT(this->ndim() == 2, "invalid number of dimensions", this->ndim(), this);
     Slice s[2] = {Slice(i, i, 0), s1};
     return SliceTensor<T>(*this, s);
   }
@@ -1219,8 +1131,7 @@ class Tensor : public BaseTensor {
 
   /// @return SliceTensor viewing patch of original tensor
   SliceTensor<T> operator()(const Slice& s0, long j) {
-    TENSOR_ASSERT(this->ndim() == 2, "invalid number of dimensions",
-                  this->ndim(), this);
+    TENSOR_ASSERT(this->ndim() == 2, "invalid number of dimensions", this->ndim(), this);
     Slice s[2] = {s0, Slice(j, j, 0)};
     return SliceTensor<T>(*this, s);
   }
@@ -1230,8 +1141,7 @@ class Tensor : public BaseTensor {
 
   /// @return Constant Tensor viewing patch of original tensor
   const Tensor<T> operator()(const Slice& s0, long j) const {
-    TENSOR_ASSERT(this->ndim() == 2, "invalid number of dimensions",
-                  this->ndim(), this);
+    TENSOR_ASSERT(this->ndim() == 2, "invalid number of dimensions", this->ndim(), this);
     Slice s[2] = {s0, Slice(j, j, 0)};
     return SliceTensor<T>(*this, s);
   }
@@ -1240,8 +1150,7 @@ class Tensor : public BaseTensor {
 
   /// @return SliceTensor viewing patch of original tensor
   SliceTensor<T> operator()(const Slice& s0, const Slice& s1) {
-    TENSOR_ASSERT(this->ndim() == 2, "invalid number of dimensions",
-                  this->ndim(), this);
+    TENSOR_ASSERT(this->ndim() == 2, "invalid number of dimensions", this->ndim(), this);
     Slice s[2] = {s0, s1};
     return SliceTensor<T>(*this, s);
   }
@@ -1251,8 +1160,7 @@ class Tensor : public BaseTensor {
 
   /// @return Constant Tensor viewing patch of original tensor
   const Tensor<T> operator()(const Slice& s0, const Slice& s1) const {
-    TENSOR_ASSERT(this->ndim() == 2, "invalid number of dimensions",
-                  this->ndim(), this);
+    TENSOR_ASSERT(this->ndim() == 2, "invalid number of dimensions", this->ndim(), this);
     Slice s[2] = {s0, s1};
     return SliceTensor<T>(*this, s);
   }
@@ -1261,8 +1169,7 @@ class Tensor : public BaseTensor {
 
   /// @return SliceTensor viewing patch of original tensor
   SliceTensor<T> operator()(const Slice& s0, const Slice& s1, const Slice& s2) {
-    TENSOR_ASSERT(this->ndim() == 3, "invalid number of dimensions",
-                  this->ndim(), this);
+    TENSOR_ASSERT(this->ndim() == 3, "invalid number of dimensions", this->ndim(), this);
     Slice s[3] = {s0, s1, s2};
     return SliceTensor<T>(*this, s);
   }
@@ -1271,10 +1178,8 @@ class Tensor : public BaseTensor {
   /// Tensor
 
   /// @return Constant Tensor viewing patch of original tensor
-  const Tensor<T> operator()(const Slice& s0, const Slice& s1,
-                             const Slice& s2) const {
-    TENSOR_ASSERT(this->ndim() == 3, "invalid number of dimensions",
-                  this->ndim(), this);
+  const Tensor<T> operator()(const Slice& s0, const Slice& s1, const Slice& s2) const {
+    TENSOR_ASSERT(this->ndim() == 3, "invalid number of dimensions", this->ndim(), this);
     Slice s[3] = {s0, s1, s2};
     return SliceTensor<T>(*this, s);
   }
@@ -1283,8 +1188,7 @@ class Tensor : public BaseTensor {
 
   /// @return SliceTensor viewing patch of original tensor
   SliceTensor<T> operator()(long i, const Slice& s1, const Slice& s2) {
-    TENSOR_ASSERT(this->ndim() == 3, "invalid number of dimensions",
-                  this->ndim(), this);
+    TENSOR_ASSERT(this->ndim() == 3, "invalid number of dimensions", this->ndim(), this);
     Slice s[3] = {Slice(i, i, 0), s1, s2};
     return SliceTensor<T>(*this, s);
   }
@@ -1294,8 +1198,7 @@ class Tensor : public BaseTensor {
 
   /// @return Constant Tensor viewing patch of original tensor
   const Tensor<T> operator()(long i, const Slice& s1, const Slice& s2) const {
-    TENSOR_ASSERT(this->ndim() == 3, "invalid number of dimensions",
-                  this->ndim(), this);
+    TENSOR_ASSERT(this->ndim() == 3, "invalid number of dimensions", this->ndim(), this);
     Slice s[3] = {Slice(i, i, 0), s1, s2};
     return SliceTensor<T>(*this, s);
   }
@@ -1304,8 +1207,7 @@ class Tensor : public BaseTensor {
 
   /// @return SliceTensor viewing patch of original tensor
   SliceTensor<T> operator()(const Slice& s0, long j, const Slice& s2) {
-    TENSOR_ASSERT(this->ndim() == 3, "invalid number of dimensions",
-                  this->ndim(), this);
+    TENSOR_ASSERT(this->ndim() == 3, "invalid number of dimensions", this->ndim(), this);
     Slice s[3] = {s0, Slice(j, j, 0), s2};
     return SliceTensor<T>(*this, s);
   }
@@ -1315,8 +1217,7 @@ class Tensor : public BaseTensor {
 
   /// @return Constant Tensor viewing patch of original tensor
   const Tensor<T> operator()(const Slice& s0, long j, const Slice& s2) const {
-    TENSOR_ASSERT(this->ndim() == 3, "invalid number of dimensions",
-                  this->ndim(), this);
+    TENSOR_ASSERT(this->ndim() == 3, "invalid number of dimensions", this->ndim(), this);
     Slice s[3] = {s0, Slice(j, j, 0), s2};
     return SliceTensor<T>(*this, s);
   }
@@ -1325,8 +1226,7 @@ class Tensor : public BaseTensor {
 
   /// @return SliceTensor viewing patch of original tensor
   SliceTensor<T> operator()(const Slice& s0, const Slice& s1, long k) {
-    TENSOR_ASSERT(this->ndim() == 3, "invalid number of dimensions",
-                  this->ndim(), this);
+    TENSOR_ASSERT(this->ndim() == 3, "invalid number of dimensions", this->ndim(), this);
     Slice s[3] = {s0, s1, Slice(k, k, 0)};
     return SliceTensor<T>(*this, s);
   }
@@ -1336,8 +1236,7 @@ class Tensor : public BaseTensor {
 
   /// @return Constant Tensor viewing patch of original tensor
   const Tensor<T> operator()(const Slice& s0, const Slice& s1, long k) const {
-    TENSOR_ASSERT(this->ndim() == 3, "invalid number of dimensions",
-                  this->ndim(), this);
+    TENSOR_ASSERT(this->ndim() == 3, "invalid number of dimensions", this->ndim(), this);
     Slice s[3] = {s0, s1, Slice(k, k, 0)};
     return SliceTensor<T>(*this, s);
   }
@@ -1346,8 +1245,7 @@ class Tensor : public BaseTensor {
 
   /// @return SliceTensor viewing patch of original tensor
   SliceTensor<T> operator()(long i, long j, const Slice& s2) {
-    TENSOR_ASSERT(this->ndim() == 3, "invalid number of dimensions",
-                  this->ndim(), this);
+    TENSOR_ASSERT(this->ndim() == 3, "invalid number of dimensions", this->ndim(), this);
     Slice s[3] = {Slice(i, i, 0), Slice(j, j, 0), s2};
     return SliceTensor<T>(*this, s);
   }
@@ -1357,8 +1255,7 @@ class Tensor : public BaseTensor {
 
   /// @return Constant Tensor viewing patch of original tensor
   const Tensor<T> operator()(long i, long j, const Slice& s2) const {
-    TENSOR_ASSERT(this->ndim() == 3, "invalid number of dimensions",
-                  this->ndim(), this);
+    TENSOR_ASSERT(this->ndim() == 3, "invalid number of dimensions", this->ndim(), this);
     Slice s[3] = {Slice(i, i, 0), Slice(j, j, 0), s2};
     return SliceTensor<T>(*this, s);
   }
@@ -1367,8 +1264,7 @@ class Tensor : public BaseTensor {
 
   /// @return SliceTensor viewing patch of original tensor
   SliceTensor<T> operator()(long i, const Slice& s1, long k) {
-    TENSOR_ASSERT(this->ndim() == 3, "invalid number of dimensions",
-                  this->ndim(), this);
+    TENSOR_ASSERT(this->ndim() == 3, "invalid number of dimensions", this->ndim(), this);
     Slice s[3] = {Slice(i, i, 0), s1, Slice(k, k, 0)};
     return SliceTensor<T>(*this, s);
   }
@@ -1378,8 +1274,7 @@ class Tensor : public BaseTensor {
 
   /// @return Constant Tensor viewing patch of original tensor
   const Tensor<T> operator()(long i, const Slice& s1, long k) const {
-    TENSOR_ASSERT(this->ndim() == 3, "invalid number of dimensions",
-                  this->ndim(), this);
+    TENSOR_ASSERT(this->ndim() == 3, "invalid number of dimensions", this->ndim(), this);
     Slice s[3] = {Slice(i, i, 0), s1, Slice(k, k, 0)};
     return SliceTensor<T>(*this, s);
   }
@@ -1388,8 +1283,7 @@ class Tensor : public BaseTensor {
 
   /// @return SliceTensor viewing patch of original tensor
   SliceTensor<T> operator()(const Slice& s0, long j, long k) {
-    TENSOR_ASSERT(this->ndim() == 3, "invalid number of dimensions",
-                  this->ndim(), this);
+    TENSOR_ASSERT(this->ndim() == 3, "invalid number of dimensions", this->ndim(), this);
     Slice s[3] = {s0, Slice(j, j, 0), Slice(k, k, 0)};
     return SliceTensor<T>(*this, s);
   }
@@ -1399,8 +1293,7 @@ class Tensor : public BaseTensor {
 
   /// @return Constant Tensor viewing patch of original tensor
   const Tensor<T> operator()(const Slice& s0, long j, long k) const {
-    TENSOR_ASSERT(this->ndim() == 3, "invalid number of dimensions",
-                  this->ndim(), this);
+    TENSOR_ASSERT(this->ndim() == 3, "invalid number of dimensions", this->ndim(), this);
     Slice s[3] = {s0, Slice(j, j, 0), Slice(k, k, 0)};
     return SliceTensor<T>(*this, s);
   }
@@ -1408,10 +1301,8 @@ class Tensor : public BaseTensor {
   /// Return a 1-4d SliceTensor that views the specified range of the 4d Tensor
 
   /// @return SliceTensor viewing patch of original tensor
-  SliceTensor<T> operator()(const Slice& s0, const Slice& s1, const Slice& s2,
-                            const Slice& s3) {
-    TENSOR_ASSERT(this->ndim() == 4, "invalid number of dimensions",
-                  this->ndim(), this);
+  SliceTensor<T> operator()(const Slice& s0, const Slice& s1, const Slice& s2, const Slice& s3) {
+    TENSOR_ASSERT(this->ndim() == 4, "invalid number of dimensions", this->ndim(), this);
     Slice s[4] = {s0, s1, s2, s3};
     return SliceTensor<T>(*this, s);
   }
@@ -1420,10 +1311,8 @@ class Tensor : public BaseTensor {
   /// Tensor
 
   /// @return Constant Tensor viewing patch of original tensor
-  const Tensor<T> operator()(const Slice& s0, const Slice& s1, const Slice& s2,
-                             const Slice& s3) const {
-    TENSOR_ASSERT(this->ndim() == 4, "invalid number of dimensions",
-                  this->ndim(), this);
+  const Tensor<T> operator()(const Slice& s0, const Slice& s1, const Slice& s2, const Slice& s3) const {
+    TENSOR_ASSERT(this->ndim() == 4, "invalid number of dimensions", this->ndim(), this);
     Slice s[4] = {s0, s1, s2, s3};
     return SliceTensor<T>(*this, s);
   }
@@ -1431,10 +1320,8 @@ class Tensor : public BaseTensor {
   /// Return a 1-5d SliceTensor that views the specified range of the 5d Tensor
 
   /// @return SliceTensor viewing patch of original tensor
-  SliceTensor<T> operator()(const Slice& s0, const Slice& s1, const Slice& s2,
-                            const Slice& s3, const Slice& s4) {
-    TENSOR_ASSERT(this->ndim() == 5, "invalid number of dimensions",
-                  this->ndim(), this);
+  SliceTensor<T> operator()(const Slice& s0, const Slice& s1, const Slice& s2, const Slice& s3, const Slice& s4) {
+    TENSOR_ASSERT(this->ndim() == 5, "invalid number of dimensions", this->ndim(), this);
     Slice s[5] = {s0, s1, s2, s3, s4};
     return SliceTensor<T>(*this, s);
   }
@@ -1443,10 +1330,12 @@ class Tensor : public BaseTensor {
   /// Tensor
 
   /// @return Constant Tensor viewing patch of original tensor
-  const Tensor<T> operator()(const Slice& s0, const Slice& s1, const Slice& s2,
-                             const Slice& s3, const Slice& s4) const {
-    TENSOR_ASSERT(this->ndim() == 5, "invalid number of dimensions",
-                  this->ndim(), this);
+  const Tensor<T> operator()(const Slice& s0,
+                             const Slice& s1,
+                             const Slice& s2,
+                             const Slice& s3,
+                             const Slice& s4) const {
+    TENSOR_ASSERT(this->ndim() == 5, "invalid number of dimensions", this->ndim(), this);
     Slice s[5] = {s0, s1, s2, s3, s4};
     return SliceTensor<T>(*this, s);
   }
@@ -1454,10 +1343,13 @@ class Tensor : public BaseTensor {
   /// Return a 1-6d SliceTensor that views the specified range of the 6d Tensor
 
   /// @return SliceTensor viewing patch of original tensor
-  SliceTensor<T> operator()(const Slice& s0, const Slice& s1, const Slice& s2,
-                            const Slice& s3, const Slice& s4, const Slice& s5) {
-    TENSOR_ASSERT(this->ndim() == 6, "invalid number of dimensions",
-                  this->ndim(), this);
+  SliceTensor<T> operator()(const Slice& s0,
+                            const Slice& s1,
+                            const Slice& s2,
+                            const Slice& s3,
+                            const Slice& s4,
+                            const Slice& s5) {
+    TENSOR_ASSERT(this->ndim() == 6, "invalid number of dimensions", this->ndim(), this);
     Slice s[6] = {s0, s1, s2, s3, s4, s5};
     return SliceTensor<T>(*this, s);
   }
@@ -1466,11 +1358,13 @@ class Tensor : public BaseTensor {
   /// Tensor
 
   /// @return Constant Tensor viewing patch of original tensor
-  const Tensor<T> operator()(const Slice& s0, const Slice& s1, const Slice& s2,
-                             const Slice& s3, const Slice& s4,
+  const Tensor<T> operator()(const Slice& s0,
+                             const Slice& s1,
+                             const Slice& s2,
+                             const Slice& s3,
+                             const Slice& s4,
                              const Slice& s5) const {
-    TENSOR_ASSERT(this->ndim() == 6, "invalid number of dimensions",
-                  this->ndim(), this);
+    TENSOR_ASSERT(this->ndim() == 6, "invalid number of dimensions", this->ndim(), this);
     Slice s[6] = {s0, s1, s2, s3, s4, s5};
     return SliceTensor<T>(*this, s);
   }
@@ -1507,9 +1401,7 @@ class Tensor : public BaseTensor {
   /// @param[in] d Array containing size of each new dimension
   /// @return New tensor (viewing same underlying data as the original but with
   /// different shape)
-  Tensor<T> reshape(const std::vector<long>& d) {
-    return reshape(d.size(), d.size() ? &d[0] : 0);
-  }
+  Tensor<T> reshape(const std::vector<long>& d) { return reshape(d.size(), d.size() ? &d[0] : 0); }
 
   /// Returns new view/tensor reshaping size/number of dimensions to conforming
   /// tensor
@@ -1517,9 +1409,7 @@ class Tensor : public BaseTensor {
   /// @param[in] d Array containing size of each new dimension
   /// @return New tensor (viewing same underlying data as the original but with
   /// different shape)
-  const Tensor<T> reshape(const std::vector<long>& d) const {
-    return reshape(d.size(), d.size() ? &d[0] : 0);
-  }
+  const Tensor<T> reshape(const std::vector<long>& d) const { return reshape(d.size(), d.size() ? &d[0] : 0); }
 
   /// Returns new view/tensor rehapings to conforming 1-d tensor with given
   /// dimension
@@ -1645,8 +1535,7 @@ class Tensor : public BaseTensor {
   /// @param[in] dim4 Size of new dimension 4
   /// @return New tensor (viewing same underlying data as the original but with
   /// different shape)
-  const Tensor<T> reshape(long dim0, long dim1, long dim2, long dim3,
-                          long dim4) const {
+  const Tensor<T> reshape(long dim0, long dim1, long dim2, long dim3, long dim4) const {
     long d[5] = {dim0, dim1, dim2, dim3, dim4};
     return reshape(5, d);
   }
@@ -1662,8 +1551,7 @@ class Tensor : public BaseTensor {
   /// @param[in] dim5 Size of new dimension 5
   /// @return New tensor (viewing same underlying data as the original but with
   /// different shape)
-  Tensor<T> reshape(long dim0, long dim1, long dim2, long dim3, long dim4,
-                    long dim5) {
+  Tensor<T> reshape(long dim0, long dim1, long dim2, long dim3, long dim4, long dim5) {
     long d[6] = {dim0, dim1, dim2, dim3, dim4, dim5};
     return reshape(6, d);
   }
@@ -1679,8 +1567,7 @@ class Tensor : public BaseTensor {
   /// @param[in] dim5 Size of new dimension 5
   /// @return New tensor (viewing same underlying data as the original but with
   /// different shape)
-  const Tensor<T> reshape(long dim0, long dim1, long dim2, long dim3, long dim4,
-                          long dim5) const {
+  const Tensor<T> reshape(long dim0, long dim1, long dim2, long dim3, long dim4, long dim5) const {
     long d[6] = {dim0, dim1, dim2, dim3, dim4, dim5};
     return reshape(6, d);
   }
@@ -1829,15 +1716,13 @@ class Tensor : public BaseTensor {
     if (ind) {
       for (long i = 0; i < _ndim; ++i) ind[i] = 0;
       long nd = _ndim - 1;
-      UNARY_UNOPTIMIZED_ITERATOR(
-          const T, (*this), if (result > *_p0) {
-            result = *_p0;
-            for (long i = 0; i < nd; ++i) ind[i] = iter.ind[i];
-            ind[nd] = _j;
-          });
+      UNARY_UNOPTIMIZED_ITERATOR(const T, (*this), if (result > *_p0) {
+        result = *_p0;
+        for (long i = 0; i < nd; ++i) ind[i] = iter.ind[i];
+        ind[nd] = _j;
+      });
     } else {
-      UNARY_OPTIMIZED_ITERATOR(const T, (*this),
-                               result = std::min<T>(result, *_p0));
+      UNARY_OPTIMIZED_ITERATOR(const T, (*this), result = std::min<T>(result, *_p0));
     }
     return result;
   }
@@ -1848,15 +1733,13 @@ class Tensor : public BaseTensor {
     if (ind) {
       for (long i = 0; i < _ndim; ++i) ind[i] = 0;
       long nd = _ndim - 1;
-      UNARY_UNOPTIMIZED_ITERATOR(
-          const T, (*this), if (result < *_p0) {
-            result = *_p0;
-            for (long i = 0; i < nd; ++i) ind[i] = iter.ind[i];
-            ind[nd] = _j;
-          });
+      UNARY_UNOPTIMIZED_ITERATOR(const T, (*this), if (result < *_p0) {
+        result = *_p0;
+        for (long i = 0; i < nd; ++i) ind[i] = iter.ind[i];
+        ind[nd] = _j;
+      });
     } else {
-      UNARY_OPTIMIZED_ITERATOR(const T, (*this),
-                               result = std::max<T>(result, *_p0));
+      UNARY_OPTIMIZED_ITERATOR(const T, (*this), result = std::max<T>(result, *_p0));
     }
     return result;
   }
@@ -1867,8 +1750,7 @@ class Tensor : public BaseTensor {
   /// Returns the Frobenius norm of the tensor
   float_scalar_type normf() const {
     float_scalar_type result = 0;
-    UNARY_OPTIMIZED_ITERATOR(const T, (*this),
-                             result += ::madness::detail::mynorm(*_p0));
+    UNARY_OPTIMIZED_ITERATOR(const T, (*this), result += ::madness::detail::mynorm(*_p0));
     return (float_scalar_type)std::sqrt(result);
   }
 
@@ -1879,17 +1761,13 @@ class Tensor : public BaseTensor {
     if (ind) {
       for (long i = 0; i < _ndim; ++i) ind[i] = 0;
       long nd = _ndim - 1;
-      UNARY_UNOPTIMIZED_ITERATOR(
-          const T, (*this), scalar_type absval = std::abs(*_p0);
-          if (result > absval) {
-            result = absval;
-            for (long i = 0; i < nd; ++i) ind[i] = iter.ind[i];
-            ind[nd] = _j;
-          });
+      UNARY_UNOPTIMIZED_ITERATOR(const T, (*this), scalar_type absval = std::abs(*_p0); if (result > absval) {
+        result = absval;
+        for (long i = 0; i < nd; ++i) ind[i] = iter.ind[i];
+        ind[nd] = _j;
+      });
     } else {
-      UNARY_OPTIMIZED_ITERATOR(
-          const T, (*this),
-          result = std::min<scalar_type>(result, std::abs(*_p0)));
+      UNARY_OPTIMIZED_ITERATOR(const T, (*this), result = std::min<scalar_type>(result, std::abs(*_p0)));
     }
     return result;
   }
@@ -1901,17 +1779,13 @@ class Tensor : public BaseTensor {
     if (ind) {
       for (long i = 0; i < _ndim; ++i) ind[i] = 0;
       long nd = _ndim - 1;
-      UNARY_UNOPTIMIZED_ITERATOR(
-          T, (*this), scalar_type absval = std::abs(*_p0);
-          if (result < absval) {
-            result = absval;
-            for (long i = 0; i < nd; ++i) ind[i] = iter.ind[i];
-            ind[nd] = _j;
-          });
+      UNARY_UNOPTIMIZED_ITERATOR(T, (*this), scalar_type absval = std::abs(*_p0); if (result < absval) {
+        result = absval;
+        for (long i = 0; i < nd; ++i) ind[i] = iter.ind[i];
+        ind[nd] = _j;
+      });
     } else {
-      UNARY_OPTIMIZED_ITERATOR(
-          const T, (*this),
-          result = std::max<scalar_type>(result, std::abs(*_p0)));
+      UNARY_OPTIMIZED_ITERATOR(const T, (*this), result = std::max<scalar_type>(result, std::abs(*_p0)));
     }
     return result;
   }
@@ -1919,8 +1793,7 @@ class Tensor : public BaseTensor {
   /// Return the trace of two tensors (no complex conjugate invoked)
   T trace(const Tensor<T>& t) const {
     T result = 0;
-    BINARY_OPTIMIZED_ITERATOR(const T, (*this), const T, t,
-                              result += (*_p0) * (*_p1));
+    BINARY_OPTIMIZED_ITERATOR(const T, (*this), const T, t, result += (*_p0) * (*_p1));
     return result;
   }
 
@@ -1930,8 +1803,7 @@ class Tensor : public BaseTensor {
   TENSOR_RESULT_TYPE(T, Q)
   trace_conj(const Tensor<Q>& t) const {
     TENSOR_RESULT_TYPE(T, Q) result = 0;
-    BINARY_OPTIMIZED_ITERATOR(const T, (*this), const Q, t,
-                              result += conditional_conj(*_p0) * (*_p1));
+    BINARY_OPTIMIZED_ITERATOR(const T, (*this), const Q, t, result += conditional_conj(*_p0) * (*_p1));
     return result;
   }
 
@@ -1960,8 +1832,7 @@ class Tensor : public BaseTensor {
       }
     } else {
       // BINARYITERATOR(T,(*this),T,t, (*_p0) = alpha*(*_p0) + beta*(*_p1));
-      BINARY_OPTIMIZED_ITERATOR(T, (*this), const T, t,
-                                (*_p0) = alpha * (*_p0) + beta * (*_p1));
+      BINARY_OPTIMIZED_ITERATOR(T, (*this), const T, t, (*_p0) = alpha * (*_p0) + beta * (*_p1));
       // ITERATOR((*this),(*this)(IND) = alpha*(*this)(IND) + beta*t(IND));
     }
     return *this;
@@ -1980,21 +1851,21 @@ class Tensor : public BaseTensor {
   const BaseTensor* base() const { return static_cast<BaseTensor*>(this); }
 
   /// Return iterator over single tensor
-  TensorIterator<T> unary_iterator(long iterlevel = 0, bool optimize = true,
+  TensorIterator<T> unary_iterator(long iterlevel = 0,
+                                   bool optimize = true,
                                    bool fusedim = true,
                                    long jdim = default_jdim) const {
-    return TensorIterator<T>(this, (const Tensor<T>*)0, (const Tensor<T>*)0,
-                             iterlevel, optimize, fusedim, jdim);
+    return TensorIterator<T>(this, (const Tensor<T>*)0, (const Tensor<T>*)0, iterlevel, optimize, fusedim, jdim);
   }
 
   /// Return iterator over two tensors
   template <class Q>
-  TensorIterator<T, Q> binary_iterator(const Tensor<Q>& q, long iterlevel = 0,
+  TensorIterator<T, Q> binary_iterator(const Tensor<Q>& q,
+                                       long iterlevel = 0,
                                        bool optimize = true,
                                        bool fusedim = true,
                                        long jdim = default_jdim) const {
-    return TensorIterator<T, Q>(this, &q, (const Tensor<T>*)0, iterlevel,
-                                optimize, fusedim, jdim);
+    return TensorIterator<T, Q>(this, &q, (const Tensor<T>*)0, iterlevel, optimize, fusedim, jdim);
   }
 
   /// Return iterator over three tensors
@@ -2005,8 +1876,7 @@ class Tensor : public BaseTensor {
                                            bool optimize = true,
                                            bool fusedim = true,
                                            long jdim = default_jdim) const {
-    return TensorIterator<T, Q, R>(this, &q, &r, iterlevel, optimize, fusedim,
-                                   jdim);
+    return TensorIterator<T, Q, R>(this, &q, &r, iterlevel, optimize, fusedim, jdim);
   }
 
   /// End point for forward iteration
@@ -2033,8 +1903,7 @@ struct ArchiveStoreImpl<Archive, Tensor<T> > {
   static void store(const Archive& s, const Tensor<T>& t) {
     if (t.iscontiguous()) {
       s& t.size() & t.id();
-      if (t.size())
-        s& t.ndim() & wrap(t.dims(), TENSOR_MAXDIM) & wrap(t.ptr(), t.size());
+      if (t.size()) s& t.ndim() & wrap(t.dims(), TENSOR_MAXDIM) & wrap(t.ptr(), t.size());
     } else {
       s& copy(t);
     }
@@ -2066,8 +1935,7 @@ struct ArchiveLoadImpl<Archive, Tensor<T> > {
 
 /// \ingroup tensor
 template <typename T, typename Q>
-typename IsSupported<TensorTypeData<Q>, Tensor<T> >::type operator+(
-    Q x, const Tensor<T>& t) {
+typename IsSupported<TensorTypeData<Q>, Tensor<T> >::type operator+(Q x, const Tensor<T>& t) {
   return t + x;
 }
 
@@ -2075,8 +1943,7 @@ typename IsSupported<TensorTypeData<Q>, Tensor<T> >::type operator+(
 
 /// \ingroup tensor
 template <typename T, typename Q>
-typename IsSupported<TensorTypeData<Q>, Tensor<T> >::type operator*(
-    const Q& x, const Tensor<T>& t) {
+typename IsSupported<TensorTypeData<Q>, Tensor<T> >::type operator*(const Q& x, const Tensor<T>& t) {
   return t * x;
 }
 
@@ -2084,8 +1951,7 @@ typename IsSupported<TensorTypeData<Q>, Tensor<T> >::type operator*(
 
 /// \ingroup tensor
 template <typename T, typename Q>
-typename IsSupported<TensorTypeData<Q>, Tensor<T> >::type operator-(
-    Q x, const Tensor<T>& t) {
+typename IsSupported<TensorTypeData<Q>, Tensor<T> >::type operator-(Q x, const Tensor<T>& t) {
   return (-t) += x;
 }
 
@@ -2132,15 +1998,13 @@ Tensor<Q> convert(const Tensor<T>& t) {
 /// @param[in] axis Dimension (or axis) to be transformed
 /// @result Returns a new, contiguous tensor
 template <class T, class Q>
-Tensor<TENSOR_RESULT_TYPE(T, Q)> transform_dir(const Tensor<T>& t,
-                                               const Tensor<Q>& c, int axis) {
+Tensor<TENSOR_RESULT_TYPE(T, Q)> transform_dir(const Tensor<T>& t, const Tensor<Q>& c, int axis) {
   if (axis == 0) {
     return inner(c, t, 0, axis);
   } else if (axis == t.ndim() - 1) {
     return inner(t, c, axis, 0);
   } else {
-    return copy(
-        inner(t, c, axis, 0).cycledim(1, axis, -1));  // Copy to make contiguous
+    return copy(inner(t, c, axis, 0).cycledim(1, axis, -1));  // Copy to make contiguous
   }
 }
 
@@ -2159,8 +2023,7 @@ Tensor<T> transpose(const Tensor<T>& t) {
 /// \ingroup tensor
 template <class T>
 Tensor<T> conj_transpose(const Tensor<T>& t) {
-  TENSOR_ASSERT(t.ndim() == 2, "conj_transpose requires a matrix", t.ndim(),
-                &t);
+  TENSOR_ASSERT(t.ndim() == 2, "conj_transpose requires a matrix", t.ndim(), &t);
   return conj(t.swapdim(0, 1));
 }
 
@@ -2202,10 +2065,8 @@ class SliceTensor : public Tensor<T> {
       // std::printf("%ld munged start=%ld end=%ld step=%ld len=%ld _dim=%ld\n",
       //		i, start, end, step, len, this->_dim[i]);
 
-      TENSOR_ASSERT(start >= 0 && start < this->_dim[i], "slice start invalid",
-                    start, this);
-      TENSOR_ASSERT(end >= 0 && end < this->_dim[i], "slice end invalid", end,
-                    this);
+      TENSOR_ASSERT(start >= 0 && start < this->_dim[i], "slice start invalid", start, this);
+      TENSOR_ASSERT(end >= 0 && end < this->_dim[i], "slice end invalid", end, this);
       TENSOR_ASSERT(len > 0, "slice length must be non-zero", len, this);
 
       this->_p += start * t._stride[i];
@@ -2220,8 +2081,7 @@ class SliceTensor : public Tensor<T> {
     // For Python interface need to be able to return a scalar inside a tensor
     // with nd=0 TENSOR_ASSERT(nd>0,"slicing produced a scalar, but cannot
     // return one",nd,this);
-    for (long i = nd; i < TENSOR_MAXDIM;
-         ++i) {  // So can iterate over missing dimensions
+    for (long i = nd; i < TENSOR_MAXDIM; ++i) {  // So can iterate over missing dimensions
       this->_dim[i] = 1;
       this->_stride[i] = 0;
     }
@@ -2303,8 +2163,7 @@ std::ostream& operator<<(std::ostream& s, const Tensor<T>& t) {
   long oldwidth = s.width();
 
   // C++ formatted IO is worse than Fortran !!
-  for (TensorIterator<T> iter = t.unary_iterator(1, false, false);
-       iter != t.end(); ++iter) {
+  for (TensorIterator<T> iter = t.unary_iterator(1, false, false); iter != t.end(); ++iter) {
     const T* p = iter._p0;
     long inc = iter._s0;
     long dimj = iter.dimj;
@@ -2376,20 +2235,15 @@ Tensor<T> outer(const Tensor<T>& left, const Tensor<T>& right) {
 /// the left and right side tensors, respectively.  The defaults
 /// correspond to (\c k0=-1 and \c k1=0 ).
 template <class T, class Q>
-Tensor<TENSOR_RESULT_TYPE(T, Q)> inner(const Tensor<T>& left,
-                                       const Tensor<Q>& right, long k0 = -1,
-                                       long k1 = 0) {
+Tensor<TENSOR_RESULT_TYPE(T, Q)> inner(const Tensor<T>& left, const Tensor<Q>& right, long k0 = -1, long k1 = 0) {
   if (k0 < 0) k0 += left.ndim();
   if (k1 < 0) k1 += right.ndim();
   long nd = left.ndim() + right.ndim() - 2;
-  TENSOR_ASSERT(nd != 0, "result is a scalar but cannot return one ... use dot",
-                nd, &left);
+  TENSOR_ASSERT(nd != 0, "result is a scalar but cannot return one ... use dot", nd, &left);
 
-  TENSOR_ASSERT(left.dim(k0) == right.dim(k1),
-                "common index must be same length", right.dim(k1), &left);
+  TENSOR_ASSERT(left.dim(k0) == right.dim(k1), "common index must be same length", right.dim(k1), &left);
 
-  TENSOR_ASSERT(nd > 0 && nd <= TENSOR_MAXDIM,
-                "invalid number of dimensions in the result", nd, 0);
+  TENSOR_ASSERT(nd > 0 && nd <= TENSOR_MAXDIM, "invalid number of dimensions in the result", nd, 0);
 
   long d[TENSOR_MAXDIM];
 
@@ -2421,8 +2275,11 @@ Tensor<TENSOR_RESULT_TYPE(T, Q)> inner(const Tensor<T>& left,
 /// that has the correct dimensions and is appropriately initialized.
 /// The inner product is accumulated into result.
 template <class T, class Q>
-void inner_result(const Tensor<T>& left, const Tensor<Q>& right, long k0,
-                  long k1, Tensor<TENSOR_RESULT_TYPE(T, Q)>& result) {
+void inner_result(const Tensor<T>& left,
+                  const Tensor<Q>& right,
+                  long k0,
+                  long k1,
+                  Tensor<TENSOR_RESULT_TYPE(T, Q)>& result) {
   typedef TENSOR_RESULT_TYPE(T, Q) resultT;
   // Need to include explicit optimizations for common special cases
   // E.g., contiguous, matrix-matrix, and 3d-tensor*matrix
@@ -2467,8 +2324,7 @@ void inner_result(const Tensor<T>& left, const Tensor<Q>& right, long k0,
   long dimj = left.dim(k0);
   TensorIterator<Q> iter1 = right.unary_iterator(1, false, false, k1);
 
-  for (TensorIterator<T> iter0 = left.unary_iterator(1, false, false, k0);
-       iter0._p0; ++iter0) {
+  for (TensorIterator<T> iter0 = left.unary_iterator(1, false, false, k0); iter0._p0; ++iter0) {
     T* MADNESS_RESTRICT xp0 = iter0._p0;
     long s0 = iter0._s0;
     for (iter1.reset(); iter1._p0; ++iter1) {
@@ -2498,11 +2354,9 @@ void inner_result(const Tensor<T>& left, const Tensor<Q>& right, long k0,
 /// constructor overhead and improve cache locality.
 ///
 template <class T, class Q>
-Tensor<TENSOR_RESULT_TYPE(T, Q)> transform(const Tensor<T>& t,
-                                           const Tensor<Q>& c) {
+Tensor<TENSOR_RESULT_TYPE(T, Q)> transform(const Tensor<T>& t, const Tensor<Q>& c) {
   typedef TENSOR_RESULT_TYPE(T, Q) resultT;
-  TENSOR_ASSERT(c.ndim() == 2, "second argument must be a matrix", c.ndim(),
-                &c);
+  TENSOR_ASSERT(c.ndim() == 2, "second argument must be a matrix", c.ndim(), &c);
   if (c.dim(0) == c.dim(1) && t.iscontiguous() && c.iscontiguous()) {
     Tensor<resultT> result(t.ndim(), t.dims(), false);
     Tensor<resultT> work(t.ndim(), t.dims(), false);
@@ -2526,8 +2380,7 @@ Tensor<TENSOR_RESULT_TYPE(T, Q)> transform(const Tensor<T>& t,
 /// c[1](j',j) c[2](k',k) ... \endcode The first dimension of the matrices c
 /// must match the corresponding dimension of t.
 template <class T, class Q>
-Tensor<TENSOR_RESULT_TYPE(T, Q)> general_transform(const Tensor<T>& t,
-                                                   const Tensor<Q> c[]) {
+Tensor<TENSOR_RESULT_TYPE(T, Q)> general_transform(const Tensor<T>& t, const Tensor<Q> c[]) {
   typedef TENSOR_RESULT_TYPE(T, Q) resultT;
   Tensor<resultT> result = t;
   for (long i = 0; i < t.ndim(); ++i) {
@@ -2566,10 +2419,10 @@ Tensor<TENSOR_RESULT_TYPE(T, Q)> general_transform(const Tensor<T>& t,
 ///
 /// The input dimensions of \c t must all be the same .
 template <class T, class Q>
-Tensor<TENSOR_RESULT_TYPE(T, Q)>& fast_transform(
-    const Tensor<T>& t, const Tensor<Q>& c,
-    Tensor<TENSOR_RESULT_TYPE(T, Q)>& result,
-    Tensor<TENSOR_RESULT_TYPE(T, Q)>& workspace) {
+Tensor<TENSOR_RESULT_TYPE(T, Q)>& fast_transform(const Tensor<T>& t,
+                                                 const Tensor<Q>& c,
+                                                 Tensor<TENSOR_RESULT_TYPE(T, Q)>& result,
+                                                 Tensor<TENSOR_RESULT_TYPE(T, Q)>& workspace) {
   typedef TENSOR_RESULT_TYPE(T, Q) resultT;
   const Q* pc = c.ptr();
   resultT *t0 = workspace.ptr(), *t1 = result.ptr();
@@ -2618,8 +2471,7 @@ template <class T>
 Tensor<typename Tensor<T>::scalar_type> abs(const Tensor<T>& t) {
   typedef typename Tensor<T>::scalar_type scalar_type;
   Tensor<scalar_type> result(t.ndim(), t.dims(), false);
-  BINARY_OPTIMIZED_ITERATOR(scalar_type, result, const T, t,
-                            *_p0 = std::abs(*_p1));
+  BINARY_OPTIMIZED_ITERATOR(scalar_type, result, const T, t, *_p0 = std::abs(*_p1));
   return result;
 }
 
@@ -2643,8 +2495,7 @@ template <class T>
 Tensor<typename Tensor<T>::scalar_type> real(const Tensor<T>& t) {
   typedef typename Tensor<T>::scalar_type scalar_type;
   Tensor<scalar_type> result(t.ndim(), t.dims(), false);
-  BINARY_OPTIMIZED_ITERATOR(scalar_type, result, const T, t,
-                            *_p0 = std::real(*_p1));
+  BINARY_OPTIMIZED_ITERATOR(scalar_type, result, const T, t, *_p0 = std::real(*_p1));
   return result;
 }
 
@@ -2656,8 +2507,7 @@ template <class T>
 Tensor<typename Tensor<T>::scalar_type> imag(const Tensor<T>& t) {
   typedef typename Tensor<T>::scalar_type scalar_type;
   Tensor<scalar_type> result(t.ndim(), t.dims(), false);
-  BINARY_OPTIMIZED_ITERATOR(scalar_type, result, const T, t,
-                            *_p0 = std::imag(*_p1));
+  BINARY_OPTIMIZED_ITERATOR(scalar_type, result, const T, t, *_p0 = std::imag(*_p1));
   return result;
 }
 
@@ -2670,8 +2520,7 @@ Tensor<T> conj(const Tensor<T>& t) {
   Tensor<T> result(t.ndim(), t.dims(), false);
   //        BINARY_OPTIMIZED_ITERATOR(T,result,const T,t,*_p0 =
   //        std::conj(*_p1));
-  BINARY_OPTIMIZED_ITERATOR(T, result, const T, t,
-                            *_p0 = conditional_conj(*_p1));
+  BINARY_OPTIMIZED_ITERATOR(T, result, const T, t, *_p0 = conditional_conj(*_p1));
   return result;
 }
 }  // namespace madness
