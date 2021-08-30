@@ -139,6 +139,12 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
     if (iter > 0) {
       density_residuals = norm2s_T(world, (rho_omega - rho_omega_old));
       maxrotn = (bsh_residualsX + bsh_residualsY) / 4;
+      for (size_t i = 0; i < Chi.num_states(); i++) {
+        if (maxrotn[i] < r_params.maxrotn()) {
+          maxrotn[i] = r_params.maxrotn();
+          print("less than maxrotn....set to maxrotn");
+        }
+      }
       if (world.rank() == 0 and (r_params.print_level() > 2)) {
         print("Density residuals");
         print("dres", density_residuals);
