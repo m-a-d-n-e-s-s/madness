@@ -76,7 +76,7 @@ The following CMake cache variables turn MADNESS features on and off.
       virtual machines [default=OFF]
 * ENABLE_BSEND_ACKS --- Use MPI Send instead of MPI Bsend for huge message 
       acknowledgements [default=ON]
-* ENABLE_UNITTESTS --- Enables unit tests targets [default=ON]
+* BUILD_TESTING --- Enables unit tests targets [default=ON]
 * FORTRAN_INTEGER_SIZE --- Set the fortran integer size (4 or 8 bytes) used for 
       BLAS and LAPACK function calls [default=4]
 * ASSERTION_TYPE --- Define MADNESS assertion behavior

@@ -33,7 +33,7 @@ jobs:
         -DCMAKE_PREFIX_PATH=/usr/local/opt/bison
         -DBUILD_SHARED_LIBS=OFF
         -DMPIEXEC_PREFLAGS='--bind-to;none;--allow-run-as-root'
-        -DENABLE_UNITTESTS=ON
+        -DBUILD_TESTING=ON
         -DMADNESS_ENABLE_CEREAL=ON
         -DMADNESS_TASK_BACKEND=${{ matrix.task_backend }}
         -DMADNESS_BUILD_MADWORLD_ONLY=${{ matrix.task_backend != 'Pthreads' }}

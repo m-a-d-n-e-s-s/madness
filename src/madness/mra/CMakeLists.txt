@@ -27,7 +27,7 @@ install(FILES autocorr coeffs gaussleg
     COMPONENT mra)
 
 # Add unit tests    
-if(ENABLE_UNITTESTS)
+if(BUILD_TESTING)
 
   # The list of unit test source files
   add_library(libtest_sepop EXCLUDE_FROM_ALL test_sepop.cc)

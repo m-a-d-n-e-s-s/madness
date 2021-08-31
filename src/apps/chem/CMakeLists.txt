@@ -130,7 +130,7 @@ install(FILES sto-3g sto-6g 6-31g coredata/mcp coredata/mcp2 coredata/mcp_guess
     COMPONENT chem)
 
 # Add unit tests    
-if(ENABLE_UNITTESTS)
+if(BUILD_TESTING)
   
   SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
   # The list of unit test source files
