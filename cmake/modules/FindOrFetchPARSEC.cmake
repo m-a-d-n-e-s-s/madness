@@ -10,13 +10,10 @@ else (TARGET PaRSEC::parsec)
   set(SUPPORT_FORTRAN OFF CACHE BOOL "Disable Fortran support in PaRSEC")
   set(CMAKE_CROSSCOMPILING OFF)
   set(CMAKE_SYSTEM_PROCESSOR ${CMAKE_HOST_SYSTEM_PROCESSOR})
-  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-  set(PARSEC_WITH_DEVEL_HEADERS ON CACHE BOOL "Install PaRSEC headers")
-  set(BUILD_TOOLS OFF CACHE BOOL "Don't build the tools by default")
 
   FetchContent_Declare(
           PARSEC
-          GIT_REPOSITORY      https://bitbucket.org/schuchart/parsec.git
+          GIT_REPOSITORY      https://github.com/TESSEorg/parsec.git
           GIT_TAG             ${MADNESS_TRACKED_PARSEC_TAG}
   )
   FetchContent_MakeAvailable(PARSEC)
