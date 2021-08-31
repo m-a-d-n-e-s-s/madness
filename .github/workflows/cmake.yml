@@ -54,6 +54,7 @@ jobs:
           brew install cereal
         fi
         echo "TBBROOT=/usr/local/opt/tbb@2020" >> $GITHUB_ENV
+	echo "/usr/local/opt/bison/bin" >> $GITHUB_PATH
 
     - name: Install prerequisites Ubuntu packages
       if: ${{ matrix.os == 'ubuntu-20.04' }}
