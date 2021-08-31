@@ -13,8 +13,8 @@ else (TARGET PaRSEC::parsec)
 
   FetchContent_Declare(
           PARSEC
-          GIT_REPOSITORY      https://github.com/TESSEorg/parsec.git
-          GIT_TAG             ${MADNESS_TRACKED_PARSEC_TAG}
+          GIT_REPOSITORY     https://github.com/TESSEorg/parsec.git
+          GIT_TAG            ${MADNESS_TRACKED_PARSEC_TAG}
   )
   FetchContent_MakeAvailable(PARSEC)
   FetchContent_GetProperties(PARSEC
