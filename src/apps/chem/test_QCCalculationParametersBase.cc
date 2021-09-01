@@ -16,21 +16,16 @@ class Parameters : public QCCalculationParametersBase {
   Parameters() : QCCalculationParametersBase() {
     // initialize with: key, value, comment (optional), allowed values
     // (optional)
-    initialize<double>(
-        "econv", 1.e-5, "recommended values: 1.e-4 < econv < 1.e-8");
-    initialize<double>(
-        "dconv", 3.e-4, "recommended values: 1.e-4 < econv < 1.e-8");
+    initialize<double>("econv", 1.e-5, "recommended values: 1.e-4 < econv < 1.e-8");
+    initialize<double>("dconv", 3.e-4, "recommended values: 1.e-4 < econv < 1.e-8");
     initialize<int>("maxiter", 15);
     initialize<bool>("localize", true);
-    initialize<std::string>(
-        "local", "BOYS", "localization method", {"boys", "pm", "canon"});
+    initialize<std::string>("local", "BOYS", "localization method", {"boys", "pm", "canon"});
     initialize<std::vector<double> >("proto", std::vector<double>{1, 2});
     initialize<std::pair<std::string, double> >("ncf", {"slater", 2.0});
   }
 
-  void read_and_set_derived_values(World& world,
-                                   std::string inputfile,
-                                   std::string tag) {
+  void read_and_set_derived_values(World& world, std::string inputfile, std::string tag) {
     read(world, inputfile, tag);
     set_derived_value("dconv", sqrt(get<double>("econv")) * 0.1);
   }
@@ -40,9 +35,7 @@ class Parameters : public QCCalculationParametersBase {
   double dconv() const { return get<double>("dconv"); }
   bool localize() const { return get<bool>("localize"); }
   std::string local() const { return get<std::string>("local"); }
-  std::pair<std::string, double> ncf() const {
-    return get<std::pair<std::string, double> >("ncf");
-  }
+  std::pair<std::string, double> ncf() const { return get<std::pair<std::string, double> >("ncf"); }
   int maxiter() const { return get<int>("maxiter"); }
 };
 
