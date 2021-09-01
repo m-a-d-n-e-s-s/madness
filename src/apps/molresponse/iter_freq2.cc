@@ -127,6 +127,13 @@ void TDDFT::iterate_freq2(World& world) {
       density_residuals = norm2s_T(world, (rho_omega - rho_omega_old));
       // Take the max between this an a minimum maxrotn step
       maxrotn = (bsh_residualsX + bsh_residualsY) / 4;
+      print("maxrotn", maxrotn);
+      for (size_t i = 0; i < Chi.num_states(); i++) {
+        if (maxrotn[i] < r_params.maxrotn()) {
+          maxrotn[i] = r_params.maxrotn();
+          print("less than maxrotn....set to maxrotn");
+        }
+      }
       if (world.rank() == 0 and (r_params.print_level() > 1)) {
         print("Density residuals");
         print(density_residuals);
