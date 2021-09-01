@@ -10,19 +10,17 @@ else (TARGET PaRSEC::parsec)
   set(SUPPORT_FORTRAN OFF CACHE BOOL "Disable Fortran support in PaRSEC")
   set(CMAKE_CROSSCOMPILING OFF)
   set(CMAKE_SYSTEM_PROCESSOR ${CMAKE_HOST_SYSTEM_PROCESSOR})
-  set(PARSEC_WITH_DEVEL_HEADERS ON CACHE BOOL "Install PaRSEC headers")
 
   FetchContent_Declare(
           PARSEC
-          GIT_REPOSITORY      https://bitbucket.org/schuchart/parsec.git
-          GIT_TAG             ${MADNESS_TRACKED_PARSEC_TAG}
+          GIT_REPOSITORY     https://github.com/TESSEorg/parsec.git
+          GIT_TAG            ${MADNESS_TRACKED_PARSEC_TAG}
   )
   FetchContent_MakeAvailable(PARSEC)
   FetchContent_GetProperties(PARSEC
           SOURCE_DIR PARSEC_SOURCE_DIR
           BINARY_DIR PARSEC_BINARY_DIR
           )
-  set_property(DIRECTORY ${PARSEC_SOURCE_DIR} PROPERTY EXCLUDE_FROM_ALL TRUE)
 
   # this is where PaRSECConfig.cmake will end up
   # must be in sync with the "install(FILES ...PaRSECConfig.cmake" statement in PaRSEC source
