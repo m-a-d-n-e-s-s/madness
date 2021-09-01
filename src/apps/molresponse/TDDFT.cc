@@ -896,12 +896,11 @@ void TDDFT::vector_stats(const std::vector<double>& v, double& rms, double& maxa
 }
 void TDDFT::vector_stats_new(const Tensor<double> v, double& rms, double& maxabsval) const {
   rms = 0.0;
-  maxabsval = v[0];
   for (size_t i = 0; i < v.size(); ++i) {
     rms += v[i] * v[i];
-    maxabsval = std::max<double>(maxabsval, std::abs(v[i]));
   }
   rms = sqrt(rms / v.size());
+  maxabsval = v.max();
 }
 double TDDFT::do_step_restriction(World& world, const vecfuncT& x, vecfuncT& x_new, std::string spin) const {
   std::vector<double> anorm = norm2s(world, sub(world, x, x_new));
@@ -933,27 +932,26 @@ double TDDFT::do_step_restriction(World& world,
                                   vecfuncT& x_new,
                                   std::string spin,
                                   double maxrotn) const {
-  std::vector<double> anorm = norm2s(world, sub(world, x, x_new));
-  size_t nres = 0;
+  Tensor<double> anorm = norm2s_T(world, sub(world, x, x_new));
+  print("ANORM", anorm);
   print("maxrotn: ", maxrotn);
-  for (unsigned int i = 0; i < x.size(); ++i) {
+  for (unsigned int i = 0; i < x_new.size(); ++i) {
     print("anorm ", i, " : ", anorm[i]);
     if (anorm[i] > maxrotn) {
       double s = maxrotn / anorm[i];
-      ++nres;
-      if (world.rank() == 0) {
-        if (nres == 1 and (r_params.print_level() > 1)) printf("  restricting step for %s orbitals:", spin.c_str());
-        printf(" %d", i);
-      }
+      /*
+if (world.rank() == 0) {
+if (nres == 1 and (r_params.print_level() > 1)) printf("  restricting step for %s orbitals:", spin.c_str());
+printf(" %d", i);
+}
+      */
       x_new[i].gaxpy(s, x[i], 1.0 - s, false);
-      x_new[i].truncate();
+      // x_new[i].truncate();
     }
   }
-  if (nres > 0 && world.rank() == 0 and (r_params.print_level() > 1)) printf("\n");
-
   world.gop.fence();
   double rms, maxval;
-  vector_stats(anorm, rms, maxval);
+  vector_stats_new(anorm, rms, maxval);
   if (world.rank() == 0 and (r_params.print_level() > 1))
     print("Norm of vector changes", spin, ": rms", rms, "   max", maxval);
   return maxval;
@@ -1729,11 +1727,12 @@ void TDDFT::x_space_step_restriction(World& world,
       // do_step_restriction(world, old_Chi.X[b], temp.X[b], old_Chi.Y[b], temp.Y[b], "x and y_response");
       // if the norm(new-old) > max
       do_step_restriction(world, old_Chi.X[b], temp.X[b], "x_response", maxrotn[b]);
+
       do_step_restriction(world, old_Chi.Y[b], temp.Y[b], "y_response", maxrotn[b]);
       // do_step_restriction(world, old_Chi.X[b], temp.X[b], "x_response");
       // do_step_restriction(world, old_Chi.Y[b], temp.Y[b], "y_response");
     } else {
-      do_step_restriction(world, old_Chi.X[b], temp.X[b], "x_response");
+      do_step_restriction(world, old_Chi.X[b], temp.X[b], "x_response", maxrotn[b]);
     }
   }
 
