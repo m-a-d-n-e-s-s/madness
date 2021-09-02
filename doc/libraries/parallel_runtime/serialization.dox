@@ -287,11 +287,7 @@ Two steps are required to register your own types (e.g., here for the types \c %
         }
     }
   \endcode
--# In a single source file containing your initialization routine, define a macro to force instantiation of relevant templates.
-  \code
-    #define ARCHIVE_REGISTER_TYPE_INSTANTIATE_HERE
-  \endcode
-  Then, in the initalization routine register the name of your types as follows
+-# In a single source file containing your initialization routine, register the name of your types as follows
   \code
     ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(Foo);
     ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(Bar);
