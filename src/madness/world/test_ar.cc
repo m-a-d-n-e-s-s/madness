@@ -45,8 +45,6 @@ struct type_printer;
 /// \file test.cc
 /// \brief Tests serialization by some of the archives
 
-#define ARCHIVE_REGISTER_TYPE_INSTANTIATE_HERE
-
 #include <madness/world/text_fstream_archive.h>
 using madness::archive::TextFstreamInputArchive;
 using madness::archive::TextFstreamOutputArchive;
