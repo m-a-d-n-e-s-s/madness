@@ -89,9 +89,10 @@ if (WORLD_GET_DEFAULT_DISABLED)
   target_compile_definitions(${targetname} PUBLIC -DMADNESS_DISABLE_WORLD_GET_DEFAULT=1)
 endif (WORLD_GET_DEFAULT_DISABLED)
 
-if (TARGET PaRSEC::parsec)
-  add_subproject_parsec_target_to_export_set("madness" "world")
-endif()
+# recent PaRSEC does export its targets
+#if (TARGET PaRSEC::parsec)
+#  add_subproject_parsec_target_to_export_set("madness" "world")
+#endif()
 
 if(BUILD_TESTING)
 
