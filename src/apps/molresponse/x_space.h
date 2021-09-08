@@ -233,7 +233,7 @@ struct X_vector : public X_space {
       : X_space(world, size_t(1), n_orbtials) {}
 
   X_vector(X_space A, size_t b)
-      : X_space(A.X[0][0].world(), size_t(1), size_orbitals(A)) {
+      : X_space(A.X[0][0].world(), size_t(1), A.num_orbitals()) {
     X[0] = A.X[b];
     Y[0] = A.Y[b];
   }
@@ -253,6 +253,12 @@ struct X_vector : public X_space {
     result.Y = A.Y * c;
     return result;
   }
+  X_vector copy() const {
+    X_vector copyX(X[0][0].world(), X.num_orbitals);
+    copyX.X = X.copy();
+    copyX.Y = Y.copy();
+    return copyX;
+  }
   X_vector& operator+=(const X_vector& B) {
     MADNESS_ASSERT(same_size(*this, B));
 
@@ -266,11 +272,16 @@ struct X_vector : public X_space {
     MADNESS_ASSERT(size_orbitals(A) > 0);
     MADNESS_ASSERT(same_size(A, B));
 
-    World& world = A.X[0][0].world();
-    return inner(world, A.X[0], B.X[0]).sum() +
-           inner(world, A.Y[0], B.X[0]).sum();
+    Tensor<double> G(1, 1);
+    Tensor<double> G1(1, 1);
+    Tensor<double> G2(1, 1);
+    G1 = response_space_inner(A.X, B.X);
+    G2 = response_space_inner(A.Y, B.Y);
+    G = G1 + G2;
+    return G(0, 0);
   }
 };
+// function object with allocator()()
 struct X_space_allocator {
   World& world;
   const size_t n_states;
@@ -278,7 +289,12 @@ struct X_space_allocator {
   X_space_allocator(World& world, size_t n_orbtials)
       : world(world), n_states(size_t(1)), n_orbtials(n_orbtials) {}
   // overloading the default constructor () operator
-  X_vector operator()() { return X_vector(world, n_orbtials); }
+  X_vector operator()() {
+    print("allocator called with ", int(n_orbtials), " orbitals");
+
+    // returning constructor of x_vector
+    return X_vector(world, n_orbtials);
+  }
   // Copy constructor
 
   X_space_allocator operator=(const X_space_allocator& other) {
