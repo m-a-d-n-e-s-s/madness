@@ -152,6 +152,7 @@ class NonlinearSolverND {
     unew.truncate();
 
     if (ulist.size() == maxsub) {
+      print("we are removing the first");
       ulist.erase(ulist.begin());
       rlist.erase(rlist.begin());
       Q = copy(Q(Slice(1, -1), Slice(1, -1)));
@@ -231,6 +232,7 @@ class XNonlinearSolver {
            const double cabsmax = 1000.0) {
     if (maxsub == 1) return u - r;
     int iter = ulist.size();
+    print("ulist.size() ", iter);
     ulist.push_back(u);
     rlist.push_back(r);
 
@@ -252,7 +254,6 @@ class XNonlinearSolver {
     for (int i = 0; i <= iter; i++) {
       unew += (ulist[i] - rlist[i]) * c[i];
     }
-
 
     if (ulist.size() == maxsub) {
       ulist.erase(ulist.begin());
