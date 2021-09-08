@@ -1326,7 +1326,17 @@ void TDDFT::update_x_space_response(World& world,
   print("BSH update iter = ", iteration);
   X_space temp = bsh_update_response(world, old_Chi, Chi, theta_X, bsh_x_ops, bsh_y_ops, projector, x_shifts);
 
-  if (true) {
+  res = compute_residual(world, old_Chi, temp, bsh_residualsX, bsh_residualsY, compute_y);
+
+  // kain update with temp adjusts temp
+  if (r_params.kain() && (iteration > 0)) {  // || (r_params.first_run() && !r_params.restart()))) {
+    kain_x_space_update(world, temp, res, kain_x_space, Xvector, Xresidual);
+    if (r_params.print_level() >= 1) {
+      compute_and_print_polarizability(world, temp, PQ, "<KAIN|PQ>");
+    }
+  }
+
+  if (iteration > 0) {
     x_space_step_restriction(world, old_Chi, temp, compute_y, maxrotn);
     if (r_params.print_level() >= 1) {
       compute_and_print_polarizability(world, temp, PQ, "<STEP_RESTRICTED|PQ>");
@@ -1335,16 +1345,6 @@ void TDDFT::update_x_space_response(World& world,
 
   if (r_params.print_level() >= 1) {
     compute_and_print_polarizability(world, temp, PQ, "<BSHX|PQ>");
-  }
-  res = compute_residual(world, old_Chi, temp, bsh_residualsX, bsh_residualsY, compute_y);
-  // computes residual from old Chi and temp
-
-  // kain update with temp adjusts temp
-  if (r_params.kain() && (iteration > 0 || (r_params.first_run() && !r_params.restart()))) {
-    kain_x_space_update(world, temp, res, kain_x_space, Xvector, Xresidual);
-    if (r_params.print_level() >= 1) {
-      compute_and_print_polarizability(world, temp, PQ, "<KAIN|PQ>");
-    }
   }
 
   // truncate x
@@ -1360,6 +1360,7 @@ void TDDFT::update_x_space_response(World& world,
   }
   // print x norms
 }
+// computes res and bsh_residualsX
 X_space TDDFT::compute_residual(World& world,
                                 X_space& old_Chi,
                                 X_space& temp,
@@ -1374,8 +1375,9 @@ X_space TDDFT::compute_residual(World& world,
   res.X = old_Chi.X - temp.X;
   if (compute_y) {
     res.Y = old_Chi.Y - temp.Y;
+  } else {
+    res.Y = res.X.copy();
   }
-  // Basic outp:w
   //
   //*************************
   Tensor<double> errX(m);
@@ -1405,6 +1407,9 @@ X_space TDDFT::compute_residual(World& world,
       errY[i] = maxvalY[i];
       if (world.rank() == 0 and (r_params.print_level() > 1)) print("BSH residual: rms", rmsY[i], "   max", maxvalY[i]);
     }
+  } else {
+    // copy by value?
+    errY = errX;
   }
   molresponse::end_timer(world, "BSH residual");
 
@@ -1723,7 +1728,7 @@ void TDDFT::x_space_step_restriction(World& world,
   print(maxrotn);
 
   for (size_t b = 0; b < m; b++) {
-    if (restrict_y) {
+    if (true) {
       // do_step_restriction(world, old_Chi.X[b], temp.X[b], old_Chi.Y[b], temp.Y[b], "x and y_response");
       // if the norm(new-old) > max
       do_step_restriction(world, old_Chi.X[b], temp.X[b], "x_response", maxrotn[b]);

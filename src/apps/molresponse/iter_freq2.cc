@@ -90,11 +90,9 @@ void TDDFT::iterate_freq2(World& world) {
     bsh_y_ops = make_bsh_operators_response(world, y_shifts, omega_n);
     omega_n = -omega_n;
   }
+
   Tensor<double> maxrotn(m);
   maxrotn.fill(dconv * 100);
-  // create couloumb operator
-  // Now to iterate
-  // while (iteration < r_params.maxiter() and !converged) {
 
   for (iter = 0; iter <= r_params.maxiter(); ++iter) {
     // Basic output
