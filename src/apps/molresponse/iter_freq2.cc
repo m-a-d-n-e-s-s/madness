@@ -34,7 +34,8 @@ void TDDFT::iterate_freq2(World& world) {
 
   real_function_3d v_xc;   // For TDDFT
   bool converged = false;  // Converged flag
-  const double dconv = std::max(FunctionDefaults<3>::get_thresh(), r_params.dconv());
+  const double dconv =
+      std::max(FunctionDefaults<3>::get_thresh(), r_params.dconv());
   // m residuals for x and y
   Tensor<double> bsh_residualsX(m);
   Tensor<double> bsh_residualsY(m);
@@ -43,7 +44,8 @@ void TDDFT::iterate_freq2(World& world) {
   vecfuncT rho_omega_old(m);
 
   // initialize DFT XC functional operator
-  XCOperator<double, 3> xc = create_XCOperator(world, ground_orbitals, r_params.xc());
+  XCOperator<double, 3> xc =
+      create_XCOperator(world, ground_orbitals, r_params.xc());
 
   // create X space residuals
   X_space residuals(world, m, n);
@@ -58,10 +60,14 @@ void TDDFT::iterate_freq2(World& world) {
   }
   // If DFT, initialize the XCOperator<double,3>
 
+  // create a std vector of XNONLinearsolvers
   NonLinearXsolver kain_x_space;
-  size_t nkain = m;  // (r_params.omega() != 0.0) ? 2 * m : m;
-  for (size_t b = 0; b < nkain; b++) {
-    kain_x_space.push_back(XNonlinearSolver<X_vector, double, X_space_allocator>(X_space_allocator(world, n), false));
+  for (size_t b = 0; b < m; b++) {
+    kain_x_space.push_back(
+        XNonlinearSolver<X_vector, double, X_space_allocator>(
+            X_space_allocator(world, n), true));
+  }
+  for (size_t b = 0; b < m; b++) {
     if (r_params.kain()) kain_x_space[b].set_maxsub(r_params.maxsub());
   }
   //
@@ -79,7 +85,8 @@ void TDDFT::iterate_freq2(World& world) {
     print("*** we are shifting just so you know!!!");
     x_shifts = -.05 - (omega_n + ground_energies[n - 1]);
   }
-  std::vector<poperatorT> bsh_x_ops = make_bsh_operators_response(world, x_shifts, omega_n);
+  std::vector<poperatorT> bsh_x_ops =
+      make_bsh_operators_response(world, x_shifts, omega_n);
   std::vector<poperatorT> bsh_y_ops;
 
   bool static_res = (omega_n == 0.0);
@@ -98,8 +105,12 @@ void TDDFT::iterate_freq2(World& world) {
     // Basic output
     if (r_params.print_level() >= 1) {
       molresponse::start_timer(world);
-      if (world.rank() == 0) printf("\n   Iteration %d at time %.1fs\n", static_cast<int>(iter), wall_time());
-      if (world.rank() == 0) print("-------------------------------------------");
+      if (world.rank() == 0)
+        printf("\n   Iteration %d at time %.1fs\n",
+               static_cast<int>(iter),
+               wall_time());
+      if (world.rank() == 0)
+        print("-------------------------------------------");
     }
     if (r_params.print_level() >= 1) {
       if (world.rank() == 0) {
@@ -149,8 +160,10 @@ void TDDFT::iterate_freq2(World& world) {
       double d_residual = density_residuals.max();
       double d_conv = dconv * std::max(size_t(5), molecule.natom());
       // Test convergence and set to true
-      if ((d_residual < d_conv) and ((std::max(bsh_residualsX.absmax(), bsh_residualsY.absmax()) < d_conv * 5.0) or
-                                     r_params.get<bool>("conv_only_dens"))) {
+      if ((d_residual < d_conv) and
+          ((std::max(bsh_residualsX.absmax(), bsh_residualsY.absmax()) <
+            d_conv * 5.0) or
+           r_params.get<bool>("conv_only_dens"))) {
         converged = true;
       }
 
@@ -163,13 +176,16 @@ void TDDFT::iterate_freq2(World& world) {
         if (r_params.save()) {
           molresponse::start_timer(world);
           save(world, r_params.save_file());
-          if (r_params.print_level() >= 1) molresponse::end_timer(world, "Save:");
+          if (r_params.print_level() >= 1)
+            molresponse::end_timer(world, "Save:");
         }
         // Basic output
-        if (r_params.print_level() >= 1) molresponse::end_timer(world, " This iteration:");
+        if (r_params.print_level() >= 1)
+          molresponse::end_timer(world, " This iteration:");
         // plot orbitals
         if (r_params.plot_all_orbitals()) {
-          PlotGroundandResponseOrbitals(world, iter, Chi.X, Chi.Y, r_params, g_params);
+          PlotGroundandResponseOrbitals(
+              world, iter, Chi.X, Chi.Y, r_params, g_params);
         }
         break;
       }
