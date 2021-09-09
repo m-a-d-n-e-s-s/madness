@@ -1427,8 +1427,12 @@ void TDDFT::update_x_space_response(World& world,
   X_space temp = bsh_update_response(
       world, old_Chi, Chi, theta_X, bsh_x_ops, bsh_y_ops, projector, x_shifts);
 
-  res = compute_residual(
-      world, old_Chi, temp, bsh_residualsX, bsh_residualsY, compute_y);
+  res = compute_residual(world,
+                         old_Chi,
+                         temp,
+                         bsh_residualsX,
+                         bsh_residualsY,
+                         r_params.calc_type());
 
   // kain update with temp adjusts temp
   if (r_params.kain() && (iteration > 0)) {
@@ -1468,19 +1472,20 @@ X_space TDDFT::compute_residual(World& world,
                                 X_space& temp,
                                 Tensor<double>& bsh_residualsX,
                                 Tensor<double>& bsh_residualsY,
-                                bool compute_y) {
+                                std::string calc_type) {
   size_t m = old_Chi.X.size();
   size_t n = old_Chi.X.size_orbitals();
   molresponse::start_timer(world);
   //	compute residual
   X_space res(world, m, n);
   res.X = old_Chi.X - temp.X;
-  if (compute_y) {
-    res.Y = old_Chi.Y - temp.Y;
-  } else {
-    res.Y = res.X.copy();
-  }
   //
+  if (calc_type.compare("full") == 0) {
+    res.Y = old_Chi.Y - temp.Y;
+  } else if (calc_type.compare("static") == 0) {
+    res.Y = res.X.copy();
+  } else {
+  }
   //*************************
   Tensor<double> errX(m);
   Tensor<double> errY(m);
@@ -1502,7 +1507,7 @@ X_space TDDFT::compute_residual(World& world,
     if (world.rank() == 0 and (r_params.print_level() > 1))
       print("BSH residual: rms", rmsX[i], "   max", maxvalX[i]);
   }
-  if (compute_y) {
+  if (calc_type.compare("full") == 0) {
     std::vector<double> rmsY(m), maxvalY(m);
     for (size_t i = 0; i < m; i++) {
       rnormsY.push_back(norm2s(world, res.Y[i]));
@@ -1513,9 +1518,11 @@ X_space TDDFT::compute_residual(World& world,
       if (world.rank() == 0 and (r_params.print_level() > 1))
         print("BSH residual: rms", rmsY[i], "   max", maxvalY[i]);
     }
-  } else {
+  } else if (calc_type.compare("static") == 0) {
     // copy by value?
     errY = errX;
+  } else {  // tda
+    errY.fill(0);
   }
   molresponse::end_timer(world, "BSH residual");
 
@@ -1626,8 +1633,8 @@ void TDDFT::update_x_space_excited(World& world,
                                    QProjector<double, 3>& projector,
                                    Tensor<double>& omega,
                                    NonLinearXsolver& kain_x_space,
-                                   std::vector<X_vector> Xvector,
-                                   std::vector<X_vector> Xresidual,
+                                   std::vector<X_vector>& Xvector,
+                                   std::vector<X_vector>& Xresidual,
                                    Tensor<double>& energy_residuals,
                                    Tensor<double>& old_energy,
                                    Tensor<double>& bsh_residualsX,
@@ -1642,8 +1649,6 @@ void TDDFT::update_x_space_excited(World& world,
   size_t m = Chi.num_states();
   bool compute_y = not r_params.tda();
 
-  Tensor<double> errX(m);
-  Tensor<double> errY(m);
   Tensor<double> x_shifts(m);
   Tensor<double> y_shifts(m);
 
@@ -1683,8 +1688,12 @@ void TDDFT::update_x_space_excited(World& world,
     X_space temp =
         bsh_update_excited(world, old_Chi, Chi, theta_X, projector, converged);
 
-    res = compute_residual(
-        world, old_Chi, temp, bsh_residualsX, bsh_residualsY, compute_y);
+    res = compute_residual(world,
+                           old_Chi,
+                           temp,
+                           bsh_residualsX,
+                           bsh_residualsY,
+                           r_params.calc_type());
     // kain if iteration >0 or first run where there should not be a problem
     if (r_params.kain() && (iter > 0) && false) {
       kain_x_space_update(world, temp, res, kain_x_space, Xvector, Xresidual);
@@ -3645,8 +3654,6 @@ void TDDFT::iterate_guess(World& world, X_space& guesses) {
     molresponse::start_timer(world);
     //
     size_t N0 = guesses.X.size();
-    size_t Np = 2 * m;
-    size_t p = r_params.guess_max_iter() - 1;
     size_t Ni = N0;
 
     // No*exp(log(Np/N0)/p*t) to exponential decay

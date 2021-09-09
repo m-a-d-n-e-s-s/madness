@@ -410,7 +410,7 @@ class TDDFT {
                            X_space& temp,
                            Tensor<double>& bsh_residualsX,
                            Tensor<double>& bsh_residualsY,
-                           bool compute_y);
+                           std::string calc_type);
 
   void print_residual_norms(World& world,
                             X_space& old_Chi,
@@ -432,8 +432,8 @@ class TDDFT {
                               QProjector<double, 3>& projector,
                               Tensor<double>& omega,
                               NonLinearXsolver& kain_x_space,
-                              std::vector<X_vector> Xvector,
-                              std::vector<X_vector> Xresidual,
+                              std::vector<X_vector>& Xvector,
+                              std::vector<X_vector>& Xresidual,
                               Tensor<double>& energy_residuals,
                               Tensor<double>& old_energy,
                               Tensor<double>& bsh_residualsX,

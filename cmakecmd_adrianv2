@@ -1,6 +1,5 @@
 cmake -DCMAKE_TOOLCHAIN_FILE=/gpfs/projects/rjh/adrian/madness/cmake/toolchains/generic-mkl-tbb.cmake \
       -DCMAKE_BUILD_TYPE=Debug \
-      -DCMAKE_INSTALL_PREFIX=/gpfs/projects/rjh/adrian/madness/install \
       -DLIBXC_LIBRARIES=/gpfs/projects/rjh/libxc-3.0.0/lib/libxc.a \
       -DLIBXC_INCLUDE_DIRS=/gpfs/projects/rjh/libxc-3.0.0/include \
       -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
