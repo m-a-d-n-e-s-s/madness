@@ -8,6 +8,7 @@
         "LIBXC_LIBRARIES": "/gpfs/projects/rjh/libxc-3.0.0/lib/libxc.a",
         "LIBXC_INCLUDE_DIRS": "/gpfs/projects/rjh/libxc-3.0.0/include",
         "MKL_LIBRARY": "/gpfs/software/intel/parallel-studio-xe/2018_2/compilers_and_libraries/linux/mkl/lib/intel64",
+        "MKL_ROOT": "/gpfs/software/intel/parallel-studio-xe/2018_2/compilers_and_libraries/linux/mkl",
         "CMAKE_BUILD_TYPE": "Debug",
         "MPI_CXX_COMPILER": "/gpfs/software/mpich/gcc/3.2.1/bin/mpicxx",
         "MPI_C_COMPILER": "/gpfs/software/mpich/gcc/3.2.1/bin/mpicc",
