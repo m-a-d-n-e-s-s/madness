@@ -1671,7 +1671,6 @@ void TDDFT::update_x_space_excited(World& world,
                                energy_residuals,
                                iter);
   // now Chi is rotated to new position
-  old_Chi = Chi.copy();
 
   print("omega before transform");
   print(old_energy);
@@ -1695,22 +1694,12 @@ void TDDFT::update_x_space_excited(World& world,
                            bsh_residualsY,
                            r_params.calc_type());
     // kain if iteration >0 or first run where there should not be a problem
-    if (r_params.kain() && (iter > 0) && false) {
+    if (r_params.kain() && (iter > 0) && true) {
       kain_x_space_update(world, temp, res, kain_x_space, Xvector, Xresidual);
     }
     if (iter > 0) {
       x_space_step_restriction(world, old_Chi, temp, compute_y, maxrotn);
     }
-    // Ensure orthogonal guesses
-    molresponse::start_timer(world);
-    // Orthog
-    gram_schmidt(world, temp.X, temp.Y);
-    molresponse::end_timer(world, "orthog");
-
-    molresponse::start_timer(world);
-    // Normalize
-    normalize(world, temp);
-    molresponse::end_timer(world, "normalize");
 
     temp.X.truncate_rf();
     if (compute_y) temp.Y.truncate_rf();
@@ -1831,7 +1820,7 @@ omega = -omega;
                            r_params.lo(),
                            FunctionDefaults<3>::get_thresh());
   std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> bsh_y_ops;
-  if (not r_params.tda()) {
+  if (compute_y) {
     omega = -omega;
     bsh_y_ops = create_bsh_operators(world,
                                      y_shifts,
@@ -1841,34 +1830,40 @@ omega = -omega;
                                      FunctionDefaults<3>::get_thresh());
     omega = -omega;
   }
-  X_space bsh_update;
+  X_space bsh_X(world, m, n);
   // Apply BSH and get updated response components
-  if (r_params.print_level() >= 1) molresponse::start_timer(world);
-  bsh_update.X = apply(world, bsh_x_ops, theta_X.X);
-  if (compute_y) bsh_update.Y = apply(world, bsh_y_ops, theta_X.Y);
-  if (r_params.print_level() >= 1) molresponse::end_timer(world, "Apply BSH:");
+  bsh_X.X = apply(world, bsh_x_ops, theta_X.X);
+  if (compute_y) bsh_X.Y = apply(world, bsh_y_ops, theta_X.Y);
 
   // Project out ground state
-  for (size_t i = 0; i < m; i++) bsh_update.X[i] = projector(bsh_update.X[i]);
+  for (size_t i = 0; i < m; i++) bsh_X.X[i] = projector(bsh_X.X[i]);
   if (compute_y) {
-    for (size_t i = 0; i < m; i++) bsh_update.Y[i] = projector(bsh_update.Y[i]);
+    for (size_t i = 0; i < m; i++) bsh_X.Y[i] = projector(bsh_X.Y[i]);
   }
 
-  X_space temp = old_Chi.copy();
   // Only update non-converged components
   for (size_t i = 0; i < m; i++) {
     if (not converged[i]) {
-      temp.X[i] = bsh_update.X[i];
-      temp.X[i] = mask * temp.X[i];
+      bsh_X.X[i] = bsh_X.X[i];
+      bsh_X.X[i] = mask * bsh_X.X[i];
       if (compute_y) {
-        temp.Y[i] = bsh_update.Y[i];
-        temp.Y[i] = mask * temp.Y[i];
+        bsh_X.Y[i] = bsh_X.Y[i];
+        bsh_X.Y[i] = mask * bsh_X.Y[i];
       }
     }
   }
-  temp.truncate();
+  // Ensure orthogonal guesses
+  if (compute_y) {
+    gram_schmidt(world, bsh_X.X, bsh_X.Y);
+    normalize(world, bsh_X);
+  } else {
+    gram_schmidt(world, bsh_X.X);
+    normalize(world, bsh_X.X);
+  }
 
-  return temp;
+  bsh_X.truncate();
+
+  return bsh_X;
 }
 
 void TDDFT::kain_x_space_update(World& world,
@@ -1980,13 +1975,17 @@ Tensor<double> TDDFT::calculate_energy_update(World& world,
   return updates;
 }
 
-vecfuncT TDDFT::make_density(World& world, X_space& Chi, bool compute_y) {
+vecfuncT TDDFT::make_density(World& world,
+                             X_space& Chi,
+                             std::string calc_type) {
   molresponse::start_timer(world);
   vecfuncT rho_omega;
-  if (compute_y) {
+  if (calc_type.compare("full") == 0) {
     rho_omega = transition_density(world, ground_orbitals, Chi.X, Chi.Y);
-  } else {
+  } else if (calc_type.compare("static") == 0) {
     rho_omega = transition_density(world, ground_orbitals, Chi.X, Chi.X);
+  } else {
+    rho_omega = transition_densityTDA(world, ground_orbitals, Chi.X);
   }
 
   molresponse::end_timer(world, "Make density omega");
