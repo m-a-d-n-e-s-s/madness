@@ -100,7 +100,6 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
   Tensor<double> old_A;
   Tensor<double> A;
   Tensor<double> old_S;
-  bool compute_y = !r_params.tda();
 
   // Now to iterate
   for (iter = 0; iter < r_params.maxiter(); ++iter) {
@@ -127,16 +126,12 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
     print(omega);
 
     old_Chi = Chi.copy();
+
     rho_omega_old = rho_omega;
     // compute rho_omega
-    rho_omega = make_density(world, Chi, compute_y);
+    rho_omega = make_density(world, Chi, r_params.calc_type());
 
     // Normalize after projection
-    if (compute_y) {
-      normalize(world, Chi);
-    } else {
-      normalize(world, Chi.X);
-    }
 
     if (iter < 2 || (iter % 10) == 0) {
       loadbal(world, rho_omega, Chi, old_Chi);
