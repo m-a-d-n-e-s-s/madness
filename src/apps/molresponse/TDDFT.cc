@@ -291,8 +291,8 @@ void TDDFT::orbital_load_balance(World& world,
   size_t m = r_params.n_states();
   size_t n = r_params.num_orbitals();
 
-  molresponse::start_timer(world);
   if (world.size() > 1) {
+    molresponse::start_timer(world);
     LoadBalanceDeux<3> lb(world);
     for (unsigned int i = 0; i < m; ++i) {
       lb.add_tree(psi0[i], lbcost<double, 3>(1.0, 8.0), false);
@@ -321,8 +321,8 @@ void TDDFT::orbital_load_balance(World& world,
 
     psi0_copy = copy(world, ground_orbitals, newpmap, false);
     world.gop.fence();  // then fence
+    molresponse::end_timer(world, "Gamma redist");
   }
-  molresponse::end_timer(world, "Gamma redist");
 }
 
 // (Each state's norm should be 1, not the
@@ -1431,9 +1431,7 @@ void TDDFT::update_x_space_response(World& world,
       world, old_Chi, temp, bsh_residualsX, bsh_residualsY, compute_y);
 
   // kain update with temp adjusts temp
-  if (r_params.kain() &&
-      (iteration >
-       0)) {  // || (r_params.first_run() && !r_params.restart()))) {
+  if (r_params.kain() && (iteration > 0)) {
     kain_x_space_update(world, temp, res, kain_x_space, Xvector, Xresidual);
     if (r_params.print_level() >= 1) {
       compute_and_print_polarizability(world, temp, PQ, "<KAIN|PQ>");
@@ -1669,6 +1667,7 @@ void TDDFT::update_x_space_excited(World& world,
                                iter);
   // now Chi is rotated to new position
   old_Chi = Chi.copy();
+
   print("omega before transform");
   print(old_energy);
   print("omega after transform");
@@ -1680,19 +1679,30 @@ void TDDFT::update_x_space_excited(World& world,
   } else {
     X_space theta_X = Compute_Theta_X(world, Chi, xc, r_params.calc_type());
     //  Calculates shifts needed for potential / energies
+    print("BSH update iter = ", iter);
     X_space temp =
         bsh_update_excited(world, old_Chi, Chi, theta_X, projector, converged);
 
-    if (true) {
-      x_space_step_restriction(world, old_Chi, temp, compute_y, maxrotn);
-      res = compute_residual(
-          world, old_Chi, temp, bsh_residualsX, bsh_residualsY, compute_y);
-    }
+    res = compute_residual(
+        world, old_Chi, temp, bsh_residualsX, bsh_residualsY, compute_y);
     // kain if iteration >0 or first run where there should not be a problem
-    if (r_params.kain() &&
-        (iter > 0 || (r_params.first_run() && !r_params.restart()))) {
+    if (r_params.kain() && (iter > 0) && false) {
       kain_x_space_update(world, temp, res, kain_x_space, Xvector, Xresidual);
     }
+    if (iter > 0) {
+      x_space_step_restriction(world, old_Chi, temp, compute_y, maxrotn);
+    }
+    // Ensure orthogonal guesses
+    molresponse::start_timer(world);
+    // Orthog
+    gram_schmidt(world, temp.X, temp.Y);
+    molresponse::end_timer(world, "orthog");
+
+    molresponse::start_timer(world);
+    // Normalize
+    normalize(world, temp);
+    molresponse::end_timer(world, "normalize");
+
     temp.X.truncate_rf();
     if (compute_y) temp.Y.truncate_rf();
     // print x norms
@@ -1701,10 +1711,10 @@ void TDDFT::update_x_space_excited(World& world,
 
   // Apply mask
   /*
-for (size_t i = 0; i < m; i++) Chi.X[i] = mask * Chi.X[i];
-if (not r_params.tda()) {
-for (size_t i = 0; i < m; i++) Chi.Y[i] = mask * Chi.Y[i];
-}
+  for (size_t i = 0; i < m; i++) Chi.X[i] = mask * Chi.X[i];
+  if (not r_params.tda()) {
+  for (size_t i = 0; i < m; i++) Chi.Y[i] = mask * Chi.Y[i];
+  }
   */
 }
 
@@ -2888,13 +2898,25 @@ Tensor<double> TDDFT::diagonalizeFullResponseMatrix(World& world,
   Tensor<double> U = GetFullResponseTransformation(world, S, A, omega, thresh);
 
   // Sort into ascending order
-  Tensor<int> selected = sort_eigenvalues(world, omega, U);
+  // Tensor<int> selected = sort_eigenvalues(world, omega, U);
 
   // Start timer
   if (r_params.print_level() >= 1) molresponse::start_timer(world);
 
   Chi.X = transform(world, Chi.X, U);
   Chi.Y = transform(world, Chi.Y, U);
+  Tensor<double> Sxa, Sya, Sa;
+
+  Sxa = response_space_inner(Chi.X, Chi.X);
+  Sya = response_space_inner(Chi.Y, Chi.Y);
+  Sa = Sxa - Sya;
+
+  if (world.rank() == 0 and r_params.print_level() >= 10) {
+    print("\n  After apply transform Overlap Matrix:");
+    print(Sxa);
+    print(Sya);
+    print(Sa);
+  }
 
   Lambda_X.X = transform(world, Lambda_X.X, U);
   Lambda_X.Y = transform(world, Lambda_X.Y, U);
@@ -2982,6 +3004,7 @@ Tensor<double> TDDFT::GetFullResponseTransformation(
 
   // Transform into this smaller space if necessary
   if (num_zero > 0) {
+    print("num_zero = ", num_zero);
     // Cut out the singular values that are small
     // (singular values come out in descending order)
 
@@ -3178,8 +3201,10 @@ void TDDFT::deflateGuesses(World& world,
 
   // Debugging output
   if (r_params.print_level() >= 2 and world.rank() == 0) {
-    print("   Overlap matrix:");
+    print(" Guess  Overlap matrix:");
     print(S);
+    print(" Guess  XAX matrix:");
+    print(XAX);
   }
   // Just to be sure dimensions work out, clear omega
   omega.clear();
@@ -3626,22 +3651,24 @@ void TDDFT::iterate_guess(World& world, X_space& guesses) {
 
     // No*exp(log(Np/N0)/p*t) to exponential decay
     // the number of states down to 2*r_params.states
-    if (iteration > 1 && r_params.guess_xyz() && Ni > Np) {
-      Ni = std::ceil(N0 * std::exp(std::log(static_cast<double>(Np) /
-                                            static_cast<double>(N0)) /
-                                   static_cast<double>(p) * iteration));
-      sort(world, omega, guesses.X);
-      print(omega);
-      for (size_t i = 0; i < Ni; i++) {
-        Ni = 0;
-        if (omega[i] < 1) {
-          Ni++;
-        }
-      }
-      // this function selects k functions
-      guesses.X =
-          select_functions(world, guesses.X, omega, Ni, r_params.print_level());
-    }
+    /*
+if (iteration > 1 && r_params.guess_xyz() && Ni > Np) {
+Ni = std::ceil(N0 * std::exp(std::log(static_cast<double>(Np) /
+                                static_cast<double>(N0)) /
+                       static_cast<double>(p) * iteration));
+sort(world, omega, guesses.X);
+print(omega);
+for (size_t i = 0; i < Ni; i++) {
+Ni = 0;
+if (omega[i] < 1) {
+Ni++;
+}
+}
+// this function selects k functions
+guesses.X =
+select_functions(world, guesses.X, omega, Ni, r_params.print_level());
+}
+    */
 
     // Basic output
     if (r_params.print_level() >= 1) {
@@ -3683,9 +3710,11 @@ void TDDFT::iterate_guess(World& world, X_space& guesses) {
 
     // Normalize after projection
     if (r_params.tda()) normalize(world, guesses.X);
+
     // (TODO why not normalize if not tda)
     // compute Y = false
     X_space Lambda_X = Compute_Lambda_X(world, guesses, xc, "tda");
+
     deflateGuesses(world, guesses, Lambda_X, S, omega, iteration, m);
     // Debugging output
 
@@ -3744,6 +3773,20 @@ void TDDFT::iterate_guess(World& world, X_space& guesses) {
       // Apply mask
       for (size_t i = 0; i < Ni; i++) guesses.X[i] = mask * guesses.X[i];
     }
+
+    // Ensure orthogonal guesses
+    for (size_t i = 0; i < 2; i++) {
+      molresponse::start_timer(world);
+      // Orthog
+      guesses.X = gram_schmidt(world, guesses.X);
+      molresponse::end_timer(world, "orthog");
+
+      molresponse::start_timer(world);
+      // Normalize
+      normalize(world, guesses.X);
+      molresponse::end_timer(world, "normalize");
+    }
+
     // Update counter
     iteration += 1;
     // Done with the iteration.. truncate
