@@ -489,7 +489,7 @@ class TDDFT {
   // Returns response functions that have been orthonormalized via
   // modified Gram-Schmidt. Note: This is specifically designed for
   // response functions only
-  vecfuncT make_density(World& world, X_space& Chi, bool compute_y);
+  vecfuncT make_density(World& world, X_space& Chi, std::string calc_type);
   response_space gram_schmidt(World& world, response_space& f);
 
   void gram_schmidt(World& world, response_space& f, response_space& g);
