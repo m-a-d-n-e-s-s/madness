@@ -342,33 +342,23 @@ double MP2::solve_coupled_equations(Pairs<ElectronPair>& pairs,
         END_TIMER(world, "compute coupling");
 
         // compute the vector function, aka the rhs of the residual equations
-        START_TIMER(world);
-        Pairs<real_function_6d> vectorfunction;
-        for (int i = param.freeze(); i < hf->nocc(); ++i) {
-            for (int j = i; j < hf->nocc(); ++j) {
-
-                vectorfunction(i, j) = multiply_with_0th_order_Hamiltonian(
-                        pairs(i, j).function, i, j);
-
-                // NOTE THE SIGN
-                vectorfunction(i, j) -= coupling(i, j);
-            }
-        }
-        END_TIMER(world, "apply H^(0) |ket>");
-
         double total_rnorm = 0.0;
         double old_energy = total_energy;
         total_energy = 0.0;
-        // apply the Green's function on the vector function
+
         for (int i = param.freeze(); i < hf->nocc(); ++i) {
             for (int j = i; j < hf->nocc(); ++j) {
-                const double eps = zeroth_order_energy(i, j);
 
+                real_function_6d vectorfunction = multiply_with_0th_order_Hamiltonian(pairs(i, j).function, i, j);
+
+                // NOTE THE SIGN
+                vectorfunction -= coupling(i, j);
+
+                const double eps = zeroth_order_energy(i, j);
                 START_TIMER(world);
-                real_convolution_6d green = BSHOperator<6>(world, sqrt(-2 * eps), lo,
-                                                           bsh_eps);
-                vectorfunction(i, j).scale(-2.0).truncate();
-                real_function_6d tmp = green(vectorfunction(i, j)).truncate();
+                real_convolution_6d green = BSHOperator<6>(world, sqrt(-2 * eps), lo, bsh_eps);
+                vectorfunction.scale(-2.0).truncate();
+                real_function_6d tmp = green(vectorfunction).truncate();
                 END_TIMER(world, "apply BSH |ket>");
 
                 START_TIMER(world);
