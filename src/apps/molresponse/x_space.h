@@ -96,6 +96,31 @@ struct X_space {
     return *this;
   }
 
+  void push_back(vector_real_function_3d x, vector_real_function_3d y) {
+    if (n_orbtials > 0) {
+      MADNESS_ASSERT(n_orbtials = x.size());
+      MADNESS_ASSERT(n_orbtials = y.size());
+      MADNESS_ASSERT(x.size() == y.size());
+    } else {  // g_states == 0 (empty vector)
+      n_orbtials = x.size();
+    }
+    MADNESS_ASSERT(x.size() == num_orbitals());
+    MADNESS_ASSERT(y.size() == num_orbitals());
+
+    n_states++;
+    X.push_back(x);
+    Y.push_back(y);
+    // Be smart with g_states
+  }
+  void pop_back() {
+    n_states--;
+    X.pop_back();
+    Y.pop_back();
+    if (n_states == 0) {
+      n_orbtials = 0;
+    }
+  }
+
   friend X_space operator+(const X_space& A, const X_space& B) {
     MADNESS_ASSERT(same_size(A, B));
 
