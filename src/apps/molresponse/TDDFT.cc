@@ -2641,6 +2641,7 @@ void TDDFT::augment_full(World& world,
   // Save temp_A as A_x
   // Need to symmeterize A as well (?)
   A = 0.5 * (temp_A + transpose(temp_A));
+  // TODO print norm(A-A_dagger);
   /**
    * @brief Creating S
    * S= [<x|x>    <x|xold>   ]
@@ -3332,6 +3333,7 @@ void TDDFT::deflateFull(World& world,
                                     A,
                                     FunctionDefaults<3>::get_thresh(),
                                     r_params.print_level());
+
   // Larger subspace un-augmentation BROKEN!!!!
   // if(iteration < r_params.larger_subspace())
   //{
