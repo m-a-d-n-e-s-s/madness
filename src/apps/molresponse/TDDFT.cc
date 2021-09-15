@@ -2611,67 +2611,13 @@ void TDDFT::augment_full(World& world,
   // Basic output
   if (print_level >= 1) molresponse::start_timer(world);
 
-  // Get sizes
-  size_t m = Chi.X.size();
-  // Create work space, will overwrite S and A in the end
-  Tensor<double> temp_S(2 * m, 2 * m);
-  Tensor<double> temp_A(2 * m, 2 * m);
-  /**
-   * @brief Need to create off diagonal blocks of A
-   *  A=
-   *  [xAx      xAx_old ]
-   *  [xoldAx  xoldAxold]
-   *
-   */
-  // Calculate correct inner products of upper off diagonal
+  for (size_t i = 0; i < Chi.num_states(); i++) {
+    Chi.push_back(old_Chi.X[i], old_Chi.Y[i]);
+    Lambda_X.push_back(last_Lambda_X.X[i], last_Lambda_X.Y[i]);
+  }
 
-  Tensor<double> off = inner(Chi, last_Lambda_X);
-  temp_A(Slice(0, m - 1), Slice(m, 2 * m - 1)) = copy(off);  // top right
-  // Now for lower off diagonal
-  off = inner(old_Chi, Lambda_X);
-  temp_A(Slice(m, 2 * m - 1), Slice(0, m - 1)) = copy(off);  // bottom left
-  temp_A(Slice(0, m - 1), Slice(0, m - 1)) = copy(A);        // xAx top left
-  temp_A(Slice(m, 2 * m - 1), Slice(m, 2 * m - 1)) =
-      copy(old_A);  // xoldAxold bottom right
-  // Debugging output
-  if (print_level >= 2 and world.rank() == 0) {
-    print("   Before symmeterizing A:");
-    print(temp_A);
-  }
-  // Save temp_A as A_x
-  // Need to symmeterize A as well (?)
-  A = 0.5 * (temp_A + transpose(temp_A));
-  // TODO print norm(A-A_dagger);
-  /**
-   * @brief Creating S
-   * S= [<x|x>    <x|xold>   ]
-   *    [<xold|x> <xold|xold>]
-   */
-  // Now create upper off diagonal block of S
-  off = response_space_inner(Chi.X, old_Chi.X) -
-        response_space_inner(Chi.Y, old_Chi.Y);
-  // Use slicing to put in correct spot
-  temp_S(Slice(0, m - 1), Slice(m, 2 * m - 1)) =
-      copy(off);  // top right <x|xold>
-  // Now the lower off diagonal block
-  // (Go ahead and cheat and use the transpose...)
-  off = transpose(off);  // just transpose <xold|x>
-  // Use slicing to put in correct spot
-  temp_S(Slice(m, 2 * m - 1), Slice(0, m - 1)) =
-      copy(off);  // bottom right <xold|x>
-  // Put together the rest of S
-  temp_S(Slice(0, m - 1), Slice(0, m - 1)) = copy(S);  // top left <x|x>
-  temp_S(Slice(m, 2 * m - 1), Slice(m, 2 * m - 1)) = copy(old_S);  //<xold|xold>
-  // Save temp_S as S_x
-  S = copy(temp_S);
-  // Add in old vectors to current vectors for the appropriate ones
-  // Augment the vectors step
-  for (size_t i = 0; i < m; i++) {
-    Chi.X.push_back(old_Chi.X[i]);
-    Chi.Y.push_back(old_Chi.X[i]);
-    Lambda_X.X.push_back(last_Lambda_X.X[i]);
-    Lambda_X.Y.push_back(last_Lambda_X.X[i]);
-  }
+  A = inner(Chi, Lambda_X);
+  S = response_space_inner(Chi.X, Chi.X) - response_space_inner(Chi.Y, Chi.Y);
 
   // End the timer
   if (print_level >= 1) molresponse::end_timer(world, "Aug. resp. matrix:");
@@ -2873,10 +2819,8 @@ void TDDFT::unaugment_full(World& world,
   // (only after first iteration)
   if (iter > 0) {
     for (size_t i = 0; i < num_states; i++) {
-      Chi.X.pop_back();
-      Lambda_X.X.pop_back();
-      Chi.Y.pop_back();
-      Lambda_X.Y.pop_back();
+      Chi.pop_back();
+      Lambda_X.pop_back();
     }
   }
   old_Chi = Chi.copy();
@@ -3294,34 +3238,36 @@ void TDDFT::deflateFull(World& world,
                         size_t& iteration,
                         size_t& m) {
   // Debugging output
-  S = response_space_inner(Chi.X, Chi.X) - response_space_inner(Chi.Y, Chi.Y);
-  if (world.rank() == 0 and r_params.print_level() >= 10) {
-    print("\n   Overlap Matrix:");
-    print(S);
-  }
-  X_space Chi_copy = Chi.copy();
-  Chi_copy.truncate();
-  Tensor<double> A = inner(Chi_copy, Lambda_X);
-  if (world.rank() == 0 and r_params.print_level() >= 10) {
-    print("\n   Lambda Matrix:");
-    print(A);
+  Tensor<double> A;
+
+  if (iteration < r_params.larger_subspace() and iteration > 0) {
+    augment_full(world,
+                 Chi,
+                 old_Chi,
+                 Lambda_X,
+                 old_Lambda_X,
+                 S,
+                 A,
+                 old_S,
+                 old_A,
+                 r_params.print_level());
+    // computes Augments A and S
+
+  } else {
+    S = response_space_inner(Chi.X, Chi.X) - response_space_inner(Chi.Y, Chi.Y);
+    if (world.rank() == 0 and r_params.print_level() >= 10) {
+      print("\n   Overlap Matrix:");
+      print(S);
+    }
+    X_space Chi_copy = Chi.copy();
+    Chi_copy.truncate();
+    A = inner(Chi_copy, Lambda_X);
+    if (world.rank() == 0 and r_params.print_level() >= 10) {
+      print("\n   Lambda Matrix:");
+      print(A);
+    }
   }
 
-  // Larger subspace augmentation BROKEN!!!!!
-  // if(iteration < r_params.larger_subspace() and iteration > 0)
-  //{
-  //   augment_full(world, S, A,
-  //                B_x, x_gamma, x_response, V_x_response, x_fe,
-  //                B_y, y_gamma, y_response, V_y_response, y_fe,
-  //                old_S, old_A,
-  //                old_B_x, old_x_gamma, old_x_response,
-  //                old_V_x_response, old_x_fe, old_B_y, old_y_gamma,
-  //                old_y_response, old_V_y_response, old_y_fe,
-  //                r_params.print_level());
-  //}
-
-  // Diagonalize
-  // Just to be sure dimensions work out, clear omega
   omega.clear();
 
   Tensor<double> U =
@@ -3334,18 +3280,21 @@ void TDDFT::deflateFull(World& world,
                                     FunctionDefaults<3>::get_thresh(),
                                     r_params.print_level());
 
-  // Larger subspace un-augmentation BROKEN!!!!
-  // if(iteration < r_params.larger_subspace())
-  //{
-  //   unaugment_full(world, m, iteration, U, omega, S, A,
-  //                  x_gamma, x_response, V_x_response, x_fe, B_x,
-  //                  y_gamma, y_response, V_y_response, y_fe, B_y,
-  //                  old_S, old_A,
-  //                  old_x_gamma, old_x_response, old_V_x_response,
-  //                  old_x_fe, old_B_x, old_y_gamma, old_y_response,
-  //                  old_V_y_response, old_y_fe, old_B_y,/
-  //                  r_params.print_level());
-  //}
+  if (iteration < r_params.larger_subspace() and iteration > 0) {
+    unaugment_full(world,
+                   Chi,
+                   old_Chi,
+                   Lambda_X,
+                   old_Lambda_X,
+                   omega,
+                   S,
+                   A,
+                   old_S,
+                   old_A,
+                   r_params.n_states(),
+                   iteration,
+                   r_params.print_level());
+  }
 }
 // const double thresh, int print_level) {
 // Creates the XCOperator<double,3>  object and initializes it with correct
