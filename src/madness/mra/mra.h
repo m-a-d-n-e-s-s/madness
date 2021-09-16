@@ -1626,9 +1626,10 @@ namespace madness {
         }
 
         /// reduce the rank of the coefficient tensors
-        Function<T,NDIM>& reduce_rank(const bool fence=true) {
+        Function<T,NDIM>& reduce_rank(const double thresh=0.0, const bool fence=true) {
             verify();
-            impl->reduce_rank(impl->get_tensor_args(),fence);
+            double thresh1= (thresh==0.0) ? impl->get_tensor_args().thresh : thresh;
+            impl->reduce_rank(thresh1,fence);
             return *this;
         }
     };
@@ -2056,14 +2057,15 @@ namespace madness {
             //result.get_impl()->recursive_apply(op, f.get_impl().get(),
             //        r1.get_impl().get(),true);          // will fence here
 
-
-            double time=result.get_impl()->finalize_apply(fence);   // need fence before reconstruction
-           	result.world().gop.fence();
-            if (print_timings) {
-                result.get_impl()->print_timer();
-                op.print_timer();
-                if (result.world().rank()==0) print("time in finlize_apply", time);
-            }
+//           	result.world().gop.fence();
+//           	result.print_size("result before finalization");
+//            double time=result.get_impl()->finalize_apply(fence);   // need fence before reconstruction
+//           	result.world().gop.fence();
+//            if (print_timings) {
+//                result.get_impl()->print_timer();
+//                op.print_timer();
+//                if (result.world().rank()==0) print("time in finlize_apply", time);
+//            }
 
         }
 
@@ -2117,6 +2119,17 @@ namespace madness {
                 fff.get_impl()->timer_compress_svd.print("compress_svd");
             }
             result = apply_only(op, fff, fence);
+        	ff.world().gop.fence();
+
+        	// svd-tensors need some post-processing
+        	if (result.get_impl()->get_tensor_type()==TT_2D) {
+            	result.get_impl()->finalize_apply();
+			}
+			if (print_timings) {
+				result.get_impl()->print_timer();
+				op.print_timer();
+			}
+
             result.reconstruct();
 //            fff.clear();
             if (op.destructive()) {

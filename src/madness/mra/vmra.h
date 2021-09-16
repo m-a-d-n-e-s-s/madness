@@ -164,6 +164,24 @@ namespace madness {
         if (fence && must_fence) world.gop.fence();
     }
 
+    /// change tree_state of a vector of functions to redundant
+    template <typename T, std::size_t NDIM>
+    void make_redundant(World& world,
+                  const std::vector< Function<T,NDIM> >& v,
+                  bool fence=true) {
+
+        PROFILE_BLOCK(Vcompress);
+        bool must_fence = false;
+        for (unsigned int i=0; i<v.size(); ++i) {
+            if (!v[i].get_impl()->is_redundant()) {
+                v[i].get_impl()->make_redundant(false);
+                must_fence = true;
+            }
+        }
+
+        if (fence && must_fence) world.gop.fence();
+    }
+
     /// refine the functions according to the autorefine criteria
     template <typename T, std::size_t NDIM>
     void refine(World& world, const std::vector<Function<T,NDIM> >& vf,
@@ -236,7 +254,9 @@ namespace madness {
                   bool fence=true) {
         PROFILE_BLOCK(Vtruncate);
 
-        compress(world, v);
+        // truncate in compressed form only for low-dimensional functions
+        // compression is very expensive if low-rank tensor approximations are used
+        if (NDIM<4) compress(world, v);
 
         for (unsigned int i=0; i<v.size(); ++i) {
             v[i].truncate(tol, false);
@@ -253,6 +273,18 @@ namespace madness {
                   double tol=0.0, bool fence=true) {
         if (v.size()>0) truncate(v[0].world(),v,tol,fence);
         return v;
+    }
+
+    /// reduces the tensor rank of the coefficient tensor (if applicable)
+
+    /// @return the vector for chaining
+    template <typename T, std::size_t NDIM>
+    std::vector< Function<T,NDIM> > reduce_rank(std::vector< Function<T,NDIM> > v,
+                  double thresh=0.0, bool fence=true) {
+    	if (v.size()==0) return v;
+    	for (auto& vv : v) vv.reduce_rank(thresh,false);
+    	if (fence) v[0].world().gop.fence();
+		return v;
     }
 
 
@@ -1249,17 +1281,21 @@ namespace madness {
 
 
     /// Applies an operator to a vector of functions --- q[i] = apply(op,f[i])
-    template <typename T, typename R, std::size_t NDIM>
+    template <typename T, typename R, std::size_t NDIM, std::size_t KDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
     apply(World& world,
-          const SeparatedConvolution<T,NDIM>& op,
+          const SeparatedConvolution<T,KDIM>& op,
           const std::vector< Function<R,NDIM> > f) {
         PROFILE_BLOCK(Vapply);
 
         std::vector< Function<R,NDIM> >& ncf = *const_cast< std::vector< Function<R,NDIM> >* >(&f);
+        bool print_timings=(NDIM==6) and (world.rank()==0);
 
+        double wall0=wall_time();
         reconstruct(world, f);
         nonstandard(world, ncf);
+        double wall1=wall_time();
+        if (print_timings) printf("timer: %20.20s %8.2fs\n", "make_nonstandard", wall1-wall0);
 
         std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> > result(f.size());
         for (unsigned int i=0; i<f.size(); ++i) {
@@ -1268,7 +1304,19 @@ namespace madness {
 
         world.gop.fence();
 
-        standard(world, ncf, false);  // restores promise of logical constness
+        // restores promise of logical constness
+        if (not op.destructive()) standard(world, ncf, false);
+
+        // svd-tensor requires some cleanup after apply
+        if (result[0].get_impl()->get_tensor_type()==TT_2D) {
+            for (auto& r : result) r.get_impl()->finalize_apply(false);
+            world.gop.fence();
+        }
+
+        if (print_timings) {
+        	for (auto& r : result) r.get_impl()->print_timer();
+            op.print_timer();
+        }
         reconstruct(world, result);
 
         if (op.is_slaterf12) {

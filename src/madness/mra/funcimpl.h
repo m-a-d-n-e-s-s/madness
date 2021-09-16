@@ -4055,7 +4055,7 @@ namespace madness {
         /// reduce the rank of the coefficients tensors
 
         /// @param[in]  targs   target tensor arguments (threshold and full/low rank)
-        void reduce_rank(const TensorArgs& targs, bool fence);
+        void reduce_rank(const double thresh, bool fence);
 
         T eval_cube(Level n, coordT& x, const tensorT& c) const;
 

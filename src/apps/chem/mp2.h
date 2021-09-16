@@ -339,6 +339,7 @@ class MP2 : public OptimizationTargetInterface {
         void read_and_set_derived_values(World& world) {
             read(world, "input", "mp2");
             set_derived_value("dconv", sqrt(get<double>("econv")) * 0.1);
+        	set_derived_value("thresh",get<double>("econv"));
         }
 
         /// check the user input
@@ -547,6 +548,8 @@ private:
     /// @param[in]	phi the orbital
     /// @return 	Jphi
     real_function_3d J(const real_function_3d& phi) const;
+
+    real_function_6d apply_exchange_vector(const real_function_6d& f, const int particle) const;
 
     /// apply the exchange operator on f
 

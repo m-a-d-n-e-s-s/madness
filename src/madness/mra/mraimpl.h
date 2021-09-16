@@ -1188,8 +1188,8 @@ namespace madness {
 
     /// @param[in]  targs   target tensor arguments (threshold and full/low rank)
     template <typename T, std::size_t NDIM>
-    void FunctionImpl<T,NDIM>::reduce_rank(const TensorArgs& targs, bool fence) {
-        flo_unary_op_node_inplace(do_reduce_rank(targs),fence);
+    void FunctionImpl<T,NDIM>::reduce_rank(const double thresh, bool fence) {
+        flo_unary_op_node_inplace(do_reduce_rank(thresh),fence);
     }
 
 
