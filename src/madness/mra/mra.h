@@ -187,7 +187,7 @@ namespace madness {
             PROFILE_MEMBER_FUNC(Function);
             const double eps=1e-15;
             verify();
-            MADNESS_ASSERT(!is_compressed());
+            MADNESS_ASSERT(is_reconstructed());
             coordT xsim;
             user_to_sim(xuser,xsim);
             // If on the boundary, move the point just inside the
@@ -220,7 +220,7 @@ namespace madness {
         std::pair<bool,T> eval_local_only(const Vector<double,NDIM>& xuser, Level maxlevel) const {
             const double eps=1e-15;
             verify();
-            MADNESS_ASSERT(!is_compressed());
+            MADNESS_ASSERT(is_reconstructed());
             coordT xsim;
             user_to_sim(xuser,xsim);
             // If on the boundary, move the point just inside the
@@ -253,7 +253,7 @@ namespace madness {
             PROFILE_MEMBER_FUNC(Function);
             const double eps=1e-15;
             verify();
-            MADNESS_ASSERT(!is_compressed());
+            MADNESS_ASSERT(is_reconstructed());
             coordT xsim;
             user_to_sim(xuser,xsim);
             // If on the boundary, move the point just inside the
@@ -290,7 +290,7 @@ namespace madness {
             PROFILE_MEMBER_FUNC(Function);
             const double eps=1e-15;
             verify();
-            MADNESS_ASSERT(!is_compressed());
+            MADNESS_ASSERT(is_reconstructed());
             coordT xsim;
             user_to_sim(xuser,xsim);
             // If on the boundary, move the point just inside the
@@ -371,7 +371,7 @@ namespace madness {
         T operator()(const coordT& xuser) const {
             PROFILE_MEMBER_FUNC(Function);
             verify();
-            if (is_compressed()) reconstruct();
+            if (!is_reconstructed()) reconstruct();
             T result;
             if (impl->world.rank() == 0) result = eval(xuser).get();
             impl->world.gop.broadcast(result);
@@ -406,7 +406,7 @@ namespace madness {
         Level depthpt(const coordT& xuser) const {
             PROFILE_MEMBER_FUNC(Function);
             verify();
-            if (is_compressed()) reconstruct();
+            if (!is_reconstructed()) reconstruct();
             Level result;
             if (impl->world.rank() == 0) result = evaldepthpt(xuser).get();
             impl->world.gop.broadcast(result);
@@ -425,7 +425,7 @@ namespace madness {
         double errsq_local(const funcT& func) const {
             PROFILE_MEMBER_FUNC(Function);
             verify();
-            if (is_compressed()) MADNESS_EXCEPTION("Function:errsq_local:not reconstructed",0);
+            if (!is_reconstructed()) MADNESS_EXCEPTION("Function:errsq_local:not reconstructed",0);
             return impl->errsq_local(func);
         }
 
@@ -441,7 +441,7 @@ namespace madness {
             PROFILE_MEMBER_FUNC(Function);
             verify();
             if (VERIFY_TREE) verify_tree();
-            if (is_compressed()) reconstruct();
+            if (!is_reconstructed()) reconstruct();
             if (VERIFY_TREE) verify_tree();
             double local = impl->errsq_local(func);
             impl->world.gop.sum(local);
@@ -463,6 +463,17 @@ namespace madness {
             PROFILE_MEMBER_FUNC(Function);
             if (impl)
                 return impl->is_compressed();
+            else
+                return false;
+        }
+
+        /// Returns true if reconstructed, false otherwise.  No communication.
+
+        /// If the function is not initialized, returns false.
+        bool is_reconstructed() const {
+            PROFILE_MEMBER_FUNC(Function);
+            if (impl)
+                return impl->is_reconstructed();
             else
                 return false;
         }
@@ -680,7 +691,7 @@ namespace madness {
             PROFILE_MEMBER_FUNC(Function);
             verify();
             if (VERIFY_TREE) verify_tree();
-            if (is_compressed()) reconstruct();
+            if (!is_reconstructed()) reconstruct();
             const_cast<Function<T,NDIM>*>(this)->impl->norm_tree(fence);
         }
 
@@ -700,7 +711,8 @@ namespace madness {
             PROFILE_MEMBER_FUNC(Function);
             if (!impl || is_compressed()) return *this;
             if (VERIFY_TREE) verify_tree();
-            const_cast<Function<T,NDIM>*>(this)->impl->compress(false, false, false, fence);
+//            const_cast<Function<T,NDIM>*>(this)->impl->compress(false, false, false, fence);
+            const_cast<Function<T,NDIM>*>(this)->impl->compress(TreeState::compressed, fence);
             return *this;
         }
 
@@ -717,9 +729,15 @@ namespace madness {
             PROFILE_MEMBER_FUNC(Function);
             verify();
             if (impl->is_nonstandard()) return;
+            if (impl->is_nonstandard_with_leaves()) return;
+
             if (VERIFY_TREE) verify_tree();
-            if (is_compressed()) reconstruct();
-            impl->compress(true, keepleaves, false, fence);
+            if (!is_reconstructed()) reconstruct();
+            TreeState newstate=TreeState::nonstandard;
+            if (keepleaves) newstate=nonstandard_with_leaves;
+//            impl->compress(true, keepleaves, false, fence);
+            impl->compress(newstate, fence);
+
         }
 
         /// Converts the function from nonstandard form to standard form.  Possible non-blocking comm.
@@ -733,7 +751,7 @@ namespace madness {
         void standard(bool fence = true) {
             PROFILE_MEMBER_FUNC(Function);
             verify();
-            MADNESS_ASSERT(is_compressed());
+            MADNESS_ASSERT(impl->is_nonstandard() or impl->is_nonstandard_with_leaves());
             impl->standard(fence);
             if (fence && VERIFY_TREE) verify_tree();
         }
@@ -751,7 +769,7 @@ namespace madness {
         /// as const ... "logical constness" not "bitwise constness".
         const Function<T,NDIM>& reconstruct(bool fence = true) const {
             PROFILE_MEMBER_FUNC(Function);
-            if (!impl || !is_compressed()) return *this;
+            if (!impl || impl->is_reconstructed()) return *this;
             const_cast<Function<T,NDIM>*>(this)->impl->reconstruct(fence);
             if (fence && VERIFY_TREE) verify_tree(); // Must be after in case nonstandard
             return *this;
@@ -762,7 +780,7 @@ namespace madness {
         void sum_down(bool fence = true) const {
             PROFILE_MEMBER_FUNC(Function);
             verify();
-            MADNESS_ASSERT(!is_compressed());
+            MADNESS_ASSERT(is_reconstructed());
             const_cast<Function<T,NDIM>*>(this)->impl->sum_down(fence);
             if (fence && VERIFY_TREE) verify_tree(); // Must be after in case nonstandard
         }
@@ -773,7 +791,7 @@ namespace madness {
         void refine_general(const opT& op, bool fence = true) const {
             PROFILE_MEMBER_FUNC(Function);
             verify();
-            if (is_compressed()) reconstruct();
+            if (!is_reconstructed()) reconstruct();
             impl->refine(op, fence);
         }
 
@@ -947,7 +965,7 @@ namespace madness {
             PROFILE_MEMBER_FUNC(Function);
             verify();
             other.verify();
-            MADNESS_ASSERT(is_compressed() == other.is_compressed());
+            MADNESS_ASSERT(impl->get_tree_state() == other.get_impl()->get_tree_state());
             bool same_world=this->world().id()==other.world().id();
             MADNESS_ASSERT(same_world or is_compressed());
 
@@ -955,8 +973,7 @@ namespace madness {
                 impl->gaxpy_inplace(alpha,*other.get_impl(),beta,fence);
             } else {
                 if (is_compressed()) impl->gaxpy_inplace(alpha, *other.get_impl(), beta, fence);
-                if (not is_compressed()) impl->gaxpy_inplace_reconstructed(alpha, *other.get_impl(), beta, fence);
-            }
+            if (is_reconstructed()) impl->gaxpy_inplace_reconstructed(alpha,*other.get_impl(),beta,fence);
             return *this;
         }
 
@@ -977,7 +994,7 @@ namespace madness {
                 reconstruct();
                 other.reconstruct();
             }
-            MADNESS_ASSERT(is_compressed() == other.is_compressed());
+            MADNESS_ASSERT(impl->get_tree_state() == other.get_impl()->get_tree_state());
             if (VERIFY_TREE) verify_tree();
             if (VERIFY_TREE) other.verify_tree();
             return gaxpy(T(1.0), other, Q(1.0), true);
@@ -997,7 +1014,7 @@ namespace madness {
                 reconstruct();
                 other.reconstruct();
             }
-            MADNESS_ASSERT(is_compressed() == other.is_compressed());
+            MADNESS_ASSERT(impl->get_tree_state() == other.get_impl()->get_tree_state());
             if (VERIFY_TREE) verify_tree();
             if (VERIFY_TREE) other.verify_tree();
             return gaxpy(T(1.0), other, Q(-1.0), true);
@@ -1021,7 +1038,7 @@ namespace madness {
         /// Returns *this for chaining.
         Function<T,NDIM>& square(bool fence = true) {
             PROFILE_MEMBER_FUNC(Function);
-            if (is_compressed()) reconstruct();
+            if (!is_reconstructed()) reconstruct();
             if (VERIFY_TREE) verify_tree();
             impl->square_inplace(fence);
             return *this;
@@ -1030,7 +1047,7 @@ namespace madness {
         /// Returns *this for chaining.
         Function<T,NDIM>& abs(bool fence = true) {
             PROFILE_MEMBER_FUNC(Function);
-            if (is_compressed()) reconstruct();
+            if (!is_reconstructed()) reconstruct();
             if (VERIFY_TREE) verify_tree();
             impl->abs_inplace(fence);
             return *this;
@@ -1039,7 +1056,7 @@ namespace madness {
         /// Returns *this for chaining.
         Function<T,NDIM>& abs_square(bool fence = true) {
             PROFILE_MEMBER_FUNC(Function);
-            if (is_compressed()) reconstruct();
+            if (!is_reconstructed()) reconstruct();
             if (VERIFY_TREE) verify_tree();
             impl->abs_square_inplace(fence);
             return *this;
@@ -1311,7 +1328,7 @@ namespace madness {
         template <typename L>
         void gaxpy_ext(const Function<L,NDIM>& left, T (*f)(const coordT&), T alpha, T beta, double tol, bool fence=true) const {
             PROFILE_MEMBER_FUNC(Function);
-            if (left.is_compressed()) left.reconstruct();
+            if (!left.is_reconstructed()) left.reconstruct();
             impl->gaxpy_ext(left.get_impl().get(), f, alpha, beta, tol, fence);
         }
 
@@ -1343,7 +1360,7 @@ namespace madness {
           // restore original state
           g.get_impl()->set_functor(func);
           g.get_impl()->get_coeffs().clear();
-          g.get_impl()->is_on_demand()=true;
+        	g.get_impl()->set_tree_state(on_demand);
 
           return local;
         }
@@ -1382,7 +1399,7 @@ namespace madness {
 //        	// this will be the result function
         	FunctionFactory<T,LDIM> factory=FunctionFactory<T,LDIM>(world()).k(this->k());
         	Function<T,LDIM> f = factory;
-        	if(this->is_compressed()) this->reconstruct();
+        	if(!is_reconstructed()) this->reconstruct();
         	this->get_impl()->do_dirac_convolution(f.get_impl().get(),fence);
         	return f;
         }
@@ -1438,7 +1455,7 @@ namespace madness {
                 const opT& op, bool fence) {
             PROFILE_MEMBER_FUNC(Function);
             func.verify();
-            MADNESS_ASSERT(!(func.is_compressed()));
+            MADNESS_ASSERT(func.is_reconstructed());
             if (VERIFY_TREE) func.verify_tree();
             impl.reset(new implT(*func.get_impl(), func.get_pmap(), false));
             impl->unaryXX(func.get_impl().get(), op, fence);
@@ -1690,7 +1707,7 @@ namespace madness {
         PROFILE_FUNC;
         left.verify();
         right.verify();
-        MADNESS_ASSERT(!(left.is_compressed() || right.is_compressed()));
+        MADNESS_ASSERT(left.is_reconstructed() and right.is_reconstructed());
         if (VERIFY_TREE) left.verify_tree();
         if (VERIFY_TREE) right.verify_tree();
 
@@ -1712,8 +1729,8 @@ namespace madness {
     Function<TENSOR_RESULT_TYPE(L,R),NDIM>
     binary_op(const Function<L,NDIM>& left, const Function<R,NDIM>& right, const opT& op, bool fence=true) {
         PROFILE_FUNC;
-        if (left.is_compressed()) left.reconstruct();
-        if (right.is_compressed()) right.reconstruct();
+        if (!left.is_reconstructed()) left.reconstruct();
+        if (!right.is_reconstructed()) right.reconstruct();
 
         Function<TENSOR_RESULT_TYPE(L,R),NDIM> result;
         result.set_impl(left, false);
@@ -1725,7 +1742,7 @@ namespace madness {
     template <typename Q, typename opT, std::size_t NDIM>
     Function<typename opT::resultT, NDIM>
     unary_op(const Function<Q,NDIM>& func, const opT& op, bool fence=true) {
-        if (func.is_compressed()) func.reconstruct();
+        if (!func.is_reconstructed()) func.reconstruct();
         Function<typename opT::resultT, NDIM> result;
         if (VERIFY_TREE) func.verify_tree();
         result.set_impl(func, false);
@@ -1738,7 +1755,7 @@ namespace madness {
     template <typename Q, typename opT, std::size_t NDIM>
     Function<typename opT::resultT, NDIM>
     unary_op_coeffs(const Function<Q,NDIM>& func, const opT& op, bool fence=true) {
-        if (func.is_compressed()) func.reconstruct();
+        if (!func.is_reconstructed()) func.reconstruct();
         Function<typename opT::resultT, NDIM> result;
         return result.unary_op_coeffs(func,op,fence);
     }
@@ -1765,8 +1782,8 @@ namespace madness {
     template <typename L, typename R, std::size_t NDIM>
     Function<TENSOR_RESULT_TYPE(L,R), NDIM>
     operator*(const Function<L,NDIM>& left, const Function<R,NDIM>& right) {
-        if (left.is_compressed())  left.reconstruct();
-        if (right.is_compressed()) right.reconstruct();
+        if (!left.is_reconstructed())  left.reconstruct();
+        if (!right.is_reconstructed()) right.reconstruct();
         MADNESS_ASSERT(not (left.is_on_demand() or right.is_on_demand()));
         return mul(left,right,true);
     }
@@ -1789,8 +1806,8 @@ namespace madness {
         bool same=(left2.get_impl()==right2.get_impl());
 
         // some prep work
-        left.nonstandard(true,true);
-        right.nonstandard(true,true);
+        left.make_nonstandard(true,true);
+        right.make_nonstandard(true,true);
 
         result.do_hartree_product(left.get_impl().get(),right.get_impl().get());
 
@@ -1864,8 +1881,8 @@ namespace madness {
         Function<T,NDIM> result;
         result.set_impl(right,false);
 
-        MADNESS_ASSERT(not left.is_compressed());
-        MADNESS_ASSERT(not right.is_compressed());
+        MADNESS_ASSERT(left.is_reconstructed());
+        MADNESS_ASSERT(right.is_reconstructed());
         result.get_impl()->gaxpy_oop_reconstructed(alpha,*left.get_impl(),beta,*right.get_impl(),fence);
         return result;
 
@@ -2045,8 +2062,8 @@ namespace madness {
             bool print_timings=true;
             Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> r1;
 
-            result.set_impl(f, true); // ??????????????????
-            r1.set_impl(f, true); // ??????????????????
+            result.set_impl(f, false);
+            r1.set_impl(f, false);
 
             result.get_impl()->reset_timer();
             op.reset_timer();
@@ -2288,40 +2305,23 @@ namespace madness {
         MADNESS_ASSERT(particle==1 or particle==2);
 
         Function<T,NDIM> result;
-        result.set_impl(f, true); // ???????????????????????????????????????????????????
+        result.set_impl(f, false);
 
-        Function<T,NDIM>& ff = const_cast< Function<T,NDIM>& >(f);
-        Function<T,LDIM>& gg = const_cast< Function<T,LDIM>& >(g);
+//        Function<T,NDIM>& ff = const_cast< Function<T,NDIM>& >(f);
+//        Function<T,LDIM>& gg = const_cast< Function<T,LDIM>& >(g);
 
-        if (0) {
-        	gg.nonstandard(true,false);
-        	ff.nonstandard(true,false);
-        	result.world().gop.fence();
+		FunctionImpl<T,NDIM>* fimpl=f.get_impl().get();
+		FunctionImpl<T,LDIM>* gimpl=g.get_impl().get();
+		gimpl->make_redundant(false);
+        fimpl->make_redundant(false);
+        result.world().gop.fence();
 
-        	result.get_impl()->multiply(ff.get_impl().get(),gg.get_impl().get(),particle);
-        	result.world().gop.fence();
+        result.get_impl()->multiply(fimpl,gimpl,particle);
+        result.world().gop.fence();
 
-        	gg.standard(false);
-        	ff.standard(false);
-        	result.world().gop.fence();
-
-        } else {
-        	FunctionImpl<T,NDIM>* fimpl=ff.get_impl().get();
-        	FunctionImpl<T,LDIM>* gimpl=gg.get_impl().get();
-        	gimpl->make_redundant(true);
-        	fimpl->make_redundant(false);
-        	result.world().gop.fence();
-
-        	result.get_impl()->multiply(fimpl,gimpl,particle);
-        	result.world().gop.fence();
-
-        	fimpl->undo_redundant(false);
-        	gimpl->undo_redundant(fence);
-        }
-
-//        if (particle==1) result.print_size("finished multiplication f(1,2)*g(1)");
-//        if (particle==2) result.print_size("finished multiplication f(1,2)*g(2)");
-
+        fimpl->undo_redundant(false);
+		gimpl->undo_redundant(false);
+        result.world().gop.fence();
         return result;
     }
 

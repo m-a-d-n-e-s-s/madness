@@ -315,7 +315,7 @@ class MP2 : public OptimizationTargetInterface {
     struct Parameters : public QCCalculationParametersBase {
 
         /// use OEP orbitals
-        bool do_oep = false;
+        bool do_oep1 = false;
 
         /// ctor reading out the input file
         Parameters(World& world) {
@@ -359,6 +359,7 @@ class MP2 : public OptimizationTargetInterface {
         int restart() const { return this->get<bool>("restart"); }    /// convenience function
         int maxiter() const { return this->get<int>("maxiter"); }    /// convenience function
         int maxsub() const { return this->get<int>("maxsub"); }    /// convenience function
+        bool do_oep() const { return do_oep1;}
     };
 
     /// POD holding all electron pairs with easy access
