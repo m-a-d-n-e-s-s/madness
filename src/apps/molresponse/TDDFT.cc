@@ -1422,13 +1422,13 @@ void TDDFT::update_x_space_response(World& world,
 
   X_space theta_X = Compute_Theta_X(world, Chi, xc, r_params.calc_type());
   // compute residual X_space
-  // compute errX and errY which are max orbital residuals for each response
   print("BSH update iter = ", iteration);
+
   X_space temp = bsh_update_response(
       world, old_Chi, Chi, theta_X, bsh_x_ops, bsh_y_ops, projector, x_shifts);
 
   res = compute_residual(world,
-                         old_Chi,
+                         theta_X,
                          temp,
                          bsh_residualsX,
                          bsh_residualsY,
@@ -1651,12 +1651,22 @@ void TDDFT::update_x_space_excited(World& world,
 
   Tensor<double> x_shifts(m);
   Tensor<double> y_shifts(m);
+  print("Entering Compute Lambda");
 
+  if (compute_y) {
+    gram_schmidt(world, Chi.X, Chi.Y);
+    normalize(world, Chi);
+  } else {
+    gram_schmidt(world, Chi.X);
+    normalize(world, Chi.X);
+  }
+  //
   X_space Lambda_X = Compute_Lambda_X(world, Chi, xc, r_params.calc_type());
   // This diagonalizes XAX and computes new omegas
   // updates Chi
   print("omega before transform");
   print(omega);
+  old_energy = omega;
   compute_new_omegas_transform(world,
                                old_Chi,
                                Chi,
@@ -1671,6 +1681,7 @@ void TDDFT::update_x_space_excited(World& world,
                                energy_residuals,
                                iter);
   // now Chi is rotated to new position
+  // roatate Chi and old Chi saves this value
 
   print("omega before transform");
   print(old_energy);
@@ -1685,26 +1696,22 @@ void TDDFT::update_x_space_excited(World& world,
     //  Calculates shifts needed for potential / energies
     print("BSH update iter = ", iter);
     X_space temp =
-        bsh_update_excited(world, old_Chi, Chi, theta_X, projector, converged);
+        bsh_update_excited(world, Chi, theta_X, projector, converged);
 
-    res = compute_residual(world,
-                           old_Chi,
-                           temp,
-                           bsh_residualsX,
-                           bsh_residualsY,
-                           r_params.calc_type());
+    res = compute_residual(
+        world, Chi, temp, bsh_residualsX, bsh_residualsY, r_params.calc_type());
     // kain if iteration >0 or first run where there should not be a problem
+    // computed temp and res
     if (r_params.kain() && (iter > 0) && true) {
-      kain_x_space_update(world, temp, res, kain_x_space, Xvector, Xresidual);
+      kain_x_space_update(world, Chi, res, kain_x_space, Xvector, Xresidual);
     }
     if (iter > 0) {
-      x_space_step_restriction(world, old_Chi, temp, compute_y, maxrotn);
+      x_space_step_restriction(world, old_Chi, Chi, compute_y, maxrotn);
     }
 
-    temp.X.truncate_rf();
-    if (compute_y) temp.Y.truncate_rf();
+    Chi.X.truncate_rf();
+    if (compute_y) Chi.Y.truncate_rf();
     // print x norms
-    Chi = temp.copy();
   }
 
   // Apply mask
@@ -1777,30 +1784,19 @@ void TDDFT::compute_new_omegas_transform(World& world,
   energy_residuals = abs(omega - old_energy);
 }
 X_space TDDFT::bsh_update_excited(World& world,
-                                  X_space& old_Chi,
                                   X_space& Chi,
                                   X_space& theta_X,
                                   QProjector<double, 3>& projector,
                                   std::vector<bool>& converged) {
   size_t m = Chi.num_states();
   size_t n = Chi.num_orbitals();
-  X_space res(world, m, n);
+  bool compute_y = !r_params.tda();
   Tensor<double> x_shifts(m);
   Tensor<double> y_shifts(m);
   print("omega before shifts");
   print(omega);
   x_shifts =
       create_shift(world, ground_energies, omega, r_params.print_level(), "x");
-  bool compute_y = !r_params.tda();
-  /*
-if (compute_y) {
-omega = -omega;  // Negative here is so that these Greens functions are
-// (eps - omega)
-y_shifts = create_shift(
-  world, ground_energies, omega, r_params.print_level(), "y");
-omega = -omega;
-}
-  */
   // Compute Theta X
   // Apply the shifts
   theta_X.X = apply_shift(world, x_shifts, theta_X.X, Chi.X);
@@ -1853,13 +1849,6 @@ omega = -omega;
     }
   }
   // Ensure orthogonal guesses
-  if (compute_y) {
-    gram_schmidt(world, bsh_X.X, bsh_X.Y);
-    normalize(world, bsh_X);
-  } else {
-    gram_schmidt(world, bsh_X.X);
-    normalize(world, bsh_X.X);
-  }
 
   bsh_X.truncate();
 
@@ -2611,12 +2600,14 @@ void TDDFT::augment_full(World& world,
   // Basic output
   if (print_level >= 1) molresponse::start_timer(world);
 
-  for (size_t i = 0; i < Chi.num_states(); i++) {
-    Chi.push_back(old_Chi.X[i], old_Chi.Y[i]);
-    Lambda_X.push_back(last_Lambda_X.X[i], last_Lambda_X.Y[i]);
+  size_t m = Chi.num_states();
+  for (size_t i = 0; i < m; i++) {
+    Chi.push_back(copy(world, old_Chi.X[i]), copy(world, old_Chi.Y[i]));
+    Lambda_X.push_back(copy(world, last_Lambda_X.X[i]),
+                       copy(world, last_Lambda_X.Y[i]));
   }
-
-  A = inner(Chi, Lambda_X);
+  Tensor<double> temp_A = inner(Chi, Lambda_X);
+  A = 0.5 * (temp_A + transpose(temp_A));
   S = response_space_inner(Chi.X, Chi.X) - response_space_inner(Chi.Y, Chi.Y);
 
   // End the timer
@@ -2664,134 +2655,25 @@ void TDDFT::unaugment(World& world,
 
   // Quick copy of m lowest eigenvalues
   omega = omega(Slice(0, num_states - 1));
-
   // Pop off the "m" vectors off the back end of appropriate vectors
   // (only after first iteration)
   if (iter > 0) {
     for (size_t i = 0; i < num_states; i++) {
       Chi.X.pop_back();
       Lambda_X.X.pop_back();
-      //  x_fe.pop_back();
-      // V_x_response.pop_back();
-      // x_gamma.pop_back();
-      // x_response.pop_back();
     }
   }
-
-  // Save the "current" into "old"
-  // old_x_fe = x_fe.copy();
-  // old_x_gamma = x_gamma.copy();
-  // old_V_x_response = V_x_response.copy();
-
-  // Project out ground state
-  // QProjector<double, 3> projector(world, ground_orbitals);
-  // for(size_t i = 0; i < m; i++) x_response[i] = projector(x_response[i]);
   old_Chi.X = Chi.X.copy();
   last_Lambda_X.X = Lambda_X.X.copy();
 
-  // Copy S into old_S
-  // S is identity
   old_S = response_space_inner(Chi.X, Chi.X);
-
-  // Copy A into old_A
-  // A is (nearly?) diagonal
   old_A = Tensor<double>(num_states, num_states);
   for (size_t i = 0; i < num_states; i++) old_A(i, i) = omega(i);
-
   // End the timer
   if (print_level >= 1) molresponse::end_timer(world, "Unaug. resp. mat.:");
 }
 // If using a larger subspace to diagonalize in, after diagonalization this
 // will put everything in the right spot
-void TDDFT::unaugment_full(World& world,
-                           size_t m,
-                           size_t iter,
-                           Tensor<double>& U,
-                           Tensor<double>& omega,
-                           Tensor<double>& S,
-                           Tensor<double>& A,
-                           response_space& x_gamma,
-                           response_space& x_response,
-                           response_space& V_x_response,
-                           response_space& x_fe,
-                           response_space& B_x,
-                           response_space& y_gamma,
-                           response_space& y_response,
-                           response_space& V_y_response,
-                           response_space& y_fe,
-                           response_space& B_y,
-                           Tensor<double>& old_S,
-                           Tensor<double>& old_A,
-                           response_space& old_x_gamma,
-                           response_space& old_x_response,
-                           response_space& old_V_x_response,
-                           response_space& old_x_fe,
-                           response_space& old_B_x,
-                           response_space& old_y_gamma,
-                           response_space& old_y_response,
-                           response_space& old_V_y_response,
-                           response_space& old_y_fe,
-                           response_space& old_B_y,
-                           size_t print_level) {
-  // Basic output
-  if (print_level >= 1) molresponse::start_timer(world);
-
-  // Note: the eigenvalues and vectors were sorted after diagonalization
-  // and hence all the functions are sorted in ascending order of energy
-
-  // Quick copy of m lowest eigenvalues
-  omega = omega(Slice(0, m - 1));
-
-  // Pop off the "m" vectors off the back end of appropriate vectors
-  // (only after first iteration)
-  if (iter > 0) {
-    for (size_t i = 0; i < m; i++) {
-      x_fe.pop_back();
-      V_x_response.pop_back();
-      x_gamma.pop_back();
-      x_response.pop_back();
-      B_x.pop_back();
-
-      y_fe.pop_back();
-      V_y_response.pop_back();
-      y_gamma.pop_back();
-      y_response.pop_back();
-      B_y.pop_back();
-    }
-  }
-
-  // Save the "current" into the "old"
-  old_x_fe = x_fe.copy();
-  old_x_gamma = x_gamma.copy();
-  old_V_x_response = V_x_response.copy();
-  old_B_x = B_x.copy();
-
-  old_y_fe = y_fe.copy();
-  old_y_gamma = y_gamma.copy();
-  old_V_y_response = V_y_response.copy();
-  old_B_y = B_y.copy();
-
-  // Project out ground components
-  // QProjector<double, 3> projector(world, ground_orbitals);
-  // for(size_t i = 0; i < m; i++) x_response[i] = projector(x_response[i]);
-  // for(size_t i = 0; i < m; i++) y_response[i] = projector(y_response[i]);
-  old_x_response = x_response.copy();
-  old_y_response = y_response.copy();
-
-  // Now to pull out correct values from S and A (both are size 2*m by 2*m,
-  // and only want m by m values)
-  old_S = expectation(world, x_response, x_response) -
-          expectation(world, y_response, y_response);
-
-  // And construct old_A
-  response_space t1 = old_x_fe + old_x_gamma + old_B_y;
-  response_space t2 = old_y_fe + old_y_gamma + old_B_x;
-  old_A = expectation(world, old_x_response, t1) +
-          expectation(world, old_y_response, t2);
-
-  // End the timer
-  if (print_level >= 1) molresponse::end_timer(world, "Unaug. resp. mat.:");
-}
 
 void TDDFT::unaugment_full(World& world,
                            X_space& Chi,
@@ -2817,8 +2699,10 @@ void TDDFT::unaugment_full(World& world,
 
   // Pop off the "m" vectors off the back end of appropriate vectors
   // (only after first iteration)
+  print("Entering Loop to pop_back Chi and LambdaX");
   if (iter > 0) {
     for (size_t i = 0; i < num_states; i++) {
+      print("pop back Chi and LambdaX");
       Chi.pop_back();
       Lambda_X.pop_back();
     }
@@ -2828,10 +2712,8 @@ void TDDFT::unaugment_full(World& world,
 
   old_S =
       response_space_inner(Chi.X, Chi.X) - response_space_inner(Chi.Y, Chi.Y);
-
   old_A = Tensor<double>(num_states, num_states);
   for (size_t i = 0; i < num_states; i++) old_A(i, i) = omega(i);
-
   // End the timer
   if (print_level >= 1) molresponse::end_timer(world, "Unaug. resp. mat.:");
 }
@@ -3241,6 +3123,7 @@ void TDDFT::deflateFull(World& world,
   Tensor<double> A;
 
   if (iteration < r_params.larger_subspace() and iteration > 0) {
+    print("Entering Augment Full");
     augment_full(world,
                  Chi,
                  old_Chi,
@@ -3255,14 +3138,14 @@ void TDDFT::deflateFull(World& world,
 
   } else {
     S = response_space_inner(Chi.X, Chi.X) - response_space_inner(Chi.Y, Chi.Y);
-    if (world.rank() == 0 and r_params.print_level() >= 10) {
+    if (world.rank() == 0 && (r_params.print_level() >= 10)) {
       print("\n   Overlap Matrix:");
       print(S);
     }
     X_space Chi_copy = Chi.copy();
     Chi_copy.truncate();
     A = inner(Chi_copy, Lambda_X);
-    if (world.rank() == 0 and r_params.print_level() >= 10) {
+    if (world.rank() == 0 && (r_params.print_level() >= 10)) {
       print("\n   Lambda Matrix:");
       print(A);
     }
@@ -3281,6 +3164,7 @@ void TDDFT::deflateFull(World& world,
                                     r_params.print_level());
 
   if (iteration < r_params.larger_subspace() and iteration > 0) {
+    print("Entering Unaugment Full");
     unaugment_full(world,
                    Chi,
                    old_Chi,
@@ -3294,6 +3178,9 @@ void TDDFT::deflateFull(World& world,
                    r_params.n_states(),
                    iteration,
                    r_params.print_level());
+  } else {
+    old_Chi = Chi.copy();
+    old_Lambda_X = Lambda_X.copy();
   }
 }
 // const double thresh, int print_level) {

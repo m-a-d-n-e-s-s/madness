@@ -553,14 +553,14 @@ X_space TDDFT::compute_F0X(World& world,
   if (compute_Y) {
     T0X.Y = T(world, chi_copy.Y);
   }
-  if (r_params.print_level() >= 3) {
+  if (r_params.print_level() >= 20) {
     print("_________________compute F0X _______________________");
     print("inner <X|T0|X>");
     print(inner(chi_copy, T0X));
   }
 
   X_space V0X = compute_V0X(world, chi_copy, xc, compute_Y);
-  if (r_params.print_level() >= 3) {
+  if (r_params.print_level() >= 20) {
     print("_________________compute F0X _______________________");
     print("inner <X|V0|X>");
     print(inner(chi_copy, V0X));
@@ -568,7 +568,7 @@ X_space TDDFT::compute_F0X(World& world,
 
   F0X = T0X + V0X;
 
-  if (r_params.print_level() >= 3) {
+  if (r_params.print_level() >= 20) {
     print("_________________compute F0X _______________________");
     print("inner <X|F0|X>");
     print(inner(chi_copy, F0X));

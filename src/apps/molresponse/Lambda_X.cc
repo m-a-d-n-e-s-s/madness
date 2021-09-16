@@ -38,11 +38,11 @@ X_space TDDFT::Compute_Lambda_X(World& world,
 
   bool compute_Y = calc_type.compare("full") == 0;
 
-  X_space Lambda_X = X_space(world, Chi.num_states(), Chi.num_orbitals());
+  X_space Lambda_X;  // = X_space(world, Chi.num_states(), Chi.num_orbitals());
   X_space F0X = compute_F0X(world, Chi, xc, compute_Y);
   X_space Chi_truncated = Chi.copy();
   Chi_truncated.truncate();
-  if (r_params.print_level() >= 3) {
+  if (r_params.print_level() >= 20) {
     print("---------------Lambda ----------------");
     print("<X|F0|X>");
     print(inner(Chi_truncated, F0X));
@@ -56,7 +56,7 @@ X_space TDDFT::Compute_Lambda_X(World& world,
   if (compute_Y) {
     E0X.Y = E0X.Y * hamiltonian;
   }
-  if (r_params.print_level() >= 3) {
+  if (r_params.print_level() >= 20) {
     print("<X|E0|X>");
     print(inner(Chi_truncated, E0X));
   }
@@ -72,19 +72,19 @@ X_space TDDFT::Compute_Lambda_X(World& world,
   } else {
     gamma = compute_gamma_tda(world, Chi, xc);
   }
-  if (r_params.print_level() >= 3) {
+  if (r_params.print_level() >= 20) {
     print("<X|Gamma|X>");
     print(inner(Chi_truncated, gamma));
   }
 
   Lambda_X = (F0X - E0X) + gamma;
-  if (r_params.print_level() >= 3) {
+  if (r_params.print_level() >= 20) {
     print("<X|Lambda not truncated|X>");
     print(inner(Chi_truncated, Lambda_X));
   }
   Lambda_X.truncate();
 
-  if (r_params.print_level() >= 3) {
+  if (r_params.print_level() >= 20) {
     print("<X|Lambda_truncated|X>");
     print(inner(Chi_truncated, Lambda_X));
   }

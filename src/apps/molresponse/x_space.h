@@ -113,9 +113,9 @@ struct X_space {
     // Be smart with g_states
   }
   void pop_back() {
-    n_states--;
     X.pop_back();
     Y.pop_back();
+    n_states--;
     if (n_states == 0) {
       n_orbtials = 0;
     }
@@ -212,10 +212,10 @@ struct X_space {
     G1 = response_space_inner(A.X, B.X);
     G2 = response_space_inner(A.Y, B.Y);
     // TODO find a way to print seperate pieces based on a flag
-    print("inner <AX|BX>");
-    print(G1);
-    print("inner <AY|BY>");
-    print(G2);
+    // print("inner <AX|BX>");
+    // print(G1);
+    // print("inner <AY|BY>");
+    // print(G2);
 
     G = G1 + G2;
     return G;

@@ -30,14 +30,17 @@
 #include "molresponse/timer.h"
 #include "molresponse/x_space.h"
 
-X_space TDDFT::Compute_Theta_X(World& world, X_space& Chi, XCOperator<double, 3> xc, std::string calc_type) {
+X_space TDDFT::Compute_Theta_X(World& world,
+                               X_space& Chi,
+                               XCOperator<double, 3> xc,
+                               std::string calc_type) {
   bool compute_Y = calc_type.compare("full") == 0;
   X_space Theta_X = X_space(world, Chi.num_states(), Chi.num_orbitals());
   // compute
   X_space V0X = compute_V0X(world, Chi, xc, compute_Y);
 
   V0X.truncate();
-  if (r_params.print_level() >= 3) {
+  if (r_params.print_level() >= 20) {
     print("---------------Theta ----------------");
     print("<X|V0|X>");
     print(inner(Chi, V0X));
@@ -55,7 +58,7 @@ X_space TDDFT::Compute_Theta_X(World& world, X_space& Chi, XCOperator<double, 3>
     E0X.truncate();
   }
 
-  if (r_params.print_level() >= 3) {
+  if (r_params.print_level() >= 20) {
     print("<X|(E0-diag(E0)|X>");
     print(inner(Chi, E0X));
   }
@@ -73,7 +76,7 @@ X_space TDDFT::Compute_Theta_X(World& world, X_space& Chi, XCOperator<double, 3>
   Theta_X = (V0X - E0X) + gamma;
   Theta_X.truncate();
 
-  if (r_params.print_level() >= 3) {
+  if (r_params.print_level() >= 20) {
     print("<X|Theta|X>");
     print(inner(Chi, Theta_X));
   }

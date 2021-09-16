@@ -125,8 +125,6 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
     print("Excited State Frequencies ");
     print(omega);
 
-    old_Chi = Chi.copy();
-
     rho_omega_old = rho_omega;
     // compute rho_omega
     rho_omega = make_density(world, Chi, r_params.calc_type());
