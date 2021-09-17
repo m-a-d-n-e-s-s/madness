@@ -352,10 +352,10 @@ namespace madness {
         };
 
 
-        /// Returns a pointer to the cached modified nonstandard form of the operator
+        /// Returns a pointer to the cached modified make_nonstandard form of the operator
 
         /// @param[in]  op_key  holds the scale and the source and target translations
-        /// @return     a pointer to the cached modified nonstandard form of the operator
+        /// @return     a pointer to the cached modified make_nonstandard form of the operator
         const ConvolutionData1D<Q>* mod_nonstandard(const Key<2>& op_key) const {
 
             const Level& n=op_key.level();
@@ -422,7 +422,7 @@ namespace madness {
             return mod_ns_cache.getptr(cache_key);
         }
 
-        /// Returns a pointer to the cached nonstandard form of the operator
+        /// Returns a pointer to the cached make_nonstandard form of the operator
         const ConvolutionData1D<Q>* nonstandard(Level n, Translation lx) const {
             const ConvolutionData1D<Q>* p = ns_cache.getptr(n,lx);
             if (p) return p;

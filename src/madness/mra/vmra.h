@@ -59,9 +59,9 @@
 	reconstruct(world, vector, fence);
 	\endcode
 
-	*) nonstandard: convert to non-standard form
+	*) make_nonstandard: convert to non-standard form
 	\code
-	nonstandard(world, v, fence);
+	make_nonstandard(world, v, fence);
 	\endcode
 
 	*) standard: convert to standard form
@@ -221,13 +221,13 @@ namespace madness {
 
     /// Generates non-standard form of a vector of functions
     template <typename T, std::size_t NDIM>
-    void nonstandard(World& world,
-                     std::vector< Function<T,NDIM> >& v,
-                     bool fence=true) {
+    void make_nonstandard(World& world,
+                          std::vector< Function<T,NDIM> >& v,
+                          bool fence= true) {
         PROFILE_BLOCK(Vnonstandard);
         reconstruct(world, v);
         for (unsigned int i=0; i<v.size(); ++i) {
-            v[i].nonstandard(false,false);
+            v[i].make_nonstandard(false, false);
         }
         if (fence) world.gop.fence();
     }
@@ -1262,7 +1262,7 @@ namespace madness {
         std::vector< Function<R,NDIM> >& ncf = *const_cast< std::vector< Function<R,NDIM> >* >(&f);
 
         reconstruct(world, f);
-        nonstandard(world, ncf);
+        make_nonstandard(world, ncf);
 
         std::vector< Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> > result(f.size());
         for (unsigned int i=0; i<f.size(); ++i) {
@@ -1293,7 +1293,7 @@ namespace madness {
 
         double wall0=wall_time();
         reconstruct(world, f);
-        nonstandard(world, ncf);
+        make_nonstandard(world, ncf);
         double wall1=wall_time();
         if (print_timings) printf("timer: %20.20s %8.2fs\n", "make_nonstandard", wall1-wall0);
 

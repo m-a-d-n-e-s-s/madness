@@ -66,7 +66,6 @@ namespace madness {
 #include <madness/mra/legendre.h>
 #include <madness/mra/indexit.h>
 #include <madness/world/parallel_archive.h>
-#include <madness/world/binary_fstream_archive.h>
 #include <madness/world/worlddc.h>
 #include <madness/mra/funcdefaults.h>
 #include <madness/mra/function_factory.h>
@@ -725,7 +724,7 @@ namespace madness {
         /// for other purposes.
         ///
         /// Noop if already compressed or if not initialized.
-        void nonstandard(bool keepleaves, bool fence=true) {
+        void make_nonstandard(bool keepleaves, bool fence=true) {
             PROFILE_MEMBER_FUNC(Function);
             verify();
             if (impl->is_nonstandard()) return;
@@ -824,7 +823,7 @@ namespace madness {
         /// Get the scaling function coeffs at level n starting from NS form
         Tensor<T> coeffs_for_jun(Level n, long mode=0) {
             PROFILE_MEMBER_FUNC(Function);
-            nonstandard(true,true);
+            make_nonstandard(true, true);
             return impl->coeffs_for_jun(n,mode);
             //return impl->coeffs_for_jun(n);
         }
@@ -973,7 +972,8 @@ namespace madness {
                 impl->gaxpy_inplace(alpha,*other.get_impl(),beta,fence);
             } else {
                 if (is_compressed()) impl->gaxpy_inplace(alpha, *other.get_impl(), beta, fence);
-            if (is_reconstructed()) impl->gaxpy_inplace_reconstructed(alpha,*other.get_impl(),beta,fence);
+                if (is_reconstructed()) impl->gaxpy_inplace_reconstructed(alpha,*other.get_impl(),beta,fence);
+            }
             return *this;
         }
 
@@ -1651,6 +1651,7 @@ namespace madness {
         }
     };
 
+//    template <typename T, typename opT, std::size_t NDIM>
     template <typename T, typename opT, std::size_t NDIM>
     Function<T,NDIM> multiop_values(const opT& op, const std::vector< Function<T,NDIM> >& vf) {
         Function<T,NDIM> r;
@@ -1843,8 +1844,8 @@ namespace madness {
         bool same=(left2.get_impl()==right2.get_impl());
 
         // some prep work
-        left.nonstandard(true,true);
-        right.nonstandard(true,true);
+        left.make_nonstandard(true, true);
+        right.make_nonstandard(true, true);
 
         result.do_hartree_product(left.get_impl().get(),right.get_impl().get(),&op);
 
@@ -2016,8 +2017,8 @@ namespace madness {
 
     	// keep the leaves! They are assumed to be there later
     	// even for modified op we need NS form for the hartree_leaf_op
-    	if (not same) ff1.nonstandard(true,false);
-    	ff2.nonstandard(true,true);
+    	if (not same) ff1.make_nonstandard(true, false);
+        ff2.make_nonstandard(true, true);
 
 
         FunctionFactory<T,LDIM+LDIM> factory=FunctionFactory<resultT,LDIM+LDIM>(f1.world())
@@ -2129,8 +2130,8 @@ namespace madness {
     		// saves the standard() step, which is very expensive in 6D
 //    		Function<R,NDIM> fff=copy(ff);
     		Function<R,NDIM> fff=(ff);
-            fff.nonstandard(op.doleaves, true);
-            if (print_timings) fff.print_size("ff in apply after nonstandard");
+            fff.make_nonstandard(op.doleaves, true);
+            if (print_timings) fff.print_size("ff in apply after make_nonstandard");
             if ((print_timings) and (f.world().rank()==0)) {
                 fff.get_impl()->timer_filter.print("filter");
                 fff.get_impl()->timer_compress_svd.print("compress_svd");
