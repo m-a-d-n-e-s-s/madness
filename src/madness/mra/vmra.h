@@ -155,7 +155,7 @@ namespace madness {
         PROFILE_BLOCK(Vreconstruct);
         bool must_fence = false;
         for (unsigned int i=0; i<v.size(); ++i) {
-            if (v[i].is_compressed()) {
+            if (v[i].is_compressed() or v[i].is_nonstandard()) {
                 v[i].reconstruct(false);
                 must_fence = true;
             }

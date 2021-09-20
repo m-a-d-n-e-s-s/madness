@@ -1109,7 +1109,7 @@ namespace madness {
         /// @param[in]  beta    prefactor for other
         template <typename Q, typename R>
         void gaxpy_inplace(const T& alpha,const FunctionImpl<Q,NDIM>& other, const R& beta, bool fence) {
-            MADNESS_ASSERT(get_pmap() == other.get_pmap());
+//            MADNESS_ASSERT(get_pmap() == other.get_pmap());
             if (alpha != T(1.0)) scale_inplace(alpha,false);
             typedef Range<typename FunctionImpl<Q,NDIM>::dcT::const_iterator> rangeT;
             typedef do_gaxpy_inplace<Q,R> opT;

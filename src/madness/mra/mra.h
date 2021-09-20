@@ -477,6 +477,14 @@ namespace madness {
                 return false;
         }
 
+        /// Returns true if nonstandard-compressed, false otherwise.  No communication.
+
+        /// If the function is not initialized, returns false.
+        bool is_nonstandard() const {
+            PROFILE_MEMBER_FUNC(Function);
+            return impl ? impl->is_nonstandard() : false;
+        }
+
 
         /// Returns the number of nodes in the function tree ... collective global sum
         std::size_t tree_size() const {
@@ -710,8 +718,11 @@ namespace madness {
             PROFILE_MEMBER_FUNC(Function);
             if (!impl || is_compressed()) return *this;
             if (VERIFY_TREE) verify_tree();
-//            const_cast<Function<T,NDIM>*>(this)->impl->compress(false, false, false, fence);
-            const_cast<Function<T,NDIM>*>(this)->impl->compress(TreeState::compressed, fence);
+            if (impl->is_nonstandard()) {
+                impl->standard(fence);
+            } else {
+                const_cast<Function<T,NDIM>*>(this)->impl->compress(TreeState::compressed, fence);
+            }
             return *this;
         }
 

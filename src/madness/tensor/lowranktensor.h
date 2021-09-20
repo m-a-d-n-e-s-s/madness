@@ -322,48 +322,52 @@ public:
 
 	GenTensor& convert_inplace(const TensorArgs& targs) {
 
-		// fast return
-		if (not is_assigned()) return *this;
-		if (is_of_tensortype(targs.tt)) return *this;
+        // fast return
+        if (not is_assigned()) return *this;
+        if (is_of_tensortype(targs.tt)) return *this;
 //		if (targs.tt==TT_DYNAMIC) if (is_svd_tensor()) return *this;
 
-		// target is full tensor
-            if (targs.tt==TT_FULL) {
-			*this=this->full_tensor_copy();
-		}
-
-		// source is full tensor: construct the corresponding representation
-		else if (is_full_tensor()) {
-			*this=GenTensor<T>(get_tensor(),targs);
-		}
-
-		// TT_TENSORTRAIN TO TT_2D
-		else if ((is_tensortrain()) and (targs.tt==TT_2D)) {
-                Tensor<T> U,VT;
-                Tensor< typename Tensor<T>::scalar_type > s;
-			get_tensortrain().two_mode_representation(U, VT, s);
-                long rank=s.size();
-			if (rank==0) {
-				*this=SVDTensor<T>(get_tensortrain().ndim(),get_tensortrain().dims(),ndim()/2);
-				return *this;
-			}
-
-                    long n=1,m=1;
-                    for (int i=0; i<U.ndim()-1; ++i) n*=U.dim(i);
-                    for (int i=1; i<VT.ndim(); ++i) m*=VT.dim(i);
-                    MADNESS_ASSERT(rank*n==U.size());
-                    MADNESS_ASSERT(rank*m==VT.size());
-                    U=copy(transpose(U.reshape(n,rank)));   // make it contiguous
-                    VT=VT.reshape(rank,m);
-			SVDTensor<T> svdtensor(s, U, VT, ndim(), dims());
-			svdtensor.normalize();
-			*this=svdtensor;
-        } else {
-			print("conversion from type ",index(), "to type", targs.tt,"not supported");
-			MADNESS_EXCEPTION("type conversion not supported in LowRankTensor::convert ",1);
-		}
-		return *this;
+        // target is full tensor
+        if (targs.tt == TT_FULL) {
+            *this = this->full_tensor_copy();
         }
+
+        // source is full tensor: construct the corresponding representation
+        else if (is_full_tensor()) {
+            *this = GenTensor<T>(get_tensor(), targs);
+        }
+
+        // TT_TENSORTRAIN TO TT_2D
+        else if ((is_tensortrain()) and (targs.tt == TT_2D)) {
+            Tensor<T> U, VT;
+            Tensor<typename Tensor<T>::scalar_type> s;
+            get_tensortrain().two_mode_representation(U, VT, s);
+            long rank = s.size();
+            if (rank == 0) {
+                *this = SVDTensor<T>(get_tensortrain().ndim(), get_tensortrain().dims(), ndim() / 2);
+                return *this;
+            }
+
+            long n = 1, m = 1;
+            for (int i = 0; i < U.ndim() - 1; ++i) n *= U.dim(i);
+            for (int i = 1; i < VT.ndim(); ++i) m *= VT.dim(i);
+            MADNESS_ASSERT(rank * n == U.size());
+            MADNESS_ASSERT(rank * m == VT.size());
+            U = copy(transpose(U.reshape(n, rank)));   // make it contiguous
+            VT = VT.reshape(rank, m);
+            SVDTensor<T> svdtensor(s, U, VT, ndim(), dims());
+            svdtensor.normalize();
+            *this = svdtensor;
+        }
+        else if ((is_svd_tensor()) and (targs.tt == TT_TENSORTRAIN)) {
+            TensorTrain<T> tt(this->full_tensor_copy(),targs.thresh);
+            *this=tt;
+        } else {
+            print("conversion from type ", index(), "to type", targs.tt, "not supported");
+            MADNESS_EXCEPTION("type conversion not supported in LowRankTensor::convert ", 1);
+        }
+        return *this;
+    }
 
 	/// convert this to a new LowRankTensor of given tensor type
 	GenTensor convert(const TensorArgs& targs) const {

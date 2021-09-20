@@ -1482,17 +1482,22 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::reconstruct(bool fence) {
 
-    	if (is_redundant()) {
+        if (is_reconstructed()) {
+            return;
+        } else if (is_redundant() or is_nonstandard_with_leaves()) {
     		this->undo_redundant(fence);
     		return;
-    	}
+    	} else if (is_compressed() or is_nonstandard()) {
+            // Must set true here so that successive calls without fence do the right thing
+            set_tree_state(reconstructed);
+            if (world.rank() == coeffs.owner(cdata.key0))
+                woT::task(world.rank(), &implT::reconstruct_op, cdata.key0,coeffT());
+            if (fence)
+                world.gop.fence();
+    	} else {
+            MADNESS_EXCEPTION("cannot reconstruct this tree",1);
+        }
 
-        // Must set true here so that successive calls without fence do the right thing
-        set_tree_state(reconstructed);
-        if (world.rank() == coeffs.owner(cdata.key0))
-            woT::task(world.rank(), &implT::reconstruct_op, cdata.key0,coeffT());
-        if (fence)
-            world.gop.fence();
     }
 
     /// compress the wave function
@@ -1503,13 +1508,9 @@ namespace madness {
     /// @param[in] keepleaves	keep sum coeffs (but no diff coeffs) at leaves
     /// @param[in] redundant    keep only sum coeffs at all levels, discard difference coeffs
     template <typename T, std::size_t NDIM>
-//    void FunctionImpl<T,NDIM>::compress(bool nonstandard, bool keepleaves, bool redundant, bool fence) {
     void FunctionImpl<T,NDIM>::compress(const TreeState newstate, bool fence) {
-        MADNESS_ASSERT(is_reconstructed());
+        MADNESS_CHECK(is_reconstructed());
         // Must set true here so that successive calls without fence do the right thing
-//        this->compressed = true;
-//        this->nonstandard = nonstandard;
-//        this->redundant = redundant;
         set_tree_state(newstate);
         bool keepleaves1=(tree_state==nonstandard_with_leaves) or (tree_state==redundant);
         bool nonstandard1=(tree_state==nonstandard) or (tree_state==nonstandard_with_leaves);
@@ -1537,18 +1538,14 @@ namespace madness {
         // we need the leaf sum coeffs, so reconstruct
         if (is_compressed()) reconstruct(true);
 
-//        compress(false,true,true,fence);
         compress(redundant,fence);
-        tree_state=redundant;
-
     }
 
     /// convert this from redundant to standard reconstructed form
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::undo_redundant(const bool fence) {
-
-        if (!is_redundant()) return;
-        tree_state=reconstructed;
+        MADNESS_CHECK(is_redundant());
+        set_tree_state(reconstructed);
         flo_unary_op_node_inplace(remove_internal_coeffs(),fence);
     }
 

@@ -179,8 +179,9 @@ int test_converged_function(World& world, double shift, bool coupling) {
 
 	test.end(success);
 	if (not success) print(fock);
+    if (!success) result++;
 
-	return result;
+    return result;
 }
 
 template<typename T, std::size_t NDIM>
@@ -224,7 +225,7 @@ int test_convergence(World& world, double shift, bool coupling) {
 
 	bool success=fabs(delta)<1.e-5;
 	test.end(success);
-
+    if (!success) result++;
 	return result;
 }
 
