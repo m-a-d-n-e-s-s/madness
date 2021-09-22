@@ -1425,14 +1425,10 @@ void TDDFT::update_x_space_response(World& world,
   print("BSH update iter = ", iteration);
 
   X_space temp = bsh_update_response(
-      world, old_Chi, Chi, theta_X, bsh_x_ops, bsh_y_ops, projector, x_shifts);
+      world, theta_X, bsh_x_ops, bsh_y_ops, projector, x_shifts);
 
-  res = compute_residual(world,
-                         theta_X,
-                         temp,
-                         bsh_residualsX,
-                         bsh_residualsY,
-                         r_params.calc_type());
+  res = compute_residual(
+      world, Chi, temp, bsh_residualsX, bsh_residualsY, r_params.calc_type());
 
   // kain update with temp adjusts temp
   if (r_params.kain() && (iteration > 0)) {
@@ -1443,7 +1439,7 @@ void TDDFT::update_x_space_response(World& world,
   }
 
   if (iteration > 0) {
-    x_space_step_restriction(world, old_Chi, temp, compute_y, maxrotn);
+    x_space_step_restriction(world, Chi, temp, compute_y, maxrotn);
     if (r_params.print_level() >= 1) {
       compute_and_print_polarizability(world, temp, PQ, "<STEP_RESTRICTED|PQ>");
     }
@@ -1571,15 +1567,13 @@ void TDDFT::print_residual_norms(World& world,
 }
 
 X_space TDDFT::bsh_update_response(World& world,
-                                   X_space& old_Chi,
-                                   X_space& Chi,
                                    X_space& theta_X,
                                    std::vector<poperatorT>& bsh_x_ops,
                                    std::vector<poperatorT>& bsh_y_ops,
                                    QProjector<double, 3>& projector,
                                    double& x_shifts) {
-  size_t m = Chi.X.size();
-  size_t n = Chi.X.size_orbitals();
+  size_t m = theta_X.X.size();
+  size_t n = theta_X.X.size_orbitals();
   bool compute_y = r_params.omega() != 0.0;
 
   molresponse::start_timer(world);
@@ -1695,8 +1689,7 @@ void TDDFT::update_x_space_excited(World& world,
     X_space theta_X = Compute_Theta_X(world, Chi, xc, r_params.calc_type());
     //  Calculates shifts needed for potential / energies
     print("BSH update iter = ", iter);
-    X_space temp =
-        bsh_update_excited(world, Chi, theta_X, projector, converged);
+    X_space temp = bsh_update_excited(world, theta_X, projector, converged);
 
     res = compute_residual(
         world, Chi, temp, bsh_residualsX, bsh_residualsY, r_params.calc_type());
@@ -1784,12 +1777,11 @@ void TDDFT::compute_new_omegas_transform(World& world,
   energy_residuals = abs(omega - old_energy);
 }
 X_space TDDFT::bsh_update_excited(World& world,
-                                  X_space& Chi,
                                   X_space& theta_X,
                                   QProjector<double, 3>& projector,
                                   std::vector<bool>& converged) {
-  size_t m = Chi.num_states();
-  size_t n = Chi.num_orbitals();
+  size_t m = theta_X.num_states();
+  size_t n = theta_X.num_orbitals();
   bool compute_y = !r_params.tda();
   Tensor<double> x_shifts(m);
   Tensor<double> y_shifts(m);

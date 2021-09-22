@@ -397,8 +397,6 @@ class TDDFT {
                                Tensor<double>& maxrotn);
 
   X_space bsh_update_response(World& world,
-                              X_space& old_Chi,
-                              X_space& Chi,
                               X_space& theta_X,
                               std::vector<poperatorT>& bsh_x_ops,
                               std::vector<poperatorT>& bsh_y_ops,
@@ -417,7 +415,6 @@ class TDDFT {
                             bool compute_y,
                             size_t iteration);
   X_space bsh_update_excited(World& world,
-                             X_space& Chi,
                              X_space& theta_X,
                              QProjector<double, 3>& projector,
                              std::vector<bool>& converged);
