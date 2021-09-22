@@ -2707,6 +2707,7 @@ void TDDFT::unaugment_full(World& world,
       Lambda_X.pop_back();
     }
   }
+
   old_Chi = Chi.copy();
   last_Lambda_X = Lambda_X.copy();
 

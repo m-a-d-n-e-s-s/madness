@@ -414,6 +414,10 @@ void TDDFT::analysis(World& world, X_space& Chi) {
              static_cast<int>(i),
              omega(i));
       print("\n   --------------------------------------------");
+      printf("   Response Function %d\t\t%7.8f eV",
+             static_cast<int>(i),
+             omega(i) * 27.2114);
+      print("\n   --------------------------------------------");
 
       print("\n   Transition Dipole Moments");
       printf("   X: %7.8f   Y: %7.8f   Z: %7.8f\n",
