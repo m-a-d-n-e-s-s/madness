@@ -187,6 +187,7 @@ void TDDFT::iterate_freq2(World& world) {
           PlotGroundandResponseOrbitals(
               world, iter, Chi.X, Chi.Y, r_params, g_params);
         }
+        rho0 = make_ground_density(world, ground_orbitals);
         if (r_params.plot()) {
           do_vtk_plots(world,
                        200,
