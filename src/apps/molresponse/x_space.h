@@ -24,6 +24,8 @@ struct X_space {
  public:
   size_t num_states() { return n_states; }
   size_t num_orbitals() { return n_orbtials; }
+  size_t num_states() const { return n_states; }
+  size_t num_orbitals() const { return n_orbtials; }
   // default constructor
   X_space() : n_states(0), n_orbtials(0), X(), Y() {}
   // Copy constructor
