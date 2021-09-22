@@ -32,11 +32,6 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
   size_t m = r_params.n_states();      // Number of excited states
   size_t n = r_params.num_orbitals();  // Number of ground state orbitals
 
-  bool all_converged = false;                   // For convergence
-  bool relax = false;                           // For convergence
-  size_t relax_start = r_params.maxiter() + 1;  // For convergence
-  size_t num_conv = 0;                          // For convergence
-  std::vector<bool> converged(m, false);        // For convergence
   const double dconv =
       std::max(FunctionDefaults<3>::get_thresh(), r_params.dconv());
 
@@ -59,6 +54,7 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
   X_space old_Lambda_X(world, m, n);
 
   // Create the X space
+  bool converged = false;  // Converged flag
   // vector of Xvectors
   std::vector<X_vector> Xvector;
   std::vector<X_vector> Xresidual;
@@ -125,7 +121,7 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
     print("Excited State Frequencies ");
     print(omega);
 
-    rho_omega_old = rho_omega;
+    rho_omega_old = make_density(world, old_Chi, r_params.calc_type());
     // compute rho_omega
     rho_omega = make_density(world, Chi, r_params.calc_type());
 
@@ -160,66 +156,47 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
       if (density_residuals.max() > 2) {
         break;
       }
-      if (not relax) {
-        for (size_t i = 0; i < m; i++) {
-          // bsh_residual max orbital change after bsh apply
-          if (not converged[i]) {
-            if ((density_residuals[i] < dconv) &&
-                (fabs(bsh_residualsX[i]) && fabs(bsh_residualsY[i])) < dconv) {
-              converged[i] = true;
-              num_conv++;
-              if (world.rank() == 0)
-                print(
-                    "   Response function", i, " has converged. Freezing it.");
-            }
-          }
-          // Check if relaxing needs to start
-          if (num_conv == m) {
-            relax_start = iter;
-            relax = true;
-            if (world.rank() == 0)
-              print(
-                  "   All components converged. Unfreezing all states for "
-                  "final "
-                  "relaxation.");
 
-            num_conv = 0;
-            for (size_t i = 0; i < m; i++) {
-              converged[i] = false;
-            }
-          }
-        }
-      } else {
-        // Relaxing
-        // Run at least 2 iterations
-        if (iter >= relax_start + 2) {
-          // Check each state again
-          for (size_t i = 0; i < m; i++) {
-            if (not converged[i]) {
-              if ((density_residuals[i] < dconv) &&
-                  (fabs(bsh_residualsX[i]) && fabs(bsh_residualsY[i])) <
-                      dconv) {
-                converged[i] = true;
-                num_conv++;
-              }
-            }
-            if (num_conv == m || iter == r_params.maxiter() - 1) {
-              all_converged = true;
-              // Save
-              if (r_params.save()) {
-                molresponse::start_timer(world);
-                save(world, r_params.save_file());
-                molresponse::end_timer(world, "Saving:");
-              }
+      double d_residual = density_residuals.max();
+      double d_conv = dconv * std::max(size_t(5), molecule.natom());
 
-              if (r_params.plot_all_orbitals()) {
-                PlotGroundandResponseOrbitals(
-                    world, iter, Chi.X, Chi.Y, r_params, g_params);
-              }
-              break;
-            }
-          }
+      if ((d_residual < d_conv) and
+          ((std::max(bsh_residualsX.absmax(), bsh_residualsY.absmax()) <
+            d_conv * 5.0) or
+           r_params.get<bool>("conv_only_dens"))) {
+        converged = true;
+      }
+      if (converged || iter == r_params.maxiter() - 1) {
+        // if converged print converged
+        if (world.rank() == 0 && converged and (r_params.print_level() > 1)) {
+          print("\nConverged!\n");
         }
+
+        if (r_params.save()) {
+          molresponse::start_timer(world);
+          save(world, r_params.save_file());
+          if (r_params.print_level() >= 1)
+            molresponse::end_timer(world, "Save:");
+        }
+        // Basic output
+        if (r_params.print_level() >= 1)
+          molresponse::end_timer(world, " This iteration:");
+        // plot orbitals
+        if (r_params.plot_all_orbitals()) {
+          PlotGroundandResponseOrbitals(
+              world, iter, Chi.X, Chi.Y, r_params, g_params);
+        }
+        if (r_params.plot()) {
+          do_vtk_plots(world,
+                       200,
+                       r_params.L(),
+                       molecule,
+                       rho0,
+                       rho_omega,
+                       ground_orbitals,
+                       Chi);
+        }
+        break;
       }
     }
     update_x_space_excited(world,
@@ -241,7 +218,6 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
                            old_S,
                            A,
                            old_A,
-                           converged,
                            iter,
                            maxrotn);
 
@@ -256,14 +232,18 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
   if (world.rank() == 0) print("\n");
 
   // Did we converge?
-  if (iter == r_params.maxiter() && not all_converged) {
+  if (iter == r_params.maxiter() && not converged) {
     if (world.rank() == 0) print("   Failed to converge. Reason:");
     if (world.rank() == 0) print("\n  ***  Ran out of iterations  ***\n");
     if (world.rank() == 0) print("    Running analysis on current values.\n");
   }
 
   // Sorstatict
-  sort(world, omega, Chi.X);
+  if (!r_params.tda()) {
+    sort(world, omega, Chi);
+  } else {
+    sort(world, omega, Chi.X);
+  }
 
   // Print final things
   if (world.rank() == 0) {

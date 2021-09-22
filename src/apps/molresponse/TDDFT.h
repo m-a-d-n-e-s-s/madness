@@ -379,7 +379,6 @@ class TDDFT {
                                   double thresh);
 
   void update_x_space_response(World& world,
-                               X_space& old_Chi,
                                X_space& Chi,
                                X_space& residual,
                                XCOperator<double, 3>& xc,
@@ -415,9 +414,9 @@ class TDDFT {
                             bool compute_y,
                             size_t iteration);
   X_space bsh_update_excited(World& world,
+                             const Tensor<double>& omega,
                              X_space& theta_X,
-                             QProjector<double, 3>& projector,
-                             std::vector<bool>& converged);
+                             QProjector<double, 3>& projector);
 
   void update_x_space_excited(World& world,
                               X_space& old_Chi,
@@ -438,7 +437,6 @@ class TDDFT {
                               Tensor<double>& old_S,
                               Tensor<double>& A,
                               Tensor<double>& old_A,
-                              std::vector<bool>& converged,
                               size_t iteration,
                               Tensor<double>& maxrotn);
   void compute_new_omegas_transform(World& world,
@@ -463,12 +461,12 @@ class TDDFT {
                                    Tensor<double>& bsh_residualsX,
                                    Tensor<double>& bsh_residualsY,
                                    std::vector<bool>& converged);
-  void kain_x_space_update(World& world,
-                           X_space& temp,
-                           X_space& res,
-                           NonLinearXsolver& kain_x_space,
-                           std::vector<X_vector>& Xvector,
-                           std::vector<X_vector>& Xresidual);
+  X_space kain_x_space_update(World& world,
+                              const X_space& temp,
+                              const X_space& res,
+                              NonLinearXsolver& kain_x_space,
+                              std::vector<X_vector>& Xvector,
+                              std::vector<X_vector>& Xresidual);
   void x_space_step_restriction(World& world,
                                 X_space& old_Chi,
                                 X_space& temp,
@@ -607,6 +605,7 @@ class TDDFT {
 
   // Sorts the given Tensor and response functions in place
   void sort(World& world, Tensor<double>& vals, response_space& f);
+  void sort(World& world, Tensor<double>& vals, X_space& f);
 
   void deflateGuesses(World& world,
                       X_space& Chi,

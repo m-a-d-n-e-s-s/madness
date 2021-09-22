@@ -1397,7 +1397,6 @@ TDDFT::CreateBSHOperatorPropertyVector(World& world,
   return ghat_operators;
 }
 void TDDFT::update_x_space_response(World& world,
-                                    X_space& old_Chi,
                                     X_space& Chi,
                                     X_space& res,
                                     XCOperator<double, 3>& xc,
@@ -1432,7 +1431,8 @@ void TDDFT::update_x_space_response(World& world,
 
   // kain update with temp adjusts temp
   if (r_params.kain() && (iteration > 0)) {
-    kain_x_space_update(world, temp, res, kain_x_space, Xvector, Xresidual);
+    temp =
+        kain_x_space_update(world, Chi, res, kain_x_space, Xvector, Xresidual);
     if (r_params.print_level() >= 1) {
       compute_and_print_polarizability(world, temp, PQ, "<KAIN|PQ>");
     }
@@ -1637,7 +1637,6 @@ void TDDFT::update_x_space_excited(World& world,
                                    Tensor<double>& old_S,
                                    Tensor<double>& A,
                                    Tensor<double>& old_A,
-                                   std::vector<bool>& converged,
                                    size_t iter,
                                    Tensor<double>& maxrotn) {
   size_t m = Chi.num_states();
@@ -1676,6 +1675,7 @@ void TDDFT::update_x_space_excited(World& world,
                                iter);
   // now Chi is rotated to new position
   // roatate Chi and old Chi saves this value
+  //  old_Chi = Chi.copy();
 
   print("omega before transform");
   print(old_energy);
@@ -1689,21 +1689,23 @@ void TDDFT::update_x_space_excited(World& world,
     X_space theta_X = Compute_Theta_X(world, Chi, xc, r_params.calc_type());
     //  Calculates shifts needed for potential / energies
     print("BSH update iter = ", iter);
-    X_space temp = bsh_update_excited(world, theta_X, projector, converged);
+    X_space temp = bsh_update_excited(world, omega, theta_X, projector);
 
     res = compute_residual(
         world, Chi, temp, bsh_residualsX, bsh_residualsY, r_params.calc_type());
     // kain if iteration >0 or first run where there should not be a problem
     // computed temp and res
     if (r_params.kain() && (iter > 0) && true) {
-      kain_x_space_update(world, Chi, res, kain_x_space, Xvector, Xresidual);
+      temp = kain_x_space_update(
+          world, Chi, res, kain_x_space, Xvector, Xresidual);
     }
     if (iter > 0) {
-      x_space_step_restriction(world, old_Chi, Chi, compute_y, maxrotn);
+      x_space_step_restriction(world, Chi, temp, compute_y, maxrotn);
     }
 
-    Chi.X.truncate_rf();
-    if (compute_y) Chi.Y.truncate_rf();
+    temp.X.truncate_rf();
+    if (compute_y) temp.Y.truncate_rf();
+    Chi = temp.copy();
     // print x norms
   }
 
@@ -1776,19 +1778,35 @@ void TDDFT::compute_new_omegas_transform(World& world,
   // Calculate energy residual and update old_energy
   energy_residuals = abs(omega - old_energy);
 }
+/**
+ * @brief Computes the BSH Update for an excited state calculation.  Passes in
+ * omega and computes the necessary shifts in the potential, computes BSH
+ * operators and applys BSH operator
+ *
+ * \f$\boldsymbol{\chi}^m=-2
+ * \boldsymbol{\hat{G}} * \boldsymbol{\Theta}\boldsymbol{\chi}\f$
+ *
+ * @param world
+ * @param theta_X
+ * @param projector
+ * @param converged
+ * @return X_space
+ */
 X_space TDDFT::bsh_update_excited(World& world,
+                                  const Tensor<double>& omega,
                                   X_space& theta_X,
-                                  QProjector<double, 3>& projector,
-                                  std::vector<bool>& converged) {
+                                  QProjector<double, 3>& projector) {
   size_t m = theta_X.num_states();
   size_t n = theta_X.num_orbitals();
   bool compute_y = !r_params.tda();
   Tensor<double> x_shifts(m);
   Tensor<double> y_shifts(m);
   print("omega before shifts");
+  Tensor<double> omega_plus = omega;
+  Tensor<double> omega_minus = -omega;
   print(omega);
-  x_shifts =
-      create_shift(world, ground_energies, omega, r_params.print_level(), "x");
+  x_shifts = create_shift(
+      world, ground_energies, omega_plus, r_params.print_level(), "x");
   // Compute Theta X
   // Apply the shifts
   theta_X.X = apply_shift(world, x_shifts, theta_X.X, Chi.X);
@@ -1804,19 +1822,18 @@ X_space TDDFT::bsh_update_excited(World& world,
       create_bsh_operators(world,
                            x_shifts,
                            ground_energies,
-                           omega,
+                           omega_plus,
                            r_params.lo(),
                            FunctionDefaults<3>::get_thresh());
   std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> bsh_y_ops;
   if (compute_y) {
-    omega = -omega;
+    Tensor<double> omega_minus = -omega;
     bsh_y_ops = create_bsh_operators(world,
                                      y_shifts,
                                      ground_energies,
-                                     omega,
+                                     omega_minus,
                                      r_params.lo(),
                                      FunctionDefaults<3>::get_thresh());
-    omega = -omega;
   }
   X_space bsh_X(world, m, n);
   // Apply BSH and get updated response components
@@ -1831,13 +1848,11 @@ X_space TDDFT::bsh_update_excited(World& world,
 
   // Only update non-converged components
   for (size_t i = 0; i < m; i++) {
-    if (not converged[i]) {
-      bsh_X.X[i] = bsh_X.X[i];
-      bsh_X.X[i] = mask * bsh_X.X[i];
-      if (compute_y) {
-        bsh_X.Y[i] = bsh_X.Y[i];
-        bsh_X.Y[i] = mask * bsh_X.Y[i];
-      }
+    bsh_X.X[i] = bsh_X.X[i];
+    bsh_X.X[i] = mask * bsh_X.X[i];
+    if (compute_y) {
+      bsh_X.Y[i] = bsh_X.Y[i];
+      bsh_X.Y[i] = mask * bsh_X.Y[i];
     }
   }
   // Ensure orthogonal guesses
@@ -1846,14 +1861,26 @@ X_space TDDFT::bsh_update_excited(World& world,
 
   return bsh_X;
 }
-
-void TDDFT::kain_x_space_update(World& world,
-                                X_space& temp,
-                                X_space& res,
-                                NonLinearXsolver& kain_x_space,
-                                std::vector<X_vector>& Xvector,
-                                std::vector<X_vector>& Xresidual) {
-  size_t m = Chi.num_states();
+/**
+ * @brief Computes the the X_space kain update
+ *
+ * @param world
+ * @param temp
+ * @param res
+ * @param kain_x_space
+ * @param Xvector
+ * @param Xresidual
+ * @return X_space
+ */
+X_space TDDFT::kain_x_space_update(World& world,
+                                   const X_space& temp,
+                                   const X_space& res,
+                                   NonLinearXsolver& kain_x_space,
+                                   std::vector<X_vector>& Xvector,
+                                   std::vector<X_vector>& Xresidual) {
+  size_t m = temp.num_states();
+  size_t n = temp.num_orbitals();
+  X_space kain_update(world, m, n);
   molresponse::start_timer(world);
   for (size_t b = 0; b < m; b++) {
     Xvector[b].X[0] = copy(world, temp.X[b]);
@@ -1867,10 +1894,11 @@ void TDDFT::kain_x_space_update(World& world,
     X_vector kain_X = kain_x_space[b].update(
         Xvector[b], Xresidual[b], FunctionDefaults<3>::get_thresh(), 3.0);
     // deep copy of vector of functions
-    temp.X[b] = copy(world, kain_X.X[0]);
-    temp.Y[b] = copy(world, kain_X.Y[0]);
+    kain_update.X[b] = copy(world, kain_X.X[0]);
+    kain_update.Y[b] = copy(world, kain_X.Y[0]);
   }
   molresponse::end_timer(world, " KAIN update:");
+  return kain_update;
 }
 
 void TDDFT::x_space_step_restriction(World& world,
@@ -2994,6 +3022,36 @@ void TDDFT::sort(World& world, Tensor<double>& vals, response_space& f) {
     // Put corresponding function, difference function, value residual and
     // value in the correct place
     f[i] = f_copy[j];
+    vals(i) = vals_copy(i);
+
+    // Change the value of vals_copy2[j] to help deal with duplicates?
+    vals_copy2(j) = 10000.0;
+  }
+}
+void TDDFT::sort(World& world, Tensor<double>& vals, X_space& f) {
+  // Get relevant sizes
+  size_t k = vals.size();
+
+  // Copy everything...
+  X_space f_copy(f);
+  Tensor<double> vals_copy = copy(vals);
+  Tensor<double> vals_copy2 = copy(vals);
+
+  // Now sort vals_copy
+  std::sort(vals_copy.ptr(), vals_copy.ptr() + vals_copy.size());
+
+  // Now sort the rest of the things, using the sorted energy list
+  // to find the correct indices
+  for (size_t i = 0; i < k; i++) {
+    // Find matching index in sorted vals_copy
+    size_t j = 0;
+    while (fabs(vals_copy(i) - vals_copy2(j)) > 1e-8 && j < k) j++;
+
+    // Put corresponding function, difference function, value residual and
+    // value in the correct place
+    f.X[i] = f_copy.X[j];
+    f.Y[i] = f_copy.Y[j];
+
     vals(i) = vals_copy(i);
 
     // Change the value of vals_copy2[j] to help deal with duplicates?
