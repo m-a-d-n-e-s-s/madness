@@ -187,11 +187,20 @@ void TDDFT::iterate_freq2(World& world) {
           PlotGroundandResponseOrbitals(
               world, iter, Chi.X, Chi.Y, r_params, g_params);
         }
+        if (r_params.plot()) {
+          do_vtk_plots(world,
+                       200,
+                       r_params.L(),
+                       molecule,
+                       rho0,
+                       rho_omega,
+                       ground_orbitals,
+                       Chi);
+        }
         break;
       }
     }
     update_x_space_response(world,
-                            old_Chi,
                             Chi,
                             residuals,
                             xc,

@@ -114,6 +114,143 @@ void do_vtk_plots(World &world,
                           false);
   plotvtk_end<3>(world, filename, true);
 }
+void do_vtk_plots(World &world,
+                  int npt_plot,
+                  double L,
+                  Molecule molecule,
+                  real_function_3d &rho_0,
+                  std::vector<real_function_3d> &rho_omega,
+                  std::vector<real_function_3d> &ground_orbitals,
+                  X_space &Chi) {
+  std::string vtk_dir = "vtk_plots";
+  std::filesystem::create_directories(vtk_dir);
+  std::string geo_file;
+  const char *filename;
+  Vector<int64_t, 3> points{npt_plot, npt_plot, npt_plot};
+  // Plot the whole box?
+  Vector<double, 3> box_lo{-L, -L, -L};
+  Vector<double, 3> box_hi{L, L, L};
+  // Write an .xyz file with current geometry (to deal with molecular
+  // reorientations that might occur)
+  FILE *f = 0;
+  geo_file = vtk_dir + "/geometry.xyz";
+
+  f = fopen(geo_file.c_str(), "w");
+  // Write the header
+  fprintf(f, "%zu", molecule.natom());
+  fprintf(f, "\n\n");
+  // Get the data
+  std::vector<Vector<double, 3>> coords = molecule.get_all_coords_vec();
+  // Write the data
+  size_t Natoms = molecule.natom();
+  for (size_t i = 0; i < Natoms; i++) {
+    std::fprintf(f,
+                 "%5s   %16.12f %16.12f %16.12f\n",
+                 atomic_number_to_symbol(molecule.get_atom_number(i)).c_str(),
+                 coords[i][0],
+                 coords[i][1],
+                 coords[i][2]);
+  }
+  // Clean up
+  fclose(f);
+  std::string rho0_file = "rho_0.vts";
+  filename = rho0_file.c_str();
+  plotvtk_begin<3>(world, filename, box_lo, box_hi, points, true);
+  plotvtk_data<double, 3>(rho_0,
+                          "ground_density",
+                          world,
+                          filename,
+                          box_lo,
+                          box_hi,
+                          points,
+                          true,
+                          false);
+  plotvtk_end<3>(world, filename, true);
+  // ground orbitals
+  std::string g_orb_file = "phi_";
+  std::string fname;
+  for (size_t i = 0; i < Chi.num_orbitals(); ++i) {
+    fname = vtk_dir + "/" + g_orb_file + std::to_string(i) + ".vts";
+    filename = fname.c_str();
+    // VTK plotting stuff
+    plotvtk_begin<3>(world, filename, box_lo, box_hi, points, true);
+    plotvtk_data<double, 3>(ground_orbitals[i],
+                            "ground_orbital",
+                            world,
+                            filename,
+                            box_lo,
+                            box_hi,
+                            points,
+                            true,
+                            false);
+    plotvtk_end<3>(world, filename, true);
+  }
+
+  std::string x_orb_file = "x_";
+  for (size_t i = 0; i < Chi.num_states(); ++i) {
+    for (size_t j = 0; j < Chi.num_orbitals(); ++j) {
+      fname = vtk_dir + "/" + x_orb_file + std::to_string(i) + "_" +
+              std::to_string(j) + ".vts";
+      filename = fname.c_str();
+      // VTK plotting stuff
+      plotvtk_begin<3>(world, filename, box_lo, box_hi, points, true);
+      plotvtk_data<double, 3>(Chi.X[i][j],
+                              "x_orbitals",
+                              world,
+                              filename,
+                              box_lo,
+                              box_hi,
+                              points,
+                              true,
+                              false);
+      plotvtk_end<3>(world, filename, true);
+    }
+  }
+  std::string y_orb_file = "y_";
+  for (size_t i = 0; i < Chi.num_states(); ++i) {
+    for (size_t j = 0; j < Chi.num_orbitals(); ++j) {
+      fname = vtk_dir + "/" + y_orb_file + std::to_string(i) + "_" +
+              std::to_string(j) + ".vts";
+      filename = fname.c_str();
+      // VTK plotting stuff
+      plotvtk_begin<3>(world, filename, box_lo, box_hi, points, true);
+      plotvtk_data<double, 3>(Chi.Y[i][j],
+                              "y_orbitals",
+                              world,
+                              filename,
+                              box_lo,
+                              box_hi,
+                              points,
+                              true,
+                              false);
+      plotvtk_end<3>(world, filename, true);
+    }
+  }
+
+  std::string rho_1_file = "rho_1_";
+  for (size_t i = 0; i < Chi.num_states(); ++i) {
+    fname = vtk_dir + "/" + rho_1_file + std::to_string(i) + ".vts";
+    filename = fname.c_str();
+    // VTK plotting stuff
+    plotvtk_begin<3>(world, filename, box_lo, box_hi, points, true);
+    plotvtk_data<double, 3>(rho_omega[i],
+                            "transition_density",
+                            world,
+                            filename,
+                            box_lo,
+                            box_hi,
+                            points,
+                            true,
+                            false);
+    plotvtk_end<3>(world, filename, true);
+  }
+
+  //
+  //
+  //
+  //
+  //
+}
 }  // namespace madness
 
 // Dueces
