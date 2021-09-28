@@ -176,6 +176,7 @@ set(MPIEXEC_POSTFLAGS "@MPIEXEC_POSTFLAGS@" CACHE STRING "These flags will be pl
 ########### PaRSEC ############
 # if MADworld depends on PaRSEC, enable C language and load MPI_C
 get_target_property(_madworld_link_libraries MADworld INTERFACE_LINK_LIBRARIES)
+cmake_policy(SET CMP0057 NEW)  # treat IN_LIST as operator
 if (MPI::MPI_CXX IN_LIST _madworld_link_libraries)
     set(_mpi_languages CXX)
     if (PaRSEC::parsec IN_LIST _madworld_link_libraries)
