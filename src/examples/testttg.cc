@@ -78,6 +78,25 @@ public:
     // }
 };
 
+class LevelPmapX : public WorldDCPmapInterface<Key<3>> {
+ private:
+     const int nproc;
+ public:
+    LevelPmapX() : nproc(0) {};
+
+    LevelPmapX(World& world) : nproc(world.nproc()) {}
+
+    /// Find the owner of a given key
+    ProcessID owner(const Key<3>& key) const {
+      Level n = key.level();
+      if (n == 0) return 0;
+        hashT hash;
+        if (n <= 3 || (n&0x1)) hash = key.hash();
+        else hash = key.parent().hash();
+        return hash%nproc;
+    }
+ };
+
 /// A pmap that spatially decomposes the domain and by default slightly overdcomposes to attempt to load balance
 class PartitionPmap : public WorldDCPmapInterface<Key<3>> {
 private:
@@ -123,6 +142,8 @@ public:
 void test2(World& world, size_t nfunc, size_t k, double thresh) {
     // Extra scope level to be sure all global data is freed before leaving
     {
+        LevelPmapX p(world);
+
         double expnt = 30000.0;
         double fac = std::pow(2.0*expnt/M_PI,0.25*3);
         
@@ -133,7 +154,8 @@ void test2(World& world, size_t nfunc, size_t k, double thresh) {
         FunctionDefaults<3>::set_truncate_mode(0); // Or should be 1 ????????????????????????????????????????????
         FunctionDefaults<3>::set_k(k);
         FunctionDefaults<3>::set_thresh(thresh);
-        FunctionDefaults<3>::set_pmap(std::shared_ptr<WorldDCPmapInterface<Key<3>>>(static_cast<WorldDCPmapInterface<Key<3>>*>(new PartitionPmap(world.size()))));
+//        FunctionDefaults<3>::set_pmap(std::shared_ptr<WorldDCPmapInterface<Key<3>>>(static_cast<WorldDCPmapInterface<Key<3>>*>(new PartitionPmap(world.size(),3))));
+        FunctionDefaults<3>::set_pmap(std::shared_ptr<WorldDCPmapInterface<Key<3>>>(static_cast<WorldDCPmapInterface<Key<3>>*>(new LevelPmapX(world))));
         {
             const int N = 6; // looking for where exp(-a*x^2) < 10**-N
             const int K = 6; // typically the lowest order of the polyn
@@ -160,8 +182,10 @@ void test2(World& world, size_t nfunc, size_t k, double thresh) {
             for (size_t d=0; d<3; d++) {
                 r[d] = -6.0 + 12.0*drand48();
             }
-            print(r, expnt, fac);
+            if (world.rank() == 0) print(r, expnt, fac);
+            double startx = wall_time();
             funcs.push_back(real_factory_3d(world).functor(Gaussian(r, expnt, fac)).nofence());
+            if (world.rank() == 0) print("pp ", wall_time()-startx);
         }
         world.gop.fence();
         double used_project = wall_time() - start;
@@ -170,7 +194,7 @@ void test2(World& world, size_t nfunc, size_t k, double thresh) {
         std::vector<double> norms = norm2s(world, funcs);
         double used_norms_project = wall_time() - start;
         if (world.rank() == 0) print("norms after projection", norms);
-        
+
         start = wall_time();
         compress(world, funcs);
         double used_compress = wall_time() - start;
@@ -201,6 +225,13 @@ void test2(World& world, size_t nfunc, size_t k, double thresh) {
             print("      norm-3 : ", used_norms_reconstruct);
             print("       total : ", used_total);
         }
+
+        for (auto& func : funcs) {
+            size_t n = func.tree_size();
+            size_t maxn = func.max_nodes();
+            size_t minn = func.min_nodes();
+            if (world.rank() == 0) print("size ", n, minn, maxn);
+        }
     }
     // Extra scope level to be sure all global data is freed before leaving
     world.gop.fence();
@@ -214,7 +245,7 @@ int main(int argc, char** argv) {
     {
         World world(SafeMPI::COMM_WORLD);
         startup(world,argc,argv);
-        test2(world, 1, 10, 1e-8);
+        test2(world, 20, 10, 1e-8);
     }
     finalize();
     return 0;
