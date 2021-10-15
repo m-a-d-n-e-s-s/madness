@@ -78,7 +78,7 @@ if(BUILD_TESTING)
       jimkernel.cc test_distributed_matrix.cc test_Zmtxmq.cc test_systolic.cc)
   set(LINALG_TEST_SOURCES test_linalg.cc test_solvers.cc testseprep.cc)
   if(ENABLE_GENTENSOR)
-    list(APPEND LINALG_TEST_SOURCES test_gentensor.cc)
+    list(APPEND LINALG_TEST_SOURCES test_gentensor.cc test_lowranktensor.cc)
   endif()
 
   add_unittests(tensor "${TENSOR_TEST_SOURCES}" "MADtensor;MADgtest")
