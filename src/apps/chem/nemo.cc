@@ -298,9 +298,7 @@ tensorT Nemo::compute_fock_matrix(const vecfuncT& nemo, const tensorT& occ) cons
 	compute_nemo_potentials(nemo, psi, Jnemo, Knemo, pcmnemo, Unemo);
 
 //    vecfuncT JKUpsi=add(world, sub(world, Jnemo, Knemo), Unemo);
-print("bla 1",Unemo.front().world().id(),Knemo.front().world().id());
     vecfuncT JKUpsi=Unemo+Jnemo-Knemo;
-    print("bla 2");
     if (do_pcm()) JKUpsi+=pcmnemo;
     tensorT fock=matrix_inner(world,R2nemo,JKUpsi,false);   // not symmetric actually
     Kinetic<double,3> T(world);

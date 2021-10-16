@@ -20,7 +20,7 @@ set(MADTENSOR_HEADERS
     aligned.h mxm.h tensorexcept.h tensoriter_spec.h type_data.h basetensor.h
     tensor.h tensor_macros.h vector_factory.h slice.h tensoriter.h
     tensor_spec.h vmath.h systolic.h gentensor.h srconf.h distributed_matrix.h
-    tensortrain.h)
+    tensortrain.h SVDTensor.h)
 set(MADTENSOR_SOURCES tensor.cc tensoriter.cc basetensor.cc vmath.cc)
 
 # logically these headers should be part of their own library (MADclapack)
@@ -35,7 +35,7 @@ set(MADCLAPACK_HEADERS cblas.h cblas_types.h
 
 # Source lists for MADlinalg
 set(MADLINALG_HEADERS ${MADCLAPACK_HEADERS} tensor_lapack.h solvers.h elem.h)
-set(MADLINALG_SOURCES lapack.cc solvers.cc elem.cc linalg_wrappers.cc )
+set(MADLINALG_SOURCES lapack.cc solvers.cc elem.cc SVDTensor.cc RandomizedMatrixDecomposition linalg_wrappers.cc )
 
 # Create libraries MADtensor and MADlinalg
 add_mad_library(tensor MADTENSOR_SOURCES MADTENSOR_HEADERS "misc" "madness/tensor")
@@ -78,7 +78,7 @@ if(BUILD_TESTING)
       jimkernel.cc test_distributed_matrix.cc test_Zmtxmq.cc test_systolic.cc)
   set(LINALG_TEST_SOURCES test_linalg.cc test_solvers.cc testseprep.cc)
   if(ENABLE_GENTENSOR)
-    list(APPEND LINALG_TEST_SOURCES test_gentensor.cc)
+    list(APPEND LINALG_TEST_SOURCES test_gentensor.cc test_lowranktensor.cc)
   endif()
 
   add_unittests(tensor "${TENSOR_TEST_SOURCES}" "MADtensor;MADgtest")
