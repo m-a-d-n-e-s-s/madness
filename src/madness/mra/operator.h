@@ -127,6 +127,7 @@ namespace madness {
         Timer timer_full;
         Timer timer_low_transf;
         Timer timer_low_accumulate;
+        Timer timer_stats_accumulate;
 
         // if this is a Slater-type convolution kernel: 1-exp(-mu r12)/(2 mu)
         bool is_slaterf12;
@@ -1204,12 +1205,14 @@ namespace madness {
             typedef TENSOR_RESULT_TYPE(T,Q) resultT;
 
             // prepare access to the singular vectors
-            std::vector<Slice> s(coeff.config().dim_per_vector()+1,_);
+            const SVDTensor<T>& svdcoeff=coeff.get_svdtensor();
+//            std::vector<Slice> s(coeff.config().dim_per_vector()+1,_);
+            std::vector<Slice> s(svdcoeff.dim_per_vector(particle()-1)+1,_);
             // can't use predefined slices and vectors -- they have the wrong dimension
             const std::vector<Slice> s00(coeff.ndim(),Slice(0,k-1));
 
             // some checks
-            MADNESS_ASSERT(coeff.tensor_type()==TT_2D);           // for now
+            MADNESS_ASSERT(coeff.is_svd_tensor());           // for now
             MADNESS_ASSERT(not modified());
             MADNESS_ASSERT(not doleaves);
             MADNESS_ASSERT(coeff.dim(0)==2*k);
@@ -1239,8 +1242,8 @@ namespace madness {
                 // get the appropriate singular vector (left or right depends on particle)
                 // and apply the full tensor muopxv_fast on it, term by term
                 s[0]=Slice(r,r);
-                const Tensor<T> chunk=coeff.config().ref_vector(particle()-1)(s).reshape(2*k,2*k,2*k);
-                const Tensor<T> chunk0=f0.config().ref_vector(particle()-1)(s).reshape(k,k,k);
+                const Tensor<T> chunk=svdcoeff.ref_vector(particle()-1)(s).reshape(2*k,2*k,2*k);
+                const Tensor<T> chunk0=f0.get_svdtensor().ref_vector(particle()-1)(s).reshape(k,k,k);
 //                const double weight=std::abs(coeff.config().weights(r));
 
                 // accumulate all terms of the operator for a specific term of the function
@@ -1260,14 +1263,14 @@ namespace madness {
                 }
 
                 // reinsert the transformed terms into result, leaving the other particle unchanged
-                MADNESS_ASSERT(final.config().has_structure());
-                final.config().ref_vector(particle()-1)(s)=result;
+                MADNESS_ASSERT(final.get_svdtensor().has_structure());
+                final.get_svdtensor().ref_vector(particle()-1)(s)=result;
 
                 if (source.level()>0) {
-                    final0.config().ref_vector(particle()-1)(s)=result0;
+                    final0.get_svdtensor().ref_vector(particle()-1)(s)=result0;
                 } else {
-                    final0.config().ref_vector(0)(s)=0.0;
-                    final0.config().ref_vector(1)(s)=0.0;
+                    final0.get_svdtensor().ref_vector(0)(s)=0.0;
+                    final0.get_svdtensor().ref_vector(1)(s)=0.0;
                 }
 
             }
@@ -1300,9 +1303,9 @@ namespace madness {
             typedef TENSOR_RESULT_TYPE(T,Q) resultT;
 
             MADNESS_ASSERT(coeff.ndim()==NDIM);
-            MADNESS_ASSERT(coeff.tensor_type()==TT_2D);	// we use the rank below
+            MADNESS_ASSERT(coeff.is_svd_tensor());	// we use the rank below
 //            MADNESS_EXCEPTION("no apply2",1);
-            const TensorType tt=coeff.tensor_type();
+            const TensorType tt=TT_2D;
 
             const GenTensor<T>* input = &coeff;
             GenTensor<T> dummy;
@@ -1315,7 +1318,7 @@ namespace madness {
                     // it is not necessary.  It is necessary for operators such
                     // as differentiation and time evolution and will also occur
                     // if the application of the operator widens the tree.
-                    dummy = GenTensor<T>(v2k,coeff.tensor_type());
+                    dummy = GenTensor<T>(v2k,TT_2D);
                     dummy(s0) += coeff;
                     input = &dummy;
                 }
@@ -1354,13 +1357,13 @@ namespace madness {
                     // get maximum rank of coeff to contribute:
                     //  delta(g)  <  eps  <  || T || * delta(f)
                     //  delta(coeff) * || T || < tol2
-                	const int r_max=SRConf<T>::max_sigma(tol2/muop.norm,coeff.rank(),coeff.config().weights_);
+                	const int r_max=SRConf<T>::max_sigma(tol2/muop.norm,coeff.rank(),coeff.get_svdtensor().weights_);
                     //                	print("r_max",coeff.config().weights(r_max));
 
                 	// note that max_sigma is inclusive!
                     if (r_max>=0) {
-                        const GenTensor<resultT> chunk=input->get_configs(0,r_max);
-                        const GenTensor<resultT> chunk0=f0.get_configs(0,r_max);
+                        const GenTensor<resultT> chunk=SVDTensor<resultT>(input->get_svdtensor().get_configs(0,r_max));
+                        const GenTensor<resultT> chunk0=SVDTensor<resultT>(f0.get_svdtensor().get_configs(0,r_max));
 
                         double cpu0=cpu_time();
 
@@ -1382,10 +1385,11 @@ namespace madness {
             result0=reduce(r0_list,tol2*rank);
             if (r_list.size()>0) r_list.front()(s0)+=result0;
             result=reduce(r_list,tol2*rank);
-            result.reduce_rank(tol2*rank);
+//            result.reduce_rank(tol2*rank);
 
             double cpu1=cpu_time();
             timer_low_accumulate.accumulate(cpu1-cpu0);
+            timer_stats_accumulate.accumulate(result.rank());
             return result;
         }
 
@@ -1404,10 +1408,10 @@ namespace madness {
                 const GenTensor<T>& coeff,
                 double tol, double tol2) const {
 
-            if (coeff.tensor_type()==TT_FULL) return 0.5;
+            if (coeff.is_full_tensor()) return 0.5;
             if (2*NDIM==coeff.ndim()) return 1.5;
             MADNESS_ASSERT(NDIM==coeff.ndim());
-            MADNESS_ASSERT(coeff.tensor_type()==TT_2D);
+            MADNESS_ASSERT(coeff.is_svd_tensor());
 
             const SeparatedConvolutionData<Q,NDIM>* op = getop(source.level(), shift, source);
 
@@ -1421,20 +1425,25 @@ namespace madness {
             double full_cost=0.0;
             double low_cost=0.0;
 
+            long initial_rank=0;
+            long final_rank=sqrt(coeff.size())*0.05;	// size=ncol*nrow; final rank is 5% of max rank
+
             for (int mu=0; mu<rank; ++mu) {
                 const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
 
                 // delta(g)  <  delta(T) * || f ||
                 if (muop.norm > tol) {
                 	// note that max_sigma is inclusive: it returns a slice w(Slice(0,i))
-                    long nterms=SRConf<T>::max_sigma(tol2/muop.norm,coeff.rank(),coeff.config().weights_)+1;
+                    long nterms=SRConf<T>::max_sigma(tol2/muop.norm,coeff.rank(),coeff.get_svdtensor().weights_)+1;
 
                     // take only the first overlap computation of rank reduction into account
-                    low_cost+=nterms*low_operator_cost + 2.0*nterms*nterms*low_reduction_cost;
+//                    low_cost+=nterms*low_operator_cost + 2.0*nterms*nterms*low_reduction_cost;
+                    initial_rank+=nterms;
 
                     full_cost+=full_operator_cost;
                 }
             }
+            low_cost=initial_rank*low_operator_cost + initial_rank*final_rank*low_reduction_cost;
 
             // include random empirical factor of 2
             double ratio=-1.0;

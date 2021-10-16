@@ -315,7 +315,7 @@ class MP2 : public OptimizationTargetInterface {
     struct Parameters : public QCCalculationParametersBase {
 
         /// use OEP orbitals
-        bool do_oep = false;
+        bool do_oep1 = false;
 
         /// ctor reading out the input file
         Parameters(World& world) {
@@ -339,6 +339,7 @@ class MP2 : public OptimizationTargetInterface {
         void read_and_set_derived_values(World& world) {
             read(world, "input", "mp2");
             set_derived_value("dconv", sqrt(get<double>("econv")) * 0.1);
+        	set_derived_value("thresh",get<double>("econv"));
         }
 
         /// check the user input
@@ -358,6 +359,7 @@ class MP2 : public OptimizationTargetInterface {
         int restart() const { return this->get<bool>("restart"); }    /// convenience function
         int maxiter() const { return this->get<int>("maxiter"); }    /// convenience function
         int maxsub() const { return this->get<int>("maxsub"); }    /// convenience function
+        bool do_oep() const { return do_oep1;}
     };
 
     /// POD holding all electron pairs with easy access
@@ -547,6 +549,8 @@ private:
     /// @param[in]	phi the orbital
     /// @return 	Jphi
     real_function_3d J(const real_function_3d& phi) const;
+
+    real_function_6d apply_exchange_vector(const real_function_6d& f, const int particle) const;
 
     /// apply the exchange operator on f
 
