@@ -318,7 +318,7 @@ class MP2 : public OptimizationTargetInterface {
         bool do_oep1 = false;
 
         /// ctor reading out the input file
-        Parameters(World& world) {
+        Parameters(World& world, const commandlineparser& parser) {
 
             /// the map with initial values
             initialize < double > ("thresh", 1.e-3, "recommended values: 1.e-4 < econv < 1.e-8");
@@ -330,14 +330,15 @@ class MP2 : public OptimizationTargetInterface {
             initialize < bool > ("restart", true);
             initialize < int > ("maxiter", 5);
 
-            read_and_set_derived_values(world);
+            read_and_set_derived_values(world,parser);
 
             // print final parameters
             if (world.rank() == 0) print("mp2", "end");
         }
 
-        void read_and_set_derived_values(World& world) {
-            read(world, "input", "mp2");
+        void read_and_set_derived_values(World& world, const commandlineparser& parser) {
+            read(world, parser.value("input"), "mp2");
+
             set_derived_value("dconv", sqrt(get<double>("econv")) * 0.1);
         	set_derived_value("thresh",get<double>("econv"));
         }
