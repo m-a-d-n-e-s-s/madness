@@ -14,6 +14,8 @@ struct RMDFactory {
 	long maxrank_=LONG_MAX;
 	long oversampling_=10;
 
+	RMDFactory() {}
+
 	RMDFactory& maxrank(const long mr) {
 		maxrank_=mr;
 		return *this;
