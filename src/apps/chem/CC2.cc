@@ -417,7 +417,7 @@ std::vector<CC_vecfunction> CC2::solve_ccs() {
 
 double
 CC2::solve_mp2(Pairs<CCPair>& doubles) {
-    output.section("Solve MP2");
+//    output.section("Solve MP2");
     double omega = 0.0;
     Pairs<double> pair_energies;
     for (auto& tmp_pair : doubles.allpairs) {

@@ -1712,58 +1712,6 @@ CCPotentials::get_CCS_potential_ex(CC_vecfunction& x, const bool print) const {
 }
 
 madness::vector_real_function_3d
-CCPotentials::get_CIS_potential(const CC_vecfunction& x) const {
-    if (x.type != RESPONSE) error("get_CCS_response_potential: Wrong type of input singles");
-
-    Pairs<CCPair> empty_doubles;
-    CC_vecfunction empty_singles(PARTICLE);
-    const vector_real_function_3d fock_residue = potential_singles_ex(empty_singles, empty_doubles, x, empty_doubles,
-                                                                      POT_F3D_);
-    //vecfuncT potential =          potential_singles_ex(empty_singles,empty_doubles,x,empty_doubles,pot_cis_);
-    vector_real_function_3d potential;
-    CCTimer time(world, "V-CIS");
-    vector_real_function_3d mos = get_active_mo_ket();
-    // we need this for this homo guess thing
-    if (mos.size() != x.size()) {
-        vector_real_function_3d tmp;
-        for (const auto& ktmp : x.functions)
-            tmp.push_back(mo_ket_(ktmp.first).function);
-        mos = tmp;
-    }
-    {
-        real_function_3d pdens = real_factory_3d(world);
-        for (const auto& ktmp : x.functions) {
-            const size_t k = ktmp.first;
-            pdens += 2.0 * mo_bra_(k).function * x(k).function;
-        }
-        pdens.truncate();
-        real_function_3d pvhartree = g12(pdens);
-        vector_real_function_3d phartree = mul(world, pvhartree, mos);
-        vector_real_function_3d pK;
-        for (const auto& itmp : x.functions) {
-            size_t i = itmp.first;
-            real_function_3d tmp = real_factory_3d(world);
-            for (const auto& ktmp : x.functions) {
-                size_t k = ktmp.first;
-                tmp += g12(mo_bra_(k), mo_ket_(i)) * x(k).function;
-            }
-            pK.push_back(tmp);
-        }
-        potential = sub(world, phartree, pK);
-    }
-    time.info();
-    // the fock residue does not get projected, but all the rest
-    potential = apply_Qt(potential, mo_ket_);
-    truncate(world, potential);
-    //get_potentials.insert(copy(world,potential),x,pot_singles_);
-    vector_real_function_3d result = add(world, fock_residue, potential);
-    truncate(world, result);
-    //const double omega = compute_cis_expectation_value(x,result,print);
-    //x.omega=omega;
-    return result;
-}
-
-madness::vector_real_function_3d
 CCPotentials::get_CC2_singles_potential_ex(const CC_vecfunction& gs_singles, const Pairs<CCPair>& gs_doubles,
                                            CC_vecfunction& ex_singles, const Pairs<CCPair>& response_doubles) const {
     MADNESS_ASSERT(gs_singles.type == PARTICLE);
@@ -2149,27 +2097,6 @@ CCPotentials::make_f_xy(const CCFunction& x, const CCFunction& y, const real_con
 }
 
 madness::vector_real_function_3d
-CCPotentials::ccs_potential_gs(const CC_vecfunction& tau) const {
-    const CC_vecfunction ti = make_t_intermediate(tau);
-    vector_real_function_3d unprojected = ccs_unprojected(ti, tau);
-    vector_real_function_3d result = apply_Qt(unprojected, tau);
-    return result;
-}
-
-madness::vector_real_function_3d
-CCPotentials::ccs_potential_ex(const CC_vecfunction& singles_gs, const CC_vecfunction& singles_ex) const {
-    const CC_vecfunction t = make_t_intermediate(singles_gs);
-    vector_real_function_3d unprojected_tt = ccs_unprojected(t, singles_gs);
-    vector_real_function_3d unprojected_ex_xt = ccs_unprojected(singles_ex, singles_gs);
-    vector_real_function_3d unprojected_ex_tx = ccs_unprojected(t, singles_ex);
-    vector_real_function_3d projector_response = apply_projector(unprojected_tt, singles_ex);
-    vector_real_function_3d unprojected_ex = add(world, unprojected_ex_xt, unprojected_ex_tx);
-    vector_real_function_3d function_response = apply_Qt(unprojected_ex, singles_gs);
-    vector_real_function_3d result = sub(world, function_response, projector_response);
-    return result;
-}
-
-madness::vector_real_function_3d
 CCPotentials::ccs_unprojected(const CC_vecfunction& ti, const CC_vecfunction& tk) const {
     vector_real_function_3d result;
     for (const auto& itmp : ti.functions) {
@@ -2194,21 +2121,6 @@ CCPotentials::make_density(const CC_vecfunction& x) const {
         result += 2.0 * mo_bra_(k).function * (x(k).function);
     }
     result.truncate();
-    return result;
-}
-
-madness::vector_real_function_3d
-CCPotentials::cis_potential_ex(const CC_vecfunction& x) const {
-    vector_real_function_3d result;
-    for (const auto& itmp : x.functions) {
-        const size_t i = itmp.first;
-        real_function_3d resulti = real_factory_3d(world);
-        for (const auto& ktmp : x.functions) {
-            const size_t k = ktmp.first;
-            resulti += 2.0 * g12(mo_bra_(k), x(k)) * mo_ket(i).function - g12(mo_bra_(k), mo_ket_(i)) * x(k).function;
-        }
-        result.push_back(resulti);
-    }
     return result;
 }
 

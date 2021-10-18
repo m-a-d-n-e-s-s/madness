@@ -69,9 +69,6 @@ public:
         if (print) f.print_size(msg);
     }
 
-    /// get a reference to the nemo structure
-    const Nemo& get_nemo() const { return nemo_; }
-
     /// returns a vector of all orbital energies
     std::vector<double> get_orbital_energies() const { return orbital_energies_; }
 
@@ -101,11 +98,6 @@ public:
             result.push_back(mo_bra_(ktmp.first).function);
         }
         return result;
-    }
-
-    /// apply the poisson operator and use intermediates if it has such
-    real_function_3d apply_poisson(const real_function_3d& f) const {
-        return g12(f);
     }
 
     /// returns a specific mo
@@ -509,11 +501,6 @@ public:
     vector_real_function_3d
     get_CCS_potential_ex(CC_vecfunction& x, const bool print = false) const;
 
-    /// Calculates the CIS potential (no expectation value or storing)
-    vector_real_function_3d
-    get_CIS_potential(const CC_vecfunction& x) const;
-
-
     /// Calculates the CC2 singles potential for the Excited state: result = Fock_residue + V
     /// the V part is stored in the intermediate_potentials structure
     vector_real_function_3d
@@ -620,17 +607,6 @@ public:
     real_function_6d
     make_f_xy(const CCFunction& x, const CCFunction& y, const real_convolution_6d *Gscreen = NULL) const;
 
-    /// the ccs potential without terms from the fock operator
-    /// returns: \f$ (1-|\tau_k><k|)(2 <k|g|tau_k> |t_i> - <k|g|t_i> |\tau_k>)  \f$
-    vector_real_function_3d
-    ccs_potential_gs(const CC_vecfunction& tau) const;
-
-    /// the ccs potential for the response equations
-    /// returns \f$ d\dtau Q(tau)(unprojected_ccs(t,tau) = Q(tau)(unprojected(x,tau)+unprojected(t,x)) - O(x)(unprojected(t,tau))\f$
-    vector_real_function_3d
-    ccs_potential_ex(const CC_vecfunction& singles_gs, const CC_vecfunction& singles_ex) const;
-
-
     /// unprojected ccs potential
     /// returns 2kgtk|ti> - kgti|tk>
     /// the ccs potential: ti = ti and tk = tauk
@@ -640,9 +616,6 @@ public:
 
     real_function_3d
     make_density(const CC_vecfunction& x) const;
-
-    vector_real_function_3d
-    cis_potential_ex(const CC_vecfunction& x) const;
 
     // integrals from singles potentials
 

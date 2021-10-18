@@ -181,10 +181,6 @@ public:
         return std::make_pair(time_wall, time_cpu);
     }
 
-    double current_wall() { return current_time().first; }
-
-    double current_cpu() { return current_time().second; }
-
     void print() {
         print(current_time());
     }
@@ -684,13 +680,6 @@ struct CCConvolutionOperator {
     /// e.g if(type==HOLE) then all intermediates of type <mo_bra_k|op|HOLE> will be deleted
     void clear_intermediates(const FuncType& type);
 
-    /// name speaks for itself
-    void clear_all_intermediates() {
-        clear_intermediates(HOLE);
-        clear_intermediates(PARTICLE);
-        clear_intermediates(RESPONSE);
-    }
-
     /// prints out information (operatorname, number of stored intermediates ...)
     size_t info() const;
 
@@ -831,11 +820,6 @@ public:
     /// @param[out] particles are interchanged, if the function was u(1,2) the result is u(2,1)
     CCPairFunction swap_particles() const;
 
-    /// @param[in] the Greens operator
-    /// @param[out] the Greens operator is applied to the function: G(u)
-    real_function_6d apply_G(const real_convolution_6d& G) const;
-
-
     double
     make_xy_u(const CCFunction& xx, const CCFunction& yy) const;
 
@@ -956,12 +940,6 @@ struct CCIntermediatePotentials {
     /// fetch the potential for a single function
     real_function_3d
     operator()(const CCFunction& f, const PotentialType& type) const;
-
-    vector_real_function_3d
-    get_unprojected_cc2_projector_response() const { return unprojected_cc2_projector_response_; }
-
-    void add_unprojected_cc2_projector_response(
-            const vector_real_function_3d& tmp) { unprojected_cc2_projector_response_ = copy(world, tmp); }
 
     /// deltes all stored potentials
     void clear_all() {

@@ -715,17 +715,6 @@ CCPairFunction CCPairFunction::swap_particles() const {
     MADNESS_EXCEPTION("swap_particles in CCPairFunction: we should not end up here", 1);
 }
 
-real_function_6d CCPairFunction::apply_G(const real_convolution_6d& G) const {
-    real_function_6d result = real_factory_6d(world);
-    result.set_thresh(FunctionDefaults<6>::get_thresh() * 0.1);
-    MADNESS_ASSERT(a.size() == b.size());
-    MADNESS_ASSERT(type == PT_DECOMPOSED);
-    for (size_t i = 0; i < a.size(); i++) {
-        result += G(a[i], b[i]);
-    }
-    return result;
-}
-
 real_function_3d CCPairFunction::project_out_decomposed(const real_function_3d& f, const size_t particle) const {
     real_function_3d result = real_factory_3d(world);
     const std::pair<vector_real_function_3d, vector_real_function_3d> decompf = assign_particles(particle);

@@ -85,36 +85,8 @@ public:
         output("Plotted " + msg);
     }
 
-    /// Check energy convergence: Creates the difference between two vectors and compares against given thresh in parameters
-    bool
-    check_energy_convergence(const std::vector<double>& current, const std::vector<double>& updated) const {
-        if (current.size() != updated.size()) MADNESS_EXCEPTION(
-                "error in energy convergence check: different sizes in vectors", 1);
-        bool conv = true;
-        std::vector<double> diff(current.size(), 0.0);
-        for (size_t i = 0; i < current.size(); i++) {
-            double diffi = updated[i] - current[i];
-            diff[i] = diffi;
-            if (diffi > parameters.econv) conv = false;
-        }
-        if (world.rank() == 0) {
-            std::cout << "\n\n";
-            std::cout << "Pair Correlation Energies: New, Old, Diff\n";
-            for (size_t i = 0; i < current.size(); i++)
-                std::cout << updated[i] << ", " << current[i] << ", " << diff[i] << std::endl;
-            std::cout << "\n\n";
-        }
-        return conv;
-    }
-
-    /// make consistency tests
-    bool
-    test() const;
-
     /// The World
     World& world;
-    /// The electronic Correlation Factor, has to be initialized before parameters so that parameters has the right gamma value
-    //CorrelationFactor correlationfactor;
     /// Structure holds all the parameters used in the CC2 calculation
     const CCParameters parameters;
     /// The SCF Calculation
@@ -248,10 +220,6 @@ public:
             time_V.info(true, norm2(world, V));
 
             if (ctype == CT_LRCCS or ctype == CT_LRCC2 or ctype == CT_ADC2) {
-//	  const double expv=CCOPS.compute_cis_expectation_value(singles,V);
-//	  if(world.rank() == 0) std::cout << "Current CCS/CIS or CC2 Expectation Value " << expv << "\n";
-//	  if(world.rank() == 0) std::cout << "using expectation-value for bsh-operator\n";
-//	  singles.omega = expv;
                 omega = singles.omega; // computed with the potential
             }
 
