@@ -10,7 +10,7 @@
 namespace madness {
 
 void
-CCMessenger::output(const std::string &msg) const {
+CCMessenger::output(const std::string& msg) const {
     if (scientific) std::cout << std::scientific;
     else std::cout << std::fixed;
 
@@ -19,7 +19,7 @@ CCMessenger::output(const std::string &msg) const {
 }
 
 void
-CCMessenger::section(const std::string &msg) const {
+CCMessenger::section(const std::string& msg) const {
     if (world.rank() == 0) {
         std::cout << "\n" << std::setw(msg.size() + 10) << std::setfill('*') << "\n";
         std::cout << std::setfill(' ');
@@ -30,7 +30,7 @@ CCMessenger::section(const std::string &msg) const {
 }
 
 void
-CCMessenger::subsection(const std::string &msg) const {
+CCMessenger::subsection(const std::string& msg) const {
     if (world.rank() == 0) {
         std::cout << "\n" << std::setw(msg.size() + 5) << std::setfill('-') << "\n";
         std::cout << std::setfill(' ');
@@ -41,7 +41,7 @@ CCMessenger::subsection(const std::string &msg) const {
 }
 
 void
-CCMessenger::warning(const std::string &msg) const {
+CCMessenger::warning(const std::string& msg) const {
     std::string tmp = "!!!!!WARNING:" + msg + "!!!!!!";
     output(tmp);
     warnings.push_back(msg);
@@ -63,7 +63,7 @@ CCTimer::info(const bool debug, const double norm) {
 }
 
 void
-CCFunction::info(World &world, const std::string &msg) const {
+CCFunction::info(World& world, const std::string& msg) const {
     if (world.rank() == 0) {
         std::cout << "Information about 3D function: " << name() << " " << msg << std::endl;
         std::cout << std::setw(10) << std::setfill(' ') << std::setw(50) << " |f|    : " << function.norm2()
@@ -111,7 +111,7 @@ CC_vecfunction::name() const {
 }
 
 void
-CC_vecfunction::print_size(const std::string &msg) const {
+CC_vecfunction::print_size(const std::string& msg) const {
     if (functions.size() == 0) {
         std::cout << "CC_vecfunction " << msg << " is empty\n";
     } else {
@@ -126,7 +126,7 @@ CC_vecfunction::print_size(const std::string &msg) const {
 }
 
 madness::CCPairFunction
-CCPairFunction::operator=(CCPairFunction &other) {
+CCPairFunction::operator=(CCPairFunction& other) {
     MADNESS_ASSERT(type == other.type);
     a = other.a;
     b = other.b;
@@ -187,7 +187,7 @@ CCPairFunction::print_size() const {
 }
 
 double
-CCPairFunction::make_xy_u(const CCFunction &xx, const CCFunction &yy) const {
+CCPairFunction::make_xy_u(const CCFunction& xx, const CCFunction& yy) const {
     double result = 0.0;
     switch (type) {
         default: MADNESS_EXCEPTION("Undefined enum", 1);
@@ -224,7 +224,7 @@ CCPair::info() const {
 }
 
 madness::vector_real_function_3d
-CCIntermediatePotentials::operator()(const CC_vecfunction &f, const PotentialType &type) const {
+CCIntermediatePotentials::operator()(const CC_vecfunction& f, const PotentialType& type) const {
     output("Getting " + assign_name(type) + " for " + f.name());
     vector_real_function_3d result;
     if (type == POT_singles_ and (f.type == PARTICLE or f.type == MIXED)) return current_singles_potential_gs_;
@@ -247,7 +247,7 @@ CCIntermediatePotentials::operator()(const CC_vecfunction &f, const PotentialTyp
 }
 
 madness::real_function_3d
-CCIntermediatePotentials::operator()(const CCFunction &f, const PotentialType &type) const {
+CCIntermediatePotentials::operator()(const CCFunction& f, const PotentialType& type) const {
     output("Getting " + assign_name(type) + " for " + f.name());
     real_function_3d result = real_factory_3d(world);
     if (type == POT_singles_ and (f.type == PARTICLE or f.type == MIXED))
@@ -268,8 +268,8 @@ CCIntermediatePotentials::operator()(const CCFunction &f, const PotentialType &t
 }
 
 void
-CCIntermediatePotentials::insert(const vector_real_function_3d &potential, const CC_vecfunction &f,
-                                 const PotentialType &type) {
+CCIntermediatePotentials::insert(const vector_real_function_3d& potential, const CC_vecfunction& f,
+                                 const PotentialType& type) {
     output("Storing potential: " + assign_name(type) + " for " + f.name());
     MADNESS_ASSERT(!potential.empty());
     if (type == POT_singles_ && (f.type == PARTICLE || f.type == MIXED)) current_singles_potential_gs_ = potential;
@@ -284,7 +284,7 @@ CCIntermediatePotentials::insert(const vector_real_function_3d &potential, const
 }
 
 /// ctor reading out the input file
-CCParameters::CCParameters(const std::string &input, const double &low) :
+CCParameters::CCParameters(const std::string& input, const double& low) :
         calculation(CT_LRCC2),
         lo(uninitialized),
         dmin(1.0),
@@ -450,7 +450,7 @@ CCParameters::CCParameters(const std::string &input, const double &low) :
 }
 
 /// copy constructor
-CCParameters::CCParameters(const CCParameters &other) :
+CCParameters::CCParameters(const CCParameters& other) :
         calculation(other.calculation),
         lo(other.lo),
         dmin(other.dmin),
@@ -490,7 +490,7 @@ CCParameters::CCParameters(const CCParameters &other) :
         QtAnsatz(other.QtAnsatz),
         excitations_(other.excitations_) {}
 
-void CCParameters::information(World &world) const {
+void CCParameters::information(World& world) const {
     if (world.rank() == 0) {
         //			std::cout << "Defaults for 6D and 3D Functions:\n";
         //			FunctionDefaults<3>::print();
@@ -571,7 +571,7 @@ void CCParameters::information(World &world) const {
     }
 }
 
-void CCParameters::sanity_check(World &world) const {
+void CCParameters::sanity_check(World& world) const {
     size_t warnings = 0;
     if (FunctionDefaults<3>::get_thresh() > 0.01 * FunctionDefaults<6>::get_thresh())
         warnings += warning(world, "3D Thresh is too low, should be 0.01*6D_thresh");
@@ -625,7 +625,7 @@ void CCParameters::sanity_check(World &world) const {
 }
 
 real_function_3d
-CCConvolutionOperator::operator()(const CCFunction &bra, const CCFunction &ket, const bool use_im) const {
+CCConvolutionOperator::operator()(const CCFunction& bra, const CCFunction& ket, const bool use_im) const {
     real_function_3d result;
     if (not use_im) {
         if (world.rank() == 0)
@@ -644,7 +644,7 @@ CCConvolutionOperator::operator()(const CCFunction &bra, const CCFunction &ket, 
     return result;
 }
 
-real_function_6d CCConvolutionOperator::operator()(const real_function_6d &u, const size_t particle) const {
+real_function_6d CCConvolutionOperator::operator()(const real_function_6d& u, const size_t particle) const {
     MADNESS_ASSERT(particle == 1 or particle == 2);
     MADNESS_ASSERT(operator_type == OT_G12);
     op->particle() = particle;
@@ -652,7 +652,7 @@ real_function_6d CCConvolutionOperator::operator()(const real_function_6d &u, co
 }
 
 real_function_3d
-CCConvolutionOperator::operator()(const CCFunction &bra, const real_function_6d &u, const size_t particle) const {
+CCConvolutionOperator::operator()(const CCFunction& bra, const real_function_6d& u, const size_t particle) const {
     MADNESS_ASSERT(particle == 1 or particle == 2);
     MADNESS_ASSERT(operator_type == OT_G12);
     const real_function_6d tmp = multiply(copy(u), copy(bra.function), particle);
@@ -662,7 +662,7 @@ CCConvolutionOperator::operator()(const CCFunction &bra, const real_function_6d 
     return result;
 }
 
-real_function_3d CCPairFunction::project_out(const CCFunction &f, const size_t particle) const {
+real_function_3d CCPairFunction::project_out(const CCFunction& f, const size_t particle) const {
     MADNESS_ASSERT(particle == 1 or particle == 2);
     real_function_3d result;
     switch (type) {
@@ -684,7 +684,7 @@ real_function_3d CCPairFunction::project_out(const CCFunction &f, const size_t p
 
 // result is: <x|op12|f>_particle
 real_function_3d
-CCPairFunction::dirac_convolution(const CCFunction &x, const CCConvolutionOperator &op, const size_t particle) const {
+CCPairFunction::dirac_convolution(const CCFunction& x, const CCConvolutionOperator& op, const size_t particle) const {
     real_function_3d result;
     switch (type) {
         default: MADNESS_EXCEPTION("Undefined enum", 1);
@@ -715,7 +715,7 @@ CCPairFunction CCPairFunction::swap_particles() const {
     MADNESS_EXCEPTION("swap_particles in CCPairFunction: we should not end up here", 1);
 }
 
-real_function_6d CCPairFunction::apply_G(const real_convolution_6d &G) const {
+real_function_6d CCPairFunction::apply_G(const real_convolution_6d& G) const {
     real_function_6d result = real_factory_6d(world);
     result.set_thresh(FunctionDefaults<6>::get_thresh() * 0.1);
     MADNESS_ASSERT(a.size() == b.size());
@@ -726,7 +726,7 @@ real_function_6d CCPairFunction::apply_G(const real_convolution_6d &G) const {
     return result;
 }
 
-real_function_3d CCPairFunction::project_out_decomposed(const real_function_3d &f, const size_t particle) const {
+real_function_3d CCPairFunction::project_out_decomposed(const real_function_3d& f, const size_t particle) const {
     real_function_3d result = real_factory_3d(world);
     const std::pair<vector_real_function_3d, vector_real_function_3d> decompf = assign_particles(particle);
     Tensor<double> c = inner(world, f, decompf.first);
@@ -734,7 +734,7 @@ real_function_3d CCPairFunction::project_out_decomposed(const real_function_3d &
     return result;
 }
 
-real_function_3d CCPairFunction::project_out_op_decomposed(const CCFunction &f, const size_t particle) const {
+real_function_3d CCPairFunction::project_out_op_decomposed(const CCFunction& f, const size_t particle) const {
     if (particle == 1) {
         return (*op)(f, x) * y.function;
     } else if (particle == 2) {
@@ -745,7 +745,7 @@ real_function_3d CCPairFunction::project_out_op_decomposed(const CCFunction &f, 
     }
 }
 
-real_function_3d CCPairFunction::dirac_convolution_decomposed(const CCFunction &bra, const CCConvolutionOperator &op,
+real_function_3d CCPairFunction::dirac_convolution_decomposed(const CCFunction& bra, const CCConvolutionOperator& op,
                                                               const size_t particle) const {
     const std::pair<vector_real_function_3d, vector_real_function_3d> f = assign_particles(particle);
     const vector_real_function_3d braa = mul(world, bra.function, f.first);
@@ -792,7 +792,7 @@ CCPairFunction CCPairFunction::swap_particles_op_decomposed() const {
 }
 
 
-void CCConvolutionOperator::update_elements(const CC_vecfunction &bra, const CC_vecfunction &ket) {
+void CCConvolutionOperator::update_elements(const CC_vecfunction& bra, const CC_vecfunction& ket) {
     const std::string operation_name = "<" + assign_name(bra.type) + "|" + name() + "|" + assign_name(ket.type) + ">";
     if (world.rank() == 0)
         std::cout << "updating operator elements: " << operation_name << " (" << bra.size() << "x" << ket.size() << ")"
@@ -802,9 +802,9 @@ void CCConvolutionOperator::update_elements(const CC_vecfunction &bra, const CC_
     op.reset(init_op(operator_type, parameters));
     intermediateT xim;
     for (auto tmpk : bra.functions) {
-        const CCFunction &k = tmpk.second;
+        const CCFunction& k = tmpk.second;
         for (auto tmpl : ket.functions) {
-            const CCFunction &l = tmpl.second;
+            const CCFunction& l = tmpl.second;
             real_function_3d kl = (bra(k).function * l.function);
             real_function_3d result = ((*op)(kl)).truncate();
             result.reconstruct(); // for sparse multiplication
@@ -818,7 +818,7 @@ void CCConvolutionOperator::update_elements(const CC_vecfunction &bra, const CC_
 }
 
 
-void CCConvolutionOperator::clear_intermediates(const FuncType &type) {
+void CCConvolutionOperator::clear_intermediates(const FuncType& type) {
     if (world.rank() == 0)
         std::cout << "Deleting all <HOLE|" << name() << "|" << assign_name(type) << "> intermediates \n";
     switch (type) {
@@ -856,7 +856,7 @@ size_t CCConvolutionOperator::info() const {
 }
 
 SeparatedConvolution<double, 3> *
-CCConvolutionOperator::init_op(const OpType &type, const Parameters &parameters) const {
+CCConvolutionOperator::init_op(const OpType& type, const Parameters& parameters) const {
     switch (type) {
         case OT_G12 : {
             if (world.rank() == 0)
@@ -880,7 +880,7 @@ CCConvolutionOperator::init_op(const OpType &type, const Parameters &parameters)
 
 /// Assigns strings to enums for formated output
 std::string
-assign_name(const PairFormat &input) {
+assign_name(const PairFormat& input) {
     switch (input) {
         case PT_FULL:
             return "full";
@@ -899,7 +899,7 @@ assign_name(const PairFormat &input) {
 
 /// Assigns strings to enums for formated output
 std::string
-assign_name(const CCState &input) {
+assign_name(const CCState& input) {
     switch (input) {
         case GROUND_STATE:
             return "Ground State";
@@ -916,7 +916,7 @@ assign_name(const CCState &input) {
 
 /// Assigns strings to enums for formated output
 std::string
-assign_name(const OpType &input) {
+assign_name(const OpType& input) {
     switch (input) {
         case OT_G12:
             return "g12";
@@ -950,7 +950,7 @@ assign_calctype(const std::string name) {
 
 /// Assigns strings to enums for formated output
 std::string
-assign_name(const CalcType &inp) {
+assign_name(const CalcType& inp) {
     switch (inp) {
         case CT_CC2:
             return "CC2";
@@ -978,7 +978,7 @@ assign_name(const CalcType &inp) {
 
 /// Assigns strings to enums for formated output
 std::string
-assign_name(const PotentialType &inp) {
+assign_name(const PotentialType& inp) {
     switch (inp) {
         case POT_F3D_:
             return "F3D";
@@ -1022,7 +1022,7 @@ assign_name(const PotentialType &inp) {
 
 /// Assigns strings to enums for formated output
 std::string
-assign_name(const FuncType &inp) {
+assign_name(const FuncType& inp) {
     switch (inp) {
         case HOLE:
             return "Hole";
@@ -1044,9 +1044,9 @@ assign_name(const FuncType &inp) {
 
 /// Returns the size of an intermediate
 double
-size_of(const intermediateT &im) {
+size_of(const intermediateT& im) {
     double size = 0.0;
-    for (const auto &tmp : im.allpairs) {
+    for (const auto& tmp : im.allpairs) {
         size += get_size<double, 3>(tmp.second);
     }
     return size;

@@ -58,15 +58,15 @@ enum PotentialType {
 
 /// Assigns strings to enums for formated output
 std::string
-assign_name(const PairFormat &input);
+assign_name(const PairFormat& input);
 
 /// Assigns strings to enums for formated output
 std::string
-assign_name(const CCState &input);
+assign_name(const CCState& input);
 
 /// Assigns strings to enums for formated output
 std::string
-assign_name(const OpType &input);
+assign_name(const OpType& input);
 
 /// Assigns enum to string
 CalcType
@@ -74,50 +74,50 @@ assign_calctype(const std::string name);
 
 /// Assigns strings to enums for formated output
 std::string
-assign_name(const CalcType &inp);
+assign_name(const CalcType& inp);
 
 /// Assigns strings to enums for formated output
 std::string
-assign_name(const PotentialType &inp);
+assign_name(const PotentialType& inp);
 
 /// Assigns strings to enums for formated output
 std::string
-assign_name(const FuncType &inp);
+assign_name(const FuncType& inp);
 
 // Little structure for formated output and to collect warnings
 // much room to improve
 struct CCMessenger {
-    CCMessenger(World &world) : world(world), output_prec(10), scientific(true), debug(false), os(std::cout) {}
+    CCMessenger(World& world) : world(world), output_prec(10), scientific(true), debug(false), os(std::cout) {}
 
-    World &world;
+    World& world;
     size_t output_prec;
     bool scientific;
     bool debug;
 
-    void operator()(const std::string &msg) const { output(msg); }
+    void operator()(const std::string& msg) const { output(msg); }
 
-    void debug_output(const std::string &msg) const {
+    void debug_output(const std::string& msg) const {
         if (debug) output(msg);
     }
 
     void
-    output(const std::string &msg) const;
+    output(const std::string& msg) const;
 
     void
-    section(const std::string &msg) const;
+    section(const std::string& msg) const;
 
     void
-    subsection(const std::string &msg) const;
+    subsection(const std::string& msg) const;
 
     void
-    warning(const std::string &msg) const;
+    warning(const std::string& msg) const;
 
     void print_warnings() const {
-        for (const auto &x:warnings) if (world.rank() == 0) std::cout << x << "\n";
+        for (const auto& x:warnings) if (world.rank() == 0) std::cout << x << "\n";
     }
 
     template<class T>
-    CCMessenger operator<<(const T &t) const {
+    CCMessenger operator<<(const T& t) const {
         using madness::operators::operator<<;
         if (world.rank() == 0) os << t;
         return *this;
@@ -126,7 +126,7 @@ struct CCMessenger {
     /// collect all warnings that occur to print out at the end of the job
     mutable std::vector<std::string> warnings;
     /// output stream
-    std::ostream &os;
+    std::ostream& os;
 };
 
 /// Timer Structure
@@ -134,11 +134,11 @@ struct CCTimer {
     /// TDA_TIMER contructor
     /// @param[in] world the world
     /// @param[in] msg	a string that contains the desired printout when info function is called
-    CCTimer(World &world, std::string msg) : world(world), start_wall(wall_time()), start_cpu(cpu_time()),
+    CCTimer(World& world, std::string msg) : world(world), start_wall(wall_time()), start_cpu(cpu_time()),
                                              operation(msg), end_wall(0.0), end_cpu(0.0), time_wall(-1.0),
                                              time_cpu(-1.0) {}
 
-    World &world;
+    World& world;
     double start_wall;
     double start_cpu;
     std::string operation;
@@ -193,7 +193,7 @@ public:
         print(std::make_pair(time_wall, time_cpu));
     }
 
-    void print(const std::pair<double, double> &times) const {
+    void print(const std::pair<double, double>& times) const {
         if (world.rank() == 0) {
             std::cout << std::setfill(' ') << std::scientific << std::setprecision(2)
                       << "Timer: " << times.first << " (Wall), " << times.second << " (CPU)" << ", (" + operation + ")"
@@ -213,10 +213,10 @@ struct CCParameters {
     const double uninitialized = 123.456;
 
     /// copy constructor
-    CCParameters(const CCParameters &other);
+    CCParameters(const CCParameters& other);
 
     /// ctor reading out the input file
-    CCParameters(const std::string &input, const double &low);
+    CCParameters(const std::string& input, const double& low);
 
     // the demanded calculation: possibilities are MP2_, CC2_, CIS_, CCS_ (same as CIS), CISpD_
     CalcType calculation = CT_LRCC2;
@@ -294,19 +294,19 @@ struct CCParameters {
     // TDHFParameters for the TDA Algorithm
 
     /// print out the parameters
-    void information(World &world) const;
+    void information(World& world) const;
 
     /// check if parameters are set correct
-    void sanity_check(World &world) const;
+    void sanity_check(World& world) const;
 
-    void error(World &world, const std::string &msg) const {
+    void error(World& world, const std::string& msg) const {
         if (world.rank() == 0)
             std::cout << "\n\n\n\n\n!!!!!!!!!\n\nERROR IN CC_PARAMETERS:\n    ERROR MESSAGE IS: " << msg
                       << "\n\n\n!!!!!!!!" << std::endl;
         MADNESS_EXCEPTION("ERROR IN CC_PARAMETERS", 1);
     }
 
-    size_t warning(World &world, const std::string &msg) const {
+    size_t warning(World& world, const std::string& msg) const {
         if (world.rank() == 0) std::cout << "WARNING IN CC_PARAMETERS!: " << msg << std::endl;
         return 1;
     }
@@ -325,25 +325,25 @@ struct Pairs {
 
 
     /// getter
-    const T &operator()(int i, int j) const {
+    const T& operator()(int i, int j) const {
         return allpairs.at(std::make_pair(i, j));
     }
 
     /// getter
     // at instead of [] operator bc [] inserts new element if nothing is found while at throws out of range error
-    T &operator()(int i, int j) {
+    T& operator()(int i, int j) {
         return allpairs.at(std::make_pair(i, j));
     }
 
     /// setter
     /// can NOT replace elements (for this construct new pair map and swap the content)
-    void insert(int i, int j, const T &pair) {
+    void insert(int i, int j, const T& pair) {
         std::pair<int, int> key = std::make_pair(i, j);
         allpairs.insert(std::make_pair(key, pair));
     }
 
     /// swap the contant of the pairmap
-    void swap(Pairs<T> &other) {
+    void swap(Pairs<T>& other) {
         allpairs.swap(other.allpairs);
     }
 
@@ -358,7 +358,7 @@ typedef Pairs<real_function_3d> intermediateT;
 
 /// Returns the size of an intermediate
 double
-size_of(const intermediateT &im);
+size_of(const intermediateT& im);
 
 
 /// structure for a CC Function 3D which holds an index and a type
@@ -366,14 +366,14 @@ size_of(const intermediateT &im);
 struct CCFunction {
     CCFunction() : current_error(99), i(99), type(UNDEFINED) {};
 
-    CCFunction(const real_function_3d &f) : current_error(99), function(f), i(99), type(UNDEFINED) {};
+    CCFunction(const real_function_3d& f) : current_error(99), function(f), i(99), type(UNDEFINED) {};
 
-    CCFunction(const real_function_3d &f, const size_t &ii) : current_error(99), function(f), i(ii), type(UNDEFINED) {};
+    CCFunction(const real_function_3d& f, const size_t& ii) : current_error(99), function(f), i(ii), type(UNDEFINED) {};
 
-    CCFunction(const real_function_3d &f, const size_t &ii, const FuncType &type_) : current_error(99), function(f),
+    CCFunction(const real_function_3d& f, const size_t& ii, const FuncType& type_) : current_error(99), function(f),
                                                                                      i(ii), type(type_) {};
 
-    CCFunction(const CCFunction &other) : current_error(other.current_error), function(other.function), i(other.i),
+    CCFunction(const CCFunction& other) : current_error(other.current_error), function(other.function), i(other.i),
                                           type(other.type) {};
     double current_error;
     real_function_3d function;
@@ -382,37 +382,37 @@ struct CCFunction {
 
     real_function_3d f() const { return function; }
 
-    void set(const real_function_3d &other) { function = other; }
+    void set(const real_function_3d& other) { function = other; }
 
     size_t i;
     FuncType type;
 
-    void info(World &world, const std::string &msg = " ") const;
+    void info(World& world, const std::string& msg = " ") const;
 
     std::string name() const;
 
-    double inner(const CCFunction &f) const {
+    double inner(const CCFunction& f) const {
         return inner(f.function);
     }
 
-    double inner(const real_function_3d &f) const {
+    double inner(const real_function_3d& f) const {
         return function.inner(f);
     }
 
     /// scalar multiplication
-    CCFunction operator*(const double &fac) const {
+    CCFunction operator*(const double& fac) const {
         real_function_3d fnew = fac * function;
         return CCFunction(fnew, i, type);
     }
 
     // for convenience
-    bool operator==(const CCFunction &other) const {
+    bool operator==(const CCFunction& other) const {
         if (i == other.i and type == other.type) return true;
         else return false;
     }
 
     /// plotting
-    void plot(const std::string &msg = "") const {
+    void plot(const std::string& msg = "") const {
         plot_plane(function.world(), function, msg + name());
     }
 };
@@ -426,7 +426,7 @@ struct CC_vecfunction {
 
     CC_vecfunction(const FuncType type_) : type(type_), omega(0.0), excitation(-1), current_error(99.9), delta(0.0) {}
 
-    CC_vecfunction(const vector_real_function_3d &v) : type(UNDEFINED), omega(0.0), excitation(-1), current_error(99.9),
+    CC_vecfunction(const vector_real_function_3d& v) : type(UNDEFINED), omega(0.0), excitation(-1), current_error(99.9),
                                                        delta(0.0) {
         for (size_t i = 0; i < v.size(); i++) {
             CCFunction tmp(v[i], i, type);
@@ -434,14 +434,14 @@ struct CC_vecfunction {
         }
     }
 
-    CC_vecfunction(const std::vector<CCFunction> &v) : type(UNDEFINED), omega(0.0), excitation(-1), current_error(99.9),
+    CC_vecfunction(const std::vector<CCFunction>& v) : type(UNDEFINED), omega(0.0), excitation(-1), current_error(99.9),
                                                        delta(0.0) {
         for (size_t i = 0; i < v.size(); i++) {
             functions.insert(std::make_pair(v[i].i, v[i]));
         }
     }
 
-    CC_vecfunction(const vector_real_function_3d &v, const FuncType &type) : type(type), omega(0.0), excitation(-1),
+    CC_vecfunction(const vector_real_function_3d& v, const FuncType& type) : type(type), omega(0.0), excitation(-1),
                                                                              current_error(99.9), delta(0.0) {
         for (size_t i = 0; i < v.size(); i++) {
             CCFunction tmp(v[i], i, type);
@@ -449,7 +449,7 @@ struct CC_vecfunction {
         }
     }
 
-    CC_vecfunction(const vector_real_function_3d &v, const FuncType &type, const size_t &freeze) : type(type),
+    CC_vecfunction(const vector_real_function_3d& v, const FuncType& type, const size_t& freeze) : type(type),
                                                                                                    omega(0.0),
                                                                                                    excitation(-1),
                                                                                                    current_error(99.9),
@@ -460,13 +460,13 @@ struct CC_vecfunction {
         }
     }
 
-    CC_vecfunction(const std::vector<CCFunction> &v, const FuncType type_)
+    CC_vecfunction(const std::vector<CCFunction>& v, const FuncType type_)
             : type(type_), omega(0.0), excitation(-1), current_error(99.9), delta(0.0) {
         for (auto x:v) functions.insert(std::make_pair(x.i, x));
     }
 
     /// copy ctor (shallow)
-    CC_vecfunction(const CC_vecfunction &other)
+    CC_vecfunction(const CC_vecfunction& other)
             : functions(other.functions), type(other.type), omega(other.omega),
               excitation(other.excitation), current_error(other.current_error),
               delta(other.delta), irrep(other.irrep) {
@@ -474,7 +474,7 @@ struct CC_vecfunction {
 
     /// assignment operator
 //    CC_vecfunction& operator=(const CC_vecfunction& other) = default;
-    CC_vecfunction &operator=(const CC_vecfunction &other) {
+    CC_vecfunction& operator=(const CC_vecfunction& other) {
         if (this == &other) return *this;
         functions = other.functions;
         type = other.type;
@@ -505,32 +505,32 @@ struct CC_vecfunction {
     name() const;
 
     /// getter
-    const CCFunction &operator()(const CCFunction &i) const {
+    const CCFunction& operator()(const CCFunction& i) const {
         return functions.find(i.i)->second;
     }
 
     /// getter
-    const CCFunction &operator()(const size_t &i) const {
+    const CCFunction& operator()(const size_t& i) const {
         return functions.find(i)->second;
     }
 
     /// getter
-    CCFunction &operator()(const CCFunction &i) {
+    CCFunction& operator()(const CCFunction& i) {
         return functions[i.i];
     }
 
     /// getter
-    CCFunction &operator()(const size_t &i) {
+    CCFunction& operator()(const size_t& i) {
         return functions[i];
     }
 
     /// setter
-    void insert(const size_t &i, const CCFunction &f) {
+    void insert(const size_t& i, const CCFunction& f) {
         functions.insert(std::make_pair(i, f));
     }
 
     /// setter
-    void set_functions(const vector_real_function_3d &v, const FuncType &type, const size_t &freeze) {
+    void set_functions(const vector_real_function_3d& v, const FuncType& type, const size_t& freeze) {
         functions.clear();
         for (size_t i = 0; i < v.size(); i++) {
             CCFunction tmp(v[i], freeze + i, type);
@@ -552,38 +552,38 @@ struct CC_vecfunction {
 
     /// Print the memory of which is used by all the functions in the map
     void
-    print_size(const std::string &msg = "!?not assigned!?") const;
+    print_size(const std::string& msg = "!?not assigned!?") const;
 
     /// scalar multiplication
-    CC_vecfunction operator*(const double &fac) const {
+    CC_vecfunction operator*(const double& fac) const {
         vector_real_function_3d vnew = fac * get_vecfunction();
         const size_t freeze = functions.cbegin()->first;
         return CC_vecfunction(vnew, type, freeze);
     }
 
     /// scaling (inplace)
-    void scale(const double &factor) {
-        for (auto &ktmp:functions) {
+    void scale(const double& factor) {
+        for (auto& ktmp:functions) {
             ktmp.second.function.scale(factor);
         }
     }
 
     /// operator needed for sort operation (sorted by omega values)
-    bool operator<=(const CC_vecfunction &b) const { return omega <= b.omega; }
+    bool operator<=(const CC_vecfunction& b) const { return omega <= b.omega; }
 
     /// operator needed for sort operation (sorted by omega values)
-    bool operator<(const CC_vecfunction &b) const { return omega < b.omega; }
+    bool operator<(const CC_vecfunction& b) const { return omega < b.omega; }
 
     /// store functions on disc
     void save_functions(const std::string msg = "") const {
         std::string pre_name = "";
         if (msg != "") pre_name = msg + "_";
-        for (const auto &tmp:functions) save<double, 3>(tmp.second.function, pre_name + tmp.second.name());
+        for (const auto& tmp:functions) save<double, 3>(tmp.second.function, pre_name + tmp.second.name());
     }
 
     // plotting
-    void plot(const std::string &msg = "") const {
-        for (auto &ktmp:functions) {
+    void plot(const std::string& msg = "") const {
+        for (auto& ktmp:functions) {
             ktmp.second.plot(msg);
         }
     }
@@ -599,16 +599,17 @@ struct CCConvolutionOperator {
     /// parameter class
     struct Parameters {
         Parameters() {};
+
         Parameters(const Parameters& other) :
-            thresh_op(other.thresh_op),
-            lo(other.lo),
-            freeze(other.freeze),
-            gamma(other.gamma) {
+                thresh_op(other.thresh_op),
+                lo(other.lo),
+                freeze(other.freeze),
+                gamma(other.gamma) {
         }
 
-        Parameters(const CCParameters &param) : thresh_op(param.thresh_poisson), lo(param.lo), freeze(param.freeze),
+        Parameters(const CCParameters& param) : thresh_op(param.thresh_poisson), lo(param.lo), freeze(param.freeze),
                                                 gamma(param.gamma()) {};
-        double thresh_op=FunctionDefaults<3>::get_thresh();
+        double thresh_op = FunctionDefaults<3>::get_thresh();
         double lo = 1.e-6;
         int freeze = 0;
         double gamma = 1.0; /// f12 exponent
@@ -618,25 +619,25 @@ struct CCConvolutionOperator {
     /// @param[in] world
     /// @param[in] optype: the operatortype (can be g12_ or f12_)
     /// @param[in] param: the parameters of the current CC-Calculation (including function and operator thresholds and the exponent for f12)
-    CCConvolutionOperator(World &world, const OpType type, Parameters param) : parameters(param), world(world),
-                                                                                      operator_type(type),
-                                                                                      op() {
+    CCConvolutionOperator(World& world, const OpType type, Parameters param) : parameters(param), world(world),
+                                                                               operator_type(type),
+                                                                               op() {
     }
 
     CCConvolutionOperator(const CCConvolutionOperator& other) = default;
 
     /// @param[in] f: a 3D function
     /// @param[out] the convolution op(f), no intermediates are used
-    real_function_3d operator()(const real_function_3d &f) const { return ((*op)(f)).truncate(); }
+    real_function_3d operator()(const real_function_3d& f) const { return ((*op)(f)).truncate(); }
 
     /// @param[in] bra a CC_vecfunction
     /// @param[in] ket a CC_function
     /// @param[out] vector[i] = <bra[i]|op|ket>
-    vector_real_function_3d operator()(const CC_vecfunction &bra, const CCFunction &ket) const {
+    vector_real_function_3d operator()(const CC_vecfunction& bra, const CCFunction& ket) const {
         vector_real_function_3d result;
         if (bra.type == HOLE) {
-            for (const auto &ktmp:bra.functions) {
-                const CCFunction &brai = ktmp.second;
+            for (const auto& ktmp:bra.functions) {
+                const CCFunction& brai = ktmp.second;
                 const real_function_3d tmpi = this->operator()(brai, ket);
                 result.push_back(tmpi);
             }
@@ -650,7 +651,7 @@ struct CCConvolutionOperator {
 
     // @param[in] f: a vector of 3D functions
     // @param[out] the convolution of op with each function, no intermeditates are used
-    vector_real_function_3d operator()(const vector_real_function_3d &f) const {
+    vector_real_function_3d operator()(const vector_real_function_3d& f) const {
         return apply<double, double, 3>(world, (*op), f);
     }
 
@@ -658,30 +659,30 @@ struct CCConvolutionOperator {
     // @param[in] ket: a 3D CC_function,
     // @param[in] use_im: default is true, if false then no intermediates are used
     // @param[out] the convolution <bra|op|ket> = op(bra*ket), if intermediates were calculated before the operator uses them
-    real_function_3d operator()(const CCFunction &bra, const CCFunction &ket, const bool use_im = true) const;
+    real_function_3d operator()(const CCFunction& bra, const CCFunction& ket, const bool use_im = true) const;
 
     // @param[in] u: a 6D-function
     // @param[out] the convolution \int g(r,r') u(r,r') dr' (if particle==2) and g(r,r') u(r',r) dr' (if particle==1)
     // @param[in] particle: specifies on which particle of u the operator will act (particle ==1 or particle==2)
-    real_function_6d operator()(const real_function_6d &u, const size_t particle) const;
+    real_function_6d operator()(const real_function_6d& u, const size_t particle) const;
 
     // @param[in] bra: a 3D-CC_function, if nuclear-correlation factors are used they have to be applied before
     // @param[in] u: a 6D-function
     // @param[in] particle: specifies on which particle of u the operator will act (particle ==1 or particle==2)
     // @param[out] the convolution <bra|g12|u>_particle
-    real_function_3d operator()(const CCFunction &bra, const real_function_6d &u, const size_t particle) const;
+    real_function_3d operator()(const CCFunction& bra, const real_function_6d& u, const size_t particle) const;
 
     /// @param[in] bra: a vector of CC_functions, the type has to be HOLE
     /// @param[in] ket: a vector of CC_functions, the type can be HOLE,PARTICLE,RESPONSE
     /// updates intermediates of the type <bra|op|ket>
-    void update_elements(const CC_vecfunction &bra, const CC_vecfunction &ket);
+    void update_elements(const CC_vecfunction& bra, const CC_vecfunction& ket);
 
     /// @param[out] prints the name of the operator (convenience) which is g12 or f12 or maybe other things like gf in the future
     std::string name() const { return assign_name(operator_type); }
 
     /// @param[in] the type of which intermediates will be deleted
     /// e.g if(type==HOLE) then all intermediates of type <mo_bra_k|op|HOLE> will be deleted
-    void clear_intermediates(const FuncType &type);
+    void clear_intermediates(const FuncType& type);
 
     /// name speaks for itself
     void clear_all_intermediates() {
@@ -699,15 +700,15 @@ struct CCConvolutionOperator {
     /// @param[in] type: the type of intermediates which will be printed, can be HOLE,PARTICLE or RESPONSE
     void print_intermediate(const FuncType type) const {
         if (type == HOLE)
-            for (const auto &tmp:imH.allpairs)
+            for (const auto& tmp:imH.allpairs)
                 tmp.second.print_size("<H" + std::to_string(tmp.first.first) + "|" + assign_name(operator_type) + "|H" +
                                       std::to_string(tmp.first.second) + "> intermediate");
         else if (type == PARTICLE)
-            for (const auto &tmp:imP.allpairs)
+            for (const auto& tmp:imP.allpairs)
                 tmp.second.print_size("<H" + std::to_string(tmp.first.first) + "|" + assign_name(operator_type) + "|P" +
                                       std::to_string(tmp.first.second) + "> intermediate");
         else if (type == RESPONSE)
-            for (const auto &tmp:imR.allpairs)
+            for (const auto& tmp:imR.allpairs)
                 tmp.second.print_size("<H" + std::to_string(tmp.first.first) + "|" + assign_name(operator_type) + "|R" +
                                       std::to_string(tmp.first.second) + "> intermediate");
     }
@@ -725,14 +726,14 @@ struct CCConvolutionOperator {
     const Parameters parameters;
 private:
     /// the world
-    World &world;
+    World& world;
     /// the operatortype, currently this can be g12_ or f12_
     const OpType operator_type = OT_UNDEFINED;
 
     /// @param[in] optype: can be f12_ or g12_ depending on which operator shall be intitialzied
     /// @param[in] parameters: parameters (thresholds etc)
     /// initializes the operators
-    SeparatedConvolution<double, 3> *init_op(const OpType &type, const Parameters &parameters) const;
+    SeparatedConvolution<double, 3> *init_op(const OpType& type, const Parameters& parameters) const;
 
     std::shared_ptr<real_convolution_3d> op;
     intermediateT imH;
@@ -741,7 +742,7 @@ private:
 
     /// @param[in] msg: output message
     /// the function will throw an MADNESS_EXCEPTION
-    void error(const std::string &msg) const {
+    void error(const std::string& msg) const {
         if (world.rank() == 0)
             std::cout << "\n\n!!!!ERROR in CCConvolutionOperator " << assign_name(operator_type) << ": " << msg
                       << "!!!!!\n\n" << std::endl;
@@ -757,27 +758,27 @@ private:
 struct CCPairFunction {
 
 public:
-    CCPairFunction(World &world, const real_function_6d &ket) : world(world), type(PT_FULL), a(), b(), op(0), u(ket) {}
+    CCPairFunction(World& world, const real_function_6d& ket) : world(world), type(PT_FULL), a(), b(), op(0), u(ket) {}
 
-    CCPairFunction(World &world, const vector_real_function_3d &f1, const vector_real_function_3d &f2) : world(world),
+    CCPairFunction(World& world, const vector_real_function_3d& f1, const vector_real_function_3d& f2) : world(world),
                                                                                                          type(PT_DECOMPOSED),
                                                                                                          a(f1), b(f2),
                                                                                                          op(0), u() {}
 
-    CCPairFunction(World &world, const std::pair<vector_real_function_3d, vector_real_function_3d> &f) : world(world),
+    CCPairFunction(World& world, const std::pair<vector_real_function_3d, vector_real_function_3d>& f) : world(world),
                                                                                                          type(PT_DECOMPOSED),
                                                                                                          a(f.first),
                                                                                                          b(f.second),
                                                                                                          op(0), u() {}
 
-    CCPairFunction(World &world, const CCConvolutionOperator *op_, const CCFunction &f1, const CCFunction &f2) : world(
+    CCPairFunction(World& world, const CCConvolutionOperator *op_, const CCFunction& f1, const CCFunction& f2) : world(
             world), type(PT_OP_DECOMPOSED), a(), b(), op(op_), x(f1), y(f2), u() {}
 
-    CCPairFunction(const CCPairFunction &other) : world(other.world), type(other.type), a(other.a), b(other.b),
+    CCPairFunction(const CCPairFunction& other) : world(other.world), type(other.type), a(other.a), b(other.b),
                                                   op(other.op), x(other.x), y(other.y), u(other.u) {}
 
     CCPairFunction
-    operator=(CCPairFunction &other);
+    operator=(CCPairFunction& other);
 
     void info() const {
         if (world.rank() == 0) std::cout << "Information about Pair " << name() << "\n";
@@ -817,7 +818,7 @@ public:
     /// @param[in] f: a 3D-CC_function
     /// @param[in] particle: the particle on which the operation acts
     /// @param[out] <f|u>_particle (projection from 6D to 3D)
-    real_function_3d project_out(const CCFunction &f, const size_t particle) const;
+    real_function_3d project_out(const CCFunction& f, const size_t particle) const;
 
     // result is: <x|op12|f>_particle
     /// @param[in] x: a 3D-CC_function
@@ -825,23 +826,23 @@ public:
     /// @param[in] particle: the particle on which the operation acts (can be 1 or 2)
     /// @param[out] the operator is applied and afterwards a convolution with the delta function makes a 3D-function: <x|op|u>_particle
     real_function_3d
-    dirac_convolution(const CCFunction &x, const CCConvolutionOperator &op, const size_t particle) const;
+    dirac_convolution(const CCFunction& x, const CCConvolutionOperator& op, const size_t particle) const;
 
     /// @param[out] particles are interchanged, if the function was u(1,2) the result is u(2,1)
     CCPairFunction swap_particles() const;
 
     /// @param[in] the Greens operator
     /// @param[out] the Greens operator is applied to the function: G(u)
-    real_function_6d apply_G(const real_convolution_6d &G) const;
+    real_function_6d apply_G(const real_convolution_6d& G) const;
 
 
     double
-    make_xy_u(const CCFunction &xx, const CCFunction &yy) const;
+    make_xy_u(const CCFunction& xx, const CCFunction& yy) const;
 
 public:
     /// the 3 types of 6D-function that occur in the CC potential which coupled doubles to singles
 
-    World &world;
+    World& world;
     /// the type of the given 6D-function
     const PairFormat type;
     /// if type==decomposed this is the first particle
@@ -860,12 +861,12 @@ public:
     /// @param[in] f: a 3D-CC_function
     /// @param[in] particle: the particle on which the operation acts
     /// @param[out] <f|u>_particle (projection from 6D to 3D) for the case that u=|ab> so <f|u>_particle = <f|a>*|b> if particle==1
-    real_function_3d project_out_decomposed(const real_function_3d &f, const size_t particle) const;
+    real_function_3d project_out_decomposed(const real_function_3d& f, const size_t particle) const;
 
     /// @param[in] f: a 3D-CC_function
     /// @param[in] particle: the particle on which the operation acts
     /// @param[out] <f|u>_particle (projection from 6D to 3D) for the case that u=op|xy> so <f|u>_particle = <f|op|x>*|y> if particle==1
-    real_function_3d project_out_op_decomposed(const CCFunction &f, const size_t particle) const;
+    real_function_3d project_out_op_decomposed(const CCFunction& f, const size_t particle) const;
 
     /// @param[in] x: a 3D-CC_function
     /// @param[in] op: a CC_convoltion_operator which is currently either f12 or g12
@@ -873,7 +874,7 @@ public:
     /// @param[out] the operator is applied and afterwards a convolution with the delta function makes a 3D-function: <x|op|u>_particle
     /// in this case u=|ab> and the result is <x|op|u>_1 = <x|op|a>*|b> for particle==1
     real_function_3d
-    dirac_convolution_decomposed(const CCFunction &x, const CCConvolutionOperator &op, const size_t particle) const;
+    dirac_convolution_decomposed(const CCFunction& x, const CCConvolutionOperator& op, const size_t particle) const;
 
     /// small helper function that gives back (a,b) or (b,a) depending on the value of particle
     const std::pair<vector_real_function_3d, vector_real_function_3d> assign_particles(const size_t particle) const;
@@ -893,10 +894,10 @@ public:
     CCPair(const size_t ii, const size_t jj, const CCState t, const CalcType c) : type(t), ctype(c), i(ii), j(jj),
                                                                                   bsh_eps(12345.6789) {};
 
-    CCPair(const size_t ii, const size_t jj, const CCState t, const CalcType c, const std::vector<CCPairFunction> &f)
+    CCPair(const size_t ii, const size_t jj, const CCState t, const CalcType c, const std::vector<CCPairFunction>& f)
             : type(t), ctype(c), i(ii), j(jj), functions(f), bsh_eps(12345.6789) {};
 
-    CCPair(const CCPair &other) : type(other.type), ctype(other.ctype), i(other.i), j(other.j),
+    CCPair(const CCPair& other) : type(other.type), ctype(other.ctype), i(other.i), j(other.j),
                                   functions(other.functions), constant_part(other.constant_part),
                                   bsh_eps(other.bsh_eps) {};
 
@@ -914,7 +915,7 @@ public:
     }
 
     /// updates the pure 6D part of the pair function
-    void update_u(const real_function_6d &u) {
+    void update_u(const real_function_6d& u) {
         MADNESS_ASSERT(not functions.empty());
         MADNESS_ASSERT(functions[0].type == PT_FULL);
         CCPairFunction tmp(u.world(), u);
@@ -946,21 +947,21 @@ public:
 
 /// little helper structure which manages the stored singles potentials
 struct CCIntermediatePotentials {
-    CCIntermediatePotentials(World &world, const CCParameters &p) : world(world), parameters(p) {};
+    CCIntermediatePotentials(World& world, const CCParameters& p) : world(world), parameters(p) {};
 
     /// fetches the correct stored potential or throws an exception
     vector_real_function_3d
-    operator()(const CC_vecfunction &f, const PotentialType &type) const;
+    operator()(const CC_vecfunction& f, const PotentialType& type) const;
 
     /// fetch the potential for a single function
     real_function_3d
-    operator()(const CCFunction &f, const PotentialType &type) const;
+    operator()(const CCFunction& f, const PotentialType& type) const;
 
     vector_real_function_3d
     get_unprojected_cc2_projector_response() const { return unprojected_cc2_projector_response_; }
 
     void add_unprojected_cc2_projector_response(
-            const vector_real_function_3d &tmp) { unprojected_cc2_projector_response_ = copy(world, tmp); }
+            const vector_real_function_3d& tmp) { unprojected_cc2_projector_response_ = copy(world, tmp); }
 
     /// deltes all stored potentials
     void clear_all() {
@@ -981,11 +982,11 @@ struct CCIntermediatePotentials {
 
     /// insert potential
     void
-    insert(const vector_real_function_3d &potential, const CC_vecfunction &f, const PotentialType &type);
+    insert(const vector_real_function_3d& potential, const CC_vecfunction& f, const PotentialType& type);
 
 private:
-    World &world;
-    const CCParameters &parameters;
+    World& world;
+    const CCParameters& parameters;
     /// whole ground state singles potential without fock-residue
     vector_real_function_3d current_singles_potential_gs_;
     /// whole excited state singles potential without fock-residue
@@ -1003,7 +1004,7 @@ private:
     vector_real_function_3d unprojected_cc2_projector_response_;
 
     /// structured output
-    void output(const std::string &msg) const {
+    void output(const std::string& msg) const {
         if (world.rank() == 0 and parameters.debug)
             std::cout << "Intermediate Potential Manager: " << msg << "\n";
     }
