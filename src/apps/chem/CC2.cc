@@ -13,10 +13,10 @@ namespace madness {
 /// solve the CC2 ground state equations, returns the correlation energy
 void
 CC2::solve() {
-    if (parameters.test) {
+    if (parameters.test()) {
         CCOPS.test();
     }
-    const CalcType ctype = parameters.calculation;
+    const CalcType ctype = parameters.calc_type();
 
     if (ctype == CT_TDHF) {
 //		TDHF tdhf(world,nemo);
@@ -25,9 +25,9 @@ CC2::solve() {
         tdhf.set_reference(nemo);
         MADNESS_EXCEPTION("check if the previous 4 lines are OK", 1);
         std::vector<CC_vecfunction> ccs;
-        for (size_t k = 0; k < parameters.excitations_.size(); k++) {
+        for (size_t k = 0; k < parameters.excitations().size(); k++) {
             CC_vecfunction tmp;
-            const bool found = initialize_singles(tmp, RESPONSE, parameters.excitations_[k]);
+            const bool found = initialize_singles(tmp, RESPONSE, parameters.excitations()[k]);
             if (found) ccs.push_back(tmp);
         }
         tdhf.solve_tdhf(ccs);
@@ -82,9 +82,9 @@ CC2::solve() {
         tdhf.set_reference(nemo);
         MADNESS_EXCEPTION("check if the previous 4 lines are OK", 1);
         std::vector<CC_vecfunction> ccs;
-        for (size_t k = 0; k < parameters.excitations_.size(); k++) {
+        for (size_t k = 0; k < parameters.excitations().size(); k++) {
             CC_vecfunction tmp;
-            const bool found = initialize_singles(tmp, RESPONSE, parameters.excitations_[k]);
+            const bool found = initialize_singles(tmp, RESPONSE, parameters.excitations()[k]);
             if (found) ccs.push_back(tmp);
         }
         tdhf.solve_cis(ccs);
@@ -104,9 +104,9 @@ CC2::solve() {
         std::vector<CC_vecfunction> vccs;
         // try to load cis functions
         std::vector<std::pair<double, double> > cispd_results;
-        for (size_t k = 0; k < parameters.excitations_.size(); k++) {
+        for (size_t k = 0; k < parameters.excitations().size(); k++) {
             CC_vecfunction tmp;
-            const bool found = initialize_singles(tmp, RESPONSE, parameters.excitations_[k]);
+            const bool found = initialize_singles(tmp, RESPONSE, parameters.excitations()[k]);
             if (found) vccs.push_back(tmp);
         }
 
@@ -116,10 +116,10 @@ CC2::solve() {
 
         CCTimer time_cispd(world, "Time CIS(D) Response");
 
-        for (size_t k = 0; k < parameters.excitations_.size(); k++) {
+        for (size_t k = 0; k < parameters.excitations().size(); k++) {
 
             CC_vecfunction& ccs = vccs[k];
-            const size_t excitation = parameters.excitations_[k];
+            const size_t excitation = parameters.excitations()[k];
             CCTimer time_ex(world, "CIS(D) for Excitation " + std::to_string(int(excitation)));
 
             // check the convergence of the cis function (also needed to store the ccs potential) and to recalulate the excitation energy
@@ -144,7 +144,7 @@ CC2::solve() {
             if (world.rank() == 0) {
                 std::cout << std::fixed << std::setprecision(10) << "\n"
                           << "--------------------------------\n"
-                          << "Excitation " << parameters.excitations_[i] << "\n"
+                          << "Excitation " << parameters.excitations()[i] << "\n"
                           << "CIS   =" << cispd_results[i].first << "\n"
                           << "CIS(D)=" << cispd_results[i].second << "\n"
                           << "Delta =" << cispd_results[i].second - cispd_results[i].first << "\n"
@@ -158,7 +158,7 @@ CC2::solve() {
         // we will never need the GS singles, but we use the CC2 potential functions so we initialize all gs singles potentials to zero
         CCOPS.update_intermediates(
                 CC_vecfunction(zero_functions<double, 3>(world, CCOPS.get_active_mo_ket().size()), PARTICLE,
-                               parameters.freeze));
+                               parameters.freeze()));
         output.section("ADC(2) Calculation");
         CCTimer time(world, "Whole ADC(2) Calculation");
 
@@ -179,9 +179,9 @@ CC2::solve() {
         std::vector<CC_vecfunction> vccs;
         // try to load cis functions
         std::vector<std::pair<double, double> > cispd_results;
-        for (size_t k = 0; k < parameters.excitations_.size(); k++) {
+        for (size_t k = 0; k < parameters.excitations().size(); k++) {
             CC_vecfunction tmp;
-            const bool found = initialize_singles(tmp, RESPONSE, parameters.excitations_[k]);
+            const bool found = initialize_singles(tmp, RESPONSE, parameters.excitations()[k]);
             if (found) vccs.push_back(tmp);
         }
         if (vccs.empty()) vccs = solve_ccs(); // only solve if no CIS vectors where given
@@ -190,10 +190,10 @@ CC2::solve() {
         CCTimer time_ex(world, "ADC(2) Calculation");
         output.section("ADC(2): Calculating ADC(2) Correction to CIS");
         std::vector<std::vector<double> > adc2_results;
-        for (size_t k = 0; k < parameters.excitations_.size(); k++) {
+        for (size_t k = 0; k < parameters.excitations().size(); k++) {
 
             CC_vecfunction& ccs = vccs[k];
-            const size_t excitation = parameters.excitations_[k];
+            const size_t excitation = parameters.excitations()[k];
             CCTimer time_ex(world, "ADC(2) for Excitation " + std::to_string(int(excitation)));
 
             // check the convergence of the cis function (also needed to store the ccs potential) and to recalulate the excitation energy
@@ -313,9 +313,9 @@ CC2::solve() {
         std::vector<CC_vecfunction> vccs;
         // try to load cis functions
         std::vector<std::pair<double, double> > cispd_results;
-        for (size_t k = 0; k < parameters.excitations_.size(); k++) {
+        for (size_t k = 0; k < parameters.excitations().size(); k++) {
             CC_vecfunction tmp;
-            const bool found = initialize_singles(tmp, RESPONSE, parameters.excitations_[k]);
+            const bool found = initialize_singles(tmp, RESPONSE, parameters.excitations()[k]);
             if (found) vccs.push_back(tmp);
         }
 
@@ -328,12 +328,12 @@ CC2::solve() {
 
         std::vector<std::pair<std::string, std::pair<double, double> > > results_ex;
         for (size_t xxx = 0; xxx < vccs.size(); xxx++) {
-            const size_t excitation = parameters.excitations_[xxx];
+            const size_t excitation = parameters.excitations()[xxx];
             CCTimer time_ex(world, "LRCC2 Calculation for Excitation " + std::to_string(int(excitation)));
             CC_vecfunction lrcc2_s = vccs[xxx];
             // needed to assign an omega
             const vector_real_function_3d backup = copy(world, lrcc2_s.get_vecfunction());
-            CC_vecfunction test(backup, RESPONSE, parameters.freeze);
+            CC_vecfunction test(backup, RESPONSE, parameters.freeze());
             test.excitation = lrcc2_s.excitation;
             iterate_ccs_singles(test);
             lrcc2_s.omega = test.omega;
@@ -347,7 +347,7 @@ CC2::solve() {
             else iterate_ccs_singles(lrcc2_s);
             const double omega_cis = lrcc2_s.omega;
 
-            for (size_t iter = 0; iter < parameters.iter_max; iter++) {
+            for (size_t iter = 0; iter < parameters.iter_max(); iter++) {
                 output.section("Macroiteration " + std::to_string(int(iter)) + " of LRCC2");
                 bool dconv = iterate_lrcc2_pairs(cc2_s, cc2_d, lrcc2_s, lrcc2_d);
                 bool sconv = iterate_lrcc2_singles(cc2_s, cc2_d, lrcc2_s, lrcc2_d);
@@ -397,16 +397,16 @@ std::vector<CC_vecfunction> CC2::solve_ccs() {
     tdhf.set_reference(nemo);
     MADNESS_EXCEPTION("check if the previous 4 lines are OK", 1);
     std::vector<CC_vecfunction> excitations;
-    for (size_t k = 0; k < parameters.excitations_.size(); k++) {
+    for (size_t k = 0; k < parameters.excitations().size(); k++) {
         CC_vecfunction tmp;
-        const bool found = initialize_singles(tmp, RESPONSE, parameters.excitations_[k]);
+        const bool found = initialize_singles(tmp, RESPONSE, parameters.excitations()[k]);
         if (found) excitations.push_back(tmp);
     }
     tdhf.solve_cis(excitations);
 
     // return only those functions which are demanded
     std::vector<CC_vecfunction> result;
-    for (const auto& x:parameters.excitations_) {
+    for (const auto& x:parameters.excitations()) {
         if (excitations.size() - 1 < x) MADNESS_EXCEPTION("Not Enough CIS Vectors to solve for the demanded CC2 vector",
                                                           1);
         excitations[x].excitation = x;
@@ -424,7 +424,7 @@ CC2::solve_mp2(Pairs<CCPair>& doubles) {
         MADNESS_ASSERT(tmp_pair.second.type == GROUND_STATE);
         MADNESS_ASSERT(tmp_pair.second.ctype == CT_MP2);
 
-        if (parameters.no_compute_mp2) output("Found no_compute_mp2 keyword");
+        if (parameters.no_compute_mp2()) output("Found no_compute_mp2 keyword");
         else {
             update_constant_part_mp2(tmp_pair.second);
             iterate_pair(tmp_pair.second);
@@ -454,22 +454,22 @@ CC2::solve_cispd(Pairs<CCPair>& cispd, const Pairs<CCPair>& mp2, const CC_vecfun
     for (auto& pairs:cispd.allpairs) {
         CCPair& pair = pairs.second;
         pair.bsh_eps = CCOPS.get_epsilon(pair.i, pair.j) + ccs.omega;
-        if (size_t(parameters.only_pair.first) == pair.i and size_t(parameters.only_pair.second) == pair.j) {
+        if (size_t(parameters.only_pair().first) == pair.i and size_t(parameters.only_pair().second) == pair.j) {
             output("Found only_pair exception");
             update_constant_part_cispd(ccs, pair);
             iterate_pair(pair, ccs);
-        } else if (parameters.no_compute_cispd) output("Found no_compute_cispd key");
+        } else if (parameters.no_compute_cispd()) output("Found no_compute_cispd key");
         else {
             update_constant_part_cispd(ccs, pair);
             iterate_pair(pair, ccs);
         }
         // test consitency of the two approaches
-        if (parameters.debug and parameters.thresh_6D > 1.e-4)
+        if (parameters.debug() and parameters.thresh_6D() > 1.e-4)
             CCOPS.test_pair_consistency(pair.functions[0], pair.i, pair.j, ccs);
     }
 
     const double diff = CCOPS.compute_cispd_energy(ccs, mp2, cispd);
-    CC_vecfunction empty(zero_functions<double, 3>(world, ccs.size()), PARTICLE, parameters.freeze);
+    CC_vecfunction empty(zero_functions<double, 3>(world, ccs.size()), PARTICLE, parameters.freeze());
     const double omega_cc2 = CCOPS.compute_cc2_excitation_energy(empty, ccs, mp2, cispd);
     output.section("CIS(D) Calculation for CIS Excitation " + std::to_string(double(ccs.omega)) + " ended");
     if (world.rank() == 0) {
@@ -513,8 +513,8 @@ CC2::iterate_lrcc2_pairs(const CC_vecfunction& cc2_s, const Pairs<CCPair>& cc2_d
         const size_t i = pair.i;
         const size_t j = pair.j;
         // check if singles have significantly changed
-        if (lrcc2_s(i).current_error < 0.1 * parameters.thresh_6D and
-            lrcc2_s(j).current_error < 0.1 * parameters.thresh_6D)
+        if (lrcc2_s(i).current_error < 0.1 * parameters.thresh_6D() and
+            lrcc2_s(j).current_error < 0.1 * parameters.thresh_6D())
             output("Skipping Pair Iteration, No significant Change in Singles");
         else {
             pair.bsh_eps = CCOPS.get_epsilon(pair.i, pair.j) + lrcc2_s.omega;
@@ -541,14 +541,14 @@ CC2::solve_cc2(CC_vecfunction& singles, Pairs<CCPair>& doubles) {
     if (world.rank() == 0)
         std::cout << std::fixed << std::setprecision(10) << "Current Correlation Energy = " << omega << "\n";
 
-    if (not parameters.no_compute_cc2) {
+    if (not parameters.no_compute_cc2()) {
         // first singles iteration
         output.section("Initialize Singles to the Doubles");
         iterate_cc2_singles(singles, doubles);
         // update correlation energy
         omega = CCOPS.compute_cc2_correlation_energy(singles, doubles);
 
-        for (size_t iter = 0; iter < parameters.iter_max; iter++) {
+        for (size_t iter = 0; iter < parameters.iter_max(); iter++) {
             CCTimer time_miter(world, "Macroiteration " + std::to_string(int(iter)) + " of CC2");
             output.section("Macroiteration " + std::to_string(int(iter)) + " of CC2");
 
@@ -571,7 +571,7 @@ CC2::solve_cc2(CC_vecfunction& singles, Pairs<CCPair>& doubles) {
             // check if energy converged
             const double omega_new = CCOPS.compute_cc2_correlation_energy(singles, doubles);
             const double delta = omega_new - omega;
-            const bool omega_converged(delta < parameters.econv);
+            const bool omega_converged(delta < parameters.econv());
             omega = omega_new;
             if (world.rank() == 0)
                 std::cout << std::fixed << std::setprecision(10) << "Current Correlation Energy = " << omega << "\n";
@@ -613,10 +613,10 @@ bool CC2::iterate_pair(CCPair& pair, const CC_vecfunction& singles) const {
     output.subsection("Converge pair " + pair.name() + " on constant singles potential");
 
     double bsh_eps = pair.bsh_eps; //CCOPS.get_epsilon(pair.i,pair.j)+omega;
-    real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0 * bsh_eps), parameters.lo, parameters.thresh_bsh_6D);
+    real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0 * bsh_eps), parameters.lo(), parameters.thresh_bsh_6D());
     G.destructive() = true;
 
-    NonlinearSolverND<6> solver(parameters.kain_subspace);
+    NonlinearSolverND<6> solver(parameters.kain_subspace());
     solver.do_print = (world.rank() == 0);
 
     bool converged = false;
@@ -629,14 +629,14 @@ bool CC2::iterate_pair(CCPair& pair, const CC_vecfunction& singles) const {
         std::cout << "Correlation Energy of Pair " << pair.name() << " =" << std::fixed << std::setprecision(10)
                   << omega << "\n";
 
-    for (size_t iter = 0; iter < parameters.iter_max_6D; iter++) {
+    for (size_t iter = 0; iter < parameters.iter_max_6D(); iter++) {
         output.subsection(assign_name(pair.ctype) + "-Microiteration");
         CCTimer timer_mp2(world, "MP2-Microiteration of pair " + pair.name());
 
 
         CCTimer timer_mp2_potential(world, "MP2-Potential of pair " + pair.name());
         real_function_6d mp2_potential = -2.0 * CCOPS.fock_residue_6d(pair);
-        if (parameters.debug) mp2_potential.print_size(assign_name(pair.ctype) + " Potential");
+        if (parameters.debug()) mp2_potential.print_size(assign_name(pair.ctype) + " Potential");
         mp2_potential.truncate().reduce_rank();
         timer_mp2_potential.info(true, mp2_potential.norm2());
 
@@ -650,10 +650,10 @@ bool CC2::iterate_pair(CCPair& pair, const CC_vecfunction& singles) const {
         unew = CCOPS.apply_Q12t(unew, CCOPS.mo_ket());
         unew.print_size("Q12unew");
         //unew.truncate().reduce_rank(); // already done in Q12 application at the end
-        if (parameters.debug)unew.print_size("truncated-unew");
+        if (parameters.debug())unew.print_size("truncated-unew");
         const real_function_6d residue = pair.function() - unew;
         const double error = residue.norm2();
-        if (parameters.kain) {
+        if (parameters.kain()) {
             output("Update with KAIN");
             real_function_6d kain_update = copy(solver.update(pair.function(), residue));
             kain_update = CCOPS.apply_Q12t(kain_update, CCOPS.mo_ket());
@@ -690,9 +690,9 @@ bool CC2::iterate_pair(CCPair& pair, const CC_vecfunction& singles) const {
         output("\n--Iteration " + stringify(iter) + " ended--");
         save(pair.function(), pair.name());
         timer_mp2.info();
-        if (fabs(error) < parameters.dconv_6D) {
+        if (fabs(error) < parameters.dconv_6D()) {
             output(pair.name() + " converged!");
-            if (fabs(delta) < parameters.econv_pairs) {
+            if (fabs(delta) < parameters.econv_pairs()) {
                 converged = true;
                 break;
             } else output("Energy not yet converged");
@@ -709,7 +709,7 @@ CC2::initialize_singles(CC_vecfunction& singles, const FuncType type, const int 
     bool restarted = false;
 
     std::vector<CCFunction> vs;
-    for (size_t i = parameters.freeze; i < CCOPS.mo_ket().size(); i++) {
+    for (size_t i = parameters.freeze(); i < CCOPS.mo_ket().size(); i++) {
         CCFunction single_i;
         single_i.type = type;
         single_i.i = i;
@@ -740,7 +740,7 @@ CC2::initialize_pairs(Pairs<CCPair>& pairs, const CCState ftype, const CalcType 
 
     bool restarted = false;
 
-    for (size_t i = parameters.freeze; i < CCOPS.mo_ket().size(); i++) {
+    for (size_t i = parameters.freeze(); i < CCOPS.mo_ket().size(); i++) {
         for (size_t j = i; j < CCOPS.mo_ket().size(); j++) {
 
             std::string name = CCPair(i, j, ftype, ctype).name();

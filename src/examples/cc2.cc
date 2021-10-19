@@ -112,7 +112,7 @@ int main(int argc, char **argv) {
 
 
 // Make CC2
-    CC2 cc2(world, inpname, nemo);
+    CC2 cc2(world, parser, nemo);
 
     cc2.solve();
 

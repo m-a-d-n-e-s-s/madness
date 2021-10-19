@@ -34,9 +34,9 @@ public:
         parameters.sanity_check(world);
     }
 
-    CC2(World& world_, const std::string& inputFileName, const std::shared_ptr<Nemo> nemo_)
+    CC2(World& world_, const commandlineparser& parser, const std::shared_ptr<Nemo> nemo_)
             : world(world_),
-              parameters(inputFileName, nemo_->get_calc()->param.lo()),
+              parameters(world_,parser),
               nemo(nemo_),
               CCOPS(world, *nemo, parameters),
               output(CCOPS.output) {
@@ -45,12 +45,12 @@ public:
         // set the threshholds
         // Set Protocoll
         output("Set Protocol 3D");
-        nemo_->get_calc()->set_protocol<3>(world, parameters.thresh_3D);
+        nemo_->get_calc()->set_protocol<3>(world, parameters.thresh_3D());
         output("Set Protocol 6D");
-        nemo_->get_calc()->set_protocol<6>(world, parameters.thresh_6D);
+        nemo_->get_calc()->set_protocol<6>(world, parameters.thresh_6D());
 
-        FunctionDefaults<3>::set_thresh(parameters.thresh_3D);
-        FunctionDefaults<6>::set_thresh(parameters.thresh_6D);
+        FunctionDefaults<3>::set_thresh(parameters.thresh_3D());
+        FunctionDefaults<6>::set_thresh(parameters.thresh_6D());
         // Make shure that k is the same in 3d and 6d functions
         FunctionDefaults<6>::set_k(FunctionDefaults<3>::get_k());
         // by default SCF sets the truncate_mode to 1
@@ -61,9 +61,9 @@ public:
         FunctionDefaults<6>::set_initial_level(2);
         FunctionDefaults<3>::set_initial_level(2);
         FunctionDefaults<6>::set_special_level(
-                FunctionDefaults<6>::set_length_scale(parameters.dmin, FunctionDefaults<6>::get_k()));
+                FunctionDefaults<6>::set_length_scale(parameters.dmin(), FunctionDefaults<6>::get_k()));
         FunctionDefaults<3>::set_special_level(
-                FunctionDefaults<3>::set_length_scale(parameters.dmin, FunctionDefaults<3>::get_k()));
+                FunctionDefaults<3>::set_length_scale(parameters.dmin(), FunctionDefaults<3>::get_k()));
         parameters.information(world);
         parameters.sanity_check(world);
 
@@ -119,14 +119,14 @@ public:
     iterate_cc2_singles(CC_vecfunction& singles, Pairs<CCPair>& doubles) {
         CCOPS.clear_potentials(singles);
         Pairs<CCPair> empty;
-        return iterate_singles(singles, CC_vecfunction(RESPONSE), doubles, empty, CT_CC2, parameters.iter_max_3D);
+        return iterate_singles(singles, CC_vecfunction(RESPONSE), doubles, empty, CT_CC2, parameters.iter_max_3D());
     }
 
     bool
     iterate_adc2_singles(Pairs<CCPair>& mp2, CC_vecfunction& singles, Pairs<CCPair>& x) {
         MADNESS_ASSERT(singles.type == RESPONSE);
         CCOPS.clear_potentials(singles);
-        return iterate_singles(singles, CC_vecfunction(UNDEFINED), mp2, x, CT_ADC2, parameters.iter_max_3D);
+        return iterate_singles(singles, CC_vecfunction(UNDEFINED), mp2, x, CT_ADC2, parameters.iter_max_3D());
     }
 
     bool
@@ -134,7 +134,7 @@ public:
         MADNESS_ASSERT(cc2_s.type == PARTICLE);
         MADNESS_ASSERT(lrcc2_s.type == RESPONSE);
         CCOPS.clear_potentials(lrcc2_s);
-        return iterate_singles(lrcc2_s, cc2_s, cc2_d, lrcc2_d, CT_LRCC2, parameters.iter_max_3D);
+        return iterate_singles(lrcc2_s, cc2_s, cc2_d, lrcc2_d, CT_LRCC2, parameters.iter_max_3D());
     }
 
     /// convencience function to iterate the CCS Response singles,
@@ -230,9 +230,9 @@ public:
             CCTimer time_makebsh(world, "Make G-Operators");
             std::vector<std::shared_ptr<SeparatedConvolution<double, 3> > > G(singles.size());
             for (size_t i = 0; i < G.size(); i++) {
-                const double bsh_eps = CCOPS.get_orbital_energies()[i + parameters.freeze] + omega;
+                const double bsh_eps = CCOPS.get_orbital_energies()[i + parameters.freeze()] + omega;
                 G[i] = std::shared_ptr<SeparatedConvolution<double, 3> >(
-                        BSHOperatorPtr3D(world, sqrt(-2.0 * bsh_eps), parameters.lo, parameters.thresh_bsh_3D));
+                        BSHOperatorPtr3D(world, sqrt(-2.0 * bsh_eps), parameters.lo(), parameters.thresh_bsh_3D()));
             }
             world.gop.fence();
             time_makebsh.info();
@@ -253,7 +253,7 @@ public:
                 const vector_real_function_3d xbra = mul(world, nemo->ncf->square(), GV);
                 const double norm = sqrt(inner(world, xbra, x).sum());
                 if (world.rank() == 0)
-                    std::cout << " Norm was " << std::fixed << std::setprecision(parameters.output_prec) << norm
+                    std::cout << " Norm was " << std::fixed << std::setprecision(parameters.output_prec()) << norm
                               << "\n";
                 scale(world, GV, 1.0 / norm);
             } else output("Singles not normalized");
@@ -273,13 +273,13 @@ public:
             if (world.rank() == 0)
                 std::cout << "\nName: ||" << singles.name() << "||, ||GV" << singles.name() << ", ||residual||" << "\n";
             if (world.rank() == 0)
-                std::cout << singles.name() << ": " << std::scientific << std::setprecision(parameters.output_prec)
+                std::cout << singles.name() << ": " << std::scientific << std::setprecision(parameters.output_prec())
                           << sqrt(R2xinnerx.sum()) << ", " << sqrt(R2GVinnerGV.sum()) << ", " << sqrt(R2rinnerr.sum())
                           << "\n----------------------------------------\n";
             for (size_t i = 0; i < GV.size(); i++) {
                 if (world.rank() == 0)
-                    std::cout << singles(i + parameters.freeze).name() << ": " << std::scientific
-                              << std::setprecision(parameters.output_prec)
+                    std::cout << singles(i + parameters.freeze()).name() << ": " << std::scientific
+                              << std::setprecision(parameters.output_prec())
                               << sqrt(R2xinnerx(i)) << ", " << sqrt(R2GVinnerGV(i)) << ", " << sqrt(R2rinnerr(i))
                               << "\n";
             }
@@ -299,7 +299,7 @@ public:
                     output("Delta-Update is not used");
                     if (world.rank() == 0)
                         std::cout << "omega, old_omega, delta" << std::fixed
-                                  << std::setprecision(parameters.output_prec + 2) << omega << ", " << old_omega << ", "
+                                  << std::setprecision(parameters.output_prec() + 2) << omega << ", " << old_omega << ", "
                                   << Rdelta << "\n\n";
                 }
 
@@ -308,12 +308,12 @@ public:
             // update singles
             singles.omega = omega;
             vector_real_function_3d new_singles = GV;
-            if (parameters.kain) new_singles = solver.update(singles.get_vecfunction(), residual);
+            if (parameters.kain()) new_singles = solver.update(singles.get_vecfunction(), residual);
             print_size(world, new_singles, "new_singles");
             truncate(world, new_singles);
             print_size(world, new_singles, "new_singles");
             for (size_t i = 0; i < GV.size(); i++) {
-                singles(i + parameters.freeze).function = copy(new_singles[i]);
+                singles(i + parameters.freeze()).function = copy(new_singles[i]);
             }
 
             // update intermediates
@@ -323,7 +323,7 @@ public:
             //if(ctype==CC2_) update_reg_residues_gs(singles,gs_doubles);
             //else if(ctype==LRCC2_) update_reg_residues_ex(singles2,singles,ex_doubles);
 
-            converged = (R2vector_error < parameters.dconv_3D);
+            converged = (R2vector_error < parameters.dconv_3D());
 
             time.info();
             if (converged) break;
@@ -338,7 +338,7 @@ public:
         for (auto& tmp : singles.functions) {
             const double change = (tmp.second.function - old_singles(tmp.first).function).norm2();
             tmp.second.current_error = change;
-            if (change > parameters.dconv_3D) no_change = false;
+            if (change > parameters.dconv_3D()) no_change = false;
             if (world.rank() == 0)
                 std::cout << "Change of " << tmp.second.name() << "=" << tmp.second.current_error << std::endl;
         }
@@ -348,7 +348,7 @@ public:
 
         //CCOPS.plot(singles);
         singles.save_functions();
-        if (no_change) output("Change of Singles was below  = " + std::to_string(parameters.dconv_3D) + "!");
+        if (no_change) output("Change of Singles was below  = " + std::to_string(parameters.dconv_3D()) + "!");
         return no_change;
     }
 
@@ -381,7 +381,7 @@ public:
 
         // make screening Operator
         real_convolution_6d Gscreen = BSHOperator<6>(world, sqrt(-2.0 * CCOPS.get_epsilon(pair.i, pair.j)),
-                                                     parameters.lo, parameters.thresh_bsh_6D);
+                                                     parameters.lo(), parameters.thresh_bsh_6D());
         Gscreen.modified() = true;
 
         const CCFunction& moi = CCOPS.mo_ket(pair.i);
@@ -396,11 +396,11 @@ public:
         MADNESS_ASSERT(pair.ctype == CT_CC2);
         MADNESS_ASSERT(pair.type == GROUND_STATE);
         // make screening Operator
-        real_convolution_6d Gscreen = BSHOperator<6>(world, sqrt(-2.0 * pair.bsh_eps), parameters.lo,
-                                                     parameters.thresh_bsh_6D);
+        real_convolution_6d Gscreen = BSHOperator<6>(world, sqrt(-2.0 * pair.bsh_eps), parameters.lo(),
+                                                     parameters.thresh_bsh_6D());
         Gscreen.modified() = true;
 
-        if (parameters.QtAnsatz)pair.constant_part = CCOPS.make_constant_part_cc2_Qt_gs(pair, tau, &Gscreen);
+        if (parameters.QtAnsatz())pair.constant_part = CCOPS.make_constant_part_cc2_Qt_gs(pair, tau, &Gscreen);
         else pair.constant_part = CCOPS.make_constant_part_cc2_gs(pair, tau, &Gscreen);
         save(pair.constant_part, pair.name() + "_const");
         return true;
@@ -412,11 +412,11 @@ public:
         MADNESS_ASSERT(pair.bsh_eps == CCOPS.get_epsilon(pair.i, pair.j) + ccs.omega);
         if (pair.constant_part.is_initialized()) return false; // the CIS(D) constant part does not change because there is no singles iteration (like MP2)
         // make screening Operator
-        real_convolution_6d Gscreen = BSHOperator<6>(world, sqrt(-2.0 * pair.bsh_eps), parameters.lo,
-                                                     parameters.thresh_bsh_6D);
+        real_convolution_6d Gscreen = BSHOperator<6>(world, sqrt(-2.0 * pair.bsh_eps), parameters.lo(),
+                                                     parameters.thresh_bsh_6D());
         Gscreen.modified() = true;
 
-        if (parameters.QtAnsatz) pair.constant_part = CCOPS.make_constant_part_cispd_Qt(pair, ccs, &Gscreen);
+        if (parameters.QtAnsatz()) pair.constant_part = CCOPS.make_constant_part_cispd_Qt(pair, ccs, &Gscreen);
         else pair.constant_part = CCOPS.make_constant_part_cispd(pair, ccs, &Gscreen);
         save(pair.constant_part, pair.name() + "_const");
         return true;
@@ -429,11 +429,11 @@ public:
         MADNESS_ASSERT(pair.type == EXCITED_STATE);
         MADNESS_ASSERT(pair.bsh_eps == CCOPS.get_epsilon(pair.i, pair.j) + ccs.omega);
         // make screening Operator
-        real_convolution_6d Gscreen = BSHOperator<6>(world, sqrt(-2.0 * pair.bsh_eps), parameters.lo,
-                                                     parameters.thresh_bsh_6D);
+        real_convolution_6d Gscreen = BSHOperator<6>(world, sqrt(-2.0 * pair.bsh_eps), parameters.lo(),
+                                                     parameters.thresh_bsh_6D());
         Gscreen.modified() = true;
 
-        if (parameters.QtAnsatz) pair.constant_part = CCOPS.make_constant_part_cispd_Qt(pair, ccs, &Gscreen);
+        if (parameters.QtAnsatz()) pair.constant_part = CCOPS.make_constant_part_cispd_Qt(pair, ccs, &Gscreen);
         else pair.constant_part = CCOPS.make_constant_part_cispd(pair, ccs, &Gscreen);
         save(pair.constant_part, pair.name() + "_const");
         return true;
@@ -446,11 +446,11 @@ public:
         MADNESS_ASSERT(x.type == RESPONSE);
 
         // make screening Operator
-        real_convolution_6d Gscreen = BSHOperator<6>(world, sqrt(-2.0 * pair.bsh_eps), parameters.lo,
-                                                     parameters.thresh_bsh_6D);
+        real_convolution_6d Gscreen = BSHOperator<6>(world, sqrt(-2.0 * pair.bsh_eps), parameters.lo(),
+                                                     parameters.thresh_bsh_6D());
         Gscreen.modified() = true;
 
-        if (parameters.QtAnsatz)pair.constant_part = CCOPS.make_constant_part_cc2_Qt_ex(pair, tau, x, &Gscreen);
+        if (parameters.QtAnsatz())pair.constant_part = CCOPS.make_constant_part_cc2_Qt_ex(pair, tau, x, &Gscreen);
         else pair.constant_part = CCOPS.make_constant_part_cc2_ex(pair, tau, x, &Gscreen);
         save(pair.constant_part, pair.name() + "_const");
         return true;

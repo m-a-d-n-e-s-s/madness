@@ -80,14 +80,14 @@ public:
     /// returns a vector of all active mos without nuclear correlation factor (nemos)
     vector_real_function_3d get_active_mo_ket() const {
         vector_real_function_3d result;
-        for (size_t i = parameters.freeze; i < mo_ket_.size(); i++) result.push_back(mo_ket_(i).function);
+        for (size_t i = parameters.freeze(); i < mo_ket_.size(); i++) result.push_back(mo_ket_(i).function);
         return result;
     }
 
     /// returns a vector of all active mos multiplied with the squared nuclear currelation factor: mo_bra = R^2*mo_ket
     vector_real_function_3d get_active_mo_bra() const {
         vector_real_function_3d result;
-        for (size_t i = parameters.freeze; i < mo_bra_.size(); i++) result.push_back(mo_bra_(i).function);
+        for (size_t i = parameters.freeze(); i < mo_bra_.size(); i++) result.push_back(mo_bra_(i).function);
         return result;
     }
 
