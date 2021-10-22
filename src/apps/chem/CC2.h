@@ -67,15 +67,8 @@ public:
         parameters.information(world);
         parameters.sanity_check(world);
 
-        std::string nuc = "???";
-        if (nemo->ncf->type() == NuclearCorrelationFactor::None) nuc = "None";
-        else if (nemo->ncf->type() == NuclearCorrelationFactor::GaussSlater) nuc = "GaussSlater";
-        else if (nemo->ncf->type() == NuclearCorrelationFactor::GradientalGaussSlater) nuc = "GradientalGaussSlater";
-        else if (nemo->ncf->type() == NuclearCorrelationFactor::LinearSlater) nuc = "LinearSlater";
-        else if (nemo->ncf->type() == NuclearCorrelationFactor::Polynomial) nuc = "Polynomial";
-        else if (nemo->ncf->type() == NuclearCorrelationFactor::Slater) nuc = "Slater";
-        else if (nemo->ncf->type() == NuclearCorrelationFactor::Two) nuc = "Two";
-        if (world.rank() == 0) std::cout << "Nuclear Correlation Factor is " << nuc << std::endl;
+        tdhf.reset(new TDHF(world,parser,nemo));
+        tdhf->parameters.print("response","end");
 
     }
 
@@ -91,6 +84,8 @@ public:
     const CCParameters parameters;
     /// The SCF Calculation
     const std::shared_ptr<Nemo> nemo;
+    /// The excited state cis calculation
+    std::shared_ptr<TDHF> tdhf;
     /// The CC Operator Class
     CCPotentials CCOPS;
     /// Formated Output (same as used in CC2Potentials structure)
