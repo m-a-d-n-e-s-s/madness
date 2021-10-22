@@ -2027,7 +2027,7 @@ namespace madness {
             world.gop.fence(); // fence is necessary if trickle down is used afterwards
             // trickle down and undo redundand shouldnt change anything if only the diagonal elements are considered above -> check this
             f->trickle_down(true); // fence must be true otherwise undo_redundant will have trouble
-            f->undo_redundant(true);
+//            f->undo_redundant(true);
             f->verify_tree();
             //if (fence) world.gop.fence(); // unnecessary, fence is activated in undo_redundant
 

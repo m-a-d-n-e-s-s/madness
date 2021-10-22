@@ -75,9 +75,8 @@ void load_balance(const real_function_6d& f, const bool leaf) {
 
 /// ctor
 MP2::MP2(World& world, const commandlineparser& parser) : world(world),
-                                                          param(world), corrfac(world), correlation_energy(0.0),
-                                                          coords_sum(-1.0), Q12(world), ttt(0.0), sss(0.0) {
-
+                   param(world, parser), corrfac(world), correlation_energy(0.0),
+                   coords_sum(-1.0), Q12(world), ttt(0.0), sss(0.0) {
     {
         std::shared_ptr<Nemo> nemo = std::shared_ptr<Nemo>(new Nemo(world, parser));
 

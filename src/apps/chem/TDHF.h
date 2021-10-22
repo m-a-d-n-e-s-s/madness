@@ -208,6 +208,8 @@ public:
 
     TDHF(World &world, const commandlineparser &parser);
 
+    TDHF(World &world, const commandlineparser &parser, std::shared_ptr<Nemo> nemo);
+
     void initialize();
 
     ///  sets the reference wave function (nemo or oep)

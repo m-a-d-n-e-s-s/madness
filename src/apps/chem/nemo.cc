@@ -289,13 +289,13 @@ std::shared_ptr<Fock<double,3>> Nemo::make_fock_operator() const {
 /// compute the Fock matrix from scratch
 tensorT Nemo::compute_fock_matrix(const vecfuncT& nemo, const tensorT& occ) const {
 	// apply all potentials (J, K, Vnuc) on the nemos
-	vecfuncT psi, Jnemo, Knemo, pcmnemo, JKVpsi, Unemo;
+	vecfuncT Jnemo, Knemo, pcmnemo, JKVpsi, Unemo;
 
     vecfuncT R2nemo=mul(world,R_square,nemo);
     truncate(world,R2nemo);
 
     // compute potentials the Fock matrix: J - K + Vnuc
-	compute_nemo_potentials(nemo, psi, Jnemo, Knemo, pcmnemo, Unemo);
+	compute_nemo_potentials(nemo, Jnemo, Knemo, pcmnemo, Unemo);
 
 //    vecfuncT JKUpsi=add(world, sub(world, Jnemo, Knemo), Unemo);
     vecfuncT JKUpsi=Unemo+Jnemo-Knemo;
@@ -319,7 +319,7 @@ double Nemo::solve(const SCFProtocol& proto) {
 	// Therefore set all tolerance thresholds to zero, also in the mul_sparse
 
 	// apply all potentials (J, K, Vnuc) on the nemos
-	vecfuncT psi, Jnemo, Knemo, pcmnemo, Unemo;
+	vecfuncT Jnemo, Knemo, pcmnemo, Unemo;
 
 	std::vector<double> energies(1,0.0);	// contains the total energy and all its contributions
 	double energy=0.0;
@@ -344,7 +344,7 @@ double Nemo::solve(const SCFProtocol& proto) {
 	    truncate(world,R2nemo);
 
 		// compute potentials the Fock matrix: J - K + Vnuc
-		compute_nemo_potentials(nemo, psi, Jnemo, Knemo, pcmnemo, Unemo);
+		compute_nemo_potentials(nemo, Jnemo, Knemo, pcmnemo, Unemo);
 
 		// compute the energy
 		std::vector<double> oldenergies=energies;
@@ -371,7 +371,7 @@ double Nemo::solve(const SCFProtocol& proto) {
             if (world.rank()==0) print("F max off-diagonal  ",max_fock_offidag);
 
             // canonicalize the orbitals, rotate subspace and potentials
-        	tensorT overlap = matrix_inner(world, psi, psi, true);
+            tensorT overlap = matrix_inner(world, R2nemo, nemo, true);
             tensorT U=calc->get_fock_transformation(world,overlap,
                     fock,calc->aeps,calc->aocc,FunctionDefaults<3>::get_thresh());
 
@@ -566,7 +566,7 @@ std::vector<double> Nemo::compute_energy_regularized(const vecfuncT& nemo, const
 /// @param[out]	Knemo	exchange operator applied on the nemos
 /// @param[out]	Vnemo	nuclear potential applied on the nemos
 /// @param[out]	Unemo	regularized nuclear potential applied on the nemos
-void Nemo::compute_nemo_potentials(const vecfuncT& nemo, vecfuncT& psi,
+void Nemo::compute_nemo_potentials(const vecfuncT& nemo,
 		vecfuncT& Jnemo, vecfuncT& Knemo, vecfuncT& pcmnemo,
 		vecfuncT& Unemo) const {
 
