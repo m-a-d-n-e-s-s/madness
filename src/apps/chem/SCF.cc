@@ -498,7 +498,7 @@ distmatT SCF::localize_new(World & world, const vecfuncT & mo,
 		MADNESS_ASSERT(std::accumulate(at_nbf.begin(),at_nbf.end(),0)==nao);
 		MADNESS_ASSERT(at_to_bf.back()+at_nbf.back()==nao);
 		//print(at_to_bf, at_nbf);
-	} 
+	}
 	else {
 		aobasis.shells_to_bfn(molecule, at_to_bf, at_nbf);
 		//aobasis.atoms_to_bfn(molecule, at_to_bf, at_nbf);
@@ -2100,10 +2100,10 @@ tensorT SCF::matrix_exponential(const tensorT& A) const {
 	}
 	else if (anorm > 4.5e-8) {
 		expB = I + B + inner(B,B).scale(0.5);
-	} 
+	}
 	else {
 		expB = I + B;
-	} 
+	}
 
 	// // Old algorithm
 	// tensorT oldexpB = copy(I);

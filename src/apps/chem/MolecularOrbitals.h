@@ -66,6 +66,11 @@ public:
 		occ=occ_new;
 	}
 
+    /// updates will keep other member variables
+    void update_localize_set(const std::vector<int>& set) {
+        localize_sets=set;
+    }
+
 	/// updates will keep other member variables
 	void update_mos_and_eps(const std::vector<Function<T,NDIM> >& mo_new,
 			const Tensor<double>& eps_new) {
@@ -76,8 +81,22 @@ public:
 	void recompute_irreps(const std::string pointgroup,
                        const Function<typename Tensor<T>::scalar_type,NDIM>& metric);
 
-	void recompute_localize_sets() {
+    /// group orbitals into sets of similar orbital energies for localization
+	void recompute_localize_sets(const double bandwidth=1.5) {
+        std::size_t nmo = mo.size();
+        std::vector<int> set = std::vector<int>(static_cast<size_t>(nmo), 0);
+        for (int i = 1; i < nmo; ++i) {
+            set[i] = set[i - 1];
+            // Only the new/boys localizers can tolerate not separating out the core orbitals
+            if (eps(i) - eps(i - 1) > bandwidth || get_occ()(i) != 1.0) ++(set[i]);
+        }
+        update_localize_set(set);
 	}
+
+    void set_all_orbitals_occupied() {
+        occ=Tensor<double>(mo.size());
+        occ=1.0;
+    }
 
 	void invalidate_all() {
 		invalidate_mos();
@@ -109,10 +128,12 @@ public:
 
 	void pretty_print(std::string message) {
 	    print(message);
+        std::vector<std::string> irreps=get_irreps();
+        if (irreps.size()==0) irreps=std::vector<std::string>(mo.size(),"unknown");
 	    print("orbital #   irrep   energy    occupation  localize_set");
         for (int i=mo.size()-1; i>=0; --i) {
 //            double n=get_mos()[i].norm2();
-            printf("%5d %10s %12.8f  %6.2f  %8d\n", i, get_irreps()[i].c_str(),get_eps()[i],
+            printf("%5d %10s %12.8f  %6.2f  %8d\n", i, irreps[i].c_str(),get_eps()[i],
                    get_occ()[i],get_localize_sets()[i]);
 	    }
 	}

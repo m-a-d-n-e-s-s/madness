@@ -50,6 +50,7 @@
 #include <chem/pcm.h>
 #include <chem/pointgroupsymmetry.h>
 #include <chem/BSHApply.h>
+#include <chem/localizer.h>
 #include <madness/mra/macrotaskq.h>
 
 
@@ -236,6 +237,29 @@ vecfuncT Nemo::localize(const vecfuncT& nemo, const double dconv, const bool ran
         	MADNESS_EXCEPTION("unknown localization method",1);
         }
 //        dUT.data().screen(trantol());
+
+        bool test_localizer=1;
+        if (test_localizer) {
+            tensorT UT(dUT.rowdim(),dUT.coldim());
+            dUT.copy_to_replicated(UT);
+
+            Localizer<double,3> localizer(world,get_calc()->aobasis,molecule(),get_calc()->ao);
+            MolecularOrbitals<double,3> mo;
+            mo.set_mos(nemo);
+            mo.update_mos_and_eps(nemo,calc->aeps);
+            mo.set_all_orbitals_occupied();
+            mo.recompute_localize_sets();
+            MolecularOrbitals<double,3> lmo=localizer.localize(mo,param.localize_method(),R,dconv,randomize);
+            auto dUT1=localizer.compute_localization_matrix(world,mo,calc->param.localize_method(),ncf->function(),tolloc,0.1,randomize);
+
+            tensorT UT1(dUT1.rowdim(),dUT1.coldim());
+            dUT1.copy_to_replicated(UT1);
+            print("difference of old and new localization matrix");
+            print(UT-UT1);
+
+
+
+        }
 
         vecfuncT localnemo = transform(world, nemo, dUT);
         truncate(world, localnemo);
