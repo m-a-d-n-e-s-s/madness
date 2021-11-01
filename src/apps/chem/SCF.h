@@ -86,10 +86,10 @@ extern distmatT distributed_localize_PM(World & world,
 		const std::vector<int> & set,
 		const std::vector<int> & at_to_bf,
 		const std::vector<int> & at_nbf,
-		const double thresh = 1e-9,
-		const double thetamax = 0.5,
-		const bool randomize = true,
-		const bool doprint = false);
+		const double thresh ,
+		const double thetamax ,
+		const bool randomize ,
+		const bool doprint );
 
 
 inline double mask1(double x) {
