@@ -68,7 +68,7 @@ template<typename T, std::size_t NDIM>
 int test_localization(World& world, Localizer<T, NDIM>& localizer, std::shared_ptr<NuclearCorrelationFactor>& ncf,
                       const MolecularOrbitals<T, NDIM>& mo, std::string method) {
     int success = 0;
-    MolecularOrbitals<T, NDIM> lmo = localizer.localize(mo, method, ncf->function(), 1.e-4, true);
+    MolecularOrbitals<T, NDIM> lmo = localizer.localize(mo, method, 1.e-4, true);
     Tensor<T> fock = compute_fock_matrix(world, ncf, lmo);
     print(method, "localized fock matrix");
     print(fock);
@@ -116,6 +116,7 @@ int main(int argc, char **argv) {
 
         std::vector<real_function_3d> aos = SCF::project_ao_basis_only(world, aobasis, molecule);
         Localizer<double, 3> localizer(world, aobasis, molecule, aos);
+        localizer.set_metric(ncf->function());
 
         auto mos = compute_initial_orbitals<double, 3>(world, aobasis, molecule, ncf);
         mos.pretty_print("initial mos");

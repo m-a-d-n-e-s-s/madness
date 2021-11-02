@@ -12,14 +12,12 @@ namespace madness {
 
 template<typename T, std::size_t NDIM>
 MolecularOrbitals<T, NDIM> Localizer<T, NDIM>::localize(const MolecularOrbitals<T, NDIM>& mo_in, std::string method,
-                                                        const Function<double, NDIM>& R, const double dconv,
-                                                        bool randomize) const {
+                                                        const double dconv, bool randomize) const {
 
     const double tolloc = std::min(1e-6, 0.01 * dconv);
     World& world = mo_in.get_mos()[0].world();
-    double thetamax=0.1;
 
-    DistributedMatrix<double> dUT=compute_localization_matrix(world,mo_in,method,R,tolloc,thetamax,randomize);
+    DistributedMatrix<double> dUT=compute_localization_matrix(world,mo_in,method,tolloc,randomize);
 
     std::vector<Function<T, NDIM>> result = transform(world, mo_in.get_mos(), dUT);
     truncate(world, result);
@@ -32,18 +30,17 @@ MolecularOrbitals<T, NDIM> Localizer<T, NDIM>::localize(const MolecularOrbitals<
 
 template<typename T, std::size_t NDIM>
 DistributedMatrix<T> Localizer<T, NDIM>::compute_localization_matrix(World& world, const MolecularOrbitals<T, NDIM>& mo_in,
-                                                                     std::string method, const Function<double, NDIM>& R,
-                                                                     const double tolloc, const double thetamax, bool randomize) const {
+                                                  std::string method, const double tolloc, bool randomize) const {
     // localize using the reconstructed orbitals
-    std::vector<Function<T, NDIM>> psi = R * mo_in.get_mos();
+    std::vector<Function<T, NDIM>> psi = metric.is_initialized() ?  metric * mo_in.get_mos() : mo_in.get_mos();
 
     DistributedMatrix<T> dUT;
     if (method == "pm") {
-        dUT = localize_PM(world, psi, mo_in.get_localize_sets(), tolloc, thetamax, randomize, true);
+        dUT = localize_PM(world, psi, mo_in.get_localize_sets(), tolloc, randomize, false);
     } else if (method == "boys") {
-        dUT = localize_boys(world, psi, mo_in.get_localize_sets(), tolloc, thetamax, randomize);
+        dUT = localize_boys(world, psi, mo_in.get_localize_sets(), tolloc, randomize);
     } else if (method == "new") {
-        dUT = localize_new(world, psi, mo_in.get_localize_sets(), tolloc, thetamax, randomize, false);
+        dUT = localize_new(world, psi, mo_in.get_localize_sets(), tolloc, randomize, false);
     } else {
         print("unknown localization method", method);
         MADNESS_EXCEPTION("unknown localization method", 1);
@@ -52,9 +49,18 @@ DistributedMatrix<T> Localizer<T, NDIM>::compute_localization_matrix(World& worl
 }
 
 template<typename T, std::size_t NDIM>
+DistributedMatrix<T> Localizer<T,NDIM>::compute_core_valence_separation_transformation_matrix(World& world,
+                                          const MolecularOrbitals<T, NDIM>& mo_in, const Tensor<T>& Fock,
+                                          std::string method, const double tolloc, bool randomize) const {
+
+}
+
+
+
+template<typename T, std::size_t NDIM>
 DistributedMatrix<T> Localizer<T, NDIM>::localize_boys(World& world, const std::vector<Function<T, NDIM>>& mo,
                                                        const std::vector<int>& set, const double thresh1,
-                                                       const double thetamax, const bool randomize,
+                                                       const bool randomize,
                                                        const bool doprint) const {
     typedef Tensor<T> tensorT;
     typedef Function<T, NDIM> functionT;
@@ -194,7 +200,7 @@ DistributedMatrix<T> Localizer<T, NDIM>::localize_boys(World& world, const std::
 template<typename T, std::size_t NDIM>
 DistributedMatrix<T> Localizer<T, NDIM>::localize_PM(World& world, const std::vector<Function<T, NDIM>>& mo,
                                                      const std::vector<int>& set, const double thresh,
-                                                     const double thetamax, const bool randomize,
+                                                     const bool randomize,
                                                      const bool doprint) const {
 
     DistributedMatrix<T> dUT = distributed_localize_PM(world, mo, ao, set, at_to_bf, at_nbf,
@@ -206,7 +212,7 @@ DistributedMatrix<T> Localizer<T, NDIM>::localize_PM(World& world, const std::ve
 template<typename T, std::size_t NDIM>
 DistributedMatrix<T> Localizer<T, NDIM>::localize_new(World& world, const std::vector<Function<T, NDIM>>& mo,
                                                       const std::vector<int>& set, double thresh,
-                                                      const double thetamax, const bool randomize,
+                                                      const bool randomize,
                                                       const bool doprint) const {
     // PROFILE_MEMBER_FUNC(SCF);
     typedef Tensor<T> tensorT;
@@ -423,6 +429,77 @@ DistributedMatrix<T> Localizer<T, NDIM>::localize_new(World& world, const std::v
     //                                        thresh, thetamax, randomize, doprint);
     //print(UT);
     return dUT;
+}
+
+
+/// given a unitary transformation matrix undo mere reordering
+template<typename T, std::size_t NDIM>
+void Localizer<T,NDIM>::undo_reordering(Tensor<T>& U, const Tensor<double>& occ, Tensor<double>& evals) {
+    long nmo = U.dim(0);
+
+    // Within blocks with the same occupation number attempt to
+    // keep orbitals in the same order (to avoid confusing the
+    // non-linear solver).
+    // !!!!!!!!!!!!!!!!! NEED TO RESTRICT TO OCCUPIED STATES?
+    bool switched = true;
+    while (switched) {
+        switched = false;
+        for (int i = 0; i < nmo; i++) {
+            for (int j = i + 1; j < nmo; j++) {
+                if (occ(i) == occ(j)) {
+                    double sold = U(i, i) * U(i, i) + U(j, j) * U(j, j);
+                    double snew = U(i, j) * U(i, j) + U(j, i) * U(j, i);
+                    if (snew > sold) {
+                        Tensor<T> tmp = copy(U(_, i));
+                        U(_, i) = U(_, j);
+                        U(_, j) = tmp;
+                        std::swap(evals[i], evals[j]);
+                        switched = true;
+                    }
+                }
+            }
+        }
+    }
+
+    // Fix phases.
+    for (long i = 0; i < nmo; ++i)
+        if (U(i, i) < 0.0)
+            U(_, i).scale(-1.0);
+}
+
+/// given a unitary transformation matrix undo rotation between degenerate columns
+template<typename T, std::size_t NDIM>
+void Localizer<T,NDIM>::undo_degenerate_rotations(Tensor<T>& U, const Tensor<double>& evals, const double thresh_degenerate) {
+    long nmo = U.dim(0);
+    MADNESS_CHECK(evals.size()==nmo);
+
+    // Rotations between effectively degenerate states confound
+    // the non-linear equation solver ... undo these rotations
+    long ilo = 0; // first element of cluster
+    while (ilo < nmo - 1) {
+        long ihi = ilo;
+        while (fabs(evals[ilo] - evals[ihi + 1])
+               < thresh_degenerate * 10.0 * std::max(fabs(evals[ilo]), 1.0)) {
+            ++ihi;
+            if (ihi == nmo - 1)
+                break;
+        }
+        long nclus = ihi - ilo + 1;
+        if (nclus > 1) {
+            Tensor<T> q = copy(U(Slice(ilo, ihi), Slice(ilo, ihi)));
+
+            // Polar Decomposition
+            Tensor<T> VH(nclus, nclus);
+            Tensor<T> W(nclus, nclus);
+            Tensor<double> sigma(nclus);
+
+            svd(q, W, sigma, VH);
+            q = transpose(inner(W,VH)).conj();
+            U(_, Slice(ilo, ihi)) = inner(U(_, Slice(ilo, ihi)), q);
+        }
+        ilo = ihi + 1;
+    }
+
 }
 
 
