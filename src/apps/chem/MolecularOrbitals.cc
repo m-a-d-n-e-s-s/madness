@@ -18,11 +18,12 @@
 namespace madness {
 
 template<typename T, std::size_t NDIM>
-void MolecularOrbitals<T,NDIM>::recompute_irreps(const std::string pointgroup,
+MolecularOrbitals<T,NDIM>& MolecularOrbitals<T,NDIM>::recompute_irreps(const std::string pointgroup,
                                                  const Function<typename Tensor<T>::scalar_type,NDIM>& metric) {
     projector_irrep symmetry_projector(pointgroup);
     mo=symmetry_projector(mo,metric,irreps);
     print("in recompute_irreps",irreps);
+    return *this;
 }
 
 

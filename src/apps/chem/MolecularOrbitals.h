@@ -35,11 +35,11 @@ public:
 		return mo;
 	}
 
-	Tensor<double> get_eps() const {
+	[[nodiscard]] Tensor<double> get_eps() const {
 		return eps;
 	}
 
-	std::vector<std::string> get_irreps() const {
+	[[nodiscard]] std::vector<std::string> get_irreps() const {
 		return irreps;
 	}
 
@@ -52,37 +52,42 @@ public:
 	}
 
 	/// setters will always invalidate all other member variables
-	void set_mos(const std::vector<Function<T,NDIM> >& mo_new) {
+	MolecularOrbitals& set_mos(const std::vector<Function<T,NDIM> >& mo_new) {
 		invalidate_all();
 		mo=mo_new;
+        return *this;
 	}
 
 	/// updates will keep other member variables
-	void update_mos(const std::vector<Function<T,NDIM> >& mo_new) {
+	MolecularOrbitals& update_mos(const std::vector<Function<T,NDIM> >& mo_new) {
 		mo=mo_new;
+        return *this;
 	}
 
-	void update_occ(const Tensor<double>& occ_new) {
+	MolecularOrbitals& update_occ(const Tensor<double>& occ_new) {
 		occ=occ_new;
+        return *this;
 	}
 
     /// updates will keep other member variables
-    void update_localize_set(const std::vector<int>& set) {
+    MolecularOrbitals& update_localize_set(const std::vector<int>& set) {
         localize_sets=set;
+        return *this;
     }
 
 	/// updates will keep other member variables
-	void update_mos_and_eps(const std::vector<Function<T,NDIM> >& mo_new,
+	MolecularOrbitals& update_mos_and_eps(const std::vector<Function<T,NDIM> >& mo_new,
 			const Tensor<double>& eps_new) {
 		mo=mo_new;
 		eps=copy(eps_new);
+        return *this;
 	}
 
-	void recompute_irreps(const std::string pointgroup,
+	MolecularOrbitals& recompute_irreps(const std::string pointgroup,
                        const Function<typename Tensor<T>::scalar_type,NDIM>& metric);
 
     /// group orbitals into sets of similar orbital energies for localization
-	void recompute_localize_sets(const double bandwidth=1.5) {
+	MolecularOrbitals& recompute_localize_sets(const double bandwidth=1.5) {
         std::size_t nmo = mo.size();
         std::vector<int> set = std::vector<int>(static_cast<size_t>(nmo), 0);
         for (int i = 1; i < nmo; ++i) {
@@ -91,11 +96,13 @@ public:
             if (eps(i) - eps(i - 1) > bandwidth || get_occ()(i) != 1.0) ++(set[i]);
         }
         update_localize_set(set);
+        return *this;
 	}
 
-    void set_all_orbitals_occupied() {
+    MolecularOrbitals& set_all_orbitals_occupied() {
         occ=Tensor<double>(mo.size());
         occ=1.0;
+        return *this;
     }
 
 	void invalidate_all() {

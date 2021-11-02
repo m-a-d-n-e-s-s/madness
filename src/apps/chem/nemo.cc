@@ -216,60 +216,26 @@ double Nemo::value(const Tensor<double>& x) {
 }
 
 
-
 /// localize the nemo orbitals according to Pipek-Mezey or Foster-Boys
 vecfuncT Nemo::localize(const vecfuncT& nemo, const double dconv, const bool randomize) const {
-        DistributedMatrix<double> dUT;
 
-        const double tolloc = std::min(1e-6,0.01*dconv);
-        std::vector<int> aset=calc->group_orbital_sets(world,calc->aeps,
-                        calc->aocc, nemo.size());
-        // localize using the reconstructed orbitals
-        vecfuncT psi = mul(world, R, nemo);
-        if(param.localize_method()=="pm") {
-        	dUT = calc->localize_PM(world, psi, aset, tolloc, 0.1, randomize, true);
-        } else if (param.localize_method()=="boys") {
-        	dUT = calc->localize_boys(world, psi, aset, tolloc, 0.1, randomize);
-        } else if (param.localize_method()=="new") {
-        	dUT = calc->localize_new(world, psi, aset, tolloc, 0.1, randomize, false);
-        } else {
-        	print("unknown localization method",param.localize_method());
-        	MADNESS_EXCEPTION("unknown localization method",1);
-        }
-//        dUT.data().screen(trantol());
+    Localizer<double, 3> localizer(world, get_calc()->aobasis, molecule(), get_calc()->ao);
+    localizer.set_metric(ncf->function());
 
-        bool test_localizer=1;
-        if (test_localizer) {
-            tensorT UT(dUT.rowdim(),dUT.coldim());
-            dUT.copy_to_replicated(UT);
+    MolecularOrbitals<double, 3> mo(nemo, calc->aeps, {}, calc->aocc, calc->aset);
+    const double tolloc = std::min(1e-6, 0.01 * dconv);
+    DistributedMatrix<double> dUT = localizer.compute_localization_matrix(world, mo, calc->param.localize_method(),
+                                                                          tolloc, randomize);
 
-            Localizer<double,3> localizer(world,get_calc()->aobasis,molecule(),get_calc()->ao);
-            MolecularOrbitals<double,3> mo;
-            mo.set_mos(nemo);
-            mo.update_mos_and_eps(nemo,calc->aeps);
-            mo.set_all_orbitals_occupied();
-            mo.recompute_localize_sets();
-            MolecularOrbitals<double,3> lmo=localizer.localize(mo,param.localize_method(),R,dconv,randomize);
-            auto dUT1=localizer.compute_localization_matrix(world,mo,calc->param.localize_method(),ncf->function(),tolloc,0.1,randomize);
-
-            tensorT UT1(dUT1.rowdim(),dUT1.coldim());
-            dUT1.copy_to_replicated(UT1);
-            print("difference of old and new localization matrix");
-            print(UT-UT1);
-
-
-
-        }
-
-        vecfuncT localnemo = transform(world, nemo, dUT);
-        truncate(world, localnemo);
-        normalize(localnemo,R);
-        return localnemo;
+    vecfuncT localnemo = transform(world, nemo, dUT);
+    truncate(world, localnemo);
+    normalize(localnemo, R);
+    return localnemo;
 }
 
-std::shared_ptr<Fock<double,3>> Nemo::make_fock_operator() const {
+std::shared_ptr<Fock<double, 3>> Nemo::make_fock_operator() const {
     MADNESS_CHECK(param.spin_restricted());
-    const int ispin=0;
+    const int ispin = 0;
 
     std::shared_ptr<Fock<double,3> > fock(new Fock<double,3>(world));
     Coulomb<double,3> J(world,this);
