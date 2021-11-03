@@ -21,8 +21,9 @@ MolecularOrbitals<T, NDIM> Localizer<T, NDIM>::localize(const MolecularOrbitals<
 
     std::vector<Function<T, NDIM>> result = transform(world, mo_in.get_mos(), dUT);
     truncate(world, result);
-    MolecularOrbitals<T, NDIM> mo_out;
-    mo_out.set_mos(result);
+    Tensor<double> eps(mo_in.get_mos().size());
+    MolecularOrbitals<T, NDIM> mo_out(result,eps,{},Tensor<double>(),mo_in.get_localize_sets());
+    mo_out.set_all_orbitals_occupied();
     return mo_out;
 
 }
@@ -51,8 +52,39 @@ DistributedMatrix<T> Localizer<T, NDIM>::compute_localization_matrix(World& worl
 template<typename T, std::size_t NDIM>
 DistributedMatrix<T> Localizer<T,NDIM>::compute_core_valence_separation_transformation_matrix(World& world,
                                           const MolecularOrbitals<T, NDIM>& mo_in, const Tensor<T>& Fock,
+                                          const Tensor<T>& overlap, const double thresh_degenerate,
                                           std::string method, const double tolloc, bool randomize) const {
 
+    // canonicalize orbitals
+    long nmo=Fock.dim(0);
+    Tensor<T> U;
+    Tensor<typename Tensor<T>::scalar_type> eval;
+    sygvp(world, Fock, overlap, 1, U, eval);
+//    print("U before");
+//    print(U);
+    Localizer<double,3>::undo_reordering(U, mo_in.get_occ(), eval);
+    Localizer<double,3>::undo_degenerate_rotations(U, eval, thresh_degenerate);
+    Localizer<double,3>::undo_rotations_within_sets(U, mo_in.get_localize_sets());
+//    print("U after");
+//    print(U);
+
+//    // localize orbitals
+//    std::vector<Function<T, NDIM>> result = transform(world, mo_in.get_mos(), U);
+//    truncate(world, result);
+//    MolecularOrbitals<T, NDIM> mo_out;
+//    mo_out.set_mos(result);
+
+    world.gop.broadcast(U.ptr(), U.size(), 0);
+    world.gop.broadcast(eval.ptr(), eval.size(), 0);
+
+    // compute new fock matrix
+    Tensor<T> fnew=inner(U,inner(Fock,U,1,0),0,0);
+    print("new fock matrix by transformation");
+    print(fnew);
+
+    DistributedMatrix<double> dUT = column_distributed_matrix<double>(world, nmo, nmo);
+    dUT.copy_from_replicated(transpose(U));
+    return dUT;
 }
 
 
@@ -467,39 +499,78 @@ void Localizer<T,NDIM>::undo_reordering(Tensor<T>& U, const Tensor<double>& occ,
             U(_, i).scale(-1.0);
 }
 
-/// given a unitary transformation matrix undo rotation between degenerate columns
-template<typename T, std::size_t NDIM>
-void Localizer<T,NDIM>::undo_degenerate_rotations(Tensor<T>& U, const Tensor<double>& evals, const double thresh_degenerate) {
-    long nmo = U.dim(0);
-    MADNESS_CHECK(evals.size()==nmo);
 
+template<typename T, std::size_t NDIM>
+std::vector<Slice> Localizer<T,NDIM>::find_degenerate_blocks(const Tensor<double>& eval, const double thresh_degenerate) {
+    long nmo = eval.size();
+    std::vector<Slice> blocks;
     // Rotations between effectively degenerate states confound
     // the non-linear equation solver ... undo these rotations
     long ilo = 0; // first element of cluster
     while (ilo < nmo - 1) {
         long ihi = ilo;
-        while (fabs(evals[ilo] - evals[ihi + 1])
-               < thresh_degenerate * 10.0 * std::max(fabs(evals[ilo]), 1.0)) {
+        while (fabs(eval[ilo] - eval[ihi + 1])
+               < thresh_degenerate * 10.0 * std::max(fabs(eval[ilo]), 1.0)) {
             ++ihi;
             if (ihi == nmo - 1)
                 break;
         }
-        long nclus = ihi - ilo + 1;
-        if (nclus > 1) {
-            Tensor<T> q = copy(U(Slice(ilo, ihi), Slice(ilo, ihi)));
+        blocks.push_back(Slice(ilo,ihi));
+        ilo = ihi + 1;
+    }
+    return blocks;
+}
+
+template<typename T, std::size_t NDIM>
+Tensor<T> Localizer<T,NDIM>::undo_rotation(const Tensor<T>& U_in, const std::vector<Slice>& blocks) {
+    Tensor<T> U=copy(U_in);
+    for (auto block : blocks) {
+        long ncluster=block.end-block.start+1;
+        if (ncluster>1) {
+            Tensor<T> q = copy(U(block,block));
 
             // Polar Decomposition
-            Tensor<T> VH(nclus, nclus);
-            Tensor<T> W(nclus, nclus);
-            Tensor<double> sigma(nclus);
+            Tensor<T> VH(ncluster, ncluster);
+            Tensor<T> W(ncluster, ncluster);
+            Tensor<double> sigma(ncluster);
 
             svd(q, W, sigma, VH);
             q = transpose(inner(W,VH)).conj();
-            U(_, Slice(ilo, ihi)) = inner(U(_, Slice(ilo, ihi)), q);
+            U(_, block) = inner(U(_, block), q);
         }
-        ilo = ihi + 1;
     }
+    return U;
+}
 
+template<typename T, std::size_t NDIM>
+std::vector<Slice> Localizer<T,NDIM>::convert_set_to_slice(const std::vector<int>& localized_set) {
+    std::vector<Slice> blocks;
+    long ilo=0;
+    for (int i=1; i<localized_set.size(); ++i) {
+        if (not (localized_set[i]==localized_set[i-1])) {
+            blocks.push_back(Slice(ilo, i-1));
+            ilo=i;
+        }
+    }
+    // add final block
+    blocks.push_back(Slice(ilo,localized_set.size()-1));
+    return blocks;
+}
+
+template<typename T, std::size_t NDIM>
+void Localizer<T,NDIM>::undo_rotations_within_sets(Tensor<T>& U, const std::vector<int>& localized_set) {
+    std::vector<Slice> blocks=convert_set_to_slice(localized_set);
+//    print("localize blocks -> slices");
+//    for (auto block : blocks) print("block",block);
+    U=undo_rotation(U,blocks);
+}
+
+/// given a unitary transformation matrix undo rotations between degenerate columns
+template<typename T, std::size_t NDIM>
+void Localizer<T,NDIM>::undo_degenerate_rotations(Tensor<T>& U, const Tensor<double>& evals, const double thresh_degenerate) {
+    MADNESS_CHECK(evals.size()==U.dim(0));
+    std::vector<Slice> degenerate_blocks=find_degenerate_blocks(evals,thresh_degenerate);
+    U=undo_rotation(U,degenerate_blocks);
 }
 
 

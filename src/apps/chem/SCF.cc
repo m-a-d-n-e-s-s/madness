@@ -1693,8 +1693,12 @@ tensorT SCF::get_fock_transformation(World& world, const tensorT& overlap,
 	tensorT U;
 	sygvp(world, fock, overlap, 1, U, evals);
 
+    print("U before");
+    print(U);
     Localizer<double,3>::undo_reordering(U, occ, evals);
     Localizer<double,3>::undo_degenerate_rotations(U, evals, thresh_degenerate);
+    print("U after");
+    print(U);
 
 	world.gop.broadcast(U.ptr(), U.size(), 0);
 	world.gop.broadcast(evals.ptr(), evals.size(), 0);
@@ -1721,6 +1725,7 @@ tensorT SCF::diag_fock_matrix(World& world, tensorT& fock, vecfuncT& psi,
 		const double thresh) const {
 	PROFILE_MEMBER_FUNC(SCF);
 
+    START_TIMER(world);
 	// compute the unitary transformation matrix U that diagonalizes
 	// the fock matrix
 	tensorT overlap = matrix_inner(world, psi, psi, true);
@@ -1737,11 +1742,8 @@ tensorT SCF::diag_fock_matrix(World& world, tensorT& fock, vecfuncT& psi,
 	}
 
 	// transform the orbitals and the orbitals times the potential
-	Vpsi = transform(world, Vpsi, U, vtol / std::min(30.0, double(psi.size())),
-			false);
-	psi = transform(world, psi, U,
-			FunctionDefaults < 3
-			> ::get_thresh() / std::min(30.0, double(psi.size())),
+	Vpsi = transform(world, Vpsi, U, vtol / std::min(30.0, double(psi.size())), false);
+	psi = transform(world, psi, U, FunctionDefaults <3> ::get_thresh() / std::min(30.0, double(psi.size())),
 			true);
 	truncate(world, Vpsi, vtol, false);
 	truncate(world, psi);

@@ -55,9 +55,9 @@ public:
     /// @param[in]  tolloc  localization tolerance
     /// @param[in]  randomize   initially randomize the localization procedure
     DistributedMatrix<T> compute_core_valence_separation_transformation_matrix(World& world,
-                                                     const MolecularOrbitals<T, NDIM>& mo_in,
-                                                     const Tensor<T>& Fock,
-                                                     std::string method, const double tolloc, bool randomize) const;
+                                        const MolecularOrbitals<T, NDIM>& mo_in, const Tensor<T>& Fock,
+                                        const Tensor<T>& overlap, const double thresh_degenerate,
+                                        std::string method, const double tolloc, bool randomize) const;
 
     /// given a unitary transformation matrix undo mere reordering
     static void undo_reordering(Tensor<T>& U, const Tensor<double>& occ) {
@@ -68,8 +68,20 @@ public:
     /// given a unitary transformation matrix undo mere reordering
     static void undo_reordering(Tensor<T>& U, const Tensor<double>& occ, Tensor<double>& eval);
 
-    /// given a unitary transformation matrix undo rotation between degenerate columns
+    /// given a unitary transformation matrix undo rotations between degenerate columns
     static void undo_degenerate_rotations(Tensor<T>& U, const Tensor<double>& eval, const double thresh_degenerate);
+
+    /// given a unitary transformation matrix undo rotations within blocks of localized orbitals
+    static void undo_rotations_within_sets(Tensor<T>& U, const std::vector<int>& localized_set);
+
+    static std::vector<Slice> convert_set_to_slice(const std::vector<int>& localized_set);
+
+    /// find sets of degenerate states/orbitals
+    static std::vector<Slice> find_degenerate_blocks(const Tensor<double>& eval, const double thresh_degenerate);
+
+    /// given a unitary transformation matrix undo the rotations within the blocks
+    static Tensor<T> undo_rotation(const Tensor<T>& U_in, const std::vector<Slice>& blocks);
+
 
 private:
 
