@@ -114,7 +114,7 @@ int main(int argc, char** argv) {
 			std::cout << "\n\n";
 
 			std::cout << "This script will run PNO-MP2 and print out tensors in binary\n";
-			std::cout << "Call as: pno_integrals inputfile";
+			std::cout << "Call as: pno_integrals inputfile\n";
 			std::cout << "input is " << input << "\n";
 		}
 
@@ -726,17 +726,17 @@ int main(int argc, char** argv) {
 		// save integrals to binary files
 		h = h.flat();
 		nc::NdArray<double> hh(h.ptr(), h.size(), 1);
-		hh.tofile(name+"_htensor.bin", "");
+		hh.tofile(name+"_htensor.bin");
 
 		g = g.flat();
 		nc::NdArray<double> gg(g.ptr(), g.size(), 1);
-		gg.tofile(name+"_gtensor.bin", "");
+		gg.tofile(name+"_gtensor.bin");
 
 
 		if (cabs_switch) {
 			f = f.flat();
 			nc::NdArray<double> ff(f.ptr(), f.size(), 1);
-			ff.tofile(name+"_f12tensor.bin", "");
+			ff.tofile(name+"_f12tensor.bin");
 		}
 
 		if (not orthogonalize || paramsint.print_pno_overlap()){
@@ -752,7 +752,7 @@ int main(int argc, char** argv) {
 			if (not orthogonalize) {
 				S = S.flat();
 				nc::NdArray<double> gg(S.ptr(), S.size(), 1);
-				gg.tofile(name+"_overlap.bin", "");
+				gg.tofile(name+"_overlap.bin");
 			}
 		}
 
