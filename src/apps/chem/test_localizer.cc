@@ -83,8 +83,29 @@ int test_localization(World& world, Localizer<T, NDIM>& localizer, std::shared_p
 template<typename T, std::size_t NDIM>
 int test_core_valence_separation(World& world, Localizer<T, NDIM>& localizer,
                                  std::shared_ptr<NuclearCorrelationFactor>& ncf,
-                                 const MolecularOrbitals<T, NDIM>& mo, std::string method) {
+                                 const MolecularOrbitals<T, NDIM>& mo1, std::string method) {
     int success = 0;
+    MolecularOrbitals<T, NDIM> mo = localizer.localize(mo1, method, 1.e-4, true);
+    Tensor<T> fock1 = compute_fock_matrix(world, ncf, mo);
+    print(method, "localized fock matrix to start with");
+    print(fock1);
+    Tensor<T> overlap = matrix_inner(world,ncf->square()*mo.get_mos(),mo.get_mos());
+    double thresh_degenerate=FunctionDefaults<3>::get_thresh();
+    double tolloc=FunctionDefaults<3>::get_thresh();
+    DistributedMatrix<T> dUT = localizer.compute_core_valence_separation_transformation_matrix(world,
+                             mo, fock1, overlap, thresh_degenerate,method,tolloc,false);
+    std::vector<Function<T, NDIM>> result = transform(world, mo.get_mos(), dUT);
+    truncate(world, result);
+    MolecularOrbitals<T, NDIM> lmo;
+    lmo.set_mos(result);
+
+    Tensor<T> fock = compute_fock_matrix(world, ncf, lmo);
+    print(method, "localized fock matrix");
+    print(fock);
+
+    double trace = 0.0;
+    for (int i = 0; i < fock.dim(0); ++i) trace += fock(i, i);
+    print("sum over diagonal fock matrix elements", trace);
 
     return success;
 }
@@ -95,8 +116,9 @@ int main(int argc, char **argv) {
         World& world = madness::initialize(argc, argv);
         startup(world, argc, argv);
         print("entering test_localizer");
-        const int k = 7;
-        const double thresh = 1.e-5;
+        commandlineparser parser(argc,argv);
+        const int k = 9;
+        const double thresh = 1.e-6;
         const double L = 24.0;
         FunctionDefaults<3>::set_cubic_cell(-L, L);
         FunctionDefaults<3>::set_thresh(thresh);
@@ -104,7 +126,9 @@ int main(int argc, char **argv) {
 
 
         Molecule molecule;
-        molecule.read_structure_from_library("h2o");
+        std::string geometry = parser.key_exists("structure") ? parser.value("structure") : "h2o";
+        molecule.read_structure_from_library(geometry);
+        molecule.print();
         std::shared_ptr<PotentialManager> pm(new PotentialManager(molecule, ""));
         auto ncf = create_nuclear_correlation_factor(world, molecule, pm, std::make_pair("slater", 2.0));
         ncf->initialize(thresh * 0.1);
@@ -120,6 +144,9 @@ int main(int argc, char **argv) {
 
         auto mos = compute_initial_orbitals<double, 3>(world, aobasis, molecule, ncf);
         mos.pretty_print("initial mos");
+
+        auto blocks=localizer.convert_set_to_slice(mos.get_localize_sets());
+        for (auto block : blocks) print("block",block);
 
         test_localization(world, localizer, ncf, mos, "boys");
         test_localization(world, localizer, ncf, mos, "pm");

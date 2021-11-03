@@ -1,3 +1,18 @@
+structure=he
+geometry
+he 0 0 0
+end
+
+structure=ne
+geometry
+ne 0 0 0
+end
+
+structure=ar
+geometry
+ar 0 0 0
+end
+
 structure=water
 structure=water1
 structure=h2o

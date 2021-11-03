@@ -136,7 +136,7 @@ if(BUILD_TESTING)
   
   SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
   # The list of unit test source files
-  set(CHEM_TEST_SOURCES test_pointgroupsymmetry.cc test_masks_and_boxes.cc test_localizer.cc
+  set(CHEM_TEST_SOURCES test_pointgroupsymmetry.cc test_masks_and_boxes.cc test_localizer.cc 
   test_QCCalculationParametersBase.cc test_qc.cc test_MolecularOrbitals.cc test_BSHApply.cc)
   if (LIBXC_FOUND)
     list(APPEND CHEM_TEST_SOURCES test_dft.cc test_SCFOperators.cc)
