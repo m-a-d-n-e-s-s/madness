@@ -38,7 +38,7 @@
 #define MADNESS_CHEM_SCFOPERATORS_H_
 
 #include <madness.h>
-#include <macrotaskq.h>
+#include <madness/mra/macrotaskq.h> // otherwise issues with install
 
 using namespace madness;
 
