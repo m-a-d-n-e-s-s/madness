@@ -25,9 +25,6 @@ auxbas auxbas_example
 energytype hylleraas
 end
 
-pnoint
-end
-
 geometry
 eprec 1.e-6
 he 0.0 0.0 0.0
