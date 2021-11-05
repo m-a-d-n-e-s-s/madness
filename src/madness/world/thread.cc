@@ -65,6 +65,7 @@ extern "C" void HPM_Prof_stop(unsigned int);
 #  include <spi/include/kernel/process.h>
 #endif
 
+#include <thread>
 
 namespace madness {
     int ThreadBase::cpulo[3];
@@ -199,7 +200,7 @@ namespace madness {
             MADNESS_EXCEPTION("ThreadBase: sysctl(CTL_HW,HW_NCPU) failed", 0);
         //std::cout << "NCPU " << ncpu << std::endl;
 #else
-        return 1;
+        return std::thread::hardware_concurrency();
 #endif
     }
 
@@ -359,7 +360,7 @@ namespace madness {
         char ** argv = (char**)malloc(2*sizeof(char*));
         argv[0] = strdup("madness-app");
         argv[1] = NULL;
-        int nb_threads = ThreadPool::default_nthread() + 1;
+        int nb_threads = nthreads + 1;
         ThreadPool::parsec = parsec_init(nb_threads, &argc, &argv);
         MPI_Comm parsec_comm  = MPI_COMM_SELF;
         parsec_remote_dep_set_ctx(ThreadPool::parsec, (intptr_t)parsec_comm);
