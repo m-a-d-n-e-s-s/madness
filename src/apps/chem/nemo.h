@@ -629,12 +629,11 @@ protected:
 	/// to use these potentials in the fock matrix computation they must
 	/// be multiplied by the nuclear correlation factor
 	/// @param[in]	nemo	the nemo orbitals
-	/// @param[out]	psi		the reconstructed, full orbitals
 	/// @param[out]	Jnemo	Coulomb operator applied on the nemos
 	/// @param[out]	Knemo	exchange operator applied on the nemos
 	/// @param[out]	pcmnemo	PCM (solvent) potential applied on the nemos
 	/// @param[out]	Unemo	regularized nuclear potential applied on the nemos
-	void compute_nemo_potentials(const vecfuncT& nemo, vecfuncT& psi,
+	void compute_nemo_potentials(const vecfuncT& nemo,
 			vecfuncT& Jnemo, vecfuncT& Knemo, vecfuncT& pcmnemo,
 			vecfuncT& Unemo) const;
 

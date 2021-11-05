@@ -20,7 +20,7 @@
 #include <functional>
 #include <ostream>
 #include <string>
-#include "basis.h"
+#include <chem/basis.h>
 
 namespace slymer {
 

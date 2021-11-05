@@ -430,7 +430,7 @@ int testGenTensor_rankreduce(const long& k, const long& dim, const double& eps, 
 
                 g0+=g1;
                 t0+=t1;
-                g0.config().orthonormalize(eps);
+                g0.get_svdtensor().orthonormalize(eps);
                 norm=(g0.full_tensor_copy()-t0).normf();
                 print(ok(is_small(norm,eps)),"rank reduction orthonormalize   ",g0.what_am_i(),norm,g0.rank());
                 if (!is_small(norm,eps)) nerror++;
@@ -448,8 +448,8 @@ int testGenTensor_rankreduce(const long& k, const long& dim, const double& eps, 
                 GenTensor<double> g0(t0,eps,tt);
                 GenTensor<double> g1(t1,eps,tt);
 
-                g0.config().orthonormalize(eps*0.5/std::max(1.0,g1.normf()));
-                g1.config().orthonormalize(eps*0.5/std::max(1.0,g0.normf()));
+                g0.get_svdtensor().orthonormalize(eps*0.5/std::max(1.0,g1.normf()));
+                g1.get_svdtensor().orthonormalize(eps*0.5/std::max(1.0,g0.normf()));
                 g0.add_SVD(g1,eps);
                 t0+=t1;
                 norm=(g0.full_tensor_copy()-t0).normf();
@@ -863,7 +863,8 @@ void test(const long& k, const long& dim, const TensorArgs& targs) {
 
 	GenTensor<double> r(t[2],targs);
 	int maxrank=r.rank();
-	GenTensor<double> rr=copy(r.get_configs(0,maxrank/2));
+	SVDTensor<double> rr1=copy(r.get_svdtensor().get_configs(0,maxrank/2));
+	GenTensor<double> rr(rr1);
 	Tensor<double> reftensor=rr.full_tensor_copy();
 
 	TensorTrain<double> tt(reftensor,targs.thresh);

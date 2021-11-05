@@ -187,6 +187,9 @@ namespace madness {
 			// either a pair ket is provided, or two particles (tba)
 			MADNESS_ASSERT(impl_ket or (impl_p1 and impl_p2));
 
+		}
+
+		void make_redundant(const bool fence) {
 			// prepare base functions that make this function
 			if (impl_ket and (not impl_ket->is_on_demand())) impl_ket->make_redundant(false);
 			if (impl_eri) {
@@ -197,8 +200,18 @@ namespace madness {
 
 			if (impl_p1 and (not impl_p1->is_on_demand())) impl_p1->make_redundant(false);
 			if (impl_p2 and (not impl_p2->is_on_demand())) impl_p2->make_redundant(false);
-			world.gop.fence();
+			if (fence) world.gop.fence();
+		}
 
+		/// return true if all constituent functions are in redundant tree state
+		bool check_redundant() const {
+			if (impl_ket and (not impl_ket->is_redundant())) return false;
+			if (impl_eri) MADNESS_ASSERT(impl_eri->is_on_demand());
+			if (impl_m1 and (not impl_m1->is_redundant())) return false;
+			if (impl_m2 and (not impl_m2->is_redundant())) return false;
+			if (impl_p1 and (not impl_p1->is_redundant())) return false;
+			if (impl_p2 and (not impl_p2->is_redundant())) return false;
+			return true;
 		}
 
 		/// return value at point x; fairly inefficient

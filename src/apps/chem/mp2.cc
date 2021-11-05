@@ -75,9 +75,8 @@ void load_balance(const real_function_6d& f, const bool leaf) {
 
 /// ctor
 MP2::MP2(World& world, const commandlineparser& parser) : world(world),
-                                                          param(world), corrfac(world), correlation_energy(0.0),
-                                                          coords_sum(-1.0), Q12(world), ttt(0.0), sss(0.0) {
-
+                   param(world, parser), corrfac(world), correlation_energy(0.0),
+                   coords_sum(-1.0), Q12(world), ttt(0.0), sss(0.0) {
     {
         std::shared_ptr<Nemo> nemo = std::shared_ptr<Nemo>(new Nemo(world, parser));
 
@@ -256,6 +255,7 @@ void MP2::solve_residual_equations(ElectronPair& result,
     if (world.rank() == 0) print("eps in green:  ", eps);
     real_convolution_6d green = BSHOperator<6>(world, sqrt(-2 * eps), lo,
                                                bsh_eps);
+	green.destructive()=true;
     if (world.rank() == 0)
         std::cout << "Constructed Green Operator is destructive ? :" << green.destructive() << std::endl;
 
@@ -814,7 +814,7 @@ void MP2::guess_mp1_3(ElectronPair& pair) const {
 
     real_function_6d Uphi0 = make_Uphi0(pair);
     real_function_6d KffKphi0 = real_factory_6d(world);
-    if (not param.do_oep) KffKphi0 = make_KffKphi0(pair);
+    if (not param.do_oep()) KffKphi0 = make_KffKphi0(pair);
 
     // these are the terms that come from the single projectors: (O1 + O2) (U+[K,f])|phi^0>
     std::vector<real_function_3d> phi_k_UK_phi0;
@@ -1068,19 +1068,15 @@ real_function_3d MP2::K(const real_function_3d& phi, const bool hc) const {
 /// @return 	(K1 + K2) |phi >
 real_function_6d MP2::K(const real_function_6d& phi,
                         const bool is_symmetric) const {
-    real_function_6d result = real_factory_6d(world);
-    // loop over all orbitals of the reference
-    for (int i = 0; i < hf->nocc(); ++i) {
-        real_function_6d tmp = apply_exchange(phi, hf->nemo(i),
-                                              hf->R2orbitals()[i], 1);
+
+	// first particle 1
+	real_function_6d result=apply_exchange_vector(phi,1);
         if (is_symmetric) {
-            tmp = tmp + swap_particles(tmp);
+		result = result + swap_particles(result);
         } else {
-            tmp = tmp
-                  + apply_exchange(phi, hf->nemo(i), hf->R2orbitals()[i], 2);
+		result = result + apply_exchange_vector(phi,2);
         }
-        result = (result + tmp).truncate();
-    }
+	result.truncate();
     return result;
 }
 
@@ -1091,6 +1087,73 @@ real_function_6d MP2::K(const real_function_6d& phi,
 real_function_3d MP2::J(const real_function_3d& phi) const {
     return (hf->get_coulomb_potential() * phi).truncate();
 }
+
+
+real_function_6d MP2::apply_exchange_vector(const real_function_6d& phi,
+		const int particle) const {
+
+	timer timer(world);
+	// prepare all constituent functions
+	std::vector<real_function_3d> ket=copy(world,hf->nemos());
+	std::vector<real_function_3d> bra=copy(world,hf->R2orbitals());
+	phi.get_impl()->make_redundant(false);
+	make_redundant(world,ket,false);
+	make_redundant(world,bra,false);
+	world.gop.fence();
+	timer.tag("prepare K");
+
+	// multiply pair function with bra
+	std::vector<real_function_6d> result1(hf->nocc());
+	for (auto& r : result1) {
+	    r.set_impl(phi);
+	    r.get_impl()->undo_redundant(true);
+	}
+	for (int i=0; i<hf->nocc(); ++i) {
+		result1[i].get_impl()->multiply(phi.get_impl().get(),bra[i].get_impl().get(),particle);
+	}
+	world.gop.fence();
+	phi.get_impl()->undo_redundant(false);
+    truncate(world,result1);
+    reduce_rank(result1);
+
+	timer.tag("multiply bra");
+	print_size(world,result1,"after multiplication and truncation");
+
+	// apply exchange operator
+	real_convolution_3d op = CoulombOperator(world, 0.0001,
+			hf->get_calc().param.econv());
+	op.particle() = particle;
+	op.destructive()=true;
+
+    std::vector<real_function_6d> result2=apply(world,op,result1);
+	timer.tag("apply Green's function");
+
+	truncate(world,result2);
+    for (auto& v : result2) v.reduce_rank(false);
+	world.gop.fence();
+
+	timer.tag("truncate");
+	print_size(world,result2,"after truncate");
+
+	// multiply with ket
+	std::vector<real_function_6d> result3(hf->nocc());
+	make_redundant(world,result2);
+	for (auto& r : result3) r.set_impl(phi);
+	for (int i=0; i<hf->nocc(); ++i) {
+		result3[i].get_impl()->multiply(result2[i].get_impl().get(),ket[i].get_impl().get(),particle);
+	}
+
+	world.gop.fence();
+    truncate(result3);
+    reduce_rank(result3);
+	timer.tag("multiply ket");
+
+	real_function_6d result4=real_factory_6d(world);
+	for (auto r : result3) result4=result4+r;
+	timer.tag("add all up");
+	return result4;
+}
+
 
 /// apply the exchange operator on f
 
@@ -1268,14 +1331,12 @@ real_function_6d MP2::nemo0_on_demand(const int i, const int j) const {
 real_function_6d MP2::multiply_with_0th_order_Hamiltonian(
         const real_function_6d& f, const int i, const int j) const {
 
-    real_function_6d vphi;
-
     START_TIMER(world);
 
     // the purely local part: Coulomb and U2
     real_function_3d v_local = hf->get_coulomb_potential()
                                + hf->nemo_ptr->ncf->U2();
-    if (param.do_oep) {
+    if (param.do_oep()) {
         real_function_3d voep = real_factory_3d(world);
         load(voep, "mRKS_potential_final");
         v_local += voep;
@@ -1290,51 +1351,59 @@ real_function_6d MP2::multiply_with_0th_order_Hamiltonian(
     real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2 * eps), lo,
                                                 bsh_eps);
     op_mod.modified() = true;
-    vphi = CompositeFactory<double, 6, 3>(world).ket(copy(f)).V_for_particle1(
+	real_function_6d vphi = CompositeFactory<double, 6, 3>(world).ket(copy(f)).V_for_particle1(
             copy(v_local)).V_for_particle2(copy(v_local));
     vphi.fill_tree(op_mod);
-    asymmetry(vphi, "Vphi");
     vphi.print_size("vphi: local parts");
 
     // the part with the derivative operators: U1
+	std::vector<real_function_6d> Drhs(6);
     for (int axis = 0; axis < 6; ++axis) {
-        real_derivative_6d D = free_space_derivative<double, 6>(world,
-                                                                axis);
-        const real_function_6d Drhs = D(f).truncate();
+    	real_derivative_6d D = free_space_derivative<double, 6>(world,axis);
+    	Drhs[axis] = D(f).truncate();
+    }
+//	const std::vector<real_function_6d> Drhs = truncate(grad(f));
 
+	std::vector<real_function_3d> U1_6d;
+	for (int axis = 0; axis < 6; ++axis) {
         // note integer arithmetic
-        if (world.rank() == 0)
-            print("axis, axis^%3, axis/3+1", axis, axis % 3, axis / 3 + 1);
-        const real_function_3d U1_axis =
-                hf->nemo_ptr->ncf->U1(axis % 3);
-        //                    real_function_6d x=multiply(copy(Drhs),copy(U1_axis),axis/3+1).truncate();
+		U1_6d.push_back(copy(hf->nemo_ptr->ncf->U1(axis % 3)));
+	}
 
         double tight_thresh = std::min(FunctionDefaults<6>::get_thresh(), 1.e-4);
-        real_function_6d x;
+	std::vector<real_function_6d> x(6);
+	for (int axis = 0; axis < 6; ++axis) {
+
         if (axis / 3 + 1 == 1) {
-            x = CompositeFactory<double, 6, 3>(world).ket(Drhs)
-                    .V_for_particle1(copy(U1_axis))
-                    .thresh(tight_thresh);
+			x[axis] =CompositeFactory<double, 6, 3>(world).ket(Drhs[axis])
+						.V_for_particle1(U1_6d[axis]).thresh(tight_thresh);
 
         } else if (axis / 3 + 1 == 2) {
-            x = CompositeFactory<double, 6, 3>(world).ket(Drhs)
-                    .V_for_particle2(copy(U1_axis))
-                    .thresh(tight_thresh);
+			x[axis] =CompositeFactory<double, 6, 3>(world).ket(Drhs[axis])
+						.V_for_particle2(U1_6d[axis]).thresh(tight_thresh);
+		}
         }
-        x.fill_tree(op_mod);
-        x.set_thresh(FunctionDefaults<6>::get_thresh());
-        vphi += x;
+	world.gop.fence();
+	for (auto xx : x) {
+		CompositeFunctorInterface<double, 6, 3>* func=
+				dynamic_cast<CompositeFunctorInterface<double, 6, 3>* >(&(*xx.get_impl()->get_functor()));
+		func->make_redundant(false);
+	}
+	world.gop.fence();
+	for (auto xx : x) xx.fill_tree(op_mod,false);
+	world.gop.fence();
+	print_size(world,x,"x after fill_tree");
+
+	set_thresh(world,x,FunctionDefaults<6>::get_thresh());
+	for (auto xx : x) vphi += xx;
         vphi.truncate().reduce_rank();
 
-    }
     vphi.print_size("(U_nuc + J) |ket>:  made V tree");
-    asymmetry(vphi, "U+J");
     END_TIMER(world, "apply (U + J) |ket>");
 
     // and the exchange
     START_TIMER(world);
-    if (not param.do_oep) vphi = (vphi - K(f, i == j)).truncate().reduce_rank();
-    asymmetry(vphi, "U+J-K");
+	if (not param.do_oep()) vphi = (vphi - K(f, i == j)).truncate().reduce_rank();
     vphi.print_size("(U_nuc + J - K) |ket>:  made V tree");
     END_TIMER(world, "apply K |ket>");
 
@@ -1389,21 +1458,15 @@ void MP2::add_local_coupling(const Pairs<ElectronPair>& pairs,
 
             for (int l = param.freeze(); l < hf->nocc(); ++l) {
                 if (fock1(l, j) != 0.0) {
-                    coupling(i, j).gaxpy(1.0, quadratic[std::make_pair(i, l)], fock1(l, j), true);
+                    coupling(i, j).gaxpy(1.0, quadratic[std::make_pair(i, l)], fock1(l, j), false);
                 }
             }
             world.gop.fence();
-            coupling(i, j).truncate();
+            const double thresh = FunctionDefaults<6>::get_thresh();
+            coupling(i, j).truncate(thresh*0.1);
         }
     }
     world.gop.fence();
-
-    //        for (int i=param.freeze; i<hf->nocc(); ++i) {
-    //            for (int j=i; j<hf->nocc(); ++j) {
-    //                coupling(i,j).truncate();
-    //            }
-    //        }
-
 }
 
 
