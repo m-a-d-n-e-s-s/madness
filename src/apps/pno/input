@@ -19,9 +19,6 @@ f12
 gamma 1.4
 end
 
-pnoint
-end
-
 geometry
 he 0.0 0.0 0.0
 end

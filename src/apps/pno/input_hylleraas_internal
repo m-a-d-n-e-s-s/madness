@@ -24,9 +24,6 @@ energytype hylleraas
 auxbas he-4s3p2d1f
 end
 
-pnoint
-end
-
 geometry
 eprec 1.e-6
 he 0.0 0.0 0.0
