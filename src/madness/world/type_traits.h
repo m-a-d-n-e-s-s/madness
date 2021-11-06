@@ -473,6 +473,10 @@ namespace madness {
     class VectorInputArchive;
     class TextFstreamOutputArchive;
     class TextFstreamInputArchive;
+    class H5OutputArchive;
+    class H5PInputArchive;
+    class H5POutputArchive;
+    class H5InputArchive;
     class MPIRawOutputArchive;
     class MPIRawInputArchive;
     class MPIOutputArchive;
@@ -554,6 +558,11 @@ namespace madness {
     struct is_default_serializable_helper<archive::TextFstreamOutputArchive, T, std::enable_if_t<is_iostreammable_v<T> || std::is_function_v<T> || is_any_function_pointer_v<T>>> : std::true_type {};
     template <typename T>
     struct is_default_serializable_helper<archive::TextFstreamInputArchive, T, std::enable_if_t<is_iostreammable_v<T> || is_any_function_pointer_v<T>>> : std::true_type {};
+    //vama fix argumments
+    template <typename T>
+    struct is_default_serializable_helper<archive::H5OutputArchive, T, std::enable_if_t<is_iostreammable_v<T> || std::is_function_v<T> || is_any_function_pointer_v<T>>> : std::true_type {};
+    template <typename T>
+    struct is_default_serializable_helper<archive::H5InputArchive, T, std::enable_if_t<is_iostreammable_v<T> || is_any_function_pointer_v<T>>> : std::true_type {};
     template <typename T>
     struct is_default_serializable_helper<archive::MPIRawOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
     template <typename T>
@@ -590,6 +599,10 @@ namespace madness {
     template <>
     struct is_archive<archive::TextFstreamInputArchive> : std::true_type {};
     template <>
+    struct is_archive<archive::H5OutputArchive> : std::true_type {};
+    template <>
+    struct is_archive<archive::H5InputArchive> : std::true_type {};
+    template <>
     struct is_archive<archive::MPIRawOutputArchive> : std::true_type {};
     template <>
     struct is_archive<archive::MPIRawInputArchive> : std::true_type {};
@@ -615,6 +628,8 @@ namespace madness {
     template <>
     struct is_output_archive<archive::TextFstreamOutputArchive> : std::true_type {};
     template <>
+    struct is_output_archive<archive::H5OutputArchive> : std::true_type {};
+    template <>
     struct is_output_archive<archive::MPIRawOutputArchive> : std::true_type {};
     template <>
     struct is_output_archive<archive::MPIOutputArchive> : std::true_type {};
@@ -631,6 +646,8 @@ namespace madness {
     struct is_input_archive<archive::VectorInputArchive> : std::true_type {};
     template <>
     struct is_input_archive<archive::TextFstreamInputArchive> : std::true_type {};
+    template <>
+    struct is_input_archive<archive::H5InputArchive> : std::true_type {};
     template <>
     struct is_input_archive<archive::MPIRawInputArchive> : std::true_type {};
     template <>
@@ -677,6 +694,9 @@ namespace madness {
     struct is_text_archive<archive::TextFstreamOutputArchive> : std::true_type {};
     template <>
     struct is_text_archive<archive::TextFstreamInputArchive> : std::true_type {};
+
+//vama    template <>
+//vama    struct is_text_archive<archive::H5OutputArchive> : std::true_type {};
 
     /// \brief \c is_text_archive_v<A> is a shorthand for \c is_text_archive<A>::value
     /// \tparam Archive an archive type

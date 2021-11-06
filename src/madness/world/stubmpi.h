@@ -181,6 +181,10 @@ inline int MPI_Allreduce(void *sendbuf, void *recvbuf, int count, MPI_Datatype, 
     if(sendbuf != MPI_IN_PLACE) std::memcpy(recvbuf, sendbuf, count);
     return MPI_SUCCESS;
 }
+inline int MPI_Scan(void *sendbuf, void *recvbuf, int count, MPI_Datatype, MPI_Op, MPI_Comm) {
+    if(sendbuf != MPI_IN_PLACE) std::memcpy(recvbuf, sendbuf, count);
+    return MPI_SUCCESS;
+}
 
 inline int MPI_Comm_get_attr(MPI_Comm, int, void*, int*) { return MPI_ERR_COMM; }
 

@@ -495,6 +495,7 @@ namespace SafeMPI {
 
         struct Impl {
             MPI_Comm comm;
+            MPI_Info info;
             int me;
             int numproc;
             bool owner;
@@ -503,7 +504,7 @@ namespace SafeMPI {
             volatile int urtag;
 
             Impl(const MPI_Comm& c, int m, int n, bool o) :
-                comm(c), me(m), numproc(n), owner(o), utag(1024), urtag(1)
+                comm(c), me(m), numproc(n), owner(o), utag(1024), urtag(1), info(MPI_INFO_NULL)
             { MADNESS_ASSERT(comm != MPI_COMM_NULL); }
 
             ~Impl() {
@@ -601,6 +602,7 @@ namespace SafeMPI {
             MADNESS_MPI_TEST(MPI_Comm_create(pimpl->comm, group.group(), &group_comm));
             int me; MADNESS_MPI_TEST(MPI_Comm_rank(group_comm, &me));
             int nproc; MADNESS_MPI_TEST(MPI_Comm_size(group_comm, &nproc));
+            //MPI_Info info; MADNESS_MPI_TEST(MPI_Info_create(&info));
             return Intracomm(std::shared_ptr<Impl>(new Impl(group_comm, me, nproc, true)));
         }
 
@@ -709,6 +711,11 @@ namespace SafeMPI {
             return pimpl->numproc;
         }
 
+        MPI_Info& Get_info() const {
+            MADNESS_ASSERT(pimpl);
+            return pimpl->info;
+        }
+
         Request Isend(const void* buf, const int count, const MPI_Datatype datatype, const int dest, const int tag) const {
             MADNESS_ASSERT(pimpl);
             SAFE_MPI_GLOBAL_MUTEX;
@@ -777,6 +784,11 @@ namespace SafeMPI {
             SAFE_MPI_GLOBAL_MUTEX;
             MADNESS_MPI_TEST(MPI_Allreduce(const_cast<void*>(sendbuf), recvbuf, count, datatype, op, pimpl->comm));
         }
+        void Scan(const void* sendbuf, void* recvbuf, const int count, const MPI_Datatype datatype, const MPI_Op op) const {
+            MADNESS_ASSERT(pimpl);
+            SAFE_MPI_GLOBAL_MUTEX;
+            MADNESS_MPI_TEST(MPI_Scan(const_cast<void*>(sendbuf), recvbuf, count, datatype, op, pimpl->comm));
+        }
         bool Get_attr(int key, void* value) const {
             MADNESS_ASSERT(pimpl);
             int flag = 0;
@@ -839,6 +851,7 @@ namespace SafeMPI {
             MADNESS_MPI_TEST(MPI_Comm_rank(COMM_WORLD.pimpl->comm, & COMM_WORLD.pimpl->me));
             MADNESS_MPI_TEST(MPI_Comm_size(COMM_WORLD.pimpl->comm, & COMM_WORLD.pimpl->numproc));
             MADNESS_MPI_TEST(MPI_Comm_set_errhandler(COMM_WORLD.pimpl->comm, MPI_ERRORS_RETURN));
+            //MADNESS_MPI_TEST(MPI_Info_create(&info));
         }
 
     }  // namespace detail
