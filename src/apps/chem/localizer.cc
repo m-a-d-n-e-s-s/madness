@@ -11,15 +11,45 @@ using namespace madness;
 namespace madness {
 
 template<typename T, std::size_t NDIM>
-MolecularOrbitals<T, NDIM> Localizer<T, NDIM>::localize(const MolecularOrbitals<T, NDIM>& mo_in, std::string method,
-                                                        const double dconv, bool randomize) const {
+Localizer<T,NDIM>::Localizer(World& world, const AtomicBasisSet& aobasis, const Molecule& molecule,
+          const std::vector<Function<double, 3>>& ao) : aobasis(aobasis), molecule(molecule), ao(ao) {
+    aobasis.atoms_to_bfn(molecule, at_to_bf, at_nbf);
+    thresh_degenerate=FunctionDefaults<NDIM>::get_thresh();
+}
 
-    const double tolloc = std::min(1e-6, 0.01 * dconv);
+template<typename T, std::size_t NDIM>
+MolecularOrbitals<T, NDIM> Localizer<T, NDIM>::localize(const MolecularOrbitals<T, NDIM>& mo_in, bool randomize) const {
+
+    Tensor<T> Fock, overlap;
+    return localize(mo_in,Fock,overlap,randomize);
+}
+
+template<typename T, std::size_t NDIM>
+MolecularOrbitals<T, NDIM> Localizer<T, NDIM>::localize(const MolecularOrbitals<T, NDIM>& mo_in, const Tensor<T>& Fock,
+                                                        const Tensor<T>& overlap, bool randomize) const {
+
     World& world = mo_in.get_mos()[0].world();
 
-    DistributedMatrix<double> dUT=compute_localization_matrix(world,mo_in,method,tolloc,randomize);
+    Tensor<T> UT;
+    if (enforce_core_valence_separation) {
+        MADNESS_CHECK(Fock.dim(0)==mo_in.get_mos().size());
+        MADNESS_CHECK(Fock.dim(0)==overlap.dim(0));
 
-    std::vector<Function<T, NDIM>> result = transform(world, mo_in.get_mos(), dUT);
+        MolecularOrbitals<T,NDIM> mo_cv_separated= separate_core_valence(mo_in,Fock,overlap);
+
+        // localize all orbital sets separately
+        for (auto set : mo_cv_separated.get_localize_sets()) {
+
+        }
+
+
+
+        UT=compute_localization_matrix(world,mo_in,randomize);
+    } else {
+        UT=compute_localization_matrix(world,mo_in,randomize);
+    }
+
+    std::vector<Function<T, NDIM>> result = transform(world, mo_in.get_mos(), UT);
     truncate(world, result);
     Tensor<double> eps(mo_in.get_mos().size());
     MolecularOrbitals<T, NDIM> mo_out(result,eps,{},Tensor<double>(),mo_in.get_localize_sets());
@@ -30,8 +60,8 @@ MolecularOrbitals<T, NDIM> Localizer<T, NDIM>::localize(const MolecularOrbitals<
 
 
 template<typename T, std::size_t NDIM>
-DistributedMatrix<T> Localizer<T, NDIM>::compute_localization_matrix(World& world, const MolecularOrbitals<T, NDIM>& mo_in,
-                                                  std::string method, const double tolloc, bool randomize) const {
+Tensor<T> Localizer<T, NDIM>::compute_localization_matrix(World& world, const MolecularOrbitals<T, NDIM>& mo_in,
+                                                  bool randomize) const {
     // localize using the reconstructed orbitals
     std::vector<Function<T, NDIM>> psi = metric.is_initialized() ?  metric * mo_in.get_mos() : mo_in.get_mos();
 
@@ -46,47 +76,64 @@ DistributedMatrix<T> Localizer<T, NDIM>::compute_localization_matrix(World& worl
         print("unknown localization method", method);
         MADNESS_EXCEPTION("unknown localization method", 1);
     }
-    return dUT;
+    long nmo=mo_in.get_mos().size();
+    Tensor<T> UT(nmo,nmo);
+    dUT.copy_to_replicated(UT);
+    return UT;
 }
 
 template<typename T, std::size_t NDIM>
-DistributedMatrix<T> Localizer<T,NDIM>::compute_core_valence_separation_transformation_matrix(World& world,
+MolecularOrbitals<T, NDIM> Localizer<T,NDIM>::separate_core_valence(const MolecularOrbitals<T, NDIM>& mo_in, const Tensor<T>& Fock,
+                                                 const Tensor<T>& overlap) const {
+    World& world = mo_in.get_mos()[0].world();
+
+    Tensor<double> UT= compute_core_valence_separation_transformation_matrix(world,mo_in,Fock,overlap);
+
+    std::vector<Function<T, NDIM>> result = transform(world, mo_in.get_mos(), UT);
+    truncate(world, result);
+    Tensor<double> eps(mo_in.get_mos().size());
+    MolecularOrbitals<T, NDIM> mo_out(result,eps,{},Tensor<double>(),mo_in.get_localize_sets());
+    mo_out.set_all_orbitals_occupied();
+    return mo_out;
+
+}
+
+template<typename T, std::size_t NDIM>
+Tensor<T> Localizer<T,NDIM>::compute_core_valence_separation_transformation_matrix(World& world,
                                           const MolecularOrbitals<T, NDIM>& mo_in, const Tensor<T>& Fock,
-                                          const Tensor<T>& overlap, const double thresh_degenerate,
-                                          std::string method, const double tolloc, bool randomize) const {
+                                          const Tensor<T>& overlap) const {
 
     // canonicalize orbitals
-    long nmo=Fock.dim(0);
     Tensor<T> U;
     Tensor<typename Tensor<T>::scalar_type> eval;
     sygvp(world, Fock, overlap, 1, U, eval);
-//    print("U before");
-//    print(U);
     Localizer<double,3>::undo_reordering(U, mo_in.get_occ(), eval);
     Localizer<double,3>::undo_degenerate_rotations(U, eval, thresh_degenerate);
     Localizer<double,3>::undo_rotations_within_sets(U, mo_in.get_localize_sets());
-//    print("U after");
-//    print(U);
-
-//    // localize orbitals
-//    std::vector<Function<T, NDIM>> result = transform(world, mo_in.get_mos(), U);
-//    truncate(world, result);
-//    MolecularOrbitals<T, NDIM> mo_out;
-//    mo_out.set_mos(result);
 
     world.gop.broadcast(U.ptr(), U.size(), 0);
     world.gop.broadcast(eval.ptr(), eval.size(), 0);
 
     // compute new fock matrix
     Tensor<T> fnew=inner(U,inner(Fock,U,1,0),0,0);
-    print("new fock matrix by transformation");
-    print(fnew);
-
-    DistributedMatrix<double> dUT = column_distributed_matrix<double>(world, nmo, nmo);
-    dUT.copy_from_replicated(transpose(U));
-    return dUT;
+    bool success= check_core_valence_separation(fnew,mo_in.get_localize_sets());
+    MADNESS_CHECK(success);
+    return U;
 }
 
+template<typename T, std::size_t NDIM>
+bool Localizer<T,NDIM>::check_core_valence_separation(const Tensor<T>& Fock, const std::vector<int>& localized_set) {
+    std::vector<Slice> slices=MolecularOrbitals<T,NDIM>::convert_set_to_slice(localized_set);
+    Tensor<T> F=copy(Fock);
+    for (auto s : slices) F(s,s)=0.0;
+    double error=F.normf();
+    bool success=(error<FunctionDefaults<NDIM>::get_thresh()*10.0);
+    if (not success) {
+        print("faulty localization: core-valence separation requested but Fock matrix not block diagonal");
+        print(Fock);
+    }
+    return success;
+}
 
 
 template<typename T, std::size_t NDIM>
@@ -232,8 +279,7 @@ DistributedMatrix<T> Localizer<T, NDIM>::localize_boys(World& world, const std::
 template<typename T, std::size_t NDIM>
 DistributedMatrix<T> Localizer<T, NDIM>::localize_PM(World& world, const std::vector<Function<T, NDIM>>& mo,
                                                      const std::vector<int>& set, const double thresh,
-                                                     const bool randomize,
-                                                     const bool doprint) const {
+                                                     const bool randomize, const bool doprint) const {
 
     DistributedMatrix<T> dUT = distributed_localize_PM(world, mo, ao, set, at_to_bf, at_nbf,
                                                        thresh, thetamax, randomize, doprint);
@@ -244,8 +290,7 @@ DistributedMatrix<T> Localizer<T, NDIM>::localize_PM(World& world, const std::ve
 template<typename T, std::size_t NDIM>
 DistributedMatrix<T> Localizer<T, NDIM>::localize_new(World& world, const std::vector<Function<T, NDIM>>& mo,
                                                       const std::vector<int>& set, double thresh,
-                                                      const bool randomize,
-                                                      const bool doprint) const {
+                                                      const bool randomize, const bool doprint) const {
     // PROFILE_MEMBER_FUNC(SCF);
     typedef Tensor<T> tensorT;
 
@@ -543,24 +588,8 @@ Tensor<T> Localizer<T,NDIM>::undo_rotation(const Tensor<T>& U_in, const std::vec
 }
 
 template<typename T, std::size_t NDIM>
-std::vector<Slice> Localizer<T,NDIM>::convert_set_to_slice(const std::vector<int>& localized_set) {
-    std::vector<Slice> blocks;
-    long ilo=0;
-    for (int i=1; i<localized_set.size(); ++i) {
-        if (not (localized_set[i]==localized_set[i-1])) {
-            blocks.push_back(Slice(ilo, i-1));
-            ilo=i;
-        }
-    }
-    // add final block
-    blocks.push_back(Slice(ilo,localized_set.size()-1));
-    return blocks;
-}
-
-template<typename T, std::size_t NDIM>
 void Localizer<T,NDIM>::undo_rotations_within_sets(Tensor<T>& U, const std::vector<int>& localized_set) {
-    std::vector<Slice> blocks=convert_set_to_slice(localized_set);
-//    print("localize blocks -> slices");
+    std::vector<Slice> blocks=MolecularOrbitals<T,NDIM>::convert_set_to_slice(localized_set);
 //    for (auto block : blocks) print("block",block);
     U=undo_rotation(U,blocks);
 }
