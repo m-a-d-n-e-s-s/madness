@@ -50,12 +50,12 @@ struct test_output {
         if (verbose) return;
         stream_buffer_cout = std::cout.rdbuf();
         std::streambuf* stream_buffer_file = logger.rdbuf();
-        cout.rdbuf(stream_buffer_file);
+        std::cout.rdbuf(stream_buffer_file);
     }
 
     void set_cout_to_terminal() {
         if (verbose) return;
-        cout.rdbuf(stream_buffer_cout);
+        std::cout.rdbuf(stream_buffer_cout);
     }
 
     std::streambuf* stream_buffer_cout;

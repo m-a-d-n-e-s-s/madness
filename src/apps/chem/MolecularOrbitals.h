@@ -31,12 +31,13 @@ public:
 			: mo(mo), eps(eps), irreps(irrep), occ(occ), localize_sets(set) {
 	}
 
-    MolecularOrbitals get_subset(const int iset) {
+    MolecularOrbitals get_subset(const int iset) const {
         auto slices = convert_set_to_slice(localize_sets);
         auto s=slices[iset];
         MolecularOrbitals result;
         MADNESS_CHECK(mo.size()>=s.end+1);
-        result.mo.assign(mo.begin()+s.start,mo.begin()+s.end+1);
+//        result.mo.assign(mo.begin()+s.start,mo.begin()+s.end+1);
+        for (int i=s.start; i<s.end+1; ++i) result.mo.push_back(copy(mo[i]));
         if (eps.size()>0) result.eps=copy(eps(s));
         if (irreps.size()>0) result.irreps.assign(irreps.begin()+s.start,irreps.begin()+s.end+1);
         if (occ.size()>0) result.occ=copy(occ(s));
@@ -165,7 +166,7 @@ public:
 		localize_sets.clear();
 	}
 
-	void pretty_print(std::string message) {
+	void pretty_print(std::string message) const {
 	    print(message);
         std::vector<std::string> irreps=get_irreps();
         if (irreps.size()==0) irreps=std::vector<std::string>(mo.size(),"unknown");
