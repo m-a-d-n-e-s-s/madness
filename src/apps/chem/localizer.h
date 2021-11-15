@@ -10,6 +10,7 @@
 #include<chem/molecule.h>
 #include <madness/tensor/distributed_matrix.h>
 
+using namespace madness;
 namespace madness {
 
 class SCF;
@@ -32,19 +33,38 @@ public:
     Localizer() = default;
 
     Localizer(World& world, const AtomicBasisSet& aobasis, const Molecule& molecule,
-              const std::vector<Function<double, 3>>& ao) : aobasis(aobasis), molecule(molecule), ao(ao) {
-        aobasis.atoms_to_bfn(molecule, at_to_bf, at_nbf);
+              const std::vector<Function<double, 3>>& ao);
+
+    Localizer& set_method(const std::string method1) {
+        method=method1;
+        return *this;
     }
 
-    void set_metric(const Function<double,NDIM>& R) {
+    std::string get_method() {
+        return method;
+    }
+
+    Localizer& set_metric(const Function<double,NDIM>& R) {
         metric=copy(R);
+        return *this;
     }
 
-    MolecularOrbitals<T, NDIM> localize(const MolecularOrbitals<T, NDIM>& mo_in, std::string method,
-                                        const double dconv, bool randomize) const;
+    Localizer& set_enforce_core_valence_separation(const bool value) {
+        enforce_core_valence_separation=value;
+        return *this;
+    }
 
-    DistributedMatrix<T> compute_localization_matrix(World& world, const MolecularOrbitals<T, NDIM>& mo_in,
-                                                     std::string method, const double tolloc, bool randomize) const;
+    /// localize the orbitals
+    MolecularOrbitals<T, NDIM> localize(const MolecularOrbitals<T, NDIM>& mo_in, bool randomize) const;
+
+    /// localize the orbitals, possibly enforce core-valence separation
+    MolecularOrbitals<T, NDIM> localize(const MolecularOrbitals<T, NDIM>& mo_in, const Tensor<T>& Fock,
+                                        const Tensor<T>& overlap, bool randomize) const;
+
+    MolecularOrbitals<T, NDIM> separate_core_valence(const MolecularOrbitals<T, NDIM>& mo_in, const Tensor<T>& Fock,
+                                        const Tensor<T>& overlap) const;
+
+    Tensor<T> compute_localization_matrix(World& world, const MolecularOrbitals<T, NDIM>& mo_in, bool randomize) const;
 
     /// localize orbitals while enforcing core-valence separation
 
@@ -54,10 +74,11 @@ public:
     /// @param[in]  method  the localization method
     /// @param[in]  tolloc  localization tolerance
     /// @param[in]  randomize   initially randomize the localization procedure
-    DistributedMatrix<T> compute_core_valence_separation_transformation_matrix(World& world,
+    Tensor<T> compute_core_valence_separation_transformation_matrix(World& world,
                                         const MolecularOrbitals<T, NDIM>& mo_in, const Tensor<T>& Fock,
-                                        const Tensor<T>& overlap, const double thresh_degenerate,
-                                        std::string method, const double tolloc, bool randomize) const;
+                                        const Tensor<T>& overlap) const;
+
+    static bool check_core_valence_separation(const Tensor<T>& Fock, const std::vector<int>& localized_set);
 
     /// given a unitary transformation matrix undo mere reordering
     static void undo_reordering(Tensor<T>& U, const Tensor<double>& occ) {
@@ -73,8 +94,6 @@ public:
 
     /// given a unitary transformation matrix undo rotations within blocks of localized orbitals
     static void undo_rotations_within_sets(Tensor<T>& U, const std::vector<int>& localized_set);
-
-    static std::vector<Slice> convert_set_to_slice(const std::vector<int>& localized_set);
 
     /// find sets of degenerate states/orbitals
     static std::vector<Slice> find_degenerate_blocks(const Tensor<double>& eval, const double thresh_degenerate);
@@ -116,6 +135,10 @@ private:
     std::vector<Function<double, 3>> ao;
     Function<double,NDIM> metric;       /// =R for computing matrix elements of operators
     double thetamax=0.1;                /// maximum rotation(?)
+    const double tolloc = 1e-6; // was std::min(1e-6,0.01*dconv) but now trying to avoid unnecessary change
+    double thresh_degenerate;           /// when are orbitals degenerate
+    bool enforce_core_valence_separation=true;  /// no rotations between core and valence orbitals (distinguished by 'set')
+    std::string method="new";           /// localization method
 
 };
 

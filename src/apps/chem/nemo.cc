@@ -220,14 +220,13 @@ double Nemo::value(const Tensor<double>& x) {
 vecfuncT Nemo::localize(const vecfuncT& nemo, const double dconv, const bool randomize) const {
 
     Localizer<double, 3> localizer(world, get_calc()->aobasis, molecule(), get_calc()->ao);
-    localizer.set_metric(ncf->function());
+    localizer.set_metric(ncf->function()).set_method(calc->param.localize_method());
 
     MolecularOrbitals<double, 3> mo(nemo, calc->aeps, {}, calc->aocc, calc->aset);
     const double tolloc = std::min(1e-6, 0.01 * dconv);
-    DistributedMatrix<double> dUT = localizer.compute_localization_matrix(world, mo, calc->param.localize_method(),
-                                                                          tolloc, randomize);
+    Tensor<double> UT = localizer.compute_localization_matrix(world, mo, randomize);
 
-    vecfuncT localnemo = transform(world, nemo, dUT);
+    vecfuncT localnemo = transform(world, nemo, UT);
     truncate(world, localnemo);
     normalize(localnemo, R);
     return localnemo;

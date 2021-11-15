@@ -66,47 +66,59 @@ compute_initial_orbitals(World& world, const AtomicBasisSet& aobasis, const Mole
 
 template<typename T, std::size_t NDIM>
 int test_localization(World& world, Localizer<T, NDIM>& localizer, std::shared_ptr<NuclearCorrelationFactor>& ncf,
-                      const MolecularOrbitals<T, NDIM>& mo, std::string method) {
+                      const MolecularOrbitals<T, NDIM>& mo, double sum_orbital_energy, const bool verbose) {
+    test_output tout("testing "+localizer.get_method(), verbose);
     int success = 0;
-    MolecularOrbitals<T, NDIM> lmo = localizer.localize(mo, method, 1.e-4, true);
+    localizer.set_enforce_core_valence_separation(false);
+    MolecularOrbitals<T, NDIM> lmo = localizer.localize(mo, true);
     Tensor<T> fock = compute_fock_matrix(world, ncf, lmo);
-    print(method, "localized fock matrix");
+    print(localizer.get_method(), "localized fock matrix");
     print(fock);
 
     double trace = 0.0;
     for (int i = 0; i < fock.dim(0); ++i) trace += fock(i, i);
     print("sum over diagonal fock matrix elements", trace);
+    success+=(std::fabs(trace-sum_orbital_energy)/trace<FunctionDefaults<3>::get_thresh());
 
+    tout.end(success);
     return success;
 }
 
 template<typename T, std::size_t NDIM>
 int test_core_valence_separation(World& world, Localizer<T, NDIM>& localizer,
                                  std::shared_ptr<NuclearCorrelationFactor>& ncf,
-                                 const MolecularOrbitals<T, NDIM>& mo1, std::string method) {
+                                 const MolecularOrbitals<T, NDIM>& mo1,
+                                 const double sum_orbital_energy,
+                                 const bool verbose) {
     int success = 0;
-    MolecularOrbitals<T, NDIM> mo = localizer.localize(mo1, method, 1.e-4, true);
-    Tensor<T> fock1 = compute_fock_matrix(world, ncf, mo);
+    std::string method=localizer.get_method();
+    test_output tout("testing core-valence separation "+method,verbose);
+    localizer.set_enforce_core_valence_separation(true);
+    Tensor<T> fock1 = compute_fock_matrix(world, ncf, mo1);
+    Tensor<T> overlap = matrix_inner(world,ncf->square()*mo1.get_mos(),mo1.get_mos());
     print(method, "localized fock matrix to start with");
     print(fock1);
-    Tensor<T> overlap = matrix_inner(world,ncf->square()*mo.get_mos(),mo.get_mos());
-    double thresh_degenerate=FunctionDefaults<3>::get_thresh();
-    double tolloc=FunctionDefaults<3>::get_thresh();
-    DistributedMatrix<T> dUT = localizer.compute_core_valence_separation_transformation_matrix(world,
-                             mo, fock1, overlap, thresh_degenerate,method,tolloc,false);
-    std::vector<Function<T, NDIM>> result = transform(world, mo.get_mos(), dUT);
-    truncate(world, result);
-    MolecularOrbitals<T, NDIM> lmo;
-    lmo.set_mos(result);
+    MolecularOrbitals<T, NDIM> lmo = localizer.localize(mo1, fock1, overlap, true);
+//    Tensor<T> UT = localizer.compute_core_valence_separation_transformation_matrix(world, mo, fock1, overlap);
+//    std::vector<Function<T, NDIM>> result = transform(world, mo.get_mos(), UT);
+//    truncate(world, result);
+//    MolecularOrbitals<T, NDIM> lmo;
+//    lmo.set_mos(result);
 
     Tensor<T> fock = compute_fock_matrix(world, ncf, lmo);
     print(method, "localized fock matrix");
     print(fock);
+    bool success1=Localizer<T,NDIM>::check_core_valence_separation(fock,lmo.get_localize_sets());
+    print("success cv-separation",success1);
+    success+=success1;
+
 
     double trace = 0.0;
     for (int i = 0; i < fock.dim(0); ++i) trace += fock(i, i);
     print("sum over diagonal fock matrix elements", trace);
+    success+=(std::fabs(trace-sum_orbital_energy)/trace<FunctionDefaults<3>::get_thresh());
 
+    tout.end(success);
     return success;
 }
 
@@ -117,8 +129,10 @@ int main(int argc, char **argv) {
         startup(world, argc, argv);
         print("entering test_localizer");
         commandlineparser parser(argc,argv);
+        parser.print_map();
+        bool verbose=parser.key_exists("verbose");
         const int k = 9;
-        const double thresh = 1.e-6;
+        const double thresh = 1.e-5;
         const double L = 24.0;
         FunctionDefaults<3>::set_cubic_cell(-L, L);
         FunctionDefaults<3>::set_thresh(thresh);
@@ -126,7 +140,7 @@ int main(int argc, char **argv) {
 
 
         Molecule molecule;
-        std::string geometry = parser.key_exists("structure") ? parser.value("structure") : "h2o";
+        std::string geometry = parser.key_exists("structure") ? parser.value("structure") : "water";
         molecule.read_structure_from_library(geometry);
         molecule.print();
         std::shared_ptr<PotentialManager> pm(new PotentialManager(molecule, ""));
@@ -145,15 +159,23 @@ int main(int argc, char **argv) {
         auto mos = compute_initial_orbitals<double, 3>(world, aobasis, molecule, ncf);
         mos.pretty_print("initial mos");
 
-        auto blocks=localizer.convert_set_to_slice(mos.get_localize_sets());
-        for (auto block : blocks) print("block",block);
+        mos.get_subset(0);
+        mos.get_subset(1);
+        double sum_orbital_energies=mos.get_eps().sum();
+        print("canonical sum over orbital energies",sum_orbital_energies);
 
-        test_localization(world, localizer, ncf, mos, "boys");
-        test_localization(world, localizer, ncf, mos, "pm");
-        test_localization(world, localizer, ncf, mos, "new");
-        test_core_valence_separation(world, localizer, ncf, mos, "boys");
-        test_core_valence_separation(world, localizer, ncf, mos, "pm");
-        test_core_valence_separation(world, localizer, ncf, mos, "new");
+//        auto blocks=localizer.convert_set_to_slice(mos.get_localize_sets());
+//        for (auto block : blocks) print("block",block);
+
+        localizer.set_method("boys");
+        test_localization(world, localizer, ncf, mos, sum_orbital_energies, verbose);
+        test_core_valence_separation(world, localizer, ncf, mos, sum_orbital_energies, verbose);
+        localizer.set_method("pm");
+        test_localization(world, localizer, ncf, mos, sum_orbital_energies, verbose);
+        test_core_valence_separation(world, localizer, ncf, mos, sum_orbital_energies, verbose);
+        localizer.set_method("new");
+        test_localization(world, localizer, ncf, mos, sum_orbital_energies, verbose);
+        test_core_valence_separation(world, localizer, ncf, mos, sum_orbital_energies, verbose);
 
         print("result", result);
     }

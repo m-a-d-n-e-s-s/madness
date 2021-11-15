@@ -1693,12 +1693,8 @@ tensorT SCF::get_fock_transformation(World& world, const tensorT& overlap,
 	tensorT U;
 	sygvp(world, fock, overlap, 1, U, evals);
 
-    print("U before");
-    print(U);
     Localizer<double,3>::undo_reordering(U, occ, evals);
     Localizer<double,3>::undo_degenerate_rotations(U, evals, thresh_degenerate);
-    print("U after");
-    print(U);
 
 	world.gop.broadcast(U.ptr(), U.size(), 0);
 	world.gop.broadcast(evals.ptr(), evals.size(), 0);
@@ -2230,7 +2226,7 @@ void SCF::solve(World & world) {
 	const double dconv = std::max(FunctionDefaults < 3 > ::get_thresh(),
 			param.dconv());
 	const double trantol = vtol / std::min(30.0, double(amo.size()));
-	const double tolloc = 1e-6; // was std::min(1e-6,0.01*dconv) but now trying to avoid unnecessary change
+	const double tolloc = 1e-6; // was std::min(1e-6,0.01*dconv) but now trying to avoid unnecessary change // moved to localizer.h
 	double update_residual = 0.0, bsh_residual = 0.0;
 	subspaceT subspace;
 	tensorT Q;
@@ -2253,19 +2249,20 @@ void SCF::solve(World & world) {
 		if (param.do_localize() && do_this_iter) {
             START_TIMER(world);
             Localizer<double,3> localizer(world,aobasis,molecule,ao);
+            localizer.set_method(param.localize_method());
             MolecularOrbitals<double,3> mo(amo,aeps,{},aocc,aset);
-			distmatT dUT=localizer.compute_localization_matrix(world,mo,param.localize_method(),tolloc,iter==0);
-			dUT.data().screen(trantol);
-			amo = transform(world, amo, dUT);
+			tensorT UT=localizer.compute_localization_matrix(world,mo,iter==0);
+			UT.screen(trantol);
+			amo = transform(world, amo, UT);
 			truncate(world, amo);
 			normalize(world, amo);
 
 			if (!param.spin_restricted() && param.nbeta() != 0) {
 
                 MolecularOrbitals<double,3> mo(bmo,beps,{},bocc,bset);
-                distmatT dUT=localizer.compute_localization_matrix(world,mo,param.localize_method(),tolloc,iter==0);
-				dUT.data().screen(trantol);
-				bmo = transform(world, bmo, dUT);
+                tensorT UT=localizer.compute_localization_matrix(world,mo,iter==0);
+				UT.screen(trantol);
+				bmo = transform(world, bmo, UT);
 				truncate(world, bmo);
 				normalize(world, bmo);
 			}

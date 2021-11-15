@@ -31,6 +31,23 @@ public:
 			: mo(mo), eps(eps), irreps(irrep), occ(occ), localize_sets(set) {
 	}
 
+    MolecularOrbitals get_subset(const int iset) {
+        auto slices = convert_set_to_slice(localize_sets);
+        auto s=slices[iset];
+        MolecularOrbitals result;
+        MADNESS_CHECK(mo.size()>=s.end+1);
+        result.mo.assign(mo.begin()+s.start,mo.begin()+s.end+1);
+        if (eps.size()>0) result.eps=copy(eps(s));
+        if (irreps.size()>0) result.irreps.assign(irreps.begin()+s.start,irreps.begin()+s.end+1);
+        if (occ.size()>0) result.occ=copy(occ(s));
+        if (localize_sets.size()>0) result.localize_sets.assign(localize_sets.begin()+s.start,localize_sets.begin()+s.end+1);
+
+        print("get_subset for set ",iset);
+        pretty_print("inital mos");
+        result.pretty_print("subset of initial mos");
+        return result;
+    }
+
 	std::vector<Function<T,NDIM> > get_mos() const {
 		return mo;
 	}
@@ -98,6 +115,21 @@ public:
         update_localize_set(set);
         return *this;
 	}
+
+    static std::vector<Slice> convert_set_to_slice(const std::vector<int>& localized_set) {
+        std::vector<Slice> blocks;
+        long ilo=0;
+        for (int i=1; i<localized_set.size(); ++i) {
+            if (not (localized_set[i]==localized_set[i-1])) {
+                blocks.push_back(Slice(ilo, i-1));
+                ilo=i;
+            }
+        }
+        // add final block
+        blocks.push_back(Slice(ilo,localized_set.size()-1));
+        return blocks;
+    }
+
 
     MolecularOrbitals& set_all_orbitals_occupied() {
         occ=Tensor<double>(mo.size());
