@@ -30,26 +30,35 @@ MolecularOrbitals<T, NDIM> Localizer<T, NDIM>::localize(const MolecularOrbitals<
 
     World& world = mo_in.get_mos()[0].world();
 
-    Tensor<T> UT;
+    long nmo=mo_in.get_mos().size();
+    Tensor<T> UT(nmo,nmo);
     if (enforce_core_valence_separation) {
         MADNESS_CHECK(Fock.dim(0)==mo_in.get_mos().size());
         MADNESS_CHECK(Fock.dim(0)==overlap.dim(0));
 
         MolecularOrbitals<T,NDIM> mo_cv_separated= separate_core_valence(mo_in,Fock,overlap);
+        auto slices=MolecularOrbitals<T,NDIM>::convert_set_to_slice(mo_in.get_localize_sets());
 
         // localize all orbital sets separately
-        for (auto set : mo_cv_separated.get_localize_sets()) {
+        for (int set=0; set<=mo_cv_separated.get_localize_sets().back(); ++set) {
+            print("localizing set",set);
+            Slice s=slices[set];
 
+            MolecularOrbitals<T,NDIM>  mo1=mo_in.get_subset(set);
+            Tensor<T> block_UT=compute_localization_matrix(world,mo1,randomize);
+//            print("block_UT");
+//            print(block_UT);
+            UT(s,s)=block_UT;
         }
 
+        print("UT");
+        print(UT);
 
-
-        UT=compute_localization_matrix(world,mo_in,randomize);
     } else {
         UT=compute_localization_matrix(world,mo_in,randomize);
     }
 
-    std::vector<Function<T, NDIM>> result = transform(world, mo_in.get_mos(), UT);
+    std::vector<Function<T, NDIM>> result = transform(world, mo_in.get_mos(), transpose(UT));
     truncate(world, result);
     Tensor<double> eps(mo_in.get_mos().size());
     MolecularOrbitals<T, NDIM> mo_out(result,eps,{},Tensor<double>(),mo_in.get_localize_sets());
@@ -90,7 +99,7 @@ MolecularOrbitals<T, NDIM> Localizer<T,NDIM>::separate_core_valence(const Molecu
     Tensor<double> UT= compute_core_valence_separation_transformation_matrix(world,mo_in,Fock,overlap);
 
     std::vector<Function<T, NDIM>> result = transform(world, mo_in.get_mos(), UT);
-    truncate(world, result);
+//    truncate(world, result);
     Tensor<double> eps(mo_in.get_mos().size());
     MolecularOrbitals<T, NDIM> mo_out(result,eps,{},Tensor<double>(),mo_in.get_localize_sets());
     mo_out.set_all_orbitals_occupied();
@@ -116,6 +125,8 @@ Tensor<T> Localizer<T,NDIM>::compute_core_valence_separation_transformation_matr
 
     // compute new fock matrix
     Tensor<T> fnew=inner(U,inner(Fock,U,1,0),0,0);
+    print("fnew in compute_core_valence_separation_transformation_matrix");
+    print(fnew);
     bool success= check_core_valence_separation(fnew,mo_in.get_localize_sets());
     MADNESS_CHECK(success);
     return U;
@@ -130,6 +141,8 @@ bool Localizer<T,NDIM>::check_core_valence_separation(const Tensor<T>& Fock, con
     bool success=(error<FunctionDefaults<NDIM>::get_thresh()*10.0);
     if (not success) {
         print("faulty localization: core-valence separation requested but Fock matrix not block diagonal");
+        print("error norm",error);
+        print("max error",F.absmax());
         print(Fock);
     }
     return success;
