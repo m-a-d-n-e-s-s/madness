@@ -1239,6 +1239,13 @@ namespace madness {
                     }
                 }
             }
+#if HAVE_PARSEC
+            ////////////////// Parsec Related Begin //////////////////
+            if(0 == ntask) {
+                ntask = parsec_runtime->test();
+            }
+            ///////////////// Parsec Related End ////////////////////
+#endif
             return (ntask>0);
 #endif
         }

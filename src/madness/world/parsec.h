@@ -26,7 +26,7 @@ namespace madness{
         ~ParsecRuntime();
 
         static void schedule(PoolTaskInterface* task);
-        static bool test();
+        static int test();
         static void wait();
         static parsec_task_t task(bool is_high_priority, void *ptr);
     };
