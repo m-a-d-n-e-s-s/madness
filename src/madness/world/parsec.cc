@@ -46,6 +46,10 @@ namespace madness {
             {.type = PARSEC_DEV_NONE, .evaluate = NULL, .hook = (parsec_hook_t *) NULL},
     };
 
+    static int madness_parsec_update_runtime_nb_tasks(parsec_taskpool_t *tp, int32_t nb_tasks) {
+         return tp->tdm.module->taskpool_addto_nb_tasks(tp, nb_tasks);
+    }
+
     const parsec_task_class_t madness_parsec_tc = {
             .name = (char*)"RUN",
             .flags = PARSEC_HAS_IN_IN_DEPENDENCIES | PARSEC_USE_DEPS_MASK,
@@ -108,7 +112,7 @@ namespace madness {
             .on_enqueue_data = NULL,
             .on_complete = NULL,
             .on_complete_data = NULL,
-            .update_nb_runtime_task = NULL,
+            .update_nb_runtime_task = madness_parsec_update_runtime_nb_tasks,
             .destructor = NULL,
             .dependencies_array = NULL,
             .repo_array = NULL
@@ -165,6 +169,12 @@ namespace madness {
     void ParsecRuntime::wait() {
         parsec_taskpool_update_runtime_nbtask(&taskpool, -1);
         parsec_context_wait(context);
+    }
+
+    int ParsecRuntime::test() {
+        int rc = parsec_taskpool_test(&taskpool);
+        assert(rc >= 0);
+        return rc;
     }
 
   extern "C"{
