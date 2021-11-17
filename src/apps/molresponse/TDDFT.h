@@ -4,6 +4,7 @@
 #define SRC_APPS_MOLRESPONSE_TDDFT_H_
 
 #include <chem/SCFOperators.h>
+#include <chem/molecularbasis.h>
 #include <chem/molecule.h>
 #include <chem/xcfunctional.h>
 #include <madness/constants.h>
@@ -784,11 +785,13 @@ class TDDFT {
       lo[0] = 0.0;
       lo[1] = 0.0;
       lo[2] = 0.0;
+
       hi[0] = 0.0;
       hi[1] = 0.0;
       hi[2] = 0.0;
-      lo[0] = -Lp;
-      hi[0] = Lp;
+
+      lo[direction] = -Lp;
+      hi[direction] = Lp;
     }
   };
   plotCoords SetPlotCoord(size_t i, double Lp);
@@ -811,6 +814,14 @@ class TDDFT {
                            GroundParameters const& g_params);
   // Solves the response equations for the polarizability
   void solve_response_states(World& world);
+  vecfuncT project_ao_basis(World& world, const AtomicBasisSet& aobasis);
+
+  vecfuncT project_ao_basis_only(World& world,
+                                 const AtomicBasisSet& aobasis,
+                                 const Molecule& molecule);
+  void analyze_vectors(World& world,
+                       const vecfuncT& x,
+                       std::string response_state);
 };
 #endif  // SRC_APPS_MOLRESPONSE_TDDFT_H_
 

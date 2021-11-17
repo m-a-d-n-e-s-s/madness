@@ -121,7 +121,8 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
     print("Excited State Frequencies ");
     print(omega);
 
-    rho_omega_old = make_density(world, old_Chi, r_params.calc_type());
+    // rho_omega_old = make_density(world, old_Chi, r_params.calc_type());
+    rho_omega_old = rho_omega;
     // compute rho_omega
     rho_omega = make_density(world, Chi, r_params.calc_type());
 
@@ -257,14 +258,29 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
     print(" Final density residuals:");
     print(density_residuals);
 
+    print(" Final X-state response function residuals:");
+    print(Chi.X.norm2());
     if (not r_params.tda()) {
       if (world.rank() == 0)
         print(" Final y-state response function residuals:");
-      if (world.rank() == 0) print(y_norms);
+      if (world.rank() == 0) print(Chi.Y.norm2());
     }
   }
 
   analysis(world, Chi);
+  print("--------------------------------------------------------");
+  for (size_t i = 0; i < m; i++) {
+    std::string x_state = "x_" + std::to_string(i) + "_";
+    analyze_vectors(world, Chi.X[i], x_state);
+    print("--------------------------------------------------------");
+  }
+  if (not r_params.tda()) {
+    for (size_t i = 0; i < m; i++) {
+      std::string y_state = "y_" + std::to_string(i) + "_";
+      analyze_vectors(world, Chi.Y[i], y_state);
+      print("--------------------------------------------------------");
+    }
+  }
 }
 
 void TDDFT::analysis(World& world, X_space& Chi) {

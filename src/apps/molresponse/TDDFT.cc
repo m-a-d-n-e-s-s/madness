@@ -1999,6 +1999,7 @@ vecfuncT TDDFT::make_density(World& world,
 
   molresponse::end_timer(world, "Make density omega");
   print_meminfo(world.rank(), "Make density omega");
+  world.gop.fence();
   return rho_omega;
 }
 
@@ -4038,9 +4039,8 @@ void TDDFT::PlotGroundandResponseOrbitals(World& world,
                                           response_space& y_response,
                                           ResponseParameters const& r_params,
                                           GroundParameters const& g_params) {
-  std::filesystem::create_directories("plots/xy");
-  std::filesystem::create_directory("plots/ground");
-  std::filesystem::create_directory("plots/transition_density");
+  std::filesystem::create_directories("plots/densities");
+  std::filesystem::create_directory("plots/orbitals");
 
   // TESTING
   // get transition density
@@ -4048,9 +4048,8 @@ void TDDFT::PlotGroundandResponseOrbitals(World& world,
   size_t n = x_response[0].size();
   size_t m = x_response.size();
 
-  real_function_3d ground_density =
-      dot(world, ground_orbitals, ground_orbitals);
-  std::vector<real_function_3d> densities =
+  real_function_3d rho0 = dot(world, ground_orbitals, ground_orbitals);
+  std::vector<real_function_3d> rho1 =
       transition_density(world, ground_orbitals, x_response, y_response);
   std::string dir("xyz");
   // for plotname size
@@ -4060,29 +4059,38 @@ void TDDFT::PlotGroundandResponseOrbitals(World& world,
   // Doing line plots along each axis
   for (int d = 0; d < 3; d++) {
     // print ground_state
-    plotCoords plt(0, Lp);
+    plotCoords plt(d, Lp);
+    // plot ground density
     if (iteration == 1) {
-      snprintf(
-          plotname, buffSize, "plots/ground/ground_density_%c.plt", dir[d]);
-      plot_line(plotname, 5001, plt.lo, plt.hi, ground_density);
+      snprintf(plotname, buffSize, "plots/densities/rho0_%c_0.plt", dir[d]);
+      plot_line(plotname, 5001, plt.lo, plt.hi, rho0);
+    }
+    for (int i = 0; i < static_cast<int>(n); i++) {
+      // print ground_state
+      // plot gound_orbitals
+      snprintf(plotname,
+               buffSize,
+               "plots/orbitals/phi0_%c_0_%d.plt",
+               dir[d],
+               static_cast<int>(i));
+      plot_line(plotname, 5001, plt.lo, plt.hi, ground_orbitals[i]);
     }
 
     for (int b = 0; b < static_cast<int>(m); b++) {
-      for (int i = 0; i < static_cast<int>(n); i++) {
-        // print ground_state
-        snprintf(plotname,
-                 buffSize,
-                 "plots/ground/ground_%c_%d.plt",
-                 dir[d],
-                 static_cast<int>(i));
-        plot_line(plotname, 5001, plt.lo, plt.hi, ground_orbitals[i]);
-      }
+      // plot rho1 direction d state b
+      snprintf(plotname,
+               buffSize,
+               "plots/densities/rho1_%c_%d.plt",
+               dir[d],
+               static_cast<int>(b));
+      plot_line(plotname, 5001, plt.lo, plt.hi, rho1[b]);
+
       for (int i = 0; i < static_cast<int>(n); i++) {
         // print ground_state
         // plot x function  x_dir_b_i__k_iter
         snprintf(plotname,
                  buffSize,
-                 "plots/xy/x_direction_%c_res_%d_orb_%d",
+                 "plots/orbitals/phix_%c_%d_%d.plt",
                  dir[d],
                  static_cast<int>(b),
                  static_cast<int>(i));
@@ -4091,7 +4099,7 @@ void TDDFT::PlotGroundandResponseOrbitals(World& world,
         // plot y functione  y_dir_b_i__k_iter
         snprintf(plotname,
                  buffSize,
-                 "plots/xy/y_direction_%c_res_%d_orb_%d",
+                 "plots/orbitals/phiy_%c_%d_%d.plt",
                  dir[d],
                  static_cast<int>(b),
                  static_cast<int>(i));
@@ -4161,6 +4169,124 @@ void TDDFT::plot_excited_states(World& world,
   world.gop.fence();
 
   // END TESTING
+}
+vecfuncT TDDFT::project_ao_basis(World& world, const AtomicBasisSet& aobasis) {
+  // Make at_to_bf, at_nbf ... map from atom to first bf on atom, and nbf/atom
+  std::vector<int> at_to_bf, at_nbf;
+  aobasis.atoms_to_bfn(molecule, at_to_bf, at_nbf);
+
+  return project_ao_basis_only(world, aobasis, molecule);
+}
+
+class AtomicBasisFunctor : public FunctionFunctorInterface<double, 3> {
+ private:
+  const AtomicBasisFunction aofunc;
+
+ public:
+  AtomicBasisFunctor(const AtomicBasisFunction& aofunc) : aofunc(aofunc) {}
+
+  double operator()(const coordT& x) const { return aofunc(x[0], x[1], x[2]); }
+
+  std::vector<coordT> special_points() const {
+    return std::vector<coordT>(1, aofunc.get_coords_vec());
+  }
+};
+
+vecfuncT TDDFT::project_ao_basis_only(World& world,
+                                      const AtomicBasisSet& aobasis,
+                                      const Molecule& molecule) {
+  vecfuncT ao = vecfuncT(aobasis.nbf(molecule));
+  for (int i = 0; i < aobasis.nbf(molecule); ++i) {
+    functorT aofunc(
+        new AtomicBasisFunctor(aobasis.get_atomic_basis_function(molecule, i)));
+    ao[i] = factoryT(world)
+                .functor(aofunc)
+                .truncate_on_project()
+                .nofence()
+                .truncate_mode(1);
+  }
+  world.gop.fence();
+  truncate(world, ao);
+  madness::normalize(world, ao);
+  return ao;
+}
+static double rsquared(const coordT& r) {
+  return r[0] * r[0] + r[1] * r[1] + r[2] * r[2];
+}
+/// A MADNESS functor to compute either x, y, or z
+class DipoleFunctor : public FunctionFunctorInterface<double, 3> {
+ private:
+  const int axis;
+
+ public:
+  DipoleFunctor(int axis) : axis(axis) {}
+  double operator()(const coordT& x) const { return x[axis]; }
+};
+
+/// A MADNESS functor to compute the cartesian moment x^i * y^j * z^k (i, j, k
+/// integer and >= 0)
+class MomentFunctor : public FunctionFunctorInterface<double, 3> {
+ private:
+  const int i, j, k;
+
+ public:
+  MomentFunctor(int i, int j, int k) : i(i), j(j), k(k) {}
+  MomentFunctor(const std::vector<int>& x) : i(x[0]), j(x[1]), k(x[2]) {}
+  double operator()(const coordT& r) const {
+    double xi = 1.0, yj = 1.0, zk = 1.0;
+    for (int p = 0; p < i; ++p) xi *= r[0];
+    for (int p = 0; p < j; ++p) yj *= r[1];
+    for (int p = 0; p < k; ++p) zk *= r[2];
+    return xi * yj * zk;
+  }
+};
+
+void TDDFT::analyze_vectors(World& world,
+                            const vecfuncT& x,
+                            std::string response_state) {
+  molresponse::start_timer(world);
+  AtomicBasisSet sto3g("sto-3g");
+  vecfuncT ao = project_ao_basis(world, sto3g);
+
+  tensorT C = matrix_inner(world, ao, x);
+  int nmo1 = x.size();
+  tensorT rsq, dip(3, nmo1);
+  {
+    functionT frsq = factoryT(world).f(rsquared).initial_level(4);
+    // <x r^2 x>
+    //<x[i] | r^2 | x[i]>
+    rsq = inner(world, x, mul_sparse(world, frsq, x, vtol));
+    for (int axis = 0; axis < 3; ++axis) {
+      // x y z
+      functionT fdip = factoryT(world)
+                           .functor(functorT(new DipoleFunctor(axis)))
+                           .initial_level(4);
+      dip(axis, _) = inner(world, x, mul_sparse(world, fdip, x, vtol));
+      //<x r^2 x> - <x|x|x>^2-<x|y|x>^2-<x|z|x>^2
+      for (int i = 0; i < nmo1; ++i) rsq(i) -= dip(axis, i) * dip(axis, i);
+    }
+  }
+  molresponse::end_timer(world, "Analyze vectors");
+
+  long nmo = x.size();
+  size_t ncoeff = 0;
+  for (long i = 0; i < nmo; ++i) {
+    size_t ncoeffi = x[i].size();
+    ncoeff += ncoeffi;
+    if (world.rank() == 0 and (r_params.print_level() > 1)) {
+      print(response_state + " orbital : ", i);
+
+      printf("ncoeff=%.2e:", (double)ncoeffi);
+
+      printf("center=(%.2f,%.2f,%.2f) : radius=%.2f\n",
+             dip(0, i),
+             dip(1, i),
+             dip(2, i),
+             sqrt(rsq(i)));
+      sto3g.print_anal(molecule, C(i, _));
+      printf("total number of coefficients = %.8e\n\n", double(ncoeff));
+    }
+  }
 }
 // Main function, makes sure everything happens in correct order
 // compute the frequency response, r_params sets the the calculation type.
