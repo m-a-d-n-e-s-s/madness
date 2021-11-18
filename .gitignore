@@ -1,4 +1,5 @@
 build*
+cmake-build-debug*
 
 # Compiled Object files
 *.slo
@@ -28,6 +29,7 @@ build*
 
 # NWChem files
 ./src/apps/bryan/nwchem/*
+/cmake-build-debug*
 
 .cproject
 .project
