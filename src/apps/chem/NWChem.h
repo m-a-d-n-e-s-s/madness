@@ -13,8 +13,8 @@
 
 #include <iostream>
 #include <memory>
-#include "ESInterface.h"
-#include "gaussian.h"
+#include <chem/ESInterface.h>
+#include <chem/gaussian.h>
 
 namespace slymer {
 

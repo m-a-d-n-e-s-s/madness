@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.8.0)
+cmake_minimum_required (VERSION 3.11.0)
 project(MADNESS CXX C ASM)
 
 # Set MADNESS version
@@ -29,6 +29,7 @@ include(CMakePackageConfigHelpers)
 include(CopyTargetProperties)
 include(FeatureSummary)
 include(RedefaultableOption)
+include(FetchContent)
 
 # Check compiler feature support ===============================================
 
@@ -70,6 +71,9 @@ redefaultable_option(MADNESS_ENABLE_CEREAL "Support use of Cereal archives as ba
 
 # Enable optional libraries ====================================================
 
+# Preload versions/tags of all dependencies ====================================
+include(external/versions.cmake)
+
 # Always search for libraries that are 'ON' by default. If a library is not
 # found, it is disabled without error. If the library is 'OFF' by default,
 # failure to find the library is an error. 
@@ -78,8 +82,7 @@ option(ENABLE_MPI "Enable Message Passing Interface (MPI) Library" ON)
 redefaultable_option(ENABLE_MKL "Search for Intel Math Kernel Library (MKL) for BLAS and LAPACK support" ON)
 option(ENABLE_ACML "Search for AMD Core Math Library (ACML) for BLAS and LAPACK support" ON)
 option(ENABLE_TCMALLOC_MINIMAL "Enable use of tcmalloc_minimal library from Google Performance Tools (gperftools)" OFF)
-cmake_dependent_option(ENABLE_GPERFTOOLS "Enable use of Google Performance Tools (gperftools)" ON
-    "NOT ENABLE_TCMALLOC_MINIMAL" OFF)
+option(ENABLE_GPERFTOOLS "Enable use of full Google Performance Tools (gperftools)" OFF)
 option(ENABLE_LIBUNWIND
        "Forces detection (and possible use) of Libunwind (normally Libunwind will be sought automatically if needed)"
         OFF)
@@ -87,14 +90,35 @@ option(ENABLE_PAPI "Enables use of PAPI" OFF)
 option(ENABLE_LIBXC "Enables use of the libxc library of density functionals" ON)
 option(ENABLE_PCM "Enables use of the polarizable continuum model library" ON)
 
-redefaultable_option(ENABLE_TBB "Enables use of Intel Thread Building Blocks (TBB) as the task scheduler" OFF)
+####### preferred task backend
+set(MADNESS_TASK_VALID_BACKENDS Pthreads TBB PaRSEC)
+set(MADNESS_TASK_BACKEND Pthreads CACHE STRING "The backend to use for dispatching tasks")
+set_property(CACHE MADNESS_TASK_BACKEND PROPERTY STRINGS ${MADNESS_TASK_VALID_BACKENDS})
+
+if (DEFINED MADNESS_TASK_BACKEND)
+  if(NOT MADNESS_TASK_BACKEND IN_LIST MADNESS_TASK_VALID_BACKENDS)
+    message(FATAL_ERROR "MADNESS_TASK_BACKEND must be one of ${MADNESS_TASK_VALID_BACKENDS}")
+  endif()
+  if (MADNESS_TASK_BACKEND STREQUAL TBB)
+    set(ENABLE_TBB ON)
+  else()
+    set(ENABLE_TBB OFF)
+  endif()
+  if (MADNESS_TASK_BACKEND STREQUAL PaRSEC)
+    set(ENABLE_PARSEC ON)
+  else()
+    set(ENABLE_PARSEC OFF)
+  endif()
+else (DEFINED MADNESS_TASK_BACKEND)
+  redefaultable_option(ENABLE_TBB "Enables use of Intel Thread Building Blocks (TBB) as the task scheduler" OFF)
+  option(ENABLE_PARSEC "Enables use of PaRSEC as the task scheduler" OFF)
+  if(ENABLE_PARSEC AND ENABLE_TBB)
+    message(FATAL_ERROR "TBB and PaRSEC cannot be both enabled.")
+  endif()
+endif(DEFINED MADNESS_TASK_BACKEND)
 if (ENABLE_TBB)
   redefaultable_option(MADNESS_EXPLOIT_TBB_PRIORITY "Enables use of Intel TBB task priorities" OFF)
 endif(ENABLE_TBB)
-option(ENABLE_PARSEC "Enables use of PaRSEC as the task scheduler" OFF)
-if(ENABLE_PARSEC AND ENABLE_TBB)
-  message(FATAL_ERROR "TBB and PaRSEC cannot be both enabled.")
-endif()
 
 option(ENABLE_ELEMENTAL "Enable Elemental library for distributed-memory linear algebra" OFF)
 if (ENABLE_ELEMENTAL)
@@ -166,7 +190,7 @@ option(ENABLE_SPINLOCKS
 add_feature_info(SPINLOCKS ENABLE_SPINLOCKS
     "Enables use of spinlocks instead of mutexes (faster unless over subscribing processors)")
 set(USE_SPINLOCKS ${ENABLE_SPINLOCKS} CACHE BOOL
-    "Enables use of spinlocks instead of mutexs (faster unless over subscribing processors)")
+    "Enables use of spinlocks instead of mutexes (faster unless over subscribing processors)")
 
 option(ENABLE_NEVER_SPIN
     "Disables use of spinlocks (notably for use inside virtual machines)" OFF)
@@ -196,10 +220,6 @@ option(DISABLE_WORLD_GET_DEFAULT "Disables World::get_default()" OFF)
 add_feature_info(WORLD_GET_DEFAULT_DISABLE DISABLE_WORLD_GET_DEFAULT "Disables World::get_default()")
 set(WORLD_GET_DEFAULT_DISABLED ${DISABLE_WORLD_GET_DEFAULT} CACHE BOOL 
     "Disables World::get_default()")
-
-option(ENABLE_UNITTESTS "Enables unit tests targets" ON)
-add_feature_info(UNITTESTS ENABLE_UNITTESTS
-    "Enables unit tests targets")
 
 option(ENABLE_TASK_DEBUG_TRACE
         "Enable task debug tracing." OFF)
@@ -431,6 +451,7 @@ check_cxx_source_compiles(
     " SYS_TYPES_H_HAS_PID_T)
 
 # Check function support
+check_function_exists(fork HAVE_FORK)
 check_function_exists(memset HAVE_MEMSET)
 check_function_exists(posix_memalign HAVE_POSIX_MEMALIGN)
 if(HAVE_POSIX_MEMALIGN)
@@ -575,7 +596,11 @@ if(GDB_EXECUTABLE)
   set(HAVE_GDB 1)
   message(STATUS "Found gdb: ${GDB_EXECUTABLE}")
 endif()
-find_package(PythonInterp)
+find_program(LLDB_EXECUTABLE lldb)
+if(LLDB_EXECUTABLE)
+  set(HAVE_LLDB 1)
+  message(STATUS "Found lldb: ${LLDB_EXECUTABLE}")
+endif()
 
 # ccache for caching builds
 find_program(CCACHE ccache)
@@ -623,12 +648,11 @@ add_dependencies(everything madness-libraries)
 include_directories(${PROJECT_SOURCE_DIR}/src ${PROJECT_BINARY_DIR}/src)
 set(CMAKE_INCLUDE_CURRENT_DIR_IN_INTERFACE TRUE)
 set(CMAKE_INCLUDE_CURRENT_DIR TRUE)
-if(ENABLE_UNITTESTS)
-  include(CTest)
-  enable_testing()
+include(CTest)
+if(BUILD_TESTING)
   set(MADNESS_HAS_GOOGLE_TEST 1)
   add_custom_target_subproject(madness unittests)
-  add_custom_target_subproject(madness check COMMAND ${CMAKE_CTEST_COMMAND} USES_TERMINAL) # to be GNU compatible
+  add_custom_target_subproject(madness check COMMAND ${CMAKE_CTEST_COMMAND} -V -R "madness/test/" USES_TERMINAL) # to be GNU compatible
   add_dependencies(everything unittests)
 endif()
 add_subdirectory(src)
@@ -681,11 +705,9 @@ configure_file(
 write_basic_package_version_file(madness-config-version.cmake
   VERSION ${MADNESS_VERSION} COMPATIBILITY AnyNewerVersion)
 
-# Create the targets file
-export(EXPORT madness
-  	FILE "${PROJECT_BINARY_DIR}/madness-targets.cmake")
-export(EXPORT madworld
-  FILE "${PROJECT_BINARY_DIR}/madworld-targets.cmake")
+# Create the targets file for madness export set
+# N.B. ALL targets end up in madness export set, even if building only madworld
+export(EXPORT madness FILE "${PROJECT_BINARY_DIR}/madness-targets.cmake")
 
 # Create the configure file
 configure_package_config_file(cmake/madness-config.cmake.in
@@ -701,10 +723,6 @@ install(EXPORT madness
    	FILE "madness-targets.cmake"
    	DESTINATION "${MADNESS_INSTALL_CMAKEDIR}" 
    	COMPONENT madness-config)
-install(EXPORT madworld
-    FILE "madworld-targets.cmake"
-    DESTINATION "${MADNESS_INSTALL_CMAKEDIR}" 
-    COMPONENT madness-config)
 install(FILES
     "${MADNESS_BINARY_DIR}/madness-config.cmake"
     "${MADNESS_BINARY_DIR}/madness-config-version.cmake"

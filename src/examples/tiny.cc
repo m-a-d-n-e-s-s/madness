@@ -60,7 +60,7 @@ template<size_t NDIM>
 void load_function(World& world, Function<double,NDIM>& pair, const std::string name) {
     if (world.rank()==0)  print("loading function ", name);
 
-    archive::ParallelInputArchive ar(world, name.c_str());
+    archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, name.c_str());
     ar & pair;
 
     FunctionDefaults<3>::set_k(pair.k());
@@ -77,7 +77,7 @@ template<size_t NDIM>
 void save_function(World& world, Function<double,NDIM>& pair, const std::string name) {
     if (world.rank()==0)  print("loading function ", name);
 
-    archive::ParallelOutputArchive ar(world, name.c_str());
+    archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, name.c_str());
     ar & pair;
 
     std::string line="saved function "+name;

@@ -35,6 +35,7 @@
 #include <chem/SCF.h>
 #include <chem/nemo.h>
 #include <chem/correlationfactor.h>
+#include <chem/write_test_input.h>
 #include<typeinfo>
 
 using namespace madness;
@@ -158,45 +159,45 @@ struct refpotfunctor {
 };
 
 
-/// will write a test input and remove it from disk upon destruction
-struct write_test_input {
-
-    double eprec=FunctionDefaults<3>::get_thresh()*0.1;
-
-    std::string filename_;
-    write_test_input(std::string mol="lih") : filename_("test_SCFOperators_input") {
-        std::ofstream of(filename_);
-        of << "dft\n";
-        of << "xc hf\n";
-        of << "no_orient true\n";
-        of << "k 8\n";
-        of << "protocol [1.e-5] \n";
-        of << "ncf (slater,2.0)\n";
-        of << "end\n";
-
-        if (mol=="lih") {
-            of << "geometry\n";
-            of << "eprec " << eprec << std::endl;
-            of << "Li 0.0    0.0 0.0\n";
-            of << "H  1.4375 0.0 0.0\n";
-            of << "end\n";
-        } else if (mol=="hf") {
-            double eprec=1.e-5;
-            of << "geometry\n";
-            of << "eprec " << eprec << std::endl;
-            of << "F  0.1    0.0 0.2\n";
-            of << "H  1.4375 0.0 0.0\n";
-            of << "end\n";
-        }
-        of.close();
-    }
-
-    ~write_test_input() {
-        std::remove(filename_.c_str());
-    }
-
-    std::string filename() const {return filename_;}
-};
+// /// will write a test input and remove it from disk upon destruction
+// struct write_test_input {
+//
+//     double eprec=FunctionDefaults<3>::get_thresh()*0.1;
+//
+//     std::string filename_;
+//     write_test_input(std::string mol="lih") : filename_("test_SCFOperators_input") {
+//         std::ofstream of(filename_);
+//         of << "dft\n";
+//         of << "xc hf\n";
+//         of << "no_orient true\n";
+//         of << "k 8\n";
+//         of << "protocol [1.e-5] \n";
+//         of << "ncf (slater,2.0)\n";
+//         of << "end\n";
+//
+//         if (mol=="lih") {
+//             of << "geometry\n";
+//             of << "eprec " << eprec << std::endl;
+//             of << "Li 0.0    0.0 0.0\n";
+//             of << "H  1.4375 0.0 0.0\n";
+//             of << "end\n";
+//         } else if (mol=="hf") {
+//             double eprec=1.e-5;
+//             of << "geometry\n";
+//             of << "eprec " << eprec << std::endl;
+//             of << "F  0.1    0.0 0.2\n";
+//             of << "H  1.4375 0.0 0.0\n";
+//             of << "end\n";
+//         }
+//         of.close();
+//     }
+//
+//     ~write_test_input() {
+//         std::remove(filename_.c_str());
+//     }
+//
+//     std::string filename() const {return filename_;}
+// };
 
 /// complex function p-orbital with m_l=1
 static double_complex p_plus(const coord_3d& xyz) {
@@ -444,7 +445,7 @@ int exchange_anchor_test(World& world, Exchange<T,3>& K, const double thresh) {
 
     std::vector<Function<T,3> > diff=sub(world,Kamo,Kamo1);
     std::vector<double> norms=norm2s(world,diff);
-    print("diffnorm in K",norms);
+    if (world.rank()==0) print("diffnorm in K",norms);
     int ierr=0;
     for (double& n : norms) {
         if (n>thresh*5.0) ierr++;           // tolerance 5.0 in the density
@@ -456,8 +457,9 @@ int exchange_anchor_test(World& world, Exchange<T,3>& K, const double thresh) {
 //    print(Kmat);
 //    print(Kmat1);
     double err=(Kmat-Kmat1).normf()/Kmat.size();
-    print("diff in Kmat compared to reference potential",err);
-    if (check_err(err,thresh,"Exchange potential error")) return 1;
+    if (world.rank()==0)
+    	print("diff in Kmat compared to reference potential",err);
+	if (check_err(err,thresh,"Exchange potential error")) return 1;
 
     // hard-wire!
     Tensor<double> hardwire(2,2);
@@ -466,8 +468,9 @@ int exchange_anchor_test(World& world, Exchange<T,3>& K, const double thresh) {
     hardwire(1,0)=3.70974661;
     hardwire(1,1)=2.36014231;
     err=(hardwire-Kmat1).normf()/Kmat.size();
-    print("diff in Kmat compared to hardwired result ",err);
-    if (check_err(err,thresh,"Exchange matrix element error")) return 1;
+    if (world.rank()==0)
+    	print("diff in Kmat compared to hardwired result ",err);
+	if (check_err(err,thresh,"Exchange matrix element error")) return 1;
     return 0;
 }
 
@@ -480,7 +483,7 @@ int test_exchange(World& world) {
     FunctionDefaults<3>::set_cubic_cell(-10, 10);
 
     // construct exchange operator
-    Exchange<T,3> K(world);
+    Exchange<T,3> K;
 
     const int nmo=2;
     Tensor<double> alpha(nmo);
@@ -497,7 +500,9 @@ int test_exchange(World& world) {
     Tensor<double> aocc(nmo);
     aocc.fill(1.0);
 
-    K.set_parameters(conj(world,amo),amo,aocc);
+    double lo=1.e-4;
+    K.set_parameters(conj(world,amo),amo,lo);
+    K.set_algorithm(Exchange<T,3>::multiworld_efficient);
 
     // compare the exchange operator to precomputed reference values
     int success=0;
@@ -616,8 +621,14 @@ int test_XCOperator(World& world) {
 
 int nuclear_anchor_test(World& world) {
     double thresh=FunctionDefaults<3>::get_thresh();
-    write_test_input test_input;
-    SCF calc(world,test_input.filename().c_str());
+    CalculationParameters param;
+    param.set_user_defined_value("no_orient",true);
+    param.set_user_defined_value<std::vector<double>>("protocol",{1.e-5});
+    param.set_user_defined_value("k",8);
+    write_test_input test_input(param);
+    commandlineparser parser;
+    parser.set_keyval("input",test_input.filename());
+    SCF calc(world,parser);
     calc.make_nuclear_potential(world);
 
     // test ncf=none
@@ -683,8 +694,17 @@ int test_nuclear(World& world) {
 
 int dnuclear_anchor_test(World& world) {
     double thresh=FunctionDefaults<3>::get_thresh();
-    write_test_input test_input("hf");
-    SCF calc(world,test_input.filename().c_str());
+//    NemoCalculationParameters
+    Nemo::NemoCalculationParameters param;
+    param.set_user_defined_value("no_orient",true);
+    param.set_user_defined_value<std::vector<double>>("protocol",{1.e-5});
+    param.set_user_defined_value("k",8);
+    param.set_user_defined_value<std::pair<std::string,double>>("ncf",{"slater",2.0});
+    write_test_input test_input(param,"hf");
+    commandlineparser parser;
+    parser.set_keyval("input",test_input.filename());
+    SCF calc(world,parser);
+    calc.molecule.set_eprec(thresh*0.1);
     calc.make_nuclear_potential(world);
 
     // derivative of atom wrt axis
@@ -829,14 +849,26 @@ int test_dnuclear(World& world) {
     return ierr;
 }
 
+//int test_macrotask(World& world) {
+//    auto J=Coulomb<double,3>(world);
+//    auto Jtasks=J.make_macrotasks();
+//
+//}
+
 int test_nemo(World& world) {
     FunctionDefaults<3>::set_thresh(1.e-5);
     double thresh=FunctionDefaults<3>::get_thresh();
     if (world.rank()==0) print("\nentering test_nemo",thresh);
 
-    write_test_input test_input;
-    std::shared_ptr<SCF> calc_ptr(new SCF(world,test_input.filename().c_str()));
-    Nemo nemo(world,calc_ptr,test_input.filename());
+    CalculationParameters param;
+    param.set_user_defined_value("no_orient",true);
+    param.set_user_defined_value<std::vector<double>>("protocol",{1.e-5});
+    param.set_user_defined_value("k",8);
+    write_test_input test_input(param);
+    commandlineparser parser;
+    parser.set_keyval("input",test_input.filename());
+    Nemo nemo(world,parser);
+    auto calc_ptr=nemo.get_calc();
     double energy=nemo.value(calc_ptr->molecule.get_all_coords().flat()); // ugh!
     print("energy(LiH)",energy);
     // hard-wire test
@@ -861,10 +893,16 @@ int test_fock(World& world) {
     double thresh=FunctionDefaults<3>::get_thresh();
     if (world.rank()==0) print("\nentering test_nemo",thresh);
 
-    write_test_input test_input;
-    std::shared_ptr<SCF> calc_ptr(new SCF(world,test_input.filename().c_str()));
+    CalculationParameters param;
+    param.set_user_defined_value("no_orient",true);
+    param.set_user_defined_value<std::vector<double>>("protocol",{1.e-5});
+    param.set_user_defined_value("k",8);
+    write_test_input test_input(param);
+    commandlineparser parser;
+    parser.set_keyval("input",test_input.filename());
+    Nemo nemo(world,parser);
+    auto calc_ptr=nemo.get_calc();
     calc_ptr->param.set_user_defined_value("maxiter",0);
-    Nemo nemo(world,calc_ptr,test_input.filename().c_str());
     nemo.value();
 
     Fock<double,3> f(world,&nemo);

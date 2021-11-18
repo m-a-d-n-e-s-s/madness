@@ -78,7 +78,7 @@ if(NOT DEFINED GPERFTOOLS_FOUND)
       HINTS ${GPERFTOOLS_INCLUDE_DIR})
 
   # Search for component libraries
-  foreach(_comp tcmalloc_and_profiler tcmalloc tcmalloc_minimal profiler)
+  foreach(_comp ${Gperftools_FIND_COMPONENTS})
     find_library(GPERFTOOLS_${_comp}_LIBRARY ${_comp} 
         HINTS ${GPERFTOOLS_LIBRARY})
     if(GPERFTOOLS_${_comp}_LIBRARY)
@@ -140,7 +140,7 @@ if(NOT DEFINED GPERFTOOLS_FOUND)
 
   # Add libunwind flags to gperftools if the profiler is being used
   if(GPERFTOOLS_LIBRARIES MATCHES "profiler" AND LIBUNWIND_FOUND)
-    list(APPEND GPERFTOOLS_INCLUDE_DIRS "${LIBUNWIND_INCLUDE_DIRS}")
+    list(APPEND GPERFTOOLS_INCLUDE_DIRS "${LIBUNWIND_INCLUDE_DIR}")
     list(APPEND GPERFTOOLS_LIBRARIES "${LIBUNWIND_LIBRARIES}")
   endif()
   

@@ -39,6 +39,8 @@
 #include <iostream>
 #include <iomanip>
 
+#include <mutex>
+
 /*
 
   Memory allocation structure
@@ -183,6 +185,10 @@ namespace madness {
       static bool flag = true;
       return flag;
     }
+    bool& print_meminfo_keepstreamopen_accessor() {
+      static bool flag = false;
+      return flag;
+    }
   }  // namespace detail
 
   void print_meminfo_disable() {
@@ -195,5 +201,54 @@ namespace madness {
     return detail::print_meminfo_flag_accessor();
   }
 
-}  // namespace madness
+  void print_meminfo_keep_ostream_open(bool keep_open) {
+    detail::print_meminfo_keepstreamopen_accessor() = keep_open;
+  }
+
+  bool print_meminfo_keep_ostream_open() {
+    return detail::print_meminfo_keepstreamopen_accessor();
+  }
+
+  std::basic_ofstream<wchar_t>&
+  print_meminfo_ostream(int rank, const std::string filename_prefix) {
+    static std::mutex mtx;  // serializes access to this function's statics
+    static std::basic_ofstream<wchar_t> stream;
+    static std::string filename_prefix_used;
+    static int rank_used;
+
+    if (print_meminfo_keep_ostream_open()) {
+      // open, if needed
+      if (!stream.is_open()) {
+        std::scoped_lock lock(mtx);
+        if (!stream.is_open()) {
+          if (filename_prefix == "" && rank == -1) {
+            throw std::runtime_error(
+                "madness::print_meminfo_ostream(rank,filename_prefix) called for the first time with default values of arguments (rank=-1,filename_prefix=\"\"); call with non-default values once");
+          }
+          filename_prefix_used = filename_prefix;
+          rank_used = rank;
+          std::ostringstream filename;
+          filename << filename_prefix << "." << rank;
+          stream.open(filename.str().c_str(), std::basic_ios<wchar_t>::out |
+                                                  std::basic_ios<wchar_t>::app);
+        }
+      }
+      else {
+        if ((rank != -1 && rank != rank_used) || (filename_prefix != "" && filename_prefix_used != filename_prefix)) {
+          std::ostringstream oss;
+          oss << "madness::print_meminfo_ostream(rank=" << rank
+              << ",filename_prefix=" << filename_prefix
+              << ") was originally called with rank=" << rank_used
+              << " and filename_prefix=" << filename_prefix_used
+              << "; every invocation must receive same values of rank and filename_prefix";
+          throw std::runtime_error(oss.str().c_str());
+        }
+      }
+      return stream;
+    } else
+      throw std::runtime_error(
+          "madness::print_meminfo_ostream called but print_meminfo_keep_ostream_open() return true; make sure print_meminfo_keep_ostream_open(true) has been called");
+  }
+
+  }  // namespace madness
 

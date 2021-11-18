@@ -65,7 +65,7 @@ template<size_t NDIM>
 void load_function(World& world, Function<double,NDIM>& pair, const std::string name) {
     if (world.rank()==0)  print("loading function ", name);
 
-    archive::ParallelInputArchive ar(world, name.c_str());
+    archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, name.c_str());
     ar & pair;
 
     FunctionDefaults<3>::set_k(pair.k());
@@ -83,7 +83,7 @@ template<size_t NDIM>
 void save_function(World& world, Function<double,NDIM>& pair, const std::string name) {
     if (world.rank()==0)  print("saving function ", name);
 
-    archive::ParallelOutputArchive ar(world, name.c_str());
+    archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, name.c_str());
     ar & pair;
 
     std::string line="saved function "+name;
@@ -529,6 +529,17 @@ int test_convolution(World& world, const long& k, const double thresh) {
 }
 
 
+int test_replicate(World& world, const long& k, const double thresh) {
+    real_function_3d phi=real_factory_3d(world).f(gauss_3d);
+    auto map=phi.get_pmap();
+    map->print_data_sizes(world,"before replication");
+    phi.replicate();
+    phi.get_pmap()->print_data_sizes(world,"replicated");
+    map->print_data_sizes(world,"after replication");
+    phi.distribute(map);
+    map->print_data_sizes(world,"after distribution");
+    return 0;
+}
 
 
 int test(World& world, const long& k, const double thresh) {
@@ -536,12 +547,12 @@ int test(World& world, const long& k, const double thresh) {
     print("entering test");
     int nerror=0;
 
-    typedef Key<3> keyT;
+    typedef Key<6> keyT;
 
     real_function_3d phi=real_factory_3d(world).f(gauss_3d);
 
-//    real_function_6d ij=hartree_product(phi,phi);
-    real_function_3d ij=phi;
+    real_function_6d ij=hartree_product(phi,phi);
+//    real_function_3d ij=phi;
     ij.compress();
 
     // get the root NS coeffs
@@ -556,7 +567,7 @@ int test(World& world, const long& k, const double thresh) {
 		Tensor<double> Scoeff=ij.get_impl()->unfilter(NScoeff).full_tensor_copy();
 		Tensor<double> val2(ij.get_impl()->get_cdata().v2k);
 
-		for (KeyChildIterator<3> kit(key0); kit; ++kit) {
+		for (KeyChildIterator<6> kit(key0); kit; ++kit) {
 			const keyT& child = kit.key();
 			std::vector<Slice> cp = ij.get_impl()->child_patch(child);
 			Tensor<double> child_s_coeff=Scoeff(cp);
@@ -579,7 +590,7 @@ int test(World& world, const long& k, const double thresh) {
 		Scoeff=ij.get_impl()->unfilter(Scoeff);
 		Tensor<double> val2(ij.get_impl()->get_cdata().v2k);
 
-		for (KeyChildIterator<3> kit(key0); kit; ++kit) {
+		for (KeyChildIterator<6> kit(key0); kit; ++kit) {
 			const keyT& child = kit.key();
 			std::vector<Slice> cp = ij.get_impl()->child_patch(child);
 			Tensor<double> child_s_coeff=Scoeff(cp);
@@ -602,7 +613,7 @@ int test(World& world, const long& k, const double thresh) {
 		Scoeff=ij.get_impl()->unfilter(Scoeff);
 		Tensor<double> val2(ij.get_impl()->get_cdata().v2k);
 
-		for (KeyChildIterator<3> kit(key0); kit; ++kit) {
+		for (KeyChildIterator<6> kit(key0); kit; ++kit) {
 			const keyT& child = kit.key();
 			std::vector<Slice> cp = ij.get_impl()->child_patch(child);
 			Tensor<double> child_s_coeff=Scoeff(cp);
@@ -700,7 +711,7 @@ int main(int argc, char**argv) {
     error+=test_add(world,k,thresh);
     error+=test_exchange(world,k,thresh);
     error+=test_inner(world,k,thresh);
-
+    error+=test_replicate(world,k,thresh);
 
     print(ok(error==0),error,"finished test suite\n");
 

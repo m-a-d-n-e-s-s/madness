@@ -42,7 +42,9 @@
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 
 #include <chem/CalculationParameters.h>
-#include <chem/SCFOperators.h>
+#include <chem/commandlineparser.h>
+#include <chem/molecule.h>
+#include <chem/molecularbasis.h>
 #include <chem/corepotential.h>
 #include <chem/gth_pseudopotential.h>
 #include <chem/molecularbasis.h>

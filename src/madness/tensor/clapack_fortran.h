@@ -282,6 +282,17 @@ extern "C"
             	 real8 *a, integer *lda, real8 *tau,
             	 real8 *work, integer *lwork, integer *infoOUT);
 
+extern "C"
+	void cgeqrf_(integer *m, integer *n,
+				 complex_real4 *a, integer *lda, complex_real4 *tau,
+				 complex_real4 *work, integer *lwork, integer *infoOUT);
+
+extern "C"
+	void zgeqrf_(integer *m, integer *n,
+				 complex_real8 *a, integer *lda, complex_real8 *tau,
+				 complex_real8 *work, integer *lwork, integer *infoOUT);
+
+
 //    	dgeqp3(M, N, A, LDA, JPVT, TAU, WORK, LWORK, INFO );
 
 // PURPOSE

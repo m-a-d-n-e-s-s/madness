@@ -1,0 +1,102 @@
+name: Linux/MacOS Build
+
+on: [push]
+
+#env:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type : [ Release, Debug ]
+        os : [ macos-latest, ubuntu-20.04 ]
+        task_backend : [Pthreads, TBB, PaRSEC]
+        include:
+          - os: ubuntu-20.04
+            cxx: /usr/bin/g++-9
+          - os: macos-latest
+            cxx: clang++
+
+    name: "${{ matrix.os }}: ${{ matrix.cxx }} ${{ matrix.build_type }} ${{ matrix.task_backend }}"
+    runs-on: ${{ matrix.os }}
+    env:
+      CXX : ${{ matrix.cxx }}
+      CCACHE_DIR : ${{github.workspace}}/build/.ccache
+      CCACHE_COMPRESS : true
+      CCACHE_COMPRESSLEVEL : 6
+      MAD_SMALL_TESTS : 1
+      MAD_NUM_THREADS : 3
+      CTEST_OUTPUT_ON_FAILURE : 1
+      BUILD_CONFIG : >
+        -G Ninja
+        -DCMAKE_PREFIX_PATH=/usr/local/opt/bison
+        -DBUILD_SHARED_LIBS=OFF
+        -DMPIEXEC_PREFLAGS='--bind-to;none;--allow-run-as-root'
+        -DBUILD_TESTING=ON
+        -DMADNESS_ENABLE_CEREAL=ON
+        -DMADNESS_TASK_BACKEND=${{ matrix.task_backend }}
+        -DMADNESS_BUILD_MADWORLD_ONLY=${{ matrix.task_backend != 'Pthreads' }}
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Create Build Environment
+      # Some projects don't allow in-source building, so create a separate build directory
+      # We'll use this as our working directory for all subsequent commands
+      run: cmake -E make_directory ${{github.workspace}}/build
+
+    - name: Install prerequisite MacOS packages
+      if: ${{ matrix.os == 'macos-latest' }}
+      run: |
+        brew install ninja gcc@10 boost eigen open-mpi bison tbb@2020 ccache
+        if [ "X${{ matrix.build_type }}" = "XDebug" ]; then
+          brew install cereal
+        fi
+        echo "TBBROOT=/usr/local/opt/tbb@2020" >> $GITHUB_ENV
+        echo "/usr/local/opt/bison/bin" >> $GITHUB_PATH
+
+    - name: Install prerequisites Ubuntu packages
+      if: ${{ matrix.os == 'ubuntu-20.04' }}
+      run: |
+        sudo apt-get update
+        sudo apt-get install ninja-build g++-9 liblapack-dev libboost-dev libboost-serialization-dev libeigen3-dev openmpi-bin libopenmpi-dev libtbb-dev ccache
+        if [ "X${{ matrix.build_type }}" = "XDebug" ]; then
+          sudo apt-get install libcereal-dev
+        fi
+
+    - name: Prepare ccache timestamp
+      id: ccache_cache_timestamp
+      shell: cmake -P {0}
+      run: |
+        string(TIMESTAMP current_date "%Y-%m-%d-%H;%M;%S" UTC)
+        message("::set-output name=timestamp::${current_date}")
+
+    - name: Setup ccache cache files
+      uses: actions/cache@v1.1.0
+      with:
+        path: ${{github.workspace}}/build/.ccache
+        key: ${{ matrix.config.name }}-ccache-${{ steps.ccache_cache_timestamp.outputs.timestamp }}
+        restore-keys: |
+          ${{ matrix.config.name }}-ccache-
+
+    - name: Configure CMake
+      # Use a bash shell so we can use the same syntax for environment variable
+      # access regardless of the host operating system
+      shell: bash
+      working-directory: ${{github.workspace}}/build
+      # Note the current convention is to use the -S and -B options here to specify source 
+      # and build directories, but this is only available with CMake 3.13 and higher.  
+      # The CMake binaries on the Github Actions machines are (as of this writing) 3.12
+      run: cmake $GITHUB_WORKSPACE $BUILD_CONFIG
+
+    - name: Build
+      working-directory: ${{github.workspace}}/build
+      shell: bash
+      # Execute the build.  You can specify a specific target with "--target <NAME>"
+      run: ccache -p && ccache -z && cmake --build . && ccache -s
+
+    - name: Test
+      working-directory: ${{github.workspace}}/build
+      shell: bash
+      run: cmake --build . --target check-madness

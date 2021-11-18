@@ -728,7 +728,7 @@ int test_op(World& world) {
 
 //     fff.reconstruct();
 //     for (int i=0; i<10; ++i) {
-//         fff.nonstandard(false,true);
+//         fff.make_nonstandard(false,true);
 //         fff.standard();
 //         fff.reconstruct();
 //     }
@@ -859,8 +859,8 @@ int test_coulomb(World& world) {
 
     f.reconstruct();
     START_TIMER;
-    f.nonstandard(false,true);
-    END_TIMER("nonstandard");
+    f.make_nonstandard(false, true);
+    END_TIMER("make_nonstandard");
 
     if (world.rank() == 0) {
         print("\nbefore operator");
@@ -1206,13 +1206,13 @@ int test_io(World& world) {
     Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor);
 
     int nio = (world.size()-1)/20 + 1;
-    archive::ParallelOutputArchive out(world, "mary", nio);
+    archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> out(world, "mary", nio);
     out & f;
     out.close();
 
     Function<T,NDIM> g;
 
-    archive::ParallelInputArchive in(world, "mary", nio);
+    archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> in(world, "mary", nio);
     in & g;
     in.close();
     in.remove();

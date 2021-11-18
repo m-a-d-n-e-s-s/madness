@@ -206,6 +206,41 @@ void test1(World& world) {
 }
 
 
+void test_local(World& world) {
+
+	print("entering test_local");
+    std::shared_ptr< WorldDCPmapInterface<int> > pmap0(new TestPmap(world, 0));
+
+    WorldContainer<int,double> c(world,pmap0),d(world,pmap0),e(world,pmap0);
+    for (int i=0; i<10; ++i) {
+    	c.replace(i,i+1.0);
+    	d.replace(i,i+1.0);
+    	e.replace(i,i+1.0);
+    }
+    world.gop.fence();
+
+    std::size_t size=c.size();
+    if (world.rank()==0) print("size on rank=0 before replication",size);
+
+    c.replicate();		// fence
+    d.replicate(false);	// no fence
+    e.replicate();		// fence
+
+    size=c.size();
+    if (world.rank()==0) print("size on rank=0 after replication",size);
+
+    auto localmap=c.get_pmap();
+    localmap->redistribute(world, pmap0);
+    world.gop.fence();
+    size=c.size();
+    if (world.rank()==0) print("size on rank=0 after redistribution",size);
+
+    localmap=d.get_pmap();
+    localmap->redistribute(world, pmap0);
+    localmap->redistribute(world, pmap0);
+
+}
+
 int main(int argc, char** argv) {
     initialize(argc, argv);
     World world(SafeMPI::COMM_WORLD);
@@ -215,6 +250,7 @@ int main(int argc, char** argv) {
         test1(world);
         test1(world);
         test1(world);
+        test_local(world);
     }
     catch (const SafeMPI::Exception& e) {
         error("caught an MPI exception");
