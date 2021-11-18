@@ -135,6 +135,34 @@ void MolecularOrbitals<T,NDIM>::project_ao(World& world, const Tensor<T>& Saomo,
 
 }
 
+template<typename T, std::size_t NDIM>
+std::vector<Vector<typename Tensor<T>::scalar_type,3> > MolecularOrbitals<T,NDIM>::compute_center(
+        const Function<typename Tensor<T>::scalar_type,NDIM> metric2) const {
+    using resultT= typename Tensor<T>::scalar_type;
+    int nmo = mo.size();
+    auto result=std::vector<Vector<resultT,3>>(nmo);
+    if (nmo==0) return result;
+    World& world=mo.front().world();
+    Tensor<T> dip(3, nmo);
+    double vtol=FunctionDefaults<3>::get_thresh()*0.1;
+    {
+        for (int axis = 0; axis < 3; ++axis) {
+            // dipole functor
+            auto dipole = [&axis](const Vector<double,3>& r) {return r[axis];};
+            real_function_3d fdip = real_factory_3d (world).functor(dipole).initial_level(4);
+            fdip=fdip*metric2;
+            dip(axis, _) = inner(world, mo, mul_sparse(world, fdip, mo, vtol));
+        }
+    }
+    for (int i=0; i<nmo; ++i) {
+        for (int axis=0; axis<3; ++axis) {
+            result[i][axis]=std::real(dip(axis,i));
+        }
+    }
+    return result;
+}
+
+
 template class MolecularOrbitals<double,3>;
 template class MolecularOrbitals<double_complex,3>;
 

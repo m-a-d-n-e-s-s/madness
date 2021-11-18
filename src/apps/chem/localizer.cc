@@ -35,24 +35,22 @@ MolecularOrbitals<T, NDIM> Localizer<T, NDIM>::localize(const MolecularOrbitals<
     if (enforce_core_valence_separation) {
         MADNESS_CHECK(Fock.dim(0)==mo_in.get_mos().size());
         MADNESS_CHECK(Fock.dim(0)==overlap.dim(0));
+//        auto mo_in1=localize(mo_in,randomize);
 
         MolecularOrbitals<T,NDIM> mo_cv_separated= separate_core_valence(mo_in,Fock,overlap);
         auto slices=MolecularOrbitals<T,NDIM>::convert_set_to_slice(mo_in.get_localize_sets());
 
         // localize all orbital sets separately
         for (int set=0; set<=mo_cv_separated.get_localize_sets().back(); ++set) {
-            print("localizing set",set);
+//            print("localizing set",set);
             Slice s=slices[set];
-
             MolecularOrbitals<T,NDIM>  mo1=mo_in.get_subset(set);
             Tensor<T> block_UT=compute_localization_matrix(world,mo1,randomize);
-//            print("block_UT");
-//            print(block_UT);
             UT(s,s)=block_UT;
         }
 
-        print("UT");
-        print(UT);
+//        print("UT");
+//        print(UT);
 
     } else {
         UT=compute_localization_matrix(world,mo_in,randomize);
