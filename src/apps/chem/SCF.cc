@@ -1,4 +1,5 @@
-/* This file is part of MADNESS.
+/*
+  This file is part of MADNESS.
 
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
 
@@ -56,7 +57,8 @@ namespace madness {
 //                                      >& g, bool sym=false)
 
 template <typename T, std::size_t NDIM>
-static void verify_tree(World& world, const std::vector<Function<T, NDIM>>& v) {
+static void verify_tree(World& world,
+                        const std::vector<Function<T, NDIM> >& v) {
   for (unsigned int i = 0; i < v.size(); i++) {
     v[i].verify_tree();
   }
@@ -402,7 +404,7 @@ void SCF::make_nuclear_potential(World& world) {
   START_TIMER(world);
   potentialmanager = std::shared_ptr<PotentialManager>(
       new PotentialManager(molecule, param.core_type()));
-  gthpseudopotential = std::shared_ptr<GTHPseudopotential<double>>(
+  gthpseudopotential = std::shared_ptr<GTHPseudopotential<double> >(
       new GTHPseudopotential<double>(world, molecule));
 
   if (!param.pure_ae()) {
@@ -548,9 +550,8 @@ distmatT SCF::localize_new(World& world,
       const double* Cj = &C(j, lo);
       double qij = 0.0;
       for (int mu = 0; mu < nbf; ++mu) qij += Ci[mu] * Cj[mu];
-      return qij *
-             (1.0 + breaksym * a);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                                    // break symmetry
+      return qij * (1.0 + breaksym * a);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                                          // break symmetry
     };
 
     auto makeGW = [&Q, &nmo, &natom, &QQ](
@@ -799,7 +800,7 @@ distmatT SCF::localize_boys(World& world,
   // print("tolloc", thresh, "thetamax", thetamax);
   if (thresh < 1e-6)
     thresh = 1e-6;  //<<<<<<<<<<<<<<<<<<<<< need to implement new line search
-                    // like in pm routine
+                    //like in pm routine
   tensorT U(nmo, nmo);
   default_random_generator.setstate(
       182041 + world.rank() *
@@ -2081,13 +2082,7 @@ void SCF::vector_stats(const std::vector<double>& v,
   }
   rms = sqrt(rms / v.size());
 }
-/**
- Returns the residual
- @param occ occupancies tensor
- @param fock Fock tensor
- @param psi wavefunction orbitals
- @param err
- */
+
 vecfuncT SCF::compute_residual(World& world,
                                tensorT& occ,
                                tensorT& fock,
@@ -2155,38 +2150,31 @@ tensorT SCF::make_fock_matrix(World& world,
   START_TIMER(world);
   tensorT pe = matrix_inner(world, Vpsi, psi, true);
   END_TIMER(world, "PE matrix");
-  // copy old key map because we are going to move things around
-  //
-  std::shared_ptr<WorldDCPmapInterface<Key<3>>> oldpmap =
+
+  std::shared_ptr<WorldDCPmapInterface<Key<3> > > oldpmap =
       FunctionDefaults<3>::get_pmap();
-  // get a shallow copy of orbitals
   vecfuncT psicopy = psi;  // Functions are shallow copy so this is lightweight
   if (world.size() > 1) {
     START_TIMER(world);
     LoadBalanceDeux<3> lb(world);
     for (unsigned int i = 0; i < psi.size(); ++i) {
-      // add a tree for orbitals
       lb.add_tree(psi[i], lbcost<double, 3>(1.0, 8.0), false);
     }
     world.gop.fence();
     END_TIMER(world, "KE compute loadbal");
 
     START_TIMER(world);
-    // newpamap is the new pmap just based on the orbitals
-    std::shared_ptr<WorldDCPmapInterface<Key<3>>> newpmap =
+    std::shared_ptr<WorldDCPmapInterface<Key<3> > > newpmap =
         lb.load_balance(param.loadbalparts());
-    // default process map
-    // We set the newpmap
-    FunctionDefaults<3>::set_pmap(newpmap);  // set default to be new
+    FunctionDefaults<3>::set_pmap(newpmap);
 
     world.gop.fence();
-    // copy orbitals using new pmap
     for (unsigned int i = 0; i < psi.size(); ++i)
       psicopy[i] = copy(psi[i], newpmap, false);
-    world.gop.fence();  // then fence
+    world.gop.fence();
     END_TIMER(world, "KE redist");
   }
-  // we do the work to compute the KE matrix using the new pmap
+
   START_TIMER(world);
   tensorT ke(psi.size(), psi.size());
   {
@@ -2470,8 +2458,7 @@ tensorT SCF::diag_fock_matrix(World& world,
   END_TIMER(world, "Diagonalization rest");
   return U;
 }
-// we load adding more weight cost to the vnuc
-// the default to vnucextra is 2.0
+
 void SCF::loadbal(World& world,
                   functionT& arho,
                   functionT& brho,
@@ -2481,7 +2468,6 @@ void SCF::loadbal(World& world,
   if (world.size() == 1) return;
 
   LoadBalanceDeux<3> lb(world);
-  // get local vnuc
   real_function_3d vnuc;
   if (param.psp_calc()) {
     vnuc = gthpseudopotential->vlocalpot();
@@ -2491,10 +2477,6 @@ void SCF::loadbal(World& world,
     vnuc = potentialmanager->vnuclear();
     vnuc = vnuc + gthpseudopotential->vlocalpot();
   }
-  //                                         leaf/ interior
-  //                                       // leaf value // parent value
-  //                 cost function                      accumlates cost of a
-  //                 function
   lb.add_tree(
       vnuc,
       lbcost<double, 3>(param.vnucextra() * 1.0, param.vnucextra() * 8.0),
@@ -2510,8 +2492,7 @@ void SCF::loadbal(World& world,
     }
   }
   world.gop.fence();
-  // This sets the new process map and redistributes all functions using process
-  // map
+
   FunctionDefaults<3>::redistribute(
       world,
       lb.load_balance(
@@ -2614,20 +2595,14 @@ void SCF::update_subspace(World& world,
   world.gop.fence();
 
 restart:
-  // supspace becomes the pair of vm and rm
   subspace.push_back(pairvecfuncT(vm, rm));
   int m = subspace.size();
-  // ms and sm
   tensorT ms(m);
   tensorT sm(m);
-  //
   for (int s = 0; s < m; ++s) {
-    // vs is first vm
     const vecfuncT& vs = subspace[s].first;
-    // rs is first residual
     const vecfuncT& rs = subspace[s].second;
     for (unsigned int i = 0; i < vm.size(); ++i) {
-      // inner between vm[i] and residual[i]
       ms[s] += vm[i].inner_local(rs[i]);
       sm[s] += vs[i].inner_local(rm[i]);
     }
@@ -3195,11 +3170,10 @@ printf("                total %32.24f\n\n", etot);*/
       // print("##convergence criteria: density delta=", da < dconv *
       // molecule.natom() && db < dconv * molecule.natom(), ", bsh_residual=",
       // (param.conv_only_dens || bsh_residual < 5.0*dconv));
-      double d_conv = dconv * std::max(size_t(5), molecule.natom());
-      if (da < d_conv && db < d_conv &&
-          (param.get<bool>("conv_only_dens") || bsh_residual < 5.0 * dconv)) {
+      if (da < dconv * std::max(size_t(5), molecule.natom()) &&
+          db < dconv * std::max(size_t(5), molecule.natom()) &&
+          (param.get<bool>("conv_only_dens") || bsh_residual < 5.0 * dconv))
         converged = true;
-      }
       // previous conv was too tight for small systems
       // if (da < dconv * molecule.natom() && db < dconv * molecule.natom()
       //     && (param.conv_only_dens || bsh_residual < 5.0 * dconv))
