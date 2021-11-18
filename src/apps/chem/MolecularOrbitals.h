@@ -43,9 +43,9 @@ public:
         if (occ.size()>0) result.occ=copy(occ(s));
         if (localize_sets.size()>0) result.localize_sets.assign(localize_sets.begin()+s.start,localize_sets.begin()+s.end+1);
 
-        print("get_subset for set ",iset);
-        pretty_print("inital mos");
-        result.pretty_print("subset of initial mos");
+//        print("get_subset for set ",iset);
+//        pretty_print("inital mos");
+//        result.pretty_print("subset of initial mos");
         return result;
     }
 
@@ -295,6 +295,9 @@ public:
 			const Molecule& molecule, const bool have_beta);
 
 	void project_ao(World& world, const Tensor<T>& Saomo, const std::vector<Function<double,3> >& aos);
+
+    std::vector<Vector<typename Tensor<T>::scalar_type,3>> compute_center(
+            const Function<typename Tensor<T>::scalar_type,NDIM> metric2=Function<typename Tensor<T>::scalar_type,NDIM>()) const;
 
 private:
 	std::vector<Function<T,NDIM> > mo;

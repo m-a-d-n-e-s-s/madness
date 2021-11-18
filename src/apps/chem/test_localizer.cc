@@ -133,7 +133,8 @@ int main(int argc, char **argv) {
         bool verbose=parser.key_exists("verbose");
         const int k = 9;
         const double thresh = 1.e-6;
-        const double L = 24.0;
+//        const double L = 20.0;
+        const double L = 5.1427e+01;
         FunctionDefaults<3>::set_cubic_cell(-L, L);
         FunctionDefaults<3>::set_thresh(thresh);
         FunctionDefaults<3>::set_k(k);
@@ -142,9 +143,12 @@ int main(int argc, char **argv) {
         Molecule molecule;
         std::string geometry = parser.key_exists("structure") ? parser.value("structure") : "water";
         molecule.read_structure_from_library(geometry);
+        molecule.orient();
         molecule.print();
         std::shared_ptr<PotentialManager> pm(new PotentialManager(molecule, ""));
-        auto ncf = create_nuclear_correlation_factor(world, molecule, pm, std::make_pair("slater", 2.0));
+        pm->make_nuclear_potential(world);
+//        auto ncf = create_nuclear_correlation_factor(world, molecule, pm, std::make_pair("slater", 2.0));
+        auto ncf = create_nuclear_correlation_factor(world, molecule, pm, std::make_pair("none", 1.0));
         ncf->initialize(thresh * 0.1);
 
         AtomicBasisSet aobasis;
@@ -159,20 +163,42 @@ int main(int argc, char **argv) {
         auto mos = compute_initial_orbitals<double, 3>(world, aobasis, molecule, ncf);
         mos.pretty_print("initial mos");
 
-        double sum_orbital_energies=mos.get_eps().sum();
-        print("canonical sum over orbital energies",sum_orbital_energies);
-
+/*
+ *      test location of localized orbitals
+ */
         localizer.set_method("boys");
-        test_localization(world, localizer, ncf, mos, sum_orbital_energies, verbose);
-        test_core_valence_separation(world, localizer, ncf, mos, sum_orbital_energies, verbose);
+        localizer.set_enforce_core_valence_separation(false);
+        Tensor<double> fock1 = compute_fock_matrix(world, ncf, mos);
+        Tensor<double> overlap = matrix_inner(world,ncf->square()*mos.get_mos(),mos.get_mos());
 
-        localizer.set_method("pm");
-        test_localization(world, localizer, ncf, mos, sum_orbital_energies, verbose);
-        test_core_valence_separation(world, localizer, ncf, mos, sum_orbital_energies, verbose);
+        auto mo1=localizer.localize(mos, fock1, overlap, false);
+        Tensor<double> fock2 = compute_fock_matrix(world, ncf, mo1);
+        print("final fock matrix");
+        print(fock2);
+        std::vector<Vector<double,3>> center=mo1.compute_center(ncf->square());
+        molecule.print();
+        for (int i=0; i<mo1.get_mos().size(); ++i) {
+            print("center of mo",i,center[i][0],center[i][1],center[i][2]);
+        }
 
-        localizer.set_method("new");
-        test_localization(world, localizer, ncf, mos, sum_orbital_energies, verbose);
-        test_core_valence_separation(world, localizer, ncf, mos, sum_orbital_energies, verbose);
+        /*
+         * test orbital invariance of the orbital energy sum
+         */
+//
+//        double sum_orbital_energies=mos.get_eps().sum();
+//        print("canonical sum over orbital energies",sum_orbital_energies);
+//
+//        localizer.set_method("boys");
+//        test_localization(world, localizer, ncf, mos, sum_orbital_energies, verbose);
+//        test_core_valence_separation(world, localizer, ncf, mos, sum_orbital_energies, verbose);
+//
+//        localizer.set_method("pm");
+//        test_localization(world, localizer, ncf, mos, sum_orbital_energies, verbose);
+//        test_core_valence_separation(world, localizer, ncf, mos, sum_orbital_energies, verbose);
+//
+//        localizer.set_method("new");
+//        test_localization(world, localizer, ncf, mos, sum_orbital_energies, verbose);
+//        test_core_valence_separation(world, localizer, ncf, mos, sum_orbital_energies, verbose);
 
         print("result", result);
     }
