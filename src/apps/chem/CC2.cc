@@ -5,6 +5,7 @@
  *      Author: kottmanj
  */
 
+
 #include <chem/CC2.h>
 #include <chem/commandlineparser.h>
 
@@ -54,7 +55,11 @@ CC2::solve() {
             output("\n--- No Restartdata found: Solving MP2 as first guess");
             Pairs<CCPair> mp2_pairs;
             initialize_pairs(mp2_pairs, GROUND_STATE, CT_MP2, CC_vecfunction(PARTICLE), CC_vecfunction(RESPONSE), 0);
-            mp2_correlation_energy = solve_mp2(mp2_pairs);
+            //mp2_correlation_energy = solve_mp2(mp2_pairs);
+
+            //DEBUG solve_mp2_coupled
+            mp2_correlation_energy = solve_mp2_coupled(mp2_pairs);
+
             // use mp2 as cc2 guess
             for (auto& tmp:mp2_pairs.allpairs) {
                 const size_t i = tmp.second.i;
@@ -396,6 +401,108 @@ std::vector<CC_vecfunction> CC2::solve_ccs() {
     return result;
 }
 
+double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
+   if (world.rank()==0) std::cout << "\nSolving coupled equations\n" << std::endl;
+   double total_energy = 0.0;
+
+   for (auto& tmp_pair : doubles.allpairs) {
+       update_constant_part_mp2(tmp_pair.second);
+       tmp_pair.second.constant_part.truncate().reduce_rank();
+       tmp_pair.second.function().truncate().reduce_rank();
+       if (tmp_pair.second.type == GROUND_STATE) total_energy += CCOPS.compute_pair_correlation_energy(tmp_pair.second);
+   }
+
+   for (size_t iter = 0; iter < parameters.iter_max_6D(); iter++) {
+
+       // compute the coupling between the pair functions
+       Pairs<real_function_6d> coupling;
+       add_local_coupling(doubles, coupling);
+
+       double total_norm = 0.0;
+       double old_energy = total_energy;
+       total_energy = 0.0;
+
+       for (auto& tmp_pair : doubles.allpairs) {
+           output.subsection(assign_name(tmp_pair.second.ctype) + "-Microiteration");
+           CCTimer timer_mp2(world, "MP2-Microiteration of pair " + tmp_pair.second.name());
+
+           double bsh_eps = tmp_pair.second.bsh_eps;
+           real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0 * bsh_eps), parameters.lo(), parameters.thresh_bsh_6D());
+           G.destructive() = true;
+
+           NonlinearSolverND<6> solver(parameters.kain_subspace());
+           solver.do_print = (world.rank() == 0);
+
+           CCTimer timer_mp2_potential(world, "MP2-Potential of pair " + tmp_pair.second.name());
+           real_function_6d mp2_potential = -2.0 * CCOPS.fock_residue_6d(tmp_pair.second);
+           if (parameters.debug()) mp2_potential.print_size(assign_name(tmp_pair.second.ctype) + " Potential");
+           mp2_potential.truncate().reduce_rank();
+           timer_mp2_potential.info(true, mp2_potential.norm2());
+
+           // add coupling
+           mp2_potential -= coupling(tmp_pair.second.i, tmp_pair.second.j);
+
+           CCTimer timer_G(world, "Apply Greens Operator on MP2-Potential of pair " + tmp_pair.second.name());
+           const real_function_6d GVmp2 = G(mp2_potential);
+           timer_G.info(true, GVmp2.norm2());
+
+           CCTimer timer_addup(world, "Add constant parts and update pair " + tmp_pair.second.name());
+           real_function_6d unew = GVmp2 + tmp_pair.second.constant_part;
+           unew.print_size("unew");
+           unew = CCOPS.apply_Q12t(unew, CCOPS.mo_ket());
+           unew.print_size("Q12unew");
+           //unew.truncate().reduce_rank(); // already done in Q12 application at the end
+           if (parameters.debug())unew.print_size("truncated-unew");
+           const real_function_6d residue = tmp_pair.second.function() - unew;
+           const double error = residue.norm2();
+           total_norm += error;
+           if (parameters.kain()) {
+               output("Update with KAIN");
+               real_function_6d kain_update = copy(solver.update(tmp_pair.second.function(), residue));
+               kain_update = CCOPS.apply_Q12t(kain_update, CCOPS.mo_ket());
+               kain_update.truncate().reduce_rank();
+               kain_update.print_size("Kain-Update-Function");
+               tmp_pair.second.update_u(copy(kain_update));
+           } else {
+               output("Update without KAIN");
+               tmp_pair.second.update_u(unew);
+           }
+
+           timer_addup.info(true, tmp_pair.second.function().norm2());
+
+           double energy = 0.0;
+           if (tmp_pair.second.type == GROUND_STATE) energy = CCOPS.compute_pair_correlation_energy(tmp_pair.second);
+           total_energy += energy;
+
+           const double current_norm = tmp_pair.second.function().norm2();
+
+           save(tmp_pair.second.function(), tmp_pair.second.name());
+           timer_mp2.info();
+       }
+
+       output("\n--Iteration " + stringify(iter) + " ended--");
+       bool converged = ((std::abs(old_energy - total_energy) < parameters.econv())
+                        and (total_norm < parameters.dconv_6D()));
+
+       //print pair energies if converged
+       if (converged) {
+           if (world.rank() == 0) std::cout << "\nPairs converged\n";
+           if (world.rank() == 0) std::cout << "\nMP2 Pair Correlation Energies:\n";
+           for (auto& pair : doubles.allpairs) {
+               if (world.rank() == 0) {
+                   const double pair_energy = CCOPS.compute_pair_correlation_energy(pair.second);
+                   std::cout << std::fixed << std::setprecision(10) << "omega_"
+                             << pair.second.i << pair.second.j << "=" << pair_energy << "\n";
+               }
+           }
+           if (world.rank() == 0) std::cout << "sum     =" << total_energy << "\n";
+           break;
+       }
+   }
+
+   return total_energy;
+}
+
 double
 CC2::solve_mp2(Pairs<CCPair>& doubles) {
 //    output.section("Solve MP2");
@@ -425,6 +532,66 @@ CC2::solve_mp2(Pairs<CCPair>& doubles) {
     if (world.rank() == 0) std::cout << "sum     =" << omega << "\n";
     return omega;
 }
+
+/// add the coupling terms for local MP2
+
+/// @return \sum_{k\neq i} f_ki |u_kj> + \sum_{l\neq j} f_lj |u_il>
+    void CC2::add_local_coupling(const Pairs<CCPair>& pairs,
+                                 Pairs<real_function_6d>& coupling) const {
+
+        const int nmo = nemo->get_calc()->amo.size();
+        if (world.rank() == 0) print("adding local coupling");
+
+        // temporarily make all N^2 pair functions
+        typedef std::map<std::pair<int, int>, real_function_6d> pairsT;
+        pairsT quadratic;
+        for (int k = parameters.freeze(); k < nmo; ++k) {
+            for (int l = parameters.freeze(); l < nmo; ++l) {
+                if (l >= k) {
+                    quadratic[std::make_pair(k, l)] = pairs(k, l).function();
+                } else {
+                    quadratic[std::make_pair(k, l)] = swap_particles(pairs(l, k).function());
+                }
+            }
+        }
+        for (pairsT::iterator it = quadratic.begin(); it != quadratic.end(); ++it) {
+            it->second.compress(false);
+        }
+        world.gop.fence();
+
+        // the coupling matrix is the Fock matrix, skipping diagonal elements
+        Tensor<double> fock1 = nemo->compute_fock_matrix(nemo->get_calc()->amo, nemo->get_calc()->aocc);
+        for (int k = 0; k < nmo; ++k) {
+            if (fock1(k, k) > 0.0) MADNESS_EXCEPTION("positive orbital energies", 1);
+            fock1(k, k) = 0.0;
+        }
+
+        for (int i = parameters.freeze(); i < nmo; ++i) {
+            for (int j = i; j < nmo; ++j) {
+                coupling.insert(i, j,real_factory_6d(world).compressed());
+            }
+        }
+
+        for (int i = parameters.freeze(); i < nmo; ++i) {
+            for (int j = i; j < nmo; ++j) {
+                for (int k = parameters.freeze(); k < nmo; ++k) {
+                    if (fock1(k, i) != 0.0) {
+                        coupling(i, j).gaxpy(1.0, quadratic[std::make_pair(k, j)], fock1(k, i), false);
+                    }
+                }
+
+                for (int l = parameters.freeze(); l < nmo; ++l) {
+                    if (fock1(l, j) != 0.0) {
+                        coupling(i, j).gaxpy(1.0, quadratic[std::make_pair(i, l)], fock1(l, j), false);
+                    }
+                }
+                world.gop.fence();
+                const double thresh = FunctionDefaults<6>::get_thresh();
+                coupling(i, j).truncate(thresh*0.1);
+            }
+        }
+        world.gop.fence();
+    }
 
 double
 CC2::solve_cispd(Pairs<CCPair>& cispd, const Pairs<CCPair>& mp2, const CC_vecfunction& ccs) {

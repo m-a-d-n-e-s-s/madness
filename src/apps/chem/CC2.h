@@ -372,6 +372,10 @@ public:
     bool update_constant_part_mp2(CCPair& pair) {
         MADNESS_ASSERT(pair.ctype == CT_MP2);
         MADNESS_ASSERT(pair.type == GROUND_STATE);
+        if (parameters.no_compute_mp2_constantpart()) {
+            pair.constant_part=real_factory_6d(world);
+            load(pair.constant_part,pair.name()+"_const");
+        }
         if (pair.constant_part.is_initialized()) return false;
 
         // make screening Operator
@@ -451,6 +455,12 @@ public:
         return true;
     }
 
+    /// add the coupling terms for local MP2
+
+    /// \sum_{k\neq i} f_ki |u_kj> + \sum_{l\neq j} f_lj |u_il>
+    void add_local_coupling(const Pairs<CCPair> &pairs, Pairs<real_function_6d> &coupling) const;
+
+    double solve_mp2_coupled(Pairs<CCPair> &doubles);
 };
 
 

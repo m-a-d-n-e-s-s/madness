@@ -242,6 +242,7 @@ struct CCParameters : public QCCalculationParametersBase {
         initialize < bool > ("restart", false, "restart");
         initialize < bool > ("no_compute", false, "no compute");
         initialize < bool > ("no_compute_gs", false, "no compute");
+        initialize < bool > ("no_compute_mp2_constantpart", false, "no compute");
         initialize < bool > ("no_compute_response", false, "no compute");
         initialize < bool > ("no_compute_mp2", false, "no compute");
         initialize < bool > ("no_compute_cc2", false, "no compute");
@@ -323,6 +324,8 @@ struct CCParameters : public QCCalculationParametersBase {
     bool no_compute() const { return get<bool>("no_compute"); }
 
     bool no_compute_gs() const { return get<bool>("no_compute_gs"); }
+
+    bool no_compute_mp2_constantpart() const { return get<bool>("no_compute_mp2_constantpart"); }
 
     bool no_compute_response() const { return get<bool>("no_compute_response"); }
 
