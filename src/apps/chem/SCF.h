@@ -42,6 +42,7 @@
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 
 #include <chem/CalculationParameters.h>
+#include <chem/SCFOperators.h>
 #include <chem/commandlineparser.h>
 #include <chem/corepotential.h>
 #include <chem/gth_pseudopotential.h>
@@ -347,7 +348,8 @@ class SCF {
   /// collective constructor for SCF uses contents of stream \c input and
   /// broadcasts to all nodes
   //	SCF(World & world, std::shared_ptr<std::istream> input);
-  SCF(World& world, const std::string& inputfile);
+  //	SCF(World& world, const std::string& inputfile);
+  SCF(World& world, const commandlineparser& parser);
 
   void copy_data(World& world, const SCF& other) {
     aeps = copy(other.aeps);
