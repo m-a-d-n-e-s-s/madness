@@ -1,4 +1,4 @@
-  /*
+/*
   This file is part of MADNESS.
 
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
