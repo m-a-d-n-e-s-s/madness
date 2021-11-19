@@ -2253,7 +2253,7 @@ void SCF::solve(World & world) {
             MolecularOrbitals<double,3> mo(amo,aeps,{},aocc,aset);
 			tensorT UT=localizer.compute_localization_matrix(world,mo,iter==0);
 			UT.screen(trantol);
-			amo = transform(world, amo, UT);
+			amo = transform(world, amo, transpose(UT));
 			truncate(world, amo);
 			normalize(world, amo);
 
@@ -2262,7 +2262,7 @@ void SCF::solve(World & world) {
                 MolecularOrbitals<double,3> mo(bmo,beps,{},bocc,bset);
                 tensorT UT=localizer.compute_localization_matrix(world,mo,iter==0);
 				UT.screen(trantol);
-				bmo = transform(world, bmo, UT);
+				bmo = transform(world, bmo, transpose(UT));
 				truncate(world, bmo);
 				normalize(world, bmo);
 			}
