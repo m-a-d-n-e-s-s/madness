@@ -12,6 +12,7 @@
 #include<madness/tensor/tensor.h>
 #include <madness/world/parallel_archive.h>
 #include <chem/molecule.h>
+#include<stdio.h>
 
 namespace madness {
 
@@ -43,9 +44,6 @@ public:
         if (occ.size()>0) result.occ=copy(occ(s));
         if (localize_sets.size()>0) result.localize_sets.assign(localize_sets.begin()+s.start,localize_sets.begin()+s.end+1);
 
-//        print("get_subset for set ",iset);
-//        pretty_print("inital mos");
-//        result.pretty_print("subset of initial mos");
         return result;
     }
 
@@ -173,8 +171,10 @@ public:
 	    print("orbital #   irrep   energy    occupation  localize_set");
         for (int i=mo.size()-1; i>=0; --i) {
 //            double n=get_mos()[i].norm2();
-            printf("%5d %10s %12.8f  %6.2f  %8d\n", i, irreps[i].c_str(),get_eps()[i],
+            char buf[1024];
+            sprintf(buf,"%5d %10s %12.8f  %6.2f  %8d", i, irreps[i].c_str(),get_eps()[i],
                    get_occ()[i],get_localize_sets()[i]);
+            cout << std::string(buf) <<endl;
 	    }
 	}
 
