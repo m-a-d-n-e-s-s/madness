@@ -33,15 +33,9 @@ public:
         TDHFParameters(const TDHFParameters &other) = default;
 
         /// todo: read_from_file compatible with dist. memory computation
-//        TDHFParameters(World &world, const std::shared_ptr<SCF> &scf, const std::string &input) {
         TDHFParameters(World &world, const std::string &input) {
             initialize_all();
-            if (world.rank()==0) {
-                read(world, input, "response");
-//                set_derived_values(scf);
-            }
-            world.gop.broadcast_serializable(*this, 0);
-
+            read(world, input, "response");
         }
 
         void initialize_all() {
