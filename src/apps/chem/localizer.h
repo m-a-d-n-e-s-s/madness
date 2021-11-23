@@ -54,6 +54,15 @@ public:
         return *this;
     }
 
+    void print_info() const {
+        print("Localizer info");
+        print("method  ",method);
+        print("aobasis ",aobasis.get_name());
+        print("metric  ", metric.is_initialized());
+        print("core-valence separation ",enforce_core_valence_separation);
+        print("thresh_degenerate ",thresh_degenerate);
+    }
+
     /// localize the orbitals
     MolecularOrbitals<T, NDIM> localize(const MolecularOrbitals<T, NDIM>& mo_in, bool randomize) const;
 
@@ -137,7 +146,7 @@ private:
     double thetamax=0.1;                /// maximum rotation(?)
     const double tolloc = 1e-6; // was std::min(1e-6,0.01*dconv) but now trying to avoid unnecessary change
     double thresh_degenerate;           /// when are orbitals degenerate
-    bool enforce_core_valence_separation=true;  /// no rotations between core and valence orbitals (distinguished by 'set')
+    bool enforce_core_valence_separation=false;  /// no rotations between core and valence orbitals (distinguished by 'set')
     std::string method="new";           /// localization method
 
 };
