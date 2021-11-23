@@ -226,7 +226,7 @@ vecfuncT Nemo::localize(const vecfuncT& nemo, const double dconv, const bool ran
     const double tolloc = std::min(1e-6, 0.01 * dconv);
     Tensor<double> UT = localizer.compute_localization_matrix(world, mo, randomize);
 
-    vecfuncT localnemo = transform(world, nemo, UT);
+    vecfuncT localnemo = transform(world, nemo, transpose(UT));
     truncate(world, localnemo);
     normalize(localnemo, R);
     return localnemo;
