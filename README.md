@@ -1,3 +1,8 @@
+Fork Info
+=======
+This is a seaparate fork of madness. If you want to use madness as backend for [tequila](https://github/tequilahub) you are in the right place.  
+Just follow the installation instructions below.  
+
 madness
 =======
 
@@ -13,7 +18,7 @@ Here's a [video](http://www.youtube.com/watch?v=dBwWjmf5Tic) about MADNESS.
 
 # Tequila Support
 
-This fork of madness holds the necessary structures to interface with [tequila](https://github.com/aspuru-guzik-group/tequila).  
+This fork of madness holds the necessary structures to interface with [tequila](https://github.com/tequilahub).  
 Those part of the code are currently not merged into the main madness repository (but will be at some point).  
 Follow the next section to install madness.  
 
@@ -25,52 +30,27 @@ export MAD_ROOT_DIR=$MAD_ROOT_DIR
 
 `$MAD_ROOT_DIR` is the directory where madness was compiled.  
 
+If you are using conda environments and follow the instructions below, the `MAD_ROOT_DIR` variable will automatically be exported in the environment you are using.  
+
 # Install dependcies with conda
-If you have `conda` available you can install madness like this.  
-In the following $MAD_SRC_DIR will denote the directory where you have the madness code and $MAD_ROOT_DIR will denote the directory where you will compile the code.  
-Optional you can install the `pno_integrals` executable and change the install dir with $MAD_INSTALL_DIR.  
-If you will install the `pno_integrals` executable will be in `$MAD_INSTALL_DIR/bin/pno_integrals`.  
-In the following code replace those placeholders: e.g.  
-$MAD_ROOT_DIR --> /whereever/you/want/to/have/it
-or set the variables like  
-`MAD_ROOT_DIR=/wherever/you/want/to/have/it`
+If you have `conda` available you can install this version of madness by executing the [`build.sh`](build.sh) script.  
+If you are on a Linux system this will also install the necessary compilers.  
+Fot Mac or Win you will need to install them yourself (you need at least GNU c++ compilers >7 and a suitable MPI compiler like MPICH).  
+Some notes on manual installation are listed below.  
 
 ```bash
-# define your target directories
-export MAD_SRC_DIR=... # add path to directory where you want the source code
-export MAD_ROOT_DIR=...# add path to directory where you want the compiled code
-export NUMCPP_SRC_DIR=...# add path to directory where you want the numcpp dependency
-export MAD_INSTALL_DIR=...# add path to directory where you want the pno_integrals executable to be installed
-
-# get the sources
-git clone https://github.com/kottmanj/madness.git $MAD_SRC_DIR
-git clone https://github.com/dpilger26/numcpp $NUMCPP_SRC_DIR
-
-# install dependencies
-conda install cmake mkl mpich boost
-
-# export paths to dependencies
-export CPLUS_INCLUDE_PATH=$(realpath $NUMCPP_SRC_DIR/include):$CPLUS_INCLUDE_PATH
-
-# use this if you are having trouble with boost (there might be an older boost on your system, with this you make sure you are using the one installed above)
-# export CPLUS_INCLUDE_PATH=$(realpath ~/anaconda3/envs/$ENVNAME/include/):$CPLUS_INCLUDE_PATH # replace $ENVNAME with the name of your environment
-
-# configure
-cd $MAD_ROOT_DIR
-cmake -D ENABLE_MKL=ON -D CMAKE_CXX_FLAGS='-O3 -DNDEBUG -march=native' $MAD_SRC_DIR
-
-# compile
-make -j4 
-
-# install (optional)
-make install
+# download or copy the build.sh script
+bash build.sh
 ```
+You can modify where you want the compiled madness code to be placed with the variable `MADNESS_BUILD`, e.g.
+```bash
+MADNESS_BUILD=~/mystuff/ bash build.sh
+```
+In the same manner you can set different other variables (just check the content of [`build.sh`](build.sh))
 
-If you used `make_install` and the $MAD_INSTALL_DIR/bin directory is in your PATH tequila can detect the executable automatically.  
-If not, just make sure you export the MAD_ROOT_DIR variable.
+# Install dependencies without conda
 
-
-# Install on Ubuntu or similar
+In case you are not using conda environments, here is how you can install dependencies manually (might be necessary on some compute clusters).  
 
 In order to get the most out of madness you should install intel-mkl and configure madness with it. 
 You can download and install it from the intel website, it is free. 
@@ -103,7 +83,7 @@ sudo apt-get install -y mpich
 ```
 and cmake will detect it automatically.
 
-## MPICH on Clusters
+## MPICH on Clusters (no root rights)  
 Check if you can load an mpich module.  
 Alternative OpenMPI or IntelMPI might work. It depends on compiler version and which c++ compiler is used in the end.  
 
@@ -164,7 +144,8 @@ Note that boost versions installed with `apt-get` are too old (need 1.68 or high
 ## Install Madness
 We use the following directories:  
 `$MADSOURCE`: The directory with the madness source code
-`$MAD_ROOT_DIR`: The directory with the compiled madness code
+`$MAD_ROOT_DIR`: The directory with the compiled madness code  
+either export both variables, or replace them by the corresponding paths in the following.  
 
 Get the sources (note that the `tequila` branch should be checked out, it is the default in this fork):  
 ```bash
@@ -183,6 +164,17 @@ Compile
 ```bash
 cd $MAD_ROOT_DIR  
 make
+```
+
+## Let tequila know where madness was compiled
+tequila will look for the `MAD_ROOT_DIR` variable in your system. This should contain the path to the directory where madness was compiled above (the directory where the `cmake` and `make` commands where executed.  
+Export like
+```bash
+export MAD_ROOT_DIR=/path/to/where/it/was/compiled/
+```
+in order to test if you have the right path, make sure that the following executable exists
+```bash
+$MAD_ROOT_DIR/src/apps/pno/pno_integrals
 ```
 
 # Use with Docker
