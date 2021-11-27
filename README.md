@@ -40,6 +40,7 @@ Some notes on manual installation are listed below.
 
 ```bash
 # download or copy the build.sh script
+# then run the following command to install
 bash build.sh
 ```
 You can modify where you want the compiled madness code to be placed with the variable `MADNESS_BUILD`, e.g.
