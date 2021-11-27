@@ -32,7 +32,7 @@ export MAD_ROOT_DIR=$MAD_ROOT_DIR
 
 If you are using conda environments and follow the instructions below, the `MAD_ROOT_DIR` variable will automatically be exported in the environment you are using.  
 
-# Install dependcies with conda
+# Install with conda
 If you have `conda` available you can install this version of madness by executing the [`build.sh`](build.sh) script.  
 If you are on a Linux system this will also install the necessary compilers.  
 Fot Mac or Win you will need to install them yourself (you need at least GNU c++ compilers >7 and a suitable MPI compiler like MPICH).  
@@ -49,7 +49,7 @@ MADNESS_BUILD=~/mystuff/ bash build.sh
 ```
 In the same manner you can set different other variables (just check the content of [`build.sh`](build.sh))
 
-# Install dependencies without conda
+# Install without conda
 
 In case you are not using conda environments, here is how you can install dependencies manually (might be necessary on some compute clusters).  
 
