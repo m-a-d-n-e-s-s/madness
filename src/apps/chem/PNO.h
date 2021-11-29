@@ -15,8 +15,8 @@
 #include <chem/PNOF12Potentials.h>
 #include <madness/world/worldmem.h>
 
-#include <apps/chem/CC2.h>
-#include <apps/chem/molecule.h>
+#include <chem/CC2.h>
+#include <chem/molecule.h>
 #include <chem/PNOTensors.h>
 
 namespace madness {
@@ -228,7 +228,7 @@ public:
 	/// = basis in which input A is represented, on output = the eigenbasis of A
 	void canonicalize(PNOPairs& v) const;
 
-private:
+public:
 	World& world;
 	PNOParameters param;  ///< calculation parameters
 	Nemo nemo;

@@ -40,7 +40,7 @@
 #include <chem/molecule.h>
 
 #ifdef MADNESS_HAS_PCM
-#include "PCMSolver/pcmsolver.h"
+#include <PCMSolver/pcmsolver.h>
 #endif
 
 namespace madness {
