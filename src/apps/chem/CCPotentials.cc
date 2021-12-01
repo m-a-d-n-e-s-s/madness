@@ -517,6 +517,60 @@ CCPotentials::make_constant_part_mp2(const CCFunction& ti, const CCFunction& tj,
 }
 
 madness::real_function_6d
+CCPotentials::make_constant_part_mp2_macrotask(World& world, const CCPair& pair,
+                                               const std::vector<real_function_3d>& mo_ket,
+                                               const std::vector<real_function_3d>& mo_bra,
+                                               const CCParameters& parameters, const real_function_3d& Rsquare,
+                                               const FuncType& i_type, const FuncType& j_type, const double epsilon,
+                                               const std::vector<real_function_3d>& U1) {
+    MADNESS_ASSERT(pair.ctype == CT_MP2);
+    MADNESS_ASSERT(pair.type == GROUND_STATE);
+    const std::string i_name = "phi" + stringify(pair.i);
+    const std::string j_name = "phi" + stringify(pair.j);
+    // load constant part if available
+    //if (parameters.no_compute_mp2_constantpart()) {
+    //    pair.constant_part=real_factory_6d(world);
+    //    load(pair.constant_part,pair.name()+"_const");
+    //}
+    //if (pair.constant_part.is_initialized()) return false;
+
+    // make screening Operator
+    real_convolution_6d Gscreen = BSHOperator<6>(world, sqrt(-2.0 * epsilon),
+                                                 parameters.lo(), parameters.thresh_bsh_6D());
+    Gscreen.modified() = true;
+
+    print("Calculating Constant Part of MP2 pair \n" + i_name + j_name);
+    CCTimer time(world, "Calculating Constant Part of MP2");
+    MADNESS_ASSERT(i_type == HOLE);
+    MADNESS_ASSERT(j_type == HOLE);
+    real_function_6d V = apply_Vreg_macrotask(world, mo_ket, mo_bra, parameters, Rsquare,
+                                              U1, pair.i, pair.j, i_type, j_type, &Gscreen);
+    if (parameters.debug()) V.print_size("Vreg");
+
+    //MADNESS_ASSERT(t.type == HOLE || t.type == MIXED);
+    MADNESS_ASSERT(mo_ket.size() == mo_bra.size());
+    StrongOrthogonalityProjector<double, 3> Q(world);
+    Q.set_spaces(mo_bra, mo_ket, mo_bra, mo_ket);
+    V = Q(V);
+
+    V.print_size("QVreg");
+    real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0 * epsilon), parameters.lo(),
+                                           parameters.thresh_bsh_6D());
+    G.destructive() = true;
+    real_function_6d GV = -2.0 * G(V);
+    if (parameters.debug()) GV.print_size("GVreg");
+
+    //MADNESS_ASSERT(t.type == HOLE || t.type == MIXED);
+    MADNESS_ASSERT(mo_ket.size() == mo_bra.size());
+    GV = Q(GV);
+
+    GV.print_size("GVreg");
+    time.info();
+
+    return GV;
+}
+
+madness::real_function_6d
 CCPotentials::make_constant_part_cc2_gs(const CCPair& u, const CC_vecfunction& tau,
                                         const real_convolution_6d *Gscreen) const {
     output.section("Calculating CC2 Constant Part of Pair " + u.name() + ": Q-Ansatz");
@@ -1162,6 +1216,46 @@ CCPotentials::apply_Vreg(const CCFunction& ti, const CCFunction& tj, const real_
 }
 
 madness::real_function_6d
+CCPotentials::apply_Vreg_macrotask(World& world, const std::vector<real_function_3d>& mo_ket,
+                                   const std::vector<real_function_3d>& mo_bra,
+                                   const CCParameters& parameters, const real_function_3d& Rsquare,
+                                   const std::vector<real_function_3d>& U1, const size_t& i, const size_t& j,
+                                   const FuncType& x_type, const FuncType& y_type, const real_convolution_6d *Gscreen) {
+    real_function_3d x_ket=mo_ket[i];
+    real_function_3d y_ket=mo_ket[j];
+    const std::string x_name = "phi" + stringify(i);
+    const std::string y_name = "phi" + stringify(j);
+
+    print("Applying Vreg to |" + x_name + y_name + ">\n");
+    CCTimer timer(world, "Vreg|" + x_name + y_name + ">");
+    //CCTimer time_f(world, "F-Part");
+    //const real_function_6d F_part = apply_reduced_F(ti, tj, Gscreen);
+    //time_f.stop();
+    CCTimer time_u(world, "U-Part");
+    const real_function_6d U_part = apply_transformed_Ue_macrotask(world, mo_ket, parameters, Rsquare,
+                                                                   U1, i, j, x_type, y_type, Gscreen);
+    time_u.stop();
+    CCTimer time_k(world, "K-Part");
+    const real_function_6d K_part = apply_exchange_commutator_macrotask(world, mo_ket, mo_bra, Rsquare,
+                                                                        i, j, parameters, x_type, y_type, Gscreen);
+    time_k.stop();
+    const real_function_6d result = U_part - K_part;
+    //if (parameters.debug()) F_part.print_size("F-Part");
+
+    if (parameters.debug()) U_part.print_size("U-Part");
+
+    if (parameters.debug()) K_part.print_size("K-Part");
+
+    //time_f.info(true, F_part.norm2());
+    time_u.info(true, U_part.norm2());
+    time_k.info(true, K_part.norm2());
+    if (parameters.debug()) result.print_size("Vreg|" + x_name + y_name + ">");
+
+    timer.info(true, result.norm2());
+    return result;
+}
+
+madness::real_function_6d
 CCPotentials::apply_reduced_F(const CCFunction& ti, const CCFunction& tj, const real_convolution_6d *Gscreen) const {
     //CC_Timer time(world,"(F-eij)|"+ti.name()+tj.name()+">");
     // get singles potential
@@ -1178,6 +1272,7 @@ CCPotentials::apply_reduced_F(const CCFunction& ti, const CCFunction& tj, const 
     //time.info();
     return result;
 }
+
 
 madness::real_function_6d
 CCPotentials::apply_transformed_Ue(const CCFunction& x, const CCFunction& y, const real_convolution_6d *Gscreen) const {
@@ -1260,6 +1355,182 @@ CCPotentials::apply_transformed_Ue(const CCFunction& x, const CCFunction& y, con
     }
     return Uxy;
 }
+
+
+madness::real_function_6d
+CCPotentials::apply_transformed_Ue_macrotask(World& world, const std::vector<real_function_3d>& mo_ket,
+                                             const CCParameters& parameters, const real_function_3d& Rsquare,
+                                             const std::vector<real_function_3d>& U1, const size_t& i, const size_t& j,
+                                             const FuncType& x_type, const FuncType& y_type, const real_convolution_6d *Gscreen) {
+    const std::string x_name = "phi" + stringify(i);
+    const std::string y_name = "phi" + stringify(j);
+
+    if (parameters.debug()) print("\nComputing Ue|" + x_name + y_name + ">\n");
+
+    real_function_3d x_function=mo_ket[i];
+    real_function_3d y_function=mo_ket[j];
+    CorrelationFactor corrfac(world, parameters.gamma(), 1.e-7, parameters.lo());
+
+    const bool symmetric = (x_type == y_type && i == j);
+    CCTimer time_Ue(world, "Ue|" + x_name + y_name + ">");
+    double tight_thresh = parameters.thresh_6D();     // right now this is the std. thresh
+    // check if screening operator is in modified NS Form
+    if (Gscreen != NULL) {
+        if (!Gscreen->modified()) error("Demanded Screening for Ue but given BSH Operator is not in modified NS form");
+    }
+    if (parameters.debug()) print("Applying transformed Ue to \n" + x_name + y_name);
+
+    if (parameters.debug() && symmetric) print("Exploiting Pair Symmetry\n");
+
+    real_function_6d Uxy = real_factory_6d(world);
+    Uxy.set_thresh(tight_thresh);
+    // Apply the untransformed U Potential
+    Uxy = corrfac.apply_U(x_function, y_function, *Gscreen, symmetric);
+    Uxy.set_thresh(tight_thresh);
+    // Apply the double commutator R^{-1}[[T,f,R]
+    for (size_t axis = 0; axis < 3; axis++) {
+        // Make the local parts of the Nuclear and electronic U potentials
+        const real_function_3d Un_local = U1[axis];
+        const real_function_3d Un_local_x = (Un_local * x_function).truncate();
+        real_function_3d Un_local_y;
+        if (symmetric) Un_local_y = copy(Un_local_x);
+        else Un_local_y = (Un_local * y_function).truncate();
+
+        const real_function_6d Ue_local = corrfac.U1(axis);
+        // Now add the Un_local_x part to the first particle of the Ue_local potential
+        real_function_6d UeUnx = CompositeFactory<double, 6, 3>(world).g12(Ue_local).particle1(Un_local_x).particle2(
+                copy(y_function)).thresh(tight_thresh);
+        // Fill the Tree where it will be necessary
+        UeUnx.fill_cuspy_tree(*Gscreen);
+        // Set back the thresh
+        UeUnx.set_thresh(FunctionDefaults<6>::get_thresh());
+//        print_size(UeUnx, "UeUnx", parameters.debug());
+        // Now add the Un_local_y part to the second particle of the Ue_local potential
+        real_function_6d UeUny;
+        if (symmetric) UeUny = -1.0 * madness::swap_particles(UeUnx);     // Ue_local is antisymmetric
+        else {
+            UeUny = CompositeFactory<double, 6, 3>(world).g12(Ue_local).particle1(copy(x_function)).particle2(
+                    Un_local_y).thresh(tight_thresh);
+            // Fill the Tree were it will be necessary
+            UeUny.fill_cuspy_tree(*Gscreen);
+            // Set back the thresh
+            UeUny.set_thresh(FunctionDefaults<6>::get_thresh());
+        }
+//        print_size(UeUny, "UeUny", parameters.debug());
+        // Construct the double commutator part and add it to the Ue part
+        real_function_6d diff = (UeUnx - UeUny).scale(-1.0);
+        diff.truncate();
+        Uxy = (Uxy + diff).truncate();
+    }
+    if (parameters.debug()) time_Ue.info();
+
+    // sanity check: <xy|R2 [T,g12] |xy> = <xy |R2 U |xy> - <xy|R2 g12 | xy> = 0
+    CCTimer time_sane(world, "Ue-Sanity-Check");
+    real_function_6d tmp = CompositeFactory<double, 6, 3>(world).particle1(
+            copy(x_function * Rsquare)).particle2(copy(y_function * Rsquare));
+    const double a = inner(Uxy, tmp);
+    const real_function_3d xx = (x_function * x_function * Rsquare);
+    const real_function_3d yy = (y_function * y_function * Rsquare);
+//    const real_function_3d gxx = g12(xx);
+    real_convolution_3d poisson= CoulombOperator(world,parameters.lo(),parameters.thresh_3D());
+    const real_function_3d gxx= poisson(xx);
+
+    const double aa = inner(yy, gxx);
+    const double error = std::fabs(a - aa);
+    const double diff = a - aa;
+    time_sane.info(parameters.debug(), error);
+    if (world.rank() == 0) {
+        std::cout << std::fixed << std::setprecision(10) << "<" << x_name + y_name << "|U_R|" << x_name + y_name
+                  << "> =" << a << ", <" << x_name + y_name << "|g12|" << x_name + y_name
+                  << "> =" << aa << ", diff=" << error << "\n";
+        //printf("<xy| U_R |xy>  %12.8f\n",a);
+        //printf("<xy|1/r12|xy>  %12.8f\n",aa);
+        if (error > FunctionDefaults<6>::get_thresh() * 10.0) std::cout << ("Ue Potential plain wrong!\n");
+        else if (error > FunctionDefaults<6>::get_thresh()) std::cout << ("Ue Potential wrong!!!!\n");
+        else std::cout << ("Ue seems to be sane, diff=" + std::to_string(diff)) << std::endl;
+    }
+    return Uxy;
+}
+
+madness::real_function_6d
+CCPotentials::apply_exchange_commutator_macrotask(World& world, const std::vector<real_function_3d>& mo_ket,
+                                                  const std::vector<real_function_3d>& mo_bra, const real_function_3d& Rsquare,
+                                                  const size_t& i, const size_t& j, const CCParameters& parameters,
+                                                  const FuncType& x_type, const FuncType& y_type,
+                                                  const real_convolution_6d *Gscreen) {
+    real_function_3d x_ket = mo_ket[i];
+    real_function_3d y_ket = mo_ket[j];
+    real_function_3d x_bra = mo_bra[i];
+    real_function_3d y_bra = mo_bra[j];
+    const std::string x_name = "phi" + stringify(i);
+    const std::string y_name = "phi" + stringify(j);
+
+    //apply Kf
+    if (parameters.debug()) print("\nComputing [K,f]|" + x_name + y_name + ">\n");
+
+    CCTimer time(world, "[K,f]|" + x_name + y_name + ">");
+    CCTimer part1_time(world, "Kf" + x_name + y_name + ">");
+
+    bool symmetric_kf = false;
+    if ((x_type == y_type) && (i == j)) symmetric_kf = true;
+
+    // First make the 6D function f12|x,y>
+    real_function_6d f12xy = make_f_xy_macrotask(world, x_ket, y_ket, x_bra, y_bra, i, j, parameters, x_type, y_type, Gscreen);
+    f12xy.truncate().reduce_rank();
+    // Apply the Exchange Operator
+    real_function_6d Kfxy = K_macrotask(world, mo_ket, mo_bra, f12xy, symmetric_kf, parameters);
+
+    if (parameters.debug()) part1_time.info();
+
+    //apply fk
+    CCTimer part2_time(world, "fK" + x_name + y_name + ">");
+
+    const bool symmetric_fk = (x_type == y_type && i == j);
+    const real_function_3d Kx = K_macrotask(world, mo_ket, mo_bra, x_ket, parameters);
+    const FuncType Kx_type = UNDEFINED;
+    const real_function_6d fKphi0b = make_f_xy_macrotask(world, Kx, y_ket, x_bra, y_bra, i, j, parameters, Kx_type, y_type, Gscreen);
+    real_function_6d fKphi0a;
+    if (symmetric_fk) fKphi0a = madness::swap_particles(fKphi0b);
+    else {
+        real_function_3d Ky = K_macrotask(world, mo_ket, mo_bra, y_ket, parameters);
+        const FuncType Ky_type = UNDEFINED;
+        fKphi0a = make_f_xy_macrotask(world, x_ket, Ky, x_bra, y_bra, i, j, parameters, x_type, Ky_type, Gscreen);
+    }
+    const real_function_6d fKxy = (fKphi0a + fKphi0b);
+
+    if (parameters.debug()) part2_time.info();
+
+    //final result
+    Kfxy.print_size("Kf" + x_name + y_name);
+    fKxy.print_size("fK" + x_name + y_name);
+    real_function_6d result = (Kfxy - fKxy);
+    result.set_thresh(parameters.thresh_6D());
+    result.print_size("[K,f]" + x_name + y_name);
+    result.truncate().reduce_rank();
+    result.print_size("[K,f]" + x_name + y_name);
+
+    //sanity check
+    CCTimer sanity(world, "[K,f] sanity check");
+    // make the <xy| bra state which is <xy|R2
+    const real_function_3d brax = (x_ket * Rsquare);
+    const real_function_3d bray = (y_ket * Rsquare);
+    real_function_3d xres = result.project_out(brax, 0);
+    const double test = bray.inner(xres);
+    const double diff = test;
+    if (world.rank() == 0) {
+        std::cout << std::fixed << std::setprecision(10)
+                  << "<" << x_name << y_name << "[K,f]" << x_name << y_name << "> =" << test << "\n";
+    }
+    if (world.rank() == 0 && fabs(diff) > parameters.thresh_6D()) print("Exchange Commutator Plain Wrong");
+    else print("Exchange Commutator seems to be sane, diff=" + std::to_string(diff));
+
+    if (parameters.debug()) sanity.info(diff);
+
+    if (parameters.debug()) print("\n");
+
+    return result;
+}
+
 
 madness::real_function_6d
 CCPotentials::apply_exchange_commutator(const CCFunction& x, const CCFunction& y,
@@ -2014,11 +2285,39 @@ CCPotentials::K(const real_function_6d& u, const bool symmetric) const {
     return (result.truncate(parameters.tight_thresh_6D()));
 }
 
+madness::real_function_6d
+CCPotentials::K_macrotask(World& world, const std::vector<real_function_3d>& mo_ket,
+                          const std::vector<real_function_3d>& mo_bra, const real_function_6d& u,
+                          const bool symmetric, const CCParameters& parameters) {
+    real_function_6d result = real_factory_6d(world).compressed();
+    // K(1) Part
+    result += apply_K_macrotask(world, mo_ket, mo_bra, u, 1, parameters);
+    // K(2) Part
+    if (symmetric) {
+        result += madness::swap_particles(result);
+    } else result += apply_K_macrotask(world, mo_ket, mo_bra, u, 2, parameters);
+
+    result.print_size("K|u>");
+    return (result.truncate(parameters.tight_thresh_6D()));
+}
+
 madness::real_function_3d
 CCPotentials::K(const CCFunction& f) const {
     real_function_3d result = real_factory_3d(world);
     for (const auto k_iterator : mo_ket_.functions) {
         result += g12(mo_bra_(k_iterator.first), f) * mo_ket_(k_iterator.first).function;
+    }
+    return result;
+}
+
+madness::real_function_3d
+CCPotentials::K_macrotask(World& world, const std::vector<real_function_3d>& mo_ket,
+                          const std::vector<real_function_3d>& mo_bra, const real_function_3d& f,
+                          const CCParameters& parameters) {
+    real_function_3d result = real_factory_3d(world);
+    real_convolution_3d g12 = CoulombOperator(world, parameters.lo(), parameters.thresh_poisson());
+    for (size_t k = 0; k < mo_ket.size(); k++) {
+        result += ((g12)(mo_bra[k] * f).truncate()) * mo_ket[k];
     }
     return result;
 }
@@ -2034,6 +2333,28 @@ CCPotentials::apply_K(const real_function_6d& u, const size_t& particle) const {
         //      real_function_6d Y=(*poisson)(X);
         real_function_6d Y = g12(X, particle);     // overwrite X to save space
         result += (multiply(copy(Y), copy(mo_ket_(k).function),
+                            particle)).truncate();     // this will destroy X, but I d not intend to use it again so I choose here to save this copy
+    }
+    return result;
+}
+
+madness::real_function_6d
+CCPotentials::apply_K_macrotask(World& world, const std::vector<real_function_3d>& mo_ket,
+                                const std::vector<real_function_3d>& mo_bra,
+                                const real_function_6d& u, const size_t& particle, const CCParameters& parameters) {
+    MADNESS_ASSERT(particle == 1 || particle == 2);
+    //poisson->particle()=particle;
+    real_function_6d result = real_factory_6d(world).compressed();
+    //const double lo = 1.e-6;
+    //const double bsh_eps = 1.e-7;
+    real_convolution_3d g12 = CoulombOperator(world, parameters.lo(), parameters.thresh_poisson());
+    g12.particle() = particle;
+    for (size_t k = 0; k < mo_ket.size(); k++) {
+        real_function_6d copyu = copy(u);
+        real_function_6d X = (multiply(copyu, copy(mo_bra[k]), particle)).truncate();
+        //      real_function_6d Y=(*poisson)(X);
+        real_function_6d Y = g12(X);     // overwrite X to save space
+        result += (multiply(copy(Y), copy(mo_ket[k]),
                             particle)).truncate();     // this will destroy X, but I d not intend to use it again so I choose here to save this copy
     }
     return result;
@@ -2090,6 +2411,47 @@ CCPotentials::make_f_xy(const CCFunction& x, const CCFunction& y, const real_con
                           << sanity << "\n";
 
             output.warning("make f|xy> not accurate!");
+        }
+        timer_db.info(parameters.debug(), sanity);
+    }
+    return fxy;
+}
+
+madness::real_function_6d
+CCPotentials::make_f_xy_macrotask(World& world, const real_function_3d& x_ket, const real_function_3d& y_ket,
+                                  const real_function_3d& x_bra, const real_function_3d& y_bra,
+                                  const size_t& i, const size_t& j, const CCParameters& parameters,
+                                  const FuncType& x_type, const FuncType& y_type,
+                                  const real_convolution_6d *Gscreen){
+    CorrelationFactor corrfac(world, parameters.gamma(), 1.e-7, parameters.lo());
+    const std::string x_name = "phi" + stringify(i);
+    const std::string y_name = "phi" + stringify(j);
+
+    std::string screen = "";
+    if (Gscreen != NULL) screen = "screened ";
+
+    CCTimer timer(world, "Making " + screen + "f|" + x_name + "," + y_name + "> ");
+    real_function_6d fxy = CompositeFactory<double, 6, 3>(world).g12(corrfac.f()).
+                                                    particle1(copy(x_ket)).particle2(copy(y_ket));
+    if (Gscreen == NULL) fxy.fill_tree().truncate().reduce_rank();
+    else fxy.fill_tree(*Gscreen).truncate().reduce_rank();
+
+    timer.info(parameters.debug(), fxy.norm2());
+    if (x_type != UNDEFINED && y_type != UNDEFINED) {
+        CCTimer timer_db(world, "f|xy> sanity check");
+        //const double fourpi = 4.0 * constants::pi;
+       // const double lo = 1.e-6;
+        //const double bsh_eps = 1.e-7;
+        real_convolution_3d slaterf12 = SlaterF12Operator(world, corrfac.gamma(),
+                                                          parameters.lo(), parameters.thresh_poisson());
+        const double test1 = y_bra.inner(fxy.project_out(x_bra, 0));
+        const double test2 = y_bra.inner(slaterf12(x_bra * x_ket) * y_ket);
+        const double sanity = test1 - test2;
+        if (fabs(sanity) > FunctionDefaults<6>::get_thresh()) {
+            if (world.rank() == 0)
+                std::cout << std::fixed << std::setprecision(6) << "test1=" << test1
+                          << "\ntest2=" << test2 << "\ndiff=" << sanity << "\n";
+            std::cout << ("make f|xy> not accurate!\n");
         }
         timer_db.info(parameters.debug(), sanity);
     }

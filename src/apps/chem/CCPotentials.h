@@ -250,6 +250,14 @@ public:
     real_function_6d
     make_constant_part_mp2(const CCFunction& ti, const CCFunction& tj, const real_convolution_6d *Gscreen = NULL) const;
 
+    /// Static version of make_constant_part_mp2 to be called from macrotask.
+    madness::real_function_6d
+    static make_constant_part_mp2_macrotask(World& world, const CCPair& pair, const std::vector<real_function_3d>& mo_ket,
+                                                   const std::vector<real_function_3d>& mo_bra,
+                                                   const CCParameters& parameters, const real_function_3d& Rsquare,
+                                                   const FuncType& i_type, const FuncType& j_type, const double epsilon,
+                                                   const std::vector<real_function_3d>& U1);
+
     /// Function evaluates the consant part of the ground state for CC2
     /// @param[out]The result is \f$ Q12(G(Q12((Vreg+V_{coupling})|titj>))) \f$ with \f$ |t_k> = |tau_k> + |k> \f$
     /// @param[in] u, The Pair function
@@ -304,6 +312,15 @@ public:
     real_function_6d
     apply_Vreg(const CCFunction& ti, const CCFunction& tj, const real_convolution_6d *Gscreen = NULL) const;
 
+    /// Static version of apply_Vreg to be used from a macrotask. Will eventually replace former.
+    madness::real_function_6d
+    static
+    apply_Vreg_macrotask(World& world, const std::vector<real_function_3d>& mo_ket,
+                                       const std::vector<real_function_3d>& mo_bra,
+                                       const CCParameters& parameters, const real_function_3d& Rsquare,
+                                       const std::vector<real_function_3d>& U1, const size_t& i, const size_t& j,
+                                       const FuncType& x_type, const FuncType& y_type, const real_convolution_6d *Gscreen = NULL);
+
     /// evaluates: \f$ (F(1)-ei)|ti> (x) |tj> + |ti> (x) (F(2)-ej)|tj> \f$ with the help of the singles potential
     /// singles equation is: (F-ei)|ti> = - V(ti)
     /// response singles equation: (F-ei-omega)|xi> = - V(xi)
@@ -329,6 +346,15 @@ public:
     real_function_6d
     apply_transformed_Ue(const CCFunction& x, const CCFunction& y, const real_convolution_6d *Gscreen = NULL) const;
 
+    /// Static version of apply_transformed_Ue for the use in a macrotask.
+    /// Will eventually replace the former.
+    real_function_6d
+    static apply_transformed_Ue_macrotask(World& world, const std::vector<real_function_3d>& mo_ket,
+                                          const CCParameters& parameters, const real_function_3d& Rsquare,
+                                          const std::vector<real_function_3d>& U1, const size_t& i, const size_t& j,
+                                          const FuncType& x_type, const FuncType& y_type,
+                                          const real_convolution_6d *Gscreen = NULL);
+
     /// Apply Ue on a tensor product of two 3d functions: Ue(1,2) |x(1)y(2)> (will be either |ij> or |\tau_i\tau_j> or mixed forms)
     /// The Transformed electronic regularization potential (Kutzelnigg) is R_{12}^{-1} U_e R_{12} with R_{12} = R_1*R_2
     /// It is represented as: R_{12}^{-1} U_e R_{12} = U_e + R^-1[Ue,R]
@@ -343,6 +369,13 @@ public:
     real_function_6d
     apply_exchange_commutator(const CCFunction& x, const CCFunction& y,
                               const real_convolution_6d *Gscreen = NULL) const;
+
+   real_function_6d
+   static apply_exchange_commutator_macrotask(World& world, const std::vector<real_function_3d>& mo_ket,
+                                              const std::vector<real_function_3d>& mo_bra, const real_function_3d& Rsquare,
+                                              const size_t& i, const size_t& j, const CCParameters& parameters,
+                                              const FuncType& x_type, const FuncType& y_type,
+                                              const real_convolution_6d *Gscreen = NULL);
 
     /// This applies the exchange commutator, see apply_exchange_commutator function for information
     real_function_6d
@@ -575,11 +608,23 @@ public:
     real_function_3d
     K(const CCFunction& f) const;
 
+    /// static version of k above for access from macrotask. will eventually replace former.
+    real_function_3d
+    static K_macrotask(World& world, const std::vector<real_function_3d>& mo_ket,
+                       const std::vector<real_function_3d>& mo_bra, const real_function_3d& f,
+                       const CCParameters& parameters);
+
     /// Exchange Operator on Pair function: -(K(1)+K(2))u(1,2)
     /// if i==j in uij then the symmetry will be exploited
     /// !!!!Prefactor (-1) is not included here!!!!
     real_function_6d
     K(const real_function_6d& u, const bool symmetric) const;
+
+    /// static version of k above for access from macrotask. will eventually replace former.
+    real_function_6d
+    static K_macrotask(World& world, const std::vector<real_function_3d>& mo_ket,
+                       const std::vector<real_function_3d>& mo_bra,
+                       const real_function_6d& u, const bool symmetric, const CCParameters& parameters);
 
     /// Exchange Operator on Pair function: -(K(1)+K(2))u(1,2)
     /// K(1)u(1,2) = \sum_k <k(3)|g13|u(3,2)> |k(1)>
@@ -589,6 +634,12 @@ public:
     /// !!!!Prefactor (-1) is not included here!!!!
     real_function_6d
     apply_K(const real_function_6d& u, const size_t& particle) const;
+
+    /// Static version of apply_K above for access from macrotask. Will eventually replace former.
+    real_function_6d
+    static apply_K_macrotask(World& world, const std::vector<real_function_3d>& mo_ket,
+                                    const std::vector<real_function_3d>& mo_bra,
+                                    const real_function_6d& u, const size_t& particle, const CCParameters& parameters);
 
     /// Apply the Exchange operator on a tensor product multiplied with f12
     /// !!! Prefactor of (-1) is not inclued in K here !!!!
@@ -606,6 +657,13 @@ public:
     /// Creates a 6D function with the correlation factor and two given CCFunctions
     real_function_6d
     make_f_xy(const CCFunction& x, const CCFunction& y, const real_convolution_6d *Gscreen = NULL) const;
+
+    real_function_6d
+    static make_f_xy_macrotask( World& world, const real_function_3d& x_ket, const real_function_3d& y_ket,
+                                const real_function_3d& x_bra, const real_function_3d& y_bra,
+                                const size_t& i, const size_t& j, const CCParameters& parameters,
+                                const FuncType& x_type, const FuncType& y_type,
+                                const real_convolution_6d *Gscreen = NULL);
 
     /// unprojected ccs potential
     /// returns 2kgtk|ti> - kgti|tk>

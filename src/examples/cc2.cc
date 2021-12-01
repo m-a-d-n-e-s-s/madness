@@ -50,6 +50,7 @@
 
  */
 #include <chem/CC2.h>
+#include <madness/misc/gitinfo.h>
 
 using namespace madness;
 
@@ -62,6 +63,7 @@ int main(int argc, char **argv) {
     World world(SafeMPI::COMM_WORLD);
 
     if (world.rank() == 0) {
+        print(info::print_revision_information());
         print("\n  CC2: Coupled Cluster approximate Doubles  \n");
         printf("starting at time %.1f\n", wall_time());
         print("\nmain() compiled at ", __TIME__, " on ", __DATE__);

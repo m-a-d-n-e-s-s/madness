@@ -406,7 +406,12 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
    double total_energy = 0.0;
 
    for (auto& tmp_pair : doubles.allpairs) {
-       update_constant_part_mp2(tmp_pair.second);
+       tmp_pair.second.constant_part = CCOPS.make_constant_part_mp2_macrotask(world, tmp_pair.second,CCOPS.mo_ket().get_vecfunction(),
+                                              CCOPS.mo_bra().get_vecfunction(), parameters, nemo->R_square,
+                                              CCOPS.mo_ket(tmp_pair.second.i).type,
+                                              CCOPS.mo_ket(tmp_pair.second.j).type,
+                                              tmp_pair.second.bsh_eps, nemo->ncf->U1vec());
+       save(tmp_pair.second.constant_part, tmp_pair.second.name() + "_const");
        tmp_pair.second.constant_part.truncate().reduce_rank();
        tmp_pair.second.function().truncate().reduce_rank();
        if (tmp_pair.second.type == GROUND_STATE) total_energy += CCOPS.compute_pair_correlation_energy(tmp_pair.second);
