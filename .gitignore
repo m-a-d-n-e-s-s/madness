@@ -72,3 +72,4 @@ Makefile-prog.in
 .tags
 .ccls-cache
 tags
+.vscode/settings.json
