@@ -477,7 +477,11 @@ namespace madness {
     class MPIRawInputArchive;
     class MPIOutputArchive;
     class MPIInputArchive;
+    class ContainerRecordInputArchive;
+    class ContainerRecordOutputArchive;
+    template <class localarchiveT>
     class ParallelOutputArchive;
+    template <class localarchiveT>
     class ParallelInputArchive;
     template <typename T>
     class archive_array;
@@ -559,9 +563,13 @@ namespace madness {
     template <typename T>
     struct is_default_serializable_helper<archive::MPIInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
     template <typename T>
-    struct is_default_serializable_helper<archive::ParallelOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    struct is_default_serializable_helper<archive::ContainerRecordOutputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
     template <typename T>
-    struct is_default_serializable_helper<archive::ParallelInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    struct is_default_serializable_helper<archive::ContainerRecordInputArchive, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    template <typename T, class localarchiveT>
+    struct is_default_serializable_helper<archive::ParallelOutputArchive<localarchiveT>, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
+    template <typename T, class localarchiveT>
+    struct is_default_serializable_helper<archive::ParallelInputArchive<localarchiveT>, T, std::enable_if_t<is_trivially_serializable<T>::value>> : std::true_type {};
     template <typename Archive, typename T>
     struct is_default_serializable_helper<Archive, archive::archive_array<T>, std::enable_if_t<is_default_serializable_helper<Archive,T>::value>> : std::true_type {};
 
@@ -590,9 +598,13 @@ namespace madness {
     template <>
     struct is_archive<archive::MPIInputArchive> : std::true_type {};
     template <>
-    struct is_archive<archive::ParallelOutputArchive> : std::true_type {};
+    struct is_archive<archive::ContainerRecordOutputArchive> : std::true_type {};
     template <>
-    struct is_archive<archive::ParallelInputArchive> : std::true_type {};
+    struct is_archive<archive::ContainerRecordInputArchive> : std::true_type {};
+    template <class localarchiveT>
+    struct is_archive<archive::ParallelOutputArchive<localarchiveT> > : std::true_type {};
+    template <class localarchiveT>
+    struct is_archive<archive::ParallelInputArchive<localarchiveT> > : std::true_type {};
 
     template <>
     struct is_output_archive<archive::BinaryFstreamOutputArchive> : std::true_type {};
@@ -607,7 +619,9 @@ namespace madness {
     template <>
     struct is_output_archive<archive::MPIOutputArchive> : std::true_type {};
     template <>
-    struct is_output_archive<archive::ParallelOutputArchive> : std::true_type {};
+    struct is_output_archive<archive::ContainerRecordOutputArchive> : std::true_type {};
+    template <class localarchiveT>
+    struct is_output_archive<archive::ParallelOutputArchive<localarchiveT> > : std::true_type {};
 
     template <>
     struct is_input_archive<archive::BinaryFstreamInputArchive> : std::true_type {};
@@ -622,7 +636,9 @@ namespace madness {
     template <>
     struct is_input_archive<archive::MPIInputArchive> : std::true_type {};
     template <>
-    struct is_input_archive<archive::ParallelInputArchive> : std::true_type {};
+    struct is_input_archive<archive::ContainerRecordInputArchive> : std::true_type {};
+    template <class localarchiveT>
+    struct is_input_archive<archive::ParallelInputArchive<localarchiveT> > : std::true_type {};
 
     /// Evaluates to true if can serialize an object of type `T` to an object of type `Archive` using user-provided methods
     /// \tparam Archive

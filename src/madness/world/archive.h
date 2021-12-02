@@ -99,13 +99,7 @@ namespace madness {
 
 
         /// The list of type names for use in archives.
-
-        /// \todo Could this namespace-scope variable be defined in archive_type_names.cc and just externed here always?
-#ifdef MAD_ARCHIVE_TYPE_NAMES_CC
-        const char *archive_type_names[256];
-#else
         extern const char *archive_type_names[256];
-#endif
 
         /// Initializes the type names for the archives.
         // Implemented in archive_type_names.cc
@@ -128,16 +122,6 @@ namespace madness {
             return archive_type_names[archive_typeinfo<T>::cookie];
         }
 
-        /// \todo Brief description needed (ARCHIVE_REGISTER_TYPE_XLC_EXTRA).
-
-        /// \param[in] T The type to register.
-#if defined(ARCHIVE_REGISTER_TYPE_INSTANTIATE_HERE) && defined(ARCHIVE_REGISTER_TYPE_IBMBUG)
-#define ARCHIVE_REGISTER_TYPE_XLC_EXTRA(T) \
-        ; const unsigned char archive_typeinfo< T >::cookie
-#else
-#define ARCHIVE_REGISTER_TYPE_XLC_EXTRA(T)
-#endif
-
         /// Used to associate a type with a cookie value inside archive.
 
         /// Makes a specialization of \c archive_typeinfo for type \c T that
@@ -148,8 +132,7 @@ namespace madness {
         template <> \
         struct archive_typeinfo< T > { \
             static const unsigned char cookie = cooky; \
-        } \
-        ARCHIVE_REGISTER_TYPE_XLC_EXTRA(T)
+        }
 
 
         /// Used to associate a type and a pointer to the type with a cookie value inside archive.

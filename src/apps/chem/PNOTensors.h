@@ -10,7 +10,7 @@
 
 #include <stdio.h>
 #include <valarray>
-#include "madness.h"
+#include <madness.h>
 
 
 namespace PNOTensors {

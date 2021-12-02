@@ -101,21 +101,43 @@ Molecule::Molecule(const std::string &filename) : atoms(), rcut(), eprec(1e-4), 
     read_file(filename);
 }
 
-std::vector<std::string> Molecule::cubefile_header() const
-{
-    std::vector<std::string> molecular_info;
-    for (unsigned int i = 0; i < natom(); ++i)
-    {
-        std::stringstream ss;
-        const int charge = get_atom(i).get_atomic_number();
-        ss << charge << " " << charge << " ";
-        ss << std::fixed;
-        ss.precision(8);
-        const Vector<double, 3> coord = get_atom(i).get_coords();
-        ss << coord[0] << " " << coord[1] << " " << coord[2] << " \n";
-        molecular_info.push_back(ss.str());
+void Molecule::read_structure_from_library(const std::string& name) {
+
+	// get the location of the structure library
+	std::string chemdata_dir(MRA_CHEMDATA_DIR);
+    if (getenv("MRA_CHEMDATA_DIR")) chemdata_dir=std::string(getenv("MRA_CHEMDATA_DIR"));
+	std::string library=chemdata_dir+"/structure_library";
+
+    std::ifstream f(library);
+    if(f.fail()) {
+        std::string errmsg = std::string("Failed to open structure library: ") + library;
+        MADNESS_EXCEPTION(errmsg.c_str(), 0);
     }
-    return molecular_info;
+    try {
+    	madness::position_stream(f, name);
+    } catch (...) {
+        std::string errmsg = "could not find structure " + name + " in the library\n\n";
+        MADNESS_EXCEPTION(errmsg.c_str(), 0);
+    }
+
+    this->read(f);
+
+}
+
+
+std::vector<std::string> Molecule::cubefile_header() const {
+	std::vector<std::string> molecular_info;
+	for (unsigned int i = 0; i < natom(); ++i) {
+		std::stringstream ss;
+		const int charge = get_atom(i).get_atomic_number();
+		ss << charge << " " << charge << " ";
+		ss << std::fixed;
+		ss.precision(8);
+		const Vector<double, 3> coord = get_atom(i).get_coords();
+		ss << coord[0] << " " << coord[1] << " " << coord[2] << " \n";
+		molecular_info.push_back(ss.str());
+	}
+	return molecular_info;
 }
 
 void Molecule::read_file(const std::string &filename)
@@ -134,8 +156,8 @@ void Molecule::read(std::istream &f)
     atoms.clear();
     rcut.clear();
     eprec = 1e-4;
-    units = atomic; //enum{atomic,angstroms}
-    madness::position_stream(f, "geometry");
+    units = atomic;
+    madness::position_stream(f, "geometry",false);		// do not rewind
     double scale = 1.0; // Default is atomic units
 
     std::string s;

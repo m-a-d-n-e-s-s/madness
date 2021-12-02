@@ -10,7 +10,7 @@
 namespace madness {
 
 void
-CCMessenger::output(const std::string &msg) const {
+CCMessenger::output(const std::string& msg) const {
     if (scientific) std::cout << std::scientific;
     else std::cout << std::fixed;
 
@@ -19,7 +19,7 @@ CCMessenger::output(const std::string &msg) const {
 }
 
 void
-CCMessenger::section(const std::string &msg) const {
+CCMessenger::section(const std::string& msg) const {
     if (world.rank() == 0) {
         std::cout << "\n" << std::setw(msg.size() + 10) << std::setfill('*') << "\n";
         std::cout << std::setfill(' ');
@@ -30,7 +30,7 @@ CCMessenger::section(const std::string &msg) const {
 }
 
 void
-CCMessenger::subsection(const std::string &msg) const {
+CCMessenger::subsection(const std::string& msg) const {
     if (world.rank() == 0) {
         std::cout << "\n" << std::setw(msg.size() + 5) << std::setfill('-') << "\n";
         std::cout << std::setfill(' ');
@@ -41,7 +41,7 @@ CCMessenger::subsection(const std::string &msg) const {
 }
 
 void
-CCMessenger::warning(const std::string &msg) const {
+CCMessenger::warning(const std::string& msg) const {
     std::string tmp = "!!!!!WARNING:" + msg + "!!!!!!";
     output(tmp);
     warnings.push_back(msg);
@@ -63,7 +63,7 @@ CCTimer::info(const bool debug, const double norm) {
 }
 
 void
-CCFunction::info(World &world, const std::string &msg) const {
+CCFunction::info(World& world, const std::string& msg) const {
     if (world.rank() == 0) {
         std::cout << "Information about 3D function: " << name() << " " << msg << std::endl;
         std::cout << std::setw(10) << std::setfill(' ') << std::setw(50) << " |f|    : " << function.norm2()
@@ -111,7 +111,7 @@ CC_vecfunction::name() const {
 }
 
 void
-CC_vecfunction::print_size(const std::string &msg) const {
+CC_vecfunction::print_size(const std::string& msg) const {
     if (functions.size() == 0) {
         std::cout << "CC_vecfunction " << msg << " is empty\n";
     } else {
@@ -126,7 +126,7 @@ CC_vecfunction::print_size(const std::string &msg) const {
 }
 
 madness::CCPairFunction
-CCPairFunction::operator=(CCPairFunction &other) {
+CCPairFunction::operator=(CCPairFunction& other) {
     MADNESS_ASSERT(type == other.type);
     a = other.a;
     b = other.b;
@@ -187,7 +187,7 @@ CCPairFunction::print_size() const {
 }
 
 double
-CCPairFunction::make_xy_u(const CCFunction &xx, const CCFunction &yy) const {
+CCPairFunction::make_xy_u(const CCFunction& xx, const CCFunction& yy) const {
     double result = 0.0;
     switch (type) {
         default: MADNESS_EXCEPTION("Undefined enum", 1);
@@ -224,7 +224,7 @@ CCPair::info() const {
 }
 
 madness::vector_real_function_3d
-CCIntermediatePotentials::operator()(const CC_vecfunction &f, const PotentialType &type) const {
+CCIntermediatePotentials::operator()(const CC_vecfunction& f, const PotentialType& type) const {
     output("Getting " + assign_name(type) + " for " + f.name());
     vector_real_function_3d result;
     if (type == POT_singles_ and (f.type == PARTICLE or f.type == MIXED)) return current_singles_potential_gs_;
@@ -247,16 +247,16 @@ CCIntermediatePotentials::operator()(const CC_vecfunction &f, const PotentialTyp
 }
 
 madness::real_function_3d
-CCIntermediatePotentials::operator()(const CCFunction &f, const PotentialType &type) const {
+CCIntermediatePotentials::operator()(const CCFunction& f, const PotentialType& type) const {
     output("Getting " + assign_name(type) + " for " + f.name());
     real_function_3d result = real_factory_3d(world);
     if (type == POT_singles_ and (f.type == PARTICLE or f.type == MIXED))
-        return current_singles_potential_gs_[f.i - parameters.freeze];
-    else if (type == POT_singles_ and f.type == RESPONSE) return current_singles_potential_ex_[f.i - parameters.freeze];
-    else if (type == POT_s2b_ and f.type == PARTICLE) return current_s2b_potential_gs_[f.i - parameters.freeze];
-    else if (type == POT_s2b_ and f.type == RESPONSE) return current_s2b_potential_ex_[f.i - parameters.freeze];
-    else if (type == POT_s2c_ and f.type == PARTICLE) return current_s2c_potential_gs_[f.i - parameters.freeze];
-    else if (type == POT_s2c_ and f.type == RESPONSE) return current_s2c_potential_ex_[f.i - parameters.freeze];
+        return current_singles_potential_gs_[f.i - parameters.freeze()];
+    else if (type == POT_singles_ and f.type == RESPONSE) return current_singles_potential_ex_[f.i - parameters.freeze()];
+    else if (type == POT_s2b_ and f.type == PARTICLE) return current_s2b_potential_gs_[f.i - parameters.freeze()];
+    else if (type == POT_s2b_ and f.type == RESPONSE) return current_s2b_potential_ex_[f.i - parameters.freeze()];
+    else if (type == POT_s2c_ and f.type == PARTICLE) return current_s2c_potential_gs_[f.i - parameters.freeze()];
+    else if (type == POT_s2c_ and f.type == RESPONSE) return current_s2c_potential_ex_[f.i - parameters.freeze()];
     else if (f.type == HOLE) output(assign_name(type) + " is zero for HOLE states");
     else MADNESS_EXCEPTION("Potential was not supposed to be stored", 1)
 
@@ -268,8 +268,8 @@ CCIntermediatePotentials::operator()(const CCFunction &f, const PotentialType &t
 }
 
 void
-CCIntermediatePotentials::insert(const vector_real_function_3d &potential, const CC_vecfunction &f,
-                                 const PotentialType &type) {
+CCIntermediatePotentials::insert(const vector_real_function_3d& potential, const CC_vecfunction& f,
+                                 const PotentialType& type) {
     output("Storing potential: " + assign_name(type) + " for " + f.name());
     MADNESS_ASSERT(!potential.empty());
     if (type == POT_singles_ && (f.type == PARTICLE || f.type == MIXED)) current_singles_potential_gs_ = potential;
@@ -283,295 +283,54 @@ CCIntermediatePotentials::insert(const vector_real_function_3d &potential, const
     }
 }
 
-/// ctor reading out the input file
-CCParameters::CCParameters(const std::string &input, const double &low) :
-        calculation(CT_LRCC2),
-        lo(uninitialized),
-        dmin(1.0),
-        thresh_3D(uninitialized),
-        tight_thresh_3D(uninitialized),
-        thresh_6D(uninitialized),
-        tight_thresh_6D(uninitialized),
-        thresh_bsh_3D(uninitialized),
-        thresh_bsh_6D(uninitialized),
-        thresh_poisson(uninitialized),
-        thresh_f12(uninitialized),
-        thresh_Ue(uninitialized),
-        econv(uninitialized),
-        econv_pairs(uninitialized),
-        dconv_3D(uninitialized),
-        dconv_6D(uninitialized),
-        iter_max(4),
-        iter_max_3D(5),
-        iter_max_6D(5),
-        restart(false),
-        no_compute(false),
-        no_compute_gs(false),
-        no_compute_response(false),
-        no_compute_mp2(false),
-        no_compute_cc2(false),
-        no_compute_cispd(false),
-        no_compute_lrcc2(false),
-        corrfac_gamma(1.0),
-        output_prec(8),
-        debug(false),
-        plot(false),
-        kain(false),
-        freeze(0),
-        test(false),
-        decompose_Q(true),
-        QtAnsatz(false),
-        excitations_(0) {
-    // get the parameters from the input file
-    std::ifstream f(input.c_str());
-    position_stream(f, "cc2");
-    std::string s;
-
-    // general operators thresh
-    double thresh_operators = uninitialized;
-    double thresh_operators_3D = uninitialized;
-    double thresh_operators_6D = uninitialized;
-
-    while (f >> s) {
-        //std::cout << "input tag is: " << s << std::endl;
-        std::transform(s.begin(), s.end(), s.begin(), ::tolower);
-        //std::cout << "transformed input tag is: " << s << std::endl;
-        if (s == "end") break;
-        else if (s == "calculation") {
-            std::string tmp;
-            f >> tmp;
-            calculation = assign_calctype(tmp);
-        } else if (s == "lo") f >> lo;
-        else if (s == "dmin") f >> dmin;
-        else if (s == "thresh") f >> thresh_6D;
-        else if (s == "thresh_3d") f >> thresh_3D;
-        else if (s == "tight_thresh_3d") f >> tight_thresh_3D;
-        else if (s == "thresh_6d") f >> thresh_6D;
-        else if (s == "tight_thresh_6d") f >> tight_thresh_6D;
-        else if (s == "debug") debug = true;
-        else if (s == "plot") plot = true;
-        else if (s == "econv")f >> econv;
-        else if (s == "econv_pairs")f >> econv_pairs;
-        else if (s == "dconv") f >> dconv_6D;
-        else if (s == "dconv_3d")f >> dconv_3D;
-        else if (s == "dconv_6d")f >> dconv_6D;
-        else if (s == "thresh_operators" or s == "thresh_operator") f >> thresh_operators;
-        else if (s == "thresh_operators_3d" or s == "thresh_operator_3d") f >> thresh_operators_3D;
-        else if (s == "thresh_operators_6d" or s == "thresh_operator_6d") f >> thresh_operators_6D;
-        else if (s == "thresh_bsh_3d") f >> thresh_bsh_3D;
-        else if (s == "thresh_bsh_6d") f >> thresh_bsh_6D;
-        else if (s == "thresh_poisson") f >> thresh_poisson;
-        else if (s == "thresh_f12") f >> thresh_f12;
-        else if (s == "thresh_ue") f >> thresh_Ue;
-        else if (s == "freeze") f >> freeze;
-        else if (s == "iter_max") f >> iter_max;
-        else if (s == "iter_max_3d") f >> iter_max_3D;
-        else if (s == "iter_max_6d") f >> iter_max_6D;
-        else if (s == "kain") kain = true;
-        else if (s == "kain_subspace") f >> kain_subspace;
-        else if (s == "freeze") f >> freeze;
-        else if (s == "test") test = true;
-        else if (s == "corrfac" or s == "corrfac_gamma" or s == "gamma") f >> corrfac_gamma;
-        else if (s == "decompose_q") decompose_Q = true;
-        else if (s == "restart")restart = true;
-        else if (s == "no_compute") {
-            no_compute = true;
-            no_compute_gs = true;
-            no_compute_mp2 = true;
-            no_compute_cispd = true;
-            no_compute_response = true;
-        } else if (s == "no_compute_gs") {
-            no_compute_gs = true;
-            no_compute_mp2 = true;
-            no_compute_cc2 = true;
-        } else if (s == "no_compute_response") {
-            no_compute_response = true;
-            no_compute_cispd = true;
-            no_compute_lrcc2 = true;
-        } else if (s == "no_compute_cc2") no_compute_cc2 = true;
-        else if (s == "no_compute_cispd") no_compute_cispd = true;
-        else if (s == "no_compute_lrcc2") no_compute_lrcc2 = true;
-        else if (s == "no_compute_mp2") no_compute_mp2 = true;
-        else if (s == "only_pair") {
-            size_t tmp1, tmp2;
-            f >> tmp1;
-            f >> tmp2;
-            std::cout << "found only pair in the world: " << tmp1 << ", " << tmp2 << "\n";
-            only_pair = std::make_pair(tmp1, tmp2);
-            MADNESS_ASSERT(not(tmp1 > tmp2));
-        } else if (s == "excitation") {
-            size_t tmp;
-            f >> tmp;
-            excitations_.push_back(tmp);
-        } else if (s == "qtansatz") QtAnsatz = true;
-        else if (s == "full_residue") decompose_Q = false;
-        else {
-            std::cout << "Unknown Keyword: " << s << "\n";
-            continue;
-        }
-    }
-
-    // set defaults
-    if (not kain) kain_subspace = 0;
+void CCParameters::set_derived_values() {
+    if (not kain()) set_derived_value("kain_subspace",0);
 
     // set all parameters that were not explicitly given
-    if (lo == uninitialized) lo = 1.e-7;
-    if (thresh_6D == uninitialized) thresh_6D = 1.e-3;
-    if (tight_thresh_6D == uninitialized) tight_thresh_6D = thresh_6D * 0.1;
-    if (thresh_3D == uninitialized) thresh_3D = thresh_6D * 0.01;
-    if (tight_thresh_3D == uninitialized) tight_thresh_3D = thresh_3D * 0.1;
-    if (thresh_operators == uninitialized) thresh_operators = 1.e-6;
-    if (thresh_operators_3D == uninitialized) thresh_operators_3D = thresh_operators;
-    if (thresh_operators_6D == uninitialized) thresh_operators_6D = thresh_operators;
-    if (thresh_bsh_3D == uninitialized) thresh_bsh_3D = thresh_operators_3D;
-    if (thresh_bsh_6D == uninitialized) thresh_bsh_6D = thresh_operators_6D;
-    if (thresh_poisson == uninitialized) thresh_poisson = thresh_operators_3D;
-    if (thresh_f12 == uninitialized) thresh_f12 = thresh_operators_3D;
-    if (thresh_Ue == uninitialized) thresh_Ue = tight_thresh_6D;
-    if (dconv_6D == uninitialized) dconv_6D = thresh_6D;
-    if (dconv_3D == uninitialized) dconv_3D = dconv_6D;
-    if (econv == uninitialized) econv = 0.1 * dconv_6D;
-    if (econv_pairs == uninitialized) econv_pairs = econv;
-    if (iter_max_6D == uninitialized) iter_max_6D = 10;
-    if (iter_max_3D == uninitialized) iter_max_3D = iter_max_6D;
+    set_derived_value("tight_thresh_6d",thresh_6D()*0.1);
+    set_derived_value("thresh_3d",thresh_6D()*0.01);
+    set_derived_value("tight_thresh_3d",thresh_3D()*0.1);
+//    if (thresh_operators == uninitialized) thresh_operators = 1.e-6;
+//    if (thresh_operators_3D == uninitialized) thresh_operators_3D = thresh_operators;
+//    if (thresh_operators_6D == uninitialized) thresh_operators_6D = thresh_operators;
+//    if (thresh_bsh_3D == uninitialized) thresh_bsh_3D = thresh_operators_3D;
+//    if (thresh_bsh_6D == uninitialized) thresh_bsh_6D = thresh_operators_6D;
+//    if (thresh_poisson == uninitialized) thresh_poisson = thresh_operators_3D;
+//    if (thresh_f12 == uninitialized) thresh_f12 = thresh_operators_3D;
+    set_derived_value("thresh_ue",tight_thresh_6D());
+    set_derived_value("dconv_6d",thresh_6D());
+    set_derived_value("dconv_3d",thresh_6D());
+    set_derived_value("econv",0.1*dconv_6D());
+    set_derived_value("econv_pairs",econv());
 
-    // set the thresholds
-    FunctionDefaults<3>::set_thresh(thresh_3D);
-    FunctionDefaults<6>::set_thresh(thresh_6D);
-    if (thresh_3D < 1.1e-1) output_prec = 3;
-    if (thresh_3D < 1.1e-2) output_prec = 4;
-    if (thresh_3D < 1.1e-3) output_prec = 5;
-    if (thresh_3D < 1.1e-4) output_prec = 6;
-    if (thresh_3D < 1.1e-5) output_prec = 7;
-    if (thresh_3D < 1.1e-6) output_prec = 8;
-    std::cout.precision(output_prec);
+    set_derived_value("no_compute_gs",no_compute());
+    set_derived_value("no_compute_mp2",no_compute() and no_compute_gs());
+    set_derived_value("no_compute_cc2",no_compute() and no_compute_gs());
+    set_derived_value("no_compute_cispd",no_compute() and no_compute_response());
+    set_derived_value("no_compute_response",no_compute());
+    set_derived_value("restart",no_compute() == true and restart() == false);
 
-    if (no_compute == true and restart == false) restart = true;
+    if (thresh_3D() < 1.1e-1) set_derived_value("output_prec",std::size_t(3));
+    if (thresh_3D() < 1.1e-2) set_derived_value("output_prec",std::size_t(4));
+    if (thresh_3D() < 1.1e-3) set_derived_value("output_prec",std::size_t(5));
+    if (thresh_3D() < 1.1e-4) set_derived_value("output_prec",std::size_t(6));
+    if (thresh_3D() < 1.1e-5) set_derived_value("output_prec",std::size_t(7));
+    if (thresh_3D() < 1.1e-6) set_derived_value("output_prec",std::size_t(8));
+    std::cout.precision(output_prec());
 }
 
-/// copy constructor
-CCParameters::CCParameters(const CCParameters &other) :
-        calculation(other.calculation),
-        lo(other.lo),
-        dmin(other.dmin),
-        thresh_3D(other.thresh_3D),
-        tight_thresh_3D(other.tight_thresh_3D),
-        thresh_6D(other.thresh_6D),
-        tight_thresh_6D(other.tight_thresh_6D),
-        thresh_bsh_3D(other.thresh_bsh_3D),
-        thresh_bsh_6D(other.thresh_bsh_6D),
-        thresh_poisson(other.thresh_poisson),
-        thresh_f12(other.thresh_f12),
-        thresh_Ue(other.thresh_Ue),
-        econv(other.econv),
-        econv_pairs(other.econv_pairs),
-        dconv_3D(other.dconv_3D),
-        dconv_6D(other.dconv_6D),
-        iter_max(other.iter_max),
-        iter_max_3D(other.iter_max_3D),
-        iter_max_6D(other.iter_max_6D),
-        restart(other.restart),
-        no_compute(other.no_compute),
-        no_compute_gs(other.no_compute_gs),
-        no_compute_response(other.no_compute_response),
-        no_compute_mp2(other.no_compute_response),
-        no_compute_cc2(other.no_compute_mp2),
-        no_compute_cispd(other.no_compute_cispd),
-        no_compute_lrcc2(other.no_compute_lrcc2),
-        corrfac_gamma(other.corrfac_gamma),
-        output_prec(other.output_prec),
-        debug(other.debug),
-        plot(other.plot),
-        kain(other.kain),
-        kain_subspace(other.kain_subspace),
-        freeze(other.freeze),
-        test(other.test),
-        decompose_Q(other.decompose_Q),
-        QtAnsatz(other.QtAnsatz),
-        excitations_(other.excitations_) {}
-
-void CCParameters::information(World &world) const {
-    if (world.rank() == 0) {
-        //			std::cout << "Defaults for 6D and 3D Functions:\n";
-        //			FunctionDefaults<3>::print();
-        //                      FunctionDefaults<6>::print();
-
-        std::cout << "Demanded Calculation is " << assign_name(calculation) << std::endl;
-
-        if (calculation != CT_LRCCS and calculation != CT_TDHF) {
+void CCParameters::information(World& world) const {
+    if (world.rank()==0) {
+        print("cc2","end");
+        if (calc_type() != CT_LRCCS and calc_type() != CT_TDHF) {
             std::cout << "The Ansatz for the Pair functions |tau_ij> is: ";
-            if (QtAnsatz) std::cout << "(Qt)f12|titj> and response: (Qt)f12(|tixj> + |xitj>) - (OxQt + QtOx)f12|titj>";
-            else std::cout << "Qf12|titj> and response: Qf12(|xitj> + |tixj>)";
-            std::cout << "Gamma of correlation factor is " << corrfac_gamma << std::endl;
-        }
-        if (test) std::cout << "\n\n\t\t\t!Test Mode is on!\n\n" << std::endl;
-        std::cout << std::setfill('-') << std::setw(35) << std::setfill('-') << "\n";
-        std::cout << std::setfill(' ');
-        std::cout << "\nMRA-TDHFParameters:\n";
-        std::cout << "lo                         :" << lo << std::endl;
-        std::cout << "dmin                       :" << dmin << std::endl;
-        std::cout << "k (3D)                     :" << FunctionDefaults<3>::get_k() << std::endl;
-        std::cout << "k (6D)                     :" << FunctionDefaults<6>::get_k() << std::endl;
-        std::cout << "thresh_3D demanded         :" << thresh_3D << std::endl;
-        std::cout << "thresh_3D set              :" << FunctionDefaults<3>::get_thresh() << std::endl;
-        std::cout << "thresh_6D demanded         :" << thresh_6D << std::endl;
-        std::cout << "thresh_6D set              :" << FunctionDefaults<6>::get_thresh() << std::endl;
-        std::cout << "tight_thresh_6D            :" << tight_thresh_6D << std::endl;
-        std::cout << "tight_thresh_3D            :" << tight_thresh_3D << std::endl;
-        std::cout << "thresh_bsh_3D              :" << thresh_bsh_3D << std::endl;
-        std::cout << "thresh_bsh_6D              :" << thresh_bsh_6D << std::endl;
-        std::cout << "thresh_poisson             :" << thresh_poisson << std::endl;
-        std::cout << "thresh_f12                 :" << thresh_f12 << std::endl;
-        std::cout << "thresh_Ue                  :" << thresh_Ue << std::endl;
-        std::cout << std::setfill('-') << std::setw(35) << std::setfill('-') << "\n";
-        std::cout << std::setfill(' ');
-        std::cout << "\nAdvanced-MRA-TDHFParameters:\n";
-        std::cout << "truncation mode 3D         :" << FunctionDefaults<3>::get_truncate_mode() << std::endl;
-        std::cout << "truncation mode 6D         :" << FunctionDefaults<6>::get_truncate_mode() << std::endl;
-        std::cout << "tensor type                :" << FunctionDefaults<6>::get_tensor_type() << std::endl;
-        std::cout << "facReduce                  :" << GenTensor<double>::fac_reduce() << std::endl;
-        std::cout << "max. displacement          :" << Displacements<6>::bmax_default() << std::endl;
-        std::cout << "apply randomize            :" << FunctionDefaults<6>::get_apply_randomize() << std::endl;
-        std::cout << "Cell min width (3D, 6D)    :" << FunctionDefaults<6>::get_cell_min_width() << ", "
-                  << FunctionDefaults<3>::get_cell_min_width() << std::endl;
-        std::cout << "Autorefine (3D, 6D)        :" << FunctionDefaults<6>::get_autorefine() << ", "
-                  << FunctionDefaults<3>::get_autorefine() << std::endl;
-        std::cout << std::setfill('-') << std::setw(35) << std::setfill('-') << "\n";
-        std::cout << std::setfill(' ');
-        std::cout << "\nCC-TDHFParameters:\n";
-        std::cout << "freeze      :" << freeze << std::endl;
-        std::cout << "restart     :" << restart << std::endl;
-        std::cout << "econv       :" << econv << std::endl;
-        std::cout << "econv_pairs :" << econv_pairs << std::endl;
-        std::cout << "dconv_3D    :" << dconv_3D << std::endl;
-        std::cout << "dconv_6D    :" << dconv_6D << std::endl;
-        std::cout << "freeze      :" << freeze << std::endl;
-        std::cout << "iter_max    :" << iter_max << std::endl;
-        std::cout << "iter_max_3D :" << iter_max_3D << std::endl;
-        std::cout << "iter_max_6D :" << iter_max_6D << std::endl;
-        std::cout << "debug mode  :" << debug << std::endl;
-        std::cout << "Kain        :";
-        if (kain) std::cout << " on , Subspace size " << kain_subspace << "\n"; else std::cout << "off\n";
-        std::cout << std::setfill('-') << std::setw(35) << std::setfill('-') << "\n";
-        std::cout << std::setfill(' ');
-        //std::cout << std::setw(20) << std::setfill(' ') << "Cell widths (3D) :" << FunctionDefaults<3>::get_cell_width()  <<std::endl;
-        //std::cout << std::setw(20) << std::setfill(' ') << "Cell widths (6D) :" << FunctionDefaults<6>::get_cell_width()  <<std::endl;
-
-
-        if (restart) std::cout << "restart is on";
-        if (no_compute) std::cout << "no_compute for all";
-        if (no_compute_gs) std::cout << "no_compute for ground-state";
-        if (no_compute_response) std::cout << "no_compute for excited-state";
-        std::cout << "Excitations to optimize are:\n";
-        if (excitations_.empty()) std::cout << "All" << "\n";
-        else {
-            using madness::operators::operator<<;
-            std::cout << excitations_ << "\n\n\n";
+            if (QtAnsatz()) std::cout << "(Qt)f12|titj> and response: (Qt)f12(|tixj> + |xitj>) - (OxQt + QtOx)f12|titj>";
+            else std::cout << "Qf12|titj> and response: Qf12(|xitj> + |tixj>)" << std::endl;
         }
     }
 }
 
-void CCParameters::sanity_check(World &world) const {
+void CCParameters::sanity_check(World& world) const {
     size_t warnings = 0;
     if (FunctionDefaults<3>::get_thresh() > 0.01 * FunctionDefaults<6>::get_thresh())
         warnings += warning(world, "3D Thresh is too low, should be 0.01*6D_thresh");
@@ -583,49 +342,49 @@ void CCParameters::sanity_check(World &world) const {
         warnings += warning(world, "k-values of 3D and 6D differ ");
     if (FunctionDefaults<3>::get_truncate_mode() != 3) warnings += warning(world, "3D Truncate mode is not 3");
     if (FunctionDefaults<6>::get_truncate_mode() != 3) warnings += warning(world, "6D Truncate mode is not 3");
-    if (dconv_3D < FunctionDefaults<3>::get_thresh())
+    if (dconv_3D() < FunctionDefaults<3>::get_thresh())
         warnings += warning(world, "Demanded higher convergence than threshold for 3D");
-    if (dconv_6D < FunctionDefaults<6>::get_thresh())
+    if (dconv_6D() < FunctionDefaults<6>::get_thresh())
         warnings += warning(world, "Demanded higher convergence than threshold for 6D");
-    if (thresh_3D != FunctionDefaults<3>::get_thresh())
+    if (thresh_3D() != FunctionDefaults<3>::get_thresh())
         warnings += warning(world, "3D thresh set unequal 3D thresh demanded");
-    if (thresh_6D != FunctionDefaults<6>::get_thresh())
+    if (thresh_6D() != FunctionDefaults<6>::get_thresh())
         warnings += warning(world, "6D thresh set unequal 6D thresh demanded");
-    if (econv < FunctionDefaults<3>::get_thresh())
+    if (econv() < FunctionDefaults<3>::get_thresh())
         warnings += warning(world, "Demanded higher energy convergence than threshold for 3D");
-    if (econv < FunctionDefaults<6>::get_thresh())
+    if (econv() < FunctionDefaults<6>::get_thresh())
         warnings += warning(world, "Demanded higher energy convergence than threshold for 6D");
-    if (econv < 0.1 * FunctionDefaults<3>::get_thresh())
+    if (econv() < 0.1 * FunctionDefaults<3>::get_thresh())
         warnings += warning(world,
                             "Demanded higher energy convergence than threshold for 3D (more than factor 10 difference)");
-    if (econv < 0.1 * FunctionDefaults<6>::get_thresh())
+    if (econv() < 0.1 * FunctionDefaults<6>::get_thresh())
         warnings += warning(world,
                             "Demanded higher energy convergence than threshold for 6D (more than factor 10 difference)");
     // Check if the 6D thresholds are not too high
-    if (thresh_6D < 1.e-3) warnings += warning(world, "thresh_6D is smaller than 1.e-3");
-    if (thresh_6D < tight_thresh_6D) warnings += warning(world, "tight_thresh_6D is larger than thresh_6D");
-    if (thresh_6D < tight_thresh_3D) warnings += warning(world, "tight_thresh_3D is larger than thresh_3D");
-    if (thresh_6D < 1.e-3) warnings += warning(world, "thresh_6D is smaller than 1.e-3");
-    if (thresh_Ue < 1.e-4) warnings += warning(world, "thresh_Ue is smaller than 1.e-4");
-    if (thresh_Ue > 1.e-4) warnings += warning(world, "thresh_Ue is larger than 1.e-4");
-    if (thresh_3D > 0.01 * thresh_6D)
+    if (thresh_6D() < 1.e-3) warnings += warning(world, "thresh_6D is smaller than 1.e-3");
+    if (thresh_6D() < tight_thresh_6D()) warnings += warning(world, "tight_thresh_6D is larger than thresh_6D");
+    if (thresh_6D() < tight_thresh_3D()) warnings += warning(world, "tight_thresh_3D is larger than thresh_3D");
+    if (thresh_6D() < 1.e-3) warnings += warning(world, "thresh_6D is smaller than 1.e-3");
+    if (thresh_Ue() < 1.e-4) warnings += warning(world, "thresh_Ue is smaller than 1.e-4");
+    if (thresh_Ue() > 1.e-4) warnings += warning(world, "thresh_Ue is larger than 1.e-4");
+    if (thresh_3D() > 0.01 * thresh_6D())
         warnings += warning(world, "Demanded 6D thresh is to precise compared with the 3D thresh");
-    if (thresh_3D > 0.1 * thresh_6D)
+    if (thresh_3D() > 0.1 * thresh_6D())
         warnings += warning(world, "Demanded 6D thresh is to precise compared with the 3D thresh");
-    if (kain and kain_subspace == 0)
+    if (kain() and kain_subspace() == 0)
         warnings += warning(world, "Demanded Kain solver but the size of the iterative subspace is set to zero");
     if (warnings > 0) {
         if (world.rank() == 0) std::cout << warnings << "Warnings in parameters sanity check!\n\n";
     } else {
         if (world.rank() == 0) std::cout << "Sanity check for parameters passed\n\n" << std::endl;
     }
-    if (restart == false and no_compute == true) {
+    if (restart() == false and no_compute() == true) {
         warnings += warning(world, "no_compute flag detected but no restart flag");
     }
 }
 
 real_function_3d
-CCConvolutionOperator::operator()(const CCFunction &bra, const CCFunction &ket, const bool use_im) const {
+CCConvolutionOperator::operator()(const CCFunction& bra, const CCFunction& ket, const bool use_im) const {
     real_function_3d result;
     if (not use_im) {
         if (world.rank() == 0)
@@ -644,7 +403,7 @@ CCConvolutionOperator::operator()(const CCFunction &bra, const CCFunction &ket, 
     return result;
 }
 
-real_function_6d CCConvolutionOperator::operator()(const real_function_6d &u, const size_t particle) const {
+real_function_6d CCConvolutionOperator::operator()(const real_function_6d& u, const size_t particle) const {
     MADNESS_ASSERT(particle == 1 or particle == 2);
     MADNESS_ASSERT(operator_type == OT_G12);
     op->particle() = particle;
@@ -652,7 +411,7 @@ real_function_6d CCConvolutionOperator::operator()(const real_function_6d &u, co
 }
 
 real_function_3d
-CCConvolutionOperator::operator()(const CCFunction &bra, const real_function_6d &u, const size_t particle) const {
+CCConvolutionOperator::operator()(const CCFunction& bra, const real_function_6d& u, const size_t particle) const {
     MADNESS_ASSERT(particle == 1 or particle == 2);
     MADNESS_ASSERT(operator_type == OT_G12);
     const real_function_6d tmp = multiply(copy(u), copy(bra.function), particle);
@@ -662,7 +421,7 @@ CCConvolutionOperator::operator()(const CCFunction &bra, const real_function_6d 
     return result;
 }
 
-real_function_3d CCPairFunction::project_out(const CCFunction &f, const size_t particle) const {
+real_function_3d CCPairFunction::project_out(const CCFunction& f, const size_t particle) const {
     MADNESS_ASSERT(particle == 1 or particle == 2);
     real_function_3d result;
     switch (type) {
@@ -684,7 +443,7 @@ real_function_3d CCPairFunction::project_out(const CCFunction &f, const size_t p
 
 // result is: <x|op12|f>_particle
 real_function_3d
-CCPairFunction::dirac_convolution(const CCFunction &x, const CCConvolutionOperator &op, const size_t particle) const {
+CCPairFunction::dirac_convolution(const CCFunction& x, const CCConvolutionOperator& op, const size_t particle) const {
     real_function_3d result;
     switch (type) {
         default: MADNESS_EXCEPTION("Undefined enum", 1);
@@ -715,18 +474,7 @@ CCPairFunction CCPairFunction::swap_particles() const {
     MADNESS_EXCEPTION("swap_particles in CCPairFunction: we should not end up here", 1);
 }
 
-real_function_6d CCPairFunction::apply_G(const real_convolution_6d &G) const {
-    real_function_6d result = real_factory_6d(world);
-    result.set_thresh(FunctionDefaults<6>::get_thresh() * 0.1);
-    MADNESS_ASSERT(a.size() == b.size());
-    MADNESS_ASSERT(type == PT_DECOMPOSED);
-    for (size_t i = 0; i < a.size(); i++) {
-        result += G(a[i], b[i]);
-    }
-    return result;
-}
-
-real_function_3d CCPairFunction::project_out_decomposed(const real_function_3d &f, const size_t particle) const {
+real_function_3d CCPairFunction::project_out_decomposed(const real_function_3d& f, const size_t particle) const {
     real_function_3d result = real_factory_3d(world);
     const std::pair<vector_real_function_3d, vector_real_function_3d> decompf = assign_particles(particle);
     Tensor<double> c = inner(world, f, decompf.first);
@@ -734,7 +482,7 @@ real_function_3d CCPairFunction::project_out_decomposed(const real_function_3d &
     return result;
 }
 
-real_function_3d CCPairFunction::project_out_op_decomposed(const CCFunction &f, const size_t particle) const {
+real_function_3d CCPairFunction::project_out_op_decomposed(const CCFunction& f, const size_t particle) const {
     if (particle == 1) {
         return (*op)(f, x) * y.function;
     } else if (particle == 2) {
@@ -745,7 +493,7 @@ real_function_3d CCPairFunction::project_out_op_decomposed(const CCFunction &f, 
     }
 }
 
-real_function_3d CCPairFunction::dirac_convolution_decomposed(const CCFunction &bra, const CCConvolutionOperator &op,
+real_function_3d CCPairFunction::dirac_convolution_decomposed(const CCFunction& bra, const CCConvolutionOperator& op,
                                                               const size_t particle) const {
     const std::pair<vector_real_function_3d, vector_real_function_3d> f = assign_particles(particle);
     const vector_real_function_3d braa = mul(world, bra.function, f.first);
@@ -792,7 +540,7 @@ CCPairFunction CCPairFunction::swap_particles_op_decomposed() const {
 }
 
 
-void CCConvolutionOperator::update_elements(const CC_vecfunction &bra, const CC_vecfunction &ket) {
+void CCConvolutionOperator::update_elements(const CC_vecfunction& bra, const CC_vecfunction& ket) {
     const std::string operation_name = "<" + assign_name(bra.type) + "|" + name() + "|" + assign_name(ket.type) + ">";
     if (world.rank() == 0)
         std::cout << "updating operator elements: " << operation_name << " (" << bra.size() << "x" << ket.size() << ")"
@@ -802,9 +550,9 @@ void CCConvolutionOperator::update_elements(const CC_vecfunction &bra, const CC_
     op.reset(init_op(operator_type, parameters));
     intermediateT xim;
     for (auto tmpk : bra.functions) {
-        const CCFunction &k = tmpk.second;
+        const CCFunction& k = tmpk.second;
         for (auto tmpl : ket.functions) {
-            const CCFunction &l = tmpl.second;
+            const CCFunction& l = tmpl.second;
             real_function_3d kl = (bra(k).function * l.function);
             real_function_3d result = ((*op)(kl)).truncate();
             result.reconstruct(); // for sparse multiplication
@@ -818,7 +566,7 @@ void CCConvolutionOperator::update_elements(const CC_vecfunction &bra, const CC_
 }
 
 
-void CCConvolutionOperator::clear_intermediates(const FuncType &type) {
+void CCConvolutionOperator::clear_intermediates(const FuncType& type) {
     if (world.rank() == 0)
         std::cout << "Deleting all <HOLE|" << name() << "|" << assign_name(type) << "> intermediates \n";
     switch (type) {
@@ -856,7 +604,7 @@ size_t CCConvolutionOperator::info() const {
 }
 
 SeparatedConvolution<double, 3> *
-CCConvolutionOperator::init_op(const OpType &type, const Parameters &parameters) const {
+CCConvolutionOperator::init_op(const OpType& type, const Parameters& parameters) const {
     switch (type) {
         case OT_G12 : {
             if (world.rank() == 0)
@@ -880,7 +628,7 @@ CCConvolutionOperator::init_op(const OpType &type, const Parameters &parameters)
 
 /// Assigns strings to enums for formated output
 std::string
-assign_name(const PairFormat &input) {
+assign_name(const PairFormat& input) {
     switch (input) {
         case PT_FULL:
             return "full";
@@ -899,7 +647,7 @@ assign_name(const PairFormat &input) {
 
 /// Assigns strings to enums for formated output
 std::string
-assign_name(const CCState &input) {
+assign_name(const CCState& input) {
     switch (input) {
         case GROUND_STATE:
             return "Ground State";
@@ -916,7 +664,7 @@ assign_name(const CCState &input) {
 
 /// Assigns strings to enums for formated output
 std::string
-assign_name(const OpType &input) {
+assign_name(const OpType& input) {
     switch (input) {
         case OT_G12:
             return "g12";
@@ -950,7 +698,7 @@ assign_calctype(const std::string name) {
 
 /// Assigns strings to enums for formated output
 std::string
-assign_name(const CalcType &inp) {
+assign_name(const CalcType& inp) {
     switch (inp) {
         case CT_CC2:
             return "CC2";
@@ -978,7 +726,7 @@ assign_name(const CalcType &inp) {
 
 /// Assigns strings to enums for formated output
 std::string
-assign_name(const PotentialType &inp) {
+assign_name(const PotentialType& inp) {
     switch (inp) {
         case POT_F3D_:
             return "F3D";
@@ -1022,7 +770,7 @@ assign_name(const PotentialType &inp) {
 
 /// Assigns strings to enums for formated output
 std::string
-assign_name(const FuncType &inp) {
+assign_name(const FuncType& inp) {
     switch (inp) {
         case HOLE:
             return "Hole";
@@ -1044,9 +792,9 @@ assign_name(const FuncType &inp) {
 
 /// Returns the size of an intermediate
 double
-size_of(const intermediateT &im) {
+size_of(const intermediateT& im) {
     double size = 0.0;
-    for (const auto &tmp : im.allpairs) {
+    for (const auto& tmp : im.allpairs) {
         size += get_size<double, 3>(tmp.second);
     }
     return size;

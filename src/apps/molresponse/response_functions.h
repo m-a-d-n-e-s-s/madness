@@ -94,7 +94,7 @@ struct response_space {
     }
     return *this;  //
   }
-  // Initializes functions to zero
+  // Initialize functions to zero
   // m = number of response states
   // n = number of ground state orbitals
 

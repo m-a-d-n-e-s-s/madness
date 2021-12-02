@@ -16,6 +16,7 @@
 #define __Basis_polynomial_h__
 
 #include <array>
+#include <stdexcept>
 #include <vector>
 
 namespace slymer {

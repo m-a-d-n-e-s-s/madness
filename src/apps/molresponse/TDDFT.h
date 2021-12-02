@@ -245,7 +245,7 @@ class TDDFT {
   // Returns the diagonal (letter A) elements of response matrix
   X_space compute_gamma_full(World& world,
                              X_space& Chi,
-                             XCOperator<double, 3> xc);
+                             const XCOperator<double, 3>& xc);
   X_space compute_gamma_static(World& world,
                                X_space& Chi,
                                XCOperator<double, 3> xc);

@@ -1,6 +1,5 @@
 
 // Copyright 2021 Adrian Hurtado
-#include <madness/world/worldmem.h>
 #include <math.h>
 
 #include <cstdint>

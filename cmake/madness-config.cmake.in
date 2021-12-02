@@ -73,16 +73,16 @@ if (MADNESS_FIND_NUM_COMPONENTS EQUAL 1 AND MADNESS_FIND_COMPONENTS_world_idx GR
 endif()
 
 # Include library IMPORT targets
-if(NOT TARGET madness AND NOT MADNESS_FIND_WORLD_ONLY)
+if(NOT TARGET MADworld)
   include("${CMAKE_CURRENT_LIST_DIR}/madness-targets.cmake")
+endif(NOT TARGET MADworld)
+if(NOT MADNESS_FIND_WORLD_ONLY)
   set(MADNESS_TOP_TARGET_LIBRARY madness)
   set(MADNESS_TARGET_COMPONENT madness)
-endif()
-if(NOT TARGET MADworld AND MADNESS_FIND_WORLD_ONLY)
-  include("${CMAKE_CURRENT_LIST_DIR}/madworld-targets.cmake")
+else(NOT MADNESS_FIND_WORLD_ONLY)
   set(MADNESS_TOP_TARGET_LIBRARY MADworld)
   set(MADNESS_TARGET_COMPONENT world)
-endif()
+endif(NOT MADNESS_FIND_WORLD_ONLY)
 
 # Set the madness libraries target
 set(MADNESS_LIBRARIES ${MADNESS_TOP_TARGET_LIBRARY})
@@ -172,3 +172,21 @@ set(MPIEXEC_EXECUTABLE "@MPIEXEC_EXECUTABLE@" CACHE FILEPATH "Executable for run
 set(MPIEXEC_NUMPROC_FLAG "@MPIEXEC_NUMPROC_FLAG@" CACHE STRING "Maximum number of processors available to run MPI applications")
 set(MPIEXEC_PREFLAGS "@MPIEXEC_PREFLAGS@" CACHE STRING "Flag used by MPI to specify the number of processes for mpiexec")
 set(MPIEXEC_POSTFLAGS "@MPIEXEC_POSTFLAGS@" CACHE STRING "These flags will be placed after all flags passed to mpiexec")
+
+########### PaRSEC ############
+# if MADworld depends on PaRSEC, enable C language and load MPI_C
+get_target_property(_madworld_link_libraries MADworld INTERFACE_LINK_LIBRARIES)
+cmake_policy(SET CMP0057 NEW)  # treat IN_LIST as operator
+if (MPI::MPI_CXX IN_LIST _madworld_link_libraries)
+    set(_mpi_languages CXX)
+    if (PaRSEC::parsec IN_LIST _madworld_link_libraries)
+        enable_language(C)
+        list(APPEND _mpi_languages C)
+        if (NOT TARGET PaRSEC::parsec)
+           include( CMakeFindDependencyMacro )
+           get_filename_component(_parsec_config_dir "@PaRSEC_CONFIG@" DIRECTORY)
+           find_dependency(PaRSEC CONFIG REQUIRED COMPONENTS parsec PATHS "${_parsec_config_dir}" NO_DEFAULT_PATH)
+        endif()
+    endif()
+    find_package(MPI REQUIRED COMPONENTS "${_mpi_languages}")
+endif()

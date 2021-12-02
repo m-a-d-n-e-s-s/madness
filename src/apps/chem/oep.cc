@@ -7,7 +7,7 @@
 
 #include <chem/oep.h>
 #include <chem/BSHApply.h>
-#include <chem/test_utilities.h>
+#include <madness/world/test_utilities.h>
 
 
 
@@ -83,7 +83,7 @@ void OEP::save_restartdata(const Tensor<double>& fock) const {
             .set_ordering("keep").set_verbosity(0).set_orthonormalize_irreps(false);
     auto Vfinal1=p(Vfinal)[0];
 
-    archive::ParallelOutputArchive ar(world, "restartdata_OEP");
+    archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, "restartdata_OEP");
     ar & mo & fock & Vfinal1;
 //    MolecularOrbitals<double,3> amo=to_MO();
 //    archive::ParallelOutputArchive ar(world, "restartdata_OEP");
@@ -92,7 +92,7 @@ void OEP::save_restartdata(const Tensor<double>& fock) const {
 
 void OEP::load_restartdata(Tensor<double>& fock) {
 	if (world.rank()==0) print("loading OEP orbitals from file restartdata_OEP");
-	archive::ParallelInputArchive ar(world, "restartdata_OEP");
+	archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, "restartdata_OEP");
 	MolecularOrbitals<double,3> mo;
 	ar & mo & fock & Vfinal;
 	mo.pretty_print("OEP MOs from file");
@@ -149,8 +149,8 @@ double OEP::compute_and_print_final_energies(const std::string model, const real
 	compute_coulomb_potential(KS_nemo, Jnemo);
 	compute_exchange_potential(KS_nemo, Knemo);
 
-	Exchange<double,3> K(world);
-	K.set_parameters(R_square*HF_nemo,HF_nemo,calc->aocc);
+	Exchange<double,3> K;
+	K.set_parameters(R_square*HF_nemo,HF_nemo,param.lo());
 	double Ex_HF=-inner(R_square*HF_nemo,K(HF_nemo));
 
 	// compute final exchange energy using different methods and final kinetic energy

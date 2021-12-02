@@ -302,7 +302,7 @@ namespace {
 
         // check did not go out of bounds
         typedef typename madness::TensorTypeData<TypeParam>::scalar_type machine_prec;
-        machine_prec small=std::numeric_limits<machine_prec>::epsilon();
+        machine_prec small=2.0*std::numeric_limits<machine_prec>::epsilon();
         EXPECT_NEAR(c.normf(), a.normf(), small*a.normf());
         EXPECT_NEAR(b(patch).normf(), a.normf(), small*a.normf());
 

@@ -7,7 +7,8 @@
 
 #include<chem/TDHF.h>
 #include<chem/oep.h>
-#include<chem/test_utilities.h>
+#include<madness/world/test_utilities.h>
+#include<chem/write_test_input.h>
 #include<chem/commandlineparser.h>
 
 
@@ -39,7 +40,13 @@ struct TDHF_allocator {
 
 /// \param world    the world
 /// \param parser   the parser
-TDHF::TDHF(World &world, const commandlineparser &parser)
+TDHF::TDHF(World &world, const commandlineparser &parser) : TDHF(world,parser,std::make_shared<Nemo>(world,parser)) {}
+
+///  ctor with command line parser, constructs SCF and Nemo objects on-the-fly, and delegates further
+
+/// \param world    the world
+/// \param parser   the parser
+TDHF::TDHF(World &world, const commandlineparser &parser, std::shared_ptr<Nemo> nemo)
         : world(world),
           reference_(std::make_shared<Nemo>(world, parser)),
           parameters(world, parser.value("input")),
@@ -48,7 +55,6 @@ TDHF::TDHF(World &world, const commandlineparser &parser)
           mo_bra_(),
           Q(),
           msg(world) {
-
 
     if (parameters.do_oep()) {
         std::shared_ptr<OEP> oep(new OEP(world, parser));
