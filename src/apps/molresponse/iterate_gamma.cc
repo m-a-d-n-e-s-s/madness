@@ -1,26 +1,16 @@
 
-#include <math.h>
 
-#include <cstdint>
 #include <filesystem>
 #include <map>
 #include <memory>
-#include <string>
-#include <utility>
 
-#include "../chem/NWChem.h"  // For nwchem interface
 #include "../chem/molecule.h"
-#include "Plot_VTK.h"
 #include "TDDFT.h"
 #include "basic_operators.h"
-#include "chem/potentialmanager.h"
 #include "chem/projector.h"  // For easy calculation of (1 - \hat{\rho}^0)
-#include "load_balance.h"
 #include "madness/mra/funcdefaults.h"
 #include "madness/mra/vmra.h"
-#include "molresponse/density.h"
 #include "molresponse/global_functions.h"
-#include "molresponse/property.h"
 #include "molresponse/response_functions.h"
 #include "molresponse/timer.h"
 #include "molresponse/x_space.h"
@@ -66,7 +56,7 @@ vecfuncT K(vecfuncT& ket, vecfuncT& bra, vecfuncT& vf) {
 
 X_space TDDFT::compute_gamma_full(World& world,
                                   X_space& Chi,
-                                  XCOperator<double, 3> xc) {
+                                  const XCOperator<double, 3> &xc) {
   size_t m = Chi.num_states();
   size_t n = Chi.num_orbitals();
   //  copy old pmap
@@ -352,10 +342,10 @@ X_space TDDFT::compute_gamma_tda(World& world,
   // Create Coulomb potential on ground_orbitals
   if (xcf.hf_exchange_coefficient() != 1.0) {
     molresponse::start_timer(world);
-    std::vector<real_function_3d> Wphi;
+    std::vector<real_function_3d> XC_phi;
     for (size_t b = 0; b < m; b++) {
-      Wphi.push_back(xc.apply_xc_kernel(rho_omega[b]));
-      W[b] = mul(world, Wphi[b], phi0_copy);
+      XC_phi.push_back(xc.apply_xc_kernel(rho_omega[b]));
+      W[b] = mul(world, XC_phi[b], phi0_copy);
     }
     molresponse::end_timer(world, "XC[omega] phi:");
   }
@@ -578,3 +568,5 @@ X_space TDDFT::compute_F0X(World& world,
   // Done
   return F0X;
 }
+
+#pragma clang diagnostic pop
