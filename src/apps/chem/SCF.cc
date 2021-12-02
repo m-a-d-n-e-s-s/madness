@@ -202,11 +202,13 @@ SCF::SCF(World& world, const commandlineparser& parser)
 
 void SCF::save_mos(World& world) {
   PROFILE_MEMBER_FUNC(SCF);
-  archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(
-      world, "restartdata", param.get<int>("nio"));
+  archive::ParallelOutputArchive ar(world, "restartdata", param.get<int>("nio"));
+  // IF YOU CHANGE ANYTHING HERE MAKE SURE TO UPDATE THIS VERSION NUMBER
+  unsigned int version = 1;
+  ar& version;
   ar& current_energy& param.spin_restricted();
   ar&(unsigned int)(amo.size());
-  ar& aeps& aocc& aset;
+  ar& aeps& aocc& aset& param.L() & FunctionDefaults<3>::get_k() & molecule& param.xc();
   for (unsigned int i = 0; i < amo.size(); ++i) ar& amo[i];
   if (!param.spin_restricted()) {
     ar&(unsigned int)(bmo.size());
@@ -218,8 +220,7 @@ void SCF::save_mos(World& world) {
   // as no aoamo/aobmo overlap matrix can be computed
   if (param.nwfile() == "none") {
     tensorT Saoamo = matrix_inner(world, ao, amo);
-    tensorT Saobmo =
-        (!param.spin_restricted()) ? matrix_inner(world, ao, bmo) : tensorT();
+    tensorT Saobmo = (!param.spin_restricted()) ? matrix_inner(world, ao, bmo) : tensorT();
     if (world.rank() == 0) {
       archive::BinaryFstreamOutputArchive arao("restartaodata");
       arao << Saoamo << aeps << aocc << aset;
@@ -238,24 +239,39 @@ void SCF::load_mos(World& world) {
   amo.clear();
   bmo.clear();
 
-  archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(
-      world, "restartdata");
+  archive::ParallelInputArchive ar(world, "restartdata");
 
   /*
     File format:
-
+        unsigned int version;
+        double current energy;
     bool spinrestricted --> if true only alpha orbitals are present
-
     unsigned int nmo_alpha;
     Tensor<double> aeps;
     Tensor<double> aocc;
     vector<int> aset;
+        double L;
+        int k;
+        Molecule molecule;
+        std::string xc;
     for i from 0 to nalpha-1:
     .   Function<double,3> amo[i]
-
     repeat for beta if !spinrestricted
-
    */
+  // Local copies for a basic check
+  double L;
+  int k1;                    // Ignored for restarting, used in response only
+  unsigned int version = 1;  // UPDATE THIS IF YOU CHANGE ANYTHING
+  unsigned int archive_version;
+
+  ar& archive_version;
+
+  if (archive_version != version) {
+    if (world.rank() == 0)
+      print(
+          "Loading from a different version of archive. Archive version", archive_version, "MADNESS version", version);
+    throw "Invalid archive";
+  }
 
   // LOTS OF LOGIC MISSING HERE TO CHANGE OCCUPATION NO., SET,
   // EPS, SWAP, ... sigh
@@ -263,23 +279,35 @@ void SCF::load_mos(World& world) {
 
   ar& nmo;
   MADNESS_ASSERT(nmo >= unsigned(param.nmo_alpha()));
-  ar& aeps& aocc& aset;
+  ar& aeps& aocc& aset& L& k1& molecule& param.xc();
+  // Some basic checks
+  if (L != param.L()) {
+    if (world.rank() == 0)
+      print(
+          "Warning: Box size mismatch between archive and input parameter. "
+          "Archive value",
+          L,
+          "Param value",
+          param.L());
+    throw "Mismatch in box sizes";
+  }
+  if (world.rank() == 0) {
+    print("Restarting from this molecular geometry");
+    molecule.print();
+  }
   amo.resize(nmo);
   for (unsigned int i = 0; i < amo.size(); ++i) ar& amo[i];
   unsigned int n_core = molecule.n_core_orb_all();
   if (nmo > unsigned(param.nmo_alpha())) {
-    aset = vector<int>(aset.begin() + n_core,
-                       aset.begin() + n_core + param.nmo_alpha());
-    amo = vecfuncT(amo.begin() + n_core,
-                   amo.begin() + n_core + param.nmo_alpha());
+    aset = vector<int>(aset.begin() + n_core, aset.begin() + n_core + param.nmo_alpha());
+    amo = vecfuncT(amo.begin() + n_core, amo.begin() + n_core + param.nmo_alpha());
     aeps = copy(aeps(Slice(n_core, n_core + param.nmo_alpha() - 1)));
     aocc = copy(aocc(Slice(n_core, n_core + param.nmo_alpha() - 1)));
   }
 
   if (amo[0].k() != k) {
     reconstruct(world, amo);
-    for (unsigned int i = 0; i < amo.size(); ++i)
-      amo[i] = madness::project(amo[i], k, thresh, false);
+    for (unsigned int i = 0; i < amo.size(); ++i) amo[i] = madness::project(amo[i], k, thresh, false);
     world.gop.fence();
   }
   set_thresh(world, amo, thresh);
@@ -304,18 +332,15 @@ void SCF::load_mos(World& world) {
       for (unsigned int i = 0; i < bmo.size(); ++i) ar& bmo[i];
 
       if (nmo > unsigned(param.nmo_beta())) {
-        bset = vector<int>(bset.begin() + n_core,
-                           bset.begin() + n_core + param.nmo_beta());
-        bmo = vecfuncT(bmo.begin() + n_core,
-                       bmo.begin() + n_core + param.nmo_beta());
+        bset = vector<int>(bset.begin() + n_core, bset.begin() + n_core + param.nmo_beta());
+        bmo = vecfuncT(bmo.begin() + n_core, bmo.begin() + n_core + param.nmo_beta());
         beps = copy(beps(Slice(n_core, n_core + param.nmo_beta() - 1)));
         bocc = copy(bocc(Slice(n_core, n_core + param.nmo_beta() - 1)));
       }
 
       if (bmo[0].k() != k) {
         reconstruct(world, bmo);
-        for (unsigned int i = 0; i < bmo.size(); ++i)
-          bmo[i] = madness::project(bmo[i], k, thresh, false);
+        for (unsigned int i = 0; i < bmo.size(); ++i) bmo[i] = madness::project(bmo[i], k, thresh, false);
         world.gop.fence();
       }
       set_thresh(world, amo, thresh);
