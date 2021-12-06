@@ -14,6 +14,9 @@
 #include <chem/pointgroupsymmetry.h>
 
 #include<madness/mra/mra.h>
+#include<madness/mra/funcplot.h>
+
+using namespace madness;
 
 namespace madness {
 
@@ -57,6 +60,19 @@ void MolecularOrbitals<T,NDIM>::post_process_mos(World& world, const double thre
 	set_thresh(world,mo,thresh);
 }
 
+
+/// @param[in] cubefile_header  header of the cube file, from molecule::cubefile_header()
+template<typename T, std::size_t NDIM>
+void MolecularOrbitals<T,NDIM>::print_cubefiles(const std::string name, const std::vector<std::string> cubefile_header) const {
+    if (get_mos().size()==0) return;
+    if constexpr (std::is_same<T,double_complex>::value) return;
+    World& world=get_mos().front().world();
+    for (int i=0; i<get_mos().size(); ++i) {
+        std::string filename=name+"_"+std::to_string(i)+".cube";
+        if constexpr (std::is_same<T,double>::value)
+            plot_cubefile<3>(world,get_mos()[i],filename,cubefile_header);
+    }
+}
 
 
 /// save MOs in the AO projection for geometry restart

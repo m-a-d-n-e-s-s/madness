@@ -29,34 +29,35 @@ MolecularOrbitals<T, NDIM> Localizer<T, NDIM>::localize(const MolecularOrbitals<
                                                         const Tensor<T>& overlap, bool randomize) const {
 
     World& world = mo_in.get_mos()[0].world();
-
+    std::vector<Function<T, NDIM>> result;
     long nmo=mo_in.get_mos().size();
     Tensor<T> UT(nmo,nmo);
     if (enforce_core_valence_separation) {
         MADNESS_CHECK(Fock.dim(0)==mo_in.get_mos().size());
         MADNESS_CHECK(Fock.dim(0)==overlap.dim(0));
-//        auto mo_in1=localize(mo_in,randomize);
 
         MolecularOrbitals<T,NDIM> mo_cv_separated= separate_core_valence(mo_in,Fock,overlap);
         auto slices=MolecularOrbitals<T,NDIM>::convert_set_to_slice(mo_in.get_localize_sets());
 
         // localize all orbital sets separately
         for (int set=0; set<=mo_cv_separated.get_localize_sets().back(); ++set) {
-//            print("localizing set",set);
             Slice s=slices[set];
-            MolecularOrbitals<T,NDIM>  mo1=mo_in.get_subset(set);
+            MolecularOrbitals<T,NDIM> mo1=mo_cv_separated.get_subset(set);
             Tensor<T> block_UT=compute_localization_matrix(world,mo1,randomize);
             UT(s,s)=block_UT;
         }
-
-//        print("UT");
+//        print("UT in cv-relocalization");
 //        print(UT);
+
+        result = transform(world, mo_cv_separated.get_mos(), transpose(UT));
+//        result=mo_cv_separated.get_mos();
+
 
     } else {
         UT=compute_localization_matrix(world,mo_in,randomize);
+        result = transform(world, mo_in.get_mos(), transpose(UT));
     }
 
-    std::vector<Function<T, NDIM>> result = transform(world, mo_in.get_mos(), transpose(UT));
     truncate(world, result);
     Tensor<double> eps(mo_in.get_mos().size());
     MolecularOrbitals<T, NDIM> mo_out(result,eps,{},Tensor<double>(),mo_in.get_localize_sets());
@@ -90,14 +91,13 @@ Tensor<T> Localizer<T, NDIM>::compute_localization_matrix(World& world, const Mo
 }
 
 template<typename T, std::size_t NDIM>
-MolecularOrbitals<T, NDIM> Localizer<T,NDIM>::separate_core_valence(const MolecularOrbitals<T, NDIM>& mo_in, const Tensor<T>& Fock,
-                                                 const Tensor<T>& overlap) const {
+MolecularOrbitals<T, NDIM> Localizer<T,NDIM>::separate_core_valence(const MolecularOrbitals<T, NDIM>& mo_in,
+                                  const Tensor<T>& Fock, const Tensor<T>& overlap) const {
     World& world = mo_in.get_mos()[0].world();
 
     Tensor<double> UT= compute_core_valence_separation_transformation_matrix(world,mo_in,Fock,overlap);
 
     std::vector<Function<T, NDIM>> result = transform(world, mo_in.get_mos(), UT);
-//    truncate(world, result);
     Tensor<double> eps(mo_in.get_mos().size());
     MolecularOrbitals<T, NDIM> mo_out(result,eps,{},Tensor<double>(),mo_in.get_localize_sets());
     mo_out.set_all_orbitals_occupied();
@@ -123,9 +123,11 @@ Tensor<T> Localizer<T,NDIM>::compute_core_valence_separation_transformation_matr
 
     // compute new fock matrix
     Tensor<T> fnew=inner(U,inner(Fock,U,1,0),0,0);
-    print("fnew in compute_core_valence_separation_transformation_matrix");
-    print(fnew);
     bool success= check_core_valence_separation(fnew,mo_in.get_localize_sets());
+    if (not success) {
+        print("fnew in compute_core_valence_separation_transformation_matrix");
+        print(fnew);
+    }
     MADNESS_CHECK(success);
     return U;
 }
@@ -135,8 +137,8 @@ bool Localizer<T,NDIM>::check_core_valence_separation(const Tensor<T>& Fock, con
     std::vector<Slice> slices=MolecularOrbitals<T,NDIM>::convert_set_to_slice(localized_set);
     Tensor<T> F=copy(Fock);
     for (auto s : slices) F(s,s)=0.0;
-    double error=F.normf();
-    bool success=(error<FunctionDefaults<NDIM>::get_thresh()*10.0);
+    double error=F.absmax();
+    bool success=(error<FunctionDefaults<NDIM>::get_thresh()*30.0);
     if (not success) {
         print("faulty localization: core-valence separation requested but Fock matrix not block diagonal");
         print("error norm",error);

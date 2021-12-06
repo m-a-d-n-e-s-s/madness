@@ -54,6 +54,10 @@ public:
         return *this;
     }
 
+    AtomicBasisSet get_aobasis() const {
+        return aobasis;
+    }
+
     void print_info() const {
         print("Localizer info");
         print("method  ",method);
