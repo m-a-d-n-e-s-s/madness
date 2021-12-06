@@ -157,7 +157,7 @@ double Nemo::value(const Tensor<double>& x) {
 	calc->molecule.set_all_coords(x.reshape(calc->molecule.natom(), 3));
 	coords_sum = xsq;
 
-	if (world.rank()==0) {
+	if (world.rank()==0 and param.print_level()>0) {
 	    print("\n");
 	    calc->molecule.print();
 	}
@@ -328,7 +328,7 @@ double Nemo::solve(const SCFProtocol& proto) {
 	    if (localized) nemo=localize(nemo,proto.dconv,iter==0);
 	    std::vector<std::string> str_irreps;
 	    if (do_symmetry()) nemo=symmetry_projector(nemo,R_square,str_irreps);
-	    if (world.rank()==0) print("orbital irreps",str_irreps);
+	    if (world.rank()==0 and param.print_level()>9) print("orbital irreps",str_irreps);
 	    vecfuncT R2nemo=mul(world,R_square,nemo);
 	    truncate(world,R2nemo);
 
@@ -341,7 +341,7 @@ double Nemo::solve(const SCFProtocol& proto) {
         energy=energies[0];
 
 		// compute the fock matrix
-        timer t_fock(world);
+        timer t_fock(world,param.print_level()>2);
 		vecfuncT Vnemo=Unemo+Jnemo-Knemo;
 		if (do_pcm()) Vnemo+=pcmnemo;
 		tensorT fock=matrix_inner(world,R2nemo,Vnemo,false);   // not symmetric actually
@@ -352,7 +352,7 @@ double Nemo::solve(const SCFProtocol& proto) {
 
         // Diagonalize the Fock matrix to get the eigenvalues and eigenvectors
         if (not localized) {
-            timer t(world);
+            timer t(world,param.print_level()>2);
     		// report the off-diagonal fock matrix elements
             tensorT fock_offdiag=copy(fock);
             for (int i=0; i<fock.dim(0); ++i) fock_offdiag(i,i)=0.0;
@@ -377,7 +377,7 @@ double Nemo::solve(const SCFProtocol& proto) {
         	for (int i=0; i<calc->aeps.size(); ++i) calc->aeps[i]=fock(i,i);
         }
 
-        timer t_bsh(world);
+        timer t_bsh(world,param.print_level()>2);
 		BSHApply<double,3> bsh_apply(world);
 		bsh_apply.metric=R_square;
 		bsh_apply.lo=get_calc()->param.lo();
@@ -405,7 +405,7 @@ double Nemo::solve(const SCFProtocol& proto) {
 		if (param.save()) calc->save_mos(world);
         t_bsh.tag("orbital update");
 
-		if (world.rank() == 0) {
+		if (world.rank() == 0 and param.print_level()>1) {
 			printf("finished iteration %2d at time %8.1fs with energy  %12.8f\n",
 					iter, wall_time(), energy);
 		}
@@ -475,7 +475,7 @@ double Nemo::compute_energy(const vecfuncT& psi, const vecfuncT& Jpsi,
 /// given nemos, compute the HF energy using the regularized expressions for T and V
 std::vector<double> Nemo::compute_energy_regularized(const vecfuncT& nemo, const vecfuncT& Jnemo,
         const vecfuncT& Knemo, const vecfuncT& Unemo) const {
-    timer t(world);
+    timer t(world,param.print_level()>2);
 
     vecfuncT R2nemo=R_square*nemo;
     truncate(world,R2nemo);
@@ -560,7 +560,7 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo,
 		vecfuncT& Unemo) const {
 
     {
-        timer t(world);
+        timer t(world,param.print_level()>2);
         real_function_3d vcoul;
         int ispin = 0;
         auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world, world.size()));
@@ -582,8 +582,8 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo,
                 t.tag("compute Knemo");
             }
             t.tag("initialize K operator");
-            taskq->set_printlevel(3);
-            taskq->print_taskq();
+            taskq->set_printlevel(param.print_level());
+            if (param.print_level()>9) taskq->print_taskq();
             taskq->run_all();
         }
 
@@ -592,7 +592,7 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo,
             XCOperator<double, 3> xcoperator(world, this, ispin);
             double exc = 0.0;
             if (ispin == 0) exc = xcoperator.compute_xc_energy();
-            print("exc", exc);
+//            print("exc", exc);
             // copy???
             real_function_3d xc_pot = xcoperator.make_xc_potential();
 
@@ -865,7 +865,7 @@ Tensor<double> Nemo::hessian(const Tensor<double>& x) {
     // the perturbed MOs determined by the CPHF equations
     std::vector<vecfuncT> xi=compute_all_cphf();
 
-    timer time_hessian(world);
+    timer time_hessian(world,param.print_level()>2);
 
     // compute the derivative of the density d/dx rho; 2: closed shell
     const real_function_3d rhonemo=2.0*make_density(get_calc()->get_aocc(),nemo);
@@ -1355,7 +1355,7 @@ std::vector<vecfuncT> Nemo::compute_all_cphf() {
     }
 
 
-    timer t1(world);
+    timer t1(world,param.print_level()>2);
     vecfuncT R2nemo=mul(world,R_square,nemo);
     const real_function_3d rhonemo=2.0*make_density(calc->aocc, nemo);
     t1.tag("make density");

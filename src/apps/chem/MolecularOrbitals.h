@@ -178,6 +178,9 @@ public:
 	    }
 	}
 
+    /// @param[in] cubefile_header  header of the cube file, from molecule::cubefile_header()
+    void print_cubefiles(const std::string name, const std::vector<std::string> cubefile_header) const;
+
 	template <typename Archive>
 	void serialize (Archive& ar) {
 		std::size_t nmo=mo.size();
