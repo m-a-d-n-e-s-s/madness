@@ -323,33 +323,37 @@ DistributedMatrix<T> Localizer<T, NDIM>::localize_new(World& world, const std::v
             Slice s(ilo, ihi - 1);
             C(_, s) = inner(C(_, s), avec);
 
-            // generate shell dimensions for atomic eigenfunctions
-            // ... this relies upon spherical symmetry being enforced
-            // when making atomic states
-            const tensorT& aeps = aobasis.get_aeps(molecule, iat);
-            //print(aeps);
-            double prev = aeps(0L);
-            int start = 0;
-            int i; // used after loop
-            for (i = 0; i < aeps.dim(0); ++i) {
-                //print(" ... ", i, prev, aeps(i), (std::abs(aeps(i)-prev) > 1e-2*std::abs(prev)));
-                if (std::abs(aeps(i) - prev) > 1e-2 * std::abs(prev)) {
-                    at_to_bf.push_back(ilo + start);
-                    at_nbf.push_back(i - start);
-                    //print("    ", start, i-start);
-                    start = i;
-                }
-                prev = aeps(i);
-            }
-            at_to_bf.push_back(ilo + start);
-            at_nbf.push_back(i - start);
-            //print("    ", start, i-start);
+            // // generate shell dimensions for atomic eigenfunctions
+            // // ... this relies upon spherical symmetry being enforced
+            // // when making atomic states
+            // const tensorT& aeps = aobasis.get_aeps(molecule, iat);
+            // //print(aeps);
+            // double prev = aeps(0L);
+            // int start = 0;
+            // int i; // used after loop
+            // for (i = 0; i < aeps.dim(0); ++i) {
+            //     //print(" ... ", i, prev, aeps(i), (std::abs(aeps(i)-prev) > 1e-2*std::abs(prev)));
+            //     if (std::abs(aeps(i) - prev) > 1e-2 * std::abs(prev)) {
+            //         at_to_bf.push_back(ilo + start);
+            //         at_nbf.push_back(i - start);
+            //         //print("    ", start, i-start);
+            //         start = i;
+            //     }
+            //     prev = aeps(i);
+            // }
+            // at_to_bf.push_back(ilo + start);
+            // at_nbf.push_back(i - start);
+            // //print("    ", start, i-start);
+
+            at_to_bf.push_back(ilo); at_nbf.push_back(1); // 1s core orbital on atom
+            if (avec.dim(1) > 1) at_to_bf.push_back(ilo+1); at_nbf.push_back(avec.dim(1)-1); // everything else
+
             ilo = ihi;
         }
         MADNESS_ASSERT(ilo == nao);
         MADNESS_ASSERT(std::accumulate(at_nbf.begin(), at_nbf.end(), 0) == nao);
         MADNESS_ASSERT(at_to_bf.back() + at_nbf.back() == nao);
-        //print(at_to_bf, at_nbf);
+        //print("newloc", at_to_bf, at_nbf);
     } else {
         aobasis.shells_to_bfn(molecule, at_to_bf, at_nbf);
         //aobasis.atoms_to_bfn(molecule, at_to_bf, at_nbf);
@@ -370,7 +374,7 @@ DistributedMatrix<T> Localizer<T, NDIM>::localize_new(World& world, const std::v
         //MKL_Set_Num_Threads_Local(16);
 
         tensorT Q(nmo, natom);
-        double breaksym = 1e-3;
+        double breaksym = 0.0; // was 1e-3;
         auto QQ = [&at_to_bf, &at_nbf, &breaksym](const tensorT& C, int i, int j, int a) -> double {
             int lo = at_to_bf[a], nbf = at_nbf[a];
             const double *Ci = &C(i, lo);
@@ -445,7 +449,7 @@ DistributedMatrix<T> Localizer<T, NDIM>::localize_new(World& world, const std::v
             xprev = x; // Save for next iteration
             gprev = copy(g);
 
-            double mu = 0.01 / std::max(0.1, maxg); // Restrict intial step mu by size of max gradient
+            double mu = 0.05 / std::max(0.1, maxg); // Take larger inital step (was 0.01), and restrict intial step mu by size of max gradient
             tensorT dU = matrix_exponential(x * mu);
             tensorT newC = inner(dU, C, 0, 0);
             double newW;
@@ -474,10 +478,10 @@ DistributedMatrix<T> Localizer<T, NDIM>::localize_new(World& world, const std::v
                 mu = mu2;
             }
 
-            if (maxg < 10 * thresh) {
-                breaksym = 1e-5;
-                rprev = true; // since just messed up the gradient
-            }
+            // if (maxg < 10 * thresh) {
+            //     breaksym = 0.0; // was 1e-5;
+            //     rprev = true; // since just messed up the gradient
+            // }
 
             dU = matrix_exponential(x * mu);
             U = inner(U, dU, 1, 0);
