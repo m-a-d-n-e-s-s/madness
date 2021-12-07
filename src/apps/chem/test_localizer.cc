@@ -34,27 +34,6 @@ double fock_trace(const Tensor<double>& fock) {
     return result;
 }
 
-/// compute the hcore Fock matrix
-template<typename T, std::size_t NDIM>
-Tensor<T> compute_fock_matrix(World& world, std::shared_ptr<NuclearCorrelationFactor>& ncf,
-                              const MolecularOrbitals<T, NDIM>& mo, real_function_3d rho=real_function_3d()) {
-    timer t(world);
-    if (not rho.is_initialized()) rho=2.0*dot(world,mo.get_mos(),mo.get_mos());
-    real_function_3d lda_potential=SCF::make_lda_potential(world, rho);
-    real_convolution_3d poisson= CoulombOperator(world,1.e-4,FunctionDefaults<3>::get_thresh());
-    real_function_3d coulombpotential=poisson(rho);
-    real_function_3d localpotential=lda_potential+coulombpotential;
-    std::shared_ptr<Fock<double, 3> > fock(new Fock<double, 3>(world));
-    fock->add_operator("V", std::make_shared<Nuclear<double, 3> >(world, ncf));
-    fock->add_operator("(J + XC)", std::make_shared<LocalPotentialOperator<double, 3> >(world,"LDA+J",localpotential));
-    fock->add_operator("T", std::make_shared<Kinetic<double, 3> >(world));
-    print("Fock operator for initial guess",fock->info());
-    Tensor<T> f = (*fock)(mo.get_mos() * ncf->square(), mo.get_mos());
-    t.end("initial guess");
-    return f;
-}
-
-
 /// distance between v1 and v2
 double dist(const Vector<double,3> v1, const Vector<double,3> v2) {
     return (v1-v2).normf();
@@ -151,16 +130,18 @@ bool test_ne_boys(World& world, const Nemo& nemo) {
 
 }
 
-/// test localized orbitals: should be pointing towards the edges of a tetrahedron
+/// test localized orbitals
+
+/// tests invariance of the Fock matrix trace, core-valence separation and location of orbitals on bonds
 bool test_ethylene(World& world, const Nemo& nemo, const std::string geometry="ethylene") {
-    test_output tout("testing ethylene localization");
-    tout.set_cout_to_terminal();
+    test_output tout("testing localization on: "+geometry);
+//    tout.set_cout_to_terminal();
     bool success=true;
 
     // number of orbitals per bond
     std::map<std::pair<int,int>,int> bonds;
     std::map<std::pair<int,int>,int> bananabonds;
-    if (geometry=="ethyiene") {
+    if (geometry=="ethylene") {
         bonds[{0,2}]=0; // C1--H1
         bonds[{0,3}]=0; // C1--H2
         bonds[{1,4}]=0; // C2--H3
@@ -191,8 +172,8 @@ bool test_ethylene(World& world, const Nemo& nemo, const std::string geometry="e
 
     Localizer<double,3> localizer(world,nemo.get_calc()->aobasis,nemo.molecule(),nemo.get_calc()->ao);
 
-//    for (std::string method : {"new"}) {
-    for (std::string method : {"boys","pm","new"}) {
+//    for (std::string method : {"boys","pm","new"}) {
+    for (std::string method : {"boys","new"}) {
         for (bool enforce_cv : {true, false}) {
 
             for (auto& bond : bonds) bond.second=0;
@@ -203,7 +184,7 @@ bool test_ethylene(World& world, const Nemo& nemo, const std::string geometry="e
             localizer.print_info();
 
             auto lmo=localizer.localize(mos, fock, overlap, true);
-            if (enforce_cv) lmo.print_cubefiles("mo_ethylene"+method,mol.cubefile_header());
+//            if (enforce_cv) lmo.print_cubefiles("mo_ethylene"+method,mol.cubefile_header());
             nemo.get_calc()->amo=lmo.get_mos();
 
             Tensor<double> fock2 = nemo.compute_fock_matrix(lmo.get_mos(), lmo.get_occ());
@@ -280,6 +261,7 @@ int main(int argc, char **argv) {
         World& world = madness::initialize(argc, argv);
         startup(world, argc, argv);
         print("entering test_localizer");
+        timer t(world);
         commandlineparser parser(argc,argv);
         parser.print_map();
         const int k = 8;
@@ -290,30 +272,38 @@ int main(int argc, char **argv) {
         FunctionDefaults<3>::set_thresh(thresh);
         FunctionDefaults<3>::set_k(k);
 
+        std::string geometry="ethylene";
         Nemo::NemoCalculationParameters param;
         param.set_user_defined_value("no_orient",true);
         param.set_user_defined_value<std::vector<double>>("protocol",{1.e-5});
         param.set_user_defined_value("k",8);
         param.set_user_defined_value("econv",1.e-4);
-        param.set_user_defined_value("maxiter",4);
+        param.set_user_defined_value("maxiter",0);
+        param.set_user_defined_value("xc",std::string("lda"));
         param.set_user_defined_value("localize",std::string("canon"));
         param.set_user_defined_value("print_level",2);
 //        param.set_user_defined_value("ncf",std::pair<std::string,double>("none",0.0));
         write_test_input test_input(param);
         parser.set_keyval("input",test_input.filename());
-//        parser.set_keyval("structure","ethylene");
-        parser.set_keyval("structure","methane");
+        parser.set_keyval("structure",geometry);
         Nemo nemo(world,parser);
-        nemo.value();
 
-        test_ethylene(world,nemo,"methane");
-//        test_ethylene(world,nemo);
+        test_output tout1(geometry+" prep calculation");
+        nemo.value();
+        tout1.end(true);
+
+        bool success=test_ethylene(world,nemo,geometry);
+        if (not success) result++;
 
         parser.set_keyval("structure","ne");
         Nemo nemo1(world,parser);
+        test_output tout("ne prep calculation");
         nemo1.value();
-        test_ne_boys(world,nemo1);
+        tout.end(true);
+        success=test_ne_boys(world,nemo1);
+        if (not success) result++;
         print("result", result);
+        t.end("finished localizer test");
     }
     madness::finalize();
     return result;

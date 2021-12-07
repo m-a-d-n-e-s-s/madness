@@ -46,12 +46,8 @@ MolecularOrbitals<T, NDIM> Localizer<T, NDIM>::localize(const MolecularOrbitals<
             Tensor<T> block_UT=compute_localization_matrix(world,mo1,randomize);
             UT(s,s)=block_UT;
         }
-//        print("UT in cv-relocalization");
-//        print(UT);
 
         result = transform(world, mo_cv_separated.get_mos(), transpose(UT));
-//        result=mo_cv_separated.get_mos();
-
 
     } else {
         UT=compute_localization_matrix(world,mo_in,randomize);
@@ -138,7 +134,7 @@ bool Localizer<T,NDIM>::check_core_valence_separation(const Tensor<T>& Fock, con
     Tensor<T> F=copy(Fock);
     for (auto s : slices) F(s,s)=0.0;
     double error=F.absmax();
-    bool success=(error<FunctionDefaults<NDIM>::get_thresh()*30.0);
+    bool success=(error<FunctionDefaults<NDIM>::get_thresh()*5.0);
     if (not success) {
         print("faulty localization: core-valence separation requested but Fock matrix not block diagonal");
         print("error norm",error);

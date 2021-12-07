@@ -374,6 +374,7 @@ protected:
 public:
 	QCParameter& get_parameter(const std::string key) {
 		if (not parameter_exists(key)) {
+            madness::print("\ncould not find parameter for key",key,"\n");
 			throw std::runtime_error("could not find parameter for key "+key);
 		}
 		QCParameter& parameter=parameters.find(key)->second;
