@@ -36,10 +36,11 @@ struct test_output {
 	}
 
     void checkpoint(bool success, std::string message) {
-        have_checkpoints=true;
         bool use_logger=cout_set_to_logger;
         set_cout_to_terminal();
-        std::cout << "  " << ltrim_to_length(message,68);
+        if (not have_checkpoints) print("");    // first checkpoint
+        have_checkpoints=true;
+        std::cout << "  " << ltrim_to_length(message,66);
         print_success_fail(std::cout,success);
         if (not success) {
             print_and_clear_log();
@@ -54,7 +55,7 @@ struct test_output {
 
 	int end(bool success) {
         set_cout_to_terminal();
-        if (have_checkpoints) std::cout << ltrim_to_length(" --> final result -->",70);
+        if (have_checkpoints) std::cout << ltrim_to_length("--> final result -->",70);
         print_success_fail(std::cout,success);
         if (not success) print_and_clear_log();
 		return (success) ? 0 : 1;
