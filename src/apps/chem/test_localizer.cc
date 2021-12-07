@@ -152,22 +152,29 @@ bool test_ne_boys(World& world, const Nemo& nemo) {
 }
 
 /// test localized orbitals: should be pointing towards the edges of a tetrahedron
-bool test_ethylene(World& world, const Nemo& nemo) {
+bool test_ethylene(World& world, const Nemo& nemo, const std::string geometry="ethylene") {
     test_output tout("testing ethylene localization");
     tout.set_cout_to_terminal();
     bool success=true;
 
     // number of orbitals per bond
     std::map<std::pair<int,int>,int> bonds;
-    bonds[{0,2}]=0; // C1--H1
-    bonds[{0,3}]=0; // C1--H2
-    bonds[{1,4}]=0; // C2--H3
-    bonds[{1,5}]=0; // C2--H4
-    bonds[{0,1}]=0; // C1--C2
     std::map<std::pair<int,int>,int> bananabonds;
-    bananabonds[{0,1}]=0; // C1--C2
+    if (geometry=="ethyiene") {
+        bonds[{0,2}]=0; // C1--H1
+        bonds[{0,3}]=0; // C1--H2
+        bonds[{1,4}]=0; // C2--H3
+        bonds[{1,5}]=0; // C2--H4
+        bonds[{0,1}]=0; // C1--C2
+        bananabonds[{0,1}]=0; // C1--C2
+    } else if (geometry=="methane") {
+        bonds[{0, 1}] = 0; // C1--H1
+        bonds[{0, 2}] = 0; // C1--H2
+        bonds[{0, 3}] = 0; // C1--H3
+        bonds[{0, 4}] = 0; // C1--H4
+    }
 
-    Molecule ethylene_mol=nemo.molecule();
+    Molecule mol=nemo.molecule();
     MolecularOrbitals<double,3> mos;
     mos.update_mos_and_eps(nemo.get_calc()->amo,nemo.get_calc()->aeps);
     mos.set_all_orbitals_occupied();
@@ -196,7 +203,7 @@ bool test_ethylene(World& world, const Nemo& nemo) {
             localizer.print_info();
 
             auto lmo=localizer.localize(mos, fock, overlap, true);
-            if (enforce_cv) lmo.print_cubefiles("mo_ethylene"+method,ethylene_mol.cubefile_header());
+            if (enforce_cv) lmo.print_cubefiles("mo_ethylene"+method,mol.cubefile_header());
             nemo.get_calc()->amo=lmo.get_mos();
 
             Tensor<double> fock2 = nemo.compute_fock_matrix(lmo.get_mos(), lmo.get_occ());
@@ -222,21 +229,21 @@ bool test_ethylene(World& world, const Nemo& nemo) {
                 for (auto& bond : bonds) {
                     int i=bond.first.first;
                     int j=bond.first.second;
-                    Vector<double,3> iatom=ethylene_mol.get_atom(i).get_coords();
-                    Vector<double,3> jatom=ethylene_mol.get_atom(j).get_coords();
+                    Vector<double,3> iatom=mol.get_atom(i).get_coords();
+                    Vector<double,3> jatom=mol.get_atom(j).get_coords();
                     if (is_close(c,iatom) or is_close(c,jatom)) continue; // ignore core orbitals
                     if (is_aligned(iatom,jatom,c)) bond.second++;
                 }
                 for (auto& bond : bananabonds) {
                     int i=bond.first.first;
                     int j=bond.first.second;
-                    Vector<double,3> iatom=ethylene_mol.get_atom(i).get_coords();
-                    Vector<double,3> jatom=ethylene_mol.get_atom(j).get_coords();
+                    Vector<double,3> iatom=mol.get_atom(i).get_coords();
+                    Vector<double,3> jatom=mol.get_atom(j).get_coords();
                     if (is_centered_normal(iatom,jatom,c) and
                             (not is_aligned(iatom,jatom,c))) bond.second++;
                 }
             }
-            ethylene_mol.print();
+            mol.print();
             for (auto bond : bonds) {
                 print("found ",bond.second,"bonds between atoms",bond.first.first,bond.first.second);
             }
@@ -244,12 +251,19 @@ bool test_ethylene(World& world, const Nemo& nemo) {
                 print("found ",bond.second,"banana bonds between atoms",bond.first.first,bond.first.second);
             }
             bool success2=true;
-            success2=success2 and bonds[{0,2}]==1; // C1--H1
-            success2=success2 and bonds[{0,3}]==1; // C1--H2
-            success2=success2 and bonds[{1,4}]==1; // C2--H3
-            success2=success2 and bonds[{1,5}]==1; // C2--H4
-            if (method=="boys") success2=success2 and bananabonds[{0,1}]==2; // C1-C2
-            if (method=="new" or method=="pm") success2=success2 and bonds[{0,1}]==2;
+            if (geometry=="ethylene") {
+                success2=success2 and bonds[{0,2}]==1; // C1--H1
+                success2=success2 and bonds[{0,3}]==1; // C1--H2
+                success2=success2 and bonds[{1,4}]==1; // C2--H3
+                success2=success2 and bonds[{1,5}]==1; // C2--H4
+                if (method=="boys") success2=success2 and bananabonds[{0,1}]==2; // C1-C2
+                if (method=="new" or method=="pm") success2=success2 and bonds[{0,1}]==2;
+            } else if (geometry=="methane") {
+                success2=success2 and bonds[{0,1}]==1; // C--H1
+                success2=success2 and bonds[{0,2}]==1; // C--H2
+                success2=success2 and bonds[{0,3}]==1; // C--H3
+                success2=success2 and bonds[{0,4}]==1; // C--H4
+            }
             tout.checkpoint(success2,"center of the local orbitals for "+method);
             success=success and success2;
 
@@ -284,14 +298,16 @@ int main(int argc, char **argv) {
         param.set_user_defined_value("maxiter",4);
         param.set_user_defined_value("localize",std::string("canon"));
         param.set_user_defined_value("print_level",2);
-        param.set_user_defined_value("ncf",std::pair<std::string,double>("none",0.0));
+//        param.set_user_defined_value("ncf",std::pair<std::string,double>("none",0.0));
         write_test_input test_input(param);
         parser.set_keyval("input",test_input.filename());
-        parser.set_keyval("structure","ethylene");
+//        parser.set_keyval("structure","ethylene");
+        parser.set_keyval("structure","methane");
         Nemo nemo(world,parser);
         nemo.value();
 
-        test_ethylene(world,nemo);
+        test_ethylene(world,nemo,"methane");
+//        test_ethylene(world,nemo);
 
         parser.set_keyval("structure","ne");
         Nemo nemo1(world,parser);
