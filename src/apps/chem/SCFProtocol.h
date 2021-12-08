@@ -96,14 +96,20 @@ public:
             infer_thresholds(current_prec);
         }
         if (world.rank()==0) {
-            printf("\nstarting protocol at time %8.1fs \n",wall_time());
+            std::stringstream ss;
+            ss <<"\nstarting protocol at time" << std::setw(8) << std::setprecision(2)
+               << wall_time() << "s";
+            print(ss.str());
             print("precision steps ",start_prec," --> ",end_prec);
             print("protocol: thresh",thresh,"econv ",econv,"dconv",dconv);
         }
     }
 
     bool finished() const {
-        if(world.rank()==0) printf("\nending protocol at time %8.1fs \n",wall_time());
+        std::stringstream ss;
+        ss <<"\nending protocol at time" << std::setw(8) << std::setprecision(2)
+           << wall_time() << "s";
+        if(world.rank()==0) print(ss.str());
     	return converged;
     }
 
