@@ -1173,7 +1173,7 @@ namespace madness {
         };
 
 
-        /// Serialize a STL \c vector<bool> (as a plain array of bool).
+        /// Serialize a \c std::vector<bool> (as a plain array of bool).
 
         /// \tparam Archive The archive type.
         /// \tparam Alloc The allocator type.
@@ -1184,7 +1184,7 @@ namespace madness {
             /// \param[in] ar The archive.
             /// \param[in] v The \c vector.
             static inline void store(const Archive& ar, const std::vector<bool, Alloc>& v) {
-                MAD_ARCHIVE_DEBUG(std::cout << "serialize STL vector<bool>" << std::endl);
+                MAD_ARCHIVE_DEBUG(std::cout << "serialize std::vector<bool>" << std::endl);
                 std::size_t n = v.size();
                 bool* b = new bool[n];
                 for (std::size_t i=0; i<n; ++i) b[i] = v[i];
@@ -1194,7 +1194,7 @@ namespace madness {
         };
 
 
-        /// Deserialize a STL vector<bool>. Clears and resizes as necessary.
+        /// Deserialize a `std::vector<bool>`. Clears and resizes as necessary.
 
         /// \tparam Archive The archive type.
         /// \tparam Alloc The allocator type.
@@ -1206,7 +1206,7 @@ namespace madness {
             /// \param[in] ar The archive.
             /// \param[out] v The \c vector.
             static void load(const Archive& ar, std::vector<bool, Alloc>& v) {
-                MAD_ARCHIVE_DEBUG(std::cout << "deserialize STL vector" << std::endl);
+                MAD_ARCHIVE_DEBUG(std::cout << "deserialize std::vector<bool>" << std::endl);
                 std::size_t n = 0ul;
                 ar & n;
                 if (n != v.size()) {
@@ -1262,7 +1262,7 @@ namespace madness {
 
         };
 
-        /// Serialize a STL string.
+        /// Serialize a `std::string`.
 
         /// \tparam Archive The archive type.
         template <class Archive>
@@ -1272,14 +1272,14 @@ namespace madness {
             /// \param[in] ar The archive.
             /// \param[in] v The string.
             static void store(const Archive& ar, const std::string& v) {
-                MAD_ARCHIVE_DEBUG(std::cout << "serialize STL string" << std::endl);
+                MAD_ARCHIVE_DEBUG(std::cout << "serialize std::string" << std::endl);
                 ar & v.size();
                 ar & wrap((const char*) v.data(),v.size());
             }
         };
 
 
-        /// Deserialize a STL string. Clears and resizes as necessary.
+        /// Deserialize a std::string. Clears and resizes as necessary.
 
         /// \tparam Archive The archive type.
         template <class Archive>
@@ -1290,7 +1290,7 @@ namespace madness {
             /// \param[in] ar The archive.
             /// \param[out] v The string.
             static void load(const Archive& ar, std::string& v) {
-                MAD_ARCHIVE_DEBUG(std::cout << "deserialize STL string" << std::endl);
+                MAD_ARCHIVE_DEBUG(std::cout << "deserialize std::string" << std::endl);
                 std::size_t n = 0ul;
                 ar & n;
                 if (n != v.size()) {
@@ -1302,7 +1302,7 @@ namespace madness {
         };
 
 
-        /// Serialize (deserialize) an STL pair.
+        /// Serialize (deserialize) an std::pair.
 
         /// \tparam Archive The archive type.
         /// \tparam T The first data type in the pair.
@@ -1314,7 +1314,7 @@ namespace madness {
             /// \param[in] ar The archive.
             /// \param[in,out] t The \c pair.
             static inline void serialize(const Archive& ar, std::pair<T,Q>& t) {
-                MAD_ARCHIVE_DEBUG(std::cout << "(de)serialize STL pair" << std::endl);
+                MAD_ARCHIVE_DEBUG(std::cout << "(de)serialize std::pair" << std::endl);
                 ar & t.first & t.second;
             }
         };
@@ -1357,7 +1357,7 @@ namespace madness {
             }
         };
 
-        /// Serialize an STL \c map (crudely).
+        /// Serialize an \c std::map.
 
         /// \tparam Archive The archive type.
         /// \tparam T The map's key type.
@@ -1371,7 +1371,7 @@ namespace madness {
             /// \param[in] ar The archive.
             /// \param[in] t The \c map.
             static void store(const Archive& ar, const std::map<T,Q,Compare,Alloc>& t) {
-                MAD_ARCHIVE_DEBUG(std::cout << "serialize STL map" << std::endl);
+                MAD_ARCHIVE_DEBUG(std::cout << "serialize std::map" << std::endl);
                 ar << t.size();
                 for (auto p = t.begin();
                         p != t.end(); ++p) {
@@ -1387,7 +1387,7 @@ namespace madness {
         };
 
 
-        /// Deserialize an STL \c map. The \c map is \em not cleared; duplicate elements are replaced.
+        /// Deserialize an \c std::map. The \c map is \em not cleared; duplicate elements are replaced.
 
         /// \tparam Archive The archive type.
         /// \tparam T The map's key type.
@@ -1402,7 +1402,7 @@ namespace madness {
             /// \param[in] ar The archive.
             /// \param[out] t The \c map.
             static void load(const Archive& ar, std::map<T,Q,Compare,Alloc>& t) {
-                MAD_ARCHIVE_DEBUG(std::cout << "deserialize STL map" << std::endl);
+                MAD_ARCHIVE_DEBUG(std::cout << "deserialize std::map" << std::endl);
                 std::size_t n = 0;
                 ar & n;
                 while (n--) {
