@@ -348,7 +348,7 @@ DistributedMatrix<T> Localizer<T, NDIM>::localize_new(World& world, const std::v
         }
         MADNESS_ASSERT(ilo == nao);
         MADNESS_ASSERT(std::accumulate(at_nbf.begin(), at_nbf.end(), 0) == nao);
-        MADNESS_ASSERT(at_to_bf.back() + at_nbf.back() == nao);
+//        MADNESS_ASSERT(at_to_bf.back() + at_nbf.back() == nao);
         //print("newloc", at_to_bf, at_nbf);
     } else {
         aobasis.shells_to_bfn(molecule, at_to_bf, at_nbf);
