@@ -106,9 +106,11 @@ public:
 
 	/// normalize the nemos
 	template<typename T, std::size_t NDIM>
-	void normalize(std::vector<Function<T,NDIM> >& nemo,
-			const Function<double,NDIM> metric=Function<double,NDIM>()) const {
+	void static normalize(std::vector<Function<T,NDIM> >& nemo,
+			const Function<double,NDIM> metric=Function<double,NDIM>()) {
 
+        if (nemo.size()==0) return;
+        World& world=nemo[0].world();
 		// compute the norm of the reconstructed orbitals, includes the factor
 		std::vector<Function<T,NDIM> > mos = (metric.is_initialized()) ? metric*nemo : nemo;
 		std::vector<double> norms = norm2s(world, mos);
