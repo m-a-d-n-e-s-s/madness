@@ -57,6 +57,7 @@ typedef int MPI_Info;
 #define MPI_THREAD_FUNNELED   1
 #define MPI_THREAD_SERIALIZED 2
 #define MPI_THREAD_MULTIPLE   3
+#define MPI_COMM_TYPE_SHARED  4
 
 /* these constants are consistent with MPICH2 mpi.h */
 #define MPI_IN_PLACE   ((void *) -1)
@@ -184,7 +185,7 @@ inline int MPI_Allreduce(void *sendbuf, void *recvbuf, int count, MPI_Datatype, 
 inline int MPI_Comm_get_attr(MPI_Comm, int, void*, int*) { return MPI_ERR_COMM; }
 
 inline int MPI_Comm_split(MPI_Comm comm, int color, int key, MPI_Comm *newcomm) {
-  *newcomm = (split_type == MPI_UNDEFINED) ? MPI_COMM_NULL : comm;
+  *newcomm = MPI_COMM_NULL;
   return MPI_SUCCESS;
 }
 
@@ -255,5 +256,8 @@ inline int MPI_Op_create(MPI_User_function *user_fn, int commute, MPI_Op *op) {
 inline int MPI_Op_free(MPI_Op *op) {
   return MPI_SUCCESS;
 }
+
+inline int MPI_Info_create (MPI_Info *info) { return MPI_SUCCESS; }
+inline int MPI_Info_free (MPI_Info *info) { return MPI_SUCCESS; }
 
 #endif
