@@ -126,7 +126,7 @@ CC_vecfunction::print_size(const std::string& msg) const {
 }
 
 madness::CCPairFunction
-CCPairFunction::operator=(CCPairFunction& other) {
+CCPairFunction::operator=(const CCPairFunction& other) {
     MADNESS_ASSERT(type == other.type);
     a = other.a;
     b = other.b;

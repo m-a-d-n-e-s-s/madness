@@ -359,7 +359,6 @@ struct CCParameters : public QCCalculationParametersBase {
 
     double gamma() const {return get<double>("corrfac_gamma");}
 
-
     /// print out the parameters
     void information(World& world) const;
 
@@ -377,6 +376,7 @@ struct CCParameters : public QCCalculationParametersBase {
         if (world.rank() == 0) std::cout << "WARNING IN CC_PARAMETERS!: " << msg << std::endl;
         return 1;
     }
+
 };
 
 
@@ -839,7 +839,7 @@ public:
                                                   op(other.op), x(other.x), y(other.y), u(other.u) {}
 
     CCPairFunction
-    operator=(CCPairFunction& other);
+    operator=(const CCPairFunction& other);
 
     void info() const {
         if (world.rank() == 0) std::cout << "Information about Pair " << name() << "\n";
@@ -947,6 +947,8 @@ public:
 
 class CCPair : public archive::ParallelSerializableObject {
 public:
+    CCPair(){};
+
     CCPair(const size_t ii, const size_t jj, const CCState t, const CalcType c) : type(t), ctype(c), i(ii), j(jj),
                                                                                   bsh_eps(12345.6789) {};
 
@@ -957,10 +959,10 @@ public:
                                   functions(other.functions), constant_part(other.constant_part),
                                   bsh_eps(other.bsh_eps) {};
 
-    const CCState type;
-    const CalcType ctype;
-    const size_t i;
-    const size_t j;
+    CCState type;
+    CalcType ctype;
+    size_t i;
+    size_t j;
     int excitation = -1;
 
     /// gives back the pure 6D part of the pair function
@@ -976,6 +978,55 @@ public:
         MADNESS_ASSERT(functions[0].type == PT_FULL);
         CCPairFunction tmp(u.world(), u);
         functions[0] = tmp;
+    }
+
+    template<typename Archive>
+    void serialize(Archive& ar) {
+        size_t f_size = functions.size();
+        bool fexist = (f_size > 0) && (functions[0].u.is_initialized());
+        bool cexist = constant_part.is_initialized();
+        ar & type & ctype & i & j & excitation & bsh_eps & fexist & cexist & f_size;
+        if constexpr (Archive::is_input_archive) {
+            if (fexist) {
+                real_function_6d func;
+                ar & func;
+                CCPairFunction f1(func.world(),func);
+                functions.push_back(f1);
+            }
+        } else {
+            if (fexist) ar & functions[0].u;
+        }
+        if (cexist) ar & constant_part;
+    }
+
+    bool load_pair(World& world) {
+        std::string name = "pair_" + stringify(i) + stringify(j);
+        bool exists = archive::ParallelInputArchive<archive::BinaryFstreamInputArchive>::exists(world, name.c_str());
+        if (exists) {
+            if (world.rank() == 0) printf("loading matrix elements %s\n", name.c_str());
+            archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, name.c_str(), 1);
+            ar & *this;
+            //if (world.rank() == 0) printf(" %s\n", (converged) ? " converged" : " not converged");
+            if (functions[0].u.is_initialized()) functions[0].u.set_thresh(FunctionDefaults<6>::get_thresh());
+            if (constant_part.is_initialized()) constant_part.set_thresh(FunctionDefaults<6>::get_thresh());
+        } else {
+            if (world.rank() == 0) print("could not find pair ", i, j, " on disk");
+        }
+        return exists;
+    }
+
+    void store_pair(World& world) {
+        std::string name = "pair_" + stringify(i) + stringify(j);
+        if (world.rank() == 0) printf("storing matrix elements %s\n", name.c_str());
+        archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, name.c_str(), 1);
+        ar & *this;
+    }
+
+    hashT hash() const {
+        hashT hash_i = std::hash<std::size_t>{}(i);
+        hash_combine(hash_i, std::hash<std::size_t>{}(j));
+        hash_combine(hash_i, hash_value(constant_part.get_impl()->id()));
+        return hash_i;
     }
 
     /// the functions which belong to the pair

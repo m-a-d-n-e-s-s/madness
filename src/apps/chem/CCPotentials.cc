@@ -539,7 +539,7 @@ CCPotentials::make_constant_part_mp2_macrotask(World& world, const CCPair& pair,
                                                  parameters.lo(), parameters.thresh_bsh_6D());
     Gscreen.modified() = true;
 
-    print("Calculating Constant Part of MP2 pair \n" + i_name + j_name);
+    print("Calculating Constant Part of MP2 pair " + i_name + j_name);
     CCTimer time(world, "Calculating Constant Part of MP2");
     MADNESS_ASSERT(i_type == HOLE);
     MADNESS_ASSERT(j_type == HOLE);

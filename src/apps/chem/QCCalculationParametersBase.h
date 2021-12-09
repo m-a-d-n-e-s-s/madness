@@ -183,12 +183,16 @@ public:
 		return result.substr(0, last+1);
 	}
 
-	template <typename Archive> void serialize (Archive& ar) {
+    template <typename Archive> void serialize (Archive& ar) {
 		ar & value & default_value & derived_value & user_defined_value & type & null &
 		comment & allowed_values & print_order & precedence;
 	}
 
 	enum {def, derived, defined} precedence=def;
+
+    hashT hash() const {
+        return hash_value(value);
+    }
 
 private:
 
@@ -264,6 +268,10 @@ public:
 	template <typename Archive> void serialize (Archive& ar) {
 		ar & parameters & print_debug;
 	}
+
+    hashT hash() const {
+        return hash_range(parameters.begin(), parameters.end());
+    }
 
 protected:
 

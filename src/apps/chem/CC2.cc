@@ -405,12 +405,31 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
    if (world.rank()==0) std::cout << "\nSolving coupled equations\n" << std::endl;
    double total_energy = 0.0;
 
-   for (auto& tmp_pair : doubles.allpairs) {
-       tmp_pair.second.constant_part = CCOPS.make_constant_part_mp2_macrotask(world, tmp_pair.second,CCOPS.mo_ket().get_vecfunction(),
+   Cloud cloud(world);
+
+    for (auto& tmp_pair : doubles.allpairs) {
+
+       tmp_pair.second.constant_part = CCPotentials::make_constant_part_mp2_macrotask(world, tmp_pair.second,CCOPS.mo_ket().get_vecfunction(),
                                               CCOPS.mo_bra().get_vecfunction(), parameters, nemo->R_square,
                                               CCOPS.mo_ket(tmp_pair.second.i).type,
                                               CCOPS.mo_ket(tmp_pair.second.j).type,
                                               tmp_pair.second.bsh_eps, nemo->ncf->U1vec());
+        // store on disk
+        tmp_pair.second.load_pair(world);
+        tmp_pair.second.store_pair(world);
+        tmp_pair.second.load_pair(world);
+        archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, std::string("CCParameters").c_str(), 1);
+        ar & parameters;
+
+        // store in cloud
+        print("storing in cloud");
+        auto recordlist = cloud.store(world, tmp_pair.second);
+        auto recordlist2 = cloud.store(world, parameters);
+
+        print("loading from cloud");
+        CCPair loaded_pair = cloud.load<CCPair>(world, recordlist);
+        CCParameters loaded_parameters = cloud.load<CCParameters>(world, recordlist2);
+
        save(tmp_pair.second.constant_part, tmp_pair.second.name() + "_const");
        tmp_pair.second.constant_part.truncate().reduce_rank();
        tmp_pair.second.function().truncate().reduce_rank();
