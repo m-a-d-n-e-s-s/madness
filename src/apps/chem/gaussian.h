@@ -17,9 +17,9 @@
 
 #include <forward_list>
 #include <utility>
-#include "basis.h"
-#include "polynomial.h"
-#include "ESInterface.h"
+#include <chem/basis.h>
+#include <chem/polynomial.h>
+#include <chem/ESInterface.h>
 #include <madness/mra/mra.h>
 #include <madness/constants.h>
 

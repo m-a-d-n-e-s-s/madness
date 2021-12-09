@@ -38,20 +38,12 @@ add_mad_library(world MADWORLD_SOURCES MADWORLD_HEADERS "common;${ELEMENTAL_PACK
 
 set(targetname MADworld)
 
-# N.B. If cereal is fetched it will be part of madworld export set
+# N.B. If cereal is fetched it will be part of cereal export set
 if(MADNESS_ENABLE_CEREAL)
   include(FindOrFetchCereal)
   target_link_libraries(${targetname} PUBLIC cereal)
   target_compile_definitions(${targetname} PUBLIC MADNESS_HAS_CEREAL)
 endif()
-
-# create an additional, MADworld-only, export
-install(TARGETS ${targetname} EXPORT madworld
-    COMPONENT world
-    PUBLIC_HEADER DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}/madness/world"
-    LIBRARY DESTINATION "${MADNESS_INSTALL_LIBDIR}"
-    ARCHIVE DESTINATION "${MADNESS_INSTALL_LIBDIR}"
-    INCLUDES DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}")
 
 # Set the dependencies for the MADworld library
 #target_compile_definitions(${targetname} PUBLIC "-DMADNESS_GITREVISION=\"`git --git-dir=$(top_srcdir)/.git rev-parse HEAD`\"")
@@ -63,7 +55,7 @@ if (GPERFTOOLS_FOUND)
   target_link_libraries(${targetname} PUBLIC ${GPERFTOOLS_LIBRARIES})
 endif ()
 if (LIBUNWIND_FOUND AND NOT GPERFTOOLS_LIBRARIES MATCHES "unwind")
-  target_include_directories(${targetname} PUBLIC ${LIBUNWIND_INCLUDE_DIRS})
+  target_include_directories(${targetname} PUBLIC ${LIBUNWIND_INCLUDE_DIR})
   target_link_libraries(${targetname} PUBLIC ${LIBUNWIND_LIBRARIES})
 endif ()
 if (ELEMENTAL_FOUND)
@@ -97,11 +89,12 @@ if (WORLD_GET_DEFAULT_DISABLED)
   target_compile_definitions(${targetname} PUBLIC -DMADNESS_DISABLE_WORLD_GET_DEFAULT=1)
 endif (WORLD_GET_DEFAULT_DISABLED)
 
-if (TARGET PaRSEC::parsec)
-  add_subproject_parsec_target_to_export_set("madworld" "world")
-endif()
+# recent PaRSEC does export its targets
+#if (TARGET PaRSEC::parsec)
+#  add_subproject_parsec_target_to_export_set("madness" "world")
+#endif()
 
-if(ENABLE_UNITTESTS)
+if(BUILD_TESTING)
 
   # The list of unit test source files
   set(WORLD_TEST_SOURCES test_prof.cc test_ar.cc test_hashdc.cc test_hello.cc

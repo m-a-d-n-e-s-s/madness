@@ -563,12 +563,16 @@ std::vector<PNOPairs> PNO::solve_cispd(std::vector<PNOPairs>& result) const {
 				std::cout << "\n\nComputung GS part of CIS(D) energy:\n\n";
 
 			cispd_energies = compute_cispd_correction_gs(xcis, mp2);
-			cispd_energies=compute_cispd_f12_correction_gs(xcis,cispd_energies);
+			if (param.f12()){
+				cispd_energies=compute_cispd_f12_correction_gs(xcis,cispd_energies);
+			}
 			cispd_energies.update();
 			//omega_gs = cispd_energies.total_energy();
 		}
 
-		cispd_energies=compute_cispd_f12_correction_es(xcis,cispd_energies);
+		if (param.f12()){
+			cispd_energies=compute_cispd_f12_correction_es(xcis,cispd_energies);
+		}
 		cispd_energies.update();
 
 		MyTimer timer_cispd = MyTimer(world).start();
@@ -773,6 +777,7 @@ PNOPairs PNO::initialize_pairs(PNOPairs& pairs, const GuessType& inpgt) const {
 			virtuals = orthonormalize_rrcd(virtuals,0.1*param.thresh());
 			TIMER(timer);
 			PAIRLOOP(it){
+				if(param.diagonal() and not it.diagonal()) continue;
 				vector_real_function_3d& pno = pno_ij[it.ij()];
 				if (not pno.empty()) {
 					msg << it.name() << ": pnos not empty ... project out and assemble\n";
@@ -791,6 +796,7 @@ PNOPairs PNO::initialize_pairs(PNOPairs& pairs, const GuessType& inpgt) const {
 		TIMER(timer);
 		PAIRLOOP(it)
 		{
+			if(param.diagonal() and not it.diagonal()) continue;
 			vector_real_function_3d& pno = pno_ij[it.ij()];
 			vector_real_function_3d pair_mo;
 			pair_mo.push_back(nemo.get_calc()->amo[it.i() + param.freeze()]);
@@ -834,6 +840,7 @@ PNOPairs PNO::initialize_pairs(PNOPairs& pairs, const GuessType& inpgt) const {
 	TIMER(trt)
 
 	for (ElectronPairIterator it = pit(); it; ++it) {
+		if(param.diagonal() and not it.diagonal()) continue;
 		const double size1 = get_size(world, pno_ij[it.ij()]);
 		truncate(world, pno_ij[it.ij()], param.thresh());
 		const double size2 = get_size(world, pno_ij[it.ij()]);
@@ -849,17 +856,19 @@ PNOPairs PNO::initialize_pairs(PNOPairs& pairs, const GuessType& inpgt) const {
 	pairs.maxranks_ij=std::valarray<int>(param.maxrank(),npairs);
 	// init amplitudes as empty tensors
 	pairs.t_ij=std::valarray<Tensor<double> >(npairs);
-	if(guesstype==PSI4_GUESSTYPE){
-#if 1
-		MADNESS_EXCEPTION("Issues with new parameter structure",1);
-#else
-		Psi4Interface psi4(nocc());
+
+	// erase off-diagonal pairs and adapt maxranks
+	// if diagonal approximation is demanded
+	if(param.diagonal()){
 		for (ElectronPairIterator it = pit(); it; ++it) {
-			pairs.t_ij[it.ij()]=psi4.get_amplitudes_ij(it.i()+param.freeze,it.j()+param.freeze);
+			if(not it.diagonal()){
+				pairs.maxranks_ij[it.ij()]=0;
+				pairs.frozen_ij[it.ij()] = true;
+				pairs.pno_ij[it.ij()]=vecfuncT();
+			}
 		}
-		pno_compress(pairs, param.tpno_tight);
-#endif
 	}
+
 
 	timer.stop().print("Initialize Pairs");
 	pairs.verify();
@@ -973,6 +982,9 @@ PNOPairs PNO::iterate_pairs(PNOPairs & pairs) const {
 	if(pairs.empty() or pairs.npairs==0){
 		msg.output("Initializing Pairs:");
 		pairs = initialize_pairs(pairs,param.guesstype());
+		// set the maxranks to maxrank (or to pno_ij size if there was a restart)
+		PAIRLOOP(it) pairs.maxranks_ij[it.ij()] = param.maxrank();
+		print_ranks(pairs);
 	}
 	else{
 		msg.warning("Standard solver expects empty pairs!");
@@ -1010,13 +1022,13 @@ PNOPairs PNO::adaptive_solver(PNOPairs& pairs)const{
 	std::vector<std::string> multipoles(param.maxiter_macro(),param.exop());
 	if(param.exop()=="multipole"){
 		// multipole protocol needs at least 3 macroiterions therefore the +2
-		multipoles=std::vector<std::string>(param.maxiter_macro()+2,"big_fock_3");
+		multipoles=std::vector<std::string>(param.maxiter_macro()+2,"octopole");
 		multipoles[0]="dipole+";
 		multipoles[1]="quadrupole";
 		multipoles = std::vector<std::string>(multipoles.begin(), multipoles.begin()+param.maxiter_macro());
 	}else if(param.exop()=="octopole"){
 		// fix that stupid name in madness TDHF at one point
-		std::vector<std::string> multipoles(param.maxiter_macro(),"big_fock_3");
+		std::vector<std::string> multipoles(param.maxiter_macro(),"octopole");
 	}
 
 	msg << "Guess protocol for adaptively growing ranks is: " << multipoles << "\n";
@@ -1033,10 +1045,11 @@ PNOPairs PNO::adaptive_solver(PNOPairs& pairs)const{
 			bool maxrank_reached=true;
 			PAIRLOOP(it)
 			{
-			  if (pairs.pno_ij[it.ij()].size() < size_t(param.maxrank())) maxrank_reached = false;
+			  const bool frozen = pairs.frozen_ij[it.ij()];
+			  if (not frozen and pairs.pno_ij[it.ij()].size() < size_t(param.maxrank())) maxrank_reached = false;
 			}
 			if (maxrank_reached){
-				msg << "Maximum Rank of" << param.maxrank() << " reached, no need to iterate further";
+				msg << "Maximum Rank of" << param.maxrank() << " reached for all non-frozen pairs, no need to iterate further";
 				break;
 			}
 		}
@@ -1412,6 +1425,7 @@ PNOPairs PNO::iterate_pairs_internal(PNOPairs& pairs, const int maxiter, const d
 			} else {
 				rdm_evals_ij = pno_compress(pairs,param.tpno());
 			}
+			pairs.rdm_evals_ij = rdm_evals_ij;
 
 			// test if ampltides are transformed correctly
 			//PairEnergies edb=compute_projected_mp2_energies(t2_ij, pno_ij);
@@ -2575,6 +2589,7 @@ Tensor<double> PNO::compute_cispd_fluctuation_matrix(const ElectronPairIterator&
 }
 
 void PNO::canonicalize(PNOPairs& pairs)const{
+	pairs.rdm_evals_ij = std::valarray<Tensor<double> >(); // make clear that they are not valid anymore
 	// diagonalize all Fock matrices
 	std::valarray<Tensor<double> > U_ij(Tensor<double>(std::vector<long>(2,0)),pairs.npairs);
 	PAIRLOOP(it){

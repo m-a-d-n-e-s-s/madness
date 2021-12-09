@@ -786,6 +786,9 @@ namespace SafeMPI {
         }
 
         void Abort(int code=1) const {
+            // if SIGABRT has a handler, call std::abort to allow it be caught,
+            // else call MPI_Abort which does not seem to call abort at all,
+            // instead sends SIGTERM followed by SIGKILL
             MPI_Abort(pimpl->comm, code);
         }
 

@@ -76,7 +76,7 @@ The following CMake cache variables turn MADNESS features on and off.
       virtual machines [default=OFF]
 * ENABLE_BSEND_ACKS --- Use MPI Send instead of MPI Bsend for huge message 
       acknowledgements [default=ON]
-* ENABLE_UNITTESTS --- Enables unit tests targets [default=ON]
+* BUILD_TESTING --- Enables unit tests targets [default=ON]
 * FORTRAN_INTEGER_SIZE --- Set the fortran integer size (4 or 8 bytes) used for 
       BLAS and LAPACK function calls [default=4]
 * ASSERTION_TYPE --- Define MADNESS assertion behavior
@@ -196,11 +196,9 @@ If GPERFTOOLS_ROOT_DIR is not given, it will be set to the value of the GPERFTOO
 # Libunwind:
 
 * ENABLE_LIBUNWIND --- Force detection of gperftools [default=OFF, i.e. Libunwind will be searched for when needed]
-* LIBUNWIND_ROOT_DIR --- The install prefix for Libunwind.
-* LIBUNWIND_INCLUDE_DIR --- The path to the Libunwind include directory.
-* LIBUNWIND_LIBRARY --- The path to the Libunwind library directory.
+* LIBUNWIND_DIR --- The install prefix for Libunwind.
 
-If LIBUNWIND_ROOT_DIR is not given, it will be set to the value of the LIBUNWIND_DIR environment variable if it is set.
+If LIBUNWIND_DIR is not given, it will be set to the value of the LIBUNWIND_DIR environment variable if it is set.
 
 # Library of Exchange-Correlation DFT functionals (LIBXC):
 

@@ -35,12 +35,6 @@
  \ingroup serialization
 */
 
-/// \todo Brief description needed.
-#define MAD_ARCHIVE_TYPE_NAMES_CC
-
-/// \todo Brief description needed.
-#define ARCHIVE_REGISTER_TYPE_INSTANTIATE_HERE
-
 #include <madness/world/MADworld.h>
 #include <cstring>
 
@@ -49,6 +43,7 @@ namespace madness {
 
         template <typename T> const unsigned char archive_typeinfo<T>::cookie;
 
+        const char *archive_type_names[256];
 
         // Forces initialization of type names at startup
         // (breaks on shared libs ?)

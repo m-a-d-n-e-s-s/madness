@@ -18,16 +18,16 @@ set(MADMRA_SOURCES
 add_mad_library(mra MADMRA_SOURCES MADMRA_HEADERS "linalg;tinyxml;muparser" "madness/mra")
 
 # Create executables
-add_mad_executable(mraplot "mraplot.cc" "MADmra")
+# add_mad_executable(mraplot "mraplot.cc" "MADmra") # installation fails with gnu-8 and gnu-9
 
 # Install the MADmra library
-install(TARGETS mraplot DESTINATION "${MADNESS_INSTALL_BINDIR}")
+# install(TARGETS mraplot DESTINATION "${MADNESS_INSTALL_BINDIR}")
 install(FILES autocorr coeffs gaussleg
     DESTINATION "${MADNESS_INSTALL_DATADIR}"
     COMPONENT mra)
 
 # Add unit tests    
-if(ENABLE_UNITTESTS)
+if(BUILD_TESTING)
 
   # The list of unit test source files
   add_library(libtest_sepop EXCLUDE_FROM_ALL test_sepop.cc)
