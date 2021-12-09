@@ -49,6 +49,7 @@
 #include <array>
 #include <vector>
 #include <map>
+#include <set>
 #include <tuple>
 #include <madness/config.h>
 //#include <madness/world/worldprofile.h>
@@ -1411,6 +1412,59 @@ namespace madness {
                 }
             }
         };
+
+
+        /// Serialize a \c std::set.
+
+        /// \tparam Archive the archive type.
+        /// \tparam T The data type stored in the \c set.
+        /// \tparam Compare The comparison operator.
+        /// \tparam Alloc The allocator.
+        template <class Archive, typename T, typename Compare, typename Alloc>
+        struct ArchiveStoreImpl< Archive, std::set<T, Compare, Alloc>, std::enable_if_t<!is_future<T>::value && is_serializable_v<Archive, T>> > {
+
+            /// Store a \c std::set.
+
+            /// \param[in] ar The archive.
+            /// \param[in] s The \c set.
+            static inline void store(const Archive& ar, const std::set<T, Compare, Alloc>& s) {
+                MAD_ARCHIVE_DEBUG(std::cout << "serialize std::set" << std::endl);
+                ar << s.size();
+                for (const auto &i : s)
+                  ar << i;
+            }
+        };
+
+
+        /// Deserialize a \c std::set. Clears and resizes as necessary.
+
+        /// \tparam Archive the archive type.
+        /// \tparam T The data type stored in the \c set.
+        /// \tparam Compare The comparison operator.
+        /// \tparam Alloc The allocator.
+        template <class Archive, typename T, typename Compare, typename Alloc>
+        struct ArchiveLoadImpl< Archive, std::set<T, Compare, Alloc>, std::enable_if_t<!is_future<T>::value && is_serializable_v<Archive, T>> > {
+
+            /// Load a \c std::set.
+            /// \param[in] ar The archive.
+            /// \param[out] s The \c set.
+            static void load(const Archive& ar, std::set<T, Compare, Alloc>& s) {
+                MAD_ARCHIVE_DEBUG(std::cout << "deserialize std::set" << std::endl);
+                std::size_t size;
+                ar >> size;
+                s.clear();
+                auto hint = s.begin();
+                for (std::size_t i = 0; i < size; ++i)
+                {
+                  typename std::set<T, Compare, Alloc>::key_type key;
+                  ar >> key;
+                  hint = s.emplace_hint(hint, std::move(key));
+                }
+            }
+
+        };
+
+
 
         /// @}
 
