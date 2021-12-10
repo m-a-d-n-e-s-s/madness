@@ -99,7 +99,8 @@ public:
                                         const Tensor<T>& overlap) const;
 
     template<typename T>
-    static bool check_core_valence_separation(const Tensor<T>& Fock, const std::vector<int>& localized_set);
+    static bool check_core_valence_separation(const Tensor<T>& Fock, const std::vector<int>& localized_set,
+                                              const bool silent=false);
 
     /// given a unitary transformation matrix undo mere reordering
     template<typename T>

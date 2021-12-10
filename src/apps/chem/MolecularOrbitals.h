@@ -26,6 +26,14 @@ public:
 
 	MolecularOrbitals() {}
 
+    MolecularOrbitals(const std::vector<Function<T,NDIM> >& mo)
+            : mo(mo), eps(), irreps(), occ(), localize_sets() {
+    }
+
+    MolecularOrbitals(const std::vector<Function<T,NDIM> >& mo, const Tensor<double>& eps)
+            : mo(mo), eps(eps), irreps(), occ(), localize_sets() {
+    }
+
 	MolecularOrbitals(const std::vector<Function<T,NDIM> >& mo, const Tensor<double>& eps,
 			const std::vector<std::string>& irrep, const Tensor<double>& occ,
 			const std::vector<int>& set)
