@@ -78,7 +78,7 @@ bool test_ne_boys(World& world, const Nemo& nemo) {
     mos.recompute_localize_sets();
     mos.pretty_print("initial orbitals after a few SCF iterations");
 
-    Localizer<double,3> localizer(world,nemo.get_calc()->aobasis,nemo.molecule(),nemo.get_calc()->ao);
+    Localizer localizer(world,nemo.get_calc()->aobasis,nemo.molecule(),nemo.get_calc()->ao);
 
     localizer.set_method("boys");
     localizer.set_enforce_core_valence_separation(true);
@@ -170,7 +170,7 @@ bool test_ethylene(World& world, const Nemo& nemo, const std::string geometry="e
     print("initial fock matrix");
     print(fock);
 
-    Localizer<double,3> localizer(world,nemo.get_calc()->aobasis,nemo.molecule(),nemo.get_calc()->ao);
+    Localizer localizer(world,nemo.get_calc()->aobasis,nemo.molecule(),nemo.get_calc()->ao);
 
 //    for (std::string method : {"boys","pm","new"}) {
     for (std::string method : {"boys","new"}) {
@@ -191,7 +191,7 @@ bool test_ethylene(World& world, const Nemo& nemo, const std::string geometry="e
             print("final fock matrix for",method);
             print(fock2);
             if (enforce_cv) {
-                bool success1=Localizer<double,3>::check_core_valence_separation(fock2, lmo.get_localize_sets());
+                bool success1=Localizer::check_core_valence_separation(fock2, lmo.get_localize_sets());
                 tout.checkpoint(success1,"core-valence separation for "+method);
                 success=success and success1;
             }

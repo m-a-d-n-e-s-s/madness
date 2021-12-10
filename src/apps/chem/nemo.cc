@@ -219,11 +219,10 @@ double Nemo::value(const Tensor<double>& x) {
 /// localize the nemo orbitals according to Pipek-Mezey or Foster-Boys
 vecfuncT Nemo::localize(const vecfuncT& nemo, const double dconv, const bool randomize) const {
 
-    Localizer<double, 3> localizer(world, get_calc()->aobasis, molecule(), get_calc()->ao);
+    Localizer localizer(world, get_calc()->aobasis, molecule(), get_calc()->ao);
     localizer.set_metric(ncf->function()).set_method(calc->param.localize_method());
 
     MolecularOrbitals<double, 3> mo(nemo, calc->aeps, {}, calc->aocc, calc->aset);
-    const double tolloc = std::min(1e-6, 0.01 * dconv);
     Tensor<double> UT = localizer.compute_localization_matrix(world, mo, randomize);
 
     vecfuncT localnemo = transform(world, nemo, transpose(UT));
