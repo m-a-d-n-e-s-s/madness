@@ -10,22 +10,21 @@ using namespace madness;
 
 namespace madness {
 
-template<typename T, std::size_t NDIM>
-Localizer<T,NDIM>::Localizer(World& world, const AtomicBasisSet& aobasis, const Molecule& molecule,
+Localizer::Localizer(World& world, const AtomicBasisSet& aobasis, const Molecule& molecule,
           const std::vector<Function<double, 3>>& ao) : aobasis(aobasis), molecule(molecule), ao(ao) {
     aobasis.atoms_to_bfn(molecule, at_to_bf, at_nbf);
-    thresh_degenerate=FunctionDefaults<NDIM>::get_thresh();
+    thresh_degenerate=FunctionDefaults<3>::get_thresh();
 }
 
 template<typename T, std::size_t NDIM>
-MolecularOrbitals<T, NDIM> Localizer<T, NDIM>::localize(const MolecularOrbitals<T, NDIM>& mo_in, bool randomize) const {
+MolecularOrbitals<T, NDIM> Localizer::localize(const MolecularOrbitals<T, NDIM>& mo_in, bool randomize) const {
 
     Tensor<T> Fock, overlap;
     return localize(mo_in,Fock,overlap,randomize);
 }
 
 template<typename T, std::size_t NDIM>
-MolecularOrbitals<T, NDIM> Localizer<T, NDIM>::localize(const MolecularOrbitals<T, NDIM>& mo_in, const Tensor<T>& Fock,
+MolecularOrbitals<T, NDIM> Localizer::localize(const MolecularOrbitals<T, NDIM>& mo_in, const Tensor<T>& Fock,
                                                         const Tensor<T>& overlap, bool randomize) const {
 
     World& world = mo_in.get_mos()[0].world();
@@ -64,7 +63,7 @@ MolecularOrbitals<T, NDIM> Localizer<T, NDIM>::localize(const MolecularOrbitals<
 
 
 template<typename T, std::size_t NDIM>
-Tensor<T> Localizer<T, NDIM>::compute_localization_matrix(World& world, const MolecularOrbitals<T, NDIM>& mo_in,
+Tensor<T> Localizer::compute_localization_matrix(World& world, const MolecularOrbitals<T, NDIM>& mo_in,
                                                   bool randomize) const {
     // localize using the reconstructed orbitals
     std::vector<Function<T, NDIM>> psi = metric.is_initialized() ?  metric * mo_in.get_mos() : mo_in.get_mos();
@@ -87,7 +86,7 @@ Tensor<T> Localizer<T, NDIM>::compute_localization_matrix(World& world, const Mo
 }
 
 template<typename T, std::size_t NDIM>
-MolecularOrbitals<T, NDIM> Localizer<T,NDIM>::separate_core_valence(const MolecularOrbitals<T, NDIM>& mo_in,
+MolecularOrbitals<T, NDIM> Localizer::separate_core_valence(const MolecularOrbitals<T, NDIM>& mo_in,
                                   const Tensor<T>& Fock, const Tensor<T>& overlap) const {
     World& world = mo_in.get_mos()[0].world();
 
@@ -102,7 +101,7 @@ MolecularOrbitals<T, NDIM> Localizer<T,NDIM>::separate_core_valence(const Molecu
 }
 
 template<typename T, std::size_t NDIM>
-Tensor<T> Localizer<T,NDIM>::compute_core_valence_separation_transformation_matrix(World& world,
+Tensor<T> Localizer::compute_core_valence_separation_transformation_matrix(World& world,
                                           const MolecularOrbitals<T, NDIM>& mo_in, const Tensor<T>& Fock,
                                           const Tensor<T>& overlap) const {
 
@@ -110,9 +109,9 @@ Tensor<T> Localizer<T,NDIM>::compute_core_valence_separation_transformation_matr
     Tensor<T> U;
     Tensor<typename Tensor<T>::scalar_type> eval;
     sygvp(world, Fock, overlap, 1, U, eval);
-    Localizer<double,3>::undo_reordering(U, mo_in.get_occ(), eval);
-    Localizer<double,3>::undo_degenerate_rotations(U, eval, thresh_degenerate);
-    Localizer<double,3>::undo_rotations_within_sets(U, mo_in.get_localize_sets());
+    Localizer::undo_reordering(U, mo_in.get_occ(), eval);
+    Localizer::undo_degenerate_rotations(U, eval, thresh_degenerate);
+    Localizer::undo_rotations_within_sets(U, mo_in.get_localize_sets());
 
     world.gop.broadcast(U.ptr(), U.size(), 0);
     world.gop.broadcast(eval.ptr(), eval.size(), 0);
@@ -128,13 +127,13 @@ Tensor<T> Localizer<T,NDIM>::compute_core_valence_separation_transformation_matr
     return U;
 }
 
-template<typename T, std::size_t NDIM>
-bool Localizer<T,NDIM>::check_core_valence_separation(const Tensor<T>& Fock, const std::vector<int>& localized_set) {
-    std::vector<Slice> slices=MolecularOrbitals<T,NDIM>::convert_set_to_slice(localized_set);
+template<typename T>
+bool Localizer::check_core_valence_separation(const Tensor<T>& Fock, const std::vector<int>& localized_set) {
+    std::vector<Slice> slices=MolecularOrbitals<T,3>::convert_set_to_slice(localized_set);
     Tensor<T> F=copy(Fock);
     for (auto s : slices) F(s,s)=0.0;
     double error=F.absmax();
-    bool success=(error<FunctionDefaults<NDIM>::get_thresh()*5.0);
+    bool success=(error<FunctionDefaults<3>::get_thresh()*5.0);
     if (not success) {
         print("faulty localization: core-valence separation requested but Fock matrix not block diagonal");
         print("error norm",error);
@@ -146,7 +145,7 @@ bool Localizer<T,NDIM>::check_core_valence_separation(const Tensor<T>& Fock, con
 
 
 template<typename T, std::size_t NDIM>
-DistributedMatrix<T> Localizer<T, NDIM>::localize_boys(World& world, const std::vector<Function<T, NDIM>>& mo,
+DistributedMatrix<T> Localizer::localize_boys(World& world, const std::vector<Function<T, NDIM>>& mo,
                                                        const std::vector<int>& set, const double thresh1,
                                                        const bool randomize,
                                                        const bool doprint) const {
@@ -286,7 +285,7 @@ DistributedMatrix<T> Localizer<T, NDIM>::localize_boys(World& world, const std::
 
 
 template<typename T, std::size_t NDIM>
-DistributedMatrix<T> Localizer<T, NDIM>::localize_PM(World& world, const std::vector<Function<T, NDIM>>& mo,
+DistributedMatrix<T> Localizer::localize_PM(World& world, const std::vector<Function<T, NDIM>>& mo,
                                                      const std::vector<int>& set, const double thresh,
                                                      const bool randomize, const bool doprint) const {
 
@@ -297,7 +296,7 @@ DistributedMatrix<T> Localizer<T, NDIM>::localize_PM(World& world, const std::ve
 
 
 template<typename T, std::size_t NDIM>
-DistributedMatrix<T> Localizer<T, NDIM>::localize_new(World& world, const std::vector<Function<T, NDIM>>& mo,
+DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Function<T, NDIM>>& mo,
                                                       const std::vector<int>& set, double thresh,
                                                       const bool randomize, const bool doprint) const {
     // PROFILE_MEMBER_FUNC(SCF);
@@ -523,8 +522,8 @@ DistributedMatrix<T> Localizer<T, NDIM>::localize_new(World& world, const std::v
 
 
 /// given a unitary transformation matrix undo mere reordering
-template<typename T, std::size_t NDIM>
-void Localizer<T,NDIM>::undo_reordering(Tensor<T>& U, const Tensor<double>& occ, Tensor<double>& evals) {
+template<typename T>
+void Localizer::undo_reordering(Tensor<T>& U, const Tensor<double>& occ, Tensor<double>& evals) {
     long nmo = U.dim(0);
 
     // Within blocks with the same occupation number attempt to
@@ -558,8 +557,7 @@ void Localizer<T,NDIM>::undo_reordering(Tensor<T>& U, const Tensor<double>& occ,
 }
 
 
-template<typename T, std::size_t NDIM>
-std::vector<Slice> Localizer<T,NDIM>::find_degenerate_blocks(const Tensor<double>& eval, const double thresh_degenerate) {
+std::vector<Slice> Localizer::find_degenerate_blocks(const Tensor<double>& eval, const double thresh_degenerate) {
     long nmo = eval.size();
     std::vector<Slice> blocks;
     // Rotations between effectively degenerate states confound
@@ -579,8 +577,8 @@ std::vector<Slice> Localizer<T,NDIM>::find_degenerate_blocks(const Tensor<double
     return blocks;
 }
 
-template<typename T, std::size_t NDIM>
-Tensor<T> Localizer<T,NDIM>::undo_rotation(const Tensor<T>& U_in, const std::vector<Slice>& blocks) {
+template<typename T>
+Tensor<T> Localizer::undo_rotation(const Tensor<T>& U_in, const std::vector<Slice>& blocks) {
     Tensor<T> U=copy(U_in);
     for (auto block : blocks) {
         long ncluster=block.end-block.start+1;
@@ -600,24 +598,24 @@ Tensor<T> Localizer<T,NDIM>::undo_rotation(const Tensor<T>& U_in, const std::vec
     return U;
 }
 
-template<typename T, std::size_t NDIM>
-void Localizer<T,NDIM>::undo_rotations_within_sets(Tensor<T>& U, const std::vector<int>& localized_set) {
-    std::vector<Slice> blocks=MolecularOrbitals<T,NDIM>::convert_set_to_slice(localized_set);
+template<typename T>
+void Localizer::undo_rotations_within_sets(Tensor<T>& U, const std::vector<int>& localized_set) {
+    std::vector<Slice> blocks=MolecularOrbitals<T,3>::convert_set_to_slice(localized_set);
 //    for (auto block : blocks) print("block",block);
     U=undo_rotation(U,blocks);
 }
 
 /// given a unitary transformation matrix undo rotations between degenerate columns
-template<typename T, std::size_t NDIM>
-void Localizer<T,NDIM>::undo_degenerate_rotations(Tensor<T>& U, const Tensor<double>& evals, const double thresh_degenerate) {
+template<typename T>
+void Localizer::undo_degenerate_rotations(Tensor<T>& U, const Tensor<double>& evals, const double thresh_degenerate) {
     MADNESS_CHECK(evals.size()==U.dim(0));
     std::vector<Slice> degenerate_blocks=find_degenerate_blocks(evals,thresh_degenerate);
     U=undo_rotation(U,degenerate_blocks);
 }
 
 
-template<typename T, std::size_t NDIM>
-Tensor<T> Localizer<T, NDIM>::matrix_exponential(const Tensor<T>& A) const {
+template<typename T>
+Tensor<T> Localizer::matrix_exponential(const Tensor<T>& A) const {
     MADNESS_CHECK(A.dim(0) == A.dim(1));
     typedef Tensor<T> tensorT;
 
@@ -698,5 +696,6 @@ Tensor<T> Localizer<T, NDIM>::matrix_exponential(const Tensor<T>& A) const {
 }
 
 template
-class Localizer<double, 3>;
+MolecularOrbitals<double, 3> Localizer::localize(const MolecularOrbitals<double, 3>& mo_in, bool randomize) const;
+
 }

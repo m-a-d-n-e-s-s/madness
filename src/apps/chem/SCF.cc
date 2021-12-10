@@ -1693,8 +1693,8 @@ tensorT SCF::get_fock_transformation(World& world, const tensorT& overlap,
 	tensorT U;
 	sygvp(world, fock, overlap, 1, U, evals);
 
-    Localizer<double,3>::undo_reordering(U, occ, evals);
-    Localizer<double,3>::undo_degenerate_rotations(U, evals, thresh_degenerate);
+    Localizer::undo_reordering(U, occ, evals);
+    Localizer::undo_degenerate_rotations(U, evals, thresh_degenerate);
 
 	world.gop.broadcast(U.ptr(), U.size(), 0);
 	world.gop.broadcast(evals.ptr(), evals.size(), 0);
@@ -2248,7 +2248,7 @@ void SCF::solve(World & world) {
 
 		if (param.do_localize() && do_this_iter) {
             START_TIMER(world);
-            Localizer<double,3> localizer(world,aobasis,molecule,ao);
+            Localizer localizer(world,aobasis,molecule,ao);
             localizer.set_method(param.localize_method());
             MolecularOrbitals<double,3> mo(amo,aeps,{},aocc,aset);
 			tensorT UT=localizer.compute_localization_matrix(world,mo,iter==0);
