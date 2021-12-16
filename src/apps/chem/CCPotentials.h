@@ -251,11 +251,10 @@ public:
     make_constant_part_mp2(const CCFunction& ti, const CCFunction& tj, const real_convolution_6d *Gscreen = NULL) const;
 
     /// Static version of make_constant_part_mp2 to be called from macrotask.
-    madness::real_function_6d
-    static make_constant_part_mp2_macrotask(World& world, const CCPair& pair, const std::vector<real_function_3d>& mo_ket,
+    static madness::real_function_6d
+    make_constant_part_mp2_macrotask(World& world, const CCPair& pair, const std::vector<real_function_3d>& mo_ket,
                                                    const std::vector<real_function_3d>& mo_bra,
                                                    const CCParameters& parameters, const real_function_3d& Rsquare,
-                                                   const FuncType& i_type, const FuncType& j_type, const double epsilon,
                                                    const std::vector<real_function_3d>& U1);
 
     /// Function evaluates the consant part of the ground state for CC2

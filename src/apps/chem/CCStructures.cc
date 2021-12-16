@@ -6,6 +6,7 @@
  */
 
 #include"CCStructures.h"
+#include <chem/CCPotentials.h>
 
 namespace madness {
 
@@ -798,6 +799,19 @@ size_of(const intermediateT& im) {
         size += get_size<double, 3>(tmp.second);
     }
     return size;
+}
+
+std::vector<real_function_6d>
+MacroTaskMp2ConstantPart::operator() (const std::vector<CCPair>& pair, const std::vector<real_function_3d>& mo_ket,
+                                      const std::vector<real_function_3d>& mo_bra, const CCParameters& parameters,
+                                      const real_function_3d& Rsquare, const std::vector<real_function_3d>& U1) const {
+    World& world = mo_ket[0].world();
+    resultT result = zero_functions_compressed<double, 6>(world, pair.size());
+    for (int i = 0; i < pair.size(); i++) {
+        result[i] = CCPotentials::make_constant_part_mp2_macrotask(world, pair[i], mo_ket, mo_bra, parameters,
+                                                                   Rsquare, U1);
+    }
+    return result;
 }
 
 }// end namespace madness

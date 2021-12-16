@@ -407,46 +407,83 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
 
    Cloud cloud(world);
 
-    for (auto& tmp_pair : doubles.allpairs) {
+   for (auto& tmp_pair : doubles.allpairs) {
 
-       tmp_pair.second.constant_part = CCPotentials::make_constant_part_mp2_macrotask(world, tmp_pair.second,CCOPS.mo_ket().get_vecfunction(),
-                                              CCOPS.mo_bra().get_vecfunction(), parameters, nemo->R_square,
-                                              CCOPS.mo_ket(tmp_pair.second.i).type,
-                                              CCOPS.mo_ket(tmp_pair.second.j).type,
-                                              tmp_pair.second.bsh_eps, nemo->ncf->U1vec());
-        // store on disk
-        tmp_pair.second.load_pair(world);
-        tmp_pair.second.store_pair(world);
-        tmp_pair.second.load_pair(world);
-        archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, std::string("CCParameters").c_str(), 1);
-        ar & parameters;
+  //     tmp_pair.second.constant_part = CCPotentials::make_constant_part_mp2_macrotask(world, tmp_pair.second,CCOPS.mo_ket().get_vecfunction(),
+  //                                            CCOPS.mo_bra().get_vecfunction(), parameters, nemo->R_square,
+  //                                            CCOPS.mo_ket(tmp_pair.second.i).type,
+  //                                            CCOPS.mo_ket(tmp_pair.second.j).type,
+  //                                            tmp_pair.second.bsh_eps, nemo->ncf->U1vec());
+  //      // store on disk
+  //      tmp_pair.second.load_pair(world);
+  //      tmp_pair.second.store_pair(world);
+  //      tmp_pair.second.load_pair(world);
+  //      archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, std::string("CCParameters").c_str(), 1);
+  //      ar & parameters;
 
-        // store in cloud
-        print("storing in cloud");
-        auto recordlist = cloud.store(world, tmp_pair.second);
-        auto recordlist2 = cloud.store(world, parameters);
+  //      // store in cloud
+  //      print("storing in cloud");
+        std::vector<CCPair> vec(1,tmp_pair.second);
+        auto recordlist = cloud.store(world, vec);
+  //      auto recordlist2 = cloud.store(world, parameters);
 
-        print("loading from cloud");
-        CCPair loaded_pair = cloud.load<CCPair>(world, recordlist);
-        CCParameters loaded_parameters = cloud.load<CCParameters>(world, recordlist2);
+  //      print("loading from cloud");
+  //      CCPair loaded_pair = cloud.load<CCPair>(world, recordlist);
+  //      CCParameters loaded_parameters = cloud.load<CCParameters>(world, recordlist2);
 
-       save(tmp_pair.second.constant_part, tmp_pair.second.name() + "_const");
-       tmp_pair.second.constant_part.truncate().reduce_rank();
-       tmp_pair.second.function().truncate().reduce_rank();
-       if (tmp_pair.second.type == GROUND_STATE) total_energy += CCOPS.compute_pair_correlation_energy(tmp_pair.second);
+  //     save(tmp_pair.second.constant_part, tmp_pair.second.name() + "_const");
+  //     tmp_pair.second.constant_part.truncate().reduce_rank();
+  //     tmp_pair.second.function().truncate().reduce_rank();
+  //     if (tmp_pair.second.type == GROUND_STATE) total_energy += CCOPS.compute_pair_correlation_energy(tmp_pair.second);
+   }
+
+   // make vector holding CCPairs for partitioner of MacroTask
+   print("making vector holding pairs");
+   std::vector<CCPair> pair_vec;
+   for (auto& tmp_pair : doubles.allpairs) {
+       pair_vec.push_back(tmp_pair.second);
+   }
+
+   // calc constant part via taskq
+   auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world, world.size()));
+   taskq->set_printlevel(3);
+   print("making macrotask");
+   MacroTaskMp2ConstantPart t;
+   //MacroTask task(world, t, taskq);
+   print("performing macrotask");
+   std::vector<real_function_6d> result_vec = t(pair_vec, CCOPS.mo_ket().get_vecfunction(),
+                                                CCOPS.mo_bra().get_vecfunction(), parameters,
+                                                nemo->R_square, nemo->ncf->U1vec());
+   taskq->print_taskq();
+   taskq->run_all();
+
+   // transform vector back to Pairs structure
+   print("saving constant part");
+   for (int i = 0; i < pair_vec.size(); i++) {
+       pair_vec[i].constant_part = result_vec[i];
+   }
+   // create new pairs structure
+   print("creating updated pairs structure");
+   Pairs<CCPair> updated_pairs;
+   for (auto& tmp_pair : pair_vec) {
+       updated_pairs.insert(tmp_pair.i, tmp_pair.j, tmp_pair);
+       save(tmp_pair.constant_part, tmp_pair.name() + "_const");
+       tmp_pair.constant_part.truncate().reduce_rank();
+       tmp_pair.function().truncate().reduce_rank();
+       if (tmp_pair.type == GROUND_STATE) total_energy += CCOPS.compute_pair_correlation_energy(tmp_pair);
    }
 
    for (size_t iter = 0; iter < parameters.iter_max_6D(); iter++) {
 
        // compute the coupling between the pair functions
        Pairs<real_function_6d> coupling;
-       add_local_coupling(doubles, coupling);
+       add_local_coupling(updated_pairs, coupling);
 
        double total_norm = 0.0;
        double old_energy = total_energy;
        total_energy = 0.0;
 
-       for (auto& tmp_pair : doubles.allpairs) {
+       for (auto& tmp_pair : updated_pairs.allpairs) {
            output.subsection(assign_name(tmp_pair.second.ctype) + "-Microiteration");
            CCTimer timer_mp2(world, "MP2-Microiteration of pair " + tmp_pair.second.name());
 
@@ -512,7 +549,7 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
        if (converged) {
            if (world.rank() == 0) std::cout << "\nPairs converged\n";
            if (world.rank() == 0) std::cout << "\nMP2 Pair Correlation Energies:\n";
-           for (auto& pair : doubles.allpairs) {
+           for (auto& pair : updated_pairs.allpairs) {
                if (world.rank() == 0) {
                    const double pair_energy = CCOPS.compute_pair_correlation_energy(pair.second);
                    std::cout << std::fixed << std::setprecision(10) << "omega_"

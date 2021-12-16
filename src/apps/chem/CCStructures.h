@@ -15,6 +15,7 @@
 #include <chem/QCCalculationParametersBase.h>
 #include <algorithm>
 #include <iomanip>
+#include <madness/mra/macrotaskq.h>
 
 namespace madness {
 /// FuncTypes used by the CC_function_6d structure
@@ -981,7 +982,7 @@ public:
     }
 
     template<typename Archive>
-    void serialize(Archive& ar) {
+    void serialize(const Archive& ar) {
         size_t f_size = functions.size();
         bool fexist = (f_size > 0) && (functions[0].u.is_initialized());
         bool cexist = constant_part.is_initialized();
@@ -1111,6 +1112,42 @@ private:
     }
 };
 
+class MacroTaskMp2ConstantPart : public MacroTaskOperationBase {
+
+    class ConstantPartPartitioner : public MacroTaskPartitioner {
+    public:
+        ConstantPartPartitioner() {};
+
+        partitionT do_partitioning(const std::size_t& vsize1, const std::size_t& vsize2,
+                                   const std::string policy) const override {
+            partitionT p;
+            for (int i = 0; i < vsize1; i++) {
+                Batch batch(Batch_1D(i,i+1), Batch_1D(i,i+1));
+                p.push_back(std::make_pair(batch,1.0));
+            }
+            return p;
+        }
+    };
+
+public:
+    MacroTaskMp2ConstantPart(){}
+
+    typedef std::tuple<const std::vector<CCPair>&, const std::vector<real_function_3d>&,
+            const std::vector<real_function_3d>&, const CCParameters&, const real_function_3d&,
+            const std::vector<real_function_3d>&> argtupleT;
+
+    using resultT = std::vector<real_function_6d>;
+
+    resultT allocator(World& world, const argtupleT& argtuple) const {
+        std::size_t n = std::get<0>(argtuple).size();
+        resultT result = zero_functions_compressed<double, 6>(world, n);
+        return result;
+    }
+
+    resultT operator() (const std::vector<CCPair>& pair, const std::vector<real_function_3d>& mo_ket,
+                        const std::vector<real_function_3d>& mo_bra, const CCParameters& parameters,
+                        const real_function_3d& Rsquare, const std::vector<real_function_3d>& U1) const;
+};
 
 }//namespace madness
 

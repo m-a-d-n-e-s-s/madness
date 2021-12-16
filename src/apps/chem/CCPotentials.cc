@@ -521,12 +521,15 @@ CCPotentials::make_constant_part_mp2_macrotask(World& world, const CCPair& pair,
                                                const std::vector<real_function_3d>& mo_ket,
                                                const std::vector<real_function_3d>& mo_bra,
                                                const CCParameters& parameters, const real_function_3d& Rsquare,
-                                               const FuncType& i_type, const FuncType& j_type, const double epsilon,
                                                const std::vector<real_function_3d>& U1) {
     MADNESS_ASSERT(pair.ctype == CT_MP2);
     MADNESS_ASSERT(pair.type == GROUND_STATE);
     const std::string i_name = "phi" + stringify(pair.i);
     const std::string j_name = "phi" + stringify(pair.j);
+    const double epsilon = pair.bsh_eps;
+    const FuncType i_type = HOLE;
+    const FuncType j_type = HOLE;
+
     // load constant part if available
     //if (parameters.no_compute_mp2_constantpart()) {
     //    pair.constant_part=real_factory_6d(world);
