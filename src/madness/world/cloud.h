@@ -219,6 +219,8 @@ private:
     struct is_madness_function_vector<std::vector<Function<T, NDIM>>> : std::true_type {
     };
 
+    template<typename T> using is_parallel_serializable_object = std::is_base_of<archive::ParallelSerializableObject,T>;
+
     template<typename T> using is_world_constructible = std::is_constructible<T, World &>;
 
     struct cloudtimer {
@@ -318,8 +320,9 @@ private:
     }
 
     // overloaded
-    template<typename T, std::size_t NDIM>
-    recordlistT store_other(madness::World &world, const std::vector<Function<T, NDIM>> &source) {
+    template<typename T>
+    std::enable_if_t<is_parallel_serializable_object<T>::value, recordlistT>
+    store_other(madness::World& world, const std::vector<T>& source) {
         if (debug)
             std::cout << "storing " << typeid(source).name() << " of size " << source.size() << std::endl;
         recordlistT l = store_other(world, source.size());
@@ -328,6 +331,18 @@ private:
         if (debug) std::cout << "done with vector storing; container size " << container.size() << std::endl;
         return l;
     }
+
+//    // overloaded
+//    template<typename T, std::size_t NDIM>
+//    recordlistT store_other(madness::World &world, const std::vector<Function<T, NDIM>> &source) {
+//        if (debug)
+//            std::cout << "storing " << typeid(source).name() << " of size " << source.size() << std::endl;
+//        recordlistT l = store_other(world, source.size());
+//        for (auto s : source) l += store_other(world, s);
+//        if (dofence) world.gop.fence();
+//        if (debug) std::cout << "done with vector storing; container size " << container.size() << std::endl;
+//        return l;
+//    }
 
     template<typename T>
     T load_madness_function_vector(World &world, recordlistT &recordlist) const {
