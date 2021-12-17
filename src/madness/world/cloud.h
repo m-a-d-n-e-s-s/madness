@@ -205,12 +205,11 @@ private:
     mutable std::atomic<long> cache_reads=0l;
     mutable std::atomic<long> cache_stores=0l;
 
-    template<typename>
-    struct is_tuple : std::false_type {
-    };
-    template<typename ...T>
-    struct is_tuple<std::tuple<T...>> : std::true_type {
-    };
+    template<typename> struct is_tuple : std::false_type { };
+    template<typename ...T> struct is_tuple<std::tuple<T...>> : std::true_type { };
+
+    template<typename Q> struct is_vector : std::false_type { };
+    template<typename Q> struct is_vector<std::vector<Q>> : std::true_type { };
 
     template<typename>
     struct is_madness_function_vector : std::false_type {
@@ -254,8 +253,12 @@ private:
     template<typename T>
     T load_internal(madness::World &world, recordlistT &recordlist) const {
         T result;
-        if constexpr (is_madness_function_vector<T>::value) {
-            result = load_madness_function_vector<T>(world, recordlist);
+        if constexpr (is_vector<T>::value) {
+            if constexpr( is_parallel_serializable_object<typename T::value_type>::value) {
+                result = load_vector_of_parallel_serializable_objects<T>(world, recordlist);
+            } else {
+                result = load_other<T>(world, recordlist);
+            }
         } else {
             result = load_other<T>(world, recordlist);
         }
@@ -345,7 +348,7 @@ private:
 //    }
 
     template<typename T>
-    T load_madness_function_vector(World &world, recordlistT &recordlist) const {
+    T load_vector_of_parallel_serializable_objects(World &world, recordlistT &recordlist) const {
         std::size_t sz = load_other<std::size_t>(world, recordlist);
         T target(sz);
         for (std::size_t i = 0; i < sz; ++i) {
