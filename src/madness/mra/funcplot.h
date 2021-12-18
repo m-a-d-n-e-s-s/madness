@@ -609,7 +609,7 @@ namespace madness {
 
         try {
             std::ifstream f("input");
-            position_stream(f, "plot");
+            position_stream_to_word(f, "plot",'#',true,true);
             std::string s;
             while (f >> s) {
                 if (s == "end") {
@@ -803,7 +803,7 @@ namespace madness {
         	molecular_info=std::vector<std::string>(1,"0 0 0.0 0.0 0.0\n");
 
         // zoom factor
-        double zoom=1.0;
+        double zoom=8.0;
 
         // number of points in each direction
         int npoints=100;
@@ -813,7 +813,7 @@ namespace madness {
 
         try {
             std::ifstream f("input");
-            position_stream(f, "plot");
+            position_stream_to_word(f, "plot",'#',true,true);
             std::string s;
             while (f >> s) {
                 if (s == "end") {

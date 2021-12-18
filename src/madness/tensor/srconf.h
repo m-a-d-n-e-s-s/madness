@@ -44,7 +44,9 @@
 #include <madness/tensor/clapack.h>
 #include <madness/tensor/tensor_lapack.h>
 #include <list>
+#include<array>
 
+using namespace madness;
 namespace madness {
 
 
@@ -55,7 +57,7 @@ namespace madness {
 
 
 	template <class T> class GenTensor;
-    template <class T> class LowRankTensor;
+    template <class T> class GenTensor;
     template <class T> class SliceLowRankTensor;
 
 	/**
@@ -63,21 +65,13 @@ namespace madness {
 	 */
 
 	template <typename T>
-	class SRConf {
+	class SRConf : public BaseTensor {
 		friend class GenTensor<T>;
-		friend class LowRankTensor<T>;
         friend class SliceLowRankTensor<T>;
-
-		/// return the number of vectors (i.e. dim_eff) according to the TensorType
-		static unsigned int compute_nvec(const TensorType& tt) {
-			if (tt==TT_FULL) return 1;
-			if (tt==TT_2D) return 2;
-			print("unknown TensorType",tt);
-			MADNESS_ASSERT(0);
-		}
 
 		/// the scalar type of T
 		typedef typename Tensor<T>::scalar_type scalar_type;
+		typedef typename TensorTypeData<T>::float_scalar_type float_scalar_type;
 	public:
 
 #ifdef BENCH
@@ -89,32 +83,19 @@ namespace madness {
 		/// check orthonormality at low rank additions
 		static const bool check_orthonormality=false;
 
-		/// the number of dimensions (the order of the tensor)
-		unsigned int dim_;
-
 		/// for each configuration the weight; length should be r
 		Tensor< typename Tensor<T>::scalar_type >  weights_;
 
 		/// for each (physical) dimension one Tensor of (logical) dimension (r,k)
 		/// for vectors or (r,kprime,k) for operators
-		std::vector<tensorT> vector_;
+		std::array<Tensor<T>,2> vector_;
 
-		/// what is the rank of this
-		long rank_;
-
-		/// the number of underlying basis functions
-		/// the dimensions of vector_ will be
-		/// vector_(rank,maxk),
-		/// vector_(rank,maxk,maxk), etc
-		unsigned int maxk_;
+		/// separation dimensions: A(n,m) -> A(r,n) B(r,m), with n={k1,k2},m={k3,k4,k5..) multi-indices
+		long nci_left=-1;
 
 		/// Slice containing the actual data in each vector, ignoring "empty" configurations;
 		/// will maintain contiguity of the data.
-		std::vector<Slice> s_;
-
-		/// how will this be represented
-		TensorType tensortype_;
-
+		std::vector<Slice> s0,s1;
 		
 	public:
 
@@ -126,7 +107,7 @@ namespace madness {
     	/// @param[in] 	rank	the number of singular values in w
     	/// @param[in]	w		the weights/singular values of A
     	/// @return		i		the index of s_max to contribute: w(Slice(0,i)); i.e. inclusive!
-    	static int max_sigma(const double& thresh, const int& rank, const Tensor<double>& w) {
+    	static int max_sigma(const double& thresh, const long& rank, const Tensor<double>& w) {
 
     	    if (thresh<0.0) return rank-1;
     		// find the maximal singular value that's supposed to contribute
@@ -140,102 +121,41 @@ namespace madness {
     		return i;
     	}
 
-
 		/// default ctor
-		SRConf() : dim_(0), rank_(0), maxk_(0), s_(), tensortype_(TT_NONE) {
-		};
+		SRConf() : nci_left(-1) {};
 
-		/// ctor with dimensions for a vector configuration (tested)
-		SRConf(const unsigned int& dim, const unsigned int& k, const TensorType& tt)
-			: dim_(dim)
-			, rank_(0)
-			, maxk_(k)
-			, s_()
-			, tensortype_(tt) {
-
-			// make sure dim is integer multiple of requested TT
-			const long nvec=compute_nvec(tt);
-			MADNESS_ASSERT(dim%nvec==0);
-
-			// construct empty vector
-			weights_=Tensor<double>(int(0));
-			vector_=std::vector<Tensor<T> > (nvec);
-
-			if (tt==TT_FULL) {
-				vector_[0]=tensorT(std::vector<long>(dim,k));
-				rank_=-1;
-			} else {
-				for (unsigned int idim=0; idim<nvec; idim++) vector_[idim]=Tensor<T>(0,kVec());
-			}
+		SRConf(const long& ndim, const long* dimensions,
+				const long nci) : nci_left(nci) {
+    		BaseTensor::set_dims_and_size(ndim,dimensions);
+			if (nci_left<0) nci_left=ndim/2;	// integer division
 			make_structure();
-			MADNESS_ASSERT(has_structure());
+		}
+
+		SRConf(const long& ndim, const std::array<long,TENSOR_MAXDIM>& dimensions,
+				const long nci) : SRConf(ndim,dimensions.data(),nci) {
 		}
 
 		/// copy ctor (tested); shallow copy
-		SRConf(const SRConf& rhs)  {
-			*this=rhs;
-            MADNESS_ASSERT(has_structure());
-		}
+		SRConf(const SRConf& rhs) = default;
 
 		/// ctor with provided weights and effective vectors; shallow copy
 		SRConf(const Tensor<double>& weights, const std::vector<Tensor<T> >& vectors,
-				const unsigned int& dim, const unsigned int maxk, const TensorType& tt)
-			: dim_(dim)
-			, maxk_(maxk)
-			, tensortype_(tt) {
-
-			// consistency check
-			MADNESS_ASSERT(vectors.size()>0);
-			MADNESS_ASSERT(weights.ndim()==1 and weights.dim(0)==vectors[0].dim(0));
-
-			// compute dimension
-			unsigned int nvec=compute_nvec(tt);
-			MADNESS_ASSERT(vectors.size()==nvec);
-			MADNESS_ASSERT(dim%nvec==0);
-
-			rank_=weights.dim(0);
-			weights_=weights;
-			vector_=std::vector<Tensor<T> > (long(vectors.size()));
-			for (unsigned int idim=0; idim<vectors.size(); idim++) {
-				vector_[idim]=vectors[idim];
-			}
-			make_slices();
+				const long& ndim, const long& dims, const long nci)
+			: SRConf(ndim,dims,nci) {
+			MADNESS_ASSERT(vectors.size()==2);
+			set_vectors_and_weights(weights,vectors[0],vectors[1]);
+			make_structure();
             MADNESS_ASSERT(has_structure());
-		}
-
-		/// explicit ctor with one vector (aka full representation), shallow
-		SRConf(const tensorT& vector1)
-			: dim_(vector1.ndim())
-			, weights_(Tensor<double>())
-			, rank_(-1)
-			, maxk_(vector1.dim(0))
-			, tensortype_(TT_FULL) {
-
-			vector_.resize(1);
-			vector_[0]=vector1;
-			MADNESS_ASSERT(has_structure());
+			MADNESS_ASSERT(check_dimensions());
 		}
 
 		/// explicit ctor with two vectors (aka SVD), shallow
 		SRConf(const Tensor<double>& weights, const tensorT& vector1, const tensorT& vector2,
-				const unsigned int& dim, const unsigned int maxk)
-			: dim_(dim)
-			, maxk_(maxk)
-			, tensortype_(TT_2D) {
-
-			MADNESS_ASSERT(weights.ndim()==1);
-			MADNESS_ASSERT(vector1.ndim()==2);
-			MADNESS_ASSERT(vector2.ndim()==2);
-			MADNESS_ASSERT(weights.dim(0)==vector1.dim(0));
-			MADNESS_ASSERT(vector2.dim(0)==vector1.dim(0));
-			vector_.resize(2);
-			vector_[0]=vector1;
-			vector_[1]=vector2;
-			weights_=weights;
-			rank_=weights.dim(0);
+				const long& ndim, const long* dims, const long nci)
+			: SRConf(ndim,dims,nci) {
+			set_vectors_and_weights(weights,vector1,vector2);
 			make_structure();
-			make_slices();
-            MADNESS_ASSERT(has_structure());
+			MADNESS_ASSERT(check_dimensions());
 		}
 
 		/// assignment operator (tested), shallow copy of vectors
@@ -243,43 +163,31 @@ namespace madness {
 
 			// check for self-assignment
 			if (&rhs==this) return *this;
+			if (rhs.has_no_data()) {
+				clear();
+				return *this;
+			}
 
 			// these always hold
-			dim_=rhs.dim_;
-			tensortype_=rhs.tensortype_;
-			maxk_=rhs.maxk_;
-			s_=rhs.s_;
+			nci_left=rhs.nci_left;
+    		BaseTensor::set_dims_and_size(rhs.ndim(),rhs.dims());
+			s0=rhs.s0;
+			s1=rhs.s1;
 
-			if (rhs.has_no_data()) {
+			if (rhs.rank()==0) {
 				// construct empty vector
-				weights_=Tensor<double>(0);
-				vector_=std::vector<Tensor<T> > (rhs.dim_eff());
-				rank_=0;
-				for (unsigned int idim=0; idim<dim_eff(); idim++) vector_[idim]=Tensor<T>(0,long(this->kVec()));
+				make_empty_vectors_and_weights(0);
 				make_structure();
-
-
-			} else if (rhs.type()==TT_FULL) {
-				weights_=Tensor<double>();
-				rank_=-1;
-				vector_.resize(1);
-				vector_[0]=rhs.ref_vector(0);
 
 			} else {
 				// assign vectors; shallow copy
-				vector_.resize(rhs.vector_.size());
 				for (unsigned int i=0; i<rhs.vector_.size(); i++) {
 					vector_[i]=rhs.vector_[i];
 				}
 
 				// shallow copy
 				weights_=(rhs.weights_);
-				rank_=rhs.rank();
 
-				// consistency check
-				for (unsigned int idim=0; idim<dim_eff(); idim++) {
-					MADNESS_ASSERT(weights_.dim(0)==vector_[idim].dim(0));
-				}
 			}
             MADNESS_ASSERT(has_structure());
 			return *this;
@@ -288,48 +196,72 @@ namespace madness {
 		/// assign a number to this;
 		SRConf& operator=(const T& number) {
 
-		    if (type()==TT_2D) {
-                // rank will be one
-                rank_=1;
-                vector_[0]=Tensor<T>(1,kVec());
-                vector_[1]=Tensor<T>(1,kVec());
-                vector_[0]=number;
-                vector_[1]=1.0;
-                weights_=Tensor< typename Tensor<T>::scalar_type > (1);
-                weights_(0l)=1.0;
-                make_structure();
-                normalize();
-		    } else if (type()==TT_FULL) {
-		        vector_[0]=number;
-
-		    }
+			// rank will be one
+			this->make_empty_vectors_and_weights(1);
+			vector_[0]=number;
+			vector_[1]=1.0;
+			weights_(0l)=1.0;
+			make_structure();
+			normalize();
 		    return *this;
 		}
+
+
+    	void set_size_and_dim(long ndim, long k) {
+    		std::array<long,TENSOR_MAXDIM> dims;
+    		dims.fill(k);
+    		BaseTensor::set_dims_and_size(ndim,dims.data());
+    	}
+
+    	/// deduce the dimensions of the left and right singular vectors from the tensor dimensions
+    	std::array<std::array<long,TENSOR_MAXDIM>, 2> make_vector_dimensions(const long rank) const {
+    		std::array<std::array<long,TENSOR_MAXDIM>, 2> dimensions;
+			for (int i=0; i<nci_left; ++i) dimensions[0][i+1]=this->dim(i);
+			for (int i=nci_left; i<ndim(); ++i) dimensions[1][i+1-nci_left]=this->dim(i);
+
+			dimensions[0][0]=rank;
+			dimensions[1][0]=rank;
+			return dimensions;
+    	}
+
+    	void make_empty_vectors_and_weights(const long rank) {
+    		auto dimensions=make_vector_dimensions(rank);
+    		weights_=Tensor<float_scalar_type>(rank);
+    		vector_[0]=Tensor<T>(nci_left+1,dimensions[0].data());
+    		vector_[1]=Tensor<T>(ndim()-nci_left+1,dimensions[1].data());
+    		make_structure();
+    	}
+
+    	void set_vectors_and_weights(const Tensor< typename Tensor<T>::scalar_type >&  weights,
+    			const Tensor<T>& vector1, const Tensor<T>& vector2) {
+    		weights_=weights;
+    		vector_={vector1,vector2};
+    		make_structure();
+    	}
+
+    	void clear() {
+    		weights_.clear();
+    		vector_[0].clear();
+    		vector_[1].clear();
+            _size = 0;
+            _ndim = -1;
+    	}
 
 		/// return some of the terms of the SRConf (start,..,end), inclusively
 		/// shallow copy
 		const SRConf get_configs(const int& start, const int& end) const {
 
 			MADNESS_ASSERT((start>=0) and (end<=rank()));
-			MADNESS_ASSERT(s_.size()>1);
-			const long nvec=dim_eff();
-			const long dim_pv_eff=s_.size()-1;	// #dim per vector minus rank-dim
 
 			Slice s(start,end);
-			std::vector<tensorT> v(nvec);
+			tensorT v0,v1;
 
 			// slice vectors
-			if (dim_pv_eff==1) {
-				for (long i=0; i<nvec; i++) v[i]=ref_vector(i)(s,_);
-			} else if (dim_pv_eff==2) {
-				for (long i=0; i<nvec; i++) v[i]=ref_vector(i)(s,_,_);
-			} else if (dim_pv_eff==3) {
-				for (long i=0; i<nvec; i++) v[i]=ref_vector(i)(s,_,_,_);
-			} else {
-				MADNESS_EXCEPTION("faulty dim_pv in SRConf::get_configs",0);
-			}
+			v0=flat_vector(0)(s,_);
+			v1=flat_vector(1)(s,_);
 
-			SRConf<T> result(weights_(s),v,dim(),get_k(),type());
+			SRConf<T> result(ndim(),dims(),nci_left);
+			result.set_vectors_and_weights(weights_(s),v0,v1);
             MADNESS_ASSERT(result.has_structure());
 			return result;
 		}
@@ -339,154 +271,29 @@ namespace madness {
 
         template <typename Archive>
         void serialize(Archive& ar) {
-              	int i=int(tensortype_);
-              	ar & dim_ & weights_ & vector_ & rank_ & maxk_ & i;
-              	tensortype_=TensorType(i);
-              	make_slices();
+              	ar & weights_ & vector_[0] & vector_[1] & nci_left & _ndim & _size
+					& _id &  archive::wrap(_dim,TENSOR_MAXDIM) & s0 & s1;
+//              	make_slices();
                 MADNESS_ASSERT(has_structure());
         }
 
-		/// return the tensor type
-		TensorType type() const {return tensortype_;};
-
 		/// does this have any data?
 		bool has_data() const {
-			if (tensortype_==TT_FULL) return (vector_.size()>0 and vector_[0].has_data());
-			return rank()>0;
+			return (size()!=0);
 		}
 
 		/// does this have any data?
 		bool has_no_data() const {return !has_data();}
 
-	private:
-
-		/// reserve enough space to hold at least r configurations
-		void reserve(long r) {
-
-			// this should at least hold the current information
-			MADNESS_ASSERT(r>=this->rank());
-			MADNESS_ASSERT(has_data() or vector_.size()>0);
-
-			// fast return if possible
-			// nothing to be done
-			if (r==0) return;
-			// already large enuff?
-			if (this->vector_[0].dim(0)>=r) return;
-
-			// to avoid incremental increase of the rank
-			r+=3;
-
-			// for convenience
-			const long rank=this->rank();
-			const long kvec=this->kVec();
-			const bool had_structure=this->has_structure();
-			if (had_structure) this->undo_structure();
-
-			// transfer weights
-			Tensor<scalar_type> newWeights(r);
-			if (rank>0) newWeights(Slice(0,rank-1))=weights_(Slice(0,rank-1));
-			std::swap(weights_,newWeights);
-
-			// transfer vectors
-			for (unsigned int idim=0; idim<this->dim_eff(); idim++) {
-
-				tensorT newVector(r,kvec);
-				if (rank>0) newVector(this->c0())=vector_[idim](this->c0());
-				std::swap(vector_[idim],newVector);
-
-			}
-			MADNESS_ASSERT(weights_.dim(0)==vector_[0].dim(0));
-			if (had_structure) this->make_structure(true);
-            MADNESS_ASSERT(has_structure());
-
-		}
-
 		/// return a Slice that corresponds the that part of vector_ that holds coefficients
-		const std::vector<Slice>& c0() const {
-			MADNESS_ASSERT(s_.size()>0);
-			return s_;
+		const std::vector<Slice>& c0(const int idim) const {
+			if (idim==0) return s0;
+			else if (idim==1) return s1;
+			else {
+				MADNESS_EXCEPTION("invalid idim in SRConf::idim",1);
+			}
 		}
 
-		/// reduce the rank using a divide-and-conquer approach
-		void divide_and_conquer_reduce(const double& thresh) {
-
-			if (has_no_data()) return;
-			if (rank()==1) {
-				normalize();
-				return;
-			}
-
-			// divide the SRConf into two
-			const long chunksize=8;
-			if (rank()>chunksize) {
-        		SRConf<T> chunk1=this->get_configs(0,rank()/2);
-        		SRConf<T> chunk2=this->get_configs(rank()/2+1,rank()-1);
-        		chunk1.divide_and_conquer_reduce(thresh*0.5);
-        		chunk2.divide_and_conquer_reduce(thresh*0.5);
-
-        		// collect the two SRConfs
-        		*this=chunk1;
-        		this->add_SVD(chunk2,thresh);
-
-			} else {
-
-				// and reduce the rank
-				this->orthonormalize(thresh);
-			}
-            MADNESS_ASSERT(has_structure());
-		}
-
-	public:
-		/// orthonormalize this
-		void orthonormalize(const double& thresh) {
-
-			if (type()==TT_FULL) return;
-			if (has_no_data()) return;
-			if (rank()==1) {
-				normalize();
-				return;
-			}
-#ifdef BENCH
-			double cpu0=wall_time();
-#endif
-//			vector_[0]=copy(vector_[0](c0()));
-//			vector_[1]=copy(vector_[1](c0()));
-//			weights_=weights_(Slice(0,rank()-1));
-            normalize();
-#ifdef BENCH
-			double cpu1=wall_time();
-#endif
-//            this->undo_structure();
-			weights_=weights_(Slice(0,rank()-1));
-//			ortho3(vector_[0],vector_[1],weights_,thresh);
-            tensorT v0=flat_vector(0);
-            tensorT v1=flat_vector(1);
-#ifdef BENCH
-			double cpu2=wall_time();
-#endif
-			ortho3(v0,v1,weights_,thresh);
-            std::swap(vector_[0],v0);
-            std::swap(vector_[1],v1);
-#ifdef BENCH
-			double cpu3=wall_time();
-#endif
-			rank_=weights_.size();
-			MADNESS_ASSERT(rank_>=0);
-			this->make_structure();
-			make_slices();
-            MADNESS_ASSERT(has_structure());
-#ifdef BENCH
-			double cpu4=wall_time();
-			SRConf<T>::time(21)+=cpu1-cpu0;
-			SRConf<T>::time(22)+=cpu2-cpu1;
-			SRConf<T>::time(23)+=cpu3-cpu2;
-			SRConf<T>::time(24)+=cpu4-cpu3;
-			SRConf<T>::time(20)+=cpu4-cpu0;
-#endif
-
-		}
-
-	private:
 		/// append configurations of rhs to this
 
 		/// simplified version of inplace_add for flattened configurations
@@ -494,45 +301,54 @@ namespace madness {
 		void append(const SRConf<T>& rhs, const double fac=1.0) {
 
 			// fast return if possible
-			if (rhs.has_no_data()) return;
-			if (this->has_no_data()) {
+			if (rhs.has_no_data() or rhs.rank()==0) return;
+			if (this->has_no_data() or rank()==0) {
 				*this=copy(rhs);
 				this->scale(fac);
 				return;
 			}
 
-			const long newRank=this->rank()+rhs.rank();
-			const long lhsRank=this->rank();
-			const long rhsRank=rhs.rank();
-			reserve(newRank);
+    		auto dimensions=make_vector_dimensions(rank()+rhs.rank());
+			Tensor<float_scalar_type> weights(rank()+rhs.rank());
+			Tensor<T> vector0(nci_left+1,dimensions[0].data());
+			Tensor<T> vector1(ndim()-nci_left+1,dimensions[1].data());
 
 			// assign weights
-			this->weights_(Slice(lhsRank,newRank-1))=rhs.weights_(Slice(0,rhsRank-1))*fac;
-			std::vector<Slice> s(dim_per_vector()+1,_);
-			s[0]=Slice(lhsRank,newRank-1);
+			weights(Slice(0,rank()-1))=weights_(Slice(0,rank()-1));
+			weights(Slice(rank(),rank()+rhs.rank()-1))=rhs.weights_(Slice(0,rhs.rank()-1))*fac;
 
-			// assign vectors
-			for (unsigned int idim=0; idim<this->dim_eff(); idim++) {
-//              vector_[idim](Slice(lhsRank,newRank-1),_)=rhs.vector_[idim](rhs.c0());
-				vector_[idim](s)=rhs.vector_[idim](rhs.c0());
-			}
+			vector0(c0(0))=vector_[0](c0(0));
+			vector1(c0(1))=vector_[1](c0(1));
 
-			rank_=newRank;
+			auto s00=s0;
+			auto s10=s1;
+			s00[0]=Slice(rank(),rank()+rhs.rank()-1);
+			s10[0]=Slice(rank(),rank()+rhs.rank()-1);
+
+			vector0(s00)=rhs.vector_[0](rhs.c0(0));
+			vector1(s10)=rhs.vector_[1](rhs.c0(1));
+
+			std::swap(weights,weights_);
+			std::swap(vector0,vector_[0]);
+			std::swap(vector1,vector_[1]);
+
 			make_slices();
             MADNESS_ASSERT(has_structure());
 
 		}
+
 		void append(const SRConf<T>& rhs, const double_complex fac=1.0) {
 			MADNESS_EXCEPTION("no complex in SRConf",1);
 		}
 
+	public:
 		/// add two orthonormal configurations, yielding an optimal SVD decomposition
 		void add_SVD(const SRConf<T>& rhs, const double& thresh) {
 #ifdef BENCH
 			double cpu0=wall_time();
 #endif
-			if (rhs.has_no_data()) return;
-			if (has_no_data()) {
+			if (rhs.has_no_data() or rhs.rank()==0) return;
+			if (has_no_data() or rank()==0) {
 				*this=rhs;
 				return;
 			}
@@ -540,10 +356,15 @@ namespace madness {
 			if (check_orthonormality) check_right_orthonormality();
             if (check_orthonormality) rhs.check_right_orthonormality();
 
-            this->undo_structure();
-            ortho5(ref_vector(0),ref_vector(1),weights_,
+//            Tensor<T> x1=flat_vector(0);
+//            Tensor<T> x2=flat_vector(1);
+            Tensor<T> x1=vector_[0].reshape(rank(),kVec(0));
+            Tensor<T> x2=vector_[1].reshape(rank(),kVec(1));
+            ortho5(x1,x2,weights_,
 					rhs.flat_vector(0),rhs.flat_vector(1),rhs.weights_,thresh);
-			rank_=weights_.size();
+            std::swap(x1,vector_[0]);
+            std::swap(x2,vector_[1]);
+
 			make_structure();
 			make_slices();
             MADNESS_ASSERT(has_structure());
@@ -558,200 +379,105 @@ namespace madness {
 
 		/// bounds checking should have been performed by caller
 		/// s denotes where in lhs the new contribution from rhs will be inserted
-		void inplace_add(const SRConf<T>& rhs2, std::vector<Slice> lhs_s,
-				std::vector<Slice> rhs_s, const double alpha, const double beta) {
+		void inplace_add(const SRConf<T>& rhs, std::array<Slice,TENSOR_MAXDIM> lhs_s,
+				std::array<Slice,TENSOR_MAXDIM> rhs_s, const double alpha, const double beta) {
+
+			// cannot scale a slice only...
+			MADNESS_ASSERT(alpha==1.0);
 
 			// fast return if possible; no fast return for this.rank()==0
 			// since we might work with slices!
-			if (rhs2.has_no_data()) return;
+			if (rhs.has_no_data() or rhs.rank()==0) return;
 
-			// fast return for full rank tensors
-			if (type()==TT_FULL) {
-				vector_[0](lhs_s)+=rhs2.vector_[0](rhs_s);
-				return;
+			// prepare the vectors
+			SRConf<T> result(ndim(),dims(),nci_left);
+			result.make_empty_vectors_and_weights(rank()+rhs.rank());
+
+			// insert lhs into result
+			if (rank()>0) {
+				result.vector_[0](s0)=vector_[0];
+				result.vector_[1](s1)=vector_[1];
+				result.weights_(Slice(0,rank()-1))=weights_;
 			}
+			// insert rhs into result
+			{
+	            auto [sr0,sr1]=rhs.make_slices(rhs_s);
+	            auto [sl0,sl1]=make_slices(lhs_s);
+	            sl0[0]=Slice(rank(),result.rank()-1);
+	            sl1[0]=Slice(rank(),result.rank()-1);
+	            result.vector_[0](sl0)=rhs.vector_[0](sr0);
+	            result.vector_[1](sl1)=rhs.vector_[1](sr1);
+	            result.weights_(Slice(rank(),result.rank()-1))=rhs.weights_*beta;
 
-			// unflatten this and rhs; shallow wrt vector_
-			SRConf<T>& lhs=*this;
-			const SRConf<T>& rhs=rhs2;
-			if (lhs.has_no_data()) lhs.make_structure(true);
-			MADNESS_ASSERT(lhs.has_structure() or (lhs.has_no_data()));
-			MADNESS_ASSERT(rhs.has_structure());
-
-			// conflicts with lhs_s ??
-			MADNESS_ASSERT(alpha==1.0);
-
-			// for convenience
-			const long lhsRank=lhs.rank();
-			const long rhsRank=rhs.rank();
-			const long newRank=lhs.rank()+rhs.rank();
-
-			const long rhs_k=rhs.get_k();
-			const long lhs_k=lhs.get_k();
-
-			const long dim_pv=lhs.dim_per_vector();
-
-			// adapt slices for use
-			for (unsigned int idim=0; idim<lhs.dim(); idim++) {
-				if (lhs_s[idim].end<0) lhs_s[idim].end+=lhs_k;
-				if (rhs_s[idim].end<0) rhs_s[idim].end+=rhs_k;
-				// make sure slices conform
-				MADNESS_ASSERT((lhs_s[idim].end-lhs_s[idim].start) == (rhs_s[idim].end-rhs_s[idim].start));
-				// make sure lhs can actually hold rhs(s)
-				MADNESS_ASSERT(lhs_k>=(rhs_s[idim].end-rhs_s[idim].start+1));
 			}
-
-			lhs.reserve(newRank);
-
-			// assign weights, and include factors alpha and beta
-			if (alpha!=1.0) lhs.scale(alpha);
-			lhs.weights_(Slice(lhsRank,newRank-1))=rhs.weights_(Slice(0,rhsRank-1))*beta;
-
-
-			// assign vectors
-			for (unsigned int idim=0; idim<lhs.dim_eff(); idim++) {
-
-				// insert rhs at the right place
-				if (dim_pv==1) {
-					lhs.ref_vector(idim)(Slice(lhsRank,newRank-1),lhs_s[idim])=
-							rhs.ref_vector(idim)(Slice(0,rhsRank-1),rhs_s[idim]);
-
-				} else if (dim_pv==2) {
-					lhs.ref_vector(idim)(Slice(lhsRank,newRank-1),lhs_s[2*idim],lhs_s[2*idim+1])=
-							rhs.ref_vector(idim)(Slice(0,rhsRank-1),rhs_s[2*idim],rhs_s[2*idim+1]);
-
-				} else if (dim_pv==3) {
-					lhs.ref_vector(idim)(Slice(lhsRank,newRank-1),lhs_s[3*idim],lhs_s[3*idim+1],lhs_s[3*idim+2])=
-							rhs.ref_vector(idim)(Slice(0,rhsRank-1),rhs_s[3*idim],rhs_s[3*idim+1],rhs_s[3*idim+2]);
-
-				} else {
-					MADNESS_EXCEPTION("extend dim_pv in srconf::inplace_add",0);
-				}
-			}
-
-			lhs.rank_=newRank;
-			lhs.make_slices();
+			std::swap(*this,result);
             MADNESS_ASSERT(has_structure());
 		}
 
 		/// deep copy of rhs, shrink
 		friend SRConf<T> copy(const SRConf<T>& rhs) {
 
+			if (rhs.has_no_data()) return SRConf<T>();
+
+			SRConf<T> result(rhs.ndim(),rhs.dims(),rhs.nci_left);
+
 			// if rhs is non-existent simply construct a new SRConf
-			if (rhs.has_no_data()) return SRConf<T>(rhs.dim(),rhs.get_k(),rhs.type());
+			if (rhs.has_data() and rhs.rank()>0) {
+				result.set_vectors_and_weights(copy(rhs.weights_(Slice(0,rhs.rank()-1))),
+						copy(rhs.vector_[0](rhs.c0(0))),copy(rhs.vector_[1](rhs.c0(1))));
+			}
 
-			if (rhs.type()==TT_FULL) return SRConf<T>(copy(rhs.ref_vector(0)));
-
-			// pass a copy of the weights and vectors of rhs to ctor
-			std::vector<tensorT> vector(rhs.dim_eff());
-			for (unsigned int idim=0; idim<rhs.dim_eff(); idim++)
-				vector[idim]=copy(rhs.ref_vector(idim)(rhs.c0()));
-
-			return SRConf<T>(copy(rhs.weights_(Slice(0,rhs.rank()-1))),vector,rhs.dim(),rhs.get_k(),rhs.type());
+			return result;
 		}
 
 public:
         /// return a slice of this (deep copy)
-        SRConf<T> copy_slice(const std::vector<Slice>& s) const {
+        SRConf<T> copy_slice(const std::array<Slice,TENSOR_MAXDIM>& s) const {
+
+        	std::array<long,TENSOR_MAXDIM> k;
+        	for (int i=0; i<s.size(); ++i) {
+        		if (s[i].end==-1) k[i]=dim(i);
+        		else k[i]= s[i].end-s[i].start+1;
+        	}
+            SRConf<T> result(ndim(),k,nci_left);
 
             // fast return if possible
-            if (this->has_no_data()) {
-                int k_new=s[0].end-s[0].start+1;
-                return SRConf<T>(dim(),k_new,this->type());
-            }
+            if (this->has_no_data() or rank()==0) return result;
 
-            // consistency check
-            MADNESS_ASSERT(s.size()==this->dim());
-            MADNESS_ASSERT(s[0].step==1);
+            auto [s00,s11]=make_slices(s);
+            Tensor<T> vector0=copy(vector_[0](s00));
+            Tensor<T> vector1=copy(vector_[1](s11));
 
-            // fast return for full rank tensors
-            if (type()==TT_FULL) {
-                tensorT a=copy(ref_vector(0)(s));
-                return SRConf<T>(a);
-            }
+            Tensor<double> weights=copy(this->weights_(Slice(0,rank()-1)));
+            result.set_vectors_and_weights(weights,vector0,vector1);
 
-
-            MADNESS_ASSERT(has_structure());
-//          _ptr->make_structure();
-
-            // get dimensions
-            const TensorType tt=this->type();
-            const int merged_dim=this->dim_per_vector();
-            const int dim_eff=this->dim_eff();
-            const int rank=this->rank();
-            int k_new=s[0].end-s[0].start+1;
-            if (s[0].end<0) k_new+=this->get_k();
-
-            // get and reshape the vectors, slice and re-reshape again;
-            // this is shallow
-            const SRConf<T>& sr=*this;
-
-            std::vector<Tensor<T> > vectors(dim_eff,Tensor<T>());
-
-            for (int idim=0; idim<dim_eff; idim++) {
-
-                // assignment from/to slice is deep-copy
-                if (merged_dim==1) {
-                    if (rank>0) {
-                        vectors[idim]=copy(sr.ref_vector(idim)(Slice(0,rank-1),s[idim]));
-                    } else {
-                        vectors[idim]=Tensor<T>(0,s[idim].end-s[idim].start+1);
-                    }
-                } else if (merged_dim==2) {
-                    if (rank>0) {
-                        vectors[idim]=copy(sr.ref_vector(idim)(Slice(0,rank-1),s[2*idim],s[2*idim+1]));
-                    } else {
-                        vectors[idim]=tensorT(0,s[2*idim].end-s[2*idim].start+1,
-                                                s[2*idim+1].end-s[2*idim+1].start+1);
-                    }
-                } else if (merged_dim==3) {
-                    if (rank>0) {
-                        vectors[idim]=copy(sr.ref_vector(idim)(Slice(0,rank-1),
-                                s[3*idim],s[3*idim+1],s[3*idim+2]));
-                    } else {
-                        vectors[idim]=tensorT(0,s[3*idim].end-s[3*idim].start+1,
-                                s[3*idim+1].end-s[3*idim+1].start+1,
-                                s[3*idim+2].end-s[3*idim+2].start+1);
-
-                    }
-                } else MADNESS_EXCEPTION("unknown number of dimensions in GenTensor::copy_slice()",0);
-            }
-
-            // work-around for rank==0
-            Tensor<double> weights;
-            if (rank>0) {
-                weights=copy(this->weights_(Slice(0,rank-1)));
-            } else {
-                weights=Tensor<double>(int(0));
-            }
-            return SRConf<T>(weights,vectors,this->dim(),k_new,tt);
+            return result;
         }
 
         /// perform elementwise Hadamard product
         SRConf<T>& emul(const SRConf<T>& other) {
             // consistency check
-            MADNESS_ASSERT(this->dim()==other.dim());
-            MADNESS_ASSERT(this->get_k()==other.get_k());
+            MADNESS_ASSERT(compatible(*this,other));
 
             long finalrank=this->rank()*other.rank();
-            SRConf<T> result(dim(),get_k(),TT_2D);
+
+            SRConf<T> result(ndim(),dims(),nci_left);	// empty tensor
+
             if ((this->rank()==0) or (other.rank()==0)) {
                 ;   // pass
             } else {
 
-                result.vector_[0]=Tensor<T>(finalrank,kVec());
-                result.vector_[1]=Tensor<T>(finalrank,kVec());
+            	result.make_empty_vectors_and_weights(finalrank);
                 result.weights_=outer(weights_,other.weights_).flat();
-                result.rank_=finalrank;
 
-                for (int k=0; k<kVec(); ++k) {
-                    Tensor<T> a1=flat_vector(0)(_,Slice(k,k));   // (1,k)->(k)
-                    Tensor<T> a2=flat_vector(1)(_,Slice(k,k));
-                    Tensor<T> b1=other.flat_vector(0)(_,Slice(k,k));
-                    Tensor<T> b2=other.flat_vector(1)(_,Slice(k,k));
-
-                    result.vector_[0](_,Slice(k,k))=outer(a1,b1).reshape(finalrank,1);
-                    result.vector_[1](_,Slice(k,k))=outer(a2,b2).reshape(finalrank,1);
+                // left vector
+                for (int i=0; i<2; ++i) {
+                    Tensor<T> a1=flat_vector(i);
+                    Tensor<T> b1=other.flat_vector(i);
+                	Tensor<T> r1=result.vector_[i].reshape(finalrank,kVec(i));
+                    for (int k=0; k<a1.dim(1); ++k) {
+                    	r1(_,Slice(k,k))=outer(a1(_,k),b1(_,k)).reshape(finalrank,1);
+                    }
                 }
             }
             result.make_structure();
@@ -764,63 +490,37 @@ public:
 protected:
 		/// redo the Slices for getting direct access to the configurations
 		void make_slices() {
-			if (type()==TT_FULL) return;
-			if (this->has_no_data()) {
-				s_.clear();
-			} else {
-				// first dim is the rank
-				if (vector_[0].ndim()>TENSOR_MAXDIM) {
-					print(*this);
-					MADNESS_EXCEPTION("serializing failed",0);
-				}
-				s_.resize(vector_[0].ndim());
-				s_[0]=Slice(0,this->rank()-1);
-				for (int i=1; i<vector_[0].ndim(); i++) {
-					s_[i] = Slice(_);
-				}
-			}
+			s0=std::vector<Slice>(nci_left+1,_);				// first dim is the rank
+			s1=std::vector<Slice>(ndim()-nci_left+1,_);				// first dim is the rank
+
+			s0[0]=Slice(0,rank()-1);
+			s1[0]=Slice(0,rank()-1);
 		}
 
+		std::array<std::vector<Slice>,2> make_slices(const std::array<Slice,TENSOR_MAXDIM>& s) const {
+			std::vector<Slice> s00(nci_left+1,_);				// first dim is the rank
+			std::vector<Slice> s10(ndim()-nci_left+1,_);				// first dim is the rank
+
+			s00[0]=Slice(0,rank()-1);
+			s10[0]=Slice(0,rank()-1);
+
+			for (int idim=0; idim<ndim(); ++idim) {
+				if (idim<nci_left) s00[idim+1]=s[idim];
+				if (idim>=nci_left) s10[idim-nci_left+1]=s[idim];
+			}
+
+			std::array<std::vector<Slice>,2> result={s00,s10};
+			return result;
+		}
 
 		void make_structure(bool force=false) {
 
-			// fast return if rank is zero
-			if ((not force) and this->has_no_data()) return;
-			if (type()==TT_FULL) return;
-
-			const int dim_pv=this->dim_per_vector();
-			MADNESS_ASSERT(dim_pv>0 and dim_pv<=3);
-			int rr=weights_.dim(0);	// not the rank!
-			if (weights_.size()==0) rr=0;
-			const int k=this->get_k();
-
-			// reshape the vectors and adapt the Slices
-			for (unsigned int idim=0; idim<this->dim_eff(); idim++) {
-				if (dim_pv==2) this->vector_[idim]=vector_[idim].reshape(rr,k,k);
-				if (dim_pv==3) this->vector_[idim]=vector_[idim].reshape(rr,k,k,k);
-			}
+			auto dimensions=make_vector_dimensions(rank());
+			vector_[0]=vector_[0].reshape(nci_left+1,&dimensions[0][0]);
+			vector_[1]=vector_[1].reshape(ndim()-nci_left+1,&dimensions[1][0]);
 
 			this->make_slices();
 
-		}
-
-		void undo_structure(bool force=false) {
-
-			// fast return if rank is zero
-			if ((not force) and this->has_no_data()) return;
-			if (type()==TT_FULL) return;
-
-			const int dim_pv=this->dim_per_vector();
-			MADNESS_ASSERT(dim_pv>0 and dim_pv<=3);
-			int rr=weights_.dim(0);	// not the rank!
-			if (weights_.size()==0) rr=0;
-			const int kvec=this->kVec();
-
-			for (unsigned int idim=0; idim<this->dim_eff(); idim++) {
-				this->vector_[idim]=this->vector_[idim].reshape(rr,kvec);
-			}
-
-			this->make_slices();
 		}
 
 	public:
@@ -834,30 +534,38 @@ protected:
 			return vector_[idim];
 		}
 
+
+		long kVec(const int idim) const {
+			return vector_[idim].size()/vector_[idim].dim(0);
+		}
+
 		/// return shallow copy of a slice of one of the vectors, flattened to (r,kVec)
 		const Tensor<T> flat_vector(const unsigned int& idim) const {
 		    MADNESS_ASSERT(rank()>0);
-		    return vector_[idim](c0()).reshape(rank(),kVec());
+//		    const Tensor<T> result=vector_[idim](c0(idim)).reshape(rank(),kVec(idim));
+		    const Tensor<T> result=vector_[idim].reshape(rank(),kVec(idim));
+		    return result;
 		}
 
 		/// return shallow copy of a slice of one of the vectors, flattened to (r,kVec)
 		Tensor<T> flat_vector(const unsigned int& idim) {
 		    MADNESS_ASSERT(rank()>0);
-		    return vector_[idim](c0()).reshape(rank(),kVec());
+//		    Tensor<T> result=vector_[idim](c0(idim)).reshape(rank(),kVec(idim));
+		    Tensor<T> result=vector_[idim].reshape(rank(),kVec(idim));
+		    return result;
 		}
 
-	private:
+	protected:
 		/// fill this SRConf with 1 flattened random configurations (tested)
 		void fillWithRandom(const long& rank=1) {
 
-			rank_=rank;
 
 			// assign; note that Slice(0,_) is inclusive
 			weights_=Tensor<double>(rank);
 			weights_=1.0;
 
 			for (unsigned int idim=0; idim<this->dim_eff(); idim++) {
-				vector_[idim]=Tensor<T>(rank_,this->kVec());
+				vector_[idim]=Tensor<T>(rank,this->kVec());
 				vector_[idim].fillrandom();
 			}
 
@@ -873,30 +581,21 @@ protected:
 		/// normalize the vectors (tested)
 		void normalize() {
 
-			if (type()==TT_FULL) return;
 			if (rank()==0) return;
             MADNESS_ASSERT(has_structure());
 
 	        // for convenience
 	        const unsigned int rank=this->rank();
-	        std::vector<Slice> s(dim_per_vector()+1,_);
 //	        std::vector<Slice> s(2,_);
 
 	        // we calculate the norm sum_i < F^r_i | F^r_i > for each dimension for each r
 
 	        // loop over all configurations
 	        for (unsigned int r=0; r<rank; r++) {
-	            s[0]=Slice(r,r);
 	        	// loop over all dimensions
-	        	for (unsigned int idim=0; idim<dim_eff(); idim++) {
-
-//	        		Tensor<T> config=this->ref_vector(idim)(s);
-//	        		const double norm=config.normf();
-//	        		const double fac=norm;
-//	        		double oofac=1.0/fac;
-//	        		if (fac<1.e-13) oofac=0.0;
-//	        		weights_(r)*=fac;
-//	        		config.scale(oofac);
+	        	for (unsigned int idim=0; idim<2; idim++) {
+	    	        std::vector<Slice> s(dim_per_vector(idim)+1,_);
+		            s[0]=Slice(r,r);
 
 //	        		const double norm=this->ref_vector(idim)(s).normf();
 	        		const double norm=this->vector_[idim](s).normf();
@@ -904,13 +603,20 @@ protected:
 	        		double oofac=1.0/fac;
 	        		if (fac<1.e-13) oofac=0.0;
 	        		weights_(r)*=fac;
-//	        		this->ref_vector(idim)(s).scale(oofac);
-//	        		this->flat_vector(idim)(s).scale(oofac);
 	        		vector_[idim](s).scale(oofac);
-
 	        	}
 	        }
             MADNESS_ASSERT(has_structure());
+		}
+
+		bool check_dimensions() const {
+			bool correct=true;
+			if (vector_[0].dim(0)!=rank()) return false;
+			if (vector_[0].ndim()+vector_[1].ndim()!=ndim()+2) return false;
+			if (vector_[0].ndim()!=nci_left+1) return false;
+			if (vector_[1].ndim()!=ndim()-nci_left+1) return false;
+
+			return correct;
 		}
 
 		/// check if the terms are orthogonal
@@ -919,9 +625,7 @@ protected:
 			// fast return if possible
 			if (rank()==0) return true;
 
-			MADNESS_ASSERT(type()==TT_2D);
-
-			const tensorT t1=ref_vector(1)(c0()).reshape(rank(),kVec());
+			const tensorT t1=ref_vector(1)(c0(1)).reshape(rank(),kVec(1));
 			tensorT S=inner(t1,t1,1,1);
 			for (int i=0; i<S.dim(0); i++) S(i,i)-=1.0;
 
@@ -935,41 +639,30 @@ protected:
 		bool is_flat() const {
 			return (vector_[0].ndim()==2);
 		}
+
 	public:
 		/// return if this has a tensor structure (has not been flattened)
 		bool has_structure() const {
-            return (type()==TT_FULL or has_no_data() or vector_[0].dim(1)==this->get_k());
+			if (vector_.size()==2) {
+				auto vector_dimensions=make_vector_dimensions(vector_[0].dim(0));
+				for (int i=0; i<vector_[0].ndim(); ++i) {
+					if (vector_dimensions[0][i] != vector_[0].dim(i)) return false;
+				}
+				for (int i=0; i<vector_[1].ndim(); ++i) {
+					if (vector_dimensions[1][i] != vector_[1].dim(i)) return false;
+				}
+			}
+			return true;
 		}
-
-		/// return the dimension of this
-		unsigned int dim() const {return dim_;}
-
-		/// return the number of vectors
-		unsigned int dim_eff() const {return vector_.size();}
 
 		/// return the logicalrank
-		long rank() const {return rank_;};
-
-		/// return the number of physical matrix elements per dimension
-		unsigned int get_k() const {return maxk_;};
-
-		/// return the length of the vector (dim_pv*maxk)
-		long kVec() const {
-			const int dimpv=this->dim_per_vector();
-			int kv=1;
-			for (int i=0; i<dimpv; ++i) kv*=this->get_k();
-//			const int kv1= pow(this->get_k(),this->dim_per_vector());
-//			MADNESS_ASSERT(kv==kv1);
-			return kv;
-		}
+		long rank() const {return weights_.size();};
 
 	public:
 		/// return the number of physical dimensions
-		int dim_per_vector() const {
-			const int nvec=vector_.size();
-			const int dim=this->dim();
-			MADNESS_ASSERT(dim%nvec==0);
-			return dim/nvec;
+		int dim_per_vector(int idim) const {
+			MADNESS_ASSERT(vector_.size()>idim);
+			return vector_[idim].ndim()-1;		// remove dimension for the rank
 		}
 
 		/// return the weight
@@ -978,92 +671,30 @@ protected:
         /// reconstruct this to return a full tensor
         Tensor<T> reconstruct() const {
 
-            if (type()==TT_FULL) return ref_vector(0);
-
-            /*
-             * reconstruct the tensor first to the configurational dimension,
-             * then to the real dimension
-             */
-
-            // for convenience
-            const unsigned int conf_dim=this->dim_eff();
-            const unsigned int conf_k=this->kVec();           // possibly k,k*k,..
-            const long rank=this->rank();
-            long d[TENSOR_MAXDIM];
-
             // fast return if possible
-            if (rank==0) {
-                // reshape the tensor to the really required one
-                const long k=this->get_k();
-                const long dim=this->dim();
-                for (long i=0; i<dim; i++) d[i] = k;
+            if (rank()==0) return Tensor<T> (ndim(),dims(),true);
 
-                return Tensor<T> (dim,d,true);
-            }
+            // include weights in left vector
+            Tensor<T> scr=make_left_vector_with_weights();
 
-
-            // set up result Tensor (in configurational dimensions)
-            for (long i=0; i<conf_dim; i++) d[i] = conf_k;
-            tensorT s(conf_dim,d,true);
-
-            // flatten this
-            SRConf<T> sr=*this;
-
-            // and a scratch Tensor
-            Tensor<T>  scr(rank);
-            Tensor<T>  scr1(rank);
-            Tensor<T>  scr2(rank);
-
-            if (conf_dim==1) {
-
-                for (unsigned int i0=0; i0<conf_k; i0++) {
-                    scr=sr.weights_;
-                    //                  scr.emul(F[0][i0]);
-                    T buffer=scr.sum();
-                    s(i0)=buffer;
-                }
-
-            } else if (conf_dim==2) {
-
-
-                //              tensorT weight_matrix(rank,rank);
-                //              for (unsigned int r=0; r<rank; r++) {
-                //                  weight_matrix(r,r)=this->weight(r);
-                //              }
-                //              s=inner(weight_matrix,sr._ptr->refVector(0));
-                //              s=inner(s,sr._ptr->refVector(1),0,0);
-//                tensorT sscr=copy(sr._ptr->ref_vector(0)(sr._ptr->c0()));
-                tensorT sscr=copy(sr.flat_vector(0));
-                for (unsigned int r=0; r<rank; r++) {
-                    const double w=weights(r);
-                    for (unsigned int k=0; k<conf_k; k++) {
-                        sscr(r,k)*=w;
-                    }
-                }
-                inner_result(sscr,sr.flat_vector(1),0,0,s);
-
-
-            } else {
-                print("only config_dim=1,2 in SRConf::reconstruct");
-                MADNESS_ASSERT(0);
-            }
-
-
-            // reshape the tensor to the really required one
-            const long k=this->get_k();
-            const long dim=this->dim();
-            for (long i=0; i<dim; i++) d[i] = k;
-
-            Tensor<T> s2=s.reshape(dim,d);
-            return s2;
+			Tensor<T> result=inner(conj(scr),flat_vector(1),0,0);
+            return result.reshape(ndim(),dims());
         }
 
+	protected:
 
-	private:
+        Tensor<T> make_left_vector_with_weights() const {
+        	Tensor<T> v=copy(vector_[0].reshape(rank(),vector_[0].size()/rank()));
+        	for (unsigned int r=0; r<rank(); r++) {
+            	v(r,_)*=weights(r);
+            }
+        	return v;
+        }
+
+	protected:
 		/// return the number of coefficients
 		unsigned int nCoeff() const {
-			if (type()==TT_FULL) return ref_vector(0).size();
-			return this->dim_eff()*this->kVec()*this->rank();
+			return vector_[0].size()+vector_[1].size()+weights_.size();
 		};
 
 		/// return the real size of this
@@ -1074,14 +705,14 @@ protected:
 			}
 			n+=weights_.size()*sizeof(double) + sizeof(Tensor<double>);
 			n+=sizeof(*this);
-			n+=s_.size()*sizeof(Slice);
+			n+=2*s1.size()*sizeof(Slice);
 			return n;
 		}
 
 
 		template<typename Q>
 	    typename std::enable_if<(TensorTypeData<T>::iscomplex or TensorTypeData<Q>::iscomplex), TENSOR_RESULT_TYPE(T,Q)>::type
-		friend  overlap(const SRConf<T>& rhs, const SRConf<Q>& lhs) {
+		friend  trace(const SRConf<T>& rhs, const SRConf<Q>& lhs) {
 			MADNESS_EXCEPTION("no complex trace in srconf.h",1);
 			return T(0.0);
 		}
@@ -1089,10 +720,11 @@ protected:
 		/// calculate the Frobenius inner product (tested)
 		template<typename Q>
 	    typename std::enable_if<!(TensorTypeData<T>::iscomplex or TensorTypeData<Q>::iscomplex) , TENSOR_RESULT_TYPE(T,Q)>::type
-		friend  overlap(const SRConf<T>& rhs, const SRConf<Q>& lhs) {
+		friend  trace(const SRConf<T>& rhs, const SRConf<Q>& lhs) {
 
 			// fast return if either rank is 0
 			if ((lhs.has_no_data()) or (rhs.has_no_data())) return 0.0;
+			if ((lhs.rank()==0) or (rhs.rank()==0)) return 0.0;
 
 			/*
 			 * the structure of an SRConf is (r,k) or (r,k',k), with
@@ -1101,16 +733,12 @@ protected:
 			 */
 
 			// some checks
-			MADNESS_ASSERT(rhs.dim()==lhs.dim());
-			MADNESS_ASSERT(rhs.dim()>0);
+			MADNESS_ASSERT(rhs.ndim()==lhs.ndim());
+			MADNESS_ASSERT(rhs.ndim()>0);
 
 			typedef TENSOR_RESULT_TYPE(T,Q) resultT;
 
-			if (rhs.type()==TT_FULL) {
-				return rhs.ref_vector(0).trace(lhs.ref_vector(0));
-			}
-
-			const unsigned int dim_eff=rhs.dim_eff();
+			const unsigned int dim_eff=2;
 
 			// get the weight matrix
 			Tensor<resultT> weightMatrix=outer(lhs.weights_(Slice(0,lhs.rank()-1)),
@@ -1134,8 +762,7 @@ protected:
 
 		/// calculate the Frobenius norm, if this is in SVD form
         typename TensorTypeData<T>::float_scalar_type svd_normf() const {
-            if (has_no_data()) return 0.0;
-            MADNESS_ASSERT(type()==TT_2D);
+            if (has_no_data() or rank()==0) return 0.0;
             return weights_(Slice(0,rank()-1)).normf();
         }
 
@@ -1143,18 +770,17 @@ protected:
 		typename TensorTypeData<T>::float_scalar_type normf() const {
 
 			// fast return if possible
-			if (has_no_data()) return 0.0;
-			if (type()==TT_FULL) return ref_vector(0).normf();
+			if (has_no_data() or rank()==0) return 0.0;
 
 			// some checks
-			MADNESS_ASSERT(dim()>0);
+			MADNESS_ASSERT(ndim()>0);
 			MADNESS_ASSERT(not TensorTypeData<T>::iscomplex);
 
 			// get the weight matrix
 			Tensor<T> weightMatrix=outer(weights_(Slice(0,rank()-1)),weights_(Slice(0,rank()-1)));
 
 			// calculate the overlap matrices for each dimension at a time
-			for (unsigned int idim=0; idim<dim_eff(); idim++) {
+			for (unsigned int idim=0; idim<2; idim++) {
 				const Tensor<T> vec=flat_vector(idim);
 				Tensor<T> ovlp(rank(),rank());
 				inner_result(vec,vec,-1,-1,ovlp);
@@ -1168,6 +794,7 @@ protected:
 			return sqrt(overlap);
 		}
 
+	protected:
 		/// scale this by a number
 		void scale(const double& fac) {weights_.scale(fac);};
 
@@ -1177,7 +804,7 @@ protected:
 
 		/// check compatibility
 		friend bool compatible(const SRConf& lhs, const SRConf& rhs) {
-			return ((lhs.dim()==rhs.dim()) and (lhs.dim_per_vector()==rhs.dim_per_vector()));
+			return (lhs.conforms(&rhs) and (lhs.dim_per_vector(0)==rhs.dim_per_vector(0)));
 		}
 
 	    /// \code
@@ -1188,36 +815,24 @@ protected:
 		SRConf<T> transform(const Tensor<T>& c) const {
 
 			// fast return if possible
-			if (this->has_no_data()) {
-				return copy(*this);
-			}
+			if (this->has_no_data() or rank()==0) return SRConf<T>(ndim(),dims(),nci_left);
 
-			// fast return for full rank tensor
-			if (type()==TT_FULL) {
-				return SRConf<T> (madness::transform(this->vector_[0],c));
-			}
+			// transpose both singular vectors from U(r,i,j,k) to U(i,j,k,r)
+			// and run the contraction as in tensor: U(i,j,k,r) t(i,i') = U(j,k,r,i')
+			// and so on, yielding U(r,i',j',k')
+			Tensor<T> left=copy(vector_[0].cycledim(-1,0,-1));
+			Tensor<T> right=copy(vector_[1].cycledim(-1,0,-1));
 
-			// copying shrinks the vectors to (r,k,k,..)
-			SRConf<T> result=copy(*this);
+	        for (long i=0; i<nci_left; ++i) left = inner(left,c,0,0);
+	        for (long i=nci_left; i<ndim(); ++i) right = inner(right,c,0,0);
 
-			// make sure this is not flattened
-			MADNESS_ASSERT(this->has_structure());
+	        SRConf<T> result(ndim(),dims(),this->nci_left);
+	        result.set_vectors_and_weights(copy(weights_),left,right);
 
-			// these two loops go over all physical dimensions (dim = dim_eff * merged_dim)
-			for (unsigned int idim=0; idim<this->dim_eff(); idim++) {
-				for (unsigned int jdim=1; jdim<this->ref_vector(idim).ndim(); jdim++) {
-
-					// note: tricky ordering (jdim is missing): this is actually correct!
-					// note: no slicing necessary, since we've copied this to result (incl shrinking)
-//					result.refVector_struct(idim)=madness::inner(result.refVector_struct(idim),c,1,0);
-					result.ref_vector(idim)=madness::inner(result.ref_vector(idim),c,1,0);
-
-				}
-			}
             MADNESS_ASSERT(result.has_structure());
 			return result;
 		}
-
+public:
 	    /// \code
 		///     result(i,j,k,...) <-- sum(i',j', k',...) t(i',j',k',...)  c(i',i) c(j',j) c(k',k) ...
 		/// \endcode
@@ -1227,46 +842,30 @@ protected:
 		SRConf<TENSOR_RESULT_TYPE(T,Q) > general_transform(const Tensor<Q> c[]) const {
 
 			// fast return if possible
-			if (this->has_no_data()) return SRConf<T>(copy(*this));
-			if (type()==TT_FULL) {
-				return SRConf<T> (madness::general_transform(this->vector_[0],c));
-			}
+			if (this->has_no_data() or rank()==0) return SRConf<T>(ndim(),dims(),nci_left);
 
 			// copying shrinks the vectors to (r,k,k,..)
-			SRConf<T> result=copy(*this);
-
-			// make sure this is not flattened
-			if (not this->has_structure()) {
-				print("no structure!");
-			}
 			MADNESS_ASSERT(this->has_structure());
 
-			long i=0;
-			// these two loops go over all physical dimensions (dim = dim_eff * merged_dim)
-			for (unsigned int idim=0; idim<this->dim_eff(); idim++) {
-				for (unsigned int jdim=1; jdim<this->ref_vector(idim).ndim(); jdim++) {
+			// transpose both singular vectors from U(r,i,j,k) to U(i,j,k,r)
+			// and run the contraction as in tensor: U(i,j,k,r) t(i,i') = U(j,k,r,i')
+			// and so on, yielding U(r,i',j',k')
+			Tensor<T> left=copy(vector_[0].cycledim(-1,0,-1));
+			Tensor<T> right=copy(vector_[1].cycledim(-1,0,-1));
 
-					// note tricky ordering (jdim is missing): this is actually correct!
-					// note: no slicing necessary, since we've copied this to result (incl shrinking)
-					result.ref_vector(idim)=madness::inner(result.ref_vector(idim),c[i],1,0);
-					i++;
+	        for (long i=0; i<nci_left; ++i) left = inner(left,c[i],0,0);
+	        for (long i=nci_left; i<ndim(); ++i) right = inner(right,c[i],0,0);
 
-				}
-			}
+	        SRConf<T> result(ndim(),dims(),this->nci_left);
+	        result.set_vectors_and_weights(copy(weights_),left,right);
+
             MADNESS_ASSERT(result.has_structure());
 			return result;
 		}
 
 		SRConf<T> transform_dir(const Tensor<T>& c, const int& axis) const {
 
-			if (this->has_no_data()) {
-				return SRConf<T>(copy(*this));
-			}
-
-			// fast return for full rank tensor
-			if (type()==TT_FULL) {
-				return SRConf<T> (madness::transform_dir(this->vector_[0],c,axis));
-			}
+			if (this->has_no_data() or rank()==0) return SRConf<T>(ndim(),dims(),nci_left);
 
 			// copying shrinks the vectors to (r,k,k,..)
 			SRConf<T> result=copy(*this);
@@ -1279,8 +878,8 @@ protected:
 
 			// compute idim for accessing the vector_, and the dimension inside vector_
 			// the +1 on jdim for the rank
-			const long idim=axis/this->dim_per_vector();
-			const long jdim=axis%this->dim_per_vector()+1;
+			const long idim=axis/this->dim_per_vector(0);
+			const long jdim=axis%this->dim_per_vector(0)+1;
 
 			// note: no slicing necessary, since we've copied this to result (incl shrinking)
 			result.ref_vector(idim)=madness::transform_dir(this->ref_vector(idim),c,jdim);
@@ -1305,12 +904,13 @@ protected:
 	/// @param[in,out]	weights weights
 	/// @param[in]		thresh	truncation threshold
 	template<typename T>
-	void ortho3(Tensor<T>& x, Tensor<T>& y, Tensor<double>& weights, const double& thresh) {
+	void ortho3(Tensor<T>& x, Tensor<T>& y, Tensor<typename Tensor<T>::scalar_type>& weights, const double& thresh) {
 
 #ifdef BENCH
 		double cpu0=wall_time();
 #endif
 		typedef Tensor<T> tensorT;
+		typedef typename Tensor<T>::scalar_type scalar_type;
 
 		const long rank=x.dim(0);
 		const double w_max=weights.absmax()*rank;		// max Frobenius norm
@@ -1329,7 +929,7 @@ protected:
 
 		// diagonalize
 		tensorT U1, U2;
-		Tensor<double> e1, e2;
+		Tensor<scalar_type> e1, e2;
 	    syev(S1,U1,e1);
 	    syev(S2,U2,e2);										// 2.3 / 4.0
 #ifdef BENCH
@@ -1337,8 +937,8 @@ protected:
 		SRConf<T>::time(3)+=cpu3-cpu1;
 #endif
 
-	    const double e1_max=e1.absmax();
-	    const double e2_max=e2.absmax();
+	    const scalar_type e1_max=e1.absmax();
+	    const scalar_type e2_max=e2.absmax();
 
 		// fast return if possible
 		if ((e1_max*w_max<thresh) or (e2_max*w_max<thresh)) {
@@ -1351,7 +951,7 @@ protected:
 	    // remove small negative eigenvalues
 	    e1.screen(1.e-13);
 	    e2.screen(1.e-13);
-	    Tensor<double> sqrt_e1(rank), sqrt_e2(rank);
+	    Tensor<scalar_type> sqrt_e1(rank), sqrt_e2(rank);
 
 
 	    // shrink U1, U2
@@ -1394,7 +994,7 @@ protected:
 
 	    // include X-
     	for (unsigned int r=0; r<rank1; r++) {
-    		double fac=1.0/sqrt_e1(r);
+    		scalar_type fac=1.0/sqrt_e1(r);
     		for (unsigned int t=0; t<rank; t++) {
 	    		U1(t,r)*=fac;
 //	    		if (sqrt_e1(r)<thresh) throw;
@@ -1402,7 +1002,7 @@ protected:
     	}
 
 	   	for (unsigned int r=0; r<rank2; r++) {
-    		double fac=1.0/sqrt_e2(r);
+	   		scalar_type fac=1.0/sqrt_e2(r);
     		for (unsigned int t=0; t<rank; t++) {
 	    		U2(t,r)*=fac;
 //	    		if (sqrt_e2(r)<thresh) throw;
@@ -1415,7 +1015,7 @@ protected:
 
 	    // decompose M
 		tensorT Up,VTp;
-		Tensor<double> Sp;
+		Tensor<scalar_type> Sp;
 		svd(M,Up,Sp,VTp);									// 1.5 / 3.0
 #ifdef BENCH
 		double cpu6=wall_time();
@@ -1480,8 +1080,8 @@ protected:
 	/// @param[in]		x2	left subspace, will be accumulated onto x1
 	/// @param[in]		y2	right subspace, will be accumulated onto y1
 	template<typename T>
-	void ortho5(Tensor<T>& x1, Tensor<T>& y1, Tensor<double>& w1,
-				const Tensor<T>& x2, const Tensor<T>& y2, const Tensor<double>& w2,
+	void ortho5(Tensor<T>& x1, Tensor<T>& y1, Tensor<typename Tensor<T>::scalar_type>& w1,
+				const Tensor<T>& x2, const Tensor<T>& y2, const Tensor<typename Tensor<T>::scalar_type>& w2,
 				const double& thresh) {
 
 #ifdef BENCH
@@ -1531,7 +1131,7 @@ protected:
 
 		// diagonalize
 		tensorT U1, U2;
-		Tensor<double> e1, e2;
+		Tensor<typename Tensor<T>::scalar_type> e1, e2;
 	    syev(Sx,U1,e1);
 	    syev(Sy,U2,e2);										// 2.3 / 4.0
 #ifdef BENCH
@@ -1597,19 +1197,11 @@ protected:
     	for (unsigned int r=0; r<rank_x; r++) {
     		double fac=1.0/sqrt_e1(r);
     		U1(_,r)*=fac;
-//    		for (unsigned int t=0; t<rank; t++) {
-//	    		U1(t,r)*=fac;
-////	    		if (sqrt_e1(r)<thresh) throw;
-//    		}
     	}
 
 	   	for (unsigned int r=0; r<rank_y; r++) {
     		double fac=1.0/sqrt_e2(r);
     		U2(_,r)*=fac;
-//    		for (unsigned int t=0; t<rank; t++) {
-//	    		U2(t,r)*=fac;
-////	    		if (sqrt_e2(r)<thresh) throw;
-//	    	}
 	    }													// 0.2 / 0.6
 #ifdef BENCH
 		double cpu4=wall_time();
@@ -1619,7 +1211,7 @@ protected:
 
 	    // decompose M
 		tensorT Up,VTp;
-		Tensor<double> Sp;
+		Tensor<typename Tensor<T>::scalar_type> Sp;
 		svd(M,Up,Sp,VTp);									// 1.5 / 3.0
 #ifdef BENCH
 		double cpu5=wall_time();
@@ -1676,9 +1268,8 @@ protected:
 	static inline
 	std::ostream& operator<<(std::ostream& s, const SRConf<T>& sr) {
 
-		s << "dim_          " << sr.dim_ << "\n";;
+		s << "dim_          " << sr.ndim() << "\n";;
 		s << "rank_         " << sr.rank_ << "\n";;
-		s << "maxk_         " << sr.maxk_ << "\n";;
 		s << "vector_.size()" << sr.vector_.size() << "\n";
 		s << "has_data()    " << sr.has_data() << "\n";
 		s << "TensorType    " << sr.type() << "\n\n";

@@ -58,10 +58,13 @@
 #include <chem/pcm.h>
 #include <chem/AC.h>
 #include <chem/pointgroupsymmetry.h>
+#include <chem/commandlineparser.h>
+#include <madness/world/timing_utilities.h>
 
 namespace madness {
 
 class PNO;
+class OEP;
 
 
 // The default constructor for functions does not initialize
@@ -84,48 +87,30 @@ struct allocator {
 	}
 };
 
-struct timer {
-    World& world;
-    double ttt,sss;
-    bool printme;
-    timer(World& world, bool print=true) : world(world), printme(print and world.rank()==0) {
-        world.gop.fence();
-        ttt=wall_time();
-        sss=cpu_time();
-    }
 
-    void tag(const std::string msg) {
-        world.gop.fence();
-        double tt1=wall_time()-ttt;
-        double ss1=cpu_time()-sss;
-        if (printme) printf("timer: %20.20s %8.2fs %8.2fs\n", msg.c_str(), ss1, tt1);
-        ttt=wall_time();
-        sss=cpu_time();
-    }
-
-    void end(const std::string msg) {
-        world.gop.fence();
-        double tt1=wall_time()-ttt;
-        double ss1=cpu_time()-sss;
-        if (printme) printf("timer: %20.20s %8.2fs %8.2fs\n", msg.c_str(), ss1, tt1);
-    }
-
-};
 class NemoBase : public MolecularOptimizationTargetInterface {
 
 public:
 
 	NemoBase(World& w) : world(w) {}
 
+    virtual std::shared_ptr<Fock<double,3>> make_fock_operator() const {
+	    MADNESS_EXCEPTION("implement make_fock operator for your derived NemoBase class",1);
+	    return std::shared_ptr<Fock<double,3>>();
+	}
+
+        /// create an instance of the derived object based on the input parameters
 	std::shared_ptr<NuclearCorrelationFactor> get_ncf_ptr() const {
 		return ncf;
 	}
 
 	/// normalize the nemos
 	template<typename T, std::size_t NDIM>
-	void normalize(std::vector<Function<T,NDIM> >& nemo,
-			const Function<double,NDIM> metric=Function<double,NDIM>()) const {
+	void static normalize(std::vector<Function<T,NDIM> >& nemo,
+			const Function<double,NDIM> metric=Function<double,NDIM>()) {
 
+        if (nemo.size()==0) return;
+        World& world=nemo[0].world();
 		// compute the norm of the reconstructed orbitals, includes the factor
 		std::vector<Function<T,NDIM> > mos = (metric.is_initialized()) ? metric*nemo : nemo;
 		std::vector<double> norms = norm2s(world, mos);
@@ -202,11 +187,14 @@ public:
 	/// @return		T = 1/2 \sum_i \int R^2 U1.U1 F^2 + 2 R^2 U1.grad(F) + R^2 grad(F)^2
 	template<typename T, std::size_t NDIM>
 	double compute_kinetic_energy(const std::vector<Function<T,NDIM> >& nemo) const {
-//        timer timer1(world);
 
 		// T = 0.5\sum_i \int R^2 U1.U1 F^2 - 2 R^2 U1.grad(F) F + R^2 grad(F)^2
 		//   = 0.5 (<U1.U1 | rho > + <R^2|grad(F)^2> - 2<R^2 | U1.grad(F) >)
 		// note: U1=-grad(R)/R
+		auto id=nemo.front().world().id();
+        auto id1=R_square.world().id();
+        auto worldid=world.id();
+		world.gop.fence();
 		real_function_3d dens=dot(world,nemo,nemo)*R_square;
 	    real_function_3d U1dotU1=real_factory_3d(world)
 	    		.functor(NuclearCorrelationFactor::U1_dot_U1_functor(ncf.get()));
@@ -228,6 +216,7 @@ public:
 	        ke3 +=tmp;
 
 	        const real_function_3d term1=dot(world,dnemo,dnemo);
+	        world.gop.fence();
 	        ke2 += inner(term1,R_square);
 
 	    }
@@ -237,7 +226,6 @@ public:
 //	    }
 //	    double ke=2.0*(ke1+ke2+ke3_real); // closed shell
 	    double ke=2.0*(ke1+ke2+ke3); // closed shell
-//		timer1.end("compute_0_kinetic_energy1");
 	    return 0.5*ke;
 	}
 
@@ -351,7 +339,7 @@ public:
 	struct NemoCalculationParameters : public CalculationParameters {
 
 		NemoCalculationParameters(const CalculationParameters& param) : CalculationParameters(param) {
-			initialize_nemo_parameters();
+            initialize_nemo_parameters();
 		}
 
 		NemoCalculationParameters() : CalculationParameters() {
@@ -378,11 +366,13 @@ public:
 
 	/// @param[in]	world1	the world
 	/// @param[in]	calc	the SCF
-	Nemo(World& world1, std::shared_ptr<SCF> calc, const std::string inputfile);
+//	Nemo(World& world1, std::shared_ptr<SCF> calc, const std::string inputfile);
 
-	double value() {return value(calc->molecule.get_all_coords());}
+    Nemo(World& world, const commandlineparser& parser);
 
-	double value(const Tensor<double>& x);
+    virtual double value() {return value(calc->molecule.get_all_coords());}
+
+	virtual double value(const Tensor<double>& x);
 
 	/// compute the nuclear gradients
 	Tensor<double> gradient(const Tensor<double>& x);
@@ -391,6 +381,9 @@ public:
 
 	/// returns the molecular hessian matrix at structure x
 	Tensor<double> hessian(const Tensor<double>& x);
+
+	/// construct the fock operator based on the calculation parameters (K or XC?)
+	virtual std::shared_ptr<Fock<double,3>> make_fock_operator() const;
 
 	/// purify and symmetrize the hessian
 
@@ -462,6 +455,8 @@ public:
             const vecfuncT& dens_pt) const;
 
 	std::shared_ptr<SCF> get_calc() const {return calc;}
+
+    NemoCalculationParameters get_param() const {return param;}
 
 	PCM get_pcm()const{return pcm;}
 
@@ -553,24 +548,6 @@ public:
 protected:
     projector_irrep symmetry_projector;
 
-private:
-	mutable double ttt, sss;
-	void START_TIMER(World& world) const {
-	    world.gop.fence(); ttt=wall_time(); sss=cpu_time();
-	}
-
-	void END_TIMER(World& world, const std::string msg) const {
-	    END_TIMER(world,msg.c_str());
-	}
-
-	void END_TIMER(World& world, const char* msg) const {
-	    ttt=wall_time()-ttt; sss=cpu_time()-sss;
-	    if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss, ttt);
-	}
-
-public:
-
-
 public:
 
     /// return the symmetry_projector
@@ -630,7 +607,7 @@ protected:
 
         // (re) construct the Poisson solver
         poisson = std::shared_ptr<real_convolution_3d>(
-                CoulombOperatorPtr(world, calc->param.lo(), FunctionDefaults<3>::get_thresh()));
+                CoulombOperatorPtr(world, param.lo(), FunctionDefaults<3>::get_thresh()));
 
         // set thresholds for the MOs
         set_thresh(world,calc->amo,thresh);
@@ -654,12 +631,11 @@ protected:
 	/// to use these potentials in the fock matrix computation they must
 	/// be multiplied by the nuclear correlation factor
 	/// @param[in]	nemo	the nemo orbitals
-	/// @param[out]	psi		the reconstructed, full orbitals
 	/// @param[out]	Jnemo	Coulomb operator applied on the nemos
 	/// @param[out]	Knemo	exchange operator applied on the nemos
 	/// @param[out]	pcmnemo	PCM (solvent) potential applied on the nemos
 	/// @param[out]	Unemo	regularized nuclear potential applied on the nemos
-	void compute_nemo_potentials(const vecfuncT& nemo, vecfuncT& psi,
+	void compute_nemo_potentials(const vecfuncT& nemo,
 			vecfuncT& Jnemo, vecfuncT& Knemo, vecfuncT& pcmnemo,
 			vecfuncT& Unemo) const;
 
@@ -691,9 +667,9 @@ public:
 
 	bool is_dft() const {return calc->xc.is_dft();}
 
-	bool do_pcm() const {return calc->param.pcm_data() != "none";}
+	bool do_pcm() const {return param.pcm_data() != "none";}
 	
-	bool do_ac() const {return calc->param.ac_data() != "none";}
+	bool do_ac() const {return param.ac_data() != "none";}
 
 	AC<3> get_ac() const {return ac;}
 
@@ -759,7 +735,7 @@ void Nemo::rotate_subspace(World& world, const tensorT& U, solverT& solver,
 template<typename T, size_t NDIM>
 void Nemo::save_function(const std::vector<Function<T,NDIM> >& f, const std::string name) const {
     if (world.rank()==0) print("saving vector of functions",name);
-    archive::ParallelOutputArchive ar(world, name.c_str(), 1);
+    archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, name.c_str(), 1);
     ar & f.size();
     for (const Function<T,NDIM>& ff:f)  ar & ff;
 }
@@ -768,7 +744,7 @@ void Nemo::save_function(const std::vector<Function<T,NDIM> >& f, const std::str
 template<typename T, size_t NDIM>
 void Nemo::load_function(std::vector<Function<T,NDIM> >& f, const std::string name) const {
     if (world.rank()==0) print("loading vector of functions",name);
-    archive::ParallelInputArchive ar(world, name.c_str(), 1);
+    archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, name.c_str(), 1);
     std::size_t fsize=0;
     ar & fsize;
     f.resize(fsize);

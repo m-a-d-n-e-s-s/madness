@@ -41,6 +41,7 @@
 #include <madness/world/vector.h>
 #include <madness/world/worlddc.h>
 #include <madness/tensor/tensor.h>
+#include <madness/tensor/gentensor.h>
 #include <madness/mra/key.h>
 
 namespace madness {
@@ -53,6 +54,16 @@ namespace madness {
     static const int MAXLEVEL = 8*sizeof(Translation)-2;
 
     enum BCType {BC_ZERO, BC_PERIODIC, BC_FREE, BC_DIRICHLET, BC_ZERONEUMANN, BC_NEUMANN};
+
+    enum TreeState {
+    	reconstructed,				///< s coeffs at the leaves only
+		compressed, 				///< d coeffs in internal nodes, s and d coeffs at the root
+		nonstandard, 				///< s and d coeffs in internal nodes
+    	nonstandard_with_leaves, 	///< like nonstandard, with s coeffs at the leaves
+		redundant,					///< s coeffs everywhere
+		on_demand,					///< no coeffs anywhere, but a functor providing if necessary
+		unknown
+    };
 
     /*!
       \brief This class is used to specify boundary conditions for all operators
@@ -172,6 +183,9 @@ namespace madness {
     /// \ingroup mra
     template <std::size_t NDIM>
     class FunctionDefaults {
+        MADNESS_PRAGMA_CLANG(diagnostic push)
+    	MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
+
     private:
         static int k;                 ///< Wavelet order
         static double thresh;          ///< Truncation threshold
@@ -205,169 +219,167 @@ namespace madness {
 
     public:
 
-      MADNESS_PRAGMA_CLANG(diagnostic push)
-      MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
 
-      /// Used to set defaults to k=7, thresh=1-5, for a unit cube [0,1].
-        static void set_defaults(World& world);
+		/// Used to set defaults to k=7, thresh=1-5, for a unit cube [0,1].
+		static void set_defaults(World& world);
 
         static void print();
 
         /// Returns the default wavelet order
         static int get_k() {
-            return k;
+        	return k;
         }
 
         /// Sets the default wavelet order
 
         /// Existing functions are unaffacted.
         static void set_k(int value) {
-            k=value;
-            MADNESS_ASSERT(k>0 && k<=MAXK);
+        	k=value;
+        	MADNESS_ASSERT(k>0 && k<=MAXK);
         }
 
         /// Returns the default threshold
         static const double& get_thresh() {
-            return thresh;
+        	return thresh;
         }
 
         /// Sets the default threshold
 
         /// Existing functions are unaffected
         static void set_thresh(double value) {
-            thresh=value;
+        	thresh=value;
         }
 
         /// Returns the default initial projection level
         static int get_initial_level() {
-            return initial_level;
+        	return initial_level;
         }
 
         /// Returns the default projection level for special boxes
         static int get_special_level() {
-            return special_level;
+        	return special_level;
         }
 
         /// Sets the default initial projection level
 
         /// Existing functions are unaffected
         static void set_initial_level(int value) {
-            initial_level=value;
-            MADNESS_ASSERT(value>0 && value<MAXLEVEL);
+        	initial_level=value;
+        	MADNESS_ASSERT(value>0 && value<MAXLEVEL);
         }
 
         /// Existing functions are unaffected
         static void set_special_level(int value) {
-            special_level=value;
-            MADNESS_ASSERT(value>=0 && value<MAXLEVEL);
-            MADNESS_ASSERT(max_refine_level>=special_level);
+        	special_level=value;
+        	MADNESS_ASSERT(value>=0 && value<MAXLEVEL);
+        	MADNESS_ASSERT(max_refine_level>=special_level);
         }
 
         /// Gets the default maximum adaptive refinement level
         static int get_max_refine_level() {
-            return max_refine_level;
+        	return max_refine_level;
         }
 
         /// Sets the default maximum adaptive refinement level
 
         /// Existing functions are unaffected
         static void set_max_refine_level(int value) {
-            max_refine_level=value;
-            MADNESS_ASSERT(value>0 && value<MAXLEVEL);
-            MADNESS_ASSERT(max_refine_level>=initial_level);
-            MADNESS_ASSERT(max_refine_level>=special_level);
+        	max_refine_level=value;
+        	MADNESS_ASSERT(value>0 && value<MAXLEVEL);
+        	MADNESS_ASSERT(max_refine_level>=initial_level);
+        	MADNESS_ASSERT(max_refine_level>=special_level);
         }
 
         /// Gets the default truncation mode
         static int get_truncate_mode() {
-            return truncate_mode;
+        	return truncate_mode;
         }
 
         /// Sets the default truncation mode
 
         /// Existing functions are unaffected
         static void set_truncate_mode(int value) {
-            truncate_mode=value;
-            MADNESS_ASSERT(value>=0 && value<4);
+        	truncate_mode=value;
+        	MADNESS_ASSERT(value>=0 && value<4);
         }
 
         /// Gets the default adaptive refinement flag
         static bool get_refine() {
-            return refine;
+        	return refine;
         }
 
         /// Sets the default adaptive refinement flag
 
         /// Existing functions are unaffected
         static void set_refine(bool value) {
-            refine=value;
+        	refine=value;
         }
 
         /// Gets the default adaptive autorefinement flag
         static bool get_autorefine() {
-            return autorefine;
+        	return autorefine;
         }
 
         /// Sets the default adaptive autorefinement flag
 
         /// Existing functions are unaffected
         static void set_autorefine(bool value) {
-            autorefine=value;
+        	autorefine=value;
         }
 
         /// Gets the default debug flag (is this used anymore?)
         static bool get_debug() {
-            return debug;
+        	return debug;
         }
 
         /// Sets the default debug flag (is this used anymore?)
 
         /// Not sure if this does anything useful
         static void set_debug(bool value) {
-            debug=value;
+        	debug=value;
         }
 
         /// Gets the default truncate on project flag
         static bool get_truncate_on_project() {
-            return truncate_on_project;
+        	return truncate_on_project;
         }
 
         /// Sets the default truncate on project flag
 
         /// Existing functions are unaffected
         static void set_truncate_on_project(bool value) {
-            truncate_on_project=value;
+        	truncate_on_project=value;
         }
 
         /// Gets the random load balancing for integral operators flag
         static bool get_apply_randomize() {
-            return apply_randomize;
+        	return apply_randomize;
         }
 
         /// Sets the random load balancing for integral operators flag
         static void set_apply_randomize(bool value) {
-            apply_randomize=value;
+        	apply_randomize=value;
         }
 
 
         /// Gets the random load balancing for projection flag
         static bool get_project_randomize() {
-            return project_randomize;
+        	return project_randomize;
         }
 
         /// Sets the random load balancing for projection flag
         static void set_project_randomize(bool value) {
-            project_randomize=value;
+        	project_randomize=value;
         }
 
         /// Returns the default boundary conditions
         static const BoundaryConditions<NDIM>& get_bc() {
-            return bc;
+        	return bc;
         }
 
         /// Sets the default boundary conditions
         static void set_bc(const BoundaryConditions<NDIM>& value) {
-            bc=value;
+        	bc=value;
         }
 
         /// Returns the default tensor type
@@ -386,74 +398,78 @@ namespace madness {
 
         /// adapt the special level to resolve the smallest length scale
         static int set_length_scale(const double lo,const size_t k=get_k()) {
-          const double dk = (double) k;
-          double Lmax=FunctionDefaults<NDIM>::get_cell_width().max();
-          double lo_sim=lo/Lmax;  // lo in simulation coordinates;
-          const int special_level=Level(-log2(lo_sim*dk));
-          return special_level;
+        	const double dk = (double) k;
+        	double Lmax=FunctionDefaults<NDIM>::get_cell_width().max();
+        	double lo_sim=lo/Lmax;  // lo in simulation coordinates;
+        	const int special_level=Level(-log2(lo_sim*dk));
+        	return special_level;
         }
 
         /// Gets the user cell for the simulation
         static const Tensor<double>& get_cell() {
-            return cell;
+        	return cell;
         }
 
         /// Gets the user cell for the simulation
 
         /// Existing functions are probably rendered useless
         static void set_cell(const Tensor<double>& value) {
-            cell=copy(value);
-            recompute_cell_info();
+        	cell=copy(value);
+        	recompute_cell_info();
         }
 
         /// Sets the user cell to be cubic with each dimension having range \c [lo,hi]
 
         /// Existing functions are probably rendered useless
         static void set_cubic_cell(double lo, double hi) {
-            cell(_,0)=lo;
-            cell(_,1)=hi;
-            recompute_cell_info();
+        	cell(_,0)=lo;
+        	cell(_,1)=hi;
+        	recompute_cell_info();
         }
 
-      /// Returns the width of each user cell dimension
+        /// Returns the width of each user cell dimension
         static const Tensor<double>& get_cell_width() {
-            return cell_width;
+        	return cell_width;
         }
 
         /// Returns the reciprocal of the width of each user cell dimension
         static const Tensor<double>& get_rcell_width() {
-            return rcell_width;
+        	return rcell_width;
         }
 
         /// Returns the minimum width of any user cell dimension
         static double get_cell_min_width() {
-            return cell_min_width;
+        	return cell_min_width;
         }
 
         /// Returns the volume of the user cell
         static double get_cell_volume() {
-            return cell_volume;
+        	return cell_volume;
         }
 
-      /// Returns the default process map
+        /// Returns the default process map
         static std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >& get_pmap() {
-            return pmap;
+        	return pmap;
         }
 
         /// Sets the default process map (does \em not redistribute existing functions)
 
         /// Existing functions are probably rendered useless
         static void set_pmap(const std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >& value) {
-            pmap = value;
+        	pmap = value;
         }
+
+        /// Sets the default process map
+        static void set_default_pmap(World& world);
+
 
         /// Sets the default process map and redistributes all functions using the old map
-        static void redistribute(World& world, const std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >& newpmap, bool doprint=true) {
-            pmap->redistribute(world,newpmap, doprint);
-            pmap = newpmap;
+        static void redistribute(World& world, const std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >& newpmap) {
+        	pmap->redistribute(world,newpmap);
+        	pmap = newpmap;
         }
 
-      MADNESS_PRAGMA_CLANG(diagnostic pop)
+        MADNESS_PRAGMA_CLANG(diagnostic pop)
 
     };
 

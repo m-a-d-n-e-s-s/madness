@@ -98,6 +98,30 @@ Molecule::Molecule(const std::string& filename) :
     read_file(filename);
 }
 
+void Molecule::read_structure_from_library(const std::string& name) {
+
+	// get the location of the structure library
+	std::string chemdata_dir(MRA_CHEMDATA_DIR);
+    if (getenv("MRA_CHEMDATA_DIR")) chemdata_dir=std::string(getenv("MRA_CHEMDATA_DIR"));
+	std::string library=chemdata_dir+"/structure_library";
+
+    std::ifstream f(library);
+    if(f.fail()) {
+        std::string errmsg = std::string("Failed to open structure library: ") + library;
+        MADNESS_EXCEPTION(errmsg.c_str(), 0);
+    }
+    try {
+    	madness::position_stream(f, name);
+    } catch (...) {
+        std::string errmsg = "could not find structure " + name + " in the library\n\n";
+        MADNESS_EXCEPTION(errmsg.c_str(), 0);
+    }
+
+    this->read(f);
+
+}
+
+
 std::vector<std::string> Molecule::cubefile_header() const {
 	std::vector<std::string> molecular_info;
 	for (unsigned int i = 0; i < natom(); ++i) {
@@ -127,7 +151,7 @@ void Molecule::read(std::istream& f) {
     rcut.clear();
     eprec = 1e-4;
     units = atomic;
-    madness::position_stream(f, "geometry");
+    madness::position_stream(f, "geometry",false);		// do not rewind
     double scale = 1.0; // Default is atomic units
 
     std::string s;
@@ -286,17 +310,20 @@ const Atom& Molecule::get_atom(unsigned int i) const {
 
 void Molecule::print() const {
     std::cout.flush();
-    printf(" geometry\n");
-    printf("   eprec %.1e\n", eprec);
-    printf("   units atomic\n");
-    //printf("   Finite Field %11.8f %20.8f %20.8f\n", field[0], field[1], field[2]);
+    std::stringstream sstream;
+    sstream << " geometry" << std::endl;
+    sstream << "   eprec  " << std::scientific << std::setw(1) << eprec  << std::endl << std::fixed;
+    sstream << "   units atomic" << std::endl;
     for (size_t i=0; i<natom(); ++i) {
-        printf("   %-2s  %20.8f %20.8f %20.8f", get_atomic_data(atoms[i].atomic_number).symbol,
-               atoms[i].x, atoms[i].y, atoms[i].z);
-        if (atoms[i].atomic_number == 0) printf("     %20.8f", atoms[i].q);
-        printf("\n");
+        sstream << std::setw(5) << get_atomic_data(atoms[i].atomic_number).symbol << "  ";
+        sstream << std::setw(20) << std::setprecision(8) << atoms[i].x
+                << std::setw(20) << atoms[i].y
+                << std::setw(20) << atoms[i].z;
+        if (atoms[i].atomic_number == 0) sstream << "     " << atoms[i].q;
+        sstream << std::endl;
     }
-    printf(" end\n");
+    sstream << " end" << std::endl;
+    std::cout << sstream.str();
 }
 
 double Molecule::inter_atomic_distance(unsigned int i,unsigned int j) const {

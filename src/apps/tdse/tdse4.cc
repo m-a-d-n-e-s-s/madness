@@ -561,7 +561,7 @@ void wave_function_store(World& world, int step, const complex_functionT& psi) {
 }
 
 bool wave_function_exists(World& world, int step) {
-    return archive::ParallelInputArchive::exists(world, wave_function_filename(step));
+    return archive::ParallelInputArchive<madness::archive::BinaryFstreamInputArchive>::exists(world, wave_function_filename(step));
 }
 
 

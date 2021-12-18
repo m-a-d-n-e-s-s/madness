@@ -320,25 +320,23 @@ std::vector<std::string>make_predefined_exop_strings(const std::string what){
 		exop_strings[5] = "x 1.0 y 2.0 , x 1.0 y 2.0 z 1.0";
 		exop_strings[6] = "y 1.0 , y 1.0 z 1.0 , y 1.0 z 2.0 , y 3.0 z 1.0 , y 1.0 z 3.0 , y 3.0";
 		exop_strings[7] = "x 2.0 y 1.0 , x 2.0 y 1.0 z 1.0";
-	} else if (what == "big_fock") {
-		exop_strings = guessfactory::make_auto_polynom_strings(6);
-	} else if (what == "small_fock") {
-		exop_strings = guessfactory::make_auto_polynom_strings(4);
-	} else if (what == "big_fock_2") {
+	} else if (what == "auto-1") {
+		exop_strings = guessfactory::make_auto_polynom_strings(1);
+	} else if (what == "auto-2") {
 		exop_strings = guessfactory::make_auto_polynom_strings(2);
-	} else if (what == "big_fock_3") {
+	} else if (what == "auto-3" or what == "octopole") {
 		exop_strings = guessfactory::make_auto_polynom_strings(3);
-	} else if (what == "big_fock_4") {
+	} else if (what == "auto-4") {
 		exop_strings = guessfactory::make_auto_polynom_strings(4);
-	} else if (what == "big_fock_5") {
+	} else if (what == "auto-5") {
 		exop_strings = guessfactory::make_auto_polynom_strings(5);
-	} else if (what == "big_fock_6") {
+	} else if (what == "auto-6") {
 		exop_strings = guessfactory::make_auto_polynom_strings(6);
-	} else if (what == "big_fock_7") {
+	} else if (what == "auto-7") {
 		exop_strings = guessfactory::make_auto_polynom_strings(7);
-	} else if (what == "big_fock_8") {
+	} else if (what == "auto-8") {
 		exop_strings = guessfactory::make_auto_polynom_strings(8);
-	} else if (what == "big_fock_9") {
+	} else if (what == "auto-9") {
 		exop_strings = guessfactory::make_auto_polynom_strings(9);
 	} else
 		std::cout << "Keyword " << what << " is not known" << std::endl;

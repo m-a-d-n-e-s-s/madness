@@ -374,7 +374,7 @@ public:
 
         // Load the function
         Function<T,NDIM> f;
-        archive::ParallelInputArchive ar(world, input_filename.c_str());
+        archive::ParallelInputArchive<madness::archive::BinaryFstreamInputArchive> ar(world, input_filename.c_str());
         ar & f;
 
         // Load the user's function

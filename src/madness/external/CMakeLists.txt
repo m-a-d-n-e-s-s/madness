@@ -1,6 +1,6 @@
 # src/madness/external
 
-if(ENABLE_UNITTESTS)
+if(BUILD_TESTING)
   add_subdirectory(gtest)
 endif()
 

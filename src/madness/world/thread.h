@@ -38,6 +38,7 @@
  \ingroup threads
 */
 
+#include <madness/world/thread_info.h>
 #include <madness/world/dqueue.h>
 #include <madness/world/function_traits.h>
 #include <vector>
@@ -956,12 +957,12 @@ namespace madness {
         PoolTaskInterface()
             : TaskAttributes()
             , barrier(nullptr)
-        {
 #if HAVE_PARSEC
-	  mad_parsec_init_task();
+            , parsec_task(ParsecRuntime::task(is_high_priority(), this))
 #endif
-	  count = 0;
-        }
+        {
+    	    count = 0;
+    	}
 
         /// Contructor setting teh speicified task attributes.
 
@@ -969,10 +970,10 @@ namespace madness {
         explicit PoolTaskInterface(const TaskAttributes& attr)
             : TaskAttributes(attr)
             , barrier(attr.get_nthread()>1 ? new Barrier(attr.get_nthread()) : 0)
-        {
 #if HAVE_PARSEC
-	    mad_parsec_init_task();
+            , parsec_task(ParsecRuntime::task(is_high_priority(), this))
 #endif
+        {
             count = 0;
         }
 
@@ -1001,21 +1002,8 @@ namespace madness {
         }
 #if HAVE_PARSEC
 	    //////////// Parsec Related Begin ////////////////////
-            parsec_task_t                       parsec_task;
-            static const parsec_task_class_t*   parsec_tc;
-
-            /* This function initializes exec_context from the one in parsec.cpp*/
-            void mad_parsec_init_task()
-            {
-                parsec_task.taskpool   = &madness::madness_parsec_tp;
-                parsec_task.task_class = &madness::madness_parsec_tc;
-                parsec_task.chore_id   = 0;
-                parsec_task.status     = PARSEC_TASK_STATUS_NONE;
-                parsec_task.priority   = is_high_priority() ? 1000 : 0; // 1 & 0 would work as good
-                ((PoolTaskInterface **)parsec_task.locals)[0] = this;
-            }
-            //////////// Parsec Related End   ///////////////////
-        
+	    parsec_task_t                       parsec_task;
+	    //////////// Parsec Related End   ///////////////////
 #endif
 
 #else
@@ -1023,7 +1011,7 @@ namespace madness {
     public:
 
         /// Default constructor.
-        PoolTaskInterface() : TaskAttributes() { 
+        PoolTaskInterface() : TaskAttributes() {
 	}
 
         /// \todo Brief description needed.
@@ -1251,6 +1239,13 @@ namespace madness {
                     }
                 }
             }
+#if HAVE_PARSEC
+            ////////////////// Parsec Related Begin //////////////////
+            if(0 == ntask) {
+                ntask = parsec_runtime->test();
+            }
+            ///////////////// Parsec Related End ////////////////////
+#endif
             return (ntask>0);
 #endif
         }
@@ -1290,9 +1285,9 @@ namespace madness {
 	}
 
 #if HAVE_PARSEC
-	////////////////// Parsec Related Begin //////////////////
-        static parsec_context_t *parsec;
-        ///////////////// Parsec Related End ////////////////////
+	    ////////////////// Parsec Related Begin //////////////////
+	    static ParsecRuntime *parsec_runtime;
+	    ///////////////// Parsec Related End ////////////////////
 #endif
 
 #if HAVE_INTEL_TBB
@@ -1318,13 +1313,9 @@ namespace madness {
             task->submit();
 #endif // MADNESS_TASK_PROFILING
 
-            //////////// Parsec Related Begin ////////////////////
-            /* Initialize the execution context and give it to the scheduler*/
 #if HAVE_PARSEC
-            parsec_task_t *parsec_task = &(task->parsec_task);
-            PARSEC_LIST_ITEM_SINGLETON(parsec_task);
-            madness_parsec_tp.tdm.module->taskpool_addto_nb_tasks(&madness_parsec_tp, 1);
-            __parsec_schedule(parsec->virtual_processes[0]->execution_streams[0], parsec_task, 0);
+            //////////// Parsec Related Begin ////////////////////
+            parsec_runtime->schedule(task);
             //////////// Parsec Related End ////////////////////
 #elif HAVE_INTEL_TBB
 #ifdef MADNESS_CAN_USE_TBB_PRIORITY
@@ -1491,16 +1482,41 @@ namespace madness {
         /// Destructor.
         ~ThreadPool() {
 #if HAVE_PARSEC
-          ////////////////// Parsec related Begin /////////////////
-          /* End of scheduling*/
-          parsec_fini((parsec_context_t **)&parsec);
-          ////////////////// Parsec related End /////////////////
+            ////////////////// Parsec related Begin /////////////////
+            delete parsec_runtime;
+            ////////////////// Parsec related End /////////////////
 #elif HAVE_INTEL_TBB
 #else
-            delete[] threads;           
+            delete[] threads;
 #endif
         }
+
+        /// \sa madness::threadpool_wait_policy
+        static void set_wait_policy(
+          WaitPolicy policy,
+          int sleep_duration_in_microseconds = 0) {
+#if !HAVE_INTEL_TBB && !HAVE_PARSEC
+          instance()->queue.set_wait_policy(policy,
+                                            sleep_duration_in_microseconds);
+#endif
+        }
+
     };
+
+    // clang-format off
+    /// Controls how aggressively ThreadPool holds on to the OS threads
+    /// while waiting for work. Currently useful only for Pthread pool when it's using spinlocks;
+    /// NOT used for TBB or PaRSEC.
+    /// \param policy specifies how to wait for work;
+    ///        - WaitPolicy::Busy -- threads are kept busy (default); recommended when intensive work is only performed by MADNESS threads
+    ///        - WaitPolicy::Yield -- thread yields; recommended when intensive work is performed primarily by non-MADNESS threads
+    ///        - WaitPolicy::Sleep -- thread sleeps for \p sleep_duration_in_microseconds ; recommended when intensive work is performed by MADNESS nd non-MADNESS threads
+    /// \param sleep_duration_in_microseconds if `policy==WaitPolicy::Sleep` this specifies the duration of sleep, in microseconds
+    // clang-format on
+    inline void threadpool_wait_policy(WaitPolicy policy,
+                                       int sleep_duration_in_microseconds = 0) {
+      ThreadPool::set_wait_policy(policy, sleep_duration_in_microseconds);
+    }
 
     /// @}
 }

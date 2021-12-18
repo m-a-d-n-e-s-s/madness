@@ -15,8 +15,8 @@
 #include <chem/PNOF12Potentials.h>
 #include <madness/world/worldmem.h>
 
-#include <apps/chem/CC2.h>
-#include <apps/chem/molecule.h>
+#include <chem/CC2.h>
+#include <chem/molecule.h>
 #include <chem/PNOTensors.h>
 
 namespace madness {
@@ -228,15 +228,15 @@ public:
 	/// = basis in which input A is represented, on output = the eigenbasis of A
 	void canonicalize(PNOPairs& v) const;
 
-private:
+public:
 	World& world;
 	PNOParameters param;  ///< calculation parameters
 	Nemo nemo;
-	Coulomb J;
+	Coulomb<double,3> J;
 	ParametrizedExchange K;
 	Kinetic<double, 3> T;
-	Nuclear V;
-	Fock F;
+	Nuclear<double,3> V;
+	Fock<double,3> F;
 	QProjector<double, 3> Q;
 	std::shared_ptr<real_convolution_3d> poisson;
 	BasisFunctions basis; ///< class which holds all methods to read or create guess functions for PNO or CABS

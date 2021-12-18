@@ -28,7 +28,7 @@ set(MADGIT_SOURCES gitinfo.cc )
 add_mad_library(git MADGIT_SOURCES MADGIT_HEADERS "world" "madness/misc/")
 add_dependencies(MADgit-obj mgit-madness)
 
-if(ENABLE_UNITTESTS)
+if(BUILD_TESTING)
   
   # The list of unit test source files
   set(MISC_TEST_SOURCES interp3.cc)

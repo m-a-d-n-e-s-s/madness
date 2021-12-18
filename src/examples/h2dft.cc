@@ -172,7 +172,7 @@ int main(int argc, char** argv) {
 //	                vxc = vxc - vxc2;
 //	            }
 //	        }
-	        XCOperator xc(world,xc_data,false,rho,rho);
+	        XCOperator<double,3> xc(world,xc_data,false,rho,rho);
 	        real_function_3d vxc=xc.make_xc_potential();
 
 
@@ -205,7 +205,7 @@ int main(int argc, char** argv) {
 //	vecfuncT vf;
 //	vf.push_back(rho);
 //	double exc=make_dft_energy(world,xc, vf, 0); // Exc
-    XCOperator xc(world,xc_data,false,rho,rho);
+    XCOperator<double,3> xc(world,xc_data,false,rho,rho);
     real_function_3d vxc=xc.make_xc_potential();
     double exc=xc.compute_xc_energy();
 

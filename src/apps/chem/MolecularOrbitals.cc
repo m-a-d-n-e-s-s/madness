@@ -11,10 +11,23 @@
 #include <madness/world/parallel_archive.h>
 #include <chem/molecularbasis.h>
 #include <chem/SCF.h>
+#include <chem/pointgroupsymmetry.h>
 
 #include<madness/mra/mra.h>
+#include<madness/mra/funcplot.h>
+
+using namespace madness;
 
 namespace madness {
+
+template<typename T, std::size_t NDIM>
+MolecularOrbitals<T,NDIM>& MolecularOrbitals<T,NDIM>::recompute_irreps(const std::string pointgroup,
+                                                 const Function<typename Tensor<T>::scalar_type,NDIM>& metric) {
+    projector_irrep symmetry_projector(pointgroup);
+    mo=symmetry_projector(mo,metric,irreps);
+    print("in recompute_irreps",irreps);
+    return *this;
+}
 
 
 template<typename T, std::size_t NDIM>
@@ -47,6 +60,19 @@ void MolecularOrbitals<T,NDIM>::post_process_mos(World& world, const double thre
 	set_thresh(world,mo,thresh);
 }
 
+
+/// @param[in] cubefile_header  header of the cube file, from molecule::cubefile_header()
+template<typename T, std::size_t NDIM>
+void MolecularOrbitals<T,NDIM>::print_cubefiles(const std::string name, const std::vector<std::string> cubefile_header) const {
+    if (get_mos().size()==0) return;
+    if constexpr (std::is_same<T,double_complex>::value) return;
+    World& world=get_mos().front().world();
+    for (int i=0; i<get_mos().size(); ++i) {
+        std::string filename=name+"_"+std::to_string(i)+".cube";
+        if constexpr (std::is_same<T,double>::value)
+            plot_cubefile<3>(world,get_mos()[i],filename,cubefile_header);
+    }
+}
 
 
 /// save MOs in the AO projection for geometry restart
@@ -124,6 +150,34 @@ void MolecularOrbitals<T,NDIM>::project_ao(World& world, const Tensor<T>& Saomo,
 	mo=orthonormalize_symmetric(mo);
 
 }
+
+template<typename T, std::size_t NDIM>
+std::vector<Vector<typename Tensor<T>::scalar_type,3> > MolecularOrbitals<T,NDIM>::compute_center(
+        const Function<typename Tensor<T>::scalar_type,NDIM> metric2) const {
+    using resultT= typename Tensor<T>::scalar_type;
+    int nmo = mo.size();
+    auto result=std::vector<Vector<resultT,3>>(nmo);
+    if (nmo==0) return result;
+    World& world=mo.front().world();
+    Tensor<T> dip(3, nmo);
+    double vtol=FunctionDefaults<3>::get_thresh()*0.1;
+    {
+        for (int axis = 0; axis < 3; ++axis) {
+            // dipole functor
+            auto dipole = [&axis](const Vector<double,3>& r) {return r[axis];};
+            real_function_3d fdip = real_factory_3d (world).functor(dipole).initial_level(4);
+            fdip=fdip*metric2;
+            dip(axis, _) = inner(world, mo, mul_sparse(world, fdip, mo, vtol));
+        }
+    }
+    for (int i=0; i<nmo; ++i) {
+        for (int axis=0; axis<3; ++axis) {
+            result[i][axis]=std::real(dip(axis,i));
+        }
+    }
+    return result;
+}
+
 
 template class MolecularOrbitals<double,3>;
 template class MolecularOrbitals<double_complex,3>;

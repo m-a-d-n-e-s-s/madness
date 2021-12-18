@@ -9,7 +9,7 @@ set(MADMRA_HEADERS
     mraimpl.h  funcplot.h  function_common_data.h function_factory.h
     function_interface.h gfit.h convolution1d.h simplecache.h derivative.h
     displacements.h functypedefs.h sdf_shape_3D.h sdf_domainmask.h vmra1.h
-    leafop.h nonlinsol.h)
+    leafop.h nonlinsol.h macrotaskq.h macrotaskpartitioner.h)
 set(MADMRA_SOURCES
     mra1.cc mra2.cc mra3.cc mra4.cc mra5.cc mra6.cc startup.cc legendre.cc 
     twoscale.cc qmprop.cc)
@@ -18,16 +18,16 @@ set(MADMRA_SOURCES
 add_mad_library(mra MADMRA_SOURCES MADMRA_HEADERS "linalg;tinyxml;muparser" "madness/mra")
 
 # Create executables
-add_mad_executable(mraplot "mraplot.cc" "MADmra")
+# add_mad_executable(mraplot "mraplot.cc" "MADmra") # installation fails with gnu-8 and gnu-9
 
 # Install the MADmra library
-install(TARGETS mraplot DESTINATION "${MADNESS_INSTALL_BINDIR}")
+# install(TARGETS mraplot DESTINATION "${MADNESS_INSTALL_BINDIR}")
 install(FILES autocorr coeffs gaussleg
     DESTINATION "${MADNESS_INSTALL_DATADIR}"
     COMPONENT mra)
 
 # Add unit tests    
-if(ENABLE_UNITTESTS)
+if(BUILD_TESTING)
 
   # The list of unit test source files
   add_library(libtest_sepop EXCLUDE_FROM_ALL test_sepop.cc)
@@ -35,7 +35,8 @@ if(ENABLE_UNITTESTS)
   
   set(MRA_TEST_SOURCES testbsh.cc testproj.cc 
       testpdiff.cc testdiff1Db.cc testgconv.cc testopdir.cc testinnerext.cc 
-      testgaxpyext.cc testvmra.cc)
+      testgaxpyext.cc testvmra.cc, test_vectormacrotask.cc test_cloud.cc
+      test_macrotaskpartitioner.cc)
   add_unittests(mra "${MRA_TEST_SOURCES}" "MADmra;MADgtest")
   set(MRA_SEPOP_TEST_SOURCES testsuite.cc
       testper.cc)

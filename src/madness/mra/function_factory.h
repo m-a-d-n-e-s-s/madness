@@ -98,8 +98,9 @@ namespace madness {
     bool _autorefine;
     bool _truncate_on_project;
     bool _fence;
-    bool _is_on_demand;
-    bool _compressed;
+//    bool _is_on_demand;
+//    bool _compressed;
+    TreeState _tree_state;
     //Tensor<int> _bc;
     std::shared_ptr<WorldDCPmapInterface<Key<NDIM> > > _pmap;
 
@@ -127,8 +128,7 @@ namespace madness {
       _autorefine(FunctionDefaults<NDIM>::get_autorefine()),
       _truncate_on_project(FunctionDefaults<NDIM>::get_truncate_on_project()),
       _fence(true), // _bc(FunctionDefaults<NDIM>::get_bc()),
-      _is_on_demand(false),
-      _compressed(false),
+      _tree_state(reconstructed),
       _pmap(FunctionDefaults<NDIM>::get_pmap()), _functor() {
     }
 
@@ -163,7 +163,7 @@ namespace madness {
     }
 
     FunctionFactory& compressed(bool value=true) {
-      _compressed = value;
+      _tree_state= value ? TreeState::compressed : reconstructed;
       return self();
     }
 
@@ -264,7 +264,7 @@ namespace madness {
     }
     virtual FunctionFactory&
     is_on_demand() {
-      _is_on_demand = true;
+    	_tree_state = on_demand;
       return self();
     }
     FunctionFactory&
@@ -326,8 +326,7 @@ namespace madness {
     , _particle2()
     , _func() {
 
-      // there are certain defaults that make only sense here
-      this->_is_on_demand=true;
+    	this->_tree_state=on_demand;
     }
 
     /// provide directly the NDIM (6D) pair function ket
@@ -410,7 +409,7 @@ namespace madness {
     , dcut_(FunctionDefaults<3>::get_thresh())
     , gamma_(-1.0)
     , bc_(FunctionDefaults<6>::get_bc()) {
-      _is_on_demand=true;
+      _tree_state=on_demand;
       this->_thresh=(FunctionDefaults<3>::get_thresh());
       this->_k=(FunctionDefaults<3>::get_k());
 

@@ -59,9 +59,9 @@
 	reconstruct(world, vector, fence);
 	\endcode
 
-	*) nonstandard: convert to non-standard form
+	*) make_nonstandard: convert to non-standard form
 	\code
-	nonstandard(world, v, fence);
+	make_nonstandard(world, v, fence);
 	\endcode
 
 	*) standard: convert to standard form
@@ -155,8 +155,26 @@ namespace madness {
         PROFILE_BLOCK(Vreconstruct);
         bool must_fence = false;
         for (unsigned int i=0; i<v.size(); ++i) {
-            if (v[i].is_compressed()) {
+            if (v[i].is_compressed() or v[i].is_nonstandard()) {
                 v[i].reconstruct(false);
+                must_fence = true;
+            }
+        }
+
+        if (fence && must_fence) world.gop.fence();
+    }
+
+    /// change tree_state of a vector of functions to redundant
+    template <typename T, std::size_t NDIM>
+    void make_redundant(World& world,
+                  const std::vector< Function<T,NDIM> >& v,
+                  bool fence=true) {
+
+        PROFILE_BLOCK(Vcompress);
+        bool must_fence = false;
+        for (unsigned int i=0; i<v.size(); ++i) {
+            if (!v[i].get_impl()->is_redundant()) {
+                v[i].get_impl()->make_redundant(false);
                 must_fence = true;
             }
         }
@@ -203,13 +221,13 @@ namespace madness {
 
     /// Generates non-standard form of a vector of functions
     template <typename T, std::size_t NDIM>
-    void nonstandard(World& world,
-                     std::vector< Function<T,NDIM> >& v,
-                     bool fence=true) {
+    void make_nonstandard(World& world,
+                          std::vector< Function<T,NDIM> >& v,
+                          bool fence= true) {
         PROFILE_BLOCK(Vnonstandard);
         reconstruct(world, v);
         for (unsigned int i=0; i<v.size(); ++i) {
-            v[i].nonstandard(false,false);
+            v[i].make_nonstandard(false, false);
         }
         if (fence) world.gop.fence();
     }
@@ -236,7 +254,9 @@ namespace madness {
                   bool fence=true) {
         PROFILE_BLOCK(Vtruncate);
 
-        compress(world, v);
+        // truncate in compressed form only for low-dimensional functions
+        // compression is very expensive if low-rank tensor approximations are used
+        if (NDIM<4) compress(world, v);
 
         for (unsigned int i=0; i<v.size(); ++i) {
             v[i].truncate(tol, false);
@@ -253,6 +273,18 @@ namespace madness {
                   double tol=0.0, bool fence=true) {
         if (v.size()>0) truncate(v[0].world(),v,tol,fence);
         return v;
+    }
+
+    /// reduces the tensor rank of the coefficient tensor (if applicable)
+
+    /// @return the vector for chaining
+    template <typename T, std::size_t NDIM>
+    std::vector< Function<T,NDIM> > reduce_rank(std::vector< Function<T,NDIM> > v,
+                  double thresh=0.0, bool fence=true) {
+    	if (v.size()==0) return v;
+    	for (auto& vv : v) vv.reduce_rank(thresh,false);
+    	if (fence) v[0].world().gop.fence();
+		return v;
     }
 
 
@@ -505,13 +537,27 @@ namespace madness {
     }
 
     template <typename T, std::size_t NDIM>
-    std::vector<Function<T,NDIM> > append(const std::vector< std::vector<Function<T,NDIM> > > vv){
+    std::vector<Function<T,NDIM> > flatten(const std::vector< std::vector<Function<T,NDIM> > >& vv){
     	std::vector<Function<T,NDIM> >result;
     	for(const auto& x:vv) result=append(result,x);
     	return result;
     }
 
-    /// Transforms a vector of functions according to new[i] = sum[j] old[j]*c[j,i]
+    template<typename T, std::size_t NDIM>
+    std::vector<std::shared_ptr<FunctionImpl<T,NDIM>>> get_impl(const std::vector<Function<T,NDIM>>& v) {
+        std::vector<std::shared_ptr<FunctionImpl<T,NDIM>>> result;
+        for (auto& f : v) result.push_back(f.get_impl());
+        return result;
+    }
+
+    template<typename T, std::size_t NDIM>
+    void set_impl(std::vector<Function<T,NDIM>>& v, const std::vector<std::shared_ptr<FunctionImpl<T,NDIM>>> vimpl) {
+        MADNESS_CHECK(vimpl.size()==v.size());
+        for (std::size_t i=0; i<vimpl.size(); ++i) v[i].set_impl(vimpl[i]);
+    }
+
+
+/// Transforms a vector of functions according to new[i] = sum[j] old[j]*c[j,i]
 
     /// Uses sparsity in the transformation matrix --- set small elements to
     /// zero to take advantage of this.
@@ -874,6 +920,40 @@ namespace madness {
         return vmulXX(a, v, tol, fence);
     }
 
+
+    /// Multiplies a vector of functions against a vector of functions using sparsity
+
+    /// \tparam T       type parameter for first factor
+    /// \tparam R       type parameter for second factor
+    /// \tparam NDIM    dimension of first and second factors
+    /// \param world    the world
+    /// \param f        first vector of functions
+    /// \param g        second vector of functions
+    /// \param tol      threshold for multiplication
+    /// \param fence    force fence (will always fence if necessary)
+    /// \return         fg(i,j) = f(i) * g(j), as a vector of vectors
+    template <typename T, typename R, std::size_t NDIM>
+    std::vector<std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM> > >
+    matrix_mul_sparse(World &world,
+                      const std::vector<Function<R, NDIM> > &f,
+                      const std::vector<Function<R, NDIM> > &g,
+                      double tol,
+                      bool fence = true) {
+        PROFILE_BLOCK(Vmulsp);
+        bool same=(&f == &g);
+        reconstruct(world, f, false);
+        if (not same) reconstruct(world, g, false);
+        world.gop.fence();
+        for (auto& ff : f) ff.norm_tree(false);
+        if (not same) for (auto& gg : g) gg.norm_tree(false);
+        world.gop.fence();
+
+        std::vector<std::vector<Function<R,NDIM> > >result(f.size());
+        for (std::size_t i=0; i<f.size(); ++i) result[i]= vmulXX(f[i], g, tol, false);
+        if (fence) world.gop.fence();
+        return result;
+    }
+
     /// Makes the norm tree for all functions in a vector
     template <typename T, std::size_t NDIM>
     void norm_tree(World& world,
@@ -1096,6 +1176,7 @@ namespace madness {
         const std::vector< Function<T,NDIM> >& a,
         const std::vector< Function<R,NDIM> >& b,
         bool fence=true) {
+        MADNESS_CHECK(a.size()==b.size());
         return sum(world,mul(world,a,b,true),fence);
     }
 
@@ -1181,7 +1262,7 @@ namespace madness {
         std::vector< Function<R,NDIM> >& ncf = *const_cast< std::vector< Function<R,NDIM> >* >(&f);
 
         reconstruct(world, f);
-        nonstandard(world, ncf);
+        make_nonstandard(world, ncf);
 
         std::vector< Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> > result(f.size());
         for (unsigned int i=0; i<f.size(); ++i) {
@@ -1200,17 +1281,21 @@ namespace madness {
 
 
     /// Applies an operator to a vector of functions --- q[i] = apply(op,f[i])
-    template <typename T, typename R, std::size_t NDIM>
+    template <typename T, typename R, std::size_t NDIM, std::size_t KDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
     apply(World& world,
-          const SeparatedConvolution<T,NDIM>& op,
+          const SeparatedConvolution<T,KDIM>& op,
           const std::vector< Function<R,NDIM> > f) {
         PROFILE_BLOCK(Vapply);
 
         std::vector< Function<R,NDIM> >& ncf = *const_cast< std::vector< Function<R,NDIM> >* >(&f);
+        bool print_timings=(NDIM==6) and (world.rank()==0);
 
+        double wall0=wall_time();
         reconstruct(world, f);
-        nonstandard(world, ncf);
+        make_nonstandard(world, ncf);
+        double wall1=wall_time();
+        if (print_timings) printf("timer: %20.20s %8.2fs\n", "make_nonstandard", wall1-wall0);
 
         std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> > result(f.size());
         for (unsigned int i=0; i<f.size(); ++i) {
@@ -1219,7 +1304,19 @@ namespace madness {
 
         world.gop.fence();
 
-        standard(world, ncf, false);  // restores promise of logical constness
+        // restores promise of logical constness
+        if (not op.destructive()) standard(world, ncf, false);
+
+        // svd-tensor requires some cleanup after apply
+        if (result[0].get_impl()->get_tensor_type()==TT_2D) {
+            for (auto& r : result) r.get_impl()->finalize_apply(false);
+            world.gop.fence();
+        }
+
+        if (print_timings) {
+        	for (auto& r : result) r.get_impl()->print_timer();
+            op.print_timer();
+        }
         reconstruct(world, result);
 
         if (op.is_slaterf12) {
@@ -1394,7 +1491,17 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > operator+=(std::vector<Function<T,NDIM> >& rhs,
             const std::vector<Function<T,NDIM> >& lhs) {
-        if (rhs.size()>0) rhs=add(rhs[0].world(),rhs,lhs);
+        if (rhs.size()==0) return rhs;
+        MADNESS_CHECK(rhs.size()==lhs.size());
+        if (rhs.front().world().id()==lhs.front().world().id()) {
+            rhs=add(rhs[0].world(),rhs,lhs);
+        } else {
+            MADNESS_CHECK(rhs.front().is_compressed());
+            MADNESS_CHECK(lhs.front().is_compressed());
+            for (auto i=0; i<rhs.size(); ++i) {
+                rhs[i].gaxpy(T(1.0), lhs[i], T(1.0), false);
+            }
+        }
         return rhs;
     }
 
@@ -1667,7 +1774,7 @@ namespace madness {
     void load_function(World& world, std::vector<Function<T,NDIM> >& f,
             const std::string name) {
         if (world.rank()==0) print("loading vector of functions",name);
-        archive::ParallelInputArchive ar(world, name.c_str(), 1);
+        archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, name.c_str(), 1);
         std::size_t fsize=0;
         ar & fsize;
         f.resize(fsize);
@@ -1680,7 +1787,7 @@ namespace madness {
         if (f.size()>0) {
             World& world=f.front().world();
             if (world.rank()==0) print("saving vector of functions",name);
-            archive::ParallelOutputArchive ar(world, name.c_str(), 1);
+            archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, name.c_str(), 1);
             std::size_t fsize=f.size();
             ar & fsize;
             for (std::size_t i=0; i<fsize; ++i) ar & f[i];

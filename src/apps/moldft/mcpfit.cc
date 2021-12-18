@@ -432,7 +432,7 @@ struct Calculation {
         std::string refdir = "references/";
         std::string filename = refdir + atom;
         try {
-            archive::ParallelInputArchive ar(world, filename.c_str());
+            archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, filename.c_str());
             /*
                File format:
 

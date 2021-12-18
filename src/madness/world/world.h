@@ -131,7 +131,7 @@ namespace madness {
     private:
         friend class WorldAmInterface;
         friend class WorldGopInterface;
-        friend World& initialize(int&, char**&, const SafeMPI::Intracomm&, bool);
+        friend World& initialize(int&, char**&, const SafeMPI::Intracomm&, int, bool);
         friend void finalize();
 
         // Static member variables
@@ -540,11 +540,6 @@ namespace madness {
     }; // class World
 
     namespace archive {
-
-        template <typename, typename>
-        struct ArchiveLoadImpl;
-        template <typename, typename>
-        struct ArchiveStoreImpl;
 
         /// Specialization of \c ArchiveLoadImpl for \c World pointers.
 

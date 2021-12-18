@@ -84,6 +84,7 @@ public:
 		initialize<std::vector<std::string> >("model",{"dcep"},"comment on this: oaep ocep dcep mrks");
 		initialize<unsigned int>("maxiter",150,"maximum number of iterations in OEP algorithm");
 		initialize<bool>("restart",false,"restart from previous OEP calculation");
+        initialize<bool>("no_compute",false,"read from previous OEP calculation, no computation");
 		initialize<double>("levelshift",0.0,"shift occupied orbital energies in the BSH operator");
 //		initialize<double>("conv_threshold",1.e-5,"comment on this");
 		initialize<double>("density_threshold_high",1.e-6,"comment on this");
@@ -121,12 +122,9 @@ public:
 
 	// convenience functions
 	std::vector<std::string> model() const {return get<std::vector<std::string> >("model");}
-	bool is_oaep() const {return (get<std::string>("model")=="oaep");}
-	bool is_ocep() const {return (get<std::string>("model")=="ocep");}
-	bool is_dcep() const {return (get<std::string>("model")=="dcep");}
-	bool is_mrks() const {return (get<std::string>("model")=="mrks");}
 
 	bool restart() const {return get<bool>("restart");}
+    bool no_compute() const {return get<bool>("no_compute");}
 	unsigned int maxiter() const {return get<unsigned int>("maxiter");}
 	double levelshift() const {return get<double>("levelshift");}
 //	double conv_thresh() const {return get<double>("conv_threshold");}
@@ -134,13 +132,7 @@ public:
 	double dens_thresh_lo() const {return get<double>("density_threshold_low");}
 	double dens_thresh_inv() const{return get<double>("density_threshold_inv");}
 	unsigned int saving_amount() const {return get<unsigned int>("saving_amount");}
-
-	unsigned int save_iter_orbs               () const {return get<unsigned int>("save_iter_orbs");}
-	unsigned int save_iter_density            () const {return get<unsigned int>("save_iter_density");}
-	unsigned int save_iter_kin_tot_KS         () const {return get<unsigned int>("save_iter_kin_tot_ks");}
-	unsigned int save_iter_kin_P_KS           () const {return get<unsigned int>("save_iter_kin_p_ks");}
 	unsigned int save_iter_corrections        () const {return get<unsigned int>("save_iter_corrections");}
-	unsigned int save_iter_effective_potential() const {return get<unsigned int>("save_iter_effective_potential");}
 
 	std::vector<double> kain_param() const {return get<std::vector<double> >("kain_param");}
 
@@ -150,30 +142,75 @@ public:
 class OEP : public Nemo {
 
 private:
-	/// returns true if all members of a vector of booleans are true, otherwise false
-	bool IsAlltrue(std::vector<bool> vec) const {
-		for (int i = 0; i < vec.size(); i++) {
-			if (!vec[i]) return false;
-		}
-		return true;
-	}
 
+    /// parameters for this OEP calculation
 	OEP_Parameters oep_param;
+
+	/// the wave function reference that determines the local potential
+	std::shared_ptr<Nemo> reference;
+
+	/// the final local potential
+	real_function_3d Vfinal;
 
 public:
 
-	OEP(World& world, const std::shared_ptr<SCF> calc, std::string inputfile)
-		: Nemo(world, calc, inputfile), oep_param(world, inputfile) {
-		oep_param.set_derived_values(param);
-		oep_param.print("oep","end");
+    OEP(World& world, const commandlineparser& parser)
+            : Nemo(world, parser),
+              oep_param(world, parser.value("input")) {
 
+        // add tight convergence criteria
+        std::vector<std::string> convergence_crit=param.get<std::vector<std::string> >("convergence_criteria");
+        if (std::find(convergence_crit.begin(),convergence_crit.end(),"each_energy")==convergence_crit.end()) {
+            convergence_crit.push_back("each_energy");
+        }
+        param.set_derived_value("convergence_criteria",convergence_crit);
+        calc->param.set_derived_value("convergence_criteria",convergence_crit);
+
+        // set reference
+        set_reference(std::make_shared<Nemo>(world,parser));
+        reference->param.set_derived_value("convergence_criteria",convergence_crit);
+        reference->get_calc()->param.set_derived_value("convergence_criteria",convergence_crit);
+
+        oep_param.set_derived_values(param);
+    }
+
+	void set_reference(const std::shared_ptr<Nemo> reference1) {
+	    reference=reference1;
 	}
 
-    double value(const vecfuncT& HF_nemo) {
-    	set_protocol(calc->param.econv());
-    	solve(HF_nemo);
-    	return 0.0;
+    std::shared_ptr<Nemo> get_reference() const {
+        return reference;
     }
+
+    void print_parameters(std::vector<std::string> what) const {
+        for (auto w : what) {
+            if (w=="oep") oep_param.print("oep");
+            else if (w=="reference") reference->param.print("dft");
+            else if (w=="oep_calc") param.print("oep_calc");
+            else {MADNESS_EXCEPTION(std::string("unknown parameter set to print "+w).c_str(),1);}
+        }
+    }
+
+	real_function_3d get_final_potential() const {
+        return Vfinal;
+    }
+
+    virtual double value() {
+        return value(calc->molecule.get_all_coords());
+    }
+
+    virtual double value(const Tensor<double>& x) {
+	    reference->value();
+        set_protocol(param.econv());
+        calc->copy_data(world,*(reference->get_calc()));
+        double energy=0.0;
+        Tensor<double> fock;
+        bool load_mos=(oep_param.restart() or oep_param.no_compute());
+        if (load_mos) load_restartdata(fock);
+
+        if (not oep_param.no_compute())  energy=solve(reference->get_calc()->get_amo());
+        return energy;
+	};
 
     /// Iterative energy calculation for approximate OEP with EXACT EXCHANGE functional
 	/// for other functionals, slater potential must be modified
@@ -181,17 +218,21 @@ public:
 	/// note that KS_nemo is a reference and changes oep->get_calc()->amo orbitals
 	/// same for orbital energies (eigenvalues) KS_eigvals which is oep->get_calc()->aeps
 	/// converged if norm, total energy difference and orbital energy differences (if not OAEP) are converged
-    void solve(const vecfuncT& HF_nemo);
+    double solve(const vecfuncT& HF_nemo);
+
+    void analyze();
 
     double iterate(const std::string model, const vecfuncT& HF_nemo, const tensorT& HF_eigvals,
     		vecfuncT& KS_nemo, tensorT& KS_Fock, real_function_3d& Voep,
 			const real_function_3d Vs) const;
 
-    MolecularOrbitals<double,3> to_MO() const {
-    	std::vector<std::string> str_irreps;
-    	vecfuncT aaa=symmetry_projector(calc->amo,R_square,str_irreps);
-    	return MolecularOrbitals<double,3>(aaa,this->get_calc()->aeps,str_irreps,this->get_calc()->aocc,this->get_calc()->aset);
-    }
+    virtual std::shared_ptr<Fock<double,3>> make_fock_operator() const;
+
+//    MolecularOrbitals<double,3> to_MO() const {
+//    	std::vector<std::string> str_irreps;
+//    	vecfuncT aaa=symmetry_projector(calc->amo,R_square,str_irreps);
+//    	return MolecularOrbitals<double,3>(aaa,this->get_calc()->aeps,str_irreps,this->get_calc()->aocc,this->get_calc()->aset);
+//    }
 
     void save_restartdata(const Tensor<double>& fock) const;
 
@@ -200,36 +241,24 @@ public:
     std::tuple<Tensor<double>, vecfuncT> recompute_HF(const vecfuncT& HF_nemo) const;
 
     /// The following function tests all essential parts of the OEP program qualitatively and some also quantitatively
-    int test_oep(const vecfuncT& HF_nemo);
+    int test_oep();
 
-    bool need_ocep_correction(const std::string model) const {
+    bool need_ocep_correction(const std::string& model) const {
     	return (model=="ocep") or (model=="dcep") or (model=="mrks");
     }
 
-    bool need_dcep_correction(const std::string model) const {
+    bool need_dcep_correction(const std::string& model) const {
     	return (model=="dcep");
     }
 
-    bool need_mrks_correction(const std::string model) const {
+    bool need_mrks_correction(const std::string& model) const {
     	return (model=="mrks");
     }
 
-    /// get index of HOMO from a given set of orbital energies
-    long homo_ind(const tensorT orbens) const {
-    	long index;
-    	orbens.max(&index); // return value discarded
-    	return index;
-    }
-
-    /// get difference of HF and KS HOMO energies as HOMO_KS - HOMO_HF
-    double homo_diff(const tensorT ev1, const tensorT ev2) const {
-    	return ev1(homo_ind(ev1)) - ev2(homo_ind(ev2));
-    }
-
     /// print orbital energies in reverse order with optional shift
-    void print_orbens(const tensorT orbens, const double shift = 0.0) const {
+    void print_orbens(const tensorT orbens) const {
 		for (long i = orbens.size() - 1; i >= 0; i--) {
-			printf(" e%2.2lu = %12.8f Eh\n", i, orbens(i) + shift);
+			printf(" e%2.2lu = %12.8f Eh\n", i, orbens(i));
 		}
     }
 
@@ -254,8 +283,8 @@ public:
      /// compute Slater potential (Kohut, 2014, equation (15))
     real_function_3d compute_slater_potential(const vecfuncT& nemo) const {
 
-        Exchange<double,3> K(world);
-        K.set_parameters(R_square*nemo,nemo,calc->aocc,calc->param.lo());
+        Exchange<double,3> K;
+        K.set_parameters(R_square*nemo,nemo,reference->get_calc()->param.lo());
         const vecfuncT Knemo = K(nemo);
         // 2.0*R_square in numerator and density (rho) cancel out upon division
         real_function_3d numerator = -1.0*dot(world, nemo, Knemo);
@@ -264,10 +293,10 @@ public:
         // long-range asymptotic behavior for Slater potential is \int 1/|r-r'| * |phi_HOMO|^2 dr'
         // in order to compute this lra, use Coulomb potential with only HOMO density (= |phi_HOMO|^2)
 //        Coulomb J(world);
-//        J.reset_poisson_operator_ptr(calc->param.lo(),calc->param.econv());
+//        J.reset_poisson_operator_ptr(param.lo(),param.econv());
 //        real_function_3d lra = -1.0*J.compute_potential(R_square*square(nemo[homo_ind]));
-        Coulomb J(world,this);
-        real_function_3d lra=-1.0/(calc->param.nalpha()+calc->param.nbeta())*J.compute_potential(this);
+        Coulomb<double,3> J(world,this);
+        real_function_3d lra=-1.0/(param.nalpha()+param.nbeta())*J.compute_potential(this);
 //        print("compute long-range part of the Slater potential from the full molecular density");
         if (oep_param.saving_amount() >= 3) save(lra, "lra_slater");
 
@@ -303,7 +332,7 @@ public:
 
 	    for (int idim=0; idim<3; ++idim) {
 	    	real_derivative_3d D(world,idim);
-	    	if(calc->param.dft_deriv() == "bspline") D.set_bspline1();
+	    	if(param.dft_deriv() == "bspline") D.set_bspline1();
 	    	vecfuncT nemo_copy=copy(world,nemo);
 	    	refine(world,nemo_copy);
 	    	std::vector<real_function_3d> dnemo=apply(world,D,nemo_copy);
@@ -329,7 +358,7 @@ public:
 	    	vecfuncT nemo_copy=copy(world,nemo);
 	    	refine(world,nemo_copy);
 
-	    	if(calc->param.dft_deriv() == "bspline") grad_nemo[i] = grad_bspline_one(nemo_copy[i]);  // gradient using b-spline
+	    	if(param.dft_deriv() == "bspline") grad_nemo[i] = grad_bspline_one(nemo_copy[i]);  // gradient using b-spline
 	    	else grad_nemo[i] = grad(nemo_copy[i]);  // default gradient using abgv
 	    }
 
@@ -344,26 +373,6 @@ public:
 
 		return numerator;
 
-    }
-
-    real_function_3d compute_oep(const std::string model,
-    		const real_function_3d& Vs,
-    		const real_function_3d& ocep_numerator_HF,
-    		const real_function_3d& dcep_numerator_HF,
-    		const real_function_3d& mrks_numerator_HF,
-			const vecfuncT& HF_nemo, const vecfuncT& KS_nemo,
-			const tensorT& fockHF, const tensorT& fock) const {
-
-    	real_function_3d Voep=copy(Vs);
-		if (model=="ocep" or model=="dcep" or model=="mrks") {
-
-    		// compute OCEP potential from current nemos and eigenvalues
-			real_function_3d correction = compute_ocep_correction(ocep_numerator_HF, HF_nemo,KS_nemo,fockHF,fock);
-			if (model=="dcep") correction += compute_dcep_correction(dcep_numerator_HF, HF_nemo,KS_nemo);
-			if (model=="mrks") correction += compute_mrks_correction(mrks_numerator_HF, HF_nemo,KS_nemo);
-			Voep += correction;
-		}
-		return Voep;
     }
 
     /// compute correction of the given model
@@ -488,7 +497,7 @@ public:
     	compute_coulomb_potential(nemo, Jnemo);
 
     	// compute nuclear potential part
-    	Nuclear Unuc(world, this->ncf);
+    	Nuclear<double,3> Unuc(world, this->ncf);
     	Unemo = Unuc(nemo);
 
     }
@@ -496,9 +505,8 @@ public:
     /// compute Coulomb potential
     void compute_coulomb_potential(const vecfuncT& nemo, vecfuncT& Jnemo) const {
 
-    	Coulomb J(world);
+    	Coulomb<double,3> J(world, this);
     	real_function_3d density=this->compute_density(nemo);
-    	J.reset_poisson_operator_ptr(get_calc()->param.lo(),get_calc()->param.econv());
     	J.potential()=J.compute_potential(density);
     	Jnemo = J(nemo);
     	truncate(world, Jnemo);
@@ -508,8 +516,8 @@ public:
     /// compute exchange potential (needed for Econv)
     void compute_exchange_potential(const vecfuncT& nemo, vecfuncT& Knemo) const {
 
-    	Exchange<double,3> K = Exchange<double,3>(world);
-    	K.set_parameters(R_square*nemo,nemo,this->get_calc()->aocc);
+    	Exchange<double,3> K;
+    	K.set_parameters(R_square*nemo,nemo,this->get_calc()->param.lo());
     	Knemo = K(nemo);
     	truncate(world, Knemo);
 
@@ -554,8 +562,7 @@ public:
 
     	// compute external potential (nuclear attraction)
     	real_function_3d Vext = calc->potentialmanager->vnuclear();
-    	Coulomb J(world);
-    	J.reset_poisson_operator_ptr(param.lo(),param.econv());
+    	Coulomb<double,3> J(world,this);
     	real_function_3d Jpotential=J.compute_potential(density);
 
     	// compute remaining energies: nuclear attraction, Coulomb, nuclear repulsion
