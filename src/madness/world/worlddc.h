@@ -113,8 +113,8 @@ namespace madness {
         /// new map and no objects will be registered in the current map.
         /// @param[in] world The associated world
         /// @param[in] newpmap The new process map
-        void redistribute(World& world, const std::shared_ptr< WorldDCPmapInterface<keyT> >& newpmap, bool doprint=true) {
-            if(doprint) print_data_sizes(world, "before redistributing");
+        void redistribute(World& world, const std::shared_ptr< WorldDCPmapInterface<keyT> >& newpmap) {
+            print_data_sizes(world, "before redistributing");
             world.gop.fence();
             for (typename std::set<ptrT>::iterator iter = ptrs.begin();
                  iter != ptrs.end();
@@ -136,7 +136,7 @@ namespace madness {
             }
             world.gop.fence();
             ptrs.clear();
-            if(doprint) newpmap->print_data_sizes(world, "after redistributing");
+            newpmap->print_data_sizes(world, "after redistributing");
         }
 
         /// Counts global number of entries in all containers associated with this process map

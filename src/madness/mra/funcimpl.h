@@ -5333,7 +5333,7 @@ namespace madness {
                                     Tensor< TENSOR_RESULT_TYPE(T,R) >* result_ptr,
                                     Mutex* mutex) {
             Tensor< TENSOR_RESULT_TYPE(T,R) >& result = *result_ptr;
-            //Tensor< TENSOR_RESULT_TYPE(T,R) > r(result.dim(0),result.dim(1));
+            Tensor< TENSOR_RESULT_TYPE(T,R) > r(result.dim(0),result.dim(1));
             for (typename mapT::iterator lit=lstart; lit!=lend; ++lit) {
                 const keyT& key = lit->first;
                 typename FunctionImpl<R,NDIM>::mapT::iterator rit=rmap_ptr->find(key);
@@ -5343,26 +5343,23 @@ namespace madness {
                     const int nleft = leftv.size();
                     const int nright= rightv.size();
 
-                    unsigned int size = leftv[0].second->size();
-                    Tensor<T> Left(nleft, size);
-                    Tensor<R> Right(nright, size);
-                    Tensor< TENSOR_RESULT_TYPE(T,R)> r(nleft, nright);
-                    for(unsigned int iv = 0; iv < nleft; ++iv) Left(iv,_) = *(leftv[iv].second);
-                    for(unsigned int jv = 0; jv < nright; ++jv) Right(jv,_) = *(rightv[jv].second);
-                    // call mxmT from mxm.h in tensor
-                    Left = Left.conj();  //Should handle complex case and leave real case alone
-                    mxmT(nleft, nright, size, r.ptr(), Left.ptr(), Right.ptr());
-                    mutex->lock();
-                    for(unsigned int iv = 0; iv < nleft; ++iv) {
+                    for (int iv=0; iv<nleft; iv++) {
                         const int i = leftv[iv].first;
-                        for(unsigned int jv = 0; jv < nright; ++jv) {
-                          const int j = rightv[jv].first;
-                          if (!sym || (sym && i<=j)) result(i,j) += r(iv,jv);
+                        const GenTensor<T>* iptr = leftv[iv].second;
+
+                        for (int jv=0; jv<nright; jv++) {
+                            const int j = rightv[jv].first;
+                            const GenTensor<R>* jptr = rightv[jv].second;
+
+                            if (!sym || (sym && i<=j))
+                                r(i,j) += iptr->trace_conj(*jptr);
                         }
                     }
-                    mutex->unlock();
                 }
             }
+            mutex->lock();
+            result += r;
+            mutex->unlock();
         }
 #else
        template <typename R>

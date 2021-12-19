@@ -1585,7 +1585,6 @@ namespace madness {
             if (VERIFY_TREE) left.verify_tree();
             if (VERIFY_TREE) right.verify_tree();
             impl.reset(new implT(*left.get_impl(), left.get_pmap(), false));
-            impl->world.gop.fence(); //<<<<<<<<<< perhaps unneccessary fence added by Robert
             impl->gaxpy(alpha,*left.get_impl(),beta,*right.get_impl(),fence);
             return *this;
         }

@@ -285,7 +285,7 @@ private:
 		// in the moment list
 		//
 		// <r^i|gj> cj = <r^i|exact-remainder>
-		const long nmom = 0;
+		const long nmom = 1;
 		if (nmom > 0) {
 			Tensor<double> q(4), qg(4);
 			double range = sqrt(-log(1e-6)/expnt[nmom-1]);
