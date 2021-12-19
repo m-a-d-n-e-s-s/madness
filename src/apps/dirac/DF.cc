@@ -1244,7 +1244,7 @@ void DF::DF_load_balance(World& world, real_function_3d& Vnuc){
      }
 
      //Redistribute
-     FunctionDefaults<3>::redistribute(world, lb.load_balance(2), true);
+     FunctionDefaults<3>::redistribute(world, lb.load_balance(2));
 
      //End timers
      Tensor<double> times = end_timer(world);

@@ -28,7 +28,7 @@ public:
 
      const complex_function_3d& operator[](const int i) const ;
      
-     Fcwf(std::vector<complex_function_3d>& phi);
+     explicit Fcwf(std::vector<complex_function_3d>& phi);
 
      bool getinitialize();
 
