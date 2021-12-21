@@ -18,7 +18,7 @@ false if the constant is 0, OFF, NO, FALSE, N, or IGNORE.
 
 MADNESS provides toolchain files for select systems. It is recommended that you
 use these files if provided as they contain the platform specific settings
-neccessary to build on the given platform. The toolchain files are included wiht
+necessary to build on the given platform. The toolchain files are included with
 the MADNESS source in the cmake/toolchains directory.
 
 * CMAKE_TOOLCHAIN_FILE --- Specifies the path (including the file name) to the
@@ -138,9 +138,9 @@ not found.
                  explicitly or have them in PATH; if not found will use StubMPI and
                  be limited to 1 process [default=ON]
 
-In the following section, each optional library privides four variables that
+In the following section, each optional library provides four variables that
 the user can use to enable cmake to find the correct dependencies: 
-  * ENABLE_<LIB> --- Enable the library feathres (ON|OFF)
+  * ENABLE_<LIB> --- Enable the library features (ON|OFF)
   * <LIB>_ROOT_DIR --- Prefix path used to search for the external library.
   * <LIB>_INCLUDE_DIR --- The external library include path. By default the
         include path is ${<LIB>_ROOT_DIR}/include, if <LIB>_ROOT_DIR is
@@ -208,7 +208,7 @@ If LIBUNWIND_DIR is not given, it will be set to the value of the LIBUNWIND_DIR 
 * LIBXC_INCLUDE_DIR --- The path to the LIBXC include directory.
 * LIBXC_LIBRARY --- The path to the LIBXC library directory.
 
-# Polarizable Conitinuum Solver (PCM):
+# Polarizable Continuum Solver (PCM):
 
 * ENABLE_PCM --- Enables use of PCM
 * PCM_ROOT_DIR --- The install prefix for PCM 
