@@ -212,7 +212,7 @@ void TDDFT::load(World &world, std::string name) {
 void TDDFT::initial_load_bal(World &world) {
     LoadBalanceDeux<3> lb(world);
     real_function_3d vnuc;
-    vnuc = potentialmanager->vnuclear();
+    vnuc = potential_manager->vnuclear();
     lb.add_tree(vnuc,
                 lbcost<double, 3>(r_params.vnucextra() * 1.0,
                                   r_params.vnucextra() * 8.0));
@@ -229,7 +229,7 @@ void TDDFT::load_balance(World &world,
 
     LoadBalanceDeux<3> lb(world);
     real_function_3d v_nuclear;
-    v_nuclear = potentialmanager->vnuclear();
+    v_nuclear = potential_manager->vnuclear();
     lb.add_tree(
             v_nuclear,
             lbcost<double, 3>(r_params.vnucextra() * 1.0, r_params.vnucextra() * 8.0),
@@ -255,7 +255,6 @@ void TDDFT::load_balance(World &world,
     FunctionDefaults<3>::redistribute(
             world,
             lb.load_balance(r_params.loadbalparts()));  // 6.0 needs retuning after
-    // param.vnucextra
 
     world.gop.fence();
     molresponse::end_timer(world, "Load balancing");
@@ -539,10 +538,10 @@ X_space TDDFT::create_trial_functions(World &world,
     // Multiply each solid harmonic onto a ground state orbital
     for (size_t i = 0; i < n; i++) {
         // For each solid harmonic
-        for (auto key: solids) {
+        for (const auto& key: solids) {
             // Temp zero functions
             std::vector<real_function_3d> temp =
-                    zero_functions_compressed<double, 3>(world, n);
+                    zero_functions_compressed<double, 3>(world, static_cast<int>(n));
 
             // Create one non-zero function and add to trials
             temp[count % n] = key.second * orbitals[n - count % n - 1];
@@ -818,9 +817,9 @@ response_space TDDFT::exchange(World &world, response_space &f) {
 
 void TDDFT::make_nuclear_potential(World &world) {
     molresponse::start_timer(world);
-    potentialmanager = std::shared_ptr<PotentialManager>(
+    potential_manager = std::shared_ptr<PotentialManager>(
             new PotentialManager(molecule, r_params.core_type()));
-    potentialmanager->make_nuclear_potential(world);
+    potential_manager->make_nuclear_potential(world);
 }
 
 // Returns the ground state potential applied to functions f

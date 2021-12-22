@@ -439,7 +439,7 @@ X_space TDDFT::compute_V0X(World& world,
 
   molresponse::start_timer(world);
   if (not r_params.store_potential()) {
-    v_nuc = potentialmanager->vnuclear();
+    v_nuc = potential_manager->vnuclear();
     v_nuc.truncate();
   } else {  // Already pre-computed
     v_nuc = stored_v_nuc;

@@ -13,7 +13,7 @@
 #include <madness/mra/operator.h>
 #include <madness/tensor/distributed_matrix.h>
 #include <madness/tensor/solvers.h>
-#include <math.h>
+#include <cmath>
 #include <molresponse/basic_operators.h>
 #include <molresponse/density.h>
 #include <molresponse/ground_parameters.h>
@@ -121,7 +121,7 @@ typedef std::vector<XNonlinearSolver<X_vector, double, X_space_allocator>>
 class TDDFT {
  public:
   // ResponseParameter object to hold all user input variables
-  std::shared_ptr<PotentialManager> potentialmanager;
+  std::shared_ptr<PotentialManager> potential_manager;
   // CalculationParameters param;
   functionT mask;
 
