@@ -197,14 +197,14 @@ class TDDFT {
   void load(World& world, std::string name);
   // Initial load balance using vnuc
   void initial_load_bal(World& world);
-  void loadbal(World& world, vecfuncT rho_omega, X_space Chi, X_space Chi_old);
+  void load_balance(World& world, vecfuncT rho_omega, X_space Chi, X_space Chi_old);
   void orbital_load_balance(World& world,
                             vecfuncT& psi0,
                             vecfuncT& psi0_copy,
                             X_space& Chi,
                             X_space& Chi_copy);
   // Normalizes in the response sense
-  void normalize(World& world, response_space& f);
+  static void normalize(World& world, response_space& f);
 
   // Normalizes in the response sense
   void normalize(World& world, response_space& f, response_space& g);

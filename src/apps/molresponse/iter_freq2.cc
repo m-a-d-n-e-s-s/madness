@@ -127,7 +127,7 @@ void TDDFT::iterate_freq2(World& world) {
     // rho_omega = make_density(world, Chi, compute_y);
 
     if (iter < 2 || (iter % 10) == 0) {
-      loadbal(world, rho_omega, Chi, old_Chi);
+        load_balance(world, rho_omega, Chi, old_Chi);
     }
 
     // compute density residuals

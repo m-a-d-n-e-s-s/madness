@@ -129,7 +129,7 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
     // Normalize after projection
 
     if (iter < 2 || (iter % 10) == 0) {
-      loadbal(world, rho_omega, Chi, old_Chi);
+        load_balance(world, rho_omega, Chi, old_Chi);
     }
 
     // compute density residuals
