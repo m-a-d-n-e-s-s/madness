@@ -37,26 +37,38 @@
 /// \defgroup molresponse The molecular density funcitonal response code
 #include <chem/SCF.h>
 #include <madness/world/worldmem.h>
-#include <stdlib.h>
 
 #include "TDDFT.h"  // All response functions/objects enter through this
 #include "molresponse/density.h"
-#include "molresponse/global_functions.h"
 
 #if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && \
     defined(HAVE_UNISTD_H)
 
 #include <sys/stat.h>
-#include <sys/types.h>
 #include <unistd.h>
 
 static inline int file_exists(const char *inpname) {
-    struct stat buffer;
+    struct stat buffer{};
     size_t rc = stat(inpname, &buffer);
     return (rc == 0);
 }
 
 #endif
+
+/// Capturing the line/function/filename info is best done with the
+/// macros listed below.
+/// \param[in] m The error message.
+/// \param[in] a String describing the exception.
+/// \param[in] v Value associated with the exception.
+/// \param[in] l Line number where the exception occurred.
+/// \param[in] fn Function where the exception occurred.
+/// \param[in] f File where the exception occurred.
+class Input_Error : public MadnessException {
+public:
+    explicit Input_Error() : MadnessException("input file not found", nullptr, 25, __LINE__, __FUNCTION__, \
+                                    __FILE__){}
+};
+
 
 density_vector read_and_create_density(World &world,
                                        const char *inpname,
@@ -64,7 +76,7 @@ density_vector read_and_create_density(World &world,
     GroundParameters g_params;
     ResponseParameters r_params;
     if (world.rank() == 0) {
-        r_params.read_and_set_derived_values(world, inpname, tag);
+        r_params.read_and_set_derived_values(world, inpname, std::move(tag));
         std::string ground_file = r_params.archive();
         g_params.read(world, ground_file);
     }
@@ -88,19 +100,19 @@ int main(int argc, char **argv) {
 
             std::cout.precision(6);
             // This makes a default input file name of 'input'
-            const char *inpname = "input";
+            const char *input_file = "input";
             // Process 0 reads input information and broadcasts
             for (int i = 1; i < argc; i++) {
                 if (argv[i][0] != '-') {
-                    inpname = argv[i];
+                    input_file = argv[i];
                     break;
                 }
             }
 
-            if (world.rank() == 0) print("input filename: ", inpname);
-            if (!file_exists(inpname)) throw "input file not found";
+            if (world.rank() == 0) print("input filename: ", input_file);
+            if (!file_exists(input_file)) throw Input_Error{};
             std::string tag = "response";
-            density_vector rho = read_and_create_density(world, inpname, tag);
+            density_vector rho = read_and_create_density(world, input_file, tag);
             // first step is to read the input for r_params and g_params
             // Create the TDDFT object
             TDDFT calc = TDDFT(world, rho);
@@ -141,6 +153,9 @@ int main(int argc, char **argv) {
                 print("Second Order Analysis");
                 calc.PrintPolarizabilityAnalysis(world, alpha);
             }
+        } catch (const Input_Error &e) {
+            print(e);
+            error("Input File Error");
         } catch (const SafeMPI::Exception &e) {
             print(e);
             error("caught an MPI exception");
