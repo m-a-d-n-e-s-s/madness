@@ -28,13 +28,18 @@ struct response_vector {
   // default constructor
   response_vector() : num_orbitals(size_t(0)), x() {}
   // copy constructor
-  response_vector(const response_vector& x);
+  response_vector(const response_vector& other):num_orbitals{other.num_orbitals}{
+    x = copy(other[0].world(), other.x);
+  }
+  response_vector& operator=(const response_vector& other) {
+    num_orbitals = other.num_orbitals;
+    x = copy(other[0].world(), other.x);
+  }
   // zero function constructor
   explicit response_vector(World& world, size_t num_orbs) : num_orbitals(num_orbs) {
     x = zero_functions<double, 3>(world, num_orbitals);
   }
   ~response_vector() = default;
-  response_vector& operator=(const response_vector& x);
   friend size_t size(const response_vector& x) { return x.num_orbitals; }
   real_function_3d& operator[](size_t n) {
     assert(n < num_orbitals);
@@ -45,10 +50,6 @@ struct response_vector {
     return x[n];
   }
 };
-response_vector& response_vector::operator=(const response_vector& other) {
-  num_orbitals = other.num_orbitals;
-  x = copy(other[0].world(), other.x);
-}
 
 /**
  * @brief response matrix holds response vectors for response state
