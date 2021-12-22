@@ -11,15 +11,11 @@
 
 #include "TDDFT.h"
 
-#include <../chem/NWChem.h>  // For nwchem interface
-#include <../chem/SCFOperators.h>
-#include <../chem/molecule.h>
 #include <chem/potentialmanager.h>
 #include <chem/projector.h>  // For easy calculation of (1 - \hat{\rho}^0)
 #include <madness/mra/funcdefaults.h>
 #include <madness/world/worldmem.h>
-#include <math.h>
-#include <molresponse/Plot_VTK.h>
+#include <cmath>
 #include <molresponse/basic_operators.h>
 #include <molresponse/density.h>
 #include <molresponse/global_functions.h>
@@ -35,28 +31,7 @@
 #include <string>
 #include <utility>
 
-// KAIN allocator for vectorfunctions
-struct TDHF_allocator {
-  // Member variables
-  World& world;
-  const size_t num_vir;
-  const size_t num_occ;  // Constructor
-  TDHF_allocator(World& world, const int num_vir, const int num_occ)
-      : world(world), num_vir(num_vir), num_occ(num_occ) {}
 
-  // Overloading () operator
-  response_space operator()() {
-    response_space f(world, num_vir, num_occ);
-
-    return f;
-  }
-
-  // Copy constructor
-  TDHF_allocator operator=(const TDHF_allocator& other) {
-    TDHF_allocator tmp(world, other.num_occ, other.num_vir);
-    return tmp;
-  }
-};
 
 // Masking function to switch from 0 to 1 smoothly at boundary
 // Pulled from SCF.h
@@ -306,20 +281,20 @@ void TDDFT::orbital_load_balance(World& world,
     world.gop.fence();
 
     // newpamap is the new pmap just based on the orbitals
-    std::shared_ptr<WorldDCPmapInterface<Key<3>>> newpmap =
+    std::shared_ptr<WorldDCPmapInterface<Key<3>>> new_process_map =
         lb.load_balance(r_params.loadbalparts());
     molresponse::end_timer(world, "Gamma compute loadbal");
     // default process map
-    // We set the newpmap
+    // We set the new_process_map
     molresponse::start_timer(world);
-    FunctionDefaults<3>::set_pmap(newpmap);  // set default to be new
+    FunctionDefaults<3>::set_pmap(new_process_map);  // set default to be new
 
     world.gop.fence();
     // copy orbitals using new pmap
-    Chi_copy = Chi.copy(newpmap, false);
+    Chi_copy = Chi.copy(new_process_map, false);
     world.gop.fence();  // then fence
 
-    psi0_copy = copy(world, ground_orbitals, newpmap, false);
+    psi0_copy = copy(world, ground_orbitals, new_process_map, false);
     world.gop.fence();  // then fence
     molresponse::end_timer(world, "Gamma redist");
   }
