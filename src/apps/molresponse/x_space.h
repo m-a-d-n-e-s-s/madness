@@ -16,26 +16,20 @@ namespace madness {
 struct X_space {
  private:
   size_t n_states;    // Num. of resp. states
-  size_t n_orbtials;  // Num. of ground states
+  size_t n_orbitals;  // Num. of ground states
 
  public:
   response_space X, Y;
 
  public:
-  size_t num_states() { return n_states; }
-  size_t num_orbitals() { return n_orbtials; }
   size_t num_states() const { return n_states; }
-  size_t num_orbitals() const { return n_orbtials; }
+  size_t num_orbitals() const { return n_orbitals; }
   // default constructor
-  X_space() : n_states(0), n_orbtials(0), X(), Y() {}
+  X_space() : n_states(0), n_orbitals(0), X(), Y() {}
   // Copy constructor
-  X_space(const X_space& A)
-      : n_states(size_states(A)),
-        n_orbtials(size_orbitals(A)),
-        X(A.X),
-        Y(A.Y) {}
+  X_space(const X_space& A) : n_states(size_states(A)), n_orbitals(size_orbitals(A)), X(A.X), Y(A.Y) {}
   X_space copy() const {
-    X_space copyX(X[0][0].world(), n_states, n_orbtials);
+    X_space copyX(X[0][0].world(), n_states, n_orbitals);
     copyX.X = X.copy();
     copyX.Y = Y.copy();
     return copyX;
@@ -46,9 +40,8 @@ struct X_space {
   /// Works in either basis.  Different distributions imply
   /// asynchronous communication and the optional fence is
   /// collective.
-  X_space copy(const std::shared_ptr<WorldDCPmapInterface<Key<3> > >& pmap,
-               bool fence = false) const {
-    X_space copyX(X[0][0].world(), n_states, n_orbtials);
+  X_space copy(const std::shared_ptr<WorldDCPmapInterface<Key<3> > >& pmap, bool fence = false) const {
+    X_space copyX(X[0][0].world(), n_states, n_orbitals);
     copyX.X = X.copy(pmap, fence);
     copyX.Y = Y.copy(pmap, fence);
     return copyX;
@@ -57,7 +50,7 @@ struct X_space {
   X_space& operator=(const X_space& B) {
     if (this != &B) {  // is it the same object?
       this->n_states = size_states(B);
-      this->n_orbtials = size_orbitals(B);
+      this->n_orbitals = size_orbitals(B);
       this->X = B.X;
       this->Y = B.Y;
     }
@@ -65,16 +58,13 @@ struct X_space {
   }
   // Zero Constructor
   X_space(World& world, size_t n_states, size_t n_orbtials)
-      : n_states(n_states),
-        n_orbtials(n_orbtials),
-        X(world, n_states, n_orbtials),
-        Y(world, n_states, n_orbtials) {}
+      : n_states(n_states), n_orbitals(n_orbtials), X(world, n_states, n_orbtials), Y(world, n_states, n_orbtials) {}
   // explicit constructor from 2 resonse_space
   explicit X_space(response_space& X, response_space& Y) {
     MADNESS_ASSERT(X.size() == Y.size());
     MADNESS_ASSERT(X[0].size() == Y[0].size());
     this->n_states = X.size();
-    this->n_orbtials = X[0].size();
+    this->n_orbitals = X[0].size();
     this->X = X.copy();
     this->Y = Y.copy();
   }
@@ -85,7 +75,7 @@ struct X_space {
   X_space operator+(const X_space B) {
     MADNESS_ASSERT(same_size(*this, B));
     World& world = this->X[0][0].world();
-    X_space result(world, n_states, n_orbtials);
+    X_space result(world, n_states, n_orbitals);
     result.X = X + B.X;
     result.Y = Y + B.Y;
     return result;
@@ -99,12 +89,12 @@ struct X_space {
   }
 
   void push_back(vector_real_function_3d x, vector_real_function_3d y) {
-    if (n_orbtials > 0) {
-      MADNESS_ASSERT(n_orbtials = x.size());
-      MADNESS_ASSERT(n_orbtials = y.size());
+    if (n_orbitals > 0) {
+      MADNESS_ASSERT(n_orbitals = x.size());
+      MADNESS_ASSERT(n_orbitals = y.size());
       MADNESS_ASSERT(x.size() == y.size());
     } else {  // g_states == 0 (empty vector)
-      n_orbtials = x.size();
+      n_orbitals = x.size();
     }
     MADNESS_ASSERT(x.size() == num_orbitals());
     MADNESS_ASSERT(y.size() == num_orbitals());
@@ -119,7 +109,7 @@ struct X_space {
     Y.pop_back();
     n_states--;
     if (n_states == 0) {
-      n_orbtials = 0;
+      n_orbitals = 0;
     }
   }
 
@@ -127,7 +117,7 @@ struct X_space {
     MADNESS_ASSERT(same_size(A, B));
 
     World& world = A.X[0][0].world();
-    X_space result(world, A.n_states, A.n_orbtials);  // create zero_functions
+    X_space result(world, A.n_states, A.n_orbitals);  // create zero_functions
 
     result.X = A.X + B.X;
     result.Y = A.Y + B.Y;
@@ -137,7 +127,7 @@ struct X_space {
   X_space operator-(const X_space B) {
     MADNESS_ASSERT(same_size(*this, B));
     World& world = this->X[0][0].world();
-    X_space result(world, n_states, n_orbtials);
+    X_space result(world, n_states, n_orbitals);
     result.X = X - B.X;
     result.Y = Y - B.Y;
     return result;
@@ -147,7 +137,7 @@ struct X_space {
     MADNESS_ASSERT(same_size(A, B));
 
     World& world = A.X[0][0].world();
-    X_space result(world, A.n_states, A.n_orbtials);  // create zero_functions
+    X_space result(world, A.n_states, A.n_orbitals);  // create zero_functions
 
     result.X = A.X - B.X;
     result.Y = A.Y - B.Y;
@@ -156,7 +146,7 @@ struct X_space {
 
   friend X_space operator*(const X_space& A, const double& b) {
     World& world = A.X[0][0].world();
-    X_space result(world, A.n_states, A.n_orbtials);  // create zero_functions
+    X_space result(world, A.n_states, A.n_orbitals);  // create zero_functions
 
     result.X = A.X * b;
     result.Y = A.Y * b;
@@ -164,7 +154,7 @@ struct X_space {
   }
   friend X_space operator*(const double& b, const X_space& A) {
     World& world = A.X[0][0].world();
-    X_space result(world, A.n_states, A.n_orbtials);  // create zero_functions
+    X_space result(world, A.n_states, A.n_orbitals);  // create zero_functions
 
     result.X = A.X * b;
     result.Y = A.Y * b;
@@ -178,7 +168,7 @@ struct X_space {
 
   friend X_space operator*(const X_space& A, const Function<double, 3>& f) {
     World& world = A.X[0][0].world();
-    X_space result(world, A.n_states, A.n_orbtials);  // create zero_functions
+    X_space result(world, A.n_states, A.n_orbitals);  // create zero_functions
 
     result.X = A.X * f;
     result.Y = A.Y * f;
@@ -186,7 +176,7 @@ struct X_space {
   }
   friend X_space operator*(const Function<double, 3>& f, const X_space& A) {
     World& world = A.X[0][0].world();
-    X_space result(world, A.n_states, A.n_orbtials);  // create zero_functions
+    X_space result(world, A.n_states, A.n_orbitals);  // create zero_functions
 
     result.X = A.X * f;
     result.Y = A.Y * f;
@@ -198,7 +188,7 @@ struct X_space {
     MADNESS_ASSERT(size_orbitals(A) > 0);
 
     World& world = A.X[0][0].world();
-    X_space result(world, A.n_states, A.n_orbtials);
+    X_space result(world, A.n_states, A.n_orbitals);
     result.X = A.X * b;
     result.Y = A.Y * b;
 
@@ -245,10 +235,9 @@ struct X_space {
   }
 
   friend size_t size_states(const X_space& x) { return x.n_states; }
-  friend size_t size_orbitals(const X_space& x) { return x.n_orbtials; }
+  friend size_t size_orbitals(const X_space& x) { return x.n_orbitals; }
   friend bool same_size(const X_space& A, const X_space& B) {
-    return ((size_states(A) == size_states(B) &&
-             size_orbitals(A) == size_orbitals(B)));
+    return ((size_states(A) == size_states(B) && size_orbitals(A) == size_orbitals(B)));
   }
 };
 // The default constructor for functions does not initialize them to nahy value,
@@ -256,11 +245,9 @@ struct X_space {
 // the world object.
 
 struct X_vector : public X_space {
-  X_vector(World& world, size_t n_orbtials)
-      : X_space(world, size_t(1), n_orbtials) {}
+  X_vector(World& world, size_t n_orbtials) : X_space(world, size_t(1), n_orbtials) {}
 
-  X_vector(X_space A, size_t b)
-      : X_space(A.X[0][0].world(), size_t(1), A.num_orbitals()) {
+  X_vector(X_space A, size_t b) : X_space(A.X[0][0].world(), size_t(1), A.num_orbitals()) {
     X[0] = A.X[b];
     Y[0] = A.Y[b];
   }
@@ -313,8 +300,7 @@ struct X_space_allocator {
   World& world;
   const size_t n_states;
   const size_t n_orbtials;
-  X_space_allocator(World& world, size_t n_orbtials)
-      : world(world), n_states(size_t(1)), n_orbtials(n_orbtials) {}
+  X_space_allocator(World& world, size_t n_orbtials) : world(world), n_states(size_t(1)), n_orbtials(n_orbtials) {}
   // overloading the default constructor () operator
   X_vector operator()() {
     print("allocator called with ", int(n_orbtials), " orbitals");
@@ -324,9 +310,7 @@ struct X_space_allocator {
   }
   // Copy constructor
 
-  X_space_allocator operator=(const X_space_allocator& other) {
-    return X_space_allocator(world, other.n_orbtials);
-  }
+  X_space_allocator operator=(const X_space_allocator& other) { return X_space_allocator(world, other.n_orbtials); }
 };
 }  // namespace madness
 
