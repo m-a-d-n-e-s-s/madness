@@ -37,10 +37,10 @@ struct response_vector {
   }
   // zero function constructor
   explicit response_vector(World& world, size_t num_orbs) : num_orbitals(num_orbs) {
-    x = zero_functions<double, 3>(world, num_orbitals);
+    x = zero_functions<double, 3>(world, static_cast<int>(num_orbitals));
   }
   ~response_vector() = default;
-  friend size_t size(const response_vector& x) { return x.num_orbitals; }
+  friend size_t size(const response_vector& other) { return other.num_orbitals; }
   real_function_3d& operator[](size_t n) {
     assert(n < num_orbitals);
     return x.at(n);
@@ -110,9 +110,9 @@ struct response_space {
    * @param num_orbitals
    */
   response_space(World& world, size_t num_states, size_t num_orbitals)
-      : num_states(num_states), num_orbitals(num_orbitals), x() {
-    for (size_t i = 0; i < num_states; i++) {
-      this->x.emplace_back(zero_functions<double, 3>(world, num_orbitals, true));
+      : num_states(num_states), num_orbitals(num_orbitals), x(response_matrix(num_states)) {
+    for(auto & state:x){
+      state=zero_functions<double, 3>(world, static_cast<int>(num_orbitals), true);
     }
   }
   // Conversion from respones_matrix
@@ -145,7 +145,7 @@ struct response_space {
   const vector_real_function_3d& operator[](size_t i) const { return x.at(i); }
 
   // KAIN must have this
-  // element wise addition.  we add each vector separatly
+  // element wise addition.  we add each vector separately
   // addition c = this.x+b
   // we need a new function
   /**
@@ -194,29 +194,6 @@ struct response_space {
     world.gop.fence();
     return result;
   }
-  /*
-    friend response_space operator-(const response_space& a,
-                                    const response_space& b) {
-      return a.operator-(b);
-    }
-    */
-
-  // KAIN must have this
-  // Scaling by a constant
-  // return response_space scaled
-  /*
-  response_space operator*(double a) {
-    World& world = x[0][0].world();
-    // response_space result(*this);// this a problem
-    response_space result = this->copy();  // deep copy
-
-    for (size_t i = 0; i < num_states; i++) {
-      madness::scale(world, result[i], a);
-    }
-
-    return result;
-  }
-  */
 
   /**
    * @brief multiplication by scalar
@@ -288,19 +265,18 @@ struct response_space {
 
   friend response_space operator*(const response_space& a, const Tensor<double>& b) {
     MADNESS_ASSERT(a.size() > 0);
-    MADNESS_ASSERT(a[0].size() > 0);
+    MADNESS_ASSERT(!a[0].empty());
     World& world = a[0][0].world();
     response_space result(world, a.num_states, a.num_orbitals);
 
     for (unsigned int i = 0; i < a.size(); i++) {
-      // Using vmra.h definitions
       result[i] = transform(world, a[i], b, false);
     }
 
     return result;
   }
   // KAIN must have this
-  response_space& operator+=(const response_space b) {
+  response_space& operator+=(const response_space& b) {
     MADNESS_ASSERT(same_size(*this, b));
     World& world = x[0][0].world();
     for (size_t i = 0; i < num_states; i++) {
@@ -407,20 +383,20 @@ struct response_space {
     for (size_t i = 0; i < num_states; i++) madness::scale(x[0][0].world(), x[i], mat[i], false);
     // x[i] = x[i] * mat[i];
   }
-  friend bool operator==(const response_space& x, const response_space& y) {
-    if (!same_size(x, y)) return false;
-    for (size_t b = 0; b < x.size(); ++b) {
-      for (size_t k = 0; b < x.size_orbitals(); ++k) {
-        if ((x[b][k] - y[b][k]).norm2() > FunctionDefaults<3>::get_thresh())  // this may be strict
+  friend bool operator==(const response_space& a, const response_space& y) {
+    if (!same_size(a, y)) return false;
+    for (size_t b = 0; b < a.size(); ++b) {
+      for (size_t k = 0; b < a.size_orbitals(); ++k) {
+        if ((a[b][k] - y[b][k]).norm2() > FunctionDefaults<3>::get_thresh())  // this may be strict
           return false;
       }
     }
     return true;
   }
-  friend Tensor<double> response_space_inner(response_space& a, response_space& b) {
+  friend Tensor<double> response_space_inner(const response_space& a, const response_space& b) {
     MADNESS_ASSERT(a.size() > 0);
     MADNESS_ASSERT(a.size() == b.size());
-    MADNESS_ASSERT(a[0].size() > 0);
+    MADNESS_ASSERT(!a[0].empty());
     MADNESS_ASSERT(a[0].size() == b[0].size());
 
     World& world = a[0][0].world();
@@ -448,7 +424,7 @@ struct response_space {
 inline double inner(response_space& a, response_space& b) {
   MADNESS_ASSERT(a.size() > 0);
   MADNESS_ASSERT(a.size() == b.size());
-  MADNESS_ASSERT(a[0].size() > 0);
+  MADNESS_ASSERT(!a[0].empty());
   MADNESS_ASSERT(a[0].size() == b[0].size());
 
   double value = 0.0;
