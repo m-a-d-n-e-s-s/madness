@@ -1026,7 +1026,9 @@ public:
     hashT hash() const {
         hashT hash_i = std::hash<std::size_t>{}(i);
         hash_combine(hash_i, std::hash<std::size_t>{}(j));
-        hash_combine(hash_i, hash_value(constant_part.get_impl()->id()));
+        if (constant_part.is_initialized()) {
+            hash_combine(hash_i, hash_value(constant_part.get_impl()->id()));
+        }
         return hash_i;
     }
 
@@ -1130,7 +1132,7 @@ class MacroTaskMp2ConstantPart : public MacroTaskOperationBase {
     };
 
 public:
-    MacroTaskMp2ConstantPart(){}
+    MacroTaskMp2ConstantPart(){partitioner.reset(new ConstantPartPartitioner());}
 
     typedef std::tuple<const std::vector<CCPair>&, const std::vector<real_function_3d>&,
             const std::vector<real_function_3d>&, const CCParameters&, const real_function_3d&,

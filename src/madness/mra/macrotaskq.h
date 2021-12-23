@@ -288,17 +288,18 @@ private:
 };
 
 
-template<typename Q>
-struct is_vector : std::false_type {
-};
-template<typename Q>
-struct is_vector<std::vector<Q>> : std::true_type {
-};
 
 
 template<typename taskT>
 class MacroTask {
     using partitionT = MacroTaskPartitioner::partitionT;
+
+    template<typename Q>
+    struct is_vector : std::false_type {
+    };
+    template<typename Q>
+    struct is_vector<std::vector<Q>> : std::true_type {
+    };
 
     typedef typename taskT::resultT resultT;
     typedef typename taskT::argtupleT argtupleT;

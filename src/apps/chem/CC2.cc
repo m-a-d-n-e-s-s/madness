@@ -405,9 +405,9 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
    if (world.rank()==0) std::cout << "\nSolving coupled equations\n" << std::endl;
    double total_energy = 0.0;
 
-   Cloud cloud(world);
+   //Cloud cloud(world);
 
-   for (auto& tmp_pair : doubles.allpairs) {
+  // for (auto& tmp_pair : doubles.allpairs) {
 
   //     tmp_pair.second.constant_part = CCPotentials::make_constant_part_mp2_macrotask(world, tmp_pair.second,CCOPS.mo_ket().get_vecfunction(),
   //                                            CCOPS.mo_bra().get_vecfunction(), parameters, nemo->R_square,
@@ -423,8 +423,8 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
 
   //      // store in cloud
   //      print("storing in cloud");
-        std::vector<CCPair> vec(1,tmp_pair.second);
-        auto recordlist = cloud.store(world, vec);
+  //      std::vector<CCPair> vec(1,tmp_pair.second);
+  //      auto recordlist = cloud.store(world, vec);
   //      auto recordlist2 = cloud.store(world, parameters);
 
   //      print("loading from cloud");
@@ -435,7 +435,7 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
   //     tmp_pair.second.constant_part.truncate().reduce_rank();
   //     tmp_pair.second.function().truncate().reduce_rank();
   //     if (tmp_pair.second.type == GROUND_STATE) total_energy += CCOPS.compute_pair_correlation_energy(tmp_pair.second);
-   }
+  // }
 
    // make vector holding CCPairs for partitioner of MacroTask
    print("making vector holding pairs");
@@ -550,8 +550,8 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
            if (world.rank() == 0) std::cout << "\nPairs converged\n";
            if (world.rank() == 0) std::cout << "\nMP2 Pair Correlation Energies:\n";
            for (auto& pair : updated_pairs.allpairs) {
+               const double pair_energy = CCOPS.compute_pair_correlation_energy(pair.second);
                if (world.rank() == 0) {
-                   const double pair_energy = CCOPS.compute_pair_correlation_energy(pair.second);
                    std::cout << std::fixed << std::setprecision(10) << "omega_"
                              << pair.second.i << pair.second.j << "=" << pair_energy << "\n";
                }
