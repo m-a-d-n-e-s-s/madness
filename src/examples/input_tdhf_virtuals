@@ -24,7 +24,7 @@ end
 
 TDA
  compute_virtuals
- guess big_fock_3
+ guess octopole
  guess_excitations 8
  iterating_excitations 8
  excitations 7
@@ -41,7 +41,7 @@ no_otf
 end
 
 # also possible:
-guess big_fock_4 , 5, 6
+guess auto-3 #,4,5,6
 
 geometry
 b 0.0 0.0 0.0

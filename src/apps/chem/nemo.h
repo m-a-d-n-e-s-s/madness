@@ -106,9 +106,11 @@ public:
 
 	/// normalize the nemos
 	template<typename T, std::size_t NDIM>
-	void normalize(std::vector<Function<T,NDIM> >& nemo,
-			const Function<double,NDIM> metric=Function<double,NDIM>()) const {
+	void static normalize(std::vector<Function<T,NDIM> >& nemo,
+			const Function<double,NDIM> metric=Function<double,NDIM>()) {
 
+        if (nemo.size()==0) return;
+        World& world=nemo[0].world();
 		// compute the norm of the reconstructed orbitals, includes the factor
 		std::vector<Function<T,NDIM> > mos = (metric.is_initialized()) ? metric*nemo : nemo;
 		std::vector<double> norms = norm2s(world, mos);
@@ -629,12 +631,11 @@ protected:
 	/// to use these potentials in the fock matrix computation they must
 	/// be multiplied by the nuclear correlation factor
 	/// @param[in]	nemo	the nemo orbitals
-	/// @param[out]	psi		the reconstructed, full orbitals
 	/// @param[out]	Jnemo	Coulomb operator applied on the nemos
 	/// @param[out]	Knemo	exchange operator applied on the nemos
 	/// @param[out]	pcmnemo	PCM (solvent) potential applied on the nemos
 	/// @param[out]	Unemo	regularized nuclear potential applied on the nemos
-	void compute_nemo_potentials(const vecfuncT& nemo, vecfuncT& psi,
+	void compute_nemo_potentials(const vecfuncT& nemo,
 			vecfuncT& Jnemo, vecfuncT& Knemo, vecfuncT& pcmnemo,
 			vecfuncT& Unemo) const;
 

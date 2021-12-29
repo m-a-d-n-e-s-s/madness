@@ -60,9 +60,9 @@
 	reconstruct(world, vector, fence);
 	\endcode
 
-	*) nonstandard: convert to non-standard form
+	*) make_nonstandard: convert to non-standard form
 	\code
-	nonstandard(world, v, fence);
+	make_nonstandard(world, v, fence);
 	\endcode
 
 	*) standard: convert to standard form
@@ -183,7 +183,7 @@ namespace madness {
         reconstruct(world, v, blk);
 	for (unsigned int i=0; i<vvsize; i+= blk) {
 	  for (unsigned int j=i; j<std::min(vvsize,(i+1)*blk); ++j) {
-	    v[j].nonstandard(false,false);
+          v[j].make_nonstandard(false, false);
 	  }
 	  if ( blk!=1 && fence) world.gop.fence();
 	}

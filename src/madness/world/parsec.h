@@ -15,12 +15,25 @@
 #include <iostream>
 
 namespace madness{
-  extern "C"{
+    class PoolTaskInterface;
 
-    extern const parsec_task_class_t madness_parsec_tc;
-    extern parsec_taskpool_t madness_parsec_tp;
-  }
+    class ParsecRuntime {
+    private:
+        static parsec_context_t *context;
+        static parsec_taskpool_t taskpool;
+#ifdef PARSEC_PROF_TRACE
+        static int               taskpool_profiling_array[2];
+#endif /* PARSEC_PROF_TRACE */
 
+    public:
+        ParsecRuntime(int nb_threads);
+        ~ParsecRuntime();
+
+        static void schedule(PoolTaskInterface* task);
+        static int test();
+        static void wait();
+        static parsec_task_t task(bool is_high_priority, void *ptr);
+    };
 }
 
 #endif // HAVE_PARSEC
