@@ -28,7 +28,7 @@ struct response_vector {
   // default constructor
   response_vector() : num_orbitals(size_t(0)), x() {}
   // copy constructor
-  response_vector(const response_vector& other):num_orbitals{other.num_orbitals}{
+  response_vector(const response_vector& other) : num_orbitals{other.num_orbitals} {
     x = copy(other[0].world(), other.x);
   }
   response_vector& operator=(const response_vector& other) {
@@ -88,6 +88,8 @@ struct response_space {
    */
   response_space(const response_space& y) : num_states(y.size()), num_orbitals(y.size_orbitals()), x(y.x) {}
   // assignment
+  // Copy assignment should copy the members of y and leave y Unchanged
+  // The problem is what happens when we copy two functions
   response_space& operator=(const response_space& y) {
     //
     if (this != &y) {  // is it the same object?
@@ -111,8 +113,8 @@ struct response_space {
    */
   response_space(World& world, size_t num_states, size_t num_orbitals)
       : num_states(num_states), num_orbitals(num_orbitals), x(response_matrix(num_states)) {
-    for(auto & state:x){
-      state=zero_functions<double, 3>(world, static_cast<int>(num_orbitals), true);
+    for (auto& state : x) {
+      state = zero_functions<double, 3>(world, static_cast<int>(num_orbitals), true);
     }
   }
   // Conversion from respones_matrix
