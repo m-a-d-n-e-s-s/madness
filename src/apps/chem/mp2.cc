@@ -177,9 +177,8 @@ void MP2::enforce_core_valence_separation() {
     Localizer localizer(world,hf->get_calc().aobasis,hf->get_calc().molecule,hf->get_calc().ao);
     localizer.set_enforce_core_valence_separation(true).set_method(hf->nemo_ptr->param.localize_method());
     localizer.set_metric(hf->nemo_ptr->R);
-    Tensor<double> overlap=matrix_inner(world,hf->R2orbitals(),hf->nemos());
 
-    const auto lmo=localizer.localize(mos,fock1,overlap,true);
+    const auto lmo=localizer.localize(mos,fock1,true);
     hf->reset_orbitals(lmo);
     fock.clear();
     print("localized fock matrix");
