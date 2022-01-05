@@ -4,7 +4,7 @@
 #include "TDDFT.h"  // All response functions/objects enter through this
 #include "molresponse/density.h"
 #define CATCH_CONFIG_RUNNER
-#include <catch.hpp>
+#include "apps/external_headers/catch.hpp"
 
 int main(int argc, char *argv[]) {
   // initialize(argc, argv);// initializes a world argument with argc and argv
