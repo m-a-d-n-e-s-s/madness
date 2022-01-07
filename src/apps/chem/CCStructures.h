@@ -1151,6 +1151,44 @@ public:
                         const real_function_3d& Rsquare, const std::vector<real_function_3d>& U1) const;
 };
 
+class MacroTaskMp2UpdatePair : public MacroTaskOperationBase {
+
+    class UpdatePairPartitioner : public MacroTaskPartitioner {
+    public :
+        UpdatePairPartitioner() {};
+
+        partitionT do_partitioning(const std::size_t& vsize1, const std::size_t& vsize2,
+                                   const std::string policy) const override {
+            partitionT p;
+            for (int i = 0; i < vsize1; i++) {
+                Batch batch(Batch_1D(i, i+1), Batch_1D(i, i+1));
+                p.push_back(std::make_pair(batch, 1.0));
+            }
+            return p;
+        }
+    };
+public:
+    MacroTaskMp2UpdatePair() {partitioner.reset(new UpdatePairPartitioner());}
+
+    typedef std::tuple<const std::vector<CCPair>&, const CCParameters&, const std::vector< madness::Vector<double,3> >&,
+                       const std::vector<real_function_3d>&, const std::vector<real_function_3d>&,
+                       const std::vector<real_function_3d>&, const real_function_3d&, const std::vector<real_function_6d>&> argtupleT;
+
+    using resultT = std::vector<real_function_6d>;
+
+    resultT allocator(World& world, const argtupleT& argtuple) const {
+        std::size_t n = std::get<0>(argtuple).size();
+        resultT result = zero_functions_compressed<double, 6>(world, n);
+        return result;
+    }
+
+    resultT operator() (const std::vector<CCPair>& pair, const CCParameters& parameters,
+                        const std::vector< madness::Vector<double,3> >& all_coords_vec,
+                        const std::vector<real_function_3d>& mo_ket, const std::vector<real_function_3d>& mo_bra,
+                        const std::vector<real_function_3d>& U1, const real_function_3d& U2,
+                        const std::vector<real_function_6d>& mp2_coupling) const;
+};
+
 }//namespace madness
 
 #endif /* CCSTRUCTURES_H_ */

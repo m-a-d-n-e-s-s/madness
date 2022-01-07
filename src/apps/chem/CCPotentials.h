@@ -242,6 +242,15 @@ public:
     real_function_6d
     fock_residue_6d(const CCPair& u) const;
 
+    /// Static function for the 6D Fock residue for use in macrotask
+    static madness::real_function_6d
+    fock_residue_6d_macrotask(World& world, const CCPair& u, const CCParameters& parameters,
+                              const std::vector< madness::Vector<double,3> >& all_coords_vec,
+                              const std::vector<real_function_3d>& mo_ket,
+                              const std::vector<real_function_3d>& mo_bra,
+                              const std::vector<real_function_3d>& U1,
+                              const real_function_3d& U2);
+
     /// Function evaluates the consant part of the ground state for MP2
     /// @param[out]The result is \f$ Q12(G(Q12(Vreg|titj>))) \f$
     /// @param[in] ti, first particle -> should be HOLE state
@@ -256,6 +265,16 @@ public:
                                                    const std::vector<real_function_3d>& mo_bra,
                                                    const CCParameters& parameters, const real_function_3d& Rsquare,
                                                    const std::vector<real_function_3d>& U1);
+
+    /// Static function to iterate the mp2 pairs from macrotask
+    static madness::real_function_6d
+    update_pair_mp2_macrotask(World& world, const CCPair& pair, const CCParameters& parameters,
+                                          const std::vector< madness::Vector<double,3> >& all_coords_vec,
+                                          const std::vector<real_function_3d>& mo_ket,
+                                          const std::vector<real_function_3d>& mo_bra,
+                                          const std::vector<real_function_3d>& U1,
+                                          const real_function_3d& U2, const real_function_6d& mp2_coupling);
+
 
     /// Function evaluates the consant part of the ground state for CC2
     /// @param[out]The result is \f$ Q12(G(Q12((Vreg+V_{coupling})|titj>))) \f$ with \f$ |t_k> = |tau_k> + |k> \f$

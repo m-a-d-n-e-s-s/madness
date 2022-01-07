@@ -494,6 +494,103 @@ CCPotentials::fock_residue_6d(const CCPair& u) const {
     return vphi;
 }
 
+
+madness::real_function_6d
+CCPotentials::fock_residue_6d_macrotask(World& world, const CCPair& u, const CCParameters& parameters,
+                                        const std::vector< madness::Vector<double,3> >& all_coords_vec,
+                                        const std::vector<real_function_3d>& mo_ket,
+                                        const std::vector<real_function_3d>& mo_bra,
+                                        const std::vector<real_function_3d>& U1,
+                                        const real_function_3d& U2) {
+    if (u.function().norm2() == 0.0) {
+        print("Pair-Function is zero so this is the first iteration ... skipping Fock residue\n");
+        return real_factory_6d(world);
+    }
+    // make the special points for the cusps in the nuclear potential
+    std::vector<Vector<double, 3> > sp3d = all_coords_vec;
+    std::vector<Vector<double, 6> > sp6d;
+    for (size_t i = 0; i < sp3d.size(); i++) {
+        Vector<double, 6> tmp;
+        for (size_t j = 0; j < 3; j++) {
+            tmp[j] = sp3d[i][j];
+            tmp[j + 3] = sp3d[i][j];
+        }
+        sp6d.push_back(tmp);
+    }
+    // make the coulomb and local Un part with the composite factory
+    real_convolution_3d g12 = CoulombOperator(world, parameters.lo(), parameters.thresh_poisson());
+    real_function_3d hartree_potential = g12(dot(world, mo_bra, mo_ket));
+    //for (int i = 0; i < mo_ket.size(); i++)
+    //    hartree_potential += g12(mo_bra[i], mo_ket[i]);
+    real_function_3d local_part = (2.0 * hartree_potential + U2);
+    if (parameters.debug()) local_part.print_size("vlocal");
+
+    if (parameters.debug()) u.function().print_size(u.name());
+
+    // Contruct the BSH operator in order to screen
+    double bsh_eps = u.bsh_eps;
+    real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2.0 * bsh_eps), parameters.lo(), parameters.thresh_bsh_6D());
+    op_mod.modified() = true;
+    // Make the CompositeFactory
+    real_function_6d vphi = CompositeFactory<double, 6, 3>(world).ket(copy(u.function())).V_for_particle1(
+            copy(local_part)).V_for_particle2(copy(local_part)).special_points(sp6d);
+    // Screening procedure
+    vphi.fill_nuclear_cuspy_tree(op_mod, 0);
+    if (parameters.debug()) vphi.print_size("vlocal|u>");
+
+    vphi.truncate().reduce_rank();
+    if (parameters.debug()) vphi.print_size("vlocal|u>");
+
+    real_function_6d Un1 = real_factory_6d(world);
+    real_function_6d Un2 = real_factory_6d(world);
+    for (int axis = 0; axis < 3; ++axis) {
+        real_derivative_6d D = free_space_derivative<double, 6>(world, axis);
+        const real_function_6d Du = D(u.function()).truncate();
+        const real_function_3d U1_axis = U1[axis];
+        double tight_thresh = parameters.thresh_6D();
+        real_function_6d x = CompositeFactory<double, 6, 3>(world).ket(copy(Du)).V_for_particle1(copy(U1_axis)).thresh(
+                tight_thresh).special_points(sp6d);
+        x.fill_nuclear_cuspy_tree(op_mod, 1);
+        if (x.norm2() < tight_thresh) x.print_size("Un_axis_" + stringify(axis));
+
+        if (x.norm2() < tight_thresh) print("||Un|u>|| is below the threshold\n");
+
+        Un1 += x;
+        Un1.truncate().reduce_rank();
+        if (parameters.debug()) Un1.print_size("Un1");
+    }
+    if (u.i == u.j) {
+        print(u.name() + " is a diagonal pair: Exploting permutation symmetry\n");
+        Un2 = madness::swap_particles<double>(Un1);
+    } else {
+        for (int axis = 3; axis < 6; ++axis) {
+            real_derivative_6d D = free_space_derivative<double, 6>(world, axis);
+            const real_function_6d Du = D(u.function()).truncate();
+            const real_function_3d U1_axis = U1[axis % 3];
+            double tight_thresh = parameters.thresh_6D();
+            real_function_6d x = CompositeFactory<double, 6, 3>(world).ket(copy(Du)).V_for_particle2(
+                    copy(U1_axis)).thresh(tight_thresh).special_points(sp6d);
+            x.fill_nuclear_cuspy_tree(op_mod, 2);
+            if (x.norm2() < tight_thresh) x.print_size("Un_axis_" + stringify(axis));
+
+            if (x.norm2() < tight_thresh) print("||Un|u>|| is below the threshold\n");
+
+            Un2 += x;
+            Un2.truncate().reduce_rank();
+            if (parameters.debug()) Un2.print_size("Un2");
+        }
+    }
+    vphi += (Un1 + Un2);
+    vphi.truncate().reduce_rank();
+    if (parameters.debug()) vphi.print_size("(Un + J1 + J2)|u>");
+
+    // Exchange Part
+    vphi = (vphi - K_macrotask(world, mo_ket, mo_bra, u.function(), u.i == u.j, parameters)).truncate().reduce_rank();
+    if (parameters.debug()) vphi.print_size("Fock-Residue");
+
+    return vphi;
+}
+
 madness::real_function_6d
 CCPotentials::make_constant_part_mp2(const CCFunction& ti, const CCFunction& tj,
                                      const real_convolution_6d *Gscreen) const {
@@ -571,6 +668,55 @@ CCPotentials::make_constant_part_mp2_macrotask(World& world, const CCPair& pair,
     time.info();
 
     return GV;
+}
+
+real_function_6d
+CCPotentials::update_pair_mp2_macrotask(World& world, const CCPair& pair, const CCParameters& parameters,
+                                             const std::vector< madness::Vector<double,3> >& all_coords_vec,
+                                             const std::vector<real_function_3d>& mo_ket,
+                                             const std::vector<real_function_3d>& mo_bra,
+                                             const std::vector<real_function_3d>& U1,
+                                             const real_function_3d& U2, const real_function_6d& mp2_coupling) {
+
+    print(assign_name(pair.ctype) + "-Microiteration\n");
+    CCTimer timer_mp2(world, "MP2-Microiteration of pair " + pair.name());
+
+    double bsh_eps = pair.bsh_eps;
+    real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0 * bsh_eps), parameters.lo(), parameters.thresh_bsh_6D());
+    G.destructive() = true;
+
+    //NonlinearSolverND<6> solver(parameters.kain_subspace());
+    //solver.do_print = (world.rank() == 0);
+
+    CCTimer timer_mp2_potential(world, "MP2-Potential of pair " + pair.name());
+    real_function_6d mp2_potential = -2.0 * CCPotentials::fock_residue_6d_macrotask(world, pair, parameters,
+                                                                                all_coords_vec, mo_ket, mo_bra, U1, U2);
+    // add coupling
+    //real_function_6d coupling = mp2_coupling(pair.i, pair.j);
+    mp2_potential += -2.0 * mp2_coupling;
+
+    if (parameters.debug()) mp2_potential.print_size(assign_name(pair.ctype) + " Potential");
+    mp2_potential.truncate().reduce_rank();
+    timer_mp2_potential.info(true, mp2_potential.norm2());
+
+    CCTimer timer_G(world, "Apply Greens Operator on MP2-Potential of pair " + pair.name());
+    const real_function_6d GVmp2 = G(mp2_potential);
+    timer_G.info(true, GVmp2.norm2());
+
+    //CCTimer timer_addup(world, "Add constant parts and update pair " + pair.name());
+    real_function_6d unew = GVmp2 + pair.constant_part;
+    unew.print_size("unew");
+
+    StrongOrthogonalityProjector<double, 3> Q(world);
+    Q.set_spaces(mo_bra, mo_ket, mo_bra, mo_ket);
+    unew = Q(unew);
+
+    unew.print_size("Q12unew");
+    //unew.truncate().reduce_rank(); // already done in Q12 application at the end
+    if (parameters.debug())unew.print_size("truncated-unew");
+    timer_mp2.info();
+
+    return unew;
 }
 
 madness::real_function_6d

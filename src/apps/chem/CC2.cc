@@ -405,40 +405,8 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
    if (world.rank()==0) std::cout << "\nSolving coupled equations\n" << std::endl;
    double total_energy = 0.0;
 
-   //Cloud cloud(world);
-
-  // for (auto& tmp_pair : doubles.allpairs) {
-
-  //     tmp_pair.second.constant_part = CCPotentials::make_constant_part_mp2_macrotask(world, tmp_pair.second,CCOPS.mo_ket().get_vecfunction(),
-  //                                            CCOPS.mo_bra().get_vecfunction(), parameters, nemo->R_square,
-  //                                            CCOPS.mo_ket(tmp_pair.second.i).type,
-  //                                            CCOPS.mo_ket(tmp_pair.second.j).type,
-  //                                            tmp_pair.second.bsh_eps, nemo->ncf->U1vec());
-  //      // store on disk
-  //      tmp_pair.second.load_pair(world);
-  //      tmp_pair.second.store_pair(world);
-  //      tmp_pair.second.load_pair(world);
-  //      archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, std::string("CCParameters").c_str(), 1);
-  //      ar & parameters;
-
-  //      // store in cloud
-  //      print("storing in cloud");
-  //      std::vector<CCPair> vec(1,tmp_pair.second);
-  //      auto recordlist = cloud.store(world, vec);
-  //      auto recordlist2 = cloud.store(world, parameters);
-
-  //      print("loading from cloud");
-  //      CCPair loaded_pair = cloud.load<CCPair>(world, recordlist);
-  //      CCParameters loaded_parameters = cloud.load<CCParameters>(world, recordlist2);
-
-  //     save(tmp_pair.second.constant_part, tmp_pair.second.name() + "_const");
-  //     tmp_pair.second.constant_part.truncate().reduce_rank();
-  //     tmp_pair.second.function().truncate().reduce_rank();
-  //     if (tmp_pair.second.type == GROUND_STATE) total_energy += CCOPS.compute_pair_correlation_energy(tmp_pair.second);
-  // }
-
    // make vector holding CCPairs for partitioner of MacroTask
-   print("making vector holding pairs");
+   //print("making vector holding pairs");
    std::vector<CCPair> pair_vec;
    for (auto& tmp_pair : doubles.allpairs) {
        pair_vec.push_back(tmp_pair.second);
@@ -447,10 +415,10 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
    // calc constant part via taskq
    auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world, world.size()));
    taskq->set_printlevel(3);
-   print("making macrotask");
+   //print("making macrotask");
    MacroTaskMp2ConstantPart t;
    MacroTask task(world, t, taskq);
-   print("performing macrotask");
+   //print("performing macrotask");
    std::vector<real_function_6d> result_vec = task(pair_vec, CCOPS.mo_ket().get_vecfunction(),
                                                 CCOPS.mo_bra().get_vecfunction(), parameters,
                                                 nemo->R_square, nemo->ncf->U1vec());
@@ -458,19 +426,19 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
    taskq->run_all();
 
    // transform vector back to Pairs structure
-   print("saving constant part");
+   //print("saving constant part");
    for (int i = 0; i < pair_vec.size(); i++) {
        pair_vec[i].constant_part = result_vec[i];
+       save(pair_vec[i].constant_part, pair_vec[i].name() + "_const");
+       pair_vec[i].constant_part.truncate().reduce_rank();
+       pair_vec[i].function().truncate().reduce_rank();
+       if (pair_vec[i].type == GROUND_STATE) total_energy += CCOPS.compute_pair_correlation_energy(pair_vec[i]);
    }
    // create new pairs structure
-   print("creating updated pairs structure");
+   //print("creating updated pairs structure");
    Pairs<CCPair> updated_pairs;
    for (auto& tmp_pair : pair_vec) {
        updated_pairs.insert(tmp_pair.i, tmp_pair.j, tmp_pair);
-       save(tmp_pair.constant_part, tmp_pair.name() + "_const");
-       tmp_pair.constant_part.truncate().reduce_rank();
-       tmp_pair.function().truncate().reduce_rank();
-       if (tmp_pair.type == GROUND_STATE) total_energy += CCOPS.compute_pair_correlation_energy(tmp_pair);
    }
 
    for (size_t iter = 0; iter < parameters.iter_max_6D(); iter++) {
@@ -478,68 +446,74 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
        // compute the coupling between the pair functions
        Pairs<real_function_6d> coupling;
        add_local_coupling(updated_pairs, coupling);
+       // make coupling vector that can be stored in cloud
+       std::vector<real_function_6d> coupling_vec;
+       print("Making coupling vector for MacroTask\n");
+       for (auto& tmp_coupling : coupling.allpairs) {
+           print("Pushing coupling: ");
+           print(tmp_coupling.first);
+           coupling_vec.push_back(tmp_coupling.second);
+       }
+       MADNESS_CHECK(coupling_vec.size() == pair_vec.size());
 
        double total_norm = 0.0;
        double old_energy = total_energy;
        total_energy = 0.0;
 
-       for (auto& tmp_pair : updated_pairs.allpairs) {
-           output.subsection(assign_name(tmp_pair.second.ctype) + "-Microiteration");
-           CCTimer timer_mp2(world, "MP2-Microiteration of pair " + tmp_pair.second.name());
+       NonlinearSolverND<6> solver(parameters.kain_subspace());
+       solver.do_print = (world.rank() == 0);
 
-           double bsh_eps = tmp_pair.second.bsh_eps;
-           real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0 * bsh_eps), parameters.lo(), parameters.thresh_bsh_6D());
-           G.destructive() = true;
+       // calc update for pairs via macrotask
+       auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world, world.size()));
+       taskq->set_printlevel(3);
+       //print("making macrotask");
+       MacroTaskMp2UpdatePair t;
+       MacroTask task(world, t, taskq);
+       //print("performing macrotask");
+       std::vector<real_function_6d> u_update = task(pair_vec, parameters, nemo->get_calc()->molecule.get_all_coords_vec(),
+                                                     CCOPS.mo_ket().get_vecfunction(), CCOPS.mo_bra().get_vecfunction(),
+                                                     nemo->ncf->U1vec(), nemo->ncf->U2(), coupling_vec);
+       taskq->print_taskq();
+       taskq->run_all();
 
-           NonlinearSolverND<6> solver(parameters.kain_subspace());
-           solver.do_print = (world.rank() == 0);
-
-           CCTimer timer_mp2_potential(world, "MP2-Potential of pair " + tmp_pair.second.name());
-           real_function_6d mp2_potential = -2.0 * CCOPS.fock_residue_6d(tmp_pair.second);
-           if (parameters.debug()) mp2_potential.print_size(assign_name(tmp_pair.second.ctype) + " Potential");
-           mp2_potential.truncate().reduce_rank();
-           timer_mp2_potential.info(true, mp2_potential.norm2());
-
-           // add coupling
-           mp2_potential -= coupling(tmp_pair.second.i, tmp_pair.second.j);
-
-           CCTimer timer_G(world, "Apply Greens Operator on MP2-Potential of pair " + tmp_pair.second.name());
-           const real_function_6d GVmp2 = G(mp2_potential);
-           timer_G.info(true, GVmp2.norm2());
-
-           CCTimer timer_addup(world, "Add constant parts and update pair " + tmp_pair.second.name());
-           real_function_6d unew = GVmp2 + tmp_pair.second.constant_part;
-           unew.print_size("unew");
-           unew = CCOPS.apply_Q12t(unew, CCOPS.mo_ket());
-           unew.print_size("Q12unew");
-           //unew.truncate().reduce_rank(); // already done in Q12 application at the end
-           if (parameters.debug())unew.print_size("truncated-unew");
-           const real_function_6d residue = tmp_pair.second.function() - unew;
+       // calculate energy and error and update pairs
+       for (int i = 0; i < pair_vec.size(); i++) {
+           const real_function_6d residue = pair_vec[i].function() - u_update[i];
            const double error = residue.norm2();
            total_norm += error;
-           if (parameters.kain()) {
-               output("Update with KAIN");
-               real_function_6d kain_update = copy(solver.update(tmp_pair.second.function(), residue));
-               kain_update = CCOPS.apply_Q12t(kain_update, CCOPS.mo_ket());
-               kain_update.truncate().reduce_rank();
-               kain_update.print_size("Kain-Update-Function");
-               tmp_pair.second.update_u(copy(kain_update));
-           } else {
-               output("Update without KAIN");
-               tmp_pair.second.update_u(unew);
-           }
-
-           timer_addup.info(true, tmp_pair.second.function().norm2());
-
+           output("Update without KAIN");
+           pair_vec[i].update_u(u_update[i]);
+           save(pair_vec[i].function(), pair_vec[i].name());
            double energy = 0.0;
-           if (tmp_pair.second.type == GROUND_STATE) energy = CCOPS.compute_pair_correlation_energy(tmp_pair.second);
+           if (pair_vec[i].type == GROUND_STATE) energy = CCOPS.compute_pair_correlation_energy(pair_vec[i]);
            total_energy += energy;
-
-           const double current_norm = tmp_pair.second.function().norm2();
-
-           save(tmp_pair.second.function(), tmp_pair.second.name());
-           timer_mp2.info();
        }
+
+       // create new Pairs struc for MP2 pairs, needed for coupling
+       // only temporary! will be removed when add_local_coupling is changed
+       Pairs<CCPair> updated_pairs;
+       for (auto& tmp_pair : pair_vec) {
+           updated_pairs.insert(tmp_pair.i, tmp_pair.j, tmp_pair);
+       }
+
+     //  for (auto& tmp_pair : updated_pairs.allpairs) {
+     //      // NOT tested, do not use KAIN yet
+     //      MADNESS_CHECK(parameters.kain() == false);
+     //      if (parameters.kain()) {
+     //          output("Update with KAIN");
+     //          real_function_6d kain_update = copy(solver.update(tmp_pair.second.function(), residue));
+     //          kain_update = CCOPS.apply_Q12t(kain_update, CCOPS.mo_ket());
+     //          kain_update.truncate().reduce_rank();
+     //          kain_update.print_size("Kain-Update-Function");
+     //          tmp_pair.second.update_u(copy(kain_update));
+     //      } else {
+     //          output("Update without KAIN");
+     //          tmp_pair.second.update_u(unew);
+     //      }
+
+           //timer_addup.info(true, tmp_pair.second.function().norm2());
+           //const double current_norm = tmp_pair.second.function().norm2();
+       //}
 
        output("\n--Iteration " + stringify(iter) + " ended--");
        bool converged = ((std::abs(old_energy - total_energy) < parameters.econv())
