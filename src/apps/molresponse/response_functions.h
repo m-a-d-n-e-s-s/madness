@@ -34,6 +34,7 @@ struct response_vector {
   response_vector& operator=(const response_vector& other) {
     num_orbitals = other.num_orbitals;
     x = copy(other[0].world(), other.x);
+    return *this;
   }
   // zero function constructor
   explicit response_vector(World& world, size_t num_orbs) : num_orbitals(num_orbs) {
