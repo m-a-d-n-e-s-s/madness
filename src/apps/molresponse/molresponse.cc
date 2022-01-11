@@ -66,6 +66,10 @@ class Input_Error : public MadnessException {
  public:
   explicit Input_Error() : MadnessException("input file not found", nullptr, 25, __LINE__, __FUNCTION__, __FILE__) {}
 };
+class Response_Input_Error : public MadnessException {
+ public:
+  explicit Response_Input_Error() : MadnessException("Response input not correct", nullptr, 25, __LINE__, __FUNCTION__, __FILE__) {}
+};
 
 density_vector read_and_create_density(World &world, const char *inpname, std::string tag) {
   GroundParameters g_params;
@@ -95,7 +99,7 @@ int main(int argc, char **argv) {
 
       std::cout.precision(6);
       // This makes a default input file name of 'input'
-      const char *input_file = "input";
+      const char *input_file = "rinput";
       // Process 0 reads input information and broadcasts
       for (int i = 1; i < argc; i++) {
         if (argv[i][0] != '-') {
@@ -138,9 +142,8 @@ int main(int argc, char **argv) {
       } else if (calc.r_params.first_order()) {
         calc.solve_response_states(world);
       } else if (calc.r_params.second_order()) {
-      } else {
-        print("NOT GOOD");
-      }
+      } else
+        throw Response_Input_Error{};
 
       if (calc.r_params.dipole()) {  //
         print("Computing Alpha");
