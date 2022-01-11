@@ -20,7 +20,7 @@ iterate_gamma.cc
 
 add_executable(test_response
         response_testing.cc
-        response_vector_tests.cpp
+        response_json_catch_testing.cpp
         density.cc
         property.cc
         TDDFT.cc
