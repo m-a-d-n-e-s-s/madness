@@ -4017,6 +4017,7 @@ void TDDFT::PrintPolarizabilityAnalysis(World &world,
         print("\nTotal Dynamic Polarizability Tensor");
         printf("\nFrequency  = %.6f a.u.\n\n", omega(0, 0));
         // printf("\nWavelength = %.6f a.u.\n\n", r_params.omega() * ???);
+      print("Polarizability", "Final");
         print(polar_tensor);
         printf("\tEigenvalues = ");
         printf("\t %.6f \t %.6f \t %.6f \n", epolar[0], epolar[1], epolar[2]);
