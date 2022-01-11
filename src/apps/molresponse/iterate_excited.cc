@@ -1,30 +1,34 @@
 // Copyright 2021 Adrian Hurtado
-#include <madness/world/worldmem.h>
-#include <math.h>
-
-#include <cstdint>
+#include <cmath>
 #include <filesystem>
 #include <map>
 #include <memory>
 #include <string>
-#include <utility>
 
-#include "../chem/NWChem.h"  // For nwchem interface
 #include "../chem/SCFOperators.h"
 #include "../chem/molecule.h"
 #include "Plot_VTK.h"
 #include "TDDFT.h"
-#include "chem/potentialmanager.h"
+#include "apps/external_headers/tensor_json.hpp"
 #include "chem/projector.h"  // For easy calculation of (1 - \hat{\rho}^0)
 #include "madness/mra/funcdefaults.h"
-#include "molresponse/basic_operators.h"
-#include "molresponse/density.h"
-#include "molresponse/global_functions.h"
-#include "molresponse/load_balance.h"
-#include "molresponse/property.h"
 #include "molresponse/response_functions.h"
 #include "molresponse/timer.h"
 #include "molresponse/x_space.h"
+
+json iteration_to_json(int iter,
+                       const Tensor<double>& bsh_residualsX,
+                       const Tensor<double>& bsh_residualsY,
+                       const Tensor<double>& density_residuals,
+                       const Tensor<double>& omega) {
+  json j_iter = {};
+  j_iter["iter"] = iter;
+  j_iter["bsh_residualsX"] = tensor_to_json(bsh_residualsX);
+  j_iter["bsh_residualsY"] = tensor_to_json(bsh_residualsY);
+  j_iter["density_residuals"] = tensor_to_json(density_residuals);
+  j_iter["omega"] = tensor_to_json(omega);
+  return j_iter;
+}
 
 void TDDFT::iterate_excited(World& world, X_space& Chi) {
   size_t iter;
@@ -32,7 +36,7 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
   size_t m = r_params.n_states();      // Number of excited states
   size_t n = r_params.num_orbitals();  // Number of ground state orbitals
 
-  const double dconv =
+  const auto dconv =
       std::max(FunctionDefaults<3>::get_thresh(), r_params.dconv());
 
   Tensor<double> maxrotn(m);
@@ -96,6 +100,10 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
   Tensor<double> old_A;
   Tensor<double> A;
   Tensor<double> old_S;
+  json j_excited = {};
+  j_excited["num_states"]=m;
+  j_excited["num_orbitals"]=n;
+  j_excited["iter_data"]=json{};
 
   // Now to iterate
   for (iter = 0; iter < r_params.maxiter(); ++iter) {
@@ -129,7 +137,7 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
     // Normalize after projection
 
     if (iter < 2 || (iter % 10) == 0) {
-        load_balance(world, rho_omega, Chi, old_Chi);
+      load_balance(world, rho_omega, Chi, old_Chi);
     }
 
     // compute density residuals
@@ -222,6 +230,8 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
                            old_A,
                            iter,
                            maxrotn);
+    j_excited["iter_data"].push_back(iteration_to_json(
+        iter, bsh_residualsX, bsh_residualsY, density_residuals, omega));
 
     // Basic output
     if (r_params.print_level() >= 1)
@@ -281,6 +291,10 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
       print("--------------------------------------------------------");
     }
   }
+  // append the json to the file
+  std::ofstream ofs; // open json file in append mode
+  ofs.open("j_excited.json");
+  ofs << j_excited;
 }
 
 void TDDFT::analysis(World& world, X_space& Chi) {
@@ -294,8 +308,8 @@ void TDDFT::analysis(World& world, X_space& Chi) {
   Tensor<double> y_norms(m, n);
 
   // Calculate the inner products
-  for (size_t i = 0; i < m; i++) {
-    for (size_t j = 0; j < n; j++) {
+  for (long i = 0; i < m; i++) {
+    for (long j = 0; j < n; j++) {
       x_norms(i, j) = Chi.X[i][j].norm2();
 
       if (not r_params.tda()) y_norms(i, j) = Chi.Y[i][j].norm2();
@@ -306,8 +320,8 @@ void TDDFT::analysis(World& world, X_space& Chi) {
   Tensor<double> cpy = copy(x_norms);
   Tensor<int> x_order(m, n);
   Tensor<int> y_order(m, n);
-  for (size_t i = 0; i < m; i++) {
-    for (size_t j = 0; j < n; j++) {
+  for (long i = 0; i < m; i++) {
+    for (long j = 0; j < n; j++) {
       double x = cpy(i, _).max();
       size_t z = 0;
       while (x != cpy(i, z)) z++;
@@ -367,9 +381,9 @@ void TDDFT::analysis(World& world, X_space& Chi) {
   Tensor<double> quadrupoles(m, 3, 3);
 
   // Run over each excited state
-  for (size_t i = 0; i < m; i++) {
+  for (long i = 0; i < m; i++) {
     // Add in contribution from each ground state
-    for (size_t j = 0; j < n; j++) {
+    for (long j = 0; j < n; j++) {
       quadrupoles(i, 0, 0) += inner(ground_orbitals[j], x * x * Chi.X[i][j]);
       quadrupoles(i, 0, 1) += inner(ground_orbitals[j], x * y * Chi.X[i][j]);
       quadrupoles(i, 0, 2) += inner(ground_orbitals[j], x * z * Chi.X[i][j]);
@@ -406,7 +420,7 @@ void TDDFT::analysis(World& world, X_space& Chi) {
 
   // Now print?
   if (world.rank() == 0) {
-    for (size_t i = 0; i < m; i++) {
+    for (long i = 0; i < m; i++) {
       printf("   Response Function %d\t\t%7.8f a.u.",
              static_cast<int>(i),
              omega(i));
@@ -443,7 +457,7 @@ void TDDFT::analysis(World& world, X_space& Chi) {
       // Only print the top 5?
       if (r_params.tda()) {
         print("\n   Dominant Contributions:");
-        for (size_t j = 0; j < std::min(size_t(5), n); j++) {
+        for (long j = 0; j < std::min(size_t(5), n); j++) {
           printf("   Occupied %d   %7.8f\n",
                  x_order(i, j),
                  x_norms(i, x_order(i, j)));
@@ -453,7 +467,7 @@ void TDDFT::analysis(World& world, X_space& Chi) {
       } else {
         print("\n   Dominant Contributions:");
         print("                  x          y");
-        for (size_t j = 0; j < std::min(size_t(5), n); j++) {
+        for (long j = 0; j < std::min(size_t(5), n); j++) {
           printf("   Occupied %d   %7.8f %7.8f\n",
                  x_order(i, j),
                  x_norms(i, x_order(i, j)),

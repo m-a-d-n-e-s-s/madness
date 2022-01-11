@@ -13,6 +13,7 @@
 #include "../chem/molecule.h"
 #include "Plot_VTK.h"
 #include "TDDFT.h"
+#include "apps/external_headers/tensor_json.hpp"
 #include "chem/potentialmanager.h"
 #include "chem/projector.h"  // For easy calculation of (1 - \hat{\rho}^0)
 #include "madness/mra/funcdefaults.h"
@@ -22,6 +23,20 @@
 #include "molresponse/property.h"
 #include "molresponse/response_functions.h"
 #include "molresponse/timer.h"
+
+json freq_iteration_to_json(int iter,
+                            const Tensor<double>& bsh_residualsX,
+                            const Tensor<double>& bsh_residualsY,
+                            const Tensor<double>& density_residuals,
+                            const Tensor<double>& polar) {
+  json j_iter = {};
+  j_iter["iter"] = iter;
+  j_iter["bsh_residualsX"] = tensor_to_json(bsh_residualsX);
+  j_iter["bsh_residualsY"] = tensor_to_json(bsh_residualsY);
+  j_iter["density_residuals"] = tensor_to_json(density_residuals);
+  j_iter["polarizability"] = tensor_to_json(polar);
+  return j_iter;
+}
 
 // Iterate Frequency Response
 void TDDFT::iterate_freq2(World& world) {
@@ -99,6 +114,11 @@ void TDDFT::iterate_freq2(World& world) {
 
   Tensor<double> maxrotn(m);
   maxrotn.fill(dconv * 100);
+  json j_frequency = {};
+  j_frequency["num_states"] = m;
+  j_frequency["num_orbitals"] = n;
+  j_frequency["omega"] = omega_n;
+  j_frequency["iter_data"] = json{};
 
   for (iter = 0; iter <= r_params.maxiter(); ++iter) {
     // Basic output
@@ -127,7 +147,7 @@ void TDDFT::iterate_freq2(World& world) {
     // rho_omega = make_density(world, Chi, compute_y);
 
     if (iter < 2 || (iter % 10) == 0) {
-        load_balance(world, rho_omega, Chi, old_Chi);
+      load_balance(world, rho_omega, Chi, old_Chi);
     }
 
     // compute density residuals
@@ -217,6 +237,10 @@ void TDDFT::iterate_freq2(World& world) {
                             iter,
                             maxrotn);
   }
+
+  Tensor<double> polar = -2 * inner(Chi, PQ);
+  j_frequency["iter_data"].push_back(freq_iteration_to_json(
+      iter, bsh_residualsX, bsh_residualsY, density_residuals, polar));
   if (world.rank() == 0) print("\n");
   if (world.rank() == 0) print("   Finished Response Calculation ");
   if (world.rank() == 0) print("   ------------------------");
@@ -235,5 +259,9 @@ void TDDFT::iterate_freq2(World& world) {
     print(bsh_residualsY);
     print(" Final density residuals:");
     print(density_residuals);
+    compute_and_print_polarizability(world, Chi, PQ, "Converged");
   }
+  std::ofstream ofs;  // open json file in append mode
+  ofs.open("j_frequency.json");
+  ofs << j_frequency;
 }
