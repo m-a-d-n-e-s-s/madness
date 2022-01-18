@@ -5,9 +5,12 @@
 #include "apps/external_headers/tensor_json.hpp"
 #include "response_functions.h"
 #include "timer.h"
+#include "string"
 #include "x_space.h"
 
-unsigned int Factorial(unsigned int number) { return number <= 1 ? number : Factorial(number - 1) * number; }
+unsigned int Factorial(unsigned int number) {
+  return number <= 1 ? number : Factorial(number - 1) * number;
+}
 
 TEST_CASE("X_space", "[copy]") {
   unsigned int m = 5;
@@ -17,7 +20,10 @@ TEST_CASE("X_space", "[copy]") {
   initialize(argc, argv);  // initializes a world argument with argc and argv
   {
     World world(SafeMPI::COMM_WORLD);
-    startup(world, 1, nullptr, true);  // TODO: ask Robert about proper startup and implement
+    startup(world,
+            1,
+            nullptr,
+            true);  // TODO: ask Robert about proper startup and implement
     molresponse::start_timer(world);
     X_space v{world, m, n};
     REQUIRE(v.num_states() == m);
@@ -31,7 +37,8 @@ TEST_CASE("X_space", "[copy]") {
 TEST_CASE("Json Testing", "Simple JSON") {
   // create an empty structure (null)
   json j;
-  // add a number that is stored as double (note the implicit conversion of j to an object)
+  // add a number that is stored as double (note the implicit conversion of j to
+  // an object)
   j["pi"] = 3.141;
   // add a Boolean that is stored as bool
   j["happy"] = true;
@@ -115,7 +122,7 @@ TEST_CASE("Json Testing 3", "Json Tensor Indexing") {
 
   for (int i = 0; i < 3; i++) {
     json j_iter = {};
-    j_iter["iter"]=i;
+    j_iter["iter"] = i;
     j_iter["a"] = j_a;
     j_iter["b"] = j_b;
     j_iter["c"] = j_c;
@@ -124,6 +131,43 @@ TEST_CASE("Json Testing 3", "Json Tensor Indexing") {
 
   std::ofstream ofs("j_iters.json");
   ofs << j << endl;
-  std::cout<<j<<endl;
+  std::cout << j << endl;
   // How can I make this an automatic template function?
+}
+
+TEST_CASE("print_QCSchema Test ", "Json Tensor Indexing") {
+
+
+  vec_pair_ints int_vals;
+  vec_pair_T<double> double_vals;
+  vec_pair_tensor_T<double> double_tensor_vals;
+
+  json j={};
+
+  int_vals.push_back({"a", 4});
+  int_vals.push_back({"b", 5});
+  int_vals.push_back({"c", 4});
+  int_vals.push_back({"d", 6});
+
+  to_json(j,int_vals);
+
+  double_vals.push_back({"aa", 4});
+  double_vals.push_back({"bb", 5});
+  double_vals.push_back({"cc", 4});
+  double_vals.push_back({"dd", 6});
+
+  to_json(j,double_vals);
+
+  Tensor<double> t_a(3, 3);
+  Tensor<double> t_b(3, 2, 4);
+  Tensor<double> t_c(1, 3);
+
+  double_tensor_vals.push_back({"t_a",t_a});
+  double_tensor_vals.push_back({"t_b",t_b});
+  double_tensor_vals.push_back({"t_c",t_c});
+
+  to_json(j,double_tensor_vals);
+
+  output_schema("test_schema",j);
+
 }
