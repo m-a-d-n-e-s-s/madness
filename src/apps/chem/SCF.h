@@ -55,6 +55,8 @@
 #include <madness/tensor/distributed_matrix.h>
 #include <madness/tensor/solvers.h>
 
+#include <external_headers/tensor_json.hpp>
+#include <filesystem>
 #include <memory>
 
 namespace madness {
@@ -123,24 +125,18 @@ static double mask3(const coordT& ruser) {
   return result;
 }
 
-class MolecularGuessDensityFunctor
-    : public FunctionFunctorInterface<double, 3> {
+class MolecularGuessDensityFunctor : public FunctionFunctorInterface<double, 3> {
  private:
   const Molecule& molecule;
   const AtomicBasisSet& aobasis;
 
  public:
-  MolecularGuessDensityFunctor(const Molecule& molecule,
-                               const AtomicBasisSet& aobasis)
+  MolecularGuessDensityFunctor(const Molecule& molecule, const AtomicBasisSet& aobasis)
       : molecule(molecule), aobasis(aobasis) {}
 
-  double operator()(const coordT& x) const {
-    return aobasis.eval_guess_density(molecule, x[0], x[1], x[2]);
-  }
+  double operator()(const coordT& x) const { return aobasis.eval_guess_density(molecule, x[0], x[1], x[2]); }
 
-  std::vector<coordT> special_points() const {
-    return molecule.get_all_coords_vec();
-  }
+  std::vector<coordT> special_points() const { return molecule.get_all_coords_vec(); }
 };
 
 class AtomicBasisFunctor : public FunctionFunctorInterface<double, 3> {
@@ -152,9 +148,7 @@ class AtomicBasisFunctor : public FunctionFunctorInterface<double, 3> {
 
   double operator()(const coordT& x) const { return aofunc(x[0], x[1], x[2]); }
 
-  std::vector<coordT> special_points() const {
-    return std::vector<coordT>(1, aofunc.get_coords_vec());
-  }
+  std::vector<coordT> special_points() const { return std::vector<coordT>(1, aofunc.get_coords_vec()); }
 };
 
 class AtomicAttractionFunctor : public FunctionFunctorInterface<double, 3> {
@@ -163,20 +157,16 @@ class AtomicAttractionFunctor : public FunctionFunctorInterface<double, 3> {
   const int iatom;
 
  public:
-  AtomicAttractionFunctor(const Molecule& molecule, int iatom)
-      : molecule(molecule), iatom(iatom) {}
+  AtomicAttractionFunctor(const Molecule& molecule, int iatom) : molecule(molecule), iatom(iatom) {}
 
   double operator()(const coordT& x) const {
     const Atom& atom = molecule.get_atom(iatom);
     const coordT coord = {atom.x, atom.y, atom.z};
     double r = (x - coord).normf();
-    return -atom.q * smoothed_potential(r * molecule.get_rcut()[iatom]) *
-           molecule.get_rcut()[iatom];
+    return -atom.q * smoothed_potential(r * molecule.get_rcut()[iatom]) * molecule.get_rcut()[iatom];
   }
 
-  std::vector<coordT> special_points() const {
-    return std::vector<coordT>(1, molecule.get_atom(iatom).get_coords());
-  }
+  std::vector<coordT> special_points() const { return std::vector<coordT>(1, molecule.get_atom(iatom).get_coords()); }
 };
 
 class MolecularDerivativeFunctor : public FunctionFunctorInterface<double, 3> {
@@ -190,41 +180,30 @@ class MolecularDerivativeFunctor : public FunctionFunctorInterface<double, 3> {
       : molecule(molecule), atom(atom), axis(axis) {}
 
   double operator()(const coordT& x) const {
-    return molecule.nuclear_attraction_potential_derivative(
-        atom, axis, x[0], x[1], x[2]);
+    return molecule.nuclear_attraction_potential_derivative(atom, axis, x[0], x[1], x[2]);
   }
 
-  std::vector<coordT> special_points() const {
-    return std::vector<coordT>(1, molecule.get_atom(atom).get_coords());
-  }
+  std::vector<coordT> special_points() const { return std::vector<coordT>(1, molecule.get_atom(atom).get_coords()); }
 };
 
-class MolecularSecondDerivativeFunctor
-    : public FunctionFunctorInterface<double, 3> {
+class MolecularSecondDerivativeFunctor : public FunctionFunctorInterface<double, 3> {
  private:
   const Molecule& molecule;
   const int atom;
   const int iaxis, jaxis;
 
  public:
-  MolecularSecondDerivativeFunctor(const Molecule& molecule,
-                                   int atom,
-                                   int iaxis,
-                                   int jaxis)
+  MolecularSecondDerivativeFunctor(const Molecule& molecule, int atom, int iaxis, int jaxis)
       : molecule(molecule), atom(atom), iaxis(iaxis), jaxis(jaxis) {}
 
   double operator()(const coordT& x) const {
-    return molecule.nuclear_attraction_potential_second_derivative(
-        atom, iaxis, jaxis, x[0], x[1], x[2]);
+    return molecule.nuclear_attraction_potential_second_derivative(atom, iaxis, jaxis, x[0], x[1], x[2]);
   }
 
-  std::vector<coordT> special_points() const {
-    return std::vector<coordT>(1, molecule.get_atom(atom).get_coords());
-  }
+  std::vector<coordT> special_points() const { return std::vector<coordT>(1, molecule.get_atom(atom).get_coords()); }
 };
 
-class CorePotentialDerivativeFunctor
-    : public FunctionFunctorInterface<double, 3> {
+class CorePotentialDerivativeFunctor : public FunctionFunctorInterface<double, 3> {
  private:
   const Molecule& molecule;
   const int atom;
@@ -235,9 +214,7 @@ class CorePotentialDerivativeFunctor
   CorePotentialDerivativeFunctor(const Molecule& molecule, int atom, int axis)
       : molecule(molecule), atom(atom), axis(axis) {}
 
-  double operator()(const coordT& r) const {
-    return molecule.core_potential_derivative(atom, axis, r[0], r[1], r[2]);
-  }
+  double operator()(const coordT& r) const { return molecule.core_potential_derivative(atom, axis, r[0], r[1], r[2]); }
 };
 
 /// A MADNESS functor to compute either x, y, or z
@@ -275,28 +252,23 @@ class VextCosFunctor {
   Function<T, 3> _f;
 
  public:
-  VextCosFunctor(
-      World& world,
-      //        const std::shared_ptr<FunctionFunctorInterface<T,3> >& functor,
-      const FunctionFunctorInterface<T, 3>* functor,
-      double omega)
+  VextCosFunctor(World& world,
+                 //        const std::shared_ptr<FunctionFunctorInterface<T,3> >& functor,
+                 const FunctionFunctorInterface<T, 3>* functor,
+                 double omega)
       : _omega(omega) {
     //      _f = factoryT(world).functor(functor);
     _f = factoryT(world).functor(functorT(new DipoleFunctor(2)));
   }
-  Function<T, 3> operator()(const double t) const {
-    return std::cos(_omega * t) * _f;
-  }
+  Function<T, 3> operator()(const double t) const { return std::cos(_omega * t) * _f; }
 };
 
 template <typename T, int NDIM>
 struct lbcost {
   double leaf_value;
   double parent_value;
-  lbcost(double leaf_value = 1.0, double parent_value = 0.0)
-      : leaf_value(leaf_value), parent_value(parent_value) {}
-  double operator()(const Key<NDIM>& key,
-                    const FunctionNode<T, NDIM>& node) const {
+  lbcost(double leaf_value = 1.0, double parent_value = 0.0) : leaf_value(leaf_value), parent_value(parent_value) {}
+  double operator()(const Key<NDIM>& key, const FunctionNode<T, NDIM>& node) const {
     if (key.level() < 1) {
       return 100.0 * (leaf_value + parent_value);
     } else if (node.is_leaf()) {
@@ -454,9 +426,7 @@ class SCF {
 
   vecfuncT project_ao_basis(World& world, const AtomicBasisSet& aobasis);
 
-  static vecfuncT project_ao_basis_only(World& world,
-                                        const AtomicBasisSet& aobasis,
-                                        const Molecule& molecule);
+  static vecfuncT project_ao_basis_only(World& world, const AtomicBasisSet& aobasis, const Molecule& molecule);
 
   void reset_aobasis(const std::string& aobasisname) {
     aobasis = AtomicBasisSet();  // reset
@@ -469,10 +439,7 @@ class SCF {
   /// @param[in]	occ	occupation numbers
   /// @param[in]	nmo number of MOs for the given spin
   /// @return		vector of length nmo with the set index for each MO
-  std::vector<int> group_orbital_sets(World& world,
-                                      const tensorT& eps,
-                                      const tensorT& occ,
-                                      const int nmo) const;
+  std::vector<int> group_orbital_sets(World& world, const tensorT& eps, const tensorT& occ, const int nmo) const;
 
   /// compute the unitary localization matrix according to Pipek-Mezey
 
@@ -498,8 +465,7 @@ class SCF {
                        const std::vector<int>& set = std::vector<int>());
 
   inline double DIP(const tensorT& dip, int i, int j, int k, int l) const {
-    return dip(i, j, 0) * dip(k, l, 0) + dip(i, j, 1) * dip(k, l, 1) +
-           dip(i, j, 2) * dip(k, l, 2);
+    return dip(i, j, 0) * dip(k, l, 0) + dip(i, j, 1) * dip(k, l, 1) + dip(i, j, 2) * dip(k, l, 2);
   }
 
   distmatT localize_boys(World& world,
@@ -519,35 +485,22 @@ class SCF {
                         const bool doprint = false) const;
 
   distmatT kinetic_energy_matrix(World& world, const vecfuncT& v) const;
-  distmatT kinetic_energy_matrix(World& world,
-                                 const vecfuncT& vbra,
-                                 const vecfuncT& vket) const;
+  distmatT kinetic_energy_matrix(World& world, const vecfuncT& vbra, const vecfuncT& vket) const;
 
-  vecfuncT core_projection(World& world,
-                           const vecfuncT& psi,
-                           const bool include_Bc = true);
+  vecfuncT core_projection(World& world, const vecfuncT& psi, const bool include_Bc = true);
 
-  double core_projector_derivative(World& world,
-                                   const vecfuncT& mo,
-                                   const tensorT& occ,
-                                   int atom,
-                                   int axis);
+  double core_projector_derivative(World& world, const vecfuncT& mo, const tensorT& occ, int atom, int axis);
 
   void initial_guess(World& world);
 
   void initial_load_bal(World& world);
 
-  functionT make_density(World& world,
-                         const tensorT& occ,
-                         const vecfuncT& v) const;
+  functionT make_density(World& world, const tensorT& occ, const vecfuncT& v) const;
 
   functionT make_density(World& world, const tensorT& occ, const cvecfuncT& v);
 
-  std::vector<poperatorT> make_bsh_operators(World& world,
-                                             const tensorT& evals) const;
-  std::vector<poperatorT> make_gradbsh_operators(World& world,
-                                                 const tensorT& evals,
-                                                 const int axis) const;
+  std::vector<poperatorT> make_bsh_operators(World& world, const tensorT& evals) const;
+  std::vector<poperatorT> make_gradbsh_operators(World& world, const tensorT& evals, const int axis) const;
 
   /// apply the HF exchange on a set of orbitals
 
@@ -556,10 +509,7 @@ class SCF {
   /// @param[in]  psi     the orbitals in the exchange operator
   /// @param[in]  f       the orbitals |i> that the operator is applied on
   /// @return     a vector of orbitals  K| i>
-  vecfuncT apply_hf_exchange(World& world,
-                             const tensorT& occ,
-                             const vecfuncT& psi,
-                             const vecfuncT& f) const;
+  vecfuncT apply_hf_exchange(World& world, const tensorT& occ, const vecfuncT& psi, const vecfuncT& f) const;
 
   // Used only for initial guess that is always spin-restricted LDA
   functionT make_lda_potential(World& world, const functionT& arho);
@@ -572,8 +522,7 @@ class SCF {
   //    }
 
   double make_dft_energy(World& world, const vecfuncT& vf, int ispin) {
-    functionT vlda =
-        multiop_values<double, xc_functional, 3>(xc_functional(xc), vf);
+    functionT vlda = multiop_values<double, xc_functional, 3>(xc_functional(xc), vf);
     return vlda.trace();
   }
 
@@ -599,9 +548,7 @@ class SCF {
                               const tensorT& energy = tensorT(),
                               int spin = 0);
 
-  void vector_stats(const std::vector<double>& v,
-                    double& rms,
-                    double& maxabsval) const;
+  void vector_stats(const std::vector<double>& v, double& rms, double& maxabsval) const;
 
   vecfuncT compute_residual(World& world,
                             tensorT& occ,
@@ -637,11 +584,7 @@ class SCF {
                                     int ispin);
   void this_axis(World& world, const int axis);
   vecfuncT calc_dipole_mo(World& world, vecfuncT& mo, const int axis);
-  void calc_freq(World& world,
-                 double& omega,
-                 tensorT& ak,
-                 tensorT& bk,
-                 int sign);
+  void calc_freq(World& world, double& omega, tensorT& ak, tensorT& bk, int sign);
   void make_BSHOperatorPtr(World& world,
                            tensorT& ak,
                            tensorT& bk,
@@ -660,10 +603,7 @@ class SCF {
                                    const vecfuncT& dmo2,
                                    const vecfuncT& mo,
                                    int& spin);
-  vecfuncT calc_xc_function(World& world,
-                            XCOperator<double, 3>& xc_alda,
-                            const vecfuncT& mo,
-                            const functionT& drho);
+  vecfuncT calc_xc_function(World& world, XCOperator<double, 3>& xc_alda, const vecfuncT& mo, const functionT& drho);
   vecfuncT calc_djkmo(World& world,
                       XCOperator<double, 3>& xc_alda,
                       const vecfuncT& dmo1,
@@ -677,10 +617,7 @@ class SCF {
                     const vecfuncT& Vdmo,
                     const vecfuncT& dipolemo,
                     const vecfuncT& djkmo);
-  void calc_response_function(World& world,
-                              vecfuncT& dmo,
-                              std::vector<poperatorT>& op,
-                              vecfuncT& rhs);
+  void calc_response_function(World& world, vecfuncT& dmo, std::vector<poperatorT>& op, vecfuncT& rhs);
   void orthogonalize_response(World& world, vecfuncT& dmo, vecfuncT& mo);
 
   void dpolar(World& world, tensorT& polar, functionT& drho, const int axis);
@@ -706,9 +643,7 @@ class SCF {
   /// End functions for polarizability
 
   /// make the Coulomb potential given the total density
-  functionT make_coulomb_potential(const functionT& rho) const {
-    return apply(*coulop, rho);
-  }
+  functionT make_coulomb_potential(const functionT& rho) const { return apply(*coulop, rho); }
 
   /// Compute the two-electron integrals over the provided set of orbitals
 
@@ -761,19 +696,9 @@ class SCF {
                functionT& brho_old,
                subspaceT& subspace);
 
-  void rotate_subspace(World& world,
-                       const tensorT& U,
-                       subspaceT& subspace,
-                       int lo,
-                       int nfunc,
-                       double trantol) const;
+  void rotate_subspace(World& world, const tensorT& U, subspaceT& subspace, int lo, int nfunc, double trantol) const;
 
-  void rotate_subspace(World& world,
-                       const distmatT& U,
-                       subspaceT& subspace,
-                       int lo,
-                       int nfunc,
-                       double trantol) const;
+  void rotate_subspace(World& world, const distmatT& U, subspaceT& subspace, int lo, int nfunc, double trantol) const;
 
   void update_subspace(World& world,
                        vecfuncT& Vpsia,
@@ -795,10 +720,7 @@ class SCF {
   /// @param[in,out]	mo_new	vector of orbitals from the KAIN solver
   /// @param[in]		spin	"alpha" or "beta" for user information
   /// @return			max residual
-  double do_step_restriction(World& world,
-                             const vecfuncT& mo,
-                             vecfuncT& mo_new,
-                             std::string spin) const;
+  double do_step_restriction(World& world, const vecfuncT& mo, vecfuncT& mo_new, std::string spin) const;
 
   /// orthonormalize the vectors
 
@@ -810,10 +732,8 @@ class SCF {
 
   void propagate(World& world, double omega, int step0);
 
-  complex_functionT APPLY(const complex_operatorT* q1d,
-                          const complex_functionT& psi) {
-    complex_functionT r =
-        psi;  // Shallow copy violates constness !!!!!!!!!!!!!!!!!
+  complex_functionT APPLY(const complex_operatorT* q1d, const complex_functionT& psi) {
+    complex_functionT r = psi;  // Shallow copy violates constness !!!!!!!!!!!!!!!!!
     coordT lo, hi;
     lo[2] = -10;
     hi[2] = +10;
@@ -843,6 +763,8 @@ class SCF {
 
   // For given protocol, solve the DFT/HF/response equations
   void solve(World& world);
+
+  void output_scf_info_schema(const int& iter, const std::map<std::string, double>& vals, const tensorT& dipole_T);
 };
 
 // Computes molecular energy as a function of the geometry
@@ -854,8 +776,7 @@ class MolecularEnergy : public OptimizationTargetInterface {
   mutable double coords_sum;  // sum of square of coords at last solved geometry
 
  public:
-  MolecularEnergy(World& world, SCF& calc)
-      : world(world), calc(calc), coords_sum(-1.0) {}
+  MolecularEnergy(World& world, SCF& calc) : world(world), calc(calc), coords_sum(-1.0) {}
 
   bool provides_gradient() const { return true; }
 
@@ -901,8 +822,7 @@ class MolecularEnergy : public OptimizationTargetInterface {
     // The below is missing convergence test logic, etc.
 
     // Make the nuclear potential, initial orbitals, etc.
-    for (unsigned int proto = 0; proto < calc.param.protocol().size();
-         proto++) {
+    for (unsigned int proto = 0; proto < calc.param.protocol().size(); proto++) {
       int nvalpha = calc.param.nmo_alpha() - calc.param.nalpha();
       int nvbeta = calc.param.nmo_beta() - calc.param.nbeta();
       int nvalpha_start, nv_old;
@@ -917,19 +837,15 @@ class MolecularEnergy : public OptimizationTargetInterface {
       nv_old = nvalpha_start;
 
       for (int nv = nvalpha_start; nv >= nvalpha; nv -= nvalpha) {
-        if (nv > 0 && world.rank() == 0)
-          std::cout << "Running with " << nv << " virtual states" << std::endl;
+        if (nv > 0 && world.rank() == 0) std::cout << "Running with " << nv << " virtual states" << std::endl;
 
-        calc.param.set_user_defined_value("nmo_alpha",
-                                          calc.param.nalpha() + nv);
+        calc.param.set_user_defined_value("nmo_alpha", calc.param.nalpha() + nv);
         // check whether this is sensible for spin restricted case
         if (calc.param.nbeta() && !calc.param.spin_restricted()) {
           if (nvbeta == nvalpha) {
-            calc.param.set_user_defined_value("nmo_beta",
-                                              calc.param.nbeta() + nv);
+            calc.param.set_user_defined_value("nmo_beta", calc.param.nbeta() + nv);
           } else {
-            calc.param.set_user_defined_value(
-                "nmo_beta", calc.param.nbeta() + nv + nvbeta - nvalpha);
+            calc.param.set_user_defined_value("nmo_beta", calc.param.nbeta() + nv + nvbeta - nvalpha);
           }
         }
 
@@ -980,27 +896,38 @@ class MolecularEnergy : public OptimizationTargetInterface {
 
     functionT rho = calc.make_density(world, calc.aocc, calc.amo);
     functionT brho = rho;
-    if (!calc.param.spin_restricted())
-      brho = calc.make_density(world, calc.bocc, calc.bmo);
+    if (!calc.param.spin_restricted()) brho = calc.make_density(world, calc.bocc, calc.bmo);
     rho.gaxpy(1.0, brho, 1.0);
 
     return calc.derivatives(world, rho);
   }
 
-  void energy_and_gradient(const Molecule& molecule,
-                           double& energy,
-                           Tensor<double>& gradient) {
-    value(molecule.get_all_coords()
-              .flat());  // Ensures DFT equations are solved at this geometry
+  void energy_and_gradient(const Molecule& molecule, double& energy, Tensor<double>& gradient) {
+    value(molecule.get_all_coords().flat());  // Ensures DFT equations are solved at this geometry
 
     functionT rho = calc.make_density(world, calc.aocc, calc.amo);
     functionT brho = rho;
-    if (!calc.param.spin_restricted())
-      brho = calc.make_density(world, calc.bocc, calc.bmo);
+    if (!calc.param.spin_restricted()) brho = calc.make_density(world, calc.bocc, calc.bmo);
     rho.gaxpy(1.0, brho, 1.0);
 
     energy = calc.current_energy;
     gradient = calc.derivatives(world, rho);
+  }
+  void output_calc_info_schema() {
+    json j = {};
+    vec_pair_ints int_vals;
+    vec_pair_T<double> double_vals;
+    vec_pair_tensor_T<double> double_tensor_vals;
+
+    CalculationParameters param = calc.param;
+    int_vals.push_back({"calcinfo_nmo", param.nmo_alpha() + param.nmo_beta()});
+    int_vals.push_back({"calcinfo_nalpha", param.nalpha()});
+    int_vals.push_back({"calcinfo_nbeta", param.nbeta()});
+    int_vals.push_back({"calcinfo_natom", calc.molecule.natom()});
+    to_json(j, int_vals);
+    double_vals.push_back({"return_energy", value(calc.molecule.get_all_coords().flat())});
+    to_json(j, double_vals);
+    output_schema("calc_info", j);
   }
 };
 }  // namespace madness
