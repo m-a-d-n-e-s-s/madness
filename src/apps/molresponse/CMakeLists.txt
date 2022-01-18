@@ -18,9 +18,9 @@ Theta_X.cc
 iterate_gamma.cc
 )
 
-add_executable(test_response
-        response_testing.cc
-        response_json_catch_testing.cpp
+add_executable(test_schema_json
+        madness_catch_main.cc
+        qcschema_json_testing.cpp
         density.cc
         property.cc
         TDDFT.cc
@@ -36,5 +36,5 @@ add_executable(test_response
         iterate_gamma.cc
         )
 target_link_libraries(molresponse -lstdc++fs MADchem  )
-target_link_libraries(test_response -lstdc++fs MADchem  )
+target_link_libraries(test_schema_json -lstdc++fs MADchem  )
 
