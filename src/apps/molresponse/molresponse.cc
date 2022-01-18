@@ -41,7 +41,8 @@
 #include "TDDFT.h"  // All response functions/objects enter through this
 #include "molresponse/density.h"
 
-#if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
+#if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && \
+    defined(HAVE_UNISTD_H)
 
 #include <sys/stat.h>
 #include <unistd.h>
@@ -64,14 +65,28 @@ static inline int file_exists(const char *inpname) {
 /// \param[in] f File where the exception occurred.
 class Input_Error : public MadnessException {
  public:
-  explicit Input_Error() : MadnessException("input file not found", nullptr, 25, __LINE__, __FUNCTION__, __FILE__) {}
+  explicit Input_Error()
+      : MadnessException("input file not found",
+                         nullptr,
+                         25,
+                         __LINE__,
+                         __FUNCTION__,
+                         __FILE__) {}
 };
 class Response_Input_Error : public MadnessException {
  public:
-  explicit Response_Input_Error() : MadnessException("Response input not correct", nullptr, 25, __LINE__, __FUNCTION__, __FILE__) {}
+  explicit Response_Input_Error()
+      : MadnessException("Response input not correct",
+                         nullptr,
+                         25,
+                         __LINE__,
+                         __FUNCTION__,
+                         __FILE__) {}
 };
 
-density_vector read_and_create_density(World &world, const char *inpname, std::string tag) {
+density_vector read_and_create_density(World &world,
+                                       const char *inpname,
+                                       std::string tag) {
   GroundParameters g_params;
   ResponseParameters r_params;
   if (world.rank() == 0) {
