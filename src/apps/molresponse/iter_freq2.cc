@@ -236,11 +236,15 @@ void TDDFT::iterate_freq2(World& world) {
                             bsh_residualsY,
                             iter,
                             maxrotn);
-  }
+
 
   Tensor<double> polar = -2 * inner(Chi, PQ);
+
   j_frequency["iter_data"].push_back(freq_iteration_to_json(
       iter, bsh_residualsX, bsh_residualsY, density_residuals, polar));
+
+  }
+
   if (world.rank() == 0) print("\n");
   if (world.rank() == 0) print("   Finished Response Calculation ");
   if (world.rank() == 0) print("   ------------------------");
