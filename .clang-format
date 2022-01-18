@@ -1,7 +1,7 @@
 BasedOnStyle: Google
 
 PointerAlignment: Left
-ColumnLimit: 80
+ColumnLimit: 110
 
 BinPackArguments: false
 BinPackParameters: false
