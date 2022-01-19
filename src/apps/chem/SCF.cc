@@ -4148,7 +4148,6 @@ void SCF::polarizability(World& world) {
   }  // end axis
 }
 void SCF::output_scf_info_schema(const int& iter, const std::map<std::string, double>& vals, const tensorT& dipole_T) {
-  print("TEST print SCF SCHEMA");
   json j = {};
   j.push_back(json());
   // TODO (Adrian) possibly read in json from filesystem.
