@@ -137,7 +137,6 @@ TEST_CASE("Json Testing 3", "Json Tensor Indexing") {
 
 TEST_CASE("print_QCSchema Test ", "Json Tensor Indexing") {
 
-
   vec_pair_ints int_vals;
   vec_pair_T<double> double_vals;
   vec_pair_tensor_T<double> double_tensor_vals;
@@ -169,5 +168,28 @@ TEST_CASE("print_QCSchema Test ", "Json Tensor Indexing") {
   to_json(j,double_tensor_vals);
 
   output_schema("test_schema",j);
+
+}
+TEST_CASE("Response Parameters Test ", "Testing parameters to_json") {
+
+  int argc = 1;
+  char** argv = nullptr;
+  initialize(argc, argv);  // initializes a world argument with argc and argv
+  {
+    World world(SafeMPI::COMM_WORLD);
+    startup(world,
+            1,
+            nullptr,
+            true);  // TODO: ask Robert about proper startup and implement
+    molresponse::start_timer(world);
+    // Everything goes in here
+    ResponseParameters r_params;
+    json j;
+    r_params.to_json(j);
+    world.gop.fence();
+    std::cout<<j<<endl;
+    molresponse::end_timer(world, "basic Response parameters testing");
+  }
+
 
 }
