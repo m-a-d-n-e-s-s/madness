@@ -30,10 +30,7 @@
 #include "molresponse/timer.h"
 #include "molresponse/x_space.h"
 
-X_space TDDFT::Compute_Theta_X(World& world,
-                               X_space& Chi,
-                               XCOperator<double, 3> xc,
-                               std::string calc_type) {
+X_space TDDFT::Compute_Theta_X(World& world, X_space& Chi, XCOperator<double, 3> xc, std::string calc_type) {
   bool compute_Y = calc_type.compare("full") == 0;
   X_space Theta_X = X_space(world, Chi.num_states(), Chi.num_orbitals());
   // compute
@@ -82,4 +79,38 @@ X_space TDDFT::Compute_Theta_X(World& world,
   }
 
   return Theta_X;
+}
+void TDDFT::output_json() const {
+  std::ofstream ofs("response.json");
+  ofs << j_molresponse;
+}
+void TDDFT::excited_to_json(json& j_mol_in,
+                            size_t iter,
+                            const Tensor<double>& res_X,
+                            const Tensor<double>& res_Y,
+                            const Tensor<double>& density_res,
+                            const Tensor<double>& omega) {
+  json j = {};
+  j["iter"] = iter;
+  j["res_X"] = tensor_to_json(res_X);
+  j["res_Y"] = tensor_to_json(res_Y);
+  j["density_residuals"] = tensor_to_json(density_res);
+  j["omega"] = tensor_to_json(omega);
+  auto index = j_mol_in["protocol_data"].size() - 1;
+  j_mol_in["protocol_data"][index]["iter_data"].push_back(j);
+}
+void TDDFT::frequency_to_json(json& j_mol_in,
+                              size_t iter,
+                              const Tensor<double>& res_X,
+                              const Tensor<double>& res_Y,
+                              const Tensor<double>& density_res,
+                              const Tensor<double>& omega) {
+  json j = {};
+  j["iter"] = iter;
+  j["res_X"] = tensor_to_json(res_X);
+  j["res_Y"] = tensor_to_json(res_Y);
+  j["density_residuals"] = tensor_to_json(density_res);
+  j["omega"] = tensor_to_json(omega);
+  auto index = j_mol_in["protocol_data"].size() - 1;
+  j_mol_in["protocol_data"][index]["iter_data"].push_back(j);
 }

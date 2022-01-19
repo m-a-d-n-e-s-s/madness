@@ -26,6 +26,7 @@
 #include <stdio.h>
 
 #include <algorithm>
+#include <apps/external_headers/tensor_json.hpp>
 #include <cmath>
 #include <complex>
 #include <iomanip>
@@ -179,6 +180,7 @@ class TDDFT {
   poperatorT coulop;
   std::vector<std::shared_ptr<real_derivative_3d>> gradop;
   double vtol;
+  json j_molresponse;
 
   // Member variables
  public:
@@ -193,7 +195,11 @@ class TDDFT {
   // Initial load balance using vnuc
   void initial_load_bal(World& world);
   void load_balance(World& world, vecfuncT rho_omega, X_space Chi, X_space Chi_old);
-  void orbital_load_balance(World& world, vecfuncT& psi0, vecfuncT& psi0_copy, X_space& Chi, X_space& Chi_copy);
+  void orbital_load_balance(World& world,
+                            vecfuncT& psi0,
+                            vecfuncT& psi0_copy,
+                            X_space& Chi,
+                            X_space& Chi_copy);
   // Normalizes in the response sense
   static void normalize(World& world, response_space& f);
 
@@ -218,7 +224,10 @@ class TDDFT {
   // functions
   std::vector<real_function_3d> createDipoleFunctionMap(World& world);
   // Returns initial response functions
-  X_space create_trial_functions(World& world, size_t k, std::vector<real_function_3d>& orbitals, size_t print_level);
+  X_space create_trial_functions(World& world,
+                                 size_t k,
+                                 std::vector<real_function_3d>& orbitals,
+                                 size_t print_level);
   X_space create_trial_functions2(World& world, std::vector<real_function_3d>& orbitals, size_t print_level);
 
   response_space PropertyRHS(World& world, PropertyBase& p) const;
@@ -243,7 +252,11 @@ class TDDFT {
   // Returns a tensor, where entry (i,j) = inner(a[i], b[j]).sum()
   Tensor<double> expectation(World& world, const response_space& a, const response_space& b);
   Tensor<double> expectation2(World& world, const response_space& a, const response_space& b);
-  void PrintRFExpectation(World& world, response_space f, response_space g, std::string fname, std::string gname);
+  void PrintRFExpectation(World& world,
+                          response_space f,
+                          response_space g,
+                          std::string fname,
+                          std::string gname);
   void PrintResponseVectorNorms(World& world, response_space f, std::string fname);
   // Returns the ground state fock operator applied to response functions
   void xy_from_XVector(response_space& x, response_space& y, std::vector<X_vector>& Xvectors);
@@ -253,7 +266,11 @@ class TDDFT {
   void vector_stats_new(const Tensor<double> v, double& rms, double& maxabsval) const;
 
   double do_step_restriction(World& world, const vecfuncT& x, vecfuncT& x_new, std::string spin) const;
-  double do_step_restriction(World& world, const vecfuncT& x, vecfuncT& x_new, std::string spin, double maxrotn) const;
+  double do_step_restriction(World& world,
+                             const vecfuncT& x,
+                             vecfuncT& x_new,
+                             std::string spin,
+                             double maxrotn) const;
 
   double do_step_restriction(World& world,
                              const vecfuncT& x,
@@ -294,15 +311,17 @@ class TDDFT {
                                                                                       double lo,
                                                                                       double thresh);
 
-  std::vector<poperatorT> make_bsh_operators_response(World& world,
-                                                      double& shift,
-                                                      double& omega) const;  // Returns a vector of BSH operators
-  std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> CreateBSHOperatorPropertyVector(World& world,
-                                                                                                 Tensor<double>& shift,
-                                                                                                 Tensor<double>& ground,
-                                                                                                 Tensor<double>& omega,
-                                                                                                 double lo,
-                                                                                                 double thresh);
+  std::vector<poperatorT> make_bsh_operators_response(
+      World& world,
+      double& shift,
+      double& omega) const;  // Returns a vector of BSH operators
+  std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> CreateBSHOperatorPropertyVector(
+      World& world,
+      Tensor<double>& shift,
+      Tensor<double>& ground,
+      Tensor<double>& omega,
+      double lo,
+      double thresh);
   // here omega and shifts are doubles
   std::vector<std::shared_ptr<real_convolution_3d>> CreateBSHOperatorPropertyVector(World& world,
                                                                                     double& shift,
@@ -567,7 +586,9 @@ class TDDFT {
                    size_t& m);
   // Creates the XCOperator<double,3>  object and initializes it with correct
   // parameters
-  XCOperator<double, 3> create_XCOperator(World& world, std::vector<real_function_3d> orbitals, std::string xc);
+  XCOperator<double, 3> create_XCOperator(World& world,
+                                          std::vector<real_function_3d> orbitals,
+                                          std::string xc);
 
   // Uses an XCOperator<double,3>  to construct v_xc for the ground state
   // density Returns d^2/d rho^2 E_xc[rho]
@@ -640,7 +661,11 @@ class TDDFT {
   void check_k(World& world, double thresh, size_t k);
 
   // Creates random guess functions semi-intelligently(?)
-  X_space create_random_guess(World& world, size_t m, size_t n, vector_real_function_3d& grounds, Molecule& molecule);
+  X_space create_random_guess(World& world,
+                              size_t m,
+                              size_t n,
+                              vector_real_function_3d& grounds,
+                              Molecule& molecule);
 
   // Creates random guess functions semi-intelligently(?)
   std::vector<real_function_3d> create_random_guess(World& world,
@@ -721,6 +746,20 @@ class TDDFT {
 
   vecfuncT project_ao_basis_only(World& world, const AtomicBasisSet& aobasis, const Molecule& molecule);
   void analyze_vectors(World& world, const vecfuncT& x, std::string response_state);
+  void output_json() const;
+  void initialize_excited_json();
+  static void excited_to_json(json& json,
+                              size_t iter,
+                              const Tensor<double>& tensor,
+                              const Tensor<double>& tensor1,
+                              const Tensor<double>& tensor2,
+                              const Tensor<double>& tensor3);
+  static void frequency_to_json(json& json,
+                                size_t iter,
+                                const Tensor<double>& tensor,
+                                const Tensor<double>& tensor1,
+                                const Tensor<double>& tensor2,
+                                const Tensor<double>& tensor3);
 };
 #endif  // SRC_APPS_MOLRESPONSE_TDDFT_H_
 

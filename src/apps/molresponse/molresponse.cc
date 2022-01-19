@@ -41,8 +41,7 @@
 #include "TDDFT.h"  // All response functions/objects enter through this
 #include "molresponse/density.h"
 
-#if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && \
-    defined(HAVE_UNISTD_H)
+#if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
 
 #include <sys/stat.h>
 #include <unistd.h>
@@ -66,27 +65,15 @@ static inline int file_exists(const char *inpname) {
 class Input_Error : public MadnessException {
  public:
   explicit Input_Error()
-      : MadnessException("input file not found",
-                         nullptr,
-                         25,
-                         __LINE__,
-                         __FUNCTION__,
-                         __FILE__) {}
+      : MadnessException("input file not found", nullptr, 25, __LINE__, __FUNCTION__, __FILE__) {}
 };
 class Response_Input_Error : public MadnessException {
  public:
   explicit Response_Input_Error()
-      : MadnessException("Response input not correct",
-                         nullptr,
-                         25,
-                         __LINE__,
-                         __FUNCTION__,
-                         __FILE__) {}
+      : MadnessException("Response input not correct", nullptr, 25, __LINE__, __FUNCTION__, __FILE__) {}
 };
 
-density_vector read_and_create_density(World &world,
-                                       const char *inpname,
-                                       std::string tag) {
+density_vector read_and_create_density(World &world, const char *inpname, std::string tag) {
   GroundParameters g_params;
   ResponseParameters r_params;
   if (world.rank() == 0) {
@@ -142,6 +129,8 @@ int main(int argc, char **argv) {
         calc.molecule.print();
         print("\n");
         calc.r_params.print(tag);
+        // put the response parameters in a j_molrespone json object
+        calc.r_params.to_json(calc.j_molresponse);
       }
       molresponse::end_timer(world, "initialize");
       // Come up with an initial OK data map
@@ -157,9 +146,10 @@ int main(int argc, char **argv) {
       } else if (calc.r_params.first_order()) {
         calc.solve_response_states(world);
       } else if (calc.r_params.second_order()) {
-      } else
+      } else {
         throw Response_Input_Error{};
-
+      }
+      calc.output_json();
       if (calc.r_params.dipole()) {  //
         print("Computing Alpha");
         Tensor<double> alpha = calc.polarizability();

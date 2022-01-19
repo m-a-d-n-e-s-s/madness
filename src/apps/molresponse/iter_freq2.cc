@@ -48,8 +48,7 @@ void TDDFT::iterate_freq2(World& world) {
 
   real_function_3d v_xc;   // For TDDFT
   bool converged = false;  // Converged flag
-  const double dconv =
-      std::max(FunctionDefaults<3>::get_thresh(), r_params.dconv());
+  const double dconv = std::max(FunctionDefaults<3>::get_thresh(), r_params.dconv());
   // m residuals for x and y
   Tensor<double> bsh_residualsX(m);
   Tensor<double> bsh_residualsY(m);
@@ -58,8 +57,7 @@ void TDDFT::iterate_freq2(World& world) {
   vecfuncT rho_omega_old(m);
 
   // initialize DFT XC functional operator
-  XCOperator<double, 3> xc =
-      create_XCOperator(world, ground_orbitals, r_params.xc());
+  XCOperator<double, 3> xc = create_XCOperator(world, ground_orbitals, r_params.xc());
 
   // create X space residuals
   X_space residuals(world, m, n);
@@ -78,8 +76,7 @@ void TDDFT::iterate_freq2(World& world) {
   NonLinearXsolver kain_x_space;
   for (size_t b = 0; b < m; b++) {
     kain_x_space.push_back(
-        XNonlinearSolver<X_vector, double, X_space_allocator>(
-            X_space_allocator(world, n), true));
+        XNonlinearSolver<X_vector, double, X_space_allocator>(X_space_allocator(world, n), true));
   }
   for (size_t b = 0; b < m; b++) {
     if (r_params.kain()) kain_x_space[b].set_maxsub(r_params.maxsub());
@@ -99,8 +96,7 @@ void TDDFT::iterate_freq2(World& world) {
     print("*** we are shifting just so you know!!!");
     x_shifts = -.05 - (omega_n + ground_energies[n - 1]);
   }
-  std::vector<poperatorT> bsh_x_ops =
-      make_bsh_operators_response(world, x_shifts, omega_n);
+  std::vector<poperatorT> bsh_x_ops = make_bsh_operators_response(world, x_shifts, omega_n);
   std::vector<poperatorT> bsh_y_ops;
 
   bool static_res = (omega_n == 0.0);
@@ -114,22 +110,13 @@ void TDDFT::iterate_freq2(World& world) {
 
   Tensor<double> maxrotn(m);
   maxrotn.fill(dconv * 100);
-  json j_frequency = {};
-  j_frequency["num_states"] = m;
-  j_frequency["num_orbitals"] = n;
-  j_frequency["omega"] = omega_n;
-  j_frequency["iter_data"] = json{};
 
   for (iter = 0; iter <= r_params.maxiter(); ++iter) {
     // Basic output
     if (r_params.print_level() >= 1) {
       molresponse::start_timer(world);
-      if (world.rank() == 0)
-        printf("\n   Iteration %d at time %.1fs\n",
-               static_cast<int>(iter),
-               wall_time());
-      if (world.rank() == 0)
-        print("-------------------------------------------");
+      if (world.rank() == 0) printf("\n   Iteration %d at time %.1fs\n", static_cast<int>(iter), wall_time());
+      if (world.rank() == 0) print("-------------------------------------------");
     }
     if (r_params.print_level() >= 1) {
       if (world.rank() == 0) {
@@ -180,8 +167,7 @@ void TDDFT::iterate_freq2(World& world) {
       double d_conv = dconv * std::max(size_t(5), molecule.natom());
       // Test convergence and set to true
       if ((d_residual < d_conv) and
-          ((std::max(bsh_residualsX.absmax(), bsh_residualsY.absmax()) <
-            d_conv * 5.0) or
+          ((std::max(bsh_residualsX.absmax(), bsh_residualsY.absmax()) < d_conv * 5.0) or
            r_params.get<bool>("conv_only_dens"))) {
         converged = true;
       }
@@ -195,27 +181,17 @@ void TDDFT::iterate_freq2(World& world) {
         if (r_params.save()) {
           molresponse::start_timer(world);
           save(world, r_params.save_file());
-          if (r_params.print_level() >= 1)
-            molresponse::end_timer(world, "Save:");
+          if (r_params.print_level() >= 1) molresponse::end_timer(world, "Save:");
         }
         // Basic output
-        if (r_params.print_level() >= 1)
-          molresponse::end_timer(world, " This iteration:");
+        if (r_params.print_level() >= 1) molresponse::end_timer(world, " This iteration:");
         // plot orbitals
         if (r_params.plot_all_orbitals()) {
-          PlotGroundandResponseOrbitals(
-              world, iter, Chi.X, Chi.Y, r_params, g_params);
+          PlotGroundandResponseOrbitals(world, iter, Chi.X, Chi.Y, r_params, g_params);
         }
         rho0 = make_ground_density(world, ground_orbitals);
         if (r_params.plot()) {
-          do_vtk_plots(world,
-                       200,
-                       r_params.L(),
-                       molecule,
-                       rho0,
-                       rho_omega,
-                       ground_orbitals,
-                       Chi);
+          do_vtk_plots(world, 200, r_params.L(), molecule, rho0, rho_omega, ground_orbitals, Chi);
         }
         break;
       }
@@ -237,35 +213,29 @@ void TDDFT::iterate_freq2(World& world) {
                             iter,
                             maxrotn);
 
+    Tensor<double> polar = -2 * inner(Chi, PQ);
 
-  Tensor<double> polar = -2 * inner(Chi, PQ);
+    frequency_to_json(j_molresponse, iter, bsh_residualsX, bsh_residualsY, density_residuals, polar);
 
-  j_frequency["iter_data"].push_back(freq_iteration_to_json(
-      iter, bsh_residualsX, bsh_residualsY, density_residuals, polar));
+    if (world.rank() == 0) print("\n");
+    if (world.rank() == 0) print("   Finished Response Calculation ");
+    if (world.rank() == 0) print("   ------------------------");
+    if (world.rank() == 0) print("\n");
 
+    // Did we converge?
+    if (iter == r_params.maxiter() && not converged) {
+      if (world.rank() == 0) print("   Failed to converge. Reason:");
+      if (world.rank() == 0) print("\n  ***  Ran out of iterations  ***\n");
+      if (world.rank() == 0) print("    Running analysis on current values.\n");
+    }
+    if (world.rank() == 0) {
+      print(" Final energy residuals X:");
+      print(bsh_residualsX);
+      print(" Final energy residuals Y:");
+      print(bsh_residualsY);
+      print(" Final density residuals:");
+      print(density_residuals);
+      compute_and_print_polarizability(world, Chi, PQ, "Converged");
+    }
   }
-
-  if (world.rank() == 0) print("\n");
-  if (world.rank() == 0) print("   Finished Response Calculation ");
-  if (world.rank() == 0) print("   ------------------------");
-  if (world.rank() == 0) print("\n");
-
-  // Did we converge?
-  if (iter == r_params.maxiter() && not converged) {
-    if (world.rank() == 0) print("   Failed to converge. Reason:");
-    if (world.rank() == 0) print("\n  ***  Ran out of iterations  ***\n");
-    if (world.rank() == 0) print("    Running analysis on current values.\n");
-  }
-  if (world.rank() == 0) {
-    print(" Final energy residuals X:");
-    print(bsh_residualsX);
-    print(" Final energy residuals Y:");
-    print(bsh_residualsY);
-    print(" Final density residuals:");
-    print(density_residuals);
-    compute_and_print_polarizability(world, Chi, PQ, "Converged");
-  }
-  std::ofstream ofs;  // open json file in append mode
-  ofs.open("j_frequency.json");
-  ofs << j_frequency;
 }

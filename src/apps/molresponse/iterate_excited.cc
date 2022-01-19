@@ -100,10 +100,6 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
   Tensor<double> old_A;
   Tensor<double> A;
   Tensor<double> old_S;
-  json j_excited = {};
-  j_excited["num_states"]=m;
-  j_excited["num_orbitals"]=n;
-  j_excited["iter_data"]=json{};
 
   // Now to iterate
   for (iter = 0; iter < r_params.maxiter(); ++iter) {
@@ -230,8 +226,8 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
                            old_A,
                            iter,
                            maxrotn);
-    j_excited["iter_data"].push_back(iteration_to_json(
-        iter, bsh_residualsX, bsh_residualsY, density_residuals, omega));
+
+    excited_to_json(j_molresponse,iter,bsh_residualsX,bsh_residualsY,density_residuals,omega);
 
     // Basic output
     if (r_params.print_level() >= 1)
@@ -294,7 +290,6 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
   // append the json to the file
   std::ofstream ofs; // open json file in append mode
   ofs.open("j_excited.json");
-  ofs << j_excited;
 }
 
 void TDDFT::analysis(World& world, X_space& Chi) {

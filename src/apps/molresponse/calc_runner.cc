@@ -105,8 +105,7 @@ void TDDFT::set_protocol(World& world, double thresh) {
   rho0 = make_ground_density(world, ground_orbitals);
 
   // Create the masking function
-  mask = real_function_3d(
-      real_factory_3d(world).f(mask3).initial_level(4).norefine());
+  mask = real_function_3d(real_factory_3d(world).f(mask3).initial_level(4).norefine());
   // dconv defaults to thresh*100, overrirde by providing dconv in input
   // file
   if (r_params.dconv_set() == false) {
@@ -146,8 +145,7 @@ void TDDFT::check_k(World& world, double thresh, size_t k) {
 
     // Project each ground state to correct k
     for (unsigned int i = 0; i < ground_orbitals.size(); i++)
-      ground_orbitals[i] = project(
-          ground_orbitals[i], FunctionDefaults<3>::get_k(), thresh, false);
+      ground_orbitals[i] = project(ground_orbitals[i], FunctionDefaults<3>::get_k(), thresh, false);
     world.gop.fence();
 
     // Clean up a bit
@@ -159,8 +157,7 @@ void TDDFT::check_k(World& world, double thresh, size_t k) {
 
   // Recalculate ground state hamiltonian here
   if (redo or !hamiltonian.has_data()) {
-    hamiltonian =
-        CreateGroundHamiltonian(world, ground_orbitals, r_params.print_level());
+    hamiltonian = CreateGroundHamiltonian(world, ground_orbitals, r_params.print_level());
   }
 
   // If we stored the potential, check that too
@@ -170,19 +167,15 @@ void TDDFT::check_k(World& world, double thresh, size_t k) {
       for (unsigned int i = 0; i < stored_potential.size(); i++) {
         reconstruct(world, stored_potential[i]);
         for (unsigned int j = 0; j < stored_potential[0].size(); j++)
-          stored_potential[i][j] = project(stored_potential[i][j],
-                                           FunctionDefaults<3>::get_k(),
-                                           thresh,
-                                           false);
+          stored_potential[i][j] =
+              project(stored_potential[i][j], FunctionDefaults<3>::get_k(), thresh, false);
         world.gop.fence();
       }
     }
     if (FunctionDefaults<3>::get_k() != stored_v_coul.k())
-      stored_v_coul =
-          project(stored_v_coul, FunctionDefaults<3>::get_k(), thresh, false);
+      stored_v_coul = project(stored_v_coul, FunctionDefaults<3>::get_k(), thresh, false);
     if (FunctionDefaults<3>::get_k() != stored_v_nuc.k())
-      stored_v_nuc =
-          project(stored_v_nuc, FunctionDefaults<3>::get_k(), thresh, false);
+      stored_v_nuc = project(stored_v_nuc, FunctionDefaults<3>::get_k(), thresh, false);
   }
 
   // Verify response functions have correct k
@@ -192,8 +185,7 @@ void TDDFT::check_k(World& world, double thresh, size_t k) {
       for (unsigned int i = 0; i < Chi.X.size(); i++) {
         reconstruct(world, Chi.X[i]);
         for (unsigned int j = 0; j < Chi.X[0].size(); j++)
-          Chi.X[i][j] =
-              project(Chi.X[i][j], FunctionDefaults<3>::get_k(), thresh, false);
+          Chi.X[i][j] = project(Chi.X[i][j], FunctionDefaults<3>::get_k(), thresh, false);
         world.gop.fence();
       }
       Chi.X.truncate_rf();
@@ -205,8 +197,7 @@ void TDDFT::check_k(World& world, double thresh, size_t k) {
       for (unsigned int i = 0; i < Chi.Y.size(); i++) {
         reconstruct(world, Chi.Y[i]);
         for (unsigned int j = 0; j < Chi.Y[0].size(); j++)
-          Chi.Y[i][j] =
-              project(Chi.Y[i][j], FunctionDefaults<3>::get_k(), thresh, false);
+          Chi.Y[i][j] = project(Chi.Y[i][j], FunctionDefaults<3>::get_k(), thresh, false);
         world.gop.fence();
       }
       Chi.Y.truncate_rf();
@@ -219,8 +210,7 @@ void TDDFT::check_k(World& world, double thresh, size_t k) {
       for (unsigned int i = 0; i < Chi.X.size(); i++) {
         reconstruct(world, Chi.X[i]);
         for (unsigned int j = 0; j < Chi.X[0].size(); j++)
-          Chi.X[i][j] =
-              project(Chi.X[i][j], FunctionDefaults<3>::get_k(), thresh, false);
+          Chi.X[i][j] = project(Chi.X[i][j], FunctionDefaults<3>::get_k(), thresh, false);
         world.gop.fence();
       }
       Chi.X.truncate_rf();
@@ -232,8 +222,7 @@ void TDDFT::check_k(World& world, double thresh, size_t k) {
       for (unsigned int i = 0; i < Chi.Y.size(); i++) {
         reconstruct(world, Chi.Y[i]);
         for (unsigned int j = 0; j < Chi.Y[0].size(); j++)
-          Chi.Y[i][j] =
-              project(Chi.Y[i][j], FunctionDefaults<3>::get_k(), thresh, false);
+          Chi.Y[i][j] = project(Chi.Y[i][j], FunctionDefaults<3>::get_k(), thresh, false);
         world.gop.fence();
       }
       Chi.Y.truncate_rf();
@@ -253,8 +242,7 @@ void TDDFT::check_k(World& world, double thresh, size_t k) {
       for (unsigned int i = 0; i < Chi.X.size(); i++) {
         reconstruct(world, PQ.X[i]);
         for (unsigned int j = 0; j < PQ.X[0].size(); j++)
-          PQ.X[i][j] =
-              project(PQ.X[i][j], FunctionDefaults<3>::get_k(), thresh, false);
+          PQ.X[i][j] = project(PQ.X[i][j], FunctionDefaults<3>::get_k(), thresh, false);
         world.gop.fence();
       }
       Chi.X.truncate_rf();
@@ -266,8 +254,7 @@ void TDDFT::check_k(World& world, double thresh, size_t k) {
       for (unsigned int i = 0; i < PQ.Y.size(); i++) {
         reconstruct(world, PQ.Y[i]);
         for (unsigned int j = 0; j < PQ.Y[0].size(); j++)
-          PQ.Y[i][j] =
-              project(PQ.Y[i][j], FunctionDefaults<3>::get_k(), thresh, false);
+          PQ.Y[i][j] = project(PQ.Y[i][j], FunctionDefaults<3>::get_k(), thresh, false);
         world.gop.fence();
       }
       Chi.Y.truncate_rf();
@@ -278,15 +265,13 @@ void TDDFT::check_k(World& world, double thresh, size_t k) {
 }
 
 // Creates random guess functions semi-intelligently(?)
-X_space TDDFT::create_random_guess(
-    World& world,
-    size_t m,                                // m response states
-    size_t n,                                // n ground states
-    std::vector<real_function_3d>& grounds,  // guess should have size n
-    Molecule& molecule) {
+X_space TDDFT::create_random_guess(World& world,
+                                   size_t m,                                // m response states
+                                   size_t n,                                // n ground states
+                                   std::vector<real_function_3d>& grounds,  // guess should have size n
+                                   Molecule& molecule) {
   // Basic output
-  if (world.rank() == 0)
-    print("   Using a random guess for initial response functions.\n");
+  if (world.rank() == 0) print("   Using a random guess for initial response functions.\n");
 
   // Create empty container and add in randomness
   X_space f(world, m, n);
@@ -296,9 +281,8 @@ X_space TDDFT::create_random_guess(
   // randomness is localized around the atoms
   real_function_3d gaus = real_factory_3d(world);
   for (auto atom : molecule.get_atoms()) {
-    real_function_3d x =
-        real_factory_3d(world).functor(real_functor_3d(new GaussianGuess<3>(
-            atom.get_coords(), 0.01, std::vector<int>{0, 0, 0})));
+    real_function_3d x = real_factory_3d(world).functor(
+        real_functor_3d(new GaussianGuess<3>(atom.get_coords(), 0.01, std::vector<int>{0, 0, 0})));
     gaus = gaus + x;
   }
   f = f * gaus;
@@ -314,27 +298,23 @@ X_space TDDFT::create_random_guess(
 }
 
 // Creates random guess functions semi-intelligently(?)
-std::vector<real_function_3d> TDDFT::create_random_guess(
-    World& world,
-    size_t m,
-    std::vector<real_function_3d>& grounds,
-    Molecule& molecule) {
+std::vector<real_function_3d> TDDFT::create_random_guess(World& world,
+                                                         size_t m,
+                                                         std::vector<real_function_3d>& grounds,
+                                                         Molecule& molecule) {
   // Basic output
-  if (world.rank() == 0)
-    print("   Using a random guess for initial response functions.");
+  if (world.rank() == 0) print("   Using a random guess for initial response functions.");
 
   // Create empty container and add in randomness
-  std::vector<real_function_3d> f =
-      zero_functions_compressed<double, 3>(world, m);
+  std::vector<real_function_3d> f = zero_functions_compressed<double, 3>(world, m);
   // create vector of m functions:w
 
   // Create and apply a centered gaussian on each atom so that the
   // randomness is localized around the atoms
   real_function_3d gaus = real_factory_3d(world);
   for (auto atom : molecule.get_atoms()) {
-    real_function_3d x =
-        real_factory_3d(world).functor(real_functor_3d(new GaussianGuess<3>(
-            atom.get_coords(), 0.01, std::vector<int>{0, 0, 0})));
+    real_function_3d x = real_factory_3d(world).functor(
+        real_functor_3d(new GaussianGuess<3>(atom.get_coords(), 0.01, std::vector<int>{0, 0, 0})));
     gaus = gaus + x;
   }
 
@@ -371,9 +351,7 @@ std::vector<real_function_3d> TDDFT::create_random_guess(
 // Creates an initial guess function from nwchem output files
 X_space TDDFT::create_nwchem_guess(World& world, size_t m) {
   // Basic output
-  if (world.rank() == 0)
-    print("   Creating an initial guess from NWChem file",
-          r_params.nwchem_dir());
+  if (world.rank() == 0) print("   Creating an initial guess from NWChem file", r_params.nwchem_dir());
 
   // Create empty containers
   response_space f;
@@ -392,13 +370,11 @@ X_space TDDFT::create_nwchem_guess(World& world, size_t m) {
 
   // Read in the molecular orbital coefficients, energies,
   // and occupancies
-  nwchem.read(slymer::Properties::MOs | slymer::Properties::Energies |
-              slymer::Properties::Occupancies);
+  nwchem.read(slymer::Properties::MOs | slymer::Properties::Energies | slymer::Properties::Occupancies);
 
   // Create the nwchem orbitals as madness functions
   std::vector<real_function_3d> temp1;
-  for (auto basis :
-       slymer::cast_basis<slymer::GaussianFunction>(nwchem.basis_set)) {
+  for (auto basis : slymer::cast_basis<slymer::GaussianFunction>(nwchem.basis_set)) {
     // Get the center of gaussian as its special point
     std::vector<coord_3d> centers;
     coord_3d r;
@@ -408,13 +384,12 @@ X_space TDDFT::create_nwchem_guess(World& world, size_t m) {
     centers.push_back(r);
 
     // Now make the function
-    temp1.push_back(FunctionFactory<double, 3>(world).functor(
-        std::shared_ptr<FunctionFunctorInterface<double, 3>>(
+    temp1.push_back(
+        FunctionFactory<double, 3>(world).functor(std::shared_ptr<FunctionFunctorInterface<double, 3>>(
             new slymer::Gaussian_Functor(basis.get(), centers))));
 
     // Let user know something is going on
-    if (temp1.size() % 10 == 0 and world.rank() == 0)
-      print("Created", temp1.size(), "functions.");
+    if (temp1.size() % 10 == 0 and world.rank() == 0) print("Created", temp1.size(), "functions.");
   }
   if (world.rank() == 0) print("Finished creating", temp1.size(), "functions.");
 
@@ -422,8 +397,8 @@ X_space TDDFT::create_nwchem_guess(World& world, size_t m) {
   madness::normalize(world, temp1);
 
   // Transform ao's now
-  std::vector<real_function_3d> temp = madness::transform(
-      world, temp1, nwchem.MOs, FunctionDefaults<3>::get_thresh(), true);
+  std::vector<real_function_3d> temp =
+      madness::transform(world, temp1, nwchem.MOs, FunctionDefaults<3>::get_thresh(), true);
 
   // Now save the unoccupied orbitals
   std::vector<real_function_3d> temp2;
@@ -451,8 +426,7 @@ X_space TDDFT::create_nwchem_guess(World& world, size_t m) {
     // See if we've made enough functions
     if (f.size() >= m) break;
   }
-  if (world.rank() == 0)
-    print("Created", f.size(), "guess functions from provided NWChem data.");
+  if (world.rank() == 0) print("Created", f.size(), "guess functions from provided NWChem data.");
 
   // If not enough functions have been made, start adding symmetry adapted
   // functions
@@ -523,10 +497,8 @@ void TDDFT::create_all_potentials(World& world,
     if (world.rank() == 0) print(temp);
 
     // Exchange or VXC
-    if (r_params.xc() == "hf" and world.rank() == 0)
-      printf("   Exchange Deriv matrix:\n");
-    if (r_params.xc() != "hf" and world.rank() == 0)
-      printf("   Negative of XC Deriv matrix:\n");
+    if (r_params.xc() == "hf" and world.rank() == 0) printf("   Exchange Deriv matrix:\n");
+    if (r_params.xc() != "hf" and world.rank() == 0) printf("   Negative of XC Deriv matrix:\n");
     temp = expectation(world, x, gammaK);
     if (world.rank() == 0) print(temp);
 
@@ -541,10 +513,8 @@ void TDDFT::create_all_potentials(World& world,
     if (world.rank() == 0) print(temp);
 
     // Exchange or VXC (ground)
-    if (r_params.xc() == "hf" and world.rank() == 0)
-      printf("   Exchange potential matrix:\n");
-    if (r_params.xc() != "hf" and world.rank() == 0)
-      printf("   XC potential matrix:\n");
+    if (r_params.xc() == "hf" and world.rank() == 0) printf("   Exchange potential matrix:\n");
+    if (r_params.xc() != "hf" and world.rank() == 0) printf("   XC potential matrix:\n");
     temp = expectation(world, x, groundK);
     if (world.rank() == 0) print(temp);
     if (world.rank() == 0) printf("   Total Potential Energy matrix:\n");
@@ -588,11 +558,13 @@ void TDDFT::solve_excited_states(World& world) {
     print("   ------------------------");
   }
   // Here print the relevant parameters
-
   // Ready to iterate!
   for (unsigned int proto = 0; proto < r_params.protocol().size(); proto++) {
     // Set defaults inside here
     set_protocol<3>(world, r_params.protocol()[proto]);
+    j_molresponse["protocol_data"].push_back({});
+    j_molresponse["protocol_data"][proto]["proto"] = r_params.protocol()[proto];
+    j_molresponse["protocol_data"][proto]["iter_data"]={};
 
     // Do something to ensure all functions have same k value
     check_k(world, r_params.protocol()[proto], FunctionDefaults<3>::get_k());
@@ -603,8 +575,7 @@ void TDDFT::solve_excited_states(World& world) {
           print("   Restarting from file:", r_params.restart_file());
         }
         load(world, r_params.restart_file());
-        check_k(
-            world, r_params.protocol()[proto], FunctionDefaults<3>::get_k());
+        check_k(world, r_params.protocol()[proto], FunctionDefaults<3>::get_k());
       } else {
         X_space trial(world, 2 * r_params.n_states(), r_params.num_orbitals());
         // Create trial functions by...
@@ -613,23 +584,17 @@ void TDDFT::solve_excited_states(World& world) {
         if (world.rank() == 0) print("\n   Creating trial functions.\n");
         if (r_params.random()) {
           // Random guess
-          trial = create_random_guess(world,
-                                      2 * r_params.n_states(),
-                                      r_params.num_orbitals(),
-                                      ground_orbitals,
-                                      molecule);
+          trial = create_random_guess(
+              world, 2 * r_params.n_states(), r_params.num_orbitals(), ground_orbitals, molecule);
         } else if (r_params.nwchem()) {
           // Virtual orbitals from NWChem
           trial = create_nwchem_guess(world, 2 * r_params.n_states());
         } else if (r_params.guess_xyz()) {
           // Use a symmetry adapted operator on ground state functions
-          trial = create_trial_functions2(
-              world, ground_orbitals, r_params.num_orbitals());
+          trial = create_trial_functions2(world, ground_orbitals, r_params.num_orbitals());
         } else {
-          trial = create_trial_functions(world,
-                                         2 * r_params.n_states(),
-                                         ground_orbitals,
-                                         r_params.num_orbitals());
+          trial = create_trial_functions(
+              world, 2 * r_params.n_states(), ground_orbitals, r_params.num_orbitals());
         }
 
         // Load balance
@@ -650,14 +615,12 @@ void TDDFT::solve_excited_states(World& world) {
           }
           FunctionDefaults<3>::redistribute(world, lb.load_balance(2));
 
-          if (r_params.num_orbitals() >= 1)
-            molresponse::end_timer(world, "Load balancing:");
+          if (r_params.num_orbitals() >= 1) molresponse::end_timer(world, "Load balancing:");
         }
 
         // Project out groundstate from guesses
         QProjector<double, 3> projector(world, ground_orbitals);
-        for (unsigned int i = 0; i < trial.X.size(); i++)
-          trial.X[i] = projector(trial.X[i]);
+        for (unsigned int i = 0; i < trial.X.size(); i++) trial.X[i] = projector(trial.X[i]);
 
         // Ensure orthogonal guesses
         for (size_t i = 0; i < 2; i++) {
@@ -687,13 +650,8 @@ void TDDFT::solve_excited_states(World& world) {
         }
         // Chi = X_space(world, r_params.n_states(), r_params.num_orbitals());
         // Select lowest energy functions from guess
-        Chi.X = select_functions(world,
-                                 trial.X,
-                                 omega,
-                                 r_params.n_states(),
-                                 r_params.num_orbitals());
-        Chi.Y =
-            response_space(world, r_params.n_states(), r_params.num_orbitals());
+        Chi.X = select_functions(world, trial.X, omega, r_params.n_states(), r_params.num_orbitals());
+        Chi.Y = response_space(world, r_params.n_states(), r_params.num_orbitals());
 
         trial.clear();
         // Initial guess for y are zero functions
@@ -708,8 +666,7 @@ void TDDFT::solve_excited_states(World& world) {
   // Plot the response function if desired
   if (r_params.plot()) {
     // Need to get densities first
-    std::vector<real_function_3d> densities =
-        transition_density(world, ground_orbitals, Chi.X, Chi.Y);
+    std::vector<real_function_3d> densities = transition_density(world, ground_orbitals, Chi.X, Chi.Y);
 
     // For the instance where we don't plot all the orbitals
     std::vector<real_function_3d> plot_densities;
@@ -784,6 +741,9 @@ void TDDFT::solve_response_states(World& world) {
 
     check_k(world, r_params.protocol()[proto], FunctionDefaults<3>::get_k());
     // Do something to ensure all functions have same k value
+    j_molresponse["protocol_data"].push_back({});
+    j_molresponse["protocol_data"][proto]["proto"] = r_params.protocol()[proto];
+    j_molresponse["protocol_data"][proto]["iter_data"]={};
 
     if (r_params.dipole()) {
       if (world.rank() == 0) print("creating dipole property operator");
@@ -795,11 +755,9 @@ void TDDFT::solve_response_states(World& world) {
     }
     if (proto == 0) {
       if (r_params.restart()) {
-        if (world.rank() == 0)
-          print("   Initial guess from file:", r_params.restart_file());
+        if (world.rank() == 0) print("   Initial guess from file:", r_params.restart_file());
         load(world, r_params.restart_file());
-        check_k(
-            world, r_params.protocol()[proto], FunctionDefaults<3>::get_k());
+        check_k(world, r_params.protocol()[proto], FunctionDefaults<3>::get_k());
 
         if (r_params.dipole()) {
           // set states
@@ -871,8 +829,7 @@ void TDDFT::solve_response_states(World& world) {
   // Plot the response function if desired
   if (r_params.plot()) {
     // Need to get densities first
-    std::vector<real_function_3d> densities =
-        transition_density(world, ground_orbitals, Chi.X, Chi.Y);
+    std::vector<real_function_3d> densities = transition_density(world, ground_orbitals, Chi.X, Chi.Y);
 
     // For the instance where we don't plot all the orbitals
     std::vector<real_function_3d> plot_densities;
