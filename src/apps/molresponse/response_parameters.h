@@ -17,6 +17,7 @@
 #include <numeric>
 #include <string>
 #include <vector>
+#include "external_headers/tensor_json.hpp"
 namespace madness {
 
 struct ResponseParameters : public QCCalculationParametersBase {
@@ -25,7 +26,7 @@ struct ResponseParameters : public QCCalculationParametersBase {
   ResponseParameters() {
     initialize<std::string>("archive", "restartdata", "file to read ground parameters from");
     initialize<bool>("nwchem", false, "Using nwchem files for intelligent starting guess");
-    initialize<std::string>("nwchem_dir", "", "Root name of nwchem files for intelligent starting guess");
+    initialize<std::string>("nwchem_dir", "none", "Root name of nwchem files for intelligent starting guess");
     initialize<size_t>("states", 1, "Number of excited states requested");
     initialize<int>("print_level", 3, "0: no output; 1: final energy; 2: iterations; 3: timings; 10: debug");
     initialize<bool>("tda", false, "turn on Tam-Danchof approximation (excitations energy");
@@ -58,7 +59,7 @@ struct ResponseParameters : public QCCalculationParametersBase {
     initialize<bool>("plot_initial", false, "Flag to plot the ground state orbitals read in from archivie");
     // Restart Parameters
     initialize<bool>("restart", false, "Flag to restart scf loop from file");
-    initialize<std::string>("restart_file", "", "file to read ground parameters from");
+    initialize<std::string>("restart_file", "none", "file to read ground parameters from");
     // kain
     initialize<bool>("kain", false, "Turn on Krylov Accelarated Inexact Newton Solver");
     initialize<double>("maxrotn", 1.0, "Max orbital rotation per iteration");
@@ -66,13 +67,13 @@ struct ResponseParameters : public QCCalculationParametersBase {
     initialize<size_t>("maxsub", 10, "size of iterative subspace ... set to 0 or 1 to disable");
     initialize<std::string>("xc", "hf", "XC input line");
     initialize<bool>("save", false, "if true save orbitals to disk");
-    initialize<std::string>("save_file", "", "File name to save orbitals for restart");
+    initialize<std::string>("save_file", "none", "File name to save orbitals for restart");
     initialize<bool>("save_density", false, "Flag to save density at each iteration");
     initialize<int>("vnucextra", 2, "load balance parameter for nuclear pot");
     initialize<int>("loadbalparts", 2, "??");
-    initialize<std::string>("save_density_file", "", "File name to save density for restart");
+    initialize<std::string>("save_density_file", "none", "File name to save density for restart");
     initialize<bool>("load_density", false, "Flag to load density for restart");
-    initialize<std::string>("load_density_file", "", "File name to load density for restart");
+    initialize<std::string>("load_density_file", "none", "File name to load density for restart");
     initialize<size_t>("guess_max_iter", 5, "maximum number of guess iterations");
     // properties
     initialize<std::string>("calc_type", "full", "full,static,tda");
@@ -84,7 +85,7 @@ struct ResponseParameters : public QCCalculationParametersBase {
     initialize<bool>("nuclear", false, "Flag to turn on frequency dependent property calc");
     initialize<bool>("order2", false, "Flag to turn on frequency dependent property calc");
     initialize<bool>("order3", false, "Flag to turn on frequency dependent property calc");
-    initialize<std::string>("d2_types", "", "possible values are: dd nd dn nn");
+    initialize<std::string>("d2_types", "none", "possible values are: dd nd dn nn");
     initialize<double>("omega", 0.0, "Incident energy for dynamic response");
     initialize<double>("l", 20, "user coordinates box size");
     // ground-state stuff
@@ -242,7 +243,10 @@ struct ResponseParameters : public QCCalculationParametersBase {
   double econv() const { return get<double>("econv"); }
   bool first_run() const { return get<bool>("first_run"); }
   std::string local() const { return get<std::string>("local"); }
-};  // namespace madness
+  void to_json( json& j);
+};
+
+// namespace madness
 }  // namespace madness
 
 #endif  // SRC_APPS_MOLRESPONSE_RESPONSE_PARAMETERS_H_
