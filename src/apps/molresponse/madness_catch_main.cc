@@ -1,10 +1,11 @@
+#define CATCH_CONFIG_RUNNER
+#include "apps/external_headers/catch.hpp"
 #include <chem/SCF.h>
 #include <madness/world/worldmem.h>
 
 #include "TDDFT.h"  // All response functions/objects enter through this
 #include "molresponse/density.h"
-#define CATCH_CONFIG_RUNNER
-#include "apps/external_headers/catch.hpp"
+
 
 int main(int argc, char *argv[]) {
   // initialize(argc, argv);// initializes a world argument with argc and argv
@@ -12,6 +13,7 @@ int main(int argc, char *argv[]) {
   // startup(world, argc, argv, true);
   try {
     int result = Catch::Session().run(argc, argv);
+    return result;
   } catch (const SafeMPI::Exception &e) {
     print(e);
     error("caught an MPI exception");
