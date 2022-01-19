@@ -110,7 +110,7 @@ void TDDFT::frequency_to_json(json& j_mol_in,
   j["res_X"] = tensor_to_json(res_X);
   j["res_Y"] = tensor_to_json(res_Y);
   j["density_residuals"] = tensor_to_json(density_res);
-  j["omega"] = tensor_to_json(omega);
+  j["polar"] = tensor_to_json(omega);
   auto index = j_mol_in["protocol_data"].size() - 1;
   j_mol_in["protocol_data"][index]["iter_data"].push_back(j);
 }
