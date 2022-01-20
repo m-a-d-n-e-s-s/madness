@@ -238,5 +238,4 @@ void TDDFT::iterate_freq2(World& world) {
       print(density_residuals);
       compute_and_print_polarizability(world, Chi, PQ, "Converged");
     }
-  }
 }
