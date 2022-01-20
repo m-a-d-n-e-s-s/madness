@@ -443,19 +443,7 @@ class SCF {
   /// @param[in]	thresh	the localization threshold
   /// @param[in]	thetamax	??
   /// @param[in]	randomize	??
-  distmatT localize_PM(World& world,
-                       const vecfuncT& mo,
-                       const std::vector<int>& set,
-                       const double thresh = 1e-9,
-                       const double thetamax = 0.5,
-                       const bool randomize = true,
-                       const bool doprint = false) const;
 
-  void analyze_vectors(World& world,
-                       const vecfuncT& mo,
-                       const tensorT& occ = tensorT(),
-                       const tensorT& energy = tensorT(),
-                       const std::vector<int>& set = std::vector<int>());
 
 
 
@@ -487,7 +475,7 @@ class SCF {
   vecfuncT apply_hf_exchange(World& world, const tensorT& occ, const vecfuncT& psi, const vecfuncT& f) const;
 
   // Used only for initial guess that is always spin-restricted LDA
-  staticfunctionT make_lda_potential(World& world, const functionT& arho);
+  static functionT make_lda_potential(World& world, const functionT& arho);
 
   //    functionT make_dft_potential(World & world, const vecfuncT& vf, int
   //    ispin, int what)
