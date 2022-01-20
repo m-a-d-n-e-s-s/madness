@@ -42,6 +42,7 @@
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 
 #include <chem/CalculationParameters.h>
+#include <chem/commandlineparser.h>
 #include <chem/SCFOperators.h>
 #include <chem/commandlineparser.h>
 #include <chem/corepotential.h>
@@ -77,16 +78,6 @@ typedef Function<std::complex<double>, 3> complex_functionT;
 typedef std::vector<complex_functionT> cvecfuncT;
 typedef Convolution1D<double_complex> complex_operatorT;
 
-extern distmatT distributed_localize_PM(World& world,
-                                        const vecfuncT& mo,
-                                        const vecfuncT& ao,
-                                        const std::vector<int>& set,
-                                        const std::vector<int>& at_to_bf,
-                                        const std::vector<int>& at_nbf,
-                                        const double thresh = 1e-9,
-                                        const double thetamax = 0.5,
-                                        const bool randomize = true,
-                                        const bool doprint = false);
 
 inline double mask1(double x) {
   /* Iterated first beta function to switch smoothly
@@ -441,6 +432,8 @@ class SCF {
   /// @return		vector of length nmo with the set index for each MO
   std::vector<int> group_orbital_sets(World& world, const tensorT& eps, const tensorT& occ, const int nmo) const;
 
+	void analyze_vectors(World & world, const vecfuncT & mo, const tensorT & occ = tensorT(),
+			const tensorT & energy = tensorT(), const std::vector<int> & set = std::vector<int>());
   /// compute the unitary localization matrix according to Pipek-Mezey
 
   /// @param[in]	world	the world
@@ -464,25 +457,7 @@ class SCF {
                        const tensorT& energy = tensorT(),
                        const std::vector<int>& set = std::vector<int>());
 
-  inline double DIP(const tensorT& dip, int i, int j, int k, int l) const {
-    return dip(i, j, 0) * dip(k, l, 0) + dip(i, j, 1) * dip(k, l, 1) + dip(i, j, 2) * dip(k, l, 2);
-  }
 
-  distmatT localize_boys(World& world,
-                         const vecfuncT& mo,
-                         const std::vector<int>& set,
-                         const double thresh = 1e-9,
-                         const double thetamax = 0.5,
-                         const bool randomize = true,
-                         const bool doprint = false) const;
-
-  distmatT localize_new(World& world,
-                        const vecfuncT& mo,
-                        const std::vector<int>& set,
-                        const double thresh = 1e-9,
-                        const double thetamax = 0.5,
-                        const bool randomize = true,
-                        const bool doprint = false) const;
 
   distmatT kinetic_energy_matrix(World& world, const vecfuncT& v) const;
   distmatT kinetic_energy_matrix(World& world, const vecfuncT& vbra, const vecfuncT& vket) const;
@@ -512,7 +487,7 @@ class SCF {
   vecfuncT apply_hf_exchange(World& world, const tensorT& occ, const vecfuncT& psi, const vecfuncT& f) const;
 
   // Used only for initial guess that is always spin-restricted LDA
-  functionT make_lda_potential(World& world, const functionT& arho);
+  staticfunctionT make_lda_potential(World& world, const functionT& arho);
 
   //    functionT make_dft_potential(World & world, const vecfuncT& vf, int
   //    ispin, int what)
@@ -651,7 +626,7 @@ class SCF {
   /// and \f$k>=l\f$.  The symmetry \f$(ij|kl)=(kl|ij)\f$ is enforced.
   Tensor<double> twoint(World& world, const vecfuncT& psi) const;
 
-  tensorT matrix_exponential(const tensorT& A) const;
+
 
   /// compute the unitary transformation that diagonalizes the fock matrix
 

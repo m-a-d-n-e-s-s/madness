@@ -49,6 +49,7 @@
 #include <madness/mra/nonlinsol.h>
 #include <chem/correlationfactor.h>
 #include <chem/nemo.h>
+#include <chem/localizer.h>
 
 #include <iostream>
 
@@ -130,10 +131,63 @@ MP2::MP2(World& world, const commandlineparser& parser) : world(world),
 /// return the molecular correlation energy energy (without the HF energy)
 double MP2::value() {
     hf->value();        // make sure the reference is converged
-    //std::cout << "\n\nTEST FILL TREE\n\n";
-    //test_fill_tree();
+    if (not check_core_valence_separation()) enforce_core_valence_separation();
     return value(hf->get_calc().molecule.get_all_coords());
 }
+
+bool MP2::check_core_valence_separation() const {
+
+    MolecularOrbitals<double, 3> mos(hf->nemos(), hf->get_calc().aeps, {}, hf->get_calc().aocc, {});
+    mos.recompute_localize_sets();
+
+    // check that freeze is consistent with the core/valence block-diagonal structure of the fock matrix
+    bool fine = false;
+    int ntotal = 0;
+    std::vector<Slice> slices = MolecularOrbitals<double, 3>::convert_set_to_slice(mos.get_localize_sets());
+    for (std::size_t i = 0; i < slices.size(); ++i) {
+        const Slice& s = slices[i];
+        int n_in_set = s.end - s.start + 1;
+        ntotal += n_in_set;
+        if (param.freeze() == ntotal) {
+            fine = true;
+            break;
+        }
+    }
+    if (not fine) {
+        print("inconsistent core-valence separation and number of frozen orbitals");
+        print("# frozen orbitals", param.freeze());
+        mos.pretty_print("initial orbitals");
+        MADNESS_EXCEPTION("inconsistency ", 1);
+    }
+
+    // fast return if possible
+    Tensor<double> fock1 = get_fock_matrix();
+    return Localizer::check_core_valence_separation(fock1, mos.get_localize_sets(),true);
+}
+
+
+void MP2::enforce_core_valence_separation() {
+
+    MolecularOrbitals<double, 3> mos(hf->nemos(), hf->get_calc().aeps, {}, hf->get_calc().aocc, {});
+    mos.recompute_localize_sets();
+
+    Tensor<double> fock1 = get_fock_matrix();
+
+    // localize the orbitals respecting core-valence separation
+    Localizer localizer(world,hf->get_calc().aobasis,hf->get_calc().molecule,hf->get_calc().ao);
+    localizer.set_enforce_core_valence_separation(true).set_method(hf->nemo_ptr->param.localize_method());
+    localizer.set_metric(hf->nemo_ptr->R);
+
+    const auto lmo=localizer.localize(mos,fock1,true);
+    hf->reset_orbitals(lmo);
+    fock.clear();
+    print("localized fock matrix");
+    Tensor<double> fock2=get_fock_matrix();
+    MADNESS_CHECK(Localizer::check_core_valence_separation(fock2,lmo.get_localize_sets()));
+    lmo.pretty_print("localized MOs");
+
+};
+
 
 /// return the molecular correlation energy as a function of the coordinates
 double MP2::value(const Tensor<double>& x) {

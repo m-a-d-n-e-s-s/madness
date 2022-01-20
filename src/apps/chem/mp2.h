@@ -48,6 +48,7 @@
 #include <chem/projector.h>
 #include <chem/correlationfactor.h>
 #include <chem/electronic_correlation_factor.h>
+#include <chem/MolecularOrbitals.h>
 #include <chem/nemo.h>
 
 #include <madness/world/text_fstream_archive.h>
@@ -114,12 +115,17 @@ public:
         coords_sum = xsq;
         nemo_ptr->value(x);
 
-        // compute the full, reconstructed orbitals from nemo
-        orbitals_ = mul(world, nemo_ptr->R, nemo_ptr->get_calc()->amo);
-        real_function_3d R2 = nemo_ptr->ncf->square();
-        R2orbitals_ = mul(world, R2, nemo_ptr->get_calc()->amo);
-
+        MolecularOrbitals<double,3> mos(nemo_ptr->get_calc()->amo,nemo_ptr->get_calc()->aeps);
+        reset_orbitals(mos);
         return nemo_ptr->get_calc()->current_energy;
+    }
+
+    void reset_orbitals(const MolecularOrbitals<double,3>& mos) {
+        nemo_ptr->get_calc()->amo=mos.get_mos();
+        nemo_ptr->get_calc()->aeps=mos.get_eps();
+        MADNESS_CHECK(nemo_ptr->get_calc()->aeps.size()==nemo_ptr->get_calc()->amo.size());
+        orbitals_ = nemo_ptr->R*nemo_ptr->get_calc()->amo;
+        R2orbitals_ = nemo_ptr->ncf->square()*nemo_ptr->get_calc()->amo;
     }
 
     Tensor<double> gradient(const Tensor<double>& x) {
@@ -418,6 +424,12 @@ public:
 
     /// return the molecular correlation energy as a function of the coordinates
     double value(const Tensor<double>& x);
+
+    /// make sure frozen orbitals don't couple with correlated ones -- relocalize if necessary
+    bool check_core_valence_separation() const;
+
+    /// make sure frozen orbitals don't couple with correlated ones -- relocalize if necessary
+    void enforce_core_valence_separation();
 
     /// return the underlying HF reference
     HartreeFock& get_hf() { return *hf; }

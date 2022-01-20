@@ -694,6 +694,12 @@ CONFIGURE_FILE(
 install(FILES ${PROJECT_BINARY_DIR}/config/MADNESS.pc
     DESTINATION lib/pkgconfig)
 
+# Install some CMake modules
+install(FILES
+        "${PROJECT_SOURCE_DIR}/cmake/modules/FindTBB.cmake"
+        DESTINATION "${MADNESS_INSTALL_CMAKEDIR}/modules"
+        COMPONENT madness-config)
+
 # sample CMakeLists.txt
 configure_file(
   ${PROJECT_SOURCE_DIR}/doc/devsamp/CMakeLists.txt.sample.in

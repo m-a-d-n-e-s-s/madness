@@ -1322,7 +1322,7 @@ along with this program; if not, write to the Free Software
     std::vector< Function<R,NDIM> >& ncf = *const_cast< std::vector< Function<R,NDIM> >* >(&f);
     bool print_timings=(NDIM==6) and (world.rank()==0);
 
-    double wall0=wall_time();
+        double wall0=wall_time();
     reconstruct(world, f);
     make_nonstandard(world, ncf);
     double wall1=wall_time();

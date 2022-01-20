@@ -42,6 +42,8 @@
 #include <chem/projector.h>
 #include <madness/mra/qmprop.h>
 #include <madness/world/worldmem.h>
+#include <chem/projector.h>
+#include <chem/localizer.h>
 
 #include <cmath>
 
@@ -192,7 +194,7 @@ SCF::SCF(World& world, const commandlineparser& parser) : param(CalculationParam
 
 void SCF::save_mos(World& world) {
   PROFILE_MEMBER_FUNC(SCF);
-  archive::ParallelOutputArchive ar(world, "restartdata", param.get<int>("nio"));
+  archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, "restartdata", param.get<int>("nio"));
   // IF YOU CHANGE ANYTHING HERE MAKE SURE TO UPDATE THIS VERSION NUMBER
   unsigned int version = 1;
   ar& version;
@@ -229,7 +231,7 @@ void SCF::load_mos(World& world) {
   amo.clear();
   bmo.clear();
 
-  archive::ParallelInputArchive ar(world, "restartdata");
+  archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, "restartdata");
 
   /*
     File format:
@@ -442,6 +444,28 @@ vecfuncT SCF::project_ao_basis_only(World& world, const AtomicBasisSet& aobasis,
   return ao;
 }
 
+void SCF::analyze_vectors(World& world, const vecfuncT & mo, const tensorT& occ,
+		const tensorT& energy, const std::vector<int>& set) {
+	START_TIMER(world);
+	PROFILE_MEMBER_FUNC(SCF);
+	tensorT Saomo = matrix_inner(world, ao, mo);
+	tensorT Saoao = matrix_inner(world, ao, ao, true);
+	int nmo1 = mo.size();
+	tensorT rsq, dip(3, nmo1);
+	{
+		functionT frsq = factoryT(world).f(rsquared).initial_level(4);
+		rsq = inner(world, mo, mul_sparse(world, frsq, mo, vtol));
+		for (int axis = 0; axis < 3; ++axis) {
+			functionT fdip = factoryT(world).functor(
+					functorT(new DipoleFunctor(axis))).initial_level(4);
+			dip(axis, _) = inner(world, mo, mul_sparse(world, fdip, mo, vtol));
+			for (int i = 0; i < nmo1; ++i)
+				rsq(i) -= dip(axis, i) * dip(axis, i);
+
+		}
+	}
+	tensorT C;
+	END_TIMER(world, "Analyze vectors");
 distmatT SCF::localize_PM(World& world,
                           const vecfuncT& mo,
                           const std::vector<int>& set,
@@ -2174,83 +2198,19 @@ tensorT SCF::get_fock_transformation(World& world,
                                      const double thresh_degenerate) const {
   PROFILE_MEMBER_FUNC(SCF);
 
-  //	START_TIMER(world);
+
   tensorT U;
   sygvp(world, fock, overlap, 1, U, evals);
-  //	END_TIMER(world, "Diagonalization Fock-mat w sygv");
 
-  long nmo = fock.dim(0);
 
-  START_TIMER(world);
-  // Within blocks with the same occupation number attempt to
-  // keep orbitals in the same order (to avoid confusing the
-  // non-linear solver).
-  // !!!!!!!!!!!!!!!!! NEED TO RESTRICT TO OCCUPIED STATES?
-  bool switched = true;
-  while (switched) {
-    switched = false;
-    for (int i = 0; i < nmo; i++) {
-      for (int j = i + 1; j < nmo; j++) {
-        if (occ(i) == occ(j)) {
-          double sold = U(i, i) * U(i, i) + U(j, j) * U(j, j);
-          double snew = U(i, j) * U(i, j) + U(j, i) * U(j, i);
-          if (snew > sold) {
-            tensorT tmp = copy(U(_, i));
-            U(_, i) = U(_, j);
-            U(_, j) = tmp;
-            std::swap(evals[i], evals[j]);
-            switched = true;
-          }
-        }
-      }
-    }
-  }
-
-  // Fix phases.
-  for (long i = 0; i < nmo; ++i)
-    if (U(i, i) < 0.0) U(_, i).scale(-1.0);
-
-  // Rotations between effectively degenerate states confound
-  // the non-linear equation solver ... undo these rotations
-  long ilo = 0;  // first element of cluster
-  while (ilo < nmo - 1) {
-    long ihi = ilo;
-    while (fabs(evals[ilo] - evals[ihi + 1]) < thresh_degenerate * 10.0 * std::max(fabs(evals[ilo]), 1.0)) {
-      ++ihi;
-      if (ihi == nmo - 1) break;
-    }
-    long nclus = ihi - ilo + 1;
-    if (nclus > 1) {
-      // print("   found cluster", ilo, ihi);
-      tensorT q = copy(U(Slice(ilo, ihi), Slice(ilo, ihi)));
-      // print(q);
-      // Special code just for nclus=2
-      // double c = 0.5*(q(0,0) + q(1,1));
-      // double s = 0.5*(q(0,1) - q(1,0));
-      // double r = sqrt(c*c + s*s);
-      // c /= r;
-      // s /= r;
-      // q(0,0) = q(1,1) = c;
-      // q(0,1) = -s;
-      // q(1,0) = s;
-
-      // Polar Decomposition
-      tensorT VH(nclus, nclus);
-      tensorT W(nclus, nclus);
-      Tensor<double> sigma(nclus);
-
-      svd(q, W, sigma, VH);
-      q = transpose(inner(W, VH)).conj();
-      U(_, Slice(ilo, ihi)) = inner(U(_, Slice(ilo, ihi)), q);
-    }
-    ilo = ihi + 1;
-  }
+  Localizer::undo_reordering(U, occ, evals) ;
+    Localizer::undo_degenerate_rotations(U, evals, thresh_degenerate);
 
   world.gop.broadcast(U.ptr(), U.size(), 0);
   world.gop.broadcast(evals.ptr(), evals.size(), 0);
 
   fock = 0;
-  for (unsigned int i = 0; i < nmo; ++i) fock(i, i) = evals(i);
+  for (unsigned int i = 0; i < evals.size(); ++i) fock(i, i) = evals(i);
   return U;
 }
 
@@ -2274,7 +2234,7 @@ tensorT SCF::diag_fock_matrix(World& world,
                               const double thresh) const {
   PROFILE_MEMBER_FUNC(SCF);
 
-  // compute the unitary transformation matrix U that diagonalizes
+  START_TIMER(world);// compute the unitary transformation matrix U that diagonalizes
   // the fock matrix
   tensorT overlap = matrix_inner(world, psi, psi, true);
   tensorT U = get_fock_transformation(world, overlap, fock, evals, occ, thresh);
@@ -2772,7 +2732,7 @@ void SCF::solve(World& world) {
   const double dconv = std::max(FunctionDefaults<3>::get_thresh(), param.dconv());
   const double trantol = vtol / std::min(30.0, double(amo.size()));
   const double tolloc = 1e-6;  // was std::min(1e-6,0.01*dconv) but now trying
-                               // to avoid unnecessary change
+                               // to avoid unnecessary change // moved to localizer.h
   double update_residual = 0.0, bsh_residual = 0.0;
   subspaceT subspace;
   tensorT Q;
@@ -2791,37 +2751,26 @@ void SCF::solve(World& world) {
     // }
 
     if (param.do_localize() && do_this_iter) {
-      distmatT dUT;
-      if (param.localize_pm()) {
-        dUT = localize_PM(world, amo, aset, tolloc, 0.1, iter == 0, false);
-      } else if (param.localize_method() == "new") {
-        dUT = localize_new(world, amo, aset, tolloc, 0.1, iter == 0, false);
-      } else if (param.localize_method() == "boys") {
-        dUT = localize_boys(world, amo, aset, tolloc, 0.1, iter == 0, false);
-      } else
-        throw "localization confusion";
-
-      dUT.data().screen(trantol);
       START_TIMER(world);
-      amo = transform(world, amo, dUT);
+        Localizer localizer(world,aobasis,molecule,ao);
+            localizer.set_method (param.localize_method() );
+        MolecularOrbitals<double,3> mo(amo,aeps,{},aocc,aset);
+			tensorT UT=localizer.compute_localization_matrix(world,mo,iter==0);
+			UT.screen(trantol);
+
+      amo = transform(world, amo, transpose(UT));
       truncate(world, amo);
       normalize(world, amo);
       if (!param.spin_restricted() && param.nbeta() != 0) {
-        if (param.localize_pm()) {
-          dUT = localize_PM(world, bmo, bset, tolloc, 0.1, iter == 0, false);
-        } else if (param.localize_method() == "new") {
-          dUT = localize_new(world, bmo, bset, tolloc, 0.1, iter == 0, false);
-        } else {
-          dUT = localize_boys(world, bmo, bset, tolloc, 0.1, iter == 0, false);
-        }
 
-        START_TIMER(world);
-        dUT.data().screen(trantol);
-        bmo = transform(world, bmo, dUT);
+
+        MolecularOrbitals<double,3> mo(bmo,beps,{},bocc,bset);
+                tensorT UT=localizer.compute_localization_matrix(world,mo,iter==0);
+        UT.screen(trantol);
+        bmo = transform(world, bmo, transpose(UT));
         truncate(world, bmo);
-        normalize(world, bmo);
-        END_TIMER(world, "Rotate subspace");
-      }
+        normalize(world, bmo);}
+        END_TIMER(world, "localize");
     }
 
     START_TIMER(world);
