@@ -126,8 +126,8 @@ struct response_space {
    */
   explicit response_space(const response_matrix& x) : num_states(x.size()), num_orbitals(x[0].size()), x(x) {}
   // Determines if two ResponseFunctions are the same size
-  friend bool same_size(const response_space& x, const response_space& y) {
-    return ((x.size() == y.size()) && (x.size_orbitals() == y.size_orbitals()));
+  friend bool same_size(const response_space& a, const response_space& b) {
+    return ((a.size() == b.size()) && (a.size_orbitals() == b.size_orbitals()));
   }
 
   // 1D accessor for x
@@ -317,9 +317,9 @@ struct response_space {
     // print("im calling response_space push back");
 
     // Be smart with g_states
-    if (num_orbitals > 0) {
-      MADNESS_ASSERT(num_orbitals = f.size());
-    } else {  // g_states == 0 (empty vector)
+    if (num_orbitals > 0)
+      MADNESS_ASSERT(num_orbitals == f.size());
+    else {  // g_states == 0 (empty vector)
       num_orbitals = f.size();
     }
   }

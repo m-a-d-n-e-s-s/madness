@@ -16,7 +16,6 @@ typedef Tensor<double> TensorT;
 typedef Function<double, 3> FunctionT;
 typedef std::shared_ptr<FunctionFunctorInterface<double, 3>> FunctorT;
 typedef FunctionFactory<double, 3> FactoryT;
-typedef Vector<double, 3> CoordinateT;
 typedef Vector<double, 3> coordT;
 typedef std::vector<real_function_3d> VectorFunction3DT;
 

@@ -1,7 +1,7 @@
 #define CATCH_CONFIG_RUNNER
 #include "apps/external_headers/catch.hpp"
-#include <chem/SCF.h>
-#include <madness/world/worldmem.h>
+#include "apps/chem/SCF.h"
+#include "madness/world/worldmem.h"
 
 #include "TDDFT.h"  // All response functions/objects enter through this
 #include "molresponse/density.h"

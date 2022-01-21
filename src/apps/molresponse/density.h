@@ -18,16 +18,15 @@ typedef Tensor<double> TensorT;
 typedef Function<double, 3> FunctionT;
 typedef std::shared_ptr<FunctionFunctorInterface<double, 3>> FunctorT;
 typedef FunctionFactory<double, 3> FactoryT;
-typedef Vector<double, 3> CoordinateT;
 typedef std::vector<real_function_3d> VectorFunction3DT;
 
 // base class for a density
 
-// operator used to create it
-// homogeneous sol----x and y functions
-// particular sol --- depends on lower order functions used to create it
-// it also needs an xc functional
-// The r_params and Gparmas used to create the density
+// operator used to create it.
+// homogeneous sol----x and y functions.
+// particular sol --- depends on lower order functions used to create it.
+// it also needs a xc functional
+// The r_params and Gparmas used to create the density.
 //
 class density_vector {
  protected:
@@ -56,23 +55,7 @@ class density_vector {
   density_vector(World& world, ResponseParameters r_params, GroundParameters g_params);
   density_vector(const density_vector& other) = default;
 
-  size_t GetNumberResponseStates();
-  VectorFunction3DT ComputeDensityVector(World& world, bool is_static);
-  size_t GetNumberGroundStates();
-  VectorFunction3DT GetDensityVector();
-  const Molecule GetMolecule();
-  TensorT GetFrequencyOmega();
   ResponseParameters GetResponseParameters();
-
-  void PrintDensityInformation();
-
-  void PlotResponseDensity(World& world);
-
-  Tensor<double> ComputeSecondOrderPropertyTensor(World& world);
-  void PrintSecondOrderAnalysis(World& world, const Tensor<double> alpha_tensor);
-  void SaveDensity(World& world, std::string name);
-  // Load a response calculation
-  void LoadDensity(World& world, std::string name, ResponseParameters r_params, GroundParameters g_params);
 };
 
 class dipole_density_vector : public density_vector {

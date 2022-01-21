@@ -1,7 +1,8 @@
 # src/apps/molresponse
 
-add_executable(molresponse
-        molresponse.cc
+add_subdirectory(testing)
+# Set the CHEM sources and header files
+set(MOLRESPONSE_SOURCES
         density.cc
         property.cc
         TDDFT.cc
@@ -17,45 +18,22 @@ add_executable(molresponse
         response_parameters.cpp
         iterate_gamma.cc
         )
+set(MOLRESPONSE_HEADERS
+        density.h
+        property.h
+        TDDFT.h
+        global_functions.h
+        timer.h
+        basic_operators.h
+        Plot_VTK.h
+        response_parameters.h
+        )
+# Create the MADchem library
+add_mad_library(response MOLRESPONSE_SOURCES MOLRESPONSE_HEADERS "chem" "molresponse/")
 
-add_executable(test_schema_json
-        madness_catch_main.cc
-        qcschema_json_testing.cpp
-        density.cc
-        property.cc
-        TDDFT.cc
-        global_functions.cc
-        calc_runner.cc
-        timer.cc
-        basic_operators.cc
-        Plot_VTK.cc
-        iter_freq2.cc
-        iterate_excited.cc
-        Lambda_X.cc
-        Theta_X.cc
-        response_parameters.cpp
-        iterate_gamma.cc
-        )
+set(targetname MADresponse)
 
-add_executable(test_response_parameters
-        madness_catch_main.cc
-        response_parameter_tests.cpp
-        density.cc
-        property.cc
-        TDDFT.cc
-        global_functions.cc
-        calc_runner.cc
-        timer.cc
-        basic_operators.cc
-        Plot_VTK.cc
-        iter_freq2.cc
-        iterate_excited.cc
-        Lambda_X.cc
-        Theta_X.cc
-        response_parameters.cpp
-        iterate_gamma.cc
-        )
-target_link_libraries(molresponse -lstdc++fs MADchem)
-target_link_libraries(test_schema_json -lstdc++fs MADchem)
-target_link_libraries(test_response_parameters -lstdc++fs MADchem)
+
+# Add dependencies for MADchem
+add_mad_executable(molresponse "molresponse.cc" "MADresponse;MADchem",)
 
