@@ -42,7 +42,6 @@
 #include <chem/projector.h>
 #include <madness/mra/qmprop.h>
 #include <madness/world/worldmem.h>
-#include <chem/projector.h>
 #include <chem/localizer.h>
 
 #include <cmath>
