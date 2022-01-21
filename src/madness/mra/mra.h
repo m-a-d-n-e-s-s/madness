@@ -2337,7 +2337,7 @@ namespace madness {
         return result;
     }
 
-
+    /// Projects old function into new basis (only in reconstructed form)
     template <typename T, std::size_t NDIM>
     Function<T,NDIM>
     project(const Function<T,NDIM>& other,
