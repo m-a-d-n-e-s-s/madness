@@ -40,8 +40,6 @@
 #include <madness.h>
 #include <madness/mra/macrotaskq.h> // otherwise issues with install
 
-using namespace madness;
-
 namespace madness {
 
 // forward declaration

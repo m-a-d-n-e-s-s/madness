@@ -53,9 +53,6 @@
 #include <string>
 #include <madness/mra/mra.h>
 
-//using namespace madness;
-//using namespace mu;
-
 // T can be double or complex, but muParser results will always be real
 // NDIM can be 1 to 6
 // Varables allowed in strings are x,y,z,u,v,w, and r
