@@ -12,7 +12,6 @@
 #include<mra.h>
 
 
-using namespace madness;
 namespace madness {
 
 class SCF;

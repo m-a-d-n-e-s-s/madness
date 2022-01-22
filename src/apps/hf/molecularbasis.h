@@ -37,7 +37,6 @@
 #include "mentity.h"
 #include <madness/external/tinyxml/tinyxml.h>
 #include <madness/tensor/tensor.h>
-using namespace madness;
 
 #include <vector>
 #include <algorithm>

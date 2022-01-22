@@ -6,8 +6,6 @@
 #include<madness/mra/macrotaskq.h>
 #include<chem/SCFOperators.h>
 
-using namespace madness;
-
 namespace madness {
 
 // forward declaration

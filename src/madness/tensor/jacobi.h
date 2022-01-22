@@ -9,7 +9,6 @@
 #include <cstdio>
 #include <algorithm>
 
-using namespace madness;
 namespace  madness {
 void jacobi(Tensor<double>& A, Tensor<double>& V, const std::vector<int>& set) {
     int n = A.dim(0);
