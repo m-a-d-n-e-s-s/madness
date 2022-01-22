@@ -79,8 +79,6 @@
 #include <chem/potentialmanager.h>
 #include <chem/atomutil.h>
 
-using namespace madness;
-
 namespace madness {
 
 /// ABC for the nuclear correlation factors

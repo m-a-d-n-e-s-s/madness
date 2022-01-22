@@ -3,8 +3,6 @@
 #include <madness/mra/mra.h>
 #include <madness/external/tinyxml/tinyxml.h>
 
-//using namespace madness;
-
 #include <chem/molecule.h>
 #include <chem/molecularbasis.h>
 #include <chem/xcfunctional.h>
