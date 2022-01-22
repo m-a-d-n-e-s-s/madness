@@ -9,6 +9,7 @@
  */
 
 #include <cmath>
+#include <stdexcept>
 #include <vector>
 #include "polynomial.h"
 
