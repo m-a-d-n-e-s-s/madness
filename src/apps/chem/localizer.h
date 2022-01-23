@@ -9,7 +9,7 @@
 #include<chem/molecularbasis.h>
 #include<chem/molecule.h>
 #include <madness/tensor/distributed_matrix.h>
-#include<mra.h>
+#include<madness/mra/mra.h>
 #include<chem/distpm.h>
 
 
