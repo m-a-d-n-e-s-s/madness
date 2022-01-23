@@ -34,7 +34,7 @@
 
 /// \file moldft.cc
 /// \brief Molecular HF and DFT code
-/// \defgroup moldft The molecular density funcitonal and Hartree-Fock code
+/// \defgroup moldft The molecular density functional and Hartree-Fock code
 
 
 #ifndef MADNESS_CHEM_SCF_H__INCLUDED

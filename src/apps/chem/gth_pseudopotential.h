@@ -1,3 +1,10 @@
+/// \file gth_pseudopotential.cc
+/// \brief GTH pseudopotential functionality
+/// \defgroup moldft The molecular density functional and Hartree-Fock code
+
+#ifndef MADNESS_CHEM_GTH_PSEUDOPOTENTIAL_H__INCLUDED
+#define MADNESS_CHEM_GTH_PSEUDOPOTENTIAL_H__INCLUDED
+
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 
 #include <madness/mra/mra.h>
@@ -672,3 +679,5 @@ public:
 
 
 }
+
+#endif // MADNESS_CHEM_GTH_PSEUDOPOTENTIAL_H__INCLUDED
