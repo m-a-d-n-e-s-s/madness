@@ -5,6 +5,7 @@
 #include <madness/misc/ran.h>
 #include <madness/tensor/tensor.h>
 #include <madness/tensor/systolic.h>
+#include <chem/distpm.h>
 
 #include <utility>
 #include <vector>
@@ -298,10 +299,10 @@ DistributedMatrix<double> distributed_localize_PM(World & world,
                                                   const std::vector<int> & set,
                                                   const std::vector<int> & at_to_bf,
                                                   const std::vector<int> & at_nbf,
-                                                  const double thresh = 1e-9,
-                                                  const double thetamax = 0.25,
-                                                  const bool randomize = true,
-                                                  const bool doprint = false)
+                                                  const double thresh,
+                                                  const double thetamax,
+                                                  const bool randomize,
+                                                  const bool doprint)
 {
     // Make Svec ... this can be much more efficient!
     tensorT S = matrix_inner(world, ao, ao, true);
