@@ -60,7 +60,6 @@ set(MADCHEM_HEADERS
 set(MADCHEM_SOURCES
     AC.cc
     atomutil.cc
-    benchmark_exchange_operator.cc
     CC2.cc
     CCPotentials.cc
     CCStructures.cc
@@ -82,7 +81,6 @@ set(MADCHEM_SOURCES
     NWChem.cc
     oep.cc
     pcm.cc
-    plotxc.cc
     pointgroupsymmetry.cc
     polynomial.cc
     QCCalculationParametersBase.cc
