@@ -23,6 +23,19 @@ if (NOT TARGET PaRSEC::parsec)
           BINARY_DIR PARSEC_BINARY_DIR
           )
 
+  # disable unity builds for parsec libs
+  if (CMAKE_UNITY_BUILD)
+    set(_parsec_libs_to_not_unity_build parsec-base-obj parsec-ptgpp parsec)
+    foreach (_parsec_lib IN LISTS _parsec_libs_to_not_unity_build)
+      if(TARGET ${_parsec_lib})
+        set_target_properties(${_parsec_lib} PROPERTIES UNITY_BUILD OFF)
+        message(STATUS "Will disable unity-build for target ${_parsec_lib}")
+      else()
+        message(FATAL_ERROR "FindOrFetchPaRSEC missing target ${_parsec_lib}")
+      endif()
+    endforeach ()
+  endif(CMAKE_UNITY_BUILD)
+
   # this is where PaRSECConfig.cmake will end up
   # must be in sync with the "install(FILES ...PaRSECConfig.cmake" statement in PaRSEC source
   set(PaRSEC_CONFIG "${CMAKE_INSTALL_PREFIX}/share/cmake/parsec/PaRSECConfig.cmake" CACHE INTERNAL "The location of installed PaRSECConfig.cmake file")

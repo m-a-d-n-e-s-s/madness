@@ -9,7 +9,7 @@
 #define SRC_APPS_CHEM_ZCIS_H_
 
 #include <chem/projector.h>
-#include<mra.h>
+#include<madness/mra/mra.h>
 #include<tuple>
 #include <chem/znemo.h>
 

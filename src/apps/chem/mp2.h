@@ -59,8 +59,6 @@ using madness::archive::TextFstreamOutputArchive;
 
 #include <iostream>
 
-using namespace madness;
-
 namespace madness {
 
 struct LBCost {
