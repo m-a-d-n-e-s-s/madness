@@ -733,7 +733,97 @@ namespace madness {
         TENSOR_ASSERT(info == 0, "(s/d)syev/(c/z)heev failed", info, &A);
         V = transpose(V);
     }
+// bryan edit start
+    /** \brief  Generalized real-non-symmetric or complex-non-Hermitian eigenproblem.
 
+    This from the LAPACK documentation
+
+    \verbatim
+    S/DGGEV computes all the eigenvalues, and optionally, the eigenvectors
+    of a real generalized non-symmetric-definite eigenproblem, of the form
+    A*x=(lambda)*B*x.
+
+    C/ZGGEV computes all the eigenvalues, and optionally, the eigenvectors
+    of a complex generalized non-Hermitian-definite eigenproblem, of the form
+    A*x=(lambda)*B*x.
+    \endverbatim
+
+       Note on the eigenvalues:
+          On exit, (ALPHAR(j) + ALPHAI(j)*i)/BETA(j), j=1,...,N, will
+          be the generalized eigenvalues.  If ALPHAI(j) is zero, then
+          the j-th eigenvalue is real; if positive, then the j-th and
+          (j+1)-st eigenvalues are a complex conjugate pair, with
+          ALPHAI(j+1) negative.
+
+          Note: the quotients ALPHAR(j)/BETA(j) and ALPHAI(j)/BETA(j)
+          may easily over- or underflow, and BETA(j) may even be zero.
+          Thus, the user should avoid naively computing the ratio
+          alpha/beta.  However, ALPHAR and ALPHAI will be always less
+          than and usually comparable with norm(A) in magnitude, and
+          BETA always less than and usually comparable with norm(B).
+
+      Note on the eigenvectors:
+          The right eigenvectors v(j) are stored one
+          after another in the columns of VR, in the same order as
+          their eigenvalues. If the j-th eigenvalue is real, then
+          v(j) = VR(:,j), the j-th column of VR. If the j-th and
+          (j+1)-th eigenvalues form a complex conjugate pair, then
+          v(j) = VR(:,j)+i*VR(:,j+1) and v(j+1) = VR(:,j)-i*VR(:,j+1).
+          Each eigenvector is scaled so the largest component has
+          abs(real part)+abs(imag. part)=1.
+
+    */
+    // Might not work if A is complex (type issues on tensor e)
+    template <typename T>
+    void ggev(const Tensor<T>& A, Tensor<T>& B, Tensor<T>& VR,
+              Tensor<std::complex<T>>& e) {
+        TENSOR_ASSERT(A.ndim() == 2, "ggev requires a matrix",A.ndim(),&A);
+        TENSOR_ASSERT(A.dim(0) == A.dim(1), "ggev requires square matrix",0,&A);
+        TENSOR_ASSERT(B.ndim() == 2, "ggev requires a matrix",B.ndim(),&A);
+        TENSOR_ASSERT(B.dim(0) == B.dim(1), "ggev requires square matrix",0,&A);
+        integer n = A.dim(0);
+        integer lwork = max(max((integer) 1,(integer) (3*n)),(integer) (34*n));
+        integer info;
+        Tensor<T> work(lwork);
+        Tensor<T> A_copy = copy(A);
+        Tensor<T> VL(n,n); // Should not be referenced
+        Tensor<T> e_real(n), e_imag(n), beta(n);
+        dggev_("N", "V", &n,
+                A_copy.ptr(), &n, B.ptr(), &n,
+                e_real.ptr(), e_imag.ptr(), beta.ptr(),
+                VL.ptr(), &n, VR.ptr(), &n,
+                work.ptr(), &lwork, &info,
+                (char_len) 1, (char_len) 1);
+        mask_info(info);
+        TENSOR_ASSERT(info == 0, "(s/d)ggev/(c/z)ggev failed", info, &A);
+
+        // Sometimes useful
+        //print("e_real:\n", e_real);
+        //print("e_imag:\n", e_imag);
+        //print("beta:\n", beta);
+
+        // Now put energies back where user expects them to be
+        // Need to be smart with the division, possibly throw
+        // errors if neccessary.
+        std::complex<double> my_i(0,1);
+        for(int i = 0; i < e.dim(0); i++)
+        {
+           MADNESS_ASSERT(beta(i) >=  1e-14); // Do something smarter here?
+           // Two cases:
+           // Case 1: Real value (imaginary == 0)
+           if(e_imag(i) == 0.0)
+              e(i) = e_real(i) / beta(i);
+           // Case 2: Complex value (need to handle the pair)
+           else
+           {
+              e(i) = (e_real(i) + my_i * e_imag(i)) / beta(i);
+              e(i+1) = (e_real(i) - my_i * e_imag(i)) / beta(i);
+              i = i + 1; // Already took care of the paired value as well
+           }
+        }
+        VR = transpose(VR);
+    }
+// bryan edits stop
     /** \brief  Generalized real-symmetric or complex-Hermitian eigenproblem.
 
     This from the LAPACK documentation
