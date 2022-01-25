@@ -733,7 +733,96 @@ namespace madness {
         TENSOR_ASSERT(info == 0, "(s/d)syev/(c/z)heev failed", info, &A);
         V = transpose(V);
     }
-// bryan edit start
+// bryan edits
+    /** \brief   Real non-symmetric or complex non-Hermitian eigenproblem.
+
+    A is a real non-symmetric or complex non-Hermitian matrix.  Return V and e
+    where V is a matrix whose columns are the right eigenvectors and e is a
+    vector containing the corresponding eigenvalues.  If the LAPACK
+    routine fails, it raises a TensorException with value=infor.  The
+    input matrix is unchanged.  The eigenvalues are sorted into ascending
+    order.  s/dgeev are used for real non-symmetric matrices; c/zgeev are used
+    for complex non-Hermitian.
+
+    Note on the eigenvectors:
+          If the j-th eigenvalue is real, then j-th eigenvector is VR(:,j),
+          the j-th column of VR.
+          If the j-th and (j+1)-st eigenvalues form a complex
+          conjugate pair, then j-th eigenvector is VR(:,j) + i*VR(:,j+1) and
+          j+1-th eigenvector is VR(:,j) - i*VR(:,j+1).
+
+    The results will satisfy A*V(_,i) = V(_,i)*e(i).
+    */
+    // Might not work if A is complex (type issues on tensor e)
+    template <typename T>
+    void geev(const Tensor<T>& A, Tensor<T>& VR, Tensor<std::complex<T>>& e) {
+        TENSOR_ASSERT(A.ndim() == 2, "geev requires a matrix",A.ndim(),&A);
+        TENSOR_ASSERT(A.dim(0) == A.dim(1), "geev requires square matrix",0,&A);
+        integer n = A.dim(0);
+        integer lwork = max(max((integer) 1,(integer) (3*n)),(integer) (34*n));
+        integer info;
+        Tensor<T> work(lwork);
+        Tensor<T> A_copy = copy(A);
+        Tensor<T> VL(n,n); // Should not be referenced
+        Tensor<T> e_real(n), e_imag(n);
+        dgeev_("N", "V", &n, A_copy.ptr(), &n, e_real.ptr(), e_imag.ptr(), VL.ptr(), &n,
+               VR.ptr(), &n,  work.ptr(), &lwork, &info, (char_len) 1, (char_len) 1);
+        mask_info(info);
+        TENSOR_ASSERT(info == 0, "(s/d)geev/(c/z)geev failed", info, &A);
+
+        // Now put energies back where user expects them to be
+        std::complex<double> my_i(0,1);
+        e = e_real + e_imag * my_i;
+    }
+// bryan edits end
+
+    /** \brief  Generalized real-symmetric or complex-Hermitian eigenproblem.
+
+    This from the LAPACK documentation
+
+    \verbatim
+    S/DSYGV computes all the eigenvalues, and optionally, the eigenvectors
+    of a real generalized symmetric-definite eigenproblem, of the form
+    A*x=(lambda)*B*x, A*Bx=(lambda)*x, or B*A*x=(lambda)*x.  Here A and B
+    are assumed to be symmetric and B is also positive definite.
+
+    C/ZHEGV computes all the eigenvalues, and optionally, the eigenvectors
+    of a complex generalized Hermitian-definite eigenproblem, of the form
+    A*x=(lambda)*B*x, A*Bx=(lambda)*x, or B*A*x=(lambda)*x. Here A and B
+    are assumed to be Hermitian and B is also positive definite.
+
+    ITYPE   (input) INTEGER
+    Specifies the problem type to be solved:
+    = 1:  A*x = (lambda)*B*x
+    = 2:  A*B*x = (lambda)*x
+    = 3:  B*A*x = (lambda)*x
+    \endverbatim
+
+    */
+    template <typename T>
+    void sygv(const Tensor<T>& A, const Tensor<T>& B, int itype,
+              Tensor<T>& V, Tensor< typename Tensor<T>::scalar_type >& e) {
+        TENSOR_ASSERT(A.ndim() == 2, "sygv requires a matrix",A.ndim(),&A);
+        TENSOR_ASSERT(A.dim(0) == A.dim(1), "sygv requires square matrix",0,&A);
+        TENSOR_ASSERT(B.ndim() == 2, "sygv requires a matrix",B.ndim(),&A);
+        TENSOR_ASSERT(B.dim(0) == B.dim(1), "sygv requires square matrix",0,&A);
+        integer ity = itype;
+        integer n = A.dim(0);
+        integer lwork = max((integer)1,(integer)(3*n-1))*32;
+        integer info;
+        Tensor<T> work(lwork);
+        Tensor<T> b = transpose(B);	// For Hermitian case
+        V = transpose(A);		// For Hermitian case
+        e = Tensor<typename Tensor<T>::scalar_type>(n);
+        dsygv_(&ity, "V", "U", &n, V.ptr(), &n, b.ptr(), &n,
+               e.ptr(), work.ptr(), &lwork, &info,
+               (char_len) 1, (char_len) 1);
+        mask_info(info);
+        TENSOR_ASSERT(info == 0, "sygv/hegv failed", info, &A);
+        V = transpose(V);
+    }
+
+    // bryan edit start
     /** \brief  Generalized real-non-symmetric or complex-non-Hermitian eigenproblem.
 
     This from the LAPACK documentation
@@ -824,52 +913,6 @@ namespace madness {
         VR = transpose(VR);
     }
 // bryan edits stop
-    /** \brief  Generalized real-symmetric or complex-Hermitian eigenproblem.
-
-    This from the LAPACK documentation
-
-    \verbatim
-    S/DSYGV computes all the eigenvalues, and optionally, the eigenvectors
-    of a real generalized symmetric-definite eigenproblem, of the form
-    A*x=(lambda)*B*x, A*Bx=(lambda)*x, or B*A*x=(lambda)*x.  Here A and B
-    are assumed to be symmetric and B is also positive definite.
-
-    C/ZHEGV computes all the eigenvalues, and optionally, the eigenvectors
-    of a complex generalized Hermitian-definite eigenproblem, of the form
-    A*x=(lambda)*B*x, A*Bx=(lambda)*x, or B*A*x=(lambda)*x. Here A and B
-    are assumed to be Hermitian and B is also positive definite.
-
-    ITYPE   (input) INTEGER
-    Specifies the problem type to be solved:
-    = 1:  A*x = (lambda)*B*x
-    = 2:  A*B*x = (lambda)*x
-    = 3:  B*A*x = (lambda)*x
-    \endverbatim
-
-    */
-    template <typename T>
-    void sygv(const Tensor<T>& A, const Tensor<T>& B, int itype,
-              Tensor<T>& V, Tensor< typename Tensor<T>::scalar_type >& e) {
-        TENSOR_ASSERT(A.ndim() == 2, "sygv requires a matrix",A.ndim(),&A);
-        TENSOR_ASSERT(A.dim(0) == A.dim(1), "sygv requires square matrix",0,&A);
-        TENSOR_ASSERT(B.ndim() == 2, "sygv requires a matrix",B.ndim(),&A);
-        TENSOR_ASSERT(B.dim(0) == B.dim(1), "sygv requires square matrix",0,&A);
-        integer ity = itype;
-        integer n = A.dim(0);
-        integer lwork = max((integer)1,(integer)(3*n-1))*32;
-        integer info;
-        Tensor<T> work(lwork);
-        Tensor<T> b = transpose(B);	// For Hermitian case
-        V = transpose(A);		// For Hermitian case
-        e = Tensor<typename Tensor<T>::scalar_type>(n);
-        dsygv_(&ity, "V", "U", &n, V.ptr(), &n, b.ptr(), &n,
-               e.ptr(), work.ptr(), &lwork, &info,
-               (char_len) 1, (char_len) 1);
-        mask_info(info);
-        TENSOR_ASSERT(info == 0, "sygv/hegv failed", info, &A);
-        V = transpose(V);
-    }
-
     /** \brief  Compute the Cholesky factorization.
 
     Compute the Cholesky factorization of the symmetric positive definite matrix A
