@@ -90,8 +90,8 @@ struct X_space {
 
   void push_back(vector_real_function_3d x, vector_real_function_3d y) {
     if (n_orbitals > 0) {
-      MADNESS_ASSERT(n_orbitals = x.size());
-      MADNESS_ASSERT(n_orbitals = y.size());
+      MADNESS_ASSERT(n_orbitals == x.size());
+      MADNESS_ASSERT(n_orbitals == y.size());
       MADNESS_ASSERT(x.size() == y.size());
     } else {  // g_states == 0 (empty vector)
       n_orbitals = x.size();
