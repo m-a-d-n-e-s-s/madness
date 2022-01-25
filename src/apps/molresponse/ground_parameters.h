@@ -15,6 +15,10 @@
 #include "chem/potentialmanager.h"
 #include "chem/projector.h"  // For easy calculation of (1 - \hat{\rho}^0)
 #include "madness/mra/funcdefaults.h"
+#include "madness/tensor/tensor.h"
+
+
+using namespace madness;
 
 class GroundParameters {
   // Ground state parameters that are read in from archive
