@@ -101,7 +101,7 @@ int main(int argc, char **argv) {
 
       std::cout.precision(6);
       // This makes a default input file name of 'input'
-      const char *input_file = "rinput";
+      const char *input_file = "response.in";
       // Process 0 reads input information and broadcasts
       for (int i = 1; i < argc; i++) {
         if (argv[i][0] != '-') {
