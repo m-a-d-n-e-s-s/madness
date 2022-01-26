@@ -62,6 +62,11 @@
 #  define cheev_ cheev
 #  define zheev_ zheev
 
+#  define sggev_ sggev
+#  define dggev_ dggev
+#  define cggev_ cggev
+#  define zggev_ zggev
+
 #ifndef MADNESS_HAS_ELEMENTAL
 #  define ssygv_ ssygv
 #  define dsygv_ dsygv
@@ -77,6 +82,12 @@
 
 #  define dlamch_ dlamch
 #  define slamch_ slamch
+
+#  define sgeev_ sgeev
+#  define cgeev_ cgeev
+#  define dgeev_ dgeev
+#  define zgeev_ zgeev
+
 #else
   // only lowercase with zero and one underscores are handled -- if detected another convention complain loudly
 #  ifndef FORTRAN_LINKAGE_LCU
@@ -169,6 +180,63 @@ extern "C"
     void dsyev_(const char* jobz, const char* uplo, integer *n,
                 real8 *a, integer *lda, real8 *w,  real8 *work,  integer *lwork,
                 integer *info, char_len jobzlen, char_len uplo_len );
+
+extern "C"
+    void sggev_(const char* jobz, const char* uplo, integer *n,
+                real4* a, integer* lda, real4* b, integer* ldb,
+                real4* alphar, real4* alphai, real4* beta, 
+                real4* vl, integer* ldvl, real4* vr, integer* ldvr,
+                real4* work,  integer* lwork, integer* info,
+                char_len jobzlen, char_len uplo_len);
+
+// extern "C"
+//     void dggev_(const char* jobz, const char* uplo, integer *n,
+//                 real8* a, integer* lda, real8* b, integer* ldb,
+//                 real8* alphar, real8* alphai, real8* beta, 
+//                 real8* vl, integer* ldvl, real8* vr, integer* ldvr,
+//                 real8* work,  integer* lwork, integer* info,
+//                 char_len jobzlen, char_len uplo_len);
+
+extern "C"
+    void cggev_(const char* jobz, const char* uplo, integer *n,
+                complex_real4* a, integer* lda, complex_real4* b, integer* ldb,
+                complex_real4* alpha, complex_real4* beta, 
+                complex_real4* vl, integer* ldvl, complex_real4* vr, integer* ldvr,
+                complex_real4* work,  integer* lwork, real4* rwork, integer* info,
+                char_len jobzlen, char_len uplo_len);
+
+extern "C"
+    void zggev_(const char* jobz, const char* uplo, integer *n,
+                complex_real8* a, integer* lda, complex_real8* b, integer* ldb,
+                complex_real8* alpha, complex_real8* beta, 
+                complex_real8* vl, integer* ldvl, complex_real8* vr, integer* ldvr,
+                complex_real8* work,  integer* lwork, real8* rwork, integer* info,
+                char_len jobzlen, char_len uplo_len);
+
+extern "C"
+    void dgeev_(const char* jobz, const char* uplo, integer *n,
+                real8* a, integer* lda, real8* w_real, real8* w_imag, real8* v, integer* ldv,
+                real8* vr, integer* ldvr, real8* work,  integer* lwork, integer* info,
+                char_len jobzlen, char_len uplo_len );
+
+extern "C"
+    void sgeev_(const char* jobz, const char* uplo, integer *n, real4* a, integer* lda,
+                real4* w_real, real4* w_imag, real4* v, integer* ldv, real4* vr, integer* ldvr,
+                real4* work,  integer* lwork, integer* info,
+                char_len jobzlen, char_len uplo_len );
+
+extern "C"
+    void zgeev_(const char* jobz, const char* uplo, integer *n, complex_real8* a, integer* lda,
+                complex_real8* w, complex_real8* vl, integer* ldvl, complex_real8* vr, integer* ldvr,
+                complex_real8* work,  integer* lwork, real8* rwork, integer* info,
+                char_len jobzlen, char_len uplo_len );
+
+extern "C"
+    void cgeev_(const char* jobz, const char* uplo, integer *n, complex_real4* a, integer* lda,
+                complex_real4* w, complex_real4* vl, integer* ldvl, complex_real4* vr, integer* ldvr,
+                complex_real4* work,  integer* lwork, real4* rwork, integer* info,
+                char_len jobzlen, char_len uplo_len );
+
 
 extern "C"
     void cheev_(const char* jobz, const char* uplo, integer *n,
