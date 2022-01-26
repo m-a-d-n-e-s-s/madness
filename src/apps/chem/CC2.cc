@@ -34,7 +34,11 @@ CC2::solve() {
     } else if (ctype == CT_MP2) {
         Pairs<CCPair> pairs;
         initialize_pairs(pairs, GROUND_STATE, CT_MP2, CC_vecfunction(PARTICLE), CC_vecfunction(RESPONSE), 0);
-        const double mp2_correlation_energy = solve_mp2(pairs);
+        //const double mp2_correlation_energy = solve_mp2(pairs);
+
+        //DEBUG MP2 coupled
+        const double mp2_correlation_energy = solve_mp2_coupled(pairs);
+
         output.section(assign_name(ctype) + " Calculation Ended !");
         if (world.rank() == 0)
             std::cout << std::fixed << std::setprecision(10) << " MP2 Correlation Energy =" << mp2_correlation_energy
@@ -402,11 +406,10 @@ std::vector<CC_vecfunction> CC2::solve_ccs() {
 }
 
 double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
-   if (world.rank()==0) std::cout << "\nSolving coupled equations\n" << std::endl;
+   if (world.rank()==0) std::cout << "\nSolving coupled equations" << std::endl;
    double total_energy = 0.0;
 
    // make vector holding CCPairs for partitioner of MacroTask
-   //print("making vector holding pairs");
    std::vector<CCPair> pair_vec;
    for (auto& tmp_pair : doubles.allpairs) {
        pair_vec.push_back(tmp_pair.second);
@@ -415,10 +418,8 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
    // calc constant part via taskq
    auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world, world.size()));
    taskq->set_printlevel(3);
-   //print("making macrotask");
    MacroTaskMp2ConstantPart t;
    MacroTask task(world, t, taskq);
-   //print("performing macrotask");
    std::vector<real_function_6d> result_vec = task(pair_vec, CCOPS.mo_ket().get_vecfunction(),
                                                 CCOPS.mo_bra().get_vecfunction(), parameters,
                                                 nemo->R_square, nemo->ncf->U1vec());
@@ -426,7 +427,6 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
    taskq->run_all();
 
    // transform vector back to Pairs structure
-   //print("saving constant part");
    for (int i = 0; i < pair_vec.size(); i++) {
        pair_vec[i].constant_part = result_vec[i];
        save(pair_vec[i].constant_part, pair_vec[i].name() + "_const");
@@ -435,7 +435,6 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
        if (pair_vec[i].type == GROUND_STATE) total_energy += CCOPS.compute_pair_correlation_energy(pair_vec[i]);
    }
    // create new pairs structure
-   //print("creating updated pairs structure");
    Pairs<CCPair> updated_pairs;
    for (auto& tmp_pair : pair_vec) {
        updated_pairs.insert(tmp_pair.i, tmp_pair.j, tmp_pair);
@@ -446,15 +445,35 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
        // compute the coupling between the pair functions
        Pairs<real_function_6d> coupling;
        add_local_coupling(updated_pairs, coupling);
+
        // make coupling vector that can be stored in cloud
-       std::vector<real_function_6d> coupling_vec;
-       print("Making coupling vector for MacroTask\n");
-       for (auto& tmp_coupling : coupling.allpairs) {
-           print("Pushing coupling: ");
-           print(tmp_coupling.first);
-           coupling_vec.push_back(tmp_coupling.second);
+       // pair -> position
+       // (i,j) -> j(j+1)+i
+       // Pairs struc does not provide access to last element
+       int i_max = 0;
+       int j_max = 0;
+       for (auto& tmp_coupling: coupling.allpairs){
+           if (std::get<0>(tmp_coupling.first) > i_max) i_max = std::get<0>(tmp_coupling.first);
+           if (std::get<1>(tmp_coupling.first) > j_max) j_max = std::get<1>(tmp_coupling.first);
        }
-       MADNESS_CHECK(coupling_vec.size() == pair_vec.size());
+       std::cout << "imax, jmax = " << i_max << ", "<< j_max << std::endl;
+       int last_position = j_max*(j_max+1) + i_max;
+       std::cout << "last_position = " << last_position << std::endl;
+       //std::vector<real_function_6d> coupling_vec(last_position, real_factory_6d(world).compressed());
+       std::vector<real_function_6d> coupling_vec = zero_functions_compressed<double,6>(world, (last_position+1));
+       if (world.rank() == 0) {
+           print("\nMaking coupling vector for MacroTask ");
+           print("(i, j) -> j*(j+1) + i\n");
+           std::cout << "Size = " << coupling_vec.size() << std::endl;
+       }
+       for (auto& tmp_coupling : coupling.allpairs) {
+           int i = std::get<0>(tmp_coupling.first);
+           int j = std::get<1>(tmp_coupling.first);
+           int position = j*(j+1) + i;
+           if (world.rank() == 0) std::cout << i << " ," << j << " -> "<< position << std::endl;
+           coupling_vec[position] = tmp_coupling.second;
+       }
+       //MADNESS_CHECK(coupling_vec.size() == pair_vec.size());
 
        double total_norm = 0.0;
        double old_energy = total_energy;
@@ -466,10 +485,9 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
        // calc update for pairs via macrotask
        auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world, world.size()));
        taskq->set_printlevel(3);
-       //print("making macrotask");
+       taskq->cloud.set_debug(true);
        MacroTaskMp2UpdatePair t;
        MacroTask task(world, t, taskq);
-       //print("performing macrotask");
        std::vector<real_function_6d> u_update = task(pair_vec, parameters, nemo->get_calc()->molecule.get_all_coords_vec(),
                                                      CCOPS.mo_ket().get_vecfunction(), CCOPS.mo_bra().get_vecfunction(),
                                                      nemo->ncf->U1vec(), nemo->ncf->U2(), coupling_vec);
@@ -480,7 +498,7 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
        for (int i = 0; i < pair_vec.size(); i++) {
            const real_function_6d residue = pair_vec[i].function() - u_update[i];
            const double error = residue.norm2();
-           total_norm += error;
+           total_norm = std::max(total_norm, error);
            output("Update without KAIN");
            pair_vec[i].update_u(u_update[i]);
            save(pair_vec[i].function(), pair_vec[i].name());
@@ -521,7 +539,7 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
 
        //print pair energies if converged
        if (converged) {
-           if (world.rank() == 0) std::cout << "\nPairs converged\n";
+           if (world.rank() == 0) std::cout << "\nPairs converged!\n";
            if (world.rank() == 0) std::cout << "\nMP2 Pair Correlation Energies:\n";
            for (auto& pair : updated_pairs.allpairs) {
                const double pair_energy = CCOPS.compute_pair_correlation_energy(pair.second);
@@ -532,6 +550,16 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
            }
            if (world.rank() == 0) std::cout << "sum     =" << total_energy << "\n";
            break;
+       } else {
+           if (world.rank() == 0) std::cout << "\nCurrent pair energies:\n";
+           for (auto& pair : updated_pairs.allpairs) {
+               const double pair_energy = CCOPS.compute_pair_correlation_energy(pair.second);
+               if (world.rank() == 0) {
+                   std::cout << std::fixed << std::setprecision(10) << "omega_"
+                             << pair.second.i << pair.second.j << "=" << pair_energy << "\n";
+               }
+           }
+           if (world.rank() == 0) std::cout << "sum     =" << total_energy << "\n";
        }
    }
 

@@ -824,8 +824,10 @@ MacroTaskMp2UpdatePair::operator() (const std::vector<CCPair> &pair, const CCPar
     World& world = mo_ket[0].world();
     resultT result = zero_functions_compressed<double, 6>(world, pair.size());
     for (int i = 0; i < pair.size(); i++) {
+        //(i, j) -> j*(j+1) + i
         result[i] = CCPotentials::update_pair_mp2_macrotask(world, pair[i], parameters, all_coords_vec, mo_ket,
-                                                            mo_bra, U1, U2, mp2_coupling[i]);
+                                                            mo_bra, U1, U2,
+                                                            mp2_coupling[pair[i].j*(pair[i].j+1)+pair[i].i]);
     }
     return result;
 }
