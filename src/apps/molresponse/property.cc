@@ -4,30 +4,19 @@
 #include <molresponse/response_functions.h>
 
 #include <algorithm>
-#include <memory>
-#include <string>
 #include <vector>
 
-#include "../../madness/mra/funcplot.h"
 
-// Type definitions
-
-typedef Tensor<double> TensorT;
-typedef Function<double, 3> FunctionT;
-typedef std::shared_ptr<FunctionFunctorInterface<double, 3>> FunctorT;
-typedef FunctionFactory<double, 3> FactoryT;
-typedef Vector<double, 3> coordT;
-typedef std::vector<real_function_3d> VectorFunction3DT;
 
 MolecularDerivativeFunctor::MolecularDerivativeFunctor(const Molecule &molecule, size_t atom, size_t axis)
     : molecule(molecule), atom(atom), axis(axis) {}
 
-double MolecularDerivativeFunctor::operator()(const coordT &x) const {
+double MolecularDerivativeFunctor::operator()(const coord_3d &x) const {
   return molecule.nuclear_attraction_potential_derivative(atom, axis, x[0], x[1], x[2]);
 }
 
-std::vector<coordT> MolecularDerivativeFunctor::special_points() const {
-  return std::vector<coordT>(1, molecule.get_atom(atom).get_coords());
+vector_coord_3d MolecularDerivativeFunctor::special_points() const {
+  return vector_coord_3d(1, molecule.get_atom(atom).get_coords());
 }
 
 PropertyBase::PropertyBase() : num_operators(0), operator_vector() {}

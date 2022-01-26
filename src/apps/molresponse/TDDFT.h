@@ -144,7 +144,7 @@ class TDDFT {
   unsigned int act_num_orbitals;  // Number of ground state orbitals being used
                                   // in calculation
 
-  // XCfunction object for DFT calculations
+  // XCfunctional object for DFT calculations
   XCfunctional xcf;
 
   // Mask function to handle boundary conditions

@@ -11,17 +11,15 @@
 #include "../../madness/mra/funcplot.h"
 #include "../chem/SCFOperators.h"
 #include "../chem/molecule.h"
+#include <madness/mra/function_interface.h>
+#include <madness/mra/functypedefs.h>
 
 // Type definitions
+using namespace madness;
 
-typedef Tensor<double> TensorT;
-typedef Function<double, 3> FunctionT;
-typedef std::shared_ptr<FunctionFunctorInterface<double, 3>> FunctorT;
-typedef FunctionFactory<double, 3> FactoryT;
-typedef std::vector<real_function_3d> VectorFunction3DT;
+
 //
 class MolecularDerivativeFunctor : public FunctionFunctorInterface<double, 3> {
-  typedef Vector<double, 3> coordT;
 
  private:
   const Molecule &molecule;
@@ -30,20 +28,18 @@ class MolecularDerivativeFunctor : public FunctionFunctorInterface<double, 3> {
 
  public:
   MolecularDerivativeFunctor(const Molecule &molecule, size_t atom, size_t axis);
-  double operator()(const coordT &x) const;
-  std::vector<coordT> special_points() const;
+  double operator()(const coord_3d &x) const override;
+  vector_coord_3d special_points() const override;
 };  // namespace madness
-// A proerty class...creates a object with operator vector and property name
-// Used to compute proerties or compute rhs vectors
+// A property class...creates a object with operator vector and property name
+// Used to compute properties or compute rhs vectors
 class PropertyBase {
  public:
   size_t num_operators;  // number of operators in vectors
-  std::vector<real_function_3d> operator_vector;
+  vector_real_function_3d operator_vector;
 
   // default constructor
   PropertyBase();
-
-  PropertyBase(World &world, std::string property_type, Molecule molecule);
 };
 
 class DipoleVector : public PropertyBase {
