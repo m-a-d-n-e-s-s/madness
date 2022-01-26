@@ -60,6 +60,9 @@
 #include <chem/pcm.h>
 
 
+#include <external_headers/tensor_json.hpp>
+#include <filesystem>
+#include <memory>
 
 namespace madness {
 
@@ -693,6 +696,11 @@ public:
 	// For given protocol, solve the DFT/HF/response equations
 	void solve(World & world);
 
+
+        //
+        void output_scf_info_schema(const int& iter, const std::map<std::string, double>& vals, const tensorT& dipole_T);
+
+
 };
 
 
@@ -856,6 +864,22 @@ public:
 		energy = calc.current_energy;
 		gradient = calc.derivatives(world,rho);
 	}
+        void output_calc_info_schema() {
+          json j = {};
+          vec_pair_ints int_vals;
+          vec_pair_T<double> double_vals;
+          vec_pair_tensor_T<double> double_tensor_vals;
+
+          CalculationParameters param = calc.param;
+          int_vals.push_back({"calcinfo_nmo", param.nmo_alpha() + param.nmo_beta()});
+          int_vals.push_back({"calcinfo_nalpha", param.nalpha()});
+          int_vals.push_back({"calcinfo_nbeta", param.nbeta()});
+          int_vals.push_back({"calcinfo_natom", calc.molecule.natom()});
+          to_json(j, int_vals);
+          double_vals.push_back({"return_energy", value(calc.molecule.get_all_coords().flat())});
+          to_json(j, double_vals);
+          output_schema("calc_info", j);
+        }
 };
 }
 

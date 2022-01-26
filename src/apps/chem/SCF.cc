@@ -3627,5 +3627,31 @@ dipolebmo.clear();
 }
 //vama polarizability
 
-
+void SCF::output_scf_info_schema(const int& iter, const std::map<std::string, double>& vals, const tensorT& dipole_T) {
+  json j = {};
+  j.push_back(json());
+  // TODO (Adrian) possibly read in json from filesystem.
+  // if it exists figure out the size.  pushback for each protocol
+  j[0]["scf_iterations"] = iter;
+  const double thresh = FunctionDefaults<3>::get_thresh();
+  const int k = FunctionDefaults<3>::get_k();
+  j[0]["scf_threshold"] = thresh;
+  j[0]["scf_k"] = k;
+  for (auto const& [key, val] : vals) {
+    j[0][key] = val;
+  }
+  j[0]["scf_dipole_moment"] = tensor_to_json(dipole_T);
+  int num = 0;
+  std::string save = "scf_info.json";
+  if (std::filesystem::exists(save)) {
+    std::ifstream ifs(save);
+    json j_old;
+    ifs >> j_old;
+    print(j_old);
+    j_old.push_back(j);
+    j = j_old;
+  };
+  std::ofstream ofs(save);
+  ofs << j;
+}
 }
