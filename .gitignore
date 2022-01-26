@@ -56,3 +56,4 @@ cmake/bin
 cmake/doc
 cmake/share
 Makefile-prog.in
+compile_commands.json
