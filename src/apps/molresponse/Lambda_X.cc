@@ -20,14 +20,6 @@
 #include "../chem/molecule.h"
 #include "../chem/xcfunctional.h"
 #include "molresponse/TDDFT.h"
-#include "molresponse/basic_operators.h"
-#include "molresponse/ground_parameters.h"
-#include "molresponse/load_balance.h"
-#include "molresponse/property.h"
-#include "molresponse/response_functions.h"
-#include "molresponse/response_parameters.h"
-#include "molresponse/response_potential.h"
-#include "molresponse/timer.h"
 #include "molresponse/x_space.h"
 
 X_space TDDFT::Compute_Lambda_X(World& world,

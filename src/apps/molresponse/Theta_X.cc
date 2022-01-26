@@ -1,33 +1,18 @@
 
-#include <madness/constants.h>
-#include <madness/mra/mra.h>
-#include <madness/mra/nonlinsol.h>  // The kain solver
-#include <madness/mra/operator.h>
-#include <math.h>
+
 #include <stdio.h>
 
-#include <algorithm>
-#include <cmath>
-#include <complex>
-#include <iomanip>
-#include <map>
+
 #include <memory>
-#include <random>
-#include <string>
-#include <vector>
 
 #include "../chem/SCFOperators.h"
 #include "../chem/molecule.h"
 #include "../chem/xcfunctional.h"
 #include "molresponse/TDDFT.h"
-#include "molresponse/basic_operators.h"
-#include "molresponse/ground_parameters.h"
-#include "molresponse/load_balance.h"
-#include "molresponse/property.h"
+
 #include "molresponse/response_functions.h"
 #include "molresponse/response_parameters.h"
-#include "molresponse/response_potential.h"
-#include "molresponse/timer.h"
+
 #include "molresponse/x_space.h"
 
 X_space TDDFT::Compute_Theta_X(World& world, X_space& Chi, XCOperator<double, 3> xc, std::string calc_type) {

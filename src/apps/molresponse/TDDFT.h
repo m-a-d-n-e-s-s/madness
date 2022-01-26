@@ -20,10 +20,9 @@
 #include <molresponse/property.h>
 #include <molresponse/response_functions.h>
 #include <molresponse/response_parameters.h>
-#include <molresponse/response_potential.h>
 #include <molresponse/timer.h>
 #include <molresponse/x_space.h>
-#include <stdio.h>
+#include <cstdio>
 
 #include <algorithm>
 #include <apps/external_headers/tensor_json.hpp>
@@ -169,8 +168,6 @@ class TDDFT {
   // Get the response Function
   X_space& GetXspace();
   X_space& GetPQspace();
-  response_space& GetPVector();
-  response_space& GetQVector();
   ResponseParameters GetResponseParameters();
   GroundParameters GetGroundParameters();
   PropertyBase GetPropertyObject();
@@ -681,12 +678,7 @@ class TDDFT {
 
   // Creates potentials using the ResponsePotential object
   // Potentials are modified in place
-  void create_all_potentials(World& world,
-                             response_space& x,
-                             response_space& x_gamma,
-                             response_space& x_V0,
-                             ResponsePotential& potentials,
-                             size_t print_level);
+
 
   // Solves the response equations for response states
   void solve_excited_states(World& world);

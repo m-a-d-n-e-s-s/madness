@@ -464,64 +464,7 @@ X_space TDDFT::create_nwchem_guess(World& world, size_t m) {
   return trial;
 }
 
-// Creates potentials using the ResponsePotential object
-// Potentials are modified in place
-void TDDFT::create_all_potentials(World& world,
-                                  response_space& x,
-                                  response_space& x_gamma,
-                                  response_space& x_V0,
-                                  ResponsePotential& potentials,
-                                  size_t print_level) {
-  // Intermediaries
-  response_space gammaJ, gammaK, groundJ, groundK;
 
-  // Calc. coulomb like terms
-  if (print_level >= 1) molresponse::start_timer(world);
-  potentials.coulomb_terms(x, gammaK, groundJ);
-  if (print_level >= 1) molresponse::end_timer(world, "Coulomb terms:");
-
-  // Calc. exchange like terms
-  if (print_level >= 1) molresponse::start_timer(world);
-  potentials.exchange_terms(x, gammaJ, groundK);
-  if (print_level >= 1) molresponse::end_timer(world, "Exchange terms:");
-
-  // Assemble pieces together
-  x_gamma = gammaJ - gammaK;
-  x_V0 = groundJ - groundK;
-
-  // Debugging output
-  if (print_level >= 2) {
-    // Coulomb
-    if (world.rank() == 0) printf("   Coulomb Deriv matrix:\n");
-    Tensor<double> temp = expectation(world, x, gammaJ);
-    if (world.rank() == 0) print(temp);
-
-    // Exchange or VXC
-    if (r_params.xc() == "hf" and world.rank() == 0) printf("   Exchange Deriv matrix:\n");
-    if (r_params.xc() != "hf" and world.rank() == 0) printf("   Negative of XC Deriv matrix:\n");
-    temp = expectation(world, x, gammaK);
-    if (world.rank() == 0) print(temp);
-
-    // Total Gamma
-    if (world.rank() == 0) printf("   Gamma matrix:\n");
-    temp = expectation(world, x, x_gamma);
-    if (world.rank() == 0) print(temp);
-
-    // Coulomb (ground)
-    if (world.rank() == 0) printf("   Coulomb + Nuclear potential matrix:\n");
-    temp = expectation(world, x, groundJ);
-    if (world.rank() == 0) print(temp);
-
-    // Exchange or VXC (ground)
-    if (r_params.xc() == "hf" and world.rank() == 0) printf("   Exchange potential matrix:\n");
-    if (r_params.xc() != "hf" and world.rank() == 0) printf("   XC potential matrix:\n");
-    temp = expectation(world, x, groundK);
-    if (world.rank() == 0) print(temp);
-    if (world.rank() == 0) printf("   Total Potential Energy matrix:\n");
-    temp = expectation(world, x, x_V0);
-    if (world.rank() == 0) print(temp);
-  }
-}
 
 // Main function, makes sure everything happens in correcct order
 // Solves for response components

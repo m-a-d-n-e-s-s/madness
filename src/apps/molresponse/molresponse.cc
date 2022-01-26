@@ -34,7 +34,7 @@
 
 /// \file molresponse.cc
 /// \brief Molecular Response DFT code
-/// \defgroup molresponse The molecular density funcitonal response code
+/// \defgroup molresponse The molecular density functional response code
 #include <chem/SCF.h>
 #include <madness/world/worldmem.h>
 
