@@ -20,7 +20,8 @@ typedef std::shared_ptr<FunctionFunctorInterface<double, 3>> FunctorT;
 typedef FunctionFactory<double, 3> FactoryT;
 typedef std::vector<real_function_3d> VectorFunction3DT;
 
-density_vector::density_vector(World &world, ResponseParameters other_rparams, GroundParameters other_gparams)
+density_vector::density_vector(World &world, ResponseParameters other_rparams,
+                               GroundStateCalculation other_gparams)
     : num_states(other_rparams.n_states()),
       num_orbitals(other_rparams.num_orbitals()),
       property(),
@@ -43,13 +44,12 @@ density_vector::density_vector(World &world, ResponseParameters other_rparams, G
 
 ResponseParameters density_vector::GetResponseParameters() { return r_params; }
 
-density_vector set_density_type(World &world, ResponseParameters R, GroundParameters G) {
+density_vector set_density_type(World &world, ResponseParameters R, GroundStateCalculation G) {
   if (R.excited_state()) {
     return excited_state_density_vector(world, R, G);
-  } else if (R.dipole()) {
+  } else if (R.dipole())
     return dipole_density_vector(world, R, G);
-
-  } else if (R.nuclear()) {
+  else if (R.nuclear()) {
     return nuclear_density_vector(world, R, G);
   } else if (R.second_order()) {
     MADNESS_EXCEPTION("not implemented yet", 0);

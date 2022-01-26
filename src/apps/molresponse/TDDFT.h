@@ -17,6 +17,7 @@
 #include <molresponse/density.h>
 #include <molresponse/ground_parameters.h>
 #include <molresponse/load_balance.h>
+#include <molresponse/global_functions.h>
 #include <molresponse/property.h>
 #include <molresponse/response_functions.h>
 #include <molresponse/response_parameters.h>
@@ -102,14 +103,12 @@ typedef std::shared_ptr<FunctionFunctorInterface<double, 3>> functorT;
 typedef Function<double, 3> functionT;
 typedef std::vector<functionT> vecfuncT;
 typedef std::pair<vecfuncT, vecfuncT> pairvecfuncT;
-typedef std::vector<pairvecfuncT> subspaceT;
 typedef Tensor<double> tensorT;
 typedef DistributedMatrix<double> distmatT;
 typedef FunctionFactory<double, 3> factoryT;
 typedef SeparatedConvolution<double, 3> operatorT;
 typedef std::shared_ptr<operatorT> poperatorT;
 typedef Function<std::complex<double>, 3> complex_functionT;
-typedef std::vector<complex_functionT> cvecfuncT;
 typedef Convolution1D<double_complex> complex_operatorT;
 typedef std::vector<XNonlinearSolver<X_vector, double, X_space_allocator>> NonLinearXsolver;
 
@@ -121,7 +120,7 @@ class TDDFT {
   functionT mask;
 
   ResponseParameters r_params;
-  GroundParameters g_params;
+  GroundStateCalculation g_params;
   Molecule molecule;
 
   // Tensors for holding energies
@@ -143,7 +142,7 @@ class TDDFT {
   unsigned int act_num_orbitals;  // Number of ground state orbitals being used
                                   // in calculation
 
-  // XCfunctional object for DFT calculations
+  // XCfunction object for DFT calculations
   XCfunctional xcf;
 
   // Mask function to handle boundary conditions
@@ -165,14 +164,6 @@ class TDDFT {
                                     //   phi_j}{\left| r - r' \right|}
   PropertyBase p;                   // for frequency calculations
 
-  // Get the response Function
-  X_space& GetXspace();
-  X_space& GetPQspace();
-  ResponseParameters GetResponseParameters();
-  GroundParameters GetGroundParameters();
-  PropertyBase GetPropertyObject();
-  // Get Frequencies Omega
-  Tensor<double> GetFrequencyOmega();
 
   poperatorT coulop;
   std::vector<std::shared_ptr<real_derivative_3d>> gradop;
@@ -185,13 +176,13 @@ class TDDFT {
 
   TDDFT(World& world, density_vector& rho);
   // Saves a response calculation
-  void save(World& world, std::string name);
+  void save(World& world, const std::string & name);
 
   // Loads a response calculation
-  void load(World& world, std::string name);
+  void load(World& world, const std::string & name);
   // Initial load balance using vnuc
   void initial_load_bal(World& world);
-  void load_balance(World& world, vecfuncT rho_omega, X_space Chi, X_space Chi_old);
+  void load_balance(World& world, vecfuncT rho_omega, X_space Chi, const X_space& Chi_old);
   void orbital_load_balance(World& world,
                             vecfuncT& psi0,
                             vecfuncT& psi0_copy,
@@ -210,7 +201,6 @@ class TDDFT {
 
   // Returns a set of vector of vector of real_function_3d of proper size,
   // initialized to zero
-  response_space response_zero_functions(World& world, size_t m, int n);
 
   // Returns a list of solid harmonics
   std::map<std::vector<int>, real_function_3d> solid_harmonics(World& world, int n);
@@ -248,15 +238,12 @@ class TDDFT {
 
   // Returns a tensor, where entry (i,j) = inner(a[i], b[j]).sum()
   Tensor<double> expectation(World& world, const response_space& a, const response_space& b);
-  Tensor<double> expectation2(World& world, const response_space& a, const response_space& b);
   void PrintRFExpectation(World& world,
                           response_space f,
                           response_space g,
                           std::string fname,
                           std::string gname);
   void PrintResponseVectorNorms(World& world, response_space f, std::string fname);
-  // Returns the ground state fock operator applied to response functions
-  void xy_from_XVector(response_space& x, response_space& y, std::vector<X_vector>& Xvectors);
 
   void vector_stats(const std::vector<double>& v, double& rms, double& maxabsval) const;
 
@@ -399,14 +386,7 @@ class TDDFT {
                                     Tensor<double>& energy_residuals,
                                     size_t iteration);
 
-  X_space compute_residual_excited(World& world,
-                                   X_space& old_Chi,
-                                   X_space& Chi,
-                                   XCOperator<double, 3>& xc,
-                                   QProjector<double, 3>& projector,
-                                   Tensor<double>& bsh_residualsX,
-                                   Tensor<double>& bsh_residualsY,
-                                   std::vector<bool>& converged);
+
   X_space kain_x_space_update(World& world,
                               const X_space& temp,
                               const X_space& res,
@@ -724,14 +704,14 @@ class TDDFT {
                                      response_space& x_response,
                                      response_space& y_response,
                                      ResponseParameters const& r_params,
-                                     GroundParameters const& g_params);
+                                     GroundStateCalculation const& g_params);
   void compute_and_print_polarizability(World& world, X_space& Chi, X_space& PQ, std::string message);
   void plot_excited_states(World& world,
                            size_t iteration,
                            response_space& x_response,
                            response_space& y_response,
                            ResponseParameters const& r_params,
-                           GroundParameters const& g_params);
+                           GroundStateCalculation const& g_params);
   // Solves the response equations for the polarizability
   void solve_response_states(World& world);
   vecfuncT project_ao_basis(World& world, const AtomicBasisSet& aobasis);
@@ -752,6 +732,7 @@ class TDDFT {
                                 const Tensor<double>& tensor1,
                                 const Tensor<double>& tensor2,
                                 const Tensor<double>& tensor3);
+  vecfuncT make_density(World& world);
 };
 #endif  // SRC_APPS_MOLRESPONSE_TDDFT_H_
 

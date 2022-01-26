@@ -17,7 +17,6 @@
 #include <madness/world/worldmem.h>
 #include <molresponse/basic_operators.h>
 #include <molresponse/density.h>
-#include <molresponse/global_functions.h>
 #include <molresponse/property.h>
 #include <molresponse/response_functions.h>
 #include <molresponse/timer.h>
@@ -31,44 +30,7 @@
 #include <string>
 #include <utility>
 
-// Masking function to switch from 0 to 1 smoothly at boundary
-// Pulled from SCF.h
-inline double mask1(double x) {
-  /* Iterated first beta function to switch smoothly
-   from 0->1 in [0,1].  n iterations produce 2*n-1
-   zero derivatives at the end points. Order of polyn
-   is 3^n.
 
-   Currently use one iteration so that first deriv.
-   is zero at interior boundary and is exactly representable
-   by low order multiwavelet without refinement */
-
-  x = (x * x * (3. - 2. * x));
-  return x;
-}
-
-static double mask3(const coord_3d &ruser) {
-  coord_3d rsim;
-  user_to_sim(ruser, rsim);
-  double x = rsim[0], y = rsim[1], z = rsim[2];
-  double lo = 0.0625, hi = 1.0 - lo, result = 1.0;
-  double rlo = 1.0 / lo;
-
-  if (x < lo)
-    result *= mask1(x * rlo);
-  else if (x > hi)
-    result *= mask1((1.0 - x) * rlo);
-  if (y < lo)
-    result *= mask1(y * rlo);
-  else if (y > hi)
-    result *= mask1((1.0 - y) * rlo);
-  if (z < lo)
-    result *= mask1(z * rlo);
-  else if (z > hi)
-    result *= mask1((1.0 - z) * rlo);
-
-  return result;
-}
 // The TDDFT constructor initializes the preliminary calculation details including
 // the Chi vectors and the PQ vectors if they are required
 // ground orbitals
@@ -122,25 +84,9 @@ TDDFT::TDDFT(World &world, density_vector &rho)
   }
 }
 
-X_space &TDDFT::GetXspace() { return Chi; }
-
-X_space &TDDFT::GetPQspace() { return PQ; }
-
-// Get response parameters
-ResponseParameters TDDFT::GetResponseParameters() { return r_params; }
-
-GroundParameters TDDFT::GetGroundParameters() { return g_params; }
-
-PropertyBase TDDFT::GetPropertyObject() { return p; }
-
-// Get Frequencies Omega
-Tensor<double> TDDFT::GetFrequencyOmega() {
-  print("Frequencies : ", omega);
-  return omega;
-}
 
 // Save the current response calculation
-void TDDFT::save(World &world, std::string name) {
+void TDDFT::save(World &world, const std::string &name) {
   // Archive to write everything to
   archive::ParallelOutputArchive ar(world, name.c_str(), 1);
   // Just going to enforce 1 io server
@@ -174,7 +120,7 @@ void TDDFT::save(World &world, std::string name) {
 }
 
 // Load a response calculation
-void TDDFT::load(World &world, std::string name) {
+void TDDFT::load(World &world, const std::string & name) {
   // The archive to read from
   archive::ParallelInputArchive ar(world, name.c_str());
 
@@ -220,7 +166,7 @@ void TDDFT::initial_load_bal(World &world) {
   FunctionDefaults<3>::redistribute(world, lb.load_balance(r_params.loadbalparts()));
 }
 
-void TDDFT::load_balance(World &world, vecfuncT rho_omega, X_space Chi, X_space Chi_old) {
+void TDDFT::load_balance(World &world, vecfuncT rho_omega, X_space Chi, const X_space& Chi_old) {
   molresponse::start_timer(world);
   if (world.size() == 1) return;
 
@@ -836,32 +782,7 @@ Tensor<double> TDDFT::expectation(World &world, const response_space &A, const r
   return result;
 }
 
-Tensor<double> TDDFT::expectation2(World &world, const response_space &a, const response_space &b) {
-  MADNESS_ASSERT(a.size() > 0);
-  MADNESS_ASSERT(a.size() == b.size());
-  MADNESS_ASSERT(a[0].size() > 0);
-  MADNESS_ASSERT(a[0].size() == b[0].size());
-  // Get sizes
-  size_t dim_1 = a.size();
 
-  Tensor<double> result(a.size(), a.size());
-  // hold the results
-  response_space c(world, dim_1, dim_1);
-
-  for (size_t i(0); i < dim_1; i++) {
-    for (size_t j(0); j < dim_1; j++) {
-      c[i][j] = dot(world, a[i], b[j]);
-      result(i, j) = c[i][j].trace();
-    }
-  }
-  /**
-   * @brief
-   * [x1 x2 x3]T[x1 x2 x3]
-   *
-   */
-  // Run over dimension two
-  return result;
-}
 
 void TDDFT::PrintRFExpectation(World &world,
                                response_space f,
@@ -882,47 +803,7 @@ void TDDFT::PrintResponseVectorNorms(World &world, response_space f, std::string
   }
 }
 
-void TDDFT::xy_from_XVector(response_space &x, response_space &y, std::vector<X_vector> &Xvectors) {
-  MADNESS_ASSERT(x.size() == Xvectors.size());
-  MADNESS_ASSERT(y.size() == Xvectors.size());
-  MADNESS_ASSERT(x[0].size() == size_orbitals(Xvectors[0]));
-  MADNESS_ASSERT(y[0].size() == size_orbitals(Xvectors[0]));
 
-  for (size_t b = 0; b < x.size(); b++) {
-    std::cout << "moving state " << b << std::endl;
-    for (auto xs : x[b]) {
-      std::cout << "norm xs before move" << xs.norm2() << std::endl;
-    }
-    for (auto xs : Xvectors[b].X[0]) {
-      std::cout << "norm Xvector before move" << xs.norm2() << std::endl;
-    }
-    x[b] = Xvectors[b].X[0];
-    y[b] = Xvectors[b].Y[0];
-    for (auto xs : x[b]) {
-      std::cout << "norm xs after move" << xs.norm2() << std::endl;
-    }
-  }
-}
-
-// compute rms and maxabsval of vector of doubles
-void TDDFT::vector_stats(const std::vector<double> &v, double &rms, double &maxabsval) const {
-  rms = 0.0;
-  maxabsval = v[0];
-  for (size_t i = 0; i < v.size(); ++i) {
-    rms += v[i] * v[i];
-    maxabsval = std::max<double>(maxabsval, std::abs(v[i]));
-  }
-  rms = sqrt(rms / v.size());
-}
-
-void TDDFT::vector_stats_new(const Tensor<double> v, double &rms, double &maxabsval) const {
-  rms = 0.0;
-  for (size_t i = 0; i < v.size(); ++i) {
-    rms += v[i] * v[i];
-  }
-  rms = sqrt(rms / v.size());
-  maxabsval = v.max();
-}
 
 double TDDFT::do_step_restriction(World &world, const vecfuncT &x, vecfuncT &x_new, std::string spin) const {
   std::vector<double> anorm = norm2s(world, sub(world, x, x_new));
@@ -1470,22 +1351,22 @@ X_space TDDFT::compute_residual(World &world,
 }
 
 void TDDFT::print_residual_norms(World &world, X_space &res, bool compute_y, size_t iteration) {
-  size_t m = res.num_states();
+  long m = static_cast<long>(res.num_states());
 
   Tensor<double> x_norms(m);
   Tensor<double> y_norms(m);
-  for (size_t i = 0; i < m; i++) x_norms(i) = norm2(world, res.X[i]);
+  for (long i = 0; i < m; i++) x_norms(i) = norm2(world, res.X[i]);
   if (compute_y) {
     for (size_t i = 0; i < m; i++) y_norms(i) = norm2(world, res.Y[i]);
   }
   if (r_params.print_level() >= 0 and world.rank() == 0) {
     if (compute_y) {
       std::cout << "res " << iteration << " X :";
-      for (size_t i(0); i < m; i++) {
+      for (long i(0); i < m; i++) {
         std::cout << x_norms[i] << "  ";
       }
       std::cout << " Y :";
-      for (size_t i(0); i < m; i++) {
+      for (long i(0); i < m; i++) {
         std::cout << y_norms[i] << "  ";
       }
       std::cout << endl;
@@ -3844,7 +3725,7 @@ void TDDFT::PlotGroundandResponseOrbitals(World &world,
                                           response_space &x_response,
                                           response_space &y_response,
                                           ResponseParameters const &r_params,
-                                          GroundParameters const &g_params) {
+                                          GroundStateCalculation const &g_params) {
   std::filesystem::create_directories("plots/densities");
   std::filesystem::create_directory("plots/orbitals");
 
@@ -3922,7 +3803,7 @@ void TDDFT::plot_excited_states(World &world,
                                 response_space &x_response,
                                 response_space &y_response,
                                 ResponseParameters const &r_params,
-                                GroundParameters const &g_params) {
+                                GroundStateCalculation const &g_params) {
   std::filesystem::create_directories("plots/virtual");
   // num orbitals
   size_t n = x_response[0].size();

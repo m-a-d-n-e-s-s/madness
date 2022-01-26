@@ -3,8 +3,6 @@
 #include "apps/chem/SCF.h"
 #include "madness/world/worldmem.h"
 
-#include "TDDFT.h"  // All response functions/objects enter through this
-#include "molresponse/density.h"
 
 
 int main(int argc, char *argv[]) {

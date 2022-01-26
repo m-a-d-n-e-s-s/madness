@@ -34,9 +34,10 @@
 
 /// \file molresponse.cc
 /// \brief Molecular Response DFT code
-/// \defgroup molresponse The molecular density functional response code
+/// \defgroup molresponse The molecular density funcitonal response code
 #include <chem/SCF.h>
 #include <madness/world/worldmem.h>
+#include "ResponseExceptions.hpp"
 
 #include "TDDFT.h"  // All response functions/objects enter through this
 #include "molresponse/density.h"
@@ -54,37 +55,7 @@ static inline int file_exists(const char *inpname) {
 
 #endif
 
-/// Capturing the line/function/filename info is best done with the
-/// macros listed below.
-/// \param[in] m The error message.
-/// \param[in] a String describing the exception.
-/// \param[in] v Value associated with the exception.
-/// \param[in] l Line number where the exception occurred.
-/// \param[in] fn Function where the exception occurred.
-/// \param[in] f File where the exception occurred.
-class Input_Error : public MadnessException {
- public:
-  explicit Input_Error()
-      : MadnessException("input file not found", nullptr, 25, __LINE__, __FUNCTION__, __FILE__) {}
-};
-class Response_Input_Error : public MadnessException {
- public:
-  explicit Response_Input_Error()
-      : MadnessException("Response input not correct", nullptr, 25, __LINE__, __FUNCTION__, __FILE__) {}
-};
 
-density_vector read_and_create_density(World &world, const char *inpname, std::string tag) {
-  GroundParameters g_params;
-  ResponseParameters r_params;
-  if (world.rank() == 0) {
-    r_params.read_and_set_derived_values(world, inpname, std::move(tag));
-    std::string ground_file = r_params.archive();
-    g_params.read(world, ground_file);
-  }
-  density_vector d1 = set_density_type(world, r_params, g_params);
-
-  return d1;
-}
 
 using namespace madness;
 
@@ -112,8 +83,12 @@ int main(int argc, char **argv) {
 
       if (world.rank() == 0) print("input filename: ", input_file);
       if (!file_exists(input_file)) throw Input_Error{};
-      std::string tag = "response";
-      density_vector rho = read_and_create_density(world, input_file, tag);
+
+      auto [ground_calculation, molecule, response_parameters] =
+      initialize_calc_params(world, std::string(input_file));
+      vecfuncT ground_orbitals = ground_calculation.orbitals();
+
+      density_vector rho = set_density_type(world, response_parameters, ground_calculation);
       // first step is to read the input for r_params and g_params
       // Create the TDDFT object
       TDDFT calc = TDDFT(world, rho);
@@ -128,7 +103,7 @@ int main(int argc, char **argv) {
         print("\n");
         calc.molecule.print();
         print("\n");
-        calc.r_params.print(tag);
+        calc.r_params.print("response");
         // put the response parameters in a j_molrespone json object
         calc.r_params.to_json(calc.j_molresponse);
       }
@@ -140,7 +115,6 @@ int main(int argc, char **argv) {
         calc.initial_load_bal(world);
       }
       // set protocol to the first
-      calc.set_protocol<3>(world, calc.r_params.protocol()[0]);
       if (calc.r_params.excited_state()) {
         calc.solve_excited_states(world);
       } else if (calc.r_params.first_order()) {

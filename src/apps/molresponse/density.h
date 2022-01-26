@@ -9,10 +9,12 @@
 #include <string>
 #include <vector>
 
-#include "molresponse/global_functions.h"
+#include "CalculationParameters.h"
 #include "molresponse/ground_parameters.h"
 #include "molresponse/property.h"
 #include "molresponse/response_parameters.h"
+#include "timers.h"
+#include "xcfunctional.h"
 
 typedef Tensor<double> TensorT;
 typedef Function<double, 3> FunctionT;
@@ -20,7 +22,6 @@ typedef std::shared_ptr<FunctionFunctorInterface<double, 3>> FunctorT;
 typedef FunctionFactory<double, 3> FactoryT;
 typedef std::vector<real_function_3d> VectorFunction3DT;
 
-// base class for a density
 
 // operator used to create it.
 // homogeneous sol----x and y functions.
@@ -37,7 +38,7 @@ class density_vector {
   const std::string property;  // excited state, nuclear,dipole
 
   const ResponseParameters r_params;  // Response Parameters
-  const GroundParameters g_params;
+  const GroundStateCalculation g_params;
 
   XCfunctional xcf;                // xc functional
   PropertyBase property_operator;  // dipole, nuclear, or none
@@ -52,7 +53,7 @@ class density_vector {
  public:
   friend class TDDFT;
   // Collective constructor
-  density_vector(World& world, ResponseParameters r_params, GroundParameters g_params);
+  density_vector(World& world, ResponseParameters r_params, GroundStateCalculation g_params);
   density_vector(const density_vector& other) = default;
 
   ResponseParameters GetResponseParameters();
@@ -60,18 +61,26 @@ class density_vector {
 
 class dipole_density_vector : public density_vector {
  public:
-  dipole_density_vector(World& world, ResponseParameters R, GroundParameters G) : density_vector(world, R, G) {}
+  dipole_density_vector(World& world, ResponseParameters R, GroundStateCalculation G)
+      : density_vector(world, R, G) {}
 };
 
 class nuclear_density_vector : public density_vector {
  public:
-  nuclear_density_vector(World& world, ResponseParameters R, GroundParameters G) : density_vector(world, R, G) {}
+  nuclear_density_vector(World& world, ResponseParameters R, GroundStateCalculation G)
+      : density_vector(world, R, G) {}
 };
 
 class excited_state_density_vector : public density_vector {
  public:
-  excited_state_density_vector(World& world, ResponseParameters R, GroundParameters G) : density_vector(world, R, G) {}
+  excited_state_density_vector(World& world, ResponseParameters R, GroundStateCalculation G)
+      : density_vector(world, R, G) {}
 };
 
-density_vector set_density_type(World& world, ResponseParameters R, GroundParameters G);
+density_vector set_density_type(World& world, ResponseParameters R, GroundStateCalculation G);
+// The TDDFT constructor initializes the preliminary calculation details including
+// the Chi vectors and the PQ vectors if they are required
+// ground orbitals
+// molecule
+// We also intialize the molresponse.json file
 #endif  // SRC_APPS_molresponse_DENSITY_H_

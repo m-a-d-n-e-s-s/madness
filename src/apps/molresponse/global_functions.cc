@@ -4,10 +4,9 @@
 #include <string>
 #include <vector>
 
-#include "molresponse/density.h"
 #include "response_parameters.h"
 
-void print_molecule(World &world, GroundParameters g_params) {
+void print_molecule(World &world, const GroundStateCalculation & g_params) {
   if (world.rank() == 0) {
     // Precision is set to 10 coming in, drop it to 5
     std::cout.precision(5);
@@ -35,4 +34,16 @@ void print_molecule(World &world, GroundParameters g_params) {
     std::cout.precision(10);
     std::cout << std::scientific;
   }
+}
+
+CalcParams initialize_calc_params(World &world, std::string input_file) {
+  ResponseParameters r_params{};
+  r_params.read(world, input_file, "response");
+  GroundStateCalculation ground_calculation{world};
+  ground_calculation.print_params();
+  Molecule molecule = ground_calculation.molecule();
+  r_params.set_ground_state_calculation_data(ground_calculation);
+  r_params.set_derived_values(world,  molecule);
+  r_params.print();
+  return CalcParams{ground_calculation, molecule, r_params};
 }

@@ -44,7 +44,7 @@ struct ResponseParameters : public QCCalculationParametersBase {
     initialize<bool>("conv_only_dens", false, "if true remove bsh_residual from convergence criteria (deprecated)");
     initialize<bool>("dconv_set", false, "Convergence flage for the orbtial density");
     initialize<bool>("guess_xyz", false, "TODO : check what this is for");
-    initialize<double>("lo", 1.e10, "smallest length scale we need to resolve");
+    initialize<double>("lo", 1.e-10, "smallest length scale we need to resolve");
     initialize<std::vector<double>>("protocol", {1.e-4, 1.e-6}, "calculation protocol");
     initialize<size_t>("larger_subspace",
                        0,
@@ -160,24 +160,16 @@ struct ResponseParameters : public QCCalculationParametersBase {
   double L() const { return get<double>("l"); }
 
   bool spinrestricted() const { return get<bool>("spinrestricted"); }
-
-  void read_and_set_derived_values(World& world, std::string inputfile, std::string tag) {
-    // read the parameters from file and brodcast
-    // tag
-    read(world, inputfile, tag);
-    GroundParameters g_params;
-    std::string ground_file = archive();
-
-    g_params.read(world, ground_file);
-    g_params.print_params();
-    // Ground state params
+  void set_ground_state_calculation_data(GroundStateCalculation g_params){
     set_derived_value<size_t>("num_orbitals", g_params.n_orbitals());
     set_derived_value<bool>("spinrestricted", g_params.is_spinrestricted());
     set_derived_value<double>("l", g_params.get_L());
     set_derived_value<double>("lo", g_params.molecule().smallest_length_scale());
     set_derived_value<std::string>("xc", g_params.get_xc());
-
-    Molecule molecule = g_params.molecule();
+  }
+  void set_derived_values(World& world, Molecule molecule) {
+    // read the parameters from file and brodcast
+    // tag
     vector<std::string> calculation_type;
     vector<bool> calc_flags;
     if (first_order()) {
