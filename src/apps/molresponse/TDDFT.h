@@ -7,6 +7,7 @@
 #include <chem/molecularbasis.h>
 #include <chem/molecule.h>
 #include <chem/xcfunctional.h>
+#include <chem/SCF.h>
 #include <madness/constants.h>
 #include <madness/mra/mra.h>
 #include <madness/mra/nonlinsol.h>  // The kain solver

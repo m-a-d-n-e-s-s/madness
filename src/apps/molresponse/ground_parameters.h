@@ -20,6 +20,7 @@
 #include "madness/tensor/tensor.h"
 #include "madness/mra/functypedefs.h"
 
+using namespace madness;
 
 class GroundStateCalculation {
   // Ground state parameters that are read in from archive

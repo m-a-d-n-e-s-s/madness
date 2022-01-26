@@ -1,4 +1,5 @@
 #include "molresponse/property.h"
+#include <chem/SCF.h>
 
 #include <molresponse/TDDFT.h>
 #include <molresponse/response_functions.h>
@@ -8,16 +9,6 @@
 
 
 
-MolecularDerivativeFunctor::MolecularDerivativeFunctor(const Molecule &molecule, size_t atom, size_t axis)
-    : molecule(molecule), atom(atom), axis(axis) {}
-
-double MolecularDerivativeFunctor::operator()(const coord_3d &x) const {
-  return molecule.nuclear_attraction_potential_derivative(atom, axis, x[0], x[1], x[2]);
-}
-
-vector_coord_3d MolecularDerivativeFunctor::special_points() const {
-  return vector_coord_3d(1, molecule.get_atom(atom).get_coords());
-}
 
 PropertyBase::PropertyBase() : num_operators(0), operator_vector() {}
 

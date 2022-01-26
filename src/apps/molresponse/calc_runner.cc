@@ -9,6 +9,7 @@
 #include <utility>
 
 #include "Plot_VTK.h"
+#include <chem/SCF.h>
 #include "TDDFT.h"
 #include "chem/NWChem.h"  // For nwchem interface
 #include "chem/SCFOperators.h"

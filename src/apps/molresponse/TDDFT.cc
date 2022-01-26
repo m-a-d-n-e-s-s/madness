@@ -803,6 +803,25 @@ void TDDFT::PrintResponseVectorNorms(World &world, response_space f, std::string
   }
 }
 
+// compute rms and maxabsval of vector of doubles
+void TDDFT::vector_stats(const std::vector<double> &v, double &rms, double &maxabsval) const {
+  rms = 0.0;
+  maxabsval = v[0];
+  for (size_t i = 0; i < v.size(); ++i) {
+    rms += v[i] * v[i];
+    maxabsval = std::max<double>(maxabsval, std::abs(v[i]));
+  }
+  rms = sqrt(rms / v.size());
+}
+
+void TDDFT::vector_stats_new(const Tensor<double> v, double &rms, double &maxabsval) const {
+  rms = 0.0;
+  for (size_t i = 0; i < v.size(); ++i) {
+    rms += v[i] * v[i];
+  }
+  rms = sqrt(rms / v.size());
+  maxabsval = v.max();
+}
 
 
 double TDDFT::do_step_restriction(World &world, const vecfuncT &x, vecfuncT &x_new, std::string spin) const {
@@ -3854,17 +3873,6 @@ vecfuncT TDDFT::project_ao_basis(World &world, const AtomicBasisSet &aobasis) {
   return project_ao_basis_only(world, aobasis, molecule);
 }
 
-class AtomicBasisFunctor : public FunctionFunctorInterface<double, 3> {
- private:
-  const AtomicBasisFunction aofunc;
-
- public:
-  AtomicBasisFunctor(const AtomicBasisFunction &aofunc) : aofunc(aofunc) {}
-
-  double operator()(const coordT &x) const { return aofunc(x[0], x[1], x[2]); }
-
-  std::vector<coordT> special_points() const { return std::vector<coordT>(1, aofunc.get_coords_vec()); }
-};
 
 vecfuncT TDDFT::project_ao_basis_only(World &world, const AtomicBasisSet &aobasis, const Molecule &molecule) {
   vecfuncT ao = vecfuncT(aobasis.nbf(molecule));
@@ -3926,7 +3934,7 @@ void TDDFT::analyze_vectors(World &world, const vecfuncT &x, std::string respons
     rsq = inner(world, x, mul_sparse(world, frsq, x, vtol));
     for (int axis = 0; axis < 3; ++axis) {
       // x y z
-      functionT fdip = factoryT(world).functor(functorT(new DipoleFunctor(axis))).initial_level(4);
+      functionT fdip = factoryT(world).functor(functorT(new madness::DipoleFunctor(axis))).initial_level(4);
       dip(axis, _) = inner(world, x, mul_sparse(world, fdip, x, vtol));
       //<x r^2 x> - <x|x|x>^2-<x|y|x>^2-<x|z|x>^2
       for (int i = 0; i < nmo1; ++i) rsq(i) -= dip(axis, i) * dip(axis, i);
