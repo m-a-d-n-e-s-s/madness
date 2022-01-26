@@ -427,7 +427,142 @@ STATIC void dsyev_(const char* jobz, const char* uplo, integer *n,
            info, jobzlen, uplo_len );
 #endif
 }
+// bryan edits start
 
+/// These oddly-named wrappers enable the generic geev iterface to get
+/// the correct LAPACK routine based upon the argument type.  Internal
+/// use only.
+STATIC inline void dgeev_(const char* jobz, const char* uplo, integer *n,
+                          real4 *a, integer *lda, real4 *w_real, real4 *w_imag,
+                          real4 *v, integer *ldv, real4 *vr, integer *ldvr,
+                          real4 *work,  integer *lwork, integer *info,
+                          char_len jobzlen, char_len uplo_len) {
+#if MADNESS_LINALG_USE_LAPACKE
+    sgeev_(jobz, uplo, n, a, lda, w_real, w_imag, v, ldv, vr, ldvr, work,  lwork, info );
+#else
+    sgeev_(jobz, uplo, n, a, lda, w_real, w_imag, v, ldv, vr, ldvr, work,  lwork, info,
+           jobzlen, uplo_len );
+#endif
+}
+
+#if MADNESS_LINALG_USE_LAPACKE
+STATIC inline void dgeev_(const char* jobz, const char* uplo, integer *n,
+                          real8 *a, integer *lda, real8 *w_real, real8 *w_imag,
+                          real8 *v, integer *ldv, real8 *vr, integer *ldvr,
+                          real8 *work,  integer *lwork, integer *info,
+                          char_len jobzlen, char_len uplo_len) {
+    dgeev_(jobz, uplo, n, a, lda, w_real, w_imag, v, ldv, vr, ldvr, work,  lwork, info );
+}
+#endif
+
+STATIC inline void dgeev_(const char* jobz, const char* uplo, integer *n,
+                          complex_real4 *a, integer *lda, complex_real4 *w, complex_real4 *w_imag,
+                          complex_real4 *v, integer *ldv, complex_real4 *vr, integer *ldvr,
+                          complex_real4 *work,  integer *lwork, integer *info,
+                          char_len jobzlen, char_len uplo_len) {
+    Tensor<float> rwork(max((integer) 1, (integer) (2* (*n))));
+#if MADNESS_LINALG_USE_LAPACKE
+    cgeev_(jobz, uplo, n, reinterpret_cast<lapack_complex_float*>(a), lda,
+           reinterpret_cast<lapack_complex_float*>(w),
+           reinterpret_cast<lapack_complex_float*>(v), ldv,
+           reinterpret_cast<lapack_complex_float*>(vr), ldvr,
+           reinterpret_cast<lapack_complex_float*>(work), lwork, rwork.ptr(), info );
+#else
+    cgeev_(jobz, uplo, n, a, lda, w, v, ldv, vr, ldvr, work, lwork, rwork.ptr(), info,
+           jobzlen, uplo_len );
+#endif
+}
+
+
+STATIC inline void dgeev_(const char* jobz, const char* uplo, integer *n,
+                          complex_real8 *a, integer *lda, complex_real8 *w, complex_real8 *w_imag,
+                          complex_real8 *v, integer *ldv, complex_real8 *vr, integer *ldvr,
+                          complex_real8 *work,  integer *lwork, integer *info,
+                          char_len jobzlen, char_len uplo_len) {
+    Tensor<double> rwork(max((integer) 1, (integer) (2* (*n))));
+#if MADNESS_LINALG_USE_LAPACKE
+    zgeev_(jobz, uplo, n, reinterpret_cast<lapack_complex_double*>(a), lda,
+           reinterpret_cast<lapack_complex_double*>(w),
+           reinterpret_cast<lapack_complex_double*>(v), ldv,
+           reinterpret_cast<lapack_complex_double*>(vr), ldvr,
+           reinterpret_cast<lapack_complex_double*>(work), lwork, rwork.ptr(), info );
+#else
+    zgeev_(jobz, uplo, n, a, lda, w, v, ldv, vr, ldvr, work, lwork, rwork.ptr(), info,
+           jobzlen, uplo_len );
+#endif
+}
+
+/// These oddly-named wrappers enable the generic ggev iterface to get
+/// the correct LAPACK routine based upon the argument type.  Internal
+/// use only.
+STATIC inline void dggev_(const char* jobl, const char* jobr, integer *n,
+                          real4 *a, integer *lda, real4 *b, integer *ldb,
+                          real4 *w_real, real4 *w_imag, real4 *beta,
+                          real4 *vl, integer *ldvl, real4 *vr, integer *ldvr,
+                          real4 *work,  integer *lwork, integer *info,
+                          char_len jobzlen, char_len uplo_len) {
+#if MADNESS_LINALG_USE_LAPACKE
+    sggev_(jobl, jobr, n, a, lda, b, ldb, w_real, w_imag, beta, vl, ldvl, vr, ldvr, work,  lwork, info );
+#else
+    sggev_(jobl, jobr, n, a, lda, b, ldb, w_real, w_imag, beta, vl, ldvl, vr, ldvr, work,  lwork, info,
+           jobzlen, uplo_len );
+#endif
+}
+
+#if MADNESS_LINALG_USE_LAPACKE
+STATIC inline void dggev_(const char* jobl, const char* jobr, integer *n,
+                          real8 *a, integer *lda, real8 *b, integer *ldb,
+                          real8 *w_real, real8 *w_imag, real8 *beta,
+                          real8 *vl, integer *ldvl, real8 *vr, integer *ldvr,
+                          real8 *work,  integer *lwork, integer *info,
+                          char_len jobzlen, char_len uplo_len) {
+    dggev_(jobl, jobr, n, a, lda, b, ldb, w_real, w_imag, beta, vl, ldvl, vr, ldvr, work,  lwork, info );
+}
+#endif
+
+STATIC inline void dggev_(const char* jobl, const char* jobr, integer *n,
+                          complex_real4 *a, integer *lda, complex_real4 *b, integer *ldb,
+                          complex_real4 *w, complex_real4 *w_imag, complex_real4 *beta,
+                          complex_real4 *vl, integer *ldvl, complex_real4 *vr, integer *ldvr,
+                          complex_real4 *work,  integer *lwork, integer *info,
+                          char_len jobzlen, char_len uplo_len) {
+    Tensor<float> rwork(max((integer) 1, (integer) (2* (*n))));
+#if MADNESS_LINALG_USE_LAPACKE
+    cggev_(jobl, jobr, n, reinterpret_cast<lapack_complex_float*>(a), lda,
+           reinterpret_cast<lapack_complex_float*>(b), ldb,
+           reinterpret_cast<lapack_complex_float*>(w),
+           reinterpret_cast<lapack_complex_float*>(beta),
+           reinterpret_cast<lapack_complex_float*>(vl), ldvl,
+           reinterpret_cast<lapack_complex_float*>(vr), ldvr,
+           reinterpret_cast<lapack_complex_float*>(work), lwork, rwork.ptr(), info );
+#else
+    cggev_(jobl, jobr, n, a, lda, b, ldb, w, beta, vl, ldvl, vr, ldvr, work, lwork, rwork.ptr(), info,
+           jobzlen, uplo_len );
+#endif
+}
+
+
+STATIC inline void dggev_(const char* jobl, const char* jobr, integer *n,
+                          complex_real8 *a, integer *lda, complex_real8 *b, integer *ldb,
+                          complex_real8 *w, complex_real8 *w_imag, complex_real8 *beta,
+                          complex_real8 *vl, integer *ldvl, complex_real8 *vr, integer *ldvr,
+                          complex_real8 *work,  integer *lwork, integer *info,
+                          char_len jobzlen, char_len uplo_len) {
+    Tensor<double> rwork(max((integer) 1, (integer) (2* (*n))));
+#if MADNESS_LINALG_USE_LAPACKE
+    zggev_(jobl, jobr, n, reinterpret_cast<lapack_complex_double*>(a), lda,
+           reinterpret_cast<lapack_complex_double*>(b), ldb,
+           reinterpret_cast<lapack_complex_double*>(w),
+           reinterpret_cast<lapack_complex_double*>(beta),
+           reinterpret_cast<lapack_complex_double*>(vl), ldvl,
+           reinterpret_cast<lapack_complex_double*>(vr), ldvr,
+           reinterpret_cast<lapack_complex_double*>(work), lwork, rwork.ptr(), info );
+#else
+    zggev_(jobl, jobr, n, a, lda, b, ldb, w, beta, vl, ldvl, vr, ldvr, work, lwork, rwork.ptr(), info,
+           jobzlen, uplo_len );
+#endif
+}
+// bryan edits end
 
 
 /// These oddly-named wrappers enable the generic orgqr/unggr iterface to get
@@ -1568,6 +1703,14 @@ namespace madness {
     template
     void syev(const Tensor<double_complex>& A,
               Tensor<double_complex>& V, Tensor<Tensor<double_complex>::scalar_type >& e);
+
+// bryan edits start
+    template
+    void geev(const Tensor<double>& A, Tensor<double>& V, Tensor<std::complex<double>>& e);
+
+    template
+    void ggev(const Tensor<double>& A, Tensor<double>& B, Tensor<double>& V, Tensor<std::complex     <double>>& e);
+// bryan edits end
 
     template
     void cholesky(Tensor<double_complex>& A);
