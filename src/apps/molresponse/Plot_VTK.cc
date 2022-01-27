@@ -37,7 +37,7 @@ void do_vtk_plots(World &world,
 
   std::string geo_file;
   const char *filename;
-  Vector<int64_t, 3> points{npt_plot, npt_plot, npt_plot};
+  Vector<long, 3> points{npt_plot, npt_plot, npt_plot};
 
   // Plot the whole box?
   Vector<double, 3> box_lo{-L, -L, -L};
@@ -126,7 +126,7 @@ void do_vtk_plots(World &world,
   std::filesystem::create_directories(vtk_dir);
   std::string geo_file;
   const char *filename;
-  Vector<int64_t, 3> points{npt_plot, npt_plot, npt_plot};
+  Vector<long, 3> points{npt_plot, npt_plot, npt_plot};
   // Plot the whole box?
   Vector<double, 3> box_lo{-L, -L, -L};
   Vector<double, 3> box_hi{L, L, L};
@@ -155,6 +155,7 @@ void do_vtk_plots(World &world,
   fclose(f);
   std::string rho0_file = "rho_0.vts";
   filename = rho0_file.c_str();
+
   plotvtk_begin<3>(world, filename, box_lo, box_hi, points, true);
   plotvtk_data<double, 3>(rho_0,
                           "ground_density",
