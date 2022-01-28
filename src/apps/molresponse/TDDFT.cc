@@ -108,13 +108,13 @@ void TDDFT::save(World &world, const std::string &name) {
   ar &r_params.archive();
   ar &r_params.tda();
   ar &r_params.num_orbitals();
-  ar &r_params.n_states();
+  ar &r_params.num_states();
   ar &omega;
 
-  for (size_t i = 0; i < r_params.n_states(); i++)
+  for (size_t i = 0; i < r_params.num_states(); i++)
     for (size_t j = 0; j < r_params.num_orbitals(); j++) ar &Chi.X[i][j];
   if (not r_params.tda()) {
-    for (size_t i = 0; i < r_params.n_states(); i++)
+    for (size_t i = 0; i < r_params.num_states(); i++)
       for (size_t j = 0; j < r_params.num_orbitals(); j++) ar &Chi.Y[i][j];
   }
 }
@@ -142,17 +142,17 @@ void TDDFT::load(World &world, const std::string & name) {
   ar &r_params.archive();
   ar &r_params.tda();
   ar &r_params.num_orbitals();
-  ar &r_params.n_states();
+  ar &r_params.num_states();
   ar &omega;
 
-  Chi = X_space(world, r_params.n_states(), r_params.num_orbitals());
+  Chi = X_space(world, r_params.num_states(), r_params.num_orbitals());
 
-  for (size_t i = 0; i < r_params.n_states(); i++)
+  for (size_t i = 0; i < r_params.num_states(); i++)
     for (size_t j = 0; j < r_params.num_orbitals(); j++) ar &Chi.X[i][j];
   world.gop.fence();
 
   if (not r_params.tda()) {
-    for (size_t i = 0; i < r_params.n_states(); i++)
+    for (size_t i = 0; i < r_params.num_states(); i++)
       for (size_t j = 0; j < r_params.num_orbitals(); j++) ar &Chi.Y[i][j];
     world.gop.fence();
   }
@@ -208,7 +208,7 @@ void TDDFT::orbital_load_balance(World &world,
                                  vecfuncT &psi0_copy,
                                  X_space &Chi,
                                  X_space &Chi_copy) {
-  size_t m = r_params.n_states();
+  size_t m = r_params.num_states();
   size_t n = r_params.num_orbitals();
 
   if (world.size() > 1) {
@@ -700,7 +700,7 @@ response_space TDDFT::exchange(World &world, response_space &f) {
 
   // Modified 'small memory' algorithm from SCF.cc
   f.reconstruct_rf();
-  // K[rho0]xp=\sum_i |i><i|J|xp>
+  // K[ground_density]xp=\sum_i |i><i|J|xp>
   // for each state
   // for each occ orbital
   //		- create the vector of orbital products
@@ -742,9 +742,9 @@ void TDDFT::make_nuclear_potential(World &world) {
 
 // Returns the ground state potential applied to functions f
 // (V0 f) V0=(Vnuc+J0-K0+EXC0)
-// J0=J[rho0]
-// K0=K[rho0]f
-// EXC0=EXC[rho0]
+// J0=J[ground_density]
+// K0=K[ground_density]f
+// EXC0=EXC[ground_density]
 
 // result(i,j) = inner(a[i],b[j]).sum()
 Tensor<double> TDDFT::expectation(World &world, const response_space &A, const response_space &B) {
@@ -1143,7 +1143,7 @@ std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> TDDFT::CreateBSHO
 
   // Sizes inferred from ground and omega
   size_t n = ground.size();  // number of orbitals
-  size_t num_states = r_params.n_states();
+  size_t num_states = r_params.num_states();
   size_t num_freq = omega.size();  // number of frequency states
   // print("num of freq", num_freq);
 
@@ -2915,7 +2915,7 @@ void TDDFT::deflateTDA(World &world,
               XAX,
               old_S,
               old_A,
-              r_params.n_states(),
+              r_params.num_states(),
               iteration,
               r_params.print_level());
   }
@@ -2972,7 +2972,7 @@ void TDDFT::deflateFull(World &world,
                    A,
                    old_S,
                    old_A,
-                   r_params.n_states(),
+                   r_params.num_states(),
                    iteration,
                    r_params.print_level());
   } else {
@@ -3250,7 +3250,7 @@ void TDDFT::iterate_guess(World &world, X_space &guesses) {
   size_t iteration = 0;  // Iteration counter
   QProjector<double, 3> projector(world,
                                   ground_orbitals);  // Projector to project out ground state
-  size_t m = r_params.n_states();                    // Number of excited states
+  size_t m = r_params.num_states();                    // Number of excited states
   size_t n = r_params.num_orbitals();                // Number of ground state orbitals
   Tensor<double> x_shifts;                           // Holds the shifted energy values
   response_space bsh_resp(world, m, n);              // Holds wave function corrections
@@ -3310,7 +3310,7 @@ select_functions(world, guesses.X, omega, Ni, r_params.print_level());
 
       LoadBalanceDeux<3> lb(world);
       for (size_t j = 0; j < n; j++) {
-        for (size_t k = 0; k < r_params.n_states(); k++) {
+        for (size_t k = 0; k < r_params.num_states(); k++) {
           lb.add_tree(guesses.X[k][j], lbcost<double, 3>(1.0, 8.0), true);
         }
       }
