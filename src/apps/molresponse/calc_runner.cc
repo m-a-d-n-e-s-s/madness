@@ -429,7 +429,6 @@ X_space TDDFT::create_nwchem_guess(World& world, size_t m) {
 }
 
 
-
 // Main function, makes sure everything happens in correcct order
 // Solves for response components
 void TDDFT::solve_excited_states(World& world) {
@@ -458,7 +457,6 @@ void TDDFT::solve_excited_states(World& world) {
                    square(world, ground_orbitals),
                    "ground");
   }
-
   // Warm and fuzzy
   if (world.rank() == 0) {
     print("\n\n     Excited State Calculation");
@@ -484,7 +482,7 @@ void TDDFT::solve_excited_states(World& world) {
         load(world, r_params.restart_file());
         check_k(world, r_params.protocol()[proto], FunctionDefaults<3>::get_k());
       } else {
-        X_space trial(world, 2 * r_params.n_states(), r_params.num_orbitals());
+        X_space trial(world, 2 * r_params.num_states(), r_params.num_orbitals());
         // Create trial functions by...
         // (Always creating (at least) twice the amount requested for
         // initial diagonalization)
@@ -492,16 +490,16 @@ void TDDFT::solve_excited_states(World& world) {
         if (r_params.random()) {
           // Random guess
           trial = create_random_guess(
-              world, 2 * r_params.n_states(), r_params.num_orbitals(), ground_orbitals, molecule);
+              world, 2 * r_params.num_states(), r_params.num_orbitals(), ground_orbitals, molecule);
         } else if (r_params.nwchem()) {
           // Virtual orbitals from NWChem
-          trial = create_nwchem_guess(world, 2 * r_params.n_states());
+          trial = create_nwchem_guess(world, 2 * r_params.num_states());
         } else if (r_params.guess_xyz()) {
           // Use a symmetry adapted operator on ground state functions
           trial = create_trial_functions2(world, ground_orbitals, r_params.num_orbitals());
         } else {
           trial = create_trial_functions(
-              world, 2 * r_params.n_states(), ground_orbitals, r_params.num_orbitals());
+              world, 2 * r_params.num_states(), ground_orbitals, r_params.num_orbitals());
         }
 
         // Load balance
@@ -512,7 +510,7 @@ void TDDFT::solve_excited_states(World& world) {
           if (world.rank() == 0) print("");  // Makes it more legible
 
           LoadBalanceDeux<3> lb(world);
-          for (size_t j = 0; j < r_params.n_states(); j++) {
+          for (size_t j = 0; j < r_params.num_states(); j++) {
             for (size_t k = 0; k < r_params.num_orbitals(); k++) {
               lb.add_tree(trial.X[j][k], lbcost<double, 3>(1.0, 8.0), true);
             }
@@ -555,10 +553,10 @@ void TDDFT::solve_excited_states(World& world) {
           print("\n   Final initial guess excitation energies:");
           print(omega);
         }
-        // Chi = X_space(world, r_params.n_states(), r_params.num_orbitals());
+        // Chi = X_space(world, r_params.num_states(), r_params.num_orbitals());
         // Select lowest energy functions from guess
-        Chi.X = select_functions(world, trial.X, omega, r_params.n_states(), r_params.num_orbitals());
-        Chi.Y = response_space(world, r_params.n_states(), r_params.num_orbitals());
+        Chi.X = select_functions(world, trial.X, omega, r_params.num_states(), r_params.num_orbitals());
+        Chi.Y = response_space(world, r_params.num_states(), r_params.num_orbitals());
 
         trial.clear();
         // Initial guess for y are zero functions
@@ -714,7 +712,7 @@ void TDDFT::solve_response_states(World& world) {
     // Here i should print some information about the calculation we are
     // about to do
     print("Pre iteration Information");
-    print("Number of Response States: ", r_params.n_states());
+    print("Number of Response States: ", r_params.num_states());
     print("Number of Ground States: ", r_params.num_orbitals());
     print("k = ", FunctionDefaults<3>::get_k());
     print("protocol threshold = ", FunctionDefaults<3>::get_k());
