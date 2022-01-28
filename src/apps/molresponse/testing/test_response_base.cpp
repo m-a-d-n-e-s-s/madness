@@ -2,15 +2,17 @@
 // Created by adrianhurtado on 1/1/22.
 //
 
+#include <chem/write_test_input.h>
+#include <madness/world/worldmem.h>
+
 #include "molresponse/ResponseExceptions.hpp"
 #include "molresponse/densityVector.hpp"
 #include "molresponse/global_functions.h"
-#include <madness/world/worldmem.h>
 
 #if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
 
-#include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 static inline int file_exists(const char *input_name) {
@@ -22,14 +24,16 @@ static inline int file_exists(const char *input_name) {
 #endif
 
 
-TEST_CASE("Test Density Vectors", "Testing Basic Functionality of Response Functions") {
+TEST_CASE("Response Base Test" ) {
+
 
     World &world = World::get_default();
+
     print_meminfo(world.rank(), "startup");
     FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3> >(world)));
     std::cout.precision(6);
 
-    const char *input_file = "response.in";
+    const char *input_file = "static";
     if (world.rank() == 0) { print("input filename: ", input_file); }
     if (!file_exists(input_file)) { throw Input_Error{}; }
 
@@ -42,8 +46,5 @@ TEST_CASE("Test Density Vectors", "Testing Basic Functionality of Response Funct
 
     ResponseBase calc(world, calc_params);
     calc.solve(world);
-
-
-
 
 }
