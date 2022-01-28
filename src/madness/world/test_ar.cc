@@ -424,6 +424,7 @@ void test_out(const OutputArchive& oar) {
     double e = exp(1.0);
     tuple_int_double_complexfloat t = std::make_tuple(1,2.0,std::complex<float>(3.0f,4.0f));
     std::set<int> s{1, 33, 6, 352};
+    std::unique_ptr<int> up = std::make_unique<int>(33);
 
     // Initialize data
     a.a = 1; b.b = 1; c.c = 1; i = 1;
@@ -532,6 +533,10 @@ void test_out(const OutputArchive& oar) {
     MAD_ARCHIVE_DEBUG(std::cout << std::endl<< " set<int>" << std::endl);
     oar << s;
     oar & s;
+    MAD_ARCHIVE_DEBUG(std::cout << std::endl
+                                << " unique_ptr<int>" << std::endl);
+    oar << up;
+    oar & up;
     MAD_ARCHIVE_DEBUG(std::cout << std::endl << " string" << std::endl);
     oar << str;
     oar & str;
@@ -559,7 +564,7 @@ void test_out(const OutputArchive& oar) {
       oar << (&Member::virtual_fn);
     }
 
-    oar & 1.0 & i & a & b & c & in & an & bn & cn & wrap(p,n) & wrap(q,n) & pp & m & t & s & str;
+    oar & 1.0 & i & a & b & c & in & an & bn & cn & wrap(p,n) & wrap(q,n) & pp & m & t & s & up & str;
     if constexpr(ptr_is_serializable) {
       oar & free_fn &(&free_fn) & Member::static_fn & (&Member::static_fn) & (&Member::fn) & (&Member::virtual_fn);
     }
@@ -593,6 +598,7 @@ void test_in(const InputArchive& iar) {
     map<short,double_complex> m;
     std::set<int> s;
     std::set<int> s2 = {1, 33, 6, 352};
+    std::unique_ptr<int> up = std::make_unique<int>();
     const char *teststr = "hello \n dude !";
     string str(teststr);
     linked_list list;
@@ -708,9 +714,12 @@ void test_in(const InputArchive& iar) {
     MAD_ARCHIVE_DEBUG(std::cout << std::endl << " tuple<int,double,complex<float>>" << std::endl);
     iar & t;
     iar >> t;
-    MAD_ARCHIVE_DEBUG(std::cout << std::endl<< " set<int>" << std::endl);
+    MAD_ARCHIVE_DEBUG(std::cout << std::endl << " set<int>" << std::endl);
     iar >> s;
     iar & s;
+    MAD_ARCHIVE_DEBUG(std::cout << std::endl << " unique_ptr<float>" << std::endl);
+    iar >> up;
+    iar & up;
     MAD_ARCHIVE_DEBUG(std::cout << std::endl << " string" << std::endl);
     iar & str;
     iar >> str;
@@ -744,7 +753,7 @@ void test_in(const InputArchive& iar) {
       iar >> nonstatic_virtual_member_fn_ptr;
     }
 
-    iar & 1.0 & i & a & b & c & in & an & bn & cn & wrap(p,n) & wrap(q,n) & pp & m & t & s & str;
+    iar & 1.0 & i & a & b & c & in & an & bn & cn & wrap(p,n) & wrap(q,n) & pp & m & t & s & up & str;
     if constexpr(ptr_is_serializable) {
       iar &free_fn_ptr1 &free_fn_ptr2 &static_member_fn_ptr1
           &static_member_fn_ptr2 & member_fn_ptr & virtual_member_fn_ptr;
@@ -806,6 +815,7 @@ void test_in(const InputArchive& iar) {
     TEST(str == string(teststr));
     TEST(t == std::make_tuple(1,2.0,std::complex<float>(3.0f,4.0f)));
     TEST(s == s2);
+    TEST(up == std::make_unique<int>(33));
     if constexpr (ptr_is_serializable)
     {
       TEST(free_fn_ptr1 == &free_fn);
