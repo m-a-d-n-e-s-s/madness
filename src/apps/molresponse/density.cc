@@ -22,7 +22,7 @@ typedef std::vector<real_function_3d> VectorFunction3DT;
 
 density_vector::density_vector(World &world, ResponseParameters other_rparams,
                                GroundStateCalculation other_gparams)
-    : num_states(other_rparams.n_states()),
+    : num_states(other_rparams.num_states()),
       num_orbitals(other_rparams.num_orbitals()),
       property(),
       r_params(other_rparams),  // should be a copy
@@ -33,7 +33,7 @@ density_vector::density_vector(World &world, ResponseParameters other_rparams,
       molecule(other_gparams.molecule()) {
   xcf.initialize(r_params.xc(), !r_params.spinrestricted(), world, r_params.print_level() >= 10);
   if (r_params.excited_state()) {
-    this->omega = Tensor<double>(r_params.n_states());
+    this->omega = Tensor<double>(r_params.num_states());
   } else {
     this->omega = Tensor<double>(1);
     this->omega(0, 0) = r_params.omega();
