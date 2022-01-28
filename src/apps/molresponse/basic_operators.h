@@ -6,7 +6,7 @@
 
 #include <madness/mra/mra.h>
 #include <madness/mra/operator.h>
-#include <response_functions.h>
+#include "response_functions.h"
 
 #include <algorithm>
 #include <memory>
