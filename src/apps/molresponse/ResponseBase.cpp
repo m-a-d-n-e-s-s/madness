@@ -104,7 +104,7 @@ void ResponseBase::check_k(World &world, double thresh, int k) {
 //
 /// \param world
 /// \return
-HamiltonianPair ResponseBase::ComputeHamiltonianPair(World &world) const {
+std::pair<Tensor<double>,Tensor<double>> ResponseBase::ComputeHamiltonianPair(World &world) const {
     // Basic output
     if (r_params.print_level() >= 1) molresponse::start_timer(world);
     auto phi = ground_orbitals;

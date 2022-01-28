@@ -9,11 +9,8 @@
 #include "global_functions.h"
 #include "load_balance.h"
 #include "timer.h"
+#include <utility>
 
-struct HamiltonianPair {
-    Tensor<double> hamiltonain;
-    Tensor<double> no_diagonal;
-};
 class ResponseBase {
 public:
     ResponseBase(World& world, const CalcParams& params);
@@ -127,7 +124,7 @@ protected:
 
     void check_k(World& world, double thresh, int k);
     functionT make_ground_density(World& world) const;
-    HamiltonianPair ComputeHamiltonianPair(World& world) const;
+    std::pair<Tensor<double>,Tensor<double>> ComputeHamiltonianPair(World& world) const;
     real_function_3d Coulomb(World& world) const;
     XCOperator<double, 3> make_xc_operator(World& world) const;
     void save(World& world, const std::string& name);
