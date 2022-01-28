@@ -150,7 +150,7 @@ void FrequencySolver::compute(World &world, FrequencyVector& rho) {
     // Here i should print some information about the calculation we are
     // about to do
     print("Pre iteration Information");
-    print("Number of Response States: ", r_params.n_states());
+    print("Number of Response States: ", r_params.num_states());
     print("Number of Ground States: ", r_params.num_orbitals());
     print("k = ", FunctionDefaults<3>::get_k());
     print("protocol threshold = ", FunctionDefaults<3>::get_k());
@@ -216,7 +216,7 @@ void FrequencySolver::iterate(World& world) {
   size_t iter;
   // Variables needed to iterate
   QProjector<double, 3> projector(world, ground_orbitals);
-  size_t m = r_params.n_states();      // Number of excited states
+  size_t m = r_params.num_states();      // Number of excited states
   size_t n = r_params.num_orbitals();  // Number of ground state orbitals
 
   real_function_3d v_xc;   // For TDDFT
@@ -230,7 +230,7 @@ void FrequencySolver::iterate(World& world) {
   vecfuncT rho_omega_old(m);
 
   // initialize DFT XC functional operator
-  XCOperator<double, 3> xc = create_XCOperator(world,  r_params.xc());
+  XCOperator<double, 3> xc = make_xc_operator(world);
 
   // create X space residuals
   X_space residuals(world, m, n);
@@ -365,9 +365,9 @@ void FrequencySolver::iterate(World& world) {
         if (r_params.plot_all_orbitals()) {
           PlotGroundandResponseOrbitals(world, iter, Chi.X, Chi.Y, r_params, ground_calc);
         }
-        rho0 = make_ground_density(world, ground_orbitals);
+        ground_density = make_ground_density(world);
         if (r_params.plot()) {
-          do_vtk_plots(world, 200, r_params.L(), molecule, rho0, rho_omega, ground_orbitals, Chi);
+          do_vtk_plots(world, 200, r_params.L(), molecule, ground_density, rho_omega, ground_orbitals, Chi);
         }
         break;
       }

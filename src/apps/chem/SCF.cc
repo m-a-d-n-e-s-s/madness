@@ -131,7 +131,6 @@ tensorT Q2(const tensorT& s) {
 
 /// collective constructor, reads \c input on rank 0, broadcasts to all
 SCF::SCF(World& world, const commandlineparser& parser) : param(CalculationParameters(world,parser)) {
-	FunctionDefaults<3>::set_truncate_mode(1);
 	PROFILE_MEMBER_FUNC(SCF);
 
 //    param.read(world,parser.value("input"),"dft");
@@ -199,11 +198,21 @@ void SCF::save_mos(World& world) {
   PROFILE_MEMBER_FUNC(SCF);
   archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, "restartdata", param.get<int>("nio"));
   // IF YOU CHANGE ANYTHING HERE MAKE SURE TO UPDATE THIS VERSION NUMBER
-  unsigned int version = 1;
+  /*
+   * After spin restricted
+    double L;
+    int k;
+    Molecule molecule;
+    std::string xc;
+    */
+  unsigned int version = 2;
   ar& version;
   ar& current_energy& param.spin_restricted();
+  ar & param.L() & FunctionDefaults<3>::get_k() & molecule& param.xc();
+// Re order so it doesn't effect orbital data
+
   ar&(unsigned int)(amo.size());
-  ar& aeps& aocc& aset& param.L() & FunctionDefaults<3>::get_k() & molecule& param.xc();
+  ar& aeps& aocc& aset;
   for (unsigned int i = 0; i < amo.size(); ++i) ar& amo[i];
   if (!param.spin_restricted()) {
     ar&(unsigned int)(bmo.size());
@@ -231,6 +240,7 @@ void SCF::load_mos(World& world) {
   const int k = FunctionDefaults<3>::get_k();
   unsigned int nmo = 0;
   bool spinrest = false;
+
   amo.clear();
   bmo.clear();
 
@@ -241,14 +251,14 @@ void SCF::load_mos(World& world) {
         unsigned int version;
         double current energy;
     bool spinrestricted --> if true only alpha orbitals are present
+    double L;
+    int k;
+    Molecule molecule;
+    std::string xc;
     unsigned int nmo_alpha;
     Tensor<double> aeps;
     Tensor<double> aocc;
     vector<int> aset;
-        double L;
-        int k;
-        Molecule molecule;
-        std::string xc;
     for i from 0 to nalpha-1:
     .   Function<double,3> amo[i]
     repeat for beta if !spinrestricted
@@ -256,7 +266,7 @@ void SCF::load_mos(World& world) {
   // Local copies for a basic check
   double L;
   int k1;                    // Ignored for restarting, used in response only
-  unsigned int version = 1;  // UPDATE THIS IF YOU CHANGE ANYTHING
+  unsigned int version = 2;  // UPDATE THIS IF YOU CHANGE ANYTHING
   unsigned int archive_version;
 
   ar& archive_version;
@@ -271,10 +281,12 @@ void SCF::load_mos(World& world) {
   // LOTS OF LOGIC MISSING HERE TO CHANGE OCCUPATION NO., SET,
   // EPS, SWAP, ... sigh
   ar& current_energy& spinrest;
+  // Reorder
+  ar & L& k1& molecule& param.xc();
 
   ar& nmo;
   MADNESS_ASSERT(nmo >= unsigned(param.nmo_alpha()));
-  ar& aeps& aocc& aset& L& k1& molecule& param.xc();
+  ar& aeps& aocc& aset;
   // Some basic checks
   if (L != param.L()) {
     if (world.rank() == 0)

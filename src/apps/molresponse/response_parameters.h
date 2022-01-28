@@ -102,7 +102,7 @@ struct ResponseParameters : public QCCalculationParametersBase {
   std::string calc_type() const { return get<std::string>("calc_type"); }
   std::string nwchem_dir() const { return get<std::string>("nwchem_dir"); }
   bool nwchem() const { return get<bool>("nwchem"); }
-  size_t n_states() const { return get<size_t>("states"); }
+  size_t num_states() const { return get<size_t>("states"); }
   size_t num_orbitals() const { return get<size_t>("num_orbitals"); }
   int print_level() const { return get<int>("print_level"); }
   bool tda() const { return get<bool>("tda"); }

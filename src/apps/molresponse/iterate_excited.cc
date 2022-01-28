@@ -33,7 +33,7 @@ json iteration_to_json(int iter,
 void TDDFT::iterate_excited(World& world, X_space& Chi) {
   size_t iter;
   QProjector<double, 3> projector(world, ground_orbitals);
-  size_t m = r_params.n_states();      // Number of excited states
+  size_t m = r_params.num_states();      // Number of excited states
   size_t n = r_params.num_orbitals();  // Number of ground state orbitals
 
   const auto dconv =

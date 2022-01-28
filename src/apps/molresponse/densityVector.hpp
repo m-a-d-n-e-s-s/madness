@@ -4,11 +4,11 @@
 
 #ifndef MADNESS_DENSITYVECTOR_HPP
 #define MADNESS_DENSITYVECTOR_HPP
-#include <molresponse/global_functions.h>
+#include "molresponse/global_functions.h"
 #include "property.h"
 
 #include "mra.h"
-#include "solver.hpp"
+#include "ResponseBase.hpp"
 
 class DensityVector {
  public:
@@ -19,7 +19,7 @@ class DensityVector {
 
 class FrequencyVector;
 
-class FrequencySolver : public Solver {
+class FrequencySolver : public ResponseBase {
  public:
   virtual ~FrequencySolver() = default;
   void compute(World&world,FrequencyVector& density);

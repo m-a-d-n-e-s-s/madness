@@ -44,7 +44,7 @@ void TDDFT::iterate_freq2(World& world) {
   // Variables needed to iterate
   QProjector<double, 3> projector(world, ground_orbitals);
   size_t n = r_params.num_orbitals();  // Number of ground state orbitals
-  size_t m = r_params.n_states();      // Number of excited states
+  size_t m = r_params.num_states();      // Number of excited states
 
   real_function_3d v_xc;   // For TDDFT
   bool converged = false;  // Converged flag

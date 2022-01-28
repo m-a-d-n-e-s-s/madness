@@ -204,7 +204,7 @@ X_space TDDFT::compute_gamma_full(World& world,
 X_space TDDFT::compute_gamma_static(World& world,
                                     X_space& Chi,
                                     XCOperator<double, 3> xc) {
-  size_t m = r_params.n_states();
+  size_t m = r_params.num_states();
   size_t n = r_params.num_orbitals();
   // shallow copy
   std::shared_ptr<WorldDCPmapInterface<Key<3>>> oldpmap =
@@ -415,9 +415,9 @@ X_space TDDFT::compute_gamma_tda(World& world,
 
 // Returns the ground state potential applied to functions f
 // (V0 f) V0=(Vnuc+J0-K0+W0)
-// J0=J[rho0]
-// K0=K[rho0]f
-// EXC0=W[rho0]
+// J0=J[ground_density]
+// K0=K[ground_density]f
+// EXC0=W[ground_density]
 X_space TDDFT::compute_V0X(World& world,
                            X_space& Chi,
                            XCOperator<double, 3> xc,
@@ -456,7 +456,7 @@ X_space TDDFT::compute_V0X(World& world,
   } else {  // Already pre-computed
     v_j0 = stored_v_coul;
   }
-  molresponse::end_timer(world, "Coulomb Potential J[rho0]");
+  molresponse::end_timer(world, "Coulomb Potential J[ground_density]");
 
   if (xcf.hf_exchange_coefficient() != 1.0) {
     v_xc = xc.make_xc_potential();
@@ -483,7 +483,7 @@ X_space TDDFT::compute_V0X(World& world,
     print("inner <X|K0|X>");
     print(inner(Chi_copy, K0));
   }
-  molresponse::end_timer(world, "K[rho0]");
+  molresponse::end_timer(world, "K[ground_density]");
   // Vnuc+V0+VXC
   molresponse::start_timer(world);
   real_function_3d v0 = v_j0 + v_nuc + v_xc;
