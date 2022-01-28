@@ -131,7 +131,6 @@ tensorT Q2(const tensorT& s) {
 
 /// collective constructor, reads \c input on rank 0, broadcasts to all
 SCF::SCF(World& world, const commandlineparser& parser) : param(CalculationParameters(world,parser)) {
-	FunctionDefaults<3>::set_truncate_mode(1);
 	PROFILE_MEMBER_FUNC(SCF);
 
 //    param.read(world,parser.value("input"),"dft");
