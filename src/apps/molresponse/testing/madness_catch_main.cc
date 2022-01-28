@@ -6,7 +6,7 @@
 
 
 int main(int argc, char *argv[]) {
-  // initialize(argc, argv);// initializes a world argument with argc and argv
+   World& world=initialize(argc, argv);// initializes a world argument with argc and argv
   // World world(SafeMPI::COMM_WORLD);
   // startup(world, argc, argv, true);
   try {
