@@ -73,10 +73,10 @@ void ResponseBase::check_k(World &world, double thresh, int k) {
     if (r_params.store_potential()) {
         if (FunctionDefaults<3>::get_k() != stored_potential[0][0].k()) {
             // Project the potential into correct k
-            for(auto & potential_vector:stored_potential){
+            for (auto &potential_vector: stored_potential) {
                 reconstruct(world, potential_vector);
-                for(auto & vi:potential_vector){
-                    vi=project(vi,FunctionDefaults<3>::get_k(),thresh,false);
+                for (auto &vi: potential_vector) {
+                    vi = project(vi, FunctionDefaults<3>::get_k(), thresh, false);
                 }
                 world.gop.fence();
             }
@@ -104,7 +104,7 @@ void ResponseBase::check_k(World &world, double thresh, int k) {
 //
 /// \param world
 /// \return
-std::pair<Tensor<double>,Tensor<double>> ResponseBase::ComputeHamiltonianPair(World &world) const {
+std::pair<Tensor<double>, Tensor<double>> ResponseBase::ComputeHamiltonianPair(World &world) const {
     // Basic output
     if (r_params.print_level() >= 1) molresponse::start_timer(world);
     auto phi = ground_orbitals;
@@ -351,7 +351,7 @@ vecfuncT ResponseBase::make_density(World &world) {
     } else if (calc_type == "static") {
         density = transition_density(world, ground_orbitals, Chi.X, Chi.X);
     } else {
-        density = transition_densityTDA(world, ground_orbitals, Chi.X);
+        density = transition_densityTDA(world, Chi.X);
     }
     molresponse::end_timer(world, "Make density omega");
     world.gop.fence();
@@ -382,22 +382,22 @@ std::vector<real_function_3d> ResponseBase::transition_density(
     return densities;
 }
 
-std::vector<real_function_3d> ResponseBase::transition_densityTDA(
-        World &world, std::vector<real_function_3d> const &orbitals, response_space &x) {
+vector_real_function_3d ResponseBase::transition_densityTDA(World &world,
+                                                                  const response_space &x) const {
     // Get sizes
     size_t m = x.size();
     // Return container
     std::vector<real_function_3d> densities = zero_functions<double, 3>(world, m);
-    x.truncate_rf();
-    truncate(world, ground_orbitals);
-    for (size_t b = 0; b < m; b++) {
-        // y functions are zero if TDA is active
-        densities[b] = dot(world, x[b], ground_orbitals);
-    }
+    auto x_copy = x;
+    x_copy.truncate_rf();
+    auto orbitals = copy(world, ground_orbitals);
+    truncate(world, orbitals);
+
+    size_t b = 0;
+    for (const auto &xi: x_copy) { densities[b++] = dot(world, xi, orbitals); }
 
     truncate(world, densities);
     world.gop.fence();
-    // Done!
     return densities;
 }
 
@@ -1417,6 +1417,7 @@ void ResponseBase::solve(World &world) {
                 load(world, r_params.restart_file());
                 check_k(world, iter_thresh, FunctionDefaults<3>::get_k());
             } else {
+                this->initialize(world);
                 //Initialize the guess functions for the Excited State calculation
                 // Or initialize the zero functions
                 // Do I make this routine virtual?
@@ -1456,4 +1457,136 @@ void check_k(World &world, X_space &Chi, double thresh, int k) {
             Chi.truncate();
         }
     }
+}
+
+///  @brief Adds random noise to functions in response space
+///
+///
+///
+/// \param world
+/// \param f
+/// \param magnitude
+/// \return
+response_space add_randomness(World &world, const response_space &f, double magnitude) {
+    // Copy input functions
+    response_space f_copy = f.copy();
+
+    // Lambda function to add in noise
+    auto noise = [](const Key<3> &key, Tensor<double> &x) mutable {
+        Tensor<double> y(x.size());
+        y.fillrandom();
+        // y.scale(magnitude);
+        y.scale(1e3);
+        x = x + y;
+        // x(0,0,0) += y(0,0,0)-0.5;
+    };
+    // TODO
+    // Go through each function in f_copy and add in random noise
+
+    for (auto &fi: f_copy) {
+        for (auto &fij: fi) { fij.unaryop(noise); }
+    }
+    // Done
+    return f_copy;
+}
+/***
+ * @brief normalize a single response space
+ *
+ * \note a single response space consists of only x or y states
+ *
+ *
+ * @param world
+ * @param f
+ */
+void normalize(World &world, response_space &f) {
+    // Run over rows
+    for (auto &fi: f) {
+        double norm = inner(fi, fi);
+        norm = sqrt(norm);
+        // Doing this to deal with zero functions.
+        // Maybe not smrt.
+        if (norm == 0) continue;
+        // And scale
+        fi = fi * (1.0 / norm);
+    }
+}
+
+void normalize(World &world, X_space &Chi) {
+    // Run over rows
+
+    for (size_t i = 0; i < Chi.num_states(); i++) {
+        // Get the normalization constant
+        // (Sum included inside inner)
+        double norm_x = inner(Chi.X[i], Chi.X[i]);
+        double norm_y = inner(Chi.Y[i], Chi.Y[i]);
+        double norm = sqrt(norm_x - norm_y);
+        // Doing this to deal with zero functions.
+        // Maybe not smrt.
+        if (norm == 0) continue;
+        Chi.X[i] = Chi.X[i] * (1.0 / norm);
+        Chi.Y[i] = Chi.Y[i] * (1.0 / norm);
+    }
+}
+std::map<std::vector<int>, real_function_3d> solid_harmonics(World &world, int n) {
+    // Container to return
+    std::map<std::vector<int>, real_function_3d> result;
+
+    // Create the basic x, y, z, constant and zero
+    real_function_3d x = real_factory_3d(world).functor(
+            real_functor_3d(new BS_MomentFunctor(std::vector<int>{1, 0, 0})));
+    real_function_3d y = real_factory_3d(world).functor(
+            real_functor_3d(new BS_MomentFunctor(std::vector<int>{0, 1, 0})));
+    real_function_3d z = real_factory_3d(world).functor(
+            real_functor_3d(new BS_MomentFunctor(std::vector<int>{0, 0, 1})));
+    real_function_3d c = real_factory_3d(world).functor(
+            real_functor_3d(new BS_MomentFunctor(std::vector<int>{0, 0, 0})));
+    real_function_3d zero = real_factory_3d(world);
+
+    // Add in first few, since they're simple
+    // Assuming n >= 1
+    result[std::vector<int>{0, 0}] = copy(c);
+    result[std::vector<int>{0, -1}] = zero;
+    result[std::vector<int>{0, 1}] = zero;
+    result[std::vector<int>{-1, 0}] = zero;
+
+    // Generate the solid harmonics recursively from here
+    for (int l = 0; l < n; l++) {
+        // Calculate ends of this row first
+        result[std::vector<int>{l + 1, l + 1}] =
+                sqrt(pow(2, kronecker(l, 0) * (2 * l) / (2 * l + 1))) *
+                (x * result[std::vector<int>{l, l}] -
+                 (1 - kronecker(l, 0) * y * result[std::vector<int>{l, -l}]));
+        result[std::vector<int>{l + 1, -l - 1}] =
+                sqrt(pow(2, kronecker(l, 0) * (2 * l) / (2 * l + 1))) *
+                (y * result[std::vector<int>{l, l}] +
+                 (1 - kronecker(l, 0) * x * result[std::vector<int>{l, -l}]));
+
+        // Formula below calls for some functions that don't exist.
+        // Need zeroes where that would occur
+        result[std::vector<int>{l + 1, l + 2}] = zero;
+        result[std::vector<int>{l + 1, -l - 2}] = zero;
+
+        // Run over quantum number m
+        for (int m = -l; m < l + 1; m++) {
+            // Calculate remaining terms
+            result[std::vector<int>{l + 1, m}] =
+                    1.0 / std::sqrt((l + m + 1) * (l - m + 1)) *
+                    ((2 * l + 1) * z * result[std::vector<int>{l, m}] -
+                     sqrt((l + m) * (l - m)) * (x * x + y * y + z * z) *
+                             result[std::vector<int>{l - 1, m}]);
+        }
+    }
+
+    // Get rid of any zero functions we added
+    for (auto it = result.begin(); it != result.end();) {
+        if (it->second.norm2() == 0) it = result.erase(it);
+        else
+            ++it;
+    }
+
+    // Also get rid of the constant
+    result.erase(std::vector<int>{0, 0});
+
+    // Done
+    return result;
 }

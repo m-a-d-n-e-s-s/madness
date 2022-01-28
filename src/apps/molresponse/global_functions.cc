@@ -36,10 +36,10 @@ void print_molecule(World &world, const GroundStateCalculation & g_params) {
   }
 }
 
-CalcParams initialize_calc_params(World &world, std::string input_file) {
+CalcParams initialize_calc_params(World &world, const std::string &input_file) {
   ResponseParameters r_params{};
   r_params.read(world, input_file, "response");
-  GroundStateCalculation ground_calculation{world};
+  GroundStateCalculation ground_calculation{world,r_params.archive()};
   ground_calculation.print_params();
   Molecule molecule = ground_calculation.molecule();
   r_params.set_ground_state_calculation_data(ground_calculation);

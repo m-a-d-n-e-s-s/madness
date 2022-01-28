@@ -41,6 +41,6 @@ class plotCoords {
 };
 plotCoords SetPlotCoord(size_t i, double Lp);
 
-CalcParams initialize_calc_params(World &world, std::string input_file);
+CalcParams initialize_calc_params(World &world, const std::string &input_file);
 /// Mask function to switch from 0 to 1 smoothly at boundary
 #endif  // SRC_APPS_molresponse_GLOBAL_FUNCTIONS_H_
