@@ -248,6 +248,7 @@ X_space TDDFT::compute_gamma_static(World& world,
       Wphi.push_back(xc.apply_xc_kernel(rho_omega[b]));
       W.X[b] = mul(world, Wphi[b], phi0_copy);
     }
+    W.Y = W.X.copy();
     molresponse::end_timer(world, "XC[omega] phi:");
   }
 
