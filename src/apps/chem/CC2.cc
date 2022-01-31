@@ -498,6 +498,7 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
        for (int i = 0; i < pair_vec.size(); i++) {
            const real_function_6d residue = pair_vec[i].function() - u_update[i];
            const double error = residue.norm2();
+           std::cout << "residual " << pair_vec[i].i << " " << pair_vec[i].j << " " << error << std::endl;
            total_norm = std::max(total_norm, error);
            output("Update without KAIN");
            pair_vec[i].update_u(u_update[i]);
@@ -534,6 +535,11 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
        //}
 
        output("\n--Iteration " + stringify(iter) + " ended--");
+       std::cout << "old_energy = " << old_energy << std::endl;
+       std::cout << "total_energy = " << total_energy << std::endl;
+       std::cout << "total_norm = " << total_norm << std::endl;
+       std::cout << "econv = " << parameters.econv() << std::endl;
+       std::cout << "dconv_6D = " << parameters.dconv_6D() << std::endl;
        bool converged = ((std::abs(old_energy - total_energy) < parameters.econv())
                         and (total_norm < parameters.dconv_6D()));
 

@@ -232,7 +232,7 @@ struct CCParameters : public QCCalculationParametersBase {
         initialize < double > ("thresh_poisson", thresh_operators, "threshold for Poisson operators");
         initialize < double > ("thresh_f12", thresh_operators, "threshold for Poisson operators");
         initialize < double > ("thresh_Ue", thresh_operators, "ue threshold");
-        initialize < double > ("econv", 0.1*thresh, "overal convergence threshold ");
+        initialize < double > ("econv", thresh, "overal convergence threshold ");
         initialize < double > ("econv_pairs", 0.1*thresh, "convergence threshold for pairs");
         initialize < double > ("dconv_3d", 0.01*thresh, "convergence for cc singles");
         initialize < double > ("dconv_6d", thresh, "convergence for cc doubles");
