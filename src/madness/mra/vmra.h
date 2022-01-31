@@ -670,6 +670,17 @@ namespace madness {
         world.gop.fence();
         return norms;
     }
+    /// Computes the 2-norms of a vector of functions
+    template <typename T, std::size_t NDIM>
+    Tensor<double> norm2s_T(World& world, const std::vector<Function<T, NDIM>>& v) {
+      PROFILE_BLOCK(Vnorm2);
+      Tensor<double> norms(v.size());
+      for (unsigned int i = 0; i < v.size(); ++i) norms[i] = v[i].norm2sq_local();
+      world.gop.sum(&norms[0], norms.size());
+      for (unsigned int i = 0; i < v.size(); ++i) norms[i] = sqrt(norms[i]);
+      world.gop.fence();
+      return norms;
+    }
 
     /// Computes the 2-norm of a vector of functions
     template <typename T, std::size_t NDIM>
@@ -1086,6 +1097,29 @@ namespace madness {
         }
         if (fence) world.gop.fence();
         return r;
+    }
+
+    /// Create a new copy of the function with different distribution and optional
+    /// fence
+
+    /// Works in either basis.  Different distributions imply
+    /// asynchronous communication and the optional fence is
+    /// collective.
+    //
+    /// Returns a deep copy of a vector of functions
+
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T, NDIM>> copy(World& world,
+                                        const std::vector<Function<T, NDIM>>& v,
+                                        const std::shared_ptr<WorldDCPmapInterface<Key<NDIM>>>& pmap,
+                                        bool fence = true) {
+      PROFILE_BLOCK(Vcopy);
+      std::vector<Function<T, NDIM>> r(v.size());
+      for (unsigned int i = 0; i < v.size(); ++i) {
+        r[i] = copy(v[i], pmap, false);
+      }
+      if (fence) world.gop.fence();
+      return r;
     }
 
     /// Returns new vector of functions --- q[i] = a[i] + b[i]
