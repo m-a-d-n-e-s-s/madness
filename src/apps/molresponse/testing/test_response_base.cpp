@@ -1,12 +1,13 @@
 //
 // Created by adrianhurtado on 1/1/22.
 //
+#include "molresponse/ResponseBase.hpp"
+#include "molresponse/ExcitedResponse.hpp"
 
 #include <chem/write_test_input.h>
 #include <madness/world/worldmem.h>
 
 #include "molresponse/ResponseExceptions.hpp"
-#include "molresponse/densityVector.hpp"
 #include "molresponse/global_functions.h"
 
 #if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
@@ -27,6 +28,7 @@ static inline int file_exists(const char *input_name) {
 TEST_CASE("Response Base Test" ) {
 
 
+    using namespace madness;
     World &world = World::get_default();
 
     print_meminfo(world.rank(), "startup");
@@ -44,7 +46,7 @@ TEST_CASE("Response Base Test" ) {
 
     response_parameters.print("ResponseParameters", "Not sure footer");
 
-    ResponseBase calc(world, calc_params);
+    ExcitedResponse calc(world, calc_params);
     calc.solve(world);
 
 }
