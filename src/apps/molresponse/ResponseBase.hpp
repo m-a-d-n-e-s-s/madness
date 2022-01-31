@@ -5,17 +5,29 @@
 #ifndef MADNESS_RESPONSEBASE_HPP
 #define MADNESS_RESPONSEBASE_HPP
 
-#include "x_space.h"
+#include <functional>
+#include <numeric>
+#include <utility>
+#include <vector>
+
 #include "global_functions.h"
 #include "load_balance.h"
+#include "madness/mra/functypedefs.h"
+#include "madness/mra/mra.h"
+#include "madness/tensor/tensor.h"
 #include "timer.h"
-#include <utility>
+#include "x_space.h"
+
+
+using namespace madness;
+
+using gamma_orbitals = std::tuple<X_space, vector_real_function_3d, vector_real_function_3d>;
 
 class ResponseBase {
 public:
     ResponseBase(World& world, const CalcParams& params);
     void solve(World& world);
-    virtual void initialize(World &world)=0;
+    virtual void initialize(World& world) = 0;
     //virtual void iterate();
     CalcParams get_parameter() const { return {ground_calc, molecule, r_params}; }
     vector_real_function_3d get_orbitals() const { return ground_orbitals; }
@@ -27,14 +39,13 @@ protected:
     GroundStateCalculation ground_calc;
 
 
-
     XCfunctional xcf;
-    static real_function_3d mask;
+    real_function_3d mask;
 
     std::shared_ptr<PotentialManager> potential_manager;
     // shared pointers to Operators
     poperatorT coulop;// shared pointer to seperated convolution operator
-    std::vector<std::shared_ptr<real_derivative_3d>> gradop{};
+    std::vector<std::shared_ptr<real_derivative_3d>> gradop;
 
     // Stored functions
     mutable real_function_3d stored_v_nuc; // Stored nuclear potential from ground state
@@ -56,7 +67,6 @@ protected:
     // Mask function to handle boundary conditions
 
     functionT ground_density;// ground state density
-    vecfuncT rho_omega{};      // response density
 
     mutable response_space stored_potential;// The ground state potential, stored only
                                             // if store_potential is true (default is
@@ -125,29 +135,18 @@ protected:
 
     void check_k(World& world, double thresh, int k);
     functionT make_ground_density(World& world) const;
-    std::pair<Tensor<double>,Tensor<double>> ComputeHamiltonianPair(World& world) const;
+    std::pair<Tensor<double>, Tensor<double>> ComputeHamiltonianPair(World& world) const;
     real_function_3d Coulomb(World& world) const;
     XCOperator<double, 3> make_xc_operator(World& world) const;
     void save(World& world, const std::string& name);
     void load(World& world, const std::string& name);
-    vecfuncT make_density(World& world);
+    vector_real_function_3d make_density(World& world);
 
-    vector<real_function_3d> transition_density(World& world, vector<real_function_3d>& orbitals,
-                                                response_space& x, response_space& y);
-    std::vector<real_function_3d> transition_densityTDA(World& world,
-                                                        const response_space& x)const ;
     void load_balance(World& world);
     vector<poperatorT> make_bsh_operators_response(World& world, double& shift,
                                                    double& omega) const;
-    X_space Compute_Theta_X(World& world, X_space& Chi, XCOperator<double, 3> xc,
-                            std::string calc_type);
-    X_space compute_F0X(World& world, X_space& Chi, XCOperator<double, 3> xc, bool compute_Y);
-    X_space compute_V0X(World& world, X_space& X, XCOperator<double, 3> xc, bool compute_Y);
-    void orbital_load_balance(World& world, vecfuncT& psi0, vecfuncT& psi0_copy, X_space& X,
-                              X_space& Chi_copy);
-    X_space compute_gamma_tda(World& world, X_space& X, XCOperator<double, 3> xc);
-    X_space compute_gamma_full(World& world, X_space& X, const XCOperator<double, 3>& xc);
-    X_space compute_gamma_static(World& world, X_space& X, XCOperator<double, 3> xc);
+
+
     X_space compute_residual(World& world, X_space& old_Chi, X_space& temp,
                              Tensor<double>& bsh_residualsX, Tensor<double>& bsh_residualsY,
                              std::string calc_type);
@@ -157,18 +156,38 @@ protected:
     void x_space_step_restriction(World& world, X_space& old_Chi, X_space& temp, bool restrict_y,
                                   Tensor<double>& maxrotn);
     void vector_stats(const vector<double>& v, double& rms, double& maxabsval) const;
-    double do_step_restriction(World& world, const vecfuncT& x, vecfuncT& x_new,
-                               std::string spin) const;
-    double do_step_restriction(World& world, const vecfuncT& x, vecfuncT& x_new, std::string spin,
+    double do_step_restriction(World& world, const vector_real_function_3d& x,
+                               vector_real_function_3d& x_new, std::string spin) const;
+    double do_step_restriction(World& world, const vector_real_function_3d& x,
+                               vector_real_function_3d& x_new, std::string spin,
                                double maxrotn) const;
-    double do_step_restriction(World& world, const vecfuncT& x, const vecfuncT& y, vecfuncT& x_new,
-                               vecfuncT& y_new, std::string spin) const;
+    double do_step_restriction(World& world, const vector_real_function_3d& x,
+                               const vector_real_function_3d& y, vector_real_function_3d& x_new,
+                               vector_real_function_3d& y_new, std::string spin) const;
     void PlotGroundandResponseOrbitals(World& world, size_t iteration, response_space& x_response,
                                        response_space& y_response,
                                        const ResponseParameters& r_params,
                                        const GroundStateCalculation& g_params);
     void vector_stats_new(const Tensor<double> v, double& rms, double& maxabsval) const;
+
+    gamma_orbitals orbital_load_balance(World& world, const gamma_orbitals&,
+                                        const double load_balance) const;
+    X_space compute_gamma_tda(World& world, const gamma_orbitals& density,
+                              const XCOperator<double, 3>& xc) const;
+    X_space compute_gamma_static(World& world, const gamma_orbitals&,
+                                 const XCOperator<double, 3>& xc) const;
+    X_space compute_gamma_full(World& world, const gamma_orbitals&,
+                               const XCOperator<double, 3>& xc) const;
+    X_space compute_V0X(World& world, const X_space& X, const XCOperator<double, 3>& xc,
+                        bool compute_Y) const;
+    X_space compute_lambda_X(World& world, const X_space& chi, XCOperator<double, 3> xc,
+                             const std::string& calc_type) const;
+    X_space compute_theta_X(World& world, const X_space& chi, XCOperator<double, 3> xc,
+                            std::string calc_type) const;
+    X_space compute_F0X(World& world, const X_space& X, bool compute_Y,
+                        const XCOperator<double, 3>& xc) const;
 };
+
 
 // Some helper functions
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -178,12 +197,12 @@ protected:
 /// \param Chi
 /// \param thresh
 /// \param k
-void check_k(World &world, X_space &Chi, double thresh, int k);
+void check_k(World& world, X_space& Chi, double thresh, int k);
 
 
-response_space add_randomness(World &world, const response_space& f, double magnitude);
-void normalize(World &world, response_space &f);
-void normalize(World &world, X_space &Chi);
+response_space add_randomness(World& world, const response_space& f, double magnitude);
+void normalize(World& world, response_space& f);
+void normalize(World& world, X_space& Chi);
 
 
 static double kronecker(size_t l, size_t n) {
@@ -191,7 +210,7 @@ static double kronecker(size_t l, size_t n) {
     return 0.0;
 }
 
-std::map<std::vector<int>, real_function_3d> solid_harmonics(World &world, int n);
+std::map<std::vector<int>, real_function_3d> solid_harmonics(World& world, int n);
 
 /***
  * @brief Prints the norms of the functions of a response space
@@ -201,162 +220,37 @@ std::map<std::vector<int>, real_function_3d> solid_harmonics(World &world, int n
  * @param world
  * @param f
  */
-void print_norms(World &world, const response_space & f) {
-
-    Tensor<double> norms(f.size(), f[0].size());
-    // Calc the norms
-    long i=0;
-    for (const auto & fi:f){
-        for(const auto & fij:fi){
-            norms(i++) = fij.norm2();
-        }
-    }
-    // Print em in a smart way
-    if (world.rank() == 0) print(norms);
-}
+void print_norms(World& world, const response_space& f);
 // Returns a list of solid harmonics such that:
 // solid_harm.size() * num_ground_orbs > 2 * num. resp. components
-vector_real_function_3d make_xyz_functions(World &world) {
-    // Container to return
-
-    // Create the basic x, y, z, constant and zero
-    real_function_3d x =
-            real_factory_3d(world).functor(real_functor_3d(new BS_MomentFunctor(std::vector<int>{1, 0, 0})));
-    real_function_3d y =
-            real_factory_3d(world).functor(real_functor_3d(new BS_MomentFunctor(std::vector<int>{0, 1, 0})));
-    real_function_3d z =
-            real_factory_3d(world).functor(real_functor_3d(new BS_MomentFunctor(std::vector<int>{0, 0, 1})));
-
-    std::vector<real_function_3d> funcs={x,y,z};
-    return funcs;
-}
+vector_real_function_3d make_xyz_functions(World& world);
 // Selects from a list of functions and energies the k functions with the
 // lowest energy
-response_space select_functions(World &world,
-                                       response_space &f,
-                                       Tensor<double> &energies,
-                                       size_t k,
-                                       size_t print_level) {
-    // Container for result
-    response_space answer;
-
-    // Debugging output
-    if (print_level >= 1) {
-        if (world.rank() == 0) print("\n   Selecting the", k, "lowest excitation energy components.\n");
-    }
-
-    // Get rid of extra functions and save
-    // the first k
-    while (f.size() > k) f.pop_back();
-    answer = f;
-    answer.truncate_rf();
-
-    // Get rid of extra energies and save
-    // the first k
-    energies = energies(Slice(0, k - 1));
-
-    // Basic output
-    if (print_level >= 1) {
-        if (world.rank() == 0) print("   The selected components have excitation energies:");
-        if (world.rank() == 0) print(energies);
-    }
-
-    // Done
-    return answer;
-}
+response_space select_functions(World& world, response_space f, Tensor<double>& energies,
+                                size_t k, size_t print_level);
 // Sorts the given tensor of eigenvalues and
 // response functions
-void sort(World &world, Tensor<double> &vals, response_space &f) {
-    // Get relevant sizes
-    size_t k = vals.size();
+void sort(World& world, Tensor<double>& vals, response_space& f);
 
-    // Copy everything...
-    response_space f_copy(f);
-    Tensor<double> vals_copy = copy(vals);
-    Tensor<double> vals_copy2 = copy(vals);
 
-    // Now sort vals_copy
-    std::sort(vals_copy.ptr(), vals_copy.ptr() + vals_copy.size());
-
-    // Now sort the rest of the things, using the sorted energy list
-    // to find the correct indices
-    for (size_t i = 0; i < k; i++) {
-        // Find matching index in sorted vals_copy
-        size_t j = 0;
-        while (fabs(vals_copy(i) - vals_copy2(j)) > 1e-8 && j < k) j++;
-
-        // Put corresponding function, difference function, value residual and
-        // value in the correct place
-        f[i] = f_copy[j];
-        vals(i) = vals_copy(i);
-
-        // Change the value of vals_copy2[j] to help deal with duplicates?
-        vals_copy2(j) = 10000.0;
-    }
-}
-
-void sort(World &world, Tensor<double> &vals, X_space &f) {
-    // Get relevant sizes
-    size_t k = vals.size();
-
-    // Copy everything...
-    X_space f_copy(f);
-    Tensor<double> vals_copy = copy(vals);
-    Tensor<double> vals_copy2 = copy(vals);
-
-    // Now sort vals_copy
-    std::sort(vals_copy.ptr(), vals_copy.ptr() + vals_copy.size());
-
-    // Now sort the rest of the things, using the sorted energy list
-    // to find the correct indices
-    for (size_t i = 0; i < k; i++) {
-        // Find matching index in sorted vals_copy
-        size_t j = 0;
-        while (fabs(vals_copy(i) - vals_copy2(j)) > 1e-8 && j < k) j++;
-
-        // Put corresponding function, difference function, value residual and
-        // value in the correct place
-        f.X[i] = f_copy.X[j];
-        f.Y[i] = f_copy.Y[j];
-
-        vals(i) = vals_copy(i);
-
-        // Change the value of vals_copy2[j] to help deal with duplicates?
-        vals_copy2(j) = 10000.0;
-    }
-}
 // Specialized for response calculations that returns orthonormalized
 // functions
-response_space gram_schmidt(World &world, const response_space &f) {
-    // Sizes inferred
-    size_t m = f.size();
+response_space gram_schmidt(World& world, const response_space& f);
+/// Computes the transition density between set of two response functions x and y.
+/// Uses std::transform to iterate between x and y vectors
+/// \param world
+/// \param orbitals
+/// \param x
+/// \param y
+/// \return
+vector_real_function_3d transition_density(World& world, const vector_real_function_3d& orbitals,
+                                           const response_space& x, const response_space& y);
 
-    // Return container
-    response_space result = f.copy();
+vector_real_function_3d transition_densityTDA(World& world, const vector_real_function_3d& orbitals,
+                                              const response_space& x);
 
-    // Orthogonalize
-    for (size_t j = 0; j < m; j++) {
-        // Need to normalize the row
-        double norm = norm2(world, result[j]);
+response_space transform(World& world, const response_space& f, const Tensor<double>& U);
 
-        // Now scale each entry
-        scale(world, result[j], 1.0 / norm);
-
-        // Project out from the rest of the vectors
-        for (size_t k = j + 1; k < m; k++) {
-            // Temp function to hold the sum
-            // of inner products
-            // vmra.h function, line 627
-            double temp = inner(result[j], result[k]);
-
-            // Now subtract
-            gaxpy(world, 1.0, result[k], -temp, result[j]);
-        }
-    }
-    result.truncate_rf();
-
-    // Done
-    return result;
-}
-
+// result(i,j) = inner(a[i],b[j]).sum()
+Tensor<double> expectation(World& world, const response_space& A, const response_space& B);
 #endif// MADNESS_RESPONSEBASE_HPP
