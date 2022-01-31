@@ -15,6 +15,7 @@
 #define SRC_APPS_molresponse_PLOT_VTK_H_
 
 #include <madness/mra/mra.h>
+#include <madness/mra/functypedefs.h>
 
 #include <cstdint>
 #include <string>
