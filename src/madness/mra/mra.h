@@ -2362,6 +2362,68 @@ namespace madness {
         return f.inner(g);
     }
 
+    template<std::size_t NDIM, typename T, std::size_t LDIM, typename R, std::size_t KDIM,
+            std::size_t CDIM = (KDIM + LDIM - NDIM) / 2>
+    Function<TENSOR_RESULT_TYPE(T, R), NDIM>
+    innerXX(const Function<T, LDIM>& f, const Function<R, KDIM>& g, const std::array<int, CDIM> v1,
+           const std::array<int, CDIM> v2) {
+        static_assert((KDIM + LDIM - NDIM) % 2 == 0, "faulty dimensions in inner (partial version)");
+        static_assert(KDIM + LDIM - 2 * CDIM == NDIM, "faulty dimensions in inner (partial version)");
+        MADNESS_CHECK(f.is_initialized());
+        MADNESS_CHECK(g.is_initialized());
+        MADNESS_CHECK(f.world().id() == g.world().id());
+        // this needs to be run in a single world, so that all coefficients are local.
+        // Use macrotasks if run on multiple processes.
+        MADNESS_CHECK(f.world().size() == 1);
+
+
+        typedef TENSOR_RESULT_TYPE(T, R) resultT;
+        FunctionFactory<resultT,NDIM> factory=FunctionFactory<resultT,NDIM>(f.world())
+                .k(f.k()).thresh(f.thresh());
+        Function<resultT,NDIM> result=factory;      // no empty() here!
+//        result.get_impl()->innerXX(f.get_impl(),g.get_impl(),v1,v2);
+
+        return result;
+    }
+
+    /// Computes the partial scalar/inner product between two functions, returns a low-dim function
+
+    /// syntax similar to the inner product in tensor.h
+    /// e.g result=inner<3>(f,g),{0},{1}) : r(x,y) = int f(x1,x) g(y,x1) dx1
+    template <typename T, std::size_t LDIM, typename R, std::size_t KDIM>
+    Function<TENSOR_RESULT_TYPE(T,R),KDIM+LDIM-2>
+    inner(const Function<T,LDIM>& f, const Function<R,KDIM>& g, const std::tuple<int> v1, const std::tuple<int> v2) {
+        return innerXX<KDIM+LDIM-2>(f,g,
+                     std::array<int,1>({std::get<0>(v1)}),
+                     std::array<int,1>({std::get<0>(v2)}));
+    }
+
+    /// Computes the partial scalar/inner product between two functions, returns a low-dim function
+
+    /// syntax similar to the inner product in tensor.h
+    /// e.g result=inner<3>(f,g),{0,1},{1,2}) : r(y) = int f(x1,x2) g(y,x1,x2) dx1 dx2
+    template <typename T, std::size_t LDIM, typename R, std::size_t KDIM>
+    Function<TENSOR_RESULT_TYPE(T,R),KDIM+LDIM-4>
+    inner(const Function<T,LDIM>& f, const Function<R,KDIM>& g, const std::tuple<int,int> v1, const std::tuple<int,int> v2) {
+        return innerXX<KDIM+LDIM-4>(f,g,
+                                  std::array<int,2>({std::get<0>(v1),std::get<1>(v1)}),
+                                  std::array<int,2>({std::get<0>(v2),std::get<1>(v2)}));
+    }
+
+    /// Computes the partial scalar/inner product between two functions, returns a low-dim function
+
+    /// syntax similar to the inner product in tensor.h
+    /// e.g result=inner<3>(f,g),{1},{2}) : r(x,y,z) = int f(x,x1) g(y,z,x1) dx1
+    template <typename T, std::size_t LDIM, typename R, std::size_t KDIM>
+    Function<TENSOR_RESULT_TYPE(T,R),KDIM+LDIM-6>
+    inner(const Function<T,LDIM>& f, const Function<R,KDIM>& g, const std::tuple<int,int,int> v1, const std::tuple<int,int,int> v2) {
+        return innerXX<KDIM+LDIM-6>(f,g,
+                                  std::array<int,3>({std::get<0>(v1),std::get<0>(v1),std::get<2>(v1)}),
+                                  std::array<int,3>({std::get<0>(v2),std::get<0>(v2),std::get<2>(v2)}));
+    }
+
+
+
     /// Computes the scalar/inner product between an MRA function and an external functor
 
     /// Currently this defaults to inner_adaptive, which might be more expensive

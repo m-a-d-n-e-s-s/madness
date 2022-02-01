@@ -2,7 +2,7 @@
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/mra/mra.h>
-
+#include <array>
 using namespace madness;
 
 bool smalltest = false;
@@ -51,8 +51,33 @@ public:
     }
 };
 
+struct gauss_1d {
+    double s=1.0;
+    double operator()(const double x) const {return 1.0/(s * std::pow(constants::pi,0.25))* exp(-0.5*x*x/(s*s));}
+};
+template<typename T, std::size_t NDIM>
+struct gauss {
+
+    T operator()(const Vector<double,NDIM>& coord) const {
+        double result=1.0;
+        for (std::size_t i=0; i<NDIM; ++i) result*=gauss_1d()(coord[i]);
+        return result;
+    }
+};
+
 bool is_like(double a, double b, double tol) {
     return (std::abs((a - b)/a) <= tol);
+}
+
+int test_partial_inner(World& world) {
+    real_function_3d f=real_factory_3d(world).functor(gauss<double,3>());
+    real_function_3d g=real_factory_3d(world).functor(gauss<double,3>());
+    real_function_2d h=real_factory_2d(world).functor(gauss<double,2>());
+    // will return f(z1,x2) = int f(x1,y1,z1) g(x2,x1,y1);
+    real_function_2d a=inner(f,g,{0,1},{1,2});
+    real_function_4d b=inner(f,g,{0},{1});
+    real_function_1d c=inner(h,f,{0,1},{1,2});
+    return 0;
 }
 
 int main(int argc, char** argv) {
@@ -68,16 +93,18 @@ int main(int argc, char** argv) {
     for (int iarg=1; iarg<argc; iarg++) if (strcmp(argv[iarg],"--small")==0) smalltest=true;
     std::cout << "small test : " << smalltest << std::endl;
 
+    FunctionDefaults<3>::set_defaults(world);
+
+    FunctionDefaults<3>::set_k(k);
+    FunctionDefaults<3>::set_thresh(thresh);
+    FunctionDefaults<3>::set_refine(true);
+    FunctionDefaults<3>::set_initial_level(5);
+    FunctionDefaults<3>::set_truncate_mode(1);
+    FunctionDefaults<3>::set_cubic_cell(-L/2, L/2);
+
+    test_partial_inner(world);
+
     if (!smalltest) {
-        FunctionDefaults<3>::set_defaults(world);
-        
-        FunctionDefaults<3>::set_k(k);
-        FunctionDefaults<3>::set_thresh(thresh);
-        FunctionDefaults<3>::set_refine(true);
-        FunctionDefaults<3>::set_initial_level(5);
-        FunctionDefaults<3>::set_truncate_mode(1);
-        FunctionDefaults<3>::set_cubic_cell(-L/2, L/2);
-        
         real_function_3d alpha1 = real_factory_3d(world).f(alpha_func);
         real_functor_3d alpha1_ffi = real_functor_3d(new alpha_functor());
         
