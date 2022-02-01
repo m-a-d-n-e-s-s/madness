@@ -415,6 +415,7 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
        pair_vec.push_back(tmp_pair.second);
    }
 
+   if (world.rank()==0) std::cout << "\nStarting constant part at time " << wall_time() << std::endl;
    // calc constant part via taskq
    auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world, world.size()));
    taskq->set_printlevel(3);
@@ -426,7 +427,11 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
    taskq->print_taskq();
    taskq->run_all();
 
-   // transform vector back to Pairs structure
+   if (world.rank()==0) std::cout << "\nFinished constant part at time " << wall_time() << std::endl;
+
+
+   if (world.rank()==0) std::cout << "\nStarting saving pairs and energy calculation at time " << wall_time() << std::endl;
+    // transform vector back to Pairs structure
    for (int i = 0; i < pair_vec.size(); i++) {
        pair_vec[i].constant_part = result_vec[i];
        save(pair_vec[i].constant_part, pair_vec[i].name() + "_const");
@@ -434,7 +439,10 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
        pair_vec[i].function().truncate().reduce_rank();
        if (pair_vec[i].type == GROUND_STATE) total_energy += CCOPS.compute_pair_correlation_energy(pair_vec[i]);
    }
-   // create new pairs structure
+
+   if (world.rank()==0) std::cout << "\nFinished saving pairs and energy calculation at time " << wall_time() << std::endl;
+
+    // create new pairs structure
    Pairs<CCPair> updated_pairs;
    for (auto& tmp_pair : pair_vec) {
        updated_pairs.insert(tmp_pair.i, tmp_pair.j, tmp_pair);
@@ -442,9 +450,12 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
 
    for (size_t iter = 0; iter < parameters.iter_max_6D(); iter++) {
 
+       if (world.rank()==0) std::cout << "\nStarting coupling at time " << wall_time() << std::endl;
        // compute the coupling between the pair functions
        Pairs<real_function_6d> coupling;
        add_local_coupling(updated_pairs, coupling);
+
+       if (world.rank()==0) std::cout << "\nFinished coupling at time " << wall_time() << std::endl;
 
        // make coupling vector that can be stored in cloud
        // pair -> position
@@ -456,21 +467,14 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
            if (std::get<0>(tmp_coupling.first) > i_max) i_max = std::get<0>(tmp_coupling.first);
            if (std::get<1>(tmp_coupling.first) > j_max) j_max = std::get<1>(tmp_coupling.first);
        }
-       std::cout << "imax, jmax = " << i_max << ", "<< j_max << std::endl;
        int last_position = j_max*(j_max+1) + i_max;
-       std::cout << "last_position = " << last_position << std::endl;
-       //std::vector<real_function_6d> coupling_vec(last_position, real_factory_6d(world).compressed());
        std::vector<real_function_6d> coupling_vec = zero_functions_compressed<double,6>(world, (last_position+1));
-       if (world.rank() == 0) {
-           print("\nMaking coupling vector for MacroTask ");
-           print("(i, j) -> j*(j+1) + i\n");
-           std::cout << "Size = " << coupling_vec.size() << std::endl;
-       }
+
        for (auto& tmp_coupling : coupling.allpairs) {
            int i = std::get<0>(tmp_coupling.first);
            int j = std::get<1>(tmp_coupling.first);
            int position = j*(j+1) + i;
-           if (world.rank() == 0) std::cout << i << " ," << j << " -> "<< position << std::endl;
+           //if (world.rank() == 0) std::cout << i << " ," << j << " -> "<< position << std::endl;
            coupling_vec[position] = tmp_coupling.second;
        }
        //MADNESS_CHECK(coupling_vec.size() == pair_vec.size());
@@ -479,13 +483,15 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
        double old_energy = total_energy;
        total_energy = 0.0;
 
-       NonlinearSolverND<6> solver(parameters.kain_subspace());
-       solver.do_print = (world.rank() == 0);
+       //NonlinearSolverND<6> solver(parameters.kain_subspace());
+       //solver.do_print = (world.rank() == 0);
 
+
+       if (world.rank()==0) std::cout << "\nStarting pairs update at time " << wall_time() << std::endl;
        // calc update for pairs via macrotask
        auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world, world.size()));
        taskq->set_printlevel(3);
-       taskq->cloud.set_debug(true);
+       //taskq->cloud.set_debug(true);
        MacroTaskMp2UpdatePair t;
        MacroTask task(world, t, taskq);
        std::vector<real_function_6d> u_update = task(pair_vec, parameters, nemo->get_calc()->molecule.get_all_coords_vec(),
@@ -494,6 +500,10 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
        taskq->print_taskq();
        taskq->run_all();
 
+       if (world.rank()==0) std::cout << "\nFinished pairs update at time " << wall_time() << std::endl;
+
+
+       if (world.rank()==0) std::cout << "\nStarting saving pairs and energy calculation at time " << wall_time() << std::endl;
        // calculate energy and error and update pairs
        for (int i = 0; i < pair_vec.size(); i++) {
            const real_function_6d residue = pair_vec[i].function() - u_update[i];
@@ -507,6 +517,8 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
            if (pair_vec[i].type == GROUND_STATE) energy = CCOPS.compute_pair_correlation_energy(pair_vec[i]);
            total_energy += energy;
        }
+
+       if (world.rank()==0) std::cout << "\nFinished saving pairs and energy calculation at time " << wall_time() << std::endl;
 
        // create new Pairs struc for MP2 pairs, needed for coupling
        // only temporary! will be removed when add_local_coupling is changed
@@ -535,14 +547,16 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
        //}
 
        output("\n--Iteration " + stringify(iter) + " ended--");
-       std::cout << "old_energy = " << old_energy << std::endl;
-       std::cout << "total_energy = " << total_energy << std::endl;
-       std::cout << "total_norm = " << total_norm << std::endl;
-       std::cout << "econv = " << parameters.econv() << std::endl;
-       std::cout << "dconv_6D = " << parameters.dconv_6D() << std::endl;
+       if (world.rank()==0) std::cout << "at time " << wall_time() << std::endl;
+      // std::cout << "old_energy = " << old_energy << std::endl;
+      // std::cout << "total_energy = " << total_energy << std::endl;
+      // std::cout << "total_norm = " << total_norm << std::endl;
+      // std::cout << "econv = " << parameters.econv() << std::endl;
+      // std::cout << "dconv_6D = " << parameters.dconv_6D() << std::endl;
        bool converged = ((std::abs(old_energy - total_energy) < parameters.econv())
                         and (total_norm < parameters.dconv_6D()));
 
+       if (world.rank()==0) std::cout << "\nStarting final energy calculation at time " << wall_time() << std::endl;
        //print pair energies if converged
        if (converged) {
            if (world.rank() == 0) std::cout << "\nPairs converged!\n";
@@ -567,6 +581,7 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
            }
            if (world.rank() == 0) std::cout << "sum     =" << total_energy << "\n";
        }
+       if (world.rank()==0) std::cout << "\nFinished final energy calculation at time " << wall_time() << std::endl;
    }
 
    return total_energy;
