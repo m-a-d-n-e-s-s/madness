@@ -744,7 +744,7 @@ void doit(World& world) {
 
     //LoadBalanceDeux<4> lb(world);
     //lb.add_tree(pot, lbcost<double,4>());
-    //FunctionDefaults<4>::redistribute(world,lb.load_balance(2.0,false));
+    //FunctionDefaults<4>::redistribute(world,lb.load_balance_chi(2.0,false));
     //world.gop.fence();
 
     if (!exists) {

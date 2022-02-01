@@ -89,6 +89,70 @@ private:
     std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> create_bsh_operators(
             World& world, const Tensor<double>& shift, const Tensor<double>& ground,
             const Tensor<double>& omega, const double lo, const double thresh) const;
+
+    void excited_to_json(json& j_mol_in,
+                                size_t iter,
+                                const Tensor<double>& res_X,
+                                const Tensor<double>& res_Y,
+                                const Tensor<double>& density_res,
+                                const Tensor<double>& omega);
+
+    void iterate(World& world) override;
+    void update_x_space_excited(World &world,
+                                       X_space &old_Chi,
+                                       X_space &Chi,
+                                       X_space &old_Lambda_X,
+                                       X_space &res,
+                                       XCOperator<double, 3> &xc,
+                                       QProjector<double, 3> &projector,
+                                       Tensor<double> &omega,
+                                       NonLinearXsolver &kain_x_space,
+                                       std::vector<X_vector> &Xvector,
+                                       std::vector<X_vector> &Xresidual,
+                                       Tensor<double> &energy_residuals,
+                                       Tensor<double> &old_energy,
+                                       Tensor<double> &bsh_residualsX,
+                                       Tensor<double> &bsh_residualsY,
+                                       Tensor<double> &S,
+                                       Tensor<double> &old_S,
+                                       Tensor<double> &A,
+                                       Tensor<double> &old_A,
+                                       size_t iter,
+                                       Tensor<double> &maxrotn);
+
+    // Load Balancing
+    void compute_new_omegas_transform(World &world,
+                                             X_space &old_Chi,
+                                             X_space &Chi,
+                                             X_space &old_Lambda_X,
+                                             X_space &Lambda_X,
+                                             Tensor<double> &omega,
+                                             Tensor<double> &old_energy,
+                                             Tensor<double> &S,
+                                             Tensor<double> &old_S,
+                                             Tensor<double> &A,
+                                             Tensor<double> &old_A,
+                                             Tensor<double> &energy_residuals,
+                                             size_t iter);
+
+    /**
+ * @brief Computes the BSH Update for an excited state calculation.  Passes in
+ * omega and computes the necessary shifts in the potential, computes BSH
+ * operators and applys BSH operator
+ *
+ * \f$ \chi^m=-2\hat{G} * \Theta\chi \f$
+ *
+ * @param world
+ * @param theta_X
+ * @param projector
+ * @param converged
+ * @return X_space
+ */
+    X_space bsh_update_excited(World &world,
+                                      const Tensor<double> &omega,
+                                      X_space &theta_X,
+                                      QProjector<double, 3> &projector);
+    void analysis(World& world, const X_space& chi);
 };
 
 

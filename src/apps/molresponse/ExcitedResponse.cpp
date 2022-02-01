@@ -262,6 +262,7 @@ X_space ExcitedResponse::create_trial_functions(World &world, size_t k) const {
                     zero_functions_compressed<double, 3>(world, static_cast<int>(n));
 
             // Create one non-zero function and add to trials
+            print("index ", n - count % n - 1);
             temp[count % n] = key.second * ground_orbitals[n - count % n - 1];
             trials_X.push_back(temp);
             count++;
@@ -1389,4 +1390,582 @@ ExcitedResponse::create_bsh_operators(World &world, const Tensor<double> &shift,
 
     // Done
     return operators;
+}
+void ExcitedResponse::excited_to_json(json &j_mol_in, size_t iter, const Tensor<double> &res_X,
+                                      const Tensor<double> &res_Y,
+                                      const Tensor<double> &density_res,
+                                      const Tensor<double> &omega) {
+    json j = {};
+    j["iter"] = iter;
+    j["res_X"] = tensor_to_json(res_X);
+    j["res_Y"] = tensor_to_json(res_Y);
+    j["density_residuals"] = tensor_to_json(density_res);
+    j["omega"] = tensor_to_json(omega);
+    auto index = j_mol_in["protocol_data"].size() - 1;
+    j_mol_in["protocol_data"][index]["iter_data"].push_back(j);
+}
+void ExcitedResponse::iterate(World &world) {
+    size_t iter;
+    QProjector<double, 3> projector(world, ground_orbitals);
+    size_t m = r_params.num_states();  // Number of excited states
+    size_t n = r_params.num_orbitals();// Number of ground state orbitals
+
+    const auto dconv = std::max(FunctionDefaults<3>::get_thresh(), r_params.dconv());
+
+    Tensor<double> maxrotn(m);
+    maxrotn.fill(dconv * 100);
+
+    // m residuals for x and y
+    Tensor<double> bsh_residualsX(m);
+    Tensor<double> density_residuals(m);
+    Tensor<double> bsh_residualsY(m);
+    // saved response densities
+    vecfuncT rho_omega_old(m);
+    // initialize DFT XC functional operator
+    XCOperator<double, 3> xc = make_xc_operator(world);
+
+    // create X space residuals
+    X_space residuals(world, m, n);
+    X_space old_Chi(world, m, n);
+    X_space old_Lambda_X(world, m, n);
+
+    // Create the X space
+    bool converged = false;// Converged flag
+    // vector of Xvectors
+    std::vector<X_vector> Xvector;
+    std::vector<X_vector> Xresidual;
+    for (size_t b = 0; b < m; b++) {
+        Xvector.push_back(X_vector(Chi, b));
+        Xresidual.push_back(X_vector(residuals, b));
+    }
+    // If DFT, initialize the XCOperator<double,3>
+
+    NonLinearXsolver kain_x_space;
+    size_t nkain = m;// (r_params.omega() != 0.0) ? 2 * m : m;
+    for (size_t b = 0; b < nkain; b++) {
+        kain_x_space.push_back(XNonlinearSolver<X_vector, double, X_space_allocator>(
+                X_space_allocator(world, n), false));
+        if (r_params.kain()) kain_x_space[b].set_maxsub(r_params.maxsub());
+    }
+
+    response_space bsh_x_resp(world, m, n);// Holds wave function corrections
+    response_space bsh_y_resp(world, m, n);// Holds wave function corrections
+
+    Tensor<double> old_energy(m);      // Holds previous iteration's energy
+    Tensor<double> energy_residuals(m);// Holds energy residuals
+    // Holds the norms of y function residuals (for convergence)
+    Tensor<double> x_norms(m);
+    Tensor<double> y_norms(m);
+
+    response_space x_differences(world, m, n);
+    response_space y_differences(world, m, n);
+
+    response_space x_residuals(world, m, n);
+    response_space y_residuals(world, m, n);
+
+    Tensor<double> x_shifts;// Holds the shifted energy values
+    Tensor<double> y_shifts;// Holds the shifted energy values
+
+    Tensor<double> S;     // Overlap matrix of response components for x states
+    real_function_3d v_xc;// For TDDFT
+    Tensor<double> old_A;
+    Tensor<double> A;
+    Tensor<double> old_S;
+
+    vector_real_function_3d rho_omega = make_density(world, Chi);
+
+    // Now to iterate
+    for (iter = 0; iter < r_params.maxiter(); ++iter) {
+        // Start a timer for this iteration
+        // Basic output
+        if (r_params.print_level() >= 1) {
+            molresponse::start_timer(world);
+            if (world.rank() == 0)
+                printf("\n   Iteration %d at time %.1fs\n", static_cast<int>(iter),
+                       wall_time());
+            if (world.rank() == 0) print(" -------------------------------");
+        }
+
+        if (r_params.print_level() >= 1) {
+            if (world.rank() == 0) {
+                print("Chi.x norms at start of iteration: ", iter);
+                print(Chi.X.norm2());
+                print("Chi.y norms at start of iteration ", iter);
+                print(Chi.Y.norm2());
+            }
+        }
+        print("Excited State Frequencies ");
+        print(omega);
+
+        rho_omega_old = make_density(world, old_Chi);
+        rho_omega_old = rho_omega;
+        // compute rho_omega
+        rho_omega = make_density(world, Chi);
+
+        // Normalize after projection
+
+        if (iter < 2 || (iter % 10) == 0) { load_balance_chi(world); }
+
+        // compute density residuals
+        if (iter > 0) {
+            density_residuals = norm2s_T(world, (rho_omega - rho_omega_old));
+            maxrotn = (bsh_residualsX + bsh_residualsY) / 4;
+            for (size_t i = 0; i < Chi.num_states(); i++) {
+                if (maxrotn[i] < r_params.maxrotn()) {
+                    maxrotn[i] = r_params.maxrotn();
+                    print("less than maxrotn....set to maxrotn");
+                }
+            }
+            if (world.rank() == 0 and (r_params.print_level() > 2)) {
+                print("Density residuals");
+                print("dres", density_residuals);
+                print("BSH  residuals");
+                print("xres", bsh_residualsX);
+                print("yres", bsh_residualsY);
+                print("maxrotn", maxrotn);
+            }
+        }
+
+        if (iter > 0) {
+            // Only checking on X components even for full as Y are so small
+            if (density_residuals.max() > 2) { break; }
+
+            double d_residual = density_residuals.max();
+            double d_conv = dconv * std::max(size_t(5), molecule.natom());
+
+            if ((d_residual < d_conv) and
+                ((std::max(bsh_residualsX.absmax(), bsh_residualsY.absmax()) < d_conv * 5.0) or
+                 r_params.get<bool>("conv_only_dens"))) {
+                converged = true;
+            }
+            if (converged || iter == r_params.maxiter() - 1) {
+                // if converged print converged
+                if (world.rank() == 0 && converged and (r_params.print_level() > 1)) {
+                    print("\nConverged!\n");
+                }
+
+                if (r_params.save()) {
+                    molresponse::start_timer(world);
+                    save(world, r_params.save_file());
+                    if (r_params.print_level() >= 1) molresponse::end_timer(world, "Save:");
+                }
+                // Basic output
+                if (r_params.print_level() >= 1)
+                    molresponse::end_timer(world, " This iteration:");
+                // plot orbitals
+                if (r_params.plot_all_orbitals()) {
+                    PlotGroundandResponseOrbitals(world, iter, Chi.X, Chi.Y, r_params,
+                                                  ground_calc);
+                }
+                auto rho0 = make_ground_density(world);
+                if (r_params.plot()) {
+                    do_vtk_plots(world, 200, r_params.L(), molecule, rho0, rho_omega,
+                                 ground_orbitals, Chi);
+                }
+                break;
+            }
+        }
+        update_x_space_excited(world, old_Chi, Chi, old_Lambda_X, residuals, xc, projector,
+                               omega, kain_x_space, Xvector, Xresidual, energy_residuals,
+                               old_energy, bsh_residualsX, bsh_residualsY, S, old_S, A, old_A,
+                               iter, maxrotn);
+
+        excited_to_json(j_molresponse, iter, bsh_residualsX, bsh_residualsY, density_residuals,
+                        omega);
+
+        // Basic output
+        if (r_params.print_level() >= 1) molresponse::end_timer(world, " This iteration:");
+    }
+
+    if (world.rank() == 0) print("\n");
+    if (world.rank() == 0) print("   Finished Excited State Calculation ");
+    if (world.rank() == 0) print("   ------------------------");
+    if (world.rank() == 0) print("\n");
+
+    // Did we converge?
+    if (iter == r_params.maxiter() && not converged) {
+        if (world.rank() == 0) print("   Failed to converge. Reason:");
+        if (world.rank() == 0) print("\n  ***  Ran out of iterations  ***\n");
+        if (world.rank() == 0) print("    Running analysis on current values.\n");
+    }
+
+    // Sorstatict
+    if (!r_params.tda()) {
+        sort(world, omega, Chi);
+    } else {
+        sort(world, omega, Chi.X);
+    }
+
+    // Print final things
+    if (world.rank() == 0) {
+        print(" Final excitation energies:");
+        print(omega);
+        print(" Final energy residuals X:");
+        print(bsh_residualsX);
+        print(" Final energy residuals Y:");
+        print(bsh_residualsY);
+        print(" Final density residuals:");
+        print(density_residuals);
+
+        print(" Final X-state response function residuals:");
+        print(Chi.X.norm2());
+        if (not r_params.tda()) {
+            if (world.rank() == 0) print(" Final y-state response function residuals:");
+            if (world.rank() == 0) print(Chi.Y.norm2());
+        }
+    }
+
+    analysis(world, Chi);
+    print("--------------------------------------------------------");
+    for (size_t i = 0; i < m; i++) {
+        std::string x_state = "x_" + std::to_string(i) + "_";
+        analyze_vectors(world, Chi.X[i], x_state);
+        print("--------------------------------------------------------");
+    }
+    if (not r_params.tda()) {
+        for (size_t i = 0; i < m; i++) {
+            std::string y_state = "y_" + std::to_string(i) + "_";
+            analyze_vectors(world, Chi.Y[i], y_state);
+            print("--------------------------------------------------------");
+        }
+    }
+    // append the json to the file
+    std::ofstream ofs;// open json file in append mode
+    ofs.open("j_excited.json");
+}
+void ExcitedResponse::update_x_space_excited(
+        World &world, X_space &old_Chi, X_space &Chi, X_space &old_Lambda_X, X_space &res,
+        XCOperator<double, 3> &xc, QProjector<double, 3> &projector, Tensor<double> &omega,
+        NonLinearXsolver &kain_x_space, vector<X_vector> &Xvector, vector<X_vector> &Xresidual,
+        Tensor<double> &energy_residuals, Tensor<double> &old_energy,
+        Tensor<double> &bsh_residualsX, Tensor<double> &bsh_residualsY, Tensor<double> &S,
+        Tensor<double> &old_S, Tensor<double> &A, Tensor<double> &old_A, size_t iter,
+        Tensor<double> &maxrotn) {
+    size_t m = Chi.num_states();
+    bool compute_y = not r_params.tda();
+
+    Tensor<double> x_shifts(m);
+    Tensor<double> y_shifts(m);
+    print("Entering Compute Lambda");
+
+    if (compute_y) {
+        gram_schmidt(world, Chi.X, Chi.Y);
+        normalize(world, Chi);
+    } else {
+        gram_schmidt(world, Chi.X);
+        normalize(world, Chi.X);
+    }
+    //
+    X_space Lambda_X = compute_lambda_X(world, Chi, xc, r_params.calc_type());
+    // This diagonalizes XAX and computes new omegas
+    // updates Chi
+    print("omega before transform");
+    print(omega);
+    old_energy = omega;
+    compute_new_omegas_transform(world,
+                                 old_Chi,
+                                 Chi,
+                                 old_Lambda_X,
+                                 Lambda_X,
+                                 omega,
+                                 old_energy,
+                                 S,
+                                 old_S,
+                                 A,
+                                 old_A,
+                                 energy_residuals,
+                                 iter);
+    // now Chi is rotated to new position
+    // roatate Chi and old Chi saves this value
+    //  old_Chi = Chi.copy();
+
+    print("omega before transform");
+    print(old_energy);
+    print("omega after transform");
+    print(omega);
+    // Analysis gets messed up if BSH is last thing applied
+    // so exit early if last iteration
+    if (iter == r_params.maxiter() - 1) {
+        print("Reached max iter");
+    } else {
+        X_space theta_X = compute_theta_X(world, Chi, xc, r_params.calc_type());
+        //  Calculates shifts needed for potential / energies
+        print("BSH update iter = ", iter);
+        X_space temp = bsh_update_excited(world, omega, theta_X, projector);
+
+        res = compute_residual(world, Chi, temp, bsh_residualsX, bsh_residualsY, r_params.calc_type());
+        // kain if iteration >0 or first run where there should not be a problem
+        // computed temp and res
+        if (r_params.kain() && (iter > 0) && true) {
+            temp = kain_x_space_update(world, Chi, res, kain_x_space, Xvector, Xresidual);
+        }
+        if (iter > 0) {
+            x_space_step_restriction(world, Chi, temp, compute_y, maxrotn);
+        }
+
+        temp.X.truncate_rf();
+        if (compute_y) temp.Y.truncate_rf();
+        Chi = temp.copy();
+        // print x norms
+    }
+
+    // Apply mask
+    /*
+for (size_t i = 0; i < m; i++) Chi.X[i] = mask * Chi.X[i];
+if (not r_params.tda()) {
+for (size_t i = 0; i < m; i++) Chi.Y[i] = mask * Chi.Y[i];
+}
+*/
+}
+void ExcitedResponse::compute_new_omegas_transform(
+        World &world, X_space &old_Chi, X_space &Chi, X_space &old_Lambda_X, X_space &Lambda_X,
+        Tensor<double> &omega, Tensor<double> &old_energy, Tensor<double> &S, Tensor<double> &old_S,
+        Tensor<double> &A, Tensor<double> &old_A, Tensor<double> &energy_residuals, size_t iter) {
+    size_t m = Chi.X.size();
+    bool compute_y = not r_params.tda();
+    // Basic output
+    if (r_params.print_level() >= 1 and world.rank() == 0) {
+        print("Before Deflate");
+        print("\n   Excitation Energies:");
+        print("i=", iter, " roots: ", iter, omega);
+    }
+    if (!compute_y) {
+        deflateTDA(world, Chi, old_Chi, Lambda_X, old_Lambda_X, S, old_S, old_A, omega, iter, m);
+        // Constructing S
+        // Full TDHF
+    } else {
+        deflateFull(world, Chi, old_Chi, Lambda_X, old_Lambda_X, S, old_S, old_A, omega, iter, m);
+    }
+
+    // Basic output
+    if (r_params.print_level() >= 1 and world.rank() == 0) {
+        print("After Deflate");
+        print("\n   Excitation Energies:");
+        print("i=", iter, " roots: ", iter, omega);
+    }
+
+    // Calculate energy residual and update old_energy
+    energy_residuals = abs(omega - old_energy);
+}
+X_space ExcitedResponse::bsh_update_excited(World &world, const Tensor<double> &omega,
+                                            X_space &theta_X, QProjector<double, 3> &projector) {
+    size_t m = theta_X.num_states();
+    size_t n = theta_X.num_orbitals();
+    bool compute_y = !r_params.tda();
+    Tensor<double> x_shifts(m);
+    Tensor<double> y_shifts(m);
+    print("omega before shifts");
+    Tensor<double> omega_plus = omega;
+    Tensor<double> omega_minus = -omega;
+    print(omega);
+    x_shifts = create_shift(world, ground_energies, omega_plus ,"x");
+    // Compute Theta X
+    // Apply the shifts
+    theta_X.X = apply_shift(world, x_shifts, theta_X.X, Chi.X);
+    theta_X.X = theta_X.X * -2;
+    theta_X.X.truncate_rf();
+    if (compute_y) {
+        //   theta_X.Y = apply_shift(world, y_shifts, theta_X.Y, Chi.Y);
+        theta_X.Y = theta_X.Y * -2;
+        theta_X.Y.truncate_rf();
+    }
+    // Construct BSH operators
+    std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> bsh_x_ops = create_bsh_operators(
+            world, x_shifts, ground_energies, omega_plus, r_params.lo(), FunctionDefaults<3>::get_thresh());
+    std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> bsh_y_ops;
+    if (compute_y) {
+        Tensor<double> omega_minus = -omega;
+        bsh_y_ops = create_bsh_operators(
+                world, y_shifts, ground_energies, omega_minus, r_params.lo(), FunctionDefaults<3>::get_thresh());
+    }
+    X_space bsh_X(world, m, n);
+    // Apply BSH and get updated response components
+    bsh_X.X = apply(world, bsh_x_ops, theta_X.X);
+    if (compute_y) bsh_X.Y = apply(world, bsh_y_ops, theta_X.Y);
+
+    // Project out ground state
+    for (size_t i = 0; i < m; i++) bsh_X.X[i] = projector(bsh_X.X[i]);
+    if (compute_y) {
+        for (size_t i = 0; i < m; i++) bsh_X.Y[i] = projector(bsh_X.Y[i]);
+    }
+
+    // Only update non-converged components
+    for (size_t i = 0; i < m; i++) {
+        bsh_X.X[i] = bsh_X.X[i];
+        bsh_X.X[i] = mask * bsh_X.X[i];
+        if (compute_y) {
+            bsh_X.Y[i] = bsh_X.Y[i];
+            bsh_X.Y[i] = mask * bsh_X.Y[i];
+        }
+    }
+    // Ensure orthogonal guesses
+
+    bsh_X.truncate();
+
+    return bsh_X;
+}
+void ExcitedResponse::analysis(World &world, const X_space &chi) {
+    // Sizes get used a lot here, so lets get a local copy
+    size_t n = chi.X[0].size();
+    size_t m = chi.X.size();
+
+    // Per response function, want to print the contributions from each
+    // ground state So print the norm of each function?
+    Tensor<double> x_norms(m, n);
+    Tensor<double> y_norms(m, n);
+
+    // Calculate the inner products
+    for (long i = 0; i < m; i++) {
+        for (long j = 0; j < n; j++) {
+            x_norms(i, j) = chi.X[i][j].norm2();
+
+            if (not r_params.tda()) y_norms(i, j) = chi.Y[i][j].norm2();
+        }
+    }
+
+    // 'sort' these inner products within in each row
+    Tensor<double> cpy = copy(x_norms);
+    Tensor<int> x_order(m, n);
+    Tensor<int> y_order(m, n);
+    for (long i = 0; i < m; i++) {
+        for (long j = 0; j < n; j++) {
+            double x = cpy(i, _).max();
+            size_t z = 0;
+            while (x != cpy(i, z)) z++;
+            cpy(i, z) = -100.0;
+            x_order(i, j) = z;
+
+            // Also sort y if full response
+            if (not r_params.tda()) { y_order(i, j) = z; }
+        }
+    }
+
+    // Need these to calculate dipole/quadrapole
+    real_function_3d x = real_factory_3d(world).functor(
+            real_functor_3d(new BS_MomentFunctor(std::vector<int>{1, 0, 0})));
+    real_function_3d y = real_factory_3d(world).functor(
+            real_functor_3d(new BS_MomentFunctor(std::vector<int>{0, 1, 0})));
+    real_function_3d z = real_factory_3d(world).functor(
+            real_functor_3d(new BS_MomentFunctor(std::vector<int>{0, 0, 1})));
+
+    // Calculate transition dipole moments for each response function
+    Tensor<double> dipoles(m, 3);
+
+    // Run over each excited state
+    for (size_t i = 0; i < m; i++) {
+        // Add in contribution from each ground state
+        for (size_t j = 0; j < n; j++) {
+            dipoles(i, 0) += inner(ground_orbitals[j], x * chi.X[i][j]);
+            dipoles(i, 1) += inner(ground_orbitals[j], y * chi.X[i][j]);
+            dipoles(i, 2) += inner(ground_orbitals[j], z * chi.X[i][j]);
+
+            if (not r_params.tda()) {
+                dipoles(i, 0) += inner(ground_orbitals[j], x * chi.Y[i][j]);
+                dipoles(i, 1) += inner(ground_orbitals[j], y * chi.Y[i][j]);
+                dipoles(i, 2) += inner(ground_orbitals[j], z * chi.Y[i][j]);
+            }
+        }
+
+        // Normalization (negative?)
+        dipoles(i, 0) *= -sqrt(2.0);
+        dipoles(i, 1) *= -sqrt(2.0);
+        dipoles(i, 2) *= -sqrt(2.0);
+    }
+
+    // Calculate oscillator strength
+    Tensor<double> oscillator(m);
+    for (size_t i = 0; i < m; i++) {
+        oscillator(i) = 2.0 / 3.0 *
+                        (dipoles(i, 0) * dipoles(i, 0) + dipoles(i, 1) * dipoles(i, 1) +
+                         dipoles(i, 2) * dipoles(i, 2)) *
+                        omega(i);
+    }
+
+    // Calculate transition quadrapole moments
+    Tensor<double> quadrupoles(m, 3, 3);
+
+    // Run over each excited state
+    for (long i = 0; i < m; i++) {
+        // Add in contribution from each ground state
+        for (long j = 0; j < n; j++) {
+            quadrupoles(i, 0, 0) += inner(ground_orbitals[j], x * x * chi.X[i][j]);
+            quadrupoles(i, 0, 1) += inner(ground_orbitals[j], x * y * chi.X[i][j]);
+            quadrupoles(i, 0, 2) += inner(ground_orbitals[j], x * z * chi.X[i][j]);
+            quadrupoles(i, 1, 0) += inner(ground_orbitals[j], y * x * chi.X[i][j]);
+            quadrupoles(i, 1, 1) += inner(ground_orbitals[j], y * y * chi.X[i][j]);
+            quadrupoles(i, 1, 2) += inner(ground_orbitals[j], y * z * chi.X[i][j]);
+            quadrupoles(i, 2, 0) += inner(ground_orbitals[j], z * x * chi.X[i][j]);
+            quadrupoles(i, 2, 1) += inner(ground_orbitals[j], z * y * chi.X[i][j]);
+            quadrupoles(i, 2, 2) += inner(ground_orbitals[j], z * z * chi.X[i][j]);
+
+            if (not r_params.tda()) {
+                quadrupoles(i, 0, 0) += inner(ground_orbitals[j], x * x * chi.Y[i][j]);
+                quadrupoles(i, 0, 1) += inner(ground_orbitals[j], x * y * chi.Y[i][j]);
+                quadrupoles(i, 0, 2) += inner(ground_orbitals[j], x * z * chi.Y[i][j]);
+                quadrupoles(i, 1, 0) += inner(ground_orbitals[j], y * x * chi.Y[i][j]);
+                quadrupoles(i, 1, 1) += inner(ground_orbitals[j], y * y * chi.Y[i][j]);
+                quadrupoles(i, 1, 2) += inner(ground_orbitals[j], y * z * chi.Y[i][j]);
+                quadrupoles(i, 2, 0) += inner(ground_orbitals[j], z * x * chi.Y[i][j]);
+                quadrupoles(i, 2, 1) += inner(ground_orbitals[j], z * y * chi.Y[i][j]);
+                quadrupoles(i, 2, 2) += inner(ground_orbitals[j], z * z * chi.Y[i][j]);
+            }
+        }
+        // Normalization
+        quadrupoles(i, 0, 0) *= sqrt(2.0);
+        quadrupoles(i, 0, 1) *= sqrt(2.0);
+        quadrupoles(i, 0, 2) *= sqrt(2.0);
+        quadrupoles(i, 1, 0) *= sqrt(2.0);
+        quadrupoles(i, 1, 1) *= sqrt(2.0);
+        quadrupoles(i, 1, 2) *= sqrt(2.0);
+        quadrupoles(i, 2, 0) *= sqrt(2.0);
+        quadrupoles(i, 2, 1) *= sqrt(2.0);
+        quadrupoles(i, 2, 2) *= sqrt(2.0);
+    }
+
+    // Now print?
+    if (world.rank() == 0) {
+        for (long i = 0; i < m; i++) {
+            printf("   Response Function %d\t\t%7.8f a.u.", static_cast<int>(i), omega(i));
+            print("\n   --------------------------------------------");
+            printf("   Response Function %d\t\t%7.8f eV", static_cast<int>(i),
+                   omega(i) * 27.2114);
+            print("\n   --------------------------------------------");
+
+            print("\n   Transition Dipole Moments");
+            printf("   X: %7.8f   Y: %7.8f   Z: %7.8f\n", dipoles(i, 0), dipoles(i, 1),
+                   dipoles(i, 2));
+
+            printf("\n   Dipole Oscillator Strength: %7.8f\n", oscillator(i));
+
+            print("\n   Transition Quadrupole Moments");
+            printf("   %16s %16s %16s\n", "X", "Y", "Z");
+            printf("   X %16.8f %16.8f %16.8f\n", quadrupoles(i, 0, 0), quadrupoles(i, 0, 1),
+                   quadrupoles(i, 0, 2));
+            printf("   Y %16.8f %16.8f %16.8f\n", quadrupoles(i, 1, 0), quadrupoles(i, 1, 1),
+                   quadrupoles(i, 1, 2));
+            printf("   Z %16.8f %16.8f %16.8f\n", quadrupoles(i, 2, 0), quadrupoles(i, 2, 1),
+                   quadrupoles(i, 2, 2));
+
+            // Print contributions
+            // Only print the top 5?
+            if (r_params.tda()) {
+                print("\n   Dominant Contributions:");
+                for (long j = 0; j < std::min(size_t(5), n); j++) {
+                    printf("   Occupied %d   %7.8f\n", x_order(i, j),
+                           x_norms(i, x_order(i, j)));
+                }
+
+                print("\n");
+            } else {
+                print("\n   Dominant Contributions:");
+                print("                  x          y");
+                for (long j = 0; j < std::min(size_t(5), n); j++) {
+                    printf("   Occupied %d   %7.8f %7.8f\n", x_order(i, j),
+                           x_norms(i, x_order(i, j)), y_norms(i, y_order(i, j)));
+                }
+
+                print("\n");
+            }
+        }
+    }
 }

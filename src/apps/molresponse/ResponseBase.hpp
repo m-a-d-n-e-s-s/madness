@@ -28,9 +28,11 @@ public:
     ResponseBase(World& world, const CalcParams& params);
     void solve(World& world);
     virtual void initialize(World& world) = 0;
+    virtual void iterate(World& world) = 0;
     //virtual void iterate();
     CalcParams get_parameter() const { return {ground_calc, molecule, r_params}; }
     vector_real_function_3d get_orbitals() const { return ground_orbitals; }
+    void output_json() const;
 
 protected:
     // Given molecule returns the nuclear potential of the molecule
@@ -140,9 +142,9 @@ protected:
     XCOperator<double, 3> make_xc_operator(World& world) const;
     void save(World& world, const std::string& name);
     void load(World& world, const std::string& name);
-    vector_real_function_3d make_density(World& world);
+    vecfuncT make_density(World& world, const X_space& chi) const ;
 
-    void load_balance(World& world);
+    void load_balance_chi(World& world);
     vector<poperatorT> make_bsh_operators_response(World& world, double& shift,
                                                    double& omega) const;
 
@@ -170,8 +172,8 @@ protected:
                                        const GroundStateCalculation& g_params);
     void vector_stats_new(const Tensor<double> v, double& rms, double& maxabsval) const;
 
-    gamma_orbitals orbital_load_balance(World& world, const gamma_orbitals&,
-                                        const double load_balance) const;
+    static gamma_orbitals orbital_load_balance(World& world, const gamma_orbitals&,
+                                        const double load_balance) ;
     X_space compute_gamma_tda(World& world, const gamma_orbitals& density,
                               const XCOperator<double, 3>& xc) const;
     X_space compute_gamma_static(World& world, const gamma_orbitals&,
@@ -186,6 +188,12 @@ protected:
                             std::string calc_type) const;
     X_space compute_F0X(World& world, const X_space& X, bool compute_Y,
                         const XCOperator<double, 3>& xc) const;
+    void analyze_vectors(World& world, const vecfuncT& x, const std::string& response_state);
+    vecfuncT project_ao_basis(World& world, const AtomicBasisSet& aobasis);
+
+
+    vecfuncT project_ao_basis_only(World& world, const AtomicBasisSet& aobasis,
+                                   const Molecule& molecule);
 };
 
 
@@ -226,16 +234,20 @@ void print_norms(World& world, const response_space& f);
 vector_real_function_3d make_xyz_functions(World& world);
 // Selects from a list of functions and energies the k functions with the
 // lowest energy
-response_space select_functions(World& world, response_space f, Tensor<double>& energies,
-                                size_t k, size_t print_level);
+response_space select_functions(World& world, response_space f, Tensor<double>& energies, size_t k,
+                                size_t print_level);
 // Sorts the given tensor of eigenvalues and
 // response functions
 void sort(World& world, Tensor<double>& vals, response_space& f);
+void sort(World& world, Tensor<double>& vals, X_space& f);
 
 
 // Specialized for response calculations that returns orthonormalized
 // functions
 response_space gram_schmidt(World& world, const response_space& f);
+// Specialized for response calculations that returns orthonormalized
+// functions
+void gram_schmidt(World& world, response_space& f, response_space& g);
 /// Computes the transition density between set of two response functions x and y.
 /// Uses std::transform to iterate between x and y vectors
 /// \param world
@@ -253,4 +265,6 @@ response_space transform(World& world, const response_space& f, const Tensor<dou
 
 // result(i,j) = inner(a[i],b[j]).sum()
 Tensor<double> expectation(World& world, const response_space& A, const response_space& B);
+
+
 #endif// MADNESS_RESPONSEBASE_HPP

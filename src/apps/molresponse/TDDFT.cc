@@ -227,7 +227,7 @@ void TDDFT::orbital_load_balance(World &world,
 
     // newpamap is the new pmap just based on the orbitals
     std::shared_ptr<WorldDCPmapInterface<Key<3>>> new_process_map = lb.load_balance(r_params.loadbalparts());
-    molresponse::end_timer(world, "Gamma compute load_balance");
+    molresponse::end_timer(world, "Gamma compute load_balance_chi");
     // default process map
     // We set the new_process_map
     molresponse::start_timer(world);

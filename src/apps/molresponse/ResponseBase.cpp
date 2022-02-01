@@ -173,7 +173,7 @@ std::pair<Tensor<double>, Tensor<double>> ResponseBase::ComputeHamiltonianPair(W
     // ALWAYS DO THIS FOR THE STORED POTENTIAL!!
     // exchange last
     // 'small memory' algorithm from SCF.cc
-    auto op = *coulop;
+    auto op = coulop;
 
     auto Kphi = zero_functions_compressed<double, 3>(world, num_orbitals);
 
@@ -181,7 +181,7 @@ std::pair<Tensor<double>, Tensor<double>> ResponseBase::ComputeHamiltonianPair(W
         /// Multiplies a function against a vector of functions using sparsity of a and v[i] --- q[i] = a * v[i]
         auto psif = mul_sparse(world, phi_i, phi, FunctionDefaults<3>::get_thresh());
         truncate(world, psif);
-        psif = apply(world, op, psif);
+        psif = apply(world, *op, psif);
         truncate(world, psif);
         // Save the potential here if we are saving it
         if (r_params.store_potential()) { stored_potential.push_back(psif); }
@@ -229,7 +229,7 @@ std::pair<Tensor<double>, Tensor<double>> ResponseBase::ComputeHamiltonianPair(W
     // (T+phiVphi) - Lambda * eye
     // Copy new_hamiltonian and zero the diagonal
     auto new_hamiltonian_no_diag = copy(new_hamiltonian);
-    for (size_t i = 0; i < num_orbitals; i++) new_hamiltonian(i, i) = 0.0;
+    for (size_t i = 0; i < num_orbitals; i++) new_hamiltonian_no_diag(i, i) = 0.0;
 
     // Debug output
     if (r_params.print_level() >= 2 and world.rank() == 0) {
@@ -342,16 +342,16 @@ void ResponseBase::load(World &world, const std::string &name) {
         world.gop.fence();
     }
 }
-vecfuncT ResponseBase::make_density(World &world) {
+vecfuncT ResponseBase::make_density(World &world, const X_space &chi)const {
     molresponse::start_timer(world);
     vecfuncT density;
     auto calc_type = r_params.calc_type();
     if (calc_type == "full") {
-        density = transition_density(world, ground_orbitals, Chi.X, Chi.Y);
+        density = transition_density(world, ground_orbitals, chi.X, chi.Y);
     } else if (calc_type == "static") {
-        density = transition_density(world, ground_orbitals, Chi.X, Chi.X);
+        density = transition_density(world, ground_orbitals, chi.X, chi.X);
     } else {
-        density = transition_densityTDA(world, ground_orbitals, Chi.X);
+        density = transition_densityTDA(world, ground_orbitals, chi.X);
     }
     molresponse::end_timer(world, "Make density omega");
     world.gop.fence();
@@ -359,7 +359,7 @@ vecfuncT ResponseBase::make_density(World &world) {
 }
 
 
-void ResponseBase::load_balance(World &world) {
+void ResponseBase::load_balance_chi(World &world) {
     molresponse::start_timer(world);
     if (world.size() == 1) return;
 
@@ -858,7 +858,7 @@ X_space ResponseBase::compute_lambda_X(World &world, const X_space &chi, XCOpera
     bool compute_Y = calc_type.compare("full") == 0;
 
     X_space Lambda_X;// = X_space(world, chi.num_states(), chi.num_orbitals());
-    X_space F0X = compute_F0X(world, chi, compute_Y,xc);
+    X_space F0X = compute_F0X(world, chi, compute_Y, xc);
     X_space Chi_truncated = chi.copy();
     Chi_truncated.truncate();
     if (r_params.print_level() >= 20) {
@@ -1015,7 +1015,8 @@ response_space T(World &world, response_space &f) {
     return T;
 }
 // Returns the ground state fock operator applied to functions f
-X_space ResponseBase::compute_F0X(World &world, const X_space &X, bool compute_Y,const XCOperator<double,3>& xc) const {
+X_space ResponseBase::compute_F0X(World &world, const X_space &X, bool compute_Y,
+                                  const XCOperator<double, 3> &xc) const {
     // Debugging output
 
     molresponse::start_timer(world);
@@ -1034,7 +1035,7 @@ X_space ResponseBase::compute_F0X(World &world, const X_space &X, bool compute_Y
         print(inner(chi_copy, T0X));
     }
 
-    X_space V0X = compute_V0X(world, chi_copy, xc,false);
+    X_space V0X = compute_V0X(world, chi_copy, xc, false);
     if (r_params.print_level() >= 20) {
         print("_________________compute F0X _______________________");
         print("inner <X|V0|X>");
@@ -1400,6 +1401,7 @@ void ResponseBase::solve(World &world) {
     for (const auto &iter_thresh: protocol) {
         // We set the protocol and function defaults here for the given threshold of protocol
         set_protocol(world, iter_thresh);
+        check_k(world, iter_thresh, FunctionDefaults<3>::get_k());
         protocol_to_json(j_molresponse, iter_thresh);
         if (first_protocol) {
             if (r_params.restart()) {
@@ -1408,38 +1410,36 @@ void ResponseBase::solve(World &world) {
                 }
                 load(world, r_params.restart_file());
                 check_k(world, iter_thresh, FunctionDefaults<3>::get_k());
-            } else
+                first_protocol = false;
+            } else {
                 this->initialize(world);
-            // Now we need to ensure that all functions have the correct polynomial order k
-            // We do this in two stages... we call the static function check_k()
-            // We follow by then calling this->check_response_k() which is an virtual function
-            // for both excited and frequency response.
+            }
+            first_protocol = false;
         }
-        first_protocol = false;
+        // Now actually ready to iterate...
+        this->iterate(world);
     }
 
-    // Now actually ready to iterate...
-    // this->iterate(world, Chi);
 
     // Plot the response function if desired
 }
 
 void check_k(World &world, X_space &Chi, double thresh, int k) {
     if (-1 != Chi.X.size()) {
-        if (FunctionDefaults<2>::get_k() != Chi.X[0].at(0).k()) {
+        if (FunctionDefaults<3>::get_k() != Chi.X[0].at(0).k()) {
             // Project all x components into correct k
 
             for (auto &xi: Chi.X) {
                 reconstruct(world, xi);
                 for (auto &xij: xi) {
-                    xij = project(xij, FunctionDefaults<2>::get_k(), thresh, false);
+                    xij = project(xij, FunctionDefaults<3>::get_k(), thresh, false);
                 }
                 world.gop.fence();
             }
             for (auto &yi: Chi.Y) {
                 reconstruct(world, yi);
                 for (auto &yij: yi) {
-                    yij = project(yij, FunctionDefaults<2>::get_k(), thresh, false);
+                    yij = project(yij, FunctionDefaults<3>::get_k(), thresh, false);
                 }
                 world.gop.fence();
             }
@@ -1599,6 +1599,7 @@ vector_real_function_3d transition_density(World &world, const vector_real_funct
     std::transform(x.begin(), x.end(), y.begin(), densities.begin(),
                    [&world, &phi0](auto x_alpha, auto y_alpha) {
                        auto dx = dot(world, x_alpha, phi0);
+                       world.gop.fence();
                        auto dy = dot(world, phi0, y_alpha);
                        return dx + dy;
                    });
@@ -1617,7 +1618,7 @@ vector_real_function_3d transition_density(World &world, const vector_real_funct
  * @return
  */
 gamma_orbitals ResponseBase::orbital_load_balance(World &world, const gamma_orbitals &input,
-                                                  const double load_balance) const {
+                                                  const double load_balance) {
 
     auto X = std::get<0>(input);
     auto psi0 = std::get<1>(input);
@@ -1644,7 +1645,7 @@ gamma_orbitals ResponseBase::orbital_load_balance(World &world, const gamma_orbi
         // newpamap is the new pmap just based on the orbitals
         std::shared_ptr<WorldDCPmapInterface<Key<3>>> new_process_map =
                 lb.load_balance(load_balance);
-        molresponse::end_timer(world, "Gamma compute load_balance");
+        molresponse::end_timer(world, "Gamma compute load_balance_chi");
         // default process map
         // We set the new_process_map
         molresponse::start_timer(world);
@@ -1660,10 +1661,76 @@ gamma_orbitals ResponseBase::orbital_load_balance(World &world, const gamma_orbi
         world.gop.fence();// then fence
         molresponse::end_timer(world, "Gamma redist");
         return {X_copy, psi0_copy, vf_copy};
-    }else{
+    } else {
         // return a copy with the same process map since we only have one world
-        return {X.copy(),copy(world,psi0),copy(world,vf)};
+        return {X.copy(), copy(world, psi0), copy(world, vf)};
     }
+}
+void ResponseBase::analyze_vectors(World &world, const vecfuncT &x,
+                                   const std::string &response_state) {
+    molresponse::start_timer(world);
+    AtomicBasisSet sto3g("sto-3g");
+    vecfuncT ao = project_ao_basis(world, sto3g);
+
+    tensorT C = matrix_inner(world, ao, x);
+    int nmo1 = x.size();
+    tensorT rsq, dip(3, nmo1);
+    {
+        functionT frsq = factoryT(world).f(rsquared).initial_level(4);
+        // <x r^2 x>
+        //<x[i] | r^2 | x[i]>
+        rsq = inner(world, x, mul_sparse(world, frsq, x, vtol));
+        for (int axis = 0; axis < 3; ++axis) {
+            // x y z
+            functionT fdip = factoryT(world)
+                                     .functor(functorT(new madness::DipoleFunctor(axis)))
+                                     .initial_level(4);
+            dip(axis, _) = inner(world, x, mul_sparse(world, fdip, x, vtol));
+            //<x r^2 x> - <x|x|x>^2-<x|y|x>^2-<x|z|x>^2
+            for (int i = 0; i < nmo1; ++i) rsq(i) -= dip(axis, i) * dip(axis, i);
+        }
+    }
+    molresponse::end_timer(world, "Analyze vectors");
+
+    long nmo = x.size();
+    size_t ncoeff = 0;
+    for (long i = 0; i < nmo; ++i) {
+        size_t ncoeffi = x[i].size();
+        ncoeff += ncoeffi;
+        if (world.rank() == 0 and (r_params.print_level() > 1)) {
+            print(response_state + " orbital : ", i);
+
+            printf("ncoeff=%.2e:", (double) ncoeffi);
+
+            printf("center=(%.2f,%.2f,%.2f) : radius=%.2f\n", dip(0, i), dip(1, i), dip(2, i),
+                   sqrt(rsq(i)));
+            sto3g.print_anal(molecule, C(i, _));
+            printf("total number of coefficients = %.8e\n\n", double(ncoeff));
+        }
+    }
+}
+vecfuncT ResponseBase::project_ao_basis_only(World &world, const AtomicBasisSet &aobasis,
+                                             const Molecule &molecule) {
+    vecfuncT ao = vecfuncT(aobasis.nbf(molecule));
+    for (int i = 0; i < aobasis.nbf(molecule); ++i) {
+        functorT aofunc(new AtomicBasisFunctor(aobasis.get_atomic_basis_function(molecule, i)));
+        ao[i] = factoryT(world).functor(aofunc).truncate_on_project().nofence().truncate_mode(1);
+    }
+    world.gop.fence();
+    truncate(world, ao);
+    madness::normalize(world, ao);
+    return ao;
+}
+vecfuncT ResponseBase::project_ao_basis(World &world, const AtomicBasisSet &aobasis) {
+    // Make at_to_bf, at_nbf ... map from atom to first bf on atom, and nbf/atom
+    std::vector<int> at_to_bf, at_nbf;
+    aobasis.atoms_to_bfn(molecule, at_to_bf, at_nbf);
+
+    return project_ao_basis_only(world, aobasis, molecule);
+}
+void ResponseBase::output_json() const {
+    std::ofstream ofs("response.json");
+    ofs << j_molresponse;
 }
 
 vector_real_function_3d transition_densityTDA(World &world, const vector_real_function_3d &orbitals,
@@ -1701,11 +1768,10 @@ response_space transform(World &world, const response_space &f, const Tensor<dou
     // Go element by element
     for (unsigned int i = 0; i < f.size(); i++) {
         // Temp for the result of one row
-        std::vector<real_function_3d> temp = zero_functions_compressed<double, 3>(world, f[0].size());
+        std::vector<real_function_3d> temp =
+                zero_functions_compressed<double, 3>(world, f[0].size());
 
-        for (unsigned int j = 0; j < f.size(); j++) {
-            gaxpy(world, 1.0, temp, U(j, i), f[j]);
-        }
+        for (unsigned int j = 0; j < f.size(); j++) { gaxpy(world, 1.0, temp, U(j, i), f[j]); }
 
         // Add to temp to result
         result.push_back(temp);
@@ -1743,9 +1809,7 @@ Tensor<double> expectation(World &world, const response_space &A, const response
    */
     // Run over dimension two
     // each vector in orbital has dim_1 response functoins associated
-    for (size_t p = 0; p < dim_2; p++) {
-        result += matrix_inner(world, A_t[p], B_t[p]);
-    }
+    for (size_t p = 0; p < dim_2; p++) { result += matrix_inner(world, A_t[p], B_t[p]); }
 
     // Done
     return result;
@@ -1755,14 +1819,14 @@ void print_norms(World &world, const response_space &f) {
     Tensor<double> norms(f.size(), f[0].size());
     // Calc the norms
     long i = 0;
-    for (const auto& fi: f) {
-        for (const auto& fij: fi) { norms(i++) = fij.norm2(); }
+    for (const auto &fi: f) {
+        for (const auto &fij: fi) { norms(i++) = fij.norm2(); }
     }
     // Print em in a smart way
     if (world.rank() == 0) print(norms);
 }
-response_space select_functions(World &world, response_space f, Tensor<double> &energies,
-                                size_t k, size_t print_level) {
+response_space select_functions(World &world, response_space f, Tensor<double> &energies, size_t k,
+                                size_t print_level) {
     // Container for result
     response_space answer;
 
@@ -1791,7 +1855,7 @@ response_space select_functions(World &world, response_space f, Tensor<double> &
     // Done
     return answer;
 }
-void sort(World &world, Tensor<double> &vals,  response_space &f) {
+void sort(World &world, Tensor<double> &vals, response_space &f) {
     // Get relevant sizes
     size_t k = vals.size();
 
@@ -1813,6 +1877,38 @@ void sort(World &world, Tensor<double> &vals,  response_space &f) {
         // Put corresponding function, difference function, value residual and
         // value in the correct place
         f[i] = f_copy[j];
+        vals(i) = vals_copy(i);
+
+        // Change the value of vals_copy2[j] to help deal with duplicates?
+        vals_copy2(j) = 10000.0;
+    }
+}
+// Sorts the given tensor of eigenvalues and
+// response functions
+void sort(World &world, Tensor<double> &vals, X_space &f) {
+    // Get relevant sizes
+    size_t k = vals.size();
+
+    // Copy everything...
+    X_space f_copy(f);
+    Tensor<double> vals_copy = copy(vals);
+    Tensor<double> vals_copy2 = copy(vals);
+
+    // Now sort vals_copy
+    std::sort(vals_copy.ptr(), vals_copy.ptr() + vals_copy.size());
+
+    // Now sort the rest of the things, using the sorted energy list
+    // to find the correct indices
+    for (size_t i = 0; i < k; i++) {
+        // Find matching index in sorted vals_copy
+        size_t j = 0;
+        while (fabs(vals_copy(i) - vals_copy2(j)) > 1e-8 && j < k) j++;
+
+        // Put corresponding function, difference function, value residual and
+        // value in the correct place
+        f.X[i] = f_copy.X[j];
+        f.Y[i] = f_copy.Y[j];
+
         vals(i) = vals_copy(i);
 
         // Change the value of vals_copy2[j] to help deal with duplicates?
@@ -1863,4 +1959,33 @@ vector_real_function_3d make_xyz_functions(World &world) {
 
     std::vector<real_function_3d> funcs = {x, y, z};
     return funcs;
+}
+void gram_schmidt(World &world, response_space &f, response_space &g) {
+    // Sizes inferred
+    size_t m = f.size();
+
+    // Orthogonalize
+    for (size_t j = 0; j < m; j++) {
+        // Need to normalize the row
+        double norm = inner(f[j], f[j]) - inner(g[j], g[j]);
+
+        // Now scale each entry
+        scale(world, f[j], 1.0 / sqrt(norm));
+        scale(world, g[j], 1.0 / sqrt(norm));
+
+        // Project out from the rest of the vectors
+        for (size_t k = j + 1; k < m; k++) {
+            // Temp function to hold the sum
+            // of inner products
+            // vmra.h function, line 627
+            double temp = inner(f[j], f[k]) - inner(g[j], g[k]);
+
+            // Now subtract
+            gaxpy(world, 1.0, f[k], -temp, f[j]);
+            gaxpy(world, 1.0, g[k], -temp, g[j]);
+        }
+    }
+
+    f.truncate_rf();
+    g.truncate_rf();
 }
