@@ -209,7 +209,7 @@ TEST_CASE("Run MOLDFT and create answers directory") {
         }
     } catch (const std::filesystem::filesystem_error &ex) { std::cerr << ex.what() << "\n"; }
 }
-
+/*
 TEST_CASE("Read Molecule from directory") {
 
 
@@ -363,3 +363,4 @@ TEST_CASE("Creating new molecule directory") {
         // response else check the answers
     }
 }
+*/
