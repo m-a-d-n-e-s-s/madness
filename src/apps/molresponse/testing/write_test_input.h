@@ -18,16 +18,17 @@ namespace madness {
         double eprec = 1.e-4;// was 1e-4 ... trying to make test faster
 
         std::string filename_;
+        std::string molecule_path;
         bool keepfile = true;
 
         write_test_input() : filename_("moldft.in") {}
 
         explicit write_test_input(const CalculationParameters& param, const std::string& filename,
-                                  const std::string& mol = "lih")
-            : filename_(filename) {
+                                  std::string mol_path)
+            : filename_(filename),molecule_path(mol_path) {
             std::ofstream of(filename_);
             write_to_test_input("dft", &param, of);
-            write_molecule_to_test_input(mol, of);
+            write_molecule_to_test_input(molecule_path, of);
             of.close();
         }
 
@@ -46,20 +47,18 @@ namespace madness {
             return of;
         }
 
-        static std::ostream& write_molecule_to_test_input(std::string mol, std::ostream& of) {
-            if (mol == "lih") {
-                of << "geometry\n";
-                of << "Li 0.0    0.0 0.0\n";
-                of << "H  1.4375 0.0 0.0\n";
-                of << "end\n";
-            } else if (mol == "hf") {
-                //double eprec=1.e-5; // trying to make test faster
-                of << "geometry\n";
-                of << "F  0.1    0.0 0.2\n";
-                of << "H  1.4375 0.0 0.0\n";
-                of << "end\n";
+        static std::ostream& write_molecule_to_test_input(std::string mol_path, std::ostream& of) {
+
+
+            std::cout<<mol_path<<"\n";
+            std::ifstream mol_file(mol_path);
+            std::string line;
+            while(getline(mol_file,line)){
+                std::cout<<line<<"\n";
+                of<<line<<"\n";
             }
             return of;
+
         }
     };
     /// will write a test input and remove it from disk upon destruction
