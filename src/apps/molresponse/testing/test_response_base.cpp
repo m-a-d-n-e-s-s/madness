@@ -69,7 +69,6 @@ int main(int argc, char *argv[]) {
 }
 
 
-
 void runMOLDFT(World &world, std::string molecule, std::string filename) {
 
     CalculationParameters param1;
@@ -90,41 +89,48 @@ void runMOLDFT(World &world, std::string molecule, std::string filename) {
     world.gop.fence();
 }
 
-void set_default_response_parameters(ResponseParameters & r_params){
+void set_default_response_parameters(ResponseParameters &r_params) {
 
     r_params.set_user_defined_value("maxiter", size_t(10));
-    r_params.set_user_defined_value("archive",std::string("../restartdata"));
-    r_params.set_user_defined_value("kain",true);
-    r_params.set_user_defined_value("maxsub",size_t(10));
-
+    r_params.set_user_defined_value("archive", std::string("../restartdata"));
+    r_params.set_user_defined_value("kain", true);
+    r_params.set_user_defined_value("maxsub", size_t(10));
 }
-void runExcitedState(World &world, std::string filename,int num_states,std::filesystem::path path) {
+void runExcitedState(World &world, std::string filename, int num_states,
+                     std::filesystem::path runPath) {
 
     // Set the response parameters
     ResponseParameters r_params{};
     set_default_response_parameters(r_params);
-    r_params.set_user_defined_value("xc",std::string("hf"));
-    r_params.set_user_defined_value("states",size_t(num_states));
-    r_params.set_user_defined_value("excited_state",true);
+    r_params.set_user_defined_value("xc", std::string("hf"));
+    r_params.set_user_defined_value("states", size_t(num_states));
+    r_params.set_user_defined_value("excited_state", true);
 
-    r_params.set_user_defined_value("save",true);
-    r_params.set_user_defined_value("save_file",std::string("restart_exited"));
+    r_params.set_user_defined_value("save", true);
+    r_params.set_user_defined_value("save_file", std::string("restart_exited"));
     // set r_params to restart true if restart file exist
 
-    write_response_input(r_params,filename);
+    auto restartPath = runPath;
+    restartPath += "/restart_excited";
+    if (std::filesystem::exists(restartPath)) {
+        r_params.set_user_defined_value("restart", true);
+        r_params.set_user_defined_value("restart_file", std::string("restart_exited"));
+    }
+
+
+    write_response_input(r_params, filename);
+
 
     auto calc_params = initialize_calc_params(world, std::string(filename));
     auto &[ground_calculation, molecule, r_params_copy] = calc_params;
     vecfuncT ground_orbitals = ground_calculation.orbitals();
 
-    print(norm2s_T(world,ground_orbitals));
+    print(norm2s_T(world, ground_orbitals));
 
     ExcitedResponse calc(world, calc_params);
 
     calc.solve(world);
     calc.output_json();
-
-
 }
 
 TEST_CASE("Creating new molecule directory") {
@@ -198,48 +204,7 @@ TEST_CASE("Creating new molecule directory") {
 
         // make a set of molecule and num state pairs.
         // so I run for a set of molecules each with different number of response states.
-        runExcitedState(world,response_filename,4);
-
-
+        runExcitedState(world, response_filename, 4, response_run_path);
         // now check if the answers exist.  if the answers do not exist run response else check the answers
     }
-
-    /*
-
-    CalculationParameters param1;
-    param1.set_user_defined_value("maxiter", 2);
-    param1.set_user_defined_value("protocol", std::vector<double>({1.e-3}));
-    // write restart file
-    // write restart file
-    write_test_input test_input(param1, "hf");// molecule HF
-    commandlineparser parser;
-    parser.set_keyval("input", test_input.filename());
-    SCF calc(world, parser);
-    calc.set_protocol<3>(world, 1e-4);
-    MolecularEnergy ME(world, calc);
-    //double energy=ME.value(calc.molecule.get_all_coords().flat()); // ugh!
-    ME.value(calc.molecule.get_all_coords().flat());// ugh!
-    ME.output_calc_info_schema();
-
-    world.gop.fence();
-
-    // Set the response parameters
-    ResponseParameters r_params{};
-    r_params.set_user_defined_value("maxiter", 10);
-    r_params.set_user_defined_value("xc", 10);
-
-
-    /*
-    auto calc_params = initialize_calc_params(world, std::string(input_file));
-    auto &[ground_calculation, molecule, r_params] = calc_params;
-    vecfuncT ground_orbitals = ground_calculation.orbitals();
-    print(norm2s_T(world,ground_orbitals));
-
-    r_params.print("ResponseParameters", "Not sure footer");
-
-    ExcitedResponse calc(world, calc_params);
-
-    calc.solve(world);
-    calc.output_json();
-     */
 }
