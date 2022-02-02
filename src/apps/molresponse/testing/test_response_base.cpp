@@ -122,6 +122,7 @@ TEST_CASE("Run MOLDFT and create answers directory") {
                     std::cout << "Beginning Tests for Molecule: " << molecule_name << "\n";
 
                     auto moldft_results = molecule_path;
+                    moldft_results+="/";
                     moldft_results += molecule_name;
                     moldft_results += ".json";
                     std::cout<<moldft_results<<std::endl;
