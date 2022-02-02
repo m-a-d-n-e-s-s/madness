@@ -1,6 +1,7 @@
 # src/apps/molresponse
 
 add_subdirectory(testing)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 # Set the CHEM sources and header files
 set(MOLRESPONSE_SOURCES
         density.cc
