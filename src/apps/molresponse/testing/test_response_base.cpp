@@ -65,6 +65,7 @@ void runExcitedState(World &world, std::string filename, int num_states,
     r_params.set_user_defined_value("xc", std::string("hf"));
     r_params.set_user_defined_value("states", size_t(num_states));
     r_params.set_user_defined_value("excited_state", true);
+    r_params.set_user_defined_value("plot_all_orbitals", true);
 
     r_params.set_user_defined_value("save", true);
     r_params.set_user_defined_value("save_file", std::string("restart_excited"));
