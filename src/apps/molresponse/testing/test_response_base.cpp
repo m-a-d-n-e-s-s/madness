@@ -62,6 +62,7 @@ void runExcitedState(World &world, std::string filename, int num_states,
     // Set the response parameters
     ResponseParameters r_params{};
     set_default_response_parameters(r_params);
+
     r_params.set_user_defined_value("xc", std::string("hf"));
     r_params.set_user_defined_value("states", size_t(num_states));
     r_params.set_user_defined_value("excited_state", true);
@@ -114,33 +115,39 @@ TEST_CASE("Run MOLDFT and create answers directory") {
         if (std::filesystem::is_directory(molecule_path)) {
             for (const std::filesystem::directory_entry &mol_path:
                  std::filesystem::directory_iterator(molecule_path)) {
+
+                std::filesystem::current_path(root);
                 //for each molecule in molecules directory
-                bool moldft_results_exits = false;
-
-
+                bool moldft_results_exists = false;
                 json moldft_answers;
+
                 if (mol_path.path().extension() == ".mol") {
                     auto molecule_name = mol_path.path().stem();
                     std::cout << "\n\n----------------------------------------------------\n";
                     std::cout << "Beginning Tests for Molecule: " << molecule_name << "\n";
 
+                    // We would like to read the moldft results from corresponding json "molecule_name.json"
                     auto moldft_results = molecule_path;
-                    moldft_results+="/";
+                    moldft_results += "/";
                     moldft_results += molecule_name;
                     moldft_results += ".json";
-                    std::cout<<moldft_results<<std::endl;
+                    std::cout << moldft_results << std::endl;
 
                     // if the results exists then save them into answers
                     if (std::filesystem::exists(moldft_results)) {
-                        moldft_results_exits = true;
+                        moldft_results_exists = true;
                         std::ifstream ifs(moldft_results.string());
+                        //read results into json
                         ifs >> moldft_answers;
                         // Here are the current answers... check to see if th
-                        std::cout<<"Here are the current answers for"<<molecule_name<<" check to see if they need to be updated please!"<<std::endl;
-                        cout<<moldft_answers;
+                        std::cout << "Here are the current answers for" << molecule_name
+                                  << " check to see if they need to be updated please!"
+                                  << std::endl;
+                        cout << moldft_answers;
                     } else {
-
-
+                        std::cout << " We do not have moldft answers so please run and save the "
+                                     "results in the molecule directory"
+                                  << std::endl;
                     }
                     //Read the corresponding json results if it exists
                     // TODO Read molecule_name.json file for the results we are testing against
@@ -157,32 +164,33 @@ TEST_CASE("Run MOLDFT and create answers directory") {
                         cout << "Creating MOLDFT directory for " << molecule_name << ":/" << moldft
                              << ":\n";
                     }
+
+
                     std::filesystem::current_path(moldft);
                     cout << "Entering : " << moldft << " to run MOLDFT \n\n";
 
-
+                    // We are going to look for both a json file and restartdata
                     auto json_path = moldft;
-                    auto restart_path = std::filesystem::path("/restartdata.00000");
-                    auto calc_info = std::filesystem::path("/calc_info.json");
                     auto moldft_restart = moldft;
-
                     // Now I can check whether restart file exists and calc_info.json exists
-                    moldft_restart += restart_path;
-                    json_path += calc_info;
+                    moldft_restart += std::filesystem::path("/restartdata.00000");
+                    json_path += std::filesystem::path("/calc_info.json");
 
                     // If both the restart file exists and the json file exists then check them against the previous result.
                     if (std::filesystem::exists(moldft_restart) &&
                         std::filesystem::exists(json_path)) {
+                        // if both exist, read the calc_info json
 
-                        nlohmann::json calc_info_json;
+                        json calc_info_json;
                         std::ifstream ifs(json_path);
                         ifs >> calc_info_json;
 
                         std::cout << "time: " << calc_info_json["time"] << std::endl;
-                        std::cout << "MOLDFT return energy: " << calc_info_json["return_energy"] << std::endl;
+                        std::cout << "MOLDFT return energy: " << calc_info_json["return_energy"]
+                                  << std::endl;
                         std::cout << "MOLDFT return energy answer: "
                                   << moldft_answers["return_energy"] << std::endl;
-                        CHECK(moldft_answers["return_energy"]== calc_info_json["return_energy"]);
+                        CHECK(moldft_answers["return_energy"] == calc_info_json["return_energy"]);
                         // need to check if they converged somehow
                         //
                     } else {
@@ -194,7 +202,7 @@ TEST_CASE("Run MOLDFT and create answers directory") {
                         nlohmann::json calc_info_json;
                         ifs >> calc_info_json;
                         // if moldft results does not exist then copy the results into answer
-                        if (!moldft_results_exits) {
+                        if (!moldft_results_exists) {
 
                             std::cout << " answers do not exist for comparison.. now saving to "
                                       << json_path << "!!!\n";
@@ -207,24 +215,27 @@ TEST_CASE("Run MOLDFT and create answers directory") {
                                       << (moldft_answers["return_energy"] ==
                                           calc_info_json["return_energy"])
                                       << "\n";
-                            CHECK(moldft_answers["return_energy"]==calc_info_json["return_energy"]);
+                            CHECK(moldft_answers["return_energy"] ==
+                                  calc_info_json["return_energy"]);
                         }
                     }
 
-                    SECTION("Excited Response"){
+                    SECTION("Excited Response") {
 
-                        auto response_type_path = std::filesystem::path("/excited_state");
-                        auto response_run_path = std::filesystem::current_path();
-                        response_run_path += response_type_path;
+                        auto response_run_path = moldft;
+                        response_run_path += std::filesystem::path("/excited_state");
 
                         if (std::filesystem::is_directory(response_run_path)) {
-                            cout << response_run_path << ":\n";
+                            std::cout << "The Excited State Response Directory Exists" << std::endl;
+                            std::cout << response_run_path << ":\n";
+
                         } else {// create the file
                             bool b = std::filesystem::create_directory(response_run_path);
                         }
 
+                        // Now the current path is the excited state directory
                         std::filesystem::current_path(response_run_path);
-                        auto response_filename = response_run_path.string() + "/response.in";
+                        auto response_filename = "response.in";
                         cout << "response file name:" << response_filename;
                         // make a set of molecule and num state pairs.
                         // so I run for a set of molecules each with different number of response
@@ -241,158 +252,3 @@ TEST_CASE("Run MOLDFT and create answers directory") {
         }
     } catch (const std::filesystem::filesystem_error &ex) { std::cerr << ex.what() << "\n"; }
 }
-/*
-TEST_CASE("Read Molecule from directory") {
-
-
-    using namespace madness;
-    World &world = World::get_default();
-    std::cout.precision(6);
-
-    auto root = std::filesystem::current_path();//="/"+molecule_name;
-    // first step is to read the molecule directory for molecules... check if it exists else throw error
-
-    auto molecule_path = root;
-    molecule_path += "/molecules";
-
-    try {
-        if (std::filesystem::is_directory(molecule_path)) {
-            for (const std::filesystem::directory_entry &mol_path:
-                 std::filesystem::directory_iterator(molecule_path)) {
-
-                if (mol_path.path().extension() == ".mol") {
-                    auto molecule_name = mol_path.path().stem();
-                    std::cout << "Beginning Tests for Molecule: " << molecule_name << "\n";
-                    //Read the corresponding json results if it exists
-                    // TODO Read molecule_name.json file for the results we are testing against
-
-                    auto moldft = root;
-                    moldft += "/";
-                    moldft += molecule_name;
-
-                    if (std::filesystem::is_directory(moldft)) {
-
-                        cout << "MOLDFT directory found " << molecule_name << "\n";
-
-                    } else {// create the file
-                        std::filesystem::create_directory(moldft);
-                        cout << "Creating MOLDFT directory for " << molecule_name << ":/" << moldft
-                             << ":\n";
-                    }
-                    std::filesystem::current_path(moldft);
-                    cout << "Entering : " << moldft << " to run MOLDFT \n\n";
-
-
-                    auto json_path = moldft;
-                    auto restart_path = std::filesystem::path("/restartdata.00000");
-                    auto calc_info = std::filesystem::path("/calc_info.json");
-                    auto moldft_restart = moldft;
-
-                    // Now I can check whether restart file exists and calc_info.json exists
-                    moldft_restart += restart_path;
-                    json_path += calc_info;
-
-                    if (std::filesystem::exists(moldft_restart) &&
-                        std::filesystem::exists(json_path)) {
-
-                        nlohmann::json j;
-                        std::ifstream ifs(json_path);
-                        ifs >> j;
-                        std::cout << "time: " << j["time"] << std::endl;
-                        std::cout << "MOLDFT return energy: " << j["current_energy"] << std::endl;
-
-
-                        // need to check if they converged somehow
-
-                        //
-                    } else {
-                        std::cout << "restart file does not exists for " << molecule_name
-                                  << std::endl;
-                        // run moldft to generate restartdata file
-                        // now i need to read the molecule path and create a molece
-                        std::ifstream mol_file(mol_path.path());
-
-                        std::string line;
-                        while (getline(mol_file, line)) { std::cout << line << "\n"; }
-                    }
-
-
-                    // Now check if restart file exists and if calc_info.json exists
-                }
-            }
-        }
-    } catch (const std::filesystem::filesystem_error &ex) { std::cerr << ex.what() << "\n"; }
-}
-
-TEST_CASE("Creating new molecule directory") {
-
-    using namespace madness;
-    World &world = World::get_default();
-    std::cout.precision(6);
-
-    std::string molecule_name = "hf";
-
-    {
-        auto root = std::filesystem::current_path();//="/"+molecule_name;
-        std::cout << "root:   " << root << endl;
-        auto f_mol = std::filesystem::path("/" + molecule_name);
-
-        auto working_path = root;
-        working_path += f_mol;
-
-        if (std::filesystem::is_directory(working_path)) {
-
-            cout << working_path << ":\n";
-
-        } else {// create the file
-            std::filesystem::create_directory(working_path);
-        }
-
-        auto restart_path = std::filesystem::path("/restartdata.00000");
-
-        // working path is now the molecule directory
-        std::filesystem::current_path(working_path);
-        auto molecule_path = std::filesystem::current_path();
-        auto moldft_restart = std::filesystem::current_path();
-        moldft_restart += restart_path;
-
-        std::string response_type = "excited_state";
-
-        working_path += restart_path;
-
-        // now check if a restart file exist for that molecule
-        // Check if the restartdata exists check if...if it doesn't then run
-        // moldft with settings
-        if (std::filesystem::exists(moldft_restart)) {
-            // need to check if they converged somehow
-
-            //
-        } else {
-            std::cout << "restart file does not exists for " << f_mol << std::endl;
-            // run moldft to generate restartdata file
-            runMOLDFT(world, molecule_name, "moldft.in");
-        }
-        // now we know that restart data exists
-
-        auto response_type_path = std::filesystem::path("/excited_state");
-        auto response_run_path = std::filesystem::current_path();
-        response_run_path += response_type_path;
-
-        if (std::filesystem::is_directory(response_run_path)) {
-            cout << response_run_path << ":\n";
-        } else {// create the file
-            bool b = std::filesystem::create_directory(response_run_path);
-        }
-        std::filesystem::current_path(response_run_path);
-        auto response_filename = response_run_path.string() + "/response.in";
-        cout << "response file name:" << response_filename;
-
-        // make a set of molecule and num state pairs.
-        // so I run for a set of molecules each with different number of response
-        // states.
-        runExcitedState(world, response_filename, 4, response_run_path);
-        // now check if the answers exist.  if the answers do not exist run
-        // response else check the answers
-    }
-}
-*/
