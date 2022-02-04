@@ -33,6 +33,7 @@ public:
     CalcParams get_parameter() const { return {ground_calc, molecule, r_params}; }
     vector_real_function_3d get_orbitals() const { return ground_orbitals; }
     void output_json() const;
+    Molecule get_molecule() const;
 
 protected:
     // Given molecule returns the nuclear potential of the molecule
@@ -135,7 +136,7 @@ protected:
         }
     }
 
-    void check_k(World& world, double thresh, int k);
+    virtual void check_k(World& world, double thresh, int k);
     functionT make_ground_density(World& world) const;
     std::pair<Tensor<double>, Tensor<double>> ComputeHamiltonianPair(World& world) const;
     real_function_3d Coulomb(World& world) const;

@@ -93,6 +93,7 @@ void ResponseBase::check_k(World &world, double thresh, int k) {
     mask = project(mask, FunctionDefaults<3>::get_k(), thresh, false);
   }
   ::check_k(world, Chi, thresh, k);
+
   // Make sure everything is done before leaving
   world.gop.fence();
 }
@@ -1812,6 +1813,9 @@ vecfuncT ResponseBase::project_ao_basis(World &world,
 void ResponseBase::output_json() const {
   std::ofstream ofs("response.json");
   ofs << j_molresponse;
+}
+Molecule ResponseBase::get_molecule() const {
+    return molecule;
 }
 
 vector_real_function_3d

@@ -15,6 +15,8 @@ public:
     void iterate_trial(World& world, X_space& trial);
 
 private:
+    void iterate(World& world) override;
+
     X_space make_random_trial(World& world, size_t m) const;
     X_space make_nwchem_trial(World& world, size_t m) const;
 
@@ -97,7 +99,6 @@ private:
                                 const Tensor<double>& density_res,
                                 const Tensor<double>& omega);
 
-    void iterate(World& world) override;
     void update_x_space_excited(World &world,
                                        X_space &old_Chi,
                                        X_space &Chi,
