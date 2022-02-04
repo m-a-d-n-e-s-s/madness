@@ -1536,8 +1536,6 @@ void ExcitedResponse::iterate(World &world) {
   X_space old_Chi(world, m, n);
   X_space old_Lambda_X(world, m, n);
 
-  // Create the X space
-  bool converged = false; // Converged flag
   // vector of Xvectors
   std::vector<X_vector> Xvector;
   std::vector<X_vector> Xresidual;
@@ -1583,6 +1581,8 @@ void ExcitedResponse::iterate(World &world) {
 
   vector_real_function_3d rho_omega = make_density(world, Chi);
 
+    // Create the X space
+  converged = false; // Converged flag
   // Now to iterate
   for (iter = 0; iter < r_params.maxiter(); ++iter) {
     // Start a timer for this iteration

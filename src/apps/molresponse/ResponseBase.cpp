@@ -1486,6 +1486,9 @@ void ResponseBase::solve(World &world) {
     // Now actually ready to iterate...
     this->iterate(world);
   }
+  // At this point we should know if calc converged maybe add a flag to response.json which states if it has
+  converged_to_json(j_molresponse);
+
 
   // Plot the response function if desired
 }
@@ -1814,8 +1817,8 @@ void ResponseBase::output_json() const {
   std::ofstream ofs("response.json");
   ofs << j_molresponse;
 }
-Molecule ResponseBase::get_molecule() const {
-    return molecule;
+void ResponseBase::converged_to_json(json &j) {
+    j["converged"]=converged;
 }
 
 vector_real_function_3d

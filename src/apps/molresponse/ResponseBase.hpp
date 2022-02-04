@@ -33,13 +33,13 @@ public:
     CalcParams get_parameter() const { return {ground_calc, molecule, r_params}; }
     vector_real_function_3d get_orbitals() const { return ground_orbitals; }
     void output_json() const;
-    Molecule get_molecule() const;
 
 protected:
     // Given molecule returns the nuclear potential of the molecule
     ResponseParameters r_params;
     Molecule molecule;
     GroundStateCalculation ground_calc;
+    bool converged=false;
 
 
     XCfunctional xcf;
@@ -195,6 +195,7 @@ protected:
 
     vecfuncT project_ao_basis_only(World& world, const AtomicBasisSet& aobasis,
                                    const Molecule& molecule);
+    void converged_to_json(json& j);
 };
 
 
