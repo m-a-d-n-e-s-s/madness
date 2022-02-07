@@ -640,7 +640,23 @@ ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &density,
   }
 
   molresponse::end_timer(world, "Project Gamma:");
+  if (r_params.print_level() >= 10) {
+      molresponse::start_timer(world);
+      print("inner <X|J|X>");
+      print(inner(d_alpha, J));
+      print("inner <X|KX|X>");
+      print(inner(d_alpha, KX));
+      print("inner <X|KY|X>");
+      print(inner(d_alpha, KY));
+      print("inner <X|K|X>");
+      X_space K = KX + KY;
+      print(inner(d_alpha, K));
+      print("inner <X|W|X>");
+      print(inner(d_alpha, W));
 
+      molresponse::end_timer(world, "Print Expectation Creating Gamma:");
+  }
+  // put
   // put it all together
   // no 2-electron
   // End timer

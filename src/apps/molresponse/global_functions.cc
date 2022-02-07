@@ -45,5 +45,5 @@ CalcParams initialize_calc_params(World &world, const std::string &input_file) {
   r_params.set_ground_state_calculation_data(ground_calculation);
   r_params.set_derived_values(world,  molecule);
   r_params.print();
-  return CalcParams{ground_calculation, molecule, r_params};
+  return {ground_calculation, molecule, r_params};
 }

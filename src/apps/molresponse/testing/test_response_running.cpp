@@ -4,6 +4,7 @@
 #define CATCH_CONFIG_RUNNER
 #include "ExcitedResponse.hpp"
 #include "ResponseExceptions.hpp"
+#include "TDDFT.h"
 #include "apps/chem/SCF.h"
 #include "apps/external_headers/catch.hpp"
 #include "apps/external_headers/tensor_json.hpp"
@@ -33,9 +34,8 @@ int main(int argc, char *argv[]) {
     int result = 0;
     world.gop.fence();
     startup(world, argc, argv);
+    { result = Catch::Session().run(argc, argv); }
 
-    // Here we run all the tests
-    result = Catch::Session().run(argc, argv);
     return result;
 
     // print_meminfo(world.rank(), "startup");
@@ -49,6 +49,25 @@ void set_default_response_parameters(ResponseParameters &r_params) {
     r_params.set_user_defined_value("archive", std::string("../restartdata"));
     r_params.set_user_defined_value("kain", true);
     r_params.set_user_defined_value("maxsub", size_t(10));
+}
+
+// creates a response input for the test
+void initialize_excited_restart(World &world, std::string filename, size_t num_states,
+                                std::string xc) {
+
+    // Set the response parameters
+    ResponseParameters r_params{};
+    set_default_response_parameters(r_params);
+
+    r_params.set_user_defined_value("xc", xc);
+    r_params.set_user_defined_value("states", num_states);
+    r_params.set_user_defined_value("excited_state", true);
+
+
+    r_params.set_user_defined_value("restart", true);
+    r_params.set_user_defined_value("restart_file", std::string("restart_excited"));
+
+    write_response_input(r_params, filename);
 }
 
 void RunResponse(World &world, std::string filename, double frequency, std::string property,
@@ -122,8 +141,31 @@ void RunResponse(World &world, std::string filename, double frequency, std::stri
     calc.output_json();
      */
 }
+TEST_CASE("Test Gamma Functions Response ") {
 
+    using namespace madness;
+    World &world = World::get_default();
+    std::cout.precision(6);
 
+    try {
+        auto response_path = std::filesystem::path(
+                "/home/adrianhurtado/projects/madness-test-suite/tests_response/gamma_tests/10_Be/"
+                "excited_state");
+        std::filesystem::current_path(response_path);
+        std::cout << "before initialize" << std::endl;
+        initialize_excited_restart(world, "restart_excited.in", 4, "xc");
+
+        auto [ground_calculation, molecule, r_params] =
+                initialize_calc_params(world, "restart_excited.in");
+        vecfuncT ground_orbitals = ground_calculation.orbitals();
+        print(norm2s_T(world, ground_orbitals));
+        density_vector rho = set_density_type(world, r_params, ground_calculation);
+
+        TDDFT calc(world, rho);
+        print("initialized TDDFT calc");
+
+    } catch (const std::filesystem::filesystem_error &ex) { std::cerr << ex.what() << "\n"; }
+}
 TEST_CASE("Run Frequency Response ") {
 
     using namespace madness;

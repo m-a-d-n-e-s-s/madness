@@ -30,10 +30,11 @@ int main(int argc, char *argv[]) {
     // print_stats(world);
 }
 
-void runMOLDFT(World &world, std::filesystem::path mol_path, std::string filename) {
+void runMOLDFT(World &world, std::filesystem::path mol_path, std::string filename, std::string xc) {
 
     CalculationParameters param1;
     param1.set_user_defined_value("maxiter", 10);
+    param1.set_user_defined_value("xc", xc);
     // write restart file
     // write restart file
     write_test_input test_input(param1, filename, mol_path);// molecule HF
@@ -55,15 +56,16 @@ void set_default_response_parameters(ResponseParameters &r_params) {
     r_params.set_user_defined_value("archive", std::string("../restartdata"));
     r_params.set_user_defined_value("kain", true);
     r_params.set_user_defined_value("maxsub", size_t(10));
+    r_params.set_user_defined_value("print_level", int(10));
 }
 void runExcitedState(World &world, std::string filename, int num_states,
-                     std::filesystem::path runPath) {
+                     std::filesystem::path runPath, std::string xc) {
 
     // Set the response parameters
     ResponseParameters r_params{};
     set_default_response_parameters(r_params);
 
-    r_params.set_user_defined_value("xc", std::string("hf"));
+    r_params.set_user_defined_value("xc", xc);
     r_params.set_user_defined_value("states", size_t(num_states));
     r_params.set_user_defined_value("excited_state", true);
     r_params.set_user_defined_value("plot_all_orbitals", true);
@@ -197,7 +199,7 @@ TEST_CASE("Run MOLDFT and create answers directory") {
                         std::cout << "restart file or calc_info.json does not exists for "
                                   << molecule_name << " now running MOLDFT";
 
-                        runMOLDFT(world, mol_path, "moldft.in");
+                        runMOLDFT(world, mol_path, "moldft.in","hf");
                         std::ifstream ifs(json_path);
                         nlohmann::json calc_info_json;
                         ifs >> calc_info_json;
@@ -240,11 +242,13 @@ TEST_CASE("Run MOLDFT and create answers directory") {
                         // make a set of molecule and num state pairs.
                         // so I run for a set of molecules each with different number of response
                         // states.
-                        runExcitedState(world, response_filename, 4, response_run_path);
+                        runExcitedState(world, response_filename, 4, response_run_path,"hf");
                         // now check if the answers exist.  if the answers do not exist run
                         // response else check the answers
                     }
                 }
+                std::cout << "Please check what happens when I get to this point of the loop"
+                          << std::endl;
                 // Now check if restart file exists and if calc_info.json exists
             }
         } else {
