@@ -45,8 +45,6 @@
 //#include "xc.h"
 #include "lda.h"
 
-using namespace madness;
-
 //***************************************************************************
 static double munge(double r) {
   if (r < 1e-15) r = 2e-15;

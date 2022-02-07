@@ -136,24 +136,6 @@ namespace madness {
                       bool quiet = false);
 
     /// Initializes the MADNESS runtime with the given MPI communicator and
-    /// the default number of compute threads
-
-    /// Call this once at the very top of your main program to initialize the
-    /// MADNESS runtime. This function should be called instead of \c MPI_Init()
-    /// or \c MPI_Init_thread().
-    /// \param[in,out] argc Application argument count.
-    /// \param[in,out] argv Application argument values.
-    /// \param comm The MPI communicator that should be used to construct the
-    ///     \c World object.
-    /// \param[in] quiet If false, will announce to \c std::cout on rank 0 when
-    ///            the runtime has been initialized.
-    /// \return A reference to the World constructed with \c comm.
-    /// \note The default number of compute threads is read from the environment variable `MAD_NUM_THREADS`;
-    ///       if the environment variable is not given the number of compute thread is set to the system-defined number of hardware threads.
-    World& initialize(int& argc, char**& argv, const MPI_Comm& comm,
-        bool quiet = false);
-
-    /// Initializes the MADNESS runtime with the given MPI communicator and
     /// the given number of compute threads
 
     /// Call this once at the very top of your main program to initialize the

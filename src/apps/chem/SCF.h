@@ -34,7 +34,7 @@
 
 /// \file moldft.cc
 /// \brief Molecular HF and DFT code
-/// \defgroup moldft The molecular density funcitonal and Hartree-Fock code
+/// \defgroup moldft The molecular density functional and Hartree-Fock code
 
 
 #ifndef MADNESS_CHEM_SCF_H__INCLUDED
@@ -79,17 +79,6 @@ typedef Function<std::complex<double>,3> complex_functionT;
 typedef std::vector<complex_functionT> cvecfuncT;
 typedef Convolution1D<double_complex> complex_operatorT;
 
-
-extern distmatT distributed_localize_PM(World & world,
-		const vecfuncT & mo,
-		const vecfuncT & ao,
-		const std::vector<int> & set,
-		const std::vector<int> & at_to_bf,
-		const std::vector<int> & at_nbf,
-		const double thresh = 1e-9,
-		const double thetamax = 0.5,
-		const bool randomize = true,
-		const bool doprint = false);
 
 
 inline double mask1(double x) {
@@ -469,41 +458,8 @@ public:
 	std::vector<int> group_orbital_sets(World& world, const tensorT& eps,
 			const tensorT& occ, const int nmo) const;
 
-	/// compute the unitary localization matrix according to Pipek-Mezey
-
-	/// @param[in]	world	the world
-	/// @param[in]	mo		the MOs
-	/// @param[in]	set		only orbitals within the same set will be mixed
-	/// @param[in]	thresh	the localization threshold
-	/// @param[in]	thetamax	??
-	/// @param[in]	randomize	??
-	distmatT localize_PM(World & world, const vecfuncT & mo, const std::vector<int> & set,
-			const double thresh = 1e-9, const double thetamax = 0.5,
-			const bool randomize = true, const bool doprint = false) const;
-
-
 	void analyze_vectors(World & world, const vecfuncT & mo, const tensorT & occ = tensorT(),
 			const tensorT & energy = tensorT(), const std::vector<int> & set = std::vector<int>());
-
-	inline double DIP(const tensorT & dip, int i, int j, int k, int l) const {
-		return dip(i, j, 0) * dip(k, l, 0) + dip(i, j, 1) * dip(k, l, 1) + dip(i, j, 2) * dip(k, l, 2);
-	}
-
-	distmatT localize_boys(World & world,
-			const vecfuncT & mo,
-			const std::vector<int> & set,
-			const double thresh = 1e-9,
-			const double thetamax = 0.5,
-			const bool randomize = true,
-			const bool doprint = false) const;
-
-	distmatT localize_new(World & world,
-			const vecfuncT & mo,
-			const std::vector<int> & set,
-			const double thresh = 1e-9,
-			const double thetamax = 0.5,
-			const bool randomize = true,
-			const bool doprint = false) const;
 
 	distmatT kinetic_energy_matrix(World & world, const vecfuncT & v) const;
 	distmatT kinetic_energy_matrix(World & world, const vecfuncT & vbra, const vecfuncT & vket) const;
@@ -536,7 +492,7 @@ public:
 			const vecfuncT & psi, const vecfuncT & f) const ;
 
 	// Used only for initial guess that is always spin-restricted LDA
-	functionT make_lda_potential(World & world, const functionT & arho);
+	static functionT make_lda_potential(World & world, const functionT & arho);
 
 
 	//    functionT make_dft_potential(World & world, const vecfuncT& vf, int ispin, int what)
@@ -637,8 +593,6 @@ public:
 	/// Returned is a *replicated* tensor of \f$(ij|kl)\f$ with \f$i>=j\f$
 	/// and \f$k>=l\f$.  The symmetry \f$(ij|kl)=(kl|ij)\f$ is enforced.
 	Tensor<double> twoint(World& world, const vecfuncT& psi) const;
-
-	tensorT matrix_exponential(const tensorT& A) const ;
 
 	/// compute the unitary transformation that diagonalizes the fock matrix
 

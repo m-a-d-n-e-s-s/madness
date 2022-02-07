@@ -15,7 +15,6 @@
 #include <chem/projector.h>
 #include <chem/MolecularOrbitals.h>
 
-using namespace madness;
 namespace madness {
 
 /// Class to compute terms of the potential

@@ -4,7 +4,6 @@
 #define SRC_MADNESS_TENSOR_RANDOMIZEDMATRIXDECOMPOSITION_H_
 
 #include <madness/tensor/tensor.h>
-using namespace madness;
 
 namespace madness {
 

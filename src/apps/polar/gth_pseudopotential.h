@@ -3,8 +3,6 @@
 #include <mra/mra.h>
 #include <tinyxml/tinyxml.h>
 
-using namespace madness;
-
 #include <moldft/molecule.h>
 #include <moldft/molecularbasis.h>
 #include <moldft/xcfunctional.h>

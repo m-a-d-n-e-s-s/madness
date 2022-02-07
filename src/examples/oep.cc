@@ -40,6 +40,7 @@
 #include <chem/oep.h>
 #include <madness/misc/gitinfo.h>
 
+using namespace madness;
 
 /// Create a specific test input for the Be atom
 void write_test_input() {
