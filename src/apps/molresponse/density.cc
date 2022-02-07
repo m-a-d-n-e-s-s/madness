@@ -44,7 +44,7 @@ density_vector::density_vector(World &world, ResponseParameters other_rparams,
 
 ResponseParameters density_vector::GetResponseParameters() { return r_params; }
 
-density_vector set_density_type(World &world, ResponseParameters R, GroundStateCalculation G) {
+density_vector set_density_type(World &world, ResponseParameters & R, GroundStateCalculation & G) {
   if (R.excited_state()) {
     return excited_state_density_vector(world, R, G);
   } else if (R.dipole())

@@ -24,7 +24,7 @@ struct ResponseParameters : public QCCalculationParametersBase {
   ResponseParameters(const ResponseParameters& other) = default;
 
   ResponseParameters() {
-    initialize<std::string>("archive", "restartdata", "file to read ground parameters from");
+    initialize<std::string>("archive", "../restartdata", "file to read ground parameters from");
     initialize<bool>("nwchem", false, "Using nwchem files for intelligent starting guess");
     initialize<std::string>("nwchem_dir", "none", "Root name of nwchem files for intelligent starting guess");
     initialize<size_t>("states", 1, "Number of excited states requested");

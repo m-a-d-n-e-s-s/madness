@@ -25,7 +25,7 @@ using namespace madness;
 class GroundStateCalculation {
     // Ground state parameters that are read in from archive
     std::string inFile{"../restartdata"};///< Name of input archive to read in ground state
-    bool spinrestricted{false};          ///< Indicates if ground state calc. was open or closed
+    bool spinrestricted{true};          ///< Indicates if ground state calc. was open or closed
                                          ///< shell
     unsigned int num_orbitals{};         ///< Number of orbitals in ground state
     Tensor<double> energies{};           ///< Energy of ground state orbitals
@@ -44,6 +44,7 @@ public:
         read(world);
     }
     GroundStateCalculation(const GroundStateCalculation& other) = default;
+
 
     bool is_spinrestricted() const { return spinrestricted; }
     unsigned int n_orbitals() const { return num_orbitals; }

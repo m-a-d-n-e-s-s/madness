@@ -3886,7 +3886,6 @@ vecfuncT TDDFT::project_ao_basis_only(World &world, const AtomicBasisSet &aobasi
   return ao;
 }
 
-static double rsquared(const coordT &r) { return r[0] * r[0] + r[1] * r[1] + r[2] * r[2]; }
 
 /// A MADNESS functor to compute either x, y, or z
 class DipoleFunctor : public FunctionFunctorInterface<double, 3> {

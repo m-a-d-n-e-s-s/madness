@@ -77,7 +77,7 @@ class excited_state_density_vector : public density_vector {
       : density_vector(world, R, G) {}
 };
 
-density_vector set_density_type(World& world, ResponseParameters R, GroundStateCalculation G);
+density_vector set_density_type(World& world, ResponseParameters & R, GroundStateCalculation& G);
 // The TDDFT constructor initializes the preliminary calculation details including
 // the Chi vectors and the PQ vectors if they are required
 // ground orbitals
