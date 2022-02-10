@@ -932,7 +932,7 @@ namespace madness {
     }
 
 
-    /// Multiplies a vector of functions against a vector of functions using sparsity
+    /// Outer product of a vector of functions with a vector of functions using sparsity
 
     /// \tparam T       type parameter for first factor
     /// \tparam R       type parameter for second factor
@@ -942,6 +942,7 @@ namespace madness {
     /// \param g        second vector of functions
     /// \param tol      threshold for multiplication
     /// \param fence    force fence (will always fence if necessary)
+    /// \param symm     if true, only compute f(i) * g(j) for j<=i
     /// \return         fg(i,j) = f(i) * g(j), as a vector of vectors
     template <typename T, typename R, std::size_t NDIM>
     std::vector<std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM> > >
@@ -949,7 +950,8 @@ namespace madness {
                       const std::vector<Function<R, NDIM> > &f,
                       const std::vector<Function<R, NDIM> > &g,
                       double tol,
-                      bool fence = true) {
+                      bool fence = true,
+                      bool symm = false) {
         PROFILE_BLOCK(Vmulsp);
         bool same=(&f == &g);
         reconstruct(world, f, false);
@@ -960,7 +962,16 @@ namespace madness {
         world.gop.fence();
 
         std::vector<std::vector<Function<R,NDIM> > >result(f.size());
-        for (std::size_t i=0; i<f.size(); ++i) result[i]= vmulXX(f[i], g, tol, false);
+        std::vector<Function<R,NDIM>> g_i;
+        for (int64_t i=f.size()-1; i>=0; --i) {
+          if (!symm)
+            result[i]= vmulXX(f[i], g, tol, false);
+          else {
+            if (g_i.empty()) g_i = g;
+            g_i.resize(i+1);  // this shrinks g_i down to single function for i=0
+            result[i]= vmulXX(f[i], g_i, tol, false);
+          }
+        }
         if (fence) world.gop.fence();
         return result;
     }
