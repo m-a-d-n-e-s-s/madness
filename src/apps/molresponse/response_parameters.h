@@ -52,7 +52,7 @@ struct ResponseParameters : public QCCalculationParametersBase {
                        "consisting of old and new vectors");
     initialize<int>("k", -1, "polynomial order");
     initialize<bool>("random", false, "Use random guess for initial response functions");
-    initialize<bool>("store_potential", true, "Store the potential instead of computing each iteration");
+    initialize<bool>("store_potential", false, "Store the potential instead of computing each iteration");
     initialize<bool>("e_range", false, "Use an energy range to excite from");
     initialize<double>("e_range_lo", 0, "Energy range (lower end) for orbitals to excite from");
     initialize<double>("e_range_hi", 1, "Energy range (upper end) for orbitals to excite from");

@@ -15,43 +15,7 @@
 #include "molresponse/timer.h"
 #include "molresponse/x_space.h"
 
-// compute exchange |i><i|J|p>
-vecfuncT K(vecfuncT& ket, vecfuncT& bra, vecfuncT& vf) {
-  World& world = ket[0].world();
-  int n = bra.size();
-  int nf = ket.size();
-  double tol = FunctionDefaults<3>::get_thresh();  /// Important this is
-  double mul_tol = 0.0;
-  const double lo = 1.e-4;
-  const double econv = FunctionDefaults<3>::get_thresh();
 
-  std::shared_ptr<real_convolution_3d> poisson;
-  poisson = std::shared_ptr<real_convolution_3d>(
-      CoulombOperatorPtr(world, lo, econv));
-  /// consistent with Coulomb
-  vecfuncT Kf = zero_functions_compressed<double, 3>(world, nf);
-
-  reconstruct(world, bra);
-  reconstruct(world, ket);
-  reconstruct(world, vf);
-
-  // i-j sym
-  for (int i = 0; i < n; ++i) {
-    // for each |i> <i|phi>
-    vecfuncT psif = mul_sparse(world, bra[i], vf, mul_tol);  /// was vtol
-    truncate(world, psif);
-    // apply to vector of products <i|phi>..<i|1> <i|2>...<i|N>
-    psif = apply(world, *poisson.get(), psif);
-    truncate(world, psif);
-    // multiply by ket i  <i|phi>|i>: <i|1>|i> <i|2>|i> <i|2>|i>
-    psif = mul_sparse(world, ket[i], psif, mul_tol);  /// was vtol
-    /// Generalized A*X+Y for vectors of functions ---- a[i] = alpha*a[i] +
-    // 1*Kf+occ[i]*psif
-    gaxpy(world, double(1.0), Kf, double(1.0), psif);
-  }
-  truncate(world, Kf, tol);
-  return Kf;
-}
 // sum_i |i><i|J|p> for each p
 
 X_space TDDFT::compute_gamma_full(World& world,
@@ -508,23 +472,7 @@ X_space TDDFT::compute_V0X(World& world,
   return V0;
 }
 // kinetic energy operator on response vector
-response_space T(World& world, response_space& f) {
-  response_space T;  // Fock = (T + V) * orbitals
-  real_derivative_3d Dx(world, 0);
-  real_derivative_3d Dy(world, 1);
-  real_derivative_3d Dz(world, 2);
-  // Apply derivatives to orbitals
-  f.reconstruct_rf();
-  response_space dvx = apply(world, Dx, f);
-  response_space dvy = apply(world, Dy, f);
-  response_space dvz = apply(world, Dz, f);
-  // Apply again for 2nd derivatives
-  response_space dvx2 = apply(world, Dx, dvx);
-  response_space dvy2 = apply(world, Dy, dvy);
-  response_space dvz2 = apply(world, Dz, dvz);
-  T = (dvx2 + dvy2 + dvz2) * (-0.5);
-  return T;
-}
+
 // Returns the ground state fock operator applied to functions f
 X_space TDDFT::compute_F0X(World& world,
                            X_space& Chi,

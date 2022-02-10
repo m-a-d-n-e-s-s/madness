@@ -1240,8 +1240,7 @@ void TDDFT::update_x_space_response(World &world,
                                     double &x_shifts,
                                     double &omega_n,
                                     NonLinearXsolver &kain_x_space,
-                                    std::vector<X_vector> Xvector,
-                                    std::vector<X_vector> Xresidual,
+                                    vector<X_vector> &Xvector, vector<X_vector> &Xresidual,
                                     Tensor<double> &bsh_residualsX,
                                     Tensor<double> &bsh_residualsY,
                                     size_t iteration,
@@ -3482,9 +3481,8 @@ Tensor<double> TDDFT::CreateGroundHamiltonian(World &world,
 
   // Construct V
   // v_nuc first
-  PotentialManager manager(g_params.molecule(), "a");
-  manager.make_nuclear_potential(world);
-  real_function_3d v_nuc = manager.vnuclear();
+  potential_manager->make_nuclear_potential(world);
+  real_function_3d v_nuc = potential_manager->vnuclear();
   v_nuc.truncate();
 
   // V_coul next

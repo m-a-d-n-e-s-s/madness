@@ -21,10 +21,14 @@
 
 using namespace madness;
 
+class ResponseTester;
+
+
 using gamma_orbitals = std::tuple<X_space, vector_real_function_3d, vector_real_function_3d>;
 
 class ResponseBase {
 public:
+    friend ResponseTester;
     ResponseBase(World& world, const CalcParams& params);
     void solve(World& world);
     virtual void initialize(World& world) = 0;
@@ -32,6 +36,7 @@ public:
     //virtual void iterate();
     CalcParams get_parameter() const { return {ground_calc, molecule, r_params}; }
     vector_real_function_3d get_orbitals() const { return ground_orbitals; }
+    X_space get_chi()const {return Chi;}
     void output_json() const;
 
 protected:
@@ -187,8 +192,8 @@ protected:
                              const std::string& calc_type) const;
     X_space compute_theta_X(World& world, const X_space& chi, XCOperator<double, 3> xc,
                             std::string calc_type) const;
-    X_space compute_F0X(World& world, const X_space& X, bool compute_Y,
-                        const XCOperator<double, 3>& xc) const;
+    X_space compute_F0X(World& world, const X_space& X, const XCOperator<double, 3>& xc,
+                        bool compute_Y) const;
     void analyze_vectors(World& world, const vecfuncT& x, const std::string& response_state);
     vecfuncT project_ao_basis(World& world, const AtomicBasisSet& aobasis);
 
@@ -269,4 +274,31 @@ response_space transform(World& world, const response_space& f, const Tensor<dou
 Tensor<double> expectation(World& world, const response_space& A, const response_space& B);
 
 
+class ResponseTester{
+
+public:
+    void load_calc(World & world,ResponseBase* p,double thresh){
+        p->set_protocol(world,thresh);
+        p->load(world,p->r_params.restart_file());
+        p->check_k(world, thresh, FunctionDefaults<3>::get_k());
+
+    }
+    X_space compute_gamma_full(World & world,ResponseBase* p,double thresh){
+        XCOperator<double, 3> xc = p->make_xc_operator(world);
+       X_space gamma=p->compute_gamma_full(world,{p->Chi,p->ground_orbitals,p->ground_orbitals},xc);
+       return gamma;
+    }
+    X_space compute_lambda_X(World & world,ResponseBase* p,double thresh){
+        XCOperator<double, 3> xc = p->make_xc_operator(world);
+        X_space gamma=p->compute_lambda_X(world,p->Chi,xc,p->r_params.calc_type());
+        return gamma;
+    }
+    std::pair<X_space,X_space> compute_VFOX(World & world,ResponseBase* p,bool compute_y){
+        XCOperator<double, 3> xc = p->make_xc_operator(world);
+        X_space V=p->compute_V0X(world,p->Chi,xc,compute_y);
+        X_space F= p->compute_F0X(world, p->Chi, xc,compute_y);
+        return {V,F};
+    }
+
+};
 #endif// MADNESS_RESPONSEBASE_HPP

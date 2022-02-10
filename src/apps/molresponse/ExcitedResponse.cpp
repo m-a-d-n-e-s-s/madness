@@ -79,6 +79,8 @@ void ExcitedResponse::initialize(World &world) {
   Chi.X = select_functions(world, trial.X, omega, r_params.num_states(),
                            r_params.num_orbitals());
   Chi.Y = response_space(world, r_params.num_states(), r_params.num_orbitals());
+  // save the guesses at the very least
+  save(world,r_params.restart_file());
 
   trial.clear();
   // Initial guess for y are zero functions
@@ -1066,7 +1068,10 @@ compared to 2/3 way unrolling (though not by much).
   double max_imag = abs(imag(omega)).max();
   if (world.rank() == 0 and r_params.print_level() >= 2)
     print("\n   Max imaginary component of eigenvalues:", max_imag, "\n");
-  MADNESS_ASSERT(max_imag <= r_params.dconv()); // MUST BE REAL!
+  if(max_imag>r_params.dconv()){
+       MADNESS_EXCEPTION("max imaginary component of eigenvalues > dconv",0);
+
+}
   evals = real(omega);
 
   // Easier to just resize here
@@ -1397,7 +1402,7 @@ Tensor<double> ExcitedResponse::create_shift(World &world,
         result(k, p) = -(ground(p) + omega(k) + 0.05);
 
         // Basic output
-        if (r_params.print_level() >= 2) {
+        if (r_params.print_level() >= 3) {
           if (world.rank() == 0)
             printf("   Shift needed for transition from ground orbital %d to "
                    "response %s state %d\n",

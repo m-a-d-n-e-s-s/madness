@@ -56,7 +56,7 @@ void set_default_response_parameters(ResponseParameters &r_params) {
     r_params.set_user_defined_value("archive", std::string("../restartdata"));
     r_params.set_user_defined_value("kain", true);
     r_params.set_user_defined_value("maxsub", size_t(10));
-    r_params.set_user_defined_value("print_level", int(10));
+    r_params.set_user_defined_value("print_level", int(3));
 }
 void runExcitedState(World &world, std::string filename, int num_states,
                      std::filesystem::path runPath, std::string xc) {
@@ -100,7 +100,7 @@ void runExcitedState(World &world, std::string filename, int num_states,
 
 using json = nlohmann::json;
 
-TEST_CASE("Run MOLDFT and create answers directory") {
+TEST_CASE("Run MOLDFT and create answers directory and follow with excited_state calc") {
 
 
     using namespace madness;
@@ -199,7 +199,7 @@ TEST_CASE("Run MOLDFT and create answers directory") {
                         std::cout << "restart file or calc_info.json does not exists for "
                                   << molecule_name << " now running MOLDFT";
 
-                        runMOLDFT(world, mol_path, "moldft.in","hf");
+                        runMOLDFT(world, mol_path, "moldft.in", "hf");
                         std::ifstream ifs(json_path);
                         nlohmann::json calc_info_json;
                         ifs >> calc_info_json;
@@ -222,35 +222,45 @@ TEST_CASE("Run MOLDFT and create answers directory") {
                         }
                     }
 
-                    SECTION("Excited Response") {
 
-                        auto response_run_path = moldft;
-                        response_run_path += std::filesystem::path("/excited_state");
+                    auto response_run_path = moldft;
+                    response_run_path += std::filesystem::path("/excited_state");
 
-                        if (std::filesystem::is_directory(response_run_path)) {
-                            std::cout << "The Excited State Response Directory Exists" << std::endl;
-                            std::cout << response_run_path << ":\n";
+                    if (std::filesystem::is_directory(response_run_path)) {
+                        std::cout << "The Excited State Response Directory Exists" << std::endl;
+                        std::cout << response_run_path << ":\n";
 
-                        } else {// create the file
-                            bool b = std::filesystem::create_directory(response_run_path);
-                        }
-
-                        // Now the current path is the excited state directory
-                        std::filesystem::current_path(response_run_path);
-                        auto response_filename = "response.in";
-                        cout << "response file name:" << response_filename;
-                        // make a set of molecule and num state pairs.
-                        // so I run for a set of molecules each with different number of response
-                        // states.
-                        runExcitedState(world, response_filename, 4, response_run_path,"hf");
-                        // now check if the answers exist.  if the answers do not exist run
-                        // response else check the answers
+                    } else {// create the file
+                        bool b = std::filesystem::create_directory(response_run_path);
                     }
+
+                    // Now the current path is the excited state directory
+                    std::filesystem::current_path(response_run_path);
+                    auto response_filename = "response.in";
+                    cout << "response file name:" << response_filename;
+                    // make a set of molecule and num state pairs.
+                    // so I run for a set of molecules each with different number of response
+                    // states.
+                    try {
+                        runExcitedState(world, response_filename, 4, response_run_path, "hf");
+                    } catch (const SafeMPI::Exception &e) {
+                        print(e);
+                    } catch (const madness::MadnessException &e) {
+                        std::cout << e << std::endl;
+                    } catch (const madness::TensorException &e) {
+                        print(e);
+                    } catch (const char *s) { print(s); } catch (const std::string &s) {
+                        print(s);
+                    } catch (const std::exception &e) { print(e.what()); } catch (...) {
+                        error("caught unhandled exception");
+                    }
+                    // now check if the answers exist.  if the answers do not exist run
+                    // response else check the answers
                 }
-                std::cout << "Please check what happens when I get to this point of the loop"
-                          << std::endl;
-                // Now check if restart file exists and if calc_info.json exists
             }
+            std::cout << "Please check what happens when I get to this point of the loop"
+                      << std::endl;
+            // Now check if restart file exists and if calc_info.json exists
         } else {
             std::cout << "did not find molecules" << std::endl;
         }

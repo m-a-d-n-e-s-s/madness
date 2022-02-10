@@ -485,44 +485,6 @@ X_space ResponseBase::compute_theta_X(World &world, const X_space &chi,
   return Theta_X;
 }
 
-// compute exchange |i><i|J|p>
-vecfuncT K(vecfuncT &ket, vecfuncT &bra, vecfuncT &vf) {
-  World &world = ket[0].world();
-  int n = bra.size();
-  int nf = ket.size();
-  double tol = FunctionDefaults<3>::get_thresh(); /// Important this is
-  double mul_tol = 0.0;
-  const double lo = 1.e-4;
-  const double econv = FunctionDefaults<3>::get_thresh();
-
-  std::shared_ptr<real_convolution_3d> poisson;
-  poisson = std::shared_ptr<real_convolution_3d>(
-      CoulombOperatorPtr(world, lo, econv));
-  /// consistent with Coulomb
-  vecfuncT Kf = zero_functions_compressed<double, 3>(world, nf);
-
-  reconstruct(world, bra);
-  reconstruct(world, ket);
-  reconstruct(world, vf);
-
-  // i-j sym
-  for (int i = 0; i < n; ++i) {
-    // for each |i> <i|phi>
-    vecfuncT psif = mul_sparse(world, bra[i], vf, mul_tol); /// was vtol
-    truncate(world, psif);
-    // apply to vector of products <i|phi>..<i|1> <i|2>...<i|N>
-    psif = apply(world, *poisson.get(), psif);
-    truncate(world, psif);
-    // multiply by ket i  <i|phi>|i>: <i|1>|i> <i|2>|i> <i|2>|i>
-    psif = mul_sparse(world, ket[i], psif, mul_tol); /// was vtol
-    /// Generalized A*X+Y for vectors of functions ---- a[i] = alpha*a[i] +
-    // 1*Kf+occ[i]*psif
-    gaxpy(world, double(1.0), Kf, double(1.0), psif);
-  }
-  truncate(world, Kf, tol);
-  return Kf;
-}
-// sum_i |i><i|J|p> for each p
 
 X_space
 ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &density,
@@ -640,7 +602,7 @@ ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &density,
   }
 
   molresponse::end_timer(world, "Project Gamma:");
-  if (r_params.print_level() >= 10) {
+  if (r_params.print_level() >= 3) {
       molresponse::start_timer(world);
       print("inner <X|J|X>");
       print(inner(d_alpha, J));
@@ -653,6 +615,8 @@ ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &density,
       print(inner(d_alpha, K));
       print("inner <X|W|X>");
       print(inner(d_alpha, W));
+      print("inner <X|Gamma|X>");
+      print(inner(d_alpha, gamma));
 
       molresponse::end_timer(world, "Print Expectation Creating Gamma:");
   }
@@ -909,7 +873,7 @@ X_space ResponseBase::compute_lambda_X(World &world, const X_space &chi,
   bool compute_Y = calc_type.compare("full") == 0;
 
   X_space Lambda_X; // = X_space(world, chi.num_states(), chi.num_orbitals());
-  X_space F0X = compute_F0X(world, chi, compute_Y, xc);
+  X_space F0X = compute_F0X(world, chi, xc, compute_Y);
   X_space Chi_truncated = chi.copy();
   Chi_truncated.truncate();
   if (r_params.print_level() >= 20) {
@@ -1057,28 +1021,10 @@ X_space ResponseBase::compute_V0X(World &world, const X_space &X,
   // Done
   return V0;
 }
-// kinetic energy operator on response vector
-response_space T(World &world, response_space &f) {
-  response_space T; // Fock = (T + V) * orbitals
-  real_derivative_3d Dx(world, 0);
-  real_derivative_3d Dy(world, 1);
-  real_derivative_3d Dz(world, 2);
-  // Apply derivatives to orbitals
-  f.reconstruct_rf();
-  response_space dvx = apply(world, Dx, f);
-  response_space dvy = apply(world, Dy, f);
-  response_space dvz = apply(world, Dz, f);
-  // Apply again for 2nd derivatives
-  response_space dvx2 = apply(world, Dx, dvx);
-  response_space dvy2 = apply(world, Dy, dvy);
-  response_space dvz2 = apply(world, Dz, dvz);
-  T = (dvx2 + dvy2 + dvz2) * (-0.5);
-  return T;
-}
+
 // Returns the ground state fock operator applied to functions f
-X_space ResponseBase::compute_F0X(World &world, const X_space &X,
-                                  bool compute_Y,
-                                  const XCOperator<double, 3> &xc) const {
+X_space ResponseBase::compute_F0X(World &world, const X_space &X, const XCOperator<double, 3> &xc,
+                                  bool compute_Y) const {
   // Debugging output
 
   molresponse::start_timer(world);
@@ -1099,7 +1045,7 @@ X_space ResponseBase::compute_F0X(World &world, const X_space &X,
     print(inner(chi_copy, T0X));
   }
 
-  X_space V0X = compute_V0X(world, chi_copy, xc, false);
+  X_space V0X = compute_V0X(world, chi_copy, xc, compute_Y);
   if (r_params.print_level() >= 20) {
     print("_________________compute F0X _______________________");
     print("inner <X|V0|X>");
@@ -1506,6 +1452,7 @@ void ResponseBase::solve(World &world) {
   converged_to_json(j_molresponse);
 
 
+
   // Plot the response function if desired
 }
 
@@ -1830,12 +1777,13 @@ vecfuncT ResponseBase::project_ao_basis(World &world,
   return project_ao_basis_only(world, aobasis, molecule);
 }
 void ResponseBase::output_json() const {
-  std::ofstream ofs("response.json");
+  std::ofstream ofs("response_base.json");
   ofs << j_molresponse;
 }
 void ResponseBase::converged_to_json(json &j) {
     j["converged"]=converged;
 }
+
 
 vector_real_function_3d
 transition_densityTDA(World &world, const vector_real_function_3d &orbitals,
