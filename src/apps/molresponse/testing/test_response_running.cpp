@@ -70,8 +70,11 @@ void initialize_excited_restart(World &world, std::string filename, size_t num_s
     write_response_input(r_params, filename);
 }
 
-void RunResponse(World &world, std::string filename, double frequency, std::string property,
-                 std::string xc, std::filesystem::path moldft_path) {
+std::tuple<std::filesystem::path, bool> RunResponse(World &world, std::string filename,
+                                                    double frequency, std::string property,
+                                                    std::string xc,
+                                                    std::filesystem::path moldft_path,
+                                                    std::filesystem::path restart_path) {
 
     // Set the response parameters
     ResponseParameters r_params{};
@@ -86,8 +89,9 @@ void RunResponse(World &world, std::string filename, double frequency, std::stri
     r_params.set_user_defined_value("omega", frequency);
     r_params.set_user_defined_value("first_order", true);
     r_params.set_user_defined_value("plot_all_orbitals", true);
-
     r_params.set_user_defined_value("save", true);
+
+    // change the logic create save path
     std::string s_frequency = std::to_string(frequency);
     print(s_frequency);
     auto sp = s_frequency.find(".");
@@ -112,16 +116,16 @@ void RunResponse(World &world, std::string filename, double frequency, std::stri
         cout << "Creating response_path directory" << std::endl;
     }
 
-    auto restart_path = run_path;
-    std::filesystem::current_path(run_path);
-    std::string restart_string = "restart_" + run_name;
-    restart_path += "/";
-    restart_path += restart_string;
-    r_params.set_user_defined_value("save_file", restart_string);
-
+    auto save_path = run_path;
+    std::filesystem::current_path(save_path);
+    std::string save_string = "restart_" + run_name;
+    save_path += "/";
+    save_path += save_string;
+    r_params.set_user_defined_value("save_file", save_string);
+    std::string restart_file = restart_path.string();
     if (std::filesystem::exists(restart_path)) {
         r_params.set_user_defined_value("restart", true);
-        r_params.set_user_defined_value("restart_file", restart_string);
+        r_params.set_user_defined_value("restart_file", restart_path.string());
     } else {
         std::cout << "Restart File Does Not Exist!!!" << endl;
     }
@@ -129,22 +133,46 @@ void RunResponse(World &world, std::string filename, double frequency, std::stri
     write_response_input(r_params, filename);
 
     auto calc_params = initialize_calc_params(world, std::string(filename));
-    auto &[ground_calculation, molecule, r_params_copy] = calc_params;
-    vecfuncT ground_orbitals = ground_calculation.orbitals();
-    print(norm2s_T(world, ground_orbitals));
-    density_vector rho = set_density_type(world, r_params, ground_calculation);
+    density_vector rho = set_density_type(world, calc_params.response_parameters,
+                                          calc_params.ground_calculation);
     TDDFT calc(world, rho);
-
-    calc.solve_response_states(world);
-
-
-
-    /*
-    ExcitedResponse calc(world, calc_params);
-
-    calc.solve(world);
+    // Warm and fuzzy for the user
+    if (world.rank() == 0) {
+        print("\n\n");
+        print(" MADNESS Time-Dependent Density Functional Theory Response "
+              "Program");
+        print(" ----------------------------------------------------------\n");
+        print("\n");
+        calc.molecule.print();
+        print("\n");
+        calc.r_params.print("response");
+        // put the response parameters in a j_molrespone json object
+        calc.r_params.to_json(calc.j_molresponse);
+    }
+    molresponse::end_timer(world, "initialize");
+    // Come up with an initial OK data map
+    if (world.size() > 1) {
+        calc.set_protocol<3>(world, 1e-4);
+        calc.make_nuclear_potential(world);
+        calc.initial_load_bal(world);
+    }
+    // set protocol to the first
+    if (calc.r_params.excited_state()) {
+        calc.solve_excited_states(world);
+    } else if (calc.r_params.first_order()) {
+        calc.solve_response_states(world);
+    } else if (calc.r_params.second_order()) {
+    } else {
+        throw Response_Input_Error{};
+    }
     calc.output_json();
-     */
+    if (calc.r_params.dipole()) {//
+        print("Computing Alpha");
+        Tensor<double> alpha = calc.polarizability();
+        print("Second Order Analysis");
+        calc.PrintPolarizabilityAnalysis(world, alpha);
+    }
+    return {save_path, true};
 }
 
 bool is_equal(const Tensor<double> &a, const Tensor<double> &b, double thresh) {
@@ -158,9 +186,8 @@ bool is_equal(const Tensor<double> &a, const Tensor<double> &b, double thresh) {
 
         auto af = a.flat();
         auto bf = b.flat();
-        return std::equal(af.ptr(), af.ptr() + af.size(), bf.ptr(), [&thresh](auto aa, auto bb) {
-            return abs(aa - bb) <= thresh;
-        });
+        return std::equal(af.ptr(), af.ptr() + af.size(), bf.ptr(),
+                          [&thresh](auto aa, auto bb) { return abs(aa - bb) <= thresh; });
     };
 }
 
@@ -172,7 +199,8 @@ TEST_CASE("Test Gamma Functions Response ") {
 
     try {
         auto response_path = std::filesystem::path(
-                "/home/adrianhurtado/projects/madness-test-suite/tests_response/orbital_analysis/11_Ne/excited_state");
+                "/home/adrianhurtado/projects/madness-test-suite/tests_response/orbital_analysis/"
+                "11_Ne/excited_state");
         std::filesystem::current_path(response_path);
         std::cout << "before initialize" << std::endl;
         initialize_excited_restart(world, "restart_excited.in", 4, "hf");
@@ -197,7 +225,7 @@ TEST_CASE("Test Gamma Functions Response ") {
         auto old_chi = old_calc.Chi;
         auto new_chi = new_calc.get_chi();
 
-        SECTION("Testing Gamma"){
+        SECTION("Testing Gamma") {
 
             auto new_gamma = tester.compute_gamma_full(world, &new_calc, thresh);
             auto old_gamma = tddft.compute_gamma_full(world, &old_calc, thresh);
@@ -205,56 +233,52 @@ TEST_CASE("Test Gamma Functions Response ") {
             auto xgx_old = inner(old_chi, old_gamma);
             auto xgx_new = inner(new_chi, new_gamma);
 
-            bool gamma_equal = is_equal(xgx_old , xgx_new,thresh);
-            print("old",xgx_old);
-            print("new",xgx_new);
+            bool gamma_equal = is_equal(xgx_old, xgx_new, thresh);
+            print("old", xgx_old);
+            print("new", xgx_new);
 
             REQUIRE(gamma_equal);
         }
 
-        SECTION("Testing V0X and FOX"){
+        SECTION("Testing V0X and FOX") {
 
-            auto [VOX,FOX] = tester.compute_VFOX(world, &new_calc, true);
-            auto [oVOX,oFOX] = tddft.compute_VFOX(world, &old_calc, true);
+            auto [VOX, FOX] = tester.compute_VFOX(world, &new_calc, true);
+            auto [oVOX, oFOX] = tddft.compute_VFOX(world, &old_calc, true);
 
             auto old_xVx = inner(old_chi, oVOX);
             auto old_xFx = inner(old_chi, oFOX);
             auto new_xVx = inner(new_chi, VOX);
             auto new_xFx = inner(new_chi, FOX);
             print("VOX first");
-            print("old\n",old_xVx);
-            print("new\n",new_xVx);
-            bool V_equal = is_equal(old_xVx , new_xVx,thresh);
+            print("old\n", old_xVx);
+            print("new\n", new_xVx);
+            bool V_equal = is_equal(old_xVx, new_xVx, thresh);
             // because I can't get the tensor == to work
             REQUIRE(V_equal);
 
             print("VOX first");
-            print("old\n",old_xFx);
-            print("new\n",new_xFx);
+            print("old\n", old_xFx);
+            print("new\n", new_xFx);
 
-            bool F_equal = is_equal(old_xFx , new_xFx,thresh);
+            bool F_equal = is_equal(old_xFx, new_xFx, thresh);
             // because I can't get the tensor == to work
             REQUIRE(V_equal);
-
-
         }
-        SECTION("Testing Lambda"){
+        SECTION("Testing Lambda") {
 
             auto new_lambda = tester.compute_lambda_X(world, &new_calc, thresh);
             auto old_lambda = tddft.compute_lambda_X(world, &old_calc, thresh);
 
             auto old_xlx = inner(old_chi, old_lambda);
             auto new_xlx = inner(new_chi, new_lambda);
-            print("old\n",old_xlx);
-            print("new\n",new_xlx);
-            bool _equal = is_equal(old_xlx , new_xlx,thresh);
+            print("old\n", old_xlx);
+            print("new\n", new_xlx);
+            bool _equal = is_equal(old_xlx, new_xlx, thresh);
             // because I can't get the tensor == to work
 
 
             REQUIRE(_equal);
-
         }
-
 
 
     } catch (const std::filesystem::filesystem_error &ex) { std::cerr << ex.what() << "\n"; }
@@ -267,10 +291,12 @@ TEST_CASE("Run Frequency Response ") {
 
     try {
         auto moldft_path = std::filesystem::path(
-                "/home/adrianhurtado/projects/madness-test-suite/tests_response/orbital_analysis/10_Be");
+                "/home/adrianhurtado/projects/madness-test-suite/tests_response/orbital_analysis/"
+                "10_Be");
         std::filesystem::current_path(moldft_path);
-
-        RunResponse(world, "response.in", 0, "dipole", "hf", moldft_path);
+        auto restart_path = moldft_path;
+        auto [next_restart, success] =
+                RunResponse(world, "response.in", 0, "dipole", "hf", moldft_path, restart_path);
     } catch (const std::filesystem::filesystem_error &ex) { std::cerr << ex.what() << "\n"; }
 }
 
@@ -282,13 +308,18 @@ TEST_CASE("Run A Few Frequency Response ") {
 
     try {
         auto moldft_path = std::filesystem::path(
-                "/home/adrianhurtado/projects/madness-test-suite/tests_response/orbital_analysis/10_Be");
+                "/home/adrianhurtado/projects/madness-test-suite/tests_response/orbital_analysis/"
+                "10_Be");
         std::filesystem::current_path(moldft_path);
         std::vector<double> frequencies = {0, 0.025, 0.050, 0.075, 0.1};
         // add a restart path
+        auto restart_path = moldft_path;
+        restart_path += "/restart_dipole_hf_0-000000.00000";
         for (const auto &freq: frequencies) {
             std::filesystem::current_path(moldft_path);
-            RunResponse(world, "response.in", freq, "dipole", "hf", moldft_path);
+
+            auto [next_restart, success] = RunResponse(world, "response.in", freq, "dipole", "hf",
+                                                       moldft_path, restart_path);
         }
     } catch (const std::filesystem::filesystem_error &ex) { std::cerr << ex.what() << "\n"; }
 }

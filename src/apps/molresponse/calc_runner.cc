@@ -108,7 +108,7 @@ void TDDFT::check_k(World& world, double thresh, size_t k) {
 
         // Clean up a bit
         truncate(world, ground_orbitals);
-        rho0=make_ground_density(world, ground_orbitals);
+        rho0 = make_ground_density(world, ground_orbitals);
 
         // Ground state orbitals changed, clear old hamiltonian
         redo = true;
@@ -140,51 +140,25 @@ void TDDFT::check_k(World& world, double thresh, size_t k) {
     // Verify response functions have correct k
     if (Chi.X.size() != 0) {
         if (FunctionDefaults<3>::get_k() != Chi.X[0].at(0).k()) {
-            // Project all x components into correct k
-            for (unsigned int i = 0; i < Chi.X.size(); i++) {
-                reconstruct(world, Chi.X[i]);
-                for (unsigned int j = 0; j < Chi.X[0].size(); j++)
-                    Chi.X[i][j] = project(Chi.X[i][j], FunctionDefaults<3>::get_k(), thresh, false);
+            for (auto& xi: Chi.X) {
+                reconstruct(world, xi);
+                for (auto& xij: xi) {
+                    xij = project(xij, FunctionDefaults<3>::get_k(), thresh, false);
+                }
                 world.gop.fence();
             }
-            Chi.X.truncate_rf();
-
-            // Do same for y components if applicable
-            // (Always do this, as y will be zero
-            //  and still used in doing DFT and TDA)
-            // Project all y components into correct k
-            for (unsigned int i = 0; i < Chi.Y.size(); i++) {
-                reconstruct(world, Chi.Y[i]);
-                for (unsigned int j = 0; j < Chi.Y[0].size(); j++)
-                    Chi.Y[i][j] = project(Chi.Y[i][j], FunctionDefaults<3>::get_k(), thresh, false);
-                world.gop.fence();
-            }
-            Chi.Y.truncate_rf();
         }
     }
-    // Verify response functions have correct k
-    if (Chi.X.size() != 0) {
-        if (FunctionDefaults<3>::get_k() != Chi.X[0][0].k()) {
-            // Project all x components into correct k
-            for (unsigned int i = 0; i < Chi.X.size(); i++) {
-                reconstruct(world, Chi.X[i]);
-                for (unsigned int j = 0; j < Chi.X[0].size(); j++)
-                    Chi.X[i][j] = project(Chi.X[i][j], FunctionDefaults<3>::get_k(), thresh, false);
+    if (Chi.Y.size() != 0) {
+        if (FunctionDefaults<3>::get_k() != Chi.Y[0].at(0).k()) {
+            for (auto& yi: Chi.Y) {
+                reconstruct(world, yi);
+                for (auto& yij: yi) {
+                    yij = project(yij, FunctionDefaults<3>::get_k(), thresh, false);
+                }
                 world.gop.fence();
             }
-            Chi.X.truncate_rf();
-
-            // Do same for y components if applicable
-            // (Always do this, as y will be zero
-            //  and still used in doing DFT and TDA)
-            // Project all y components into correct k
-            for (unsigned int i = 0; i < Chi.Y.size(); i++) {
-                reconstruct(world, Chi.Y[i]);
-                for (unsigned int j = 0; j < Chi.Y[0].size(); j++)
-                    Chi.Y[i][j] = project(Chi.Y[i][j], FunctionDefaults<3>::get_k(), thresh, false);
-                world.gop.fence();
-            }
-            Chi.Y.truncate_rf();
+            Chi.truncate();
         }
     }
 
@@ -198,30 +172,31 @@ void TDDFT::check_k(World& world, double thresh, size_t k) {
     if (PQ.X.size() != 0) {
         if (FunctionDefaults<3>::get_k() != PQ.X[0][0].k()) {
             // Project all x components into correct k
-            for (unsigned int i = 0; i < Chi.X.size(); i++) {
-                reconstruct(world, PQ.X[i]);
-                for (unsigned int j = 0; j < PQ.X[0].size(); j++)
-                    PQ.X[i][j] = project(PQ.X[i][j], FunctionDefaults<3>::get_k(), thresh, false);
+            for (auto& pi: PQ.X) {
+                reconstruct(world, pi);
+                for (auto& pij: pi) {
+                    pij = project(pij, FunctionDefaults<3>::get_k(), thresh, false);
+                }
                 world.gop.fence();
             }
-            Chi.X.truncate_rf();
-
-            // Do same for y components if applicable
-            // (Always do this, as y will be zero
-            //  and still used in doing DFT and TDA)
-            // Project all y components into correct k
-            for (unsigned int i = 0; i < PQ.Y.size(); i++) {
-                reconstruct(world, PQ.Y[i]);
-                for (unsigned int j = 0; j < PQ.Y[0].size(); j++)
-                    PQ.Y[i][j] = project(PQ.Y[i][j], FunctionDefaults<3>::get_k(), thresh, false);
-                world.gop.fence();
-            }
-            Chi.Y.truncate_rf();
+            PQ.X.truncate_rf();
         }
     }
-    // Make sure everything is done before leaving
+    if (PQ.Y.size() != 0) {
+        if (FunctionDefaults<3>::get_k() != PQ.Y[0][0].k()) {
+            for (auto& qi: PQ.Y) {
+                reconstruct(world, qi);
+                for (auto& qij: qi) {
+                    qij = project(qij, FunctionDefaults<3>::get_k(), thresh, false);
+                }
+                world.gop.fence();
+            }
+        }
+        PQ.Y.truncate_rf();
+    }
     world.gop.fence();
 }
+// Make sure everything is done before leaving
 
 // Creates random guess functions semi-intelligently(?)
 X_space TDDFT::create_random_guess(

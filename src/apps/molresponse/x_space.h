@@ -54,12 +54,12 @@ namespace madness {
         // assignment
         X_space& operator=(const X_space& B) {
             if (this != &B) {// is it the same object?
-                this->n_states = size_states(B);
-                this->n_orbitals = size_orbitals(B);
-                this->X = B.X;
-                this->Y = B.Y;
+                this->n_states = B.num_states();
+                this->n_orbitals = B.num_orbitals();
+                this->X = B.X.copy();
+                this->Y = B.Y.copy();
             }
-            return *this;// shallow copy
+            return *this;// NO SHALLOW COPIES
         }
         // Zero Constructor
         X_space(World& world, size_t n_states, size_t n_orbtials)

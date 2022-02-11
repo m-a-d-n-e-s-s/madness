@@ -53,7 +53,8 @@ class density_vector {
  public:
   friend class TDDFT;
   // Collective constructor
-  density_vector(World& world, ResponseParameters r_params, GroundStateCalculation g_params);
+  density_vector(World& world, ResponseParameters& other_rparams,
+                 GroundStateCalculation& other_gparams);
   density_vector(const density_vector& other) = default;
 
   ResponseParameters GetResponseParameters();

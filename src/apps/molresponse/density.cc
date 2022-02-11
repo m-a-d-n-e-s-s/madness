@@ -20,8 +20,8 @@ typedef std::shared_ptr<FunctionFunctorInterface<double, 3>> FunctorT;
 typedef FunctionFactory<double, 3> FactoryT;
 typedef std::vector<real_function_3d> VectorFunction3DT;
 
-density_vector::density_vector(World &world, ResponseParameters other_rparams,
-                               GroundStateCalculation other_gparams)
+density_vector::density_vector(World &world, ResponseParameters &other_rparams,
+                               GroundStateCalculation &other_gparams)
     : num_states(other_rparams.num_states()),
       num_orbitals(other_rparams.num_orbitals()),
       property(),

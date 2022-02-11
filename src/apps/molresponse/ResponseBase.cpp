@@ -1457,7 +1457,7 @@ void ResponseBase::solve(World &world) {
 }
 
 void check_k(World &world, X_space &Chi, double thresh, int k) {
-  if (-1 != Chi.X.size()) {
+  if (0 != Chi.X.size()) {
     if (FunctionDefaults<3>::get_k() != Chi.X[0].at(0).k()) {
       // Project all x components into correct k
 

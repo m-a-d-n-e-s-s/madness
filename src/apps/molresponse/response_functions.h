@@ -100,6 +100,10 @@ namespace madness {
                 this->num_states = y.size();
                 this->num_orbitals = y.size_orbitals();
                 this->x = y.x;
+                if (x.size() != num_states) { x.resize(num_states); }
+                World& world = y[0][0].world();
+                std::transform(y.x.begin(), y.x.end(), x.begin(),
+                               [&](auto yi) { return madness::copy(world, yi); });
             }
             return *this;//
         }
@@ -288,10 +292,12 @@ namespace madness {
         // Returns a deep copy
         response_space copy() const {
             response_space result(x[0][0].world(), num_states, num_orbitals);
+            World& world = x[0][0].world();
 
-            for (size_t i = 0; i < num_states; i++) {
-                result.x[i] = madness::copy(x[0][0].world(), x[i]);
-            }
+
+            std::transform(x.begin(), x.end(), result.x.begin(),
+                           [&world](auto xi) { return madness::copy(world, xi); });
+
 
             return result;
         }
