@@ -65,7 +65,7 @@ if (PAPI_FOUND)
   target_include_directories(${targetname} PUBLIC ${PAPI_INCLUDE_DIRS})
   target_link_libraries(${targetname} PUBLIC ${PAPI_LIBRARIES})
 endif ()
-if (TBB_FOUND)
+if (TBB_FOUND AND TARGET TBB::tbb)  # make sure TBB was discovered by MADNESS
   target_link_libraries(${targetname} PUBLIC TBB::tbb)
   if (TBB_COMPILE_FLAGS)
     target_compile_definitions(${targetname} PUBLIC "${TBB_COMPILE_FLAGS}")
