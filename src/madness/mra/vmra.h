@@ -887,7 +887,7 @@ namespace madness {
         return r;
     }
 
-    /// inner function with right signature for the nonlinear sovler
+    /// inner function with right signature for the nonlinear solver
     /// this is needed for the KAIN solvers and other functions
     template <typename T, typename R, std::size_t NDIM>
     TENSOR_RESULT_TYPE(T,R) inner( const std::vector< Function<T,NDIM> >& f,
@@ -1083,7 +1083,7 @@ namespace madness {
         return r;
     }
 
-   /// Returns a vector of deep copies of of a function
+    /// Returns a vector of `n` deep copies of a function
     template <typename T, std::size_t NDIM>
     std::vector< Function<T,NDIM> >
     copy(World& world,
