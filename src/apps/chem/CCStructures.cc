@@ -804,12 +804,13 @@ size_of(const intermediateT& im) {
 std::vector<real_function_6d>
 MacroTaskMp2ConstantPart::operator() (const std::vector<CCPair>& pair, const std::vector<real_function_3d>& mo_ket,
                                       const std::vector<real_function_3d>& mo_bra, const CCParameters& parameters,
-                                      const real_function_3d& Rsquare, const std::vector<real_function_3d>& U1) const {
+                                      const real_function_3d& Rsquare, const std::vector<real_function_3d>& U1,
+                                      const std::vector<std::string>& argument) const {
     World& world = mo_ket[0].world();
     resultT result = zero_functions_compressed<double, 6>(world, pair.size());
     for (int i = 0; i < pair.size(); i++) {
         result[i] = CCPotentials::make_constant_part_mp2_macrotask(world, pair[i], mo_ket, mo_bra, parameters,
-                                                                   Rsquare, U1);
+                                                                   Rsquare, U1, argument);
     }
     return result;
 }

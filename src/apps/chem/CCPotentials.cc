@@ -99,11 +99,11 @@ CCPotentials::make_pair_gs(const real_function_6d& u, const CC_vecfunction& tau,
         functions.push_back(PQ);
         functions.push_back(QP);
     } else {
-        real_function_6d ftt = make_f_xy(t(i), t(j));
-        real_function_6d Qftt = apply_Q12t(ftt, pt);
-        Qftt.truncate();
-        CCPairFunction residual(world, Qftt);
-        functions.push_back(residual);
+//        real_function_6d ftt = make_f_xy(t(i), t(j));
+//        real_function_6d Qftt = apply_Q12t(ftt, pt);
+//        Qftt.truncate();
+//        CCPairFunction residual(world, Qftt);
+//        functions.push_back(residual);
     }
     CalcType ctype = CT_CC2;
     if (t.type == HOLE) ctype = CT_MP2;
@@ -114,8 +114,8 @@ CCPotentials::make_pair_gs(const real_function_6d& u, const CC_vecfunction& tau,
     if (ctype == CT_CC2 && !parameters.QtAnsatz()) MADNESS_ASSERT(pt.type == HOLE);
 
     if (parameters.decompose_Q()) MADNESS_ASSERT(functions.size() == 4);
-    else
-        MADNESS_ASSERT(functions.size() == 2);
+//    else
+//        MADNESS_ASSERT(functions.size() == 2);
 
     const double bsh_eps = get_epsilon(i, j);
     pair.bsh_eps = bsh_eps;
@@ -619,7 +619,8 @@ CCPotentials::make_constant_part_mp2_macrotask(World& world, const CCPair& pair,
                                                const std::vector<real_function_3d>& mo_ket,
                                                const std::vector<real_function_3d>& mo_bra,
                                                const CCParameters& parameters, const real_function_3d& Rsquare,
-                                               const std::vector<real_function_3d>& U1) {
+                                               const std::vector<real_function_3d>& U1,
+                                               const std::vector<std::string> argument) {
     MADNESS_ASSERT(pair.ctype == CT_MP2);
     MADNESS_ASSERT(pair.type == GROUND_STATE);
     const std::string i_name = "phi" + stringify(pair.i);
@@ -645,7 +646,7 @@ CCPotentials::make_constant_part_mp2_macrotask(World& world, const CCPair& pair,
     MADNESS_ASSERT(i_type == HOLE);
     MADNESS_ASSERT(j_type == HOLE);
     real_function_6d V = apply_Vreg_macrotask(world, mo_ket, mo_bra, parameters, Rsquare,
-                                              U1, pair.i, pair.j, i_type, j_type, &Gscreen);
+                                              U1, pair.i, pair.j, i_type, j_type, argument, &Gscreen);
     if (parameters.debug()) V.print_size("Vreg");
 
     //MADNESS_ASSERT(t.type == HOLE || t.type == MIXED);
@@ -1374,9 +1375,13 @@ CCPotentials::apply_Vreg_macrotask(World& world, const std::vector<real_function
                                    const std::vector<real_function_3d>& mo_bra,
                                    const CCParameters& parameters, const real_function_3d& Rsquare,
                                    const std::vector<real_function_3d>& U1, const size_t& i, const size_t& j,
-                                   const FuncType& x_type, const FuncType& y_type, const real_convolution_6d *Gscreen) {
-    real_function_3d x_ket=mo_ket[i];
-    real_function_3d y_ket=mo_ket[j];
+                                   const FuncType& x_type, const FuncType& y_type, const std::vector<std::string> argument,
+                                   const real_convolution_6d *Gscreen) {
+    const real_function_3d& x_ket = mo_ket[i];
+    const real_function_3d& y_ket = mo_ket[j];
+    const real_function_3d& x_bra = mo_bra[i];
+    const real_function_3d& y_bra = mo_bra[j];
+
     const std::string x_name = "phi" + stringify(i);
     const std::string y_name = "phi" + stringify(j);
 
@@ -1385,24 +1390,39 @@ CCPotentials::apply_Vreg_macrotask(World& world, const std::vector<real_function
     //CCTimer time_f(world, "F-Part");
     //const real_function_6d F_part = apply_reduced_F(ti, tj, Gscreen);
     //time_f.stop();
-    CCTimer time_u(world, "U-Part");
-    const real_function_6d U_part = apply_transformed_Ue_macrotask(world, mo_ket, parameters, Rsquare,
-                                                                   U1, i, j, x_type, y_type, Gscreen);
-    time_u.stop();
-    CCTimer time_k(world, "K-Part");
-    const real_function_6d K_part = apply_exchange_commutator_macrotask(world, mo_ket, mo_bra, Rsquare,
-                                                                        i, j, parameters, x_type, y_type, Gscreen);
-    time_k.stop();
-    const real_function_6d result = U_part - K_part;
-    //if (parameters.debug()) F_part.print_size("F-Part");
+    real_function_6d result = real_factory_6d(world);
+    bool do_Ue=std::find(argument.begin(), argument.end(), "Ue") != argument.end();
+    bool do_KffK=std::find(argument.begin(), argument.end(), "KffK") != argument.end();
+    bool do_f12phi=std::find(argument.begin(), argument.end(), "f12phi") != argument.end();
+    MADNESS_CHECK(do_Ue or do_KffK or do_f12phi);
+    MADNESS_CHECK(do_f12phi xor (do_Ue or do_KffK));
+    if (do_Ue) {
+        CCTimer time_u(world, "U-Part");
+        const real_function_6d U_part = apply_transformed_Ue_macrotask(world, mo_ket, parameters, Rsquare,
+                                                                       U1, i, j, x_type, y_type, Gscreen);
+        if (parameters.debug()) U_part.print_size("U-Part");
+        result+=U_part;
+        time_u.stop();
+        time_u.info(true, U_part.norm2());
+    }
+    if (do_KffK) {
+        CCTimer time_k(world, "K-Part");
+        const real_function_6d K_part = apply_exchange_commutator_macrotask(world, mo_ket, mo_bra, Rsquare,
+                                                                            i, j, parameters, x_type, y_type, Gscreen);
+        if (parameters.debug()) K_part.print_size("K-Part");
+        result-=K_part;
+        time_k.stop();
+        time_k.info(true, K_part.norm2());
+    }
+    if (do_f12phi) {
+        CCTimer time_f(world, "f12phi-Part");
+        const real_function_6d f12phi = make_f_xy_macrotask(world, x_ket, y_ket, x_bra, y_bra, i, j, parameters, x_type, y_type, Gscreen);
+        if (parameters.debug()) f12phi.print_size("f12phi-Part");
+        result+=f12phi;
+        time_f.stop();
+        time_f.info(true, f12phi.norm2());
+    }
 
-    if (parameters.debug()) U_part.print_size("U-Part");
-
-    if (parameters.debug()) K_part.print_size("K-Part");
-
-    //time_f.info(true, F_part.norm2());
-    time_u.info(true, U_part.norm2());
-    time_k.info(true, K_part.norm2());
     if (parameters.debug()) result.print_size("Vreg|" + x_name + y_name + ">");
 
     timer.info(true, result.norm2());

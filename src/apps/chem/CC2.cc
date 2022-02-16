@@ -5,6 +5,7 @@
  *      Author: kottmanj
  */
 
+
 #include <chem/CC2.h>
 #include <chem/commandlineparser.h>
 #include "MolecularOrbitals.h"
@@ -500,6 +501,8 @@ std::vector<CC_vecfunction> CC2::solve_ccs() {
 double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
    if (world.rank()==0) std::cout << "\nSolving coupled equations" << std::endl;
    double total_energy = 0.0;
+   const int nfreeze=parameters.freeze();
+   const int nocc=CCOPS.mo_ket().size();
 
    // make vector holding CCPairs for partitioner of MacroTask
    std::vector<CCPair> pair_vec;
@@ -515,13 +518,29 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
    MacroTask task(world, t, taskq);
    std::vector<real_function_6d> result_vec = task(pair_vec, CCOPS.mo_ket().get_vecfunction(),
                                                 CCOPS.mo_bra().get_vecfunction(), parameters,
-                                                nemo->R_square, nemo->ncf->U1vec());
+                                                nemo->R_square, nemo->ncf->U1vec(),std::vector<std::string>({"Ue","KffK"}));
+   std::vector<real_function_6d> Gfij_vec = task(pair_vec, CCOPS.mo_ket().get_vecfunction(),
+                                                    CCOPS.mo_bra().get_vecfunction(), parameters,
+                                                    nemo->R_square, nemo->ncf->U1vec(),std::vector<std::string>({"f12phi"}));
    taskq->print_taskq();
    taskq->run_all();
 
    if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "\nFinished constant part at time " << wall_time() << std::endl;
 
    if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "\nStarting saving pairs and energy calculation at time " << wall_time() << std::endl;
+    // transform vector back to Pairs structure
+   Pairs<real_function_6d> Gfij_pair1=Pairs<real_function_6d>::vector2pairs(Gfij_vec, PairVectorMap::triangular_map(nfreeze,nocc));
+   Pairs<CCPair> Gfij_pair;
+   for (auto& p : Gfij_pair1.allpairs) {
+       int i=p.first.first;
+       int j=p.first.second;
+       CCPair ccp(i,j,CCState::GROUND_STATE,CalcType::CT_MP2,std::vector<CCPairFunction>({CCPairFunction(world,p.second)}));
+       Gfij_pair.insert(i,j,ccp);
+   }
+
+   Pairs<real_function_6d> coupling_constant_term;
+   add_local_coupling(Gfij_pair, coupling_constant_term);
+
     // transform vector back to Pairs structure
    for (int i = 0; i < pair_vec.size(); i++) {
        pair_vec[i].constant_part = result_vec[i];

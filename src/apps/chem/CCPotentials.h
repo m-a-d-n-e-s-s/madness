@@ -271,7 +271,8 @@ public:
     make_constant_part_mp2_macrotask(World& world, const CCPair& pair, const std::vector<real_function_3d>& mo_ket,
                                                    const std::vector<real_function_3d>& mo_bra,
                                                    const CCParameters& parameters, const real_function_3d& Rsquare,
-                                                   const std::vector<real_function_3d>& U1);
+                                                   const std::vector<real_function_3d>& U1,
+                                                   const std::vector<std::string> argument);
 
     /// Static function to iterate the mp2 pairs from macrotask
     static madness::real_function_6d
@@ -344,7 +345,9 @@ public:
                                        const std::vector<real_function_3d>& mo_bra,
                                        const CCParameters& parameters, const real_function_3d& Rsquare,
                                        const std::vector<real_function_3d>& U1, const size_t& i, const size_t& j,
-                                       const FuncType& x_type, const FuncType& y_type, const real_convolution_6d *Gscreen = NULL);
+                                       const FuncType& x_type, const FuncType& y_type,
+                                       const std::vector<std::string> argument,
+                                       const real_convolution_6d *Gscreen = NULL);
 
     /// evaluates: \f$ (F(1)-ei)|ti> (x) |tj> + |ti> (x) (F(2)-ej)|tj> \f$ with the help of the singles potential
     /// singles equation is: (F-ei)|ti> = - V(ti)

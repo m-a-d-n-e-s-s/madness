@@ -135,6 +135,7 @@ namespace madness {
         bool _has_children; ///< True if there are children
         coeffT buffer; ///< The coefficients, if any
         double dnorm=-1.0;	///< norm of the d coefficients
+        double snorm=-1.0;	///< norm of the s coefficients
 
     public:
         typedef WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> > dcT; ///< Type of container holding the nodes
@@ -306,9 +307,15 @@ namespace madness {
         }
 
         /// set the precomputed norm of the (virtual) d coefficients
+        void set_snorm(const double sn) {
+            snorm=sn;
+        }
+
+        /// set the precomputed norm of the (virtual) d coefficients
         void set_dnorm(const double dn) {
         	dnorm=dn;
         }
+
 
         /// General bi-linear operation --- this = this*alpha + other*beta
 
@@ -411,7 +418,7 @@ namespace madness {
 
         template <typename Archive>
         void serialize(Archive& ar) {
-            ar & coeff() & _has_children & _norm_tree & dnorm;
+            ar & coeff() & _has_children & _norm_tree & dnorm & snorm;
         }
 
     };
@@ -2224,6 +2231,47 @@ namespace madness {
 
         };
 
+        /// compute the norm of the wavelet coefficients
+        struct compute_snorm_and_dnorm {
+            compute_snorm_and_dnorm(const FunctionCommonData<T,NDIM>& cdata) :
+                cdata(cdata) {}
+
+            FunctionCommonData<T,NDIM> cdata;
+            typedef Range<typename dcT::iterator> rangeT;
+
+            bool operator()(typename rangeT::iterator& it) const {
+
+                nodeT& fnode = it->second;
+                const coeffT coeff=fnode.coeff();
+
+                double snorm=0.0;
+                double dnorm=0.0;
+                if (coeff.size()==0) {
+                    ;
+                } else if (coeff.dim(0)==cdata.vk[0]) {
+                    snorm=coeff.normf();
+
+                } else if (coeff.is_full_tensor()) {
+                    tensorT c=copy(coeff.get_tensor());
+                    snorm=c(cdata.s0).normf();
+                    c(cdata.s0)=0.0;
+                    dnorm=c.normf();
+
+                } else if (coeff.is_svd_tensor()) {
+                    coeffT c=coeff(cdata.s0);
+                    snorm=c.normf();
+                    double norm=coeff.normf();
+                    dnorm=sqrt(norm*norm - snorm*snorm);
+
+                } else {
+                    MADNESS_EXCEPTION("cannot use compute_dnorm", 1);
+                }
+                fnode.set_snorm(snorm);
+                fnode.set_dnorm(dnorm);
+
+            }
+        };
+
         /// merge the coefficent boxes of this into other's tree
 
         /// no comm, and the tree should be in an consistent state by virtue
@@ -3699,37 +3747,6 @@ namespace madness {
                                      const coeffT& vpotential1, const coeffT& vpotential2,
                                      const tensorT& veri) const;
 
-
-        /// compute the norm of the wavelet coefficients, zeroing out any sum coefficients
-        std::pair<double,double> compute_snorm_and_dnorm(const coeffT& coeff) const {
-        	double dnorm=0.0;
-        	double snorm=0.0;
-        	std::pair<double,double> result=std::make_pair<double,double>(0.0,0.0);
-
-        	if (coeff.size()==0) {
-        		return result;
-
-        	} else if (coeff.dim(0)==cdata.vk[0]) {
-        		result.first=coeff.normf();
-
-        	} else if (coeff.is_full_tensor()) {
-        		tensorT c=copy(coeff.get_tensor());
-        		c(cdata.s0)=0.0;
-        		result.second=c.normf();
-        		result.first=c(cdata.s0).normf();
-
-        	} else if (coeff.is_svd_tensor()) {
-        		coeffT c=coeff(cdata.s0);
-        		double snorm=c.normf();
-        		double norm=coeff.normf();
-        		result.second=sqrt(norm*norm - snorm*snorm);
-        		result.first=snorm;
-
-        	} else {
-        		MADNESS_EXCEPTION("cannot use compute_dnorm",1);
-        	}
-        	return result;
-        }
 
 
         template<std::size_t LDIM>
@@ -5463,7 +5480,19 @@ namespace madness {
             return r;
         }
 
-        /// Return the inner product with an external function on a specified function node.
+        /// invoked by result
+        template<typename Q, std::size_t LDIM, typename R, std::size_t KDIM,
+                std::size_t CDIM = (KDIM + LDIM - NDIM) / 2>
+        Function<TENSOR_RESULT_TYPE(T, R), NDIM>
+        partial_inner(const FunctionImpl<Q, LDIM>& f, const FunctionImpl<R, KDIM>& g, const std::array<int, CDIM> v1,
+                const std::array<int, CDIM> v2) {
+            bool fence=false;
+//            f.flo_unary_op_node_inplace(FunctionImpl<Q, LDIM>::compute_snorm_and_dnorm(f.get_cdata()),fence);
+//            g.flo_unary_op_node_inplace(FunctionImpl<R, KDIM>::compute_snorm_and_dnorm(g.get_cdata()),fence);
+        }
+
+
+            /// Return the inner product with an external function on a specified function node.
         /// @param[in] key Key of the function node to compute the inner product on. (the domain of integration)
         /// @param[in] c Tensor of coefficients for the function at the function node given by key
         /// @param[in] f Reference to FunctionFunctorInterface. This is the externally provided function

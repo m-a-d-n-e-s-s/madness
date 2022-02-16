@@ -2362,6 +2362,10 @@ namespace madness {
         return f.inner(g);
     }
 
+    /// Computes the partial scalar/inner product between two functions, returns a low-dim function
+
+    /// syntax similar to the inner product in tensor.h
+    /// e.g result=inner<3>(f,g),{0},{1}) : r(x,y) = int f(x1,x) g(y,x1) dx1
     template<std::size_t NDIM, typename T, std::size_t LDIM, typename R, std::size_t KDIM,
             std::size_t CDIM = (KDIM + LDIM - NDIM) / 2>
     Function<TENSOR_RESULT_TYPE(T, R), NDIM>
@@ -2378,10 +2382,9 @@ namespace madness {
 
 
         typedef TENSOR_RESULT_TYPE(T, R) resultT;
-        FunctionFactory<resultT,NDIM> factory=FunctionFactory<resultT,NDIM>(f.world())
-                .k(f.k()).thresh(f.thresh());
-        Function<resultT,NDIM> result=factory;      // no empty() here!
-//        result.get_impl()->innerXX(f.get_impl(),g.get_impl(),v1,v2);
+        Function<resultT,NDIM> result=FunctionFactory<resultT,NDIM>(f.world())
+                        .k(f.k()).thresh(f.thresh());   // no empty() here!
+        result.get_impl()->partial_inner(*f.get_impl(),*g.get_impl(),v1,v2);
 
         return result;
     }

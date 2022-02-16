@@ -380,6 +380,32 @@ struct CCParameters : public QCCalculationParametersBase {
 
 };
 
+struct PairVectorMap {
+
+    std::vector<std::pair<int, int>> map; ///< maps pair index (i,j) to vector index k
+    PairVectorMap(const std::vector<std::pair<int, int>> map1) : map(map1) {}
+
+    static PairVectorMap triangular_map(const int nfreeze, const int nocc) {
+        std::vector<std::pair<int, int>> map; ///< maps pair index (i,j) to vector index k
+        for (int i=nfreeze; i<nocc; ++i) {
+            for (int j=i; j<nocc; ++j) {
+                map.push_back(std::make_pair(i,j));
+            }
+        }
+        return PairVectorMap(map);
+    }
+
+    static PairVectorMap quadratic_map(const int nfreeze, const int nocc) {
+        std::vector<std::pair<int, int>> map; ///< maps pair index (i,j) to vector index k
+        for (int i=nfreeze; i<nocc; ++i) {
+            for (int j=nfreeze; j<nocc; ++j) {
+                map.push_back(std::make_pair(i,j));
+            }
+        }
+        return PairVectorMap(map);
+    }
+
+};
 
 /// POD holding all electron pairs with easy access
 /// Similar strucutre than the Pair structure from MP2 but with some additional features (merge at some point)
@@ -387,10 +413,24 @@ struct CCParameters : public QCCalculationParametersBase {
 template<typename T>
 struct Pairs {
 
-
     typedef std::map<std::pair<int, int>, T> pairmapT;
     pairmapT allpairs;
 
+    static Pairs vector2pairs(const std::vector<T>& argument, const PairVectorMap map) {
+        Pairs<T> pairs;
+        for (int i=0; i<argument.size(); ++i) {
+            pairs.insert(map.map[i].first,map.map[i].second,argument[i]);
+        }
+        return pairs;
+    }
+
+    static std::vector<T> pairs2vector(const Pairs<T>& argument, const PairVectorMap map) {
+        std::vector<T> vector;
+        for (int i=0; i<argument.size(); ++i) {
+            vector.push_back(argument(map.map[i].first,map.map[i].second));
+        }
+        return vector;
+    }
 
     /// getter
     const T& operator()(int i, int j) const {
@@ -1136,7 +1176,7 @@ public:
 
     typedef std::tuple<const std::vector<CCPair>&, const std::vector<real_function_3d>&,
             const std::vector<real_function_3d>&, const CCParameters&, const real_function_3d&,
-            const std::vector<real_function_3d>&> argtupleT;
+            const std::vector<real_function_3d>&, const std::vector<std::string>& > argtupleT;
 
     using resultT = std::vector<real_function_6d>;
 
@@ -1148,7 +1188,8 @@ public:
 
     resultT operator() (const std::vector<CCPair>& pair, const std::vector<real_function_3d>& mo_ket,
                         const std::vector<real_function_3d>& mo_bra, const CCParameters& parameters,
-                        const real_function_3d& Rsquare, const std::vector<real_function_3d>& U1) const;
+                        const real_function_3d& Rsquare, const std::vector<real_function_3d>& U1,
+                        const std::vector<std::string>& argument) const;
 };
 
 class MacroTaskMp2UpdatePair : public MacroTaskOperationBase {
