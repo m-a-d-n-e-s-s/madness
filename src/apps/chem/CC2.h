@@ -29,7 +29,7 @@ public:
             : world(world_),
               parameters(param),
               nemo(nemo_),
-              CCOPS(world, *nemo, parameters),
+              CCOPS(world, nemo, parameters),
               output(CCOPS.output) {
         parameters.sanity_check(world);
     }
@@ -38,7 +38,7 @@ public:
             : world(world_),
               parameters(world_,parser),
               nemo(nemo_),
-              CCOPS(world, *nemo, parameters),
+              CCOPS(world, nemo, parameters),
               output(CCOPS.output) {
 
         output.section("CC2 Class has been initialized with the following parameters");
@@ -83,7 +83,7 @@ public:
     /// Structure holds all the parameters used in the CC2 calculation
     const CCParameters parameters;
     /// The SCF Calculation
-    const std::shared_ptr<Nemo> nemo;
+    std::shared_ptr<Nemo> nemo;
     /// The excited state cis calculation
     std::shared_ptr<TDHF> tdhf;
     /// The CC Operator Class
@@ -461,6 +461,10 @@ public:
     void add_local_coupling(const Pairs<CCPair> &pairs, Pairs<real_function_6d> &coupling) const;
 
     double solve_mp2_coupled(Pairs<CCPair> &doubles);
+
+    bool check_core_valence_separation() const;
+
+    void enforce_core_valence_separation();
 };
 
 

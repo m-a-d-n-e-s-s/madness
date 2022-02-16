@@ -17,18 +17,19 @@ static double functor_y(const coord_3d& r) { return r[1]; }
 
 static double functor_r2(const coord_3d& r) { return (r[0] * r[0] + r[1] * r[1] + r[2] * r[2]); }
 
-CCPotentials::CCPotentials(World& world_, const Nemo& nemo, const CCParameters& param)
+CCPotentials::CCPotentials(World& world_,  std::shared_ptr<Nemo> nemo, const CCParameters& param)
         : world(world_),
           nemo_(nemo),
           parameters(param),
-          mo_ket_(make_mo_ket(nemo)),
-          mo_bra_(make_mo_bra(nemo)),
-          orbital_energies_(init_orbital_energies(nemo)),
+          //mo_ket_(make_mo_ket(nemo)),
+          //mo_bra_(make_mo_bra(nemo)),
+          //orbital_energies_(init_orbital_energies(nemo))
           g12(world, OT_G12, param), f12(world, OT_F12, param),
-          corrfac(world, param.gamma(), 1.e-7, nemo.get_calc()->molecule),
+          corrfac(world, param.gamma(), 1.e-7, nemo->get_calc()->molecule),
           get_potentials(world, param),
           output(world) {
     output.debug = parameters.debug();
+    reset_nemo(nemo);
     g12.update_elements(mo_bra_, mo_ket_);
     g12.sanity();
     f12.update_elements(mo_bra_, mo_ket_);
@@ -386,7 +387,7 @@ CCPotentials::compute_cispd_energy(const CC_vecfunction& x, const Pairs<CCPair> 
 double
 CCPotentials::compute_cc2_excitation_energy(const CC_vecfunction& stau, const CC_vecfunction& sx,
                                             const Pairs<CCPair> dtau, const Pairs<CCPair> dx) const {
-    vector_real_function_3d tmp = mul(world, nemo_.ncf->square(), sx.get_vecfunction());
+    vector_real_function_3d tmp = mul(world, nemo_->ncf->square(), sx.get_vecfunction());
     truncate(world, tmp);
     CC_vecfunction xbra(tmp, RESPONSE, parameters.freeze());
     const double xbrax = inner(world, xbra.get_vecfunction(), sx.get_vecfunction()).sum();
@@ -411,7 +412,7 @@ CCPotentials::fock_residue_6d(const CCPair& u) const {
         return real_factory_6d(world);
     }
     // make the special points for the cusps in the nuclear potential
-    std::vector<Vector<double, 3> > sp3d = nemo_.get_calc()->molecule.get_all_coords_vec();
+    std::vector<Vector<double, 3> > sp3d = nemo_->get_calc()->molecule.get_all_coords_vec();
     std::vector<Vector<double, 6> > sp6d;
     for (size_t i = 0; i < sp3d.size(); i++) {
         Vector<double, 6> tmp;
@@ -425,7 +426,7 @@ CCPotentials::fock_residue_6d(const CCPair& u) const {
     real_function_3d hartree_potential = real_factory_3d(world);
     for (const auto& tmp : mo_ket_.functions)
         hartree_potential += g12(mo_bra_(tmp.first), mo_ket_(tmp.first));
-    real_function_3d local_part = (2.0 * hartree_potential + nemo_.ncf->U2());
+    real_function_3d local_part = (2.0 * hartree_potential + nemo_->ncf->U2());
     if (parameters.debug()) local_part.print_size("vlocal");
 
     if (parameters.debug()) u.function().print_size(u.name());
@@ -449,7 +450,7 @@ CCPotentials::fock_residue_6d(const CCPair& u) const {
     for (int axis = 0; axis < 3; ++axis) {
         real_derivative_6d D = free_space_derivative<double, 6>(world, axis);
         const real_function_6d Du = D(u.function()).truncate();
-        const real_function_3d U1_axis = nemo_.ncf->U1(axis);
+        const real_function_3d U1_axis = nemo_->ncf->U1(axis);
         double tight_thresh = parameters.thresh_6D();
         real_function_6d x = CompositeFactory<double, 6, 3>(world).ket(copy(Du)).V_for_particle1(copy(U1_axis)).thresh(
                 tight_thresh).special_points(sp6d);
@@ -469,7 +470,7 @@ CCPotentials::fock_residue_6d(const CCPair& u) const {
         for (int axis = 3; axis < 6; ++axis) {
             real_derivative_6d D = free_space_derivative<double, 6>(world, axis);
             const real_function_6d Du = D(u.function()).truncate();
-            const real_function_3d U1_axis = nemo_.ncf->U1(axis % 3);
+            const real_function_3d U1_axis = nemo_->ncf->U1(axis % 3);
             double tight_thresh = parameters.thresh_6D();
             real_function_6d x = CompositeFactory<double, 6, 3>(world).ket(copy(Du)).V_for_particle2(
                     copy(U1_axis)).thresh(tight_thresh).special_points(sp6d);
@@ -678,8 +679,12 @@ CCPotentials::update_pair_mp2_macrotask(World& world, const CCPair& pair, const 
                                              const std::vector<real_function_3d>& U1,
                                              const real_function_3d& U2, const real_function_6d& mp2_coupling) {
 
-    print(assign_name(pair.ctype) + "-Microiteration\n");
+    if (world.rank()==0) print(assign_name(pair.ctype) + "-Microiteration\n");
     CCTimer timer_mp2(world, "MP2-Microiteration of pair " + pair.name());
+
+    //print coupling vector
+    if (world.rank()==0) std::cout << "aaaaa coupling macrotask of pair" << pair.name() << " ";
+    mp2_coupling.print_size("coupling in macrotask");
 
     double bsh_eps = pair.bsh_eps;
     real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0 * bsh_eps), parameters.lo(), parameters.thresh_bsh_6D());
@@ -691,9 +696,9 @@ CCPotentials::update_pair_mp2_macrotask(World& world, const CCPair& pair, const 
     CCTimer timer_mp2_potential(world, "MP2-Potential of pair " + pair.name());
     real_function_6d mp2_potential = -2.0 * CCPotentials::fock_residue_6d_macrotask(world, pair, parameters,
                                                                                 all_coords_vec, mo_ket, mo_bra, U1, U2);
-    // add coupling
+    // add coupling, note sign and factor
     //real_function_6d coupling = mp2_coupling(pair.i, pair.j);
-    mp2_potential += -2.0 * mp2_coupling;
+    mp2_potential += 2.0 * mp2_coupling;
 
     if (parameters.debug()) mp2_potential.print_size(assign_name(pair.ctype) + " Potential");
     mp2_potential.truncate().reduce_rank();
@@ -1446,7 +1451,7 @@ CCPotentials::apply_transformed_Ue(const CCFunction& x, const CCFunction& y, con
     // Apply the double commutator R^{-1}[[T,f,R]
     for (size_t axis = 0; axis < 3; axis++) {
         // Make the local parts of the Nuclear and electronic U potentials
-        const real_function_3d Un_local = nemo_.ncf->U1(axis);
+        const real_function_3d Un_local = nemo_->ncf->U1(axis);
         const real_function_3d Un_local_x = (Un_local * x.function).truncate();
         real_function_3d Un_local_y;
         if (symmetric) Un_local_y = copy(Un_local_x);
@@ -1483,10 +1488,10 @@ CCPotentials::apply_transformed_Ue(const CCFunction& x, const CCFunction& y, con
     // sanity check: <xy|R2 [T,g12] |xy> = <xy |R2 U |xy> - <xy|R2 g12 | xy> = 0
     CCTimer time_sane(world, "Ue-Sanity-Check");
     real_function_6d tmp = CompositeFactory<double, 6, 3>(world).particle1(
-            copy(x.function * nemo_.ncf->square())).particle2(copy(y.function * nemo_.ncf->square()));
+            copy(x.function * nemo_->ncf->square())).particle2(copy(y.function * nemo_->ncf->square()));
     const double a = inner(Uxy, tmp);
-    const real_function_3d xx = (x.function * x.function * nemo_.ncf->square());
-    const real_function_3d yy = (y.function * y.function * nemo_.ncf->square());
+    const real_function_3d xx = (x.function * x.function * nemo_->ncf->square());
+    const real_function_3d yy = (y.function * y.function * nemo_->ncf->square());
     const real_function_3d gxx = g12(xx);
     const double aa = inner(yy, gxx);
     const double error = std::fabs(a - aa);
@@ -1688,8 +1693,8 @@ CCPotentials::apply_exchange_commutator(const CCFunction& x, const CCFunction& y
     {
         CCTimer sanity(world, "[K,f] sanity check");
         // make the <xy| bra state which is <xy|R2
-        const real_function_3d brax = (x.function * nemo_.ncf->square()).truncate();
-        const real_function_3d bray = (y.function * nemo_.ncf->square()).truncate();
+        const real_function_3d brax = (x.function * nemo_->ncf->square()).truncate();
+        const real_function_3d bray = (y.function * nemo_->ncf->square()).truncate();
         real_function_3d xres = result.project_out(brax, 0);
         const double test = bray.inner(xres);
         const double diff = test;
@@ -1869,7 +1874,7 @@ CCPotentials::overlap(const CCPair& x) const {
 
 double
 CCPotentials::overlap(const CCPairFunction& f1, const CCPairFunction& f2) const {
-    real_function_3d R = nemo_.ncf->square();
+    real_function_3d R = nemo_->ncf->square();
     double result = 0.0;
     if (f1.type == PT_FULL and f2.type == PT_FULL) {
         CCTimer tmp(world, "making R1R2|u>");
@@ -2157,7 +2162,7 @@ CCPotentials::get_CC2_singles_potential_ex(const CC_vecfunction& gs_singles, con
     vector_real_function_3d potential = apply_Qt(unprojected, mo_ket_);
     if (parameters.debug()) {
         // debug
-        vector_real_function_3d xbra = mul(world, nemo_.ncf->square(), ex_singles.get_vecfunction());
+        vector_real_function_3d xbra = mul(world, nemo_->ncf->square(), ex_singles.get_vecfunction());
         const double ccs = inner(world, xbra, Vccs).sum();
         const double s2b = inner(world, xbra, Vs2b).sum();
         const double s2c = inner(world, xbra, Vs2c).sum();
@@ -2414,7 +2419,7 @@ CCPotentials::fock_residue_closed_shell(const CC_vecfunction& singles) const {
     scale(world, vK, -1.0);
     timer_K.info(true, norm2(world, vK));
     // apply nuclear potential
-    Nuclear<double, 3> Uop(world, &nemo_);
+    Nuclear<double, 3> Uop(world, nemo_.get());
     vector_real_function_3d Upot = Uop(singles.get_vecfunction());
     vector_real_function_3d KU = add(world, vK, Upot);
     return add(world, J, KU);
@@ -2638,7 +2643,7 @@ CCPotentials::make_density(const CC_vecfunction& x) const {
 double
 CCPotentials::x_s3a(const CC_vecfunction& x, const CC_vecfunction& t) const {
     MADNESS_ASSERT(x.size() == t.size());
-    Nuclear<double, 3> Uop(world, &nemo_);
+    Nuclear<double, 3> Uop(world, nemo_.get());
     vector_real_function_3d Ut = Uop(t.get_vecfunction());
     const double nuc = inner(world, x.get_vecfunction(), Ut).sum();
     double pot = 0.0;
@@ -3332,7 +3337,7 @@ void CCPotentials::test_singles_potential() const {
     output.section("Testing of CC2 Singles Ground State Potential");
     CCTimer time_gs(world, "CC2 Singles GS Test");
 
-    vector_real_function_3d tmp = mul(world, nemo_.ncf->square(), ex_singles.get_vecfunction());
+    vector_real_function_3d tmp = mul(world, nemo_->ncf->square(), ex_singles.get_vecfunction());
     truncate(world, tmp);
     const CC_vecfunction xbra(tmp, RESPONSE, parameters.freeze());
 
