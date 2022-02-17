@@ -501,14 +501,12 @@ std::vector<CC_vecfunction> CC2::solve_ccs() {
 double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
    if (world.rank()==0) std::cout << "\nSolving coupled equations" << std::endl;
    double total_energy = 0.0;
-   const int nfreeze=parameters.freeze();
+   const std::size_t nfreeze=parameters.freeze();
    const int nocc=CCOPS.mo_ket().size();
+   auto triangular_map=PairVectorMap::triangular_map(nfreeze,nocc);
 
    // make vector holding CCPairs for partitioner of MacroTask
-   std::vector<CCPair> pair_vec;
-   for (auto& tmp_pair : doubles.allpairs) {
-       pair_vec.push_back(tmp_pair.second);
-   }
+   std::vector<CCPair> pair_vec=Pairs<CCPair>::pairs2vector(doubles,triangular_map);
 
    if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "\nStarting constant part at time " << wall_time() << std::endl;
    // calc constant part via taskq
@@ -526,24 +524,16 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
    taskq->run_all();
 
    if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "\nFinished constant part at time " << wall_time() << std::endl;
-
    if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "\nStarting saving pairs and energy calculation at time " << wall_time() << std::endl;
-    // transform vector back to Pairs structure
-   Pairs<real_function_6d> Gfij_pair1=Pairs<real_function_6d>::vector2pairs(Gfij_vec, PairVectorMap::triangular_map(nfreeze,nocc));
-   Pairs<CCPair> Gfij_pair;
-   for (auto& p : Gfij_pair1.allpairs) {
-       int i=p.first.first;
-       int j=p.first.second;
-       CCPair ccp(i,j,CCState::GROUND_STATE,CalcType::CT_MP2,std::vector<CCPairFunction>({CCPairFunction(world,p.second)}));
-       Gfij_pair.insert(i,j,ccp);
-   }
 
-   Pairs<real_function_6d> coupling_constant_term;
-   add_local_coupling(Gfij_pair, coupling_constant_term);
+   // compute coupling for the constant term
+   Pairs<real_function_6d> Gfij_pair=Pairs<real_function_6d>::vector2pairs(Gfij_vec, PairVectorMap::triangular_map(nfreeze,nocc));
+   Pairs<real_function_6d> coupling_constant_term=compute_local_coupling(Gfij_pair);
+   std::vector<real_function_6d> coupling_constant_term_vec=Pairs<real_function_6d>::pairs2vector(coupling_constant_term,triangular_map);
 
     // transform vector back to Pairs structure
    for (int i = 0; i < pair_vec.size(); i++) {
-       pair_vec[i].constant_part = result_vec[i];
+       pair_vec[i].constant_part = result_vec[i] - coupling_constant_term_vec[i];
        //save(pair_vec[i].constant_part, pair_vec[i].name() + "_const");
        pair_vec[i].constant_part.truncate().reduce_rank();
        pair_vec[i].function().truncate().reduce_rank();
@@ -562,8 +552,7 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
 
        if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "\nStarting coupling at time " << wall_time() << std::endl;
        // compute the coupling between the pair functions
-       Pairs<real_function_6d> coupling;
-       add_local_coupling(updated_pairs, coupling);
+       Pairs<real_function_6d> coupling=compute_local_coupling(updated_pairs);
        //print coupling
        if (world.rank()==0) std::cout << "aaaaa coupling Pairs";
        for (auto& tmp_coupling : coupling.allpairs) {
@@ -571,28 +560,30 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
        }
 
        if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "\nFinished coupling at time " << wall_time() << std::endl;
+       auto coupling_vec=Pairs<real_function_6d>::pairs2vector(coupling,triangular_map);
 
-       // make coupling vector that can be stored in cloud
-       // pair -> position
-       // (i,j) -> j(j+1)+i
-       // Pairs struc does not provide access to last element
-       int i_max = 0;
-       int j_max = 0;
-       for (auto& tmp_coupling: coupling.allpairs){
-           if (std::get<0>(tmp_coupling.first) > i_max) i_max = std::get<0>(tmp_coupling.first);
-           if (std::get<1>(tmp_coupling.first) > j_max) j_max = std::get<1>(tmp_coupling.first);
-       }
-       int last_position = j_max*(j_max+1) + i_max;
-       std::vector<real_function_6d> coupling_vec = zero_functions_compressed<double,6>(world, (last_position+1));
 
-       for (auto& tmp_coupling : coupling.allpairs) {
-           int i = std::get<0>(tmp_coupling.first);
-           int j = std::get<1>(tmp_coupling.first);
-           int position = j*(j+1) + i;
-           //if (world.rank() == 0) std::cout << i << " ," << j << " -> "<< position << std::endl;
-           coupling_vec[position] = tmp_coupling.second;
-       }
-       //MADNESS_CHECK(coupling_vec.size() == pair_vec.size());
+//       // make coupling vector that can be stored in cloud
+//       // pair -> position
+//       // (i,j) -> j(j+1)+i
+//       // Pairs struc does not provide access to last element
+//       int i_max = 0;
+//       int j_max = 0;
+//       for (auto& tmp_coupling: coupling.allpairs){
+//           if (std::get<0>(tmp_coupling.first) > i_max) i_max = std::get<0>(tmp_coupling.first);
+//           if (std::get<1>(tmp_coupling.first) > j_max) j_max = std::get<1>(tmp_coupling.first);
+//       }
+//       int last_position = j_max*(j_max+1) + i_max;
+//       std::vector<real_function_6d> coupling_vec = zero_functions_compressed<double,6>(world, (last_position+1));
+//
+//       for (auto& tmp_coupling : coupling.allpairs) {
+//           int i = std::get<0>(tmp_coupling.first);
+//           int j = std::get<1>(tmp_coupling.first);
+//           int position = j*(j+1) + i;
+//           //if (world.rank() == 0) std::cout << i << " ," << j << " -> "<< position << std::endl;
+//           coupling_vec[position] = tmp_coupling.second;
+//       }
+       MADNESS_CHECK(coupling_vec.size() == pair_vec.size());
        //print coupling vec
        if (world.rank()==0) std::cout << "aaaaa coupling vector";
        print_size(world, coupling_vec, "couplingvector");
@@ -637,7 +628,7 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
        if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "\nFinished saving pairs and energy calculation at time " << wall_time() << std::endl;
 
        // create new Pairs struc for MP2 pairs, needed for coupling
-       // only temporary! will be removed when add_local_coupling is changed
+       // only temporary! will be removed when compute_local_coupling is changed
        //Pairs<CCPair> updated_pairs;
        for (auto& tmp_pair : pair_vec) {
            updated_pairs(tmp_pair.i, tmp_pair.j).update_u(tmp_pair.function());
@@ -736,81 +727,75 @@ CC2::solve_mp2(Pairs<CCPair>& doubles) {
 /// add the coupling terms for local MP2
 
 /// @return \sum_{k\neq i} f_ki |u_kj> + \sum_{l\neq j} f_lj |u_il>
-    void CC2::add_local_coupling(const Pairs<CCPair>& pairs,
-                                 Pairs<real_function_6d>& coupling) const {
-        //print coupling
-        if (world.rank()==0) std::cout << "aaaaa coupling Pairs in add_local_coupling";
-        for (auto& tmp_coupling : coupling.allpairs) {
-            tmp_coupling.second.print_size("coupling Pairs in add_local_coupling");
-        }
+Pairs<real_function_6d> CC2::compute_local_coupling(const Pairs<real_function_6d>& pairs) const {
+    if (world.rank() == 0) print("compute local coupling");
 
-        const int nmo = nemo->get_calc()->amo.size();
-        if (world.rank() == 0) print("adding local coupling");
-        if (world.rank() == 0) print("nmo = ", nmo);
+    const int nmo = nemo->get_calc()->amo.size();
+    if (world.rank() == 0) print("nmo = ", nmo);
 
-        // temporarily make all N^2 pair functions
-        typedef std::map<std::pair<int, int>, real_function_6d> pairsT;
-        pairsT quadratic;
-        for (int k = parameters.freeze(); k < nmo; ++k) {
-            for (int l = parameters.freeze(); l < nmo; ++l) {
-                if (l >= k) {
-                    quadratic[std::make_pair(k, l)] = pairs(k, l).function();
-                } else {
-                    quadratic[std::make_pair(k, l)] = swap_particles(pairs(l, k).function());
-                }
+    // temporarily make all N^2 pair functions
+    typedef std::map<std::pair<int, int>, real_function_6d> pairsT;
+    pairsT quadratic;
+    for (int k = parameters.freeze(); k < nmo; ++k) {
+        for (int l = parameters.freeze(); l < nmo; ++l) {
+            if (l >= k) {
+                quadratic[std::make_pair(k, l)] = pairs(k, l);
+            } else {
+                quadratic[std::make_pair(k, l)] = swap_particles(pairs(l, k));
             }
         }
-        //print quadratic
-        if (world.rank() == 0) std::cout << "aaaaa quadratic" << std::endl;
-        for (pairsT::iterator it = quadratic.begin(); it != quadratic.end(); ++it) {
-                it->second.print_size("quadratic");
-        }
-
-        for (pairsT::iterator it = quadratic.begin(); it != quadratic.end(); ++it) {
-            it->second.compress(false);
-        }
-        world.gop.fence();
-
-        // the coupling matrix is the Fock matrix, skipping diagonal elements
-        Tensor<double> fock1 = nemo->compute_fock_matrix(nemo->get_calc()->amo, nemo->get_calc()->aocc);
-        if (world.rank()==0) std::cout << "aaaaa fock1 in add_local_coupling" << std::endl;
-        if (world.rank()==0) print(fock1);
-        for (int k = 0; k < nmo; ++k) {
-            if (fock1(k, k) > 0.0) MADNESS_EXCEPTION("positive orbital energies", 1);
-            fock1(k, k) = 0.0;
-        }
-
-        for (int i = parameters.freeze(); i < nmo; ++i) {
-            for (int j = i; j < nmo; ++j) {
-                coupling.insert(i, j,real_factory_6d(world).compressed());
-            }
-        }
-
-        for (int i = parameters.freeze(); i < nmo; ++i) {
-            for (int j = i; j < nmo; ++j) {
-                for (int k = parameters.freeze(); k < nmo; ++k) {
-                    if (fock1(k, i) != 0.0) {
-                        coupling(i, j).gaxpy(1.0, quadratic[std::make_pair(k, j)], fock1(k, i), false);
-                    }
-                }
-
-                for (int l = parameters.freeze(); l < nmo; ++l) {
-                    if (fock1(l, j) != 0.0) {
-                        coupling(i, j).gaxpy(1.0, quadratic[std::make_pair(i, l)], fock1(l, j), false);
-                    }
-                }
-                world.gop.fence();
-                const double thresh = FunctionDefaults<6>::get_thresh();
-                coupling(i, j).truncate(thresh*0.1).reduce_rank();
-            }
-        }
-        world.gop.fence();
-        //print coupling when finished
-       if (world.rank()==0) std::cout << "aaaaa coupling Pairs after add_local_coupling";
-       for (auto& tmp_coupling : coupling.allpairs) {
-            tmp_coupling.second.print_size("coupling Pairs after add_local_coupling");
-       }
     }
+    //print quadratic
+    if (world.rank() == 0) std::cout << "aaaaa quadratic" << std::endl;
+    for (pairsT::iterator it = quadratic.begin(); it != quadratic.end(); ++it) {
+        it->second.print_size("quadratic");
+    }
+
+    for (auto& q: quadratic) q.second.compress(false);
+    world.gop.fence();
+
+    // the coupling matrix is the Fock matrix, skipping diagonal elements
+    Tensor<double> fock1 = nemo->compute_fock_matrix(nemo->get_calc()->amo, nemo->get_calc()->aocc);
+    if (world.rank() == 0) std::cout << "aaaaa fock1 in compute_local_coupling" << std::endl;
+    if (world.rank() == 0) print(fock1);
+    for (int k = 0; k < nmo; ++k) {
+        if (fock1(k, k) > 0.0) MADNESS_EXCEPTION("positive orbital energies", 1);
+        fock1(k, k) = 0.0;
+    }
+
+    Pairs<real_function_6d> coupling;
+    for (int i = parameters.freeze(); i < nmo; ++i) {
+        for (int j = i; j < nmo; ++j) {
+            coupling.insert(i, j, real_factory_6d(world).compressed());
+        }
+    }
+
+    for (int i = parameters.freeze(); i < nmo; ++i) {
+        for (int j = i; j < nmo; ++j) {
+            for (int k = parameters.freeze(); k < nmo; ++k) {
+                if (fock1(k, i) != 0.0) {
+                    coupling(i, j).gaxpy(1.0, quadratic[std::make_pair(k, j)], fock1(k, i), false);
+                }
+            }
+
+            for (int l = parameters.freeze(); l < nmo; ++l) {
+                if (fock1(l, j) != 0.0) {
+                    coupling(i, j).gaxpy(1.0, quadratic[std::make_pair(i, l)], fock1(l, j), false);
+                }
+            }
+            world.gop.fence();
+            const double thresh = FunctionDefaults<6>::get_thresh();
+            coupling(i, j).truncate(thresh * 0.1).reduce_rank();
+        }
+    }
+    world.gop.fence();
+    //print coupling when finished
+    if (world.rank() == 0) std::cout << "aaaaa coupling Pairs after compute_local_coupling";
+    for (auto& tmp_coupling: coupling.allpairs) {
+        tmp_coupling.second.print_size("coupling Pairs after compute_local_coupling");
+    }
+    return coupling;
+}
 
 double
 CC2::solve_cispd(Pairs<CCPair>& cispd, const Pairs<CCPair>& mp2, const CC_vecfunction& ccs) {

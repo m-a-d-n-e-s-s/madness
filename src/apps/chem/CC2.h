@@ -455,10 +455,18 @@ public:
         return true;
     }
 
+    /// forward to the other function (converting CCPair to real_function)
+    Pairs<real_function_6d> compute_local_coupling(const Pairs<CCPair> &pairs) const {
+        auto ccpair2function = [](const CCPair& a) {return a.function();};
+        return compute_local_coupling(pairs.convert<real_function_6d>(pairs,ccpair2function));
+
+    };
+
     /// add the coupling terms for local MP2
 
     /// \sum_{k\neq i} f_ki |u_kj> + \sum_{l\neq j} f_lj |u_il>
-    void add_local_coupling(const Pairs<CCPair> &pairs, Pairs<real_function_6d> &coupling) const;
+    Pairs<real_function_6d> compute_local_coupling(const Pairs<real_function_6d>& pairs) const;
+
 
     double solve_mp2_coupled(Pairs<CCPair> &doubles);
 

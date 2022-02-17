@@ -405,6 +405,14 @@ struct PairVectorMap {
         return PairVectorMap(map);
     }
 
+    void print(const std::string msg="PairVectorMap") const {
+        madness::print(msg);
+        madness::print("vector element <-> pair index");
+        for (int i=0; i<map.size(); ++i) {
+            madness::print(i, " <-> ",map[i]);
+        }
+    }
+
 };
 
 /// POD holding all electron pairs with easy access
@@ -416,6 +424,20 @@ struct Pairs {
     typedef std::map<std::pair<int, int>, T> pairmapT;
     pairmapT allpairs;
 
+    /// convert Pairs<T> to another type
+
+    /// opT op takes an object of T and returns the result type
+    template<typename R, typename opT>
+    Pairs<R> convert(const Pairs<T> arg, const opT op) const {
+        Pairs<R> result;
+        for (auto& p : arg.allpairs) {
+            int i=p.first.first;
+            int j=p.first.second;
+            result.insert(i,j,op(p.second));
+        }
+        return result;
+    }
+
     static Pairs vector2pairs(const std::vector<T>& argument, const PairVectorMap map) {
         Pairs<T> pairs;
         for (int i=0; i<argument.size(); ++i) {
@@ -426,7 +448,7 @@ struct Pairs {
 
     static std::vector<T> pairs2vector(const Pairs<T>& argument, const PairVectorMap map) {
         std::vector<T> vector;
-        for (int i=0; i<argument.size(); ++i) {
+        for (int i=0; i<argument.allpairs.size(); ++i) {
             vector.push_back(argument(map.map[i].first,map.map[i].second));
         }
         return vector;
