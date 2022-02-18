@@ -59,52 +59,30 @@ using namespace madness;
 int main(int argc, char **argv) {
 
     initialize(argc, argv);
-
     World world(SafeMPI::COMM_WORLD);
 
     if (world.rank() == 0) {
-        print(info::print_revision_information());
         print("\n  CC2: Coupled Cluster approximate Doubles  \n");
         printf("starting at time %.1f\n", wall_time());
-        print("\nmain() compiled at ", __TIME__, " on ", __DATE__);
-
+        print(info::print_revision_information());
     }
-    startup(world, argc, argv);
+
+    startup(world, argc, argv,true);
     std::cout.precision(6);
     FunctionDefaults<3>::set_truncate_mode(1);
-    if (world.rank() == 0) print("Truncate mode set to ", FunctionDefaults<3>::get_truncate_mode());
 
-#ifdef GITREVISION
-    const  char* gitrev =  GITREVISION;
-    const std::string gitrevision(gitrev);
-    if (world.rank()==0) {
-        print("           git revision ...",gitrevision);
-    }
-#endif
-
-// set the tensor type
+    // set the tensor type
     TensorType tt = TT_2D;
     FunctionDefaults<6>::set_tensor_type(tt);
     FunctionDefaults<6>::set_apply_randomize(true);
 
-// Process 0 reads input information and broadcasts
-    const char *inpname = "input";
-    for (int i = 1; i < argc; i++) {
-        if (argv[i][0] != '-') {
-            inpname = argv[i];
-            break;
-        }
-    }
-    if (world.rank() == 0) print("input filename: ", inpname);
-
-//SCF calc(world,input.c_str());
     commandlineparser parser(argc, argv);
     std::shared_ptr<Nemo> nemo(new Nemo(world, parser));
+    nemo->param.set_derived_value("print_level",2);
     std::shared_ptr<SCF> calc = nemo->get_calc();
     if (world.rank() == 0) {
-        calc->molecule.print();
         print("\n");
-        calc->param.print("cc2");
+        calc->param.print("reference");
     }
     double hf_energy = nemo->value();
     if (world.rank() == 0)
