@@ -20,16 +20,17 @@
 #include "x_space.h"
 
 // sets the current path to the save path
-std::filesystem::path generate_frequency_save_path(std::filesystem::path frequency_run_path) {
+std::pair<std::filesystem::path, std::string> generate_frequency_save_path(
+        std::filesystem::path frequency_run_path) {
 
     auto save_path = frequency_run_path;
-    std::filesystem::current_path(save_path);
     auto run_name = frequency_run_path.filename();
     std::string save_string = "restart_" + run_name.string();
     save_path += "/";
     save_path += save_string;
+
     save_path += ".00000";
-    return save_path;
+    return {save_path, save_string};
 }
 
 std::filesystem::path generate_response_frequency_run_path(std::filesystem::path moldft_path,
@@ -176,9 +177,10 @@ static std::filesystem::path set_frequency_path_and_restart(
         cout << "Creating response_path directory" << std::endl;
     }
 
+
+    std::filesystem::current_path(frequency_run_path);
     // Calling this function will make the current working directory the frequency save path
-    auto save_path = generate_frequency_save_path(frequency_run_path);
-    auto save_string = save_path.filename();
+    auto [save_path, save_string] = generate_frequency_save_path(frequency_run_path);
     print("save string", save_string);
 
 
