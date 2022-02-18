@@ -555,7 +555,7 @@ public:
     };
     plotCoords SetPlotCoord(size_t i, double Lp);
 
-    void PlotGroundandResponseOrbitals(World& world, size_t iteration, response_space& x_response,
+    void PlotGroundandResponseOrbitals(World& world, response_space& x_response,
                                        response_space& y_response,
                                        ResponseParameters const& r_params,
                                        GroundStateCalculation const& g_params);

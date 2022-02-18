@@ -3,6 +3,7 @@
 //
 #define CATCH_CONFIG_RUNNER
 #include "ExcitedResponse.hpp"
+#include "FrequencyResponse.hpp"
 #include "ResponseExceptions.hpp"
 #include "TDDFT.h"
 #include "apps/chem/SCF.h"
@@ -14,6 +15,7 @@
 #include "timer.h"
 #include "write_test_input.h"
 #include "x_space.h"
+#include "runners.hpp"
 
 #if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
 
@@ -43,137 +45,6 @@ int main(int argc, char *argv[]) {
     // print_stats(world);
 }
 
-void set_default_response_parameters(ResponseParameters &r_params) {
-
-    r_params.set_user_defined_value("maxiter", size_t(10));
-    r_params.set_user_defined_value("archive", std::string("../restartdata"));
-    r_params.set_user_defined_value("kain", true);
-    r_params.set_user_defined_value("maxsub", size_t(10));
-}
-
-// creates a response input for the test
-void initialize_excited_restart(World &world, std::string filename, size_t num_states,
-                                std::string xc) {
-
-    // Set the response parameters
-    ResponseParameters r_params{};
-    set_default_response_parameters(r_params);
-
-    r_params.set_user_defined_value("xc", xc);
-    r_params.set_user_defined_value("states", num_states);
-    r_params.set_user_defined_value("excited_state", true);
-
-
-    r_params.set_user_defined_value("restart", true);
-    r_params.set_user_defined_value("restart_file", std::string("restart_excited"));
-
-    write_response_input(r_params, filename);
-}
-
-std::tuple<std::filesystem::path, bool> RunResponse(World &world, std::string filename,
-                                                    double frequency, std::string property,
-                                                    std::string xc,
-                                                    std::filesystem::path moldft_path,
-                                                    std::filesystem::path restart_path) {
-
-    // Set the response parameters
-    ResponseParameters r_params{};
-    set_default_response_parameters(r_params);
-    r_params.set_user_defined_value("xc", xc);
-    if (property == "dipole") {
-        r_params.set_user_defined_value("dipole", true);
-    } else if (property == "nuclear") {
-        r_params.set_user_defined_value("nuclear", true);
-    }
-
-    r_params.set_user_defined_value("omega", frequency);
-    r_params.set_user_defined_value("first_order", true);
-    r_params.set_user_defined_value("plot_all_orbitals", true);
-    r_params.set_user_defined_value("save", true);
-
-    // change the logic create save path
-    std::string s_frequency = std::to_string(frequency);
-    print(s_frequency);
-    auto sp = s_frequency.find(".");
-    s_frequency = s_frequency.replace(sp, sp, "-");
-    print(s_frequency);
-    std::string run_name = property + "_" + xc + "_" + s_frequency;
-    print(run_name);
-
-    // set r_params to restart true if restart file exist
-
-    auto run_path = moldft_path;
-    run_path += "/";
-    run_path += std::filesystem::path(run_name);
-    std::cout << run_path << endl;
-
-    if (std::filesystem::is_directory(run_path)) {
-
-        cout << "Response directory found " << std::endl;
-
-    } else {// create the file
-        std::filesystem::create_directory(run_path);
-        cout << "Creating response_path directory" << std::endl;
-    }
-
-    auto save_path = run_path;
-    std::filesystem::current_path(save_path);
-    std::string save_string = "restart_" + run_name;
-    save_path += "/";
-    save_path += save_string;
-    r_params.set_user_defined_value("save_file", save_string);
-    std::string restart_file = restart_path.string();
-    if (std::filesystem::exists(restart_path)) {
-        r_params.set_user_defined_value("restart", true);
-        r_params.set_user_defined_value("restart_file", restart_path.string());
-    } else {
-        std::cout << "Restart File Does Not Exist!!!" << endl;
-    }
-
-    write_response_input(r_params, filename);
-
-    auto calc_params = initialize_calc_params(world, std::string(filename));
-    density_vector rho = set_density_type(world, calc_params.response_parameters,
-                                          calc_params.ground_calculation);
-    TDDFT calc(world, rho);
-    // Warm and fuzzy for the user
-    if (world.rank() == 0) {
-        print("\n\n");
-        print(" MADNESS Time-Dependent Density Functional Theory Response "
-              "Program");
-        print(" ----------------------------------------------------------\n");
-        print("\n");
-        calc.molecule.print();
-        print("\n");
-        calc.r_params.print("response");
-        // put the response parameters in a j_molrespone json object
-        calc.r_params.to_json(calc.j_molresponse);
-    }
-    molresponse::end_timer(world, "initialize");
-    // Come up with an initial OK data map
-    if (world.size() > 1) {
-        calc.set_protocol<3>(world, 1e-4);
-        calc.make_nuclear_potential(world);
-        calc.initial_load_bal(world);
-    }
-    // set protocol to the first
-    if (calc.r_params.excited_state()) {
-        calc.solve_excited_states(world);
-    } else if (calc.r_params.first_order()) {
-        calc.solve_response_states(world);
-    } else if (calc.r_params.second_order()) {
-    } else {
-        throw Response_Input_Error{};
-    }
-    calc.output_json();
-    if (calc.r_params.dipole()) {//
-        print("Computing Alpha");
-        Tensor<double> alpha = calc.polarizability();
-        print("Second Order Analysis");
-        calc.PrintPolarizabilityAnalysis(world, alpha);
-    }
-    return {save_path, true};
-}
 
 bool is_equal(const Tensor<double> &a, const Tensor<double> &b, double thresh) {
 
@@ -310,16 +181,11 @@ TEST_CASE("Run A Few Frequency Response ") {
         auto moldft_path = std::filesystem::path(
                 "/home/adrianhurtado/projects/madness-test-suite/tests_response/orbital_analysis/"
                 "10_Be");
+
         std::filesystem::current_path(moldft_path);
         std::vector<double> frequencies = {0, 0.025, 0.050, 0.075, 0.1};
+        runFrequencyTests(world, moldft_path, frequencies, "hf");
         // add a restart path
-        auto restart_path = moldft_path;
-        restart_path += "/restart_dipole_hf_0-000000.00000";
-        for (const auto &freq: frequencies) {
-            std::filesystem::current_path(moldft_path);
-
-            auto [next_restart, success] = RunResponse(world, "response.in", freq, "dipole", "hf",
-                                                       moldft_path, restart_path);
-        }
     } catch (const std::filesystem::filesystem_error &ex) { std::cerr << ex.what() << "\n"; }
 }
+

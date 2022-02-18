@@ -78,7 +78,7 @@ void to_json(json &j, const vec_pair_T<T> &num_vals) {
 }
 
 template<typename... Vecs>
-void output_schema(std::string schema_name, json &j) {
+void output_schema( std::string schema_name, json &j) {
 
     std::ofstream ofs(schema_name + ".json");
     auto print_time = std::chrono::system_clock::now();
@@ -88,6 +88,7 @@ void output_schema(std::string schema_name, json &j) {
     print(ss.str());
 
     j["time"] =ss.str();
+    j["wall_time"] =wall_time();
 
     ofs << j;
 }

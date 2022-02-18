@@ -40,7 +40,6 @@ class density_vector {
   const ResponseParameters r_params;  // Response Parameters
   const GroundStateCalculation g_params;
 
-  XCfunctional xcf;                // xc functional
   PropertyBase property_operator;  // dipole, nuclear, or none
   X_space Chi;
   X_space PQ;

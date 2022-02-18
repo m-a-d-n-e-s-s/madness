@@ -39,6 +39,8 @@ public:
     X_space get_chi()const {return Chi;}
     void output_json() const;
 
+    json j_molresponse{};
+
 protected:
     // Given molecule returns the nuclear potential of the molecule
     ResponseParameters r_params;
@@ -69,7 +71,7 @@ protected:
     Tensor<double> ham_no_diag;
     // Tensors for holding energies
     // residuals, and shifts
-    Tensor<double> omega;      // Energies of response functions
+
     Tensor<double> e_residuals;// Residuals of energies
 
     // Mask function to handle boundary conditions
@@ -80,7 +82,6 @@ protected:
                                             // if store_potential is true (default is
 
     double vtol{};
-    json j_molresponse{};
 
     X_space Chi;
 
@@ -146,8 +147,8 @@ protected:
     std::pair<Tensor<double>, Tensor<double>> ComputeHamiltonianPair(World& world) const;
     real_function_3d Coulomb(World& world) const;
     XCOperator<double, 3> make_xc_operator(World& world) const;
-    void save(World& world, const std::string& name);
-    void load(World& world, const std::string& name);
+    virtual void save(World& world, const std::string& name)=0;
+    virtual void load(World& world, const std::string& name)=0;
     vecfuncT make_density(World& world, const X_space& chi) const ;
 
     void load_balance_chi(World& world);

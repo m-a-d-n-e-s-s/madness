@@ -79,6 +79,7 @@ int main(int argc, char **argv) {
     { // limit lifetime of world so that finalize() can execute cleanly
         World world(SafeMPI::COMM_WORLD);
         START_TIMER(world);
+        double start_time = wall_time();
         try {
             // Load info for MADNESS numerical routines
             startup(world, argc, argv, true);
@@ -167,6 +168,7 @@ int main(int argc, char **argv) {
                 if ((world.rank() == 0) and (calc.param.print_level() > 0))
                     printf("final energy=%16.8f ", energy);
                 E.output_calc_info_schema();
+
 
                 functionT rho = calc.make_density(world, calc.aocc, calc.amo);
                 functionT brho = rho;

@@ -38,6 +38,7 @@ add_mad_executable(molresponse "molresponse.cc" "MADresponse;MADchem")
 set(R_BASE_SOURCES
         ResponseBase.cpp
         ExcitedResponse.cpp
+        FrequencyResponse.cpp
         property.cc
         global_functions.cc
         timer.cc
@@ -46,9 +47,10 @@ set(R_BASE_SOURCES
         response_parameters.cpp
         )
 
-    set(R_BASE_HEADERS
+set(R_BASE_HEADERS
         ResponseBase.hpp
         ExcitedResponse.hpp
+        FrequencyResponse.hpp
         density.h
         property.h
         global_functions.h
@@ -65,6 +67,7 @@ set(targetname MADresponse_base)
 set(RALL_SOURCES
         ResponseBase.cpp
         ExcitedResponse.cpp
+        FrequencyResponse.cpp
         property.cc
         global_functions.cc
         timer.cc
@@ -84,6 +87,7 @@ set(RALL_SOURCES
 set(RALL_HEADERS
         ResponseBase.hpp
         ExcitedResponse.hpp
+        FrequencyResponse.hpp
         density.h
         property.h
         global_functions.h

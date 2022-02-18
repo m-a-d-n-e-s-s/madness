@@ -188,8 +188,7 @@ void TDDFT::iterate_excited(World& world, X_space& Chi) {
           molresponse::end_timer(world, " This iteration:");
         // plot orbitals
         if (r_params.plot_all_orbitals()) {
-          PlotGroundandResponseOrbitals(
-              world, iter, Chi.X, Chi.Y, r_params, g_params);
+            PlotGroundandResponseOrbitals(world, Chi.X, Chi.Y, r_params, g_params);
         }
         rho0 = make_ground_density(world, ground_orbitals);
         if (r_params.plot()) {
