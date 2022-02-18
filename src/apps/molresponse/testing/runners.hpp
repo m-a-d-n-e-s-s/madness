@@ -269,6 +269,8 @@ public:
                 json{{"freq", vector<double>{0.0, 0.025, 0.050, 0.075, 0.100, 0.125}}};
         j["11_Ne"]["hf"]["dipole"] =
                 json{{"freq", vector<double>{0.0, 0.100, 0.200, 0.300, 0.400, 0.500}}};
+        j["12_Ar"]["hf"]["dipole"] =
+                json{{"freq", vector<double>{0.0, 0.100, 0.200, 0.300, 0.400, 0.500}}};
     }
 
     json retrieve_data(std::string molecule, std::string xc, std::string property) const {
