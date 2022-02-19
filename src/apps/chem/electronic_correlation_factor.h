@@ -186,6 +186,8 @@ public:
 
 private:
     /// functor for the local potential (1-f12)/r12 + sth (doubly connected term of the commutator)
+
+    /// TODO: turn this into coeffs directly
     struct fg_ : FunctionFunctorInterface<double,6> {
         double gamma;
         double dcut;

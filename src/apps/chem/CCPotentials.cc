@@ -99,11 +99,12 @@ CCPotentials::make_pair_gs(const real_function_6d& u, const CC_vecfunction& tau,
         functions.push_back(PQ);
         functions.push_back(QP);
     } else {
-//        real_function_6d ftt = make_f_xy(t(i), t(j));
-//        real_function_6d Qftt = apply_Q12t(ftt, pt);
-//        Qftt.truncate();
-//        CCPairFunction residual(world, Qftt);
-//        functions.push_back(residual);
+        // TODO: turn this into separated form, needed (only?) in the energy computation
+        real_function_6d ftt = make_f_xy(t(i), t(j));
+        real_function_6d Qftt = apply_Q12t(ftt, pt);
+        Qftt.truncate();
+        CCPairFunction residual(world, Qftt);
+        functions.push_back(residual);
     }
     CalcType ctype = CT_CC2;
     if (t.type == HOLE) ctype = CT_MP2;
