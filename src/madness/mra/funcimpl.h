@@ -306,7 +306,7 @@ namespace madness {
         	return dnorm;
         }
 
-        /// set the precomputed norm of the (virtual) d coefficients
+        /// set the precomputed norm of the (virtual) s coefficients
         void set_snorm(const double sn) {
             snorm=sn;
         }
@@ -314,6 +314,35 @@ namespace madness {
         /// set the precomputed norm of the (virtual) d coefficients
         void set_dnorm(const double dn) {
         	dnorm=dn;
+        }
+
+        /// get the precomputed norm of the (virtual) s coefficients
+        double get_snorm() const {
+            return snorm;
+        }
+
+        void recompute_snorm_and_dnorm(const FunctionCommonData<T,NDIM>& cdata) {
+            snorm = 0.0;
+            dnorm = 0.0;
+            if (coeff().size() == 0) { ;
+            } else if (coeff().dim(0) == cdata.vk[0]) {
+                snorm = coeff().normf();
+
+            } else if (coeff().is_full_tensor()) {
+                Tensor<T> c = copy(coeff().get_tensor());
+                snorm = c(cdata.s0).normf();
+                c(cdata.s0) = 0.0;
+                dnorm = c.normf();
+
+            } else if (coeff().is_svd_tensor()) {
+                auto c = coeff()(cdata.s0);
+                snorm = c.normf();
+                double norm = coeff().normf();
+                dnorm = sqrt(norm * norm - snorm * snorm);
+
+            } else {
+                MADNESS_EXCEPTION("cannot use compute_dnorm", 1);
+            }
         }
 
 
@@ -431,7 +460,7 @@ namespace madness {
             norm = 0.0;
         double nt = node.get_norm_tree();
         if (nt == 1e300) nt = 0.0;
-        s << norm << ", norm_tree, dnorm =" << nt << ", " << node.get_dnorm() << "), rank="<< node.coeff().rank()<<")";
+        s << norm << ", norm_tree, s/dnorm =" << nt << ", " << node.get_snorm() << " " << node.get_dnorm() << "), rank="<< node.coeff().rank()<<")";
         if (node.coeff().is_assigned()) s << " dim " << node.coeff().dim(0) << " ";
         return s;
     }
@@ -2229,47 +2258,6 @@ namespace madness {
             }
 
 
-        };
-
-        /// compute the norm of the wavelet coefficients
-        struct compute_snorm_and_dnorm {
-            compute_snorm_and_dnorm(const FunctionCommonData<T,NDIM>& cdata) :
-                cdata(cdata) {}
-
-            FunctionCommonData<T,NDIM> cdata;
-            typedef Range<typename dcT::iterator> rangeT;
-
-            bool operator()(typename rangeT::iterator& it) const {
-
-                nodeT& fnode = it->second;
-                const coeffT coeff=fnode.coeff();
-
-                double snorm=0.0;
-                double dnorm=0.0;
-                if (coeff.size()==0) {
-                    ;
-                } else if (coeff.dim(0)==cdata.vk[0]) {
-                    snorm=coeff.normf();
-
-                } else if (coeff.is_full_tensor()) {
-                    tensorT c=copy(coeff.get_tensor());
-                    snorm=c(cdata.s0).normf();
-                    c(cdata.s0)=0.0;
-                    dnorm=c.normf();
-
-                } else if (coeff.is_svd_tensor()) {
-                    coeffT c=coeff(cdata.s0);
-                    snorm=c.normf();
-                    double norm=coeff.normf();
-                    dnorm=sqrt(norm*norm - snorm*snorm);
-
-                } else {
-                    MADNESS_EXCEPTION("cannot use compute_dnorm", 1);
-                }
-                fnode.set_snorm(snorm);
-                fnode.set_dnorm(dnorm);
-
-            }
         };
 
         /// merge the coefficent boxes of this into other's tree
@@ -4269,6 +4257,29 @@ namespace madness {
         /// @param[in]  targs   target tensor arguments (threshold and full/low rank)
         void reduce_rank(const double thresh, bool fence);
 
+
+        /// remove all nodes with level higher than n
+        void chop_at_level(const int n, const bool fence=true);
+
+            /// compute norm of s and d coefficients for all nodes
+        void compute_snorm_and_dnorm(bool fence=true);
+
+        /// compute the norm of the wavelet coefficients
+        struct do_compute_snorm_and_dnorm {
+            typedef Range<typename dcT::iterator> rangeT;
+
+            const FunctionCommonData<T,NDIM>& cdata;
+            do_compute_snorm_and_dnorm(const FunctionCommonData<T,NDIM>& cdata) :
+                    cdata(cdata) {}
+
+            bool operator()(typename rangeT::iterator& it) const {
+                auto& node=it->second;
+                node.recompute_snorm_and_dnorm(cdata);
+                return true;
+            }
+        };
+
+
         T eval_cube(Level n, coordT& x, const tensorT& c) const;
 
         /// Transform sum coefficients at level n to sums+differences at level n-1
@@ -5481,18 +5492,125 @@ namespace madness {
         }
 
         /// invoked by result
+
+        /// contract 2 functions f(x,z) = \int g(x,y) * h(y,z) dy
+        /// @tparam CDIM: the dimension of the contraction variable (y)
+        /// @tparam NDIM: the dimension of the result (x,z)
+        /// @tparam LDIM: the dimension of g(x,y)
+        /// @tparam KDIM: the dimension of h(y,z)
         template<typename Q, std::size_t LDIM, typename R, std::size_t KDIM,
                 std::size_t CDIM = (KDIM + LDIM - NDIM) / 2>
-        Function<TENSOR_RESULT_TYPE(T, R), NDIM>
-        partial_inner(const FunctionImpl<Q, LDIM>& f, const FunctionImpl<R, KDIM>& g, const std::array<int, CDIM> v1,
+        void partial_inner(const FunctionImpl<Q, LDIM>& g, const FunctionImpl<R, KDIM>& h, const std::array<int, CDIM> v1,
                 const std::array<int, CDIM> v2) {
-            bool fence=false;
-//            f.flo_unary_op_node_inplace(FunctionImpl<Q, LDIM>::compute_snorm_and_dnorm(f.get_cdata()),fence);
-//            g.flo_unary_op_node_inplace(FunctionImpl<R, KDIM>::compute_snorm_and_dnorm(g.get_cdata()),fence);
+
+            std::size_t nmax=FunctionDefaults<CDIM>::get_max_refine_level();
+            double thresh=1.e-4;
+
+            for (int n=0; n<nmax; ++n) {
+
+                auto [g_jlist, ijlist, g_max_dnorm] = g.get_contraction_node_lists(n,v1);
+                auto [h_jlist, jklist, h_max_dnorm] = h.get_contraction_node_lists(n,v2);
+
+            }
         }
 
+        /// for contraction two functions f(x,z) = \int g(x,y) h(y,z) dy
 
-            /// Return the inner product with an external function on a specified function node.
+        /// find all nodes with d coefficients and return a list of complete keys and of
+        /// keys holding only the y dimension, also the maximum norm of all d for the j dimension
+        /// @param[in]  n   the scale
+        /// @param[in]  v   array holding the indices of the integration variable
+        /// @return     ijlist: list of all nodes with d coeffs; jlist: j-part of ij list only
+        template<std::size_t CDIM>
+        std::tuple<std::list<Key<NDIM>>, std::list<Key<CDIM>>, double>
+        get_contraction_node_lists(const std::size_t n, const std::array<int, CDIM> v) const {
+
+            const auto& cdata=get_cdata();
+            auto has_d_coeffs = [&cdata](const coeffT& coeff) {
+                if (coeff.has_no_data()) return false;
+                return (coeff.dim(0)==2*cdata.k);
+            };
+
+            // keys to be contracted in g
+            std::list<Key<NDIM>> ij_list;       // full key
+            std::list<Key<CDIM>> j_list;        // only that dimension that will be contracted
+            double max_d_norm=0.0;
+
+            for (auto it=get_coeffs().begin(); it!=get_coeffs().end(); ++it) {
+                const Key<NDIM>& key=it->first;
+                const FunctionNode<T,NDIM>& node=it->second;
+                if ((key.level()==n) and (has_d_coeffs(node.coeff()))) {
+                    ij_list.push_back(key);
+                    Vector<Translation,CDIM> j_trans;
+                    for (int i=0; i<CDIM; ++i) j_trans[i]=key.translation()[v[i]];
+                    Key<CDIM> jkey(n,j_trans);
+                    print("key, jkey", key, jkey);
+                    max_d_norm=std::max(max_d_norm,node.get_dnorm());
+                }
+            }
+            return std::make_tuple(ij_list,j_list,max_d_norm);
+        }
+
+        /// make a map of all nodes that will contribute to a partial inner product
+
+        /// given the list of d coefficient-holding nodes of the other function:
+        /// recur down h if snorm * dnorm > tol and key n−jx ∈ f −j-list. Make s
+        /// coefficients if necessary. Make list of nodes n − ijk as map(n-ik, list(j)).
+        ///
+        /// !! WILL ADD NEW S NODES TO THIS TREE THAT MUST BE REMOVED TO AVOID INCONSISTENT TREE STRUCTURE !!
+        ///
+        /// @param[in]  key for recursion
+        /// @param[in]  node    corresponds to key
+        /// @param[in]
+        template<std::size_t CDIM>
+        std::map<Key<NDIM>, std::list<Key<CDIM>>> recur_down_for_contraction_map(
+                const keyT& key, const nodeT& node,
+                const std::list<Key<CDIM>>& j_list, const double max_d_norm, const double thresh) {
+            // continue recusion if norms are large
+
+            std::map<keyT, std::list<Key<CDIM>>> contraction_map;
+            // can I optimize away the children criterium??
+            bool continue_recursion = node.has_children() or (node.get_snorm() * max_d_norm > thresh);
+
+            if (continue_recursion) {
+                // in case we need to compute children's coefficients: unfilter only once
+                bool compute_child_s_coeffs=true;
+                coeffT d = node.coeff();
+
+                for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                    keyT child=kit.key();
+                    typename dcT::accessor acc;
+
+                    // make child's s coeffs if it doesn't exist or if is has no s coeffs
+                    bool childnode_exists=get_coeffs().find(acc,child);
+                    bool need_s_coeffs= childnode_exists ? acc.second->snorm>0.0 : true;
+
+                    coeffT child_s_coeffs;
+                    if (need_s_coeffs and compute_child_s_coeffs) {
+                        d = unfilter(d);
+                        child_s_coeffs=copy(d(child_patch(child)));
+                        child_s_coeffs.reduce_rank(thresh);
+                        compute_child_s_coeffs=false;
+                    }
+
+                    if (not childnode_exists) {
+                        woT::task(coeffs.owner(child), &implT::reconstruct_op, child, child_s_coeffs);
+                    } else if (childnode_exists and need_s_coeffs) {
+                        acc.second->coeffs()=child_s_coeffs;
+                    }
+                    bool exists= get_coeffs().find(acc,child);
+                    MADNESS_CHECK(exists);
+                    nodeT& childnode = acc.second;
+                    if (need_s_coeffs) childnode.compute_snorm_and_dnorm();
+                    contraction_map.merge(recur_down_for_contraction_map(child,childnode, j_list, max_d_norm, thresh));
+                }
+
+            }
+            return contraction_map;
+        }
+
+        /// Return the inner product with an external function on a specified function node.
+
         /// @param[in] key Key of the function node to compute the inner product on. (the domain of integration)
         /// @param[in] c Tensor of coefficients for the function at the function node given by key
         /// @param[in] f Reference to FunctionFunctorInterface. This is the externally provided function

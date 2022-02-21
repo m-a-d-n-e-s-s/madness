@@ -5,7 +5,7 @@
 #include <array>
 using namespace madness;
 
-bool smalltest = false;
+bool smalltest = true;
 
 double ttt, sss;
 #define START_TIMER world.gop.fence(); ttt=wall_time(); sss=cpu_time()
@@ -70,16 +70,46 @@ bool is_like(double a, double b, double tol) {
 }
 
 int test_partial_inner(World& world) {
-    real_function_3d f=real_factory_3d(world).functor(gauss<double,3>());
-    real_function_3d g=real_factory_3d(world).functor(gauss<double,3>());
+    real_function_1d one_1d=real_factory_1d(world).functor([](const coord_1d& r){return 1.0;});
+    real_function_2d one_2d=real_factory_2d(world).functor([](const coord_2d& r){return 1.0;});
+    real_function_1d gauss_1d=real_factory_1d(world).functor(gauss<double,1>());
+
+    real_function_2d f=real_factory_2d(world).functor(gauss<double,2>());
+    real_function_2d g=real_factory_2d(world).functor(gauss<double,2>());
     real_function_2d h=real_factory_2d(world).functor(gauss<double,2>());
-    // will return f(z1,x2) = int f(x1,y1,z1) g(x2,x1,y1);
-    real_function_2d a=inner(f,g,{0,1},{1,2});
-    real_function_4d b=inner(f,g,{0},{1});
-    real_function_1d c=inner(h,f,{0,1},{1,2});
+
+//    f.print_tree();
+    f.chop_at_level(2);
+    g.chop_at_level(2);
+    f.make_nonstandard(false,true);
+    f.get_impl()->compute_snorm_and_dnorm();
+    f.print_tree();
+
+    double ref=inner(gauss_1d,gauss_1d) * gauss_1d.trace() * gauss_1d.trace();
+    print("reference result",ref);
+    real_function_2d a=inner(f,g,{1},{0});
+    double r1=inner(a,one_2d);
+    print("result with new ", r1);
+
+
+
+//    // will return f(z1,x2) = int f(x1,y1,z1) g(x2,x1,y1);
+//    real_function_2d a=inner(f,g,{0,1},{1,2});
+//    real_function_4d b=inner(f,g,{0},{1});
+//    real_function_1d c=inner(h,f,{0,1},{1,2});
     return 0;
 }
 
+template<std::size_t NDIM>
+void initialize(World& world) {
+    FunctionDefaults<NDIM>::set_defaults(world);
+    FunctionDefaults<NDIM>::set_k(k);
+    FunctionDefaults<NDIM>::set_thresh(thresh);
+    FunctionDefaults<NDIM>::set_refine(true);
+    FunctionDefaults<NDIM>::set_initial_level(5);
+    FunctionDefaults<NDIM>::set_truncate_mode(1);
+    FunctionDefaults<NDIM>::set_cubic_cell(-L/2, L/2);
+}
 int main(int argc, char** argv) {
     initialize(argc, argv);
     World world(SafeMPI::COMM_WORLD);
@@ -93,14 +123,12 @@ int main(int argc, char** argv) {
     for (int iarg=1; iarg<argc; iarg++) if (strcmp(argv[iarg],"--small")==0) smalltest=true;
     std::cout << "small test : " << smalltest << std::endl;
 
-    FunctionDefaults<3>::set_defaults(world);
-
-    FunctionDefaults<3>::set_k(k);
-    FunctionDefaults<3>::set_thresh(thresh);
-    FunctionDefaults<3>::set_refine(true);
-    FunctionDefaults<3>::set_initial_level(5);
-    FunctionDefaults<3>::set_truncate_mode(1);
-    FunctionDefaults<3>::set_cubic_cell(-L/2, L/2);
+    initialize<1>(world);
+    initialize<2>(world);
+    initialize<3>(world);
+    initialize<4>(world);
+    initialize<5>(world);
+    initialize<6>(world);
 
     test_partial_inner(world);
 

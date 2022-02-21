@@ -1209,12 +1209,36 @@ namespace madness {
         flo_unary_op_node_inplace(do_reduce_rank(thresh),fence);
     }
 
+    /// reduce the rank of the coefficients tensors
 
-    /// Transform sum coefficients at level n to sums+differences at level n-1
+    /// @param[in]  targs   target tensor arguments (threshold and full/low rank)
+    template <typename T, std::size_t NDIM>
+    void FunctionImpl<T,NDIM>::chop_at_level(const int n, bool fence) {
+        for (auto it=coeffs.begin(); it!=coeffs.end(); ++it) {
+            const keyT& key=it->first;
+            nodeT& node=it->second;
+            if (key.level()>n) coeffs.erase(key);
+            if (key.level()==n) node.set_is_leaf(true);
+        }
+    }
 
-    /// Given scaling function coefficients s[n][l][i] and s[n][l+1][i]
-    /// return the scaling function and wavelet coefficients at the
-    /// coarser level.  I.e., decompose Vn using Vn = Vn-1 + Wn-1.
+
+/// compute norm of s and d coefficients for all nodes
+
+    /// @param[in]  targs   target tensor arguments (threshold and full/low rank)
+    template <typename T, std::size_t NDIM>
+    void FunctionImpl<T,NDIM>::compute_snorm_and_dnorm(bool fence) {
+        const auto& data=FunctionCommonData<T,NDIM>::get(get_k());
+        flo_unary_op_node_inplace(
+                do_compute_snorm_and_dnorm(cdata),fence);
+    }
+
+
+/// Transform sum coefficients at level n to sums+differences at level n-1
+
+/// Given scaling function coefficients s[n][l][i] and s[n][l+1][i]
+/// return the scaling function and wavelet coefficients at the
+/// coarser level.  I.e., decompose Vn using Vn = Vn-1 + Wn-1.
     /// \code
     /// s_i = sum(j) h0_ij*s0_j + h1_ij*s1_j
     /// d_i = sum(j) g0_ij*s0_j + g1_ij*s1_j
@@ -1425,14 +1449,10 @@ namespace madness {
     /// sum all the contributions from all scales after applying an operator in mod-NS form
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::trickle_down(bool fence) {
-        //            MADNESS_ASSERT(is_redundant());
-//        make_nonstandard = compressed = redundant = false;
         set_tree_state(reconstructed);
-        //            this->print_size("in trickle_down");
         if (world.rank() == coeffs.owner(cdata.key0))
             woT::task(world.rank(), &implT::trickle_down_op, cdata.key0,coeffT());
-        if (fence)
-            world.gop.fence();
+        if (fence) world.gop.fence();
     }
 
     /// sum all the contributions from all scales after applying an operator in mod-NS form
@@ -1805,9 +1825,6 @@ namespace madness {
         double end=wall_time();
         double elapsed=end-begin;
         set_tree_state(nonstandard);
-//        this->compressed=true;
-//        this->nonstandard=true;
-//        this->redundant=false;
         if (fence) world.gop.fence();
         return elapsed;
     }
@@ -3043,9 +3060,10 @@ namespace madness {
             void operator()(const Key<NDIM>& key, Tensor<T>& t) const {abs(t.emul(t));}
             template <typename Archive> void serialize(Archive& ar) {}
         };
+
     }
 
-    template <typename T, std::size_t NDIM>
+template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::scale_inplace(const T q, bool fence) {
         //        unary_op_coeff_inplace(detail::scaleinplace<T,NDIM>(q), fence);
         unary_op_node_inplace(detail::scaleinplace<T,NDIM>(q), fence);

@@ -735,7 +735,7 @@ namespace madness {
         /// for other purposes.
         ///
         /// Noop if already compressed or if not initialized.
-        void make_nonstandard(bool keepleaves, bool fence=true) {
+        void make_nonstandard(bool keepleaves, bool fence=true) const {
             PROFILE_MEMBER_FUNC(Function);
             verify();
             if (impl->is_nonstandard()) return;
@@ -746,7 +746,7 @@ namespace madness {
             TreeState newstate=TreeState::nonstandard;
             if (keepleaves) newstate=nonstandard_with_leaves;
 //            impl->compress(true, keepleaves, false, fence);
-            impl->compress(newstate, fence);
+            const_cast<Function<T,NDIM>*>(this)->impl->compress(newstate, fence);
 
         }
 
@@ -1660,6 +1660,15 @@ namespace madness {
             impl->reduce_rank(thresh1,fence);
             return *this;
         }
+
+        /// remove all nodes with level higher than n
+        Function<T,NDIM>& chop_at_level(const int n, const bool fence=true) {
+            verify();
+            impl->make_redundant(true);
+            impl->chop_at_level(n);
+            impl->undo_redundant(true);
+            return *this;
+        }
     };
 
 //    template <typename T, typename opT, std::size_t NDIM>
@@ -2373,16 +2382,31 @@ namespace madness {
            const std::array<int, CDIM> v2) {
         static_assert((KDIM + LDIM - NDIM) % 2 == 0, "faulty dimensions in inner (partial version)");
         static_assert(KDIM + LDIM - 2 * CDIM == NDIM, "faulty dimensions in inner (partial version)");
+
+        // contraction indices must be contiguous and either in the beginning or at the end
+        for (int i=0; i<CDIM-1; ++i) MADNESS_CHECK((v1[i]+1)==v1[i+1]);
+        MADNESS_CHECK((v1[0]==0) or (v1[CDIM-1]==LDIM-1));
+
+        for (int i=0; i<CDIM-1; ++i) MADNESS_CHECK((v2[i]+1)==v2[i+1]);
+        MADNESS_CHECK((v2[0]==0) or (v2[CDIM-1]==KDIM-1));
+
         MADNESS_CHECK(f.is_initialized());
         MADNESS_CHECK(g.is_initialized());
         MADNESS_CHECK(f.world().id() == g.world().id());
         // this needs to be run in a single world, so that all coefficients are local.
         // Use macrotasks if run on multiple processes.
-        MADNESS_CHECK(f.world().size() == 1);
+        World& world=f.world();
+        MADNESS_CHECK(world.size() == 1);
 
+        f.make_nonstandard(false,false);
+        g.make_nonstandard(false,false);
+        world.gop.fence();
+        f.get_impl()->compute_snorm_and_dnorm(false);
+        g.get_impl()->compute_snorm_and_dnorm(false);
+        world.gop.fence();
 
         typedef TENSOR_RESULT_TYPE(T, R) resultT;
-        Function<resultT,NDIM> result=FunctionFactory<resultT,NDIM>(f.world())
+        Function<resultT,NDIM> result=FunctionFactory<resultT,NDIM>(world)
                         .k(f.k()).thresh(f.thresh());   // no empty() here!
         result.get_impl()->partial_inner(*f.get_impl(),*g.get_impl(),v1,v2);
 
