@@ -1013,32 +1013,27 @@ namespace madness {
         FunctionImpl(const FunctionImpl<Q,NDIM>& other,
                      const std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >& pmap,
                      bool dozero)
-            : WorldObject<implT>(other.world)
-            , world(other.world)
-            , k(other.k)
-            , thresh(other.thresh)
-            , initial_level(other.initial_level)
-	    , special_level(other.special_level)
-	    , special_points(other.special_points)
-            , max_refine_level(other.max_refine_level)
-            , truncate_mode(other.truncate_mode)
-                         , autorefine(other.autorefine)
-                         , truncate_on_project(other.truncate_on_project)
-//				  , nonstandard(other.nonstandard)
-                         , targs(other.targs)
-                         , cdata(FunctionCommonData<T,NDIM>::get(k))
-                         , functor()
-//				  , on_demand(false)	// since functor() is an default ctor
-//				  , compressed(other.compressed)
-//				  , redundant(other.redundant)
-				  , tree_state(other.tree_state)
-                         , coeffs(world, pmap ? pmap : other.coeffs.get_pmap())
-                         //, bc(other.bc)
+                : WorldObject<implT>(other.world)
+                , world(other.world)
+                , k(other.k)
+                , thresh(other.thresh)
+                , initial_level(other.initial_level)
+                , special_level(other.special_level)
+                , special_points(other.special_points)
+                , max_refine_level(other.max_refine_level)
+                , truncate_mode(other.truncate_mode)
+                , autorefine(other.autorefine)
+                , truncate_on_project(other.truncate_on_project)
+                , targs(other.targs)
+                , cdata(FunctionCommonData<T,NDIM>::get(k))
+                , functor()
+                , tree_state(other.tree_state)
+                , coeffs(world, pmap ? pmap : other.coeffs.get_pmap())
         {
             if (dozero) {
                 initial_level = 1;
                 insert_zero_down_to_initial_level(cdata.key0);
-		//world.gop.fence(); <<<<<<<<<<<<<<<<<<<<<<   needs a fence argument
+                //world.gop.fence(); <<<<<<<<<<<<<<<<<<<<<<   needs a fence argument
             }
             coeffs.process_pending();
             this->process_pending();
@@ -5504,12 +5499,21 @@ namespace madness {
                 const std::array<int, CDIM> v2) {
 
             std::size_t nmax=FunctionDefaults<CDIM>::get_max_refine_level();
-            double thresh=1.e-4;
+            const double thresh=FunctionDefaults<NDIM>::get_thresh();
 
-            for (int n=0; n<nmax; ++n) {
+            // logical constness, not bitwise constness
+            FunctionImpl& g_nc=const_cast<FunctionImpl&>(g);
+            FunctionImpl& h_nc=const_cast<FunctionImpl&>(h);
 
-                auto [g_jlist, ijlist, g_max_dnorm] = g.get_contraction_node_lists(n,v1);
-                auto [h_jlist, jklist, h_max_dnorm] = h.get_contraction_node_lists(n,v2);
+//            for (int n=0; n<nmax; ++n) {
+            print("using n=2 only in partial_inner");
+            for (int n=2; n<3; ++n) {
+
+                auto [ijlist, g_jlist] = g.get_contraction_node_lists(n,v1);
+//                auto [h_jlist, jklist] = h.get_contraction_node_lists(n,v2);
+
+                std::multimap<Key<NDIM>, std::list<Key<CDIM>>> contraction_map=h_nc.recur_down_for_contraction_map<CDIM,LDIM,KDIM>(
+                        key0(), coeffs.find(key0()).get()->second, v1, v2, ijlist, g_jlist, thresh);
 
             }
         }
@@ -5522,8 +5526,8 @@ namespace madness {
         /// @param[in]  v   array holding the indices of the integration variable
         /// @return     ijlist: list of all nodes with d coeffs; jlist: j-part of ij list only
         template<std::size_t CDIM>
-        std::tuple<std::list<Key<NDIM>>, std::list<Key<CDIM>>, double>
-        get_contraction_node_lists(const std::size_t n, const std::array<int, CDIM> v) const {
+        std::tuple<std::set<Key<NDIM>>, std::map<Key<CDIM>,double>>
+        get_contraction_node_lists(const std::size_t n, const std::array<int, CDIM>& v) const {
 
             const auto& cdata=get_cdata();
             auto has_d_coeffs = [&cdata](const coeffT& coeff) {
@@ -5532,50 +5536,119 @@ namespace madness {
             };
 
             // keys to be contracted in g
-            std::list<Key<NDIM>> ij_list;       // full key
-            std::list<Key<CDIM>> j_list;        // only that dimension that will be contracted
-            double max_d_norm=0.0;
+            std::set<Key<NDIM>> ij_list;           // full key
+            std::map<Key<CDIM>,double> j_list;      // only that dimension that will be contracted
 
             for (auto it=get_coeffs().begin(); it!=get_coeffs().end(); ++it) {
                 const Key<NDIM>& key=it->first;
                 const FunctionNode<T,NDIM>& node=it->second;
                 if ((key.level()==n) and (has_d_coeffs(node.coeff()))) {
-                    ij_list.push_back(key);
+                    ij_list.insert(key);
                     Vector<Translation,CDIM> j_trans;
                     for (int i=0; i<CDIM; ++i) j_trans[i]=key.translation()[v[i]];
                     Key<CDIM> jkey(n,j_trans);
-                    print("key, jkey", key, jkey);
-                    max_d_norm=std::max(max_d_norm,node.get_dnorm());
+                    const double max_d_norm=j_list[jkey];
+                    j_list.insert_or_assign(jkey,std::max(max_d_norm,node.get_dnorm()));
                 }
             }
-            return std::make_tuple(ij_list,j_list,max_d_norm);
+
+            std::cout << "ij_list " << std::endl;
+            for (auto& k : ij_list) std::cout << k << " ";
+            print("");
+            std::cout << "j-list for contraction indices: (";
+            for (int i=0; i<CDIM; ++i) std::cout << v[i] << ", ";
+            print(")");
+            for (auto& k : j_list) std::cout << k.first << " " << k.second << " " ;
+            print("");
+            return std::make_tuple(ij_list,j_list);
         }
 
         /// make a map of all nodes that will contribute to a partial inner product
 
         /// given the list of d coefficient-holding nodes of the other function:
-        /// recur down h if snorm * dnorm > tol and key n−jx ∈ f −j-list. Make s
+        /// recur down h if snorm * dnorm > tol and key n−jx ∈ other−ij-list. Make s
         /// coefficients if necessary. Make list of nodes n − ijk as map(n-ik, list(j)).
         ///
         /// !! WILL ADD NEW S NODES TO THIS TREE THAT MUST BE REMOVED TO AVOID INCONSISTENT TREE STRUCTURE !!
         ///
-        /// @param[in]  key for recursion
+        /// @param[in]  key     for recursion
         /// @param[in]  node    corresponds to key
-        /// @param[in]
-        template<std::size_t CDIM>
-        std::map<Key<NDIM>, std::list<Key<CDIM>>> recur_down_for_contraction_map(
+        /// @param[in]  v       dimension that are contracted
+        /// @param[in]  j_list  list of column nodes of the other function that will be contracted (and their parents)
+        /// @param[in]  max_d_norm  max d coeff norm of the nodes in j_list
+        /// @param[in]  thresh  threshold for including nodes in the contraction: snorm*dnorm > thresh
+        template<std::size_t CDIM, std::size_t FDIM, std::size_t ODIM>
+        std::multimap<Key<FDIM>, std::list<Key<CDIM>>> recur_down_for_contraction_map(
                 const keyT& key, const nodeT& node,
-                const std::list<Key<CDIM>>& j_list, const double max_d_norm, const double thresh) {
-            // continue recusion if norms are large
+                const std::array<int,CDIM>& v_this,
+                const std::array<int,CDIM>& v_other,
+                const std::set<Key<ODIM>>& ij_other_list,
+                const std::map<Key<CDIM>,double>& j_other_list, const double thresh) {
 
-            std::map<keyT, std::list<Key<CDIM>>> contraction_map;
-            // can I optimize away the children criterium??
-            bool continue_recursion = node.has_children() or (node.get_snorm() * max_d_norm > thresh);
+            std::multimap<keyT, std::list<Key<CDIM>>> contraction_map;
+            std::size_t level=key.level();
+
+            auto extract_key = [&level] (const auto& key, const std::array<int,CDIM>& v) {
+                Vector<Translation, CDIM> t;
+                for (int i = 0; i < CDIM; ++i) t[i] = key.translation()[v[i]];
+                return Key<CDIM>(level,t);
+            };
+
+            // return the complement of v, e.g. v={0,1}, v_complement={2,3,4} if CDIM==5
+            // v is contiguous and ascending (i.e. 1,2,3 or 2,3,4)
+            auto v_complement_ndim = [](const std::array<int, CDIM>& v) {
+                std::array<int, NDIM - CDIM> result;
+                for (std::size_t i = 0; i < NDIM - CDIM; i++) result[i] = (v.back() + 1 + i) % (NDIM - CDIM);
+                return result;
+            };
+            // no lambda templates in c++17..
+            auto v_complement_odim = [](const std::array<int, CDIM>& v) {
+                std::array<int, ODIM - CDIM> result;
+                for (std::size_t i = 0; i < ODIM - CDIM; i++) result[i] = (v.back() + 1 + i) % (ODIM - CDIM);
+                return result;
+            };
+
+            // continue recursion if this node may be contracted with the j column
+            // extract relevant node translations from this node
+            const auto j_this_key=extract_key(key,v_this);
+
+            print("key, j_this_key", key, j_this_key);
+            const double max_d_norm=j_other_list.find(j_this_key)->second;
+            const bool sd_norm_product_large = node.get_snorm() * max_d_norm > thresh;
+            print("sd_product_norm",node.get_snorm() * max_d_norm, thresh);
+
+            // stop if we have reached the final scale n
+            // with which nodes from other will this node be contracted?
+            bool final_scale=key.level()==ij_other_list.begin()->level();
+            if (final_scale and sd_norm_product_large) {
+                for (auto& other_key : ij_other_list) {
+                    const auto j_other_key=extract_key(other_key,v_other);
+                    print("j_other_key",j_other_key);
+                    if (j_this_key != j_other_key) continue;
+                    auto v_complement_this=v_complement_ndim(v_this);
+                    auto v_complement_other=v_complement_odim(v_other);
+                    auto i_key=extract_key(key,v_complement_this);
+                    auto k_key=extract_key(other_key,v_complement_other);
+                    Key<FDIM> ik_key=i_key.merge_with(k_key);
+                    print("ik_key",ik_key);
+                    MADNESS_CHECK(contraction_map.count(ik_key)==0);
+                    contraction_map.insert(std::make_pair(ik_key,std::list<Key<CDIM>>{j_this_key}));
+                }
+                return contraction_map;
+            }
+
+            bool continue_recursion = (j_other_list.count(j_this_key)==1);
+            if (not continue_recursion) return contraction_map;
+
+
+            // continue recusion if norms are large
+            continue_recursion = (node.has_children() or sd_norm_product_large);
 
             if (continue_recursion) {
                 // in case we need to compute children's coefficients: unfilter only once
                 bool compute_child_s_coeffs=true;
                 coeffT d = node.coeff();
+                print("continuing recursion from key",key);
 
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                     keyT child=kit.key();
@@ -5583,7 +5656,7 @@ namespace madness {
 
                     // make child's s coeffs if it doesn't exist or if is has no s coeffs
                     bool childnode_exists=get_coeffs().find(acc,child);
-                    bool need_s_coeffs= childnode_exists ? acc.second->snorm>0.0 : true;
+                    bool need_s_coeffs= childnode_exists ? acc->second.get_snorm()>0.0 : true;
 
                     coeffT child_s_coeffs;
                     if (need_s_coeffs and compute_child_s_coeffs) {
@@ -5596,16 +5669,20 @@ namespace madness {
                     if (not childnode_exists) {
                         woT::task(coeffs.owner(child), &implT::reconstruct_op, child, child_s_coeffs);
                     } else if (childnode_exists and need_s_coeffs) {
-                        acc.second->coeffs()=child_s_coeffs;
+                        acc->second.coeff()=child_s_coeffs;
                     }
                     bool exists= get_coeffs().find(acc,child);
                     MADNESS_CHECK(exists);
-                    nodeT& childnode = acc.second;
-                    if (need_s_coeffs) childnode.compute_snorm_and_dnorm();
-                    contraction_map.merge(recur_down_for_contraction_map(child,childnode, j_list, max_d_norm, thresh));
+                    nodeT& childnode = acc->second;
+                    if (need_s_coeffs) childnode.recompute_snorm_and_dnorm(get_cdata());
+                    print("recurring down to",child);
+                    contraction_map.merge(recur_down_for_contraction_map<CDIM,FDIM,ODIM>(child,childnode, v_this, v_other,
+                                                                         ij_other_list, j_other_list, thresh));
+                    print("contraction_map.size()",contraction_map.size());
                 }
 
             }
+
             return contraction_map;
         }
 

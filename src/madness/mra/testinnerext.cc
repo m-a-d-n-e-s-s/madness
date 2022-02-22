@@ -79,8 +79,8 @@ int test_partial_inner(World& world) {
     real_function_2d h=real_factory_2d(world).functor(gauss<double,2>());
 
 //    f.print_tree();
-    f.chop_at_level(2);
-    g.chop_at_level(2);
+    f.chop_at_level(3);
+    g.chop_at_level(3);
     f.make_nonstandard(false,true);
     f.get_impl()->compute_snorm_and_dnorm();
     f.print_tree();
