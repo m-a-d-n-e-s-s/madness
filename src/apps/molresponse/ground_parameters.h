@@ -26,7 +26,7 @@ class GroundStateCalculation {
     // Ground state parameters that are read in from archive
     std::string inFile{"../restartdata"};///< Name of input archive to read in ground state
     bool spinrestricted{true};           ///< Indicates if ground state calc. was open or closed
-                                         ///< shell
+    ///< shell
     unsigned int num_orbitals{};         ///< Number of orbitals in ground state
     Tensor<double> energies{};           ///< Energy of ground state orbitals
     Tensor<double> occ{};                ///< Occupancy of ground state orbitals
@@ -38,28 +38,38 @@ class GroundStateCalculation {
 
     // Default constructor
 public:
-    explicit GroundStateCalculation(World& world) { read(world); }
-    explicit GroundStateCalculation(World& world, const std::string& input_file)
-        : inFile{input_file} {
+    explicit GroundStateCalculation(World &world) { read(world); }
+
+    explicit GroundStateCalculation(World &world, const std::string &input_file)
+            : inFile{input_file} {
         read(world);
     }
-    GroundStateCalculation(const GroundStateCalculation& other) = default;
+
+    GroundStateCalculation(const GroundStateCalculation &other) = default;
 
 
     bool is_spinrestricted() const { return spinrestricted; }
+
     unsigned int n_orbitals() const { return num_orbitals; }
+
     Tensor<double> get_energies() const { return energies; }
+
     Tensor<double> get_occ() const { return occ; }
+
     Molecule molecule() const { return molecule_in; }
 
     double get_L() const { return L; }
+
     int get_k() const { return k; }
-    vector_real_function_3d& orbitals() { return g_orbitals; }
+
+    vector_real_function_3d &orbitals() { return g_orbitals; }
+
     std::string get_xc() const { return xc; }
+
     std::string get_archive() const { return xc; }
 
     // Initializes ResponseParameters using the contents of file \c filename
-    void read(World& world) {
+    void read(World &world) {
         // Save the filename
 
         unsigned int dummyversion;
@@ -67,17 +77,17 @@ public:
         std::vector<int> dummy2;
 
         archive::ParallelInputArchive input(world, inFile.c_str());
-        input& dummyversion;
-        input& dummy1;        // double
-        input& spinrestricted;// bool
-        input& L;             // double            box size
-        input& k;             // int               wavelet order
-        input& molecule_in;   // Molecule
-        input& xc;            // std:string        xc functional
-        input& num_orbitals;  // int
-        input& energies;      // Tensor<double>    orbital energies
-        input& occ;           // Tensor<double>    orbital occupations
-        input& dummy2;        // std::vector<int>  sets of orbitals(?)
+        input & dummyversion;
+        input & dummy1;        // double
+        input & spinrestricted;// bool
+        input & L;             // double            box size
+        input & k;             // int               wavelet order
+        input & molecule_in;   // Molecule
+        input & xc;            // std:string        xc functional
+        input & num_orbitals;  // int
+        input & energies;      // Tensor<double>    orbital energies
+        input & occ;           // Tensor<double>    orbital occupations
+        input & dummy2;        // std::vector<int>  sets of orbitals(?)
 
         // Check that order is positive and less than 30
         if (k < 1 or k > 30) {
@@ -96,11 +106,11 @@ public:
         // Read in ground state orbitals
         for (unsigned int i = 0; i < num_orbitals; i++) {
             real_function_3d reader;
-            input& reader;
+            input & reader;
             g_orbitals.push_back(reader);
         }
-        projector_irrep c2v("c2v");
-        g_orbitals = c2v(g_orbitals);
+        //projector_irrep c2v("c2v");
+        //g_orbitals = c2v(g_orbitals);
         // Clean up
         truncate(world, g_orbitals);
     }
@@ -118,4 +128,5 @@ public:
         madness::print("        Orbital Energies:", energies);
     }
 };
+
 #endif
