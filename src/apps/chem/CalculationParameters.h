@@ -66,7 +66,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<double>("econv",1.e-5,"energy convergence");
 		initialize<double>("dconv",1.e-4,"density convergence");
 		initialize<std::vector<std::string> >("convergence_criteria",{"bsh_residual","total_energy"},"possible values are: bsh_residual, total_energy, each_energy, density");
-		initialize<int>   ("k",7,"polynomial order");
+		initialize<int>   ("k",-1,"polynomial order");
 		initialize<double>("l",20,"user coordinates box size");
 		initialize<std::string>("deriv","abgv","derivative method",{"abgv","bspline","ble"});
 		initialize<std::string>("dft_deriv","abgv","derivative method for gga potentials",{"abgv","bspline","ble"});
@@ -336,7 +336,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
              //Error if user requested something other than Boys
              if(localize_method() != "boys" and localize_method() != "canon") error("NWchem initialization only supports Boys localization");
         }
-     
+
 
 
 	}
