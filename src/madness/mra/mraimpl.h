@@ -1214,12 +1214,14 @@ namespace madness {
     /// @param[in]  targs   target tensor arguments (threshold and full/low rank)
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::chop_at_level(const int n, bool fence) {
+        std::list<keyT> to_be_erased;
         for (auto it=coeffs.begin(); it!=coeffs.end(); ++it) {
             const keyT& key=it->first;
             nodeT& node=it->second;
-            if (key.level()>n) coeffs.erase(key);
             if (key.level()==n) node.set_is_leaf(true);
+            if (key.level()>n) to_be_erased.push_back(key);
         }
+        for (auto& key : to_be_erased) coeffs.erase(key);
     }
 
 

@@ -1665,7 +1665,7 @@ namespace madness {
         Function<T,NDIM>& chop_at_level(const int n, const bool fence=true) {
             verify();
             impl->make_redundant(true);
-            impl->chop_at_level(n);
+            impl->chop_at_level(n,true);
             impl->undo_redundant(true);
             return *this;
         }

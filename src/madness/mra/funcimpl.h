@@ -5486,6 +5486,14 @@ namespace madness {
             return r;
         }
 
+        template <typename R>
+        void print_type_in_compilation_error(R&&)
+        {
+            static_assert(!std::is_same<R, int>::value &&
+                          std::is_same<R, int>::value,
+                          "Compilation failed because you wanted to know the type; see below:");
+        }
+
         /// invoked by result
 
         /// contract 2 functions f(x,z) = \int g(x,y) * h(y,z) dy
@@ -5495,27 +5503,144 @@ namespace madness {
         /// @tparam KDIM: the dimension of h(y,z)
         template<typename Q, std::size_t LDIM, typename R, std::size_t KDIM,
                 std::size_t CDIM = (KDIM + LDIM - NDIM) / 2>
-        void partial_inner(const FunctionImpl<Q, LDIM>& g, const FunctionImpl<R, KDIM>& h, const std::array<int, CDIM> v1,
-                const std::array<int, CDIM> v2) {
+        void partial_inner(const FunctionImpl<Q, LDIM>& g, const FunctionImpl<R, KDIM>& h,
+                           const std::array<int, CDIM> v1, const std::array<int, CDIM> v2) {
 
+            double wall_get_lists=0.0;
+            double wall_recur=0.0;
+            double wall_contract=0.0;
             std::size_t nmax=FunctionDefaults<CDIM>::get_max_refine_level();
             const double thresh=FunctionDefaults<NDIM>::get_thresh();
 
+            auto print_map = [](const auto& map) {
+                for (const auto& kv : map) print(kv.first,"--",kv.second);
+            };
             // logical constness, not bitwise constness
-            FunctionImpl& g_nc=const_cast<FunctionImpl&>(g);
-            FunctionImpl& h_nc=const_cast<FunctionImpl&>(h);
+            FunctionImpl<Q,LDIM>& g_nc=const_cast<FunctionImpl<Q,LDIM>&>(g);
+            FunctionImpl<R,KDIM>& h_nc=const_cast<FunctionImpl<R,KDIM>&>(h);
 
-//            for (int n=0; n<nmax; ++n) {
-            print("using n=2 only in partial_inner");
-            for (int n=2; n<3; ++n) {
+            for (int n=0; n<nmax; ++n) {
 
-                auto [ijlist, g_jlist] = g.get_contraction_node_lists(n,v1);
-//                auto [h_jlist, jklist] = h.get_contraction_node_lists(n,v2);
+                double wall0=wall_time();
+                auto [g_ijlist, g_jlist] = g.get_contraction_node_lists(n,v1);
+                auto [h_ijlist, h_jlist] = h.get_contraction_node_lists(n,v2);
+                if ((g_ijlist.size()==0) and (h_ijlist.size()==0)) break;
+                double wall1=wall_time();
+                wall_get_lists+=(wall1-wall0);
+                wall0=wall1;
 
-                std::multimap<Key<NDIM>, std::list<Key<CDIM>>> contraction_map=h_nc.recur_down_for_contraction_map<CDIM,LDIM,KDIM>(
-                        key0(), coeffs.find(key0()).get()->second, v1, v2, ijlist, g_jlist, thresh);
+                bool this_first=false;  // are the remaining indices of g before those of g: f(x,z) = g(x,y) h(y,z)
+                constexpr std::size_t N=NDIM;
+                // CDIM, NDIM, KDIM
+                std::multimap<Key<NDIM>, std::list<Key<CDIM>>> contraction_map=g_nc.recur_down_for_contraction_map(
+                        g_nc.key0(), g_nc.get_coeffs().find(g_nc.key0()).get()->second, v1, v2,
+                        h_ijlist, h_jlist, this_first, thresh);
 
+                this_first=true;
+                // CDIM, NDIM, LDIM
+                std::multimap<Key<NDIM>, std::list<Key<CDIM>>> contraction_map1=h_nc.recur_down_for_contraction_map(
+                        h_nc.key0(), h_nc.get_coeffs().find(h_nc.key0()).get()->second, v2, v1,
+                        g_ijlist, g_jlist, this_first, thresh);
+
+                // will contain duplicate entries
+                contraction_map.merge(contraction_map1);
+                // turn multimap into a map of list
+                auto it=contraction_map.begin();
+                while (it!=contraction_map.end()) {
+                    auto it_end=contraction_map.upper_bound(it->first);
+                    auto it2=it;
+                    it2++;
+                    while (it2!=it_end) {
+                        it->second.splice(it->second.end(),it2->second);
+                        it2=contraction_map.erase(it2);
+                    }
+                    it=it_end;
+                }
+
+                // remove all double entries
+                for (auto& elem : contraction_map) {
+                    elem.second.sort();
+                    elem.second.unique();
+                }
+                wall1=wall_time();
+                wall_recur+=(wall1-wall0);
+                wall0=wall1;
+
+
+
+                for (const auto& key_list : contraction_map) {
+                    const Key<NDIM>& key=key_list.first;
+                    Key<LDIM-CDIM> i_key;
+                    Key<KDIM-CDIM> k_key;
+                    key.break_apart(i_key,k_key);
+
+                    coeffT result_coeff(cdata.v2k,get_tensor_type());
+                    const auto& list = key_list.second;
+//                    print("v1, v2",v1,v2);
+                    for (const auto& j_key : list) {
+
+                        auto v_complement = [](const auto& v, const auto& vc) {
+                            constexpr std::size_t VDIM=std::tuple_size<std::decay_t<decltype(v)>>::value;
+                            constexpr std::size_t VCDIM=std::tuple_size<std::decay_t<decltype(vc)>>::value;
+                            std::array<int, VCDIM> result;
+                            for (std::size_t i = 0; i < VCDIM; i++) result[i] = (v.back() + i + 1) % (VDIM + VCDIM);
+                            return result;
+                        };
+                        auto make_ij_key = [&v_complement](const auto i_key, const auto j_key, const auto& v) {
+                            constexpr std::size_t IDIM=std::decay_t<decltype(i_key)>::static_size;
+                            constexpr std::size_t JDIM=std::decay_t<decltype(j_key)>::static_size;
+                            static_assert(JDIM==std::tuple_size<std::decay_t<decltype(v)>>::value);
+
+                            Vector<Translation,IDIM+JDIM> l;
+                            for (int i=0; i<v.size(); ++i) l[v[i]]=j_key.translation()[i];
+                            std::array<int, IDIM> vc1;
+                            auto vc=v_complement(v,vc1);
+                            for (int i=0; i<vc.size(); ++i) l[vc[i]]=i_key.translation()[i];
+
+                            return Key<IDIM+JDIM>(i_key.level(),l);
+                        };
+
+                        Key<LDIM> ij_key=make_ij_key(i_key,j_key,v1);
+                        Key<KDIM> jk_key=make_ij_key(k_key,j_key,v2);
+//                        print("i_key,j_key,ij_key",i_key,j_key,ij_key,"j_key,k_key,jk_key",j_key,k_key,jk_key);
+
+                        const coeffT& gcoeff=g.get_coeffs().find(ij_key).get()->second.coeff();
+                        const coeffT& hcoeff=h.get_coeffs().find(jk_key).get()->second.coeff();
+                        coeffT gcoeff1, hcoeff1;
+                        if (gcoeff.dim(0)==get_cdata().k) {
+                            gcoeff1=coeffT(get_cdata().v2k,get_tensor_args());
+                            gcoeff1(get_cdata().s0)=gcoeff;
+                        } else {
+                            gcoeff1=gcoeff;
+                        }
+                        if (hcoeff.dim(0)==get_cdata().k) {
+                            hcoeff1=coeffT(get_cdata().v2k,get_tensor_args());
+                            hcoeff1(get_cdata().s0)=hcoeff;
+                        } else {
+                            hcoeff1=hcoeff;
+                        }
+                        MADNESS_CHECK((v1.size()==1) && (v1.size()==1));
+                        result_coeff+=inner(gcoeff1,hcoeff1,v1[0],v2[0]);
+                        if (key.level()>0) result_coeff(get_cdata().s0)-=inner(gcoeff1(g.get_cdata().s0),hcoeff1(h.get_cdata().s0),v1[0],v2[0]);
+                    }
+//                    print("inserting key into b tree",key,result_coeff.normf());
+                    coeffs.replace(key,FunctionNode<T,NDIM>(result_coeff));
+                    coeffs.send(key.parent(), &FunctionNode<T,NDIM>::set_has_children_recursive, coeffs, key.parent());
+                }
+                wall1=wall_time();
+                wall_contract+=(wall1-wall0);
             }
+            world.gop.fence();
+            set_tree_state(nonstandard);
+            world.gop.fence();
+            reconstruct(true);
+
+            g_nc.standard(true);
+            h_nc.standard(true);
+            g_nc.reconstruct(true);
+            h_nc.reconstruct(true);
+            print("timings: get_lists, recur, contract",wall_get_lists,wall_recur,wall_contract);
+
         }
 
         /// for contraction two functions f(x,z) = \int g(x,y) h(y,z) dy
@@ -5549,17 +5674,13 @@ namespace madness {
                     Key<CDIM> jkey(n,j_trans);
                     const double max_d_norm=j_list[jkey];
                     j_list.insert_or_assign(jkey,std::max(max_d_norm,node.get_dnorm()));
+                    Key<CDIM> parent_jkey=jkey.parent();
+                    while (j_list.count(parent_jkey)==0) {
+                        j_list.insert({parent_jkey,1.0});
+                        parent_jkey=parent_jkey.parent();
+                    }
                 }
             }
-
-            std::cout << "ij_list " << std::endl;
-            for (auto& k : ij_list) std::cout << k << " ";
-            print("");
-            std::cout << "j-list for contraction indices: (";
-            for (int i=0; i<CDIM; ++i) std::cout << v[i] << ", ";
-            print(")");
-            for (auto& k : j_list) std::cout << k.first << " " << k.second << " " ;
-            print("");
             return std::make_tuple(ij_list,j_list);
         }
 
@@ -5573,65 +5694,51 @@ namespace madness {
         ///
         /// @param[in]  key     for recursion
         /// @param[in]  node    corresponds to key
-        /// @param[in]  v       dimension that are contracted
-        /// @param[in]  j_list  list of column nodes of the other function that will be contracted (and their parents)
+        /// @param[in]  v_this  this' dimension that are contracted
+        /// @param[in]  v_other other's dimension that are contracted
+        /// @param[in]  ij_other_list  list of nodes of the other function that will be contracted (and their parents)
+        /// @param[in]  j_other_list  list of column nodes of the other function that will be contracted (and their parents)
         /// @param[in]  max_d_norm  max d coeff norm of the nodes in j_list
+        /// @param[in]  this_first  are the remaining coeffs of this functions first or last in the result function
         /// @param[in]  thresh  threshold for including nodes in the contraction: snorm*dnorm > thresh
-        template<std::size_t CDIM, std::size_t FDIM, std::size_t ODIM>
+        /// @tparam     CDIM    dimension to be contracted
+        /// @tparam     ODIM    dimensions of the other function
+        /// @tparam     FDIM    dimensions of the final function
+        template<std::size_t CDIM, std::size_t ODIM, std::size_t FDIM=NDIM+ODIM-2*CDIM>
         std::multimap<Key<FDIM>, std::list<Key<CDIM>>> recur_down_for_contraction_map(
                 const keyT& key, const nodeT& node,
                 const std::array<int,CDIM>& v_this,
                 const std::array<int,CDIM>& v_other,
                 const std::set<Key<ODIM>>& ij_other_list,
-                const std::map<Key<CDIM>,double>& j_other_list, const double thresh) {
+                const std::map<Key<CDIM>,double>& j_other_list,
+                bool this_first, const double thresh) {
 
-            std::multimap<keyT, std::list<Key<CDIM>>> contraction_map;
+            std::multimap<Key<FDIM>, std::list<Key<CDIM>>> contraction_map;
             std::size_t level=key.level();
-
-            auto extract_key = [&level] (const auto& key, const std::array<int,CDIM>& v) {
-                Vector<Translation, CDIM> t;
-                for (int i = 0; i < CDIM; ++i) t[i] = key.translation()[v[i]];
-                return Key<CDIM>(level,t);
-            };
-
-            // return the complement of v, e.g. v={0,1}, v_complement={2,3,4} if CDIM==5
-            // v is contiguous and ascending (i.e. 1,2,3 or 2,3,4)
-            auto v_complement_ndim = [](const std::array<int, CDIM>& v) {
-                std::array<int, NDIM - CDIM> result;
-                for (std::size_t i = 0; i < NDIM - CDIM; i++) result[i] = (v.back() + 1 + i) % (NDIM - CDIM);
-                return result;
-            };
-            // no lambda templates in c++17..
-            auto v_complement_odim = [](const std::array<int, CDIM>& v) {
-                std::array<int, ODIM - CDIM> result;
-                for (std::size_t i = 0; i < ODIM - CDIM; i++) result[i] = (v.back() + 1 + i) % (ODIM - CDIM);
-                return result;
-            };
 
             // continue recursion if this node may be contracted with the j column
             // extract relevant node translations from this node
-            const auto j_this_key=extract_key(key,v_this);
+            const auto j_this_key=key.extract_key(v_this);
 
-            print("key, j_this_key", key, j_this_key);
+//            print("\nkey, j_this_key", key, j_this_key);
             const double max_d_norm=j_other_list.find(j_this_key)->second;
             const bool sd_norm_product_large = node.get_snorm() * max_d_norm > thresh;
-            print("sd_product_norm",node.get_snorm() * max_d_norm, thresh);
+//            print("sd_product_norm",node.get_snorm() * max_d_norm, thresh);
 
             // stop if we have reached the final scale n
             // with which nodes from other will this node be contracted?
             bool final_scale=key.level()==ij_other_list.begin()->level();
             if (final_scale and sd_norm_product_large) {
                 for (auto& other_key : ij_other_list) {
-                    const auto j_other_key=extract_key(other_key,v_other);
-                    print("j_other_key",j_other_key);
+                    const auto j_other_key=other_key.extract_key(v_other);
                     if (j_this_key != j_other_key) continue;
-                    auto v_complement_this=v_complement_ndim(v_this);
-                    auto v_complement_other=v_complement_odim(v_other);
-                    auto i_key=extract_key(key,v_complement_this);
-                    auto k_key=extract_key(other_key,v_complement_other);
-                    Key<FDIM> ik_key=i_key.merge_with(k_key);
-                    print("ik_key",ik_key);
-                    MADNESS_CHECK(contraction_map.count(ik_key)==0);
+                    auto i_key=key.extract_complement_key(v_this);
+                    auto k_key=other_key.extract_complement_key(v_other);
+//                    print("key, ij_other_key",key,other_key);
+//                    print("i, k, j key",i_key, k_key, j_this_key);
+                    Key<FDIM> ik_key=(this_first) ? i_key.merge_with(k_key) : k_key.merge_with(i_key);
+//                    print("ik_key",ik_key);
+//                    MADNESS_CHECK(contraction_map.count(ik_key)==0);
                     contraction_map.insert(std::make_pair(ik_key,std::list<Key<CDIM>>{j_this_key}));
                 }
                 return contraction_map;
@@ -5648,7 +5755,7 @@ namespace madness {
                 // in case we need to compute children's coefficients: unfilter only once
                 bool compute_child_s_coeffs=true;
                 coeffT d = node.coeff();
-                print("continuing recursion from key",key);
+//                print("continuing recursion from key",key);
 
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                     keyT child=kit.key();
@@ -5656,10 +5763,15 @@ namespace madness {
 
                     // make child's s coeffs if it doesn't exist or if is has no s coeffs
                     bool childnode_exists=get_coeffs().find(acc,child);
-                    bool need_s_coeffs= childnode_exists ? acc->second.get_snorm()>0.0 : true;
+                    bool need_s_coeffs= childnode_exists ? (acc->second.get_snorm()<=0.0) : true;
 
                     coeffT child_s_coeffs;
                     if (need_s_coeffs and compute_child_s_coeffs) {
+                        if (d.dim(0)==cdata.vk[0]) {        // s coeffs only in this node
+                            Tensor<T> d1(cdata.v2k);
+                            d1(cdata.s0)=d;
+                            d=d1;
+                        }
                         d = unfilter(d);
                         child_s_coeffs=copy(d(child_patch(child)));
                         child_s_coeffs.reduce_rank(thresh);
@@ -5667,7 +5779,8 @@ namespace madness {
                     }
 
                     if (not childnode_exists) {
-                        woT::task(coeffs.owner(child), &implT::reconstruct_op, child, child_s_coeffs);
+                        get_coeffs().replace(child,nodeT(child_s_coeffs,false));
+                        get_coeffs().find(acc,child);
                     } else if (childnode_exists and need_s_coeffs) {
                         acc->second.coeff()=child_s_coeffs;
                     }
@@ -5675,16 +5788,17 @@ namespace madness {
                     MADNESS_CHECK(exists);
                     nodeT& childnode = acc->second;
                     if (need_s_coeffs) childnode.recompute_snorm_and_dnorm(get_cdata());
-                    print("recurring down to",child);
-                    contraction_map.merge(recur_down_for_contraction_map<CDIM,FDIM,ODIM>(child,childnode, v_this, v_other,
-                                                                         ij_other_list, j_other_list, thresh));
-                    print("contraction_map.size()",contraction_map.size());
+//                    print("recurring down to",child);
+                    contraction_map.merge(recur_down_for_contraction_map(child,childnode, v_this, v_other,
+                                                                         ij_other_list, j_other_list, this_first, thresh));
+//                    print("contraction_map.size()",contraction_map.size());
                 }
 
             }
 
             return contraction_map;
         }
+
 
         /// Return the inner product with an external function on a specified function node.
 

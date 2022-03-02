@@ -15,8 +15,8 @@ typedef std::shared_ptr< FunctionFunctorInterface<double,3> > functorT;
 
 static const double R = 1.4;    // bond length
 static const double L = 5.0*R; // box size
-static const long k = 8;        // wavelet order
-static const double thresh = 1e-6; // precision
+static const long k = 6;        // wavelet order
+static const double thresh = 1e-8; // precision
 
 static double alpha_func(const coord_3d& r) {
     const double x=r[0], y=r[1], z=r[2];
@@ -70,27 +70,40 @@ bool is_like(double a, double b, double tol) {
 }
 
 int test_partial_inner(World& world) {
+    print("\ntesting partial inner\n");
     real_function_1d one_1d=real_factory_1d(world).functor([](const coord_1d& r){return 1.0;});
     real_function_2d one_2d=real_factory_2d(world).functor([](const coord_2d& r){return 1.0;});
     real_function_1d gauss_1d=real_factory_1d(world).functor(gauss<double,1>());
 
+    real_function_2d f2=real_factory_2d(world).functor(gauss<double,2>());
+    real_function_3d f3=real_factory_3d(world).functor(gauss<double,3>());
+    real_function_4d f4=real_factory_4d(world).functor(gauss<double,4>());
     real_function_2d f=real_factory_2d(world).functor(gauss<double,2>());
     real_function_2d g=real_factory_2d(world).functor(gauss<double,2>());
     real_function_2d h=real_factory_2d(world).functor(gauss<double,2>());
+    real_function_1d g1=real_factory_1d(world).functor(gauss<double,1>());
 
-//    f.print_tree();
-    f.chop_at_level(3);
-    g.chop_at_level(3);
-    f.make_nonstandard(false,true);
-    f.get_impl()->compute_snorm_and_dnorm();
-    f.print_tree();
+    double ovlp_1d=inner(gauss_1d,gauss_1d);
+//    double ref=inner(gauss_1d,gauss_1d) * gauss_1d.trace() * gauss_1d.trace();
+//    print("reference result",ref);
 
-    double ref=inner(gauss_1d,gauss_1d) * gauss_1d.trace() * gauss_1d.trace();
-    print("reference result",ref);
-    real_function_2d a=inner(f,g,{1},{0});
-    double r1=inner(a,one_2d);
-    print("result with new ", r1);
+    double f2norm2_1=inner(f2,f2);
+    real_function_4d b=inner(f3,f3,{0},{0});
+//    print("b tree");
+//    b.print_tree();
+//    print("f2 tree");
+//    f2.print_tree();
+    double bnorm2=inner(b,b);
+    double f2norm2=inner(f2,f2);
+    double b_val=inner(f4,b);
+    print("bnorm",bnorm2);
+    print("f2norm before ",f2norm2_1);
+    print("f2norm after  ",f2norm2);
+    print("b",b_val);
+    print("ovlp^4",std::pow(ovlp_1d,4.0));
 
+//    print("\n\ng1 tree (inconsistent state!)");
+//    g1.print_tree();
 
 
 //    // will return f(z1,x2) = int f(x1,y1,z1) g(x2,x1,y1);
