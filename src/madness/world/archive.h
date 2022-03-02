@@ -50,6 +50,7 @@
 #include <vector>
 #include <map>
 #include <set>
+#include <list>
 #include <tuple>
 #include <madness/config.h>
 //#include <madness/world/worldprofile.h>
@@ -1465,8 +1466,56 @@ namespace madness {
         };
 
 
+        /// Serialize a \c std::list.
 
-        /// @}
+        /// \tparam Archive the archive type.
+        /// \tparam T The data type stored in the \c list.
+        /// \tparam Alloc The allocator.
+        template <class Archive, typename T, typename Alloc>
+        struct ArchiveStoreImpl< Archive, std::list<T,Alloc>, std::enable_if_t<!is_future<T>::value && is_serializable_v<Archive, T>> > {
+
+            /// Store a \c std::list.
+
+            /// \param[in] ar The archive.
+            /// \param[in] s The \c list.
+            static inline void store(const Archive& ar, const std::list<T, Alloc>& s) {
+                MAD_ARCHIVE_DEBUG(std::cout << "serialize std::list" << std::endl);
+                ar << s.size();
+                for (const auto &i : s)
+                    ar << i;
+            }
+        };
+
+
+        /// Deserialize a \c std::list. Clears and resizes as necessary.
+
+        /// \tparam Archive the archive type.
+        /// \tparam T The data type stored in the \c list.
+        /// \tparam Alloc The allocator.
+        template <class Archive, typename T, typename Alloc>
+        struct ArchiveLoadImpl< Archive, std::list<T, Alloc>, std::enable_if_t<!is_future<T>::value && is_serializable_v<Archive, T>> > {
+
+        /// Load a \c std::list.
+        /// \param[in] ar The archive.
+        /// \param[out] s The \c list.
+        static void load(const Archive& ar, std::list<T, Alloc>& s) {
+            MAD_ARCHIVE_DEBUG(std::cout << "deserialize std::list" << std::endl);
+            std::size_t size;
+            ar >> size;
+            s.clear();
+            for (std::size_t i = 0; i < size; ++i)
+            {
+                T elem;
+                ar >> elem;
+                s.emplace_back(std::move(elem));
+            }
+        }
+
+        };
+
+
+
+/// @}
 
 }  // namespace madness::archive
 }  // namespace madness

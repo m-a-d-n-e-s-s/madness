@@ -5506,6 +5506,7 @@ namespace madness {
         void partial_inner(const FunctionImpl<Q, LDIM>& g, const FunctionImpl<R, KDIM>& h,
                            const std::array<int, CDIM> v1, const std::array<int, CDIM> v2) {
 
+            typedef std::multimap<Key<NDIM>, std::list<Key<CDIM>>> contractionmapT;
             double wall_get_lists=0.0;
             double wall_recur=0.0;
             double wall_contract=0.0;
@@ -5530,15 +5531,14 @@ namespace madness {
                 wall0=wall1;
 
                 bool this_first=false;  // are the remaining indices of g before those of g: f(x,z) = g(x,y) h(y,z)
-                constexpr std::size_t N=NDIM;
                 // CDIM, NDIM, KDIM
-                std::multimap<Key<NDIM>, std::list<Key<CDIM>>> contraction_map=g_nc.recur_down_for_contraction_map(
+                contractionmapT contraction_map=g_nc.recur_down_for_contraction_map(
                         g_nc.key0(), g_nc.get_coeffs().find(g_nc.key0()).get()->second, v1, v2,
                         h_ijlist, h_jlist, this_first, thresh);
 
                 this_first=true;
                 // CDIM, NDIM, LDIM
-                std::multimap<Key<NDIM>, std::list<Key<CDIM>>> contraction_map1=h_nc.recur_down_for_contraction_map(
+                contractionmapT contraction_map1=h_nc.recur_down_for_contraction_map(
                         h_nc.key0(), h_nc.get_coeffs().find(h_nc.key0()).get()->second, v2, v1,
                         g_ijlist, g_jlist, this_first, thresh);
 
@@ -5564,71 +5564,13 @@ namespace madness {
                 }
                 wall1=wall_time();
                 wall_recur+=(wall1-wall0);
-                wall0=wall1;
-
-
 
                 for (const auto& key_list : contraction_map) {
                     const Key<NDIM>& key=key_list.first;
-                    Key<LDIM-CDIM> i_key;
-                    Key<KDIM-CDIM> k_key;
-                    key.break_apart(i_key,k_key);
-
-                    coeffT result_coeff(cdata.v2k,get_tensor_type());
-                    const auto& list = key_list.second;
-//                    print("v1, v2",v1,v2);
-                    for (const auto& j_key : list) {
-
-                        auto v_complement = [](const auto& v, const auto& vc) {
-                            constexpr std::size_t VDIM=std::tuple_size<std::decay_t<decltype(v)>>::value;
-                            constexpr std::size_t VCDIM=std::tuple_size<std::decay_t<decltype(vc)>>::value;
-                            std::array<int, VCDIM> result;
-                            for (std::size_t i = 0; i < VCDIM; i++) result[i] = (v.back() + i + 1) % (VDIM + VCDIM);
-                            return result;
-                        };
-                        auto make_ij_key = [&v_complement](const auto i_key, const auto j_key, const auto& v) {
-                            constexpr std::size_t IDIM=std::decay_t<decltype(i_key)>::static_size;
-                            constexpr std::size_t JDIM=std::decay_t<decltype(j_key)>::static_size;
-                            static_assert(JDIM==std::tuple_size<std::decay_t<decltype(v)>>::value);
-
-                            Vector<Translation,IDIM+JDIM> l;
-                            for (int i=0; i<v.size(); ++i) l[v[i]]=j_key.translation()[i];
-                            std::array<int, IDIM> vc1;
-                            auto vc=v_complement(v,vc1);
-                            for (int i=0; i<vc.size(); ++i) l[vc[i]]=i_key.translation()[i];
-
-                            return Key<IDIM+JDIM>(i_key.level(),l);
-                        };
-
-                        Key<LDIM> ij_key=make_ij_key(i_key,j_key,v1);
-                        Key<KDIM> jk_key=make_ij_key(k_key,j_key,v2);
-//                        print("i_key,j_key,ij_key",i_key,j_key,ij_key,"j_key,k_key,jk_key",j_key,k_key,jk_key);
-
-                        const coeffT& gcoeff=g.get_coeffs().find(ij_key).get()->second.coeff();
-                        const coeffT& hcoeff=h.get_coeffs().find(jk_key).get()->second.coeff();
-                        coeffT gcoeff1, hcoeff1;
-                        if (gcoeff.dim(0)==get_cdata().k) {
-                            gcoeff1=coeffT(get_cdata().v2k,get_tensor_args());
-                            gcoeff1(get_cdata().s0)=gcoeff;
-                        } else {
-                            gcoeff1=gcoeff;
-                        }
-                        if (hcoeff.dim(0)==get_cdata().k) {
-                            hcoeff1=coeffT(get_cdata().v2k,get_tensor_args());
-                            hcoeff1(get_cdata().s0)=hcoeff;
-                        } else {
-                            hcoeff1=hcoeff;
-                        }
-                        MADNESS_CHECK((v1.size()==1) && (v1.size()==1));
-                        result_coeff+=inner(gcoeff1,hcoeff1,v1[0],v2[0]);
-                        if (key.level()>0) result_coeff(get_cdata().s0)-=inner(gcoeff1(g.get_cdata().s0),hcoeff1(h.get_cdata().s0),v1[0],v2[0]);
-                    }
-//                    print("inserting key into b tree",key,result_coeff.normf());
-                    coeffs.replace(key,FunctionNode<T,NDIM>(result_coeff));
-                    coeffs.send(key.parent(), &FunctionNode<T,NDIM>::set_has_children_recursive, coeffs, key.parent());
+                    const std::list<Key<CDIM>>& list=key_list.second;
+                    woT::task(coeffs.owner(key), &implT:: template partial_inner_contract<Q,LDIM,R,KDIM>,
+                              &g,&h,v1,v2,key,list);
                 }
-                wall1=wall_time();
-                wall_contract+=(wall1-wall0);
             }
             world.gop.fence();
             set_tree_state(nonstandard);
@@ -5799,6 +5741,73 @@ namespace madness {
             return contraction_map;
         }
 
+
+        template<typename Q, std::size_t LDIM, typename R, std::size_t KDIM,
+                std::size_t CDIM = (KDIM + LDIM - NDIM) / 2>
+        void partial_inner_contract(const FunctionImpl<Q, LDIM>* g, const FunctionImpl<R, KDIM>* h,
+                               const std::array<int, CDIM> v1, const std::array<int, CDIM> v2,
+                               const Key<NDIM>& key, const std::list<Key<CDIM>>& j_key_list) {
+
+            Key<LDIM - CDIM> i_key;
+            Key<KDIM - CDIM> k_key;
+            key.break_apart(i_key, k_key);
+
+            coeffT result_coeff(get_cdata().v2k, get_tensor_type());
+//                    print("v1, v2",v1,v2);
+            for (const auto& j_key: j_key_list) {
+
+                auto v_complement = [](const auto& v, const auto& vc) {
+                    constexpr std::size_t VDIM = std::tuple_size<std::decay_t<decltype(v)>>::value;
+                    constexpr std::size_t VCDIM = std::tuple_size<std::decay_t<decltype(vc)>>::value;
+                    std::array<int, VCDIM> result;
+                    for (std::size_t i = 0; i < VCDIM; i++) result[i] = (v.back() + i + 1) % (VDIM + VCDIM);
+                    return result;
+                };
+                auto make_ij_key = [&v_complement](const auto i_key, const auto j_key, const auto& v) {
+                    constexpr std::size_t IDIM = std::decay_t<decltype(i_key)>::static_size;
+                    constexpr std::size_t JDIM = std::decay_t<decltype(j_key)>::static_size;
+                    static_assert(JDIM == std::tuple_size<std::decay_t<decltype(v)>>::value);
+
+                    Vector<Translation, IDIM + JDIM> l;
+                    for (int i = 0; i < v.size(); ++i) l[v[i]] = j_key.translation()[i];
+                    std::array<int, IDIM> vc1;
+                    auto vc = v_complement(v, vc1);
+                    for (int i = 0; i < vc.size(); ++i) l[vc[i]] = i_key.translation()[i];
+
+                    return Key<IDIM + JDIM>(i_key.level(), l);
+                };
+
+                Key<LDIM> ij_key = make_ij_key(i_key, j_key, v1);
+                Key<KDIM> jk_key = make_ij_key(k_key, j_key, v2);
+//                        print("i_key,j_key,ij_key",i_key,j_key,ij_key,"j_key,k_key,jk_key",j_key,k_key,jk_key);
+
+                MADNESS_CHECK(g->get_coeffs().probe(ij_key));
+                MADNESS_CHECK(h->get_coeffs().probe(jk_key));
+                const coeffT& gcoeff = g->get_coeffs().find(ij_key).get()->second.coeff();
+                const coeffT& hcoeff = h->get_coeffs().find(jk_key).get()->second.coeff();
+                coeffT gcoeff1, hcoeff1;
+                if (gcoeff.dim(0) == get_cdata().k) {
+                    gcoeff1 = coeffT(get_cdata().v2k, get_tensor_args());
+                    gcoeff1(get_cdata().s0) = gcoeff;
+                } else {
+                    gcoeff1 = gcoeff;
+                }
+                if (hcoeff.dim(0) == get_cdata().k) {
+                    hcoeff1 = coeffT(get_cdata().v2k, get_tensor_args());
+                    hcoeff1(get_cdata().s0) = hcoeff;
+                } else {
+                    hcoeff1 = hcoeff;
+                }
+                MADNESS_CHECK((v1.size() == 1) && (v1.size() == 1));
+                result_coeff += inner(gcoeff1, hcoeff1, v1[0], v2[0]);
+                if (key.level() > 0)
+                    result_coeff(get_cdata().s0) -= inner(gcoeff1(g->get_cdata().s0), hcoeff1(h->get_cdata().s0),
+                                                                 v1[0], v2[0]);
+            }
+//                    print("inserting key into b tree",key,result_coeff.normf());
+            get_coeffs().replace(key, FunctionNode<T, NDIM>(result_coeff));
+            get_coeffs().send(key.parent(), &FunctionNode<T, NDIM>::set_has_children_recursive, get_coeffs(), key.parent());
+        }
 
         /// Return the inner product with an external function on a specified function node.
 

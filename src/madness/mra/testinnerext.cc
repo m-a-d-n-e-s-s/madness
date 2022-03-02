@@ -88,7 +88,10 @@ int test_partial_inner(World& world) {
 //    print("reference result",ref);
 
     double f2norm2_1=inner(f2,f2);
+    double wall0=wall_time();
     real_function_4d b=inner(f3,f3,{0},{0});
+    double wall1=wall_time();
+    print("time in partial_inner", wall1-wall0);
 //    print("b tree");
 //    b.print_tree();
 //    print("f2 tree");
