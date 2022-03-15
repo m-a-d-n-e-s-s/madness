@@ -52,15 +52,18 @@ public:
 };
 
 struct gauss_1d {
+    gauss_1d(double s) : s(s) {}
     double s=1.0;
     double operator()(const double x) const {return 1.0/(s * std::pow(constants::pi,0.25))* exp(-0.5*x*x/(s*s));}
 };
 template<typename T, std::size_t NDIM>
 struct gauss {
+    std::array<double,NDIM> e;
+    gauss(const std::array<double,NDIM> exponent) : e(exponent) {};
 
     T operator()(const Vector<double,NDIM>& coord) const {
         double result=1.0;
-        for (std::size_t i=0; i<NDIM; ++i) result*=gauss_1d()(coord[i]);
+        for (std::size_t i=0; i<NDIM; ++i) result*=gauss_1d(e[i])(coord[i]);
         return result;
     }
 };
@@ -68,42 +71,118 @@ struct gauss {
 bool is_like(double a, double b, double tol) {
     return (std::abs((a - b)/a) <= tol);
 }
+bool test(std::string msg, double a, double b, double tol=thresh) {
+    print(msg,a,b);
+    return (std::abs((a - b)/a) <= tol);
+}
+
 
 int test_partial_inner(World& world) {
     print("\ntesting partial inner\n");
     real_function_1d one_1d=real_factory_1d(world).functor([](const coord_1d& r){return 1.0;});
     real_function_2d one_2d=real_factory_2d(world).functor([](const coord_2d& r){return 1.0;});
-    real_function_1d gauss_1d=real_factory_1d(world).functor(gauss<double,1>());
+    real_function_1d g1=real_factory_1d(world).functor(gauss<double,1>({1.0}));
+    real_function_1d g2=real_factory_1d(world).functor(gauss<double,1>({2.0}));
+    real_function_1d g3=real_factory_1d(world).functor(gauss<double,1>({3.0}));
+    real_function_1d g4=real_factory_1d(world).functor(gauss<double,1>({4.0}));
 
-    real_function_2d f2=real_factory_2d(world).functor(gauss<double,2>());
-    real_function_3d f3=real_factory_3d(world).functor(gauss<double,3>());
-    real_function_4d f4=real_factory_4d(world).functor(gauss<double,4>());
-    real_function_2d f=real_factory_2d(world).functor(gauss<double,2>());
-    real_function_2d g=real_factory_2d(world).functor(gauss<double,2>());
-    real_function_2d h=real_factory_2d(world).functor(gauss<double,2>());
-    real_function_1d g1=real_factory_1d(world).functor(gauss<double,1>());
+    real_function_2d f2=real_factory_2d(world).functor(gauss<double,2>({1.0,2.0}));
+    real_function_2d f2_swap=real_factory_2d(world).functor(gauss<double,2>({2.0,1.0}));
+    real_function_2d f2_tight=real_factory_2d(world).functor(gauss<double,2>({3.0,4.0}));
+    real_function_3d f3=real_factory_3d(world).functor(gauss<double,3>({1.0,2.0,3.0}));
+//    real_function_4d f4=real_factory_4d(world).functor(gauss<double,4>({1.0,2.0,3.0,4.0}));
 
-    double ovlp_1d=inner(gauss_1d,gauss_1d);
-//    double ref=inner(gauss_1d,gauss_1d) * gauss_1d.trace() * gauss_1d.trace();
-//    print("reference result",ref);
+    double g11=inner(g1,g1);
+    double g12=inner(g1,g2);
+    double g13=inner(g1,g3);
+    double g14=inner(g1,g4);
+    double g22=inner(g2,g2);
+    double g23=inner(g2,g3);
+    double g24=inner(g2,g4);
+    double g33=inner(g3,g3);
+    double g34=inner(g3,g4);
+    double g44=inner(g4,g4);
 
-    double f2norm2_1=inner(f2,f2);
-    double wall0=wall_time();
-    real_function_4d b=inner(f3,f3,{0},{0});
-    double wall1=wall_time();
-    print("time in partial_inner", wall1-wall0);
-//    print("b tree");
-//    b.print_tree();
-//    print("f2 tree");
-//    f2.print_tree();
-    double bnorm2=inner(b,b);
-    double f2norm2=inner(f2,f2);
-    double b_val=inner(f4,b);
-    print("bnorm",bnorm2);
-    print("f2norm before ",f2norm2_1);
-    print("f2norm after  ",f2norm2);
-    print("b",b_val);
-    print("ovlp^4",std::pow(ovlp_1d,4.0));
+    {
+//        double p1=inner(f2.project_out(g2,1),g3);
+//        test("project_out 1 ",p1,g12 * g23);
+
+        double c1=inner(inner(f2,g2,{0},{0}),g3);
+        MADNESS_CHECK(test("result 1 - 1", c1, g12 * g23));
+
+        double c2=inner(inner(f2,g2,{1},{0}),g3);
+        MADNESS_CHECK(test("result 1 - 2", c2, g22 * g13));
+
+        double c3=inner(inner(g1,f2,{0},{0}),g3);
+        MADNESS_CHECK(test("result 1 - 3", c3, g11 * g23));
+
+        double c4=inner(inner(g1,f2,{0},{1}),g3);
+        MADNESS_CHECK(test("result 1 - 4", c4, g12 * g13));
+    }
+    {
+        double c1 = inner(inner(f2, f2, {0}, {0}), f2_tight);
+        print("result 1", c1, g11 * g23 * g24);
+        MADNESS_CHECK(is_like(c1, g11 * g23 * g24, thresh));
+
+        double c2 = inner(inner(f2, f2, {0}, {1}), f2_tight);
+        print("result 2", c2, g12 * g23 * g14);
+        MADNESS_CHECK(is_like(c2, g12 * g23 * g14, thresh));
+
+        double c3 = inner(inner(f2, f2, {1}, {0}), f2_tight);
+        print("result 3", c3, g12 * g13 * g24);
+        MADNESS_CHECK(is_like(c3, g12 * g13 * g24, thresh));
+
+        double c4 = inner(inner(f2, f2, {1}, {1}), f2_tight);
+        print("result 4", c4, g22 * g13 * g14);
+        MADNESS_CHECK(is_like(c4, g22 * g13 * g14, thresh));
+    }
+
+    {
+        double c2=inner(inner(f3,f2,{0},{0}),f3);
+        MADNESS_CHECK(test("result 123 - 2", c2, g11 * g12 * g23 * g23));
+
+        double c3=inner(inner(f3,f2,{0},{1}),f3);
+        MADNESS_CHECK(test("result 123 - 3", c3, g12 * g12 * g13 * g23));
+
+        double c4=inner(inner(f3,f2,{2},{0}),f3);
+        MADNESS_CHECK(test("result 123 - 4", c4, g11 * g22 * g13 * g23));
+
+        double c5=inner(inner(f3,f2,{2},{1}),f3);
+        MADNESS_CHECK(test("result 123 - 4", c5, g11 * g22 * g13 * g23));
+
+        double c1=inner(inner(f3,f2,{0,1},{0,1}),g3);
+        MADNESS_CHECK(test("result 123 - 1", c1, g11 * g22 * g33));
+
+
+//        double c2=inner(inner(f3,f2,{1,0},{1,0}),g3);
+//        test("result 123 - 2", c2, g12 * g12 * g33);
+//
+//        double c3=inner(inner(f3,f2,{0,2},{0,1}),g3);
+//        test("result 123 - 2", c3, g11 * g23 * g13);
+    }
+
+
+
+    double d11=inner(f2,f2);
+    double d12=inner(f2,f2_swap);
+    double d22=inner(f2_swap,f2_swap);
+    print("<f2,f2>  <f2,f2_swap>   <f2_swap,f2_swap>",d11,d12,d22);
+    print("g11,g12,g22",g11,g12,g22);
+
+
+//    double f2norm2_1=inner(f2,f2);
+//    double wall0=wall_time();
+//    auto b=inner(f3,f3,{0},{2});
+//    double wall1=wall_time();
+//    print("time in partial_inner", wall1-wall0);
+//    double bnorm2=inner(b,b);
+//    double f2norm2=inner(f2,f2);
+//    double b_val=inner(f4,b);
+//    print("bnorm",bnorm2);
+//    print("f2norm before ",f2norm2_1);
+//    print("f2norm after  ",f2norm2);
+//    print("b",b_val);
+//    print("ovlp^4",std::pow(g11,4.0));
 
 //    print("\n\ng1 tree (inconsistent state!)");
 //    g1.print_tree();

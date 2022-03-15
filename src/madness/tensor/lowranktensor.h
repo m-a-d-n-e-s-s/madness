@@ -294,16 +294,22 @@ public:
 		MADNESS_EXCEPTION("confused tensor types ",1);
 	}
 
-	bool is_full_tensor() const {
-		return (index()==0);
+    constexpr bool is_full_tensor() const {
+        return std::holds_alternative<Tensor<T>>(tensor);
+    }
+
+//	bool is_full_tensor() const {
+//		return (index()==0);
+//	}
+
+	constexpr bool is_svd_tensor() const {
+        return std::holds_alternative<SVDTensor<T>>(tensor);
+//        return (index()==1);
 	}
 
-	bool is_svd_tensor() const {
-		return (index()==1);
-	}
-
-	bool is_tensortrain() const {
-		return (index()==2);
+	constexpr bool is_tensortrain() const {
+        return std::holds_alternative<TensorTrain<T>>(tensor);
+//		return (index()==2);
 	}
 
 	bool is_of_tensortype(const TensorType& tt) const {
