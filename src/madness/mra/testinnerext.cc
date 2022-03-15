@@ -82,14 +82,16 @@ int test_partial_inner(World& world) {
     real_function_1d one_1d=real_factory_1d(world).functor([](const coord_1d& r){return 1.0;});
     real_function_2d one_2d=real_factory_2d(world).functor([](const coord_2d& r){return 1.0;});
     real_function_1d g1=real_factory_1d(world).functor(gauss<double,1>({1.0}));
-    real_function_1d g2=real_factory_1d(world).functor(gauss<double,1>({2.0}));
-    real_function_1d g3=real_factory_1d(world).functor(gauss<double,1>({3.0}));
+    real_function_1d g2=real_factory_1d(world).functor(gauss<double,1>({4.0}));
+//    real_function_1d g3=real_factory_1d(world).functor(gauss<double,1>({3.0}));
+    real_function_1d g3=real_factory_1d(world).functor([](const Vector<double,1>& r) {return exp(r[0])*cos(r[0]);} );
     real_function_1d g4=real_factory_1d(world).functor(gauss<double,1>({4.0}));
 
-    real_function_2d f2=real_factory_2d(world).functor(gauss<double,2>({1.0,2.0}));
-    real_function_2d f2_swap=real_factory_2d(world).functor(gauss<double,2>({2.0,1.0}));
+    real_function_2d f2=real_factory_2d(world).functor(gauss<double,2>({1.0,4.0}));
+    real_function_2d f2_swap=real_factory_2d(world).functor(gauss<double,2>({4.0,1.0}));
     real_function_2d f2_tight=real_factory_2d(world).functor(gauss<double,2>({3.0,4.0}));
-    real_function_3d f3=real_factory_3d(world).functor(gauss<double,3>({1.0,2.0,3.0}));
+//    real_function_3d f3=real_factory_3d(world).functor(gauss<double,3>({1.0,4.0,3.0}));
+    real_function_3d f3=real_factory_3d(world).functor([](const Vector<double,3>& r) {return gauss<double,2>({1.0,4.0})({r[0],r[1]}) * exp(r[2])*cos(r[2]);});
 //    real_function_4d f4=real_factory_4d(world).functor(gauss<double,4>({1.0,2.0,3.0,4.0}));
 
     double g11=inner(g1,g1);
@@ -119,7 +121,7 @@ int test_partial_inner(World& world) {
         double c4=inner(inner(g1,f2,{0},{1}),g3);
         MADNESS_CHECK(test("result 1 - 4", c4, g12 * g13));
     }
-    {
+    if (0) {
         double c1 = inner(inner(f2, f2, {0}, {0}), f2_tight);
         print("result 1", c1, g11 * g23 * g24);
         MADNESS_CHECK(is_like(c1, g11 * g23 * g24, thresh));
@@ -150,7 +152,14 @@ int test_partial_inner(World& world) {
         double c5=inner(inner(f3,f2,{2},{1}),f3);
         MADNESS_CHECK(test("result 123 - 4", c5, g11 * g22 * g13 * g23));
 
-        double c1=inner(inner(f3,f2,{0,1},{0,1}),g3);
+        double c1=inner(inner(f2,f3,{0,1},{0,1}),g3);
+        real_function_1d r=inner(f3,f2,{0,1},{0,1});
+        save(r,"result");
+        std::string filename="plot_result";
+        plot_line(filename.c_str(),101,{-L/2},{L/2},r);
+        filename="g3";
+        plot_line(filename.c_str(),101,{-L/2},{L/2},g3);
+        print("g11, g22, g33",g11,g22,g33);
         MADNESS_CHECK(test("result 123 - 1", c1, g11 * g22 * g33));
 
 
@@ -160,15 +169,6 @@ int test_partial_inner(World& world) {
 //        double c3=inner(inner(f3,f2,{0,2},{0,1}),g3);
 //        test("result 123 - 2", c3, g11 * g23 * g13);
     }
-
-
-
-    double d11=inner(f2,f2);
-    double d12=inner(f2,f2_swap);
-    double d22=inner(f2_swap,f2_swap);
-    print("<f2,f2>  <f2,f2_swap>   <f2_swap,f2_swap>",d11,d12,d22);
-    print("g11,g12,g22",g11,g12,g22);
-
 
 //    double f2norm2_1=inner(f2,f2);
 //    double wall0=wall_time();

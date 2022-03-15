@@ -5564,6 +5564,10 @@ namespace madness {
                 }
                 wall1=wall_time();
                 wall_recur+=(wall1-wall0);
+//                if (n==1) {
+//                    print("contraction map for n=", n);
+//                    print_map(contraction_map);
+//                }
 
                 for (const auto& key_list : contraction_map) {
                     const Key<NDIM>& key=key_list.first;
@@ -5779,7 +5783,7 @@ namespace madness {
 
                 Key<LDIM> ij_key = make_ij_key(i_key, j_key, v1);
                 Key<KDIM> jk_key = make_ij_key(k_key, j_key, v2);
-//                if (j_key.level()==2)        print("i_key,j_key,ij_key",i_key,j_key,ij_key,"j_key,k_key,jk_key",j_key,k_key,jk_key);
+//                if (j_key.level()==1)        print("i_key,j_key,ij_key",i_key,j_key,ij_key,"j_key,k_key,jk_key",j_key,k_key,jk_key);
 
                 MADNESS_CHECK(g->get_coeffs().probe(ij_key));
                 MADNESS_CHECK(h->get_coeffs().probe(jk_key));
@@ -5801,17 +5805,27 @@ namespace madness {
                 if (gcoeff.is_full_tensor()) {
                     Tensor<T> gtensor=gcoeff1.full_tensor();
                     Tensor<T> htensor=hcoeff1.full_tensor();
+                    auto fuse = [](Tensor<T> tensor, const std::array<int,CDIM>& v) {
+                        for (int i=0; i<CDIM-1; ++i) {
+                            MADNESS_CHECK((v[i] + 1) == v[i + 1]); // make sure v is contiguous and ascending
+                            tensor = tensor.fusedim(v[0]);
+                        }
+                        return tensor;
+                    };
                     // merge multiple contraction dimensions into one
-                    for (int i=0; i<CDIM-1; ++i) {
-                        MADNESS_CHECK((v1[i] + 1) == v1[i + 1]); // make sure v is contigous and ascending
-                        MADNESS_CHECK((v2[i] + 1) == v2[i + 1]); // make sure v is contigous and ascending
-                        gtensor = gtensor.fusedim(v1[0]);
-                        htensor = htensor.fusedim(v2[0]);
-                    }
+                    gtensor = fuse(gtensor,v1);
+                    htensor = fuse(htensor,v2);
                     result_coeff.full_tensor() += inner(gtensor, htensor, v1[0], v2[0]);
-                    if (key.level() > 0)
-                        result_coeff.full_tensor()(get_cdata().s0) -= inner(gtensor(g->get_cdata().s0), htensor(h->get_cdata().s0),
-                                                              v1[0], v2[0]);
+                    if (key.level() > 0) {
+                        Slice s = get_cdata().s0.front();
+                        gtensor=copy(gcoeff1.full_tensor()(g->get_cdata().s0));
+                        htensor=copy(hcoeff1.full_tensor()(h->get_cdata().s0));
+                        gtensor = fuse(gtensor,v1);
+                        htensor = fuse(htensor,v2);
+                        result_coeff.full_tensor()(get_cdata().s0) -= inner(gtensor, htensor, v1[0], v2[0]);
+                    }
+                } else {
+                    MADNESS_EXCEPTION("error in partial_inner_contract",1);
                 }
             }
 //                    print("inserting key into b tree",key,result_coeff.normf());
