@@ -124,6 +124,92 @@ CCPotentials::make_pair_gs(const real_function_6d& u, const CC_vecfunction& tau,
     return pair;
 }
 
+///// compute the matrix element <ij | g12 Q12 f12 | phi^0>
+///// @return 	the energy <ij | g Q f | kl>
+//double CCPotentials::compute_gQf(const int i, const int j, ElectronPair& pair) const {
+//
+//    // for clarity of notation
+//    const int k = pair.i;
+//    const int l = pair.j;
+//
+//    // the ket space
+//    const real_function_3d& ket_i = hf->nemo(i);
+//    const real_function_3d& ket_j = hf->nemo(j);
+//
+//    // the bra space
+//    const real_function_3d& bra_k = hf->R2orbital(k);
+//    const real_function_3d& bra_l = hf->R2orbital(l);
+//
+//    // compute <ij| fg |kl>: do it in 3D as (ik| fg |jl)
+//    // the operator fg can be rewritten as 1/r12 - f/r12
+//    // i.e. as poisson kernel and a bsh kernel. Note the
+//    // the bsh kernel includes a factor of 1/(4 pi)
+//    const real_function_3d ik = ket_i * bra_k;
+//    const real_function_3d jl = ket_j * bra_l;
+//
+//    // make all the operators that we need
+//    const double fourpi = 4.0 * constants::pi;
+//    real_convolution_3d fg = BSHOperator<3>(world, corrfac.gamma(), lo,
+//                                            bsh_eps / fourpi);
+//    real_convolution_3d gg = CoulombOperator(world, lo, bsh_eps);
+//    real_convolution_3d slaterf12 = SlaterF12Operator(world, corrfac.gamma(),
+//                                                      lo, bsh_eps / fourpi);
+//
+//    //  < ij | fg | kl >
+//    const real_function_3d ik_fg = (gg)(ik) - fourpi * fg(ik);
+//    const double a = inner(ik_fg, jl) / (2.0 * corrfac.gamma());
+//    if (world.rank() == 0)
+//        printf("<%d%d | f/r              | %d%d>  %12.8f\n", i, j, k, l, a);
+//
+//    // compute <ij| f (O1 + O2) g | ij>
+//
+//    // compute bra space xi(ik,j)^dagger, i.e. the hermitian conjugate of xi
+//    // the index k is implicit in the vector of functions
+//    // naming: xi _ orbitals _ operator _ hc
+//    std::vector<real_function_3d> xi_ij_g_ket = make_xi(ket_i, ket_j, *poisson,
+//                                                        false);       // xi_{i,m*},j
+//    std::vector<real_function_3d> xi_ji_g_ket = make_xi(ket_j, ket_i, *poisson,
+//                                                        false);       // xi_{j,m*},i
+//
+//    std::vector<real_function_3d> xi_ij_f_bra = make_xi(bra_k, bra_l, slaterf12,
+//                                                        true);       // xi_{i*,m},j*
+//    std::vector<real_function_3d> xi_ji_f_bra = make_xi(bra_l, bra_k, slaterf12,
+//                                                        true);       // xi_{j*,m},i*
+//
+//    // in the following do NOT use antisymmetrized pair functions:
+//    // |ij> -> 0.5 |ij - ji>
+//
+//    // < ij | f12 O1 g12 | kl >
+//    //   = \sum_m <i(1) j(2) | f12 | m(1) >< m(3) | g23 | k(3) l(2)>
+//    //   = \sum_m < chi^f_i*,m(2) j*(2) | chi^g_k,m*(2) l(2) >
+//    //   = \sum_m < xi^f_im,j | xi^g_km,l >
+//    const double o1a = inner(world, xi_ij_f_bra, xi_ij_g_ket).sum();
+//    if (world.rank() == 0)
+//        printf("<%d%d | f12 O1 g12       | %d%d>  %12.8f\n", i, j, k, l, o1a);
+//
+//    // < ij | f12 O2 g12 | kl >
+//    //    = \sum_m <i(1) j(2) | f12 | m(2) >< m(3) | g13 | k(1) l(3)>
+//    //    = \sum_m <chi^f_j*,m(1) i*(1) | chi^g_l,m*(1) k(1) >
+//    //    = \sum_m < xi^f_jm,i | xi^g_lm,k >
+//    const double o2a = inner(world, xi_ji_f_bra, xi_ji_g_ket).sum();
+//    if (world.rank() == 0)
+//        printf("<%d%d | f12 O2 g12       | %d%d>  %12.8f\n", i, j, k, l, o2a);
+//
+//    // compute <ij| f O1 O2 g | kl>  // why do I need to swap ij in g_ijkl??
+//    const Tensor<double> f_ijmn = matrix_inner(world, xi_ij_f_bra, hf->nemos());
+//    const Tensor<double> g_ijmn = matrix_inner(world, hf->R2orbitals(),
+//                                               xi_ji_g_ket);
+//    const double o12 = f_ijmn.trace(g_ijmn);
+//    if (world.rank() == 0)
+//        printf("<%d%d | f12 O12 g12      | %d%d>  %12.8f\n", i, j, k, l, o12);
+//
+//    const double e = a - o1a - o2a + o12;
+//    if (world.rank() == 0)
+//        printf("<%d%d | g Q12 f          | %d%d>  %12.8f\n", i, j, k, l, e);
+//
+//    return e;
+//}
+
 madness::CCPair
 CCPotentials::make_pair_ex(const real_function_6d& u, const CC_vecfunction& tau, const CC_vecfunction& x,
                            const size_t i, const size_t j, const CalcType ctype) const {
@@ -692,9 +778,6 @@ CCPotentials::update_pair_mp2_macrotask(World& world, const CCPair& pair, const 
     real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0 * bsh_eps), parameters.lo(), parameters.thresh_bsh_6D());
     G.destructive() = true;
 
-    //NonlinearSolverND<6> solver(parameters.kain_subspace());
-    //solver.do_print = (world.rank() == 0);
-
     CCTimer timer_mp2_potential(world, "MP2-Potential of pair " + pair.name());
     real_function_6d mp2_potential = -2.0 * CCPotentials::fock_residue_6d_macrotask(world, pair, parameters,
                                                                                 all_coords_vec, mo_ket, mo_bra, U1, U2);
@@ -723,7 +806,9 @@ CCPotentials::update_pair_mp2_macrotask(World& world, const CCPair& pair, const 
     if (parameters.debug())unew.print_size("truncated-unew");
     timer_mp2.info();
 
-    return unew;
+    const real_function_6d residue = pair.function() - unew;
+
+    return residue;
 }
 
 madness::real_function_6d
@@ -2572,7 +2657,7 @@ CCPotentials::make_f_xy(const CCFunction& x, const CCFunction& y, const real_con
     real_function_6d fxy = CompositeFactory<double, 6, 3>(world).g12(corrfac.f()).particle1(copy(x.function)).particle2(
             copy(y.function));
     if (Gscreen == NULL) fxy.fill_tree().truncate().reduce_rank();
-    else fxy.fill_tree(*Gscreen).truncate().reduce_rank();
+    else fxy.fill_cuspy_tree(*Gscreen).truncate().reduce_rank();
 
     timer.info(parameters.debug(), fxy.norm2());
     if (x.type != UNDEFINED && y.type != UNDEFINED) {
@@ -2609,7 +2694,7 @@ CCPotentials::make_f_xy_macrotask(World& world, const real_function_3d& x_ket, c
     real_function_6d fxy = CompositeFactory<double, 6, 3>(world).g12(corrfac.f()).
                                                     particle1(copy(x_ket)).particle2(copy(y_ket));
     if (Gscreen == NULL) fxy.fill_tree().truncate().reduce_rank();
-    else fxy.fill_tree(*Gscreen).truncate().reduce_rank();
+    else fxy.fill_cuspy_tree(*Gscreen).truncate().reduce_rank();
 
     timer.info(parameters.debug(), fxy.norm2());
     if (x_type != UNDEFINED && y_type != UNDEFINED) {

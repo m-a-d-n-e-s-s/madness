@@ -405,7 +405,7 @@ bool CC2::check_core_valence_separation() const {
             break;
         }
     }
-    if ((slices.size() == 1) and (parameters.freeze() == 0) ) fine = true;
+    if (parameters.freeze() == 0) fine = true;
     if (not fine) {
         if (world.rank()==0) print("inconsistent core-valence separation and number of frozen orbitals");
         if (world.rank()==0) print("# frozen orbitals", parameters.freeze());
@@ -547,8 +547,13 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
    for (auto& tmp_pair : pair_vec) {
        updated_pairs.insert(tmp_pair.i, tmp_pair.j, tmp_pair);
    }
+   typedef allocator<double, 6> allocT;
+   allocT alloc(world, pair_vec.size());
+    XNonlinearSolver<std::vector<real_function_6d>, double, allocT> solver(alloc);
+    solver.set_maxsub(parameters.kain_subspace());
+    solver.do_print = (world.rank() == 0);
 
-   for (size_t iter = 0; iter < parameters.iter_max_6D(); iter++) {
+    for (size_t iter = 0; iter < parameters.iter_max_6D(); iter++) {
 
        if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "\nStarting coupling at time " << wall_time() << std::endl;
        // compute the coupling between the pair functions
@@ -583,7 +588,6 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
 //           //if (world.rank() == 0) std::cout << i << " ," << j << " -> "<< position << std::endl;
 //           coupling_vec[position] = tmp_coupling.second;
 //       }
-       MADNESS_CHECK(coupling_vec.size() == pair_vec.size());
        //print coupling vec
        if (world.rank()==0) std::cout << "aaaaa coupling vector";
        print_size(world, coupling_vec, "couplingvector");
@@ -611,14 +615,48 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
        if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "\nFinished pairs update at time " << wall_time() << std::endl;
 
        if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "\nStarting saving pairs and energy calculation at time " << wall_time() << std::endl;
-       // calculate energy and error and update pairs
+
+        if (parameters.kain()) {
+            if (world.rank()==0) std::cout << "Update with KAIN" << std::endl;
+            StrongOrthogonalityProjector<double, 3> Q(world);
+            Q.set_spaces(CCOPS.mo_bra().get_vecfunction(), CCOPS.mo_ket().get_vecfunction(), CCOPS.mo_bra().get_vecfunction(), CCOPS.mo_ket().get_vecfunction());
+
+            std::vector<real_function_6d> u;
+            for (auto p : pair_vec) u.push_back(p.function());
+            std::vector<real_function_6d> kain_update = copy(world,solver.update(u, u_update));
+            for (int i=0; i<pair_vec.size(); ++i) {
+                kain_update[i].truncate().reduce_rank();
+                kain_update[i].print_size("Kain-Update-Function");
+                pair_vec[i].update_u(copy(kain_update[i]));
+            }
+        } else {
+            if (world.rank()==0) std::cout << "Update without KAIN" << std::endl;
+            for (int i=0; i<pair_vec.size(); ++i) {
+                pair_vec[i].update_u(pair_vec[i].function() - u_update[i]);
+            }
+        }
+
+        // calculate energy and error and update pairs
        for (int i = 0; i < pair_vec.size(); i++) {
-           const real_function_6d residue = pair_vec[i].function() - u_update[i];
-           const double error = residue.norm2();
+           //const real_function_6d residue = pair_vec[i].function() - u_update[i];
+           const double error = u_update[i].norm2();
            if (world.rank()==0) std::cout << "residual " << pair_vec[i].i << " " << pair_vec[i].j << " " << error << std::endl;
            total_norm = std::max(total_norm, error);
-           output("Update without KAIN");
-           pair_vec[i].update_u(u_update[i]);
+
+          // if (parameters.kain()) {
+          //     if (world.rank()==0) std::cout << "Update with KAIN" << std::endl;
+          //     StrongOrthogonalityProjector<double, 3> Q(world);
+          //     Q.set_spaces(CCOPS.mo_bra().get_vecfunction(), CCOPS.mo_ket().get_vecfunction(), CCOPS.mo_bra().get_vecfunction(), CCOPS.mo_ket().get_vecfunction());
+          //     std::vector<real_function_6d> kain_update = copy(solver.update(pair_vec[i].function(), u_update[i]));
+          //     kain_update = Q(kain_update);
+          //     kain_update.truncate().reduce_rank();
+          //     kain_update.print_size("Kain-Update-Function");
+          //     pair_vec[i].update_u(copy(kain_update));
+          // } else {
+          //     if (world.rank()==0) std::cout << "Update without KAIN" << std::endl;
+          //     pair_vec[i].update_u(pair_vec[i].function() - u_update[i]);
+          // }
+
            //save(pair_vec[i].function(), pair_vec[i].name());
            double energy = 0.0;
            if (pair_vec[i].type == GROUND_STATE) energy = CCOPS.compute_pair_correlation_energy(pair_vec[i]);
@@ -633,25 +671,6 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
        for (auto& tmp_pair : pair_vec) {
            updated_pairs(tmp_pair.i, tmp_pair.j).update_u(tmp_pair.function());
        }
-
-     //  for (auto& tmp_pair : updated_pairs.allpairs) {
-     //      // NOT tested, do not use KAIN yet
-     //      MADNESS_CHECK(parameters.kain() == false);
-     //      if (parameters.kain()) {
-     //          output("Update with KAIN");
-     //          real_function_6d kain_update = copy(solver.update(tmp_pair.second.function(), residue));
-     //          kain_update = CCOPS.apply_Q12t(kain_update, CCOPS.mo_ket());
-     //          kain_update.truncate().reduce_rank();
-     //          kain_update.print_size("Kain-Update-Function");
-     //          tmp_pair.second.update_u(copy(kain_update));
-     //      } else {
-     //          output("Update without KAIN");
-     //          tmp_pair.second.update_u(unew);
-     //      }
-
-           //timer_addup.info(true, tmp_pair.second.function().norm2());
-           //const double current_norm = tmp_pair.second.function().norm2();
-       //}
 
        output("\n--Iteration " + stringify(iter) + " ended--");
        if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "at time " << wall_time() << std::endl;
