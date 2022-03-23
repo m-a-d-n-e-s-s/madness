@@ -2404,6 +2404,10 @@ namespace madness {
         f.get_impl()->compute_snorm_and_dnorm(false);
         g.get_impl()->compute_snorm_and_dnorm(false);
         world.gop.fence();
+//        print("gtree");
+//        f.print_tree();
+//        print("htree");
+//        g.print_tree();
 
         typedef TENSOR_RESULT_TYPE(T, R) resultT;
         Function<resultT,NDIM> result=FunctionFactory<resultT,NDIM>(world)

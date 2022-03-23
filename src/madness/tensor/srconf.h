@@ -683,11 +683,14 @@ protected:
 	protected:
 
         Tensor<T> make_left_vector_with_weights() const {
-        	Tensor<T> v=copy(vector_[0].reshape(rank(),vector_[0].size()/rank()));
-        	for (unsigned int r=0; r<rank(); r++) {
-            	v(r,_)*=weights(r);
-            }
-        	return v;
+            return make_vector_with_weights(0);
+        }
+
+    public:
+        Tensor<T> make_vector_with_weights(const int dim) const {
+            Tensor<T> v=copy(vector_[dim].reshape(rank(),vector_[dim].size()/rank()));
+            for (unsigned int r=0; r<rank(); r++) v(r,_)*=weights(r);
+            return v;
         }
 
 	protected:
