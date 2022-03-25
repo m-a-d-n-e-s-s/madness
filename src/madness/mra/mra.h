@@ -2398,12 +2398,17 @@ namespace madness {
         World& world=f.world();
         MADNESS_CHECK(world.size() == 1);
 
+        double cpu0=cpu_time();
         f.make_nonstandard(false,false);
         g.make_nonstandard(false,false);
         world.gop.fence();
+        double cpu1=cpu_time();
+//        print("partial_inner: make_nonstandard",cpu1-cpu0);
         f.get_impl()->compute_snorm_and_dnorm(false);
         g.get_impl()->compute_snorm_and_dnorm(false);
         world.gop.fence();
+        double cpu2=cpu_time();
+//        print("partial_inner: compute s/dnorm ",cpu2-cpu1);
 //        print("gtree");
 //        f.print_tree();
 //        print("htree");
@@ -2411,8 +2416,10 @@ namespace madness {
 
         typedef TENSOR_RESULT_TYPE(T, R) resultT;
         Function<resultT,NDIM> result=FunctionFactory<resultT,NDIM>(world)
-                        .k(f.k()).thresh(f.thresh());   // no empty() here!
+                        .k(f.k()).thresh(f.thresh()).empty();
         result.get_impl()->partial_inner(*f.get_impl(),*g.get_impl(),v1,v2);
+        double cpu3=cpu_time();
+//        print("partial_inner: contract        ",cpu3-cpu2);
 
         return result;
     }
@@ -2449,8 +2456,8 @@ namespace madness {
     Function<TENSOR_RESULT_TYPE(T,R),KDIM+LDIM-6>
     inner(const Function<T,LDIM>& f, const Function<R,KDIM>& g, const std::tuple<int,int,int> v1, const std::tuple<int,int,int> v2) {
         return innerXX<KDIM+LDIM-6>(f,g,
-                                  std::array<int,3>({std::get<0>(v1),std::get<0>(v1),std::get<2>(v1)}),
-                                  std::array<int,3>({std::get<0>(v2),std::get<0>(v2),std::get<2>(v2)}));
+                                  std::array<int,3>({std::get<0>(v1),std::get<1>(v1),std::get<2>(v1)}),
+                                  std::array<int,3>({std::get<0>(v2),std::get<1>(v2),std::get<2>(v2)}));
     }
 
 

@@ -690,6 +690,7 @@ protected:
         Tensor<T> make_vector_with_weights(const int dim) const {
             Tensor<T> v=copy(vector_[dim].reshape(rank(),vector_[dim].size()/rank()));
             for (unsigned int r=0; r<rank(); r++) v(r,_)*=weights(r);
+            v=v.reshape(ndim(),vector_[dim].dims());
             return v;
         }
 

@@ -5585,6 +5585,20 @@ namespace madness {
             world.gop.fence();
             reconstruct(true);
 
+            // restore initial state of g and h
+            auto erase_list = [] (const auto& funcimpl) {
+                typedef typename std::decay_t<decltype(funcimpl)>::keyT keyTT;
+                std::list<keyTT> to_be_erased;
+                for (auto it=funcimpl.coeffs.begin(); it!=funcimpl.coeffs.end(); ++it) {
+                    const auto& key=it->first;
+                    const auto& node=it->second;
+                    if (not node.has_children()) to_be_erased.push_back(key);
+                }
+                return to_be_erased;
+            };
+
+            for (auto& key : erase_list(g_nc)) g_nc.coeffs.erase(key);
+            for (auto& key : erase_list(h_nc)) h_nc.coeffs.erase(key);
             g_nc.standard(true);
             h_nc.standard(true);
             g_nc.reconstruct(true);
@@ -5800,15 +5814,15 @@ namespace madness {
                 const coeffT& gcoeff = g->get_coeffs().find(ij_key).get()->second.coeff();
                 const coeffT& hcoeff = h->get_coeffs().find(jk_key).get()->second.coeff();
                 coeffT gcoeff1, hcoeff1;
-                if (gcoeff.dim(0) == get_cdata().k) {
-                    gcoeff1 = coeffT(get_cdata().v2k, get_tensor_args());
-                    gcoeff1(get_cdata().s0) += gcoeff;
+                if (gcoeff.dim(0) == g->get_cdata().k) {
+                    gcoeff1 = coeffT(g->get_cdata().v2k, g->get_tensor_args());
+                    gcoeff1(g->get_cdata().s0) += gcoeff;
                 } else {
                     gcoeff1 = gcoeff;
                 }
-                if (hcoeff.dim(0) == get_cdata().k) {
-                    hcoeff1 = coeffT(get_cdata().v2k, get_tensor_args());
-                    hcoeff1(get_cdata().s0) += hcoeff;
+                if (hcoeff.dim(0) == g->get_cdata().k) {
+                    hcoeff1 = coeffT(h->get_cdata().v2k, h->get_tensor_args());
+                    hcoeff1(h->get_cdata().s0) += hcoeff;
                 } else {
                     hcoeff1 = hcoeff;
                 }
@@ -5820,6 +5834,26 @@ namespace madness {
                         tensor = tensor.fusedim(v[0]+offset);
                     }
                     return tensor;
+                };
+
+                // use case: partial_projection of 2-electron functions in svd representation  f(1) = \int g(2) h(1,2) d2
+                // c_i = \sum_j a_j b_ij = \sum_jr a_j b_rj b'_rj
+                //                       = \sum_jr ( a_j b_rj) b'_rj )
+                auto contract2 = [](const auto& svdcoeff, const auto& tensor, const int particle) {
+#if HAVE_GENTENSOR
+                    const int spectator_particle=(particle+1)%2;
+                    Tensor<Q> gtensor = svdcoeff.get_svdtensor().make_vector_with_weights(particle);
+                    gtensor=gtensor.reshape(svdcoeff.rank(),gtensor.size()/svdcoeff.rank());
+                    MADNESS_CHECK(gtensor.ndim()==2);
+                    Tensor<Q> gtensor_other = svdcoeff.get_svdtensor().ref_vector(spectator_particle);
+                    Tensor<T> tmp1=inner(gtensor,tensor.flat(),1,0);          // tmp1(r) = sum_j a'_(r,j) b(j)
+                    MADNESS_CHECK(tmp1.ndim()==1);
+                    Tensor<T> tmp2=inner(gtensor_other,tmp1,0,0);          // tmp2(i) = sum_r a_(r,i) tmp1(r)
+                    return tmp2;
+#else
+                    MADNESS_EXCEPTION("no partial_inner using svd without GenTensor",1);
+                    return Tensor<T>();
+#endif
                 };
 
                 if (gcoeff.is_full_tensor() and hcoeff.is_full_tensor() and result_coeff.is_full_tensor()) {
@@ -5837,11 +5871,12 @@ namespace madness {
                     }
                 }
 
+
                 // use case: 2-electron functions in svd representation  f(1,3) = \int g(1,2) h(2,3) d2
                 // c_ik = \sum_j a_ij b_jk = \sum_jrr' a_ri a'_rj b_r'j b_r'k
                 //                         = \sum_jrr' ( a_ri (a'_rj b_r'j) )  b_r'k
                 //                         = \sum_jrr' c_r'i  b_r'k
-                if (gcoeff.is_svd_tensor() and hcoeff.is_svd_tensor() and result_coeff.is_svd_tensor()) {
+                else if (gcoeff.is_svd_tensor() and hcoeff.is_svd_tensor() and result_coeff.is_svd_tensor()) {
                     MADNESS_CHECK(v1[0]==0 or v1[CDIM-1]==LDIM-1);
                     MADNESS_CHECK(v2[0]==0 or v2[CDIM-1]==KDIM-1);
                     int gparticle=  v1[0]==0 ? 0 : 1;       // which particle to integrate over
@@ -5880,58 +5915,41 @@ namespace madness {
                 // use case: partial_projection of 2-electron functions in svd representation  f(1) = \int g(2) h(1,2) d2
                 // c_i = \sum_j a_j b_ij = \sum_jr a_j b_rj b'_rj
                 //                       = \sum_jr ( a_j b_rj) b'_rj )
-                if (gcoeff.is_full_tensor() and hcoeff.is_svd_tensor() and result_coeff.is_full_tensor()) {
+                else if (gcoeff.is_full_tensor() and hcoeff.is_svd_tensor() and result_coeff.is_full_tensor()) {
                     MADNESS_CHECK(v1[0]==0 and v1[CDIM-1]==LDIM-1);
                     MADNESS_CHECK(v2[0]==0 or v2[CDIM-1]==KDIM-1);
                     MADNESS_CHECK(LDIM==CDIM);
                     int hparticle=  v2[0]==0 ? 0 : 1;       // which particle to integrate over
-                    Tensor<Q> htensor = hcoeff1.get_svdtensor().make_vector_with_weights(hparticle);
-                    Tensor<Q> htensor_other = hcoeff1.get_svdtensor().flat_vector((hparticle+1)%2);
-                    Tensor<R> gtensor = gcoeff.full_tensor();
-                    Tensor<T> tmp1=inner(htensor,gtensor,0,1);             // tmp1(r) = \sum_j ( a_j b_rj)
-                    Tensor<T> tmp2=inner(htensor_other,tmp1,0,0);          // tmp2(i) = sum_r b'_(r,i) tmp1(r)
-                    result_coeff.full_tensor()+=tmp2;
-                    if (key.level() > 0) {
-                        GenTensor<Q> hcoeff2 = copy(gcoeff1(g->get_cdata().s0));
-                        Tensor<Q> htensor = hcoeff2.get_svdtensor().make_vector_with_weights(hparticle);
-                        Tensor<Q> htensor_other = hcoeff2.get_svdtensor().flat_vector((hparticle + 1) % 2);
-                        Tensor<R> gtensor = gcoeff.full_tensor()(g->get_cdata().s0);
-                        Tensor<T> tmp1=inner(htensor,gtensor,0,1);          // tmp1(r) = \sum_j ( a_j b_rj)
-                        Tensor<T> tmp2=inner(htensor_other,tmp1,0,0);       // tmp2(i) = sum_r b'_(r,i) tmp1(r)
-                        result_coeff.full_tensor()(get_cdata().s0)-=tmp2;
-                    }
+
+                    Tensor<T> r=contract2(hcoeff1,gcoeff1.full_tensor(),hparticle);
+                    if (key.level()>0) r(get_cdata().s0)-=contract2(copy(hcoeff1(h->get_cdata().s0)),copy(gcoeff.full_tensor()(g->get_cdata().s0)),hparticle);
+                    result_coeff.full_tensor()+=r;
                 }
                 // use case: partial_projection of 2-electron functions in svd representation  f(1) = \int g(1,2) h(2) d2
                 // c_i = \sum_j a_ij b_j = \sum_jr a_ri a'_rj b_j
                 //                       = \sum_jr ( a_ri (a'_rj b_j) )
-                if (gcoeff.is_svd_tensor() and hcoeff.is_full_tensor() and result_coeff.is_full_tensor()) {
+                else if (gcoeff.is_svd_tensor() and hcoeff.is_full_tensor() and result_coeff.is_full_tensor()) {
                     MADNESS_CHECK(v1[0]==0 or v1[CDIM-1]==LDIM-1);
                     MADNESS_CHECK(v2[0]==0 and v2[CDIM-1]==KDIM-1);
                     MADNESS_CHECK(KDIM==CDIM);
                     int gparticle=  v1[0]==0 ? 0 : 1;       // which particle to integrate over
-                    Tensor<Q> gtensor = gcoeff1.get_svdtensor().make_vector_with_weights(gparticle);
-                    Tensor<Q> gtensor_other = gcoeff1.get_svdtensor().flat_vector((gparticle+1)%2);
-                    Tensor<R> htensor = hcoeff.full_tensor();
-                    Tensor<T> tmp1=inner(gtensor,htensor,1,0);          // tmp1(r) = sum_j a'_(r,j) b(j)
-                    Tensor<T> tmp2=inner(gtensor_other,tmp1,0,0);          // tmp2(r) = sum_j a_(r,i) tmp1(r)
-                    result_coeff.full_tensor()+=tmp2;
-                    if (key.level() > 0) {
-                        GenTensor<Q> gcoeff2 = copy(gcoeff1(g->get_cdata().s0));
-                        Tensor<Q> gtensor = gcoeff2.get_svdtensor().make_vector_with_weights(gparticle);
-                        Tensor<Q> gtensor_other = gcoeff2.get_svdtensor().flat_vector((gparticle + 1) % 2);
-                        Tensor<R> htensor = hcoeff.full_tensor()(h->get_cdata().s0);
-                        Tensor<T> tmp1=inner(gtensor,htensor,1,0);          // tmp1(r) = sum_j a'_(r,j) b(j)
-                        Tensor<T> tmp2=inner(gtensor_other,tmp1,0,0);          // tmp2(r) = sum_j a_(r,i) tmp1(r)
-                        result_coeff.full_tensor()(get_cdata().s0)-=tmp2;
-                    }
-                }
 
-                MADNESS_CHECK(result_coeff.is_assigned());
+                    Tensor<T> r=contract2(gcoeff1,hcoeff1.full_tensor(),gparticle);
+                    if (key.level()>0) r(get_cdata().s0)-=contract2(copy(gcoeff1(g->get_cdata().s0)),copy(hcoeff.full_tensor()(h->get_cdata().s0)),gparticle);
+                    result_coeff.full_tensor()+=r;
+
+                } else {
+                    MADNESS_EXCEPTION("unknown case in partial_inner_contract",1);
+                }
             }
+
+            MADNESS_CHECK(result_coeff.is_assigned());
             result_coeff.reduce_rank(get_thresh());
-//            print("max/actual #boxes for key", key, std::pow(2,key.level()),j_key_list.size());
-            get_coeffs().replace(key, FunctionNode<T, NDIM>(result_coeff));
-            get_coeffs().send(key.parent(), &FunctionNode<T, NDIM>::set_has_children_recursive, get_coeffs(), key.parent());
+
+            if (coeffs.is_local(key))
+                coeffs.send(key, &nodeT::accumulate, result_coeff, coeffs, key, get_tensor_args());
+            else
+                coeffs.task(key, &nodeT::accumulate, result_coeff, coeffs, key, get_tensor_args(), TaskAttributes::hipri());
         }
 
         /// Return the inner product with an external function on a specified function node.
