@@ -295,15 +295,15 @@ public:
 	}
 
     constexpr bool is_full_tensor() const {
-        return std::holds_alternative<std::shared_ptr<Tensor<T>>>(tensor);
+        return (index()==0);
     }
 
 	constexpr bool is_svd_tensor() const {
-        return std::holds_alternative<std::shared_ptr<SVDTensor<T>>>(tensor);
+        return (index()==1);
 	}
 
 	constexpr bool is_tensortrain() const {
-        return std::holds_alternative<std::shared_ptr<TensorTrain<T>>>(tensor);
+        return (index()==2);
 	}
 
 	bool is_of_tensortype(const TensorType& tt) const {

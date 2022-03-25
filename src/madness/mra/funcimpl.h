@@ -5580,31 +5580,6 @@ namespace madness {
                               &g,&h,v1,v2,key,list);
                 }
             }
-            world.gop.fence();
-            set_tree_state(nonstandard);
-            world.gop.fence();
-            reconstruct(true);
-
-            // restore initial state of g and h
-            auto erase_list = [] (const auto& funcimpl) {
-                typedef typename std::decay_t<decltype(funcimpl)>::keyT keyTT;
-                std::list<keyTT> to_be_erased;
-                for (auto it=funcimpl.coeffs.begin(); it!=funcimpl.coeffs.end(); ++it) {
-                    const auto& key=it->first;
-                    const auto& node=it->second;
-                    if (not node.has_children()) to_be_erased.push_back(key);
-                }
-                return to_be_erased;
-            };
-
-            for (auto& key : erase_list(g_nc)) g_nc.coeffs.erase(key);
-            for (auto& key : erase_list(h_nc)) h_nc.coeffs.erase(key);
-            g_nc.standard(true);
-            h_nc.standard(true);
-            g_nc.reconstruct(true);
-            h_nc.reconstruct(true);
-//            print("timings: get_lists, recur, contract",wall_get_lists,wall_recur,wall_contract);
-
         }
 
         /// for contraction two functions f(x,z) = \int g(x,y) h(y,z) dy

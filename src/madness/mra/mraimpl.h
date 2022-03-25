@@ -1788,8 +1788,9 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::standard(bool fence) {
 
-        flo_unary_op_node_inplace(do_standard(this),fence);
+        if (is_compressed()) return;
         set_tree_state(compressed);
+        flo_unary_op_node_inplace(do_standard(this),fence);
 //        make_nonstandard = false;
     }
 
