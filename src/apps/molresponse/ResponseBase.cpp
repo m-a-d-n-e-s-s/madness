@@ -10,12 +10,12 @@
 /// \param world
 /// \param params
 ResponseBase::ResponseBase(World &world, const CalcParams &params)
-    : r_params(params.response_parameters),
-      molecule(params.molecule),
-      ground_calc(params.ground_calculation),
-      ground_orbitals(ground_calc.orbitals()),
-      ground_energies(ground_calc.get_energies()),
-      Chi(world, r_params.num_states(), r_params.num_orbitals()) {
+        : r_params(params.response_parameters),
+          molecule(params.molecule),
+          ground_calc(params.ground_calculation),
+          ground_orbitals(ground_calc.orbitals()),
+          ground_energies(ground_calc.get_energies()),
+          Chi(world, r_params.num_states(), r_params.num_orbitals()) {
 
     // Broadcast to all the other nodes
     world.gop.broadcast_serializable(r_params, 0);
@@ -63,7 +63,7 @@ void ResponseBase::check_k(World &world, double thresh, int k) {
     }
     // Recalculate ground state hamiltonian here
     if (redo or !hamiltonian.has_data()) {
-        auto [HAM, HAM_NO_DIAG] = ComputeHamiltonianPair(world);
+        auto[HAM, HAM_NO_DIAG] = ComputeHamiltonianPair(world);
         // TODO this doesn't seem right...
         hamiltonian = HAM;
         ham_no_diag = HAM_NO_DIAG;
@@ -255,6 +255,7 @@ functionT ResponseBase::make_ground_density(World &world) const {
     vsq.clear();
     return rho;
 }
+
 // @brief Calculates ground state coulomb potential function
 //
 //  The coulomb potential of the ground state is
@@ -337,6 +338,7 @@ std::vector<poperatorT> ResponseBase::make_bsh_operators_response(World &world, 
     return ops;
     // End timer
 }
+
 X_space ResponseBase::compute_theta_X(World &world, const X_space &chi, XCOperator<double, 3> xc,
                                       std::string calc_type) const {
     bool compute_Y = calc_type.compare("full") == 0;
@@ -392,7 +394,7 @@ X_space ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &den
                                          const XCOperator<double, 3> &xc) const {
     std::shared_ptr<WorldDCPmapInterface<Key<3>>> old_pmap = FunctionDefaults<3>::get_pmap();
 
-    auto [d_alpha, phi0, vf] = orbital_load_balance(world, density, r_params.loadbalparts());
+    auto[d_alpha, phi0, vf] = orbital_load_balance(world, density, r_params.loadbalparts());
 
     size_t num_states = d_alpha.num_states();
     size_t num_orbitals = d_alpha.num_orbitals();
@@ -554,7 +556,7 @@ X_space ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &d
 
     std::shared_ptr<WorldDCPmapInterface<Key<3>>> old_pmap = FunctionDefaults<3>::get_pmap();
 
-    auto [d_alpha, phi0, vf] = orbital_load_balance(world, density, r_params.loadbalparts());
+    auto[d_alpha, phi0, vf] = orbital_load_balance(world, density, r_params.loadbalparts());
 
     size_t num_states = d_alpha.num_states();
     size_t num_orbitals = d_alpha.num_orbitals();
@@ -661,7 +663,7 @@ X_space ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &d
 X_space ResponseBase::compute_gamma_tda(World &world, const gamma_orbitals &density,
                                         const XCOperator<double, 3> &xc) const {
 
-    auto [d_alpha, phi0, vf] = orbital_load_balance(world, density, r_params.loadbalparts());
+    auto[d_alpha, phi0, vf] = orbital_load_balance(world, density, r_params.loadbalparts());
     std::shared_ptr<WorldDCPmapInterface<Key<3>>> oldpmap = FunctionDefaults<3>::get_pmap();
     size_t num_states = d_alpha.num_states();
     size_t num_orbitals = d_alpha.num_orbitals();
@@ -757,6 +759,7 @@ X_space ResponseBase::compute_gamma_tda(World &world, const gamma_orbitals &dens
     world.gop.fence();
     return gamma;
 }
+
 X_space ResponseBase::compute_lambda_X(World &world, const X_space &chi, XCOperator<double, 3> xc,
                                        const std::string &calc_type) const {
     // compute
@@ -813,6 +816,7 @@ X_space ResponseBase::compute_lambda_X(World &world, const X_space &chi, XCOpera
 
     return Lambda_X;
 }
+
 // Returns the ground state potential applied to functions f
 // (V0 f) V0=(Vnuc+J0-K0+W0)
 // J0=J[ground_density]
@@ -941,6 +945,7 @@ X_space ResponseBase::compute_F0X(World &world, const X_space &X, const XCOperat
     // Done
     return F0X;
 }
+
 X_space ResponseBase::compute_residual(World &world, X_space &old_Chi, X_space &temp,
                                        Tensor<double> &bsh_residualsX,
                                        Tensor<double> &bsh_residualsY, std::string calc_type) {
@@ -1011,6 +1016,7 @@ X_space ResponseBase::compute_residual(World &world, X_space &old_Chi, X_space &
     // Next calculate 2-norm of these vectors of differences
     return res;
 }
+
 X_space ResponseBase::kain_x_space_update(World &world, const X_space &temp, const X_space &res,
                                           NonLinearXsolver &kain_x_space,
                                           std::vector<X_vector> &Xvector,
@@ -1170,6 +1176,7 @@ double ResponseBase::do_step_restriction(World &world, const vecfuncT &x, const 
         print("Norm of vector changes", spin, ": rms", rms, "   max", maxval);
     return maxval;
 }
+
 void ResponseBase::PlotGroundandResponseOrbitals(World &world, size_t iteration,
                                                  response_space &x_response,
                                                  response_space &y_response,
@@ -1236,7 +1243,7 @@ void ResponseBase::PlotGroundandResponseOrbitals(World &world, size_t iteration,
 
 void PlotGroundDensityVTK(World &world, const ResponseBase &calc) {
 
-    auto [ground_calc, molecule, r_params] = calc.get_parameter();
+    auto[ground_calc, molecule, r_params] = calc.get_parameter();
     auto ground_orbitals = calc.get_orbitals();
 
     if (r_params.plot_initial()) {
@@ -1360,6 +1367,7 @@ response_space add_randomness(World &world, const response_space &f, double magn
     // Done
     return f_copy;
 }
+
 /***
  * @brief normalize a single response space
  *
@@ -1398,6 +1406,7 @@ void normalize(World &world, X_space &Chi) {
         Chi.Y[i] = Chi.Y[i] * (1.0 / norm);
     }
 }
+
 std::map<std::vector<int>, real_function_3d> solid_harmonics(World &world, int n) {
     // Container to return
     std::map<std::vector<int>, real_function_3d> result;
@@ -1444,7 +1453,7 @@ std::map<std::vector<int>, real_function_3d> solid_harmonics(World &world, int n
                     1.0 / std::sqrt((l + m + 1) * (l - m + 1)) *
                     ((2 * l + 1) * z * result[std::vector<int>{l, m}] -
                      sqrt((l + m) * (l - m)) * (x * x + y * y + z * z) *
-                             result[std::vector<int>{l - 1, m}]);
+                     result[std::vector<int>{l - 1, m}]);
         }
     }
 
@@ -1461,6 +1470,7 @@ std::map<std::vector<int>, real_function_3d> solid_harmonics(World &world, int n
     // Done
     return result;
 }
+
 vector_real_function_3d transition_density(World &world, const vector_real_function_3d &orbitals,
                                            const response_space &x, const response_space &y) {
     // Get sizes
@@ -1489,6 +1499,7 @@ vector_real_function_3d transition_density(World &world, const vector_real_funct
     // Done!
     return densities;
 }
+
 /***
  * @brief returns orbitals and response functions with new p map
  *
@@ -1547,6 +1558,7 @@ gamma_orbitals ResponseBase::orbital_load_balance(World &world, const gamma_orbi
         return {X.copy(), copy(world, psi0), copy(world, vf)};
     }
 }
+
 void ResponseBase::analyze_vectors(World &world, const vecfuncT &x,
                                    const std::string &response_state) {
     molresponse::start_timer(world);
@@ -1564,8 +1576,8 @@ void ResponseBase::analyze_vectors(World &world, const vecfuncT &x,
         for (int axis = 0; axis < 3; ++axis) {
             // x y z
             functionT fdip = factoryT(world)
-                                     .functor(functorT(new madness::DipoleFunctor(axis)))
-                                     .initial_level(4);
+                    .functor(functorT(new madness::DipoleFunctor(axis)))
+                    .initial_level(4);
             dip(axis, _) = inner(world, x, mul_sparse(world, fdip, x, vtol));
             //<x r^2 x> - <x|x|x>^2-<x|y|x>^2-<x|z|x>^2
             for (int i = 0; i < nmo1; ++i) rsq(i) -= dip(axis, i) * dip(axis, i);
@@ -1590,6 +1602,7 @@ void ResponseBase::analyze_vectors(World &world, const vecfuncT &x,
         }
     }
 }
+
 vecfuncT ResponseBase::project_ao_basis_only(World &world, const AtomicBasisSet &aobasis,
                                              const Molecule &molecule) {
     vecfuncT ao = vecfuncT(aobasis.nbf(molecule));
@@ -1602,6 +1615,7 @@ vecfuncT ResponseBase::project_ao_basis_only(World &world, const AtomicBasisSet 
     madness::normalize(world, ao);
     return ao;
 }
+
 vecfuncT ResponseBase::project_ao_basis(World &world, const AtomicBasisSet &aobasis) {
     // Make at_to_bf, at_nbf ... map from atom to first bf on atom, and nbf/atom
     std::vector<int> at_to_bf, at_nbf;
@@ -1609,10 +1623,12 @@ vecfuncT ResponseBase::project_ao_basis(World &world, const AtomicBasisSet &aoba
 
     return project_ao_basis_only(world, aobasis, molecule);
 }
+
 void ResponseBase::output_json() const {
     std::ofstream ofs("response_base.json");
-    ofs << j_molresponse;
+    ofs << std::setw(4) << j_molresponse;
 }
+
 void ResponseBase::converged_to_json(json &j) { j["converged"] = converged; }
 
 
@@ -1664,6 +1680,7 @@ response_space transform(World &world, const response_space &f, const Tensor<dou
     // Done
     return result;
 }
+
 Tensor<double> expectation(World &world, const response_space &A, const response_space &B) {
     // Get sizes
     MADNESS_ASSERT(A.size() > 0);
@@ -1696,6 +1713,7 @@ Tensor<double> expectation(World &world, const response_space &A, const response
     // Done
     return result;
 }
+
 void print_norms(World &world, const response_space &f) {
 
     print(f[0].size());
@@ -1710,6 +1728,7 @@ void print_norms(World &world, const response_space &f) {
     // Print em in a smart way
     if (world.rank() == 0) print(norms);
 }
+
 response_space select_functions(World &world, response_space f, Tensor<double> &energies, size_t k,
                                 size_t print_level) {
     // Container for result
@@ -1740,6 +1759,7 @@ response_space select_functions(World &world, response_space f, Tensor<double> &
     // Done
     return answer;
 }
+
 void sort(World &world, Tensor<double> &vals, response_space &f) {
     // Get relevant sizes
     size_t k = vals.size();
@@ -1768,6 +1788,7 @@ void sort(World &world, Tensor<double> &vals, response_space &f) {
         vals_copy2(j) = 10000.0;
     }
 }
+
 // Sorts the given tensor of eigenvalues and
 // response functions
 void sort(World &world, Tensor<double> &vals, X_space &f) {
@@ -1800,6 +1821,7 @@ void sort(World &world, Tensor<double> &vals, X_space &f) {
         vals_copy2(j) = 10000.0;
     }
 }
+
 response_space gram_schmidt(World &world, const response_space &f) {
     // Sizes inferred
     size_t m = f.size();
@@ -1831,6 +1853,7 @@ response_space gram_schmidt(World &world, const response_space &f) {
     // Done
     return result;
 }
+
 vector_real_function_3d make_xyz_functions(World &world) {
     // Container to return
 
@@ -1845,6 +1868,7 @@ vector_real_function_3d make_xyz_functions(World &world) {
     std::vector<real_function_3d> funcs = {x, y, z};
     return funcs;
 }
+
 void gram_schmidt(World &world, response_space &f, response_space &g) {
     // Sizes inferred
     size_t m = f.size();
