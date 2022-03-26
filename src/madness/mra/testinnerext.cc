@@ -85,6 +85,11 @@ bool test_loose1(std::string msg, double a, double b, double tol=thresh) {
 
 int test_partial_inner(World& world) {
     print("\ntesting partial inner\n");
+    bool do_low_rank=false;
+#if HAVE_GENTENSOR
+    do_low_rank=true;
+#endif
+
     real_function_1d one_1d=real_factory_1d(world).functor([](const coord_1d& r){return 1.0;});
     real_function_2d one_2d=real_factory_2d(world).functor([](const coord_2d& r){return 1.0;});
     real_function_1d g1=real_factory_1d(world).functor(gauss<double,1>({1.0}));
@@ -94,7 +99,7 @@ int test_partial_inner(World& world) {
     real_function_1d g4=real_factory_1d(world).functor(gauss<double,1>({4.0}));
 
     real_function_2d f2=real_factory_2d(world).functor(gauss<double,2>({1.0,2.0}));
-    FunctionDefaults<2>::set_tensor_type(TT_2D);
+    if (do_low_rank) FunctionDefaults<2>::set_tensor_type(TT_2D);
     real_function_2d f2_svd=real_factory_2d(world).functor(gauss<double,2>({1.0,2.0}));
     FunctionDefaults<2>::set_tensor_type(TT_FULL);
     real_function_2d f2_swap=real_factory_2d(world).functor(gauss<double,2>({2.0,1.0}));
@@ -129,7 +134,7 @@ int test_partial_inner(World& world) {
         double n=inner(g1,r);
         MADNESS_CHECK(test(" int f2(1,2)*g1(1) d1  ", n,g11*g12));
     }
-    {
+    if (do_low_rank) {
         FunctionDefaults<6>::set_thresh(1.e-4);
         FunctionDefaults<6>::set_tensor_type(TT_2D);
 //        real_function_6d f6=real_factory_6d(world).functor(gauss<double,6>({1.0,2.0,3.0,1.0,2.0,3.0}));
