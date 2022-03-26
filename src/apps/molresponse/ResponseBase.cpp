@@ -1270,13 +1270,6 @@ void ResponseBase::solve(World &world) {
     if (r_params.plot_initial()) { PlotGroundDensityVTK(world, *this); }
     // TODO Why would I plot the ground state density here if the protocol or k is
     // not set yet? Warm and fuzzy
-    /*
-  //if (world.rank() == 0) {
-      print("\n\n     Excited State Calculation");
-      print("   ------------------------");
-  }
-   */
-    // Here print the relevant parameters
     // Ready to iterate!
     const auto protocol = r_params.protocol();
     if (world.rank() == 0) {

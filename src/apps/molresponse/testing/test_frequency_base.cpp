@@ -85,7 +85,7 @@ TEST_CASE("Test Dipole constructor") {
 
         ResponseParameters r_params{};
         bool restart{false};
-        set_and_write(r_params, property, xc, frequency);
+        set_and_write_frequency_response_parameters(r_params, property, xc, frequency);
         auto filename = set_frequency_path_and_restart(r_params, property, frequency, moldft_path,restart);
 
 

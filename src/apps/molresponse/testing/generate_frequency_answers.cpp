@@ -2,6 +2,7 @@
 // Created by adrianhurtado on 2/17/22.
 //
 #define CATCH_CONFIG_RUNNER
+
 #include "ExcitedResponse.hpp"
 #include "FrequencyResponse.hpp"
 #include "ResponseExceptions.hpp"
@@ -16,6 +17,7 @@
 #include "timer.h"
 #include "write_test_input.h"
 #include "x_space.h"
+#include "response_data_base.hpp"
 
 #if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
 
@@ -24,15 +26,12 @@
 #include <unistd.h>
 
 static inline int file_exists(const char *input_name) {
-    struct stat buffer {};
+    struct stat buffer{};
     size_t rc = stat(input_name, &buffer);
     return (rc == 0);
 }
 
 #endif
-
-
-
 
 
 int main(int argc, char *argv[]) {
@@ -64,7 +63,7 @@ int main(int argc, char *argv[]) {
     try {
         if (std::filesystem::is_directory(molecule_path)) {
             for (const std::filesystem::directory_entry &mol_path:
-                 std::filesystem::directory_iterator(molecule_path)) {
+                    std::filesystem::directory_iterator(molecule_path)) {
 
                 std::filesystem::current_path(xc_path);
                 //for each molecule in molecules directory
@@ -79,22 +78,23 @@ int main(int argc, char *argv[]) {
                     // We would like to read the moldft results from corresponding json "molecule_name.json"
                     auto response_json_path =
                             generate_response_json_path(molecule_path, molecule_name, xc, property);
+
                     json response_json;
                     if (std::filesystem::exists(response_json_path)) {
                         std::cout << "response_json exists:" << std::endl;
-
                         response_json =
                                 response_data_base.retrieve_data(molecule_name, xc, property);
-                    }else{
-                        try{
-                            response_data_base.output_data(response_json_path.string(),molecule_name,xc,property);
-                        }catch(json::exception& e){
-                            std::cout<<e.what()<<std::endl;
+                    } else {
+                        try {
+                            response_data_base.output_data(response_json_path.string(), molecule_name, xc, property);
+                        } catch (json::exception &e) {
+                            std::cout << e.what() << std::endl;
                         }
                     }
                     std::cout << response_json << std::endl;
                 }
             }
+            generate_response_data(molecule_path, xc, property, {0});
 
 
             // if the results exists then save them into answers

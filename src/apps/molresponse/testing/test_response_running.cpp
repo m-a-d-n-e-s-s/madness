@@ -2,6 +2,7 @@
 // Created by adrianhurtado on 1/1/22.
 //
 #define CATCH_CONFIG_RUNNER
+
 #include "ExcitedResponse.hpp"
 #include "FrequencyResponse.hpp"
 #include "ResponseExceptions.hpp"
@@ -24,7 +25,7 @@
 #include <unistd.h>
 
 static inline int file_exists(const char *input_name) {
-    struct stat buffer {};
+    struct stat buffer{};
     size_t rc = stat(input_name, &buffer);
     return (rc == 0);
 }
@@ -77,7 +78,7 @@ TEST_CASE("Test Gamma Functions Response ") {
         initialize_excited_restart(world, "restart_excited.in", 4, "hf");
 
         auto calc_params = initialize_calc_params(world, "restart_excited.in");
-        auto [ground_calculation, molecule, r_params] = calc_params;
+        auto[ground_calculation, molecule, r_params] = calc_params;
         r_params.set_user_defined_value("print_level", 10);
         vecfuncT ground_orbitals = ground_calculation.orbitals();
         print(norm2s_T(world, ground_orbitals));
@@ -113,8 +114,8 @@ TEST_CASE("Test Gamma Functions Response ") {
 
         SECTION("Testing V0X and FOX") {
 
-            auto [VOX, FOX] = tester.compute_VFOX(world, &new_calc, true);
-            auto [oVOX, oFOX] = tddft.compute_VFOX(world, &old_calc, true);
+            auto[VOX, FOX] = tester.compute_VFOX(world, &new_calc, true);
+            auto[oVOX, oFOX] = tddft.compute_VFOX(world, &old_calc, true);
 
             auto old_xVx = inner(old_chi, oVOX);
             auto old_xFx = inner(old_chi, oFOX);
@@ -134,8 +135,7 @@ TEST_CASE("Test Gamma Functions Response ") {
             bool F_equal = is_equal(old_xFx, new_xFx, thresh);
             // because I can't get the tensor == to work
             REQUIRE(V_equal);
-        }
-        SECTION("Testing Lambda") {
+        }SECTION("Testing Lambda") {
 
             auto new_lambda = tester.compute_lambda_X(world, &new_calc, thresh);
             auto old_lambda = tddft.compute_lambda_X(world, &old_calc, thresh);
@@ -154,6 +154,7 @@ TEST_CASE("Test Gamma Functions Response ") {
 
     } catch (const std::filesystem::filesystem_error &ex) { std::cerr << ex.what() << "\n"; }
 }
+
 TEST_CASE("Run Frequency Response ") {
 
     using namespace madness;
@@ -166,8 +167,8 @@ TEST_CASE("Run Frequency Response ") {
                 "10_Be");
         std::filesystem::current_path(moldft_path);
         auto restart_path = moldft_path;
-        auto [next_restart, success] =
-                RunResponse(world, "response.in", 0, "dipole", "hf", moldft_path, restart_path);
+        auto[next_restart, success] =
+        RunResponse(world, "response.in", 0, "dipole", "hf", moldft_path, restart_path);
     } catch (const std::filesystem::filesystem_error &ex) { std::cerr << ex.what() << "\n"; }
 }
 
@@ -184,7 +185,7 @@ TEST_CASE("Run A Few Frequency Response ") {
 
         std::filesystem::current_path(moldft_path);
         std::vector<double> frequencies = {0, 0.025, 0.050, 0.075, 0.1};
-        runFrequencyTests(world, moldft_path, frequencies, "hf");
+        runFrequencyTests(world, moldft_path, frequencies, "hf", "dipole");
         // add a restart path
     } catch (const std::filesystem::filesystem_error &ex) { std::cerr << ex.what() << "\n"; }
 }
