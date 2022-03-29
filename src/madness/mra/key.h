@@ -64,14 +64,19 @@ namespace madness {
     /// to child keys.
     template<std::size_t NDIM>
     class Key {
-        friend class KeyChildIterator<NDIM> ;
+    public:
+//        static const typename Vector<Translation,NDIM>::size_type static_size = Vector<Translation,NDIM>::static_size;
+        static const std::size_t static_size = NDIM;
+
     private:
+        friend class KeyChildIterator<NDIM> ;
         Level n;
         Vector<Translation, NDIM> l;
         hashT hashval;
 
 
     public:
+
         /// Default constructor makes an \em uninitialized key
         Key() {}
 
@@ -280,6 +285,28 @@ namespace madness {
             key1=Key<LDIM>(n,l1);
             key2=Key<KDIM>(n,l2);
         }
+
+        /// extract a new key with the Translations indicated in the v array
+        template<std::size_t VDIM>
+        Key<VDIM> extract_key(const std::array<int,VDIM>& v) const {
+            Vector<Translation, VDIM> t;
+            for (int i = 0; i < VDIM; ++i) t[i] = this->translation()[v[i]];
+            return Key<VDIM>(this->level(),t);
+        };
+
+        /// extract a new key with the Translations complementary to the ones indicated in the v array
+        template<std::size_t VDIM>
+        Key<NDIM-VDIM> extract_complement_key(const std::array<int,VDIM>& v) const {
+
+            // return the complement of v, e.g. v={0,1}, v_complement={2,3,4} if NDIM==5
+            // v must be contiguous and ascending (i.e. 1,2,3 or 2,3,4)
+            auto v_complement = [](const std::array<int, VDIM>& v) {
+                std::array<int, NDIM - VDIM> result;
+                for (std::size_t i = 0; i < NDIM - VDIM; i++) result[i] = (v.back() + i + 1) % NDIM;
+                return result;
+            };
+            return extract_key(v_complement(v));
+        };
 
         /// merge with other key (ie concatenate), use level of rhs, not of this
         template<std::size_t LDIM>

@@ -219,9 +219,9 @@ namespace madness {
 
         std::string what_am_i() const {return "GenTensor, aliased to Tensor";};
 		TensorType tensor_type() const {return TT_FULL;}
-        bool is_svd_tensor() const {return false;}
-        bool is_tensortrain() const {return false;}
-        bool is_full_tensor() const {return true;}
+        constexpr bool is_svd_tensor() const {return false;}
+        constexpr bool is_tensortrain() const {return false;}
+        constexpr bool is_full_tensor() const {return true;}
         bool is_of_tensortype(const TensorType& tt) const {return (tt==TT_FULL);}
 
 

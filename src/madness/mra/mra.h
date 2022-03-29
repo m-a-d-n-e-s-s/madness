@@ -1665,7 +1665,7 @@ namespace madness {
         Function<T,NDIM>& chop_at_level(const int n, const bool fence=true) {
             verify();
             impl->make_redundant(true);
-            impl->chop_at_level(n);
+            impl->chop_at_level(n,true);
             impl->undo_redundant(true);
             return *this;
         }
@@ -2371,15 +2371,21 @@ namespace madness {
         return f.inner(g);
     }
 
+
     /// Computes the partial scalar/inner product between two functions, returns a low-dim function
 
     /// syntax similar to the inner product in tensor.h
     /// e.g result=inner<3>(f,g),{0},{1}) : r(x,y) = int f(x1,x) g(y,x1) dx1
+    /// @param[in]  task    0: everything, 1; prepare only (fence), 2: work only (no fence), 3: finalize only (fence)
     template<std::size_t NDIM, typename T, std::size_t LDIM, typename R, std::size_t KDIM,
             std::size_t CDIM = (KDIM + LDIM - NDIM) / 2>
     Function<TENSOR_RESULT_TYPE(T, R), NDIM>
     innerXX(const Function<T, LDIM>& f, const Function<R, KDIM>& g, const std::array<int, CDIM> v1,
-           const std::array<int, CDIM> v2) {
+           const std::array<int, CDIM> v2, int task=0) {
+        bool prepare = ((task==0) or (task==1));
+        bool work = ((task==0) or (task==2));
+        bool finish = ((task==0) or (task==3));
+
         static_assert((KDIM + LDIM - NDIM) % 2 == 0, "faulty dimensions in inner (partial version)");
         static_assert(KDIM + LDIM - 2 * CDIM == NDIM, "faulty dimensions in inner (partial version)");
 
@@ -2398,17 +2404,56 @@ namespace madness {
         World& world=f.world();
         MADNESS_CHECK(world.size() == 1);
 
-        f.make_nonstandard(false,false);
-        g.make_nonstandard(false,false);
-        world.gop.fence();
-        f.get_impl()->compute_snorm_and_dnorm(false);
-        g.get_impl()->compute_snorm_and_dnorm(false);
-        world.gop.fence();
+        if (prepare) {
+            f.make_nonstandard(false, false);
+            g.make_nonstandard(false, false);
+            world.gop.fence();
+            f.get_impl()->compute_snorm_and_dnorm(false);
+            g.get_impl()->compute_snorm_and_dnorm(false);
+            world.gop.fence();
+        }
 
         typedef TENSOR_RESULT_TYPE(T, R) resultT;
-        Function<resultT,NDIM> result=FunctionFactory<resultT,NDIM>(world)
-                        .k(f.k()).thresh(f.thresh());   // no empty() here!
-        result.get_impl()->partial_inner(*f.get_impl(),*g.get_impl(),v1,v2);
+        Function<resultT,NDIM> result;
+        if (work) {
+            world.gop.set_forbid_fence(true);
+            result=FunctionFactory<resultT,NDIM>(world)
+                            .k(f.k()).thresh(f.thresh()).empty().nofence();
+            result.get_impl()->partial_inner(*f.get_impl(),*g.get_impl(),v1,v2);
+            result.get_impl()->set_tree_state(nonstandard);
+            world.gop.set_forbid_fence(false);
+        }
+
+        if (finish) {
+
+            world.gop.fence();
+            result.reconstruct();
+            FunctionImpl<T,LDIM>& f_nc=const_cast<FunctionImpl<T,LDIM>&>(*f.get_impl());
+            FunctionImpl<R,KDIM>& g_nc=const_cast<FunctionImpl<R,KDIM>&>(*g.get_impl());
+
+            // restore initial state of g and h
+            auto erase_list = [] (const auto& funcimpl) {
+                typedef typename std::decay_t<decltype(funcimpl)>::keyT keyTT;
+                std::list<keyTT> to_be_erased;
+                for (auto it=funcimpl.get_coeffs().begin(); it!=funcimpl.get_coeffs().end(); ++it) {
+                    const auto& key=it->first;
+                    const auto& node=it->second;
+                    if (not node.has_children()) to_be_erased.push_back(key);
+                }
+                return to_be_erased;
+            };
+
+            for (auto& key : erase_list(f_nc)) f_nc.get_coeffs().erase(key);
+            for (auto& key : erase_list(g_nc)) g_nc.get_coeffs().erase(key);
+            g_nc.standard(false);
+            f_nc.standard(false);
+            world.gop.fence();
+            g_nc.reconstruct(false);
+            f_nc.reconstruct(false);
+            world.gop.fence();
+//            print("timings: get_lists, recur, contract",wall_get_lists,wall_recur,wall_contract);
+
+        }
 
         return result;
     }
@@ -2445,8 +2490,8 @@ namespace madness {
     Function<TENSOR_RESULT_TYPE(T,R),KDIM+LDIM-6>
     inner(const Function<T,LDIM>& f, const Function<R,KDIM>& g, const std::tuple<int,int,int> v1, const std::tuple<int,int,int> v2) {
         return innerXX<KDIM+LDIM-6>(f,g,
-                                  std::array<int,3>({std::get<0>(v1),std::get<0>(v1),std::get<2>(v1)}),
-                                  std::array<int,3>({std::get<0>(v2),std::get<0>(v2),std::get<2>(v2)}));
+                                  std::array<int,3>({std::get<0>(v1),std::get<1>(v1),std::get<2>(v1)}),
+                                  std::array<int,3>({std::get<0>(v2),std::get<1>(v2),std::get<2>(v2)}));
     }
 
 
