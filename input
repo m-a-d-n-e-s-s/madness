@@ -1,25 +1,22 @@
 dft
-  k 5
-  L 20
-  econv 1.e-5
-  localize boys
-#  no_compute 1
+ xc hf
+ econv 1.e-5
+ dconv 1.e-4
 end
 
 cc2
-# no_compute_mp2 1
-  dconv_6d 1.e-2
-  freeze 1
-  calc_type mp2
-  kain false
-end
-
-response
+ thresh 3D 1.e-4
+ tda econv hard 1.e-4
+ tda dconv hard 1.e-3
+ tda guess dipole+
 end
 
 geometry
-units angs
-             H       -1.958940   -0.032063    0.725554
-             H       -0.607485    0.010955    0.056172
-             O       -1.538963    0.004548   -0.117331
+ he 0.0 0.0 0.0
+end
+
+plot
+ plane x1 x2
+ origin 0.0 0.0 0.0
+ zoom 1.0
 end
