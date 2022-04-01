@@ -2080,7 +2080,7 @@ namespace madness {
             result.get_impl()->apply(op, *f.get_impl(), fence);
 
         } else {        // general version for higher dimension
-            bool print_timings=true;
+            bool print_timings=false;
             Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> r1;
 
             result.set_impl(f, false);
@@ -2125,6 +2125,7 @@ namespace madness {
 
 		MADNESS_ASSERT(not f.is_on_demand());
 		bool print_timings=(NDIM==6);
+//        bool print_timings=false;
 
     	if (VERIFY_TREE) ff.verify_tree();
     	ff.reconstruct();
@@ -2146,6 +2147,7 @@ namespace madness {
         	// f.trace() is just a number
     		R ftrace=0.0;
     		if (op.is_slaterf12) ftrace=f.trace();
+            print("ftrace",ftrace);
 
     		// saves the standard() step, which is very expensive in 6D
 //    		Function<R,NDIM> fff=copy(ff);
@@ -2158,10 +2160,12 @@ namespace madness {
             }
             result = apply_only(op, fff, fence);
         	ff.world().gop.fence();
+            result.print_size("result after apply_only");
 
         	// svd-tensors need some post-processing
         	if (result.get_impl()->get_tensor_type()==TT_2D) {
-            	result.get_impl()->finalize_apply();
+            	double elapsed=result.get_impl()->finalize_apply();
+                if (print_timings) printf("time in finalize_apply        %8.2f\n",elapsed);
 			}
 			if (print_timings) {
 				result.get_impl()->print_timer();
