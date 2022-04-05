@@ -65,12 +65,15 @@ int main(int argc, char *argv[]) {
             ifs >> j_read;
             std::cout << "READ IT" << std::endl;
             json data = generate_response_data(molecule_path, xc, property, {0});
+            json excited_date= generate_excited_data(molecule_path, xc, 4);
             std::ofstream ofs("molecules/frequency.json");
             j_read.merge_patch(data);
+            j_read.merge_patch(excited_date);
             ofs << std::setw(4) << j_read << std::endl;
 
         } else {
             json data = generate_response_data(molecule_path, xc, property, {0});
+            json excited_date= generate_excited_data(molecule_path, xc, 4);
             std::ofstream ofs("molecules/frequency.json");
             ofs << std::setw(4) << data << std::endl;
             ResponseDataBase response_data_base(data);

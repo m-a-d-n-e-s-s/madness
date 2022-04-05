@@ -50,7 +50,6 @@ std::filesystem::path create_xc_path_and_directory(
     return xc_path;
 }
 
-
 // sets the current path to the save path
 /**
  * Generates the frequency save path with format
@@ -65,6 +64,26 @@ std::pair<std::filesystem::path, std::string> generate_frequency_save_path(
     auto save_path = std::filesystem::path(frequency_run_path);
     auto run_name = frequency_run_path.filename();
     std::string save_string = "restart_" + run_name.string();
+    save_path += "/";
+    save_path += save_string;
+
+    save_path += ".00000";
+    return {save_path, save_string};
+}
+
+// sets the current path to the save path
+/**
+ * Generates the frequency save path with format
+ * /excited_state/restart_[frequency_run_filename].00000
+ *
+ * @param excited_state restart path
+ * @return
+ */
+std::pair<std::filesystem::path, std::string> generate_excited_save_path(
+        const std::filesystem::path &excited_run_path) {
+
+    auto save_path = std::filesystem::path(excited_run_path);
+    std::string save_string = "restart_excited";
     save_path += "/";
     save_path += save_string;
 
@@ -91,6 +110,32 @@ std::filesystem::path generate_response_frequency_run_path(const std::filesystem
     auto sp = s_frequency.find(".");
     s_frequency = s_frequency.replace(sp, sp, "-");
     std::string run_name = property + "_" + xc + "_" + s_frequency;
+    // set r_params to restart true if restart file exist
+
+    auto run_path = moldft_path;
+    run_path += "/";
+    run_path += std::filesystem::path(run_name);
+    std::cout << run_path << endl;
+    return run_path;
+}
+
+/**
+ * generates the frequency response path using the format
+ * [property]_[xc]_[1-100]
+ *
+ * where 1-100 corresponds a frequency of 1.100
+ *
+ * @param moldft_path
+ * @param property
+ * @param frequency
+ * @param xc
+ * @return
+ */
+std::filesystem::path generate_excited_run_path(const std::filesystem::path &moldft_path,
+                                                const size_t &num_states,
+                                                const std::string &xc) {
+    std::string s_num_states = std::to_string(num_states);
+    std::string run_name = "excited-" + s_num_states;
     // set r_params to restart true if restart file exist
 
     auto run_path = moldft_path;
@@ -237,6 +282,32 @@ void initialize_excited_restart(World &world, const std::string &filename, const
     write_response_input(r_params, filename);
 }
 
+/**
+ * Sets the response parameters for a frequency response calculation and writes to file
+ *
+ * @param r_params
+ * @param property
+ * @param xc
+ * @param frequency
+ */
+void set_and_write_frequency_excited_parameters(ResponseParameters &r_params,
+                                                const std::string &xc,
+                                                const size_t &num_states) {
+    r_params.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6});
+    r_params.set_user_defined_value("archive", std::string("../restartdata"));
+    r_params.set_user_defined_value("maxiter", size_t(20));
+    r_params.set_user_defined_value("maxsub", size_t(10));
+    r_params.set_user_defined_value("kain", true);
+    r_params.set_user_defined_value("first_order", true);
+    r_params.set_user_defined_value("plot_all_orbitals", true);
+    r_params.set_user_defined_value("save", true);
+    r_params.set_user_defined_value("guess_xyz", true);
+    // set xc, property, num_states,and restart
+    r_params.set_user_defined_value("xc", xc);
+    r_params.set_user_defined_value("excited_state", true);
+    r_params.set_user_defined_value("states", num_states);
+    // Here
+}
 
 /**
  * Sets the response parameters for a frequency response calculation and writes to file
@@ -374,6 +445,106 @@ std::pair<std::filesystem::path, bool> RunResponse(World &world, const std::stri
     return {save_path, true};
 }
 
+/***
+ * sets the run path based on the run type set by r_params
+ * creates the run directory and sets current directory to the run data
+ * returns the name of parameter file to run from
+ *
+ * @param parameters
+ * @param frequency
+ * @param moldft_path
+ */
+static std::filesystem::path set_excited_path_and_restart(
+        ResponseParameters &parameters, const size_t &num_states, const std::string &xc,
+        const std::filesystem::path &moldft_path, std::filesystem::path restart_path, bool restart) {
+
+    // change the logic create save path
+    auto excited_state_path =
+            generate_excited_run_path(moldft_path, num_states, xc);
+    // Crea
+    if (std::filesystem::is_directory(excited_state_path)) {
+        cout << "Response directory found " << std::endl;
+    } else {// create the file
+        std::filesystem::create_directory(excited_state_path);
+        cout << "Creating response_path directory" << std::endl;
+    }
+
+
+    std::filesystem::current_path(excited_state_path);
+    // Calling this function will make the current working directory the frequency save path
+    auto[save_path, save_string] = generate_excited_save_path(excited_state_path);
+    print("save string", save_string);
+
+
+    parameters.set_user_defined_value("save", true);
+    parameters.set_user_defined_value("save_file", save_string);
+    // if restart and restartfile exists go ahead and set the restart file
+    if (restart) {
+        if (std::filesystem::exists(save_path)) {
+
+            parameters.set_user_defined_value("restart", true);
+            parameters.set_user_defined_value("restart_file", save_string);
+        } else if (std::filesystem::exists(restart_path)) {
+
+            parameters.set_user_defined_value("restart", true);
+            parameters.set_user_defined_value("restart_file", restart_path.string());
+
+        } else {
+            parameters.set_user_defined_value("restart", false);
+
+            // neither file exists therefore you need to start from fresh
+        }
+    } else {
+        parameters.set_user_defined_value("restart", false);
+    }
+    std::string filename = "response.in";
+    write_response_input(parameters, filename);
+    return save_path;
+}
+/**
+ *
+ * @param world
+ * @param filename
+ * @param frequency
+ * @param property
+ * @param xc
+ * @param moldft_path
+ * @param restart_path
+ * @return
+ */
+bool RunExcited(World &world, const std::string &filename,
+                size_t num_states,
+                const std::string &xc,
+                const std::filesystem::path &moldft_path,
+                std::filesystem::path restart_path) {
+
+    // Set the response parameters
+    ResponseParameters r_params{};
+    set_and_write_frequency_excited_parameters(r_params, xc, num_states);
+
+    auto save_path = set_excited_path_and_restart(r_params, num_states, xc, moldft_path,
+                                                  restart_path, true);
+
+    auto calc_params = initialize_calc_params(world, std::string(filename));
+    ExcitedResponse calc(world, calc_params);
+    if (world.rank() == 0) {
+        print("\n\n");
+        print(" MADNESS Time-Dependent Density Functional Theory Response "
+              "Program");
+        print(" ----------------------------------------------------------\n");
+        print("\n");
+        calc_params.molecule.print();
+        print("\n");
+        calc_params.response_parameters.print("response");
+        // put the response parameters in a j_molrespone json object
+        calc_params.response_parameters.to_json(calc.j_molresponse);
+    }
+    // set protocol to the first
+    calc.solve(world);
+    calc.output_json();
+    return true;
+}
+
 /**
  * Takes in the moldft path where moldft restart file exists
  * runs a response calculations for given property at given frequencies.
@@ -438,6 +609,62 @@ set_frequencies(const ResponseDataBase &response_data_base, const std::filesyste
         return {0};
     }
 
+}
+
+/**
+ * Sets the excited state data found in the response_data_base class
+ * If the data is not found it will just return 4
+ * @param response_data_base
+ * @param molecule_path
+ * @param molecule_name
+ * @param xc
+ * @param property
+ * @return
+ */
+size_t
+set_excited_states(const ResponseDataBase &response_data_base, const std::filesystem::path &molecule_path,
+                   const std::string &molecule_name,
+                   const std::string &xc) {
+
+    const std::string property;
+    auto response_json_path =
+            generate_response_json_path(molecule_path, molecule_name, xc, property);
+
+
+    if (std::filesystem::exists(response_json_path)) {
+        std::cout << "response_json exists:" << std::endl;
+        try {
+            response_data_base.output_data(response_json_path.string(),
+                                           molecule_name, xc, property);
+            return response_data_base.get_num_states(molecule_name, xc, property);
+        } catch (json::exception &e) { std::cout << e.what() << std::endl; }
+    } else {
+        std::cout << "did not find the frequency data for [" << molecule_name
+                  << "][" << xc << "][" << property << "]\n";
+        return 4;
+    }
+}
+
+/**
+ * Takes in the moldft path where moldft restart file exists
+ * runs a response calculations for given property at given frequencies.
+ *
+ *
+ * @param world
+ * @param moldft_path
+ * @param frequencies
+ * @param xc
+ * @param property
+ */
+void runExcitedStates(World &world, std::filesystem::path moldft_path,
+                      size_t num_states, std::string xc) {
+
+    std::filesystem::current_path(moldft_path);
+    // add a restart path
+    auto restart_path = moldft_path;
+    restart_path += "/restart_excited.00000";
+    std::filesystem::current_path(moldft_path);
+    bool success = RunExcited(world, "response.in", num_states, xc, moldft_path, restart_path);
 }
 
 /**

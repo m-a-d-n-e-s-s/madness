@@ -42,6 +42,11 @@ public:
     }
 
 
+    size_t
+    get_num_states(const std::string &molecule, const std::string &xc, const std::string &property) const {
+        return retrieve_data(molecule, xc, property).get<size_t>();
+    }
+
     std::vector<double>
     get_frequencies(const std::string &molecule, const std::string &xc, const std::string &property) const {
         return retrieve_data(molecule, xc, property).get<std::vector<double>>();
@@ -49,7 +54,8 @@ public:
 };
 
 json
-generate_response_data(const std::filesystem::path &molecule_path, const std::string &xc, const std::string &property,
+generate_response_data(const std::filesystem::path &molecule_path, const std::string &xc,
+                       const std::string &property,
                        const vector<double> &freq) {
     json data;
     for (const std::filesystem::directory_entry &mol_path:
@@ -57,6 +63,22 @@ generate_response_data(const std::filesystem::path &molecule_path, const std::st
         if (mol_path.path().extension() == ".mol") {
             auto molecule_name = mol_path.path().stem();
             data[molecule_name][xc][property] = freq;
+        }
+    }
+    std::cout << data << endl;
+    return data;
+}
+
+json
+generate_excited_data(const std::filesystem::path &molecule_path, const std::string &xc,
+                      int num_states) {
+    json data;
+    for (const std::filesystem::directory_entry &mol_path:
+            std::filesystem::directory_iterator(molecule_path)) {
+        if (mol_path.path().extension() == ".mol") {
+            auto molecule_name = mol_path.path().stem();
+            const std::string property = "excited_state";
+            data[molecule_name][xc][property] = num_states;
         }
     }
     std::cout << data << endl;
