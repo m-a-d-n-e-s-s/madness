@@ -240,12 +240,12 @@ void initialize(World& world) {
     FunctionDefaults<NDIM>::set_cubic_cell(-L/2, L/2);
 }
 int main(int argc, char** argv) {
-    initialize(argc, argv);
-    World world(SafeMPI::COMM_WORLD);
+    World& world=initialize(argc, argv,false);
+//    World world(SafeMPI::COMM_WORLD);
 
     int success = 0;
 
-    startup(world,argc,argv);
+    startup(world,argc,argv,true);
     std::cout.precision(6);
 
     if (getenv("MAD_SMALL_TESTS")) smalltest=true;
