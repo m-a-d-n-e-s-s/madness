@@ -290,9 +290,9 @@ void initialize_excited_restart(World &world, const std::string &filename, const
  * @param xc
  * @param frequency
  */
-void set_and_write_frequency_excited_parameters(ResponseParameters &r_params,
-                                                const std::string &xc,
-                                                const size_t &num_states) {
+void set_and_write_excited_parameters(ResponseParameters &r_params,
+                                      const std::string &xc,
+                                      const size_t &num_states) {
     r_params.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6});
     r_params.set_user_defined_value("archive", std::string("../restartdata"));
     r_params.set_user_defined_value("maxiter", size_t(20));
@@ -301,7 +301,7 @@ void set_and_write_frequency_excited_parameters(ResponseParameters &r_params,
     r_params.set_user_defined_value("first_order", true);
     r_params.set_user_defined_value("plot_all_orbitals", true);
     r_params.set_user_defined_value("save", true);
-    r_params.set_user_defined_value("guess_xyz", true);
+    r_params.set_user_defined_value("guess_xyz", false);
     // set xc, property, num_states,and restart
     r_params.set_user_defined_value("xc", xc);
     r_params.set_user_defined_value("excited_state", true);
@@ -520,7 +520,7 @@ bool RunExcited(World &world, const std::string &filename,
 
     // Set the response parameters
     ResponseParameters r_params{};
-    set_and_write_frequency_excited_parameters(r_params, xc, num_states);
+    set_and_write_excited_parameters(r_params, xc, num_states);
 
     auto save_path = set_excited_path_and_restart(r_params, num_states, xc, moldft_path,
                                                   restart_path, true);
