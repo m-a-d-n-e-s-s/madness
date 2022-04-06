@@ -1266,6 +1266,7 @@ void protocol_to_json(json &j, const double proto) {
     j["protocol_data"].push_back({});
     auto proto_index = j["protocol_data"].size() - 1;
     j["protocol_data"][proto_index]["proto"] = proto;
+    j["protocol_data"][proto_index]["k"] = FunctionDefaults<3>::get_k();
     j["protocol_data"][proto_index]["iter_data"] = {};
 }
 
