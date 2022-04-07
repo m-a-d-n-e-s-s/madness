@@ -9,6 +9,7 @@
 #include <vector>
 #include <filesystem>
 
+using path = std::filesystem::path;
 
 class ResponseDataBase {
 public:
@@ -83,6 +84,34 @@ generate_excited_data(const std::filesystem::path &molecule_path, const std::str
     }
     std::cout << data << endl;
     return data;
+}
+
+ResponseDataBase setResponseDataBase(const path &molecule_path, const std::string &xc, const std::string &op) {
+
+    ResponseDataBase response_data_base = ResponseDataBase();
+
+    if (std::filesystem::exists("molecules/frequency.json")) {
+        std::ifstream ifs("molecules/frequency.json");
+        std::cout << "Trying to read frequency.json" << std::endl;
+        json j_read;
+        ifs >> j_read;
+        std::cout << "READ IT" << std::endl;
+        response_data_base.set_data(j_read);
+    } else if (op == "excited-state") {
+
+        // This
+        json data = generate_excited_data(molecule_path, xc, 4);
+        std::ofstream ofs("molecules/frequency.json");
+        ofs << std::setw(4) << data << std::endl;
+        response_data_base.set_data(data);
+    } else {
+        json data = generate_response_data(molecule_path, xc, op, {0});
+        std::ofstream ofs("molecules/frequency.json");
+        ofs << std::setw(4) << data << std::endl;
+        response_data_base.set_data(data);
+
+    }
+    return response_data_base;
 }
 
 #endif //MADNESS_RESPONSE_DATA_BASE_HPP

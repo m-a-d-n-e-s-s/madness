@@ -10,6 +10,6 @@ add_mad_executable(test_frequency_response "large_response_test.cpp" "MADall_res
 add_mad_executable(test_response_running "test_response_running.cpp" "MADall_response;MADchem")
 add_mad_executable(test_frequency_base "test_frequency_base.cpp" "MADall_response;MADchem")
 add_mad_executable(frequency_calc "frequency_calc.cpp" "MADall_response;MADchem")
-add_mad_executable(excited_calc "excited_state_calc.cpp" "MADall_response;MADchem")
+add_mad_executable(single-excited-test "excited_state_calc.cpp" "MADall_response;MADchem")
 add_mad_executable(test_excited "test_response_excited.cpp" "MADchem;MADresponse_base")
 # Add dependencies for MADchem

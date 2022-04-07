@@ -74,7 +74,7 @@ TEST_CASE("Run MOLDFT/RESPONSE") {
         std::cout << "READ IT" << std::endl;
         response_data_base.set_data(j_read);
     } else {
-        json data = generate_response_data(molecule_path, xc, property, {0});
+        json data = generate_excited_data(molecule_path, xc, 4);
         std::ofstream ofs("molecules/frequency.json");
         ofs << std::setw(4) << data << std::endl;
         response_data_base.set_data(data);
