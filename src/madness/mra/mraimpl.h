@@ -1798,32 +1798,35 @@ namespace madness {
     /// after apply we need to do some cleanup;
     template <typename T, std::size_t NDIM>
     double FunctionImpl<T,NDIM>::finalize_apply(const bool fence) {
+        bool print_timings=false;
+        bool printme=(world.rank()==0 and print_timings);
         TensorArgs tight_args(targs);
         tight_args.thresh*=0.01;
         double begin=wall_time();
         double begin1=wall_time();
         flo_unary_op_node_inplace(do_consolidate_buffer(tight_args),true);
         double end1=wall_time();
-        if (world.rank()==0) printf("time in consolidate_buffer    %8.4f\n",end1-begin1);
+        if (printme) printf("time in consolidate_buffer    %8.4f\n",end1-begin1);
+
 
         // reduce the rank of the final nodes, leave full tensors unchanged
         //            flo_unary_op_node_inplace(do_reduce_rank(tight_args.thresh),true);
         begin1=wall_time();
         flo_unary_op_node_inplace(do_reduce_rank(targs),true);
         end1=wall_time();
-        if (world.rank()==0) printf("time in do_reduce_rank        %8.4f\n",end1-begin1);
+        if (printme) printf("time in do_reduce_rank        %8.4f\n",end1-begin1);
 
         // change TT_FULL to low rank
         begin1=wall_time();
         flo_unary_op_node_inplace(do_change_tensor_type(targs,*this),true);
         end1=wall_time();
-        if (world.rank()==0) printf("time in do_change_tensor_type %8.4f\n",end1-begin1);
+        if (printme) printf("time in do_change_tensor_type %8.4f\n",end1-begin1);
 
         // truncate leaf nodes to avoid excessive tree refinement
         begin1=wall_time();
         flo_unary_op_node_inplace(do_truncate_NS_leafs(this),true);
         end1=wall_time();
-        if (world.rank()==0) printf("time in do_truncate_NS_leafs  %8.4f\n",end1-begin1);
+        if (printme) printf("time in do_truncate_NS_leafs  %8.4f\n",end1-begin1);
 
         double end=wall_time();
         double elapsed=end-begin;
