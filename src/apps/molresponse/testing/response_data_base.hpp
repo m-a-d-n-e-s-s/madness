@@ -50,7 +50,9 @@ public:
 
     std::vector<double> get_frequencies(const std::string &molecule, const std::string &xc,
                                         const std::string &property) const {
-        return retrieve_data(molecule, xc, property).get<std::vector<double>>();
+        auto freqs= retrieve_data(molecule, xc, property).get<std::vector<double>>();
+        ::print(freqs);
+        return freqs;
     }
 
     void add_default_molecule(const json &response_keywords) {
