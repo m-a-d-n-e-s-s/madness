@@ -43,7 +43,7 @@ int main(int argc, char *argv[]) {
     auto root = std::filesystem::current_path();//="/"+molecule_name;
     // first step is to read the molecule directory for molecules... check if it exists else throw error
 
-    std::string property = "dipole";
+    std::string op = "excited-state";
     auto molecule_path = root;
     molecule_path += "/molecules";
     std::string xc = "hf";
@@ -64,7 +64,7 @@ int main(int argc, char *argv[]) {
             json j_read;
             ifs >> j_read;
             std::cout << "READ IT" << std::endl;
-            json data = generate_response_data(molecule_path, xc, property, {0});
+            json data = generate_response_data(molecule_path, xc, op, {0});
             json excited_date= generate_excited_data(molecule_path, xc, 4);
             std::ofstream ofs("molecules/frequency.json");
             j_read.merge_patch(data);
@@ -72,7 +72,7 @@ int main(int argc, char *argv[]) {
             ofs << std::setw(4) << j_read << std::endl;
 
         } else {
-            json data = generate_response_data(molecule_path, xc, property, {0});
+            json data = generate_response_data(molecule_path, xc, op, {0});
             json excited_date= generate_excited_data(molecule_path, xc, 4);
             std::ofstream ofs("molecules/frequency.json");
             ofs << std::setw(4) << data << std::endl;

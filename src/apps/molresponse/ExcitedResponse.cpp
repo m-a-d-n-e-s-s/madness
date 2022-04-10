@@ -18,7 +18,7 @@ void ExcitedResponse::initialize(World &world) {
         trial = create_trial_functions2(world);
         // Use a symmetry adapted operator on ground state functions
     } else {
-        trial = create_trial_functions(world, 2 * r_params.num_states());
+        trial = create_trial_functions(world, 3 * r_params.num_states());
     }
 
     if (world.size() > 1) {

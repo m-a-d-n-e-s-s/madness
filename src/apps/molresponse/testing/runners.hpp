@@ -522,6 +522,7 @@ bool RunExcited(World &world, const std::string &filename,
     ResponseParameters r_params{};
     set_and_write_excited_parameters(r_params, xc, num_states);
 
+    // restart is true if possible at the moment
     auto save_path = set_excited_path_and_restart(r_params, num_states, xc, moldft_path,
                                                   restart_path, true);
 
