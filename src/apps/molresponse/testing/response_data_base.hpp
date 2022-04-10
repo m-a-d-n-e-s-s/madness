@@ -50,12 +50,10 @@ public:
 
     std::vector<double> get_frequencies(const std::string &molecule, const std::string &xc,
                                         const std::string &property) const {
-        auto freqs= retrieve_data(molecule, xc, property).get<std::vector<double>>();
-        ::print(freqs);
-        return freqs;
+        return retrieve_data(molecule, xc, property).get<std::vector<double>>();
     }
 
-    void add_default_molecule(const json &response_keywords) {
+    void add_default_molecule(const json & response_keywords) {
 
         const std::string molecule_name = response_keywords["molecule"];
         const std::string xc = response_keywords["xc"];
@@ -95,7 +93,7 @@ public:
 
             } else {
                 std::cout << " did not find dipole-excited.json" << std::endl;
-                j_add[molecule_name][xc][op] = {0};
+            j_add[molecule_name][xc][op] = {0};
             }
         } else if (op == "nuclear") {
             j_add[molecule_name][xc][op] = {0};
@@ -122,12 +120,24 @@ void addResponseKeyWord(json response_keywords) {
         std::cout << "Trying to read frequency.json\n";
         json j_read;
         ifs >> j_read;
+        std::cout << "READ IT\n";
         data_base.set_data(j_read);
-        if (std::filesystem::exists("molecules/" + molecule_name + ".mol")) {
-            // The molecule file exists in the database therefore it is okay to add to frequency.json
-            data_base.add_default_molecule(response_keywords);
-        }
 
+            try {
+                auto num_states = data_base.retrieve_data(molecule_name, xc, op);
+                print(num_states);
+
+            } catch (const json::out_of_range &e) {
+                std::cout << e.what() << std::endl;
+                if (std::filesystem::exists("molecules/" + molecule_name + ".mol")) {
+                    // The molecule file exists in the database therefore it is okay to add to frequency.json
+                    data_base.add_default_molecule(response_keywords);
+                }
+
+            } catch (const std::exception &e) { print(e.what()); }
+            catch (...) {
+                std::cout << "uncaught exception" << std::endl;
+            }
     } else {
         if (std::filesystem::exists("molecules/" + molecule_name + ".mol")) {
             // The molecule file exists in the database therefore it is okay to add to frequency.json
@@ -136,6 +146,5 @@ void addResponseKeyWord(json response_keywords) {
 
     }
 }
-
 
 #endif//MADNESS_RESPONSE_DATA_BASE_HPP
