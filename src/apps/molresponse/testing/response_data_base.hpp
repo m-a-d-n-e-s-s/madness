@@ -147,5 +147,35 @@ void addResponseKeyWord(json response_keywords) {
 
     }
 }
+json
+generate_response_data(const std::filesystem::path &molecule_path, const std::string &xc,
+                       const std::string &property,
+                       const vector<double> &freq) {
+    json data;
+    for (const std::filesystem::directory_entry &mol_path:
+         std::filesystem::directory_iterator(molecule_path)) {
+        if (mol_path.path().extension() == ".mol") {
+            auto molecule_name = mol_path.path().stem();
+            data[molecule_name][xc][property] = freq;
+        }
+    }
+    std::cout << data << endl;
+    return data;
+}
+
+json
+generate_excited_data(const std::filesystem::path &molecule_path, const std::string &xc,
+                      int num_states) {
+    json data;
+    for (const std::filesystem::directory_entry &mol_path:
+         std::filesystem::directory_iterator(molecule_path)) {
+        if (mol_path.path().extension() == ".mol") {
+            auto molecule_name = mol_path.path().stem();
+            const std::string property = "excited_state";
+            data[molecule_name][xc][property] = num_states;
+        }
+    }
+    return data;
+};
 
 #endif//MADNESS_RESPONSE_DATA_BASE_HPP
