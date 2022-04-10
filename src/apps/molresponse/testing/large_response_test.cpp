@@ -65,15 +65,21 @@ TEST_CASE("Run MOLDFT/RESPONSE") {
     auto xc_path = create_xc_path_and_directory(root, xc);
     std::string property = "dipole";
 
-    ResponseDataBase response_data_base = ResponseDataBase();
-    if (std::filesystem::exists("molecules/frequency.json")) {
-        std::ifstream ifs("molecules/frequency.json");
+    path freq_json=molecule_path;
+    freq_json+="/frequency.json";
+    print(freq_json);
+
+    ResponseDataBase rdb = ResponseDataBase();
+    if (std::filesystem::exists(freq_json)) {
+        std::ifstream ifs(freq_json);
         std::cout << "Trying to read frequency.json" << std::endl;
         json j_read;
         ifs >> j_read;
         std::cout << "READ IT" << std::endl;
-        response_data_base.set_data(j_read);
+        rdb.set_data(j_read);
 
+    }else{
+        std::cout<<"did not find frequency.json"<<std::endl;
     }
     try {
         if (std::filesystem::is_directory(molecule_path)) {
@@ -88,7 +94,8 @@ TEST_CASE("Run MOLDFT/RESPONSE") {
                     std::cout << "\n\n----------------------------------------------------\n";
                     std::cout << "Beginning Tests for Molecule: " << molecule_name << "\n";
 
-                    frequencies = set_frequencies(response_data_base, molecule_path, molecule_name, xc, property);
+                    frequencies = rdb.get_frequencies(  molecule_name, xc, property);
+                    print(frequencies);
                     auto moldft_path = run_moldft_path(world, xc_path, xc, mol_path, molecule_name);
                     // states.
                     try {
