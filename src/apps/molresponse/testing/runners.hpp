@@ -597,10 +597,10 @@ set_frequencies(const ResponseDataBase &response_data_base, const std::filesyste
             generate_response_json_path(molecule_path, molecule_name, xc, property);
 
 
-    if (std::filesystem::exists(response_json_path)) {
+    if (std::filesystem::exists("molecules/frequency.json")) {
         std::cout << "response_json exists:" << std::endl;
         try {
-            response_data_base.output_data(response_json_path.string(),
+            response_data_base.output_data("molecules/frequency.json",
                                            molecule_name, xc, property);
             return response_data_base.get_frequencies(molecule_name, xc, property);
         } catch (json::exception &e) { std::cout << e.what() << std::endl; }
