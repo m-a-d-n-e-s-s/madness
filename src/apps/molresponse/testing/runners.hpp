@@ -501,6 +501,7 @@ static std::filesystem::path set_excited_path_and_restart(
     write_response_input(parameters, filename);
     return save_path;
 }
+
 /**
  *
  * @param world
@@ -766,6 +767,53 @@ run_moldft_path(World &world, const std::filesystem::path &xc_path, const std::s
     return moldft_path;
 
 }
+
+path addPath(const path& root,const std::string & branch){
+
+    path p_branch=root;
+    p_branch+=branch;
+    return p_branch;
+
+}
+
+struct runSchema {
+    path root;// root directory
+    path molecule_path;// molecule directory
+    path xc_path;// create xc path
+    path freq_json;// path to freq_json
+    path dalton_dipole_json;// path to dalton to dipole json
+    path dalton_excited_json;// path to dalton excited json
+    ResponseDataBase rdb;
+
+    runSchema(const std::string & xc) {
+
+        root = std::filesystem::current_path();//="/"+molecule_name;
+        molecule_path = root;
+        molecule_path += "/molecules";
+
+        xc_path = create_xc_path_and_directory(root, xc);
+
+        // Get the database where the calculation will be run from
+        freq_json=addPath(molecule_path,"/frequency.json");
+        dalton_excited_json=addPath(molecule_path,"/dalton-excited.json");
+        dalton_dipole_json=addPath(molecule_path,"/dalton-dipole.json");
+
+        rdb = ResponseDataBase();
+
+        if (std::filesystem::exists(freq_json)) {
+            std::ifstream ifs(freq_json);
+            std::cout << "Trying to read frequency.json" << std::endl;
+            json j_read;
+            ifs >> j_read;
+            std::cout << "READ IT" << std::endl;
+            rdb.set_data(j_read);
+
+        } else {
+            std::cout << "did not find frequency.json" << std::endl;
+        }
+
+    }
+};
 
 
 #endif//MADNESS_RUNNERS_HPP

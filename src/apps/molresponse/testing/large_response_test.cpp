@@ -52,54 +52,33 @@ TEST_CASE("Run MOLDFT/RESPONSE") {
     using namespace madness;
     World &world = World::get_default();
     std::cout.precision(6);
-// INPUTS
-// root  is the current path
-// molecule_path is the path where molecules are
+
+    const std::string xc = "hf";
+    const std::string op = "dipole";
+
+    auto schema=runSchema(xc);
 
 
-    auto root = std::filesystem::current_path();//="/"+molecule_name;
-    // first step is to read the molecule directory for molecules... check if it exists else throw error
-    auto molecule_path = root;
-    molecule_path += "/molecules";
-    std::string xc = "hf";
-    auto xc_path = create_xc_path_and_directory(root, xc);
-    std::string property = "dipole";
 
-    path freq_json=molecule_path;
-    freq_json+="/frequency.json";
-    print(freq_json);
-
-    ResponseDataBase rdb = ResponseDataBase();
-    if (std::filesystem::exists(freq_json)) {
-        std::ifstream ifs(freq_json);
-        std::cout << "Trying to read frequency.json" << std::endl;
-        json j_read;
-        ifs >> j_read;
-        std::cout << "READ IT" << std::endl;
-        rdb.set_data(j_read);
-
-    }else{
-        std::cout<<"did not find frequency.json"<<std::endl;
-    }
     try {
-        if (std::filesystem::is_directory(molecule_path)) {
+        if (std::filesystem::is_directory(schema.molecule_path)) {
             // for every molecule within the molecule path
             for (const std::filesystem::directory_entry &mol_path:
-                    std::filesystem::directory_iterator(molecule_path)) {
+                    std::filesystem::directory_iterator(schema.molecule_path)) {
                 vector<double> frequencies{0};
-                std::filesystem::current_path(xc_path);
+                std::filesystem::current_path(schema.xc_path);
 
                 if (mol_path.path().extension() == ".mol") {
                     auto molecule_name = mol_path.path().stem();
                     std::cout << "\n\n----------------------------------------------------\n";
                     std::cout << "Beginning Tests for Molecule: " << molecule_name << "\n";
 
-                    frequencies = rdb.get_frequencies(  molecule_name, xc, property);
+                    frequencies = schema.rdb.get_frequencies(  molecule_name, xc, op);
                     print(frequencies);
-                    auto moldft_path = run_moldft_path(world, xc_path, xc, mol_path, molecule_name);
+                    auto moldft_path = run_moldft_path(world, schema.xc_path, xc, mol_path, molecule_name);
                     // states.
                     try {
-                        runFrequencyTests(world, moldft_path, frequencies, xc, property);
+                        runFrequencyTests(world, moldft_path, frequencies, xc, op);
                     } catch (const SafeMPI::Exception &e) {
                         print(e);
                     } catch (const madness::MadnessException &e) {

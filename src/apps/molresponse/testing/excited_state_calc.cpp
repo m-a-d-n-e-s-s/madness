@@ -55,26 +55,18 @@ TEST_CASE("Run ground and excited-state") {
     World &world = World::get_default();
     std::cout.precision(6);
 
-    auto root = std::filesystem::current_path();//="/"+molecule_name;
-    auto molecule_path = root;
-    molecule_path += "/molecules";
-
     const std::string molecule_name = "Be";
     const std::string xc = "hf";
     const std::string op = "excited-state";
-    auto xc_path = create_xc_path_and_directory(root, xc);
-    // Come up with an initial OK data map
-    // Get the database where the calculation will be run from
-    ResponseDataBase response_data_base = setResponseDataBase(molecule_path, xc, op);
 
-    path mol_path = molecule_path;
-    mol_path += "/";
-    mol_path += molecule_name;
+
+    auto schema=runSchema(xc);
+    auto mol_path=addPath(schema.molecule_path,molecule_name);
 
     try {
 
-        auto num_states = set_excited_states(response_data_base, molecule_path, molecule_name, xc);
-        auto moldft_path = run_moldft_path(world, xc_path, xc, mol_path, molecule_name);
+        auto num_states = set_excited_states(schema.rdb, schema.molecule_path, molecule_name, xc);
+        auto moldft_path = run_moldft_path(world, schema.xc_path, xc, mol_path, molecule_name);
 
         try {
             runExcitedStates(world, moldft_path, num_states, xc);
