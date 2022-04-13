@@ -1,14 +1,10 @@
 //
 // Created by adrianhurtado on 1/1/22.
 //
-#define CATCH_CONFIG_RUNNER
-
 #include "ExcitedResponse.hpp"
 #include "FrequencyResponse.hpp"
 #include "ResponseExceptions.hpp"
-#include "TDDFT.h"
 #include "apps/chem/SCF.h"
-#include "apps/external_headers/catch.hpp"
 #include "apps/external_headers/tensor_json.hpp"
 #include "madness/world/worldmem.h"
 #include "response_functions.h"
@@ -34,25 +30,15 @@ static inline int file_exists(const char *input_name) {
 
 using path = std::filesystem::path;
 
+using namespace madness;
+
+
 int main(int argc, char *argv[]) {
     World &world = madness::initialize(argc, argv);
     int result = 0;
     world.gop.fence();
     startup(world, argc, argv);
-    { result = Catch::Session().run(argc, argv); }
 
-    return result;
-
-    // print_meminfo(world.rank(), "startup");
-    // std::cout.precision(6);
-    // print_stats(world);
-}
-
-
-TEST_CASE("Run ground and excited-state") {
-    // Set up the run directories
-    using namespace madness;
-    World &world = World::get_default();
     std::cout.precision(6);
 
     const std::string molecule_name = "Be";
@@ -60,16 +46,21 @@ TEST_CASE("Run ground and excited-state") {
     const std::string op = "excited-state";
 
 
-    auto schema=runSchema(xc);
-    auto mol_path=addPath(schema.molecule_path,molecule_name);
+    auto schema = runSchema(xc);
+    auto mol_path = addPath(schema.molecule_path, molecule_name);
 
     try {
 
         auto num_states = set_excited_states(schema.rdb, schema.molecule_path, molecule_name, xc);
-        auto moldft_path = run_moldft_path(world, schema.xc_path, xc, mol_path, molecule_name);
+        auto m_schema = moldftSchema(molecule_name, xc, schema);
+        m_schema.print();
+        run_moldft_path(world, m_schema);
+        auto excited_schema = excitedSchema(m_schema, num_states);
+        excited_schema.print();
 
         try {
-            runExcitedStates(world, moldft_path, num_states, xc);
+            bool success = runExcited(world, excited_schema, true);
+
         } catch (const SafeMPI::Exception &e) {
             print(e);
         } catch (const madness::MadnessException &e) {
@@ -84,4 +75,12 @@ TEST_CASE("Run ground and excited-state") {
 
     } catch (const std::filesystem::filesystem_error &ex) { std::cerr << ex.what() << "\n"; }
 
+
+    return result;
+
+    // print_meminfo(world.rank(), "startup");
+    // std::cout.precision(6);
+    // print_stats(world);
 }
+
+

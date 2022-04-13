@@ -459,7 +459,7 @@ void TDDFT::solve_excited_states(World& world) {
                     trial = create_trial_functions2(world, ground_orbitals,
                                                     r_params.num_orbitals());
                 } else {
-                    trial = create_trial_functions(world, 2 * r_params.num_states(),
+                    trial = create_trial_functions(world, 3 * r_params.num_states(),
                                                    ground_orbitals, r_params.num_orbitals());
                 }
 

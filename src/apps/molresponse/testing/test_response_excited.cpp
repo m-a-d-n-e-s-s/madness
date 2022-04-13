@@ -1,7 +1,6 @@
 //
 // Created by adrianhurtado on 2/11/22.
 //
-#define CATCH_CONFIG_RUNNER
 
 #include "ExcitedResponse.hpp"
 #include "ResponseExceptions.hpp"
@@ -37,66 +36,35 @@ int main(int argc, char *argv[]) {
     int result = 0;
     world.gop.fence();
     startup(world, argc, argv);
-    { result = Catch::Session().run(argc, argv); }
-
-    return result;
-
-    // print_meminfo(world.rank(), "startup");
-    // std::cout.precision(6);
-    // print_stats(world);
-}
-
-TEST_CASE("Run MOLDFT/RESPONSE") {
-
-
-    using namespace madness;
-    World &world = World::get_default();
     std::cout.precision(6);
-// INPUTS
-// root  is the current path
-// molecule_path is the path where molecules are
 
-
-    auto root = std::filesystem::current_path();//="/"+molecule_name;
-    // first step is to read the molecule directory for molecules... check if it exists else throw error
-    auto molecule_path = root;
-    molecule_path += "/molecules";
     std::string xc = "hf";
-    auto xc_path = create_xc_path_and_directory(root, xc);
-    std::string property = "dipole";
+    auto schema = runSchema(xc);
 
-    ResponseDataBase response_data_base = ResponseDataBase();
-    if (std::filesystem::exists("molecules/frequency.json")) {
-        std::ifstream ifs("molecules/frequency.json");
-        std::cout << "Trying to read frequency.json" << std::endl;
-        json j_read;
-        ifs >> j_read;
-        std::cout << "READ IT" << std::endl;
-        response_data_base.set_data(j_read);
-    } else {
-        json data = generate_excited_data(molecule_path, xc, 4);
-        std::ofstream ofs("molecules/frequency.json");
-        ofs << std::setw(4) << data << std::endl;
-        response_data_base.set_data(data);
-    }
     try {
-        if (std::filesystem::is_directory(molecule_path)) {
+        if (std::filesystem::is_directory(schema.molecule_path)) {
             // for every molecule within the molecule path
             for (const std::filesystem::directory_entry &mol_path:
-                    std::filesystem::directory_iterator(molecule_path)) {
+                    std::filesystem::directory_iterator(schema.molecule_path)) {
                 size_t num_states{0};
-                std::filesystem::current_path(xc_path);
+                std::filesystem::current_path(schema.xc_path);
 
                 if (mol_path.path().extension() == ".mol") {
                     auto molecule_name = mol_path.path().stem();
                     std::cout << "\n\n----------------------------------------------------\n";
                     std::cout << "Beginning Tests for Molecule: " << molecule_name << "\n";
 
-                    num_states = set_excited_states(response_data_base, molecule_path, molecule_name, xc);
-                    auto moldft_path = run_moldft_path(world, xc_path, xc, mol_path, molecule_name);
+                    num_states = set_excited_states(schema.rdb, schema.molecule_path, molecule_name, xc);
+                    auto m_schema = moldftSchema(molecule_name, xc, schema);
+                    m_schema.print();
+                    run_moldft_path(world, m_schema);
+                    auto excited_schema = excitedSchema(m_schema, num_states);
+                    excited_schema.print();
+
+
                     // states.
                     try {
-                        runExcitedStates(world, moldft_path, num_states, xc);
+                        bool success = runExcited(world, excited_schema, true);
                     } catch (const SafeMPI::Exception &e) {
                         print(e);
                     } catch (const madness::MadnessException &e) {

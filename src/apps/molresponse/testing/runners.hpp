@@ -21,6 +21,201 @@
 #include "x_space.h"
 #include "response_data_base.hpp"
 
+path addPath(const path &root, const std::string &branch) {
+
+    path p_branch = root;
+    p_branch += branch;
+    return p_branch;
+
+}
+
+struct runSchema {
+    path root;// root directory
+    path molecule_path;// molecule directory
+    path xc_path;// create xc path
+    path freq_json;// path to freq_json
+    path dalton_dipole_json;// path to dalton to dipole json
+    path dalton_excited_json;// path to dalton excited json
+    ResponseDataBase rdb;
+
+    explicit runSchema(const std::string &xc) {
+
+        root = std::filesystem::current_path();//="/"+molecule_name;
+        molecule_path = root;
+        molecule_path += "/molecules";
+
+        xc_path = addPath(root, "/" + xc);
+
+        // Get the database where the calculation will be run from
+        freq_json = addPath(molecule_path, "/frequency.json");
+        dalton_excited_json = addPath(molecule_path, "/dalton-excited.json");
+        dalton_dipole_json = addPath(molecule_path, "/dalton-dipole.json");
+
+        rdb = ResponseDataBase();
+
+        if (std::filesystem::exists(freq_json)) {
+            std::ifstream ifs(freq_json);
+            std::cout << "Trying to read frequency.json" << std::endl;
+            json j_read;
+            ifs >> j_read;
+            std::cout << "READ IT" << std::endl;
+            rdb.set_data(j_read);
+
+        } else {
+            std::cout << "did not find frequency.json" << std::endl;
+        }
+
+    }
+};
+
+struct moldftSchema {
+
+    path moldft_path;
+    path moldft_json_path;
+    json moldft_json;
+
+    path moldft_restart;
+    path calc_info_json_path;
+    json calc_info_json;
+    path mol_path;
+    std::string mol_name;
+    std::string xc;
+    bool moldft_json_exists;
+
+
+    moldftSchema(const std::string &molecule_name, const std::string &m_xc, const runSchema &schema) : mol_name(
+            molecule_name), xc(m_xc) {
+
+        moldft_path = addPath(schema.xc_path, '/' + mol_name);
+        moldft_restart = addPath(moldft_path, "/restartdata.00000");
+        calc_info_json_path = addPath(moldft_path, "/calc_info.json");
+        mol_path = addPath(schema.molecule_path, "/" + mol_name + ".mol");
+
+        moldft_json_path = addPath(schema.molecule_path, "/moldft.json");
+
+        if (std::filesystem::exists(moldft_json_path)) {
+            moldft_json_exists = true;
+            std::ifstream ifs(moldft_json_path);
+            //read results into json
+            ifs >> moldft_json;
+            // Here are the current answers... check to see if th
+            std::cout << "Here are the current answers for" << molecule_name
+                      << " check to see if they need to be updated please!"
+                      << std::endl;
+            cout << moldft_path;
+        } else {
+            std::cout << " We do not have moldft answers so please run and save the "
+                         "results in the molecule directory"
+                      << std::endl;
+        }
+
+        if (std::filesystem::exists(moldft_restart) &&
+            std::filesystem::exists(calc_info_json_path)) {
+            // if both exist, read the calc_info json
+            std::ifstream ifs(calc_info_json_path);
+            ifs >> calc_info_json;
+            std::cout << "time: " << calc_info_json["time"] << std::endl;
+            std::cout << "MOLDFT return energy: " << calc_info_json["return_energy"]
+                      << std::endl;
+            std::cout << "MOLDFT return energy answer: "
+                      << moldft_json["return_energy"] << std::endl;
+        }
+    }
+
+
+    bool skipMOLDT() const {
+        return std::filesystem::exists(moldft_restart) &&
+               std::filesystem::exists(calc_info_json_path);
+
+    }
+
+    void print() const {
+        ::print("moldft path :", moldft_path);
+        ::print("moldft json path :", moldft_json_path);
+        ::print("moldft restart path :", moldft_restart);
+        ::print("molecule path  path :", mol_path);
+        ::print("calc_info json path :", calc_info_json_path);
+        ::print("moldft json path :", moldft_json_path);
+    }
+
+};
+
+/**
+ * generates the frequency response path using the format
+ * [property]_[xc]_[1-100]
+ *
+ * where 1-100 corresponds a frequency of 1.100
+ *
+ * @param moldft_path
+ * @param property
+ * @param frequency
+ * @param xc
+ * @return
+ */
+std::filesystem::path generate_excited_run_path(const std::filesystem::path &moldft_path,
+                                                const size_t &num_states,
+                                                const std::string &xc) {
+    std::string s_num_states = std::to_string(num_states);
+    std::string run_name = "excited-" + s_num_states;
+    // set r_params to restart true if restart file exist
+
+    auto run_path = moldft_path;
+    run_path += "/";
+    run_path += std::filesystem::path(run_name);
+    std::cout << run_path << endl;
+    return run_path;
+}
+// sets the current path to the save path
+/**
+ * Generates the frequency save path with format
+ * /excited_state/restart_[frequency_run_filename].00000
+ *
+ * @param excited_state restart path
+ * @return
+ */
+std::pair<std::filesystem::path, std::string> generate_excited_save_path(
+        const std::filesystem::path &excited_run_path) {
+
+    auto save_path = std::filesystem::path(excited_run_path);
+    std::string save_string = "restart_excited";
+    save_path += "/";
+    save_path += save_string;
+
+    save_path += ".00000";
+    return {save_path, save_string};
+
+}
+
+
+struct excitedSchema {
+    std::string xc;
+    size_t num_states;
+    path excited_state_run_path;
+    path save_path;
+    std::string save_string;
+
+
+    excitedSchema(const moldftSchema &m_schema, size_t n) : xc(m_schema.xc), num_states(n) {
+
+        excited_state_run_path =
+                generate_excited_run_path(m_schema.moldft_path, num_states, xc);
+        auto[sp, s]=generate_excited_save_path(excited_state_run_path);
+        save_path = sp;
+        save_string = s;
+
+    }
+
+    void print() {
+
+        ::print("xc: ", xc);
+        ::print("num states: ", num_states);
+        ::print("excited_state run_path: ", excited_state_run_path);
+        ::print("save_path: ", save_path);
+        ::print("save_string: ", save_string);
+    }
+
+};
+
 /**
  * Creates the xc directory in root directory of the
  *
@@ -71,25 +266,6 @@ std::pair<std::filesystem::path, std::string> generate_frequency_save_path(
     return {save_path, save_string};
 }
 
-// sets the current path to the save path
-/**
- * Generates the frequency save path with format
- * /excited_state/restart_[frequency_run_filename].00000
- *
- * @param excited_state restart path
- * @return
- */
-std::pair<std::filesystem::path, std::string> generate_excited_save_path(
-        const std::filesystem::path &excited_run_path) {
-
-    auto save_path = std::filesystem::path(excited_run_path);
-    std::string save_string = "restart_excited";
-    save_path += "/";
-    save_path += save_string;
-
-    save_path += ".00000";
-    return {save_path, save_string};
-}
 
 /**
  * generates the frequency response path using the format
@@ -119,31 +295,6 @@ std::filesystem::path generate_response_frequency_run_path(const std::filesystem
     return run_path;
 }
 
-/**
- * generates the frequency response path using the format
- * [property]_[xc]_[1-100]
- *
- * where 1-100 corresponds a frequency of 1.100
- *
- * @param moldft_path
- * @param property
- * @param frequency
- * @param xc
- * @return
- */
-std::filesystem::path generate_excited_run_path(const std::filesystem::path &moldft_path,
-                                                const size_t &num_states,
-                                                const std::string &xc) {
-    std::string s_num_states = std::to_string(num_states);
-    std::string run_name = "excited-" + s_num_states;
-    // set r_params to restart true if restart file exist
-
-    auto run_path = moldft_path;
-    run_path += "/";
-    run_path += std::filesystem::path(run_name);
-    std::cout << run_path << endl;
-    return run_path;
-}
 
 /**
  * Generates the response json path with the following format
@@ -228,6 +379,7 @@ void runMOLDFT(World &world, const std::string &mol_path,
     param1.set_user_defined_value<std::string>("xc", xc);
     param1.set_user_defined_value<double>("l", 200);
     param1.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6});
+    param1.set_user_defined_value<std::string>("localize", "canon");
     // write restart file
     // write restart file
     write_test_input test_input(param1, "moldft.in", mol_path);// molecule HF
@@ -290,15 +442,14 @@ void initialize_excited_restart(World &world, const std::string &filename, const
  * @param xc
  * @param frequency
  */
-void set_and_write_excited_parameters(ResponseParameters &r_params,
-                                      const std::string &xc,
-                                      const size_t &num_states) {
-    r_params.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6});
+void set_excited_parameters(ResponseParameters &r_params,
+                            const std::string &xc,
+                            const size_t &num_states) {
+    r_params.set_user_defined_value<vector<double>>("protocol", {1e-4,1e-6});
     r_params.set_user_defined_value("archive", std::string("../restartdata"));
-    r_params.set_user_defined_value("maxiter", size_t(20));
-    r_params.set_user_defined_value("maxsub", size_t(10));
+    r_params.set_user_defined_value("maxiter", size_t(10));
+    r_params.set_user_defined_value("maxsub", size_t(10));// if its too large then bad guess is very strong
     r_params.set_user_defined_value("kain", true);
-    r_params.set_user_defined_value("first_order", true);
     r_params.set_user_defined_value("plot_all_orbitals", true);
     r_params.set_user_defined_value("save", true);
     r_params.set_user_defined_value("guess_xyz", false);
@@ -454,52 +605,41 @@ std::pair<std::filesystem::path, bool> RunResponse(World &world, const std::stri
  * @param frequency
  * @param moldft_path
  */
-static std::filesystem::path set_excited_path_and_restart(
-        ResponseParameters &parameters, const size_t &num_states, const std::string &xc,
-        const std::filesystem::path &moldft_path, std::filesystem::path restart_path, bool restart) {
-
-    // change the logic create save path
-    auto excited_state_path =
-            generate_excited_run_path(moldft_path, num_states, xc);
-    // Crea
-    if (std::filesystem::is_directory(excited_state_path)) {
-        cout << "Response directory found " << std::endl;
-    } else {// create the file
-        std::filesystem::create_directory(excited_state_path);
-        cout << "Creating response_path directory" << std::endl;
-    }
-
-
-    std::filesystem::current_path(excited_state_path);
-    // Calling this function will make the current working directory the frequency save path
-    auto[save_path, save_string] = generate_excited_save_path(excited_state_path);
-    print("save string", save_string);
-
+static void set_and_write_restart_excited_parameters(
+        ResponseParameters &parameters, excitedSchema &schema, bool restart) {
 
     parameters.set_user_defined_value("save", true);
-    parameters.set_user_defined_value("save_file", save_string);
+    parameters.set_user_defined_value("save_file", schema.save_string);
     // if restart and restartfile exists go ahead and set the restart file
-    if (restart) {
-        if (std::filesystem::exists(save_path)) {
-
-            parameters.set_user_defined_value("restart", true);
-            parameters.set_user_defined_value("restart_file", save_string);
-        } else if (std::filesystem::exists(restart_path)) {
-
-            parameters.set_user_defined_value("restart", true);
-            parameters.set_user_defined_value("restart_file", restart_path.string());
-
-        } else {
-            parameters.set_user_defined_value("restart", false);
-
-            // neither file exists therefore you need to start from fresh
-        }
+    if (restart && std::filesystem::exists(schema.save_path)) {
+        print("setting restart");
+        parameters.set_user_defined_value("restart", true);
+        parameters.set_user_defined_value("restart_file", schema.save_string);
     } else {
         parameters.set_user_defined_value("restart", false);
     }
     std::string filename = "response.in";
     write_response_input(parameters, filename);
-    return save_path;
+}
+
+/***
+ * sets the run path based on the run type set by r_params
+ * creates the run directory and sets current directory to the run data
+ * returns the name of parameter file to run from
+ *
+ * @param parameters
+ * @param frequency
+ * @param moldft_path
+ */
+static void create_excited_paths(
+        ResponseParameters &parameters, excitedSchema &schema, bool restart) {
+
+    if (std::filesystem::is_directory(schema.excited_state_run_path)) {
+        cout << "Response directory found " << std::endl;
+    } else {// create the file
+        std::filesystem::create_directory(schema.excited_state_run_path);
+        cout << "Creating response_path directory" << std::endl;
+    }
 }
 
 /**
@@ -513,21 +653,18 @@ static std::filesystem::path set_excited_path_and_restart(
  * @param restart_path
  * @return
  */
-bool RunExcited(World &world, const std::string &filename,
-                size_t num_states,
-                const std::string &xc,
-                const std::filesystem::path &moldft_path,
-                std::filesystem::path restart_path) {
+bool runExcited(World &world, excitedSchema schema, bool restart) {
 
     // Set the response parameters
     ResponseParameters r_params{};
-    set_and_write_excited_parameters(r_params, xc, num_states);
 
-    // restart is true if possible at the moment
-    auto save_path = set_excited_path_and_restart(r_params, num_states, xc, moldft_path,
-                                                  restart_path, true);
+    set_excited_parameters(r_params, schema.xc, schema.num_states);
+    create_excited_paths(r_params, schema, restart);
+    std::filesystem::current_path(schema.excited_state_run_path);
+    set_and_write_restart_excited_parameters(r_params, schema, restart);
 
-    auto calc_params = initialize_calc_params(world, std::string(filename));
+
+    auto calc_params = initialize_calc_params(world, "response.in");
     ExcitedResponse calc(world, calc_params);
     if (world.rank() == 0) {
         print("\n\n");
@@ -647,27 +784,6 @@ set_excited_states(const ResponseDataBase &response_data_base, const std::filesy
     }
 }
 
-/**
- * Takes in the moldft path where moldft restart file exists
- * runs a response calculations for given property at given frequencies.
- *
- *
- * @param world
- * @param moldft_path
- * @param frequencies
- * @param xc
- * @param property
- */
-void runExcitedStates(World &world, std::filesystem::path moldft_path,
-                      size_t num_states, std::string xc) {
-
-    std::filesystem::current_path(moldft_path);
-    // add a restart path
-    auto restart_path = moldft_path;
-    restart_path += "/restart_excited.00000";
-    std::filesystem::current_path(moldft_path);
-    bool success = RunExcited(world, "response.in", num_states, xc, moldft_path, restart_path);
-}
 
 /**
  * Generates MOLDFT data in directory if not already generated and returns path to the directory.
@@ -680,140 +796,46 @@ void runExcitedStates(World &world, std::filesystem::path moldft_path,
  * @param molecule_name
  * @return
  */
-std::filesystem::path
-run_moldft_path(World &world, const std::filesystem::path &xc_path, const std::string &xc,
-                const std::filesystem::path &mol_path,
-                const std::string &molecule_name) {
+void
+run_moldft_path(World &world, moldftSchema &m_schema) {
 
-    auto moldft_json = generate_moldft_json(mol_path.stem(), molecule_name);
-    std::cout << moldft_json << std::endl;
-    bool moldft_results_exists = false;
-    json moldft_answers;
-
-    if (std::filesystem::exists(moldft_json)) {
-        moldft_results_exists = true;
-        std::ifstream ifs(moldft_json.string());
-        //read results into json
-        ifs >> moldft_answers;
-        // Here are the current answers... check to see if th
-        std::cout << "Here are the current answers for" << molecule_name
-                  << " check to see if they need to be updated please!"
-                  << std::endl;
-        cout << moldft_answers;
-    } else {
-        std::cout << " We do not have moldft answers so please run and save the "
-                     "results in the molecule directory"
-                  << std::endl;
-    }
-    auto moldft_path = generate_moldft_path(xc_path, molecule_name);
-
-    if (std::filesystem::is_directory(moldft_path)) {
-        cout << "MOLDFT directory found " << molecule_name << "\n";
+    if (std::filesystem::is_directory(m_schema.moldft_json_path)) {
+        cout << "MOLDFT directory found " << m_schema.mol_path << "\n";
     } else {// create the file
-        std::filesystem::create_directory(moldft_path);
-        cout << "Creating MOLDFT directory for " << molecule_name << ":/" << moldft_path
+        std::filesystem::create_directory(m_schema.moldft_path);
+        cout << "Creating MOLDFT directory for " << m_schema.mol_name << ":/" << m_schema.moldft_path
              << ":\n";
     }
-    std::filesystem::current_path(moldft_path);
-    cout << "Entering : " << moldft_path << " to run MOLDFT \n\n";
-
+    std::filesystem::current_path(m_schema.moldft_path);
+    cout << "Entering : " << m_schema.moldft_path << " to run MOLDFT \n\n";
     // We are going to look for both a json file and restartdata
-    auto calcinfo_json_path = generate_moldft_calc_info_json_path(moldft_path);
-    auto moldft_restart = generate_moldft_restart_path(moldft_path);
-    // Now I can check whether restart file exists and calc_info.json exists
 
     // If both the restart file exists and the json file exists then check them against the previous result.
-    if (std::filesystem::exists(moldft_restart) &&
-        std::filesystem::exists(calcinfo_json_path)) {
-        // if both exist, read the calc_info json
-        json calc_info_json;
-        std::ifstream ifs(calcinfo_json_path);
-        ifs >> calc_info_json;
-
-        std::cout << "time: " << calc_info_json["time"] << std::endl;
-        std::cout << "MOLDFT return energy: " << calc_info_json["return_energy"]
-                  << std::endl;
-        std::cout << "MOLDFT return energy answer: "
-                  << moldft_answers["return_energy"] << std::endl;
-        CHECK(moldft_answers["return_energy"] == calc_info_json["return_energy"]);
-        // need to check if they converged somehow
+    if (m_schema.skipMOLDT()) {
         //
     } else {
         std::cout << "restart file or calc_info.json does not exists for "
-                  << molecule_name << " now running MOLDFT";
+                  << m_schema.mol_name << " now running MOLDFT";
 
-        runMOLDFT(world, mol_path.string(), xc);
-        std::ifstream ifs(calcinfo_json_path);
-        nlohmann::json calc_info_json;
-        ifs >> calc_info_json;
+        runMOLDFT(world, m_schema.mol_path.string(), m_schema.xc);
+        std::ifstream ifs(m_schema.calc_info_json_path);
+        ifs >> m_schema.calc_info_json;
         // if moldft results does not exist then copy the results into answer
-        if (!moldft_results_exists) {
+        if (!m_schema.moldft_json_exists) {
 
             std::cout << " answers do not exist for comparison.. now saving to "
-                      << calc_info_json << "!!!\n";
-            std::ofstream ofs(moldft_json.string());
-            ofs << calc_info_json;
+                      << m_schema.calc_info_json << "!!!\n";
 
         } else {
             std::cout << "return energy is equal "
-                      << (moldft_answers["return_energy"] ==
-                          calc_info_json["return_energy"])
+                      << (m_schema.moldft_json["return_energy"] ==
+                          m_schema.calc_info_json["return_energy"])
                       << "\n";
-            CHECK(moldft_answers["return_energy"] ==
-                  calc_info_json["return_energy"]);
         }
     }
 
-    return moldft_path;
 
 }
-
-path addPath(const path& root,const std::string & branch){
-
-    path p_branch=root;
-    p_branch+=branch;
-    return p_branch;
-
-}
-
-struct runSchema {
-    path root;// root directory
-    path molecule_path;// molecule directory
-    path xc_path;// create xc path
-    path freq_json;// path to freq_json
-    path dalton_dipole_json;// path to dalton to dipole json
-    path dalton_excited_json;// path to dalton excited json
-    ResponseDataBase rdb;
-
-    runSchema(const std::string & xc) {
-
-        root = std::filesystem::current_path();//="/"+molecule_name;
-        molecule_path = root;
-        molecule_path += "/molecules";
-
-        xc_path = create_xc_path_and_directory(root, xc);
-
-        // Get the database where the calculation will be run from
-        freq_json=addPath(molecule_path,"/frequency.json");
-        dalton_excited_json=addPath(molecule_path,"/dalton-excited.json");
-        dalton_dipole_json=addPath(molecule_path,"/dalton-dipole.json");
-
-        rdb = ResponseDataBase();
-
-        if (std::filesystem::exists(freq_json)) {
-            std::ifstream ifs(freq_json);
-            std::cout << "Trying to read frequency.json" << std::endl;
-            json j_read;
-            ifs >> j_read;
-            std::cout << "READ IT" << std::endl;
-            rdb.set_data(j_read);
-
-        } else {
-            std::cout << "did not find frequency.json" << std::endl;
-        }
-
-    }
-};
 
 
 #endif//MADNESS_RUNNERS_HPP

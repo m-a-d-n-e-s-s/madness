@@ -90,7 +90,7 @@ void output_schema( std::string schema_name, json &j) {
     j["time"] =ss.str();
     j["wall_time"] =wall_time();
 
-    ofs << j;
+    ofs <<std::setw(4)<< j;
 }
 
 #endif// MADNESS_TENSOR_JSON_H

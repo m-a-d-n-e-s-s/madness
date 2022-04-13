@@ -74,7 +74,8 @@ void ExcitedResponse::initialize(World &world) {
     Chi.X = select_functions(world, trial.X, omega, r_params.num_states(), r_params.num_orbitals());
     Chi.Y = response_space(world, r_params.num_states(), r_params.num_orbitals());
     // save the guesses at the very least
-    save(world, r_params.restart_file());
+    world.gop.fence();
+    save(world, r_params.save_file());
 
     trial.clear();
     // Initial guess for y are zero functions
@@ -615,6 +616,18 @@ void ExcitedResponse::deflateFull(World &world, X_space &Chi, X_space &old_Chi, 
         X_space Chi_copy = Chi.copy();
         Chi_copy.truncate();
         A = inner(Chi_copy, Lambda_X);
+
+        for (int i = 0; i < Chi.num_states(); i++) {
+            for (int j = i + 1; j < Chi.num_states(); j++) {
+
+                A(i,j)=(A(i,j)+A(j,i))/2;
+                A(j,i)=A(i,j);
+
+
+            }
+        }
+
+
         if (world.rank() == 0 && (r_params.print_level() >= 10)) {
             print("\n   Lambda Matrix:");
             print(A);
@@ -1566,6 +1579,7 @@ void ExcitedResponse::iterate(World &world) {
                 break;
             }
         }
+
         update_x_space_excited(world, old_Chi, Chi, old_Lambda_X, residuals, xc, projector, omega,
                                kain_x_space, Xvector, Xresidual, energy_residuals, old_energy,
                                bsh_residualsX, bsh_residualsY, S, old_S, A, old_A, iter, maxrotn);
@@ -1632,7 +1646,7 @@ void ExcitedResponse::iterate(World &world) {
 }
 void ExcitedResponse::update_x_space_excited(
         World &world, X_space &old_Chi, X_space &Chi, X_space &old_Lambda_X, X_space &res,
-        XCOperator<double, 3> &xc, QProjector<double, 3> &projector, Tensor<double> &omega,
+        XCOperator<double, 3> &xc, QProjector<double, 3> &projector, Tensor<double> &omega_n,
         NonLinearXsolver &kain_x_space, vector<X_vector> &Xvector, vector<X_vector> &Xresidual,
         Tensor<double> &energy_residuals, Tensor<double> &old_energy,
         Tensor<double> &bsh_residualsX, Tensor<double> &bsh_residualsY, Tensor<double> &S,
@@ -1656,19 +1670,19 @@ void ExcitedResponse::update_x_space_excited(
     X_space Lambda_X = compute_lambda_X(world, Chi, xc, r_params.calc_type());
     // This diagonalizes XAX and computes new omegas
     // updates Chi
-    print("omega before transform");
-    print(omega);
-    old_energy = omega;
-    compute_new_omegas_transform(world, old_Chi, Chi, old_Lambda_X, Lambda_X, omega, old_energy, S,
-                                 old_S, A, old_A, energy_residuals, iter);
+    print("omega_n before transform");
+    print(omega_n);
+    old_energy = omega_n;
+    compute_new_omegas_transform(world, old_Chi, Chi, old_Lambda_X, Lambda_X, omega_n, old_energy,
+                                 S, old_S, A, old_A, energy_residuals, iter);
     // now Chi is rotated to new position
     // roatate Chi and old Chi saves this value
     //  old_Chi = Chi.copy();
 
-    print("omega before transform");
+    print("omega_n before transform");
     print(old_energy);
-    print("omega after transform");
-    print(omega);
+    print("omega_n after transform");
+    print(omega_n);
     // Analysis gets messed up if BSH is last thing applied
     // so exit early if last iteration
     if (iter == r_params.maxiter() - 1) {
@@ -1677,7 +1691,7 @@ void ExcitedResponse::update_x_space_excited(
         X_space theta_X = compute_theta_X(world, Chi, xc, r_params.calc_type());
         //  Calculates shifts needed for potential / energies
         print("BSH update iter = ", iter);
-        X_space temp = bsh_update_excited(world, omega, theta_X, projector);
+        X_space temp = bsh_update_excited(world, omega_n, theta_X, projector);
 
         res = compute_residual(world, Chi, temp, bsh_residualsX, bsh_residualsY,
                                r_params.calc_type());
@@ -1955,7 +1969,7 @@ void ExcitedResponse::analysis(World &world, const X_space &chi) {
 }
 // Save the current response calculation
 
- void ExcitedResponse::save(World &world, const std::string &name) {
+void ExcitedResponse::save(World &world, const std::string &name) {
 
 
     // Archive to write everything to

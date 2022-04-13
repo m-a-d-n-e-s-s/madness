@@ -99,7 +99,7 @@ private:
 
     void update_x_space_excited(World& world, X_space& old_Chi, X_space& Chi, X_space& old_Lambda_X,
                                 X_space& res, XCOperator<double, 3>& xc,
-                                QProjector<double, 3>& projector, Tensor<double>& omega,
+                                QProjector<double, 3>& projector, Tensor<double>& omega_n,
                                 NonLinearXsolver& kain_x_space, std::vector<X_vector>& Xvector,
                                 std::vector<X_vector>& Xresidual, Tensor<double>& energy_residuals,
                                 Tensor<double>& old_energy, Tensor<double>& bsh_residualsX,
