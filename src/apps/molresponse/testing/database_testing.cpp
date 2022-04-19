@@ -145,3 +145,30 @@ TEST_CASE("Create Dipole Json") {
 }
 
 
+TEST_CASE("response parameters json") {
+    // Set up the run directories
+    using namespace madness;
+
+    World &world = World::get_default();
+
+    std::cout.precision(6);
+
+
+
+
+
+
+    auto root = std::filesystem::current_path();//="/"+molecule_name;
+    auto molecule_path = root;
+    molecule_path += "/molecules";
+
+
+
+    const std::string xc = "hf";
+    const auto ops = vector<std::string>{"dipole"};
+    // A calculation is defined by a molecule, functional, and operator
+
+}
+
+
+

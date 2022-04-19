@@ -612,20 +612,13 @@ void ExcitedResponse::deflateFull(World &world, X_space &Chi, X_space &old_Chi, 
         if (world.rank() == 0 && (r_params.print_level() >= 10)) {
             print("\n   Overlap Matrix:");
             print(S);
-        }
         X_space Chi_copy = Chi.copy();
         Chi_copy.truncate();
+        Lambda_X.truncate();
         A = inner(Chi_copy, Lambda_X);
-
-        for (int i = 0; i < Chi.num_states(); i++) {
-            for (int j = i + 1; j < Chi.num_states(); j++) {
-
-                A(i,j)=(A(i,j)+A(j,i))/2;
-                A(j,i)=A(i,j);
-
-
-            }
+        A=0.5*(A+transpose(A));
         }
+
 
 
         if (world.rank() == 0 && (r_params.print_level() >= 10)) {
@@ -1547,11 +1540,14 @@ void ExcitedResponse::iterate(World &world) {
             if (density_residuals.max() > 2) { break; }
 
             double d_residual = density_residuals.max();
-            double d_conv = dconv * std::max(size_t(5), molecule.natom());
+            double d_conv = dconv * std::max(size_t(10), molecule.natom());
+            print("dconv: ",dconv);
+            print("d_residual_max : ",d_residual);
 
             if ((d_residual < d_conv) and
-                ((std::max(bsh_residualsX.absmax(), bsh_residualsY.absmax()) < d_conv * 5.0) or
+                ((std::max(bsh_residualsX.absmax(), bsh_residualsY.absmax()) < d_conv * 10.0) or
                  r_params.get<bool>("conv_only_dens"))) {
+
                 converged = true;
             }
             if (converged || iter == r_params.maxiter() - 1) {
@@ -1584,6 +1580,8 @@ void ExcitedResponse::iterate(World &world) {
                                kain_x_space, Xvector, Xresidual, energy_residuals, old_energy,
                                bsh_residualsX, bsh_residualsY, S, old_S, A, old_A, iter, maxrotn);
 
+        excited_to_json(j_molresponse,iter,bsh_residualsX,bsh_residualsY,density_residuals,omega);
+
         // Basic output
         if (r_params.print_level() >= 1) molresponse::end_timer(world, " This iteration:");
     }
@@ -1600,7 +1598,6 @@ void ExcitedResponse::iterate(World &world) {
         if (world.rank() == 0) print("    Running analysis on current values.\n");
     }
 
-    // Sorstatict
     if (!r_params.tda()) {
         sort(world, omega, Chi);
     } else {
@@ -1668,16 +1665,11 @@ void ExcitedResponse::update_x_space_excited(
     }
     //
     X_space Lambda_X = compute_lambda_X(world, Chi, xc, r_params.calc_type());
-    // This diagonalizes XAX and computes new omegas
-    // updates Chi
     print("omega_n before transform");
     print(omega_n);
     old_energy = omega_n;
     compute_new_omegas_transform(world, old_Chi, Chi, old_Lambda_X, Lambda_X, omega_n, old_energy,
                                  S, old_S, A, old_A, energy_residuals, iter);
-    // now Chi is rotated to new position
-    // roatate Chi and old Chi saves this value
-    //  old_Chi = Chi.copy();
 
     print("omega_n before transform");
     print(old_energy);
@@ -1705,16 +1697,7 @@ void ExcitedResponse::update_x_space_excited(
         temp.X.truncate_rf();
         if (compute_y) temp.Y.truncate_rf();
         Chi = temp.copy();
-        // print x norms
     }
-
-    // Apply mask
-    /*
-for (size_t i = 0; i < m; i++) Chi.X[i] = mask * Chi.X[i];
-if (not r_params.tda()) {
-for (size_t i = 0; i < m; i++) Chi.Y[i] = mask * Chi.Y[i];
-}
-*/
 }
 void ExcitedResponse::compute_new_omegas_transform(
         World &world, X_space &old_Chi, X_space &Chi, X_space &old_Lambda_X, X_space &Lambda_X,

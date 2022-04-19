@@ -34,6 +34,11 @@ using namespace madness;
 
 
 int main(int argc, char *argv[]) {
+    if (argc != 4) {
+
+        std::cout << "Wrong number of inputs" << std::endl;
+        return 1;
+    }
     World &world = madness::initialize(argc, argv);
     int result = 0;
     world.gop.fence();
@@ -41,33 +46,31 @@ int main(int argc, char *argv[]) {
 
     std::cout.precision(6);
 
-    try {
-        auto calc_params = initialize_calc_params(world, "response.in");
-        ExcitedResponse calc(world, calc_params);
-        if (world.rank() == 0) {
-            print("\n\n");
-            print(" MADNESS Time-Dependent Density Functional Theory Response "
-                  "Program");
-            print(" ----------------------------------------------------------\n");
-            print("\n");
-            calc_params.molecule.print();
-            print("\n");
-            calc_params.response_parameters.print("response");
-            // put the response parameters in a j_molrespone json object
-            calc_params.response_parameters.to_json(calc.j_molresponse);
-        }
-        // set protocol to the first
-        calc.solve(world);
-        calc.output_json();
 
+    const std::string molecule_name{argv[1]};
+    const std::string xc{argv[2]};
+    const std::string op{argv[3]};
+
+
+    try {
+
+        auto schema = runSchema(xc);
+        auto m_schema = moldftSchema(molecule_name, xc, schema);
+        m_schema.print();
+        run_moldft_path(world, m_schema);
+
+        auto f_schema = frequencySchema(schema, m_schema, op);
+
+        runFrequencyTests(world, f_schema);
     } catch (const SafeMPI::Exception &e) { print(e); } catch (const madness::MadnessException &e) {
         std::cout << e << std::endl;
     } catch (const madness::TensorException &e) { print(e); } catch (const char *s) {
         print(s);
     } catch (const std::string &s) { print(s); } catch (const std::exception &e) {
         print(e.what());
+    } catch (const std::filesystem::filesystem_error &ex) {
+        std::cerr << ex.what() << "\n";
     } catch (...) { error("caught unhandled exception"); }
-
 
     return result;
 

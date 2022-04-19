@@ -131,7 +131,9 @@ void FrequencyResponse::iterate(World& world) {
             double d_residual = density_residuals.max();
             double d_conv = dconv * std::max(size_t(5), molecule.natom());
             // Test convergence and set to true
+            print("dconv: ",dconv);
             if ((d_residual < d_conv) and
+            
                 ((std::max(bsh_residualsX.absmax(), bsh_residualsY.absmax()) < d_conv * 5.0) or
                  r_params.get<bool>("conv_only_dens"))) {
                 converged = true;
@@ -164,6 +166,11 @@ void FrequencyResponse::iterate(World& world) {
                                 bsh_residualsY, iter, maxrotn);
 
         Tensor<double> polar = -2 * inner(Chi, PQ);
+
+        auto [p,pval]=syev(polar);
+        print(p);
+        print(pval);
+
 
         frequency_to_json(j_molresponse, iter, bsh_residualsX, bsh_residualsY, density_residuals,
                           polar);
