@@ -99,11 +99,31 @@ namespace madness {
     template <typename T>
     void geev(const Tensor<T>& A, Tensor<T>& VR, Tensor<std::complex<T>>& e);
 
+    template <typename T>
+    std::tuple<Tensor<T>,Tensor<typename Tensor<T>::scalar_type >>
+    geev(const Tensor<T>& A){
+        Tensor<T> V;
+        Tensor< typename Tensor<T>::scalar_type > e;
+
+        geev(A,V,e);
+
+        return std::make_tuple(e,V);
+    }
+
     /// Solves non-symmetric or non-Hermitian generalized eigenvalue problem
 
     template <typename T>
     void ggev(const Tensor<T>& A, Tensor<T>& B, Tensor<T>& VR,
               Tensor<std::complex<T>>& e);
+
+    template <typename T>
+    std::tuple<Tensor<T>,Tensor<typename Tensor<T>::scalar_type >>
+            ggev(const Tensor<T>& A,const Tensor<T> &B){
+        Tensor<T> V;
+        Tensor< typename Tensor<T>::scalar_type > e;
+        ggev(A,B,V,e);
+        return std::make_tuple(e,V);
+    }
     // END BRYAN ADDITIONS
     /// Solves symmetric or Hermitian eigenvalue problem - MATLAB syntax
 
