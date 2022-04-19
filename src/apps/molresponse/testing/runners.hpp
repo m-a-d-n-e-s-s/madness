@@ -14,27 +14,26 @@
 #include "apps/external_headers/catch.hpp"
 #include "apps/external_headers/tensor_json.hpp"
 #include "madness/world/worldmem.h"
+#include "response_data_base.hpp"
 #include "response_functions.h"
 #include "string"
 #include "timer.h"
 #include "write_test_input.h"
 #include "x_space.h"
-#include "response_data_base.hpp"
 
 path addPath(const path &root, const std::string &branch) {
 
     path p_branch = root;
     p_branch += branch;
     return p_branch;
-
 }
 
 struct runSchema {
-    path root;// root directory
-    path molecule_path;// molecule directory
-    path xc_path;// create xc path
-    path freq_json;// path to freq_json
-    path dalton_dipole_json;// path to dalton to dipole json
+    path root;               // root directory
+    path molecule_path;      // molecule directory
+    path xc_path;            // create xc path
+    path freq_json;          // path to freq_json
+    path dalton_dipole_json; // path to dalton to dipole json
     path dalton_excited_json;// path to dalton excited json
     ResponseDataBase rdb;
 
@@ -45,6 +44,12 @@ struct runSchema {
         molecule_path += "/molecules";
 
         xc_path = addPath(root, "/" + xc);
+        if(std::filesystem::exists(xc_path)){
+            std::cout<<"XC Directory Exists"<<std::endl;
+        }else{
+            std::cout<<"Creating XC directory"<<std::endl;
+           std::filesystem::create_directory(xc_path);
+        }
 
         // Get the database where the calculation will be run from
         freq_json = addPath(molecule_path, "/frequency.json");
@@ -64,7 +69,6 @@ struct runSchema {
         } else {
             std::cout << "did not find frequency.json" << std::endl;
         }
-
     }
 };
 
@@ -83,8 +87,9 @@ struct moldftSchema {
     bool moldft_json_exists;
 
 
-    moldftSchema(const std::string &molecule_name, const std::string &m_xc, const runSchema &schema) : mol_name(
-            molecule_name), xc(m_xc) {
+    moldftSchema(const std::string &molecule_name, const std::string &m_xc, const runSchema &schema)
+        : mol_name(molecule_name),
+          xc(m_xc) {
 
         moldft_path = addPath(schema.xc_path, '/' + mol_name);
         moldft_restart = addPath(moldft_path, "/restartdata.00000");
@@ -100,8 +105,7 @@ struct moldftSchema {
             ifs >> moldft_json;
             // Here are the current answers... check to see if th
             std::cout << "Here are the current answers for" << molecule_name
-                      << " check to see if they need to be updated please!"
-                      << std::endl;
+                      << " check to see if they need to be updated please!" << std::endl;
             cout << moldft_path;
         } else {
             std::cout << " We do not have moldft answers so please run and save the "
@@ -115,10 +119,9 @@ struct moldftSchema {
             std::ifstream ifs(calc_info_json_path);
             ifs >> calc_info_json;
             std::cout << "time: " << calc_info_json["time"] << std::endl;
-            std::cout << "MOLDFT return energy: " << calc_info_json["return_energy"]
+            std::cout << "MOLDFT return energy: " << calc_info_json["return_energy"] << std::endl;
+            std::cout << "MOLDFT return energy answer: " << moldft_json["return_energy"]
                       << std::endl;
-            std::cout << "MOLDFT return energy answer: "
-                      << moldft_json["return_energy"] << std::endl;
         }
     }
 
@@ -126,7 +129,6 @@ struct moldftSchema {
     bool skipMOLDT() const {
         return std::filesystem::exists(moldft_restart) &&
                std::filesystem::exists(calc_info_json_path);
-
     }
 
     void print() const {
@@ -137,7 +139,36 @@ struct moldftSchema {
         ::print("calc_info json path :", calc_info_json_path);
         ::print("moldft json path :", moldft_json_path);
     }
+};
 
+struct frequencySchema {
+
+    const std::string mol_name;
+    const std::string xc;
+    const std::string op;
+
+    const path moldft_path;
+    vector<double> freq;
+
+
+    frequencySchema(const runSchema run_schema, const moldftSchema m_schema,
+                    const std::string r_operator)
+        : mol_name(m_schema.mol_name),
+          xc(m_schema.xc),
+          op(r_operator),
+          moldft_path(m_schema.moldft_path) {
+        freq = run_schema.rdb.get_frequencies(mol_name, xc, op);
+        print_schema();
+    }
+
+    void print_schema() {
+        print("Frequency Calculation");
+        print("Molecule Name: ", mol_name);
+        print("Functional: ", xc);
+        print("Operator: ", op);
+        print("MOLDFT PATH: ", moldft_path);
+        print("Frequencies : ", freq);
+    }
 };
 
 /**
@@ -153,8 +184,7 @@ struct moldftSchema {
  * @return
  */
 std::filesystem::path generate_excited_run_path(const std::filesystem::path &moldft_path,
-                                                const size_t &num_states,
-                                                const std::string &xc) {
+                                                const size_t &num_states, const std::string &xc) {
     std::string s_num_states = std::to_string(num_states);
     std::string run_name = "excited-" + s_num_states;
     // set r_params to restart true if restart file exist
@@ -183,7 +213,6 @@ std::pair<std::filesystem::path, std::string> generate_excited_save_path(
 
     save_path += ".00000";
     return {save_path, save_string};
-
 }
 
 
@@ -197,12 +226,10 @@ struct excitedSchema {
 
     excitedSchema(const moldftSchema &m_schema, size_t n) : xc(m_schema.xc), num_states(n) {
 
-        excited_state_run_path =
-                generate_excited_run_path(m_schema.moldft_path, num_states, xc);
-        auto[sp, s]=generate_excited_save_path(excited_state_run_path);
+        excited_state_run_path = generate_excited_run_path(m_schema.moldft_path, num_states, xc);
+        auto [sp, s] = generate_excited_save_path(excited_state_run_path);
         save_path = sp;
         save_string = s;
-
     }
 
     void print() {
@@ -213,8 +240,8 @@ struct excitedSchema {
         ::print("save_path: ", save_path);
         ::print("save_string: ", save_string);
     }
-
 };
+
 
 /**
  * Creates the xc directory in root directory of the
@@ -226,8 +253,8 @@ struct excitedSchema {
  * @param xc
  * @return xc_path
  */
-std::filesystem::path create_xc_path_and_directory(
-        const std::filesystem::path &root, const std::string &xc) {
+std::filesystem::path create_xc_path_and_directory(const std::filesystem::path &root,
+                                                   const std::string &xc) {
 
     // copy construct the  root path
     auto xc_path = std::filesystem::path(root);
@@ -280,7 +307,8 @@ std::pair<std::filesystem::path, std::string> generate_frequency_save_path(
  * @return
  */
 std::filesystem::path generate_response_frequency_run_path(const std::filesystem::path &moldft_path,
-                                                           const std::string &property, const double &frequency,
+                                                           const std::string &property,
+                                                           const double &frequency,
                                                            const std::string &xc) {
     std::string s_frequency = std::to_string(frequency);
     auto sp = s_frequency.find(".");
@@ -306,7 +334,8 @@ std::filesystem::path generate_response_frequency_run_path(const std::filesystem
  * @return
  */
 std::filesystem::path generate_response_json_path(const std::filesystem::path &molecule_path,
-                                                  const std::string &molecule_name, const std::string &xc,
+                                                  const std::string &molecule_name,
+                                                  const std::string &xc,
                                                   const std::string &property) {
     std::string response_string = "/" + molecule_name + "_" + xc + "_" + property + ".json";
     auto r_p = std::filesystem::path(molecule_path);
@@ -339,7 +368,8 @@ std::filesystem::path generate_moldft_json(const std::filesystem::path &molecule
  */
 std::filesystem::path generate_moldft_path(const std::filesystem::path &xc_path,
                                            const std::string &molecule_name) {
-    auto moldft = std::filesystem::path(xc_path);;
+    auto moldft = std::filesystem::path(xc_path);
+    ;
     moldft += "/";
     moldft += molecule_name;
     return moldft;
@@ -357,7 +387,8 @@ std::filesystem::path generate_moldft_restart_path(const std::filesystem::path &
 }
 
 // generates the moldft calc info path generated by moldft
-std::filesystem::path generate_moldft_calc_info_json_path(const std::filesystem::path &moldft_path) {
+std::filesystem::path generate_moldft_calc_info_json_path(
+        const std::filesystem::path &moldft_path) {
     auto json_path = std::filesystem::path(moldft_path);
     json_path += std::filesystem::path("/calc_info.json");
     return json_path;
@@ -371,8 +402,7 @@ std::filesystem::path generate_moldft_calc_info_json_path(const std::filesystem:
  * @param moldft_filename
  * @param xc
  */
-void runMOLDFT(World &world, const std::string &mol_path,
-               const std::string &xc) {
+void runMOLDFT(World &world, const std::string &mol_path, const std::string &xc) {
 
     CalculationParameters param1;
     param1.set_user_defined_value("maxiter", 10);
@@ -442,17 +472,18 @@ void initialize_excited_restart(World &world, const std::string &filename, const
  * @param xc
  * @param frequency
  */
-void set_excited_parameters(ResponseParameters &r_params,
-                            const std::string &xc,
+void set_excited_parameters(ResponseParameters &r_params, const std::string &xc,
                             const size_t &num_states) {
-    r_params.set_user_defined_value<vector<double>>("protocol", {1e-4,1e-6});
+    r_params.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6});
     r_params.set_user_defined_value("archive", std::string("../restartdata"));
     r_params.set_user_defined_value("maxiter", size_t(10));
-    r_params.set_user_defined_value("maxsub", size_t(10));// if its too large then bad guess is very strong
-    r_params.set_user_defined_value("kain", true);
+    r_params.set_user_defined_value("maxsub",
+                                    size_t(10));// if its too large then bad guess is very strong
+    r_params.set_user_defined_value("kain", false);
     r_params.set_user_defined_value("plot_all_orbitals", true);
     r_params.set_user_defined_value("save", true);
     r_params.set_user_defined_value("guess_xyz", false);
+    r_params.set_user_defined_value("print_level", 15);
     // set xc, property, num_states,and restart
     r_params.set_user_defined_value("xc", xc);
     r_params.set_user_defined_value("excited_state", true);
@@ -468,8 +499,8 @@ void set_excited_parameters(ResponseParameters &r_params,
  * @param xc
  * @param frequency
  */
-void set_and_write_frequency_response_parameters(ResponseParameters &r_params, const std::string &property,
-                                                 const std::string &xc,
+void set_and_write_frequency_response_parameters(ResponseParameters &r_params,
+                                                 const std::string &property, const std::string &xc,
                                                  const double &frequency) {
     r_params.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6});
     r_params.set_user_defined_value("archive", std::string("../restartdata"));
@@ -500,8 +531,9 @@ void set_and_write_frequency_response_parameters(ResponseParameters &r_params, c
  * @param moldft_path
  */
 static std::filesystem::path set_frequency_path_and_restart(
-        ResponseParameters &parameters, const std::string &property, const double &frequency, const std::string &xc,
-        const std::filesystem::path &moldft_path, std::filesystem::path restart_path, bool restart) {
+        ResponseParameters &parameters, const std::string &property, const double &frequency,
+        const std::string &xc, const std::filesystem::path &moldft_path,
+        std::filesystem::path restart_path, bool restart) {
 
     // change the logic create save path
     auto frequency_run_path =
@@ -517,7 +549,7 @@ static std::filesystem::path set_frequency_path_and_restart(
 
     std::filesystem::current_path(frequency_run_path);
     // Calling this function will make the current working directory the frequency save path
-    auto[save_path, save_string] = generate_frequency_save_path(frequency_run_path);
+    auto [save_path, save_string] = generate_frequency_save_path(frequency_run_path);
     print("save string", save_string);
 
 
@@ -605,8 +637,8 @@ std::pair<std::filesystem::path, bool> RunResponse(World &world, const std::stri
  * @param frequency
  * @param moldft_path
  */
-static void set_and_write_restart_excited_parameters(
-        ResponseParameters &parameters, excitedSchema &schema, bool restart) {
+static void set_and_write_restart_excited_parameters(ResponseParameters &parameters,
+                                                     excitedSchema &schema, bool restart) {
 
     parameters.set_user_defined_value("save", true);
     parameters.set_user_defined_value("save_file", schema.save_string);
@@ -631,8 +663,8 @@ static void set_and_write_restart_excited_parameters(
  * @param frequency
  * @param moldft_path
  */
-static void create_excited_paths(
-        ResponseParameters &parameters, excitedSchema &schema, bool restart) {
+static void create_excited_paths(ResponseParameters &parameters, excitedSchema &schema,
+                                 bool restart) {
 
     if (std::filesystem::is_directory(schema.excited_state_run_path)) {
         cout << "Response directory found " << std::endl;
@@ -695,24 +727,23 @@ bool runExcited(World &world, excitedSchema schema, bool restart) {
  * @param xc
  * @param property
  */
-void runFrequencyTests(World &world, std::filesystem::path moldft_path,
-                       std::vector<double> frequencies, std::string xc, std::string property) {
+void runFrequencyTests(World &world, const frequencySchema &schema) {
 
-    std::filesystem::current_path(moldft_path);
+    std::filesystem::current_path(schema.moldft_path);
     // add a restart path
-    auto restart_path = moldft_path;
-    restart_path += "/restart_dipole_hf_0-000000.00000";
-    std::pair<std::filesystem::path, bool> success{moldft_path, false};
+    auto restart_path = addPath(schema.moldft_path, "/restart_" + schema.op + "_0-000000.00000");
+    std::pair<std::filesystem::path, bool> success{schema.moldft_path, false};
     bool first = true;
-    for (const auto &freq: frequencies) {
-        std::filesystem::current_path(moldft_path);
+    for (const auto &freq: schema.freq) {
+        std::filesystem::current_path(schema.moldft_path);
         if (first) {
             first = false;
         } else if (success.second) {
             // if the previous run succeeded then set the restart path
             restart_path += success.first;
         }
-        success = RunResponse(world, "response.in", freq, property, xc, moldft_path, restart_path);
+        success = RunResponse(world, "response.in", freq, schema.op, schema.xc, schema.moldft_path,
+                              restart_path);
     }
 }
 
@@ -726,10 +757,10 @@ void runFrequencyTests(World &world, std::filesystem::path moldft_path,
  * @param property
  * @return
  */
-std::vector<double>
-set_frequencies(const ResponseDataBase &response_data_base, const std::filesystem::path &molecule_path,
-                const std::string &molecule_name,
-                const std::string &xc, const std::string &property) {
+std::vector<double> set_frequencies(const ResponseDataBase &response_data_base,
+                                    const std::filesystem::path &molecule_path,
+                                    const std::string &molecule_name, const std::string &xc,
+                                    const std::string &property) {
 
     auto response_json_path =
             generate_response_json_path(molecule_path, molecule_name, xc, property);
@@ -738,16 +769,14 @@ set_frequencies(const ResponseDataBase &response_data_base, const std::filesyste
     if (std::filesystem::exists("molecules/frequency.json")) {
         std::cout << "response_json exists:" << std::endl;
         try {
-            response_data_base.output_data("molecules/frequency.json",
-                                           molecule_name, xc, property);
+            response_data_base.output_data("molecules/frequency.json", molecule_name, xc, property);
             return response_data_base.get_frequencies(molecule_name, xc, property);
         } catch (json::exception &e) { std::cout << e.what() << std::endl; }
     } else {
-        std::cout << "did not find the frequency data for [" << molecule_name
-                  << "][" << xc << "][" << property << "]\n";
+        std::cout << "did not find the frequency data for [" << molecule_name << "][" << xc << "]["
+                  << property << "]\n";
         return {0};
     }
-
 }
 
 /**
@@ -760,10 +789,9 @@ set_frequencies(const ResponseDataBase &response_data_base, const std::filesyste
  * @param property
  * @return
  */
-size_t
-set_excited_states(const ResponseDataBase &response_data_base, const std::filesystem::path &molecule_path,
-                   const std::string &molecule_name,
-                   const std::string &xc) {
+size_t set_excited_states(const ResponseDataBase &response_data_base,
+                          const std::filesystem::path &molecule_path,
+                          const std::string &molecule_name, const std::string &xc) {
 
     const std::string property;
     auto response_json_path =
@@ -773,13 +801,13 @@ set_excited_states(const ResponseDataBase &response_data_base, const std::filesy
     if (std::filesystem::exists(response_json_path)) {
         std::cout << "response_json exists:" << std::endl;
         try {
-            response_data_base.output_data(response_json_path.string(),
-                                           molecule_name, xc, property);
+            response_data_base.output_data(response_json_path.string(), molecule_name, xc,
+                                           property);
             return response_data_base.get_num_states(molecule_name, xc, property);
         } catch (json::exception &e) { std::cout << e.what() << std::endl; }
     } else {
-        std::cout << "did not find the frequency data for [" << molecule_name
-                  << "][" << xc << "][" << property << "]\n";
+        std::cout << "did not find the frequency data for [" << molecule_name << "][" << xc << "]["
+                  << property << "]\n";
         return 4;
     }
 }
@@ -796,15 +824,14 @@ set_excited_states(const ResponseDataBase &response_data_base, const std::filesy
  * @param molecule_name
  * @return
  */
-void
-run_moldft_path(World &world, moldftSchema &m_schema) {
+void run_moldft_path(World &world, moldftSchema &m_schema) {
 
-    if (std::filesystem::is_directory(m_schema.moldft_json_path)) {
+    if (std::filesystem::is_directory(m_schema.moldft_path)) {
         cout << "MOLDFT directory found " << m_schema.mol_path << "\n";
     } else {// create the file
         std::filesystem::create_directory(m_schema.moldft_path);
-        cout << "Creating MOLDFT directory for " << m_schema.mol_name << ":/" << m_schema.moldft_path
-             << ":\n";
+        cout << "Creating MOLDFT directory for " << m_schema.mol_name << ":/"
+             << m_schema.moldft_path << ":\n";
     }
     std::filesystem::current_path(m_schema.moldft_path);
     cout << "Entering : " << m_schema.moldft_path << " to run MOLDFT \n\n";
@@ -814,8 +841,8 @@ run_moldft_path(World &world, moldftSchema &m_schema) {
     if (m_schema.skipMOLDT()) {
         //
     } else {
-        std::cout << "restart file or calc_info.json does not exists for "
-                  << m_schema.mol_name << " now running MOLDFT";
+        std::cout << "restart file or calc_info.json does not exists for " << m_schema.mol_name
+                  << " now running MOLDFT";
 
         runMOLDFT(world, m_schema.mol_path.string(), m_schema.xc);
         std::ifstream ifs(m_schema.calc_info_json_path);
@@ -833,8 +860,6 @@ run_moldft_path(World &world, moldftSchema &m_schema) {
                       << "\n";
         }
     }
-
-
 }
 
 
