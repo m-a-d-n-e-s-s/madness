@@ -73,7 +73,7 @@ namespace madness {
             initialize<std::string>("restart_file", "none", "file to read ground parameters from");
             // kain
             initialize<bool>("kain", false, "Turn on Krylov Accelarated Inexact Newton Solver");
-            initialize<double>("maxrotn", 1.0, "Max orbital rotation per iteration");
+            initialize<double>("maxrotn", 0.1, "Max orbital rotation per iteration");
             initialize<double>("maxbsh", 10, "Max bsh residual");
             initialize<size_t>("maxsub", 10,
                                "size of iterative subspace ... set to 0 or 1 to disable");

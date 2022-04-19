@@ -10,12 +10,12 @@
 /// \param world
 /// \param params
 ResponseBase::ResponseBase(World &world, const CalcParams &params)
-        : r_params(params.response_parameters),
-          molecule(params.molecule),
-          ground_calc(params.ground_calculation),
-          ground_orbitals(ground_calc.orbitals()),
-          ground_energies(ground_calc.get_energies()),
-          Chi(world, r_params.num_states(), r_params.num_orbitals()) {
+    : r_params(params.response_parameters),
+      molecule(params.molecule),
+      ground_calc(params.ground_calculation),
+      ground_orbitals(ground_calc.orbitals()),
+      ground_energies(ground_calc.get_energies()),
+      Chi(world, r_params.num_states(), r_params.num_orbitals()) {
 
     // Broadcast to all the other nodes
     world.gop.broadcast_serializable(r_params, 0);
@@ -63,7 +63,7 @@ void ResponseBase::check_k(World &world, double thresh, int k) {
     }
     // Recalculate ground state hamiltonian here
     if (redo or !hamiltonian.has_data()) {
-        auto[HAM, HAM_NO_DIAG] = ComputeHamiltonianPair(world);
+        auto [HAM, HAM_NO_DIAG] = ComputeHamiltonianPair(world);
         // TODO this doesn't seem right...
         hamiltonian = HAM;
         ham_no_diag = HAM_NO_DIAG;
@@ -394,7 +394,7 @@ X_space ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &den
                                          const XCOperator<double, 3> &xc) const {
     std::shared_ptr<WorldDCPmapInterface<Key<3>>> old_pmap = FunctionDefaults<3>::get_pmap();
 
-    auto[d_alpha, phi0, vf] = orbital_load_balance(world, density, r_params.loadbalparts());
+    auto [d_alpha, phi0, vf] = orbital_load_balance(world, density, r_params.loadbalparts());
 
     size_t num_states = d_alpha.num_states();
     size_t num_orbitals = d_alpha.num_orbitals();
@@ -556,7 +556,7 @@ X_space ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &d
 
     std::shared_ptr<WorldDCPmapInterface<Key<3>>> old_pmap = FunctionDefaults<3>::get_pmap();
 
-    auto[d_alpha, phi0, vf] = orbital_load_balance(world, density, r_params.loadbalparts());
+    auto [d_alpha, phi0, vf] = orbital_load_balance(world, density, r_params.loadbalparts());
 
     size_t num_states = d_alpha.num_states();
     size_t num_orbitals = d_alpha.num_orbitals();
@@ -663,7 +663,7 @@ X_space ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &d
 X_space ResponseBase::compute_gamma_tda(World &world, const gamma_orbitals &density,
                                         const XCOperator<double, 3> &xc) const {
 
-    auto[d_alpha, phi0, vf] = orbital_load_balance(world, density, r_params.loadbalparts());
+    auto [d_alpha, phi0, vf] = orbital_load_balance(world, density, r_params.loadbalparts());
     std::shared_ptr<WorldDCPmapInterface<Key<3>>> oldpmap = FunctionDefaults<3>::get_pmap();
     size_t num_states = d_alpha.num_states();
     size_t num_orbitals = d_alpha.num_orbitals();
@@ -1049,16 +1049,28 @@ void ResponseBase::x_space_step_restriction(World &world, X_space &old_Chi, X_sp
     size_t m = old_Chi.num_states();
     molresponse::start_timer(world);
     print(maxrotn);
+    auto diff = temp - old_Chi;
 
     for (size_t b = 0; b < m; b++) {
-        if (true) {
-            // do_step_restriction(world, old_Chi.X[b], temp.X[b], old_Chi.Y[b],
-            // temp.Y[b], "x and y_response"); if the norm(new-old) > max
-            do_step_restriction(world, old_Chi.X[b], temp.X[b], "x_response", maxrotn[b]);
+        if (restrict_y) {
 
-            do_step_restriction(world, old_Chi.Y[b], temp.Y[b], "y_response", maxrotn[b]);
-            // do_step_restriction(world, old_Chi.X[b], temp.X[b], "x_response");
-            // do_step_restriction(world, old_Chi.Y[b], temp.Y[b], "y_response");
+            auto x_diff = diff.X[b];
+            auto y_diff = diff.Y[b];
+            Tensor<double> anorm_x = norm2s_T(world, x_diff);
+            Tensor<double> anorm_y = norm2s_T(world, y_diff);
+
+            auto norm_xb = std::sqrt(anorm_x.sum() + anorm_y.sum());
+
+            if (norm_xb > r_params.maxrotn()) {
+                double s = r_params.maxrotn() / norm_xb;
+                size_t nres = 0;
+                if (world.rank() == 0) {
+                    if (nres == 1 and (r_params.print_level() > 1))
+                        printf("  restricting step for response-state: ", b);
+                }
+                gaxpy(world, (1.0 - s), temp.X[b], s, old_Chi.X[b], false);
+                gaxpy(world, (1.0 - s), temp.Y[b], s, old_Chi.Y[b], false);
+            }
         } else {
             do_step_restriction(world, old_Chi.X[b], temp.X[b], "x_response", maxrotn[b]);
         }
@@ -1114,6 +1126,7 @@ double ResponseBase::do_step_restriction(World &world, const vecfuncT &x, vecfun
     return maxval;
 }
 
+
 double ResponseBase::do_step_restriction(World &world, const vecfuncT &x, vecfuncT &x_new,
                                          std::string spin, double maxrotn) const {
     Tensor<double> anorm = norm2s_T(world, sub(world, x, x_new));
@@ -1150,7 +1163,10 @@ double ResponseBase::do_step_restriction(World &world, const vecfuncT &x, const 
     // sub(world, x, x_new)
     Tensor<double> anorm_x = norm2s_T(world, x_diff);
     Tensor<double> anorm_y = norm2s_T(world, y_diff);
+
     Tensor<double> anorm(x.size());
+
+
     for (unsigned int i = 0; i < x.size(); ++i) {
         anorm[i] = std::sqrt(anorm_x[i] * anorm_x[i] + anorm_y[i] * anorm_y[i]);
     }
@@ -1243,7 +1259,7 @@ void ResponseBase::PlotGroundandResponseOrbitals(World &world, size_t iteration,
 
 void PlotGroundDensityVTK(World &world, const ResponseBase &calc) {
 
-    auto[ground_calc, molecule, r_params] = calc.get_parameter();
+    auto [ground_calc, molecule, r_params] = calc.get_parameter();
     auto ground_orbitals = calc.get_orbitals();
 
     if (r_params.plot_initial()) {
@@ -1454,7 +1470,7 @@ std::map<std::vector<int>, real_function_3d> solid_harmonics(World &world, int n
                     1.0 / std::sqrt((l + m + 1) * (l - m + 1)) *
                     ((2 * l + 1) * z * result[std::vector<int>{l, m}] -
                      sqrt((l + m) * (l - m)) * (x * x + y * y + z * z) *
-                     result[std::vector<int>{l - 1, m}]);
+                             result[std::vector<int>{l - 1, m}]);
         }
     }
 
@@ -1577,8 +1593,8 @@ void ResponseBase::analyze_vectors(World &world, const vecfuncT &x,
         for (int axis = 0; axis < 3; ++axis) {
             // x y z
             functionT fdip = factoryT(world)
-                    .functor(functorT(new madness::DipoleFunctor(axis)))
-                    .initial_level(4);
+                                     .functor(functorT(new madness::DipoleFunctor(axis)))
+                                     .initial_level(4);
             dip(axis, _) = inner(world, x, mul_sparse(world, fdip, x, vtol));
             //<x r^2 x> - <x|x|x>^2-<x|y|x>^2-<x|z|x>^2
             for (int i = 0; i < nmo1; ++i) rsq(i) -= dip(axis, i) * dip(axis, i);
@@ -1870,14 +1886,29 @@ vector_real_function_3d make_xyz_functions(World &world) {
     return funcs;
 }
 
+/*
+X_space gram_schmidt(World &world, const X_space & chi){
+
+
+std::inner_product()
+
+
+
+
+
+}
+*/
+
 void gram_schmidt(World &world, response_space &f, response_space &g) {
     // Sizes inferred
     size_t m = f.size();
+
 
     // Orthogonalize
     for (size_t j = 0; j < m; j++) {
         // Need to normalize the row
         double norm = inner(f[j], f[j]) - inner(g[j], g[j]);
+        print("j= ", j, "    ", norm);
 
         // Now scale each entry
         scale(world, f[j], 1.0 / sqrt(norm));
@@ -1895,6 +1926,7 @@ void gram_schmidt(World &world, response_space &f, response_space &g) {
             gaxpy(world, 1.0, g[k], -temp, g[j]);
         }
     }
+
 
     f.truncate_rf();
     g.truncate_rf();
