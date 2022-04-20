@@ -4,6 +4,8 @@
 #define CATCH_CONFIG_RUNNER
 
 #include "ExcitedResponse.hpp"
+#include <fstream>
+#include "response_parameters.h"
 #include "FrequencyResponse.hpp"
 #include "ResponseExceptions.hpp"
 #include "TDDFT.h"
@@ -18,19 +20,6 @@
 #include "write_test_input.h"
 #include "x_space.h"
 
-#if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
-
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
-
-static inline int file_exists(const char *input_name) {
-    struct stat buffer{};
-    size_t rc = stat(input_name, &buffer);
-    return (rc == 0);
-}
-
-#endif
 
 using path = std::filesystem::path;
 
@@ -48,7 +37,6 @@ int main(int argc, char *argv[]) {
     // print_stats(world);
 }
 
-
 TEST_CASE("Run ground and excited-state") {
     // Set up the run directories
     using namespace madness;
@@ -61,20 +49,16 @@ TEST_CASE("Run ground and excited-state") {
     auto molecule_path = root;
     molecule_path += "/molecules";
 
-
     const std::string molecule_name = "Be";
     const std::string xc = "lda";
     const std::string op = "excited-state";
     // A calculation is defined by a molecule, functional, and operator
     // xc include (hf/lda)
     // operators include (excited-state)
-    json response_keyword = {{"molecule", molecule_name},
-                             {"xc",       xc},
-                             {"operator", op}};
+    json response_keyword = {{"molecule", molecule_name}, {"xc", xc}, {"operator", op}};
 
     auto xc_path = create_xc_path_and_directory(root, xc);
     addResponseKeyWord(response_keyword);
-
 }
 
 TEST_CASE("Create Excited Json") {
@@ -89,7 +73,6 @@ TEST_CASE("Create Excited Json") {
     auto molecule_path = root;
     molecule_path += "/molecules";
 
-
     const std::string xc = "hf";
     const auto ops = vector<std::string>{"excited-state"};
     // A calculation is defined by a molecule, functional, and operator
@@ -99,17 +82,13 @@ TEST_CASE("Create Excited Json") {
     // xc include (hf/lda)
     for (const auto &op: ops) {
         for (const std::filesystem::directory_entry &mol_path:
-                std::filesystem::directory_iterator(molecule_path)) {
+             std::filesystem::directory_iterator(molecule_path)) {
             auto molecule_name = mol_path.path().stem();
-            json response_keyword = {{"molecule", molecule_name},
-                                     {"xc",       xc},
-                                     {"operator", op}};
+            json response_keyword = {{"molecule", molecule_name}, {"xc", xc}, {"operator", op}};
             addResponseKeyWord(response_keyword);
         }
     }
-
 }
-
 
 TEST_CASE("Create Dipole Json") {
     // Set up the run directories
@@ -123,7 +102,6 @@ TEST_CASE("Create Dipole Json") {
     auto molecule_path = root;
     molecule_path += "/molecules";
 
-
     const std::string xc = "hf";
     const auto ops = vector<std::string>{"dipole"};
     // A calculation is defined by a molecule, functional, and operator
@@ -133,42 +111,41 @@ TEST_CASE("Create Dipole Json") {
     // xc include (hf/lda)
     for (const auto &op: ops) {
         for (const std::filesystem::directory_entry &mol_path:
-                std::filesystem::directory_iterator(molecule_path)) {
+             std::filesystem::directory_iterator(molecule_path)) {
             auto molecule_name = mol_path.path().stem();
-            json response_keyword = {{"molecule", molecule_name},
-                                     {"xc",       xc},
-                                     {"operator", op}};
+            json response_keyword = {{"molecule", molecule_name}, {"xc", xc}, {"operator", op}};
             addResponseKeyWord(response_keyword);
         }
     }
-
 }
-
 
 TEST_CASE("response parameters json") {
     // Set up the run directories
-    using namespace madness;
 
     World &world = World::get_default();
+    int result = 0;
+    world.gop.fence();
 
     std::cout.precision(6);
 
+    const std::string molecule_name{"Be"};
+    const std::string xc{"hf"};
+    const std::string op = "excited-state";
 
+    auto schema = runSchema(xc);
+    auto m_schema = moldftSchema(molecule_name, xc, schema);
+    auto e_schema = excitedSchema(schema, m_schema);
 
+    ResponseParameters original{};
+    ResponseParameters params{};
+    print("--------------------------default parameters----------------------\n", params.print_to_string());
 
+    std::ifstream ifs(e_schema.rb_json);
+    json rb;
+    ifs >> rb;
 
+    from_json(rb["response_parameters"], params);
 
-    auto root = std::filesystem::current_path();//="/"+molecule_name;
-    auto molecule_path = root;
-    molecule_path += "/molecules";
-
-
-
-    const std::string xc = "hf";
-    const auto ops = vector<std::string>{"dipole"};
-    // A calculation is defined by a molecule, functional, and operator
+    CHECK(original!=params);
 
 }
-
-
-
