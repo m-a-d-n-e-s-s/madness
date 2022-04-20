@@ -250,8 +250,10 @@ namespace madness {
         double econv() const { return get<double>("econv"); }
         bool first_run() const { return get<bool>("first_run"); }
         std::string local() const { return get<std::string>("local"); }
-        void to_json(json& j);
     };
+    void from_json(const json&, ResponseParameters & p);
+    bool operator ==(const ResponseParameters& p1,const ResponseParameters& p2);
+    bool operator !=(const ResponseParameters& p1,const ResponseParameters& p2);
 
     // namespace madness
 }// namespace madness
