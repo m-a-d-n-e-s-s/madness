@@ -474,12 +474,12 @@ void initialize_excited_restart(World &world, const std::string &filename, const
  */
 void set_excited_parameters(ResponseParameters &r_params, const std::string &xc,
                             const size_t &num_states) {
-    r_params.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6});
+    r_params.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6,1e-8});
     r_params.set_user_defined_value("archive", std::string("../restartdata"));
-    r_params.set_user_defined_value("maxiter", size_t(10));
+    r_params.set_user_defined_value("maxiter", size_t(15));
     r_params.set_user_defined_value("maxsub",
                                     size_t(10));// if its too large then bad guess is very strong
-    r_params.set_user_defined_value("kain", false);
+    r_params.set_user_defined_value("kain", true);
     r_params.set_user_defined_value("plot_all_orbitals", true);
     r_params.set_user_defined_value("save", true);
     r_params.set_user_defined_value("guess_xyz", false);
