@@ -3423,8 +3423,7 @@ namespace madness {
         project_randomize = false;
         bc = BoundaryConditions<NDIM>(BC_FREE);
         tt = TT_FULL;
-        cell = Tensor<double>(NDIM,2);
-        cell(_,1) = 1.0;
+        cell = make_default_cell();
         recompute_cell_info();
         set_default_pmap(world);
     }
@@ -3461,25 +3460,26 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     const FunctionCommonData<T,NDIM>* FunctionCommonData<T,NDIM>::data[MAXK] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 
-    template <std::size_t NDIM> int FunctionDefaults<NDIM>::k;
-    template <std::size_t NDIM> double FunctionDefaults<NDIM>::thresh;
-    template <std::size_t NDIM> int FunctionDefaults<NDIM>::initial_level;
-    template <std::size_t NDIM> int FunctionDefaults<NDIM>::special_level;
-    template <std::size_t NDIM> int FunctionDefaults<NDIM>::max_refine_level;
-    template <std::size_t NDIM> int FunctionDefaults<NDIM>::truncate_mode;
-    template <std::size_t NDIM> bool FunctionDefaults<NDIM>::refine;
-    template <std::size_t NDIM> bool FunctionDefaults<NDIM>::autorefine;
-    template <std::size_t NDIM> bool FunctionDefaults<NDIM>::debug;
-    template <std::size_t NDIM> bool FunctionDefaults<NDIM>::truncate_on_project;
-    template <std::size_t NDIM> bool FunctionDefaults<NDIM>::apply_randomize;
-    template <std::size_t NDIM> bool FunctionDefaults<NDIM>::project_randomize;
-    template <std::size_t NDIM> BoundaryConditions<NDIM> FunctionDefaults<NDIM>::bc;
-    template <std::size_t NDIM> TensorType FunctionDefaults<NDIM>::tt;
-    template <std::size_t NDIM> Tensor<double> FunctionDefaults<NDIM>::cell;
-    template <std::size_t NDIM> Tensor<double> FunctionDefaults<NDIM>::cell_width;
-    template <std::size_t NDIM> Tensor<double> FunctionDefaults<NDIM>::rcell_width;
-    template <std::size_t NDIM> double FunctionDefaults<NDIM>::cell_volume;
-    template <std::size_t NDIM> double FunctionDefaults<NDIM>::cell_min_width;
+    // default values match those in FunctionDefaults::set_defaults(world)
+    template <std::size_t NDIM> int FunctionDefaults<NDIM>::k = 6;
+    template <std::size_t NDIM> double FunctionDefaults<NDIM>::thresh = 1e-4;
+    template <std::size_t NDIM> int FunctionDefaults<NDIM>::initial_level = 2;
+    template <std::size_t NDIM> int FunctionDefaults<NDIM>::special_level = 3;
+    template <std::size_t NDIM> int FunctionDefaults<NDIM>::max_refine_level = 30;
+    template <std::size_t NDIM> int FunctionDefaults<NDIM>::truncate_mode = 0;
+    template <std::size_t NDIM> bool FunctionDefaults<NDIM>::refine = true;
+    template <std::size_t NDIM> bool FunctionDefaults<NDIM>::autorefine = true;
+    template <std::size_t NDIM> bool FunctionDefaults<NDIM>::debug = false;
+    template <std::size_t NDIM> bool FunctionDefaults<NDIM>::truncate_on_project = true;
+    template <std::size_t NDIM> bool FunctionDefaults<NDIM>::apply_randomize = false;
+    template <std::size_t NDIM> bool FunctionDefaults<NDIM>::project_randomize = false;
+    template <std::size_t NDIM> BoundaryConditions<NDIM> FunctionDefaults<NDIM>::bc = BoundaryConditions<NDIM>(BC_FREE);
+    template <std::size_t NDIM> TensorType FunctionDefaults<NDIM>::tt = TT_FULL;
+    template <std::size_t NDIM> Tensor<double> FunctionDefaults<NDIM>::cell = FunctionDefaults<NDIM>::make_default_cell();
+    template <std::size_t NDIM> Tensor<double> FunctionDefaults<NDIM>::cell_width = FunctionDefaults<NDIM>::make_default_cell_width();
+    template <std::size_t NDIM> Tensor<double> FunctionDefaults<NDIM>::rcell_width = FunctionDefaults<NDIM>::make_default_cell_width();
+    template <std::size_t NDIM> double FunctionDefaults<NDIM>::cell_volume = 1.;
+    template <std::size_t NDIM> double FunctionDefaults<NDIM>::cell_min_width = 1.;
     template <std::size_t NDIM> std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > FunctionDefaults<NDIM>::pmap;
 
     template <std::size_t NDIM> std::vector< Key<NDIM> > Displacements<NDIM>::disp;

@@ -61,7 +61,7 @@ namespace madness {
 
 
 
-    void startup(World& world, int argc, char** argv, bool doprint) {
+    void startup(World& world, int argc, char** argv, bool doprint, bool make_stdcout_nice_to_reals) {
         const char* data_dir = MRA_DATA_DIR;
 
         // Process command line arguments
@@ -90,11 +90,14 @@ namespace madness {
 
 	init_tensor_lapack();
 
-        std::cout << std::boolalpha;  // Pretty printing of booleans
-        std::cout << std::scientific;
-        std::cout << std::showpoint;
-        //std::cout << std::showpos;
-        std::cout << std::setprecision(6);
+        // if allowed: configure std::cout to be useful for printing reals
+        if (make_stdcout_nice_to_reals) {
+          std::cout << std::boolalpha; // Pretty printing of booleans
+          std::cout << std::scientific;
+          std::cout << std::showpoint;
+          // std::cout << std::showpos;
+          std::cout << std::setprecision(6);
+        }
 
 #ifdef FUNCTION_INSTANTIATE_1
         FunctionDefaults<1>::set_defaults(world);
