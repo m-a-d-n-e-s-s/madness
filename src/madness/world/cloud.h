@@ -207,7 +207,7 @@ public:
         return recordlist;
     }
 
-    void replicate() {
+    void replicate(const std::size_t chunk_size=INT_MAX) {
 
         World& world=container.get_world();
         cloudtimer t(world,replication_time);
@@ -232,7 +232,12 @@ public:
 
                     world.mpi.Bcast(&key,sizeof(key),MPI_BYTE,rank);
                     world.mpi.Bcast(&sz,sizeof(sz),MPI_BYTE,rank);
-                    world.mpi.Bcast(&data[0],sz,MPI_BYTE,rank);
+
+                    // if data is too large for MPI_INT break it into pieces to avoid integer overflow
+                    for (std::size_t start=0; start<sz; start+=chunk_size) {
+                        std::size_t remainder = std::min(sz - start, chunk_size);
+                        world.mpi.Bcast(&data[start], remainder, MPI_BYTE, rank);
+                    }
 
                 }
             }
@@ -245,7 +250,11 @@ public:
                     std::size_t sz;
                     world.mpi.Bcast(&sz,sizeof(sz),MPI_BYTE,rank);
                     valueT data(sz);
-                    world.mpi.Bcast(&data[0],sz,MPI_BYTE,rank);
+//                    world.mpi.Bcast(&data[0],sz,MPI_BYTE,rank);
+                    for (std::size_t start=0; start<sz; start+=chunk_size) {
+                        std::size_t remainder=std::min(sz-start,chunk_size);
+                        world.mpi.Bcast(&data[start],remainder,MPI_BYTE,rank);
+                    }
 
                     container.replace(key,data);
                 }
