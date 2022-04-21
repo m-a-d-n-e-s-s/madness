@@ -348,13 +348,45 @@ namespace madness {
         void from_json(const json& j) {
             for (auto [key, value]: j.items()) {
                 QCParameter& parameter = get_parameter(key);
-                ::print("key: ", key, " value: ", value);
+                // ::print("key: ", key, " value: ", value);
                 parameter.set_user_defined_value(tostring(value));
             }
         }
         json to_json() const {
             json j_params = {};
-            json j{};
+            // TODO Is there a way to the get member for every parameter even though get is a template function?
+            for (auto& p: parameters) {
+                auto param_type = p.second.get_type();
+                if (param_type == "i") {
+                    j_params[p.first] = get<int>(p.first);
+                    // if vector of double
+                } else if (param_type == "d") {
+                    j_params[p.first] = get<double>(p.first);
+
+                    // if vector of bool
+                } else if (param_type == "b") {
+                    j_params[p.first] = get<bool>(p.first);
+
+                    // if vector of doubles?
+                } else if (param_type == "St6vectorIdSaIdEE") {
+                    j_params[p.first] = get<std::vector<double>>(p.first);
+                } else if (param_type == "NSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE") {
+                    auto sval = get<std::string>(p.first);
+                    if (!sval.empty()) continue;
+                    j_params[p.first] = sval;
+                    // size t
+                } else if (p.second.get_type() == "m") {
+                    j_params[p.first] = get<size_t>(p.first);
+                }
+            }
+            return j_params;
+        }
+        /**
+         * Adds the response parameters to an existing json under key "parameters"
+         * @param j
+         */
+        void to_json(json& j) const {
+            json j_params = {};
             // TODO Is there a way to the get member for every parameter even though get is a template function?
             for (auto& p: parameters) {
                 auto param_type = p.second.get_type();
@@ -381,8 +413,39 @@ namespace madness {
                 }
             }
             j["parameters"] = j_params;
-            return j;
         }
+
+        bool operator==(const QCCalculationParametersBase& other) const {
+
+            for (auto& p: parameters) {
+                auto param_type = p.second.get_type();
+
+                if (param_type == "i") {
+                    if (get<int>(p.first) != other.get<int>(p.first)) { return false; };
+                    // if vector of double
+                } else if (param_type == "d") {
+                    if (get<double>(p.first) != other.get<double>(p.first)) { return false; };
+                    // if vector of bool
+                } else if (param_type == "b") {
+                    if (get<bool>(p.first) != other.get<bool>(p.first)) { return false; };
+                    // if vector of doubles?
+                } else if (param_type == "St6vectorIdSaIdEE") {
+                    if (get<std::vector<double>>(p.first) !=
+                        other.get<std::vector<double>>(p.first)) {
+
+                        return false;
+                    };
+                } else if (param_type == "NSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE") {
+                    if (get<std::string>(p.first) != other.get<std::string>(p.first)) {
+                        return false;
+                    };
+                } else if (p.second.get_type() == "m") {
+                    if (get<size_t>(p.first) != other.get<size_t>(p.first)) { return false; };
+                }
+            }
+            return true;
+        }
+
         template<typename T>
         void set_user_defined_value(const std::string& key, const T& value) {
 
@@ -577,6 +640,10 @@ namespace madness {
             return 0;
         }
     };
+
+
+    bool operator!=(const QCCalculationParametersBase& p1, const QCCalculationParametersBase& p2);
+
 
 } /* namespace madness */
 
