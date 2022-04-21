@@ -147,5 +147,27 @@ TEST_CASE("response parameters json") {
     from_json(rb["response_parameters"], params);
 
     CHECK(original!=params);
+    CHECK(original==original);
+
+}
+
+
+TEST_CASE("Run if moldft json ==") {
+    // Set up the run directories
+
+    World &world = World::get_default();
+    int result = 0;
+    world.gop.fence();
+
+    std::cout.precision(6);
+
+    const std::string molecule_name{"Be"};
+    const std::string xc{"hf"};
+    const std::string op = "excited-state";
+
+    auto schema = runSchema(xc);
+    auto m_schema = moldftSchema(molecule_name, xc, schema);
+
+    moldft(world,m_schema,false);
 
 }

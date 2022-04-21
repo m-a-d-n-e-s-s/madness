@@ -58,11 +58,10 @@ int main(int argc, char *argv[]) {
 
     try {
 
-        auto num_states = set_excited_states(schema.rdb, schema.molecule_path, molecule_name, xc);
         auto m_schema = moldftSchema(molecule_name, xc, schema);
         m_schema.print();
         run_moldft_path(world, m_schema);
-        auto excited_schema = excitedSchema(m_schema, num_states);
+        auto excited_schema = excitedSchema(schema,m_schema);
         excited_schema.print();
 
         try {
