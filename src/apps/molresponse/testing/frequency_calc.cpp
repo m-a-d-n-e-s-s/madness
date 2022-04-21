@@ -38,14 +38,15 @@ int main(int argc, char *argv[]) {
     startup(world, argc, argv);
     std::cout.precision(6);
     std::string filename = "response.in";
-    auto calc_params = initialize_calc_params(world, filename);
 
     try {
-        FrequencyResponse calc(world, calc_params, 0.0, dipole_generator);
+        auto calc_params = initialize_calc_params(world, filename);
+        auto omega = calc_params.response_parameters.omega();
+        FrequencyResponse calc(world, calc_params, omega, dipole_generator);
         // Warm and fuzzy for the user
         if (world.rank() == 0) {
             print("\n\n");
-            print(" MADNESS Time-Dependent Density Functional Theory Response "
+            print(" MADNESS Time-Dependent Density Functional Theory Frequency Response "
                   "Program");
             print(" ----------------------------------------------------------\n");
             print("\n");
@@ -59,10 +60,13 @@ int main(int argc, char *argv[]) {
         // set protocol to the first
         calc.solve(world);
         calc.output_json();
-    } catch (const std::filesystem::filesystem_error &ex) { std::cerr << ex.what() << "\n"; }
-    return result;
+    } catch (const SafeMPI::Exception &e) { print(e); } catch (const madness::MadnessException &e) {
+        std::cout << e << std::endl;
+    } catch (const madness::TensorException &e) { print(e); } catch (const char *s) {
+        print(s);
+    } catch (const std::string &s) { print(s); } catch (const std::exception &e) {
+        print(e.what());
+    } catch (...) { error("caught unhandled exception"); }
 
-    // print_meminfo(world.rank(), "startup");
-    // std::cout.precision(6);
-    // print_stats(world);
+    return result;
 }

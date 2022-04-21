@@ -38,7 +38,6 @@ int main(int argc, char *argv[]) {
     int result = 0;
     world.gop.fence();
     startup(world, argc, argv);
-
     std::cout.precision(6);
 
     try {
@@ -46,7 +45,7 @@ int main(int argc, char *argv[]) {
         ExcitedResponse calc(world, calc_params);
         if (world.rank() == 0) {
             print("\n\n");
-            print(" MADNESS Time-Dependent Density Functional Theory Response "
+            print(" MADNESS Time-Dependent Density Functional Theory Excited-State "
                   "Program");
             print(" ----------------------------------------------------------\n");
             print("\n");
@@ -68,10 +67,5 @@ int main(int argc, char *argv[]) {
         print(e.what());
     } catch (...) { error("caught unhandled exception"); }
 
-
     return result;
-
-    // print_meminfo(world.rank(), "startup");
-    // std::cout.precision(6);
-    // print_stats(world);
 }
