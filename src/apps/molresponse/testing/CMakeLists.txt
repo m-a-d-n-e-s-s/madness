@@ -13,9 +13,9 @@ add_mad_executable(frequency_calc "frequency_calc.cpp" "MADall_response;MADchem"
 add_mad_executable(excited_calc "excited_state_calc.cpp" "MADall_response;MADchem")
 
 # Uses [xc] [operator] to create the full test suite
-add_mad_executable(full_frequency_test "full_frequency_test.cpp" "MADall_response;MADchem")
-add_mad_executable(full_excited_test "full_excited_test.cpp" "MADchem;MADresponse_base")
-add_mad_executable(full_ground_test.cpp "full_ground_test.cpp" "MADchem;MADresponse_base")
+add_mad_executable(full_frequency_tests "full_frequency_test.cpp" "MADall_response;MADchem")
+add_mad_executable(full_excited_tests "full_excited_test.cpp" "MADchem;MADresponse_base")
+add_mad_executable(full_ground_tests "full_ground_test.cpp" "MADchem;MADresponse_base")
 
 
 

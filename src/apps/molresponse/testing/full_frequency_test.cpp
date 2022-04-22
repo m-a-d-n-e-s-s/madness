@@ -2,7 +2,6 @@
 // Created by adrianhurtado on 2/11/22.
 //
 
-#include "ExcitedResponse.hpp"
 #include "ResponseExceptions.hpp"
 #include "TDDFT.h"
 #include "apps/chem/SCF.h"
