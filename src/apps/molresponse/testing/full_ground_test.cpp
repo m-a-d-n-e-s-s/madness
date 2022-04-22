@@ -32,13 +32,21 @@ static inline int file_exists(const char *input_name) {
 #endif
 
 int main(int argc, char *argv[]) {
+    if (argc != 2) {
+
+        std::cout << "Wrong number of inputs" << std::endl;
+        return 1;
+    }
+
+    const std::string xc{argv[1]};
+
+
     World &world = madness::initialize(argc, argv);
     int result = 0;
     world.gop.fence();
     startup(world, argc, argv);
     std::cout.precision(6);
 
-    std::string xc = "hf";
     auto schema = runSchema(xc);
 
     try {
