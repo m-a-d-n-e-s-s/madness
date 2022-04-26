@@ -171,3 +171,24 @@ TEST_CASE("Run if moldft json ==") {
     moldft(world,m_schema,false);
 
 }
+
+
+TEST_CASE("Symmetry Tests") {
+    // Set up the run directories
+
+    World &world = World::get_default();
+    int result = 0;
+    world.gop.fence();
+
+    std::cout.precision(6);
+
+    const std::string molecule_name{"Be"};
+    const std::string xc{"hf"};
+    const std::string op = "excited-state";
+
+    projector_irrep p{};
+
+    print(p.get_pointgroup());
+
+
+}

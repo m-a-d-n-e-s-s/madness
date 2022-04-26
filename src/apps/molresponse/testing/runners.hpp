@@ -584,9 +584,9 @@ void initialize_excited_restart(World &world, const std::string &filename, const
  */
 void set_excited_parameters(ResponseParameters &r_params, const std::string &xc,
                             const size_t &num_states) {
-    r_params.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6, 1e-8});
+    r_params.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6});
     r_params.set_user_defined_value("archive", std::string("../restartdata"));
-    r_params.set_user_defined_value("maxiter", size_t(15));
+    r_params.set_user_defined_value("maxiter", size_t(20));
     r_params.set_user_defined_value("maxsub",
                                     size_t(10));// if its too large then bad guess is very strong
     r_params.set_user_defined_value("kain", true);
@@ -796,6 +796,7 @@ static void create_excited_paths(ResponseParameters &parameters, excitedSchema &
  * @return
  */
 bool runExcited(World &world, excitedSchema schema, bool restart) {
+
 
     // Set the response parameters
     ResponseParameters r_params{};

@@ -24,10 +24,28 @@ using namespace madness;
 class ResponseTester;
 
 
+class scf_timings {
+
+    std::map<std::string, std::vector<double>> t_data;
+    int iter;
+public:
+
+    scf_timings();
+
+     void to_json(json &j);
+
+
+    void print_data();
+
+    void add_data(std::map<std::string, double> values);
+};
+
 using gamma_orbitals = std::tuple<X_space, vector_real_function_3d, vector_real_function_3d>;
 
 class ResponseBase {
 public:
+
+    scf_timings time_data();
     friend ResponseTester;
     ResponseBase(World& world, const CalcParams& params);
     void solve(World& world);
@@ -192,7 +210,7 @@ protected:
     X_space compute_lambda_X(World& world, const X_space& chi, XCOperator<double, 3> xc,
                              const std::string& calc_type) const;
     X_space compute_theta_X(World& world, const X_space& chi, XCOperator<double, 3> xc,
-                            std::string calc_type) const;
+                            const std::string& calc_type) const;
     X_space compute_F0X(World& world, const X_space& X, const XCOperator<double, 3>& xc,
                         bool compute_Y) const;
     void analyze_vectors(World& world, const vecfuncT& x, const std::string& response_state);

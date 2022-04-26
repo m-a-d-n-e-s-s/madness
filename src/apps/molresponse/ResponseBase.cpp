@@ -340,8 +340,8 @@ std::vector<poperatorT> ResponseBase::make_bsh_operators_response(World &world, 
 }
 
 X_space ResponseBase::compute_theta_X(World &world, const X_space &chi, XCOperator<double, 3> xc,
-                                      std::string calc_type) const {
-    bool compute_Y = calc_type.compare("full") == 0;
+                                      const std::string &calc_type) const {
+    bool compute_Y = calc_type=="full";
     X_space Theta_X = X_space(world, chi.num_states(), chi.num_orbitals());
     // compute
     X_space V0X = compute_V0X(world, chi, xc, compute_Y);
@@ -354,16 +354,14 @@ X_space ResponseBase::compute_theta_X(World &world, const X_space &chi, XCOperat
     }
 
     X_space E0X(world, chi.num_states(), chi.num_orbitals());
-    if (r_params.localize().compare("canon") == 0) {
+    if (r_params.localize()!= "canon") {
         E0X = chi.copy();
         E0X.truncate();
         E0X.X = E0X.X * ham_no_diag;
         if (compute_Y) { E0X.Y = E0X.Y * ham_no_diag; }
-
         E0X.truncate();
     }
-
-    if (r_params.print_level() >= 20) {
+    if (r_params.print_level() >= 10) {
         print("<X|(E0-diag(E0)|X>");
         print(inner(chi, E0X));
     }
@@ -381,7 +379,7 @@ X_space ResponseBase::compute_theta_X(World &world, const X_space &chi, XCOperat
     Theta_X = (V0X - E0X) + gamma;
     Theta_X.truncate();
 
-    if (r_params.print_level() >= 20) {
+    if (r_params.print_level() >= 10) {
         print("<X|Theta|X>");
         print(inner(chi, Theta_X));
     }
@@ -1930,4 +1928,8 @@ void gram_schmidt(World &world, response_space &f, response_space &g) {
 
     f.truncate_rf();
     g.truncate_rf();
+}
+void scf_timings::to_json(json &j) {}
+scf_timings::scf_timings() {
+
 }

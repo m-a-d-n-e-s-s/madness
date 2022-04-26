@@ -6,6 +6,7 @@ add_mad_executable(test_schema_json "madness_catch_main.cc;qcschema_json_testing
 # Uses [mol] [xc] [operator] as input
 add_mad_executable(mad-freq "mad-freq.cpp" "MADall_response;MADchem")
 add_mad_executable(mad-excited "mad-excited.cpp" "MADall_response;MADchem")
+add_mad_executable(mad-excited-symmetry-adapted "mad-excited-symmetry-adapted.cpp" "MADall_response;MADchem")
 
 
 # Uses "response.in" file as input

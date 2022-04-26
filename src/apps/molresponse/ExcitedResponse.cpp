@@ -75,7 +75,7 @@ void ExcitedResponse::initialize(World &world) {
     Chi.Y = response_space(world, r_params.num_states(), r_params.num_orbitals());
     // save the guesses at the very least
     world.gop.fence();
-    save(world, r_params.save_file());
+    save(world, "guess_restart");
 
     trial.clear();
     // Initial guess for y are zero functions
@@ -612,13 +612,12 @@ void ExcitedResponse::deflateFull(World &world, X_space &Chi, X_space &old_Chi, 
         if (world.rank() == 0 && (r_params.print_level() >= 10)) {
             print("\n   Overlap Matrix:");
             print(S);
-        X_space Chi_copy = Chi.copy();
-        Chi_copy.truncate();
-        Lambda_X.truncate();
-        A = inner(Chi_copy, Lambda_X);
-        A=0.5*(A+transpose(A));
+            X_space Chi_copy = Chi.copy();
+            Chi_copy.truncate();
+            Lambda_X.truncate();
+            A = inner(Chi_copy, Lambda_X);
+            A = 0.5 * (A + transpose(A));
         }
-
 
 
         if (world.rank() == 0 && (r_params.print_level() >= 10)) {
@@ -1506,8 +1505,9 @@ void ExcitedResponse::iterate(World &world) {
         print("Excited State Frequencies ");
         print(omega);
 
+        rho_omega_old = make_density(world, old_Chi);
+        //This is required because the previous iteration may have rotated the response functions
         old_Chi = Chi.copy();
-        rho_omega_old = rho_omega;
         // compute rho_omega
         rho_omega = make_density(world, Chi);
 
@@ -1540,9 +1540,9 @@ void ExcitedResponse::iterate(World &world) {
             if (density_residuals.max() > 2) { break; }
 
             double d_residual = density_residuals.max();
-            double d_conv = dconv * std::max(size_t(10), molecule.natom());
-            print("dconv: ",dconv);
-            print("d_residual_max : ",d_residual);
+            double d_conv = dconv * std::max(size_t(5), molecule.natom());
+            print("dconv: ", dconv);
+            print("d_residual_max : ", d_residual);
 
             if ((d_residual < d_conv) and
                 ((std::max(bsh_residualsX.absmax(), bsh_residualsY.absmax()) < d_conv * 10.0) or
@@ -1580,7 +1580,8 @@ void ExcitedResponse::iterate(World &world) {
                                kain_x_space, Xvector, Xresidual, energy_residuals, old_energy,
                                bsh_residualsX, bsh_residualsY, S, old_S, A, old_A, iter, maxrotn);
 
-        excited_to_json(j_molresponse,iter,bsh_residualsX,bsh_residualsY,density_residuals,omega);
+        excited_to_json(j_molresponse, iter, bsh_residualsX, bsh_residualsY, density_residuals,
+                        omega);
 
         // Basic output
         if (r_params.print_level() >= 1) molresponse::end_timer(world, " This iteration:");
