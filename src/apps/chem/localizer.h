@@ -9,24 +9,13 @@
 #include<chem/molecularbasis.h>
 #include<chem/molecule.h>
 #include <madness/tensor/distributed_matrix.h>
-#include<mra.h>
+#include<madness/mra/mra.h>
+#include<chem/distpm.h>
 
 
-using namespace madness;
 namespace madness {
 
 class SCF;
-
-extern DistributedMatrix<double> distributed_localize_PM(World& world,
-                                                         const std::vector<Function<double, 3>>& mo,
-                                                         const std::vector<Function<double, 3>>& ao,
-                                                         const std::vector<int>& set,
-                                                         const std::vector<int>& at_to_bf,
-                                                         const std::vector<int>& at_nbf,
-                                                         const double thresh = 1e-9,
-                                                         const double thetamax = 0.5,
-                                                         const bool randomize = true,
-                                                         const bool doprint = false);
 
 //template<typename T, std::size_t NDIM>
 class Localizer {
@@ -76,11 +65,10 @@ public:
     /// localize the orbitals, possibly enforce core-valence separation
     template<typename T, std::size_t NDIM>
     MolecularOrbitals<T, NDIM> localize(const MolecularOrbitals<T, NDIM>& mo_in, const Tensor<T>& Fock,
-                                        const Tensor<T>& overlap, bool randomize) const;
+                                        bool randomize) const;
 
     template<typename T, std::size_t NDIM>
-    MolecularOrbitals<T, NDIM> separate_core_valence(const MolecularOrbitals<T, NDIM>& mo_in, const Tensor<T>& Fock,
-                                        const Tensor<T>& overlap) const;
+    MolecularOrbitals<T, NDIM> separate_core_valence(const MolecularOrbitals<T, NDIM>& mo_in, const Tensor<T>& Fock) const;
 
     template<typename T, std::size_t NDIM>
     Tensor<T> compute_localization_matrix(World& world, const MolecularOrbitals<T, NDIM>& mo_in, bool randomize) const;
@@ -95,8 +83,7 @@ public:
     /// @param[in]  randomize   initially randomize the localization procedure
     template<typename T, std::size_t NDIM>
     Tensor<T> compute_core_valence_separation_transformation_matrix(World& world,
-                                        const MolecularOrbitals<T, NDIM>& mo_in, const Tensor<T>& Fock,
-                                        const Tensor<T>& overlap) const;
+                                        const MolecularOrbitals<T, NDIM>& mo_in, const Tensor<T>& Fock) const;
 
     template<typename T>
     static bool check_core_valence_separation(const Tensor<T>& Fock, const std::vector<int>& localized_set,
@@ -128,9 +115,7 @@ public:
     template<typename T>
     static Tensor<T> undo_rotation(const Tensor<T>& U_in, const std::vector<Slice>& blocks);
 
-
 private:
-
 
     template<typename T, std::size_t NDIM>
     DistributedMatrix<T>
@@ -160,6 +145,7 @@ private:
 
     template<typename T>
     Tensor<T> matrix_exponential(const Tensor<T>& A) const;
+
 
     std::vector<int> at_to_bf, at_nbf;  /// map atoms to basis functions in the "new" algorithm
     AtomicBasisSet aobasis;             ///

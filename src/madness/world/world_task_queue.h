@@ -40,16 +40,20 @@
 
 #include <type_traits>
 #include <iostream>
+
+#include <madness/madness_config.h>
+
+// must be included before world/range.h
+#ifdef HAVE_INTEL_TBB
+# include <tbb/parallel_reduce.h>
+#endif
+
 #include <madness/world/meta.h>
 #include <madness/world/nodefaults.h>
 #include <madness/world/range.h>
 #include <madness/world/timers.h>
 #include <madness/world/taskfn.h>
 #include <madness/world/mem_func_wrapper.h>
-
-#ifdef HAVE_INTEL_TBB
-# include <tbb/parallel_reduce.h>
-#endif
 
 /// \addtogroup taskq
 /// @{

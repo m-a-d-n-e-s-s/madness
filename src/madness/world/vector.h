@@ -65,6 +65,9 @@ namespace madness {
     public:
         using arrayT = std::array<T,N>; ///< The underlying array type.
 
+        template <typename Q,std::size_t M>
+        friend class Vector;
+
     private:
         arrayT data_; ///< The underlying array.
 

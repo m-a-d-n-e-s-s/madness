@@ -47,7 +47,6 @@
 #ifndef SRC_APPS_CHEM_POINTGROUPOPERATOR_H_
 #define SRC_APPS_CHEM_POINTGROUPOPERATOR_H_
 
-using namespace madness;
 #include <madness/tensor/vector_factory.h>
 
 namespace madness {

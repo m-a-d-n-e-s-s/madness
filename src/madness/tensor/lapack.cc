@@ -427,7 +427,145 @@ STATIC void dsyev_(const char* jobz, const char* uplo, integer *n,
            info, jobzlen, uplo_len );
 #endif
 }
+// bryan edits start
 
+/// These oddly-named wrappers enable the generic geev iterface to get
+/// the correct LAPACK routine based upon the argument type.  Internal
+/// use only.
+STATIC inline void dgeev_(const char* jobz, const char* uplo, integer *n,
+                          real4 *a, integer *lda, real4 *w_real, real4 *w_imag,
+                          real4 *v, integer *ldv, real4 *vr, integer *ldvr,
+                          real4 *work,  integer *lwork, integer *info,
+                          char_len jobzlen, char_len uplo_len) {
+#if MADNESS_LINALG_USE_LAPACKE
+    sgeev_(jobz, uplo, n, a, lda, w_real, w_imag, v, ldv, vr, ldvr, work,  lwork, info );
+#else
+    sgeev_(jobz, uplo, n, a, lda, w_real, w_imag, v, ldv, vr, ldvr, work,  lwork, info,
+           jobzlen, uplo_len );
+#endif
+}
+
+#if MADNESS_LINALG_USE_LAPACKE
+STATIC inline void dgeev_(const char* jobz, const char* uplo, integer *n,
+                          real8 *a, integer *lda, real8 *w_real, real8 *w_imag,
+                          real8 *v, integer *ldv, real8 *vr, integer *ldvr,
+                          real8 *work,  integer *lwork, integer *info,
+                          char_len jobzlen, char_len uplo_len) {
+    dgeev_(jobz, uplo, n, a, lda, w_real, w_imag, v, ldv, vr, ldvr, work,  lwork, info );
+}
+#endif
+
+STATIC inline void dgeev_(const char* jobz, const char* uplo, integer *n,
+                          complex_real4 *a, integer *lda, complex_real4 *w, complex_real4 *w_imag,
+                          complex_real4 *v, integer *ldv, complex_real4 *vr, integer *ldvr,
+                          complex_real4 *work,  integer *lwork, integer *info,
+                          char_len jobzlen, char_len uplo_len) {
+    Tensor<float> rwork(max((integer) 1, (integer) (2* (*n))));
+#if MADNESS_LINALG_USE_LAPACKE
+    cgeev_(jobz, uplo, n, reinterpret_cast<lapack_complex_float*>(a), lda,
+           reinterpret_cast<lapack_complex_float*>(w),
+           reinterpret_cast<lapack_complex_float*>(v), ldv,
+           reinterpret_cast<lapack_complex_float*>(vr), ldvr,
+           reinterpret_cast<lapack_complex_float*>(work), lwork, rwork.ptr(), info );
+#else
+    cgeev_(jobz, uplo, n, a, lda, w, v, ldv, vr, ldvr, work, lwork, rwork.ptr(), info,
+           jobzlen, uplo_len );
+#endif
+}
+
+
+STATIC inline void dgeev_(const char* jobz, const char* uplo, integer *n,
+                          complex_real8 *a, integer *lda, complex_real8 *w, complex_real8 *w_imag,
+                          complex_real8 *v, integer *ldv, complex_real8 *vr, integer *ldvr,
+                          complex_real8 *work,  integer *lwork, integer *info,
+                          char_len jobzlen, char_len uplo_len) {
+    Tensor<double> rwork(max((integer) 1, (integer) (2* (*n))));
+#if MADNESS_LINALG_USE_LAPACKE
+    zgeev_(jobz, uplo, n, reinterpret_cast<lapack_complex_double*>(a), lda,
+           reinterpret_cast<lapack_complex_double*>(w),
+           reinterpret_cast<lapack_complex_double*>(v), ldv,
+           reinterpret_cast<lapack_complex_double*>(vr), ldvr,
+           reinterpret_cast<lapack_complex_double*>(work), lwork, rwork.ptr(), info );
+#else
+    zgeev_(jobz, uplo, n, a, lda, w, v, ldv, vr, ldvr, work, lwork, rwork.ptr(), info,
+           jobzlen, uplo_len );
+#endif
+}
+
+/// These oddly-named wrappers enable the generic ggev iterface to get
+/// the correct LAPACK routine based upon the argument type.  Internal
+/// use only.
+STATIC inline void dggev_(const char* jobl, const char* jobr, integer *n,
+                          real4 *a, integer *lda, real4 *b, integer *ldb,
+                          real4 *w_real, real4 *w_imag, real4 *beta,
+                          real4 *vl, integer *ldvl, real4 *vr, integer *ldvr,
+                          real4 *work,  integer *lwork, integer *info,
+                          char_len jobzlen, char_len uplo_len) {
+#if MADNESS_LINALG_USE_LAPACKE
+    sggev_(jobl, jobr, n, a, lda, b, ldb, w_real, w_imag, beta, vl, ldvl, vr, ldvr, work,  lwork, info );
+#else
+    sggev_(jobl, jobr, n, a, lda, b, ldb, w_real, w_imag, beta, vl, ldvl, vr, ldvr, work,  lwork, info,
+           jobzlen, uplo_len );
+#endif
+}
+
+STATIC inline void dggev_(const char* jobl, const char* jobr, integer *n,
+                          real8 *a, integer *lda, real8 *b, integer *ldb,
+                          real8 *w_real, real8 *w_imag, real8 *beta,
+                          real8 *vl, integer *ldvl, real8 *vr, integer *ldvr,
+                          real8 *work,  integer *lwork, integer *info,
+                          char_len jobzlen, char_len uplo_len) {
+#if MADNESS_LINALG_USE_LAPACKE
+    dggev_(jobl, jobr, n, a, lda, b, ldb, w_real, w_imag, beta, vl, ldvl, vr, ldvr, work,  lwork, info );
+#else
+    dggev_(jobl, jobr, n, a, lda, b, ldb, w_real, w_imag, beta, vl, ldvl, vr, ldvr, work,  lwork, info, jobzlen, uplo_len);    
+#endif
+}
+
+STATIC inline void dggev_(const char* jobl, const char* jobr, integer *n,
+                          complex_real4 *a, integer *lda, complex_real4 *b, integer *ldb,
+                          complex_real4 *w, complex_real4 *w_imag, complex_real4 *beta,
+                          complex_real4 *vl, integer *ldvl, complex_real4 *vr, integer *ldvr,
+                          complex_real4 *work,  integer *lwork, integer *info,
+                          char_len jobzlen, char_len uplo_len) {
+    Tensor<float> rwork(max((integer) 1, (integer) (2* (*n))));
+#if MADNESS_LINALG_USE_LAPACKE
+    cggev_(jobl, jobr, n, reinterpret_cast<lapack_complex_float*>(a), lda,
+           reinterpret_cast<lapack_complex_float*>(b), ldb,
+           reinterpret_cast<lapack_complex_float*>(w),
+           reinterpret_cast<lapack_complex_float*>(beta),
+           reinterpret_cast<lapack_complex_float*>(vl), ldvl,
+           reinterpret_cast<lapack_complex_float*>(vr), ldvr,
+           reinterpret_cast<lapack_complex_float*>(work), lwork, rwork.ptr(), info );
+#else
+    cggev_(jobl, jobr, n, a, lda, b, ldb, w, beta, vl, ldvl, vr, ldvr, work, lwork, rwork.ptr(), info,
+           jobzlen, uplo_len );
+
+#endif
+}
+
+
+STATIC inline void dggev_(const char* jobl, const char* jobr, integer *n,
+                          complex_real8 *a, integer *lda, complex_real8 *b, integer *ldb,
+                          complex_real8 *w, complex_real8 *w_imag, complex_real8 *beta,
+                          complex_real8 *vl, integer *ldvl, complex_real8 *vr, integer *ldvr,
+                          complex_real8 *work,  integer *lwork, integer *info,
+                          char_len jobzlen, char_len uplo_len) {
+    Tensor<double> rwork(max((integer) 1, (integer) (2* (*n))));
+#if MADNESS_LINALG_USE_LAPACKE
+    zggev_(jobl, jobr, n, reinterpret_cast<lapack_complex_double*>(a), lda,
+           reinterpret_cast<lapack_complex_double*>(b), ldb,
+           reinterpret_cast<lapack_complex_double*>(w),
+           reinterpret_cast<lapack_complex_double*>(beta),
+           reinterpret_cast<lapack_complex_double*>(vl), ldvl,
+           reinterpret_cast<lapack_complex_double*>(vr), ldvr,
+           reinterpret_cast<lapack_complex_double*>(work), lwork, rwork.ptr(), info );
+#else
+    zggev_(jobl, jobr, n, a, lda, b, ldb, w, beta, vl, ldvl, vr, ldvr, work, lwork, rwork.ptr(), info,
+           jobzlen, uplo_len );
+#endif
+}
+// bryan edits end
 
 
 /// These oddly-named wrappers enable the generic orgqr/unggr iterface to get
@@ -733,6 +871,48 @@ namespace madness {
         TENSOR_ASSERT(info == 0, "(s/d)syev/(c/z)heev failed", info, &A);
         V = transpose(V);
     }
+// bryan edits
+    /** \brief   Real non-symmetric or complex non-Hermitian eigenproblem.
+
+    A is a real non-symmetric or complex non-Hermitian matrix.  Return V and e
+    where V is a matrix whose columns are the right eigenvectors and e is a
+    vector containing the corresponding eigenvalues.  If the LAPACK
+    routine fails, it raises a TensorException with value=infor.  The
+    input matrix is unchanged.  The eigenvalues are sorted into ascending
+    order.  s/dgeev are used for real non-symmetric matrices; c/zgeev are used
+    for complex non-Hermitian.
+
+    Note on the eigenvectors:
+          If the j-th eigenvalue is real, then j-th eigenvector is VR(:,j),
+          the j-th column of VR.
+          If the j-th and (j+1)-st eigenvalues form a complex
+          conjugate pair, then j-th eigenvector is VR(:,j) + i*VR(:,j+1) and
+          j+1-th eigenvector is VR(:,j) - i*VR(:,j+1).
+
+    The results will satisfy A*V(_,i) = V(_,i)*e(i).
+    */
+    // Might not work if A is complex (type issues on tensor e)
+    template <typename T>
+    void geev(const Tensor<T>& A, Tensor<T>& VR, Tensor<std::complex<T>>& e) {
+        TENSOR_ASSERT(A.ndim() == 2, "geev requires a matrix",A.ndim(),&A);
+        TENSOR_ASSERT(A.dim(0) == A.dim(1), "geev requires square matrix",0,&A);
+        integer n = A.dim(0);
+        integer lwork = max(max((integer) 1,(integer) (3*n)),(integer) (34*n));
+        integer info;
+        Tensor<T> work(lwork);
+        Tensor<T> A_copy = copy(A);
+        Tensor<T> VL(n,n); // Should not be referenced
+        Tensor<T> e_real(n), e_imag(n);
+        dgeev_("N", "V", &n, A_copy.ptr(), &n, e_real.ptr(), e_imag.ptr(), VL.ptr(), &n,
+               VR.ptr(), &n,  work.ptr(), &lwork, &info, (char_len) 1, (char_len) 1);
+        mask_info(info);
+        TENSOR_ASSERT(info == 0, "(s/d)geev/(c/z)geev failed", info, &A);
+
+        // Now put energies back where user expects them to be
+        std::complex<double> my_i(0,1);
+        e = e_real + e_imag * my_i;
+    }
+// bryan edits end
 
     /** \brief  Generalized real-symmetric or complex-Hermitian eigenproblem.
 
@@ -780,6 +960,97 @@ namespace madness {
         V = transpose(V);
     }
 
+    // bryan edit start
+    /** \brief  Generalized real-non-symmetric or complex-non-Hermitian eigenproblem.
+
+    This from the LAPACK documentation
+
+    \verbatim
+    S/DGGEV computes all the eigenvalues, and optionally, the eigenvectors
+    of a real generalized non-symmetric-definite eigenproblem, of the form
+    A*x=(lambda)*B*x.
+
+    C/ZGGEV computes all the eigenvalues, and optionally, the eigenvectors
+    of a complex generalized non-Hermitian-definite eigenproblem, of the form
+    A*x=(lambda)*B*x.
+    \endverbatim
+
+       Note on the eigenvalues:
+          On exit, (ALPHAR(j) + ALPHAI(j)*i)/BETA(j), j=1,...,N, will
+          be the generalized eigenvalues.  If ALPHAI(j) is zero, then
+          the j-th eigenvalue is real; if positive, then the j-th and
+          (j+1)-st eigenvalues are a complex conjugate pair, with
+          ALPHAI(j+1) negative.
+
+          Note: the quotients ALPHAR(j)/BETA(j) and ALPHAI(j)/BETA(j)
+          may easily over- or underflow, and BETA(j) may even be zero.
+          Thus, the user should avoid naively computing the ratio
+          alpha/beta.  However, ALPHAR and ALPHAI will be always less
+          than and usually comparable with norm(A) in magnitude, and
+          BETA always less than and usually comparable with norm(B).
+
+      Note on the eigenvectors:
+          The right eigenvectors v(j) are stored one
+          after another in the columns of VR, in the same order as
+          their eigenvalues. If the j-th eigenvalue is real, then
+          v(j) = VR(:,j), the j-th column of VR. If the j-th and
+          (j+1)-th eigenvalues form a complex conjugate pair, then
+          v(j) = VR(:,j)+i*VR(:,j+1) and v(j+1) = VR(:,j)-i*VR(:,j+1).
+          Each eigenvector is scaled so the largest component has
+          abs(real part)+abs(imag. part)=1.
+
+    */
+    // Might not work if A is complex (type issues on tensor e)
+    template <typename T>
+    void ggev(const Tensor<T>& A, Tensor<T>& B, Tensor<T>& VR,
+              Tensor<std::complex<T>>& e) {
+        TENSOR_ASSERT(A.ndim() == 2, "ggev requires a matrix",A.ndim(),&A);
+        TENSOR_ASSERT(A.dim(0) == A.dim(1), "ggev requires square matrix",0,&A);
+        TENSOR_ASSERT(B.ndim() == 2, "ggev requires a matrix",B.ndim(),&A);
+        TENSOR_ASSERT(B.dim(0) == B.dim(1), "ggev requires square matrix",0,&A);
+        integer n = A.dim(0);
+        integer lwork = max(max((integer) 1,(integer) (3*n)),(integer) (34*n));
+        integer info;
+        Tensor<T> work(lwork);
+        Tensor<T> A_copy = copy(A);
+        Tensor<T> VL(n,n); // Should not be referenced
+        Tensor<T> e_real(n), e_imag(n), beta(n);
+        dggev_("N", "V", &n,
+                A_copy.ptr(), &n, B.ptr(), &n,
+                e_real.ptr(), e_imag.ptr(), beta.ptr(),
+                VL.ptr(), &n, VR.ptr(), &n,
+                work.ptr(), &lwork, &info,
+                (char_len) 1, (char_len) 1);
+        mask_info(info);
+        TENSOR_ASSERT(info == 0, "(s/d)ggev/(c/z)ggev failed", info, &A);
+
+        // Sometimes useful
+        //print("e_real:\n", e_real);
+        //print("e_imag:\n", e_imag);
+        //print("beta:\n", beta);
+
+        // Now put energies back where user expects them to be
+        // Need to be smart with the division, possibly throw
+        // errors if neccessary.
+        std::complex<double> my_i(0,1);
+        for(int i = 0; i < e.dim(0); i++)
+        {
+           MADNESS_ASSERT(beta(i) >=  1e-14); // Do something smarter here?
+           // Two cases:
+           // Case 1: Real value (imaginary == 0)
+           if(e_imag(i) == 0.0)
+              e(i) = e_real(i) / beta(i);
+           // Case 2: Complex value (need to handle the pair)
+           else
+           {
+              e(i) = (e_real(i) + my_i * e_imag(i)) / beta(i);
+              e(i+1) = (e_real(i) - my_i * e_imag(i)) / beta(i);
+              i = i + 1; // Already took care of the paired value as well
+           }
+        }
+        VR = transpose(VR);
+    }
+// bryan edits stop
     /** \brief  Compute the Cholesky factorization.
 
     Compute the Cholesky factorization of the symmetric positive definite matrix A
@@ -1435,6 +1706,14 @@ namespace madness {
     template
     void syev(const Tensor<double_complex>& A,
               Tensor<double_complex>& V, Tensor<Tensor<double_complex>::scalar_type >& e);
+
+// bryan edits start
+    template
+    void geev(const Tensor<double>& A, Tensor<double>& V, Tensor<std::complex<double>>& e);
+
+    template
+    void ggev(const Tensor<double>& A, Tensor<double>& B, Tensor<double>& V, Tensor<std::complex     <double>>& e);
+// bryan edits end
 
     template
     void cholesky(Tensor<double_complex>& A);

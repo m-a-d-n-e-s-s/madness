@@ -135,9 +135,9 @@ namespace madness {
 #elif defined(HAVE_IBMBGQ)
         return BG_SECONDS_PER_CYCLE * GetTimeBase();
 #else
-        const auto now = std::chrono::steady_clock::now();
-        const auto seconds_since_epoch = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
-        return seconds_since_epoch;
+      const auto now = std::chrono::steady_clock::now();
+      const auto nanoseconds_since_epoch = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
+      return nanoseconds_since_epoch / 1e9;
 #endif
     }
 

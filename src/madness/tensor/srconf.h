@@ -46,7 +46,6 @@
 #include <list>
 #include<array>
 
-using namespace madness;
 namespace madness {
 
 

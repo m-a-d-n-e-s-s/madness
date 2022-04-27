@@ -31,7 +31,7 @@
 
 /// \file SCF.cc
 /// \brief Molecular HF and DFT code
-/// \defgroup moldft The molecular density funcitonal and Hartree-Fock code
+/// \defgroup moldft The molecular density functional and Hartree-Fock code
 
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
@@ -131,7 +131,6 @@ tensorT Q2(const tensorT& s) {
 
 /// collective constructor, reads \c input on rank 0, broadcasts to all
 SCF::SCF(World& world, const commandlineparser& parser) : param(CalculationParameters(world,parser)) {
-	FunctionDefaults<3>::set_truncate_mode(1);
 	PROFILE_MEMBER_FUNC(SCF);
 
 //    param.read(world,parser.value("input"),"dft");
@@ -196,138 +195,170 @@ SCF::SCF(World& world, const commandlineparser& parser) : param(CalculationParam
 
 
 void SCF::save_mos(World& world) {
-	PROFILE_MEMBER_FUNC(SCF);
-	archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, "restartdata", param.get<int>("nio"));
-	ar & current_energy & param.spin_restricted();
-	ar & (unsigned int) (amo.size());
-	ar & aeps & aocc & aset;
-	for (unsigned int i = 0; i < amo.size(); ++i)
-		ar & amo[i];
-	if (!param.spin_restricted()) {
-		ar & (unsigned int) (bmo.size());
-		ar & beps & bocc & bset;
-		for (unsigned int i = 0; i < bmo.size(); ++i)
-			ar & bmo[i];
-	}
+  PROFILE_MEMBER_FUNC(SCF);
+  archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, "restartdata", param.get<int>("nio"));
+  // IF YOU CHANGE ANYTHING HERE MAKE SURE TO UPDATE THIS VERSION NUMBER
+  /*
+   * After spin restricted
+    double L;
+    int k;
+    Molecule molecule;
+    std::string xc;
+    */
+  unsigned int version = 2;
+  ar& version;
+  ar& current_energy& param.spin_restricted();
+  ar & param.L() & FunctionDefaults<3>::get_k() & molecule& param.xc();
+// Re order so it doesn't effect orbital data
 
-     // Do not make a restartaodata file if nwchem orbitals used,
-     // as no aoamo/aobmo overlap matrix can be computed
-     if (param.nwfile() == "none") {
-	     tensorT Saoamo = matrix_inner(world, ao, amo);
-	     tensorT Saobmo = (!param.spin_restricted()) ? matrix_inner(world, ao, bmo) : tensorT();
-	     if (world.rank() == 0) {
-	     	archive::BinaryFstreamOutputArchive arao("restartaodata");
-	     	arao << Saoamo << aeps << aocc << aset;
-	     	if (!param.spin_restricted()) arao << Saobmo << beps << bocc << bset;
-	     }
-     }
+  ar&(unsigned int)(amo.size());
+  ar& aeps& aocc& aset;
+  for (unsigned int i = 0; i < amo.size(); ++i) ar& amo[i];
+  if (!param.spin_restricted()) {
+    ar&(unsigned int)(bmo.size());
+    ar& beps& bocc& bset;
+    for (unsigned int i = 0; i < bmo.size(); ++i) ar& bmo[i];
+  }
+
+  // Do not make a restartaodata file if nwchem orbitals used,
+  // as no aoamo/aobmo overlap matrix can be computed
+  if (param.nwfile() == "none") {
+    tensorT Saoamo = matrix_inner(world, ao, amo);
+    tensorT Saobmo = (!param.spin_restricted()) ? matrix_inner(world, ao, bmo) : tensorT();
+    if (world.rank() == 0) {
+      archive::BinaryFstreamOutputArchive arao("restartaodata");
+      arao << Saoamo << aeps << aocc << aset;
+      if (!param.spin_restricted()) arao << Saobmo << beps << bocc << bset;
+    }
+  }
 }
 
 void SCF::load_mos(World& world) {
-	PROFILE_MEMBER_FUNC(SCF);
-	//        const double trantol = vtol / std::min(30.0, double(param.nalpha));
-	const double thresh = FunctionDefaults < 3 > ::get_thresh();
-	const int k = FunctionDefaults < 3 > ::get_k();
-	unsigned int nmo = 0;
-	bool spinrest = false;
-	amo.clear();
-	bmo.clear();
+  PROFILE_MEMBER_FUNC(SCF);
+  //        const double trantol = vtol / std::min(30.0, double(param.nalpha));
+  const double thresh = FunctionDefaults<3>::get_thresh();
+  const int k = FunctionDefaults<3>::get_k();
+  unsigned int nmo = 0;
+  bool spinrest = false;
 
-	archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, "restartdata");
+  amo.clear();
+  bmo.clear();
 
-	/*
-          File format:
+  archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, "restartdata");
 
-          bool spinrestricted --> if true only alpha orbitals are present
+  /*
+    File format:
+        unsigned int version;
+        double current energy;
+    bool spinrestricted --> if true only alpha orbitals are present
+    double L;
+    int k;
+    Molecule molecule;
+    std::string xc;
+    unsigned int nmo_alpha;
+    Tensor<double> aeps;
+    Tensor<double> aocc;
+    vector<int> aset;
+    for i from 0 to nalpha-1:
+    .   Function<double,3> amo[i]
+    repeat for beta if !spinrestricted
+   */
+  // Local copies for a basic check
+  double L;
+  int k1;                    // Ignored for restarting, used in response only
+  unsigned int version = 2;  // UPDATE THIS IF YOU CHANGE ANYTHING
+  unsigned int archive_version;
 
-          unsigned int nmo_alpha;
-          Tensor<double> aeps;
-          Tensor<double> aocc;
-          vector<int> aset;
-          for i from 0 to nalpha-1:
-          .   Function<double,3> amo[i]
+  ar& archive_version;
 
-          repeat for beta if !spinrestricted
+  if (archive_version != version) {
+    if (world.rank() == 0)
+      print(
+          "Loading from a different version of archive. Archive version", archive_version, "MADNESS version", version);
+    throw "Invalid archive";
+  }
 
-	 */
+  // LOTS OF LOGIC MISSING HERE TO CHANGE OCCUPATION NO., SET,
+  // EPS, SWAP, ... sigh
+  ar& current_energy& spinrest;
+  // Reorder
+  ar & L& k1& molecule& param.xc();
 
-	// LOTS OF LOGIC MISSING HERE TO CHANGE OCCUPATION NO., SET,
-	// EPS, SWAP, ... sigh
-	ar & current_energy & spinrest;
+  ar& nmo;
+  MADNESS_ASSERT(nmo >= unsigned(param.nmo_alpha()));
+  ar& aeps& aocc& aset;
+  // Some basic checks
+  if (L != param.L()) {
+    if (world.rank() == 0)
+      print(
+          "Warning: Box size mismatch between archive and input parameter. "
+          "Archive value",
+          L,
+          "Param value",
+          param.L());
+    throw "Mismatch in box sizes";
+  }
+  if (world.rank() == 0) {
+    print("Restarting from this molecular geometry");
+    molecule.print();
+  }
+  amo.resize(nmo);
+  for (unsigned int i = 0; i < amo.size(); ++i) ar& amo[i];
+  unsigned int n_core = molecule.n_core_orb_all();
+  if (nmo > unsigned(param.nmo_alpha())) {
+    aset = vector<int>(aset.begin() + n_core, aset.begin() + n_core + param.nmo_alpha());
+    amo = vecfuncT(amo.begin() + n_core, amo.begin() + n_core + param.nmo_alpha());
+    aeps = copy(aeps(Slice(n_core, n_core + param.nmo_alpha() - 1)));
+    aocc = copy(aocc(Slice(n_core, n_core + param.nmo_alpha() - 1)));
+  }
 
-	ar & nmo;
-	MADNESS_ASSERT(nmo >= unsigned(param.nmo_alpha()));
-	ar & aeps & aocc & aset;
-	amo.resize(nmo);
-	for (unsigned int i = 0; i < amo.size(); ++i)
-		ar & amo[i];
-	unsigned int n_core = molecule.n_core_orb_all();
-	if (nmo > unsigned(param.nmo_alpha())) {
-		aset = vector<int>(aset.begin() + n_core,
-				aset.begin() + n_core + param.nmo_alpha());
-		amo = vecfuncT(amo.begin() + n_core,
-				amo.begin() + n_core + param.nmo_alpha());
-		aeps = copy(aeps(Slice(n_core, n_core + param.nmo_alpha() - 1)));
-		aocc = copy(aocc(Slice(n_core, n_core + param.nmo_alpha() - 1)));
-	}
+  if (amo[0].k() != k) {
+    reconstruct(world, amo);
+    for (unsigned int i = 0; i < amo.size(); ++i) amo[i] = madness::project(amo[i], k, thresh, false);
+    world.gop.fence();
+  }
+  set_thresh(world, amo, thresh);
 
-	if (amo[0].k() != k) {
-		reconstruct(world, amo);
-		for (unsigned int i = 0; i < amo.size(); ++i)
-			amo[i] = madness::project(amo[i], k, thresh, false);
-		world.gop.fence();
-	}
-	set_thresh(world,amo,thresh);
+  //        normalize(world, amo);
+  //        amo = transform(world, amo, Q3(matrix_inner(world, amo, amo)),
+  //        trantol, true); truncate(world, amo); normalize(world, amo);
 
-	//        normalize(world, amo);
-	//        amo = transform(world, amo, Q3(matrix_inner(world, amo, amo)), trantol, true);
-	//        truncate(world, amo);
-	//        normalize(world, amo);
+  if (!param.spin_restricted()) {
+    if (spinrest) {  // Only alpha spin orbitals were on disk
+      MADNESS_ASSERT(param.nmo_alpha() >= param.nmo_beta());
+      bmo.resize(param.nmo_beta());
+      bset.resize(param.nmo_beta());
+      beps = copy(aeps(Slice(0, param.nmo_beta() - 1)));
+      bocc = copy(aocc(Slice(0, param.nmo_beta() - 1)));
+      for (int i = 0; i < param.nmo_beta(); ++i) bmo[i] = copy(amo[i]);
+    } else {
+      ar& nmo;
+      ar& beps& bocc& bset;
 
-	if (!param.spin_restricted()) {
+      bmo.resize(nmo);
+      for (unsigned int i = 0; i < bmo.size(); ++i) ar& bmo[i];
 
-		if (spinrest) { // Only alpha spin orbitals were on disk
-			MADNESS_ASSERT(param.nmo_alpha() >= param.nmo_beta());
-			bmo.resize(param.nmo_beta());
-			bset.resize(param.nmo_beta());
-			beps = copy(aeps(Slice(0, param.nmo_beta() - 1)));
-			bocc = copy(aocc(Slice(0, param.nmo_beta() - 1)));
-			for (int i = 0; i < param.nmo_beta(); ++i)
-				bmo[i] = copy(amo[i]);
-		} else {
-			ar & nmo;
-			ar & beps & bocc & bset;
+      if (nmo > unsigned(param.nmo_beta())) {
+        bset = vector<int>(bset.begin() + n_core, bset.begin() + n_core + param.nmo_beta());
+        bmo = vecfuncT(bmo.begin() + n_core, bmo.begin() + n_core + param.nmo_beta());
+        beps = copy(beps(Slice(n_core, n_core + param.nmo_beta() - 1)));
+        bocc = copy(bocc(Slice(n_core, n_core + param.nmo_beta() - 1)));
+      }
 
-			bmo.resize(nmo);
-			for (unsigned int i = 0; i < bmo.size(); ++i)
-				ar & bmo[i];
+      if (bmo[0].k() != k) {
+        reconstruct(world, bmo);
+        for (unsigned int i = 0; i < bmo.size(); ++i) bmo[i] = madness::project(bmo[i], k, thresh, false);
+        world.gop.fence();
+      }
+      set_thresh(world, amo, thresh);
 
-			if (nmo > unsigned(param.nmo_beta())) {
-				bset = vector<int>(bset.begin() + n_core,
-						bset.begin() + n_core + param.nmo_beta());
-				bmo = vecfuncT(bmo.begin() + n_core,
-						bmo.begin() + n_core + param.nmo_beta());
-				beps = copy(beps(Slice(n_core, n_core + param.nmo_beta() - 1)));
-				bocc = copy(bocc(Slice(n_core, n_core + param.nmo_beta() - 1)));
-			}
-
-			if (bmo[0].k() != k) {
-				reconstruct(world, bmo);
-				for (unsigned int i = 0; i < bmo.size(); ++i)
-					bmo[i] = madness::project(bmo[i], k, thresh, false);
-				world.gop.fence();
-			}
-			set_thresh(world,amo,thresh);
-
-			//                normalize(world, bmo);
-			//                bmo = transform(world, bmo, Q3(matrix_inner(world, bmo, bmo)), trantol, true);
-			//                truncate(world, bmo);
-			//                normalize(world, bmo);
-
-		}
-	}
+      //                normalize(world, bmo);
+      //                bmo = transform(world, bmo, Q3(matrix_inner(world, bmo,
+      //                bmo)), trantol, true); truncate(world, bmo);
+      //                normalize(world, bmo);
+    }
+  }
 }
-
 void SCF::do_plots(World& world) {
 	PROFILE_MEMBER_FUNC(SCF);
 	START_TIMER(world);
@@ -3608,5 +3639,31 @@ dipolebmo.clear();
 }
 //vama polarizability
 
-
+void SCF::output_scf_info_schema(const int& iter, const std::map<std::string, double>& vals, const tensorT& dipole_T) {
+  json j = {};
+  j.push_back(json());
+  // TODO (Adrian) possibly read in json from filesystem.
+  // if it exists figure out the size.  pushback for each protocol
+  j[0]["scf_iterations"] = iter;
+  const double thresh = FunctionDefaults<3>::get_thresh();
+  const int k = FunctionDefaults<3>::get_k();
+  j[0]["scf_threshold"] = thresh;
+  j[0]["scf_k"] = k;
+  for (auto const& [key, val] : vals) {
+    j[0][key] = val;
+  }
+  j[0]["scf_dipole_moment"] = tensor_to_json(dipole_T);
+  int num = 0;
+  std::string save = "scf_info.json";
+  if (std::filesystem::exists(save)) {
+    std::ifstream ifs(save);
+    json j_old;
+    ifs >> j_old;
+    print(j_old);
+    j_old.push_back(j);
+    j = j_old;
+  };
+  std::ofstream ofs(save);
+  ofs << j;
+}
 }

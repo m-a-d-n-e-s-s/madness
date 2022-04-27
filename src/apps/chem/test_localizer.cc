@@ -84,9 +84,8 @@ bool test_ne_boys(World& world, const Nemo& nemo) {
     localizer.set_enforce_core_valence_separation(true);
     localizer.print_info();
     Tensor<double> fock1 =nemo.compute_fock_matrix(mos.get_mos(), mos.get_occ());
-    Tensor<double> overlap = matrix_inner(world,nemo.get_ncf_ptr()->square()*mos.get_mos(),mos.get_mos());
 
-    auto lmo=localizer.localize(mos, fock1, overlap, true);
+    auto lmo=localizer.localize(mos, fock1, true);
     Tensor<double> fock2 =nemo.compute_fock_matrix(lmo.get_mos(), lmo.get_occ());
     lmo.pretty_print("cv-localized MOs");
     print(fock2);
@@ -163,7 +162,6 @@ bool test_ethylene(World& world, const Nemo& nemo, const std::string geometry="e
     mos.pretty_print("initial orbitals after a few SCF iterations");
 
     Tensor<double> fock =nemo.compute_fock_matrix(mos.get_mos(), mos.get_occ());
-    Tensor<double> overlap = matrix_inner(world,nemo.get_ncf_ptr()->square()*mos.get_mos(),mos.get_mos());
 
 //    Tensor<double> fock, overlap;
     double trace_canonical=fock_trace(fock);
@@ -183,7 +181,7 @@ bool test_ethylene(World& world, const Nemo& nemo, const std::string geometry="e
             localizer.set_metric(nemo.get_ncf_ptr()->function());
             localizer.print_info();
 
-            auto lmo=localizer.localize(mos, fock, overlap, true);
+            auto lmo=localizer.localize(mos, fock, true);
 //            if (enforce_cv) lmo.print_cubefiles("mo_ethylene"+method,mol.cubefile_header());
             nemo.get_calc()->amo=lmo.get_mos();
 

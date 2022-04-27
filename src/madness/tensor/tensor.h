@@ -528,7 +528,7 @@ namespace madness {
 
         /// Create and optionally zero new n-d tensor. This is the most general constructor.
 
-        /// @param[in] d Vector containing size of each dimension, number of dimensions inferred from vcector size.
+        /// @param[in] d Vector containing size of each dimension, number of dimensions inferred from vector size.
         /// @param[in] dozero If true (default) the tensor is initialized to zero
         explicit Tensor(const std::vector<long>& d, bool dozero=true) : _p(0) {
             allocate(d.size(), d.size() ? &(d[0]) : 0, dozero);

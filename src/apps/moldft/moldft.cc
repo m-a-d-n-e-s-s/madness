@@ -34,7 +34,7 @@
 
 /// \file moldft.cc
 /// \brief Molecular HF and DFT code
-/// \defgroup moldft The molecular density funcitonal and Hartree-Fock code
+/// \defgroup moldft The molecular density functional and Hartree-Fock code
 
 #include <chem/SCF.h>
 #include <chem/commandlineparser.h>
@@ -166,6 +166,7 @@ int main(int argc, char **argv) {
                 double energy = E.value(calc.molecule.get_all_coords().flat()); // ugh!
                 if ((world.rank() == 0) and (calc.param.print_level() > 0))
                     printf("final energy=%16.8f ", energy);
+                E.output_calc_info_schema();
 
                 functionT rho = calc.make_density(world, calc.aocc, calc.amo);
                 functionT brho = rho;
@@ -223,4 +224,3 @@ int main(int argc, char **argv) {
 
     return 0;
 }
-

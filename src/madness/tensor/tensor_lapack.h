@@ -93,7 +93,19 @@ namespace madness {
     	syev(A,V,e);
     	return std::make_tuple(e,V);
     }
+    // START BRYAN ADDITION
+    /// Solves non-symmetric or non-Hermitian eigenvalue problem
 
+    template <typename T>
+    void geev(const Tensor<T>& A, Tensor<T>& VR, Tensor<std::complex<T>>& e);
+
+    /// Solves non-symmetric or non-Hermitian generalized eigenvalue problem
+
+    template <typename T>
+    void ggev(const Tensor<T>& A, Tensor<T>& B, Tensor<T>& VR,
+              Tensor<std::complex<T>>& e);
+    // END BRYAN ADDITIONS
+    /// Solves symmetric or Hermitian eigenvalue problem - MATLAB syntax
 
     /// Solves linear equations
     

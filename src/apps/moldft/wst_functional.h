@@ -3,8 +3,6 @@
 #include <madness/mra/mra.h>
 #include <chem/xcfunctional.h>
 
-using namespace madness;
-
 class WSTFunctional
 {
   public:
