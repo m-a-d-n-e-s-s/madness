@@ -517,9 +517,9 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
    std::vector<real_function_6d> result_vec = task(pair_vec, CCOPS.mo_ket().get_vecfunction(),
                                                 CCOPS.mo_bra().get_vecfunction(), parameters,
                                                 nemo->R_square, nemo->ncf->U1vec(),std::vector<std::string>({"Ue","KffK"}));
-   std::vector<real_function_6d> Gfij_vec = task(pair_vec, CCOPS.mo_ket().get_vecfunction(),
-                                                    CCOPS.mo_bra().get_vecfunction(), parameters,
-                                                    nemo->R_square, nemo->ncf->U1vec(),std::vector<std::string>({"f12phi"}));
+//   std::vector<real_function_6d> Gfij_vec = task(pair_vec, CCOPS.mo_ket().get_vecfunction(),
+//                                                    CCOPS.mo_bra().get_vecfunction(), parameters,
+//                                                    nemo->R_square, nemo->ncf->U1vec(),std::vector<std::string>({"f12phi"}));
    taskq->print_taskq();
    taskq->run_all();
 
@@ -527,13 +527,13 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
    if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "\nStarting saving pairs and energy calculation at time " << wall_time() << std::endl;
 
    // compute coupling for the constant term
-   Pairs<real_function_6d> Gfij_pair=Pairs<real_function_6d>::vector2pairs(Gfij_vec, PairVectorMap::triangular_map(nfreeze,nocc));
-   Pairs<real_function_6d> coupling_constant_term=compute_local_coupling(Gfij_pair);
-   std::vector<real_function_6d> coupling_constant_term_vec=Pairs<real_function_6d>::pairs2vector(coupling_constant_term,triangular_map);
+//   Pairs<real_function_6d> Gfij_pair=Pairs<real_function_6d>::vector2pairs(Gfij_vec, PairVectorMap::triangular_map(nfreeze,nocc));
+//   Pairs<real_function_6d> coupling_constant_term=compute_local_coupling(Gfij_pair);
+//   std::vector<real_function_6d> coupling_constant_term_vec=Pairs<real_function_6d>::pairs2vector(coupling_constant_term,triangular_map);
 
     // transform vector back to Pairs structure
    for (int i = 0; i < pair_vec.size(); i++) {
-       pair_vec[i].constant_part = result_vec[i] - coupling_constant_term_vec[i];
+       pair_vec[i].constant_part = result_vec[i];// - coupling_constant_term_vec[i];
        //save(pair_vec[i].constant_part, pair_vec[i].name() + "_const");
        pair_vec[i].constant_part.truncate().reduce_rank();
        pair_vec[i].function().truncate().reduce_rank();

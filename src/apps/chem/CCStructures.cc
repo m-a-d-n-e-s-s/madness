@@ -824,10 +824,12 @@ MacroTaskMp2UpdatePair::operator() (const std::vector<CCPair> &pair, const CCPar
                                     const std::vector<real_function_6d> &mp2_coupling) const {
     World& world = mo_ket[0].world();
     resultT result = zero_functions_compressed<double, 6>(world, pair.size());
+    long start=batch.input[0].begin;
+    print("starting index for MacroTaskMp2UpdatePair: start, batch, pair[0], pair.size()", start, batch, pair[0].i,pair[0].j,pair.size());
     for (int i = 0; i < pair.size(); i++) {
         //(i, j) -> j*(j+1) + i
         result[i] = CCPotentials::update_pair_mp2_macrotask(world, pair[i], parameters, all_coords_vec, mo_ket,
-                                                            mo_bra, U1, U2, mp2_coupling[i]);
+                                                            mo_bra, U1, U2, mp2_coupling[start+i]);
     }
     return result;
 }
