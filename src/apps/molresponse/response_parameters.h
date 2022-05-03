@@ -181,6 +181,7 @@ namespace madness {
             set_derived_value<double>("l", g_params.get_L());
             set_derived_value<double>("lo", g_params.molecule().smallest_length_scale());
             set_derived_value<std::string>("xc", g_params.get_xc());
+            set_derived_value<std::string>("localize", g_params.get_localize_method());
         }
         void set_derived_values(World& world, Molecule molecule) {
             // read the parameters from file and brodcast

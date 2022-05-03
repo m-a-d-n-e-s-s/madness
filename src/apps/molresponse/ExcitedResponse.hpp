@@ -6,6 +6,11 @@
 #define MADNESS_EXCITEDRESPONSE_HPP
 #include "ResponseBase.hpp"
 
+struct ExcitedSpace {
+
+    X_space chi;
+    X_space l_chi;
+};
 
 class ExcitedResponse : public ResponseBase {
 
@@ -133,6 +138,19 @@ private:
     void analysis(World& world, const X_space& chi);
     void save(World& world, const std::string& name) override;
     void load(World& world, const std::string& name) override;
+
+    std::pair<Tensor<double>, Tensor<double>> excited_eig(World& world, Tensor<double>& S,
+                                                          Tensor<double>& A,
+                                                          const double thresh_degenerate);
+
+    std::pair<X_space, X_space> rotate_excited_space(World& world, const Tensor<double>& U, const X_space& chi,
+                                      const X_space& l_chi);
+    std::tuple<Tensor<double>, X_space, X_space> rotate_excited_space(World& world, X_space& chi,
+                                                                 X_space& lchi);
+    std::tuple<Tensor<double>, X_space, X_space, residuals> update(
+            World& world, X_space& Chi, XCOperator<double, 3>& xc, QProjector<double, 3>& projector,
+            NonLinearXsolver& kain_x_space, vector<X_vector>& Xvector, vector<X_vector>& Xresidual,
+            size_t iter, Tensor<double>& maxrotn);
 };
 
 

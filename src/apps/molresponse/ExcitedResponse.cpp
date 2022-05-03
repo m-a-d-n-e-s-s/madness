@@ -641,6 +641,237 @@ void ExcitedResponse::deflateFull(World &world, X_space &Chi, X_space &old_Chi, 
         old_Lambda_X = Lambda_X.copy();
     }
 }
+std::tuple<Tensor<double>, X_space, X_space> ExcitedResponse::rotate_excited_space(World &world,
+                                                                                   X_space &chi,
+                                                                                   X_space &lchi) {
+    // Debugging output
+    Tensor<double> A;
+    Tensor<double> S = response_space_inner(Chi.X, Chi.X) - response_space_inner(Chi.Y, Chi.Y);
+    if (world.rank() == 0 && (r_params.print_level() >= 10)) {
+        print("\n   Overlap Matrix:");
+        print(S);
+    }
+
+    X_space Chi_copy = chi.copy();
+    Chi_copy.truncate();
+    lchi.truncate();
+
+    //
+    A = inner(chi, lchi);
+    //A = 0.5 * (A + transpose(A));
+    if (world.rank() == 0 && (r_params.print_level() >= 10)) {
+        print("\n   Lambda Matrix:");
+        print(A);
+    }
+
+    auto [new_omega, U] = excited_eig(world, S, A, FunctionDefaults<3>::get_thresh());
+
+    if (world.rank() == 0 and r_params.print_level() >= 2) {
+        print("   Eigenvector coefficients from diagonalization:");
+        print(U);
+        print(new_omega);
+    }
+    auto [rotated_chi, rotated_l_chi] = rotate_excited_space(world, U, chi, lchi);
+
+    return {new_omega, rotated_chi,rotated_l_chi};
+}
+
+
+std::pair<Tensor<double>, Tensor<double>> ExcitedResponse::excited_eig(
+        World &world, Tensor<double> &S, Tensor<double> &A, const double thresh_degenerate) {
+    // Start timer
+    if (r_params.print_level() >= 1) molresponse::start_timer(world);
+
+    // Get size
+    size_t m = S.dim(0);
+
+    // Run an SVD on the overlap matrix and ignore values
+    // less than thresh_degenerate
+    Tensor<double> r_vecs, s_vals, l_vecs;
+    Tensor<double> S_copy = copy(S);
+    /**
+   * @brief SVD on overlap matrix S
+   * S=UsVT
+   * S, U, s , VT
+   *
+   */
+
+    svd(S_copy, l_vecs, s_vals, r_vecs);
+
+    // Debugging output
+    if (r_params.print_level() >= 2 and world.rank() == 0) {
+        print("\n   Singular values of overlap matrix:");
+        print(s_vals);
+        print("   Left singular vectors of overlap matrix:");
+        print(l_vecs);
+    }
+
+    // Check how many singular values are less than 10*thresh_degen
+    size_t num_zero = 0;
+    for (int64_t i = 0; i < s_vals.dim(0); i++) {
+        if (s_vals(i) < 10 * thresh_degenerate) {
+            if (world.rank() == 0 and num_zero == 0) print("");
+            if (world.rank() == 0)
+                printf("   Detected singular value (%.8f) below threshold (%.8f). "
+                       "Reducing subspace size.\n",
+                       s_vals(i), 10 * thresh_degenerate);
+            num_zero++;
+        }
+        if (world.rank() == 0 and i == s_vals.dim(0) - 1 and num_zero > 0) print("");
+    }
+
+    // Going to use these a lot here, so just calculate them
+    size_t size_l = s_vals.dim(0);    // number of singular values
+    size_t size_s = size_l - num_zero;// smaller subspace size
+    /**
+   * @brief l_vecs_s(m,1)
+   *
+   * @return Tensor<double>
+   */
+    // number of sv by number smaller than thresh
+    Tensor<double> l_vecs_s(size_l, num_zero);
+    Tensor<double> copyA = copy(A);// we copy xAx
+
+    // Transform into this smaller space if necessary
+    if (num_zero > 0) {
+        print("num_zero = ", num_zero);
+        // Cut out the singular values that are small
+        // (singular values come out in descending order)
+
+        // S(m-sl,m-sl)
+        S = Tensor<double>(size_s, size_s);// create size of new size
+        for (size_t i = 0; i < size_s; i++) S(i, i) = s_vals(i);
+        // Copy the active vectors to a smaller container
+        // left vectors [m,m-sl]
+        l_vecs_s = copy(l_vecs(_, Slice(0, size_s - 1)));
+
+        // Debugging output
+        if (r_params.print_level() >= 2 and world.rank() == 0) {
+            print("   Reduced size left singular vectors of overlap matrix:");
+            print(l_vecs_s);
+        }
+
+        // Transform
+        // Work(m,m-sl)
+        Tensor<double> work(size_l, size_s);
+        /*
+c(i,j) = c(i,j) + sum(k) a(i,k)*b(k,j)
+
+where it is assumed that the last index in each array is has unit
+stride and the dimensions are as provided.
+
+4-way unrolled k loop ... empirically fastest on PIII
+compared to 2/3 way unrolling (though not by much).
+*/
+        // dimi,dimj,dimk,c,a,b
+        mxm(size_l, size_s, size_l, work.ptr(), A.ptr(), l_vecs_s.ptr());
+        // A*left
+        copyA = Tensor<double>(size_s, size_s);
+        Tensor<double> l_vecs_t = transpose(l_vecs);
+        // s s l, copyA=lvect_t*A*left
+        mxm(size_s, size_s, size_l, copyA.ptr(), l_vecs_t.ptr(), work.ptr());
+
+        // Debugging output
+        if (r_params.print_level() >= 2 and world.rank() == 0) {
+            print("   Reduced response matrix:");
+            print(copyA);
+            print("   Reduced overlap matrix:");
+            print(S);
+        }
+    }
+    // Diagonalize (NOT A SYMMETRIC DIAGONALIZATION!!!!)
+    // Potentially complex eigenvalues come out of this
+    Tensor<std::complex<double>> omega(size_s);
+    Tensor<double> U(size_s, size_s);
+    ggevp(world, copyA, S, U, omega);
+
+    // Eigenvectors come out oddly packaged if there are
+    // complex eigenvalues.
+    // Currently only supporting real valued eigenvalues
+    // so throw an error if any imaginary components are
+    // not zero enough
+    double max_imag = abs(imag(omega)).max();
+    if (world.rank() == 0 and r_params.print_level() >= 2)
+        print("\n   Max imaginary component of eigenvalues:", max_imag, "\n");
+    if (max_imag > r_params.dconv()) {
+        MADNESS_EXCEPTION("max imaginary component of eigenvalues > dconv", 0);
+    }
+    Tensor<double> new_omega = real(omega);
+
+    // Easier to just resize here
+    m = new_omega.dim(0);
+
+    bool switched = true;
+    while (switched) {
+        switched = false;
+        for (size_t i = 0; i < m; i++) {
+            for (size_t j = i + 1; j < m; j++) {
+                double sold = U(i, i) * U(i, i) + U(j, j) * U(j, j);
+                double snew = U(i, j) * U(i, j) + U(j, i) * U(j, i);
+                if (snew > sold) {
+                    Tensor<double> tmp = copy(U(_, i));
+                    U(_, i) = U(_, j);
+                    U(_, j) = tmp;
+                    std::swap(new_omega[i], new_omega[j]);
+                    switched = true;
+                }
+            }
+        }
+    }
+
+    // Fix phases.
+    for (size_t i = 0; i < m; ++i)
+        if (U(i, i) < 0.0) U(_, i).scale(-1.0);
+
+    // Rotations between effectively degenerate components confound
+    // the non-linear equation solver ... undo these rotations
+    size_t ilo = 0;// first element of cluster
+    while (ilo < m - 1) {
+        size_t ihi = ilo;
+        while (fabs(new_omega[ilo] - new_omega[ihi + 1]) <
+               thresh_degenerate * 10.0 * std::max(fabs(new_omega[ilo]), 1.0)) {
+            ++ihi;
+            if (ihi == m - 1) break;
+        }
+        int64_t nclus = ihi - ilo + 1;
+        if (nclus > 1) {
+            Tensor<double> q = copy(U(Slice(ilo, ihi), Slice(ilo, ihi)));
+
+            // Polar Decomposition
+            Tensor<double> VH(nclus, nclus);
+            Tensor<double> W(nclus, nclus);
+            Tensor<double> sigma(nclus);
+
+            svd(q, W, sigma, VH);
+            q = transpose(inner(W, VH));// Should be conj. tranpose if complex
+            U(_, Slice(ilo, ihi)) = inner(U(_, Slice(ilo, ihi)), q);
+        }
+        ilo = ihi + 1;
+    }
+
+    // If we transformed into the smaller subspace, time to transform back
+    if (num_zero > 0) {
+        // Temp. storage
+        Tensor<double> temp_U(size_l, size_l);
+        Tensor<double> U2(size_l, size_l);
+
+        // Copy U back to larger size
+        temp_U(Slice(0, size_s - 1), Slice(0, size_s - 1)) = copy(U);
+        for (size_t i = size_s; i < size_l; i++) temp_U(i, i) = 1.0;
+
+        // Transform U back
+        mxm(size_l, size_l, size_l, U2.ptr(), l_vecs.ptr(), temp_U.ptr());
+        U = copy(U2);
+    }
+
+    // Sort into ascending order
+    Tensor<int> selected = sort_eigenvalues(world, new_omega, U);
+
+    // End timer
+    if (r_params.print_level() >= 1) molresponse::end_timer(world, "Diag. resp. mat.");
+
+    return {new_omega, U};
+}
 void ExcitedResponse::augment(World &world, X_space &Chi, X_space &old_Chi, X_space &Lambda_X,
                               X_space &last_Lambda_X, Tensor<double> &S, Tensor<double> &A,
                               Tensor<double> &old_S, Tensor<double> &old_A, size_t print_level) {
@@ -834,6 +1065,44 @@ void ExcitedResponse::unaugment_full(World &world, X_space &Chi, X_space &old_Ch
 // Diagonalize the full response matrix, taking care of degenerate
 // components Why diagonalization and then transform the x_fe vectors
 
+
+std::pair<X_space, X_space> ExcitedResponse::rotate_excited_space(World &world,
+                                                                  const Tensor<double> &U,
+                                                                  const X_space &chi,
+                                                                  const X_space &l_chi) {
+    // compute the unitary transformation matrix U that diagonalizes
+    // the response matrix
+
+    // Start timer
+    if (r_params.print_level() >= 1) molresponse::start_timer(world);
+
+    X_space rotated_chi = chi.copy();
+    X_space rotated_l_chi = l_chi.copy();
+
+
+    rotated_chi.X = transform(world, chi.X, U);
+    rotated_chi.Y = transform(world, chi.Y, U);
+
+    rotated_l_chi.X = transform(world, l_chi.X, U);
+    rotated_l_chi.Y = transform(world, l_chi.Y, U);
+
+
+    if (world.rank() == 0 and r_params.print_level() >= 10) {
+        Tensor<double> S;
+        S = response_space_inner(Chi.X, Chi.X) - response_space_inner(Chi.Y, Chi.Y);
+        print("\n  After apply transform Overlap Matrix:");
+        print(S);
+    }
+
+
+    // Transform the vectors of functions
+    // Truncate happens in here
+    // we do transform here
+    // End timer
+    if (r_params.print_level() >= 1) molresponse::end_timer(world, "Transform orbs.:");
+
+    return {rotated_chi, rotated_l_chi};
+}
 Tensor<double> ExcitedResponse::diagonalizeFullResponseMatrix(
         World &world, X_space &Chi, X_space &Lambda_X, Tensor<double> &omega, Tensor<double> &S,
         Tensor<double> &A, const double thresh, size_t print_level) {
@@ -1419,7 +1688,7 @@ void ExcitedResponse::iterate(World &world) {
     size_t m = r_params.num_states();  // Number of excited states
     size_t n = r_params.num_orbitals();// Number of ground state orbitals
 
-    const auto dconv = std::max(FunctionDefaults<3>::get_thresh(), r_params.dconv());
+    const auto dconv = std::max(FunctionDefaults<3>::get_thresh()*100, r_params.dconv());
 
     Tensor<double> maxrotn(m);
     maxrotn.fill(dconv * 100);
@@ -1505,35 +1774,10 @@ void ExcitedResponse::iterate(World &world) {
         print("Excited State Frequencies ");
         print(omega);
 
-        rho_omega_old = make_density(world, old_Chi);
-        //This is required because the previous iteration may have rotated the response functions
-        old_Chi = Chi.copy();
-        // compute rho_omega
-        rho_omega = make_density(world, Chi);
 
         // Normalize after projection
 
         if (iter < 2 || (iter % 10) == 0) { load_balance_chi(world); }
-
-        // compute density residuals
-        if (iter > 0) {
-            density_residuals = norm2s_T(world, (rho_omega - rho_omega_old));
-            maxrotn = (bsh_residualsX + bsh_residualsY) / 4;
-            for (size_t i = 0; i < Chi.num_states(); i++) {
-                if (maxrotn[i] < r_params.maxrotn()) {
-                    maxrotn[i] = r_params.maxrotn();
-                    print("less than maxrotn....set to maxrotn");
-                }
-            }
-            if (world.rank() == 0 and (r_params.print_level() > 2)) {
-                print("Density residuals");
-                print("dres", density_residuals);
-                print("BSH  residuals");
-                print("xres", bsh_residualsX);
-                print("yres", bsh_residualsY);
-                print("maxrotn", maxrotn);
-            }
-        }
 
         if (iter > 0) {
             // Only checking on X components even for full as Y are so small
@@ -1576,15 +1820,44 @@ void ExcitedResponse::iterate(World &world) {
             }
         }
 
-        update_x_space_excited(world, old_Chi, Chi, old_Lambda_X, residuals, xc, projector, omega,
-                               kain_x_space, Xvector, Xresidual, energy_residuals, old_energy,
-                               bsh_residualsX, bsh_residualsY, S, old_S, A, old_A, iter, maxrotn);
+        auto [new_omega, old_chi, new_chi, new_res] =
+                update(world, Chi, xc, projector, kain_x_space, Xvector, Xresidual, iter, maxrotn);
+
+
+        rho_omega_old = make_density(world, old_chi);
+        rho_omega = make_density(world, new_chi);
+
+        bsh_residualsX = copy(new_res.x);
+        bsh_residualsY = copy(new_res.y);
+
+        omega = copy(new_omega);
+        Chi = new_chi.copy();
+
+        density_residuals = norm2s_T(world, (rho_omega - rho_omega_old));
+        maxrotn = (bsh_residualsX + bsh_residualsY) / 4;
+        for (size_t i = 0; i < Chi.num_states(); i++) {
+            if (maxrotn[i] < r_params.maxrotn()) {
+                maxrotn[i] = r_params.maxrotn();
+                print("less than maxrotn....set to maxrotn");
+            }
+        }
+
+
+        if (world.rank() == 0 and (r_params.print_level() > 2)) {
+            print("Density residuals");
+            print("dres", density_residuals);
+            print("BSH  residuals");
+            print("xres", bsh_residualsX);
+            print("yres", bsh_residualsY);
+            print("maxrotn", maxrotn);
+        }
 
         excited_to_json(j_molresponse, iter, bsh_residualsX, bsh_residualsY, density_residuals,
                         omega);
 
         // Basic output
         if (r_params.print_level() >= 1) molresponse::end_timer(world, " This iteration:");
+
     }
 
     if (world.rank() == 0) print("\n");
@@ -1599,11 +1872,13 @@ void ExcitedResponse::iterate(World &world) {
         if (world.rank() == 0) print("    Running analysis on current values.\n");
     }
 
+    /*
     if (!r_params.tda()) {
         sort(world, omega, Chi);
     } else {
         sort(world, omega, Chi.X);
     }
+     */
 
     // Print final things
     if (world.rank() == 0) {
@@ -1638,9 +1913,56 @@ void ExcitedResponse::iterate(World &world) {
             print("--------------------------------------------------------");
         }
     }
-    // append the json to the file
-    std::ofstream ofs;// open json file in append mode
-    ofs.open("j_excited.json");
+}
+
+std::tuple<Tensor<double>, X_space, X_space, residuals> ExcitedResponse::update(
+        World &world, X_space &Chi, XCOperator<double, 3> &xc, QProjector<double, 3> &projector,
+        NonLinearXsolver &kain_x_space, vector<X_vector> &Xvector, vector<X_vector> &Xresidual,
+        size_t iter, Tensor<double> &maxrotn) {
+    size_t m = Chi.num_states();
+    bool compute_y = not r_params.tda();
+
+    Tensor<double> x_shifts(m);
+    Tensor<double> y_shifts(m);
+    print("Entering Compute Lambda");
+
+    /*
+    if (compute_y) {
+        gram_schmidt(world, Chi.X, Chi.Y);
+        normalize(world, Chi);
+    } else {
+        gram_schmidt(world, Chi.X);
+        normalize(world, Chi.X);
+    }
+     */
+    //
+    X_space Lambda_X = compute_lambda_X(world, Chi, xc, r_params.calc_type());
+    auto [new_omega, rotated_chi, rotated_lambda] = rotate_excited_space(world, Chi, Lambda_X);
+
+    print("omega_n before transform");
+    print(omega);
+    print("omega_n after transform");
+    print(new_omega);
+    // Analysis gets messed up if BSH is last thing applied
+    // so exit early if last iteration
+    X_space theta_X = compute_theta_X(world, rotated_chi, xc, r_params.calc_type());
+    print("BSH update iter = ", iter);
+    X_space new_chi = bsh_update_excited(world, new_omega, theta_X, projector);
+    //res = Chi - new_chi;
+    auto [new_res, bsh_x, bsh_y] =
+            compute_residual(world, rotated_chi, new_chi, r_params.calc_type());
+    // kain if iteration >0 or first run where there should not be a problem
+    // computed new_chi and res
+    if (r_params.kain() && (iter > 0) && true) {
+        new_chi =
+                kain_x_space_update(world, rotated_chi, new_res, kain_x_space, Xvector, Xresidual);
+    }
+    if (iter > 0) { x_space_step_restriction(world, rotated_chi, new_chi, compute_y, maxrotn); }
+
+    new_chi.X.truncate_rf();
+    if (compute_y) new_chi.Y.truncate_rf();
+
+    return {new_omega, rotated_chi, new_chi, {new_res, bsh_x, bsh_y}};
 }
 void ExcitedResponse::update_x_space_excited(
         World &world, X_space &old_Chi, X_space &Chi, X_space &old_Lambda_X, X_space &res,

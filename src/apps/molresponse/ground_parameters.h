@@ -35,6 +35,7 @@ class GroundStateCalculation {
     Molecule molecule_in{};///< The molecule used in ground state calculation
     std::vector<real_function_3d> g_orbitals{};///< The ground state orbitals
     std::string xc{};                          ///< Name of xc functional used in ground state
+    std::string localize_method{};                          ///< Name of xc functional used in ground state
 
     // Default constructor
 public:
@@ -65,6 +66,7 @@ public:
     vector_real_function_3d &orbitals() { return g_orbitals; }
 
     std::string get_xc() const { return xc; }
+    std::string get_localize_method() const { return localize_method; }
 
     std::string get_archive() const { return xc; }
 
@@ -84,6 +86,7 @@ public:
         input & k;             // int               wavelet order
         input & molecule_in;   // Molecule
         input & xc;            // std:string        xc functional
+        input & localize_method;// std:string        localize  method
         input & num_orbitals;  // int
         input & energies;      // Tensor<double>    orbital energies
         input & occ;           // Tensor<double>    orbital occupations
@@ -121,6 +124,7 @@ public:
         madness::print("     -----------------------");
         madness::print("    Ground State Archive:", inFile);
         madness::print(" Ground State Functional:", xc);
+        madness::print(" Localize Method  Functional:", localize_method);
         madness::print("         Spin Restricted:", spinrestricted);
         madness::print("      Number of orbitals:", num_orbitals);
         madness::print("                       L:", L);

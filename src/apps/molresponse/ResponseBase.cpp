@@ -285,6 +285,7 @@ vecfuncT ResponseBase::make_density(World &world, const X_space &chi) const {
     } else {
         density = transition_densityTDA(world, ground_orbitals, chi.X);
     }
+    truncate(world,density);
     molresponse::end_timer(world, "Make density omega");
     world.gop.fence();
     return density;
@@ -341,7 +342,7 @@ std::vector<poperatorT> ResponseBase::make_bsh_operators_response(World &world, 
 
 X_space ResponseBase::compute_theta_X(World &world, const X_space &chi, XCOperator<double, 3> xc,
                                       const std::string &calc_type) const {
-    bool compute_Y = calc_type=="full";
+    bool compute_Y = calc_type == "full";
     X_space Theta_X = X_space(world, chi.num_states(), chi.num_orbitals());
     // compute
     X_space V0X = compute_V0X(world, chi, xc, compute_Y);
@@ -354,7 +355,7 @@ X_space ResponseBase::compute_theta_X(World &world, const X_space &chi, XCOperat
     }
 
     X_space E0X(world, chi.num_states(), chi.num_orbitals());
-    if (r_params.localize()!= "canon") {
+    if (r_params.localize() != "canon") {
         E0X = chi.copy();
         E0X.truncate();
         E0X.X = E0X.X * ham_no_diag;
@@ -942,6 +943,72 @@ X_space ResponseBase::compute_F0X(World &world, const X_space &X, const XCOperat
     molresponse::end_timer(world, "F0X:");
     // Done
     return F0X;
+}
+
+residuals ResponseBase::compute_residual(World &world, X_space &old_Chi, X_space &temp,
+                                         std::string calc_type) {
+    size_t m = old_Chi.X.size();
+    size_t n = old_Chi.X.size_orbitals();
+    molresponse::start_timer(world);
+    //	compute residual
+    X_space res(world, m, n);
+    res.X = old_Chi.X - temp.X;
+    //
+    if (calc_type.compare("full") == 0) {
+        res.Y = old_Chi.Y - temp.Y;
+    } else if (calc_type.compare("static") == 0) {
+        res.Y = res.X.copy();
+    } else {
+    }
+    //*************************
+    Tensor<double> errX(m);
+    Tensor<double> errY(m);
+    // rmsX and maxvalX for each m response states
+    std::vector<double> rmsX(m), maxvalX(m);
+    std::vector<std::vector<double>> rnormsX;
+    std::vector<std::vector<double>> rnormsY;
+    // find the norms of each of the residual response vectors
+    for (size_t i = 0; i < m; i++) {
+        // the 2norms of each of the orbitals in response vector
+        rnormsX.push_back(norm2s(world, res.X[i]));
+        if (world.rank() == 0 and (r_params.print_level() > 1))
+            print("residuals X: state ", i, " : ", rnormsX[i]);
+        // maxabsval = std::max<double>(maxabsval, std::abs(v[i]));
+        // maxvalX= largest abs(v[i])
+        vector_stats(rnormsX[i], rmsX[i], maxvalX[i]);
+        // errX[i] is the largest residual orbital value
+        errX[i] = maxvalX[i];
+        if (world.rank() == 0 and (r_params.print_level() > 1))
+            print("BSH residual: rms", rmsX[i], "   max", maxvalX[i]);
+    }
+    if (calc_type.compare("full") == 0) {
+        std::vector<double> rmsY(m), maxvalY(m);
+        for (size_t i = 0; i < m; i++) {
+            rnormsY.push_back(norm2s(world, res.Y[i]));
+            if (world.rank() == 0 and (r_params.print_level() > 1))
+                print("residuals Y: state ", i, " : ", rnormsY[i]);
+            vector_stats(rnormsY[i], rmsY[i], maxvalY[i]);
+            errY[i] = maxvalY[i];
+            if (world.rank() == 0 and (r_params.print_level() > 1))
+                print("BSH residual: rms", rmsY[i], "   max", maxvalY[i]);
+        }
+    } else if (calc_type.compare("static") == 0) {
+        // copy by value?
+        errY = errX;
+    } else {// tda
+        errY.fill(0);
+    }
+    molresponse::end_timer(world, "BSH residual");
+
+    if (r_params.print_level() >= 1) {
+        print("res.X norms in iteration after compute_residual function: ");
+        print(res.X.norm2());
+
+        print("res.Y norms in iteration after compute_residual function: ");
+        print(res.Y.norm2());
+    }
+    // Next calculate 2-norm of these vectors of differences
+    return {res, errX, errY};
 }
 
 X_space ResponseBase::compute_residual(World &world, X_space &old_Chi, X_space &temp,
@@ -1930,6 +1997,4 @@ void gram_schmidt(World &world, response_space &f, response_space &g) {
     g.truncate_rf();
 }
 void scf_timings::to_json(json &j) {}
-scf_timings::scf_timings() {
-
-}
+scf_timings::scf_timings() {}

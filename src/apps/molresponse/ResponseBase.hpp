@@ -23,6 +23,14 @@ using namespace madness;
 
 class ResponseTester;
 
+struct residuals{
+
+    X_space residual;
+    Tensor<double> x;
+    Tensor<double> y;
+
+
+};
 
 class scf_timings {
 
@@ -220,6 +228,8 @@ protected:
     vecfuncT project_ao_basis_only(World& world, const AtomicBasisSet& aobasis,
                                    const Molecule& molecule);
     void converged_to_json(json& j);
+    residuals compute_residual(World& world, X_space& old_Chi, X_space& temp,
+                               std::string calc_type);
 };
 
 

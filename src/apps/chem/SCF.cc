@@ -283,10 +283,10 @@ void SCF::save_mos(World &world) {
     Molecule molecule;
     std::string xc;
     */
-    unsigned int version = 2;
+    unsigned int version = 3;
     ar & version;
     ar & current_energy & param.spin_restricted();
-    ar & param.L() & FunctionDefaults<3>::get_k() & molecule & param.xc();
+    ar & param.L() & FunctionDefaults<3>::get_k() & molecule & param.xc() & param.localize_method();
 // Re order so it doesn't effect orbital data
 
     ar & (unsigned int) (amo.size());
@@ -333,6 +333,7 @@ void SCF::load_mos(World &world) {
     int k;
     Molecule molecule;
     std::string xc;
+    std::string localize;
     unsigned int nmo_alpha;
     Tensor<double> aeps;
     Tensor<double> aocc;
@@ -344,7 +345,7 @@ void SCF::load_mos(World &world) {
     // Local copies for a basic check
     double L;
     int k1;                    // Ignored for restarting, used in response only
-    unsigned int version = 2;  // UPDATE THIS IF YOU CHANGE ANYTHING
+    unsigned int version = 3;  // UPDATE THIS IF YOU CHANGE ANYTHING
     unsigned int archive_version;
 
     ar & archive_version;
@@ -361,7 +362,7 @@ void SCF::load_mos(World &world) {
     // EPS, SWAP, ... sigh
     ar & current_energy & spinrest;
     // Reorder
-    ar & L & k1 & molecule & param.xc();
+    ar & L & k1 & molecule & param.xc() & param.localize_method();
 
     ar & nmo;
     MADNESS_ASSERT(nmo >= unsigned(param.nmo_alpha()));

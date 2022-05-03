@@ -73,30 +73,30 @@ int main(int argc, char *argv[]) {
     auto calc_params = initialize_calc_params(world, "response.in");
 
     auto molecule = calc_params.molecule;
-    std::string all_pg[]={"c1","cs","c2","ci","c2v","c2h","d2","d2h"};
+    std::string all_pg[] = {"c1", "cs", "c2", "ci", "c2v", "c2h", "d2", "d2h"};
 
-    auto g_orbitals=calc_params.ground_calculation.orbitals();
+    auto g_orbitals = calc_params.ground_calculation.orbitals();
 
 
-    double error=0.0;
+    double error = 0.0;
 
-    for (const std::string& pg : all_pg) {
-        print("point group",pg);
-        projector_irrep proj(pg);
+    auto pg = all_pg[4];//"c2v
 
-        for (const std::string& irrep : proj.get_all_irreps()) {  // loop over all irreps
-            print(" irrep",irrep);
-            proj.set_irrep(irrep);
-            real_function_3d f1=proj(g_orbitals[0])[0];	// result is the first element of result vector
+    print("point group", pg);
+    projector_irrep proj(pg);
 
-            charactertable table=proj.get_table();
-            for (int i=0; i<table.order_; ++i) {	// loop over all symmetry operations
-                const pg_operator syop = table.operators_[i];
-                const int character=table.irreps_[irrep][i];
-                double n1=(f1 - character * syop(f1)).norm2();
-                print("  operator, character, norm ",syop.name(),character, n1);
-                error+=n1;
-            }
+    for (const std::string &irrep: proj.get_all_irreps()) {// loop over all irreps
+        print(" irrep", irrep);
+        proj.set_irrep(irrep);
+        real_function_3d f1 = proj(g_orbitals[0])[0];// result is the first element of result vector
+
+        charactertable table = proj.get_table();
+        for (int i = 0; i < table.order_; ++i) {// loop over all symmetry operations
+            const pg_operator syop = table.operators_[i];
+            const int character = table.irreps_[irrep][i];
+            double n1 = (f1 - character * syop(f1)).norm2();
+            print("  operator, character, norm ", syop.name(), character, n1);
+            error += n1;
         }
     }
 
