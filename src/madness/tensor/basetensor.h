@@ -143,7 +143,7 @@ namespace madness {
         /// Returns the number of dimensions in the tensor
         long ndim() const {return _ndim;}
 
-        /// Returns the size of dmension \c i
+        /// Returns the size of dimension \c i
         long dim(int i) const {return _dim[i];}
 
         /// Returns the stride associated with dimension \c i
