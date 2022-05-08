@@ -670,6 +670,17 @@ namespace madness {
         world.gop.fence();
         return norms;
     }
+    /// Computes the 2-norms of a vector of functions
+    template <typename T, std::size_t NDIM>
+    Tensor<double> norm2s_T(World& world, const std::vector<Function<T, NDIM>>& v) {
+      PROFILE_BLOCK(Vnorm2);
+      Tensor<double> norms(v.size());
+      for (unsigned int i = 0; i < v.size(); ++i) norms[i] = v[i].norm2sq_local();
+      world.gop.sum(&norms[0], norms.size());
+      for (unsigned int i = 0; i < v.size(); ++i) norms[i] = sqrt(norms[i]);
+      world.gop.fence();
+      return norms;
+    }
 
     /// Computes the 2-norm of a vector of functions
     template <typename T, std::size_t NDIM>
@@ -876,7 +887,7 @@ namespace madness {
         return r;
     }
 
-    /// inner function with right signature for the nonlinear sovler
+    /// inner function with right signature for the nonlinear solver
     /// this is needed for the KAIN solvers and other functions
     template <typename T, typename R, std::size_t NDIM>
     TENSOR_RESULT_TYPE(T,R) inner( const std::vector< Function<T,NDIM> >& f,
@@ -921,7 +932,7 @@ namespace madness {
     }
 
 
-    /// Multiplies a vector of functions against a vector of functions using sparsity
+    /// Outer product of a vector of functions with a vector of functions using sparsity
 
     /// \tparam T       type parameter for first factor
     /// \tparam R       type parameter for second factor
@@ -931,6 +942,7 @@ namespace madness {
     /// \param g        second vector of functions
     /// \param tol      threshold for multiplication
     /// \param fence    force fence (will always fence if necessary)
+    /// \param symm     if true, only compute f(i) * g(j) for j<=i
     /// \return         fg(i,j) = f(i) * g(j), as a vector of vectors
     template <typename T, typename R, std::size_t NDIM>
     std::vector<std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM> > >
@@ -938,7 +950,8 @@ namespace madness {
                       const std::vector<Function<R, NDIM> > &f,
                       const std::vector<Function<R, NDIM> > &g,
                       double tol,
-                      bool fence = true) {
+                      bool fence = true,
+                      bool symm = false) {
         PROFILE_BLOCK(Vmulsp);
         bool same=(&f == &g);
         reconstruct(world, f, false);
@@ -949,7 +962,16 @@ namespace madness {
         world.gop.fence();
 
         std::vector<std::vector<Function<R,NDIM> > >result(f.size());
-        for (std::size_t i=0; i<f.size(); ++i) result[i]= vmulXX(f[i], g, tol, false);
+        std::vector<Function<R,NDIM>> g_i;
+        for (int64_t i=f.size()-1; i>=0; --i) {
+          if (!symm)
+            result[i]= vmulXX(f[i], g, tol, false);
+          else {
+            if (g_i.empty()) g_i = g;
+            g_i.resize(i+1);  // this shrinks g_i down to single function for i=0
+            result[i]= vmulXX(f[i], g_i, tol, false);
+          }
+        }
         if (fence) world.gop.fence();
         return result;
     }
@@ -1072,7 +1094,7 @@ namespace madness {
         return r;
     }
 
-   /// Returns a vector of deep copies of of a function
+    /// Returns a vector of `n` deep copies of a function
     template <typename T, std::size_t NDIM>
     std::vector< Function<T,NDIM> >
     copy(World& world,
@@ -1086,6 +1108,29 @@ namespace madness {
         }
         if (fence) world.gop.fence();
         return r;
+    }
+
+    /// Create a new copy of the function with different distribution and optional
+    /// fence
+
+    /// Works in either basis.  Different distributions imply
+    /// asynchronous communication and the optional fence is
+    /// collective.
+    //
+    /// Returns a deep copy of a vector of functions
+
+    template <typename T, std::size_t NDIM>
+    std::vector<Function<T, NDIM>> copy(World& world,
+                                        const std::vector<Function<T, NDIM>>& v,
+                                        const std::shared_ptr<WorldDCPmapInterface<Key<NDIM>>>& pmap,
+                                        bool fence = true) {
+      PROFILE_BLOCK(Vcopy);
+      std::vector<Function<T, NDIM>> r(v.size());
+      for (unsigned int i = 0; i < v.size(); ++i) {
+        r[i] = copy(v[i], pmap, false);
+      }
+      if (fence) world.gop.fence();
+      return r;
     }
 
     /// Returns new vector of functions --- q[i] = a[i] + b[i]

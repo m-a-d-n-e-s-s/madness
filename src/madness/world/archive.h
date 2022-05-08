@@ -1195,7 +1195,7 @@ namespace madness {
         };
 
 
-        /// Deserialize a `std::vector<bool>`. Clears and resizes as necessary.
+        /// Deserialize a std::vector<bool>. Clears and resizes as necessary.
 
         /// \tparam Archive The archive type.
         /// \tparam Alloc The allocator type.
@@ -1263,7 +1263,7 @@ namespace madness {
 
         };
 
-        /// Serialize a `std::string`.
+        /// Serialize a 'std::string'.
 
         /// \tparam Archive The archive type.
         template <class Archive>
@@ -1513,9 +1513,7 @@ namespace madness {
 
         };
 
-
-
-/// @}
+        /// @}
 
 }  // namespace madness::archive
 }  // namespace madness

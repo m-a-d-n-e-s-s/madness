@@ -170,6 +170,19 @@ macro(findpkg_finish PREFIX TARGET_NAME)
       set_target_properties(TBB::${TARGET_NAME} PROPERTIES
               IMPORTED_LOCATION "${real_debug}")
     endif ()
+    # on non-Windows platforms need C++ library
+    # tried IMPORTED_LINK_DEPENDENT_LIBRARIES
+    # and IMPORTED_LINK_INTERFACE_LANGUAGES (and changing UNKNOWN -> SHARED/STATIC in add_library)
+    # to pass this info, to no avail
+    if (NOT (WIN32 AND MSVC))
+      if (USE_LIBCXX)
+        set(std_cxx_lib_name c++)
+      else (USE_LIBCXX)
+        set(std_cxx_lib_name stdc++)
+      endif (USE_LIBCXX)
+      target_link_libraries(TBB::${TARGET_NAME} INTERFACE ${std_cxx_lib_name})
+      unset(std_cxx_lib_name)
+    endif ()
   endif ()
 
   #mark the following variables as internal variables
