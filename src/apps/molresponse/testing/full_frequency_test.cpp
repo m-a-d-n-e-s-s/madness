@@ -44,11 +44,11 @@ int main(int argc, char *argv[]) {
 
                 std::filesystem::current_path(schema.xc_path);
                 if (mol_path.path().extension() == ".mol") {
+                    print(mol_path.path());
                     auto molecule_name = mol_path.path().stem();
                     try {
 
                         auto m_schema = moldftSchema(molecule_name, xc, schema);
-                        m_schema.print();
                         moldft(world, m_schema, true);
                         auto f_schema = frequencySchema(schema, m_schema, op);
                         runFrequencyTests(world, f_schema);

@@ -285,7 +285,7 @@ vecfuncT ResponseBase::make_density(World &world, const X_space &chi) const {
     } else {
         density = transition_densityTDA(world, ground_orbitals, chi.X);
     }
-    truncate(world,density);
+    truncate(world, density);
     molresponse::end_timer(world, "Make density omega");
     world.gop.fence();
     return density;
@@ -361,10 +361,10 @@ X_space ResponseBase::compute_theta_X(World &world, const X_space &chi, XCOperat
         E0X.X = E0X.X * ham_no_diag;
         if (compute_Y) { E0X.Y = E0X.Y * ham_no_diag; }
         E0X.truncate();
-    }
-    if (r_params.print_level() >= 10) {
-        print("<X|(E0-diag(E0)|X>");
-        print(inner(chi, E0X));
+        if (r_params.print_level() >= 10) {
+            print("<X|(E0-diag(E0)|X>");
+            print(inner(chi, E0X));
+        }
     }
 
     X_space gamma;
@@ -759,16 +759,16 @@ X_space ResponseBase::compute_gamma_tda(World &world, const gamma_orbitals &dens
     return gamma;
 }
 
-X_space ResponseBase::compute_lambda_X(World &world, const X_space &chi, XCOperator<double, 3> xc,
+X_space ResponseBase::compute_lambda_X(World &world, const X_space &chi, XCOperator<double, 3> &xc,
                                        const std::string &calc_type) const {
     // compute
-    bool compute_Y = calc_type.compare("full") == 0;
+    bool compute_Y = calc_type == "full";
 
     X_space Lambda_X;// = X_space(world, chi.num_states(), chi.num_orbitals());
     X_space F0X = compute_F0X(world, chi, xc, compute_Y);
     X_space Chi_truncated = chi.copy();
     Chi_truncated.truncate();
-    if (r_params.print_level() >= 20) {
+    if (r_params.print_level() >= 5) {
         print("---------------Lambda ----------------");
         print("<X|F0|X>");
         print(inner(Chi_truncated, F0X));
@@ -796,19 +796,15 @@ X_space ResponseBase::compute_lambda_X(World &world, const X_space &chi, XCOpera
     } else {
         gamma = compute_gamma_tda(world, {chi, ground_orbitals, ground_orbitals}, xc);
     }
-    if (r_params.print_level() >= 20) {
+    if (r_params.print_level() >= 5) {
         print("<X|Gamma|X>");
         print(inner(Chi_truncated, gamma));
     }
 
     Lambda_X = (F0X - E0X) + gamma;
-    if (r_params.print_level() >= 20) {
-        print("<X|Lambda not truncated|X>");
-        print(inner(Chi_truncated, Lambda_X));
-    }
     Lambda_X.truncate();
 
-    if (r_params.print_level() >= 20) {
+    if (r_params.print_level() >= 5) {
         print("<X|Lambda_truncated|X>");
         print(inner(Chi_truncated, Lambda_X));
     }

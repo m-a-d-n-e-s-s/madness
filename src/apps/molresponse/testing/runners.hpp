@@ -269,7 +269,6 @@ struct excitedSchema {
         auto [sp, s] = generate_excited_save_path(excited_state_run_path);
         save_path = sp;
         save_string = s;
-
         rb_json = addPath(excited_state_run_path, "/response_base.json");
     }
 
@@ -438,18 +437,17 @@ std::filesystem::path generate_moldft_calc_info_json_path(
  * @param p2
  * @return
  */
-bool restartMoldft(CalculationParameters &p1,CalculationParameters &p2){
+bool restartMoldft(CalculationParameters &p1, CalculationParameters &p2) {
 
     // first get the last protocol
 
-    auto proto1 =p1.get<std::vector<double>>("protocol");
-    auto proto2 =p1.get<std::vector<double>>("protocol");
+    auto proto1 = p1.get<std::vector<double>>("protocol");
+    auto proto2 = p1.get<std::vector<double>>("protocol");
 
-    std::cout<<*(proto2.end()-1)<<std::endl;
-    std::cout<<*(proto1.end()-1)<<std::endl;
+    std::cout << *(proto2.end() - 1) << std::endl;
+    std::cout << *(proto1.end() - 1) << std::endl;
 
-    return *(proto1.end()-1) !=*(proto2.end()-1);
-
+    return *(proto1.end() - 1) != *(proto2.end() - 1);
 }
 
 /**
@@ -468,7 +466,7 @@ void runMOLDFT(World &world, const moldftSchema &mschema, bool restart) {
     param1.set_user_defined_value("maxiter", 11);
     param1.set_user_defined_value<std::string>("xc", mschema.xc);
     param1.set_user_defined_value<double>("l", 200);
-    param1.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6});
+    param1.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6,1e-8});
     param1.set_user_defined_value<std::string>("localize", "new");
 
     CalculationParameters param_calc;
@@ -483,10 +481,10 @@ void runMOLDFT(World &world, const moldftSchema &mschema, bool restart) {
     //If the parameters are exactly equal do not run
     // If calc info doesn't exist the param_calc will definitely be different
     print("param1 != param_calc = ", param1 != param_calc);
-    if (restartMoldft(param1,param_calc) || restart) {
+    if (restartMoldft(param1, param_calc) || restart) {
         print("-------------Running moldft------------");
-        if(std::filesystem::exists(mschema.moldft_restart)){
-            param1.set_user_defined_value<bool>("restart",true);
+        if (std::filesystem::exists(mschema.moldft_restart)) {
+            param1.set_user_defined_value<bool>("restart", true);
         }
         write_test_input test_input(param1, "moldft.in", mschema.mol_path);// molecule HF
         commandlineparser parser;
@@ -499,7 +497,8 @@ void runMOLDFT(World &world, const moldftSchema &mschema, bool restart) {
         ME.output_calc_info_schema();
         world.gop.fence();
     } else {
-        print("Skipping Calculation and printing CALC INFO"); std::cout << calcInfo;
+        print("Skipping Calculation and printing CALC INFO");
+        std::cout << calcInfo;
     }
 }
 
@@ -584,16 +583,17 @@ void initialize_excited_restart(World &world, const std::string &filename, const
  */
 void set_excited_parameters(ResponseParameters &r_params, const std::string &xc,
                             const size_t &num_states) {
-    r_params.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6});
+    r_params.set_user_defined_value<vector<double>>("protocol", {1e-8});
     r_params.set_user_defined_value("archive", std::string("../restartdata"));
-    r_params.set_user_defined_value("maxiter", size_t(8));
+    r_params.set_user_defined_value("maxiter", size_t(15));
     r_params.set_user_defined_value("maxsub",
-                                    size_t(5));// if its too large then bad guess is very strong
+                                    size_t(10));// if its too large then bad guess is very strong
     r_params.set_user_defined_value("kain", true);
+    r_params.set_user_defined_value("dconv", 1e-5);
     r_params.set_user_defined_value("plot_all_orbitals", true);
     r_params.set_user_defined_value("save", true);
     r_params.set_user_defined_value("guess_xyz", false);
-    r_params.set_user_defined_value("print_level", 15);
+    r_params.set_user_defined_value("print_level", 20);
     // set xc, property, num_states,and restart
     r_params.set_user_defined_value("xc", xc);
     r_params.set_user_defined_value("excited_state", true);

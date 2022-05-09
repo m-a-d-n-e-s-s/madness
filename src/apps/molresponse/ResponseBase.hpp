@@ -215,7 +215,7 @@ protected:
                                const XCOperator<double, 3>& xc) const;
     X_space compute_V0X(World& world, const X_space& X, const XCOperator<double, 3>& xc,
                         bool compute_Y) const;
-    X_space compute_lambda_X(World& world, const X_space& chi, XCOperator<double, 3> xc,
+    X_space compute_lambda_X(World& world, const X_space& chi, XCOperator<double, 3>& xc,
                              const std::string& calc_type) const;
     X_space compute_theta_X(World& world, const X_space& chi, XCOperator<double, 3> xc,
                             const std::string& calc_type) const;

@@ -673,7 +673,7 @@ std::tuple<Tensor<double>, X_space, X_space> ExcitedResponse::rotate_excited_spa
     }
     auto [rotated_chi, rotated_l_chi] = rotate_excited_space(world, U, chi, lchi);
 
-    return {new_omega, rotated_chi,rotated_l_chi};
+    return {new_omega, rotated_chi, rotated_l_chi};
 }
 
 
@@ -1688,7 +1688,7 @@ void ExcitedResponse::iterate(World &world) {
     size_t m = r_params.num_states();  // Number of excited states
     size_t n = r_params.num_orbitals();// Number of ground state orbitals
 
-    const auto dconv = std::max(FunctionDefaults<3>::get_thresh()*100, r_params.dconv());
+    const auto dconv = std::max(FunctionDefaults<3>::get_thresh(), r_params.dconv());
 
     Tensor<double> maxrotn(m);
     maxrotn.fill(dconv * 100);
@@ -1820,6 +1820,12 @@ void ExcitedResponse::iterate(World &world) {
             }
         }
 
+        // We first rotate chi by diagonalizing AX=omegaBX
+        // This provides new omegas
+        // We then apply bsh on the rotated vector and compute the residual
+        // The residual is then used to update KAIN
+        // Followed by step restriction
+        // residual is computed as new_chi-old_chi where both have been previously rotated.
         auto [new_omega, old_chi, new_chi, new_res] =
                 update(world, Chi, xc, projector, kain_x_space, Xvector, Xresidual, iter, maxrotn);
 
@@ -1857,7 +1863,6 @@ void ExcitedResponse::iterate(World &world) {
 
         // Basic output
         if (r_params.print_level() >= 1) molresponse::end_timer(world, " This iteration:");
-
     }
 
     if (world.rank() == 0) print("\n");

@@ -52,6 +52,7 @@ int main(int argc, char *argv[]) {
             // for every molecule within the molecule path
             for (const std::filesystem::directory_entry &mol_path:
                  std::filesystem::directory_iterator(schema.molecule_path)) {
+
                 std::filesystem::current_path(schema.xc_path);
 
                 if (mol_path.path().extension() == ".mol") {
@@ -59,12 +60,15 @@ int main(int argc, char *argv[]) {
                     std::cout << "\n\n----------------------------------------------------\n";
                     std::cout << "Beginning Tests for Molecule: " << molecule_name << "\n";
                     try {
+
+
                         auto m_schema = moldftSchema(molecule_name, xc, schema);
-                        m_schema.print();
-                        moldft(world, m_schema, false);
+                        moldft(world, m_schema, true);
+
                         auto excited_schema = excitedSchema(schema, m_schema);
                         excited_schema.print();
-                        bool success = runExcited(world, excited_schema, true);
+
+                        bool success = runExcited(world, excited_schema, false);
                     } catch (const SafeMPI::Exception &e) {
                         print(e);
                     } catch (const madness::MadnessException &e) {
