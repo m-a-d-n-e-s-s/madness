@@ -481,7 +481,7 @@ void runMOLDFT(World &world, const moldftSchema &mschema, bool restart) {
     //If the parameters are exactly equal do not run
     // If calc info doesn't exist the param_calc will definitely be different
     print("param1 != param_calc = ", param1 != param_calc);
-    if (restartMoldft(param1, param_calc) || restart) {
+    if (restartMoldft(param1, param_calc) && restart) {
         print("-------------Running moldft------------");
         if (std::filesystem::exists(mschema.moldft_restart)) {
             param1.set_user_defined_value<bool>("restart", true);
