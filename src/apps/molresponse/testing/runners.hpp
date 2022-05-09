@@ -484,7 +484,7 @@ void runMOLDFT(World &world, const moldftSchema &mschema, bool try_run, bool res
     // if parameters are different or if I want to run no matter what run
     // if I want to restart and if I can. restart
     print("param1 != param_calc = ", param1 != param_calc);
-    if (tryMOLDFT(param1, param_calc) && try_run) {
+    if (tryMOLDFT(param1, param_calc) || try_run) {
         print("-------------Running moldft------------");
         // if params are different run and if restart exists and if im asking to restar
         if (std::filesystem::exists(mschema.moldft_restart) && restart) {
