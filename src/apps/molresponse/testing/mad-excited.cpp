@@ -21,7 +21,7 @@
 #include <unistd.h>
 
 static inline int file_exists(const char *input_name) {
-    struct stat buffer{};
+    struct stat buffer {};
     size_t rc = stat(input_name, &buffer);
     return (rc == 0);
 }
@@ -45,7 +45,6 @@ int main(int argc, char *argv[]) {
 
         std::cout << "Wrong number of inputs" << std::endl;
         return 1;
-
     }
 
     const std::string molecule_name{argv[1]};
@@ -59,8 +58,8 @@ int main(int argc, char *argv[]) {
     try {
 
         auto m_schema = moldftSchema(molecule_name, xc, schema);
-        moldft(world, m_schema,true);
-        auto excited_schema = excitedSchema(schema,m_schema);
+        moldft(world, m_schema, true, true);
+        auto excited_schema = excitedSchema(schema, m_schema);
         excited_schema.print();
 
         try {
@@ -70,13 +69,11 @@ int main(int argc, char *argv[]) {
             print(e);
         } catch (const madness::MadnessException &e) {
             std::cout << e << std::endl;
-        } catch (const madness::TensorException &e) {
-            print(e);
-        } catch (const char *s) { print(s); } catch (const std::string &s) {
+        } catch (const madness::TensorException &e) { print(e); } catch (const char *s) {
             print(s);
-        } catch (const std::exception &e) { print(e.what()); } catch (...) {
-            error("caught unhandled exception");
-        }
+        } catch (const std::string &s) { print(s); } catch (const std::exception &e) {
+            print(e.what());
+        } catch (...) { error("caught unhandled exception"); }
 
     } catch (const std::filesystem::filesystem_error &ex) { std::cerr << ex.what() << "\n"; }
 
@@ -87,5 +84,3 @@ int main(int argc, char *argv[]) {
     // std::cout.precision(6);
     // print_stats(world);
 }
-
-

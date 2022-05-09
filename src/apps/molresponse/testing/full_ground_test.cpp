@@ -63,7 +63,7 @@ int main(int argc, char *argv[]) {
                     try {
                         auto m_schema = moldftSchema(molecule_name, xc, schema);
                         m_schema.print();
-                        moldft(world, m_schema, true);
+                        moldft(world, m_schema, false, true, 0);
                     } catch (const SafeMPI::Exception &e) {
                         print(e);
                     } catch (const madness::MadnessException &e) {

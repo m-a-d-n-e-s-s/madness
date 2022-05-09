@@ -168,7 +168,7 @@ TEST_CASE("Run if moldft json ==") {
     auto schema = runSchema(xc);
     auto m_schema = moldftSchema(molecule_name, xc, schema);
 
-    moldft(world,m_schema,false);
+    moldft(world, m_schema, false, false, 0);
 
 }
 

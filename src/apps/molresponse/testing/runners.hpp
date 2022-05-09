@@ -437,7 +437,7 @@ std::filesystem::path generate_moldft_calc_info_json_path(
  * @param p2
  * @return
  */
-bool restartMoldft(CalculationParameters &p1, CalculationParameters &p2) {
+bool tryMOLDFT(CalculationParameters &p1, CalculationParameters &p2) {
 
     // first get the last protocol
 
@@ -459,14 +459,14 @@ bool restartMoldft(CalculationParameters &p1, CalculationParameters &p2) {
  * @param moldft_filename
  * @param xc
  */
-void runMOLDFT(World &world, const moldftSchema &mschema, bool restart) {
+void runMOLDFT(World &world, const moldftSchema &mschema, bool try_run, bool restart) {
 
     CalculationParameters param1;
 
     param1.set_user_defined_value("maxiter", 11);
     param1.set_user_defined_value<std::string>("xc", mschema.xc);
     param1.set_user_defined_value<double>("l", 200);
-    param1.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6,1e-8});
+    param1.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6, 1e-8});
     param1.set_user_defined_value<std::string>("localize", "new");
 
     CalculationParameters param_calc;
@@ -480,9 +480,13 @@ void runMOLDFT(World &world, const moldftSchema &mschema, bool restart) {
     }
     //If the parameters are exactly equal do not run
     // If calc info doesn't exist the param_calc will definitely be different
+
+    // if parameters are different or if I want to run no matter what run
+    // if I want to restart and if I can. restart
     print("param1 != param_calc = ", param1 != param_calc);
-    if (restartMoldft(param1, param_calc) || restart) {
+    if (tryMOLDFT(param1, param_calc) && try_run) {
         print("-------------Running moldft------------");
+        // if params are different run and if restart exists and if im asking to restar
         if (std::filesystem::exists(mschema.moldft_restart) && restart) {
             param1.set_user_defined_value<bool>("restart", true);
         }
@@ -901,7 +905,7 @@ std::vector<double> set_frequencies(const ResponseDataBase &response_data_base,
  * @param molecule_name
  * @return
  */
-void moldft(World &world, moldftSchema &m_schema, bool restart) {
+void moldft(World &world, moldftSchema &m_schema, bool try_moldft, bool restart) {
 
     if (std::filesystem::is_directory(m_schema.moldft_path)) {
         cout << "MOLDFT directory found " << m_schema.mol_path << "\n";
@@ -913,7 +917,7 @@ void moldft(World &world, moldftSchema &m_schema, bool restart) {
     std::filesystem::current_path(m_schema.moldft_path);
     cout << "Entering : " << m_schema.moldft_path << " to run MOLDFT \n\n";
 
-    runMOLDFT(world, m_schema, restart);
+    runMOLDFT(world, m_schema, try_moldft, restart);
 }
 
 #endif// MADNESS_RUNNERS_HPP
