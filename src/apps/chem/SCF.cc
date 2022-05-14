@@ -47,6 +47,21 @@
 #include <chem/projector.h>
 #include <chem/localizer.h>
 
+#if defined(__has_include)
+#  if __has_include(<filesystem>)
+#    define MADCHEM_HAS_STD_FILESYSTEM
+// <filesystem> is not reliably usable on Linux with gcc < 9
+#    if defined(__GNUC__)
+#      if __GNUC__ >= 7 && __GNUC__ < 9
+#        undef MADCHEM_HAS_STD_FILESYSTEM
+#      endif
+#    endif
+#    if defined(MADCHEM_HAS_STD_FILESYSTEM)
+#      include <filesystem>
+#    endif
+#  endif
+#endif
+
 namespace madness {
 
 //    // moved to vmra.h
@@ -3655,8 +3670,13 @@ void SCF::output_scf_info_schema(const int& iter, const std::map<std::string, do
   j[0]["scf_dipole_moment"] = tensor_to_json(dipole_T);
   int num = 0;
   std::string save = "scf_info.json";
+#ifdef MADCHEM_HAS_STD_FILESYSTEM
   if (std::filesystem::exists(save)) {
     std::ifstream ifs(save);
+#else
+  std::ifstream ifs(save);
+  if (ifs) {
+#endif
     json j_old;
     ifs >> j_old;
     print(j_old);

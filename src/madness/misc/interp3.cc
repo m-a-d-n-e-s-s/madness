@@ -33,6 +33,7 @@
 #include <iostream>
 #include <cmath>
 #include <vector>
+#include <madness/world/worldinit.h>
 #include <madness/misc/interpolation_1d.h>
 
 using namespace std;
@@ -43,12 +44,14 @@ double func(double x) {
     return sin(x);
 }
 
-int main() {
-    cout.precision(12);
+int main(int argc, char* argv[]) {
+  auto& world = madness::initialize(argc, argv);
+  cout.precision(12);
 
-    // Uniform mesh for sin(x)
-    CubicInterpolationTable<double> fit(-10.0,30.0,100000,func);
-    cout << "maxerr " << fit.err(func) << endl;
+  // Uniform mesh for sin(x)
+  madness::CubicInterpolationTable<double> fit(world, -10.0, 30.0, 1000001, func);
+  cout << "maxerr " << fit.err(func) << endl;
 
-    return 0;
+  madness::finalize();
+  return 0;
 }
