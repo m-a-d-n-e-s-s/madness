@@ -61,7 +61,6 @@
 
 
 #include <external_headers/tensor_json.hpp>
-#include <filesystem>
 #include <memory>
 
 namespace madness {
