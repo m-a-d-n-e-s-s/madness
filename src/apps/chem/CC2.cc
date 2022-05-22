@@ -23,6 +23,7 @@ CC2::solve() {
 
     if (not check_core_valence_separation()) enforce_core_valence_separation();
     CCOPS.reset_nemo(nemo);
+    CCOPS.update_intermediates(CCOPS.mo_ket());
 
     if (ctype == CT_TDHF or ctype==CT_LRCCS) {
         std::vector<CC_vecfunction> ccs;
