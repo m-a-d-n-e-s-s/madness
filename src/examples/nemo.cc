@@ -135,6 +135,12 @@ int main(int argc, char** argv) {
         error("caught unhandled exception");
     }
 
+    commandlineparser p1;
+    p1.set_keyval("structure","h2o");
+    Nemo n1(world, p1) ;
+    double v=n1.value();
+    if (v==76.30495) ok;
+
 
     finalize();
     return 0;
