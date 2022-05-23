@@ -49,8 +49,8 @@
   /trunk/src/apps/examples/tdhf.cc>here</a>.
 
  */
-#include <chem/CC2.h>
-#include <madness/misc/gitinfo.h>
+#include "apps/chem/CC2.h"
+#include "madness/misc/gitinfo.h"
 
 using namespace madness;
 

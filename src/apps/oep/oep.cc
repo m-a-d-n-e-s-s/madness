@@ -37,8 +37,8 @@
 */
 
 
-#include <chem/oep.h>
-#include <madness/misc/gitinfo.h>
+#include "apps/chem/oep.h"
+#include "madness/misc/gitinfo.h"
 
 using namespace madness;
 

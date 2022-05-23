@@ -35,5 +35,5 @@ set(targetname MADresponse)
 
 
 # Add dependencies for MADchem
-add_mad_executable(molresponse "molresponse.cc" "MADresponse;MADchem",)
+add_mad_executable(molresponse "molresponse.cc" "MADresponse;MADchem")
 

@@ -44,7 +44,7 @@
 
 */
 
-#include <chem/zcis.h>
+#include "apps/chem/zcis.h"
 
 using namespace madness;
 
