@@ -58,7 +58,7 @@ int main(int argc, char *argv[]) {
     try {
 
         auto m_schema = moldftSchema(molecule_name, xc, schema);
-        moldft(world, m_schema, true, true);
+        moldft(world, m_schema, false, true);
         auto excited_schema = excitedSchema(schema, m_schema);
         excited_schema.print();
 

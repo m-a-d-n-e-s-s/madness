@@ -18,7 +18,7 @@ void ExcitedResponse::initialize(World &world) {
         trial = create_trial_functions2(world);
         // Use a symmetry adapted operator on ground state functions
     } else {
-        trial = create_trial_functions(world, 3 * r_params.num_states());
+        trial = create_virtual_ao_guess(world);
     }
 
     if (world.size() > 1) {
@@ -255,6 +255,7 @@ X_space ExcitedResponse::create_trial_functions(World &world, size_t k) const {
     size_t count = 0;
 
     // for every
+
 
     // Multiply each solid harmonic onto a ground state orbital
     for (size_t i = 0; i < n; i++) {
@@ -2352,4 +2353,474 @@ void ExcitedResponse::load(World &world, const std::string &name) {
             for (size_t j = 0; j < r_params.num_orbitals(); j++) ar &Chi.Y[i][j];
         world.gop.fence();
     }
+}
+/**
+ * Create Virtual Space Excited State Guess from atomic orbitals
+ * @param world
+ * @return
+ */
+X_space ExcitedResponse::create_virtual_ao_guess(World &world) const {
+
+    print("thresh : ", FunctionDefaults<3>::get_thresh());
+    print("k : ", FunctionDefaults<3>::get_k());
+    auto phi_0 = copy(world, ground_orbitals);
+    print("Ground Orbital norms: ", norm2s_T(world, phi_0));
+    auto ao_basis_set = AtomicBasisSet{"6-31g"};
+    ao_basis_set.print(molecule);
+
+    vecfuncT ao_vec = vecfuncT(ao_basis_set.nbf(molecule));
+
+    for (int i = 0; i < ao_basis_set.nbf(molecule); ++i) {
+        functorT aofunc(
+                new AtomicBasisFunctor(ao_basis_set.get_atomic_basis_function(molecule, i)));
+        ao_vec[i] = factoryT(world).functor(aofunc);
+    }
+    world.gop.fence();
+    print("number of ao_basis_functions: ", ao_vec.size());
+
+    madness::print("norm of ao basis functions: ", norm2s_T(world, ao_vec));
+
+    QProjector<double, 3> projector(world, phi_0);
+
+    // project ground_state from each atomic orbital basis
+    std::transform(ao_vec.begin(), ao_vec.end(), ao_vec.begin(),
+                   [&](auto &f) { return projector(f); });
+    print("overlap between phi0: ", matrix_inner(world, phi_0, ao_vec));
+    madness::print("norm of ao basis after projection: ", norm2s_T(world, ao_vec));
+    print("number of ao_basis_functions: ", ao_vec.size());
+    auto overlap_S = matrix_inner(world, ao_vec, ao_vec);
+    print("Overlap S : \n", overlap_S);
+    Tensor<double> U, sigma, VT;
+    //S=U*sigma*VT
+    svd(overlap_S, U, sigma, VT);
+    print("singular values of overlap: \n", sigma);
+    print("left singular vectors of overlap:\n", U);
+    print("right singular vectors of overlap:\n", VT);
+    auto xao = transform(world, ao_vec, U);
+    auto overlap_SU = matrix_inner(world, xao, xao);
+    print("Overlap S after transform : \n", overlap_SU);
+
+    // copy pao to xao response space vector
+
+    auto xc = make_xc_operator(world);
+    // now compute the fock potential
+    // kinetic energy
+    auto F = [&](vector_real_function_3d x) {
+        size_t num_orbs = x.size();
+        real_derivative_3d Dx(world, 0);
+        real_derivative_3d Dy(world, 1);
+        real_derivative_3d Dz(world, 2);
+        vector_real_function_3d dvx = apply(world, Dx, x);
+        vector_real_function_3d dvy = apply(world, Dy, x);
+        vector_real_function_3d dvz = apply(world, Dz, x);
+        // Apply again for 2nd derivatives
+        vector_real_function_3d dvx2 = apply(world, Dx, dvx);
+        vector_real_function_3d dvy2 = apply(world, Dy, dvy);
+        vector_real_function_3d dvz2 = apply(world, Dz, dvz);
+
+        auto T = (dvx2 + dvy2 + dvz2) * (-0.5);
+        real_function_3d v_nuc, v_j0, v_k0, v_xc;
+        v_nuc = potential_manager->vnuclear();
+        v_nuc.truncate();
+        // J^0 x^alpha
+        v_j0 = apply(*coulop, ground_density);
+        v_j0.scale(2.0);
+
+        if (xcf.hf_exchange_coefficient() != 1.0) {
+            v_xc = xc.make_xc_potential();
+        } else {
+            // make a zero function
+            v_xc = Function<double, 3>(
+                    FunctionFactory<double, 3>(world).fence(false).initial_level(1));
+        }
+
+        auto hf_exchange_X = zero_functions<double, 3>(world, num_orbs);
+        // hf exchange
+        std::transform(x.begin(), x.end(), hf_exchange_X.begin(), [&](auto &xi) {
+            auto f = Function<double, 3>(FunctionFactory<double, 3>(world));
+            std::accumulate(phi_0.begin(), phi_0.end(), f, [&](auto phi0, auto total) {
+                auto sum = apply(*coulop, xi * phi0) * phi0;
+                return total + sum;
+            });
+            return f;
+        });
+        vector_real_function_3d V0 = zero_functions<double, 3>(world, num_orbs);
+        real_function_3d v0 = v_j0 + v_nuc + v_xc;
+        V0 = v0 * x;
+        V0 += (-1 * hf_exchange_X * xcf.hf_exchange_coefficient());
+
+        return T + V0;
+    };
+
+    auto phi_a = copy(world, xao);
+    Tensor<double> e_a;
+    for (int i = 0; i < 1; i++) {
+        auto Fx = F(phi_a);
+        auto xFx = matrix_inner(world, phi_a, Fx);
+        auto [e, C] = syev(xFx);
+        print("eigs  : \n", e);
+        phi_a = transform(world, phi_a, C);
+        projector(phi_a);
+        e_a = e;
+    }
+
+    print("ground_orb energies  : \n", ground_energies);
+    print("virtual orbital energies  : \n", e_a);
+    print("norm of virtual ", norm2s_T(world, phi_a));
+    e_a = e_a.flat();
+    auto is_positive = [](auto num) { return num > 0; };
+    // This seems dumb but i'm removing the negative vectors
+    auto first_positive = std::find_if(e_a.ptr(), e_a.ptr() + e_a.size(), is_positive);
+    auto num_negative = std::distance(e_a.ptr(), first_positive);
+    auto virtual_phi = vector_real_function_3d(phi_a.size() - num_negative);
+    Tensor<double> virtual_e(e_a.size() - num_negative);
+    std::copy(first_positive, e_a.ptr() + e_a.size(), virtual_e.ptr());
+    std::copy(phi_a.begin() + num_negative, phi_a.end(), virtual_phi.begin());
+    phi_a = virtual_phi;
+    e_a = virtual_e;
+    auto SOA = matrix_inner(world, phi_0, phi_a);
+    print("Do I remove the vectors that are not completely 0 I hope it's zero\n", SOA);
+    print("Sanity CHECK I hope it's diagonal\n", matrix_inner(world, phi_a, F(phi_a)));
+    // create a vector of pairs
+    std::vector<std::pair<int, int>> ia_indicies;
+    print("forming response space pairs");
+    print("( i , a )");
+    for (int i = 0; i < phi_0.size(); i++) {
+        for (int a = 0; a < phi_a.size(); a++) {
+            ia_indicies.emplace_back(std::pair<int, int>{i, a});
+        }
+    }
+    int kk = 0;
+    Tensor<double> A(ia_indicies.size(), ia_indicies.size());
+    for (const auto ia: ia_indicies) {
+        std::cout << "( " << ia.first << " , " << ia.second << " )" << std::endl;
+        A(kk, kk) = (e_a[ia.second] - ground_energies[ia.first]);
+        kk++;
+    }
+    print("( ij , ab )");
+    int ii = 0;
+    int jj = 0;
+    // create pairs ia, ii,ab
+    auto two_int = [&](World &world, const vector_real_function_3d &phi0,
+                       const vector_real_function_3d &phia) {
+        // The easy case make n*m matrix
+        auto tol = FunctionDefaults<3>::get_thresh();
+        reconstruct(world, phi0);
+        reconstruct(world, phia);
+
+        vector_real_function_3d pairs_ij;
+        vector_real_function_3d pairs_ia;
+        vector_real_function_3d pairs_ab;
+
+        for (auto &phi_ii: phi0) {
+            for (auto &phi_aa: phia) { pairs_ia.push_back(mul_sparse(phi_ii, phi_aa, tol, false)); }
+        }
+        world.gop.fence();
+        truncate(world, pairs_ia);
+        vecfuncT Vpairs_ia = apply(world, *coulop, pairs_ia);
+        auto A_ia_jb = matrix_inner(world, pairs_ia, Vpairs_ia);
+        for (auto &phi_ii: phi0) {
+            for (auto &phi_jj: phi0) { pairs_ij.push_back(mul_sparse(phi_ii, phi_ii, tol, false)); }
+        }
+        for (auto &phi_aa: phia) {
+            for (auto &phi_bb: phia) { pairs_ab.push_back(mul_sparse(phi_aa, phi_aa, tol, false)); }
+        }
+        world.gop.fence();
+        truncate(world, pairs_ij);
+        truncate(world, pairs_ab);
+        vecfuncT Vpairs_ij = apply(world, *coulop, pairs_ab);
+        auto A_ij_ab = matrix_inner(world, pairs_ia, Vpairs_ij);
+        // reshape A_ij_ab  n^2 x m^2
+        auto a_len = phi_a.size() * phi_0.size();
+        Tensor<double> A(a_len, a_len);
+        print(A);
+        int kk = 0;
+        //[i,j]= will have a phia by phia block.  each row gets rearranged into ij
+        for (int ii = 0; ii < phi0.size(); ii++) {
+            for (int jj = 0; jj < phi0.size(); jj++) {
+                auto ii_ab = A_ij_ab(kk++, _);
+                print(ii_ab);
+                auto b_i = ii * phia.size();
+                auto b_ip1 = (ii * phia.size() + phia.size()) - 1;
+                auto b_j = jj * phia.size();
+                auto b_jp1 = (jj * phia.size() + phia.size()) - 1;
+                print("( ", b_i, " , ", b_ip1, " ) ");
+                print("( ", b_j, " , ", b_jp1, " ) ");
+                print(Slice(b_i, b_ip1));
+                //ii_ab = ii_ab.reshape(phi_a.size(), phi_a.size());
+                A(Slice(b_i, b_ip1, 1), Slice(b_j, b_jp1, 1)) =
+                        ii_ab.reshape(phi_a.size(), phi_a.size());
+                //ii_ab = ii_ab.reshape(phi_a.size(), phi_a.size());
+                // I think there is a bug in tensor where reshape doesn't automatically change dim
+                //
+                print("after add\n", A);
+            }
+        }
+        return A_ia_jb - A;
+    };
+    auto Atwo = two_int(world, phi_0, phi_a);
+    A = A + Atwo;
+    print(A);
+    auto [omega, X] = syev(A);
+
+
+    print(omega);
+    print(X);
+
+
+    auto t = xao.size() * r_params.num_orbitals();
+    auto no = r_params.num_orbitals();
+
+    X_space x_guess(world, t, no);
+
+
+    for (int i = 0; i < t; i++) {
+        auto xt = copy(X(_, i));
+        auto mt = xt.reshape(xao.size(), no);
+        x_guess.X[i] = transform(world, phi_a, mt);
+        // new size is xt column size
+    }
+    return x_guess;
+}
+
+
+X_space ExcitedTester::test_ao_guess(World &world, ExcitedResponse &calc) {
+
+    print("thresh : ", FunctionDefaults<3>::get_thresh());
+    print("k : ", FunctionDefaults<3>::get_k());
+
+    auto phi_0 = copy(world, calc.ground_orbitals);
+    print("Ground Orbital norms: ", norm2s_T(world, phi_0));
+    auto ao_basis_set = AtomicBasisSet{"6-31g"};
+    auto molecule = calc.molecule;
+    ao_basis_set.print(molecule);
+
+    vecfuncT ao_vec = vecfuncT(ao_basis_set.nbf(molecule));
+
+    for (int i = 0; i < ao_basis_set.nbf(molecule); ++i) {
+        functorT aofunc(
+                new AtomicBasisFunctor(ao_basis_set.get_atomic_basis_function(calc.molecule, i)));
+        ao_vec[i] = factoryT(world).functor(aofunc);
+    }
+    world.gop.fence();
+    print("number of ao_basis_functions: ", ao_vec.size());
+
+    madness::print("norm of ao basis functions: ", norm2s_T(world, ao_vec));
+
+    QProjector<double, 3> projector(world, phi_0);
+
+    // project ground_state from each atomic orbital basis
+    std::transform(ao_vec.begin(), ao_vec.end(), ao_vec.begin(),
+                   [&](auto &f) { return projector(f); });
+
+
+    print("overlap between phi0: ", matrix_inner(world, phi_0, ao_vec));
+
+
+    madness::print("norm of ao basis after projection: ", norm2s_T(world, ao_vec));
+
+
+    print("number of ao_basis_functions: ", ao_vec.size());
+
+
+    auto overlap_S = matrix_inner(world, ao_vec, ao_vec);
+    print("Overlap S : \n", overlap_S);
+
+    Tensor<double> U, sigma, VT;
+    //S=U*sigma*VT
+    svd(overlap_S, U, sigma, VT);
+
+    print("singular values of overlap: \n", sigma);
+    print("left singular vectors of overlap:\n", U);
+    print("right singular vectors of overlap:\n", VT);
+    auto xao = transform(world, ao_vec, U);
+    auto overlap_SU = matrix_inner(world, xao, xao);
+    print("Overlap S after transform : \n", overlap_SU);
+
+    // copy pao to xao response space vector
+
+    auto xc = calc.make_xc_operator(world);
+    // now compute the fock potential
+
+    // kinetic energy
+    auto F = [&](vector_real_function_3d x) {
+        size_t num_orbs = x.size();
+
+        real_derivative_3d Dx(world, 0);
+        real_derivative_3d Dy(world, 1);
+        real_derivative_3d Dz(world, 2);
+
+        vector_real_function_3d dvx = apply(world, Dx, x);
+        vector_real_function_3d dvy = apply(world, Dy, x);
+        vector_real_function_3d dvz = apply(world, Dz, x);
+        // Apply again for 2nd derivatives
+        vector_real_function_3d dvx2 = apply(world, Dx, dvx);
+        vector_real_function_3d dvy2 = apply(world, Dy, dvy);
+        vector_real_function_3d dvz2 = apply(world, Dz, dvz);
+
+        auto T = (dvx2 + dvy2 + dvz2) * (-0.5);
+        real_function_3d v_nuc, v_j0, v_k0, v_xc;
+        v_nuc = calc.potential_manager->vnuclear();
+        v_nuc.truncate();
+        // J^0 x^alpha
+        v_j0 = apply(*calc.coulop, calc.ground_density);
+        v_j0.scale(2.0);
+
+        if (calc.xcf.hf_exchange_coefficient() != 1.0) {
+            v_xc = xc.make_xc_potential();
+        } else {
+            // make a zero function
+            v_xc = Function<double, 3>(
+                    FunctionFactory<double, 3>(world).fence(false).initial_level(1));
+        }
+
+        auto hf_exchange_X = zero_functions<double, 3>(world, num_orbs);
+        // hf exchange
+        std::transform(x.begin(), x.end(), hf_exchange_X.begin(), [&](auto &xi) {
+            auto f = Function<double, 3>(FunctionFactory<double, 3>(world));
+            std::accumulate(phi_0.begin(), phi_0.end(), f, [&](auto phi0, auto total) {
+                auto sum = apply(*calc.coulop, xi * phi0) * phi0;
+                return total + sum;
+            });
+            return f;
+        });
+        vector_real_function_3d V0 = zero_functions<double, 3>(world, num_orbs);
+        real_function_3d v0 = v_j0 + v_nuc + v_xc;
+        V0 = v0 * x;
+        V0 += (-1 * hf_exchange_X * calc.xcf.hf_exchange_coefficient());
+
+        return T + V0;
+    };
+
+    auto phi_a = copy(world, xao);
+    Tensor<double> e_a;
+    for (int i = 0; i < 1; i++) {
+        auto Fx = F(phi_a);
+        auto xFx = matrix_inner(world, phi_a, Fx);
+        auto [e, C] = syev(xFx);
+        print("eigs  : \n", e);
+        phi_a = transform(world, phi_a, C);
+        projector(phi_a);
+        e_a = e;
+    }
+
+    print("ground_orb energies  : \n", calc.ground_energies);
+    print("virtual orbital energies  : \n", e_a);
+    print("norm of virtual ", norm2s_T(world, phi_a));
+    e_a = e_a.flat();
+    auto is_positive = [](auto num) { return num > 0; };
+    // This seems dumb but i'm removing the negative vectors
+    auto first_positive = std::find_if(e_a.ptr(), e_a.ptr() + e_a.size(), is_positive);
+    auto num_negative = std::distance(e_a.ptr(), first_positive);
+    auto virtual_phi = vector_real_function_3d(phi_a.size() - num_negative);
+    Tensor<double> virtual_e(e_a.size() - num_negative);
+    std::copy(first_positive, e_a.ptr() + e_a.size(), virtual_e.ptr());
+    std::copy(phi_a.begin() + num_negative, phi_a.end(), virtual_phi.begin());
+    phi_a = virtual_phi;
+    e_a = virtual_e;
+    auto SOA = matrix_inner(world, phi_0, phi_a);
+    print("Do I remove the vectors that are not completely 0 I hope it's zero\n", SOA);
+    print("Sanity CHECK I hope it's diagonal\n", matrix_inner(world, phi_a, F(phi_a)));
+    // create a vector of pairs
+    std::vector<std::pair<int, int>> ia_indicies;
+    print("forming response space pairs");
+    print("( i , a )");
+    for (int i = 0; i < phi_0.size(); i++) {
+        for (int a = 0; a < phi_a.size(); a++) {
+            ia_indicies.emplace_back(std::pair<int, int>{i, a});
+        }
+    }
+    int kk = 0;
+    Tensor<double> A(ia_indicies.size(), ia_indicies.size());
+    for (const auto ia: ia_indicies) {
+        std::cout << "( " << ia.first << " , " << ia.second << " )" << std::endl;
+        A(kk, kk) = (e_a[ia.second] - calc.ground_energies[ia.first]);
+        kk++;
+    }
+    print("( ij , ab )");
+    int ii = 0;
+    int jj = 0;
+    // create pairs ia, ii,ab
+    auto two_int = [&](World &world, const vector_real_function_3d &phi0,
+                       const vector_real_function_3d &phia) {
+        // The easy case make n*m matrix
+        auto tol = FunctionDefaults<3>::get_thresh();
+        reconstruct(world, phi0);
+        reconstruct(world, phia);
+
+        vector_real_function_3d pairs_ij;
+        vector_real_function_3d pairs_ia;
+        vector_real_function_3d pairs_ab;
+
+        for (auto &phi_ii: phi0) {
+            for (auto &phi_aa: phia) { pairs_ia.push_back(mul_sparse(phi_ii, phi_aa, tol, false)); }
+        }
+        world.gop.fence();
+        truncate(world, pairs_ia);
+        vecfuncT Vpairs_ia = apply(world, *calc.coulop, pairs_ia);
+        auto A_ia_jb = matrix_inner(world, pairs_ia, Vpairs_ia);
+        for (auto &phi_ii: phi0) {
+            for (auto &phi_jj: phi0) { pairs_ij.push_back(mul_sparse(phi_ii, phi_ii, tol, false)); }
+        }
+        for (auto &phi_aa: phia) {
+            for (auto &phi_bb: phia) { pairs_ab.push_back(mul_sparse(phi_aa, phi_aa, tol, false)); }
+        }
+        world.gop.fence();
+        truncate(world, pairs_ij);
+        truncate(world, pairs_ab);
+        vecfuncT Vpairs_ij = apply(world, *calc.coulop, pairs_ab);
+        auto A_ij_ab = matrix_inner(world, pairs_ia, Vpairs_ij);
+        // reshape A_ij_ab  n^2 x m^2
+        auto a_len = phi_a.size() * phi_0.size();
+        Tensor<double> A(a_len, a_len);
+        print(A);
+        int kk = 0;
+        //[i,j]= will have a phia by phia block.  each row gets rearranged into ij
+        for (int ii = 0; ii < phi0.size(); ii++) {
+            for (int jj = 0; jj < phi0.size(); jj++) {
+                auto ii_ab = A_ij_ab(kk++, _);
+                print(ii_ab);
+                auto b_i = ii * phia.size();
+                auto b_ip1 = (ii * phia.size() + phia.size()) - 1;
+                auto b_j = jj * phia.size();
+                auto b_jp1 = (jj * phia.size() + phia.size()) - 1;
+                print("( ", b_i, " , ", b_ip1, " ) ");
+                print("( ", b_j, " , ", b_jp1, " ) ");
+                print(Slice(b_i, b_ip1));
+                //ii_ab = ii_ab.reshape(phi_a.size(), phi_a.size());
+                A(Slice(b_i, b_ip1, 1), Slice(b_j, b_jp1, 1)) =
+                        ii_ab.reshape(phi_a.size(), phi_a.size());
+                //ii_ab = ii_ab.reshape(phi_a.size(), phi_a.size());
+                // I think there is a bug in tensor where reshape doesn't automatically change dim
+                //
+                print("after add\n", A);
+            }
+        }
+        return A_ia_jb - A;
+    };
+    auto Atwo = two_int(world, phi_0, phi_a);
+    A = A + Atwo;
+    print(A);
+    auto [omega, X] = syev(A);
+
+
+    print(omega);
+    print(X);
+
+
+    auto t = xao.size() * calc.r_params.num_orbitals();
+    auto no = calc.r_params.num_orbitals();
+
+    X_space x_guess(world, t, no);
+
+
+    for (int i = 0; i < t; i++) {
+        auto xt = copy(X(_, i));
+        auto mt = xt.reshape(xao.size(), no);
+        x_guess.X[i] = transform(world, phi_a, mt);
+        // new size is xt column size
+    }
+
+
+    return x_guess;
 }

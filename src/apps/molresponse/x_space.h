@@ -62,11 +62,11 @@ namespace madness {
             return *this;// NO SHALLOW COPIES
         }
         // Zero Constructor
-        X_space(World& world, size_t n_states, size_t n_orbtials)
+        X_space(World& world, size_t n_states, size_t n_orbitals)
             : n_states(n_states),
-              n_orbitals(n_orbtials),
-              X(world, n_states, n_orbtials),
-              Y(world, n_states, n_orbtials) {}
+              n_orbitals(n_orbitals),
+              X(world, n_states, n_orbitals),
+              Y(world, n_states, n_orbitals) {}
         // explicit constructor from 2 resonse_space
         explicit X_space(response_space& X, response_space& Y) {
             MADNESS_ASSERT(X.size() == Y.size());

@@ -12,12 +12,14 @@ struct ExcitedSpace {
     X_space l_chi;
 };
 
+
 class ExcitedResponse : public ResponseBase {
 
 public:
     ExcitedResponse(World& world, const CalcParams& params) : ResponseBase(world, params) {}
     void initialize(World& world) override;
     void iterate_trial(World& world, X_space& trial);
+    friend class ExcitedTester;
 
 private:
     Tensor<double> omega;
@@ -28,6 +30,7 @@ private:
 
     X_space create_trial_functions2(World& world) const;
     X_space create_trial_functions(World& world, size_t k) const;
+    X_space create_virtual_ao_guess(World& world) const;
 
 
     void deflateTDA(World& world, X_space& Chi, X_space& old_Chi, X_space& Lambda_X,
@@ -143,14 +146,25 @@ private:
                                                           Tensor<double>& A,
                                                           const double thresh_degenerate);
 
-    std::pair<X_space, X_space> rotate_excited_space(World& world, const Tensor<double>& U, const X_space& chi,
-                                      const X_space& l_chi);
+    std::pair<X_space, X_space> rotate_excited_space(World& world, const Tensor<double>& U,
+                                                     const X_space& chi, const X_space& l_chi);
     std::tuple<Tensor<double>, X_space, X_space> rotate_excited_space(World& world, X_space& chi,
-                                                                 X_space& lchi);
+                                                                      X_space& lchi);
     std::tuple<Tensor<double>, X_space, X_space, residuals> update(
             World& world, X_space& Chi, XCOperator<double, 3>& xc, QProjector<double, 3>& projector,
             NonLinearXsolver& kain_x_space, vector<X_vector>& Xvector, vector<X_vector>& Xresidual,
             size_t iter, Tensor<double>& maxrotn);
+};
+
+class ExcitedTester {
+private:
+public:
+    ExcitedTester(World& world, ExcitedResponse& calc, double thresh) {
+        print("Setting Function Defaults");
+        calc.set_protocol(world, thresh);
+        calc.check_k(world, thresh, FunctionDefaults<3>::get_k());
+    }
+    X_space test_ao_guess(World& world, ExcitedResponse& calc);
 };
 
 

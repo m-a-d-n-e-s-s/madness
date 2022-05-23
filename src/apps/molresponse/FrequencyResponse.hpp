@@ -52,6 +52,12 @@ private:
                                           std::string message);
     void save(World& world, const std::string& name) override;
     void load(World& world, const std::string& name) override;
+    std::tuple<X_space, X_space, residuals> update(
+            World& world, X_space& Chi,  XCOperator<double, 3>& xc,
+            vector<poperatorT>& bsh_x_ops, vector<poperatorT>& bsh_y_ops,
+            QProjector<double, 3>& projector, double& x_shifts, double& omega_n,
+            NonLinearXsolver& kain_x_space, vector<X_vector>& Xvector, vector<X_vector>& Xresidual,
+            size_t iteration, Tensor<double>& maxrotn);
 };
 
 

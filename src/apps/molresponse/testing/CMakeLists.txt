@@ -22,4 +22,5 @@ add_mad_executable(full_ground_tests "full_ground_test.cpp" "MADchem;MADresponse
 
 add_mad_executable(generate_data "generate_frequency_data.cpp" "MADall_response;MADchem")
 add_mad_executable(database-test "database_testing.cpp" "MADall_response;MADchem")
+add_mad_executable(test-dev "test_development.cpp" "MADall_response;MADchem")
 # Add dependencies for MADchem
