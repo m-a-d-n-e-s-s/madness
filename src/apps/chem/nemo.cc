@@ -140,7 +140,7 @@ Nemo::Nemo(World& world, const commandlineparser &parser) :
     if (do_pcm()) pcm=PCM(world,this->molecule(),param.pcm_data(),true);
 
     // reading will not overwrite the derived and defined values
-    param.read(world,parser.value("input"),"dft");
+    param.read_input_and_commandline_options(world,parser,"dft");
     symmetry_projector=projector_irrep(param.pointgroup())
             .set_ordering("keep").set_verbosity(0).set_orthonormalize_irreps(true);;
     if (symmetry_projector.get_verbosity()>1) symmetry_projector.print_character_table();

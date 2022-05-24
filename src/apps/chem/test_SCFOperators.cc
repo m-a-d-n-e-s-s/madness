@@ -655,7 +655,7 @@ int nuclear_anchor_test(World& world) {
 
     // test ncf=slater
     Nemo::NemoCalculationParameters nemo_param(calc.param);
-    nemo_param.read(world,test_input.filename(),"dft");
+    nemo_param.read_input_and_commandline_options(world,parser,"dft");
     std::shared_ptr<NuclearCorrelationFactor> ncf=
     create_nuclear_correlation_factor(world, calc.molecule, calc.potentialmanager, nemo_param.ncf());
     ncf->initialize(FunctionDefaults<3>::get_thresh());
@@ -773,7 +773,7 @@ int dnuclear_anchor_test(World& world) {
 
     // test U2 and U3
     Nemo::NemoCalculationParameters nemo_param(calc.param);
-    nemo_param.read(world,test_input.filename(),"dft");
+    nemo_param.read_input_and_commandline_options(world,parser,"dft");
 
     std::shared_ptr<NuclearCorrelationFactor> ncf=
     create_nuclear_correlation_factor(world, calc.molecule, calc.potentialmanager, nemo_param.ncf());

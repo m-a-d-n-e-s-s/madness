@@ -60,7 +60,7 @@ class Nemo_complex_Parameters : public QCCalculationParametersBase {
 public:
 
 	/// ctor reading out the input file
-	Nemo_complex_Parameters(World& world) {
+	Nemo_complex_Parameters(World& world, const commandlineparser& parser) {
 		initialize<double>("physical_B",0.0);
 		initialize<double>("explicit_B",0.0);
 		initialize<std::vector<double> >("box",{1.0, 0.01, 0.0, 0.0, 0.0});
@@ -72,7 +72,7 @@ public:
 		initialize<std::vector<std::string> >("guess_functions",std::vector<std::string>(),"list function names");	// atomic guess functions l, ml, exponent
 
 		// read input file
-		read(world,"input","complex");
+        read_input_and_commandline_options(world,parser,"complex");
 
 	}
 
@@ -105,7 +105,7 @@ public:
 };
 
 
-class Znemo : public NemoBase {
+class Znemo : public NemoBase, public QCPropertyInterface {
 	friend class Zcis;
 
 	struct potentials {
@@ -172,13 +172,19 @@ public:
 
 
 public:
-	Znemo(World& w);
+	Znemo(World& w, const commandlineparser& parser);
 
 	/// compute the molecular energy
 	double value() {return value(mol.get_all_coords());}
 
 	/// compute the molecular energy
 	double value(const Tensor<double>& x);
+
+    std::string name() const {return "znemo";};
+
+    virtual bool selftest() {
+        return true;
+    };
 
 	/// adapt the thresholds consistently to a common value
     void recompute_factors_and_potentials(const double thresh);

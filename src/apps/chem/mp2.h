@@ -313,7 +313,7 @@ public:
 
 
 /// a class for computing the first order wave function and MP2 pair energies
-class MP2 : public OptimizationTargetInterface {
+class MP2 : public OptimizationTargetInterface, public QCPropertyInterface {
 
     /// POD for MP2 keywords
     struct Parameters : public QCCalculationParametersBase {
@@ -341,7 +341,7 @@ class MP2 : public OptimizationTargetInterface {
         }
 
         void read_and_set_derived_values(World& world, const commandlineparser& parser) {
-            read(world, parser.value("input"), "mp2");
+            read_input_and_commandline_options(world, parser, "mp2");
 
             set_derived_value("dconv", sqrt(get<double>("econv")) * 0.1);
         	set_derived_value("thresh",get<double>("econv"));
@@ -413,6 +413,11 @@ public:
 
     /// ctor
     MP2(World& world, const commandlineparser& parser);
+    std::string name() const {return "MP2";};
+
+    virtual bool selftest() {
+        return true;
+    };
 
     /// return a checksum for the geometry
     double coord_chksum() const { return coords_sum; }

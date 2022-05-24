@@ -59,6 +59,7 @@
 #include <chem/AC.h>
 #include <chem/pointgroupsymmetry.h>
 #include <chem/commandlineparser.h>
+#include <chem/QCPropertyInterface.h>
 #include <madness/world/timing_utilities.h>
 
 namespace madness {
@@ -329,7 +330,7 @@ public:
 
 
 /// The Nemo class
-class Nemo: public NemoBase {
+class Nemo: public NemoBase, public QCPropertyInterface {
 	typedef std::shared_ptr<real_convolution_3d> poperatorT;
 	friend class PNO;
 	friend class TDHF;
@@ -369,6 +370,9 @@ public:
 //	Nemo(World& world1, std::shared_ptr<SCF> calc, const std::string inputfile);
 
     Nemo(World& world, const commandlineparser& parser);
+
+    std::string name() const {return "nemo";}
+    bool selftest() {return false;}
 
     virtual double value() {return value(calc->molecule.get_all_coords());}
 

@@ -57,14 +57,16 @@ int main(int argc, char** argv) {
     	printf("starting at time %.1f\n", wall_time());
 
     }
-    startup(world,argc,argv);
+    startup(world,argc,argv,true);
     std::cout.precision(6);
+    commandlineparser parser(argc,argv);
+
 
     try {
 
-        std::shared_ptr<Znemo> znemo(new Znemo(world));
+        std::shared_ptr<Znemo> znemo(new Znemo(world, parser));
         znemo->value();
-        Zcis zcis(world,znemo);
+        Zcis zcis(world,parser,znemo);
         zcis.value();
 
 

@@ -49,7 +49,7 @@ TDHF::TDHF(World &world, const commandlineparser &parser) : TDHF(world,parser,st
 TDHF::TDHF(World &world, const commandlineparser &parser, std::shared_ptr<Nemo> nemo)
         : world(world),
           reference_(std::make_shared<Nemo>(world, parser)),
-          parameters(world, parser.value("input")),
+          parameters(world, parser),
           g12(),
           mo_ket_(),
           mo_bra_(),

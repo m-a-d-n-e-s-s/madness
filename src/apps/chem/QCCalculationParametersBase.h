@@ -17,6 +17,7 @@
 #include <madness/misc/misc.h>
 #include <madness/world/archive.h>
 #include <madness/world/world.h>
+#include <chem/commandlineparser.h>
 
 
 namespace madness {
@@ -278,11 +279,24 @@ protected:
 	typedef std::map<std::string,QCParameter> ParameterContainerT;
 	ParameterContainerT parameters;
 
+    virtual void read_input_and_commandline_options(World& world,
+                                                    const commandlineparser& parser,
+                                                    const std::string tag) {
+        read_input(world,parser.value("input"),tag);
+        assign_commandline_options(world,parser,tag);
+    }
+
+private:
 	/// read the parameters from file
 
 	/// only world.rank()==0 reads the input file and broadcasts to all other nodes,
 	/// so we don't need to serialize the ParameterMap
-	virtual void read(World& world, const std::string filename, const std::string tag);
+	void read_input(World& world, const std::string filename, const std::string tag);
+
+    virtual void assign_commandline_options(World& world, const commandlineparser& parser, const std::string tag) {
+        std::cout << "\n\nneed to implement commandline options !! \n\n" << std::endl;
+    };
+protected:
 
 
 	bool print_debug=false;

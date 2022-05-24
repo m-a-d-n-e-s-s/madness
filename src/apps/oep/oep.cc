@@ -112,7 +112,7 @@ int main(int argc, char** argv) {
     std::shared_ptr<OEP> oep(new OEP(world, parser));
     oep->print_parameters({"reference","oep","oep_calc"});
     int ierr=0;
-    if (test) ierr=oep->test_oep();
+    if (test) ierr=oep->selftest();
     else if (analyze)  oep->analyze();
     else oep->value();
 

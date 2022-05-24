@@ -22,7 +22,7 @@ class Complex_CIS_Parameters : public QCCalculationParametersBase {
 public:
 
 	/// ctor reading out the input file
-	Complex_CIS_Parameters(World& world) {
+	Complex_CIS_Parameters(World& world, const commandlineparser& parser) {
 
 		/// the parameters with the enum key, the constructor taking the input file key and a default value
 		initialize<std::string>("guess_excitation_operators","dipole+");
@@ -38,7 +38,7 @@ public:
 		initialize<int>("printlevel",1);
 
 		// read input file
-		read(world,"input","response");
+        read_input_and_commandline_options(world,parser,"response");
 
 		// set derived values
 //		params[param2_].set_derived_value(this->get<int>(param1_)*10.0);
@@ -63,7 +63,7 @@ public:
 };
 
 
-class Zcis {
+class Zcis : public QCPropertyInterface {
 public:
 
 	struct root {
@@ -129,7 +129,7 @@ public:
 
 
 
-	Zcis(World& w, std::shared_ptr<Znemo> n) : world(w), cis_param(world), nemo(n),
+	Zcis(World& w, const commandlineparser& parser, std::shared_ptr<Znemo> n) : world(w), cis_param(world, parser), nemo(n),
 		Qa(world,nemo->amo,nemo->amo), Qb(world,nemo->bmo,nemo->bmo) {
 		cis_param.print("response","end");
 		print("Qa projector",Qa.get_ket_vector().size());
@@ -141,6 +141,12 @@ public:
 
 	double value();
 
+
+    std::string name() const {return "zcis";};
+
+    virtual bool selftest() {
+        return true;
+    };
 	void iterate(std::vector<root>& roots) const;
 
 	void compute_potentials(std::vector<root>& roots, const real_function_3d& totdens) const;

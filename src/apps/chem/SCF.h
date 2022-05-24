@@ -58,6 +58,7 @@
 #include <madness/tensor/solvers.h>
 #include <madness/tensor/distributed_matrix.h>
 #include <chem/pcm.h>
+#include <chem/QCPropertyInterface.h>
 
 
 #include <external_headers/tensor_json.hpp>
@@ -706,7 +707,7 @@ public:
 // Computes molecular energy as a function of the geometry
 // This is cludgy ... need better factorization of functionality
 // between calculation, main program and this ... or just merge it all.
-class MolecularEnergy : public OptimizationTargetInterface {
+class MolecularEnergy : public OptimizationTargetInterface, public QCPropertyInterface {
 	World& world;
 	SCF& calc;
 	mutable double coords_sum;     // sum of square of coords at last solved geometry
@@ -717,6 +718,10 @@ public:
 , calc(calc)
 , coords_sum(-1.0)
 {}
+
+    std::string name() const {return "Molecularenerg";}
+
+    bool selftest() {return true;}
 
 	bool provides_gradient() const {return true;}
 

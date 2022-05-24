@@ -46,14 +46,14 @@ public:
 		initialize_pno_parameters();
 	}
 
-	PNOParameters(World& world, const std::string& inputfile, const std::string& TAG="pno") : QCCalculationParametersBase(){
+	PNOParameters(World& world, const commandlineparser& parser, const std::string& TAG="pno") : QCCalculationParametersBase(){
 		initialize_pno_parameters();
-		QCCalculationParametersBase::read(world,inputfile,TAG);
+		QCCalculationParametersBase::read_input_and_commandline_options(world,parser,TAG);
 	}
 
-	PNOParameters(World& world, const std::string& inputfile, const Molecule& molecule, const std::string& TAG="pno") : QCCalculationParametersBase(){
+	PNOParameters(World& world, const commandlineparser& parser, const Molecule& molecule, const std::string& TAG="pno") : QCCalculationParametersBase(){
 		initialize_pno_parameters();
-		QCCalculationParametersBase::read(world,inputfile,TAG);
+		QCCalculationParametersBase::read_input_and_commandline_options(world,parser,TAG);
 		set_derived_values(molecule);
 	}
 
@@ -230,9 +230,9 @@ public:
 		initialize_f12_parameters();
 	}
 
-	F12Parameters(World& world, const std::string& inputfile, const PNOParameters& param, const std::string& TAG="pno") : PNOParameters(param){
+	F12Parameters(World& world, const commandlineparser& parser, const PNOParameters& param, const std::string& TAG="pno") : PNOParameters(param){
 		initialize_f12_parameters();
-		QCCalculationParametersBase::read(world,inputfile,TAG);
+		QCCalculationParametersBase::read_input_and_commandline_options(world,parser,TAG);
 	}
 
 

@@ -20,7 +20,7 @@
 namespace madness {
 /// The TDHF class
 /// solves CIS/TDA equations and hopefully soon the full TDHF/TDDFT equations
-class TDHF {
+class TDHF : public QCPropertyInterface {
 public:
 
     /// the TDHF parameter class
@@ -33,9 +33,9 @@ public:
         TDHFParameters(const TDHFParameters &other) = default;
 
         /// todo: read_from_file compatible with dist. memory computation
-        TDHFParameters(World &world, const std::string &input) {
+        TDHFParameters(World &world, const commandlineparser& parser) {
             initialize_all();
-            read(world, input, "response");
+            read_input_and_commandline_options(world, parser, "response");
         }
 
         void initialize_all() {
@@ -205,6 +205,12 @@ public:
     TDHF(World &world, const commandlineparser &parser, std::shared_ptr<Nemo> nemo);
 
     void initialize();
+
+    std::string name() const {return "TDHF";};
+
+    virtual bool selftest() {
+        return true;
+    };
 
     ///  sets the reference wave function (nemo or oep)
     void set_reference(std::shared_ptr<NemoBase> reference) {

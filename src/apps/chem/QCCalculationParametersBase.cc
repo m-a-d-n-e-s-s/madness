@@ -47,7 +47,7 @@ std::string QCCalculationParametersBase::print_to_string(bool non_defaults_only)
 }
 
 /// read the parameters from file and broadcast
-void QCCalculationParametersBase::read(World& world, const std::string filename, const std::string tag) {
+void QCCalculationParametersBase::read_input(World& world, const std::string filename, const std::string tag) {
 
 	std::string filecontents, line;
 	if (world.rank()==0) {

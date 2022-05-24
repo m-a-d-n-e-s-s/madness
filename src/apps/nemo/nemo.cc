@@ -81,7 +81,7 @@ int main(int argc, char** argv) {
 
             Tensor<double> geomcoord =nemo->get_calc()->molecule.get_all_coords().flat();
 //            MolecularOptimizer geom(std::shared_ptr<MolecularOptimizationTargetInterface>(new Nemo(world, calc)),
-            MolecularOptimizer geom(world,nemo);
+            MolecularOptimizer geom(world,parser,nemo);
 //            MolecularOptimizer geom(nemo,
 //                    calc->param.gmaxiter(),
 //                    calc->param.gtol(),  //tol

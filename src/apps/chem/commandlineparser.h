@@ -20,6 +20,7 @@ struct commandlineparser {
     }
 
     // parse command line arguments
+    // mp2 --mp2='maxiter 10; freeze 1' --dft:maxiter=20 --Xmpi:debug=true
     commandlineparser(int argc, char **argv) {
         set_defaults();
         std::vector<std::string> allArgs(argv, argv + argc);

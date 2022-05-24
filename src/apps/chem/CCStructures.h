@@ -213,7 +213,7 @@ struct CCParameters : public QCCalculationParametersBase {
     /// ctor reading out the input file
     CCParameters(World& world, const commandlineparser& parser) {
         initialize_parameters();
-        read(world,parser.value("input"),"cc2");
+        read_input_and_commandline_options(world,parser,"cc2");
         set_derived_values();
     };
 

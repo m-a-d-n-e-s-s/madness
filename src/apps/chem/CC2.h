@@ -22,7 +22,7 @@
 
 namespace madness {
 
-class CC2 {
+class CC2 : public OptimizationTargetInterface, public QCPropertyInterface {
 public:
 
     CC2(World& world_, const CCParameters& param, const std::shared_ptr<Nemo> nemo_)
@@ -72,6 +72,12 @@ public:
 
     }
 
+
+    std::string name() const {return "CC2";};
+
+    virtual bool selftest() {
+        return true;
+    };
     void
     plot(const real_function_3d& f, const std::string& msg = "unspecified function") const {
         plot_plane(world, f, msg);

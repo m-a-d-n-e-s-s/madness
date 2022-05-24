@@ -54,7 +54,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	CalculationParameters(const CalculationParameters& other) = default;
 
 	CalculationParameters(World& world, const commandlineparser& parser) : CalculationParameters() {
-        read(world, parser.value("input"), "dft");
+		read_input_and_commandline_options(world, parser, "dft");
     }
 
 	/// ctor reading out the input file
@@ -148,7 +148,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	}
 
 	public:
-	using QCCalculationParametersBase::read;
+	using QCCalculationParametersBase::read_input_and_commandline_options;
 
 
 	double econv() const {return get<double>("econv");}

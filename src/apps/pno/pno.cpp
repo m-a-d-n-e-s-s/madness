@@ -49,8 +49,8 @@ int main(int argc, char** argv) {
 
 	// Compute MRA-PNO-MP2-F12
 	const double time_pno_start = wall_time();
-	PNOParameters parameters(world,input,nemo.get_calc()->molecule,TAG_PNO);
-	F12Parameters paramf12(world, input, parameters, TAG_F12);
+	PNOParameters parameters(world,parser,nemo.get_calc()->molecule,TAG_PNO);
+	F12Parameters paramf12(world, parser, parameters, TAG_F12);
 	PNO pno(world, nemo, parameters, paramf12);
 	std::vector<PNOPairs> all_pairs;
 	pno.solve(all_pairs);

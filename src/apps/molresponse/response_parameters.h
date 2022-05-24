@@ -95,7 +95,7 @@ struct ResponseParameters : public QCCalculationParametersBase {
   }
 
  public:
-  using QCCalculationParametersBase::read;
+  using QCCalculationParametersBase::read_input_and_commandline_options;
 
   std::string localize() const { return get<std::string>("localize"); }
   std::string archive() const { return get<std::string>("archive"); }
