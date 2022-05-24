@@ -1689,10 +1689,10 @@ void ExcitedResponse::iterate(World &world) {
     size_t m = r_params.num_states();  // Number of excited states
     size_t n = r_params.num_orbitals();// Number of ground state orbitals
 
-    const auto dconv = std::max(FunctionDefaults<3>::get_thresh(), r_params.dconv());
+    const auto conv_den = std::max(FunctionDefaults<3>::get_thresh(), r_params.dconv());
 
     Tensor<double> maxrotn(m);
-    maxrotn.fill(dconv * 100);
+    maxrotn.fill(conv_den * 100);
 
     // m residuals for x and y
     Tensor<double> bsh_residualsX(m);
@@ -1785,12 +1785,12 @@ void ExcitedResponse::iterate(World &world) {
             if (density_residuals.max() > 2) { break; }
 
             double d_residual = density_residuals.max();
-            double d_conv = dconv * std::max(size_t(5), molecule.natom());
-            print("dconv: ", dconv);
+            double d_conv = conv_den * std::max(size_t(5), molecule.natom());
+            print("dconv: ", conv_den);
             print("d_residual_max : ", d_residual);
 
             if ((d_residual < d_conv) and
-                ((std::max(bsh_residualsX.absmax(), bsh_residualsY.absmax()) < d_conv * 10.0) or
+                ((std::max(bsh_residualsX.absmax(), bsh_residualsY.absmax()) < d_conv * 100.0) or
                  r_params.get<bool>("conv_only_dens"))) {
 
                 converged = true;
