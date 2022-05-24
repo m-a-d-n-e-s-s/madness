@@ -136,18 +136,18 @@ void FrequencyResponse::iterate(World &world) {
             }
         }
 
-        auto [new_chi, old_chi, new_res] =
+        auto [new_chi, new_res] =
                 update(world, Chi, xc, bsh_x_ops, bsh_y_ops, projector, x_shifts, omega,
-                       kain_x_space, Xvector,Xresidual,iter,maxrotn);
+                       kain_x_space, Xvector, Xresidual, iter, maxrotn);
 
 
-        rho_omega_old = make_density(world, old_chi);
+        rho_omega_old = make_density(world, Chi);
         rho_omega = make_density(world, new_chi);
 
         bsh_residualsX = copy(new_res.x);
         bsh_residualsY = copy(new_res.y);
 
-        Chi=new_chi.copy();
+        Chi = new_chi.copy();
 
         density_residuals = norm2s_T(world, (rho_omega - rho_omega_old));
         maxrotn = (bsh_residualsX + bsh_residualsY) / 4;
@@ -201,12 +201,11 @@ void FrequencyResponse::iterate(World &world) {
         compute_and_print_polarizability(world, Chi, PQ, "Converged");
     }
 }
-std::tuple<X_space, X_space, residuals> FrequencyResponse::update(
+std::tuple<X_space, residuals> FrequencyResponse::update(
         World &world, X_space &Chi, XCOperator<double, 3> &xc, std::vector<poperatorT> &bsh_x_ops,
         std::vector<poperatorT> &bsh_y_ops, QProjector<double, 3> &projector, double &x_shifts,
         double &omega_n, NonLinearXsolver &kain_x_space, vector<X_vector> &Xvector,
-        vector<X_vector> &Xresidual,
-        size_t iteration, Tensor<double> &maxrotn) {
+        vector<X_vector> &Xresidual, size_t iteration, Tensor<double> &maxrotn) {
     size_t m = Chi.num_states();
     bool compute_y = omega_n != 0.0;
     // size_t n = Chi.num_orbitals();
@@ -244,7 +243,7 @@ std::tuple<X_space, X_space, residuals> FrequencyResponse::update(
     // truncate y if compute y
     if (compute_y) new_chi.Y.truncate_rf();
     //	if not compute y then copy x in to y
-    return {Chi, new_chi, {new_res, bsh_x, bsh_y}};
+    return {new_chi, {new_res, bsh_x, bsh_y}};
 
     // print x norms
 }
