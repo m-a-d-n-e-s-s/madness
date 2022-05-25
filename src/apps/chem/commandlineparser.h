@@ -23,19 +23,17 @@ struct commandlineparser {
     // mp2 --mp2='maxiter 10; freeze 1' --dft:maxiter=20 --Xmpi:debug=true
     commandlineparser(int argc, char **argv) {
         set_defaults();
-        madness::print("raw argv");
-        for(int i=0;i<argc-1;i++)  printf("%s",argv[i]);
         std::vector<std::string> allArgs_raw(argv, argv + argc);
         for (auto &a : allArgs_raw) {
-            a= remove_first_equal(remove_front_hyphens(remove_blanks(a)));
+            a= remove_first_equal(remove_front_hyphens(a));
             std::string key, val;
             std::stringstream sa(a);
             sa >> key >> val;
+            val=a.substr(key.size());
             std::replace_copy(val.begin(), val.end(), val.begin(), '=', ' ');
 
             keyval[tolower(key)] = tolower(val);
         }
-        print_map();
     }
 
     /// set default values from the command line

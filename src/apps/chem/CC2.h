@@ -25,14 +25,14 @@ namespace madness {
 class CC2 : public OptimizationTargetInterface, public QCPropertyInterface {
 public:
 
-    CC2(World& world_, const CCParameters& param, const std::shared_ptr<Nemo> nemo_)
-            : world(world_),
-              parameters(param),
-              nemo(nemo_),
-              CCOPS(world, nemo, parameters),
-              output(CCOPS.output) {
-        parameters.sanity_check(world);
-    }
+//    CC2(World& world_, const CCParameters& param, const std::shared_ptr<Nemo> nemo_)
+//            : world(world_),
+//              parameters(param),
+//              nemo(nemo_),
+//              CCOPS(world, nemo, parameters),
+//              output(CCOPS.output) {
+//        parameters.sanity_check(world);
+//    }
 
     CC2(World& world_, const commandlineparser& parser, const std::shared_ptr<Nemo> nemo_)
             : world(world_),
@@ -79,6 +79,7 @@ public:
 
     double value(const Tensor<double>& x) {
         solve();
+        return 0.0;
     }
 
     std::string name() const {return "CC2";};
