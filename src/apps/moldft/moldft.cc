@@ -156,11 +156,6 @@ int main(int argc, char **argv) {
 
                 MolecularEnergy target(world, calc);
                 opt.optimize(calc.molecule, target);
-            } else if (calc.param.tdksprop()) {
-                print("\n\n Propagation of Kohn-Sham equation                      ");
-                print(" ----------------------------------------------------------\n");
-//          calc.propagate(world,VextCosFunctor<double>(world,new DipoleFunctor(2),0.1),0);
-                calc.propagate(world, 0.1, 0);
             } else {
                 MolecularEnergy E(world, calc);
                 double energy = E.value(calc.molecule.get_all_coords().flat()); // ugh!
@@ -176,7 +171,6 @@ int main(int argc, char **argv) {
 
                 if (calc.param.derivatives()) calc.derivatives(world, rho);
                 if (calc.param.dipole()) calc.dipole(world, rho);
-                if (calc.param.response()) calc.polarizability(world);
             }
 
             //        if (calc.param.twoint) {

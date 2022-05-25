@@ -328,18 +328,6 @@ public:
 	functionT make_density(World & world, const tensorT & occ, const cvecfuncT & v);
 
 	std::vector<poperatorT> make_bsh_operators(World & world, const tensorT & evals) const;
-	std::vector<poperatorT> make_gradbsh_operators(World & world,
-			const tensorT & evals, const int axis) const;
-
-	/// apply the HF exchange on a set of orbitals
-
-	/// @param[in]  world   the world
-	/// @param[in]  occ     occupation numbers
-	/// @param[in]  psi     the orbitals in the exchange operator
-	/// @param[in]  f       the orbitals |i> that the operator is applied on
-	/// @return     a vector of orbitals  K| i>
-	vecfuncT apply_hf_exchange(World & world, const tensorT & occ,
-			const vecfuncT & psi, const vecfuncT & f) const ;
 
 	// Used only for initial guess that is always spin-restricted LDA
 	static functionT make_lda_potential(World & world, const functionT & arho);
@@ -377,58 +365,6 @@ public:
 	tensorT make_fock_matrix(World & world, const vecfuncT & psi,
 			const vecfuncT & Vpsi, const tensorT & occ,
 			double & ekinetic) const;
-
-	/// Begin functions for polarizability
-	void update_response_subspace(World & world,
-			vecfuncT & ax, vecfuncT & ay,
-			vecfuncT & bx, vecfuncT & by,
-			vecfuncT & rax, vecfuncT & ray,
-			vecfuncT & rbx, vecfuncT & rby,
-			subspaceT & subspace, tensorT & Q, double & update_residual);
-
-
-	vecfuncT apply_potential_response(World & world, const vecfuncT & dmo,
-			const XCOperator<double,3>& xc,  const functionT & vlocal, int ispin);
-	void this_axis(World & world, const int axis);
-	vecfuncT calc_dipole_mo(World & world,  vecfuncT & mo, const int axis);
-	void calc_freq(World & world, double & omega, tensorT & ak, tensorT & bk, int sign);
-	void make_BSHOperatorPtr(World & world, tensorT & ak, tensorT & bk,
-			std::vector<poperatorT> & aop, std::vector<poperatorT> & bop);
-	functionT make_density_ground(World & world, functionT & arho, functionT & brho);
-
-	functionT make_derivative_density(World & world, const vecfuncT & mo,
-			const tensorT & occ ,
-			const vecfuncT & x, const vecfuncT & y);
-	functionT calc_exchange_function(World & world,  const int & p,
-			const vecfuncT & dmo1,  const vecfuncT & dmo2,
-			const vecfuncT & mo, int & spin);
-	vecfuncT calc_xc_function(World & world, XCOperator<double,3>& xc_alda,
-			const vecfuncT & mo,  const functionT & drho);
-	vecfuncT calc_djkmo(World & world, XCOperator<double,3>& xc_alda, const vecfuncT & dmo1,
-			const vecfuncT & dmo2,  const functionT & drho, const vecfuncT & mo,
-			const functionT & drhos,
-			int  spin);
-	vecfuncT calc_rhs(World & world, const vecfuncT & mo ,
-			const vecfuncT & Vdmo,
-			const vecfuncT & dipolemo, const vecfuncT & djkmo );
-	void calc_response_function(World & world, vecfuncT & dmo,
-			std::vector<poperatorT> & op, vecfuncT & rhs);
-	void orthogonalize_response(World & world, vecfuncT & dmo, vecfuncT & mo );
-
-	void dpolar(World & world, tensorT & polar, functionT & drho, const int axis);
-
-	void calc_dpolar(World & world,
-			const vecfuncT & ax, const vecfuncT & ay,
-			const vecfuncT & bx, const vecfuncT & by,
-			const int axis,
-			tensorT & Dpolar_total, tensorT & Dpolar_alpha, tensorT & Dpolar_beta);
-	double residual_response(World & world, const vecfuncT & x,const  vecfuncT & y,
-			const vecfuncT & x_old, const vecfuncT & y_old,
-			vecfuncT & rx, vecfuncT & ry);
-
-	void polarizability(World & world);
-	/// End functions for polarizability
-
 
 	/// make the Coulomb potential given the total density
 	functionT make_coulomb_potential(const functionT& rho) const {
@@ -510,9 +446,6 @@ public:
 
 
 
-	void propagate(World& world, double omega, int step0);
-
-
 	complex_functionT APPLY(const complex_operatorT* q1d, const complex_functionT& psi) {
 		complex_functionT r = psi;  // Shallow copy violates constness !!!!!!!!!!!!!!!!!
 		coordT lo, hi;
@@ -530,12 +463,6 @@ public:
 
 		return r;
 	}
-
-
-	void iterate_trotter(World& world, Convolution1D<double_complex>* G,
-			cvecfuncT& camo, cvecfuncT& cbmo, double t, double time_step,
-			double thresh);
-
 
 	// For given protocol, solve the DFT/HF/response equations
 	void solve(World & world);
