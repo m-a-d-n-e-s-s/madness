@@ -62,6 +62,7 @@
 #  endif
 #endif
 
+using namespace madchem;
 namespace madness {
 
 //    // moved to vmra.h
@@ -209,8 +210,21 @@ SCF::SCF(World& world, const commandlineparser& parser) : param(CalculationParam
 }
 
 
+void SCF::copy_data(World& world, const SCF& other) {
+    aeps=copy(other.aeps);
+    beps=copy(other.beps);
+    aocc=copy(other.aocc);
+    bocc=copy(other.bocc);
+    amo=copy(world,other.amo);
+    bmo=copy(world,other.bmo);
+    aset=other.aset;
+    bset=other.bset;
+    ao=copy(world,other.ao);
+    at_to_bf=other.at_to_bf;
+    at_nbf=other.at_nbf;
+}
 void SCF::save_mos(World& world) {
-  PROFILE_MEMBER_FUNC(SCF);
+    PROFILE_MEMBER_FUNC(SCF);
   archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, "restartdata", param.get<int>("nio"));
   // IF YOU CHANGE ANYTHING HERE MAKE SURE TO UPDATE THIS VERSION NUMBER
   /*
@@ -560,116 +574,6 @@ distmatT SCF::kinetic_energy_matrix(World & world, const vecfuncT & v) const {
 	r *= 0.5;
 	//tensorT p(v.size(),v.size());
 	//r.copy_to_replicated(p);
-	return r;
-}
-
-distmatT SCF::kinetic_energy_matrix(World & world, const vecfuncT & vbra, const vecfuncT & vket) const {
-	PROFILE_MEMBER_FUNC(SCF);
-	MADNESS_ASSERT(vbra.size() == vket.size());
-	int n = vbra.size();
-	distmatT r = column_distributed_matrix<double>(world, n, n);
-	reconstruct(world, vbra);
-	reconstruct(world, vket);
-	vecfuncT dvx_bra = apply(world, *(gradop[0]), vbra, false);
-	vecfuncT dvy_bra = apply(world, *(gradop[1]), vbra, false);
-	vecfuncT dvz_bra = apply(world, *(gradop[2]), vbra, false);
-	vecfuncT dvx_ket = apply(world, *(gradop[0]), vket, false);
-	vecfuncT dvy_ket = apply(world, *(gradop[1]), vket, false);
-	vecfuncT dvz_ket = apply(world, *(gradop[2]), vket, false);
-	world.gop.fence();
-	compress(world,dvx_bra,false);
-	compress(world,dvy_bra,false);
-	compress(world,dvz_bra,false);
-	compress(world,dvx_ket,false);
-	compress(world,dvy_ket,false);
-	compress(world,dvz_ket,false);
-	world.gop.fence();
-	r += matrix_inner(r.distribution(), dvx_bra, dvx_ket, true);
-	r += matrix_inner(r.distribution(), dvy_bra, dvy_ket, true);
-	r += matrix_inner(r.distribution(), dvz_bra, dvz_ket, true);
-	r *= 0.5;
-	return r;
-}
-
-vecfuncT SCF::core_projection(World & world, const vecfuncT & psi,
-		const bool include_Bc) {
-	PROFILE_MEMBER_FUNC(SCF);
-	int npsi = psi.size();
-	if (npsi == 0)
-		return psi;
-	size_t natom = molecule.natom();
-	vecfuncT proj = zero_functions_compressed<double, 3>(world, npsi);
-	tensorT overlap_sum(static_cast<long>(npsi));
-
-	for (size_t i = 0; i < natom; ++i) {
-		Atom at = molecule.get_atom(i);
-		unsigned int atn = at.atomic_number;
-		unsigned int nshell = molecule.n_core_orb(atn);
-		if (nshell == 0)
-			continue;
-		for (unsigned int c = 0; c < nshell; ++c) {
-			unsigned int l = molecule.get_core_l(atn, c);
-			int max_m = (l + 1) * (l + 2) / 2;
-			nshell -= max_m - 1;
-			for (int m = 0; m < max_m; ++m) {
-				functionT core = factoryT(world).functor(
-						functorT(new CoreOrbitalFunctor(molecule, i, c, m)));
-				tensorT overlap = inner(world, core, psi);
-				overlap_sum += overlap;
-				for (int j = 0; j < npsi; ++j) {
-					if (include_Bc)
-						overlap[j] *= molecule.get_core_bc(atn, c);
-					proj[j] += core.scale(overlap[j]);
-				}
-			}
-		}
-		world.gop.fence();
-	}
-	if (world.rank() == 0 and param.print_level()>3)
-		print("sum_k <core_k|psi_i>:", overlap_sum);
-	return proj;
-}
-
-double SCF::core_projector_derivative(World & world, const vecfuncT & mo,
-		const tensorT & occ, int atom, int axis) {
-	PROFILE_MEMBER_FUNC(SCF);
-	vecfuncT cores, dcores;
-	std::vector<double> bc;
-	unsigned int atn = molecule.get_atom(atom).atomic_number;
-	unsigned int ncore = molecule.n_core_orb(atn);
-
-	// projecting core & d/dx core
-	for (unsigned int c = 0; c < ncore; ++c) {
-		unsigned int l = molecule.get_core_l(atn, c);
-		int max_m = (l + 1) * (l + 2) / 2;
-		for (int m = 0; m < max_m; ++m) {
-			functorT func = functorT(
-					new CoreOrbitalFunctor(molecule, atom, c, m));
-			cores.push_back(
-					functionT(
-							factoryT(world).functor(func).truncate_on_project()));
-			func = functorT(
-					new CoreOrbitalDerivativeFunctor(molecule, atom, axis, c,
-							m));
-			dcores.push_back(
-					functionT(
-							factoryT(world).functor(func).truncate_on_project()));
-			bc.push_back(molecule.get_core_bc(atn, c));
-		}
-	}
-
-	// calc \sum_i occ_i <psi_i|(\sum_c Bc d/dx |core><core|)|psi_i>
-	double r = 0.0;
-	for (unsigned int c = 0; c < cores.size(); ++c) {
-		double rcore = 0.0;
-		tensorT rcores = inner(world, cores[c], mo);
-		tensorT rdcores = inner(world, dcores[c], mo);
-		for (unsigned int i = 0; i < mo.size(); ++i) {
-			rcore += rdcores[i] * rcores[i] * occ[i];
-		}
-		r += 2.0 * bc[c] * rcore;
-	}
-
 	return r;
 }
 
@@ -1515,39 +1419,6 @@ tensorT SCF::derivatives(World & world, const functionT& rho) const {
 		}
 	}
 	return r;
-}
-
-void SCF::dipole_matrix_elements(World& world, const vecfuncT & mo, const tensorT& occ,
-		const tensorT& energy, int spin) {
-	START_TIMER(world);
-	int nmo = mo.size();
-	tensorT mat_el(3, nmo, nmo);
-	for (int axis = 0; axis < 3; ++axis) {
-		functionT fdip = factoryT(world).functor(
-				functorT(new DipoleFunctor(axis)));
-		mat_el(axis, _, _) = matrix_inner(world, mo, mul_sparse(world, fdip, mo, vtol), true);
-	}
-
-	double ha2ev=27.211396132;
-	FILE *f=0;
-	if (spin==0){
-		f = fopen("mat_els_alpha.dat", "w");}
-	else{
-		f = fopen("mat_els_beta.dat", "w");}
-	fprintf(f, "#initial | Energy (eV) | final  | Energy (eV) | Matrix el.  | Trans. E (eV)\n");
-	fprintf(f, "%4i  %4i\n", nmo, nmo);
-	fprintf(f, "%2i\n", 1);
-	fprintf(f, "%13.8f\n", 0.0);
-	for (int axis = 0; axis < 3; ++axis) {
-		fprintf(f, "# Cartesian component %2i\n", axis+1);
-		for (int i = 0; i < nmo; ++i) {
-			for (int j = 0; j < nmo; ++j) {
-				fprintf(f, "%4i\t %13.8f\t %4i\t %13.8f\t %13.8f\t %13.8f\n", i+1, energy(i)*ha2ev, j+1, energy(j)*ha2ev, mat_el(axis,i,j), (energy(j)-energy(i))*ha2ev);
-			}
-		}
-	}
-	fclose(f);
-	END_TIMER(world, "Matrix elements");
 }
 
 tensorT SCF::dipole(World & world, const functionT& rho) const {
@@ -2583,12 +2454,6 @@ void SCF::solve(World & world) {
 	     }
      }
 
-	if (param.get<bool>("print_dipole_matels")) {
-		dipole_matrix_elements(world, amo, aocc, aeps, 0);
-		if (param.nbeta() != 0 && !param.spin_restricted()) {
-			dipole_matrix_elements(world, bmo, bocc, beps, 1);
-		}
-	}
 }        // end solve function
 
 

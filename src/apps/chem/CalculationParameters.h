@@ -102,7 +102,6 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<bool> ("dipole",false,"if true calculate dipole moment");
 		initialize<bool> ("conv_only_dens",false,"if true remove bsh_residual from convergence criteria (deprecated)");
 		initialize<bool> ("psp_calc",false,"pseudopotential calculation for all atoms");
-		initialize<bool> ("print_dipole_matels",false,"if true output dipole matrix elements");
 		initialize<std::string> ("pcm_data","none","do a PCM (solvent) calculation");
 		initialize<std::string> ("ac_data","none","do a calculation with asymptotic correction (see ACParameters class in chem/AC.h for details)");
 		initialize<bool> ("pure_ae",true,"pure all electron calculation with no pseudo-atoms");

@@ -39,6 +39,7 @@
 #include<typeinfo>
 
 using namespace madness;
+using namespace madchem;
 
 bool smalltest = false;
 

@@ -44,6 +44,7 @@
 
 #include <memory>
 
+#include <chem/molecular_functors.h>
 #include <madness/mra/mra.h>
 
 #include <chem/CalculationParameters.h>
@@ -59,7 +60,6 @@
 #include <madness/tensor/distributed_matrix.h>
 #include <chem/pcm.h>
 #include <chem/QCPropertyInterface.h>
-
 
 #include <external_headers/tensor_json.hpp>
 #include <memory>
@@ -82,6 +82,24 @@ typedef Function<std::complex<double>,3> complex_functionT;
 typedef std::vector<complex_functionT> cvecfuncT;
 typedef Convolution1D<double_complex> complex_operatorT;
 
+
+template <typename T, int NDIM>
+struct lbcost {
+    double leaf_value;
+    double parent_value;
+    lbcost(double leaf_value=1.0, double parent_value=0.0) : leaf_value(leaf_value), parent_value(parent_value) {}
+    double operator()(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) const {
+        if (key.level() < 1) {
+            return 100.0*(leaf_value+parent_value);
+        }
+        else if (node.is_leaf()) {
+            return leaf_value;
+        }
+        else {
+            return parent_value;
+        }
+    }
+};
 
 
 inline double mask1(double x) {
@@ -121,121 +139,6 @@ static double mask3(const coordT& ruser) {
 	return result;
 }
 
-class MolecularGuessDensityFunctor : public FunctionFunctorInterface<double,3> {
-private:
-	const Molecule& molecule;
-	const AtomicBasisSet& aobasis;
-public:
-	MolecularGuessDensityFunctor(const Molecule& molecule, const AtomicBasisSet& aobasis)
-: molecule(molecule), aobasis(aobasis) {}
-
-	double operator()(const coordT& x) const {
-		return aobasis.eval_guess_density(molecule, x[0], x[1], x[2]);
-	}
-
-	std::vector<coordT> special_points() const {return molecule.get_all_coords_vec();}
-};
-
-
-class AtomicBasisFunctor : public FunctionFunctorInterface<double,3> {
-private:
-	const AtomicBasisFunction aofunc;
-
-public:
-	AtomicBasisFunctor(const AtomicBasisFunction& aofunc)
-: aofunc(aofunc)
-{}
-
-	double operator()(const coordT& x) const {
-		return aofunc(x[0], x[1], x[2]);
-	}
-
-	std::vector<coordT> special_points() const {
-		return std::vector<coordT>(1,aofunc.get_coords_vec());
-	}
-};
-
-
-class AtomicAttractionFunctor : public FunctionFunctorInterface<double,3> {
-private:
-	const Molecule& molecule;
-	const int iatom;
-
-public:
-	AtomicAttractionFunctor(const Molecule& molecule, int iatom)
-: molecule(molecule), iatom(iatom) {}
-
-	double operator()(const coordT& x) const {
-		const Atom& atom=molecule.get_atom(iatom);
-		const coordT coord={atom.x,atom.y,atom.z};
-		double r = (x-coord).normf();
-		return -atom.q * smoothed_potential(r*molecule.get_rcut()[iatom])
-		*molecule.get_rcut()[iatom];
-	}
-
-	std::vector<coordT> special_points() const {
-		return std::vector<coordT>(1,molecule.get_atom(iatom).get_coords());
-	}
-};
-
-class MolecularDerivativeFunctor : public FunctionFunctorInterface<double,3> {
-private:
-	const Molecule& molecule;
-	const int atom;
-	const int axis;
-
-public:
-	MolecularDerivativeFunctor(const Molecule& molecule, int atom, int axis)
-: molecule(molecule), atom(atom), axis(axis)
-{}
-
-	double operator()(const coordT& x) const {
-		return molecule.nuclear_attraction_potential_derivative(atom, axis, x[0], x[1], x[2]);
-	}
-
-	std::vector<coordT> special_points() const {
-		return std::vector<coordT>(1,molecule.get_atom(atom).get_coords());
-	}
-};
-
-class MolecularSecondDerivativeFunctor : public FunctionFunctorInterface<double,3> {
-private:
-	const Molecule& molecule;
-	const int atom;
-	const int iaxis, jaxis;
-
-public:
-	MolecularSecondDerivativeFunctor(const Molecule& molecule, int atom,
-			int iaxis, int jaxis)
-: molecule(molecule), atom(atom),iaxis(iaxis), jaxis(jaxis)
-{}
-
-	double operator()(const coordT& x) const {
-		return molecule.nuclear_attraction_potential_second_derivative(atom,
-				iaxis, jaxis, x[0], x[1], x[2]);
-	}
-
-	std::vector<coordT> special_points() const {
-		return std::vector<coordT>(1,molecule.get_atom(atom).get_coords());
-	}
-};
-
-
-class CorePotentialDerivativeFunctor : public FunctionFunctorInterface<double,3> {
-private:
-	const Molecule& molecule;
-	const int atom;
-	const int axis;
-	std::vector<coordT> specialpt;
-public:
-	CorePotentialDerivativeFunctor(const Molecule& molecule, int atom, int axis)
-: molecule(molecule), atom(atom), axis(axis) {}
-
-	double operator()(const coordT& r) const {
-		return molecule.core_potential_derivative(atom, axis, r[0], r[1], r[2]);
-	}
-};
-
 /// A MADNESS functor to compute either x, y, or z
 class DipoleFunctor : public FunctionFunctorInterface<double,3> {
 private:
@@ -262,44 +165,6 @@ public:
 		for (int p=0; p<j; ++p) yj *= r[1];
 		for (int p=0; p<k; ++p) zk *= r[2];
 		return xi*yj*zk;
-	}
-};
-
-/// A generic functor to compute external potential for TDDFT
-template<typename T>
-class VextCosFunctor {
-	double _omega;
-	Function<T,3> _f;
-public:
-	VextCosFunctor(World& world,
-			//        const std::shared_ptr<FunctionFunctorInterface<T,3> >& functor,
-			const FunctionFunctorInterface<T,3>* functor,
-			double omega) : _omega(omega)
-{
-		//      _f = factoryT(world).functor(functor);
-		_f = factoryT(world).functor(functorT(new DipoleFunctor(2)));
-}
-	Function<T,3> operator()(const double t) const {
-		return std::cos(_omega * t) * _f;
-	}
-};
-
-
-template <typename T, int NDIM>
-struct lbcost {
-	double leaf_value;
-	double parent_value;
-	lbcost(double leaf_value=1.0, double parent_value=0.0) : leaf_value(leaf_value), parent_value(parent_value) {}
-	double operator()(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) const {
-		if (key.level() < 1) {
-			return 100.0*(leaf_value+parent_value);
-		}
-		else if (node.is_leaf()) {
-			return leaf_value;
-		}
-		else {
-			return parent_value;
-		}
 	}
 };
 
@@ -346,19 +211,7 @@ public:
 //	SCF(World& world, const std::string& inputfile);
     SCF(World& world, const commandlineparser& parser);
 
-	void copy_data(World& world, const SCF& other) {
-	    aeps=copy(other.aeps);
-        beps=copy(other.beps);
-        aocc=copy(other.aocc);
-        bocc=copy(other.bocc);
-        amo=copy(world,other.amo);
-        bmo=copy(world,other.bmo);
-        aset=other.aset;
-        bset=other.bset;
-        ao=copy(world,other.ao);
-        at_to_bf=other.at_to_bf;
-        at_nbf=other.at_nbf;
-    }
+	void copy_data(World& world, const SCF& other);
 
 	template<std::size_t NDIM>
 	void set_protocol(World & world, double thresh)
@@ -465,12 +318,6 @@ public:
 			const tensorT & energy = tensorT(), const std::vector<int> & set = std::vector<int>());
 
 	distmatT kinetic_energy_matrix(World & world, const vecfuncT & v) const;
-	distmatT kinetic_energy_matrix(World & world, const vecfuncT & vbra, const vecfuncT & vket) const;
-
-	vecfuncT core_projection(World & world, const vecfuncT & psi, const bool include_Bc = true);
-
-	double core_projector_derivative(World & world, const vecfuncT & mo,
-			const tensorT & occ, int atom, int axis);
 
 	void initial_guess(World & world);
 
@@ -520,9 +367,6 @@ public:
 	/// @param[in]  rho the total (alpha + beta) density
 	/// @return     the x,y,z components of the el. + nucl. dipole moment
 	tensorT dipole(World & world, const functionT& rho) const;
-
-	void dipole_matrix_elements(World & world, const vecfuncT & mo, const tensorT & occ = tensorT(),
-			const tensorT & energy = tensorT(), int spin=0);
 
 	void vector_stats(const std::vector<double> & v, double & rms,
 			double & maxabsval) const;

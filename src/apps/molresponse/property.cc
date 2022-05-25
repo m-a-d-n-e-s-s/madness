@@ -7,7 +7,7 @@
 #include <algorithm>
 #include <vector>
 
-
+using namespace madchem;
 
 
 PropertyBase::PropertyBase() : num_operators(0), operator_vector() {}

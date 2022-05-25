@@ -54,6 +54,7 @@
 #include <madness/mra/macrotaskq.h>
 
 
+using namespace madchem;
 namespace madness {
 
 struct dens_inv{

@@ -30,6 +30,7 @@
 #include <string>
 #include <utility>
 
+using namespace madchem;
 
 // The TDDFT constructor initializes the preliminary calculation details including
 // the Chi vectors and the PQ vectors if they are required
