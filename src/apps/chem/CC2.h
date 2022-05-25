@@ -73,6 +73,14 @@ public:
     }
 
 
+    double value() {
+        return value(nemo->molecule().get_all_coords());
+    }
+
+    double value(const Tensor<double>& x) {
+        solve();
+    }
+
     std::string name() const {return "CC2";};
 
     virtual bool selftest() {
@@ -98,8 +106,7 @@ public:
     CCMessenger& output;
 
     /// solve the CC2 ground state equations, returns the correlation energy
-    void
-    solve();
+    void solve();
 
     std::vector<CC_vecfunction>
     solve_ccs();
