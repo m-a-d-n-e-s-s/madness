@@ -2476,6 +2476,145 @@ X_space ExcitedResponse::create_virtual_ao_guess(World &world) const {
     Tensor<double> virtual_e(e_a.size() - num_negative);
     std::copy(first_positive, e_a.ptr() + e_a.size(), virtual_e.ptr());
     std::copy(phi_a.begin() + num_negative, phi_a.end(), virtual_phi.begin());
+
+    phi_a = virtual_phi;
+    e_a = virtual_e;
+
+
+    auto t = xao.size() * r_params.num_orbitals();
+    auto no = r_params.num_orbitals();
+
+    X_space x_guess(world, t, no);
+
+    int k = 0;
+    std::for_each(phi_a.begin(), phi_a.end(), [&](const auto virt) {
+        for (int j = 0; j < no; j++) { x_guess.X[k++][j] = copy(virt); }
+    });
+
+    return x_guess;
+}
+/**
+ * Create Virtual Space Excited State Guess from atomic orbitals
+ * @param world
+ * @return
+ */
+X_space ExcitedResponse::create_response_guess(World &world) const {
+
+    print("thresh : ", FunctionDefaults<3>::get_thresh());
+    print("k : ", FunctionDefaults<3>::get_k());
+    auto phi_0 = copy(world, ground_orbitals);
+    print("Ground Orbital norms: ", norm2s_T(world, phi_0));
+    auto ao_basis_set = AtomicBasisSet{"6-31g"};
+    ao_basis_set.print(molecule);
+
+    vecfuncT ao_vec = vecfuncT(ao_basis_set.nbf(molecule));
+
+    for (int i = 0; i < ao_basis_set.nbf(molecule); ++i) {
+        functorT aofunc(
+                new AtomicBasisFunctor(ao_basis_set.get_atomic_basis_function(molecule, i)));
+        ao_vec[i] = factoryT(world).functor(aofunc);
+    }
+    world.gop.fence();
+    print("number of ao_basis_functions: ", ao_vec.size());
+
+    madness::print("norm of ao basis functions: ", norm2s_T(world, ao_vec));
+
+    QProjector<double, 3> projector(world, phi_0);
+
+    // project ground_state from each atomic orbital basis
+    std::transform(ao_vec.begin(), ao_vec.end(), ao_vec.begin(),
+                   [&](auto &f) { return projector(f); });
+    print("overlap between phi0: ", matrix_inner(world, phi_0, ao_vec));
+    madness::print("norm of ao basis after projection: ", norm2s_T(world, ao_vec));
+    print("number of ao_basis_functions: ", ao_vec.size());
+    auto overlap_S = matrix_inner(world, ao_vec, ao_vec);
+    print("Overlap S : \n", overlap_S);
+    Tensor<double> U, sigma, VT;
+    //S=U*sigma*VT
+    svd(overlap_S, U, sigma, VT);
+    print("singular values of overlap: \n", sigma);
+    print("left singular vectors of overlap:\n", U);
+    print("right singular vectors of overlap:\n", VT);
+    auto xao = transform(world, ao_vec, U);
+    auto overlap_SU = matrix_inner(world, xao, xao);
+    print("Overlap S after transform : \n", overlap_SU);
+
+    // copy pao to xao response space vector
+
+    auto xc = make_xc_operator(world);
+    // now compute the fock potential
+    // kinetic energy
+    auto F = [&](vector_real_function_3d x) {
+        size_t num_orbs = x.size();
+        real_derivative_3d Dx(world, 0);
+        real_derivative_3d Dy(world, 1);
+        real_derivative_3d Dz(world, 2);
+        vector_real_function_3d dvx = apply(world, Dx, x);
+        vector_real_function_3d dvy = apply(world, Dy, x);
+        vector_real_function_3d dvz = apply(world, Dz, x);
+        // Apply again for 2nd derivatives
+        vector_real_function_3d dvx2 = apply(world, Dx, dvx);
+        vector_real_function_3d dvy2 = apply(world, Dy, dvy);
+        vector_real_function_3d dvz2 = apply(world, Dz, dvz);
+
+        auto T = (dvx2 + dvy2 + dvz2) * (-0.5);
+        real_function_3d v_nuc, v_j0, v_k0, v_xc;
+        v_nuc = potential_manager->vnuclear();
+        v_nuc.truncate();
+        // J^0 x^alpha
+        v_j0 = apply(*coulop, ground_density);
+        v_j0.scale(2.0);
+
+        if (xcf.hf_exchange_coefficient() != 1.0) {
+            v_xc = xc.make_xc_potential();
+        } else {
+            // make a zero function
+            v_xc = Function<double, 3>(
+                    FunctionFactory<double, 3>(world).fence(false).initial_level(1));
+        }
+
+        auto hf_exchange_X = zero_functions<double, 3>(world, num_orbs);
+        // hf exchange
+        std::transform(x.begin(), x.end(), hf_exchange_X.begin(), [&](auto &xi) {
+            auto f = Function<double, 3>(FunctionFactory<double, 3>(world));
+            std::accumulate(phi_0.begin(), phi_0.end(), f, [&](auto phi0, auto total) {
+                auto sum = apply(*coulop, xi * phi0) * phi0;
+                return total + sum;
+            });
+            return f;
+        });
+        vector_real_function_3d V0 = zero_functions<double, 3>(world, num_orbs);
+        real_function_3d v0 = v_j0 + v_nuc + v_xc;
+        V0 = v0 * x;
+        V0 += (-1 * hf_exchange_X * xcf.hf_exchange_coefficient());
+
+        return T + V0;
+    };
+
+    auto phi_a = copy(world, xao);
+    Tensor<double> e_a;
+    for (int i = 0; i < 1; i++) {
+        auto Fx = F(phi_a);
+        auto xFx = matrix_inner(world, phi_a, Fx);
+        auto [e, C] = syev(xFx);
+        print("eigs  : \n", e);
+        phi_a = transform(world, phi_a, C);
+        projector(phi_a);
+        e_a = e;
+    }
+
+    print("ground_orb energies  : \n", ground_energies);
+    print("virtual orbital energies  : \n", e_a);
+    print("norm of virtual ", norm2s_T(world, phi_a));
+    e_a = e_a.flat();
+    auto is_positive = [](auto num) { return num > 0; };
+    // This seems dumb but i'm removing the negative vectors
+    auto first_positive = std::find_if(e_a.ptr(), e_a.ptr() + e_a.size(), is_positive);
+    auto num_negative = std::distance(e_a.ptr(), first_positive);
+    auto virtual_phi = vector_real_function_3d(phi_a.size() - num_negative);
+    Tensor<double> virtual_e(e_a.size() - num_negative);
+    std::copy(first_positive, e_a.ptr() + e_a.size(), virtual_e.ptr());
+    std::copy(phi_a.begin() + num_negative, phi_a.end(), virtual_phi.begin());
     phi_a = virtual_phi;
     e_a = virtual_e;
     auto SOA = matrix_inner(world, phi_0, phi_a);

@@ -107,7 +107,6 @@ void FrequencyResponse::iterate(World &world) {
             // Test convergence and set to true
             print("dconv: ", dconv);
             if ((d_residual < d_conv) and
-
                 ((std::max(bsh_residualsX.absmax(), bsh_residualsY.absmax()) < d_conv * 5.0) or
                  r_params.get<bool>("conv_only_dens"))) {
                 converged = true;

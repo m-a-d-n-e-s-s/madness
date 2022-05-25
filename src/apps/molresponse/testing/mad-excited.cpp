@@ -63,7 +63,7 @@ int main(int argc, char *argv[]) {
         excited_schema.print();
 
         try {
-            bool success = runExcited(world, excited_schema, true);
+            bool success = runExcited(world, excited_schema, false);
 
         } catch (const SafeMPI::Exception &e) {
             print(e);

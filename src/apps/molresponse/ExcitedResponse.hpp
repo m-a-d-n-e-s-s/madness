@@ -154,6 +154,7 @@ private:
             World& world, X_space& Chi, XCOperator<double, 3>& xc, QProjector<double, 3>& projector,
             NonLinearXsolver& kain_x_space, vector<X_vector>& Xvector, vector<X_vector>& Xresidual,
             size_t iter, Tensor<double>& maxrotn);
+    X_space create_response_guess(World& world) const;
 };
 
 class ExcitedTester {

@@ -466,7 +466,8 @@ void runMOLDFT(World &world, const moldftSchema &mschema, bool try_run, bool res
     param1.set_user_defined_value("maxiter", 11);
     param1.set_user_defined_value<std::string>("xc", mschema.xc);
     param1.set_user_defined_value<double>("l", 200);
-    param1.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6});
+    param1.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6, 1e-8});
+    param1.set_user_defined_value<double>("dconv", 1e-6);
     param1.set_user_defined_value<std::string>("localize", "new");
 
     CalculationParameters param_calc;
@@ -521,7 +522,7 @@ void runMOLDFT(World &world, const std::string &mol_path, const std::string &xc)
     param1.set_user_defined_value("maxiter", 10);
     param1.set_user_defined_value<std::string>("xc", xc);
     param1.set_user_defined_value<double>("l", 200);
-    param1.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6});
+    param1.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6, 1e-8});
     param1.set_user_defined_value<std::string>("localize", "canon");
     // write restart file
     // write restart file
@@ -587,7 +588,7 @@ void initialize_excited_restart(World &world, const std::string &filename, const
  */
 void set_excited_parameters(ResponseParameters &r_params, const std::string &xc,
                             const size_t &num_states) {
-    r_params.set_user_defined_value<vector<double>>("protocol", {1e-4,1e-6});
+    r_params.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6});
     r_params.set_user_defined_value("archive", std::string("../restartdata"));
     r_params.set_user_defined_value("maxiter", size_t(8));
     r_params.set_user_defined_value("maxsub",
