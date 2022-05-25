@@ -2312,7 +2312,7 @@ namespace madness {
 
                 Vector<Translation,NDIM> l;
                 for (std::size_t i=0; i<NDIM; ++i) l[map[i]] = key.translation()[i];
-                tensorT c = node.coeff().full_tensor_copy();
+                tensorT c = node.coeff().reconstruct_tensor();
                 if (c.size()) c = copy(c.mapdim(map));
                 coeffT cc(c,f->get_tensor_args());
                 f->get_coeffs().replace(keyT(key.level(),l), nodeT(cc,node.has_children()));
@@ -2859,7 +2859,7 @@ namespace madness {
                 MADNESS_ASSERT(it != left->coeffs.end());
                 lnorm = it->second.get_norm_tree();
                 if (it->second.has_coeff())
-                    lc = it->second.coeff().full_tensor_copy();
+                    lc = it->second.coeff().reconstruct_tensor();
             }
 
             Tensor<R> rc = rcin;
@@ -2868,7 +2868,7 @@ namespace madness {
                 MADNESS_ASSERT(it != right->coeffs.end());
                 rnorm = it->second.get_norm_tree();
                 if (it->second.has_coeff())
-                    rc = it->second.coeff().full_tensor_copy();
+                    rc = it->second.coeff().reconstruct_tensor();
             }
 
             // both nodes are leaf nodes: multiply and return
@@ -2942,7 +2942,7 @@ namespace madness {
                 literT it = left->coeffs.find(key).get();
                 MADNESS_ASSERT(it != left->coeffs.end());
                 if (it->second.has_coeff())
-                    lc = it->second.coeff().full_tensor_copy();
+                    lc = it->second.coeff().reconstruct_tensor();
             }
 
             Tensor<R> rc = rcin;
@@ -2950,7 +2950,7 @@ namespace madness {
                 riterT it = right->coeffs.find(key).get();
                 MADNESS_ASSERT(it != right->coeffs.end());
                 if (it->second.has_coeff())
-                    rc = it->second.coeff().full_tensor_copy();
+                    rc = it->second.coeff().reconstruct_tensor();
             }
 
             if (rc.size() && lc.size()) { // Yipee!
@@ -3026,7 +3026,7 @@ namespace madness {
                       const FunctionImpl<Q,NDIM>* func, const opT& op) {
 
             //            const Tensor<Q>& fc = func->coeffs.find(key).get()->second.full_tensor_copy();
-            const Tensor<Q> fc = func->coeffs.find(key).get()->second.coeff().full_tensor_copy();
+            const Tensor<Q> fc = func->coeffs.find(key).get()->second.coeff().reconstruct_tensor();
 
             if (fc.size() == 0) {
                 // Recur down
@@ -6187,7 +6187,7 @@ namespace madness {
                 literT it = left->coeffs.find(key).get();
                 MADNESS_ASSERT(it != left->coeffs.end());
                 if (it->second.has_coeff())
-                    lc = it->second.coeff().full_tensor_copy();
+                    lc = it->second.coeff().reconstruct_tensor();
             }
 
             // Compute this node's coefficients if not provided in function call
