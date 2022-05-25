@@ -618,7 +618,8 @@ void set_excited_parameters(ResponseParameters &r_params, const std::string &xc,
 void set_and_write_frequency_response_parameters(ResponseParameters &r_params,
                                                  const std::string &property, const std::string &xc,
                                                  const double &frequency) {
-    r_params.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6});
+    r_params.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6,1e-8});
+    r_params.set_user_defined_value("dconv", 1e-6);
     r_params.set_user_defined_value("archive", std::string("../restartdata"));
     r_params.set_user_defined_value("maxiter", size_t(10));
     r_params.set_user_defined_value("maxsub", size_t(10));
