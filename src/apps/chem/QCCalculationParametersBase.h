@@ -283,7 +283,7 @@ protected:
                                                     const commandlineparser& parser,
                                                     const std::string tag) {
         read_input(world,parser.value("input"),tag);
-        assign_commandline_options(world,parser,tag);
+        read_commandline_options(world,parser,tag);
     }
 
 private:
@@ -293,9 +293,8 @@ private:
 	/// so we don't need to serialize the ParameterMap
 	void read_input(World& world, const std::string filename, const std::string tag);
 
-    virtual void assign_commandline_options(World& world, const commandlineparser& parser, const std::string tag) {
-        std::cout << "\n\nneed to implement commandline options !! \n\n" << std::endl;
-    };
+    void read_commandline_options(World& world, const commandlineparser& parser, const std::string tag);
+
 protected:
 
 

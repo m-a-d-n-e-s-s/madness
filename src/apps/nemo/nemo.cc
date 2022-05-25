@@ -54,6 +54,7 @@ using namespace madness;
 
 
 int main(int argc, char** argv) {
+    for (int i=0; i<argc; ++i) std::cout << argv[i] << std::endl;
     initialize(argc, argv);
     World world(SafeMPI::COMM_WORLD);
     if (world.rank() == 0) {
@@ -70,6 +71,7 @@ int main(int argc, char** argv) {
 
         commandlineparser parser(argc,argv);
         std::shared_ptr<Nemo> nemo(new Nemo(world,parser));
+
         if (world.rank()==0) nemo->get_param().print("dft","end");
 //        if (world.rank()==0) nemo->get_calc()->param.print("dft","end");
 

@@ -51,12 +51,37 @@ void QCCalculationParametersBase::read_input(World& world, const std::string fil
 
 	std::string filecontents, line;
 	if (world.rank()==0) {
-		std::ifstream f(filename.c_str());
-		while (std::getline(f,line)) filecontents+=line+"\n";
-	    read_internal(world, filecontents,tag);
+        try {
+            std::ifstream f(filename.c_str());
+            while (std::getline(f, line)) filecontents += line + "\n";
+            read_internal(world, filecontents, tag);
+        } catch (madness::MadnessException& e) {
+            std::cout << "could not find " << tag << " in file " << filename << std::endl;
+        }
     }
 	world.gop.broadcast_serializable(*this, 0);
 }
+
+/// read the parameters from the command line and broadcast
+
+/// syntax is: qcprogram --mp2='maxiter 10; freeze 1' --dft:maxiter=20 --Xmpi:debug=true
+/// the argument in quotes is the value of the parser keys
+void QCCalculationParametersBase::read_commandline_options(World& world, const commandlineparser& parser,
+														   const std::string tag) {
+	if (not parser.key_exists(tag)) return;
+	std::string value=parser.value(tag);
+	// turn this into a fake input file
+	if (world.rank()==0) {
+        std::string q="'";
+		std::replace_copy(value.begin(), value.end(), value.begin(), q.c_str()[0] , ' ');
+		std::replace_copy(value.begin(), value.end(), value.begin(), ';', '\n');
+		value=tag+"\n"+value+"\nend";
+		read_internal(world, value,tag);
+	}
+	world.gop.broadcast_serializable(*this, 0);
+}
+
+
 
 /// read the stream, starting from tag
 
@@ -64,7 +89,7 @@ void QCCalculationParametersBase::read_input(World& world, const std::string fil
 /// all others will be discarded.
 void QCCalculationParametersBase::read_internal(World& world, std::string& filecontents, std::string tag) {
 	std::stringstream f(filecontents);
-	position_stream_to_word(f, tag);
+	position_stream_to_word(f, tag, '#', true, true);
 	std::string line, key,value;
 
 	// read input lines
