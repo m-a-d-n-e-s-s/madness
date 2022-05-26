@@ -131,7 +131,7 @@ add_mad_library(chem MADCHEM_SOURCES MADCHEM_HEADERS "mra" "madness/chem/")
 add_mad_executable(plotxc "plotxc.cc;xcfunctional.h" "MADchem")
 
 # Install files
-install(FILES sto-3g sto-6g 6-31g coredata/mcp coredata/mcp2 coredata/mcp_guess
+install(FILES sto-3g sto-6g 6-31g coredata/mcp coredata/mcp2 coredata/mcp_guess structure_library
     DESTINATION "${MADNESS_INSTALL_DATADIR}"
     COMPONENT chem)
 
