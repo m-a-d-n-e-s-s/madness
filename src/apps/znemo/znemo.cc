@@ -65,6 +65,7 @@ int main(int argc, char** argv) {
 
     if (world.rank()==0) print(info::print_revision_information());
 
+    commandlineparser parser(argc,argv);
     bool value=true;
     bool analyze=false;
     bool write_input=false;
@@ -93,7 +94,7 @@ int main(int argc, char** argv) {
 
     try {
 
-        std::shared_ptr<Znemo> znemo(new Znemo(world));
+        std::shared_ptr<Znemo> znemo(new Znemo(world,parser));
 
     	// optimize the geometry if requested
     	if (znemo->get_cparam().gopt()) {
@@ -102,7 +103,7 @@ int main(int argc, char** argv) {
 //    		znemo->get_cparam().gprint(world);
 
     		Tensor<double> geomcoord = znemo->molecule().get_all_coords().flat();
-    		MolecularOptimizer geom(world,znemo);
+    		MolecularOptimizer geom(world,parser,znemo);
     		geom.parameters.set_derived_value<std::vector<std::string> >("remove_dof",
     				{"Tx","Ty","Tz","Rx","Ry"});
     		geom.parameters.print("geometry optimization parameters","end");
