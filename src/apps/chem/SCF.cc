@@ -177,7 +177,7 @@ SCF::SCF(World& world, const commandlineparser& parser) : param(CalculationParam
         //modify atomic charge for complete PSP calc or individual PS atoms
         for (size_t iatom = 0; iatom < molecule.natom(); iatom++) {
             if (molecule.get_pseudo_atom(iatom)) {
-                unsigned int an = molecule.get_atom_number(iatom);
+                unsigned int an = molecule.get_atomic_number(iatom);
                 double zeff = get_charge_from_file("gth.xml", an);
                 molecule.set_atom_charge(iatom, zeff);
             }
@@ -650,7 +650,7 @@ void SCF::initial_guess(World& world) {
                 for (size_t iatom = 0; iatom < molecule.natom(); iatom++) {
                     if (molecule.get_pseudo_atom(iatom)) {
                         double zeff = molecule.get_atom_charge(iatom);
-                        int atn = molecule.get_atom_number(iatom);
+                        int atn = molecule.get_atomic_number(iatom);
                         aobasis.modify_dmat_psp(atn, zeff);
                     }
                 }
