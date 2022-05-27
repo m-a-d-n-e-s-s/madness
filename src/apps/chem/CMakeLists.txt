@@ -16,6 +16,7 @@ set(MADCHEM_HEADERS
     corepotential.h
     correlationfactor.h
     diamagneticpotentialfactor.h
+    distpm.h
     electronic_correlation_factor.h
     ESInterface.h
     exchangeoperator.h
@@ -25,6 +26,7 @@ set(MADCHEM_HEADERS
     localizer.h
     masks_and_boxes.h
     molecularbasis.h
+    molecular_functors.h
     molecular_optimizer.h
     MolecularOrbitals.h
     molecule.h
@@ -46,6 +48,7 @@ set(MADCHEM_HEADERS
     potentialmanager.h
     projector.h
     QCCalculationParametersBase.h
+    QCPropertyInterface.h
     SCF.h
     SCFOperators.h
     SCFProtocol.h
@@ -102,7 +105,7 @@ else()
 endif()
 
 # Create the MADchem library
-add_mad_library(chem MADCHEM_SOURCES MADCHEM_HEADERS "mra" "chem/")
+add_mad_library(chem MADCHEM_SOURCES MADCHEM_HEADERS "mra" "madness/chem/")
 
   set(targetname MADchem)
 
@@ -128,7 +131,7 @@ add_mad_library(chem MADCHEM_SOURCES MADCHEM_HEADERS "mra" "chem/")
 add_mad_executable(plotxc "plotxc.cc;xcfunctional.h" "MADchem")
 
 # Install files
-install(FILES sto-3g sto-6g 6-31g coredata/mcp coredata/mcp2 coredata/mcp_guess
+install(FILES sto-3g sto-6g 6-31g coredata/mcp coredata/mcp2 coredata/mcp_guess structure_library
     DESTINATION "${MADNESS_INSTALL_DATADIR}"
     COMPONENT chem)
 

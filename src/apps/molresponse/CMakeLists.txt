@@ -29,7 +29,7 @@ set(MOLRESPONSE_HEADERS
         response_parameters.h
         )
 # Create the MADchem library
-add_mad_library(response MOLRESPONSE_SOURCES MOLRESPONSE_HEADERS "chem" "molresponse/")
+add_mad_library(response MOLRESPONSE_SOURCES MOLRESPONSE_HEADERS "chem" "madness/chem/molresponse/")
 
 set(targetname MADresponse)
 

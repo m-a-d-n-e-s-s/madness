@@ -37,15 +37,10 @@
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 
 
-#include "NWChem.h"
-#include "SCF.h"
-#include <cmath>
-#include <madness/mra/qmprop.h>
-#include <chem/nemo.h>
-#include <chem/SCFOperators.h>
 #include <madness/world/worldmem.h>
-#include <chem/projector.h>
-#include <chem/localizer.h>
+#include<madness.h>
+#include<chem/SCF.h>
+#include<chem.h>
 
 #if defined(__has_include)
 #  if __has_include(<filesystem>)
