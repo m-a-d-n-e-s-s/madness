@@ -62,7 +62,7 @@ void do_vtk_plots(World &world,
   for (size_t i = 0; i < Natoms; i++) {
     std::fprintf(f,
                  "%5s   %16.12f %16.12f %16.12f\n",
-                 atomic_number_to_symbol(molecule.get_atom_number(i)).c_str(),
+                 atomic_number_to_symbol(molecule.get_atomic_number(i)).c_str(),
                  coords[i][0],
                  coords[i][1],
                  coords[i][2]);
@@ -146,7 +146,7 @@ void do_vtk_plots(World &world,
   for (size_t i = 0; i < Natoms; i++) {
     std::fprintf(f,
                  "%5s   %16.12f %16.12f %16.12f\n",
-                 atomic_number_to_symbol(molecule.get_atom_number(i)).c_str(),
+                 atomic_number_to_symbol(molecule.get_atomic_number(i)).c_str(),
                  coords[i][0],
                  coords[i][1],
                  coords[i][2]);

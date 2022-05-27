@@ -1027,8 +1027,8 @@ Tensor<double> Nemo::purify_hessian(const Tensor<double>& hessian) const {
                     double diff=0.5*fabs(purified(i,j)-purified(j,i));
                     maxasymmetric=std::max(maxasymmetric,diff);
 
-                    unsigned int ZA=calc->molecule.get_atom_number(iatom);
-                    unsigned int ZB=calc->molecule.get_atom_number(jatom);
+                    unsigned int ZA=calc->molecule.get_atomic_number(iatom);
+                    unsigned int ZB=calc->molecule.get_atomic_number(jatom);
                     if (ZA<ZB) purified(i,j)=purified(j,i);
                     if (ZA>ZB) purified(j,i)=purified(i,j);
                     if (ZA==ZB) {
