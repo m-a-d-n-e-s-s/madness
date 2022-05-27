@@ -190,7 +190,7 @@ public:
 
     unsigned int get_atom_charge(unsigned int i) const;
 
-    unsigned int get_atom_number(unsigned int i);
+    unsigned int get_atomic_number(unsigned int i) const;
 
     void set_pseudo_atom(unsigned int i, bool psat);
 
