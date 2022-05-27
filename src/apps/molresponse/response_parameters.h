@@ -17,7 +17,7 @@
 #include <numeric>
 #include <string>
 #include <vector>
-#include "external_headers/tensor_json.hpp"
+#include "madness/tensor/tensor_json.hpp"
 namespace madness {
 
 struct ResponseParameters : public QCCalculationParametersBase {
@@ -235,7 +235,7 @@ struct ResponseParameters : public QCCalculationParametersBase {
   double econv() const { return get<double>("econv"); }
   bool first_run() const { return get<bool>("first_run"); }
   std::string local() const { return get<std::string>("local"); }
-  void to_json( json& j);
+  void to_json( nlohmann::json& j);
 };
 
 // namespace madness

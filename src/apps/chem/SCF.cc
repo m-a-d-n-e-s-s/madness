@@ -2245,8 +2245,8 @@ void SCF::solve(World& world) {
 
 
 void SCF::output_scf_info_schema(const int& iter, const std::map<std::string, double>& vals, const tensorT& dipole_T) {
-    json j = {};
-    j.push_back(json());
+    nlohmann::json j = {};
+    j.push_back(nlohmann::json());
     // TODO (Adrian) possibly read in json from filesystem.
     // if it exists figure out the size.  pushback for each protocol
     j[0]["scf_iterations"] = iter;
@@ -2267,7 +2267,7 @@ void SCF::output_scf_info_schema(const int& iter, const std::map<std::string, do
         std::ifstream ifs(save);
         if (ifs) {
 #endif
-        json j_old;
+        nlohmann::json j_old;
         ifs >> j_old;
         print(j_old);
         j_old.push_back(j);
