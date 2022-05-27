@@ -2,6 +2,8 @@
 // Created by adrianhurtado on 1/18/22.
 //
 #include "response_parameters.h"
+using json = nlohmann::json;
+
 void ResponseParameters::to_json(json& j) {
   json j_params={};
 

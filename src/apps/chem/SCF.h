@@ -61,7 +61,7 @@
 #include <chem/pcm.h>
 #include <chem/QCPropertyInterface.h>
 
-#include <external_headers/tensor_json.hpp>
+#include "madness/tensor/tensor_json.hpp"
 #include <memory>
 
 namespace madness {
@@ -632,7 +632,7 @@ public:
     }
 
     void output_calc_info_schema() {
-        json j = {};
+        nlohmann::json j = {};
         vec_pair_ints int_vals;
         vec_pair_T<double> double_vals;
         vec_pair_tensor_T<double> double_tensor_vals;

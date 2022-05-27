@@ -69,7 +69,7 @@
 // See e.g.:
 // https://opensource.apple.com/source/CarbonHeaders/CarbonHeaders-18.1/TargetConditionals.h.auto.html
 #ifdef __APPLE__
-#  include <TargetConditionals.h>
+#  include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/TargetConditionals.h"
 #  if (defined(TARGET_OS_OSX) && TARGET_OS_OSX == 1) || \
       (defined(TARGET_OS_MAC) && TARGET_OS_MAC == 1)
 #    define CATCH_PLATFORM_MAC
@@ -325,7 +325,7 @@ namespace Catch {
 
   // Check if byte is available and usable
   #  if __has_include(<cstddef>) && defined(CATCH_CPP17_OR_GREATER)
-  #    include <cstddef>
+  #    include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cstddef"
   #    if defined(__cpp_lib_byte) && (__cpp_lib_byte > 0)
   #      define CATCH_INTERNAL_CONFIG_CPP17_BYTE
   #    endif
@@ -471,9 +471,9 @@ namespace Catch {
 #  define INTERNAL_CATCH_UNIQUE_NAME( name ) INTERNAL_CATCH_UNIQUE_NAME_LINE( name, __LINE__ )
 #endif
 
-#include <iosfwd>
-#include <string>
-#include <cstdint>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/iosfwd"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/string"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cstdint"
 
 // We need a dummy global operator<< so we can bring it into Catch namespace later
 struct Catch_global_namespace_dummy {};
@@ -561,7 +561,7 @@ namespace Catch {
 
 // start catch_interfaces_testcase.h
 
-#include <vector>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/vector"
 
 namespace Catch {
 
@@ -591,10 +591,10 @@ namespace Catch {
 // end catch_interfaces_testcase.h
 // start catch_stringref.h
 
-#include <cstddef>
-#include <string>
-#include <iosfwd>
-#include <cassert>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cstddef"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/string"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/iosfwd"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cassert"
 
 namespace Catch {
 
@@ -916,7 +916,7 @@ constexpr auto operator "" _catch_sr( char const* rawChars, std::size_t size ) n
 // start catch_meta.hpp
 
 
-#include <type_traits>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/type_traits"
 
 namespace Catch {
     template<typename T>
@@ -1410,15 +1410,15 @@ namespace Catch {
 
 // start catch_tostring.h
 
-#include <vector>
-#include <cstddef>
-#include <type_traits>
-#include <string>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/vector"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cstddef"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/type_traits"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/string"
 // start catch_stream.h
 
-#include <iosfwd>
-#include <cstddef>
-#include <ostream>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/iosfwd"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cstddef"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/ostream"
 
 namespace Catch {
 
@@ -1456,7 +1456,7 @@ namespace Catch {
 // end catch_stream.h
 // start catch_interfaces_enum_values_registry.h
 
-#include <vector>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/vector"
 
 namespace Catch {
 
@@ -1492,7 +1492,7 @@ namespace Catch {
 // end catch_interfaces_enum_values_registry.h
 
 #ifdef CATCH_CONFIG_CPP17_STRING_VIEW
-#include <string_view>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/string_view"
 #endif
 
 #ifdef __OBJC__
@@ -2052,9 +2052,9 @@ namespace Catch {
 
 // Separate std::chrono::duration specialization
 #if defined(CATCH_CONFIG_ENABLE_CHRONO_STRINGMAKER)
-#include <ctime>
-#include <ratio>
-#include <chrono>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/ctime"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/ratio"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/chrono"
 
 namespace Catch {
 
@@ -2184,7 +2184,7 @@ namespace Catch { \
 #endif
 
 // end catch_tostring.h
-#include <iosfwd>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/iosfwd"
 
 #ifdef _MSC_VER
 #pragma warning(push)
@@ -2429,8 +2429,8 @@ namespace Catch {
 // end catch_decomposer.h
 // start catch_interfaces_capture.h
 
-#include <string>
-#include <chrono>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/string"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/chrono"
 
 namespace Catch {
 
@@ -2589,8 +2589,8 @@ namespace Catch {
 // end catch_assertionhandler.h
 // start catch_message.h
 
-#include <string>
-#include <vector>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/string"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/vector"
 
 namespace Catch {
 
@@ -2820,7 +2820,7 @@ namespace Catch {
 
 // start catch_totals.h
 
-#include <cstddef>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cstddef"
 
 namespace Catch {
 
@@ -2851,7 +2851,7 @@ namespace Catch {
 }
 
 // end catch_totals.h
-#include <string>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/string"
 
 namespace Catch {
 
@@ -2882,7 +2882,7 @@ namespace Catch {
 // end catch_section_info.h
 // start catch_timer.h
 
-#include <cstdint>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cstdint"
 
 namespace Catch {
 
@@ -2902,7 +2902,7 @@ namespace Catch {
 } // namespace Catch
 
 // end catch_timer.h
-#include <string>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/string"
 
 namespace Catch {
 
@@ -2942,8 +2942,8 @@ namespace Catch {
 
 // start catch_interfaces_registry_hub.h
 
-#include <string>
-#include <memory>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/string"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/memory"
 
 namespace Catch {
 
@@ -2995,9 +2995,9 @@ namespace Catch {
         static std::string translatorName( signature )
 #endif
 
-#include <exception>
-#include <string>
-#include <vector>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/exception"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/string"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/vector"
 
 namespace Catch {
     using exceptionTranslateFunction = std::string(*)();
@@ -3068,7 +3068,7 @@ namespace Catch {
 // end catch_interfaces_exception.h
 // start catch_approx.h
 
-#include <type_traits>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/type_traits"
 
 namespace Catch {
 namespace Detail {
@@ -3189,9 +3189,9 @@ struct StringMaker<Catch::Detail::Approx> {
 // end catch_approx.h
 // start catch_string_manip.h
 
-#include <string>
-#include <iosfwd>
-#include <vector>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/string"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/iosfwd"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/vector"
 
 namespace Catch {
 
@@ -3227,8 +3227,8 @@ namespace Catch {
 
 // start catch_matchers.h
 
-#include <string>
-#include <vector>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/string"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/vector"
 
 namespace Catch {
 namespace Matchers {
@@ -3478,8 +3478,8 @@ namespace Matchers {
 // end catch_matchers_floating.h
 // start catch_matchers_generic.hpp
 
-#include <functional>
-#include <string>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/functional"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/string"
 
 namespace Catch {
 namespace Matchers {
@@ -3526,7 +3526,7 @@ public:
 // end catch_matchers_generic.hpp
 // start catch_matchers_string.h
 
-#include <string>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/string"
 
 namespace Catch {
 namespace Matchers {
@@ -3595,7 +3595,7 @@ namespace Matchers {
 // end catch_matchers_string.h
 // start catch_matchers_vector.h
 
-#include <algorithm>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/algorithm"
 
 namespace Catch {
 namespace Matchers {
@@ -3835,7 +3835,7 @@ namespace Catch {
 // start catch_interfaces_generatortracker.h
 
 
-#include <memory>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/memory"
 
 namespace Catch {
 
@@ -3866,7 +3866,7 @@ namespace Catch {
 // end catch_interfaces_generatortracker.h
 // start catch_enforce.h
 
-#include <exception>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/exception"
 
 namespace Catch {
 #if !defined(CATCH_CONFIG_DISABLE_EXCEPTIONS)
@@ -3905,12 +3905,12 @@ namespace Catch {
     do{ if( !(condition) ) CATCH_ERROR( __VA_ARGS__ ); } while(false)
 
 // end catch_enforce.h
-#include <memory>
-#include <vector>
-#include <cassert>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/memory"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/vector"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cassert"
 
-#include <utility>
-#include <exception>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/utility"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/exception"
 
 namespace Catch {
 
@@ -4337,7 +4337,7 @@ namespace Generators {
 
 // start catch_context.h
 
-#include <memory>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/memory"
 
 namespace Catch {
 
@@ -4458,11 +4458,11 @@ namespace Catch {
 } // end namespace Catch
 
 // end catch_option.hpp
-#include <chrono>
-#include <iosfwd>
-#include <string>
-#include <vector>
-#include <memory>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/chrono"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/iosfwd"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/string"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/vector"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/memory"
 
 namespace Catch {
 
@@ -4539,7 +4539,7 @@ namespace Catch {
 // end catch_interfaces_config.h
 // start catch_random_number_generator.h
 
-#include <cstdint>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cstdint"
 
 namespace Catch {
 
@@ -4587,7 +4587,7 @@ namespace Catch {
 } // end namespace Catch
 
 // end catch_random_number_generator.h
-#include <random>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/random"
 
 namespace Catch {
 namespace Generators {
@@ -4749,9 +4749,9 @@ GeneratorWrapper<ResultType> from_range(Container const& cnt) {
 // in the conditionally compiled sections
 // start catch_test_case_info.h
 
-#include <string>
-#include <vector>
-#include <memory>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/string"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/vector"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/memory"
 
 #ifdef __clang__
 #pragma clang diagnostic push
@@ -5093,9 +5093,9 @@ namespace Catch
 }
 
 // end catch_wildcard_pattern.h
-#include <string>
-#include <vector>
-#include <memory>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/string"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/vector"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/memory"
 
 namespace Catch {
 
@@ -5171,7 +5171,7 @@ namespace Catch {
 // end catch_test_spec.h
 // start catch_interfaces_tag_alias_registry.h
 
-#include <string>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/string"
 
 namespace Catch {
 
@@ -5251,9 +5251,9 @@ namespace Catch {
 // end catch_test_spec_parser.h
 // Libstdc++ doesn't like incomplete classes for unique_ptr
 
-#include <memory>
-#include <vector>
-#include <string>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/memory"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/vector"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/string"
 
 #ifndef CATCH_CONFIG_CONSOLE_WIDTH
 #define CATCH_CONFIG_CONSOLE_WIDTH 80
@@ -5369,7 +5369,7 @@ namespace Catch {
 // end catch_config.hpp
 // start catch_assertionresult.h
 
-#include <string>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/string"
 
 namespace Catch {
 
@@ -5462,12 +5462,12 @@ namespace Catch {
 #include <iterator>
 #endif // CATCH_CONFIG_ENABLE_BENCHMARKING
 
-#include <string>
-#include <iosfwd>
-#include <map>
-#include <set>
-#include <memory>
-#include <algorithm>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/string"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/iosfwd"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/map"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/set"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/memory"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/algorithm"
 
 namespace Catch {
 
@@ -5706,13 +5706,13 @@ namespace Catch {
 } // end namespace Catch
 
 // end catch_interfaces_reporter.h
-#include <algorithm>
-#include <cstring>
-#include <cfloat>
-#include <cstdio>
-#include <cassert>
-#include <memory>
-#include <ostream>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/algorithm"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cstring"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cfloat"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cstdio"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cassert"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/memory"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/ostream"
 
 namespace Catch {
     void prepareExpandedExpression(AssertionResult& result);
@@ -6212,7 +6212,7 @@ namespace Catch {
 
 // start catch_xmlwriter.h
 
-#include <vector>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/vector"
 
 namespace Catch {
     enum class XmlFormatting {
@@ -7461,9 +7461,9 @@ namespace Catch {
 // Keep these here for external reporters
 // start catch_test_case_tracker.h
 
-#include <string>
-#include <vector>
-#include <memory>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/string"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/vector"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/memory"
 
 namespace Catch {
 namespace TestCaseTracking {
@@ -7852,8 +7852,8 @@ namespace Catch {
 // end catch_stats.cpp
 // start catch_approx.cpp
 
-#include <cmath>
-#include <limits>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cmath"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/limits"
 
 namespace {
 
@@ -7989,7 +7989,7 @@ namespace Catch {
 
 // start catch_fatal_condition.h
 
-#include <cassert>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cassert"
 
 namespace Catch {
 
@@ -8043,7 +8043,7 @@ namespace Catch {
 } // end namespace Catch
 
 // end catch_fatal_condition.h
-#include <string>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/string"
 
 namespace Catch {
 
@@ -8437,7 +8437,7 @@ namespace Catch {
 #ifndef CLARA_CONFIG_OPTIONAL_TYPE
 #ifdef __has_include
 #if __has_include(<optional>) && __cplusplus >= 201703L
-#include <optional>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/optional"
 #define CLARA_CONFIG_OPTIONAL_TYPE std::optional
 #endif
 #endif
@@ -8455,10 +8455,10 @@ namespace Catch {
 // This project is hosted at https://github.com/philsquared/textflowcpp
 
 
-#include <cassert>
-#include <ostream>
-#include <sstream>
-#include <vector>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cassert"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/ostream"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/sstream"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/vector"
 
 #ifndef CATCH_CLARA_TEXTFLOW_CONFIG_CONSOLE_WIDTH
 #define CATCH_CLARA_TEXTFLOW_CONFIG_CONSOLE_WIDTH 80
@@ -8784,11 +8784,11 @@ inline auto Column::operator + (Column const& other) -> Columns {
 // ----------- end of #include from clara_textflow.hpp -----------
 // ........... back in clara.hpp
 
-#include <cctype>
-#include <string>
-#include <memory>
-#include <set>
-#include <algorithm>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cctype"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/string"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/memory"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/set"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/algorithm"
 
 #if !defined(CATCH_PLATFORM_WINDOWS) && ( defined(WIN32) || defined(__WIN32__) || defined(_WIN32) || defined(_MSC_VER) )
 #define CATCH_PLATFORM_WINDOWS
@@ -9689,8 +9689,8 @@ namespace Catch {
 } // end namespace Catch
 
 // end catch_commandline.h
-#include <fstream>
-#include <ctime>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/fstream"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/ctime"
 
 namespace Catch {
 
@@ -9907,8 +9907,8 @@ namespace Catch {
 // end catch_commandline.cpp
 // start catch_common.cpp
 
-#include <cstring>
-#include <ostream>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cstring"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/ostream"
 
 namespace Catch {
 
@@ -10069,7 +10069,7 @@ namespace Catch {
 #endif // defined(CATCH_PLATFORM_WINDOWS)
 
 // end catch_windows_h_proxy.h
-#include <sstream>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/sstream"
 
 namespace Catch {
     namespace {
@@ -10166,7 +10166,7 @@ namespace {
 
 #elif defined( CATCH_CONFIG_COLOUR_ANSI ) //////////////////////////////////////
 
-#include <unistd.h>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/unistd.h"
 
 namespace Catch {
 namespace {
@@ -10352,7 +10352,7 @@ namespace Catch {
 
 // start catch_debug_console.h
 
-#include <string>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/string"
 
 namespace Catch {
     void writeToDebugConsole( std::string const& text );
@@ -10391,16 +10391,16 @@ namespace Catch {
 
 #if defined(CATCH_PLATFORM_MAC) || defined(CATCH_PLATFORM_IPHONE)
 
-#  include <cassert>
-#  include <sys/types.h>
-#  include <unistd.h>
-#  include <cstddef>
-#  include <ostream>
+#  include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cassert"
+#  include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/sys/types.h"
+#  include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/unistd.h"
+#  include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cstddef"
+#  include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/ostream"
 
 #ifdef __apple_build_version__
     // These headers will only compile with AppleClang (XCode)
     // For other compilers (Clang, GCC, ... ) we need to exclude them
-#  include <sys/sysctl.h>
+#  include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/sys/sysctl.h"
 #endif
 
     namespace Catch {
@@ -10516,7 +10516,7 @@ namespace Catch {
 // end catch_decomposer.cpp
 // start catch_enforce.cpp
 
-#include <stdexcept>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/stdexcept"
 
 namespace Catch {
 #if defined(CATCH_CONFIG_DISABLE_EXCEPTIONS) && !defined(CATCH_CONFIG_DISABLE_EXCEPTIONS_CUSTOM_HANDLER)
@@ -10548,8 +10548,8 @@ namespace Catch {
 // start catch_enum_values_registry.cpp
 // start catch_enum_values_registry.h
 
-#include <vector>
-#include <memory>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/vector"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/memory"
 
 namespace Catch {
 
@@ -10572,8 +10572,8 @@ namespace Catch {
 
 // end catch_enum_values_registry.h
 
-#include <map>
-#include <cassert>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/map"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cassert"
 
 namespace Catch {
 
@@ -10639,7 +10639,7 @@ namespace Catch {
 // end catch_enum_values_registry.cpp
 // start catch_errno_guard.cpp
 
-#include <cerrno>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cerrno"
 
 namespace Catch {
         ErrnoGuard::ErrnoGuard():m_oldErrno(errno){}
@@ -10650,9 +10650,9 @@ namespace Catch {
 
 // start catch_exception_translator_registry.h
 
-#include <vector>
-#include <string>
-#include <memory>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/vector"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/string"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/memory"
 
 namespace Catch {
 
@@ -10747,7 +10747,7 @@ namespace Catch {
 // end catch_exception_translator_registry.cpp
 // start catch_fatal_condition.cpp
 
-#include <algorithm>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/algorithm"
 
 #if !defined( CATCH_CONFIG_WINDOWS_SEH ) && !defined( CATCH_CONFIG_POSIX_SIGNALS )
 
@@ -10854,7 +10854,7 @@ namespace Catch {
 
 #if defined( CATCH_CONFIG_POSIX_SIGNALS )
 
-#include <signal.h>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/signal.h"
 
 namespace Catch {
 
@@ -10957,8 +10957,8 @@ namespace Catch {
 // end catch_fatal_condition.cpp
 // start catch_generators.cpp
 
-#include <limits>
-#include <set>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/limits"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/set"
 
 namespace Catch {
 
@@ -11209,7 +11209,7 @@ Catch::LeakDetector::~LeakDetector() {
 
 // start catch_list.h
 
-#include <set>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/set"
 
 namespace Catch {
 
@@ -11241,9 +11241,9 @@ namespace Catch {
 }
 
 // end catch_text.h
-#include <limits>
-#include <algorithm>
-#include <iomanip>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/limits"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/algorithm"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/iomanip"
 
 namespace Catch {
 
@@ -11449,7 +11449,7 @@ namespace Catch {
 // end catch_polyfills.hpp
 // start catch_to_string.hpp
 
-#include <string>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/string"
 
 namespace Catch {
     template <typename T>
@@ -11465,15 +11465,15 @@ namespace Catch {
 } // end namespace Catch
 
 // end catch_to_string.hpp
-#include <algorithm>
-#include <cmath>
-#include <cstdlib>
-#include <cstdint>
-#include <cstring>
-#include <sstream>
-#include <type_traits>
-#include <iomanip>
-#include <limits>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/algorithm"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cmath"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cstdlib"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cstdint"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cstring"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/sstream"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/type_traits"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/iomanip"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/limits"
 
 namespace Catch {
 namespace {
@@ -11696,7 +11696,7 @@ std::string Catch::Matchers::Generic::Detail::finalizeDescription(const std::str
 // end catch_matchers_generic.cpp
 // start catch_matchers_string.cpp
 
-#include <regex>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/regex"
 
 namespace Catch {
 namespace Matchers {
@@ -11805,8 +11805,8 @@ namespace Catch {
 } // end namespace Catch
 
 // end catch_uncaught_exceptions.h
-#include <cassert>
-#include <stack>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cassert"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/stack"
 
 namespace Catch {
 
@@ -11938,9 +11938,9 @@ namespace Catch {
 #ifndef TWOBLUECUBES_CATCH_OUTPUT_REDIRECT_H
 #define TWOBLUECUBES_CATCH_OUTPUT_REDIRECT_H
 
-#include <cstdio>
-#include <iosfwd>
-#include <string>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cstdio"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/iosfwd"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/string"
 
 namespace Catch {
 
@@ -12041,11 +12041,11 @@ namespace Catch {
 
 #endif // TWOBLUECUBES_CATCH_OUTPUT_REDIRECT_H
 // end catch_output_redirect.h
-#include <cstdio>
-#include <cstring>
-#include <fstream>
-#include <sstream>
-#include <stdexcept>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cstdio"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cstring"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/fstream"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/sstream"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/stdexcept"
 
 #if defined(CATCH_CONFIG_NEW_CAPTURE)
     #if defined(_MSC_VER)
@@ -12179,7 +12179,7 @@ namespace Catch {
 // end catch_output_redirect.cpp
 // start catch_polyfills.cpp
 
-#include <cmath>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cmath"
 
 namespace Catch {
 
@@ -12268,10 +12268,10 @@ namespace {
 
 // start catch_test_case_registry_impl.h
 
-#include <vector>
-#include <set>
-#include <algorithm>
-#include <ios>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/vector"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/set"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/algorithm"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/ios"
 
 namespace Catch {
 
@@ -12324,7 +12324,7 @@ namespace Catch {
 // end catch_test_case_registry_impl.h
 // start catch_reporter_registry.h
 
-#include <map>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/map"
 
 namespace Catch {
 
@@ -12353,7 +12353,7 @@ namespace Catch {
 
 // start catch_tag_alias.h
 
-#include <string>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/string"
 
 namespace Catch {
 
@@ -12367,7 +12367,7 @@ namespace Catch {
 } // end namespace Catch
 
 // end catch_tag_alias.h
-#include <map>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/map"
 
 namespace Catch {
 
@@ -12387,8 +12387,8 @@ namespace Catch {
 // end catch_tag_alias_registry.h
 // start catch_startup_exception_registry.h
 
-#include <vector>
-#include <exception>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/vector"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/exception"
 
 namespace Catch {
 
@@ -12571,9 +12571,9 @@ namespace Catch {
 // end catch_result_type.cpp
 // start catch_run_context.cpp
 
-#include <cassert>
-#include <algorithm>
-#include <sstream>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cassert"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/algorithm"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/sstream"
 
 namespace Catch {
 
@@ -13202,7 +13202,7 @@ namespace Catch {
 
 // start catch_session.h
 
-#include <memory>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/memory"
 
 namespace Catch {
 
@@ -13252,7 +13252,7 @@ namespace Catch {
 // end catch_session.h
 // start catch_version.h
 
-#include <iosfwd>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/iosfwd"
 
 namespace Catch {
 
@@ -13281,10 +13281,10 @@ namespace Catch {
 }
 
 // end catch_version.h
-#include <cstdlib>
-#include <iomanip>
-#include <set>
-#include <iterator>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cstdlib"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/iomanip"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/set"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/iterator"
 
 namespace Catch {
 
@@ -13572,7 +13572,7 @@ namespace Catch {
 // end catch_session.cpp
 // start catch_singletons.cpp
 
-#include <vector>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/vector"
 
 namespace Catch {
 
@@ -13622,12 +13622,12 @@ void StartupExceptionRegistry::add( std::exception_ptr const& exception ) noexce
 // end catch_startup_exception_registry.cpp
 // start catch_stream.cpp
 
-#include <cstdio>
-#include <iostream>
-#include <fstream>
-#include <sstream>
-#include <vector>
-#include <memory>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cstdio"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/iostream"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/fstream"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/sstream"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/vector"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/memory"
 
 namespace Catch {
 
@@ -13793,11 +13793,11 @@ namespace Catch {
 // end catch_stream.cpp
 // start catch_string_manip.cpp
 
-#include <algorithm>
-#include <ostream>
-#include <cstring>
-#include <cctype>
-#include <vector>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/algorithm"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/ostream"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cstring"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cctype"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/vector"
 
 namespace Catch {
 
@@ -13895,10 +13895,10 @@ namespace Catch {
 // end catch_string_manip.cpp
 // start catch_stringref.cpp
 
-#include <algorithm>
-#include <ostream>
-#include <cstring>
-#include <cstdint>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/algorithm"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/ostream"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cstring"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cstdint"
 
 namespace Catch {
     StringRef::StringRef( char const* rawChars ) noexcept
@@ -13959,7 +13959,7 @@ namespace Catch {
 // end catch_tag_alias_autoregistrar.cpp
 // start catch_tag_alias_registry.cpp
 
-#include <sstream>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/sstream"
 
 namespace Catch {
 
@@ -14006,10 +14006,10 @@ namespace Catch {
 // end catch_tag_alias_registry.cpp
 // start catch_test_case_info.cpp
 
-#include <cctype>
-#include <exception>
-#include <algorithm>
-#include <sstream>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cctype"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/exception"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/algorithm"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/sstream"
 
 namespace Catch {
 
@@ -14179,8 +14179,8 @@ namespace Catch {
 // end catch_test_case_info.cpp
 // start catch_test_case_registry_impl.cpp
 
-#include <algorithm>
-#include <sstream>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/algorithm"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/sstream"
 
 namespace Catch {
 
@@ -14338,11 +14338,11 @@ namespace Catch {
 // end catch_test_case_registry_impl.cpp
 // start catch_test_case_tracker.cpp
 
-#include <algorithm>
-#include <cassert>
-#include <stdexcept>
-#include <memory>
-#include <sstream>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/algorithm"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cassert"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/stdexcept"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/memory"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/sstream"
 
 #if defined(__clang__)
 #    pragma clang diagnostic push
@@ -14607,10 +14607,10 @@ namespace Catch {
 // end catch_test_registry.cpp
 // start catch_test_spec.cpp
 
-#include <algorithm>
-#include <string>
-#include <vector>
-#include <memory>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/algorithm"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/string"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/vector"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/memory"
 
 namespace Catch {
 
@@ -14926,7 +14926,7 @@ namespace Catch {
 // end catch_test_spec_parser.cpp
 // start catch_timer.cpp
 
-#include <chrono>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/chrono"
 
 static const uint64_t nanosecondsInSecond = 1000000000;
 
@@ -15003,8 +15003,8 @@ namespace Catch {
 #define CATCH_CONFIG_ENABLE_CHRONO_STRINGMAKER
 #endif
 
-#include <cmath>
-#include <iomanip>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cmath"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/iomanip"
 
 namespace Catch {
 
@@ -15148,7 +15148,7 @@ std::string StringMaker<wchar_t *>::convert(wchar_t * str) {
 #endif
 
 #if defined(CATCH_CONFIG_CPP17_BYTE)
-#include <cstddef>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cstddef"
 std::string StringMaker<std::byte>::convert(std::byte value) {
     return ::Catch::Detail::stringify(std::to_integer<unsigned long long>(value));
 }
@@ -15317,7 +15317,7 @@ namespace Catch {
 #  endif
 #endif
 
-#include <exception>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/exception"
 
 #if defined(__cpp_lib_uncaught_exceptions) \
     && !defined(CATCH_INTERNAL_CONFIG_CPP17_UNCAUGHT_EXCEPTIONS)
@@ -15334,7 +15334,7 @@ namespace Catch {
 
 #endif // CATCH_CONFIG_UNCAUGHT_EXCEPTIONS_HPP
 // end catch_config_uncaught_exceptions.hpp
-#include <exception>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/exception"
 
 namespace Catch {
     bool uncaught_exceptions() {
@@ -15350,7 +15350,7 @@ namespace Catch {
 // end catch_uncaught_exceptions.cpp
 // start catch_version.cpp
 
-#include <ostream>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/ostream"
 
 namespace Catch {
 
@@ -15427,8 +15427,8 @@ namespace Catch {
 // end catch_wildcard_pattern.cpp
 // start catch_xmlwriter.cpp
 
-#include <iomanip>
-#include <type_traits>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/iomanip"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/type_traits"
 
 namespace Catch {
 
@@ -15751,11 +15751,11 @@ namespace {
 // end catch_xmlwriter.cpp
 // start catch_reporter_bases.cpp
 
-#include <cstring>
-#include <cfloat>
-#include <cstdio>
-#include <cassert>
-#include <memory>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cstring"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cfloat"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cstdio"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cassert"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/memory"
 
 namespace Catch {
     void prepareExpandedExpression(AssertionResult& result) {
@@ -16105,8 +16105,8 @@ private:
 // end catch_reporter_compact.cpp
 // start catch_reporter_console.cpp
 
-#include <cfloat>
-#include <cstdio>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cfloat"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cstdio"
 
 #if defined(_MSC_VER)
 #pragma warning(push)
@@ -16789,11 +16789,11 @@ CATCH_REGISTER_REPORTER("console", ConsoleReporter)
 // end catch_reporter_console.cpp
 // start catch_reporter_junit.cpp
 
-#include <cassert>
-#include <sstream>
-#include <ctime>
-#include <algorithm>
-#include <iomanip>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cassert"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/sstream"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/ctime"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/algorithm"
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/iomanip"
 
 namespace Catch {
 
@@ -17075,7 +17075,7 @@ namespace Catch {
 // end catch_reporter_junit.cpp
 // start catch_reporter_listening.cpp
 
-#include <cassert>
+#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cassert"
 
 namespace Catch {
 

@@ -14,6 +14,8 @@
 #include "molresponse/response_parameters.h"
 
 #include "molresponse/x_space.h"
+using json = nlohmann::json;
+
 
 X_space TDDFT::Compute_Theta_X(World& world, X_space& Chi, XCOperator<double, 3> xc, std::string calc_type) {
   bool compute_Y = calc_type.compare("full") == 0;

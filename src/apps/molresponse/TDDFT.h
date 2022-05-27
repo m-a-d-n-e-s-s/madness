@@ -27,7 +27,7 @@
 #include <cstdio>
 
 #include <algorithm>
-#include <apps/external_headers/tensor_json.hpp>
+#include "madness/tensor/tensor_json.hpp"
 #include <cmath>
 #include <complex>
 #include <iomanip>
@@ -169,7 +169,7 @@ class TDDFT {
   poperatorT coulop;
   std::vector<std::shared_ptr<real_derivative_3d>> gradop;
   double vtol;
-  json j_molresponse;
+  nlohmann::json j_molresponse;
 
   // Member variables
  public:
@@ -721,13 +721,13 @@ class TDDFT {
   void analyze_vectors(World& world, const vecfuncT& x, std::string response_state);
   void output_json() const;
   void initialize_excited_json();
-  static void excited_to_json(json& json,
+  static void excited_to_json(nlohmann::json& json,
                               size_t iter,
                               const Tensor<double>& tensor,
                               const Tensor<double>& tensor1,
                               const Tensor<double>& tensor2,
                               const Tensor<double>& tensor3);
-  static void frequency_to_json(json& json,
+  static void frequency_to_json(nlohmann::json& json,
                                 size_t iter,
                                 const Tensor<double>& tensor,
                                 const Tensor<double>& tensor1,
