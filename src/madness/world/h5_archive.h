@@ -38,7 +38,6 @@
  \ingroup serialization
 */
 
-#warning 'HEELLO'
 
 #ifdef HAVE_HDF5
 #  if ! __has_include("hdf5.h")
