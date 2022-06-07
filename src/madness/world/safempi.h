@@ -504,7 +504,7 @@ namespace SafeMPI {
             volatile int urtag;
 
             Impl(const MPI_Comm& c, int m, int n, bool o) :
-                comm(c), me(m), numproc(n), owner(o), utag(1024), urtag(1), info(MPI_INFO_NULL)
+                comm(c), me(m), numproc(n), owner(o), utag(1024), urtag(1)
             { MADNESS_ASSERT(comm != MPI_COMM_NULL); }
 
             ~Impl() {

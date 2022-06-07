@@ -33,10 +33,17 @@
 #define MADNESS_WORLD_H5_ARCHIVE_H__INCLUDED
 
 /**
- \file text_fstream_archive.h
- \brief Implements an archive wrapping text filestream.
+ \file h5_archive.h
+ \brief Implements an archive wrapping HDF5 filestream.
  \ingroup serialization
 */
+
+#warning 'HEELLO'
+
+#ifdef HAVE_HDF5
+#  if ! __has_include("hdf5.h")
+#    error "HAVE_HDF5 is on, but hdf5.h was not found."
+#  endif
 
 #include <type_traits>
 #include <fstream>
@@ -44,8 +51,11 @@
 #include <madness/world/archive.h>
 #include <madness/world/print.h>  // this injects operator<<(std::ostream,T) for common Ts
 #include <madness/world/vector_archive.h>
-
 #include "hdf5.h"
+
+
+
+//#include "hdf5.h"
 
 namespace madness {
     namespace archive {
@@ -77,7 +87,6 @@ namespace madness {
                     open(filename);
             };
             void open(const char* filename) {
-		    std::cout << "h5 this open " << filename << std::endl;
 		    file_id = H5Fcreate(filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
 	    } 
 
@@ -92,18 +101,14 @@ namespace madness {
             template <class T>
             typename std::enable_if< madness::is_ostreammable_v<T> >::type
             store(const T* t, long n) const {
-                //using madness::operators::operator<<;
-	        std::cout << "h5 this store 1 v " << v.size() << std::endl;
-	        std::cout << "h5 this store 1 n " << n << std::endl;
 		if (n > 0) {
 			var.store(t, n);
-			//here flush
+			//here flush, maybe
 		}
             }
 
             void close(){
 		   // flush();
-		    std::cout << "h5 this close " <<  std::endl;
 		    status = H5Dclose(dataset_id);
 		    status = H5Sclose(dataspace_id);
 		    status = H5Fclose(file_id);
@@ -111,10 +116,8 @@ namespace madness {
 
             /// Flush the filestream.
             void flush()  {
-		   std::cout << "h5 this flush " <<  std::endl;
 		   int dims = 1 ;
 		   hsize_t dimens_1d = v.size();
-	           std::cout << "h5 this flush 1 v " << v.size() << std::endl;
 
 		   dataspace_id = H5Screate_simple(dims, &dimens_1d, NULL);
 
@@ -155,8 +158,7 @@ namespace madness {
                     open(filename);
             }
             void open(const char* filename) {
-		    std::cout << "h5 input this open " << filename << std::endl;
-		    //file_id = H5Fcreate(filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+
 		    file_id = H5Fopen(filename, H5F_ACC_RDONLY, H5P_DEFAULT);
 //
 		    dataset_id = H5Dopen2(file_id, "/dset", H5P_DEFAULT);
@@ -164,28 +166,13 @@ namespace madness {
 		    hid_t datatype = H5Dget_type(dataset_id);
 		    size_t size = H5Tget_size(datatype);
 		    H5T_class_t t_class  = H5Tget_class(datatype);
-		    if(t_class == H5T_INTEGER)
-		    std::cout << "h5 input ajua"  << (int)t_class<< std::endl;
-		    std::cout << "h5 input  size "<< (int)size << std::endl;
+
 		    hid_t dataspace_id = H5Dget_space(dataset_id); /* dataspace handle */
 		    int rank = H5Sget_simple_extent_ndims(dataspace_id);
-		    std::cout << "h5 input  rank "<< (int)rank << std::endl;
 		    hsize_t dims_out[1];
 		    status  = H5Sget_simple_extent_dims(dataspace_id, dims_out, NULL);
-		    printf("h5 input rank %d, dimensions %lu x %lu \n", rank, (unsigned long)(dims_out[0]),
-           (unsigned long)(dims_out[0]));
-		v.resize((unsigned long)(dims_out[0]));
+		    v.resize((unsigned long)(dims_out[0]));
 		    status = H5Dread(dataset_id, H5T_NATIVE_UCHAR, H5S_ALL, H5S_ALL, H5P_DEFAULT, v.data());
-//  	    status = H5Dread(dataset_id, H5T_NATIVE_UCHAR, H5S_ALL, H5S_ALL, H5P_DEFAULT, v.data());
-//
-//		    int dims = 1 ;
-//		    hsize_t dimens_1d = v->size();
-//
-//		    dataspace_id = H5Screate_simple(dims, &dimens_1d, NULL);
-//
-//		    /* Create the dataset. */
-//                    dataset_id =
-//		      H5Dcreate2(file_id, "/dset", H5T_NATIVE_UCHAR, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 	    } 
             /// The function only appears (due to \c enable_if) if \c T is
             /// serializable.
@@ -195,14 +182,10 @@ namespace madness {
             template <class T>
             typename std::enable_if< madness::is_istreammable_v<T> >::type
             load(T* t, long n) const {
-		    std::cout << "h5 input this load " << std::endl;
-	        std::cout << "h5 input this load 1 n " << n << std::endl;
-                std::cout << "h5 this store 1 v " << v.size() << std::endl;
 		var.load(t,n);
             }
             /// Close the filestream.
             void close() {
-		    std::cout << "h5 inp this close " <<  std::endl;
 		    status = H5Dclose(dataset_id);
 //		    status = H5Sclose(dataspace_id);
 		    status = H5Fclose(file_id);
@@ -252,5 +235,7 @@ namespace madness {
         /// @}
     }
 }
+
+#endif // HAVE_HDF5
 
 #endif // MADNESS_WORLD_H5_ARCHIVE_H__INCLUDED
