@@ -231,14 +231,18 @@ struct ResponseParameters : public QCCalculationParametersBase {
     }
   }
 
+        // convenience getters
+        double econv() const { return get<double>("econv"); }
+        bool first_run() const { return get<bool>("first_run"); }
+        std::string local() const { return get<std::string>("local"); }
+    };
+    void from_json(const nlohmann::json&, ResponseParameters& p);
+    bool operator==(const ResponseParameters& p1, const ResponseParameters& p2);
+    bool operator!=(const ResponseParameters& p1, const ResponseParameters& p2);
   // convenience getters
-  double econv() const { return get<double>("econv"); }
-  bool first_run() const { return get<bool>("first_run"); }
-  std::string local() const { return get<std::string>("local"); }
   void to_json( nlohmann::json& j);
 };
 
 // namespace madness
-}  // namespace madness
 
 #endif  // SRC_APPS_MOLRESPONSE_RESPONSE_PARAMETERS_H_
