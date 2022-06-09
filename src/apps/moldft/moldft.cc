@@ -79,6 +79,7 @@ int main(int argc, char **argv) {
     { // limit lifetime of world so that finalize() can execute cleanly
         World world(SafeMPI::COMM_WORLD);
         START_TIMER(world);
+        double start_time = wall_time();
         try {
             // Load info for MADNESS numerical routines
             startup(world, argc, argv, true);
