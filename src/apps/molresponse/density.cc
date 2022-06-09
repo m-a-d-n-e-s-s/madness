@@ -20,8 +20,8 @@ typedef std::shared_ptr<FunctionFunctorInterface<double, 3>> FunctorT;
 typedef FunctionFactory<double, 3> FactoryT;
 typedef std::vector<real_function_3d> VectorFunction3DT;
 
-density_vector::density_vector(World &world, ResponseParameters other_rparams,
-                               GroundStateCalculation other_gparams)
+density_vector::density_vector(World &world, ResponseParameters &other_rparams,
+                               GroundStateCalculation &other_gparams)
     : num_states(other_rparams.num_states()),
       num_orbitals(other_rparams.num_orbitals()),
       property(),
@@ -31,7 +31,7 @@ density_vector::density_vector(World &world, ResponseParameters other_rparams,
       PQ(world, num_states, num_orbitals),
       orbitals(copy(world, other_gparams.orbitals())),
       molecule(other_gparams.molecule()) {
-  xcf.initialize(r_params.xc(), !r_params.spinrestricted(), world, r_params.print_level() >= 10);
+
   if (r_params.excited_state()) {
     this->omega = Tensor<double>(r_params.num_states());
   } else {
@@ -44,7 +44,7 @@ density_vector::density_vector(World &world, ResponseParameters other_rparams,
 
 ResponseParameters density_vector::GetResponseParameters() { return r_params; }
 
-density_vector set_density_type(World &world, ResponseParameters R, GroundStateCalculation G) {
+density_vector set_density_type(World &world, ResponseParameters & R, GroundStateCalculation & G) {
   if (R.excited_state()) {
     return excited_state_density_vector(world, R, G);
   } else if (R.dipole())

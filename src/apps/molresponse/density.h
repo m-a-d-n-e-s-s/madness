@@ -40,7 +40,6 @@ class density_vector {
   const ResponseParameters r_params;  // Response Parameters
   const GroundStateCalculation g_params;
 
-  XCfunctional xcf;                // xc functional
   PropertyBase property_operator;  // dipole, nuclear, or none
   X_space Chi;
   X_space PQ;
@@ -53,7 +52,8 @@ class density_vector {
  public:
   friend class TDDFT;
   // Collective constructor
-  density_vector(World& world, ResponseParameters r_params, GroundStateCalculation g_params);
+  density_vector(World& world, ResponseParameters& other_rparams,
+                 GroundStateCalculation& other_gparams);
   density_vector(const density_vector& other) = default;
 
   ResponseParameters GetResponseParameters();
@@ -77,7 +77,7 @@ class excited_state_density_vector : public density_vector {
       : density_vector(world, R, G) {}
 };
 
-density_vector set_density_type(World& world, ResponseParameters R, GroundStateCalculation G);
+density_vector set_density_type(World& world, ResponseParameters & R, GroundStateCalculation& G);
 // The TDDFT constructor initializes the preliminary calculation details including
 // the Chi vectors and the PQ vectors if they are required
 // ground orbitals
