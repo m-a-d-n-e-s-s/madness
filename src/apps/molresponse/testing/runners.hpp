@@ -605,11 +605,10 @@ void set_excited_parameters(ResponseParameters &r_params, const std::string &xc,
         r_params.set_user_defined_value<double>("dconv", 1e-4);
     }
     r_params.set_user_defined_value("archive", std::string("../restartdata"));
-    r_params.set_user_defined_value("maxiter", size_t(8));
+    r_params.set_user_defined_value("maxiter", size_t(15));
     r_params.set_user_defined_value("maxsub",
-                                    size_t(5));// if its too large then bad guess is very strong
+                                    size_t(10));// if its too large then bad guess is very strong
     r_params.set_user_defined_value("kain", true);
-    r_params.set_user_defined_value("dconv", 1e-5);
     r_params.set_user_defined_value("plot_all_orbitals", true);
     r_params.set_user_defined_value("save", true);
     r_params.set_user_defined_value("guess_xyz", false);

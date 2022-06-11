@@ -43,7 +43,6 @@ void ExcitedResponse::initialize(World &world) {
         if (r_params.num_orbitals() >= 1) molresponse::end_timer(world, "Load balancing:");
     }
 
-    /*
     // Project out ground state from guesses
     QProjector<double, 3> projector(world, ground_orbitals);
     for (unsigned int i = 0; i < trial.X.size(); i++) trial.X[i] = projector(trial.X[i]);
@@ -60,7 +59,6 @@ void ExcitedResponse::initialize(World &world) {
         normalize(world, trial.X);
         molresponse::end_timer(world, "normalize");
     }
-     */
 
     // Diagonalize guess
     if (world.rank() == 0)
@@ -450,10 +448,14 @@ void ExcitedResponse::iterate_trial(World &world, X_space &guesses) {
         // (TODO why not normalize if not tda)
         // compute Y = false
         auto xc = make_xc_operator(world);
-        X_space Lambda_X = compute_lambda_X(world, guesses, xc, "tda");
+        auto [temp_Lambda_X, temp_V0X, temp_gamma] =
+                compute_response_potentials(world, guesses, xc, "tda");
 
-        deflateGuesses(world, guesses, Lambda_X, S, omega, iteration, m);
         // Debugging output
+        auto [new_omega, rotated_chi, rotated_lambda, rotated_v_x, rotated_gamma_x] =
+                rotate_excited_space(world, guesses, temp_Lambda_X, temp_V0X, temp_gamma);
+
+       omega=copy(new_omega);
 
         // Ensure right number of omegas
         if (size_t(omega.dim(0)) != Ni) {
@@ -480,7 +482,23 @@ void ExcitedResponse::iterate_trial(World &world, X_space &guesses) {
             //  If none needed, the zero tensor is returned
             x_shifts = create_shift(world, ground_energies, omega, "x");
 
-            X_space theta_X = compute_theta_X(world, guesses, xc, "tda");
+
+            if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
+            X_space E0X(world, rotated_chi.num_states(), rotated_chi.num_orbitals());
+            if (r_params.localize() != "canon") {
+                E0X = rotated_chi.copy();
+                E0X.X = E0X.X * ham_no_diag;
+            }
+            world.gop.fence();
+
+            if (world.rank() == 0 && r_params.print_level() >= 1) {
+                molresponse::end_timer(world, "E0mDX", "E0mDX", iter_timing);
+            }
+            X_space theta_X = X_space(world, rotated_chi.num_states(), rotated_chi.num_orbitals());
+
+            theta_X = rotated_v_x - E0X + rotated_gamma_x;
+
+
             theta_X.X = apply_shift(world, x_shifts, theta_X.X, guesses.X);
             theta_X.X = theta_X.X * -2;
             theta_X.X.truncate_rf();
@@ -1830,6 +1848,7 @@ void ExcitedResponse::iterate(World &world) {
             }
         }
 
+
         // We first rotate chi by diagonalizing AX=omegaBX
         // This provides new omegas
         // We then apply bsh on the rotated vector and compute the residual
@@ -2164,7 +2183,7 @@ X_space ExcitedResponse::bsh_update_excited(World &world, const Tensor<double> &
             bsh_X.Y[i] = mask * bsh_X.Y[i];
         }
     }
-    // Ensure orthogonal guesses
+    // Ensure orthogonal rguesses
 
     bsh_X.truncate();
 
@@ -2450,7 +2469,15 @@ X_space ExcitedResponse::create_virtual_ao_guess(World &world) const {
     print("singular values of overlap: \n", sigma);
     print("left singular vectors of overlap:\n", U);
     print("right singular vectors of overlap:\n", VT);
+
+    auto first_small = std::find_if(sigma.ptr(), sigma.ptr() + sigma.size(),
+                                    [](auto num) { return num < .05; });
+
+    auto idx_small=std::distance(sigma.ptr(),first_small);
     auto xao = transform(world, ao_vec, U);
+    xao.erase(xao.begin()+idx_small,xao.end());
+    // remove small singular vectors here
+
     auto overlap_SU = matrix_inner(world, xao, xao);
     print("Overlap S after transform : \n", overlap_SU);
 
@@ -2478,7 +2505,7 @@ X_space ExcitedResponse::create_virtual_ao_guess(World &world) const {
         v_nuc.truncate();
         // J^0 x^alpha
         v_j0 = apply(*coulop, ground_density);
-        v_j0.scale(2.0);
+        v_j0.scale(4.0);
 
         if (xcf.hf_exchange_coefficient() != 1.0) {
             v_xc = xc.make_xc_potential();
@@ -2522,17 +2549,20 @@ X_space ExcitedResponse::create_virtual_ao_guess(World &world) const {
     print("virtual orbital energies  : \n", e_a);
     print("norm of virtual ", norm2s_T(world, phi_a));
     e_a = e_a.flat();
-    auto is_positive = [](auto num) { return num > 0; };
+    auto is_positive = [](auto num) { return num > .01; };
     // This seems dumb but i'm removing the negative vectors
     auto first_positive = std::find_if(e_a.ptr(), e_a.ptr() + e_a.size(), is_positive);
     auto num_negative = std::distance(e_a.ptr(), first_positive);
     auto virtual_phi = vector_real_function_3d(phi_a.size() - num_negative);
     Tensor<double> virtual_e(e_a.size() - num_negative);
+
     std::copy(first_positive, e_a.ptr() + e_a.size(), virtual_e.ptr());
     std::copy(phi_a.begin() + num_negative, phi_a.end(), virtual_phi.begin());
 
     phi_a = virtual_phi;
     e_a = virtual_e;
+    print("virtual orbital energies after clean up  : \n", e_a);
+    print("norm of virtual after clean up ", norm2s_T(world, phi_a));
 
 
     auto t = xao.size() * r_params.num_orbitals();
@@ -2811,11 +2841,7 @@ X_space ExcitedTester::test_ao_guess(World &world, ExcitedResponse &calc) {
 
 
     print("overlap between phi0: ", matrix_inner(world, phi_0, ao_vec));
-
-
     madness::print("norm of ao basis after projection: ", norm2s_T(world, ao_vec));
-
-
     print("number of ao_basis_functions: ", ao_vec.size());
 
 
