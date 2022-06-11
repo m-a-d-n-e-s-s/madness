@@ -919,18 +919,15 @@ std::vector<double> set_frequencies(const ResponseDataBase &response_data_base,
     }
 }
 
+
+
 /**
- * Generates MOLDFT data in directory if not already generated and returns path
- * to the directory.
  *
- * Tests whether the current data matches with moldft answers in the molecules
- * directory
  * @param world
- * @param xc_path
- * @param xc
- * @param molecule_path
- * @param molecule_name
- * @return
+ * @param m_schema
+ * @param try_moldft do we try moldft or not... if we try we still may restart
+ * @param restart  do we force a restart or not
+ * @param high_prec high precision or no?
  */
 void moldft(World &world, moldftSchema &m_schema, bool try_moldft, bool restart, bool high_prec) {
 

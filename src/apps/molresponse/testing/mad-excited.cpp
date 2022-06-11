@@ -33,7 +33,7 @@ int main(int argc, char *argv[]) {
 
     std::cout.precision(6);
 
-    if (argc != 3) {
+    if (argc != 4) {
 
         std::cout << "Wrong number of inputs" << std::endl;
         return 1;
@@ -43,6 +43,16 @@ int main(int argc, char *argv[]) {
     const std::string xc{argv[2]};
     const std::string op = "excited-state";
 
+    const std::string is_high_prec{argv[3]};
+
+    bool high_prec;
+
+    if (is_high_prec == "high") {
+        high_prec = true;
+    } else {
+        high_prec = false;
+    }
+
 
     auto schema = runSchema(xc);
     auto mol_path = addPath(schema.molecule_path, molecule_name);
@@ -50,12 +60,12 @@ int main(int argc, char *argv[]) {
     try {
 
         auto m_schema = moldftSchema(molecule_name, xc, schema);
-        moldft(world, m_schema, false, true);
+        moldft(world, m_schema, false, true, high_prec);
         auto excited_schema = excitedSchema(schema, m_schema);
         excited_schema.print();
 
         try {
-            bool success = runExcited(world, excited_schema, false);
+            bool success = runExcited(world, excited_schema, false, high_prec);
 
         } catch (const SafeMPI::Exception &e) {
             print(e);

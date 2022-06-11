@@ -1,21 +1,10 @@
 //
 // Created by adrianhurtado on 1/1/22.
 //
-#define CATCH_CONFIG_RUNNER
-#include "ExcitedResponse.hpp"
 #include "FrequencyResponse.hpp"
 #include "ResponseExceptions.hpp"
-#include "TDDFT.h"
-#include "apps/chem/SCF.h"
-#include "apps/external_headers/catch.hpp"
-#include "apps/external_headers/tensor_json.hpp"
-#include "madness/world/worldmem.h"
 #include "response_functions.h"
-#include "runners.hpp"
-#include "string"
 #include "timer.h"
-#include "write_test_input.h"
-#include "x_space.h"
 
 #if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
 

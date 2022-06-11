@@ -37,6 +37,8 @@ namespace molresponse {
         double cpu = cpu_time() - pop(sss);
 
         std::pair<double, double> timings;
+        // first is wall
+        // second is cpu
         timings.first = wall;
         timings.second = cpu;
 

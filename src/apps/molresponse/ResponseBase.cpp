@@ -828,6 +828,7 @@ X_space ResponseBase::compute_lambda_X(World &world, const X_space &chi, XCOpera
     bool compute_Y = calc_type == "full";
 
     X_space Lambda_X;// = X_space(world, chi.num_states(), chi.num_orbitals());
+
     X_space F0X = compute_F0X(world, chi, xc, compute_Y);
     X_space Chi_truncated = chi.copy();
     Chi_truncated.truncate();
@@ -873,6 +874,56 @@ X_space ResponseBase::compute_lambda_X(World &world, const X_space &chi, XCOpera
     }
 
     return Lambda_X;
+}
+std::tuple<X_space, X_space, X_space> ResponseBase::compute_response_potentials(
+        World &world, const X_space &chi, XCOperator<double, 3> &xc,
+        const std::string &calc_type) const {
+    // compute
+    bool compute_Y = calc_type == "full";
+
+    // first compute kinetic energy piece
+
+    size_t m = chi.num_states();
+    size_t n = chi.num_orbitals();
+    X_space chi_copy = chi.copy();
+
+    molresponse::start_timer(world);
+    X_space T0X = X_space(world, m, n);
+    T0X.X = T(world, chi_copy.X);
+    if (compute_Y) { T0X.Y = T(world, chi_copy.Y); }
+    if (r_params.print_level() >= 20) {
+        print("inner <X|T0|X>");
+        print(inner(chi_copy, T0X));
+    }
+    molresponse::end_timer(world, "TX", "TX", iter_timing);
+
+
+    molresponse::start_timer(world);
+    X_space E0X =chi_copy.copy();
+    E0X.X = E0X.X * hamiltonian;
+    if (compute_Y) { E0X.Y = E0X.Y * hamiltonian; }
+    molresponse::end_timer(world, "E0X", "E0X", iter_timing);
+
+
+    X_space V0X = compute_V0X(world, chi_copy, xc, compute_Y);
+
+    // put it all together
+    X_space gamma;
+    // compute
+    if (calc_type == "full") {
+        gamma = compute_gamma_full(world, {chi, ground_orbitals, ground_orbitals}, xc);
+    } else if (calc_type == "static") {
+        gamma = compute_gamma_static(world, {chi, ground_orbitals, ground_orbitals}, xc);
+    } else {
+        gamma = compute_gamma_tda(world, {chi, ground_orbitals, ground_orbitals}, xc);
+    }
+
+    X_space Lambda_X(world, m, n);// = X_space(world, chi.num_states(), chi.num_orbitals());
+
+    Lambda_X = (T0X + V0X - E0X) + gamma;
+
+
+    return {Lambda_X, V0X, gamma};
 }
 
 // Returns the ground state potential applied to functions f
@@ -1783,7 +1834,8 @@ vecfuncT ResponseBase::project_ao_basis(World &world, const AtomicBasisSet &aoba
     return project_ao_basis_only(world, aobasis, molecule);
 }
 
-void ResponseBase::output_json() const {
+void ResponseBase::output_json() {
+    time_data.to_json(j_molresponse);
     std::ofstream ofs("response_base.json");
     ofs << std::setw(4) << j_molresponse;
 }
@@ -1836,6 +1888,15 @@ response_space transform(World &world, const response_space &f, const Tensor<dou
 
     result.truncate_rf();
 
+    // Done
+    return result;
+}
+X_space transform(World &world, const X_space &x, const Tensor<double> &U) {
+    // Return container
+    X_space result(world, x.num_states(), x.num_orbitals());
+
+    result.X = transform(world, x.X, U);
+    result.Y = transform(world, x.Y, U);
     // Done
     return result;
 }
@@ -2077,57 +2138,104 @@ void gram_schmidt(World &world, response_space &f, response_space &g) {
 // about to do
 response_timing::response_timing() : iter(0) {
 
-    time_data.insert({"iter_total", std::vector<std::pair<double, double>>(0)});
-    time_data.insert({"update", std::vector<std::pair<double, double>>(0)});
-    time_data.insert({"compute_V0X", std::vector<std::pair<double, double>>(0)});
-    time_data.insert({"compute_E0X", std::vector<std::pair<double, double>>(0)});
-    time_data.insert({"compute_ThetaX_add", std::vector<std::pair<double, double>>(0)});
-    time_data.insert({"compute_ThetaX", std::vector<std::pair<double, double>>(0)});
-    time_data.insert({"gamma_compute", std::vector<std::pair<double, double>>(0)});
-    time_data.insert({"gamma_zero_functions", std::vector<std::pair<double, double>>(0)});
-    time_data.insert({"gamma_truncate_add", std::vector<std::pair<double, double>>(0)});
-    time_data.insert({"gamma_project", std::vector<std::pair<double, double>>(0)});
-    time_data.insert({"gamma_clear_functions", std::vector<std::pair<double, double>>(0)});
-    time_data.insert({"J[omega]", std::vector<std::pair<double, double>>(0)});
-    time_data.insert({"XC[omega]", std::vector<std::pair<double, double>>(0)});
-    time_data.insert({"K[omega]", std::vector<std::pair<double, double>>(0)});
-    time_data.insert({"bsh_update", std::vector<std::pair<double, double>>(0)});
-    time_data.insert({"compute_bsh_residual", std::vector<std::pair<double, double>>(0)});
-    time_data.insert({"kain_x_update", std::vector<std::pair<double, double>>(0)});
-    time_data.insert({"x_space_restriction", std::vector<std::pair<double, double>>(0)});
-    time_data.insert({"V0_nuc", std::vector<std::pair<double, double>>(0)});
-    time_data.insert({"J[0]", std::vector<std::pair<double, double>>(0)});
-    time_data.insert({"XC[0]", std::vector<std::pair<double, double>>(0)});
-    time_data.insert({"K[0]", std::vector<std::pair<double, double>>(0)});
-    time_data.insert({"V0_add", std::vector<std::pair<double, double>>(0)});
-    time_data.insert({"make_density_old", std::vector<std::pair<double, double>>(0)});
-    time_data.insert({"make_density_new", std::vector<std::pair<double, double>>(0)});
-    time_data.insert({"copy_response_data", std::vector<std::pair<double, double>>(0)});
+    wall_time_data.insert({"iter_total", std::vector<double>(0)});
+    wall_time_data.insert({"update", std::vector<double>(0)});
+    wall_time_data.insert({"compute_V0X", std::vector<double>(0)});
+    wall_time_data.insert({"compute_E0X", std::vector<double>(0)});
+    wall_time_data.insert({"compute_ThetaX_add", std::vector<double>(0)});
+    wall_time_data.insert({"compute_ThetaX", std::vector<double>(0)});
+    wall_time_data.insert({"gamma_compute", std::vector<double>(0)});
+    wall_time_data.insert({"gamma_zero_functions", std::vector<double>(0)});
+    wall_time_data.insert({"gamma_truncate_add", std::vector<double>(0)});
+    wall_time_data.insert({"gamma_project", std::vector<double>(0)});
+    wall_time_data.insert({"gamma_clear_functions", std::vector<double>(0)});
+    wall_time_data.insert({"J[omega]", std::vector<double>(0)});
+    wall_time_data.insert({"XC[omega]", std::vector<double>(0)});
+    wall_time_data.insert({"K[omega]", std::vector<double>(0)});
+    wall_time_data.insert({"bsh_update", std::vector<double>(0)});
+    wall_time_data.insert({"compute_bsh_residual", std::vector<double>(0)});
+    wall_time_data.insert({"kain_x_update", std::vector<double>(0)});
+    wall_time_data.insert({"x_space_restriction", std::vector<double>(0)});
+    wall_time_data.insert({"V0_nuc", std::vector<double>(0)});
+    wall_time_data.insert({"J[0]", std::vector<double>(0)});
+    wall_time_data.insert({"XC[0]", std::vector<double>(0)});
+    wall_time_data.insert({"K[0]", std::vector<double>(0)});
+    wall_time_data.insert({"V0_add", std::vector<double>(0)});
+    wall_time_data.insert({"make_density_old", std::vector<double>(0)});
+    wall_time_data.insert({"make_density_new", std::vector<double>(0)});
+    wall_time_data.insert({"copy_response_data", std::vector<double>(0)});
+    wall_time_data.insert({"TX", std::vector<double>(0)});
+    wall_time_data.insert({"E0X", std::vector<double>(0)});
+    wall_time_data.insert({"E0mDX", std::vector<double>(0)});
+
+    cpu_time_data.insert({"iter_total", std::vector<double>(0)});
+    cpu_time_data.insert({"update", std::vector<double>(0)});
+    cpu_time_data.insert({"compute_V0X", std::vector<double>(0)});
+    cpu_time_data.insert({"compute_E0X", std::vector<double>(0)});
+    cpu_time_data.insert({"compute_ThetaX_add", std::vector<double>(0)});
+    cpu_time_data.insert({"compute_ThetaX", std::vector<double>(0)});
+    cpu_time_data.insert({"gamma_compute", std::vector<double>(0)});
+    cpu_time_data.insert({"gamma_zero_functions", std::vector<double>(0)});
+    cpu_time_data.insert({"gamma_truncate_add", std::vector<double>(0)});
+    cpu_time_data.insert({"gamma_project", std::vector<double>(0)});
+    cpu_time_data.insert({"gamma_clear_functions", std::vector<double>(0)});
+    cpu_time_data.insert({"J[omega]", std::vector<double>(0)});
+    cpu_time_data.insert({"XC[omega]", std::vector<double>(0)});
+    cpu_time_data.insert({"K[omega]", std::vector<double>(0)});
+    cpu_time_data.insert({"bsh_update", std::vector<double>(0)});
+    cpu_time_data.insert({"compute_bsh_residual", std::vector<double>(0)});
+    cpu_time_data.insert({"kain_x_update", std::vector<double>(0)});
+    cpu_time_data.insert({"x_space_restriction", std::vector<double>(0)});
+    cpu_time_data.insert({"V0_nuc", std::vector<double>(0)});
+    cpu_time_data.insert({"J[0]", std::vector<double>(0)});
+    cpu_time_data.insert({"XC[0]", std::vector<double>(0)});
+    cpu_time_data.insert({"K[0]", std::vector<double>(0)});
+    cpu_time_data.insert({"V0_add", std::vector<double>(0)});
+    cpu_time_data.insert({"make_density_old", std::vector<double>(0)});
+    cpu_time_data.insert({"make_density_new", std::vector<double>(0)});
+    cpu_time_data.insert({"copy_response_data", std::vector<double>(0)});
+    cpu_time_data.insert({"TX", std::vector<double>(0)});
+    cpu_time_data.insert({"E0X", std::vector<double>(0)});
+    cpu_time_data.insert({"E0mDX", std::vector<double>(0)});
 }
 void response_timing::print_data() {
 
-    for (const auto &[key, value]: time_data) { print(key, " : ", value); }
+    for (const auto &[key, value]: wall_time_data) { print(key, " : ", value); }
+    for (const auto &[key, value]: cpu_time_data) { print(key, " : ", value); }
 }
-/*
- * store a map of timings for each iteration into the time_data map
+/**
+ * add the pair of s wall_time and cpu_time to the time_data and wall_data maps
+ *
+ * values.first=wall_time
+ * values.second=cpu_time
+ * @param values
  */
 void response_timing::add_data(std::map<std::string, std::pair<double, double>> values) {
     print("ADDING DATA");
     iter++;
-    std::for_each(time_data.begin(), time_data.end(), [&values](auto &v) {
+    std::for_each(wall_time_data.begin(), wall_time_data.end(), [&values](auto &v) {
         print(v.first, " : ", values[v.first]);
-        v.second.push_back(values[v.first]);
+        v.second.push_back(values[v.first].first);// .first to get first value of pair wall_time
+    });
+
+    std::for_each(cpu_time_data.begin(), cpu_time_data.end(), [&values](auto &v) {
+        print(v.first, " : ", values[v.first]);
+        v.second.push_back(values[v.first].first);// .first to get first value of pair wall_time
     });
 }
 void response_timing::to_json(json &j) {
 
     ::print("FREQUENCY TIME DATA TO JSON");
 
-    j["frequency_time_data"] = json();
-    j["frequency_time_data"]["iterations"] = iter;
+    j["time_data"] = json();
+    j["time_data"]["iterations"] = iter;
 
-    for (const auto &e: time_data) {
-        ::print(e.second);
-        j["frequency_time_data"].push_back({e.first, e.second});
+
+    j["time_data"]["wall_time"] = json();
+    for (const auto &e: wall_time_data) {
+        j["time_data"]["wall_time"][e.first].push_back(e.second);
     }
+
+    j["time_data"]["cpu_time"] = json();
+    for (const auto &e: cpu_time_data) { j["time_data"]["cpu_time"][e.first].push_back(e.second); }
 }

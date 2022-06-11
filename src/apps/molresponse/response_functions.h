@@ -102,6 +102,7 @@ namespace madness {
                 this->x = y.x;
                 if (x.size() != num_states) { x.resize(num_states); }
                 World& world = y[0][0].world();
+               // print("perhaps this is the problem");
                 std::transform(y.x.begin(), y.x.end(), x.begin(),
                                [&](auto yi) { return madness::copy(world, yi); });
             }

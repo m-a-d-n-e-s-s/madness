@@ -5,7 +5,7 @@
 #include "FrequencyResponse.hpp"
 #include "ResponseExceptions.hpp"
 #include "apps/chem/SCF.h"
-#include "apps/external_headers/tensor_json.hpp"
+#include "madness/tensor/tensor_json.hpp"
 #include "madness/world/worldmem.h"
 #include "response_functions.h"
 #include "runners.hpp"
@@ -39,9 +39,10 @@ int main(int argc, char *argv[]) {
     world.gop.fence();
     startup(world, argc, argv);
     std::cout.precision(6);
+    std::string filename = "response.in";
 
     try {
-        auto calc_params = initialize_calc_params(world, "response.in");
+        auto calc_params = initialize_calc_params(world, filename);
         ExcitedResponse calc(world, calc_params);
         if (world.rank() == 0) {
             print("\n\n");

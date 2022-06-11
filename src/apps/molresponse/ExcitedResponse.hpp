@@ -13,7 +13,6 @@ struct ExcitedSpace {
 };
 
 
-
 class ExcitedResponse : public ResponseBase {
 
 public:
@@ -62,7 +61,7 @@ private:
                                                  Tensor<double>& evals,
                                                  const double thresh_degenerate);
     void deflateGuesses(World& world, X_space& Chi, X_space& Lambda_X, Tensor<double>& S,
-                        Tensor<double>& omega, size_t& iteration, size_t& m) const;
+                        Tensor<double>& frequencies, size_t& iteration, size_t& m) const;
 
     Tensor<double> diagonalizeFockMatrix(World& world, X_space& Chi, X_space& Lambda_X,
                                          Tensor<double>& evals, Tensor<double>& A,
@@ -147,10 +146,13 @@ private:
                                                           Tensor<double>& A,
                                                           const double thresh_degenerate);
 
-    std::pair<X_space, X_space> rotate_excited_space(World& world, const Tensor<double>& U,
-                                                     const X_space& chi, const X_space& l_chi);
-    std::tuple<Tensor<double>, X_space, X_space> rotate_excited_space(World& world, X_space& chi,
-                                                                      X_space& lchi);
+    std::tuple<X_space, X_space, X_space, X_space> rotate_excited_vectors(World& world, const Tensor<double>& U,
+                                                       const X_space& chi, const X_space& l_chi,
+                                                       const X_space& v0_chi,
+                                                       const X_space& gamma_chi);
+    std::tuple<Tensor<double>, X_space, X_space, X_space, X_space> rotate_excited_space(World& world, X_space& chi,
+                                                                      X_space& lchi, X_space& v_chi,
+                                                                      X_space& gamma_chi);
     std::tuple<Tensor<double>, X_space, X_space, residuals> update(
             World& world, X_space& Chi, XCOperator<double, 3>& xc, QProjector<double, 3>& projector,
             NonLinearXsolver& kain_x_space, vector<X_vector>& Xvector, vector<X_vector>& Xresidual,

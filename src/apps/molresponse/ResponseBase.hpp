@@ -22,7 +22,8 @@
 using namespace madness;
 
 class response_timing {
-    std::map<std::string, std::vector<std::pair<double, double>>> time_data;
+    std::map<std::string, std::vector<double>> wall_time_data;
+    std::map<std::string, std::vector<double>> cpu_time_data;
     int iter;
 
 public:
@@ -57,7 +58,7 @@ public:
     CalcParams get_parameter() const { return {ground_calc, molecule, r_params}; }
     vector_real_function_3d get_orbitals() const { return ground_orbitals; }
     X_space get_chi() const { return Chi; }
-    void output_json() const;
+    void output_json();
 
     json j_molresponse{};
     response_timing time_data;
@@ -226,6 +227,9 @@ protected:
     void converged_to_json(json& j);
     residuals compute_residual(World& world, X_space& old_Chi, X_space& temp,
                                std::string calc_type);
+    std::tuple<X_space, X_space, X_space> compute_response_potentials(
+            World& world, const X_space& chi, XCOperator<double, 3>& xc,
+            const std::string& calc_type) const;
 };
 
 
@@ -294,6 +298,8 @@ vector_real_function_3d transition_densityTDA(World& world, const vector_real_fu
                                               const response_space& x);
 
 response_space transform(World& world, const response_space& f, const Tensor<double>& U);
+
+X_space transform(World &world, const X_space &x, const Tensor<double> &U);
 
 // result(i,j) = inner(a[i],b[j]).sum()
 Tensor<double> expectation(World& world, const response_space& A, const response_space& B);
