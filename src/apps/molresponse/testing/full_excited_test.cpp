@@ -6,8 +6,7 @@
 #include "ResponseExceptions.hpp"
 #include "TDDFT.h"
 #include "apps/chem/SCF.h"
-#include "apps/external_headers/catch.hpp"
-#include "apps/external_headers/tensor_json.hpp"
+#include "madness/tensor/tensor_json.hpp"
 #include "madness/world/worldmem.h"
 #include "response_data_base.hpp"
 #include "response_functions.h"
@@ -32,18 +31,28 @@ static inline int file_exists(const char *input_name) {
 #endif
 
 int main(int argc, char *argv[]) {
-    if (argc != 2) {
+    if (argc != 3) {
 
         std::cout << "Wrong number of inputs" << std::endl;
         return 1;
     }
 
-    const std::string xc{argv[1]};
     World &world = madness::initialize(argc, argv);
     int result = 0;
     world.gop.fence();
     startup(world, argc, argv);
     std::cout.precision(6);
+
+    const std::string xc{argv[1]};
+    const std::string is_high_prec{argv[2]};
+
+    bool high_prec;
+
+    if (is_high_prec == "high") {
+        high_prec = true;
+    } else {
+        high_prec = false;
+    }
 
     auto schema = runSchema(xc);
 
@@ -63,12 +72,12 @@ int main(int argc, char *argv[]) {
 
 
                         auto m_schema = moldftSchema(molecule_name, xc, schema);
-                        moldft(world, m_schema, true,false);
+                        moldft(world, m_schema, true,false,high_prec);
 
                         auto excited_schema = excitedSchema(schema, m_schema);
                         excited_schema.print();
 
-                        bool success = runExcited(world, excited_schema, false);
+                        bool success = runExcited(world, excited_schema, false,high_prec);
                     } catch (const SafeMPI::Exception &e) {
                         print(e);
                     } catch (const madness::MadnessException &e) {

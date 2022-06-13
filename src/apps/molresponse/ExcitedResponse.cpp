@@ -1720,7 +1720,7 @@ void ExcitedResponse::iterate(World &world) {
     size_t m = r_params.num_states();  // Number of excited states
     size_t n = r_params.num_orbitals();// Number of ground state orbitals
 
-    const auto conv_den = std::max(100*FunctionDefaults<3>::get_thresh(), r_params.dconv());
+    const auto conv_den = std::max(100 * FunctionDefaults<3>::get_thresh(), r_params.dconv());
 
     Tensor<double> maxrotn(m);
     maxrotn.fill(conv_den * 100);
