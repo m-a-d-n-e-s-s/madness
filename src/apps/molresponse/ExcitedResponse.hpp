@@ -146,30 +146,31 @@ private:
                                                           Tensor<double>& A,
                                                           const double thresh_degenerate);
 
-    std::tuple<X_space, X_space, X_space, X_space> rotate_excited_vectors(World& world, const Tensor<double>& U,
-                                                       const X_space& chi, const X_space& l_chi,
-                                                       const X_space& v0_chi,
-                                                       const X_space& gamma_chi);
-    std::tuple<Tensor<double>, X_space, X_space, X_space, X_space> rotate_excited_space(World& world, X_space& chi,
-                                                                      X_space& lchi, X_space& v_chi,
-                                                                      X_space& gamma_chi);
+    std::tuple<X_space, X_space, X_space, X_space> rotate_excited_vectors(
+            World& world, const Tensor<double>& U, const X_space& chi, const X_space& l_chi,
+            const X_space& v0_chi, const X_space& gamma_chi);
+    std::tuple<Tensor<double>, X_space, X_space, X_space, X_space> rotate_excited_space(
+            World& world, X_space& chi, X_space& lchi, X_space& v_chi, X_space& gamma_chi);
     std::tuple<Tensor<double>, X_space, X_space, residuals> update(
             World& world, X_space& Chi, XCOperator<double, 3>& xc, QProjector<double, 3>& projector,
             NonLinearXsolver& kain_x_space, vector<X_vector>& Xvector, vector<X_vector>& Xresidual,
             size_t iter, Tensor<double>& maxrotn);
     X_space create_response_guess(World& world) const;
+    std::tuple<Tensor<double>, Tensor<double>, Tensor<double>> reduce_subspace(World& world, Tensor<double>& S,
+                                                              Tensor<double>& A,
+                                                              const double thresh_degenerate);
 };
 
-class ExcitedTester {
-private:
-public:
-    ExcitedTester(World& world, ExcitedResponse& calc, double thresh) {
-        print("Setting Function Defaults");
-        calc.set_protocol(world, thresh);
-        calc.check_k(world, thresh, FunctionDefaults<3>::get_k());
-    }
-    X_space test_ao_guess(World& world, ExcitedResponse& calc);
-};
+    class ExcitedTester {
+    private:
+    public:
+        ExcitedTester(World& world, ExcitedResponse& calc, double thresh) {
+            print("Setting Function Defaults");
+            calc.set_protocol(world, thresh);
+            calc.check_k(world, thresh, FunctionDefaults<3>::get_k());
+        }
+        X_space test_ao_guess(World& world, ExcitedResponse& calc);
+    };
 
 
 #endif//MADNESS_EXCITEDRESPONSE_HPP

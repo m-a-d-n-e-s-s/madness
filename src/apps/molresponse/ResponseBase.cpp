@@ -351,7 +351,7 @@ X_space ResponseBase::compute_theta_X(World &world, const X_space &chi, XCOperat
     if (world.rank() == 0 && r_params.print_level() >= 1) {
         molresponse::end_timer(world, "compute_V0X", "compute_V0X", iter_timing);
     }
-    if (r_params.print_level() >= 20) {
+    if (world.rank() == 0 && r_params.print_level() >= 20) {
         print("---------------Theta ----------------");
         print("<X|V0|X>");
         print(inner(chi, V0X));
@@ -899,7 +899,7 @@ std::tuple<X_space, X_space, X_space> ResponseBase::compute_response_potentials(
 
 
     molresponse::start_timer(world);
-    X_space E0X =chi_copy.copy();
+    X_space E0X = chi_copy.copy();
     E0X.X = E0X.X * hamiltonian;
     if (compute_Y) { E0X.Y = E0X.Y * hamiltonian; }
     molresponse::end_timer(world, "E0X", "E0X", iter_timing);
@@ -2167,6 +2167,8 @@ response_timing::response_timing() : iter(0) {
     wall_time_data.insert({"TX", std::vector<double>(0)});
     wall_time_data.insert({"E0X", std::vector<double>(0)});
     wall_time_data.insert({"E0mDX", std::vector<double>(0)});
+    wall_time_data.insert({"subspace_reduce", std::vector<double>(0)});
+    wall_time_data.insert({"diagonalize_response_matrix", std::vector<double>(0)});
 
     cpu_time_data.insert({"iter_total", std::vector<double>(0)});
     cpu_time_data.insert({"update", std::vector<double>(0)});
@@ -2197,6 +2199,8 @@ response_timing::response_timing() : iter(0) {
     cpu_time_data.insert({"TX", std::vector<double>(0)});
     cpu_time_data.insert({"E0X", std::vector<double>(0)});
     cpu_time_data.insert({"E0mDX", std::vector<double>(0)});
+    cpu_time_data.insert({"subspace_reduce", std::vector<double>(0)});
+    cpu_time_data.insert({"diagonalize_response_matrix", std::vector<double>(0)});
 }
 void response_timing::print_data() {
 

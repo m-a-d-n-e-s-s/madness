@@ -455,7 +455,7 @@ void ExcitedResponse::iterate_trial(World &world, X_space &guesses) {
         auto [new_omega, rotated_chi, rotated_lambda, rotated_v_x, rotated_gamma_x] =
                 rotate_excited_space(world, guesses, temp_Lambda_X, temp_V0X, temp_gamma);
 
-       omega=copy(new_omega);
+        omega = copy(new_omega);
 
         // Ensure right number of omegas
         if (size_t(omega.dim(0)) != Ni) {
@@ -483,7 +483,9 @@ void ExcitedResponse::iterate_trial(World &world, X_space &guesses) {
             x_shifts = create_shift(world, ground_energies, omega, "x");
 
 
-            if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
+            if (world.rank() == 0 && r_params.print_level() >= 1) {
+                molresponse::start_timer(world);
+            }
             X_space E0X(world, rotated_chi.num_states(), rotated_chi.num_orbitals());
             if (r_params.localize() != "canon") {
                 E0X = rotated_chi.copy();
@@ -706,26 +708,17 @@ ExcitedResponse::rotate_excited_space(World &world, X_space &chi, X_space &lchi,
     return {new_omega, rotated_chi, rotated_l_chi, rotated_v_chi, rotated_gamma_chi};
 }
 
-
-std::pair<Tensor<double>, Tensor<double>> ExcitedResponse::excited_eig(
+std::tuple<Tensor<double>, Tensor<double>, Tensor<double>> ExcitedResponse::reduce_subspace(
         World &world, Tensor<double> &S, Tensor<double> &A, const double thresh_degenerate) {
-    // Start timer
-    if (r_params.print_level() >= 1) molresponse::start_timer(world);
+
 
     // Get size
     size_t m = S.dim(0);
-
     // Run an SVD on the overlap matrix and ignore values
     // less than thresh_degenerate
     Tensor<double> r_vecs, s_vals, l_vecs;
     Tensor<double> S_copy = copy(S);
-    /**
-   * @brief SVD on overlap matrix S
-   * S=UsVT
-   * S, U, s , VT
-   *
-   */
-
+    // Step 1 find the svd of S
     svd(S_copy, l_vecs, s_vals, r_vecs);
 
     // Debugging output
@@ -736,7 +729,7 @@ std::pair<Tensor<double>, Tensor<double>> ExcitedResponse::excited_eig(
         print(l_vecs);
     }
 
-    // Check how many singular values are less than 10*thresh_degen
+    // Step 2 find the number of singular values below threshold
     size_t num_zero = 0;
     for (int64_t i = 0; i < s_vals.dim(0); i++) {
         if (s_vals(i) < 10 * thresh_degenerate) {
@@ -750,27 +743,24 @@ std::pair<Tensor<double>, Tensor<double>> ExcitedResponse::excited_eig(
         if (world.rank() == 0 and i == s_vals.dim(0) - 1 and num_zero > 0) print("");
     }
 
-    // Going to use these a lot here, so just calculate them
+    // in the overlap matrix
     size_t size_l = s_vals.dim(0);    // number of singular values
     size_t size_s = size_l - num_zero;// smaller subspace size
-    /**
-   * @brief l_vecs_s(m,1)
-   *
-   * @return Tensor<double>
-   */
-    // number of sv by number smaller than thresh
-    Tensor<double> l_vecs_s(size_l, num_zero);
-    Tensor<double> copyA = copy(A);// we copy xAx
 
+    Tensor<double> l_vecs_s(size_l, size_s);
+
+    Tensor<double> copyA = copy(A);// we copy xAx
     // Transform into this smaller space if necessary
     if (num_zero > 0) {
         print("num_zero = ", num_zero);
         // Cut out the singular values that are small
         // (singular values come out in descending order)
-
         // S(m-sl,m-sl)
         S = Tensor<double>(size_s, size_s);// create size of new size
-        for (size_t i = 0; i < size_s; i++) S(i, i) = s_vals(i);
+
+        // copy the singular values into the diagonal of smaller space
+        for (size_t i = 0; i < size_s; i++) { S(i, i) = s_vals(i); }
+
         // Copy the active vectors to a smaller container
         // left vectors [m,m-sl]
         l_vecs_s = copy(l_vecs(_, Slice(0, size_s - 1)));
@@ -784,15 +774,6 @@ std::pair<Tensor<double>, Tensor<double>> ExcitedResponse::excited_eig(
         // Transform
         // Work(m,m-sl)
         Tensor<double> work(size_l, size_s);
-        /*
-c(i,j) = c(i,j) + sum(k) a(i,k)*b(k,j)
-
-where it is assumed that the last index in each array is has unit
-stride and the dimensions are as provided.
-
-4-way unrolled k loop ... empirically fastest on PIII
-compared to 2/3 way unrolling (though not by much).
-*/
         // dimi,dimj,dimk,c,a,b
         mxm(size_l, size_s, size_l, work.ptr(), A.ptr(), l_vecs_s.ptr());
         // A*left
@@ -809,16 +790,28 @@ compared to 2/3 way unrolling (though not by much).
             print(S);
         }
     }
+
+    return {l_vecs, S, A};
+}
+
+std::pair<Tensor<double>, Tensor<double>> ExcitedResponse::excited_eig(
+        World &world, Tensor<double> &S, Tensor<double> &A, const double thresh_degenerate) {
+    // Start timer
+    if (r_params.print_level() >= 1) molresponse::start_timer(world);
+    auto [l_vecs, copyS, copyA] = reduce_subspace(world, S, A, thresh_degenerate);
+    auto size_l = S.dim(0);
+    auto size_s = copyS.dim(0);
+    auto num_zero = size_l - size_s;
+    if (world.rank() == 0 && r_params.print_level() >= 1) {
+        molresponse::end_timer(world, "reduce subspace", "subspace_reduce", iter_timing);
+    }
+    if (r_params.print_level() >= 1) molresponse::start_timer(world);
     // Diagonalize (NOT A SYMMETRIC DIAGONALIZATION!!!!)
     // Potentially complex eigenvalues come out of this
     Tensor<std::complex<double>> omega(size_s);
     Tensor<double> U(size_s, size_s);
-    ggevp(world, copyA, S, U, omega);
+    ggevp(world, copyA, copyS, U, omega);
 
-    // Eigenvectors come out oddly packaged if there are
-    // complex eigenvalues.
-    // Currently only supporting real valued eigenvalues
-    // so throw an error if any imaginary components are
     // not zero enough
     double max_imag = abs(imag(omega)).max();
     if (world.rank() == 0 and r_params.print_level() >= 2)
@@ -827,10 +820,8 @@ compared to 2/3 way unrolling (though not by much).
         MADNESS_EXCEPTION("max imaginary component of eigenvalues > dconv", 0);
     }
     Tensor<double> new_omega = real(omega);
-
     // Easier to just resize here
-    m = new_omega.dim(0);
-
+    auto m = new_omega.dim(0);
     bool switched = true;
     while (switched) {
         switched = false;
@@ -883,22 +874,33 @@ compared to 2/3 way unrolling (though not by much).
     if (num_zero > 0) {
         // Temp. storage
         Tensor<double> temp_U(size_l, size_l);
+        Tensor<double> temp_U2(size_l, size_l);
         Tensor<double> U2(size_l, size_l);
 
         // Copy U back to larger size
         temp_U(Slice(0, size_s - 1), Slice(0, size_s - 1)) = copy(U);
         for (size_t i = size_s; i < size_l; i++) temp_U(i, i) = 1.0;
 
+
         // Transform U back
         mxm(size_l, size_l, size_l, U2.ptr(), l_vecs.ptr(), temp_U.ptr());
-        U = copy(U2);
+        Tensor<double> l_vecs_t = transpose(l_vecs);
+        mxm(size_l, size_l, size_l, temp_U2.ptr(), U2.ptr(), l_vecs_t.ptr());
+
+        U = copy(temp_U2);
+        if (world.rank() == 0 && r_params.print_level() >= 1) {
+            print("Increasing subspace size and returning U");
+            print(U);
+        }
     }
 
     // Sort into ascending order
     Tensor<int> selected = sort_eigenvalues(world, new_omega, U);
 
     // End timer
-    if (r_params.print_level() >= 1) molresponse::end_timer(world, "Diag. resp. mat.");
+    if (world.rank() == 0 && r_params.print_level() >= 1) {
+        molresponse::end_timer(world, "diagonalize response matrix", "diagonalize_response_matrix", iter_timing);
+    }
 
     return {new_omega, U};
 }
@@ -2473,9 +2475,9 @@ X_space ExcitedResponse::create_virtual_ao_guess(World &world) const {
     auto first_small = std::find_if(sigma.ptr(), sigma.ptr() + sigma.size(),
                                     [](auto num) { return num < .05; });
 
-    auto idx_small=std::distance(sigma.ptr(),first_small);
+    auto idx_small = std::distance(sigma.ptr(), first_small);
     auto xao = transform(world, ao_vec, U);
-    xao.erase(xao.begin()+idx_small,xao.end());
+    xao.erase(xao.begin() + idx_small, xao.end());
     // remove small singular vectors here
 
     auto overlap_SU = matrix_inner(world, xao, xao);
