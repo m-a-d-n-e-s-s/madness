@@ -2224,7 +2224,7 @@ void response_timing::add_data(std::map<std::string, std::pair<double, double>> 
 
     std::for_each(cpu_time_data.begin(), cpu_time_data.end(), [&values](auto &v) {
         print(v.first, " : ", values[v.first]);
-        v.second.push_back(values[v.first].first);// .first to get first value of pair wall_time
+        v.second.push_back(values[v.first].second);// .first to get first value of pair wall_time
     });
 }
 void response_timing::to_json(json &j) {
