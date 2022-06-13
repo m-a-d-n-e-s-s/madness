@@ -791,17 +791,20 @@ std::tuple<Tensor<double>, Tensor<double>, Tensor<double>> ExcitedResponse::redu
         }
     }
 
-    return {l_vecs, S, A};
+    return {l_vecs, S, copyA};
 }
 
 std::pair<Tensor<double>, Tensor<double>> ExcitedResponse::excited_eig(
         World &world, Tensor<double> &S, Tensor<double> &A, const double thresh_degenerate) {
     // Start timer
     if (r_params.print_level() >= 1) molresponse::start_timer(world);
-    auto [l_vecs, copyS, copyA] = reduce_subspace(world, S, A, thresh_degenerate);
     auto size_l = S.dim(0);
+    auto [l_vecs, copyS, copyA] = reduce_subspace(world, S, A, thresh_degenerate);
     auto size_s = copyS.dim(0);
     auto num_zero = size_l - size_s;
+    print("size_l: ", size_l);
+    print("size_s: ", size_s);
+    print("NUMZERO: ", num_zero);
     if (world.rank() == 0 && r_params.print_level() >= 1) {
         molresponse::end_timer(world, "reduce subspace", "subspace_reduce", iter_timing);
     }
@@ -899,7 +902,8 @@ std::pair<Tensor<double>, Tensor<double>> ExcitedResponse::excited_eig(
 
     // End timer
     if (world.rank() == 0 && r_params.print_level() >= 1) {
-        molresponse::end_timer(world, "diagonalize response matrix", "diagonalize_response_matrix", iter_timing);
+        molresponse::end_timer(world, "diagonalize response matrix", "diagonalize_response_matrix",
+                               iter_timing);
     }
 
     return {new_omega, U};
@@ -1716,7 +1720,7 @@ void ExcitedResponse::iterate(World &world) {
     size_t m = r_params.num_states();  // Number of excited states
     size_t n = r_params.num_orbitals();// Number of ground state orbitals
 
-    const auto conv_den = std::max(FunctionDefaults<3>::get_thresh(), r_params.dconv());
+    const auto conv_den = std::max(100*FunctionDefaults<3>::get_thresh(), r_params.dconv());
 
     Tensor<double> maxrotn(m);
     maxrotn.fill(conv_den * 100);
