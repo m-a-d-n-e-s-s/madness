@@ -186,7 +186,7 @@ protected:
                                 NonLinearXsolver& kain_x_space, vector<X_vector>& Xvector,
                                 vector<X_vector>& Xresidual);
     void x_space_step_restriction(World& world, X_space& old_Chi, X_space& temp, bool restrict_y,
-                                  Tensor<double>& maxrotn);
+                                  const double& maxrotn);
     void vector_stats(const vector<double>& v, double& rms, double& maxabsval) const;
     double do_step_restriction(World& world, const vector_real_function_3d& x,
                                vector_real_function_3d& x_new, std::string spin) const;

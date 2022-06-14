@@ -45,7 +45,7 @@ private:
                 QProjector<double, 3>& projector, double& x_shifts, double& omega_n,
                 NonLinearXsolver& kain_x_space, vector<X_vector>& Xvector,
                 vector<X_vector>& Xresidual, Tensor<double>& bsh_residualsX,
-                Tensor<double>& bsh_residualsY, size_t iteration, Tensor<double>& maxrotn);
+                Tensor<double>& bsh_residualsY, size_t iteration, const double& maxrotn);
     void frequency_to_json(json& j_mol_in, size_t iter, const Tensor<double>& res_X,
                            const Tensor<double>& res_Y, const Tensor<double>& density_res,
                            const Tensor<double>& omega);
@@ -59,7 +59,7 @@ private:
                                           QProjector<double, 3>& projector, double& x_shifts,
                                           double& omega_n, NonLinearXsolver& kain_x_space,
                                           vector<X_vector>& Xvector, vector<X_vector>& Xresidual,
-                                          size_t iteration, Tensor<double>& maxrotn);
+                                          size_t iteration, const double& maxrotn);
 };
 
 

@@ -76,8 +76,7 @@ void FrequencyResponse::iterate(World &world) {
     vector_real_function_3d rho_omega = make_density(world, Chi);
     converged = false;// Converged flag
 
-    Tensor<double> maxrotn(m);
-    maxrotn.fill(dconv * 100);
+    auto maxrotn = dconv * 100;
 
     for (iter = 0; iter <= r_params.maxiter(); ++iter) {
 
@@ -163,13 +162,15 @@ void FrequencyResponse::iterate(World &world) {
 
 
         density_residuals = norm2s_T(world, (rho_omega - rho_omega_old));
-        maxrotn = (bsh_residualsX + bsh_residualsY) / 4;
+        /*
+        maxrotn = (bsh_residualsX + bsh_residualsY) ;
         for (size_t i = 0; i < Chi.num_states(); i++) {
             if (maxrotn[i] < r_params.maxrotn()) {
                 maxrotn[i] = r_params.maxrotn();
                 print("less than maxrotn....set to maxrotn");
             }
         }
+         */
 
 
         if (world.rank() == 0 and (r_params.print_level() > 2)) {
@@ -222,7 +223,7 @@ std::tuple<X_space, residuals> FrequencyResponse::update(
         World &world, X_space &Chi, XCOperator<double, 3> &xc, std::vector<poperatorT> &bsh_x_ops,
         std::vector<poperatorT> &bsh_y_ops, QProjector<double, 3> &projector, double &x_shifts,
         double &omega_n, NonLinearXsolver &kain_x_space, vector<X_vector> &Xvector,
-        vector<X_vector> &Xresidual, size_t iteration, Tensor<double> &maxrotn) {
+        vector<X_vector> &Xresidual, size_t iteration, const double &maxrotn) {
 
     if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
@@ -277,7 +278,7 @@ void FrequencyResponse::update(World &world, X_space &Chi, X_space &res, XCOpera
                                double &x_shifts, double &omega_n, NonLinearXsolver &kain_x_space,
                                vector<X_vector> &Xvector, vector<X_vector> &Xresidual,
                                Tensor<double> &bsh_residualsX, Tensor<double> &bsh_residualsY,
-                               size_t iteration, Tensor<double> &maxrotn) {
+                               size_t iteration, const double &maxrotn) {
     size_t m = Chi.num_states();
     bool compute_y = omega_n != 0.0;
     // size_t n = Chi.num_orbitals();

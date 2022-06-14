@@ -105,24 +105,6 @@ private:
                          const Tensor<double>& res_Y, const Tensor<double>& density_res,
                          const Tensor<double>& omega);
 
-    void update_x_space_excited(World& world, X_space& old_Chi, X_space& Chi, X_space& old_Lambda_X,
-                                X_space& res, XCOperator<double, 3>& xc,
-                                QProjector<double, 3>& projector, Tensor<double>& omega_n,
-                                NonLinearXsolver& kain_x_space, std::vector<X_vector>& Xvector,
-                                std::vector<X_vector>& Xresidual, Tensor<double>& energy_residuals,
-                                Tensor<double>& old_energy, Tensor<double>& bsh_residualsX,
-                                Tensor<double>& bsh_residualsY, Tensor<double>& S,
-                                Tensor<double>& old_S, Tensor<double>& A, Tensor<double>& old_A,
-                                size_t iter, Tensor<double>& maxrotn);
-
-    // Load Balancing
-    void compute_new_omegas_transform(World& world, X_space& old_Chi, X_space& Chi,
-                                      X_space& old_Lambda_X, X_space& Lambda_X,
-                                      Tensor<double>& omega, Tensor<double>& old_energy,
-                                      Tensor<double>& S, Tensor<double>& old_S, Tensor<double>& A,
-                                      Tensor<double>& old_A, Tensor<double>& energy_residuals,
-                                      size_t iter);
-
     /**
  * @brief Computes the BSH Update for an excited state calculation.  Passes in
  * omega and computes the necessary shifts in the potential, computes BSH
@@ -154,7 +136,7 @@ private:
     std::tuple<Tensor<double>, X_space, X_space, residuals> update(
             World& world, X_space& Chi, XCOperator<double, 3>& xc, QProjector<double, 3>& projector,
             NonLinearXsolver& kain_x_space, vector<X_vector>& Xvector, vector<X_vector>& Xresidual,
-            size_t iter, Tensor<double>& maxrotn);
+            size_t iter, const double& maxrotn);
     X_space create_response_guess(World& world) const;
     std::tuple<Tensor<double>, Tensor<double>, Tensor<double>> reduce_subspace(World& world, Tensor<double>& S,
                                                               Tensor<double>& A,

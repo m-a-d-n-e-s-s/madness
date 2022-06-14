@@ -1740,10 +1740,9 @@ void ExcitedResponse::iterate(World &world) {
     size_t m = r_params.num_states();  // Number of excited states
     size_t n = r_params.num_orbitals();// Number of ground state orbitals
 
-    const auto conv_den = std::max(10*FunctionDefaults<3>::get_thresh(), r_params.dconv());
+    const auto conv_den = std::max(FunctionDefaults<3>::get_thresh(), r_params.dconv());
 
-    Tensor<double> maxrotn(m);
-    maxrotn.fill(conv_den * 10);
+    auto maxrotn = conv_den * 100;
 
     // m residuals for x and y
     Tensor<double> bsh_residualsX(m);
@@ -1848,7 +1847,7 @@ void ExcitedResponse::iterate(World &world) {
             print("d_residual_max : ", d_residual);
 
             if ((d_residual < d_conv) and
-                ((std::max(bsh_residualsX.absmax(), bsh_residualsY.absmax()) < d_conv * 10.0) or
+                ((std::max(bsh_residualsX.absmax(), bsh_residualsY.absmax()) < d_conv * 5.0) or
                  r_params.get<bool>("conv_only_dens"))) {
 
                 converged = true;
@@ -1911,14 +1910,15 @@ void ExcitedResponse::iterate(World &world) {
         }
 
 
+        /*
         density_residuals = norm2s_T(world, (rho_omega - rho_omega_old));
-        maxrotn = (bsh_residualsX + bsh_residualsY) / 4;
         for (size_t i = 0; i < Chi.num_states(); i++) {
             if (maxrotn[i] < r_params.maxrotn()) {
                 maxrotn[i] = r_params.maxrotn();
                 print("less than maxrotn....set to maxrotn");
             }
         }
+         */
 
 
         if (world.rank() == 0 and (r_params.print_level() > 2)) {
@@ -2000,7 +2000,7 @@ void ExcitedResponse::iterate(World &world) {
 std::tuple<Tensor<double>, X_space, X_space, residuals> ExcitedResponse::update(
         World &world, X_space &Chi, XCOperator<double, 3> &xc, QProjector<double, 3> &projector,
         NonLinearXsolver &kain_x_space, vector<X_vector> &Xvector, vector<X_vector> &Xresidual,
-        size_t iter, Tensor<double> &maxrotn) {
+        size_t iter, const double &maxrotn) {
     size_t m = Chi.num_states();
     bool compute_y = not r_params.tda();
 
@@ -2075,94 +2075,6 @@ std::tuple<Tensor<double>, X_space, X_space, residuals> ExcitedResponse::update(
     if (compute_y) new_chi.Y.truncate_rf();
 
     return {new_omega, rotated_chi, new_chi, {new_res, bsh_x, bsh_y}};
-}
-void ExcitedResponse::update_x_space_excited(
-        World &world, X_space &old_Chi, X_space &Chi, X_space &old_Lambda_X, X_space &res,
-        XCOperator<double, 3> &xc, QProjector<double, 3> &projector, Tensor<double> &omega_n,
-        NonLinearXsolver &kain_x_space, vector<X_vector> &Xvector, vector<X_vector> &Xresidual,
-        Tensor<double> &energy_residuals, Tensor<double> &old_energy,
-        Tensor<double> &bsh_residualsX, Tensor<double> &bsh_residualsY, Tensor<double> &S,
-        Tensor<double> &old_S, Tensor<double> &A, Tensor<double> &old_A, size_t iter,
-        Tensor<double> &maxrotn) {
-    size_t m = Chi.num_states();
-    bool compute_y = not r_params.tda();
-
-    Tensor<double> x_shifts(m);
-    Tensor<double> y_shifts(m);
-    print("Entering Compute Lambda");
-
-    if (compute_y) {
-        gram_schmidt(world, Chi.X, Chi.Y);
-        normalize(world, Chi);
-    } else {
-        gram_schmidt(world, Chi.X);
-        normalize(world, Chi.X);
-    }
-    //
-    X_space Lambda_X = compute_lambda_X(world, Chi, xc, r_params.calc_type());
-    print("omega_n before transform");
-    print(omega_n);
-    old_energy = omega_n;
-    compute_new_omegas_transform(world, old_Chi, Chi, old_Lambda_X, Lambda_X, omega_n, old_energy,
-                                 S, old_S, A, old_A, energy_residuals, iter);
-
-    print("omega_n before transform");
-    print(old_energy);
-    print("omega_n after transform");
-    print(omega_n);
-    // Analysis gets messed up if BSH is last thing applied
-    // so exit early if last iteration
-    if (iter == r_params.maxiter() - 1) {
-        print("Reached max iter");
-    } else {
-        X_space theta_X = compute_theta_X(world, Chi, xc, r_params.calc_type());
-        //  Calculates shifts needed for potential / energies
-        print("BSH update iter = ", iter);
-        X_space temp = bsh_update_excited(world, omega_n, theta_X, projector);
-
-        res = compute_residual(world, Chi, temp, bsh_residualsX, bsh_residualsY,
-                               r_params.calc_type());
-        // kain if iteration >0 or first run where there should not be a problem
-        // computed temp and res
-        if (r_params.kain() && (iter > 0) && true) {
-            temp = kain_x_space_update(world, Chi, res, kain_x_space, Xvector, Xresidual);
-        }
-        if (iter > 0) { x_space_step_restriction(world, Chi, temp, compute_y, maxrotn); }
-
-        temp.X.truncate_rf();
-        if (compute_y) temp.Y.truncate_rf();
-        Chi = temp.copy();
-    }
-}
-void ExcitedResponse::compute_new_omegas_transform(
-        World &world, X_space &old_Chi, X_space &Chi, X_space &old_Lambda_X, X_space &Lambda_X,
-        Tensor<double> &omega, Tensor<double> &old_energy, Tensor<double> &S, Tensor<double> &old_S,
-        Tensor<double> &A, Tensor<double> &old_A, Tensor<double> &energy_residuals, size_t iter) {
-    size_t m = Chi.X.size();
-    bool compute_y = not r_params.tda();
-    // Basic output
-    if (r_params.print_level() >= 1 and world.rank() == 0) {
-        print("Before Deflate");
-        print("\n   Excitation Energies:");
-        print("i=", iter, " roots: ", iter, omega);
-    }
-    if (!compute_y) {
-        deflateTDA(world, Chi, old_Chi, Lambda_X, old_Lambda_X, S, old_S, old_A, omega, iter, m);
-        // Constructing S
-        // Full TDHF
-    } else {
-        deflateFull(world, Chi, old_Chi, Lambda_X, old_Lambda_X, S, old_S, old_A, omega, iter, m);
-    }
-
-    // Basic output
-    if (r_params.print_level() >= 1 and world.rank() == 0) {
-        print("After Deflate");
-        print("\n   Excitation Energies:");
-        print("i=", iter, " roots: ", iter, omega);
-    }
-
-    // Calculate energy residual and update old_energy
-    energy_residuals = abs(omega - old_energy);
 }
 X_space ExcitedResponse::bsh_update_excited(World &world, const Tensor<double> &omega,
                                             X_space &theta_X, QProjector<double, 3> &projector) {

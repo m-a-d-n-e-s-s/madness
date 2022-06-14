@@ -1235,7 +1235,7 @@ X_space ResponseBase::kain_x_space_update(World &world, const X_space &temp, con
 }
 
 void ResponseBase::x_space_step_restriction(World &world, X_space &old_Chi, X_space &temp,
-                                            bool restrict_y, Tensor<double> &maxrotn) {
+                                            bool restrict_y, const double &maxrotn) {
     size_t m = old_Chi.num_states();
     if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
     print(maxrotn);
@@ -1251,8 +1251,8 @@ void ResponseBase::x_space_step_restriction(World &world, X_space &old_Chi, X_sp
 
             auto norm_xb = std::sqrt(anorm_x.sum() + anorm_y.sum());
 
-            if (norm_xb > r_params.maxrotn()) {
-                double s = r_params.maxrotn() / norm_xb;
+            if (norm_xb > maxrotn) {
+                double s = maxrotn / norm_xb;
                 size_t nres = 0;
                 if (world.rank() == 0) {
                     if (nres == 1 and (r_params.print_level() > 1))
@@ -1262,7 +1262,7 @@ void ResponseBase::x_space_step_restriction(World &world, X_space &old_Chi, X_sp
                 gaxpy(world, (1.0 - s), temp.Y[b], s, old_Chi.Y[b], false);
             }
         } else {
-            do_step_restriction(world, old_Chi.X[b], temp.X[b], "x_response", maxrotn[b]);
+            do_step_restriction(world, old_Chi.X[b], temp.X[b], "x_response", maxrotn);
         }
     }
 
