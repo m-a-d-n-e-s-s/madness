@@ -2,17 +2,11 @@
 // Created by adrianhurtado on 1/1/22.
 //
 #include "ExcitedResponse.hpp"
-#include "FrequencyResponse.hpp"
 #include "ResponseExceptions.hpp"
-#include "apps/chem/SCF.h"
 #include "madness/tensor/tensor_json.hpp"
 #include "madness/world/worldmem.h"
 #include "response_functions.h"
-#include "runners.hpp"
-#include "string"
 #include "timer.h"
-#include "write_test_input.h"
-#include "x_space.h"
 
 #if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
 

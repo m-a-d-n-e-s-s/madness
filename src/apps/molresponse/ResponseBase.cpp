@@ -1836,6 +1836,14 @@ vecfuncT ResponseBase::project_ao_basis(World &world, const AtomicBasisSet &aoba
 
 void ResponseBase::output_json() {
     time_data.to_json(j_molresponse);
+    auto print_time = std::chrono::system_clock::now();
+    auto in_time_t = std::chrono::system_clock::to_time_t(print_time);
+    std::stringstream ss;
+    ss << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d %X");
+    print(ss.str());
+
+    j_molresponse["time"] = ss.str();
+    j_molresponse["wall_time"] = wall_time();
     std::ofstream ofs("response_base.json");
     ofs << std::setw(4) << j_molresponse;
 }

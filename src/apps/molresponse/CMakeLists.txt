@@ -3,25 +3,22 @@
 add_subdirectory(testing)
 # Set the CHEM sources and header files
 set(MOLRESPONSE_SOURCES
-        density.cc
+        ResponseBase.cpp
+        ExcitedResponse.cpp
+        FrequencyResponse.cpp
         property.cc
-        TDDFT.cc
         global_functions.cc
-        calc_runner.cc
         timer.cc
         basic_operators.cc
         Plot_VTK.cc
-        iter_freq2.cc
-        iterate_excited.cc
-        Lambda_X.cc
-        Theta_X.cc
         response_parameters.cpp
-        iterate_gamma.cc
         )
 set(MOLRESPONSE_HEADERS
+        ResponseBase.hpp
+        ExcitedResponse.hpp
+        FrequencyResponse.hpp
         density.h
         property.h
-        TDDFT.h
         global_functions.h
         timer.h
         basic_operators.h

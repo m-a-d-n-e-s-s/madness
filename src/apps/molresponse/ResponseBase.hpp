@@ -57,7 +57,6 @@ public:
     //virtual void iterate();
     CalcParams get_parameter() const { return {ground_calc, molecule, r_params}; }
     vector_real_function_3d get_orbitals() const { return ground_orbitals; }
-    X_space get_chi() const { return Chi; }
     void output_json();
 
     json j_molresponse{};
