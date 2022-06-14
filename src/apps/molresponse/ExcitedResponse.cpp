@@ -1910,8 +1910,8 @@ void ExcitedResponse::iterate(World &world) {
         }
 
 
-        /*
         density_residuals = norm2s_T(world, (rho_omega - rho_omega_old));
+        /*
         for (size_t i = 0; i < Chi.num_states(); i++) {
             if (maxrotn[i] < r_params.maxrotn()) {
                 maxrotn[i] = r_params.maxrotn();
