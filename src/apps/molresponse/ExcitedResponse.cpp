@@ -2383,7 +2383,7 @@ X_space ExcitedResponse::create_virtual_ao_guess(World &world) const {
     print("k : ", FunctionDefaults<3>::get_k());
     auto phi_0 = copy(world, ground_orbitals);
     print("Ground Orbital norms: ", norm2s_T(world, phi_0));
-    auto ao_basis_set = AtomicBasisSet{"6-31g"};
+    auto ao_basis_set = AtomicBasisSet{"6-31gss"};
     ao_basis_set.print(molecule);
 
     vecfuncT ao_vec = vecfuncT(ao_basis_set.nbf(molecule));
