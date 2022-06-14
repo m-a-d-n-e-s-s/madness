@@ -680,6 +680,11 @@ ExcitedResponse::rotate_excited_space(World &world, X_space &chi, X_space &lchi,
 
     Tensor<double> S = response_space_inner(chi_copy.X, chi_copy.X) -
                        response_space_inner(chi_copy.Y, chi_copy.Y);
+
+    if (world.rank() == 0) {
+        auto sm = S - transpose(S);
+        print(sm.max());
+    }
     S = 0.5 * (S + transpose(S));
 
 
@@ -689,6 +694,10 @@ ExcitedResponse::rotate_excited_space(World &world, X_space &chi, X_space &lchi,
     }
     //
     A = inner(chi_copy, l_copy);
+    if (world.rank() == 0) {
+        auto am = A - transpose(A);
+        print(am.max());
+    }
     A = 0.5 * (A + transpose(A));
     if (world.rank() == 0 && (r_params.print_level() >= 10)) {
         print("\n   Lambda Matrix:");
@@ -799,7 +808,13 @@ std::pair<Tensor<double>, Tensor<double>> ExcitedResponse::excited_eig(
     // Start timer
     if (r_params.print_level() >= 1) molresponse::start_timer(world);
     auto size_l = S.dim(0);
+    /*
     auto [l_vecs, copyS, copyA] = reduce_subspace(world, S, A, thresh_degenerate);
+     */
+
+    auto copyA = copy(A);
+    auto copyS = copy(S);
+
     auto size_s = copyS.dim(0);
     auto num_zero = size_l - size_s;
     print("size_l: ", size_l);
@@ -811,17 +826,20 @@ std::pair<Tensor<double>, Tensor<double>> ExcitedResponse::excited_eig(
     if (r_params.print_level() >= 1) molresponse::start_timer(world);
     // Diagonalize (NOT A SYMMETRIC DIAGONALIZATION!!!!)
     // Potentially complex eigenvalues come out of this
-    Tensor<std::complex<double>> omega(size_s);
+    Tensor<double> omega(size_s);
     Tensor<double> U(size_s, size_s);
-    ggevp(world, copyA, copyS, U, omega);
+    sygvp(world, copyA, copyS, 1, U, omega);
+    //sygvp(world, fock, overlap, 1, c, e); from SCF.cc
 
     // not zero enough
+    /*
     double max_imag = abs(imag(omega)).max();
     if (world.rank() == 0 and r_params.print_level() >= 2)
         print("\n   Max imaginary component of eigenvalues:", max_imag, "\n");
     if (max_imag > r_params.dconv()) {
         MADNESS_EXCEPTION("max imaginary component of eigenvalues > dconv", 0);
     }
+     */
     Tensor<double> new_omega = real(omega);
     // Easier to just resize here
     auto m = new_omega.dim(0);
@@ -874,6 +892,7 @@ std::pair<Tensor<double>, Tensor<double>> ExcitedResponse::excited_eig(
     }
 
     // If we transformed into the smaller subspace, time to transform back
+    /*
     if (num_zero > 0) {
         // Temp. storage
         Tensor<double> temp_U(size_l, size_l);
@@ -896,6 +915,7 @@ std::pair<Tensor<double>, Tensor<double>> ExcitedResponse::excited_eig(
             print(U);
         }
     }
+     */
 
     // Sort into ascending order
     Tensor<int> selected = sort_eigenvalues(world, new_omega, U);
@@ -1720,10 +1740,10 @@ void ExcitedResponse::iterate(World &world) {
     size_t m = r_params.num_states();  // Number of excited states
     size_t n = r_params.num_orbitals();// Number of ground state orbitals
 
-    const auto conv_den = std::max(100 * FunctionDefaults<3>::get_thresh(), r_params.dconv());
+    const auto conv_den = std::max(10*FunctionDefaults<3>::get_thresh(), r_params.dconv());
 
     Tensor<double> maxrotn(m);
-    maxrotn.fill(conv_den * 100);
+    maxrotn.fill(conv_den * 10);
 
     // m residuals for x and y
     Tensor<double> bsh_residualsX(m);
@@ -1819,11 +1839,16 @@ void ExcitedResponse::iterate(World &world) {
 
             double d_residual = density_residuals.max();
             double d_conv = conv_den * std::max(size_t(5), molecule.natom());
-            print("dconv: ", conv_den);
+
+            print("thresh: ", FunctionDefaults<3>::get_thresh());
+            print("max rotation: ", maxrotn);
+            print("r_params.dconv(): ", r_params.dconv());
+            print("conv_den: ", conv_den);
+            print("d_conv: ", d_conv);
             print("d_residual_max : ", d_residual);
 
             if ((d_residual < d_conv) and
-                ((std::max(bsh_residualsX.absmax(), bsh_residualsY.absmax()) < d_conv * 100.0) or
+                ((std::max(bsh_residualsX.absmax(), bsh_residualsY.absmax()) < d_conv * 10.0) or
                  r_params.get<bool>("conv_only_dens"))) {
 
                 converged = true;
@@ -1954,6 +1979,7 @@ void ExcitedResponse::iterate(World &world) {
         }
     }
 
+    /*
     analysis(world, Chi);
     print("--------------------------------------------------------");
     for (size_t i = 0; i < m; i++) {
@@ -1968,6 +1994,7 @@ void ExcitedResponse::iterate(World &world) {
             print("--------------------------------------------------------");
         }
     }
+     */
 }
 
 std::tuple<Tensor<double>, X_space, X_space, residuals> ExcitedResponse::update(
@@ -2507,11 +2534,13 @@ X_space ExcitedResponse::create_virtual_ao_guess(World &world) const {
 
         auto T = (dvx2 + dvy2 + dvz2) * (-0.5);
         real_function_3d v_nuc, v_j0, v_k0, v_xc;
-        v_nuc = potential_manager->vnuclear();
+        v_nuc = copy(potential_manager->vnuclear());
         v_nuc.truncate();
+        auto N_elec = phi_0.size();
+        v_nuc.scale((N_elec + 0.25) / N_elec);
         // J^0 x^alpha
         v_j0 = apply(*coulop, ground_density);
-        v_j0.scale(4.0);
+        v_j0.scale(2.0);
 
         if (xcf.hf_exchange_coefficient() != 1.0) {
             v_xc = xc.make_xc_potential();
@@ -2551,11 +2580,17 @@ X_space ExcitedResponse::create_virtual_ao_guess(World &world) const {
         e_a = e;
     }
 
-    print("ground_orb energies  : \n", ground_energies);
-    print("virtual orbital energies  : \n", e_a);
-    print("norm of virtual ", norm2s_T(world, phi_a));
+    auto e_homo = ground_energies[phi_0.size() - 1];
+
+    if (world.rank() == 0) {
+        print("ground_orb energies  : \n", ground_energies);
+        print("homo energy  : \n", e_homo);
+        print("virtual orbital energies  : \n", e_a);
+        print("norm of virtual ", norm2s_T(world, phi_a));
+    }
+
     e_a = e_a.flat();
-    auto is_positive = [](auto num) { return num > .01; };
+    auto is_positive = [&](auto num) { return num > e_homo; };
     // This seems dumb but i'm removing the negative vectors
     auto first_positive = std::find_if(e_a.ptr(), e_a.ptr() + e_a.size(), is_positive);
     auto num_negative = std::distance(e_a.ptr(), first_positive);
@@ -2571,7 +2606,7 @@ X_space ExcitedResponse::create_virtual_ao_guess(World &world) const {
     print("norm of virtual after clean up ", norm2s_T(world, phi_a));
 
 
-    auto t = xao.size() * r_params.num_orbitals();
+    auto t = phi_a.size() * r_params.num_orbitals();
     auto no = r_params.num_orbitals();
 
     X_space x_guess(world, t, no);
@@ -2584,6 +2619,7 @@ X_space ExcitedResponse::create_virtual_ao_guess(World &world) const {
     std::for_each(phi_a.begin(), phi_a.end(), [&](const auto virt) {
         for (int j = 0; j < no; j++) { x_guess.X[k++][j] = copy(virt); }
     });
+    world.gop.fence();
     return x_guess;
 }
 /**
@@ -2700,10 +2736,13 @@ X_space ExcitedResponse::create_response_guess(World &world) const {
     print("virtual orbital energies  : \n", e_a);
     print("norm of virtual ", norm2s_T(world, phi_a));
     e_a = e_a.flat();
-    auto is_positive = [](auto num) { return num > 0; };
+    auto homo_e = ground_energies[phi_0.size() - 1];
+    print("homo_e  :", homo_e);
+    auto is_positive = [&](auto num) { return num > homo_e; };
     // This seems dumb but i'm removing the negative vectors
     auto first_positive = std::find_if(e_a.ptr(), e_a.ptr() + e_a.size(), is_positive);
     auto num_negative = std::distance(e_a.ptr(), first_positive);
+    print("num_negative :", num_negative);
     auto virtual_phi = vector_real_function_3d(phi_a.size() - num_negative);
     Tensor<double> virtual_e(e_a.size() - num_negative);
     std::copy(first_positive, e_a.ptr() + e_a.size(), virtual_e.ptr());
