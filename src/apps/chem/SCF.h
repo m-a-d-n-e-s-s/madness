@@ -526,6 +526,11 @@ public:
             calc.initial_guess(world);
         }
 
+        calc.reset_aobasis("sto-3g");
+        calc.ao.clear(); world.gop.fence(); 
+        calc.ao = calc.project_ao_basis(world, calc.aobasis);
+                    
+
         // The below is missing convergence test logic, etc.
 
         // Make the nuclear potential, initial orbitals, etc.
@@ -586,10 +591,11 @@ public:
                 // Only do this if not starting from NWChem.
                 // analysis will be done on NWChem orbitals.
 
-                if (calc.param.aobasis() != "sto-3g" && calc.param.nwfile() == "none") {
+                if (calc.param.aobasis() != "sto-3g") { // was also  && calc.param.nwfile() == "none"
                     calc.reset_aobasis("sto-3g");
-                    calc.ao = calc.project_ao_basis(world, calc.aobasis);
                 }
+                calc.ao.clear(); world.gop.fence(); 
+                calc.ao = calc.project_ao_basis(world, calc.aobasis);
                 calc.solve(world);
 
                 if (calc.param.save())

@@ -323,7 +323,7 @@ unsigned int Molecule::get_atom_charge(unsigned int i) const {
   return atoms[i].q;
 }
 
-unsigned int Molecule::get_atom_number(unsigned int i) {
+unsigned int Molecule::get_atomic_number(unsigned int i) const {
   if (i>=atoms.size()) throw "trying to get number of invalid atom";
   return atoms[i].atomic_number;
 }

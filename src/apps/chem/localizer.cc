@@ -325,6 +325,12 @@ DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Fun
             Slice s(ilo, ihi - 1);
             C(_, s) = inner(C(_, s), avec);
 
+            // This commented out code would put each shell (s, p, d, etc.) into a separate set, however this
+            // led to delocalized valence orbitals due to the inability to localize hybrid orbitals (e.g., sp3)
+            // into a single set.  The initial workaround was to put the 1s core orbital into one set, and
+            // everything else into a second.  However, this was not optimal for heavier atoms.  So now for
+            // atoms with Z>=12 (Mg and beyond) we separate out the 2s+p sets.
+
             // // generate shell dimensions for atomic eigenfunctions
             // // ... this relies upon spherical symmetry being enforced
             // // when making atomic states
@@ -349,8 +355,22 @@ DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Fun
 
             at_to_bf.push_back(ilo);
             at_nbf.push_back(1); // 1s core orbital on atom
-            if (avec.dim(1) > 1) at_to_bf.push_back(ilo + 1);
-            at_nbf.push_back(avec.dim(1) - 1); // everything else
+            if (molecule.get_atomic_number(iat) < 12) {
+                // For lighter atoms everything else put into one set
+                if (avec.dim(1) > 1) {
+                    at_to_bf.push_back(ilo + 1);
+                    at_nbf.push_back(avec.dim(1) - 1);
+                }
+            }
+            else {            
+                // For heavier atoms separate out 2s2p
+                at_to_bf.push_back(ilo+1);
+                at_nbf.push_back(4);
+                if (avec.dim(1) > 5) {
+                    at_to_bf.push_back(ilo + 5);
+                    at_nbf.push_back(avec.dim(1) - 5);
+                }
+            }
 
             ilo = ihi;
         }
