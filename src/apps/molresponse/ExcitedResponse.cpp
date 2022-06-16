@@ -19,8 +19,18 @@ void ExcitedResponse::initialize(World &world) {
         // Use a symmetry adapted operator on ground state functions
     } else {
         auto temp_trial = create_virtual_ao_guess(world);
-        std::copy(temp_trial.X.begin(), temp_trial.X.begin() + 2 * r_params.num_states(),
-                  trial.X.begin());
+        if (temp_trial.num_states() >= 2 * r_params.num_states()) {
+            std::copy(temp_trial.X.begin(), temp_trial.X.begin() + 2 * r_params.num_states(),
+                      trial.X.begin());
+
+        } else if (temp_trial.num_states() >= r_params.num_states()) {
+            trial = X_space(world, temp_trial.num_states(), r_params.num_orbitals());
+            std::copy(temp_trial.X.begin(), temp_trial.X.begin() + temp_trial.num_states(),
+                      trial.X.begin());
+
+        } else {
+            MADNESS_EXCEPTION("guess virtual ao did not produce enough states for calculation", 1);
+        }
     }
 
 
