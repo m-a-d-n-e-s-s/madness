@@ -142,6 +142,7 @@ Nemo::Nemo(World& world, const commandlineparser &parser) :
 
     // reading will not overwrite the derived and defined values
     param.read_input_and_commandline_options(world,parser,"dft");
+
     symmetry_projector=projector_irrep(param.pointgroup())
             .set_ordering("keep").set_verbosity(0).set_orthonormalize_irreps(true);;
     if (symmetry_projector.get_verbosity()>1) symmetry_projector.print_character_table();
@@ -209,10 +210,13 @@ double Nemo::value(const Tensor<double>& x) {
 	const real_function_3d rho = (R_square*rhonemo);
 	save(rho,"rho");
 	save(rhonemo,"rhonemo");
-	calc->dipole(world,rho);
+	Tensor<double> dipole=calc->dipole(world,rho);
 
 	if(world.rank()==0) std::cout << "Nemo Orbital Energies: " << calc->aeps << "\n";
 
+    std::map<std::string,double> results;
+    results["scf_energy"]=calc->current_energy;
+    calc->output_scf_info_schema(0,results,dipole);
 	return calc->current_energy;
 }
 

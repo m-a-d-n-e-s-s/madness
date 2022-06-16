@@ -39,7 +39,9 @@
 #include <madness/tensor/tensor.h>
 #include <madness/tensor/tensor_lapack.h>
 #include <madness/constants.h>
+#include <madness/world/world.h>
 #include <chem/molecule.h>
+#include <chem/gth_pseudopotential.h>
 #include <chem/atomutil.h>
 #include <madness/misc/misc.h>
 #include <iomanip>
@@ -77,26 +79,89 @@ std::ostream& operator<<(std::ostream& s, const Atom& atom) {
     return s;
 }
 
-/// Read coordinates from a file
 
-/// Scans the file for the first geometry block in the format
-/// \code
-///    geometry
-///       tag x y z
-///       ...
-///    end
-/// \endcode
-/// The charge \c q is inferred from the tag which is
-/// assumed to be the standard symbol for an element.
-/// Same as the simplest NWChem format.  For ghost
-/// atoms (\c bq ) the  charge is read as a fifth field
-/// on the line.
-///
-/// This code is just for the examples ... don't trust it!
-Molecule::Molecule(const std::string& filename) :
-		atoms(), rcut(), eprec(1e-4), core_pot(), field(3L) {
-    read_file(filename);
+Molecule::Molecule(World& world, const commandlineparser& parser) :parameters(world,parser), atoms(), rcut(), core_pot(), field(3L)
+{
+    try {
+        if (world.rank()==0) get_structure();
+        world.gop.broadcast_serializable(*this, 0);
+        MADNESS_CHECK(parameters.field().size()==3);
+        for (int i=0; i<3; ++i) field(i)=parameters.field()[i];
+    } catch (...) {
+        std::cout << "something went wrong in the geometry input" << std::endl;
+        std::cout << "geometry parameters " << std::endl << std::endl;
+        parameters.print("geometry","end");
+        MADNESS_EXCEPTION("faulty geometry input",1);
+    }
 }
+
+
+void Molecule::get_structure() {
+
+    // read input parameters from the input file
+    std::vector<std::string> src=parameters.source();
+    MADNESS_CHECK(src.size()==2);
+    std::string source=src[0];
+
+    if (source == "inputfile") {
+        try {
+            std::ifstream ifile(src[1]);
+            read(ifile);
+        } catch (const std::exception& err) {
+            std::cout << "caught runtime error: " << err.what() << std::endl;
+            std::cout << "failed to load geometry from input file" << std::endl;
+            MADNESS_EXCEPTION("failed to load geometry from input file",1);
+        }
+
+
+    } else if (source == "library") {
+        read_structure_from_library(src[1]);
+    } else if (source == "xyz") {
+        try {
+            read_xyz(src[1]);
+        } catch (std::exception& err) {
+            std::cout << "could not read from xyz-file " << src[1] <<  std::endl;
+            std::cout << "source " << src[0] << "  " << src[1] << std::endl;
+            MADNESS_EXCEPTION("failed to get geometry",1);
+        }
+
+    } else {
+        std::cout << "could not determine molecule" << std::endl;
+        std::cout << "source " << src[0] << "  " << src[1] << std::endl;
+        MADNESS_EXCEPTION("failed to get geometry",1);
+    }
+
+
+    // set derived parameters for the molecule
+
+    //if psp_calc is true, set all atoms to PS atoms
+    //if not, check whether some atoms are PS atoms or if this a pure AE calculation
+    if (parameters.get<bool>("psp_calc")) {
+        for (size_t iatom = 0; iatom < natom(); iatom++) {
+            set_pseudo_atom(iatom, true);
+        }
+    }
+
+    //modify atomic charge for complete PSP calc or individual PS atoms
+    for (size_t iatom = 0; iatom < natom(); iatom++) {
+        if (get_pseudo_atom(iatom)) {
+            unsigned int an = get_atom_number(iatom);
+            double zeff = madness::get_charge_from_file("gth.xml", an);
+            set_atom_charge(iatom, zeff);
+        }
+    }
+
+    if (parameters.core_type() != "none") {
+        read_core_file(parameters.core_type());
+    }
+
+    if (not parameters.no_orient()) orient();
+    if (natom()==0) {
+        MADNESS_EXCEPTION("no molecule was given",1);
+    }
+
+
+};
 
 void Molecule::read_structure_from_library(const std::string& name) {
 
@@ -149,42 +214,22 @@ void Molecule::read_file(const std::string& filename) {
 void Molecule::read(std::istream& f) {
     atoms.clear();
     rcut.clear();
-    eprec = 1e-4;
-    units = atomic;
     madness::position_stream(f, "geometry",false);		// do not rewind
     double scale = 1.0; // Default is atomic units
+    if (parameters.units()=="angstrom") scale = 1e-10 / madness::constants::atomic_unit_of_length;
 
-    std::string s;
+    std::string s, tag;
     while (std::getline(f,s)) {
         std::istringstream ss(s);
-        std::string tag;
         ss >> tag;
+        // check if tag is a keyword to be ignored
+        bool ignore=false;
+        for (auto& p : parameters.get_all_parameters()) {
+            if (tag==p.first) ignore=true;
+        }
+        if (ignore) continue;
         if (tag == "end") {
             goto finished;
-        }
-        else if (tag == "units") {
-            if (natom()) throw "Molecule: read_file: presently units must be the first line of the geometry block";
-            ss >> tag;
-            if (tag == "a.u." || tag == "au" || tag == "atomic") {
-                std::cout << "\nAtomic units being used to read input coordinates\n\n";
-                scale = 1.0;
-            }
-            else if (tag == "angstrom" || tag == "angs") {
-                units = angstrom;
-                scale = 1e-10 / madness::constants::atomic_unit_of_length;
-                printf("\nAngstrom being used to read input coordinates (1 Bohr = %.8f Angstrom)\n\n", scale);
-            }
-            else {
-                throw "Molecule: read_file: unknown units requested";
-            }
-        }
-        else if (tag == "eprec") {
-            ss >> eprec;
-            // adapt nuclear smoothing factor rcut
-            this->set_eprec(eprec);
-        }
-        else if (tag == "field") {
-            ss >> field[0] >> field[1] >> field[2];
         }
         else {
             double xx, yy, zz;
@@ -203,12 +248,55 @@ void Molecule::read(std::istream& f) {
     throw "No end to the geometry in the input file";
 finished:
     ;
+    update_rcut_with_eprec(parameters.eprec());
+}
+
+
+void Molecule::read_xyz(const std::string filename) {
+    std::ifstream f(filename.c_str());
+    if(f.fail()) {
+        std::string errmsg = std::string("Failed to open file: ") + filename;
+        MADNESS_EXCEPTION(errmsg.c_str(), 0);
+    }
+
+    atoms.clear();
+    rcut.clear();
+    MADNESS_CHECK(parameters.units()=="angstrom"); // xyz is always in angs
+    const double scale = 1e-10 / madness::constants::atomic_unit_of_length;
+
+    long natom_expected=1;
+    long current_line=0;
+
+    std::string s, tag;
+    while (std::getline(f,s)) {
+        std::istringstream ss(s);
+        current_line++;
+        if (current_line==1) {
+            ss >> natom_expected;
+            MADNESS_CHECK(natom_expected>0);
+            continue;
+        }
+        if (current_line==2) continue;      // ignore comment line
+        double xx, yy, zz;
+        ss >> tag >>  xx >> yy >> zz;
+        xx *= scale;
+        yy *= scale;
+        zz *= scale;
+        int atn = symbol_to_atomic_number(tag);
+        double qq = atn;
+        if (atn == 0) ss >> qq; // Charge of ghost atom
+        //check if pseudo-atom or not
+        bool psat = check_if_pseudo_atom(tag);
+        add_atom(xx,yy,zz,qq,atn,psat);
+    }
+    MADNESS_CHECK(natom_expected==natom());
+    update_rcut_with_eprec(parameters.eprec());
 }
 
 //version without pseudo-atoms
 void Molecule::add_atom(double x, double y, double z, double q, int atomic_number) {
     atoms.push_back(Atom(x,y,z,q,atomic_number));
-    double c = smoothing_parameter(q, eprec); // eprec is error per atom
+    double c = smoothing_parameter(q, parameters.eprec()); // eprec is error per atom
     //printf("smoothing param %.6f\n", c);
     double radius = get_atomic_data(atomic_number).covalent_radius;//Jacob added
     atomic_radii.push_back(radius*1e-10/madness::constants::atomic_unit_of_length);// Jacob added
@@ -218,7 +306,7 @@ void Molecule::add_atom(double x, double y, double z, double q, int atomic_numbe
 //version specifying pseudo-atoms
 void Molecule::add_atom(double x, double y, double z, double q, int atomic_number, bool pseudo_atom) {
     atoms.push_back(Atom(x,y,z,q,atomic_number,pseudo_atom));
-    double c = smoothing_parameter(q, eprec); // eprec is error per atom
+    double c = smoothing_parameter(q, parameters.eprec()); // eprec is error per atom
     //printf("smoothing param %.6f\n", c);
     double radius = get_atomic_data(atomic_number).covalent_radius;//Jacob added
     atomic_radii.push_back(radius*1e-10/madness::constants::atomic_unit_of_length);// Jacob added
@@ -289,10 +377,10 @@ void Molecule::set_all_coords(const madness::Tensor<double>& c) {
 }
 
 /// updates rcuts with given eprec
-void Molecule::set_eprec(double value) {
-    eprec = value;
+void Molecule::update_rcut_with_eprec(double value) {
+//    eprec = value;
     for (size_t i=0; i<atoms.size(); ++i) {
-        rcut[i] = 1.0 / smoothing_parameter(atoms[i].q, eprec);
+        rcut[i] = 1.0 / smoothing_parameter(atoms[i].q, value);
     }
     core_pot.set_eprec(value);
 }
@@ -309,11 +397,13 @@ const Atom& Molecule::get_atom(unsigned int i) const {
 }
 
 void Molecule::print() const {
+    std::string p =parameters.print_to_string();
     std::cout.flush();
     std::stringstream sstream;
     sstream << " geometry" << std::endl;
-    sstream << "   eprec  " << std::scientific << std::setw(1) << eprec  << std::endl << std::fixed;
-    sstream << "   units atomic" << std::endl;
+    sstream << p ;
+//    sstream << "   eprec  " << std::scientific << std::setw(1) << parameters.eprec()  << std::endl << std::fixed;
+//    sstream << "   units atomic" << std::endl;
     for (size_t i=0; i<natom(); ++i) {
         sstream << std::setw(5) << get_atomic_data(atoms[i].atomic_number).symbol << "  ";
         sstream << std::setw(20) << std::setprecision(8) << atoms[i].x
@@ -970,7 +1060,7 @@ void Molecule::read_core_file(const std::string& filename) {
             atomset.insert(atoms[i].atomic_number);
     }
 
-    core_pot.read_file(filename, atomset, eprec);
+    core_pot.read_file(filename, atomset, get_eprec());
 
     //return;
 
@@ -984,7 +1074,7 @@ void Molecule::read_core_file(const std::string& filename) {
                 continue;
             }
             double r = rcut[i];
-            rcut[i] = 1.0/smoothing_parameter(q, eprec);
+            rcut[i] = 1.0/smoothing_parameter(q, get_eprec());
             //rcut[i] = 1.0/smoothing_parameter(q, 1.0);
             madness::print("rcut update", i, r, "to", rcut[i]);
         }

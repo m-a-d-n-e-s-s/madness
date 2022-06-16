@@ -49,9 +49,4 @@ std::vector<atom_information<3> >make_atom_vec(const Molecule& molecule, double 
 	return atom_vec;
 }
 
-std::vector<atom_information<3> > make_atom_vec(const std::string& input) {
-	const Molecule molecule(input);
-	return make_atom_vec(molecule, 3.0, 4.0);
-}
-
 } // end namespace madness

@@ -353,6 +353,7 @@ public:
 			initialize<bool> ("read_cphf",false,"read the converged orbital response for nuclear displacements from file");
 			initialize<bool> ("restart_cphf",false,"read the guess orbital response for nuclear displacements from file");
 			initialize<bool> ("purify_hessian",false,"symmetrize the hessian matrix based on atomic charges");
+            set_derived_value("k",7);
 		}
 
 		std::pair<std::string,double> ncf() const {return get<std::pair<std::string,double> >("ncf");}

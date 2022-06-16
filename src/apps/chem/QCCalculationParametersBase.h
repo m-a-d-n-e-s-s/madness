@@ -51,6 +51,7 @@ std::istream& operator>>(std::istream& is, std::vector<T,A>& v) {
 		line+=word;
 		if (word.find(']')!=std::string::npos) break;
 	}
+    if (line.size()!=0) is.clear();
 
 	// remove enclosing brackets and commas
 	auto find_c = [](char& c){ return ((c==',') or (c=='[') or (c==']')); };
@@ -297,8 +298,10 @@ private:
 
 protected:
 
-
 	bool print_debug=false;
+    bool ignore_unknown_keys=true;
+    bool ignore_unknown_keys_silently=false;
+    bool throw_if_datagroup_not_found=true;
 
 	/// ctor for testing
 	QCCalculationParametersBase() {}
@@ -349,6 +352,11 @@ public:
 		}
 		parameter.set_derived_value(tostring(value));
 	}
+
+    ParameterContainerT get_all_parameters() const {
+        return parameters;
+    }
+
 
 protected:
 

@@ -58,6 +58,9 @@ struct CalculationParameters : public QCCalculationParametersBase {
 
 	/// ctor reading out the input file
 	CalculationParameters() {
+        ignore_unknown_keys=true;
+        ignore_unknown_keys_silently=true;
+        throw_if_datagroup_not_found=true;
 
 		initialize<double>("charge",0.0,"total molecular charge");
 		initialize<std::string> ("xc","hf","XC input line");
@@ -85,7 +88,6 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<bool>  ("restart",false,"if true restart from orbitals on disk");
 		initialize<bool>  ("restartao",false,"if true restart from orbitals projected into AO basis (STO3G) on disk");
 		initialize<bool>  ("no_compute",false,"if true use orbitals on disk, set value to computed");
-		initialize<bool>  ("no_orient",false,"if true the molecule coordinates will not be reoriented");
 		initialize<bool>  ("save",true,"if true save orbitals to disk");
 		initialize<int>   ("maxsub",10,"size of iterative subspace ... set to 0 or 1 to disable");
 		initialize<double> ("orbitalshift",0.0,"scf orbital shift: shift the occ orbitals to lower energies");
@@ -93,16 +95,12 @@ struct CalculationParameters : public QCCalculationParametersBase {
 //		initialize<Tensor<double> > ("plot_cell",Tensor<double>(),"lo hi in each dimension for plotting (default is all space)");
 		initialize<std::vector<double> > ("plot_cell",std::vector<double>(),"lo hi in each dimension for plotting (default is all space)");
 		initialize<std::string> ("aobasis","6-31g","AO basis used for initial guess (6-31g or sto-3g)");
-		initialize<std::string> ("core_type","none","core potential type",{"none","mpc"});
 		initialize<bool> ("derivatives",false,"if true calculate nuclear derivatives");
 		initialize<bool> ("dipole",false,"if true calculate dipole moment");
 		initialize<bool> ("conv_only_dens",false,"if true remove bsh_residual from convergence criteria (deprecated)");
-		initialize<bool> ("psp_calc",false,"pseudopotential calculation for all atoms");
 		initialize<std::string> ("pcm_data","none","do a PCM (solvent) calculation");
 		initialize<std::string> ("ac_data","none","do a calculation with asymptotic correction (see ACParameters class in chem/AC.h for details)");
-		initialize<bool> ("pure_ae",true,"pure all electron calculation with no pseudo-atoms");
 		initialize<int>  ("print_level",3,"0: no output; 1: final energy; 2: iterations; 3: timings; 10: debug");
-		initialize<std::string>  ("molecular_structure","inputfile","where to read the molecule from: inputfile or name from the library");
 
 		// Next list inferred parameters
 		initialize<int> ("nalpha",-1,"number of alpha spin electrons");
@@ -182,7 +180,6 @@ struct CalculationParameters : public QCCalculationParametersBase {
 
 	std::string pointgroup() const {return get<std::string>("pointgroup");}
 	bool do_symmetry() const {return (pointgroup()!="c1");}
-	bool no_orient() const {return get<bool>("no_orient");}
 	double charge() const {return get<double>("charge");}
 	int print_level() const {return get<int>("print_level");}
 
@@ -196,9 +193,6 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	std::string xc() const {return get<std::string>("xc");}
 
 	std::string aobasis() const {return get<std::string>("aobasis");}
-	std::string core_type() const {return get<std::string>("core_type");}
-	bool psp_calc() const {return get<bool>("psp_calc");}
-	bool pure_ae() const {return get<bool>("pure_ae");}
 
 	std::vector<double> protocol() const {return get<std::vector<double> >("protocol");}
 	bool save() const {return get<bool>("save");}
@@ -299,7 +293,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 
         // set highest possible point group for symmetry
         if (do_localize()) set_derived_value("pointgroup",std::string("c1"));
-        else set_derived_value("pointgroup",molecule.pointgroup_);
+        else set_derived_value("pointgroup",molecule.get_pointgroup());
 
         // above two lines will not override user input, so check input is sane
         if (do_localize() and do_symmetry()) {

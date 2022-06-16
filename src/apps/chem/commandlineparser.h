@@ -26,12 +26,11 @@ struct commandlineparser {
         std::vector<std::string> allArgs_raw(argv, argv + argc);
         for (auto &a : allArgs_raw) {
             a= remove_first_equal(remove_front_hyphens(a));
+            std::replace_copy(a.begin(), a.end(), a.begin(), '=', ' ');
             std::string key, val;
             std::stringstream sa(a);
-            sa >> key >> val;
+            sa >> key;
             val=a.substr(key.size());
-            std::replace_copy(val.begin(), val.end(), val.begin(), '=', ' ');
-
             keyval[tolower(key)] = tolower(val);
         }
     }
@@ -39,6 +38,7 @@ struct commandlineparser {
     /// set default values from the command line
     void set_defaults() {
         keyval["input"]="input";
+        keyval["geometry"]="input_file";
     }
 
     void print_map() const {

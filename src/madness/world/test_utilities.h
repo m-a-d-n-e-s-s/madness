@@ -17,6 +17,7 @@ struct test_output {
         std::cout << ltrim_to_length(line,70);
 		logger << std::scientific << std::setprecision(8) ;
         set_cout_to_logger();
+        set_cout_to_terminal();
 	}
 
     static std::string ltrim_to_length(std::string line, long length=70) {

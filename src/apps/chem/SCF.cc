@@ -149,45 +149,11 @@ tensorT Q2(const tensorT& s) {
 SCF::SCF(World& world, const commandlineparser& parser) : param(CalculationParameters(world, parser)) {
     PROFILE_MEMBER_FUNC(SCF);
 
+    molecule=Molecule(world,parser);
+
 //    param.read(world,parser.value("input"),"dft");
     if (world.rank() == 0) {
 
-        // read input parameters from the input file
-        if (parser.key_exists("structure"))
-            param.set_user_defined_value("molecular_structure", parser.value("structure"));
-
-        std::string molecular_structure = param.get<std::string>("molecular_structure");
-        if (molecular_structure == "inputfile") {
-            std::ifstream ifile(parser.value("input"));
-            molecule.read(ifile);
-        } else {
-            molecule.read_structure_from_library(molecular_structure);
-        }
-
-        // set derived parameters for the molecule
-
-        //if psp_calc is true, set all atoms to PS atoms
-        //if not, check whether some atoms are PS atoms or if this a pure AE calculation
-        if (param.get<bool>("psp_calc")) {
-            for (size_t iatom = 0; iatom < molecule.natom(); iatom++) {
-                molecule.set_pseudo_atom(iatom, true);
-            }
-        }
-
-        //modify atomic charge for complete PSP calc or individual PS atoms
-        for (size_t iatom = 0; iatom < molecule.natom(); iatom++) {
-            if (molecule.get_pseudo_atom(iatom)) {
-                unsigned int an = molecule.get_atom_number(iatom);
-                double zeff = get_charge_from_file("gth.xml", an);
-                molecule.set_atom_charge(iatom, zeff);
-            }
-        }
-
-        if (param.core_type() != "none") {
-            molecule.read_core_file(param.core_type());
-        }
-
-        if (not param.no_orient()) molecule.orient();
 
         //account for nwchem aobasis generation
         if (param.nwfile() == "none") reset_aobasis(param.aobasis());
@@ -195,7 +161,6 @@ SCF::SCF(World& world, const commandlineparser& parser) : param(CalculationParam
         param.set_derived_values(molecule, aobasis);
 
     }
-    world.gop.broadcast_serializable(molecule, 0);
     world.gop.broadcast_serializable(param, 0);
     world.gop.broadcast_serializable(aobasis, 0);
 
@@ -463,15 +428,13 @@ void SCF::project(World& world) {
 void SCF::make_nuclear_potential(World& world) {
     PROFILE_MEMBER_FUNC(SCF);
     START_TIMER(world);
-    potentialmanager = std::shared_ptr<PotentialManager
-    >(new PotentialManager(molecule, param.core_type()));
-    gthpseudopotential = std::shared_ptr<GTHPseudopotential<double>
-    >(new GTHPseudopotential<double>(world, molecule));
+    potentialmanager = std::shared_ptr<PotentialManager>(new PotentialManager(molecule, molecule.parameters.core_type()));
+    gthpseudopotential = std::shared_ptr<GTHPseudopotential<double>>(new GTHPseudopotential<double>(world, molecule));
 
-    if (!param.pure_ae()) {
+    if (!molecule.parameters.pure_ae()) {
         gthpseudopotential->make_pseudo_potential(world);
     }
-    if (!param.psp_calc()) {
+    if (!molecule.parameters.psp_calc()) {
         potentialmanager->make_nuclear_potential(world);
     }
     END_TIMER(world, "Project vnuclear");
@@ -646,7 +609,7 @@ void SCF::initial_guess(World& world) {
         if (param.nwfile() == "none") {
 
             // recalculate initial guess density matrix without core orbitals
-            if (!param.pure_ae()) {
+            if (!molecule.parameters.pure_ae()) {
                 for (size_t iatom = 0; iatom < molecule.natom(); iatom++) {
                     if (molecule.get_pseudo_atom(iatom)) {
                         double zeff = molecule.get_atom_charge(iatom);
@@ -672,9 +635,9 @@ void SCF::initial_guess(World& world) {
                 START_TIMER(world);
                 LoadBalanceDeux<3> lb(world);
                 real_function_3d vnuc;
-                if (param.psp_calc()) {
+                if (molecule.parameters.psp_calc()) {
                     vnuc = gthpseudopotential->vlocalpot();
-                } else if (param.pure_ae()) {
+                } else if (molecule.parameters.pure_ae()) {
                     vnuc = potentialmanager->vnuclear();
                 } else {
                     vnuc = potentialmanager->vnuclear();
@@ -694,9 +657,9 @@ void SCF::initial_guess(World& world) {
             if (param.nalpha() + param.nbeta() > 1) {
                 START_TIMER(world);
                 real_function_3d vnuc;
-                if (param.psp_calc()) {
+                if (molecule.parameters.psp_calc()) {
                     vnuc = gthpseudopotential->vlocalpot();
-                } else if (param.pure_ae()) {
+                } else if (molecule.parameters.pure_ae()) {
                     vnuc = potentialmanager->vnuclear();
                 } else {
                     vnuc = potentialmanager->vnuclear();
@@ -710,9 +673,9 @@ void SCF::initial_guess(World& world) {
                 END_TIMER(world, "guess lda potn");
             } else {
                 real_function_3d vnuc;
-                if (param.psp_calc()) {
+                if (molecule.parameters.psp_calc()) {
                     vnuc = gthpseudopotential->vlocalpot();
-                } else if (param.pure_ae()) {
+                } else if (molecule.parameters.pure_ae()) {
                     vnuc = potentialmanager->vnuclear();
                 } else {
                     vnuc = potentialmanager->vnuclear();
@@ -726,9 +689,9 @@ void SCF::initial_guess(World& world) {
                 START_TIMER(world);
                 LoadBalanceDeux<3> lb(world);
                 real_function_3d vnuc;
-                if (param.psp_calc()) {
+                if (molecule.parameters.psp_calc()) {
                     vnuc = gthpseudopotential->vlocalpot();
-                } else if (param.pure_ae()) {
+                } else if (molecule.parameters.pure_ae()) {
                     vnuc = potentialmanager->vnuclear();
                 } else {
                     vnuc = potentialmanager->vnuclear();
@@ -787,7 +750,7 @@ void SCF::initial_guess(World& world) {
                 }*/
 
             //vlocal treated in psp includes psp and ae contribution so don't need separate clause for mixed psp/AE
-            if (!param.pure_ae()) {
+            if (!molecule.parameters.pure_ae()) {
                 double enl;
                 tensorT occ = tensorT(ao.size());
                 for (int i = 0; i < param.nalpha(); ++i) {
@@ -843,7 +806,7 @@ void SCF::initial_guess(World& world) {
             compress(world, ao);
 
             unsigned int ncore = 0;
-            if (param.core_type() != "none") {
+            if (molecule.parameters.core_type() != "none") {
                 ncore = molecule.n_core_orb_all();
             }
 
@@ -1124,9 +1087,9 @@ void SCF::initial_load_bal(World& world) {
     PROFILE_MEMBER_FUNC(SCF);
     LoadBalanceDeux<3> lb(world);
     real_function_3d vnuc;
-    if (param.psp_calc()) {
+    if (molecule.parameters.psp_calc()) {
         vnuc = gthpseudopotential->vlocalpot();
-    } else if (param.pure_ae()) {
+    } else if (molecule.parameters.pure_ae()) {
         vnuc = potentialmanager->vnuclear();
     } else {
         vnuc = potentialmanager->vnuclear();
@@ -1232,7 +1195,7 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
 
     START_TIMER(world);
     vecfuncT Vpsi;
-    if (!param.pure_ae()) {
+    if (!molecule.parameters.pure_ae()) {
         Vpsi = gthpseudopotential->apply_potential(world, vloc, amo, occ, enl);
     } else {
         Vpsi = mul_sparse(world, vloc, amo, vtol);
@@ -1258,7 +1221,7 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
         exc = exchf * xc.hf_exchange_coefficient() + exc;
     }
     // need to come back to this for psp - when is this used?
-    if (param.pure_ae()) {
+    if (molecule.parameters.pure_ae()) {
         potentialmanager->apply_nonlocal_potential(world, amo, Vpsi);
     }
 
@@ -1283,7 +1246,7 @@ tensorT SCF::derivatives(World& world, const functionT& rho) const {
             dv[atom * 3 + axis] =
                     functionT(
                             factoryT(world).functor(func).nofence().truncate_on_project().truncate_mode(0));
-            if (param.core_type() != "none"
+            if (molecule.parameters.core_type() != "none"
                 && molecule.is_potential_defined_atom(atom)) {
                 // core potential contribution
                 func = functorT(
@@ -1595,9 +1558,9 @@ void SCF::loadbal(World& world, functionT& arho, functionT& brho,
 
     LoadBalanceDeux<3> lb(world);
     real_function_3d vnuc;
-    if (param.psp_calc()) {
+    if (molecule.parameters.psp_calc()) {
         vnuc = gthpseudopotential->vlocalpot();
-    } else if (param.pure_ae()) {
+    } else if (molecule.parameters.pure_ae()) {
         vnuc = potentialmanager->vnuclear();
     } else {
         vnuc = potentialmanager->vnuclear();
@@ -2008,9 +1971,9 @@ void SCF::solve(World& world) {
         rho.truncate();
 
         real_function_3d vnuc;
-        if (param.psp_calc()) {
+        if (molecule.parameters.psp_calc()) {
             vnuc = gthpseudopotential->vlocalpot();
-        } else if (param.pure_ae()) {
+        } else if (molecule.parameters.pure_ae()) {
             vnuc = potentialmanager->vnuclear();
         } else {
             vnuc = potentialmanager->vnuclear();
@@ -2274,6 +2237,7 @@ void SCF::output_scf_info_schema(const int& iter, const std::map<std::string, do
         j = j_old;
     };
     std::ofstream ofs(save);
+    ofs << std::setw(4);
     ofs << j;
 }
 }

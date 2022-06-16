@@ -16,7 +16,7 @@
 
 namespace madness {
 
-Znemo::Znemo(World& world, const commandlineparser& parser) : NemoBase(world), mol("input"), param(world,parser), cparam() {
+Znemo::Znemo(World& world, const commandlineparser& parser) : NemoBase(world), mol(world,parser), param(world,parser), cparam() {
 	cparam.read_input_and_commandline_options(world,parser,"dft");
 
     FunctionDefaults<3>::set_k(cparam.k());
@@ -80,11 +80,11 @@ void Znemo::recompute_factors_and_potentials(const double thresh) {
 
 	// the guess is read from a previous nemo calculation
 	// make sure the molecule was not reoriented there
-	if (not cparam.no_orient()) {
+	if (not mol.parameters.no_orient()) {
 		MADNESS_EXCEPTION("the molecule of the reference calculation was reoriented\n\n",1);
 	}
 
-	potentialmanager=std::shared_ptr<PotentialManager>(new PotentialManager(mol, cparam.core_type()));
+	potentialmanager=std::shared_ptr<PotentialManager>(new PotentialManager(mol, molecule().parameters.core_type()));
 	potentialmanager->make_nuclear_potential(world);
     construct_nuclear_correlation_factor(mol, potentialmanager, cparam.ncf());
 
