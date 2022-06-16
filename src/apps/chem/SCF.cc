@@ -154,36 +154,36 @@ SCF::SCF(World& world, const commandlineparser& parser) : param(CalculationParam
 //    param.read(world,parser.value("input"),"dft");
     if (world.rank() == 0) {
 
-        // read input parameters from the input file
-        if (parser.key_exists("structure"))
-            param.set_user_defined_value("molecular_structure", parser.value("structure"));
-
-        std::string molecular_structure = param.get<std::string>("molecular_structure");
-        if (molecular_structure == "inputfile") {
-            std::ifstream ifile(parser.value("input"));
-            molecule.read(ifile);
-        } else {
-            molecule.read_structure_from_library(molecular_structure);
-        }
-
-        // set derived parameters for the molecule
-
-        //if psp_calc is true, set all atoms to PS atoms
-        //if not, check whether some atoms are PS atoms or if this a pure AE calculation
-        if (param.get<bool>("psp_calc")) {
-            for (size_t iatom = 0; iatom < molecule.natom(); iatom++) {
-                molecule.set_pseudo_atom(iatom, true);
-            }
-        }
-
-        //modify atomic charge for complete PSP calc or individual PS atoms
-        for (size_t iatom = 0; iatom < molecule.natom(); iatom++) {
-            if (molecule.get_pseudo_atom(iatom)) {
-                unsigned int an = molecule.get_atomic_number(iatom);
-                double zeff = get_charge_from_file("gth.xml", an);
-                molecule.set_atom_charge(iatom, zeff);
-            }
-        }
+//        // read input parameters from the input file
+//        if (parser.key_exists("structure"))
+//            param.set_user_defined_value("molecular_structure", parser.value("structure"));
+//
+//        std::string molecular_structure = param.get<std::string>("molecular_structure");
+//        if (molecular_structure == "inputfile") {
+//            std::ifstream ifile(parser.value("input"));
+//            molecule.read(ifile);
+//        } else {
+//            molecule.read_structure_from_library(molecular_structure);
+//        }
+//
+//        // set derived parameters for the molecule
+//
+//        //if psp_calc is true, set all atoms to PS atoms
+//        //if not, check whether some atoms are PS atoms or if this a pure AE calculation
+//        if (param.get<bool>("psp_calc")) {
+//            for (size_t iatom = 0; iatom < molecule.natom(); iatom++) {
+//                molecule.set_pseudo_atom(iatom, true);
+//            }
+//        }
+//
+//        //modify atomic charge for complete PSP calc or individual PS atoms
+//        for (size_t iatom = 0; iatom < molecule.natom(); iatom++) {
+//            if (molecule.get_pseudo_atom(iatom)) {
+//                unsigned int an = molecule.get_atomic_number(iatom);
+//                double zeff = get_charge_from_file("gth.xml", an);
+//                molecule.set_atom_charge(iatom, zeff);
+//            }
+//        }
 
         if (param.core_type() != "none") {
             molecule.read_core_file(param.core_type());
@@ -466,11 +466,11 @@ void SCF::make_nuclear_potential(World& world) {
     PROFILE_MEMBER_FUNC(SCF);
     START_TIMER(world);
     potentialmanager = std::shared_ptr<PotentialManager
-    >(new PotentialManager(molecule, param.core_type()));
+    >(new PotentialManager(molecule, molecule.parameters.core_type()));
     gthpseudopotential = std::shared_ptr<GTHPseudopotential<double>
     >(new GTHPseudopotential<double>(world, molecule));
 
-    if (!param.pure_ae()) {
+    if (!molecule.parameters.pure_ae()) {
         gthpseudopotential->make_pseudo_potential(world);
     }
     if (!param.psp_calc()) {
@@ -648,11 +648,11 @@ void SCF::initial_guess(World& world) {
         if (param.nwfile() == "none") {
 
             // recalculate initial guess density matrix without core orbitals
-            if (!param.pure_ae()) {
+            if (!molecule.parameters.pure_ae()) {
                 for (size_t iatom = 0; iatom < molecule.natom(); iatom++) {
                     if (molecule.get_pseudo_atom(iatom)) {
                         double zeff = molecule.get_atom_charge(iatom);
-                        int atn = molecule.get_atom_number(iatom);
+                        int atn = molecule.get_atomic_number(iatom);
                         aobasis.modify_dmat_psp(atn, zeff);
                     }
                 }
@@ -676,7 +676,7 @@ void SCF::initial_guess(World& world) {
                 real_function_3d vnuc;
                 if (param.psp_calc()) {
                     vnuc = gthpseudopotential->vlocalpot();
-                } else if (param.pure_ae()) {
+                } else if (molecule.parameters.pure_ae()) {
                     vnuc = potentialmanager->vnuclear();
                 } else {
                     vnuc = potentialmanager->vnuclear();
@@ -698,7 +698,7 @@ void SCF::initial_guess(World& world) {
                 real_function_3d vnuc;
                 if (param.psp_calc()) {
                     vnuc = gthpseudopotential->vlocalpot();
-                } else if (param.pure_ae()) {
+                } else if (molecule.parameters.pure_ae()) {
                     vnuc = potentialmanager->vnuclear();
                 } else {
                     vnuc = potentialmanager->vnuclear();
@@ -714,7 +714,7 @@ void SCF::initial_guess(World& world) {
                 real_function_3d vnuc;
                 if (param.psp_calc()) {
                     vnuc = gthpseudopotential->vlocalpot();
-                } else if (param.pure_ae()) {
+                } else if (molecule.parameters.pure_ae()) {
                     vnuc = potentialmanager->vnuclear();
                 } else {
                     vnuc = potentialmanager->vnuclear();
@@ -730,7 +730,7 @@ void SCF::initial_guess(World& world) {
                 real_function_3d vnuc;
                 if (param.psp_calc()) {
                     vnuc = gthpseudopotential->vlocalpot();
-                } else if (param.pure_ae()) {
+                } else if (molecule.parameters.pure_ae()) {
                     vnuc = potentialmanager->vnuclear();
                 } else {
                     vnuc = potentialmanager->vnuclear();
@@ -789,7 +789,7 @@ void SCF::initial_guess(World& world) {
                 }*/
 
             //vlocal treated in psp includes psp and ae contribution so don't need separate clause for mixed psp/AE
-            if (!param.pure_ae()) {
+            if (!molecule.parameters.pure_ae()) {
                 double enl;
                 tensorT occ = tensorT(ao.size());
                 for (int i = 0; i < param.nalpha(); ++i) {
@@ -1128,7 +1128,7 @@ void SCF::initial_load_bal(World& world) {
     real_function_3d vnuc;
     if (param.psp_calc()) {
         vnuc = gthpseudopotential->vlocalpot();
-    } else if (param.pure_ae()) {
+    } else if (molecule.parameters.pure_ae()) {
         vnuc = potentialmanager->vnuclear();
     } else {
         vnuc = potentialmanager->vnuclear();
@@ -1234,7 +1234,7 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
 
     START_TIMER(world);
     vecfuncT Vpsi;
-    if (!param.pure_ae()) {
+    if (!molecule.parameters.pure_ae()) {
         Vpsi = gthpseudopotential->apply_potential(world, vloc, amo, occ, enl);
     } else {
         Vpsi = mul_sparse(world, vloc, amo, vtol);
@@ -1260,7 +1260,7 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
         exc = exchf * xc.hf_exchange_coefficient() + exc;
     }
     // need to come back to this for psp - when is this used?
-    if (param.pure_ae()) {
+    if (molecule.parameters.pure_ae()) {
         potentialmanager->apply_nonlocal_potential(world, amo, Vpsi);
     }
 
@@ -1599,7 +1599,7 @@ void SCF::loadbal(World& world, functionT& arho, functionT& brho,
     real_function_3d vnuc;
     if (param.psp_calc()) {
         vnuc = gthpseudopotential->vlocalpot();
-    } else if (param.pure_ae()) {
+    } else if (molecule.parameters.pure_ae()) {
         vnuc = potentialmanager->vnuclear();
     } else {
         vnuc = potentialmanager->vnuclear();
@@ -2012,7 +2012,7 @@ void SCF::solve(World& world) {
         real_function_3d vnuc;
         if (param.psp_calc()) {
             vnuc = gthpseudopotential->vlocalpot();
-        } else if (param.pure_ae()) {
+        } else if (molecule.parameters.pure_ae()) {
             vnuc = potentialmanager->vnuclear();
         } else {
             vnuc = potentialmanager->vnuclear();

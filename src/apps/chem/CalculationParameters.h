@@ -298,7 +298,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 
         // set highest possible point group for symmetry
         if (do_localize()) set_derived_value("pointgroup",std::string("c1"));
-        else set_derived_value("pointgroup",molecule.pointgroup_);
+        else set_derived_value("pointgroup",molecule.get_pointgroup());
 
         // above two lines will not override user input, so check input is sane
         if (do_localize() and do_symmetry()) {

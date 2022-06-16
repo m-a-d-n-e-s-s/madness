@@ -145,7 +145,7 @@ void Molecule::get_structure() {
     //modify atomic charge for complete PSP calc or individual PS atoms
     for (size_t iatom = 0; iatom < natom(); iatom++) {
         if (get_pseudo_atom(iatom)) {
-            unsigned int an = get_atom_number(iatom);
+            unsigned int an = get_atomic_number(iatom);
             double zeff = madness::get_charge_from_file("gth.xml", an);
             set_atom_charge(iatom, zeff);
         }
