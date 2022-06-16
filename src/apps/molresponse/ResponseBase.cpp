@@ -1115,7 +1115,7 @@ residuals ResponseBase::compute_residual(World &world, X_space &old_Chi, X_space
         }
     } else if (calc_type.compare("static") == 0) {
         // copy by value?
-        errY = errX;
+        errY = copy(errX);
     } else {// tda
         errY.fill(0);
     }
@@ -1242,7 +1242,7 @@ void ResponseBase::x_space_step_restriction(World &world, X_space &old_Chi, X_sp
     auto diff = temp - old_Chi;
 
     for (size_t b = 0; b < m; b++) {
-        if (restrict_y) {
+        if (true) {
 
             auto x_diff = diff.X[b];
             auto y_diff = diff.Y[b];
