@@ -53,7 +53,7 @@ public:
         return retrieve_data(molecule, xc, property).get<std::vector<double>>();
     }
 
-    void add_default_molecule(const json & response_keywords) {
+    void add_default_molecule(const json &response_keywords) {
 
         const std::string molecule_name = response_keywords["molecule"];
         const std::string xc = response_keywords["xc"];
@@ -76,25 +76,25 @@ public:
                     ::print(dalton_excited);
 
 
-                    std::vector<double> freq = dalton_excited[molecule_name][xc]["excited-state"]["aug-cc-pVTZ"]["response"]["freq"];
+                    std::vector<double> freq = dalton_excited[molecule_name][xc]["excited-state"]
+                                                             ["aug-cc-pVTZ"]["response"]["freq"];
                     auto omega_max = freq.at(0);
                     omega_max = omega_max / 2.0;
                     ::print(omega_max);
 
-                    std::vector<double> omegas = {0, omega_max / 8.0, omega_max / 4.0, omega_max / 2.0, omega_max};
+                    std::vector<double> omegas = {0, omega_max / 8.0, omega_max / 4.0,
+                                                  omega_max / 2.0, omega_max};
                     j_add[molecule_name][xc][op] = omegas;
 
 
-                }
-                catch (const json::out_of_range &e) {
+                } catch (const json::out_of_range &e) {
                     std::cout << e.what() << std::endl;
                     // The molecule file exists in the database therefore it is okay to add to frequency.json
-
                 }
 
             } else {
                 std::cout << " did not find dipole-excited.json" << std::endl;
-            j_add[molecule_name][xc][op] = {0};
+                j_add[molecule_name][xc][op] = {0};
             }
         } else if (op == "nuclear") {
             j_add[molecule_name][xc][op] = {0};
@@ -106,76 +106,65 @@ public:
     }
 };
 
-void addResponseKeyWord(json response_keywords) {
-    // Adds response keyword to frequency.json
-    // reads in frequency that json and merges
+vector<double> generate_dipole_frequencies(std::string molecule_name, std::string xc,
+                                           std::string op) {
 
-    const std::string molecule_name = response_keywords["molecule"];
-    const std::string xc = response_keywords["xc"];
-    const std::string op = response_keywords["operator"];
+    if (std::filesystem::exists("molecules/dalton-excited.json")) {
+        std::ifstream ifs("molecules/dalton-excited.json");
+        try {
 
-    ResponseDataBase data_base{};
+            json dalton_excited;
+            ifs >> dalton_excited;
+            ::print("Read Dalton Excited");
+            ::print(dalton_excited);
+            std::vector<double> freq = dalton_excited[molecule_name][xc]["excited-state"]
+                                                     ["aug-cc-pVTZ"]["response"]["freq"];
+            auto omega_max = freq.at(0);
+            omega_max = omega_max / 2.0;
+            ::print(omega_max);
 
-    if (std::filesystem::exists("molecules/frequency.json")) {
-        std::ifstream ifs("molecules/frequency.json");
-        std::cout << "Trying to read frequency.json\n";
-        json j_read;
-        ifs >> j_read;
-        std::cout << "READ IT\n";
-        data_base.set_data(j_read);
+            std::vector<double> omegas = {0, omega_max / 8.0, omega_max / 4.0, omega_max / 2.0,
+                                          omega_max};
+            return omegas;
 
-            try {
-                auto num_states = data_base.retrieve_data(molecule_name, xc, op);
-                print(num_states);
-
-            } catch (const json::out_of_range &e) {
-                std::cout << e.what() << std::endl;
-                if (std::filesystem::exists("molecules/" + molecule_name + ".mol")) {
-                    // The molecule file exists in the database therefore it is okay to add to frequency.json
-                    data_base.add_default_molecule(response_keywords);
-                }
-
-            } catch (const std::exception &e) { print(e.what()); }
-            catch (...) {
-                std::cout << "uncaught exception" << std::endl;
-            }
-    } else {
-        if (std::filesystem::exists("molecules/" + molecule_name + ".mol")) {
+        } catch (const json::out_of_range &e) {
+            std::cout << e.what() << std::endl;
             // The molecule file exists in the database therefore it is okay to add to frequency.json
-            data_base.add_default_molecule(response_keywords);
         }
 
+    } else {
+        std::cout << " did not find dipole-excited.json" << std::endl;
+        return {0};
     }
 }
-json
-generate_response_data(const std::filesystem::path &molecule_path, const std::string &xc,
-                       const std::string &property,
-                       const vector<double> &freq) {
+json generate_response_data(const std::filesystem::path &molecule_path, const std::string &xc,
+                            const std::string &property, const vector<double> &freq) {
     json data;
     for (const std::filesystem::directory_entry &mol_path:
          std::filesystem::directory_iterator(molecule_path)) {
         if (mol_path.path().extension() == ".mol") {
             auto molecule_name = mol_path.path().stem();
-            data[molecule_name][xc][property] = freq;
+            data[molecule_name][xc][property] =
+                    generate_dipole_frequencies(molecule_name, xc, property);
         }
     }
     std::cout << data << endl;
     return data;
 }
 
-json
-generate_excited_data(const std::filesystem::path &molecule_path, const std::string &xc,
-                      int num_states) {
+json generate_excited_data(const std::filesystem::path &molecule_path, const std::string &xc,
+                           int num_states) {
     json data;
     for (const std::filesystem::directory_entry &mol_path:
          std::filesystem::directory_iterator(molecule_path)) {
         if (mol_path.path().extension() == ".mol") {
             auto molecule_name = mol_path.path().stem();
-            const std::string property = "excited_state";
+            const std::string property = "excited-state";
             data[molecule_name][xc][property] = num_states;
         }
     }
     return data;
 };
+
 
 #endif//MADNESS_RESPONSE_DATA_BASE_HPP
