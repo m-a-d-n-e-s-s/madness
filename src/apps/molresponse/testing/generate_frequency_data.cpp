@@ -1,28 +1,19 @@
 //
 // Created by adrianhurtado on 2/17/22.
 //
-#define CATCH_CONFIG_RUNNER
 
-#include "ExcitedResponse.hpp"
-#include "FrequencyResponse.hpp"
 #include "ResponseExceptions.hpp"
-#include "TDDFT.h"
 #include "apps/chem/SCF.h"
 #include "apps/external_headers/catch.hpp"
 #include "apps/external_headers/tensor_json.hpp"
 #include "madness/world/worldmem.h"
 #include "response_functions.h"
-#include "runners.hpp"
 #include "string"
-#include "timer.h"
-#include "write_test_input.h"
-#include "x_space.h"
 #include "response_data_base.hpp"
 
 #if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
 
 #include <sys/stat.h>
-#include <sys/types.h>
 #include <unistd.h>
 
 static inline int file_exists(const char *input_name) {
@@ -65,7 +56,7 @@ int main(int argc, char *argv[]) {
             ifs >> j_read;
             std::cout << "READ IT" << std::endl;
             json data = generate_response_data(molecule_path, xc, op, {0});
-            json excited_date= generate_excited_data(molecule_path, xc, 4);
+            json excited_date= generate_excited_data(molecule_path, xc, 8);
             std::ofstream ofs("molecules/frequency.json");
             j_read.merge_patch(data);
             j_read.merge_patch(excited_date);
@@ -73,7 +64,7 @@ int main(int argc, char *argv[]) {
 
         } else {
             json data = generate_response_data(molecule_path, xc, op, {0});
-            json excited_date= generate_excited_data(molecule_path, xc, 4);
+            json excited_date= generate_excited_data(molecule_path, xc, 8);
             std::ofstream ofs("molecules/frequency.json");
             ofs << std::setw(4) << data << std::endl;
             ResponseDataBase response_data_base(data);

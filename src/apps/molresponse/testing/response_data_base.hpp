@@ -61,7 +61,8 @@ public:
         json j_add;
         if (op == "excited-state") {
 
-            j_add[molecule_name][xc][op] = 4;
+            j_add[molecule_name][xc][op] = 8;
+
 
         } else if (op == "dipole") {
 
