@@ -6,6 +6,7 @@
 #define MADNESS_COMMANDLINEPARSER_H
 
 #include<map>
+#include<algorithm>
 namespace madness {
 /// very simple command line parser
 
@@ -92,8 +93,8 @@ private:
         std::string result=arg;
         const std::string item="=";
         const std::string blank=" ";
-        auto it=find_first_of(result.begin(),result.end(),item.begin(),item.end());
-        replace(it,it+1,item.front(),blank.front());
+        auto it=std::find_first_of(result.begin(),result.end(),item.begin(),item.end());
+        std::replace(it,it+1,item.front(),blank.front());
         return result;
     }
     static std::string remove_blanks(const std::string arg) {

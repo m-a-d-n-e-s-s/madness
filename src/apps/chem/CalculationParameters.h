@@ -85,7 +85,6 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<bool>  ("restart",false,"if true restart from orbitals on disk");
 		initialize<bool>  ("restartao",false,"if true restart from orbitals projected into AO basis (STO3G) on disk");
 		initialize<bool>  ("no_compute",false,"if true use orbitals on disk, set value to computed");
-		initialize<bool>  ("no_orient",false,"if true the molecule coordinates will not be reoriented");
 		initialize<bool>  ("save",true,"if true save orbitals to disk");
 		initialize<int>   ("maxsub",10,"size of iterative subspace ... set to 0 or 1 to disable");
 		initialize<double> ("orbitalshift",0.0,"scf orbital shift: shift the occ orbitals to lower energies");
@@ -181,7 +180,6 @@ struct CalculationParameters : public QCCalculationParametersBase {
 
 	std::string pointgroup() const {return get<std::string>("pointgroup");}
 	bool do_symmetry() const {return (pointgroup()!="c1");}
-	bool no_orient() const {return get<bool>("no_orient");}
 	double charge() const {return get<double>("charge");}
 	int print_level() const {return get<int>("print_level");}
 
@@ -195,9 +193,6 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	std::string xc() const {return get<std::string>("xc");}
 
 	std::string aobasis() const {return get<std::string>("aobasis");}
-	std::string core_type() const {return get<std::string>("core_type");}
-	bool psp_calc() const {return get<bool>("psp_calc");}
-	bool pure_ae() const {return get<bool>("pure_ae");}
 
 	std::vector<double> protocol() const {return get<std::vector<double> >("protocol");}
 	bool save() const {return get<bool>("save");}

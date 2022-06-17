@@ -185,11 +185,11 @@ SCF::SCF(World& world, const commandlineparser& parser) : param(CalculationParam
 //            }
 //        }
 
-        if (param.core_type() != "none") {
-            molecule.read_core_file(param.core_type());
+        if (molecule.parameters.core_type() != "none") {
+            molecule.read_core_file(molecule.parameters.core_type());
         }
 
-        if (not param.no_orient()) molecule.orient();
+        if (not molecule.parameters.no_orient()) molecule.orient();
 
         //account for nwchem aobasis generation
         if (param.nwfile() == "none") reset_aobasis(param.aobasis());
@@ -473,7 +473,7 @@ void SCF::make_nuclear_potential(World& world) {
     if (!molecule.parameters.pure_ae()) {
         gthpseudopotential->make_pseudo_potential(world);
     }
-    if (!param.psp_calc()) {
+    if (!molecule.parameters.psp_calc()) {
         potentialmanager->make_nuclear_potential(world);
     }
     END_TIMER(world, "Project vnuclear");
@@ -674,7 +674,7 @@ void SCF::initial_guess(World& world) {
                 START_TIMER(world);
                 LoadBalanceDeux<3> lb(world);
                 real_function_3d vnuc;
-                if (param.psp_calc()) {
+                if (molecule.parameters.psp_calc()) {
                     vnuc = gthpseudopotential->vlocalpot();
                 } else if (molecule.parameters.pure_ae()) {
                     vnuc = potentialmanager->vnuclear();
@@ -696,7 +696,7 @@ void SCF::initial_guess(World& world) {
             if (param.nalpha() + param.nbeta() > 1) {
                 START_TIMER(world);
                 real_function_3d vnuc;
-                if (param.psp_calc()) {
+                if (molecule.parameters.psp_calc()) {
                     vnuc = gthpseudopotential->vlocalpot();
                 } else if (molecule.parameters.pure_ae()) {
                     vnuc = potentialmanager->vnuclear();
@@ -712,7 +712,7 @@ void SCF::initial_guess(World& world) {
                 END_TIMER(world, "guess lda potn");
             } else {
                 real_function_3d vnuc;
-                if (param.psp_calc()) {
+                if (molecule.parameters.psp_calc()) {
                     vnuc = gthpseudopotential->vlocalpot();
                 } else if (molecule.parameters.pure_ae()) {
                     vnuc = potentialmanager->vnuclear();
@@ -728,7 +728,7 @@ void SCF::initial_guess(World& world) {
                 START_TIMER(world);
                 LoadBalanceDeux<3> lb(world);
                 real_function_3d vnuc;
-                if (param.psp_calc()) {
+                if (molecule.parameters.psp_calc()) {
                     vnuc = gthpseudopotential->vlocalpot();
                 } else if (molecule.parameters.pure_ae()) {
                     vnuc = potentialmanager->vnuclear();
@@ -845,7 +845,7 @@ void SCF::initial_guess(World& world) {
             compress(world, ao);
 
             unsigned int ncore = 0;
-            if (param.core_type() != "none") {
+            if (molecule.parameters.core_type() != "none") {
                 ncore = molecule.n_core_orb_all();
             }
 
@@ -1126,7 +1126,7 @@ void SCF::initial_load_bal(World& world) {
     PROFILE_MEMBER_FUNC(SCF);
     LoadBalanceDeux<3> lb(world);
     real_function_3d vnuc;
-    if (param.psp_calc()) {
+    if (molecule.parameters.psp_calc()) {
         vnuc = gthpseudopotential->vlocalpot();
     } else if (molecule.parameters.pure_ae()) {
         vnuc = potentialmanager->vnuclear();
@@ -1285,7 +1285,7 @@ tensorT SCF::derivatives(World& world, const functionT& rho) const {
             dv[atom * 3 + axis] =
                     functionT(
                             factoryT(world).functor(func).nofence().truncate_on_project().truncate_mode(0));
-            if (param.core_type() != "none"
+            if (molecule.parameters.core_type() != "none"
                 && molecule.is_potential_defined_atom(atom)) {
                 // core potential contribution
                 func = functorT(
@@ -1597,7 +1597,7 @@ void SCF::loadbal(World& world, functionT& arho, functionT& brho,
 
     LoadBalanceDeux<3> lb(world);
     real_function_3d vnuc;
-    if (param.psp_calc()) {
+    if (molecule.parameters.psp_calc()) {
         vnuc = gthpseudopotential->vlocalpot();
     } else if (molecule.parameters.pure_ae()) {
         vnuc = potentialmanager->vnuclear();
@@ -2010,7 +2010,7 @@ void SCF::solve(World& world) {
         rho.truncate();
 
         real_function_3d vnuc;
-        if (param.psp_calc()) {
+        if (molecule.parameters.psp_calc()) {
             vnuc = gthpseudopotential->vlocalpot();
         } else if (molecule.parameters.pure_ae()) {
             vnuc = potentialmanager->vnuclear();
