@@ -102,7 +102,7 @@ namespace madness {
                 this->x = y.x;
                 if (x.size() != num_states) { x.resize(num_states); }
                 World& world = y[0][0].world();
-               // print("perhaps this is the problem");
+                // print("perhaps this is the problem");
                 std::transform(y.x.begin(), y.x.end(), x.begin(),
                                [&](auto yi) { return madness::copy(world, yi); });
             }
@@ -350,34 +350,54 @@ namespace madness {
 
         // Mimicing standard madness calls with these 3
         void zero() {
+            auto& world = x[0][0].world();
+            std::generate(x.begin(), x.end(),
+                          [&]() { return zero_functions<double, 3>(world, num_orbitals, true); });
+
+            /*
             for (size_t k = 0; k < num_states; k++) {
                 x[k] = zero_functions<double, 3>(x[0][0].world(), num_orbitals);
             }
+             */
         }
 
         void compress_rf() {
-            for (size_t k = 0; k < num_states; k++) { compress(x[0][0].world(), x[k], true); }
+            //for (size_t k = 0; k < num_states; k++) { compress(x[0][0].world(), x[k], true); }
+            auto& world = x[0][0].world();
+            std::for_each(x.begin(), x.end(), [&](auto xi) { compress(world, xi, true); });
         }
 
         void reconstruct_rf() {
-            for (size_t k = 0; k < num_states; k++) { reconstruct(x[0][0].world(), x[k], true); }
+            //for (size_t k = 0; k < num_states; k++) { reconstruct(x[0][0].world(), x[k], true); }
+            auto& world = x[0][0].world();
+            std::for_each(x.begin(), x.end(), [&](auto xi) { reconstruct(world, xi, true); });
         }
 
         void truncate_rf() {
+            truncate_rf(FunctionDefaults<3>::get_thresh());
+            /*
             for (size_t k = 0; k < num_states; k++) {
                 truncate(x[0][0].world(), x[k], FunctionDefaults<3>::get_thresh(), true);
             }
+             */
         }
+
         void truncate_rf(double tol) {
+            auto& world = x[0][0].world();
+            std::for_each(x.begin(), x.end(), [&](auto xi) { truncate(world, xi, tol, true); });
+            /*
             for (size_t k = 0; k < num_states; k++) { truncate(x[0][0].world(), x[k], tol, true); }
+             */
         }
 
         // Returns norms of each state
         Tensor<double> norm2() {
+            auto& world = x[0][0].world();
             Tensor<double> answer(num_states);
-            for (size_t i = 0; i < num_states; i++) {
-                answer(i) = madness::norm2(x[0][0].world(), x[i]);
-            }
+            for (size_t i = 0; i < num_states; i++) { answer(i) = madness::norm2(world, x[i]); }
+
+            world.gop.fence();
+
             return answer;
         }
 
