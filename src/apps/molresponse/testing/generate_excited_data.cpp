@@ -53,13 +53,13 @@ int main(int argc, char *argv[]) {
             json j_read;
             ifs >> j_read;
             std::cout << "READ IT" << std::endl;
-            json excited_data = generate_excited_data(molecule_path, xc, 8);
+            json excited_data = generate_excited_data(molecule_path, xc, 4);
             std::ofstream ofs("molecules/frequency.json");
             j_read.merge_patch(excited_data);
             ofs << std::setw(4) << j_read << std::endl;
 
         } else {
-            json data = generate_excited_data(molecule_path, xc, 8);
+            json data = generate_excited_data(molecule_path, xc, 4);
             std::ofstream ofs("molecules/frequency.json");
             ofs << std::setw(4) << data << std::endl;
         }
