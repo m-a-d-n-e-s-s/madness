@@ -706,7 +706,7 @@ ExcitedResponse::rotate_excited_space(World &world, X_space &chi, X_space &lchi,
     A = inner(chi_copy, l_copy);
     if (world.rank() == 0) {
         auto am = A - transpose(A);
-        print(am.max());
+        print("largest non-symmetric :", am.max());
     }
     A = 0.5 * (A + transpose(A));
     if (world.rank() == 0 && (r_params.print_level() >= 10)) {

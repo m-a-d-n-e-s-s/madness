@@ -683,6 +683,14 @@ namespace madness {
     }
 
     /// Computes the 2-norm of a vector of functions
+    /** Collective function
+     *
+     * @tparam T
+     * @tparam NDIM
+     * @param world
+     * @param v
+     * @return
+     */
     template <typename T, std::size_t NDIM>
     double norm2(World& world,const std::vector< Function<T,NDIM> >& v) {
         PROFILE_BLOCK(Vnorm2);

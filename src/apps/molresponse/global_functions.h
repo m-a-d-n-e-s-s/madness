@@ -46,6 +46,7 @@ CalcParams initialize_calc_params(World &world, const std::string &input_file);
 response_space T(World &world, response_space &f);
 
 vecfuncT K(vecfuncT &ket, vecfuncT &bra, vecfuncT &vf);
+vecfuncT newK(vecfuncT &ket, vecfuncT &bra, vecfuncT &vf);
 static double rsquared(const coordT &r) { return r[0] * r[0] + r[1] * r[1] + r[2] * r[2]; }
 /// Mask function to switch from 0 to 1 smoothly at boundary
 #endif  // SRC_APPS_molresponse_GLOBAL_FUNCTIONS_H_

@@ -22,6 +22,7 @@ namespace molresponse {
     }
     // Stops a timer
     void end_timer(World& world, const char* msg) {
+        world.gop.fence();
         MADNESS_CHECK(ttt.size() > 0);
 
         double wall = wall_time() - pop(ttt);
@@ -32,6 +33,7 @@ namespace molresponse {
     }
     void end_timer(World& world, const char* msg, const std::string& key,
                                 std::map<std::string, std::pair<double, double>>& time) {
+        world.gop.fence();
         MADNESS_CHECK(ttt.size() > 0);
         double wall = wall_time() - pop(ttt);
         double cpu = cpu_time() - pop(sss);

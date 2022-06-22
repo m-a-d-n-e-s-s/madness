@@ -498,11 +498,11 @@ X_space ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &den
         x = d_alpha.X[b];
         y = d_alpha.Y[b];
         // |x><i|p>
-        KX.X[b] = K(x, phi0, vf);
-        KY.X[b] = K(phi0, y, vf);
+        KX.X[b] = newK(x, phi0, vf);
+        KY.X[b] = newK(phi0, y, vf);
         // |y><i|p>
-        KY.Y[b] = K(y, phi0, vf);
-        KX.Y[b] = K(phi0, x, vf);
+        KY.Y[b] = newK(y, phi0, vf);
+        KX.Y[b] = newK(phi0, x, vf);
         // |i><x|p>
     }
     if (world.rank() == 0 && r_params.print_level() >= 1) {
@@ -958,7 +958,7 @@ X_space ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperat
         molresponse::end_timer(world, "V0_nuc", "V0_nuc", iter_timing);
     }
     // Coulomb Potential J0*f
-    if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
+    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     if (not r_params.store_potential()) {
         // "a" is the core type
         // scale rho by 2 TODO
@@ -968,26 +968,24 @@ X_space ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperat
     } else {// Already pre-computed
         v_j0 = stored_v_coul;
     }
-    if (world.rank() == 0 && r_params.print_level() >= 1) {
-        molresponse::end_timer(world, "J[0]", "J[0]", iter_timing);
-    }
+    if (r_params.print_level() >= 1) { molresponse::end_timer(world, "J[0]", "J[0]", iter_timing); }
 
-    if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
+    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     if (xcf.hf_exchange_coefficient() != 1.0) {
         v_xc = xc.make_xc_potential();
     } else {
         // make a zero function
         v_xc = Function<double, 3>(FunctionFactory<double, 3>(world).fence(false).initial_level(1));
     }
-    if (world.rank() == 0 && r_params.print_level() >= 1) {
+    if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "XC[0]", "XC[0]", iter_timing);
     }
 
     // Intermediaries
 
-    if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
+    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
-    auto k = [&phi0_copy](vector_real_function_3d xi) { return K(phi0_copy, phi0_copy, xi); };
+    auto k = [&phi0_copy](vector_real_function_3d xi) { return newK(phi0_copy, phi0_copy, xi); };
     // If including any exact HF exchange
     if (xcf.hf_exchange_coefficient() != 0.0) {
         std::transform(Chi_copy.X.begin(), Chi_copy.X.end(), K0.X.begin(), k);
@@ -997,11 +995,9 @@ X_space ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperat
         print("inner <X|K0|X>");
         print(inner(Chi_copy, K0));
     }
-    if (world.rank() == 0 && r_params.print_level() >= 1) {
-        molresponse::end_timer(world, "K[0]", "K[0]", iter_timing);
-    }
+    if (r_params.print_level() >= 1) { molresponse::end_timer(world, "K[0]", "K[0]", iter_timing); }
     // Vnuc+V0+VXC
-    if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
+    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     real_function_3d v0 = v_j0 + v_nuc + v_xc;
 
     V0.X = v0 * X.X;
@@ -1015,7 +1011,7 @@ X_space ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperat
         print("inner <X|V0|X>");
         print(inner(Chi_copy, V0));
     }
-    if (world.rank() == 0 && r_params.print_level() >= 1) {
+    if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "V0_add", "V0_add", iter_timing);
     }
 

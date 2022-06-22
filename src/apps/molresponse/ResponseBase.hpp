@@ -17,6 +17,7 @@
 #include "madness/tensor/tensor.h"
 #include "timer.h"
 #include "x_space.h"
+#include "chem.h"
 
 
 using namespace madness;

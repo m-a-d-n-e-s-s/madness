@@ -89,12 +89,16 @@ void FrequencyResponse::iterate(World &world) {
                 printf("\n   Iteration %d at time %.1fs\n", static_cast<int>(iter), wall_time());
             if (world.rank() == 0) print("-------------------------------------------");
         }
+
         if (r_params.print_level() >= 1) {
+            auto chi_x_norms = Chi.X.norm2();
+            auto chi_y_norms = Chi.Y.norm2();
             if (world.rank() == 0) {
                 print("Chi.x norms at start of iteration: ", iter);
-                print(Chi.X.norm2());
+                print("hello");
+                print(chi_x_norms);
                 print("Chi.y norms at start of iteration ", iter);
-                print(Chi.Y.norm2());
+                print(chi_y_norms);
             }
         }
 
