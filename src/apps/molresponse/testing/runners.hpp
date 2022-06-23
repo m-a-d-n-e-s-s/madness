@@ -498,7 +498,7 @@ void runMOLDFT(World &world, const moldftSchema &mschema, bool try_run, bool res
         if (std::filesystem::exists(mschema.moldft_restart) && restart) {
             param1.set_user_defined_value<bool>("restart", true);
         }
-        write_test_input test_input(param1, "moldft.in", mschema.mol_path);// molecule HF
+        molresponse::write_test_input test_input(param1, "moldft.in", mschema.mol_path);// molecule HF
         commandlineparser parser;
         parser.set_keyval("input", test_input.filename());
         SCF calc(world, parser);
@@ -533,7 +533,7 @@ void runMOLDFT(World &world, const std::string &mol_path, const std::string &xc)
     param1.set_user_defined_value<std::string>("localize", "canon");
     // write restart file
     // write restart file
-    write_test_input test_input(param1, "moldft.in", mol_path);// molecule HF
+    molresponse::write_test_input test_input(param1, "moldft.in", mol_path);// molecule HF
     commandlineparser parser;
     parser.set_keyval("input", test_input.filename());
     SCF calc(world, parser);
@@ -581,7 +581,7 @@ void initialize_excited_restart(World &world, const std::string &filename, const
     r_params.set_user_defined_value("restart", true);
     r_params.set_user_defined_value("restart_file", std::string("restart_excited"));
 
-    write_response_input(r_params, filename);
+    molresponse::write_response_input(r_params, filename);
 }
 
 /**
@@ -737,7 +737,7 @@ std::pair<std::filesystem::path, bool> RunResponse(World &world, const std::stri
                                                     restart_path, true);
     if (world.rank() == 0) {
         std::string filename = "response.in";
-        write_response_input(r_params, filename);
+        molresponse::write_response_input(r_params, filename);
     }
 
     auto calc_params = initialize_calc_params(world, std::string(filename));
@@ -791,7 +791,7 @@ static void set_and_write_restart_excited_parameters(ResponseParameters &paramet
         parameters.set_user_defined_value("restart", false);
     }
     std::string filename = "response.in";
-    write_response_input(parameters, filename);
+    molresponse::write_response_input(parameters, filename);
 }
 
 /***

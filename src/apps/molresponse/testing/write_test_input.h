@@ -3,14 +3,14 @@
 // Modified by Adrian Hurtado on 2/01/22
 //
 
-#ifndef MADNESS_WRITE_TEST_INPUT_H
-#define MADNESS_WRITE_TEST_INPUT_H
+#ifndef MADNESS_WRITE_RESPONSE_INPUT_H
+#define MADNESS_WRITE_RESPONSE_INPUT_H
 
 #include <chem/CalculationParameters.h>
 
 #include "response_parameters.h"
 
-namespace madness {
+namespace molresponse {
 
     /// will write a test input and remove it from disk upon destruction
     struct write_test_input {
@@ -98,4 +98,4 @@ namespace madness {
 }// namespace madness
 
 
-#endif//MADNESS_WRITE_TEST_INPUT_H
+#endif//MADNESS_WRITE_RESPONSE_INPUT_H
