@@ -88,8 +88,10 @@ namespace madness {
         print(ss.str());
         print("printing j", j);
 
+        /* TODO I need figure out why this breaks on sn-mem
         j["time"] = ss.str();
-        j["wall_time"] = wall_time();
+        j["wall_time"] = time();
+         */
 
         ofs << std::setw(4) << j;
     }
