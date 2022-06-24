@@ -507,7 +507,6 @@ void runMOLDFT(World &world, const moldftSchema &mschema, bool try_run, bool res
         // double energy=ME.value(calc.molecule.get_all_coords().flat()); // ugh!
         ME.value(calc.molecule.get_all_coords().flat());// ugh!
         ME.output_calc_info_schema();
-        world.gop.fence();
     } else {
         print("Skipping Calculation and printing CALC INFO");
         std::cout << calcInfo;
@@ -608,7 +607,7 @@ void set_excited_parameters(ResponseParameters &r_params, const std::string &xc,
     r_params.set_user_defined_value("maxiter", size_t(15));
     r_params.set_user_defined_value("maxsub",
                                     size_t(10));// if its too large then bad guess is very strong
-    r_params.set_user_defined_value("kain", false);
+    r_params.set_user_defined_value("kain", true);
     r_params.set_user_defined_value("plot_all_orbitals", true);
     r_params.set_user_defined_value("save", true);
     r_params.set_user_defined_value("guess_xyz", false);
