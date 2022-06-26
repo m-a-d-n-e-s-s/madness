@@ -608,7 +608,7 @@ void set_excited_parameters(ResponseParameters &r_params, const std::string &xc,
     r_params.set_user_defined_value("maxsub",
                                     size_t(10));// if its too large then bad guess is very strong
     r_params.set_user_defined_value("kain", true);
-    r_params.set_user_defined_value("plot_all_orbitals", true);
+    r_params.set_user_defined_value("plot_all_orbitals", false);
     r_params.set_user_defined_value("save", true);
     r_params.set_user_defined_value("guess_xyz", false);
     r_params.set_user_defined_value("print_level", 20);
@@ -644,7 +644,7 @@ void set_frequency_response_parameters(ResponseParameters &r_params, const std::
     r_params.set_user_defined_value("kain", true);
     r_params.set_user_defined_value("omega", frequency);
     r_params.set_user_defined_value("first_order", true);
-    r_params.set_user_defined_value("plot_all_orbitals", true);
+    r_params.set_user_defined_value("plot_all_orbitals", false);
     r_params.set_user_defined_value("save", true);
     // set xc, property, frequency,and restart
     r_params.set_user_defined_value("xc", xc);
