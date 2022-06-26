@@ -79,6 +79,9 @@ int main(int argc, char *argv[]) {
 
     } catch (const std::filesystem::filesystem_error &ex) { std::cerr << ex.what() << "\n"; }
 
+    if(world.rank()==0){
+        print("Finished Excited-State Calculation");
+    }
 
     return result;
 

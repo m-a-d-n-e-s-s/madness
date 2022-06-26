@@ -73,6 +73,10 @@ int main(int argc, char *argv[]) {
         std::cerr << ex.what() << "\n";
     } catch (...) { error("caught unhandled exception"); }
 
+    if(world.rank()==0){
+        print("Finished All Frequencies");
+    }
+
     return result;
 
     // print_meminfo(world.rank(), "startup");
