@@ -2148,7 +2148,7 @@ namespace madness {
         	// f.trace() is just a number
     		R ftrace=0.0;
     		if (op.is_slaterf12) ftrace=f.trace();
-            print("ftrace",ftrace);
+//            print("ftrace",ftrace);
 
     		// saves the standard() step, which is very expensive in 6D
 //    		Function<R,NDIM> fff=copy(ff);
@@ -2161,7 +2161,7 @@ namespace madness {
             }
             result = apply_only(op, fff, fence);
         	ff.world().gop.fence();
-            result.print_size("result after apply_only");
+            if (print_timings) result.print_size("result after apply_only");
 
         	// svd-tensors need some post-processing
         	if (result.get_impl()->get_tensor_type()==TT_2D) {

@@ -30,12 +30,13 @@ double compute_difference(const Tensor<T>& t2, const GenTensor<T>& lrt1) {\
 	return (lrt1.full_tensor_copy()-t2).normf();
 }
 
-std::vector<long> make_dimensions() {
+std::vector<long> make_dimensions(bool even=false) {
 	madness::Random(10);
 
 	long ndim=(madness::RandomValue<long>() %5+2);	// anything from 2 to 6
+    if (even and (ndim%2==1)) ndim++;
 	std::vector<long> dim(ndim);
-	for (long& d : dim) d=(madness::RandomValue<long>() %7+1);// anything from 1 to 7
+	for (long& d : dim) d=(madness::RandomValue<long>() %6+1);// anything from 1 to 6
 	print("dimensions",dim);
 	return dim;
 }
@@ -44,7 +45,7 @@ std::vector<long> make_dimensions() {
 template<typename T>
 int test_constructor() {
 	print("\nentering test_construct");
-	std::vector<long> dim=make_dimensions();
+	std::vector<long> dim=make_dimensions(true);
 	Tensor<T> tensor(dim);
 	double thresh=1.e-5;
 	for (int i=0; i<2; ++i) {
@@ -109,7 +110,7 @@ template<typename T>
 int test_addition(const TensorType& tt) {
 
 	print("\nentering test_addition", tt);
-	std::vector<long> dim=make_dimensions();
+	std::vector<long> dim=make_dimensions(tt==TT_2D);
 	Tensor<T> tensor(dim);
 	tensor.fillrandom();
 	double error=0.0;
@@ -194,7 +195,7 @@ template<typename T>
 int test_reduce_rank(const TensorType& tt) {
 
 	print("\nentering test_reduce_rank", tt);
-	std::vector<long> dim=make_dimensions();
+	std::vector<long> dim=make_dimensions(tt==TT_2D);
 	Tensor<T> tensor1(dim);
 	Tensor<T> tensor2(dim);
 	tensor1.fillrandom();
@@ -223,7 +224,7 @@ template<typename T>
 int test_emul(const TensorType& tt) {
 
 	print("\nentering test_emul", tt);
-	std::vector<long> dim=make_dimensions();
+	std::vector<long> dim=make_dimensions(tt==TT_2D);
 	Tensor<T> tensor1(dim);
 	Tensor<T> tensor2(dim);
 	tensor1.fillrandom();
@@ -379,7 +380,7 @@ main(int argc, char* argv[]) {
 	madness::default_random_generator.setstate(int(cpu_time())%4149);
 	int success=0;
 	success+=test_stuff<double>();
-#if 0
+#if 1
     success += test_constructor<double>();
     success += test_constructor<double_complex>();
 

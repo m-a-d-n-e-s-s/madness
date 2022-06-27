@@ -2202,14 +2202,24 @@ namespace madness {
     template <class T>
     Tensor<T> outer(const Tensor<T>& left, const Tensor<T>& right) {
         long nd = left.ndim() + right.ndim();
-        TENSOR_ASSERT(nd <= TENSOR_MAXDIM,"too many dimensions in result",
-                      nd,0);
+        TENSOR_ASSERT(nd <= TENSOR_MAXDIM, "too many dimensions in result",
+                      nd, 0);
         long d[TENSOR_MAXDIM];
-        for (long i=0; i<left.ndim(); ++i) d[i] = left.dim(i);
-        for (long i=0; i<right.ndim(); ++i) d[i+left.ndim()] = right.dim(i);
-        Tensor<T> result(nd,d,false);
-        T* ptr = result.ptr();
+        for (long i = 0; i < left.ndim(); ++i) d[i] = left.dim(i);
+        for (long i = 0; i < right.ndim(); ++i) d[i + left.ndim()] = right.dim(i);
+        Tensor<T> result(nd, d, false);
+        outer_result(left,right,result);
+        return result;
+    }
 
+    /// Outer product ... result(i,j,...,p,q,...) = left(i,k,...)*right(p,q,...)
+
+    /// accumulate into result, no allocation is performed
+    template<class T>
+    void outer_result(const Tensor<T>& left, const Tensor<T>& right, Tensor<T>& result) {
+        TENSOR_ASSERT(left.ndim() + right.ndim() == result.ndim(),"inconsisten dimension in outer_resultn",
+                      result.ndim(),0);
+        T *ptr = result.ptr();
         TensorIterator<T> iter=right.unary_iterator(1,false,true);
         for (TensorIterator<T> p=left.unary_iterator(); p!=left.end(); ++p) {
             T val1 = *p;
@@ -2223,8 +2233,6 @@ namespace madness {
                 }
             }
         }
-
-        return result;
     }
 
 

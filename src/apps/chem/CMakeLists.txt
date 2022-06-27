@@ -10,6 +10,7 @@ set(MADCHEM_HEADERS
     BSHApply.h
     CalculationParameters.h
     CC2.h
+    ccpairfunction.h
     CCPotentials.h
     CCStructures.h
     commandlineparser.h
@@ -64,6 +65,7 @@ set(MADCHEM_SOURCES
     AC.cc
     atomutil.cc
     CC2.cc
+    ccpairfunction.cc
     CCPotentials.cc
     CCStructures.cc
     corepotential.cc

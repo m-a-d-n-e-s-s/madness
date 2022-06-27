@@ -94,7 +94,10 @@ int main(int argc, char **argv) {
 // Make CC2
     CC2 cc2(world, parser, nemo);
 
-    cc2.solve();
+    if (cc2.parameters.test()) cc2.selftest();
+    else {
+        cc2.solve();
+    }
 
     if (world.rank() == 0) printf("\nfinished at time %.1fs\n\n", wall_time());
     world.gop.fence();
