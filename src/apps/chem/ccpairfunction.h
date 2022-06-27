@@ -129,8 +129,8 @@ struct CCFunction {
         }
 
         /// deep copy
-        CCPairFunction
-        copy() const;
+//        CCPairFunction
+//        copy() const;
 
 
         /// make a deep copy and invert the sign
@@ -168,6 +168,12 @@ struct CCFunction {
 
         double
         make_xy_u(const CCFunction& xx, const CCFunction& yy) const;
+
+        double inner_internal(const CCPairFunction& other, const real_function_3d& R2) const;
+
+        friend double inner(const CCPairFunction& a, const CCPairFunction& b, const real_function_3d& R2) {
+            return a.inner_internal(b,R2);
+        }
 
     public:
         /// the 3 types of 6D-function that occur in the CC potential which coupled doubles to singles

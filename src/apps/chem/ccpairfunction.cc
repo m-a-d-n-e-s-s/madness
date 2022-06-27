@@ -5,8 +5,10 @@
 #include<chem/ccpairfunction.h>
 #include <chem/CCStructures.h>
 
+using namespace madness;
 
 namespace madness {
+
 madness::CCPairFunction
 CCPairFunction::operator=(const CCPairFunction& other) {
     MADNESS_ASSERT(type == other.type);
@@ -19,19 +21,19 @@ CCPairFunction::operator=(const CCPairFunction& other) {
     return *this;
 }
 
-madness::CCPairFunction
-CCPairFunction::copy() const {
-    if (type == PT_FULL) {
-        return CCPairFunction(world, madness::copy(u));
-    } else if (type == PT_DECOMPOSED) {
-        return CCPairFunction(world, madness::copy(world, a), madness::copy(world, b));
-    } else if (type == PT_OP_DECOMPOSED) {
-        return CCPairFunction(world, op, CCFunction(madness::copy(x.function), x.i, x.type),
-                              CCFunction(madness::copy(y.function), y.i, y.type));
-    } else MADNESS_EXCEPTION("Unknown type", 1)
-
-    ;
-}
+// madness::CCPairFunction
+// CCPairFunction::copy() const {
+//     if (type == PT_FULL) {
+//         return CCPairFunction(world, madness::copy(u));
+//     } else if (type == PT_DECOMPOSED) {
+//         return CCPairFunction(world, madness::copy(world, a), madness::copy(world, b));
+//     } else if (type == PT_OP_DECOMPOSED) {
+//         return CCPairFunction(world, op, CCFunction(madness::copy(x.function), x.i, x.type),
+//                               CCFunction(madness::copy(y.function), y.i, y.type));
+//     } else MADNESS_EXCEPTION("Unknown type", 1)
+//
+//     ;
+// }
 
 madness::CCPairFunction
 CCPairFunction::invert_sign() {
@@ -216,6 +218,124 @@ CCPairFunction CCPairFunction::swap_particles_decomposed() const {
 
 CCPairFunction CCPairFunction::swap_particles_op_decomposed() const {
     return CCPairFunction(world, op, y, x);
+}
+
+
+double CCPairFunction::inner_internal(const CCPairFunction& other, const real_function_3d& R2) const {
+    const CCPairFunction& f1=*this;
+    const CCPairFunction& f2=other;
+
+    double thresh=FunctionDefaults<6>::get_thresh();
+
+    double result = 0.0;
+    if (f1.type == PT_FULL and f2.type == PT_FULL) {
+        CCTimer tmp(world, "making R1R2|u>");
+        real_function_6d R1u = multiply<double, 6, 3>(::copy(f1.u), copy(R2), 1);
+        real_function_6d R1R2u = multiply<double, 6, 3>(R1u, copy(R2), 2);     // R1u function now broken
+        tmp.info();
+        result = f2.u.inner(R1R2u);
+    } else if (f1.type == PT_FULL and f2.type == PT_DECOMPOSED) {
+        MADNESS_ASSERT(f2.a.size() == f2.b.size());
+        vector_real_function_3d a = mul(world, R2, f2.a);
+        vector_real_function_3d b = mul(world, R2, f2.b);
+        for (size_t i = 0; i < a.size(); i++) {
+            real_function_6d ab = CompositeFactory<double, 6, 3>(world).particle1(copy(a[i])).particle2(copy(b[i]));
+            result += f1.u.inner(ab);
+        }
+    } else if (f1.type == PT_FULL and f2.type == PT_OP_DECOMPOSED) {
+        real_function_3d x = R2 * f2.x.function;
+        real_function_3d y = R2 * f2.y.function;
+        real_function_6d op;
+        if (f2.op->type() == OT_F12)
+            op = TwoElectronFactory(world).dcut(f2.op->parameters.lo).gamma(f2.op->parameters.gamma).f12()
+                    .thresh(thresh);
+        else if (f2.op->type() == OT_G12)
+            op = TwoElectronFactory(world).dcut(f2.op->parameters.lo).thresh(thresh);
+        else MADNESS_EXCEPTION(
+                ("6D Overlap with operatortype " + assign_name(f2.op->type()) + " not supported").c_str(), 1);
+        real_function_6d opxy = CompositeFactory<double, 6, 3>(world).g12(op).particle1(copy(x)).particle2(copy(y));
+        return f1.u.inner(opxy);
+    } else if (f1.type == PT_DECOMPOSED and f2.type == PT_FULL) {
+        MADNESS_ASSERT(f1.a.size() == f1.b.size());
+        vector_real_function_3d a = mul(world, R2, f1.a);
+        vector_real_function_3d b = mul(world, R2, f1.b);
+        for (size_t i = 0; i < a.size(); i++) {
+            real_function_6d ab = CompositeFactory<double, 6, 3>(world).particle1(copy(a[i])).particle2(copy(b[i]));
+            result += f2.u.inner(ab);
+        }
+    } else if (f1.type == PT_DECOMPOSED and f2.type == PT_DECOMPOSED) {
+        MADNESS_ASSERT(f1.a.size() == f1.b.size());
+        MADNESS_ASSERT(f2.a.size() == f2.b.size());
+        vector_real_function_3d a = mul(world, R2, f1.a);
+        vector_real_function_3d b = mul(world, R2, f1.b);
+        for (size_t i1 = 0; i1 < f1.a.size(); i1++) {
+            for (size_t i2 = 0; i2 < f2.a.size(); i2++) {
+                const double aa = a[i1].inner(f2.a[i2]);
+                const double bb = b[i1].inner(f2.b[i2]);
+                result += aa * bb;
+            }
+        }
+    } else if (f1.type == PT_DECOMPOSED and f2.type == PT_OP_DECOMPOSED) {
+        MADNESS_ASSERT(f1.a.size() == f1.b.size());
+        vector_real_function_3d a = f1.a;
+        vector_real_function_3d b = f1.b;
+        real_function_3d x = (R2 * f2.x.function).truncate();
+        real_function_3d y = (R2 * f2.y.function).truncate();
+        for (size_t i = 0; i < a.size(); i++) {
+            real_function_3d ax = (a[i] * x).truncate();
+            real_function_3d aopx = (*f2.op)(ax);
+            result += b[i].inner(aopx * y);
+        }
+    } else if (f1.type == PT_OP_DECOMPOSED and f2.type == PT_FULL) {
+        real_function_3d x = R2 * f1.x.function;
+        real_function_3d y = R2 * f1.y.function;
+        real_function_6d op;
+        if (f1.op->type() == OT_F12)
+            op = TwoElectronFactory(world).dcut(f1.op->parameters.lo).gamma(f1.op->parameters.gamma).f12()
+                    .thresh(thresh);
+        else if (f1.op->type() == OT_G12)
+            op = TwoElectronFactory(world).dcut(f1.op->parameters.lo).thresh(thresh);
+        else MADNESS_EXCEPTION(
+                ("6D Overlap with operatortype " + assign_name(f1.op->type()) + " not supported").c_str(), 1);
+        real_function_6d opxy = CompositeFactory<double, 6, 3>(world).g12(op).particle1(copy(x)).particle2(copy(y));
+        return f2.u.inner(opxy);
+    } else if (f1.type == PT_OP_DECOMPOSED and f2.type == PT_DECOMPOSED) {
+        MADNESS_ASSERT(f2.a.size() == f2.b.size());
+        vector_real_function_3d a = f2.a;
+        vector_real_function_3d b = f2.b;
+        real_function_3d x = (R2 * f1.x.function).truncate();
+        real_function_3d y = (R2 * f1.y.function).truncate();
+        for (size_t i = 0; i < a.size(); i++) {
+            real_function_3d ax = (a[i] * x).truncate();
+            real_function_3d aopx = (*f1.op)(ax);
+            result += b[i].inner(aopx * y);
+        }
+    } else if (f1.type == PT_OP_DECOMPOSED and f2.type == PT_OP_DECOMPOSED) {
+        MADNESS_ASSERT(f1.op->type() == OT_F12 and f2.op->type() ==
+                                                   OT_F12);     // in principle we have everything for f12g12 but we will not need it
+        // we use the slater operator which is S = e^(-y*r12), y=gamma
+        // the f12 operator is: 1/2y*(1-e^(-y*r12)) = 1/2y*(1-S)
+        // so the squared f12 operator is: f*f = 1/(4*y*y)(1-2S+S*S), S*S = S(2y) = e(-2y*r12)
+        // we have then: <xy|f*f|xy> = 1/(4*y*y)*(<xy|xy> - 2*<xy|S|xy> + <xy|SS|xy>)
+        const double gamma =f1.op->parameters.gamma;
+        const double prefactor = 1.0 / (4.0 * gamma * gamma);
+        SeparatedConvolution<double, 3> S = SlaterOperator(world, gamma, f1.op->parameters.lo, f1.op->parameters.thresh_op);
+        SeparatedConvolution<double, 3> S2 = SlaterOperator(world, 2.0 * gamma, f1.op->parameters.lo,
+                                                            f1.op->parameters.thresh_op);
+        real_function_3d x1 = f1.x.function * R2;
+        real_function_3d y1 = f1.y.function * R2;
+        real_function_3d xx = f2.x.function * x1;
+        real_function_3d yy = f2.y.function * y1;
+        real_function_3d xSx = S(xx);
+        real_function_3d xSSx = S2(xx);
+        result = prefactor * (x1.inner(f2.x.function) * y1.inner(f2.y.function) - 2.0 * yy.inner(xSx) + yy.inner(xSSx));
+    } else MADNESS_EXCEPTION(
+            ("CCPairFunction Overlap not supported for combination " + f1.name() + " and " + f2.name()).c_str(), 1)
+
+    ;
+    return result;
+
+
 }
 
 

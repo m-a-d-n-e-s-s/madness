@@ -168,6 +168,13 @@ public:
         return *this;
     }
 
+    double reset() {
+        stop();
+        double wtime=time_wall;
+        start();
+        return wtime;
+    }
+
 
     double get_wall_time_diff() const { return end_wall; }
 
@@ -690,7 +697,7 @@ struct CCConvolutionOperator {
     /// @param[in] param: the parameters of the current CC-Calculation (including function and operator thresholds and the exponent for f12)
     CCConvolutionOperator(World& world, const OpType type, Parameters param) : parameters(param), world(world),
                                                                                operator_type(type),
-                                                                               op() {
+                                                                               op(init_op(operator_type, parameters)) {
     }
 
     CCConvolutionOperator(const CCConvolutionOperator& other) = default;
