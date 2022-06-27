@@ -16,7 +16,7 @@ void FrequencyResponse::iterate(World &world) {
     size_t m = r_params.num_states();  // Number of excited states
 
     real_function_3d v_xc;// For TDDFT
-    const double dconv = std::max(FunctionDefaults<3>::get_thresh(), r_params.dconv());
+    const double conv_den = std::max(FunctionDefaults<3>::get_thresh(), r_params.dconv());
     // m residuals for x and y
     Tensor<double> bsh_residualsX(m);
     Tensor<double> bsh_residualsY(m);
@@ -76,7 +76,7 @@ void FrequencyResponse::iterate(World &world) {
     vector_real_function_3d rho_omega = make_density(world, Chi);
     converged = false;// Converged flag
 
-    auto maxrotn = dconv * 100;
+    auto maxrotn = conv_den * 100;
 
     for (iter = 0; iter <= r_params.maxiter(); ++iter) {
 
@@ -109,11 +109,11 @@ void FrequencyResponse::iterate(World &world) {
         if (iter > 0) {
             if (density_residuals.max() > 2) { break; }
             double d_residual = density_residuals.max();
-            double d_conv = dconv * std::max(size_t(5), molecule.natom());
+            double d_conv = conv_den * std::max(size_t(5), molecule.natom());
             // Test convergence and set to true
-            print("dconv: ", dconv);
+            print("conv_den: ", conv_den);
             if ((d_residual < d_conv) and
-                ((std::max(bsh_residualsX.absmax(), bsh_residualsY.absmax()) < d_conv * 5.0) or
+                ((std::max(bsh_residualsX.absmax(), bsh_residualsY.absmax()) < conv_den * 5.0) or
                  r_params.get<bool>("conv_only_dens"))) {
                 converged = true;
             }

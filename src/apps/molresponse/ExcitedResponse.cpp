@@ -1857,7 +1857,7 @@ void ExcitedResponse::iterate(World &world) {
             print("d_residual_max : ", d_residual);
 
             if ((d_residual < d_conv) and
-                ((std::max(bsh_residualsX.absmax(), bsh_residualsY.absmax()) < d_conv * 5.0) or
+                ((std::max(bsh_residualsX.absmax(), bsh_residualsY.absmax()) < conv_den * 5.0) or
                  r_params.get<bool>("conv_only_dens"))) {
 
                 converged = true;
