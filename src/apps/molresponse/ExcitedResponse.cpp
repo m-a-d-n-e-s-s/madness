@@ -1855,13 +1855,13 @@ void ExcitedResponse::iterate(World &world) {
             print("conv_den: ", conv_den);
             print("d_conv: ", d_conv);
             print("d_residual_max : ", d_residual);
-
-            if ((d_residual < d_conv) and
-                ((std::max(bsh_residualsX.absmax(), bsh_residualsY.absmax()) < conv_den * 5.0) or
+            auto max_bsh = std::max(bsh_residualsX.absmax(), bsh_residualsY.absmax());
+            print("bsh_residual_max : ", max_bsh);
+            if ((((d_residual < d_conv) and ((max_bsh < conv_den * 5.0))) or
                  r_params.get<bool>("conv_only_dens"))) {
-
                 converged = true;
             }
+
             if (converged || iter == r_params.maxiter() - 1) {
                 // if converged print converged
                 if (world.rank() == 0 && converged and (r_params.print_level() > 1)) {

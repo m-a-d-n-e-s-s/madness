@@ -112,8 +112,15 @@ void FrequencyResponse::iterate(World &world) {
             double d_conv = conv_den * std::max(size_t(5), molecule.natom());
             // Test convergence and set to true
             print("conv_den: ", conv_den);
-            if ((d_residual < d_conv) and
-                ((std::max(bsh_residualsX.absmax(), bsh_residualsY.absmax()) < conv_den * 5.0) or
+            print("thresh: ", FunctionDefaults<3>::get_thresh());
+            print("max rotation: ", maxrotn);
+            print("r_params.dconv(): ", r_params.dconv());
+            print("conv_den: ", conv_den);
+            print("d_conv: ", d_conv);
+            print("d_residual_max : ", d_residual);
+            auto max_bsh = std::max(bsh_residualsX.absmax(), bsh_residualsY.absmax());
+            print("bsh_residual_max : ", max_bsh);
+            if ((((d_residual < d_conv) and ((max_bsh < conv_den * 5.0))) or
                  r_params.get<bool>("conv_only_dens"))) {
                 converged = true;
             }
