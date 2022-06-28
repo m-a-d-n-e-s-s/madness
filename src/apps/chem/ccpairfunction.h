@@ -84,6 +84,133 @@ struct CCFunction {
 };
 
 
+template<typename T>
+class TwoBodyFunctionComponent {
+
+    ///
+
+    /// \tparam Q
+    /// \tparam MDIM
+    /// \param other        the other function
+    /// \return
+//    template<typename Q>
+//    virtual double inner(const TwoBodyFunctionComponent<Q>& other) const = 0;
+
+    template<typename Q>
+    virtual void scale(const Q factor) = 0;
+
+    virtual void serialize() = 0;
+
+    /// return f(1,2) * g(1,2) or f(1,2) * g(1) or f(1,2) * g(2)
+
+    /// \tparam Q       type of the other factor
+    /// \tparam MDIM    either NDIM or NDIM/2
+    /// \param  g       the other function
+    /// \param  particle 0 or 1 (ignored if NDIM == MDIM)
+    /// \return
+//    template<typename Q, std::size_t MDIM>
+//    virtual TwoBodyFunctionComponent operator*()(const Function<Q,MDIM>& g, const int particle=0) = 0;
+
+    ///
+    /// \param op  the Greens' function
+    /// \param particle  either 0 or 1, ignored if NDIM==MDIM
+    /// \return op(this)
+//    template<typename Q, std::size_t MDIM>
+//    virtual TwoBodyFunctionComponent apply(const SeparatedConvolution<Q,MDIM>* op, const int particle=0) = 0;
+
+    /// return f(2,1)
+    virtual TwoBodyFunctionComponent& swap_particles() = 0;
+
+};
+
+/// a two-body, explicitly 6-dimensional function
+template<typename T>
+class TwoBodyFunctionPureComponent : public TwoBodyFunctionComponent<T> {
+
+    template<typename Q>
+    virtual double inner(const TwoBodyFunctionComponent<Q>& other) const {}
+
+    template typename Q>
+    virtual void scale(const Q factor) {}
+
+    void serialize() {}
+
+    template<typename Q, std::size_t MDIM>
+    TwoBodyFunctionPureComponent operator*()(const Function<Q,MDIM>& g, const int particle=0) {}
+
+    template<typename Q, std::size_t MDIM>
+    TwoBodyFunctionPureComponent apply(const SeparatedConvolution<Q,MDIM>* op, const int particle=0) {}
+
+    /// return f(2,1)
+    TwoBodyFunctionPureComponent& swap_particles() {}
+
+};
+
+template<typename T>
+class TwoBodyFunctionSeparatedComponent : public TwoBodyFunctionComponent<T> {
+    template<typename Q>
+    virtual double inner(const TwoBodyFunctionComponent<Q>& other) const {}
+
+    template typename Q>
+    virtual void scale(const Q factor) {}
+
+    void serialize() {}
+
+    template<typename Q, std::size_t MDIM>
+    TwoBodyFunctionSeparatedComponent operator*()(const Function<Q,MDIM>& g, const int particle=0) {}
+
+    template<typename Q, std::size_t MDIM>
+    TwoBodyFunctionSeparatedComponent apply(const SeparatedConvolution<Q,MDIM>* op, const int particle=0) {}
+
+    /// return f(2,1)
+    TwoBodyFunctionSeparatedComponent& swap_particles() {}
+
+
+};
+
+template<typename T>
+class TwoBodyFunctionOperatorSeparatedCompontent : public TwoBodyFunctionComponent<T> {
+
+    template<typename Q>
+    virtual double inner(const TwoBodyFunctionComponent<Q>& other) const {}
+
+    template typename Q>
+    virtual void scale(const Q factor) {}
+
+    void serialize() {}
+
+    template<typename Q, std::size_t MDIM>
+    TwoBodyFunctionOperatorSeparatedCompontent operator*()(const Function<Q,MDIM>& g, const int particle=0) {}
+
+    template<typename Q, std::size_t MDIM>
+    TwoBodyFunctionOperatorSeparatedCompontent apply(const SeparatedConvolution<Q,MDIM>* op, const int particle=0) {}
+
+    /// return f(2,1)
+    TwoBodyFunctionOperatorSeparatedCompontent& swap_particles() {}
+
+
+};
+
+/// Returns new function equal to f(x)*alpha
+
+/// Using operator notation forces a global fence after each operation
+template <typename Q, typename T>
+TwoBodyFunctionComponent<TENSOR_RESULT_TYPE(Q,T)>
+operator*(const TwoBodyFunctionComponent<T>& f, const Q alpha) {
+    auto f_ptr=dynamic_cast<TwoBodyFunctionPureComponent<T>*>(&f);
+    if (f!=0) f->scale(Q);
+}
+
+/// Returns new function equal to alpha*f(x)
+
+/// Using operator notation forces a global fence after each operation
+template <typename Q, typename T, std::size_t NDIM>
+Function<TENSOR_RESULT_TYPE(Q,T),NDIM>
+operator*(const Q alpha, const Function<T,NDIM>& f) {
+    return mul(alpha, f, true);
+}
+
+
 
 
 /// Helper structure for the coupling potential of CC Singles and Doubles
@@ -128,15 +255,9 @@ struct CCFunction {
             print_size();
         }
 
-        /// deep copy
-//        CCPairFunction
-//        copy() const;
-
-
         /// make a deep copy and invert the sign
         /// deep copy necessary otherwise: shallow copy errors
-        CCPairFunction
-        invert_sign();
+        CCPairFunction invert_sign();
 
         CCPairFunction operator*(const double fac) const {
             if (type == PT_FULL) return CCPairFunction(world, fac * u);
