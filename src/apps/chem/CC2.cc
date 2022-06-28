@@ -607,9 +607,9 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
        //taskq->cloud.set_debug(true);
        MacroTaskMp2UpdatePair t;
        MacroTask task(world, t, taskq);
-       std::vector<real_function_6d> u_update = task(pair_vec, parameters, nemo->get_calc()->molecule.get_all_coords_vec(),
+       std::vector<real_function_6d> u_update = task(pair_vec, coupling_vec, parameters, nemo->get_calc()->molecule.get_all_coords_vec(),
                                                      CCOPS.mo_ket().get_vecfunction(), CCOPS.mo_bra().get_vecfunction(),
-                                                     nemo->ncf->U1vec(), nemo->ncf->U2(), coupling_vec);
+                                                     nemo->ncf->U1vec(), nemo->ncf->U2());
        taskq->print_taskq();
        taskq->run_all();
 
