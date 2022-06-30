@@ -14,10 +14,21 @@
 #include "madness/world/worldmem.h"
 #include "response_data_base.hpp"
 #include "response_functions.h"
+#include "sstream"
 #include "string"
 #include "timer.h"
 #include "write_test_input.h"
 #include "x_space.h"
+
+vector<std::string> split(const std::string &s, char delim) {
+    vector<std::string> result;
+    std::stringstream ss(s);
+    std::string item;
+
+    while (getline(ss, item, delim)) { result.push_back(item); }
+
+    return result;
+}
 
 path addPath(const path &root, const std::string &branch) {
 
@@ -498,7 +509,8 @@ void runMOLDFT(World &world, const moldftSchema &mschema, bool try_run, bool res
         if (std::filesystem::exists(mschema.moldft_restart) && restart) {
             param1.set_user_defined_value<bool>("restart", true);
         }
-        molresponse::write_test_input test_input(param1, "moldft.in", mschema.mol_path);// molecule HF
+        molresponse::write_test_input test_input(param1, "moldft.in",
+                                                 mschema.mol_path);// molecule HF
         commandlineparser parser;
         parser.set_keyval("input", test_input.filename());
         SCF calc(world, parser);
@@ -639,7 +651,7 @@ void set_frequency_response_parameters(ResponseParameters &r_params, const std::
         r_params.set_user_defined_value<double>("dconv", 1e-4);
     }
     r_params.set_user_defined_value("archive", std::string("../restartdata"));
-    r_params.set_user_defined_value("maxiter", size_t(10));
+    r_params.set_user_defined_value("maxiter", size_t(15));
     r_params.set_user_defined_value("maxsub", size_t(10));
     r_params.set_user_defined_value("kain", true);
     r_params.set_user_defined_value("omega", frequency);
@@ -669,11 +681,16 @@ void set_frequency_response_parameters(ResponseParameters &r_params, const std::
 static std::filesystem::path set_frequency_path_and_restart(
         ResponseParameters &parameters, const std::string &property, const double &frequency,
         const std::string &xc, const std::filesystem::path &moldft_path,
-        std::filesystem::path restart_path, bool restart) {
+        std::filesystem::path &restart_path, bool restart) {
+
+    print("set_frequency_path_and_restart");
+    print("restart path", restart_path);
+
 
     // change the logic create save path
     auto frequency_run_path =
             generate_response_frequency_run_path(moldft_path, property, frequency, xc);
+    print("frequency run path", frequency_run_path);
     // Crea
     if (std::filesystem::is_directory(frequency_run_path)) {
         cout << "Response directory found " << std::endl;
@@ -696,14 +713,24 @@ static std::filesystem::path set_frequency_path_and_restart(
 
             parameters.set_user_defined_value("restart", true);
             parameters.set_user_defined_value("restart_file", save_string);
+            print("found save directory... restarting from save_string ", save_string);
         } else if (std::filesystem::exists(restart_path)) {
 
+            print(" restart path", restart_path);
             parameters.set_user_defined_value("restart", true);
-            parameters.set_user_defined_value("restart_file", restart_path.string());
+
+            auto split_restart_path = split(restart_path.replace_extension("").string(), '/');
+
+            std::string restart_file_short =
+                    "../" + split_restart_path[split_restart_path.size() - 2] + "/" +
+                    split_restart_path[split_restart_path.size() - 1];
+            print("relative restart path", restart_file_short);
+            parameters.set_user_defined_value("restart_file", restart_file_short);
+            print("found restart directory... restarting from restart_path.string ",
+                  restart_path.string());
 
         } else {
             parameters.set_user_defined_value("restart", false);
-
             // neither file exists therefore you need to start from fresh
         }
     } else {
@@ -871,19 +898,24 @@ void runFrequencyTests(World &world, const frequencySchema &schema, bool high_pr
 
     std::filesystem::current_path(schema.moldft_path);
     // add a restart path
-    auto restart_path = addPath(schema.moldft_path, "/restart_" + schema.op + "_0-000000.00000");
+    auto restart_path = addPath(schema.moldft_path, "/" + schema.op + "_0-000000.00000/restart_" +
+                                                            schema.op + "_0-000000.00000");
     std::pair<std::filesystem::path, bool> success{schema.moldft_path, false};
     bool first = true;
     for (const auto &freq: schema.freq) {
+        print(success.second);
         std::filesystem::current_path(schema.moldft_path);
         if (first) {
             first = false;
         } else if (success.second) {
             // if the previous run succeeded then set the restart path
-            restart_path += success.first;
+            print("restart_path", restart_path);
+            restart_path = success.first;
+            print("restart_path = success.first", restart_path);
         }
         success = RunResponse(world, "response.in", freq, schema.op, schema.xc, schema.moldft_path,
                               restart_path, high_prec);
+        print("Frequency ", freq, " completed");
     }
 }
 
@@ -917,7 +949,6 @@ std::vector<double> set_frequencies(const ResponseDataBase &response_data_base,
         return {0};
     }
 }
-
 
 
 /**
