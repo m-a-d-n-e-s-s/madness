@@ -77,7 +77,7 @@ void FrequencyResponse::iterate(World &world) {
     vector_real_function_3d rho_omega = make_density(world, Chi);
     converged = false;// Converged flag
 
-    auto maxrotn = conv_den * 100;
+    auto maxrotn = conv_den * 5;
 
     for (iter = 0; iter <= r_params.maxiter(); ++iter) {
 
@@ -122,7 +122,7 @@ void FrequencyResponse::iterate(World &world) {
             auto max_bsh = std::max(bsh_residualsX.absmax(), bsh_residualsY.absmax());
             print("bsh_residual_max : ", max_bsh);
             if ((((d_residual < d_conv) and
-                  ((max_bsh < conv_den * std::max(size_t(5), molecule.natom())))) or
+                  ((max_bsh < conv_den * std::max(size_t(50), molecule.natom())))) or
                  r_params.get<bool>("conv_only_dens"))) {
                 converged = true;
             }
