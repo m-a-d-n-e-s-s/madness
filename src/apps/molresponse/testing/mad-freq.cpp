@@ -59,7 +59,7 @@ int main(int argc, char *argv[]) {
         auto schema = runSchema(xc);
         auto m_schema = moldftSchema(molecule_name, xc, schema);
         m_schema.print();
-        moldft(world, m_schema, false, true, high_prec);
+        moldft(world, m_schema, true, true, high_prec);
         auto f_schema = frequencySchema(schema, m_schema, op);
 
         runFrequencyTests(world, f_schema, high_prec);
