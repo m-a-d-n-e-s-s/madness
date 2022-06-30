@@ -17,7 +17,7 @@ void FrequencyResponse::iterate(World &world) {
 
     real_function_3d v_xc;// For TDDFT
     // the Final protocol should be equal to dconv at the minimum
-    const double conv_den = std::max(100*FunctionDefaults<3>::get_thresh(), r_params.dconv());
+    const double conv_den = std::max(100 * FunctionDefaults<3>::get_thresh(), r_params.dconv());
     // m residuals for x and y
     Tensor<double> bsh_residualsX(m);
     Tensor<double> bsh_residualsY(m);
@@ -110,7 +110,7 @@ void FrequencyResponse::iterate(World &world) {
         if (iter > 0) {
             if (density_residuals.max() > 2) { break; }
             double d_residual = density_residuals.max();
-            double d_conv = conv_den * std::max(size_t(5), molecule.natom());
+            double d_conv = conv_den;
             // Test convergence and set to true
             print("conv_den: ", conv_den);
             print("thresh: ", FunctionDefaults<3>::get_thresh());
@@ -121,7 +121,8 @@ void FrequencyResponse::iterate(World &world) {
             print("d_residual_max : ", d_residual);
             auto max_bsh = std::max(bsh_residualsX.absmax(), bsh_residualsY.absmax());
             print("bsh_residual_max : ", max_bsh);
-            if ((((d_residual < d_conv) and ((max_bsh < conv_den * 5.0))) or
+            if ((((d_residual < d_conv) and
+                  ((max_bsh < conv_den * std::max(size_t(5), molecule.natom())))) or
                  r_params.get<bool>("conv_only_dens"))) {
                 converged = true;
             }
