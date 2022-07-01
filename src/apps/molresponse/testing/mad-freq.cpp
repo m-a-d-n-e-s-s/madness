@@ -27,7 +27,7 @@ using namespace madness;
 
 
 int main(int argc, char *argv[]) {
-    if (argc != 6) {
+    if (argc < 5 and argc > 6) {
 
         std::cout << "Wrong number of inputs" << std::endl;
         return 1;
@@ -44,7 +44,6 @@ int main(int argc, char *argv[]) {
     const std::string xc{argv[2]};
     const std::string op{argv[3]};
     const std::string is_high_prec{argv[4]};
-    const std::string moldft_true{argv[5]};
 
     bool high_prec;
 
@@ -53,12 +52,11 @@ int main(int argc, char *argv[]) {
     } else {
         high_prec = false;
     }
-    bool do_moldft;
-    if (moldft_true == "moldft") {
-        do_moldft = true;
 
-    } else {
-        do_moldft = false;
+    bool do_moldft = false;
+    if (argc == 6) {
+        const std::string moldft_true{argv[5]};
+        if (moldft_true == "moldft") { do_moldft = true; }
     }
 
 
