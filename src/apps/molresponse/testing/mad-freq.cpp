@@ -27,7 +27,7 @@ using namespace madness;
 
 
 int main(int argc, char *argv[]) {
-    if (argc < 5 and argc > 6) {
+    if (argc != 5) {
 
         std::cout << "Wrong number of inputs" << std::endl;
         return 1;
@@ -53,19 +53,13 @@ int main(int argc, char *argv[]) {
         high_prec = false;
     }
 
-    bool do_moldft = false;
-    if (argc == 6) {
-        const std::string moldft_true{argv[5]};
-        if (moldft_true == "moldft") { do_moldft = true; }
-    }
-
 
     try {
 
         auto schema = runSchema(xc);
         auto m_schema = moldftSchema(molecule_name, xc, schema);
         m_schema.print();
-        moldft(world, m_schema, do_moldft, false, high_prec);
+        moldft(world, m_schema, false, false, high_prec);
         auto f_schema = frequencySchema(schema, m_schema, op);
 
         runFrequencyTests(world, f_schema, high_prec);
@@ -79,7 +73,9 @@ int main(int argc, char *argv[]) {
         std::cerr << ex.what() << "\n";
     } catch (...) { error("caught unhandled exception"); }
 
-    if (world.rank() == 0) { print("Finished All Frequencies"); }
+    if(world.rank()==0){
+        print("Finished All Frequencies");
+    }
 
     return result;
 
