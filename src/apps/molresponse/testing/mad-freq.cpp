@@ -27,7 +27,7 @@ using namespace madness;
 
 
 int main(int argc, char *argv[]) {
-    if (argc != 5) {
+    if (argc != 6) {
 
         std::cout << "Wrong number of inputs" << std::endl;
         return 1;
@@ -44,6 +44,7 @@ int main(int argc, char *argv[]) {
     const std::string xc{argv[2]};
     const std::string op{argv[3]};
     const std::string is_high_prec{argv[4]};
+    const std::string moldft_true{argv[5]};
 
     bool high_prec;
 
@@ -52,6 +53,13 @@ int main(int argc, char *argv[]) {
     } else {
         high_prec = false;
     }
+    bool do_moldft;
+    if (moldft_true == "moldft") {
+        do_moldft = true;
+
+    } else {
+        do_moldft = false;
+    }
 
 
     try {
@@ -59,7 +67,7 @@ int main(int argc, char *argv[]) {
         auto schema = runSchema(xc);
         auto m_schema = moldftSchema(molecule_name, xc, schema);
         m_schema.print();
-        moldft(world, m_schema, true, false, high_prec);
+        moldft(world, m_schema, do_moldft, false, high_prec);
         auto f_schema = frequencySchema(schema, m_schema, op);
 
         runFrequencyTests(world, f_schema, high_prec);
@@ -73,9 +81,7 @@ int main(int argc, char *argv[]) {
         std::cerr << ex.what() << "\n";
     } catch (...) { error("caught unhandled exception"); }
 
-    if(world.rank()==0){
-        print("Finished All Frequencies");
-    }
+    if (world.rank() == 0) { print("Finished All Frequencies"); }
 
     return result;
 
