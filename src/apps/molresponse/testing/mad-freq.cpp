@@ -59,10 +59,17 @@ int main(int argc, char *argv[]) {
         auto schema = runSchema(xc);
         auto m_schema = moldftSchema(molecule_name, xc, schema);
         m_schema.print();
-        moldft(world, m_schema, false, false, high_prec);
         auto f_schema = frequencySchema(schema, m_schema, op);
+        try {
 
-        runFrequencyTests(world, f_schema, high_prec);
+            moldft(world, m_schema, false, false, high_prec);
+            runFrequencyTests(world, f_schema, high_prec);
+        } catch (MadnessException &madnessException) {
+            print(madnessException);
+            moldft(world, m_schema, true, false, high_prec);
+            runFrequencyTests(world, f_schema, high_prec);
+        }
+
     } catch (const SafeMPI::Exception &e) { print(e); } catch (const madness::MadnessException &e) {
         std::cout << e << std::endl;
     } catch (const madness::TensorException &e) { print(e); } catch (const char *s) {
@@ -73,9 +80,7 @@ int main(int argc, char *argv[]) {
         std::cerr << ex.what() << "\n";
     } catch (...) { error("caught unhandled exception"); }
 
-    if(world.rank()==0){
-        print("Finished All Frequencies");
-    }
+    if (world.rank() == 0) { print("Finished All Frequencies"); }
 
     return result;
 
