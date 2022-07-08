@@ -282,17 +282,18 @@ std::shared_ptr<Fock<double, 3>> Nemo::make_fock_operator() const {
 /// compute the Fock matrix from scratch
 tensorT Nemo::compute_fock_matrix(const vecfuncT& nemo, const tensorT& occ) const {
 	// apply all potentials (J, K, Vnuc) on the nemos
-	vecfuncT Jnemo, Knemo, pcmnemo, JKVpsi, Unemo;
+	vecfuncT Jnemo, Knemo, xcnemo, pcmnemo, JKVpsi, Unemo;
 
     vecfuncT R2nemo=mul(world,R_square,nemo);
     truncate(world,R2nemo);
 
     // compute potentials the Fock matrix: J - K + Vnuc
-	compute_nemo_potentials(nemo, Jnemo, Knemo, pcmnemo, Unemo);
+	compute_nemo_potentials(nemo, Jnemo, Knemo, xcnemo, pcmnemo, Unemo);
 
 //    vecfuncT JKUpsi=add(world, sub(world, Jnemo, Knemo), Unemo);
     vecfuncT JKUpsi=Unemo+Jnemo-Knemo;
     if (do_pcm()) JKUpsi+=pcmnemo;
+    if (calc->xc.is_dft()) JKUpsi+=xcnemo;
     tensorT fock=matrix_inner(world,R2nemo,JKUpsi,false);   // not symmetric actually
     Kinetic<double,3> T(world);
     fock+=T(R2nemo,nemo);
@@ -312,7 +313,7 @@ double Nemo::solve(const SCFProtocol& proto) {
 	// Therefore set all tolerance thresholds to zero, also in the mul_sparse
 
 	// apply all potentials (J, K, Vnuc) on the nemos
-	vecfuncT Jnemo, Knemo, pcmnemo, Unemo;
+	vecfuncT Jnemo, Knemo, xcnemo, pcmnemo, Unemo;
 
 	std::vector<double> energies(1,0.0);	// contains the total energy and all its contributions
 	double energy=0.0;
@@ -337,7 +338,7 @@ double Nemo::solve(const SCFProtocol& proto) {
 	    truncate(world,R2nemo);
 
 		// compute potentials the Fock matrix: J - K + Vnuc
-		compute_nemo_potentials(nemo, Jnemo, Knemo, pcmnemo, Unemo);
+		compute_nemo_potentials(nemo, Jnemo, Knemo, xcnemo, pcmnemo, Unemo);
 
 		// compute the energy
 		std::vector<double> oldenergies=energies;
@@ -348,6 +349,7 @@ double Nemo::solve(const SCFProtocol& proto) {
         timer t_fock(world,param.print_level()>2);
 		vecfuncT Vnemo=Unemo+Jnemo-Knemo;
 		if (do_pcm()) Vnemo+=pcmnemo;
+        if (calc->xc.is_dft()) Vnemo+=xcnemo;
 		tensorT fock=matrix_inner(world,R2nemo,Vnemo,false);   // not symmetric actually
 		Kinetic<double,3> T(world);
 		fock+=T(R2nemo,nemo);
@@ -427,55 +429,6 @@ double Nemo::solve(const SCFProtocol& proto) {
 	return energy;
 }
 
-/// given nemos, compute the HF energy
-double Nemo::compute_energy(const vecfuncT& psi, const vecfuncT& Jpsi,
-		const vecfuncT& Kpsi) const {
-
-	const vecfuncT Vpsi = mul(world, calc->potentialmanager->vnuclear(),
-			psi);
-	const tensorT V = inner(world, Vpsi, psi);
-	const double pe = 2.0 * V.sum();  // closed shell
-
-	double ke = 0.0;
-	for (int axis = 0; axis < 3; axis++) {
-		real_derivative_3d D = free_space_derivative<double, 3>(world,
-				axis);
-		const vecfuncT dpsi = apply(world, D, psi);
-		ke += 0.5 * (inner(world, dpsi, dpsi)).sum();
-	}
-	ke *= 2.0; // closed shell
-
-	const double J = inner(world, psi, Jpsi).sum();
-	const double K = inner(world, psi, Kpsi).sum();
-
-	int ispin=0;
-	double exc=0.0;
-	if (calc->xc.is_dft()) {
-	    XCOperator<double,3> xcoperator(world,this,ispin);
-	    exc=xcoperator.compute_xc_energy();
-	}
-
-	const double nucrep = calc->molecule.nuclear_repulsion_energy();
-	double energy = ke + J + pe + nucrep;
-	if (is_dft()) energy+=exc;
-	else energy-=K;
-
-	if (world.rank() == 0) {
-		printf("\n              kinetic %16.8f\n", ke);
-		printf("   nuclear attraction %16.8f\n", pe);
-		printf("              coulomb %16.8f\n", J);
-        if (is_dft()) {
-            printf(" exchange-correlation %16.8f\n", exc);
-        } else {
-            printf("             exchange %16.8f\n", -K);
-        }
-		printf("    nuclear-repulsion %16.8f\n", nucrep);
-		printf("                total %16.8f\n\n", energy);
-        printf("  buggy if hybrid functionals are used..\n");
-	}
-	return energy;
-}
-
 /// given nemos, compute the HF energy using the regularized expressions for T and V
 std::vector<double> Nemo::compute_energy_regularized(const vecfuncT& nemo, const vecfuncT& Jnemo,
         const vecfuncT& Knemo, const vecfuncT& Unemo) const {
@@ -506,7 +459,7 @@ std::vector<double> Nemo::compute_energy_regularized(const vecfuncT& nemo, const
 //    double ke2=compute_kinetic_energy2(nemo);
 
     const double J = inner(world, R2nemo, Jnemo).sum();
-    const double K = inner(world, R2nemo, Knemo).sum();
+    double K = inner(world, R2nemo, Knemo).sum();
 
     int ispin=0;
     double exc=0.0;
@@ -517,12 +470,9 @@ std::vector<double> Nemo::compute_energy_regularized(const vecfuncT& nemo, const
 
     double pcm_energy=0.0;
     if (do_pcm()) pcm_energy=pcm.compute_pcm_energy();
-
     const double nucrep = calc->molecule.nuclear_repulsion_energy();
 
-    double energy = ke + J + pe + nucrep + pcm_energy;
-    if (is_dft()) energy+=exc;
-    else energy-=K;
+    double energy = ke + J - K + exc + pe + nucrep + pcm_energy;
 
     if (world.rank() == 0) {
         printf("\n  nuclear and kinetic %16.8f\n", ke + pe);
@@ -532,17 +482,11 @@ std::vector<double> Nemo::compute_energy_regularized(const vecfuncT& nemo, const
 //        printf("\n  nuclear only  %16.8f\n",  pe1);
 //        printf("\n  nuclear and kinetic each  %16.8f\n",  pe1+ke1);
         printf("              coulomb %16.8f\n", J);
-        if (is_dft()) {
-            printf(" exchange-correlation %16.8f\n", exc);
-        } else {
-            printf("             exchange %16.8f\n", -K);
-        }
-        if (do_pcm()) {
-            printf("   polarization (PCM) %16.8f\n", pcm_energy);
-        }
+        if (is_dft()) printf(" exchange-correlation %16.8f\n", exc);
+        if (calc->xc.hf_exchange_coefficient()!=0.0) printf("       exact exchange %16.8f\n", -K);
+        if (do_pcm()) printf("   polarization (PCM) %16.8f\n", pcm_energy);
         printf("    nuclear-repulsion %16.8f\n", nucrep);
         printf("   regularized energy %16.8f\n", energy);
-        printf("  buggy if hybrid functionals are used..\n");
     }
     t.end( "compute energy");
 
@@ -560,7 +504,7 @@ std::vector<double> Nemo::compute_energy_regularized(const vecfuncT& nemo, const
 /// @param[out]	Vnemo	nuclear potential applied on the nemos
 /// @param[out]	Unemo	regularized nuclear potential applied on the nemos
 void Nemo::compute_nemo_potentials(const vecfuncT& nemo,
-		vecfuncT& Jnemo, vecfuncT& Knemo, vecfuncT& pcmnemo,
+		vecfuncT& Jnemo, vecfuncT& Knemo, vecfuncT& xcnemo, vecfuncT& pcmnemo,
 		vecfuncT& Unemo) const {
 
     {
@@ -581,14 +525,15 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo,
             if (calc->xc.hf_exchange_coefficient() > 0.0) {
                 Exchange<double, 3> K = Exchange<double, 3>(world, this, ispin).set_symmetric(true).set_taskq(taskq);
                 Knemo = K(nemo);
-                scale(world, Knemo, calc->xc.hf_exchange_coefficient());
-                truncate(world, Knemo);
-                t.tag("compute Knemo");
             }
             t.tag("initialize K operator");
             taskq->set_printlevel(param.print_level());
             if (param.print_level()>9) taskq->print_taskq();
             taskq->run_all();
+
+            t.tag("compute Knemo");
+            scale(world, Knemo, calc->xc.hf_exchange_coefficient());
+            truncate(world, Knemo);
         }
 
         // compute the exchange-correlation potential
@@ -596,8 +541,6 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo,
             XCOperator<double, 3> xcoperator(world, this, ispin);
             double exc = 0.0;
             if (ispin == 0) exc = xcoperator.compute_xc_energy();
-//            print("exc", exc);
-            // copy???
             real_function_3d xc_pot = xcoperator.make_xc_potential();
 
             // compute the asymptotic correction of exchange-correlation potential
@@ -608,10 +551,8 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo,
                 xc_pot = ac.apply(xc_pot, scaledJ);
             }
 
-            Knemo = sub(world, Knemo, mul(world, xc_pot, nemo));   // minus times minus gives plus
-            truncate(world, Knemo);
-            double size = get_size(world, Knemo);
-            t.tag("compute XCnemo " + stringify(size));
+            xcnemo=truncate(xc_pot*nemo);
+            t.tag("compute XCnemo");
         }
 
 

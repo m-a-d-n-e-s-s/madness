@@ -623,10 +623,6 @@ protected:
 	/// solve the HF equations
 	double solve(const SCFProtocol& proto);
 
-	/// given nemos, compute the HF energy
-	double compute_energy(const vecfuncT& psi, const vecfuncT& Jpsi,
-			const vecfuncT& Kpsi) const;
-
     /// given nemos, compute the HF energy using the regularized expressions for T and V
     std::vector<double> compute_energy_regularized(const vecfuncT& nemo, const vecfuncT& Jnemo,
             const vecfuncT& Knemo, const vecfuncT& Unemo) const;
@@ -641,7 +637,7 @@ protected:
 	/// @param[out]	pcmnemo	PCM (solvent) potential applied on the nemos
 	/// @param[out]	Unemo	regularized nuclear potential applied on the nemos
 	void compute_nemo_potentials(const vecfuncT& nemo,
-			vecfuncT& Jnemo, vecfuncT& Knemo, vecfuncT& pcmnemo,
+			vecfuncT& Jnemo, vecfuncT& Knemo, vecfuncT& xcnemo, vecfuncT& pcmnemo,
 			vecfuncT& Unemo) const;
 
 	/// return the Coulomb potential
