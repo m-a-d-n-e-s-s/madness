@@ -1876,18 +1876,23 @@ double
 CCPotentials::make_xy_op_u(const CCFunction& x, const CCFunction& y, const CCConvolutionOperator& op,
                            const CCPairFunction& u) const {
     double result = 0.0;
-    if (u.type == PT_FULL) {
+    if (u.component->is_pure()) {
         real_function_6d xy_op = CompositeFactory<double, 6, 3>(world).particle1(copy(x.function)).particle2(
                 copy(y.function)).g12(op.get_kernel());
-        result = inner(u.u, xy_op);
-    } else if (u.type == PT_DECOMPOSED) {
-        for (size_t i = 0; i < u.a.size(); i++)
-            result += (x.function * u.a[i]).inner(op(y, u.b[i]));
-    } else if (u.type == PT_OP_DECOMPOSED) {
-        if (op.type() == OT_G12 and u.op->type() == OT_F12) result = make_xy_gf_ab(x, y, u.x, u.y);
-        else if (op.type() == OT_F12 and u.op->type() == OT_G12) result = make_xy_gf_ab(x, y, u.x, u.y);
-        else if (op.type() == OT_F12 and u.op->type() == OT_F12) result = make_xy_ff_ab(x, y, u.x, u.y);
-        else MADNESS_EXCEPTION(("xy_" + op.name() + u.name() + " not implemented").c_str(), 1);
+        result = inner(u.get_function(), xy_op);
+    } else if (u.component->is_decomposed()) {
+        if (u.component->has_operator()) {
+            if (op.type() == OT_G12 and u.decomposed().get_operator_ptr()->type() == OT_F12)
+                result = make_xy_gf_ab(x, y, u.decomposed().get_a()[0], u.decomposed().get_b()[0]);
+            else if (op.type() == OT_F12 and u.decomposed().get_operator_ptr()->type() == OT_G12)
+                result = make_xy_gf_ab(x, y, u.decomposed().get_a()[0], u.decomposed().get_b()[0]);
+            else if (op.type() == OT_F12 and u.decomposed().get_operator_ptr()->type() == OT_F12)
+                result = make_xy_ff_ab(x, y, u.decomposed().get_a()[0], u.decomposed().get_b()[0]);
+            else MADNESS_EXCEPTION(("xy_" + op.name() + u.name() + " not implemented").c_str(), 1);
+        } else {
+            for (size_t i = 0; i < u.decomposed().get_a().size(); i++)
+                result += (x.function * u.decomposed().get_a()[i]).inner(op(y, u.decomposed().get_b()[i]));
+        }
     } else error("Unknown CCPairFunction type in make_xy_op_u");
 
     return result;
@@ -2006,10 +2011,10 @@ CCPotentials::apply_Qt(const CCPairFunction& f, const CC_vecfunction& t, const s
     MADNESS_ASSERT(f.type ==
                    PT_DECOMPOSED);     // pure type is not needed and op_deomposed type can not be because the result would be (1-Ot)f12|xy> = f12|xy> - \sum_a|a1a2> a subtraction with different types
     if (particle == 1) {
-        CCPairFunction result(world, apply_Qt(f.a, t, c), f.b);
+        CCPairFunction result(world, apply_Qt(f.get_a(), t, c), f.get_b());
         return result;
     } else {
-        CCPairFunction result(world, f.a, apply_Qt(f.b, t, c));
+        CCPairFunction result(world, f.get_a(), apply_Qt(f.get_b(), t, c));
         return result;
     }
 }

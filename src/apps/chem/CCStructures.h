@@ -843,7 +843,7 @@ public:
     real_function_6d function() const {
         MADNESS_ASSERT(not functions.empty());
         MADNESS_ASSERT(functions[0].type == PT_FULL);
-        return functions[0].u;
+        return functions[0].get_function();
     }
 
     /// updates the pure 6D part of the pair function
@@ -857,7 +857,7 @@ public:
     template<typename Archive>
     void serialize(const Archive& ar) {
         size_t f_size = functions.size();
-        bool fexist = (f_size > 0) && (functions[0].u.is_initialized());
+        bool fexist = (f_size > 0) && (functions[0].get_function().is_initialized());
         bool cexist = constant_part.is_initialized();
         ar & type & ctype & i & j & excitation & bsh_eps & fexist & cexist & f_size;
         if constexpr (Archive::is_input_archive) {
@@ -868,7 +868,7 @@ public:
                 functions.push_back(f1);
             }
         } else {
-            if (fexist) ar & functions[0].u;
+            if (fexist) ar & functions[0].get_function();
         }
         if (cexist) ar & constant_part;
     }
@@ -881,7 +881,7 @@ public:
             archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, name.c_str(), 1);
             ar & *this;
             //if (world.rank() == 0) printf(" %s\n", (converged) ? " converged" : " not converged");
-            if (functions[0].u.is_initialized()) functions[0].u.set_thresh(FunctionDefaults<6>::get_thresh());
+            if (functions[0].get_function().is_initialized()) functions[0].get_function().set_thresh(FunctionDefaults<6>::get_thresh());
             if (constant_part.is_initialized()) constant_part.set_thresh(FunctionDefaults<6>::get_thresh());
         } else {
             if (world.rank() == 0) print("could not find pair ", i, j, " on disk");

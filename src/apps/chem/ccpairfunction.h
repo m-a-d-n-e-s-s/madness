@@ -84,131 +84,116 @@ struct CCFunction {
 };
 
 
-template<typename T>
-class TwoBodyFunctionComponent {
-
-    ///
-
-    /// \tparam Q
-    /// \tparam MDIM
-    /// \param other        the other function
-    /// \return
-//    template<typename Q>
-//    virtual double inner(const TwoBodyFunctionComponent<Q>& other) const = 0;
-
-    template<typename Q>
-    virtual void scale(const Q factor) = 0;
-
-    virtual void serialize() = 0;
-
-    /// return f(1,2) * g(1,2) or f(1,2) * g(1) or f(1,2) * g(2)
-
-    /// \tparam Q       type of the other factor
-    /// \tparam MDIM    either NDIM or NDIM/2
-    /// \param  g       the other function
-    /// \param  particle 0 or 1 (ignored if NDIM == MDIM)
-    /// \return
-//    template<typename Q, std::size_t MDIM>
-//    virtual TwoBodyFunctionComponent operator*()(const Function<Q,MDIM>& g, const int particle=0) = 0;
-
-    ///
-    /// \param op  the Greens' function
-    /// \param particle  either 0 or 1, ignored if NDIM==MDIM
-    /// \return op(this)
-//    template<typename Q, std::size_t MDIM>
-//    virtual TwoBodyFunctionComponent apply(const SeparatedConvolution<Q,MDIM>* op, const int particle=0) = 0;
-
-    /// return f(2,1)
-    virtual TwoBodyFunctionComponent& swap_particles() = 0;
-
+class TwoBodyFunctionComponentBase {
+public:
+    virtual void swap_particles_inplace() = 0;
+    virtual bool is_pure() const {return false;}
+    virtual bool is_decomposed() const {return false;}
+    virtual bool has_operator() const {return false;}
+    virtual void print_size() const = 0;
+    virtual std::string name() const = 0;
 };
 
 /// a two-body, explicitly 6-dimensional function
 template<typename T>
-class TwoBodyFunctionPureComponent : public TwoBodyFunctionComponent<T> {
+class TwoBodyFunctionPureComponent : public TwoBodyFunctionComponentBase {
+
+public:
+
+    TwoBodyFunctionPureComponent(const Function<T,6>& f) : u(f) {}
 
     template<typename Q>
-    virtual double inner(const TwoBodyFunctionComponent<Q>& other) const {}
+    TwoBodyFunctionPureComponent& operator*=(const Q fac) {
+        u.scale(fac);
+        return *this;
+    }
 
-    template typename Q>
-    virtual void scale(const Q factor) {}
+    bool is_pure() const override {return true;}
 
     void serialize() {}
 
-    template<typename Q, std::size_t MDIM>
-    TwoBodyFunctionPureComponent operator*()(const Function<Q,MDIM>& g, const int particle=0) {}
+    void print_size() const override {
+        u.print_size(name());
+    }
 
+    std::string name() const override {
+        return "|u>";
+    }
+
+
+//    template<typename Q, std::size_t MDIM>
+//    TwoBodyFunctionPureComponent operator*()(const Function<Q,MDIM>& g, const int particle=0) {}
+//
     template<typename Q, std::size_t MDIM>
     TwoBodyFunctionPureComponent apply(const SeparatedConvolution<Q,MDIM>* op, const int particle=0) {}
 
     /// return f(2,1)
-    TwoBodyFunctionPureComponent& swap_particles() {}
+    void swap_particles_inplace() override {
+        u=swap_particles(u);
+    }
+
+    real_function_6d& get_function() {
+        return u;
+    }
+
+private:
+    /// pure 6D function
+    real_function_6d u;
 
 };
 
 template<typename T>
-class TwoBodyFunctionSeparatedComponent : public TwoBodyFunctionComponent<T> {
-    template<typename Q>
-    virtual double inner(const TwoBodyFunctionComponent<Q>& other) const {}
+class TwoBodyFunctionSeparatedComponent : public TwoBodyFunctionComponentBase {
 
-    template typename Q>
-    virtual void scale(const Q factor) {}
+public:
+    TwoBodyFunctionSeparatedComponent(const std::vector<Function<T,3>>& a,
+                                      const std::vector<Function<T,3>>& b) : a(a), b(b), op(nullptr) {};
+
+    TwoBodyFunctionSeparatedComponent(const std::vector<Function<T,3>>& a,
+                                      const std::vector<Function<T,3>>& b,
+                                      const CCConvolutionOperator* op) : a(a), b(b), op(op) {};
+
+    template<typename Q>
+    TwoBodyFunctionSeparatedComponent& operator*=(const Q fac) {
+        if (a.size()>0 and a.front().is_initialized()) scale(a.front().world(),a,fac);
+        return *this;
+    }
+
+    bool is_decomposed() const override {return true;}
+    bool has_operator() const override {return op!=nullptr;}
+
+    void print_size() const override {
+        if (a.size() > 0) {
+            World& world = a.front().world();
+            madness::print_size(world, a, "a from " + name());
+            madness::print_size(world, b, "b from " + name());
+        }
+    }
+
+
+    std::string name() const override;
 
     void serialize() {}
 
     template<typename Q, std::size_t MDIM>
-    TwoBodyFunctionSeparatedComponent operator*()(const Function<Q,MDIM>& g, const int particle=0) {}
-
-    template<typename Q, std::size_t MDIM>
-    TwoBodyFunctionSeparatedComponent apply(const SeparatedConvolution<Q,MDIM>* op, const int particle=0) {}
+    TwoBodyFunctionPureComponent<T> apply(const SeparatedConvolution<Q,MDIM>* op, const int particle=0) {}
 
     /// return f(2,1)
-    TwoBodyFunctionSeparatedComponent& swap_particles() {}
+    void swap_particles_inplace() override {
+        std::swap(a,b);
+    }
 
+    vector_real_function_3d get_a() const {return a;}
+    vector_real_function_3d get_b() const {return b;}
+    CCConvolutionOperator* get_operator_ptr() const {return op;};
 
-};
+private:
 
-template<typename T>
-class TwoBodyFunctionOperatorSeparatedCompontent : public TwoBodyFunctionComponent<T> {
-
-    template<typename Q>
-    virtual double inner(const TwoBodyFunctionComponent<Q>& other) const {}
-
-    template typename Q>
-    virtual void scale(const Q factor) {}
-
-    void serialize() {}
-
-    template<typename Q, std::size_t MDIM>
-    TwoBodyFunctionOperatorSeparatedCompontent operator*()(const Function<Q,MDIM>& g, const int particle=0) {}
-
-    template<typename Q, std::size_t MDIM>
-    TwoBodyFunctionOperatorSeparatedCompontent apply(const SeparatedConvolution<Q,MDIM>* op, const int particle=0) {}
-
-    /// return f(2,1)
-    TwoBodyFunctionOperatorSeparatedCompontent& swap_particles() {}
-
+    vector_real_function_3d a;
+    vector_real_function_3d b;
+    const CCConvolutionOperator* op;
 
 };
-
-/// Returns new function equal to f(x)*alpha
-
-/// Using operator notation forces a global fence after each operation
-template <typename Q, typename T>
-TwoBodyFunctionComponent<TENSOR_RESULT_TYPE(Q,T)>
-operator*(const TwoBodyFunctionComponent<T>& f, const Q alpha) {
-    auto f_ptr=dynamic_cast<TwoBodyFunctionPureComponent<T>*>(&f);
-    if (f!=0) f->scale(Q);
-}
-
-/// Returns new function equal to alpha*f(x)
-
-/// Using operator notation forces a global fence after each operation
-template <typename Q, typename T, std::size_t NDIM>
-Function<TENSOR_RESULT_TYPE(Q,T),NDIM>
-operator*(const Q alpha, const Function<T,NDIM>& f) {
-    return mul(alpha, f, true);
-}
 
 
 
@@ -220,39 +205,49 @@ operator*(const Q alpha, const Function<T,NDIM>& f) {
 /// we have 6D-function like f12|xy> which are not needed to be represented on the 6D MRA-Grid, type==op_decomposed_
     struct CCPairFunction {
 
+        using T=double;
     public:
-        CCPairFunction(World& world, const real_function_6d& ket) : world(world), type(PT_FULL), a(), b(), op(0),
-                                                                    u(ket) {}
+        CCPairFunction(World& world, const real_function_6d& ket) {
+            component.reset(new TwoBodyFunctionPureComponent<T>(ket));
+        }
 
-        CCPairFunction(World& world, const vector_real_function_3d& f1, const vector_real_function_3d& f2) : world(
-                world),
-                                                                                                             type(PT_DECOMPOSED),
-                                                                                                             a(f1),
-                                                                                                             b(f2),
-                                                                                                             op(0),
-                                                                                                             u() {}
+        CCPairFunction(World& world, const vector_real_function_3d& f1, const vector_real_function_3d& f2) {
+            component.reset(new TwoBodyFunctionSeparatedComponent<T>(f1,f2));
+        }
 
-        CCPairFunction(World& world, const std::pair<vector_real_function_3d, vector_real_function_3d>& f) : world(
-                world),
-                                                                                                             type(PT_DECOMPOSED),
-                                                                                                             a(f.first),
-                                                                                                             b(f.second),
-                                                                                                             op(0),
-                                                                                                             u() {}
+        CCPairFunction(World& world, const std::pair<vector_real_function_3d, vector_real_function_3d>& f) {
+            component.reset(new TwoBodyFunctionSeparatedComponent<T>(f.first,f.second));
+        }
 
-        CCPairFunction(World& world, const CCConvolutionOperator *op_, const CCFunction& f1, const CCFunction& f2)
-                : world(
-                world), type(PT_OP_DECOMPOSED), a(), b(), op(op_), x(f1), y(f2), u() {}
+        CCPairFunction(World& world, const CCConvolutionOperator *op_, const CCFunction& f1, const CCFunction& f2) {
+            component.reset(new TwoBodyFunctionSeparatedComponent<T>({f1.function},{f2.function},op_));
+        }
 
-        CCPairFunction(const CCPairFunction& other) : world(other.world), type(other.type), a(other.a), b(other.b),
-                                                      op(other.op), x(other.x), y(other.y), u(other.u) {}
+        CCPairFunction(const CCPairFunction& other) = default;
 
         CCPairFunction
         operator=(const CCPairFunction& other);
 
-        void info() const {
-            if (world.rank() == 0) std::cout << "Information about Pair " << name() << "\n";
-            print_size();
+        void info() const { print_size(); }
+
+        Function<T,6>& get_function() {
+            MADNESS_CHECK(component and (component->is_pure()));
+            return pure().get_function();
+        }
+
+        Function<T,6>& get_function() const {
+            MADNESS_CHECK(component and (component->is_pure()));
+            return pure().get_function();
+        }
+
+        std::vector<Function<T,3>> get_function_vector_a() const {
+            MADNESS_CHECK(component and (component->is_decomposed()));
+            return decomposed().get_a();
+        }
+
+        std::vector<Function<T,3>> get_function_vector_b() const {
+            MADNESS_CHECK(component and (component->is_decomposed()));
+            return decomposed().get_b();
         }
 
         /// make a deep copy and invert the sign
@@ -260,16 +255,45 @@ operator*(const Q alpha, const Function<T,NDIM>& f) {
         CCPairFunction invert_sign();
 
         CCPairFunction operator*(const double fac) const {
-            if (type == PT_FULL) return CCPairFunction(world, fac * u);
-            else if (type == PT_DECOMPOSED) return CCPairFunction(world, fac * a, b);
-            else if (type == PT_OP_DECOMPOSED) return CCPairFunction(world, op, x * fac, y);
-            else MADNESS_EXCEPTION("wrong type in CCPairFunction scale", 1);
+            CCPairFunction result(*this);
+            result*=fac;
+            return result;
+        }
+
+        TwoBodyFunctionPureComponent<T>& pure() const {
+            if (auto ptr=dynamic_cast<TwoBodyFunctionPureComponent<T>*>(component.get())) return *ptr;
+            MADNESS_EXCEPTION("bad cast in TwoBodyFunction",1);
+        }
+
+        TwoBodyFunctionSeparatedComponent<T>& decomposed() const {
+            if (auto ptr=dynamic_cast<TwoBodyFunctionSeparatedComponent<T>*>(component.get())) return *ptr;
+            MADNESS_EXCEPTION("bad cast in TwoBodyFunction",1);
+        }
+
+        vector_real_function_3d get_a() const {
+            MADNESS_CHECK(component->is_decomposed());
+            return decomposed().get_a();
+        }
+        vector_real_function_3d get_b() const {
+            MADNESS_CHECK(component->is_decomposed());
+            return decomposed().get_b();
+        }
+
+        CCPairFunction& operator*=(const double fac) {
+            if (component->is_pure()) pure()*=fac;
+            if (component->is_decomposed()) decomposed()*=fac;
+            return *this;
         }
 
         /// print the size of the functions
-        void print_size() const;
+        void print_size() const {
+            if (component) component->print_size();
+        };
 
-        std::string name() const;
+        std::string name() const {
+            if (not component) return "empty";
+            return component->name();
+        };
 
         /// @param[in] f: a 3D-CC_function
         /// @param[in] particle: the particle on which the operation acts
@@ -285,7 +309,11 @@ operator*(const Q alpha, const Function<T,NDIM>& f) {
         dirac_convolution(const CCFunction& x, const CCConvolutionOperator& op, const size_t particle) const;
 
         /// @param[out] particles are interchanged, if the function was u(1,2) the result is u(2,1)
-        CCPairFunction swap_particles() const;
+        CCPairFunction swap_particles() const {
+            CCPairFunction result(*this);
+            result.component->swap_particles_inplace();
+            return result;
+        };
 
         double
         make_xy_u(const CCFunction& xx, const CCFunction& yy) const;
@@ -298,22 +326,23 @@ operator*(const Q alpha, const Function<T,NDIM>& f) {
 
     public:
         /// the 3 types of 6D-function that occur in the CC potential which coupled doubles to singles
+        std::shared_ptr<TwoBodyFunctionComponentBase> component;
 
-        World& world;
-        /// the type of the given 6D-function
-        const PairFormat type;
-        /// if type==decomposed this is the first particle
-        vector_real_function_3d a;
-        /// if type==decomposed this is the second particle
-        vector_real_function_3d b;
-        /// if type==op_decomposed_ this is the symmetric 6D-operator (g12 or f12) in u=op12|xy>
-        const CCConvolutionOperator *op;
-        /// if type==op_decomposed_ this is the first particle in u=op12|xy>
-        CCFunction x;
-        /// if type==op_decomposed_ this is the second particle in u=op12|xy>
-        CCFunction y;
-        /// if type=pure_ this is just the MRA 6D-function
-        real_function_6d u;
+//         World& world;
+//         /// the type of the given 6D-function
+//         const PairFormat type;
+//         /// if type==decomposed this is the first particle
+//         vector_real_function_3d a;
+//         /// if type==decomposed this is the second particle
+//         vector_real_function_3d b;
+//         /// if type==op_decomposed_ this is the symmetric 6D-operator (g12 or f12) in u=op12|xy>
+//         const CCConvolutionOperator *op;
+//         /// if type==op_decomposed_ this is the first particle in u=op12|xy>
+//         CCFunction x;
+//         /// if type==op_decomposed_ this is the second particle in u=op12|xy>
+//         CCFunction y;
+//         /// if type=pure_ this is just the MRA 6D-function
+//         real_function_6d u;
 
         /// @param[in] f: a 3D-CC_function
         /// @param[in] particle: the particle on which the operation acts
@@ -335,15 +364,6 @@ operator*(const Q alpha, const Function<T,NDIM>& f) {
 
         /// small helper function that gives back (a,b) or (b,a) depending on the value of particle
         const std::pair<vector_real_function_3d, vector_real_function_3d> assign_particles(const size_t particle) const;
-
-        /// swap particle function if type==pure_
-        CCPairFunction swap_particles_pure() const;
-
-        /// swap particle function if type==decomposed_
-        CCPairFunction swap_particles_decomposed() const;
-
-        /// swap particle function if type==op_decomposed_ (all ops are assumed to be symmetric)
-        CCPairFunction swap_particles_op_decomposed() const;
     };
 } // namespace madness
 
