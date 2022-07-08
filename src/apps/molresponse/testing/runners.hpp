@@ -563,10 +563,10 @@ void runMOLDFT(World &world, const std::string &mol_path, const std::string &xc)
  */
 void set_default_response_parameters(ResponseParameters &r_params) {
 
-    r_params.set_user_defined_value("maxiter", size_t(10));
+    r_params.set_user_defined_value("maxiter", size_t(15));
     r_params.set_user_defined_value("archive", std::string("../restartdata"));
     r_params.set_user_defined_value("kain", true);
-    r_params.set_user_defined_value("maxsub", size_t(5));
+    r_params.set_user_defined_value("maxsub", size_t(10));
     r_params.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6});
 }
 

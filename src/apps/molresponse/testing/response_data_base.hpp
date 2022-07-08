@@ -123,8 +123,9 @@ vector<double> generate_dipole_frequencies(std::string molecule_name, std::strin
             omega_max = omega_max / 2.0;
             ::print(omega_max);
 
-            std::vector<double> omegas = {0, omega_max / 8.0, omega_max / 4.0, omega_max / 2.0,
-                                          omega_max};
+            std::vector<double> omegas = {};
+            int Nsteps = 9;
+            for (int i = 0; i < Nsteps; i++) { omegas.push_back(omega_max * (double) i / 8.0); }
             return omegas;
 
         } catch (const json::out_of_range &e) {
