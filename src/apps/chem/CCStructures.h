@@ -842,14 +842,14 @@ public:
     /// gives back the pure 6D part of the pair function
     real_function_6d function() const {
         MADNESS_ASSERT(not functions.empty());
-        MADNESS_ASSERT(functions[0].type == PT_FULL);
+        MADNESS_ASSERT(functions[0].is_pure());
         return functions[0].get_function();
     }
 
     /// updates the pure 6D part of the pair function
     void update_u(const real_function_6d& u) {
         MADNESS_ASSERT(not functions.empty());
-        MADNESS_ASSERT(functions[0].type == PT_FULL);
+        MADNESS_ASSERT(functions[0].is_pure());
         CCPairFunction tmp(u.world(), u);
         functions[0] = tmp;
     }

@@ -1936,20 +1936,20 @@ madness::real_function_3d
 CCPotentials::apply_s2b_operation(const CCFunction& bra, const CCPairFunction& u, const size_t particle) const {
     real_function_3d result;
     MADNESS_ASSERT(particle == 1 || particle == 2);
-    if (u.type == PT_FULL) {
+    if (u.is_pure()) {
         result = u.dirac_convolution(bra, g12, particle);
-    } else if (u.type == PT_DECOMPOSED) {
+    } else if (u.is_decomposed_no_op()) {
         result = u.dirac_convolution(bra, g12, particle);
-    } else if (u.type == PT_OP_DECOMPOSED) {
+    } else if (u.is_op_decomposed()) {
         // retunrns <x|g12f12|x(1)y(2)>_particle
         CCFunction a;
         CCFunction b;
         if (particle == 1) {
-            a = u.x;
-            b = u.y;
+            a = u.get_a()[0];
+            b = u.get_b()[0];
         } else {
-            a = u.y;
-            b = u.x;
+            a = u.get_b()[0];
+            b = u.get_a()[0];
         }
         const real_function_3d tmp = (bra.function * a.function).truncate();
         const real_function_3d tmp2 = apply_gf(tmp);
@@ -2008,8 +2008,7 @@ CCPotentials::apply_Q12t(const real_function_6d& f, const CC_vecfunction& t) con
 madness::CCPairFunction
 CCPotentials::apply_Qt(const CCPairFunction& f, const CC_vecfunction& t, const size_t particle, const double c) const {
     MADNESS_ASSERT(particle == 1 || particle == 2);
-    MADNESS_ASSERT(f.type ==
-                   PT_DECOMPOSED);     // pure type is not needed and op_deomposed type can not be because the result would be (1-Ot)f12|xy> = f12|xy> - \sum_a|a1a2> a subtraction with different types
+    MADNESS_ASSERT(f.is_decomposed_no_op());     // pure type is not needed and op_deomposed type can not be because the result would be (1-Ot)f12|xy> = f12|xy> - \sum_a|a1a2> a subtraction with different types
     if (particle == 1) {
         CCPairFunction result(world, apply_Qt(f.get_a(), t, c), f.get_b());
         return result;
@@ -2039,7 +2038,7 @@ CCPotentials::apply_Ot(const CCPairFunction& f, const CC_vecfunction& t, const s
     else mbra = CC_vecfunction(copy(world, get_active_mo_bra()), HOLE, parameters.freeze());
 
     MADNESS_ASSERT(mbra.size() == t.size());
-    if (f.type == PT_FULL) {
+    if (f.is_pure()) {
         vector_real_function_3d projected;
         for (const auto& ktmp : t.functions) {
             const CCFunction& bra = mbra(ktmp.first);
@@ -2052,16 +2051,17 @@ CCPotentials::apply_Ot(const CCPairFunction& f, const CC_vecfunction& t, const s
             return CCPairFunction(world, projected, copy(world, t.get_vecfunction()));
         }
 
-    } else if (f.type == PT_DECOMPOSED) {
-        if (particle == 1) return CCPairFunction(world, apply_projector(f.a, t), f.b);
-        else return CCPairFunction(world, f.a, apply_projector(f.b, t));
-    } else if (f.type == PT_OP_DECOMPOSED) {
+    } else if (f.is_decomposed_no_op()) {
+        if (particle == 1) return CCPairFunction(world, apply_projector(f.get_a(), t), f.get_b());
+        else return CCPairFunction(world, f.get_a(), apply_projector(f.get_b(), t));
+    } else if (f.is_op_decomposed()) {
         if (particle == 1) {
             const vector_real_function_3d a = copy(world, t.get_vecfunction());
-            const vector_real_function_3d b = mul(world, f.y.function, f.op->operator()(mbra, f.x));
+//            const vector_real_function_3d b = mul(world, f.get_b()[0], f.op->operator()(mbra, f.get_a()[0]));
+            const vector_real_function_3d b = mul(world, f.get_b()[0], f.decomposed().get_operator_ptr()->operator()(mbra, f.get_a()[0]));
             return CCPairFunction(world, a, b);
         } else {
-            const vector_real_function_3d a = mul(world, f.x.function, f.op->operator()(mbra, f.y));
+            const vector_real_function_3d a = mul(world, f.get_a()[0], f.decomposed().get_operator_ptr()->operator()(mbra, f.get_b()[0]));
             const vector_real_function_3d b = copy(world, t.get_vecfunction());
             return CCPairFunction(world, a, b);
         }
@@ -2075,14 +2075,14 @@ madness::real_function_6d
 CCPotentials::apply_G(const CCPairFunction& u, const real_convolution_6d& G) const {
     CCTimer time(world, "Applying G on " + u.name());
     real_function_6d result = real_function_6d(world);
-    if (u.type == PT_FULL) {
-        result = G(u.u);
-    } else if (u.type == PT_DECOMPOSED) {
-        MADNESS_ASSERT(u.a.size() == u.b.size());
-        if (u.a.size() == 0) output.warning("!!!!!!!in G(ab): a.size()==0 !!!!!!");
+    if (u.is_pure()) {
+        result = G(u.pure().get_function());
+    } else if (u.is_decomposed_no_op()) {
+        MADNESS_ASSERT(u.get_a().size() == u.get_b().size());
+        if (u.get_a().size() == 0) output.warning("!!!!!!!in G(ab): a.size()==0 !!!!!!");
 
-        for (size_t k = 0; k < u.a.size(); k++) {
-            const real_function_6d tmp = G(u.a[k], u.b[k]);
+        for (size_t k = 0; k < u.get_a().size(); k++) {
+            const real_function_6d tmp = G(u.get_a()[k], u.get_b()[k]);
             result += tmp;
         }
     } else error("Apply_G to CCPairFunction of type other than pure or decomposed");
@@ -2856,7 +2856,7 @@ CCPotentials::s2b(const CC_vecfunction& singles, const Pairs<CCPair>& doubles) c
             const size_t k = ktmp.first;
             std::vector<CCPairFunction> uik = get_pair_function(doubles, i, k);
             // check if the first function in the vector is really the pure 6D part
-            MADNESS_ASSERT(uik[0].type == PT_FULL);
+            MADNESS_ASSERT(uik[0].is_pure());
             if (recalc_u_part) {
                 resulti_u += 2.0 * apply_s2b_operation(mo_bra_(k), uik[0],
                                                        2);     //2.0*uik[0].dirac_convolution(mo_bra_(k),g12,2);
@@ -2900,7 +2900,7 @@ CCPotentials::s2c(const CC_vecfunction& singles, const Pairs<CCPair>& doubles) c
                 const real_function_3d l_kgi = mo_bra_(l).function * kgi;
                 std::vector<CCPairFunction> ukl = get_pair_function(doubles, k, l);
                 // check if the first function in the vector is really the pure 6D part
-                MADNESS_ASSERT(ukl[0].type == PT_FULL);
+                MADNESS_ASSERT(ukl[0].is_pure());
                 if (recalc_u_part) {
                     resulti_u += -2.0 * ukl[0].project_out(l_kgi, 2);
                     resulti_u += ukl[0].project_out(l_kgi, 1);
@@ -3195,17 +3195,17 @@ real_function_6d CCPotentials::make_6D_pair(const CCPair& pair) const {
     std::vector<CCPairFunction> functions = pair.functions;
     real_function_6d result = real_factory_6d(world);
     for (const auto& f:functions) {
-        if (f.type == PT_FULL) result += f.u;
-        else if (f.type == PT_DECOMPOSED) {
-            for (size_t i = 0; i < f.a.size(); i++) {
-                real_function_6d ab = CompositeFactory<double, 6, 3>(world).particle1(copy(f.a[i])).particle2(
-                        copy(f.b[i]));
+        if (f.is_pure()) result += f.pure().get_function();
+        else if (f.is_decomposed_no_op()) {
+            for (size_t i = 0; i < f.get_a().size(); i++) {
+                real_function_6d ab = CompositeFactory<double, 6, 3>(world).particle1(copy(f.get_a()[i])).particle2(
+                        copy(f.get_b()[i]));
                 ab.fill_tree().truncate().reduce_rank();
                 result += ab;
             }
-        } else if (f.type == PT_OP_DECOMPOSED) {
-            MADNESS_ASSERT(f.op->type() == OT_F12);
-            real_function_6d fxy = make_f_xy(f.x, f.y);
+        } else if (f.is_op_decomposed()) {
+            MADNESS_ASSERT(f.get_operator().type() == OT_F12);
+            real_function_6d fxy = make_f_xy(f.get_a()[0], f.get_b()[0]);
             result += fxy;
         } else MADNESS_EXCEPTION("Unknown type of CCPairFunction", 1);
     }
