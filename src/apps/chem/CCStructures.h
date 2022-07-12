@@ -221,7 +221,7 @@ struct CCParameters : public QCCalculationParametersBase {
     void initialize_parameters() {
         double thresh=1.e-3;
         double thresh_operators=1.e-6;
-        initialize < std::string > ("calc_type", "lrcc2", "the calculation type", {"mp2", "cc2", "cis", "lrcc2", "cispd", "adc2", "test"});
+        initialize < std::string > ("calc_type", "mp2", "the calculation type", {"mp2", "cc2", "cis", "lrcc2", "cispd", "adc2", "test"});
         initialize < double > ("lo", 1.e-7, "the finest length scale to be resolved by 6D operators");
         initialize < double > ("dmin", 1.0, "defines the depth of the special level");
         initialize < double > ("thresh_6d", thresh, "threshold for the 6D wave function");
@@ -255,11 +255,11 @@ struct CCParameters : public QCCalculationParametersBase {
         initialize < bool > ("debug", false, "");
         initialize < bool > ("plot", false, "");
         initialize < bool > ("kain", true, "");
-        initialize < std::size_t > ("kain_subspace", 5, "");
+        initialize < std::size_t > ("kain_subspace", 3, "");
         initialize < std::size_t > ("freeze", 0, "");
         initialize < bool > ("test", false, "");
         // choose if Q for the constant part of MP2 and related calculations should be decomposed: GQV or GV - GO12V
-        initialize < bool > ("decompose_Q", false, "");
+        initialize < bool > ("decompose_Q", true, "");
         // if true the ansatz for the CC2 ground state pairs is |tau_ij> = |u_ij> + Qtf12|titj>, with Qt = Q - |tau><phi|
         // if false the ansatz is the same with normal Q projector
         // the response ansatz is the corresponding response of the gs ansatz
