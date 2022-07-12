@@ -792,7 +792,7 @@ std::pair<std::filesystem::path, bool> RunResponse(World &world, const std::stri
     calc.time_data.to_json(calc.j_molresponse);
     calc.time_data.print_data();
     calc.output_json();
-    return {save_path, true};
+    return {save_path, calc.j_molresponse["converged"]};
 }
 
 /***
@@ -912,9 +912,12 @@ void runFrequencyTests(World &world, const frequencySchema &schema, bool high_pr
             print("restart_path", restart_path);
             restart_path = success.first;
             print("restart_path = success.first", restart_path);
+        } else {
+            throw Response_Convergence_Error{};
         }
         success = RunResponse(world, "response.in", freq, schema.op, schema.xc, schema.moldft_path,
                               restart_path, high_prec);
+
         print("Frequency ", freq, " completed");
     }
 }
