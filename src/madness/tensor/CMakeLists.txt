@@ -37,10 +37,18 @@ set(MADCLAPACK_HEADERS cblas.h cblas_types.h
 set(MADLINALG_HEADERS ${MADCLAPACK_HEADERS} tensor_lapack.h solvers.h elem.h jacobi.h)
 set(MADLINALG_SOURCES lapack.cc solvers.cc elem.cc SVDTensor.cc RandomizedMatrixDecomposition.cc linalg_wrappers.cc )
 
+set(MADGENTENSOR_HEADERS gentensor.h srconf.h distributed_matrix.h tensortrain.h SVDTensor.h
+        lowranktensor.h RandomizedMatrixDecomposition.h)
+set(MADGENTENSOR_SOURCES SVDTensor.cc RandomizedMatrixDecomposition.cc)
+
 # Create libraries MADtensor and MADlinalg
 add_mad_library(tensor MADTENSOR_SOURCES MADTENSOR_HEADERS "misc" "madness/tensor")
 #add_mad_library(clapack MADLINALG_HEADERS "" "madness/tensor")
 add_mad_library(linalg MADLINALG_SOURCES MADLINALG_HEADERS "tensor" "madness/tensor")
+
+if(ENABLE_GENTENSOR)
+  add_mad_library(gentensor MADGENTENSOR_SOURCES MADGENTENSOR_HEADERS "linalg" "madness/tensor")
+endif()
 
   set(l_target MADlinalg)
   set(t_target MADtensor)
@@ -77,6 +85,7 @@ if(BUILD_TESTING)
   set(TENSOR_TEST_SOURCES test_tensor.cc oldtest.cc test_mtxmq.cc
       jimkernel.cc test_distributed_matrix.cc test_Zmtxmq.cc test_systolic.cc)
   set(LINALG_TEST_SOURCES test_linalg.cc test_solvers.cc testseprep.cc test_jacobi.cc)
+
   if(ENABLE_GENTENSOR)
     list(APPEND LINALG_TEST_SOURCES test_gentensor.cc test_lowranktensor.cc)
   endif()
