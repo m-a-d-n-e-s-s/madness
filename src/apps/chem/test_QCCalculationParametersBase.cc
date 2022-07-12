@@ -27,8 +27,8 @@ public:
 		initialize<std::pair<std::string,double> >("ncf",{"slater",2.0});
 	}
 
-	void read_and_set_derived_values(World& world, std::string inputfile, std::string tag) {
-		read(world,inputfile,tag);
+	void read_and_set_derived_values(World& world, const commandlineparser& parser, std::string tag) {
+		read_input_and_commandline_options(world,parser,tag);
 		set_derived_value("dconv",sqrt(get<double>("econv"))*0.1);
 	}
 
@@ -81,7 +81,9 @@ bool test_serialize(World& world) {
 	inputfile ifile("input1",inputlines);
 
 	Parameters param;
-	param.read_and_set_derived_values(world,"input1","mp3");
+    commandlineparser parser;
+    parser.set_keyval("input","input1");
+	param.read_and_set_derived_values(world,parser,"mp3");
 
 
 	param.print("defined parameters","foot\n\n");
@@ -119,7 +121,9 @@ bool test_type_conversion1(World& world) {
 	inputfile ifile("input1",inputlines);
 
 	Parameters param;
-	param.read_and_set_derived_values(world,"input1","mp3");
+    commandlineparser parser;
+    parser.set_keyval("input","input1");
+    param.read_and_set_derived_values(world,parser,"mp3");
 
 
 	test_same(param.ncf(),std::pair<std::string,double>("slater",1.2));
@@ -138,7 +142,9 @@ bool test_type_conversion2(World& world) {
 	inputfile ifile("input1",inputlines);
 
 	Parameters param;
-	param.read_and_set_derived_values(world,"input1","mp3");
+    commandlineparser parser;
+    parser.set_keyval("input","input1");
+    param.read_and_set_derived_values(world,parser,"mp3");
 
 
 	test_same(param.ncf(),std::pair<std::string,double>("slater",1.2));
@@ -158,7 +164,9 @@ bool test_type_conversion3(World& world) {
 
 	try {
 		Parameters param;
-		param.read_and_set_derived_values(world,"input1","mp3");
+        commandlineparser parser;
+        parser.set_keyval("input","input1");
+        param.read_and_set_derived_values(world,parser,"mp3");
 
 
 	} catch (std::runtime_error& err) {
@@ -181,7 +189,9 @@ bool test_type_conversion4(World& world) {
 
 	try {
 		Parameters param;
-		param.read_and_set_derived_values(world,"input1","mp3");
+        commandlineparser parser;
+        parser.set_keyval("input","input1");
+        param.read_and_set_derived_values(world,parser,"mp3");
 
 
 	} catch (std::runtime_error& err) {
@@ -204,7 +214,9 @@ bool test_type_conversion5(World& world) {
 	inputfile ifile("input1",inputlines);
 
 	Parameters param;
-	param.read_and_set_derived_values(world,"input1","mp3");
+    commandlineparser parser;
+    parser.set_keyval("input","input1");
+    param.read_and_set_derived_values(world,parser,"mp3");
 
 
 	test_same(param.localize(),true);
@@ -223,7 +235,9 @@ bool test_type_conversion6(World& world) {
 	inputfile ifile("input1",inputlines);
 
 	Parameters param;
-	param.read_and_set_derived_values(world,"input1","mp3");
+    commandlineparser parser;
+    parser.set_keyval("input","input1");
+    param.read_and_set_derived_values(world,parser,"mp3");
 
 
 	test_same(param.localize(),true);
@@ -243,7 +257,9 @@ bool test_type_conversion7(World& world) {
 	inputfile ifile("input1",inputlines);
 
 	Parameters param;
-	param.read_and_set_derived_values(world,"input1","mp3");
+    commandlineparser parser;
+    parser.set_keyval("input","input1");
+    param.read_and_set_derived_values(world,parser,"mp3");
 
 
 	test_same(param.localize(),false);
@@ -262,7 +278,9 @@ bool test_type_conversion8(World& world) {
 	inputfile ifile("input1",inputlines);
 
 	Parameters param;
-	param.read_and_set_derived_values(world,"input1","mp3");
+    commandlineparser parser;
+    parser.set_keyval("input","input1");
+    param.read_and_set_derived_values(world,parser,"mp3");
 
 
 	test_same(param.localize(),false);
@@ -282,7 +300,9 @@ bool test_trailing_characters(World& world) {
 
 	try {
 		Parameters param;
-		param.read_and_set_derived_values(world,"input1","mp3");
+        commandlineparser parser;
+        parser.set_keyval("input","input1");
+        param.read_and_set_derived_values(world,parser,"mp3");
 
 
 	} catch (std::runtime_error& err) {
@@ -306,7 +326,9 @@ bool test_capitalization(World& world) {
 	inputfile ifile("input1",inputlines);
 
 	Parameters param;
-	param.read_and_set_derived_values(world,"input1","mp3");
+    commandlineparser parser;
+    parser.set_keyval("input","input1");
+    param.read_and_set_derived_values(world,parser,"mp3");
 
 
 	test_same(param.local(),std::string("canon"));
@@ -329,7 +351,9 @@ bool test_not_allowed(World& world) {
 	bool found_exception=true;
 	try {
 		Parameters param;
-		param.read_and_set_derived_values(world,"input1","mp3");
+        commandlineparser parser;
+        parser.set_keyval("input","input1");
+        param.read_and_set_derived_values(world,parser,"mp3");
 
 
 		found_exception=false;
@@ -355,7 +379,9 @@ bool test_comment_lines(World& world) {
 	inputfile ifile("input1",inputlines);
 
 	Parameters param;
-	param.read_and_set_derived_values(world,"input1","mp3");
+    commandlineparser parser;
+    parser.set_keyval("input","input1");
+    param.read_and_set_derived_values(world,parser,"mp3");
 
 
 	test_same(param.econv(),1.e-4);
@@ -374,7 +400,9 @@ bool test_empty_lines(World& world) {
 	inputfile ifile("input1",inputlines);
 
 	Parameters param;
-	param.read_and_set_derived_values(world,"input1","mp3");
+    commandlineparser parser;
+    parser.set_keyval("input","input1");
+    param.read_and_set_derived_values(world,parser,"mp3");
 
 
 	test_same(param.econv(),1.e-4);
@@ -396,7 +424,9 @@ bool test_derived(World& world) {
 	inputfile ifile("input1",inputlines);
 
 	Parameters param;
-	param.read_and_set_derived_values(world,"input1","mp3");
+    commandlineparser parser;
+    parser.set_keyval("input","input1");
+    param.read_and_set_derived_values(world,parser,"mp3");
 
 
 	test_same(param.econv(),1.e-4);

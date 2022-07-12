@@ -387,7 +387,7 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 
 
 /// The following function tests all essential parts of the OEP program qualitatively and some also quantitatively
-int OEP::test_oep() {
+bool OEP::selftest() {
 
     printf("\n   +++ starting test of the OEP program +++\n\n");
 

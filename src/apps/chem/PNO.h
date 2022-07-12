@@ -15,15 +15,16 @@
 #include <chem/PNOF12Potentials.h>
 #include <madness/world/worldmem.h>
 
-#include <apps/chem/CC2.h>
-#include <apps/chem/molecule.h>
+#include <chem/CC2.h>
+#include <chem/QCPropertyInterface.h>
+#include <chem/molecule.h>
 #include <chem/PNOTensors.h>
 
 namespace madness {
 // needed to plot cubefiles with madness
 extern std::vector<std::string> cubefile_header(std::string filename="input", const bool& no_orient=false);
 
-class PNO {
+class PNO : public QCPropertyInterface {
 public:
 	typedef std::shared_ptr<operatorT> poperatorT;
 	PNO(World& world, const Nemo& nemo, const PNOParameters& parameters, const F12Parameters& paramf12)
@@ -44,6 +45,12 @@ public:
 				world, nemo.get_calc()->param.lo(),param.op_thresh()));
 		MADNESS_ASSERT(param.freeze() == f12.param.freeze());
 	}
+
+    std::string name() const {return "PNO";};
+
+    virtual bool selftest() {
+        return true;
+    };
 
 	/// Compute the projected MP2 energies: 2<ij|g|uij> - <ji|g|uij> for all pairs
 	/// gives back the PairEnergies structure with all singlet and triplet energies
@@ -228,7 +235,7 @@ public:
 	/// = basis in which input A is represented, on output = the eigenbasis of A
 	void canonicalize(PNOPairs& v) const;
 
-private:
+public:
 	World& world;
 	PNOParameters param;  ///< calculation parameters
 	Nemo nemo;

@@ -146,11 +146,19 @@ namespace madness {
         return initialize(argc, argv, SafeMPI::COMM_WORLD, quiet);
     }
 
-    World& initialize(int& argc, char**& argv, const MPI_Comm& comm, bool quiet) {
-        return initialize(argc, argv, SafeMPI::Intracomm(comm), quiet);
+    World& initialize(int& argc, char**& argv, int nthread, bool quiet) {
+      return initialize(argc, argv, SafeMPI::COMM_WORLD, nthread, quiet);
+    }
+
+    World& initialize(int& argc, char**& argv, const MPI_Comm& comm, int nthread, bool quiet) {
+      return initialize(argc, argv, SafeMPI::Intracomm(comm), nthread, quiet);
     }
 
     World& initialize(int& argc, char**& argv, const SafeMPI::Intracomm& comm, bool quiet) {
+      return initialize(argc, argv, comm, -1, quiet);
+    }
+
+    World& initialize(int& argc, char**& argv, const SafeMPI::Intracomm& comm, int nthread, bool quiet) {
         madness_quiet_ = quiet;
 
 #ifdef HAVE_PAPI
@@ -203,7 +211,7 @@ namespace madness {
 
         start_cpu_time = cpu_time();
         start_wall_time = wall_time();
-        ThreadPool::begin();        // Must have thread pool before any AM arrives
+        ThreadPool::begin(nthread);        // Must have thread pool before any AM arrives
         if(comm.Get_size() > 1) {
             RMI::begin(comm);           // Must have RMI while still running single threaded
             // N.B. sync everyone up before messages start flying

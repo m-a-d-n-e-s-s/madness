@@ -102,11 +102,36 @@ void simple_example(World &universe) {
     }   // subworld is destroyed here
 }
 
+/// test the cloud with message larger than chunk size set in cloud.replicate()
+int chunk_example(World &universe) {
+    int test_size = 100;
+    std::vector<int> testvec;
+    for (int i=0; i<test_size; i++) {
+        testvec.push_back(i);
+    }
+
+    {
+        test_output bla("testing replication");
+        Cloud cloud(universe);
+        auto recordlist = cloud.store(universe, testvec);
+        cloud.replicate(50);
+
+        std::vector<int> cloud_vector = cloud.load<std::vector<int>>(universe, recordlist);
+        int sum = 0;
+        for (int i = 0; i < testvec.size(); i++){
+            sum += std::abs(testvec[i] - cloud_vector[i]);
+        }
+        bla.end((sum==0));
+        return sum;
+    }
+}
+
 int main(int argc, char **argv) {
 
     madness::World &universe = madness::initialize(argc, argv);
     startup(universe, argc, argv);
 
+    chunk_example(universe);
     simple_example(universe);
     int success = 0;
     {

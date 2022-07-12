@@ -41,6 +41,7 @@
 #include <madness/world/vector.h>
 #include <madness/world/worlddc.h>
 #include <madness/tensor/tensor.h>
+#include <madness/tensor/gentensor.h>
 #include <madness/mra/key.h>
 
 namespace madness {
@@ -53,6 +54,16 @@ namespace madness {
     static const int MAXLEVEL = 8*sizeof(Translation)-2;
 
     enum BCType {BC_ZERO, BC_PERIODIC, BC_FREE, BC_DIRICHLET, BC_ZERONEUMANN, BC_NEUMANN};
+
+    enum TreeState {
+    	reconstructed,				///< s coeffs at the leaves only
+		compressed, 				///< d coeffs in internal nodes, s and d coeffs at the root
+		nonstandard, 				///< s and d coeffs in internal nodes
+    	nonstandard_with_leaves, 	///< like nonstandard, with s coeffs at the leaves
+		redundant,					///< s coeffs everywhere
+		on_demand,					///< no coeffs anywhere, but a functor providing if necessary
+		unknown
+    };
 
     /*!
       \brief This class is used to specify boundary conditions for all operators
@@ -176,7 +187,7 @@ namespace madness {
     	MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
 
     private:
-        static int k;                 ///< Wavelet order
+        static int k;                  ///< Wavelet order
         static double thresh;          ///< Truncation threshold
         static int initial_level;      ///< Initial level for fine scale projection
         static int special_level;      ///< Minimum level for fine scale projection of special boxes
@@ -196,6 +207,24 @@ namespace madness {
         static double cell_min_width;   ///< Size of smallest dimension
         static TensorType tt;			///< structure of the tensor in FunctionNode
         static std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > pmap; ///< Default mapping of keys to processes
+
+        static Tensor<double> make_default_cell() {
+          if (NDIM) {
+            Tensor<double> cell(NDIM, 2);
+            cell(_, 1) = 1.0;
+            return cell;
+          } else
+            return {};
+        }
+
+        static Tensor<double> make_default_cell_width() {
+          if (NDIM) {
+            Tensor<double> cell(NDIM);
+            cell(_) = 1.0;
+            return cell;
+          } else
+            return {};
+        }
 
         static void recompute_cell_info() {
             MADNESS_ASSERT(cell.dim(0)==NDIM && cell.dim(1)==2 && cell.ndim()==2);
@@ -438,7 +467,16 @@ namespace madness {
 
         /// Returns the default process map
         static std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >& get_pmap() {
-        	return pmap;
+          if (pmap)
+            return pmap;
+          else { // try to initialize to default, if not yet
+            if (initialized()) {
+              set_default_pmap(World::get_default());
+              return pmap;
+            }
+            else
+              return pmap; // null ptr if uninitialized
+          }
         }
 
         /// Sets the default process map (does \em not redistribute existing functions)
@@ -461,7 +499,6 @@ namespace madness {
         MADNESS_PRAGMA_CLANG(diagnostic pop)
 
     };
-
 
     /// Convert user coords (cell[][]) to simulation coords ([0,1]^ndim)
     template <std::size_t NDIM>

@@ -84,16 +84,6 @@ public:
 	  const bool debug = false;
 	  if(symmetric) MADNESS_ASSERT((phi_i-phi_j).norm2() < FunctionDefaults<3>::get_thresh());
 
-//        if(world.rank()==0){
-//        	std::cout << "apply_U debug output:\n"
-//        			<< "lo is " << lo <<"\ndcut is " << dcut <<"\nbsh_thresh is " << bsh_thresh
-//        			<< "\ngamma is " << _gamma
-//        			<< "\n3D thresh in FunctionDefaults is " << FunctionDefaults<3>::get_thresh()
-//        			<< "\n6D thresh in FunctionDefaults is " << FunctionDefaults<6>::get_thresh()
-//        			<< "\neps is " << eps << "\nnorm of phi_i is " << phi_i.norm2() << "\nnorm of phi_j is " << phi_j.norm2()
-//        			<< std::endl;
-//        }
-
         real_function_6d result=real_factory_6d(world);
 
         for (int axis=0; axis<3; ++axis) {
@@ -105,18 +95,6 @@ public:
             else Dj=(D(phi_j)).truncate();
 
             real_function_6d u=U1(axis);
-//            u.fill_tree(op_mod);
-//            plot_plane(world,u,"u");
-//            std::cout<<"plotted u\n";
-
-//            if(world.rank()==0){
-//            	std::cout << "apply_U debug output:\n"
-//            			<< "Norm of Di " << Di.norm2()
-//            			<< "\nNorm of Dj " << Dj.norm2()
-//            			<< "\nNorm if u " << u.norm2()
-//            			<< std::endl;
-//            }
-
             real_function_6d tmp1=CompositeFactory<double,6,3>(world)
                         .g12(u).particle1(copy(Di)).particle2(copy(phi_j)).thresh(thresh);
             tmp1.fill_cuspy_tree(op_mod).truncate();
@@ -128,42 +106,15 @@ public:
                                     .g12(u).particle1(copy(phi_i)).particle2(copy(Dj)).thresh(thresh);
             tmp2.fill_cuspy_tree(op_mod).truncate();
             }
-            // if (world.rank()==0) print("done with fill_tree");
-
-           // plot_plane(world,tmp1,"tmp1");
-           // plot_plane(world,tmp2,"tmp2");
-
-//            if(world.rank()==0){
-//            	std::cout << "apply_U debug output:\n"
-//            			<< "Norm of tmp1 " << tmp1.norm2()
-//            			<< "\nNorm of tmp2"<< tmp2.norm2()
-//            			<< std::endl;
-//            }
 
             result=result+(tmp1-tmp2).truncate();
 
-//            if(world.rank()==0){
-//            	std::cout << "apply_U debug output:\n"
-//            			<< "Norm of result + tmp1 - tmp2 " << result.norm2()
-//            			<< std::endl;
-//            }
 
             tmp1.clear();
             tmp2.clear();
             world.gop.fence();
             result.truncate().reduce_rank();
-
-//            if(world.rank()==0){
-//            	std::cout << "apply_U debug output:\n"
-//            			<< "Norm if result after truncate " << result.norm2()
-//            			<< std::endl;
-//            }
-
-            //if (world.rank()==0) printf("done with multiplication with U at ime %.1f\n",wall_time());
-           // result.print_size("result");
         }
-
-//        load_balance(result,true);
 
         // include the purely local potential that (partially) cancels 1/r12
         if (_gamma>0.0) {
@@ -235,6 +186,8 @@ public:
 
 private:
     /// functor for the local potential (1-f12)/r12 + sth (doubly connected term of the commutator)
+
+    /// TODO: turn this into coeffs directly
     struct fg_ : FunctionFunctorInterface<double,6> {
         double gamma;
         double dcut;
@@ -336,7 +289,26 @@ private:
         return r[axis]-r[axis+3];
     }
 
-
+	static coord_3d smoothed_unitvec(const coord_3d& xyz, double smoothing) {
+//        if (smoothing==0.0) smoothing=molecule.get_eprec();
+        // TODO:need to test this
+        // reduce the smoothing for the unitvector
+        //if (not (this->type()==None or this->type()==Two)) smoothing=sqrt(smoothing);
+        const double r=xyz.normf();
+        const double cutoff=smoothing;
+        if (r>cutoff) {
+            return 1.0/r*xyz;
+        } else {
+            const double xi=r/cutoff;
+            const double xi2=xi*xi;
+            const double xi3=xi*xi*xi;
+//            const double nu21=0.5+1./32.*(45.*xi - 50.*xi3 + 21.*xi*xi*xi*xi*xi);
+            const double nu22=0.5 + 1./64.*(105* xi - 175 *xi3 + 147* xi2*xi3 - 45* xi3*xi3*xi);
+//            const double nu40=0.5 + 1./128.*(225 *xi - 350 *xi3 + 189*xi2*xi3);
+            const double kk=2.*nu22-1.0;
+            return kk/(r+1.e-15)*xyz;
+        }
+	}
 };
 
 /// a class holding the electronic correlation factor for R12 theory

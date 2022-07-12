@@ -48,6 +48,7 @@
 #include <chem/projector.h>
 #include <chem/correlationfactor.h>
 #include <chem/electronic_correlation_factor.h>
+#include <chem/MolecularOrbitals.h>
 #include <chem/nemo.h>
 
 #include <madness/world/text_fstream_archive.h>
@@ -57,8 +58,6 @@ using madness::archive::TextFstreamOutputArchive;
 
 
 #include <iostream>
-
-using namespace madness;
 
 namespace madness {
 
@@ -114,12 +113,17 @@ public:
         coords_sum = xsq;
         nemo_ptr->value(x);
 
-        // compute the full, reconstructed orbitals from nemo
-        orbitals_ = mul(world, nemo_ptr->R, nemo_ptr->get_calc()->amo);
-        real_function_3d R2 = nemo_ptr->ncf->square();
-        R2orbitals_ = mul(world, R2, nemo_ptr->get_calc()->amo);
-
+        MolecularOrbitals<double,3> mos(nemo_ptr->get_calc()->amo,nemo_ptr->get_calc()->aeps);
+        reset_orbitals(mos);
         return nemo_ptr->get_calc()->current_energy;
+    }
+
+    void reset_orbitals(const MolecularOrbitals<double,3>& mos) {
+        nemo_ptr->get_calc()->amo=mos.get_mos();
+        nemo_ptr->get_calc()->aeps=mos.get_eps();
+        MADNESS_CHECK(nemo_ptr->get_calc()->aeps.size()==nemo_ptr->get_calc()->amo.size());
+        orbitals_ = nemo_ptr->R*nemo_ptr->get_calc()->amo;
+        R2orbitals_ = nemo_ptr->ncf->square()*nemo_ptr->get_calc()->amo;
     }
 
     Tensor<double> gradient(const Tensor<double>& x) {
@@ -309,16 +313,16 @@ public:
 
 
 /// a class for computing the first order wave function and MP2 pair energies
-class MP2 : public OptimizationTargetInterface {
+class MP2 : public OptimizationTargetInterface, public QCPropertyInterface {
 
     /// POD for MP2 keywords
     struct Parameters : public QCCalculationParametersBase {
 
         /// use OEP orbitals
-        bool do_oep = false;
+        bool do_oep1 = false;
 
         /// ctor reading out the input file
-        Parameters(World& world) {
+        Parameters(World& world, const commandlineparser& parser) {
 
             /// the map with initial values
             initialize < double > ("thresh", 1.e-3, "recommended values: 1.e-4 < econv < 1.e-8");
@@ -330,15 +334,17 @@ class MP2 : public OptimizationTargetInterface {
             initialize < bool > ("restart", true);
             initialize < int > ("maxiter", 5);
 
-            read_and_set_derived_values(world);
+            read_and_set_derived_values(world,parser);
 
             // print final parameters
             if (world.rank() == 0) print("mp2", "end");
         }
 
-        void read_and_set_derived_values(World& world) {
-            read(world, "input", "mp2");
+        void read_and_set_derived_values(World& world, const commandlineparser& parser) {
+            read_input_and_commandline_options(world, parser, "mp2");
+
             set_derived_value("dconv", sqrt(get<double>("econv")) * 0.1);
+        	set_derived_value("thresh",get<double>("econv"));
         }
 
         /// check the user input
@@ -358,6 +364,7 @@ class MP2 : public OptimizationTargetInterface {
         int restart() const { return this->get<bool>("restart"); }    /// convenience function
         int maxiter() const { return this->get<int>("maxiter"); }    /// convenience function
         int maxsub() const { return this->get<int>("maxsub"); }    /// convenience function
+        bool do_oep() const { return do_oep1;}
     };
 
     /// POD holding all electron pairs with easy access
@@ -406,6 +413,11 @@ public:
 
     /// ctor
     MP2(World& world, const commandlineparser& parser);
+    std::string name() const {return "MP2";};
+
+    virtual bool selftest() {
+        return true;
+    };
 
     /// return a checksum for the geometry
     double coord_chksum() const { return coords_sum; }
@@ -415,6 +427,12 @@ public:
 
     /// return the molecular correlation energy as a function of the coordinates
     double value(const Tensor<double>& x);
+
+    /// make sure frozen orbitals don't couple with correlated ones -- relocalize if necessary
+    bool check_core_valence_separation() const;
+
+    /// make sure frozen orbitals don't couple with correlated ones -- relocalize if necessary
+    void enforce_core_valence_separation();
 
     /// return the underlying HF reference
     HartreeFock& get_hf() { return *hf; }
@@ -547,6 +565,8 @@ private:
     /// @param[in]	phi the orbital
     /// @return 	Jphi
     real_function_3d J(const real_function_3d& phi) const;
+
+    real_function_6d apply_exchange_vector(const real_function_6d& f, const int particle) const;
 
     /// apply the exchange operator on f
 

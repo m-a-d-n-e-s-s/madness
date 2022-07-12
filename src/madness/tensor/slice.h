@@ -115,6 +115,11 @@ namespace madness {
             step=s.step;
             return *this;
         };
+        template <typename Archive>
+        void serialize(Archive& ar) {
+        	ar & start & end & step;
+        }
+
     };
 
     std::ostream& operator<<(std::ostream& stream, const Slice& s);

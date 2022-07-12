@@ -65,6 +65,7 @@ extern "C" void HPM_Prof_stop(unsigned int);
 #  include <spi/include/kernel/process.h>
 #endif
 
+#include <thread>
 
 namespace madness {
     int ThreadBase::cpulo[3];
@@ -199,7 +200,7 @@ namespace madness {
             MADNESS_EXCEPTION("ThreadBase: sysctl(CTL_HW,HW_NCPU) failed", 0);
         //std::cout << "NCPU " << ncpu << std::endl;
 #else
-        return 1;
+        return std::thread::hardware_concurrency();
 #endif
     }
 
@@ -337,46 +338,30 @@ namespace madness {
 #endif // MADNESS_TASK_PROFILING
 
 #if HAVE_PARSEC
-  parsec_context_t *ThreadPool::parsec = NULL;
+    ParsecRuntime *ThreadPool::parsec_runtime = nullptr;
 #endif
+
     // The constructor is private to enforce the singleton model
-    ThreadPool::ThreadPool(int nthread) :
-            threads(nullptr), main_thread(), nthreads(nthread), finish(false)
+    ThreadPool::ThreadPool(int nthread)
+    : threads(nullptr)
+    , main_thread()
+    , nthreads(nthread)
+    , finish(false)
     {
         nfinished = 0;
         instance_ptr = this;
         if (nthreads < 0) nthreads = default_nthread();
-        MADNESS_ASSERT(nthreads >= 0);
+        MADNESS_ASSERT(nthreads >=0);
+        if (nthreads>64)
+            MADNESS_EXCEPTION("\n\nno more than 64 threads in MADNESS:\nexport MAD_NUM_THREADS = 64\n",1);
 
         const int rc = pthread_setspecific(ThreadBase::thread_key,
                 static_cast<void*>(&main_thread));
         if(rc != 0)
             MADNESS_EXCEPTION("pthread_setspecific failed", rc);
 #if HAVE_PARSEC
-        //////////// Parsec Related Begin ////////////////////
-        /* Scheduler init*/
-        int argc = 1;
-        char ** argv = (char**)malloc(2*sizeof(char*));
-        argv[0] = strdup("madness-app");
-        argv[1] = NULL;
-        int nb_threads = ThreadPool::default_nthread() + 1;
-        ThreadPool::parsec = parsec_init(nb_threads, &argc, &argv);
-        MPI_Comm parsec_comm  = MPI_COMM_SELF;
-        parsec_remote_dep_set_ctx(ThreadPool::parsec, (intptr_t)parsec_comm);
-#ifdef PARSEC_PROF_TRACE
-        madness_parsec_tp.profiling_array = (int*)malloc(2*sizeof(int));
-        parsec_profiling_add_dictionary_keyword("MADNESS TASK", "fill:CC2828", 0, "",
-                                                (int *)&madness_parsec_tp.profiling_array[0],
-                                                (int *)&madness_parsec_tp.profiling_array[1]);
-#endif
-        if( 0 != parsec_context_add_taskpool(ThreadPool::parsec, &madness_parsec_tp) ) {
-            std::cerr << "ERROR: parsec_context_add_taskpool failed!!" << std::endl;
-        }
-        parsec_taskpool_update_runtime_nbtask(&madness_parsec_tp, 1);
-        if( 0 != parsec_context_start(ThreadPool::parsec) ) {
-            std::cerr << "ERROR: context_context_start failed!!" << std::endl;
-	}
-        //////////// Parsec Related End ////////////////////
+        assert(nullptr == parsec_runtime);
+        parsec_runtime = new ParsecRuntime(nthread);
 #elif HAVE_INTEL_TBB
 // #if HAVE_INTEL_TBB
 
@@ -534,8 +519,7 @@ namespace madness {
         while (instance_ptr->nfinished != instance_ptr->nthreads);
 #else  /* HAVE_PARSEC */
         /* Remove the fake task we used to keep the engine up and running */
-        parsec_taskpool_update_runtime_nbtask(&madness_parsec_tp, -1);
-        parsec_context_wait(parsec);
+        parsec_runtime->wait();
 #endif
 #ifdef MADNESS_TASK_PROFILING
         instance_ptr->main_thread.profiler().write_to_file();

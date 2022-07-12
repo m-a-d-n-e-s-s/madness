@@ -34,7 +34,7 @@
 
 /// \file moldft.cc
 /// \brief Molecular HF and DFT code
-/// \defgroup moldft The molecular density funcitonal and Hartree-Fock code
+/// \defgroup moldft The molecular density functional and Hartree-Fock code
 
 #include <chem/SCF.h>
 #include <chem/commandlineparser.h>
@@ -156,16 +156,12 @@ int main(int argc, char **argv) {
 
                 MolecularEnergy target(world, calc);
                 opt.optimize(calc.molecule, target);
-            } else if (calc.param.tdksprop()) {
-                print("\n\n Propagation of Kohn-Sham equation                      ");
-                print(" ----------------------------------------------------------\n");
-//          calc.propagate(world,VextCosFunctor<double>(world,new DipoleFunctor(2),0.1),0);
-                calc.propagate(world, 0.1, 0);
             } else {
                 MolecularEnergy E(world, calc);
                 double energy = E.value(calc.molecule.get_all_coords().flat()); // ugh!
                 if ((world.rank() == 0) and (calc.param.print_level() > 0))
                     printf("final energy=%16.8f ", energy);
+                E.output_calc_info_schema();
 
                 functionT rho = calc.make_density(world, calc.aocc, calc.amo);
                 functionT brho = rho;
@@ -175,7 +171,6 @@ int main(int argc, char **argv) {
 
                 if (calc.param.derivatives()) calc.derivatives(world, rho);
                 if (calc.param.dipole()) calc.dipole(world, rho);
-                if (calc.param.response()) calc.polarizability(world);
             }
 
             //        if (calc.param.twoint) {
@@ -223,4 +218,3 @@ int main(int argc, char **argv) {
 
     return 0;
 }
-

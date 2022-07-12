@@ -39,6 +39,7 @@
 #include <memory>
 #include <complex>
 #include <vector>
+#include <array>
 #include <cmath>
 #include <cstdlib>
 #include <cstddef>
@@ -268,20 +269,6 @@ namespace madness {
     template <class T> class SliceTensor;
 
 
-    /// low rank representations of tensors (see gentensor.h)
-	enum TensorType {TT_NONE, TT_FULL, TT_2D, TT_TENSORTRAIN};
-
-    static
-    inline
-    std::ostream& operator << (std::ostream& s, const TensorType& tt) {
-        std::string str="confused tensor type";
-        if (tt==TT_FULL) str="full rank tensor";
-        if (tt==TT_2D) str="low rank tensor 2-way";
-        if (tt==TT_TENSORTRAIN) str="tensor train";
-        if (tt==TT_NONE) str="no tensor type specified";
-        s << str.c_str();
-        return s;
-    }
 
     //#define TENSOR_USE_SHARED_ALIGNED_ARRAY
 #ifdef TENSOR_USE_SHARED_ALIGNED_ARRAY
@@ -541,7 +528,7 @@ namespace madness {
 
         /// Create and optionally zero new n-d tensor. This is the most general constructor.
 
-        /// @param[in] d Vector containing size of each dimension, number of dimensions inferred from vcector size.
+        /// @param[in] d Vector containing size of each dimension, number of dimensions inferred from vector size.
         /// @param[in] dozero If true (default) the tensor is initialized to zero
         explicit Tensor(const std::vector<long>& d, bool dozero=true) : _p(0) {
             allocate(d.size(), d.size() ? &(d[0]) : 0, dozero);
@@ -1081,6 +1068,22 @@ namespace madness {
             TENSOR_ASSERT(s.size()>=(unsigned)(this->ndim()), "invalid number of dimensions",
                           this->ndim(),this);
             return SliceTensor<T>(*this,&(s[0]));
+        }
+
+        /// General slicing operation
+
+        /// @param[in] s array containing slice for each dimension
+        /// @return SliceTensor viewing patch of original tensor
+        SliceTensor<T> operator()(const std::array<Slice,TENSOR_MAXDIM>& s) {
+            return SliceTensor<T>(*this,s);
+        }
+
+        /// General slicing operation (const)
+
+        /// @param[in] s array containing slice for each dimension
+        /// @return Constant Tensor viewing patch of original tensor
+        const Tensor<T> operator()(const std::array<Slice,TENSOR_MAXDIM>& s) const {
+            return SliceTensor<T>(*this,s);
         }
 
         /// Return a 1d SliceTensor that views the specified range of the 1d Tensor
@@ -2037,6 +2040,12 @@ namespace madness {
         SliceTensor<T>();
 
     public:
+
+        // delegating constructor
+        SliceTensor(const Tensor<T>& t, const std::array<Slice,TENSOR_MAXDIM> s)
+            : SliceTensor(t,s.data())  {}
+
+
         SliceTensor(const Tensor<T>& t, const Slice s[])
             : Tensor<T>(const_cast<Tensor<T>&>(t)) //!!!!!!!!!!!
         {
@@ -2514,7 +2523,6 @@ namespace madness {
     template <class T>
     Tensor<T> conj(const Tensor<T>& t) {
         Tensor<T> result(t.ndim(),t.dims(),false);
-//        BINARY_OPTIMIZED_ITERATOR(T,result,const T,t,*_p0 = std::conj(*_p1));
         BINARY_OPTIMIZED_ITERATOR(T,result,const T,t,*_p0 = conditional_conj(*_p1));
         return result;
     }

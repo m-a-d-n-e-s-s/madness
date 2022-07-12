@@ -8,8 +8,7 @@ macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_d
   # make library target(s)
   # if building shared library, build static as well using the same objects
   add_library(MAD${_name} $<TARGET_OBJECTS:MAD${_name}-obj>)
-  add_library(${_name} ALIAS MAD${_name})
-  add_dependencies(madness-libraries ${_name})
+  add_dependencies(madness-libraries MAD${_name})
   if(BUILD_SHARED_LIBS)
     if (NOT DEFINED CMAKE_POSITION_INDEPENDENT_CODE)
       set_target_properties(MAD${_name}-obj PROPERTIES POSITION_INDEPENDENT_CODE TRUE)  # this is the default anyway, but produce a warning just in case
@@ -100,7 +99,6 @@ macro(add_mad_hdr_library _name _header_files _dep_mad_comp _include_dir)
   add_library(MAD${_name} INTERFACE)
   
   # Add target dependencies
-  add_library(${_name} ALIAS MAD${_name})
   add_dependencies(libraries-madness MAD${_name})
   
   target_include_directories(MAD${_name} INTERFACE

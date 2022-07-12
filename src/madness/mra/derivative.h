@@ -65,9 +65,8 @@ namespace madness {
 
 namespace madness {
 
-    static const std::string mad_root_dir = MAD_ROOT_DIR;
 
-    /// Tri-diagonal operator traversing tree primarily for derivative operator
+/// Tri-diagonal operator traversing tree primarily for derivative operator
 
     /// \ingroup mra
     template <typename T, std::size_t NDIM>
@@ -615,35 +614,35 @@ namespace madness {
         void set_bspline1() {
            int k = FunctionDefaults<NDIM>::get_k();
            if(k > 18) throw "Bspline derivatives are only available up to k=18";
-           std::string filename = mad_root_dir + "/src/madness/mra/b-spline-deriv1.txt";
+           std::string filename = get_mra_data_dir() + "/b-spline-deriv1.txt";
            read_from_file(filename, 1);
         }
 
         void set_bspline2() {
            int k = FunctionDefaults<NDIM>::get_k();
            if(k > 18) throw "Bspline derivatives are only available up to k=18";
-           std::string filename = mad_root_dir + "/src/madness/mra/b-spline-deriv2.txt";
+           std::string filename = get_mra_data_dir() + "/b-spline-deriv2.txt";
            read_from_file(filename, 2);
         }
 
         void set_bspline3() {
            int k = FunctionDefaults<NDIM>::get_k();
            if(k > 18) throw "Bspline derivatives are only available up to k=18";
-           std::string filename = mad_root_dir + "/src/madness/mra/b-spline-deriv3.txt";
+           std::string filename = get_mra_data_dir() + "/b-spline-deriv3.txt";
            read_from_file(filename, 3);
         }
 
         void set_ble1() {
            int k = FunctionDefaults<NDIM>::get_k();
            if(k > 15) throw "BLE derivatives are only available up to k=15";
-           std::string filename = mad_root_dir + "/src/madness/mra/ble-first.txt";
+           std::string filename = get_mra_data_dir() + "/ble-first.txt";
            read_from_file(filename, 1);
         }
 
         void set_ble2() {
            int k = FunctionDefaults<NDIM>::get_k();
            if(k > 15) throw "BLE derivatives are only available up to k=15";
-           std::string filename = mad_root_dir + "/src/madness/mra/ble-second.txt";
+           std::string filename = get_mra_data_dir() + "/ble-second.txt";
            read_from_file(filename, 2);
         }
 

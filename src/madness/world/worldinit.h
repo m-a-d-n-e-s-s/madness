@@ -58,7 +58,8 @@ namespace madness {
     ///            otherwise write both standard output and error to log.<rank>. The default is false.
     void redirectio(const World& world, bool split = false);
 
-    /// Initialize the MADNESS runtime.
+    /// Initializes the MADNESS runtime with default MPI communicator and
+    /// default number of compute threads
 
     /// Call this once at the very top of your main program to initialize the
     /// MADNESS runtime. This function should be called instead of \c MPI_Init()
@@ -69,9 +70,32 @@ namespace madness {
     ///            the runtime has been initialized.
     /// \return A reference to the default \c World, which is constructed with
     ///     \c MPI_COMM_WORLD.
+    /// \note The default number of compute threads is read from the environment variable `MAD_NUM_THREADS`;
+    ///       if the environment variable is not given the number of compute thread is set to the system-defined number of hardware threads.
     World& initialize(int& argc, char**& argv, bool quiet = false);
 
-    /// Initialize the MADNESS runtime.
+    /// Initializes the MADNESS runtime with default MPI communicator and
+    /// the given number of compute threads
+
+    /// Call this once at the very top of your main program to initialize the
+    /// MADNESS runtime. This function should be called instead of \c MPI_Init()
+    /// or \c MPI_Init_thread().
+    /// \param[in,out] argc Application argument count.
+    /// \param[in,out] argv Application argument values.
+    /// \param[in] nthread The total number of compute threads to create
+    ///                    (the main thread is counted among the compute threads)
+    ///                    if a negative value is given then the default number of compute threads
+    ///                    will be used.
+    /// \param[in] quiet If false, will announce to \c std::cout on rank 0 when
+    ///            the runtime has been initialized.
+    /// \return A reference to the default \c World, which is constructed with
+    ///     \c MPI_COMM_WORLD.
+    /// \note The default number of compute threads is read from the environment variable `MAD_NUM_THREADS`;
+    ///       if the environment variable is not given the number of compute thread is set to the system-defined number of hardware threads.
+    World& initialize(int& argc, char**& argv, int nthread, bool quiet = false);
+
+    /// Initializes the MADNESS runtime with the given MPI communicator and
+    /// the default number of compute threads
 
     /// Call this once at the very top of your main program to initialize the
     /// MADNESS runtime. This function should be called instead of \c MPI_Init()
@@ -83,10 +107,36 @@ namespace madness {
     /// \param[in] quiet If false, will announce to \c std::cout on rank 0 when
     ///            the runtime has been initialized.
     /// \return A reference to the \c World constructed with \c comm.
+    /// \note The default number of compute threads is read from the environment variable `MAD_NUM_THREADS`;
+    ///       if the environment variable is not given the number of compute thread is set to the system-defined number of hardware threads.
     World& initialize(int& argc, char**& argv, const SafeMPI::Intracomm& comm,
         bool quiet = false);
 
-    /// Initialize the MADNESS runtime.
+    /// Initializes the MADNESS runtime with the given MPI communicator and
+    /// the given number of compute threads
+
+    /// Call this once at the very top of your main program to initialize the
+    /// MADNESS runtime. This function should be called instead of \c MPI_Init()
+    /// or \c MPI_Init_thread().
+    /// \param[in,out] argc Application argument count.
+    /// \param[in,out] argv Application argument values.
+    /// \param comm The communicator that should be used to construct the
+    ///     \c World object.
+    /// \param[in] nthread The total number of compute threads to create
+    ///                    (the main thread is counted among the compute threads);
+    ///                    if a negative value is given then the default number of compute threads
+    ///                    will be used.
+    /// \param[in] quiet If false, will announce to \c std::cout on rank 0 when
+    ///            the runtime has been initialized.
+    /// \return A reference to the \c World constructed with \c comm.
+    /// \note The default number of compute threads is read from the environment variable `MAD_NUM_THREADS`;
+    ///       if the environment variable is not given the number of compute thread is set to the system-defined number of hardware threads.
+    World& initialize(int& argc, char**& argv, const SafeMPI::Intracomm& comm,
+                      int nthread,
+                      bool quiet = false);
+
+    /// Initializes the MADNESS runtime with the given MPI communicator and
+    /// the given number of compute threads
 
     /// Call this once at the very top of your main program to initialize the
     /// MADNESS runtime. This function should be called instead of \c MPI_Init()
@@ -95,11 +145,18 @@ namespace madness {
     /// \param[in,out] argv Application argument values.
     /// \param comm The MPI communicator that should be used to construct the
     ///     \c World object.
+    /// \param[in] nthread The total number of compute threads to create
+    ///                    (the main thread is counted among the compute threads)
+    ///                    if a negative value is given then the default number of compute threads
+    ///                    will be used.
     /// \param[in] quiet If false, will announce to \c std::cout on rank 0 when
     ///            the runtime has been initialized.
     /// \return A reference to the World constructed with \c comm.
+    /// \note The default number of compute threads is read from the environment variable `MAD_NUM_THREADS`;
+    ///       if the environment variable is not given the number of compute thread is set to the system-defined number of hardware threads.
     World& initialize(int& argc, char**& argv, const MPI_Comm& comm,
-        bool quiet = false);
+                      int nthread,
+                      bool quiet = false);
 
     /// Call this once at the very end of your main program instead of MPI_Finalize().
     void finalize();

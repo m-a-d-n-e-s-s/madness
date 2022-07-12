@@ -79,8 +79,6 @@
 #include <chem/potentialmanager.h>
 #include <chem/atomutil.h>
 
-using namespace madness;
-
 namespace madness {
 
 /// ABC for the nuclear correlation factors
@@ -96,7 +94,7 @@ public:
 	/// @param[in]	mol molecule with the sites of the nuclei
 	NuclearCorrelationFactor(World& world, const Molecule& mol)
 		: world(world), vtol(FunctionDefaults<3>::get_thresh()*0.1)
-		, molecule(mol) {}
+		, eprec(mol.get_eprec()), molecule(mol) {}
 
 	/// virtual destructor
 	virtual ~NuclearCorrelationFactor() {};
@@ -210,6 +208,9 @@ private:
 
 	/// the threshold for initial projection
 	double vtol;
+
+    /// smoothing of the potential/step function
+    double eprec;
 
 	/// the molecule
 	const Molecule& molecule;
@@ -335,7 +336,7 @@ public:
 
 
 #else
-        if (smoothing==0.0) smoothing=molecule.get_eprec();
+        if (smoothing==0.0) smoothing=eprec;
         // TODO:need to test this
         // reduce the smoothing for the unitvector
         //if (not (this->type()==None or this->type()==Two)) smoothing=sqrt(smoothing);
@@ -378,7 +379,7 @@ public:
 
 	    const double r=xyz.normf();
         coord_3d result;
-        if (smoothing==0.0) smoothing=molecule.get_eprec();
+        if (smoothing==0.0) smoothing=eprec;
 
 #if 1
         // TODO:need to test this

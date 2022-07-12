@@ -13,8 +13,8 @@ const std::string TAG_CP = "computeprotocol";
 
 
 int main(int argc, char** argv) {
-	initialize(argc, argv);
-	World world(SafeMPI::COMM_WORLD);
+	{
+	World& world=initialize(argc, argv);
 	if (world.rank() == 0) printf("starting at time %.1f\n", wall_time());
 	//const double time_start = wall_time();
 	std::cout.precision(6);
@@ -39,8 +39,8 @@ int main(int argc, char** argv) {
 
 	// Compute the SCF Reference
 	const double time_scf_start = wall_time();
-	std::shared_ptr<SCF> calc(new SCF(world, input));
-	Nemo nemo(world, calc, input);
+	commandlineparser parser(argc,argv);
+        Nemo nemo(world,parser);
 	nemo.get_calc()->param.print();
 	const double scf_energy = nemo.value();
 	if (world.rank() == 0) print("nemo energy: ", scf_energy);
@@ -49,8 +49,8 @@ int main(int argc, char** argv) {
 
 	// Compute MRA-PNO-MP2-F12
 	const double time_pno_start = wall_time();
-	PNOParameters parameters(world,input,nemo.get_calc()->molecule,TAG_PNO);
-	F12Parameters paramf12(world, input, parameters, TAG_F12);
+	PNOParameters parameters(world,parser,nemo.get_calc()->molecule,TAG_PNO);
+	F12Parameters paramf12(world, parser, parameters, TAG_F12);
 	PNO pno(world, nemo, parameters, paramf12);
 	std::vector<PNOPairs> all_pairs;
 	pno.solve(all_pairs);
@@ -94,6 +94,7 @@ int main(int argc, char** argv) {
 	world.gop.fence();
 	if (world.rank() == 0) printf("finished at time %.1f\n", wall_time());
 	print_stats(world);
+        }
 	finalize();
 	return 0;
 }

@@ -66,8 +66,6 @@
 #include <madness/world/MADworld.h>
 #include <chem/pointgroupoperator.h>
 
-using namespace madness;
-
 namespace madness {
 
 	template<typename T, std::size_t NDIM>

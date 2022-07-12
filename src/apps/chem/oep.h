@@ -15,7 +15,6 @@
 #include <chem/projector.h>
 #include <chem/MolecularOrbitals.h>
 
-using namespace madness;
 namespace madness {
 
 /// Class to compute terms of the potential
@@ -79,7 +78,7 @@ struct divide_add_interpolate {
 ///  - think about the long-range part of the Slater potential (or medium-range)
 class OEP_Parameters : public QCCalculationParametersBase {
 public:
-	OEP_Parameters(World& world, std::string inputfile) {
+	OEP_Parameters(World& world, const commandlineparser& parser) {
 
 		initialize<std::vector<std::string> >("model",{"dcep"},"comment on this: oaep ocep dcep mrks");
 		initialize<unsigned int>("maxiter",150,"maximum number of iterations in OEP algorithm");
@@ -102,7 +101,7 @@ public:
 		initialize<unsigned int>("save_iter_corrections",0,"if > 0 save OEP correction(s) every ... iterations");
 		initialize<unsigned int>("save_iter_effective_potential",0,"if > 0 save effective potential every ... iterations");
 
-		read(world,inputfile,"oep");
+        read_input_and_commandline_options(world, parser, "oep");
 
 	}
 
@@ -156,7 +155,7 @@ public:
 
     OEP(World& world, const commandlineparser& parser)
             : Nemo(world, parser),
-              oep_param(world, parser.value("input")) {
+              oep_param(world, parser) {
 
         // add tight convergence criteria
         std::vector<std::string> convergence_crit=param.get<std::vector<std::string> >("convergence_criteria");
@@ -173,6 +172,8 @@ public:
 
         oep_param.set_derived_values(param);
     }
+
+    std::string name() const {return "oep";}
 
 	void set_reference(const std::shared_ptr<Nemo> reference1) {
 	    reference=reference1;
@@ -241,7 +242,7 @@ public:
     std::tuple<Tensor<double>, vecfuncT> recompute_HF(const vecfuncT& HF_nemo) const;
 
     /// The following function tests all essential parts of the OEP program qualitatively and some also quantitatively
-    int test_oep();
+    bool selftest();
 
     bool need_ocep_correction(const std::string& model) const {
     	return (model=="ocep") or (model=="dcep") or (model=="mrks");

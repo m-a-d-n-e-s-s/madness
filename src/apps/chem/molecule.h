@@ -37,6 +37,8 @@
 
 #include <chem/corepotential.h>
 #include <chem/atomutil.h>
+#include <chem/commandlineparser.h>
+#include <chem/QCCalculationParametersBase.h>
 #include <madness/world/vector.h>
 #include <vector>
 #include <string>
@@ -50,6 +52,8 @@
 #include <madness/misc/misc.h>
 
 namespace madness {
+
+class World;
 
 class Atom {
 public:
@@ -108,14 +112,83 @@ public:
 std::ostream& operator<<(std::ostream& s, const Atom& atom);
 
 class Molecule {
+public:
+    struct GeometryParameters : public QCCalculationParametersBase {
+        GeometryParameters(const GeometryParameters& other) = default;
+
+        GeometryParameters(World& world, const commandlineparser& parser) : GeometryParameters() {
+            try {
+                read_input_and_commandline_options(world, parser, "geometry");
+                set_derived_values(parser);
+            } catch (...) {
+            }
+        }
+
+        GeometryParameters() {
+            ignore_unknown_keys=true;
+            ignore_unknown_keys_silently=true;
+            throw_if_datagroup_not_found=true;
+
+            initialize<std::vector<std::string>>("source",{"inputfile"},"where to get the coordinates from: ({inputfile}, {library,xxx}, {xyz,xxx.xyz})");
+            initialize<double>("eprec",1.e-4,"smoothing for the nuclear potential");
+            initialize<std::string>("units","atomic","coordinate units",{"atomic","angstrom"});
+            initialize<std::vector<double>>("field",{0.0,0.0,0.0},"external electric field");
+            initialize<bool>  ("no_orient",false,"if true the molecule coordinates will not be reoriented");
+
+            initialize<std::string> ("core_type","none","core potential type",{"none","mpc"});
+            initialize<bool> ("psp_calc",false,"pseudopotential calculation for all atoms");
+            initialize<bool> ("pure_ae",true,"pure all electron calculation with no pseudo-atoms");
+
+        }
+        void set_derived_values(const commandlineparser& parser) {
+            std::vector<std::string> src=source();
+
+            // some convenience for the user
+
+            // if source is the input file provide the name of the input file
+            if (src.size()==1 and src[0]=="inputfile")
+                set_derived_value("source",std::vector<std::string>({src[0],parser.value("input")}));
+            // if source is not "inputfile" or "library" assume an xyz file
+            if (src.size()==1 and src[0]!="inputfile") {
+                std::size_t found=src[0].find("xyz");
+                if (found==src[0].size()-3) { // check input file ends with xyz
+                    set_user_defined_value("source", std::vector<std::string>({"xyz", src[0]}));
+                } else {
+                    throw std::runtime_error("error in deriving geometry parameters");
+                }
+            }
+
+            if (source()[0]=="xyz") set_derived_value("units",std::string("angstrom"));
+        }
+
+        std::vector<std::string> source() const {return get<std::vector<std::string>>("source");}
+        std::vector<double> field() const {return get<std::vector<double>>("field");}
+        double eprec() const {return get<double>("eprec");}
+        std::string units() const {return get<std::string>("units");}
+        std::string core_type() const {return get<std::string>("core_type");}
+        bool psp_calc() const {return get<bool>("psp_calc");}
+        bool pure_ae() const {return get<bool>("pure_ae");}
+        bool no_orient() const {return get<bool>("no_orient");}
+
+    };
+
 private:
     // If you add more fields don't forget to serialize them
     std::vector<Atom> atoms;
     std::vector<double> rcut;  // Reciprocal of the smoothing radius
-    double eprec;              // Error in energy/atom due to smoothing
-    enum {atomic, angstrom} units;
     CorePotentialManager core_pot;
     madness::Tensor<double> field;
+
+    /// The molecular point group
+    /// is automatically assigned in the identify_pointgroup function
+    std::string pointgroup_="c1";
+
+public:
+    GeometryParameters parameters;
+
+    std::string get_pointgroup() const {return pointgroup_;}
+
+private:
 
     void swapaxes(int ix, int iy);
 
@@ -130,14 +203,12 @@ private:
 
 public:
 
-    /// The molecular point group
-    /// is automatically assigned in the identify_pointgroup function
-    std::string pointgroup_="c1";
-
     /// Makes a molecule with zero atoms
-    Molecule() : atoms(), rcut(), eprec(1e-4), core_pot(), field(3L) {};
+    Molecule() : atoms(), rcut(), core_pot(), field(3L) {};
 
-    Molecule(const std::string& filename);
+    Molecule(World& world, const commandlineparser& parser);
+
+    void get_structure();
 
     void read_structure_from_library(const std::string& name);
 
@@ -146,8 +217,12 @@ public:
 
     // initializes Molecule using the contents of file \c filename
     void read_file(const std::string& filename);
+
     // initializes Molecule using the contents of stream \c f
     void read(std::istream& f);
+
+    // initializes Molecule using the contents of file \c filenam assuming an xyz file
+    void read_xyz(const std::string filename);
 
     void read_core_file(const std::string& filename);
 
@@ -190,7 +265,7 @@ public:
 
     unsigned int get_atom_charge(unsigned int i) const;
 
-    unsigned int get_atom_number(unsigned int i);
+    unsigned int get_atomic_number(unsigned int i) const;
 
     void set_pseudo_atom(unsigned int i, bool psat);
 
@@ -206,7 +281,7 @@ public:
 
     void set_all_coords(const madness::Tensor<double>& newcoords);
 
-    void set_eprec(double value);
+    void update_rcut_with_eprec(double value);
 
     void set_rcut(double value);
 
@@ -221,7 +296,7 @@ public:
     }
 
     double get_eprec() const {
-        return eprec;
+        return parameters.eprec();
     }
 
     double bounding_cube() const;
@@ -327,7 +402,7 @@ public:
 
     template <typename Archive>
     void serialize(Archive& ar) {
-        ar & atoms & rcut & eprec & core_pot;
+        ar & atoms & rcut & core_pot & parameters & pointgroup_ & field;
     }
 };
 

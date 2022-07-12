@@ -46,14 +46,14 @@ public:
 		initialize_pno_parameters();
 	}
 
-	PNOParameters(World& world, const std::string& inputfile, const std::string& TAG="pno") : QCCalculationParametersBase(){
+	PNOParameters(World& world, const commandlineparser& parser, const std::string& TAG="pno") : QCCalculationParametersBase(){
 		initialize_pno_parameters();
-		QCCalculationParametersBase::read(world,inputfile,TAG);
+		QCCalculationParametersBase::read_input_and_commandline_options(world,parser,TAG);
 	}
 
-	PNOParameters(World& world, const std::string& inputfile, const Molecule& molecule, const std::string& TAG="pno") : QCCalculationParametersBase(){
+	PNOParameters(World& world, const commandlineparser& parser, const Molecule& molecule, const std::string& TAG="pno") : QCCalculationParametersBase(){
 		initialize_pno_parameters();
-		QCCalculationParametersBase::read(world,inputfile,TAG);
+		QCCalculationParametersBase::read_input_and_commandline_options(world,parser,TAG);
 		set_derived_values(molecule);
 	}
 
@@ -95,6 +95,8 @@ public:
 		initialize<std::vector<int> >("active_pairs_of_orbital",std::vector<int>(), " All pairs which originate from this orbital will not be frozen all other pairs will, if this vector is not empty");
 		initialize<bool>("no_opt_in_first_iteration", false, "Do not optimize in the first iteration (then the potentials do not have to be evaluated, use this for large guesses)");
 		initialize<std::string>("exchange", "full", "approximate exchange with 'neglect' or xc functional -> same syntax as moldft");
+		initialize<bool>("save_pnos",true, "Save the OBS-PNOs to a file, before and after orthonormalization.");
+		initialize<bool>("diagonal", false, "Compute only diagonal PNOs");
 	}
 
 	void set_derived_values(const Molecule& molecule) {
@@ -114,8 +116,8 @@ public:
 		}
 		set_derived_value("freeze", freeze);
 
-		set_derived_value("no_guess", get<std::string >("no_opt"));
-		set_derived_value("restart", get<std::string>("no_guess"));
+		set_derived_value("no_guess", get<std::string >("no_compute"));
+		set_derived_value("restart", get<std::string>("no_compute"));
 		set_derived_value("tpno_tight", 0.01*tpno());
 
 		// set default values for adaptive solver
@@ -145,6 +147,8 @@ public:
 		}
 		return result;
 	}
+	bool diagonal()const {return get<bool>("diagonal");}
+	bool save_pnos()const { return get<bool >("save_pnos");}
 	std::string exchange()const {return get<std::string>("exchange");}
 	bool exop_trigo()const { return get<bool >("exop_trigo");}
 	int rank_increase()const { return get<int >("rank_increase");}
@@ -226,9 +230,9 @@ public:
 		initialize_f12_parameters();
 	}
 
-	F12Parameters(World& world, const std::string& inputfile, const PNOParameters& param, const std::string& TAG="pno") : PNOParameters(param){
+	F12Parameters(World& world, const commandlineparser& parser, const PNOParameters& param, const std::string& TAG="pno") : PNOParameters(param){
 		initialize_f12_parameters();
-		QCCalculationParametersBase::read(world,inputfile,TAG);
+		QCCalculationParametersBase::read_input_and_commandline_options(world,parser,TAG);
 	}
 
 

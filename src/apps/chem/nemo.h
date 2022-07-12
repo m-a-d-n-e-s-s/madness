@@ -59,6 +59,7 @@
 #include <chem/AC.h>
 #include <chem/pointgroupsymmetry.h>
 #include <chem/commandlineparser.h>
+#include <chem/QCPropertyInterface.h>
 #include <madness/world/timing_utilities.h>
 
 namespace madness {
@@ -106,9 +107,11 @@ public:
 
 	/// normalize the nemos
 	template<typename T, std::size_t NDIM>
-	void normalize(std::vector<Function<T,NDIM> >& nemo,
-			const Function<double,NDIM> metric=Function<double,NDIM>()) const {
+	void static normalize(std::vector<Function<T,NDIM> >& nemo,
+			const Function<double,NDIM> metric=Function<double,NDIM>()) {
 
+        if (nemo.size()==0) return;
+        World& world=nemo[0].world();
 		// compute the norm of the reconstructed orbitals, includes the factor
 		std::vector<Function<T,NDIM> > mos = (metric.is_initialized()) ? metric*nemo : nemo;
 		std::vector<double> norms = norm2s(world, mos);
@@ -327,7 +330,7 @@ public:
 
 
 /// The Nemo class
-class Nemo: public NemoBase {
+class Nemo: public NemoBase, public QCPropertyInterface {
 	typedef std::shared_ptr<real_convolution_3d> poperatorT;
 	friend class PNO;
 	friend class TDHF;
@@ -350,6 +353,7 @@ public:
 			initialize<bool> ("read_cphf",false,"read the converged orbital response for nuclear displacements from file");
 			initialize<bool> ("restart_cphf",false,"read the guess orbital response for nuclear displacements from file");
 			initialize<bool> ("purify_hessian",false,"symmetrize the hessian matrix based on atomic charges");
+            set_derived_value("k",7);
 		}
 
 		std::pair<std::string,double> ncf() const {return get<std::pair<std::string,double> >("ncf");}
@@ -367,6 +371,9 @@ public:
 //	Nemo(World& world1, std::shared_ptr<SCF> calc, const std::string inputfile);
 
     Nemo(World& world, const commandlineparser& parser);
+
+    std::string name() const {return "nemo";}
+    bool selftest() {return false;}
 
     virtual double value() {return value(calc->molecule.get_all_coords());}
 
@@ -616,10 +623,6 @@ protected:
 	/// solve the HF equations
 	double solve(const SCFProtocol& proto);
 
-	/// given nemos, compute the HF energy
-	double compute_energy(const vecfuncT& psi, const vecfuncT& Jpsi,
-			const vecfuncT& Kpsi) const;
-
     /// given nemos, compute the HF energy using the regularized expressions for T and V
     std::vector<double> compute_energy_regularized(const vecfuncT& nemo, const vecfuncT& Jnemo,
             const vecfuncT& Knemo, const vecfuncT& Unemo) const;
@@ -629,13 +632,12 @@ protected:
 	/// to use these potentials in the fock matrix computation they must
 	/// be multiplied by the nuclear correlation factor
 	/// @param[in]	nemo	the nemo orbitals
-	/// @param[out]	psi		the reconstructed, full orbitals
 	/// @param[out]	Jnemo	Coulomb operator applied on the nemos
 	/// @param[out]	Knemo	exchange operator applied on the nemos
 	/// @param[out]	pcmnemo	PCM (solvent) potential applied on the nemos
 	/// @param[out]	Unemo	regularized nuclear potential applied on the nemos
-	void compute_nemo_potentials(const vecfuncT& nemo, vecfuncT& psi,
-			vecfuncT& Jnemo, vecfuncT& Knemo, vecfuncT& pcmnemo,
+	void compute_nemo_potentials(const vecfuncT& nemo,
+			vecfuncT& Jnemo, vecfuncT& Knemo, vecfuncT& xcnemo, vecfuncT& pcmnemo,
 			vecfuncT& Unemo) const;
 
 	/// return the Coulomb potential

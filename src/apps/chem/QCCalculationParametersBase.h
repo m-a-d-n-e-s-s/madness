@@ -17,6 +17,7 @@
 #include <madness/misc/misc.h>
 #include <madness/world/archive.h>
 #include <madness/world/world.h>
+#include <chem/commandlineparser.h>
 
 
 namespace madness {
@@ -50,6 +51,7 @@ std::istream& operator>>(std::istream& is, std::vector<T,A>& v) {
 		line+=word;
 		if (word.find(']')!=std::string::npos) break;
 	}
+    if (line.size()!=0) is.clear();
 
 	// remove enclosing brackets and commas
 	auto find_c = [](char& c){ return ((c==',') or (c=='[') or (c==']')); };
@@ -183,12 +185,16 @@ public:
 		return result.substr(0, last+1);
 	}
 
-	template <typename Archive> void serialize (Archive& ar) {
+    template <typename Archive> void serialize (Archive& ar) {
 		ar & value & default_value & derived_value & user_defined_value & type & null &
 		comment & allowed_values & print_order & precedence;
 	}
 
 	enum {def, derived, defined} precedence=def;
+
+    hashT hash() const {
+        return hash_value(value);
+    }
 
 private:
 
@@ -265,19 +271,37 @@ public:
 		ar & parameters & print_debug;
 	}
 
+    hashT hash() const {
+        return hash_range(parameters.begin(), parameters.end());
+    }
+
 protected:
 
 	typedef std::map<std::string,QCParameter> ParameterContainerT;
 	ParameterContainerT parameters;
 
+    virtual void read_input_and_commandline_options(World& world,
+                                                    const commandlineparser& parser,
+                                                    const std::string tag) {
+        read_input(world,parser.value("input"),tag);
+        read_commandline_options(world,parser,tag);
+    }
+
+private:
 	/// read the parameters from file
 
 	/// only world.rank()==0 reads the input file and broadcasts to all other nodes,
 	/// so we don't need to serialize the ParameterMap
-	virtual void read(World& world, const std::string filename, const std::string tag);
+	void read_input(World& world, const std::string filename, const std::string tag);
 
+    void read_commandline_options(World& world, const commandlineparser& parser, const std::string tag);
+
+protected:
 
 	bool print_debug=false;
+    bool ignore_unknown_keys=true;
+    bool ignore_unknown_keys_silently=false;
+    bool throw_if_datagroup_not_found=true;
 
 	/// ctor for testing
 	QCCalculationParametersBase() {}
@@ -329,6 +353,11 @@ public:
 		parameter.set_derived_value(tostring(value));
 	}
 
+    ParameterContainerT get_all_parameters() const {
+        return parameters;
+    }
+
+
 protected:
 
 	template<typename T>
@@ -366,6 +395,7 @@ protected:
 public:
 	QCParameter& get_parameter(const std::string key) {
 		if (not parameter_exists(key)) {
+            madness::print("\ncould not find parameter for key",key,"\n");
 			throw std::runtime_error("could not find parameter for key "+key);
 		}
 		QCParameter& parameter=parameters.find(key)->second;

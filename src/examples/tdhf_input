@@ -39,9 +39,9 @@ no_otf
 end
 
 # other guess possibilities:
-# guess big_fock_3
-# guess big_fock_4
-# guess big_fock_5
+# guess auto-3
+# guess auto-4
+# guess octopole 
 # or guess custom combinded with keyword exop x 1.0 y 2.0 z 1.0 for xy^2z guess
 
 geometry
