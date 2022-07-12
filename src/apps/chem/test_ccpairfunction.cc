@@ -204,7 +204,7 @@ int main(int argc, char **argv) {
     startup(world, argc, argv);
     commandlineparser parser(argc, argv);
     int isuccess=0;
-#ifdef HAVE_GENTENSOR
+#ifdef USE_GENTENSOR
     {
         parser.set_keyval("geometry", "source=library,he");
         parser.print_map();
