@@ -204,6 +204,7 @@ int main(int argc, char **argv) {
     startup(world, argc, argv);
     commandlineparser parser(argc, argv);
     int isuccess=0;
+#ifdef HAVE_GENTENSOR
     {
         parser.set_keyval("geometry", "source=library,he");
         parser.print_map();
@@ -216,6 +217,9 @@ int main(int argc, char **argv) {
 
         isuccess+=test_overlap(world, ncf, mol, ccparam);
     }
+#else
+    print("could not run test_ccpairfunction: U need to compile with ENABLE_GENTENSOR=1");
+#endif
     finalize();
 
     return isuccess;
