@@ -1069,6 +1069,11 @@ residuals ResponseBase::compute_residual(World &world, X_space &old_Chi, X_space
     size_t n = old_Chi.X.size_orbitals();
     //	compute residual
     X_space res(world, m, n);
+
+    // Truncate here
+    old_Chi.truncate();
+    temp.truncate();
+
     res.X = old_Chi.X - temp.X;
     //
     if (calc_type.compare("full") == 0) {
