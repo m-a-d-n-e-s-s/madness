@@ -8,9 +8,17 @@ Welcome to madness's documentation!
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
 
+   runtime
+   numerical_library
+   quantum
+   use MADNESS
 
+..
+  - :doc:`runtime`
+  - :doc:`numerical_library`
+  - :doc:`quantum`
+  - :doc:`use_madness`
 
 Indices and tables
 ==================
