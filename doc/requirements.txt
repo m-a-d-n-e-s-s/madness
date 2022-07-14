@@ -1,0 +1,5 @@
+sphinx==4.4.0
+typing-extensions==4.2.0
+docutils==0.17.1
+markupsafe==2.1.1
+pyparsing==3.0.8
