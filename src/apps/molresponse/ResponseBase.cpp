@@ -1074,14 +1074,18 @@ residuals ResponseBase::compute_residual(World &world, X_space &old_Chi, X_space
     old_Chi.truncate();
     temp.truncate();
 
-    res.X = old_Chi.X - temp.X;
+    //res.X = old_Chi.X - temp.X;
+    res = old_Chi - temp;
+    res.truncate();
     //
+    /*
     if (calc_type.compare("full") == 0) {
         res.Y = old_Chi.Y - temp.Y;
     } else if (calc_type.compare("static") == 0) {
         res.Y = res.X.copy();
     } else {
     }
+     */
     //*************************
     Tensor<double> errX(m);
     Tensor<double> errY(m);
