@@ -762,11 +762,18 @@ std::pair<std::filesystem::path, bool> RunResponse(World &world, const std::stri
     set_frequency_response_parameters(r_params, property, xc, frequency, high_prec);
     auto save_path = set_frequency_path_and_restart(r_params, property, frequency, xc, moldft_path,
                                                     restart_path, true);
+
     if (world.rank() == 0) {
         std::string filename = "response.in";
         molresponse::write_response_input(r_params, filename);
     }
-
+    // if rbase exists and converged I just return save path and true
+    if (std::filesystem::exists("response_base.json")) {
+        std::ifstream ifs("response_base.json");
+        json response_base;
+        ifs >> response_base;
+        if (response_base["converged"]) { return {save_path, true}; }
+    }
     auto calc_params = initialize_calc_params(world, std::string(filename));
     RHS_Generator rhs_generator;
     if (property == "dipole") {
@@ -915,6 +922,7 @@ void runFrequencyTests(World &world, const frequencySchema &schema, bool high_pr
         } else {
             throw Response_Convergence_Error{};
         }
+
         success = RunResponse(world, "response.in", freq, schema.op, schema.xc, schema.moldft_path,
                               restart_path, high_prec);
 
