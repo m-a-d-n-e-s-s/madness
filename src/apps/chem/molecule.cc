@@ -278,7 +278,9 @@ void Molecule::read_xyz(const std::string filename) {
         }
         if (current_line==2) continue;      // ignore comment line
         double xx, yy, zz;
-        ss >> tag >>  xx >> yy >> zz;
+        if (not (ss >> tag >>  xx >> yy >> zz)) {
+            MADNESS_EXCEPTION(std::string("error reading the xyz input file"+filename).c_str(),1);
+        };
         xx *= scale;
         yy *= scale;
         zz *= scale;
@@ -288,6 +290,7 @@ void Molecule::read_xyz(const std::string filename) {
         //check if pseudo-atom or not
         bool psat = check_if_pseudo_atom(tag);
         add_atom(xx,yy,zz,qq,atn,psat);
+        if (current_line==natom_expected+2) break;
     }
     MADNESS_CHECK(natom_expected==natom());
     update_rcut_with_eprec(parameters.eprec());
