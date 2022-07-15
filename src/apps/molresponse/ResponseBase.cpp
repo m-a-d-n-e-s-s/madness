@@ -942,7 +942,7 @@ X_space ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperat
 
     X_space Chi_copy = X;
     vecfuncT phi0_copy = ground_orbitals;
-    Chi_copy.truncate();
+    //Chi_copy.truncate();
     truncate(world, phi0_copy);
     // v_nuc first
     real_function_3d v_nuc, v_j0, v_k0, v_xc;
@@ -950,7 +950,7 @@ X_space ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperat
     if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
     if (not r_params.store_potential()) {
         v_nuc = potential_manager->vnuclear();
-        v_nuc.truncate();
+        //v_nuc.truncate();
     } else {// Already pre-computed
         v_nuc = stored_v_nuc;
     }
@@ -1071,8 +1071,8 @@ residuals ResponseBase::compute_residual(World &world, X_space &old_Chi, X_space
     X_space res(world, m, n);
 
     // Truncate here
-    old_Chi.truncate();
-    temp.truncate();
+    //old_Chi.truncate();
+    //temp.truncate();
 
     //res.X = old_Chi.X - temp.X;
     res = old_Chi - temp;
@@ -1219,8 +1219,10 @@ X_space ResponseBase::kain_x_space_update(World &world, const X_space &temp, con
     size_t n = temp.num_orbitals();
     X_space kain_update(world, m, n);
     for (size_t b = 0; b < m; b++) {
+
         Xvector[b].X[0] = copy(world, temp.X[b]);
         Xvector[b].Y[0] = copy(world, temp.Y[b]);
+
         Xresidual[b].X[0] = copy(world, res.X[b]);
         Xresidual[b].Y[0] = copy(world, res.Y[b]);
     }
@@ -1228,7 +1230,7 @@ X_space ResponseBase::kain_x_space_update(World &world, const X_space &temp, con
     for (size_t b = 0; b < m; b++) {
         // passing xvectors
         X_vector kain_X = kain_x_space[b].update(Xvector[b], Xresidual[b],
-                                                 FunctionDefaults<3>::get_thresh(), 3.0);
+                                                 10 * FunctionDefaults<3>::get_thresh(), 5.0);
         // deep copy of vector of functions
         kain_update.X[b] = copy(world, kain_X.X[0]);
         kain_update.Y[b] = copy(world, kain_X.Y[0]);
@@ -1310,7 +1312,7 @@ double ResponseBase::do_step_restriction(World &world, const vecfuncT &x, vecfun
                 printf(" %d", i);
             }
             x_new[i].gaxpy(s, x[i], 1.0 - s, false);
-            x_new[i].truncate();
+            //x_new[i].truncate();
         }
     }
     if (nres > 0 && world.rank() == 0 and (r_params.print_level() > 1)) printf("\n");
