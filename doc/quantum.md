@@ -3,24 +3,26 @@
 
 ## What you can do
 Quantum chemical capabilities are:
- * SCF: Hartree-Fock and DFT, also in strong magnetic fields
- * analytical gradients for SCF 
- * second nuclear derivatives for SCF (field-free case only)
- * CIS
- * response properties
- * MP2 
- * ADC(2), CIS(D)
- * CC2 ground and excited states
- * PNO-MP2
+ * SCF: Hartree-Fock and DFT, also in strong magnetic fields: `moldft, nemo, znemo`
+ * analytical gradients for SCF: `moldft, nemo, znemo`
+ * second nuclear derivatives for SCF (field-free case only), `nemo`
+ * CIS, `cis, zcis`
+ * response properties, `molresponse`
+ * MP2, `cc2`
+ * ADC(2), CIS(D), `cc2`
+ * CC2 ground and excited states, `cc2`
+ * PNO-MP2, `pno`
 
 ## Quickstart
 A quick help and an overview over all available codes can be
 obtained by 
-> madqc --help
+
+`madqc --help`
 
 All programs can read commandline options or an input file (by default this is named "input").
 A full list of all available calculation parameters can be obtained by writing
-> qccode --help
+
+`qccode --help`
  
 where qccode stands for any of the qc codes (e.g. moldft, cc2, nemo, ..)
 
@@ -28,10 +30,10 @@ where qccode stands for any of the qc codes (e.g. moldft, cc2, nemo, ..)
 ## Calculation parameters
 All calculations require parameters, specifying the molecule, the quantum chemical model, charge etc.
 If no parameters are given, default parameters will be used. Only the molecule itself must be specified by the user.
-Paramters can be specified through an input file and/or command line options
+Parameters can be specified through an input file and/or command line options.
 
 Some parameters depend on each other and are set automatically, e.g. certain numerical parameters, or the use of 
-point group symmetry. 
+point group symmetry. Paremters set by the user are always respected.
 
 In the output files of the calculations the complete set of input parameters are printed out, 
 together with a short description and further information.
