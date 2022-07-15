@@ -51,19 +51,16 @@ Znemo::Znemo(World& world, const commandlineparser& parser) : NemoBase(world), m
 };
 
 bool Znemo::need_recompute_factors_and_potentials(const double thresh) const {
-	bool need=false;
+	bool need=NemoBase::need_recompute_factors_and_potentials(thresh);
 	if ((not (potentialmanager.get() and potentialmanager->vnuclear().is_initialized()))
 	        		or (potentialmanager->vnuclear().thresh()>thresh)) need=true;
-    if ((not R.is_initialized()) or (R.thresh()>thresh)) need=true;
     if (not diafac.get()) need=true;
     return need;
 }
 
 void Znemo::invalidate_factors_and_potentials() {
-	R.clear();
-	R_square.clear();
+    NemoBase::invalidate_factors_and_potentials();
 	diafac.reset();
-	ncf.reset();
 	potentialmanager.reset();
 }
 

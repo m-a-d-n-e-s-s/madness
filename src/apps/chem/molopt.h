@@ -346,10 +346,10 @@ namespace madness {
                     if ((g-gp).absmax() < 2.0*gradient_precision) {
                         if (print_level > 0) print("  skipping hessian update due to insufficient precision in gradient");
                     }
-                    else if (update == "BFGS") {
+                    else if (update == "bfgs") {
                         QuasiNewton::hessian_update_bfgs(dx, g-gp, hessian);
                     }
-                    else if (update == "SR1") {
+                    else if (update == "sr1") {
                         QuasiNewton::hessian_update_sr1(dx, g-gp, hessian);
                     }
                     else {

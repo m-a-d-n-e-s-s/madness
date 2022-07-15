@@ -178,23 +178,23 @@ public:
 	double value() {return value(mol.get_all_coords());}
 
 	/// compute the molecular energy
-	double value(const Tensor<double>& x);
+	double value(const Tensor<double>& x) override;
 
-    std::string name() const {return "znemo";};
+    std::string name() const override {return "znemo";};
 
-    virtual bool selftest() {
+    bool selftest() override {
         return true;
     };
 
 	/// adapt the thresholds consistently to a common value
     void recompute_factors_and_potentials(const double thresh);
 
-    bool need_recompute_factors_and_potentials(const double thresh) const;
-    void invalidate_factors_and_potentials();
+    bool need_recompute_factors_and_potentials(const double thresh) const override;
+    void invalidate_factors_and_potentials() override;
 
 	void iterate();
 
-	Tensor<double> gradient(const Tensor<double>& x);
+	Tensor<double> gradient(const Tensor<double>& x) override;
 	Tensor<double> gradient() {
 		return gradient(mol.get_all_coords());
 	}
@@ -202,7 +202,7 @@ public:
 	bool test() const;
 
 	const CalculationParameters& get_cparam() const {return cparam;};
-	Molecule& molecule() {return mol;};
+	Molecule& molecule() override {return mol;};
 	const Molecule& molecule() const {return mol;};
 
 	/// test the identity <F| f (T + Vdia ) f |F> = <F|f^2 (T + Udia) |F>
