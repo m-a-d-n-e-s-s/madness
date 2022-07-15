@@ -92,6 +92,9 @@ int main(int argc, char** argv) {
 //            geom.set_update(calc->param.algopt);
 //            geom.set_test(calc->param.gtest);
 
+            geom.parameters.print("geoopt","end");
+
+
             // compute initial hessian
             if (nemo->get_param().ginitial_hessian()) {
                 nemo->value();
