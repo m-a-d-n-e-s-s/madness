@@ -61,7 +61,8 @@ Pairs and vectors must be encased in parantheses or brackets, their entries must
 ## Command line options
 The data groups in the input file can also be set or augmented through the command line, e.g. the following
 line will pass the same calculation parameters as the input file above.
-> `nemo --dft="charge=1; ncf=(slater,2.0)"`
+
+`nemo --dft="charge=1; ncf=(slater,2.0)"`
 
 Different key/value pairs are separated by a semicolon to indicate a newline.
 If a given parameter is specified both in the input file and the command line, the command line parameters have 
