@@ -39,11 +39,19 @@ together with a short description and further information.
 ## Input file
 The input file consists of data groups, starting with the relevant keyword, e.g. "dft" and ending with "end".
 All parameters in a data group are given as key/value pairs, where the value can be an integer, a double, a string
-even a vector or pair
+even a vector or pair. 
+
+A sample input file looks like
 >dft\
 >  charge 1          # comment\
 >  ncf (slater,2.0) # value is a pair of string and double\
 >end
+> 
+> geometry\
+>  O 0 0 0\
+>  H 0 1 1\
+>  H 0 1 -1\
+> end
 
 Blank lines are ignored, as is everything after a hashtag. 
 The input file is case-insensitive.
@@ -53,7 +61,7 @@ Pairs and vectors must be encased in parantheses or brackets, their entries must
 ## Command line options
 The data groups in the input file can also be set or augmented through the command line, e.g. the following
 line will pass the same calculation parameters as the input file above.
-> nemo --dft="charge=1; ncf=(slater,2.0)"
+> `nemo --dft="charge=1; ncf=(slater,2.0)"`
 
 Different key/value pairs are separated by a semicolon to indicate a newline.
 If a given parameter is specified both in the input file and the command line, the command line parameters have 
@@ -76,3 +84,20 @@ to practically zero at the box boundary. Note that excited states or anions can 
 The box size is given in atomic units (1 a.u. = 52 pm).
 
 Generally it is advisable to use as few numerical parameters as possible, as they are usually dependent on each other
+
+## Geometry input
+The geometry of the molecule is given in the geometry data group. 
+By default atomic units are used, but angstrom can be switched on by adding the line
+> geometry\
+> units angs\
+> ..\
+> end
+
+The following example will read an external xyz file, using angstrom by default
+>geometry\
+> source h2o.xyz\
+> end
+
+or you can use the command line options (short and long version)
+> `nemo --geometry="source=h2o.xyz"`\
+> `nemo --geometry="source=[xyz,h2o.xyz]"`

@@ -19,9 +19,9 @@
 
 # -- Project information -----------------------------------------------------
 
-project = 'madness'
-copyright = '2022, Robert Harrison'
-author = 'Robert Harrison'
+project = 'MADNESS'
+copyright = '2022, Florian Bischoff'
+author = 'Florian Bischoff'
 
 
 # -- General configuration ---------------------------------------------------
