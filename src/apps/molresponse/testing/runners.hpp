@@ -651,7 +651,7 @@ void set_frequency_response_parameters(ResponseParameters &r_params, const std::
         r_params.set_user_defined_value<double>("dconv", 1e-4);
     }
     r_params.set_user_defined_value("archive", std::string("../restartdata"));
-    r_params.set_user_defined_value("maxiter", size_t(10));
+    r_params.set_user_defined_value("maxiter", size_t(20));
     r_params.set_user_defined_value("maxsub", size_t(7));
     r_params.set_user_defined_value("kain", true);
     r_params.set_user_defined_value("omega", frequency);
