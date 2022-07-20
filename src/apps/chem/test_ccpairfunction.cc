@@ -197,6 +197,138 @@ int test_overlap(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, co
     return isuccess;
 }
 
+int test_apply(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
+               const CCParameters& parameter) {
+    int success=0;
+
+    return success;
+}
+
+int test_scale(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
+               const CCParameters& parameter) {
+    int success=0;
+
+    return success;
+}
+
+int test_swap_particles(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
+                        const CCParameters& parameters) {
+    int success = 0;
+    test_output t1("CCPairFunction::swap_particles");
+
+    CCTimer timer(world, "testing swap_particles");
+
+    CCConvolutionOperator f12(world, OT_F12, parameters);
+
+    auto one = [](const coord_3d& r) { return 1.0; };
+    real_function_3d R2 = real_factory_3d(world).f(one);
+
+    // prepare
+    auto g1 = [](const coord_3d& r) { return exp(-1.0 * inner(r, r)); };
+    auto g2 = [](const coord_3d& r) { return exp(-2.0 * inner(r, r)); };
+    auto g3 = [](const coord_3d& r) { return exp(-3.0 * inner(r, r)); };
+    real_function_3d f1 = real_factory_3d(world).f(g1);
+    real_function_3d f2 = real_factory_3d(world).f(g2);
+    real_function_3d f3 = real_factory_3d(world).f(g3);
+    std::vector<real_function_3d> a = {f1, f2};
+    std::vector<real_function_3d> b = {f3, f1};
+
+    // test decomposed
+    {
+        CCPairFunction p1(world, a, b);
+        CCPairFunction p2(world, b, a);
+
+        double norm1 = inner(p1, p2.swap_particles(), R2);
+        double norm1a = inner(p1, p1, R2);
+        // <p1 | p2> = \sum_ij <a_i b_i | a_j b_j> = \sum_ij <a_i|a_j> <b_i|b_j>
+        double norm2 = matrix_inner(world, a, a).emul(matrix_inner(world, b, b)).sum();
+        print("norm1 ", norm1);
+        print("norm1a", norm1a);
+        print("norm2 ", norm2);
+        t1.checkpoint(std::abs(norm1 - norm2) < FunctionDefaults<3>::get_thresh(), "swap_particles a,b");
+    }
+
+    // test pure
+    {
+        auto g = [](const coord_6d& r) {
+            double r1=r[0]*r[0] + r[1]*r[1] + r[2]*r[2];
+            double r2=r[3]*r[3] + r[4]*r[4] + r[5]*r[5];
+            return exp(-1.0*r1 - 2.0*r2);
+        };
+        real_function_6d f = real_factory_6d(world).f(g);
+        CCPairFunction p(world, f);
+        CCPairFunction p_swapped=p.swap_particles();
+        double pnorm=p.get_function().norm2();
+        double psnorm=p_swapped.get_function().norm2();
+        print("p/s norm",pnorm,psnorm);
+
+        CCPairFunction p1(world, {f1}, {f2});
+        CCPairFunction p2(world, {f2}, {f1});
+        double ref1=inner(f1,f1)*inner(f2,f2);
+        double ref2=inner(f1,f2)*inner(f2,f1);
+        print("ref1/2",ref1,ref2);
+        print("pref1/2",inner(p1,p1),inner(p1,p2));
+
+        double norm12_12=inner(p,p1);
+        double norm12_21=inner(p,p1.swap_particles());
+        double norm12_12_again=inner(p,p1);
+        double norm21_12=inner(p_swapped,p1);
+        double norm21_21=inner(p_swapped,p1.swap_particles());
+
+        print("norms in exp(-12 - 12):",norm12_12);
+        print("norms in exp(-12 - 21):",norm12_21);
+        print("norms in exp(-12 - 12) again:",norm12_12_again);
+        print("norms in exp(-21 - 12):",norm21_12);
+        print("norms in exp(-21 - 21):",norm21_21);
+
+        double ref_12_12=inner(p1,p1);
+        double ref_12_21=inner(p1,p2);
+
+        print("difference norms in exp(-12 - 12):",norm12_12,ref_12_12);
+        print("difference norms in exp(-12 - 21):",norm12_21,ref_12_21);
+        print("difference norms in exp(-21 - 12):",norm21_12,ref_12_21);
+        print("difference norms in exp(-21 - 21):",norm21_21,ref_12_12);
+
+        double total_error= fabs(norm12_12-ref_12_12)+ fabs(norm12_21-ref_12_21)
+                + fabs(norm21_12-ref_12_21)+ fabs(norm21_21-ref_12_12);
+
+
+        t1.checkpoint(total_error < FunctionDefaults<3>::get_thresh(), "swap_particles u");
+    };
+
+    return success;
+}
+
+int test_dirac_convolution(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
+                           const CCParameters& parameter) {
+    int success=0;
+
+    return success;
+}
+
+int test_partial_inner(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
+                       const CCParameters& parameters) {
+    int success=0;
+
+    return success;
+}
+
+/** functionality
+ *
+ *  - ctor
+ *  - assignment
+ *  - add
+ *  - scalar multiplication
+ *  - inner
+ *  - inner_partial
+ *  - swap_particles
+ *  - apply
+ *  - apply_partial (i.e. exchange)
+ *  - serialize
+ *  - callapse_to_pure (excl g!)
+ *  - mul_partial
+ */
+
 int main(int argc, char **argv) {
 
 
@@ -216,6 +348,7 @@ int main(int argc, char **argv) {
                          mol, nullptr, std::make_pair("slater", 2.0));
 
         isuccess+=test_overlap(world, ncf, mol, ccparam);
+        isuccess+=test_swap_particles(world, ncf, mol, ccparam);
     }
 #else
     print("could not run test_ccpairfunction: U need to compile with ENABLE_GENTENSOR=1");

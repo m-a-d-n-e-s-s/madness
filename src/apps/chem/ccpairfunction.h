@@ -93,6 +93,7 @@ public:
     virtual void print_size() const = 0;
     virtual std::string name() const = 0;
     virtual World& world() const =0;
+    virtual std::shared_ptr<TwoBodyFunctionComponentBase> clone() = 0;
 };
 
 /// a two-body, explicitly 6-dimensional function
@@ -100,8 +101,16 @@ template<typename T>
 class TwoBodyFunctionPureComponent : public TwoBodyFunctionComponentBase {
 
 public:
+    TwoBodyFunctionPureComponent() = default;
 
     explicit TwoBodyFunctionPureComponent(const Function<T,6>& f) : u(f) {}
+
+    /// deep copy
+    std::shared_ptr<TwoBodyFunctionComponentBase> clone() override {
+        TwoBodyFunctionPureComponent<T> result;
+        result.u=madness::copy(u);
+        return std::make_shared<TwoBodyFunctionPureComponent<T>>(result);
+    }
 
     template<typename Q>
     TwoBodyFunctionPureComponent& operator*=(const Q fac) {
@@ -145,16 +154,28 @@ private:
 
 };
 
+/// holds two vectors a and b of low-dimensional functions forming a high-dim function by a sum of outer products
+/// f(1,2) = sum_i |a_i b_i >
 template<typename T>
 class TwoBodyFunctionSeparatedComponent : public TwoBodyFunctionComponentBase {
 
 public:
+    TwoBodyFunctionSeparatedComponent() = default;
+
     TwoBodyFunctionSeparatedComponent(const std::vector<Function<T,3>>& a,
                                       const std::vector<Function<T,3>>& b) : a(a), b(b), op(nullptr) {};
 
     TwoBodyFunctionSeparatedComponent(const std::vector<Function<T,3>>& a,
                                       const std::vector<Function<T,3>>& b,
                                       const CCConvolutionOperator* op) : a(a), b(b), op(op) {};
+
+    TwoBodyFunctionSeparatedComponent(const TwoBodyFunctionSeparatedComponent& other) = default;
+
+    /// deep copy
+    std::shared_ptr<TwoBodyFunctionComponentBase> clone() override {
+        TwoBodyFunctionSeparatedComponent<T> result(madness::copy(world(),a),madness::copy(world(),b),op);
+        return std::make_shared<TwoBodyFunctionSeparatedComponent<T>>(result);
+    }
 
     template<typename Q>
     TwoBodyFunctionSeparatedComponent& operator*=(const Q fac) {
@@ -193,15 +214,15 @@ public:
         std::swap(a,b);
     }
 
-    vector_real_function_3d get_a() const {return a;}
-    vector_real_function_3d get_b() const {return b;}
+    std::vector<Function<T,3>> get_a() const {return a;}
+    std::vector<Function<T,3>> get_b() const {return b;}
     const CCConvolutionOperator* get_operator_ptr() const {return op;};
 
 private:
 
-    vector_real_function_3d a;
-    vector_real_function_3d b;
-    const CCConvolutionOperator* op;
+    std::vector<Function<T,3>> a;
+    std::vector<Function<T,3>> b;
+    const CCConvolutionOperator* op=nullptr;
 
 };
 
@@ -211,29 +232,59 @@ private:
 /// Helper structure for the coupling potential of CC Singles and Doubles
 /// because of the regularization of the CC-Wavefunction (for CC2: |tauij> = |uij> + Qt12*f12*|titj>)
 /// we have 6D-functions in std format |u> : type==pure_
-/// we have 6D-functions in sepparated format: type==decomposed_ (e.g O1*f12*|titj> = |xy> with x=|k> and y=<k|f12|ti>*|tj>)
+/// we have 6D-functions in separated format: type==decomposed_ (e.g O1*f12*|titj> = |xy> with x=|k> and y=<k|f12|ti>*|tj>)
 /// we have 6D-function like f12|xy> which are not needed to be represented on the 6D MRA-Grid, type==op_decomposed_
+
+
+/** functionality
+ *
+ *  - ctor
+ *  - assignment
+ *  - add
+ *  - scalar multiplication
+ *  - inner
+ *  - inner_partial
+ *  - swap_particles
+ *  - apply
+ *  - apply_partial (i.e. exchange)
+ *  - serialize
+ *  - callapse_to_pure (excl g!)
+ *  - mul_partial
+ */
+
 struct CCPairFunction {
 
 using T=double;
 public:
-    CCPairFunction(World& world, const real_function_6d& ket) {
+
+    /// empty ctor
+    CCPairFunction() = default;
+
+    explicit CCPairFunction(World& world, const real_function_6d& ket) {
         component.reset(new TwoBodyFunctionPureComponent<T>(ket));
     }
 
-    CCPairFunction(World& world, const vector_real_function_3d& f1, const vector_real_function_3d& f2) {
+    explicit CCPairFunction(World& world, const vector_real_function_3d& f1, const vector_real_function_3d& f2) {
         component.reset(new TwoBodyFunctionSeparatedComponent<T>(f1,f2));
     }
 
-    CCPairFunction(World& world, const std::pair<vector_real_function_3d, vector_real_function_3d>& f) {
+    explicit CCPairFunction(World& world, const std::pair<vector_real_function_3d, vector_real_function_3d>& f) {
         component.reset(new TwoBodyFunctionSeparatedComponent<T>(f.first,f.second));
     }
 
-    CCPairFunction(World& world, const CCConvolutionOperator *op_, const CCFunction& f1, const CCFunction& f2) {
+    explicit CCPairFunction(World& world, const CCConvolutionOperator *op_, const CCFunction& f1, const CCFunction& f2) {
         component.reset(new TwoBodyFunctionSeparatedComponent<T>({f1.function},{f2.function},op_));
     }
 
+    /// copy ctor -- shallow
     CCPairFunction(const CCPairFunction& other) = default;
+
+    /// deep copy
+    friend CCPairFunction copy(const CCPairFunction& other) {
+        CCPairFunction result;
+        result.component=other.component->clone();
+        return result;
+    }
 
     void info() const { print_size(); }
 
@@ -322,7 +373,7 @@ public:
 
     /// @param[out] particles are interchanged, if the function was u(1,2) the result is u(2,1)
     CCPairFunction swap_particles() const {
-        CCPairFunction result(*this);
+        CCPairFunction result=copy(*this);
         result.component->swap_particles_inplace();
         return result;
     };
@@ -335,6 +386,12 @@ public:
     friend double inner(const CCPairFunction& a, const CCPairFunction& b, const real_function_3d& R2) {
         return a.inner_internal(b,R2);
     }
+
+    friend double inner(const CCPairFunction& a, const CCPairFunction& b) {
+        real_function_3d R2;
+        return a.inner_internal(b,R2);
+    }
+
 
 public:
     /// the 3 types of 6D-function that occur in the CC potential which coupled doubles to singles
