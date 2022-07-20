@@ -2074,23 +2074,24 @@ CCPotentials::apply_Ot(const CCPairFunction& f, const CC_vecfunction& t, const s
 madness::real_function_6d
 CCPotentials::apply_G(const CCPairFunction& u, const real_convolution_6d& G) const {
     CCTimer time(world, "Applying G on " + u.name());
-    real_function_6d result = real_function_6d(world);
-    if (u.is_pure()) {
-        result = G(u.pure().get_function());
-    } else if (u.is_decomposed_no_op()) {
-        MADNESS_ASSERT(u.get_a().size() == u.get_b().size());
-        if (u.get_a().size() == 0) output.warning("!!!!!!!in G(ab): a.size()==0 !!!!!!");
-
-        for (size_t k = 0; k < u.get_a().size(); k++) {
-            const real_function_6d tmp = G(u.get_a()[k], u.get_b()[k]);
-            result += tmp;
-        }
-    } else error("Apply_G to CCPairFunction of type other than pure or decomposed");
-
-    time.info(true, result.norm2());
-    if (result.norm2() == 0.0) output.warning("Gab is Zero");
-
-    return result;
+    return apply(G,u).get_function();
+//    real_function_6d result = real_function_6d(world);
+//    if (u.is_pure()) {
+//        result = G(u.pure().get_function());
+//    } else if (u.is_decomposed_no_op()) {
+//        MADNESS_ASSERT(u.get_a().size() == u.get_b().size());
+//        if (u.get_a().size() == 0) output.warning("!!!!!!!in G(ab): a.size()==0 !!!!!!");
+//
+//        for (size_t k = 0; k < u.get_a().size(); k++) {
+//            const real_function_6d tmp = G(u.get_a()[k], u.get_b()[k]);
+//            result += tmp;
+//        }
+//    } else error("Apply_G to CCPairFunction of type other than pure or decomposed");
+//
+//    time.info(true, result.norm2());
+//    if (result.norm2() == 0.0) output.warning("Gab is Zero");
+//
+//    return result;
 }
 
 madness::vector_real_function_3d

@@ -260,20 +260,38 @@ public:
     /// empty ctor
     CCPairFunction() = default;
 
+    /// takes a deep copy of the argument function
     explicit CCPairFunction(const real_function_6d& ket) {
         component.reset(new TwoBodyFunctionPureComponent<T>(ket));
     }
 
+    /// takes a deep copy of the argument functions
     explicit CCPairFunction(const vector_real_function_3d& f1, const vector_real_function_3d& f2) {
-        component.reset(new TwoBodyFunctionSeparatedComponent<T>(f1,f2));
+        World& world=f1.front().world();
+        component.reset(new TwoBodyFunctionSeparatedComponent<T>(copy(world,f1),copy(world,f2)));
     }
 
-    explicit CCPairFunction(const std::pair<vector_real_function_3d, vector_real_function_3d>& f) {
-        component.reset(new TwoBodyFunctionSeparatedComponent<T>(f.first,f.second));
+    /// takes a deep copy of the argument functions
+    explicit CCPairFunction(const std::pair<vector_real_function_3d, vector_real_function_3d>& f) :
+            CCPairFunction(f.first,f.second) {
     }
 
-    explicit CCPairFunction(const CCConvolutionOperator *op_, const CCFunction& f1, const CCFunction& f2) {
-        component.reset(new TwoBodyFunctionSeparatedComponent<T>({f1.function},{f2.function},op_));
+        /// takes a deep copy of the argument functions
+    explicit CCPairFunction(const CCConvolutionOperator *op_, const CCFunction& f1, const CCFunction& f2) :
+            CCPairFunction(op_,std::vector<real_function_3d>({f1.function}),std::vector<real_function_3d>({f2.function})) {
+    }
+
+    /// takes a deep copy of the argument functions
+    explicit CCPairFunction(const CCConvolutionOperator *op_, const std::vector<real_function_3d>& f1,
+                            const std::vector<real_function_3d>& f2) {
+        World& world=f1.front().world();
+        component.reset(new TwoBodyFunctionSeparatedComponent<T>(copy(world,f1),copy(world,f2),op_));
+    }
+
+    /// shallow assignment operator
+    CCPairFunction& operator()(const CCPairFunction& other) {
+        component=other.component;
+        return *this;
     }
 
     /// copy ctor -- shallow
@@ -393,6 +411,7 @@ public:
     }
 
 
+
 public:
     /// the 3 types of 6D-function that occur in the CC potential which coupled doubles to singles
     std::shared_ptr<TwoBodyFunctionComponentBase> component;
@@ -433,7 +452,29 @@ public:
 
     /// small helper function that gives back (a,b) or (b,a) depending on the value of particle
     const std::pair<vector_real_function_3d, vector_real_function_3d> assign_particles(const size_t particle) const;
+
+    template<typename Q, std::size_t MDIM>
+    friend CCPairFunction apply(const SeparatedConvolution<Q,MDIM>& G, const CCPairFunction& argument) {
+        if (argument.is_pure()) {
+            return CCPairFunction(G(argument.get_function()));
+        } else if (argument.is_decomposed_no_op()) {
+            real_function_6d result=real_factory_6d(argument.world()).compressed();
+
+            MADNESS_ASSERT(argument.get_a().size() == argument.get_b().size());
+
+            for (size_t k = 0; k < argument.get_a().size(); k++) {
+                const real_function_6d tmp = G(argument.get_a()[k], argument.get_b()[k]);
+                result += tmp;
+            }
+            return CCPairFunction(result);
+        } else {
+            MADNESS_EXCEPTION("unknown type in CCPairFunction::apply",1);
+        }
+        return CCPairFunction();
+    };
+
 };
+
 } // namespace madness
 
 #endif //MADNESS_CCPAIRFUNCTION_H

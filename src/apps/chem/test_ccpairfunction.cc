@@ -15,9 +15,72 @@ using namespace madness;
 
 
 
+
 int test_constructor(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
                const CCParameters& parameter) {
     int success=0;
+    test_output t1("CCPairFunction::inner");
+
+    real_function_6d f=real_factory_6d(world);
+    auto g1 = [](const coord_3d& r) { return exp(-1.0 * inner(r, r)); };
+    auto g2 = [](const coord_3d& r) { return exp(-2.0 * inner(r, r)); };
+    auto g3 = [](const coord_3d& r) { return exp(-3.0 * inner(r, r)); };
+    real_function_3d f1=real_factory_3d(world).f(g1);
+    real_function_3d f2=real_factory_3d(world).f(g2);
+    real_function_3d f3=real_factory_3d(world).f(g3);
+
+    vector_real_function_3d  a= zero_functions<double,3>(world,3);
+    vector_real_function_3d  b= zero_functions<double,3>(world,3);
+    CCConvolutionOperator f12(world, OT_F12, parameter);
+    t1.checkpoint(true,"preparation");
+
+    CCPairFunction p1;
+    CCPairFunction p2(f);
+    CCPairFunction p3({f1,f2},{f1,f3});
+    CCPairFunction p4(&f12,{f1,f2},{f2,f3});
+    t1.checkpoint(true,"construction");
+
+    {
+        MADNESS_CHECK(p2.is_pure());
+        MADNESS_CHECK(!p2.is_decomposed());
+        MADNESS_CHECK(!p2.is_op_decomposed());
+        auto p = p2.pure();
+        auto ff = p2.pure().get_function();
+        MADNESS_CHECK(ff.get_impl()==f.get_impl());
+    }
+    t1.checkpoint(true,"checks on pure");
+
+    {
+        MADNESS_CHECK(!p3.is_pure());
+        MADNESS_CHECK(p3.is_decomposed());
+        MADNESS_CHECK(!p3.is_op_decomposed());
+        auto a1=p3.get_a();
+        auto b1=p3.get_b();
+    }
+    t1.checkpoint(true,"checks on decomposed");
+
+    {
+        MADNESS_CHECK(!p4.is_pure());
+        MADNESS_CHECK(p4.is_decomposed());
+        MADNESS_CHECK(p4.is_op_decomposed());
+        auto a1=p4.get_a();
+        auto b1=p4.get_b();
+        auto op=p4.get_operator();
+    }
+    t1.checkpoint(true,"checks on op_decomposed");
+
+    {
+        CCPairFunction tmp;
+        tmp=p2;
+        MADNESS_CHECK(tmp.is_pure());
+        MADNESS_CHECK(tmp.component==p2.component);
+
+        tmp=p3;
+        MADNESS_CHECK(!tmp.is_pure());
+        MADNESS_CHECK(tmp.component==p3.component);
+
+    }
+    t1.checkpoint(true,"checks on assignment");
 
     return success;
 }
@@ -212,9 +275,57 @@ int test_apply(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, cons
     return success;
 }
 
-int test_scale(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
+int test_scalar_multiplication(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
                const CCParameters& parameter) {
     int success=0;
+    CCTimer timer(world, "testing");
+    test_output t1("CCPairFunction::test_scalar_multiplication");
+    auto g = [](const coord_6d& r) {
+        double r1=r[0]*r[0] + r[1]*r[1] + r[2]*r[2];
+        double r2=r[3]*r[3] + r[4]*r[4] + r[5]*r[5];
+        return exp(-1.0*r1 - 2.0*r2);
+    };
+    real_function_6d f = real_factory_6d(world).f(g);
+
+    auto g1 = [](const coord_3d& r) { return exp(-1.0 * inner(r, r)); };
+    auto g2 = [](const coord_3d& r) { return exp(-2.0 * inner(r, r)); };
+    auto g3 = [](const coord_3d& r) { return exp(-3.0 * inner(r, r)); };
+    real_function_3d f1 = real_factory_3d(world).f(g1);
+    real_function_3d f2 = real_factory_3d(world).f(g2);
+    real_function_3d f3 = real_factory_3d(world).f(g3);
+    std::vector<real_function_3d> a = {f1, f2};
+    std::vector<real_function_3d> b = {f3, f1};
+
+    print("time in preparation",timer.reset());
+    t1.checkpoint(true,"prep");
+
+    CCPairFunction p(f);
+    CCPairFunction p1(a,b);
+    double norm1=inner(p,p1);
+    double pnorm=inner(p,p);
+    double p1norm=inner(p1,p1);
+    print("pnorm,p1norm",pnorm,p1norm);
+    double anorm=norm2(world,p1.get_a());
+    double bnorm=norm2(world,p1.get_b());
+    print("anorm,bornm",anorm,bnorm);
+
+    p*=2.0;
+    p1*=2.0;
+    anorm=norm2(world,p1.get_a());
+    bnorm=norm2(world,p1.get_b());
+    print("anorm,bornm",anorm,bnorm);
+    pnorm=inner(p,p);
+    p1norm=inner(p1,p1);
+    print("pnorm,p1norm",pnorm,p1norm);
+    double norm2=inner(p,p1);
+    print("norm1,norm2",norm1,norm2);
+
+    print("time in scaling and inner",timer.reset());
+    bool bsuccess=fabs(4.0*norm1-norm2)<FunctionDefaults<3>::get_thresh();
+    t1.checkpoint(bsuccess,"scaling");
+    if (bsuccess) success++;
+
+
 
     return success;
 }
@@ -323,13 +434,13 @@ int test_partial_inner(World& world, std::shared_ptr<NuclearCorrelationFactor> n
 
 /** functionality
  *
- *  - ctor
+ *  - ctor                      OK
  *  - assignment
  *  - add
- *  - scalar multiplication
- *  - inner            OK
+ *  - scalar multiplication     OK
+ *  - inner                     OK
  *  - inner_partial
- *  - swap_particles   OK
+ *  - swap_particles            OK
  *  - apply
  *  - apply_partial (i.e. exchange)
  *  - serialize
@@ -355,9 +466,10 @@ int main(int argc, char **argv) {
         std::shared_ptr<NuclearCorrelationFactor> ncf = create_nuclear_correlation_factor(world,
                          mol, nullptr, std::make_pair("slater", 2.0));
 
-        isuccess+=test_constructor(world, ncf, mol, ccparam);
-        isuccess+=test_overlap(world, ncf, mol, ccparam);
-        isuccess+=test_swap_particles(world, ncf, mol, ccparam);
+//        isuccess+=test_constructor(world, ncf, mol, ccparam);
+//        isuccess+=test_overlap(world, ncf, mol, ccparam);
+//        isuccess+=test_swap_particles(world, ncf, mol, ccparam);
+        isuccess+=test_scalar_multiplication(world, ncf, mol, ccparam);
     }
 #else
     print("could not run test_ccpairfunction: U need to compile with ENABLE_GENTENSOR=1");

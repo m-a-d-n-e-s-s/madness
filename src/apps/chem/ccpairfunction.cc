@@ -178,15 +178,15 @@ double CCPairFunction::inner_internal(const CCPairFunction& other, const real_fu
         vector_real_function_3d a = R2.is_initialized() ?  R2* f2.get_a() : f2.get_a();
         vector_real_function_3d b = R2.is_initialized() ?  R2* f2.get_b() : f2.get_b();
         // <p1 | p2> = \sum_ij <a_i b_i | a_j b_j> = \sum_ij <a_i|a_j> <b_i|b_j>
-        result = matrix_inner(world(), a, f1.get_a()).emul(matrix_inner(world(), b, f1.get_b())).sum();
+        result = (matrix_inner(world(), a, f1.get_a()).emul(matrix_inner(world(), b, f1.get_b()))).sum();
 
-        // for (size_t i1 = 0; i1 < f1.get_a().size(); i1++) {
-        //     for (size_t i2 = 0; i2 < f2.get_a().size(); i2++) {
-        //         const double aa = a[i1].inner(f2.get_a()[i2]);
-        //         const double bb = b[i1].inner(f2.get_b()[i2]);
-        //         result += aa * bb;
-        //     }
-        // }
+//         for (size_t i1 = 0; i1 < f1.get_a().size(); i1++) {
+//             for (size_t i2 = 0; i2 < f2.get_a().size(); i2++) {
+//                 const double aa = a[i1].inner(f2.get_a()[i2]);
+//                 const double bb = b[i1].inner(f2.get_b()[i2]);
+//                 result += aa * bb;
+//             }
+//         }
     } else if (f1.is_decomposed_no_op() and f2.is_op_decomposed()) {
         MADNESS_ASSERT(f1.get_a().size() == f1.get_b().size());
         vector_real_function_3d a = f1.get_a();
