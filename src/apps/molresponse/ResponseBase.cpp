@@ -1076,7 +1076,7 @@ residuals ResponseBase::compute_residual(World &world, X_space &old_Chi, X_space
 
     //res.X = old_Chi.X - temp.X;
     res = old_Chi - temp;
-    res.truncate();
+    //res.truncate();
     //
     /*
     if (calc_type.compare("full") == 0) {
