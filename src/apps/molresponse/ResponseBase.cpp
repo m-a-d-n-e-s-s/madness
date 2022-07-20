@@ -1262,7 +1262,7 @@ void ResponseBase::x_space_step_restriction(World &world, X_space &old_Chi, X_sp
             //auto sq_diff_x = square(world, diff.X[b], true);
             //auto sq_diff_y = square(world, diff.Y[b], true);
 
-            for (auto &dx: x_diff) { x_diff.push_back(dx); }
+            for (auto &dy: y_diff) { x_diff.push_back(dy); }
 
             auto norm_xb = norm2(world, x_diff);
 
