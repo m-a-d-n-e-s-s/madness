@@ -14,6 +14,14 @@
 using namespace madness;
 
 
+
+int test_constructor(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
+               const CCParameters& parameter) {
+    int success=0;
+
+    return success;
+}
+
 int test_overlap(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
                   const CCParameters& parameters) {
     CCTimer timer(world, "testing");
@@ -87,7 +95,7 @@ int test_overlap(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, co
     double time_init = timer.reset();
     if (world.rank() == 0) print("time spent in initializing ", time_init);
     {
-        CCPairFunction fab(world, &f12, a, b);
+        CCPairFunction fab(&f12, a, b);
         const double test1 = inner(fab, fab, R2);
         const double diff = test1 - ab_f2_ab;
         if (fabs(diff) > lo) passed_lo = false;
@@ -99,7 +107,7 @@ int test_overlap(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, co
     if (not success) isuccess++;
     t1.checkpoint(success, "op_dec/op_dec");
     {
-        CCPairFunction ab(world, mo_ket_.get_vecfunction(), mo_ket_.get_vecfunction());
+        CCPairFunction ab(mo_ket_.get_vecfunction(), mo_ket_.get_vecfunction());
         const double test1 = inner(ab, ab, R2);
         const double test2 = double(mo_ket_.size()); // mos are normed
         const double diff = test1 - test2;
@@ -111,7 +119,7 @@ int test_overlap(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, co
     if (not success) isuccess++;
     t1.checkpoint(success, "dec/dec");
     {
-        CCPairFunction fab(world, fab_6d);
+        CCPairFunction fab(fab_6d);
         const double test1 = inner(fab, fab, R2);
         const double diff = test1 - ab_f2_ab;
         printer(" <abf | abf> pure/pure : ", test1, ab_f2_ab, timer.reset());
@@ -123,8 +131,8 @@ int test_overlap(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, co
     t1.checkpoint(success, "pure/pure");
 
     {
-        CCPairFunction ab1(world, mo_ket_.get_vecfunction(), mo_ket_.get_vecfunction());
-        CCPairFunction fab(world, &f12, a, b);
+        CCPairFunction ab1(mo_ket_.get_vecfunction(), mo_ket_.get_vecfunction());
+        CCPairFunction fab(&f12, a, b);
         timer.reset();
         const double test1 = inner(ab1, fab, R2);
         const double test2 = ab_f_ab;
@@ -139,8 +147,8 @@ int test_overlap(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, co
 
     {
         // the next tests evaulate <ab|f|ab> in different ways
-        CCPairFunction fab(world, fab_6d);
-        CCPairFunction ab2(world, mo_ket_.get_vecfunction(), mo_ket_.get_vecfunction());
+        CCPairFunction fab(fab_6d);
+        CCPairFunction ab2(mo_ket_.get_vecfunction(), mo_ket_.get_vecfunction());
         const double test1 = inner(fab, ab2, R2);
         const double test2 = bb.inner(afa);
         const double diff = test1 - test2;
@@ -153,8 +161,8 @@ int test_overlap(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, co
     if (not success) isuccess++;
     t1.checkpoint(success, "dec/pure");
 //        {
-//            CCPairFunction fab(world, fab_6d);
-//            CCPairFunction ab2(world, ab_6d);
+//            CCPairFunction fab(fab_6d);
+//            CCPairFunction ab2(ab_6d);
 //            const double test1 = overlap(fab, ab2);
 //            const double test2 = bb.inner(afa);
 //            const double diff = test1 - test2;
@@ -165,8 +173,8 @@ int test_overlap(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, co
 //            if (fabs(diff) > hi) passed_hi = false;
 //        }
     {
-        CCPairFunction fab(world, &f12, a, b);
-        CCPairFunction ab2(world, fab_6d);
+        CCPairFunction fab(&f12, a, b);
+        CCPairFunction ab2(fab_6d);
         const double test1 = inner(fab, ab2, R2);
         const double test2 = ab_f2_ab;
         const double diff = test1 - test2;
@@ -179,8 +187,8 @@ int test_overlap(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, co
     t1.checkpoint(success, "op_dec/pure");
 
     {
-        CCPairFunction fab(world, &f12, a, b);
-        CCPairFunction ab2(world, mo_ket_.get_vecfunction(), mo_ket_.get_vecfunction());
+        CCPairFunction fab(&f12, a, b);
+        CCPairFunction ab2(mo_ket_.get_vecfunction(), mo_ket_.get_vecfunction());
         timer.reset();
         const double test1 = inner(fab, ab2, R2);
 //            const double test2 = bb.inner(afa);
@@ -235,8 +243,8 @@ int test_swap_particles(World& world, std::shared_ptr<NuclearCorrelationFactor> 
 
     // test decomposed
     {
-        CCPairFunction p1(world, a, b);
-        CCPairFunction p2(world, b, a);
+        CCPairFunction p1(a, b);
+        CCPairFunction p2(b, a);
 
         double norm1 = inner(p1, p2.swap_particles(), R2);
         double norm1a = inner(p1, p1, R2);
@@ -256,14 +264,14 @@ int test_swap_particles(World& world, std::shared_ptr<NuclearCorrelationFactor> 
             return exp(-1.0*r1 - 2.0*r2);
         };
         real_function_6d f = real_factory_6d(world).f(g);
-        CCPairFunction p(world, f);
+        CCPairFunction p(f);
         CCPairFunction p_swapped=p.swap_particles();
         double pnorm=p.get_function().norm2();
         double psnorm=p_swapped.get_function().norm2();
         print("p/s norm",pnorm,psnorm);
 
-        CCPairFunction p1(world, {f1}, {f2});
-        CCPairFunction p2(world, {f2}, {f1});
+        CCPairFunction p1({f1}, {f2});
+        CCPairFunction p2({f2}, {f1});
         double ref1=inner(f1,f1)*inner(f2,f2);
         double ref2=inner(f1,f2)*inner(f2,f1);
         print("ref1/2",ref1,ref2);
@@ -319,13 +327,13 @@ int test_partial_inner(World& world, std::shared_ptr<NuclearCorrelationFactor> n
  *  - assignment
  *  - add
  *  - scalar multiplication
- *  - inner
+ *  - inner            OK
  *  - inner_partial
- *  - swap_particles
+ *  - swap_particles   OK
  *  - apply
  *  - apply_partial (i.e. exchange)
  *  - serialize
- *  - callapse_to_pure (excl g!)
+ *  - collapse_to_pure (excl g!)
  *  - mul_partial
  */
 
@@ -347,6 +355,7 @@ int main(int argc, char **argv) {
         std::shared_ptr<NuclearCorrelationFactor> ncf = create_nuclear_correlation_factor(world,
                          mol, nullptr, std::make_pair("slater", 2.0));
 
+        isuccess+=test_constructor(world, ncf, mol, ccparam);
         isuccess+=test_overlap(world, ncf, mol, ccparam);
         isuccess+=test_swap_particles(world, ncf, mol, ccparam);
     }

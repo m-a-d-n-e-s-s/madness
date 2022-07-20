@@ -850,7 +850,7 @@ public:
     void update_u(const real_function_6d& u) {
         MADNESS_ASSERT(not functions.empty());
         MADNESS_ASSERT(functions[0].is_pure());
-        CCPairFunction tmp(u.world(), u);
+        CCPairFunction tmp(u);
         functions[0] = tmp;
     }
 
@@ -864,7 +864,7 @@ public:
             if (fexist) {
                 real_function_6d func;
                 ar & func;
-                CCPairFunction f1(func.world(),func);
+                CCPairFunction f1(func);
                 functions.push_back(f1);
             }
         } else {

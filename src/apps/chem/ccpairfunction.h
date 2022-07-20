@@ -260,19 +260,19 @@ public:
     /// empty ctor
     CCPairFunction() = default;
 
-    explicit CCPairFunction(World& world, const real_function_6d& ket) {
+    explicit CCPairFunction(const real_function_6d& ket) {
         component.reset(new TwoBodyFunctionPureComponent<T>(ket));
     }
 
-    explicit CCPairFunction(World& world, const vector_real_function_3d& f1, const vector_real_function_3d& f2) {
+    explicit CCPairFunction(const vector_real_function_3d& f1, const vector_real_function_3d& f2) {
         component.reset(new TwoBodyFunctionSeparatedComponent<T>(f1,f2));
     }
 
-    explicit CCPairFunction(World& world, const std::pair<vector_real_function_3d, vector_real_function_3d>& f) {
+    explicit CCPairFunction(const std::pair<vector_real_function_3d, vector_real_function_3d>& f) {
         component.reset(new TwoBodyFunctionSeparatedComponent<T>(f.first,f.second));
     }
 
-    explicit CCPairFunction(World& world, const CCConvolutionOperator *op_, const CCFunction& f1, const CCFunction& f2) {
+    explicit CCPairFunction(const CCConvolutionOperator *op_, const CCFunction& f1, const CCFunction& f2) {
         component.reset(new TwoBodyFunctionSeparatedComponent<T>({f1.function},{f2.function},op_));
     }
 

@@ -84,10 +84,10 @@ CCPotentials::make_pair_gs(const real_function_6d& u, const CC_vecfunction& tau,
         pt = make_full_t_intermediate(tau);
     }
     std::vector<CCPairFunction> functions;
-    CCPairFunction u_part(world, u);
+    CCPairFunction u_part(u);
     functions.push_back(u_part);
     if (parameters.decompose_Q()) {
-        CCPairFunction f_part(world, &f12, t(i), t(j));
+        CCPairFunction f_part(&f12, t(i), t(j));
         functions.push_back(f_part);
         CCPairFunction Ot1 = apply_Ot(f_part, pt, 1);
         CCPairFunction Ot2 = apply_Ot(f_part, pt, 2);
@@ -103,7 +103,7 @@ CCPotentials::make_pair_gs(const real_function_6d& u, const CC_vecfunction& tau,
         real_function_6d ftt = make_f_xy(t(i), t(j));
         real_function_6d Qftt = apply_Q12t(ftt, pt);
         Qftt.truncate();
-        CCPairFunction residual(world, Qftt);
+        CCPairFunction residual(Qftt);
         functions.push_back(residual);
     }
     CalcType ctype = CT_CC2;
@@ -229,12 +229,12 @@ CCPotentials::make_pair_ex(const real_function_6d& u, const CC_vecfunction& tau,
     }
     MADNESS_ASSERT(pt.size() == mo_ket_.size());
     std::vector<CCPairFunction> functions;
-    CCPairFunction u_part(world, u);
+    CCPairFunction u_part(u);
     functions.push_back(u_part);
     if (parameters.decompose_Q()) {
-        CCPairFunction f_xt(world, &f12, x(i), t(j));
+        CCPairFunction f_xt(&f12, x(i), t(j));
         functions.push_back(f_xt);
-        CCPairFunction f_tx(world, &f12, t(i), x(j));
+        CCPairFunction f_tx(&f12, t(i), x(j));
         functions.push_back(f_tx);
         {
             CCPairFunction Ot1_xt = apply_Ot(f_xt, pt, 1);     // O1t(f|xt>)
@@ -257,7 +257,7 @@ CCPotentials::make_pair_ex(const real_function_6d& u, const CC_vecfunction& tau,
             functions.push_back(QtOt_tx.invert_sign());     // - "
         }
         if (parameters.QtAnsatz()) {
-            CCPairFunction ftt(world, &f12, t(i), t(j));     // f|tt>
+            CCPairFunction ftt(&f12, t(i), t(j));     // f|tt>
             CCPairFunction O1x_tt = apply_Ot(ftt, x, 1);     // O1x(f|tt>)
             CCPairFunction OxQt_tt = apply_Qt(O1x_tt, pt, 2);     // O1xQt(f|tt>)
             functions.push_back(OxQt_tt.invert_sign());     // - "
@@ -281,7 +281,7 @@ CCPotentials::make_pair_ex(const real_function_6d& u, const CC_vecfunction& tau,
             real_function_6d OxOt = Ot(O1x, 2);
             real_function_6d projector_part = (O1x - OxOt + O2x - OtOx);
             real_function_6d residual = function_part - projector_part;
-            CCPairFunction res(world, residual);
+            CCPairFunction res(residual);
             functions.push_back(res);
         } else {
             real_function_6d ftx = make_f_xy(t(i), x(j));
@@ -289,7 +289,7 @@ CCPotentials::make_pair_ex(const real_function_6d& u, const CC_vecfunction& tau,
             real_function_6d tmp = ftx + fxt;
             real_function_6d residual = apply_Q12t(tmp, mo_ket_);
             residual.truncate();
-            CCPairFunction res(world, residual);
+            CCPairFunction res(residual);
             functions.push_back(res);
         }
     }
@@ -851,7 +851,7 @@ CCPotentials::make_constant_part_cc2_gs(const CCPair& u, const CC_vecfunction& t
     CCTimer time_Vcc(world, "G(Coulomb Coupling Potential)");
     real_function_6d GVcc = real_factory_6d(world);
     // make the g12|titj> function as op_decomposed function (not constructed in 6D)
-    CCPairFunction gtt(world, &g12, ti, tj);
+    CCPairFunction gtt(&g12, ti, tj);
     // make Otau(1)(g12|titj>)
     CCPairFunction Otau1_gtt = apply_Ot(gtt, tau, 1);
     // make Otau1Q2 part and the Otau1Otau2. Otau1Otau2 part IS NOT used in the symmetry exploit
@@ -918,7 +918,7 @@ CCPotentials::make_constant_part_cc2_Qt_gs(const CCPair& u, const CC_vecfunction
     CCTimer time_comm(world, "commutator");
     const vector_real_function_3d Vtmp = get_potentials(tau, POT_singles_);
     const CC_vecfunction V(Vtmp, UNDEFINED, parameters.freeze());
-    const CCPairFunction ftt(world, &f12, ti, tj);
+    const CCPairFunction ftt(&f12, ti, tj);
     const CCPairFunction O1ftt = apply_Ot(ftt, V, 1);
     const CCPairFunction O1Q2ftt = apply_Qt(O1ftt, t, 2);
     const real_function_6d part1 = -2.0 * apply_G(O1Q2ftt, G);
@@ -997,7 +997,7 @@ CCPotentials::make_constant_part_cispd(const CCPair& u, const CC_vecfunction& x,
     real_function_6d GVcc;
     {
         time_cr.start();
-        const CCPairFunction gij(world, &g12, moi, moj);
+        const CCPairFunction gij(&g12, moi, moj);
         const CCPairFunction O1x_gij = apply_Ot(gij, x, 1);
         const CCPairFunction OQ_part = apply_Qt(O1x_gij, mo_ket_, 2);
         const real_function_6d GOQ = -2.0 * apply_G(OQ_part, G);
@@ -1064,7 +1064,7 @@ CCPotentials::make_constant_part_cispd_Qt(const CCPair& u, const CC_vecfunction&
         Vtmp.truncate().reduce_rank();
         if (parameters.debug()) Vtmp.print_size("Vreg-omega*f12|ij>");
 
-        const CCPairFunction V(world, Vtmp);
+        const CCPairFunction V(Vtmp);
         const CCPairFunction O1x_V = apply_Ot(V, x, 1);
         const CCPairFunction O1xQ2_V = apply_Qt(O1x_V, mo_ket_, 2);
         const real_function_6d GOQ = -2.0 * apply_G(O1xQ2_V, G);
@@ -1120,7 +1120,7 @@ CCPotentials::make_constant_part_cispd_Qt(const CCPair& u, const CC_vecfunction&
         const vector_real_function_3d Vxtmp = sub(world, get_potentials(x, POT_singles_),
                                                   x.omega * x.get_vecfunction());
         const CC_vecfunction Vx(Vxtmp, UNDEFINED, parameters.freeze());
-        CCPairFunction ftt(world, &f12, moi, moj);
+        CCPairFunction ftt(&f12, moi, moj);
         real_function_6d tmp1;
         real_function_6d tmp2;
         {
@@ -1210,7 +1210,7 @@ CCPotentials::make_constant_part_cc2_ex(const CCPair& u, const CC_vecfunction& t
         real_function_6d tmp2;
         // make the xt parts of the functional and the QtOx part of the projector response
         {
-            CCPairFunction gxt(world, &g12, xi, tj);
+            CCPairFunction gxt(&g12, xi, tj);
             // make QOtau*g*|xt>
             CCPairFunction O2tmp = apply_Ot(gxt, tau, 2);
             CCPairFunction QO = apply_Qt(O2tmp, mo_ket_, 1);
@@ -1223,7 +1223,7 @@ CCPotentials::make_constant_part_cc2_ex(const CCPair& u, const CC_vecfunction& t
             CCPairFunction OO = apply_Ot(O1tmp, tau, 2);
             const real_function_6d part3 = -2.0 * apply_G(OO, G);
             // QtOx*g|titj>
-            CCPairFunction gtt(world, &g12, ti, tj);
+            CCPairFunction gtt(&g12, ti, tj);
             CCPairFunction O2x = apply_Ot(gtt, x, 2);
             CCPairFunction QtOx = apply_Qt(O2x, t, 1);
             const real_function_6d part4 = -2.0 * apply_G(QtOx, G);
@@ -1231,7 +1231,7 @@ CCPotentials::make_constant_part_cc2_ex(const CCPair& u, const CC_vecfunction& t
         }
         if (symmetric) tmp2 = swap_particles(tmp1);
         else {
-            CCPairFunction gtx(world, &g12, ti, xj);
+            CCPairFunction gtx(&g12, ti, xj);
             // make QOtau*g*|tx>
             CCPairFunction O2tmp = apply_Ot(gtx, tau, 2);
             CCPairFunction QO = apply_Qt(O2tmp, mo_ket_, 1);
@@ -1244,7 +1244,7 @@ CCPotentials::make_constant_part_cc2_ex(const CCPair& u, const CC_vecfunction& t
             CCPairFunction OO = apply_Ot(O1tmp, tau, 2);
             const real_function_6d part3 = -2.0 * apply_G(OO, G);
             // OxQt*g|titj>
-            CCPairFunction gtt(world, &g12, ti, tj);
+            CCPairFunction gtt(&g12, ti, tj);
             CCPairFunction O1x = apply_Ot(gtt, x, 1);
             CCPairFunction OxQt = apply_Qt(O1x, t, 2);
             const real_function_6d part4 = -2.0 * apply_G(OxQt, G);
@@ -1325,7 +1325,7 @@ CCPotentials::make_constant_part_cc2_Qt_ex(const CCPair& u, const CC_vecfunction
         real_function_6d Vtt_tmp = apply_Vreg(ti, tj, Gscreen);
         real_function_6d titj = make_f_xy(ti, tj);
         Vtt_tmp = Vtt_tmp - x.omega * titj;
-        CCPairFunction Vtt(world, Vtt_tmp);
+        CCPairFunction Vtt(Vtt_tmp);
         real_function_6d tmp1;
         real_function_6d tmp2;
         {
@@ -1350,7 +1350,7 @@ CCPotentials::make_constant_part_cc2_Qt_ex(const CCPair& u, const CC_vecfunction
         const vector_real_function_3d Vtmp = get_potentials(tau, POT_singles_);
         const CC_vecfunction V(Vtmp, UNDEFINED, parameters.freeze());
         {
-            const CCPairFunction fxt(world, &f12, xi, tj);
+            const CCPairFunction fxt(&f12, xi, tj);
             const CCPairFunction O1V = apply_Ot(fxt, V, 1);
             const CCPairFunction OQ = apply_Qt(O1V, t, 2);
             const CCPairFunction O2V = apply_Ot(fxt, V, 2);
@@ -1362,7 +1362,7 @@ CCPotentials::make_constant_part_cc2_Qt_ex(const CCPair& u, const CC_vecfunction
         real_function_6d part2;     // the tx parts
         if (symmetric) part2 = swap_particles(part1);
         else {
-            const CCPairFunction ftx(world, &f12, ti, xj);
+            const CCPairFunction ftx(&f12, ti, xj);
             const CCPairFunction O1V = apply_Ot(ftx, V, 1);
             const CCPairFunction OQ = apply_Qt(O1V, t, 2);
             const CCPairFunction O2V = apply_Ot(ftx, V, 2);
@@ -1390,7 +1390,7 @@ CCPotentials::make_constant_part_cc2_Qt_ex(const CCPair& u, const CC_vecfunction
         const vector_real_function_3d Vttmp = get_potentials(tau, POT_singles_);
         const CC_vecfunction Vx(Vxtmp, UNDEFINED, parameters.freeze());
         const CC_vecfunction Vt(Vttmp, UNDEFINED, parameters.freeze());
-        CCPairFunction ftt(world, &f12, ti, tj);
+        CCPairFunction ftt(&f12, ti, tj);
         real_function_6d tmp1;
         real_function_6d tmp2;
         {
@@ -2010,10 +2010,10 @@ CCPotentials::apply_Qt(const CCPairFunction& f, const CC_vecfunction& t, const s
     MADNESS_ASSERT(particle == 1 || particle == 2);
     MADNESS_ASSERT(f.is_decomposed_no_op());     // pure type is not needed and op_deomposed type can not be because the result would be (1-Ot)f12|xy> = f12|xy> - \sum_a|a1a2> a subtraction with different types
     if (particle == 1) {
-        CCPairFunction result(world, apply_Qt(f.get_a(), t, c), f.get_b());
+        CCPairFunction result(apply_Qt(f.get_a(), t, c), f.get_b());
         return result;
     } else {
-        CCPairFunction result(world, f.get_a(), apply_Qt(f.get_b(), t, c));
+        CCPairFunction result(f.get_a(), apply_Qt(f.get_b(), t, c));
         return result;
     }
 }
@@ -2046,29 +2046,29 @@ CCPotentials::apply_Ot(const CCPairFunction& f, const CC_vecfunction& t, const s
             projected.push_back(kf);
         }
         if (particle == 1) {
-            return CCPairFunction(world, copy(world, t.get_vecfunction()), projected);
+            return CCPairFunction(copy(world, t.get_vecfunction()), projected);
         } else {
-            return CCPairFunction(world, projected, copy(world, t.get_vecfunction()));
+            return CCPairFunction(projected, copy(world, t.get_vecfunction()));
         }
 
     } else if (f.is_decomposed_no_op()) {
-        if (particle == 1) return CCPairFunction(world, apply_projector(f.get_a(), t), f.get_b());
-        else return CCPairFunction(world, f.get_a(), apply_projector(f.get_b(), t));
+        if (particle == 1) return CCPairFunction(apply_projector(f.get_a(), t), f.get_b());
+        else return CCPairFunction(f.get_a(), apply_projector(f.get_b(), t));
     } else if (f.is_op_decomposed()) {
         if (particle == 1) {
             const vector_real_function_3d a = copy(world, t.get_vecfunction());
 //            const vector_real_function_3d b = mul(world, f.get_b()[0], f.op->operator()(mbra, f.get_a()[0]));
             const vector_real_function_3d b = mul(world, f.get_b()[0], f.decomposed().get_operator_ptr()->operator()(mbra, f.get_a()[0]));
-            return CCPairFunction(world, a, b);
+            return CCPairFunction(a, b);
         } else {
             const vector_real_function_3d a = mul(world, f.get_a()[0], f.decomposed().get_operator_ptr()->operator()(mbra, f.get_b()[0]));
             const vector_real_function_3d b = copy(world, t.get_vecfunction());
-            return CCPairFunction(world, a, b);
+            return CCPairFunction(a, b);
         }
     } else MADNESS_EXCEPTION("Should not end up here", 1)
 
     ;
-    return CCPairFunction(world, vector_real_function_3d(), vector_real_function_3d());
+    return CCPairFunction(vector_real_function_3d(), vector_real_function_3d());
 }
 
 madness::real_function_6d
@@ -3101,7 +3101,7 @@ void CCPotentials::test_pair_consistency(const CCPairFunction& u, const size_t i
         v1.push_back(u);
         std::vector<CCPairFunction> v2;
         v2.push_back(u);
-        CCPairFunction ftt(world, &f12, mo_ket_(i), mo_ket_(j));
+        CCPairFunction ftt(&f12, mo_ket_(i), mo_ket_(j));
         CCPairFunction O1xftt = apply_Ot(ftt, x, 1);
         CCPairFunction OxQftt = apply_Qt(O1xftt, mo_ket_, 2);
         CCPairFunction OxQ = OxQftt.invert_sign();
@@ -3126,7 +3126,7 @@ void CCPotentials::test_pair_consistency(const CCPairFunction& u, const size_t i
         v1.push_back(u);
         std::vector<CCPairFunction> v2;
         v2.push_back(u);
-        CCPairFunction ftt(world, &f12, mo_ket_(i), mo_ket_(j));
+        CCPairFunction ftt(&f12, mo_ket_(i), mo_ket_(j));
         CCPairFunction O1xftt = apply_Ot(ftt, x, 1);
         CCPairFunction OxQftt = apply_Qt(O1xftt, mo_ket_, 2);
         v2.push_back(OxQftt);
@@ -3232,7 +3232,7 @@ void CCPotentials::test_pairs() {
                 CCPair rr_3D = (make_pair_gs(u, mo_ket_, i, j));
                 real_function_6d rr_tmp = make_f_xy(t(i), t(j));
                 real_function_6d rr_6D0 = apply_Q12t(rr_tmp, mo_ket_);
-                CCPairFunction rr_6D1(world, rr_6D0);
+                CCPairFunction rr_6D1(rr_6D0);
                 std::vector<CCPairFunction> rr_6D2(1, rr_6D1);
                 CCPair rr_6D(i, j, GROUND_STATE, CT_CC2, rr_6D2);
                 regrestest = test_compare_pairs(rr_3D, rr_6D);
@@ -3277,7 +3277,7 @@ void CCPotentials::test_pairs() {
                         MADNESS_EXCEPTION("No Test for QtAnsatz right now", 1);
                     }
                 }
-                CCPairFunction rr_6D1(world, rr_6D0);
+                CCPairFunction rr_6D1(rr_6D0);
                 std::vector<CCPairFunction> rr_6D2(1, rr_6D1);
                 CCPair rr_6D(i, j, GROUND_STATE, CT_MP2, rr_6D2);
                 regrestest = test_compare_pairs(rr_3D, rr_6D);
@@ -3487,7 +3487,7 @@ void CCPotentials::test() {
         const double lo = parameters.thresh_6D();
         const double hi = parameters.thresh_3D();
         {
-            CCPairFunction fab(world, &f12, a, b);
+            CCPairFunction fab(&f12, a, b);
             const double test1 = overlap(fab, fab);
             const double prefactor = 1.0 / (4 * y * y);
             const double test2 = prefactor * (aR.inner(a) * bR.inner(b) - 2.0 * bb.inner(af2a) + bb.inner(affa));
@@ -3501,7 +3501,7 @@ void CCPotentials::test() {
                           << ", test=" << test2 << ", diff=" << diff << "\n";
         }
         {
-            CCPairFunction ab(world, mo_ket_.get_vecfunction(), mo_ket_.get_vecfunction());
+            CCPairFunction ab(mo_ket_.get_vecfunction(), mo_ket_.get_vecfunction());
             const double test1 = overlap(ab, ab);
             const double test2 = double(mo_ket_.size()); // mos are normed
             const double diff = test1 - test2;
@@ -3512,7 +3512,7 @@ void CCPotentials::test() {
             if (fabs(diff) > hi) passed_hi = false;
         }
         {
-            CCPairFunction ab(world, ab_6d);
+            CCPairFunction ab(ab_6d);
             const double test1 = overlap(ab, ab);
             const double test2 = double(mo_ket_.size()); // mos are normed
             const double diff = test1 - test2;
@@ -3523,8 +3523,8 @@ void CCPotentials::test() {
             if (fabs(diff) > hi) passed_hi = false;
         }
         {
-            CCPairFunction ab1(world, mo_ket_.get_vecfunction(), mo_ket_.get_vecfunction());
-            CCPairFunction ab2(world, ab_6d);
+            CCPairFunction ab1(mo_ket_.get_vecfunction(), mo_ket_.get_vecfunction());
+            CCPairFunction ab2(ab_6d);
             const double test1 = overlap(ab1, ab2);
             const double test2 = double(mo_ket_.size()); // mos are normed
             const double diff = test1 - test2;
@@ -3536,8 +3536,8 @@ void CCPotentials::test() {
         }
         {
             // the next tests evaulate <ab|f|ab> in different ways
-            CCPairFunction fab(world, fab_6d);
-            CCPairFunction ab2(world, mo_ket_.get_vecfunction(), mo_ket_.get_vecfunction());
+            CCPairFunction fab(fab_6d);
+            CCPairFunction ab2(mo_ket_.get_vecfunction(), mo_ket_.get_vecfunction());
             const double test1 = overlap(fab, ab2);
             const double test2 = bb.inner(afa);
             const double diff = test1 - test2;
@@ -3548,8 +3548,8 @@ void CCPotentials::test() {
             if (fabs(diff) > hi) passed_hi = false;
         }
         {
-            CCPairFunction fab(world, fab_6d);
-            CCPairFunction ab2(world, ab_6d);
+            CCPairFunction fab(fab_6d);
+            CCPairFunction ab2(ab_6d);
             const double test1 = overlap(fab, ab2);
             const double test2 = bb.inner(afa);
             const double diff = test1 - test2;
@@ -3560,8 +3560,8 @@ void CCPotentials::test() {
             if (fabs(diff) > hi) passed_hi = false;
         }
         {
-            CCPairFunction fab(world, &f12, a, b);
-            CCPairFunction ab2(world, ab_6d);
+            CCPairFunction fab(&f12, a, b);
+            CCPairFunction ab2(ab_6d);
             const double test1 = overlap(fab, ab2);
             const double test2 = bb.inner(afa);
             const double diff = test1 - test2;
@@ -3572,8 +3572,8 @@ void CCPotentials::test() {
             if (fabs(diff) > hi) passed_hi = false;
         }
         {
-            CCPairFunction fab(world, &f12, a, b);
-            CCPairFunction ab2(world, mo_ket_.get_vecfunction(), mo_ket_.get_vecfunction());
+            CCPairFunction fab(&f12, a, b);
+            CCPairFunction ab2(mo_ket_.get_vecfunction(), mo_ket_.get_vecfunction());
             const double test1 = overlap(fab, ab2);
             const double test2 = bb.inner(afa);
             const double diff = test1 - test2;
