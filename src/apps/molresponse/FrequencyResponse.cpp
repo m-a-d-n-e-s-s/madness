@@ -77,7 +77,7 @@ void FrequencyResponse::iterate(World &world) {
     vector_real_function_3d rho_omega = make_density(world, Chi);
     converged = false;// Converged flag
 
-    auto maxrotn = 100 * conv_den;
+    auto max_rotation = 050 * conv_den;
 
     for (iter = 0; iter <= r_params.maxiter(); ++iter) {
 
@@ -113,7 +113,7 @@ void FrequencyResponse::iterate(World &world) {
             // Test convergence and set to true
             print("conv_den: ", conv_den);
             print("thresh: ", FunctionDefaults<3>::get_thresh());
-            print("max rotation: ", maxrotn);
+            print("max rotation: ", max_rotation);
             print("r_params.dconv(): ", r_params.dconv());
             print("conv_den: ", conv_den);
             print("d_conv: ", d_conv);
@@ -150,7 +150,7 @@ void FrequencyResponse::iterate(World &world) {
         }
 
         auto [new_chi, new_res] = update(world, Chi, xc, bsh_x_ops, bsh_y_ops, projector, x_shifts,
-                                         omega, kain_x_space, Xvector, Xresidual, iter, maxrotn);
+                                         omega, kain_x_space, Xvector, Xresidual, iter, max_rotation);
 
 
         if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
@@ -176,11 +176,11 @@ void FrequencyResponse::iterate(World &world) {
 
         density_residuals = norm2s_T(world, (rho_omega - rho_omega_old));
         /*
-        maxrotn = (bsh_residualsX + bsh_residualsY) ;
+        max_rotation = (bsh_residualsX + bsh_residualsY) ;
         for (size_t i = 0; i < Chi.num_states(); i++) {
-            if (maxrotn[i] < r_params.maxrotn()) {
-                maxrotn[i] = r_params.maxrotn();
-                print("less than maxrotn....set to maxrotn");
+            if (max_rotation[i] < r_params.max_rotation()) {
+                max_rotation[i] = r_params.max_rotation();
+                print("less than max_rotation....set to max_rotation");
             }
         }
          */
@@ -192,7 +192,7 @@ void FrequencyResponse::iterate(World &world) {
             print("BSH  residuals");
             print("xres", bsh_residualsX);
             print("yres", bsh_residualsY);
-            print("maxrotn", maxrotn);
+            print("max_rotation", max_rotation);
         }
 
         Tensor<double> polar = -2 * inner(Chi, PQ);

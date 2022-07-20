@@ -1227,6 +1227,7 @@ X_space ResponseBase::kain_x_space_update(World &world, const X_space &temp, con
         Xresidual[b].Y[0] = copy(world, res.Y[b]);
     }
 
+    if (world.rank() == 0) { print("----------------Start Kain Update -----------------"); }
     for (size_t b = 0; b < m; b++) {
         // passing xvectors
         X_vector kain_X = kain_x_space[b].update(Xvector[b], Xresidual[b],
@@ -1235,6 +1236,7 @@ X_space ResponseBase::kain_x_space_update(World &world, const X_space &temp, con
         kain_update.X[b] = copy(world, kain_X.X[0]);
         kain_update.Y[b] = copy(world, kain_X.Y[0]);
     }
+    if (world.rank() == 0) { print("----------------End Kain Update -----------------"); }
     if (world.rank() == 0 && r_params.print_level() >= 1) {
         molresponse::end_timer(world, "kain_x_update", "kain_x_update", iter_timing);
     }
