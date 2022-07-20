@@ -253,19 +253,11 @@ std::tuple<X_space, residuals> FrequencyResponse::update(
     // kain update with temp adjusts temp
     if (r_params.kain() && (iteration > 0)) {
         new_chi = kain_x_space_update(world, chi, new_res, kain_x_space, Xvector, Xresidual);
-        if (r_params.print_level() >= 1) {
-            compute_and_print_polarizability(world, new_chi, PQ, "<KAIN|PQ>");
-        }
     }
 
     if (iteration > 0) {
         x_space_step_restriction(world, chi, new_chi, compute_y, maxrotn);
-        if (r_params.print_level() >= 1) {
-            compute_and_print_polarizability(world, new_chi, PQ, "<STEP_RESTRICTED|PQ>");
-        }
     }
-
-
     // truncate x
     //new_chi.X.truncate_rf();
     // truncate y if compute y

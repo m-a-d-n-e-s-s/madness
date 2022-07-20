@@ -1244,19 +1244,32 @@ X_space ResponseBase::kain_x_space_update(World &world, const X_space &temp, con
 void ResponseBase::x_space_step_restriction(World &world, X_space &old_Chi, X_space &temp,
                                             bool restrict_y, const double &maxrotn) {
     size_t m = old_Chi.num_states();
+    size_t n = old_Chi.num_orbitals();
     if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
     print(maxrotn);
     auto diff = temp - old_Chi;
 
+    if (world.rank() == 0) { print("------Inside Step Restriction -----------------"); }
     for (size_t b = 0; b < m; b++) {
         if (true) {
 
             auto x_diff = diff.X[b];
             auto y_diff = diff.Y[b];
+
+            double sqdiff_x;
+            double sqdiff_y;
+
+            sqdiff_x = inner(diff.X[b], diff.X[b]);
+            sqdiff_y = inner(diff.Y[b], diff.Y[b]);
+
+            /*
             Tensor<double> anorm_x = norm2s_T(world, x_diff);
             Tensor<double> anorm_y = norm2s_T(world, y_diff);
+             */
 
-            auto norm_xb = std::sqrt(anorm_x.sum() + anorm_y.sum());
+            auto norm_xb = std::sqrt(sqdiff_x + sqdiff_y);
+
+            if (world.rank() == 0) { print("deltaX[b] ", norm_xb); }
 
             if (norm_xb > maxrotn) {
                 double s = maxrotn / norm_xb;
