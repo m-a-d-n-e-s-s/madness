@@ -1273,9 +1273,8 @@ void ResponseBase::x_space_step_restriction(World &world, X_space &old_Chi, X_sp
 
             if (norm_xb > maxrotn) {
                 double s = maxrotn / norm_xb;
-                size_t nres = 0;
                 if (world.rank() == 0) {
-                    if (nres == 1 and (r_params.print_level() > 1))
+                    if (r_params.print_level() > 1)
                         printf("  restricting step for response-state: ", b);
                 }
                 gaxpy(world, (1.0 - s), temp.X[b], s, old_Chi.X[b], false);
