@@ -1258,18 +1258,20 @@ void ResponseBase::x_space_step_restriction(World &world, X_space &old_Chi, X_sp
             auto x_diff = diff.X[b];
             auto y_diff = diff.Y[b];
 
-            double sqdiff_x;
-            double sqdiff_y;
 
-            sqdiff_x = inner(diff.X[b], diff.X[b]);
-            sqdiff_y = inner(diff.Y[b], diff.Y[b]);
+            //auto sq_diff_x = square(world, diff.X[b], true);
+            //auto sq_diff_y = square(world, diff.Y[b], true);
+
+            for (auto &dx: x_diff) { x_diff.push_back(dx); }
+
+            auto norm_xb = norm2(world, x_diff);
 
             /*
             Tensor<double> anorm_x = norm2s_T(world, x_diff);
             Tensor<double> anorm_y = norm2s_T(world, y_diff);
              */
 
-            auto norm_xb = std::sqrt(sqdiff_x + sqdiff_y);
+            //auto norm_xb = std::sqrt(sqdiff_x + sqdiff_y);
 
             if (world.rank() == 0) { print("deltaX[b] ", norm_xb); }
 
