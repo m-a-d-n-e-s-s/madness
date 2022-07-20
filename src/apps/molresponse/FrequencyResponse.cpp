@@ -77,7 +77,7 @@ void FrequencyResponse::iterate(World &world) {
     vector_real_function_3d rho_omega = make_density(world, Chi);
     converged = false;// Converged flag
 
-    auto max_rotation = 050 * conv_den;
+    auto max_rotation = 10 * conv_den;
 
     for (iter = 0; iter <= r_params.maxiter(); ++iter) {
 
