@@ -1249,7 +1249,7 @@ void ResponseBase::x_space_step_restriction(World &world, X_space &old_Chi, X_sp
     print(maxrotn);
     auto diff = temp - old_Chi;
 
-    if (world.rank() == 0) { print("------Inside Step Restriction -----------------"); }
+    if (world.rank() == 0) { print("----------------Start Step Restriction -----------------"); }
     for (size_t b = 0; b < m; b++) {
         if (true) {
 
@@ -1275,14 +1275,15 @@ void ResponseBase::x_space_step_restriction(World &world, X_space &old_Chi, X_sp
                 double s = maxrotn / norm_xb;
                 if (world.rank() == 0) {
                     if (r_params.print_level() > 1)
-                        printf("  restricting step for response-state: ", b);
+                        print("  restricting step for response-state: ", b, " step size", s);
                 }
-                gaxpy(world, (1.0 - s), temp.X[b], s, old_Chi.X[b], false);
-                gaxpy(world, (1.0 - s), temp.Y[b], s, old_Chi.Y[b], false);
+                gaxpy(world, (1.0 - s), temp.X[b], s, old_Chi.X[b], true);
+                gaxpy(world, (1.0 - s), temp.Y[b], s, old_Chi.Y[b], true);
             }
         } else {
             do_step_restriction(world, old_Chi.X[b], temp.X[b], "x_response", maxrotn);
         }
+        if (world.rank() == 0) { print("----------------End Step Restriction -----------------"); }
     }
 
     if (world.rank() == 0 && r_params.print_level() >= 1) {
