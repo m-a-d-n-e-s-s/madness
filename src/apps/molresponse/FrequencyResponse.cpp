@@ -77,7 +77,7 @@ void FrequencyResponse::iterate(World &world) {
     vector_real_function_3d rho_omega = make_density(world, Chi);
     converged = false;// Converged flag
 
-    auto max_rotation = 10 * conv_den;
+    auto max_rotation = 25;// 1000 * conv_den;
 
     for (iter = 0; iter <= r_params.maxiter(); ++iter) {
 
@@ -339,12 +339,12 @@ X_space FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
     theta_X.X += Chi.X * x_shifts;
     theta_X.X += PQ.X;
     theta_X.X = theta_X.X * -2;
-    theta_X.X.truncate_rf();
+    //theta_X.X.truncate_rf();
 
     if (compute_y) {
         theta_X.Y += PQ.Y;
         theta_X.Y = theta_X.Y * -2;
-        theta_X.Y.truncate_rf();
+    //    theta_X.Y.truncate_rf();
     }
 
     // apply bsh
@@ -360,7 +360,7 @@ X_space FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
     } else {
         bsh_X.Y = bsh_X.X.copy();
     }
-    //bsh_X.truncate();
+    bsh_X.truncate();
 
     if (world.rank() == 0 && r_params.print_level() >= 1) {
         molresponse::end_timer(world, "bsh_update", "bsh_update", iter_timing);

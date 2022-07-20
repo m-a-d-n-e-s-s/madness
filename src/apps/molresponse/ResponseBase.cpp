@@ -1070,25 +1070,13 @@ residuals ResponseBase::compute_residual(World &world, X_space &old_Chi, X_space
     //	compute residual
     X_space res(world, m, n);
 
-    // Truncate here
-    //old_Chi.truncate();
-    //temp.truncate();
 
     //res.X = old_Chi.X - temp.X;
-    res = old_Chi - temp;
-    //res.truncate();
-    //
-    /*
-    if (calc_type.compare("full") == 0) {
-        res.Y = old_Chi.Y - temp.Y;
-    } else if (calc_type.compare("static") == 0) {
-        res.Y = res.X.copy();
-    } else {
-    }
-     */
+    res = temp - old_Chi;
     //*************************
     Tensor<double> errX(m);
     Tensor<double> errY(m);
+
     // rmsX and maxvalX for each m response states
     std::vector<double> rmsX(m), maxvalX(m);
     std::vector<std::vector<double>> rnormsX;
@@ -1097,17 +1085,21 @@ residuals ResponseBase::compute_residual(World &world, X_space &old_Chi, X_space
     for (size_t i = 0; i < m; i++) {
         // the 2norms of each of the orbitals in response vector
         rnormsX.push_back(norm2s(world, res.X[i]));
-        if (world.rank() == 0 and (r_params.print_level() > 1))
+
+        if (world.rank() == 0 and (r_params.print_level() > 1)) {
             print("residuals X: state ", i, " : ", rnormsX[i]);
-        // maxabsval = std::max<double>(maxabsval, std::abs(v[i]));
-        // maxvalX= largest abs(v[i])
+        }
+
         vector_stats(rnormsX[i], rmsX[i], maxvalX[i]);
-        // errX[i] is the largest residual orbital value
         errX[i] = maxvalX[i];
-        if (world.rank() == 0 and (r_params.print_level() > 1))
+
+        if (world.rank() == 0 and (r_params.print_level() > 1)) {
             print("BSH residual: rms", rmsX[i], "   max", maxvalX[i]);
+        }
     }
-    if (calc_type.compare("full") == 0) {
+
+
+    if (calc_type == "full") {
         std::vector<double> rmsY(m), maxvalY(m);
         for (size_t i = 0; i < m; i++) {
             rnormsY.push_back(norm2s(world, res.Y[i]));
@@ -1118,7 +1110,7 @@ residuals ResponseBase::compute_residual(World &world, X_space &old_Chi, X_space
             if (world.rank() == 0 and (r_params.print_level() > 1))
                 print("BSH residual: rms", rmsY[i], "   max", maxvalY[i]);
         }
-    } else if (calc_type.compare("static") == 0) {
+    } else if (calc_type == "static") {
         // copy by value?
         errY = copy(errX);
     } else {// tda
