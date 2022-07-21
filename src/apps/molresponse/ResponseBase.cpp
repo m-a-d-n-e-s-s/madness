@@ -1256,7 +1256,10 @@ void ResponseBase::x_space_step_restriction(World &world, X_space &old_Chi, X_sp
 
             for (auto &dy: y_diff) { x_diff.push_back(dy); }
 
-            auto norm_xb = norm2(world, x_diff);
+            auto norm_xb = inner(x_diff, x_diff);
+
+            //norm_xb = sqrt(norm_xb);
+
 
             /*
             Tensor<double> anorm_x = norm2s_T(world, x_diff);

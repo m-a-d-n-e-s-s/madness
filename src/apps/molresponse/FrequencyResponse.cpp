@@ -77,7 +77,6 @@ void FrequencyResponse::iterate(World &world) {
     vector_real_function_3d rho_omega = make_density(world, Chi);
     converged = false;// Converged flag
 
-    auto max_rotation = 1000;// 1000 * conv_den;
 
     for (iter = 0; iter <= r_params.maxiter(); ++iter) {
 
@@ -91,9 +90,9 @@ void FrequencyResponse::iterate(World &world) {
             if (world.rank() == 0) print("-------------------------------------------");
         }
 
+        auto chi_x_norms = Chi.X.norm2();
+        auto chi_y_norms = Chi.Y.norm2();
         if (r_params.print_level() >= 1) {
-            auto chi_x_norms = Chi.X.norm2();
-            auto chi_y_norms = Chi.Y.norm2();
             if (world.rank() == 0) {
                 print("Chi.x norms at start of iteration: ", iter);
                 print(chi_x_norms);
@@ -101,6 +100,8 @@ void FrequencyResponse::iterate(World &world) {
                 print(chi_y_norms);
             }
         }
+
+        auto max_rotation = 100 * conv_den;
 
         // rho_omega = make_density(world, Chi, compute_y);
 
@@ -149,8 +150,9 @@ void FrequencyResponse::iterate(World &world) {
             }
         }
 
-        auto [new_chi, new_res] = update(world, Chi, xc, bsh_x_ops, bsh_y_ops, projector, x_shifts,
-                                         omega, kain_x_space, Xvector, Xresidual, iter, max_rotation);
+        auto [new_chi, new_res] =
+                update(world, Chi, xc, bsh_x_ops, bsh_y_ops, projector, x_shifts, omega,
+                       kain_x_space, Xvector, Xresidual, iter, max_rotation);
 
 
         if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
@@ -255,9 +257,7 @@ std::tuple<X_space, residuals> FrequencyResponse::update(
         new_chi = kain_x_space_update(world, chi, new_res, kain_x_space, Xvector, Xresidual);
     }
 
-    if (iteration > 0) {
-        x_space_step_restriction(world, chi, new_chi, compute_y, maxrotn);
-    }
+    if (iteration > 0) { x_space_step_restriction(world, chi, new_chi, compute_y, maxrotn); }
     // truncate x
     //new_chi.X.truncate_rf();
     // truncate y if compute y
@@ -344,7 +344,7 @@ X_space FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
     if (compute_y) {
         theta_X.Y += PQ.Y;
         theta_X.Y = theta_X.Y * -2;
-    //    theta_X.Y.truncate_rf();
+        //    theta_X.Y.truncate_rf();
     }
 
     // apply bsh
