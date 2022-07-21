@@ -79,6 +79,42 @@ CCPairFunction::dirac_convolution(const CCFunction& x, const CCConvolutionOperat
 //     MADNESS_EXCEPTION("swap_particles in CCPairFunction: we should not end up here", 1);
 // }
 
+
+
+real_function_3d inner(const CCPairFunction& c, const real_function_3d& f,
+                       const std::tuple<int,int,int> v1, const std::tuple<int,int,int> v2) {
+    auto v11=std::array<int,3>({std::get<0>(v1),std::get<1>(v1),std::get<2>(v1)});
+    auto v22=std::array<int,3>({std::get<0>(v2),std::get<1>(v2),std::get<2>(v2)});
+
+    return c.partial_inner(f,v11,v22);
+}
+
+
+real_function_3d CCPairFunction::partial_inner(const real_function_3d& f,
+                                               const std::array<int, 3>& v1,
+                                               const std::array<int, 3>& v2) const {
+    auto a012=std::array<int,3>{0,1,2};
+    auto a345=std::array<int,3>{3,4,5};
+    MADNESS_CHECK(v2==a012 ); // only 3 dimension in f
+    MADNESS_CHECK(v1==a012 or v1== a345); // 6 dimension in f
+    int particle=-1;
+    if (v1== a012) particle=0;
+    if (v1== a345) particle=1;
+
+    real_function_3d result;
+
+    if (is_pure()) {
+        result = pure().get_function().project_out(f, particle);
+    } else if (is_decomposed_no_op()) {
+        result = project_out_decomposed(f, particle+1);
+    } else if (is_op_decomposed()) {
+        result = project_out_op_decomposed(f, particle+1);
+    } else {
+        MADNESS_EXCEPTION("confused state in CCPairFunction::partial_inner",1);
+    }
+    return result;
+}
+
 real_function_3d CCPairFunction::project_out_decomposed(const real_function_3d& f, const size_t particle) const {
     World& world=f.world();
     real_function_3d result = real_factory_3d(world);
@@ -92,9 +128,12 @@ real_function_3d CCPairFunction::project_out_op_decomposed(const CCFunction& f, 
     World& world=f.get().world();
     const CCConvolutionOperator& op=*decomposed().get_operator_ptr();
     if (particle == 1) {
-        return op(f, get_a()[0]) * get_b()[0];
+//        return op(f, get_a()[0]) * get_b()[0];
+        // result(2) = < f(1) | op(1,2) | a_i(1) b_i(2) >
+        return sum(world,mul(world,op(f.f()* get_a()),get_b()));
     } else if (particle == 2) {
-        return op(f, get_b()[0]) * get_a()[0];
+//        return op(f, get_b()[0]) * get_a()[0];
+        return sum(world,mul(world,op(f.f()* get_b()),get_a()));
     } else {
         MADNESS_EXCEPTION("project_out_op_decomposed: particle must be 1 or 2", 1);
         return real_factory_3d(world);

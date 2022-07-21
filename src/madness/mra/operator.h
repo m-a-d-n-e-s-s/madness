@@ -1105,6 +1105,19 @@ namespace madness {
         Function<TENSOR_RESULT_TYPE(T,Q),LDIM+LDIM>
         operator()(const Function<T,LDIM>& f1, const Function<Q,LDIM>& f2) const {
         	MADNESS_ASSERT(not is_slaterf12);
+            return madness::apply(*this, std::vector<Function<Q,LDIM>>({f1}),
+                                  std::vector<Function<Q,LDIM>>({f2}));
+        }
+
+        /// apply this operator on a sum of separable functions f(1,2) = \sum_i f_i(1) f_i(2)
+
+        /// @param[in]  f1   a function of dim LDIM
+        /// @param[in]  f2   a function of dim LDIM
+        /// @return     the result function of dim NDIM=2*LDIM: g(1,2) = G(1,1',2,2') f(1',2')
+        template <typename T, size_t LDIM>
+        Function<TENSOR_RESULT_TYPE(T,Q),LDIM+LDIM>
+        operator()(const std::vector<Function<T,LDIM>>& f1, const std::vector<Function<Q,LDIM>>& f2) const {
+            MADNESS_ASSERT(not is_slaterf12);
             return madness::apply(*this, f1, f2);
         }
 

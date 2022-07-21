@@ -473,7 +473,15 @@ public:
         return CCPairFunction();
     };
 
+    real_function_3d partial_inner(const real_function_3d& f,
+                                   const std::array<int, 3>& v1,
+                                   const std::array<int, 3>& v2) const;
+
 };
+
+real_function_3d inner(const CCPairFunction& c, const real_function_3d& f,
+                       const std::tuple<int,int,int> v1, const std::tuple<int,int,int> v2={0,1,2});
+
 
 } // namespace madness
 
