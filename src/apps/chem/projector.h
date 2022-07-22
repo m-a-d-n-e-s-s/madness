@@ -13,6 +13,11 @@
 
 namespace madness {
 
+    class ProjectorBase {
+    public:
+        virtual ~ProjectorBase() {}
+    };
+
     /// simple projector class
 
     /// use this class to project a function or a set of functions on
@@ -20,7 +25,7 @@ namespace madness {
     /// functions for the bra and the ket space, e.g. in case of regularized
     /// orbitals: |f>  <->  <f|R^2
     template<typename T, std::size_t NDIM>
-    class Projector {
+    class Projector : public ProjectorBase {
 
         typedef Function<T,NDIM> funcT;
         typedef std::vector<funcT> vecfuncT;
@@ -110,6 +115,10 @@ namespace madness {
           return result;
         }
 
+        template<typename argT>
+        argT operator()(const argT& argument) const {
+            return madness::apply(*this,argument);
+        }
 
         vecfuncT get_bra_vector() const {return mo_ket_;}
 
@@ -125,7 +134,7 @@ namespace madness {
     ///   |result> = |f> - \sum_p |p><p|f>
     /// \f]
     template<typename T, std::size_t NDIM>
-    class QProjector {
+    class QProjector : public ProjectorBase {
         typedef std::vector<Function<T,NDIM> > vecfuncT;
 
     public:
@@ -154,6 +163,11 @@ namespace madness {
             return result;
         }
 
+        template<typename argT>
+        argT operator()(const argT& argument) const {
+            return madness::apply(*this,argument);
+        }
+
         vecfuncT get_bra_vector() const {return O.get_bra_vector();}
 
         vecfuncT get_ket_vector() const {return O.get_ket_vector();}
@@ -171,7 +185,7 @@ namespace madness {
     /// As a special case there might be a similarity transformed occupied
     /// space, resulting in different bras and kets
     template<typename T, std::size_t NDIM>
-    class StrongOrthogonalityProjector {
+    class StrongOrthogonalityProjector : public ProjectorBase {
 
     	typedef std::vector<Function<T,NDIM> > vecfuncT;
 
@@ -214,6 +228,11 @@ namespace madness {
 
     	/// return the orbital space for the bra of particle 2
     	vecfuncT bra2() const {return bra2_;}
+
+        template<typename argT>
+        argT operator()(const argT& argument) const {
+            return madness::apply(*this,argument);
+        }
 
         /// apply the strong orthogonality operator Q12 on a function f
 

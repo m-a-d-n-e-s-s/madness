@@ -17,6 +17,7 @@
 namespace madness {
 
 class CCConvolutionOperator;
+class ProjectorBase;
 
 /// FuncTypes used by the CC_function_6d structure
 /// Types of Functions used by CC_function class
@@ -478,6 +479,14 @@ public:
                                    const std::array<int, 3>& v2) const;
 
 };
+
+/// apply the projector on the argument function, potentially yielding a vector of CCPairfunctions as result
+
+/// result can be
+///  Q12 f12 |ij> = (1 - O1) (1 - O2) f12 i(1) j(2)
+///              = f12 ij - \sum_k k(1) f_ik(2) j(2) - \sum_k k(2) f_ij(1)j(1)
+/// which is a pure function and a decomposed function
+std::vector<CCPairFunction> apply(const ProjectorBase& P, const std::vector<CCPairFunction>& argument);
 
 real_function_3d inner(const CCPairFunction& c, const real_function_3d& f,
                        const std::tuple<int,int,int> v1, const std::tuple<int,int,int> v2={0,1,2});

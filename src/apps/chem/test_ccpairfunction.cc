@@ -8,6 +8,7 @@
 #include<chem/correlationfactor.h>
 #include<chem/electronic_correlation_factor.h>
 #include<chem/CCStructures.h>
+#include<chem/projector.h>
 
 #include<madness/world/test_utilities.h>
 
@@ -522,6 +523,25 @@ int test_swap_particles(World& world, std::shared_ptr<NuclearCorrelationFactor> 
     return success;
 }
 
+int test_projector(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
+                           const CCParameters& parameter) {
+    int success=0;
+    auto g1 = [](const coord_3d& r) { return exp(-1.0 * inner(r, r)); };
+    auto g2 = [](const coord_3d& r) { return exp(-2.0 * inner(r, r)); };
+    auto g3 = [](const coord_3d& r) { return exp(-3.0 * inner(r, r)); };
+    real_function_3d f1 = real_factory_3d(world).f(g1);
+    real_function_3d f2 = real_factory_3d(world).f(g2);
+    real_function_3d f3 = real_factory_3d(world).f(g3);
+    std::vector<real_function_3d> a = {f1, f2};
+    std::vector<real_function_3d> b = {f3, f1};
+
+    CCPairFunction p;
+    Projector<double,3> P(a,b);
+    auto Pp=P(std::vector<CCPairFunction>(1,p));
+
+    return success;
+}
+
 int test_dirac_convolution(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
                            const CCParameters& parameter) {
     int success=0;
@@ -568,6 +588,7 @@ int main(int argc, char **argv) {
         isuccess+=test_swap_particles(world, ncf, mol, ccparam);
         isuccess+=test_scalar_multiplication(world, ncf, mol, ccparam);
         isuccess+=test_partial_inner(world, ncf, mol, ccparam);
+        isuccess+=test_projector(world, ncf, mol, ccparam);
     }
 #else
     print("could not run test_ccpairfunction: U need to compile with ENABLE_GENTENSOR=1");

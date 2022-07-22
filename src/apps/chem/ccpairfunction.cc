@@ -3,7 +3,8 @@
 //
 
 #include<chem/ccpairfunction.h>
-#include <chem/CCStructures.h>
+#include<chem/CCStructures.h>
+#include<chem/projector.h>
 
 using namespace madness;
 
@@ -284,9 +285,29 @@ double CCPairFunction::inner_internal(const CCPairFunction& other, const real_fu
 
     ;
     return result;
-
-
 }
+
+std::vector<CCPairFunction> apply(const ProjectorBase& P, const std::vector<CCPairFunction>& argument) {
+    std::vector<CCPairFunction> result;
+    for (const auto pf : argument) {
+        if (pf.is_pure()) {
+            if (auto SO=dynamic_cast<const StrongOrthogonalityProjector<double,3>*>(&P)) {
+                auto tmp=(*SO)(pf.get_function());
+                auto tmp2=CCPairFunction(tmp);
+                result.push_back(tmp2);
+
+            }
+        } else if (pf.is_decomposed_no_op()) {
+
+        } else if (pf.is_op_decomposed()) {
+
+        } else {
+            MADNESS_EXCEPTION("confused type in CCPairFunction",1);
+        }
+
+    }
+    return result;
+};
 
 
 } // namespace madness
