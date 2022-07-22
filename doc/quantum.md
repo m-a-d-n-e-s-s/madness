@@ -12,6 +12,7 @@ Quantum chemical capabilities are:
  * ADC(2), CIS(D), `cc2`
  * CC2 ground and excited states, `cc2`
  * PNO-MP2, `pno`
+ * OEP/RKS, `oep`
 
 ## Quickstart
 A quick help and an overview over all available codes can be
@@ -24,7 +25,7 @@ A full list of all available calculation parameters can be obtained by writing
 
 `qccode --help`
  
-where qccode stands for any of the qc codes (e.g. moldft, cc2, nemo, ..)
+where `qccode` stands for any of the qc codes (e.g. moldft, cc2, nemo, ..)
 
 
 ## Calculation parameters
@@ -60,6 +61,12 @@ The input file is case-insensitive.
 The key/value pairs can be separated by blanks or by the equal sign.
 Pairs and vectors must be encased in parantheses or brackets, their entries must be separated by commas.
 
+All programs will output the complete list of input options. You can always run 
+> `qccode --help` 
+
+which will output the input parameters and the copy/paste the options verbatim.
+Note the once an option appears in the input file it will be considered user-defined and will override all default or derived values.
+
 ## Command line options
 The data groups in the input file can also be set or augmented through the command line, e.g. the following
 line will pass the same calculation parameters as the input file above.
@@ -69,6 +76,9 @@ line will pass the same calculation parameters as the input file above.
 Different key/value pairs are separated by a semicolon to indicate a newline.
 If a given parameter is specified both in the input file and the command line, the command line parameters have 
 priority over input file parameters.
+
+The name of the input file can be changed by
+> `nemo --input=customfile`
 
 
 ## Numerical parameters
@@ -97,10 +107,27 @@ By default atomic units are used, but angstrom can be switched on by adding the 
 > end
 
 The following example will read an external xyz file, using angstrom by default
+Note that key is `source`, and value is the pair `xyz`,`h2o.xyz` to indicate that an
+xyz file is to be used
 >geometry\
-> source h2o.xyz\
+> source [xyz,h2o.xyz]\
 > end
 
 or you can use the command line options (short and long version)
 > `nemo --geometry="source=h2o.xyz"`\
 > `nemo --geometry="source=[xyz,h2o.xyz]"`
+
+A small number of geometries are stored in a library, accessible through
+> `nemo --geometry="source=library, h2o"`
+
+## Geometry optimization
+For the following codes/methods there are gradients implemented:
+> `nemo`, `moldft`, `znemo`
+
+The optimization is started with the `gopt` flag in the `dft` block, geometry optimization
+parameters are set in the `geoopt` block.
+> `nemo --dft="k=8; econv=1.e-5; gopt=1"  --geoopt="maxiter=10" --geometry="source=library, h2o"`
+
+## Convenience short options (Wish list)
+`--optimize` optimize the geometry\
+`--geometry=file.xyz` find the geometry in the xyz file (note Angstrom units!)
