@@ -101,7 +101,7 @@ void FrequencyResponse::iterate(World &world) {
             }
         }
 
-        auto max_rotation = 100 * conv_den;
+        auto max_rotation = 25 * conv_den;
 
         // rho_omega = make_density(world, Chi, compute_y);
 
@@ -257,7 +257,7 @@ std::tuple<X_space, residuals> FrequencyResponse::update(
         new_chi = kain_x_space_update(world, chi, new_res, kain_x_space, Xvector, Xresidual);
     }
 
-    if (iteration > 0) { x_space_step_restriction(world, chi, new_chi, compute_y, maxrotn); }
+    if (iteration > 3) { x_space_step_restriction(world, chi, new_chi, compute_y, maxrotn); }
     // truncate x
     //new_chi.X.truncate_rf();
     // truncate y if compute y
