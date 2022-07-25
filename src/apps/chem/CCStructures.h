@@ -793,6 +793,9 @@ struct CCConvolutionOperator {
     OpType type() const { return operator_type; }
 
     const Parameters parameters;
+
+    std::shared_ptr<real_convolution_3d> get_op() const {return op;};
+
 private:
     /// the world
     World& world;

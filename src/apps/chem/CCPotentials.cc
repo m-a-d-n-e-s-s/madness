@@ -318,6 +318,8 @@ CCPotentials::compute_pair_correlation_energy(const CCPair& u, const CC_vecfunct
     const CCFunction& mobi = mo_bra_(u.i);
     const CCFunction& mobj = mo_bra_(u.j);
     const bool symmetric = (u.i == u.j);
+
+
     for (size_t mm = 0; mm < u.functions.size(); mm++) {
         double tmp = 0.0;
         const double part1 = make_xy_op_u(mobi, mobj, g12, u.functions[mm]);

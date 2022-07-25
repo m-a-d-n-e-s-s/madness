@@ -287,25 +287,102 @@ double CCPairFunction::inner_internal(const CCPairFunction& other, const real_fu
     return result;
 }
 
-std::vector<CCPairFunction> apply(const ProjectorBase& P, const std::vector<CCPairFunction>& argument) {
+CCPairFunction apply(const ProjectorBase& projector, const CCPairFunction& argument) {
+    auto result=madness::apply(projector,std::vector<CCPairFunction> (1,argument));
+    MADNESS_CHECK(result.size()==1);
+    return result[0];
+}
+
+std::vector<CCPairFunction> apply(const ProjectorBase& projector, const std::vector<CCPairFunction>& argument) {
+    if (argument.size()==0) return argument;
+    World& world=argument.front().world();
+    if (auto P=dynamic_cast<const Projector<double,3>*>(&projector)) MADNESS_CHECK(P->get_particle()==0 or P->get_particle()==1);
+    if (auto Q=dynamic_cast<const Projector<double,3>*>(&projector)) MADNESS_CHECK(Q->get_particle()==0 or Q->get_particle()==1);
     std::vector<CCPairFunction> result;
-    for (const auto pf : argument) {
+    for (const auto& pf : argument) {
         if (pf.is_pure()) {
-            if (auto SO=dynamic_cast<const StrongOrthogonalityProjector<double,3>*>(&P)) {
+            if (auto SO=dynamic_cast<const StrongOrthogonalityProjector<double,3>*>(&projector)) {
                 auto tmp=(*SO)(pf.get_function());
                 auto tmp2=CCPairFunction(tmp);
                 result.push_back(tmp2);
+            } else if (auto P=dynamic_cast<const Projector<double,3>*>(&projector)) {
+                result.push_back(CCPairFunction((*P)(pf.get_function(),P->get_particle()+1)));
 
+            } else if (auto Q=dynamic_cast<const QProjector<double,3>*>(&projector)) {
+                result.push_back(CCPairFunction((*Q)(pf.get_function(),Q->get_particle()+1)));
+
+            } else {
+                MADNESS_EXCEPTION("CCPairFunction: unknown projector type",1);
             }
-        } else if (pf.is_decomposed_no_op()) {
+        } else if (pf.is_decomposed_no_op()) {  // pair function is sum_i | a_i b_i >
+            if (auto SO=dynamic_cast<const StrongOrthogonalityProjector<double,3>*>(&projector)) {
+                // Q12 | kl > = (1-O1)(1-O2) |kl> = |(1-O1)k (1-O2)l>
+                QProjector<double,3> Q1(world,SO->bra1(),SO->ket1());
+                QProjector<double,3> Q2(world,SO->bra2(),SO->ket2());
+                result.push_back(CCPairFunction(Q1(pf.get_a()),Q2(pf.get_b())));
 
+            } else if (auto P=dynamic_cast<const Projector<double,3>*>(&projector)) {
+                // P1 | kl > = P1 |kl> = |P1 k l>
+                if (P->get_particle()==0) result.push_back(CCPairFunction((*P)(pf.get_a()),pf.get_b()));
+                // P2 | kl > = P2 |kl> = |k P2 l>
+                if (P->get_particle()==1) result.push_back(CCPairFunction(pf.get_a(),(*P)(pf.get_b())));
+
+            } else if (auto Q=dynamic_cast<const QProjector<double,3>*>(&projector)) {
+                // Q1 | kl > = Q1 |kl> = |Q1 k l>
+                if (Q->get_particle()==0) result.push_back(CCPairFunction((*Q)(pf.get_a()),pf.get_b()));
+                // P2 | kl > = Q2 |kl> = |k Q2 l>
+                if (Q->get_particle()==1) result.push_back(CCPairFunction(pf.get_a(),(*Q)(pf.get_b())));
+            } else {
+                MADNESS_EXCEPTION("CCPairFunction: unknown projector type",1);
+            }
         } else if (pf.is_op_decomposed()) {
+            if (auto SO=dynamic_cast<const StrongOrthogonalityProjector<double,3>*>(&projector)) {
+                // Q12 = 1 - O1 (1 - 1/2 O2) - O2 (1 - 1/2 O1)
+                QProjector<double,3> Q1(world,SO->bra1(),SO->ket1());
+                Q1.set_particle(0);
+                QProjector<double,3> Q2(world,SO->bra2(),SO->ket2());
+                Q2.set_particle(1);
+                auto tmp=Q1(Q2(std::vector<CCPairFunction>({pf})));
+                for (auto& t: tmp) result.push_back(t);
+
+            } else if (auto P=dynamic_cast<const Projector<double,3>*>(&projector)) {
+                std::vector<real_function_3d> tmp= zero_functions_compressed<double,3>(world,P->get_ket_vector().size());
+
+                for (std::size_t i=0; i<pf.get_a().size(); ++i) {
+                    real_function_3d a=pf.get_a()[i];
+                    real_function_3d b=pf.get_b()[i];
+                    if (P->get_particle()==1) std::swap(a,b);
+
+                    std::vector<real_function_3d> kb=mul(world,b,P->get_bra_vector());
+                    real_convolution_3d& op=*(pf.get_operator().get_op());
+                    std::vector<real_function_3d> f_kb=apply(world,op,kb);
+                    std::vector<real_function_3d> a_f_kb=mul(world,a,f_kb);
+                    tmp+=a_f_kb;
+                }
+                truncate(world,tmp);
+                if (P->get_particle()==0) result.push_back(CCPairFunction(P->get_ket_vector(),tmp));
+                if (P->get_particle()==1) result.push_back(CCPairFunction(tmp,P->get_ket_vector()));
+
+            } else if (auto Q=dynamic_cast<const QProjector<double,3>*>(&projector)) {
+                // Q1 f12 |a_i b_i> = f12 |a_i b_i> - \sum_k |k(1) a_i(2)*f_(kb_i)(2) >
+                result.push_back(pf);
+                // reuse the projector code above
+                std::vector<CCPairFunction> tmp=madness::apply(Q->get_P_projector(),std::vector<CCPairFunction>(1,pf));
+                for (auto& t : tmp) {
+                    t*=-1.0;
+                    result.push_back(t);
+                }
+
+            } else {
+                MADNESS_EXCEPTION("CCPairFunction: unknown projector type",1);
+            }
 
         } else {
             MADNESS_EXCEPTION("confused type in CCPairFunction",1);
         }
 
     }
+//    print("working on ",argument[0].name(),"with ",(&projector)->type(),": result has",result.size(),"components");
     return result;
 };
 

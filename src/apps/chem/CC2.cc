@@ -38,6 +38,15 @@ CC2::solve() {
         else
             MADNESS_EXCEPTION("unknown calculation type",1);
     } else if (ctype == CT_MP2) {
+
+        CCPairFunction bra(&(CCOPS.g12),{CCOPS.mo_bra()(0)},{CCOPS.mo_ket()(0)});
+        CCPairFunction ket(&(CCOPS.f12),{CCOPS.mo_ket()(0)},{CCOPS.mo_ket()(0)});
+        StrongOrthogonalityProjector<double, 3> Q12(world);
+        Q12.set_spaces(CCOPS.mo_bra().get_vecfunction(),CCOPS.mo_ket().get_vecfunction(),
+                       CCOPS.mo_bra().get_vecfunction(),CCOPS.mo_ket().get_vecfunction());
+        const double part1a = inner(std::vector<CCPairFunction>({bra}),Q12(std::vector<CCPairFunction>({ket})));
+        print("energy with the new CCPairFunction",part1a);
+
         Pairs<CCPair> pairs;
         initialize_pairs(pairs, GROUND_STATE, CT_MP2, CC_vecfunction(PARTICLE), CC_vecfunction(RESPONSE), 0);
         //const double mp2_correlation_energy = solve_mp2(pairs);

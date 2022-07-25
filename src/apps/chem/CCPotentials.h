@@ -826,6 +826,7 @@ private:
     /// orbital energies
     std::vector<double> orbital_energies_;
     /// the coulomb operator with all intermediates
+public:
     CCConvolutionOperator g12;
     /// the f12 operator with all intermediates
     CCConvolutionOperator f12;

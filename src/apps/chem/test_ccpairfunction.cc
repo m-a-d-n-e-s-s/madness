@@ -15,7 +15,63 @@
 using namespace madness;
 
 
+struct data {
+    real_function_3d f1,f2,f3,f4,f5;
+    real_function_6d f;
 
+    std::shared_ptr<CCConvolutionOperator> f12;
+    data() {}
+
+    data(World& world, CCParameters& parameters) {
+        f12.reset(new CCConvolutionOperator(world,OT_F12,parameters));
+        if (not f1.is_initialized()) initialize(world);
+    }
+
+    void initialize(World& world) {
+        auto g1 = [](const coord_3d& r) { return exp(-1.0 * inner(r, r)); };
+        auto g2 = [](const coord_3d& r) { return exp(-2.0 * inner(r, r)); };
+        auto g3 = [](const coord_3d& r) { return exp(-3.0 * inner(r, r)); };
+        auto g4 = [](const coord_3d& r) { return exp(-4.0 * inner(r, r)); };
+        auto g5 = [](const coord_3d& r) { return exp(-5.0 * inner(r, r)); };
+        f1=real_factory_3d(world).f(g1);
+        f2=real_factory_3d(world).f(g2);
+        f3=real_factory_3d(world).f(g3);
+        f4=real_factory_3d(world).f(g4);
+        f5=real_factory_3d(world).f(g5);
+
+        auto g = [](const coord_6d& r) {
+            double r1=r[0]*r[0] + r[1]*r[1] + r[2]*r[2];
+            double r2=r[3]*r[3] + r[4]*r[4] + r[5]*r[5];
+            return exp(-1.0*r1 - 2.0*r2);
+        };
+        f = real_factory_6d(world).f(g);
+
+    }
+    void clear() {
+        f12.reset();
+        f1.clear();
+        f2.clear();
+        f3.clear();
+        f4.clear();
+        f5.clear();
+        f.clear();
+    }
+
+    auto get_functions() const {
+        return std::make_tuple(f1,f2,f3,f4,f5,f);
+    }
+
+    auto get_ccpairfunctions() const {
+        CCPairFunction p1;
+        CCPairFunction p2(f);
+        CCPairFunction p3({f1,f2},{f1,f3});
+        CCPairFunction p4(f12.get(),{f1,f2},{f1,f3});
+        return std::make_tuple(p1,p2,p3);
+    }
+
+};
+
+data data1;
 
 int test_constructor(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
                const CCParameters& parameter) {
@@ -23,12 +79,7 @@ int test_constructor(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf
     test_output t1("CCPairFunction::constructor");
 
     real_function_6d f=real_factory_6d(world);
-    auto g1 = [](const coord_3d& r) { return exp(-1.0 * inner(r, r)); };
-    auto g2 = [](const coord_3d& r) { return exp(-2.0 * inner(r, r)); };
-    auto g3 = [](const coord_3d& r) { return exp(-3.0 * inner(r, r)); };
-    real_function_3d f1=real_factory_3d(world).f(g1);
-    real_function_3d f2=real_factory_3d(world).f(g2);
-    real_function_3d f3=real_factory_3d(world).f(g3);
+    auto [f1,f2,f3,f4,f5,ff]=data1.get_functions();
 
     vector_real_function_3d  a= zero_functions<double,3>(world,3);
     vector_real_function_3d  b= zero_functions<double,3>(world,3);
@@ -47,7 +98,7 @@ int test_constructor(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf
         MADNESS_CHECK(!p2.is_op_decomposed());
         auto p = p2.pure();
         auto ff = p2.pure().get_function();
-        MADNESS_CHECK(ff.get_impl()==f.get_impl());
+        MADNESS_CHECK(!(ff.get_impl()==f.get_impl())); // deep copy of f
     }
     t1.checkpoint(true,"checks on pure");
 
@@ -277,19 +328,8 @@ int test_partial_inner(World& world, std::shared_ptr<NuclearCorrelationFactor> n
 
     CCTimer timer(world, "testing");
     test_output t1("CCPairFunction::test_partial_inner");
-    auto g = [](const coord_6d& r) {
-        double r1=r[0]*r[0] + r[1]*r[1] + r[2]*r[2];
-        double r2=r[3]*r[3] + r[4]*r[4] + r[5]*r[5];
-        return exp(-1.0*r1 - 2.0*r2);
-    };
-    real_function_6d f = real_factory_6d(world).f(g);
+    auto [f1,f2,f3,f4,f5,f] = data1.get_functions();
 
-    auto g1 = [](const coord_3d& r) { return exp(-1.0 * inner(r, r)); };
-    auto g2 = [](const coord_3d& r) { return exp(-2.0 * inner(r, r)); };
-    auto g3 = [](const coord_3d& r) { return exp(-3.0 * inner(r, r)); };
-    real_function_3d f1 = real_factory_3d(world).f(g1);
-    real_function_3d f2 = real_factory_3d(world).f(g2);
-    real_function_3d f3 = real_factory_3d(world).f(g3);
     std::vector<real_function_3d> a = {f1, f2};
     std::vector<real_function_3d> b = {f2, f3};
 
@@ -385,19 +425,9 @@ int test_scalar_multiplication(World& world, std::shared_ptr<NuclearCorrelationF
     int success=0;
     CCTimer timer(world, "testing");
     test_output t1("CCPairFunction::test_scalar_multiplication");
-    auto g = [](const coord_6d& r) {
-        double r1=r[0]*r[0] + r[1]*r[1] + r[2]*r[2];
-        double r2=r[3]*r[3] + r[4]*r[4] + r[5]*r[5];
-        return exp(-1.0*r1 - 2.0*r2);
-    };
-    real_function_6d f = real_factory_6d(world).f(g);
 
-    auto g1 = [](const coord_3d& r) { return exp(-1.0 * inner(r, r)); };
-    auto g2 = [](const coord_3d& r) { return exp(-2.0 * inner(r, r)); };
-    auto g3 = [](const coord_3d& r) { return exp(-3.0 * inner(r, r)); };
-    real_function_3d f1 = real_factory_3d(world).f(g1);
-    real_function_3d f2 = real_factory_3d(world).f(g2);
-    real_function_3d f3 = real_factory_3d(world).f(g3);
+    auto [f1,f2,f3,f4,f5,f] = data1.get_functions();
+
     std::vector<real_function_3d> a = {f1, f2};
     std::vector<real_function_3d> b = {f3, f1};
 
@@ -439,21 +469,13 @@ int test_swap_particles(World& world, std::shared_ptr<NuclearCorrelationFactor> 
                         const CCParameters& parameters) {
     int success = 0;
     test_output t1("CCPairFunction::swap_particles");
-
     CCTimer timer(world, "testing swap_particles");
 
-    CCConvolutionOperator f12(world, OT_F12, parameters);
-
+    // prepare
     auto one = [](const coord_3d& r) { return 1.0; };
     real_function_3d R2 = real_factory_3d(world).f(one);
 
-    // prepare
-    auto g1 = [](const coord_3d& r) { return exp(-1.0 * inner(r, r)); };
-    auto g2 = [](const coord_3d& r) { return exp(-2.0 * inner(r, r)); };
-    auto g3 = [](const coord_3d& r) { return exp(-3.0 * inner(r, r)); };
-    real_function_3d f1 = real_factory_3d(world).f(g1);
-    real_function_3d f2 = real_factory_3d(world).f(g2);
-    real_function_3d f3 = real_factory_3d(world).f(g3);
+    auto [f1,f2,f3,f4,f5,f] = data1.get_functions();
     std::vector<real_function_3d> a = {f1, f2};
     std::vector<real_function_3d> b = {f3, f1};
 
@@ -474,12 +496,6 @@ int test_swap_particles(World& world, std::shared_ptr<NuclearCorrelationFactor> 
 
     // test pure
     {
-        auto g = [](const coord_6d& r) {
-            double r1=r[0]*r[0] + r[1]*r[1] + r[2]*r[2];
-            double r2=r[3]*r[3] + r[4]*r[4] + r[5]*r[5];
-            return exp(-1.0*r1 - 2.0*r2);
-        };
-        real_function_6d f = real_factory_6d(world).f(g);
         CCPairFunction p(f);
         CCPairFunction p_swapped=p.swap_particles();
         double pnorm=p.get_function().norm2();
@@ -526,18 +542,93 @@ int test_swap_particles(World& world, std::shared_ptr<NuclearCorrelationFactor> 
 int test_projector(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
                            const CCParameters& parameter) {
     int success=0;
-    auto g1 = [](const coord_3d& r) { return exp(-1.0 * inner(r, r)); };
-    auto g2 = [](const coord_3d& r) { return exp(-2.0 * inner(r, r)); };
-    auto g3 = [](const coord_3d& r) { return exp(-3.0 * inner(r, r)); };
-    real_function_3d f1 = real_factory_3d(world).f(g1);
-    real_function_3d f2 = real_factory_3d(world).f(g2);
-    real_function_3d f3 = real_factory_3d(world).f(g3);
-    std::vector<real_function_3d> a = {f1, f2};
-    std::vector<real_function_3d> b = {f3, f1};
+    test_output t1("CCPairFunction::test_projector");
+    t1.set_cout_to_terminal();
+    CCTimer timer(world, "testing test_projector");
+    auto [f1,f2,f3,f4,f5,f] = data1.get_functions();
+    double nf1=f1.norm2();
+    double nf2=f2.norm2();
+    f1.scale(1.0/nf1);
+    f2.scale(1.0/nf1);
+    std::vector<real_function_3d> a = {f1+f2, f2+f3, f3+f4};
+    std::vector<real_function_3d> b = {f3, f1, f2};
+    std::vector<real_function_3d> o = orthonormalize_cd<double,3>({f1-f3, f5});  // projects on an orthonormal basis
+    CCConvolutionOperator f12(world, OT_F12, parameter);
 
-    CCPairFunction p;
-    Projector<double,3> P(a,b);
-    auto Pp=P(std::vector<CCPairFunction>(1,p));
+    {
+        double n1=inner(f1,o[0]);
+        double n2=inner(f2,o[0]);
+        auto ovlp=matrix_inner(world,o,o);
+        print("<f1 | o[0]>", n1);
+        print("<f2 | o[0]>", n2);
+        print("<o | o>", ovlp);
+    }
+
+    CCPairFunction p1(a,b);
+    CCPairFunction p2(&f12,a,b);
+    CCPairFunction p3(f); // outer (f1,f2)
+
+    std::vector<CCPairFunction> vp1({p1});
+    std::vector<CCPairFunction> vp2({p2});
+    std::vector<CCPairFunction> vp3({p3});
+
+    Projector<double,3> O(o,o);
+    QProjector<double,3> Q(world,o,o);
+    StrongOrthogonalityProjector<double,3> Q12(world);
+    Q12.set_spaces(o);
+
+    // test {O,Q} with particles 1,2 on all three CCPairFunction types
+    {
+        int i=0;
+        for (auto p : {p1,p2,p3}) {
+            std::string s="CCPairFunction p"+std::to_string(++i);
+            std::vector<CCPairFunction> vp({p});
+            for (int particle : {0,1}) {
+                O.set_particle(particle);
+                Q.set_particle(particle);
+                auto Op = O(vp);
+                auto Qp = Q(vp);
+
+                double n1 = inner(Op, vp3) + inner(Qp, vp3);
+                double n2 = inner(vp, vp3);
+                print("n1 (RI), n2", n1, n2, fabs(n1 - n2));
+                t1.checkpoint(fabs(n1 - n2) < FunctionDefaults<3>::get_thresh(), "RI with particle "+std::to_string(particle)+" on "+s );
+
+                auto Op1 = O(Op);
+                double n3=inner(Op, vp3);
+                double n4=inner(Op1, vp3);
+                print("n3, n4", n3, n4);
+                t1.checkpoint(fabs(n3-n4) < FunctionDefaults<3>::get_thresh(), "idempotency with particle "+std::to_string(particle)+" on "+s);
+
+            }
+            // testing SO projector
+            auto SOp=Q12(vp);
+            double n1,n2,n3;
+            {
+                Q.set_particle(0);
+                auto tmp = Q(vp);
+                Q.set_particle(1);
+                auto tmp1 = Q(tmp);
+                n2=inner(vp3,tmp1);
+            }
+            {
+                Q.set_particle(1);
+                auto tmp = Q(vp);
+                Q.set_particle(0);
+                auto tmp1 = Q(tmp);
+                n3=inner(vp3,tmp1);
+            }
+            n1 = inner(SOp, vp3);
+            print("SO: n1, n2, n3", n1, n2, n3, fabs(n1 - n2));
+            double zero=fabs(n1-n2) + fabs(n1-n3) + fabs(n2-n3);
+            t1.checkpoint(zero < FunctionDefaults<3>::get_thresh(), "SO operator on "+s );
+
+
+        }
+    }
+
+
+
 
     return success;
 }
@@ -571,6 +662,11 @@ int main(int argc, char **argv) {
     startup(world, argc, argv);
     commandlineparser parser(argc, argv);
     FunctionDefaults<6>::set_tensor_type(TT_2D);
+    FunctionDefaults<3>::set_thresh(1.e-5);
+    FunctionDefaults<3>::set_cubic_cell(-1.0,1.0);
+    FunctionDefaults<6>::set_cubic_cell(-1.0,1.0);
+    print("numerical parameters: k, eps(3D), eps(6D)", FunctionDefaults<3>::get_k(), FunctionDefaults<3>::get_thresh(),
+          FunctionDefaults<6>::get_thresh());
     int isuccess=0;
 #ifdef USE_GENTENSOR
     {
@@ -580,15 +676,18 @@ int main(int argc, char **argv) {
         mol.print();
         CCParameters ccparam(world, parser);
 
+        data1=data(world,ccparam);
+
         std::shared_ptr<NuclearCorrelationFactor> ncf = create_nuclear_correlation_factor(world,
                          mol, nullptr, std::make_pair("slater", 2.0));
 
-        isuccess+=test_constructor(world, ncf, mol, ccparam);
-        isuccess+=test_overlap(world, ncf, mol, ccparam);
-        isuccess+=test_swap_particles(world, ncf, mol, ccparam);
-        isuccess+=test_scalar_multiplication(world, ncf, mol, ccparam);
-        isuccess+=test_partial_inner(world, ncf, mol, ccparam);
+//        isuccess+=test_constructor(world, ncf, mol, ccparam);
+//        isuccess+=test_overlap(world, ncf, mol, ccparam);
+//        isuccess+=test_swap_particles(world, ncf, mol, ccparam);
+//        isuccess+=test_scalar_multiplication(world, ncf, mol, ccparam);
+//        isuccess+=test_partial_inner(world, ncf, mol, ccparam);
         isuccess+=test_projector(world, ncf, mol, ccparam);
+        data1.clear();
     }
 #else
     print("could not run test_ccpairfunction: U need to compile with ENABLE_GENTENSOR=1");

@@ -263,7 +263,7 @@ public:
 
     /// takes a deep copy of the argument function
     explicit CCPairFunction(const real_function_6d& ket) {
-        component.reset(new TwoBodyFunctionPureComponent<T>(ket));
+        component.reset(new TwoBodyFunctionPureComponent<T>(copy(ket)));
     }
 
     /// takes a deep copy of the argument functions
@@ -277,7 +277,7 @@ public:
             CCPairFunction(f.first,f.second) {
     }
 
-        /// takes a deep copy of the argument functions
+    /// takes a deep copy of the argument functions
     explicit CCPairFunction(const CCConvolutionOperator *op_, const CCFunction& f1, const CCFunction& f2) :
             CCPairFunction(op_,std::vector<real_function_3d>({f1.function}),std::vector<real_function_3d>({f2.function})) {
     }
@@ -327,9 +327,13 @@ public:
     CCPairFunction invert_sign();
 
     CCPairFunction operator*(const double fac) const {
-        CCPairFunction result(*this);
+        CCPairFunction result=copy(*this);
         result*=fac;
         return result;
+    }
+
+    friend CCPairFunction operator*(const double fac, const CCPairFunction& f) {
+        return fac*f;
     }
 
     bool is_pure() const {return component->is_pure();}
@@ -411,6 +415,16 @@ public:
         return a.inner_internal(b,R2);
     }
 
+    friend double inner(const std::vector<CCPairFunction>& va, const std::vector<CCPairFunction>& vb) {
+        real_function_3d R2;
+        double result=0.0;
+        for (auto& a : va) {
+            for (auto& b : vb) {
+                result+=a.inner_internal(b,R2);
+            }
+        }
+        return result;
+    }
 
 
 public:
@@ -487,6 +501,9 @@ public:
 ///              = f12 ij - \sum_k k(1) f_ik(2) j(2) - \sum_k k(2) f_ij(1)j(1)
 /// which is a pure function and a decomposed function
 std::vector<CCPairFunction> apply(const ProjectorBase& P, const std::vector<CCPairFunction>& argument);
+
+/// convenience function
+CCPairFunction apply(const ProjectorBase& P, const CCPairFunction& argument);
 
 real_function_3d inner(const CCPairFunction& c, const real_function_3d& f,
                        const std::tuple<int,int,int> v1, const std::tuple<int,int,int> v2={0,1,2});
