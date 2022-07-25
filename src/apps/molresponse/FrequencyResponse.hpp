@@ -48,7 +48,8 @@ private:
                 Tensor<double>& bsh_residualsY, size_t iteration, const double& maxrotn);
     void frequency_to_json(json& j_mol_in, size_t iter, const Tensor<double>& res_X,
                            const Tensor<double>& res_Y, const Tensor<double>& density_res,
-                           const Tensor<double>& omega);
+                           const Tensor<double>& omega, const Tensor<double>& chi_norms_x,
+                           const Tensor<double>& chi_norms_y, const Tensor<double>& rho_norms);
     void compute_and_print_polarizability(World& world, X_space& Chi, X_space& PQ,
                                           std::string message);
     void save(World& world, const std::string& name) override;

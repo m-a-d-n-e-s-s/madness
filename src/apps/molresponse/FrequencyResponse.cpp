@@ -101,7 +101,7 @@ void FrequencyResponse::iterate(World &world) {
             }
         }
 
-        auto max_rotation = 25 * conv_den;
+        auto max_rotation = 05 * conv_den;
 
         // rho_omega = make_density(world, Chi, compute_y);
 
@@ -200,7 +200,7 @@ void FrequencyResponse::iterate(World &world) {
         Tensor<double> polar = -2 * inner(Chi, PQ);
 
         frequency_to_json(j_molresponse, iter, bsh_residualsX, bsh_residualsY, density_residuals,
-                          polar);
+                          polar,Chi.X.norm2(), Chi.Y.norm2(), norm2s_T(world,rho_omega));
         if (world.rank() == 0 && r_params.print_level() >= 1) {
             molresponse::end_timer(world, "Iteration Timing", "iter_total", iter_timing);
         }
@@ -371,11 +371,17 @@ X_space FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
 void FrequencyResponse::frequency_to_json(json &j_mol_in, size_t iter, const Tensor<double> &res_X,
                                           const Tensor<double> &res_Y,
                                           const Tensor<double> &density_res,
-                                          const Tensor<double> &omega) {
+                                          const Tensor<double> &omega,
+                                          const Tensor<double> &chi_norms_x,
+                                          const Tensor<double> &chi_norms_y,
+                                          const Tensor<double> &rho_norms) {
     json j = {};
     j["iter"] = iter;
     j["res_X"] = tensor_to_json(res_X);
     j["res_Y"] = tensor_to_json(res_Y);
+    j["chi_norms_x"] = tensor_to_json(chi_norms_x);
+    j["chi_norms_y"] = tensor_to_json(chi_norms_y);
+    j["rho_norms"] = tensor_to_json(rho_norms);
     j["density_residuals"] = tensor_to_json(density_res);
     j["polar"] = tensor_to_json(omega);
     auto index = j_mol_in["protocol_data"].size() - 1;
