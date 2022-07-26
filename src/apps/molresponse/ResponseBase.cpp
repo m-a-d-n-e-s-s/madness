@@ -1246,12 +1246,14 @@ void ResponseBase::x_space_step_restriction(World &world, X_space &old_Chi, X_sp
             if (world.rank() == 0) {
                 print("---------------- step restriction :", b, " ------------------");
             }
-            if (world.rank() == 0) { print("X[b]: ", norm_X); }
-            if (world.rank() == 0) { print("deltaX[b]: ", norm_xb); }
-            if (world.rank() == 0) { print("max_rotation: ", maxrotn); }
-            if (world.rank() == 0) { print("max_step = max_rotation*norm_X: ", maxrotn * norm_X); }
 
             if (norm_xb > max_step) {
+                if (world.rank() == 0) { print("X[b]: ", norm_X); }
+                if (world.rank() == 0) { print("deltaX[b]: ", norm_xb); }
+                if (world.rank() == 0) { print("max_rotation: ", maxrotn); }
+                if (world.rank() == 0) {
+                    print("max_step = max_rotation*norm_X: ", maxrotn * norm_X);
+                }
                 double s = max_step / norm_xb;
                 if (world.rank() == 0) {
                     if (r_params.print_level() > 1)
