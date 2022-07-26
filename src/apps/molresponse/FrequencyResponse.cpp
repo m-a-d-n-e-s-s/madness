@@ -361,7 +361,7 @@ X_space FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
     } else {
         bsh_X.Y = bsh_X.X.copy();
     }
-    bsh_X.truncate();
+    //bsh_X.truncate();
 
     if (world.rank() == 0 && r_params.print_level() >= 1) {
         molresponse::end_timer(world, "bsh_update", "bsh_update", iter_timing);
