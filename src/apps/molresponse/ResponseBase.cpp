@@ -1074,61 +1074,37 @@ residuals ResponseBase::compute_residual(World &world, X_space &old_Chi, X_space
     //res.X = old_Chi.X - temp.X;
     res = temp - old_Chi;
     //*************************
-    Tensor<double> errX(m);
-    Tensor<double> errY(m);
 
+
+    Tensor<double> norms_b(m);
+    auto easy_norms = res.norm2s();
     // rmsX and maxvalX for each m response states
-    std::vector<double> rmsX(m), maxvalX(m);
-    std::vector<std::vector<double>> rnormsX;
-    std::vector<std::vector<double>> rnormsY;
-    // find the norms of each of the residual response vectors
-    for (size_t i = 0; i < m; i++) {
-        // the 2norms of each of the orbitals in response vector
-        rnormsX.push_back(norm2s(world, res.X[i]));
 
+    for (size_t b = 0; b < m; b++) {
+        auto res_b = copy(world, res.X[b]);
+        if (calc_type == "full") {
+            for (auto &ryb: res.Y[b]) { res_b.push_back(copy(ryb, true)); }
+        } else if (calc_type == "static") {
+            // copy X
+            for (auto &rxb: res.X[b]) { res_b.push_back(copy(rxb, true)); }
+        } else {// do nothing
+        }
+        norms_b[b] = sqrt(inner(res_b, res_b));
         if (world.rank() == 0 and (r_params.print_level() > 1)) {
-            print("residuals X: state ", i, " : ", rnormsX[i]);
-        }
-
-        vector_stats(rnormsX[i], rmsX[i], maxvalX[i]);
-        errX[i] = maxvalX[i];
-
-        if (world.rank() == 0 and (r_params.print_level() > 1)) {
-            print("BSH residual: rms", rmsX[i], "   max", maxvalX[i]);
+            print("residual norms: state ", b, " : ", norms_b[b]);
         }
     }
 
-
-    if (calc_type == "full") {
-        std::vector<double> rmsY(m), maxvalY(m);
-        for (size_t i = 0; i < m; i++) {
-            rnormsY.push_back(norm2s(world, res.Y[i]));
-            if (world.rank() == 0 and (r_params.print_level() > 1))
-                print("residuals Y: state ", i, " : ", rnormsY[i]);
-            vector_stats(rnormsY[i], rmsY[i], maxvalY[i]);
-            errY[i] = maxvalY[i];
-            if (world.rank() == 0 and (r_params.print_level() > 1))
-                print("BSH residual: rms", rmsY[i], "   max", maxvalY[i]);
-        }
-    } else if (calc_type == "static") {
-        // copy by value?
-        errY = copy(errX);
-    } else {// tda
-        errY.fill(0);
+    if (world.rank() == 0 and (r_params.print_level() > 1)) {
+        print("norms_b: ", norms_b);
+        print("easy_norms: ", easy_norms);
     }
 
-    if (r_params.print_level() >= 1) {
-        print("res.X norms in iteration after compute_residual function: ");
-        print(res.X.norm2());
-
-        print("res.Y norms in iteration after compute_residual function: ");
-        print(res.Y.norm2());
-    }
     if (world.rank() == 0 && r_params.print_level() >= 1) {
         molresponse::end_timer(world, "compute_bsh_residual", "compute_bsh_residual", iter_timing);
     }
     // Next calculate 2-norm of these vectors of differences
-    return {res, errX, errY};
+    return {res, norms_b};
 }
 
 X_space ResponseBase::compute_residual(World &world, X_space &old_Chi, X_space &temp,
@@ -1239,6 +1215,7 @@ void ResponseBase::x_space_step_restriction(World &world, X_space &old_Chi, X_sp
                                             bool restrict_y, const double &maxrotn) {
     size_t m = old_Chi.num_states();
     size_t n = old_Chi.num_orbitals();
+
     if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
     print(maxrotn);
     auto diff = temp - old_Chi;
@@ -1247,31 +1224,35 @@ void ResponseBase::x_space_step_restriction(World &world, X_space &old_Chi, X_sp
     for (size_t b = 0; b < m; b++) {
         if (true) {
 
-            auto x_diff = diff.X[b];
-            auto y_diff = diff.Y[b];
+            auto x_copy = copy(world, old_Chi.X[b]);
+            auto y_copy = copy(world, old_Chi.Y[b]);
+
+            auto x_diff = copy(world, diff.X[b]);
+            auto y_diff = copy(world, diff.Y[b]);
 
 
             //auto sq_diff_x = square(world, diff.X[b], true);
             //auto sq_diff_y = square(world, diff.Y[b], true);
 
             for (auto &dy: y_diff) { x_diff.push_back(dy); }
+            for (auto &y: y_copy) { x_copy.push_back(y); }
 
-            auto norm_xb = inner(x_diff, x_diff);
+            auto norm_X = sqrt(inner(x_copy, x_copy));
+            auto norm_xb = sqrt(inner(x_diff, x_diff));
 
-            //norm_xb = sqrt(norm_xb);
+            auto max_step = maxrotn * norm_X;
 
 
-            /*
-            Tensor<double> anorm_x = norm2s_T(world, x_diff);
-            Tensor<double> anorm_y = norm2s_T(world, y_diff);
-             */
+            if (world.rank() == 0) {
+                print("---------------- step restriction :", b, " ------------------");
+            }
+            if (world.rank() == 0) { print("X[b]: ", norm_X); }
+            if (world.rank() == 0) { print("deltaX[b]: ", norm_xb); }
+            if (world.rank() == 0) { print("max_rotation: ", maxrotn); }
+            if (world.rank() == 0) { print("max_step = max_rotation*norm_X: ", maxrotn * norm_X); }
 
-            //auto norm_xb = std::sqrt(sqdiff_x + sqdiff_y);
-
-            if (world.rank() == 0) { print("deltaX[b] ", norm_xb); }
-
-            if (norm_xb > maxrotn) {
-                double s = maxrotn / norm_xb;
+            if (norm_xb > max_step) {
+                double s = max_step / norm_xb;
                 if (world.rank() == 0) {
                     if (r_params.print_level() > 1)
                         print("  restricting step for response-state: ", b, " step size", s);
@@ -1282,8 +1263,8 @@ void ResponseBase::x_space_step_restriction(World &world, X_space &old_Chi, X_sp
         } else {
             do_step_restriction(world, old_Chi.X[b], temp.X[b], "x_response", maxrotn);
         }
-        if (world.rank() == 0) { print("----------------End Step Restriction -----------------"); }
     }
+    if (world.rank() == 0) { print("----------------End Step Restriction -----------------"); }
 
     if (world.rank() == 0 && r_params.print_level() >= 1) {
         molresponse::end_timer(world, "x_space_restriction", "x_space_restriction", iter_timing);

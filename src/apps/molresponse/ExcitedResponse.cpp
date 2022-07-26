@@ -1911,8 +1911,8 @@ void ExcitedResponse::iterate(World &world) {
         }
 
         if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
-        bsh_residualsX = copy(new_res.x);
-        bsh_residualsY = copy(new_res.y);
+        bsh_residualsX = copy(new_res.residual_norms);
+        bsh_residualsY = copy(new_res.residual_norms);
         omega = copy(new_omega);
         Chi = new_chi.copy();
         if (world.rank() == 0 && r_params.print_level() >= 1) {
@@ -2071,8 +2071,7 @@ std::tuple<Tensor<double>, X_space, X_space, residuals> ExcitedResponse::update(
     print("BSH update iter = ", iter);
     X_space new_chi = bsh_update_excited(world, new_omega, theta_X, projector);
     //res = Chi - new_chi;
-    auto [new_res, bsh_x, bsh_y] =
-            compute_residual(world, rotated_chi, new_chi, r_params.calc_type());
+    auto [new_res, bsh] = compute_residual(world, rotated_chi, new_chi, r_params.calc_type());
     // kain if iteration >0 or first run where there should not be a problem
     // computed new_chi and res
     if (r_params.kain() && (iter > 0) && true) {
@@ -2084,7 +2083,7 @@ std::tuple<Tensor<double>, X_space, X_space, residuals> ExcitedResponse::update(
     new_chi.X.truncate_rf();
     if (compute_y) new_chi.Y.truncate_rf();
 
-    return {new_omega, rotated_chi, new_chi, {new_res, bsh_x, bsh_y}};
+    return {new_omega, rotated_chi, new_chi, {new_res, bsh}};
 }
 X_space ExcitedResponse::bsh_update_excited(World &world, const Tensor<double> &omega,
                                             X_space &theta_X, QProjector<double, 3> &projector) {

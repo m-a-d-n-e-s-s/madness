@@ -101,7 +101,7 @@ void FrequencyResponse::iterate(World &world) {
             }
         }
 
-        auto max_rotation = 05 * conv_den;
+        auto max_rotation = r_params.maxrotn();// 05 * conv_den;
 
         // rho_omega = make_density(world, Chi, compute_y);
 
@@ -168,9 +168,10 @@ void FrequencyResponse::iterate(World &world) {
 
         if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
-        bsh_residualsX = copy(new_res.x);
-        bsh_residualsY = copy(new_res.y);
+        bsh_residualsX = copy(new_res.residual_norms);
+        bsh_residualsY = copy(new_res.residual_norms);
         Chi = new_chi.copy();
+
         if (world.rank() == 0 && r_params.print_level() >= 1) {
             molresponse::end_timer(world, "copy_response_data", "copy_response_data", iter_timing);
         }
@@ -200,7 +201,7 @@ void FrequencyResponse::iterate(World &world) {
         Tensor<double> polar = -2 * inner(Chi, PQ);
 
         frequency_to_json(j_molresponse, iter, bsh_residualsX, bsh_residualsY, density_residuals,
-                          polar,Chi.X.norm2(), Chi.Y.norm2(), norm2s_T(world,rho_omega));
+                          polar, Chi.X.norm2(), Chi.Y.norm2(), norm2s_T(world, rho_omega));
         if (world.rank() == 0 && r_params.print_level() >= 1) {
             molresponse::end_timer(world, "Iteration Timing", "iter_total", iter_timing);
         }
@@ -250,14 +251,14 @@ std::tuple<X_space, residuals> FrequencyResponse::update(
     X_space new_chi =
             bsh_update_response(world, theta_X, bsh_x_ops, bsh_y_ops, projector, x_shifts);
 
-    auto [new_res, bsh_x, bsh_y] = compute_residual(world, chi, new_chi, r_params.calc_type());
+    auto [new_res, bsh] = compute_residual(world, chi, new_chi, r_params.calc_type());
 
     // kain update with temp adjusts temp
     if (r_params.kain() && (iteration > 0)) {
         new_chi = kain_x_space_update(world, chi, new_res, kain_x_space, Xvector, Xresidual);
     }
 
-    if (iteration > 3) { x_space_step_restriction(world, chi, new_chi, compute_y, maxrotn); }
+    if (iteration > 0) { x_space_step_restriction(world, chi, new_chi, compute_y, maxrotn); }
     // truncate x
     //new_chi.X.truncate_rf();
     // truncate y if compute y
@@ -267,7 +268,7 @@ std::tuple<X_space, residuals> FrequencyResponse::update(
         molresponse::end_timer(world, "update response", "update", iter_timing);
     }
     //	if not compute y then copy x in to y
-    return {new_chi, {new_res, bsh_x, bsh_y}};
+    return {new_chi, {new_res, bsh}};
 
     // print x norms
 }

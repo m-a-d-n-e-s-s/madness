@@ -3,7 +3,6 @@
 #define SRC_APPS_MOLRESPONSE_X_SPACE_H_
 
 #include <madness/mra/mra.h>
-#include <madness/mra/operator.h>
 
 #include <algorithm>
 #include <cstdint>
@@ -227,6 +226,17 @@ namespace madness {
         void truncate() {
             X.truncate_rf();
             Y.truncate_rf();
+        }
+
+        Tensor<double> norm2s() {
+            World& world = X[0][0].world();
+            Tensor<double> norms(num_states());
+            for (size_t b = 0; b < num_states(); b++) {
+                auto xb = madness::copy(world, X[b]);
+                for (auto& yb: Y[b]) { xb.push_back(madness::copy(yb, true)); }
+                norms[b] = sqrt(inner(xb, xb));
+            }
+            return norms;
         }
 
         friend size_t size_states(const X_space& x) { return x.n_states; }

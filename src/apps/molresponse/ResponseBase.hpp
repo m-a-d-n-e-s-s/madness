@@ -17,7 +17,6 @@
 #include "madness/tensor/tensor.h"
 #include "timer.h"
 #include "x_space.h"
-#include "chem.h"
 
 
 using namespace madness;
@@ -39,10 +38,8 @@ public:
 class ResponseTester;
 
 struct residuals {
-
     X_space residual;
-    Tensor<double> x;
-    Tensor<double> y;
+    Tensor<double> residual_norms;
 };
 
 
@@ -299,7 +296,7 @@ vector_real_function_3d transition_densityTDA(World& world, const vector_real_fu
 
 response_space transform(World& world, const response_space& f, const Tensor<double>& U);
 
-X_space transform(World &world, const X_space &x, const Tensor<double> &U);
+X_space transform(World& world, const X_space& x, const Tensor<double>& U);
 
 // result(i,j) = inner(a[i],b[j]).sum()
 Tensor<double> expectation(World& world, const response_space& A, const response_space& B);
