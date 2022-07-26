@@ -132,9 +132,9 @@ namespace madness {
             return madness::apply(*this,argument);
         }
 
-        vecfuncT get_bra_vector() const {return mo_ket_;}
+        vecfuncT get_bra_vector() const {return mo_bra_;}
 
-        vecfuncT get_ket_vector() const {return mo_bra_;}
+        vecfuncT get_ket_vector() const {return mo_ket_;}
 
     };
 

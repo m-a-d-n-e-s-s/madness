@@ -133,8 +133,9 @@ int test_constructor(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf
 
     }
     t1.checkpoint(true,"checks on assignment");
+    t1.end();
 
-    return success;
+    return  (t1.get_final_success()) ? 0 : 1;
 }
 
 int test_overlap(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
@@ -166,8 +167,10 @@ int test_overlap(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, co
 
     print("threshold 3D / 6D", hi,lo);
     test_output t1("CCPairFunction::inner");
-
+    t1.set_cout_to_terminal();
     // f^2 = 1/(4y^2)(1 - 2*f2(y) + f2(2y)) , f2(2y) =f2(y)^2
+    // operator apply of SlaterF12Operator includes a factor of 1/(2 gamma) and the identity
+    // operator apply of SlaterOperator has no further terms
     const double y = parameters.gamma();
     SeparatedConvolution<double, 3> f = SlaterF12Operator(world, y, parameters.lo(), parameters.thresh_bsh_3D());
     SeparatedConvolution<double, 3> f2 = SlaterOperator(world, y, parameters.lo(), parameters.thresh_bsh_3D());
@@ -190,6 +193,9 @@ int test_overlap(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, co
     const real_function_3d afa = f(aa);
 
     const double prefactor = 1.0 / (4 * y * y);
+    const double term1= prefactor * (aR.inner(a) * bR.inner(b));
+    const double term2= prefactor * 2.0 * bb.inner(af2a) ;
+    const double term3= prefactor *  bb.inner(affa);
     const double ab_f2_ab = prefactor * (aR.inner(a) * bR.inner(b) - 2.0 * bb.inner(af2a) + bb.inner(affa));
     const double ab_f_ab = inner(f(aa), bb);
 
@@ -198,8 +204,7 @@ int test_overlap(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, co
         if (rank == 0) {
             long len = std::max(0l, long(40 - msg.size()));
             msg += std::string(len, ' ');
-            std:
-            cout << msg << std::fixed << std::setprecision(8) << "result, ref, diff "
+            std::cout << msg << std::fixed << std::setprecision(8) << "result, ref, diff "
                  << result << " " << reference << " " << std::setw(9) << std::setprecision(2) << std::scientific
                  << result - reference
                  << ", elapsed time " << std::fixed << std::setw(5) << std::setprecision(2) << time << std::endl;
@@ -317,7 +322,7 @@ int test_overlap(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, co
     if (not success) isuccess++;
     t1.checkpoint(success, "op_dec/dec");
 
-    return isuccess;
+    return  (t1.get_final_success()) ? 0 : 1;
 }
 
 
@@ -410,14 +415,15 @@ int test_partial_inner(World& world, std::shared_ptr<NuclearCorrelationFactor> n
     }
 
 
-    return success;
+    return  (t1.get_final_success()) ? 0 : 1;
 }
 
 int test_apply(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
                const CCParameters& parameter) {
     int success=0;
+    test_output t1("CCPairFunction::test_apply");
 
-    return success;
+    return  (t1.get_final_success()) ? 0 : 1;
 }
 
 int test_scalar_multiplication(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
@@ -460,9 +466,8 @@ int test_scalar_multiplication(World& world, std::shared_ptr<NuclearCorrelationF
     t1.checkpoint(bsuccess,"scaling");
     if (bsuccess) success++;
 
-
-
-    return success;
+    t1.end();
+    return  (t1.get_final_success()) ? 0 : 1;
 }
 
 int test_swap_particles(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
@@ -535,16 +540,18 @@ int test_swap_particles(World& world, std::shared_ptr<NuclearCorrelationFactor> 
 
         t1.checkpoint(total_error < FunctionDefaults<3>::get_thresh(), "swap_particles u");
     };
+    t1.end();
 
-    return success;
+    return  (t1.get_final_success()) ? 0 : 1;
 }
 
 int test_projector(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
                            const CCParameters& parameter) {
     int success=0;
     test_output t1("CCPairFunction::test_projector");
-    t1.set_cout_to_terminal();
-    CCTimer timer(world, "testing test_projector");
+    CCTimer timer(world, "testing");
+
+    t1.set_cout_to_logger();
     auto [f1,f2,f3,f4,f5,f] = data1.get_functions();
     double nf1=f1.norm2();
     double nf2=f2.norm2();
@@ -553,14 +560,13 @@ int test_projector(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, 
     std::vector<real_function_3d> a = {f1+f2, f2+f3, f3+f4};
     std::vector<real_function_3d> b = {f3, f1, f2};
     std::vector<real_function_3d> o = orthonormalize_cd<double,3>({f1-f3, f5});  // projects on an orthonormal basis
+    a = orthonormalize_cd<double,3>(a);  // projects on an orthonormal basis
     CCConvolutionOperator f12(world, OT_F12, parameter);
 
     {
         double n1=inner(f1,o[0]);
         double n2=inner(f2,o[0]);
         auto ovlp=matrix_inner(world,o,o);
-        print("<f1 | o[0]>", n1);
-        print("<f2 | o[0]>", n2);
         print("<o | o>", ovlp);
     }
 
@@ -577,6 +583,29 @@ int test_projector(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, 
     StrongOrthogonalityProjector<double,3> Q12(world);
     Q12.set_spaces(o);
 
+    // some hardwire test
+    {
+        // <ab|k ><k |ab>  = <a|k><k|a><b|b>
+        auto ak_tensor=matrix_inner(world,a,o);
+        double ak=ak_tensor.trace(ak_tensor);
+        auto aa=matrix_inner(world,a,a);
+        auto bb=matrix_inner(world,b,b);
+        Projector<double,3> O1(a,a);
+        O.set_particle(0);
+        O1.set_particle(0);
+        Projector<double,3> O2(a,a);
+        O2.set_particle(0);
+        double n1=inner(vp1,O1(vp2));
+        double n1a=inner(O1(vp1),vp2);
+        print("n1,n1a",n1,n1a);
+        double n2=inner(vp1,O2(vp2));
+        double n2a=inner(O2(vp1),vp2);
+        print("n2,n2a",n1,n1a);
+
+    }
+    timer.reset();
+
+
     // test {O,Q} with particles 1,2 on all three CCPairFunction types
     {
         int i=0;
@@ -592,13 +621,13 @@ int test_projector(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, 
                 double n1 = inner(Op, vp3) + inner(Qp, vp3);
                 double n2 = inner(vp, vp3);
                 print("n1 (RI), n2", n1, n2, fabs(n1 - n2));
-                t1.checkpoint(fabs(n1 - n2) < FunctionDefaults<3>::get_thresh(), "RI with particle "+std::to_string(particle)+" on "+s );
+                t1.checkpoint(fabs(n1 - n2) < FunctionDefaults<3>::get_thresh(), "RI with particle "+std::to_string(particle)+" on "+s ,timer.reset());
 
                 auto Op1 = O(Op);
                 double n3=inner(Op, vp3);
                 double n4=inner(Op1, vp3);
                 print("n3, n4", n3, n4);
-                t1.checkpoint(fabs(n3-n4) < FunctionDefaults<3>::get_thresh(), "idempotency with particle "+std::to_string(particle)+" on "+s);
+                t1.checkpoint(fabs(n3-n4) < FunctionDefaults<3>::get_thresh(), "idempotency with particle "+std::to_string(particle)+" on "+s,timer.reset());
 
             }
             // testing SO projector
@@ -621,23 +650,20 @@ int test_projector(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, 
             n1 = inner(SOp, vp3);
             print("SO: n1, n2, n3", n1, n2, n3, fabs(n1 - n2));
             double zero=fabs(n1-n2) + fabs(n1-n3) + fabs(n2-n3);
-            t1.checkpoint(zero < FunctionDefaults<3>::get_thresh(), "SO operator on "+s );
-
-
+            t1.checkpoint(zero < FunctionDefaults<3>::get_thresh(), "SO operator on "+s,timer.reset() );
         }
     }
+    t1.end();
 
-
-
-
-    return success;
+    return  (t1.get_final_success()) ? 0 : 1;
 }
 
 int test_dirac_convolution(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
                            const CCParameters& parameter) {
     int success=0;
+    test_output t1("CCPairFunction::test_dirac_convolution");
 
-    return success;
+    return  (t1.get_final_success()) ? 0 : 1;
 }
 
 /** functionality
@@ -669,7 +695,8 @@ int main(int argc, char **argv) {
           FunctionDefaults<6>::get_thresh());
     int isuccess=0;
 #ifdef USE_GENTENSOR
-    {
+
+    try {
         parser.set_keyval("geometry", "source=library,he");
         parser.print_map();
         Molecule mol(world, parser);
@@ -681,13 +708,15 @@ int main(int argc, char **argv) {
         std::shared_ptr<NuclearCorrelationFactor> ncf = create_nuclear_correlation_factor(world,
                          mol, nullptr, std::make_pair("slater", 2.0));
 
-//        isuccess+=test_constructor(world, ncf, mol, ccparam);
-//        isuccess+=test_overlap(world, ncf, mol, ccparam);
-//        isuccess+=test_swap_particles(world, ncf, mol, ccparam);
-//        isuccess+=test_scalar_multiplication(world, ncf, mol, ccparam);
-//        isuccess+=test_partial_inner(world, ncf, mol, ccparam);
+        isuccess+=test_constructor(world, ncf, mol, ccparam);
+        isuccess+=test_overlap(world, ncf, mol, ccparam);
+        isuccess+=test_swap_particles(world, ncf, mol, ccparam);
+        isuccess+=test_scalar_multiplication(world, ncf, mol, ccparam);
+        isuccess+=test_partial_inner(world, ncf, mol, ccparam);
         isuccess+=test_projector(world, ncf, mol, ccparam);
         data1.clear();
+    } catch (...) {
+
     }
 #else
     print("could not run test_ccpairfunction: U need to compile with ENABLE_GENTENSOR=1");

@@ -35,27 +35,36 @@ struct test_output {
 		logger.clear();
 	}
 
-    void checkpoint(bool success, std::string message) {
+    void checkpoint(bool success, std::string message, double time=-1.0) {
         bool use_logger=cout_set_to_logger;
         set_cout_to_terminal();
+        final_success = success and final_success;
         if (not have_checkpoints) print("");    // first checkpoint
         have_checkpoints=true;
         std::cout << "  " << ltrim_to_length(message,66);
-        print_success_fail(std::cout,success);
+        print_success_fail(std::cout,success,time);
         if (not success) {
             print_and_clear_log();
         }
         if (use_logger) set_cout_to_logger();
     }
 
-    void print_success_fail(std::ostream& os, bool success) {
-        if (success) os << "\033[32m"   << "passed " << "\033[0m" << std::endl;
-        else os << "\033[31m"   << "failed " << "\033[0m" << std::endl;
+    void print_success_fail(std::ostream& os, bool success, double time=-1.0) {
+
+        if (success) os << "\033[32m"   << "passed " << "\033[0m";
+        else os << "\033[31m"   << "failed " << "\033[0m";
+        if (time>0) {
+            std::stringstream ss;
+            ss<< " in " << std::fixed << std::setprecision(1) << time << "s";
+            os << ss.str();
+        }
+        os << std::endl;
     }
 
-	int end(bool success) {
+	int end(bool success=true) {
         set_cout_to_terminal();
         if (have_checkpoints) std::cout << ltrim_to_length("--> final result -->",70);
+        success = success and final_success;
         print_success_fail(std::cout,success);
         if (not success) print_and_clear_log();
 		return (success) ? 0 : 1;
@@ -78,8 +87,10 @@ struct test_output {
     }
 
     std::stringstream logger;
+    bool get_final_success() const {return final_success;}
 private:
 
+    bool final_success=true;
     bool cout_set_to_logger=false;          // do not change this directly!
     bool have_checkpoints=false;
     std::streambuf* stream_buffer_cout;

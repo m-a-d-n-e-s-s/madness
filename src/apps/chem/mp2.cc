@@ -157,7 +157,7 @@ bool MP2::check_core_valence_separation() const {
         print("inconsistent core-valence separation and number of frozen orbitals");
         print("# frozen orbitals", param.freeze());
         mos.pretty_print("initial orbitals");
-        MADNESS_EXCEPTION("inconsistency ", 1);
+//        MADNESS_EXCEPTION("inconsistency ", 1);
     }
 
     // fast return if possible

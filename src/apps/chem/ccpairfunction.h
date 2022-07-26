@@ -92,7 +92,7 @@ public:
     virtual bool is_decomposed() const {return false;}
     virtual bool has_operator() const {return false;}
     virtual void print_size() const = 0;
-    virtual std::string name() const = 0;
+    virtual std::string name(const bool transpose=false) const = 0;
     virtual World& world() const =0;
     virtual std::shared_ptr<TwoBodyFunctionComponentBase> clone() = 0;
 };
@@ -126,10 +126,11 @@ public:
     void serialize() {}
 
     void print_size() const override {
-        u.print_size(name());
+        u.print_size(name(false));
     }
 
-    std::string name() const override {
+    std::string name(const bool transpose) const override {
+        if (transpose) return "< u |";
         return "|u>";
     }
 
@@ -195,12 +196,16 @@ public:
     void print_size() const override {
         if (a.size() > 0) {
             World& world = a.front().world();
-            madness::print_size(world, a, "a from " + name());
-            madness::print_size(world, b, "b from " + name());
+            madness::print_size(world, a, "a from " + name(false));
+            madness::print_size(world, b, "b from " + name(false));
         }
     }
 
-    std::string name() const override {
+    std::string name(const bool transpose) const override {
+        if (transpose) {
+            if (has_operator()) return "<ab|"+get_operator_ptr()->name();
+            return "<ab|";
+        }
         if (has_operator()) return get_operator_ptr()->name() + "|xy>";
         return "|ab>";
     };
@@ -340,6 +345,7 @@ public:
     bool is_decomposed() const {return component->is_decomposed();}
     bool is_decomposed_no_op() const {return component->is_decomposed() and (not component->has_operator());}
     bool is_op_decomposed() const {return component->is_decomposed() and component->has_operator();}
+    bool has_operator() const {return component->has_operator();}
 
     TwoBodyFunctionPureComponent<T>& pure() const {
         if (auto ptr=dynamic_cast<TwoBodyFunctionPureComponent<T>*>(component.get())) return *ptr;
@@ -376,9 +382,9 @@ public:
         if (component) component->print_size();
     };
 
-    std::string name() const {
+    std::string name(const bool transpose=false) const {
         if (not component) return "empty";
-        return component->name();
+        return component->name(transpose);
     }
 
     /// @param[in] f: a 3D-CC_function
@@ -420,7 +426,9 @@ public:
         double result=0.0;
         for (auto& a : va) {
             for (auto& b : vb) {
-                result+=a.inner_internal(b,R2);
+                double tmp=a.inner_internal(b,R2);
+                print("result from inner",a.name(true),b.name(),tmp);
+                result+=tmp;
             }
         }
         return result;

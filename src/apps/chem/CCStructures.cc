@@ -314,6 +314,7 @@ CCConvolutionOperator::operator()(const CCFunction& bra, const CCFunction& ket, 
         result = (imH(bra.i, ket.i) + imP(bra.i, ket.i));
     else {
         //if(world.rank()==0) std::cout <<"No Intermediate found for <" << bra.name()<<"|"<<assign_name(operator_type) <<"|"<<ket.name() <<"> ... recalculate \n";
+        MADNESS_ASSERT(op);
         result = ((*op)(bra.function * ket.function)).truncate();
     }
     return result;
@@ -322,6 +323,7 @@ CCConvolutionOperator::operator()(const CCFunction& bra, const CCFunction& ket, 
 real_function_6d CCConvolutionOperator::operator()(const real_function_6d& u, const size_t particle) const {
     MADNESS_ASSERT(particle == 1 or particle == 2);
     MADNESS_ASSERT(operator_type == OT_G12);
+    MADNESS_ASSERT(op);
     op->particle() = particle;
     return (*op)(u);
 }
@@ -330,6 +332,7 @@ real_function_3d
 CCConvolutionOperator::operator()(const CCFunction& bra, const real_function_6d& u, const size_t particle) const {
     MADNESS_ASSERT(particle == 1 or particle == 2);
     MADNESS_ASSERT(operator_type == OT_G12);
+    MADNESS_ASSERT(op);
     const real_function_6d tmp = multiply(copy(u), copy(bra.function), particle);
     op->particle() = particle;
     const real_function_6d g_tmp = (*op)(tmp);
@@ -416,6 +419,23 @@ CCConvolutionOperator::init_op(const OpType& type, const Parameters& parameters)
                           << " and lo=" << parameters.lo << " and Gamma=" << parameters.gamma << std::endl;
             return SlaterF12OperatorPtr(world, parameters.gamma, parameters.lo, parameters.thresh_op);
         }
+        case OT_SLATER : {
+            if (world.rank() == 0)
+                std::cout << "Creating " << assign_name(type) << " Operator with thresh=" << parameters.thresh_op
+                          << " and lo=" << parameters.lo << " and Gamma=" << parameters.gamma << std::endl;
+            return SlaterOperatorPtr(world, parameters.gamma, parameters.lo, parameters.thresh_op);
+        }
+        case OT_BSH : {
+            if (world.rank() == 0)
+                std::cout << "Creating " << assign_name(type) << " Operator with thresh=" << parameters.thresh_op
+                          << " and lo=" << parameters.lo << " and Gamma=" << parameters.gamma << std::endl;
+            return BSHOperatorPtr3D(world, parameters.gamma, parameters.lo, parameters.thresh_op);
+        }
+        case OT_ONE : {
+            if (world.rank() == 0)
+                std::cout << "Creating " << assign_name(type) << " Operator " << std::endl;
+            return nullptr;
+        }
         default : {
             error("Unknown operatorype " + assign_name(type));
             MADNESS_EXCEPTION("error", 1);
@@ -468,6 +488,14 @@ assign_name(const OpType& input) {
             return "g12";
         case OT_F12:
             return "f12";
+        case OT_SLATER:
+            return "slater";
+        case OT_FG12:
+            return "fg12";
+        case OT_BSH:
+            return "bsh";
+        case OT_ONE:
+            return "identity";
         default: {
             MADNESS_EXCEPTION("Unvalid enum assignement!", 1);
             return "undefined";

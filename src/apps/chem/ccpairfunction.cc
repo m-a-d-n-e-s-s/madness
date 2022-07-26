@@ -178,40 +178,35 @@ double CCPairFunction::inner_internal(const CCPairFunction& other, const real_fu
         if (R2.is_initialized()) {
             real_function_6d R1u = multiply<double, 6, 3>(::copy(f1.pure().get_function()), ::copy(R2), 1);
             real_function_6d R1R2u = multiply<double, 6, 3>(R1u, ::copy(R2), 2);     // R1u function now broken
-            tmp.info();
+//            tmp.info();
             result = f2.pure().get_function().inner(R1R2u);
         } else {
             result = f2.pure().get_function().inner(f1.pure().get_function());
         }
-    } else if (f1.is_pure() and f2.is_decomposed_no_op()) {
-        MADNESS_ASSERT(f2.get_a().size() == f2.get_b().size());
-        vector_real_function_3d a = R2.is_initialized() ?  R2* f2.get_a() : f2.get_a();
-        vector_real_function_3d b = R2.is_initialized() ?  R2* f2.get_b() : f2.get_b();
-        for (size_t i = 0; i < a.size(); i++) {
-            real_function_6d ab = CompositeFactory<double, 6, 3>(world()).particle1(::copy(a[i])).particle2(::copy(b[i]));
-            result += f1.pure().get_function().inner(ab);
-        }
-    } else if (f1.is_pure() and f2.is_op_decomposed()) {
-        real_function_3d x = R2.is_initialized() ? R2 * f2.get_a()[0] : f2.get_a()[0];
-        real_function_3d y = R2.is_initialized() ? R2 * f2.get_b()[0] : f2.get_a()[0];
+    } else if (f1.is_pure() and f2.is_decomposed()) {       // with or without operator
+        vector_real_function_3d a = R2.is_initialized() ? R2 * f2.get_a() : copy(world(), f2.get_a());
+        vector_real_function_3d b = R2.is_initialized() ? R2 * f2.get_b() : copy(world(), f2.get_b());
         real_function_6d op;
-        if (f2.decomposed().get_operator_ptr()->type() == OT_F12)
-            op = TwoElectronFactory(world()).dcut(f2.get_operator().parameters.lo).gamma(f2.get_operator().parameters.gamma).f12()
-                    .thresh(thresh);
-        else if (f2.get_operator().type() == OT_G12)
-            op = TwoElectronFactory(world()).dcut(f2.get_operator().parameters.lo).thresh(thresh);
-        else MADNESS_EXCEPTION(
-                ("6D Overlap with operatortype " + assign_name(f2.get_operator().type()) + " not supported").c_str(), 1);
-        real_function_6d opxy = CompositeFactory<double, 6, 3>(world()).g12(op).particle1(::copy(x)).particle2(::copy(y));
-        return f1.pure().get_function().inner(opxy);
-    } else if (f1.is_decomposed_no_op() and f2.is_pure()) {
-        MADNESS_ASSERT(f1.get_a().size() == f1.get_b().size());
-        vector_real_function_3d a = R2.is_initialized() ?  R2* f1.get_a() : f1.get_a();
-        vector_real_function_3d b = R2.is_initialized() ?  R2* f1.get_b() : f1.get_b();
-        for (size_t i = 0; i < a.size(); i++) {
-            real_function_6d ab = CompositeFactory<double, 6, 3>(world()).particle1(::copy(a[i])).particle2(::copy(b[i]));
-            result += f2.pure().get_function().inner(ab);
+        if (f2.has_operator()) {
+            if (f2.decomposed().get_operator_ptr()->type() == OT_F12) {
+                op = TwoElectronFactory(world()).dcut(f2.get_operator().parameters.lo).gamma(
+                                f2.get_operator().parameters.gamma).f12().thresh(thresh);
+            } else if (f2.get_operator().type() == OT_G12) {
+                op = TwoElectronFactory(world()).dcut(f2.get_operator().parameters.lo).thresh(thresh);
+            } else {
+                MADNESS_EXCEPTION(("6D Overlap with operatortype " + assign_name(f2.get_operator().type()) + " not supported").c_str(), 1);
+            }
         }
+        for (int i=0; i<a.size(); ++i) {
+            auto x=a[i];
+            auto y=b[i];
+            real_function_6d opxy;
+            if (f2.has_operator()) opxy= CompositeFactory<double, 6, 3>(world()).g12(op).particle1(x).particle2(y);
+            else opxy= CompositeFactory<double, 6, 3>(world()).particle1(x).particle2(y);
+            result+= f1.pure().get_function().inner(opxy);
+        }
+    } else if (f1.is_decomposed() and f2.is_pure()) {     // with or without op
+        result= f2.inner_internal(f1,R2);
     } else if (f1.is_decomposed_no_op() and f2.is_decomposed_no_op()) {
         MADNESS_ASSERT(f1.get_a().size() == f1.get_b().size());
         MADNESS_ASSERT(f2.get_a().size() == f2.get_b().size());
@@ -220,66 +215,37 @@ double CCPairFunction::inner_internal(const CCPairFunction& other, const real_fu
         // <p1 | p2> = \sum_ij <a_i b_i | a_j b_j> = \sum_ij <a_i|a_j> <b_i|b_j>
         result = (matrix_inner(world(), a, f1.get_a()).emul(matrix_inner(world(), b, f1.get_b()))).sum();
 
-//         for (size_t i1 = 0; i1 < f1.get_a().size(); i1++) {
-//             for (size_t i2 = 0; i2 < f2.get_a().size(); i2++) {
-//                 const double aa = a[i1].inner(f2.get_a()[i2]);
-//                 const double bb = b[i1].inner(f2.get_b()[i2]);
-//                 result += aa * bb;
-//             }
-//         }
     } else if (f1.is_decomposed_no_op() and f2.is_op_decomposed()) {
         MADNESS_ASSERT(f1.get_a().size() == f1.get_b().size());
-        vector_real_function_3d a = f1.get_a();
-        vector_real_function_3d b = f1.get_b();
-        real_function_3d x = R2.is_initialized() ? R2 * f2.get_a()[0] : f2.get_a()[0];
-        real_function_3d y = R2.is_initialized() ? R2 * f2.get_b()[0] : f2.get_a()[0];
-        for (size_t i = 0; i < a.size(); i++) {
-            real_function_3d ax = (a[i] * x).truncate();
-            real_function_3d aopx = f2.get_operator()(ax);
-            result += b[i].inner(aopx * y);
+        // <a1 b1 | op | a2 b2>  =  <a1 * a2 | op(b1*b2) >
+        const vector_real_function_3d& a1 = f1.get_a();
+        const vector_real_function_3d& b1 = f1.get_b();
+        const vector_real_function_3d a2 = R2.is_initialized() ? R2 * f2.get_a() : copy(world(),f2.get_a());
+        const vector_real_function_3d b2 = R2.is_initialized() ? R2 * f2.get_b() : copy(world(),f2.get_b());
+        for (size_t i = 0; i < a1.size(); i++) {
+            vector_real_function_3d aa = truncate(a1[i] * a2);
+            vector_real_function_3d aopx = f2.get_operator()(aa);
+            vector_real_function_3d bb = truncate(b1[i] * b2);
+            result += inner(bb,aopx);
         }
-    } else if (f1.is_op_decomposed() and f2.is_pure()) {
-        real_function_3d x = R2.is_initialized() ? R2 * f1.get_a()[0] : f1.get_a()[0];
-        real_function_3d y = R2.is_initialized() ? R2 * f1.get_b()[0] : f1.get_a()[0];
-        real_function_6d op;
-        if (f1.get_operator().type() == OT_F12)
-            op = TwoElectronFactory(world()).dcut(f1.get_operator().parameters.lo).gamma(f1.get_operator().parameters.gamma).f12()
-                    .thresh(thresh);
-        else if (f1.get_operator().type() == OT_G12)
-            op = TwoElectronFactory(world()).dcut(f1.get_operator().parameters.lo).thresh(thresh);
-        else MADNESS_EXCEPTION(
-                ("6D Overlap with operatortype " + assign_name(f1.get_operator().type()) + " not supported").c_str(), 1);
-        real_function_6d opxy = CompositeFactory<double, 6, 3>(world()).g12(op).particle1(::copy(x)).particle2(::copy(y));
-        return f2.pure().get_function().inner(opxy);
+
     } else if (f1.is_op_decomposed() and f2.is_decomposed_no_op()) {
-        MADNESS_ASSERT(f2.get_a().size() == f2.get_b().size());
-        vector_real_function_3d a = f2.get_a();
-        vector_real_function_3d b = f2.get_b();
-        real_function_3d x = R2.is_initialized() ? R2 * f1.get_a()[0] : f1.get_a()[0];
-        real_function_3d y = R2.is_initialized() ? R2 * f1.get_b()[0] : f1.get_a()[0];
-        for (size_t i = 0; i < a.size(); i++) {
-            real_function_3d ax = (a[i] * x).truncate();
-            real_function_3d aopx = f1.get_operator()(ax);
-            result += b[i].inner(aopx * y);
-        }
+        return f2.inner_internal(f1,R2);
+
     } else if (f1.is_op_decomposed() and f2.is_op_decomposed()) {
-        MADNESS_ASSERT(f1.get_operator().type() == OT_F12 and f2.get_operator().type() == OT_F12);     // in principle we have everything for f12g12 but we will not need it
-        // we use the slater operator which is S = e^(-y*r12), y=gamma
-        // the f12 operator is: 1/2y*(1-e^(-y*r12)) = 1/2y*(1-S)
-        // so the squared f12 operator is: f*f = 1/(4*y*y)(1-2S+S*S), S*S = S(2y) = e(-2y*r12)
-        // we have then: <xy|f*f|xy> = 1/(4*y*y)*(<xy|xy> - 2*<xy|S|xy> + <xy|SS|xy>)
-        const double gamma =f1.get_operator().parameters.gamma;
-        const double prefactor = 1.0 / (4.0 * gamma * gamma);
-        SeparatedConvolution<double, 3> S = SlaterOperator(world(), gamma, f1.get_operator().parameters.lo, f1.get_operator().parameters.thresh_op);
-        SeparatedConvolution<double, 3> S2 = SlaterOperator(world(), 2.0 * gamma, f1.get_operator().parameters.lo,
-                                                            f1.get_operator().parameters.thresh_op);
-        real_function_3d x1 = R2.is_initialized() ? R2 * f1.get_a()[0] : f2.get_a()[0];
-        real_function_3d y1 = R2.is_initialized() ? R2 * f1.get_b()[0] : f1.get_a()[0];
-        real_function_3d xx = f2.get_a()[0] * x1;
-        real_function_3d yy = f2.get_b()[0] * y1;
-        real_function_3d xSx = S(xx);
-        real_function_3d xSSx = S2(xx);
-        result = prefactor * (x1.inner(f2.get_a()[0]) * y1.inner(f2.get_b()[0]) - 2.0 * yy.inner(xSx) + yy.inner(xSSx));
+        MADNESS_CHECK(can_combine(f1.get_operator(),f2.get_operator()));
+        MADNESS_CHECK(f1.get_a().size()==1);
+        std::vector<std::pair<double,CCConvolutionOperator>> ops=combine(f1.get_operator(),f2.get_operator());
+        CCPairFunction bra(f1.get_a(),f1.get_b());
+        for (const auto& op : ops) {
+            CCPairFunction ket;
+            if (op.second.get_op()) ket = CCPairFunction(&op.second,f2.get_a(),f2.get_b());
+            else ket = CCPairFunction(f2.get_a(),f2.get_b());
+
+            double tmp=op.first * inner(ket,bra,R2);
+            print("inner",bra.name(true),ket.name()," : ",tmp);
+            result+=tmp;
+        }
     } else MADNESS_EXCEPTION(
             ("CCPairFunction Overlap not supported for combination " + f1.name() + " and " + f2.name()).c_str(), 1)
 
@@ -297,7 +263,7 @@ std::vector<CCPairFunction> apply(const ProjectorBase& projector, const std::vec
     if (argument.size()==0) return argument;
     World& world=argument.front().world();
     if (auto P=dynamic_cast<const Projector<double,3>*>(&projector)) MADNESS_CHECK(P->get_particle()==0 or P->get_particle()==1);
-    if (auto Q=dynamic_cast<const Projector<double,3>*>(&projector)) MADNESS_CHECK(Q->get_particle()==0 or Q->get_particle()==1);
+    if (auto Q=dynamic_cast<const QProjector<double,3>*>(&projector)) MADNESS_CHECK(Q->get_particle()==0 or Q->get_particle()==1);
     std::vector<CCPairFunction> result;
     for (const auto& pf : argument) {
         if (pf.is_pure()) {
@@ -348,16 +314,18 @@ std::vector<CCPairFunction> apply(const ProjectorBase& projector, const std::vec
             } else if (auto P=dynamic_cast<const Projector<double,3>*>(&projector)) {
                 std::vector<real_function_3d> tmp= zero_functions_compressed<double,3>(world,P->get_ket_vector().size());
 
+                // per term a_i b_k:
+                // P1 f |a b> = \sum_k |k(1)> |f_ak(2)*b(2)>
                 for (std::size_t i=0; i<pf.get_a().size(); ++i) {
                     real_function_3d a=pf.get_a()[i];
                     real_function_3d b=pf.get_b()[i];
                     if (P->get_particle()==1) std::swap(a,b);
 
-                    std::vector<real_function_3d> kb=mul(world,b,P->get_bra_vector());
+                    std::vector<real_function_3d> ka=a*P->get_bra_vector();
                     real_convolution_3d& op=*(pf.get_operator().get_op());
-                    std::vector<real_function_3d> f_kb=apply(world,op,kb);
-                    std::vector<real_function_3d> a_f_kb=mul(world,a,f_kb);
-                    tmp+=a_f_kb;
+                    std::vector<real_function_3d> f_ka=apply(world,op,ka);
+                    std::vector<real_function_3d> b_f_ka=f_ka*b;
+                    tmp+=b_f_ka;
                 }
                 truncate(world,tmp);
                 if (P->get_particle()==0) result.push_back(CCPairFunction(P->get_ket_vector(),tmp));

@@ -39,13 +39,15 @@ CC2::solve() {
             MADNESS_EXCEPTION("unknown calculation type",1);
     } else if (ctype == CT_MP2) {
 
-        CCPairFunction bra(&(CCOPS.g12),{CCOPS.mo_bra()(0)},{CCOPS.mo_ket()(0)});
-        CCPairFunction ket(&(CCOPS.f12),{CCOPS.mo_ket()(0)},{CCOPS.mo_ket()(0)});
-        StrongOrthogonalityProjector<double, 3> Q12(world);
-        Q12.set_spaces(CCOPS.mo_bra().get_vecfunction(),CCOPS.mo_ket().get_vecfunction(),
-                       CCOPS.mo_bra().get_vecfunction(),CCOPS.mo_ket().get_vecfunction());
-        const double part1a = inner(std::vector<CCPairFunction>({bra}),Q12(std::vector<CCPairFunction>({ket})));
-        print("energy with the new CCPairFunction",part1a);
+//        CCPairFunction bra(&(CCOPS.g12),CCOPS.mo_bra().get_vecfunction(),CCOPS.mo_bra().get_vecfunction());
+//        CCPairFunction ket(&(CCOPS.f12),CCOPS.mo_ket().get_vecfunction(),CCOPS.mo_ket().get_vecfunction());
+//        auto vbra=std::vector<CCPairFunction>({bra});
+//        auto vket=std::vector<CCPairFunction>({ket});
+//        StrongOrthogonalityProjector<double, 3> Q12(world);
+//        Q12.set_spaces(CCOPS.mo_bra().get_vecfunction(),CCOPS.mo_ket().get_vecfunction(),
+//                       CCOPS.mo_bra().get_vecfunction(),CCOPS.mo_ket().get_vecfunction());
+//        double part1=inner(vbra,Q12(vket));
+//        print("part 1 of the energy expression: <ij | f Q g | ij> ",part1);
 
         Pairs<CCPair> pairs;
         initialize_pairs(pairs, GROUND_STATE, CT_MP2, CC_vecfunction(PARTICLE), CC_vecfunction(RESPONSE), 0);
