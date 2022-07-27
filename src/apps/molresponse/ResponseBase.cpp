@@ -1077,7 +1077,7 @@ residuals ResponseBase::compute_residual(World &world, X_space &old_Chi, X_space
 
 
     Tensor<double> norms_b(m);
-    auto easy_norms = res.norm2s();
+
     // rmsX and maxvalX for each m response states
 
     for (size_t b = 0; b < m; b++) {
@@ -1094,6 +1094,9 @@ residuals ResponseBase::compute_residual(World &world, X_space &old_Chi, X_space
             print("residual norms: state ", b, " : ", norms_b[b]);
         }
     }
+
+    res.truncate();
+    auto easy_norms = res.norm2s();
 
     if (world.rank() == 0 and (r_params.print_level() > 1)) {
         print("norms_b: ", norms_b);
