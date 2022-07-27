@@ -58,7 +58,7 @@ public:
 
 	/// ctor reading out the input file
 	MolecularOptimizationParameters(World& world, const commandlineparser& parser) {
-        initialize<std::string>("update","BFGS");
+        initialize<std::string>("update","bfgs");
         initialize<int>("maxiter",20);
         initialize<double>("tol",1.e-6);
         initialize<double>("value_precision",1.e-12);
