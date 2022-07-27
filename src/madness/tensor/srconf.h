@@ -474,8 +474,11 @@ public:
                     Tensor<T> a1=flat_vector(i);
                     Tensor<T> b1=other.flat_vector(i);
                 	Tensor<T> r1=result.vector_[i].reshape(finalrank,kVec(i));
+                    Tensor<T> tmp(finalrank,1);
                     for (int k=0; k<a1.dim(1); ++k) {
-                    	r1(_,Slice(k,k))=outer(a1(_,k),b1(_,k)).reshape(finalrank,1);
+//                    	r1(_,Slice(k,k))=outer(a1(_,k),b1(_,k)).reshape(finalrank,1);
+                        outer_result(a1(_,k),b1(_,k),tmp);
+                        r1(_,Slice(k,k))=tmp;
                     }
                 }
             }

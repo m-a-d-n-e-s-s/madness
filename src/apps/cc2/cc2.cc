@@ -40,15 +40,6 @@
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 
 
-/*!
-  \file examples/tdhf.cc
-  \brief compute the time-dependent HF equations (currently CIS approximation)
-
-  The source is
-  <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local
-  /trunk/src/apps/examples/tdhf.cc>here</a>.
-
- */
 #include "apps/chem/CC2.h"
 #include "madness/misc/gitinfo.h"
 
@@ -94,7 +85,10 @@ int main(int argc, char **argv) {
 // Make CC2
     CC2 cc2(world, parser, nemo);
 
-    cc2.solve();
+    if (cc2.parameters.test()) cc2.selftest();
+    else {
+        cc2.solve();
+    }
 
     if (world.rank() == 0) printf("\nfinished at time %.1fs\n\n", wall_time());
     world.gop.fence();

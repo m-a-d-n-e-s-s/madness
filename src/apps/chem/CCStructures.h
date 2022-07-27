@@ -12,27 +12,29 @@
 
 #include <madness/mra/mra.h>
 #include <chem/commandlineparser.h>
+#include <chem/ccpairfunction.h>
 #include <chem/QCCalculationParametersBase.h>
 #include <algorithm>
 #include <iomanip>
 #include <madness/mra/macrotaskq.h>
 
 namespace madness {
-/// FuncTypes used by the CC_function_6d structure
-enum PairFormat {
-    PT_UNDEFINED, PT_FULL, PT_DECOMPOSED, PT_OP_DECOMPOSED
-};
+
 /// Operatortypes used by the CCConvolutionOperator Class
 enum OpType {
-    OT_UNDEFINED, OT_G12, OT_F12
+    OT_UNDEFINED,
+    OT_ONE,         /// indicates the identity
+    OT_G12,         /// 1/r
+    OT_SLATER,      /// exp(r)
+    OT_F12,         /// 1-exp(r)
+    OT_FG12,        /// (1-exp(r))/r
+    OT_F212,        /// (1-exp(r))^2
+    OT_BSH          /// exp(r)/r
 };
+
 /// Calculation Types used by CC2
 enum CalcType {
     CT_UNDEFINED, CT_MP2, CT_CC2, CT_LRCCS, CT_LRCC2, CT_CISPD, CT_ADC2, CT_TDHF, CT_TEST
-};
-/// Types of Functions used by CC_function class
-enum FuncType {
-    UNDEFINED, HOLE, PARTICLE, MIXED, RESPONSE
 };
 /// Type of Pairs used by CC_Pair2 class
 enum CCState {
@@ -174,6 +176,13 @@ public:
         return *this;
     }
 
+    double reset() {
+        stop();
+        double wtime=time_wall;
+        start();
+        return wtime;
+    }
+
 
     double get_wall_time_diff() const { return end_wall; }
 
@@ -220,7 +229,7 @@ struct CCParameters : public QCCalculationParametersBase {
     void initialize_parameters() {
         double thresh=1.e-3;
         double thresh_operators=1.e-6;
-        initialize < std::string > ("calc_type", "lrcc2", "the calculation type", {"mp2", "cc2", "cis", "lrcc2", "cispd", "adc2", "test"});
+        initialize < std::string > ("calc_type", "mp2", "the calculation type", {"mp2", "cc2", "cis", "lrcc2", "cispd", "adc2", "test"});
         initialize < double > ("lo", 1.e-7, "the finest length scale to be resolved by 6D operators");
         initialize < double > ("dmin", 1.0, "defines the depth of the special level");
         initialize < double > ("thresh_6d", thresh, "threshold for the 6D wave function");
@@ -254,11 +263,11 @@ struct CCParameters : public QCCalculationParametersBase {
         initialize < bool > ("debug", false, "");
         initialize < bool > ("plot", false, "");
         initialize < bool > ("kain", true, "");
-        initialize < std::size_t > ("kain_subspace", 5, "");
+        initialize < std::size_t > ("kain_subspace", 3, "");
         initialize < std::size_t > ("freeze", 0, "");
         initialize < bool > ("test", false, "");
         // choose if Q for the constant part of MP2 and related calculations should be decomposed: GQV or GV - GO12V
-        initialize < bool > ("decompose_Q", false, "");
+        initialize < bool > ("decompose_Q", true, "");
         // if true the ansatz for the CC2 ground state pairs is |tau_ij> = |u_ij> + Qtf12|titj>, with Qt = Q - |tau><phi|
         // if false the ansatz is the same with normal Q projector
         // the response ansatz is the corresponding response of the gs ansatz
@@ -491,62 +500,6 @@ double
 size_of(const intermediateT& im);
 
 
-/// structure for a CC Function 3D which holds an index and a type
-// the type is defined by the enum FuncType (definition at the start of this file)
-struct CCFunction {
-    CCFunction() : current_error(99), i(99), type(UNDEFINED) {};
-
-    CCFunction(const real_function_3d& f) : current_error(99), function(f), i(99), type(UNDEFINED) {};
-
-    CCFunction(const real_function_3d& f, const size_t& ii) : current_error(99), function(f), i(ii), type(UNDEFINED) {};
-
-    CCFunction(const real_function_3d& f, const size_t& ii, const FuncType& type_) : current_error(99), function(f),
-                                                                                     i(ii), type(type_) {};
-
-    CCFunction(const CCFunction& other) : current_error(other.current_error), function(other.function), i(other.i),
-                                          type(other.type) {};
-    double current_error;
-    real_function_3d function;
-
-    real_function_3d get() const { return function; }
-
-    real_function_3d f() const { return function; }
-
-    void set(const real_function_3d& other) { function = other; }
-
-    size_t i;
-    FuncType type;
-
-    void info(World& world, const std::string& msg = " ") const;
-
-    std::string name() const;
-
-    double inner(const CCFunction& f) const {
-        return inner(f.function);
-    }
-
-    double inner(const real_function_3d& f) const {
-        return function.inner(f);
-    }
-
-    /// scalar multiplication
-    CCFunction operator*(const double& fac) const {
-        real_function_3d fnew = fac * function;
-        return CCFunction(fnew, i, type);
-    }
-
-    // for convenience
-    bool operator==(const CCFunction& other) const {
-        if (i == other.i and type == other.type) return true;
-        else return false;
-    }
-
-    /// plotting
-    void plot(const std::string& msg = "") const {
-        plot_plane(function.world(), function, msg + name());
-    }
-};
-
 
 // structure for CC Vectorfunction
 /// A helper structure which holds a map of functions
@@ -752,19 +705,83 @@ struct CCConvolutionOperator {
     /// @param[in] param: the parameters of the current CC-Calculation (including function and operator thresholds and the exponent for f12)
     CCConvolutionOperator(World& world, const OpType type, Parameters param) : parameters(param), world(world),
                                                                                operator_type(type),
-                                                                               op() {
+                                                                               op(init_op(operator_type, parameters)) {
     }
 
     CCConvolutionOperator(const CCConvolutionOperator& other) = default;
 
+    friend bool can_combine(const CCConvolutionOperator& left, const CCConvolutionOperator& right) {
+        return (combine_OT(left,right).first!=OT_UNDEFINED);
+    }
+
+    friend std::pair<OpType,Parameters> combine_OT(const CCConvolutionOperator& left, const CCConvolutionOperator& right) {
+        OpType type=OT_UNDEFINED;
+        Parameters param=left.parameters;
+        if ((left.type()==OT_F12) and (right.type()==OT_G12)) {
+            type=OT_FG12;
+        }
+        if ((left.type()==OT_G12) and (right.type()==OT_F12)) {
+            type=OT_FG12;
+            param.gamma=right.parameters.gamma;
+        }
+        if ((left.type()==OT_F12) and (right.type()==OT_F12)) {
+            type=OT_F212;
+            // keep the original gamma
+            // (f12)^2 = (1- slater12)^2  = 1/(4 gamma) (1 - 2 exp(-gamma) + exp(-2 gamma))
+            MADNESS_CHECK(right.parameters.gamma == left.parameters.gamma);
+        }
+        return std::make_pair(type,param);
+    }
+
+
+    /// combine 2 convolution operators to one
+
+    /// @return a vector of pairs: factor and convolution operator
+    friend std::vector<std::pair<double,CCConvolutionOperator>> combine(const CCConvolutionOperator& left, const CCConvolutionOperator& right) {
+        MADNESS_CHECK(can_combine(left,right));
+        MADNESS_CHECK(left.world.id()==right.world.id());
+        auto [type,param]=combine_OT(left,right);
+        std::vector<std::pair<double,CCConvolutionOperator>> result;
+        if (type==OT_FG12) {
+            // fg = (1 - exp(-gamma r12))  / r12 = 1/r12 - exp(-gamma r12)/r12 = coulomb - bsh
+
+            // coulombfit return 1/r
+            // we need 1/(2 gamma) 1/r
+            result.push_back(std::make_pair(1.0/(2.0*param.gamma),CCConvolutionOperator(left.world, OT_G12, param)));
+
+            // bshfit returns 1/(4 pi) exp(-gamma r)/r
+            // we need 1/(2 gamma) exp(-gamma r)/r
+            const double factor = 4.0 * constants::pi /(2.0*param.gamma);
+            result.push_back(std::make_pair(-factor,CCConvolutionOperator(left.world, OT_BSH, param)));
+        } else if (type==OT_F212) {
+//             we use the slater operator which is S = e^(-y*r12), y=gamma
+//             the f12 operator is: 1/2y*(1-e^(-y*r12)) = 1/2y*(1-S)
+//             so the squared f12 operator is: f*f = 1/(4*y*y)(1-2S+S*S), S*S = S(2y) = e(-2y*r12)
+//             we have then: <xy|f*f|xy> = 1/(4*y*y)*(<xy|xy> - 2*<xy|S|xy> + <xy|SS|xy>)
+//             we have then: <xy|f*f|xy> =(<xy|f12|xy> -  1/(4*y*y)*2*<xy|S|xy>
+            MADNESS_CHECK(left.parameters.gamma==right.parameters.gamma);
+            const double prefactor = 1.0 / (4.0 * param.gamma); // Slater has no 1/(2 gamma) per se.
+            Parameters param2=param;
+            param2.gamma*=2.0;
+            result.push_back(std::make_pair(1.0*prefactor,CCConvolutionOperator(left.world, OT_ONE, param)));
+            result.push_back(std::make_pair(-2.0*prefactor,CCConvolutionOperator(left.world, OT_SLATER, left.parameters)));
+            result.push_back(std::make_pair(1.0*prefactor,CCConvolutionOperator(left.world, OT_SLATER, param2)));
+        }
+        return result;
+    }
+
     /// @param[in] f: a 3D function
     /// @param[out] the convolution op(f), no intermediates are used
-    real_function_3d operator()(const real_function_3d& f) const { return ((*op)(f)).truncate(); }
+    real_function_3d operator()(const real_function_3d& f) const {
+        if (op) return ((*op)(f)).truncate();
+        return f;
+    }
 
     /// @param[in] bra a CC_vecfunction
     /// @param[in] ket a CC_function
     /// @param[out] vector[i] = <bra[i]|op|ket>
     vector_real_function_3d operator()(const CC_vecfunction& bra, const CCFunction& ket) const {
+        MADNESS_CHECK(op);
         vector_real_function_3d result;
         if (bra.type == HOLE) {
             for (const auto& ktmp:bra.functions) {
@@ -783,7 +800,8 @@ struct CCConvolutionOperator {
     // @param[in] f: a vector of 3D functions
     // @param[out] the convolution of op with each function, no intermeditates are used
     vector_real_function_3d operator()(const vector_real_function_3d& f) const {
-        return apply<double, double, 3>(world, (*op), f);
+        if (op) return apply<double, double, 3>(world, (*op), f);
+        return f;
     }
 
     // @param[in] bra: a 3D CC_function, if nuclear-correlation factors are used they have to be applied before
@@ -841,6 +859,7 @@ struct CCConvolutionOperator {
     TwoElectronFactory get_kernel() const {
         if (type() == OT_G12) return TwoElectronFactory(world).dcut(1.e-7);
         else if (type() == OT_F12) return TwoElectronFactory(world).dcut(1.e-7).f12().gamma(parameters.gamma);
+        else if (type() == OT_FG12) return TwoElectronFactory(world).dcut(1.e-7).BSH().gamma(parameters.gamma);
         else error("no kernel of type " + name() + " implemented");
         return TwoElectronFactory(world);
     }
@@ -848,6 +867,9 @@ struct CCConvolutionOperator {
     OpType type() const { return operator_type; }
 
     const Parameters parameters;
+
+    std::shared_ptr<real_convolution_3d> get_op() const {return op;};
+
 private:
     /// the world
     World& world;
@@ -874,140 +896,6 @@ private:
     }
 };
 
-/// Helper structure for the coupling potential of CC Singles and Doubles
-/// because of the regularization of the CC-Wavefunction (for CC2: |tauij> = |uij> + Qt12*f12*|titj>)
-/// we have 6D-functions in std format |u> : type==pure_
-/// we have 6D-functions in sepparated format: type==decomposed_ (e.g O1*f12*|titj> = |xy> with x=|k> and y=<k|f12|ti>*|tj>)
-/// we have 6D-function like f12|xy> which are not needed to be represented on the 6D MRA-Grid, type==op_decomposed_
-struct CCPairFunction {
-
-public:
-    CCPairFunction(World& world, const real_function_6d& ket) : world(world), type(PT_FULL), a(), b(), op(0), u(ket) {}
-
-    CCPairFunction(World& world, const vector_real_function_3d& f1, const vector_real_function_3d& f2) : world(world),
-                                                                                                         type(PT_DECOMPOSED),
-                                                                                                         a(f1), b(f2),
-                                                                                                         op(0), u() {}
-
-    CCPairFunction(World& world, const std::pair<vector_real_function_3d, vector_real_function_3d>& f) : world(world),
-                                                                                                         type(PT_DECOMPOSED),
-                                                                                                         a(f.first),
-                                                                                                         b(f.second),
-                                                                                                         op(0), u() {}
-
-    CCPairFunction(World& world, const CCConvolutionOperator *op_, const CCFunction& f1, const CCFunction& f2) : world(
-            world), type(PT_OP_DECOMPOSED), a(), b(), op(op_), x(f1), y(f2), u() {}
-
-    CCPairFunction(const CCPairFunction& other) : world(other.world), type(other.type), a(other.a), b(other.b),
-                                                  op(other.op), x(other.x), y(other.y), u(other.u) {}
-
-    CCPairFunction
-    operator=(const CCPairFunction& other);
-
-    void info() const {
-        if (world.rank() == 0) std::cout << "Information about Pair " << name() << "\n";
-        print_size();
-    }
-
-    /// deep copy
-    CCPairFunction
-    copy() const;
-
-
-    /// make a deep copy and invert the sign
-    /// deep copy necessary otherwise: shallow copy errors
-    CCPairFunction
-    invert_sign();
-
-    CCPairFunction operator*(const double fac) const {
-        if (type == PT_FULL) return CCPairFunction(world, fac * u);
-        else if (type == PT_DECOMPOSED) return CCPairFunction(world, fac * a, b);
-        else if (type == PT_OP_DECOMPOSED) return CCPairFunction(world, op, x * fac, y);
-        else MADNESS_EXCEPTION("wrong type in CCPairFunction scale", 1);
-    }
-
-
-    /// print the size of the functions
-    void
-    print_size() const;
-
-    std::string name() const {
-        if (type == PT_FULL) return "|u>";
-        else if (type == PT_DECOMPOSED) return "|ab>";
-        else if (type == PT_OP_DECOMPOSED) return op->name() + "|xy>";
-        return "???";
-    }
-
-
-    /// @param[in] f: a 3D-CC_function
-    /// @param[in] particle: the particle on which the operation acts
-    /// @param[out] <f|u>_particle (projection from 6D to 3D)
-    real_function_3d project_out(const CCFunction& f, const size_t particle) const;
-
-    // result is: <x|op12|f>_particle
-    /// @param[in] x: a 3D-CC_function
-    /// @param[in] op: a CC_convoltion_operator which is currently either f12 or g12
-    /// @param[in] particle: the particle on which the operation acts (can be 1 or 2)
-    /// @param[out] the operator is applied and afterwards a convolution with the delta function makes a 3D-function: <x|op|u>_particle
-    real_function_3d
-    dirac_convolution(const CCFunction& x, const CCConvolutionOperator& op, const size_t particle) const;
-
-    /// @param[out] particles are interchanged, if the function was u(1,2) the result is u(2,1)
-    CCPairFunction swap_particles() const;
-
-    double
-    make_xy_u(const CCFunction& xx, const CCFunction& yy) const;
-
-public:
-    /// the 3 types of 6D-function that occur in the CC potential which coupled doubles to singles
-
-    World& world;
-    /// the type of the given 6D-function
-    const PairFormat type;
-    /// if type==decomposed this is the first particle
-    vector_real_function_3d a;
-    /// if type==decomposed this is the second particle
-    vector_real_function_3d b;
-    /// if type==op_decomposed_ this is the symmetric 6D-operator (g12 or f12) in u=op12|xy>
-    const CCConvolutionOperator *op;
-    /// if type==op_decomposed_ this is the first particle in u=op12|xy>
-    CCFunction x;
-    /// if type==op_decomposed_ this is the second particle in u=op12|xy>
-    CCFunction y;
-    /// if type=pure_ this is just the MRA 6D-function
-    real_function_6d u;
-
-    /// @param[in] f: a 3D-CC_function
-    /// @param[in] particle: the particle on which the operation acts
-    /// @param[out] <f|u>_particle (projection from 6D to 3D) for the case that u=|ab> so <f|u>_particle = <f|a>*|b> if particle==1
-    real_function_3d project_out_decomposed(const real_function_3d& f, const size_t particle) const;
-
-    /// @param[in] f: a 3D-CC_function
-    /// @param[in] particle: the particle on which the operation acts
-    /// @param[out] <f|u>_particle (projection from 6D to 3D) for the case that u=op|xy> so <f|u>_particle = <f|op|x>*|y> if particle==1
-    real_function_3d project_out_op_decomposed(const CCFunction& f, const size_t particle) const;
-
-    /// @param[in] x: a 3D-CC_function
-    /// @param[in] op: a CC_convoltion_operator which is currently either f12 or g12
-    /// @param[in] particle: the particle on which the operation acts (can be 1 or 2)
-    /// @param[out] the operator is applied and afterwards a convolution with the delta function makes a 3D-function: <x|op|u>_particle
-    /// in this case u=|ab> and the result is <x|op|u>_1 = <x|op|a>*|b> for particle==1
-    real_function_3d
-    dirac_convolution_decomposed(const CCFunction& x, const CCConvolutionOperator& op, const size_t particle) const;
-
-    /// small helper function that gives back (a,b) or (b,a) depending on the value of particle
-    const std::pair<vector_real_function_3d, vector_real_function_3d> assign_particles(const size_t particle) const;
-
-    /// swap particle function if type==pure_
-    CCPairFunction swap_particles_pure() const;
-
-    /// swap particle function if type==decomposed_
-    CCPairFunction swap_particles_decomposed() const;
-
-    /// swap particle function if type==op_decomposed_ (all ops are assumed to be symmetric)
-    CCPairFunction swap_particles_op_decomposed() const;
-};
-
 class CCPair : public archive::ParallelSerializableObject {
 public:
     CCPair(){};
@@ -1031,33 +919,33 @@ public:
     /// gives back the pure 6D part of the pair function
     real_function_6d function() const {
         MADNESS_ASSERT(not functions.empty());
-        MADNESS_ASSERT(functions[0].type == PT_FULL);
-        return functions[0].u;
+        MADNESS_ASSERT(functions[0].is_pure());
+        return functions[0].get_function();
     }
 
     /// updates the pure 6D part of the pair function
     void update_u(const real_function_6d& u) {
         MADNESS_ASSERT(not functions.empty());
-        MADNESS_ASSERT(functions[0].type == PT_FULL);
-        CCPairFunction tmp(u.world(), u);
+        MADNESS_ASSERT(functions[0].is_pure());
+        CCPairFunction tmp(u);
         functions[0] = tmp;
     }
 
     template<typename Archive>
     void serialize(const Archive& ar) {
         size_t f_size = functions.size();
-        bool fexist = (f_size > 0) && (functions[0].u.is_initialized());
+        bool fexist = (f_size > 0) && (functions[0].get_function().is_initialized());
         bool cexist = constant_part.is_initialized();
         ar & type & ctype & i & j & excitation & bsh_eps & fexist & cexist & f_size;
         if constexpr (Archive::is_input_archive) {
             if (fexist) {
                 real_function_6d func;
                 ar & func;
-                CCPairFunction f1(func.world(),func);
+                CCPairFunction f1(func);
                 functions.push_back(f1);
             }
         } else {
-            if (fexist) ar & functions[0].u;
+            if (fexist) ar & functions[0].get_function();
         }
         if (cexist) ar & constant_part;
     }
@@ -1070,7 +958,7 @@ public:
             archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, name.c_str(), 1);
             ar & *this;
             //if (world.rank() == 0) printf(" %s\n", (converged) ? " converged" : " not converged");
-            if (functions[0].u.is_initialized()) functions[0].u.set_thresh(FunctionDefaults<6>::get_thresh());
+            if (functions[0].get_function().is_initialized()) functions[0].get_function().set_thresh(FunctionDefaults<6>::get_thresh());
             if (constant_part.is_initialized()) constant_part.set_thresh(FunctionDefaults<6>::get_thresh());
         } else {
             if (world.rank() == 0) print("could not find pair ", i, j, " on disk");
