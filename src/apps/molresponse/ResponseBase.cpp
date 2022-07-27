@@ -322,7 +322,7 @@ void ResponseBase::load_balance_chi(World &world) {
 std::vector<poperatorT> ResponseBase::make_bsh_operators_response(World &world, double &shift,
                                                                   double &omega) const {
     if (r_params.print_level() >= 1) molresponse::start_timer(world);
-    double tol = FunctionDefaults<3>::get_thresh();
+    double tol = .1 * FunctionDefaults<3>::get_thresh();
     // Sizes inferred from ground and omega
     size_t num_orbitals = ground_energies.size();// number of orbitals
     std::vector<poperatorT> ops(num_orbitals);
@@ -347,7 +347,7 @@ X_space ResponseBase::compute_theta_X(World &world, const X_space &chi, XCOperat
     // compute
     if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
     X_space V0X = compute_V0X(world, chi, xc, compute_Y);
-    V0X.truncate();
+    //V0X.truncate();
     if (world.rank() == 0 && r_params.print_level() >= 1) {
         molresponse::end_timer(world, "compute_V0X", "compute_V0X", iter_timing);
     }
@@ -361,10 +361,8 @@ X_space ResponseBase::compute_theta_X(World &world, const X_space &chi, XCOperat
     X_space E0X(world, chi.num_states(), chi.num_orbitals());
     if (r_params.localize() != "canon") {
         E0X = chi.copy();
-        E0X.truncate();
         E0X.X = E0X.X * ham_no_diag;
         if (compute_Y) { E0X.Y = E0X.Y * ham_no_diag; }
-        E0X.truncate();
         if (r_params.print_level() >= 10) {
             print("<X|(E0-diag(E0)|X>");
             print(inner(chi, E0X));
@@ -391,7 +389,7 @@ X_space ResponseBase::compute_theta_X(World &world, const X_space &chi, XCOperat
 
     if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
     Theta_X = (V0X - E0X) + gamma;
-    Theta_X.truncate();
+    //    Theta_X.truncate();
     if (world.rank() == 0 && r_params.print_level() >= 1) {
         molresponse::end_timer(world, "compute_ThetaX_add", "compute_ThetaX_add", iter_timing);
     }
@@ -666,10 +664,12 @@ X_space ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &d
     // for each response state we compute the Gamma response functions
     // trucate all response functions
     if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
+    /*
     J.truncate();
     KX.truncate();
     KY.truncate();
     W.truncate();
+     */
 
     // update gamma functions
     gamma = (2 * J) - (KX + KY) * xcf.hf_exchange_coefficient() + W;
@@ -681,6 +681,7 @@ X_space ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &d
     if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
     QProjector<double, 3> projector(world, phi0);
     for (size_t i = 0; i < num_states; i++) { gamma.X[i] = projector(gamma.X[i]); }
+    gamma.Y = gamma.X.copy();
     if (world.rank() == 0 && r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_project", "gamma_project", iter_timing);
     }
@@ -704,6 +705,7 @@ X_space ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &d
                                iter_timing);
     }
     // Done
+    gamma.truncate();
     world.gop.fence();
     return gamma;
     // Get sizes
@@ -942,6 +944,7 @@ X_space ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperat
 
     X_space Chi_copy = X;
     vecfuncT phi0_copy = ground_orbitals;
+    Chi_copy.truncate();
     //Chi_copy.truncate();
     truncate(world, phi0_copy);
     // v_nuc first
@@ -989,7 +992,11 @@ X_space ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperat
     // If including any exact HF exchange
     if (xcf.hf_exchange_coefficient() != 0.0) {
         std::transform(Chi_copy.X.begin(), Chi_copy.X.end(), K0.X.begin(), k);
-        if (compute_Y) { std::transform(Chi_copy.Y.begin(), Chi_copy.Y.end(), K0.Y.begin(), k); }
+        if (compute_Y) {
+            std::transform(Chi_copy.Y.begin(), Chi_copy.Y.end(), K0.Y.begin(), k);
+        } else {
+            K0.Y = K0.X.copy();
+        }
     }
     if (r_params.print_level() >= 20) {
         print("inner <X|K0|X>");
@@ -1006,10 +1013,18 @@ X_space ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperat
     if (compute_Y) {
         V0.Y = v0 * X.Y;
         V0.Y += (-1 * K0.Y * xcf.hf_exchange_coefficient());
+    }else{
+        V0.Y=V0.X.copy();
+
     }
+
+
+
     if (r_params.print_level() >= 20) {
+        auto v0norms=V0.norm2s();
         print("inner <X|V0|X>");
         print(inner(Chi_copy, V0));
+
     }
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "V0_add", "V0_add", iter_timing);
@@ -1095,12 +1110,36 @@ residuals ResponseBase::compute_residual(World &world, X_space &old_Chi, X_space
         }
     }
 
-    res.truncate();
     auto easy_norms = res.norm2s();
+
+    auto chi_norms = old_Chi.norm2s();
+    auto temp_norms = old_Chi.norm2s();
+
+    auto copy_old = old_Chi.copy();
+    auto copy_new = temp.copy();
+
+    auto copy_res = copy_new - copy_old;
+    auto no_truncation = copy_res.norm2s();
+    copy_res.truncate();
+    auto truncate_after_subtract = copy_res.norm2s();
+
+
+    copy_old.truncate();
+    copy_new.truncate();
+
+    auto truncate_sub_res = copy_new - copy_old;
+    auto truncate_before_subtract = copy_res.norm2s();
+    truncate_sub_res.truncate();
+    auto truncate_before_and_after_subtract = copy_res.norm2s();
+
 
     if (world.rank() == 0 and (r_params.print_level() > 1)) {
         print("norms_b: ", norms_b);
         print("easy_norms: ", easy_norms);
+        print("no_truncation: ", no_truncation);
+        print("truncate_before_subtract: ", truncate_before_subtract);
+        print("truncate_after_subtract: ", truncate_after_subtract);
+        print("truncate_after_and_after_subtract: ", truncate_before_and_after_subtract);
     }
 
     if (world.rank() == 0 && r_params.print_level() >= 1) {
@@ -1262,8 +1301,8 @@ void ResponseBase::x_space_step_restriction(World &world, X_space &old_Chi, X_sp
                     if (r_params.print_level() > 1)
                         print("  restricting step for response-state: ", b, " step size", s);
                 }
-                gaxpy(world, (1.0 - s), temp.X[b], s, old_Chi.X[b], true);
-                gaxpy(world, (1.0 - s), temp.Y[b], s, old_Chi.Y[b], true);
+                gaxpy(world, (1.0 - s), old_Chi.X[b], s, temp.X[b], true);
+                gaxpy(world, (1.0 - s), old_Chi.Y[b], s, temp.Y[b], true);
             }
         } else {
             do_step_restriction(world, old_Chi.X[b], temp.X[b], "x_response", maxrotn);
@@ -2228,15 +2267,15 @@ void response_timing::print_data() {
  * @param values
  */
 void response_timing::add_data(std::map<std::string, std::pair<double, double>> values) {
-    print("ADDING DATA");
+    //   print("ADDING DATA");
     iter++;
     std::for_each(wall_time_data.begin(), wall_time_data.end(), [&values](auto &v) {
-        print(v.first, " : ", values[v.first]);
+        // print(v.first, " : ", values[v.first]);
         v.second.push_back(values[v.first].first);// .first to get first value of pair wall_time
     });
 
     std::for_each(cpu_time_data.begin(), cpu_time_data.end(), [&values](auto &v) {
-        print(v.first, " : ", values[v.first]);
+        //print(v.first, " : ", values[v.first]);
         v.second.push_back(values[v.first].second);// .first to get first value of pair wall_time
     });
 }

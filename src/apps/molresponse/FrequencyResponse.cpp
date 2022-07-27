@@ -89,19 +89,19 @@ void FrequencyResponse::iterate(World &world) {
                 printf("\n   Iteration %d at time %.1fs\n", static_cast<int>(iter), wall_time());
             if (world.rank() == 0) print("-------------------------------------------");
         }
-
+        auto chi_x = Chi.norm2s();
         auto chi_x_norms = Chi.X.norm2();
         auto chi_y_norms = Chi.Y.norm2();
         if (r_params.print_level() >= 1) {
             if (world.rank() == 0) {
-                print("Chi.x norms at start of iteration: ", iter);
-                print(chi_x_norms);
-                print("Chi.y norms at start of iteration ", iter);
-                print(chi_y_norms);
+                print("Chi Norms at start of iteration: ", iter);
+                print("Chi_X: ", chi_x);
+                print("Chi_X.X: ", chi_x_norms);
+                print("Chi_X.Y: ", chi_y_norms);
             }
         }
 
-        auto max_rotation = r_params.maxrotn();// 05 * conv_den;
+        auto max_rotation = 500 * FunctionDefaults<3>::get_thresh();
 
         // rho_omega = make_density(world, Chi, compute_y);
 
@@ -199,6 +199,18 @@ void FrequencyResponse::iterate(World &world) {
         }
 
         Tensor<double> polar = -2 * inner(Chi, PQ);
+        if (r_params.print_level() >= 20) {
+            auto [eval, evec] = syev(polar);
+            if (world.rank() == 0) {
+                printf("\n--------Response Properties after %d-------------\n", static_cast<int>(iter));
+                print("polarizability");
+                print(polar);
+                print("polarizability eigenvalues");
+                print(eval);
+                print("polarizability eigenvectors");
+                print(evec);
+            }
+        }
 
         frequency_to_json(j_molresponse, iter, bsh_residualsX, bsh_residualsY, density_residuals,
                           polar, Chi.X.norm2(), Chi.Y.norm2(), norm2s_T(world, rho_omega));
@@ -332,12 +344,46 @@ X_space FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
                                                std::vector<poperatorT> &bsh_x_ops,
                                                std::vector<poperatorT> &bsh_y_ops,
                                                QProjector<double, 3> &projector, double &x_shifts) {
-    if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
+    if (world.rank() == 0 && r_params.print_level() >= 1) {
+        molresponse::start_timer(world);
+        print("--------------- BSH UPDATE RESPONSE------------------");
+    }
+
+
+    if (r_params.print_level() >= 1) {
+        auto theta_norms = theta_X.norm2s();
+        auto theta_norms_x = theta_X.X.norm2();
+        auto theta_norms_y = theta_X.Y.norm2();
+        if (world.rank() == 0) {
+            print("Before adding rhs/shifts/multiply by -2");
+            print("norms theta_X ", theta_norms);
+            print("norms theta_X.X ", theta_norms_x);
+            print("norms theta_X.Y ", theta_norms_y);
+        }
+    }
     size_t m = theta_X.X.size();
     size_t n = theta_X.X.size_orbitals();
     bool compute_y = omega != 0.0;
 
-    theta_X.X += Chi.X * x_shifts;
+    if (r_params.print_level() >= 1) {
+        auto PQ_norms = PQ.norm2s();
+        auto PQ_x_norms = PQ.X.norm2();
+        auto PQ_y_norms = PQ.Y.norm2();
+        if (world.rank() == 0) {
+            print("norms PQ ", PQ_norms);
+            print("norms PQ.X ", PQ_x_norms);
+            print("norms PQ.Y ", PQ_y_norms);
+        }
+        PQ.truncate();
+        if (world.rank() == 0) {
+            print("After truncation ");
+            print("norms PQ ", PQ_norms);
+            print("norms PQ.X ", PQ_x_norms);
+            print("norms PQ.Y ", PQ_y_norms);
+        }
+    }
+
+    theta_X.X += theta_X.X * x_shifts;
     theta_X.X += PQ.X;
     theta_X.X = theta_X.X * -2;
     //theta_X.X.truncate_rf();
@@ -346,6 +392,31 @@ X_space FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
         theta_X.Y += PQ.Y;
         theta_X.Y = theta_X.Y * -2;
         //    theta_X.Y.truncate_rf();
+    }
+
+    if (r_params.print_level() >= 1) {
+        auto theta_norms = theta_X.norm2s();
+        auto theta_norms_x = theta_X.X.norm2();
+        auto theta_norms_y = theta_X.Y.norm2();
+        if (world.rank() == 0) {
+            print("Before after rhs/shifts/multiply by -2");
+            print("norms theta_X ", theta_norms);
+            print("norms theta_X.X ", theta_norms_x);
+            print("norms theta_X.Y ", theta_norms_y);
+        }
+    }
+
+    if (r_params.print_level() >= 1) {
+        theta_X.truncate();
+        auto theta_norms = theta_X.norm2s();
+        auto theta_norms_x = theta_X.X.norm2();
+        auto theta_norms_y = theta_X.Y.norm2();
+        if (world.rank() == 0) {
+            print("Before after truncate rhs/shifts/multiply by -2");
+            print("norms theta_X ", theta_norms);
+            print("norms theta_X.X ", theta_norms_x);
+            print("norms theta_X.Y ", theta_norms_y);
+        }
     }
 
     // apply bsh
@@ -361,6 +432,31 @@ X_space FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
     } else {
         bsh_X.Y = bsh_X.X.copy();
     }
+    if (r_params.print_level() >= 1) {
+        auto bsh_norms = bsh_X.norm2s();
+        auto bsh_norms_x = bsh_X.X.norm2();
+        auto bsh_norms_y = bsh_X.Y.norm2();
+        if (world.rank() == 0) {
+            print("BSH after apply and project");
+            print("norms bsh_X ", bsh_norms);
+            print("norms bsh_X.X ", bsh_norms_x);
+            print("norms bsh_X.Y ", bsh_norms_y);
+        }
+    }
+
+    if (r_params.print_level() >= 1) {
+        bsh_X.truncate();
+        auto bsh_norms = bsh_X.norm2s();
+        auto bsh_norms_x = bsh_X.X.norm2();
+        auto bsh_norms_y = bsh_X.Y.norm2();
+        if (world.rank() == 0) {
+            print("BSH after truncate and project");
+            print("norms bsh_X ", bsh_norms);
+            print("norms bsh_X.X ", bsh_norms_x);
+            print("norms bsh_X.Y ", bsh_norms_y);
+        }
+    }
+
     //bsh_X.truncate();
 
     if (world.rank() == 0 && r_params.print_level() >= 1) {
@@ -496,7 +592,7 @@ X_space dipole_generator(World &world, FrequencyResponse &calc) {
         f[i++] = 1;
         d = real_factory_3d(world).functor(real_functor_3d(new BS_MomentFunctor(f)));
     }
-    truncate(world, dipole_vectors, true);
+    //truncate(world, dipole_vectors, true);
     PQ.X = vector_to_PQ(world, dipole_vectors, calc.get_orbitals(), r_params.lo());
     PQ.Y = PQ.X;
     return PQ;
@@ -510,16 +606,15 @@ response_space vector_to_PQ(World &world, const vector_real_function_3d &p,
 
     QProjector<double, 3> Qhat(world, ground_orbitals);
 
-    std::vector<real_function_3d> orbitals = ground_orbitals;
+    std::vector<real_function_3d> orbitals = copy(world,ground_orbitals);
     truncate(world, orbitals);
 
     auto f = [&](auto property) {
         auto phat_phi = mul(world, property, orbitals, lo);
-        truncate(world, phat_phi);
         // rhs[i].truncate_vec();
-
         // project rhs vectors for state
         phat_phi = Qhat(phat_phi);
+        truncate(world, phat_phi);
         world.gop.fence();
         return phat_phi;
     };

@@ -474,7 +474,9 @@ void runMOLDFT(World &world, const moldftSchema &mschema, bool try_run, bool res
 
     CalculationParameters param1;
 
-    param1.set_user_defined_value("maxiter", 11);
+    param1.set_user_defined_value("maxiter", 20);
+    //param1.set_user_defined_value("Kain", true);
+
     param1.set_user_defined_value<std::string>("xc", mschema.xc);
     param1.set_user_defined_value<double>("l", 200);
 
@@ -537,7 +539,7 @@ void runMOLDFT(World &world, const moldftSchema &mschema, bool try_run, bool res
 void runMOLDFT(World &world, const std::string &mol_path, const std::string &xc) {
 
     CalculationParameters param1;
-    param1.set_user_defined_value("maxiter", 10);
+    param1.set_user_defined_value("maxiter", 20);
     param1.set_user_defined_value<std::string>("xc", xc);
     param1.set_user_defined_value<double>("l", 200);
     param1.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6, 1e-8});

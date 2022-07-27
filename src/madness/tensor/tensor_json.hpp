@@ -39,7 +39,7 @@ namespace madness {
         j["vals"] = m_vals_vector;
         j["dims"] = m_dims_vector;
 
-        print(j);
+        //print(j);
         return j;
     }
 
