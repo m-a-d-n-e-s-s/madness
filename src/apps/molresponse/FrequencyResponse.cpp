@@ -101,7 +101,7 @@ void FrequencyResponse::iterate(World &world) {
             }
         }
 
-        auto max_rotation = 500 * FunctionDefaults<3>::get_thresh();
+        auto max_rotation = 5000 * FunctionDefaults<3>::get_thresh();
 
         // rho_omega = make_density(world, Chi, compute_y);
 
@@ -202,7 +202,8 @@ void FrequencyResponse::iterate(World &world) {
         if (r_params.print_level() >= 20) {
             auto [eval, evec] = syev(polar);
             if (world.rank() == 0) {
-                printf("\n--------Response Properties after %d-------------\n", static_cast<int>(iter));
+                printf("\n--------Response Properties after %d-------------\n",
+                       static_cast<int>(iter));
                 print("polarizability");
                 print(polar);
                 print("polarizability eigenvalues");
@@ -606,7 +607,7 @@ response_space vector_to_PQ(World &world, const vector_real_function_3d &p,
 
     QProjector<double, 3> Qhat(world, ground_orbitals);
 
-    std::vector<real_function_3d> orbitals = copy(world,ground_orbitals);
+    std::vector<real_function_3d> orbitals = copy(world, ground_orbitals);
     truncate(world, orbitals);
 
     auto f = [&](auto property) {

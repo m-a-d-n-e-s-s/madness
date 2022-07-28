@@ -182,7 +182,7 @@ protected:
     X_space kain_x_space_update(World& world, const X_space& temp, const X_space& res,
                                 NonLinearXsolver& kain_x_space, vector<X_vector>& Xvector,
                                 vector<X_vector>& Xresidual);
-    void x_space_step_restriction(World& world, X_space& old_Chi, X_space& temp, bool restrict_y,
+    void x_space_step_restriction(World& world, const X_space& old_Chi, X_space& temp, bool restrict_y,
                                   const double& maxrotn);
     void vector_stats(const vector<double>& v, double& rms, double& maxabsval) const;
     double do_step_restriction(World& world, const vector_real_function_3d& x,

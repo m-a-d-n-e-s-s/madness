@@ -1013,18 +1013,15 @@ X_space ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperat
     if (compute_Y) {
         V0.Y = v0 * X.Y;
         V0.Y += (-1 * K0.Y * xcf.hf_exchange_coefficient());
-    }else{
-        V0.Y=V0.X.copy();
-
+    } else {
+        V0.Y = V0.X.copy();
     }
 
 
-
     if (r_params.print_level() >= 20) {
-        auto v0norms=V0.norm2s();
+        auto v0norms = V0.norm2s();
         print("inner <X|V0|X>");
         print(inner(Chi_copy, V0));
-
     }
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "V0_add", "V0_add", iter_timing);
@@ -1253,7 +1250,7 @@ X_space ResponseBase::kain_x_space_update(World &world, const X_space &temp, con
     return kain_update;
 }
 
-void ResponseBase::x_space_step_restriction(World &world, X_space &old_Chi, X_space &temp,
+void ResponseBase::x_space_step_restriction(World &world, const X_space &old_Chi, X_space &temp,
                                             bool restrict_y, const double &maxrotn) {
     size_t m = old_Chi.num_states();
     size_t n = old_Chi.num_orbitals();
@@ -1301,8 +1298,8 @@ void ResponseBase::x_space_step_restriction(World &world, X_space &old_Chi, X_sp
                     if (r_params.print_level() > 1)
                         print("  restricting step for response-state: ", b, " step size", s);
                 }
-                gaxpy(world, (1.0 - s), old_Chi.X[b], s, temp.X[b], true);
-                gaxpy(world, (1.0 - s), old_Chi.Y[b], s, temp.Y[b], true);
+                gaxpy(world, s, temp.X[b], (1.0 - s), old_Chi.X[b], true);
+                gaxpy(world, s, temp.Y[b], (1.0 - s), old_Chi.Y[b], true);
             }
         } else {
             do_step_restriction(world, old_Chi.X[b], temp.X[b], "x_response", maxrotn);
