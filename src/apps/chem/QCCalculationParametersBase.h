@@ -143,6 +143,10 @@ public:
 		set_all();
 	}
 
+    bool is_user_defined() const {
+        return (precedence==defined);
+    }
+
 	std::string get_value() const {return value;}
 	std::string get_type() const {return type;}
 	std::string get_comment() const {return comment;}
@@ -222,7 +226,7 @@ private:
 	}
 
 
-	std::string value="";
+	std::string value;
 	std::string default_value="";
 	std::string derived_value="";
 	std::string user_defined_value="";
@@ -266,6 +270,10 @@ public:
 		}
 		return fromstring<T>(parameter.get_value());
 	}
+
+    bool is_user_defined(std::string key) const {
+        return get_parameter(key).is_user_defined();
+    }
 
 	template <typename Archive> void serialize (Archive& ar) {
 		ar & parameters & print_debug;

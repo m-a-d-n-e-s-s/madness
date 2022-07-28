@@ -121,6 +121,8 @@ public:
                 read_input_and_commandline_options(world, parser, "geometry");
                 set_derived_values(parser);
             } catch (...) {
+                print("geometry","end");
+                MADNESS_EXCEPTION("faulty geometry input",1);
             }
         }
 
@@ -129,7 +131,9 @@ public:
             ignore_unknown_keys_silently=true;
             throw_if_datagroup_not_found=true;
 
-            initialize<std::vector<std::string>>("source",{"inputfile"},"where to get the coordinates from: ({inputfile}, {library,xxx}, {xyz,xxx.xyz})");
+//            initialize<std::vector<std::string>>("source",{"inputfile"},"where to get the coordinates from: ({inputfile}, {library,xxx}, {xyz,xxx.xyz})");
+            initialize<std::string>("source_type","inputfile","where to get the coordinates from",{"inputfile","xyz","library"});
+            initialize<std::string>("source_name","","name of the geometry from the library or the input file");
             initialize<double>("eprec",1.e-4,"smoothing for the nuclear potential");
             initialize<std::string>("units","atomic","coordinate units",{"atomic","angstrom"});
             initialize<std::vector<double>>("field",{0.0,0.0,0.0},"external electric field");
@@ -141,27 +145,55 @@ public:
 
         }
         void set_derived_values(const commandlineparser& parser) {
-            std::vector<std::string> src=source();
+            // check if we use an xyz file, the structure library or the input file
+            std::string src_type= derive_source_type_from_name(source_name());
+            set_derived_value("source_type",src_type);
 
-            // some convenience for the user
+            // check for ambiguities in the derived source type
+            if (not is_user_defined("source_type")) {
+                bool found_geometry_file=std::filesystem::exists(source_name());
 
-            // if source is the input file provide the name of the input file
-            if (src.size()==1 and src[0]=="inputfile")
-                set_derived_value("source",std::vector<std::string>({src[0],parser.value("input")}));
-            // if source is not "inputfile" or "library" assume an xyz file
-            if (src.size()==1 and src[0]!="inputfile") {
-                std::size_t found=src[0].find("xyz");
-                if (found==src[0].size()-3) { // check input file ends with xyz
-                    set_user_defined_value("source", std::vector<std::string>({"xyz", src[0]}));
-                } else {
-                    throw std::runtime_error("error in deriving geometry parameters");
+                bool geometry_found_in_library=true;
+                try {   // check for existence of file and structure in the library
+                    std::ifstream f;
+                    position_stream_in_library(f,source_name());
+                } catch(...){
+                    geometry_found_in_library=false;
+                }
+
+                if (found_geometry_file and geometry_found_in_library) {
+                    madness::print("\n\n");
+                    madness::print("geometry specification ambiguous: found geometry in the structure library and in a file\n");
+                    madness::print("  ",source_name());
+                    madness::print("\nPlease specify the location of your geometry input by one of the two lines:\n");
+                    madness::print("  source_type xyx");
+                    madness::print("  source_type library\n\n");
+                    MADNESS_EXCEPTION("faulty input\n\n",1);
                 }
             }
 
-            if (source()[0]=="xyz") set_derived_value("units",std::string("angstrom"));
+//            std::vector<std::string> src=source();
+//
+//            // some convenience for the user
+//
+//            // if source is the input file provide the name of the input file
+//            if (src.size()==1 and src[0]=="inputfile")
+//                set_derived_value("source",std::vector<std::string>({src[0],parser.value("input")}));
+//            // if source is not "inputfile" or "library" assume an xyz file
+//            if (src.size()==1 and src[0]!="inputfile") {
+//                std::size_t found=src[0].find("xyz");
+//                if (found==src[0].size()-3) { // check input file ends with xyz
+//                    set_user_defined_value("source", std::vector<std::string>({"xyz", src[0]}));
+//                } else {
+//                    throw std::runtime_error("error in deriving geometry parameters");
+//                }
+//            }
+
+            if (source_type()=="xyz") set_derived_value("units",std::string("angstrom"));
         }
 
-        std::vector<std::string> source() const {return get<std::vector<std::string>>("source");}
+        std::string source_type() const {return get<std::string>("source_type");}
+        std::string source_name() const {return get<std::string>("source_name");}
         std::vector<double> field() const {return get<std::vector<double>>("field");}
         double eprec() const {return get<double>("eprec");}
         std::string units() const {return get<std::string>("units");}
@@ -169,6 +201,13 @@ public:
         bool psp_calc() const {return get<bool>("psp_calc");}
         bool pure_ae() const {return get<bool>("pure_ae");}
         bool no_orient() const {return get<bool>("no_orient");}
+
+        static std::string derive_source_type_from_name(const std::string name) {
+            if (name.empty()) return "input";
+            std::size_t pos = name.find(".xyz");
+            if (pos!=std::string::npos) return "xyz";
+            return "library";
+        }
 
     };
 
@@ -185,6 +224,8 @@ private:
 
 public:
     GeometryParameters parameters;
+
+    static void print_parameters();
 
     std::string get_pointgroup() const {return pointgroup_;}
 
@@ -211,6 +252,10 @@ public:
     void get_structure();
 
     void read_structure_from_library(const std::string& name);
+
+    static std::istream& position_stream_in_library(std::ifstream& f, const std::string& name);
+
+
 
     /// print out a Gaussian cubefile header
 	std::vector<std::string> cubefile_header() const;
