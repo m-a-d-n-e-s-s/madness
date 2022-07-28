@@ -294,10 +294,21 @@ namespace madness {
             Tensor<double> G(1, 1);
             Tensor<double> G1(1, 1);
             Tensor<double> G2(1, 1);
-            G1 = response_space_inner(A.X, B.X);
-            G2 = response_space_inner(A.Y, B.Y);
-            G = G1 + G2;
-            return G(0, 0);
+
+            World& world = A.X[0][0].world();
+
+            auto ax = madness::copy(world, A.X[0]);
+            auto ay = madness::copy(world, A.Y[0]);
+
+            auto bx = madness::copy(world, B.X[0]);
+            auto by = madness::copy(world, B.Y[0]);
+
+            for (auto& ayi: ay) { ax.push_back(madness::copy(ayi)); }
+            for (auto& byi: by) { bx.push_back(madness::copy(byi)); };
+
+            double result = inner(ax, bx);
+
+            return result;
         }
     };
     // function object with allocator()()
