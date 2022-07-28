@@ -322,7 +322,7 @@ void ResponseBase::load_balance_chi(World &world) {
 std::vector<poperatorT> ResponseBase::make_bsh_operators_response(World &world, double &shift,
                                                                   double &omega) const {
     if (r_params.print_level() >= 1) molresponse::start_timer(world);
-    double tol = .1 * FunctionDefaults<3>::get_thresh();
+    double tol = .01 * FunctionDefaults<3>::get_thresh();
     // Sizes inferred from ground and omega
     size_t num_orbitals = ground_energies.size();// number of orbitals
     std::vector<poperatorT> ops(num_orbitals);
@@ -389,11 +389,11 @@ X_space ResponseBase::compute_theta_X(World &world, const X_space &chi, XCOperat
 
     if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
     Theta_X = (V0X - E0X) + gamma;
+    Theta_X.truncate();
     //    Theta_X.truncate();
     if (world.rank() == 0 && r_params.print_level() >= 1) {
         molresponse::end_timer(world, "compute_ThetaX_add", "compute_ThetaX_add", iter_timing);
     }
-
     if (r_params.print_level() >= 10) {
         print("<X|Theta|X>");
         print(inner(chi, Theta_X));
@@ -513,12 +513,15 @@ X_space ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &den
     // update gamma functions
     if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
+    /*
     J.truncate();
     KX.truncate();
     KY.truncate();
     W.truncate();
+     */
 
     gamma = (2 * J) - (KX + KY) * xcf.hf_exchange_coefficient() + W;
+    gamma.truncate();
     if (world.rank() == 0 && r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_truncate_add", "gamma_truncate_add", iter_timing);
     }
@@ -576,6 +579,7 @@ X_space ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &den
     molresponse::end_timer(world, "Clear functions and set old pmap");
     // Done
     world.gop.fence();
+    gamma.truncate();
     return gamma;
     // Get sizes
 }
@@ -1007,6 +1011,8 @@ X_space ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperat
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     real_function_3d v0 = v_j0 + v_nuc + v_xc;
 
+    v0.truncate(FunctionDefaults<3>::get_thresh(), true);
+
     V0.X = v0 * X.X;
     V0.X += (-1 * K0.X * xcf.hf_exchange_coefficient());
 
@@ -1016,6 +1022,8 @@ X_space ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperat
     } else {
         V0.Y = V0.X.copy();
     }
+
+    V0.truncate();
 
 
     if (r_params.print_level() >= 20) {
@@ -1081,16 +1089,10 @@ residuals ResponseBase::compute_residual(World &world, X_space &old_Chi, X_space
     size_t n = old_Chi.X.size_orbitals();
     //	compute residual
     X_space res(world, m, n);
-
-
     //res.X = old_Chi.X - temp.X;
     res = temp - old_Chi;
-    //*************************
-
-
+    //res.truncate();
     Tensor<double> norms_b(m);
-
-    // rmsX and maxvalX for each m response states
 
     for (size_t b = 0; b < m; b++) {
         auto res_b = copy(world, res.X[b]);
@@ -1106,37 +1108,10 @@ residuals ResponseBase::compute_residual(World &world, X_space &old_Chi, X_space
             print("residual norms: state ", b, " : ", norms_b[b]);
         }
     }
-
     auto easy_norms = res.norm2s();
-
-    auto chi_norms = old_Chi.norm2s();
-    auto temp_norms = old_Chi.norm2s();
-
-    auto copy_old = old_Chi.copy();
-    auto copy_new = temp.copy();
-
-    auto copy_res = copy_new - copy_old;
-    auto no_truncation = copy_res.norm2s();
-    copy_res.truncate();
-    auto truncate_after_subtract = copy_res.norm2s();
-
-
-    copy_old.truncate();
-    copy_new.truncate();
-
-    auto truncate_sub_res = copy_new - copy_old;
-    auto truncate_before_subtract = copy_res.norm2s();
-    truncate_sub_res.truncate();
-    auto truncate_before_and_after_subtract = copy_res.norm2s();
-
-
     if (world.rank() == 0 and (r_params.print_level() > 1)) {
         print("norms_b: ", norms_b);
         print("easy_norms: ", easy_norms);
-        print("no_truncation: ", no_truncation);
-        print("truncate_before_subtract: ", truncate_before_subtract);
-        print("truncate_after_subtract: ", truncate_after_subtract);
-        print("truncate_after_and_after_subtract: ", truncate_before_and_after_subtract);
     }
 
     if (world.rank() == 0 && r_params.print_level() >= 1) {
@@ -1258,6 +1233,7 @@ void ResponseBase::x_space_step_restriction(World &world, const X_space &old_Chi
     if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
     print(maxrotn);
     auto diff = temp - old_Chi;
+    diff.truncate();
 
     if (world.rank() == 0) { print("----------------Start Step Restriction -----------------"); }
     for (size_t b = 0; b < m; b++) {

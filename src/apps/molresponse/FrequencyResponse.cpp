@@ -77,6 +77,17 @@ void FrequencyResponse::iterate(World &world) {
     vector_real_function_3d rho_omega = make_density(world, Chi);
     converged = false;// Converged flag
 
+    auto thresh = FunctionDefaults<3>::get_thresh();
+    auto max_rotation = .5;
+    if (thresh >= 1e-2) {
+        max_rotation = 100;
+    } else if (thresh >= 1e-4) {
+        max_rotation = 10;
+    } else if (thresh >= 1e-6) {
+        max_rotation = .005;
+    } else if (thresh >= 1e-8) {
+        max_rotation = .0005;
+    }
 
     for (iter = 0; iter <= r_params.maxiter(); ++iter) {
 
@@ -89,38 +100,42 @@ void FrequencyResponse::iterate(World &world) {
                 printf("\n   Iteration %d at time %.1fs\n", static_cast<int>(iter), wall_time());
             if (world.rank() == 0) print("-------------------------------------------");
         }
-        auto chi_x = Chi.norm2s();
-        auto chi_x_norms = Chi.X.norm2();
-        auto chi_y_norms = Chi.Y.norm2();
-        if (r_params.print_level() >= 1) {
-            if (world.rank() == 0) {
-                print("Chi Norms at start of iteration: ", iter);
-                print("Chi_X: ", chi_x);
-                print("Chi_X.X: ", chi_x_norms);
-                print("Chi_X.Y: ", chi_y_norms);
-            }
-        }
-
-        auto max_rotation = 5000 * FunctionDefaults<3>::get_thresh();
-
-        // rho_omega = make_density(world, Chi, compute_y);
 
         if (iter < 2 || (iter % 10) == 0) { load_balance_chi(world); }
 
         if (iter > 0) {
             if (density_residuals.max() > 2) { break; }
             double d_residual = density_residuals.max();
-            double d_conv = conv_den;
             // Test convergence and set to true
-            print("conv_den: ", conv_den);
-            print("thresh: ", FunctionDefaults<3>::get_thresh());
-            print("max rotation: ", max_rotation);
-            print("r_params.dconv(): ", r_params.dconv());
-            print("conv_den: ", conv_den);
-            print("d_conv: ", d_conv);
-            print("d_residual_max : ", d_residual);
-            auto max_bsh = std::max(bsh_residualsX.absmax(), bsh_residualsY.absmax());
-            print("bsh_residual_max : ", max_bsh);
+            auto chi_norm = Chi.norm2s();
+            auto chi_x_norms = Chi.X.norm2();
+            auto chi_y_norms = Chi.Y.norm2();
+            auto relative_bsh = copy(bsh_residualsX);
+
+            std::transform(bsh_residualsX.ptr(), bsh_residualsX.ptr() + bsh_residualsX.size(),
+                           chi_norm.ptr(), relative_bsh.ptr(),
+                           [](auto bsh, auto norm_chi) { return bsh / norm_chi; });
+
+            auto max_bsh = bsh_residualsX.absmax();
+            auto relative_max_bsh = relative_bsh.absmax();
+
+            if (r_params.print_level() >= 1) {
+                if (world.rank() == 0) {
+                    print("Chi Norms at start of iteration: ", iter);
+                    print("Chi_X.X: ", chi_x_norms);
+                    print("Chi_X.Y: ", chi_y_norms);
+                    print("Chi_X: ", chi_norm);
+                    print("bsh_residuals : ", bsh_residualsX);
+                    print("relative_bsh : ", relative_bsh);
+                    print("r_params.dconv(): ", r_params.dconv());
+                    print("conv_den: ", conv_den);
+                    print("thresh: ", FunctionDefaults<3>::get_thresh());
+                    print("max rotation: ", max_rotation);
+                    print("d_residual_max : ", d_residual);
+                    print("bsh_residual_max : ", max_bsh);
+                    print("relative_bsh_residual_max : ", relative_max_bsh);
+                }
+            }
             if ((((d_residual < conv_den) and
                   ((max_bsh < conv_den * std::max(size_t(5), molecule.natom())))) or
                  r_params.get<bool>("conv_only_dens"))) {
@@ -188,15 +203,6 @@ void FrequencyResponse::iterate(World &world) {
         }
          */
 
-
-        if (world.rank() == 0 and (r_params.print_level() > 2)) {
-            print("Density residuals");
-            print("dres", density_residuals);
-            print("BSH  residuals");
-            print("xres", bsh_residualsX);
-            print("yres", bsh_residualsY);
-            print("max_rotation", max_rotation);
-        }
 
         Tensor<double> polar = -2 * inner(Chi, PQ);
         if (r_params.print_level() >= 20) {
@@ -350,74 +356,17 @@ X_space FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
         print("--------------- BSH UPDATE RESPONSE------------------");
     }
 
-
-    if (r_params.print_level() >= 1) {
-        auto theta_norms = theta_X.norm2s();
-        auto theta_norms_x = theta_X.X.norm2();
-        auto theta_norms_y = theta_X.Y.norm2();
-        if (world.rank() == 0) {
-            print("Before adding rhs/shifts/multiply by -2");
-            print("norms theta_X ", theta_norms);
-            print("norms theta_X.X ", theta_norms_x);
-            print("norms theta_X.Y ", theta_norms_y);
-        }
-    }
     size_t m = theta_X.X.size();
     size_t n = theta_X.X.size_orbitals();
     bool compute_y = omega != 0.0;
 
-    if (r_params.print_level() >= 1) {
-        auto PQ_norms = PQ.norm2s();
-        auto PQ_x_norms = PQ.X.norm2();
-        auto PQ_y_norms = PQ.Y.norm2();
-        if (world.rank() == 0) {
-            print("norms PQ ", PQ_norms);
-            print("norms PQ.X ", PQ_x_norms);
-            print("norms PQ.Y ", PQ_y_norms);
-        }
-        PQ.truncate();
-        if (world.rank() == 0) {
-            print("After truncation ");
-            print("norms PQ ", PQ_norms);
-            print("norms PQ.X ", PQ_x_norms);
-            print("norms PQ.Y ", PQ_y_norms);
-        }
-    }
-
     theta_X.X += theta_X.X * x_shifts;
     theta_X.X += PQ.X;
     theta_X.X = theta_X.X * -2;
-    //theta_X.X.truncate_rf();
 
     if (compute_y) {
         theta_X.Y += PQ.Y;
         theta_X.Y = theta_X.Y * -2;
-        //    theta_X.Y.truncate_rf();
-    }
-
-    if (r_params.print_level() >= 1) {
-        auto theta_norms = theta_X.norm2s();
-        auto theta_norms_x = theta_X.X.norm2();
-        auto theta_norms_y = theta_X.Y.norm2();
-        if (world.rank() == 0) {
-            print("Before after rhs/shifts/multiply by -2");
-            print("norms theta_X ", theta_norms);
-            print("norms theta_X.X ", theta_norms_x);
-            print("norms theta_X.Y ", theta_norms_y);
-        }
-    }
-
-    if (r_params.print_level() >= 1) {
-        theta_X.truncate();
-        auto theta_norms = theta_X.norm2s();
-        auto theta_norms_x = theta_X.X.norm2();
-        auto theta_norms_y = theta_X.Y.norm2();
-        if (world.rank() == 0) {
-            print("Before after truncate rhs/shifts/multiply by -2");
-            print("norms theta_X ", theta_norms);
-            print("norms theta_X.X ", theta_norms_x);
-            print("norms theta_X.Y ", theta_norms_y);
-        }
     }
 
     // apply bsh
@@ -433,30 +382,8 @@ X_space FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
     } else {
         bsh_X.Y = bsh_X.X.copy();
     }
-    if (r_params.print_level() >= 1) {
-        auto bsh_norms = bsh_X.norm2s();
-        auto bsh_norms_x = bsh_X.X.norm2();
-        auto bsh_norms_y = bsh_X.Y.norm2();
-        if (world.rank() == 0) {
-            print("BSH after apply and project");
-            print("norms bsh_X ", bsh_norms);
-            print("norms bsh_X.X ", bsh_norms_x);
-            print("norms bsh_X.Y ", bsh_norms_y);
-        }
-    }
 
-    if (r_params.print_level() >= 1) {
-        bsh_X.truncate();
-        auto bsh_norms = bsh_X.norm2s();
-        auto bsh_norms_x = bsh_X.X.norm2();
-        auto bsh_norms_y = bsh_X.Y.norm2();
-        if (world.rank() == 0) {
-            print("BSH after truncate and project");
-            print("norms bsh_X ", bsh_norms);
-            print("norms bsh_X.X ", bsh_norms_x);
-            print("norms bsh_X.Y ", bsh_norms_y);
-        }
-    }
+    bsh_X.truncate();
 
     //bsh_X.truncate();
 
