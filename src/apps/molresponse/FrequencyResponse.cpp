@@ -372,6 +372,7 @@ X_space FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
         theta_X.Y += PQ.Y;
         theta_X.Y = theta_X.Y * -2;
     }
+    /*
     if (r_params.print_level() >= 20) {
         auto theta_norm = theta_X.norm2s();
         if (world.rank() == 0) {
@@ -379,13 +380,7 @@ X_space FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
             print(theta_norm);
         }
     }
-    if (r_params.print_level() >= 20) {
-        auto theta_norm = theta_X.norm2s();
-        if (world.rank() == 0) {
-            print("theta norms after truncate");
-            print(theta_norm);
-        }
-    }
+     *.
     // apply bsh
     X_space bsh_X(world, m, n);
 
