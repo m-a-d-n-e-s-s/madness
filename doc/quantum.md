@@ -34,10 +34,15 @@ If no parameters are given, default parameters will be used. Only the molecule i
 Parameters can be specified through an input file and/or command line options.
 
 Some parameters depend on each other and are set automatically, e.g. certain numerical parameters, or the use of 
-point group symmetry. Paremters set by the user are always respected.
+point group symmetry. Parameters set by the user are always respected.
 
 In the output files of the calculations the complete set of input parameters are printed out, 
 together with a short description and further information.
+
+You can see the full list of parameters by typing
+> `qccode --print_parameters`
+
+where, again, `qccode` stands for any of the qc codes
 
 ## Input file
 The input file consists of data groups, starting with the relevant keyword, e.g. "dft" and ending with "end".
@@ -107,18 +112,19 @@ By default atomic units are used, but angstrom can be switched on by adding the 
 > end
 
 The following example will read an external xyz file, using angstrom by default
-Note that key is `source`, and value is the pair `xyz`,`h2o.xyz` to indicate that an
-xyz file is to be used
->geometry\
-> source [xyz,h2o.xyz]\
-> end
+>`geometry`\
+> `  source_type xyz          # optional `\
+> `  source_name h2o.xyz`\
+> `end`
 
-or you can use the command line options (short and long version)
-> `nemo --geometry="source=h2o.xyz"`\
-> `nemo --geometry="source=[xyz,h2o.xyz]"`
+or you can use the command line options using the convenience short option
+> `nemo --geometry=h2o.xyz`
 
 A small number of geometries are stored in a library, accessible through
-> `nemo --geometry="source=library, h2o"`
+> `nemo --geometry="source_type=library; source_name=h2o"`
+ 
+If no source type is given it will be deduced from the file name, if the source is ambiguous,
+e.g. a structure in the library has the same same as an input file, the code will stop.
 
 ## Geometry optimization
 For the following codes/methods there are gradients implemented:
@@ -128,6 +134,6 @@ The optimization is started with the `gopt` flag in the `dft` block, geometry op
 parameters are set in the `geoopt` block.
 > `nemo --dft="k=8; econv=1.e-5; gopt=1"  --geoopt="maxiter=10" --geometry="source=library, h2o"`
 
-## Convenience short options (Wish list)
+## Convenience short options
 `--optimize` optimize the geometry\
 `--geometry=file.xyz` find the geometry in the xyz file (note Angstrom units!)

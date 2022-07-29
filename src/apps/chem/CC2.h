@@ -84,6 +84,33 @@ public:
 
     std::string name() const {return "CC2";};
 
+    static void help() {
+        print("\nCC2 -- help \n");
+        print("The CC2 code computes correlated ground and excited state energies:\n");
+        print(" - MP2 ground state");
+        print(" - CC2 ground and excited states");
+        print(" - ADC(2) and CIS(D) excited states\n");
+        print("You need a SCF reference calculation from the nemo program. If there no such calculation can");
+        print("be found CC2 will perform its own. If excited states are requested also a CIS calculation is ");
+        print("necessary.\n");
+        print("Note that for correlated calculations the k parameter must be chosen small, typically k=5 or k=6 ");
+        print("because the curse of dimensions make higher k extremely expensive\n");
+        print("You can print all available calculation parameters by running\n");
+        print("cc2 --print_parameters\n");
+        print("You can perform a simple MP2 calculation by running\n");
+        print("cc2 --geometry=h2o.xyz\n");
+        print("provided you have an xyz file in your directory.\n");
+
+    }
+
+    static void print_parameters() {
+        CCParameters param;
+        print("\ndefault parameters for the cc2 program are\n");
+        param.print("cc2","end");
+        print("\n\nthe molecular geometry must be specified in a separate block:");
+        Molecule::print_parameters();
+    }
+
     virtual bool selftest() {
         return true;
     };

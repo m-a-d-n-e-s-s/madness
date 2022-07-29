@@ -55,8 +55,7 @@ using namespace madness;
 
 int main(int argc, char** argv) {
 
-    initialize(argc, argv);
-    World world(SafeMPI::COMM_WORLD);
+    World& world=initialize(argc, argv);
     if (world.rank() == 0) {
     	print("\n  NEMO -- Hartree-Fock using numerical exponential molecular orbitals \n");
     	printf("starting at time %.1f\n", wall_time());
