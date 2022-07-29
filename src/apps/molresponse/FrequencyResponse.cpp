@@ -119,6 +119,9 @@ void FrequencyResponse::iterate(World &world) {
             auto max_bsh = bsh_residualsX.absmax();
             auto relative_max_bsh = relative_bsh.absmax();
 
+            Tensor<double> polar = -2 * inner(Chi, PQ);
+            frequency_to_json(j_molresponse, iter, bsh_residualsX, relative_bsh, density_residuals,
+                              polar, Chi.X.norm2(), Chi.Y.norm2(), norm2s_T(world, rho_omega));
             if (r_params.print_level() >= 1) {
                 if (world.rank() == 0) {
                     print("Chi Norms at start of iteration: ", iter);
@@ -205,8 +208,8 @@ void FrequencyResponse::iterate(World &world) {
         }
          */
 
-
         Tensor<double> polar = -2 * inner(Chi, PQ);
+
         if (r_params.print_level() >= 20) {
             auto [eval, evec] = syev(polar);
             if (world.rank() == 0) {
@@ -221,8 +224,6 @@ void FrequencyResponse::iterate(World &world) {
             }
         }
 
-        frequency_to_json(j_molresponse, iter, bsh_residualsX, bsh_residualsY, density_residuals,
-                          polar, Chi.X.norm2(), Chi.Y.norm2(), norm2s_T(world, rho_omega));
         if (world.rank() == 0 && r_params.print_level() >= 1) {
             molresponse::end_timer(world, "Iteration Timing", "iter_total", iter_timing);
         }
