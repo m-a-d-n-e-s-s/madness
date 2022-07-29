@@ -139,11 +139,11 @@ void FrequencyResponse::iterate(World &world) {
                     print("bsh_residual_max : ", max_bsh);
                     print("relative_bsh_residual_max : ", relative_max_bsh);
                     print("relative_bsh_residual_max target : ",
-                          .1 * conv_den * std::max(size_t(5), molecule.natom()));
+                          conv_den * std::max(size_t(5), molecule.natom()));
                 }
             }
             if ((((d_residual < conv_den) and
-                  ((relative_max_bsh < .1 * conv_den * std::max(size_t(5), molecule.natom())))) or
+                  ((relative_max_bsh < conv_den * std::max(size_t(5), molecule.natom())))) or
                  r_params.get<bool>("conv_only_dens"))) {
                 converged = true;
             }
