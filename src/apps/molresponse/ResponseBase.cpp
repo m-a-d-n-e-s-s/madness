@@ -521,7 +521,7 @@ X_space ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &den
      */
 
     gamma = (2 * J) - (KX + KY) * xcf.hf_exchange_coefficient() + W;
-    gamma.truncate();
+    //gamma.truncate();
     if (world.rank() == 0 && r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_truncate_add", "gamma_truncate_add", iter_timing);
     }
@@ -579,7 +579,7 @@ X_space ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &den
     molresponse::end_timer(world, "Clear functions and set old pmap");
     // Done
     world.gop.fence();
-    gamma.truncate();
+    //gamma.truncate();
     return gamma;
     // Get sizes
 }
@@ -709,7 +709,7 @@ X_space ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &d
                                iter_timing);
     }
     // Done
-    gamma.truncate();
+    // gamma.truncate();
     world.gop.fence();
     return gamma;
     // Get sizes
@@ -1011,7 +1011,7 @@ X_space ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperat
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     real_function_3d v0 = v_j0 + v_nuc + v_xc;
 
-    v0.truncate(FunctionDefaults<3>::get_thresh(), true);
+    //v0.truncate(FunctionDefaults<3>::get_thresh(), true);
 
     V0.X = v0 * X.X;
     V0.X += (-1 * K0.X * xcf.hf_exchange_coefficient());
@@ -1023,7 +1023,7 @@ X_space ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperat
         V0.Y = V0.X.copy();
     }
 
-    V0.truncate();
+    //V0.truncate();
 
 
     if (r_params.print_level() >= 20) {
@@ -1091,7 +1091,6 @@ residuals ResponseBase::compute_residual(World &world, X_space &old_Chi, X_space
     X_space res(world, m, n);
     //res.X = old_Chi.X - temp.X;
     res = temp - old_Chi;
-    //res.truncate();
     Tensor<double> norms_b(m);
 
     for (size_t b = 0; b < m; b++) {

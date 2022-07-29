@@ -80,13 +80,13 @@ void FrequencyResponse::iterate(World &world) {
     auto thresh = FunctionDefaults<3>::get_thresh();
     auto max_rotation = .5;
     if (thresh >= 1e-2) {
-        max_rotation = 100;
-    } else if (thresh >= 1e-4) {
         max_rotation = 10;
+    } else if (thresh >= 1e-4) {
+        max_rotation = .25;
     } else if (thresh >= 1e-6) {
-        max_rotation = .005;
+        max_rotation = .1;
     } else if (thresh >= 1e-8) {
-        max_rotation = .0005;
+        max_rotation = .15;
     }
 
     for (iter = 0; iter <= r_params.maxiter(); ++iter) {
@@ -134,10 +134,12 @@ void FrequencyResponse::iterate(World &world) {
                     print("d_residual_max : ", d_residual);
                     print("bsh_residual_max : ", max_bsh);
                     print("relative_bsh_residual_max : ", relative_max_bsh);
+                    print("relative_bsh_residual_max target : ",
+                          .1 * conv_den * std::max(size_t(5), molecule.natom()));
                 }
             }
             if ((((d_residual < conv_den) and
-                  ((max_bsh < conv_den * std::max(size_t(5), molecule.natom())))) or
+                  ((relative_max_bsh < .1 * conv_den * std::max(size_t(5), molecule.natom())))) or
                  r_params.get<bool>("conv_only_dens"))) {
                 converged = true;
             }
@@ -368,7 +370,20 @@ X_space FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
         theta_X.Y += PQ.Y;
         theta_X.Y = theta_X.Y * -2;
     }
-
+    if (r_params.print_level() >= 20) {
+        auto theta_norm = theta_X.norm2s();
+        if (world.rank() == 0) {
+            print("theta norms before truncate");
+            print(theta_norm);
+        }
+    }
+    if (r_params.print_level() >= 20) {
+        auto theta_norm = theta_X.norm2s();
+        if (world.rank() == 0) {
+            print("theta norms after truncate");
+            print(theta_norm);
+        }
+    }
     // apply bsh
     X_space bsh_X(world, m, n);
 
@@ -383,7 +398,7 @@ X_space FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
         bsh_X.Y = bsh_X.X.copy();
     }
 
-    bsh_X.truncate();
+    //bsh_X.truncate();
 
     //bsh_X.truncate();
 
