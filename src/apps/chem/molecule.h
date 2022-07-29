@@ -118,8 +118,10 @@ public:
 
         GeometryParameters(World& world, const commandlineparser& parser) : GeometryParameters() {
             try {
+                set_global_convenience_options(parser);
                 read_input_and_commandline_options(world, parser, "geometry");
                 set_derived_values(parser);
+
             } catch (...) {
                 print("geometry","end");
                 MADNESS_EXCEPTION("faulty geometry input",1);
@@ -144,6 +146,15 @@ public:
             initialize<bool> ("pure_ae",true,"pure all electron calculation with no pseudo-atoms");
 
         }
+
+        void set_global_convenience_options(const commandlineparser& parser) {
+
+            if (parser.key_exists("geometry")) {
+                set_user_defined_value("source_name",parser.value("geometry"));
+            }
+
+        }
+
         void set_derived_values(const commandlineparser& parser) {
             // check if we use an xyz file, the structure library or the input file
             std::string src_type= derive_source_type_from_name(source_name());
@@ -164,9 +175,10 @@ public:
                 if (found_geometry_file and geometry_found_in_library) {
                     madness::print("\n\n");
                     madness::print("geometry specification ambiguous: found geometry in the structure library and in a file\n");
+                    madness::print("  ",get_structure_library_path());
                     madness::print("  ",source_name());
                     madness::print("\nPlease specify the location of your geometry input by one of the two lines:\n");
-                    madness::print("  source_type xyx");
+                    madness::print("  source_type xyz");
                     madness::print("  source_type library\n\n");
                     MADNESS_EXCEPTION("faulty input\n\n",1);
                 }
@@ -255,7 +267,7 @@ public:
 
     static std::istream& position_stream_in_library(std::ifstream& f, const std::string& name);
 
-
+    static std::string get_structure_library_path();
 
     /// print out a Gaussian cubefile header
 	std::vector<std::string> cubefile_header() const;

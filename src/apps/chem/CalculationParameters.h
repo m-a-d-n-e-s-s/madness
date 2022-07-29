@@ -54,6 +54,8 @@ struct CalculationParameters : public QCCalculationParametersBase {
 
 	CalculationParameters(World& world, const commandlineparser& parser) : CalculationParameters() {
 		read_input_and_commandline_options(world, parser, "dft");
+        // convenience option -- needs to be moved to the MolecularOptimizer class
+        if (parser.key_exists("optimize")) set_user_defined_value("gopt",true);
     }
 
 	/// ctor reading out the input file

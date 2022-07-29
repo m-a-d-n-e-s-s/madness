@@ -90,6 +90,7 @@ int main(int argc, char** argv) {
 
                 Tensor<double> geomcoord =nemo->get_calc()->molecule.get_all_coords().flat();
                 MolecularOptimizer geom(world,parser,nemo);
+                geom.parameters.print("geoopt","end");
 
                 // compute initial hessian
                 if (nemo->get_param().ginitial_hessian()) {

@@ -173,17 +173,21 @@ void Molecule::get_structure() {
 
 };
 
-std::istream& Molecule::position_stream_in_library(std::ifstream& f, const std::string& name) {
-    // get the location of the structure library
+std::string Molecule::get_structure_library_path() {
     std::string chemdata_dir(MRA_CHEMDATA_DIR);
     if (getenv("MRA_CHEMDATA_DIR")) chemdata_dir=std::string(getenv("MRA_CHEMDATA_DIR"));
-    std::string library=chemdata_dir+"/structure_library";
+    return chemdata_dir+"/structure_library";
+}
+
+std::istream& Molecule::position_stream_in_library(std::ifstream& f, const std::string& name) {
+    // get the location of the structure library
+    std::string library=get_structure_library_path();
 
     f.open(library);
     std::string errmsg;
 
     if(f.fail()) {
-        std::string("Failed to open structure library: ") + library;
+        errmsg=std::string("Failed to open structure library: ") + library;
     } else {
         try {
             std::string full_line="structure="+name;
@@ -192,9 +196,7 @@ std::istream& Molecule::position_stream_in_library(std::ifstream& f, const std::
             errmsg = "could not find structure " + name + " in the library\n\n";
         }
     }
-    if (not errmsg.empty()) {
-        throw MadnessException(errmsg.c_str(),0,0,__LINE__,__FUNCTION__,__FILE__);
-    }
+    MADNESS_CHECK_THROW(errmsg.empty(),errmsg.c_str());
     return f;
 }
 
