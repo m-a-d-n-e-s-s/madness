@@ -120,8 +120,9 @@ void FrequencyResponse::iterate(World &world) {
             auto relative_max_bsh = relative_bsh.absmax();
 
             Tensor<double> polar = -2 * inner(Chi, PQ);
+            // Todo add chi norm and chi_x
             frequency_to_json(j_molresponse, iter, bsh_residualsX, relative_bsh, density_residuals,
-                              polar, Chi.X.norm2(), Chi.Y.norm2(), norm2s_T(world, rho_omega));
+                              polar, chi_norm, chi_norm, norm2s_T(world, rho_omega));
             if (r_params.print_level() >= 1) {
                 if (world.rank() == 0) {
                     print("Chi Norms at start of iteration: ", iter);
