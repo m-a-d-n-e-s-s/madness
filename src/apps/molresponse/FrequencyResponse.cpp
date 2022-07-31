@@ -134,9 +134,9 @@ void FrequencyResponse::iterate(World &world) {
                     print("bsh_residuals : ", bsh_residualsX);
                     print("relative_bsh : ", relative_bsh);
                     print("r_params.dconv(): ", r_params.dconv());
-                    print("conv_den: ", conv_den);
                     print("max rotation: ", max_rotation);
                     print("d_residual_max : ", d_residual);
+                    print("d_residual_max target : ", conv_den);
                     print("bsh_residual_max : ", max_bsh);
                     print("relative_bsh_residual_max : ", relative_max_bsh);
                     print("relative_bsh_residual_max target : ",
