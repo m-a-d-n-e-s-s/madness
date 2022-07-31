@@ -80,11 +80,11 @@ void FrequencyResponse::iterate(World &world) {
     auto thresh = FunctionDefaults<3>::get_thresh();
     auto max_rotation = .5;
     if (thresh >= 1e-2) {
-        max_rotation = 10;
+        max_rotation = 1;
     } else if (thresh >= 1e-4) {
-        max_rotation = .25;
+        max_rotation = 1;
     } else if (thresh >= 1e-6) {
-        max_rotation = .1;
+        max_rotation = .05;
     } else if (thresh >= 1e-8) {
         max_rotation = .05;
     }
