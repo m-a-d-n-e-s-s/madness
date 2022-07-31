@@ -253,11 +253,11 @@ void FrequencyResponse::iterate(World &world) {
         compute_and_print_polarizability(world, Chi, PQ, "Converged");
     }
 }
-std::tuple<X_space, residuals> FrequencyResponse::update(
+auto FrequencyResponse::update(
         World &world, X_space &chi, XCOperator<double, 3> &xc, std::vector<poperatorT> &bsh_x_ops,
         std::vector<poperatorT> &bsh_y_ops, QProjector<double, 3> &projector, double &x_shifts,
         double &omega_n, NonLinearXsolver &kain_x_space, vector<X_vector> &Xvector,
-        vector<X_vector> &Xresidual, size_t iteration, const double &maxrotn) {
+        vector<X_vector> &Xresidual, size_t iteration, const double &maxrotn) -> std::tuple<X_space, residuals> {
 
     if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
@@ -352,10 +352,10 @@ void FrequencyResponse::update(World &world, X_space &Chi, X_space &res, XCOpera
     }
     // print x norms
 }
-X_space FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
+auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
                                                std::vector<poperatorT> &bsh_x_ops,
                                                std::vector<poperatorT> &bsh_y_ops,
-                                               QProjector<double, 3> &projector, double &x_shifts) {
+                                               QProjector<double, 3> &projector, double &x_shifts) -> X_space {
     if (world.rank() == 0 && r_params.print_level() >= 1) {
         molresponse::start_timer(world);
         print("--------------- BSH UPDATE RESPONSE------------------");
@@ -381,7 +381,7 @@ X_space FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
             print(theta_norm);
         }
     }
-     *.
+     */
     // apply bsh
     X_space bsh_X(world, m, n);
 
@@ -505,7 +505,7 @@ void FrequencyResponse::load(World &world, const std::string &name) {
         world.gop.fence();
     }
 }
-X_space nuclear_generator(World &world, FrequencyResponse &calc) {
+auto nuclear_generator(World &world, FrequencyResponse &calc) -> X_space {
     auto [gc, molecule, r_params] = calc.get_parameter();
     X_space PQ(world, r_params.num_states(), r_params.num_orbitals());
     auto num_operators = size_t(molecule.natom() * 3);
@@ -522,7 +522,7 @@ X_space nuclear_generator(World &world, FrequencyResponse &calc) {
     PQ.Y = PQ.X;
     return PQ;
 }
-X_space dipole_generator(World &world, FrequencyResponse &calc) {
+auto dipole_generator(World &world, FrequencyResponse &calc) -> X_space {
     auto [gc, molecule, r_params] = calc.get_parameter();
     X_space PQ(world, r_params.num_states(), r_params.num_orbitals());
     vector_real_function_3d dipole_vectors(3);
@@ -538,8 +538,8 @@ X_space dipole_generator(World &world, FrequencyResponse &calc) {
     PQ.Y = PQ.X;
     return PQ;
 }
-response_space vector_to_PQ(World &world, const vector_real_function_3d &p,
-                            const vector_real_function_3d &ground_orbitals, double lo) {
+auto vector_to_PQ(World &world, const vector_real_function_3d &p,
+                            const vector_real_function_3d &ground_orbitals, double lo) -> response_space {
 
     response_space rhs(world, p.size(), ground_orbitals.size());
 
