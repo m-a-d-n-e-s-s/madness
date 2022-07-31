@@ -125,6 +125,8 @@ void FrequencyResponse::iterate(World &world) {
                               polar, chi_norm, chi_norm, norm2s_T(world, rho_omega));
             if (r_params.print_level() >= 1) {
                 if (world.rank() == 0) {
+                    print("thresh: ", FunctionDefaults<3>::get_thresh());
+                    print("k: ", FunctionDefaults<3>::get_k());
                     print("Chi Norms at start of iteration: ", iter);
                     print("Chi_X.X: ", chi_x_norms);
                     print("Chi_X.Y: ", chi_y_norms);
@@ -133,7 +135,6 @@ void FrequencyResponse::iterate(World &world) {
                     print("relative_bsh : ", relative_bsh);
                     print("r_params.dconv(): ", r_params.dconv());
                     print("conv_den: ", conv_den);
-                    print("thresh: ", FunctionDefaults<3>::get_thresh());
                     print("max rotation: ", max_rotation);
                     print("d_residual_max : ", d_residual);
                     print("bsh_residual_max : ", max_bsh);
