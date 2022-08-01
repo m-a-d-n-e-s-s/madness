@@ -113,12 +113,14 @@ void FrequencyResponse::iterate(World &world) {
 
             auto max_bsh = bsh_residualsX.absmax();
             auto relative_max_bsh = relative_bsh.absmax();
+            auto relative_max_target = conv_den * std::max(size_t(5), molecule.natom());
 
             Tensor<double> polar = -2 * inner(Chi, PQ);
             // Todo add chi norm and chi_x
             frequency_to_json(j_molresponse, iter, bsh_residualsX, relative_bsh, density_residuals,
                               polar, chi_norm, chi_norm, norm2s_T(world, rho_omega));
             if (r_params.print_level() >= 1) {
+
                 if (world.rank() == 0) {
                     print("thresh: ", FunctionDefaults<3>::get_thresh());
                     print("k: ", FunctionDefaults<3>::get_k());
@@ -134,13 +136,11 @@ void FrequencyResponse::iterate(World &world) {
                     print("d_residual_max target : ", conv_den);
                     print("bsh_residual_max : ", max_bsh);
                     print("relative_bsh_residual_max : ", relative_max_bsh);
-                    print("relative_bsh_residual_max target : ",
-                          conv_den * std::max(size_t(5), molecule.natom()));
+                    print("relative_bsh_residual_max target : ", relative_max_target);
                 }
             }
-            if ((((d_residual < conv_den) and
-                  ((relative_max_bsh < conv_den * std::max(size_t(5), molecule.natom())))) or
-                 r_params.get<bool>("conv_only_dens"))) {
+            if ((d_residual < conv_den) and ((relative_max_bsh < relative_max_target) or
+                                             r_params.get<bool>("conv_only_dens"))) {
                 converged = true;
             }
 
