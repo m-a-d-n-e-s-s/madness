@@ -237,7 +237,7 @@ void CCParameters::set_derived_values() {
 
 void CCParameters::information(World& world) const {
     if (world.rank()==0) {
-        print("cc2","end");
+//        print("cc2","end");
         if (calc_type() != CT_LRCCS and calc_type() != CT_TDHF) {
             std::cout << "The Ansatz for the Pair functions |tau_ij> is: ";
             if (QtAnsatz()) std::cout << "(Qt)f12|titj> and response: (Qt)f12(|tixj> + |xitj>) - (OxQt + QtOx)f12|titj>";

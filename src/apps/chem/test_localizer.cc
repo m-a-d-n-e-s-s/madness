@@ -282,7 +282,8 @@ int main(int argc, char **argv) {
 //        param.set_user_defined_value("ncf",std::pair<std::string,double>("none",0.0));
         write_test_input test_input(param);
         parser.set_keyval("input",test_input.filename());
-        parser.set_keyval("geometry","source=library,"+geometry);
+        parser.set_keyval("geometry","source_type=library");
+        parser.set_keyval("geometry","source_name="+geometry);
         Nemo nemo(world,parser);
         nemo.param.print("dft","end");
 
@@ -294,7 +295,8 @@ int main(int argc, char **argv) {
         if (not success) result++;
 
 //        parser.set_keyval("structure","ne");
-        parser.set_keyval("geometry","source = [library,ne]");
+        parser.set_keyval("geometry","source_type = library");
+        parser.set_keyval("geometry","source_name = ne");
         Nemo nemo1(world,parser);
         test_output tout("ne prep calculation");
         nemo1.value();

@@ -37,11 +37,12 @@ std::string QCCalculationParametersBase::print_to_string(bool non_defaults_only)
 	list.sort([](const keyvalT& first, const keyvalT& second) {return std::get<0>(first) < std::get<0>(second);});
 
 	std::stringstream ss;
+    int counter=0;
 	for (auto& p : list) {
 		const QCParameter& param=std::get<2>(p);
 		if (non_defaults_only and (param.precedence==QCParameter::def)) continue;
 		ss << param.print_line(std::get<1>(p));
-		ss << std::endl;
+        if (++counter<list.size()) ss << std::endl; // no newline at the very end
 	}
 	return ss.str();
 }

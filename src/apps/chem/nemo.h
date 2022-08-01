@@ -389,6 +389,27 @@ public:
     std::string name() const {return "nemo";}
     bool selftest() {return false;}
 
+    static void help() {
+        print("\nNEMO \n");
+        print("The nemo code computes Hartree-Fock and DFT energies, gradients and hessians using a nuclear correlation factor");
+        print("that regularizes the singular nuclear potential. SCF orbitals for the basis for post-SCF calculations like");
+        print("excitation energies (cis), correlation energies (cc2), local potentials (oep), etc\n\n");
+        print("You can print all available calculation parameters by running\n");
+        print("nemo --print_parameters\n");
+        print("You can perform a simple calculation by running\n");
+        print("nemo --geometry=h2o.xyz\n");
+        print("provided you have an xyz file in your directory.");
+
+    }
+
+    static void print_parameters() {
+        NemoCalculationParameters param;
+        print("default parameters for the nemo program are");
+        param.print("dft","end");
+        print("\n\nthe molecular geometry must be specified in a separate block:");
+        Molecule::print_parameters();
+    }
+
     virtual double value() {return value(calc->molecule.get_all_coords());}
 
 	virtual double value(const Tensor<double>& x);

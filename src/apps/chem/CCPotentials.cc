@@ -29,11 +29,11 @@ CCPotentials::CCPotentials(World& world_,  std::shared_ptr<Nemo> nemo, const CCP
           get_potentials(world, param),
           output(world) {
     output.debug = parameters.debug();
-    reset_nemo(nemo);
-    g12.update_elements(mo_bra_, mo_ket_);
-    g12.sanity();
-    f12.update_elements(mo_bra_, mo_ket_);
-    f12.sanity();
+//    reset_nemo(nemo);
+//    g12.update_elements(mo_bra_, mo_ket_);
+//    g12.sanity();
+//    f12.update_elements(mo_bra_, mo_ket_);
+//    f12.sanity();
 }
 
 madness::CC_vecfunction

@@ -88,24 +88,33 @@ Molecule::Molecule(World& world, const commandlineparser& parser) :parameters(wo
         MADNESS_CHECK(parameters.field().size()==3);
         for (int i=0; i<3; ++i) field(i)=parameters.field()[i];
     } catch (...) {
-        std::cout << "something went wrong in the geometry input" << std::endl;
+        std::cout << "\n\nsomething went wrong in the geometry input" << std::endl;
         std::cout << "geometry parameters " << std::endl << std::endl;
         parameters.print("geometry","end");
-        MADNESS_EXCEPTION("faulty geometry input",1);
+        throw madness::MadnessException("faulty geometry input",0,1,__LINE__,__FUNCTION__,__FILE__);
     }
 }
 
 
+void Molecule::print_parameters() {
+    GeometryParameters param;
+    madness::print("default parameters for the geometry input");
+    madness::print("You need to add the molecular geometry in the format");
+    madness::print(" symbol x y z");
+    madness::print(" symbol x y z");
+    madness::print(" symbol x y z");
+    param.print("geometry","end");
+}
+
 void Molecule::get_structure() {
 
     // read input parameters from the input file
-    std::vector<std::string> src=parameters.source();
-    MADNESS_CHECK(src.size()==2);
-    std::string source=src[0];
+    std::string sourcetype=parameters.source_type();
+    std::string sourcename=parameters.source_name();
 
-    if (source == "inputfile") {
+    if (sourcetype == "inputfile") {
         try {
-            std::ifstream ifile(src[1]);
+            std::ifstream ifile(sourcename);
             read(ifile);
         } catch (const std::exception& err) {
             std::cout << "caught runtime error: " << err.what() << std::endl;
@@ -114,20 +123,21 @@ void Molecule::get_structure() {
         }
 
 
-    } else if (source == "library") {
-        read_structure_from_library(src[1]);
-    } else if (source == "xyz") {
+    } else if (sourcetype == "library") {
+        read_structure_from_library(sourcename);
+    } else if (sourcetype == "xyz") {
         try {
-            read_xyz(src[1]);
+            read_xyz(sourcename);
         } catch (std::exception& err) {
-            std::cout << "could not read from xyz-file " << src[1] <<  std::endl;
-            std::cout << "source " << src[0] << "  " << src[1] << std::endl;
+            std::cout << "could not read from xyz-file " << sourcename <<  std::endl;
+            std::cout << "source " << sourcetype << "  " << sourcename << std::endl;
             MADNESS_EXCEPTION("failed to get geometry",1);
         }
 
     } else {
         std::cout << "could not determine molecule" << std::endl;
-        std::cout << "source " << src[0] << "  " << src[1] << std::endl;
+        std::cout << " source_type " << sourcetype << std::endl;
+        std::cout << " source_name " << sourcename << std::endl;
         MADNESS_EXCEPTION("failed to get geometry",1);
     }
 
@@ -163,27 +173,43 @@ void Molecule::get_structure() {
 
 };
 
+std::string Molecule::get_structure_library_path() {
+    std::string chemdata_dir(MRA_CHEMDATA_DIR);
+    if (getenv("MRA_CHEMDATA_DIR")) chemdata_dir=std::string(getenv("MRA_CHEMDATA_DIR"));
+    return chemdata_dir+"/structure_library";
+}
+
+std::istream& Molecule::position_stream_in_library(std::ifstream& f, const std::string& name) {
+    // get the location of the structure library
+    std::string library=get_structure_library_path();
+
+    f.open(library);
+    std::string errmsg;
+
+    if(f.fail()) {
+        errmsg=std::string("Failed to open structure library: ") + library;
+    } else {
+        try {
+            std::string full_line="structure="+name;
+            madness::position_stream_to_word(f, full_line,'#',true,true);
+        } catch (...) {
+            errmsg = "could not find structure " + name + " in the library\n\n";
+        }
+    }
+    MADNESS_CHECK_THROW(errmsg.empty(),errmsg.c_str());
+    return f;
+}
+
 void Molecule::read_structure_from_library(const std::string& name) {
 
-	// get the location of the structure library
-	std::string chemdata_dir(MRA_CHEMDATA_DIR);
-    if (getenv("MRA_CHEMDATA_DIR")) chemdata_dir=std::string(getenv("MRA_CHEMDATA_DIR"));
-	std::string library=chemdata_dir+"/structure_library";
-
-    std::ifstream f(library);
-    if(f.fail()) {
-        std::string errmsg = std::string("Failed to open structure library: ") + library;
-        MADNESS_EXCEPTION(errmsg.c_str(), 0);
-    }
     try {
-    	madness::position_stream(f, name);
+        std::ifstream f;
+        position_stream_in_library(f,name);
+        this->read(f);
     } catch (...) {
         std::string errmsg = "could not find structure " + name + " in the library\n\n";
         MADNESS_EXCEPTION(errmsg.c_str(), 0);
     }
-
-    this->read(f);
-
 }
 
 
@@ -278,7 +304,9 @@ void Molecule::read_xyz(const std::string filename) {
         }
         if (current_line==2) continue;      // ignore comment line
         double xx, yy, zz;
-        ss >> tag >>  xx >> yy >> zz;
+        if (not (ss >> tag >>  xx >> yy >> zz)) {
+            MADNESS_EXCEPTION(std::string("error reading the xyz input file"+filename).c_str(),1);
+        };
         xx *= scale;
         yy *= scale;
         zz *= scale;
@@ -288,6 +316,7 @@ void Molecule::read_xyz(const std::string filename) {
         //check if pseudo-atom or not
         bool psat = check_if_pseudo_atom(tag);
         add_atom(xx,yy,zz,qq,atn,psat);
+        if (current_line==natom_expected+2) break;
     }
     MADNESS_CHECK(natom_expected==natom());
     update_rcut_with_eprec(parameters.eprec());

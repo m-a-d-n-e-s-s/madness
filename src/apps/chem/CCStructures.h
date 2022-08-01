@@ -214,7 +214,9 @@ public:
 /// Maybe merge this with calculation_parameters of SCF at some point, or split into TDA and CC
 struct CCParameters : public QCCalculationParametersBase {
 
-    CCParameters() {};
+    CCParameters() {
+        initialize_parameters();
+    };
 
     /// copy constructor
     CCParameters(const CCParameters& other) =default;

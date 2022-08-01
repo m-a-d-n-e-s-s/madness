@@ -39,7 +39,7 @@ struct commandlineparser {
     /// set default values from the command line
     void set_defaults() {
         keyval["input"]="input";
-        keyval["geometry"]="input_file";
+//        keyval["geometry"]="input_file";
     }
 
     void print_map() const {

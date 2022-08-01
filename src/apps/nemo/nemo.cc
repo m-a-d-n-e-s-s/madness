@@ -81,16 +81,9 @@ int main(int argc, char** argv) {
             print(" ----------------------------------------------------------\n");
 //            calc->param.gprint(world);
 
-            Tensor<double> geomcoord =nemo->get_calc()->molecule.get_all_coords().flat();
-//            MolecularOptimizer geom(std::shared_ptr<MolecularOptimizationTargetInterface>(new Nemo(world, calc)),
-            MolecularOptimizer geom(world,parser,nemo);
-//            MolecularOptimizer geom(nemo,
-//                    calc->param.gmaxiter(),
-//                    calc->param.gtol(),  //tol
-//                    calc->param.gval(),  //value prec
-//                    calc->param.gprec()); // grad prec
-//            geom.set_update(calc->param.algopt);
-//            geom.set_test(calc->param.gtest);
+                Tensor<double> geomcoord =nemo->get_calc()->molecule.get_all_coords().flat();
+                MolecularOptimizer geom(world,parser,nemo);
+                geom.parameters.print("geoopt","end");
 
             geom.parameters.print("geoopt","end");
 
