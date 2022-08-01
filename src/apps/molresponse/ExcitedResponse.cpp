@@ -1877,7 +1877,7 @@ void ExcitedResponse::iterate(World &world) {
                 if (r_params.print_level() >= 1) molresponse::end_timer(world, " This iteration:");
                 // plot orbitals
                 if (r_params.plot_all_orbitals()) {
-                    PlotGroundandResponseOrbitals(world, iter, Chi.X, Chi.Y, r_params, ground_calc);
+                    plotResponseOrbitals(world, iter, Chi.X, Chi.Y, r_params, ground_calc);
                 }
                 auto rho0 = make_ground_density(world);
                 if (r_params.plot()) {

@@ -157,7 +157,7 @@ void FrequencyResponse::iterate(World &world) {
                     if (r_params.print_level() >= 1) molresponse::end_timer(world, "Save:");
                 }
                 if (r_params.plot_all_orbitals()) {
-                    PlotGroundandResponseOrbitals(world, iter, Chi.X, Chi.Y, r_params, ground_calc);
+                    plotResponseOrbitals(world, iter, Chi.X, Chi.Y, r_params, ground_calc);
                 }
                 if (r_params.plot()) {
                     auto rho0 = make_ground_density(world);

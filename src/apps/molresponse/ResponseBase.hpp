@@ -181,14 +181,10 @@ protected:
                              vector<X_vector>& Xresidual) -> X_space;
     void x_space_step_restriction(World& world, const X_space& old_Chi, X_space& temp,
                                   bool restrict_y, const double& maxrotn);
-    auto do_step_restriction(World& world, const vector_real_function_3d& x,
-                             vector_real_function_3d& x_new, std::string spin, double maxrotn) const
-            -> double;
-    void PlotGroundandResponseOrbitals(World& world, size_t iteration, response_space& x_response,
-                                       response_space& y_response,
-                                       const ResponseParameters& r_params,
+    void plotResponseOrbitals(World& world, size_t iteration, const response_space& x_response,
+                              const response_space& y_response,
+                                       const ResponseParameters& responseParameters,
                                        const GroundStateCalculation& g_params);
-    void vector_stats_new(const Tensor<double>& v, double& rms, double& maxabsval) const;
 
     static auto orbital_load_balance(World& world, const gamma_orbitals&, double load_balance)
             -> gamma_orbitals;
@@ -211,7 +207,7 @@ protected:
 
 
     auto project_ao_basis_only(World& world, const AtomicBasisSet& aobasis,
-                               const Molecule& molecule) -> vecfuncT;
+                               const Molecule& mol) -> vecfuncT;
     void converged_to_json(json& j);
     auto compute_residual(World& world, const X_space& chi, const X_space& g_chi,
                           const std::string& calc_type) -> residuals;

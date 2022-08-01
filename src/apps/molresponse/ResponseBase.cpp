@@ -1216,7 +1216,7 @@ void ResponseBase::x_space_step_restriction(World &world, const X_space &old_Chi
                 gaxpy(world, s, temp.Y[b], (1.0 - s), old_Chi.Y[b], true);
             }
         } else {
-            do_step_restriction(world, old_Chi.X[b], temp.X[b], "x_response", maxrotn);
+            //do_step_restriction(world, old_Chi.X[b], temp.X[b], "x_response", maxrotn);
         }
     }
     if (world.rank() == 0) { print("----------------End Step Restriction -----------------"); }
@@ -1226,46 +1226,12 @@ void ResponseBase::x_space_step_restriction(World &world, const X_space &old_Chi
     }
 }
 
-void ResponseBase::vector_stats_new(const Tensor<double>& v, double &rms, double &maxabsval) const {
-    rms = 0.0;
-    for (size_t i = 0; i < v.size(); ++i) { rms += v[i] * v[i]; }
-    rms = sqrt(rms / v.size());
-    maxabsval = v.max();
-}
 
-
-double ResponseBase::do_step_restriction(World &world, const vecfuncT &x, vecfuncT &x_new,
-                                         std::string spin, double maxrotn) const {
-    Tensor<double> anorm = norm2s_T(world, sub(world, x, x_new));
-    print("ANORM", anorm);
-    print("maxrotn: ", maxrotn);
-    for (unsigned int i = 0; i < x_new.size(); ++i) {
-        print("anorm ", i, " : ", anorm[i]);
-        if (anorm[i] > maxrotn) {
-            double s = maxrotn / anorm[i];
-            /*
-if (world.rank() == 0) {
-if (nres == 1 and (r_params.print_level() > 1)) printf("  restricting step for
-%s orbitals:", spin.c_str()); printf(" %d", i);
-}
-*/
-            x_new[i].gaxpy(s, x[i], 1.0 - s, false);
-            // x_new[i].truncate();
-        }
-    }
-    world.gop.fence();
-    double rms, maxval;
-    vector_stats_new(anorm, rms, maxval);
-    if (world.rank() == 0 and (r_params.print_level() > 1))
-        print("Norm of vector changes", spin, ": rms", rms, "   max", maxval);
-    return maxval;
-}
-
-void ResponseBase::PlotGroundandResponseOrbitals(World &world, size_t iteration,
-                                                 response_space &x_response,
-                                                 response_space &y_response,
-                                                 ResponseParameters const &r_params,
-                                                 GroundStateCalculation const &g_params) {
+void ResponseBase::plotResponseOrbitals(World &world, size_t iteration,
+                                        const response_space &x_response,
+                                        const response_space &y_response,
+                                        ResponseParameters const &responseParameters,
+                                        GroundStateCalculation const &g_params) {
     std::filesystem::create_directories("plots/densities");
     std::filesystem::create_directory("plots/orbitals");
 
@@ -1279,44 +1245,44 @@ void ResponseBase::PlotGroundandResponseOrbitals(World &world, size_t iteration,
     std::vector<real_function_3d> rho1 =
             transition_density(world, ground_orbitals, x_response, y_response);
     std::string dir("xyz");
-    // for plotname size
+    // for plot_name size
     size_t buffSize = 500;
-    char plotname[buffSize];
-    double Lp = std::min(r_params.L(), 24.0);
+    char plot_name[buffSize];
+    double Lp = std::min(responseParameters.L(), 24.0);
     // Doing line plots along each axis
     for (int d = 0; d < 3; d++) {
         // print ground_state
         plotCoords plt(d, Lp);
         // plot ground density
         if (iteration == 1) {
-            snprintf(plotname, buffSize, "plots/densities/rho0_%c_0.plt", dir[d]);
-            plot_line(plotname, 5001, plt.lo, plt.hi, rho0);
+            snprintf(plot_name, buffSize, "plots/densities/rho0_%c_0.plt", dir[d]);
+            plot_line(plot_name, 5001, plt.lo, plt.hi, rho0);
         }
         for (int i = 0; i < static_cast<int>(n); i++) {
             // print ground_state
             // plot gound_orbitals
-            snprintf(plotname, buffSize, "plots/orbitals/phi0_%c_0_%d.plt", dir[d],
+            snprintf(plot_name, buffSize, "plots/orbitals/phi0_%c_0_%d.plt", dir[d],
                      static_cast<int>(i));
-            plot_line(plotname, 5001, plt.lo, plt.hi, ground_orbitals[i]);
+            plot_line(plot_name, 5001, plt.lo, plt.hi, ground_orbitals[i]);
         }
 
         for (int b = 0; b < static_cast<int>(m); b++) {
             // plot rho1 direction d state b
-            snprintf(plotname, buffSize, "plots/densities/rho1_%c_%d.plt", dir[d],
+            snprintf(plot_name, buffSize, "plots/densities/rho1_%c_%d.plt", dir[d],
                      static_cast<int>(b));
-            plot_line(plotname, 5001, plt.lo, plt.hi, rho1[b]);
+            plot_line(plot_name, 5001, plt.lo, plt.hi, rho1[b]);
 
             for (int i = 0; i < static_cast<int>(n); i++) {
                 // print ground_state
                 // plot x function  x_dir_b_i__k_iter
-                snprintf(plotname, buffSize, "plots/orbitals/phix_%c_%d_%d.plt", dir[d],
+                snprintf(plot_name, buffSize, "plots/orbitals/phix_%c_%d_%d.plt", dir[d],
                          static_cast<int>(b), static_cast<int>(i));
-                plot_line(plotname, 5001, plt.lo, plt.hi, x_response[b][i]);
+                plot_line(plot_name, 5001, plt.lo, plt.hi, x_response[b][i]);
 
                 // plot y functione  y_dir_b_i__k_iter
-                snprintf(plotname, buffSize, "plots/orbitals/phiy_%c_%d_%d.plt", dir[d],
+                snprintf(plot_name, buffSize, "plots/orbitals/phiy_%c_%d_%d.plt", dir[d],
                          static_cast<int>(b), static_cast<int>(i));
-                plot_line(plotname, 5001, plt.lo, plt.hi, y_response[b][i]);
+                plot_line(plot_name, 5001, plt.lo, plt.hi, y_response[b][i]);
             }
         }
     }
@@ -1333,11 +1299,13 @@ void PlotGroundDensityVTK(World &world, const ResponseBase &calc) {
     if (r_params.plot_initial()) {
         if (world.rank() == 0) print("\n   Plotting ground state densities.\n");
         if (r_params.plot_l() > 0.0)
-            do_vtk_plots(world, r_params.plot_pts(), r_params.plot_l(), 0, r_params.num_orbitals(),
-                         molecule, square(world, ground_orbitals), "ground");
+            do_vtk_plots(world, int(r_params.plot_pts()), r_params.plot_l(), 0,
+                         int(r_params.num_orbitals()), molecule, square(world, ground_orbitals),
+                         "ground");
         else
-            do_vtk_plots(world, r_params.plot_pts(), r_params.L() / 2.0, 0, r_params.num_orbitals(),
-                         molecule, square(world, ground_orbitals), "ground");
+            do_vtk_plots(world, int(r_params.plot_pts()), r_params.L() / 2.0, 0,
+                         int(r_params.num_orbitals()), molecule, square(world, ground_orbitals),
+                         "ground");
     }
 }
 
@@ -1398,7 +1366,8 @@ void ResponseBase::solve(World &world) {
     // Plot the response function if desired
 }
 
-void check_k(World &world, X_space &Chi, double thresh, int k) {
+void check_k(World &world, X_space &Chi, double thresh = FunctionDefaults<3>::get_thresh(),
+             int k = FunctionDefaults<3>::get_k()) {
     if (0 != Chi.X.size()) {
         if (FunctionDefaults<3>::get_k() != Chi.X[0].at(0).k()) {
             // Project all x components into correct k
@@ -1430,7 +1399,7 @@ void check_k(World &world, X_space &Chi, double thresh, int k) {
 /// \param f
 /// \param magnitude
 /// \return
-response_space add_randomness(World &world, const response_space &f, double magnitude) {
+auto add_randomness(World &world, const response_space &f, double magnitude) -> response_space {
     // Copy input functions
     response_space f_copy = f.copy();
 
@@ -1492,7 +1461,7 @@ void normalize(World &world, X_space &Chi) {
     }
 }
 
-std::map<std::vector<int>, real_function_3d> solid_harmonics(World &world, int n) {
+auto solid_harmonics(World &world, int n) -> std::map<std::vector<int>, real_function_3d> {
     // Container to return
     std::map<std::vector<int>, real_function_3d> result;
 
@@ -1688,12 +1657,12 @@ void ResponseBase::analyze_vectors(World &world, const vecfuncT &x,
     }
 }
 
-vecfuncT ResponseBase::project_ao_basis_only(World &world, const AtomicBasisSet &aobasis,
-                                             const Molecule &molecule) {
-    vecfuncT ao = vecfuncT(aobasis.nbf(molecule));
-    for (int i = 0; i < aobasis.nbf(molecule); ++i) {
+auto ResponseBase::project_ao_basis_only(World &world, const AtomicBasisSet &aobasis,
+                                             const Molecule &mol) -> vecfuncT {
+    vecfuncT ao = vecfuncT(aobasis.nbf(mol));
+    for (int i = 0; i < aobasis.nbf(mol); ++i) {
         functorT aofunc(
-                new madchem::AtomicBasisFunctor(aobasis.get_atomic_basis_function(molecule, i)));
+                new madchem::AtomicBasisFunctor(aobasis.get_atomic_basis_function(mol, i)));
         ao[i] = factoryT(world).functor(aofunc).truncate_on_project().nofence().truncate_mode(1);
     }
     world.gop.fence();
@@ -1702,7 +1671,7 @@ vecfuncT ResponseBase::project_ao_basis_only(World &world, const AtomicBasisSet 
     return ao;
 }
 
-vecfuncT ResponseBase::project_ao_basis(World &world, const AtomicBasisSet &aobasis) {
+auto ResponseBase::project_ao_basis(World &world, const AtomicBasisSet &aobasis) -> vecfuncT {
     // Make at_to_bf, at_nbf ... map from atom to first bf on atom, and nbf/atom
     std::vector<int> at_to_bf, at_nbf;
     aobasis.atoms_to_bfn(molecule, at_to_bf, at_nbf);
@@ -1727,8 +1696,8 @@ void ResponseBase::output_json() {
 void ResponseBase::converged_to_json(json &j) { j["converged"] = converged; }
 
 
-vector_real_function_3d transition_densityTDA(World &world, const vector_real_function_3d &orbitals,
-                                              const response_space &x) {
+auto transition_densityTDA(World &world, const vector_real_function_3d &orbitals,
+                                              const response_space &x) -> vector_real_function_3d {
 
     // Get sizes
     size_t m = x.size();
@@ -1775,7 +1744,7 @@ response_space transform(World &world, const response_space &f, const Tensor<dou
     // Done
     return result;
 }
-X_space transform(World &world, const X_space &x, const Tensor<double> &U) {
+auto transform(World &world, const X_space &x, const Tensor<double> &U) -> X_space {
     // Return container
     X_space result(world, x.num_states(), x.num_orbitals());
 
@@ -1785,7 +1754,7 @@ X_space transform(World &world, const X_space &x, const Tensor<double> &U) {
     return result;
 }
 
-Tensor<double> expectation(World &world, const response_space &A, const response_space &B) {
+auto expectation(World &world, const response_space &A, const response_space &B) -> Tensor<double> {
     // Get sizes
     MADNESS_ASSERT(A.size() > 0);
     MADNESS_ASSERT(A.size() == B.size());
