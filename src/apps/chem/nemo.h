@@ -161,7 +161,21 @@ public:
 		return sum(world,abssq(world,nemo)).truncate();
 	}
 
-	void construct_nuclear_correlation_factor(const Molecule& molecule,
+    virtual bool need_recompute_factors_and_potentials(const double thresh) const {
+        bool need=false;
+        if ((not R.is_initialized()) or (R.thresh()>thresh)) need=true;
+        if (not ncf) need=true;
+        if ((not R_square.is_initialized()) or (R_square.thresh()>thresh)) need=true;
+        return need;
+    };
+
+    virtual void invalidate_factors_and_potentials() {
+        R.clear();
+        R_square.clear();
+        ncf.reset();
+    };
+
+    void construct_nuclear_correlation_factor(const Molecule& molecule,
 			const std::shared_ptr<PotentialManager> pm,
 			const std::pair<std::string,double> ncf_parameter) {
 
@@ -619,14 +633,9 @@ protected:
 
         calc->set_protocol<3>(world,thresh);
 
-        // (re) construct nuclear potential and correlation factors
-        // first make the nuclear potential, since it might be needed by the nuclear correlation factor
-        if ((not (calc->potentialmanager.get() and calc->potentialmanager->vnuclear().is_initialized()))
-        		or (calc->potentialmanager->vnuclear().thresh()>thresh)) {
-            get_calc()->make_nuclear_potential(world);
-        }
-        if ((not R.is_initialized()) or (R.thresh()>thresh)) {
+        if (need_recompute_factors_and_potentials(thresh)) {
             timer timer1(world);
+            get_calc()->make_nuclear_potential(world);
             construct_nuclear_correlation_factor(calc->molecule, calc->potentialmanager, param.ncf());
             timer1.end("reproject ncf");
         }

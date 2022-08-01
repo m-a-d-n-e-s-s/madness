@@ -156,7 +156,9 @@ double Nemo::value(const Tensor<double>& x) {
 	if (xsq == coords_sum)
 		return calc->current_energy;
 
-	calc->molecule.set_all_coords(x.reshape(calc->molecule.natom(), 3));
+    if ((xsq-calc->molecule.get_all_coords()).normf()>1.e-12) invalidate_factors_and_potentials();
+
+    calc->molecule.set_all_coords(x.reshape(calc->molecule.natom(), 3));
 	coords_sum = xsq;
 
 	if (world.rank()==0 and param.print_level()>0) {

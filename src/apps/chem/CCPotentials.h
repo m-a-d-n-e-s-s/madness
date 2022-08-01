@@ -8,6 +8,7 @@
 #ifndef SRC_APPS_CHEM_CCPOTENTIALS_H_
 #define SRC_APPS_CHEM_CCPOTENTIALS_H_
 
+#include <chem/ccpairfunction.h>
 #include <chem/CCStructures.h>
 #include <chem/nemo.h>
 #include <chem/projector.h>
@@ -486,7 +487,9 @@ public:
     /// @param[in] 6D function 1
     /// @param[in] 6D function 2
     double
-    overlap(const CCPairFunction& f1, const CCPairFunction& f2) const;
+    overlap(const CCPairFunction& f1, const CCPairFunction& f2) const {
+        return inner(f1,f2,nemo_->ncf->square());
+    };
 
     /// Computes the squared norm of the pair function <x|x>
     /// including all regularization tails
@@ -825,6 +828,7 @@ private:
     /// orbital energies
     std::vector<double> orbital_energies_;
     /// the coulomb operator with all intermediates
+public:
     CCConvolutionOperator g12;
     /// the f12 operator with all intermediates
     CCConvolutionOperator f12;

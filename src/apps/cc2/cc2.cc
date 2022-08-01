@@ -40,15 +40,6 @@
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 
 
-/*!
-  \file examples/tdhf.cc
-  \brief compute the time-dependent HF equations (currently CIS approximation)
-
-  The source is
-  <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local
-  /trunk/src/apps/examples/tdhf.cc>here</a>.
-
- */
 #include "apps/chem/CC2.h"
 #include "madness/misc/gitinfo.h"
 

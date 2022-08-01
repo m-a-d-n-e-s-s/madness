@@ -55,7 +55,8 @@ using namespace madness;
 
 int main(int argc, char** argv) {
 
-    World& world=initialize(argc, argv);
+    initialize(argc, argv);
+    World world(SafeMPI::COMM_WORLD);
     if (world.rank() == 0) {
     	print("\n  NEMO -- Hartree-Fock using numerical exponential molecular orbitals \n");
     	printf("starting at time %.1f\n", wall_time());
@@ -69,51 +70,45 @@ int main(int argc, char** argv) {
     try {
 
         commandlineparser parser(argc,argv);
-        if (parser.key_exists("help")) {
-            Nemo::help();
+        std::shared_ptr<Nemo> nemo(new Nemo(world,parser));
 
-        } else if (parser.key_exists("print_parameters")) {
-            Nemo::print_parameters();
+        if (world.rank()==0) nemo->get_param().print("dft","end");
+//        if (world.rank()==0) nemo->get_calc()->param.print("dft","end");
 
-        } else {
-
-            std::shared_ptr<Nemo> nemo(new Nemo(world,parser));
-
-            if (world.rank()==0) nemo->get_param().print("dft","end");
-
-            // optimize the geometry if requested
-            if (nemo->get_param().gopt()) {
-                print("\n\n Geometry Optimization                      ");
-                print(" ----------------------------------------------------------\n");
+        // optimize the geometry if requested
+        if (nemo->get_param().gopt()) {
+            print("\n\n Geometry Optimization                      ");
+            print(" ----------------------------------------------------------\n");
 //            calc->param.gprint(world);
 
                 Tensor<double> geomcoord =nemo->get_calc()->molecule.get_all_coords().flat();
                 MolecularOptimizer geom(world,parser,nemo);
                 geom.parameters.print("geoopt","end");
 
-                // compute initial hessian
-                if (nemo->get_param().ginitial_hessian()) {
-                    nemo->value();
-                    Tensor<double> hess=nemo->hessian(nemo->get_calc()->molecule.get_all_coords());
-                    geom.set_hessian(hess);
-                }
-                geom.optimize(geomcoord);
-            } else {
+            geom.parameters.print("geoopt","end");
 
-                // compute the energy to get converged orbitals
+
+            // compute initial hessian
+            if (nemo->get_param().ginitial_hessian()) {
+                nemo->value();
+                Tensor<double> hess=nemo->hessian(nemo->get_calc()->molecule.get_all_coords());
+                geom.set_hessian(hess);
+            }
+            geom.optimize(geomcoord);
+        } else {
+
+            // compute the energy to get converged orbitals
 //            Nemo nemo(world,calc);
-                const double energy=nemo->value();
-                if (world.rank()==0) {
-                    printf("final energy   %12.8f\n", energy);
-                    printf("finished at time %.1f\n", wall_time());
-                }
-
+            const double energy=nemo->value();
+            if (world.rank()==0) {
+                printf("final energy   %12.8f\n", energy);
+                printf("finished at time %.1f\n", wall_time());
             }
 
-            // compute the hessian
-            if (nemo->param.hessian()) nemo->hessian(nemo->get_calc()->molecule.get_all_coords());
-
         }
+
+        // compute the hessian
+        if (nemo->param.hessian()) nemo->hessian(nemo->get_calc()->molecule.get_all_coords());
 
 
     } catch (const SafeMPI::Exception& e) {

@@ -2027,30 +2027,39 @@ namespace madness {
     /// @return		a function of dimension NDIM=LDIM+LDIM
     template <typename opT, typename T, std::size_t LDIM>
     Function<TENSOR_RESULT_TYPE(typename opT::opT,T), LDIM+LDIM>
-    apply(const opT& op, const Function<T,LDIM>& f1, const Function<T,LDIM>& f2, bool fence=true) {
+    apply(const opT& op, const std::vector<Function<T,LDIM>>& f1, const std::vector<Function<T,LDIM>>& f2, bool fence=true) {
+
+        World& world=f1.front().world();
 
         typedef TENSOR_RESULT_TYPE(T,typename opT::opT) resultT;
+        typedef std::vector<Function<T,LDIM>> vecfuncL;
 
-    	Function<T,LDIM>& ff1 = const_cast< Function<T,LDIM>& >(f1);
-    	Function<T,LDIM>& ff2 = const_cast< Function<T,LDIM>& >(f2);
+    	vecfuncL& ff1 = const_cast< vecfuncL& >(f1);
+    	vecfuncL& ff2 = const_cast< vecfuncL& >(f2);
 
-    	bool same=(ff1.get_impl()==ff2.get_impl());
+    	bool same=(ff1[0].get_impl()==ff2[0].get_impl());
 
-    	// keep the leaves! They are assumed to be there later
-    	// even for modified op we need NS form for the hartree_leaf_op
-    	if (not same) ff1.make_nonstandard(true, false);
-        ff2.make_nonstandard(true, true);
+        reconstruct(world,f1,false);
+        reconstruct(world,f2,false);
+        world.gop.fence();
+        // keep the leaves! They are assumed to be there later
+        // even for modified op we need NS form for the hartree_leaf_op
+        for (auto& f : f1) f.make_nonstandard(true,false);
+        for (auto& f : f2) f.make_nonstandard(true,false);
+        world.gop.fence();
 
 
-        FunctionFactory<T,LDIM+LDIM> factory=FunctionFactory<resultT,LDIM+LDIM>(f1.world())
-                .k(f1.k()).thresh(FunctionDefaults<LDIM+LDIM>::get_thresh());
+        FunctionFactory<T,LDIM+LDIM> factory=FunctionFactory<resultT,LDIM+LDIM>(world)
+                .k(f1.front().k()).thresh(FunctionDefaults<LDIM+LDIM>::get_thresh());
     	Function<resultT,LDIM+LDIM> result=factory.empty().fence();
 
     	result.get_impl()->reset_timer();
     	op.reset_timer();
 
 		// will fence here
-        result.get_impl()->recursive_apply(op, f1.get_impl().get(),f2.get_impl().get(),true);
+        for (int i=0; i<f1.size(); ++i)
+            result.get_impl()->recursive_apply(op, f1[i].get_impl().get(),f2[i].get_impl().get(),false);
+        world.gop.fence();
 
         result.get_impl()->print_timer();
         op.print_timer();
@@ -2062,8 +2071,8 @@ namespace madness {
         } else {
     		result.reconstruct();
         }
-    	if (not same) ff1.standard(false);
-    	ff2.standard(false);
+    	standard(world,ff1,false);
+    	if (not same) standard(world,ff2,false);
 
 		return result;
     }
@@ -2148,7 +2157,7 @@ namespace madness {
         	// f.trace() is just a number
     		R ftrace=0.0;
     		if (op.is_slaterf12) ftrace=f.trace();
-            print("ftrace",ftrace);
+//            print("ftrace",ftrace);
 
     		// saves the standard() step, which is very expensive in 6D
 //    		Function<R,NDIM> fff=copy(ff);
@@ -2161,7 +2170,7 @@ namespace madness {
             }
             result = apply_only(op, fff, fence);
         	ff.world().gop.fence();
-            result.print_size("result after apply_only");
+            if (print_timings) result.print_size("result after apply_only");
 
         	// svd-tensors need some post-processing
         	if (result.get_impl()->get_tensor_type()==TT_2D) {
