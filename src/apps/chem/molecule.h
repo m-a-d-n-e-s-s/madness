@@ -135,7 +135,7 @@ public:
 
 //            initialize<std::vector<std::string>>("source",{"inputfile"},"where to get the coordinates from: ({inputfile}, {library,xxx}, {xyz,xxx.xyz})");
             initialize<std::string>("source_type","inputfile","where to get the coordinates from",{"inputfile","xyz","library"});
-            initialize<std::string>("source_name","","name of the geometry from the library or the input file");
+            initialize<std::string>("source_name","TBD","name of the geometry from the library or the input file");
             initialize<double>("eprec",1.e-4,"smoothing for the nuclear potential");
             initialize<std::string>("units","atomic","coordinate units",{"atomic","angstrom"});
             initialize<std::vector<double>>("field",{0.0,0.0,0.0},"external electric field");
@@ -157,12 +157,15 @@ public:
 
         void set_derived_values(const commandlineparser& parser) {
             // check if we use an xyz file, the structure library or the input file
-            std::string src_type= derive_source_type_from_name(source_name());
+            set_derived_value("source_name",parser.value("input")); // will not override user input
+            std::string src_type= derive_source_type_from_name(source_name(), parser);
             set_derived_value("source_type",src_type);
 
             // check for ambiguities in the derived source type
             if (not is_user_defined("source_type")) {
-                bool found_geometry_file=std::filesystem::exists(source_name());
+                std::ifstream f(source_name().c_str());
+                bool found_geometry_file=f.good();
+//                bool found_geometry_file=std::filesystem::exists(source_name());
 
                 bool geometry_found_in_library=true;
                 try {   // check for existence of file and structure in the library
@@ -214,8 +217,9 @@ public:
         bool pure_ae() const {return get<bool>("pure_ae");}
         bool no_orient() const {return get<bool>("no_orient");}
 
-        static std::string derive_source_type_from_name(const std::string name) {
-            if (name.empty()) return "input";
+        static std::string derive_source_type_from_name(const std::string name,
+                                                        const commandlineparser& parser) {
+            if (name==parser.value("input")) return "inputfile";
             std::size_t pos = name.find(".xyz");
             if (pos!=std::string::npos) return "xyz";
             return "library";
