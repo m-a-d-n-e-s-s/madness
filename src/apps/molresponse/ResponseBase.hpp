@@ -53,8 +53,8 @@ public:
     virtual void initialize(World& world) = 0;
     virtual void iterate(World& world) = 0;
     //virtual void iterate();
-    CalcParams get_parameter() const { return {ground_calc, molecule, r_params}; }
-    vector_real_function_3d get_orbitals() const { return ground_orbitals; }
+    auto get_parameter() const -> CalcParams { return {ground_calc, molecule, r_params}; }
+    auto get_orbitals() const -> vector_real_function_3d { return ground_orbitals; }
     void output_json();
 
     json j_molresponse{};
@@ -172,56 +172,56 @@ protected:
     auto make_density(World& world, const X_space& chi) const -> vecfuncT;
 
     void load_balance_chi(World& world);
-    auto make_bsh_operators_response(World& world, double& shift,
-                                                   double& omega) const -> vector<poperatorT>;
+    auto make_bsh_operators_response(World& world, double& shift, double& omega) const
+            -> vector<poperatorT>;
 
 
     auto compute_residual(World& world, X_space& old_Chi, X_space& temp,
-                             Tensor<double>& bsh_residualsX, Tensor<double>& bsh_residualsY,
-                             std::string calc_type) -> X_space;
+                          Tensor<double>& bsh_residualsX, Tensor<double>& bsh_residualsY,
+                          std::string calc_type) -> X_space;
     auto kain_x_space_update(World& world, const X_space& chi, const X_space& residual_chi,
-                                NonLinearXsolver& kain_x_space, vector<X_vector>& Xvector,
-                                vector<X_vector>& Xresidual) -> X_space;
+                             NonLinearXsolver& kain_x_space, vector<X_vector>& Xvector,
+                             vector<X_vector>& Xresidual) -> X_space;
     void x_space_step_restriction(World& world, const X_space& old_Chi, X_space& temp,
                                   bool restrict_y, const double& maxrotn);
     void vector_stats(const vector<double>& v, double& rms, double& maxabsval) const;
     auto do_step_restriction(World& world, const vector_real_function_3d& x,
-                               vector_real_function_3d& x_new, std::string spin,
-                               double maxrotn) const -> double;
+                             vector_real_function_3d& x_new, std::string spin, double maxrotn) const
+            -> double;
     void PlotGroundandResponseOrbitals(World& world, size_t iteration, response_space& x_response,
                                        response_space& y_response,
                                        const ResponseParameters& r_params,
                                        const GroundStateCalculation& g_params);
     void vector_stats_new(Tensor<double> v, double& rms, double& maxabsval) const;
 
-    static auto orbital_load_balance(World& world, const gamma_orbitals&,
-                                               const double load_balance) -> gamma_orbitals;
+    static auto orbital_load_balance(World& world, const gamma_orbitals&, double load_balance)
+            -> gamma_orbitals;
     auto compute_gamma_tda(World& world, const gamma_orbitals& density,
-                              const XCOperator<double, 3>& xc) const -> X_space;
+                           const XCOperator<double, 3>& xc) const -> X_space;
     auto compute_gamma_static(World& world, const gamma_orbitals&,
-                                 const XCOperator<double, 3>& xc) const -> X_space;
+                              const XCOperator<double, 3>& xc) const -> X_space;
     auto compute_gamma_full(World& world, const gamma_orbitals&,
-                               const XCOperator<double, 3>& xc) const -> X_space;
+                            const XCOperator<double, 3>& xc) const -> X_space;
     auto compute_V0X(World& world, const X_space& X, const XCOperator<double, 3>& xc,
-                        bool compute_Y) const -> X_space;
+                     bool compute_Y) const -> X_space;
     auto compute_lambda_X(World& world, const X_space& chi, XCOperator<double, 3>& xc,
-                             const std::string& calc_type) const -> X_space;
+                          const std::string& calc_type) const -> X_space;
     auto compute_theta_X(World& world, const X_space& chi, XCOperator<double, 3> xc,
-                            const std::string& calc_type) const -> X_space;
+                         const std::string& calc_type) const -> X_space;
     auto compute_F0X(World& world, const X_space& X, const XCOperator<double, 3>& xc,
-                        bool compute_Y) const -> X_space;
+                     bool compute_Y) const -> X_space;
     void analyze_vectors(World& world, const vecfuncT& x, const std::string& response_state);
     auto project_ao_basis(World& world, const AtomicBasisSet& aobasis) -> vecfuncT;
 
 
     auto project_ao_basis_only(World& world, const AtomicBasisSet& aobasis,
-                                   const Molecule& molecule) -> vecfuncT;
+                               const Molecule& molecule) -> vecfuncT;
     void converged_to_json(json& j);
     auto compute_residual(World& world, const X_space& chi, const X_space& g_chi,
-                               const std::string& calc_type) -> residuals;
-    auto compute_response_potentials(
-            World& world, const X_space& chi, XCOperator<double, 3>& xc,
-            const std::string& calc_type) const -> std::tuple<X_space, X_space, X_space>;
+                          const std::string& calc_type) -> residuals;
+    auto compute_response_potentials(World& world, const X_space& chi, XCOperator<double, 3>& xc,
+                                     const std::string& calc_type) const
+            -> std::tuple<X_space, X_space, X_space>;
 
     // compute exchange |i><i|J|p>
     auto exchangeHF(vecfuncT& ket, vecfuncT& bra, vecfuncT& vf) const -> vecfuncT {
@@ -240,7 +240,7 @@ protected:
 
         std::shared_ptr<real_convolution_3d> poisson;
         /// consistent with Coulomb
-        vecfuncT Kf = zero_functions_compressed<double, 3>(world, nf);
+        vecfuncT Kf = zero_functions_compressed<double, 3>(world, nf, true);
 
         if (world.rank() == 0) { print("Before Reconstruct"); }
         reconstruct(world, bra);
@@ -282,17 +282,17 @@ protected:
 void check_k(World& world, X_space& Chi, double thresh, int k);
 
 
-response_space add_randomness(World& world, const response_space& f, double magnitude);
+auto add_randomness(World& world, const response_space& f, double magnitude) -> response_space;
 void normalize(World& world, response_space& f);
 void normalize(World& world, X_space& Chi);
 
 
-static double kronecker(size_t l, size_t n) {
+static auto kronecker(size_t l, size_t n) -> double {
     if (l == n) return 1.0;
     return 0.0;
 }
 
-std::map<std::vector<int>, real_function_3d> solid_harmonics(World& world, int n);
+auto solid_harmonics(World& world, int n) -> std::map<std::vector<int>, real_function_3d>;
 
 /***
  * @brief Prints the norms of the functions of a response space
@@ -305,11 +305,11 @@ std::map<std::vector<int>, real_function_3d> solid_harmonics(World& world, int n
 void print_norms(World& world, const response_space& f);
 // Returns a list of solid harmonics such that:
 // solid_harm.size() * num_ground_orbs > 2 * num. resp. components
-vector_real_function_3d make_xyz_functions(World& world);
+auto make_xyz_functions(World& world) -> vector_real_function_3d;
 // Selects from a list of functions and energies the k functions with the
 // lowest energy
-response_space select_functions(World& world, response_space f, Tensor<double>& energies, size_t k,
-                                size_t print_level);
+auto select_functions(World& world, response_space f, Tensor<double>& energies, size_t k,
+                                size_t print_level) -> response_space;
 // Sorts the given tensor of eigenvalues and
 // response functions
 void sort(World& world, Tensor<double>& vals, response_space& f);
@@ -318,7 +318,7 @@ void sort(World& world, Tensor<double>& vals, X_space& f);
 
 // Specialized for response calculations that returns orthonormalized
 // functions
-response_space gram_schmidt(World& world, const response_space& f);
+auto gram_schmidt(World& world, const response_space& f) -> response_space;
 // Specialized for response calculations that returns orthonormalized
 // functions
 void gram_schmidt(World& world, response_space& f, response_space& g);
@@ -329,29 +329,29 @@ void gram_schmidt(World& world, response_space& f, response_space& g);
 /// \param x
 /// \param y
 /// \return
-vector_real_function_3d transition_density(World& world, const vector_real_function_3d& orbitals,
-                                           const response_space& x, const response_space& y);
+auto transition_density(World& world, const vector_real_function_3d& orbitals,
+                                           const response_space& x, const response_space& y) -> vector_real_function_3d;
 
-vector_real_function_3d transition_densityTDA(World& world, const vector_real_function_3d& orbitals,
-                                              const response_space& x);
+auto transition_densityTDA(World& world, const vector_real_function_3d& orbitals,
+                                              const response_space& x) -> vector_real_function_3d;
 
-response_space transform(World& world, const response_space& f, const Tensor<double>& U);
+auto transform(World& world, const response_space& f, const Tensor<double>& U) -> response_space;
 
-X_space transform(World& world, const X_space& x, const Tensor<double>& U);
+auto transform(World& world, const X_space& x, const Tensor<double>& U) -> X_space;
 
 // result(i,j) = inner(a[i],b[j]).sum()
-Tensor<double> expectation(World& world, const response_space& A, const response_space& B);
+auto expectation(World& world, const response_space& A, const response_space& B) -> Tensor<double>;
 
 
 class ResponseTester {
 
 public:
-    void load_calc(World& world, ResponseBase* p, double thresh) {
+    static void load_calc(World& world, ResponseBase* p, double thresh) {
         p->set_protocol(world, thresh);
         p->load(world, p->r_params.restart_file());
         p->check_k(world, thresh, FunctionDefaults<3>::get_k());
     }
-    X_space compute_gamma_full(World& world, ResponseBase* p, double thresh) {
+    static X_space compute_gamma_full(World& world, ResponseBase* p, double thresh) {
         XCOperator<double, 3> xc = p->make_xc_operator(world);
         X_space gamma =
                 p->compute_gamma_full(world, {p->Chi, p->ground_orbitals, p->ground_orbitals}, xc);
