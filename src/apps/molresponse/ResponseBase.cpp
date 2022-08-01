@@ -19,6 +19,7 @@ ResponseBase::ResponseBase(World &world, const CalcParams &params)
 
     // Broadcast to all the other nodes
     world.gop.broadcast_serializable(r_params, 0);
+    world.gop.broadcast_serializable(ground_energies, 0);
     world.gop.broadcast_serializable(molecule, 0);
     xcf.initialize(r_params.xc(), !r_params.spinrestricted(), world, r_params.print_level() >= 3);
     r_params.to_json(j_molresponse);
@@ -104,7 +105,8 @@ void ResponseBase::check_k(World &world, double thresh, int k) {
 //
 /// \param world
 /// \return
-std::pair<Tensor<double>, Tensor<double>> ResponseBase::ComputeHamiltonianPair(World &world) const {
+auto ResponseBase::ComputeHamiltonianPair(World &world) const
+        -> std::pair<Tensor<double>, Tensor<double>> {
     // Basic output
     if (r_params.print_level() >= 1) molresponse::start_timer(world);
     auto phi = ground_orbitals;
@@ -175,7 +177,7 @@ std::pair<Tensor<double>, Tensor<double>> ResponseBase::ComputeHamiltonianPair(W
     // ALWAYS DO THIS FOR THE STORED POTENTIAL!!
     // exchange last
     // 'small memory' algorithm from SCF.cc
-    auto op = coulop;
+    auto op = shared_coulomb_operator;
 
     auto Kphi = zero_functions_compressed<double, 3>(world, num_orbitals);
 
@@ -264,7 +266,7 @@ functionT ResponseBase::make_ground_density(World &world) const {
 /// \param world
 /// \return
 real_function_3d ResponseBase::Coulomb(World &world) const {
-    return apply(*coulop, ground_density).truncate();
+    return apply(*shared_coulomb_operator, ground_density).truncate();
 }
 
 // TODO  Create apply_operator<T>(f)  generalized function in place of coulomb
@@ -348,7 +350,10 @@ auto ResponseBase::make_bsh_operators_response(World &world, double &shift, doub
 auto ResponseBase::compute_theta_X(World &world, const X_space &chi, XCOperator<double, 3> xc,
                                    const std::string &calc_type) const -> X_space {
 
-    if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
+    if (world.rank() == 0 && r_params.print_level() >= 1) {
+        molresponse::start_timer(world);
+        print("------------compute theta x_________");
+    }
     bool compute_Y = calc_type == "full";
     X_space Theta_X = X_space(world, chi.num_states(), chi.num_orbitals());
     // compute
@@ -463,7 +468,7 @@ X_space ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &den
         auto rho_x_b = dot(world, dx, phi0);
         rho_x_b.truncate();
         // apply the coulomb operator to rho_b
-        rho_x_b = apply(*coulop, rho_x_b);
+        rho_x_b = apply(*shared_coulomb_operator, rho_x_b);
         return mul(world, rho_x_b, phi0);
     };
 
@@ -628,7 +633,7 @@ X_space ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &d
     // Create Coulomb potential on ground_orbitals
 
     auto compute_jx = [&, &phi0 = phi0](auto rho_alpha) {
-        auto temp_J = apply(*coulop, rho_alpha);
+        auto temp_J = apply(*shared_coulomb_operator, rho_alpha);
         temp_J.truncate();
         return mul(world, temp_J, phi0);
     };
@@ -663,9 +668,9 @@ X_space ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &d
         x = d_alpha.X[b];
         y = d_alpha.Y[b];
         // |x><i|p>
-        KX.X[b] = K(x, phi0, vf);
+        KX.X[b] = exchangeHF(x, phi0, vf);
         // |i><x|p>
-        KY.X[b] = K(phi0, y, vf);
+        KY.X[b] = exchangeHF(phi0, y, vf);
         // |y><i|p>
     }
 
@@ -747,7 +752,7 @@ X_space ResponseBase::compute_gamma_tda(World &world, const gamma_orbitals &dens
     auto rho = transition_densityTDA(world, phi0, d_alpha.X);
 
     auto compute_jx = [&, &phi0 = phi0](auto rho_alpha) {
-        auto temp_J = apply(*coulop, rho_alpha);
+        auto temp_J = apply(*shared_coulomb_operator, rho_alpha);
         temp_J.truncate();
         return mul(world, temp_J, phi0);
     };
@@ -779,7 +784,7 @@ X_space ResponseBase::compute_gamma_tda(World &world, const gamma_orbitals &dens
     for (size_t b = 0; b < num_states; b++) {
         vecfuncT x;
         x = d_alpha.X[b];
-        k1_x[b] = K(x, phi0, vf);
+        k1_x[b] = exchangeHF(x, phi0, vf);
     }
 
     if (world.rank() == 0 && r_params.print_level() >= 1) {
@@ -946,6 +951,10 @@ std::tuple<X_space, X_space, X_space> ResponseBase::compute_response_potentials(
 // EXC0=W[ground_density]
 X_space ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<double, 3> &xc,
                                   bool compute_Y) const {
+    if (world.rank() == 0 && r_params.print_level() >= 1) {
+        molresponse::start_timer(world);
+        print("------------compute VO[x]_________");
+    }
     // Start a timer
     size_t m = X.num_states();
     size_t n = X.num_orbitals();
@@ -954,14 +963,13 @@ X_space ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperat
     X_space K0 = X_space(world, m, n);
 
     X_space Chi_copy = X;
-    vecfuncT phi0_copy = ground_orbitals;
+    vecfuncT phi0_copy = madness::copy(world, ground_orbitals);
     Chi_copy.truncate();
     //Chi_copy.truncate();
     truncate(world, phi0_copy);
     // v_nuc first
     real_function_3d v_nuc, v_j0, v_k0, v_xc;
 
-    if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
     if (not r_params.store_potential()) {
         v_nuc = potential_manager->vnuclear();
         //v_nuc.truncate();
@@ -977,7 +985,7 @@ X_space ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperat
         // "a" is the core type
         // scale rho by 2 TODO
         // J^0 x^alpha
-        v_j0 = apply(*coulop, ground_density);
+        v_j0 = apply(*shared_coulomb_operator, ground_density);
         v_j0.scale(2.0);
     } else {// Already pre-computed
         v_j0 = stored_v_coul;
@@ -999,8 +1007,13 @@ X_space ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperat
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
-    auto k = [&phi0_copy](vector_real_function_3d xi) { return newK(phi0_copy, phi0_copy, xi); };
+    auto k = [&](vector_real_function_3d xi) {
+        if (world.rank() == 0) { print("k0[x]"); }
+        return exchangeHF(phi0_copy, phi0_copy, xi);
+    };
+
     // If including any exact HF exchange
+    /*
     if (xcf.hf_exchange_coefficient() != 0.0) {
         std::transform(Chi_copy.X.begin(), Chi_copy.X.end(), K0.X.begin(), k);
         if (compute_Y) {
@@ -1009,6 +1022,17 @@ X_space ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperat
             K0.Y = K0.X.copy();
         }
     }
+     */
+
+    int b = 0;
+    for (auto &k0x: K0.X) { k0x = exchangeHF(phi0_copy, phi0_copy, Chi_copy.X[b++]); }
+    if (compute_Y) {
+        for (auto &k0y: K0.Y) { k0y = exchangeHF(phi0_copy, phi0_copy, Chi_copy.Y[b++]); }
+    } else {
+        K0.Y = K0.X.copy();
+    }
+
+
     if (r_params.print_level() >= 20) {
         print("inner <X|K0|X>");
         print(inner(Chi_copy, K0));
@@ -1296,34 +1320,6 @@ void ResponseBase::vector_stats_new(const Tensor<double> v, double &rms, double 
     maxabsval = v.max();
 }
 
-double ResponseBase::do_step_restriction(World &world, const vecfuncT &x, vecfuncT &x_new,
-                                         std::string spin) const {
-    std::vector<double> anorm = norm2s(world, sub(world, x, x_new));
-    size_t nres = 0;
-    for (unsigned int i = 0; i < x.size(); ++i) {
-        print("anorm ", i, " : ", anorm[i]);
-        if (anorm[i] > r_params.maxrotn()) {
-            double s = r_params.maxrotn() / anorm[i];
-            ++nres;
-            if (world.rank() == 0) {
-                if (nres == 1 and (r_params.print_level() > 1))
-                    printf("  restricting step for %s orbitals:", spin.c_str());
-                printf(" %d", i);
-            }
-            x_new[i].gaxpy(s, x[i], 1.0 - s, false);
-            //x_new[i].truncate();
-        }
-    }
-    if (nres > 0 && world.rank() == 0 and (r_params.print_level() > 1)) printf("\n");
-
-    world.gop.fence();
-    double rms, maxval;
-    vector_stats(anorm, rms, maxval);
-    if (world.rank() == 0 and (r_params.print_level() > 1))
-        print("Norm of vector changes", spin, ": rms", rms, "   max", maxval);
-    return maxval;
-}
-
 
 double ResponseBase::do_step_restriction(World &world, const vecfuncT &x, vecfuncT &x_new,
                                          std::string spin, double maxrotn) const {
@@ -1344,45 +1340,6 @@ if (nres == 1 and (r_params.print_level() > 1)) printf("  restricting step for
             // x_new[i].truncate();
         }
     }
-    world.gop.fence();
-    double rms, maxval;
-    vector_stats_new(anorm, rms, maxval);
-    if (world.rank() == 0 and (r_params.print_level() > 1))
-        print("Norm of vector changes", spin, ": rms", rms, "   max", maxval);
-    return maxval;
-}
-
-double ResponseBase::do_step_restriction(World &world, const vecfuncT &x, const vecfuncT &y,
-                                         vecfuncT &x_new, vecfuncT &y_new, std::string spin) const {
-    // sub(world, x, x_new)
-    vecfuncT x_diff = sub(world, x, x_new);
-    vecfuncT y_diff = sub(world, y, y_new);
-
-    // sub(world, x, x_new)
-    Tensor<double> anorm_x = norm2s_T(world, x_diff);
-    Tensor<double> anorm_y = norm2s_T(world, y_diff);
-
-    Tensor<double> anorm(x.size());
-
-
-    for (unsigned int i = 0; i < x.size(); ++i) {
-        anorm[i] = std::sqrt(anorm_x[i] * anorm_x[i] + anorm_y[i] * anorm_y[i]);
-    }
-
-    for (unsigned int i = 0; i < x.size(); ++i) {
-        if (anorm[i] > r_params.maxrotn()) {
-            double s = r_params.maxrotn() / anorm[i];
-            size_t nres = 0;
-            if (world.rank() == 0) {
-                if (nres == 1 and (r_params.print_level() > 1))
-                    printf("  restricting step for %s orbitals:", spin.c_str());
-                printf(" %d", i);
-            }
-            x_new[i].gaxpy(s, x[i], 1.0 - s, false);
-            y_new[i].gaxpy(s, y[i], 1.0 - s, false);
-        }
-    }
-
     world.gop.fence();
     double rms, maxval;
     vector_stats_new(anorm, rms, maxval);

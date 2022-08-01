@@ -3,6 +3,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <ResponseBase.hpp>
 
 #include "apps/chem/SCFOperators.h"
 #include "response_parameters.h"
@@ -37,7 +38,7 @@ void print_molecule(World &world, const GroundStateCalculation &g_params) {
     }
 }
 
-CalcParams initialize_calc_params(World &world, const std::string &input_file) {
+auto initialize_calc_params(World &world, const std::string &input_file) -> CalcParams {
     ResponseParameters r_params{};
     commandlineparser parser;
     parser.set_keyval("input", input_file);
@@ -51,7 +52,7 @@ CalcParams initialize_calc_params(World &world, const std::string &input_file) {
     return {ground_calculation, molecule, r_params};
 }
 // TODO some operator definitions that I will need to move to a separate file
-response_space T(World &world, response_space &f) {
+auto T(World &world, response_space &f) -> response_space {
     response_space T;// Fock = (T + V) * orbitals
     real_derivative_3d Dx(world, 0);
     real_derivative_3d Dy(world, 1);
@@ -70,46 +71,12 @@ response_space T(World &world, response_space &f) {
 }
 
 // compute exchange |i><i|J|p>
-vecfuncT K(vecfuncT &ket, vecfuncT &bra, vecfuncT &vf) {
+auto newK(vecfuncT &ket, vecfuncT &bra, vecfuncT &vf) -> vecfuncT {
     World &world = ket[0].world();
     int n = bra.size();
     int nf = ket.size();
-    double tol = FunctionDefaults<3>::get_thresh();/// Important this is
-    double mul_tol = 0.0;
-    const double lo = 1.e-4;
-    const double econv = FunctionDefaults<3>::get_thresh();
+    if (world.rank() == 0) { print("newK"); }
 
-    std::shared_ptr<real_convolution_3d> poisson;
-    poisson = std::shared_ptr<real_convolution_3d>(CoulombOperatorPtr(world, lo, econv));
-    /// consistent with Coulomb
-    vecfuncT Kf = zero_functions_compressed<double, 3>(world, nf);
-
-    reconstruct(world, bra);
-    reconstruct(world, ket);
-    reconstruct(world, vf);
-
-    // i-j sym
-    for (int i = 0; i < n; ++i) {
-        // for each |i> <i|phi>
-        vecfuncT psif = mul_sparse(world, bra[i], vf, mul_tol);/// was vtol
-        truncate(world, psif);
-        // apply to vector of products <i|phi>..<i|1> <i|2>...<i|N>
-        psif = apply(world, *poisson.get(), psif);
-        truncate(world, psif);
-        // multiply by ket i  <i|phi>|i>: <i|1>|i> <i|2>|i> <i|2>|i>
-        psif = mul_sparse(world, ket[i], psif, mul_tol);/// was vtol
-        /// Generalized A*X+Y for vectors of functions ---- a[i] = alpha*a[i] +
-        // 1*Kf+occ[i]*psif
-        gaxpy(world, double(1.0), Kf, double(1.0), psif);
-    }
-    truncate(world, Kf, tol);
-    return Kf;
-}
-// compute exchange |i><i|J|p>
-vecfuncT newK(vecfuncT &ket, vecfuncT &bra, vecfuncT &vf) {
-    World &world = ket[0].world();
-    int n = bra.size();
-    int nf = ket.size();
     double tol = FunctionDefaults<3>::get_thresh();/// Important this is
     double mul_tol = 1e-7;
     const double lo = 1.e-10;
@@ -117,6 +84,7 @@ vecfuncT newK(vecfuncT &ket, vecfuncT &bra, vecfuncT &vf) {
     Exchange<double, 3> op{};
     op.set_parameters(bra, ket, lo);
     op.set_algorithm(op.large_memory);
+    if (world.rank() == 0) { print("Before application"); }
     return op(vf);
 }
 // sum_i |i><i|J|p> for each p

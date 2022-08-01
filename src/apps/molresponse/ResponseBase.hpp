@@ -74,7 +74,7 @@ protected:
 
     std::shared_ptr<PotentialManager> potential_manager;
     // shared pointers to Operators
-    poperatorT coulop;// shared pointer to seperated convolution operator
+    poperatorT shared_coulomb_operator;// shared pointer to seperated convolution operator
     std::vector<std::shared_ptr<real_derivative_3d>> gradop;
 
     // Stored functions
@@ -146,7 +146,7 @@ protected:
 
         double safety = 0.1;
         vtol = FunctionDefaults<3>::get_thresh() * safety;
-        coulop = poperatorT(CoulombOperatorPtr(world, r_params.lo(), thresh));
+        shared_coulomb_operator = poperatorT(CoulombOperatorPtr(world, r_params.lo(), thresh));
         gradop = gradient_operator<double, 3>(world);
         potential_manager = std::make_shared<PotentialManager>(molecule, "a");
         potential_manager->make_nuclear_potential(world);
@@ -163,70 +163,111 @@ protected:
     }
 
     virtual void check_k(World& world, double thresh, int k);
-    functionT make_ground_density(World& world) const;
-    std::pair<Tensor<double>, Tensor<double>> ComputeHamiltonianPair(World& world) const;
-    real_function_3d Coulomb(World& world) const;
-    XCOperator<double, 3> make_xc_operator(World& world) const;
+    auto make_ground_density(World& world) const -> functionT;
+    auto ComputeHamiltonianPair(World& world) const -> std::pair<Tensor<double>, Tensor<double>>;
+    auto Coulomb(World& world) const -> real_function_3d;
+    auto make_xc_operator(World& world) const -> XCOperator<double, 3>;
     virtual void save(World& world, const std::string& name) = 0;
     virtual void load(World& world, const std::string& name) = 0;
-    vecfuncT make_density(World& world, const X_space& chi) const;
+    auto make_density(World& world, const X_space& chi) const -> vecfuncT;
 
     void load_balance_chi(World& world);
-    vector<poperatorT> make_bsh_operators_response(World& world, double& shift,
-                                                   double& omega) const;
+    auto make_bsh_operators_response(World& world, double& shift,
+                                                   double& omega) const -> vector<poperatorT>;
 
 
-    X_space compute_residual(World& world, X_space& old_Chi, X_space& temp,
+    auto compute_residual(World& world, X_space& old_Chi, X_space& temp,
                              Tensor<double>& bsh_residualsX, Tensor<double>& bsh_residualsY,
-                             std::string calc_type);
-    X_space kain_x_space_update(World& world, const X_space& chi, const X_space& residual_chi,
+                             std::string calc_type) -> X_space;
+    auto kain_x_space_update(World& world, const X_space& chi, const X_space& residual_chi,
                                 NonLinearXsolver& kain_x_space, vector<X_vector>& Xvector,
-                                vector<X_vector>& Xresidual);
-    void x_space_step_restriction(World& world, const X_space& old_Chi, X_space& temp, bool restrict_y,
-                                  const double& maxrotn);
+                                vector<X_vector>& Xresidual) -> X_space;
+    void x_space_step_restriction(World& world, const X_space& old_Chi, X_space& temp,
+                                  bool restrict_y, const double& maxrotn);
     void vector_stats(const vector<double>& v, double& rms, double& maxabsval) const;
-    double do_step_restriction(World& world, const vector_real_function_3d& x,
-                               vector_real_function_3d& x_new, std::string spin) const;
-    double do_step_restriction(World& world, const vector_real_function_3d& x,
+    auto do_step_restriction(World& world, const vector_real_function_3d& x,
                                vector_real_function_3d& x_new, std::string spin,
-                               double maxrotn) const;
-    double do_step_restriction(World& world, const vector_real_function_3d& x,
-                               const vector_real_function_3d& y, vector_real_function_3d& x_new,
-                               vector_real_function_3d& y_new, std::string spin) const;
+                               double maxrotn) const -> double;
     void PlotGroundandResponseOrbitals(World& world, size_t iteration, response_space& x_response,
                                        response_space& y_response,
                                        const ResponseParameters& r_params,
                                        const GroundStateCalculation& g_params);
-    void vector_stats_new(const Tensor<double> v, double& rms, double& maxabsval) const;
+    void vector_stats_new(Tensor<double> v, double& rms, double& maxabsval) const;
 
-    static gamma_orbitals orbital_load_balance(World& world, const gamma_orbitals&,
-                                               const double load_balance);
-    X_space compute_gamma_tda(World& world, const gamma_orbitals& density,
-                              const XCOperator<double, 3>& xc) const;
-    X_space compute_gamma_static(World& world, const gamma_orbitals&,
-                                 const XCOperator<double, 3>& xc) const;
-    X_space compute_gamma_full(World& world, const gamma_orbitals&,
-                               const XCOperator<double, 3>& xc) const;
-    X_space compute_V0X(World& world, const X_space& X, const XCOperator<double, 3>& xc,
-                        bool compute_Y) const;
-    X_space compute_lambda_X(World& world, const X_space& chi, XCOperator<double, 3>& xc,
-                             const std::string& calc_type) const;
-    X_space compute_theta_X(World& world, const X_space& chi, XCOperator<double, 3> xc,
-                            const std::string& calc_type) const;
-    X_space compute_F0X(World& world, const X_space& X, const XCOperator<double, 3>& xc,
-                        bool compute_Y) const;
+    static auto orbital_load_balance(World& world, const gamma_orbitals&,
+                                               const double load_balance) -> gamma_orbitals;
+    auto compute_gamma_tda(World& world, const gamma_orbitals& density,
+                              const XCOperator<double, 3>& xc) const -> X_space;
+    auto compute_gamma_static(World& world, const gamma_orbitals&,
+                                 const XCOperator<double, 3>& xc) const -> X_space;
+    auto compute_gamma_full(World& world, const gamma_orbitals&,
+                               const XCOperator<double, 3>& xc) const -> X_space;
+    auto compute_V0X(World& world, const X_space& X, const XCOperator<double, 3>& xc,
+                        bool compute_Y) const -> X_space;
+    auto compute_lambda_X(World& world, const X_space& chi, XCOperator<double, 3>& xc,
+                             const std::string& calc_type) const -> X_space;
+    auto compute_theta_X(World& world, const X_space& chi, XCOperator<double, 3> xc,
+                            const std::string& calc_type) const -> X_space;
+    auto compute_F0X(World& world, const X_space& X, const XCOperator<double, 3>& xc,
+                        bool compute_Y) const -> X_space;
     void analyze_vectors(World& world, const vecfuncT& x, const std::string& response_state);
-    vecfuncT project_ao_basis(World& world, const AtomicBasisSet& aobasis);
+    auto project_ao_basis(World& world, const AtomicBasisSet& aobasis) -> vecfuncT;
 
 
-    vecfuncT project_ao_basis_only(World& world, const AtomicBasisSet& aobasis,
-                                   const Molecule& molecule);
+    auto project_ao_basis_only(World& world, const AtomicBasisSet& aobasis,
+                                   const Molecule& molecule) -> vecfuncT;
     void converged_to_json(json& j);
-    residuals compute_residual(World& world, const X_space& chi, const X_space& g_chi,
-                               const std::string& calc_type);
-    std::tuple<X_space, X_space, X_space> compute_response_potentials(
+    auto compute_residual(World& world, const X_space& chi, const X_space& g_chi,
+                               const std::string& calc_type) -> residuals;
+    auto compute_response_potentials(
             World& world, const X_space& chi, XCOperator<double, 3>& xc,
-            const std::string& calc_type) const;
+            const std::string& calc_type) const -> std::tuple<X_space, X_space, X_space>;
+
+    // compute exchange |i><i|J|p>
+    auto exchangeHF(vecfuncT& ket, vecfuncT& bra, vecfuncT& vf) const -> vecfuncT {
+        World& world = ket[0].world();
+        auto n = bra.size();
+        auto nf = ket.size();
+        double tol = FunctionDefaults<3>::get_thresh();/// Important this is
+        double mul_tol = 0.0;
+        const double lo = r_params.lo();
+
+        if (world.rank() == 0) { print("newK"); }
+
+        print("n", n);
+        print("nf", nf);
+        print("tol", tol);
+
+        std::shared_ptr<real_convolution_3d> poisson;
+        /// consistent with Coulomb
+        vecfuncT Kf = zero_functions_compressed<double, 3>(world, nf);
+
+        if (world.rank() == 0) { print("Before Reconstruct"); }
+        reconstruct(world, bra);
+        reconstruct(world, ket);
+        reconstruct(world, vf);
+        if (world.rank() == 0) { print("After Reconstruct"); }
+
+        // i-j sym
+        for (int i = 0; i < n; ++i) {
+            // for each |i> <i|phi>
+            vecfuncT psi_f = mul_sparse(world, bra[i], vf, mul_tol, true);/// was vtol
+            if (world.rank() == 0) { print("After mulsparse"); }
+            truncate(world, psi_f, tol, true);
+            // apply to vector of products <i|phi>..<i|1> <i|2>...<i|N>
+            psi_f = apply(world, *shared_coulomb_operator, psi_f);
+            if (world.rank() == 0) { print("After apply"); }
+            truncate(world, psi_f, tol, true);
+            // multiply by ket i  <i|phi>|i>: <i|1>|i> <i|2>|i> <i|2>|i>
+            psi_f = mul_sparse(world, ket[i], psi_f, mul_tol, true);/// was vtol
+            if (world.rank() == 0) { print("After second mulsparse"); }
+            /// Generalized A*X+Y for vectors of functions ---- a[i] = alpha*a[i] +
+            // 1*Kf+occ[i]*psi_f
+            gaxpy(world, double(1.0), Kf, double(1.0), psi_f);
+        }
+        truncate(world, Kf, tol, true);
+        return Kf;
+    }
 };
 
 
