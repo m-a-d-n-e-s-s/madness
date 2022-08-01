@@ -179,7 +179,7 @@ protected:
     X_space compute_residual(World& world, X_space& old_Chi, X_space& temp,
                              Tensor<double>& bsh_residualsX, Tensor<double>& bsh_residualsY,
                              std::string calc_type);
-    X_space kain_x_space_update(World& world, const X_space& temp, const X_space& res,
+    X_space kain_x_space_update(World& world, const X_space& chi, const X_space& residual_chi,
                                 NonLinearXsolver& kain_x_space, vector<X_vector>& Xvector,
                                 vector<X_vector>& Xresidual);
     void x_space_step_restriction(World& world, const X_space& old_Chi, X_space& temp, bool restrict_y,
@@ -222,8 +222,8 @@ protected:
     vecfuncT project_ao_basis_only(World& world, const AtomicBasisSet& aobasis,
                                    const Molecule& molecule);
     void converged_to_json(json& j);
-    residuals compute_residual(World& world, X_space& old_Chi, X_space& temp,
-                               std::string calc_type);
+    residuals compute_residual(World& world, const X_space& chi, const X_space& g_chi,
+                               const std::string& calc_type);
     std::tuple<X_space, X_space, X_space> compute_response_potentials(
             World& world, const X_space& chi, XCOperator<double, 3>& xc,
             const std::string& calc_type) const;

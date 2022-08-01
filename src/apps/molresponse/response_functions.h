@@ -202,8 +202,9 @@ namespace madness {
 
             response_space result(world, num_states, num_orbitals);// create zero_functions
 
-            for (size_t i = 0; i < num_states; i++) { result[i] = sub(world, x[i], rhs_y[i]); }
-            world.gop.fence();
+            for (size_t i = 0; i < num_states; i++) {
+                result[i] = sub(world, x[i], rhs_y[i], false);
+            }
             return result;
         }
 

@@ -59,3 +59,4 @@ Makefile-prog.in
 compile_commands.json
 *.idx
 .clang-format
+*.txt

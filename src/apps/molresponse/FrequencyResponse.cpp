@@ -7,7 +7,7 @@
 #include "property.h"
 
 
-void FrequencyResponse::initialize(World &world) {}
+void FrequencyResponse::initialize(World &world) { Chi = PQ.copy(); }
 void FrequencyResponse::iterate(World &world) {
     size_t iter;
     // Variables needed to iterate
@@ -30,25 +30,22 @@ void FrequencyResponse::iterate(World &world) {
 
     // create X space residuals
     X_space residuals(world, m, n);
-    X_space old_Chi(world, m, n);
-    // Create the X space
     // vector of Xvectors
-    std::vector<X_vector> Xvector;
-    std::vector<X_vector> Xresidual;
-    for (size_t b = 0; b < m; b++) {
-        Xvector.push_back(X_vector(Chi, b));
-        Xresidual.push_back(X_vector(residuals, b));
-    }
-    // If DFT, initialize the XCOperator<double,3>
+    std::vector<X_vector> x_vectors;
+    std::vector<X_vector> x_residuals;
 
+    for (size_t b = 0; b < m; b++) {
+        x_vectors.emplace_back(Chi, b);
+        x_residuals.emplace_back(residuals, b);
+    }
     // create a std vector of XNONLinearsolvers
     NonLinearXsolver kain_x_space;
     for (size_t b = 0; b < m; b++) {
         kain_x_space.push_back(XNonlinearSolver<X_vector, double, X_space_allocator>(
                 X_space_allocator(world, n), true));
     }
-    for (size_t b = 0; b < m; b++) {
-        if (r_params.kain()) kain_x_space[b].set_maxsub(r_params.maxsub());
+    if (r_params.kain()) {
+        for (auto &kain_space_b: kain_x_space) { kain_space_b.set_maxsub(r_params.maxsub()); }
     }
     //
     // We compute with positive frequencies
@@ -57,12 +54,12 @@ void FrequencyResponse::iterate(World &world) {
     double x_shifts = 0.0;
     double y_shifts = 0.0;
     // if less negative orbital energy + frequency is positive or greater than 0
-    if ((ground_energies[n - 1] + omega) >= 0.0) {
+    if ((ground_energies[long(n) - 1] + omega) >= 0.0) {
         // Calculate minimum shift needed such that \eps + \omega + shift < 0
         print("*** we are shifting just so you know!!!");
-        x_shifts = -.05 - (omega + ground_energies[n - 1]);
+        x_shifts = -.05 - (omega + ground_energies[long(n) - 1]);
     }
-    std::vector<poperatorT> bsh_x_ops = make_bsh_operators_response(world, x_shifts, omega);
+    auto bsh_x_ops = make_bsh_operators_response(world, x_shifts, omega);
     std::vector<poperatorT> bsh_y_ops;
 
     bool static_res = (omega == 0.0);
@@ -80,19 +77,17 @@ void FrequencyResponse::iterate(World &world) {
     auto thresh = FunctionDefaults<3>::get_thresh();
     auto max_rotation = .5;
     if (thresh >= 1e-2) {
-        max_rotation = 1;
+        max_rotation = 2;
     } else if (thresh >= 1e-4) {
-        max_rotation = 1;
+        max_rotation = .25;
     } else if (thresh >= 1e-6) {
-        max_rotation = .05;
+        max_rotation = .1;
     } else if (thresh >= 1e-8) {
         max_rotation = .05;
     }
 
-    for (iter = 0; iter <= r_params.maxiter(); ++iter) {
-
+    for (iter = 0; iter < r_params.maxiter(); ++iter) {
         iter_timing.clear();
-
         // Basic output
         if (r_params.print_level() >= 1) {
             molresponse::start_timer(world);
@@ -163,8 +158,8 @@ void FrequencyResponse::iterate(World &world) {
                 if (r_params.plot_all_orbitals()) {
                     PlotGroundandResponseOrbitals(world, iter, Chi.X, Chi.Y, r_params, ground_calc);
                 }
-                auto rho0 = make_ground_density(world);
                 if (r_params.plot()) {
+                    auto rho0 = make_ground_density(world);
                     do_vtk_plots(world, 200, r_params.L(), molecule, rho0, rho_omega,
                                  ground_orbitals, Chi);
                 }
@@ -174,7 +169,7 @@ void FrequencyResponse::iterate(World &world) {
 
         auto [new_chi, new_res] =
                 update(world, Chi, xc, bsh_x_ops, bsh_y_ops, projector, x_shifts, omega,
-                       kain_x_space, Xvector, Xresidual, iter, max_rotation);
+                       kain_x_space, x_vectors, x_residuals, iter, max_rotation);
 
 
         if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
@@ -253,21 +248,19 @@ void FrequencyResponse::iterate(World &world) {
         compute_and_print_polarizability(world, Chi, PQ, "Converged");
     }
 }
-auto FrequencyResponse::update(
-        World &world, X_space &chi, XCOperator<double, 3> &xc, std::vector<poperatorT> &bsh_x_ops,
-        std::vector<poperatorT> &bsh_y_ops, QProjector<double, 3> &projector, double &x_shifts,
-        double &omega_n, NonLinearXsolver &kain_x_space, vector<X_vector> &Xvector,
-        vector<X_vector> &Xresidual, size_t iteration, const double &maxrotn) -> std::tuple<X_space, residuals> {
+auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3> &xc,
+                               std::vector<poperatorT> &bsh_x_ops,
+                               std::vector<poperatorT> &bsh_y_ops, QProjector<double, 3> &projector,
+                               double &x_shifts, double &omega_n, NonLinearXsolver &kain_x_space,
+                               vector<X_vector> &Xvector, vector<X_vector> &Xresidual,
+                               size_t iteration, const double &maxrotn)
+        -> std::tuple<X_space, residuals> {
 
     if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
     size_t m = chi.num_states();
     bool compute_y = omega_n != 0.0;
     // size_t n = Chi.num_orbitals();
-
-    Tensor<double> errX(m);
-    Tensor<double> errY(m);
-
     X_space theta_X = compute_theta_X(world, chi, xc, r_params.calc_type());
     // compute residual X_space
     print("BSH update iter = ", iteration);
@@ -282,7 +275,7 @@ auto FrequencyResponse::update(
         new_chi = kain_x_space_update(world, chi, new_res, kain_x_space, Xvector, Xresidual);
     }
 
-    if (iteration > 0) { x_space_step_restriction(world, chi, new_chi, compute_y, maxrotn); }
+    if (false) { x_space_step_restriction(world, chi, new_chi, compute_y, maxrotn); }
     // truncate x
     //new_chi.X.truncate_rf();
     // truncate y if compute y
@@ -353,9 +346,10 @@ void FrequencyResponse::update(World &world, X_space &Chi, X_space &res, XCOpera
     // print x norms
 }
 auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
-                                               std::vector<poperatorT> &bsh_x_ops,
-                                               std::vector<poperatorT> &bsh_y_ops,
-                                               QProjector<double, 3> &projector, double &x_shifts) -> X_space {
+                                            std::vector<poperatorT> &bsh_x_ops,
+                                            std::vector<poperatorT> &bsh_y_ops,
+                                            QProjector<double, 3> &projector, double &x_shifts)
+        -> X_space {
     if (world.rank() == 0 && r_params.print_level() >= 1) {
         molresponse::start_timer(world);
         print("--------------- BSH UPDATE RESPONSE------------------");
@@ -395,10 +389,6 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
     } else {
         bsh_X.Y = bsh_X.X.copy();
     }
-
-    //bsh_X.truncate();
-
-    //bsh_X.truncate();
 
     if (world.rank() == 0 && r_params.print_level() >= 1) {
         molresponse::end_timer(world, "bsh_update", "bsh_update", iter_timing);
@@ -539,7 +529,7 @@ auto dipole_generator(World &world, FrequencyResponse &calc) -> X_space {
     return PQ;
 }
 auto vector_to_PQ(World &world, const vector_real_function_3d &p,
-                            const vector_real_function_3d &ground_orbitals, double lo) -> response_space {
+                  const vector_real_function_3d &ground_orbitals, double lo) -> response_space {
 
     response_space rhs(world, p.size(), ground_orbitals.size());
 

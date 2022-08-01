@@ -319,14 +319,21 @@ void ResponseBase::load_balance_chi(World &world) {
     molresponse::end_timer(world, "Load balancing");
 }
 
-std::vector<poperatorT> ResponseBase::make_bsh_operators_response(World &world, double &shift,
-                                                                  double &omega) const {
+auto ResponseBase::make_bsh_operators_response(World &world, double &shift, double &omega) const
+        -> std::vector<poperatorT> {
     if (r_params.print_level() >= 1) molresponse::start_timer(world);
-    double tol = .01 * FunctionDefaults<3>::get_thresh();
+
+    double tol = FunctionDefaults<3>::get_thresh();
     // Sizes inferred from ground and omega
     size_t num_orbitals = ground_energies.size();// number of orbitals
     std::vector<poperatorT> ops(num_orbitals);
     // Run over occupied components
+
+    int p = 0;
+    std::for_each(ops.begin(), ops.end(), [&](auto &operator_p) {
+        double mu = sqrt(-2.0 * (ground_energies(p++) + omega + shift));
+        operator_p = poperatorT(BSHOperatorPtr3D(world, mu, r_params.lo(), tol));
+    });
     for (size_t p = 0; p < num_orbitals; p++) {
         double mu = sqrt(-2.0 * (ground_energies(p) + omega + shift));
         ops[p] = poperatorT(BSHOperatorPtr3D(world, mu, r_params.lo(), tol));
@@ -338,8 +345,8 @@ std::vector<poperatorT> ResponseBase::make_bsh_operators_response(World &world, 
     // End timer
 }
 
-X_space ResponseBase::compute_theta_X(World &world, const X_space &chi, XCOperator<double, 3> xc,
-                                      const std::string &calc_type) const {
+auto ResponseBase::compute_theta_X(World &world, const X_space &chi, XCOperator<double, 3> xc,
+                                   const std::string &calc_type) const -> X_space {
 
     if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
     bool compute_Y = calc_type == "full";
@@ -1082,42 +1089,26 @@ X_space ResponseBase::compute_F0X(World &world, const X_space &X, const XCOperat
     return F0X;
 }
 
-residuals ResponseBase::compute_residual(World &world, X_space &old_Chi, X_space &temp,
-                                         std::string calc_type) {
+auto ResponseBase::compute_residual(World &world, const X_space &chi, const X_space &g_chi,
+                                    const std::string &calc_type) -> residuals {
     if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    size_t m = old_Chi.X.size();
-    size_t n = old_Chi.X.size_orbitals();
+    size_t m = chi.X.size();
+    size_t n = chi.X.size_orbitals();
     //	compute residual
     X_space res(world, m, n);
     //res.X = old_Chi.X - temp.X;
-    res = temp - old_Chi;
-    Tensor<double> norms_b(m);
+    res = g_chi - chi;
 
-    for (size_t b = 0; b < m; b++) {
-        auto res_b = copy(world, res.X[b]);
-        if (calc_type == "full") {
-            for (auto &ryb: res.Y[b]) { res_b.push_back(copy(ryb, true)); }
-        } else if (calc_type == "static") {
-            // copy X
-            for (auto &rxb: res.X[b]) { res_b.push_back(copy(rxb, true)); }
-        } else {// do nothing
-        }
-        norms_b[b] = sqrt(inner(res_b, res_b));
-        if (world.rank() == 0 and (r_params.print_level() > 1)) {
-            print("residual norms: state ", b, " : ", norms_b[b]);
-        }
-    }
-    auto easy_norms = res.norm2s();
+    auto residual_norms = res.norm2s();
     if (world.rank() == 0 and (r_params.print_level() > 1)) {
-        print("norms_b: ", norms_b);
-        print("easy_norms: ", easy_norms);
+        print("||f(x)||_2 = : ", residual_norms);
     }
 
     if (world.rank() == 0 && r_params.print_level() >= 1) {
         molresponse::end_timer(world, "compute_bsh_residual", "compute_bsh_residual", iter_timing);
     }
     // Next calculate 2-norm of these vectors of differences
-    return {res, norms_b};
+    return {res, residual_norms};
 }
 
 X_space ResponseBase::compute_residual(World &world, X_space &old_Chi, X_space &temp,
@@ -1191,28 +1182,27 @@ X_space ResponseBase::compute_residual(World &world, X_space &old_Chi, X_space &
     return res;
 }
 
-X_space ResponseBase::kain_x_space_update(World &world, const X_space &temp, const X_space &res,
-                                          NonLinearXsolver &kain_x_space,
-                                          std::vector<X_vector> &Xvector,
-                                          std::vector<X_vector> &Xresidual) {
+auto ResponseBase::kain_x_space_update(World &world, const X_space &chi,
+                                       const X_space &residual_chi, NonLinearXsolver &kain_x_space,
+                                       std::vector<X_vector> &Xvector,
+                                       std::vector<X_vector> &Xresidual) -> X_space {
     if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    size_t m = temp.num_states();
-    size_t n = temp.num_orbitals();
+    size_t m = chi.num_states();
+    size_t n = chi.num_orbitals();
     X_space kain_update(world, m, n);
     for (size_t b = 0; b < m; b++) {
 
-        Xvector[b].X[0] = copy(world, temp.X[b]);
-        Xvector[b].Y[0] = copy(world, temp.Y[b]);
+        Xvector[b].X[0] = copy(world, chi.X[b]);
+        Xvector[b].Y[0] = copy(world, chi.Y[b]);
 
-        Xresidual[b].X[0] = copy(world, res.X[b]);
-        Xresidual[b].Y[0] = copy(world, res.Y[b]);
+        Xresidual[b].X[0] = copy(world, residual_chi.X[b]);
+        Xresidual[b].Y[0] = copy(world, residual_chi.Y[b]);
     }
 
     if (world.rank() == 0) { print("----------------Start Kain Update -----------------"); }
     for (size_t b = 0; b < m; b++) {
         // passing xvectors
-        X_vector kain_X = kain_x_space[b].update(Xvector[b], Xresidual[b],
-                                                 10 * FunctionDefaults<3>::get_thresh(), 5.0);
+        X_vector kain_X = kain_x_space[b].update(Xvector[b], Xresidual[b]);
         // deep copy of vector of functions
         kain_update.X[b] = copy(world, kain_X.X[0]);
         kain_update.Y[b] = copy(world, kain_X.Y[0]);
