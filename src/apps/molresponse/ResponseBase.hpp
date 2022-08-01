@@ -206,7 +206,7 @@ protected:
     auto project_ao_basis(World& world, const AtomicBasisSet& aobasis) -> vecfuncT;
 
 
-    auto project_ao_basis_only(World& world, const AtomicBasisSet& aobasis,
+    static auto project_ao_basis_only(World& world, const AtomicBasisSet& aobasis,
                                const Molecule& mol) -> vecfuncT;
     void converged_to_json(json& j);
     auto compute_residual(World& world, const X_space& chi, const X_space& g_chi,
@@ -311,9 +311,6 @@ void sort(World& world, Tensor<double>& vals, X_space& f);
 // Specialized for response calculations that returns orthonormalized
 // functions
 auto gram_schmidt(World& world, const response_space& f) -> response_space;
-// Specialized for response calculations that returns orthonormalized
-// functions
-void gram_schmidt(World& world, response_space& f, response_space& g);
 /// Computes the transition density between set of two response functions x and y.
 /// Uses std::transform to iterate between x and y vectors
 /// \param world

@@ -1563,8 +1563,8 @@ vector_real_function_3d transition_density(World &world, const vector_real_funct
  * @param load_balance
  * @return
  */
-gamma_orbitals ResponseBase::orbital_load_balance(World &world, const gamma_orbitals &input,
-                                                  const double load_balance) {
+auto ResponseBase::orbital_load_balance(World &world, const gamma_orbitals &input,
+                                                  const double load_balance) -> gamma_orbitals {
 
     auto X = std::get<0>(input);
     auto psi0 = std::get<1>(input);
@@ -1658,11 +1658,10 @@ void ResponseBase::analyze_vectors(World &world, const vecfuncT &x,
 }
 
 auto ResponseBase::project_ao_basis_only(World &world, const AtomicBasisSet &aobasis,
-                                             const Molecule &mol) -> vecfuncT {
+                                         const Molecule &mol) -> vecfuncT {
     vecfuncT ao = vecfuncT(aobasis.nbf(mol));
     for (int i = 0; i < aobasis.nbf(mol); ++i) {
-        functorT aofunc(
-                new madchem::AtomicBasisFunctor(aobasis.get_atomic_basis_function(mol, i)));
+        functorT aofunc(new madchem::AtomicBasisFunctor(aobasis.get_atomic_basis_function(mol, i)));
         ao[i] = factoryT(world).functor(aofunc).truncate_on_project().nofence().truncate_mode(1);
     }
     world.gop.fence();
@@ -1697,7 +1696,7 @@ void ResponseBase::converged_to_json(json &j) { j["converged"] = converged; }
 
 
 auto transition_densityTDA(World &world, const vector_real_function_3d &orbitals,
-                                              const response_space &x) -> vector_real_function_3d {
+                           const response_space &x) -> vector_real_function_3d {
 
     // Get sizes
     size_t m = x.size();
@@ -1756,9 +1755,7 @@ auto transform(World &world, const X_space &x, const Tensor<double> &U) -> X_spa
 
 auto expectation(World &world, const response_space &A, const response_space &B) -> Tensor<double> {
     // Get sizes
-    MADNESS_ASSERT(A.size() > 0);
-    MADNESS_ASSERT(A.size() == B.size());
-    MADNESS_ASSERT(A[0].size() > 0);
+    MADNESS_ASSERT(!A[0].empty());
     MADNESS_ASSERT(A[0].size() == B[0].size());
 
     size_t dim_1 = A.size();
@@ -1895,7 +1892,7 @@ void sort(World &world, Tensor<double> &vals, X_space &f) {
     }
 }
 
-response_space gram_schmidt(World &world, const response_space &f) {
+auto gram_schmidt(World &world, const response_space &f) -> response_space {
     // Sizes inferred
     size_t m = f.size();
 
@@ -1927,7 +1924,7 @@ response_space gram_schmidt(World &world, const response_space &f) {
     return result;
 }
 
-vector_real_function_3d make_xyz_functions(World &world) {
+auto make_xyz_functions(World &world) -> vector_real_function_3d {
     // Container to return
 
     // Create the basic x, y, z, constant and zero
@@ -1942,51 +1939,6 @@ vector_real_function_3d make_xyz_functions(World &world) {
     return funcs;
 }
 
-/*
-X_space gram_schmidt(World &world, const X_space & chi){
-
-
-std::inner_product()
-
-
-
-
-
-}
-*/
-
-void gram_schmidt(World &world, response_space &f, response_space &g) {
-    // Sizes inferred
-    size_t m = f.size();
-
-
-    // Orthogonalize
-    for (size_t j = 0; j < m; j++) {
-        // Need to normalize the row
-        double norm = inner(f[j], f[j]) - inner(g[j], g[j]);
-        print("j= ", j, "    ", norm);
-
-        // Now scale each entry
-        scale(world, f[j], 1.0 / sqrt(norm));
-        scale(world, g[j], 1.0 / sqrt(norm));
-
-        // Project out from the rest of the vectors
-        for (size_t k = j + 1; k < m; k++) {
-            // Temp function to hold the sum
-            // of inner products
-            // vmra.h function, line 627
-            double temp = inner(f[j], f[k]) - inner(g[j], g[k]);
-
-            // Now subtract
-            gaxpy(world, 1.0, f[k], -temp, f[j]);
-            gaxpy(world, 1.0, g[k], -temp, g[j]);
-        }
-    }
-
-
-    f.truncate_rf();
-    g.truncate_rf();
-}
 // Here i should print some information about the calculation we are
 // about to do
 response_timing::response_timing() : iter(0) {
