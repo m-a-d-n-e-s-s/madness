@@ -2460,7 +2460,7 @@ X_space ExcitedResponse::create_virtual_ao_guess(World &world) const {
         auto N_elec = phi_0.size();
         v_nuc.scale((N_elec + 0.25) / N_elec);
         // J^0 x^alpha
-        v_j0 = apply(*coulop, ground_density);
+        v_j0 = apply(*shared_coulomb_operator, ground_density);
         v_j0.scale(2.0);
 
         if (xcf.hf_exchange_coefficient() != 1.0) {
@@ -2476,7 +2476,7 @@ X_space ExcitedResponse::create_virtual_ao_guess(World &world) const {
         std::transform(x.begin(), x.end(), hf_exchange_X.begin(), [&](auto &xi) {
             auto f = Function<double, 3>(FunctionFactory<double, 3>(world));
             std::accumulate(phi_0.begin(), phi_0.end(), f, [&](auto phi0, auto total) {
-                auto sum = apply(*coulop, xi * phi0) * phi0;
+                auto sum = apply(*shared_coulomb_operator, xi * phi0) * phi0;
                 return total + sum;
             });
             return f;
@@ -2612,7 +2612,7 @@ X_space ExcitedResponse::create_response_guess(World &world) const {
         v_nuc = potential_manager->vnuclear();
         v_nuc.truncate();
         // J^0 x^alpha
-        v_j0 = apply(*coulop, ground_density);
+        v_j0 = apply(*shared_coulomb_operator, ground_density);
         v_j0.scale(2.0);
 
         if (xcf.hf_exchange_coefficient() != 1.0) {
@@ -2628,7 +2628,7 @@ X_space ExcitedResponse::create_response_guess(World &world) const {
         std::transform(x.begin(), x.end(), hf_exchange_X.begin(), [&](auto &xi) {
             auto f = Function<double, 3>(FunctionFactory<double, 3>(world));
             std::accumulate(phi_0.begin(), phi_0.end(), f, [&](auto phi0, auto total) {
-                auto sum = apply(*coulop, xi * phi0) * phi0;
+                auto sum = apply(*shared_coulomb_operator, xi * phi0) * phi0;
                 return total + sum;
             });
             return f;
@@ -2709,7 +2709,7 @@ X_space ExcitedResponse::create_response_guess(World &world) const {
         }
         world.gop.fence();
         truncate(world, pairs_ia);
-        vecfuncT Vpairs_ia = apply(world, *coulop, pairs_ia);
+        vecfuncT Vpairs_ia = apply(world, *shared_coulomb_operator, pairs_ia);
         auto A_ia_jb = matrix_inner(world, pairs_ia, Vpairs_ia);
         for (auto &phi_ii: phi0) {
             for (auto &phi_jj: phi0) { pairs_ij.push_back(mul_sparse(phi_ii, phi_ii, tol, false)); }
@@ -2720,7 +2720,7 @@ X_space ExcitedResponse::create_response_guess(World &world) const {
         world.gop.fence();
         truncate(world, pairs_ij);
         truncate(world, pairs_ab);
-        vecfuncT Vpairs_ij = apply(world, *coulop, pairs_ab);
+        vecfuncT Vpairs_ij = apply(world, *shared_coulomb_operator, pairs_ab);
         auto A_ij_ab = matrix_inner(world, pairs_ia, Vpairs_ij);
         // reshape A_ij_ab  n^2 x m^2
         auto a_len = phi_a.size() * phi_0.size();
@@ -2851,7 +2851,7 @@ X_space ExcitedTester::test_ao_guess(World &world, ExcitedResponse &calc) {
         v_nuc = calc.potential_manager->vnuclear();
         v_nuc.truncate();
         // J^0 x^alpha
-        v_j0 = apply(*calc.coulop, calc.ground_density);
+        v_j0 = apply(*calc.shared_coulomb_operator, calc.ground_density);
         v_j0.scale(2.0);
 
         if (calc.xcf.hf_exchange_coefficient() != 1.0) {
@@ -2867,7 +2867,7 @@ X_space ExcitedTester::test_ao_guess(World &world, ExcitedResponse &calc) {
         std::transform(x.begin(), x.end(), hf_exchange_X.begin(), [&](auto &xi) {
             auto f = Function<double, 3>(FunctionFactory<double, 3>(world));
             std::accumulate(phi_0.begin(), phi_0.end(), f, [&](auto phi0, auto total) {
-                auto sum = apply(*calc.coulop, xi * phi0) * phi0;
+                auto sum = apply(*calc.shared_coulomb_operator, xi * phi0) * phi0;
                 return total + sum;
             });
             return f;
@@ -2945,7 +2945,7 @@ X_space ExcitedTester::test_ao_guess(World &world, ExcitedResponse &calc) {
         }
         world.gop.fence();
         truncate(world, pairs_ia);
-        vecfuncT Vpairs_ia = apply(world, *calc.coulop, pairs_ia);
+        vecfuncT Vpairs_ia = apply(world, *calc.shared_coulomb_operator, pairs_ia);
         auto A_ia_jb = matrix_inner(world, pairs_ia, Vpairs_ia);
         for (auto &phi_ii: phi0) {
             for (auto &phi_jj: phi0) { pairs_ij.push_back(mul_sparse(phi_ii, phi_ii, tol, false)); }
@@ -2956,7 +2956,7 @@ X_space ExcitedTester::test_ao_guess(World &world, ExcitedResponse &calc) {
         world.gop.fence();
         truncate(world, pairs_ij);
         truncate(world, pairs_ab);
-        vecfuncT Vpairs_ij = apply(world, *calc.coulop, pairs_ab);
+        vecfuncT Vpairs_ij = apply(world, *calc.shared_coulomb_operator, pairs_ab);
         auto A_ij_ab = matrix_inner(world, pairs_ia, Vpairs_ij);
         // reshape A_ij_ab  n^2 x m^2
         auto a_len = phi_a.size() * phi_0.size();
