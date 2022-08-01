@@ -171,7 +171,7 @@ auto ResponseBase::ComputeHamiltonianPair(World &world) const
     real_function_3d v = v_coul + v_nuc;
 
     // Apply phiVphi to f functions
-    std::vector<real_function_3d> vf = v * phi;
+    auto v_phi0 = v * phi;
     // Clear stored_potential
     stored_potential.clear();
     // ALWAYS DO THIS FOR THE STORED POTENTIAL!!
@@ -179,7 +179,7 @@ auto ResponseBase::ComputeHamiltonianPair(World &world) const
     // 'small memory' algorithm from SCF.cc
     auto op = shared_coulomb_operator;
 
-    auto Kphi = zero_functions_compressed<double, 3>(world, num_orbitals);
+    auto Kphi = zero_functions_compressed<double, 3>(world, int(num_orbitals));
 
     for (const auto &phi_i: phi) {
         /// Multiplies a function against a vector of functions using sparsity of a
@@ -195,17 +195,16 @@ auto ResponseBase::ComputeHamiltonianPair(World &world) const
     }
     // Only use the exchange above if HF:
     Tensor<double> phiVphi;
-    real_function_3d v_xc;
     if (r_params.xc() == "hf") {
         // Construct phiVphi
-        phiVphi = matrix_inner(world, phi, vf) - matrix_inner(world, phi, Kphi);
+        phiVphi = matrix_inner(world, phi, v_phi0) - matrix_inner(world, phi, Kphi);
     } else {// DFT
 
         XCOperator<double, 3> xcop = make_xc_operator(world);
 
         real_function_3d v_xc = xcop.make_xc_potential();
         v = v + v_xc;
-        std::vector<real_function_3d> vf = v * phi;
+        auto vf = v * phi;
         if ((*xcop.xc).hf_exchange_coefficient() > 0.0) {
             // XCOperator<double,3>  has member variable xc, which is an
             // xcfunctional which has the hf_exchange_coeff we need here
@@ -234,7 +233,7 @@ auto ResponseBase::ComputeHamiltonianPair(World &world) const
     // (T+phiVphi) - Lambda * eye
     // Copy new_hamiltonian and zero the diagonal
     auto new_hamiltonian_no_diag = copy(new_hamiltonian);
-    for (size_t i = 0; i < num_orbitals; i++) new_hamiltonian_no_diag(i, i) = 0.0;
+    for (size_t i = 0; i < num_orbitals; i++) new_hamiltonian_no_diag(long(i), long(i)) = 0.0;
 
     // Debug output
     if (r_params.print_level() >= 2 and world.rank() == 0) {
@@ -246,7 +245,7 @@ auto ResponseBase::ComputeHamiltonianPair(World &world) const
     return {new_hamiltonian, new_hamiltonian_no_diag};
 }
 
-functionT ResponseBase::make_ground_density(World &world) const {
+auto ResponseBase::make_ground_density(World &world) const -> functionT {
 
     std::vector<real_function_3d> vsq = square(world, ground_orbitals);
     compress(world, vsq);
@@ -265,18 +264,18 @@ functionT ResponseBase::make_ground_density(World &world) const {
 //
 /// \param world
 /// \return
-real_function_3d ResponseBase::Coulomb(World &world) const {
+auto ResponseBase::Coulomb(World &world) const -> real_function_3d {
     return apply(*shared_coulomb_operator, ground_density).truncate();
 }
 
 // TODO  Create apply_operator<T>(f)  generalized function in place of coulomb
 
-XCOperator<double, 3> ResponseBase::make_xc_operator(World &world) const {
+auto ResponseBase::make_xc_operator(World &world) const -> XCOperator<double, 3> {
     return {world, r_params.xc(), false, ground_density, ground_density};
 }
 
 
-vecfuncT ResponseBase::make_density(World &world, const X_space &chi) const {
+auto ResponseBase::make_density(World &world, const X_space &chi) const -> vecfuncT {
     vecfuncT density;
     auto calc_type = r_params.calc_type();
     if (calc_type == "full") {
@@ -298,25 +297,18 @@ void ResponseBase::load_balance_chi(World &world) {
     LoadBalanceDeux<3> lb(world);
     real_function_3d v_nuclear;
     v_nuclear = potential_manager->vnuclear();
-    for (size_t i = 0; i < Chi.X.size(); ++i) {
-        for (size_t j = 0; j < Chi.X.size_orbitals(); ++j) {
-            lb.add_tree(Chi.X[i][j], lbcost<double, 3>(1.0, 8.0), false);
-        }
+    for (auto &xi: Chi.X) {
+        for (auto &xij: xi) { lb.add_tree(xij, lbcost<double, 3>(1.0, 8.0), false); }
     }
     if (r_params.omega() != 0) {
-        for (size_t i = 0; i < Chi.X.size(); ++i) {
-            for (size_t j = 0; j < Chi.X.size_orbitals(); ++j) {
-                lb.add_tree(Chi.Y[i][j], lbcost<double, 3>(1.0, 8.0), false);
-            }
+        for (auto &yi: Chi.Y) {
+            for (auto &yij: yi) { lb.add_tree(yij, lbcost<double, 3>(1.0, 8.0), false); }
         }
     }
-
     world.gop.fence();
-
     FunctionDefaults<3>::redistribute(
             world,
             lb.load_balance(r_params.loadbalparts()));// 6.0 needs retuning after
-
     world.gop.fence();
     molresponse::end_timer(world, "Load balancing");
 }
@@ -336,10 +328,12 @@ auto ResponseBase::make_bsh_operators_response(World &world, double &shift, doub
         double mu = sqrt(-2.0 * (ground_energies(p++) + omega + shift));
         operator_p = poperatorT(BSHOperatorPtr3D(world, mu, r_params.lo(), tol));
     });
+    /*
     for (size_t p = 0; p < num_orbitals; p++) {
         double mu = sqrt(-2.0 * (ground_energies(p) + omega + shift));
         ops[p] = poperatorT(BSHOperatorPtr3D(world, mu, r_params.lo(), tol));
     }
+     */
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "make bsh operators response");
     }
@@ -347,7 +341,8 @@ auto ResponseBase::make_bsh_operators_response(World &world, double &shift, doub
     // End timer
 }
 
-auto ResponseBase::compute_theta_X(World &world, const X_space &chi, XCOperator<double, 3> xc,
+auto ResponseBase::compute_theta_X(World &world, const X_space &chi,
+                                   const XCOperator<double, 3> &xc,
                                    const std::string &calc_type) const -> X_space {
 
     if (world.rank() == 0 && r_params.print_level() >= 1) {
@@ -418,8 +413,8 @@ auto ResponseBase::compute_theta_X(World &world, const X_space &chi, XCOperator<
 }
 
 
-X_space ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &density,
-                                         const XCOperator<double, 3> &xc) const {
+auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &density,
+                                      const XCOperator<double, 3> &xc) const -> X_space {
     std::shared_ptr<WorldDCPmapInterface<Key<3>>> old_pmap = FunctionDefaults<3>::get_pmap();
 
     auto [d_alpha, phi0, vf] = orbital_load_balance(world, density, r_params.loadbalparts());
@@ -596,8 +591,8 @@ X_space ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &den
     // Get sizes
 }
 
-X_space ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &density,
-                                           const XCOperator<double, 3> &xc) const {
+auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &density,
+                                        const XCOperator<double, 3> &xc) const -> X_space {
 
     // X contains the response vector that makes up the response density at a
     // given order
@@ -727,8 +722,8 @@ X_space ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &d
     // Get sizes
 }
 
-X_space ResponseBase::compute_gamma_tda(World &world, const gamma_orbitals &density,
-                                        const XCOperator<double, 3> &xc) const {
+auto ResponseBase::compute_gamma_tda(World &world, const gamma_orbitals &density,
+                                     const XCOperator<double, 3> &xc) const -> X_space {
 
     auto [d_alpha, phi0, vf] = orbital_load_balance(world, density, r_params.loadbalparts());
     std::shared_ptr<WorldDCPmapInterface<Key<3>>> oldpmap = FunctionDefaults<3>::get_pmap();
@@ -840,8 +835,8 @@ X_space ResponseBase::compute_gamma_tda(World &world, const gamma_orbitals &dens
     return gamma;
 }
 
-X_space ResponseBase::compute_lambda_X(World &world, const X_space &chi, XCOperator<double, 3> &xc,
-                                       const std::string &calc_type) const {
+auto ResponseBase::compute_lambda_X(World &world, const X_space &chi, XCOperator<double, 3> &xc,
+                                    const std::string &calc_type) const -> X_space {
     // compute
     bool compute_Y = calc_type == "full";
 
@@ -893,9 +888,10 @@ X_space ResponseBase::compute_lambda_X(World &world, const X_space &chi, XCOpera
 
     return Lambda_X;
 }
-std::tuple<X_space, X_space, X_space> ResponseBase::compute_response_potentials(
-        World &world, const X_space &chi, XCOperator<double, 3> &xc,
-        const std::string &calc_type) const {
+auto ResponseBase::compute_response_potentials(World &world, const X_space &chi,
+                                               XCOperator<double, 3> &xc,
+                                               const std::string &calc_type) const
+        -> std::tuple<X_space, X_space, X_space> {
     // compute
     bool compute_Y = calc_type == "full";
 
@@ -949,8 +945,8 @@ std::tuple<X_space, X_space, X_space> ResponseBase::compute_response_potentials(
 // J0=J[ground_density]
 // K0=K[ground_density]f
 // EXC0=W[ground_density]
-X_space ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<double, 3> &xc,
-                                  bool compute_Y) const {
+auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<double, 3> &xc,
+                               bool compute_Y) const -> X_space {
     if (world.rank() == 0 && r_params.print_level() >= 1) {
         molresponse::start_timer(world);
         print("------------compute VO[x]_________");
@@ -1073,8 +1069,8 @@ X_space ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperat
 }
 
 // Returns the ground state fock operator applied to functions f
-X_space ResponseBase::compute_F0X(World &world, const X_space &X, const XCOperator<double, 3> &xc,
-                                  bool compute_Y) const {
+auto ResponseBase::compute_F0X(World &world, const X_space &X, const XCOperator<double, 3> &xc,
+                               bool compute_Y) const -> X_space {
     // Debugging output
 
     molresponse::start_timer(world);
@@ -1133,77 +1129,6 @@ auto ResponseBase::compute_residual(World &world, const X_space &chi, const X_sp
     }
     // Next calculate 2-norm of these vectors of differences
     return {res, residual_norms};
-}
-
-X_space ResponseBase::compute_residual(World &world, X_space &old_Chi, X_space &temp,
-                                       Tensor<double> &bsh_residualsX,
-                                       Tensor<double> &bsh_residualsY, std::string calc_type) {
-    size_t m = old_Chi.X.size();
-    size_t n = old_Chi.X.size_orbitals();
-    molresponse::start_timer(world);
-    //	compute residual
-    X_space res(world, m, n);
-    res.X = old_Chi.X - temp.X;
-    //
-    if (calc_type.compare("full") == 0) {
-        res.Y = old_Chi.Y - temp.Y;
-    } else if (calc_type.compare("static") == 0) {
-        res.Y = res.X.copy();
-    } else {
-    }
-    //*************************
-    Tensor<double> errX(m);
-    Tensor<double> errY(m);
-    // rmsX and maxvalX for each m response states
-    std::vector<double> rmsX(m), maxvalX(m);
-    std::vector<std::vector<double>> rnormsX;
-    std::vector<std::vector<double>> rnormsY;
-    // find the norms of each of the residual response vectors
-    for (size_t i = 0; i < m; i++) {
-        // the 2norms of each of the orbitals in response vector
-        rnormsX.push_back(norm2s(world, res.X[i]));
-        if (world.rank() == 0 and (r_params.print_level() > 1))
-            print("residuals X: state ", i, " : ", rnormsX[i]);
-        // maxabsval = std::max<double>(maxabsval, std::abs(v[i]));
-        // maxvalX= largest abs(v[i])
-        vector_stats(rnormsX[i], rmsX[i], maxvalX[i]);
-        // errX[i] is the largest residual orbital value
-        errX[i] = maxvalX[i];
-        if (world.rank() == 0 and (r_params.print_level() > 1))
-            print("BSH residual: rms", rmsX[i], "   max", maxvalX[i]);
-    }
-    if (calc_type.compare("full") == 0) {
-        std::vector<double> rmsY(m), maxvalY(m);
-        for (size_t i = 0; i < m; i++) {
-            rnormsY.push_back(norm2s(world, res.Y[i]));
-            if (world.rank() == 0 and (r_params.print_level() > 1))
-                print("residuals Y: state ", i, " : ", rnormsY[i]);
-            vector_stats(rnormsY[i], rmsY[i], maxvalY[i]);
-            errY[i] = maxvalY[i];
-            if (world.rank() == 0 and (r_params.print_level() > 1))
-                print("BSH residual: rms", rmsY[i], "   max", maxvalY[i]);
-        }
-    } else if (calc_type.compare("static") == 0) {
-        // copy by value?
-        errY = errX;
-    } else {// tda
-        errY.fill(0);
-    }
-    molresponse::end_timer(world, "BSH residual");
-
-    if (r_params.print_level() >= 1) {
-        print("res.X norms in iteration after compute_residual function: ");
-        print(res.X.norm2());
-
-        print("res.Y norms in iteration after compute_residual function: ");
-        print(res.Y.norm2());
-    }
-    // the max error in residual
-    bsh_residualsX = errX;
-    bsh_residualsY = errY;
-    // Apply shifts and rhs
-    // Next calculate 2-norm of these vectors of differences
-    return res;
 }
 
 auto ResponseBase::kain_x_space_update(World &world, const X_space &chi,
@@ -1301,19 +1226,7 @@ void ResponseBase::x_space_step_restriction(World &world, const X_space &old_Chi
     }
 }
 
-// compute rms and maxabsval of vector of doubles
-void ResponseBase::vector_stats(const std::vector<double> &v, double &rms,
-                                double &maxabsval) const {
-    rms = 0.0;
-    maxabsval = v[0];
-    for (size_t i = 0; i < v.size(); ++i) {
-        rms += v[i] * v[i];
-        maxabsval = std::max<double>(maxabsval, std::abs(v[i]));
-    }
-    rms = sqrt(rms / v.size());
-}
-
-void ResponseBase::vector_stats_new(const Tensor<double> v, double &rms, double &maxabsval) const {
+void ResponseBase::vector_stats_new(const Tensor<double>& v, double &rms, double &maxabsval) const {
     rms = 0.0;
     for (size_t i = 0; i < v.size(); ++i) { rms += v[i] * v[i]; }
     rms = sqrt(rms / v.size());

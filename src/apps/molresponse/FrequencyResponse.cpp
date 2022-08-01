@@ -21,9 +21,9 @@ void FrequencyResponse::iterate(World &world) {
     const double relative_max_target =
             std::max(50 * FunctionDefaults<3>::get_thresh(), .5 * r_params.dconv());
     // m residuals for x and y
-    Tensor<double> bsh_residualsX(m);
-    Tensor<double> bsh_residualsY(m);
-    Tensor<double> density_residuals(m);
+    Tensor<double> bsh_residualsX((int(m)));
+    Tensor<double> bsh_residualsY((int(m)));
+    Tensor<double> density_residuals((int(m)));
 
     vecfuncT rho_omega_old(m);
 
@@ -290,62 +290,6 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
 
     // print x norms
 }
-void FrequencyResponse::update(World &world, X_space &Chi, X_space &res, XCOperator<double, 3> &xc,
-                               std::vector<poperatorT> &bsh_x_ops,
-                               std::vector<poperatorT> &bsh_y_ops, QProjector<double, 3> &projector,
-                               double &x_shifts, double &omega_n, NonLinearXsolver &kain_x_space,
-                               vector<X_vector> &Xvector, vector<X_vector> &Xresidual,
-                               Tensor<double> &bsh_residualsX, Tensor<double> &bsh_residualsY,
-                               size_t iteration, const double &maxrotn) {
-    size_t m = Chi.num_states();
-    bool compute_y = omega_n != 0.0;
-    // size_t n = Chi.num_orbitals();
-
-    Tensor<double> errX(m);
-    Tensor<double> errY(m);
-
-    X_space theta_X = compute_theta_X(world, Chi, xc, r_params.calc_type());
-    // compute residual X_space
-    print("BSH update iter = ", iteration);
-
-    X_space temp = bsh_update_response(world, theta_X, bsh_x_ops, bsh_y_ops, projector, x_shifts);
-
-    res = compute_residual(world, Chi, temp, bsh_residualsX, bsh_residualsY, r_params.calc_type());
-
-    // kain update with temp adjusts temp
-    if (r_params.kain() && (iteration > 0)) {
-        temp = kain_x_space_update(world, Chi, res, kain_x_space, Xvector, Xresidual);
-        if (r_params.print_level() >= 1) {
-            compute_and_print_polarizability(world, temp, PQ, "<KAIN|PQ>");
-        }
-    }
-
-    if (iteration > 0) {
-        x_space_step_restriction(world, Chi, temp, compute_y, maxrotn);
-        if (r_params.print_level() >= 1) {
-            compute_and_print_polarizability(world, temp, PQ, "<STEP_RESTRICTED|PQ>");
-        }
-    }
-
-    if (r_params.print_level() >= 1) {
-        compute_and_print_polarizability(world, temp, PQ, "<BSHX|PQ>");
-    }
-
-    // truncate x
-    /*
-    temp.X.truncate_rf();
-    // truncate y if compute y
-    if (compute_y) temp.Y.truncate_rf();
-    //	if not compute y then copy x in to y
-    if (!compute_y) temp.Y = temp.X.copy();
-     */
-
-    Chi = temp.copy();
-    if (r_params.print_level() >= 1) {
-        compute_and_print_polarizability(world, Chi, PQ, "<ChiNew|PQ>");
-    }
-    // print x norms
-}
 auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
                                             std::vector<poperatorT> &bsh_x_ops,
                                             std::vector<poperatorT> &bsh_y_ops,
@@ -400,7 +344,7 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
 void FrequencyResponse::frequency_to_json(json &j_mol_in, size_t iter, const Tensor<double> &res_X,
                                           const Tensor<double> &res_Y,
                                           const Tensor<double> &density_res,
-                                          const Tensor<double> &omega,
+                                          const Tensor<double> &frequency,
                                           const Tensor<double> &chi_norms_x,
                                           const Tensor<double> &chi_norms_y,
                                           const Tensor<double> &rho_norms) {
@@ -412,14 +356,14 @@ void FrequencyResponse::frequency_to_json(json &j_mol_in, size_t iter, const Ten
     j["chi_norms_y"] = tensor_to_json(chi_norms_y);
     j["rho_norms"] = tensor_to_json(rho_norms);
     j["density_residuals"] = tensor_to_json(density_res);
-    j["polar"] = tensor_to_json(omega);
+    j["polar"] = tensor_to_json(frequency);
     auto index = j_mol_in["protocol_data"].size() - 1;
     j_mol_in["protocol_data"][index]["iter_data"].push_back(j);
 }
 
-void FrequencyResponse::compute_and_print_polarizability(World &world, X_space &Chi, X_space &PQ,
+void FrequencyResponse::compute_and_print_polarizability(World &world, X_space &Chi, X_space &pq,
                                                          std::string message) {
-    Tensor<double> G = -2 * inner(Chi, PQ);
+    Tensor<double> G = -2 * inner(Chi, pq);
     if (world.rank() == 0) {
         print("Polarizability", message);
         print(G);

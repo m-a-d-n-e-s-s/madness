@@ -176,15 +176,11 @@ protected:
             -> vector<poperatorT>;
 
 
-    auto compute_residual(World& world, X_space& old_Chi, X_space& temp,
-                          Tensor<double>& bsh_residualsX, Tensor<double>& bsh_residualsY,
-                          std::string calc_type) -> X_space;
     auto kain_x_space_update(World& world, const X_space& chi, const X_space& residual_chi,
                              NonLinearXsolver& kain_x_space, vector<X_vector>& Xvector,
                              vector<X_vector>& Xresidual) -> X_space;
     void x_space_step_restriction(World& world, const X_space& old_Chi, X_space& temp,
                                   bool restrict_y, const double& maxrotn);
-    void vector_stats(const vector<double>& v, double& rms, double& maxabsval) const;
     auto do_step_restriction(World& world, const vector_real_function_3d& x,
                              vector_real_function_3d& x_new, std::string spin, double maxrotn) const
             -> double;
@@ -192,7 +188,7 @@ protected:
                                        response_space& y_response,
                                        const ResponseParameters& r_params,
                                        const GroundStateCalculation& g_params);
-    void vector_stats_new(Tensor<double> v, double& rms, double& maxabsval) const;
+    void vector_stats_new(const Tensor<double>& v, double& rms, double& maxabsval) const;
 
     static auto orbital_load_balance(World& world, const gamma_orbitals&, double load_balance)
             -> gamma_orbitals;
@@ -206,7 +202,7 @@ protected:
                      bool compute_Y) const -> X_space;
     auto compute_lambda_X(World& world, const X_space& chi, XCOperator<double, 3>& xc,
                           const std::string& calc_type) const -> X_space;
-    auto compute_theta_X(World& world, const X_space& chi, XCOperator<double, 3> xc,
+    auto compute_theta_X(World& world, const X_space& chi, const XCOperator<double, 3>& xc,
                          const std::string& calc_type) const -> X_space;
     auto compute_F0X(World& world, const X_space& X, const XCOperator<double, 3>& xc,
                      bool compute_Y) const -> X_space;
