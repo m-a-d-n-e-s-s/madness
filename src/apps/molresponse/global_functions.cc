@@ -1,9 +1,9 @@
 #include "global_functions.h"
 
+#include <ResponseBase.hpp>
 #include <memory>
 #include <string>
 #include <vector>
-#include <ResponseBase.hpp>
 
 #include "apps/chem/SCFOperators.h"
 #include "response_parameters.h"
@@ -75,7 +75,6 @@ auto newK(vecfuncT &ket, vecfuncT &bra, vecfuncT &vf) -> vecfuncT {
     World &world = ket[0].world();
     int n = bra.size();
     int nf = ket.size();
-    if (world.rank() == 0) { print("newK"); }
 
     double tol = FunctionDefaults<3>::get_thresh();/// Important this is
     double mul_tol = 1e-7;
@@ -84,7 +83,6 @@ auto newK(vecfuncT &ket, vecfuncT &bra, vecfuncT &vf) -> vecfuncT {
     Exchange<double, 3> op{};
     op.set_parameters(bra, ket, lo);
     op.set_algorithm(op.large_memory);
-    if (world.rank() == 0) { print("Before application"); }
     return op(vf);
 }
 // sum_i |i><i|J|p> for each p
