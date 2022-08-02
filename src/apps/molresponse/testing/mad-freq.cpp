@@ -27,11 +27,6 @@ using namespace madness;
 
 
 int main(int argc, char *argv[]) {
-    if (argc != 5) {
-
-        std::cout << "Wrong number of inputs" << std::endl;
-        return 1;
-    }
     World &world = madness::initialize(argc, argv);
     int result = 0;
     world.gop.fence();
@@ -39,6 +34,11 @@ int main(int argc, char *argv[]) {
 
     std::cout.precision(6);
 
+    if (argc != 5) {
+
+        std::cout << "Wrong number of inputs" << std::endl;
+        return 1;
+    }
 
     const std::string molecule_name{argv[1]};
     const std::string xc{argv[2]};
@@ -52,8 +52,6 @@ int main(int argc, char *argv[]) {
     } else {
         high_prec = false;
     }
-
-
     try {
 
         auto schema = runSchema(xc);

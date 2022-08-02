@@ -33,7 +33,7 @@ int main(int argc, char *argv[]) {
 
     std::cout.precision(6);
 
-    if (argc != 4) {
+    if (argc != 5) {
 
         std::cout << "Wrong number of inputs" << std::endl;
         return 1;
@@ -41,9 +41,9 @@ int main(int argc, char *argv[]) {
 
     const std::string molecule_name{argv[1]};
     const std::string xc{argv[2]};
-    const std::string op = "excited-state";
+    const std::string op{argv[3]};
+    const std::string is_high_prec{argv[4]};
 
-    const std::string is_high_prec{argv[3]};
 
     bool high_prec;
 
@@ -52,7 +52,6 @@ int main(int argc, char *argv[]) {
     } else {
         high_prec = false;
     }
-
 
     auto schema = runSchema(xc);
     auto mol_path = addPath(schema.molecule_path, molecule_name);
@@ -79,9 +78,7 @@ int main(int argc, char *argv[]) {
 
     } catch (const std::filesystem::filesystem_error &ex) { std::cerr << ex.what() << "\n"; }
 
-    if(world.rank()==0){
-        print("Finished Excited-State Calculation");
-    }
+    if (world.rank() == 0) { print("Finished Excited-State Calculation"); }
 
     return result;
 
