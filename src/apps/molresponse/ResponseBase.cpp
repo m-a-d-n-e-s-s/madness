@@ -1009,7 +1009,6 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
     };
 
     // If including any exact HF exchange
-    /*
     if (xcf.hf_exchange_coefficient() != 0.0) {
         std::transform(Chi_copy.X.begin(), Chi_copy.X.end(), K0.X.begin(), k);
         if (compute_Y) {
@@ -1018,8 +1017,8 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
             K0.Y = K0.X.copy();
         }
     }
-     */
 
+    /*
     int b = 0;
     for (auto &k0x: K0.X) { k0x = exchangeHF(phi0_copy, phi0_copy, Chi_copy.X[b++]); }
     if (compute_Y) {
@@ -1027,6 +1026,7 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
     } else {
         K0.Y = K0.X.copy();
     }
+     */
 
 
     if (r_params.print_level() >= 20) {
@@ -1564,7 +1564,7 @@ vector_real_function_3d transition_density(World &world, const vector_real_funct
  * @return
  */
 auto ResponseBase::orbital_load_balance(World &world, const gamma_orbitals &input,
-                                                  const double load_balance) -> gamma_orbitals {
+                                        const double load_balance) -> gamma_orbitals {
 
     auto X = std::get<0>(input);
     auto psi0 = std::get<1>(input);

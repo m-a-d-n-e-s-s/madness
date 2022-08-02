@@ -183,8 +183,8 @@ protected:
                                   bool restrict_y, const double& maxrotn);
     void plotResponseOrbitals(World& world, size_t iteration, const response_space& x_response,
                               const response_space& y_response,
-                                       const ResponseParameters& responseParameters,
-                                       const GroundStateCalculation& g_params);
+                              const ResponseParameters& responseParameters,
+                              const GroundStateCalculation& g_params);
 
     static auto orbital_load_balance(World& world, const gamma_orbitals&, double load_balance)
             -> gamma_orbitals;
@@ -207,7 +207,7 @@ protected:
 
 
     static auto project_ao_basis_only(World& world, const AtomicBasisSet& aobasis,
-                               const Molecule& mol) -> vecfuncT;
+                                      const Molecule& mol) -> vecfuncT;
     void converged_to_json(json& j);
     auto compute_residual(World& world, const X_space& chi, const X_space& g_chi,
                           const std::string& calc_type) -> residuals;
@@ -229,25 +229,20 @@ protected:
         /// consistent with Coulomb
         vecfuncT Kf = zero_functions_compressed<double, 3>(world, nf, true);
 
-        if (world.rank() == 0) { print("Before Reconstruct"); }
         reconstruct(world, bra);
         reconstruct(world, ket);
         reconstruct(world, vf);
-        if (world.rank() == 0) { print("After Reconstruct"); }
 
         // i-j sym
         for (int i = 0; i < n; ++i) {
             // for each |i> <i|phi>
             vecfuncT psi_f = mul_sparse(world, bra[i], vf, mul_tol, true);/// was vtol
-            if (world.rank() == 0) { print("After mulsparse"); }
             truncate(world, psi_f, tol, true);
             // apply to vector of products <i|phi>..<i|1> <i|2>...<i|N>
             psi_f = apply(world, *shared_coulomb_operator, psi_f);
-            if (world.rank() == 0) { print("After apply"); }
             truncate(world, psi_f, tol, true);
             // multiply by ket i  <i|phi>|i>: <i|1>|i> <i|2>|i> <i|2>|i>
             psi_f = mul_sparse(world, ket[i], psi_f, mul_tol, true);/// was vtol
-            if (world.rank() == 0) { print("After second mulsparse"); }
             /// Generalized A*X+Y for vectors of functions ---- a[i] = alpha*a[i] +
             // 1*Kf+occ[i]*psi_f
             gaxpy(world, double(1.0), Kf, double(1.0), psi_f);
@@ -296,7 +291,7 @@ auto make_xyz_functions(World& world) -> vector_real_function_3d;
 // Selects from a list of functions and energies the k functions with the
 // lowest energy
 auto select_functions(World& world, response_space f, Tensor<double>& energies, size_t k,
-                                size_t print_level) -> response_space;
+                      size_t print_level) -> response_space;
 // Sorts the given tensor of eigenvalues and
 // response functions
 void sort(World& world, Tensor<double>& vals, response_space& f);
@@ -314,10 +309,11 @@ auto gram_schmidt(World& world, const response_space& f) -> response_space;
 /// \param y
 /// \return
 auto transition_density(World& world, const vector_real_function_3d& orbitals,
-                                           const response_space& x, const response_space& y) -> vector_real_function_3d;
+                        const response_space& x, const response_space& y)
+        -> vector_real_function_3d;
 
 auto transition_densityTDA(World& world, const vector_real_function_3d& orbitals,
-                                              const response_space& x) -> vector_real_function_3d;
+                           const response_space& x) -> vector_real_function_3d;
 
 auto transform(World& world, const response_space& f, const Tensor<double>& U) -> response_space;
 
