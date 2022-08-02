@@ -12,7 +12,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-static inline int file_exists(const char *input_name) {
+static inline auto file_exists(const char *input_name) -> int {
     struct stat buffer {};
     size_t rc = stat(input_name, &buffer);
     return (rc == 0);
@@ -25,7 +25,7 @@ using path = std::filesystem::path;
 using namespace madness;
 
 
-int main(int argc, char *argv[]) {
+auto main(int argc, char *argv[]) -> int {
     World &world = madness::initialize(argc, argv);
     int result = 0;
     world.gop.fence();

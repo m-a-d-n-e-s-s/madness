@@ -224,11 +224,6 @@ protected:
         double mul_tol = 0.0;
         const double lo = r_params.lo();
 
-        if (world.rank() == 0) { print("newK"); }
-
-        print("n", n);
-        print("nf", nf);
-        print("tol", tol);
 
         std::shared_ptr<real_convolution_3d> poisson;
         /// consistent with Coulomb

@@ -26,7 +26,7 @@ using path = std::filesystem::path;
 using namespace madness;
 
 
-int main(int argc, char *argv[]) {
+auto main(int argc, char *argv[]) -> int {
     World &world = madness::initialize(argc, argv);
     int result = 0;
     world.gop.fence();
