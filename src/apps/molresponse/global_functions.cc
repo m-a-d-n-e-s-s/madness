@@ -82,7 +82,7 @@ auto newK(const vecfuncT &ket, const vecfuncT &bra, const vecfuncT &vf) -> vecfu
 
     Exchange<double, 3> op{};
     op.set_parameters(bra, ket, lo);
-    op.set_algorithm(op.large_memory);
+    op.set_algorithm(op.small_memory);
     return op(vf);
 }
 // sum_i |i><i|J|p> for each p

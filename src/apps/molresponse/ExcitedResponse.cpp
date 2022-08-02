@@ -1750,9 +1750,21 @@ void ExcitedResponse::iterate(World &world) {
     size_t m = r_params.num_states();  // Number of excited states
     size_t n = r_params.num_orbitals();// Number of ground state orbitals
 
-    const auto conv_den = std::max(FunctionDefaults<3>::get_thresh(), r_params.dconv());
+    const double conv_den = std::max(100 * FunctionDefaults<3>::get_thresh(), r_params.dconv());
+    const double relative_max_target =
+            std::max(50 * FunctionDefaults<3>::get_thresh(), .5 * r_params.dconv());
 
-    auto maxrotn = conv_den * 100;
+    auto thresh = FunctionDefaults<3>::get_thresh();
+    auto max_rotation = .5;
+    if (thresh >= 1e-2) {
+        max_rotation = 2;
+    } else if (thresh >= 1e-4) {
+        max_rotation = .25;
+    } else if (thresh >= 1e-6) {
+        max_rotation = .1;
+    } else if (thresh >= 1e-8) {
+        max_rotation = .05;
+    }
 
     // m residuals for x and y
     Tensor<double> bsh_residualsX(m);
@@ -1772,8 +1784,8 @@ void ExcitedResponse::iterate(World &world) {
     std::vector<X_vector> Xvector;
     std::vector<X_vector> Xresidual;
     for (size_t b = 0; b < m; b++) {
-        Xvector.push_back(X_vector(Chi, b));
-        Xresidual.push_back(X_vector(residuals, b));
+        Xvector.emplace_back(Chi, b);
+        Xresidual.emplace_back(residuals, b);
     }
     // If DFT, initialize the XCOperator<double,3>
 
@@ -1846,21 +1858,49 @@ void ExcitedResponse::iterate(World &world) {
             // Only checking on X components even for full as Y are so small
             if (density_residuals.max() > 2) { break; }
 
+            if (density_residuals.max() > 2) { break; }
             double d_residual = density_residuals.max();
-            double d_conv = conv_den * std::max(size_t(5), molecule.natom());
+            // Test convergence and set to true
+            auto chi_norm = Chi.norm2s();
+            auto chi_x_norms = Chi.X.norm2();
+            auto chi_y_norms = Chi.Y.norm2();
+            auto relative_bsh = copy(bsh_residualsX);
 
-            print("thresh: ", FunctionDefaults<3>::get_thresh());
-            print("max rotation: ", maxrotn);
-            print("r_params.dconv(): ", r_params.dconv());
-            print("conv_den: ", conv_den);
-            print("d_conv: ", d_conv);
-            print("d_residual_max : ", d_residual);
-            auto max_bsh = std::max(bsh_residualsX.absmax(), bsh_residualsY.absmax());
-            print("bsh_residual_max : ", max_bsh);
-            if ((((d_residual < d_conv) and ((max_bsh < conv_den * 5.0))) or
-                 r_params.get<bool>("conv_only_dens"))) {
+            std::transform(bsh_residualsX.ptr(), bsh_residualsX.ptr() + bsh_residualsX.size(),
+                           chi_norm.ptr(), relative_bsh.ptr(),
+                           [](auto bsh, auto norm_chi) { return bsh / norm_chi; });
+
+            auto max_bsh = bsh_residualsX.absmax();
+            auto relative_max_bsh = relative_bsh.absmax();
+
+            excited_to_json(j_molresponse, iter, bsh_residualsX, bsh_residualsY, density_residuals,
+                            omega);
+
+            if (r_params.print_level() >= 1) {
+
+                if (world.rank() == 0) {
+                    print("thresh: ", FunctionDefaults<3>::get_thresh());
+                    print("k: ", FunctionDefaults<3>::get_k());
+                    print("Chi Norms at start of iteration: ", iter);
+                    print("Chi_X.X: ", chi_x_norms);
+                    print("Chi_X.Y: ", chi_y_norms);
+                    print("Chi_X: ", chi_norm);
+                    print("bsh_residuals : ", bsh_residualsX);
+                    print("relative_bsh : ", relative_bsh);
+                    print("r_params.dconv(): ", r_params.dconv());
+                    print("max rotation: ", max_rotation);
+                    print("d_residual_max : ", d_residual);
+                    print("d_residual_max target : ", conv_den);
+                    print("bsh_residual_max : ", max_bsh);
+                    print("relative_bsh_residual_max : ", relative_max_bsh);
+                    print("relative_bsh_residual_max target : ", relative_max_target);
+                }
+            }
+            if ((d_residual < conv_den) and ((relative_max_bsh < relative_max_target) or
+                                             r_params.get<bool>("conv_only_dens"))) {
                 converged = true;
             }
+
 
             if (converged || iter == r_params.maxiter() - 1) {
                 // if converged print converged
@@ -1895,8 +1935,8 @@ void ExcitedResponse::iterate(World &world) {
         // The residual is then used to update KAIN
         // Followed by step restriction
         // residual is computed as new_chi-old_chi where both have been previously rotated.
-        auto [new_omega, old_chi, new_chi, new_res] =
-                update(world, Chi, xc, projector, kain_x_space, Xvector, Xresidual, iter, maxrotn);
+        auto [new_omega, old_chi, new_chi, new_res] = update(
+                world, Chi, xc, projector, kain_x_space, Xvector, Xresidual, iter, max_rotation);
 
 
         if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
@@ -1937,11 +1977,9 @@ void ExcitedResponse::iterate(World &world) {
             print("BSH  residuals");
             print("xres", bsh_residualsX);
             print("yres", bsh_residualsY);
-            print("maxrotn", maxrotn);
+            print("maxrotn", max_rotation);
         }
 
-        excited_to_json(j_molresponse, iter, bsh_residualsX, bsh_residualsY, density_residuals,
-                        omega);
 
         // Basic output
         if (world.rank() == 0 && r_params.print_level() >= 1) {
@@ -2007,10 +2045,11 @@ void ExcitedResponse::iterate(World &world) {
      */
 }
 
-std::tuple<Tensor<double>, X_space, X_space, residuals> ExcitedResponse::update(
-        World &world, X_space &Chi, XCOperator<double, 3> &xc, QProjector<double, 3> &projector,
-        NonLinearXsolver &kain_x_space, vector<X_vector> &Xvector, vector<X_vector> &Xresidual,
-        size_t iter, const double &maxrotn) {
+auto ExcitedResponse::update(World &world, X_space &Chi, XCOperator<double, 3> &xc,
+                             QProjector<double, 3> &projector, NonLinearXsolver &kain_x_space,
+                             vector<X_vector> &Xvector, vector<X_vector> &Xresidual, size_t iter,
+                             const double &maxrotn)
+        -> std::tuple<Tensor<double>, X_space, X_space, residuals> {
     size_t m = Chi.num_states();
     bool compute_y = not r_params.tda();
 
@@ -2078,7 +2117,7 @@ std::tuple<Tensor<double>, X_space, X_space, residuals> ExcitedResponse::update(
         new_chi =
                 kain_x_space_update(world, rotated_chi, new_res, kain_x_space, Xvector, Xresidual);
     }
-    if (iter > 0) { x_space_step_restriction(world, rotated_chi, new_chi, compute_y, maxrotn); }
+    if (false) { x_space_step_restriction(world, rotated_chi, new_chi, compute_y, maxrotn); }
 
     new_chi.X.truncate_rf();
     if (compute_y) new_chi.Y.truncate_rf();
