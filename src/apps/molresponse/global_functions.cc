@@ -71,7 +71,7 @@ auto T(World &world, response_space &f) -> response_space {
 }
 
 // compute exchange |i><i|J|p>
-auto newK(vecfuncT &ket, vecfuncT &bra, vecfuncT &vf) -> vecfuncT {
+auto newK(const vecfuncT &ket, const vecfuncT &bra, const vecfuncT &vf) -> vecfuncT {
     World &world = ket[0].world();
     int n = bra.size();
     int nf = ket.size();
