@@ -1003,9 +1003,8 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
-    auto k = [&](vector_real_function_3d xi) {
-        if (world.rank() == 0) { print("k0[x]"); }
-        return exchangeHF(phi0_copy, phi0_copy, xi);
+    auto k = [&](const vector_real_function_3d &xi) {
+        return exchangeHF(phi0_copy, phi0_copy, const_cast<vecfuncT &>(xi));
     };
 
     // If including any exact HF exchange

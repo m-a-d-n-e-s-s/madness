@@ -216,7 +216,7 @@ protected:
             -> std::tuple<X_space, X_space, X_space>;
 
     // compute exchange |i><i|J|p>
-    auto exchangeHF(vecfuncT& ket, vecfuncT& bra, vecfuncT& vf) const -> vecfuncT {
+    auto exchangeHF(const vecfuncT& ket,const  vecfuncT& bra, const vecfuncT& vf) const -> vecfuncT {
         World& world = ket[0].world();
         auto n = bra.size();
         auto nf = ket.size();
