@@ -131,10 +131,10 @@ namespace madness {
         MPI_Comm parsec_comm  = MPI_COMM_SELF;
         parsec_remote_dep_set_ctx(ctx, (intptr_t)parsec_comm);
 #ifdef PARSEC_PROF_TRACE
-        taskpool.profiling_array = ParsecRuntime::taskpool_profiling_array;
+        ParsecRuntime::tp.profiling_array = ParsecRuntime::taskpool_profiling_array;
         parsec_profiling_add_dictionary_keyword("MADNESS TASK", "fill:CC2828", 0, "",
-                                                (int *)&taskpool.profiling_array[0],
-                                                (int *)&taskpool.profiling_array[1]);
+                                                (int *)&ParsecRuntime::tp.profiling_array[0],
+                                                (int *)&ParsecRuntime::tp.profiling_array[1]);
 #endif
         if( 0 != parsec_context_add_taskpool(ctx, &tp) ) {
             std::cerr << "ERROR: parsec_context_add_taskpool failed!!" << std::endl;
