@@ -69,7 +69,7 @@ std::istream& operator>>(std::istream& is, std::vector<T,A>& v) {
 	if (sline.bad()) {
 		madness::print("error while reading vector from istream: ");
 		madness::print(line,"\n");
-		MADNESS_EXCEPTION("IO error",1);
+		throw std::runtime_error("IO error");
 	}
 
 	return is;
@@ -103,7 +103,7 @@ std::istream& operator>>(std::istream& is, std::pair<T,Q>& p) {
 	if (sline.bad() or sline.fail()) {
 		madness::print("error while reading vector from istream: ");
 		madness::print(line,"\n");
-		MADNESS_EXCEPTION("IO error",1);
+		throw std::runtime_error("IO error");
 	}
 	p=std::pair<T,Q>(tmp1,tmp2);
 

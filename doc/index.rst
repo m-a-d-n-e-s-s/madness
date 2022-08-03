@@ -14,16 +14,16 @@ MADNESS provides a high-level environment for the solution of integral and diffe
 .. toctree::
    :maxdepth: 2
 
+   INSTALL
    runtime
    numerical_library
    quantum
-   use MADNESS
 
 ..
+  - :doc:`INSTALL`
   - :doc:`runtime`
   - :doc:`numerical_library`
   - :doc:`quantum`
-  - :doc:`use_madness`
 
 Indices and tables
 ==================

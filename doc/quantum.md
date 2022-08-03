@@ -1,4 +1,4 @@
-# MADNESS quantum chemistry
+# Quantum chemistry
 
 
 ## What you can do
@@ -15,10 +15,6 @@ Quantum chemical capabilities are:
  * OEP/RKS, `oep`
 
 ## Quickstart
-A quick help and an overview over all available codes can be
-obtained by 
-
-`madqc --help`
 
 All programs can read commandline options or an input file (by default this is named "input").
 A full list of all available calculation parameters can be obtained by writing
@@ -107,7 +103,7 @@ Generally it is advisable to use as few numerical parameters as possible, as the
 The geometry of the molecule is given in the geometry data group. 
 By default atomic units are used, but angstrom can be switched on by adding the line
 > geometry\
-> units angs\
+> units angstrom\
 > ..\
 > end
 
@@ -130,10 +126,52 @@ e.g. a structure in the library has the same same as an input file, the code wil
 For the following codes/methods there are gradients implemented:
 > `nemo`, `moldft`, `znemo`
 
-The optimization is started with the `gopt` flag in the `dft` block, geometry optimization
-parameters are set in the `geoopt` block.
-> `nemo --dft="k=8; econv=1.e-5; gopt=1"  --geoopt="maxiter=10" --geometry="source=library, h2o"`
+### Native optimizer
+Codes with gradients can use the built-in geometry optimizer by adding the `gopt` flag 
+in the `dft` block, geometry optimization parameters are set in the `geoopt` block.
+> `nemo --dft="k=8; econv=1.e-5; gopt=1"  --geoopt="maxiter=10" --geometry="source_type=library; source_name=h2o"`
+
+### External optimizers
+External optimizers (e.g. [pyberny](https://jan.hermann.name/pyberny/), [geometric](https://geometric.readthedocs.io/) ) 
+can be used through Madness's python wrapper. Details to follow.
+
+> `from madness import madness`\
+> `m=madcalc("/Users/fbischoff/devel/install/madness")`\
+> `m.get_result()`\
+> `print(m.data[0]["scf_energy"])`\
+> `print(m.get_scf_energy())`\
+> `print(m.data[0]["scf_k"])`
+
+
+
+## Other electronic structure options
+### DFT functionals
+
+Madness uses [libxc](https://tddft.org/programs/libxc/) for exchange-correlation functionals. 
+The input parameters are located in the `dft` block
+> `xc func`
+
+where `func` is a string defining the DFT XC functional. Predefined options are available as
+> `func = hf, bp86, lda, pbe, b3lyp, pbe0`
+
+Other XC functionals can be created individually  as in
+> `xc "LDA_X 1.0 LDA_C_VWN 1.0"`\
+> `xc "GGA_X_PBE 0.75 GGA_C_PBE 1.0 HF_X 0.25"`
+
+where the number after the functional determines its weight. The two lines define 
+LDA and PBE0 functionals, respectively.
+
+For more details see the [libxc](https://tddft.org/programs/libxc/) webpage.
+
+### PCM solvation model
+
+Madness uses the Polarizable Continuum Model from [PCMSolver](https://pcmsolver.readthedocs.io) 
+for solvation effects. Details to come.
+
+###
 
 ## Convenience short options
 `--optimize` optimize the geometry\
 `--geometry=file.xyz` find the geometry in the xyz file (note Angstrom units!)
+
+$ a=\frac{aa}{c}$
