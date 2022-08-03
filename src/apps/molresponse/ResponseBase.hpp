@@ -250,6 +250,8 @@ protected:
         truncate(world, Kf, tol, true);
         return Kf;
     }
+    static void print_inner(World& world, const std::string& name, const X_space& left,
+                            const X_space& right) ;
 };
 
 

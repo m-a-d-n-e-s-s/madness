@@ -358,11 +358,8 @@ auto ResponseBase::compute_theta_X(World &world, const X_space &chi,
     if (world.rank() == 0 && r_params.print_level() >= 1) {
         molresponse::end_timer(world, "compute_V0X", "compute_V0X", iter_timing);
     }
-    if (world.rank() == 0 && r_params.print_level() >= 20) {
-        print("---------------Theta ----------------");
-        print("<X|V0|X>");
-        print(inner(chi, V0X));
-    }
+
+    if (r_params.print_level() >= 20) { print_inner(world, "xV0x", chi, V0X); }
 
     if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
     X_space E0X(world, chi.num_states(), chi.num_orbitals());
@@ -370,10 +367,7 @@ auto ResponseBase::compute_theta_X(World &world, const X_space &chi,
         E0X = chi.copy();
         E0X.X = E0X.X * ham_no_diag;
         if (compute_Y) { E0X.Y = E0X.Y * ham_no_diag; }
-        if (r_params.print_level() >= 10) {
-            print("<X|(E0-diag(E0)|X>");
-            print(inner(chi, E0X));
-        }
+        if (r_params.print_level() >= 20) { print_inner(world, "xE0x", chi, E0X); }
     }
     if (world.rank() == 0 && r_params.print_level() >= 1) {
         molresponse::end_timer(world, "compute_E0X", "compute_E0X", iter_timing);
@@ -401,10 +395,7 @@ auto ResponseBase::compute_theta_X(World &world, const X_space &chi,
     if (world.rank() == 0 && r_params.print_level() >= 1) {
         molresponse::end_timer(world, "compute_ThetaX_add", "compute_ThetaX_add", iter_timing);
     }
-    if (r_params.print_level() >= 10) {
-        print("<X|Theta|X>");
-        print(inner(chi, Theta_X));
-    }
+    if (r_params.print_level() >= 20) { print_inner(world, "xThetax", chi, Theta_X); }
     if (world.rank() == 0 && r_params.print_level() >= 1) {
         molresponse::end_timer(world, "compute_ThetaX", "compute_ThetaX", iter_timing);
     }
@@ -547,20 +538,13 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
 
     if (r_params.print_level() >= 20) {
         molresponse::start_timer(world);
-        print("inner <X|J|X>");
-        print(inner(d_alpha, J));
-        print("inner <X|KX|X>");
-        print(inner(d_alpha, KX));
-        print("inner <X|KY|X>");
-        print(inner(d_alpha, KY));
-        print("inner <X|K|X>");
+        print_inner(world, "xJx", d_alpha, J);
+        print_inner(world, "xKXx", d_alpha, KX);
+        print_inner(world, "xKYx", d_alpha, KY);
         X_space K = KX + KY;
-        print(inner(d_alpha, K));
-        print("inner <X|W|X>");
-        print(inner(d_alpha, W));
-        print("inner <X|Gamma|X>");
-        print(inner(d_alpha, gamma));
-
+        print_inner(world, "xKx", d_alpha, KX);
+        print_inner(world, "xWx", d_alpha, W);
+        print_inner(world, "xGammax", d_alpha, gamma);
         molresponse::end_timer(world, "Print Expectation Creating Gamma:");
     }
     // put
@@ -663,9 +647,9 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &dens
         x = d_alpha.X[b];
         y = d_alpha.Y[b];
         // |x><i|p>
-        KX.X[b] = exchangeHF(x, phi0, vf);
+        KX.X[b] = newK(x, phi0, vf);
         // |i><x|p>
-        KY.X[b] = exchangeHF(phi0, y, vf);
+        KY.X[b] = newK(phi0, y, vf);
         // |y><i|p>
     }
 
@@ -779,7 +763,7 @@ auto ResponseBase::compute_gamma_tda(World &world, const gamma_orbitals &density
     for (size_t b = 0; b < num_states; b++) {
         vecfuncT x;
         x = d_alpha.X[b];
-        k1_x[b] = exchangeHF(x, phi0, vf);
+        k1_x[b] = newK(x, phi0, vf);
     }
 
     if (world.rank() == 0 && r_params.print_level() >= 1) {
@@ -1004,7 +988,7 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
     auto k = [&](const vector_real_function_3d &xi) {
-        return exchangeHF(phi0_copy, phi0_copy, const_cast<vecfuncT &>(xi));
+        return newK(phi0_copy, phi0_copy, const_cast<vecfuncT &>(xi));
     };
 
     // If including any exact HF exchange
@@ -1028,10 +1012,7 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
      */
 
 
-    if (r_params.print_level() >= 20) {
-        print("inner <X|K0|X>");
-        print(inner(Chi_copy, K0));
-    }
+    if (r_params.print_level() >= 20) { print_inner(world, "xK0x", Chi_copy, K0); }
     if (r_params.print_level() >= 1) { molresponse::end_timer(world, "K[0]", "K[0]", iter_timing); }
     // Vnuc+V0+VXC
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
@@ -1049,14 +1030,7 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
         V0.Y = V0.X.copy();
     }
 
-    //V0.truncate();
 
-
-    if (r_params.print_level() >= 20) {
-        auto v0norms = V0.norm2s();
-        print("inner <X|V0|X>");
-        print(inner(Chi_copy, V0));
-    }
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "V0_add", "V0_add", iter_timing);
     }
@@ -1692,6 +1666,15 @@ void ResponseBase::output_json() {
 }
 
 void ResponseBase::converged_to_json(json &j) { j["converged"] = converged; }
+void ResponseBase::print_inner(World &world, const std::string &name, const X_space &left,
+                               const X_space &right) {
+    auto m_val = inner(left, right);
+    world.gop.fence();
+    if (world.rank() == 0) {
+        print(name);
+        print(m_val);
+    }
+}
 
 
 auto transition_densityTDA(World &world, const vector_real_function_3d &orbitals,

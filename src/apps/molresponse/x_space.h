@@ -220,6 +220,7 @@ namespace madness {
             G2 = response_space_inner(A.Y, B.Y);
 
             G = G1 + G2;
+            A.X[0][0].world().gop.fence();
             return G;
         }
 
