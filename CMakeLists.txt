@@ -1,11 +1,23 @@
 cmake_minimum_required (VERSION 3.11.0)
-project(MADNESS CXX C ASM)
+
+# safety net for dev workflow: accidental install will not affect FindOrFetch*
+if (NOT DEFINED CACHE{CMAKE_FIND_NO_INSTALL_PREFIX})
+  set(CMAKE_FIND_NO_INSTALL_PREFIX ON CACHE BOOL "Whether find_* commands will search CMAKE_INSTALL_PREFIX and CMAKE_STAGING_PREFIX; see https://cmake.org/cmake/help/latest/variable/CMAKE_FIND_NO_INSTALL_PREFIX.html#variable:CMAKE_FIND_NO_INSTALL_PREFIX")
+endif()
 
 # Set MADNESS version
 set(MADNESS_MAJOR_VERSION 0)
 set(MADNESS_MINOR_VERSION 10)
 set(MADNESS_MICRO_VERSION 1)
 set(MADNESS_VERSION "${MADNESS_MAJOR_VERSION}.${MADNESS_MINOR_VERSION}.${MADNESS_MICRO_VERSION}")
+
+# Declare ourselves ============================================================
+
+project(MADNESS
+        VERSION ${MADNESS_VERSION}
+        DESCRIPTION "MADNESS: fast, adaptive multiresolution integrodifferential calculus in 1..6 dimensions"
+        LANGUAGES CXX C ASM
+        HOMEPAGE_URL "https://madness.readthedocs.io/")
 
 # Add source directory =========================================================
 
