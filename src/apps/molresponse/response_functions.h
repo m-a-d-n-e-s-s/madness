@@ -15,44 +15,9 @@
 
 // real_function_3d == Function<double,3>
 namespace madness {
-    /**
- * @brief response vector class holds a single x or y
- *
- */
-    struct response_vector {
-    private:
-        size_t num_orbitals;
-        vector_real_function_3d x;// n response_functions
 
-    public:
-        // default constructor
-        response_vector() : num_orbitals(size_t(0)), x() {}
-        // copy constructor
-        response_vector(const response_vector& other) : num_orbitals{other.num_orbitals} {
-            x = copy(other[0].world(), other.x);
-        }
-        response_vector& operator=(const response_vector& other) {
-            num_orbitals = other.num_orbitals;
-            x = copy(other[0].world(), other.x);
-            return *this;
-        }
-        // zero function constructor
-        explicit response_vector(World& world, size_t num_orbs) : num_orbitals(num_orbs) {
-            x = zero_functions<double, 3>(world, static_cast<int>(num_orbitals));
-        }
-        ~response_vector() = default;
-        friend size_t size(const response_vector& other) { return other.num_orbitals; }
-        real_function_3d& operator[](size_t n) {
-            assert(n < num_orbitals);
-            return x.at(n);
-        }
-        const real_function_3d& operator[](size_t n) const {
-            assert(n < num_orbitals);
-            return x[n];
-        }
-    };
-
-    /**
+    typedef std::vector<vector_real_function_3d> response_matrix;
+    /* *
  * @brief response matrix holds response vectors for response state
  *
  */
@@ -62,7 +27,6 @@ namespace madness {
    * @brief vector of vector of real 3d functions
    *
    */
-        typedef std::vector<vector_real_function_3d> response_matrix;
 
     public:
         size_t num_states;  // Num. of resp. states
@@ -462,6 +426,7 @@ namespace madness {
 
         return value;
     }
+    auto transposeResponseMatrix(const response_matrix& x) -> response_matrix;
     // Final piece for KAIN
 
 }// End namespace madness

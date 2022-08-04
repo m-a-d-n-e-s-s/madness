@@ -3,10 +3,12 @@
 #define SRC_APPS_MOLRESPONSE_X_SPACE_H_
 
 #include <madness/mra/mra.h>
+#include <madness/tensor/tensor.h>
 
 #include <algorithm>
 #include <cstdint>
 #include <memory>
+#include <numeric>
 #include <vector>
 
 #include "molresponse/response_functions.h"
@@ -43,7 +45,7 @@ namespace madness {
         /// Works in either basis.  Different distributions imply
         /// asynchronous communication and the optional fence is
         /// collective.
-        X_space copy(const std::shared_ptr<WorldDCPmapInterface<Key<3> > >& pmap,
+        X_space copy(const std::shared_ptr<WorldDCPmapInterface<Key<3>>>& pmap,
                      bool fence = false) const {
             X_space copyX(X[0][0].world(), n_states, n_orbitals);
             copyX.X = X.copy(pmap, fence);
@@ -179,7 +181,7 @@ namespace madness {
             result.Y = A.Y * f;
             return result;
         }
-        friend X_space operator*(const Function<double, 3>& f, const X_space& A) {
+        friend auto operator*(const Function<double, 3>& f, const X_space& A) -> X_space {
             World& world = A.X[0][0].world();
             X_space result(world, A.n_states, A.n_orbitals);// create zero_functions
 
@@ -188,7 +190,7 @@ namespace madness {
             return result;
         }
 
-        friend X_space operator*(const X_space& A, const Tensor<double>& b) {
+        friend auto operator*(const X_space& A, const Tensor<double>& b) -> X_space {
             MADNESS_ASSERT(size_states(A) > 0);
             MADNESS_ASSERT(size_orbitals(A) > 0);
 
@@ -205,24 +207,7 @@ namespace madness {
          * @param B
          * @return
          */
-        inline friend Tensor<double> inner(const X_space& A, const X_space& B) {
-            MADNESS_ASSERT(size_states(A) > 0);
-            MADNESS_ASSERT(size_orbitals(A) > 0);
-            MADNESS_ASSERT(same_size(A, B));
-
-            long size = static_cast<long>(A.n_states);
-
-            Tensor<double> G(size, size);
-            Tensor<double> G1(size, size);
-            Tensor<double> G2(size, size);
-
-            G1 = response_space_inner(A.X, B.X);
-            G2 = response_space_inner(A.Y, B.Y);
-
-            G = G1 + G2;
-            A.X[0][0].world().gop.fence();
-            return G;
-        }
+        friend auto inner(const X_space& A, const X_space& B) -> Tensor<double>;
 
         void truncate() {
             X.truncate_rf();
@@ -231,6 +216,7 @@ namespace madness {
 
         Tensor<double> norm2s() {
             World& world = X[0][0].world();
+
             Tensor<double> norms(num_states());
             for (size_t b = 0; b < num_states(); b++) {
                 auto xb = madness::copy(world, X[b]);
@@ -240,13 +226,14 @@ namespace madness {
             return norms;
         }
 
-        friend size_t size_states(const X_space& x) { return x.n_states; }
-        friend size_t size_orbitals(const X_space& x) { return x.n_orbitals; }
-        friend bool same_size(const X_space& A, const X_space& B) {
+        friend auto size_states(const X_space& x) -> size_t { return x.n_states; }
+        friend auto size_orbitals(const X_space& x) -> size_t { return x.n_orbitals; }
+        friend auto same_size(const X_space& A, const X_space& B) -> bool {
             return ((size_states(A) == size_states(B) && size_orbitals(A) == size_orbitals(B)));
         }
     };
-    // The default constructor for functions does not initialize them to nahy value,
+
+    auto joinXY(const X_space& x) -> response_matrix;
     // but the solver needs the functions initialized to zero for which we also need
     // the world object.
 
@@ -279,7 +266,7 @@ namespace madness {
             copyX.Y = Y.copy();
             return copyX;
         }
-        X_vector& operator+=(const X_vector& B) {
+        auto operator+=(const X_vector& B) -> X_vector& {
             MADNESS_ASSERT(same_size(*this, B));
 
             this->X += B.X;
@@ -287,7 +274,7 @@ namespace madness {
 
             return *this;
         }
-        inline friend double inner(X_vector& A, X_vector& B) {
+        inline friend auto inner(X_vector& A, X_vector& B) -> double {
             MADNESS_ASSERT(size_states(A) == 1);
             MADNESS_ASSERT(size_orbitals(A) > 0);
             MADNESS_ASSERT(same_size(A, B));

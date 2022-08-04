@@ -12,6 +12,7 @@ set(MOLRESPONSE_SOURCES
         basic_operators.cc
         Plot_VTK.cc
         response_parameters.cpp
+        x_space.cc
         )
 set(MOLRESPONSE_HEADERS
         ResponseBase.hpp
@@ -19,6 +20,7 @@ set(MOLRESPONSE_HEADERS
         FrequencyResponse.hpp
         density.h
         property.h
+        x_space.h
         global_functions.h
         timer.h
         basic_operators.h

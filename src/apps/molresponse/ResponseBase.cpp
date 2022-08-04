@@ -1097,6 +1097,18 @@ auto ResponseBase::compute_residual(World &world, const X_space &chi, const X_sp
         print("||f(x)||_2 = : ", residual_norms);
     }
 
+    if (r_params.print_level() >= 5) {
+        int j = 0;
+        auto res_vec = joinXY(res);
+        for (const auto &xi: res_vec) {
+            auto res_b_norms = std::vector<double>{};
+            for (const auto &xij: xi) res_b_norms.push_back(xij.norm2());
+            world.gop.fence();
+            if (world.rank() == 0) { print("||f(x)||_b: ", j++, res_b_norms); }
+        }
+    }
+
+
     if (world.rank() == 0 && r_params.print_level() >= 1) {
         molresponse::end_timer(world, "compute_bsh_residual", "compute_bsh_residual", iter_timing);
     }
@@ -1122,6 +1134,15 @@ auto ResponseBase::kain_x_space_update(World &world, const X_space &chi,
     }
 
     if (world.rank() == 0) { print("----------------Start Kain Update -----------------"); }
+    int b = 0;
+    std::for_each(kain_x_space.begin(), kain_x_space.end(), [&](auto &ki) {
+        auto kain_X = ki.update(Xvector[b], Xresidual[b]);
+        kain_update.X[b] = copy(world, kain_X.X[0]);
+        kain_update.Y[b] = copy(world, kain_X.Y[0]);
+        b++;
+    });
+
+    /*
     for (size_t b = 0; b < m; b++) {
         // passing xvectors
         X_vector kain_X = kain_x_space[b].update(Xvector[b], Xresidual[b]);
@@ -1129,6 +1150,7 @@ auto ResponseBase::kain_x_space_update(World &world, const X_space &chi,
         kain_update.X[b] = copy(world, kain_X.X[0]);
         kain_update.Y[b] = copy(world, kain_X.Y[0]);
     }
+     */
     if (world.rank() == 0) { print("----------------End Kain Update -----------------"); }
     if (world.rank() == 0 && r_params.print_level() >= 1) {
         molresponse::end_timer(world, "kain_x_update", "kain_x_update", iter_timing);
