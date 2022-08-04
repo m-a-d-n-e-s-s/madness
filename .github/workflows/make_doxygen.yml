@@ -4,7 +4,7 @@ name: publish-doxygen
 on:
   push:
     branches:
-      - experimental
+      - master
 
 jobs:
   doxygen:
