@@ -430,7 +430,7 @@ void Molecule::print() const {
     std::cout.flush();
     std::stringstream sstream;
     sstream << " geometry" << std::endl;
-    sstream << p ;
+    sstream << p << std::endl;
 //    sstream << "   eprec  " << std::scientific << std::setw(1) << parameters.eprec()  << std::endl << std::fixed;
 //    sstream << "   units atomic" << std::endl;
     for (size_t i=0; i<natom(); ++i) {
@@ -631,65 +631,70 @@ void Molecule::center() {
     }
 }
 
-/// Apply to (x,y,z) a C2 rotation about an axis thru the origin and (xaxis,yaxis,zaxis)
-static void apply_c2(double xaxis, double yaxis, double zaxis, double& x, double& y, double& z) {
-    double raxissq = xaxis*xaxis + yaxis*yaxis + zaxis*zaxis;
-    double dx = x*xaxis*xaxis/raxissq;
-    double dy = y*yaxis*yaxis/raxissq;
-    double dz = z*zaxis*zaxis/raxissq;
 
-    x = 2.0*dx - x;
-    y = 2.0*dy - y;
-    z = 2.0*dz - z;
+template <typename opT>
+bool Molecule::test_for_op(opT op, const double symtol) const {
+    for (unsigned int i=0; i<atoms.size(); ++i) {
+        if (find_symmetry_equivalent_atom(i,op,symtol)>-1) return true;
+    }
+    return false;
 }
 
-/// Apply to (x,y,z) a reflection through a plane containing the origin with normal (xaxis,yaxis,zaxis)
-static void apply_sigma(double xaxis, double yaxis, double zaxis, double& x, double& y, double& z) {
-    double raxissq = xaxis*xaxis + yaxis*yaxis + zaxis*zaxis;
-    double dx = x*xaxis*xaxis/raxissq;
-    double dy = y*yaxis*yaxis/raxissq;
-    double dz = z*zaxis*zaxis/raxissq;
 
-    x = x - 2.0*dx;
-    y = y - 2.0*dy;
-    z = z - 2.0*dz;
-}
-
-static void apply_inverse(double xjunk, double yjunk, double zjunk, double& x, double& y, double& z) {
-    x = -x;
-    y = -y;
-    z = -z;
+template <typename opT>
+int Molecule::find_symmetry_equivalent_atom(int iatom, opT op, const double symtol) const  {
+    double x=atoms[iatom].x, y=atoms[iatom].y, z=atoms[iatom].z;
+    op(x, y, z);
+    bool found = false;
+    for (unsigned int j=0; j<atoms.size(); ++j) {
+        double r = distance(x, y, z, atoms[j].x, atoms[j].y, atoms[j].z);
+        if (r < symtol) return j;
+    }
+    return -1;
 }
 
 template <typename opT>
-bool Molecule::test_for_op(double xaxis, double yaxis, double zaxis, opT op) const {
-    const double symtol = 1e-2;
-    for (unsigned int i=0; i<atoms.size(); ++i) {
-        double x=atoms[i].x, y=atoms[i].y, z=atoms[i].z;
-        op(xaxis, yaxis, zaxis, x, y, z);
-        bool found = false;
-        for (unsigned int j=0; j<atoms.size(); ++j) {
-            double r = distance(x, y, z, atoms[j].x, atoms[j].y, atoms[j].z);
-            if (r < symtol) {
-                found = true;
-                break;
-            }
-        }
-        if (!found) return false;
+void Molecule::symmetrize_for_op(opT op, const double symtol) {
+
+    MADNESS_CHECK(test_for_op(op, symtol));
+
+    for (unsigned int iatom = 0; iatom < atoms.size(); ++iatom) {
+        int jatom = find_symmetry_equivalent_atom(iatom, op, symtol);
+
+        // symmetrize
+        double x=atoms[iatom].x,y=atoms[iatom].y,z=atoms[iatom].z;
+        op(x,y,z);
+        double r = distance(atoms[jatom].x, atoms[jatom].y, atoms[jatom].z, x,y,z);
+        MADNESS_CHECK(r<symtol);
+
+        x=0.5*(x+atoms[jatom].x);
+        y=0.5*(y+atoms[jatom].y);
+        z=0.5*(z+atoms[jatom].z);
+        atoms[iatom].x=x;
+        atoms[iatom].y=y;
+        atoms[iatom].z=z;
+        op(x,y,z);
+        atoms[jatom].x=x;
+        atoms[jatom].y=y;
+        atoms[jatom].z=z;
+
+        // check result
+        int jatom2=find_symmetry_equivalent_atom(iatom, op, 1.e-12);
+        MADNESS_CHECK(jatom==jatom2);
     }
-    return true;
 }
 
-bool Molecule::test_for_c2(double xaxis, double yaxis, double zaxis) const {
-    return test_for_op(xaxis, yaxis, zaxis, apply_c2);
+
+bool Molecule::test_for_c2(double xaxis, double yaxis, double zaxis, const double symtol) const {
+    return test_for_op(apply_c2(xaxis,yaxis,zaxis), symtol);
 }
 
-bool Molecule::test_for_sigma(double xaxis, double yaxis, double zaxis) const {
-    return test_for_op(xaxis, yaxis, zaxis, apply_sigma);
+bool Molecule::test_for_sigma(double xaxis, double yaxis, double zaxis, const double symtol) const {
+    return test_for_op(apply_sigma(xaxis, yaxis, zaxis), symtol);
 }
 
-bool Molecule::test_for_inverse() const {
-    return test_for_op(0.0, 0.0, 0.0, apply_inverse);
+bool Molecule::test_for_inverse(const double symtol) const {
+    return test_for_op(apply_inverse(0.0, 0.0, 0.0), symtol);
 }
 
 void Molecule::swapaxes(int ix, int iy) {
@@ -705,17 +710,25 @@ void Molecule::swapaxes(int ix, int iy) {
     field[0]=r[0]; field[1]=r[1]; field[2]=r[2];
 }
 
-void Molecule::identify_point_group() {
+std::string Molecule::symmetrize_and_identify_point_group(const double symtol) {
     // C2 axes must be along the Cartesian axes and
     // mirror planes must be orthogonal to them
 
-    bool x_is_c2 = test_for_c2(1.0,0.0,0.0);
-    bool y_is_c2 = test_for_c2(0.0,1.0,0.0);
-    bool z_is_c2 = test_for_c2(0.0,0.0,1.0);
-    bool xy_is_sigma = test_for_sigma(0.0,0.0,1.0);
-    bool xz_is_sigma = test_for_sigma(0.0,1.0,0.0);
-    bool yz_is_sigma = test_for_sigma(1.0,0.0,0.0);
-    bool inverse = test_for_inverse();
+    bool x_is_c2 = test_for_c2(1.0,0.0,0.0,symtol);
+    bool y_is_c2 = test_for_c2(0.0,1.0,0.0,symtol);
+    bool z_is_c2 = test_for_c2(0.0,0.0,1.0,symtol);
+    bool xy_is_sigma = test_for_sigma(0.0,0.0,1.0,symtol);
+    bool xz_is_sigma = test_for_sigma(0.0,1.0,0.0,symtol);
+    bool yz_is_sigma = test_for_sigma(1.0,0.0,0.0,symtol);
+    bool inverse = test_for_inverse(symtol);
+
+    if (x_is_c2) symmetrize_for_op(apply_c2(1.0,0.0,0.0), symtol);
+    if (y_is_c2) symmetrize_for_op(apply_c2(0.0,1.0,0.0), symtol);
+    if (z_is_c2) symmetrize_for_op(apply_c2(0.0,0.0,1.0), symtol);
+    if (xy_is_sigma) symmetrize_for_op(apply_sigma(0.0,0.0,1.0),symtol);
+    if (xz_is_sigma) symmetrize_for_op(apply_sigma(0.0,1.0,0.0),symtol);
+    if (yz_is_sigma) symmetrize_for_op(apply_sigma(1.0,0.0,0.0),symtol);
+    if (inverse) symmetrize_for_op(apply_inverse(0.0,0.0,0.0),symtol);
 
     /*
       .   (i,c,s)
@@ -771,10 +784,7 @@ void Molecule::identify_point_group() {
         madness::print("Not-quite-symmetric geometry (clean up to fix), will assume C1");
         pointgroup = "C1";
     }
-
-//    madness::print("\n The point group is", pointgroup);
-    // assign to member variable
-    pointgroup_ = pointgroup;
+    return pointgroup;
 }
 
 /// compute the center of mass
@@ -833,7 +843,7 @@ void Molecule::orient(bool verbose) {
 
     if (verbose) {
 		// Try to resolve degenerate rotations
-		double symtol = 1e-2;
+		double symtol = symmetrytol;
 		if (fabs(e[0]-e[1])<symtol && fabs(e[1]-e[2])<symtol) {
 			madness::print("Cubic point group");
 		}
@@ -854,7 +864,9 @@ void Molecule::orient(bool verbose) {
     // Now hopefully have mirror planes and C2 axes correctly oriented
     // Figure out what elements are actually present and enforce
     // conventional ordering
-    identify_point_group();
+    pointgroup_= symmetrize_and_identify_point_group(symmetrytol);
+    std::string pointgroup_tight= symmetrize_and_identify_point_group(1.e-12);
+    MADNESS_CHECK(pointgroup_tight==pointgroup_);
 }
 
 /// rotates the molecule and the external field

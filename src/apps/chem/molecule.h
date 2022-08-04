@@ -234,8 +234,10 @@ private:
     CorePotentialManager core_pot;
     madness::Tensor<double> field;
 
-    /// The molecular point group
-    /// is automatically assigned in the identify_pointgroup function
+    /// tolerance for determining the symmetry of a molecule
+    double symmetrytol = 1e-2;
+
+    /// The molecular point group is automatically assigned in the identify_pointgroup function
     std::string pointgroup_="c1";
 
 public:
@@ -250,13 +252,60 @@ private:
     void swapaxes(int ix, int iy);
 
     template <typename opT>
-    bool test_for_op(double xaxis, double yaxis, double zaxis, opT op) const;
+    bool test_for_op(opT op, const double symtol) const;
 
-    bool test_for_c2(double xaxis, double yaxis, double zaxis) const;
+    template <typename opT>
+    void symmetrize_for_op(opT op, const double symtol);
 
-    bool test_for_sigma(double xaxis, double yaxis, double zaxis) const;
+    template <typename opT>
+    int find_symmetry_equivalent_atom(int iatom, opT op, const double symtol) const;
 
-    bool test_for_inverse() const;
+    bool test_for_c2(double xaxis, double yaxis, double zaxis, const double symtol) const;
+
+    bool test_for_sigma(double xaxis, double yaxis, double zaxis, const double symtol) const;
+
+    bool test_for_inverse(const double symtol) const;
+
+    /// Apply to (x,y,z) a C2 rotation about an axis thru the origin and (xaxis,yaxis,zaxis)
+    struct apply_c2{
+        double xaxis, yaxis, zaxis;
+        apply_c2(double xaxis, double yaxis, double zaxis) : xaxis(xaxis), yaxis(yaxis), zaxis(zaxis) {}
+        void operator()(double& x, double& y, double& z) const {
+            double raxissq = xaxis*xaxis + yaxis*yaxis + zaxis*zaxis;
+            double dx = x*xaxis*xaxis/raxissq;
+            double dy = y*yaxis*yaxis/raxissq;
+            double dz = z*zaxis*zaxis/raxissq;
+            x = 2.0*dx - x;
+            y = 2.0*dy - y;
+            z = 2.0*dz - z;
+        }
+    };
+
+    /// Apply to (x,y,z) a reflection through a plane containing the origin with normal (xaxis,yaxis,zaxis)
+    struct apply_sigma{
+        double xaxis, yaxis, zaxis;
+        apply_sigma(double xaxis, double yaxis, double zaxis) : xaxis(xaxis), yaxis(yaxis), zaxis(zaxis) {}
+        void operator()(double& x, double& y, double& z) const {
+            double raxissq = xaxis * xaxis + yaxis * yaxis + zaxis * zaxis;
+            double dx = x * xaxis * xaxis / raxissq;
+            double dy = y * yaxis * yaxis / raxissq;
+            double dz = z * zaxis * zaxis / raxissq;
+
+            x = x - 2.0 * dx;
+            y = y - 2.0 * dy;
+            z = z - 2.0 * dz;
+        }
+    };
+
+    struct apply_inverse{
+        double xaxis, yaxis, zaxis;
+        apply_inverse(double xaxis, double yaxis, double zaxis) : xaxis(xaxis), yaxis(yaxis), zaxis(zaxis) {}
+        void operator()(double& x, double& y, double& z) const {
+            x = -x;
+            y = -y;
+            z = -z;
+        }
+    };
 
 public:
 
@@ -407,7 +456,7 @@ public:
 
     double smallest_length_scale() const;
 
-    void identify_point_group();
+    std::string symmetrize_and_identify_point_group(const double symtol);
 
     /// Moves the center of nuclear charge to the origin
     void center();
