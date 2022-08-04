@@ -27,12 +27,12 @@ void FrequencyResponse::iterate(World &world) {
 
     vecfuncT rho_omega_old(m);
 
-    // initilize DFT XC functional operator
+    // initialize DFT XC functional operator
     XCOperator<double, 3> xc = make_xc_operator(world);
 
     // create X space residuals
     X_space residuals(world, m, n);
-    // vector of Xvectors
+
     std::vector<X_vector> x_vectors;
     std::vector<X_vector> x_residuals;
 
@@ -47,7 +47,9 @@ void FrequencyResponse::iterate(World &world) {
                 X_space_allocator(world, n), true));
     }
     if (r_params.kain()) {
-        for (auto &kain_space_b: kain_x_space) { kain_space_b.set_maxsub(r_params.maxsub()); }
+        for (auto &kain_space_b: kain_x_space) {
+            kain_space_b.set_maxsub(r_params.maxsub());
+        }
     }
     //
     // We compute with positive frequencies
