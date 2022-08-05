@@ -1,4 +1,4 @@
-# Introduction
+## Introduction
 
 When configuring MADNESS with CMake, you must specify cache variables and the
 path to the MADNESS source directory. To specify a cache variable prefix it with
@@ -14,7 +14,7 @@ MADNESS outside the source tree. Boolean values for cache variables are
 considered true if the constant is 1, ON, YES, TRUE, Y, or a non-zero number; or
 false if the constant is 0, OFF, NO, FALSE, N, or IGNORE.
 
-# Toolchain files
+## Toolchain files
 
 MADNESS provides toolchain files for select systems. It is recommended that you
 use these files if provided as they contain the platform specific settings
@@ -31,7 +31,7 @@ For example, to specify the toolchain file for Mira:
 
 Additional cache variables may be specified. 
 
-# Compiler variables
+## Compiler variables
 
 The following CMake cache variables are used to specify the compilers, compiler
 flags, and linker flags.
@@ -56,7 +56,7 @@ are optional, and it is typically not necessary to specify these variables.
 * CMAKE_SHARED_LINKER_FLAGS --- Linker flags to be used to create shared 
       libraries.
 
-# Build options
+## Build options
 
 The following CMake cache variables turn MADNESS features on and off.
 
@@ -88,7 +88,7 @@ The following CMake cache variables turn MADNESS features on and off.
 * MADNESS_BUILD_MADWORLD_ONLY --- whether to build the MADNESS runtime only; if `ON`, discovery of BLAS/LAPACK
       and building of numerical components and applications will be disabled [default=`OFF`]
 
-# MADNESS Runtime and the Address Space Layout Randomization (ASLR)
+## MADNESS Runtime and the Address Space Layout Randomization (ASLR)
 
 ASLR is a standard technique for increasing platform security implemented by the OS kernel and/or
 the dynamic linker. By randomizing both where the shared libraries are loaded as well as (when enabled) the absolute
@@ -121,7 +121,7 @@ To make things more concrete, consider the following 2 scenarios:
       (with CMAKE_POSITION_INDEPENDENT_CODE=ON) and link them all together into a single module
       (same logic applies to shared libraries using MADNESS).
 
-# External libraries
+## External libraries
 
 The following CMake cache variables enable the use of external libraries with
 MADNESS. If the WITH_* variable is set to "ON" by default, failure to find the
@@ -153,7 +153,7 @@ search for specific dependencies. If the external library is not found in these
 given paths, or if the paths are not given, CMake will search the paths in 
 CMAKE_PREFIX_PATH as well as other system paths.
 
-# Intel Threading Building Blocks (TBB):
+## Intel Threading Building Blocks (TBB):
 
 * ENABLE_TBB --- Enables use of Intel TBB as the task scheduler [default=OFF]
 * TBB_ROOT_DIR --- The install prefix for TBB
@@ -166,7 +166,7 @@ CMAKE_PREFIX_PATH as well as other system paths.
 
 If TBB_ROOT_DIR is not given, it will be set to the value of the TBBROOT environment variable if it is set.
 
-# Intel Math Kernel Library (MKL):
+## Intel Math Kernel Library (MKL):
 
 * ENABLE_MKL --- Search for Intel MKL for BLAS and LAPACK support [default=ON]
 * MKL_ROOT_DIR --- The install prefix for MKL.
@@ -174,14 +174,14 @@ If TBB_ROOT_DIR is not given, it will be set to the value of the TBBROOT environ
 
 If MKL_ROOT_DIR is not given, it will be set to the value of the MKLROOT environment variable if it is set.
 
-# AMD Core Math Library (ACML):
+## AMD Core Math Library (ACML):
 
 * ENABLE_ACML --- Search for AMD math library for BLAS and LAPACK support
       [default=ON]
 * ACML_ROOT_DIR --- The install prefix for ACML.
 * ACML_LIBRARY --- The path to the ACML library directory.
 
-# Google Performance Tools (Gperftools):
+## Google Performance Tools (Gperftools):
 
 * ENABLE_GPERFTOOLS --- Enable use of gperftools, including tcmalloc.
       [default=OFF]
@@ -193,14 +193,14 @@ If MKL_ROOT_DIR is not given, it will be set to the value of the MKLROOT environ
 
 If GPERFTOOLS_ROOT_DIR is not given, it will be set to the value of the GPERFTOOLS_DIR environment variable if it is set.
 
-# Libunwind:
+## Libunwind:
 
 * ENABLE_LIBUNWIND --- Force detection of gperftools [default=OFF, i.e. Libunwind will be searched for when needed]
 * LIBUNWIND_DIR --- The install prefix for Libunwind.
 
 If LIBUNWIND_DIR is not given, it will be set to the value of the LIBUNWIND_DIR environment variable if it is set.
 
-# Library of Exchange-Correlation DFT functionals (LIBXC):
+## Library of Exchange-Correlation DFT functionals (LIBXC):
 
 * ENABLE_LIBXC --- Enables use of the libxc library of density functionals.
       [default=ON]
@@ -208,7 +208,7 @@ If LIBUNWIND_DIR is not given, it will be set to the value of the LIBUNWIND_DIR 
 * LIBXC_INCLUDE_DIR --- The path to the LIBXC include directory.
 * LIBXC_LIBRARY --- The path to the LIBXC library directory.
 
-# Polarizable Conitinuum Solver (PCM):
+## Polarizable Conitinuum Solver (PCM):
 
 * ENABLE_PCM --- Enables use of PCM
 * PCM_ROOT_DIR --- The install prefix for PCM 
@@ -221,14 +221,14 @@ madness/external/pcm.cmake
 madness/modules/FindPCM.cmake
 madness/src/apps/chem/CMakeLists.txt
 
-# Performance Application Programming Interface (PAPI):
+## Performance Application Programming Interface (PAPI):
 
 * ENABLE_PAPI --- Enables use of PAPI [default=OFF]
 * PAPI_ROOT_DIR --- The install prefix for PAPI.
 * PAPI_INCLUDE_DIR --- The path to the PAPI include directory.
 * PAPI_LIBRARY --- The path to the PAPI library directory.
 
-# Elemental parallel linear algebra library:
+## Elemental parallel linear algebra library:
 
 Elemental provides optional distributed-memory linear algebra for some MADNESS application codes.
 MADNESS source includes (modified) Elemental v0.84, which has been validated to work with
@@ -242,7 +242,7 @@ madness::initialize will call El::initialize() .
                     MADNESS (numerical codes of MADNESS will not use Elemental).
                     If not set, will use the included Elemental source.
 
-# Parallel Runtime Scheduling and Execution Controller (PaRSEC):
+## Parallel Runtime Scheduling and Execution Controller (PaRSEC):
 
 * ENABLE_PARSEC --- Enables use of PaRSEC as the task scheduler [default=OFF]. The use of Intel TBB should be disabled
                     to use PaRSEC.

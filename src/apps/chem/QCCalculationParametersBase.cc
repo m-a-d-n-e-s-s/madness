@@ -56,8 +56,11 @@ void QCCalculationParametersBase::read_input(World& world, const std::string fil
             std::ifstream f(filename.c_str());
             while (std::getline(f, line)) filecontents += line + "\n";
             read_internal(world, filecontents, tag);
-        } catch (madness::MadnessException& e) {
-            std::cout << "could not find " << tag << " in file " << filename << std::endl;
+        } catch (std::exception& e) {
+            std::cout << "error while reading " << tag << " in file " << filename << std::endl;
+//            std::string errmsg=std::string(e.what());
+            throw;
+
         }
     }
 	world.gop.broadcast_serializable(*this, 0);
@@ -122,7 +125,7 @@ void QCCalculationParametersBase::read_internal(World& world, std::string& filec
                     ::madness::print("found unknown key: ",key);
                     ::madness::print("in datagroup:      ",tag);
                 }
-                MADNESS_EXCEPTION("input error",1);
+                throw std::runtime_error("input error");
             }
             if ((not ignore_unknown_keys_silently)
                 and (world.rank()==0)) madness::print("ignoring unknown parameter in input file: ",key);
@@ -153,16 +156,16 @@ void QCCalculationParametersBase::read_internal(World& world, std::string& filec
 			success=try_setting_user_defined_value<std::vector<std::string> >(key,line1) or success;
 			success=try_setting_user_defined_value<std::pair<std::string,double> >(key,line1) or success;
 
-		} catch (std::runtime_error& e) {
+		} catch (std::exception& e) {
 			std::string errmsg="found an error for key >> "+key+" << \n" +e.what();
-			throw std::runtime_error(errmsg);
+            throw std::runtime_error(errmsg);
 		}
 		if (not success) {
 			madness::print("\n\ncould not assign the input parameter for key ",key);
 			std::string requested_type=get_parameter(key).get_type();
 			madness::print("\trequested type: ",requested_type,"\n");
 			madness::print("add the corresponding type to QCCalculationsParametersBase.h\n\n");
-			MADNESS_EXCEPTION("add the corresponding type to QCCalculationsParametersBase.h",1);
+			throw std::invalid_argument("add the corresponding type to QCCalculationsParametersBase.h");
 		}
 	}
 };

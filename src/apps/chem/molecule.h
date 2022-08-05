@@ -122,9 +122,10 @@ public:
                 read_input_and_commandline_options(world, parser, "geometry");
                 set_derived_values(parser);
 
-            } catch (...) {
+            } catch (std::exception& e) {
                 print("geometry","end");
-                MADNESS_EXCEPTION("faulty geometry input",1);
+                throw;
+//                MADNESS_EXCEPTION("faulty geometry input",1);
             }
         }
 
