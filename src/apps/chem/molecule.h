@@ -139,7 +139,8 @@ public:
             initialize<double>("eprec",1.e-4,"smoothing for the nuclear potential");
             initialize<std::string>("units","atomic","coordinate units",{"atomic","angstrom"});
             initialize<std::vector<double>>("field",{0.0,0.0,0.0},"external electric field");
-            initialize<bool>  ("no_orient",false,"if true the molecule coordinates will not be reoriented");
+            initialize<bool>  ("no_orient",false,"if true the molecule coordinates will not be reoriented and/or symmetrized");
+            initialize<double>  ("symtol",-1.e-2,"distance threshold for determining the symmetry-equivalent atoms; negative: old algorithm");
 
             initialize<std::string> ("core_type","none","core potential type",{"none","mpc"});
             initialize<bool> ("psp_calc",false,"pseudopotential calculation for all atoms");
@@ -216,6 +217,7 @@ public:
         bool psp_calc() const {return get<bool>("psp_calc");}
         bool pure_ae() const {return get<bool>("pure_ae");}
         bool no_orient() const {return get<bool>("no_orient");}
+        double symtol() const {return get<double>("symtol");}
 
         static std::string derive_source_type_from_name(const std::string name,
                                                         const commandlineparser& parser) {
@@ -233,9 +235,6 @@ private:
     std::vector<double> rcut;  // Reciprocal of the smoothing radius
     CorePotentialManager core_pot;
     madness::Tensor<double> field;
-
-    /// tolerance for determining the symmetry of a molecule
-    double symmetrytol = 1e-2;
 
     /// The molecular point group is automatically assigned in the identify_pointgroup function
     std::string pointgroup_="c1";

@@ -714,21 +714,25 @@ std::string Molecule::symmetrize_and_identify_point_group(const double symtol) {
     // C2 axes must be along the Cartesian axes and
     // mirror planes must be orthogonal to them
 
-    bool x_is_c2 = test_for_c2(1.0,0.0,0.0,symtol);
-    bool y_is_c2 = test_for_c2(0.0,1.0,0.0,symtol);
-    bool z_is_c2 = test_for_c2(0.0,0.0,1.0,symtol);
-    bool xy_is_sigma = test_for_sigma(0.0,0.0,1.0,symtol);
-    bool xz_is_sigma = test_for_sigma(0.0,1.0,0.0,symtol);
-    bool yz_is_sigma = test_for_sigma(1.0,0.0,0.0,symtol);
-    bool inverse = test_for_inverse(symtol);
+    bool x_is_c2 = test_for_c2(1.0,0.0,0.0,fabs(symtol));
+    bool y_is_c2 = test_for_c2(0.0,1.0,0.0,fabs(symtol));
+    bool z_is_c2 = test_for_c2(0.0,0.0,1.0,fabs(symtol));
+    bool xy_is_sigma = test_for_sigma(0.0,0.0,1.0,fabs(symtol));
+    bool xz_is_sigma = test_for_sigma(0.0,1.0,0.0,fabs(symtol));
+    bool yz_is_sigma = test_for_sigma(1.0,0.0,0.0,fabs(symtol));
+    bool inverse = test_for_inverse(fabs(symtol));
 
-    if (x_is_c2) symmetrize_for_op(apply_c2(1.0,0.0,0.0), symtol);
-    if (y_is_c2) symmetrize_for_op(apply_c2(0.0,1.0,0.0), symtol);
-    if (z_is_c2) symmetrize_for_op(apply_c2(0.0,0.0,1.0), symtol);
-    if (xy_is_sigma) symmetrize_for_op(apply_sigma(0.0,0.0,1.0),symtol);
-    if (xz_is_sigma) symmetrize_for_op(apply_sigma(0.0,1.0,0.0),symtol);
-    if (yz_is_sigma) symmetrize_for_op(apply_sigma(1.0,0.0,0.0),symtol);
-    if (inverse) symmetrize_for_op(apply_inverse(0.0,0.0,0.0),symtol);
+    // this is stupid, but necessary for backwards compatibility
+    // FIXME SYMTOL
+    if (symtol>0.0) {
+        if (x_is_c2) symmetrize_for_op(apply_c2(1.0,0.0,0.0), symtol);
+        if (y_is_c2) symmetrize_for_op(apply_c2(0.0,1.0,0.0), symtol);
+        if (z_is_c2) symmetrize_for_op(apply_c2(0.0,0.0,1.0), symtol);
+        if (xy_is_sigma) symmetrize_for_op(apply_sigma(0.0,0.0,1.0),symtol);
+        if (xz_is_sigma) symmetrize_for_op(apply_sigma(0.0,1.0,0.0),symtol);
+        if (yz_is_sigma) symmetrize_for_op(apply_sigma(1.0,0.0,0.0),symtol);
+        if (inverse) symmetrize_for_op(apply_inverse(0.0,0.0,0.0),symtol);
+    }
 
     /*
       .   (i,c,s)
@@ -843,7 +847,7 @@ void Molecule::orient(bool verbose) {
 
     if (verbose) {
 		// Try to resolve degenerate rotations
-		double symtol = symmetrytol;
+		double symtol = fabs(parameters.symtol());
 		if (fabs(e[0]-e[1])<symtol && fabs(e[1]-e[2])<symtol) {
 			madness::print("Cubic point group");
 		}
@@ -864,9 +868,11 @@ void Molecule::orient(bool verbose) {
     // Now hopefully have mirror planes and C2 axes correctly oriented
     // Figure out what elements are actually present and enforce
     // conventional ordering
-    pointgroup_= symmetrize_and_identify_point_group(symmetrytol);
-    std::string pointgroup_tight= symmetrize_and_identify_point_group(1.e-12);
-    MADNESS_CHECK(pointgroup_tight==pointgroup_);
+    pointgroup_= symmetrize_and_identify_point_group(parameters.symtol());
+    if (parameters.symtol()>0.0) {
+        std::string pointgroup_tight= symmetrize_and_identify_point_group(1.e-12);
+        MADNESS_CHECK(pointgroup_tight==pointgroup_);
+    }
 }
 
 /// rotates the molecule and the external field
