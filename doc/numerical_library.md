@@ -35,7 +35,7 @@ target_link_libraries(yourbinary madness)
 
 In file `main.cpp`:
 ````c
-#define USE_GENTENSOR 1` // only needed if madness was configured with `-D ENABLE_GENTENSOR=1
+#define USE_GENTENSOR 1 // only needed if madness was configured with `-D ENABLE_GENTENSOR=1
 #include <madness.h>
 using namespace madness;
 int main(int argc, char* argv[]) {
@@ -43,9 +43,10 @@ int main(int argc, char* argv[]) {
     startup(world,argc,argv,true);
     FunctionDefaults<1>::set_cubic_cell(-10,10);
     FunctionDefaults<1>::set_k(8);
+    FunctionDefaults<1>::set_thresh(1.e-5);
     try {
-        auto functor=[](const Vector<double,1>& r){return exp(-r[0]*r[0]);};
-        Function<double,1> f=FunctionFactory<double,1>(world).f(functor);
+        auto gaussian=[](const Vector<double,1>& r){return exp(-r[0]*r[0]);};
+        Function<double,1> f=FunctionFactory<double,1>(world).f(gaussian);
         double I=f.trace();
         std::cout << "trace(exp(-r^2) " << I << std::endl;
     } catch (...) {
@@ -101,6 +102,13 @@ to the dimensions.
 Sets the wavelet order to 8. Anything between 2 and 30 will work, the optimal choice depends 
 on the specific problem, 8 is usually a good guess.
 
+````
+    FunctionDefaults<1>::set_thresh(1.e-5);
+````
+
+Sets the precision threshold to $\epsilon=10^{-5}$ in the $L^2$ norm.
+Unless the function is singular or has other pathological features the threshold will be met. It is always 
+possible to tighten the threshold to secure more digits.
 
 ````
     try {
