@@ -472,8 +472,8 @@ void set_excited_parameters(ResponseParameters &r_params, const std::string &xc,
     }
     r_params.set_user_defined_value("archive", std::string("../restartdata"));
     r_params.set_user_defined_value("maxiter", size_t(15));
-    r_params.set_user_defined_value("maxsub",
-                                    size_t(10));// if its too large then bad guess is very strong
+    r_params.set_user_defined_value("maxsub", size_t(10));
+    // if its too large then bad guess is very strong
     r_params.set_user_defined_value("kain", true);
     r_params.set_user_defined_value("plot_all_orbitals", false);
     r_params.set_user_defined_value("save", true);
@@ -507,7 +507,7 @@ void set_frequency_response_parameters(ResponseParameters &r_params, const std::
     }
     r_params.set_user_defined_value("archive", std::string("../restartdata"));
     r_params.set_user_defined_value("maxiter", size_t(30));
-    r_params.set_user_defined_value("maxsub", size_t(10));
+    r_params.set_user_defined_value("maxsub", size_t(5));
     r_params.set_user_defined_value("kain", true);
     r_params.set_user_defined_value("omega", frequency);
     r_params.set_user_defined_value("first_order", true);
