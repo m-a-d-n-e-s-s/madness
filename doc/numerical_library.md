@@ -14,6 +14,16 @@ practiced by example.
  * `nonlinschro.cc`: use the KAIN solver for accelerating the solution of a system of non-linear equations
  * `hedft.cc`: use density functional theory 
 
+Useful examples can be found in the src/examples directory, where the use of the numerical library can be practiced by example.
+- sininteg.cc: Create a function and integrate
+- hatom_energy.cc: Compute the energy of the hydrogen atom
+- heat.cc: apply the Greens function to the heat equation
+- 3dharmonic.cc: solve the 3D harmonic oscillator
+- h2.cc: solve the Hartree-Fock equations for the H2 molecule
+- nonlinschro.cc: use the KAIN solver for accelerating the solution of a system of non-linear equations
+- hedft.cc: use density functional theory
+
+
 ## Example for MADNESS as an external library
 To use MADNESS as an external library in a code we recommend cmake. Build and install MADNESS to 
 an install directory. Set
