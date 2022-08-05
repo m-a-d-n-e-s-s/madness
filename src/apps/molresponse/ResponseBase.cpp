@@ -984,32 +984,38 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
     }
 
     // Intermediaries
+    world.gop.fence();
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
+    world.gop.fence();
     auto k = [&](const vector_real_function_3d &xi) {
-        return newK(phi0_copy, phi0_copy, const_cast<vecfuncT &>(xi));
+        world.gop.fence();
+        return newK(phi0_copy, phi0_copy, xi);
     };
 
+    world.gop.fence();
     // If including any exact HF exchange
+    /*
     if (xcf.hf_exchange_coefficient() != 0.0) {
         std::transform(Chi_copy.X.begin(), Chi_copy.X.end(), K0.X.begin(), k);
         if (compute_Y) {
             std::transform(Chi_copy.Y.begin(), Chi_copy.Y.end(), K0.Y.begin(), k);
         } else {
             K0.Y = K0.X.copy();
+            world.gop.fence();
         }
     }
+     */
 
-    /*
     int b = 0;
-    for (auto &k0x: K0.X) { k0x = exchangeHF(phi0_copy, phi0_copy, Chi_copy.X[b++]); }
+    for (auto &k0x: K0.X) { k0x = newK(phi0_copy, phi0_copy, Chi_copy.X[b++]); }
     if (compute_Y) {
-        for (auto &k0y: K0.Y) { k0y = exchangeHF(phi0_copy, phi0_copy, Chi_copy.Y[b++]); }
+        b = 0;
+        for (auto &k0y: K0.Y) { k0y = newK(phi0_copy, phi0_copy, Chi_copy.Y[b++]); }
     } else {
         K0.Y = K0.X.copy();
     }
-     */
 
 
     if (r_params.print_level() >= 20) { print_inner(world, "xK0x", Chi_copy, K0); }

@@ -19,7 +19,7 @@ namespace madness {
         return mX;
     }
 
-    auto to_Xspace(const response_matrix& x) -> X_space {
+    auto to_X_space(const response_matrix& x) -> X_space {
 
         World& world = x[0][0].world();
 
@@ -29,16 +29,15 @@ namespace madness {
 
         int b = 0;
         std::for_each(x.begin(), x.end(), [&](auto x_vec) {
-            auto norm_vi = norm2(world, x_vec);
-            if (world.rank() == 0) { print("norm in xvec i", norm_vi); }
-
+            //auto norm_vi = norm2(world, x_vec);
+            //if (world.rank() == 0) { print("norm in xvec i", norm_vi); }
             std::copy(x_vec.begin(), x_vec.begin() + num_orbitals, x_space.X[b].begin());
             std::copy(x_vec.begin() + num_orbitals, x_vec.end(), x_space.Y[b].begin());
             b++;
         });
 
-        auto norms = x_space.norm2s();
-        if (world.rank() == 0) { print("norms after copy ", norms); }
+        //  auto norms = x_space.norm2s();
+        // if (world.rank() == 0) { print("norms after copy ", norms); }
 
 
         return x_space;

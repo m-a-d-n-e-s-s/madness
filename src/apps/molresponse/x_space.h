@@ -16,7 +16,7 @@
 namespace madness {
     struct X_space;
     auto to_response_matrix(const X_space& x) -> response_matrix;
-    auto to_Xspace(const response_matrix& x) -> X_space;
+    auto to_X_space(const response_matrix& x) -> X_space;
     struct X_space {
     private:
         size_t n_states;  // Num. of resp. states
@@ -48,15 +48,15 @@ namespace madness {
         /// Works in either basis.  Different distributions imply
         /// asynchronous communication and the optional fence is
         /// collective.
-        X_space copy(const std::shared_ptr<WorldDCPmapInterface<Key<3>>>& pmap,
-                     bool fence = false) const {
+        auto copy(const std::shared_ptr<WorldDCPmapInterface<Key<3>>>& pmap,
+                     bool fence = false) const -> X_space {
             X_space copyX(X[0][0].world(), n_states, n_orbitals);
             copyX.X = X.copy(pmap, fence);
             copyX.Y = Y.copy(pmap, fence);
             return copyX;
         }
         // assignment
-        X_space& operator=(const X_space& B) {
+        auto operator=(const X_space& B) -> X_space& {
             if (this != &B) {// is it the same object?
                 this->n_states = B.num_states();
                 this->n_orbitals = B.num_orbitals();
@@ -84,7 +84,7 @@ namespace madness {
             X.clear();
             Y.clear();
         }
-        auto operator+(const X_space B) -> X_space {
+        auto operator+(const X_space& B) -> X_space {
             MADNESS_ASSERT(same_size(*this, B));
             World& world = this->X[0][0].world();
 
@@ -96,10 +96,10 @@ namespace madness {
             std::transform(ax.begin(), ax.end(), bx.begin(), add_x.begin(),
                            [&](auto a, auto b) { return add(world, a, b); });
 
-            return to_Xspace(add_x);
+            return to_X_space(add_x);
         }
 
-        X_space& operator+=(const X_space B) {
+        auto operator+=(const X_space& B) -> X_space& {
             MADNESS_ASSERT(same_size(*this, B));
             this->X += B.X;
             this->Y += B.Y;
@@ -143,7 +143,7 @@ namespace madness {
             std::transform(ax.begin(), ax.end(), bx.begin(), add_x.begin(),
                            [&](auto a, auto b) { return add(world, a, b); });
 
-            return to_Xspace(add_x);
+            return to_X_space(add_x);
 
             result.X = A.X + B.X;
             result.Y = A.Y + B.Y;
