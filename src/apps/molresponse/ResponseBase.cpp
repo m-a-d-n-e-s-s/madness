@@ -1099,7 +1099,7 @@ auto ResponseBase::compute_residual(World &world, const X_space &chi, const X_sp
 
     if (r_params.print_level() >= 5) {
         int j = 0;
-        auto res_vec = joinXY(res);
+        auto res_vec = to_response_matrix(res);
         for (const auto &xi: res_vec) {
             auto res_b_norms = std::vector<double>{};
             for (const auto &xij: xi) res_b_norms.push_back(xij.norm2());
