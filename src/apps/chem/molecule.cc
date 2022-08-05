@@ -634,10 +634,11 @@ void Molecule::center() {
 
 template <typename opT>
 bool Molecule::test_for_op(opT op, const double symtol) const {
+    // all atoms must have a symmetry-equivalent partner
     for (unsigned int i=0; i<atoms.size(); ++i) {
-        if (find_symmetry_equivalent_atom(i,op,symtol)>-1) return true;
+        if (find_symmetry_equivalent_atom(i,op,symtol)==-1) return false;
     }
-    return false;
+    return true;
 }
 
 

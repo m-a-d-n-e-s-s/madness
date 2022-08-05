@@ -189,7 +189,7 @@ SCF::SCF(World& world, const commandlineparser& parser) : param(CalculationParam
             molecule.read_core_file(molecule.parameters.core_type());
         }
 
-        if (not molecule.parameters.no_orient()) molecule.orient();
+//        if (not molecule.parameters.no_orient()) molecule.orient();
 
         //account for nwchem aobasis generation
         if (param.nwfile() == "none") reset_aobasis(param.aobasis());
