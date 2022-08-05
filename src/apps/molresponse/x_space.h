@@ -14,6 +14,9 @@
 #include "molresponse/response_functions.h"
 
 namespace madness {
+    struct X_space;
+    auto to_response_matrix(const X_space& x) -> response_matrix;
+    auto to_Xspace(const response_matrix& x) -> X_space;
     struct X_space {
     private:
         size_t n_states;  // Num. of resp. states
@@ -81,13 +84,19 @@ namespace madness {
             X.clear();
             Y.clear();
         }
-        X_space operator+(const X_space B) {
+        auto operator+(const X_space B) -> X_space {
             MADNESS_ASSERT(same_size(*this, B));
             World& world = this->X[0][0].world();
-            X_space result(world, n_states, n_orbitals);
-            result.X = X + B.X;
-            result.Y = Y + B.Y;
-            return result;
+
+            auto ax = to_response_matrix(*this);
+            auto bx = to_response_matrix(B);
+
+            response_matrix add_x(num_states());
+
+            std::transform(ax.begin(), ax.end(), bx.begin(), add_x.begin(),
+                           [&](auto a, auto b) { return add(world, a, b); });
+
+            return to_Xspace(add_x);
         }
 
         X_space& operator+=(const X_space B) {
@@ -120,11 +129,21 @@ namespace madness {
             if (n_states == 0) { n_orbitals = 0; }
         }
 
-        friend X_space operator+(const X_space& A, const X_space& B) {
+        friend auto operator+(const X_space& A, const X_space& B) -> X_space {
             MADNESS_ASSERT(same_size(A, B));
 
             World& world = A.X[0][0].world();
             X_space result(world, A.n_states, A.n_orbitals);// create zero_functions
+
+            auto ax = to_response_matrix(A);
+            auto bx = to_response_matrix(B);
+
+            response_matrix add_x(A.num_states());
+
+            std::transform(ax.begin(), ax.end(), bx.begin(), add_x.begin(),
+                           [&](auto a, auto b) { return add(world, a, b); });
+
+            return to_Xspace(add_x);
 
             result.X = A.X + B.X;
             result.Y = A.Y + B.Y;
@@ -233,7 +252,6 @@ namespace madness {
         }
     };
 
-    auto joinXY(const X_space& x) -> response_matrix;
     // but the solver needs the functions initialized to zero for which we also need
     // the world object.
 
@@ -268,6 +286,7 @@ namespace madness {
         }
         auto operator+=(const X_vector& B) -> X_vector& {
             MADNESS_ASSERT(same_size(*this, B));
+
 
             this->X += B.X;
             this->Y += B.Y;

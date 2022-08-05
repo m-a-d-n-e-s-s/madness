@@ -6,7 +6,7 @@
 #include "response_functions.h"
 
 namespace madness {
-    auto joinXY(const X_space& x) -> response_matrix {
+    auto to_response_matrix(const X_space& x) -> response_matrix {
         World& world = x.X[0][0].world();
         auto mX = response_matrix(x.num_states());
         int b = 0;
@@ -17,6 +17,31 @@ namespace madness {
             b++;
         }
         return mX;
+    }
+
+    auto to_Xspace(const response_matrix& x) -> X_space {
+
+        World& world = x[0][0].world();
+
+        auto num_states = x.size();
+        auto num_orbitals = size_t(x[0].size() / 2);
+        auto x_space = X_space(world, num_states, num_orbitals);
+
+        int b = 0;
+        std::for_each(x.begin(), x.end(), [&](auto x_vec) {
+            auto norm_vi = norm2(world, x_vec);
+            if (world.rank() == 0) { print("norm in xvec i", norm_vi); }
+
+            std::copy(x_vec.begin(), x_vec.begin() + num_orbitals, x_space.X[b].begin());
+            std::copy(x_vec.begin() + num_orbitals, x_vec.end(), x_space.Y[b].begin());
+            b++;
+        });
+
+        auto norms = x_space.norm2s();
+        if (world.rank() == 0) { print("norms after copy ", norms); }
+
+
+        return x_space;
     }
 
     auto transposeResponseMatrix(const response_matrix& x) -> response_matrix {
@@ -39,8 +64,8 @@ namespace madness {
 
         long size = static_cast<long>(A.n_states);
 
-        auto a = joinXY(A);
-        auto b = joinXY(B);
+        auto a = to_response_matrix(A);
+        auto b = to_response_matrix(B);
 
         World& world = a[0][0].world();
 
