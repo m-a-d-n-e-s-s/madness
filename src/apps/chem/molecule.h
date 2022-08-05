@@ -137,7 +137,7 @@ public:
             initialize<std::string>("source_type","inputfile","where to get the coordinates from",{"inputfile","xyz","library"});
             initialize<std::string>("source_name","TBD","name of the geometry from the library or the input file");
             initialize<double>("eprec",1.e-4,"smoothing for the nuclear potential");
-            initialize<std::string>("units","atomic","coordinate units",{"atomic","angstrom"});
+            initialize<std::string>("units","atomic","coordinate units",{"atomic","angstrom","bohr","au"});
             initialize<std::vector<double>>("field",{0.0,0.0,0.0},"external electric field");
             initialize<bool>  ("no_orient",false,"if true the molecule coordinates will not be reoriented and/or symmetrized");
             initialize<double>  ("symtol",-1.e-2,"distance threshold for determining the symmetry-equivalent atoms; negative: old algorithm");
@@ -206,6 +206,7 @@ public:
 //            }
 
             if (source_type()=="xyz") set_derived_value("units",std::string("angstrom"));
+            if (units()=="bohr" or units()=="au") set_derived_value("units","atomic");
         }
 
         std::string source_type() const {return get<std::string>("source_type");}
