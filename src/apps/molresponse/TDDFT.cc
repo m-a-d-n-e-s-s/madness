@@ -284,19 +284,19 @@ void TDDFT::normalize(World &world, response_space &f, response_space &g) {
     }
 }
 
-void TDDFT::normalize(World &world, X_space &Chi) {
+void TDDFT::normalize(World &world, X_space &chi) {
     // Run over rows
-    for (size_t i = 0; i < Chi.num_states(); i++) {
+    for (size_t i = 0; i < chi.num_states(); i++) {
         // Get the normalization constant
         // (Sum included inside inner)
-        double normf = inner(Chi.X[i], Chi.X[i]);
-        double normg = inner(Chi.Y[i], Chi.Y[i]);
+        double normf = inner(chi.X[i], chi.X[i]);
+        double normg = inner(chi.Y[i], chi.Y[i]);
         double norm = sqrt(normf - normg);
         // Doing this to deal with zero functions.
         // Maybe not smrt.
         if (norm == 0) continue;
-        Chi.X[i] = Chi.X[i] * (1.0 / norm);
-        Chi.Y[i] = Chi.Y[i] * (1.0 / norm);
+        chi.X[i] = chi.X[i] * (1.0 / norm);
+        chi.Y[i] = chi.Y[i] * (1.0 / norm);
     }
 }
 

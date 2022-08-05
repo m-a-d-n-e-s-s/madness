@@ -195,7 +195,7 @@ class TDDFT {
   // Normalizes in the response sense
   void normalize(World& world, response_space& f, response_space& g);
   // Normalize X_space xx-yy=1
-  void normalize(World& world, X_space& Chi);
+  void normalize(World& world, X_space& chi);
 
   // Prints norms of the given vector
   void print_norms(World& world, response_space function);
