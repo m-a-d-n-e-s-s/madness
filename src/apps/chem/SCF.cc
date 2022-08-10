@@ -2169,9 +2169,11 @@ void SCF::solve(World& world) {
                     // write eigenvalues etc to a file at the same time for plotting DOS etc.
                     FILE *f = 0;
                     if (param.nbeta() != 0 && !param.spin_restricted()) {
-                        f = fopen("energies_alpha.dat", "w");
+                        std::string name=std::string(param.prefix()+".energies_alpha.dat");
+                        f = fopen(name.c_str(), "w");
                     } else {
-                        f = fopen("energies.dat", "w");
+                        std::string name=param.prefix()+".energies.dat";
+                        f = fopen(name.c_str(), "w");
                     }
 
                     long nmo = amo.size();
@@ -2184,7 +2186,8 @@ void SCF::solve(World& world) {
                     if (param.nbeta() != 0 && !param.spin_restricted()) {
                         long nmo = bmo.size();
                         FILE *f = 0;
-                        f = fopen("energies_beta.dat", "w");
+                        std::string name=param.prefix()+".energies_beta.dat";
+                        f = fopen(name.c_str(), "w");
 
                         fprintf(f, "# %8li\n", nmo);
                         for (long i = 0; i < nmo; ++i) {
