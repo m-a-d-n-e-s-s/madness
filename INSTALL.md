@@ -1,35 +1,27 @@
 ## Introduction
 
-When configuring MADNESS with CMake, you must specify cache variables and the
-path to the MADNESS source directory. To specify a cache variable prefix it with
-the -D command line flag and set it equal to the desired value (see below for a
-valid cache variables). For example, to specify the C/C++ compilers
+MADNESS uses CMake to configure the build. Assuming that necessary prerequisites (below) are installed on your system in default locations and the source has been downloaded into the directory `/path/to/madness/source`, you can make a directory (outside the source tree) to build in and configure the build as follows
+```
+mkdir build
+cd build
+cmake /path/to/madness/source
+make 
+```
+The default make target builds only the numerical library and underlying runtime.  To build applications (e.g., `moldft`, `nemo`) specify this on the make command.  The target `everything` does what you expect. You can run executables and use libraries from the build directory, but to install into the default location (`/usr`) just use `make install`.
 
-    $ cmake -D CMAKE_C_COMPILER=gcc -D CMAKE_CXX_COMPILER=g++ \
-        /path/to/madness/source
-
-The resulting build directory will be the current working directory specified
-where the CMake command it run. It is recommended that you configure and build
-MADNESS outside the source tree. Boolean values for cache variables are 
+If prerequiste libraries are not in default locations or you wish to override defaults, you may have to set CMAke cache variables as described below.  For instance, to build a debug version, without MPI, and with installation in `/home/me/madinstall`
+```
+cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_MPI=OFF -DCMAKE_INSTALL_PREFIX=/home/me/madinstall /path/to/madness/source
+make
+make install
+```
+Boolean values for cache variables are 
 considered true if the constant is 1, ON, YES, TRUE, Y, or a non-zero number; or
 false if the constant is 0, OFF, NO, FALSE, N, or IGNORE.
 
-## Toolchain files
+The below summarizes some of the most useful CMake variables.\
 
-MADNESS provides toolchain files for select systems. It is recommended that you
-use these files if provided as they contain the platform specific settings
-neccessary to build on the given platform. The toolchain files are included wiht
-the MADNESS source in the cmake/toolchains directory.
-
-* CMAKE_TOOLCHAIN_FILE --- Specifies the path (including the file name) to the
-      toolchain file.
-
-For example, to specify the toolchain file for Mira:
-
-    $ cmake -D CMAKE_TOOLCHAIN_FILE=/path/to/madness/source/cmake/toolchains/mira-gcc-essl.cmake \
-        /path/to/madness/source
-
-Additional cache variables may be specified. 
+**RJH stopped editing here**
 
 ## Compiler variables
 
@@ -38,12 +30,9 @@ flags, and linker flags.
 
 * CMAKE_C_COMPILER --- C compiler [default=search]
 * CMAKE_CXX_COMPILER --- C++ compiler [default=search]
-* CMAKE_ASM_COMPILER --- Assembly compiler (set only if required) 
-      [default=search]
-* MPI_CXX_COMPILER --- MPI C++ compiler wrapper (required if ENABLE_MPI=ON) 
-      [default=search]
-* MPI_C_COMPILER --- MPI C compiler wrapper (required if ENABLE_MPI=ON) 
-      [default=search]
+* CMAKE_ASM_COMPILER --- Assembly compiler [default=search]
+* MPI_CXX_COMPILER --- MPI C++ compiler wrapper [default=search]
+* MPI_C_COMPILER --- MPI C compiler wrapper [default=search]
       
 You can specify compile flags with the following variables. These cache variables
 are optional, and it is typically not necessary to specify these variables.
@@ -58,8 +47,9 @@ are optional, and it is typically not necessary to specify these variables.
 
 ## Build options
 
-The following CMake cache variables turn MADNESS features on and off.
+The following CMake cache variables turn features on and off.
 
+* CMAKE_BUILD_TYPE --- Debug or Release
 * ENABLE_GENTENSOR --- Enable generic tensors; only useful if need
                        compressed 6-d tensors, e.g. in MP2 [default=OFF]
 * ENABLE_TASK_PROFILER - Enable task profiler that collects per-task start and 
@@ -248,3 +238,21 @@ madness::initialize will call El::initialize() .
                     to use PaRSEC.
 
 If ENABLE_PARSEC is set but PaRSEC is not found, it will be built from source.
+    
+## Toolchain files
+
+**Use of these files is now deprecated --- it should work without.**  However, they can be useful if all else fails.
+
+MADNESS provides toolchain files for select systems. It is recommended that you
+use these files if provided as they contain the platform specific settings
+neccessary to build on the given platform. The toolchain files are included wiht
+the MADNESS source in the cmake/toolchains directory.
+
+* CMAKE_TOOLCHAIN_FILE --- Specifies the path (including the file name) to the
+      toolchain file.
+
+For example, to specify the toolchain file for Mira:
+
+    $ cmake -D CMAKE_TOOLCHAIN_FILE=/path/to/madness/source/cmake/toolchains/mira-gcc-essl.cmake \
+        /path/to/madness/source
+    
