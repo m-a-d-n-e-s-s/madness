@@ -357,6 +357,9 @@ bool test_not_allowed(World& world) {
 
 
 		found_exception=false;
+    } catch (std::invalid_argument& err) {
+        std::string errmsg=std::string(err.what()).substr(0,30);
+        test_same(errmsg,std::string("\ntrying to assign a value that"));
 	} catch (std::runtime_error& err) {
 		std::string errmsg=std::string(err.what()).substr(0,30);
 		test_same(errmsg,std::string("found an error for key >> loca"));
