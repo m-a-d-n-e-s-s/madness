@@ -194,7 +194,7 @@ SCF::SCF(World& world, const commandlineparser& parser) : param(CalculationParam
         //account for nwchem aobasis generation
         if (param.nwfile() == "none") reset_aobasis(param.aobasis());
         else aobasis.read_nw_file(param.nwfile());
-        param.set_derived_values(molecule, aobasis);
+        param.set_derived_values(molecule, aobasis, parser);
 
     }
     world.gop.broadcast_serializable(molecule, 0);

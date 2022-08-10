@@ -238,7 +238,10 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	}
 
 
-	void set_derived_values(const Molecule& molecule, const AtomicBasisSet& aobasis) {
+	void set_derived_values(const Molecule& molecule, const AtomicBasisSet& aobasis, const commandlineparser& parser) {
+        std::string inputfile=parser.value("input");
+        std::string prefix=commandlineparser::remove_extension(commandlineparser::base_name(inputfile));
+        if (prefix!="input") set_derived_value("prefix",prefix);
 
         for (size_t iatom = 0; iatom < molecule.natom(); iatom++) {
             if (molecule.get_pseudo_atom(iatom)){

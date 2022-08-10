@@ -61,7 +61,7 @@ struct commandlineparser {
         keyval[tolower(key)]=tolower(value);
     }
 
-private:
+public:
     /// make lower case
     static std::string tolower(std::string s) {
         std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c){ return std::tolower(c); });
@@ -102,6 +102,17 @@ private:
         str2.erase(std::remove_if(str2.begin(), str2.end(),
                                   [](unsigned char x){return std::isspace(x);}),str2.end());
         return str2;
+    }
+
+    static std::string base_name(std::string const & path, std::string const & delims = "/")
+    {
+        return path.substr(path.find_last_of(delims) + 1);
+    }
+
+    static std::string remove_extension(std::string const & filename)
+    {
+        std::size_t p=filename.find_last_of('.');
+        return p > 0 && p != std::string::npos ? filename.substr(0, p) : filename;
     }
 
 };
