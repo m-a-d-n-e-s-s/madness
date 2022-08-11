@@ -61,6 +61,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	/// ctor reading out the input file
 	CalculationParameters() {
 
+        initialize<std::string>("prefix","mad","prefixes your output/restart/json/plot/etc files");
 		initialize<double>("charge",0.0,"total molecular charge");
 		initialize<std::string> ("xc","hf","XC input line");
 		initialize<double>("smear",0.0,"smearing parameter");
@@ -134,6 +135,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	public:
 	using QCCalculationParametersBase::read_input_and_commandline_options;
 
+    std::string prefix() const {return get<std::string>("prefix");}
 
 	double econv() const {return get<double>("econv");}
 	double dconv() const {return get<double>("dconv");}
@@ -236,7 +238,10 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	}
 
 
-	void set_derived_values(const Molecule& molecule, const AtomicBasisSet& aobasis) {
+	void set_derived_values(const Molecule& molecule, const AtomicBasisSet& aobasis, const commandlineparser& parser) {
+        std::string inputfile=parser.value("input");
+        std::string prefix=commandlineparser::remove_extension(commandlineparser::base_name(inputfile));
+        if (prefix!="input") set_derived_value("prefix",prefix);
 
         for (size_t iatom = 0; iatom < molecule.natom(); iatom++) {
             if (molecule.get_pseudo_atom(iatom)){

@@ -51,19 +51,23 @@ std::string QCCalculationParametersBase::print_to_string(bool non_defaults_only)
 void QCCalculationParametersBase::read_input(World& world, const std::string filename, const std::string tag) {
 
 	std::string filecontents, line;
+    std::string errmsg;
 	if (world.rank()==0) {
         try {
             std::ifstream f(filename.c_str());
             while (std::getline(f, line)) filecontents += line + "\n";
             read_internal(world, filecontents, tag);
-        } catch (std::exception& e) {
-            std::cout << "error while reading " << tag << " in file " << filename << std::endl;
-//            std::string errmsg=std::string(e.what());
+        } catch (std::invalid_argument& e) {
+            errmsg=e.what();
             throw;
-
+        } catch (std::exception& e) {
+            std::stringstream ss;
+            ss << "could not read data group >>" << tag << "<< in file " << filename << std::endl;
+            errmsg=ss.str();
         }
     }
 	world.gop.broadcast_serializable(*this, 0);
+    if (errmsg.size()>0) throw std::runtime_error(errmsg);
 }
 
 /// read the parameters from the command line and broadcast
@@ -156,6 +160,8 @@ void QCCalculationParametersBase::read_internal(World& world, std::string& filec
 			success=try_setting_user_defined_value<std::vector<std::string> >(key,line1) or success;
 			success=try_setting_user_defined_value<std::pair<std::string,double> >(key,line1) or success;
 
+        } catch (std::invalid_argument& e) {
+            throw;
 		} catch (std::exception& e) {
 			std::string errmsg="found an error for key >> "+key+" << \n" +e.what();
             throw std::runtime_error(errmsg);

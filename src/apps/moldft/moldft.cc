@@ -91,27 +91,13 @@ int main(int argc, char **argv) {
                 SCF::print_parameters();
 
             } else {
+                if (world.rank() == 0) print("input filename: ", parser.value("input"));
 
 
                 print_meminfo(world.rank(), "startup");
                 FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3> >(world)));
 
                 std::cout.precision(6);
-
-                // Process 0 reads input information and broadcasts
-                const char *inpname = "input";
-                for (int i = 1; i < argc; i++) {
-                    if (argv[i][0] != '-') {
-                        inpname = argv[i];
-                        break;
-                    }
-                }
-                std::string sinpname(inpname);
-                parser.set_keyval("input", sinpname);
-                if (world.rank() == 0) print("input filename: ", inpname);
-                if (!file_exists(inpname)) {
-                    throw "input file not found!";
-                }
                 SCF calc(world, parser);
 
                 // Warm and fuzzy for the user

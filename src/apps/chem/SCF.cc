@@ -194,7 +194,7 @@ SCF::SCF(World& world, const commandlineparser& parser) : param(CalculationParam
         //account for nwchem aobasis generation
         if (param.nwfile() == "none") reset_aobasis(param.aobasis());
         else aobasis.read_nw_file(param.nwfile());
-        param.set_derived_values(molecule, aobasis);
+        param.set_derived_values(molecule, aobasis, parser);
 
     }
     world.gop.broadcast_serializable(molecule, 0);
@@ -229,7 +229,8 @@ void SCF::copy_data(World& world, const SCF& other) {
 
 void SCF::save_mos(World& world) {
     PROFILE_MEMBER_FUNC(SCF);
-    archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, "restartdata", param.get<int>("nio"));
+    auto archivename=param.prefix()+".restartdata";
+    archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, archivename.c_str(), param.get<int>("nio"));
     // IF YOU CHANGE ANYTHING HERE MAKE SURE TO UPDATE THIS VERSION NUMBER
     /*
      * After spin restricted
@@ -259,7 +260,7 @@ void SCF::save_mos(World& world) {
         tensorT Saoamo = matrix_inner(world, ao, amo);
         tensorT Saobmo = (!param.spin_restricted()) ? matrix_inner(world, ao, bmo) : tensorT();
         if (world.rank() == 0) {
-            archive::BinaryFstreamOutputArchive arao("restartaodata");
+            archive::BinaryFstreamOutputArchive arao(param.prefix()+".restartaodata");
             arao << Saoamo << aeps << aocc << aset;
             if (!param.spin_restricted()) arao << Saobmo << beps << bocc << bset;
         }
@@ -277,7 +278,7 @@ void SCF::load_mos(World& world) {
     amo.clear();
     bmo.clear();
 
-    archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, "restartdata");
+    archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, param.prefix()+".restartdata");
 
     /*
       File format:
@@ -590,7 +591,7 @@ bool SCF::restart_aos(World& world) {
     bool OK = true;
     if (world.rank() == 0) {
         try {
-            archive::BinaryFstreamInputArchive arao("restartaodata");
+            archive::BinaryFstreamInputArchive arao(param.prefix()+".restartaodata");
             arao >> Saoamo >> aeps >> aocc >> aset;
             if (Saoamo.dim(0) != int(ao.size()) || Saoamo.dim(1) != param.nmo_alpha()) {
                 print(" AO alpha restart data size mismatch --- starting from atomic guess instead", Saoamo.dim(0),
@@ -2168,9 +2169,11 @@ void SCF::solve(World& world) {
                     // write eigenvalues etc to a file at the same time for plotting DOS etc.
                     FILE *f = 0;
                     if (param.nbeta() != 0 && !param.spin_restricted()) {
-                        f = fopen("energies_alpha.dat", "w");
+                        std::string name=std::string(param.prefix()+".energies_alpha.dat");
+                        f = fopen(name.c_str(), "w");
                     } else {
-                        f = fopen("energies.dat", "w");
+                        std::string name=param.prefix()+".energies.dat";
+                        f = fopen(name.c_str(), "w");
                     }
 
                     long nmo = amo.size();
@@ -2183,7 +2186,8 @@ void SCF::solve(World& world) {
                     if (param.nbeta() != 0 && !param.spin_restricted()) {
                         long nmo = bmo.size();
                         FILE *f = 0;
-                        f = fopen("energies_beta.dat", "w");
+                        std::string name=param.prefix()+".energies_beta.dat";
+                        f = fopen(name.c_str(), "w");
 
                         fprintf(f, "# %8li\n", nmo);
                         for (long i = 0; i < nmo; ++i) {
@@ -2261,7 +2265,7 @@ void SCF::output_scf_info_schema(const int& iter, const std::map<std::string, do
     }
     j[0]["scf_dipole_moment"] = tensor_to_json(dipole_T);
     int num = 0;
-    std::string save = "scf_info.json";
+    std::string save = param.prefix()+".scf_info.json";
 #ifdef MADCHEM_HAS_STD_FILESYSTEM
     if (std::filesystem::exists(save)) {
         std::ifstream ifs(save);

@@ -48,7 +48,7 @@ int test_read_restartdata(World& world) {
 	// read restart file (shorthand notation)
 	{
 		auto [amo, bmo]=MolecularOrbitals<double,3>::read_restartdata(world,
-				"restartdata",calc.molecule, param.nmo_alpha(), param.nmo_beta());
+				param.prefix()+".restartdata",calc.molecule, param.nmo_alpha(), param.nmo_beta());
 	}
 	// read restart file (less shorthand notation, but with autocomplete enabled)
 	{
@@ -59,7 +59,7 @@ int test_read_restartdata(World& world) {
 	// read restart file (long notation)
 	std::pair<MolecularOrbitals<double,3>, MolecularOrbitals<double,3> > mos;
 	mos=MolecularOrbitals<double,3>::read_restartdata(world,
-			"restartdata",calc.molecule, param.nmo_alpha(), param.nmo_beta());
+			param.prefix()+".restartdata",calc.molecule, param.nmo_alpha(), param.nmo_beta());
 	MolecularOrbitals<double,3> amo,bmo;
 	amo=mos.first;
 	bmo=mos.second;
@@ -88,7 +88,7 @@ int test_read_restartaodata(World& world) {
 	// read MOs from file and save them as AO projection
 	std::vector<Function<double,3> > aos=SCF::project_ao_basis_only(world, calc.aobasis, calc.molecule);
 	auto mos=MolecularOrbitals<double,3>::read_restartdata(world,
-			"restartdata",calc.molecule, param.nmo_alpha(), param.nmo_beta());
+			param.prefix()+".restartdata",calc.molecule, param.nmo_alpha(), param.nmo_beta());
 	MolecularOrbitals<double,3> amo=mos.first,bmo=mos.second;
 	MolecularOrbitals<double,3>::save_restartaodata(world,calc.molecule,amo,bmo,calc.aobasis);
 
