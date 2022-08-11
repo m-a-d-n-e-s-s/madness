@@ -53,7 +53,7 @@ int test_read_restartdata(World& world) {
 	// read restart file (less shorthand notation, but with autocomplete enabled)
 	{
 		auto mos=MolecularOrbitals<double,3>::read_restartdata(world,
-				"restartdata",calc.molecule, param.nmo_alpha(), param.nmo_beta());
+				param.prefix()+".restartdata",calc.molecule, param.nmo_alpha(), param.nmo_beta());
 		MolecularOrbitals<double,3> amo=mos.first,bmo=mos.second;
 	}
 	// read restart file (long notation)
