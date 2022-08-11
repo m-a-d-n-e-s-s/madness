@@ -1,5 +1,7 @@
 ## Introduction
 
+Linux and MacOS are supported with x86, Arm64, and IBM power cpus. GPUs are not yet utilized.
+
 MADNESS uses CMake to configure the build. Assuming that necessary prerequisites (below) are installed on your system in default locations and the source has been downloaded into the directory `/path/to/madness/source`, you can make a directory (outside the source tree) to build in and configure the build as follows
 ```
 mkdir build
@@ -7,21 +9,24 @@ cd build
 cmake /path/to/madness/source
 make 
 ```
-The default make target builds only the numerical library and underlying runtime.  To build applications (e.g., `moldft`, `nemo`) specify this on the make command.  The target `everything` does what you expect. You can run executables and use libraries from the build directory, but to install into the default location (`/usr`) just use `make install`.
+The default make target builds only the numerical library and underlying runtime.  To build applications (e.g., `moldft`, `nemo`) specify this on the make command.  The target `everything` does what you expect. You can run executables and use libraries from the build directory, but to install into the default location (`/usr`) use `make install`.
 
-If prerequiste libraries are not in default locations or you wish to override defaults, you may have to set CMAke cache variables as described below.  For instance, to build a debug version, without MPI, and with installation in `/home/me/madinstall`
+If required libraries are not in default locations or if you wish to override defaults, you may have to set CMake cache variables as described below.  For instance, to build a debug version, without MPI, and with installation in `/home/me/madinstall`
 ```
 cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_MPI=OFF -DCMAKE_INSTALL_PREFIX=/home/me/madinstall /path/to/madness/source
-make
 make install
 ```
-Boolean values for cache variables are 
-considered true if the constant is 1, ON, YES, TRUE, Y, or a non-zero number; or
-false if the constant is 0, OFF, NO, FALSE, N, or IGNORE.
 
-The below summarizes some of the most useful CMake variables.\
+Boolean values for cache variables (specified to CMake using the `-DVARIABLE_NAME` notation in the example above) are 
+considered true if the constant is 1, ON, YES, TRUE, Y, or a non-zero number; or false if the constant is 0, OFF, NO, FALSE, N, or IGNORE.
 
-**RJH stopped editing here**
+## Prerequisites
+
+Fast BLAS and linear algebra libraries are essential. These must be sequential (single thread) implementations since MADNESS uses tasks/threads for parallelism and invokes the BLAS within a single-threaded task.  On X86, we recommend the free [Intel MKL library](https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl.html#gs.8bsxug), which is auto detected on all platforms if the environment variable `MKLROOT` is set.  On MacOS, the Apple **?X?X?** library (installed from where **??**) is also autodetected.  AMD ACML has not been tested in a while but can be enabled with the CMake variables below.  Other libraries need to have their link (and possibly also header) paths and flags provided in the CMake variables.  On ARM, we recommend the ARM performance library available with their optimized LLVM compiler and enabled with the `--armpl`` compiler flag. The OpenBLAS libary for ARM had a major peformance problem when we last tested it in circa 2020 due to a mutex around a memory block shared by all threads (this issue was reported and could be fixed by now).
+
+MADNESS will autodetect the [Intel TBB library](https://www.intel.com/content/www/us/en/developer/tools/oneapi/onetbb.html#gs.8byhgg), which is available for free from Intel or via standard Linux package managers (even on ARM).  TBB provides a fast task pool.  If this is not detected, MADNESS will employ its own task pool.  [PaRSEC](https://icl.utk.edu/parsec/) can also be used (see variables below) but is not recommended unless you are using MADNESS with the [Template Task Graph](https://github.com/TESSEorg/ttg).
+
+The below summarizes some of the most useful CMake variables.
 
 ## Compiler variables
 
@@ -241,11 +246,10 @@ If ENABLE_PARSEC is set but PaRSEC is not found, it will be built from source.
     
 ## Toolchain files
 
-**Use of these files is now deprecated --- it should work without.**  However, they can be useful if all else fails.
+**Use of these files is now deprecated --- configuration should usually work without this.**  However, they can be useful if all else fails or on "bleeding-edge" supercomputers with non-standard software environments.
 
-MADNESS provides toolchain files for select systems. It is recommended that you
-use these files if provided as they contain the platform specific settings
-neccessary to build on the given platform. The toolchain files are included wiht
+MADNESS provides toolchain files for select systems. They contain the platform specific settings
+neccessary to build on the given platform. The toolchain files are included with
 the MADNESS source in the cmake/toolchains directory.
 
 * CMAKE_TOOLCHAIN_FILE --- Specifies the path (including the file name) to the
