@@ -1,6 +1,6 @@
 ## Introduction
 
-Linux and MacOS are supported with x86, Arm64, and IBM power cpus. GPUs are not yet utilized.
+Linux and MacOS are supported with x86, Arm64, and IBM Power processors. GPUs are not yet utilized.
 
 MADNESS uses CMake to configure the build. Assuming that necessary prerequisites (below) are installed on your system in default locations and the source has been downloaded into the directory `/path/to/madness/source`, you can make a directory (outside the source tree) to build in and configure the build as follows
 ```
@@ -22,7 +22,7 @@ considered true if the constant is 1, ON, YES, TRUE, Y, or a non-zero number; or
 
 ## Prerequisites
 
-Fast BLAS and linear algebra libraries are essential. These must be sequential (single thread) implementations since MADNESS uses tasks/threads for parallelism and invokes the BLAS within a single-threaded task.  On X86, we recommend the free [Intel MKL library](https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl.html#gs.8bsxug), which is auto detected on all platforms if the environment variable `MKLROOT` is set.  On MacOS, the Apple **?X?X?** library (installed from where **??**) is also autodetected.  AMD ACML has not been tested in a while but can be enabled with the CMake variables below.  Other libraries need to have their link (and possibly also header) paths and flags provided in the CMake variables.  On ARM, we recommend the ARM performance library available with their optimized LLVM compiler and enabled with the `--armpl`` compiler flag. The OpenBLAS libary for ARM had a major peformance problem when we last tested it in circa 2020 due to a mutex around a memory block shared by all threads (this issue was reported and could be fixed by now).
+Fast BLAS and linear algebra libraries are essential. These must be sequential (single thread) implementations since MADNESS uses tasks/threads for parallelism and invokes the BLAS within a single-threaded task.  On X86, we recommend the free [Intel MKL library](https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl.html#gs.8bsxug), which is auto detected on all platforms if the environment variable `MKLROOT` is set.  On MacOS, the Apple [Accelerate](https://developer.apple.com/documentation/accelerate) framework (installed as part of [Xcode](https://developer.apple.com/xcode/)) is also autodetected.  AMD ACML has not been tested in a while but can be enabled with the CMake variables below.  Other libraries need to have their link (and possibly also header) paths and flags provided in the CMake variables for the compiler and linker.  On ARM, we recommend the ARM performance library available with their optimized LLVM compiler and enabled with the `-armpl`` compiler+linker flag. The OpenBLAS libary for ARM (not on x86) had a major peformance problem when we last tested it in circa 2020 due to a mutex around a memory block shared by all threads (this issue was reported and might be fixed by now).
 
 MADNESS will autodetect the [Intel TBB library](https://www.intel.com/content/www/us/en/developer/tools/oneapi/onetbb.html#gs.8byhgg), which is available for free from Intel or via standard Linux package managers (even on ARM).  TBB provides a fast task pool.  If this is not detected, MADNESS will employ its own task pool.  [PaRSEC](https://icl.utk.edu/parsec/) can also be used (see variables below) but is not recommended unless you are using MADNESS with the [Template Task Graph](https://github.com/TESSEorg/ttg).
 
@@ -85,12 +85,13 @@ The following CMake cache variables turn features on and off.
 
 ## MADNESS Runtime and the Address Space Layout Randomization (ASLR)
 
-ASLR is a standard technique for increasing platform security implemented by the OS kernel and/or
+ASLR (Linux relevant documentation [here](https://linux-audit.com/linux-aslr-and-kernelrandomize_va_space-setting/))
+is a standard technique for increasing platform security implemented by the OS kernel and/or
 the dynamic linker. By randomizing both where the shared libraries are loaded as well as (when enabled) the absolute
 position of the executable in memory (such executables are known as position-independent executables). Until recently
-MADNESS could not be used on platforms with ASLR if ran with more than 1 MPI rank;
-if properly configured and built it can now be used on ASLR platforms. Use the following
-variables to control the ASLR-related aspects of MADNESS runtime.
+MADNESS could only be used with MPI on platforms with ASLR if built with static libraries (for MADNESS code; system and other libraries could still be shared).  However, static libraries make it hard to integrate with Python and other frameworks that demand shared libraries. 
+
+If properly configured and built, MADNESS can now be used on ASLR platforms using either static (the default and easiest) or shared libraries. Use the following variables to control the ASLR-related aspects of MADNESS runtime.
 
 * MADNESS_ASSUMES_ASLR_DISABLED --- MADNESS runtime will assume that the Address Space Layout Randomization (ASLR) is off.
       By default MADNESS_ASSUMES_ASLR_DISABLED is set to OFF (i.e. MADNESS will assume that ASLR is enabled);
@@ -111,10 +112,9 @@ To make things more concrete, consider the following 2 scenarios:
       executables that can only be safely used with 1 MPI rank, thus BUILD_SHARED_LIBS will be defaulted to OFF (i.e.
       MADNESS libraries will be build as static libraries). CMAKE_POSITION_INDEPENDENT_CODE is by default set to ON,
       thus MADNESS libraries can be linked into position-independent executables safely. MADNESS libraries can also be
-      linked into a shared library, provided that *ALL* code using MADNESS is part of the *SAME* shared library.
-      E.g. to link MADNESS into a Python module compile MADNESS and all libraries using MADNESS as static libraries
-      (with CMAKE_POSITION_INDEPENDENT_CODE=ON) and link them all together into a single module
-      (same logic applies to shared libraries using MADNESS).
+      linked into a shared library and used with more than 1 MPI rank, provided that *ALL* code using MADNESS is part of the *SAME* shared library.
+      E.g. to link MADNESS into a Python module compile MADNESS and all libraries using MADNESS as shared libraries
+      (with CMAKE_POSITION_INDEPENDENT_CODE=ON) and link them all together into a single module.
 
 ## External libraries
 
@@ -225,6 +225,8 @@ madness/src/apps/chem/CMakeLists.txt
 
 ## Elemental parallel linear algebra library:
 
+**This has not been tested in some time.**
+      
 Elemental provides optional distributed-memory linear algebra for some MADNESS application codes.
 MADNESS source includes (modified) Elemental v0.84, which has been validated to work with
 the few MADNESS apps that can use Elemental. You can instruct MADNESS to download and compile
