@@ -26,13 +26,15 @@ struct commandlineparser {
         set_defaults();
         std::vector<std::string> allArgs_raw(argv, argv + argc);
         for (auto &a : allArgs_raw) {
+            // special treatment for the input file: no hyphens
+            a=check_for_input_file(a);
             a= remove_first_equal(remove_front_hyphens(a));
             std::replace_copy(a.begin(), a.end(), a.begin(), '=', ' ');
             std::string key, val;
             std::stringstream sa(a);
             sa >> key;
             val=a.substr(key.size());
-            keyval[tolower(key)] = tolower(val);
+            set_keyval(key,val);
         }
     }
 
@@ -58,10 +60,18 @@ struct commandlineparser {
     }
 
     void set_keyval(const std::string key, const std::string value) {
-        keyval[tolower(key)]=tolower(value);
+        keyval[tolower(key)]= trim_blanks(tolower(value));
     }
 
-private:
+public:
+
+    /// special option: the input file has no hyphens in front
+    std::string check_for_input_file(std::string line) {
+        if (line[0]=='-') return line;
+        auto words=split(line,"=");
+        if (words.size()==1) line="input="+line;
+        return line;
+    }
     /// make lower case
     static std::string tolower(std::string s) {
         std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c){ return std::tolower(c); });
@@ -97,11 +107,32 @@ private:
         std::replace(it,it+1,item.front(),blank.front());
         return result;
     }
+
+    /// remove all blanks
     static std::string remove_blanks(const std::string arg) {
         std::string str2 = arg;
         str2.erase(std::remove_if(str2.begin(), str2.end(),
                                   [](unsigned char x){return std::isspace(x);}),str2.end());
         return str2;
+    }
+
+    /// remove blanks at the beginning and the end only
+    static std::string trim_blanks(const std::string arg) {
+        if (arg.size()==0) return arg;
+        std::size_t first=arg.find_first_not_of(' ');
+        std::size_t last=arg.find_last_not_of(' ');
+        return arg.substr(first,last-first+1);
+    }
+
+    static std::string base_name(std::string const & path, std::string const & delims = "/")
+    {
+        return path.substr(path.find_last_of(delims) + 1);
+    }
+
+    static std::string remove_extension(std::string const & filename)
+    {
+        std::size_t p=filename.find_last_of('.');
+        return p > 0 && p != std::string::npos ? filename.substr(0, p) : filename;
     }
 
 };

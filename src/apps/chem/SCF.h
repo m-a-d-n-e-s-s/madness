@@ -673,7 +673,7 @@ public:
         to_json(j, int_vals);
         double_vals.push_back({"return_energy", value(calc.molecule.get_all_coords().flat())});
         to_json(j, double_vals);
-        output_schema("calc_info", j);
+        output_schema(param.prefix()+".calc_info", j);
     }
 };
 }

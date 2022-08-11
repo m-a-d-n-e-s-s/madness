@@ -206,8 +206,8 @@ private:
 		value=default_value;
 		if (derived_value!=null) value=derived_value;
 		if (user_defined_value!=null) value=user_defined_value;
-		if (not check_allowed()) throw std::runtime_error(not_allowed_errmsg());
-	}
+		if (not check_allowed()) throw std::invalid_argument(not_allowed_errmsg());
+    }
 
 	bool check_allowed() {
 		if (allowed_values.size()==0)  return true;
@@ -291,7 +291,13 @@ protected:
     virtual void read_input_and_commandline_options(World& world,
                                                     const commandlineparser& parser,
                                                     const std::string tag) {
-        read_input(world,parser.value("input"),tag);
+        try {
+            read_input(world,parser.value("input"),tag);
+        } catch (std::invalid_argument& e) {
+            throw;
+        } catch (std::exception& e) {
+            print(e.what());
+        }
         read_commandline_options(world,parser,tag);
     }
 
