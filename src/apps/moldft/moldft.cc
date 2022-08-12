@@ -36,9 +36,9 @@
 /// \brief Molecular HF and DFT code
 /// \defgroup moldft The molecular density functional and Hartree-Fock code
 
-#include <chem/SCF.h>
-#include <chem/commandlineparser.h>
-#include <chem/molopt.h>
+#include<madness/chem/SCF.h>
+#include<madness/chem/commandlineparser.h>
+#include<madness/chem/molopt.h>
 #include <madness/world/worldmem.h>
 
 #if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)

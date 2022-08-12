@@ -6,11 +6,11 @@
 
 using namespace madness;
 
-#include <chem/molecule.h>
-#include <chem/molecularbasis.h>
-#include <chem/xcfunctional.h>
+#include<madness/chem/molecule.h>
+#include<madness/chem/molecularbasis.h>
+#include<madness/chem/xcfunctional.h>
 
-#include <chem/gth_pseudopotential.h>
+#include<madness/chem/gth_pseudopotential.h>
 #include "wst_functional.h"
 
 static const double twopi = 2.0*constants::pi;

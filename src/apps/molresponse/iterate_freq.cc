@@ -14,8 +14,8 @@
 #include "../chem/molecule.h"
 #include "Plot_VTK.h"
 #include "TDDFT.h"
-#include "chem/potentialmanager.h"
-#include "chem/projector.h"  // For easy calculation of (1 - \hat{\rho}^0)
+#include "madness/chem/potentialmanager.h"
+#include "madness/chem/projector.h"  // For easy calculation of (1 - \hat{\rho}^0)
 #include "madness/mra/funcdefaults.h"
 #include "molresponse/basic_operators.h"
 #include "molresponse/density.h"

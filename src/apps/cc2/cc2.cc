@@ -40,7 +40,7 @@
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 
 
-#include "apps/chem/CC2.h"
+#include "madness/chem/CC2.h"
 #include "madness/misc/gitinfo.h"
 
 using namespace madness;
