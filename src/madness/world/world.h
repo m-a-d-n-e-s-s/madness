@@ -56,9 +56,10 @@
 
 // Standard C++ header files needed by MADworld.h
 #include <iostream>
-#include <list>
-#include <utility>
+#include <list>     // std::list
+#include <utility>  // std::pair
 #include <cstddef>
+#include <cstdint>  // std::uint64_t
 
 #ifdef HAVE_RANDOM
 #include <cstdlib>
@@ -135,9 +136,9 @@ namespace madness {
         friend void finalize();
 
         // Static member variables
-        static unsigned long idbase; ///< Base for unique world ID range for this process.
+        static std::pair<std::uint64_t, std::uint64_t> world_id__next_last; ///< Unique {next, last} world IDs to be used by this rank.
         static World* default_world; ///< Default world.
-        static std::list<World*> worlds; ///< Maintains list of active worlds.
+        static std::list<World*> worlds; ///< Maintains list of active worlds, EXCLUDES default_world
 
         /// \todo Brief description needed.
         struct hashuniqueT {
@@ -172,12 +173,18 @@ namespace madness {
         map_ptr_to_idT map_ptr_to_id; ///< \todo Verify: Map from a pointer to its unique hash ID.
 
 
-        unsigned long _id; ///< Universe wide unique ID of this world.
+        std::uint64_t _id; ///< Universe wide unique ID of this world.
         unsigned long obj_id; ///< Counter for generating unique IDs within this world.
         void* user_state; ///< Holds a user-defined and managed local state.
 
         // Default copy constructor and assignment won't compile
         // (which is good) due to reference members.
+
+        /// initializes the value of world_id__next_last to {global_rank*2^32, (global_rank+1)*2^32-1}
+        /// \param global_rank rank of this process in COMM_WORLD
+        static void initialize_world_id_range(int global_rank);
+        /// \return next unique World id
+        static std::uint64_t next_world_id();
 
     public:
         // !!! Order of declaration is important for correct order of initialization !!!
@@ -204,12 +211,16 @@ namespace madness {
         /// \return Pointer to the World that was constructed from \c comm;
         ///     if such a World does not exist, return 0.
         static World* find_instance(const SafeMPI::Intracomm& comm) {
-            typedef std::list<World*>::const_iterator citer;
-            for(citer it = worlds.begin(); it != worlds.end(); ++it) {
-                if ((*it)->mpi.comm() == comm)
-                    return *it;
+          if (default_world->mpi.comm() == comm)
+            return default_world;
+          else {
+            typedef std::list<World *>::const_iterator citer;
+            for (citer it = worlds.begin(); it != worlds.end(); ++it) {
+              if ((*it)->mpi.comm() == comm)
+                return *it;
             }
-            return 0;
+            return nullptr;
+          }
         }
 
         /// Check if the World exists in the registry.
@@ -217,7 +228,7 @@ namespace madness {
         /// \param[in] world pointer to a World object
         /// \return true if \c world exists
         static bool exists(World* world) {
-          return std::find(worlds.begin(), worlds.end(), world) != worlds.end();
+          return world->id() == 0 || std::find(worlds.begin(), worlds.end(), world) != worlds.end();
         }
 
         /// Default World object accessor.
@@ -427,11 +438,17 @@ namespace madness {
         /// not include the calling process.
         /// \param[in] id The ID of the \c World.
         /// \return A pointer to the world associated with \c id, or \c NULL.
-        static World* world_from_id(unsigned long id) {
-            for (std::list<World *>::iterator it=worlds.begin(); it != worlds.end(); ++it) {
-                if ((*it) && (*it)->_id == id) return *it;
+        static World* world_from_id(std::uint64_t id) {
+          if (id != 0) {
+            for (std::list<World *>::iterator it = worlds.begin();
+                 it != worlds.end(); ++it) {
+              if ((*it) && (*it)->_id == id)
+                return *it;
             }
             return nullptr;
+          }
+          else
+            return default_world;
         }
 
     private:
