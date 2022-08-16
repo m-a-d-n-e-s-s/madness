@@ -78,7 +78,8 @@ namespace madness {
       return madness_quiet_;
     }
 
-    World::World(const SafeMPI::Intracomm& comm)
+    World::World(const SafeMPI::Intracomm& comm,
+                 bool fence)
             : obj_id(1)          ///< start from 1 so that 0 is an invalid id
             , user_state(0)
             , mpi(*(new WorldMpiInterface(comm)))
@@ -98,6 +99,9 @@ namespace madness {
 
         if (_id != 0)
           worlds.push_back(this);
+
+        if (fence)
+          mpi.Barrier();
     }
 
 

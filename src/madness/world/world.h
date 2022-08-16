@@ -203,7 +203,13 @@ namespace madness {
         /// the same communicator. Use instance() to check this.
         ///
         /// \param[in] comm The communicator.
-        World(const SafeMPI::Intracomm& comm);
+        /// \param[in] fence if true, will synchronize ranks before exiting;
+        ///                  setting to false removes the extra synchronization
+        ///                  but may cause premature arrival of RMI messages
+        ///                  that refer to this world while it's being
+        ///                  registered
+        World(const SafeMPI::Intracomm& comm,
+              bool fence = true);
 
         /// Find the World (if it exists) corresponding to the given communicator.
 
