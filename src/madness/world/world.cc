@@ -78,7 +78,8 @@ namespace madness {
       return madness_quiet_;
     }
 
-    World::World(const SafeMPI::Intracomm& comm)
+    World::World(const SafeMPI::Intracomm& comm,
+                 bool fence)
             : obj_id(1)          ///< start from 1 so that 0 is an invalid id
             , user_state(0)
             , mpi(*(new WorldMpiInterface(comm)))
@@ -98,6 +99,9 @@ namespace madness {
 
         if (_id != 0)
           worlds.push_back(this);
+
+        if (fence)
+          mpi.Barrier();
     }
 
 
@@ -123,7 +127,7 @@ namespace madness {
 
     void World::initialize_world_id_range(int global_rank) {
       constexpr std::uint64_t range_size = 1ul<<32;
-      constexpr std::uint64_t range_size_minus_1 = 1ul<<32 - 1;
+      constexpr std::uint64_t range_size_minus_1 = (1ul<<32) - 1;
       world_id__next_last = std::make_pair(global_rank * range_size, global_rank * range_size + range_size_minus_1);
     }
 
