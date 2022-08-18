@@ -234,7 +234,7 @@ namespace madness {
         /// \param[in] world pointer to a World object
         /// \return true if \c world exists
         static bool exists(World* world) {
-          return world->id() == 0 || std::find(worlds.begin(), worlds.end(), world) != worlds.end();
+          return world == default_world || std::find(worlds.begin(), worlds.end(), world) != worlds.end();
         }
 
         /// Default World object accessor.

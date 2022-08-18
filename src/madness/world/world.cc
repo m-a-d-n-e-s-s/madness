@@ -127,7 +127,7 @@ namespace madness {
 
     void World::initialize_world_id_range(int global_rank) {
       constexpr std::uint64_t range_size = 1ul<<32;
-      constexpr std::uint64_t range_size_minus_1 = 1ul<<32 - 1;
+      constexpr std::uint64_t range_size_minus_1 = (1ul<<32) - 1;
       world_id__next_last = std::make_pair(global_rank * range_size, global_rank * range_size + range_size_minus_1);
     }
 
