@@ -75,14 +75,10 @@ set(RALL_SOURCES
         basic_operators.cc
         Plot_VTK.cc
         response_parameters.cpp
-        density.cc
-        TDDFT.cc
         calc_runner.cc
-        iter_freq2.cc
         iterate_excited.cc
         Lambda_X.cc
         Theta_X.cc
-        iterate_gamma.cc
         x_space.cc
         )
 
@@ -90,14 +86,12 @@ set(RALL_HEADERS
         ResponseBase.hpp
         ExcitedResponse.hpp
         FrequencyResponse.hpp
-        density.h
         property.h
         global_functions.h
         timer.h
         basic_operators.h
         Plot_VTK.h
         response_parameters.h
-        TDDFT.h
         x_space.h
         )
 add_mad_library(all_response RALL_SOURCES RALL_HEADERS "chem" "molresponse/")
