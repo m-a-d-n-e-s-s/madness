@@ -345,8 +345,8 @@ std::vector<Function<T, NDIM>> DNuclear<T, NDIM>::operator()(const std::vector<F
 /// custom ctor with information about the XC functional
 template<typename T, std::size_t NDIM>
 XCOperator<T, NDIM>::XCOperator(World &world, std::string xc_data, const bool spin_polarized,
-                                const real_function_3d &arho, const real_function_3d &brho, std::string deriv)
-        : world(world), dft_deriv(deriv), nbeta(0), ispin(0),
+                                const real_function_3d &arho, const real_function_3d &brho)
+        : world(world), nbeta(0), ispin(0),
           extra_truncation(FunctionDefaults<3>::get_thresh() * 0.01) {
 
     nbeta = (brho.norm2() > 0.0);   // does this make sense
@@ -358,8 +358,8 @@ XCOperator<T, NDIM>::XCOperator(World &world, std::string xc_data, const bool sp
 }
 
 template<typename T, std::size_t NDIM>
-XCOperator<T, NDIM>::XCOperator(World &world, const SCF *calc, int ispin, std::string deriv)
-        : world(world), dft_deriv(deriv), ispin(ispin), extra_truncation(FunctionDefaults<3>::get_thresh() * 0.01) {
+XCOperator<T, NDIM>::XCOperator(World &world, const SCF *calc, int ispin)
+        : world(world), ispin(ispin), extra_truncation(FunctionDefaults<3>::get_thresh() * 0.01) {
     xc = std::shared_ptr<XCfunctional>(new XCfunctional());
     xc->initialize(calc->param.xc(), !calc->param.spin_restricted(), world);
     nbeta = calc->param.nbeta();
@@ -405,8 +405,8 @@ XCOperator<T, NDIM>::XCOperator(World &world, const Nemo *nemo, int ispin)
 
 template<typename T, std::size_t NDIM>
 XCOperator<T, NDIM>::XCOperator(World &world, const SCF *calc, const real_function_3d &arho,
-                                const real_function_3d &brho, int ispin, std::string deriv)
-        : world(world), dft_deriv(deriv), nbeta(calc->param.nbeta()), ispin(ispin),
+                                const real_function_3d &brho, int ispin)
+        : world(world), nbeta(calc->param.nbeta()), ispin(ispin),
           extra_truncation(FunctionDefaults<3>::get_thresh() * 0.01) {
     xc = std::shared_ptr<XCfunctional>(new XCfunctional());
     xc->initialize(calc->param.xc(), !calc->param.spin_restricted(), world);
@@ -580,9 +580,7 @@ vecfuncT XCOperator<T, NDIM>::prep_xc_args(const real_function_3d &arho,
 
         real_function_3d logdensa = unary_op(arho, logme());
         vecfuncT grada;
-        if (dft_deriv == "bspline") grada = grad_bspline_one(logdensa); // b-spline
-        else if (dft_deriv == "ble") grada = grad_ble_one(logdensa);    // BLE
-        else grada = grad(logdensa);                                   // Default is abgv
+        grada = grad(logdensa);                                   // Default is abgv
         real_function_3d chi = dot(world, grada, grada);
         xcargs[XCfunctional::enum_chi_aa] = chi;
         xcargs[XCfunctional::enum_zetaa_x] = grada[0];
@@ -593,9 +591,7 @@ vecfuncT XCOperator<T, NDIM>::prep_xc_args(const real_function_3d &arho,
             real_function_3d logdensb = unary_op(brho, logme());
             // Bryan's edits for derivatives
             vecfuncT gradb;
-            if (dft_deriv == "bspline") gradb = grad_bspline_one(logdensa);  // b-spline
-            else if (dft_deriv == "ble") gradb = grad_ble_one(logdensa);     // BLE
-            else gradb = grad(logdensa);                                    // Default is abgv
+            gradb = grad(logdensb);                                    // Default is abgv
             real_function_3d chib = dot(world, gradb, gradb);
             real_function_3d chiab = dot(world, grada, gradb);
             xcargs[XCfunctional::enum_zetab_x] = gradb[0];

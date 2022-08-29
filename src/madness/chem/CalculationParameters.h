@@ -70,8 +70,6 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<std::vector<std::string> >("convergence_criteria",{"bsh_residual","total_energy"},"possible values are: bsh_residual, total_energy, each_energy, density");
 		initialize<int>   ("k",-1,"polynomial order");
 		initialize<double>("l",20,"user coordinates box size");
-		initialize<std::string>("deriv","abgv","derivative method",{"abgv","bspline","ble"});
-		initialize<std::string>("dft_deriv","abgv","derivative method for gga potentials",{"abgv","bspline","ble"});
 		initialize<double>("maxrotn",0.25,"step restriction used in autoshift algorithm");
 		initialize<int>   ("nvalpha",0,"number of alpha virtuals to compute");
 		initialize<int>   ("nvbeta",0,"number of beta virtuals to compute");
@@ -190,8 +188,6 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	int maxiter() const {return get<int>("maxiter");}
 	double orbitalshift() const {return get<double>("orbitalshift");}
 
-	std::string deriv() const {return get<std::string>("deriv");}
-	std::string dft_deriv() const {return get<std::string>("dft_deriv");}
 	std::string pcm_data() const {return get<std::string>("pcm_data");}
 	std::string ac_data() const {return get<std::string>("ac_data");}
 	std::string xc() const {return get<std::string>("xc");}
