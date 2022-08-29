@@ -106,8 +106,8 @@ public:
     }
 };
 
-vector<double> generate_dipole_frequencies(std::string molecule_name, std::string xc,
-                                           std::string op) {
+auto generate_dipole_frequencies(std::string molecule_name, std::string xc,
+                                           std::string op) -> vector<double> {
 
     if (std::filesystem::exists("molecules/dalton-excited.json")) {
         std::ifstream ifs("molecules/dalton-excited.json");
