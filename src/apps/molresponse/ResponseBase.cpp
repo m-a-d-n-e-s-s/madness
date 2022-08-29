@@ -1110,7 +1110,7 @@ auto ResponseBase::compute_residual(World &world, const X_space &chi, const X_sp
             auto res_b_norms = std::vector<double>{};
             for (const auto &xij: xi) res_b_norms.push_back(xij.norm2());
             world.gop.fence();
-            if (world.rank() == 0) { print("||f(x)||_b: ", j++, res_b_norms); }
+            if (world.rank() == 0) { print("||f(x)||_: ", j++, res_b_norms); }
         }
     }
 
