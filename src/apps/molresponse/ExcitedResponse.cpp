@@ -1734,11 +1734,16 @@ ExcitedResponse::create_bsh_operators(World &world, const Tensor<double> &shift,
 void ExcitedResponse::excited_to_json(json &j_mol_in, size_t iter, const Tensor<double> &res_X,
                                       const Tensor<double> &res_Y,
                                       const Tensor<double> &density_res,
-                                      const Tensor<double> &omega) {
+                                      const Tensor<double> &omega, const Tensor<double> &chi_norms,
+                                      const Tensor<double> &rel_chi_norms,
+                                      const Tensor<double> &rho_norms) {
     json j = {};
     j["iter"] = iter;
     j["res_X"] = tensor_to_json(res_X);
     j["res_Y"] = tensor_to_json(res_Y);
+    j["chi_norms"] = tensor_to_json(chi_norms);
+    j["rel_chi_norms"] = tensor_to_json(rel_chi_norms);
+    j["rho_norms"] = tensor_to_json(rho_norms);
     j["density_residuals"] = tensor_to_json(density_res);
     j["omega"] = tensor_to_json(omega);
     auto index = j_mol_in["protocol_data"].size() - 1;
@@ -1873,8 +1878,8 @@ void ExcitedResponse::iterate(World &world) {
             auto max_bsh = bsh_residualsX.absmax();
             auto relative_max_bsh = relative_bsh.absmax();
 
-            excited_to_json(j_molresponse, iter, bsh_residualsX, bsh_residualsY, density_residuals,
-                            omega);
+            excited_to_json(j_molresponse, iter, bsh_residualsX, bsh_residualsY, chi_norm, omega,
+                            chi_norm, relative_bsh, density_residuals);
 
             if (r_params.print_level() >= 1) {
 
@@ -2085,14 +2090,14 @@ auto ExcitedResponse::update(World &world, X_space &Chi, XCOperator<double, 3> &
 
     //X_space theta_X = compute_theta_X(world, rotated_chi, xc, r_params.calc_type());
     if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    X_space E0X(world, rotated_chi.num_states(), rotated_chi.num_orbitals());
+    X_space rotated_EOX(world, rotated_chi.num_states(), rotated_chi.num_orbitals());
     if (r_params.localize() != "canon") {
-        E0X = rotated_chi.copy();
-        E0X.X = E0X.X * ham_no_diag;
-        if (compute_y) { E0X.Y = E0X.Y * ham_no_diag; }
+        rotated_EOX = rotated_chi.copy();
+        rotated_EOX.X = rotated_EOX.X * ham_no_diag;
+        if (compute_y) { rotated_EOX.Y = rotated_EOX.Y * ham_no_diag; }
         if (r_params.print_level() >= 10) {
             print("<X|(E0-diag(E0)|X>");
-            print(inner(rotated_chi, E0X));
+            print(inner(rotated_chi, rotated_EOX));
         }
     }
     world.gop.fence();
@@ -2103,7 +2108,7 @@ auto ExcitedResponse::update(World &world, X_space &Chi, XCOperator<double, 3> &
     X_space theta_X = X_space(world, rotated_chi.num_states(), rotated_chi.num_orbitals());
 
     if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    theta_X = rotated_v_x - E0X + rotated_gamma_x;
+    theta_X = rotated_v_x - rotated_EOX + rotated_gamma_x;
     if (world.rank() == 0 && r_params.print_level() >= 1) {
         molresponse::end_timer(world, "compute_ThetaX_add", "compute_ThetaX_add", iter_timing);
     }
@@ -2119,6 +2124,12 @@ auto ExcitedResponse::update(World &world, X_space &Chi, XCOperator<double, 3> &
     }
     if (false) { x_space_step_restriction(world, rotated_chi, new_chi, compute_y, maxrotn); }
 
+
+    if (compute_y) normalize(world, new_chi);
+    else
+        normalize(world, new_chi.X);
+
+
     new_chi.X.truncate_rf();
     if (compute_y) new_chi.Y.truncate_rf();
 
@@ -2133,7 +2144,6 @@ X_space ExcitedResponse::bsh_update_excited(World &world, const Tensor<double> &
     Tensor<double> y_shifts(m);
     print("omega before shifts");
     Tensor<double> omega_plus = omega;
-    Tensor<double> omega_minus = -omega;
     print(omega);
     x_shifts = create_shift(world, ground_energies, omega_plus, "x");
     // Compute Theta X
@@ -2141,6 +2151,7 @@ X_space ExcitedResponse::bsh_update_excited(World &world, const Tensor<double> &
     theta_X.X = apply_shift(world, x_shifts, theta_X.X, Chi.X);
     theta_X.X = theta_X.X * -2;
     theta_X.X.truncate_rf();
+
     if (compute_y) {
         //   theta_X.Y = apply_shift(world, y_shifts, theta_X.Y, Chi.Y);
         theta_X.Y = theta_X.Y * -2;
@@ -2150,6 +2161,7 @@ X_space ExcitedResponse::bsh_update_excited(World &world, const Tensor<double> &
     std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> bsh_x_ops =
             create_bsh_operators(world, x_shifts, ground_energies, omega_plus, r_params.lo(),
                                  FunctionDefaults<3>::get_thresh());
+
     std::vector<std::vector<std::shared_ptr<real_convolution_3d>>> bsh_y_ops;
     if (compute_y) {
         Tensor<double> omega_minus = -omega;
@@ -2168,6 +2180,7 @@ X_space ExcitedResponse::bsh_update_excited(World &world, const Tensor<double> &
     }
 
     // Only update non-converged components
+    /*
     for (size_t i = 0; i < m; i++) {
         bsh_X.X[i] = bsh_X.X[i];
         bsh_X.X[i] = mask * bsh_X.X[i];
@@ -2176,9 +2189,13 @@ X_space ExcitedResponse::bsh_update_excited(World &world, const Tensor<double> &
             bsh_X.Y[i] = mask * bsh_X.Y[i];
         }
     }
+     */
+
+    if (compute_y) normalize(world, bsh_X);
+    else { normalize(world, bsh_X.X); }
     // Ensure orthogonal rguesses
 
-    bsh_X.truncate();
+    //bsh_X.truncate();
 
     return bsh_X;
 }

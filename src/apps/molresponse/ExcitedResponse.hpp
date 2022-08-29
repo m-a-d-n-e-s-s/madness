@@ -101,9 +101,10 @@ private:
             World& world, const Tensor<double>& shift, const Tensor<double>& ground,
             const Tensor<double>& omega, const double lo, const double thresh) const;
 
-    void excited_to_json(json& j_mol_in, size_t iter, const Tensor<double>& res_X,
+    static void excited_to_json(json& j_mol_in, size_t iter, const Tensor<double>& res_X,
                          const Tensor<double>& res_Y, const Tensor<double>& density_res,
-                         const Tensor<double>& omega);
+                         const Tensor<double>& omega, const Tensor<double>& chi_norms,
+                         const Tensor<double>& rel_chi_norms, const Tensor<double>& rho_norms);
 
     /**
  * @brief Computes the BSH Update for an excited state calculation.  Passes in
@@ -138,21 +139,20 @@ private:
             NonLinearXsolver& kain_x_space, vector<X_vector>& Xvector, vector<X_vector>& Xresidual,
             size_t iter, const double& maxrotn);
     X_space create_response_guess(World& world) const;
-    std::tuple<Tensor<double>, Tensor<double>, Tensor<double>> reduce_subspace(World& world, Tensor<double>& S,
-                                                              Tensor<double>& A,
-                                                              const double thresh_degenerate);
+    std::tuple<Tensor<double>, Tensor<double>, Tensor<double>> reduce_subspace(
+            World& world, Tensor<double>& S, Tensor<double>& A, const double thresh_degenerate);
 };
 
-    class ExcitedTester {
-    private:
-    public:
-        ExcitedTester(World& world, ExcitedResponse& calc, double thresh) {
-            print("Setting Function Defaults");
-            calc.set_protocol(world, thresh);
-            calc.check_k(world, thresh, FunctionDefaults<3>::get_k());
-        }
-        X_space test_ao_guess(World& world, ExcitedResponse& calc);
-    };
+class ExcitedTester {
+private:
+public:
+    ExcitedTester(World& world, ExcitedResponse& calc, double thresh) {
+        print("Setting Function Defaults");
+        calc.set_protocol(world, thresh);
+        calc.check_k(world, thresh, FunctionDefaults<3>::get_k());
+    }
+    X_space test_ao_guess(World& world, ExcitedResponse& calc);
+};
 
 
 #endif//MADNESS_EXCITEDRESPONSE_HPP
