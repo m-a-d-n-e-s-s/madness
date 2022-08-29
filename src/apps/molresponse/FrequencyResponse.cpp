@@ -338,15 +338,15 @@ void FrequencyResponse::frequency_to_json(json &j_mol_in, size_t iter, const Ten
                                           const Tensor<double> &res_Y,
                                           const Tensor<double> &density_res,
                                           const Tensor<double> &frequency,
-                                          const Tensor<double> &chi_norms_x,
-                                          const Tensor<double> &chi_norms_y,
+                                          const Tensor<double> &chi_norms,
+                                          const Tensor<double> &rel_chi_norms,
                                           const Tensor<double> &rho_norms) {
     json j = {};
     j["iter"] = iter;
     j["res_X"] = tensor_to_json(res_X);
     j["res_Y"] = tensor_to_json(res_Y);
-    j["chi_norms_x"] = tensor_to_json(chi_norms_x);
-    j["chi_norms_y"] = tensor_to_json(chi_norms_y);
+    j["chi_norms_x"] = tensor_to_json(chi_norms);
+    j["chi_norms_y"] = tensor_to_json(rel_chi_norms);
     j["rho_norms"] = tensor_to_json(rho_norms);
     j["density_residuals"] = tensor_to_json(density_res);
     j["polar"] = tensor_to_json(frequency);

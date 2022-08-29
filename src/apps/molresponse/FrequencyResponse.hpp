@@ -40,11 +40,11 @@ private:
     X_space bsh_update_response(World& world, X_space& theta_X, vector<poperatorT>& bsh_x_ops,
                                 vector<poperatorT>& bsh_y_ops, QProjector<double, 3>& projector,
                                 double& x_shifts);
-    void frequency_to_json(json& j_mol_in, size_t iter, const Tensor<double>& res_X,
+    static void frequency_to_json(json& j_mol_in, size_t iter, const Tensor<double>& res_X,
                            const Tensor<double>& res_Y, const Tensor<double>& density_res,
-                           const Tensor<double>& frequency, const Tensor<double>& chi_norms_x,
-                           const Tensor<double>& chi_norms_y, const Tensor<double>& rho_norms);
-    void compute_and_print_polarizability(World& world, X_space& Chi, X_space& pq,
+                           const Tensor<double>& frequency, const Tensor<double>& chi_norms,
+                           const Tensor<double>& rel_chi_norms, const Tensor<double>& rho_norms);
+    static void compute_and_print_polarizability(World& world, X_space& Chi, X_space& pq,
                                           std::string message);
     void save(World& world, const std::string& name) override;
     void load(World& world, const std::string& name) override;
