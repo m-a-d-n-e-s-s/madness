@@ -1,8 +1,8 @@
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <iomanip>
-#include <chem/SCF.h>
-#include <chem/nemo.h>
-#include <chem/PNO.h>
+#include<madness/chem/SCF.h>
+#include<madness/chem/nemo.h>
+#include<madness/chem/PNO.h>
 
 using namespace madness;
 

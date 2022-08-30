@@ -1,0 +1,3 @@
+# Installation
+
+```{include} ../INSTALL.md

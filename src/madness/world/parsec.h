@@ -19,8 +19,8 @@ namespace madness{
 
     class ParsecRuntime {
     private:
-        static parsec_context_t *context;
-        static parsec_taskpool_t taskpool;
+        static parsec_context_t *ctx;
+        static parsec_taskpool_t tp;
 #ifdef PARSEC_PROF_TRACE
         static int               taskpool_profiling_array[2];
 #endif /* PARSEC_PROF_TRACE */
@@ -29,6 +29,7 @@ namespace madness{
         ParsecRuntime(int nb_threads);
         ~ParsecRuntime();
 
+        static parsec_context_t* context();
         static void schedule(PoolTaskInterface* task);
         static int test();
         static void wait();

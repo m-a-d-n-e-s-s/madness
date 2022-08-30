@@ -44,7 +44,7 @@
 
  */
 #include "smooth.h"
-#include<chem/commandlineparser.h>
+#include<madness/chem/commandlineparser.h>
 
 
 using namespace madness;
