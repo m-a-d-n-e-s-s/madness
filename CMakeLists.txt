@@ -102,6 +102,7 @@ option(ENABLE_LIBUNWIND
 option(ENABLE_PAPI "Enables use of PAPI" OFF)
 option(ENABLE_LIBXC "Enables use of the libxc library of density functionals" ON)
 option(ENABLE_PCM "Enables use of the polarizable continuum model library" ON)
+option(ENABLE_HDF5 "Enables use of the HDF5 library support" OFF)
 
 ####### preferred task backend
 set(MADNESS_TASK_VALID_BACKENDS Pthreads TBB PaRSEC)
@@ -632,6 +633,7 @@ include(external/gperftools.cmake)
 include(external/tbb.cmake)
 include(external/parsec.cmake)
 include(external/boost.cmake)
+include(external/hdf5.cmake)
 if (NOT MADNESS_BUILD_MADWORLD_ONLY)
   include(external/lapack.cmake)
   include(external/libxc.cmake)
@@ -641,6 +643,7 @@ endif (NOT MADNESS_BUILD_MADWORLD_ONLY)
 if (DEFINED ELEMENTAL_TAG)
   include(external/elemental.cmake)
 endif (DEFINED ELEMENTAL_TAG)
+
 
 # Add project subdirectories ===================================================
 
