@@ -48,11 +48,11 @@
 
 #include <iostream>
 
-#include <chem/SCF.h>
-#include <chem/nemo.h>
-#include <chem/correlationfactor.h>
-#include <chem/electronic_correlation_factor.h>
-#include <chem/commandlineparser.h>
+#include<madness/chem/SCF.h>
+#include<madness/chem/nemo.h>
+#include<madness/chem/correlationfactor.h>
+#include<madness/chem/electronic_correlation_factor.h>
+#include<madness/chem/commandlineparser.h>
 
 
 // switch the electronic interaction on or off

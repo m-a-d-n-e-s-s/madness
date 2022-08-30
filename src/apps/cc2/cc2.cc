@@ -40,16 +40,7 @@
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 
 
-/*!
-  \file examples/tdhf.cc
-  \brief compute the time-dependent HF equations (currently CIS approximation)
-
-  The source is
-  <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local
-  /trunk/src/apps/examples/tdhf.cc>here</a>.
-
- */
-#include "apps/chem/CC2.h"
+#include "madness/chem/CC2.h"
 #include "madness/misc/gitinfo.h"
 
 using namespace madness;
@@ -58,8 +49,7 @@ using namespace madness;
 
 int main(int argc, char **argv) {
 
-    initialize(argc, argv);
-    World world(SafeMPI::COMM_WORLD);
+    World& world=initialize(argc, argv);
 
     if (world.rank() == 0) {
         print("\n  CC2: Coupled Cluster approximate Doubles  \n");
@@ -74,30 +64,39 @@ int main(int argc, char **argv) {
     // set the tensor type
     TensorType tt = TT_2D;
     FunctionDefaults<6>::set_tensor_type(tt);
-    FunctionDefaults<6>::set_apply_randomize(true);
+//    FunctionDefaults<6>::set_apply_randomize(true);
 
     commandlineparser parser(argc, argv);
-    std::shared_ptr<Nemo> nemo(new Nemo(world, parser));
-    nemo->param.set_derived_value("print_level",2);
-    std::shared_ptr<SCF> calc = nemo->get_calc();
-    if (world.rank() == 0) {
-        print("\n");
-        calc->param.print("reference");
+    if (parser.key_exists("help")) {
+        CC2::help();
+
+    } else if (parser.key_exists("print_parameters")) {
+        CC2::print_parameters();
+
+    } else {
+
+        std::shared_ptr<Nemo> nemo(new Nemo(world, parser));
+        nemo->param.set_derived_value("print_level", 2);
+        CC2 cc2(world, parser, nemo);
+
+        std::shared_ptr<SCF> calc = nemo->get_calc();
+        if (world.rank() == 0) {
+            print("\n");
+            cc2.parameters.print("cc2","end");
+            print("\n");
+            calc->param.print("dft","end");
+        }
+        double hf_energy = nemo->value();
+        if (world.rank() == 0)
+            std::cout << "\n\n\n\n\n\n Reference Calclation Ended\n SCF Energy is: " << hf_energy
+                      << "\n current wall-time: " << wall_time()
+                      << "\n current cpu-time: " << cpu_time() << "\n\n\n";
+
+        cc2.solve();
+
+        if (world.rank() == 0) printf("\nfinished at time %.1fs\n\n", wall_time());
+        world.gop.fence();
     }
-    double hf_energy = nemo->value();
-    if (world.rank() == 0)
-        std::cout << "\n\n\n\n\n\n Reference Calclation Ended\n SCF Energy is: " << hf_energy
-                  << "\n current wall-time: " << wall_time()
-                  << "\n current cpu-time: " << cpu_time() << "\n\n\n";
-
-
-// Make CC2
-    CC2 cc2(world, parser, nemo);
-
-    cc2.solve();
-
-    if (world.rank() == 0) printf("\nfinished at time %.1fs\n\n", wall_time());
-    world.gop.fence();
     finalize();
 
     return 0;

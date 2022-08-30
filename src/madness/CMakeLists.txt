@@ -38,12 +38,14 @@ if (NOT MADNESS_BUILD_MADWORLD_ONLY)
 	add_subdirectory(misc)
 	add_subdirectory(tensor)
 	add_subdirectory(mra)
+	add_subdirectory(chem)
 # Create the super library that contains all MADNESS libraries
 	add_library(madness
     	$<TARGET_OBJECTS:MADworld-obj> $<TARGET_OBJECTS:MADmisc-obj>
     	$<TARGET_OBJECTS:MADtensor-obj> ${MADTENSOR_MTXMQ_OBJ}
     	$<TARGET_OBJECTS:MADlinalg-obj> $<TARGET_OBJECTS:MADmuparser-obj>
-    	$<TARGET_OBJECTS:MADtinyxml-obj> $<TARGET_OBJECTS:MADmra-obj>)
+    	$<TARGET_OBJECTS:MADtinyxml-obj> $<TARGET_OBJECTS:MADmra-obj>
+		$<TARGET_OBJECTS:MADchem-obj>)
 endif(NOT MADNESS_BUILD_MADWORLD_ONLY)
 
 # Set the dependencies for the super-library

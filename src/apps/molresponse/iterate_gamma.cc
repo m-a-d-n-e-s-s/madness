@@ -7,7 +7,7 @@
 #include "../chem/molecule.h"
 #include "TDDFT.h"
 #include "basic_operators.h"
-#include "chem/projector.h"  // For easy calculation of (1 - \hat{\rho}^0)
+#include "madness/chem/projector.h"  // For easy calculation of (1 - \hat{\rho}^0)
 #include "madness/mra/funcdefaults.h"
 #include "madness/mra/vmra.h"
 #include "molresponse/global_functions.h"

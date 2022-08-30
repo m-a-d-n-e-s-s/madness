@@ -327,6 +327,15 @@ namespace madness {
                 basear::open(world, filename, nio);
             }
 
+            /// Creates a parallel archive for output with given base filename and number of I/O nodes.
+
+            /// \param[in] world The world.
+            /// \param[in] filename Base name of the file.
+            /// \param[in] nio The number of I/O nodes.
+            ParallelOutputArchive(World& world, const std::string filename, int nio=1)  {
+                basear::open(world, filename.c_str(), nio);
+            }
+
             /// Flush any data in the archive.
             void flush() {
                 if (basear::is_io_node()) basear::local_archive().flush();
@@ -360,6 +369,15 @@ namespace madness {
             /// \param[in] nio The number of writers. Ignored, see above.
             ParallelInputArchive(World& world, const char* filename, int nio=1) {
                 basear::open(world, filename, nio);
+            }
+
+            /// Creates a parallel archive for input.
+
+            /// \param[in] world The world.
+            /// \param[in] filename Base name of the file.
+            /// \param[in] nio The number of writers. Ignored, see above.
+            ParallelInputArchive(World& world, const std::string filename, int nio=1) {
+                basear::open(world, filename.c_str(), nio);
             }
         };
 

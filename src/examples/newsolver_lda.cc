@@ -16,11 +16,11 @@
 #include <madness/tensor/elem.h>
 
 
-#include <chem/xcfunctional.h>
+#include<madness/chem/xcfunctional.h>
 
 #include <madness/mra/legendre.h>
 
-#include <chem/xcfunctional.h>
+#include<madness/chem/xcfunctional.h>
 
 
 using namespace madness;

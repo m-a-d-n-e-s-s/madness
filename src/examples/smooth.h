@@ -10,10 +10,10 @@
 
 #include <iostream>
 #include <string>
-#include <chem/nemo.h>
+#include<madness/chem/nemo.h>
 #include <madness/mra/funcplot.h>
 #include <cmath>
-#include <chem/SCFOperators.h>
+#include<madness/chem/SCFOperators.h>
 #include <madness/mra/function_common_data.h>
 
 static double RHOMIN = 1.e-20;

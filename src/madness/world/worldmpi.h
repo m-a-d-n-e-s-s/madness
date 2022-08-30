@@ -430,7 +430,7 @@ namespace madness {
         template <typename T>
         typename std::enable_if<!std::is_pointer<T>::value, void>::type
         Bcast(T& buffer, int root) const {
-            SafeMPI::Intracomm::Bcast(&buffer, sizeof(T), MPI_BYTE,root);
+            SafeMPI::Intracomm::Bcast(&buffer, sizeof(T), MPI_BYTE, root);
         }
 
 //        template <typename T>
