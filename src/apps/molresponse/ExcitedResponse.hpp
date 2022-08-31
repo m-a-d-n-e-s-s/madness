@@ -101,10 +101,7 @@ private:
             World& world, const Tensor<double>& shift, const Tensor<double>& ground,
             const Tensor<double>& omega, const double lo, const double thresh) const;
 
-    static void excited_to_json(json& j_mol_in, size_t iter, const Tensor<double>& res_X,
-                         const Tensor<double>& res_Y, const Tensor<double>& density_res,
-                         const Tensor<double>& omega, const Tensor<double>& chi_norms,
-                         const Tensor<double>& rel_chi_norms, const Tensor<double>& rho_norms);
+    static void excited_to_json(json& j_mol_in, size_t iter, const Tensor<double>& omega);
 
     /**
  * @brief Computes the BSH Update for an excited state calculation.  Passes in

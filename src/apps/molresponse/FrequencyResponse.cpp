@@ -25,6 +25,9 @@ void FrequencyResponse::iterate(World &world) {
     Tensor<double> bsh_residualsY((int(m)));
     Tensor<double> density_residuals((int(m)));
 
+    Tensor<double> xij_norms(m, 2 * n);
+    Tensor<double> xij_res_norms(m, 2 * n);
+
     vecfuncT rho_omega_old(m);
 
     // initialize DFT XC functional operator
@@ -47,9 +50,7 @@ void FrequencyResponse::iterate(World &world) {
                 X_space_allocator(world, n), true));
     }
     if (r_params.kain()) {
-        for (auto &kain_space_b: kain_x_space) {
-            kain_space_b.set_maxsub(r_params.maxsub());
-        }
+        for (auto &kain_space_b: kain_x_space) { kain_space_b.set_maxsub(r_params.maxsub()); }
     }
     //
     // We compute with positive frequencies
@@ -106,13 +107,12 @@ void FrequencyResponse::iterate(World &world) {
             if (density_residuals.max() > 2) { break; }
             double d_residual = density_residuals.max();
             // Test convergence and set to true
-            auto chi_norm = Chi.norm2s();
-            auto chi_x_norms = Chi.X.norm2();
-            auto chi_y_norms = Chi.Y.norm2();
+            auto chi_norms = Chi.norm2s();
             auto relative_bsh = copy(bsh_residualsX);
+            auto rho_norms = norm2s_T(world, rho_omega);
 
             std::transform(bsh_residualsX.ptr(), bsh_residualsX.ptr() + bsh_residualsX.size(),
-                           chi_norm.ptr(), relative_bsh.ptr(),
+                           chi_norms.ptr(), relative_bsh.ptr(),
                            [](auto bsh, auto norm_chi) { return bsh / norm_chi; });
 
             auto max_bsh = bsh_residualsX.absmax();
@@ -120,17 +120,19 @@ void FrequencyResponse::iterate(World &world) {
 
             Tensor<double> polar = -2 * inner(Chi, PQ);
             // Todo add chi norm and chi_x
-            frequency_to_json(j_molresponse, iter, bsh_residualsX, relative_bsh, density_residuals,
-                              polar, chi_norm, chi_norm, norm2s_T(world, rho_omega));
+            function_data_to_json(j_molresponse, iter, chi_norms, bsh_residualsX, relative_bsh,
+                                  xij_norms, xij_res_norms, rho_norms, density_residuals);
+            frequency_to_json(j_molresponse, iter, polar);
+
             if (r_params.print_level() >= 1) {
 
                 if (world.rank() == 0) {
                     print("thresh: ", FunctionDefaults<3>::get_thresh());
                     print("k: ", FunctionDefaults<3>::get_k());
                     print("Chi Norms at start of iteration: ", iter);
-                    print("Chi_X.X: ", chi_x_norms);
-                    print("Chi_X.Y: ", chi_y_norms);
-                    print("Chi_X: ", chi_norm);
+                    print("xij norms: \n", xij_norms);
+                    print("xij residual norms: \n", xij_res_norms);
+                    print("Chi_X: ", chi_norms);
                     print("bsh_residuals : ", bsh_residualsX);
                     print("relative_bsh : ", relative_bsh);
                     print("r_params.dconv(): ", r_params.dconv());
@@ -196,6 +198,8 @@ void FrequencyResponse::iterate(World &world) {
             molresponse::end_timer(world, "copy_response_data", "copy_response_data", iter_timing);
         }
 
+        xij_res_norms = new_res.residual.component_norm2s();
+        xij_norms = Chi.component_norm2s();
 
         density_residuals = norm2s_T(world, (rho_omega - rho_omega_old));
         /*
@@ -334,24 +338,14 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
 
     return bsh_X;
 }
-void FrequencyResponse::frequency_to_json(json &j_mol_in, size_t iter, const Tensor<double> &res_X,
-                                          const Tensor<double> &res_Y,
-                                          const Tensor<double> &density_res,
-                                          const Tensor<double> &frequency,
-                                          const Tensor<double> &chi_norms,
-                                          const Tensor<double> &rel_chi_norms,
-                                          const Tensor<double> &rho_norms) {
+void FrequencyResponse::frequency_to_json(json &j_mol_in, size_t iter,
+                                          const Tensor<double> &polar_ij) {
     json j = {};
+
     j["iter"] = iter;
-    j["res_X"] = tensor_to_json(res_X);
-    j["res_Y"] = tensor_to_json(res_Y);
-    j["chi_norms_x"] = tensor_to_json(chi_norms);
-    j["chi_norms_y"] = tensor_to_json(rel_chi_norms);
-    j["rho_norms"] = tensor_to_json(rho_norms);
-    j["density_residuals"] = tensor_to_json(density_res);
-    j["polar"] = tensor_to_json(frequency);
+    j["polar"] = tensor_to_json(polar_ij);
     auto index = j_mol_in["protocol_data"].size() - 1;
-    j_mol_in["protocol_data"][index]["iter_data"].push_back(j);
+    j_mol_in["protocol_data"][index]["property_data"].push_back(j);
 }
 
 void FrequencyResponse::compute_and_print_polarizability(World &world, X_space &Chi, X_space &pq,

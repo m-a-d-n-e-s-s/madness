@@ -1292,6 +1292,7 @@ void ResponseBase::plotResponseOrbitals(World &world, size_t iteration,
     // END TESTING
 }
 
+
 void PlotGroundDensityVTK(World &world, const ResponseBase &calc) {
 
     auto [ground_calc, molecule, r_params] = calc.get_parameter();
@@ -1321,6 +1322,32 @@ void protocol_to_json(json &j, const double proto) {
     j["protocol_data"][proto_index]["proto"] = proto;
     j["protocol_data"][proto_index]["k"] = FunctionDefaults<3>::get_k();
     j["protocol_data"][proto_index]["iter_data"] = {};
+}
+
+void ResponseBase::function_data_to_json(json &j_mol_in, size_t iter, const Tensor<double> &x_norms,
+                                         const Tensor<double> &x_abs_norms,
+                                         const Tensor<double> &x_rel_norms,
+                                         const Tensor<double> &xij_norms,
+                                         const Tensor<double> &xij_abs_norms,
+                                         const Tensor<double> &rho_norms,
+                                         const Tensor<double> &rho_abs_norms) {
+    json j = {};
+
+    j["iter"] = iter;
+
+    j["x_norms"] = tensor_to_json(x_norms);
+    j["x_abs_error"] = tensor_to_json(x_abs_norms);
+    j["x_rel_error"] = tensor_to_json(x_rel_norms);
+
+    j["xij_norms"] = tensor_to_json(xij_norms);
+    j["xij_abs_error"] = tensor_to_json(xij_abs_norms);
+
+    j["rho_norms"] = tensor_to_json(rho_norms);
+    j["rho_abs_error"] = tensor_to_json(rho_abs_norms);
+
+
+    auto index = j_mol_in["protocol_data"].size() - 1;
+    j_mol_in["protocol_data"][index]["iter_data"].push_back(j);
 }
 
 void ResponseBase::solve(World &world) {

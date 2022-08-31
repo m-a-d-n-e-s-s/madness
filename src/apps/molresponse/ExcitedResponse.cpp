@@ -1731,23 +1731,15 @@ ExcitedResponse::create_bsh_operators(World &world, const Tensor<double> &shift,
     // Done
     return operators;
 }
-void ExcitedResponse::excited_to_json(json &j_mol_in, size_t iter, const Tensor<double> &res_X,
-                                      const Tensor<double> &res_Y,
-                                      const Tensor<double> &density_res,
-                                      const Tensor<double> &omega, const Tensor<double> &chi_norms,
-                                      const Tensor<double> &rel_chi_norms,
-                                      const Tensor<double> &rho_norms) {
+void ExcitedResponse::excited_to_json(json &j_mol_in, size_t iter, const Tensor<double> &omega) {
     json j = {};
+
     j["iter"] = iter;
-    j["res_X"] = tensor_to_json(res_X);
-    j["res_Y"] = tensor_to_json(res_Y);
-    j["chi_norms"] = tensor_to_json(chi_norms);
-    j["rel_chi_norms"] = tensor_to_json(rel_chi_norms);
-    j["rho_norms"] = tensor_to_json(rho_norms);
-    j["density_residuals"] = tensor_to_json(density_res);
+
     j["omega"] = tensor_to_json(omega);
+
     auto index = j_mol_in["protocol_data"].size() - 1;
-    j_mol_in["protocol_data"][index]["iter_data"].push_back(j);
+    j_mol_in["protocol_data"][index]["property_data"].push_back(j);
 }
 void ExcitedResponse::iterate(World &world) {
     size_t iter;
@@ -1775,6 +1767,9 @@ void ExcitedResponse::iterate(World &world) {
     Tensor<double> bsh_residualsX(m);
     Tensor<double> density_residuals(m);
     Tensor<double> bsh_residualsY(m);
+
+    Tensor<double> xij_norms(m, 2 * n);
+    Tensor<double> xij_res_norms(m, 2 * n);
     // saved response densities
     vecfuncT rho_omega_old(m);
     // initialize DFT XC functional operator
@@ -1866,20 +1861,22 @@ void ExcitedResponse::iterate(World &world) {
             if (density_residuals.max() > 2) { break; }
             double d_residual = density_residuals.max();
             // Test convergence and set to true
-            auto chi_norm = Chi.norm2s();
-            auto chi_x_norms = Chi.X.norm2();
-            auto chi_y_norms = Chi.Y.norm2();
+            auto chi_norms = Chi.norm2s();
+            auto rho_norms = norm2s_T(world, rho_omega);
             auto relative_bsh = copy(bsh_residualsX);
 
             std::transform(bsh_residualsX.ptr(), bsh_residualsX.ptr() + bsh_residualsX.size(),
-                           chi_norm.ptr(), relative_bsh.ptr(),
+                           chi_norms.ptr(), relative_bsh.ptr(),
                            [](auto bsh, auto norm_chi) { return bsh / norm_chi; });
 
             auto max_bsh = bsh_residualsX.absmax();
             auto relative_max_bsh = relative_bsh.absmax();
 
-            excited_to_json(j_molresponse, iter, bsh_residualsX, bsh_residualsY, chi_norm, omega,
-                            chi_norm, relative_bsh, density_residuals);
+
+            function_data_to_json(j_molresponse, iter, chi_norms, bsh_residualsX, relative_bsh,
+                                  xij_norms, xij_res_norms, rho_norms, density_residuals);
+
+            excited_to_json(j_molresponse, iter, omega);
 
             if (r_params.print_level() >= 1) {
 
@@ -1887,9 +1884,9 @@ void ExcitedResponse::iterate(World &world) {
                     print("thresh: ", FunctionDefaults<3>::get_thresh());
                     print("k: ", FunctionDefaults<3>::get_k());
                     print("Chi Norms at start of iteration: ", iter);
-                    print("Chi_X.X: ", chi_x_norms);
-                    print("Chi_X.Y: ", chi_y_norms);
-                    print("Chi_X: ", chi_norm);
+                    print("xij norms\n: ", xij_norms);
+                    print("xij residual norms\n: ", xij_res_norms);
+                    print("Chi_X: ", chi_norms);
                     print("bsh_residuals : ", bsh_residualsX);
                     print("relative_bsh : ", relative_bsh);
                     print("r_params.dconv(): ", r_params.dconv());
@@ -1964,6 +1961,8 @@ void ExcitedResponse::iterate(World &world) {
             molresponse::end_timer(world, "copy_response_data", "copy_response_data", iter_timing);
         }
 
+        xij_res_norms = new_res.residual.component_norm2s();
+        xij_norms=Chi.component_norm2s();
 
         density_residuals = norm2s_T(world, (rho_omega - rho_omega_old));
         /*
@@ -2135,8 +2134,8 @@ auto ExcitedResponse::update(World &world, X_space &Chi, XCOperator<double, 3> &
 
     return {new_omega, rotated_chi, new_chi, {new_res, bsh}};
 }
-X_space ExcitedResponse::bsh_update_excited(World &world, const Tensor<double> &omega,
-                                            X_space &theta_X, QProjector<double, 3> &projector) {
+auto ExcitedResponse::bsh_update_excited(World &world, const Tensor<double> &omega,
+                                            X_space &theta_X, QProjector<double, 3> &projector) -> X_space {
     size_t m = theta_X.num_states();
     size_t n = theta_X.num_orbitals();
     bool compute_y = !r_params.tda();

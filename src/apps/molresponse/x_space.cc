@@ -19,6 +19,26 @@ namespace madness {
         return mX;
     }
 
+    /**
+     * Flattens all response functions into a single vector of functions
+     * @param x
+     * @return
+     */
+    auto to_flattened_vector(const X_space& x) -> vector_real_function_3d {
+
+        World& world = x.X[0][0].world();
+        auto num_orbitals = 2 * x.num_orbitals();
+        auto vij = vector_real_function_3d(x.num_states()*num_orbitals);
+        auto mx = to_response_matrix(x);
+
+        int b = 0;
+        for (auto& mi: mx) {
+            std::copy(mi.begin(), mi.end(), vij.begin() + b * num_orbitals);
+            b++;
+        }
+        return vij;
+    }
+
     auto to_X_space(const response_matrix& x) -> X_space {
 
         World& world = x[0][0].world();

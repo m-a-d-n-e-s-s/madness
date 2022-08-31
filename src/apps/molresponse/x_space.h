@@ -16,6 +16,7 @@
 namespace madness {
     struct X_space;
     auto to_response_matrix(const X_space& x) -> response_matrix;
+    auto to_flattened_vector(const X_space& x) -> vector_real_function_3d;
     auto to_X_space(const response_matrix& x) -> X_space;
     struct X_space {
     private:
@@ -49,7 +50,7 @@ namespace madness {
         /// asynchronous communication and the optional fence is
         /// collective.
         auto copy(const std::shared_ptr<WorldDCPmapInterface<Key<3>>>& pmap,
-                     bool fence = false) const -> X_space {
+                  bool fence = false) const -> X_space {
             X_space copyX(X[0][0].world(), n_states, n_orbitals);
             copyX.X = X.copy(pmap, fence);
             copyX.Y = Y.copy(pmap, fence);
@@ -233,7 +234,7 @@ namespace madness {
             Y.truncate_rf();
         }
 
-        Tensor<double> norm2s() {
+        auto norm2s() -> Tensor<double> {
             World& world = X[0][0].world();
 
             Tensor<double> norms(num_states());
@@ -243,6 +244,14 @@ namespace madness {
                 norms[b] = sqrt(inner(xb, xb));
             }
             return norms;
+        }
+
+        auto component_norm2s() const -> Tensor<double> {
+            World& world = X[0][0].world();
+
+            auto rx = to_flattened_vector(*this);
+            auto norms = norm2s_T(world, rx);
+            return norms.reshape(n_states, 2 * n_orbitals);
         }
 
         friend auto size_states(const X_space& x) -> size_t { return x.n_states; }
