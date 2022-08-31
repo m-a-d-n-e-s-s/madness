@@ -33,7 +33,7 @@ auto main(int argc, char *argv[]) -> int {
 
     std::cout.precision(6);
 
-    if (argc != 4) {
+    if (argc != 5) {
 
         std::cout << "Wrong number of inputs" << std::endl;
         return 1;
@@ -41,7 +41,8 @@ auto main(int argc, char *argv[]) -> int {
 
     const std::string molecule_name{argv[1]};
     const std::string xc{argv[2]};
-    const std::string is_high_prec{argv[3]};
+    const std::string op{argv[3]};
+    const std::string is_high_prec{argv[4]};
 
 
     bool high_prec;
