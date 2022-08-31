@@ -167,7 +167,7 @@ TEST_CASE("print_QCSchema Test ", "Json Tensor Indexing") {
 
   to_json(j,double_tensor_vals);
 
-  output_schema("test_schema",j);
+  output_schema(<#initializer #>, "test_schema", j);
 
 }
 TEST_CASE("Response Parameters Test ", "Testing parameters to_json") {
