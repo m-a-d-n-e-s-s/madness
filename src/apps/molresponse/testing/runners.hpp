@@ -416,6 +416,7 @@ void runMOLDFT(World &world, const moldftSchema &moldftSchema, bool try_run, boo
     CalculationParameters param_calc;
     json calcInfo;
     if (std::filesystem::exists(moldftSchema.calc_info_json_path)) {
+        std::cout<<"Reading Calc Info JSON"<<std::endl;
         std::ifstream ifs(moldftSchema.calc_info_json_path);
         ifs >> calcInfo;
         param_calc.from_json(calcInfo["parameters"]);
