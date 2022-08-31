@@ -15,44 +15,9 @@
 
 // real_function_3d == Function<double,3>
 namespace madness {
-    /**
- * @brief response vector class holds a single x or y
- *
- */
-    struct response_vector {
-    private:
-        size_t num_orbitals;
-        vector_real_function_3d x;// n response_functions
 
-    public:
-        // default constructor
-        response_vector() : num_orbitals(size_t(0)), x() {}
-        // copy constructor
-        response_vector(const response_vector& other) : num_orbitals{other.num_orbitals} {
-            x = copy(other[0].world(), other.x);
-        }
-        response_vector& operator=(const response_vector& other) {
-            num_orbitals = other.num_orbitals;
-            x = copy(other[0].world(), other.x);
-            return *this;
-        }
-        // zero function constructor
-        explicit response_vector(World& world, size_t num_orbs) : num_orbitals(num_orbs) {
-            x = zero_functions<double, 3>(world, static_cast<int>(num_orbitals));
-        }
-        ~response_vector() = default;
-        friend size_t size(const response_vector& other) { return other.num_orbitals; }
-        real_function_3d& operator[](size_t n) {
-            assert(n < num_orbitals);
-            return x.at(n);
-        }
-        const real_function_3d& operator[](size_t n) const {
-            assert(n < num_orbitals);
-            return x[n];
-        }
-    };
-
-    /**
+    typedef std::vector<vector_real_function_3d> response_matrix;
+    /* *
  * @brief response matrix holds response vectors for response state
  *
  */
@@ -62,7 +27,6 @@ namespace madness {
    * @brief vector of vector of real 3d functions
    *
    */
-        typedef std::vector<vector_real_function_3d> response_matrix;
 
     public:
         size_t num_states;  // Num. of resp. states
@@ -100,6 +64,11 @@ namespace madness {
                 this->num_states = y.size();
                 this->num_orbitals = y.size_orbitals();
                 this->x = y.x;
+                if (x.size() != num_states) { x.resize(num_states); }
+                World& world = y[0][0].world();
+                // print("perhaps this is the problem");
+                std::transform(y.x.begin(), y.x.end(), x.begin(),
+                               [&](auto yi) { return madness::copy(world, yi); });
             }
             return *this;//
         }
@@ -197,8 +166,9 @@ namespace madness {
 
             response_space result(world, num_states, num_orbitals);// create zero_functions
 
-            for (size_t i = 0; i < num_states; i++) { result[i] = sub(world, x[i], rhs_y[i]); }
-            world.gop.fence();
+            for (size_t i = 0; i < num_states; i++) {
+                result[i] = sub(world, x[i], rhs_y[i], false);
+            }
             return result;
         }
 
@@ -288,10 +258,12 @@ namespace madness {
         // Returns a deep copy
         response_space copy() const {
             response_space result(x[0][0].world(), num_states, num_orbitals);
+            World& world = x[0][0].world();
 
-            for (size_t i = 0; i < num_states; i++) {
-                result.x[i] = madness::copy(x[0][0].world(), x[i]);
-            }
+
+            std::transform(x.begin(), x.end(), result.x.begin(),
+                           [&world](auto xi) { return madness::copy(world, xi); });
+
 
             return result;
         }
@@ -343,34 +315,54 @@ namespace madness {
 
         // Mimicing standard madness calls with these 3
         void zero() {
+            auto& world = x[0][0].world();
+            std::generate(x.begin(), x.end(),
+                          [&]() { return zero_functions<double, 3>(world, num_orbitals, true); });
+
+            /*
             for (size_t k = 0; k < num_states; k++) {
                 x[k] = zero_functions<double, 3>(x[0][0].world(), num_orbitals);
             }
+             */
         }
 
         void compress_rf() {
-            for (size_t k = 0; k < num_states; k++) { compress(x[0][0].world(), x[k], true); }
+            //for (size_t k = 0; k < num_states; k++) { compress(x[0][0].world(), x[k], true); }
+            auto& world = x[0][0].world();
+            std::for_each(x.begin(), x.end(), [&](auto xi) { compress(world, xi, true); });
         }
 
         void reconstruct_rf() {
-            for (size_t k = 0; k < num_states; k++) { reconstruct(x[0][0].world(), x[k], true); }
+            //for (size_t k = 0; k < num_states; k++) { reconstruct(x[0][0].world(), x[k], true); }
+            auto& world = x[0][0].world();
+            std::for_each(x.begin(), x.end(), [&](auto xi) { reconstruct(world, xi, true); });
         }
 
         void truncate_rf() {
+            truncate_rf(FunctionDefaults<3>::get_thresh());
+            /*
             for (size_t k = 0; k < num_states; k++) {
                 truncate(x[0][0].world(), x[k], FunctionDefaults<3>::get_thresh(), true);
             }
+             */
         }
+
         void truncate_rf(double tol) {
+            auto& world = x[0][0].world();
+            std::for_each(x.begin(), x.end(), [&](auto xi) { truncate(world, xi, tol, true); });
+            /*
             for (size_t k = 0; k < num_states; k++) { truncate(x[0][0].world(), x[k], tol, true); }
+             */
         }
 
         // Returns norms of each state
         Tensor<double> norm2() {
+            auto& world = x[0][0].world();
             Tensor<double> answer(num_states);
-            for (size_t i = 0; i < num_states; i++) {
-                answer(i) = madness::norm2(x[0][0].world(), x[i]);
-            }
+            for (size_t i = 0; i < num_states; i++) { answer(i) = madness::norm2(world, x[i]); }
+
+            world.gop.fence();
+
             return answer;
         }
 
@@ -434,6 +426,7 @@ namespace madness {
 
         return value;
     }
+    auto transposeResponseMatrix(const response_matrix& x) -> response_matrix;
     // Final piece for KAIN
 
 }// End namespace madness

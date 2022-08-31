@@ -10,7 +10,7 @@
 #include "Plot_VTK.h"
 #include "TDDFT.h"
 #include "madness/tensor/tensor_json.hpp"
-#include "madness/chem/projector.h"  // For easy calculation of (1 - \hat{\rho}^0)
+#include "chem/projector.h"  // For easy calculation of (1 - \hat{\rho}^0)
 #include "madness/mra/funcdefaults.h"
 #include "molresponse/response_functions.h"
 #include "molresponse/timer.h"
