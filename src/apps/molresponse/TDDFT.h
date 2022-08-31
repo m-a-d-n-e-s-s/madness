@@ -3,11 +3,11 @@
 #ifndef SRC_APPS_MOLRESPONSE_TDDFT_H_
 #define SRC_APPS_MOLRESPONSE_TDDFT_H_
 
-#include <chem/SCFOperators.h>
-#include <chem/molecularbasis.h>
-#include <chem/molecule.h>
-#include <chem/xcfunctional.h>
-#include <chem/SCF.h>
+#include <madness/chem/SCFOperators.h>
+#include <madness/chem/molecularbasis.h>
+#include <madness/chem/molecule.h>
+#include <madness/chem/xcfunctional.h>
+#include <madness/chem/SCF.h>
 #include <madness/constants.h>
 #include <madness/mra/mra.h>
 #include <madness/mra/nonlinsol.h>  // The kain solver

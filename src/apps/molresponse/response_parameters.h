@@ -6,9 +6,9 @@
 #ifndef SRC_APPS_MOLRESPONSE_RESPONSE_PARAMETERS_H_
 #define SRC_APPS_MOLRESPONSE_RESPONSE_PARAMETERS_H_
 
-#include <chem/QCCalculationParametersBase.h>
-#include <chem/molecule.h>
-#include <chem/xcfunctional.h>
+#include <madness/chem/QCCalculationParametersBase.h>
+#include <madness/chem/molecule.h>
+#include <madness/chem/xcfunctional.h>
 #include <madness/mra/mra.h>
 #include <madness/world/parallel_archive.h>
 #include <molresponse/ground_parameters.h>

@@ -1,5 +1,5 @@
 // Copyright 2021 Adrian Hurtado
-#include <chem/SCF.h>
+#include <madness/chem/SCF.h>
 #include <math.h>
 
 #include <cstdint>
@@ -11,11 +11,11 @@
 
 #include "Plot_VTK.h"
 #include "TDDFT.h"
-#include "chem/NWChem.h"// For nwchem interface
-#include "chem/SCFOperators.h"
-#include "chem/molecule.h"
-#include "chem/potentialmanager.h"
-#include "chem/projector.h"// For easy calculation of (1 - \hat{\rho}^0)
+#include "madness/chem/NWChem.h"// For nwchem interface
+#include "madness/chem/SCFOperators.h"
+#include "madness/chem/molecule.h"
+#include "madness/chem/potentialmanager.h"
+#include "madness/chem/projector.h"// For easy calculation of (1 - \hat{\rho}^0)
 #include "madness/mra/funcdefaults.h"
 #include "molresponse/basic_operators.h"
 #include "molresponse/density.h"

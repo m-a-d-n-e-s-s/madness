@@ -9,7 +9,7 @@
 #include "FrequencyResponse.hpp"
 #include "ResponseExceptions.hpp"
 #include "TDDFT.h"
-#include "apps/chem/SCF.h"
+#include "madness/chem/SCF.h"
 #include "madness/tensor/tensor_json.hpp"
 #include "madness/world/worldmem.h"
 #include "response_data_base.hpp"

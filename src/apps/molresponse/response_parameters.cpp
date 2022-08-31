@@ -3,6 +3,8 @@
 //
 #include "response_parameters.h"
 
+using json=nlohmann::json;
+
 void madness::from_json(const json& j, ResponseParameters& p) {
     p.from_json(j);
     print("--------JSON-Parameters------------\n", p.print_to_string());

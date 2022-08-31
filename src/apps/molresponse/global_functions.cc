@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-#include "apps/chem/SCFOperators.h"
+#include "madness/chem/SCFOperators.h"
 #include "response_parameters.h"
 
 void print_molecule(World &world, const GroundStateCalculation &g_params) {

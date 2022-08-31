@@ -6,7 +6,7 @@
 #ifndef MADNESS_WRITE_RESPONSE_INPUT_H
 #define MADNESS_WRITE_RESPONSE_INPUT_H
 
-#include <chem/CalculationParameters.h>
+#include <madness/chem/CalculationParameters.h>
 
 #include "response_parameters.h"
 
