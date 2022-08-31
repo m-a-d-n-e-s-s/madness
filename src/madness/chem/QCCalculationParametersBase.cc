@@ -5,7 +5,7 @@
  *      Author: fbischoff
  */
 
-#include <madness/chem/QCCalculationParametersBase.h>
+#include<madness/chem/QCCalculationParametersBase.h>
 #include <iostream>
 #include <fstream>
 #include <iomanip>
@@ -37,11 +37,12 @@ namespace madness {
         list.sort([](const keyvalT& first, const keyvalT& second) {return std::get<0>(first) < std::get<0>(second);});
 
         std::stringstream ss;
+        int counter=0;
         for (auto& p : list) {
             const QCParameter& param=std::get<2>(p);
             if (non_defaults_only and (param.precedence==QCParameter::def)) continue;
             ss << param.print_line(std::get<1>(p));
-            ss << std::endl;
+            if (++counter<list.size()) ss << std::endl; // no newline at the very end
         }
         return ss.str();
     }
@@ -50,16 +51,23 @@ namespace madness {
     void QCCalculationParametersBase::read_input(World& world, const std::string filename, const std::string tag) {
 
         std::string filecontents, line;
+        std::string errmsg;
         if (world.rank()==0) {
             try {
                 std::ifstream f(filename.c_str());
                 while (std::getline(f, line)) filecontents += line + "\n";
                 read_internal(world, filecontents, tag);
-            } catch (madness::MadnessException& e) {
-                std::cout << "could not find " << tag << " in file " << filename << std::endl;
+            } catch (std::invalid_argument& e) {
+                errmsg=e.what();
+                throw;
+            } catch (std::exception& e) {
+                std::stringstream ss;
+                ss << "could not read data group >>" << tag << "<< in file " << filename << std::endl;
+                errmsg=ss.str();
             }
         }
         world.gop.broadcast_serializable(*this, 0);
+        if (errmsg.size()>0) throw std::runtime_error(errmsg);
     }
 
 /// read the parameters from the command line and broadcast
@@ -76,6 +84,7 @@ namespace madness {
             std::replace_copy(value.begin(), value.end(), value.begin(), q.c_str()[0] , ' ');
             std::replace_copy(value.begin(), value.end(), value.begin(), ';', '\n');
             value=tag+"\n"+value+"\nend";
+//        print("value",value);
             read_internal(world, value,tag);
         }
         world.gop.broadcast_serializable(*this, 0);
@@ -101,6 +110,7 @@ namespace madness {
             // remove comments from line
             std::size_t last = line.find_first_of('#');
             line=line.substr(0,last);
+            std::replace_copy(line.begin(), line.end(), line.begin(),'=', ' ');
 
             std::stringstream sline(line);
 
@@ -114,7 +124,15 @@ namespace madness {
 
             // check if key exists in the initialized parameter list
             if (not (parameter_exists(key))) {
-                if (world.rank()==0) madness::print("ignoring unknown parameter in input file: ",key);
+                if (not ignore_unknown_keys) {
+                    if (world.rank()==0) {
+                        ::madness::print("found unknown key: ",key);
+                        ::madness::print("in datagroup:      ",tag);
+                    }
+                    throw std::runtime_error("input error");
+                }
+                if ((not ignore_unknown_keys_silently)
+                    and (world.rank()==0)) madness::print("ignoring unknown parameter in input file: ",key);
                 continue;
             }
 
@@ -142,7 +160,9 @@ namespace madness {
                 success=try_setting_user_defined_value<std::vector<std::string> >(key,line1) or success;
                 success=try_setting_user_defined_value<std::pair<std::string,double> >(key,line1) or success;
 
-            } catch (std::runtime_error& e) {
+            } catch (std::invalid_argument& e) {
+                throw;
+            } catch (std::exception& e) {
                 std::string errmsg="found an error for key >> "+key+" << \n" +e.what();
                 throw std::runtime_error(errmsg);
             }
@@ -151,7 +171,7 @@ namespace madness {
                 std::string requested_type=get_parameter(key).get_type();
                 madness::print("\trequested type: ",requested_type,"\n");
                 madness::print("add the corresponding type to QCCalculationsParametersBase.h\n\n");
-                MADNESS_EXCEPTION("add the corresponding type to QCCalculationsParametersBase.h",1);
+                throw std::invalid_argument("add the corresponding type to QCCalculationsParametersBase.h");
             }
         }
     };

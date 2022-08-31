@@ -8,23 +8,22 @@
 #ifndef SRC_APPS_CHEM_QCCALCULATIONPARAMETERSBASE_H_
 #define SRC_APPS_CHEM_QCCALCULATIONPARAMETERSBASE_H_
 
-
-#include <string>
+#include<string>
 #include <algorithm>
-#include <iomanip>
+#include<iomanip>
 #include <typeindex>
 #include <map>
 #include <typeinfo>
 #include <madness/misc/misc.h>
 #include <madness/world/archive.h>
 #include <madness/world/world.h>
-#include <madness/chem/commandlineparser.h>
-#include <madness/external/nlohmann_json/json.hpp>
+#include<madness/chem/commandlineparser.h>
+#include<madness/external/nlohmann_json/json.hpp>
 
-using json =nlohmann::json;
 
 namespace madness {
 
+    using json =nlohmann::json;
 
     template<typename T>
     static typename std::enable_if<std::is_floating_point<T>::value, void>::type
@@ -54,6 +53,7 @@ namespace madness {
             line+=word;
             if (word.find(']')!=std::string::npos) break;
         }
+        if (line.size()!=0) is.clear();
 
         // remove enclosing brackets and commas
         auto find_c = [](char& c){ return ((c==',') or (c=='[') or (c==']')); };
@@ -71,7 +71,7 @@ namespace madness {
         if (sline.bad()) {
             madness::print("error while reading vector from istream: ");
             madness::print(line,"\n");
-            MADNESS_EXCEPTION("IO error",1);
+            throw std::runtime_error("IO error");
         }
 
         return is;
@@ -105,7 +105,7 @@ namespace madness {
         if (sline.bad() or sline.fail()) {
             madness::print("error while reading vector from istream: ");
             madness::print(line,"\n");
-            MADNESS_EXCEPTION("IO error",1);
+            throw std::runtime_error("IO error");
         }
         p=std::pair<T,Q>(tmp1,tmp2);
 
@@ -143,6 +143,10 @@ namespace madness {
             precedence=std::max(defined,precedence);
             user_defined_value=val;
             set_all();
+        }
+
+        bool is_user_defined() const {
+            return (precedence==defined);
         }
 
         std::string get_value() const {return value;}
@@ -204,7 +208,7 @@ namespace madness {
             value=default_value;
             if (derived_value!=null) value=derived_value;
             if (user_defined_value!=null) value=user_defined_value;
-            if (not check_allowed()) throw std::runtime_error(not_allowed_errmsg());
+            if (not check_allowed()) throw std::invalid_argument(not_allowed_errmsg());
         }
 
         bool check_allowed() {
@@ -224,7 +228,7 @@ namespace madness {
         }
 
 
-        std::string value="";
+        std::string value;
         std::string default_value="";
         std::string derived_value="";
         std::string user_defined_value="";
@@ -269,6 +273,10 @@ namespace madness {
             return fromstring<T>(parameter.get_value());
         }
 
+        bool is_user_defined(std::string key) const {
+            return get_parameter(key).is_user_defined();
+        }
+
         template <typename Archive> void serialize (Archive& ar) {
             ar & parameters & print_debug;
         }
@@ -285,7 +293,13 @@ namespace madness {
         virtual void read_input_and_commandline_options(World& world,
                                                         const commandlineparser& parser,
                                                         const std::string tag) {
-            read_input(world,parser.value("input"),tag);
+            try {
+                read_input(world,parser.value("input"),tag);
+            } catch (std::invalid_argument& e) {
+                throw;
+            } catch (std::exception& e) {
+                print(e.what());
+            }
             read_commandline_options(world,parser,tag);
         }
 
@@ -300,8 +314,10 @@ namespace madness {
 
     protected:
 
-
         bool print_debug=false;
+        bool ignore_unknown_keys=true;
+        bool ignore_unknown_keys_silently=false;
+        bool throw_if_datagroup_not_found=true;
 
         /// ctor for testing
         QCCalculationParametersBase() {}
@@ -352,6 +368,11 @@ namespace madness {
             }
             parameter.set_derived_value(tostring(value));
         }
+
+        ParameterContainerT get_all_parameters() const {
+            return parameters;
+        }
+
 
     protected:
 
@@ -652,14 +673,14 @@ namespace madness {
         }
 
         template<typename T>
-        static typename std::enable_if<std::is_same<T, bool>::value, T>::type fromstring(
-                const std::string& arg) {
-            std::string str = arg;
+        static typename std::enable_if<std::is_same<T,bool>::value, T>::type
+        fromstring(const std::string& arg) {
+            std::string str=arg;
             std::transform(str.begin(), str.end(), str.begin(), ::tolower);
-            if (str == "true" or str == "1" or str == "yes") return true;
-            if (str == "false" or str == "0" or str == "no") return false;
-            std::string errmsg = "error in type conversion for argument >> " + arg +
-                                 " << to type " + std::type_index(typeid(T)).name();
+            if (str=="true" or str=="1" or str=="yes") return true;
+            if (str=="false" or str=="0" or str=="no") return false;
+            std::string errmsg="error in type conversion for argument >> " + arg
+                               + " << to type " + std::type_index(typeid(T)).name();
             throw std::runtime_error(errmsg);
             return 0;
         }
