@@ -33,6 +33,7 @@ namespace molresponse {
     }
     void end_timer(World& world, const char* msg, const std::string& key,
                    std::map<std::string, std::pair<double, double>>& time) {
+        world.gop.fence();
         double wall = wall_time() - pop(ttt);
         double cpu = cpu_time() - pop(sss);
 
@@ -43,6 +44,7 @@ namespace molresponse {
         timings.second = cpu;
 
         time[key] = timings;
+
 
         if (world.rank() == 0) printf("   timer: %20.20s %8.2fs %8.2fs\n", msg, cpu, wall);
     }

@@ -48,7 +48,7 @@
 #include <unistd.h>
 
 static inline int file_exists(const char *inpname) {
-    struct stat buffer {};
+    struct stat buffer{};
     size_t rc = stat(inpname, &buffer);
     return (rc == 0);
 }
@@ -60,9 +60,9 @@ using namespace madness;
 
 int main(int argc, char **argv) {
     World &world = madness::initialize(argc, argv);
+    startup(world, argc, argv, true);
+    sleep(10);
     int result = 0;
-    world.gop.fence();
-    startup(world, argc, argv);
     std::cout.precision(6);
     std::string filename = "response.in";
 
@@ -84,8 +84,8 @@ int main(int argc, char **argv) {
                 print("\n");
                 calc_params.response_parameters.print("response");
                 // put the response parameters in a j_molrespone json object
-                calc_params.response_parameters.to_json(calc.j_molresponse);
             }
+            calc_params.response_parameters.to_json(calc.j_molresponse);
             // set protocol to the first
             calc.solve(world);
             calc.output_json();
@@ -108,8 +108,8 @@ int main(int argc, char **argv) {
                 calc_params.molecule.print();
                 print("\n");
                 calc_params.response_parameters.print("response");
-                calc_params.response_parameters.to_json(calc.j_molresponse);
             }
+            calc_params.response_parameters.to_json(calc.j_molresponse);
             // set protocol to the first
             calc.solve(world);
             calc.output_json();

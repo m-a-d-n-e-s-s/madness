@@ -8,6 +8,7 @@
 
 
 void FrequencyResponse::initialize(World &world) { Chi = PQ.copy(); }
+
 void FrequencyResponse::iterate(World &world) {
     size_t iter;
     // Variables needed to iterate
@@ -172,29 +173,31 @@ void FrequencyResponse::iterate(World &world) {
             }
         }
 
+        std::cout << "MPI BARRIER before update " << std::endl;
+        world.mpi.Barrier();
         auto [new_chi, new_res] =
                 update(world, Chi, xc, bsh_x_ops, bsh_y_ops, projector, x_shifts, omega,
                        kain_x_space, x_vectors, x_residuals, iter, max_rotation);
 
 
-        if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
+        if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
         rho_omega_old = make_density(world, Chi);
-        if (world.rank() == 0 && r_params.print_level() >= 1) {
+        if (r_params.print_level() >= 1) {
             molresponse::end_timer(world, "make_density_old", "make_density_old", iter_timing);
         }
-        if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
+        if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
         rho_omega = make_density(world, new_chi);
-        if (world.rank() == 0 && r_params.print_level() >= 1) {
+        if (r_params.print_level() >= 1) {
             molresponse::end_timer(world, "make_density_new", "make_density_new", iter_timing);
         }
 
-        if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
+        if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
         bsh_residualsX = copy(new_res.residual_norms);
         bsh_residualsY = copy(new_res.residual_norms);
         Chi = new_chi.copy();
 
-        if (world.rank() == 0 && r_params.print_level() >= 1) {
+        if (r_params.print_level() >= 1) {
             molresponse::end_timer(world, "copy_response_data", "copy_response_data", iter_timing);
         }
 
@@ -228,7 +231,7 @@ void FrequencyResponse::iterate(World &world) {
             }
         }
 
-        if (world.rank() == 0 && r_params.print_level() >= 1) {
+        if (r_params.print_level() >= 1) {
             molresponse::end_timer(world, "Iteration Timing", "iter_total", iter_timing);
         }
         time_data.add_data(iter_timing);
@@ -255,15 +258,22 @@ void FrequencyResponse::iterate(World &world) {
         compute_and_print_polarizability(world, Chi, PQ, "Converged");
     }
 }
+
 auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3> &xc,
                                std::vector<poperatorT> &bsh_x_ops,
                                std::vector<poperatorT> &bsh_y_ops, QProjector<double, 3> &projector,
                                double &x_shifts, double &omega_n, NonLinearXsolver &kain_x_space,
                                vector<X_vector> &Xvector, vector<X_vector> &Xresidual,
                                size_t iteration, const double &maxrotn)
-        -> std::tuple<X_space, residuals> {
+-> std::tuple<X_space, residuals> {
 
-    if (world.rank() == 0 && r_params.print_level() >= 1) { molresponse::start_timer(world); }
+    print("before start time ", r_params.print_level());
+    std::cout << "MPI BARRIER 2 " << std::endl;
+    world.mpi.Barrier();
+    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
+
+    std::cout << "MPI BARRIER 3 " << std::endl;
+    world.mpi.Barrier();
 
     size_t m = chi.num_states();
     bool compute_y = omega_n != 0.0;
@@ -288,7 +298,7 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
     // truncate y if compute y
     //if (compute_y) new_chi.Y.truncate_rf();
 
-    if (world.rank() == 0 && r_params.print_level() >= 1) {
+    if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "update response", "update", iter_timing);
     }
     //	if not compute y then copy x in to y
@@ -296,12 +306,13 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
 
     // print x norms
 }
+
 auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
                                             std::vector<poperatorT> &bsh_x_ops,
                                             std::vector<poperatorT> &bsh_y_ops,
                                             QProjector<double, 3> &projector, double &x_shifts)
-        -> X_space {
-    if (world.rank() == 0 && r_params.print_level() >= 1) {
+-> X_space {
+    if (r_params.print_level() >= 1) {
         molresponse::start_timer(world);
         print("--------------- BSH UPDATE RESPONSE------------------");
     }
@@ -332,12 +343,13 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
         bsh_X.Y = bsh_X.X.copy();
     }
 
-    if (world.rank() == 0 && r_params.print_level() >= 1) {
+    if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "bsh_update", "bsh_update", iter_timing);
     }
 
     return bsh_X;
 }
+
 void FrequencyResponse::frequency_to_json(json &j_mol_in, size_t iter,
                                           const Tensor<double> &polar_ij) {
     json j = {};
@@ -356,6 +368,7 @@ void FrequencyResponse::compute_and_print_polarizability(World &world, X_space &
         print(G);
     }
 }
+
 void FrequencyResponse::save(World &world, const std::string &name) {
 
 
@@ -377,16 +390,16 @@ void FrequencyResponse::save(World &world, const std::string &name) {
     //  (for i from 0 to m-1                       )
     //  (   for j from 0 to n-1                    )
     //  (      Function<double,3> y_response[i][j] )
-    ar &r_params.archive();
-    ar &r_params.tda();
-    ar &r_params.num_orbitals();
-    ar &r_params.num_states();
+    ar & r_params.archive();
+    ar & r_params.tda();
+    ar & r_params.num_orbitals();
+    ar & r_params.num_states();
 
     for (size_t i = 0; i < r_params.num_states(); i++)
-        for (size_t j = 0; j < r_params.num_orbitals(); j++) ar &Chi.X[i][j];
+        for (size_t j = 0; j < r_params.num_orbitals(); j++) ar & Chi.X[i][j];
     if (not r_params.tda()) {
         for (size_t i = 0; i < r_params.num_states(); i++)
-            for (size_t j = 0; j < r_params.num_orbitals(); j++) ar &Chi.Y[i][j];
+            for (size_t j = 0; j < r_params.num_orbitals(); j++) ar & Chi.Y[i][j];
     }
 }
 
@@ -410,23 +423,24 @@ void FrequencyResponse::load(World &world, const std::string &name) {
     //  (   for j from 0 to n-1                    )
     //  (      Function<double,3> y_response[i][j] )
 
-    ar &r_params.archive();
-    ar &r_params.tda();
-    ar &r_params.num_orbitals();
-    ar &r_params.num_states();
+    ar & r_params.archive();
+    ar & r_params.tda();
+    ar & r_params.num_orbitals();
+    ar & r_params.num_states();
 
     Chi = X_space(world, r_params.num_states(), r_params.num_orbitals());
 
     for (size_t i = 0; i < r_params.num_states(); i++)
-        for (size_t j = 0; j < r_params.num_orbitals(); j++) ar &Chi.X[i][j];
+        for (size_t j = 0; j < r_params.num_orbitals(); j++) ar & Chi.X[i][j];
     world.gop.fence();
 
     if (not r_params.tda()) {
         for (size_t i = 0; i < r_params.num_states(); i++)
-            for (size_t j = 0; j < r_params.num_orbitals(); j++) ar &Chi.Y[i][j];
+            for (size_t j = 0; j < r_params.num_orbitals(); j++) ar & Chi.Y[i][j];
         world.gop.fence();
     }
 }
+
 auto nuclear_generator(World &world, FrequencyResponse &calc) -> X_space {
     auto [gc, molecule, r_params] = calc.get_parameter();
     X_space PQ(world, r_params.num_states(), r_params.num_orbitals());
@@ -444,6 +458,7 @@ auto nuclear_generator(World &world, FrequencyResponse &calc) -> X_space {
     PQ.Y = PQ.X;
     return PQ;
 }
+
 auto dipole_generator(World &world, FrequencyResponse &calc) -> X_space {
     auto [gc, molecule, r_params] = calc.get_parameter();
     X_space PQ(world, r_params.num_states(), r_params.num_orbitals());
@@ -460,6 +475,7 @@ auto dipole_generator(World &world, FrequencyResponse &calc) -> X_space {
     PQ.Y = PQ.X;
     return PQ;
 }
+
 auto vector_to_PQ(World &world, const vector_real_function_3d &p,
                   const vector_real_function_3d &ground_orbitals, double lo) -> response_space {
 
