@@ -275,13 +275,6 @@ public:
         coulop = poperatorT(CoulombOperatorPtr(world, param.lo(), thresh));
         gradop = gradient_operator<double, 3>(world);
 
-        // Update coefficients if using a different derivative
-        if (param.deriv() == "bspline") {
-            for (int i = 0; i < 3; ++i) (*gradop[i]).set_bspline1();
-        } else if (param.deriv() == "ble") {
-            for (int i = 0; i < 3; ++i) (*gradop[i]).set_ble1();
-        }
-
         mask = functionT(factoryT(world).f(mask3).initial_level(4).norefine());
         if (world.rank() == 0 and param.print_level() > 1) {
             print("\nSolving NDIM=", NDIM, " with thresh", thresh, "    k",
