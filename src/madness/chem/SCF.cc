@@ -1224,7 +1224,7 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
     if (xc.is_dft() && !(xc.hf_exchange_coefficient() == 1.0)) {
         START_TIMER(world);
 
-        XCOperator<double, 3> xcoperator(world, this, ispin);
+        XCOperator<double, 3> xcoperator(world, this, ispin, param.dft_deriv());
         if (ispin == 0) exc = xcoperator.compute_xc_energy();
         vloc += xcoperator.make_xc_potential();
 

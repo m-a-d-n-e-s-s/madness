@@ -333,6 +333,7 @@ public:
 
 	    for (int idim=0; idim<3; ++idim) {
 	    	real_derivative_3d D(world,idim);
+	    	if(param.dft_deriv() == "bspline") D.set_bspline1();
 	    	vecfuncT nemo_copy=copy(world,nemo);
 	    	refine(world,nemo_copy);
 	    	std::vector<real_function_3d> dnemo=apply(world,D,nemo_copy);
@@ -357,7 +358,9 @@ public:
 	    for (long i = 0; i < nemo.size(); i++) {
 	    	vecfuncT nemo_copy=copy(world,nemo);
 	    	refine(world,nemo_copy);
-	    	grad_nemo[i] = grad(nemo_copy[i]);  // default gradient using abgv
+
+	    	if(param.dft_deriv() == "bspline") grad_nemo[i] = grad_bspline_one(nemo_copy[i]);  // gradient using b-spline
+	    	else grad_nemo[i] = grad(nemo_copy[i]);  // default gradient using abgv
 	    }
 
 	    vecfuncT grad_nemo_term;
