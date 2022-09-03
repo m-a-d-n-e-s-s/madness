@@ -60,7 +60,7 @@ class Nemo_complex_Parameters : public QCCalculationParametersBase {
 public:
 
 	/// ctor reading out the input file
-	Nemo_complex_Parameters(World& world) {
+	Nemo_complex_Parameters(World& world, const commandlineparser& parser) {
 		initialize<double>("physical_B",0.0);
 		initialize<double>("explicit_B",0.0);
 		initialize<std::vector<double> >("box",{1.0, 0.01, 0.0, 0.0, 0.0});
@@ -72,7 +72,7 @@ public:
 		initialize<std::vector<std::string> >("guess_functions",std::vector<std::string>(),"list function names");	// atomic guess functions l, ml, exponent
 
 		// read input file
-		read(world,"input","complex");
+        read_input_and_commandline_options(world,parser,"complex");
 
 	}
 
@@ -105,7 +105,7 @@ public:
 };
 
 
-class Znemo : public NemoBase {
+class Znemo : public NemoBase, public QCPropertyInterface {
 	friend class Zcis;
 
 	struct potentials {
@@ -172,23 +172,29 @@ public:
 
 
 public:
-	Znemo(World& w);
+	Znemo(World& w, const commandlineparser& parser);
 
 	/// compute the molecular energy
 	double value() {return value(mol.get_all_coords());}
 
 	/// compute the molecular energy
-	double value(const Tensor<double>& x);
+	double value(const Tensor<double>& x) override;
+
+    std::string name() const override {return "znemo";};
+
+    bool selftest() override {
+        return true;
+    };
 
 	/// adapt the thresholds consistently to a common value
     void recompute_factors_and_potentials(const double thresh);
 
-    bool need_recompute_factors_and_potentials(const double thresh) const;
-    void invalidate_factors_and_potentials();
+    bool need_recompute_factors_and_potentials(const double thresh) const override;
+    void invalidate_factors_and_potentials() override;
 
 	void iterate();
 
-	Tensor<double> gradient(const Tensor<double>& x);
+	Tensor<double> gradient(const Tensor<double>& x) override;
 	Tensor<double> gradient() {
 		return gradient(mol.get_all_coords());
 	}
@@ -196,7 +202,7 @@ public:
 	bool test() const;
 
 	const CalculationParameters& get_cparam() const {return cparam;};
-	Molecule& molecule() {return mol;};
+	Molecule& molecule() override {return mol;};
 	const Molecule& molecule() const {return mol;};
 
 	/// test the identity <F| f (T + Vdia ) f |F> = <F|f^2 (T + Udia) |F>

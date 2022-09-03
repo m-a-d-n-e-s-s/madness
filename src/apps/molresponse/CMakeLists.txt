@@ -1,6 +1,7 @@
 # src/apps/molresponse
 
 add_subdirectory(testing)
+
 # Set the CHEM sources and header files
 set(MOLRESPONSE_SOURCES
         density.cc
@@ -29,11 +30,12 @@ set(MOLRESPONSE_HEADERS
         response_parameters.h
         )
 # Create the MADchem library
-add_mad_library(response MOLRESPONSE_SOURCES MOLRESPONSE_HEADERS "chem" "molresponse/")
+add_mad_library(response MOLRESPONSE_SOURCES MOLRESPONSE_HEADERS "chem" "madness/chem/molresponse/")
 
 set(targetname MADresponse)
 
+add_dependencies(applications-madness MADresponse)
+install(TARGETS MADresponse DESTINATION "${MADNESS_INSTALL_BINDIR}")
+#
 
-# Add dependencies for MADchem
-add_mad_executable(molresponse "molresponse.cc" "MADresponse;MADchem",)
 

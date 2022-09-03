@@ -60,11 +60,6 @@ struct atom_information{
 /// @param[out] : the vector containing the atom_information for each atom in the molecule
 std::vector<atom_information<3> > make_atom_vec(const Molecule& molecule, double R1_,double R2_);
 
-/// Creates vector of atom_information via input file (calls make_atom_vec(const Molecule& molecule))
-/// @param[in] input: file with geometry of molecule
-/// @param[out] : the vector containing the atom_information for each atom in the molecule
-std::vector<atom_information<3> > make_atom_vec(const std::string& input);
-
 /// collection of slater radii needed to calculate R1 and R2; The Journal of Chemical Physics 41, 3199 (1964); doi: 10.1063/1.1725697
 /// @param[in] atomic_number: atomic_number of atom
 /// @param[out] : slater radius corresponding to atomic_number

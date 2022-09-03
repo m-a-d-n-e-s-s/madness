@@ -54,6 +54,7 @@
 #include <madness/mra/macrotaskq.h>
 
 
+using namespace madchem;
 namespace madness {
 
 struct dens_inv{
@@ -140,7 +141,8 @@ Nemo::Nemo(World& world, const commandlineparser &parser) :
     if (do_pcm()) pcm=PCM(world,this->molecule(),param.pcm_data(),true);
 
     // reading will not overwrite the derived and defined values
-    param.read(world,parser.value("input"),"dft");
+    param.read_input_and_commandline_options(world,parser,"dft");
+
     symmetry_projector=projector_irrep(param.pointgroup())
             .set_ordering("keep").set_verbosity(0).set_orthonormalize_irreps(true);;
     if (symmetry_projector.get_verbosity()>1) symmetry_projector.print_character_table();
@@ -154,7 +156,9 @@ double Nemo::value(const Tensor<double>& x) {
 	if (xsq == coords_sum)
 		return calc->current_energy;
 
-	calc->molecule.set_all_coords(x.reshape(calc->molecule.natom(), 3));
+    if ((xsq-calc->molecule.get_all_coords()).normf()>1.e-12) invalidate_factors_and_potentials();
+
+    calc->molecule.set_all_coords(x.reshape(calc->molecule.natom(), 3));
 	coords_sum = xsq;
 
 	if (world.rank()==0 and param.print_level()>0) {
@@ -208,10 +212,13 @@ double Nemo::value(const Tensor<double>& x) {
 	const real_function_3d rho = (R_square*rhonemo);
 	save(rho,"rho");
 	save(rhonemo,"rhonemo");
-	calc->dipole(world,rho);
+	Tensor<double> dipole=calc->dipole(world,rho);
 
 	if(world.rank()==0) std::cout << "Nemo Orbital Energies: " << calc->aeps << "\n";
 
+    std::map<std::string,double> results;
+    results["scf_energy"]=calc->current_energy;
+    calc->output_scf_info_schema(0,results,dipole);
 	return calc->current_energy;
 }
 
@@ -277,17 +284,18 @@ std::shared_ptr<Fock<double, 3>> Nemo::make_fock_operator() const {
 /// compute the Fock matrix from scratch
 tensorT Nemo::compute_fock_matrix(const vecfuncT& nemo, const tensorT& occ) const {
 	// apply all potentials (J, K, Vnuc) on the nemos
-	vecfuncT Jnemo, Knemo, pcmnemo, JKVpsi, Unemo;
+	vecfuncT Jnemo, Knemo, xcnemo, pcmnemo, JKVpsi, Unemo;
 
     vecfuncT R2nemo=mul(world,R_square,nemo);
     truncate(world,R2nemo);
 
     // compute potentials the Fock matrix: J - K + Vnuc
-	compute_nemo_potentials(nemo, Jnemo, Knemo, pcmnemo, Unemo);
+	compute_nemo_potentials(nemo, Jnemo, Knemo, xcnemo, pcmnemo, Unemo);
 
 //    vecfuncT JKUpsi=add(world, sub(world, Jnemo, Knemo), Unemo);
     vecfuncT JKUpsi=Unemo+Jnemo-Knemo;
     if (do_pcm()) JKUpsi+=pcmnemo;
+    if (calc->xc.is_dft()) JKUpsi+=xcnemo;
     tensorT fock=matrix_inner(world,R2nemo,JKUpsi,false);   // not symmetric actually
     Kinetic<double,3> T(world);
     fock+=T(R2nemo,nemo);
@@ -307,7 +315,7 @@ double Nemo::solve(const SCFProtocol& proto) {
 	// Therefore set all tolerance thresholds to zero, also in the mul_sparse
 
 	// apply all potentials (J, K, Vnuc) on the nemos
-	vecfuncT Jnemo, Knemo, pcmnemo, Unemo;
+	vecfuncT Jnemo, Knemo, xcnemo, pcmnemo, Unemo;
 
 	std::vector<double> energies(1,0.0);	// contains the total energy and all its contributions
 	double energy=0.0;
@@ -332,7 +340,7 @@ double Nemo::solve(const SCFProtocol& proto) {
 	    truncate(world,R2nemo);
 
 		// compute potentials the Fock matrix: J - K + Vnuc
-		compute_nemo_potentials(nemo, Jnemo, Knemo, pcmnemo, Unemo);
+		compute_nemo_potentials(nemo, Jnemo, Knemo, xcnemo, pcmnemo, Unemo);
 
 		// compute the energy
 		std::vector<double> oldenergies=energies;
@@ -343,6 +351,7 @@ double Nemo::solve(const SCFProtocol& proto) {
         timer t_fock(world,param.print_level()>2);
 		vecfuncT Vnemo=Unemo+Jnemo-Knemo;
 		if (do_pcm()) Vnemo+=pcmnemo;
+        if (calc->xc.is_dft()) Vnemo+=xcnemo;
 		tensorT fock=matrix_inner(world,R2nemo,Vnemo,false);   // not symmetric actually
 		Kinetic<double,3> T(world);
 		fock+=T(R2nemo,nemo);
@@ -422,55 +431,6 @@ double Nemo::solve(const SCFProtocol& proto) {
 	return energy;
 }
 
-/// given nemos, compute the HF energy
-double Nemo::compute_energy(const vecfuncT& psi, const vecfuncT& Jpsi,
-		const vecfuncT& Kpsi) const {
-
-	const vecfuncT Vpsi = mul(world, calc->potentialmanager->vnuclear(),
-			psi);
-	const tensorT V = inner(world, Vpsi, psi);
-	const double pe = 2.0 * V.sum();  // closed shell
-
-	double ke = 0.0;
-	for (int axis = 0; axis < 3; axis++) {
-		real_derivative_3d D = free_space_derivative<double, 3>(world,
-				axis);
-		const vecfuncT dpsi = apply(world, D, psi);
-		ke += 0.5 * (inner(world, dpsi, dpsi)).sum();
-	}
-	ke *= 2.0; // closed shell
-
-	const double J = inner(world, psi, Jpsi).sum();
-	const double K = inner(world, psi, Kpsi).sum();
-
-	int ispin=0;
-	double exc=0.0;
-	if (calc->xc.is_dft()) {
-	    XCOperator<double,3> xcoperator(world,this,ispin);
-	    exc=xcoperator.compute_xc_energy();
-	}
-
-	const double nucrep = calc->molecule.nuclear_repulsion_energy();
-	double energy = ke + J + pe + nucrep;
-	if (is_dft()) energy+=exc;
-	else energy-=K;
-
-	if (world.rank() == 0) {
-		printf("\n              kinetic %16.8f\n", ke);
-		printf("   nuclear attraction %16.8f\n", pe);
-		printf("              coulomb %16.8f\n", J);
-        if (is_dft()) {
-            printf(" exchange-correlation %16.8f\n", exc);
-        } else {
-            printf("             exchange %16.8f\n", -K);
-        }
-		printf("    nuclear-repulsion %16.8f\n", nucrep);
-		printf("                total %16.8f\n\n", energy);
-        printf("  buggy if hybrid functionals are used..\n");
-	}
-	return energy;
-}
-
 /// given nemos, compute the HF energy using the regularized expressions for T and V
 std::vector<double> Nemo::compute_energy_regularized(const vecfuncT& nemo, const vecfuncT& Jnemo,
         const vecfuncT& Knemo, const vecfuncT& Unemo) const {
@@ -501,7 +461,7 @@ std::vector<double> Nemo::compute_energy_regularized(const vecfuncT& nemo, const
 //    double ke2=compute_kinetic_energy2(nemo);
 
     const double J = inner(world, R2nemo, Jnemo).sum();
-    const double K = inner(world, R2nemo, Knemo).sum();
+    double K = inner(world, R2nemo, Knemo).sum();
 
     int ispin=0;
     double exc=0.0;
@@ -512,12 +472,9 @@ std::vector<double> Nemo::compute_energy_regularized(const vecfuncT& nemo, const
 
     double pcm_energy=0.0;
     if (do_pcm()) pcm_energy=pcm.compute_pcm_energy();
-
     const double nucrep = calc->molecule.nuclear_repulsion_energy();
 
-    double energy = ke + J + pe + nucrep + pcm_energy;
-    if (is_dft()) energy+=exc;
-    else energy-=K;
+    double energy = ke + J - K + exc + pe + nucrep + pcm_energy;
 
     if (world.rank() == 0) {
         printf("\n  nuclear and kinetic %16.8f\n", ke + pe);
@@ -527,17 +484,11 @@ std::vector<double> Nemo::compute_energy_regularized(const vecfuncT& nemo, const
 //        printf("\n  nuclear only  %16.8f\n",  pe1);
 //        printf("\n  nuclear and kinetic each  %16.8f\n",  pe1+ke1);
         printf("              coulomb %16.8f\n", J);
-        if (is_dft()) {
-            printf(" exchange-correlation %16.8f\n", exc);
-        } else {
-            printf("             exchange %16.8f\n", -K);
-        }
-        if (do_pcm()) {
-            printf("   polarization (PCM) %16.8f\n", pcm_energy);
-        }
+        if (is_dft()) printf(" exchange-correlation %16.8f\n", exc);
+        if (calc->xc.hf_exchange_coefficient()!=0.0) printf("       exact exchange %16.8f\n", -K);
+        if (do_pcm()) printf("   polarization (PCM) %16.8f\n", pcm_energy);
         printf("    nuclear-repulsion %16.8f\n", nucrep);
         printf("   regularized energy %16.8f\n", energy);
-        printf("  buggy if hybrid functionals are used..\n");
     }
     t.end( "compute energy");
 
@@ -555,7 +506,7 @@ std::vector<double> Nemo::compute_energy_regularized(const vecfuncT& nemo, const
 /// @param[out]	Vnemo	nuclear potential applied on the nemos
 /// @param[out]	Unemo	regularized nuclear potential applied on the nemos
 void Nemo::compute_nemo_potentials(const vecfuncT& nemo,
-		vecfuncT& Jnemo, vecfuncT& Knemo, vecfuncT& pcmnemo,
+		vecfuncT& Jnemo, vecfuncT& Knemo, vecfuncT& xcnemo, vecfuncT& pcmnemo,
 		vecfuncT& Unemo) const {
 
     {
@@ -576,14 +527,15 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo,
             if (calc->xc.hf_exchange_coefficient() > 0.0) {
                 Exchange<double, 3> K = Exchange<double, 3>(world, this, ispin).set_symmetric(true).set_taskq(taskq);
                 Knemo = K(nemo);
-                scale(world, Knemo, calc->xc.hf_exchange_coefficient());
-                truncate(world, Knemo);
-                t.tag("compute Knemo");
             }
             t.tag("initialize K operator");
             taskq->set_printlevel(param.print_level());
             if (param.print_level()>9) taskq->print_taskq();
             taskq->run_all();
+
+            t.tag("compute Knemo");
+            scale(world, Knemo, calc->xc.hf_exchange_coefficient());
+            truncate(world, Knemo);
         }
 
         // compute the exchange-correlation potential
@@ -591,8 +543,6 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo,
             XCOperator<double, 3> xcoperator(world, this, ispin);
             double exc = 0.0;
             if (ispin == 0) exc = xcoperator.compute_xc_energy();
-//            print("exc", exc);
-            // copy???
             real_function_3d xc_pot = xcoperator.make_xc_potential();
 
             // compute the asymptotic correction of exchange-correlation potential
@@ -603,10 +553,8 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo,
                 xc_pot = ac.apply(xc_pot, scaledJ);
             }
 
-            Knemo = sub(world, Knemo, mul(world, xc_pot, nemo));   // minus times minus gives plus
-            truncate(world, Knemo);
-            double size = get_size(world, Knemo);
-            t.tag("compute XCnemo " + stringify(size));
+            xcnemo=truncate(xc_pot*nemo);
+            t.tag("compute XCnemo");
         }
 
 
@@ -1026,8 +974,8 @@ Tensor<double> Nemo::purify_hessian(const Tensor<double>& hessian) const {
                     double diff=0.5*fabs(purified(i,j)-purified(j,i));
                     maxasymmetric=std::max(maxasymmetric,diff);
 
-                    unsigned int ZA=calc->molecule.get_atom_number(iatom);
-                    unsigned int ZB=calc->molecule.get_atom_number(jatom);
+                    unsigned int ZA=calc->molecule.get_atomic_number(iatom);
+                    unsigned int ZB=calc->molecule.get_atomic_number(jatom);
                     if (ZA<ZB) purified(i,j)=purified(j,i);
                     if (ZA>ZB) purified(j,i)=purified(i,j);
                     if (ZA==ZB) {

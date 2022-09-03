@@ -39,7 +39,9 @@
 #include <madness/tensor/tensor.h>
 #include <madness/tensor/tensor_lapack.h>
 #include <madness/constants.h>
+#include <madness/world/world.h>
 #include <chem/molecule.h>
+#include <chem/gth_pseudopotential.h>
 #include <chem/atomutil.h>
 #include <madness/misc/misc.h>
 #include <iomanip>
@@ -77,48 +79,137 @@ std::ostream& operator<<(std::ostream& s, const Atom& atom) {
     return s;
 }
 
-/// Read coordinates from a file
 
-/// Scans the file for the first geometry block in the format
-/// \code
-///    geometry
-///       tag x y z
-///       ...
-///    end
-/// \endcode
-/// The charge \c q is inferred from the tag which is
-/// assumed to be the standard symbol for an element.
-/// Same as the simplest NWChem format.  For ghost
-/// atoms (\c bq ) the  charge is read as a fifth field
-/// on the line.
-///
-/// This code is just for the examples ... don't trust it!
-Molecule::Molecule(const std::string& filename) :
-		atoms(), rcut(), eprec(1e-4), core_pot(), field(3L) {
-    read_file(filename);
+Molecule::Molecule(World& world, const commandlineparser& parser) :parameters(world,parser), atoms(), rcut(), core_pot(), field(3L)
+{
+    try {
+        if (world.rank()==0) get_structure();
+        world.gop.broadcast_serializable(*this, 0);
+        MADNESS_CHECK(parameters.field().size()==3);
+        for (int i=0; i<3; ++i) field(i)=parameters.field()[i];
+    } catch (...) {
+        std::cout << "\n\nsomething went wrong in the geometry input" << std::endl;
+        std::cout << "geometry parameters " << std::endl << std::endl;
+        parameters.print("geometry","end");
+        throw madness::MadnessException("faulty geometry input",0,1,__LINE__,__FUNCTION__,__FILE__);
+    }
+}
+
+
+void Molecule::print_parameters() {
+    GeometryParameters param;
+    madness::print("default parameters for the geometry input");
+    madness::print("You need to add the molecular geometry in the format");
+    madness::print(" symbol x y z");
+    madness::print(" symbol x y z");
+    madness::print(" symbol x y z");
+    param.print("geometry","end");
+}
+
+void Molecule::get_structure() {
+
+    // read input parameters from the input file
+    std::string sourcetype=parameters.source_type();
+    std::string sourcename=parameters.source_name();
+
+    if (sourcetype == "inputfile") {
+        try {
+            std::ifstream ifile(sourcename);
+            read(ifile);
+        } catch (const std::exception& err) {
+            std::cout << "caught runtime error: " << err.what() << std::endl;
+            std::cout << "failed to load geometry from input file" << std::endl;
+            MADNESS_EXCEPTION("failed to load geometry from input file",1);
+        }
+
+
+    } else if (sourcetype == "library") {
+        read_structure_from_library(sourcename);
+    } else if (sourcetype == "xyz") {
+        try {
+            read_xyz(sourcename);
+        } catch (std::exception& err) {
+            std::cout << "could not read from xyz-file " << sourcename <<  std::endl;
+            std::cout << "source " << sourcetype << "  " << sourcename << std::endl;
+            MADNESS_EXCEPTION("failed to get geometry",1);
+        }
+
+    } else {
+        std::cout << "could not determine molecule" << std::endl;
+        std::cout << " source_type " << sourcetype << std::endl;
+        std::cout << " source_name " << sourcename << std::endl;
+        MADNESS_EXCEPTION("failed to get geometry",1);
+    }
+
+
+    // set derived parameters for the molecule
+
+    //if psp_calc is true, set all atoms to PS atoms
+    //if not, check whether some atoms are PS atoms or if this a pure AE calculation
+    if (parameters.get<bool>("psp_calc")) {
+        for (size_t iatom = 0; iatom < natom(); iatom++) {
+            set_pseudo_atom(iatom, true);
+        }
+    }
+
+    //modify atomic charge for complete PSP calc or individual PS atoms
+    for (size_t iatom = 0; iatom < natom(); iatom++) {
+        if (get_pseudo_atom(iatom)) {
+            unsigned int an = get_atomic_number(iatom);
+            double zeff = madness::get_charge_from_file("gth.xml", an);
+            set_atom_charge(iatom, zeff);
+        }
+    }
+
+    if (parameters.core_type() != "none") {
+        read_core_file(parameters.core_type());
+    }
+
+    if (not parameters.no_orient()) orient();
+    if (natom()==0) {
+        MADNESS_EXCEPTION("no molecule was given",1);
+    }
+
+
+};
+
+std::string Molecule::get_structure_library_path() {
+    std::string chemdata_dir(MRA_CHEMDATA_DIR);
+    if (getenv("MRA_CHEMDATA_DIR")) chemdata_dir=std::string(getenv("MRA_CHEMDATA_DIR"));
+    return chemdata_dir+"/structure_library";
+}
+
+std::istream& Molecule::position_stream_in_library(std::ifstream& f, const std::string& name) {
+    // get the location of the structure library
+    std::string library=get_structure_library_path();
+
+    f.open(library);
+    std::string errmsg;
+
+    if(f.fail()) {
+        errmsg=std::string("Failed to open structure library: ") + library;
+    } else {
+        try {
+            std::string full_line="structure="+name;
+            madness::position_stream_to_word(f, full_line,'#',true,true);
+        } catch (...) {
+            errmsg = "could not find structure " + name + " in the library\n\n";
+        }
+    }
+    MADNESS_CHECK_THROW(errmsg.empty(),errmsg.c_str());
+    return f;
 }
 
 void Molecule::read_structure_from_library(const std::string& name) {
 
-	// get the location of the structure library
-	std::string chemdata_dir(MRA_CHEMDATA_DIR);
-    if (getenv("MRA_CHEMDATA_DIR")) chemdata_dir=std::string(getenv("MRA_CHEMDATA_DIR"));
-	std::string library=chemdata_dir+"/structure_library";
-
-    std::ifstream f(library);
-    if(f.fail()) {
-        std::string errmsg = std::string("Failed to open structure library: ") + library;
-        MADNESS_EXCEPTION(errmsg.c_str(), 0);
-    }
     try {
-    	madness::position_stream(f, name);
+        std::ifstream f;
+        position_stream_in_library(f,name);
+        this->read(f);
     } catch (...) {
         std::string errmsg = "could not find structure " + name + " in the library\n\n";
         MADNESS_EXCEPTION(errmsg.c_str(), 0);
     }
-
-    this->read(f);
-
 }
 
 
@@ -149,42 +240,22 @@ void Molecule::read_file(const std::string& filename) {
 void Molecule::read(std::istream& f) {
     atoms.clear();
     rcut.clear();
-    eprec = 1e-4;
-    units = atomic;
     madness::position_stream(f, "geometry",false);		// do not rewind
     double scale = 1.0; // Default is atomic units
+    if (parameters.units()=="angstrom") scale = 1e-10 / madness::constants::atomic_unit_of_length;
 
-    std::string s;
+    std::string s, tag;
     while (std::getline(f,s)) {
         std::istringstream ss(s);
-        std::string tag;
         ss >> tag;
+        // check if tag is a keyword to be ignored
+        bool ignore=false;
+        for (auto& p : parameters.get_all_parameters()) {
+            if (tag==p.first) ignore=true;
+        }
+        if (ignore) continue;
         if (tag == "end") {
             goto finished;
-        }
-        else if (tag == "units") {
-            if (natom()) throw "Molecule: read_file: presently units must be the first line of the geometry block";
-            ss >> tag;
-            if (tag == "a.u." || tag == "au" || tag == "atomic") {
-                std::cout << "\nAtomic units being used to read input coordinates\n\n";
-                scale = 1.0;
-            }
-            else if (tag == "angstrom" || tag == "angs") {
-                units = angstrom;
-                scale = 1e-10 / madness::constants::atomic_unit_of_length;
-                printf("\nAngstrom being used to read input coordinates (1 Bohr = %.8f Angstrom)\n\n", scale);
-            }
-            else {
-                throw "Molecule: read_file: unknown units requested";
-            }
-        }
-        else if (tag == "eprec") {
-            ss >> eprec;
-            // adapt nuclear smoothing factor rcut
-            this->set_eprec(eprec);
-        }
-        else if (tag == "field") {
-            ss >> field[0] >> field[1] >> field[2];
         }
         else {
             double xx, yy, zz;
@@ -203,12 +274,58 @@ void Molecule::read(std::istream& f) {
     throw "No end to the geometry in the input file";
 finished:
     ;
+    update_rcut_with_eprec(parameters.eprec());
+}
+
+
+void Molecule::read_xyz(const std::string filename) {
+    std::ifstream f(filename.c_str());
+    if(f.fail()) {
+        std::string errmsg = std::string("Failed to open file: ") + filename;
+        MADNESS_EXCEPTION(errmsg.c_str(), 0);
+    }
+
+    atoms.clear();
+    rcut.clear();
+    MADNESS_CHECK(parameters.units()=="angstrom"); // xyz is always in angs
+    const double scale = 1e-10 / madness::constants::atomic_unit_of_length;
+
+    long natom_expected=1;
+    long current_line=0;
+
+    std::string s, tag;
+    while (std::getline(f,s)) {
+        std::istringstream ss(s);
+        current_line++;
+        if (current_line==1) {
+            ss >> natom_expected;
+            MADNESS_CHECK(natom_expected>0);
+            continue;
+        }
+        if (current_line==2) continue;      // ignore comment line
+        double xx, yy, zz;
+        if (not (ss >> tag >>  xx >> yy >> zz)) {
+            MADNESS_EXCEPTION(std::string("error reading the xyz input file"+filename).c_str(),1);
+        };
+        xx *= scale;
+        yy *= scale;
+        zz *= scale;
+        int atn = symbol_to_atomic_number(tag);
+        double qq = atn;
+        if (atn == 0) ss >> qq; // Charge of ghost atom
+        //check if pseudo-atom or not
+        bool psat = check_if_pseudo_atom(tag);
+        add_atom(xx,yy,zz,qq,atn,psat);
+        if (current_line==natom_expected+2) break;
+    }
+    MADNESS_CHECK(natom_expected==natom());
+    update_rcut_with_eprec(parameters.eprec());
 }
 
 //version without pseudo-atoms
 void Molecule::add_atom(double x, double y, double z, double q, int atomic_number) {
     atoms.push_back(Atom(x,y,z,q,atomic_number));
-    double c = smoothing_parameter(q, eprec); // eprec is error per atom
+    double c = smoothing_parameter(q, parameters.eprec()); // eprec is error per atom
     //printf("smoothing param %.6f\n", c);
     double radius = get_atomic_data(atomic_number).covalent_radius;//Jacob added
     atomic_radii.push_back(radius*1e-10/madness::constants::atomic_unit_of_length);// Jacob added
@@ -218,7 +335,7 @@ void Molecule::add_atom(double x, double y, double z, double q, int atomic_numbe
 //version specifying pseudo-atoms
 void Molecule::add_atom(double x, double y, double z, double q, int atomic_number, bool pseudo_atom) {
     atoms.push_back(Atom(x,y,z,q,atomic_number,pseudo_atom));
-    double c = smoothing_parameter(q, eprec); // eprec is error per atom
+    double c = smoothing_parameter(q, parameters.eprec()); // eprec is error per atom
     //printf("smoothing param %.6f\n", c);
     double radius = get_atomic_data(atomic_number).covalent_radius;//Jacob added
     atomic_radii.push_back(radius*1e-10/madness::constants::atomic_unit_of_length);// Jacob added
@@ -235,7 +352,7 @@ unsigned int Molecule::get_atom_charge(unsigned int i) const {
   return atoms[i].q;
 }
 
-unsigned int Molecule::get_atom_number(unsigned int i) {
+unsigned int Molecule::get_atomic_number(unsigned int i) const {
   if (i>=atoms.size()) throw "trying to get number of invalid atom";
   return atoms[i].atomic_number;
 }
@@ -289,10 +406,10 @@ void Molecule::set_all_coords(const madness::Tensor<double>& c) {
 }
 
 /// updates rcuts with given eprec
-void Molecule::set_eprec(double value) {
-    eprec = value;
+void Molecule::update_rcut_with_eprec(double value) {
+//    eprec = value;
     for (size_t i=0; i<atoms.size(); ++i) {
-        rcut[i] = 1.0 / smoothing_parameter(atoms[i].q, eprec);
+        rcut[i] = 1.0 / smoothing_parameter(atoms[i].q, value);
     }
     core_pot.set_eprec(value);
 }
@@ -309,11 +426,13 @@ const Atom& Molecule::get_atom(unsigned int i) const {
 }
 
 void Molecule::print() const {
+    std::string p =parameters.print_to_string();
     std::cout.flush();
     std::stringstream sstream;
     sstream << " geometry" << std::endl;
-    sstream << "   eprec  " << std::scientific << std::setw(1) << eprec  << std::endl << std::fixed;
-    sstream << "   units atomic" << std::endl;
+    sstream << p << std::endl;
+//    sstream << "   eprec  " << std::scientific << std::setw(1) << parameters.eprec()  << std::endl << std::fixed;
+//    sstream << "   units atomic" << std::endl;
     for (size_t i=0; i<natom(); ++i) {
         sstream << std::setw(5) << get_atomic_data(atoms[i].atomic_number).symbol << "  ";
         sstream << std::setw(20) << std::setprecision(8) << atoms[i].x
@@ -512,65 +631,71 @@ void Molecule::center() {
     }
 }
 
-/// Apply to (x,y,z) a C2 rotation about an axis thru the origin and (xaxis,yaxis,zaxis)
-static void apply_c2(double xaxis, double yaxis, double zaxis, double& x, double& y, double& z) {
-    double raxissq = xaxis*xaxis + yaxis*yaxis + zaxis*zaxis;
-    double dx = x*xaxis*xaxis/raxissq;
-    double dy = y*yaxis*yaxis/raxissq;
-    double dz = z*zaxis*zaxis/raxissq;
-
-    x = 2.0*dx - x;
-    y = 2.0*dy - y;
-    z = 2.0*dz - z;
-}
-
-/// Apply to (x,y,z) a reflection through a plane containing the origin with normal (xaxis,yaxis,zaxis)
-static void apply_sigma(double xaxis, double yaxis, double zaxis, double& x, double& y, double& z) {
-    double raxissq = xaxis*xaxis + yaxis*yaxis + zaxis*zaxis;
-    double dx = x*xaxis*xaxis/raxissq;
-    double dy = y*yaxis*yaxis/raxissq;
-    double dz = z*zaxis*zaxis/raxissq;
-
-    x = x - 2.0*dx;
-    y = y - 2.0*dy;
-    z = z - 2.0*dz;
-}
-
-static void apply_inverse(double xjunk, double yjunk, double zjunk, double& x, double& y, double& z) {
-    x = -x;
-    y = -y;
-    z = -z;
-}
 
 template <typename opT>
-bool Molecule::test_for_op(double xaxis, double yaxis, double zaxis, opT op) const {
-    const double symtol = 1e-2;
+bool Molecule::test_for_op(opT op, const double symtol) const {
+    // all atoms must have a symmetry-equivalent partner
     for (unsigned int i=0; i<atoms.size(); ++i) {
-        double x=atoms[i].x, y=atoms[i].y, z=atoms[i].z;
-        op(xaxis, yaxis, zaxis, x, y, z);
-        bool found = false;
-        for (unsigned int j=0; j<atoms.size(); ++j) {
-            double r = distance(x, y, z, atoms[j].x, atoms[j].y, atoms[j].z);
-            if (r < symtol) {
-                found = true;
-                break;
-            }
-        }
-        if (!found) return false;
+        if (find_symmetry_equivalent_atom(i,op,symtol)==-1) return false;
     }
     return true;
 }
 
-bool Molecule::test_for_c2(double xaxis, double yaxis, double zaxis) const {
-    return test_for_op(xaxis, yaxis, zaxis, apply_c2);
+
+template <typename opT>
+int Molecule::find_symmetry_equivalent_atom(int iatom, opT op, const double symtol) const  {
+    double x=atoms[iatom].x, y=atoms[iatom].y, z=atoms[iatom].z;
+    op(x, y, z);
+    bool found = false;
+    for (unsigned int j=0; j<atoms.size(); ++j) {
+        double r = distance(x, y, z, atoms[j].x, atoms[j].y, atoms[j].z);
+        if (r < symtol) return j;
+    }
+    return -1;
 }
 
-bool Molecule::test_for_sigma(double xaxis, double yaxis, double zaxis) const {
-    return test_for_op(xaxis, yaxis, zaxis, apply_sigma);
+template <typename opT>
+void Molecule::symmetrize_for_op(opT op, const double symtol) {
+
+    MADNESS_CHECK(test_for_op(op, symtol));
+
+    for (unsigned int iatom = 0; iatom < atoms.size(); ++iatom) {
+        int jatom = find_symmetry_equivalent_atom(iatom, op, symtol);
+
+        // symmetrize
+        double x=atoms[iatom].x,y=atoms[iatom].y,z=atoms[iatom].z;
+        op(x,y,z);
+        double r = distance(atoms[jatom].x, atoms[jatom].y, atoms[jatom].z, x,y,z);
+        MADNESS_CHECK(r<symtol);
+
+        x=0.5*(x+atoms[jatom].x);
+        y=0.5*(y+atoms[jatom].y);
+        z=0.5*(z+atoms[jatom].z);
+        atoms[iatom].x=x;
+        atoms[iatom].y=y;
+        atoms[iatom].z=z;
+        op(x,y,z);
+        atoms[jatom].x=x;
+        atoms[jatom].y=y;
+        atoms[jatom].z=z;
+
+        // check result
+        int jatom2=find_symmetry_equivalent_atom(iatom, op, 1.e-12);
+        MADNESS_CHECK(jatom==jatom2);
+    }
 }
 
-bool Molecule::test_for_inverse() const {
-    return test_for_op(0.0, 0.0, 0.0, apply_inverse);
+
+bool Molecule::test_for_c2(double xaxis, double yaxis, double zaxis, const double symtol) const {
+    return test_for_op(apply_c2(xaxis,yaxis,zaxis), symtol);
+}
+
+bool Molecule::test_for_sigma(double xaxis, double yaxis, double zaxis, const double symtol) const {
+    return test_for_op(apply_sigma(xaxis, yaxis, zaxis), symtol);
+}
+
+bool Molecule::test_for_inverse(const double symtol) const {
+    return test_for_op(apply_inverse(0.0, 0.0, 0.0), symtol);
 }
 
 void Molecule::swapaxes(int ix, int iy) {
@@ -586,17 +711,29 @@ void Molecule::swapaxes(int ix, int iy) {
     field[0]=r[0]; field[1]=r[1]; field[2]=r[2];
 }
 
-void Molecule::identify_point_group() {
+std::string Molecule::symmetrize_and_identify_point_group(const double symtol) {
     // C2 axes must be along the Cartesian axes and
     // mirror planes must be orthogonal to them
 
-    bool x_is_c2 = test_for_c2(1.0,0.0,0.0);
-    bool y_is_c2 = test_for_c2(0.0,1.0,0.0);
-    bool z_is_c2 = test_for_c2(0.0,0.0,1.0);
-    bool xy_is_sigma = test_for_sigma(0.0,0.0,1.0);
-    bool xz_is_sigma = test_for_sigma(0.0,1.0,0.0);
-    bool yz_is_sigma = test_for_sigma(1.0,0.0,0.0);
-    bool inverse = test_for_inverse();
+    bool x_is_c2 = test_for_c2(1.0,0.0,0.0,fabs(symtol));
+    bool y_is_c2 = test_for_c2(0.0,1.0,0.0,fabs(symtol));
+    bool z_is_c2 = test_for_c2(0.0,0.0,1.0,fabs(symtol));
+    bool xy_is_sigma = test_for_sigma(0.0,0.0,1.0,fabs(symtol));
+    bool xz_is_sigma = test_for_sigma(0.0,1.0,0.0,fabs(symtol));
+    bool yz_is_sigma = test_for_sigma(1.0,0.0,0.0,fabs(symtol));
+    bool inverse = test_for_inverse(fabs(symtol));
+
+    // this is stupid, but necessary for backwards compatibility
+    // FIXME SYMTOL
+    if (symtol>0.0) {
+        if (x_is_c2) symmetrize_for_op(apply_c2(1.0,0.0,0.0), symtol);
+        if (y_is_c2) symmetrize_for_op(apply_c2(0.0,1.0,0.0), symtol);
+        if (z_is_c2) symmetrize_for_op(apply_c2(0.0,0.0,1.0), symtol);
+        if (xy_is_sigma) symmetrize_for_op(apply_sigma(0.0,0.0,1.0),symtol);
+        if (xz_is_sigma) symmetrize_for_op(apply_sigma(0.0,1.0,0.0),symtol);
+        if (yz_is_sigma) symmetrize_for_op(apply_sigma(1.0,0.0,0.0),symtol);
+        if (inverse) symmetrize_for_op(apply_inverse(0.0,0.0,0.0),symtol);
+    }
 
     /*
       .   (i,c,s)
@@ -652,10 +789,7 @@ void Molecule::identify_point_group() {
         madness::print("Not-quite-symmetric geometry (clean up to fix), will assume C1");
         pointgroup = "C1";
     }
-
-//    madness::print("\n The point group is", pointgroup);
-    // assign to member variable
-    pointgroup_ = pointgroup;
+    return pointgroup;
 }
 
 /// compute the center of mass
@@ -714,7 +848,7 @@ void Molecule::orient(bool verbose) {
 
     if (verbose) {
 		// Try to resolve degenerate rotations
-		double symtol = 1e-2;
+		double symtol = fabs(parameters.symtol());
 		if (fabs(e[0]-e[1])<symtol && fabs(e[1]-e[2])<symtol) {
 			madness::print("Cubic point group");
 		}
@@ -735,7 +869,11 @@ void Molecule::orient(bool verbose) {
     // Now hopefully have mirror planes and C2 axes correctly oriented
     // Figure out what elements are actually present and enforce
     // conventional ordering
-    identify_point_group();
+    pointgroup_= symmetrize_and_identify_point_group(parameters.symtol());
+    if (parameters.symtol()>0.0) {
+        std::string pointgroup_tight= symmetrize_and_identify_point_group(1.e-12);
+        MADNESS_CHECK(pointgroup_tight==pointgroup_);
+    }
 }
 
 /// rotates the molecule and the external field
@@ -970,7 +1108,7 @@ void Molecule::read_core_file(const std::string& filename) {
             atomset.insert(atoms[i].atomic_number);
     }
 
-    core_pot.read_file(filename, atomset, eprec);
+    core_pot.read_file(filename, atomset, get_eprec());
 
     //return;
 
@@ -984,7 +1122,7 @@ void Molecule::read_core_file(const std::string& filename) {
                 continue;
             }
             double r = rcut[i];
-            rcut[i] = 1.0/smoothing_parameter(q, eprec);
+            rcut[i] = 1.0/smoothing_parameter(q, get_eprec());
             //rcut[i] = 1.0/smoothing_parameter(q, 1.0);
             madness::print("rcut update", i, r, "to", rcut[i]);
         }

@@ -272,7 +272,6 @@ int main(int argc, char **argv) {
 
         std::string geometry="ethylene";
         Nemo::NemoCalculationParameters param;
-        param.set_user_defined_value("no_orient",true);
         param.set_user_defined_value<std::vector<double>>("protocol",{1.e-5});
         param.set_user_defined_value("k",8);
         param.set_user_defined_value("econv",1.e-4);
@@ -283,8 +282,10 @@ int main(int argc, char **argv) {
 //        param.set_user_defined_value("ncf",std::pair<std::string,double>("none",0.0));
         write_test_input test_input(param);
         parser.set_keyval("input",test_input.filename());
-        parser.set_keyval("structure",geometry);
+        parser.set_keyval("geometry","source_type=library");
+        parser.set_keyval("geometry","source_name="+geometry);
         Nemo nemo(world,parser);
+        nemo.param.print("dft","end");
 
         test_output tout1(geometry+" prep calculation");
         nemo.value();
@@ -293,7 +294,9 @@ int main(int argc, char **argv) {
         bool success=test_ethylene(world,nemo,geometry);
         if (not success) result++;
 
-        parser.set_keyval("structure","ne");
+//        parser.set_keyval("structure","ne");
+        parser.set_keyval("geometry","source_type = library");
+        parser.set_keyval("geometry","source_name = ne");
         Nemo nemo1(world,parser);
         test_output tout("ne prep calculation");
         nemo1.value();

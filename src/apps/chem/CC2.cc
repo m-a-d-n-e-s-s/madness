@@ -5,8 +5,11 @@
  *      Author: kottmanj
  */
 
+
 #include <chem/CC2.h>
 #include <chem/commandlineparser.h>
+#include "MolecularOrbitals.h"
+#include "localizer.h"
 
 namespace madness {
 
@@ -17,6 +20,10 @@ CC2::solve() {
         CCOPS.test();
     }
     const CalcType ctype = parameters.calc_type();
+
+    if (not check_core_valence_separation()) enforce_core_valence_separation();
+    CCOPS.reset_nemo(nemo);
+    CCOPS.update_intermediates(CCOPS.mo_ket());
 
     if (ctype == CT_TDHF or ctype==CT_LRCCS) {
         std::vector<CC_vecfunction> ccs;
@@ -31,9 +38,24 @@ CC2::solve() {
         else
             MADNESS_EXCEPTION("unknown calculation type",1);
     } else if (ctype == CT_MP2) {
+
+//        CCPairFunction bra(&(CCOPS.g12),CCOPS.mo_bra().get_vecfunction(),CCOPS.mo_bra().get_vecfunction());
+//        CCPairFunction ket(&(CCOPS.f12),CCOPS.mo_ket().get_vecfunction(),CCOPS.mo_ket().get_vecfunction());
+//        auto vbra=std::vector<CCPairFunction>({bra});
+//        auto vket=std::vector<CCPairFunction>({ket});
+//        StrongOrthogonalityProjector<double, 3> Q12(world);
+//        Q12.set_spaces(CCOPS.mo_bra().get_vecfunction(),CCOPS.mo_ket().get_vecfunction(),
+//                       CCOPS.mo_bra().get_vecfunction(),CCOPS.mo_ket().get_vecfunction());
+//        double part1=inner(vbra,Q12(vket));
+//        print("part 1 of the energy expression: <ij | f Q g | ij> ",part1);
+
         Pairs<CCPair> pairs;
         initialize_pairs(pairs, GROUND_STATE, CT_MP2, CC_vecfunction(PARTICLE), CC_vecfunction(RESPONSE), 0);
-        const double mp2_correlation_energy = solve_mp2(pairs);
+        //const double mp2_correlation_energy = solve_mp2(pairs);
+
+        //DEBUG MP2 coupled
+        const double mp2_correlation_energy = solve_mp2_coupled(pairs);
+
         output.section(assign_name(ctype) + " Calculation Ended !");
         if (world.rank() == 0)
             std::cout << std::fixed << std::setprecision(10) << " MP2 Correlation Energy =" << mp2_correlation_energy
@@ -54,7 +76,11 @@ CC2::solve() {
             output("\n--- No Restartdata found: Solving MP2 as first guess");
             Pairs<CCPair> mp2_pairs;
             initialize_pairs(mp2_pairs, GROUND_STATE, CT_MP2, CC_vecfunction(PARTICLE), CC_vecfunction(RESPONSE), 0);
-            mp2_correlation_energy = solve_mp2(mp2_pairs);
+            //mp2_correlation_energy = solve_mp2(mp2_pairs);
+
+            //DEBUG solve_mp2_coupled
+            mp2_correlation_energy = solve_mp2_coupled(mp2_pairs);
+
             // use mp2 as cc2 guess
             for (auto& tmp:mp2_pairs.allpairs) {
                 const size_t i = tmp.second.i;
@@ -373,6 +399,94 @@ CC2::solve() {
 
 }
 
+bool CC2::check_core_valence_separation() const {
+
+    MolecularOrbitals<double, 3> mos(nemo->get_calc()->amo, nemo->get_calc()->aeps, {}, nemo->get_calc()->aocc, {});
+    mos.recompute_localize_sets();
+
+    // check that freeze is consistent with the core/valence block-diagonal structure of the fock matrix
+    bool fine = false;
+    int ntotal = 0;
+    std::vector<Slice> slices = MolecularOrbitals<double, 3>::convert_set_to_slice(mos.get_localize_sets());
+    for (std::size_t i = 0; i < slices.size(); ++i) {
+        const Slice& s = slices[i];
+        int n_in_set = s.end - s.start + 1;
+        ntotal += n_in_set;
+        if (parameters.freeze() == ntotal) {
+            fine = true;
+            break;
+        }
+    }
+    if (parameters.freeze() == 0) fine = true;
+    if (not fine) {
+        if (world.rank()==0) print("inconsistent core-valence separation and number of frozen orbitals");
+        if (world.rank()==0) print("# frozen orbitals", parameters.freeze());
+        if (world.rank()==0) mos.pretty_print("initial orbitals");
+        MADNESS_EXCEPTION("inconsistency ", 1);
+    }
+
+    // fast return if possible
+    Tensor<double> fock1;
+    //if (fock.has_data()) {
+    //    fock1 = copy(fock);
+    //} else {
+    const tensorT occ = nemo->get_calc()->aocc;
+    Tensor<double> fock_tmp = nemo->compute_fock_matrix(nemo->get_calc()->amo, occ);
+    fock1 = copy(fock_tmp);
+    if (world.rank() == 0 and nemo->get_param().nalpha() < 10) {
+        if (world.rank()==0) print("The Fock matrix");
+        if (world.rank()==0) print(fock1);
+    }
+    //}
+    return Localizer::check_core_valence_separation(fock1, mos.get_localize_sets(),true);
+}
+
+
+void CC2::enforce_core_valence_separation() {
+
+    MolecularOrbitals<double, 3> mos(nemo->get_calc()->amo, nemo->get_calc()->aeps, {}, nemo->get_calc()->aocc, {});
+    mos.recompute_localize_sets();
+
+    Tensor<double> fock1;
+    const tensorT occ = nemo->get_calc()->aocc;
+    Tensor<double> fock_tmp = nemo->compute_fock_matrix(nemo->get_calc()->amo, occ);
+    fock1 = copy(fock_tmp);
+    if (world.rank() == 0 and nemo->get_param().nalpha() < 10) {
+        if (world.rank()==0) print("The Fock matrix");
+        if (world.rank()==0) print(fock1);
+    }
+
+    Localizer localizer(world,nemo->get_calc()->aobasis,nemo->get_calc()->molecule,nemo->get_calc()->ao);
+    localizer.set_enforce_core_valence_separation(true).set_method(nemo->param.localize_method());
+    localizer.set_metric(nemo->R);
+
+    const auto lmo=localizer.localize(mos,fock1,true);
+
+    //hf->reset_orbitals(lmo);
+    nemo->get_calc()->amo=lmo.get_mos();
+    nemo->get_calc()->aeps=lmo.get_eps();
+    MADNESS_CHECK(nemo->get_calc()->aeps.size()==nemo->get_calc()->amo.size());
+    //orbitals_ = nemo->R*nemo->get_calc()->amo;
+    //R2orbitals_ = nemo->ncf->square()*nemo->get_calc()->amo;
+
+
+    //fock.clear();
+
+    if (world.rank()==0) print("localized fock matrix");
+    Tensor<double> fock2;
+    const tensorT occ2 = nemo->get_calc()->aocc;
+    Tensor<double> fock_tmp2 = nemo->compute_fock_matrix(nemo->get_calc()->amo, occ2);
+    fock2 = copy(fock_tmp2);
+    if (world.rank() == 0 and nemo->get_param().nalpha() < 10) {
+        if (world.rank()==0) print("The Fock matrix");
+        if (world.rank()==0) print(fock2);
+    }
+
+    MADNESS_CHECK(Localizer::check_core_valence_separation(fock2,lmo.get_localize_sets()));
+    if (world.rank()==0) lmo.pretty_print("localized MOs");
+
+};
+
 // Solve the CCS equations for the ground state (debug potential and check HF convergence)
 std::vector<CC_vecfunction> CC2::solve_ccs() {
     output.section("SOLVE CCS");
@@ -394,6 +508,221 @@ std::vector<CC_vecfunction> CC2::solve_ccs() {
         result.push_back(excitations[x]);
     }
     return result;
+}
+
+double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
+   if (world.rank()==0) std::cout << "\nSolving coupled equations" << std::endl;
+   double total_energy = 0.0;
+   const std::size_t nfreeze=parameters.freeze();
+   const int nocc=CCOPS.mo_ket().size();
+   auto triangular_map=PairVectorMap::triangular_map(nfreeze,nocc);
+
+   // make vector holding CCPairs for partitioner of MacroTask
+   std::vector<CCPair> pair_vec=Pairs<CCPair>::pairs2vector(doubles,triangular_map);
+
+   if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "\nStarting constant part at time " << wall_time() << std::endl;
+   // calc constant part via taskq
+   auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world, world.size()));
+   taskq->set_printlevel(3);
+   MacroTaskMp2ConstantPart t;
+   MacroTask task(world, t, taskq);
+   std::vector<real_function_6d> result_vec = task(pair_vec, CCOPS.mo_ket().get_vecfunction(),
+                                                CCOPS.mo_bra().get_vecfunction(), parameters,
+                                                nemo->R_square, nemo->ncf->U1vec(),std::vector<std::string>({"Ue","KffK"}));
+//   std::vector<real_function_6d> Gfij_vec = task(pair_vec, CCOPS.mo_ket().get_vecfunction(),
+//                                                    CCOPS.mo_bra().get_vecfunction(), parameters,
+//                                                    nemo->R_square, nemo->ncf->U1vec(),std::vector<std::string>({"f12phi"}));
+   taskq->print_taskq();
+   taskq->run_all();
+
+   if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "\nFinished constant part at time " << wall_time() << std::endl;
+   if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "\nStarting saving pairs and energy calculation at time " << wall_time() << std::endl;
+
+   // compute coupling for the constant term
+//   Pairs<real_function_6d> Gfij_pair=Pairs<real_function_6d>::vector2pairs(Gfij_vec, PairVectorMap::triangular_map(nfreeze,nocc));
+//   Pairs<real_function_6d> coupling_constant_term=compute_local_coupling(Gfij_pair);
+//   std::vector<real_function_6d> coupling_constant_term_vec=Pairs<real_function_6d>::pairs2vector(coupling_constant_term,triangular_map);
+
+    // transform vector back to Pairs structure
+   for (int i = 0; i < pair_vec.size(); i++) {
+       pair_vec[i].constant_part = result_vec[i];// - coupling_constant_term_vec[i];
+       //save(pair_vec[i].constant_part, pair_vec[i].name() + "_const");
+       pair_vec[i].constant_part.truncate().reduce_rank();
+       pair_vec[i].function().truncate().reduce_rank();
+       if (pair_vec[i].type == GROUND_STATE) total_energy += CCOPS.compute_pair_correlation_energy(pair_vec[i]);
+   }
+
+   if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "\nFinished saving pairs and energy calculation at time " << wall_time() << std::endl;
+
+    // create new pairs structure
+   Pairs<CCPair> updated_pairs;
+   for (auto& tmp_pair : pair_vec) {
+       updated_pairs.insert(tmp_pair.i, tmp_pair.j, tmp_pair);
+   }
+   typedef allocator<double, 6> allocT;
+   allocT alloc(world, pair_vec.size());
+    XNonlinearSolver<std::vector<real_function_6d>, double, allocT> solver(alloc);
+    solver.set_maxsub(parameters.kain_subspace());
+    solver.do_print = (world.rank() == 0);
+
+    for (size_t iter = 0; iter < parameters.iter_max_6D(); iter++) {
+
+       if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "\nStarting coupling at time " << wall_time() << std::endl;
+       // compute the coupling between the pair functions
+       Pairs<real_function_6d> coupling=compute_local_coupling(updated_pairs);
+       //print coupling
+       if (world.rank()==0) std::cout << "aaaaa coupling Pairs";
+       for (auto& tmp_coupling : coupling.allpairs) {
+            tmp_coupling.second.print_size("coupling Pairs");
+       }
+
+       if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "\nFinished coupling at time " << wall_time() << std::endl;
+       auto coupling_vec=Pairs<real_function_6d>::pairs2vector(coupling,triangular_map);
+
+
+//       // make coupling vector that can be stored in cloud
+//       // pair -> position
+//       // (i,j) -> j(j+1)+i
+//       // Pairs struc does not provide access to last element
+//       int i_max = 0;
+//       int j_max = 0;
+//       for (auto& tmp_coupling: coupling.allpairs){
+//           if (std::get<0>(tmp_coupling.first) > i_max) i_max = std::get<0>(tmp_coupling.first);
+//           if (std::get<1>(tmp_coupling.first) > j_max) j_max = std::get<1>(tmp_coupling.first);
+//       }
+//       int last_position = j_max*(j_max+1) + i_max;
+//       std::vector<real_function_6d> coupling_vec = zero_functions_compressed<double,6>(world, (last_position+1));
+//
+//       for (auto& tmp_coupling : coupling.allpairs) {
+//           int i = std::get<0>(tmp_coupling.first);
+//           int j = std::get<1>(tmp_coupling.first);
+//           int position = j*(j+1) + i;
+//           //if (world.rank() == 0) std::cout << i << " ," << j << " -> "<< position << std::endl;
+//           coupling_vec[position] = tmp_coupling.second;
+//       }
+       //print coupling vec
+       if (world.rank()==0) std::cout << "aaaaa coupling vector";
+       print_size(world, coupling_vec, "couplingvector");
+
+       double total_norm = 0.0;
+       double old_energy = total_energy;
+       total_energy = 0.0;
+
+       //NonlinearSolverND<6> solver(parameters.kain_subspace());
+       //solver.do_print = (world.rank() == 0);
+
+       if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "\nStarting pairs update at time " << wall_time() << std::endl;
+       // calc update for pairs via macrotask
+       auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world, world.size()));
+       taskq->set_printlevel(3);
+       //taskq->cloud.set_debug(true);
+       MacroTaskMp2UpdatePair t;
+       MacroTask task(world, t, taskq);
+       std::vector<real_function_6d> u_update = task(pair_vec, coupling_vec, parameters, nemo->get_calc()->molecule.get_all_coords_vec(),
+                                                     CCOPS.mo_ket().get_vecfunction(), CCOPS.mo_bra().get_vecfunction(),
+                                                     nemo->ncf->U1vec(), nemo->ncf->U2());
+       taskq->print_taskq();
+       taskq->run_all();
+
+       if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "\nFinished pairs update at time " << wall_time() << std::endl;
+
+       if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "\nStarting saving pairs and energy calculation at time " << wall_time() << std::endl;
+
+        if (parameters.kain()) {
+            if (world.rank()==0) std::cout << "Update with KAIN" << std::endl;
+            StrongOrthogonalityProjector<double, 3> Q(world);
+            Q.set_spaces(CCOPS.mo_bra().get_vecfunction(), CCOPS.mo_ket().get_vecfunction(), CCOPS.mo_bra().get_vecfunction(), CCOPS.mo_ket().get_vecfunction());
+
+            std::vector<real_function_6d> u;
+            for (auto p : pair_vec) u.push_back(p.function());
+            std::vector<real_function_6d> kain_update = copy(world,solver.update(u, u_update));
+            for (int i=0; i<pair_vec.size(); ++i) {
+                kain_update[i].truncate().reduce_rank();
+                kain_update[i].print_size("Kain-Update-Function");
+                pair_vec[i].update_u(copy(kain_update[i]));
+            }
+        } else {
+            if (world.rank()==0) std::cout << "Update without KAIN" << std::endl;
+            for (int i=0; i<pair_vec.size(); ++i) {
+                pair_vec[i].update_u(pair_vec[i].function() - u_update[i]);
+            }
+        }
+
+        // calculate energy and error and update pairs
+       for (int i = 0; i < pair_vec.size(); i++) {
+           //const real_function_6d residue = pair_vec[i].function() - u_update[i];
+           const double error = u_update[i].norm2();
+           if (world.rank()==0) std::cout << "residual " << pair_vec[i].i << " " << pair_vec[i].j << " " << error << std::endl;
+           total_norm = std::max(total_norm, error);
+
+          // if (parameters.kain()) {
+          //     if (world.rank()==0) std::cout << "Update with KAIN" << std::endl;
+          //     StrongOrthogonalityProjector<double, 3> Q(world);
+          //     Q.set_spaces(CCOPS.mo_bra().get_vecfunction(), CCOPS.mo_ket().get_vecfunction(), CCOPS.mo_bra().get_vecfunction(), CCOPS.mo_ket().get_vecfunction());
+          //     std::vector<real_function_6d> kain_update = copy(solver.update(pair_vec[i].function(), u_update[i]));
+          //     kain_update = Q(kain_update);
+          //     kain_update.truncate().reduce_rank();
+          //     kain_update.print_size("Kain-Update-Function");
+          //     pair_vec[i].update_u(copy(kain_update));
+          // } else {
+          //     if (world.rank()==0) std::cout << "Update without KAIN" << std::endl;
+          //     pair_vec[i].update_u(pair_vec[i].function() - u_update[i]);
+          // }
+
+           //save(pair_vec[i].function(), pair_vec[i].name());
+           double energy = 0.0;
+           if (pair_vec[i].type == GROUND_STATE) energy = CCOPS.compute_pair_correlation_energy(pair_vec[i]);
+           total_energy += energy;
+       }
+
+       if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "\nFinished saving pairs and energy calculation at time " << wall_time() << std::endl;
+
+       // create new Pairs struc for MP2 pairs, needed for coupling
+       // only temporary! will be removed when compute_local_coupling is changed
+       //Pairs<CCPair> updated_pairs;
+       for (auto& tmp_pair : pair_vec) {
+           updated_pairs(tmp_pair.i, tmp_pair.j).update_u(tmp_pair.function());
+       }
+
+       output("\n--Iteration " + stringify(iter) + " ended--");
+       if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "at time " << wall_time() << std::endl;
+      // std::cout << "old_energy = " << old_energy << std::endl;
+      // std::cout << "total_energy = " << total_energy << std::endl;
+      // std::cout << "total_norm = " << total_norm << std::endl;
+      // std::cout << "econv = " << parameters.econv() << std::endl;
+      // std::cout << "dconv_6D = " << parameters.dconv_6D() << std::endl;
+       bool converged = ((std::abs(old_energy - total_energy) < parameters.econv())
+                        and (total_norm < parameters.dconv_6D()));
+
+       if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "\nStarting final energy calculation at time " << wall_time() << std::endl;
+       //print pair energies if converged
+       if (converged) {
+           if (world.rank() == 0) std::cout << "\nPairs converged!\n";
+           if (world.rank() == 0) std::cout << "\nMP2 Pair Correlation Energies:\n";
+           for (auto& pair : updated_pairs.allpairs) {
+               const double pair_energy = CCOPS.compute_pair_correlation_energy(pair.second);
+               if (world.rank() == 0) {
+                   std::cout << std::fixed << std::setprecision(10) << "omega_"
+                             << pair.second.i << pair.second.j << "=" << pair_energy << "\n";
+               }
+           }
+           if (world.rank() == 0) std::cout << "sum     =" << total_energy << "\n";
+           break;
+       } else {
+           if (world.rank() == 0) std::cout << "\nCurrent pair energies:\n";
+           for (auto& pair : updated_pairs.allpairs) {
+               const double pair_energy = CCOPS.compute_pair_correlation_energy(pair.second);
+               if (world.rank() == 0) {
+                   std::cout << std::fixed << std::setprecision(10) << "omega_"
+                             << pair.second.i << pair.second.j << "=" << pair_energy << "\n";
+               }
+           }
+           if (world.rank() == 0) std::cout << "sum     =" << total_energy << "\n";
+       }
+       if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "\nFinished final energy calculation at time " << wall_time() << std::endl;
+   }
+
+   return total_energy;
 }
 
 double
@@ -424,6 +753,79 @@ CC2::solve_mp2(Pairs<CCPair>& doubles) {
     }
     if (world.rank() == 0) std::cout << "sum     =" << omega << "\n";
     return omega;
+}
+
+/// add the coupling terms for local MP2
+
+/// @return \sum_{k\neq i} f_ki |u_kj> + \sum_{l\neq j} f_lj |u_il>
+Pairs<real_function_6d> CC2::compute_local_coupling(const Pairs<real_function_6d>& pairs) const {
+    if (world.rank() == 0) print("compute local coupling");
+
+    const int nmo = nemo->get_calc()->amo.size();
+    if (world.rank() == 0) print("nmo = ", nmo);
+
+    // temporarily make all N^2 pair functions
+    typedef std::map<std::pair<int, int>, real_function_6d> pairsT;
+    pairsT quadratic;
+    for (int k = parameters.freeze(); k < nmo; ++k) {
+        for (int l = parameters.freeze(); l < nmo; ++l) {
+            if (l >= k) {
+                quadratic[std::make_pair(k, l)] = pairs(k, l);
+            } else {
+                quadratic[std::make_pair(k, l)] = swap_particles(pairs(l, k));
+            }
+        }
+    }
+    //print quadratic
+    if (world.rank() == 0) std::cout << "aaaaa quadratic" << std::endl;
+    for (pairsT::iterator it = quadratic.begin(); it != quadratic.end(); ++it) {
+        it->second.print_size("quadratic");
+    }
+
+    for (auto& q: quadratic) q.second.compress(false);
+    world.gop.fence();
+
+    // the coupling matrix is the Fock matrix, skipping diagonal elements
+    Tensor<double> fock1 = nemo->compute_fock_matrix(nemo->get_calc()->amo, nemo->get_calc()->aocc);
+    if (world.rank() == 0) std::cout << "aaaaa fock1 in compute_local_coupling" << std::endl;
+    if (world.rank() == 0) print(fock1);
+    for (int k = 0; k < nmo; ++k) {
+        if (fock1(k, k) > 0.0) MADNESS_EXCEPTION("positive orbital energies", 1);
+        fock1(k, k) = 0.0;
+    }
+
+    Pairs<real_function_6d> coupling;
+    for (int i = parameters.freeze(); i < nmo; ++i) {
+        for (int j = i; j < nmo; ++j) {
+            coupling.insert(i, j, real_factory_6d(world).compressed());
+        }
+    }
+
+    for (int i = parameters.freeze(); i < nmo; ++i) {
+        for (int j = i; j < nmo; ++j) {
+            for (int k = parameters.freeze(); k < nmo; ++k) {
+                if (fock1(k, i) != 0.0) {
+                    coupling(i, j).gaxpy(1.0, quadratic[std::make_pair(k, j)], fock1(k, i), false);
+                }
+            }
+
+            for (int l = parameters.freeze(); l < nmo; ++l) {
+                if (fock1(l, j) != 0.0) {
+                    coupling(i, j).gaxpy(1.0, quadratic[std::make_pair(i, l)], fock1(l, j), false);
+                }
+            }
+            world.gop.fence();
+            const double thresh = FunctionDefaults<6>::get_thresh();
+            coupling(i, j).truncate(thresh * 0.1).reduce_rank();
+        }
+    }
+    world.gop.fence();
+    //print coupling when finished
+    if (world.rank() == 0) std::cout << "aaaaa coupling Pairs after compute_local_coupling";
+    for (auto& tmp_coupling: coupling.allpairs) {
+        tmp_coupling.second.print_size("coupling Pairs after compute_local_coupling");
+    }
+    return coupling;
 }
 
 double

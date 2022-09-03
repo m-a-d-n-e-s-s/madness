@@ -2,7 +2,7 @@
 // Created by adrianhurtado on 1/1/22.
 //
 
-#include "apps/external_headers/tensor_json.hpp"
+#include "madness/tensor/tensor_json.hpp"
 #include "response_functions.h"
 #include "timer.h"
 #include "string"

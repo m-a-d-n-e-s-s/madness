@@ -10,12 +10,14 @@ set(MADCHEM_HEADERS
     BSHApply.h
     CalculationParameters.h
     CC2.h
+    ccpairfunction.h
     CCPotentials.h
     CCStructures.h
     commandlineparser.h
     corepotential.h
     correlationfactor.h
     diamagneticpotentialfactor.h
+    distpm.h
     electronic_correlation_factor.h
     ESInterface.h
     exchangeoperator.h
@@ -25,6 +27,7 @@ set(MADCHEM_HEADERS
     localizer.h
     masks_and_boxes.h
     molecularbasis.h
+    molecular_functors.h
     molecular_optimizer.h
     MolecularOrbitals.h
     molecule.h
@@ -46,6 +49,7 @@ set(MADCHEM_HEADERS
     potentialmanager.h
     projector.h
     QCCalculationParametersBase.h
+    QCPropertyInterface.h
     SCF.h
     SCFOperators.h
     SCFProtocol.h
@@ -61,6 +65,7 @@ set(MADCHEM_SOURCES
     AC.cc
     atomutil.cc
     CC2.cc
+    ccpairfunction.cc
     CCPotentials.cc
     CCStructures.cc
     corepotential.cc
@@ -102,7 +107,7 @@ else()
 endif()
 
 # Create the MADchem library
-add_mad_library(chem MADCHEM_SOURCES MADCHEM_HEADERS "mra" "chem/")
+add_mad_library(chem MADCHEM_SOURCES MADCHEM_HEADERS "mra" "madness/chem/")
 
   set(targetname MADchem)
 
@@ -128,7 +133,7 @@ add_mad_library(chem MADCHEM_SOURCES MADCHEM_HEADERS "mra" "chem/")
 add_mad_executable(plotxc "plotxc.cc;xcfunctional.h" "MADchem")
 
 # Install files
-install(FILES sto-3g sto-6g 6-31g coredata/mcp coredata/mcp2 coredata/mcp_guess
+install(FILES sto-3g sto-6g 6-31g coredata/mcp coredata/mcp2 coredata/mcp_guess structure_library
     DESTINATION "${MADNESS_INSTALL_DATADIR}"
     COMPONENT chem)
 
@@ -138,7 +143,8 @@ if(BUILD_TESTING)
   SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
   # The list of unit test source files
   set(CHEM_TEST_SOURCES test_pointgroupsymmetry.cc test_masks_and_boxes.cc test_localizer.cc 
-  test_QCCalculationParametersBase.cc test_qc.cc test_MolecularOrbitals.cc test_BSHApply.cc)
+  test_QCCalculationParametersBase.cc test_qc.cc test_MolecularOrbitals.cc test_BSHApply.cc
+  test_ccpairfunction.cc)
   if (LIBXC_FOUND)
     list(APPEND CHEM_TEST_SOURCES test_dft.cc test_SCFOperators.cc)
   endif(LIBXC_FOUND)

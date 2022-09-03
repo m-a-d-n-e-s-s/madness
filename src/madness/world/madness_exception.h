@@ -197,6 +197,24 @@ namespace madness {
     } while (0)
 #endif
 
+
+// the following define/undef are for documentation purposes only.
+/// Check a condition --- even in a release build the condition is always evaluated so it can have side effects
+
+/// will always throw a madness::MadnessException, but will not print to stderr
+/// \param[in] condition The condition to be checked.
+/// \param[in] msg       The message to be printed
+#define MADNESS_CHECK_THROW(condition,msg)
+#undef MADNESS_CHECK_THROW
+
+#define MADNESS_CHECK_THROW(condition,msg)              \
+  do { \
+      if (!(condition)) { \
+          throw madness::MadnessException(msg, (#condition),0,__LINE__,__FUNCTION__,__FILE__); \
+      } \
+  } while (0)
+
+
 } // namespace madness
 
 #endif // MADNESS_WORLD_MADNESS_EXCEPTION_H__INCLUDED

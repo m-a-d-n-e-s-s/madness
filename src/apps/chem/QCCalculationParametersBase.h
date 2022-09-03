@@ -17,6 +17,7 @@
 #include <madness/misc/misc.h>
 #include <madness/world/archive.h>
 #include <madness/world/world.h>
+#include <chem/commandlineparser.h>
 
 
 namespace madness {
@@ -50,6 +51,7 @@ std::istream& operator>>(std::istream& is, std::vector<T,A>& v) {
 		line+=word;
 		if (word.find(']')!=std::string::npos) break;
 	}
+    if (line.size()!=0) is.clear();
 
 	// remove enclosing brackets and commas
 	auto find_c = [](char& c){ return ((c==',') or (c=='[') or (c==']')); };
@@ -67,7 +69,7 @@ std::istream& operator>>(std::istream& is, std::vector<T,A>& v) {
 	if (sline.bad()) {
 		madness::print("error while reading vector from istream: ");
 		madness::print(line,"\n");
-		MADNESS_EXCEPTION("IO error",1);
+		throw std::runtime_error("IO error");
 	}
 
 	return is;
@@ -101,7 +103,7 @@ std::istream& operator>>(std::istream& is, std::pair<T,Q>& p) {
 	if (sline.bad() or sline.fail()) {
 		madness::print("error while reading vector from istream: ");
 		madness::print(line,"\n");
-		MADNESS_EXCEPTION("IO error",1);
+		throw std::runtime_error("IO error");
 	}
 	p=std::pair<T,Q>(tmp1,tmp2);
 
@@ -140,6 +142,10 @@ public:
 		user_defined_value=val;
 		set_all();
 	}
+
+    bool is_user_defined() const {
+        return (precedence==defined);
+    }
 
 	std::string get_value() const {return value;}
 	std::string get_type() const {return type;}
@@ -183,12 +189,16 @@ public:
 		return result.substr(0, last+1);
 	}
 
-	template <typename Archive> void serialize (Archive& ar) {
+    template <typename Archive> void serialize (Archive& ar) {
 		ar & value & default_value & derived_value & user_defined_value & type & null &
 		comment & allowed_values & print_order & precedence;
 	}
 
 	enum {def, derived, defined} precedence=def;
+
+    hashT hash() const {
+        return hash_value(value);
+    }
 
 private:
 
@@ -196,8 +206,8 @@ private:
 		value=default_value;
 		if (derived_value!=null) value=derived_value;
 		if (user_defined_value!=null) value=user_defined_value;
-		if (not check_allowed()) throw std::runtime_error(not_allowed_errmsg());
-	}
+		if (not check_allowed()) throw std::invalid_argument(not_allowed_errmsg());
+    }
 
 	bool check_allowed() {
 		if (allowed_values.size()==0)  return true;
@@ -216,7 +226,7 @@ private:
 	}
 
 
-	std::string value="";
+	std::string value;
 	std::string default_value="";
 	std::string derived_value="";
 	std::string user_defined_value="";
@@ -261,23 +271,51 @@ public:
 		return fromstring<T>(parameter.get_value());
 	}
 
+    bool is_user_defined(std::string key) const {
+        return get_parameter(key).is_user_defined();
+    }
+
 	template <typename Archive> void serialize (Archive& ar) {
 		ar & parameters & print_debug;
 	}
+
+    hashT hash() const {
+        return hash_range(parameters.begin(), parameters.end());
+    }
 
 protected:
 
 	typedef std::map<std::string,QCParameter> ParameterContainerT;
 	ParameterContainerT parameters;
 
+    virtual void read_input_and_commandline_options(World& world,
+                                                    const commandlineparser& parser,
+                                                    const std::string tag) {
+        try {
+            read_input(world,parser.value("input"),tag);
+        } catch (std::invalid_argument& e) {
+            throw;
+        } catch (std::exception& e) {
+            print(e.what());
+        }
+        read_commandline_options(world,parser,tag);
+    }
+
+private:
 	/// read the parameters from file
 
 	/// only world.rank()==0 reads the input file and broadcasts to all other nodes,
 	/// so we don't need to serialize the ParameterMap
-	virtual void read(World& world, const std::string filename, const std::string tag);
+	void read_input(World& world, const std::string filename, const std::string tag);
 
+    void read_commandline_options(World& world, const commandlineparser& parser, const std::string tag);
+
+protected:
 
 	bool print_debug=false;
+    bool ignore_unknown_keys=true;
+    bool ignore_unknown_keys_silently=false;
+    bool throw_if_datagroup_not_found=true;
 
 	/// ctor for testing
 	QCCalculationParametersBase() {}
@@ -328,6 +366,11 @@ public:
 		}
 		parameter.set_derived_value(tostring(value));
 	}
+
+    ParameterContainerT get_all_parameters() const {
+        return parameters;
+    }
+
 
 protected:
 

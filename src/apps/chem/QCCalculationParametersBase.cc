@@ -37,26 +37,60 @@ std::string QCCalculationParametersBase::print_to_string(bool non_defaults_only)
 	list.sort([](const keyvalT& first, const keyvalT& second) {return std::get<0>(first) < std::get<0>(second);});
 
 	std::stringstream ss;
+    int counter=0;
 	for (auto& p : list) {
 		const QCParameter& param=std::get<2>(p);
 		if (non_defaults_only and (param.precedence==QCParameter::def)) continue;
 		ss << param.print_line(std::get<1>(p));
-		ss << std::endl;
+        if (++counter<list.size()) ss << std::endl; // no newline at the very end
 	}
 	return ss.str();
 }
 
 /// read the parameters from file and broadcast
-void QCCalculationParametersBase::read(World& world, const std::string filename, const std::string tag) {
+void QCCalculationParametersBase::read_input(World& world, const std::string filename, const std::string tag) {
 
 	std::string filecontents, line;
+    std::string errmsg;
 	if (world.rank()==0) {
-		std::ifstream f(filename.c_str());
-		while (std::getline(f,line)) filecontents+=line+"\n";
-	    read_internal(world, filecontents,tag);
+        try {
+            std::ifstream f(filename.c_str());
+            while (std::getline(f, line)) filecontents += line + "\n";
+            read_internal(world, filecontents, tag);
+        } catch (std::invalid_argument& e) {
+            errmsg=e.what();
+            throw;
+        } catch (std::exception& e) {
+            std::stringstream ss;
+            ss << "could not read data group >>" << tag << "<< in file " << filename << std::endl;
+            errmsg=ss.str();
+        }
     }
 	world.gop.broadcast_serializable(*this, 0);
+    if (errmsg.size()>0) throw std::runtime_error(errmsg);
 }
+
+/// read the parameters from the command line and broadcast
+
+/// syntax is: qcprogram --mp2='maxiter 10; freeze 1' --dft:maxiter=20 --Xmpi:debug=true
+/// the argument in quotes is the value of the parser keys
+void QCCalculationParametersBase::read_commandline_options(World& world, const commandlineparser& parser,
+														   const std::string tag) {
+	if (not parser.key_exists(tag)) return;
+	std::string value=parser.value(tag);
+	// turn this into a fake input file
+	if (world.rank()==0) {
+        std::string q="'";
+		std::replace_copy(value.begin(), value.end(), value.begin(), q.c_str()[0] , ' ');
+		std::replace_copy(value.begin(), value.end(), value.begin(), ';', '\n');
+		value=tag+"\n"+value+"\nend";
+//        print("value",value);
+		read_internal(world, value,tag);
+	}
+	world.gop.broadcast_serializable(*this, 0);
+}
+
+
 
 /// read the stream, starting from tag
 
@@ -64,7 +98,7 @@ void QCCalculationParametersBase::read(World& world, const std::string filename,
 /// all others will be discarded.
 void QCCalculationParametersBase::read_internal(World& world, std::string& filecontents, std::string tag) {
 	std::stringstream f(filecontents);
-	position_stream_to_word(f, tag);
+	position_stream_to_word(f, tag, '#', true, true);
 	std::string line, key,value;
 
 	// read input lines
@@ -76,6 +110,7 @@ void QCCalculationParametersBase::read_internal(World& world, std::string& filec
 		// remove comments from line
 		std::size_t last = line.find_first_of('#');
 		line=line.substr(0,last);
+        std::replace_copy(line.begin(), line.end(), line.begin(),'=', ' ');
 
 		std::stringstream sline(line);
 
@@ -89,7 +124,15 @@ void QCCalculationParametersBase::read_internal(World& world, std::string& filec
 
 		// check if key exists in the initialized parameter list
 		if (not (parameter_exists(key))) {
-			if (world.rank()==0) madness::print("ignoring unknown parameter in input file: ",key);
+            if (not ignore_unknown_keys) {
+                if (world.rank()==0) {
+                    ::madness::print("found unknown key: ",key);
+                    ::madness::print("in datagroup:      ",tag);
+                }
+                throw std::runtime_error("input error");
+            }
+            if ((not ignore_unknown_keys_silently)
+                and (world.rank()==0)) madness::print("ignoring unknown parameter in input file: ",key);
 			continue;
 		}
 
@@ -117,16 +160,18 @@ void QCCalculationParametersBase::read_internal(World& world, std::string& filec
 			success=try_setting_user_defined_value<std::vector<std::string> >(key,line1) or success;
 			success=try_setting_user_defined_value<std::pair<std::string,double> >(key,line1) or success;
 
-		} catch (std::runtime_error& e) {
+        } catch (std::invalid_argument& e) {
+            throw;
+		} catch (std::exception& e) {
 			std::string errmsg="found an error for key >> "+key+" << \n" +e.what();
-			throw std::runtime_error(errmsg);
+            throw std::runtime_error(errmsg);
 		}
 		if (not success) {
 			madness::print("\n\ncould not assign the input parameter for key ",key);
 			std::string requested_type=get_parameter(key).get_type();
 			madness::print("\trequested type: ",requested_type,"\n");
 			madness::print("add the corresponding type to QCCalculationsParametersBase.h\n\n");
-			MADNESS_EXCEPTION("add the corresponding type to QCCalculationsParametersBase.h",1);
+			throw std::invalid_argument("add the corresponding type to QCCalculationsParametersBase.h");
 		}
 	}
 };

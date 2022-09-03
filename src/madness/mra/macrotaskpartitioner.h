@@ -29,6 +29,9 @@ template<typename T, std::size_t NDIM>
 struct is_madness_function_vector<std::vector<typename madness::Function<T, NDIM>>> : std::true_type {
 };
 
+template<typename Q> struct is_vector : std::false_type { };
+template<typename Q> struct is_vector<std::vector<Q>> : std::true_type { };
+
 /// given a tuple return the index of the first argument that is a vector of Function<T,NDIM>
 template<typename tupleT, std::size_t I>
 constexpr std::size_t get_index_of_first_vector_argument() {
@@ -40,8 +43,8 @@ constexpr std::size_t get_index_of_first_vector_argument() {
 //        MADNESS_EXCEPTION("there is no madness function vector argument in the list, cannot partition the tasks", 1);
         return I;
     } else {
-        using typeT = typename std::tuple_element<I, argtupleT>::type;       // use decay types for determining a vector
-        if constexpr (is_madness_function_vector<typeT>::value) {
+        using typeT = typename std::tuple_element<I, argtupleT>::type;// use decay types for determining a vector
+        if constexpr (is_vector<typeT>::value) {
             return I;
         } else {
             // Going for next element.

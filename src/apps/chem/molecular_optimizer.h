@@ -57,8 +57,8 @@ class MolecularOptimizationParameters : public QCCalculationParametersBase {
 public:
 
 	/// ctor reading out the input file
-	MolecularOptimizationParameters(World& world) {
-        initialize<std::string>("update","BFGS");
+	MolecularOptimizationParameters(World& world, const commandlineparser& parser) {
+        initialize<std::string>("update","bfgs");
         initialize<int>("maxiter",20);
         initialize<double>("tol",1.e-6);
         initialize<double>("value_precision",1.e-12);
@@ -68,7 +68,7 @@ public:
         initialize<std::vector<std::string> >("remove_dof",{"Tx","Ty","Tz","Rx","Ry","Rz"},"which degree of freedom to project out");
 
 		// read input file
-		read(world,"input","geoopt");
+        read_input_and_commandline_options(world,parser,"geoopt");
 	}
 
 	void set_derived_values() {
@@ -104,9 +104,9 @@ public:
     MolecularOptimizationParameters parameters;
 
     /// same ctor as the QuasiNewton optimizer
-    MolecularOptimizer(World& world,
+    MolecularOptimizer(World& world, const commandlineparser& parser,
     		const std::shared_ptr<MolecularOptimizationTargetInterface>& tar)
-			: target(tar), parameters(world) {
+			: target(tar), parameters(world, parser) {
     }
 
     /// optimize the underlying molecule

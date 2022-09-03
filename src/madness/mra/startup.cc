@@ -198,4 +198,12 @@ namespace madness {
 
         world.gop.fence();
     }
+
+
+    std::string get_mra_data_dir() {
+        const char* data_dir = MRA_DATA_DIR; // as defined at configure time
+        if (getenv("MRA_DATA_DIR")) data_dir = getenv("MRA_DATA_DIR"); // override by environment variable
+        return std::string(data_dir);
+    };
+
 }

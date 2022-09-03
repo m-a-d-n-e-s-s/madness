@@ -22,23 +22,23 @@
 
 namespace madness {
 
-class CC2 {
+class CC2 : public OptimizationTargetInterface, public QCPropertyInterface {
 public:
 
-    CC2(World& world_, const CCParameters& param, const std::shared_ptr<Nemo> nemo_)
-            : world(world_),
-              parameters(param),
-              nemo(nemo_),
-              CCOPS(world, *nemo, parameters),
-              output(CCOPS.output) {
-        parameters.sanity_check(world);
-    }
+//    CC2(World& world_, const CCParameters& param, const std::shared_ptr<Nemo> nemo_)
+//            : world(world_),
+//              parameters(param),
+//              nemo(nemo_),
+//              CCOPS(world, nemo, parameters),
+//              output(CCOPS.output) {
+//        parameters.sanity_check(world);
+//    }
 
     CC2(World& world_, const commandlineparser& parser, const std::shared_ptr<Nemo> nemo_)
             : world(world_),
               parameters(world_,parser),
               nemo(nemo_),
-              CCOPS(world, *nemo, parameters),
+              CCOPS(world, nemo, parameters),
               output(CCOPS.output) {
 
         output.section("CC2 Class has been initialized with the following parameters");
@@ -72,6 +72,48 @@ public:
 
     }
 
+
+    double value() {
+        return value(nemo->molecule().get_all_coords());
+    }
+
+    double value(const Tensor<double>& x) {
+        solve();
+        return 0.0;
+    }
+
+    std::string name() const {return "CC2";};
+
+    static void help() {
+        print("\nCC2 -- help \n");
+        print("The CC2 code computes correlated ground and excited state energies:\n");
+        print(" - MP2 ground state");
+        print(" - CC2 ground and excited states");
+        print(" - ADC(2) and CIS(D) excited states\n");
+        print("You need a SCF reference calculation from the nemo program. If there no such calculation can");
+        print("be found CC2 will perform its own. If excited states are requested also a CIS calculation is ");
+        print("necessary.\n");
+        print("Note that for correlated calculations the k parameter must be chosen small, typically k=5 or k=6 ");
+        print("because the curse of dimensions make higher k extremely expensive\n");
+        print("You can print all available calculation parameters by running\n");
+        print("cc2 --print_parameters\n");
+        print("You can perform a simple MP2 calculation by running\n");
+        print("cc2 --geometry=h2o.xyz\n");
+        print("provided you have an xyz file in your directory.\n");
+
+    }
+
+    static void print_parameters() {
+        CCParameters param;
+        print("\ndefault parameters for the cc2 program are\n");
+        param.print("cc2","end");
+        print("\n\nthe molecular geometry must be specified in a separate block:");
+        Molecule::print_parameters();
+    }
+
+    virtual bool selftest() {
+        return true;
+    };
     void
     plot(const real_function_3d& f, const std::string& msg = "unspecified function") const {
         plot_plane(world, f, msg);
@@ -83,7 +125,7 @@ public:
     /// Structure holds all the parameters used in the CC2 calculation
     const CCParameters parameters;
     /// The SCF Calculation
-    const std::shared_ptr<Nemo> nemo;
+    std::shared_ptr<Nemo> nemo;
     /// The excited state cis calculation
     std::shared_ptr<TDHF> tdhf;
     /// The CC Operator Class
@@ -92,8 +134,7 @@ public:
     CCMessenger& output;
 
     /// solve the CC2 ground state equations, returns the correlation energy
-    void
-    solve();
+    void solve();
 
     std::vector<CC_vecfunction>
     solve_ccs();
@@ -372,6 +413,10 @@ public:
     bool update_constant_part_mp2(CCPair& pair) {
         MADNESS_ASSERT(pair.ctype == CT_MP2);
         MADNESS_ASSERT(pair.type == GROUND_STATE);
+        if (parameters.no_compute_mp2_constantpart()) {
+            pair.constant_part=real_factory_6d(world);
+            load(pair.constant_part,pair.name()+"_const");
+        }
         if (pair.constant_part.is_initialized()) return false;
 
         // make screening Operator
@@ -451,6 +496,24 @@ public:
         return true;
     }
 
+    /// forward to the other function (converting CCPair to real_function)
+    Pairs<real_function_6d> compute_local_coupling(const Pairs<CCPair> &pairs) const {
+        auto ccpair2function = [](const CCPair& a) {return a.function();};
+        return compute_local_coupling(pairs.convert<real_function_6d>(pairs,ccpair2function));
+
+    };
+
+    /// add the coupling terms for local MP2
+
+    /// \sum_{k\neq i} f_ki |u_kj> + \sum_{l\neq j} f_lj |u_il>
+    Pairs<real_function_6d> compute_local_coupling(const Pairs<real_function_6d>& pairs) const;
+
+
+    double solve_mp2_coupled(Pairs<CCPair> &doubles);
+
+    bool check_core_valence_separation() const;
+
+    void enforce_core_valence_separation();
 };
 
 

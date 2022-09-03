@@ -59,6 +59,7 @@
 #include <chem/AC.h>
 #include <chem/pointgroupsymmetry.h>
 #include <chem/commandlineparser.h>
+#include <chem/QCPropertyInterface.h>
 #include <madness/world/timing_utilities.h>
 
 namespace madness {
@@ -160,7 +161,21 @@ public:
 		return sum(world,abssq(world,nemo)).truncate();
 	}
 
-	void construct_nuclear_correlation_factor(const Molecule& molecule,
+    virtual bool need_recompute_factors_and_potentials(const double thresh) const {
+        bool need=false;
+        if ((not R.is_initialized()) or (R.thresh()>thresh)) need=true;
+        if (not ncf) need=true;
+        if ((not R_square.is_initialized()) or (R_square.thresh()>thresh)) need=true;
+        return need;
+    };
+
+    virtual void invalidate_factors_and_potentials() {
+        R.clear();
+        R_square.clear();
+        ncf.reset();
+    };
+
+    void construct_nuclear_correlation_factor(const Molecule& molecule,
 			const std::shared_ptr<PotentialManager> pm,
 			const std::pair<std::string,double> ncf_parameter) {
 
@@ -329,7 +344,7 @@ public:
 
 
 /// The Nemo class
-class Nemo: public NemoBase {
+class Nemo: public NemoBase, public QCPropertyInterface {
 	typedef std::shared_ptr<real_convolution_3d> poperatorT;
 	friend class PNO;
 	friend class TDHF;
@@ -352,6 +367,7 @@ public:
 			initialize<bool> ("read_cphf",false,"read the converged orbital response for nuclear displacements from file");
 			initialize<bool> ("restart_cphf",false,"read the guess orbital response for nuclear displacements from file");
 			initialize<bool> ("purify_hessian",false,"symmetrize the hessian matrix based on atomic charges");
+            set_derived_value("k",7);
 		}
 
 		std::pair<std::string,double> ncf() const {return get<std::pair<std::string,double> >("ncf");}
@@ -369,6 +385,30 @@ public:
 //	Nemo(World& world1, std::shared_ptr<SCF> calc, const std::string inputfile);
 
     Nemo(World& world, const commandlineparser& parser);
+
+    std::string name() const {return "nemo";}
+    bool selftest() {return false;}
+
+    static void help() {
+        print("\nNEMO \n");
+        print("The nemo code computes Hartree-Fock and DFT energies, gradients and hessians using a nuclear correlation factor");
+        print("that regularizes the singular nuclear potential. SCF orbitals for the basis for post-SCF calculations like");
+        print("excitation energies (cis), correlation energies (cc2), local potentials (oep), etc\n\n");
+        print("You can print all available calculation parameters by running\n");
+        print("nemo --print_parameters\n");
+        print("You can perform a simple calculation by running\n");
+        print("nemo --geometry=h2o.xyz\n");
+        print("provided you have an xyz file in your directory.");
+
+    }
+
+    static void print_parameters() {
+        NemoCalculationParameters param;
+        print("default parameters for the nemo program are");
+        param.print("dft","end");
+        print("\n\nthe molecular geometry must be specified in a separate block:");
+        Molecule::print_parameters();
+    }
 
     virtual double value() {return value(calc->molecule.get_all_coords());}
 
@@ -593,14 +633,9 @@ protected:
 
         calc->set_protocol<3>(world,thresh);
 
-        // (re) construct nuclear potential and correlation factors
-        // first make the nuclear potential, since it might be needed by the nuclear correlation factor
-        if ((not (calc->potentialmanager.get() and calc->potentialmanager->vnuclear().is_initialized()))
-        		or (calc->potentialmanager->vnuclear().thresh()>thresh)) {
-            get_calc()->make_nuclear_potential(world);
-        }
-        if ((not R.is_initialized()) or (R.thresh()>thresh)) {
+        if (need_recompute_factors_and_potentials(thresh)) {
             timer timer1(world);
+            get_calc()->make_nuclear_potential(world);
             construct_nuclear_correlation_factor(calc->molecule, calc->potentialmanager, param.ncf());
             timer1.end("reproject ncf");
         }
@@ -618,10 +653,6 @@ protected:
 	/// solve the HF equations
 	double solve(const SCFProtocol& proto);
 
-	/// given nemos, compute the HF energy
-	double compute_energy(const vecfuncT& psi, const vecfuncT& Jpsi,
-			const vecfuncT& Kpsi) const;
-
     /// given nemos, compute the HF energy using the regularized expressions for T and V
     std::vector<double> compute_energy_regularized(const vecfuncT& nemo, const vecfuncT& Jnemo,
             const vecfuncT& Knemo, const vecfuncT& Unemo) const;
@@ -636,7 +667,7 @@ protected:
 	/// @param[out]	pcmnemo	PCM (solvent) potential applied on the nemos
 	/// @param[out]	Unemo	regularized nuclear potential applied on the nemos
 	void compute_nemo_potentials(const vecfuncT& nemo,
-			vecfuncT& Jnemo, vecfuncT& Knemo, vecfuncT& pcmnemo,
+			vecfuncT& Jnemo, vecfuncT& Knemo, vecfuncT& xcnemo, vecfuncT& pcmnemo,
 			vecfuncT& Unemo) const;
 
 	/// return the Coulomb potential

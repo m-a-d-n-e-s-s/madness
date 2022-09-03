@@ -37,6 +37,8 @@
 
 #include <chem/corepotential.h>
 #include <chem/atomutil.h>
+#include <chem/commandlineparser.h>
+#include <chem/QCCalculationParametersBase.h>
 #include <madness/world/vector.h>
 #include <vector>
 #include <string>
@@ -50,6 +52,8 @@
 #include <madness/misc/misc.h>
 
 namespace madness {
+
+class World;
 
 class Atom {
 public:
@@ -108,46 +112,228 @@ public:
 std::ostream& operator<<(std::ostream& s, const Atom& atom);
 
 class Molecule {
+public:
+    struct GeometryParameters : public QCCalculationParametersBase {
+        GeometryParameters(const GeometryParameters& other) = default;
+
+        GeometryParameters(World& world, const commandlineparser& parser) : GeometryParameters() {
+            try {
+                set_global_convenience_options(parser);
+                read_input_and_commandline_options(world, parser, "geometry");
+                set_derived_values(parser);
+
+            } catch (std::exception& e) {
+                print("geometry","end");
+                throw;
+//                MADNESS_EXCEPTION("faulty geometry input",1);
+            }
+        }
+
+        GeometryParameters() {
+            ignore_unknown_keys=true;
+            ignore_unknown_keys_silently=true;
+            throw_if_datagroup_not_found=true;
+
+//            initialize<std::vector<std::string>>("source",{"inputfile"},"where to get the coordinates from: ({inputfile}, {library,xxx}, {xyz,xxx.xyz})");
+            initialize<std::string>("source_type","inputfile","where to get the coordinates from",{"inputfile","xyz","library"});
+            initialize<std::string>("source_name","TBD","name of the geometry from the library or the input file");
+            initialize<double>("eprec",1.e-4,"smoothing for the nuclear potential");
+            initialize<std::string>("units","atomic","coordinate units",{"atomic","angstrom","bohr","au"});
+            initialize<std::vector<double>>("field",{0.0,0.0,0.0},"external electric field");
+            initialize<bool>  ("no_orient",false,"if true the molecule coordinates will not be reoriented and/or symmetrized");
+            initialize<double>  ("symtol",-1.e-2,"distance threshold for determining the symmetry-equivalent atoms; negative: old algorithm");
+
+            initialize<std::string> ("core_type","none","core potential type",{"none","mpc"});
+            initialize<bool> ("psp_calc",false,"pseudopotential calculation for all atoms");
+            initialize<bool> ("pure_ae",true,"pure all electron calculation with no pseudo-atoms");
+
+        }
+
+        void set_global_convenience_options(const commandlineparser& parser) {
+
+            if (parser.key_exists("geometry")) {
+                set_user_defined_value("source_name",parser.value("geometry"));
+            }
+
+        }
+
+        void set_derived_values(const commandlineparser& parser) {
+            // check if we use an xyz file, the structure library or the input file
+            set_derived_value("source_name",parser.value("input")); // will not override user input
+            std::string src_type= derive_source_type_from_name(source_name(), parser);
+            set_derived_value("source_type",src_type);
+
+            // check for ambiguities in the derived source type
+            if (not is_user_defined("source_type")) {
+                std::ifstream f(source_name().c_str());
+                bool found_geometry_file=f.good();
+//                bool found_geometry_file=std::filesystem::exists(source_name());
+
+                bool geometry_found_in_library=true;
+                try {   // check for existence of file and structure in the library
+                    std::ifstream f;
+                    position_stream_in_library(f,source_name());
+                } catch(...){
+                    geometry_found_in_library=false;
+                }
+
+                if (found_geometry_file and geometry_found_in_library) {
+                    madness::print("\n\n");
+                    madness::print("geometry specification ambiguous: found geometry in the structure library and in a file\n");
+                    madness::print("  ",get_structure_library_path());
+                    madness::print("  ",source_name());
+                    madness::print("\nPlease specify the location of your geometry input by one of the two lines:\n");
+                    madness::print("  source_type xyz");
+                    madness::print("  source_type library\n\n");
+                    MADNESS_EXCEPTION("faulty input\n\n",1);
+                }
+            }
+
+//            std::vector<std::string> src=source();
+//
+//            // some convenience for the user
+//
+//            // if source is the input file provide the name of the input file
+//            if (src.size()==1 and src[0]=="inputfile")
+//                set_derived_value("source",std::vector<std::string>({src[0],parser.value("input")}));
+//            // if source is not "inputfile" or "library" assume an xyz file
+//            if (src.size()==1 and src[0]!="inputfile") {
+//                std::size_t found=src[0].find("xyz");
+//                if (found==src[0].size()-3) { // check input file ends with xyz
+//                    set_user_defined_value("source", std::vector<std::string>({"xyz", src[0]}));
+//                } else {
+//                    throw std::runtime_error("error in deriving geometry parameters");
+//                }
+//            }
+
+            if (source_type()=="xyz") set_derived_value("units",std::string("angstrom"));
+            if (units()=="bohr" or units()=="au") set_derived_value("units","atomic");
+        }
+
+        std::string source_type() const {return get<std::string>("source_type");}
+        std::string source_name() const {return get<std::string>("source_name");}
+        std::vector<double> field() const {return get<std::vector<double>>("field");}
+        double eprec() const {return get<double>("eprec");}
+        std::string units() const {return get<std::string>("units");}
+        std::string core_type() const {return get<std::string>("core_type");}
+        bool psp_calc() const {return get<bool>("psp_calc");}
+        bool pure_ae() const {return get<bool>("pure_ae");}
+        bool no_orient() const {return get<bool>("no_orient");}
+        double symtol() const {return get<double>("symtol");}
+
+        static std::string derive_source_type_from_name(const std::string name,
+                                                        const commandlineparser& parser) {
+            if (name==parser.value("input")) return "inputfile";
+            std::size_t pos = name.find(".xyz");
+            if (pos!=std::string::npos) return "xyz";
+            return "library";
+        }
+
+    };
+
 private:
     // If you add more fields don't forget to serialize them
     std::vector<Atom> atoms;
     std::vector<double> rcut;  // Reciprocal of the smoothing radius
-    double eprec;              // Error in energy/atom due to smoothing
-    enum {atomic, angstrom} units;
     CorePotentialManager core_pot;
     madness::Tensor<double> field;
+
+    /// The molecular point group is automatically assigned in the identify_pointgroup function
+    std::string pointgroup_="c1";
+
+public:
+    GeometryParameters parameters;
+
+    static void print_parameters();
+
+    std::string get_pointgroup() const {return pointgroup_;}
+
+private:
 
     void swapaxes(int ix, int iy);
 
     template <typename opT>
-    bool test_for_op(double xaxis, double yaxis, double zaxis, opT op) const;
+    bool test_for_op(opT op, const double symtol) const;
 
-    bool test_for_c2(double xaxis, double yaxis, double zaxis) const;
+    template <typename opT>
+    void symmetrize_for_op(opT op, const double symtol);
 
-    bool test_for_sigma(double xaxis, double yaxis, double zaxis) const;
+    template <typename opT>
+    int find_symmetry_equivalent_atom(int iatom, opT op, const double symtol) const;
 
-    bool test_for_inverse() const;
+    bool test_for_c2(double xaxis, double yaxis, double zaxis, const double symtol) const;
+
+    bool test_for_sigma(double xaxis, double yaxis, double zaxis, const double symtol) const;
+
+    bool test_for_inverse(const double symtol) const;
+
+    /// Apply to (x,y,z) a C2 rotation about an axis thru the origin and (xaxis,yaxis,zaxis)
+    struct apply_c2{
+        double xaxis, yaxis, zaxis;
+        apply_c2(double xaxis, double yaxis, double zaxis) : xaxis(xaxis), yaxis(yaxis), zaxis(zaxis) {}
+        void operator()(double& x, double& y, double& z) const {
+            double raxissq = xaxis*xaxis + yaxis*yaxis + zaxis*zaxis;
+            double dx = x*xaxis*xaxis/raxissq;
+            double dy = y*yaxis*yaxis/raxissq;
+            double dz = z*zaxis*zaxis/raxissq;
+            x = 2.0*dx - x;
+            y = 2.0*dy - y;
+            z = 2.0*dz - z;
+        }
+    };
+
+    /// Apply to (x,y,z) a reflection through a plane containing the origin with normal (xaxis,yaxis,zaxis)
+    struct apply_sigma{
+        double xaxis, yaxis, zaxis;
+        apply_sigma(double xaxis, double yaxis, double zaxis) : xaxis(xaxis), yaxis(yaxis), zaxis(zaxis) {}
+        void operator()(double& x, double& y, double& z) const {
+            double raxissq = xaxis * xaxis + yaxis * yaxis + zaxis * zaxis;
+            double dx = x * xaxis * xaxis / raxissq;
+            double dy = y * yaxis * yaxis / raxissq;
+            double dz = z * zaxis * zaxis / raxissq;
+
+            x = x - 2.0 * dx;
+            y = y - 2.0 * dy;
+            z = z - 2.0 * dz;
+        }
+    };
+
+    struct apply_inverse{
+        double xaxis, yaxis, zaxis;
+        apply_inverse(double xaxis, double yaxis, double zaxis) : xaxis(xaxis), yaxis(yaxis), zaxis(zaxis) {}
+        void operator()(double& x, double& y, double& z) const {
+            x = -x;
+            y = -y;
+            z = -z;
+        }
+    };
 
 public:
 
-    /// The molecular point group
-    /// is automatically assigned in the identify_pointgroup function
-    std::string pointgroup_="c1";
-
     /// Makes a molecule with zero atoms
-    Molecule() : atoms(), rcut(), eprec(1e-4), core_pot(), field(3L) {};
+    Molecule() : atoms(), rcut(), core_pot(), field(3L) {};
 
-    Molecule(const std::string& filename);
+    Molecule(World& world, const commandlineparser& parser);
+
+    void get_structure();
 
     void read_structure_from_library(const std::string& name);
+
+    static std::istream& position_stream_in_library(std::ifstream& f, const std::string& name);
+
+    static std::string get_structure_library_path();
 
     /// print out a Gaussian cubefile header
 	std::vector<std::string> cubefile_header() const;
 
     // initializes Molecule using the contents of file \c filename
     void read_file(const std::string& filename);
+
     // initializes Molecule using the contents of stream \c f
     void read(std::istream& f);
+
+    // initializes Molecule using the contents of file \c filenam assuming an xyz file
+    void read_xyz(const std::string filename);
 
     void read_core_file(const std::string& filename);
 
@@ -190,7 +376,7 @@ public:
 
     unsigned int get_atom_charge(unsigned int i) const;
 
-    unsigned int get_atom_number(unsigned int i);
+    unsigned int get_atomic_number(unsigned int i) const;
 
     void set_pseudo_atom(unsigned int i, bool psat);
 
@@ -206,7 +392,7 @@ public:
 
     void set_all_coords(const madness::Tensor<double>& newcoords);
 
-    void set_eprec(double value);
+    void update_rcut_with_eprec(double value);
 
     void set_rcut(double value);
 
@@ -221,7 +407,7 @@ public:
     }
 
     double get_eprec() const {
-        return eprec;
+        return parameters.eprec();
     }
 
     double bounding_cube() const;
@@ -271,7 +457,7 @@ public:
 
     double smallest_length_scale() const;
 
-    void identify_point_group();
+    std::string symmetrize_and_identify_point_group(const double symtol);
 
     /// Moves the center of nuclear charge to the origin
     void center();
@@ -327,7 +513,7 @@ public:
 
     template <typename Archive>
     void serialize(Archive& ar) {
-        ar & atoms & rcut & eprec & core_pot;
+        ar & atoms & rcut & core_pot & parameters & pointgroup_ & field;
     }
 };
 
