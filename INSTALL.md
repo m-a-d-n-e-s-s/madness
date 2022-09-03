@@ -20,9 +20,17 @@ make install
 Boolean values for cache variables (specified to CMake using the `-DVARIABLE_NAME` notation in the example above) are 
 considered true if the constant is 1, ON, YES, TRUE, Y, or a non-zero number; or false if the constant is 0, OFF, NO, FALSE, N, or IGNORE.
 
+## Warning about fast memory allocators
+
+Summary: Only use fast memory allocators if you are using just 1 MPI process or have configured without MPI.
+
+Depending on the calculation and the number of threads being used, MADNESS can receive about a 10% or even more speedup from fast memory allocators such as tcmalloc, jemalloc, tbbmalloc, etc.  However, these **do not work with MPI over InfiniBand** and probably most other transport layers.  It can appear to work, and then fail with either wrong numbers or MPI errors. The reason is that IB requires that memory be pinned and hence MPI introduces its own memory allocator(s) to manage this.  By overriding the allocator, you will break the guarantee that memory is pinned.  
+
 ## Prerequisites
 
 Fast BLAS and linear algebra libraries are essential. These must be sequential (single thread) implementations since MADNESS uses tasks/threads for parallelism and invokes the BLAS within a single-threaded task.  On X86, we recommend the free [Intel MKL library](https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl.html#gs.8bsxug), which is auto detected on all platforms if the environment variable `MKLROOT` is set.  On MacOS, the Apple [Accelerate](https://developer.apple.com/documentation/accelerate) framework (installed as part of [Xcode](https://developer.apple.com/xcode/)) is also autodetected.  AMD ACML has not been tested in a while but can be enabled with the CMake variables below.  Other libraries need to have their link (and possibly also header) paths and flags provided in the CMake variables for the compiler and linker.  On ARM, we recommend the ARM performance library available with their optimized LLVM compiler and enabled with the `-armpl`` compiler+linker flag. The OpenBLAS libary for ARM (not on x86) had a major peformance problem when we last tested it in circa 2020 due to a mutex around a memory block shared by all threads (this issue was reported and might be fixed by now).
+
+An MPI library is required by default, and should be autodected primarily by looking for the `mpicxx` command to compile C++ code with MPI.  If you wish to overide this, use the appropriate cmake or environment variables (below).  You can also disable use of MPI using `-DENABLE_MPI=OFF` --- in this case you can still use all cores within a shared memory computer.
 
 MADNESS will autodetect the [Intel TBB library](https://www.intel.com/content/www/us/en/developer/tools/oneapi/onetbb.html#gs.8byhgg), which is available for free from Intel or via standard Linux package managers (even on ARM).  TBB provides a fast task pool.  If this is not detected, MADNESS will employ its own task pool.  [PaRSEC](https://icl.utk.edu/parsec/) can also be used (see variables below) but is not recommended unless you are using MADNESS with the [Template Task Graph](https://github.com/TESSEorg/ttg).
 

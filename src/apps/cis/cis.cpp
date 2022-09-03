@@ -6,8 +6,8 @@
  */
 
 #include <madness/world/worldmem.h>
-#include <chem/TDHF.h>
-#include <chem/commandlineparser.h>
+#include<madness/chem/TDHF.h>
+#include<madness/chem/commandlineparser.h>
 #include <madness/misc/gitinfo.h>
 
 

@@ -650,19 +650,19 @@ namespace madness {
         }
 
 
-        /// \todo Brief description needed.
+        /// Checks the future remoteness trait
 
-        /// \todo Description needed.
-        /// \return Description needed.
+        /// \return true if the future refers to an already available or
+        /// to-be-locally-produced result
         inline bool is_local() const {
             return (f && f->is_local()) || value;
         }
 
 
-        /// \todo Brief description needed.
+        /// Checks the future remoteness trait
 
-        /// \todo Description needed.
-        /// \return Description needed.
+        /// \return true if the future refers to another future on a another rank, i.e. it will be set when the
+        /// referred-to future is set
         inline bool is_remote() const {
             return !is_local();
         }

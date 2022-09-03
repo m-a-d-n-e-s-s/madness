@@ -1,6 +1,6 @@
 #define CATCH_CONFIG_RUNNER
 #include "madness/external/catch/catch.hpp"
-#include "apps/chem/SCF.h"
+#include "madness/chem/SCF.h"
 #include "madness/world/worldmem.h"
 
 
