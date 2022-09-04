@@ -77,7 +77,6 @@ static void verify_tree(World& world, const std::vector<Function<T, NDIM> >& v) 
     }
 }
 
-
 template<int NDIM>
 struct unaryexp {
     void operator()(const Key<NDIM>& key, Tensor<double_complex>& t) const {
