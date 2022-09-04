@@ -77,15 +77,21 @@ namespace madness{
 
                     //read in what's in the archive. See SCF.cc for how these archives are stored
                     archive::ParallelInputArchive input(world, filename.c_str());
+                    unsigned int version;
+                    std::string xc;
+
+                    input & version;
                     input & Init_total_energy;              // double
                     input & spinrestricted;      // bool
+                    input & L;                   // double            box size
+                    input & order;               // int               wavelet order
+                    input & molecule;            // Molecule   
+                    input & xc;
+                    
                     input & num_occupied;        // int
                     input & temp_energies;       // Tensor<double>    orbital energies
                     input & occ;                 // Tensor<double>    orbital occupations
                     input & dummy2;              // std::vector<int>  sets of orbitals(?)
-                    input & L;                   // double            box size
-                    input & order;               // int               wavelet order
-                    input & molecule;            // Molecule   
 
                     //For now assume spin-restricted means closed shell in moldft
                     closed_shell = spinrestricted;
