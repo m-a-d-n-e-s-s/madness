@@ -5,7 +5,7 @@
 #ifndef MADNESS_APPS_DFPARAMS_H_INCLUDED
 #define MADNESS_APPS_DFPARAMS_H_INCLUDED
 
-#include <chem/molecule.h>
+#include <madness/chem/molecule.h>
 
 namespace madness {
 

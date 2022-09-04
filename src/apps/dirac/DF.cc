@@ -13,7 +13,7 @@
 #include "DF.h"
 //#include "Plot_VTK.h"
 #include "fcwf.h"
-#include <chem/potentialmanager.h>
+#include <madness/chem/potentialmanager.h>
 
 using namespace madness;
 
@@ -207,7 +207,7 @@ class GaussianNucleusFunctor : public FunctionFunctorInterface<double,3> {
                
                //get atomic numbers
                for(unsigned int i = 0; i < m_Rlist.size(); i++){
-                    m_Zlist.push_back(molecule.get_atom_number(i));
+                    m_Zlist.push_back(molecule.get_atomic_number(i));
                }
                
                //find atomic mass numbers for each atom. This list matches that of Visccher and Dyall (1997)
@@ -348,7 +348,7 @@ void DF::make_fermi_potential(World& world, real_convolution_3d& op, real_functi
 
      //Go through the atoms in the molecule and construct the total charge distribution due to all nuclei
      for(unsigned int i = 0; i < num_atoms; i++){
-          Zlist[i] = Init_params.molecule.get_atom_number(i);
+          Zlist[i] = Init_params.molecule.get_atomic_number(i);
           FermiNucDistFunctor rho(Zlist[i], Rlist[i],DFparams.bohr_rad);
           temp = real_factory_3d(world).functor(rho).truncate_mode(0);
           tempnorm = temp.trace();
