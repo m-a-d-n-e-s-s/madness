@@ -1610,9 +1610,9 @@ auto ResponseBase::orbital_load_balance(World &world, const gamma_orbitals &inpu
     size_t m = X.num_states();
     size_t n = X.num_orbitals();
 
-    molresponse::start_timer(world);
     if (world.size() > 1) {
 
+        molresponse::start_timer(world);
         LoadBalanceDeux<3> lb(world);
         for (unsigned int j = 0; j < n; ++j) {
             lb.add_tree(psi0[j], lbcost<double, 3>(1.0, 8.0), false);
@@ -1631,7 +1631,6 @@ auto ResponseBase::orbital_load_balance(World &world, const gamma_orbitals &inpu
                 lb.load_balance(load_balance);
         // default process map
         // We set the new_process_map
-        molresponse::start_timer(world);
         FunctionDefaults<3>::set_pmap(new_process_map);// set default to be new
 
         world.gop.fence();
@@ -1642,13 +1641,12 @@ auto ResponseBase::orbital_load_balance(World &world, const gamma_orbitals &inpu
         auto psi0_copy = copy(world, psi0, new_process_map, false);
         auto vf_copy = copy(world, vf, new_process_map, false);
         world.gop.fence();// then fence
-        molresponse::end_timer(world, "Gamma redist");
+        molresponse::end_timer(world, "Gamma Orbital Load Balance");
         return {X_copy, psi0_copy, vf_copy};
     } else {
         // return a copy with the same process map since we only have one world
         return {X.copy(), copy(world, psi0), copy(world, vf)};
     }
-    molresponse::end_timer(world, "Gamma compute load_balance_chi");
 }
 
 void ResponseBase::analyze_vectors(World &world, const vecfuncT &x,
