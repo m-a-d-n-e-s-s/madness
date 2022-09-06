@@ -23,13 +23,6 @@ add_mad_executable(generate_frequency "generate_frequency_data.cpp" "MADall_resp
 add_mad_executable(test-dev "test_development.cpp" "MADall_response;MADchem")
 # Add dependencies for MADchem
 
-# Catch related things
-# TODO catch breaks build ... finds cstdef with cpp17 and looks for mac cstdef
-# // Check if byte is available and usable
-#  if __has_include(<cstddef>) && defined(CATCH_CPP17_OR_GREATER)
-#    include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.3.sdk/usr/include/c++/v1/cstddef"
-# The above b
-
 
 #a dd_mad_executable(database-test "database_testing.cpp" "MADall_response;MADchem")
 # add_mad_executable(mad-excited-symmetry-adapted "mad-excited-symmetry-adapted.cpp" "MADall_response;MADchem")
