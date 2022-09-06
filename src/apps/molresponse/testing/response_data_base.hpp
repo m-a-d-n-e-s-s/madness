@@ -130,6 +130,7 @@ auto generate_dipole_frequencies(std::string molecule_name, std::string xc,
 
         } catch (const json::out_of_range &e) {
             std::cout << e.what() << std::endl;
+            return std::vector<double>(0);
             // The molecule file exists in the database therefore it is okay to add to frequency.json
         }
 
