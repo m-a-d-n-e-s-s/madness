@@ -79,6 +79,9 @@ std::ostream& operator<<(std::ostream& s, const Atom& atom) {
     return s;
 }
 
+Molecule::Molecule(std::vector<Atom> atoms, double eprec, CorePotentialManager core_poт, madness::Tensor<double> field) : atoms(std::move(atoms)), core_pot(std::move(core_pot)), field(std::move(field)) {
+  this->update_rcut_with_eprec(eprec);
+}
 
 Molecule::Molecule(World& world, const commandlineparser& parser) :parameters(world,parser), atoms(), rcut(), core_pot(), field(3L)
 {
@@ -325,7 +328,7 @@ void Molecule::read_xyz(const std::string filename) {
 //version without pseudo-atoms
 void Molecule::add_atom(double x, double y, double z, double q, int atomic_number) {
     atoms.push_back(Atom(x,y,z,q,atomic_number));
-    double c = smoothing_parameter(q, parameters.eprec()); // eprec is error per atom
+    double c = smoothing_parameter(q, get_eprec()); // eprec is error per atom
     //printf("smoothing param %.6f\n", c);
     double radius = get_atomic_data(atomic_number).covalent_radius;//Jacob added
     atomic_radii.push_back(radius*1e-10/madness::constants::atomic_unit_of_length);// Jacob added
@@ -335,7 +338,7 @@ void Molecule::add_atom(double x, double y, double z, double q, int atomic_numbe
 //version specifying pseudo-atoms
 void Molecule::add_atom(double x, double y, double z, double q, int atomic_number, bool pseudo_atom) {
     atoms.push_back(Atom(x,y,z,q,atomic_number,pseudo_atom));
-    double c = smoothing_parameter(q, parameters.eprec()); // eprec is error per atom
+    double c = smoothing_parameter(q, get_eprec()); // eprec is error per atom
     //printf("smoothing param %.6f\n", c);
     double radius = get_atomic_data(atomic_number).covalent_radius;//Jacob added
     atomic_radii.push_back(radius*1e-10/madness::constants::atomic_unit_of_length);// Jacob added
@@ -407,7 +410,7 @@ void Molecule::set_all_coords(const madness::Tensor<double>& c) {
 
 /// updates rcuts with given eprec
 void Molecule::update_rcut_with_eprec(double value) {
-//    eprec = value;
+    if (value != get_eprec()) parameters.set_user_defined_value("eprec",value);
     for (size_t i=0; i<atoms.size(); ++i) {
         rcut[i] = 1.0 / smoothing_parameter(atoms[i].q, value);
     }
@@ -431,7 +434,7 @@ void Molecule::print() const {
     std::stringstream sstream;
     sstream << " geometry" << std::endl;
     sstream << p << std::endl;
-//    sstream << "   eprec  " << std::scientific << std::setw(1) << parameters.eprec()  << std::endl << std::fixed;
+//    sstream << "   eprec  " << std::scientific << std::setw(1) << get_eprec()  << std::endl << std::fixed;
 //    sstream << "   units atomic" << std::endl;
     for (size_t i=0; i<natom(); ++i) {
         sstream << std::setw(5) << get_atomic_data(atoms[i].atomic_number).symbol << "  ";
