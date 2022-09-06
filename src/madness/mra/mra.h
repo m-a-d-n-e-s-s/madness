@@ -568,7 +568,7 @@ namespace madness {
         }
 
 
-        /// Sets the vaule of the truncation threshold.  Optional global fence.
+        /// Sets the value of the truncation threshold.  Optional global fence.
 
         /// A fence is required to ensure consistent global state.
         void set_thresh(double value, bool fence = true) {

@@ -313,6 +313,10 @@ public:
     /// Makes a molecule with zero atoms
     Molecule() : atoms(), rcut(), core_pot(), field(3L) {};
 
+    /// makes a molecule from a list of atoms
+    Molecule(std::vector<Atom> atoms, double eprec, CorePotentialManager core_pot = {}, madness::Tensor<double> field = madness::Tensor<double>(3L));
+
+    /// makes a molecule using contents of \p parser
     Molecule(World& world, const commandlineparser& parser);
 
     void get_structure();
