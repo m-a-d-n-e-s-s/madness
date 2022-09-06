@@ -352,7 +352,7 @@ void SCF::load_mos(World& world) {
     amo.clear();
     bmo.clear();
 
-    archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, param.prefix()+"restartdata");
+    archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, param.prefix()+".restartdata");
 
     /*
       File format:
