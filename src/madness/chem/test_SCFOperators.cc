@@ -704,7 +704,6 @@ int dnuclear_anchor_test(World& world) {
     parser.set_keyval("input",test_input.filename());
     SCF calc(world,parser);
     calc.molecule.update_rcut_with_eprec(thresh*0.1);
-    calc.molecule.parameters.set_user_defined_value("eprec",thresh*0.1);
     calc.make_nuclear_potential(world);
 
     // derivative of atom wrt axis
