@@ -170,6 +170,21 @@ public:
     }
 };
 
+    class scf_data {
+
+        std::map<std::string, std::vector<double>> e_data;
+        int iter;
+    public:
+
+        scf_data();
+
+        void to_json(json &j);
+
+        void print_data();
+
+        void add_data(std::map<std::string, double> values);
+    };
+
 
 class SCF {
 public:
@@ -181,6 +196,8 @@ public:
     PCM pcm;
     AtomicBasisSet aobasis;
     functionT mask;
+
+    scf_data e_data;
 
     /// alpha and beta molecular orbitals
     vecfuncT amo, bmo;
@@ -487,7 +504,7 @@ public:
     void solve(World& world);
 
     //
-    void output_scf_info_schema(const int& iter, const std::map<std::string, double>& vals, const tensorT& dipole_T);
+    void output_scf_info_schema(const int& iter, const std::map<std::string, double>& vals, const tensorT& dipole_T) const;
 };
 
 
@@ -666,13 +683,27 @@ public:
         vec_pair_tensor_T<double> double_tensor_vals;
 
         CalculationParameters param = calc.param;
+
+
+
         int_vals.push_back({"calcinfo_nmo", param.nmo_alpha() + param.nmo_beta()});
         int_vals.push_back({"calcinfo_nalpha", param.nalpha()});
         int_vals.push_back({"calcinfo_nbeta", param.nbeta()});
         int_vals.push_back({"calcinfo_natom", calc.molecule.natom()});
+        int_vals.push_back({"k", FunctionDefaults<3>::get_k()});
+
         to_json(j, int_vals);
         double_vals.push_back({"return_energy", value(calc.molecule.get_all_coords().flat())});
         to_json(j, double_vals);
+        double_tensor_vals.push_back({"scf_eigenvalues_a", calc.aeps});
+        if (param.nbeta() != 0 && !param.spin_restricted()) {
+            double_tensor_vals.push_back({"scf_eigenvalues_b", calc.beps});
+        }
+
+        to_json(j, double_tensor_vals);
+        param.to_json(j);
+        calc.e_data.to_json(j);
+
         output_schema(param.prefix()+".calc_info", j);
     }
 };
