@@ -24,7 +24,7 @@ using namespace madness;
 
 class GroundStateCalculation {
     // Ground state parameters that are read in from archive
-    std::string inFile{"../restartdata"};///< Name of input archive to read in ground state
+    std::string inFile{"../moldft.restartdata"};///< Name of input archive to read in ground state
     bool spinrestricted{true};           ///< Indicates if ground state calc. was open or closed
     ///< shell
     unsigned int num_orbitals{};         ///< Number of orbitals in ground state

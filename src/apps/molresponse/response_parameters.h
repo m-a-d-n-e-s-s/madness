@@ -25,7 +25,7 @@ namespace madness {
         ResponseParameters(const ResponseParameters& other) = default;
 
         ResponseParameters() {
-            initialize<std::string>("archive", "restartdata",
+            initialize<std::string>("archive", "../moldft.restartdata",
                                     "file to read ground parameters from");
             initialize<bool>("nwchem", false, "Using nwchem files for intelligent starting guess");
             initialize<std::string>("nwchem_dir", "none",
