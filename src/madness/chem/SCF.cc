@@ -177,11 +177,11 @@ SCF::output_scf_info_schema(const int &iter, const std::map<std::string, double>
 }
 
 void scf_data::add_data(std::map<std::string, double> values) {
-    print("ADDING DATA");
+    //print("ADDING DATA");
 
     iter++;
     std::for_each(e_data.begin(), e_data.end(), [&values](auto &v) {
-        print(v.first, " : ", values[v.first]);
+    //    print(v.first, " : ", values[v.first]);
         v.second.push_back(values[v.first]);
     });
 }
