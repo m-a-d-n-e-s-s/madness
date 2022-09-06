@@ -203,7 +203,13 @@ namespace madness {
         /// the same communicator. Use instance() to check this.
         ///
         /// \param[in] comm The communicator.
-        World(const SafeMPI::Intracomm& comm);
+        /// \param[in] fence if true, will synchronize ranks before exiting;
+        ///                  setting to false removes the extra synchronization
+        ///                  but may cause premature arrival of RMI messages
+        ///                  that refer to this world while it's being
+        ///                  registered
+        World(const SafeMPI::Intracomm& comm,
+              bool fence = true);
 
         /// Find the World (if it exists) corresponding to the given communicator.
 
@@ -228,7 +234,7 @@ namespace madness {
         /// \param[in] world pointer to a World object
         /// \return true if \c world exists
         static bool exists(World* world) {
-          return world->id() == 0 || std::find(worlds.begin(), worlds.end(), world) != worlds.end();
+          return world == default_world || std::find(worlds.begin(), worlds.end(), world) != worlds.end();
         }
 
         /// Default World object accessor.

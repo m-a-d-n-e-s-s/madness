@@ -1,6 +1,46 @@
+structure=h
+geometry
+h 0 0 0
+end
+
 structure=he
 geometry
 he 0 0 0
+end
+
+structure=li
+geometry
+li 0 0 0
+end
+
+structure=be
+geometry
+be 0 0 0
+end
+
+structure=b
+geometry
+b 0 0 0
+end
+
+structure=c
+geometry
+c 0 0 0
+end
+
+structure=n
+geometry
+n 0 0 0
+end
+
+structure=o
+geometry
+o 0 0 0
+end
+
+structure=f
+geometry
+f 0 0 0
 end
 
 structure=ne
@@ -8,9 +48,224 @@ geometry
 ne 0 0 0
 end
 
+structure=na
+geometry
+na 0 0 0
+end
+
+structure=mg
+geometry
+mg 0 0 0
+end
+
+structure=al
+geometry
+al 0 0 0
+end
+
+structure=si
+geometry
+si 0 0 0
+end
+
+structure=p
+geometry
+p 0 0 0
+end
+
+structure=s
+geometry
+s 0 0 0
+end
+
+structure=cl
+geometry
+cl 0 0 0
+end
+
 structure=ar
 geometry
 ar 0 0 0
+end
+
+structure=k
+geometry
+k 0 0 0
+end
+
+structure=ca
+geometry
+ca 0 0 0
+end
+
+structure=sc
+geometry
+sc 0 0 0
+end
+
+structure=ti
+geometry
+ti 0 0 0
+end
+
+structure=v
+geometry
+v 0 0 0
+end
+
+structure=cr
+geometry
+cr 0 0 0
+end
+
+structure=mn
+geometry
+mn 0 0 0
+end
+
+structure=fe
+geometry
+fe 0 0 0
+end
+
+structure=co
+geometry
+co 0 0 0
+end
+
+structure=ni
+geometry
+ni 0 0 0
+end
+
+structure=cu
+geometry
+cu 0 0 0
+end
+
+structure=zn
+geometry
+zn 0 0 0
+end
+
+structure=ga
+geometry
+ga 0 0 0
+end
+
+structure=ge
+geometry
+ge 0 0 0
+end
+
+structure=as
+geometry
+as 0 0 0
+end
+
+structure=se
+geometry
+se 0 0 0
+end
+
+structure=br
+geometry
+br 0 0 0
+end
+
+structure=kr
+geometry
+kr 0 0 0
+end
+
+structure=rb
+geometry
+rb 0 0 0
+end
+
+structure=sr
+geometry
+sr 0 0 0
+end
+
+structure=y
+geometry
+y 0 0 0
+end
+
+structure=zr
+geometry
+zr 0 0 0
+end
+
+structure=nb
+geometry
+nb 0 0 0
+end
+
+structure=mo
+geometry
+mo 0 0 0
+end
+
+structure=tc
+geometry
+tc 0 0 0
+end
+
+structure=ru
+geometry
+ru 0 0 0
+end
+
+structure=rh
+geometry
+rh 0 0 0
+end
+
+structure=pd
+geometry
+pd 0 0 0
+end
+
+structure=ag
+geometry
+ag 0 0 0
+end
+
+structure=cd
+geometry
+cd 0 0 0
+end
+
+structure=in
+geometry
+in 0 0 0
+end
+
+structure=sn
+geometry
+sn 0 0 0
+end
+
+structure=sb
+geometry
+sb 0 0 0
+end
+
+structure=te
+geometry
+te 0 0 0
+end
+
+structure=i
+geometry
+i 0 0 0
+end
+
+structure=xe
+geometry
+xe 0 0 0
 end
 
 structure=ch4
@@ -47,64 +302,64 @@ end
 structure=water2
 geometry 
 units angs
-             H       -1.958940   -0.032063    0.725554
-             H       -0.607485    0.010955    0.056172
-             O       -1.538963    0.004548   -0.117331
-             H        1.727607    0.762122   -0.351887
-             H        1.704312   -0.747744   -0.399151
-             O        1.430776   -0.003706    0.113495
+             h       -1.958940   -0.032063    0.725554
+             h       -0.607485    0.010955    0.056172
+             o       -1.538963    0.004548   -0.117331
+             h        1.727607    0.762122   -0.351887
+             h        1.704312   -0.747744   -0.399151
+             o        1.430776   -0.003706    0.113495
 end
 
 structure=water3
 geometry 
 units angs
-       O          -0.167787    1.645761    0.108747
-       H           0.613411    1.102620    0.113724
-       H          -0.093821    2.209720   -0.643619
-       O           1.517569   -0.667424   -0.080674
-       H           1.989645   -1.098799    0.612047
-       H           0.668397   -1.091798   -0.139744
-       O          -1.350388   -0.964879   -0.092208
-       H          -1.908991   -1.211298    0.626207
-       H          -1.263787   -0.018107   -0.055536
+       o          -0.167787    1.645761    0.108747
+       h           0.613411    1.102620    0.113724
+       h          -0.093821    2.209720   -0.643619
+       o           1.517569   -0.667424   -0.080674
+       h           1.989645   -1.098799    0.612047
+       h           0.668397   -1.091798   -0.139744
+       o          -1.350388   -0.964879   -0.092208
+       h          -1.908991   -1.211298    0.626207
+       h          -1.263787   -0.018107   -0.055536
 end
 
 structure=water4
 geometry 
 units angs
-    O       0.216486   -1.989005    0.035297
-    H       -0.603911   -1.505274   -0.033552
-    H        0.138672   -2.535875    0.799566
-    H        1.505276   -0.603920    0.033505
-    O        1.989004    0.216483   -0.035296
-    H        2.535922    0.138690   -0.799534
-    O       -1.989001   -0.216487   -0.035297
-    H       -2.535947   -0.138688   -0.799513
-    H       -1.505273    0.603920    0.033493
-    O       -0.216485    1.989007    0.035294
-    H       -0.138694    2.535879    0.799565
-    H        0.603919    1.505277   -0.033513
+    o       0.216486   -1.989005    0.035297
+    h       -0.603911   -1.505274   -0.033552
+    h        0.138672   -2.535875    0.799566
+    h        1.505276   -0.603920    0.033505
+    o        1.989004    0.216483   -0.035296
+    h        2.535922    0.138690   -0.799534
+    o       -1.989001   -0.216487   -0.035297
+    h       -2.535947   -0.138688   -0.799513
+    h       -1.505273    0.603920    0.033493
+    o       -0.216485    1.989007    0.035294
+    h       -0.138694    2.535879    0.799565
+    h        0.603919    1.505277   -0.033513
 end
 
 
 structure=water5
 geometry 
 units angs
-          O       -0.571270    2.322980   -0.003174
-          O        2.038411    1.261129   -0.102281
-          O        1.831197   -1.536089    0.156570
-          O       -0.890568   -2.217987   -0.100067
-          O       -2.398873    0.159801   -0.005022
-          H       -0.541626    2.994645    0.657473
-          H        2.545757    1.390343   -0.886606
-          H        2.127985   -1.971116    0.938635
-          H       -1.172378   -2.646489   -0.891417
-          H       -3.019733    0.318743    0.686131
-          H        0.319714    1.986524   -0.080413
-          H        2.008500    0.316696    0.040400
-          H        0.922213   -1.803155    0.031130
-          H       -1.429035   -1.432872   -0.018620
-          H       -1.832579    0.928012   -0.044919
+          o       -0.571270    2.322980   -0.003174
+          o        2.038411    1.261129   -0.102281
+          o        1.831197   -1.536089    0.156570
+          o       -0.890568   -2.217987   -0.100067
+          o       -2.398873    0.159801   -0.005022
+          h       -0.541626    2.994645    0.657473
+          h        2.545757    1.390343   -0.886606
+          h        2.127985   -1.971116    0.938635
+          h       -1.172378   -2.646489   -0.891417
+          h       -3.019733    0.318743    0.686131
+          h        0.319714    1.986524   -0.080413
+          h        2.008500    0.316696    0.040400
+          h        0.922213   -1.803155    0.031130
+          h       -1.429035   -1.432872   -0.018620
+          h       -1.832579    0.928012   -0.044919
 end
 
 
