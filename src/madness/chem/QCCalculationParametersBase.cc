@@ -177,6 +177,7 @@ namespace madness {
     };
 
 
+
     bool operator!=(const QCCalculationParametersBase& p1,
                     const QCCalculationParametersBase& p2) {
         return !(p1 == p2);
