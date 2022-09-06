@@ -4,10 +4,11 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR})
   
 add_subdirectory(tdse)
 add_subdirectory(moldft)
-add_subdirectory(molresponse)
+#add_subdirectory(molresponse) # temporarily removed since build is breaking
 add_subdirectory(pno)
 add_subdirectory(nemo)
 add_subdirectory(cis)
+add_subdirectory(dirac)
 add_subdirectory(mp2)
 add_subdirectory(cc2)
 add_subdirectory(oep)

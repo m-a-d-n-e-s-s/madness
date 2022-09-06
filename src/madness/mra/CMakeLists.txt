@@ -22,7 +22,7 @@ add_mad_library(mra MADMRA_SOURCES MADMRA_HEADERS "linalg;tinyxml;muparser" "mad
 
 # Install the MADmra library
 # install(TARGETS mraplot DESTINATION "${MADNESS_INSTALL_BINDIR}")
-install(FILES autocorr coeffs gaussleg
+install(FILES autocorr coeffs gaussleg ble-first.txt ble-second.txt b-spline-deriv1.txt b-spline-deriv2.txt b-spline-deriv3.txt 
     DESTINATION "${MADNESS_INSTALL_DATADIR}"
     COMPONENT mra)
 

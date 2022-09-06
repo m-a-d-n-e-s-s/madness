@@ -974,7 +974,7 @@ int main(int argc, char** argv) {
     //molecule.add_atom(  3*L/4, L/4,   3*L/4, 14.0, 14);
     //molecule.add_atom(  L/4,   3*L/4, 3*L/4, 14.0, 14);
 
-    molecule.set_eprec(1e-3);
+    molecule.update_rcut_with_eprec(1e-3);
 
     // Load basis
     aobasis.read_file("sto-3g");

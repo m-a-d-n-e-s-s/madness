@@ -1,0 +1,10 @@
+DiracFock
+archive /gpfs/projects/rjh/JoelsRestartData/H2Orestartdata
+job 0
+small 1e-5
+thresh 1e-6
+k 8
+kain
+maxsub 5
+no_save
+end

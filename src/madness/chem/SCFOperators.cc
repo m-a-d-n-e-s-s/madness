@@ -593,9 +593,9 @@ vecfuncT XCOperator<T, NDIM>::prep_xc_args(const real_function_3d &arho,
             real_function_3d logdensb = unary_op(brho, logme());
             // Bryan's edits for derivatives
             vecfuncT gradb;
-            if (dft_deriv == "bspline") gradb = grad_bspline_one(logdensa);  // b-spline
-            else if (dft_deriv == "ble") gradb = grad_ble_one(logdensa);     // BLE
-            else gradb = grad(logdensa);                                    // Default is abgv
+            if (dft_deriv == "bspline") gradb = grad_bspline_one(logdensb);  // b-spline
+            else if (dft_deriv == "ble") gradb = grad_ble_one(logdensb);     // BLE
+            else gradb = grad(logdensb);                                    // Default is abgv
             real_function_3d chib = dot(world, gradb, gradb);
             real_function_3d chiab = dot(world, grada, gradb);
             xcargs[XCfunctional::enum_zetab_x] = gradb[0];
