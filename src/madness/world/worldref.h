@@ -499,7 +499,7 @@ namespace madness {
             return pointer_;
         }
 
-        /// Reference shared_ptr accssor
+        /// Reference shared_ptr accessor
 
         /// \return A const reference to the references shared pointer
         /// \throw MadnessException If the pointer is not local
