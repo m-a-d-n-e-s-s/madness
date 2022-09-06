@@ -16,14 +16,22 @@
 using MadException = madness::MadnessException;
 
 class Input_Error : public MadException {
- public:
-  explicit Input_Error()
-      : MadException("input file not found", nullptr, 25, __LINE__, __FUNCTION__, __FILE__) {}
+public:
+    explicit Input_Error()
+        : MadException("input file not found", nullptr, 25, __LINE__, __FUNCTION__, __FILE__) {}
 };
 class Response_Input_Error : public MadException {
- public:
-  explicit Response_Input_Error()
-      : MadException("Response input not correct", nullptr, 25, __LINE__, __FUNCTION__, __FILE__) {}
+public:
+    explicit Response_Input_Error()
+        : MadException("Response input not correct", nullptr, 25, __LINE__, __FUNCTION__,
+                       __FILE__) {}
 };
 
-#endif  // MADNESS_RESPONSEEXCEPTIONS_HPP
+class Response_Convergence_Error : public MadException {
+public:
+    explicit Response_Convergence_Error()
+        : MadException("Previous frequency response calculation did not converge ", nullptr, 25,
+                       __LINE__, __FUNCTION__, __FILE__) {}
+};
+
+#endif// MADNESS_RESPONSEEXCEPTIONS_HPP

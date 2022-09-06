@@ -177,4 +177,10 @@ void QCCalculationParametersBase::read_internal(World& world, std::string& filec
 };
 
 
+
+
+    bool operator!=(const QCCalculationParametersBase& p1,
+                    const QCCalculationParametersBase& p2) {
+        return !(p1 == p2);
+    }
 } /* namespace madness */

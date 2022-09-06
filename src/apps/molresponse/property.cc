@@ -1,5 +1,5 @@
 #include "molresponse/property.h"
-#include<madness/chem/SCF.h>
+#include <madness/chem/SCF.h>
 
 #include <molresponse/TDDFT.h>
 #include <molresponse/response_functions.h>

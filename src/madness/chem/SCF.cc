@@ -140,6 +140,81 @@ tensorT Q2(const tensorT& s) {
     return Q;
 }
 
+}// namespace madness
+
+void
+SCF::output_scf_info_schema(const int &iter, const std::map<std::string, double> &vals, const tensorT &dipole_T) const {
+    nlohmann::json j = {};
+    j.push_back(nlohmann::json());
+    // TODO (Adrian) possibly read in json from filesystem.
+    // if it exists figure out the size.  pushback for each protocol
+    j[0]["scf_iterations"] = iter;
+    const double thresh = FunctionDefaults<3>::get_thresh();
+    const int k = FunctionDefaults<3>::get_k();
+    j[0]["scf_threshold"] = thresh;
+    j[0]["scf_k"] = k;
+    for (auto const &[key, val]: vals) {
+        j[0][key] = val;
+    }
+    j[0]["scf_dipole_moment"] = tensor_to_json(dipole_T);
+    int num = 0;
+    std::string save = param.prefix() + ".scf_info.json";
+#ifdef MADCHEM_HAS_STD_FILESYSTEM
+    if (std::filesystem::exists(save)) {
+        std::ifstream ifs(save);
+#else
+        std::ifstream ifs(save);
+        if (ifs) {
+#endif
+        nlohmann::json j_old;
+        ifs >> j_old;
+        print(j_old);
+        j_old.push_back(j);
+        j = j_old;
+    };
+    std::ofstream ofs(save);
+    ofs << j;
+}
+
+void scf_data::add_data(std::map<std::string, double> values) {
+    //print("ADDING DATA");
+
+    iter++;
+    std::for_each(e_data.begin(), e_data.end(), [&values](auto &v) {
+    //    print(v.first, " : ", values[v.first]);
+        v.second.push_back(values[v.first]);
+    });
+}
+
+scf_data::scf_data() : iter(0) {
+
+    e_data.insert({"e_kinetic", std::vector<double>(0)});
+    e_data.insert({"e_local", std::vector<double>(0)});
+    e_data.insert({"e_nuclear", std::vector<double>(0)});
+    e_data.insert({"e_coulomb", std::vector<double>(0)});
+    e_data.insert({"e_pcm", std::vector<double>(0)});
+    e_data.insert({"e_xc", std::vector<double>(0)});
+    e_data.insert({"e_nrep", std::vector<double>(0)});
+    e_data.insert({"e_tot", std::vector<double>(0)});
+}
+
+
+void scf_data::to_json(json &j) {
+    ::print("SCF DATA TO JSON");
+
+    j["scf_e_data"] = json();
+    j["scf_e_data"]["iterations"] = iter;
+
+    for (const auto &e: e_data) {
+        //::print(e.second);
+        j["scf_e_data"].push_back({e.first, e.second});
+    }
+}
+
+void scf_data::print_data() {
+    for (const auto &[key, value]: e_data) { print(key, " : ", value); }
+}
+
 
 //    SCF::SCF(World & world, const char *filename) : SCF(world, (world.rank() == 0 ? std::make_shared<std::ifstream>(filename) : nullptr)){
 //    }
@@ -238,11 +313,11 @@ void SCF::save_mos(World& world) {
       Molecule molecule;
       std::string xc;
       */
-    unsigned int version = 2;
+    unsigned int version = 3;
     ar & version;
     ar & current_energy & param.spin_restricted();
-    ar & param.L() & FunctionDefaults<3>::get_k() & molecule & param.xc();
-// Re order so it doesn't effect orbital data
+    ar & param.L() & FunctionDefaults<3>::get_k() & molecule & param.xc() & param.localize_method();
+    // Re order so it doesn't effect orbital data
 
     ar & (unsigned int) (amo.size());
     ar & aeps & aocc & aset;
@@ -288,6 +363,7 @@ void SCF::load_mos(World& world) {
       int k;
       Molecule molecule;
       std::string xc;
+    std::string localize;
       unsigned int nmo_alpha;
       Tensor<double> aeps;
       Tensor<double> aocc;
@@ -299,7 +375,7 @@ void SCF::load_mos(World& world) {
     // Local copies for a basic check
     double L;
     int k1;                    // Ignored for restarting, used in response only
-    unsigned int version = 2;  // UPDATE THIS IF YOU CHANGE ANYTHING
+    unsigned int version = 3;// UPDATE THIS IF YOU CHANGE ANYTHING
     unsigned int archive_version;
 
     ar & archive_version;
@@ -316,7 +392,7 @@ void SCF::load_mos(World& world) {
     // EPS, SWAP, ... sigh
     ar & current_energy & spinrest;
     // Reorder
-    ar & L & k1 & molecule & param.xc();
+    ar & L & k1 & molecule & param.xc() & param.localize_method();
 
     ar & nmo;
     MADNESS_ASSERT(nmo >= unsigned(param.nmo_alpha()));
@@ -2103,6 +2179,14 @@ void SCF::solve(World& world) {
             printf("    nuclear-repulsion %16.8f\n", enrep);
             printf("                total %16.8f\n\n", etot);
         }
+        e_data.add_data({{"e_kinetic", ekinetic},
+                         {"e_local",   enonlocal},
+                         {"e_nuclear", enuclear},
+                         {"e_coulomb", ecoulomb},
+                         {"e_pcm",     epcm},
+                         {"e_xc",      exc},
+                         {"e_nrep",    enrep},
+                         {"e_tot",     etot}});
 
         if (iter > 0) {
             //print("##convergence criteria: density delta=", da < dconv * molecule.natom() && db < dconv * molecule.natom(), ", bsh_residual=", (param.conv_only_dens || bsh_residual < 5.0*dconv));
@@ -2247,38 +2331,3 @@ void SCF::solve(World& world) {
 
 }        // end solve function
 
-
-
-void SCF::output_scf_info_schema(const int& iter, const std::map<std::string, double>& vals, const tensorT& dipole_T) {
-    nlohmann::json j = {};
-    j.push_back(nlohmann::json());
-    // TODO (Adrian) possibly read in json from filesystem.
-    // if it exists figure out the size.  pushback for each protocol
-    j[0]["scf_iterations"] = iter;
-    const double thresh = FunctionDefaults<3>::get_thresh();
-    const int k = FunctionDefaults<3>::get_k();
-    j[0]["scf_threshold"] = thresh;
-    j[0]["scf_k"] = k;
-    for (auto const& [key, val]: vals) {
-        j[0][key] = val;
-    }
-    j[0]["scf_dipole_moment"] = tensor_to_json(dipole_T);
-    int num = 0;
-    std::string save = param.prefix()+".scf_info.json";
-#ifdef MADCHEM_HAS_STD_FILESYSTEM
-    if (std::filesystem::exists(save)) {
-        std::ifstream ifs(save);
-#else
-        std::ifstream ifs(save);
-        if (ifs) {
-#endif
-        nlohmann::json j_old;
-        ifs >> j_old;
-        print(j_old);
-        j_old.push_back(j);
-        j = j_old;
-    };
-    std::ofstream ofs(save);
-    ofs << j;
-}
-}

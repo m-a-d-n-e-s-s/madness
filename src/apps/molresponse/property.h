@@ -11,7 +11,7 @@
 #include "../../madness/mra/funcplot.h"
 #include "../chem/SCFOperators.h"
 #include "../chem/molecule.h"
-#include<madness/chem/SCF.h>
+#include <madness/chem/SCF.h>
 #include <madness/mra/function_interface.h>
 #include <madness/mra/functypedefs.h>
 
