@@ -79,7 +79,15 @@ std::ostream& operator<<(std::ostream& s, const Atom& atom) {
     return s;
 }
 
-Molecule::Molecule(std::vector<Atom> atoms, double eprec, CorePotentialManager core_poт, madness::Tensor<double> field) : atoms(std::move(atoms)), core_pot(std::move(core_pot)), field(std::move(field)) {
+Molecule::Molecule(std::vector<Atom> atoms, double eprec, CorePotentialManager core_pot, madness::Tensor<double> field) : atoms(std::move(atoms)), core_pot(std::move(core_pot)), field(std::move(field)) {
+  atomic_radii.reserve(this->atoms.size());
+  for(auto&& atom: this->atoms) {
+    double radius =
+        get_atomic_data(atom.z).covalent_radius;
+    atomic_radii.emplace_back(
+        radius * 1e-10 /
+        madness::constants::atomic_unit_of_length);
+  }
   this->update_rcut_with_eprec(eprec);
 }
 
@@ -410,11 +418,15 @@ void Molecule::set_all_coords(const madness::Tensor<double>& c) {
 
 /// updates rcuts with given eprec
 void Molecule::update_rcut_with_eprec(double value) {
-    if (value != get_eprec()) parameters.set_user_defined_value("eprec",value);
-    for (size_t i=0; i<atoms.size(); ++i) {
-        rcut[i] = 1.0 / smoothing_parameter(atoms[i].q, value);
-    }
-    core_pot.set_eprec(value);
+  if (value != get_eprec()) {
+    parameters.set_user_defined_value("eprec", value);
+  }
+  rcut.clear();
+  rcut.reserve(atoms.size());
+  for (auto &&atom : atoms) {
+    rcut.emplace_back(1.0 / smoothing_parameter(atom.q, value));
+  }
+  core_pot.set_eprec(value);
 }
 
 void Molecule::set_rcut(double value) {
