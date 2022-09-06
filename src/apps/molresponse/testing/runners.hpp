@@ -112,8 +112,8 @@ struct moldftSchema {
           xc(m_xc) {
 
         moldft_path = addPath(schema.xc_path, '/' + mol_name);
-        moldft_restart = addPath(moldft_path, "/restartdata.00000");
-        calc_info_json_path = addPath(moldft_path, "/calc_info.json");
+        moldft_restart = addPath(moldft_path, "/moldft.restartdata.00000");
+        calc_info_json_path = addPath(moldft_path, "/moldft.calc_info.json");
         mol_path = addPath(schema.molecule_path, "/" + mol_name + ".mol");
 
         moldft_json_path = addPath(schema.molecule_path, "/moldft.json");
@@ -471,7 +471,7 @@ void set_excited_parameters(ResponseParameters &r_params, const std::string &xc,
         r_params.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6});
         r_params.set_user_defined_value<double>("dconv", 1e-4);
     }
-    r_params.set_user_defined_value("archive", std::string("../restartdata"));
+    //r_params.set_user_defined_value("archive", std::string("../restartdata"));
     r_params.set_user_defined_value("maxiter", size_t(15));
     r_params.set_user_defined_value("maxsub", size_t(10));
     // if its too large then bad guess is very strong
@@ -506,7 +506,7 @@ void set_frequency_response_parameters(ResponseParameters &r_params, const std::
         r_params.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6, 1e-6});
         r_params.set_user_defined_value<double>("dconv", 1e-4);
     }
-    r_params.set_user_defined_value("archive", std::string("../restartdata"));
+    //r_params.set_user_defined_value("archive", std::string("../restartdata"));
     r_params.set_user_defined_value("maxiter", size_t(30));
     r_params.set_user_defined_value("maxsub", size_t(5));
     r_params.set_user_defined_value("kain", true);
