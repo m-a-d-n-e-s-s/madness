@@ -91,7 +91,7 @@ public:
     
     ProjRLMFunctor(double alpha, int l, int m, int i, const coord_3d& center) 
      : alpha(alpha), l(l), m(m), i(i), center(center) {
-        specialpts.push_back(coord_3d(0.0));
+        specialpts.push_back(center);
         sqrtPI = std::sqrt(constants::pi);
         itmp = 2*l + (4*i-1);
         itmp2 = 2*(i-1);
@@ -486,33 +486,44 @@ public:
                             double h00 = 0.0; xmlLnlproj->Attribute("h00", &h00); t_hlij(lvalue, 0, 0) = h00;
                             double h11 = 0.0; xmlLnlproj->Attribute("h11", &h11); t_hlij(lvalue, 1, 1) = h11;
                             double h22 = 0.0; xmlLnlproj->Attribute("h22", &h22); t_hlij(lvalue, 2, 2) = h22;
+
+                            // read off-diag terms in directly, since PBE PSPs don't follow the LDA relations
+                            double h01 = 0.0; xmlLnlproj->Attribute("h01", &h01); t_hlij(lvalue, 0, 1) = h01;
+                            t_hlij(lvalue, 1, 0) = t_hlij(lvalue, 0, 1);
+                            double h02 = 0.0; xmlLnlproj->Attribute("h02", &h02); t_hlij(lvalue, 0, 2) = h02;
+                            t_hlij(lvalue, 2, 0) = t_hlij(lvalue, 0, 2);
+                            double h12 = 0.0; xmlLnlproj->Attribute("h12", &h12); t_hlij(lvalue, 1, 2) = h12;
+                            t_hlij(lvalue, 2, 1) = t_hlij(lvalue, 1, 2);
+                            
+                            // we don't use k terms, so for now these are just set to zero and not included in the file
                             double k00 = 0.0; xmlLnlproj->Attribute("k00", &k00); t_klij(lvalue, 0, 0) = k00;
                             double k11 = 0.0; xmlLnlproj->Attribute("k11", &k11); t_klij(lvalue, 1, 1) = k11;
                             double k22 = 0.0; xmlLnlproj->Attribute("k22", &k22); t_klij(lvalue, 2, 2) = k22;
                         }
                         // off-diagonal elements
-                        if (lmax >= 0) {
-                            t_hlij(0, 0, 1) = -1./2.*std::sqrt(3./5.)*t_hlij(0, 1, 1); 
-                            t_hlij(0, 1, 0) = t_hlij(0, 0, 1);
-                            t_hlij(0, 0, 2) = 1./2.*std::sqrt(5./21.)*t_hlij(0, 2, 2);
-                            t_hlij(0, 2, 0) = t_hlij(0, 0, 2);
-                            t_hlij(0, 1, 2) = -1./2.*std::sqrt(100./63.)*t_hlij(0, 2, 2);
-                            t_hlij(0, 2, 1) = t_hlij(0, 1, 2);
-                        } if (lmax >= 1) {
-                            t_hlij(1, 0, 1) = -1./2.*std::sqrt(5./7.)*t_hlij(1, 1, 1);
-                            t_hlij(1, 1, 0) = t_hlij(1, 0, 1);
-                            t_hlij(1, 0, 2) = 1./6.*std::sqrt(35./11.)*t_hlij(1, 2, 2);
-                            t_hlij(1, 2, 0) = t_hlij(1, 0, 2);
-                            t_hlij(1, 1, 2) = -1./6.*14./std::sqrt(11.)*t_hlij(1, 2, 2);
-                            t_hlij(1, 2, 1) = t_hlij(1, 1, 2);
-                        } if (lmax >= 2) {
-                            t_hlij(2, 0, 1) = -1./2.*std::sqrt(7./9.)*t_hlij(2, 1, 1);
-                            t_hlij(2, 1, 0) = t_hlij(2, 0, 1);
-                            t_hlij(2, 0, 2) = 1./2.*std::sqrt(63./143.)*t_hlij(2, 2, 2);
-                            t_hlij(2, 2, 0) = t_hlij(2, 0, 2);
-                            t_hlij(2, 1, 2) = -1./2.*18./std::sqrt(143.)*t_hlij(2, 2, 2);
-                            t_hlij(2, 2, 1) = t_hlij(2, 1, 2);
-                        }
+                        // this is only correct for LDA PSPs, therefore read directly from file
+                        //if (lmax >= 0) {
+                        //    t_hlij(0, 0, 1) = -1./2.*std::sqrt(3./5.)*t_hlij(0, 1, 1); 
+                        //    t_hlij(0, 1, 0) = t_hlij(0, 0, 1);
+                        //    t_hlij(0, 0, 2) = 1./2.*std::sqrt(5./21.)*t_hlij(0, 2, 2);
+                        //    t_hlij(0, 2, 0) = t_hlij(0, 0, 2);
+                        //    t_hlij(0, 1, 2) = -1./2.*std::sqrt(100./63.)*t_hlij(0, 2, 2);
+                        //    t_hlij(0, 2, 1) = t_hlij(0, 1, 2);
+                        //} if (lmax >= 1) {
+                        //    t_hlij(1, 0, 1) = -1./2.*std::sqrt(5./7.)*t_hlij(1, 1, 1);
+                        //    t_hlij(1, 1, 0) = t_hlij(1, 0, 1);
+                        //    t_hlij(1, 0, 2) = 1./6.*std::sqrt(35./11.)*t_hlij(1, 2, 2);
+                        //    t_hlij(1, 2, 0) = t_hlij(1, 0, 2);
+                        //    t_hlij(1, 1, 2) = -1./6.*14./std::sqrt(11.)*t_hlij(1, 2, 2);
+                        //    t_hlij(1, 2, 1) = t_hlij(1, 1, 2);
+                        //} if (lmax >= 2) {
+                        //    t_hlij(2, 0, 1) = -1./2.*std::sqrt(7./9.)*t_hlij(2, 1, 1);
+                        //    t_hlij(2, 1, 0) = t_hlij(2, 0, 1);
+                        //    t_hlij(2, 0, 2) = 1./2.*std::sqrt(63./143.)*t_hlij(2, 2, 2);
+                        //    t_hlij(2, 2, 0) = t_hlij(2, 0, 2);
+                        //    t_hlij(2, 1, 2) = -1./2.*18./std::sqrt(143.)*t_hlij(2, 2, 2);
+                        //    t_hlij(2, 2, 1) = t_hlij(2, 1, 2);
+                        //}
 
                         // Copy to main array
                         localp[atype-1] = t_localp;
@@ -624,13 +635,17 @@ public:
         //debug printing
         /*tensorT lmat = matrix_inner(world, vpsi, psi, true);
         Q el = 0.0;
+        Q elt = 0.0;
+        Q enlt = 0.0;
         for(int i = 0;i < nocc;++i){
             el += occ[i] * lmat(i, i);
+            elt += lmat(i, i);
+            enlt += nlmat(i, i);
             std::cout << "nloc/loc " << i << "  " << occ[i] << "  " << nlmat(i,i) << "  "<< lmat(i,i) << std::endl;
         }
 
         if(world.rank() == 0){
-            printf("\n              enl, el, epot %16.8f  %16.8f  %16.8f\n", enl, el, enl+el);
+            printf("\n              enl, el, epot, enltot, eltot, %16.8f  %16.8f  %16.8f  %16.8f  %16.8f\n", enl, el, enl+el, enlt, elt);
         }*/
 
         gaxpy(world, 1.0, vpsi, 1.0, dpsi);
