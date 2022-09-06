@@ -2,19 +2,12 @@
 // Created by adrianhurtado on 2/11/22.
 //
 
-#include "ExcitedResponse.hpp"
 #include "ResponseExceptions.hpp"
-#include "TDDFT.h"
-#include "apps/chem/SCF.h"
 #include "madness/tensor/tensor_json.hpp"
 #include "madness/world/worldmem.h"
-#include "response_data_base.hpp"
 #include "response_functions.h"
 #include "runners.hpp"
 #include "string"
-#include "timer.h"
-#include "write_test_input.h"
-#include "x_space.h"
 
 #if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
 
@@ -23,7 +16,7 @@
 #include <unistd.h>
 
 static inline int file_exists(const char *input_name) {
-    struct stat buffer {};
+    struct stat buffer{};
     size_t rc = stat(input_name, &buffer);
     return (rc == 0);
 }
@@ -60,7 +53,7 @@ int main(int argc, char *argv[]) {
         if (std::filesystem::is_directory(schema.molecule_path)) {
             // for every molecule within the molecule path
             for (const std::filesystem::directory_entry &mol_path:
-                 std::filesystem::directory_iterator(schema.molecule_path)) {
+                    std::filesystem::directory_iterator(schema.molecule_path)) {
 
                 std::filesystem::current_path(schema.xc_path);
 
@@ -72,12 +65,12 @@ int main(int argc, char *argv[]) {
 
 
                         auto m_schema = moldftSchema(molecule_name, xc, schema);
-                        moldft(world, m_schema, true,false,high_prec);
+                        moldft(world, m_schema, true, false, high_prec);
 
                         auto excited_schema = excitedSchema(schema, m_schema);
                         excited_schema.print();
 
-                        bool success = runExcited(world, excited_schema, false,high_prec);
+                        bool success = runExcited(world, excited_schema, false, high_prec);
                     } catch (const SafeMPI::Exception &e) {
                         print(e);
                     } catch (const madness::MadnessException &e) {

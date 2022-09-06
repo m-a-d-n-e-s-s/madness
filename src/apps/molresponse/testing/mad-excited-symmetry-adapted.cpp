@@ -4,7 +4,7 @@
 #include "ExcitedResponse.hpp"
 #include "FrequencyResponse.hpp"
 #include "ResponseExceptions.hpp"
-#include "apps/chem/SCF.h"
+#include "/chem/SCF.h"
 #include "apps/external_headers/tensor_json.hpp"
 #include "madness/world/worldmem.h"
 #include "response_functions.h"

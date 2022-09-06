@@ -8,9 +8,9 @@
 #include "FrequencyResponse.hpp"
 #include "ResponseExceptions.hpp"
 #include "TDDFT.h"
-#include "apps/chem/SCF.h"
-#include "apps/external_headers/catch.hpp"
-#include "apps/external_headers/tensor_json.hpp"
+#include "madness/chem/SCF.h"
+#include "madness/external/catch/catch.hpp"
+#include "madness/tensor/tensor_json.hpp"
 #include "madness/world/worldmem.h"
 #include "response_functions.h"
 #include "response_parameters.h"
@@ -45,7 +45,7 @@ int main(int argc, char *argv[]) {
     auto excited_schema = excitedSchema(schema, m_schema);
     excited_schema.print();
     ResponseParameters r_params{};
-    set_excited_parameters(r_params, excited_schema.xc, excited_schema.num_states);
+    set_excited_parameters(r_params, excited_schema.xc, excited_schema.num_states, false);
     create_excited_paths(r_params, excited_schema, false);
     std::filesystem::current_path(excited_schema.excited_state_run_path);
     set_and_write_restart_excited_parameters(r_params, excited_schema, false);
