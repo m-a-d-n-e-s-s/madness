@@ -273,6 +273,7 @@ namespace madness {
 
             std::transform(x.begin(), x.end(), result.x.begin(),
                            [&world](auto xi) { return madness::copy(world, xi); });
+            world.gop.fence();
 
 
             return result;
