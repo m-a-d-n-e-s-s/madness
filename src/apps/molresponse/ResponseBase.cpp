@@ -592,13 +592,32 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &dens
 
     auto [d_alpha, phi0, vf] = orbital_load_balance(world, density, r_params.loadbalparts());
 
+    for (const auto &xi: d_alpha.X) {
+        for (const auto &xij: xi) {
+
+            print("xij", xij.max_depth()," ",(void*)xij.get_impl().get());
+        }
+    }
+    for (const auto &yi: d_alpha.Y) {
+        for (const auto &yij: yi) {
+            print("yij", yij.max_depth()," ",(void*)yij.get_impl().get());
+        }
+    }
+
+    for (const auto &pi: phi0) {
+        print("orbitals", pi.max_depth()," ",(void*)pi.get_impl().get());
+    }
+
+    std::cout << "MPI After Load Balancing " << std::endl;
+    world.mpi.Barrier();
+
     size_t num_states = d_alpha.num_states();
     size_t num_orbitals = d_alpha.num_orbitals();
     // shallow copy
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
+
     X_space gamma(world, num_states, num_orbitals);
-    // x functions
     // here I create the orbital products for elctron interaction terms
     vecfuncT phi_phi;
     vecfuncT x_phi;
@@ -608,6 +627,10 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &dens
     X_space J(world, num_states, num_orbitals);
     X_space KX(world, num_states, num_orbitals);
     X_space KY(world, num_states, num_orbitals);
+
+    std::cout << "MPI BARRIER After create Zero functions gamma " << std::endl;
+    world.mpi.Barrier();
+
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_zero_functions", "gamma_zero_functions", iter_timing);
     }
@@ -1571,25 +1594,35 @@ vector_real_function_3d transition_density(World &world, const vector_real_funct
     // Get sizes
     // Check sizes and then run the algorithm
     //size_t m = x.size();
-   // auto xx = x.copy();
-  //  auto yy = y.copy();
-   // auto phi0 = copy(world, orbitals);
+    // auto xx = x.copy();
+    //  auto yy = y.copy();
+    // auto phi0 = copy(world, orbitals);
     //world.gop.fence();
 
     //xx.truncate_rf();
-   // yy.truncate_rf();
+    // yy.truncate_rf();
     //truncate(world, phi0);
-    std::vector<real_function_3d> densities = zero_functions<double, 3>(world, x.size());
+    std::vector<real_function_3d> densities = zero_functions<double, 3>(world, x.size(), true);
 
     // Return container
+    auto compute_density = [&world, &orbitals](const auto& x_alpha,const auto &y_alpha) {
 
+      for (const auto &xij: x_alpha) {
+          print("xij !!", xij.max_depth()," ",(void*)xij.get_impl().get());
+        }
+        auto dx = dot(world, x_alpha, orbitals, true);
+      for (const auto &yij: y_alpha) {
+          print("yij !!", yij.max_depth()," ",(void*)yij.get_impl().get());
+      }
+        auto dy = dot(world, orbitals, y_alpha, true);
+        return dx + dy;
+    };
+
+    for (const auto &phi_i: orbitals) {
+        print("phi_i !!", phi_i.max_depth()," ",(void*)phi_i.get_impl().get());
+    }
     std::transform(x.begin(), x.end(), y.begin(), densities.begin(),
-                   [&world, &orbitals](auto x_alpha, auto y_alpha) {
-                       auto dx = dot(world, x_alpha, orbitals);
-                       world.gop.fence();
-                       auto dy = dot(world, orbitals, y_alpha);
-                       return dx + dy;
-                   });
+                   compute_density);
     world.gop.fence();
     //truncate(world, densities, FunctionDefaults<3>::get_thresh(), true);
     return densities;
@@ -1648,7 +1681,7 @@ auto ResponseBase::orbital_load_balance(World &world, const gamma_orbitals &inpu
         auto vf_copy = copy(world, vf, new_process_map, false);
         world.gop.fence();// then fence
         molresponse::end_timer(world, "Gamma Orbital Load Balance");
-        return {X_copy, psi0_copy, vf_copy};
+        return {X_copy.copy(), copy(world,psi0_copy), copy(world,vf_copy)};
     } else {
         // return a copy with the same process map since we only have one world
         return {X.copy(), copy(world, psi0), copy(world, vf)};
