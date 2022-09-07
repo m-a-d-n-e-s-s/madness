@@ -318,7 +318,9 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
 -> X_space {
     if (r_params.print_level() >= 1) {
         molresponse::start_timer(world);
-        print("--------------- BSH UPDATE RESPONSE------------------");
+        if (world.rank()==0){
+            print("--------------- BSH UPDATE RESPONSE------------------");
+        }
     }
 
     size_t m = theta_X.X.size();
