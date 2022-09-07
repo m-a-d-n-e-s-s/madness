@@ -120,10 +120,12 @@ void FrequencyResponse::iterate(World &world) {
             auto relative_max_bsh = relative_bsh.absmax();
 
             Tensor<double> polar = -2 * inner(Chi, PQ);
+            world.gop.fence();
             // Todo add chi norm and chi_x
             function_data_to_json(j_molresponse, iter, chi_norms, bsh_residualsX, relative_bsh,
                                   xij_norms, xij_res_norms, rho_norms, density_residuals);
             frequency_to_json(j_molresponse, iter, polar);
+            world.gop.fence();
 
             if (r_params.print_level() >= 1) {
 
@@ -279,8 +281,10 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
     bool compute_y = omega_n != 0.0;
     // size_t n = Chi.num_orbitals();
     X_space theta_X = compute_theta_X(world, chi, xc, r_params.calc_type());
+
+    std::cout << "MPI BARRIER After Theta X " << std::endl;
+    world.mpi.Barrier();
     // compute residual X_space
-    print("BSH update iter = ", iteration);
 
     X_space new_chi =
             bsh_update_response(world, theta_X, bsh_x_ops, bsh_y_ops, projector, x_shifts);
