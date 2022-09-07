@@ -370,13 +370,13 @@ auto ResponseBase::compute_theta_X(World &world, const X_space &chi,
             print("------------compute theta x_________");
         }
     }
-    std::cout << "MPI BARRIER 3 " << std::endl;
-    world.mpi.Barrier();
+    //     std::cout << "MPI BARRIER 3 " << std::endl;
+    //     world.mpi.Barrier();
     bool compute_Y = calc_type == "full";
     X_space Theta_X = X_space(world, chi.num_states(), chi.num_orbitals());
 
-    std::cout << "MPI BARRIER 4 " << std::endl;
-    world.mpi.Barrier();
+    //     std::cout << "MPI BARRIER 4 " << std::endl;
+    //     world.mpi.Barrier();
     // compute
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     X_space V0X = compute_V0X(world, chi, xc, compute_Y);
@@ -610,6 +610,7 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
     auto [xy, phi0] = orbital_load_balance(world, gammaOrbitals, r_params.loadbalparts());
 
 
+    /*
     for (const auto &xi: xy.X) {
         for (const auto &xij: xi) {
 
@@ -625,9 +626,10 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
     for (const auto &pi: phi0) {
         print("orbitals", pi.max_depth(), " ", (void *) pi.get_impl().get());
     }
+     */
 
-    std::cout << "MPI After Load Balancing " << std::endl;
-    world.mpi.Barrier();
+    //     std::cout << "MPI After Load Balancing " << std::endl;
+    //     world.mpi.Barrier();
 
     size_t num_states = xy.num_states();
     size_t num_orbitals = xy.num_orbitals();
@@ -646,8 +648,8 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
     X_space KX(world, num_states, num_orbitals);
     X_space KY(world, num_states, num_orbitals);
 
-    std::cout << "MPI BARRIER After create Zero functions gamma " << std::endl;
-    world.mpi.Barrier();
+    //     std::cout << "MPI BARRIER After create Zero functions gamma " << std::endl;
+    //     world.mpi.Barrier();
 
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_zero_functions", "gamma_zero_functions", iter_timing);
@@ -983,8 +985,9 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
     if (r_params.print_level() >= 1) {
         molresponse::start_timer(world);
     }
-    std::cout << "MPI BARRIER V0X " << std::endl;
-    world.mpi.Barrier();
+
+    //     // std::cout << "MPI BARRIER V0X " << std::endl;
+    //     // world.mpi.Barrier();
     // Start a timer
     size_t m = X.num_states();
     size_t n = X.num_orbitals();
@@ -1091,8 +1094,8 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
         molresponse::end_timer(world, "V0_add", "V0_add", iter_timing);
     }
 
-    std::cout << "MPI BARRIER V0X END " << std::endl;
-    world.mpi.Barrier();
+    //     std::cout << "MPI BARRIER V0X END " << std::endl;
+    //     world.mpi.Barrier();
     // Basic output
 
     // Done
