@@ -31,6 +31,7 @@ auto main(int argc, char *argv[]) -> int {
     int result = 0;
     world.gop.fence();
     startup(world, argc, argv);
+    sleep(10);
 
     std::cout.precision(6);
 
