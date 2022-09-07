@@ -416,7 +416,7 @@ void runMOLDFT(World &world, const moldftSchema &moldftSchema, bool try_run, boo
     CalculationParameters param_calc;
     json calcInfo;
     if (std::filesystem::exists(moldftSchema.calc_info_json_path)) {
-        std::cout<<"Reading Calc Info JSON"<<std::endl;
+        std::cout << "Reading Calc Info JSON" << std::endl;
         std::ifstream ifs(moldftSchema.calc_info_json_path);
         ifs >> calcInfo;
         param_calc.from_json(calcInfo["parameters"]);
@@ -428,17 +428,24 @@ void runMOLDFT(World &world, const moldftSchema &moldftSchema, bool try_run, boo
 
     // if parameters are different or if I want to run no matter what run
     // if I want to restart and if I can. restart
-    print("param1 != param_calc = ", param1 != param_calc);
+    if (world.rank() == 0) {
+        print("param1 != param_calc = ", param1 != param_calc);
+    }
     if (tryMOLDFT(param1, param_calc) || try_run) {
-        print("-------------Running moldft------------");
+        if (world.rank() == 0) {
+            print("-------------Running moldft------------");
+        }
         // if params are different run and if restart exists and if im asking to restar
         if (std::filesystem::exists(moldftSchema.moldft_restart) && restart) {
             param1.set_user_defined_value<bool>("restart", true);
         }
+        world.gop.fence();
+
         molresponse::write_test_input test_input(param1, "moldft.in",
                                                  moldftSchema.mol_path);// molecule HF
         commandlineparser parser;
         parser.set_keyval("input", test_input.filename());
+        world.gop.fence();
         SCF calc(world, parser);
         calc.set_protocol<3>(world, 1e-4);
         MolecularEnergy ME(world, calc);
@@ -763,15 +770,20 @@ void runFrequencyTests(World &world, const frequencySchema &schema, bool high_pr
     std::pair<std::filesystem::path, bool> success{schema.moldft_path, false};
     bool first = true;
     for (const auto &freq: schema.freq) {
-        print(success.second);
+
+        if (world.rank() == 0) {
+            print(success.second);
+        }
         std::filesystem::current_path(schema.moldft_path);
         if (first) {
             first = false;
         } else if (success.second) {
             // if the previous run succeeded then set the restart path
-            print("restart_path", restart_path);
             restart_path = success.first;
-            print("restart_path = success.first", restart_path);
+            if (world.rank() == 0) {
+                print("restart_path", restart_path);
+                print("restart_path = success.first", restart_path);
+            }
         } else {
             throw Response_Convergence_Error{};
         }
@@ -779,7 +791,9 @@ void runFrequencyTests(World &world, const frequencySchema &schema, bool high_pr
         success = RunResponse(world, "response.in", freq, schema.op, schema.xc, schema.moldft_path,
                               restart_path, high_prec);
 
-        print("Frequency ", freq, " completed");
+        if (world.rank() == 0) {
+            print("Frequency ", freq, " completed");
+        }
     }
 }
 
@@ -795,14 +809,20 @@ void runFrequencyTests(World &world, const frequencySchema &schema, bool high_pr
 void moldft(World &world, moldftSchema &m_schema, bool try_moldft, bool restart, bool high_prec) {
 
     if (std::filesystem::is_directory(m_schema.moldft_path)) {
-        cout << "MOLDFT directory found " << m_schema.mol_path << "\n";
+        if(world.rank()==0){
+            cout << "MOLDFT directory found " << m_schema.mol_path << "\n";
+        }
     } else {// create the file
         std::filesystem::create_directory(m_schema.moldft_path);
+        if(world.rank()==0){
         cout << "Creating MOLDFT directory for " << m_schema.mol_name << ":/"
              << m_schema.moldft_path << ":\n";
+        }
     }
     std::filesystem::current_path(m_schema.moldft_path);
-    cout << "Entering : " << m_schema.moldft_path << " to run MOLDFT \n\n";
+    if(world.rank()==0) {
+        cout << "Entering : " << m_schema.moldft_path << " to run MOLDFT \n\n";
+    }
 
     runMOLDFT(world, m_schema, try_moldft, restart, high_prec);
 }
