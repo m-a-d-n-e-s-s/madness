@@ -48,7 +48,7 @@ struct residuals {
 };
 
 
-using gamma_orbitals = std::tuple<X_space, vector_real_function_3d, vector_real_function_3d>;
+using gamma_orbitals = std::tuple<X_space, vector_real_function_3d>;
 
 class ResponseBase {
 public:
@@ -385,7 +385,7 @@ public:
     static X_space compute_gamma_full(World &world, ResponseBase *p, double thresh) {
         XCOperator<double, 3> xc = p->make_xc_operator(world);
         X_space gamma =
-                p->compute_gamma_full(world, {p->Chi, p->ground_orbitals, p->ground_orbitals}, xc);
+                p->compute_gamma_full(world, {p->Chi, p->ground_orbitals}, xc);
         return gamma;
     }
 
