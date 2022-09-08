@@ -687,6 +687,7 @@ auto RunResponse(World &world, const std::string &filename, double frequency,
         rhs_generator = nuclear_generator;
     }
     FrequencyResponse calc(world, calc_params, frequency, rhs_generator);
+    world.gop.fence();
     if (world.rank() == 0) {
         print("\n\n");
         print(" MADNESS Time-Dependent Density Functional Theory Response "
@@ -699,8 +700,11 @@ auto RunResponse(World &world, const std::string &filename, double frequency,
         // put the response parameters in a j_molrespone json object
         calc_params.response_parameters.to_json(calc.j_molresponse);
     }
+    world.gop.fence();
     // set protocol to the first
     calc.solve(world);
+    world.gop.fence();
+    // set protocol to the first
     calc.time_data.to_json(calc.j_molresponse);
     calc.time_data.print_data();
     calc.output_json();
