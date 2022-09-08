@@ -202,7 +202,9 @@ public:
         vnuc = real_factory_3d(world).functor(real_functor_3d(new MolecularPotentialFunctor(molecule))).thresh(vtol).truncate_on_project();
         vnuc.set_thresh(FunctionDefaults<3>::get_thresh());
         vnuc.reconstruct();
-        if (core_type != "") {
+        //     "" is  legacy core_type value for all-electron (also be used by CorePotentialManager)
+        // "none" is current core_type value for all-electron
+        if (core_type != "" && core_type != "none") {
             real_function_3d c_pot = real_factory_3d(world).functor(real_functor_3d(new MolecularCorePotentialFunctor(molecule))).thresh(vtol).initial_level(4);
             c_pot.set_thresh(FunctionDefaults<3>::get_thresh());
             c_pot.reconstruct();
