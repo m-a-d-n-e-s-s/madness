@@ -39,9 +39,9 @@ int main(int argc, char *argv[]) {
     // A calculation is defined by a molecule, functional, and operator
     // xc include (hf/lda)
     // operators include (excited-state)
-    auto schema = runSchema(xc);
+    auto schema = runSchema(<#initializer #>, xc);
     auto mol_path = addPath(schema.molecule_path, molecule_name);
-    auto m_schema = moldftSchema(molecule_name, xc, schema);
+    auto m_schema = moldftSchema(<#initializer#>, molecule_name, xc, schema);
     auto excited_schema = excitedSchema(schema, m_schema);
     excited_schema.print();
     ResponseParameters r_params{};

@@ -175,8 +175,8 @@ void FrequencyResponse::iterate(World &world) {
             }
         }
 
-        std::cout << "MPI BARRIER before update " << std::endl;
-        world.mpi.Barrier();
+     //   std::cout << "MPI BARRIER before update " << std::endl;
+      //  world.mpi.Barrier();
         auto [new_chi, new_res] =
                 update(world, Chi, xc, bsh_x_ops, bsh_y_ops, projector, x_shifts, omega,
                        kain_x_space, x_vectors, x_residuals, iter, max_rotation);
@@ -269,21 +269,21 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
                                size_t iteration, const double &maxrotn)
 -> std::tuple<X_space, residuals> {
 
-    print("before start time ", r_params.print_level());
-    std::cout << "MPI BARRIER 2 " << std::endl;
-    world.mpi.Barrier();
+ //   print("before start time ", r_params.print_level());
+//    std::cout << "MPI BARRIER 2 " << std::endl;
+  //  world.mpi.Barrier();
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
-    std::cout << "MPI BARRIER 3 " << std::endl;
-    world.mpi.Barrier();
+   // std::cout << "MPI BARRIER 3 " << std::endl;
+    //world.mpi.Barrier();
 
     size_t m = chi.num_states();
     bool compute_y = omega_n != 0.0;
     // size_t n = Chi.num_orbitals();
     X_space theta_X = compute_theta_X(world, chi, xc, r_params.calc_type());
 
-    std::cout << "MPI BARRIER After Theta X " << std::endl;
-    world.mpi.Barrier();
+   // std::cout << "MPI BARRIER After Theta X " << std::endl;
+   // world.mpi.Barrier();
     // compute residual X_space
 
     X_space new_chi =

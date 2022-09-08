@@ -1606,20 +1606,25 @@ vector_real_function_3d transition_density(World &world, const vector_real_funct
 
     // Return container
     auto compute_density = [&world, &orbitals](const auto &x_alpha, const auto &y_alpha) {
+        /*
         for (const auto &xij: x_alpha) {
             print("xij !!", xij.max_depth(), " ", (void *) xij.get_impl().get());
         }
+         */
         auto dx = dot(world, x_alpha, orbitals, true);
+        /*
         for (const auto &yij: y_alpha) {
             print("yij !!", yij.max_depth(), " ", (void *) yij.get_impl().get());
-        }
+        }*/
         auto dy = dot(world, orbitals, y_alpha, true);
         return dx + dy;
     };
 
+    /*
     for (const auto &phi_i: orbitals) {
         print("phi_i !!", phi_i.max_depth(), " ", (void *) phi_i.get_impl().get());
     }
+     */
     std::transform(x.begin(), x.end(), y.begin(), densities.begin(),
                    compute_density);
     world.gop.fence();
