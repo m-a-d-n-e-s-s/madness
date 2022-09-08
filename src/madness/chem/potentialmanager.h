@@ -38,6 +38,7 @@
 
 #include<madness/chem/corepotential.h>
 #include<madness/chem/atomutil.h>
+#include<madness/chem/molecule.h>
 #include <vector>
 #include <string>
 #include <iostream>
