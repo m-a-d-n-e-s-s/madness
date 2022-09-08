@@ -109,13 +109,21 @@ public:
 
 class PotentialManager {
 private:
-Molecule molecule;
+Molecule mol;
 real_function_3d vnuc;
-std::string core_type;
+std::string core_type_;
 
 public:
     PotentialManager(const Molecule& molecule, const std::string& core_type)
-     : molecule(molecule), core_type(core_type) {}
+     : mol(molecule), core_type_(core_type) {}
+
+    const Molecule& molecule() const {
+      return this->mol;
+    }
+
+    const std::string& core_type() const {
+      return this->core_type_;
+    }
 
     const real_function_3d& vnuclear() {
         return vnuc;
@@ -125,25 +133,25 @@ public:
     {
         int npsi = psi.size();
         if (npsi == 0) return psi;
-        int natom = molecule.natom();
+        int natom = mol.natom();
         vector_real_function_3d proj = zero_functions_compressed<double,3>(world, npsi);
         real_tensor overlap_sum(static_cast<long>(npsi));
 
         for (int i=0; i<natom; ++i) {
-            Atom at = molecule.get_atom(i);
+            Atom at = mol.get_atom(i);
             unsigned int atn = at.atomic_number;
-            unsigned int nshell = molecule.n_core_orb(atn);
+            unsigned int nshell = mol.n_core_orb(atn);
             if (nshell == 0) continue;
             for (unsigned int c=0; c<nshell; ++c) {
-                unsigned int l = molecule.get_core_l(atn, c);
+                unsigned int l = mol.get_core_l(atn, c);
                 int max_m = (l+1)*(l+2)/2;
                 nshell -= max_m - 1;
                 for (int m=0; m<max_m; ++m) {
-                    real_function_3d core = real_factory_3d(world).functor(real_functor_3d(new CoreOrbitalFunctor(molecule, i, c, m)));
+                    real_function_3d core = real_factory_3d(world).functor(real_functor_3d(new CoreOrbitalFunctor(mol, i, c, m)));
                     real_tensor overlap = inner(world, core, psi);
                     overlap_sum += overlap;
                     for (int j=0; j<npsi; ++j) {
-                        if (include_Bc) overlap[j] *= molecule.get_core_bc(atn, c);
+                        if (include_Bc) overlap[j] *= mol.get_core_bc(atn, c);
                         proj[j] += core.scale(overlap[j]);
                     }
                 }
@@ -158,19 +166,19 @@ public:
     {
         vector_real_function_3d cores, dcores;
         std::vector<double> bc;
-        unsigned int atn = molecule.get_atom(atom).atomic_number;
-        unsigned int ncore = molecule.n_core_orb(atn);
+        unsigned int atn = mol.get_atom(atom).atomic_number;
+        unsigned int ncore = mol.n_core_orb(atn);
 
         // projecting core & d/dx core
         for (unsigned int c=0; c<ncore; ++c) {
-            unsigned int l = molecule.get_core_l(atn, c);
+            unsigned int l = mol.get_core_l(atn, c);
             int max_m = (l+1)*(l+2)/2;
             for (int m=0; m<max_m; ++m) {
-                real_functor_3d func = real_functor_3d(new CoreOrbitalFunctor(molecule, atom, c, m));
+                real_functor_3d func = real_functor_3d(new CoreOrbitalFunctor(mol, atom, c, m));
                 cores.push_back(real_function_3d(real_factory_3d(world).functor(func).truncate_on_project()));
-                func = real_functor_3d(new CoreOrbitalDerivativeFunctor(molecule, atom, axis, c, m));
+                func = real_functor_3d(new CoreOrbitalDerivativeFunctor(mol, atom, axis, c, m));
                 dcores.push_back(real_function_3d(real_factory_3d(world).functor(func).truncate_on_project()));
-                bc.push_back(molecule.get_core_bc(atn, c));
+                bc.push_back(mol.get_core_bc(atn, c));
             }
         }
 
@@ -190,7 +198,7 @@ public:
     }
 
     void apply_nonlocal_potential(World& world, const vector_real_function_3d& amo, vector_real_function_3d Vpsi) {
-        if (core_type.substr(0,3) == "mcp") {
+        if (core_type_.substr(0,3) == "mcp") {
          //   START_TIMER(world);
             gaxpy(world, 1.0, Vpsi, 1.0, core_projection(world, amo));
          //   END_TIMER(world, "MCP Core Projector");
@@ -200,13 +208,13 @@ public:
     void make_nuclear_potential(World& world) {
         double safety = 0.1;
         double vtol = FunctionDefaults<3>::get_thresh() * safety;
-        vnuc = real_factory_3d(world).functor(real_functor_3d(new MolecularPotentialFunctor(molecule))).thresh(vtol).truncate_on_project();
+        vnuc = real_factory_3d(world).functor(real_functor_3d(new MolecularPotentialFunctor(mol))).thresh(vtol).truncate_on_project();
         vnuc.set_thresh(FunctionDefaults<3>::get_thresh());
         vnuc.reconstruct();
         //     "" is  legacy core_type value for all-electron (also be used by CorePotentialManager)
         // "none" is current core_type value for all-electron
-        if (core_type != "" && core_type != "none") {
-            real_function_3d c_pot = real_factory_3d(world).functor(real_functor_3d(new MolecularCorePotentialFunctor(molecule))).thresh(vtol).initial_level(4);
+        if (core_type_ != "" && core_type_ != "none") {
+            real_function_3d c_pot = real_factory_3d(world).functor(real_functor_3d(new MolecularCorePotentialFunctor(mol))).thresh(vtol).initial_level(4);
             c_pot.set_thresh(FunctionDefaults<3>::get_thresh());
             c_pot.reconstruct();
             vnuc += c_pot;
