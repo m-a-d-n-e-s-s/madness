@@ -55,18 +55,18 @@ auto main(int argc, char *argv[]) -> int {
     }
     try {
 
-        auto schema = runSchema(xc);
-        auto m_schema = moldftSchema(molecule_name, xc, schema);
-        auto f_schema = frequencySchema(schema, m_schema, op);
-        try {
-
-            moldft(world, m_schema, false, false, high_prec);
+        auto schema = runSchema(world, xc);
+        auto m_schema = moldftSchema(world, molecule_name, xc, schema);
+        auto f_schema = frequencySchema(world, schema, m_schema, op);
+        if (std::filesystem::exists(m_schema.calc_info_json_path) && std::filesystem::exists(m_schema.moldft_restart)) {
+            // TODO set up to read calc_info json and check if its converged
             runFrequencyTests(world, f_schema, high_prec);
-        } catch (MadnessException &madnessException) {
-            print(madnessException);
+        } else {
+
             moldft(world, m_schema, true, false, high_prec);
             runFrequencyTests(world, f_schema, high_prec);
         }
+
 
     } catch (const SafeMPI::Exception &e) { print(e); } catch (const madness::MadnessException &e) {
         std::cout << e << std::endl;

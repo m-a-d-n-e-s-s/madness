@@ -53,12 +53,12 @@ auto main(int argc, char *argv[]) -> int {
         high_prec = false;
     }
 
-    auto schema = runSchema(xc);
+    auto schema = runSchema(world, xc);
     auto mol_path = addPath(schema.molecule_path, molecule_name);
 
     try {
 
-        auto m_schema = moldftSchema(molecule_name, xc, schema);
+        auto m_schema = moldftSchema(world, molecule_name, xc, schema);
         moldft(world, m_schema, false, true, high_prec);
         auto excited_schema = excitedSchema(schema, m_schema);
         excited_schema.print();
