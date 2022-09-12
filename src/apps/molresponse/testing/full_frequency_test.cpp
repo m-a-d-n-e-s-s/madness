@@ -38,7 +38,7 @@ int main(int argc, char *argv[]) {
         high_prec = false;
     }
 
-    auto schema = runSchema(<#initializer #>, xc);
+    auto schema = runSchema(world, xc);
 
     try {
         if (std::filesystem::is_directory(schema.molecule_path)) {
@@ -51,9 +51,9 @@ int main(int argc, char *argv[]) {
                     auto molecule_name = mol_path.path().stem();
                     try {
 
-                        auto m_schema = moldftSchema(<#initializer #>, molecule_name, xc, schema);
+                        auto m_schema = moldftSchema(world, molecule_name, xc, schema);
                         moldft(world, m_schema, true, false, high_prec);
-                        auto f_schema = frequencySchema(<#initializer #>, schema, m_schema, op);
+                        auto f_schema = frequencySchema(world, schema, m_schema, op);
                         runFrequencyTests(world, f_schema, high_prec);
 
                     } catch (const SafeMPI::Exception &e) {

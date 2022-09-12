@@ -47,7 +47,7 @@ int main(int argc, char *argv[]) {
         high_prec = false;
     }
 
-    auto schema = runSchema(<#initializer #>, xc);
+    auto schema = runSchema(world, xc);
 
     try {
         if (std::filesystem::is_directory(schema.molecule_path)) {
@@ -64,7 +64,7 @@ int main(int argc, char *argv[]) {
                     try {
 
 
-                        auto m_schema = moldftSchema(<#initializer #>, molecule_name, xc, schema);
+                        auto m_schema = moldftSchema(world, molecule_name, xc, schema);
                         moldft(world, m_schema, true, false, high_prec);
 
                         auto excited_schema = excitedSchema(schema, m_schema);
