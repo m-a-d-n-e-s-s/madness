@@ -39,7 +39,7 @@ int main(int argc, char *argv[]) {
     startup(world, argc, argv);
     std::cout.precision(6);
 
-    auto schema = runSchema(<#initializer #>, xc);
+    auto schema = runSchema(world, xc);
 
     try {
         if (std::filesystem::is_directory(schema.molecule_path)) {
@@ -53,7 +53,7 @@ int main(int argc, char *argv[]) {
                     std::cout << "\n\n----------------------------------------------------\n";
                     std::cout << "Beginning Tests for Molecule: " << molecule_name << "\n";
                     try {
-                        auto m_schema = moldftSchema(<#initializer #>, molecule_name, xc, schema);
+                        auto m_schema = moldftSchema(world, molecule_name, xc, schema);
                         m_schema.print();
                         moldft(world, m_schema, true, true, 0);
                     } catch (const SafeMPI::Exception &e) {
