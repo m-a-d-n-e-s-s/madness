@@ -106,8 +106,7 @@ public:
     }
 };
 
-auto generate_dipole_frequencies(std::string molecule_name, std::string xc,
-                                           std::string op) -> vector<double> {
+auto generate_dipole_frequencies(const std::string &molecule_name, std::string xc) -> vector<double> {
 
     if (std::filesystem::exists("molecules/dalton-excited.json")) {
         std::ifstream ifs("molecules/dalton-excited.json");
@@ -115,13 +114,13 @@ auto generate_dipole_frequencies(std::string molecule_name, std::string xc,
 
             json dalton_excited;
             ifs >> dalton_excited;
-            ::print("Read Dalton Excited");
-            ::print(dalton_excited);
+            ::print("Read Dalton Excited for ", molecule_name);
+            ::print(dalton_excited[molecule_name][xc]["excited-state"]["cc-pVTZ"]["response"]["freq"]);
             std::vector<double> freq = dalton_excited[molecule_name][xc]["excited-state"]
-                                                     ["aug-cc-pVTZ"]["response"]["freq"];
+                                                     ["cc-pVTZ"]["response"]["freq"];
             auto omega_max = freq.at(0);
             omega_max = omega_max / 2.0;
-            ::print(omega_max);
+            ::print("max frequency at cc-pVTZ", omega_max);
 
             std::vector<double> omegas = {};
             int Nsteps = 9;
@@ -130,8 +129,11 @@ auto generate_dipole_frequencies(std::string molecule_name, std::string xc,
 
         } catch (const json::out_of_range &e) {
             std::cout << e.what() << std::endl;
-            return std::vector<double>(0);
+            return std::vector<double>(1,0);
             // The molecule file exists in the database therefore it is okay to add to frequency.json
+        } catch (const json::type_error &e) {
+            std::cout << e.what() << std::endl;
+            return std::vector<double>(1,0);
         }
 
     } else {
@@ -147,10 +149,10 @@ json generate_response_data(const std::filesystem::path &molecule_path, const st
         if (mol_path.path().extension() == ".mol") {
             auto molecule_name = mol_path.path().stem();
             data[molecule_name][xc][property] =
-                    generate_dipole_frequencies(molecule_name, xc, property);
+                    generate_dipole_frequencies(molecule_name, xc);
         }
     }
-    std::cout << data << endl;
+    //std::cout << data << endl;
     return data;
 }
 
