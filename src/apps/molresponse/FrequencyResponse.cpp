@@ -35,20 +35,24 @@ void FrequencyResponse::iterate(World &world) {
     XCOperator<double, 3> xc = make_xc_operator(world);
 
     // create X space residuals
-    X_space residuals(world, m, n);
+    X_space residuals=X_space::zero_functions(world, m, n);
 
-    std::vector<X_vector> x_vectors;
-    std::vector<X_vector> x_residuals;
+    std::vector<vector_real_function_3d> x_vectors;
+    std::vector<vector_real_function_3d> x_residuals;
 
+    x_vectors= to_response_matrix(Chi);
+    x_residuals= to_response_matrix(residuals);
+    /*
     for (size_t b = 0; b < m; b++) {
         x_vectors.emplace_back(Chi, b);
         x_residuals.emplace_back(residuals, b);
     }
+     */
     // create a std vector of XNONLinearsolvers
-    NonLinearXsolver kain_x_space;
+    response_solver kain_x_space;
     for (size_t b = 0; b < m; b++) {
-        kain_x_space.push_back(XNonlinearSolver<X_vector, double, X_space_allocator>(
-                X_space_allocator(world, n), true));
+        kain_x_space.push_back(XNonlinearSolver<vector_real_function_3d , double, response_matrix_allocator>(
+                response_matrix_allocator(world, 2*n), true));
     }
     if (r_params.kain()) {
         for (auto &kain_space_b: kain_x_space) { kain_space_b.set_maxsub(r_params.maxsub()); }
@@ -264,8 +268,8 @@ void FrequencyResponse::iterate(World &world) {
 auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3> &xc,
                                std::vector<poperatorT> &bsh_x_ops,
                                std::vector<poperatorT> &bsh_y_ops, QProjector<double, 3> &projector,
-                               double &x_shifts, double &omega_n, NonLinearXsolver &kain_x_space,
-                               vector<X_vector> &Xvector, vector<X_vector> &Xresidual,
+                               double &x_shifts, double &omega_n, response_solver &kain_x_space,
+                               response_matrix &Xvector, response_matrix &Xresidual,
                                size_t iteration, const double &maxrotn)
 -> std::tuple<X_space, residuals> {
 
@@ -455,9 +459,9 @@ auto nuclear_generator(World &world, FrequencyResponse &calc) -> X_space {
 
     for (size_t atom = 0; atom < molecule.natom(); ++atom) {
         for (size_t axis = 0; axis < 3; ++axis) {
-            FunctorT func(new madchem::MolecularDerivativeFunctor(molecule, atom, axis));
-            nuclear_vector.at(atom * 3 + axis) = FunctionT(
-                    FactoryT(world).functor(func).nofence().truncate_on_project().truncate_mode(0));
+            functorT func(new madchem::MolecularDerivativeFunctor(molecule, atom, axis));
+            nuclear_vector.at(atom * 3 + axis) = functionT(
+                    factoryT(world).functor(func).nofence().truncate_on_project().truncate_mode(0));
         }
     }
     PQ.X = vector_to_PQ(world, nuclear_vector, calc.get_orbitals(), r_params.lo());
@@ -474,7 +478,7 @@ auto dipole_generator(World &world, FrequencyResponse &calc) -> X_space {
 
         std::vector<int> f(3, 0);
         f[i++] = 1;
-        d = real_factory_3d(world).functor(real_functor_3d(new BS_MomentFunctor(f)));
+        d = real_factory_3d(world).functor(real_functor_3d(new MomentFunctor(f)));
     }
     //truncate(world, dipole_vectors, true);
     PQ.X = vector_to_PQ(world, dipole_vectors, calc.get_orbitals(), r_params.lo());

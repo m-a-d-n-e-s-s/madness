@@ -133,7 +133,7 @@ private:
             World& world, X_space& chi, X_space& lchi, X_space& v_chi, X_space& gamma_chi);
     std::tuple<Tensor<double>, X_space, X_space, residuals> update(
             World& world, X_space& Chi, XCOperator<double, 3>& xc, QProjector<double, 3>& projector,
-            NonLinearXsolver& kain_x_space, vector<X_vector>& Xvector, vector<X_vector>& Xresidual,
+            response_solver &kain_x_space, response_matrix &Xvector, response_matrix &Xresidual,
             size_t iter, const double& maxrotn);
     X_space create_response_guess(World& world) const;
     std::tuple<Tensor<double>, Tensor<double>, Tensor<double>> reduce_subspace(

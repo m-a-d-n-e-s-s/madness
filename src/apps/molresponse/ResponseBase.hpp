@@ -10,8 +10,8 @@
 #include <utility>
 #include <vector>
 
+#include <madness/mra/nonlinsol.h>
 #include "global_functions.h"
-#include "load_balance.h"
 #include "madness/mra/functypedefs.h"
 #include "madness/mra/mra.h"
 #include<madness/chem/SCF.h>
@@ -24,6 +24,8 @@
 using namespace madness;
 
 using json=nlohmann::json;
+
+typedef std::vector<XNonlinearSolver<vector_real_function_3d , double, response_matrix_allocator>> response_solver;
 
 class response_timing {
     std::map<std::string, std::vector<double>> wall_time_data;
@@ -197,8 +199,8 @@ protected:
 
 
     auto kain_x_space_update(World &world, const X_space &chi, const X_space &residual_chi,
-                             NonLinearXsolver &kain_x_space, vector<X_vector> &Xvector,
-                             vector<X_vector> &Xresidual) -> X_space;
+                             response_solver &kain_x_space, response_matrix &Xvector,
+                             response_matrix &Xresidual) -> X_space;
 
     void x_space_step_restriction(World &world, const X_space &old_Chi, X_space &temp,
                                   bool restrict_y, const double &maxrotn);

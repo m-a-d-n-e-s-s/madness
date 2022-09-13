@@ -49,8 +49,8 @@ private:
                                           vector<poperatorT>& bsh_x_ops,
                                           vector<poperatorT>& bsh_y_ops,
                                           QProjector<double, 3>& projector, double& x_shifts,
-                                          double& omega_n, NonLinearXsolver& kain_x_space,
-                                          vector<X_vector>& Xvector, vector<X_vector>& Xresidual,
+                                          double& omega_n, response_solver &kain_x_space,
+                                          response_matrix &Xvector, response_matrix &Xresidual,
                                           size_t iteration, const double& maxrotn);
 };
 
