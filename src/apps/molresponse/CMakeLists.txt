@@ -18,7 +18,6 @@ set(MOLRESPONSE_HEADERS
         ResponseBase.hpp
         ExcitedResponse.hpp
         FrequencyResponse.hpp
-        density.h
         property.h
         x_space.h
         global_functions.h
@@ -51,7 +50,6 @@ set(R_BASE_HEADERS
         ResponseBase.hpp
         ExcitedResponse.hpp
         FrequencyResponse.hpp
-        density.h
         property.h
         global_functions.h
         x_space.h
@@ -75,10 +73,6 @@ set(RALL_SOURCES
         basic_operators.cc
         Plot_VTK.cc
         response_parameters.cpp
-        calc_runner.cc
-        iterate_excited.cc
-        Lambda_X.cc
-        Theta_X.cc
         x_space.cc
         )
 
