@@ -705,9 +705,11 @@ auto RunResponse(World &world, const std::string &filename, double frequency,
     calc.solve(world);
     world.gop.fence();
     // set protocol to the first
-    calc.time_data.to_json(calc.j_molresponse);
+    if(world.rank()==0){
+        //calc.time_data.to_json(calc.j_molresponse);
+        calc.output_json();
+    }
     //calc.time_data.print_data();
-    calc.output_json();
     return {save_path, calc.j_molresponse["converged"]};
 }
 
