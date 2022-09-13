@@ -706,7 +706,7 @@ auto RunResponse(World &world, const std::string &filename, double frequency,
     world.gop.fence();
     // set protocol to the first
     calc.time_data.to_json(calc.j_molresponse);
-    calc.time_data.print_data();
+    //calc.time_data.print_data();
     calc.output_json();
     return {save_path, calc.j_molresponse["converged"]};
 }
