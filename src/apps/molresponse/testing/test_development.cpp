@@ -2,7 +2,6 @@
 // Created by adrianhurtado on 1/1/22.
 //
 
-#include <fstream>
 
 #include "ExcitedResponse.hpp"
 #include "FrequencyResponse.hpp"
