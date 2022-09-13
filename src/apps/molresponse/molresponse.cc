@@ -48,7 +48,7 @@
 #include <unistd.h>
 
 static inline int file_exists(const char *inpname) {
-    struct stat buffer{};
+    struct stat buffer {};
     size_t rc = stat(inpname, &buffer);
     return (rc == 0);
 }
@@ -112,7 +112,10 @@ int main(int argc, char **argv) {
             calc_params.response_parameters.to_json(calc.j_molresponse);
             // set protocol to the first
             calc.solve(world);
-            calc.output_json();
+            world.gop.fence();
+            if (world.rank() == 0) {
+                calc.output_json();
+            }
         } else {
             if (world.rank() == 0) { print("Response not implemented"); }
         }
