@@ -5,7 +5,6 @@
 #include <string>
 #include <vector>
 
-#include "molresponse/density.h"
 #include "response_parameters.h"
 
 struct CalcParams {
@@ -47,6 +46,6 @@ response_space T(World &world, response_space &f);
 
 vecfuncT K(vecfuncT &ket, vecfuncT &bra, vecfuncT &vf);
 vecfuncT newK(const vecfuncT &ket, const vecfuncT &bra, const vecfuncT &vf);
-static double rsquared(const coordT &r) { return r[0] * r[0] + r[1] * r[1] + r[2] * r[2]; }
+static double rsquared(const coord_3d &r) { return r[0] * r[0] + r[1] * r[1] + r[2] * r[2]; }
 /// Mask function to switch from 0 to 1 smoothly at boundary
 #endif// SRC_APPS_molresponse_GLOBAL_FUNCTIONS_H_
