@@ -6,17 +6,18 @@
 #include "response_functions.h"
 
 namespace madness {
-    auto to_response_matrix(const X_space& x) -> response_matrix {
-        World& world = x.X[0][0].world();
+    auto to_response_matrix(const X_space &x) -> response_matrix {
         auto mX = response_matrix(x.num_states());
         int b = 0;
-        for (auto& mi: mX) {
-            mi = copy(world, x.X[b]);
-            std::for_each(x.Y[b].begin(), x.Y[b].end(),
-                          [&](const auto& yi) { mi.push_back(copy(yi)); });
+        auto num_orbitals = x.num_orbitals();
+        std::for_each(mX.begin(), mX.end(), [&](auto &mi) {
+            //auto norm_vi = norm2(world, x_vec);
+            mi = vector_real_function_3d(2 * num_orbitals);
+            //if (world.rank() == 0) { print("norm in xvec i", norm_vi); }
+            std::copy(x.X[b].begin(), x.X[b].end(), mi.begin());
+            std::copy(x.Y[b].begin(), x.Y[b].end(), mi.begin() + num_orbitals);
             b++;
-        }
-        world.gop.fence();
+        });
         return mX;
     }
 
@@ -25,24 +26,24 @@ namespace madness {
      * @param x
      * @return
      */
-    auto to_flattened_vector(const X_space& x) -> vector_real_function_3d {
+    auto to_flattened_vector(const X_space &x) -> vector_real_function_3d {
 
-        World& world = x.X[0][0].world();
+        World &world = x.X[0][0].world();
         auto num_orbitals = 2 * x.num_orbitals();
-        auto vij = vector_real_function_3d(x.num_states()*num_orbitals);
+        auto vij = vector_real_function_3d(x.num_states() * num_orbitals);
         auto mx = to_response_matrix(x);
 
         int b = 0;
-        for (auto& mi: mx) {
+        for (auto &mi: mx) {
             std::copy(mi.begin(), mi.end(), vij.begin() + b * num_orbitals);
             b++;
         }
         return vij;
     }
 
-    auto to_X_space(const response_matrix& x) -> X_space {
+    auto to_X_space(const response_matrix &x) -> X_space {
 
-        World& world = x[0][0].world();
+        World &world = x[0][0].world();
 
         auto num_states = x.size();
         auto num_orbitals = size_t(x[0].size() / 2);
@@ -64,20 +65,20 @@ namespace madness {
         return x_space;
     }
 
-    auto transposeResponseMatrix(const response_matrix& x) -> response_matrix {
+    auto transposeResponseMatrix(const response_matrix &x) -> response_matrix {
 
         auto XT = response_matrix(x[0].size());
 
         auto b = 0;
-        for (auto& xi: XT) {
+        for (auto &xi: XT) {
             auto j = 0;
             xi = vector_real_function_3d(x.size());
-            for (auto& xji: xi) { xji = copy(x[j++][b]); }
+            for (auto &xji: xi) { xji = x[j++][b]; }
             b++;
         }
         return XT;
     }
-    auto inner(const X_space& A, const X_space& B) -> Tensor<double> {
+    auto inner(const X_space &A, const X_space &B) -> Tensor<double> {
         MADNESS_ASSERT(size_states(A) > 0);
         MADNESS_ASSERT(size_orbitals(A) > 0);
         MADNESS_ASSERT(same_size(A, B));
@@ -87,7 +88,7 @@ namespace madness {
         auto a = to_response_matrix(A);
         auto b = to_response_matrix(B);
 
-        World& world = a[0][0].world();
+        World &world = a[0][0].world();
 
         auto a_transpose = transposeResponseMatrix(a);
         auto b_transpose = transposeResponseMatrix(b);
@@ -100,7 +101,7 @@ namespace madness {
         // Container for result
         Tensor<double> result(a.size(), a.size());
         int p = 0;
-        std::for_each(a_transpose.begin(), a_transpose.end(), [&](const auto& ati) {
+        std::for_each(a_transpose.begin(), a_transpose.end(), [&](const auto &ati) {
             result += matrix_inner(world, ati, b_transpose[p++]);
         });
 

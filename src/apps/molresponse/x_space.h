@@ -15,9 +15,9 @@
 
 namespace madness {
     struct X_space;
-    auto to_response_matrix(const X_space& x) -> response_matrix;
-    auto to_flattened_vector(const X_space& x) -> vector_real_function_3d;
-    auto to_X_space(const response_matrix& x) -> X_space;
+    auto to_response_matrix(const X_space &x) -> response_matrix;
+    auto to_flattened_vector(const X_space &x) -> vector_real_function_3d;
+    auto to_X_space(const response_matrix &x) -> X_space;
     struct X_space {
     private:
         size_t n_states;  // Num. of resp. states
@@ -32,7 +32,7 @@ namespace madness {
         // default constructor
         X_space() : n_states(0), n_orbitals(0), X(), Y() {}
         // Copy constructor
-        X_space(const X_space& A)
+        X_space(const X_space &A)
             : n_states(size_states(A)),
               n_orbitals(size_orbitals(A)),
               X(A.X),
@@ -49,7 +49,7 @@ namespace madness {
         /// Works in either basis.  Different distributions imply
         /// asynchronous communication and the optional fence is
         /// collective.
-        auto copy(const std::shared_ptr<WorldDCPmapInterface<Key<3>>>& pmap,
+        auto copy(const std::shared_ptr<WorldDCPmapInterface<Key<3>>> &pmap,
                   bool fence = false) const -> X_space {
             X_space copyX(X[0][0].world(), n_states, n_orbitals);
             copyX.X = X.copy(pmap, fence);
@@ -57,23 +57,24 @@ namespace madness {
             return copyX;
         }
         // assignment
-        auto operator=(const X_space& B) -> X_space& {
+        auto operator=(const X_space &B) -> X_space & {
             if (this != &B) {// is it the same object?
                 this->n_states = B.num_states();
                 this->n_orbitals = B.num_orbitals();
-                this->X = B.X.copy();
-                this->Y = B.Y.copy();
+
+                this->X = B.X;
+                this->Y = B.Y;
             }
             return *this;// NO SHALLOW COPIES
         }
         // Zero Constructor
-        X_space(World& world, size_t n_states, size_t n_orbitals)
+        X_space(World &world, size_t n_states, size_t n_orbitals)
             : n_states(n_states),
               n_orbitals(n_orbitals),
               X(world, n_states, n_orbitals),
               Y(world, n_states, n_orbitals) {}
         // explicit constructor from 2 resonse_space
-        explicit X_space(response_space& X, response_space& Y) {
+        explicit X_space(response_space &X, response_space &Y) {
             MADNESS_ASSERT(X.size() == Y.size());
             MADNESS_ASSERT(X[0].size() == Y[0].size());
             this->n_states = X.size();
@@ -85,22 +86,24 @@ namespace madness {
             X.clear();
             Y.clear();
         }
-        auto operator+(const X_space& B) -> X_space {
+        auto operator+(const X_space &B) -> X_space {
             MADNESS_ASSERT(same_size(*this, B));
-            World& world = this->X[0][0].world();
+            World &world = this->X[0][0].world();
 
             auto ax = to_response_matrix(*this);
+            world.gop.fence();
             auto bx = to_response_matrix(B);
+            world.gop.fence();
 
             response_matrix add_x(num_states());
 
             std::transform(ax.begin(), ax.end(), bx.begin(), add_x.begin(),
-                           [&](auto a, auto b) { return add(world, a, b); });
+                           [&](const auto &a, const auto &b) { return add(world, a, b); });
 
             return to_X_space(add_x);
         }
 
-        auto operator+=(const X_space& B) -> X_space& {
+        auto operator+=(const X_space &B) -> X_space & {
             MADNESS_ASSERT(same_size(*this, B));
             this->X += B.X;
             this->Y += B.Y;
@@ -130,10 +133,22 @@ namespace madness {
             if (n_states == 0) { n_orbitals = 0; }
         }
 
-        friend auto operator+(const X_space& A, const X_space& B) -> X_space {
+        static X_space zero_functions(World &world, size_t n_states, size_t n_orbitals) {
+            auto zeros = X_space(world, n_states, n_orbitals);
+
+            for (auto &xi: zeros.X) {
+                xi = ::madness::zero_functions<double, 3>(world, n_orbitals, true);
+            }
+            for (auto &yi: zeros.Y) {
+                yi = ::madness::zero_functions<double, 3>(world, n_orbitals, true);
+            }
+            return zeros;
+        }
+
+        friend auto operator+(const X_space &A, const X_space &B) -> X_space {
             MADNESS_ASSERT(same_size(A, B));
 
-            World& world = A.X[0][0].world();
+            World &world = A.X[0][0].world();
             X_space result(world, A.n_states, A.n_orbitals);// create zero_functions
 
             auto ax = to_response_matrix(A);
@@ -153,17 +168,17 @@ namespace madness {
 
         X_space operator-(const X_space B) {
             MADNESS_ASSERT(same_size(*this, B));
-            World& world = this->X[0][0].world();
+            World &world = this->X[0][0].world();
             X_space result(world, n_states, n_orbitals);
             result.X = X - B.X;
             result.Y = Y - B.Y;
             return result;
         }
 
-        friend X_space operator-(const X_space& A, const X_space& B) {
+        friend X_space operator-(const X_space &A, const X_space &B) {
             MADNESS_ASSERT(same_size(A, B));
 
-            World& world = A.X[0][0].world();
+            World &world = A.X[0][0].world();
             X_space result(world, A.n_states, A.n_orbitals);// create zero_functions
 
             result.X = A.X - B.X;
@@ -171,38 +186,38 @@ namespace madness {
             return result;
         }
 
-        friend X_space operator*(const X_space& A, const double& b) {
-            World& world = A.X[0][0].world();
+        friend X_space operator*(const X_space &A, const double &b) {
+            World &world = A.X[0][0].world();
             X_space result(world, A.n_states, A.n_orbitals);// create zero_functions
 
             result.X = A.X * b;
             result.Y = A.Y * b;
             return result;
         }
-        friend X_space operator*(const double& b, const X_space& A) {
-            World& world = A.X[0][0].world();
+        friend X_space operator*(const double &b, const X_space &A) {
+            World &world = A.X[0][0].world();
             X_space result(world, A.n_states, A.n_orbitals);// create zero_functions
 
             result.X = A.X * b;
             result.Y = A.Y * b;
             return result;
         }
-        X_space operator*(const double& b) {
+        X_space operator*(const double &b) {
             this->X *= b;
             this->Y *= b;
             return *this;
         }
 
-        friend X_space operator*(const X_space& A, const Function<double, 3>& f) {
-            World& world = A.X[0][0].world();
+        friend X_space operator*(const X_space &A, const Function<double, 3> &f) {
+            World &world = A.X[0][0].world();
             X_space result(world, A.n_states, A.n_orbitals);// create zero_functions
 
             result.X = A.X * f;
             result.Y = A.Y * f;
             return result;
         }
-        friend auto operator*(const Function<double, 3>& f, const X_space& A) -> X_space {
-            World& world = A.X[0][0].world();
+        friend auto operator*(const Function<double, 3> &f, const X_space &A) -> X_space {
+            World &world = A.X[0][0].world();
             X_space result(world, A.n_states, A.n_orbitals);// create zero_functions
 
             result.X = A.X * f;
@@ -210,11 +225,11 @@ namespace madness {
             return result;
         }
 
-        friend auto operator*(const X_space& A, const Tensor<double>& b) -> X_space {
+        friend auto operator*(const X_space &A, const Tensor<double> &b) -> X_space {
             MADNESS_ASSERT(size_states(A) > 0);
             MADNESS_ASSERT(size_orbitals(A) > 0);
 
-            World& world = A.X[0][0].world();
+            World &world = A.X[0][0].world();
             X_space result(world, A.n_states, A.n_orbitals);
             result.X = A.X * b;
             result.Y = A.Y * b;
@@ -227,7 +242,7 @@ namespace madness {
          * @param B
          * @return
          */
-        friend auto inner(const X_space& A, const X_space& B) -> Tensor<double>;
+        friend auto inner(const X_space &A, const X_space &B) -> Tensor<double>;
 
         void truncate() {
             X.truncate_rf();
@@ -235,28 +250,28 @@ namespace madness {
         }
 
         auto norm2s() -> Tensor<double> {
-            World& world = X[0][0].world();
+            World &world = X[0][0].world();
 
             Tensor<double> norms(num_states());
             for (size_t b = 0; b < num_states(); b++) {
                 auto xb = madness::copy(world, X[b]);
-                for (auto& yb: Y[b]) { xb.push_back(madness::copy(yb, true)); }
+                for (auto &yb: Y[b]) { xb.push_back(madness::copy(yb, true)); }
                 norms[b] = sqrt(inner(xb, xb));
             }
             return norms;
         }
 
         auto component_norm2s() const -> Tensor<double> {
-            World& world = X[0][0].world();
+            World &world = X[0][0].world();
 
             auto rx = to_flattened_vector(*this);
             auto norms = norm2s_T(world, rx);
             return norms.reshape(n_states, 2 * n_orbitals);
         }
 
-        friend auto size_states(const X_space& x) -> size_t { return x.n_states; }
-        friend auto size_orbitals(const X_space& x) -> size_t { return x.n_orbitals; }
-        friend auto same_size(const X_space& A, const X_space& B) -> bool {
+        friend auto size_states(const X_space &x) -> size_t { return x.n_states; }
+        friend auto size_orbitals(const X_space &x) -> size_t { return x.n_orbitals; }
+        friend auto same_size(const X_space &A, const X_space &B) -> bool {
             return ((size_states(A) == size_states(B) && size_orbitals(A) == size_orbitals(B)));
         }
     };
@@ -265,23 +280,25 @@ namespace madness {
     // the world object.
 
     struct X_vector : public X_space {
-        X_vector(World& world, size_t n_orbtials) : X_space(world, size_t(1), n_orbtials) {}
+        X_vector(World &world, size_t n_orbtials) {
+            this->X_space::zero_functions(world, size_t(1), n_orbtials);
+        }
 
         X_vector(X_space A, size_t b) : X_space(A.X[0][0].world(), size_t(1), A.num_orbitals()) {
             X[0] = A.X[b];
             Y[0] = A.Y[b];
         }
-        friend X_vector operator-(const X_vector& A, const X_vector& B) {
+        friend X_vector operator-(const X_vector &A, const X_vector &B) {
             MADNESS_ASSERT(same_size(A, B));
 
-            World& world = A.X[0][0].world();
+            World &world = A.X[0][0].world();
             X_vector result(world, size_orbitals(A));// create zero_functions
             result.X = A.X - B.X;
             result.Y = A.Y - B.Y;
             return result;
         }
-        friend X_vector operator*(const X_vector& A, const double& c) {
-            World& world = A.X[0][0].world();
+        friend X_vector operator*(const X_vector &A, const double &c) {
+            World &world = A.X[0][0].world();
             X_vector result(world, size_orbitals(A));// create zero_functions
             result.X = A.X * c;
             result.Y = A.Y * c;
@@ -293,7 +310,7 @@ namespace madness {
             copyX.Y = Y.copy();
             return copyX;
         }
-        auto operator+=(const X_vector& B) -> X_vector& {
+        auto operator+=(const X_vector &B) -> X_vector & {
             MADNESS_ASSERT(same_size(*this, B));
 
 
@@ -302,7 +319,7 @@ namespace madness {
 
             return *this;
         }
-        inline friend auto inner(X_vector& A, X_vector& B) -> double {
+        inline friend auto inner(X_vector &A, X_vector &B) -> double {
             MADNESS_ASSERT(size_states(A) == 1);
             MADNESS_ASSERT(size_orbitals(A) > 0);
             MADNESS_ASSERT(same_size(A, B));
@@ -311,7 +328,7 @@ namespace madness {
             Tensor<double> G1(1, 1);
             Tensor<double> G2(1, 1);
 
-            World& world = A.X[0][0].world();
+            World &world = A.X[0][0].world();
 
             auto ax = madness::copy(world, A.X[0]);
             auto ay = madness::copy(world, A.Y[0]);
@@ -319,8 +336,8 @@ namespace madness {
             auto bx = madness::copy(world, B.X[0]);
             auto by = madness::copy(world, B.Y[0]);
 
-            for (auto& ayi: ay) { ax.push_back(madness::copy(ayi)); }
-            for (auto& byi: by) { bx.push_back(madness::copy(byi)); };
+            for (auto &ayi: ay) { ax.push_back(madness::copy(ayi)); }
+            for (auto &byi: by) { bx.push_back(madness::copy(byi)); };
 
             double result = inner(ax, bx);
 
@@ -328,25 +345,22 @@ namespace madness {
         }
     };
     // function object with allocator()()
-    struct X_space_allocator {
-        World& world;
-        const size_t n_states;
+    struct response_matrix_allocator {
+        World &world;
         const size_t n_orbtials;
-        X_space_allocator(World& world, size_t n_orbtials)
+        response_matrix_allocator(World &world, size_t n_orbtials)
             : world(world),
-              n_states(size_t(1)),
               n_orbtials(n_orbtials) {}
         // overloading the default constructor () operator
-        X_vector operator()() {
+        vector_real_function_3d operator()() {
             print("allocator called with ", int(n_orbtials), " orbitals");
-
             // returning constructor of x_vector
-            return X_vector(world, n_orbtials);
+            return zero_functions<double, 3>(world, n_orbtials);
         }
         // Copy constructor
 
-        X_space_allocator operator=(const X_space_allocator& other) {
-            return X_space_allocator(world, other.n_orbtials);
+        response_matrix_allocator operator=(const response_matrix_allocator &other) {
+            return response_matrix_allocator(world, other.n_orbtials);
         }
     };
 }// namespace madness
