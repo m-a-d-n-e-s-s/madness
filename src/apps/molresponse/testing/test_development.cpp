@@ -7,18 +7,10 @@
 #include "ExcitedResponse.hpp"
 #include "FrequencyResponse.hpp"
 #include "ResponseExceptions.hpp"
-#include "TDDFT.h"
-#include "madness/chem/SCF.h"
-#include "madness/external/catch/catch.hpp"
 #include "madness/tensor/tensor_json.hpp"
-#include "madness/world/worldmem.h"
 #include "response_functions.h"
 #include "response_parameters.h"
 #include "runners.hpp"
-#include "string"
-#include "timer.h"
-#include "write_test_input.h"
-#include "x_space.h"
 
 
 using path = std::filesystem::path;
