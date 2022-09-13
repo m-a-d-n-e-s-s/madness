@@ -441,9 +441,9 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     response_space j_x(world, m, n);
     response_space j_y(world, m, n);
 
-    X_space W(world, m, n);
-    X_space KX(world, m, n);
-    X_space KY(world, m, n);
+    X_space W = X_space::zero_functions(world, m, n);
+    X_space KX = X_space::zero_functions(world, m, n);
+    X_space KY = X_space::zero_functions(world, m, n);
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_zero_functions", "gamma_zero_functions", iter_timing);
     }
@@ -547,18 +547,14 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
 
     if (r_params.print_level() >= 20) {
         molresponse::start_timer(world);
-        if (world.rank() == 0) {
-            print_inner(world, "xJx", d_alpha, J);
-            print_inner(world, "xKXx", d_alpha, KX);
-            print_inner(world, "xKYx", d_alpha, KY);
-        }
+        print_inner(world, "xJx", d_alpha, J);
+        print_inner(world, "xKXx", d_alpha, KX);
+        print_inner(world, "xKYx", d_alpha, KY);
         X_space K = KX + KY;
         world.gop.fence();
-        if (world.rank() == 0) {
-            print_inner(world, "xKx", d_alpha, KX);
-            print_inner(world, "xWx", d_alpha, W);
-            print_inner(world, "xGammax", d_alpha, gamma);
-        }
+        print_inner(world, "xKx", d_alpha, KX);
+        print_inner(world, "xWx", d_alpha, W);
+        print_inner(world, "xGammax", d_alpha, gamma);
         molresponse::end_timer(world, "Print Expectation Creating Gamma:");
     }
     // put
@@ -632,10 +628,10 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
     vecfuncT x_phi;
     functionT temp_J;
 
-    X_space W(world, num_states, num_orbitals);
+    X_space W = X_space::zero_functions(world, num_states, num_orbitals);
     X_space J(world, num_states, num_orbitals);
-    X_space KX(world, num_states, num_orbitals);
-    X_space KY(world, num_states, num_orbitals);
+    X_space KX = X_space::zero_functions(world, num_states, num_orbitals);
+    X_space KY = X_space::zero_functions(world, num_states, num_orbitals);
 
     //     std::cout << "MPI BARRIER After create Zero functions gamma " << std::endl;
     //     world.mpi.Barrier();
@@ -657,6 +653,7 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
     };
 
     std::transform(rho.begin(), rho.end(), J.X.begin(), compute_jx);
+    J.Y = J.X.copy();
 
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "J[omega]", "J[omega]", iter_timing);
@@ -1166,14 +1163,20 @@ auto ResponseBase::compute_residual(World &world, const X_space &chi, const X_sp
 }
 
 auto ResponseBase::kain_x_space_update(World &world, const X_space &chi,
-                                       const X_space &residual_chi, NonLinearXsolver &kain_x_space,
-                                       std::vector<X_vector> &Xvector,
-                                       std::vector<X_vector> &Xresidual)
+                                       const X_space &residual_chi, response_solver &kain_x_space,
+                                       response_matrix &Xvector,
+                                       response_matrix &Xresidual)
         -> X_space {
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     size_t m = chi.num_states();
     size_t n = chi.num_orbitals();
     X_space kain_update(world, m, n);
+
+
+    Xvector = to_response_matrix(chi);
+    Xresidual = to_response_matrix(residual_chi);
+
+    /*
     for (size_t b = 0; b < m; b++) {
 
         Xvector[b].X[0] = copy(world, chi.X[b]);
@@ -1182,15 +1185,27 @@ auto ResponseBase::kain_x_space_update(World &world, const X_space &chi,
         Xresidual[b].X[0] = copy(world, residual_chi.X[b]);
         Xresidual[b].Y[0] = copy(world, residual_chi.Y[b]);
     }
+     */
+    response_matrix update(m);
+    for (auto &update_i: update) {
+        update_i = vector_real_function_3d(n);
+    }
 
     if (world.rank() == 0) { print("----------------Start Kain Update -----------------"); }
+
     int b = 0;
+    std::transform(Xvector.begin(), Xvector.end(), Xresidual.begin(), update.begin(), [&](auto &xi, auto &ri) {
+        return kain_x_space[b++].update(xi, ri);
+    });
+
+    /*
     std::for_each(kain_x_space.begin(), kain_x_space.end(), [&](auto &ki) {
         auto kain_X = ki.update(Xvector[b], Xresidual[b]);
-        kain_update.X[b] = copy(world, kain_X.X[0]);
-        kain_update.Y[b] = copy(world, kain_X.Y[0]);
+        update[b] = copy(world, kain_X);
         b++;
     });
+    */
+    kain_update = to_X_space(update);
 
     /*
     for (size_t b = 0; b < m; b++) {
@@ -1411,23 +1426,24 @@ void ResponseBase::solve(World &world) {
     bool first_protocol = true;
     for (const auto &iter_thresh: protocol) {
         // We set the protocol and function defaults here for the given threshold of
-        // protocol
         set_protocol(world, iter_thresh);
-        check_k(world, iter_thresh, FunctionDefaults<3>::get_k());
-        protocol_to_json(j_molresponse, iter_thresh);
+        // protocol
         if (first_protocol) {
             if (r_params.restart()) {
                 if (world.rank() == 0) {
                     print("   Restarting from file:", r_params.restart_file());
                 }
                 load(world, r_params.restart_file());
-                check_k(world, iter_thresh, FunctionDefaults<3>::get_k());
                 first_protocol = false;
             } else {
                 this->initialize(world);
             }
+            check_k(world, iter_thresh, FunctionDefaults<3>::get_k());
             first_protocol = false;
+        } else {
+            check_k(world, iter_thresh, FunctionDefaults<3>::get_k());
         }
+        protocol_to_json(j_molresponse, iter_thresh);
         // Now actually ready to iterate...
         this->iterate(world);
     }
@@ -1539,13 +1555,13 @@ auto solid_harmonics(World &world, int n) -> std::map<std::vector<int>, real_fun
 
     // Create the basic x, y, z, constant and zero
     real_function_3d x = real_factory_3d(world).functor(
-            real_functor_3d(new BS_MomentFunctor(std::vector<int>{1, 0, 0})));
+            real_functor_3d(new MomentFunctor(std::vector<int>{1, 0, 0})));
     real_function_3d y = real_factory_3d(world).functor(
-            real_functor_3d(new BS_MomentFunctor(std::vector<int>{0, 1, 0})));
+            real_functor_3d(new MomentFunctor(std::vector<int>{0, 1, 0})));
     real_function_3d z = real_factory_3d(world).functor(
-            real_functor_3d(new BS_MomentFunctor(std::vector<int>{0, 0, 1})));
+            real_functor_3d(new MomentFunctor(std::vector<int>{0, 0, 1})));
     real_function_3d c = real_factory_3d(world).functor(
-            real_functor_3d(new BS_MomentFunctor(std::vector<int>{0, 0, 0})));
+            real_functor_3d(new MomentFunctor(std::vector<int>{0, 0, 0})));
     real_function_3d zero = real_factory_3d(world);
 
     // Add in first few, since they're simple
@@ -2026,11 +2042,11 @@ auto make_xyz_functions(World &world) -> vector_real_function_3d {
 
     // Create the basic x, y, z, constant and zero
     real_function_3d x = real_factory_3d(world).functor(
-            real_functor_3d(new BS_MomentFunctor(std::vector<int>{1, 0, 0})));
+            real_functor_3d(new MomentFunctor(std::vector<int>{1, 0, 0})));
     real_function_3d y = real_factory_3d(world).functor(
-            real_functor_3d(new BS_MomentFunctor(std::vector<int>{0, 1, 0})));
+            real_functor_3d(new MomentFunctor(std::vector<int>{0, 1, 0})));
     real_function_3d z = real_factory_3d(world).functor(
-            real_functor_3d(new BS_MomentFunctor(std::vector<int>{0, 0, 1})));
+            real_functor_3d(new MomentFunctor(std::vector<int>{0, 0, 1})));
 
     std::vector<real_function_3d> funcs = {x, y, z};
     return funcs;
