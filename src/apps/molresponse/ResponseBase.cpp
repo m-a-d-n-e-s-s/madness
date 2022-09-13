@@ -467,6 +467,7 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     // compute j_x = op(rho_x)*phi0
     std::transform(d_alpha.X.begin(), d_alpha.X.end(), j_x.begin(), compute_j);
     // compute j_y = op(rho_y)*phi0
+
     std::transform(d_alpha.Y.begin(), d_alpha.Y.end(), j_y.begin(), compute_j);
 
     J.X = j_x + j_y;
@@ -507,6 +508,7 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
         KX.Y[b] = newK(phi0, x, phi0);
         // |i><x|p>
     }
+    world.gop.fence();
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "K[omega]", "K[omega]", iter_timing);
     }
@@ -537,6 +539,7 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
         gamma.X[i] = projector(gamma.X[i]);
         gamma.Y[i] = projector(gamma.Y[i]);
     }
+    world.gop.fence();
 
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_project", "gamma_project", iter_timing);
@@ -544,13 +547,18 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
 
     if (r_params.print_level() >= 20) {
         molresponse::start_timer(world);
-        print_inner(world, "xJx", d_alpha, J);
-        print_inner(world, "xKXx", d_alpha, KX);
-        print_inner(world, "xKYx", d_alpha, KY);
+        if (world.rank() == 0) {
+            print_inner(world, "xJx", d_alpha, J);
+            print_inner(world, "xKXx", d_alpha, KX);
+            print_inner(world, "xKYx", d_alpha, KY);
+        }
         X_space K = KX + KY;
-        print_inner(world, "xKx", d_alpha, KX);
-        print_inner(world, "xWx", d_alpha, W);
-        print_inner(world, "xGammax", d_alpha, gamma);
+        world.gop.fence();
+        if (world.rank() == 0) {
+            print_inner(world, "xKx", d_alpha, KX);
+            print_inner(world, "xWx", d_alpha, W);
+            print_inner(world, "xGammax", d_alpha, gamma);
+        }
         molresponse::end_timer(world, "Print Expectation Creating Gamma:");
     }
     // put
@@ -2126,7 +2134,7 @@ void response_timing::add_data(std::map<std::string, std::pair<double, double>> 
 
 void response_timing::to_json(json &j) {
 
-    ::print("FREQUENCY TIME DATA TO JSON");
+    //::print("FREQUENCY TIME DATA TO JSON");
 
     j["time_data"] = json();
     j["time_data"]["iterations"] = iter;
@@ -2134,9 +2142,9 @@ void response_timing::to_json(json &j) {
 
     j["time_data"]["wall_time"] = json();
     for (const auto &e: wall_time_data) {
-        j["time_data"]["wall_time"][e.first].push_back(e.second);
+        j["time_data"]["wall_time"][e.first] = e.second;
     }
 
     j["time_data"]["cpu_time"] = json();
-    for (const auto &e: cpu_time_data) { j["time_data"]["cpu_time"][e.first].push_back(e.second); }
+    for (const auto &e: cpu_time_data) { j["time_data"]["cpu_time"][e.first] = e.second; }
 }

@@ -16,6 +16,7 @@ namespace madness {
                           [&](const auto& yi) { mi.push_back(copy(yi)); });
             b++;
         }
+        world.gop.fence();
         return mX;
     }
 
