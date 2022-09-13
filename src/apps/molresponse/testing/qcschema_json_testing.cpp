@@ -2,11 +2,12 @@
 // Created by adrianhurtado on 1/1/22.
 //
 
-#include "madness/tensor/tensor_json.hpp"
 #include "madness/external/catch/catch.hpp"
+#include "madness/tensor/tensor_json.hpp"
 #include "response_functions.h"
-#include "timer.h"
+#include "response_parameters.h"
 #include "string"
+#include "timer.h"
 #include "x_space.h"
 
 unsigned int Factorial(unsigned int number) {
@@ -18,26 +19,26 @@ TEST_CASE("X_space", "[copy]") {
   unsigned int n = 4;
   int argc = 1;
   char** argv = nullptr;
-  initialize(argc, argv);  // initializes a world argument with argc and argv
+  madness::initialize(argc, argv);  // initializes a world argument with argc and argv
   {
-    World world(SafeMPI::COMM_WORLD);
+    madness::World world(SafeMPI::COMM_WORLD);
     startup(world,
             1,
             nullptr,
             true);  // TODO: ask Robert about proper startup and implement
     molresponse::start_timer(world);
-    X_space v{world, m, n};
+    madness::X_space v{world, m, n};
     REQUIRE(v.num_states() == m);
     // world.gop.fence();
     REQUIRE(v.num_orbitals() == n);
     molresponse::end_timer(world, "basic x space test");
-    finalize();
+    madness::finalize();
   }
 }
 
 TEST_CASE("Json Testing", "Simple JSON") {
   // create an empty structure (null)
-  json j;
+  nlohmann::json j;
   // add a number that is stored as double (note the implicit conversion of j to
   // an object)
   j["pi"] = 3.141;
@@ -54,7 +55,7 @@ TEST_CASE("Json Testing", "Simple JSON") {
   // add another object (using an initializer list of pairs)
   j["object"] = {{"currency", "USD"}, {"value", 42.99}};
   // instead, you could also write (which looks very similar to the JSON above)
-  json j2 = {{"pi", 3.141},
+  nlohmann::json j2 = {{"pi", 3.141},
              {"happy", true},
              {"name", "Niels"},
              {"nothing", nullptr},
@@ -67,7 +68,7 @@ TEST_CASE("Json Testing", "Simple JSON") {
 }
 
 template <typename T>
-bool operator==(const Tensor<T>& a, const Tensor<T>& b) {
+bool operator==(const madness::Tensor<T>& a, const madness::Tensor<T>& b) {
   // check the size
   if (a.size() != b.size()) {
     return false;
@@ -87,21 +88,21 @@ bool operator==(const Tensor<T>& a, const Tensor<T>& b) {
 }
 
 TEST_CASE("Json Testing 2", "Serialization") {
-  Tensor<double> a(3, 3);
-  Tensor<double> b(3, 2, 4);
-  Tensor<double> c(1, 3);
+  madness::Tensor<double> a(3, 3);
+  madness::Tensor<double> b(3, 2, 4);
+  madness::Tensor<double> c(1, 3);
   a.fillrandom();
   b.fillindex();
   c.fill(3);
 
-  json j_a = tensor_to_json(a);
-  json j_b = tensor_to_json(b);
-  json j_c = tensor_to_json(c);
+  nlohmann::json j_a = tensor_to_json(a);
+  nlohmann::json j_b = tensor_to_json(b);
+  nlohmann::json j_c = tensor_to_json(c);
 
   // How can I make this an automatic template function?
-  auto a_copy = tensor_from_json<double>(j_a);
-  auto b_copy = tensor_from_json<double>(j_b);
-  auto c_copy = tensor_from_json<double>(j_c);
+  auto a_copy = madness::tensor_from_json<double>(j_a);
+  auto b_copy = madness::tensor_from_json<double>(j_b);
+  auto c_copy = madness::tensor_from_json<double>(j_c);
 
   REQUIRE(a == a_copy);
   REQUIRE(b == b_copy);
@@ -109,20 +110,20 @@ TEST_CASE("Json Testing 2", "Serialization") {
 }
 
 TEST_CASE("Json Testing 3", "Json Tensor Indexing") {
-  Tensor<double> a(3, 3);
-  Tensor<double> b(3, 2, 4);
-  Tensor<double> c(1, 3);
+  madness::Tensor<double> a(3, 3);
+  madness::Tensor<double> b(3, 2, 4);
+  madness::Tensor<double> c(1, 3);
   a.fillrandom();
   b.fillindex();
   c.fill(3);
-  json j = {};
+  nlohmann::json j = {};
 
-  json j_a = tensor_to_json(a);
-  json j_b = tensor_to_json(b);
-  json j_c = tensor_to_json(c);
+  nlohmann::json j_a = tensor_to_json(a);
+  nlohmann::json j_b = tensor_to_json(b);
+  nlohmann::json j_c = tensor_to_json(c);
 
   for (int i = 0; i < 3; i++) {
-    json j_iter = {};
+    nlohmann::json j_iter = {};
     j_iter["iter"] = i;
     j_iter["a"] = j_a;
     j_iter["b"] = j_b;
@@ -131,36 +132,36 @@ TEST_CASE("Json Testing 3", "Json Tensor Indexing") {
   }
 
   std::ofstream ofs("j_iters.json");
-  ofs << j << endl;
-  std::cout << j << endl;
+  ofs << j << std::endl;
+  std::cout << j << std::endl;
   // How can I make this an automatic template function?
 }
 
 TEST_CASE("print_QCSchema Test ", "Json Tensor Indexing") {
 
-  vec_pair_ints int_vals;
-  vec_pair_T<double> double_vals;
-  vec_pair_tensor_T<double> double_tensor_vals;
+  madness::vec_pair_ints int_vals;
+  madness::vec_pair_T<double> double_vals;
+  madness::vec_pair_tensor_T<double> double_tensor_vals;
 
-  json j={};
+  nlohmann::json j={};
 
   int_vals.push_back({"a", 4});
   int_vals.push_back({"b", 5});
   int_vals.push_back({"c", 4});
   int_vals.push_back({"d", 6});
 
-  to_json(j,int_vals);
+  madness::to_json(j,int_vals);
 
   double_vals.push_back({"aa", 4});
   double_vals.push_back({"bb", 5});
   double_vals.push_back({"cc", 4});
   double_vals.push_back({"dd", 6});
 
-  to_json(j,double_vals);
+  madness::to_json(j,double_vals);
 
-  Tensor<double> t_a(3, 3);
-  Tensor<double> t_b(3, 2, 4);
-  Tensor<double> t_c(1, 3);
+  madness::Tensor<double> t_a(3, 3);
+  madness::Tensor<double> t_b(3, 2, 4);
+  madness::Tensor<double> t_c(1, 3);
 
   double_tensor_vals.push_back({"t_a",t_a});
   double_tensor_vals.push_back({"t_b",t_b});
@@ -168,27 +169,27 @@ TEST_CASE("print_QCSchema Test ", "Json Tensor Indexing") {
 
   to_json(j,double_tensor_vals);
 
-  output_schema( "test_schema", j);
+  madness::output_schema( "test_schema", j);
 
 }
 TEST_CASE("Response Parameters Test ", "Testing parameters to_json") {
 
   int argc = 1;
   char** argv = nullptr;
-  initialize(argc, argv);  // initializes a world argument with argc and argv
+  madness::initialize(argc, argv);  // initializes a world argument with argc and argv
   {
-    World world(SafeMPI::COMM_WORLD);
+    madness::World world(SafeMPI::COMM_WORLD);
     startup(world,
             1,
             nullptr,
             true);  // TODO: ask Robert about proper startup and implement
     molresponse::start_timer(world);
     // Everything goes in here
-    ResponseParameters r_params;
-    json j;
+    madness::ResponseParameters r_params;
+    nlohmann::json j;
     r_params.to_json(j);
     world.gop.fence();
-    std::cout<<j<<endl;
+    std::cout<<j<<std::endl;
     molresponse::end_timer(world, "basic Response parameters testing");
   }
 
