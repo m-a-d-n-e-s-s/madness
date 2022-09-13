@@ -415,6 +415,7 @@ auto ResponseBase::compute_theta_X(World &world, const X_space &chi,
     }
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
+    world.gop.fence();
     Theta_X = (V0X - E0X) + gamma;
     Theta_X.truncate();
     //    Theta_X.truncate();
