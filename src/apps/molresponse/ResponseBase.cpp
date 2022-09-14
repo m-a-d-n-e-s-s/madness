@@ -246,8 +246,10 @@ auto ResponseBase::ComputeHamiltonianPair(World &world) const
     {
         traceOfHamiltonian += new_hamiltonian(i, i);
     }
-    print("Trace of Hamiltonian");
-    print(traceOfHamiltonian);
+    if (world.rank() == 0) {
+        print("Trace of Hamiltonian");
+        print(traceOfHamiltonian);
+    }
     // Save a matrix that is
     // (T+phiVphi) - Lambda * eye
     // Copy new_hamiltonian and zero the diagonal

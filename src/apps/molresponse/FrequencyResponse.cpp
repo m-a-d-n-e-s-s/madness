@@ -35,13 +35,13 @@ void FrequencyResponse::iterate(World &world) {
     XCOperator<double, 3> xc = make_xc_operator(world);
 
     // create X space residuals
-    X_space residuals=X_space::zero_functions(world, m, n);
+    X_space residuals = X_space::zero_functions(world, m, n);
 
     std::vector<vector_real_function_3d> x_vectors;
     std::vector<vector_real_function_3d> x_residuals;
 
-    x_vectors= to_response_matrix(Chi);
-    x_residuals= to_response_matrix(residuals);
+    x_vectors = to_response_matrix(Chi);
+    x_residuals = to_response_matrix(residuals);
     /*
     for (size_t b = 0; b < m; b++) {
         x_vectors.emplace_back(Chi, b);
@@ -51,16 +51,18 @@ void FrequencyResponse::iterate(World &world) {
     // create a std vector of XNONLinearsolvers
     response_solver kain_x_space;
     for (size_t b = 0; b < m; b++) {
-        kain_x_space.push_back(XNonlinearSolver<vector_real_function_3d , double, response_matrix_allocator>(
-                response_matrix_allocator(world, 2*n), true));
+        kain_x_space.push_back(XNonlinearSolver<vector_real_function_3d, double, response_matrix_allocator>(
+                response_matrix_allocator(world, 2 * n), true));
     }
     if (r_params.kain()) {
         for (auto &kain_space_b: kain_x_space) { kain_space_b.set_maxsub(r_params.maxsub()); }
     }
     //
     // We compute with positive frequencies
-    print("Warning input frequency is assumed to be positive");
-    print("Computing at positive frequency omega = ", omega);
+    if (world.rank() == 0) {
+        print("Warning input frequency is assumed to be positive");
+        print("Computing at positive frequency omega = ", omega);
+    }
     double x_shifts = 0.0;
     double y_shifts = 0.0;
     // if less negative orbital energy + frequency is positive or greater than 0
@@ -179,8 +181,8 @@ void FrequencyResponse::iterate(World &world) {
             }
         }
 
-     //   std::cout << "MPI BARRIER before update " << std::endl;
-      //  world.mpi.Barrier();
+        //   std::cout << "MPI BARRIER before update " << std::endl;
+        //  world.mpi.Barrier();
         auto [new_chi, new_res] =
                 update(world, Chi, xc, bsh_x_ops, bsh_y_ops, projector, x_shifts, omega,
                        kain_x_space, x_vectors, x_residuals, iter, max_rotation);
@@ -271,14 +273,14 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
                                double &x_shifts, double &omega_n, response_solver &kain_x_space,
                                response_matrix &Xvector, response_matrix &Xresidual,
                                size_t iteration, const double &maxrotn)
--> std::tuple<X_space, residuals> {
+        -> std::tuple<X_space, residuals> {
 
- //   print("before start time ", r_params.print_level());
-//    std::cout << "MPI BARRIER 2 " << std::endl;
-  //  world.mpi.Barrier();
+    //   print("before start time ", r_params.print_level());
+    //    std::cout << "MPI BARRIER 2 " << std::endl;
+    //  world.mpi.Barrier();
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
-   // std::cout << "MPI BARRIER 3 " << std::endl;
+    // std::cout << "MPI BARRIER 3 " << std::endl;
     //world.mpi.Barrier();
 
     size_t m = chi.num_states();
@@ -286,8 +288,8 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
     // size_t n = Chi.num_orbitals();
     X_space theta_X = compute_theta_X(world, chi, xc, r_params.calc_type());
 
-   // std::cout << "MPI BARRIER After Theta X " << std::endl;
-   // world.mpi.Barrier();
+    // std::cout << "MPI BARRIER After Theta X " << std::endl;
+    // world.mpi.Barrier();
     // compute residual X_space
 
     X_space new_chi =
@@ -319,10 +321,10 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
                                             std::vector<poperatorT> &bsh_x_ops,
                                             std::vector<poperatorT> &bsh_y_ops,
                                             QProjector<double, 3> &projector, double &x_shifts)
--> X_space {
+        -> X_space {
     if (r_params.print_level() >= 1) {
         molresponse::start_timer(world);
-        if (world.rank()==0){
+        if (world.rank() == 0) {
             print("--------------- BSH UPDATE RESPONSE------------------");
         }
     }
@@ -400,16 +402,16 @@ void FrequencyResponse::save(World &world, const std::string &name) {
     //  (for i from 0 to m-1                       )
     //  (   for j from 0 to n-1                    )
     //  (      Function<double,3> y_response[i][j] )
-    ar & r_params.archive();
-    ar & r_params.tda();
-    ar & r_params.num_orbitals();
-    ar & r_params.num_states();
+    ar &r_params.archive();
+    ar &r_params.tda();
+    ar &r_params.num_orbitals();
+    ar &r_params.num_states();
 
     for (size_t i = 0; i < r_params.num_states(); i++)
-        for (size_t j = 0; j < r_params.num_orbitals(); j++) ar & Chi.X[i][j];
+        for (size_t j = 0; j < r_params.num_orbitals(); j++) ar &Chi.X[i][j];
     if (not r_params.tda()) {
         for (size_t i = 0; i < r_params.num_states(); i++)
-            for (size_t j = 0; j < r_params.num_orbitals(); j++) ar & Chi.Y[i][j];
+            for (size_t j = 0; j < r_params.num_orbitals(); j++) ar &Chi.Y[i][j];
     }
 }
 
@@ -433,20 +435,20 @@ void FrequencyResponse::load(World &world, const std::string &name) {
     //  (   for j from 0 to n-1                    )
     //  (      Function<double,3> y_response[i][j] )
 
-    ar & r_params.archive();
-    ar & r_params.tda();
-    ar & r_params.num_orbitals();
-    ar & r_params.num_states();
+    ar &r_params.archive();
+    ar &r_params.tda();
+    ar &r_params.num_orbitals();
+    ar &r_params.num_states();
 
     Chi = X_space(world, r_params.num_states(), r_params.num_orbitals());
 
     for (size_t i = 0; i < r_params.num_states(); i++)
-        for (size_t j = 0; j < r_params.num_orbitals(); j++) ar & Chi.X[i][j];
+        for (size_t j = 0; j < r_params.num_orbitals(); j++) ar &Chi.X[i][j];
     world.gop.fence();
 
     if (not r_params.tda()) {
         for (size_t i = 0; i < r_params.num_states(); i++)
-            for (size_t j = 0; j < r_params.num_orbitals(); j++) ar & Chi.Y[i][j];
+            for (size_t j = 0; j < r_params.num_orbitals(); j++) ar &Chi.Y[i][j];
         world.gop.fence();
     }
 }
