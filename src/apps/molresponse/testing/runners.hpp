@@ -415,50 +415,50 @@ void runMOLDFT(World &world, const moldftSchema &moldftSchema, bool try_run, boo
                bool high_prec) {
 
     CalculationParameters param1;
-
-    param1.set_user_defined_value("maxiter", 20);
-    //param1.set_user_defined_value("Kain", true);
-
-    param1.set_user_defined_value<std::string>("xc", moldftSchema.xc);
-    param1.set_user_defined_value<double>("l", 200);
-
-    if (high_prec) {
-        param1.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6, 1e-8});
-        param1.set_user_defined_value<double>("dconv", 1e-6);
-    } else {
-        param1.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6});
-        param1.set_user_defined_value<double>("dconv", 1e-4);
-    }
-
-    param1.set_user_defined_value<std::string>("localize", "new");
-
-    CalculationParameters param_calc;
     json calcInfo;
-    world.gop.fence();
-    if (std::filesystem::exists(moldftSchema.calc_info_json_path)) {
-        if (world.rank() == 0) {
-            std::cout << "Reading Calc Info JSON" << std::endl;
+
+    if (world.rank() == 0) {
+
+        param1.set_user_defined_value("maxiter", 20);
+        //param1.set_user_defined_value("Kain", true);
+
+        param1.set_user_defined_value<std::string>("xc", moldftSchema.xc);
+        param1.set_user_defined_value<double>("l", 200);
+
+        if (high_prec) {
+            param1.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6, 1e-8});
+            param1.set_user_defined_value<double>("dconv", 1e-6);
+        } else {
+            param1.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6});
+            param1.set_user_defined_value<double>("dconv", 1e-4);
         }
-        std::ifstream ifs(moldftSchema.calc_info_json_path);
-        ifs >> calcInfo;
-        param_calc.from_json(calcInfo["parameters"]);
-        if (world.rank() == 0) {
+
+        param1.set_user_defined_value<std::string>("localize", "new");
+        CalculationParameters param_calc;
+        if (std::filesystem::exists(moldftSchema.calc_info_json_path)) {
+            std::cout << "Reading Calc Info JSON" << std::endl;
+            std::ifstream ifs(moldftSchema.calc_info_json_path);
+            ifs >> calcInfo;
+            param_calc.from_json(calcInfo["parameters"]);
             print(param1.print_to_string());
             print(param_calc.print_to_string());
+            print("param1 != param_calc = ", param1 != param_calc);
         }
+
     }
+    world.gop.broadcast_serializable(param1, 0);
+    world.gop.broadcast(calcInfo, 0);
+
     //If the parameters are exactly equal do not run
     // If calc info doesn't exist the param_calc will definitely be different
 
     // if parameters are different or if I want to run no matter what run
     // if I want to restart and if I can. restart
-    if (world.rank() == 0) {
-        print("param1 != param_calc = ", param1 != param_calc);
-    }
-    if (tryMOLDFT(param1, param_calc) || try_run) {
+    if (try_run) {
         if (world.rank() == 0) {
             print("-------------Running moldft------------");
         }
+        world.gop.fence();
         // if params are different run and if restart exists and if im asking to restar
         if (std::filesystem::exists(moldftSchema.moldft_restart) && restart) {
             param1.set_user_defined_value<bool>("restart", true);
@@ -472,8 +472,10 @@ void runMOLDFT(World &world, const moldftSchema &moldftSchema, bool try_run, boo
         commandlineparser parser;
         parser.set_keyval("input", "moldft.in");
         world.gop.fence();
+
         SCF calc(world, parser);
         calc.set_protocol<3>(world, 1e-4);
+
         MolecularEnergy ME(world, calc);
         // double energy=ME.value(calc.molecule.get_all_coords().flat()); // ugh!
         ME.value(calc.molecule.get_all_coords().flat());// ugh!
@@ -704,7 +706,7 @@ auto RunResponse(World &world, const std::string &filename, double frequency,
     calc.solve(world);
     world.gop.fence();
     // set protocol to the first
-    if(world.rank()==0){
+    if (world.rank() == 0) {
         //calc.time_data.to_json(calc.j_molresponse);
         calc.output_json();
     }
@@ -870,6 +872,7 @@ void moldft(World &world, moldftSchema &m_schema, bool try_moldft, bool restart,
         }
     }
     std::filesystem::current_path(m_schema.moldft_path);
+    world.gop.fence();
     if (world.rank() == 0) {
         cout << "Entering : " << m_schema.moldft_path << " to run MOLDFT \n\n";
     }
