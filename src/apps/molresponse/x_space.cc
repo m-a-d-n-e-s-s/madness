@@ -6,6 +6,14 @@
 #include "response_functions.h"
 
 namespace madness {
+    auto to_response_vector(const vector_real_function_3d &vec) -> vector_real_function_3d {
+        auto &world = vec[0].world();
+        // copy the vector
+        auto response_vector = copy(world, vec);
+        // copy the vector
+        std::for_each(vec.begin(), vec.end(), [&](const auto &phi0_i) { response_vector.push_back(madness::copy(phi0_i)); });
+        return response_vector;
+    }
     auto create_response_matrix(const size_t &num_states, const size_t &num_orbitals) -> response_matrix {
 
         auto matrix = response_matrix(num_states);
