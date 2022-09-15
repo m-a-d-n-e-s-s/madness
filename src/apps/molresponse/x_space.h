@@ -15,6 +15,8 @@
 
 namespace madness {
     struct X_space;
+
+    auto to_response_vector(const vector_real_function_3d &vec) -> vector_real_function_3d;
     auto create_response_matrix(const size_t &num_state, const size_t &num_orbitals) -> response_matrix;
     auto to_response_matrix(const X_space &x) -> response_matrix;
     auto to_conjugate_response_matrix(const X_space &x) -> response_matrix;
