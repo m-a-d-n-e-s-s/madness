@@ -297,12 +297,17 @@ auto ResponseBase::make_xc_operator(World &world) const -> XCOperator<double, 3>
 
 
 auto ResponseBase::make_density(World &world, const X_space &chi) const -> vecfuncT {
-    vecfuncT density;
+    auto density = vector_real_function_3d(chi.num_states());
     auto calc_type = r_params.calc_type();
-    if (calc_type == "full") {
-        density = transition_density(world, ground_orbitals, chi.X, chi.Y);
-    } else if (calc_type == "static") {
-        density = transition_density(world, ground_orbitals, chi.X, chi.X);
+    if (calc_type == "full" || "static") {
+
+        auto r_matrix = to_response_matrix(chi);
+        auto r_phi0 = to_response_vector(ground_orbitals);
+
+        std::transform(r_matrix.begin(), r_matrix.end(), density.begin(), [&](const auto &ri) {
+            return dot(world, ri, r_phi0);
+        });
+
     } else {
         density = transition_densityTDA(world, ground_orbitals, chi.X);
     }
@@ -527,8 +532,7 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     auto conjugate_exchange_response = create_response_matrix(m, 2 * n);
 
     world.gop.fence();
-    auto phi0_response = copy(world, phi0);
-    std::for_each(phi0.begin(), phi0.end(), [&](const auto &phi0_i) { phi0_response.push_back(madness::copy(phi0_i)); });
+    auto phi0_response = to_response_vector(phi0);
     std::transform(xy.begin(), xy.end(), exchange_response.begin(), [&](const auto &x) { return newK(x, phi0_response, phi0_response); });
     world.gop.fence();
     std::transform(yx.begin(), yx.end(), conjugate_exchange_response.begin(), [&](const auto &conj_x) { return newK(phi0_response, conj_x, phi0_response); });
@@ -1678,6 +1682,7 @@ auto solid_harmonics(World &world, int n) -> std::map<std::vector<int>, real_fun
     // Done
     return result;
 }
+
 
 vector_real_function_3d transition_density(World &world, const vector_real_function_3d &orbitals,
                                            const response_space &x, const response_space &y) {
