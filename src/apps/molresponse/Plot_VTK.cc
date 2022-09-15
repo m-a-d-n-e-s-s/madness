@@ -254,4 +254,3 @@ void do_vtk_plots(World &world,
 }
 }  // namespace madness
 
-// Dueces

@@ -6,6 +6,12 @@
 #include "response_functions.h"
 
 namespace madness {
+    auto create_response_matrix(const size_t &num_states, const size_t &num_orbitals) -> response_matrix {
+
+        auto matrix = response_matrix(num_states);
+        std::for_each(matrix.begin(), matrix.end(), [&](auto &xi) { xi = vector_real_function_3d(num_orbitals); });
+        return matrix;
+    }
     auto to_response_matrix(const X_space &x) -> response_matrix {
         auto mX = response_matrix(x.num_states());
         int b = 0;
@@ -16,6 +22,21 @@ namespace madness {
             //if (world.rank() == 0) { print("norm in xvec i", norm_vi); }
             std::copy(x.X[b].begin(), x.X[b].end(), mi.begin());
             std::copy(x.Y[b].begin(), x.Y[b].end(), mi.begin() + num_orbitals);
+            b++;
+        });
+        return mX;
+    }
+
+    auto to_conjugate_response_matrix(const X_space &x) -> response_matrix {
+        auto mX = response_matrix(x.num_states());
+        int b = 0;
+        auto num_orbitals = x.num_orbitals();
+        std::for_each(mX.begin(), mX.end(), [&](auto &mi) {
+            //auto norm_vi = norm2(world, x_vec);
+            mi = vector_real_function_3d(2 * num_orbitals);
+            //if (world.rank() == 0) { print("norm in xvec i", norm_vi); }
+            std::copy(x.Y[b].begin(), x.Y[b].end(), mi.begin());
+            std::copy(x.X[b].begin(), x.X[b].end(), mi.begin() + num_orbitals);
             b++;
         });
         return mX;
@@ -55,6 +76,29 @@ namespace madness {
             //if (world.rank() == 0) { print("norm in xvec i", norm_vi); }
             std::copy(x_vec.begin(), x_vec.begin() + num_orbitals, x_space.X[b].begin());
             std::copy(x_vec.begin() + num_orbitals, x_vec.end(), x_space.Y[b].begin());
+            b++;
+        });
+
+        //  auto norms = x_space.norm2s();
+        // if (world.rank() == 0) { print("norms after copy ", norms); }
+
+
+        return x_space;
+    }
+    auto to_conjugate_X_space(const response_matrix &x) -> X_space {
+
+        World &world = x[0][0].world();
+
+        auto num_states = x.size();
+        auto num_orbitals = size_t(x[0].size() / 2);
+        auto x_space = X_space(world, num_states, num_orbitals);
+
+        int b = 0;
+        std::for_each(x.begin(), x.end(), [&](auto x_vec) {
+            //auto norm_vi = norm2(world, x_vec);
+            //if (world.rank() == 0) { print("norm in xvec i", norm_vi); }
+            std::copy(x_vec.begin(), x_vec.begin() + num_orbitals, x_space.Y[b].begin());
+            std::copy(x_vec.begin() + num_orbitals, x_vec.end(), x_space.X[b].begin());
             b++;
         });
 
