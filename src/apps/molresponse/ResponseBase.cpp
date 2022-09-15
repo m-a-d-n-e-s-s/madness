@@ -381,6 +381,7 @@ auto ResponseBase::compute_theta_X(World &world, const X_space &chi,
     //     world.mpi.Barrier();
     bool compute_Y = calc_type == "full";
     X_space Theta_X = X_space(world, chi.num_states(), chi.num_orbitals());
+    world.gop.fence();
 
     //     std::cout << "MPI BARRIER 4 " << std::endl;
     //     world.mpi.Barrier();
@@ -501,6 +502,7 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     // TODO is copy better than adding? probably?
     // J.Y=j_x+j_y;
     J.Y = J.X.copy();
+    world.gop.fence();
 
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "J[omega]", "J[omega]", iter_timing);
@@ -546,7 +548,6 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
 
     auto K = to_X_space(full_exchange);
 */
-    world.gop.fence();
 
 
     for (size_t b = 0; b < m; b++) {
@@ -555,10 +556,15 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
         y = d_alpha.Y[b];
         // |x><i|p>
         KY.X[b] = newK(phi0, y, phi0);
+        world.gop.fence();
+        KX.Y[b] = newK(phi0, x, phi0);
+        world.gop.fence();
         KX.Y[b] = newK(phi0, x, phi0);
         // |y><i|p>
         KX.X[b] = newK(x, phi0, phi0);
+        world.gop.fence();
         KY.Y[b] = newK(y, phi0, phi0);
+        world.gop.fence();
         // |i><x|p>
     }
 
@@ -1048,12 +1054,14 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
 
     X_space Chi_copy = X;
     vecfuncT phi0_copy = madness::copy(world, ground_orbitals);
+    world.gop.fence();
     Chi_copy.truncate();
     //Chi_copy.truncate();
     truncate(world, phi0_copy);
     // v_nuc first
     real_function_3d v_nuc, v_j0, v_k0, v_xc;
 
+    world.gop.fence();
 
     if (not r_params.store_potential()) {
         v_nuc = potential_manager->vnuclear();
