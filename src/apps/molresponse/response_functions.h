@@ -271,7 +271,6 @@ namespace madness {
             response_space result(world, num_states, num_orbitals);
 
 
-
             std::transform(x.begin(), x.end(), result.x.begin(),
                            [&world](auto &xi) { return madness::copy(world, xi); });
             world.gop.fence();
@@ -282,11 +281,12 @@ namespace madness {
 
         response_space copy(const std::shared_ptr<WorldDCPmapInterface<Key<3>>> &pmap,
                             bool fence = false) const {
-            response_space result(x[0][0].world(), num_states, num_orbitals);
+            auto &world = x[0][0].world();
+            response_space result(world, num_states, num_orbitals);
+            world.gop.fence();
 
-            for (size_t i = 0; i < num_states; i++) {
-                result.x[i] = madness::copy(x[0][0].world(), x[i], pmap, fence);
-            }
+            std::transform(x.begin(), x.end(), result.x.begin(), [&](const auto &xi) { return madness::copy(world, xi, pmap, fence); });
+
 
             return result;
         }
@@ -327,7 +327,7 @@ namespace madness {
 
         const auto begin() const { return x.begin(); }
 
-        const auto end() const { return x.end(); }
+        [[nodiscard]] const auto end() const { return x.end(); }
 
         size_t size() const { return num_states; }
 

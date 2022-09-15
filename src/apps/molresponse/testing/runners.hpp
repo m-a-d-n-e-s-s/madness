@@ -124,8 +124,8 @@ struct moldftSchema {
           xc(m_xc) {
 
         moldft_path = addPath(schema.xc_path, '/' + mol_name);
-        moldft_restart = addPath(moldft_path, "/moldft.restartdata.00000");
-        calc_info_json_path = addPath(moldft_path, "/moldft.calc_info.json");
+        moldft_restart = addPath(moldft_path, "/mad.restartdata.00000");
+        calc_info_json_path = addPath(moldft_path, "/mad.calc_info.json");
         mol_path = addPath(schema.molecule_path, "/" + mol_name + ".mol");
 
         moldft_json_path = addPath(schema.molecule_path, "/moldft.json");

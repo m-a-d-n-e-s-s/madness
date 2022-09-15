@@ -52,7 +52,7 @@ void FrequencyResponse::iterate(World &world) {
     response_solver kain_x_space;
     for (size_t b = 0; b < m; b++) {
         kain_x_space.push_back(XNonlinearSolver<vector_real_function_3d, double, response_matrix_allocator>(
-                response_matrix_allocator(world, 2 * n), true));
+                response_matrix_allocator(world, 2 * n), false));
     }
     if (r_params.kain()) {
         for (auto &kain_space_b: kain_x_space) { kain_space_b.set_maxsub(r_params.maxsub()); }

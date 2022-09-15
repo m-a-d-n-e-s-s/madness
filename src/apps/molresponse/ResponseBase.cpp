@@ -499,18 +499,39 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
+
+    auto xy = to_response_matrix(d_alpha);
+    auto yx = to_conjugate_response_matrix(d_alpha);
+
+
+    auto exchange_response = create_response_matrix(m, 2 * n);
+    auto conjugate_exchange_response = create_response_matrix(m, 2 * n);
+
+    world.gop.fence();
+    auto phi0_response = copy(world, phi0);
+    std::for_each(phi0.begin(), phi0.end(), [&](const auto &phi0_i) { phi0_response.push_back(madness::copy(phi0_i)); });
+    std::transform(xy.begin(), xy.end(), exchange_response.begin(), [&](const auto &x) { return newK(x, phi0_response, phi0_response); });
+    world.gop.fence();
+    std::transform(yx.begin(), yx.end(), conjugate_exchange_response.begin(), [&](const auto &conj_x) { return newK(phi0_response, conj_x, phi0_response); });
+
+    auto kx = to_X_space(exchange_response);
+    auto ky = to_X_space(conjugate_exchange_response);
+    /*
     for (size_t b = 0; b < m; b++) {
         vecfuncT x, y;
         x = d_alpha.X[b];
         y = d_alpha.Y[b];
         // |x><i|p>
-        KX.X[b] = newK(x, phi0, phi0);
         KY.X[b] = newK(phi0, y, phi0);
-        // |y><i|p>
-        KY.Y[b] = newK(y, phi0, phi0);
         KX.Y[b] = newK(phi0, x, phi0);
+        // |y><i|p>
+        KX.X[b] = newK(x, phi0, phi0);
+        KY.Y[b] = newK(y, phi0, phi0);
         // |i><x|p>
     }
+     */
+
+
     world.gop.fence();
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "K[omega]", "K[omega]", iter_timing);
@@ -529,7 +550,7 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     W.truncate();
      */
 
-    gamma = (2 * J) - (KX + KY) * xcf.hf_exchange_coefficient() + W;
+    gamma = (2 * J) - (kx + ky) * xcf.hf_exchange_coefficient() + W;
     //gamma.truncate();
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_truncate_add", "gamma_truncate_add", iter_timing);
@@ -551,11 +572,10 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     if (r_params.print_level() >= 20) {
         molresponse::start_timer(world);
         print_inner(world, "xJx", d_alpha, J);
-        print_inner(world, "xKXx", d_alpha, KX);
-        print_inner(world, "xKYx", d_alpha, KY);
-        X_space K = KX + KY;
+        print_inner(world, "xKXx", d_alpha, kx);
+        print_inner(world, "xKYx", d_alpha, ky);
+        X_space K = kx + ky;
         world.gop.fence();
-        print_inner(world, "xKx", d_alpha, KX);
         print_inner(world, "xWx", d_alpha, W);
         print_inner(world, "xGammax", d_alpha, gamma);
         molresponse::end_timer(world, "Print Expectation Creating Gamma:");
@@ -571,6 +591,8 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     j_y.clear();
     KX.clear();
     KY.clear();
+    kx.clear();
+    ky.clear();
     W.clear();
 
     d_alpha.clear();
@@ -681,16 +703,27 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
+
+    // normal exchange
+    std::transform(xy.X.begin(), xy.X.end(), KX.X.begin(), [&](const auto &xi) {
+        return newK(xi, phi0, phi0);
+    });
+    // conjugate exchange
+    std::transform(xy.Y.begin(), xy.Y.end(), KY.X.begin(), [&](const auto &yi) {
+        return newK(phi0, yi, phi0);
+    });
+
+    /*
     for (size_t b = 0; b < num_states; b++) {
         vecfuncT x, y;
         x = xy.X[b];
-        y = xy.Y[b];
-        // |x><i|p>
         KX.X[b] = newK(x, phi0, phi0);
         // |i><x|p>
+        y = xy.Y[b];
         KY.X[b] = newK(phi0, y, phi0);
         // |y><i|p>
     }
+     */
 
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "K[omega]", "K[omega]", iter_timing);
