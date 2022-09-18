@@ -549,21 +549,23 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     auto K = to_X_space(full_exchange);
 */
 
+    auto phi0_c = ::madness::copy(world, phi0);
 
     for (size_t b = 0; b < m; b++) {
         vecfuncT x, y;
         x = d_alpha.X[b];
         y = d_alpha.Y[b];
+        world.gop.fence();
         // |x><i|p>
-        KY.X[b] = newK(phi0, y, phi0);
+        KY.X[b] = newK(phi0, y, phi0_c);
         world.gop.fence();
-        KX.Y[b] = newK(phi0, x, phi0);
+        KX.Y[b] = newK(phi0, x, phi0_c);
         world.gop.fence();
-        KX.Y[b] = newK(phi0, x, phi0);
+        KX.Y[b] = newK(phi0, x, phi0_c);
         // |y><i|p>
-        KX.X[b] = newK(x, phi0, phi0);
+        KX.X[b] = newK(x, phi0, phi0_c);
         world.gop.fence();
-        KY.Y[b] = newK(y, phi0, phi0);
+        KY.Y[b] = newK(y, phi0, phi0_c);
         world.gop.fence();
         // |i><x|p>
     }
