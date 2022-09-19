@@ -36,9 +36,9 @@
 /// \brief Molecular HF and DFT code
 /// \defgroup moldft The molecular density functional and Hartree-Fock code
 
-#include <chem/SCF.h>
-#include <chem/commandlineparser.h>
-#include <chem/molopt.h>
+#include<madness/chem/SCF.h>
+#include<madness/chem/commandlineparser.h>
+#include<madness/chem/molopt.h>
 #include <madness/world/worldmem.h>
 
 #if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
@@ -156,7 +156,7 @@ int main(int argc, char **argv) {
                     MolecularEnergy E(world, calc);
                     double energy = E.value(calc.molecule.get_all_coords().flat()); // ugh!
                     if ((world.rank() == 0) and (calc.param.print_level() > 0))
-                        printf("final energy=%16.8f ", energy);
+                        printf("final energy=%16.8f \n", energy);
                     E.output_calc_info_schema();
 
                     functionT rho = calc.make_density(world, calc.aocc, calc.amo);

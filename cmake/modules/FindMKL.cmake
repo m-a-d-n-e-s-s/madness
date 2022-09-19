@@ -53,7 +53,7 @@ if(NOT MKL_FOUND)
   
   # Search for MKL header files
   find_path(MKL_INCLUDE_DIRS mkl.h
-      HINTS ${MKL_INCLUDE_DIR})
+      HINTS ${MKL_INCLUDE_DIR} /usr/include/mkl)
       
   # Get MKL version
   if(MKL_INCLUDE_DIRS)

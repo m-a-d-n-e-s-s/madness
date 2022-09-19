@@ -37,7 +37,7 @@
 
 #include <madness/mra/mra.h>
 #include <madness/tensor/solvers.h>
-#include <chem/corepotential.h>
+#include<madness/chem/corepotential.h>
 #include <iostream>
 #include <iomanip>
 #include <set>

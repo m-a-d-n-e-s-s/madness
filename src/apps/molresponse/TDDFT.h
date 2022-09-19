@@ -3,11 +3,11 @@
 #ifndef SRC_APPS_MOLRESPONSE_TDDFT_H_
 #define SRC_APPS_MOLRESPONSE_TDDFT_H_
 
-#include <chem/SCFOperators.h>
-#include <chem/molecularbasis.h>
-#include <chem/molecule.h>
-#include <chem/xcfunctional.h>
-#include <chem/SCF.h>
+#include <madness/chem/SCFOperators.h>
+#include <madness/chem/molecularbasis.h>
+#include <madness/chem/molecule.h>
+#include <madness/chem/xcfunctional.h>
+#include <madness/chem/SCF.h>
 #include <madness/constants.h>
 #include <madness/mra/mra.h>
 #include <madness/mra/nonlinsol.h>  // The kain solver
@@ -195,7 +195,7 @@ class TDDFT {
   // Normalizes in the response sense
   void normalize(World& world, response_space& f, response_space& g);
   // Normalize X_space xx-yy=1
-  void normalize(World& world, X_space& Chi);
+  void normalize(World& world, X_space& chi);
 
   // Prints norms of the given vector
   void print_norms(World& world, response_space function);

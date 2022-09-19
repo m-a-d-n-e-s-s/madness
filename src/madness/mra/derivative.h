@@ -659,23 +659,23 @@ namespace madness {
                 if (m == this->k) {
                     for (int i=0; i<m; i++)
                         for (int j=0; j<m; j++)
-                            MADNESS_ASSERT(f >> rp_bsp(i,j));
+                            MADNESS_CHECK(f >> rp_bsp(i,j));
                     for (int i=0; i<m; i++)
                         for (int j=0; j<m; j++)
-                            MADNESS_ASSERT(f >> r0_bsp(i,j));
+                            MADNESS_CHECK(f >> r0_bsp(i,j));
                     for (int i=0; i<m; i++)
                         for (int j=0; j<m; j++)
-                            MADNESS_ASSERT(f >> rm_bsp(i,j));
+                            MADNESS_CHECK(f >> rm_bsp(i,j));
                     found = true;
                     break;
                 }
                 else {
                     double junk;
                     for (int i=0; i<3*m*m; i++)
-                        MADNESS_ASSERT(f >> junk);
+                        MADNESS_CHECK(f >> junk);
                 }
             }
-            MADNESS_ASSERT(found);
+            MADNESS_CHECK(found);
             Tensor<double> r0_bsp_t = transpose(r0_bsp);
             Tensor<double> rp_bsp_t = transpose(rp_bsp);
             Tensor<double> rm_bsp_t = transpose(rm_bsp);
@@ -734,8 +734,8 @@ namespace madness {
                       int k = FunctionDefaults<NDIM>::get_k()) {
         std::vector< std::shared_ptr< Derivative<T,NDIM> > > r(NDIM);
         for (std::size_t d=0; d<NDIM; ++d) {
-            MADNESS_ASSERT(bc(d,0)!=BC_DIRICHLET && bc(d,1)!=BC_DIRICHLET);
-            MADNESS_ASSERT(bc(d,0)!=BC_NEUMANN   && bc(d,1)!=BC_NEUMANN);
+            MADNESS_CHECK(bc(d,0)!=BC_DIRICHLET && bc(d,1)!=BC_DIRICHLET);
+            MADNESS_CHECK(bc(d,0)!=BC_NEUMANN   && bc(d,1)!=BC_NEUMANN);
             r[d].reset(new Derivative<T,NDIM>(world,d,bc,Function<T,NDIM>(),Function<T,NDIM>(),k));
         }
         return r;

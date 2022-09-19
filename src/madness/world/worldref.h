@@ -384,7 +384,7 @@ namespace madness {
     /// This class was intended only for internal use and is still rather
     /// poorly thought through, however, it seems to fill a wider need.
     /// \note Do not serialize via wrap_opaque().
-    /// \note Ownership of a reference is transfered when serialized on a remote
+    /// \note Ownership of a reference is transferred when serialized on a remote
     /// node. You should not attempt to send a remote reference to more than one
     /// node except from the owning node. If you do serialize more than once,
     /// this will cause an invalid memory access on the owning node.
@@ -499,7 +499,7 @@ namespace madness {
             return pointer_;
         }
 
-        /// Reference shared_ptr accssor
+        /// Reference shared_ptr accessor
 
         /// \return A const reference to the references shared pointer
         /// \throw MadnessException If the pointer is not local
