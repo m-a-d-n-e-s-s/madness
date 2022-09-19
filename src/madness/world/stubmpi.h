@@ -185,7 +185,8 @@ inline int MPI_Allreduce(void *sendbuf, void *recvbuf, int count, MPI_Datatype, 
 inline int MPI_Comm_get_attr(MPI_Comm, int, void*, int*) { return MPI_ERR_COMM; }
 
 inline int MPI_Comm_split(MPI_Comm comm, int color, int key, MPI_Comm *newcomm) {
-  *newcomm = MPI_COMM_NULL;
+  //*newcomm = MPI_COMM_NULL;
+  *newcomm = MPI_COMM_WORLD; // So that can successfully split a 1 process communicator
   return MPI_SUCCESS;
 }
 
@@ -199,7 +200,8 @@ inline int MPI_Abort(MPI_Comm, int code) { exit(code); return MPI_SUCCESS; }
 inline int MPI_Barrier(MPI_Comm) { return MPI_SUCCESS; }
 
 inline int MPI_Comm_create(MPI_Comm,  MPI_Group, MPI_Comm *newcomm) {
-    *newcomm = MPI_COMM_NULL;
+    //*newcomm = MPI_COMM_NULL;
+    *newcomm = MPI_COMM_WORLD; // So that can successfully split a 1 process communicator
     return MPI_SUCCESS;
 }
 

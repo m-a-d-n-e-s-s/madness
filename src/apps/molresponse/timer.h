@@ -15,6 +15,10 @@ void start_timer(World& world);
 
 // Stops a timer
 void end_timer(World& world, const char* msg);
+
+void end_timer(World& world, const char* msg, const std::string& key,
+               std::map<std::string, std::pair<double, double>>& time);
+
 }  // namespace molresponse
 
 #endif  // SRC_APPS_MOLRESPONSE_TIMER_H_
