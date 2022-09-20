@@ -43,7 +43,7 @@ namespace madness {
                                             "lo-hi plot cell (default is all space)");
             initialize<std::string>("core_type", "none", "core potential type", {"none", "mpc"});
             initialize<double>("plot_l", -1.0, "Controls the plotting box size");
-            initialize<size_t>("plot_pts", 201, "Controls number of points in plots");
+            initialize<size_t>("plot_pts",51, "Controls number of points in plots");
             initialize<bool>("plot_all_orbitals", false,
                              "Turn on 2D plotting of response orbitals ");
             initialize<size_t>("maxiter", 25, "maximum number of iterations");

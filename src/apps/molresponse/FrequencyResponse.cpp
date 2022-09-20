@@ -172,11 +172,6 @@ void FrequencyResponse::iterate(World &world) {
                 if (r_params.plot_all_orbitals()) {
                     plotResponseOrbitals(world, iter, Chi.X, Chi.Y, r_params, ground_calc);
                 }
-                if (r_params.plot()) {
-                    auto rho0 = make_ground_density(world);
-                    do_vtk_plots(world, 200, r_params.L(), molecule, rho0, rho_omega,
-                                 ground_orbitals, Chi);
-                }
                 break;
             }
         }
