@@ -443,20 +443,16 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
                                       const XCOperator<double, 3> &xc) const -> X_space {
     std::shared_ptr<WorldDCPmapInterface<Key<3>>> old_pmap = FunctionDefaults<3>::get_pmap();
 
-    auto [d_alpha, phi0] = orbital_load_balance(world, density, r_params.loadbalparts());
+    auto [chi_alpha, phi0] = orbital_load_balance(world, density, r_params.loadbalparts());
 
-    size_t num_states = d_alpha.num_states();
-    size_t num_orbitals = d_alpha.num_orbitals();
+    size_t num_states = chi_alpha.num_states();
+    size_t num_orbitals = chi_alpha.num_orbitals();
 
-    size_t m = d_alpha.num_states();
-    size_t n = d_alpha.num_orbitals();
-    //  copy old pmap
-
-    truncate(world, phi0);
-    d_alpha.truncate();
+    //truncate(world, phi0);
+    ////   chi_alpha.truncate();
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    X_space gamma(world, m, n);
+
     // x functions
     // Two ways single vector or vector vector style
     // here I create the orbital products for elctron interaction terms
@@ -465,13 +461,11 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     vecfuncT y_phi;
     functionT temp_J;
 
-    X_space J(world, m, n);
-    response_space j_x(world, m, n);
-    response_space j_y(world, m, n);
+    X_space J(world, num_states, num_orbitals);
+    response_space j_x(world, num_states, num_orbitals);
+    response_space j_y(world, num_states, num_orbitals);
 
-    X_space W = X_space::zero_functions(world, m, n);
-    X_space KX = X_space::zero_functions(world, m, n);
-    X_space KY = X_space::zero_functions(world, m, n);
+    X_space W = X_space::zero_functions(world, num_states, num_orbitals);
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_zero_functions", "gamma_zero_functions", iter_timing);
     }
@@ -482,21 +476,22 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     functionT rho_x_b;
     functionT rho_y_b;
 
+    auto mul_tol = FunctionDefaults<3>::get_thresh();
     // note that x can refer to x or y
-    auto compute_j = [&, &phi0 = phi0](auto dx) {
+    auto compute_j = [&, &phi0 = phi0](const auto &dx) {
         // compute density with response function dx and orbitals phi0
         auto rho_x_b = dot(world, dx, phi0);
         rho_x_b.truncate();
         // apply the coulomb operator to rho_b
         rho_x_b = apply(*shared_coulomb_operator, rho_x_b);
-        return mul(world, rho_x_b, phi0);
+        return mul_sparse(world, rho_x_b, phi0, mul_tol, true);
     };
 
     // compute j_x = op(rho_x)*phi0
-    std::transform(d_alpha.X.begin(), d_alpha.X.end(), j_x.begin(), compute_j);
+    std::transform(chi_alpha.X.begin(), chi_alpha.X.end(), j_x.begin(), compute_j);
     // compute j_y = op(rho_y)*phi0
 
-    std::transform(d_alpha.Y.begin(), d_alpha.Y.end(), j_y.begin(), compute_j);
+    std::transform(chi_alpha.Y.begin(), chi_alpha.Y.end(), j_y.begin(), compute_j);
 
     J.X = j_x + j_y;
     // TODO is copy better than adding? probably?
@@ -510,7 +505,7 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
 
     // Create Coulomb potential on ground_orbitals
     if (xcf.hf_exchange_coefficient() != 1.0) {
-        auto rho = transition_density(world, phi0, d_alpha.X, d_alpha.X);
+        auto rho = transition_density(world, phi0, chi_alpha.X, chi_alpha.X);
         auto compute_wx = [&, &phi0 = phi0](auto rho_alpha) {
             auto xc_rho = xc.apply_xc_kernel(rho_alpha);
             return mul(world, xc_rho, phi0);
@@ -527,8 +522,8 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
 
 
     /*
-    auto xy = to_response_matrix(d_alpha);
-    auto yx = to_conjugate_response_matrix(d_alpha);
+    auto xy = to_response_matrix(chi_alpha);
+    auto yx = to_conjugate_response_matrix(chi_alpha);
 
     auto exchange_response = create_response_matrix(m, 2 * n);
     auto conjugate_exchange_response = create_response_matrix(m, 2 * n);
@@ -549,12 +544,13 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     auto K = to_X_space(full_exchange);
 */
 
+    X_space KX = X_space::zero_functions(world, num_states, num_orbitals);
+    X_space KY = X_space::zero_functions(world, num_states, num_orbitals);
     auto phi0_c = ::madness::copy(world, phi0);
-
-    for (size_t b = 0; b < m; b++) {
-        vecfuncT x, y;
-        x = d_alpha.X[b];
-        y = d_alpha.Y[b];
+    vecfuncT x, y;
+    for (size_t b = 0; b < num_states; b++) {
+        x = chi_alpha.X[b];
+        y = chi_alpha.Y[b];
         world.gop.fence();
         // |x><i|p>
         KY.X[b] = newK(phi0, y, phi0_c);
@@ -588,6 +584,7 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     W.truncate();
      */
 
+    X_space gamma(world, num_states, num_orbitals);
     gamma = (2 * J) - (KX + KY) * xcf.hf_exchange_coefficient() + W;
     //gamma.truncate();
     if (r_params.print_level() >= 1) {
@@ -597,7 +594,7 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     // project out ground state
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     QProjector<double, 3> projector(world, phi0);
-    for (size_t i = 0; i < m; i++) {
+    for (size_t i = 0; i < num_states; i++) {
         gamma.X[i] = projector(gamma.X[i]);
         gamma.Y[i] = projector(gamma.Y[i]);
     }
@@ -609,14 +606,14 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
 
     if (r_params.print_level() >= 20) {
         molresponse::start_timer(world);
-        print_inner(world, "xJx", d_alpha, J);
-        print_inner(world, "xKXx", d_alpha, KX);
-        print_inner(world, "xKYx", d_alpha, KY);
+        print_inner(world, "xJx", chi_alpha, J);
+        print_inner(world, "xKXx", chi_alpha, KX);
+        print_inner(world, "xKYx", chi_alpha, KY);
         X_space K = KX + KY;
-        print_inner(world, "xKx", d_alpha, K);
+        print_inner(world, "xKx", chi_alpha, K);
         world.gop.fence();
-        print_inner(world, "xWx", d_alpha, W);
-        print_inner(world, "xGammax", d_alpha, gamma);
+        print_inner(world, "xWx", chi_alpha, W);
+        print_inner(world, "xGammax", chi_alpha, gamma);
         molresponse::end_timer(world, "Print Expectation Creating Gamma:");
     }
     // put
@@ -632,7 +629,7 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     KY.clear();
     W.clear();
 
-    d_alpha.clear();
+    chi_alpha.clear();
     phi0.clear();
 
     if (world.size() > 1) {
@@ -1103,30 +1100,13 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
-    auto k = [&](const vector_real_function_3d &xi) {
-        world.gop.fence();
-        return newK(phi0_copy, phi0_copy, xi);
-    };
 
-    world.gop.fence();
-    // If including any exact HF exchange
-    /*
-    if (xcf.hf_exchange_coefficient() != 0.0) {
-        std::transform(Chi_copy.X.begin(), Chi_copy.X.end(), K0.X.begin(), k);
-        if (compute_Y) {
-            std::transform(Chi_copy.Y.begin(), Chi_copy.Y.end(), K0.Y.begin(), k);
-        } else {
-            K0.Y = K0.X.copy();
-            world.gop.fence();
-        }
-    }
-     */
-
+    auto phi0_c = copy(world, phi0_copy);
     int b = 0;
-    for (auto &k0x: K0.X) { k0x = newK(phi0_copy, phi0_copy, Chi_copy.X[b++]); }
+    for (auto &k0x: K0.X) { k0x = newK(phi0_copy, phi0_c, Chi_copy.X[b++]); }
     if (compute_Y) {
         b = 0;
-        for (auto &k0y: K0.Y) { k0y = newK(phi0_copy, phi0_copy, Chi_copy.Y[b++]); }
+        for (auto &k0y: K0.Y) { k0y = newK(phi0_copy, phi0_c, Chi_copy.Y[b++]); }
     } else {
         K0.Y = K0.X.copy();
     }
@@ -1141,7 +1121,7 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
     //v0.truncate(FunctionDefaults<3>::get_thresh(), true);
 
     V0.X = v0 * X.X;
-    V0.X += (-1 * K0.X * xcf.hf_exchange_coefficient());
+    V0.X += -1 * K0.X * xcf.hf_exchange_coefficient();
 
     if (compute_Y) {
         V0.Y = v0 * X.Y;
@@ -1534,6 +1514,12 @@ void ResponseBase::solve(World &world) {
     }
     // At this point we should know if calc converged maybe add a flag to response.json which states if it has
     converged_to_json(j_molresponse);
+    if (r_params.plot()) {
+        auto r_matrix = to_response_matrix(Chi);
+        do_response_orbital_vtk_plots(world, r_params.plot_pts(), r_params.L(), molecule, ground_orbitals, r_matrix);
+        auto response_densities = make_density(world, Chi);
+        do_response_density_vtk_plots(world, r_params.plot_pts(), r_params.L(), molecule, ground_density, response_densities);
+    }
 
 
     // Plot the response function if desired
