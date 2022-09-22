@@ -261,6 +261,7 @@ namespace madness {
             MADNESS_ASSERT(same_size(*this, b));
             World &world = x[0][0].world();
             for (size_t i = 0; i < num_states; i++) { this->x[i] = add(world, this->x[i], b[i]); }
+            world.gop.fence();
 
             return *this;
         }
