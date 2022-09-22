@@ -73,16 +73,11 @@ auto T(World &world, response_space &f) -> response_space {
 // compute exchange |i><i|J|p>
 auto newK(const vecfuncT &ket, const vecfuncT &bra, const vecfuncT &vf) -> vecfuncT {
     World &world = ket[0].world();
-    int n = bra.size();
-    int nf = ket.size();
-
-    double tol = FunctionDefaults<3>::get_thresh();/// Important this is
-    double mul_tol = 1e-7;
     const double lo = 1.e-10;
 
     Exchange<double, 3> op{};
     op.set_parameters(bra, ket, lo);
-    op.set_algorithm(op.small_memory);
+    op.set_algorithm(op.multiworld_efficient);
     return op(vf);
 }
 // sum_i |i><i|J|p> for each p
