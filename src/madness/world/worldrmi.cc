@@ -50,7 +50,10 @@ namespace madness {
     volatile bool RMI::debugging = false;
     std::list< std::unique_ptr<RMISendReq> > RMI::send_req;
 
-    thread_local bool RMI::is_server_thread = false;
+    bool& RMI::is_server_thread_accessor() {
+      static thread_local bool is_server_thread = false;
+      return is_server_thread;
+    }
 
 #if HAVE_INTEL_TBB
     tbb::task* RMI::tbb_rmi_parent_task = nullptr;
