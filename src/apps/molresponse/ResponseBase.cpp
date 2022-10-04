@@ -253,7 +253,10 @@ auto ResponseBase::make_ground_density(World &world) const -> functionT {
     compress(world, vsq);
     functionT rho = factoryT(world);
     rho.compress();
-    for (const auto &phi_squared: vsq) rho.gaxpy(1.0, phi_squared, 1.0, false);
+    for (unsigned int i = 0; i < vsq.size(); ++i) {
+        rho.gaxpy(1.0, vsq[i], 1.0, false);
+    }
+    //for (const auto &phi_squared: vsq) rho.gaxpy(2.0, phi_squared, 1.0, false);
     world.gop.fence();
     vsq.clear();
     return rho;
