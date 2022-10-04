@@ -50,8 +50,8 @@ namespace madness {
     void do_response_orbital_vtk_plots(World &world, int npt_plot, double L, const Molecule &molecule, const vector_real_function_3d &ground_orbs, const response_matrix &responseMatrix) {
         // Stuff needed to plot
         //
-        Vector<double, 3> box_lo{-L/4, -L/4, -L/4};
-        Vector<double, 3> box_hi{L/4, L/4, L/4};
+        Vector<double, 3> box_lo{-L / 4, -L / 4, -L / 4};
+        Vector<double, 3> box_hi{L / 4, L / 4, L / 4};
 
 
         std::string vtk_dir = "vtk_plots";
@@ -138,8 +138,8 @@ namespace madness {
     void do_response_density_vtk_plots(World &world, int npt_plot, double L, const Molecule &molecule, const real_function_3d &ground_density, const vector_real_function_3d &response_density) {
         // Stuff needed to plot
         //
-        Vector<double, 3> box_lo{-L/4, -L/4, -L/4};
-        Vector<double, 3> box_hi{L/4, L/4, L/4};
+        Vector<double, 3> box_lo{-L / 4, -L / 4, -L / 4};
+        Vector<double, 3> box_hi{L / 4, L / 4, L / 4};
 
 
         std::string vtk_dir = "vtk_plots";
@@ -171,23 +171,10 @@ namespace madness {
         std::for_each(response_density.begin(), response_density.end(), [&](const auto &rho_i) {
             auto density_file = vtk_dir + "/" + "response_rho_" + std::to_string(state_number) + ".vts";
             filename = density_file.c_str();
+            auto field_name = "r_density_" + std::to_string(state_number);
             plotvtk_begin<3>(world, filename, box_lo, box_hi, points, true);
             plotvtk_data<double, 3>(rho_i,
-                                    "response_density",
-                                    world,
-                                    filename,
-                                    box_lo,
-                                    box_hi,
-                                    points,
-                                    true,
-                                    false);
-            plotvtk_end<3>(world, filename, true);
-            auto total_density_i = ground_density + rho_i;
-            auto total_density_file = vtk_dir + "/" + "total-rho_" + std::to_string(state_number) + ".vts";
-            filename = total_density_file.c_str();
-            plotvtk_begin<3>(world, filename, box_lo, box_hi, points, true);
-            plotvtk_data<double, 3>(total_density_i,
-                                    "total_density",
+                                    field_name.c_str(),
                                     world,
                                     filename,
                                     box_lo,
