@@ -712,6 +712,7 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
         // for every transition gammaOrbitals apply the exchange kernel and multiply the
         // vector of orbitals
         std::transform(rho.begin(), rho.end(), W.X.begin(), compute_wx);
+
         W.Y = W.X.copy();
 
         if (r_params.print_level() >= 1) {
@@ -1084,6 +1085,7 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
 
 
     auto phi0_c = copy(world, phi0_copy);
+    world.gop.fence();
     int b = 0;
     for (auto &k0x: K0.X) { k0x = newK(phi0_copy, phi0_c, Chi_copy.X[b++]); }
     if (compute_Y) {
@@ -1092,8 +1094,6 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
     } else {
         K0.Y = K0.X.copy();
     }
-
-
     if (r_params.print_level() >= 20) { print_inner(world, "xK0x", Chi_copy, K0); }
     if (r_params.print_level() >= 1) { molresponse::end_timer(world, "K[0]", "K[0]", iter_timing); }
     // Vnuc+V0+VXC
@@ -1189,7 +1189,8 @@ auto ResponseBase::compute_residual(World &world, const X_space &chi, const X_sp
             auto res_b_norms = std::vector<double>{};
             for (const auto &xij: xi) res_b_norms.push_back(xij.norm2());
             world.gop.fence();
-            if (world.rank() == 0) { print("||f(x)||_: ", j++, res_b_norms); }
+            if (world.rank() == 0) { print("||f(x)||_: ", j, res_b_norms); }
+            j++;
         }
     }
 
