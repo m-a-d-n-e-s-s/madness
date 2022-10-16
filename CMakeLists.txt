@@ -15,6 +15,20 @@ set(MADNESS_MINOR_VERSION 10)
 set(MADNESS_MICRO_VERSION 1)
 set(MADNESS_VERSION "${MADNESS_MAJOR_VERSION}.${MADNESS_MINOR_VERSION}.${MADNESS_MICRO_VERSION}")
 
+# Get the git revision tag information
+
+if(EXISTS ${PROJECT_SOURCE_DIR}/.git)
+  find_package(Git REQUIRED)
+  execute_process(
+          COMMAND ${GIT_EXECUTABLE} rev-parse -q HEAD
+          WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+          OUTPUT_VARIABLE MADNESS_REVISION )
+  string(REGEX MATCH "[0-9a-f]*"
+          MADNESS_REVISION "${MADNESS_REVISION}")
+else()
+  set(MADNESS_REVISION "unknown")
+endif()
+
 # Declare ourselves ============================================================
 
 project(MADNESS
@@ -674,20 +688,6 @@ if(BUILD_TESTING)
 endif()
 add_subdirectory(src)
 add_subdirectory(doc)
-
-# Get the git revision tag information =========================================
-
-if(EXISTS ${PROJECT_SOURCE_DIR}/.git)
-  find_package(Git REQUIRED)
-  execute_process(
-      COMMAND ${GIT_EXECUTABLE} rev-parse -q HEAD
-      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-      OUTPUT_VARIABLE MADNESS_REVISION )
-  string(REGEX MATCH "[0-9a-f]*"
-      MADNESS_REVISION "${MADNESS_REVISION}")
-else()
-  set(MADNESS_REVISION "unknown")
-endif()
 
 # Generate configure files =====================================================
 

@@ -45,6 +45,7 @@
  */
 #include "smooth.h"
 #include<madness/chem/commandlineparser.h>
+#include<madness/misc/info.h>
 
 
 using namespace madness;
@@ -62,13 +63,9 @@ int main(int argc, char** argv) {
 	startup(world,argc,argv);
 	std::cout.precision(6);
 
-#ifdef MADNESS_GITREVISION
-	const  char* gitrev =  MADNESS_GITREVISION;
-	const std::string gitrevision(gitrev);
 	if (world.rank()==0) {
-		print("           git revision ...",gitrevision);
+		print("           git revision ...", info::git_commit());
 	}
-#endif
 
 	try {
 

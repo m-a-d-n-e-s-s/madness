@@ -31,8 +31,8 @@
 */
 
 
-#ifndef SRC_MADNESS_MISC_GITINFO_H_
-#define SRC_MADNESS_MISC_GITINFO_H_
+#ifndef SRC_MADNESS_MISC_INFO_H_
+#define SRC_MADNESS_MISC_INFO_H_
 
 /**
  \file info.h
@@ -40,13 +40,20 @@
  \ingroup configuration
 */
 
+#include <string>
+
 namespace madness {
     namespace info {
 
         /// Get the git commit number for this version.
 
         /// \return The git commit number.
-        const char* mad_git_commit();
+        const char* git_commit();
+
+        /// Get the MADNESS version number.
+
+        /// \return The MADNESS version number.
+        const char* version();
 
         /// return the build time
         const char* build_time();
@@ -61,4 +68,4 @@ namespace madness {
 
 
 
-#endif /* SRC_MADNESS_MISC_GITINFO_H_ */
+#endif /* SRC_MADNESS_MISC_INFO_H_ */

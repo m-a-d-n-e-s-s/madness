@@ -44,11 +44,11 @@
 
 */
 
-#include<madness/chem/nemo.h>
-#include<madness/chem/molecular_optimizer.h>
-#include<madness/chem/SCFOperators.h>
-#include<madness/chem/projector.h>
-#include <madness/misc/gitinfo.h>
+#include <madness/chem/SCFOperators.h>
+#include <madness/chem/molecular_optimizer.h>
+#include <madness/chem/nemo.h>
+#include <madness/chem/projector.h>
+#include <madness/misc/info.h>
 
 using namespace madness;
 

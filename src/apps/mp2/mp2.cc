@@ -39,9 +39,8 @@
 
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include "madness/world/info.h"
 #include "madness/chem/mp2.h"
-#include "madness/misc/gitinfo.h"
+#include "madness/misc/info.h"
 
 using namespace madness;
 
