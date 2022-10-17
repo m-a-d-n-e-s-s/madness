@@ -50,6 +50,11 @@ namespace madness {
         /// \return The git commit number.
         const char* git_commit();
 
+        /// Get the git source tree human-readable description (see `git describe --dirty`)
+
+        /// \return The git commit number.
+        const char* git_source_description();
+
         /// Get the MADNESS version number.
 
         /// \return The MADNESS version number.

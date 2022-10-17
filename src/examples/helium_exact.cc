@@ -441,7 +441,7 @@ int main(int argc, char** argv) {
 	std::cout.precision(6);
 
 	if (world.rank()==0) {
-		print("           git revision ...", info::git_commit());
+          print("           git source description ...", info::git_source_description());
 	}
 
 	if (world.rank() == 0) {

@@ -3,11 +3,15 @@
 set(MADMISC_HEADERS misc.h ran.h phandler.h interpolation_1d.h cfft.h info.h)
 set(MADMISC_SOURCES
     checksum_file.cc position_stream.cc gprofexit.cc ran.cc cfft.cc info.cc)
-# feed MADNESS_REVISION to info.cc only to avoid recompiling everything
-set_property(
-        SOURCE info.cc
-        PROPERTY COMPILE_DEFINITIONS
-        MADNESS_REVISION=\"${MADNESS_REVISION}\"
+# retrieve git metadata
+include(GetGitMetadata)
+vgkit_cmake_git_metadata()
+# feed MADNESS_GIT_{REVISION,DESCRIPTION} to info.cc only to avoid recompiling everything
+set_source_files_properties(
+        info.cc
+        PROPERTIES
+          COMPILE_DEFINITIONS
+          "MADNESS_GIT_REVISION=\"${MADNESS_GIT_REVISION}\";MADNESS_GIT_DESCRIPTION=\"${MADNESS_GIT_DESCRIPTION}\""
 )
 
 # Create the MADmisc library

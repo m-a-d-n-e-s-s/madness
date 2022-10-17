@@ -24,7 +24,11 @@ namespace madness {
 
 
         const char* git_commit() {
-            return MADNESS_REVISION;
+            return MADNESS_GIT_REVISION;
+        }
+
+        const char* git_source_description() {
+          return MADNESS_GIT_DESCRIPTION;
         }
 
         const char* build_time() {
@@ -37,8 +41,7 @@ namespace madness {
 
         std::string print_revision_information() {
         	std::stringstream ss;
-        	const std::string gitrevision1(info::git_commit());
-        	ss << "    git revision    ...     " << gitrevision1 << std::endl;
+                ss << "    git source description ...     " << info::git_source_description() << std::endl;
         	const std::string time(build_time());
         	const std::string date(build_date());
         	ss << "    built date/time ...     " << date << "/" << time << std::endl;
