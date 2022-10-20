@@ -152,15 +152,30 @@ namespace madness {
 
     parsec_context_t *ParsecRuntime::context() { return ctx; }
 
-    parsec_task_t ParsecRuntime::task(bool is_high_priority, void *ptr) {
-        parsec_task_t parsec_task{};
-        parsec_task.taskpool   = &tp;
-        parsec_task.task_class = &madness_parsec_tc;
-        parsec_task.chore_id   = 0;
-        parsec_task.status     = PARSEC_TASK_STATUS_NONE;
-        parsec_task.priority   = is_high_priority ? 1000 : 0; // 1 & 0 would work as good
-        ((void **)parsec_task.locals)[0] = ptr;
+    parsec_execution_stream_t *ParsecRuntime::execution_stream() {
+        parsec_execution_stream_t *my_es;
+        my_es = parsec_my_execution_stream();
+        if(nullptr == my_es) {
+            my_es = context()->virtual_processes[0]->execution_streams[0];
+        }
+        assert(nullptr != my_es);
+        return my_es;
+    }
+
+    parsec_task_t *ParsecRuntime::task(bool is_high_priority, void *ptr) {
+        parsec_execution_stream_t *my_es = execution_stream();
+        parsec_task_t *parsec_task =  parsec_thread_mempool_allocate( my_es->context_mempool );
+        parsec_task->taskpool   = &tp;
+        parsec_task->task_class = &madness_parsec_tc;
+        parsec_task->chore_id   = 0;
+        parsec_task->status     = PARSEC_TASK_STATUS_NONE;
+        parsec_task->priority   = is_high_priority ? 1000 : 0; // 1 & 0 would work as good
+        ((void **)parsec_task->locals)[0] = ptr;
         return parsec_task;
+    }
+
+     void ParsecRuntime::delete_parsec_task(parsec_task_t *task) {
+        parsec_thread_mempool_free( task->mempool_owner, task );
     }
 
     void ParsecRuntime::schedule(PoolTaskInterface *task) {
@@ -168,6 +183,7 @@ namespace madness {
         PARSEC_LIST_ITEM_SINGLETON(parsec_task);
         tp.tdm.module->taskpool_addto_nb_tasks(&tp, 1);
         __parsec_schedule(ctx->virtual_processes[0]->execution_streams[0], parsec_task, 0);
+        __parsec_schedule(execution_stream(), parsec_task, 0);
     }
 
     void ParsecRuntime::wait() {

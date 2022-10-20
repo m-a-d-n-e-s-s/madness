@@ -980,6 +980,10 @@ namespace madness {
         /// Destructor.
         /// \todo Should we either use a unique_ptr for barrier or check that barrier != nullptr here?
         virtual ~PoolTaskInterface() {
+#if HAVE_PARSEC
+            ParsecRuntime::delete_parsec_task(parsec_task);
+            parsec_task = nullptr;
+#endif
             delete barrier;
         }
 
@@ -1002,7 +1006,7 @@ namespace madness {
         }
 #if HAVE_PARSEC
 	    //////////// Parsec Related Begin ////////////////////
-	    parsec_task_t                       parsec_task;
+	    parsec_task_t                       *parsec_task;
 	    //////////// Parsec Related End   ///////////////////
 #endif
 
