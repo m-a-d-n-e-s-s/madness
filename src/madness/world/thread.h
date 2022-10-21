@@ -964,7 +964,7 @@ namespace madness {
     	    count = 0;
     	}
 
-        /// Contructor setting teh speicified task attributes.
+        /// Contructor setting the specified task attributes.
 
         /// \param[in] attr The task attributes.
         explicit PoolTaskInterface(const TaskAttributes& attr)
@@ -981,8 +981,9 @@ namespace madness {
         /// \todo Should we either use a unique_ptr for barrier or check that barrier != nullptr here?
         virtual ~PoolTaskInterface() {
 #if HAVE_PARSEC
-            ParsecRuntime::delete_parsec_task(parsec_task);
-            parsec_task = nullptr;
+          *(reinterpret_cast<PoolTaskInterface**>(&(parsec_task->locals[0]))) = nullptr;
+          ParsecRuntime::delete_parsec_task(parsec_task);
+          parsec_task = nullptr;
 #endif
             delete barrier;
         }
