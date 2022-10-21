@@ -164,7 +164,7 @@ namespace madness {
 
     parsec_task_t *ParsecRuntime::task(bool is_high_priority, void *ptr) {
         parsec_execution_stream_t *my_es = execution_stream();
-        parsec_task_t *parsec_task =  parsec_thread_mempool_allocate( my_es->context_mempool );
+        parsec_task_t* parsec_task = static_cast<parsec_task_t*>( parsec_thread_mempool_allocate( my_es->context_mempool ) );
         parsec_task->taskpool   = &tp;
         parsec_task->task_class = &madness_parsec_tc;
         parsec_task->chore_id   = 0;
@@ -179,7 +179,7 @@ namespace madness {
     }
 
     void ParsecRuntime::schedule(PoolTaskInterface *task) {
-        parsec_task_t *parsec_task = &(task->parsec_task);
+        parsec_task_t* parsec_task = task->parsec_task;
         PARSEC_LIST_ITEM_SINGLETON(parsec_task);
         tp.tdm.module->taskpool_addto_nb_tasks(&tp, 1);
         __parsec_schedule(ctx->virtual_processes[0]->execution_streams[0], parsec_task, 0);
