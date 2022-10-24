@@ -341,7 +341,7 @@ namespace madness {
         ///
         /// \note All unique objects of any type within a \c World must
         /// presently be created in the same order on all processes so
-        /// as to provide the uniquess property without global
+        /// as to guarantee the uniqueness without global
         /// communication.
         /// \tparam T The type of data to be associated.
         /// \param[in] ptr Pointer to the data that will be associated
