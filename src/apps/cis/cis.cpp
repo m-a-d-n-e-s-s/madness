@@ -5,11 +5,10 @@
  *      Author: Jakob S. Kottmann
  */
 
+#include <madness/chem/TDHF.h>
+#include <madness/chem/commandlineparser.h>
+#include <madness/misc/info.h>
 #include <madness/world/worldmem.h>
-#include<madness/chem/TDHF.h>
-#include<madness/chem/commandlineparser.h>
-#include <madness/misc/gitinfo.h>
-
 
 using namespace madness;
 

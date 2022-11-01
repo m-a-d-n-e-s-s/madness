@@ -1,32 +1,21 @@
 # src/madness/misc
 
-set(MADMISC_HEADERS misc.h ran.h phandler.h interpolation_1d.h cfft.h)
+set(MADMISC_HEADERS misc.h ran.h phandler.h interpolation_1d.h cfft.h info.h)
 set(MADMISC_SOURCES
-    checksum_file.cc position_stream.cc gprofexit.cc ran.cc cfft.cc)
+    checksum_file.cc position_stream.cc gprofexit.cc ran.cc cfft.cc info.cc)
+# retrieve git metadata
+include(GetGitMetadata)
+vgkit_cmake_git_metadata()
+# feed MADNESS_GIT_{REVISION,DESCRIPTION} to info.cc only to avoid recompiling everything
+set_source_files_properties(
+        info.cc
+        PROPERTIES
+          COMPILE_DEFINITIONS
+          "MADNESS_GIT_REVISION=\"${MADNESS_GIT_REVISION}\";MADNESS_GIT_DESCRIPTION=\"${MADNESS_GIT_DESCRIPTION}\""
+)
 
 # Create the MADmisc library
 add_mad_library(misc MADMISC_SOURCES MADMISC_HEADERS "world" "madness/misc/")
-
-# Create the compile-time git library: git_version.cmake will write the gitinfo.cc file,
-add_custom_command(
-    OUTPUT  "${PROJECT_BINARY_DIR}/src/madness/misc/git_version.h"
-           SYMBOLIC "${PROJECT_BINARY_DIR}/src/madness/misc/_git_version.h"
-    COMMAND ${CMAKE_COMMAND}
-      -Dlocal_dir="${PROJECT_SOURCE_DIR}/cmake/"
-      -Doutput_dir="${PROJECT_BINARY_DIR}/src/madness/misc"
-      -Dsource_dir="${PROJECT_SOURCE_DIR}/src/madness/misc"
-      -P "${PROJECT_SOURCE_DIR}/cmake/git_version.cmake"
- 	COMMENT "generating the gitversion file"
-)
-add_custom_target_subproject(madness mgit
-    DEPENDS "${PROJECT_BINARY_DIR}/src/madness/misc/git_version.h"
-)
-
-set(MADGIT_HEADERS gitinfo.h)
-set(MADGIT_SOURCES gitinfo.cc )
-
-add_mad_library(git MADGIT_SOURCES MADGIT_HEADERS "world" "madness/misc/")
-add_dependencies(MADgit-obj mgit-madness)
 
 if(BUILD_TESTING)
   
