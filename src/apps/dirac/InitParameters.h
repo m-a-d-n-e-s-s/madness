@@ -75,7 +75,7 @@ namespace madness{
                     std::vector<int> dummy2;
                     Tensor<double> temp_energies;
 
-                    //read in what's in the archive. See SCF.cc for how these archives are stored
+                    //read in what's in the archive. See SCF::save_mos for how these archives are stored
                     archive::ParallelInputArchive input(world, filename.c_str());
                     unsigned int version;
                     std::string xc;
