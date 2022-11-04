@@ -2037,7 +2037,7 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
     /// operation and discarding.
     template <class T> class SliceTensor : public Tensor<T> {
     private:
-        SliceTensor<T>();
+        SliceTensor();
 
     public:
 
