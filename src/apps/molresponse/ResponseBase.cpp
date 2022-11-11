@@ -1834,8 +1834,16 @@ void ResponseBase::output_json() {
     ss << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d %X");
     print(ss.str());
 
-    j_molresponse["time"] = ss.str();
-    j_molresponse["wall_time"] = wall_time();
+    nlohmann::json calc_precision={ };
+    calc_precision["dconv"]=r_params.dconv();
+    calc_precision["thresh"]=FunctionDefaults<3>::get_thresh();
+    calc_precision["k"]=FunctionDefaults<3>::get_k();
+    j_molresponse["precision"]=calc_precision;
+    nlohmann::json timing={ };
+    timing["datetime"] = ss.str();
+    timing["wall_time"] = wall_time();
+    timing["cpu_time"] = cpu_time();
+    j_molresponse["time_data"]=timing;
     std::ofstream ofs("response_base.json");
     ofs << std::setw(4) << j_molresponse;
 }
