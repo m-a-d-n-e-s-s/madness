@@ -81,7 +81,7 @@ auto newK(const vecfuncT &ket, const vecfuncT &bra, const vecfuncT &vf) -> vecfu
 
     Exchange<double, 3> op{};
     op.set_parameters(bra, ket, lo);
-    op.set_algorithm(op.small_memory);
+    op.set_algorithm(op.multiworld_efficient);
     auto vk=op(vf);
     return vk ;
 }
