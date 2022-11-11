@@ -511,6 +511,8 @@ namespace madness {
         void serialize(Archive &ar) {
             ar &atoms &rcut &core_pot &parameters &pointgroup_ &field;
         }
+        json to_json() const;
+        json to_json() const;
     };
 
 }// namespace madness

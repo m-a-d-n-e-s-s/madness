@@ -440,6 +440,26 @@ const Atom& Molecule::get_atom(unsigned int i) const {
     return atoms[i];
 }
 
+// Returns molecule in qc-schema format
+// symbols (nat,) atom symbols in title case. array[string]
+// geometry (3*nat,) vector of xyz coordinates [a0] of the atoms.  array[number]
+// There are optional parameters yet to be implemented
+// https://molssi-qc-schema.readthedocs.io/en/latest/auto_topology.html
+nlohmann::json Molecule::to_json() const {
+    nlohmann::json mol_schema;
+    mol_schema["symbols"] = {};
+    mol_schema["geometry"] = {};
+
+    get_atomic_data(atoms[0].atomic_number).symbol;
+    for (size_t i = 0; i < natom(); ++i) {
+        mol_schema["symbols"].push_back(get_atomic_data(atoms[i].atomic_number).symbol);
+        mol_schema["geometry"].push_back({atoms[i].x, atoms[i].y, atoms[i].z});
+    }
+    return mol_schema;
+}
+
+
+
 void Molecule::print() const {
     std::string p =parameters.print_to_string();
     std::cout.flush();
