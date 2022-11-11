@@ -444,7 +444,6 @@ void runMOLDFT(World &world, const moldftSchema &moldftSchema, bool try_run, boo
             print(param_calc.print_to_string());
             print("param1 != param_calc = ", param1 != param_calc);
         }
-
     }
     world.gop.broadcast_serializable(param1, 0);
     world.gop.broadcast(calcInfo, 0);
@@ -834,6 +833,7 @@ void runFrequencyTests(World &world, const frequencySchema &schema, bool high_pr
         } else if (success.second) {
             // if the previous run succeeded then set the restart path
             restart_path = success.first;
+            world.gop.fence();
             if (world.rank() == 0) {
                 print("restart_path", restart_path);
                 print("restart_path = success.first", restart_path);

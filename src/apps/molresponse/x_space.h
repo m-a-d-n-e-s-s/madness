@@ -144,11 +144,12 @@ namespace madness {
             auto zeros = X_space(world, n_states, n_orbitals);
 
             for (auto &xi: zeros.X) {
-                xi = ::madness::zero_functions<double, 3>(world, n_orbitals, true);
+                xi = ::madness::zero_functions<double, 3>(world, n_orbitals, false);
             }
             for (auto &yi: zeros.Y) {
-                yi = ::madness::zero_functions<double, 3>(world, n_orbitals, true);
+                yi = ::madness::zero_functions<double, 3>(world, n_orbitals, false);
             }
+            world.gop.fence();
             return zeros;
         }
 
