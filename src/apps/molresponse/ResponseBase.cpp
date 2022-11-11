@@ -524,29 +524,6 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
 
-    /*
-    auto xy = to_response_matrix(chi_alpha);
-    auto yx = to_conjugate_response_matrix(chi_alpha);
-
-    auto exchange_response = create_response_matrix(m, 2 * n);
-    auto conjugate_exchange_response = create_response_matrix(m, 2 * n);
-    auto full_exchange = create_response_matrix(m, 2 * n);
-
-    world.gop.fence();
-    auto phi0_response = to_response_vector(phi0);
-    std::transform(xy.begin(), xy.end(), exchange_response.begin(), [&](const auto &xy_i) { return newK(xy_i, phi0_response, phi0_response); });
-    world.gop.fence();
-    std::transform(yx.begin(), yx.end(), conjugate_exchange_response.begin(), [&](const auto &conj_x) { return newK(phi0_response, conj_x, phi0_response); });
-    world.gop.fence();
-
-
-    std::transform(exchange_response.begin(), exchange_response.end(), conjugate_exchange_response.begin(), full_exchange.begin(), [&](const auto &kxi, const auto &kyi) {
-        return add(world, kxi, kyi);
-    });
-
-    auto K = to_X_space(full_exchange);
-*/
-
     X_space KX = X_space::zero_functions(world, num_states, num_orbitals);
     X_space KY = X_space::zero_functions(world, num_states, num_orbitals);
     auto phi0_c = ::madness::copy(world, phi0);
