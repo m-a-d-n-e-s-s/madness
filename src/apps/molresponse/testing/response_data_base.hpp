@@ -115,9 +115,9 @@ auto generate_dipole_frequencies(const std::string &molecule_name, std::string x
             json dalton_excited;
             ifs >> dalton_excited;
             ::print("Read Dalton Excited for ", molecule_name);
-            ::print(dalton_excited[molecule_name][xc]["excited-state"]["cc-pVDZ"]["response"]["freq"]);
+            ::print(dalton_excited[molecule_name][xc]["excited-state"]["aug-cc-pVTZ"]["response"]["freq"]);
             std::vector<double> freq = dalton_excited[molecule_name][xc]["excited-state"]
-                                                     ["cc-pVTZ"]["response"]["freq"];
+                                                     ["aug-cc-pVTZ"]["response"]["freq"];
             auto omega_max = freq.at(0);
             omega_max = omega_max / 2.0;
             ::print("max frequency at cc-pVTZ", omega_max);

@@ -54,6 +54,8 @@ int main(int argc, char *argv[]) {
             ifs >> j_read;
             std::cout << "READ IT" << std::endl;
             json data = generate_response_data(molecule_path, xc, op, {0});
+
+            print(data);
             j_read.merge_patch(data);
             // make the keyword and add the data
             std::ofstream ofs("molecules/frequency.json");
