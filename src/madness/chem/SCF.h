@@ -692,7 +692,6 @@ public:
         calc_precision["k"]=FunctionDefaults<3>::get_k();
 
         auto mol_json=this->calc.molecule.to_json();
-        int_vals.push_back({"k", FunctionDefaults<3>::get_k()});
 
         int_vals.push_back({"calcinfo_nmo", param.nmo_alpha() + param.nmo_beta()});
         int_vals.push_back({"calcinfo_nalpha", param.nalpha()});
