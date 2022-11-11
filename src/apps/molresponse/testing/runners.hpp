@@ -412,7 +412,7 @@ auto tryMOLDFT(CalculationParameters &p1, CalculationParameters &p2) -> bool {
  * @param xc
  */
 void runMOLDFT(World &world, const moldftSchema &moldftSchema, bool try_run, bool restart,
-               bool high_prec) {
+               const std::string &precision) {
 
     CalculationParameters param1;
     json calcInfo;
@@ -425,12 +425,15 @@ void runMOLDFT(World &world, const moldftSchema &moldftSchema, bool try_run, boo
         param1.set_user_defined_value<std::string>("xc", moldftSchema.xc);
         param1.set_user_defined_value<double>("l", 200);
 
-        if (high_prec) {
+        if (precision == "low") {
+            param1.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6});
+            param1.set_user_defined_value<double>("dconv", 1e-4);
+        } else if (precision == "high") {
             param1.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6, 1e-8});
             param1.set_user_defined_value<double>("dconv", 1e-6);
         } else {
-            param1.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6});
-            param1.set_user_defined_value<double>("dconv", 1e-4);
+            param1.set_user_defined_value<vector<double>>("protocol", {1e-9});
+            param1.set_user_defined_value<double>("dconv", 1e-7);
         }
 
         param1.set_user_defined_value<std::string>("localize", "new");
@@ -534,13 +537,16 @@ void set_excited_parameters(ResponseParameters &r_params, const std::string &xc,
  */
 void set_frequency_response_parameters(ResponseParameters &r_params, const std::string &property,
                                        const std::string &xc, const double &frequency,
-                                       bool high_precision) {
-    if (high_precision) {
+                                       const std::string &precision) {
+    if (precision == "high") {
         r_params.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6, 1e-8});
         r_params.set_user_defined_value<double>("dconv", 1e-6);
-    } else {
+    } else if (precision == "low") {
         r_params.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6});
         r_params.set_user_defined_value<double>("dconv", 1e-4);
+    } else {
+        r_params.set_user_defined_value<vector<double>>("protocol", {1e-9});
+        r_params.set_user_defined_value<double>("dconv", 1e-7);
     }
     //r_params.set_user_defined_value("archive", std::string("../restartdata"));
     r_params.set_user_defined_value("maxiter", size_t(30));
@@ -664,11 +670,11 @@ static auto set_frequency_path_and_restart(World &world, ResponseParameters &par
 auto RunResponse(World &world, const std::string &filename, double frequency,
                  const std::string &property, const std::string &xc,
                  const std::filesystem::path &moldft_path, std::filesystem::path restart_path,
-                 bool highPrecision) -> std::pair<std::filesystem::path, bool> {
+                 const std::string &precision) -> std::pair<std::filesystem::path, bool> {
 
     // Set the response parameters
     ResponseParameters r_params{};
-    set_frequency_response_parameters(r_params, property, xc, frequency, highPrecision);
+    set_frequency_response_parameters(r_params, property, xc, frequency, precision);
     auto save_path = set_frequency_path_and_restart(world, r_params, property, frequency, xc, moldft_path,
                                                     restart_path, true);
 
@@ -678,7 +684,7 @@ auto RunResponse(World &world, const std::string &filename, double frequency,
         std::ifstream ifs("response_base.json");
         json response_base;
         ifs >> response_base;
-        if (response_base["converged"]) { return {save_path, true}; }
+        if (response_base["converged"] && response_base["precision"]["dconv"] == r_params.dconv()) { return {save_path, true}; }
     }
     auto calc_params = initialize_calc_params(world, std::string(filename));
     RHS_Generator rhs_generator;
@@ -814,7 +820,7 @@ auto runExcited(World &world, excitedSchema schema, bool restart, bool high_prec
  * @param xc
  * @param property
  */
-void runFrequencyTests(World &world, const frequencySchema &schema, bool high_prec) {
+void runFrequencyTests(World &world, const frequencySchema &schema, const std::string &high_prec) {
 
     std::filesystem::current_path(schema.moldft_path);
     // add a restart path
@@ -827,6 +833,7 @@ void runFrequencyTests(World &world, const frequencySchema &schema, bool high_pr
         if (world.rank() == 0) {
             print(success.second);
         }
+
         std::filesystem::current_path(schema.moldft_path);
         if (first) {
             first = false;
@@ -858,9 +865,9 @@ void runFrequencyTests(World &world, const frequencySchema &schema, bool high_pr
  * @param m_schema
  * @param try_moldft do we try moldft or not... if we try we still may restart
  * @param restart  do we force a restart or not
- * @param high_prec high precision or no?
+ * @param precision high precision or no?
  */
-void moldft(World &world, moldftSchema &m_schema, bool try_moldft, bool restart, bool high_prec) {
+void moldft(World &world, moldftSchema &m_schema, bool try_moldft, bool restart, const std::string &precision) {
 
     if (std::filesystem::is_directory(m_schema.moldft_path)) {
         if (world.rank() == 0) {
@@ -879,7 +886,7 @@ void moldft(World &world, moldftSchema &m_schema, bool try_moldft, bool restart,
         cout << "Entering : " << m_schema.moldft_path << " to run MOLDFT \n\n";
     }
 
-    runMOLDFT(world, m_schema, try_moldft, restart, high_prec);
+    runMOLDFT(world, m_schema, try_moldft, restart, precision);
 }
 
 #endif// MADNESS_RUNNERS_HPP
