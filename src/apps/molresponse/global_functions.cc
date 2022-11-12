@@ -93,31 +93,36 @@ auto ground_exchange(const vecfuncT &phi0, const response_matrix &x) -> response
     vecfuncT x_vect(x.size() * phi0.size());
 
     long b = 0;
+    long n = 0;
+    molresponse::start_timer(world);
     for (const auto &xi: x) {
-        auto v0 = madness::copy(world, phi0);
         std::for_each(phi0.begin(), phi0.end(), [&](const auto &phi_i) {
-            phi_vect[b] = copy(phi_i);
+            phi_vect[b++] = copy(phi_i);
         });
         std::for_each(xi.begin(), xi.end(), [&](const auto &xij) {
-            x_vect[b] = copy(xij);
+            x_vect[n++] = copy(xij);
         });
-        b++;
     }
+    world.gop.fence();
+    molresponse::end_timer(world,"ground exchange copy");
+    molresponse::start_timer(world);
     const double lo = 1.e-10;
 
     Exchange<double, 3> op{};
     op.set_parameters(phi_vect, madness::copy(world, phi_vect), lo);
     op.set_algorithm(op.small_memory);
     auto exchange_vect = op(x_vect);
+    molresponse::end_timer(world,"ground exchange apply");
+    molresponse::start_timer(world);
 
-    auto exchange_matrix= create_response_matrix(x.size(),phi0.size());
-    b=0;
-    for(auto & xi :exchange_matrix){
-        for (auto&xij : xi){
-            xij=copy(exchange_vect[b++]);
+    auto exchange_matrix = create_response_matrix(x.size(), phi0.size());
+    b = 0;
+    for (auto &xi: exchange_matrix) {
+        for (auto &xij: xi) {
+            xij = copy(exchange_vect[b++]);
         }
-
     }
+    molresponse::end_timer(world,"ground exchange reorganize");
     return exchange_matrix;
 }
 // compute exchange |i><i|J|p>
