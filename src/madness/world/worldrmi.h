@@ -148,9 +148,8 @@ namespace madness {
         typedef uint16_t counterT;
         typedef uint32_t attrT;
 
-        static thread_local bool is_server_thread; //< if true this thread is the server thread
-
-        
+        /// @return reference to the boolean variable indicating whether this thread is the server thread
+        static bool& is_server_thread_accessor();
 
     public:
 
@@ -165,8 +164,8 @@ namespace madness {
 
         static int testsome_backoff_us;
 
-        static void set_this_thread_is_server(bool flag = true) {is_server_thread = flag;}
-        static bool get_this_thread_is_server() {return is_server_thread;}
+        static void set_this_thread_is_server(bool flag = true) { is_server_thread_accessor() = flag;}
+        static bool get_this_thread_is_server() {return is_server_thread_accessor();}
 
         static std::list< std::unique_ptr<RMISendReq> > send_req; // List of outstanding world active messages sent by the server
 

@@ -1,6 +1,6 @@
 # src/apps/moldft
 
-add_mad_executable(znemo znemo.cc "MADchem;MADgit")
+add_mad_executable(znemo znemo.cc "MADchem")
 add_dependencies(applications-madness znemo)
 
 

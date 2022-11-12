@@ -41,7 +41,7 @@
 
 
 #include "madness/chem/CC2.h"
-#include "madness/misc/gitinfo.h"
+#include "madness/misc/info.h"
 
 using namespace madness;
 

@@ -83,7 +83,7 @@ Molecule::Molecule(std::vector<Atom> atoms, double eprec, CorePotentialManager c
   atomic_radii.reserve(this->atoms.size());
   for(auto&& atom: this->atoms) {
     double radius =
-        get_atomic_data(atom.z).covalent_radius;
+        get_atomic_data(atom.get_atomic_number()).covalent_radius;
     atomic_radii.emplace_back(
         radius * 1e-10 /
         madness::constants::atomic_unit_of_length);

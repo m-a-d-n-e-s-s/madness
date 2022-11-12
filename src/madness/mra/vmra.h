@@ -557,7 +557,7 @@ namespace madness {
     }
 
 
-/// Transforms a vector of functions according to new[i] = sum[j] old[j]*c[j,i]
+    /// Transforms a vector of functions according to new[i] = sum[j] old[j]*c[j,i]
 
     /// Uses sparsity in the transformation matrix --- set small elements to
     /// zero to take advantage of this.
@@ -587,7 +587,8 @@ namespace madness {
         return vc;
     }
 
-
+    /// this version of transform uses Function::vtransform and screens
+    /// using both elements of `c` and `v`
     template <typename L, typename R, std::size_t NDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(L,R),NDIM> >
     transform(World& world,  const std::vector< Function<L,NDIM> >& v,

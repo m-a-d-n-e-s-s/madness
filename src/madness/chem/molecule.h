@@ -141,7 +141,7 @@ namespace madness {
                 initialize<bool>("no_orient", false, "if true the molecule coordinates will not be reoriented and/or symmetrized");
                 initialize<double>("symtol", -1.e-2, "distance threshold for determining the symmetry-equivalent atoms; negative: old algorithm");
 
-                initialize<std::string>("core_type", "none", "core potential type", {"none", "mpc"});
+            initialize<std::string> ("core_type","none","core potential type",{"none","mpc"});
                 initialize<bool>("psp_calc", false, "pseudopotential calculation for all atoms");
                 initialize<bool>("pure_ae", true, "pure all electron calculation with no pseudo-atoms");
             }

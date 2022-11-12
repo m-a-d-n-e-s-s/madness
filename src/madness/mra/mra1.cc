@@ -41,11 +41,11 @@ namespace madness {
 
     template <>
     ConcurrentHashMap< hashT, std::shared_ptr< GaussianConvolution1D<double> > >
-    GaussianConvolution1DCache<double>::map = ConcurrentHashMap< hashT, std::shared_ptr< GaussianConvolution1D<double> > >();
+    GaussianConvolution1DCache<double>::map = {};
 
     template <>
     ConcurrentHashMap< hashT, std::shared_ptr< GaussianConvolution1D<double_complex> > >
-    GaussianConvolution1DCache<double_complex>::map = ConcurrentHashMap< hashT, std::shared_ptr< GaussianConvolution1D<double_complex> > >();
+    GaussianConvolution1DCache<double_complex>::map = {};
 
 #ifdef FUNCTION_INSTANTIATE_1
 

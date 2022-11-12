@@ -41,7 +41,7 @@ namespace madness {
             initialize<std::vector<int>>("plot_data", std::vector<int>{0}, "Orbitals to plot");
             initialize<std::vector<double>>("plot_cell", std::vector<double>(),
                                             "lo-hi plot cell (default is all space)");
-            initialize<std::string>("core_type", "none", "core potential type", {"none", "mpc"});
+            initialize<std::string>("core_type", "none", "core potential type", {"none", "mcp"});
             initialize<double>("plot_l", -1.0, "Controls the plotting box size");
             initialize<size_t>("plot_pts",51, "Controls number of points in plots");
             initialize<bool>("plot_all_orbitals", false,
