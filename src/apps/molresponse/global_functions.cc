@@ -50,7 +50,7 @@ auto initialize_calc_params(World &world, const std::string &input_file) -> Calc
     Molecule molecule = ground_calculation.molecule();
     r_params.set_ground_state_calculation_data(ground_calculation);
     r_params.set_derived_values(world, molecule);
-    if(world.rank()==0){
+    if (world.rank() == 0) {
         r_params.print();
     }
     return {ground_calculation, molecule, r_params};
@@ -75,6 +75,52 @@ auto T(World &world, response_space &f) -> response_space {
 }
 
 // compute exchange |i><i|J|p>
+/**
+ * Computes ground density exchange on response vectors
+ *  This algorithm places all functions in a single vector,
+ *  computes exchange and returns the result into a response
+ *  matrix
+ *
+ * @param v1
+ * @param v2
+ * @param f
+ * @return
+ */
+auto ground_exchange(const vecfuncT &phi0, const response_matrix &x) -> response_matrix {
+    World &world = phi0[0].world();
+
+    vecfuncT phi_vect(x.size() * phi0.size());
+    vecfuncT x_vect(x.size() * phi0.size());
+
+    long b = 0;
+    for (const auto &xi: x) {
+        auto v0 = madness::copy(world, phi0);
+        std::for_each(phi0.begin(), phi0.end(), [&](const auto &phi_i) {
+            phi_vect[b] = copy(phi_i);
+        });
+        std::for_each(xi.begin(), xi.end(), [&](const auto &xij) {
+            x_vect[b] = copy(xij);
+        });
+        b++;
+    }
+    const double lo = 1.e-10;
+
+    Exchange<double, 3> op{};
+    op.set_parameters(phi_vect, madness::copy(world, phi_vect), lo);
+    op.set_algorithm(op.small_memory);
+    auto exchange_vect = op(x_vect);
+
+    auto exchange_matrix= create_response_matrix(x.size(),phi0.size());
+    b=0;
+    for(auto & xi :exchange_matrix){
+        for (auto&xij : xi){
+            xij=copy(exchange_vect[b++]);
+        }
+
+    }
+    return exchange_matrix;
+}
+// compute exchange |i><i|J|p>
 auto newK(const vecfuncT &ket, const vecfuncT &bra, const vecfuncT &vf) -> vecfuncT {
     World &world = ket[0].world();
     const double lo = 1.e-10;
@@ -82,7 +128,7 @@ auto newK(const vecfuncT &ket, const vecfuncT &bra, const vecfuncT &vf) -> vecfu
     Exchange<double, 3> op{};
     op.set_parameters(bra, ket, lo);
     op.set_algorithm(op.multiworld_efficient);
-    auto vk=op(vf);
-    return vk ;
+    auto vk = op(vf);
+    return vk;
 }
 // sum_i |i><i|J|p> for each p
