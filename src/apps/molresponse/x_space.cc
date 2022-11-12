@@ -63,8 +63,11 @@ namespace madness {
         auto mx = to_response_matrix(x);
 
         int b = 0;
-        for (auto &mi: mx) {
+        for (const auto &mi: mx) {
             std::copy(mi.begin(), mi.end(), vij.begin() + b * num_orbitals);
+            std::for_each(mi.begin(), mi.end(),[&](const auto &mix) {
+                vij[b * num_orbitals] = copy(mix);
+            });
             b++;
         }
         return vij;

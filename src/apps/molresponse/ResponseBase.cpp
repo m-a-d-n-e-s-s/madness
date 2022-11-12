@@ -1085,12 +1085,13 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
     auto phi0_c = copy(world, phi0_copy);
     world.gop.fence();
     int b = 0;
-    for (auto &k0x: K0.X) { k0x = newK(phi0_copy, phi0_c, Chi_copy.X[b++]); }
     if (compute_Y) {
-        b = 0;
-        for (auto &k0y: K0.Y) { k0y = newK(phi0_copy, phi0_c, Chi_copy.Y[b++]); }
+        auto xX = to_response_matrix(X);
+        auto kmatrix = ground_exchange(phi0_copy, xX);
+        K0 = to_X_space(kmatrix);
     } else {
-        K0.Y = K0.X.copy();
+        K0.X.x = ground_exchange(phi0_copy, Chi_copy.X.x);
+        K0.Y = K0.X;
     }
     if (r_params.print_level() >= 20) { print_inner(world, "xK0x", Chi_copy, K0); }
     if (r_params.print_level() >= 1) { molresponse::end_timer(world, "K[0]", "K[0]", iter_timing); }
@@ -1841,16 +1842,16 @@ void ResponseBase::output_json() {
     ss << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d %X");
     print(ss.str());
 
-    nlohmann::json calc_precision={ };
-    calc_precision["dconv"]=r_params.dconv();
-    calc_precision["thresh"]=FunctionDefaults<3>::get_thresh();
-    calc_precision["k"]=FunctionDefaults<3>::get_k();
-    j_molresponse["precision"]=calc_precision;
-    nlohmann::json timing={ };
+    nlohmann::json calc_precision = {};
+    calc_precision["dconv"] = r_params.dconv();
+    calc_precision["thresh"] = FunctionDefaults<3>::get_thresh();
+    calc_precision["k"] = FunctionDefaults<3>::get_k();
+    j_molresponse["precision"] = calc_precision;
+    nlohmann::json timing = {};
     timing["datetime"] = ss.str();
     timing["wall_time"] = wall_time();
     timing["cpu_time"] = cpu_time();
-    j_molresponse["time_data"]=timing;
+    j_molresponse["time_data"] = timing;
     std::ofstream ofs("response_base.json");
     ofs << std::setw(4) << j_molresponse;
 }
