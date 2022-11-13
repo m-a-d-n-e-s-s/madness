@@ -504,38 +504,13 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
-
-    X_space KX = X_space::zero_functions(world, num_states, num_orbitals);
-    X_space KY = X_space::zero_functions(world, num_states, num_orbitals);
-    auto phi0_c = ::madness::copy(world, phi0);
-    vecfuncT x, y;
-    for (size_t b = 0; b < num_states; b++) {
-        x = chi_alpha.X[b];
-        y = chi_alpha.Y[b];
-        world.gop.fence();
-        // |x><i|p>
-        KY.X[b] = newK(phi0, y, phi0_c);
-        world.gop.fence();
-        KX.Y[b] = newK(phi0, x, phi0_c);
-        world.gop.fence();
-        KX.Y[b] = newK(phi0, x, phi0_c);
-        // |y><i|p>
-        KX.X[b] = newK(x, phi0, phi0_c);
-        world.gop.fence();
-        KY.Y[b] = newK(y, phi0, phi0_c);
-        world.gop.fence();
-        // |i><x|p>
-    }
-
-
+    auto x = to_response_matrix(chi_alpha);
+    auto x_d = to_conjugate_response_matrix(chi_alpha);
+    auto hf_exchange_matrix = response_exchange(phi0, x, x_d, false);
+    auto K = to_X_space(hf_exchange_matrix);
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "K[omega]", "K[omega]", iter_timing);
     }
-
-    // for each response state we compute the Gamma response functions
-    // trucate all response functions
-
-    // update gamma functions
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
     /*
@@ -546,7 +521,7 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
      */
 
     X_space gamma(world, num_states, num_orbitals);
-    gamma = (2 * J) - (KX + KY) * xcf.hf_exchange_coefficient() + W;
+    gamma = (2 * J) - (K) *xcf.hf_exchange_coefficient() + W;
     //gamma.truncate();
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_truncate_add", "gamma_truncate_add", iter_timing);
@@ -568,9 +543,6 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     if (r_params.print_level() >= 20) {
         molresponse::start_timer(world);
         print_inner(world, "xJx", chi_alpha, J);
-        print_inner(world, "xKXx", chi_alpha, KX);
-        print_inner(world, "xKYx", chi_alpha, KY);
-        X_space K = KX + KY;
         print_inner(world, "xKx", chi_alpha, K);
         world.gop.fence();
         print_inner(world, "xWx", chi_alpha, W);
@@ -586,8 +558,7 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     J.clear();
     j_x.clear();
     j_y.clear();
-    KX.clear();
-    KY.clear();
+    K.clear();
     W.clear();
 
     chi_alpha.clear();
@@ -650,8 +621,7 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
 
     X_space W = X_space::zero_functions(world, num_states, num_orbitals);
     X_space J(world, num_states, num_orbitals);
-    X_space KX = X_space::zero_functions(world, num_states, num_orbitals);
-    X_space KY = X_space::zero_functions(world, num_states, num_orbitals);
+    X_space K = X_space::zero_functions(world, num_states, num_orbitals);
 
     //     std::cout << "MPI BARRIER After create Zero functions gamma " << std::endl;
     //     world.mpi.Barrier();
@@ -698,28 +668,10 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
     }
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-
-
+    K.X.x = response_exchange(phi0, xy.X.x, xy.X.x, true);
+    K.Y = K.X.copy();
     // normal exchange
-    std::transform(xy.X.begin(), xy.X.end(), KX.X.begin(), [&](const auto &xi) {
-        return newK(xi, phi0, phi0);
-    });
-    // conjugate exchange
-    std::transform(xy.Y.begin(), xy.Y.end(), KY.X.begin(), [&](const auto &yi) {
-        return newK(phi0, yi, phi0);
-    });
 
-    /*
-    for (size_t b = 0; b < num_states; b++) {
-        vecfuncT x, y;
-        x = xy.X[b];
-        KX.X[b] = newK(x, phi0, phi0);
-        // |i><x|p>
-        y = xy.Y[b];
-        KY.X[b] = newK(phi0, y, phi0);
-        // |y><i|p>
-    }
-     */
 
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "K[omega]", "K[omega]", iter_timing);
@@ -735,7 +687,7 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
      */
 
     // update gamma functions
-    gamma = (2 * J) - (KX + KY) * xcf.hf_exchange_coefficient() + W;
+    gamma = (2 * J) - (K) *xcf.hf_exchange_coefficient() + W;
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_truncate_add", "gamma_truncate_add", iter_timing);
     }
@@ -752,8 +704,7 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
     J.clear();
-    KX.clear();
-    KY.clear();
+    K.clear();
     W.clear();
     xy.clear();
     phi0.clear();

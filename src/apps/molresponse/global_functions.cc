@@ -121,7 +121,9 @@ auto ground_exchange(const vecfuncT &phi0, const response_matrix &x, const bool 
     Exchange<double, 3> op{};
     op.set_parameters(phi_vect, madness::copy(world, phi_vect), lo);
     op.set_algorithm(op.small_memory);
+    world.gop.fence();
     auto exchange_vect = op(x_vect);
+    world.gop.fence();
     molresponse::end_timer(world, "ground exchange apply");
     molresponse::start_timer(world);
 
@@ -132,7 +134,78 @@ auto ground_exchange(const vecfuncT &phi0, const response_matrix &x, const bool 
             xij = copy(exchange_vect[b++]);
         }
     }
+    world.gop.fence();
     molresponse::end_timer(world, "ground exchange reorganize");
+    return exchange_matrix;
+}
+// compute full response exchange |i><i|J|p>
+/**
+ * Computes ground density exchange on response vectors
+ *  This algorithm places all functions in a single vector,
+ *  computes exchange and returns the result into a response
+ *  matrix
+ *
+ * @param v1
+ * @param v2
+ * @param f
+ * @return
+ */
+auto response_exchange(const vecfuncT &phi0, const response_matrix &x, const response_matrix &x_dagger, const bool static_response) -> response_matrix {
+    World &world = phi0[0].world();
+    auto num_orbitals = phi0.size();
+    long n{};
+
+    n = (static_response) ? 1 : 2;
+    vecfuncT phi_vect(x.size() * n * phi0.size());
+    vecfuncT x_vect(x.size() * n * phi0.size());
+    vecfuncT xd_vect(x.size() * n * phi0.size());
+    int orb_i = 0;
+    std::for_each(phi_vect.begin(), phi_vect.end(), [&](auto &phi_i) { phi_i = copy(phi0[orb_i % num_orbitals]); });
+    long b = 0;
+    long j = 0;
+    molresponse::start_timer(world);
+    for (const auto &xi: x) {
+        std::for_each(xi.begin(), xi.end(), [&](const auto &xij) {
+            x_vect[j++] = copy(xij);
+        });
+    }
+    for (const auto &xi: x_dagger) {
+        std::for_each(xi.begin(), xi.end(), [&](const auto &xij) {
+            xd_vect[j++] = copy(xij);
+        });
+    }
+    world.gop.fence();
+    molresponse::end_timer(world, "response exchange copy");
+    molresponse::start_timer(world);
+    const double lo = 1.e-10;
+    auto phi_copy = madness::copy(world, phi_vect);
+    Exchange<double, 3> kx{};
+    kx.set_parameters(x_vect, phi_copy, lo);
+    kx.set_algorithm(kx.small_memory);
+    Exchange<double, 3> kxd{};
+    kxd.set_parameters(phi_copy, xd_vect, lo);
+    kxd.set_algorithm(kxd.small_memory);
+
+    world.gop.fence();
+    auto exchange_vector = kx(phi_vect);
+    world.gop.fence();
+    auto exchange_conjugate_vector = kxd(phi_vect);
+    world.gop.fence();
+    molresponse::end_timer(world, "response exchange apply");
+    molresponse::start_timer(world);
+
+    vecfuncT exchange = exchange_vector + exchange_conjugate_vector;
+
+
+    auto exchange_matrix = create_response_matrix(x.size(), n * phi0.size());
+    b = 0;
+    for (auto &xi: exchange_matrix) {
+        for (auto &xij: xi) {
+            xij = copy(exchange[b++]);
+        }
+    }
+    world.gop.fence();
+    molresponse::end_timer(world, "response exchange reorganize");
     return exchange_matrix;
 }
 // compute exchange |i><i|J|p>
