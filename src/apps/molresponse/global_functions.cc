@@ -86,51 +86,65 @@ auto T(World &world, response_space &f) -> response_space {
  * @param f
  * @return
  */
-auto ground_exchange(const vecfuncT &phi0, const response_matrix &x, const bool compute_y) -> response_matrix {
+auto ground_exchange(const vecfuncT &phi0, const X_space &x, const bool compute_y) -> X_space {
     World &world = phi0[0].world();
     molresponse::start_timer(world);
-    auto num_orbitals = phi0.size();
+    X_space K0 = X_space(world, x.num_states(), x.num_orbitals());
     long n{};
+    response_matrix xx;
+    // place all x and y functions into a single response vector
     if (compute_y) {
         n = 2;
+        xx = to_response_matrix(x);
+        // place all x
     } else {
         n = 1;
+        xx = x.X.x;
+        // if not compute y we are only working with the x functions
     }
-    vecfuncT phi_vect(x.size() * n * phi0.size());
-    vecfuncT x_vect(x.size() * n * phi0.size());
-
-    int orb_i = 0;
-    std::for_each(phi_vect.begin(), phi_vect.end(), [&](auto &phi_i) { phi_i = copy(phi0[orb_i++ % num_orbitals]); });
-    long j = 0;
-    for (const auto &xi: x) {// copy the response matrix into a single vector of functions
+    // should have num_states * num_orbitals * n  if compute y  n=2 else n=1
+    vecfuncT x_vector(x.num_states() * n * x.num_orbitals());
+    long ij = 0;
+    for (const auto &xi: xx) {// copy the response matrix into a single vector of functions
         std::for_each(xi.begin(), xi.end(), [&](const auto &xij) {
-            x_vect[j++] = copy(xij);
+            x_vector.at(ij++) = copy(xij);
         });
     }
+    vecfuncT phi_vector(x.num_states() * n * phi0.size());
+    int orb_i = 0;
+    // copy ground-state orbitals into a single long vector
+    std::for_each(phi_vector.begin(), phi_vector.end(), [&](auto &phi_i) { phi_i = copy(phi0[orb_i++ % x.num_orbitals()]); });
     world.gop.fence();
     molresponse::end_timer(world, "ground exchange copy");
     molresponse::start_timer(world);
     const double lo = 1.e-10;
     Exchange<double, 3> op{};
     // Do exchange by creating operator with parameters
-    op.set_parameters(phi_vect, madness::copy(world, phi_vect), lo);
+    op.set_parameters(phi_vector, madness::copy(world, phi_vector), lo);
     op.set_algorithm(op.multiworld_efficient);
     world.gop.fence();
     // apply exchange phi phi x
-    auto exchange_vect = op(x_vect);
+    auto exchange_vector = op(x_vector);
     molresponse::end_timer(world, "ground exchange apply");
     molresponse::start_timer(world);
 
-    auto exchange_matrix = create_response_matrix(x.size(), n*phi0.size());
-     long b = 0;
+    auto exchange_matrix = create_response_matrix(x.num_states(), n * x.num_orbitals());
+    long b = 0;
     for (auto &xi: exchange_matrix) {
         for (auto &xij: xi) {
-            xij = copy(exchange_vect[b++]);
+            xij = copy(exchange_vector[b++]);
         }
     }
+    if (compute_y) {
+        K0 = to_X_space(exchange_matrix);
+    } else {
+        K0.X = exchange_matrix;
+        K0.X = K0.Y.copy();
+    }
+
     world.gop.fence();
     molresponse::end_timer(world, "ground exchange reorganize");
-    return exchange_matrix;
+    return K0;
 }
 // compute full response exchange |i><i|J|p>
 /**
@@ -172,8 +186,8 @@ auto response_exchange(const vecfuncT &phi0, const response_matrix &x, const res
     molresponse::end_timer(world, "response exchange copy");
     molresponse::start_timer(world);
     const double lo = 1.e-10;
-    auto phi_copy1 = madness::copy(world, phi_vect,true);
-    auto phi_copy2 = madness::copy(world, phi_vect,true);
+    auto phi_copy1 = madness::copy(world, phi_vect, true);
+    auto phi_copy2 = madness::copy(world, phi_vect, true);
     Exchange<double, 3> x_phi_K{};
     x_phi_K.set_parameters(x_vect, phi_copy1, lo);
     x_phi_K.set_algorithm(x_phi_K.multiworld_efficient);

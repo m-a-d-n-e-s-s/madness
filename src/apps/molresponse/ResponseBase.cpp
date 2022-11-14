@@ -1040,14 +1040,7 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
     auto phi0_c = copy(world, phi0_copy);
     world.gop.fence();
     int b = 0;
-    if (compute_Y) {
-        auto xX = to_response_matrix(X);
-        auto kmatrix = ground_exchange(phi0_copy, xX, true);
-        K0 = to_X_space(kmatrix);
-    } else {
-        K0.X.x = ground_exchange(phi0_copy, Chi_copy.X.x, false);
-        K0.Y = K0.X;
-    }
+    K0 = ground_exchange(phi0_copy, X, compute_Y);
     if (r_params.print_level() >= 20) { print_inner(world, "xK0x", Chi_copy, K0); }
     if (r_params.print_level() >= 1) { molresponse::end_timer(world, "K[0]", "K[0]", iter_timing); }
     // Vnuc+V0+VXC
@@ -1065,6 +1058,7 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
     } else {
         V0.Y = V0.X.copy();
     }
+    if (r_params.print_level() >= 20) { print_inner(world, "xV0x", Chi_copy, V0); }
 
 
     if (r_params.print_level() >= 1) {

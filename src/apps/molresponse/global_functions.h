@@ -44,7 +44,7 @@ CalcParams initialize_calc_params(World &world, const std::string &input_file);
 // kinetic energy operator on response vector
 response_space T(World &world, response_space &f);
 
-auto ground_exchange(const vecfuncT &phi0, const response_matrix &x, const bool compute_y) -> response_matrix;
+auto ground_exchange(const vecfuncT &phi0, const X_space &x, const bool compute_y) -> X_space;
 auto response_exchange(const vecfuncT &phi0, const response_matrix &x, const response_matrix &x_dagger, bool static_response) -> response_matrix;
 vecfuncT K(vecfuncT &ket, vecfuncT &bra, vecfuncT &vf);
 vecfuncT newK(const vecfuncT &ket, const vecfuncT &bra, const vecfuncT &vf);
