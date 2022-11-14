@@ -139,7 +139,7 @@ auto ground_exchange(const vecfuncT &phi0, const X_space &x, const bool compute_
         K0 = to_X_space(exchange_matrix);
     } else {
         K0.X = exchange_matrix;
-        K0.X = K0.Y.copy();
+        K0.Y = K0.X.copy();
     }
 
     world.gop.fence();
