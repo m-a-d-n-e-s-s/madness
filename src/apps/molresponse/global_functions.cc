@@ -160,7 +160,7 @@ auto response_exchange(const vecfuncT &phi0, const response_matrix &x, const res
     vecfuncT x_vect(x.size() * n * phi0.size());
     vecfuncT xd_vect(x.size() * n * phi0.size());
     int orb_i = 0;
-    std::for_each(phi_vect.begin(), phi_vect.end(), [&](auto &phi_i) { phi_i = copy(phi0[orb_i % num_orbitals]); });
+    std::for_each(phi_vect.begin(), phi_vect.end(), [&](auto &phi_i) { phi_i = copy(phi0[orb_i++ % num_orbitals]); });
     long b = 0;
     long j = 0;
     molresponse::start_timer(world);
