@@ -21,6 +21,7 @@ namespace madness {
         return matrix;
     }
     auto to_response_matrix(const X_space &x) -> response_matrix {
+        World &world = x.X[0][0].world();
         auto mX = response_matrix(x.num_states());
         int b = 0;
         auto num_orbitals = x.num_orbitals();
@@ -29,13 +30,16 @@ namespace madness {
             mi = vector_real_function_3d(2 * num_orbitals);
             //if (world.rank() == 0) { print("norm in xvec i", norm_vi); }
             std::copy(x.X[b].begin(), x.X[b].end(), mi.begin());
+            world.gop.fence();
             std::copy(x.Y[b].begin(), x.Y[b].end(), mi.begin() + num_orbitals);
+            world.gop.fence();
             b++;
         });
         return mX;
     }
 
     auto to_conjugate_response_matrix(const X_space &x) -> response_matrix {
+        World &world = x.X[0][0].world();
         auto mX = response_matrix(x.num_states());
         int b = 0;
         auto num_orbitals = x.num_orbitals();
@@ -44,7 +48,9 @@ namespace madness {
             mi = vector_real_function_3d(2 * num_orbitals);
             //if (world.rank() == 0) { print("norm in xvec i", norm_vi); }
             std::copy(x.Y[b].begin(), x.Y[b].end(), mi.begin());
+            world.gop.fence();
             std::copy(x.X[b].begin(), x.X[b].end(), mi.begin() + num_orbitals);
+            world.gop.fence();
             b++;
         });
         return mX;
@@ -65,7 +71,7 @@ namespace madness {
         int b = 0;
         for (const auto &mi: mx) {
             std::copy(mi.begin(), mi.end(), vij.begin() + b * num_orbitals);
-            std::for_each(mi.begin(), mi.end(),[&](const auto &mix) {
+            std::for_each(mi.begin(), mi.end(), [&](const auto &mix) {
                 vij[b * num_orbitals] = copy(mix);
             });
             b++;

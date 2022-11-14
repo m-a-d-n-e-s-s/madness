@@ -2,41 +2,10 @@
 
 #include <ResponseBase.hpp>
 #include <memory>
-#include <string>
-#include <vector>
 
 #include "madness/chem/SCFOperators.h"
 #include "response_parameters.h"
 
-void print_molecule(World &world, const GroundStateCalculation &g_params) {
-    if (world.rank() == 0) {
-        // Precision is set to 10 coming in, drop it to 5
-        std::cout.precision(5);
-        std::cout << std::fixed;
-
-        // First get atom
-        const std::vector<Atom> atoms = g_params.molecule().get_atoms();
-        size_t num_atoms = atoms.size();
-
-        // Now print
-        print("\n   Geometry Information");
-        print("   --------------------\n");
-        print("   Units: a.u.\n");
-        print(" Atom            x                 y                 z");
-        print("----------------------------------------------------------------");
-        for (size_t j = 0; j < num_atoms; j++) {
-            Vector<double, 3> coords = atoms[j].get_coords();
-            std::cout << std::setw(3) << atomic_number_to_symbol(atoms[j].get_atomic_number());
-            std::cout << std::setw(18) << std::right << coords[0] << std::setw(18) << coords[1]
-                      << std::setw(18) << coords[2] << endl;
-        }
-        print("");
-
-        // Reset precision
-        std::cout.precision(10);
-        std::cout << std::scientific;
-    }
-}
 
 auto initialize_calc_params(World &world, const std::string &input_file) -> CalcParams {
     ResponseParameters r_params{};
@@ -158,64 +127,88 @@ auto ground_exchange(const vecfuncT &phi0, const X_space &x, const bool compute_
  * @param f
  * @return
  */
-auto response_exchange(const vecfuncT &phi0, const response_matrix &x, const response_matrix &x_dagger, const bool static_response) -> response_matrix {
+auto response_exchange(const vecfuncT &phi0, const X_space &x, const bool compute_y) -> X_space {
     World &world = phi0[0].world();
     molresponse::start_timer(world);
+    X_space K = X_space(world, x.num_states(), x.num_orbitals());
+    X_space conjugateK = X_space(world, x.num_states(), x.num_orbitals());
     auto num_orbitals = phi0.size();
     long n{};
-    n = (static_response) ? 1 : 2;
-    vecfuncT phi_vect(x.size() * n * phi0.size());
-    vecfuncT x_vect(x.size() * n * phi0.size());
-    vecfuncT xd_vect(x.size() * n * phi0.size());
+    response_matrix xx;
+    response_matrix xx_dagger;
+    if (compute_y) {
+        n = 2;
+        xx = to_response_matrix(x);
+        xx_dagger = to_conjugate_response_matrix(x);
+        // place all x
+    } else {
+        n = 1;
+        xx = x.X.x;
+        xx_dagger = x.X.x;
+        // if not compute y we are only working with the x functions
+    }
+    vecfuncT x_vector(x.num_states() * n * x.num_orbitals());
+    long ij = 0;
+    for (const auto &xi: xx) {// copy the response matrix into a single vector of functions
+        std::for_each(xi.begin(), xi.end(), [&](const auto &xij) {
+            x_vector.at(ij++) = copy(xij);
+        });
+    }
+    ij = 0;
+    vecfuncT x_dagger_vector(x.num_states() * n * x.num_orbitals());
+    for (const auto &xdi: xx_dagger) {// copy the response matrix into a single vector of functions
+        std::for_each(xdi.begin(), xdi.end(), [&](const auto &xdij) {
+            x_dagger_vector.at(ij++) = copy(xdij);
+        });
+    }
+    vecfuncT phi_vector(x.num_states() * n * phi0.size());
     int orb_i = 0;
-    for (auto &phi_i: phi_vect) { phi_i = copy(phi0[orb_i++ % num_orbitals]); }
-    long j = 0;
-    for (const auto &xi: x) {
-        for (const auto &xij: xi) {
-            x_vect[j++] = copy(xij);
-        }
-    }
-    world.gop.fence();
-    j = 0;
-    for (const auto &xi: x_dagger) {
-        for (const auto &xij: xi) {
-            xd_vect[j++] = copy(xij);
-        }
-    }
+    // copy ground-state orbitals into a single long vector
+    std::for_each(phi_vector.begin(), phi_vector.end(), [&](auto &phi_i) { phi_i = copy(phi0[orb_i++ % x.num_orbitals()]); });
     world.gop.fence();
     molresponse::end_timer(world, "response exchange copy");
     molresponse::start_timer(world);
     const double lo = 1.e-10;
-    auto phi_copy1 = madness::copy(world, phi_vect, true);
-    auto phi_copy2 = madness::copy(world, phi_vect, true);
-    Exchange<double, 3> x_phi_K{};
-    x_phi_K.set_parameters(x_vect, phi_copy1, lo);
-    x_phi_K.set_algorithm(x_phi_K.multiworld_efficient);
-    Exchange<double, 3> phi_xd_K{};
-    phi_xd_K.set_parameters(phi_copy2, xd_vect, lo);
-    phi_xd_K.set_algorithm(phi_xd_K.multiworld_efficient);
+    auto phi_copy1 = madness::copy(world, phi_vector, true);
+    auto phi_copy2 = madness::copy(world, phi_vector, true);
+    // We have 2 versions of exchange  k(x,phi) phi and k(phi,x) phi
+    // K1.X = k[x ,phi] phi , K2.X = k[phi,y] phi // if static we only compute the top line
+    // K1.Y = k[y',phi] phi , K2.Y = k[phi,x] phi
+    // K=K1+K2
+    Exchange<double, 3> K1{};
+    K1.set_parameters(x_vector, phi_copy1, lo);
+    K1.set_algorithm(K1.multiworld_efficient);
+    Exchange<double, 3> K2{};
+    K2.set_parameters(phi_copy2, x_dagger_vector, lo);
+    K2.set_algorithm(K2.multiworld_efficient);
+    world.gop.fence();
 
+    auto K1_vect = K1(phi_vector);
     world.gop.fence();
-    auto exchange_vector = x_phi_K(phi_vect);
-    world.gop.fence();
-    auto exchange_conjugate_vector = phi_xd_K(phi_vect);
+    auto K2_vect = K2(phi_vector);
     world.gop.fence();
     molresponse::end_timer(world, "response exchange apply");
     molresponse::start_timer(world);
+    vecfuncT K_vector = K1_vect + K2_vect;
+    world.gop.fence();
 
-    vecfuncT exchange = exchange_vector + exchange_conjugate_vector;
-
-
-    auto exchange_matrix = create_response_matrix(x.size(), n * phi0.size());
-    int b = 0;
+    auto exchange_matrix = create_response_matrix(x.num_states(), n * x.num_orbitals());
+    long b = 0;
     for (auto &xi: exchange_matrix) {
         for (auto &xij: xi) {
-            xij = copy(exchange[b++]);
+            xij = copy(K_vector[b++]);
         }
     }
     world.gop.fence();
+    if (compute_y) {
+        K = to_X_space(exchange_matrix);
+    } else {
+        K.X = exchange_matrix;
+        K.Y = K.X.copy();
+    }
+    world.gop.fence();
     molresponse::end_timer(world, "response exchange reorganize");
-    return exchange_matrix;
+    return K;
 }
 // compute exchange |i><i|J|p>
 auto newK(const vecfuncT &ket, const vecfuncT &bra, const vecfuncT &vf) -> vecfuncT {
