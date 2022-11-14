@@ -525,6 +525,7 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
 
     auto x = to_response_matrix(chi_alpha);
     auto x_d = to_conjugate_response_matrix(chi_alpha);
+
     auto hf_exchange_matrix = response_exchange(phi0, x, x_d, false);
     world.gop.fence();
     auto K = to_X_space(hf_exchange_matrix);
@@ -689,6 +690,7 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
     }
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
+
     K.X.x = response_exchange(phi0, xy.X.x, xy.X.copy().x, true);
     K.Y = K.X.copy();
     // normal exchange
