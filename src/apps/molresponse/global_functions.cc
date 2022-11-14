@@ -169,6 +169,8 @@ auto response_exchange(const vecfuncT &phi0, const response_matrix &x, const res
             x_vect[j++] = copy(xij);
         });
     }
+    world.gop.fence();
+    j = 0;
     for (const auto &xi: x_dagger) {
         std::for_each(xi.begin(), xi.end(), [&](const auto &xij) {
             xd_vect[j++] = copy(xij);
