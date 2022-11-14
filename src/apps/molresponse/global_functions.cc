@@ -79,21 +79,16 @@ auto ground_exchange(const vecfuncT &phi0, const X_space &x, const bool compute_
             x_vector.at(ij++) = copy(xij);
         });
     }
-    vecfuncT phi_vector(x.num_states() * n * phi0.size());
+    vecfuncT phi_vector1(x.num_states() * n * phi0.size());
+    vecfuncT phi_vector2(x.num_states() * n * phi0.size());
     int orb_i = 0;
     // copy ground-state orbitals into a single long vector
-    std::for_each(phi_vector.begin(), phi_vector.end(), [&](auto &phi_i) { phi_i = copy(phi0[orb_i++ % x.num_orbitals()]); });
+    std::for_each(phi_vector1.begin(), phi_vector1.end(), [&](auto &phi_i) { phi_i = copy(phi0[orb_i++ % x.num_orbitals()]); });
+    phi_vector2 = madness::copy(world, phi_vector1);
     world.gop.fence();
     molresponse::end_timer(world, "ground exchange copy");
     molresponse::start_timer(world);
-    const double lo = 1.e-10;
-    Exchange<double, 3> op{};
-    // Do exchange by creating operator with parameters
-    op.set_parameters(phi_vector, madness::copy(world, phi_vector), lo);
-    op.set_algorithm(op.multiworld_efficient);
-    world.gop.fence();
-    // apply exchange phi phi x
-    auto exchange_vector = op(x_vector);
+    auto exchange_vector = newK(phi_vector1, phi_vector2, x_vector);
     molresponse::end_timer(world, "ground exchange apply");
     molresponse::start_timer(world);
 
@@ -130,8 +125,9 @@ auto ground_exchange(const vecfuncT &phi0, const X_space &x, const bool compute_
 auto response_exchange(const vecfuncT &phi0, const X_space &x, const bool compute_y) -> X_space {
     World &world = phi0[0].world();
     molresponse::start_timer(world);
+    X_space xK1 = X_space(world, x.num_states(), x.num_orbitals());
+    X_space xK2 = X_space(world, x.num_states(), x.num_orbitals());
     X_space K = X_space(world, x.num_states(), x.num_orbitals());
-    X_space conjugateK = X_space(world, x.num_states(), x.num_orbitals());
     auto num_orbitals = phi0.size();
     long n{};
     response_matrix xx;
@@ -166,46 +162,51 @@ auto response_exchange(const vecfuncT &phi0, const X_space &x, const bool comput
     // copy ground-state orbitals into a single long vector
     std::for_each(phi_vector.begin(), phi_vector.end(), [&](auto &phi_i) { phi_i = copy(phi0[orb_i++ % x.num_orbitals()]); });
     world.gop.fence();
-    molresponse::end_timer(world, "response exchange copy");
-    molresponse::start_timer(world);
-    const double lo = 1.e-10;
     auto phi_copy1 = madness::copy(world, phi_vector, true);
     auto phi_copy2 = madness::copy(world, phi_vector, true);
+    molresponse::end_timer(world, "response exchange copy");
+    molresponse::start_timer(world);
     // We have 2 versions of exchange  k(x,phi) phi and k(phi,x) phi
     // K1.X = k[x ,phi] phi , K2.X = k[phi,y] phi // if static we only compute the top line
     // K1.Y = k[y',phi] phi , K2.Y = k[phi,x] phi
     // K=K1+K2
-    Exchange<double, 3> K1{};
-    K1.set_parameters(x_vector, phi_copy1, lo);
-    K1.set_algorithm(K1.multiworld_efficient);
-    Exchange<double, 3> K2{};
-    K2.set_parameters(phi_copy2, x_dagger_vector, lo);
-    K2.set_algorithm(K2.multiworld_efficient);
-    world.gop.fence();
 
-    auto K1_vect = K1(phi_vector);
+    auto K1_vect = newK(x_vector, phi_copy1, phi_vector);
     world.gop.fence();
-    auto K2_vect = K2(phi_vector);
+    auto K2_vect = newK(phi_copy2, x_dagger_vector, phi_vector);
     world.gop.fence();
     molresponse::end_timer(world, "response exchange apply");
     molresponse::start_timer(world);
-    vecfuncT K_vector = K1_vect + K2_vect;
-    world.gop.fence();
-
-    auto exchange_matrix = create_response_matrix(x.num_states(), n * x.num_orbitals());
+    auto K1_matrix = create_response_matrix(x.num_states(), n * x.num_orbitals());
+    auto K2_matrix = create_response_matrix(x.num_states(), n * x.num_orbitals());
     long b = 0;
-    for (auto &xi: exchange_matrix) {
-        for (auto &xij: xi) {
-            xij = copy(K_vector[b++]);
+    for (auto &k1i: K1_matrix) {
+        for (auto &k1ij: k1i) {
+            k1ij = copy(K1_vect[b++]);
+        }
+    }
+    world.gop.fence();
+    b = 0;
+    for (auto &k2i: K2_matrix) {
+        for (auto &k2ij: k2i) {
+            k2ij = copy(K2_vect[b++]);
         }
     }
     world.gop.fence();
     if (compute_y) {
-        K = to_X_space(exchange_matrix);
+        xK1 = to_X_space(K1_matrix);
+        xK2 = to_X_space(K2_matrix);
+        world.gop.fence();
+        K = xK1 + xK2;
     } else {
-        K.X = exchange_matrix;
+        xK1.X = K1_matrix;
+        xK2.X = K2_matrix;
+        world.gop.fence();
+        K.X = xK1.X + xK2.X;
         K.Y = K.X.copy();
     }
+
+
     world.gop.fence();
     molresponse::end_timer(world, "response exchange reorganize");
     return K;
