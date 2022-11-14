@@ -152,46 +152,45 @@ auto ground_exchange(const vecfuncT &phi0, const response_matrix &x, const bool 
  */
 auto response_exchange(const vecfuncT &phi0, const response_matrix &x, const response_matrix &x_dagger, const bool static_response) -> response_matrix {
     World &world = phi0[0].world();
+    molresponse::start_timer(world);
     auto num_orbitals = phi0.size();
     long n{};
-
     n = (static_response) ? 1 : 2;
     vecfuncT phi_vect(x.size() * n * phi0.size());
     vecfuncT x_vect(x.size() * n * phi0.size());
     vecfuncT xd_vect(x.size() * n * phi0.size());
     int orb_i = 0;
-    std::for_each(phi_vect.begin(), phi_vect.end(), [&](auto &phi_i) { phi_i = copy(phi0[orb_i++ % num_orbitals]); });
-    long b = 0;
+    for (auto &phi_i: phi_vect) { phi_i = copy(phi0[orb_i++ % num_orbitals]); }
     long j = 0;
-    molresponse::start_timer(world);
     for (const auto &xi: x) {
-        std::for_each(xi.begin(), xi.end(), [&](const auto &xij) {
+        for (const auto &xij: xi) {
             x_vect[j++] = copy(xij);
-        });
+        }
     }
     world.gop.fence();
     j = 0;
     for (const auto &xi: x_dagger) {
-        std::for_each(xi.begin(), xi.end(), [&](const auto &xij) {
+        for (const auto &xij: xi) {
             xd_vect[j++] = copy(xij);
-        });
+        }
     }
     world.gop.fence();
     molresponse::end_timer(world, "response exchange copy");
     molresponse::start_timer(world);
     const double lo = 1.e-10;
-    auto phi_copy = madness::copy(world, phi_vect);
-    Exchange<double, 3> kx{};
-    kx.set_parameters(x_vect, phi_copy, lo);
-    kx.set_algorithm(kx.multiworld_efficient);
-    Exchange<double, 3> kxd{};
-    kxd.set_parameters(phi_copy, xd_vect, lo);
-    kxd.set_algorithm(kxd.multiworld_efficient);
+    auto phi_copy1 = madness::copy(world, phi_vect,true);
+    auto phi_copy2 = madness::copy(world, phi_vect,true);
+    Exchange<double, 3> x_phi_K{};
+    x_phi_K.set_parameters(x_vect, phi_copy1, lo);
+    x_phi_K.set_algorithm(x_phi_K.multiworld_efficient);
+    Exchange<double, 3> phi_xd_K{};
+    phi_xd_K.set_parameters(phi_copy2, xd_vect, lo);
+    phi_xd_K.set_algorithm(phi_xd_K.multiworld_efficient);
 
     world.gop.fence();
-    auto exchange_vector = kx(phi_vect);
+    auto exchange_vector = x_phi_K(phi_vect);
     world.gop.fence();
-    auto exchange_conjugate_vector = kxd(phi_vect);
+    auto exchange_conjugate_vector = phi_xd_K(phi_vect);
     world.gop.fence();
     molresponse::end_timer(world, "response exchange apply");
     molresponse::start_timer(world);
@@ -200,7 +199,7 @@ auto response_exchange(const vecfuncT &phi0, const response_matrix &x, const res
 
 
     auto exchange_matrix = create_response_matrix(x.size(), n * phi0.size());
-    b = 0;
+    int b = 0;
     for (auto &xi: exchange_matrix) {
         for (auto &xij: xi) {
             xij = copy(exchange[b++]);
