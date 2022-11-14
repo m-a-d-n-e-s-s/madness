@@ -20,7 +20,7 @@ set(MADTENSOR_HEADERS
     aligned.h mxm.h tensorexcept.h tensoriter_spec.h type_data.h basetensor.h
     tensor.h tensor_macros.h vector_factory.h slice.h tensoriter.h
     tensor_spec.h vmath.h systolic.h gentensor.h srconf.h distributed_matrix.h
-    tensortrain.h SVDTensor.h)
+    tensortrain.h SVDTensor.h tensor_json.hpp)
 set(MADTENSOR_SOURCES tensor.cc tensoriter.cc basetensor.cc vmath.cc)
 
 # logically these headers should be part of their own library (MADclapack)
