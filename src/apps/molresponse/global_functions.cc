@@ -88,6 +88,7 @@ auto T(World &world, response_space &f) -> response_space {
  */
 auto ground_exchange(const vecfuncT &phi0, const response_matrix &x, const bool compute_y) -> response_matrix {
     World &world = phi0[0].world();
+    molresponse::start_timer(world);
     auto num_orbitals = phi0.size();
     long n{};
     if (compute_y) {
@@ -98,17 +99,10 @@ auto ground_exchange(const vecfuncT &phi0, const response_matrix &x, const bool 
     vecfuncT phi_vect(x.size() * n * phi0.size());
     vecfuncT x_vect(x.size() * n * phi0.size());
 
-
     int orb_i = 0;
     std::for_each(phi_vect.begin(), phi_vect.end(), [&](auto &phi_i) { phi_i = copy(phi0[orb_i++ % num_orbitals]); });
-
-    long b = 0;
     long j = 0;
-    molresponse::start_timer(world);
-    for (const auto &xi: x) {
-        std::for_each(phi0.begin(), phi0.end(), [&](const auto &phi_i) {
-            phi_vect[b++] = copy(phi_i);
-        });
+    for (const auto &xi: x) {// copy the response matrix into a single vector of functions
         std::for_each(xi.begin(), xi.end(), [&](const auto &xij) {
             x_vect[j++] = copy(xij);
         });
@@ -117,18 +111,18 @@ auto ground_exchange(const vecfuncT &phi0, const response_matrix &x, const bool 
     molresponse::end_timer(world, "ground exchange copy");
     molresponse::start_timer(world);
     const double lo = 1.e-10;
-
     Exchange<double, 3> op{};
+    // Do exchange by creating operator with parameters
     op.set_parameters(phi_vect, madness::copy(world, phi_vect), lo);
     op.set_algorithm(op.multiworld_efficient);
     world.gop.fence();
+    // apply exchange phi phi x
     auto exchange_vect = op(x_vect);
-    world.gop.fence();
     molresponse::end_timer(world, "ground exchange apply");
     molresponse::start_timer(world);
 
-    auto exchange_matrix = create_response_matrix(x.size(), phi0.size());
-    b = 0;
+    auto exchange_matrix = create_response_matrix(x.size(), n*phi0.size());
+     long b = 0;
     for (auto &xi: exchange_matrix) {
         for (auto &xij: xi) {
             xij = copy(exchange_vect[b++]);
