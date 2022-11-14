@@ -687,7 +687,7 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
     }
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    K.X.x = response_exchange(phi0, xy.X.x, xy.X.x, true);
+    K.X.x = response_exchange(phi0, xy.X.x, xy.X.copy().x, true);
     K.Y = K.X.copy();
     // normal exchange
 
