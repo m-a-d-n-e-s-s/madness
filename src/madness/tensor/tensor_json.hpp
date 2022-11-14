@@ -86,9 +86,6 @@ namespace madness {
         std::stringstream ss;
         ss << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d %X");
 
-        print(ss.str());
-        print("printing j", j);
-
         j["time"] = ss.str();
         j["wall_time"] = wall_time();
 
