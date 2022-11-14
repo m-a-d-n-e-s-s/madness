@@ -120,7 +120,7 @@ auto ground_exchange(const vecfuncT &phi0, const response_matrix &x, const bool 
 
     Exchange<double, 3> op{};
     op.set_parameters(phi_vect, madness::copy(world, phi_vect), lo);
-    op.set_algorithm(op.small_memory);
+    op.set_algorithm(op.multiworld_efficient);
     world.gop.fence();
     auto exchange_vect = op(x_vect);
     world.gop.fence();
@@ -183,10 +183,10 @@ auto response_exchange(const vecfuncT &phi0, const response_matrix &x, const res
     auto phi_copy = madness::copy(world, phi_vect);
     Exchange<double, 3> kx{};
     kx.set_parameters(x_vect, phi_copy, lo);
-    kx.set_algorithm(kx.small_memory);
+    kx.set_algorithm(kx.multiworld_efficient);
     Exchange<double, 3> kxd{};
     kxd.set_parameters(phi_copy, xd_vect, lo);
-    kxd.set_algorithm(kxd.small_memory);
+    kxd.set_algorithm(kxd.multiworld_efficient);
 
     world.gop.fence();
     auto exchange_vector = kx(phi_vect);
