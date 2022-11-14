@@ -74,6 +74,14 @@ namespace madness {
             }
             return *this;//
         }
+
+        response_space &operator=(const response_matrix &y) {
+            //
+            this->num_states = y.size();
+            this->num_orbitals = y[0].size();
+            this->x = y;
+            return *this;//
+        }
         // Initialize functions to zero
         // m = number of response states
         // n = number of ground state orbitals
