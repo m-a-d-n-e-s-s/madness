@@ -17,7 +17,8 @@ namespace madness {
     struct X_space;
 
     auto to_response_vector(const vector_real_function_3d &vec) -> vector_real_function_3d;
-    auto create_response_matrix(const size_t &num_state, const size_t &num_orbitals) -> response_matrix;
+    auto create_response_matrix(const size_t &num_state, const size_t &num_orbitals)
+            -> response_matrix;
     auto to_response_matrix(const X_space &x) -> response_matrix;
     auto to_conjugate_response_matrix(const X_space &x) -> response_matrix;
     auto to_flattened_vector(const X_space &x) -> vector_real_function_3d;
@@ -38,15 +39,13 @@ namespace madness {
         X_space() : n_states(0), n_orbitals(0), X(), Y() {}
         // Copy constructor
         X_space(const X_space &A)
-            : n_states(size_states(A)),
-              n_orbitals(size_orbitals(A)),
-              X(A.X),
-              Y(A.Y) {}
+            : n_states(size_states(A)), n_orbitals(size_orbitals(A)), X(A.X), Y(A.Y) {}
         X_space copy() const {
             auto &world = X[0][0].world();
             auto m = to_response_matrix(*this);
             auto copy_m = create_response_matrix(num_states(), num_orbitals());
-            std::transform(m.begin(), m.end(), copy_m.begin(), [&](const auto &mi) { return madness::copy(world, mi, true); });
+            std::transform(m.begin(), m.end(), copy_m.begin(),
+                           [&](const auto &mi) { return madness::copy(world, mi, true); });
             return to_X_space(copy_m);
         }
         /// Create a new copy of the function with different distribution and optional
@@ -60,7 +59,8 @@ namespace madness {
             auto &world = X[0][0].world();
             auto m = to_response_matrix(*this);
             auto copy_m = create_response_matrix(num_states(), num_orbitals());
-            std::transform(m.begin(), m.end(), copy_m.begin(), [&](const auto &mi) { return madness::copy(world, mi, pmap, true); });
+            std::transform(m.begin(), m.end(), copy_m.begin(),
+                           [&](const auto &mi) { return madness::copy(world, mi, pmap, true); });
             return to_X_space(copy_m);
         }
         // assignment
@@ -76,9 +76,7 @@ namespace madness {
         }
         // Zero Constructor
         X_space(World &world, size_t n_states, size_t n_orbitals)
-            : n_states(n_states),
-              n_orbitals(n_orbitals),
-              X(world, n_states, n_orbitals),
+            : n_states(n_states), n_orbitals(n_orbitals), X(world, n_states, n_orbitals),
               Y(world, n_states, n_orbitals) {}
         // explicit constructor from 2 resonse_space
         explicit X_space(response_space &X, response_space &Y) {
@@ -357,8 +355,7 @@ namespace madness {
         World &world;
         const size_t n_orbtials;
         response_matrix_allocator(World &world, size_t n_orbtials)
-            : world(world),
-              n_orbtials(n_orbtials) {}
+            : world(world), n_orbtials(n_orbtials) {}
         // overloading the default constructor () operator
         vector_real_function_3d operator()() {
             //print("allocator called with ", int(n_orbtials), " orbitals");

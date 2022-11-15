@@ -27,10 +27,8 @@
 /// \param world
 /// \param params
 ResponseBase::ResponseBase(World &world, const CalcParams &params)
-    : r_params(params.response_parameters),
-      molecule(params.molecule),
-      ground_calc(params.ground_calculation),
-      ground_orbitals(ground_calc.orbitals()),
+    : r_params(params.response_parameters), molecule(params.molecule),
+      ground_calc(params.ground_calculation), ground_orbitals(ground_calc.orbitals()),
       ground_energies(ground_calc.get_energies()),
       Chi(world, r_params.num_states(), r_params.num_orbitals()) {
 
@@ -272,9 +270,7 @@ auto ResponseBase::make_ground_density(World &world) const -> functionT {
     compress(world, vsq);
     functionT rho = factoryT(world);
     rho.compress();
-    for (unsigned int i = 0; i < vsq.size(); ++i) {
-        rho.gaxpy(1.0, vsq[i], 1.0, false);
-    }
+    for (unsigned int i = 0; i < vsq.size(); ++i) { rho.gaxpy(1.0, vsq[i], 1.0, false); }
     //for (const auto &phi_squared: vsq) rho.gaxpy(2.0, phi_squared, 1.0, false);
     world.gop.fence();
     vsq.clear();
@@ -307,9 +303,8 @@ auto ResponseBase::make_density(World &world, const X_space &chi) const -> vecfu
         auto r_matrix = to_response_matrix(chi);
         auto r_phi0 = to_response_vector(ground_orbitals);
 
-        std::transform(r_matrix.begin(), r_matrix.end(), density.begin(), [&](const auto &ri) {
-            return dot(world, ri, r_phi0);
-        });
+        std::transform(r_matrix.begin(), r_matrix.end(), density.begin(),
+                       [&](const auto &ri) { return dot(world, ri, r_phi0); });
 
     } else {
         density = transition_densityTDA(world, ground_orbitals, chi.X);
@@ -376,9 +371,7 @@ auto ResponseBase::compute_theta_X(World &world, const X_space &chi,
 
     if (r_params.print_level() >= 1) {
         molresponse::start_timer(world);
-        if (world.rank() == 0) {
-            print("------------compute theta x_________");
-        }
+        if (world.rank() == 0) { print("------------compute theta x_________"); }
     }
     //     std::cout << "MPI BARRIER 3 " << std::endl;
     //     world.mpi.Barrier();
@@ -523,12 +516,34 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
+    X_space KX = X_space::zero_functions(world, num_states, num_orbitals);
+    X_space KY = X_space::zero_functions(world, num_states, num_orbitals);
+    auto phi0_c = madness::copy(world, phi0);
+    vecfuncT x, y;
+    for (size_t b = 0; b < num_states; b++) {
+        x = chi_alpha.X[b];
+        y = chi_alpha.Y[b];
 
-    auto K = response_exchange(phi0, chi_alpha, true);
-    if (r_params.print_level() >= 20) { print_inner(world, "xKx", chi_alpha, K); }
+        KY.X[b] = newK(phi0, y, phi0_c);
+        world.gop.fence();
+        KX.Y[b] = newK(phi0, x, phi0_c);
+        world.gop.fence();
+        KX.X[b] = newK(x, phi0, phi0_c);
+        world.gop.fence();
+        KY.Y[b] = newK(y, phi0, phi0_c);
+        world.gop.fence();
+    }
+    auto K = KX + KY;
+    world.gop.fence();
+    if (r_params.print_level() >= 20) { print_inner(world, "old xKx", chi_alpha, K); }
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "K[omega]", "K[omega]", iter_timing);
     }
+    molresponse::start_timer(world);
+
+    K = response_exchange(phi0, chi_alpha, true);
+    if (r_params.print_level() >= 20) { print_inner(world, "new xKx", chi_alpha, K); }
+    if (r_params.print_level() >= 1) { molresponse::end_timer(world, "new K[omega]"); }
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
 
@@ -634,6 +649,8 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
     X_space W = X_space::zero_functions(world, num_states, num_orbitals);
     X_space J(world, num_states, num_orbitals);
     X_space K = X_space::zero_functions(world, num_states, num_orbitals);
+    X_space KX = X_space::zero_functions(world, num_states, num_orbitals);
+    X_space KY = X_space::zero_functions(world, num_states, num_orbitals);
 
     //     std::cout << "MPI BARRIER After create Zero functions gamma " << std::endl;
     //     world.mpi.Barrier();
@@ -681,12 +698,25 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
-    K = response_exchange(phi0, xy, false);
+    std::transform(xy.X.begin(), xy.X.end(), KX.X.begin(),
+                   [&](const auto &xi) { return newK(xi, phi0, phi0); });
+
+    std::transform(xy.X.begin(), xy.X.end(), KY.X.begin(),
+                   [&](const auto &xi) { return newK(phi0, xi, phi0); });
+    K = KX + KY;
+    world.gop.fence();
+    if (r_params.print_level() >= 20) { print_inner(world, "old xKx", xy, K); }
 
 
     if (r_params.print_level() >= 1) {
-        molresponse::end_timer(world, "K[omega]", "K[omega]", iter_timing);
+        molresponse::end_timer(world, "old K[omega]", "K[omega]", iter_timing);
     }
+
+    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
+    K = response_exchange(phi0, xy, false);
+
+    if (r_params.print_level() >= 20) { print_inner(world, "new xKx", xy, K); }
+    if (r_params.print_level() >= 1) { molresponse::end_timer(world, "new K[omega"); }
     // for each response state we compute the Gamma response functions
     // trucate all response functions
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
@@ -962,9 +992,7 @@ auto ResponseBase::compute_response_potentials(World &world, const X_space &chi,
 // EXC0=W[ground_density]
 auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<double, 3> &xc,
                                bool compute_Y) const -> X_space {
-    if (r_params.print_level() >= 1) {
-        molresponse::start_timer(world);
-    }
+    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
     //     // std::cout << "MPI BARRIER V0X " << std::endl;
     //     // world.mpi.Barrier();
@@ -1029,14 +1057,10 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
     world.gop.fence();
 
     int b = 0;
-    for (auto &k0x: K0.X) {
-        k0x = newK(phi0_copy, phi0_c, Chi_copy.X[b++]);
-    }
+    for (auto &k0x: K0.X) { k0x = newK(phi0_copy, phi0_c, Chi_copy.X[b++]); }
     if (compute_Y) {
         b = 0;
-        for (auto &k0x: K0.Y) {
-            k0x = newK(phi0_copy, phi0_c, Chi_copy.Y[b++]);
-        }
+        for (auto &k0x: K0.Y) { k0x = newK(phi0_copy, phi0_c, Chi_copy.Y[b++]); }
 
     } else {
         K0.Y = K0.X.copy();
@@ -1123,8 +1147,7 @@ auto ResponseBase::compute_F0X(World &world, const X_space &X, const XCOperator<
 }
 
 auto ResponseBase::compute_residual(World &world, const X_space &chi, const X_space &g_chi,
-                                    const std::string &calc_type)
-        -> residuals {
+                                    const std::string &calc_type) -> residuals {
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     size_t m = chi.X.size();
     size_t n = chi.X.size_orbitals();
@@ -1160,8 +1183,7 @@ auto ResponseBase::compute_residual(World &world, const X_space &chi, const X_sp
 
 auto ResponseBase::kain_x_space_update(World &world, const X_space &chi,
                                        const X_space &residual_chi, response_solver &kain_x_space,
-                                       response_matrix &Xvector,
-                                       response_matrix &Xresidual)
+                                       response_matrix &Xvector, response_matrix &Xresidual)
         -> X_space {
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     size_t m = chi.num_states();
@@ -1183,16 +1205,13 @@ auto ResponseBase::kain_x_space_update(World &world, const X_space &chi,
     }
      */
     response_matrix update(m);
-    for (auto &update_i: update) {
-        update_i = vector_real_function_3d(n);
-    }
+    for (auto &update_i: update) { update_i = vector_real_function_3d(n); }
 
     if (world.rank() == 0) { print("----------------Start Kain Update -----------------"); }
 
     int b = 0;
-    std::transform(Xvector.begin(), Xvector.end(), Xresidual.begin(), update.begin(), [&](auto &xi, auto &ri) {
-        return kain_x_space[b++].update(xi, ri);
-    });
+    std::transform(Xvector.begin(), Xvector.end(), Xresidual.begin(), update.begin(),
+                   [&](auto &xi, auto &ri) { return kain_x_space[b++].update(xi, ri); });
 
     /*
     std::for_each(kain_x_space.begin(), kain_x_space.end(), [&](auto &ki) {
@@ -1455,9 +1474,11 @@ void ResponseBase::solve(World &world) {
     converged_to_json(j_molresponse);
     if (r_params.plot()) {
         auto r_matrix = to_response_matrix(Chi);
-        do_response_orbital_vtk_plots(world, r_params.plot_pts(), r_params.L(), molecule, ground_orbitals, r_matrix);
+        do_response_orbital_vtk_plots(world, r_params.plot_pts(), r_params.L(), molecule,
+                                      ground_orbitals, r_matrix);
         auto response_densities = make_density(world, Chi);
-        do_response_density_vtk_plots(world, r_params.plot_pts(), r_params.L(), molecule, ground_density, response_densities);
+        do_response_density_vtk_plots(world, r_params.plot_pts(), r_params.L(), molecule,
+                                      ground_density, response_densities);
     }
 
 
@@ -1661,8 +1682,7 @@ vector_real_function_3d transition_density(World &world, const vector_real_funct
         print("phi_i !!", phi_i.max_depth(), " ", (void *) phi_i.get_impl().get());
     }
      */
-    std::transform(x.begin(), x.end(), y.begin(), densities.begin(),
-                   compute_density);
+    std::transform(x.begin(), x.end(), y.begin(), densities.begin(), compute_density);
     world.gop.fence();
     //truncate(world, densities, FunctionDefaults<3>::get_thresh(), true);
     return densities;
@@ -1678,8 +1698,7 @@ vector_real_function_3d transition_density(World &world, const vector_real_funct
  * @return
  */
 auto ResponseBase::orbital_load_balance(World &world, const gamma_orbitals &gammaOrbitals,
-                                        const double load_balance)
-        -> gamma_orbitals {
+                                        const double load_balance) -> gamma_orbitals {
 
     auto X = std::get<0>(gammaOrbitals);
     auto psi0 = std::get<1>(gammaOrbitals);
@@ -1691,23 +1710,16 @@ auto ResponseBase::orbital_load_balance(World &world, const gamma_orbitals &gamm
         molresponse::start_timer(world);
         LoadBalanceDeux<3> lb(world);
 
-        for (const auto &phi0_i: psi0) {
-            lb.add_tree(phi0_i, lbcost<double, 3>(1.0, 8.0), false);
-        }
+        for (const auto &phi0_i: psi0) { lb.add_tree(phi0_i, lbcost<double, 3>(1.0, 8.0), false); }
         for (const auto &xi: X.X) {
-            for (const auto &xij: xi) {
-                lb.add_tree(xij, lbcost<double, 3>(1.0, 8.0), false);
-            }
+            for (const auto &xij: xi) { lb.add_tree(xij, lbcost<double, 3>(1.0, 8.0), false); }
         }
         for (const auto &yi: X.Y) {
-            for (const auto &yij: yi) {
-                lb.add_tree(yij, lbcost<double, 3>(1.0, 8.0), false);
-            }
+            for (const auto &yij: yi) { lb.add_tree(yij, lbcost<double, 3>(1.0, 8.0), false); }
         }
         world.gop.fence();
         // newpamap is the new pmap just based on the orbitals
-        auto new_process_map =
-                lb.load_balance(load_balance);
+        auto new_process_map = lb.load_balance(load_balance);
         // default process map
         // We set the new_process_map
         FunctionDefaults<3>::set_pmap(new_process_map);// set default to be new
@@ -1770,8 +1782,7 @@ void ResponseBase::analyze_vectors(World &world, const vecfuncT &x,
 }
 
 auto ResponseBase::project_ao_basis_only(World &world, const AtomicBasisSet &aobasis,
-                                         const Molecule &mol)
-        -> vecfuncT {
+                                         const Molecule &mol) -> vecfuncT {
     vecfuncT ao = vecfuncT(aobasis.nbf(mol));
     for (int i = 0; i < aobasis.nbf(mol); ++i) {
         functorT aofunc(new madchem::AtomicBasisFunctor(aobasis.get_atomic_basis_function(mol, i)));
@@ -1827,8 +1838,7 @@ void ResponseBase::print_inner(World &world, const std::string &name, const X_sp
 
 
 auto transition_densityTDA(World &world, const vector_real_function_3d &orbitals,
-                           const response_space &x)
-        -> vector_real_function_3d {
+                           const response_space &x) -> vector_real_function_3d {
 
     // Get sizes
     size_t m = x.size();
@@ -2177,9 +2187,7 @@ void response_timing::to_json(json &j) {
 
 
     j["time_data"]["wall_time"] = json();
-    for (const auto &e: wall_time_data) {
-        j["time_data"]["wall_time"][e.first] = e.second;
-    }
+    for (const auto &e: wall_time_data) { j["time_data"]["wall_time"][e.first] = e.second; }
 
     j["time_data"]["cpu_time"] = json();
     for (const auto &e: cpu_time_data) { j["time_data"]["cpu_time"][e.first] = e.second; }

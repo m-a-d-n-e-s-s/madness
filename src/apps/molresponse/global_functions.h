@@ -44,10 +44,19 @@ CalcParams initialize_calc_params(World &world, const std::string &input_file);
 // kinetic energy operator on response vector
 response_space T(World &world, response_space &f);
 
-auto ground_exchange(const vecfuncT &phi0, const X_space &x, const bool compute_y) -> X_space;
-auto response_exchange(const vecfuncT &phi0, const X_space &x, const bool compute_y) -> X_space;
+auto ground_exchange(const vecfuncT &phi0, const X_space &x,
+                     const bool compute_y) -> X_space;
+auto response_exchange(const vecfuncT &phi0, const X_space &x,
+                       const bool compute_y) -> X_space;
 vecfuncT K(vecfuncT &ket, vecfuncT &bra, vecfuncT &vf);
 vecfuncT newK(const vecfuncT &ket, const vecfuncT &bra, const vecfuncT &vf);
-static double rsquared(const coord_3d &r) { return r[0] * r[0] + r[1] * r[1] + r[2] * r[2]; }
+// compute exchange |i><i|J|p>
+auto molresponse_exchange(World &world, const vecfuncT &v1, const vecfuncT &v2,
+                          const vecfuncT &v3, const int &n,
+                          const int &num_states, const int &num_orbitals)
+        -> X_space;
+static double rsquared(const coord_3d &r) {
+    return r[0] * r[0] + r[1] * r[1] + r[2] * r[2];
+}
 /// Mask function to switch from 0 to 1 smoothly at boundary
 #endif// SRC_APPS_molresponse_GLOBAL_FUNCTIONS_H_
