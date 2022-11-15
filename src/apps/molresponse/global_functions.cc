@@ -170,7 +170,7 @@ auto response_exchange(const vecfuncT &phi0, const X_space &x, const bool comput
     std::for_each(phi0.begin(), phi0.end(), [&](const auto &phi_i) {
         orb_shift = n * num_orbitals * ii;
         for (long b = 0; b < num_states; b++) {
-            bshift = b * n * num_orbitals*num_orbitals;
+            bshift = b * n * num_orbitals * num_orbitals;
             for (long z = 0; z < n * num_orbitals; z++) {
                 z_index = bshift + orb_shift + z;
                 phi_right.at(z_index) = copy(phi_i);
@@ -239,6 +239,7 @@ auto molresponse_exchange(World &world, const vecfuncT &v1, const vecfuncT &v2, 
         b++;
         // option to use inner product kij=std::inner_product(phi_phiX.begin()+(b*x.num_orbitals()),phi_phiX.begin()+(b*x.num_orbitals(),)
     }
+    truncate(world, exchange_vector);
     molresponse::end_timer(world, "ground exchange apply");
     molresponse::start_timer(world);
     auto exchange_matrix = create_response_matrix(num_states, n * num_orbitals);
