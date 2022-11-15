@@ -7,6 +7,11 @@
 #include "response_parameters.h"
 
 
+static auto set_poisson(World &world, const double lo, const double econv = FunctionDefaults<3>::get_thresh()) {
+    return std::shared_ptr<real_convolution_3d>(CoulombOperatorPtr(world, lo, econv));
+}
+
+
 auto initialize_calc_params(World &world, const std::string &input_file) -> CalcParams {
     ResponseParameters r_params{};
     commandlineparser parser;
@@ -72,28 +77,59 @@ auto ground_exchange(const vecfuncT &phi0, const X_space &x, const bool compute_
         // if not compute y we are only working with the x functions
     }
     // should have num_states * num_orbitals * n  if compute y  n=2 else n=1
-    vecfuncT x_vector(x.num_states() * n * x.num_orbitals());
+    vecfuncT x_vector(x.num_states() * n * x.num_orbitals() * x.num_orbitals());
     long ij = 0;
+
+
+    size_t b = 0;
     for (const auto &xi: xx) {// copy the response matrix into a single vector of functions
         std::for_each(xi.begin(), xi.end(), [&](const auto &xij) {
-            x_vector.at(ij++) = copy(xij);
+            auto vect_xij = copy(world, xij, x.num_orbitals(), true);
+            std::copy(vect_xij.begin(), vect_xij.end(), x_vector.begin() + b * x.num_orbitals());// copy the xij vector n times into a block
+            b++;
         });
     }
-    vecfuncT phi_vector1(x.num_states() * n * phi0.size());
-    vecfuncT phi_vector2(x.num_states() * n * phi0.size());
+    vecfuncT phi1(x.num_orbitals() * x.num_orbitals() * n * x.num_states());
+    vecfuncT phi2(x.num_orbitals() * x.num_orbitals() * n * x.num_states());
     int orb_i = 0;
     // copy ground-state orbitals into a single long vector
-    std::for_each(phi_vector1.begin(), phi_vector1.end(), [&](auto &phi_i) { phi_i = copy(phi0[orb_i++ % x.num_orbitals()]); });
-    phi_vector2 = madness::copy(world, phi_vector1);
+    std::for_each(phi1.begin(), phi1.end(), [&](auto &phi_i) { phi_i = copy(phi0[orb_i++ % x.num_orbitals()]); });
+    phi2 = madness::copy(world, phi1);
     world.gop.fence();
     molresponse::end_timer(world, "ground exchange copy");
     molresponse::start_timer(world);
-    auto exchange_vector = newK(phi_vector1, phi_vector2, x_vector);
+    reconstruct(world, phi1, false);
+    reconstruct(world, phi2, false);
+    reconstruct(world, x_vector, false);
+    world.gop.fence();
+    norm_tree(world, phi1, false);
+    norm_tree(world, phi2, false);
+    norm_tree(world, x_vector, false);
+    world.gop.fence();
+    const double lo = 1.0e-10;
+    auto poisson = set_poisson(world, lo);
+    auto phiX = mul(world, phi1, x_vector, true);
+    truncate(world, phiX);
+    phiX = apply(world, *poisson, phiX);
+    truncate(world, phiX);
+    auto phi_phiX = mul(world, phi1, phiX, true);
+    auto exchange_vector = vecfuncT(x.num_states() * n * x.num_orbitals());
+
+    b = 0;
+    for (auto &kij: exchange_vector) {
+        auto phi_phiX_i = vecfuncT(x.num_orbitals());
+        std::copy(phi_phiX.begin() + (b * x.num_orbitals()), phi_phiX.begin() + (b * x.num_orbitals()) + x.num_orbitals(), phi_phiX_i.begin());
+        world.gop.fence();
+        kij = sum(world, phi_phiX_i, true);
+        b++;
+        // option to use inner product kij=std::inner_product(phi_phiX.begin()+(b*x.num_orbitals()),phi_phiX.begin()+(b*x.num_orbitals(),)
+    }
     molresponse::end_timer(world, "ground exchange apply");
     molresponse::start_timer(world);
 
+
     auto exchange_matrix = create_response_matrix(x.num_states(), n * x.num_orbitals());
-    long b = 0;
+    b = 0;
     for (auto &xi: exchange_matrix) {
         for (auto &xij: xi) {
             xij = copy(exchange_vector[b++]);

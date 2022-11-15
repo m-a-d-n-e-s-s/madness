@@ -503,6 +503,8 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     }
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
+
+
     auto K = response_exchange(phi0, chi_alpha, true);
     if (r_params.print_level() >= 20) { print_inner(world, "xKx", chi_alpha, K); }
     if (r_params.print_level() >= 1) {
@@ -1004,10 +1006,30 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
 
     auto phi0_c = copy(world, phi0_copy);
     world.gop.fence();
+
     int b = 0;
-    K0 = ground_exchange(phi0_copy, X, compute_Y);
-    if (r_params.print_level() >= 20) { print_inner(world, "xK0x", Chi_copy, K0); }
+    for (auto &k0x: K0.X) {
+        k0x = newK(phi0_copy, phi0_c, Chi_copy.X[b++]);
+    }
+    if (compute_Y) {
+        b = 0;
+        for (auto &k0x: K0.Y) {
+            k0x = newK(phi0_copy, phi0_c, Chi_copy.Y[b++]);
+        }
+
+    } else {
+        K0.Y = K0.X.copy();
+    }
+    if (r_params.print_level() >= 20) { print_inner(world, "old xK0x", Chi_copy, K0); }
     if (r_params.print_level() >= 1) { molresponse::end_timer(world, "K[0]", "K[0]", iter_timing); }
+
+    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
+    K0 = ground_exchange(phi0_copy, X, compute_Y);
+    if (r_params.print_level() >= 20) { print_inner(world, "new xK0x", Chi_copy, K0); }
+    if (r_params.print_level() >= 1) { molresponse::end_timer(world, "new K[0]"); }
+
+
+    if (r_params.print_level() >= 20) { print_inner(world, "xK0x", Chi_copy, K0); }
     // Vnuc+V0+VXC
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     real_function_3d v0 = v_j0 + v_nuc + v_xc;
