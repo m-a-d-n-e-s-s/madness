@@ -516,6 +516,8 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     }
     auto K = KX + KY;
     world.gop.fence();
+    if (r_params.print_level() >= 20) { print_inner(world, "old xK1x", chi_alpha, KX); }
+    if (r_params.print_level() >= 20) { print_inner(world, "old xK2x", chi_alpha, KY); }
     if (r_params.print_level() >= 20) { print_inner(world, "old xKx", chi_alpha, K); }
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "K[omega]", "K[omega]", iter_timing);
@@ -682,11 +684,16 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
     std::transform(xy.X.begin(), xy.X.end(), KX.X.begin(),
                    [&](const auto &xi) { return newK(xi, phi0, phi0); });
 
-    std::transform(xy.X.begin(), xy.X.end(), KY.X.begin(),
-                   [&](const auto &xi) { return newK(phi0, xi, phi0); });
+    std::transform(xy.Y.begin(), xy.Y.end(), KY.X.begin(),
+                   [&](const auto &yi) { return newK(phi0, yi, phi0); });
+
+
+
     K = KX + KY;
     world.gop.fence();
     if (r_params.print_level() >= 20) { print_inner(world, "old xKx", xy, K); }
+    if (r_params.print_level() >= 20) { print_inner(world, "old xK1x", xy, KX); }
+    if (r_params.print_level() >= 20) { print_inner(world, "old xK2x", xy, KY); }
 
 
     if (r_params.print_level() >= 1) {
