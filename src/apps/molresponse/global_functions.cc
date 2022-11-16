@@ -135,61 +135,84 @@ auto response_exchange(const vecfuncT &phi0, const X_space &x, const bool comput
         // if not compute y we are only working with the x functions
     }
     auto n_exchange = n * num_states * num_orbitals * num_orbitals;
+    vecfuncT phi_right(n_exchange);
+    long b_index = 0;
+    long p_index = 0;
+    long p = 0;
+    for (long b = 0; b < num_states; b++) {
+        b_index = b * num_orbitals * num_orbitals * n;
+        p = 0;
+        std::for_each(phi0.begin(), phi0.end(), [&](const auto &phi_p) {
+            p_index = p * num_orbitals * n;
+            for (long j = 0; j < n * num_orbitals; j++) {
+                phi_right.at(b_index + p_index + j) = copy(phi_p, false);
+            }
+            p++;
+        });
+    }
+
     vecfuncT x_vector(n_exchange);
-    long ij = 0;
-    long x_index = 0;
-    for (const auto &xi: xx) {                      // num_states
-        for (const auto &xij: xi) {                 //num_orbitals*n
-            for (int z = 0; z < num_orbitals; z++) {//*num_orbitals
-                x_index = z + num_orbitals * ij;
-                x_vector.at(x_index) = copy(xij, false);
-            }
-            world.gop.fence();
-            ij++;
+    long b = 0;
+    for (const auto &xb: xx) {// for each state copy the vector n times
+        b_index = b * num_orbitals * num_orbitals * n;
+        for (long pi = 0; pi < num_orbitals; pi++) {
+            p_index = pi * num_orbitals * n;
+            std::transform(xb.begin(), xb.end(), x_vector.begin() + b_index + p_index,
+                           [&](const auto &xbi) { return copy(xbi); });
         }
-    };
-    ij = 0;
-    x_index = 0;
+        b++;
+    }
+    b = 0;
     vecfuncT x_vector_conjugate(n_exchange);
-    for (const auto &xdi: xx_dagger) {// copy the response matrix into a single vector of functions
-        for (const auto &xdij: xdi) {
-            for (int z = 0; z < num_orbitals; z++) {
-                x_index = z + num_orbitals * ij;
-                x_vector_conjugate.at(x_index) = copy(xdij, false);
+    for (const auto &xdbi: xx_dagger) {// for each state copy the vector n times
+        b_index = b * num_orbitals * num_orbitals * n;
+        for (long p = 0; p < num_orbitals; p++) {
+            p_index = p * num_orbitals * n;
+            std::transform(xdbi.begin(), xdbi.end(), x_vector_conjugate.begin() + b_index + p_index,
+                           [&](const auto &xbi) { return copy(xbi, false); });
+        }
+        b++;
+    }
+    vecfuncT phi_left=zero_functions<double,3>(world,n_exchange);
+    for (long b = 0; b < num_states; b++) {
+        b_index = b * num_orbitals * num_orbitals * n;
+        for (long p = 0; p < n * num_orbitals; p++) {
+            p_index = p * num_orbitals;
+            for (int i = 0; i < num_orbitals; i++) {
+                phi_left[b_index + p_index + i] = copy(phi0[i], false);
             }
-            world.gop.fence();
-            ij++;
         }
     }
-    vecfuncT phi_right(n_exchange);
-    // copy ground-state orbitals into a single long vector
-    long ii = 0;
-    long z_index = 0;
-    long bshift = 0;
-    auto orb_shift = 0;
-    std::for_each(phi0.begin(), phi0.end(), [&](const auto &phi_i) {
-        orb_shift = n * num_orbitals * ii;
-        for (long b = 0; b < num_states; b++) {
-            bshift = b * n * num_orbitals * num_orbitals;
-            for (long z = 0; z < n * num_orbitals; z++) {
-                z_index = bshift + orb_shift + z;
-                phi_right.at(z_index) = copy(phi_i);
-            }
-        }
-        ii++;
-        world.gop.fence();
-    });
+
     world.gop.fence();
-    vecfuncT phi_left(n_exchange);
-    long orb_i = 0;
-    for (auto &phi_i: phi_left) { phi_i = copy(phi0[orb_i++ % num_orbitals]); }
+    auto norm_left = norm2s_T(world, phi_left);
+    auto norm_right = norm2s_T(world, phi_right);
+    auto norm_x = norm2s_T(world, x_vector);
+    auto norm_xd = norm2s_T(world, x_vector_conjugate);
+    world.gop.fence();
+
+    if (world.rank() == 0) {
+
+        print("left", norm_left);
+        print("right", norm_right);
+        print("x", norm_x);
+        print("xd", norm_xd);
+    }
+
+
     world.gop.fence();
     molresponse::end_timer(world, "response exchange copy");
 
     molresponse::start_timer(world);
     K1 = molresponse_exchange(world, x_vector, phi_left, phi_right, n, num_states, num_orbitals);
+    world.gop.fence();
+    auto xk1 = inner(x, K1);
+    if (world.rank() == 0) { print("new xk1", xk1); }
     K2 = molresponse_exchange(world, phi_left, x_vector_conjugate, phi_right, n, num_states,
                               num_orbitals);
+    auto xk2 = inner(x, K2);
+    if (world.rank() == 0) { print("new xk2", xk2); }
+    world.gop.fence();
     K = K1 + K2;
     world.gop.fence();
     molresponse::end_timer(world, "response exchange K1+K2 ");
@@ -231,9 +254,9 @@ auto molresponse_exchange(World &world, const vecfuncT &v1, const vecfuncT &v2, 
 
     long b = 0;
     for (auto &kij: exchange_vector) {
-        auto phi_phiX_i = vecfuncT(num_orbitals);
-        std::copy(v123.begin() + (b * num_orbitals),
-                  v123.begin() + (b * num_orbitals) + num_orbitals, phi_phiX_i.begin());
+        auto phi_phiX_i = vecfuncT(num_orbitals * n);
+        std::copy(v123.begin() + (b * num_orbitals * n),
+                  v123.begin() + (b * num_orbitals) + num_orbitals * n, phi_phiX_i.begin());
         world.gop.fence();
         kij = sum(world, phi_phiX_i, true);
         b++;
