@@ -497,27 +497,26 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
-    X_space KX = X_space::zero_functions(world, num_states, num_orbitals);
-    X_space KY = X_space::zero_functions(world, num_states, num_orbitals);
+    X_space K1 = X_space::zero_functions(world, num_states, num_orbitals);
+    X_space K2 = X_space::zero_functions(world, num_states, num_orbitals);
     auto phi0_c = madness::copy(world, phi0);
     vecfuncT x, y;
     for (size_t b = 0; b < num_states; b++) {
         x = chi_alpha.X[b];
         y = chi_alpha.Y[b];
-
-        KY.X[b] = newK(phi0, y, phi0_c);
+        K1.X[b] = newK(x, phi0, phi0_c);
         world.gop.fence();
-        KX.Y[b] = newK(phi0, x, phi0_c);
+        K1.Y[b] = newK(y, phi0, phi0_c);
         world.gop.fence();
-        KX.X[b] = newK(x, phi0, phi0_c);
+        K2.X[b] = newK(phi0, y, phi0_c);
         world.gop.fence();
-        KY.Y[b] = newK(y, phi0, phi0_c);
+        K2.Y[b] = newK(phi0, x, phi0_c);
         world.gop.fence();
     }
-    auto K = KX + KY;
+    auto K = K1 + K2;
     world.gop.fence();
-    if (r_params.print_level() >= 20) { print_inner(world, "old xK1x", chi_alpha, KX); }
-    if (r_params.print_level() >= 20) { print_inner(world, "old xK2x", chi_alpha, KY); }
+    if (r_params.print_level() >= 20) { print_inner(world, "old xK1x", chi_alpha, K1); }
+    if (r_params.print_level() >= 20) { print_inner(world, "old xK2x", chi_alpha, K2); }
     if (r_params.print_level() >= 20) { print_inner(world, "old xKx", chi_alpha, K); }
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "K[omega]", "K[omega]", iter_timing);
@@ -525,7 +524,7 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     molresponse::start_timer(world);
 
     K = response_exchange(phi0, chi_alpha, true);
-    if (r_params.print_level() >= 20) { print_inner(world, "new xKx", chi_alpha, K); }
+    if (r_params.print_level() >= 20) { print_inner(world, "new xKx", chi_alpha, K1); }
     if (r_params.print_level() >= 1) { molresponse::end_timer(world, "new K[omega]"); }
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
@@ -595,27 +594,6 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
 
     auto [xy, phi0] = orbital_load_balance(world, gammaOrbitals, r_params.loadbalparts());
 
-
-    /*
-    for (const auto &xi: xy.X) {
-        for (const auto &xij: xi) {
-
-            print("xij", xij.max_depth(), " ", (void *) xij.get_impl().get());
-        }
-    }
-    for (const auto &yi: xy.Y) {
-        for (const auto &yij: yi) {
-            print("yij", yij.max_depth(), " ", (void *) yij.get_impl().get());
-        }
-    }
-
-    for (const auto &pi: phi0) {
-        print("orbitals", pi.max_depth(), " ", (void *) pi.get_impl().get());
-    }
-     */
-
-    //     std::cout << "MPI After Load Balancing " << std::endl;
-    //     world.mpi.Barrier();
 
     size_t num_states = xy.num_states();
     size_t num_orbitals = xy.num_orbitals();
@@ -688,21 +666,18 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
                    [&](const auto &yi) { return newK(phi0, yi, phi0); });
 
 
-
     K = KX + KY;
     world.gop.fence();
-    if (r_params.print_level() >= 20) { print_inner(world, "old xKx", xy, K); }
+
     if (r_params.print_level() >= 20) { print_inner(world, "old xK1x", xy, KX); }
     if (r_params.print_level() >= 20) { print_inner(world, "old xK2x", xy, KY); }
-
+    if (r_params.print_level() >= 20) { print_inner(world, "old xKx", xy, K); }
 
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "old K[omega]", "K[omega]", iter_timing);
     }
-
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     K = response_exchange(phi0, xy, false);
-
     if (r_params.print_level() >= 20) { print_inner(world, "new xKx", xy, K); }
     if (r_params.print_level() >= 1) { molresponse::end_timer(world, "new K[omega"); }
     // for each response state we compute the Gamma response functions
