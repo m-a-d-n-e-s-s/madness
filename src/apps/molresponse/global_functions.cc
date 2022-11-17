@@ -191,8 +191,8 @@ auto response_exchange(const vecfuncT &phi0, const X_space &x, const bool comput
             }
         }
     }
-
     world.gop.fence();
+    /*
     auto norm_left = norm2s_T(world, phi_left);
     auto norm_right = norm2s_T(world, phi_right);
     auto norm_x = norm2s_T(world, x_vector);
@@ -205,6 +205,7 @@ auto response_exchange(const vecfuncT &phi0, const X_space &x, const bool comput
         print("x", norm_x);
         print("xd", norm_xd);
     }
+     */
     world.gop.fence();
     molresponse::end_timer(world, "response exchange copy");
 
