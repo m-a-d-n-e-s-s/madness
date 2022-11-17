@@ -4,6 +4,7 @@
 
 #include "ResponseBase.hpp"
 
+
 // Initializes calculation object for both excited state and frequency dependent
 // Copies both the response and ground state
 /// Constructs the Base Response
@@ -465,6 +466,7 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     };
 
     // compute j_x = op(rho_x)*phi0
+
     std::transform(chi_alpha.X.begin(), chi_alpha.X.end(), j_x.begin(), compute_j);
     // compute j_y = op(rho_y)*phi0
 
@@ -557,7 +559,6 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
         molresponse::start_timer(world);
         print_inner(world, "xJx", chi_alpha, J);
         print_inner(world, "xKx", chi_alpha, K);
-        world.gop.fence();
         print_inner(world, "xWx", chi_alpha, W);
         print_inner(world, "xGammax", chi_alpha, gamma);
         molresponse::end_timer(world, "Print Expectation Creating Gamma:");

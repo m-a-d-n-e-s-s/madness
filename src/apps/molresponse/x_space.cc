@@ -11,13 +11,17 @@ namespace madness {
         // copy the vector
         auto response_vector = copy(world, vec);
         // copy the vector
-        std::for_each(vec.begin(), vec.end(), [&](const auto &phi0_i) { response_vector.push_back(madness::copy(phi0_i)); });
+        std::for_each(vec.begin(), vec.end(), [&](const auto &phi0_i) {
+            response_vector.push_back(madness::copy(phi0_i));
+        });
         return response_vector;
     }
-    auto create_response_matrix(const size_t &num_states, const size_t &num_orbitals) -> response_matrix {
+    auto create_response_matrix(const size_t &num_states, const size_t &num_orbitals)
+            -> response_matrix {
 
         auto matrix = response_matrix(num_states);
-        std::for_each(matrix.begin(), matrix.end(), [&](auto &xi) { xi = vector_real_function_3d(num_orbitals); });
+        std::for_each(matrix.begin(), matrix.end(),
+                      [&](auto &xi) { xi = vector_real_function_3d(num_orbitals); });
         return matrix;
     }
     auto to_response_matrix(const X_space &x) -> response_matrix {
@@ -71,9 +75,8 @@ namespace madness {
         int b = 0;
         for (const auto &mi: mx) {
             std::copy(mi.begin(), mi.end(), vij.begin() + b * num_orbitals);
-            std::for_each(mi.begin(), mi.end(), [&](const auto &mix) {
-                vij[b * num_orbitals] = copy(mix);
-            });
+            std::for_each(mi.begin(), mi.end(),
+                          [&](const auto &mix) { vij[b * num_orbitals] = copy(mix); });
             b++;
         }
         return vij;
@@ -86,22 +89,19 @@ namespace madness {
         auto num_states = x.size();
         auto num_orbitals = size_t(x[0].size() / 2);
         auto x_space = X_space(world, num_states, num_orbitals);
-
         int b = 0;
-        std::for_each(x.begin(), x.end(), [&](auto x_vec) {
-            //auto norm_vi = norm2(world, x_vec);
+        for (const auto &x_vec: x) {
             //if (world.rank() == 0) { print("norm in xvec i", norm_vi); }
-            std::copy(x_vec.begin(), x_vec.begin() + num_orbitals, x_space.X[b].begin());
-            std::copy(x_vec.begin() + num_orbitals, x_vec.end(), x_space.Y[b].begin());
+            std::transform(x_vec.begin(), x_vec.begin() + num_orbitals, x_space.X[b].begin(),
+                           [&](const auto &xi) { return copy(xi, false); });
+            std::transform(x_vec.begin() + num_orbitals, x_vec.end() + num_orbitals,
+                           x_space.Y[b].begin(), [&](const auto &xi) { return copy(xi, false); });
             b++;
-        });
-
-        //  auto norms = x_space.norm2s();
-        // if (world.rank() == 0) { print("norms after copy ", norms); }
-
-
+        };
         return x_space;
     }
+
+
     auto to_conjugate_X_space(const response_matrix &x) -> X_space {
 
         World &world = x[0][0].world();
@@ -144,8 +144,6 @@ namespace madness {
         MADNESS_ASSERT(size_orbitals(A) > 0);
         MADNESS_ASSERT(same_size(A, B));
 
-        long size = static_cast<long>(A.n_states);
-
         auto a = to_response_matrix(A);
         auto b = to_response_matrix(B);
 
@@ -165,26 +163,7 @@ namespace madness {
         std::for_each(a_transpose.begin(), a_transpose.end(), [&](const auto &ati) {
             result += matrix_inner(world, ati, b_transpose[p++]);
         });
-
-        /*
-         * TODO Figure out why this won't work
-    std::inner_product(
-            a_transpose.begin(), a_transpose.end(), b_transpose.begin(), result,
-            [](Tensor<double> a, const Tensor<double>& b) {
-                print("a", a);
-                print("b", b);
-                auto ab = a + b;
-                print("a + b = ", ab);
-                return ab;
-            },
-            [&](const auto& ai, const auto& bi) {
-                auto m = matrix_inner(world, ai, bi);
-                print("m: ", m);
-                return m;
-            });
-            */
-
-        //print("results: ", result);
+        world.gop.fence();
         return result;
     }
 }// namespace madness

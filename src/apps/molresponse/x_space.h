@@ -103,7 +103,8 @@ namespace madness {
             response_matrix add_x(num_states());
 
             std::transform(ax.begin(), ax.end(), bx.begin(), add_x.begin(),
-                           [&](const auto &a, const auto &b) { return add(world, a, b); });
+                           [&](const auto &a, const auto &b) { return add(world, a, b, false); });
+            world.gop.fence();
 
             return to_X_space(add_x);
         }

@@ -147,7 +147,8 @@ auto response_exchange(const vecfuncT &phi0, const X_space &x, const bool comput
             std::for_each(phi0.begin(), phi0.end(), [&](const auto &phi_p) {
                 p_index = num_orbitals * p;
                 for (long j = 0; j < num_orbitals; j++) {
-                    phi_right.at(num_orbitals*num_orbitals + b_index + p_index + j) = copy(phi_p, false);
+                    phi_right.at(num_orbitals * num_orbitals + b_index + p_index + j) =
+                            copy(phi_p, false);
                 }
                 p++;
             });
@@ -192,21 +193,6 @@ auto response_exchange(const vecfuncT &phi0, const X_space &x, const bool comput
         }
     }
     world.gop.fence();
-    /*
-    auto norm_left = norm2s_T(world, phi_left);
-    auto norm_right = norm2s_T(world, phi_right);
-    auto norm_x = norm2s_T(world, x_vector);
-    auto norm_xd = norm2s_T(world, x_vector_conjugate);
-    world.gop.fence();
-
-    if (world.rank() == 0) {
-        print("left", norm_left);
-        print("right", norm_right);
-        print("x", norm_x);
-        print("xd", norm_xd);
-    }
-     */
-    world.gop.fence();
     molresponse::end_timer(world, "response exchange copy");
 
     molresponse::start_timer(world);
@@ -215,10 +201,12 @@ auto response_exchange(const vecfuncT &phi0, const X_space &x, const bool comput
     K2 = molresponse_exchange(world, phi_left, x_vector_conjugate, phi_right, n, num_states,
                               num_orbitals);
     world.gop.fence();
+    /*
     auto xk1 = inner(x, K1);
     if (world.rank() == 0) { print("new xk1\n", xk1); }
     auto xk2 = inner(x, K2);
     if (world.rank() == 0) { print("new xk2\n", xk2); }
+     */
     K = K1 + K2;
     world.gop.fence();
     molresponse::end_timer(world, "response exchange K1+K2 ");
@@ -273,7 +261,9 @@ auto molresponse_exchange(World &world, const vecfuncT &ket_i, const vecfuncT &b
         // option to use inner product kij=std::inner_product(phi_phiX.begin()+(b*x.num_orbitals()),phi_phiX.begin()+(b*x.num_orbitals(),)
     }
     truncate(world, exchange_vector);
+    world.gop.fence();
     molresponse::end_timer(world, "ground exchange apply");
+
     molresponse::start_timer(world);
     auto exchange_matrix = create_response_matrix(num_states, n * num_orbitals);
     b = 0;

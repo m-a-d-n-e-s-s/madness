@@ -11,7 +11,7 @@
 #include <vector>
 
 #include <madness/mra/nonlinsol.h>
-#include "global_functions.h"
+#include <global_functions.h>
 #include "madness/mra/functypedefs.h"
 #include "madness/mra/mra.h"
 #include<madness/chem/SCF.h>
