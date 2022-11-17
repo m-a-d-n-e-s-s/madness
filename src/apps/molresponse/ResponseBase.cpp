@@ -516,6 +516,7 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
+    /*
     X_space K1 = X_space::zero_functions(world, num_states, num_orbitals);
     X_space K2 = X_space::zero_functions(world, num_states, num_orbitals);
     auto phi0_c = madness::copy(world, phi0);
@@ -537,19 +538,22 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     if (r_params.print_level() >= 20) { print_inner(world, "old xK1x", chi_alpha, K1); }
     if (r_params.print_level() >= 20) { print_inner(world, "old xK2x", chi_alpha, K2); }
     if (r_params.print_level() >= 20) { print_inner(world, "old xKx", chi_alpha, K); }
+     */
+    auto K = response_exchange(phi0, chi_alpha, true);
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "K[omega]", "K[omega]", iter_timing);
     }
     molresponse::start_timer(world);
 
-    K = response_exchange(phi0, chi_alpha, true);
-    if (r_params.print_level() >= 20) { print_inner(world, "new xKx", chi_alpha, K1); }
+    /*
+    if (r_params.print_level() >= 20) { print_inner(world, "new xKx", chi_alpha, K); }
     if (r_params.print_level() >= 1) { molresponse::end_timer(world, "new K[omega]"); }
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
+     */
 
 
     X_space gamma(world, num_states, num_orbitals);
-    gamma = (2 * J) - (K * xcf.hf_exchange_coefficient()) + W;
+    gamma = (2 * J) - K * xcf.hf_exchange_coefficient() + W;
     //gamma.truncate();
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_truncate_add", "gamma_truncate_add", iter_timing);
@@ -676,6 +680,7 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
         }
     }
 
+    /*
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
     std::transform(xy.X.begin(), xy.X.end(), KX.X.begin(),
@@ -691,14 +696,16 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
     if (r_params.print_level() >= 20) { print_inner(world, "old xK1x", xy, KX); }
     if (r_params.print_level() >= 20) { print_inner(world, "old xK2x", xy, KY); }
     if (r_params.print_level() >= 20) { print_inner(world, "old xKx", xy, K); }
-
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "old K[omega]", "K[omega]", iter_timing);
     }
+     */
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     K = response_exchange(phi0, xy, false);
     if (r_params.print_level() >= 20) { print_inner(world, "new xKx", xy, K); }
-    if (r_params.print_level() >= 1) { molresponse::end_timer(world, "new K[omega"); }
+    if (r_params.print_level() >= 1) {
+        molresponse::end_timer(world, "K[omega]", "K[omega]", iter_timing);
+    }
     // for each response state we compute the Gamma response functions
     // trucate all response functions
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
@@ -710,7 +717,7 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
      */
 
     // update gamma functions
-    gamma = (2 * J) - (K * xcf.hf_exchange_coefficient()) + W;
+    gamma = 2 * J - K * xcf.hf_exchange_coefficient() + W;
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_truncate_add", "gamma_truncate_add", iter_timing);
     }
