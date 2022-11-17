@@ -21,6 +21,7 @@
 #endif
 #endif
 #endif
+
 // Initializes calculation object for both excited state and frequency dependent
 // Copies both the response and ground state
 /// Constructs the Base Response
