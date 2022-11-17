@@ -102,7 +102,7 @@ auto ground_exchange(const vecfuncT &phi0, const X_space &x, const bool compute_
     phi2 = madness::copy(world, phi1);
     world.gop.fence();
     molresponse::end_timer(world, "ground exchange copy");
-    return molresponse_exchange(world, phi1, phi2, x_vector, n, num_states, num_orbitals);
+    return molresponseExchange(world, phi1, phi2, x_vector, n, num_states, num_orbitals);
 }
 // compute full response exchange |i><i|J|p>
 /**
@@ -196,10 +196,10 @@ auto response_exchange(const vecfuncT &phi0, const X_space &x, const bool comput
     molresponse::end_timer(world, "response exchange copy");
 
     molresponse::start_timer(world);
-    K1 = molresponse_exchange(world, x_vector, phi_left, phi_right, n, num_states, num_orbitals);
+    K1 = molresponseExchange(world, x_vector, phi_left, phi_right, n, num_states, num_orbitals);
     world.gop.fence();
-    K2 = molresponse_exchange(world, phi_left, x_vector_conjugate, phi_right, n, num_states,
-                              num_orbitals);
+    K2 = molresponseExchange(world, phi_left, x_vector_conjugate, phi_right, n, num_states,
+                             num_orbitals);
     world.gop.fence();
     /*
     auto xk1 = inner(x, K1);
@@ -224,7 +224,7 @@ auto newK(const vecfuncT &ket, const vecfuncT &bra, const vecfuncT &vf) -> vecfu
     return vk;
 }
 // sum_i |i><i|J|p> for each p
-auto molresponse_exchange(World &world, const vecfuncT &ket_i, const vecfuncT &bra_i,
+auto molresponseExchange(World &world, const vecfuncT &ket_i, const vecfuncT &bra_i,
                           const vecfuncT &fp, const int &n, const int &num_states,
                           const int &num_orbitals) -> X_space {
     molresponse::start_timer(world);
