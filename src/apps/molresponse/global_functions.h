@@ -45,9 +45,9 @@ CalcParams initialize_calc_params(World &world, const std::string &input_file);
 response_space T(World &world, response_space &f);
 
 auto ground_exchange(const vecfuncT &phi0, const X_space &x,
-                     const bool compute_y) -> X_space;
+                     bool compute_y) -> X_space;
 auto response_exchange(const vecfuncT &phi0, const X_space &x,
-                       const bool compute_y) -> X_space;
+                       bool compute_y) -> X_space;
 vecfuncT K(vecfuncT &ket, vecfuncT &bra, vecfuncT &vf);
 vecfuncT newK(const vecfuncT &ket, const vecfuncT &bra, const vecfuncT &vf);
 // compute exchange |i><i|J|p>

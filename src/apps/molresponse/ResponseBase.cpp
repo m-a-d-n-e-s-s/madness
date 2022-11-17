@@ -496,9 +496,6 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
             molresponse::end_timer(world, "XC[omega]", "XC[omega]", iter_timing);
         }
     }
-
-    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-
     /*
     X_space K1 = X_space::zero_functions(world, num_states, num_orbitals);
     X_space K2 = X_space::zero_functions(world, num_states, num_orbitals);
@@ -522,6 +519,7 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     if (r_params.print_level() >= 20) { print_inner(world, "old xK2x", chi_alpha, K2); }
     if (r_params.print_level() >= 20) { print_inner(world, "old xKx", chi_alpha, K); }
      */
+    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     auto K = response_exchange(phi0, chi_alpha, true);
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "K[omega]", "K[omega]", iter_timing);
