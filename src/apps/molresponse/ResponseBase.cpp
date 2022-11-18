@@ -1017,10 +1017,7 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
     // Intermediaries
     world.gop.fence();
 
-    /*
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-
-
     auto phi0_c = copy(world, phi0_copy);
     world.gop.fence();
 
@@ -1035,24 +1032,15 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
     }
     if (r_params.print_level() >= 20) { print_inner(world, "old xK0x", Chi_copy, K0); }
     if (r_params.print_level() >= 1) { molresponse::end_timer(world, "K[0]", "K[0]", iter_timing); }
-
-     */
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     K0 = ground_exchange(phi0_copy, X, compute_Y);
     if (r_params.print_level() >= 20) { print_inner(world, "new xK0x", Chi_copy, K0); }
     if (r_params.print_level() >= 1) { molresponse::end_timer(world, "new K[0]"); }
-
-
     if (r_params.print_level() >= 20) { print_inner(world, "xK0x", Chi_copy, K0); }
-    // Vnuc+V0+VXC
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     real_function_3d v0 = v_j0 + v_nuc + v_xc;
-
-    //v0.truncate(FunctionDefaults<3>::get_thresh(), true);
-
     V0.X = v0 * X.X;
     V0.X += -1 * K0.X * xcf.hf_exchange_coefficient();
-
     if (compute_Y) {
         V0.Y = v0 * X.Y;
         V0.Y += (-1 * K0.Y * xcf.hf_exchange_coefficient());
@@ -1060,17 +1048,10 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
         V0.Y = V0.X.copy();
     }
     if (r_params.print_level() >= 20) { print_inner(world, "xV0x", Chi_copy, V0); }
-
-
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "V0_add", "V0_add", iter_timing);
     }
 
-    //     std::cout << "MPI BARRIER V0X END " << std::endl;
-    //     world.mpi.Barrier();
-    // Basic output
-
-    // Done
     return V0;
 }
 
