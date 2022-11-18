@@ -65,10 +65,19 @@ namespace madness {
                 this->num_orbitals = y.size_orbitals();
                 this->x = y.x;
                 if (x.size() != num_states) { x.resize(num_states); }
-                World &world = y[0][0].world();
-                // print("perhaps this is the problem");
-                std::transform(y.x.begin(), y.x.end(), x.begin(),
-                               [&](const auto &yi) { return madness::copy(world, yi, false); });
+                // if the functions are initialized then deep copy,
+                // else shallow copy
+                // the uninitialized functions.
+                if (y[0][0].impl_initialized()) {
+                    // print("perhaps this is the problem");
+                    World &world = y[0][0].world();
+                    std::transform(y.x.begin(), y.x.end(), x.begin(),
+                                   [&](const auto &yi) { return madness::copy(world, yi, false); });
+                    world.gop.fence();
+                } else {
+                    std::transform(y.x.begin(), y.x.end(), x.begin(),
+                                   [&](const auto &yi) { return yi; });
+                }
             }
             return *this;//
         }
@@ -95,7 +104,7 @@ namespace madness {
         response_space(World &world, size_t num_states, size_t num_orbitals)
             : num_states(num_states), num_orbitals(num_orbitals), x(response_matrix(num_states)) {
             for (auto &state: x) { state = vector_real_function_3d(num_orbitals); }
-            world.gop.fence();
+            //world.gop.fence();
         }
         // Conversion from respones_matrix
         /**
