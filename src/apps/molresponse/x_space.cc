@@ -24,21 +24,20 @@ namespace madness {
                       [&](auto &xi) { xi = vector_real_function_3d(num_orbitals); });
         return matrix;
     }
+    // to response matrix is intended to provide a shallow copy of the response matrix
+    // to simply reorder the functions
     auto to_response_matrix(const X_space &x) -> response_matrix {
         World &world = x.X[0][0].world();
         auto mX = response_matrix(x.num_states());
-        int b = 0;
         auto num_orbitals = x.num_orbitals();
+        int b = 0;
         std::for_each(mX.begin(), mX.end(), [&](auto &mi) {
-            //auto norm_vi = norm2(world, x_vec);
             mi = vector_real_function_3d(2 * num_orbitals);
-            std::transform(x.X[b].begin(), x.X[b].end(), mi.begin(),
-                           [&](const auto xbi) { return copy(xbi, false); });
-            std::transform(x.Y[b].begin(), x.Y[b].end(), mi.begin() + num_orbitals,
-                           [&](const auto ybi) { return copy(ybi, false); });
-            world.gop.fence();
+            std::copy(x.X[b].begin(), x.X[b].end(), mi.begin());               // shallow copy
+            std::copy(x.Y[b].begin(), x.Y[b].end(), mi.begin() + num_orbitals);// shallow copy
             b++;
         });
+        world.gop.fence();
         return mX;
     }
 
@@ -48,13 +47,9 @@ namespace madness {
         int b = 0;
         auto num_orbitals = x.num_orbitals();
         std::for_each(mX.begin(), mX.end(), [&](auto &mi) {
-            //auto norm_vi = norm2(world, x_vec);
             mi = vector_real_function_3d(2 * num_orbitals);
-            std::transform(x.Y[b].begin(), x.Y[b].end(), mi.begin(),
-                           [&](const auto xbi) { return copy(xbi, false); });
-            std::transform(x.X[b].begin(), x.X[b].end(), mi.begin() + num_orbitals,
-                           [&](const auto ybi) { return copy(ybi, false); });
-            world.gop.fence();
+            std::copy(x.Y[b].begin(), x.Y[b].end(), mi.begin());               // shallow copy
+            std::copy(x.X[b].begin(), x.X[b].end(), mi.begin() + num_orbitals);// shallow copy
             b++;
         });
         return mX;
@@ -71,15 +66,9 @@ namespace madness {
         auto num_orbitals = 2 * x.num_orbitals();
         auto vij = vector_real_function_3d(x.num_states() * num_orbitals);
         auto mx = to_response_matrix(x);
-
         int b = 0;
         for (const auto &mi: mx) {
-            std::transform(mi.begin(), mi.end(), vij.begin() + b * num_orbitals,
-                           [&](const auto mii) { return copy(mii, false); });
-            /*
-            std::for_each(mi.begin(), mi.end(),
-                          [&](const auto &mix) { vij[b * num_orbitals] = copy(mix); });
-                          */
+            std::copy(mi.begin(), mi.end(), vij.begin() + b * num_orbitals);
             b++;
         }
         return vij;
@@ -88,19 +77,16 @@ namespace madness {
     auto to_X_space(const response_matrix &x) -> X_space {
 
         World &world = x[0][0].world();
-
         auto num_states = x.size();
         auto num_orbitals = size_t(x[0].size() / 2);
         auto x_space = X_space(world, num_states, num_orbitals);
         int b = 0;
         for (const auto &x_vec: x) {
-            //if (world.rank() == 0) { print("norm in xvec i", norm_vi); }
-            std::transform(x_vec.begin(), x_vec.begin() + num_orbitals, x_space.X[b].begin(),
-                           [&](const auto &xi) { return copy(xi, false); });
-            std::transform(x_vec.begin() + num_orbitals, x_vec.end(), x_space.Y[b].begin(),
-                           [&](const auto &xi) { return copy(xi, false); });
+            std::copy(x_vec.begin(), x_vec.begin() + num_orbitals, x_space.X[b].begin());
+            std::copy(x_vec.begin() + num_orbitals, x_vec.end(), x_space.Y[b].begin());
             b++;
         };
+        world.gop.fence();
         return x_space;
     }
 
