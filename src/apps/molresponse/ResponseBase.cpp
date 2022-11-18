@@ -41,11 +41,14 @@ void ResponseBase::check_k(World &world, double thresh, int k) {
     bool redo = false;
     // Verify ground state orbitals have correct k
     if (FunctionDefaults<3>::get_k() != ground_orbitals[0].k()) {
+        if (world.rank() == 0 && r_params.print_level() > 20) { print("check k ground-orbitals"); }
         // Re-read orbitals from the archive (assuming
         // the archive has orbitals stored at a higher
         // k value than what was previously computed
         ground_calc.read(world);
-        reconstruct(world, ground_orbitals);
+        reconstruct(world, ground_orbitals, true);
+
+        if (world.rank() == 0 && r_params.print_level() > 20) { print("check k reconstruct"); }
         // Reset correct k (its set in g_params.read)
         FunctionDefaults<3>::set_k(k);
         // Project each ground state to correct k
@@ -53,11 +56,20 @@ void ResponseBase::check_k(World &world, double thresh, int k) {
             orbital = project(orbital, FunctionDefaults<3>::get_k(), thresh, false);
         }
         world.gop.fence();
+        if (world.rank() == 0 && r_params.print_level() > 20) {
+            print("check k project ground-orbitals");
+        }
         // Clean up a bit
-        truncate(world, ground_orbitals);
+        truncate(world, ground_orbitals, true);
+        if (world.rank() == 0 && r_params.print_level() > 20) {
+            print("check k truncate ground-orbitals");
+        }
         // Now that ground orbitals have correct k lets make the ground density
         // again
         ground_density = make_ground_density(world);
+        if (world.rank() == 0 && r_params.print_level() > 20) {
+            print("check k make-density ground-orbitals");
+        }
         // Ground state orbitals changed, clear old hamiltonian
         redo = true;
     }
@@ -67,6 +79,9 @@ void ResponseBase::check_k(World &world, double thresh, int k) {
         // TODO this doesn't seem right...
         hamiltonian = HAM;
         ham_no_diag = HAM_NO_DIAG;
+        if (world.rank() == 0 && r_params.print_level() > 20) {
+            print("check k computeHamiltonianPair ");
+        }
     }
 
     // If we stored the potential, check that too
@@ -74,7 +89,7 @@ void ResponseBase::check_k(World &world, double thresh, int k) {
         if (FunctionDefaults<3>::get_k() != stored_potential[0][0].k()) {
             // Project the potential into correct k
             for (auto &potential_vector: stored_potential) {
-                reconstruct(world, potential_vector);
+                reconstruct(world, potential_vector, true);
                 for (auto &vi: potential_vector) {
                     vi = project(vi, FunctionDefaults<3>::get_k(), thresh, false);
                 }
@@ -82,13 +97,13 @@ void ResponseBase::check_k(World &world, double thresh, int k) {
             }
         }
         if (FunctionDefaults<3>::get_k() != stored_v_coul.k())
-            stored_v_coul = project(stored_v_coul, FunctionDefaults<3>::get_k(), thresh, false);
+            stored_v_coul = project(stored_v_coul, FunctionDefaults<3>::get_k(), thresh, true);
         if (FunctionDefaults<3>::get_k() != stored_v_nuc.k())
-            stored_v_nuc = project(stored_v_nuc, FunctionDefaults<3>::get_k(), thresh, false);
+            stored_v_nuc = project(stored_v_nuc, FunctionDefaults<3>::get_k(), thresh, true);
     }
     // Don't forget the mask function as well
     if (FunctionDefaults<3>::get_k() != mask.k()) {
-        mask = project(mask, FunctionDefaults<3>::get_k(), thresh, false);
+        mask = project(mask, FunctionDefaults<3>::get_k(), thresh, true);
     }
     ::check_k(world, Chi, thresh, k);
 
@@ -141,6 +156,7 @@ auto ResponseBase::ComputeHamiltonianPair(World &world) const
     Tensor<double> T = 1.0 / 2.0 *
                        (matrix_inner(world, fx, fx) + matrix_inner(world, fy, fy) +
                         matrix_inner(world, fz, fz));
+    world.gop.fence();
 
     // Construct phiVphi
     // v_nuc first
@@ -191,6 +207,7 @@ auto ResponseBase::ComputeHamiltonianPair(World &world) const
         if (r_params.store_potential()) { stored_potential.push_back(psif); }
         psif = mul_sparse(world, phi_i, psif, FunctionDefaults<3>::get_thresh());
         gaxpy(world, 1.0, Kphi, 1.0, psif);
+        world.gop.fence();
     }
     // Only use the exchange above if HF:
     Tensor<double> phiVphi;
@@ -1421,14 +1438,14 @@ void check_k(World &world, X_space &Chi, double thresh = FunctionDefaults<3>::ge
             // Project all x components into correct k
 
             for (auto &xi: Chi.X) {
-                reconstruct(world, xi);
+                reconstruct(world, xi, true);
                 for (auto &xij: xi) {
                     xij = project(xij, FunctionDefaults<3>::get_k(), thresh, false);
                 }
                 world.gop.fence();
             }
             for (auto &yi: Chi.Y) {
-                reconstruct(world, yi);
+                reconstruct(world, yi, true);
                 for (auto &yij: yi) {
                     yij = project(yij, FunctionDefaults<3>::get_k(), thresh, false);
                 }
