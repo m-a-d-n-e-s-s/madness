@@ -1379,6 +1379,7 @@ void ResponseBase::solve(World &world) {
     for (const auto &iter_thresh: protocol) {
         // We set the protocol and function defaults here for the given threshold of
         set_protocol(world, iter_thresh);
+        if (world.rank() == 0) { print("Succesfully set protocol"); }
         // protocol
         if (first_protocol) {
             if (r_params.restart()) {
@@ -1389,11 +1390,14 @@ void ResponseBase::solve(World &world) {
                 first_protocol = false;
             } else {
                 this->initialize(world);
+                if (world.rank() == 0) { print("Succesfully initialized "); }
             }
             check_k(world, iter_thresh, FunctionDefaults<3>::get_k());
+            if (world.rank() == 0) { print("Succesfully check K first initialization "); }
             first_protocol = false;
         } else {
             check_k(world, iter_thresh, FunctionDefaults<3>::get_k());
+            if (world.rank() == 0) { print("Succesfully check K not first initialization "); }
         }
         protocol_to_json(j_molresponse, iter_thresh);
         // Now actually ready to iterate...
