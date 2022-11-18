@@ -84,6 +84,7 @@ auto ground_exchange(const vecfuncT &phi0, const X_space &x, const bool compute_
     for (long b = 0; b < num_states; b++) {
         b_index = b * num_orbitals * num_orbitals * n;
         p = 0;
+        // for each function in a response vector copy num orbital times
         std::for_each(xx[b].begin(), xx[b].end(), [&](const auto &xb_p) {
             p_index = p * num_orbitals;
             for (long j = 0; j < num_orbitals; j++) {

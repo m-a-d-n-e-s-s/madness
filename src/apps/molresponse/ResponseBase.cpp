@@ -1036,10 +1036,10 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
     // Intermediaries
     world.gop.fence();
 
+    /*
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     auto phi0_c = copy(world, phi0_copy);
     world.gop.fence();
-
     int b = 0;
     for (auto &k0x: K0.X) { k0x = newK(phi0_copy, phi0_c, Chi_copy.X[b++]); }
     if (compute_Y) {
@@ -1050,11 +1050,11 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
         K0.Y = K0.X.copy();
     }
     if (r_params.print_level() >= 20) { print_inner(world, "old xK0x", Chi_copy, K0); }
-    if (r_params.print_level() >= 1) { molresponse::end_timer(world, "K[0]", "K[0]", iter_timing); }
+     */
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     K0 = ground_exchange(phi0_copy, X, compute_Y);
-    if (r_params.print_level() >= 20) { print_inner(world, "new xK0x", Chi_copy, K0); }
-    if (r_params.print_level() >= 1) { molresponse::end_timer(world, "new K[0]"); }
+    if (r_params.print_level() >= 1) { molresponse::end_timer(world, "K[0]", "K[0]", iter_timing); }
+
     if (r_params.print_level() >= 20) { print_inner(world, "xK0x", Chi_copy, K0); }
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     real_function_3d v0 = v_j0 + v_nuc + v_xc;
@@ -1158,21 +1158,8 @@ auto ResponseBase::kain_x_space_update(World &world, const X_space &chi,
     size_t m = chi.num_states();
     size_t n = chi.num_orbitals();
     X_space kain_update(world, m, n);
-
-
     Xvector = to_response_matrix(chi);
     Xresidual = to_response_matrix(residual_chi);
-
-    /*
-    for (size_t b = 0; b < m; b++) {
-
-        Xvector[b].X[0] = copy(world, chi.X[b]);
-        Xvector[b].Y[0] = copy(world, chi.Y[b]);
-
-        Xresidual[b].X[0] = copy(world, residual_chi.X[b]);
-        Xresidual[b].Y[0] = copy(world, residual_chi.Y[b]);
-    }
-     */
     response_matrix update(m);
     for (auto &update_i: update) { update_i = vector_real_function_3d(n); }
 
