@@ -225,8 +225,8 @@ auto newK(const vecfuncT &ket, const vecfuncT &bra, const vecfuncT &vf) -> vecfu
 }
 // sum_i |i><i|J|p> for each p
 auto molresponseExchange(World &world, const vecfuncT &ket_i, const vecfuncT &bra_i,
-                          const vecfuncT &fp, const int &n, const int &num_states,
-                          const int &num_orbitals) -> X_space {
+                         const vecfuncT &fp, const int &n, const int &num_states,
+                         const int &num_orbitals) -> X_space {
     molresponse::start_timer(world);
     reconstruct(world, ket_i, false);
     reconstruct(world, bra_i, false);
@@ -262,7 +262,7 @@ auto molresponseExchange(World &world, const vecfuncT &ket_i, const vecfuncT &br
     }
     truncate(world, exchange_vector);
     world.gop.fence();
-    molresponse::end_timer(world, "ground exchange apply");
+    molresponse::end_timer(world, "exchange apply");
 
     molresponse::start_timer(world);
     auto exchange_matrix = create_response_matrix(num_states, n * num_orbitals);
