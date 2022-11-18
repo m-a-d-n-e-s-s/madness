@@ -53,9 +53,7 @@ namespace madness {
    * @param y
    */
         response_space(const response_space &y)
-            : num_states(y.size()),
-              num_orbitals(y.size_orbitals()),
-              x(y.x) {}
+            : num_states(y.size()), num_orbitals(y.size_orbitals()), x(y.x) {}
 
         // assignment
         // Copy assignment should copy the members of y and leave y Unchanged
@@ -67,10 +65,10 @@ namespace madness {
                 this->num_orbitals = y.size_orbitals();
                 this->x = y.x;
                 if (x.size() != num_states) { x.resize(num_states); }
-                //World &world = y[0][0].world();
+                World &world = y[0][0].world();
                 // print("perhaps this is the problem");
                 std::transform(y.x.begin(), y.x.end(), x.begin(),
-                               [&](auto yi) { return yi; });
+                               [&](const auto &yi) { return madness::copy(world, yi, false); });
             }
             return *this;//
         }
@@ -95,12 +93,8 @@ namespace madness {
    * @param num_orbitals
    */
         response_space(World &world, size_t num_states, size_t num_orbitals)
-            : num_states(num_states),
-              num_orbitals(num_orbitals),
-              x(response_matrix(num_states)) {
-            for (auto &state: x) {
-                state = vector_real_function_3d(num_orbitals);
-            }
+            : num_states(num_states), num_orbitals(num_orbitals), x(response_matrix(num_states)) {
+            for (auto &state: x) { state = vector_real_function_3d(num_orbitals); }
             world.gop.fence();
         }
         // Conversion from respones_matrix
@@ -110,9 +104,7 @@ namespace madness {
    * @param x
    */
         explicit response_space(const response_matrix &x)
-            : num_states(x.size()),
-              num_orbitals(x[0].size()),
-              x(x) {}
+            : num_states(x.size()), num_orbitals(x[0].size()), x(x) {}
 
         // Determines if two ResponseFunctions are the same size
         friend bool same_size(const response_space &a, const response_space &b) {
@@ -281,7 +273,7 @@ namespace madness {
 
 
             std::transform(x.begin(), x.end(), result.x.begin(),
-                           [&world](auto &xi) { return madness::copy(world, xi); });
+                           [&world](auto &xi) { return madness::copy(world, xi, false); });
             world.gop.fence();
 
 
@@ -294,7 +286,8 @@ namespace madness {
             response_space result(world, num_states, num_orbitals);
             world.gop.fence();
 
-            std::transform(x.begin(), x.end(), result.x.begin(), [&](const auto &xi) { return madness::copy(world, xi, pmap, fence); });
+            std::transform(x.begin(), x.end(), result.x.begin(),
+                           [&](const auto &xi) { return madness::copy(world, xi, pmap, fence); });
 
 
             return result;

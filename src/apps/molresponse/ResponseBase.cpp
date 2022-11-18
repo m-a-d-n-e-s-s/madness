@@ -458,22 +458,24 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
         // compute density with response function dx and orbitals phi0
         auto rho_x_b = dot(world, dx, phi0);
         rho_x_b.truncate();
-        // apply the coulomb operator to rho_b
         rho_x_b = apply(*shared_coulomb_operator, rho_x_b);
+        world.gop.fence();
         return mul_sparse(world, rho_x_b, phi0, mul_tol, true);
     };
 
-    // compute j_x = op(rho_x)*phi0
-
     std::transform(chi_alpha.X.begin(), chi_alpha.X.end(), j_x.begin(), compute_j);
     // compute j_y = op(rho_y)*phi0
+    if (world.rank() == 0) { print("compute jX"); }
 
     std::transform(chi_alpha.Y.begin(), chi_alpha.Y.end(), j_y.begin(), compute_j);
+    if (world.rank() == 0) { print("compute jy"); }
 
     J.X = j_x + j_y;
+    if (world.rank() == 0) { print("add jx+jy"); }
     // TODO is copy better than adding? probably?
     // J.Y=j_x+j_y;
     J.Y = J.X.copy();
+    if (world.rank() == 0) { print("copy JX into JY"); }
     world.gop.fence();
 
     if (r_params.print_level() >= 1) {
