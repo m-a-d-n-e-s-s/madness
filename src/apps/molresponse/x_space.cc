@@ -94,7 +94,7 @@ namespace madness {
             //if (world.rank() == 0) { print("norm in xvec i", norm_vi); }
             std::transform(x_vec.begin(), x_vec.begin() + num_orbitals, x_space.X[b].begin(),
                            [&](const auto &xi) { return copy(xi, false); });
-            std::transform(x_vec.begin() + num_orbitals, x_vec.end() + num_orbitals,
+            std::transform(x_vec.begin() + num_orbitals, x_vec.end() ,
                            x_space.Y[b].begin(), [&](const auto &xi) { return copy(xi, false); });
             b++;
         };
