@@ -315,13 +315,22 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
     size_t n = theta_X.X.size_orbitals();
     bool compute_y = omega != 0.0;
 
+
     theta_X.X += theta_X.X * x_shifts;
     theta_X.X += PQ.X;
     theta_X.X = theta_X.X * -2;
 
+    if (world.rank() == 0) {
+        print("--------------- ThetaX.X------------------");
+    }
+
     if (compute_y) {
         theta_X.Y += PQ.Y;
         theta_X.Y = theta_X.Y * -2;
+    }
+
+    if (world.rank() == 0) {
+        print("--------------- ThetaX.Y------------------");
     }
     // apply bsh
     X_space bsh_X(world, m, n);
@@ -329,12 +338,18 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
     bsh_X.X = apply(world, bsh_x_ops, theta_X.X);
     if (compute_y) { bsh_X.Y = apply(world, bsh_y_ops, theta_X.Y); }
 
+    if (world.rank() == 0) {
+        print("--------------- Apply BSH------------------");
+    }
     // Project out ground state
     for (size_t i = 0; i < m; i++) bsh_X.X[i] = projector(bsh_X.X[i]);
     if (compute_y) {
         for (size_t i = 0; i < m; i++) { bsh_X.Y[i] = projector(bsh_X.Y[i]); }
     } else {
         bsh_X.Y = bsh_X.X.copy();
+    }
+    if (world.rank() == 0) {
+        print("--------------- Project BSH------------------");
     }
 
     if (r_params.print_level() >= 1) {
