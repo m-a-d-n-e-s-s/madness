@@ -1038,6 +1038,7 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
     // Intermediaries
     world.gop.fence();
 
+    /*
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
 
@@ -1056,6 +1057,7 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
     if (r_params.print_level() >= 20) { print_inner(world, "old xK0x", Chi_copy, K0); }
     if (r_params.print_level() >= 1) { molresponse::end_timer(world, "K[0]", "K[0]", iter_timing); }
 
+     */
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     K0 = ground_exchange(phi0_copy, X, compute_Y);
     if (r_params.print_level() >= 20) { print_inner(world, "new xK0x", Chi_copy, K0); }
