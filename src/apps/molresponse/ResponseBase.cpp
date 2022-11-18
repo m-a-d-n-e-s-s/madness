@@ -445,8 +445,6 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     size_t num_states = chi_alpha.num_states();
     size_t num_orbitals = chi_alpha.num_orbitals();
 
-    //truncate(world, phi0);
-    ////   chi_alpha.truncate();
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
