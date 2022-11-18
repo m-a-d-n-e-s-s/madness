@@ -32,10 +32,10 @@ namespace madness {
         std::for_each(mX.begin(), mX.end(), [&](auto &mi) {
             //auto norm_vi = norm2(world, x_vec);
             mi = vector_real_function_3d(2 * num_orbitals);
-            //if (world.rank() == 0) { print("norm in xvec i", norm_vi); }
-            std::copy(x.X[b].begin(), x.X[b].end(), mi.begin());
-            world.gop.fence();
-            std::copy(x.Y[b].begin(), x.Y[b].end(), mi.begin() + num_orbitals);
+            std::transform(x.X[b].begin(), x.X[b].end(), mi.begin(),
+                           [&](const auto xbi) { return copy(xbi, false); });
+            std::transform(x.Y[b].begin(), x.Y[b].end(), mi.begin() + num_orbitals,
+                           [&](const auto ybi) { return copy(ybi, false); });
             world.gop.fence();
             b++;
         });
@@ -50,10 +50,10 @@ namespace madness {
         std::for_each(mX.begin(), mX.end(), [&](auto &mi) {
             //auto norm_vi = norm2(world, x_vec);
             mi = vector_real_function_3d(2 * num_orbitals);
-            //if (world.rank() == 0) { print("norm in xvec i", norm_vi); }
-            std::copy(x.Y[b].begin(), x.Y[b].end(), mi.begin());
-            world.gop.fence();
-            std::copy(x.X[b].begin(), x.X[b].end(), mi.begin() + num_orbitals);
+            std::transform(x.Y[b].begin(), x.Y[b].end(), mi.begin(),
+                           [&](const auto xbi) { return copy(xbi, false); });
+            std::transform(x.X[b].begin(), x.X[b].end(), mi.begin() + num_orbitals,
+                           [&](const auto ybi) { return copy(ybi, false); });
             world.gop.fence();
             b++;
         });
@@ -74,9 +74,12 @@ namespace madness {
 
         int b = 0;
         for (const auto &mi: mx) {
-            std::copy(mi.begin(), mi.end(), vij.begin() + b * num_orbitals);
+            std::transform(mi.begin(), mi.end(), vij.begin() + b * num_orbitals,
+                           [&](const auto mii) { return copy(mii, false); });
+            /*
             std::for_each(mi.begin(), mi.end(),
                           [&](const auto &mix) { vij[b * num_orbitals] = copy(mix); });
+                          */
             b++;
         }
         return vij;
@@ -94,8 +97,8 @@ namespace madness {
             //if (world.rank() == 0) { print("norm in xvec i", norm_vi); }
             std::transform(x_vec.begin(), x_vec.begin() + num_orbitals, x_space.X[b].begin(),
                            [&](const auto &xi) { return copy(xi, false); });
-            std::transform(x_vec.begin() + num_orbitals, x_vec.end() ,
-                           x_space.Y[b].begin(), [&](const auto &xi) { return copy(xi, false); });
+            std::transform(x_vec.begin() + num_orbitals, x_vec.end(), x_space.Y[b].begin(),
+                           [&](const auto &xi) { return copy(xi, false); });
             b++;
         };
         return x_space;
@@ -112,12 +115,13 @@ namespace madness {
 
         int b = 0;
         std::for_each(x.begin(), x.end(), [&](auto x_vec) {
-            //auto norm_vi = norm2(world, x_vec);
-            //if (world.rank() == 0) { print("norm in xvec i", norm_vi); }
-            std::copy(x_vec.begin(), x_vec.begin() + num_orbitals, x_space.Y[b].begin());
-            std::copy(x_vec.begin() + num_orbitals, x_vec.end(), x_space.X[b].begin());
+            std::transform(x_vec.begin(), x_vec.begin() + num_orbitals, x_space.Y[b].begin(),
+                           [&](const auto &xi) { return copy(xi, false); });
+            std::transform(x_vec.begin() + num_orbitals, x_vec.end(), x_space.X[b].begin(),
+                           [&](const auto &xi) { return copy(xi, false); });
             b++;
         });
+        world.gop.fence();
 
         //  auto norms = x_space.norm2s();
         // if (world.rank() == 0) { print("norms after copy ", norms); }
