@@ -284,7 +284,7 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
     auto [new_res, bsh] = compute_residual(world, chi, new_chi, r_params.calc_type());
 
     // kain update with temp adjusts temp
-    if (r_params.kain() && (iteration > 3)) {
+    if (r_params.kain() && (iteration > 0)) {
         new_chi = kain_x_space_update(world, chi, new_res, kain_x_space, Xvector, Xresidual);
     }
 
