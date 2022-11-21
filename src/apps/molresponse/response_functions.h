@@ -151,12 +151,9 @@ namespace madness {
         response_space operator+(const response_space &rhs_y) const {
             MADNESS_ASSERT(size() > 0);
             MADNESS_ASSERT(same_size(*this, rhs_y));// assert that same size
-
             World &world = this->x[0][0].world();
-
             response_space result(world, num_states, num_orbitals);// create zero_functions
-
-            for (size_t i = 0; i < num_states; i++) { result[i] = add(world, x[i], rhs_y[i]); }
+            for (size_t i = 0; i < num_states; i++) { result[i] = x[i] + rhs_y[i]; }
             return result;
         }
         /*
@@ -175,14 +172,9 @@ namespace madness {
         response_space operator-(const response_space &rhs_y) const {
             MADNESS_ASSERT(size() > 0);
             MADNESS_ASSERT(same_size(*this, rhs_y));// assert that same size
-
             World &world = this->x[0][0].world();
-
             response_space result(world, num_states, num_orbitals);// create zero_functions
-
-            for (size_t i = 0; i < num_states; i++) {
-                result[i] = sub(world, x[i], rhs_y[i], false);
-            }
+            for (size_t i = 0; i < num_states; i++) { result[i] = x[i] - rhs_y[i]; }
             return result;
         }
 
@@ -196,26 +188,20 @@ namespace madness {
         friend response_space operator*(response_space y, double a) {
             World &world = y.x.at(0).at(0).world();
             response_space result = y.copy();// deep copy
-
             for (unsigned int i = 0; i < y.num_states; i++) { madness::scale(world, result[i], a); }
-
             return result;
         }
 
         friend response_space operator*(double a, response_space y) {
             World &world = y.x.at(0).at(0).world();
             response_space result = y.copy();// deep copy
-
             for (unsigned int i = 0; i < y.num_states; i++) { madness::scale(world, result[i], a); }
-
             return result;
         }
 
         response_space &operator*=(double a) {
             World &world = this->x[0][0].world();
-
             for (size_t i = 0; i < num_states; i++) { madness::scale(world, this->x[i], a); }
-
             return *this;
         }
 
@@ -224,12 +210,10 @@ namespace madness {
         friend response_space operator*(const response_space &a, const Function<double, 3> &f) {
             World &world = a.x.at(0).at(0).world();
             response_space result(world, a.num_states, a.num_orbitals);// create zero_functions
-
             for (unsigned int i = 0; i < a.num_states; i++) {
                 // Using vmra.h funciton
-                result[i] = mul(f.world(), f, a[i]);
+                result[i] = a[i] * f;
             }
-
             return result;
         }
 
@@ -243,11 +227,7 @@ namespace madness {
         response_space operator*(const Function<double, 3> &f) {
             World &world = x[0][0].world();
             response_space result(world, num_states, num_orbitals);// create zero_functions
-
-            for (size_t i = 0; i < num_states; i++) {
-                // Using vmra.h funciton
-                result[i] = mul(f.world(), f, x[i]);
-            }
+            for (size_t i = 0; i < num_states; i++) { result[i] = x[i] * f; }
 
             return result;
         }
@@ -257,11 +237,9 @@ namespace madness {
             MADNESS_ASSERT(!a[0].empty());
             World &world = a[0][0].world();
             response_space result(world, a.num_states, a.num_orbitals);
-
             for (unsigned int i = 0; i < a.size(); i++) {
                 result[i] = transform(world, a[i], b, false);
             }
-
             return result;
         }
 
@@ -269,18 +247,14 @@ namespace madness {
         response_space &operator+=(const response_space &b) {
             MADNESS_ASSERT(same_size(*this, b));
             World &world = x[0][0].world();
-            for (size_t i = 0; i < num_states; i++) { this->x[i] = add(world, this->x[i], b[i]); }
-            world.gop.fence();
-
+            for (size_t i = 0; i < num_states; i++) { this->x[i] += b[i]; }
             return *this;
         }
 
         // Returns a deep copy
-        response_space copy() const {
+        [[nodiscard]] response_space copy() const {
             World &world = x[0][0].world();
             response_space result(world, num_states, num_orbitals);
-
-
             std::transform(x.begin(), x.end(), result.x.begin(),
                            [&world](auto &xi) { return madness::copy(world, xi, false); });
             world.gop.fence();
@@ -289,8 +263,8 @@ namespace madness {
             return result;
         }
 
-        response_space copy(const std::shared_ptr<WorldDCPmapInterface<Key<3>>> &pmap,
-                            bool fence = false) const {
+        [[nodiscard]] response_space copy(const std::shared_ptr<WorldDCPmapInterface<Key<3>>> &pmap,
+                                          bool fence = false) const {
             auto &world = x[0][0].world();
             response_space result(world, num_states, num_orbitals);
             world.gop.fence();
@@ -360,13 +334,13 @@ namespace madness {
         void compress_rf() {
             //for (size_t k = 0; k < num_states; k++) { compress(x[0][0].world(), x[k], true); }
             auto &world = x[0][0].world();
-            std::for_each(x.begin(), x.end(), [&](auto& xi) { compress(world, xi, true); });
+            std::for_each(x.begin(), x.end(), [&](auto &xi) { compress(world, xi, true); });
         }
 
         void reconstruct_rf() {
             //for (size_t k = 0; k < num_states; k++) { reconstruct(x[0][0].world(), x[k], true); }
             auto &world = x[0][0].world();
-            std::for_each(x.begin(), x.end(), [&](auto& xi) { reconstruct(world, xi, true); });
+            std::for_each(x.begin(), x.end(), [&](auto &xi) { reconstruct(world, xi, true); });
         }
 
         void truncate_rf() {
@@ -380,7 +354,7 @@ namespace madness {
 
         void truncate_rf(double tol) {
             auto &world = x[0][0].world();
-            std::for_each(x.begin(), x.end(), [&](auto& xi) { truncate(world, xi, tol, true); });
+            std::for_each(x.begin(), x.end(), [&](auto &xi) { truncate(world, xi, tol, true); });
             /*
             for (size_t k = 0; k < num_states; k++) { truncate(x[0][0].world(), x[k], tol, true); }
              */
