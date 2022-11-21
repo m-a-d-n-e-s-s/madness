@@ -94,18 +94,14 @@ namespace madness {
         auto operator+(const X_space &B) -> X_space {
             MADNESS_ASSERT(same_size(*this, B));
             World &world = this->X[0][0].world();
-
             auto ax = to_response_matrix(*this);
             world.gop.fence();
             auto bx = to_response_matrix(B);
             world.gop.fence();
-
             response_matrix add_x(num_states());
 
             std::transform(ax.begin(), ax.end(), bx.begin(), add_x.begin(),
-                           [&](const auto &a, const auto &b) { return add(world, a, b, false); });
-            world.gop.fence();
-
+                           [&](const auto &a, const auto &b) { return a + b; });
             return to_X_space(add_x);
         }
 
