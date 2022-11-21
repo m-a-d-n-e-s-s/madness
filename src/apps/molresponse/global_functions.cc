@@ -103,7 +103,9 @@ auto ground_exchange(const vecfuncT &phi0, const X_space &x, const bool compute_
     phi2 = madness::copy(world, phi1);
     world.gop.fence();
     molresponse::end_timer(world, "ground exchange copy");
-    return molresponseExchange(world, phi1, phi2, x_vector, n, num_states, num_orbitals);
+    auto K = molresponseExchange(world, phi1, phi2, x_vector, n, num_states, num_orbitals);
+    if (world.rank() == 0) { print("made it out of molresponseExchange"); }
+    return K
 }
 // compute full response exchange |i><i|J|p>
 /**
@@ -232,6 +234,7 @@ auto molresponseExchange(World &world, const vecfuncT &ket_i, const vecfuncT &br
     reconstruct(world, ket_i, false);
     reconstruct(world, bra_i, false);
     reconstruct(world, fp, false);
+    if (world.rank() == 0) { print("exchange reconstruct tree"); }
     world.gop.fence();
     norm_tree(world, ket_i, false);
     norm_tree(world, bra_i, false);
@@ -241,13 +244,15 @@ auto molresponseExchange(World &world, const vecfuncT &ket_i, const vecfuncT &br
     const double lo = 1.0e-10;
     auto poisson = set_poisson(world, lo);
     auto v23 = mul(world, bra_i, fp, true);
-
+    if (world.rank() == 0) { print("multiply v23"); }
     truncate(world, v23, 0.0, true);
+    if (world.rank() == 0) { print("truncate v23"); }
     v23 = apply(world, *poisson, v23);
-    world.gop.fence();
+    if (world.rank() == 0) { print("apply v23"); }
     truncate(world, v23, 0.0, true);
+    if (world.rank() == 0) { print("truncate after apply v23"); }
     auto v123 = mul(world, ket_i, v23, true);
-    world.gop.fence();
+    if (world.rank() == 0) { print("multiply  apply v123"); }
     const long n_exchange{num_states * n * num_orbitals};
     auto exchange_vector = vecfuncT(n_exchange);
     long b = 0;
@@ -262,6 +267,7 @@ auto molresponseExchange(World &world, const vecfuncT &ket_i, const vecfuncT &br
         b++;
         // option to use inner product kij=std::inner_product(phi_phiX.begin()+(b*x.num_orbitals()),phi_phiX.begin()+(b*x.num_orbitals(),)
     }
+    molresponse::end_timer(world, "exchange sum");
     truncate(world, exchange_vector);
     world.gop.fence();
     molresponse::end_timer(world, "exchange apply");
