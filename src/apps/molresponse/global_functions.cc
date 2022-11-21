@@ -105,7 +105,7 @@ auto ground_exchange(const vecfuncT &phi0, const X_space &x, const bool compute_
     molresponse::end_timer(world, "ground exchange copy");
     auto K = molresponseExchange(world, phi1, phi2, x_vector, n, num_states, num_orbitals);
     if (world.rank() == 0) { print("made it out of molresponseExchange"); }
-    return K
+    return K;
 }
 // compute full response exchange |i><i|J|p>
 /**
