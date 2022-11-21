@@ -18,9 +18,9 @@ void FrequencyResponse::iterate(World &world) {
 
     real_function_3d v_xc;// For TDDFT
     // the Final protocol should be equal to dconv at the minimum
-    const double conv_den = std::max(75 * FunctionDefaults<3>::get_thresh(), r_params.dconv());
+    const double conv_den = std::max(100 * FunctionDefaults<3>::get_thresh(), r_params.dconv());
     const double relative_max_target =
-            std::max(10 * FunctionDefaults<3>::get_thresh(), 5 * r_params.dconv());
+            std::max(50 * FunctionDefaults<3>::get_thresh(), 5 * r_params.dconv());
     // m residuals for x and y
     Tensor<double> bsh_residualsX((int(m)));
     Tensor<double> bsh_residualsY((int(m)));
@@ -51,9 +51,8 @@ void FrequencyResponse::iterate(World &world) {
     // create a std vector of XNONLinearsolvers
     response_solver kain_x_space;
     for (size_t b = 0; b < m; b++) {
-        kain_x_space.push_back(
-                XNonlinearSolver<vector_real_function_3d, double, response_matrix_allocator>(
-                        response_matrix_allocator(world, 2 * n), false));
+        kain_x_space.push_back(XNonlinearSolver<vector_real_function_3d, double, response_matrix_allocator>(
+                response_matrix_allocator(world, 2 * n), false));
     }
     if (r_params.kain()) {
         for (auto &kain_space_b: kain_x_space) { kain_space_b.set_maxsub(r_params.maxsub()); }
@@ -307,7 +306,9 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
         -> X_space {
     if (r_params.print_level() >= 1) {
         molresponse::start_timer(world);
-        if (world.rank() == 0) { print("--------------- BSH UPDATE RESPONSE------------------"); }
+        if (world.rank() == 0) {
+            print("--------------- BSH UPDATE RESPONSE------------------");
+        }
     }
 
     size_t m = theta_X.X.size();
@@ -319,21 +320,27 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
     theta_X.X += PQ.X;
     theta_X.X = theta_X.X * -2;
 
-    if (world.rank() == 0) { print("--------------- ThetaX.X------------------"); }
+    if (world.rank() == 0) {
+        print("--------------- ThetaX.X------------------");
+    }
 
     if (compute_y) {
         theta_X.Y += PQ.Y;
         theta_X.Y = theta_X.Y * -2;
     }
 
-    if (world.rank() == 0) { print("--------------- ThetaX.Y------------------"); }
+    if (world.rank() == 0) {
+        print("--------------- ThetaX.Y------------------");
+    }
     // apply bsh
     X_space bsh_X(world, m, n);
 
     bsh_X.X = apply(world, bsh_x_ops, theta_X.X);
     if (compute_y) { bsh_X.Y = apply(world, bsh_y_ops, theta_X.Y); }
 
-    if (world.rank() == 0) { print("--------------- Apply BSH------------------"); }
+    if (world.rank() == 0) {
+        print("--------------- Apply BSH------------------");
+    }
     // Project out ground state
     for (size_t i = 0; i < m; i++) bsh_X.X[i] = projector(bsh_X.X[i]);
     if (compute_y) {
@@ -341,7 +348,9 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
     } else {
         bsh_X.Y = bsh_X.X.copy();
     }
-    if (world.rank() == 0) { print("--------------- Project BSH------------------"); }
+    if (world.rank() == 0) {
+        print("--------------- Project BSH------------------");
+    }
 
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "bsh_update", "bsh_update", iter_timing);
