@@ -95,11 +95,8 @@ namespace madness {
             MADNESS_ASSERT(same_size(*this, B));
             World &world = this->X[0][0].world();
             auto ax = to_response_matrix(*this);
-            world.gop.fence();
             auto bx = to_response_matrix(B);
-            world.gop.fence();
             response_matrix add_x(num_states());
-
             std::transform(ax.begin(), ax.end(), bx.begin(), add_x.begin(),
                            [&](const auto &a, const auto &b) { return a + b; });
             return to_X_space(add_x);
@@ -107,8 +104,10 @@ namespace madness {
 
         auto operator+=(const X_space &B) -> X_space & {
             MADNESS_ASSERT(same_size(*this, B));
-            this->X += B.X;
-            this->Y += B.Y;
+            auto ax = to_response_matrix(*this);
+            auto bx = to_response_matrix(B);
+            int b = 0;
+            std::for_each(ax.begin(), ax.end(), [&](auto &a) { a += bx[b++]; });
             return *this;
         }
 
@@ -137,7 +136,6 @@ namespace madness {
 
         static X_space zero_functions(World &world, size_t n_states, size_t n_orbitals) {
             auto zeros = X_space(world, n_states, n_orbitals);
-
             for (auto &xi: zeros.X) {
                 xi = ::madness::zero_functions<double, 3>(world, n_orbitals, false);
             }
@@ -150,23 +148,14 @@ namespace madness {
 
         friend auto operator+(const X_space &A, const X_space &B) -> X_space {
             MADNESS_ASSERT(same_size(A, B));
-
             World &world = A.X[0][0].world();
             X_space result(world, A.n_states, A.n_orbitals);// create zero_functions
-
             auto ax = to_response_matrix(A);
             auto bx = to_response_matrix(B);
-
             response_matrix add_x(A.num_states());
-
             std::transform(ax.begin(), ax.end(), bx.begin(), add_x.begin(),
-                           [&](auto a, auto b) { return add(world, a, b); });
-
+                           [&](auto a, auto b) { return a + b; });
             return to_X_space(add_x);
-
-            result.X = A.X + B.X;
-            result.Y = A.Y + B.Y;
-            return result;
         }
 
         X_space operator-(const X_space B) {
