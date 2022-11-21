@@ -84,13 +84,14 @@ auto ground_exchange(const vecfuncT &phi0, const X_space &x, const bool compute_
     for (long b = 0; b < num_states; b++) {
         b_index = b * num_orbitals * num_orbitals * n;
         p = 0;
-        for (const auto &xb_p: xx[b]) {
+        // for each function in a response vector copy num orbital times
+        std::for_each(xx[b].begin(), xx[b].end(), [&](const auto &xb_p) {
             p_index = p * num_orbitals;
             for (long j = 0; j < num_orbitals; j++) {
                 x_vector.at(b_index + p_index + j) = copy(xb_p, false);
             }
             p++;
-        }
+        });
     }
     vecfuncT phi1(n_exchange);
     vecfuncT phi2(n_exchange);
@@ -236,7 +237,7 @@ auto molresponseExchange(World &world, const vecfuncT &ket_i, const vecfuncT &br
     norm_tree(world, bra_i, false);
     norm_tree(world, fp, false);
     world.gop.fence();
-    if (world.rank() == 0) { print("exchange norm true"); }
+    if (world.rank() == 0) { print("exchange norm tree"); }
     const double lo = 1.0e-10;
     auto poisson = set_poisson(world, lo);
     auto v23 = mul(world, bra_i, fp, true);
