@@ -84,14 +84,13 @@ auto ground_exchange(const vecfuncT &phi0, const X_space &x, const bool compute_
     for (long b = 0; b < num_states; b++) {
         b_index = b * num_orbitals * num_orbitals * n;
         p = 0;
-        // for each function in a response vector copy num orbital times
-        std::for_each(xx[b].begin(), xx[b].end(), [&](const auto &xb_p) {
+        for (const auto &xb_p: xx[b]) {
             p_index = p * num_orbitals;
             for (long j = 0; j < num_orbitals; j++) {
                 x_vector.at(b_index + p_index + j) = copy(xb_p, false);
             }
             p++;
-        });
+        }
     }
     vecfuncT phi1(n_exchange);
     vecfuncT phi2(n_exchange);
@@ -100,8 +99,7 @@ auto ground_exchange(const vecfuncT &phi0, const X_space &x, const bool compute_
     std::for_each(phi1.begin(), phi1.end(),
                   [&](auto &phi_i) { phi_i = copy(phi0[orb_i++ % num_orbitals]); });
     world.gop.fence();
-    phi2 = madness::copy(world, phi1);
-    world.gop.fence();
+    phi2 = madness::copy(world, phi1, true);
     molresponse::end_timer(world, "ground exchange copy");
     return molresponseExchange(world, phi1, phi2, x_vector, n, num_states, num_orbitals);
 }
@@ -233,20 +231,20 @@ auto molresponseExchange(World &world, const vecfuncT &ket_i, const vecfuncT &br
     reconstruct(world, bra_i, false);
     reconstruct(world, fp, false);
     world.gop.fence();
+    if (world.rank() == 0) { print("exchange reconstruct"); }
     norm_tree(world, ket_i, false);
     norm_tree(world, bra_i, false);
     norm_tree(world, fp, false);
     world.gop.fence();
+    if (world.rank() == 0) { print("exchange norm true"); }
     const double lo = 1.0e-10;
     auto poisson = set_poisson(world, lo);
     auto v23 = mul(world, bra_i, fp, true);
-
     truncate(world, v23, 0.0, true);
     v23 = apply(world, *poisson, v23);
-    world.gop.fence();
     truncate(world, v23, 0.0, true);
     auto v123 = mul(world, ket_i, v23, true);
-    world.gop.fence();
+    if (world.rank() == 0) { print("exchange finish apply"); }
     const long n_exchange{num_states * n * num_orbitals};
     auto exchange_vector = vecfuncT(n_exchange);
     long b = 0;
@@ -261,8 +259,8 @@ auto molresponseExchange(World &world, const vecfuncT &ket_i, const vecfuncT &br
         b++;
         // option to use inner product kij=std::inner_product(phi_phiX.begin()+(b*x.num_orbitals()),phi_phiX.begin()+(b*x.num_orbitals(),)
     }
-    truncate(world, exchange_vector);
-    world.gop.fence();
+    if (world.rank() == 0) { print("exchange finish sum"); }
+    truncate(world, exchange_vector, true);
     molresponse::end_timer(world, "exchange apply");
 
     molresponse::start_timer(world);

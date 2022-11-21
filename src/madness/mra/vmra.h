@@ -1347,7 +1347,6 @@ namespace madness {
         for (unsigned int i=0; i<f.size(); ++i) {
             result[i] = apply_only(op, f[i], false);
         }
-
         world.gop.fence();
 
         // restores promise of logical constness
