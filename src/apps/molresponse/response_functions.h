@@ -360,13 +360,13 @@ namespace madness {
         void compress_rf() {
             //for (size_t k = 0; k < num_states; k++) { compress(x[0][0].world(), x[k], true); }
             auto &world = x[0][0].world();
-            std::for_each(x.begin(), x.end(), [&](auto xi) { compress(world, xi, true); });
+            std::for_each(x.begin(), x.end(), [&](auto& xi) { compress(world, xi, true); });
         }
 
         void reconstruct_rf() {
             //for (size_t k = 0; k < num_states; k++) { reconstruct(x[0][0].world(), x[k], true); }
             auto &world = x[0][0].world();
-            std::for_each(x.begin(), x.end(), [&](auto xi) { reconstruct(world, xi, true); });
+            std::for_each(x.begin(), x.end(), [&](auto& xi) { reconstruct(world, xi, true); });
         }
 
         void truncate_rf() {
@@ -380,7 +380,7 @@ namespace madness {
 
         void truncate_rf(double tol) {
             auto &world = x[0][0].world();
-            std::for_each(x.begin(), x.end(), [&](auto xi) { truncate(world, xi, tol, true); });
+            std::for_each(x.begin(), x.end(), [&](auto& xi) { truncate(world, xi, tol, true); });
             /*
             for (size_t k = 0; k < num_states; k++) { truncate(x[0][0].world(), x[k], tol, true); }
              */
