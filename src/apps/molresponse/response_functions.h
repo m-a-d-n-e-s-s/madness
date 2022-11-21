@@ -198,7 +198,6 @@ namespace madness {
             World &world = a.x.at(0).at(0).world();
             response_space result(world, a.num_states, a.num_orbitals);// create zero_functions
             for (unsigned int i = 0; i < a.num_states; i++) {
-                // Using vmra.h funciton
                 result[i] = a[i] * f;
             }
             return result;
@@ -215,7 +214,6 @@ namespace madness {
             World &world = x[0][0].world();
             response_space result(world, num_states, num_orbitals);// create zero_functions
             for (size_t i = 0; i < num_states; i++) { result[i] = x[i] * f; }
-
             return result;
         }
 
@@ -245,8 +243,6 @@ namespace madness {
             std::transform(x.begin(), x.end(), result.x.begin(),
                            [&world](auto &xi) { return madness::copy(world, xi, false); });
             world.gop.fence();
-
-
             return result;
         }
 
@@ -255,11 +251,8 @@ namespace madness {
             auto &world = x[0][0].world();
             response_space result(world, num_states, num_orbitals);
             world.gop.fence();
-
             std::transform(x.begin(), x.end(), result.x.begin(),
                            [&](const auto &xi) { return madness::copy(world, xi, pmap, fence); });
-
-
             return result;
         }
 
