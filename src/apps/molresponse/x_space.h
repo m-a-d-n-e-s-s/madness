@@ -98,7 +98,10 @@ namespace madness {
             auto bx = to_response_matrix(B);
             response_matrix add_x(num_states());
             std::transform(ax.begin(), ax.end(), bx.begin(), add_x.begin(),
-                           [&](const vector_real_function_3d &a, const vector_real_function_3d &b) { return a + b; });
+                           [&](const vector_real_function_3d &a, const vector_real_function_3d &b) {
+                               return gaxpy_oop(1.0, a, 1.0, b, false);
+                           });
+            world.gop.fence();
             return to_X_space(add_x);
         }
 
@@ -106,12 +109,15 @@ namespace madness {
             MADNESS_ASSERT(same_size(*this, B));
             auto ax = to_response_matrix(*this);
             auto bx = to_response_matrix(B);
+            auto &world = ax[0][0].world();
             int b = 0;
-            std::for_each(ax.begin(), ax.end(), [&](auto &a) { a += bx[b++]; });
+            std::for_each(ax.begin(), ax.end(),
+                          [&](auto &a) { gaxpy(world, 1.0, a, 1.0, bx[b++], false); });
+            world.gop.fence();
             return *this;
         }
 
-        void push_back(vector_real_function_3d x, vector_real_function_3d y) {
+        void push_back(const vector_real_function_3d &x, const vector_real_function_3d &y) {
             if (n_orbitals > 0) {
                 MADNESS_ASSERT(n_orbitals == x.size());
                 MADNESS_ASSERT(n_orbitals == y.size());
@@ -154,7 +160,10 @@ namespace madness {
             auto bx = to_response_matrix(B);
             response_matrix add_x(A.num_states());
             std::transform(ax.begin(), ax.end(), bx.begin(), add_x.begin(),
-                           [&](const auto &a, const auto &b) { return a + b; });
+                           [&](const vector_real_function_3d &a, const vector_real_function_3d &b) {
+                               return gaxpy_oop(1.0, a, 1.0, b, false);
+                           });
+            world.gop.fence();
             return to_X_space(add_x);
         }
 
@@ -175,12 +184,14 @@ namespace madness {
 
         friend X_space operator-(const X_space &A, const X_space &B) {
             MADNESS_ASSERT(same_size(A, B));
-
             auto ax = to_response_matrix(A);
             auto bx = to_response_matrix(B);
             response_matrix result(B.num_states());
             std::transform(ax.begin(), ax.end(), bx.begin(), result.begin(),
-                           [&](const auto &a, const auto &b) { return a - b; });
+                           [&](const vector_real_function_3d &a, const vector_real_function_3d &b) {
+                               return gaxpy_oop(1.0, a, -1.0, b, false);
+                           });
+            ax[0][0].world().gop.fence();
             return to_X_space(result);
         }
 
@@ -246,8 +257,9 @@ namespace madness {
             auto rx = to_response_matrix(*this);
             auto &world = rx[0][0].world();
             std::for_each(rx.begin(), rx.end(), [&](auto &xi) {
-                madness::truncate(world, xi, FunctionDefaults<3>::get_thresh(), true);
+                madness::truncate(world, xi, FunctionDefaults<3>::get_thresh(), false);
             });
+            world.gop.fence();
         }
 
         auto norm2s() -> Tensor<double> {
