@@ -40,7 +40,7 @@ namespace madness {
         // Copy constructor
         X_space(const X_space &A)
             : n_states(size_states(A)), n_orbitals(size_orbitals(A)), X(A.X), Y(A.Y) {}
-        X_space copy() const {
+        [[nodiscard]] X_space copy() const {
             auto &world = X[0][0].world();
             auto m = to_response_matrix(*this);
             auto copy_m = create_response_matrix(num_states(), num_orbitals());
@@ -54,7 +54,7 @@ namespace madness {
         /// Works in either basis.  Different distributions imply
         /// asynchronous communication and the optional fence is
         /// collective.
-        auto copy(const std::shared_ptr<WorldDCPmapInterface<Key<3>>> &pmap,
+        [[nodiscard]] auto copy(const std::shared_ptr<WorldDCPmapInterface<Key<3>>> &pmap,
                   bool fence = false) const -> X_space {
             auto &world = X[0][0].world();
             auto m = to_response_matrix(*this);
@@ -158,63 +158,67 @@ namespace madness {
             return to_X_space(add_x);
         }
 
-        X_space operator-(const X_space B) {
+        // C=this-B
+        X_space operator-(const X_space &B) {
             MADNESS_ASSERT(same_size(*this, B));
-            World &world = this->X[0][0].world();
-            X_space result(world, n_states, n_orbitals);
-            result.X = X - B.X;
-            result.Y = Y - B.Y;
-            return result;
+
+            auto ax = to_response_matrix(*this);
+            auto bx = to_response_matrix(B);
+
+            response_matrix result(B.num_states());
+            std::transform(ax.begin(), ax.end(), bx.begin(), result.begin(),
+                           [&](auto a, auto b) { return a - b; });
+            return to_X_space(result);
         }
 
         friend X_space operator-(const X_space &A, const X_space &B) {
             MADNESS_ASSERT(same_size(A, B));
 
-            World &world = A.X[0][0].world();
-            X_space result(world, A.n_states, A.n_orbitals);// create zero_functions
+            auto ax = to_response_matrix(A);
+            auto bx = to_response_matrix(B);
 
-            result.X = A.X - B.X;
-            result.Y = A.Y - B.Y;
-            return result;
+            response_matrix result(B.num_states());
+            std::transform(ax.begin(), ax.end(), bx.begin(), result.begin(),
+                           [&](auto a, auto b) { return a - b; });
+            return to_X_space(result);
         }
 
-        friend X_space operator*(const X_space &A, const double &b) {
-            World &world = A.X[0][0].world();
-            X_space result(world, A.n_states, A.n_orbitals);// create zero_functions
-
-            result.X = A.X * b;
-            result.Y = A.Y * b;
-            return result;
-        }
+        friend X_space operator*(const X_space &A, const double &b) { return b * A; }
         friend X_space operator*(const double &b, const X_space &A) {
             World &world = A.X[0][0].world();
-            X_space result(world, A.n_states, A.n_orbitals);// create zero_functions
-
-            result.X = A.X * b;
-            result.Y = A.Y * b;
-            return result;
+            auto r = A.copy();
+            auto rX = to_response_matrix(r);// create zero_functions
+            int i = 0;
+            for (const auto &ri: rX) { rX[i++] = ri * b; }
+            return r;
         }
-        X_space operator*(const double &b) {
-            this->X *= b;
-            this->Y *= b;
-            return *this;
+        //
+        //  C=2*a
+        //
+        X_space operator*(const double &b) const {
+            auto r = this->copy();
+            auto rX = to_response_matrix(r);// create zero_functions
+            int i = 0;
+            for (const auto &ri: rX) { rX[i++] = ri * b; }
+            return r;
         }
 
         friend X_space operator*(const X_space &A, const Function<double, 3> &f) {
             World &world = A.X[0][0].world();
-            X_space result(world, A.n_states, A.n_orbitals);// create zero_functions
-
-            result.X = A.X * f;
-            result.Y = A.Y * f;
-            return result;
+            X_space result(world, A.n_states, A.n_orbitals);           // create zero_functions
+            auto rX = create_response_matrix(A.n_states, A.n_orbitals);// create zero_functions
+            auto ax = to_response_matrix(A);
+            int i = 0;
+            for (const auto &ai: ax) { rX[i++] = ai * f; }
+            return to_X_space(rX);
         }
         friend auto operator*(const Function<double, 3> &f, const X_space &A) -> X_space {
             World &world = A.X[0][0].world();
-            X_space result(world, A.n_states, A.n_orbitals);// create zero_functions
-
-            result.X = A.X * f;
-            result.Y = A.Y * f;
-            return result;
+            auto rX = create_response_matrix(A.n_states, A.n_orbitals);// create zero_functions
+            auto ax = to_response_matrix(A);
+            int i = 0;
+            for (const auto &ai: ax) { rX[i++] = f * ai; }
+            return to_X_space(rX);
         }
 
         friend auto operator*(const X_space &A, const Tensor<double> &b) -> X_space {
