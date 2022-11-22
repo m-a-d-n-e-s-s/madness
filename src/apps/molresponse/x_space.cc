@@ -84,7 +84,6 @@ namespace madness {
             std::copy(x_vec.begin() + num_orbitals, x_vec.end(), x_space.Y[b].begin());
             b++;
         };
-        world.gop.fence();
         return x_space;
     }
 
