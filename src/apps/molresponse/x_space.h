@@ -98,7 +98,7 @@ namespace madness {
             auto bx = to_response_matrix(B);
             response_matrix add_x(num_states());
             std::transform(ax.begin(), ax.end(), bx.begin(), add_x.begin(),
-                           [&](const auto &a, const auto &b) { return a + b; });
+                           [&](const vector_real_function_3d &a, const vector_real_function_3d &b) { return a + b; });
             return to_X_space(add_x);
         }
 

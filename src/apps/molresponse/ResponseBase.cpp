@@ -401,8 +401,8 @@ auto ResponseBase::compute_theta_X(World &world, const X_space &chi,
     }
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    world.gop.fence();
     Theta_X = (V0X - E0X) + gamma;
+    world.gop.fence();
     Theta_X.truncate();
     //    Theta_X.truncate();
     if (r_params.print_level() >= 1) {
@@ -593,7 +593,7 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
     // X contains the response vector that makes up the response gammaOrbitals at a
     // given order
 
-    std::shared_ptr<WorldDCPmapInterface<Key<3>>> old_pmap = FunctionDefaults<3>::get_pmap();
+    auto old_pmap = FunctionDefaults<3>::get_pmap();
 
     auto [xy, phi0] = orbital_load_balance(world, gammaOrbitals, r_params.loadbalparts());
 
@@ -642,19 +642,14 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
         molresponse::end_timer(world, "J[omega]", "J[omega]", iter_timing);
     }
 
-    // Create Coulomb potential on ground_orbitals
     if (xcf.hf_exchange_coefficient() != 1.0) {
         auto compute_wx = [&, &phi0 = phi0](auto rho_alpha) {
             auto xc_rho = xc.apply_xc_kernel(rho_alpha);
             return mul(world, xc_rho, phi0);
         };
         if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-        // for every transition gammaOrbitals apply the exchange kernel and multiply the
-        // vector of orbitals
         std::transform(rho.begin(), rho.end(), W.X.begin(), compute_wx);
-
         W.Y = W.X.copy();
-
         if (r_params.print_level() >= 1) {
             molresponse::end_timer(world, "XC[omega]", "XC[omega]", iter_timing);
         }
@@ -712,7 +707,6 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
     }
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-
     J.clear();
     K.clear();
     W.clear();
@@ -729,7 +723,6 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
     }
     // Done
     // gamma.truncate();
-    world.gop.fence();
     return gamma;
     // Get sizes
 }
