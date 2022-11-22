@@ -328,8 +328,10 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
     if (world.rank() == 0) { print("--------------- ThetaX.Y------------------"); }
     // apply bsh
     X_space bsh_X(world, m, n);
+    /*
     bsh_x_ops.insert(bsh_x_ops.end(), std::make_move_iterator(bsh_y_ops.begin()),
                      std::make_move_iterator(bsh_y_ops.end()));
+                     */
     bsh_X.X = apply(world, bsh_x_ops, theta_X.X);
     if (world.rank() == 0) { print("--------------- Apply BSH X ------------------"); }
     if (compute_y) { bsh_X.Y = apply(world, bsh_y_ops, theta_X.Y); }
