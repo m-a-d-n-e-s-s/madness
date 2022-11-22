@@ -175,20 +175,27 @@ namespace madness {
         friend response_space operator*(response_space y, double a) {
             World &world = y.x.at(0).at(0).world();
             response_space result = y.copy();// deep copy
-            for (unsigned int i = 0; i < y.num_states; i++) { madness::scale(world, result[i], a); }
+            for (unsigned int i = 0; i < y.num_states; i++) {
+                madness::scale(world, result[i], a, false);
+            }
+            world.gop.fence();
             return result;
         }
 
         friend response_space operator*(double a, response_space y) {
             World &world = y.x.at(0).at(0).world();
             response_space result = y.copy();// deep copy
-            for (unsigned int i = 0; i < y.num_states; i++) { madness::scale(world, result[i], a); }
+            for (unsigned int i = 0; i < y.num_states; i++) {
+                madness::scale(world, result[i], a, false);
+            }
+            world.gop.fence();
             return result;
         }
 
         response_space &operator*=(double a) {
             World &world = this->x[0][0].world();
-            for (size_t i = 0; i < num_states; i++) { madness::scale(world, this->x[i], a); }
+            for (size_t i = 0; i < num_states; i++) { madness::scale(world, this->x[i], a,false); }
+            world.gop.fence();
             return *this;
         }
 
@@ -197,9 +204,7 @@ namespace madness {
         friend response_space operator*(const response_space &a, const Function<double, 3> &f) {
             World &world = a.x.at(0).at(0).world();
             response_space result(world, a.num_states, a.num_orbitals);// create zero_functions
-            for (unsigned int i = 0; i < a.num_states; i++) {
-                result[i] = a[i] * f;
-            }
+            for (unsigned int i = 0; i < a.num_states; i++) { result[i] = a[i] * f; }
             return result;
         }
 
@@ -231,8 +236,9 @@ namespace madness {
         // KAIN must have this
         response_space &operator+=(const response_space &b) {
             MADNESS_ASSERT(same_size(*this, b));
-            World &world = x[0][0].world();
+            auto &world = x[0][0].world();
             for (size_t i = 0; i < num_states; i++) { this->x[i] += b[i]; }
+            world.gop.fence();
             return *this;
         }
 
