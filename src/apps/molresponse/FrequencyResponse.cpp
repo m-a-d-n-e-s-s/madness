@@ -20,7 +20,7 @@ void FrequencyResponse::iterate(World &world) {
     // the Final protocol should be equal to dconv at the minimum
     const double conv_den = std::max(100 * FunctionDefaults<3>::get_thresh(), r_params.dconv());
     const double relative_max_target =
-            std::max(40 * FunctionDefaults<3>::get_thresh(), 5 * r_params.dconv());
+            std::max(20 * FunctionDefaults<3>::get_thresh(), 5 * r_params.dconv());
     // m residuals for x and y
     Tensor<double> bsh_residualsX((int(m)));
     Tensor<double> bsh_residualsY((int(m)));
@@ -284,7 +284,7 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
     auto [new_res, bsh] = compute_residual(world, chi, new_chi, r_params.calc_type());
 
     // kain update with temp adjusts temp
-    if (r_params.kain() && (iteration > 3)) {
+    if (r_params.kain() && (iteration > 2)) {
         new_chi = kain_x_space_update(world, chi, new_res, kain_x_space, Xvector, Xresidual);
     }
 
