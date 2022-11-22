@@ -55,7 +55,7 @@ namespace madness {
         /// asynchronous communication and the optional fence is
         /// collective.
         [[nodiscard]] auto copy(const std::shared_ptr<WorldDCPmapInterface<Key<3>>> &pmap,
-                  bool fence = false) const -> X_space {
+                                bool fence = false) const -> X_space {
             auto &world = X[0][0].world();
             auto m = to_response_matrix(*this);
             auto copy_m = create_response_matrix(num_states(), num_orbitals());
@@ -195,6 +195,7 @@ namespace madness {
         //
         //  C=2*a
         //
+        /*
         X_space operator*(const double &b) const {
             auto r = this->copy();
             auto rX = to_response_matrix(r);// create zero_functions
@@ -202,6 +203,7 @@ namespace madness {
             for (const auto &ri: rX) { rX[i++] = ri * b; }
             return r;
         }
+         */
 
         friend X_space operator*(const X_space &A, const Function<double, 3> &f) {
             World &world = A.X[0][0].world();
