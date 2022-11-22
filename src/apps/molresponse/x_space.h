@@ -158,6 +158,7 @@ namespace madness {
             return to_X_space(add_x);
         }
 
+        /*
         // C=this-B
         X_space operator-(const X_space &B) const {
             MADNESS_ASSERT(same_size(*this, B));
@@ -170,6 +171,7 @@ namespace madness {
                            [&](const auto &a, const auto &b) { return a - b; });
             return to_X_space(result);
         }
+        */
 
         friend X_space operator-(const X_space &A, const X_space &B) {
             MADNESS_ASSERT(same_size(A, B));
