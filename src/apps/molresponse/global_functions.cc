@@ -238,23 +238,25 @@ auto molresponseExchange(World &world, const vecfuncT &ket_i, const vecfuncT &br
     reconstruct(world, fp, false);
     if (world.rank() == 0) { print("exchange reconstruct tree"); }
     world.gop.fence();
+    /*
     norm_tree(world, ket_i, false);
     norm_tree(world, bra_i, false);
     norm_tree(world, fp, false);
-    world.gop.fence();
+     */
     if (world.rank() == 0) { print("exchange norm tree"); }
     const double lo = 1.0e-10;
+    auto tol = FunctionDefaults<3>::get_thresh();
     auto poisson = set_poisson(world, lo);
     world.gop.fence();
     if (world.rank() == 0) { print("create poisson v23"); }
     auto v23 = mul(world, bra_i, fp, true);
     //mul(world, bra_i, fp, true);
     if (world.rank() == 0) { print("multiply v23"); }
-    truncate(world, v23, 0.0, true);
+    truncate(world, v23, tol, true);
     if (world.rank() == 0) { print("truncate v23"); }
     v23 = apply(world, *poisson, v23);
     if (world.rank() == 0) { print("apply v23"); }
-    truncate(world, v23, 0.0, true);
+    truncate(world, v23, tol, true);
     if (world.rank() == 0) { print("truncate after apply v23"); }
     auto v123 = mul(world, ket_i, v23, true);
     if (world.rank() == 0) { print("multiply  apply v123"); }
@@ -273,8 +275,7 @@ auto molresponseExchange(World &world, const vecfuncT &ket_i, const vecfuncT &br
     }
     world.gop.fence();
     if (world.rank() == 0) print("exchange sum");
-    truncate(world, exchange_vector);
-    world.gop.fence();
+    truncate(world, exchange_vector, tol, true);
     molresponse::end_timer(world, "exchange apply");
 
     molresponse::start_timer(world);
