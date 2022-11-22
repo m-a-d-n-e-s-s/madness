@@ -244,7 +244,7 @@ auto molresponseExchange(World &world, const vecfuncT &ket_i, const vecfuncT &br
     const double lo = 1.0e-10;
     auto poisson = set_poisson(world, lo);
     world.gop.fence();
-    if (world.rank() == 0) { print("multiply v23"); }
+    if (world.rank() == 0) { print("create poisson v23"); }
     auto v23 = mul(world, bra_i, fp, true);
     //mul(world, bra_i, fp, true);
     if (world.rank() == 0) { print("multiply v23"); }
