@@ -560,10 +560,11 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     QProjector<double, 3> projector(world, phi0);
     for (size_t i = 0; i < num_states; i++) {
         gamma.X[i] = projector(gamma.X[i]);
-        gamma.Y[i] = projector(gamma.Y[i]);
     }
     world.gop.fence();
-
+    for (size_t i = 0; i < num_states; i++) {
+        gamma.Y[i] = projector(gamma.Y[i]);
+    }
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_project", "gamma_project", iter_timing);
     }
@@ -587,16 +588,12 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     j_y.clear();
     K.clear();
     W.clear();
-
     chi_alpha.clear();
     phi0.clear();
-
+    molresponse::end_timer(world, "Clear functions and set old pmap");
     if (world.size() > 1) {
         FunctionDefaults<3>::set_pmap(old_pmap);// ! DON'T FORGET !
     }
-    molresponse::end_timer(world, "Clear functions and set old pmap");
-    // Done
-    world.gop.fence();
     //gamma.truncate();
     return gamma;
     // Get sizes

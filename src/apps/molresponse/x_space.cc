@@ -149,8 +149,8 @@ namespace madness {
         int p = 0;
         std::for_each(a_transpose.begin(), a_transpose.end(), [&](const auto &ati) {
             result += matrix_inner(world, ati, b_transpose[p++]);
+            world.gop.fence();
         });
-        world.gop.fence();
         return result;
     }
 }// namespace madness
