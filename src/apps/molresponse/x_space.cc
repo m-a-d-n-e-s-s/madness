@@ -27,7 +27,6 @@ namespace madness {
     // to response matrix is intended to provide a shallow copy of the response matrix
     // to simply reorder the functions
     auto to_response_matrix(const X_space &x) -> response_matrix {
-        World &world = x.X[0][0].world();
         auto mX = response_matrix(x.num_states());
         auto num_orbitals = x.num_orbitals();
         int b = 0;
@@ -37,7 +36,6 @@ namespace madness {
             std::copy(x.Y[b].begin(), x.Y[b].end(), mi.begin() + num_orbitals);// shallow copy
             b++;
         });
-        world.gop.fence();
         return mX;
     }
 
