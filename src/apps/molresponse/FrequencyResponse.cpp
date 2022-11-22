@@ -332,13 +332,7 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
                      std::make_move_iterator(bsh_y_ops.end()));
     bsh_X.X = apply(world, bsh_x_ops, theta_X.X);
     if (world.rank() == 0) { print("--------------- Apply BSH X ------------------"); }
-    if (compute_y) {
-        auto VX = to_response_matrix(bsh_X);
-        std::copy() bsh_x_ops for (const auto &vxb: VX) { apply(world, bsh_x_ops, vxb); }
-
-
-        bsh_X.Y = apply(world, bsh_y_ops, theta_X.Y);
-    }
+    if (compute_y) { bsh_X.Y = apply(world, bsh_y_ops, theta_X.Y); }
 
     if (world.rank() == 0) { print("--------------- Apply BSH------------------"); }
     // Project out ground state
