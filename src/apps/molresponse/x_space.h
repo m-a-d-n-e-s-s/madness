@@ -190,7 +190,7 @@ namespace madness {
             auto rX = response_matrix(A.n_states);// create zero_functions
             auto ax = to_response_matrix(A);      // create zero_functions
             int i = 0;
-            for (const auto &ri: rX) { rX[i++] = ri * b; }
+            for (const auto &ai: ax) { rX[i++] = ai * b; }
             return to_X_space(rX);
         }
         //
