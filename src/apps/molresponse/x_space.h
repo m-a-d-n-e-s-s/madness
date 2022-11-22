@@ -154,12 +154,12 @@ namespace madness {
             auto bx = to_response_matrix(B);
             response_matrix add_x(A.num_states());
             std::transform(ax.begin(), ax.end(), bx.begin(), add_x.begin(),
-                           [&](auto a, auto b) { return a + b; });
+                           [&](const auto &a, const auto &b) { return a + b; });
             return to_X_space(add_x);
         }
 
         // C=this-B
-        X_space operator-(const X_space &B) {
+        X_space operator-(const X_space &B) const {
             MADNESS_ASSERT(same_size(*this, B));
 
             auto ax = to_response_matrix(*this);
@@ -167,7 +167,7 @@ namespace madness {
 
             response_matrix result(B.num_states());
             std::transform(ax.begin(), ax.end(), bx.begin(), result.begin(),
-                           [&](auto a, auto b) { return a - b; });
+                           [&](const auto &a, const auto &b) { return a - b; });
             return to_X_space(result);
         }
 
@@ -176,21 +176,20 @@ namespace madness {
 
             auto ax = to_response_matrix(A);
             auto bx = to_response_matrix(B);
-
             response_matrix result(B.num_states());
             std::transform(ax.begin(), ax.end(), bx.begin(), result.begin(),
-                           [&](auto a, auto b) { return a - b; });
+                           [&](const auto &a, const auto &b) { return a - b; });
             return to_X_space(result);
         }
 
         friend X_space operator*(const X_space &A, const double &b) { return b * A; }
         friend X_space operator*(const double &b, const X_space &A) {
             World &world = A.X[0][0].world();
-            auto r = A.copy();
-            auto rX = to_response_matrix(r);// create zero_functions
+            auto rX = response_matrix(A.n_states);// create zero_functions
+            auto ax = to_response_matrix(A);      // create zero_functions
             int i = 0;
             for (const auto &ri: rX) { rX[i++] = ri * b; }
-            return r;
+            return to_X_space(rX);
         }
         //
         //  C=2*a
@@ -207,7 +206,6 @@ namespace madness {
 
         friend X_space operator*(const X_space &A, const Function<double, 3> &f) {
             World &world = A.X[0][0].world();
-            X_space result(world, A.n_states, A.n_orbitals);           // create zero_functions
             auto rX = create_response_matrix(A.n_states, A.n_orbitals);// create zero_functions
             auto ax = to_response_matrix(A);
             int i = 0;
@@ -243,8 +241,11 @@ namespace madness {
         friend auto inner(const X_space &A, const X_space &B) -> Tensor<double>;
 
         void truncate() {
-            X.truncate_rf();
-            Y.truncate_rf();
+            auto rx = to_response_matrix(*this);
+            auto &world = rx[0][0].world();
+            std::for_each(rx.begin(), rx.end(), [&](auto &xi) {
+                madness::truncate(world, xi, FunctionDefaults<3>::get_thresh(), true);
+            });
         }
 
         auto norm2s() -> Tensor<double> {
