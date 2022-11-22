@@ -157,6 +157,7 @@ auto response_exchange(const vecfuncT &phi0, const X_space &x, const bool comput
             });
         }
     }
+    world.gop.fence();
 
     vecfuncT x_vector(n_exchange);
     vecfuncT x_vector_conjugate(n_exchange);
@@ -184,6 +185,7 @@ auto response_exchange(const vecfuncT &phi0, const X_space &x, const bool comput
             }
         }
     }
+    world.gop.fence();
 
     vecfuncT phi_left(n_exchange);
     for (long b = 0; b < num_states; b++) {
