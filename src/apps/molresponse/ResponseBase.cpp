@@ -299,13 +299,17 @@ auto ResponseBase::make_density(World &world, const X_space &chi) const -> vecfu
     auto calc_type = r_params.calc_type();
     if (calc_type == "full" || "static") {
         auto r_matrix = to_response_matrix(chi);
+        if (world.rank() == 0) { print("make density: to response matrix"); }
         auto r_phi0 = to_response_vector(ground_orbitals);
+        if (world.rank() == 0) { print("make density: to response vector"); }
         std::transform(r_matrix.begin(), r_matrix.end(), density.begin(),
-                       [&](const auto &ri) { return dot(world, ri, r_phi0,true); });
+                       [&](const auto &ri) { return dot(world, ri, r_phi0, true); });
     } else {
         density = transition_densityTDA(world, ground_orbitals, chi.X);
     }
+    if (world.rank() == 0) { print("make density: made density"); }
     truncate(world, density);
+    if (world.rank() == 0) { print("make density: truncate"); }
     return density;
 }
 
