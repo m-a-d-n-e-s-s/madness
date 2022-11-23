@@ -264,15 +264,17 @@ auto molresponseExchange(World &world, const vecfuncT &ket_i, const vecfuncT &br
     auto exchange_vector = vecfuncT(n_exchange);
     long b = 0;
     long b_shift = 0;
+    compress(world, v123);
     for (auto &kij: exchange_vector) {
         b_shift = b * num_orbitals;
         auto phi_phiX_i = vecfuncT(num_orbitals);
-        std::copy(v123.begin() + b_shift, v123.begin() + b_shift + num_orbitals,
-                  phi_phiX_i.begin());
-        kij = sum(world, phi_phiX_i, true);
+        // this right here is a sketch of how sums with iterators could work
+        kij = FunctionFactory<double, 3>(world).compressed();
+        std::for_each(v123.begin() + b_shift, v23.begin() + b_shift + num_orbitals,
+                      [&](const auto &v123_i) { kij.gaxpy(1.0, v123_i, 1.0, false); });
         b++;
-        // option to use inner product kij=std::inner_product(phi_phiX.begin()+(b*x.num_orbitals()),phi_phiX.begin()+(b*x.num_orbitals(),)
     }
+    world.gop.fence();
     if (world.rank() == 0) print("exchange sum");
     truncate(world, exchange_vector, tol, true);
     molresponse::end_timer(world, "exchange apply");
