@@ -269,11 +269,10 @@ auto molresponseExchange(World &world, const vecfuncT &ket_i, const vecfuncT &br
         auto phi_phiX_i = vecfuncT(num_orbitals);
         std::copy(v123.begin() + b_shift, v123.begin() + b_shift + num_orbitals,
                   phi_phiX_i.begin());
-        kij = sum(world, phi_phiX_i, false);
+        kij = sum(world, phi_phiX_i, true);
         b++;
         // option to use inner product kij=std::inner_product(phi_phiX.begin()+(b*x.num_orbitals()),phi_phiX.begin()+(b*x.num_orbitals(),)
     }
-    world.gop.fence();
     if (world.rank() == 0) print("exchange sum");
     truncate(world, exchange_vector, tol, true);
     molresponse::end_timer(world, "exchange apply");
