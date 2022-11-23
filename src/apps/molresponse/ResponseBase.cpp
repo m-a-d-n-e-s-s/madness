@@ -60,9 +60,13 @@ void ResponseBase::check_k(World &world, double thresh, int k) {
     if (FunctionDefaults<3>::get_k() != ground_orbitals[0].k()) {
         // Re-read orbitals from the archive (assuming
         // the archive has orbitals stored at a higher
+        if (world.rank() == 0) { print("check k: ground orbitals"); }
         // k value than what was previously computed
         ground_calc.read(world);
+        if (world.rank() == 0) { print("check k: read ground orbitals"); }
+        // k value than what was previously computed
         reconstruct(world, ground_orbitals);
+        if (world.rank() == 0) { print("check k: reconstruct ground orbitals"); }
         // Reset correct k (its set in g_params.read)
         FunctionDefaults<3>::set_k(k);
         // Project each ground state to correct k
@@ -70,17 +74,22 @@ void ResponseBase::check_k(World &world, double thresh, int k) {
             orbital = project(orbital, FunctionDefaults<3>::get_k(), thresh, false);
         }
         world.gop.fence();
+        if (world.rank() == 0) { print("check k: project ground orbitals"); }
         // Clean up a bit
         truncate(world, ground_orbitals);
+        if (world.rank() == 0) { print("check k: truncate ground orbitals"); }
         // Now that ground orbitals have correct k lets make the ground density
         // again
         ground_density = make_ground_density(world);
+        if (world.rank() == 0) { print("check k: make ground density"); }
         // Ground state orbitals changed, clear old hamiltonian
         redo = true;
     }
     // Recalculate ground state hamiltonian here
     if (redo or !hamiltonian.has_data()) {
+        if (world.rank() == 0) { print("check k: re-do hamiltonian"); }
         auto [HAM, HAM_NO_DIAG] = ComputeHamiltonianPair(world);
+        if (world.rank() == 0) { print("check k: output hamiltonian"); }
         // TODO this doesn't seem right...
         hamiltonian = HAM;
         ham_no_diag = HAM_NO_DIAG;
@@ -106,8 +115,10 @@ void ResponseBase::check_k(World &world, double thresh, int k) {
     // Don't forget the mask function as well
     if (FunctionDefaults<3>::get_k() != mask.k()) {
         mask = project(mask, FunctionDefaults<3>::get_k(), thresh, false);
+        if (world.rank() == 0) { print("check k: project mask"); }
     }
     ::check_k(world, Chi, thresh, k);
+    if (world.rank() == 0) { print("check k: project Chi"); }
 
     // Make sure everything is done before leaving
     world.gop.fence();
@@ -265,11 +276,11 @@ auto ResponseBase::ComputeHamiltonianPair(World &world) const
 
 auto ResponseBase::make_ground_density(World &world) const -> functionT {
 
-    std::vector<real_function_3d> vsq = square(world, ground_orbitals);
+    auto vsq = square(world, ground_orbitals);
     compress(world, vsq);
     functionT rho = factoryT(world);
     rho.compress();
-    for (unsigned int i = 0; i < vsq.size(); ++i) { rho.gaxpy(1.0, vsq[i], 1.0, false); }
+    for (const auto &vsq_i: vsq) { rho.gaxpy(1.0, vsq_i, 1.0, false); }
     //for (const auto &phi_squared: vsq) rho.gaxpy(2.0, phi_squared, 1.0, false);
     world.gop.fence();
     vsq.clear();
