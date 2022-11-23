@@ -196,29 +196,15 @@ void FrequencyResponse::iterate(World &world) {
         }
 
         if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-
         bsh_residualsX = copy(new_res.residual_norms);
         bsh_residualsY = copy(new_res.residual_norms);
         Chi = new_chi.copy();
-
         if (r_params.print_level() >= 1) {
             molresponse::end_timer(world, "copy_response_data", "copy_response_data", iter_timing);
         }
-
         xij_res_norms = new_res.residual.component_norm2s();
         xij_norms = Chi.component_norm2s();
-
         density_residuals = norm2s_T(world, (rho_omega - rho_omega_old));
-        /*
-        max_rotation = (bsh_residualsX + bsh_residualsY) ;
-        for (size_t i = 0; i < Chi.num_states(); i++) {
-            if (max_rotation[i] < r_params.max_rotation()) {
-                max_rotation[i] = r_params.max_rotation();
-                print("less than max_rotation....set to max_rotation");
-            }
-        }
-         */
-
         Tensor<double> polar = -2 * inner(Chi, PQ);
 
         if (r_params.print_level() >= 20) {
