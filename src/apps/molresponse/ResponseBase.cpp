@@ -540,21 +540,18 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
         molresponse::end_timer(world, "K[omega]", "K[omega]", iter_timing);
     }
     molresponse::start_timer(world);
-
-    /*
-    if (r_params.print_level() >= 20) { print_inner(world, "new xKx", chi_alpha, K); }
-    if (r_params.print_level() >= 1) { molresponse::end_timer(world, "new K[omega]"); }
-    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-     */
-
-
     X_space gamma(world, num_states, num_orbitals);
-    gamma = (2 * J) - K * xcf.hf_exchange_coefficient() + W;
+    auto c_xc = xcf.hf_exchange_coefficient();
+    gamma = 2 * J;
+    if (world.rank() == 0) { print("gamma: 2 * J"); }
+    gamma += -c_xc * K;
+    if (world.rank() == 0) { print("gamma: += -c_xc * K"); }
+    gamma += W;
+    if (world.rank() == 0) { print("gamma: += W"); }
     //gamma.truncate();
     if (r_params.print_level() >= 1) {
-        molresponse::end_timer(world, "gamma_truncate_add", "gamma_truncate_add", iter_timing);
+        molresponse::end_timer(world, "gamma add", "gamma_truncate_add", iter_timing);
     }
-
     // project out ground state
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     QProjector<double, 3> projector(world, phi0);
