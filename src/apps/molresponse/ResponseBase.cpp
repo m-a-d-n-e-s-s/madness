@@ -298,18 +298,14 @@ auto ResponseBase::make_density(World &world, const X_space &chi) const -> vecfu
     auto density = vector_real_function_3d(chi.num_states());
     auto calc_type = r_params.calc_type();
     if (calc_type == "full" || "static") {
-
         auto r_matrix = to_response_matrix(chi);
         auto r_phi0 = to_response_vector(ground_orbitals);
-
         std::transform(r_matrix.begin(), r_matrix.end(), density.begin(),
-                       [&](const auto &ri) { return dot(world, ri, r_phi0); });
-
+                       [&](const auto &ri) { return dot(world, ri, r_phi0,true); });
     } else {
         density = transition_densityTDA(world, ground_orbitals, chi.X);
     }
     truncate(world, density);
-    world.gop.fence();
     return density;
 }
 
@@ -558,13 +554,9 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     // project out ground state
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     QProjector<double, 3> projector(world, phi0);
-    for (size_t i = 0; i < num_states; i++) {
-        gamma.X[i] = projector(gamma.X[i]);
-    }
+    for (size_t i = 0; i < num_states; i++) { gamma.X[i] = projector(gamma.X[i]); }
     world.gop.fence();
-    for (size_t i = 0; i < num_states; i++) {
-        gamma.Y[i] = projector(gamma.Y[i]);
-    }
+    for (size_t i = 0; i < num_states; i++) { gamma.Y[i] = projector(gamma.Y[i]); }
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_project", "gamma_project", iter_timing);
     }
@@ -1147,32 +1139,12 @@ auto ResponseBase::kain_x_space_update(World &world, const X_space &chi,
     Xvector = to_response_matrix(chi);
     Xresidual = to_response_matrix(residual_chi);
     response_matrix update(m);
-    for (auto &update_i: update) { update_i = vector_real_function_3d(n); }
-
     if (world.rank() == 0) { print("----------------Start Kain Update -----------------"); }
-
     int b = 0;
-    std::transform(Xvector.begin(), Xvector.end(), Xresidual.begin(), update.begin(),
-                   [&](auto &xi, auto &ri) { return kain_x_space[b++].update(xi, ri); });
-
-    /*
-    std::for_each(kain_x_space.begin(), kain_x_space.end(), [&](auto &ki) {
-        auto kain_X = ki.update(Xvector[b], Xresidual[b]);
-        update[b] = copy(world, kain_X);
-        b++;
-    });
-    */
+    std::transform(
+            Xvector.begin(), Xvector.end(), Xresidual.begin(), update.begin(),
+            [&](const auto &xi, const auto &ri) { return kain_x_space[b++].update(xi, ri); });
     kain_update = to_X_space(update);
-
-    /*
-    for (size_t b = 0; b < m; b++) {
-        // passing xvectors
-        X_vector kain_X = kain_x_space[b].update(Xvector[b], Xresidual[b]);
-        // deep copy of vector of functions
-        kain_update.X[b] = copy(world, kain_X.X[0]);
-        kain_update.Y[b] = copy(world, kain_X.Y[0]);
-    }
-     */
     if (world.rank() == 0) { print("----------------End Kain Update -----------------"); }
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "kain_x_update", "kain_x_update", iter_timing);

@@ -10,10 +10,10 @@ namespace madness {
         auto &world = vec[0].world();
         // copy the vector
         auto response_vector = copy(world, vec);
-        // copy the vector
-        std::for_each(vec.begin(), vec.end(), [&](const auto &phi0_i) {
-            response_vector.push_back(madness::copy(phi0_i));
+        std::for_each(vec.begin(), vec.end(), [&](const real_function_3d &phi0_i) {
+            response_vector.push_back(madness::copy(phi0_i,false));
         });
+        world.gop.fence();
         return response_vector;
     }
     auto create_response_matrix(const size_t &num_states, const size_t &num_orbitals)
@@ -30,7 +30,7 @@ namespace madness {
         auto mX = response_matrix(x.num_states());
         auto num_orbitals = x.num_orbitals();
         int b = 0;
-        std::for_each(mX.begin(), mX.end(), [&](auto &mi) {
+        std::for_each(mX.begin(), mX.end(), [&](vector_real_function_3d &mi) {
             mi = vector_real_function_3d(2 * num_orbitals);
             std::copy(x.X[b].begin(), x.X[b].end(), mi.begin());               // shallow copy
             std::copy(x.Y[b].begin(), x.Y[b].end(), mi.begin() + num_orbitals);// shallow copy
