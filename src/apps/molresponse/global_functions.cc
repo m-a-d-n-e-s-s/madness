@@ -270,7 +270,7 @@ auto molresponseExchange(World &world, const vecfuncT &ket_i, const vecfuncT &br
         auto phi_phiX_i = vecfuncT(num_orbitals);
         // this right here is a sketch of how sums with iterators could work
         kij = FunctionFactory<double, 3>(world).compressed();
-        std::for_each(v123.begin() + b_shift, v23.begin() + b_shift + num_orbitals,
+        std::for_each(v123.begin() + b_shift, v123.begin() + b_shift + num_orbitals,
                       [&](const auto &v123_i) { kij.gaxpy(1.0, v123_i, 1.0, false); });
         b++;
     }
