@@ -269,9 +269,8 @@ namespace madness {
             return norms;
         }
 
-        auto component_norm2s() const -> Tensor<double> {
+        [[nodiscard]] auto component_norm2s() const -> Tensor<double> {
             World &world = X[0][0].world();
-
             auto rx = to_flattened_vector(*this);
             auto norms = norm2s_T(world, rx);
             return norms.reshape(n_states, 2 * n_orbitals);

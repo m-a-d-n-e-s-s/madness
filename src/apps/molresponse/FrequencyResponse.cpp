@@ -197,15 +197,23 @@ void FrequencyResponse::iterate(World &world) {
 
         if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
         bsh_residualsX = copy(new_res.residual_norms);
+        if (world.rank() == 0) { print("copy tensors: bshX"); }
         bsh_residualsY = copy(new_res.residual_norms);
+        if (world.rank() == 0) { print("copy tensors: bshY"); }
         Chi = new_chi.copy();
+        if (world.rank() == 0) { print("copy chi:"); }
         if (r_params.print_level() >= 1) {
             molresponse::end_timer(world, "copy_response_data", "copy_response_data", iter_timing);
         }
+
         xij_res_norms = new_res.residual.component_norm2s();
+        if (world.rank() == 0) { print("computing residuals: xij residuals"); }
         xij_norms = Chi.component_norm2s();
+        if (world.rank() == 0) { print("computing chi norms: xij residuals"); }
         density_residuals = norm2s_T(world, (rho_omega - rho_omega_old));
+        if (world.rank() == 0) { print("computing residuals: density residuals"); }
         Tensor<double> polar = -2 * inner(Chi, PQ);
+        if (world.rank() == 0) { print("computing polarizability:"); }
 
         if (r_params.print_level() >= 20) {
             auto [eval, evec] = syev(polar);
