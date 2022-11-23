@@ -252,7 +252,8 @@ auto molresponseExchange(World &world, const vecfuncT &ket_i, const vecfuncT &br
     auto v23 = mul(world, bra_i, fp, true);
     //mul(world, bra_i, fp, true);
     if (world.rank() == 0) { print("multiply v23"); }
-    truncate(world, v23, tol, true);
+    //truncate(world, v23, tol, true);
+    // truncate
     if (world.rank() == 0) { print("truncate v23"); }
     v23 = apply(world, *poisson, v23);
     if (world.rank() == 0) { print("apply v23"); }
