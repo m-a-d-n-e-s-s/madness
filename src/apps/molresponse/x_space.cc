@@ -11,7 +11,7 @@ namespace madness {
         // copy the vector
         auto response_vector = copy(world, vec);
         std::for_each(vec.begin(), vec.end(), [&](const real_function_3d &phi0_i) {
-            response_vector.push_back(madness::copy(phi0_i,false));
+            response_vector.push_back(madness::copy(phi0_i,true));
         });
         world.gop.fence();
         return response_vector;
