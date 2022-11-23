@@ -195,8 +195,7 @@ namespace madness {
             return to_X_space(result);
         }
 
-        friend X_space operator*(const X_space &A, const double &b) { return b * A; }
-        friend X_space operator*(const double &b, const X_space &A) {
+        friend X_space operator*(const X_space &A, const double &b) {
             World &world = A.X[0][0].world();
             auto rX = response_matrix(A.n_states);// create zero_functions
             auto ax = to_response_matrix(A);      // create zero_functions
@@ -204,18 +203,14 @@ namespace madness {
             for (const auto &ai: ax) { rX[i++] = ai * b; }
             return to_X_space(rX);
         }
-        //
-        //  C=2*a
-        //
-        /*
-        X_space operator*(const double &b) const {
-            auto r = this->copy();
-            auto rX = to_response_matrix(r);// create zero_functions
+        friend X_space operator*(const double &b, const X_space &A) {
+            World &world = A.X[0][0].world();
+            auto rX = response_matrix(A.n_states);// create zero_functions
+            auto ax = to_response_matrix(A);      // create zero_functions
             int i = 0;
-            for (const auto &ri: rX) { rX[i++] = ri * b; }
-            return r;
+            for (const auto &ai: ax) { rX[i++] = b * ai; }
+            return to_X_space(rX);
         }
-         */
 
         friend X_space operator*(const X_space &A, const Function<double, 3> &f) {
             World &world = A.X[0][0].world();
