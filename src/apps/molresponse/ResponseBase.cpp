@@ -1048,12 +1048,19 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
     if (r_params.print_level() >= 20) { print_inner(world, "xK0x", Chi_copy, K0); }
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     real_function_3d v0 = v_j0 + v_nuc + v_xc;
-    V0.X = v0 * X.X;
-    V0.X += -1 * K0.X * xcf.hf_exchange_coefficient();
+    auto c_xc = xcf.hf_exchange_coefficient();
     if (compute_Y) {
-        V0.Y = v0 * X.Y;
-        V0.Y += (-1 * K0.Y * xcf.hf_exchange_coefficient());
+
+        V0 = v0 * X;
+        if (world.rank() == 0) { print("vox: v0=v0*X"); }
+        V0 += -c_xc * K0;
+        if (world.rank() == 0) { print("vox: v0+=c_xc*K0"); }
+
     } else {
+        V0.X = v0 * X.X;
+        if (world.rank() == 0) { print("vox: v0=v0*X"); }
+        V0.X += -c_xc * K0.X;
+        if (world.rank() == 0) { print("vox: v0+=c_xc*K0"); }
         V0.Y = V0.X.copy();
     }
     if (r_params.print_level() >= 20) { print_inner(world, "xV0x", Chi_copy, V0); }
