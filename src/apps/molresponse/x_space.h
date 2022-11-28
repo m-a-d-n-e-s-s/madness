@@ -208,7 +208,12 @@ namespace madness {
             auto rX = response_matrix(A.n_states);// create zero_functions
             auto ax = to_response_matrix(A);      // create zero_functions
             int i = 0;
-            for (const auto &ai: ax) { rX[i++] = b * ai; }
+            for (const vector_real_function_3d &ai: ax) {
+                rX[i] = madness::copy(world, ai, true);
+                scale(world, rX[i], b, false);
+            }
+            // b* ai is bugged. scale does not fence
+            world.gop.fence();
             return to_X_space(rX);
         }
 
