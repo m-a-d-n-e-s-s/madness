@@ -66,11 +66,14 @@ namespace madness {
         // assignment
         auto operator=(const X_space &B) -> X_space & {
             if (this != &B) {// is it the same object?
+
                 this->n_states = B.num_states();
                 this->n_orbitals = B.num_orbitals();
 
-                this->X = B.X;
-                this->Y = B.Y;
+                auto xf = to_response_matrix(*this);
+                auto xb = to_response_matrix(B);
+
+                xf = xb;
             }
             return *this;// NO SHALLOW COPIES
         }
@@ -227,7 +230,8 @@ namespace madness {
             auto rX = create_response_matrix(A.n_states, A.n_orbitals);// create zero_functions
             auto ax = to_response_matrix(A);
             int i = 0;
-            for (const auto &ai: ax) { rX[i++] = ai * f; }
+            for (const auto &ai: ax) { rX[i++] = mul(world, f, ai, false); }
+            world.gop.fence();
             return to_X_space(rX);
         }
         friend auto operator*(const Function<double, 3> &f, const X_space &A) -> X_space {
@@ -235,7 +239,8 @@ namespace madness {
             auto rX = create_response_matrix(A.n_states, A.n_orbitals);// create zero_functions
             auto ax = to_response_matrix(A);
             int i = 0;
-            for (const auto &ai: ax) { rX[i++] = f * ai; }
+            for (const auto &ai: ax) { rX[i++] = mul(world, f, ai, false); }
+            world.gop.fence();
             return to_X_space(rX);
         }
 
