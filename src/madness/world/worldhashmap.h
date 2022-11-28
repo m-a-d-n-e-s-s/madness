@@ -69,7 +69,7 @@ namespace madness {
             typedef std::pair<const keyT, valueT> datumT;
             datumT datum;
 
-            class entry<keyT,valueT> * volatile next;
+            class entry<keyT,valueT> * next;
 
             entry(const datumT& datum, entry<keyT,valueT>* next)
                     : datum(datum), next(next) {}
@@ -84,8 +84,8 @@ namespace madness {
             // perhaps better to just use more bins
         public:
 
-            entryT* volatile p;
-            int volatile ninbin;
+            entryT* p; // was volatile but all uses are protect by mutex with implied barriers and fences
+            int ninbin; // ditto
 
             bin() : p(0),ninbin(0) {}
 

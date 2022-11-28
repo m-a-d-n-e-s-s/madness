@@ -42,7 +42,7 @@ namespace madness {
     thread_local int WorldProfileObj::mythreadid = -1; // means not initialized
 
     Spinlock WorldProfile::mutex;
-    volatile std::vector<WorldProfileEntry> WorldProfile::items;
+    std::vector<WorldProfileEntry> WorldProfile::items; // used to be volatile but not needed due to mutex and implied barriers
     double WorldProfile::cpu_start = madness::cpu_time();
     double WorldProfile::wall_start = madness::wall_time();
 
