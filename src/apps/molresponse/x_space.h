@@ -70,8 +70,10 @@ namespace madness {
                 this->n_states = B.num_states();
                 this->n_orbitals = B.num_orbitals();
 
-                this->X = B.X;
-                this->Y = B.Y;
+                auto xf = to_response_matrix(*this);
+                auto xb = to_response_matrix(B);
+                xf = xb;
+                *this = to_X_space(xf);
             }
             return *this;// NO SHALLOW COPIES
         }
