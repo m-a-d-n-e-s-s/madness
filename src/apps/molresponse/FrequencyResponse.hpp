@@ -25,7 +25,7 @@ public:
         : ResponseBase(world, params),
           omega{frequency},
           generator{std::move(rhs)},
-          PQ{std::move(generator(world, *this))} {}
+          PQ{generator(world, *this)} {}
     void initialize(World& world) override;
 
 private:
