@@ -40,11 +40,6 @@ void FrequencyResponse::iterate(World &world) {
     // create X space residuals
     X_space residuals = X_space::zero_functions(world, m, n);
 
-    std::vector<vector_real_function_3d> x_vectors;
-    std::vector<vector_real_function_3d> x_residuals;
-
-    x_vectors = to_response_matrix(Chi);
-    x_residuals = to_response_matrix(residuals);
     /*
     for (size_t b = 0; b < m; b++) {
         x_vectors.emplace_back(Chi, b);
@@ -175,9 +170,8 @@ void FrequencyResponse::iterate(World &world) {
 
         //   std::cout << "MPI BARRIER before update " << std::endl;
         //  world.mpi.Barrier();
-        auto [new_chi, new_res] =
-                update(world, Chi, xc, bsh_x_ops, bsh_y_ops, projector, x_shifts, omega,
-                       kain_x_space, x_vectors, x_residuals, iter, max_rotation);
+        auto [new_chi, new_res] = update(world, Chi, xc, bsh_x_ops, bsh_y_ops, projector, x_shifts,
+                                         omega, kain_x_space, iter, max_rotation);
 
 
         if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
@@ -257,7 +251,6 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
                                std::vector<poperatorT> &bsh_x_ops,
                                std::vector<poperatorT> &bsh_y_ops, QProjector<double, 3> &projector,
                                double &x_shifts, double &omega_n, response_solver &kain_x_space,
-                               response_matrix &Xvector, response_matrix &Xresidual,
                                size_t iteration, const double &maxrotn)
         -> std::tuple<X_space, residuals> {
 
@@ -275,7 +268,7 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
 
     // kain update with temp adjusts temp
     if (r_params.kain() && (iteration > 2)) {
-        new_chi = kain_x_space_update(world, chi, new_res, kain_x_space, Xvector, Xresidual);
+        new_chi = kain_x_space_update(world, chi, new_res, kain_x_space);
     }
 
     if (false) { x_space_step_restriction(world, chi, new_chi, compute_y, maxrotn); }
