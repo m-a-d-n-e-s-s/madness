@@ -1100,22 +1100,19 @@ auto ResponseBase::compute_residual(World &world, const X_space &chi, const X_sp
 }
 
 auto ResponseBase::kain_x_space_update(World &world, const X_space &chi,
-                                       const X_space &residual_chi, response_solver &kain_x_space,
-                                       response_matrix &x_vectors, response_matrix &x_residuals)
+                                       const X_space &residual_chi, response_solver &kain_x_space)
         -> X_space {
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     size_t m = chi.num_states();
     size_t n = chi.num_orbitals();
     X_space kain_update(world, m, n);
-    x_vectors = to_response_matrix(chi);
-    x_residuals = to_response_matrix(residual_chi);
     response_matrix update(m);
+    auto x_vectors = to_response_matrix(chi);
+    auto x_residuals = to_response_matrix(residual_chi);
     if (world.rank() == 0) { print("----------------Start Kain Update -----------------"); }
     int b = 0;
     for (auto &kain_xb: kain_x_space) {
-        const auto &xi = x_vectors[b];
-        const auto &ri = x_vectors[b];
-        update[b] = kain_xb.update(xi, ri);
+        update[b] = kain_xb.update(x_vectors[b], x_residuals[b]);
         b++;
     }
     world.gop.fence();

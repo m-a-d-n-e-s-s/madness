@@ -45,13 +45,12 @@ private:
                                           std::string message);
     void save(World& world, const std::string& name) override;
     void load(World& world, const std::string& name) override;
-    std::tuple<X_space, residuals> update(World& world, X_space& chi, XCOperator<double, 3>& xc,
-                                          vector<poperatorT>& bsh_x_ops,
-                                          vector<poperatorT>& bsh_y_ops,
-                                          QProjector<double, 3>& projector, double& x_shifts,
-                                          double& omega_n, response_solver &kain_x_space,
-                                          response_matrix &Xvector, response_matrix &Xresidual,
-                                          size_t iteration, const double& maxrotn);
+    std::tuple<X_space, residuals> update(World &world, X_space &chi, XCOperator<double, 3> &xc,
+                                          std::vector<poperatorT> &bsh_x_ops,
+                                          std::vector<poperatorT> &bsh_y_ops,
+                                          QProjector<double, 3> &projector, double &x_shifts,
+                                          double &omega_n, response_solver &kain_x_space,
+                                          size_t iteration, const double &maxrotn);
 };
 
 
