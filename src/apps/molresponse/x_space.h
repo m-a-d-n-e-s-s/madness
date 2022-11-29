@@ -70,7 +70,7 @@ namespace madness {
                 this->n_states = B.num_states();
                 this->n_orbitals = B.num_orbitals();
                 this->X = B.X;
-                this->Y = B.X;
+                this->Y = B.Y;
             }
             return *this;// NO SHALLOW COPIES
         }

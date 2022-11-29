@@ -481,14 +481,10 @@ auto vector_to_PQ(World &world, const vector_real_function_3d &p,
                   const vector_real_function_3d &ground_orbitals, double lo) -> response_space {
 
     response_space rhs(world, p.size(), ground_orbitals.size());
-
     reconstruct(world, ground_orbitals);
-
     QProjector<double, 3> Qhat(world, ground_orbitals);
-
     std::vector<real_function_3d> orbitals = copy(world, ground_orbitals);
     truncate(world, orbitals);
-
     auto f = [&](auto property) {
         auto phat_phi = mul(world, property, orbitals, lo);
         // rhs[i].truncate_vec();
