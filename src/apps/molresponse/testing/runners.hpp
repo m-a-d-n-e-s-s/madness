@@ -30,7 +30,6 @@ auto split(const std::string &s, char delim) -> vector<std::string> {
 }
 
 auto addPath(const path &root, const std::string &branch) -> path {
-
     path p_branch = root;
     p_branch += branch;
     return p_branch;
@@ -46,21 +45,15 @@ struct runSchema {
     ResponseDataBase rdb;
 
     explicit runSchema(World &world, const std::string &xc) {
-
         root = std::filesystem::current_path();//="/"+molecule_name;
         molecule_path = root;
         molecule_path += "/molecules";
-
         xc_path = addPath(root, "/" + xc);
         world.gop.fence();
         if (std::filesystem::exists(xc_path)) {
-            if (world.rank() == 0) {
-                std::cout << "XC Directory Exists" << std::endl;
-            }
+            if (world.rank() == 0) { std::cout << "XC Directory Exists" << std::endl; }
         } else {
-            if (world.rank() == 0) {
-                std::cout << "Creating XC directory" << std::endl;
-            }
+            if (world.rank() == 0) { std::cout << "Creating XC directory" << std::endl; }
             std::filesystem::create_directory(xc_path);
         }
 
@@ -68,34 +61,23 @@ struct runSchema {
         freq_json = addPath(molecule_path, "/frequency.json");
         dalton_excited_json = addPath(molecule_path, "/dalton-excited.json");
         dalton_dipole_json = addPath(molecule_path, "/dalton-dipole.json");
-
         rdb = ResponseDataBase();
-
-
         if (std::filesystem::exists(freq_json)) {
             std::ifstream ifs(freq_json);
             json j_read;
             ifs >> j_read;
             rdb.set_data(j_read);
-
-
             if (world.rank() == 0) {
                 std::cout << "Trying to read frequency.json" << std::endl;
                 std::cout << "READ IT" << std::endl;
             }
-
         } else {
-            if (world.rank() == 0) {
-                std::cout << "did not find frequency.json" << std::endl;
-            }
+            if (world.rank() == 0) { std::cout << "did not find frequency.json" << std::endl; }
         }
-        if (world.rank() == 0) {
-            print();
-        }
+        if (world.rank() == 0) { print(); }
     }
 
     void print() const {
-
         ::print("------------Database Runner---------------");
         ::print("Root: ", root);
         ::print("Molecule Directory: ", molecule_path);
@@ -119,9 +101,9 @@ struct moldftSchema {
     std::string mol_name;
     std::string xc;
 
-    moldftSchema(World &world, const std::string &molecule_name, const std::string &m_xc, const runSchema &schema)
-        : mol_name(molecule_name),
-          xc(m_xc) {
+    moldftSchema(World &world, const std::string &molecule_name, const std::string &m_xc,
+                 const runSchema &schema)
+        : mol_name(molecule_name), xc(m_xc) {
 
         moldft_path = addPath(schema.xc_path, '/' + mol_name);
         moldft_restart = addPath(moldft_path, "/moldft.restartdata.00000");
@@ -157,14 +139,13 @@ struct moldftSchema {
             world.gop.fence();
             if (world.rank() == 0) {
                 std::cout << "time: " << calc_info_json["time"] << std::endl;
-                std::cout << "MOLDFT return energy: " << calc_info_json["return_energy"] << std::endl;
+                std::cout << "MOLDFT return energy: " << calc_info_json["return_energy"]
+                          << std::endl;
                 std::cout << "MOLDFT return energy answer: " << moldft_json["return_energy"]
                           << std::endl;
             }
         }
-        if (world.rank() == 0) {
-            print();
-        }
+        if (world.rank() == 0) { print(); }
     }
 
     void print() const {
@@ -187,15 +168,12 @@ struct frequencySchema {
     const path moldft_path;
     vector<double> freq;
 
-    frequencySchema(World &world, const runSchema run_schema, const moldftSchema m_schema, const std::string r_operator)
-        : mol_name(m_schema.mol_name),
-          xc(m_schema.xc),
-          op(r_operator),
+    frequencySchema(World &world, const runSchema run_schema, const moldftSchema m_schema,
+                    const std::string r_operator)
+        : mol_name(m_schema.mol_name), xc(m_schema.xc), op(r_operator),
           moldft_path(m_schema.moldft_path) {
         freq = run_schema.rdb.get_frequencies(mol_name, xc, op);
-        if (world.rank() == 0) {
-            print_schema();
-        }
+        if (world.rank() == 0) { print_schema(); }
     }
 
     void print_schema() {
@@ -266,8 +244,8 @@ std::filesystem::path generate_excited_run_path(const std::filesystem::path &mol
  * @param excited_state restart path
  * @return
  */
-std::pair<std::filesystem::path, std::string> generate_excited_save_path(
-        const std::filesystem::path &excited_run_path) {
+std::pair<std::filesystem::path, std::string>
+generate_excited_save_path(const std::filesystem::path &excited_run_path) {
 
     auto save_path = std::filesystem::path(excited_run_path);
     std::string save_string = "restart_excited";
@@ -457,9 +435,7 @@ void runMOLDFT(World &world, const moldftSchema &moldftSchema, bool try_run, boo
     // if parameters are different or if I want to run no matter what run
     // if I want to restart and if I can. restart
     if (try_run) {
-        if (world.rank() == 0) {
-            print("-------------Running moldft------------");
-        }
+        if (world.rank() == 0) { print("-------------Running moldft------------"); }
         world.gop.fence();
         // if params are different run and if restart exists and if im asking to restar
         if (std::filesystem::exists(moldftSchema.moldft_restart) && restart) {
@@ -577,7 +553,11 @@ void set_frequency_response_parameters(ResponseParameters &r_params, const std::
  * @param frequency
  * @param moldft_path
  */
-static auto set_frequency_path_and_restart(World &world, ResponseParameters &parameters, const std::string &property, const double &frequency, const std::string &xc, const std::filesystem::path &moldft_path, std::filesystem::path &restart_path, bool restart)
+static auto set_frequency_path_and_restart(World &world, ResponseParameters &parameters,
+                                           const std::string &property, const double &frequency,
+                                           const std::string &xc,
+                                           const std::filesystem::path &moldft_path,
+                                           std::filesystem::path &restart_path, bool restart)
         -> std::filesystem::path {
 
     if (world.rank() == 0) {
@@ -589,19 +569,13 @@ static auto set_frequency_path_and_restart(World &world, ResponseParameters &par
     // change the logic create save path
     auto frequency_run_path =
             generate_response_frequency_run_path(moldft_path, property, frequency, xc);
-    if (world.rank() == 0) {
-        print("frequency run path", frequency_run_path);
-    }
+    if (world.rank() == 0) { print("frequency run path", frequency_run_path); }
     // Crea
     if (std::filesystem::is_directory(frequency_run_path)) {
-        if (world.rank() == 0) {
-            cout << "Response directory found " << std::endl;
-        }
+        if (world.rank() == 0) { cout << "Response directory found " << std::endl; }
     } else {// create the file
         std::filesystem::create_directory(frequency_run_path);
-        if (world.rank() == 0) {
-            cout << "Creating response_path directory" << std::endl;
-        }
+        if (world.rank() == 0) { cout << "Creating response_path directory" << std::endl; }
     }
     world.gop.fence();
 
@@ -609,10 +583,7 @@ static auto set_frequency_path_and_restart(World &world, ResponseParameters &par
     // Calling this function will make the current working directory the
     // frequency save path
     auto [save_path, save_string] = generate_frequency_save_path(frequency_run_path);
-    if (world.rank() == 0) {
-
-        print("save string", save_string);
-    }
+    if (world.rank() == 0) { print("save string", save_string); }
 
     parameters.set_user_defined_value("save", true);
     parameters.set_user_defined_value("save_file", save_string);
@@ -628,9 +599,7 @@ static auto set_frequency_path_and_restart(World &world, ResponseParameters &par
             }
         } else if (std::filesystem::exists(restart_path)) {
 
-            if (world.rank() == 0) {
-                print(" restart path", restart_path);
-            }
+            if (world.rank() == 0) { print(" restart path", restart_path); }
             parameters.set_user_defined_value("restart", true);
 
             auto split_restart_path = split(restart_path.replace_extension("").string(), '/');
@@ -675,8 +644,8 @@ auto RunResponse(World &world, const std::string &filename, double frequency,
     // Set the response parameters
     ResponseParameters r_params{};
     set_frequency_response_parameters(r_params, property, xc, frequency, precision);
-    auto save_path = set_frequency_path_and_restart(world, r_params, property, frequency, xc, moldft_path,
-                                                    restart_path, true);
+    auto save_path = set_frequency_path_and_restart(world, r_params, property, frequency, xc,
+                                                    moldft_path, restart_path, true);
 
     if (world.rank() == 0) { molresponse::write_response_input(r_params, filename); }
     // if rbase exists and converged I just return save path and true
@@ -684,7 +653,9 @@ auto RunResponse(World &world, const std::string &filename, double frequency,
         std::ifstream ifs("response_base.json");
         json response_base;
         ifs >> response_base;
-        if (response_base["converged"] && response_base["precision"]["dconv"] == r_params.dconv()) { return {save_path, true}; }
+        if (response_base["converged"] && response_base["precision"]["dconv"] == r_params.dconv()) {
+            return {save_path, true};
+        }
     }
     auto calc_params = initialize_calc_params(world, std::string(filename));
     RHS_Generator rhs_generator;
@@ -830,9 +801,7 @@ void runFrequencyTests(World &world, const frequencySchema &schema, const std::s
     bool first = true;
     for (const auto &freq: schema.freq) {
 
-        if (world.rank() == 0) {
-            print(success.second);
-        }
+        if (world.rank() == 0) { print(success.second); }
 
         std::filesystem::current_path(schema.moldft_path);
         if (first) {
@@ -852,9 +821,7 @@ void runFrequencyTests(World &world, const frequencySchema &schema, const std::s
         success = RunResponse(world, "response.in", freq, schema.op, schema.xc, schema.moldft_path,
                               restart_path, high_prec);
 
-        if (world.rank() == 0) {
-            print("Frequency ", freq, " completed");
-        }
+        if (world.rank() == 0) { print("Frequency ", freq, " completed"); }
     }
 }
 
@@ -867,12 +834,11 @@ void runFrequencyTests(World &world, const frequencySchema &schema, const std::s
  * @param restart  do we force a restart or not
  * @param precision high precision or no?
  */
-void moldft(World &world, moldftSchema &m_schema, bool try_moldft, bool restart, const std::string &precision) {
+void moldft(World &world, moldftSchema &m_schema, bool try_moldft, bool restart,
+            const std::string &precision) {
 
     if (std::filesystem::is_directory(m_schema.moldft_path)) {
-        if (world.rank() == 0) {
-            cout << "MOLDFT directory found " << m_schema.mol_path << "\n";
-        }
+        if (world.rank() == 0) { cout << "MOLDFT directory found " << m_schema.mol_path << "\n"; }
     } else {// create the file
         std::filesystem::create_directory(m_schema.moldft_path);
         if (world.rank() == 0) {
