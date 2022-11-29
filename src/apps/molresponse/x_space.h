@@ -271,13 +271,11 @@ namespace madness {
 
         auto norm2s() -> Tensor<double> {
             World &world = X[0][0].world();
-
             Tensor<double> norms(num_states());
-            for (size_t b = 0; b < num_states(); b++) {
-                auto xb = madness::copy(world, X[b]);
-                for (auto &yb: Y[b]) { xb.push_back(madness::copy(yb, true)); }
-                norms[b] = sqrt(inner(xb, xb));
-            }
+            auto x = to_response_matrix(*this);
+            int b = 0;
+            for (const auto &xb: x) { norms[b++] = norm2(world, xb); }
+            world.gop.fence();
             return norms;
         }
 

@@ -1090,27 +1090,8 @@ auto ResponseBase::compute_residual(World &world, const X_space &chi, const X_sp
     size_t n = chi.X.size_orbitals();
     //	compute residual
     X_space res(world, m, n);
-    //res.X = old_Chi.X - temp.X;
     res = g_chi - chi;
-
     auto residual_norms = res.norm2s();
-    if (world.rank() == 0 and (r_params.print_level() > 1)) {
-        print("||f(x)||_2 = : ", residual_norms);
-    }
-
-    if (r_params.print_level() >= 5) {
-        int j = 0;
-        auto res_vec = to_response_matrix(res);
-        for (const auto &xi: res_vec) {
-            auto res_b_norms = std::vector<double>{};
-            for (const auto &xij: xi) res_b_norms.push_back(xij.norm2());
-            world.gop.fence();
-            if (world.rank() == 0) { print("||f(x)||_: ", j, res_b_norms); }
-            j++;
-        }
-    }
-
-
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "compute_bsh_residual", "compute_bsh_residual", iter_timing);
     }
