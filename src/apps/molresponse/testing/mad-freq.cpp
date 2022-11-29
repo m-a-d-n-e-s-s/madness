@@ -31,37 +31,29 @@ auto main(int argc, char *argv[]) -> int {
     int result = 0;
     world.gop.fence();
     startup(world, argc, argv);
-    sleep(10);
-
+    sleep(5);
     std::cout.precision(6);
-
     if (argc != 5) {
-
         std::cout << "Wrong number of inputs" << std::endl;
         return 1;
     }
-
     const std::string molecule_name{argv[1]};
     const std::string xc{argv[2]};
     const std::string op{argv[3]};
     const std::string precision{argv[4]};
-
     if (precision != "high" && precision != "low" && precision != "super") {
-        if (world.rank() == 0) {
-            std::cout << "Set precision to low high super" << std::endl;
-        }
+        if (world.rank() == 0) { std::cout << "Set precision to low high super" << std::endl; }
         return 1;
     }
     try {
-
         auto schema = runSchema(world, xc);
         auto m_schema = moldftSchema(world, molecule_name, xc, schema);
         auto f_schema = frequencySchema(world, schema, m_schema, op);
-        if (std::filesystem::exists(m_schema.calc_info_json_path) && std::filesystem::exists(m_schema.moldft_restart)) {
+        if (std::filesystem::exists(m_schema.calc_info_json_path) &&
+            std::filesystem::exists(m_schema.moldft_restart)) {
             // TODO set up to read calc_info json and check if its converged
             runFrequencyTests(world, f_schema, precision);
         } else {
-
             moldft(world, m_schema, true, false, precision);
             runFrequencyTests(world, f_schema, precision);
         }
