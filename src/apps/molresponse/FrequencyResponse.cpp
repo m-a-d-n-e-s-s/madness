@@ -86,10 +86,8 @@ void FrequencyResponse::iterate(World &world) {
         bsh_y_ops = make_bsh_operators_response(world, y_shifts, omega);
         omega = -omega;
     }
-
     vector_real_function_3d rho_omega = make_density(world, Chi);
     converged = false;// Converged flag
-
     auto thresh = FunctionDefaults<3>::get_thresh();
     auto max_rotation = .5;
     if (thresh >= 1e-2) {
@@ -111,9 +109,7 @@ void FrequencyResponse::iterate(World &world) {
                 printf("\n   Iteration %d at time %.1fs\n", static_cast<int>(iter), wall_time());
             if (world.rank() == 0) print("-------------------------------------------");
         }
-
         if (iter < 2 || (iter % 10) == 0) { load_balance_chi(world); }
-
         if (iter > 0) {
             if (density_residuals.max() > 2) { break; }
             double d_residual = density_residuals.max();
@@ -121,14 +117,11 @@ void FrequencyResponse::iterate(World &world) {
             auto chi_norms = Chi.norm2s();
             auto relative_bsh = copy(bsh_residualsX);
             auto rho_norms = norm2s_T(world, rho_omega);
-
             std::transform(bsh_residualsX.ptr(), bsh_residualsX.ptr() + bsh_residualsX.size(),
                            chi_norms.ptr(), relative_bsh.ptr(),
                            [](auto bsh, auto norm_chi) { return bsh / norm_chi; });
-
             auto max_bsh = bsh_residualsX.absmax();
             auto relative_max_bsh = relative_bsh.absmax();
-
             Tensor<double> polar = -2 * inner(Chi, PQ);
             world.gop.fence();
             // Todo add chi norm and chi_x
