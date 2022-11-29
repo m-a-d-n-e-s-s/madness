@@ -104,14 +104,11 @@ struct moldftSchema {
     moldftSchema(World &world, const std::string &molecule_name, const std::string &m_xc,
                  const runSchema &schema)
         : mol_name(molecule_name), xc(m_xc) {
-
         moldft_path = addPath(schema.xc_path, '/' + mol_name);
         moldft_restart = addPath(moldft_path, "/moldft.restartdata.00000");
         calc_info_json_path = addPath(moldft_path, "/moldft.calc_info.json");
         mol_path = addPath(schema.molecule_path, "/" + mol_name + ".mol");
-
         moldft_json_path = addPath(schema.molecule_path, "/moldft.json");
-
         if (std::filesystem::exists(moldft_json_path)) {
             std::ifstream ifs(moldft_json_path);
             // read results into json
@@ -137,13 +134,10 @@ struct moldftSchema {
             std::ifstream ifs(calc_info_json_path);
             ifs >> calc_info_json;
             world.gop.fence();
-            if (world.rank() == 0) {
-                std::cout << "time: " << calc_info_json["time"] << std::endl;
-                std::cout << "MOLDFT return energy: " << calc_info_json["return_energy"]
-                          << std::endl;
-                std::cout << "MOLDFT return energy answer: " << moldft_json["return_energy"]
-                          << std::endl;
-            }
+            std::cout << "time: " << calc_info_json["time"] << std::endl;
+            std::cout << "MOLDFT return energy: " << calc_info_json["return_energy"] << std::endl;
+            std::cout << "MOLDFT return energy answer: " << moldft_json["return_energy"]
+                      << std::endl;
         }
         if (world.rank() == 0) { print(); }
     }
@@ -640,13 +634,11 @@ auto RunResponse(World &world, const std::string &filename, double frequency,
                  const std::string &property, const std::string &xc,
                  const std::filesystem::path &moldft_path, std::filesystem::path restart_path,
                  const std::string &precision) -> std::pair<std::filesystem::path, bool> {
-
     // Set the response parameters
     ResponseParameters r_params{};
     set_frequency_response_parameters(r_params, property, xc, frequency, precision);
     auto save_path = set_frequency_path_and_restart(world, r_params, property, frequency, xc,
                                                     moldft_path, restart_path, true);
-
     if (world.rank() == 0) { molresponse::write_response_input(r_params, filename); }
     // if rbase exists and converged I just return save path and true
     if (std::filesystem::exists("response_base.json")) {
@@ -678,8 +670,6 @@ auto RunResponse(World &world, const std::string &filename, double frequency,
         // put the response parameters in a j_molrespone json object
         calc_params.response_parameters.to_json(calc.j_molresponse);
     }
-    world.gop.fence();
-    // set protocol to the first
     calc.solve(world);
     // TODO Why would I plot the ground state density here if the protocol or k is
     world.gop.fence();
@@ -792,7 +782,6 @@ auto runExcited(World &world, excitedSchema schema, bool restart, bool high_prec
  * @param property
  */
 void runFrequencyTests(World &world, const frequencySchema &schema, const std::string &high_prec) {
-
     std::filesystem::current_path(schema.moldft_path);
     // add a restart path
     auto restart_path = addPath(schema.moldft_path, "/" + schema.op + "_0-000000.00000/restart_" +
@@ -800,9 +789,7 @@ void runFrequencyTests(World &world, const frequencySchema &schema, const std::s
     std::pair<std::filesystem::path, bool> success{schema.moldft_path, false};
     bool first = true;
     for (const auto &freq: schema.freq) {
-
         if (world.rank() == 0) { print(success.second); }
-
         std::filesystem::current_path(schema.moldft_path);
         if (first) {
             first = false;
@@ -817,10 +804,8 @@ void runFrequencyTests(World &world, const frequencySchema &schema, const std::s
         } else {
             throw Response_Convergence_Error{};
         }
-
         success = RunResponse(world, "response.in", freq, schema.op, schema.xc, schema.moldft_path,
                               restart_path, high_prec);
-
         if (world.rank() == 0) { print("Frequency ", freq, " completed"); }
     }
 }

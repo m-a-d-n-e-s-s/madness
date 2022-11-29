@@ -7,7 +7,10 @@
 #include "property.h"
 
 
-void FrequencyResponse::initialize(World &world) { Chi = PQ.copy(); }
+void FrequencyResponse::initialize(World &world) {
+    if (world.rank() == 0) { print("FrequencyResponse::initialize()"); }
+    Chi = PQ.copy();
+}
 
 void FrequencyResponse::iterate(World &world) {
     size_t iter;
@@ -402,6 +405,7 @@ void FrequencyResponse::save(World &world, const std::string &name) {
 
 // Load a response calculation
 void FrequencyResponse::load(World &world, const std::string &name) {
+    if (world.rank() == 0) { print("FrequencyResponse::load() -state"); }
     // The archive to read from
     archive::ParallelInputArchive ar(world, name.c_str());
 
