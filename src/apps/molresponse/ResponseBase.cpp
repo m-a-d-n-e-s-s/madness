@@ -123,12 +123,6 @@ auto ResponseBase::ComputeHamiltonianPair(World &world) const
     // Get sizes
     auto num_orbitals = phi.size();
     // Debugging
-    if (r_params.print_level() > 2) {
-        Tensor<double> S = matrix_inner(world, phi, phi);
-        if (world.rank() == 0) print("   Ground state overlap:");
-        if (world.rank() == 0) print(S);
-    }
-    // Calculate T
     // Make the derivative operators in each direction
     real_derivative_3d Dx(world, 0);
     real_derivative_3d Dy(world, 1);
@@ -227,9 +221,6 @@ auto ResponseBase::ComputeHamiltonianPair(World &world) const
 
     for (int64_t i = 0; i < new_hamiltonian.dim(0); i++) {
         for (int64_t j = i + 1; j < new_hamiltonian.dim(1); j++) {
-            //      print(i, j);
-            //      print(xAx(i, j));
-            //     print(xAx(j, i));
             new_hamiltonian(j, i) = new_hamiltonian(i, j);
         }
     }
@@ -247,11 +238,6 @@ auto ResponseBase::ComputeHamiltonianPair(World &world) const
     auto new_hamiltonian_no_diag = copy(new_hamiltonian);
     for (size_t i = 0; i < num_orbitals; i++) new_hamiltonian_no_diag(long(i), long(i)) = 0.0;
 
-    // Debug output
-    if (r_params.print_level() >= 2 and world.rank() == 0) {
-        print("   Ground state new_hamiltonian:");
-        print(new_hamiltonian);
-    }
     // End timer
     if (r_params.print_level() >= 1) molresponse::end_timer(world, "   Create grnd ham:");
     return {new_hamiltonian, new_hamiltonian_no_diag};
