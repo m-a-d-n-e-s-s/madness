@@ -433,7 +433,6 @@ void runMOLDFT(World &world, const moldftSchema &moldftSchema, bool try_run, boo
     // if I want to restart and if I can. restart
     if (try_run) {
         if (world.rank() == 0) { print("-------------Running moldft------------"); }
-        world.gop.fence();
         // if params are different run and if restart exists and if im asking to restar
         if (std::filesystem::exists(moldftSchema.moldft_restart) && restart) {
             param1.set_user_defined_value<bool>("restart", true);
@@ -446,13 +445,38 @@ void runMOLDFT(World &world, const moldftSchema &moldftSchema, bool try_run, boo
         world.gop.fence();
         commandlineparser parser;
         parser.set_keyval("input", "moldft.in");
-        world.gop.fence();
 
+        if (world.rank() == 0) print("input filename: ", parser.value("input"));
+
+
+        print_meminfo(world.rank(), "startup");
+        FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3> >(world)));
+
+        std::cout.precision(6);
         SCF calc(world, parser);
+        if (world.rank() == 0) {
+            print("\n\n");
+            print(" MADNESS Hartree-Fock and Density Functional Theory Program");
+            print(" ----------------------------------------------------------\n");
+            print("\n");
+            calc.molecule.print();
+            print("\n");
+            calc.param.print("dft");
+        }
+        if (world.size() > 1) {
+            calc.set_protocol<3>(world, 1e-4);
+            calc.make_nuclear_potential(world);
+            calc.initial_load_bal(world);
+        }
+//vama
+        calc.set_protocol<3>(world, calc.param.protocol()[0]);
         //calc.set_protocol<3>(world, 1e-4);
+        world.gop.fence();
         MolecularEnergy ME(world, calc);
+        world.gop.fence();
         // double energy=ME.value(calc.molecule.get_all_coords().flat()); // ugh!
         ME.value(calc.molecule.get_all_coords().flat());// ugh!
+        world.gop.fence();
         ME.output_calc_info_schema();
     } else {
         if (world.rank() == 0) {
