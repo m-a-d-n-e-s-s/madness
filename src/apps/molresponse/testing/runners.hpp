@@ -134,10 +134,14 @@ struct moldftSchema {
             std::ifstream ifs(calc_info_json_path);
             ifs >> calc_info_json;
             world.gop.fence();
-            std::cout << "time: " << calc_info_json["time"] << std::endl;
-            std::cout << "MOLDFT return energy: " << calc_info_json["return_energy"] << std::endl;
-            std::cout << "MOLDFT return energy answer: " << moldft_json["return_energy"]
-                      << std::endl;
+            if (world.rank() == 0) {
+
+                std::cout << "time: " << calc_info_json["time"] << std::endl;
+                std::cout << "MOLDFT return energy: " << calc_info_json["return_energy"]
+                          << std::endl;
+                std::cout << "MOLDFT return energy answer: " << moldft_json["return_energy"]
+                          << std::endl;
+            }
         }
         if (world.rank() == 0) { print(); }
     }
@@ -407,7 +411,6 @@ void runMOLDFT(World &world, const moldftSchema &moldftSchema, bool try_run, boo
             param1.set_user_defined_value<vector<double>>("protocol", {1e-9});
             param1.set_user_defined_value<double>("dconv", 1e-7);
         }
-
         param1.set_user_defined_value<std::string>("localize", "new");
         CalculationParameters param_calc;
         if (std::filesystem::exists(moldftSchema.calc_info_json_path)) {
@@ -446,8 +449,7 @@ void runMOLDFT(World &world, const moldftSchema &moldftSchema, bool try_run, boo
         world.gop.fence();
 
         SCF calc(world, parser);
-        calc.set_protocol<3>(world, 1e-4);
-
+        //calc.set_protocol<3>(world, 1e-4);
         MolecularEnergy ME(world, calc);
         // double energy=ME.value(calc.molecule.get_all_coords().flat()); // ugh!
         ME.value(calc.molecule.get_all_coords().flat());// ugh!
@@ -670,6 +672,7 @@ auto RunResponse(World &world, const std::string &filename, double frequency,
         // put the response parameters in a j_molrespone json object
         calc_params.response_parameters.to_json(calc.j_molresponse);
     }
+    world.gop.fence();
     calc.solve(world);
     // TODO Why would I plot the ground state density here if the protocol or k is
     world.gop.fence();
