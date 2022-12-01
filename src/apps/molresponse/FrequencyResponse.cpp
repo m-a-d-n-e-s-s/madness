@@ -416,6 +416,7 @@ auto dipole_generator(World &world, FrequencyResponse &calc) -> X_space {
     world.gop.fence();
     PQ.X = vector_to_PQ(world, dipole_vectors, calc.get_orbitals());
     PQ.Y = PQ.X;
+    if (world.rank() == 0) { print("Made new PQ"); }
     return PQ;
 }
 
