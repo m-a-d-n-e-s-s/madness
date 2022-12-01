@@ -682,8 +682,9 @@ auto RunResponse(World &world, const std::string &filename, double frequency,
     } else {
         rhs_generator = nuclear_generator;
     }
+
+    FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3> >(world)));
     FrequencyResponse calc(world, calc_params, frequency, rhs_generator);
-    world.gop.fence();
     if (world.rank() == 0) {
         print("\n\n");
         print(" MADNESS Time-Dependent Density Functional Theory Response "
@@ -696,9 +697,7 @@ auto RunResponse(World &world, const std::string &filename, double frequency,
         // put the response parameters in a j_molrespone json object
         calc_params.response_parameters.to_json(calc.j_molresponse);
     }
-    world.gop.fence();
     calc.solve(world);
-    // TODO Why would I plot the ground state density here if the protocol or k is
     world.gop.fence();
     // set protocol to the first
     if (world.rank() == 0) {
@@ -823,7 +822,6 @@ void runFrequencyTests(World &world, const frequencySchema &schema, const std::s
         } else if (success.second) {
             // if the previous run succeeded then set the restart path
             restart_path = success.first;
-            world.gop.fence();
             if (world.rank() == 0) {
                 print("restart_path", restart_path);
                 print("restart_path = success.first", restart_path);

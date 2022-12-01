@@ -94,7 +94,7 @@ void FrequencyResponse::iterate(World &world) {
     } else if (thresh >= 1e-8) {
         max_rotation = .05;
     }
-
+    PQ = generator(world, *this);
     for (iter = 0; iter < r_params.maxiter(); ++iter) {
         iter_timing.clear();
         // Basic output
@@ -450,6 +450,7 @@ auto dipole_generator(World &world, FrequencyResponse &calc) -> X_space {
         d = real_factory_3d(world).functor(real_functor_3d(new MomentFunctor(f)));
     }
     //truncate(world, dipole_vectors, true);
+    world.gop.fence();
     PQ.X = vector_to_PQ(world, dipole_vectors, calc.get_orbitals(), r_params.lo());
     PQ.Y = PQ.X;
     return PQ;
