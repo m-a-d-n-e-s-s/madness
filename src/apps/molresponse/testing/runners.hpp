@@ -450,7 +450,7 @@ void runMOLDFT(World &world, const moldftSchema &moldftSchema, bool try_run, boo
 
 
         print_meminfo(world.rank(), "startup");
-        FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3> >(world)));
+        FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3>>(world)));
 
         std::cout.precision(6);
         SCF calc(world, parser);
@@ -468,7 +468,7 @@ void runMOLDFT(World &world, const moldftSchema &moldftSchema, bool try_run, boo
             calc.make_nuclear_potential(world);
             calc.initial_load_bal(world);
         }
-//vama
+        //vama
         calc.set_protocol<3>(world, calc.param.protocol()[0]);
         //calc.set_protocol<3>(world, 1e-4);
         world.gop.fence();
@@ -580,15 +580,13 @@ static auto set_frequency_path_and_restart(World &world, ResponseParameters &par
                                            std::filesystem::path &restart_path, bool restart)
         -> std::filesystem::path {
 
-    if (world.rank() == 0) {
-        print("set_frequency_path_and_restart");
-        print("restart path", restart_path);
-    }
+    if (world.rank() == 0) { print("restart path", restart_path); }
 
 
     // change the logic create save path
     auto frequency_run_path =
             generate_response_frequency_run_path(moldft_path, property, frequency, xc);
+    world.gop.fence();
     if (world.rank() == 0) { print("frequency run path", frequency_run_path); }
     // Crea
     if (std::filesystem::is_directory(frequency_run_path)) {
@@ -597,51 +595,34 @@ static auto set_frequency_path_and_restart(World &world, ResponseParameters &par
         std::filesystem::create_directory(frequency_run_path);
         if (world.rank() == 0) { cout << "Creating response_path directory" << std::endl; }
     }
-    world.gop.fence();
-
     std::filesystem::current_path(frequency_run_path);
-    // Calling this function will make the current working directory the
     // frequency save path
     auto [save_path, save_string] = generate_frequency_save_path(frequency_run_path);
-    if (world.rank() == 0) { print("save string", save_string); }
-
-    parameters.set_user_defined_value("save", true);
-    parameters.set_user_defined_value("save_file", save_string);
-    world.gop.fence();
-    // if restart and restartfile exists go ahead and set the restart file
-    if (restart) {
-        if (std::filesystem::exists(save_path)) {
-
-            parameters.set_user_defined_value("restart", true);
-            parameters.set_user_defined_value("restart_file", save_string);
-            if (world.rank() == 0) {
-                print("found save directory... restarting from save_string ", save_string);
-            }
-        } else if (std::filesystem::exists(restart_path)) {
-
-            if (world.rank() == 0) { print(" restart path", restart_path); }
-            parameters.set_user_defined_value("restart", true);
-
-            auto split_restart_path = split(restart_path.replace_extension("").string(), '/');
-
-            std::string restart_file_short =
-                    "../" + split_restart_path[split_restart_path.size() - 2] + "/" +
-                    split_restart_path[split_restart_path.size() - 1];
-            parameters.set_user_defined_value("restart_file", restart_file_short);
-
-            if (world.rank() == 0) {
-                print("relative restart path", restart_file_short);
-                print("found restart directory... restarting from restart_path.string ",
-                      restart_path.string());
-            }
-
-        } else {
-            parameters.set_user_defined_value("restart", false);
+    if (world.rank() == 0) {
+        parameters.set_user_defined_value("save", true);
+        parameters.set_user_defined_value("save_file", save_string);
+        if (restart) {//if we are trying a restart calculation
+            if (std::filesystem::exists(save_path)) {
+                //if the save path exists then we know we can
+                // restart from the previous save
+                parameters.set_user_defined_value("restart", true);
+                parameters.set_user_defined_value("restart_file", save_string);
+            } else if (std::filesystem::exists(restart_path)) {
+                parameters.set_user_defined_value("restart", true);
+                auto split_restart_path = split(restart_path.replace_extension("").string(), '/');
+                std::string restart_file_short =
+                        "../" + split_restart_path[split_restart_path.size() - 2] + "/" +
+                        split_restart_path[split_restart_path.size() - 1];
+                parameters.set_user_defined_value("restart_file", restart_file_short);
+                // Then we restart from the previous file instead
+            } else {
+                parameters.set_user_defined_value("restart", false);
+            };
             // neither file exists therefore you need to start from fresh
         }
-    } else {
-        parameters.set_user_defined_value("restart", false);
     }
+    world.gop.broadcast_serializable(parameters, 0);
+    // if restart and restartfile exists go ahead and set the restart file
     return save_path;
 }
 
@@ -683,7 +664,7 @@ auto RunResponse(World &world, const std::string &filename, double frequency,
         rhs_generator = nuclear_generator;
     }
 
-    FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3> >(world)));
+    FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3>>(world)));
     FrequencyResponse calc(world, calc_params, frequency, rhs_generator);
     if (world.rank() == 0) {
         print("\n\n");
@@ -822,10 +803,7 @@ void runFrequencyTests(World &world, const frequencySchema &schema, const std::s
         } else if (success.second) {
             // if the previous run succeeded then set the restart path
             restart_path = success.first;
-            if (world.rank() == 0) {
-                print("restart_path", restart_path);
-                print("restart_path = success.first", restart_path);
-            }
+            if (world.rank() == 0) { print("restart_path", restart_path); }
         } else {
             throw Response_Convergence_Error{};
         }
