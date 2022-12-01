@@ -332,7 +332,6 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
 void FrequencyResponse::frequency_to_json(json &j_mol_in, size_t iter,
                                           const Tensor<double> &polar_ij) {
     json j = {};
-
     j["iter"] = iter;
     j["polar"] = tensor_to_json(polar_ij);
     auto index = j_mol_in["protocol_data"].size() - 1;
@@ -349,26 +348,9 @@ void FrequencyResponse::compute_and_print_polarizability(World &world, X_space &
 }
 
 void FrequencyResponse::save(World &world, const std::string &name) {
-
-
     // Archive to write everything to
     archive::ParallelOutputArchive ar(world, name.c_str(), 1);
-    // Just going to enforce 1 io server
 
-    // Saving, in this order;
-    //  string           ground-state archive name (garch_name)
-    //  bool             TDA flag
-    // size_t                number of ground state orbitals (n)
-    // size_t                number of excited state orbitals (m)
-    //  Tensor<double>   energies of m x-components
-    //  for i from 0 to m-1
-    //     for j from 0 to n-1
-    //        Function<double,3> x_response[i][j]
-    //  (If TDA flag == True)
-    //  (Tensor<double>  energies of m y-components    )
-    //  (for i from 0 to m-1                       )
-    //  (   for j from 0 to n-1                    )
-    //  (      Function<double,3> y_response[i][j] )
     ar &r_params.archive();
     ar &r_params.tda();
     ar &r_params.num_orbitals();
@@ -387,33 +369,14 @@ void FrequencyResponse::load(World &world, const std::string &name) {
     if (world.rank() == 0) { print("FrequencyResponse::load() -state"); }
     // The archive to read from
     archive::ParallelInputArchive ar(world, name.c_str());
-
-    // Reading in, in this order;
-    //  string           ground-state archive name (garch_name)
-    //  bool             TDA flag
-    // size_t                number of ground state orbitals (n)
-    // size_t                number of excited state orbitals (m)
-    //  Tensor<double>   energies of m x-components
-    //  for i from 0 to m-1
-    //     for j from 0 to n-1
-    //        Function<double,3> x_response[i][j]
-    //  (If TDA flag == True)
-    //  (Tensor<double>  energies of m y-components    )
-    //  (for i from 0 to m-1                       )
-    //  (   for j from 0 to n-1                    )
-    //  (      Function<double,3> y_response[i][j] )
-
     ar &r_params.archive();
     ar &r_params.tda();
     ar &r_params.num_orbitals();
     ar &r_params.num_states();
-
     Chi = X_space(world, r_params.num_states(), r_params.num_orbitals());
-
     for (size_t i = 0; i < r_params.num_states(); i++)
         for (size_t j = 0; j < r_params.num_orbitals(); j++) ar &Chi.X[i][j];
     world.gop.fence();
-
     if (not r_params.tda()) {
         for (size_t i = 0; i < r_params.num_states(); i++)
             for (size_t j = 0; j < r_params.num_orbitals(); j++) ar &Chi.Y[i][j];
@@ -459,14 +422,14 @@ auto dipole_generator(World &world, FrequencyResponse &calc) -> X_space {
 auto vector_to_PQ(World &world, const vector_real_function_3d &rhs_operators,
                   const vector_real_function_3d &ground_orbitals) -> response_space {
     response_space rhs(world, rhs_operators.size(), ground_orbitals.size());
-    reconstruct(world, ground_orbitals);
-    QProjector<double, 3> Qhat(world, ground_orbitals);
+    auto orbitals = copy(world, ground_orbitals);
+    reconstruct(world, orbitals);
+    truncate(world, orbitals);
+    QProjector<double, 3> Qhat(world, orbitals);
     int b = 0;
     for (const functionT &pi: rhs_operators) {
         auto op_phi = mul(world, pi, ground_orbitals, true);
-        op_phi = Qhat(op_phi);
-        truncate(world, op_phi, true);
-        rhs[b] = op_phi;
+        rhs[b] = Qhat(op_phi);
         b++;
     }
     return rhs;
