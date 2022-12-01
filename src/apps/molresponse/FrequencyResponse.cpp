@@ -434,7 +434,7 @@ auto nuclear_generator(World &world, FrequencyResponse &calc) -> X_space {
                     factoryT(world).functor(func).nofence().truncate_on_project().truncate_mode(0));
         }
     }
-    PQ.X = vector_to_PQ(world, nuclear_vector, calc.get_orbitals(), r_params.lo());
+    PQ.X = vector_to_PQ(world, nuclear_vector, calc.get_orbitals());
     PQ.Y = PQ.X;
     return PQ;
 }
@@ -451,20 +451,20 @@ auto dipole_generator(World &world, FrequencyResponse &calc) -> X_space {
     }
     //truncate(world, dipole_vectors, true);
     world.gop.fence();
-    PQ.X = vector_to_PQ(world, dipole_vectors, calc.get_orbitals(), r_params.lo());
+    PQ.X = vector_to_PQ(world, dipole_vectors, calc.get_orbitals());
     PQ.Y = PQ.X;
     return PQ;
 }
 
 auto vector_to_PQ(World &world, const vector_real_function_3d &rhs_operators,
-                  const vector_real_function_3d &ground_orbitals, double lo) -> response_space {
+                  const vector_real_function_3d &ground_orbitals) -> response_space {
 
     response_space rhs(world, rhs_operators.size(), ground_orbitals.size());
     reconstruct(world, ground_orbitals);
     QProjector<double, 3> Qhat(world, ground_orbitals);
     int b = 0;
     for (const functionT &pi: rhs_operators) {
-        auto op_phi = mul(world, pi, ground_orbitals, lo);
+        auto op_phi = mul(world, pi, ground_orbitals, true);
         op_phi = Qhat(op_phi);
         truncate(world, op_phi, true);
         rhs[b] = op_phi;

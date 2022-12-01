@@ -12,8 +12,8 @@ class FrequencyResponse;
 
 using RHS_Generator = std::function<X_space(World&, FrequencyResponse&)>;
 
-response_space vector_to_PQ(World& world, const vector_real_function_3d& p,
-                            const vector_real_function_3d& ground_orbitals, double lo);
+response_space vector_to_PQ(World &world, const vector_real_function_3d &rhs_operators,
+                            const vector_real_function_3d &ground_orbitals);
 X_space nuclear_generator(World& world, FrequencyResponse& calc);
 X_space dipole_generator(World& world, FrequencyResponse& calc);
 //using RHS_Generator = std::function<X_space(World&, FrequencyResponse&)>;
