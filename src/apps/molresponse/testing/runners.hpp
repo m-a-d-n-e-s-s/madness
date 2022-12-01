@@ -5,6 +5,8 @@
 #ifndef MADNESS_RUNNERS_HPP
 #define MADNESS_RUNNERS_HPP
 
+#include <utility>
+
 #include "ExcitedResponse.hpp"
 #include "FrequencyResponse.hpp"
 #include "ResponseExceptions.hpp"
@@ -53,27 +55,29 @@ struct runSchema {
         if (std::filesystem::exists(xc_path)) {
             if (world.rank() == 0) { std::cout << "XC Directory Exists" << std::endl; }
         } else {
-            if (world.rank() == 0) { std::cout << "Creating XC directory" << std::endl; }
-            std::filesystem::create_directory(xc_path);
+            if (world.rank() == 0) {
+                std::cout << "Creating XC directory" << std::endl;
+                std::filesystem::create_directory(xc_path);
+            }
         }
-
         // Get the database where the calculation will be run from
         freq_json = addPath(molecule_path, "/frequency.json");
         dalton_excited_json = addPath(molecule_path, "/dalton-excited.json");
         dalton_dipole_json = addPath(molecule_path, "/dalton-dipole.json");
         rdb = ResponseDataBase();
-        if (std::filesystem::exists(freq_json)) {
-            std::ifstream ifs(freq_json);
-            json j_read;
-            ifs >> j_read;
-            rdb.set_data(j_read);
-            if (world.rank() == 0) {
-                std::cout << "Trying to read frequency.json" << std::endl;
+        if (world.rank() == 0) {
+            std::cout << "Trying to read frequency.json" << std::endl;
+            if (std::filesystem::exists(freq_json)) {
+                std::ifstream ifs(freq_json);
+                json j_read;
+                ifs >> j_read;
+                rdb.set_data(j_read);
                 std::cout << "READ IT" << std::endl;
+            } else {
+                std::cout << "did not find frequency.json" << std::endl;
             }
-        } else {
-            if (world.rank() == 0) { std::cout << "did not find frequency.json" << std::endl; }
         }
+        world.gop.broadcast(rdb, 0);
         if (world.rank() == 0) { print(); }
     }
 
@@ -101,41 +105,34 @@ struct moldftSchema {
     std::string mol_name;
     std::string xc;
 
-    moldftSchema(World &world, const std::string &molecule_name, const std::string &m_xc,
+    moldftSchema(World &world, const std::string &molecule_name, std::string m_xc,
                  const runSchema &schema)
-        : mol_name(molecule_name), xc(m_xc) {
+        : mol_name(molecule_name), xc(std::move(m_xc)) {
         moldft_path = addPath(schema.xc_path, '/' + mol_name);
         moldft_restart = addPath(moldft_path, "/moldft.restartdata.00000");
         calc_info_json_path = addPath(moldft_path, "/moldft.calc_info.json");
         mol_path = addPath(schema.molecule_path, "/" + mol_name + ".mol");
         moldft_json_path = addPath(schema.molecule_path, "/moldft.json");
-        if (std::filesystem::exists(moldft_json_path)) {
-            std::ifstream ifs(moldft_json_path);
-            // read results into json
-            ifs >> moldft_json;
-            // Here are the current answers... check to see if th
-            world.gop.fence();
-            if (world.rank() == 0) {
+        if (world.rank() == 0) {
+            if (std::filesystem::exists(moldft_json_path)) {
+                std::ifstream ifs(moldft_json_path);
+                ifs >> moldft_json;
                 std::cout << "Here are the current answers for" << molecule_name
                           << " check to see if they need to be updated please!" << std::endl;
                 cout << moldft_path;
-            }
-        } else {
-            if (world.rank() == 0) {
+            } else {
                 std::cout << " We do not have moldft answers so please run and save the "
                              "results in the molecule directory"
                           << std::endl;
             }
         }
-
-        if (std::filesystem::exists(moldft_restart) &&
-            std::filesystem::exists(calc_info_json_path)) {
-            // if both exist, read the calc_info json
-            std::ifstream ifs(calc_info_json_path);
-            ifs >> calc_info_json;
-            world.gop.fence();
-            if (world.rank() == 0) {
-
+        world.gop.broadcast(moldft_json, 0);
+        if (world.rank() == 0) {
+            if (std::filesystem::exists(moldft_restart) &&
+                std::filesystem::exists(calc_info_json_path)) {
+                // if both exist, read the calc_info json
+                std::ifstream ifs(calc_info_json_path);
+                ifs >> calc_info_json;
                 std::cout << "time: " << calc_info_json["time"] << std::endl;
                 std::cout << "MOLDFT return energy: " << calc_info_json["return_energy"]
                           << std::endl;
@@ -143,6 +140,7 @@ struct moldftSchema {
                           << std::endl;
             }
         }
+        world.gop.broadcast(calc_info_json, 0);
         if (world.rank() == 0) { print(); }
     }
 
@@ -166,13 +164,8 @@ struct frequencySchema {
     const path moldft_path;
     vector<double> freq;
 
-    frequencySchema(World &world, const runSchema run_schema, const moldftSchema m_schema,
-                    const std::string r_operator)
-        : mol_name(m_schema.mol_name), xc(m_schema.xc), op(r_operator),
-          moldft_path(m_schema.moldft_path) {
-        freq = run_schema.rdb.get_frequencies(mol_name, xc, op);
-        if (world.rank() == 0) { print_schema(); }
-    }
+    frequencySchema(World &world, const runSchema &run_schema, const moldftSchema& m_schema,
+                    std::string  r_operator);
 
     void print_schema() {
         print("Frequency Calculation");
@@ -183,6 +176,16 @@ struct frequencySchema {
         print("Frequencies : ", freq);
     }
 };
+frequencySchema::frequencySchema(World &world, const runSchema &run_schema,
+                                 const moldftSchema &m_schema, std::string r_operator)
+        : mol_name(m_schema.mol_name), xc(m_schema.xc), op(std::move(r_operator)),
+          moldft_path(m_schema.moldft_path) {
+    if (world.rank() == 0) {
+        freq = run_schema.rdb.get_frequencies(mol_name, xc, op);
+        print_schema();
+    }
+    world.gop.broadcast_serializable(freq, 0);
+}
 
 /**
  * Sets the excited state data found in the response_data_base class
@@ -274,7 +277,7 @@ struct excitedSchema {
         rb_json = addPath(excited_state_run_path, "/response_base.json");
     }
 
-    void print() {
+    void print() const {
 
         ::print("xc: ", xc);
         ::print("num states: ", num_states);
@@ -351,7 +354,7 @@ auto generate_response_frequency_run_path(const std::filesystem::path &moldft_pa
                                           const std::string &property, const double &frequency,
                                           const std::string &xc) -> std::filesystem::path {
     std::string s_frequency = std::to_string(frequency);
-    auto sp = s_frequency.find(".");
+    auto sp = s_frequency.find('.');
     s_frequency = s_frequency.replace(sp, sp, "-");
     std::string run_name = property + "_" + xc + "_" + s_frequency;
     // set r_params to restart true if restart file exist
@@ -360,22 +363,6 @@ auto generate_response_frequency_run_path(const std::filesystem::path &moldft_pa
     run_path += "/";
     run_path += std::filesystem::path(run_name);
     return run_path;
-}
-
-/**
- * Reads in current parameters and found parameters from calc_info.json and determines whether we should restart the calculation
- * @param p1
- * @param p2
- * @return
- */
-auto tryMOLDFT(CalculationParameters &p1, CalculationParameters &p2) -> bool {
-
-    // first get the last protocol
-
-    auto proto1 = p1.get<std::vector<double>>("protocol");
-    auto proto2 = p1.get<std::vector<double>>("protocol");
-
-    return *(proto1.end() - 1) != *(proto2.end() - 1);
 }
 
 /**
@@ -394,10 +381,8 @@ void runMOLDFT(World &world, const moldftSchema &moldftSchema, bool try_run, boo
     json calcInfo;
 
     if (world.rank() == 0) {
-
         param1.set_user_defined_value("maxiter", 20);
         //param1.set_user_defined_value("Kain", true);
-
         param1.set_user_defined_value<std::string>("xc", moldftSchema.xc);
         param1.set_user_defined_value<double>("l", 200);
 
@@ -509,7 +494,7 @@ void set_excited_parameters(ResponseParameters &r_params, const std::string &xc,
     //r_params.set_user_defined_value("archive", std::string("../restartdata"));
     r_params.set_user_defined_value("maxiter", size_t(15));
     r_params.set_user_defined_value("maxsub", size_t(10));
-    // if its too large then bad guess is very strong
+    // if it's too large then bad guess is very strong
     r_params.set_user_defined_value("kain", true);
     r_params.set_user_defined_value("plot_all_orbitals", false);
     r_params.set_user_defined_value("save", true);
@@ -531,37 +516,40 @@ void set_excited_parameters(ResponseParameters &r_params, const std::string &xc,
  * @param xc
  * @param frequency
  */
-void set_frequency_response_parameters(ResponseParameters &r_params, const std::string &property,
-                                       const std::string &xc, const double &frequency,
-                                       const std::string &precision) {
-    if (precision == "high") {
-        r_params.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6, 1e-8});
-        r_params.set_user_defined_value<double>("dconv", 1e-6);
-    } else if (precision == "low") {
-        r_params.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6});
-        r_params.set_user_defined_value<double>("dconv", 1e-4);
-    } else {
-        r_params.set_user_defined_value<vector<double>>("protocol", {1e-9});
-        r_params.set_user_defined_value<double>("dconv", 1e-7);
+void set_frequency_response_parameters(World &world, ResponseParameters &r_params,
+                                       const std::string &property, const std::string &xc,
+                                       const double &frequency, const std::string &precision) {
+    if (world.rank() == 0) {
+        if (precision == "high") {
+            r_params.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6, 1e-8});
+            r_params.set_user_defined_value<double>("dconv", 1e-6);
+        } else if (precision == "low") {
+            r_params.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6});
+            r_params.set_user_defined_value<double>("dconv", 1e-4);
+        } else {
+            r_params.set_user_defined_value<vector<double>>("protocol", {1e-9});
+            r_params.set_user_defined_value<double>("dconv", 1e-7);
+        }
+        //r_params.set_user_defined_value("archive", std::string("../restartdata"));
+        r_params.set_user_defined_value("maxiter", size_t(30));
+        r_params.set_user_defined_value("maxsub", size_t(5));
+        r_params.set_user_defined_value("kain", true);
+        r_params.set_user_defined_value("omega", frequency);
+        r_params.set_user_defined_value("first_order", true);
+        r_params.set_user_defined_value("plot_all_orbitals", false);
+        r_params.set_user_defined_value("plot", true);
+        r_params.set_user_defined_value("print_level", 20);
+        r_params.set_user_defined_value("save", true);
+        // set xc, property, frequency,and restart
+        r_params.set_user_defined_value("xc", xc);
+        // Here
+        if (property == "dipole") {
+            r_params.set_user_defined_value("dipole", true);
+        } else if (property == "nuclear") {
+            r_params.set_user_defined_value("nuclear", true);
+        }
     }
-    //r_params.set_user_defined_value("archive", std::string("../restartdata"));
-    r_params.set_user_defined_value("maxiter", size_t(30));
-    r_params.set_user_defined_value("maxsub", size_t(5));
-    r_params.set_user_defined_value("kain", true);
-    r_params.set_user_defined_value("omega", frequency);
-    r_params.set_user_defined_value("first_order", true);
-    r_params.set_user_defined_value("plot_all_orbitals", false);
-    r_params.set_user_defined_value("plot", true);
-    r_params.set_user_defined_value("print_level", 20);
-    r_params.set_user_defined_value("save", true);
-    // set xc, property, frequency,and restart
-    r_params.set_user_defined_value("xc", xc);
-    // Here
-    if (property == "dipole") {
-        r_params.set_user_defined_value("dipole", true);
-    } else if (property == "nuclear") {
-        r_params.set_user_defined_value("nuclear", true);
-    }
+    world.gop.broadcast_serializable(r_params, 0);
 }
 
 /***
@@ -617,7 +605,7 @@ static auto set_frequency_path_and_restart(World &world, ResponseParameters &par
                 // Then we restart from the previous file instead
             } else {
                 parameters.set_user_defined_value("restart", false);
-            };
+            }
             // neither file exists therefore you need to start from fresh
         }
     }
@@ -643,7 +631,7 @@ auto RunResponse(World &world, const std::string &filename, double frequency,
                  const std::string &precision) -> std::pair<std::filesystem::path, bool> {
     // Set the response parameters
     ResponseParameters r_params{};
-    set_frequency_response_parameters(r_params, property, xc, frequency, precision);
+    set_frequency_response_parameters(world, r_params, property, xc, frequency, precision);
     auto save_path = set_frequency_path_and_restart(world, r_params, property, frequency, xc,
                                                     moldft_path, restart_path, true);
     if (world.rank() == 0) { molresponse::write_response_input(r_params, filename); }
@@ -663,7 +651,6 @@ auto RunResponse(World &world, const std::string &filename, double frequency,
     } else {
         rhs_generator = nuclear_generator;
     }
-
     FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3>>(world)));
     FrequencyResponse calc(world, calc_params, frequency, rhs_generator);
     if (world.rank() == 0) {
@@ -724,8 +711,7 @@ static void set_and_write_restart_excited_parameters(ResponseParameters &paramet
  * @param frequency
  * @param moldft_path
  */
-static void create_excited_paths(ResponseParameters &parameters, excitedSchema &schema,
-                                 bool restart) {
+static void create_excited_paths(ResponseParameters &parameters, excitedSchema &schema) {
 
     if (std::filesystem::is_directory(schema.excited_state_run_path)) {
         cout << "Response directory found " << std::endl;
@@ -753,7 +739,7 @@ auto runExcited(World &world, excitedSchema schema, bool restart, bool high_prec
     ResponseParameters r_params{};
 
     set_excited_parameters(r_params, schema.xc, schema.num_states, high_prec);
-    create_excited_paths(r_params, schema, restart);
+    create_excited_paths(r_params, schema);
     std::filesystem::current_path(schema.excited_state_run_path);
     set_and_write_restart_excited_parameters(r_params, schema, restart);
 
@@ -828,18 +814,15 @@ void moldft(World &world, moldftSchema &m_schema, bool try_moldft, bool restart,
     if (std::filesystem::is_directory(m_schema.moldft_path)) {
         if (world.rank() == 0) { cout << "MOLDFT directory found " << m_schema.mol_path << "\n"; }
     } else {// create the file
-        std::filesystem::create_directory(m_schema.moldft_path);
-        if (world.rank() == 0) {
-            cout << "Creating MOLDFT directory for " << m_schema.mol_name << ":/"
-                 << m_schema.moldft_path << ":\n";
-        }
+        if (world.rank() == 0) { std::filesystem::create_directory(m_schema.moldft_path); }
+        cout << "Creating MOLDFT directory for " << m_schema.mol_name << ":/"
+             << m_schema.moldft_path << ":\n";
+        world.gop.fence();
     }
     std::filesystem::current_path(m_schema.moldft_path);
-    world.gop.fence();
     if (world.rank() == 0) {
         cout << "Entering : " << m_schema.moldft_path << " to run MOLDFT \n\n";
     }
-
     runMOLDFT(world, m_schema, try_moldft, restart, precision);
 }
 
