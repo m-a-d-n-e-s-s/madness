@@ -445,7 +445,6 @@ auto dipole_generator(World &world, FrequencyResponse &calc) -> X_space {
     vector_real_function_3d dipole_vectors(3);
     size_t i = 0;
     for (auto &d: dipole_vectors) {
-
         std::vector<int> f(3, 0);
         f[i++] = 1;
         d = real_factory_3d(world).functor(real_functor_3d(new MomentFunctor(f)));
@@ -456,24 +455,20 @@ auto dipole_generator(World &world, FrequencyResponse &calc) -> X_space {
     return PQ;
 }
 
-auto vector_to_PQ(World &world, const vector_real_function_3d &p,
+auto vector_to_PQ(World &world, const vector_real_function_3d &rhs_operators,
                   const vector_real_function_3d &ground_orbitals, double lo) -> response_space {
 
-    response_space rhs(world, p.size(), ground_orbitals.size());
+    response_space rhs(world, rhs_operators.size(), ground_orbitals.size());
     reconstruct(world, ground_orbitals);
     QProjector<double, 3> Qhat(world, ground_orbitals);
-    std::vector<real_function_3d> orbitals = copy(world, ground_orbitals);
-    truncate(world, orbitals);
-    auto f = [&](auto property) {
-        auto phat_phi = mul(world, property, orbitals, lo);
-        // rhs[i].truncate_vec();
-        // project rhs vectors for state
-        phat_phi = Qhat(phat_phi);
-        truncate(world, phat_phi);
-        world.gop.fence();
-        return phat_phi;
-    };
-    std::transform(p.begin(), p.end(), rhs.begin(), f);
+    int b = 0;
+    for (const functionT &pi: rhs_operators) {
+        auto op_phi = mul(world, pi, ground_orbitals, lo);
+        op_phi = Qhat(op_phi);
+        truncate(world, op_phi, true);
+        rhs[b] = op_phi;
+        b++;
+    }
     return rhs;
 }
 //
