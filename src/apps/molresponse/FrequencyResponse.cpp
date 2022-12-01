@@ -167,13 +167,8 @@ void FrequencyResponse::iterate(World &world) {
                 break;
             }
         }
-
-        //   std::cout << "MPI BARRIER before update " << std::endl;
-        //  world.mpi.Barrier();
         auto [new_chi, new_res] = update(world, Chi, xc, bsh_x_ops, bsh_y_ops, projector, x_shifts,
                                          omega, kain_x_space, iter, max_rotation);
-
-
         if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
         rho_omega_old = make_density(world, Chi);
         if (r_params.print_level() >= 1) {
@@ -184,7 +179,6 @@ void FrequencyResponse::iterate(World &world) {
         if (r_params.print_level() >= 1) {
             molresponse::end_timer(world, "make_density_new", "make_density_new", iter_timing);
         }
-
         if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
         bsh_residualsX = copy(new_res.residual_norms);
         if (world.rank() == 0) { print("copy tensors: bshX"); }
@@ -195,7 +189,6 @@ void FrequencyResponse::iterate(World &world) {
         if (r_params.print_level() >= 1) {
             molresponse::end_timer(world, "copy_response_data", "copy_response_data", iter_timing);
         }
-
         xij_res_norms = new_res.residual.component_norm2s();
         if (world.rank() == 0) { print("computing residuals: xij residuals"); }
         xij_norms = Chi.component_norm2s();
