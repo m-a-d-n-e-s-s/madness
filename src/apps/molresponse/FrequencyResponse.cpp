@@ -427,8 +427,8 @@ auto nuclear_generator(World &world, FrequencyResponse &calc) -> X_space {
     auto num_operators = size_t(molecule.natom() * 3);
     auto nuclear_vector = vecfuncT(num_operators);
 
-    for (size_t atom = 0; atom < molecule.natom(); ++atom) {
-        for (size_t axis = 0; axis < 3; ++axis) {
+    for (long atom = 0; atom < molecule.natom(); ++atom) {
+        for (long axis = 0; axis < 3; ++axis) {
             functorT func(new madchem::MolecularDerivativeFunctor(molecule, atom, axis));
             nuclear_vector.at(atom * 3 + axis) = functionT(
                     factoryT(world).functor(func).nofence().truncate_on_project().truncate_mode(0));
@@ -458,7 +458,6 @@ auto dipole_generator(World &world, FrequencyResponse &calc) -> X_space {
 
 auto vector_to_PQ(World &world, const vector_real_function_3d &rhs_operators,
                   const vector_real_function_3d &ground_orbitals) -> response_space {
-
     response_space rhs(world, rhs_operators.size(), ground_orbitals.size());
     reconstruct(world, ground_orbitals);
     QProjector<double, 3> Qhat(world, ground_orbitals);

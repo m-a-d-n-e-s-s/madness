@@ -54,44 +54,32 @@ public:
     }
 
     void add_default_molecule(const json &response_keywords) {
-
         const std::string molecule_name = response_keywords["molecule"];
         const std::string xc = response_keywords["xc"];
         const std::string op = response_keywords["operator"];
         json j_add;
         if (op == "excited-state") {
-
             j_add[molecule_name][xc][op] = 8;
-
-
         } else if (op == "dipole") {
-
             if (std::filesystem::exists("molecules/dalton-excited.json")) {
                 std::ifstream ifs("molecules/dalton-excited.json");
                 try {
-
                     json dalton_excited;
                     ifs >> dalton_excited;
                     ::print("Read Dalton Excited");
                     ::print(dalton_excited);
-
-
                     std::vector<double> freq = dalton_excited[molecule_name][xc]["excited-state"]
                                                              ["aug-cc-pVTZ"]["response"]["freq"];
                     auto omega_max = freq.at(0);
                     omega_max = omega_max / 2.0;
                     ::print(omega_max);
-
                     std::vector<double> omegas = {0, omega_max / 8.0, omega_max / 4.0,
                                                   omega_max / 2.0, omega_max};
                     j_add[molecule_name][xc][op] = omegas;
-
-
                 } catch (const json::out_of_range &e) {
                     std::cout << e.what() << std::endl;
                     // The molecule file exists in the database therefore it is okay to add to frequency.json
                 }
-
             } else {
                 std::cout << " did not find dipole-excited.json" << std::endl;
                 j_add[molecule_name][xc][op] = {0};
