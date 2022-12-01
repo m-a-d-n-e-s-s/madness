@@ -10,7 +10,6 @@
 #if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
 
 #include <sys/stat.h>
-#include <sys/types.h>
 #include <unistd.h>
 
 static inline int file_exists(const char *input_name) {
