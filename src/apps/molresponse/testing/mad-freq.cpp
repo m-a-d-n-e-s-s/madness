@@ -59,6 +59,8 @@ auto main(int argc, char *argv[]) -> int {
             } else {
                 moldft(world, m_schema, true, false, precision);
                 runFrequencyTests(world, f_schema, precision);
+                world.gop.fence();
+                world.gop.fence();
             }
         } catch (const SafeMPI::Exception &e) {
             print(e);
@@ -76,8 +78,6 @@ auto main(int argc, char *argv[]) -> int {
             print(e.what());
         } catch (...) { error("caught unhandled exception"); }
         // Nearly all memory will be freed at this point
-        world.gop.fence();
-        world.gop.fence();
         print_stats(world);
         if (world.rank() == 0) { print("Finished All Frequencies"); }
     }
