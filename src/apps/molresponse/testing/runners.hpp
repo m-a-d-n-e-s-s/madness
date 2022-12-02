@@ -409,7 +409,6 @@ void runMOLDFT(World &world, const moldftSchema &moldftSchema, bool try_run, boo
         }
     }
     world.gop.broadcast_serializable(param1, 0);
-    world.gop.broadcast(calcInfo, 0);
 
     //If the parameters are exactly equal do not run
     // If calc info doesn't exist the param_calc will definitely be different
