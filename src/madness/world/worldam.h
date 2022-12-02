@@ -244,9 +244,10 @@ namespace madness {
         unsigned long worldid;              ///< The world which contains this instance of WorldAmInterface
         const ProcessID rank;
         const int nproc;
-        volatile int cur_msg;               ///< Index of next buffer to attempt to use
-        volatile unsigned long nsent;       ///< Counts no. of AM sent for purpose of termination detection
-        volatile unsigned long nrecv;       ///< Counts no. of AM received for purpose of termination detection
+        // Next 3 were volatile but no need since protected by spinlock with implied barriers/fence
+        int cur_msg;               ///< Index of next buffer to attempt to use
+        unsigned long nsent;       ///< Counts no. of AM sent for purpose of termination detection
+        unsigned long nrecv;       ///< Counts no. of AM received for purpose of termination detection
 
         std::vector<int> map_to_comm_world; ///< Maps rank in current MPI communicator to SafeMPI::COMM_WORLD
 

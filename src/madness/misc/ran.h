@@ -73,8 +73,8 @@ namespace madness {
         const int r;
         const int s;
         const double beta;
-        volatile int cur;
-        volatile double* const u;
+        int cur; // Removed volatile since always access in scope of mutex with implied barriers
+        double* const u;
         unsigned int simple_state;
 
         void generate();

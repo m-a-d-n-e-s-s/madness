@@ -162,6 +162,13 @@ namespace madness {
 
     }; // class ProcessKey
 
+    /// Overload redirect to std::ostream to be discoverable via ADL
+    template <typename Key, typename Tag>
+    inline std::ostream& operator<<(std::ostream& os, const ProcessKey<Key,Tag>& key) {
+      using madness::operators::operator<<;
+      return os << "{" << key.key() << "," << key.proc() << "}";
+    }
+
     /// Key object that uses a tag to differentiate keys.
 
     /// \tparam Key The base key type.
@@ -235,6 +242,13 @@ namespace madness {
         }
 
     }; // class TagKey
+
+    /// Overload redirect to std::ostream to be discoverable via ADL
+    template <typename Key, typename Tag>
+    inline std::ostream& operator<<(std::ostream& os, const TaggedKey<Key,Tag>& key) {
+      using madness::operators::operator<<;
+      return os << "{" << key.key() << "}";
+    }
 
 } // namespace madness
 

@@ -47,7 +47,7 @@ namespace madness {
 
     RMI::RmiTask* RMI::task_ptr = nullptr;
     RMIStats RMI::stats;
-    volatile bool RMI::debugging = false;
+    bool RMI::debugging = false;
     std::list< std::unique_ptr<RMISendReq> > RMI::send_req;
 
     bool& RMI::is_server_thread_accessor() {
@@ -230,7 +230,7 @@ namespace madness {
             , nproc(comm.Get_size())
             , rank(comm.Get_rank())
             , finished(false)
-            , send_counters(new volatile counterT[nproc])
+            , send_counters(new counterT[nproc])
             , recv_counters(new counterT[nproc])
             , max_msg_len_(DEFAULT_MAX_MSG_LEN)
             , nrecv_(DEFAULT_NRECV)

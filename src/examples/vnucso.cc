@@ -38,7 +38,7 @@
 
   \file vnucso.cc
   \brief Solves the Hartree-Fock equation for the 2-cosh potential with spin-orbit in Nuclear
-  Density Functional Theory witough assumption on spatial symmetry.
+  Density Functional Theory without assumption of spatial symmetry.
   \ingroup examples
 
   Points of interest

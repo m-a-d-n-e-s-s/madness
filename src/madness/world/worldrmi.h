@@ -204,9 +204,9 @@ namespace madness {
             SafeMPI::Intracomm comm;
             const int nproc;            // No. of processes in comm world
             const ProcessID rank;       // Rank of this process
-            volatile bool finished;     // True if finished
+            bool volatile finished;     // True if finished ... still needs to be volatile since read without critical section or external call
 
-            std::unique_ptr<volatile counterT[]> send_counters;
+            std::unique_ptr<counterT[]> send_counters; // used to be volatile but no need
             std::unique_ptr<counterT[]> recv_counters;
             std::size_t max_msg_len_;
             std::size_t nrecv_;
@@ -292,7 +292,7 @@ namespace madness {
 
         static RmiTask* task_ptr;    // Pointer to the singleton instance
         static RMIStats stats;
-        static volatile bool debugging;    // True if debugging
+        static bool debugging;    // True if debugging ... used to be volatile but no need
 
         static const size_t DEFAULT_MAX_MSG_LEN = 3*512*1024;  //!< the default size of recv buffers, in bytes; the actual size can be configured by the user via envvar MAD_BUFFER_SIZE
         static const int DEFAULT_NRECV = 128;  //!< the default # of recv buffers; the actual number can be configured by the user via envvar MAD_RECV_BUFFERS
