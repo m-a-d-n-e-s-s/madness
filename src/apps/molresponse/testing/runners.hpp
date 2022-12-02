@@ -65,19 +65,12 @@ struct runSchema {
         dalton_excited_json = addPath(molecule_path, "/dalton-excited.json");
         dalton_dipole_json = addPath(molecule_path, "/dalton-dipole.json");
         rdb = ResponseDataBase();
-        if (world.rank() == 0) {
-            std::cout << "Trying to read frequency.json" << std::endl;
-            if (std::filesystem::exists(freq_json)) {
-                std::ifstream ifs(freq_json);
-                json j_read;
-                ifs >> j_read;
-                rdb.set_data(j_read);
-                std::cout << "READ IT" << std::endl;
-            } else {
-                std::cout << "did not find frequency.json" << std::endl;
-            }
+        if (std::filesystem::exists(freq_json)) {
+            std::ifstream ifs(freq_json);
+            json j_read;
+            ifs >> j_read;
+            rdb.set_data(j_read);
         }
-        world.gop.broadcast(rdb, 0);
         if (world.rank() == 0) { print(); }
     }
 
@@ -105,8 +98,7 @@ struct moldftSchema {
     std::string mol_name;
     std::string xc;
 
-    moldftSchema(World &world, std::string molecule_name, std::string m_xc,
-                 const runSchema &schema)
+    moldftSchema(World &world, std::string molecule_name, std::string m_xc, const runSchema &schema)
         : mol_name(std::move(molecule_name)), xc(std::move(m_xc)) {
         moldft_path = addPath(schema.xc_path, '/' + mol_name);
         moldft_restart = addPath(moldft_path, "/moldft.restartdata.00000");
@@ -510,7 +502,7 @@ void set_frequency_response_parameters(World &world, ResponseParameters &r_param
                                        const double &frequency, const std::string &precision) {
     if (world.rank() == 0) {
         if (precision == "high") {
-            r_params.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6, 1e-7});
+            r_params.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6, 1e-8});
             r_params.set_user_defined_value<double>("dconv", 1e-6);
         } else if (precision == "low") {
             r_params.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6});
