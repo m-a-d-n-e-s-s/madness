@@ -569,10 +569,6 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
         print_inner(world, "xGammax", chi_alpha, gamma);
         molresponse::end_timer(world, "Print Expectation Creating Gamma:");
     }
-    // put
-    // put it all together
-    // no 2-electron
-    // End timer
 
     molresponse::start_timer(world);
     J.clear();
