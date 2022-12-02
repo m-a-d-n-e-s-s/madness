@@ -1132,56 +1132,31 @@ void ResponseBase::x_space_step_restriction(World &world, const X_space &old_Chi
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     print(maxrotn);
     auto diff = temp - old_Chi;
-    diff.truncate();
+    auto m_old = to_response_matrix(old_Chi);
+    auto m_new = to_response_matrix(temp);
+    auto m_diff = to_response_matrix(diff);
 
     if (world.rank() == 0) { print("----------------Start Step Restriction -----------------"); }
     for (size_t b = 0; b < m; b++) {
-        if (true) {
-
-            auto x_copy = copy(world, old_Chi.X[b]);
-            auto y_copy = copy(world, old_Chi.Y[b]);
-
-            auto x_diff = copy(world, diff.X[b]);
-            auto y_diff = copy(world, diff.Y[b]);
-
-
-            //auto sq_diff_x = square(world, diff.X[b], true);
-            //auto sq_diff_y = square(world, diff.Y[b], true);
-
-            for (auto &dy: y_diff) { x_diff.push_back(dy); }
-            for (auto &y: y_copy) { x_copy.push_back(y); }
-
-            auto norm_X = sqrt(inner(x_copy, x_copy));
-            auto norm_xb = sqrt(inner(x_diff, x_diff));
-
-            auto max_step = maxrotn * norm_X;
-
-
+        auto step_size = norm2(world, m_diff[b]);
+        auto norm_xb = norm2(world, m_old[b]);
+        auto max_step = maxrotn * norm_xb;
+        if (world.rank() == 0) {
+            print("---------------- step restriction :", b, " ------------------");
+            if (world.rank() == 0) { print("X[b]: ", norm_xb); }
+            if (world.rank() == 0) { print("deltaX[b]: ", step_size); }
+            if (world.rank() == 0) { print("max_step = max_rotation*norm_X: ", max_step); }
+        }
+        if (step_size > max_step) {
+            double s = max_step / step_size;
             if (world.rank() == 0) {
-                print("---------------- step restriction :", b, " ------------------");
+                if (r_params.print_level() > 1)
+                    print("  restricting step for response-state: ", b, " step size", s);
             }
-
-            if (norm_xb > max_step) {
-                if (world.rank() == 0) { print("X[b]: ", norm_X); }
-                if (world.rank() == 0) { print("deltaX[b]: ", norm_xb); }
-                if (world.rank() == 0) { print("max_rotation: ", maxrotn); }
-                if (world.rank() == 0) {
-                    print("max_step = max_rotation*norm_X: ", maxrotn * norm_X);
-                }
-                double s = max_step / norm_xb;
-                if (world.rank() == 0) {
-                    if (r_params.print_level() > 1)
-                        print("  restricting step for response-state: ", b, " step size", s);
-                }
-                gaxpy(world, s, temp.X[b], (1.0 - s), old_Chi.X[b], true);
-                gaxpy(world, s, temp.Y[b], (1.0 - s), old_Chi.Y[b], true);
-            }
-        } else {
-            //do_step_restriction(world, old_Chi.X[b], temp.X[b], "x_response", maxrotn);
+            gaxpy(world, s, m_new[b], (1.0 - s), m_old[b], false);
         }
     }
     if (world.rank() == 0) { print("----------------End Step Restriction -----------------"); }
-
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "x_space_restriction", "x_space_restriction", iter_timing);
     }
