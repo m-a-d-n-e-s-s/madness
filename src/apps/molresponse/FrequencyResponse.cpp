@@ -260,7 +260,7 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
     auto [new_res, bsh] = compute_residual(world, chi, new_chi, r_params.calc_type());
 
     // kain update with temp adjusts temp
-    if (r_params.kain() && (iteration > 2 && iteration < 8)) {
+    if (r_params.kain() && (iteration > 1 && iteration < 6)) {
         new_chi = kain_x_space_update(world, chi, new_res, kain_x_space);
         x_space_step_restriction(world, chi, new_chi, compute_y, maxrotn);
     }
