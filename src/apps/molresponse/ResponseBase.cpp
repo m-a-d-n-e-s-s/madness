@@ -444,7 +444,6 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
     // x functions
-    // Two ways single vector or vector vector style
     // here I create the orbital products for elctron interaction terms
     vecfuncT phi_phi;
     vecfuncT x_phi;
@@ -543,8 +542,11 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     if (world.rank() == 0) { print("gamma: 2 * J"); }
     gamma += -c_xc * K;
     if (world.rank() == 0) { print("gamma: += -c_xc * K"); }
-    gamma += W;
-    if (world.rank() == 0) { print("gamma: += W"); }
+
+    if (xcf.hf_exchange_coefficient() != 1.0) {
+        gamma += W;
+        if (world.rank() == 0) { print("gamma: += W"); }
+    }
     //gamma.truncate();
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma add", "gamma_truncate_add", iter_timing);
