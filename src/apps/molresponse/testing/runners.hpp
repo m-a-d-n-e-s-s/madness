@@ -105,34 +105,25 @@ struct moldftSchema {
     std::string mol_name;
     std::string xc;
 
-    moldftSchema(World &world, const std::string &molecule_name, std::string m_xc,
+    moldftSchema(World &world, std::string molecule_name, std::string m_xc,
                  const runSchema &schema)
-        : mol_name(molecule_name), xc(std::move(m_xc)) {
+        : mol_name(std::move(molecule_name)), xc(std::move(m_xc)) {
         moldft_path = addPath(schema.xc_path, '/' + mol_name);
         moldft_restart = addPath(moldft_path, "/moldft.restartdata.00000");
         calc_info_json_path = addPath(moldft_path, "/moldft.calc_info.json");
         mol_path = addPath(schema.molecule_path, "/" + mol_name + ".mol");
         moldft_json_path = addPath(schema.molecule_path, "/moldft.json");
-        if (world.rank() == 0) {
-            if (std::filesystem::exists(moldft_json_path)) {
-                std::ifstream ifs(moldft_json_path);
-                ifs >> moldft_json;
-                std::cout << "Here are the current answers for" << molecule_name
-                          << " check to see if they need to be updated please!" << std::endl;
-                cout << moldft_path;
-            } else {
-                std::cout << " We do not have moldft answers so please run and save the "
-                             "results in the molecule directory"
-                          << std::endl;
-            }
+        if (std::filesystem::exists(moldft_json_path)) {
+            std::ifstream ifs(moldft_json_path);
+            ifs >> moldft_json;
         }
-        world.gop.broadcast(moldft_json, 0);
-        if (world.rank() == 0) {
-            if (std::filesystem::exists(moldft_restart) &&
-                std::filesystem::exists(calc_info_json_path)) {
-                // if both exist, read the calc_info json
-                std::ifstream ifs(calc_info_json_path);
-                ifs >> calc_info_json;
+        if (std::filesystem::exists(moldft_restart) &&
+            std::filesystem::exists(calc_info_json_path)) {
+            // if both exist, read the calc_info json
+            std::ifstream ifs(calc_info_json_path);
+            ifs >> calc_info_json;
+            if (world.rank() == 0) {
+
                 std::cout << "time: " << calc_info_json["time"] << std::endl;
                 std::cout << "MOLDFT return energy: " << calc_info_json["return_energy"]
                           << std::endl;
@@ -140,7 +131,6 @@ struct moldftSchema {
                           << std::endl;
             }
         }
-        world.gop.broadcast(calc_info_json, 0);
         if (world.rank() == 0) { print(); }
     }
 
@@ -164,8 +154,8 @@ struct frequencySchema {
     const path moldft_path;
     vector<double> freq;
 
-    frequencySchema(World &world, const runSchema &run_schema, const moldftSchema& m_schema,
-                    std::string  r_operator);
+    frequencySchema(World &world, const runSchema &run_schema, const moldftSchema &m_schema,
+                    std::string r_operator);
 
     void print_schema() {
         print("Frequency Calculation");
@@ -178,8 +168,8 @@ struct frequencySchema {
 };
 frequencySchema::frequencySchema(World &world, const runSchema &run_schema,
                                  const moldftSchema &m_schema, std::string r_operator)
-        : mol_name(m_schema.mol_name), xc(m_schema.xc), op(std::move(r_operator)),
-          moldft_path(m_schema.moldft_path) {
+    : mol_name(m_schema.mol_name), xc(m_schema.xc), op(std::move(r_operator)),
+      moldft_path(m_schema.moldft_path) {
     if (world.rank() == 0) {
         freq = run_schema.rdb.get_frequencies(mol_name, xc, op);
         print_schema();
