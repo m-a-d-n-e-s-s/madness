@@ -635,7 +635,12 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
     // apply the exchange kernel to rho if necessary
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
-    auto rho = transition_density(world, phi0, xy.X, xy.X);
+    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
+    auto rho = make_density(world, xy);
+    //auto rho = transition_density(world, phi0, xy.X, xy.X);
+
+    if (r_params.print_level() >= 1) { molresponse::end_timer(world, "compute density J[omega]"); }
+
     // Create Coulomb potential on ground_orbitals
 
     /*
@@ -1559,6 +1564,7 @@ vector_real_function_3d transition_density(World &world, const vector_real_funct
     // yy.truncate_rf();
     //truncate(world, phi0);
     std::vector<real_function_3d> densities = zero_functions<double, 3>(world, x.size(), true);
+
 
     // Return container
     auto compute_density = [&world, &orbitals](const auto &x_alpha, const auto &y_alpha) {
