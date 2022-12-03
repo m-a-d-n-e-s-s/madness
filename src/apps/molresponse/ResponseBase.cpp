@@ -623,13 +623,19 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
     auto rho = transition_density(world, phi0, xy.X, xy.X);
     // Create Coulomb potential on ground_orbitals
 
+    /*
     auto compute_jx = [&, &phi0 = phi0](auto rho_alpha) {
         auto temp_J = apply(*shared_coulomb_operator, rho_alpha);
-        temp_J.truncate();
         return mul(world, temp_J, phi0);
     };
+     */
 
-    std::transform(rho.begin(), rho.end(), J.X.begin(), compute_jx);
+    int b = 0;
+    for (const auto rho_b: rho) {
+        auto temp_J = apply(*shared_coulomb_operator, rho_b);
+        J.X[b++] = mul(world, temp_J, phi0);
+    }
+    //std::transform(rho.begin(), rho.end(), J.X.begin(), compute_jx);
     J.Y = J.X.copy();
 
     if (r_params.print_level() >= 1) {
