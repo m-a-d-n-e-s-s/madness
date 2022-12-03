@@ -50,7 +50,8 @@ vecfuncT K(vecfuncT &ket, vecfuncT &bra, vecfuncT &vf);
 auto molresponseExchange(World &world, const vecfuncT &ket_i, const vecfuncT &bra_i,
                          const vecfuncT &fp, const int &n, const int &num_states,
                          const int &num_orbitals) -> X_space;
-auto response_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, const bool compute_y) -> X_space;
+auto response_exchange_multiworld(const vecfuncT &phi0, const X_space &chi,
+                                  const Exchange<double, 3>::Algorithm algo) -> X_space;
 vecfuncT newK(const vecfuncT &ket, const vecfuncT &bra, const vecfuncT &vf);
 // compute exchange |i><i|J|p>
 static double rsquared(const coord_3d &r) { return r[0] * r[0] + r[1] * r[1] + r[2] * r[2]; }
