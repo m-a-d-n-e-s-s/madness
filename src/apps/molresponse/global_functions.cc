@@ -316,7 +316,7 @@ auto response_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, cons
     auto num_states = chi.num_states();
     auto num_orbitals = chi.num_orbitals();
 
-    auto K = X_space(world, num_states, num_orbitals);
+    auto K = X_space::zero_functions(world, num_states, num_orbitals);
     auto phi_1 = copy(world, phi0, false);
     auto phi_2 = copy(world, phi0, false);
     auto phi_3 = copy(world, phi0, false);
