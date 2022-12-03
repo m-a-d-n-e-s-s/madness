@@ -1038,15 +1038,18 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
      */
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     K0 = ground_exchange(phi0_copy, X, compute_Y);
-    if (r_params.print_level() >= 1) { molresponse::end_timer(world, "old K[0]"); }
+    if (r_params.print_level() >= 1) {
+        molresponse::end_timer(world, "old K[0]");
+        print_inner(world, "new xK0x", Chi_copy, K0);
+    }
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     K0 = ground_exchange_multiworld(phi0_copy, X, compute_Y);
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "new K[0]", "K[0]", iter_timing);
+        print_inner(world, "new xK0x", Chi_copy, K0);
     }
 
-    if (r_params.print_level() >= 20) { print_inner(world, "xK0x", Chi_copy, K0); }
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     real_function_3d v0 = v_j0 + v_nuc + v_xc;
     auto c_xc = xcf.hf_exchange_coefficient();
