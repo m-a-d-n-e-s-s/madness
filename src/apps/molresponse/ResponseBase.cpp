@@ -535,6 +535,9 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "K[omega]", "K[omega]", iter_timing);
     }
+    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
+    K = response_exchange_multiworld(phi0, chi_alpha, true);
+    if (r_params.print_level() >= 1) { molresponse::end_timer(world, "K[omega] multiworld"); }
     molresponse::start_timer(world);
     X_space gamma(world, num_states, num_orbitals);
     auto c_xc = xcf.hf_exchange_coefficient();
