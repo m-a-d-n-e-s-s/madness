@@ -354,6 +354,7 @@ auto response_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, cons
             world.gop.fence();
             K.X[b] = gaxpy_oop(1.0, k1x, 1.0, k2x, false);
             K.Y[b] = gaxpy_oop(1.0, k1y, 1.0, k2y, false);
+            world.gop.fence();
         }
     } else {
         for (int b = 0; b < num_states; b++) {
@@ -369,10 +370,9 @@ auto response_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, cons
             auto k2x = op_2x(phi_2);
 
             world.gop.fence();
-            K.X[b] = gaxpy_oop(1.0, k1x, 1.0, k2x, false);
+            K.X[b] = gaxpy_oop(1.0, k1x, 1.0, k2x, true);
         }
     }
-    world.gop.fence();
     return K;
 }
 
@@ -412,6 +412,7 @@ auto ground_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, const 
             op_0y.set_algorithm(algo);
             K0.X[b] = op_0x(chi.X[b]);
             K0.Y[b] = op_0y(chi.Y[b]);
+            world.gop.fence();
         }
     } else {
         for (int b = 0; b < num_states; b++) {
@@ -419,8 +420,8 @@ auto ground_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, const 
             op_0x.set_parameters(phi0, phi0, lo);
             op_0x.set_algorithm(algo);
             K0.X[b] = op_0x(chi.X[b]);
+            world.gop.fence();
         }
     }
-    world.gop.fence();
     return K0;
 }
