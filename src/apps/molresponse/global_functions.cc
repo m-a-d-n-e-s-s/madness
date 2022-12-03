@@ -317,29 +317,30 @@ auto response_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, cons
     auto num_orbitals = chi.num_orbitals();
 
     auto K = X_space(world, num_states, num_orbitals);
-
     auto phi_1 = copy(world, phi0, false);
     auto phi_2 = copy(world, phi0, false);
     auto phi_3 = copy(world, phi0, false);
     auto phi_4 = copy(world, phi0, false);
     // the question is copying pointers mpi safe
+
     world.gop.fence();
     const double lo = 1.e-10;
     for (int b = 0; b < num_states; b++) {
         Exchange<double, 3> op_1x{};
+        auto algo=op_1x.small_memory;
         op_1x.set_parameters(chi.X[b], phi0, lo);
-        op_1x.set_algorithm(op_1x.small_memory);
+        op_1x.set_algorithm(algo);
 
         Exchange<double, 3> op_1y{};
         op_1y.set_parameters(chi.Y[b], phi0, lo);
-        op_1y.set_algorithm(op_1y.small_memory);
+        op_1y.set_algorithm(algo);
 
         Exchange<double, 3> op_2x{};
         op_2x.set_parameters(phi0, chi.Y[b], lo);
-        op_2x.set_algorithm(op_2x.small_memory);
+        op_2x.set_algorithm(algo);
         Exchange<double, 3> op_2y{};
         op_2y.set_parameters(phi0, chi.X[b], lo);
-        op_2y.set_algorithm(op_2y.small_memory);
+        op_2y.set_algorithm(algo);
 
         auto k1x = op_1x(phi_1);
         auto k2x = op_2x(phi_1);
