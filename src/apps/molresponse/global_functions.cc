@@ -323,7 +323,7 @@ auto response_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, cons
     auto phi_4 = copy(world, phi0, false);
     // the question is copying pointers mpi safe
     Exchange<double, 3> op{};
-    const Exchange<double, 3>::Algorithm algo = op.multiworld_efficient;
+    const Exchange<double, 3>::Algorithm algo = op.small_memory;
     world.gop.fence();
     const double lo = 1.e-10;
     if (compute_y) {
@@ -401,7 +401,7 @@ auto ground_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, const 
     auto K0 = X_space(world, num_states, num_orbitals);
     // the question is copying pointers mpi safe
     Exchange<double, 3> op{};
-    const Exchange<double, 3>::Algorithm algo = op.multiworld_efficient;
+    const Exchange<double, 3>::Algorithm algo = op.small_memory;
     world.gop.fence();
     const double lo = 1.e-10;
     if (compute_y) {
