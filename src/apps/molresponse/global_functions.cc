@@ -63,7 +63,7 @@ auto ground_exchange(const vecfuncT &phi0, const X_space &x, const bool compute_
     molresponse::start_timer(world);
     auto num_states = x.num_states();
     auto num_orbitals = x.num_orbitals();
-    X_space K0 = X_space(world, x.num_states(), x.num_orbitals());
+    X_space K0 = X_space::zero_functions(world, x.num_states(), x.num_orbitals());
     long n{};
     response_matrix xx;
     // place all x and y functions into a single response vector
@@ -396,7 +396,7 @@ auto ground_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, const 
     auto num_states = chi.num_states();
     auto num_orbitals = chi.num_orbitals();
 
-    auto K0 = X_space(world, num_states, num_orbitals);
+    auto K0 = X_space::zero_functions(world, num_states, num_orbitals);
     // the question is copying pointers mpi safe
     Exchange<double, 3> op{};
     const Exchange<double, 3>::Algorithm algo = op.small_memory;
