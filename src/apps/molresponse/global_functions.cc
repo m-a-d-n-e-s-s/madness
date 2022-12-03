@@ -316,40 +316,43 @@ auto response_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, cons
     auto num_states = chi.num_states();
     auto num_orbitals = chi.num_orbitals();
 
-    response_matrix K1 = response_matrix(num_states);
-    response_matrix K2 = response_matrix(num_states);
-    response_matrix K = response_matrix(num_states);
+    auto K = X_space(world, num_states, num_orbitals);
 
-    //  [x,y] [phi,phi]
-    auto x_vec = to_response_matrix(chi);
-    // [y_dag,x_dag] [phi,phi]
-    auto conjugate_x = to_conjugate_response_matrix(chi);
-    //phi phi
-
-    vecfuncT response_phi(2 * num_orbitals);
-    int i = 0;
-    std::for_each(response_phi.begin(), response_phi.end(),
-                  [&](auto &phi) { phi = phi0[i++ % num_orbitals]; });
+    auto phi_1 = copy(world, phi0, false);
+    auto phi_2 = copy(world, phi0, false);
+    auto phi_3 = copy(world, phi0, false);
+    auto phi_4 = copy(world, phi0, false);
     // the question is copying pointers mpi safe
-    auto phi0_1 = copy(world, response_phi, false);
-    auto phi0_2 = copy(world, response_phi, false);
     world.gop.fence();
     const double lo = 1.e-10;
-    int b = 0;
-    for (auto &ki: K) {
-        Exchange<double, 3> op_1{};
-        op_1.set_parameters(x_vec[b], response_phi, lo);
-        op_1.set_algorithm(op_1.multiworld_efficient);
-        Exchange<double, 3> op_2{};
-        op_2.set_parameters(response_phi, conjugate_x[b], lo);
-        op_2.set_algorithm(op_2.multiworld_efficient);
-        auto k1_b = op_1(phi0_1);
-        auto k2_b = op_2(phi0_2);
-        ki = gaxpy_oop(1.0, k1_b, 1.0, k2_b, false);
-        b++;
+    for (int b = 0; b < num_states; b++) {
+        Exchange<double, 3> op_1x{};
+        op_1x.set_parameters(chi.X[b], phi0, lo);
+        op_1x.set_algorithm(op_1x.small_memory);
+
+        Exchange<double, 3> op_1y{};
+        op_1y.set_parameters(chi.Y[b], phi0, lo);
+        op_1y.set_algorithm(op_1y.small_memory);
+
+        Exchange<double, 3> op_2x{};
+        op_2x.set_parameters(phi0, chi.Y[b], lo);
+        op_2x.set_algorithm(op_2x.small_memory);
+        Exchange<double, 3> op_2y{};
+        op_2y.set_parameters(phi0, chi.X[b], lo);
+        op_2y.set_algorithm(op_2y.small_memory);
+
+        auto k1x = op_1x(phi_1);
+        auto k2x = op_2x(phi_1);
+
+        auto k1y = op_1y(phi_1);
+        auto k2y = op_2y(phi_1);
+
+
+        world.gop.fence();
+        K.X[b] = gaxpy_oop(1.0, k1x, 1.0, k2x, false);
+        K.Y[b] = gaxpy_oop(1.0, k1y, 1.0, k2y, false);
     }
     world.gop.fence();
-
-    return to_X_space(K);
+    return K;
 }
 // sum_i |i><i|J|p> for each p
