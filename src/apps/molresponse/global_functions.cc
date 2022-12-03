@@ -423,7 +423,7 @@ auto ground_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, const 
             K0.X[b] = op_0x(chi.X[b]);
         }
         world.gop.fence();
-        K0.X = K0.Y.copy();
+        K0.Y = K0.X.copy();
     }
     world.gop.fence();
     return K0;
