@@ -519,11 +519,12 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     auto K = response_exchange(phi0, chi_alpha, true);
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "K[omega]", "K[omega]", iter_timing);
-         print_inner(world, "old xKx", chi_alpha, K);
+        print_inner(world, "old xKx", chi_alpha, K);
     }
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     K = response_exchange_multiworld(phi0, chi_alpha, true);
-    if (r_params.print_level() >= 1) { molresponse::end_timer(world, "K[omega] multiworld");
+    if (r_params.print_level() >= 1) {
+        molresponse::end_timer(world, "K[omega] multiworld");
         print_inner(world, "new xKx", chi_alpha, K);
     }
     molresponse::start_timer(world);
@@ -668,10 +669,14 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
      */
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     K = response_exchange(phi0, xy, false);
-    if (r_params.print_level() >= 20) { print_inner(world, "new xKx", xy, K); }
+    if (r_params.print_level() >= 20) { print_inner(world, "old static KX", xy, K); }
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "K[omega]", "K[omega]", iter_timing);
     }
+    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
+    K = response_exchange_multiworld(phi0, xy, false);
+    if (r_params.print_level() >= 20) { print_inner(world, "new static KX", xy, K); }
+    if (r_params.print_level() >= 1) { molresponse::end_timer(world, "new K[omega]"); }
     // for each response state we compute the Gamma response functions
     // trucate all response functions
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
@@ -1018,7 +1023,13 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
      */
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     K0 = ground_exchange(phi0_copy, X, compute_Y);
-    if (r_params.print_level() >= 1) { molresponse::end_timer(world, "K[0]", "K[0]", iter_timing); }
+    if (r_params.print_level() >= 1) { molresponse::end_timer(world, "old K[0]"); }
+
+    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
+    K0 = ground_exchange_multiworld(phi0_copy, X, compute_Y);
+    if (r_params.print_level() >= 1) {
+        molresponse::end_timer(world, "new K[0]", "K[0]", iter_timing);
+    }
 
     if (r_params.print_level() >= 20) { print_inner(world, "xK0x", Chi_copy, K0); }
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }

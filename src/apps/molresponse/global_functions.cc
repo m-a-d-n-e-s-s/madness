@@ -308,8 +308,8 @@ auto molresponseExchange(World &world, const vecfuncT &ket_i, const vecfuncT &br
  * @param f
  * @return
  */
-auto response_exchange_multiworld(const vecfuncT &phi0, const X_space &chi,
-                                  const Exchange<double, 3>::Algorithm algo) -> X_space {
+auto response_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, const bool &compute_y)
+        -> X_space {
     World &world = phi0[0].world();
     molresponse::start_timer(world);
 
@@ -322,40 +322,63 @@ auto response_exchange_multiworld(const vecfuncT &phi0, const X_space &chi,
     auto phi_3 = copy(world, phi0, false);
     auto phi_4 = copy(world, phi0, false);
     // the question is copying pointers mpi safe
-
+    Exchange<double, 3> op{};
+    const Exchange<double, 3>::Algorithm algo = op.multiworld_efficient;
     world.gop.fence();
     const double lo = 1.e-10;
-    for (int b = 0; b < num_states; b++) {
-        Exchange<double, 3> op_1x{};
-        op_1x.set_parameters(chi.X[b], phi0, lo);
-        op_1x.set_algorithm(algo);
+    if (compute_y) {
 
-        Exchange<double, 3> op_1y{};
-        op_1y.set_parameters(chi.Y[b], phi0, lo);
-        op_1y.set_algorithm(algo);
+        for (int b = 0; b < num_states; b++) {
+            Exchange<double, 3> op_1x{};
+            op_1x.set_parameters(chi.X[b], phi0, lo);
+            op_1x.set_algorithm(algo);
 
-        Exchange<double, 3> op_2x{};
-        op_2x.set_parameters(phi0, chi.Y[b], lo);
-        op_2x.set_algorithm(algo);
-        Exchange<double, 3> op_2y{};
-        op_2y.set_parameters(phi0, chi.X[b], lo);
-        op_2y.set_algorithm(algo);
+            Exchange<double, 3> op_1y{};
+            op_1y.set_parameters(chi.Y[b], phi0, lo);
+            op_1y.set_algorithm(algo);
 
-        auto k1x = op_1x(phi_1);
-        auto k2x = op_2x(phi_2);
+            Exchange<double, 3> op_2x{};
+            op_2x.set_parameters(phi0, chi.Y[b], lo);
+            op_2x.set_algorithm(algo);
+            Exchange<double, 3> op_2y{};
+            op_2y.set_parameters(phi0, chi.X[b], lo);
+            op_2y.set_algorithm(algo);
 
-        auto k1y = op_1y(phi_3);
-        auto k2y = op_2y(phi_4);
+            auto k1x = op_1x(phi_1);
+            auto k2x = op_2x(phi_2);
+
+            auto k1y = op_1y(phi_3);
+            auto k2y = op_2y(phi_4);
 
 
+            world.gop.fence();
+            K.X[b] = gaxpy_oop(1.0, k1x, 1.0, k2x, false);
+            K.Y[b] = gaxpy_oop(1.0, k1y, 1.0, k2y, false);
+        }
+    } else {
+        for (int b = 0; b < num_states; b++) {
+            Exchange<double, 3> op_1x{};
+            op_1x.set_parameters(chi.X[b], phi0, lo);
+            op_1x.set_algorithm(algo);
+
+            Exchange<double, 3> op_2x{};
+            op_2x.set_parameters(phi0, chi.X[b], lo);
+            op_2x.set_algorithm(algo);
+
+            auto k1x = op_1x(phi_1);
+            auto k2x = op_2x(phi_2);
+
+            world.gop.fence();
+            K.X[b] = gaxpy_oop(1.0, k1x, 1.0, k2x, false);
+        }
         world.gop.fence();
-        K.X[b] = gaxpy_oop(1.0, k1x, 1.0, k2x, false);
-        K.Y[b] = gaxpy_oop(1.0, k1y, 1.0, k2y, false);
+        K.Y = K.X.copy();
     }
     world.gop.fence();
     return K;
 }
 
+// sum_i |i><i|J|p> for each p
 /**
  * Computes ground density exchange on response vectors
  *  This algorithm places all functions in a single vector,
@@ -367,40 +390,41 @@ auto response_exchange_multiworld(const vecfuncT &phi0, const X_space &chi,
  * @param f
  * @return
  */
-auto response_exchange_multiworld_static(const vecfuncT &phi0, const X_space &chi,
-                                         Exchange<double, 3>::Algorithm algo) -> X_space {
+auto ground_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, const bool &compute_y)
+        -> X_space {
     World &world = phi0[0].world();
     molresponse::start_timer(world);
 
     auto num_states = chi.num_states();
     auto num_orbitals = chi.num_orbitals();
 
-    auto K = X_space(world, num_states, num_orbitals);
-    auto phi_1 = copy(world, phi0, false);
-    auto phi_2 = copy(world, phi0, false);
+    auto K0 = X_space(world, num_states, num_orbitals);
     // the question is copying pointers mpi safe
-
+    Exchange<double, 3> op{};
+    const Exchange<double, 3>::Algorithm algo = op.multiworld_efficient;
     world.gop.fence();
     const double lo = 1.e-10;
-    for (int b = 0; b < num_states; b++) {
-        Exchange<double, 3> op_1x{};
-        op_1x.set_parameters(chi.X[b], phi0, lo);
-        op_1x.set_algorithm(algo);
-
-
-        Exchange<double, 3> op_2x{};
-        op_2x.set_parameters(phi0, chi.X[b], lo);
-        op_2x.set_algorithm(algo);
-
-        auto k1x = op_1x(phi_1);
-        auto k2x = op_2x(phi_2);
-
-
+    if (compute_y) {
+        for (int b = 0; b < num_states; b++) {
+            Exchange<double, 3> op_0x{};
+            op_0x.set_parameters(phi0, phi0, lo);
+            op_0x.set_algorithm(algo);
+            Exchange<double, 3> op_0y{};
+            op_0y.set_parameters(phi0, phi0, lo);
+            op_0y.set_algorithm(algo);
+            K0.X[b] = op_0x(chi.X[b]);
+            K0.Y[b] = op_0y(chi.Y[b]);
+        }
+    } else {
+        for (int b = 0; b < num_states; b++) {
+            Exchange<double, 3> op_0x{};
+            op_0x.set_parameters(phi0, phi0, lo);
+            op_0x.set_algorithm(algo);
+            K0.X[b] = op_0x(chi.X[b]);
+        }
         world.gop.fence();
-        K.X[b] = gaxpy_oop(1.0, k1x, 1.0, k2x, true);
-        K.Y[b] = copy(world, K.X[b], false);
+        K0.X = K0.Y.copy();
     }
     world.gop.fence();
-    return K;
+    return K0;
 }
-// sum_i |i><i|J|p> for each p
