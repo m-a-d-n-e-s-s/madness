@@ -327,7 +327,7 @@ auto response_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, cons
     const double lo = 1.e-10;
     for (int b = 0; b < num_states; b++) {
         Exchange<double, 3> op_1x{};
-        auto algo=op_1x.small_memory;
+        auto algo=op_1x.multiworld_efficient;
         op_1x.set_parameters(chi.X[b], phi0, lo);
         op_1x.set_algorithm(algo);
 
