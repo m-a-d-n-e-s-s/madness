@@ -371,8 +371,6 @@ auto response_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, cons
             world.gop.fence();
             K.X[b] = gaxpy_oop(1.0, k1x, 1.0, k2x, false);
         }
-        world.gop.fence();
-        K.Y = K.X.copy();
     }
     world.gop.fence();
     return K;
@@ -422,8 +420,6 @@ auto ground_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, const 
             op_0x.set_algorithm(algo);
             K0.X[b] = op_0x(chi.X[b]);
         }
-        world.gop.fence();
-        K0.Y = K0.X.copy();
     }
     world.gop.fence();
     return K0;
