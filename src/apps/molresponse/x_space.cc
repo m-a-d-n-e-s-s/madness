@@ -9,7 +9,7 @@ namespace madness {
     auto to_response_vector(const vector_real_function_3d &vec) -> vector_real_function_3d {
         auto &world = vec[0].world();
         // copy the vector
-        auto response_vector = vector_real_function_3d(vec.size());
+        auto response_vector = vector_real_function_3d(2*vec.size());
         auto n = vec.size();
 
         int i = 0;
