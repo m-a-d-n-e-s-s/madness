@@ -13,9 +13,10 @@ namespace madness {
         auto n = vec.size();
 
         int i = 0;
-        for (auto &r0i: response_vector) { r0i = copy(vec[i++ % n], false); }
+        for (auto &r0i: response_vector) { r0i = vec[i++ % n]; }
+        auto copy_vec = copy(world, response_vector);
         world.gop.fence();
-        return response_vector;
+        return copy_vec;
     }
     auto create_response_matrix(const size_t &num_states, const size_t &num_orbitals)
             -> response_matrix {
