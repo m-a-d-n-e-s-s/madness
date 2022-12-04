@@ -282,8 +282,12 @@ auto ResponseBase::make_density(World &world, const X_space &chi) const -> vecfu
         if (world.rank() == 0) { print("make density: to response matrix"); }
         auto r_phi0 = to_response_vector(ground_orbitals);
         if (world.rank() == 0) { print("make density: to response vector"); }
-        std::transform(r_matrix.begin(), r_matrix.end(), density.begin(),
-                       [&](const auto &ri) { return dot(world, ri, r_phi0, true); });
+        int b = 0;
+        for (auto &rho_b: density) {
+            rho_b = dot(world, r_matrix[b], r_phi0);
+            b++;
+        }
+
     } else {
         density = transition_densityTDA(world, ground_orbitals, chi.X);
     }
@@ -1176,7 +1180,7 @@ void ResponseBase::x_space_step_restriction(World &world, const X_space &old_Chi
     for (size_t b = 0; b < m; b++) {
         auto step_size = norm2(world, m_diff[b]);
         auto norm_xb = norm2(world, m_old[b]);
-        auto max_step = 0.01*maxrotn * norm_xb;
+        auto max_step = 0.01 * maxrotn * norm_xb;
         if (world.rank() == 0) {
             print("---------------- step restriction :", b, " ------------------");
             if (world.rank() == 0) { print("X[b]: ", norm_xb); }
