@@ -21,9 +21,9 @@ void FrequencyResponse::iterate(World &world) {
 
     real_function_3d v_xc;// For TDDFT
     // the Final protocol should be equal to dconv at the minimum
-    const double conv_den = std::max(100 * FunctionDefaults<3>::get_thresh(), r_params.dconv());
+    const double conv_den = std::max(250 * FunctionDefaults<3>::get_thresh(), r_params.dconv());
     const double relative_max_target =
-            std::max(250 * FunctionDefaults<3>::get_thresh(), 5 * r_params.dconv());
+            std::max(2500 * FunctionDefaults<3>::get_thresh(), 5 * r_params.dconv());
     // m residuals for x and y
     Tensor<double> bsh_residualsX((int(m)));
     Tensor<double> bsh_residualsY((int(m)));
@@ -88,11 +88,11 @@ void FrequencyResponse::iterate(World &world) {
     if (thresh >= 1e-2) {
         max_rotation = 2;
     } else if (thresh >= 1e-4) {
-        max_rotation = .25;
+        max_rotation = .025;
     } else if (thresh >= 1e-6) {
-        max_rotation = .1;
+        max_rotation = .01;
     } else if (thresh >= 1e-8) {
-        max_rotation = .05;
+        max_rotation = .005;
     }
     PQ = generator(world, *this);
     for (iter = 0; iter < r_params.maxiter(); ++iter) {
