@@ -9,10 +9,11 @@ namespace madness {
     auto to_response_vector(const vector_real_function_3d &vec) -> vector_real_function_3d {
         auto &world = vec[0].world();
         // copy the vector
-        auto response_vector = copy(world, vec);
-        std::for_each(vec.begin(), vec.end(), [&](const real_function_3d &phi0_i) {
-            response_vector.push_back(madness::copy(phi0_i,true));
-        });
+        auto response_vector = vector_real_function_3d(vec.size());
+        auto n = vec.size();
+
+        int i = 0;
+        for (auto &r0i: response_vector) { r0i = copy(vec[i++ % n], false); }
         world.gop.fence();
         return response_vector;
     }
