@@ -313,7 +313,11 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
                      */
     bsh_X.X = apply(world, bsh_x_ops, theta_X.X);
     if (world.rank() == 0) { print("--------------- Apply BSH X ------------------"); }
-    if (compute_y) { bsh_X.Y = apply(world, bsh_y_ops, theta_X.Y); }
+    if (compute_y) {
+        bsh_X.Y = apply(world, bsh_y_ops, theta_X.Y);
+    } else {
+        bsh_X.Y = bsh_X.X.copy();
+    }
 
     if (world.rank() == 0) { print("--------------- Apply BSH------------------"); }
     // Project out ground state
