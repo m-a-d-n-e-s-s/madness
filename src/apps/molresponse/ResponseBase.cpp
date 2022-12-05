@@ -387,8 +387,6 @@ auto ResponseBase::compute_theta_X(World &world, const X_space &chi,
     }
 
     X_space gamma;
-    // compute
-
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     if (calc_type == "full") {
         gamma = compute_gamma_full(world, {chi, ground_orbitals}, xc);
@@ -739,6 +737,7 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
                                iter_timing);
     }
     // Done
+    gamma.truncate();
     // gamma.truncate();
     return gamma;
     // Get sizes
@@ -998,7 +997,6 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
         // J^0 x^alpha
         v_j0 = apply(*shared_coulomb_operator, ground_density, true);
         v_j0.scale(2.0, true);
-        v_j0.truncate(0.0, true);
     } else {// Already pre-computed
         v_j0 = stored_v_coul;
     }
@@ -1035,6 +1033,7 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     real_function_3d v0 = v_j0 + v_nuc + v_xc;
+    v0.truncate();
     auto c_xc = xcf.hf_exchange_coefficient();
     double safety = 0.1;
     double vtol = safety * FunctionDefaults<3>::get_thresh();
