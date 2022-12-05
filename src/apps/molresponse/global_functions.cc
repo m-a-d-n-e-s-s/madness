@@ -318,9 +318,11 @@ auto response_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, cons
 
     auto K = X_space::zero_functions(world, num_states, num_orbitals);
     auto phi_1 = copy(world, phi0, false);
+    /*
     auto phi_2 = copy(world, phi0, false);
     auto phi_3 = copy(world, phi0, false);
     auto phi_4 = copy(world, phi0, false);
+     */
     // the question is copying pointers mpi safe
     Exchange<double, 3> op{};
     const Exchange<double, 3>::Algorithm algo = op.small_memory;
@@ -345,16 +347,14 @@ auto response_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, cons
             op_2y.set_algorithm(algo);
 
             auto k1x = op_1x(phi_1);
-            auto k2x = op_2x(phi_2);
-
-            auto k1y = op_1y(phi_3);
-            auto k2y = op_2y(phi_4);
+            auto k2x = op_2x(phi_1);
+            auto k1y = op_1y(phi_1);
+            auto k2y = op_2y(phi_1);
 
 
             world.gop.fence();
             K.X[b] = gaxpy_oop(1.0, k1x, 1.0, k2x, false);
             K.Y[b] = gaxpy_oop(1.0, k1y, 1.0, k2y, false);
-            world.gop.fence();
         }
     } else {
         for (int b = 0; b < num_states; b++) {
@@ -367,9 +367,8 @@ auto response_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, cons
             op_2x.set_algorithm(algo);
 
             auto k1x = op_1x(phi_1);
-            auto k2x = op_2x(phi_2);
+            auto k2x = op_2x(phi_1);
 
-            world.gop.fence();
             K.X[b] = gaxpy_oop(1.0, k1x, 1.0, k2x, true);
         }
     }
@@ -412,7 +411,6 @@ auto ground_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, const 
             op_0y.set_algorithm(algo);
             K0.X[b] = op_0x(chi.X[b]);
             K0.Y[b] = op_0y(chi.Y[b]);
-            world.gop.fence();
         }
     } else {
         for (int b = 0; b < num_states; b++) {
@@ -420,7 +418,6 @@ auto ground_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, const 
             op_0x.set_parameters(phi0, phi0, lo);
             op_0x.set_algorithm(algo);
             K0.X[b] = op_0x(chi.X[b]);
-            world.gop.fence();
         }
     }
     return K0;
