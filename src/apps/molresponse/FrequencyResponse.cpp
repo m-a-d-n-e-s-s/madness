@@ -22,7 +22,7 @@ void FrequencyResponse::iterate(World &world) {
     real_function_3d v_xc;// For TDDFT
     // the Final protocol should be equal to dconv at the minimum
     const double dconv = std::max(FunctionDefaults<3>::get_thresh(), r_params.dconv());
-    const double relative_max_target = 5 * dconv;
+    const double relative_max_target = 50 * dconv;
     // m residuals for x and y
     Tensor<double> bsh_residualsX((int(m)));
     Tensor<double> bsh_residualsY((int(m)));
@@ -89,11 +89,12 @@ void FrequencyResponse::iterate(World &world) {
     } else if (thresh >= 1e-4) {
         max_rotation = thresh * 10000;
     } else if (thresh >= 1e-6) {
-        max_rotation = thresh * 1000;
+        max_rotation = thresh * 10;
     } else if (thresh >= 1e-7) {
         max_rotation = thresh * 10;
     }
     PQ = generator(world, *this);
+    PQ.truncate();
     for (iter = 0; iter < r_params.maxiter(); ++iter) {
         iter_timing.clear();
         // Basic output
@@ -138,7 +139,7 @@ void FrequencyResponse::iterate(World &world) {
                     print("r_params.dconv(): ", r_params.dconv());
                     print("max rotation: ", max_rotation);
                     print("d_residual_max : ", d_residual);
-                    print("d_residual_max target : ", dconv);
+                    print("d_residual_max target : ", dconv * 5.0);
                     print("bsh_residual_max : ", max_bsh);
                     print("relative_bsh_residual_max : ", relative_max_bsh);
                     print("relative_bsh_residual_max target : ", relative_max_target);
