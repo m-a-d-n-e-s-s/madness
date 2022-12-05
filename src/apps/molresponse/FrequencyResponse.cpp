@@ -22,7 +22,7 @@ void FrequencyResponse::iterate(World &world) {
     real_function_3d v_xc;// For TDDFT
     // the Final protocol should be equal to dconv at the minimum
     const double dconv =
-            std::max(FunctionDefaults<3>::get_thresh() * 100, r_params.dconv());//.01 .0001 .1e-5
+            std::max(FunctionDefaults<3>::get_thresh() * 90, r_params.dconv());//.01 .0001 .1e-5
     const double relative_max_target = 90 * FunctionDefaults<3>::get_thresh();
     // m residuals for x and y
     Tensor<double> bsh_residualsX((int(m)));
@@ -314,22 +314,16 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
                      */
     bsh_X.X = apply(world, bsh_x_ops, theta_X.X);
     if (world.rank() == 0) { print("--------------- Apply BSH X ------------------"); }
-    if (compute_y) {
-        bsh_X.Y = apply(world, bsh_y_ops, theta_X.Y);
-    } else {
-        bsh_X.Y = bsh_X.X.copy();
-    }
+    if (compute_y) { bsh_X.Y = apply(world, bsh_y_ops, theta_X.Y); }
 
     if (world.rank() == 0) { print("--------------- Apply BSH------------------"); }
     // Project out ground state
-    /*
     for (size_t i = 0; i < m; i++) bsh_X.X[i] = projector(bsh_X.X[i]);
     if (compute_y) {
         for (size_t i = 0; i < m; i++) { bsh_X.Y[i] = projector(bsh_X.Y[i]); }
     } else {
         bsh_X.Y = bsh_X.X.copy();
     }
-     */
     if (world.rank() == 0) { print("--------------- Project BSH------------------"); }
 
     if (r_params.print_level() >= 1) {
