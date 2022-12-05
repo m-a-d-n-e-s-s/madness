@@ -87,11 +87,11 @@ void FrequencyResponse::iterate(World &world) {
     if (thresh >= 1e-2) {
         max_rotation = 2;
     } else if (thresh >= 1e-4) {
-        max_rotation = .025;
+        max_rotation = thresh * 10000;
     } else if (thresh >= 1e-6) {
-        max_rotation = .01;
-    } else if (thresh >= 1e-8) {
-        max_rotation = .005;
+        max_rotation = thresh * 1000;
+    } else if (thresh >= 1e-7) {
+        max_rotation = thresh * 100;
     }
     PQ = generator(world, *this);
     for (iter = 0; iter < r_params.maxiter(); ++iter) {
@@ -261,10 +261,10 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
 
     // kain update with temp adjusts temp
     //&& iteration < 7
-    if (r_params.kain() && (iteration > 2) ) {
+    if (r_params.kain() && (iteration > 2)) {
         new_chi = kain_x_space_update(world, chi, new_res, kain_x_space);
     }
-    if (false) { x_space_step_restriction(world, chi, new_chi, compute_y, maxrotn); }
+    if (iteration > 5) { x_space_step_restriction(world, chi, new_chi, compute_y, maxrotn); }
 
     // truncate x
 
