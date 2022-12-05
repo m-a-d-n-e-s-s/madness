@@ -300,6 +300,7 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
         theta_X.Y += PQ.Y;
         theta_X.Y = theta_X.Y * -2;
     }
+    theta_X.truncate();
     world.gop.fence();
 
     if (world.rank() == 0) { print("--------------- ThetaX.Y------------------"); }
@@ -326,6 +327,7 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "bsh_update", "bsh_update", iter_timing);
     }
+    bsh_X.truncate();
 
     return bsh_X;
 }
