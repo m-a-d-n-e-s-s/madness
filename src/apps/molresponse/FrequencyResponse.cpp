@@ -22,7 +22,7 @@ void FrequencyResponse::iterate(World &world) {
     real_function_3d v_xc;// For TDDFT
     // the Final protocol should be equal to dconv at the minimum
     const double dconv = std::max(FunctionDefaults<3>::get_thresh() * 100, r_params.dconv());//.01 .0001 .1e-5
-    const double relative_max_target = 15 * FunctionDefaults<3>::get_thresh();
+    const double relative_max_target = 90 * FunctionDefaults<3>::get_thresh();
     // m residuals for x and y
     Tensor<double> bsh_residualsX((int(m)));
     Tensor<double> bsh_residualsY((int(m)));
