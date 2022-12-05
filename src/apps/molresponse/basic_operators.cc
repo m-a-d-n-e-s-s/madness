@@ -31,9 +31,7 @@ namespace madness {
         MADNESS_ASSERT(v.size() > 0);
         MADNESS_ASSERT(v[0].size() > 0);
 
-        for (unsigned int i = 0; i < v.size(); i++) {
-            truncate(world, v[i], tol, fence);
-        }
+        for (unsigned int i = 0; i < v.size(); i++) { truncate(world, v[i], tol, fence); }
     }
 
     // Apply a vector of vector of operators to a vector of vector of functions
@@ -56,13 +54,14 @@ namespace madness {
     }
     // Apply a vector of operators to a set of response states
     //
-    response_space apply(World &world, std::vector<std::shared_ptr<real_convolution_3d>> &op, response_space &f) {
+    response_space apply(World &world, std::vector<std::shared_ptr<real_convolution_3d>> &op,
+                         response_space &f) {
         MADNESS_ASSERT(f.size() > 0);
         MADNESS_ASSERT(f[0].size() == op.size());
 
         response_space result(f[0][0].world(), f.size(), f[0].size());
-
-        transform(f.begin(), f.end(), result.begin(), [&](const auto &fi) { return apply(world, op, fi); });
+        int i = 0;
+        for (auto &fi: f.x) { result.x[i++] = apply(world, op, fi); }
 
         world.gop.fence();
         /*
