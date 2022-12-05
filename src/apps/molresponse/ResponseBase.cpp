@@ -994,16 +994,7 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
     X_space V0 = X_space(world, m, n);
     X_space K0 = X_space(world, m, n);
 
-    X_space Chi_copy = X;
-    vecfuncT phi0_copy = madness::copy(world, ground_orbitals);
-    world.gop.fence();
-    Chi_copy.truncate();
-    //Chi_copy.truncate();
-    truncate(world, phi0_copy);
-    // v_nuc first
     real_function_3d v_nuc, v_j0, v_k0, v_xc;
-
-    world.gop.fence();
 
     if (not r_params.store_potential()) {
         v_nuc = potential_manager->vnuclear();
@@ -1016,12 +1007,12 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
     }
     // Coulomb Potential J0*f
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
+
     if (not r_params.store_potential()) {
-        // "a" is the core type
-        // scale rho by 2 TODO
         // J^0 x^alpha
-        v_j0 = apply(*shared_coulomb_operator, ground_density);
-        v_j0.scale(2.0);
+        v_j0 = apply(*shared_coulomb_operator, ground_density, true);
+        v_j0.scale(2.0, true);
+        v_j0.truncate(0.0, true);
     } else {// Already pre-computed
         v_j0 = stored_v_coul;
     }
@@ -1037,25 +1028,9 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
         // make a zero function
         v_xc = Function<double, 3>(FunctionFactory<double, 3>(world).fence(false).initial_level(1));
     }
-
     // Intermediaries
     world.gop.fence();
 
-    /*
-    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    auto phi0_c = copy(world, phi0_copy);
-    world.gop.fence();
-    int b = 0;
-    for (auto &k0x: K0.X) { k0x = newK(phi0_copy, phi0_c, Chi_copy.X[b++]); }
-    if (compute_Y) {
-        b = 0;
-        for (auto &k0x: K0.Y) { k0x = newK(phi0_copy, phi0_c, Chi_copy.Y[b++]); }
-
-    } else {
-        K0.Y = K0.X.copy();
-    }
-    if (r_params.print_level() >= 20) { print_inner(world, "old xK0x", Chi_copy, K0); }
-     */
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     /*
     K0 = ground_exchange(phi0_copy, X, compute_Y);
@@ -1066,34 +1041,46 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
      */
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    K0 = ground_exchange_multiworld(phi0_copy, X, compute_Y);
+    K0 = ground_exchange_multiworld(ground_orbitals, X, compute_Y);
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "new K[0]", "K[0]", iter_timing);
     }
-    if (r_params.print_level() >= 20) { print_inner(world, "new xK0x", Chi_copy, K0); }
+    if (r_params.print_level() >= 20) { print_inner(world, "new xK0x", X, K0); }
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     real_function_3d v0 = v_j0 + v_nuc + v_xc;
     auto c_xc = xcf.hf_exchange_coefficient();
-    if (compute_Y) {
+    double safety = 0.1;
+    double vtol = safety * FunctionDefaults<3>::get_thresh();
 
-        V0 = v0 * X;
+    if (compute_Y) {
+        auto x = to_response_matrix(X);
+        auto vx = create_response_matrix(X.num_states(), X.num_orbitals());
+        std::transform(x.begin(), x.end(), vx.begin(),
+                       [&](const auto &xi) { return mul_sparse(world, v0, xi, vtol, false); });
+        world.gop.fence();
+        V0 = to_X_space(vx);
+        //V0 = v0 * X;
         if (world.rank() == 0) { print("vox: v0=v0*X"); }
         V0 += -c_xc * K0;
         if (world.rank() == 0) { print("vox: v0+=c_xc*K0"); }
 
     } else {
-        V0.X = v0 * X.X;
+
+        std::transform(X.X.begin(), X.X.end(), V0.X.begin(),
+                       [&](const auto &xi) { return mul_sparse(world, v0, xi, vtol, false); });
+        world.gop.fence();
+        //V0.X = v0 * X.X;
         if (world.rank() == 0) { print("vox: v0=v0*X"); }
         V0.X += -c_xc * K0.X;
         if (world.rank() == 0) { print("vox: v0+=c_xc*K0"); }
         V0.Y = V0.X.copy();
     }
-    if (r_params.print_level() >= 20) { print_inner(world, "xV0x", Chi_copy, V0); }
+    if (r_params.print_level() >= 20) { print_inner(world, "xV0x", X, V0); }
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "V0_add", "V0_add", iter_timing);
     }
-
+    V0.truncate();// we are removing noise here
     return V0;
 }
 
