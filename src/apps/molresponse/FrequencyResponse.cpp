@@ -21,9 +21,8 @@ void FrequencyResponse::iterate(World &world) {
 
     real_function_3d v_xc;// For TDDFT
     // the Final protocol should be equal to dconv at the minimum
-    const double conv_den = std::max(250 * FunctionDefaults<3>::get_thresh(), r_params.dconv());
-    const double relative_max_target =
-            std::max(2500 * FunctionDefaults<3>::get_thresh(), 5 * r_params.dconv());
+    const double dconv = std::max(FunctionDefaults<3>::get_thresh(), r_params.dconv());
+    const double relative_max_target = 5 * dconv;
     // m residuals for x and y
     Tensor<double> bsh_residualsX((int(m)));
     Tensor<double> bsh_residualsY((int(m)));
@@ -139,14 +138,15 @@ void FrequencyResponse::iterate(World &world) {
                     print("r_params.dconv(): ", r_params.dconv());
                     print("max rotation: ", max_rotation);
                     print("d_residual_max : ", d_residual);
-                    print("d_residual_max target : ", conv_den);
+                    print("d_residual_max target : ", dconv);
                     print("bsh_residual_max : ", max_bsh);
                     print("relative_bsh_residual_max : ", relative_max_bsh);
                     print("relative_bsh_residual_max target : ", relative_max_target);
                 }
             }
-            if ((d_residual < conv_den) and ((relative_max_bsh < relative_max_target) or
-                                             r_params.get<bool>("conv_only_dens"))) {
+            if ((d_residual < dconv * std::max(size_t(5), molecule.natom())) and
+                ((relative_max_bsh < relative_max_target) or
+                 r_params.get<bool>("conv_only_dens"))) {
                 converged = true;
             }
 
@@ -261,7 +261,7 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
 
     // kain update with temp adjusts temp
     //&& iteration < 7
-    if (r_params.kain() && (iteration > 2 )) {
+    if (r_params.kain() && (iteration > 2)) {
         new_chi = kain_x_space_update(world, chi, new_res, kain_x_space);
     }
     if (r_params.kain() && (iteration > 7)) {
