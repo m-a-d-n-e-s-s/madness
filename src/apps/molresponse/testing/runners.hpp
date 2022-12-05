@@ -443,7 +443,7 @@ void runMOLDFT(World &world, const moldftSchema &moldftSchema, bool try_run, boo
         // double energy=ME.value(calc.molecule.get_all_coords().flat()); // ugh!
         ME.value(calc.molecule.get_all_coords().flat());// ugh!
         world.gop.fence();
-        ME.output_calc_info_schema();
+        if (world.rank() == 0) { ME.output_calc_info_schema(); }
     } else {
         if (world.rank() == 0) {
             print("Skipping Calculation and printing CALC INFO");
@@ -795,9 +795,11 @@ void moldft(World &world, moldftSchema &m_schema, bool try_moldft, bool restart,
     if (std::filesystem::is_directory(m_schema.moldft_path)) {
         if (world.rank() == 0) { cout << "MOLDFT directory found " << m_schema.mol_path << "\n"; }
     } else {// create the file
-        if (world.rank() == 0) { std::filesystem::create_directory(m_schema.moldft_path); }
-        cout << "Creating MOLDFT directory for " << m_schema.mol_name << ":/"
-             << m_schema.moldft_path << ":\n";
+        if (world.rank() == 0) {
+            std::filesystem::create_directory(m_schema.moldft_path);
+            cout << "Creating MOLDFT directory for " << m_schema.mol_name << ":/"
+                 << m_schema.moldft_path << ":\n";
+        }
         world.gop.fence();
     }
     std::filesystem::current_path(m_schema.moldft_path);
