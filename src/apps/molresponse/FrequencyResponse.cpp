@@ -89,9 +89,9 @@ void FrequencyResponse::iterate(World &world) {
     } else if (thresh >= 1e-4) {
         max_rotation = thresh * 10000;
     } else if (thresh >= 1e-6) {
-        max_rotation = thresh * 100;
+        max_rotation = thresh * 1000;
     } else if (thresh >= 1e-7) {
-        max_rotation = thresh * 100;
+        max_rotation = thresh * 1000;
     }
     PQ = generator(world, *this);
     PQ.truncate();
