@@ -261,12 +261,10 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
 
     // kain update with temp adjusts temp
     //&& iteration < 7
-    if (r_params.kain() && (iteration > 2)) {
+    if (r_params.kain() && (iteration > 2) && (iteration < 10)) {
         new_chi = kain_x_space_update(world, chi, new_res, kain_x_space);
     }
-    if (r_params.kain() && (iteration > 7)) {
-        x_space_step_restriction(world, chi, new_chi, compute_y, maxrotn);
-    }
+    if (false) { x_space_step_restriction(world, chi, new_chi, compute_y, maxrotn); }
 
     // truncate x
 
