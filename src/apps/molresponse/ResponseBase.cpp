@@ -1195,7 +1195,7 @@ void ResponseBase::x_space_step_restriction(World &world, const X_space &old_Chi
     for (size_t b = 0; b < m; b++) {
         auto step_size = norm2(world, m_diff[b]);
         auto norm_xb = norm2(world, m_old[b]);
-        auto max_step = 0.01 * maxrotn * norm_xb;
+        auto max_step = maxrotn * norm_xb;
         if (world.rank() == 0) {
             print("---------------- step restriction :", b, " ------------------");
             if (world.rank() == 0) { print("X[b]: ", norm_xb); }
@@ -1203,7 +1203,7 @@ void ResponseBase::x_space_step_restriction(World &world, const X_space &old_Chi
             if (world.rank() == 0) { print("max_step = max_rotation*norm_X: ", max_step); }
         }
         if (step_size > max_step) {
-            double s = max_step / step_size;
+            double s = max_step;
             if (world.rank() == 0) {
                 if (r_params.print_level() > 1)
                     print("  restricting step for response-state: ", b, " step size", s);
