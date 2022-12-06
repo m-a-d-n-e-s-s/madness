@@ -88,9 +88,9 @@ void FrequencyResponse::iterate(World &world) {
     if (thresh >= 1e-2) {
         max_rotation = 2;
     } else if (thresh >= 1e-4) {
-        max_rotation = 2 * relative_max_target;
+        max_rotation = 1.5 * relative_max_target;
     } else if (thresh >= 1e-6) {
-        max_rotation = 2 * relative_max_target;
+        max_rotation = 1.5 * relative_max_target;
     } else if (thresh >= 1e-7) {
         max_rotation = .01;
     }
