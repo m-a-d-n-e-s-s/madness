@@ -1167,14 +1167,15 @@ void ResponseBase::x_space_step_restriction(World &world, const X_space &old_Chi
     for (size_t b = 0; b < m; b++) {
         auto step_size = norm2(world, m_diff[b]);
         auto norm_xb = norm2(world, m_old[b]);
-        auto max_step = maxrotn;//* norm_xb;
+        auto max_step = maxrotn;//norm;//* norm_xb;
         if (world.rank() == 0) {
             print("---------------- step restriction :", b, " ------------------");
             if (world.rank() == 0) { print("X[b]: ", norm_xb); }
             if (world.rank() == 0) { print("deltaX[b]: ", step_size); }
             if (world.rank() == 0) { print("max_step = max_rotation*norm_X: ", max_step); }
         }
-        if (step_size > max_step) {
+        if (step_size > max_step && step_size < .1 * norm_xb) {
+            // and if the step size is less thant 10% the vector norm
             double s = max_step / step_size;
             if (world.rank() == 0) {
                 if (r_params.print_level() > 1)
