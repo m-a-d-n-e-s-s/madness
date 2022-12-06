@@ -1190,7 +1190,7 @@ void ResponseBase::x_space_step_restriction(World &world, const X_space &old_Chi
             if (world.rank() == 0) { print("deltaX[b]: ", step_size); }
             if (world.rank() == 0) { print("max_step = max_rotation*norm_X: ", max_step); }
         }
-        if (step_size > max_step && step_size < .01 * norm_xb) {
+        if (step_size > max_step && step_size < 700 * FunctionDefaults<3>::get_thresh()) {
             // and if the step size is less thant 10% the vector norm
             double s = max_step / step_size;
             if (world.rank() == 0) {
