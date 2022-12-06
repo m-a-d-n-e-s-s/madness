@@ -505,14 +505,14 @@ void set_frequency_response_parameters(World &world, ResponseParameters &r_param
             r_params.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6, 1e-8});
             r_params.set_user_defined_value<double>("dconv", 1e-6);
         } else if (precision == "low") {
-            r_params.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6});
+            r_params.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6, 1e-7});
             r_params.set_user_defined_value<double>("dconv", 1e-4);
         } else {
             r_params.set_user_defined_value<vector<double>>("protocol", {1e-9});
             r_params.set_user_defined_value<double>("dconv", 1e-7);
         }
         //r_params.set_user_defined_value("archive", std::string("../restartdata"));
-        r_params.set_user_defined_value("maxiter", size_t(30));
+        r_params.set_user_defined_value("maxiter", size_t(15));
         r_params.set_user_defined_value("maxsub", size_t(5));
         r_params.set_user_defined_value("kain", true);
         r_params.set_user_defined_value("omega", frequency);
