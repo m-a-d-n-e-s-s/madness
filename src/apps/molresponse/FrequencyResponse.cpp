@@ -23,7 +23,7 @@ void FrequencyResponse::iterate(World &world) {
     // the Final protocol should be equal to dconv at the minimum
     const double dconv =
             std::max(FunctionDefaults<3>::get_thresh() * 100, r_params.dconv());//.01 .0001 .1e-5
-    const double relative_max_target = 25 * FunctionDefaults<3>::get_thresh();
+    const double relative_max_target = 200 * FunctionDefaults<3>::get_thresh();
     // m residuals for x and y
     Tensor<double> bsh_residualsX((int(m)));
     Tensor<double> bsh_residualsY((int(m)));
@@ -88,9 +88,9 @@ void FrequencyResponse::iterate(World &world) {
     if (thresh >= 1e-2) {
         max_rotation = 2;
     } else if (thresh >= 1e-4) {
-        max_rotation = 10 * relative_max_target;
+        max_rotation = 2 * relative_max_target;
     } else if (thresh >= 1e-6) {
-        max_rotation = 10 * relative_max_target;
+        max_rotation = 2 * relative_max_target;
     } else if (thresh >= 1e-7) {
         max_rotation = .01;
     }
