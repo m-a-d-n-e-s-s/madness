@@ -107,7 +107,10 @@ void FrequencyResponse::iterate(World &world) {
         }
         if (iter < 2 || (iter % 10) == 0) { load_balance_chi(world); }
         if (iter > 0) {
-            if (density_residuals.max() > 2) { break; }
+            if (density_residuals.max() > 20) {
+                if (world.rank() == 0) { print("d-residual > 20...break"); }
+                break;
+            }
             double d_residual = density_residuals.max();
             // Test convergence and set to true
             auto chi_norms = Chi.norm2s();
@@ -152,7 +155,7 @@ void FrequencyResponse::iterate(World &world) {
                 converged = true;
             }
 
-            if (converged || iter == r_params.maxiter() - 1) {
+            if (converged || iter == r_params.maxiter()) {
                 // if converged print converged
                 if (world.rank() == 0 && converged and (r_params.print_level() > 1)) {
                     print("\nConverged!\n");
@@ -229,7 +232,6 @@ void FrequencyResponse::iterate(World &world) {
     if (iter == r_params.maxiter() && not converged) {
         if (world.rank() == 0) print("   Failed to converge. Reason:");
         if (world.rank() == 0) print("\n  ***  Ran out of iterations  ***\n");
-        if (world.rank() == 0) print("    Running analysis on current values.\n");
     }
     if (world.rank() == 0) {
         print(" Final energy residuals X:");
