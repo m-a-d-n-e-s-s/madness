@@ -33,19 +33,10 @@ void FrequencyResponse::iterate(World &world) {
     Tensor<double> xij_res_norms(m, 2 * n);
 
     vecfuncT rho_omega_old(m);
-
     // initialize DFT XC functional operator
     XCOperator<double, 3> xc = make_xc_operator(world);
-
     // create X space residuals
     X_space residuals = X_space::zero_functions(world, m, n);
-
-    /*
-    for (size_t b = 0; b < m; b++) {
-        x_vectors.emplace_back(Chi, b);
-        x_residuals.emplace_back(residuals, b);
-    }
-     */
     // create a std vector of XNONLinearsolvers
     response_solver kain_x_space;
     for (size_t b = 0; b < m; b++) {
@@ -56,7 +47,6 @@ void FrequencyResponse::iterate(World &world) {
     if (r_params.kain()) {
         for (auto &kain_space_b: kain_x_space) { kain_space_b.set_maxsub(r_params.maxsub()); }
     }
-    //
     // We compute with positive frequencies
     if (world.rank() == 0) {
         print("Warning input frequency is assumed to be positive");
