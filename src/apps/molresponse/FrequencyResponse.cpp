@@ -12,6 +12,7 @@ void FrequencyResponse::initialize(World &world) {
     Chi = PQ.copy();
 }
 
+
 void FrequencyResponse::iterate(World &world) {
     size_t iter;
     // Variables needed to iterate
@@ -84,10 +85,16 @@ void FrequencyResponse::iterate(World &world) {
     } else if (thresh >= 1e-7) {
         max_rotation = .01;
     }
+
+
+    functionT mask;
+    mask = real_function_3d(real_factory_3d(world).f(mask3).initial_level(4).norefine());
     PQ = generator(world, *this);
+    PQ = PQ * mask;
     PQ.truncate();
     for (iter = 0; iter < r_params.maxiter(); ++iter) {
         iter_timing.clear();
+        Chi = mask * Chi;
         // Basic output
         if (r_params.print_level() >= 1) {
             molresponse::start_timer(world);
