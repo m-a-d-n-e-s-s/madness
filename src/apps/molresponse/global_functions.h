@@ -7,6 +7,10 @@
 
 #include "response_parameters.h"
 
+
+
+
+
 struct CalcParams {
     GroundStateCalculation ground_calculation;
     Molecule molecule;
