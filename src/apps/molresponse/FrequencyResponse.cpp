@@ -147,7 +147,7 @@ void FrequencyResponse::iterate(World &world) {
                 }
             }
             if ((d_residual < dconv * std::max(size_t(5), molecule.natom())) and
-                ((relative_max_bsh < relative_max_target) or
+                ((max_bsh < relative_max_target) or
                  r_params.get<bool>("conv_only_dens"))) {
                 converged = true;
             }
