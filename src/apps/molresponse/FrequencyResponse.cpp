@@ -24,7 +24,7 @@ void FrequencyResponse::iterate(World &world) {
     // the Final protocol should be equal to dconv at the minimum
     const double dconv =
             std::max(FunctionDefaults<3>::get_thresh() * 100, r_params.dconv());//.01 .0001 .1e-5
-    const double relative_max_target = 350 * FunctionDefaults<3>::get_thresh();
+    const double relative_max_target = 500 * FunctionDefaults<3>::get_thresh();
     // m residuals for x and y
     Tensor<double> bsh_residualsX((int(m)));
     Tensor<double> bsh_residualsY((int(m)));
@@ -75,6 +75,7 @@ void FrequencyResponse::iterate(World &world) {
     vector_real_function_3d rho_omega = make_density(world, Chi);
     converged = false;// Converged flag
     auto thresh = FunctionDefaults<3>::get_thresh();
+
     auto max_rotation = .5;
     if (thresh >= 1e-2) {
         max_rotation = 2;
@@ -85,7 +86,6 @@ void FrequencyResponse::iterate(World &world) {
     } else if (thresh >= 1e-7) {
         max_rotation = .01;
     }
-
 
     functionT mask;
     mask = real_function_3d(real_factory_3d(world).f(mask3).initial_level(4).norefine());
@@ -117,6 +117,7 @@ void FrequencyResponse::iterate(World &world) {
                            chi_norms.ptr(), relative_bsh.ptr(),
                            [](auto bsh, auto norm_chi) { return bsh / norm_chi; });
             auto max_bsh = bsh_residualsX.absmax();
+            max_rotation = 2 * max_bsh;
             auto relative_max_bsh = relative_bsh.absmax();
             Tensor<double> polar = -2 * inner(Chi, PQ);
             world.gop.fence();
@@ -147,8 +148,7 @@ void FrequencyResponse::iterate(World &world) {
                 }
             }
             if ((d_residual < dconv * std::max(size_t(5), molecule.natom())) and
-                ((max_bsh < relative_max_target) or
-                 r_params.get<bool>("conv_only_dens"))) {
+                ((max_bsh < relative_max_target) or r_params.get<bool>("conv_only_dens"))) {
                 converged = true;
             }
 
