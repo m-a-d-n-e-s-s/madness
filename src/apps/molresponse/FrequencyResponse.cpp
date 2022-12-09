@@ -117,7 +117,7 @@ void FrequencyResponse::iterate(World &world) {
                            chi_norms.ptr(), relative_bsh.ptr(),
                            [](auto bsh, auto norm_chi) { return bsh / norm_chi; });
             auto max_bsh = bsh_residualsX.absmax();
-            max_rotation = 2 * max_bsh;
+            max_rotation = 1.00 * max_bsh;
             auto relative_max_bsh = relative_bsh.absmax();
             Tensor<double> polar = -2 * inner(Chi, PQ);
             world.gop.fence();
