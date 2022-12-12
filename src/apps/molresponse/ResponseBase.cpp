@@ -669,7 +669,7 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
      */
 
     int b = 0;
-    for (const auto rho_b: rho) {
+    for (const auto& rho_b: rho) {
         auto temp_J = apply(*shared_coulomb_operator, rho_b);
         J.X[b++] = mul(world, temp_J, phi0);
     }
