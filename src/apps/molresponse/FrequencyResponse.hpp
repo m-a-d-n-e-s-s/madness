@@ -40,12 +40,14 @@ private:
     X_space bsh_update_response(World& world, X_space& theta_X, vector<poperatorT>& bsh_x_ops,
                                 vector<poperatorT>& bsh_y_ops, QProjector<double, 3>& projector,
                                 double& x_shifts);
-    static void frequency_to_json(json& j_mol_in, size_t iter, const Tensor<double>& polar_ij);
+    static void frequency_to_json(json &j_mol_in, size_t iter, const Tensor<double> &polar_ij,
+                                  const Tensor<double> &v_polar_ij);
     static void compute_and_print_polarizability(World& world, X_space& Chi, X_space& pq,
                                           std::string message);
     void save(World& world, const std::string& name) override;
     void load(World& world, const std::string& name) override;
-    std::tuple<X_space, residuals> update(World &world, X_space &chi, XCOperator<double, 3> &xc,
+    std::tuple<X_space, residuals, Tensor<double>>
+    update(World &world, X_space &chi, XCOperator<double, 3> &xc,
                                           std::vector<poperatorT> &bsh_x_ops,
                                           std::vector<poperatorT> &bsh_y_ops,
                                           QProjector<double, 3> &projector, double &x_shifts,

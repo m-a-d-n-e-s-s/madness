@@ -32,6 +32,7 @@ void FrequencyResponse::iterate(World &world) {
 
     Tensor<double> xij_norms(m, 2 * n);
     Tensor<double> xij_res_norms(m, 2 * n);
+    Tensor<double> v_polar(m, m);
 
     vecfuncT rho_omega_old(m);
     // initialize DFT XC functional operator
@@ -124,7 +125,7 @@ void FrequencyResponse::iterate(World &world) {
             // Todo add chi norm and chi_x
             function_data_to_json(j_molresponse, iter, chi_norms, bsh_residualsX, relative_bsh,
                                   xij_norms, xij_res_norms, rho_norms, density_residuals);
-            frequency_to_json(j_molresponse, iter, polar);
+            frequency_to_json(j_molresponse, iter, polar, v_polar);
             world.gop.fence();
 
             if (r_params.print_level() >= 1) {
@@ -169,8 +170,10 @@ void FrequencyResponse::iterate(World &world) {
                 break;
             }
         }
-        auto [new_chi, new_res] = update(world, Chi, xc, bsh_x_ops, bsh_y_ops, projector, x_shifts,
-                                         omega, kain_x_space, iter, max_rotation);
+        auto [new_chi, new_res, new_polar] =
+                update(world, Chi, xc, bsh_x_ops, bsh_y_ops, projector, x_shifts, omega,
+                       kain_x_space, iter, max_rotation);
+        v_polar = copy(new_polar);
         if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
         rho_omega_old = make_density(world, Chi);
         if (r_params.print_level() >= 1) {
@@ -246,7 +249,7 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
                                std::vector<poperatorT> &bsh_y_ops, QProjector<double, 3> &projector,
                                double &x_shifts, double &omega_n, response_solver &kain_x_space,
                                size_t iteration, const double &maxrotn)
-        -> std::tuple<X_space, residuals> {
+        -> std::tuple<X_space, residuals, Tensor<double>> {
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
@@ -285,7 +288,7 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
         V_X.Y = V_X.X.copy();
     }
     V_X = V_X - diag_E0X;
-    auto polar = 2*inner(chi_copy, V_X);
+    auto polar = 2 * inner(chi_copy, V_X);
 
     if (world.rank() == 0) { print("new polarizability\n", polar); }
     X_space new_chi =
@@ -306,7 +309,7 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
         molresponse::end_timer(world, "update response", "update", iter_timing);
     }
     //	if not compute y then copy x in to y
-    return {new_chi, {new_res, bsh}};
+    return {new_chi, {new_res, bsh}, polar};
 
     // print x norms
 }
@@ -369,10 +372,12 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
 }
 
 void FrequencyResponse::frequency_to_json(json &j_mol_in, size_t iter,
-                                          const Tensor<double> &polar_ij) {
+                                          const Tensor<double> &polar_ij,
+                                          const Tensor<double> &v_polar_ij) {
     json j = {};
     j["iter"] = iter;
     j["polar"] = tensor_to_json(polar_ij);
+    j["v_polar"] = tensor_to_json(v_polar_ij);
     auto index = j_mol_in["protocol_data"].size() - 1;
     j_mol_in["protocol_data"][index]["property_data"].push_back(j);
 }
