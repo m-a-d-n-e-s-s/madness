@@ -24,7 +24,7 @@ void FrequencyResponse::iterate(World &world) {
     // the Final protocol should be equal to dconv at the minimum
     const double dconv =
             std::max(FunctionDefaults<3>::get_thresh() * 100, r_params.dconv());//.01 .0001 .1e-5
-    const double relative_max_target = 100 * FunctionDefaults<3>::get_thresh();
+    const double bsh_abs_target = 950 * FunctionDefaults<3>::get_thresh();
     // m residuals for x and y
     Tensor<double> bsh_residualsX((int(m)));
     Tensor<double> bsh_residualsY((int(m)));
@@ -80,9 +80,9 @@ void FrequencyResponse::iterate(World &world) {
     if (thresh >= 1e-2) {
         max_rotation = 2;
     } else if (thresh >= 1e-4) {
-        max_rotation = 2 * relative_max_target;
+        max_rotation = 2 * bsh_abs_target;
     } else if (thresh >= 1e-6) {
-        max_rotation = 2 * relative_max_target;
+        max_rotation = 2 * bsh_abs_target;
     } else if (thresh >= 1e-7) {
         max_rotation = .01;
     }
@@ -142,13 +142,13 @@ void FrequencyResponse::iterate(World &world) {
                     print("max rotation: ", max_rotation);
                     print("d_residual_max : ", d_residual);
                     print("d_residual_max target : ", dconv * 5.0);
+                    print("relative residual", relative_max_bsh);
                     print("bsh_residual_max : ", max_bsh);
-                    print("relative_bsh_residual_max : ", relative_max_bsh);
-                    print("relative_bsh_residual_max target : ", relative_max_target);
+                    print("bsh abs target : ", bsh_abs_target);
                 }
             }
             if ((d_residual < dconv * std::max(size_t(5), molecule.natom())) and
-                ((max_bsh < relative_max_target) or r_params.get<bool>("conv_only_dens"))) {
+                ((max_bsh < bsh_abs_target) or r_params.get<bool>("conv_only_dens"))) {
                 converged = true;
             }
 

@@ -1176,7 +1176,7 @@ void ResponseBase::x_space_step_restriction(World &world, const X_space &old_Chi
         }
         if (step_size > max_step && step_size < 10000 * FunctionDefaults<3>::get_thresh()) {
             // and if the step size is less thant 10% the vector norm
-            double s = max_step / step_size;
+            double s = .80 * max_step / step_size;
             if (world.rank() == 0) {
                 if (r_params.print_level() > 1)
                     print("  restricting step for response-state: ", b, " step size", s);
