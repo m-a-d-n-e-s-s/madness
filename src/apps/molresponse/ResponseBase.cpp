@@ -438,7 +438,7 @@ auto ResponseBase::compute_theta_X(World &world, const X_space &chi,
     if (compute_Y) {
         T0X.Y = T(world, chi_copy.Y);
     } else {
-        TOX.Y = TOX.X.copy();
+        T0X.Y = T0X.X.copy();
     }
     if (r_params.print_level() >= 20) {
         print("_________________compute F0X _______________________");
