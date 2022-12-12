@@ -431,7 +431,6 @@ auto ResponseBase::compute_theta_X(World &world, const X_space &chi,
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "compute_ThetaX", "compute_ThetaX", iter_timing);
     }
-    Tensor<double> polar = -2 * inner(chi, V_X);
 
     return Theta_X;
 }
