@@ -423,11 +423,6 @@ auto ResponseBase::compute_theta_X(World &world, const X_space &chi,
     } else {
         T0X.Y = T0X.X.copy();
     }
-    if (r_params.print_level() >= 20) {
-        print("_________________compute F0X _______________________");
-        print("inner <X|T0|X>");
-        print(inner(chi_copy, T0X));
-    }
 
     auto diag_E0X = chi.copy();
     if (r_params.localize() != "canon") {
@@ -444,7 +439,7 @@ auto ResponseBase::compute_theta_X(World &world, const X_space &chi,
     V_X = V_X - diag_E0X;
 
     Tensor<double> polar = -2 * inner(chi, V_X);
-    print("new polarizability", polar);
+    if (world.rank() == 0) { print("new polarizability", polar); }
 
     return Theta_X;
 }
