@@ -414,32 +414,7 @@ auto ResponseBase::compute_theta_X(World &world, const X_space &chi,
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "compute_ThetaX", "compute_ThetaX", iter_timing);
     }
-    // construct lhs for 2nd order property
-    X_space T0X = X_space(world, chi.num_states(), chi.num_orbitals());
-    auto chi_copy = chi.copy();
-    T0X.X = T(world, chi_copy.X);
-    if (compute_Y) {
-        T0X.Y = T(world, chi_copy.Y);
-    } else {
-        T0X.Y = T0X.X.copy();
-    }
-
-    auto diag_E0X = chi.copy();
-    if (r_params.localize() != "canon") {
-        auto diag_only = hamiltonian - ham_no_diag;
-        diag_E0X.X = E0X.X * diag_only;
-        if (compute_Y) { E0X.Y = E0X.Y * diag_only; }
-        if (r_params.print_level() >= 20) { print_inner(world, "xE0_diagx", chi, E0X); }
-    }
-    auto omega = r_params.omega();
-
-    auto V_X = Theta_X.copy();
-    V_X += T0X;
-    V_X = V_X - omega * chi;
-    V_X = V_X - diag_E0X;
-
     Tensor<double> polar = -2 * inner(chi, V_X);
-    if (world.rank() == 0) { print("new polarizability", polar); }
 
     return Theta_X;
 }
