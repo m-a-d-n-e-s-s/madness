@@ -255,6 +255,39 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
     // size_t n = Chi.num_orbitals();
     X_space theta_X = compute_theta_X(world, chi, xc, r_params.calc_type());
 
+    X_space T0X = X_space(world, chi.num_states(), chi.num_orbitals());
+    auto chi_copy = chi.copy();
+    T0X.X = T(world, chi_copy.X);
+    if (compute_y) {
+        T0X.Y = T(world, chi_copy.Y);
+    } else {
+        T0X.Y = T0X.X.copy();
+    }
+
+    auto diag_E0X = chi_copy.copy();
+    if (r_params.localize() != "canon") {
+        auto diag_only = hamiltonian - ham_no_diag;
+        diag_E0X.X = diag_E0X.X * diag_only;
+        if (compute_y) {
+            diag_E0X.Y = diag_E0X.Y * diag_only;
+        } else {
+            diag_E0X.Y = diag_E0X.X;
+        }
+    }
+    auto omega = r_params.omega();
+
+    auto V_X = theta_X.copy();
+    V_X += T0X;
+    V_X.X = V_X.X - omega * chi_copy.X;
+    if (compute_y) {
+        V_X.Y = V_X.X + omega * chi_copy.X;
+    } else {
+        V_X.Y = V_X.X.copy();
+    }
+    V_X = V_X - diag_E0X;
+    auto polar = inner(chi_copy, V_X);
+
+    if (world.rank() == 0) { print("new polarizability\n", polar); }
     X_space new_chi =
             bsh_update_response(world, theta_X, bsh_x_ops, bsh_y_ops, projector, x_shifts);
 
@@ -292,39 +325,6 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
     size_t n = theta_X.X.size_orbitals();
     bool compute_y = omega != 0.0;
     // construct lhs for 2nd order property
-    X_space T0X = X_space(world, chi.num_states(), chi.num_orbitals());
-    auto chi_copy = chi.copy();
-    T0X.X = T(world, chi_copy.X);
-    if (compute_y) {
-        T0X.Y = T(world, chi_copy.Y);
-    } else {
-        T0X.Y = T0X.X.copy();
-    }
-
-    auto diag_E0X = chi_copy.copy();
-    if (r_params.localize() != "canon") {
-        auto diag_only = hamiltonian - ham_no_diag;
-        diag_E0X.X = diag_E0X.X * diag_only;
-        if (compute_y) {
-            diag_E0X.Y = diag_E0X.Y * diag_only;
-        } else {
-            diag_E0X.Y = diag_E0X.X;
-        }
-    }
-    auto omega = r_params.omega();
-
-    auto V_X = theta_X.copy();
-    V_X += T0X;
-    V_X.X = V_X.X - omega * chi_copy.X;
-    if (compute_y) {
-        V_X.Y = V_X.X + omega * chi_copy.X;
-    } else {
-        V_X.Y = V_X.X.copy();
-    }
-    V_X = V_X - diag_E0X;
-    auto polar = inner(chi_copy, V_X);
-
-    if (world.rank() == 0) { print("new polarizability\n", polar); }
 
     theta_X.X += theta_X.X * x_shifts;
     theta_X.X += PQ.X;
