@@ -285,7 +285,7 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
         V_X.Y = V_X.X.copy();
     }
     V_X = V_X - diag_E0X;
-    auto polar = inner(chi_copy, V_X);
+    auto polar = 2*inner(chi_copy, V_X);
 
     if (world.rank() == 0) { print("new polarizability\n", polar); }
     X_space new_chi =
