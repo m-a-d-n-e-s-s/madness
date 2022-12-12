@@ -435,7 +435,11 @@ auto ResponseBase::compute_theta_X(World &world, const X_space &chi,
     X_space T0X = X_space(world, chi.num_states(), chi.num_orbitals());
     auto chi_copy = chi.copy();
     T0X.X = T(world, chi_copy.X);
-    if (compute_Y) { T0X.Y = T(world, chi_copy.Y); }
+    if (compute_Y) {
+        T0X.Y = T(world, chi_copy.Y);
+    } else {
+        TOX.Y = TOX.X.copy();
+    }
     if (r_params.print_level() >= 20) {
         print("_________________compute F0X _______________________");
         print("inner <X|T0|X>");
@@ -685,7 +689,7 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
      */
 
     int b = 0;
-    for (const auto& rho_b: rho) {
+    for (const auto &rho_b: rho) {
         auto temp_J = apply(*shared_coulomb_operator, rho_b);
         J.X[b++] = mul(world, temp_J, phi0);
     }
