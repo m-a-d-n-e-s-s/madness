@@ -24,7 +24,7 @@ void FrequencyResponse::iterate(World &world) {
     // the Final protocol should be equal to dconv at the minimum
     const double dconv =
             std::max(FunctionDefaults<3>::get_thresh() * 100, r_params.dconv());//.01 .0001 .1e-5
-    const double bsh_abs_target = 950 * FunctionDefaults<3>::get_thresh();
+    const double bsh_abs_target = 1150 * FunctionDefaults<3>::get_thresh();
     // m residuals for x and y
     Tensor<double> bsh_residualsX((int(m)));
     Tensor<double> bsh_residualsY((int(m)));
@@ -214,6 +214,8 @@ void FrequencyResponse::iterate(World &world) {
                 print(eval);
                 print("polarizability eigenvectors");
                 print(evec);
+                print("V polarizability");
+                print(v_polar);
             }
         }
 
@@ -288,9 +290,9 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
         V_X.Y = V_X.X.copy();
     }
     V_X = V_X - diag_E0X;
+    V_X.truncate();
     auto polar = 2 * inner(chi_copy, V_X);
 
-    if (world.rank() == 0) { print("new polarizability\n", polar); }
     X_space new_chi =
             bsh_update_response(world, theta_X, bsh_x_ops, bsh_y_ops, projector, x_shifts);
 
