@@ -868,12 +868,6 @@ auto ResponseBase::compute_lambda_X(World &world, const X_space &chi, XCOperator
     X_space F0X = compute_F0X(world, chi, xc, compute_Y);
     X_space Chi_truncated = chi.copy();
     Chi_truncated.truncate();
-    if (r_params.print_level() >= 5) {
-        print("---------------Lambda ----------------");
-        print("<X|F0|X>");
-        print(inner(Chi_truncated, F0X));
-    }
-    // put it all together
 
     X_space E0X = Chi_truncated.copy();
     E0X.truncate();
@@ -881,13 +875,14 @@ auto ResponseBase::compute_lambda_X(World &world, const X_space &chi, XCOperator
 
     if (compute_Y) { E0X.Y = E0X.Y * hamiltonian; }
     if (r_params.print_level() >= 20) {
-        print("<X|E0|X>");
-        print(inner(Chi_truncated, E0X));
+        auto e0_mx = inner(Chi_truncated, E0X);
+        if (world.rank() == 0) {
+            print("<X|E0|X>");
+            print(e0_mx);
+        }
     }
-
     // put it all together
     X_space gamma;
-
     // compute
     if (calc_type == "full") {
         gamma = compute_gamma_full(world, {chi, ground_orbitals}, xc);
@@ -896,17 +891,22 @@ auto ResponseBase::compute_lambda_X(World &world, const X_space &chi, XCOperator
     } else {
         gamma = compute_gamma_tda(world, {chi, ground_orbitals}, xc);
     }
-    if (r_params.print_level() >= 5) {
-        print("<X|Gamma|X>");
-        print(inner(Chi_truncated, gamma));
+    if (r_params.print_level() >= 20) {
+        auto gamma_mx = inner(Chi_truncated, gamma);
+        if (world.rank() == 0) {
+            print("<X|gamma|X>");
+            print(gamma_mx);
+        }
     }
 
     Lambda_X = (F0X - E0X) + gamma;
     Lambda_X.truncate();
-
-    if (r_params.print_level() >= 5) {
-        print("<X|Lambda_truncated|X>");
-        print(inner(Chi_truncated, Lambda_X));
+    if (r_params.print_level() >= 20) {
+        auto lambda_mx = inner(Chi_truncated, Lambda_X);
+        if (world.rank() == 0) {
+            print("<X|lambda|X>");
+            print(lambda_mx);
+        }
     }
 
     return Lambda_X;
@@ -1086,26 +1086,37 @@ auto ResponseBase::compute_F0X(World &world, const X_space &X, const XCOperator<
     X_space F0X = X_space(world, m, n);
     X_space T0X = X_space(world, m, n);
     T0X.X = T(world, chi_copy.X);
-    if (compute_Y) { T0X.Y = T(world, chi_copy.Y); }
+    if (compute_Y) {
+        T0X.Y = T(world, chi_copy.Y);
+    } else {
+        T0X.Y = T0X.X.copy();
+    }
     if (r_params.print_level() >= 20) {
-        print("_________________compute F0X _______________________");
-        print("inner <X|T0|X>");
-        print(inner(chi_copy, T0X));
+        auto tx_m = inner(chi_copy, T0X);
+        if (world.rank() == 0) {
+            print("_________________compute F0X _______________________");
+            print("inner <X|T0|X>");
+            print(tx_m);
+        }
     }
 
     X_space V0X = compute_V0X(world, chi_copy, xc, compute_Y);
     if (r_params.print_level() >= 20) {
-        print("_________________compute F0X _______________________");
-        print("inner <X|V0|X>");
-        print(inner(chi_copy, V0X));
+        auto vxm = inner(chi_copy, V0X);
+        if (world.rank() == 0) {
+            print("_________________compute F0X _______________________");
+            print("inner <X|V0|X>");
+            print(vxm);
+        }
     }
-
     F0X = T0X + V0X;
-
     if (r_params.print_level() >= 20) {
-        print("_________________compute F0X _______________________");
-        print("inner <X|F0|X>");
-        print(inner(chi_copy, F0X));
+        auto fxm = inner(chi_copy, F0X);
+        if (world.rank() == 0) {
+            print("_________________compute F0X _______________________");
+            print("inner <X|F0|X>");
+            print(fxm);
+        }
     }
 
     molresponse::end_timer(world, "F0X:");
