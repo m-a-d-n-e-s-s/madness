@@ -284,7 +284,7 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
         lambda_X.Y = lambda_X.X.copy();
     }
     lambda_X.truncate();
-    auto polar = 2 * inner(chi_copy, lambda_X);
+    auto polar = 2 * inner(new_chi, lambda_X);
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "update response", "update", iter_timing);
     }
