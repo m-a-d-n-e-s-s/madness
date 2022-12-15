@@ -346,7 +346,6 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "bsh_update", "bsh_update", iter_timing);
     }
-    bsh_X.truncate();
 
     return bsh_X;
 }
