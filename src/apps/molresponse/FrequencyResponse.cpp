@@ -272,41 +272,19 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
     }
     if (iteration > 2) { x_space_step_restriction(world, chi, new_chi, compute_y, maxrotn); }
 
-    X_space new_theta_X = compute_theta_X(world, new_chi, xc, r_params.calc_type());
+    X_space lambda_X = compute_lambda_X(world, new_chi, xc, r_params.calc_type());
     // truncate x
 
-    X_space T0X = X_space(world, chi.num_states(), chi.num_orbitals());
     auto chi_copy = new_chi.copy();
-    T0X.X = T(world, chi_copy.X);
-    if (compute_y) {
-        T0X.Y = T(world, chi_copy.Y);
-    } else {
-        T0X.Y = T0X.X.copy();
-    }
-
-    auto diag_E0X = chi_copy.copy();
-    if (r_params.localize() != "canon") {
-        auto diag_only = hamiltonian - ham_no_diag;
-        diag_E0X.X = diag_E0X.X * diag_only;
-        if (compute_y) {
-            diag_E0X.Y = diag_E0X.Y * diag_only;
-        } else {
-            diag_E0X.Y = diag_E0X.X;
-        }
-    }
     auto omega = r_params.omega();
-
-    auto V_X = new_theta_X.copy();
-    V_X += T0X;
-    V_X.X = V_X.X - omega * chi_copy.X;
+    lambda_X.X = lambda_X.X - omega * chi_copy.X;
     if (compute_y) {
-        V_X.Y = V_X.X + omega * chi_copy.X;
+        lambda_X.Y = lambda_X.X + omega * chi_copy.X;
     } else {
-        V_X.Y = V_X.X.copy();
+        lambda_X.Y = lambda_X.X.copy();
     }
-    V_X = V_X - diag_E0X;
-    V_X.truncate();
-    auto polar = 2 * inner(chi_copy, V_X);
+    lambda_X.truncate();
+    auto polar = 2 * inner(chi_copy, lambda_X);
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "update response", "update", iter_timing);
     }
