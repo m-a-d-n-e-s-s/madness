@@ -296,7 +296,7 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
     }
     auto omega = r_params.omega();
 
-    auto V_X = theta_X.copy();
+    auto V_X = new_theta_X.copy();
     V_X += T0X;
     V_X.X = V_X.X - omega * chi_copy.X;
     if (compute_y) {
