@@ -663,6 +663,7 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
         J.X[b++] = mul(world, temp_J, phi0);
     }
     //std::transform(rho.begin(), rho.end(), J.X.begin(), compute_jx);
+    J.X.truncate_rf();
     J.Y = J.X.copy();
 
     if (r_params.print_level() >= 1) {
@@ -681,6 +682,7 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
             molresponse::end_timer(world, "XC[omega]", "XC[omega]", iter_timing);
         }
     }
+
 
     /*
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
@@ -730,6 +732,7 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_truncate_add", "gamma_truncate_add", iter_timing);
     }
+    gamma.truncate();
 
     // project out ground state
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
