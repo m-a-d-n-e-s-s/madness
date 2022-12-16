@@ -1088,6 +1088,61 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
     return V0;
 }
 
+// Returns the ground state potential applied to functions f
+// (V0 f) V0=(Vnuc+J0-K0+W0)
+// J0=J[ground_density]
+// K0=K[ground_density]f
+// EXC0=W[ground_density]
+auto ResponseBase::compute_TX(World &world, const X_space &x, bool compute_Y) const -> X_space {
+    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
+
+    X_space T0X = X_space(world, x.num_states(), x.num_orbitals());
+
+    real_derivative_3d Dx(world, 0);
+    real_derivative_3d Dy(world, 1);
+    real_derivative_3d Dz(world, 2);
+
+    if (compute_Y) {
+        auto t_xx = create_response_matrix(x.num_states(), x.num_orbitals());
+        auto xx = to_response_matrix(x);
+        int b = 0;
+        for (const auto xi: xx) {
+            vecfuncT dvx = apply(world, Dx, xi, false);
+            vecfuncT dvy = apply(world, Dy, xi, false);
+            vecfuncT dvz = apply(world, Dz, xi, false);
+            world.gop.fence();
+            compress(world, dvx, false);
+            compress(world, dvy, false);
+            compress(world, dvz, false);
+            world.gop.fence();
+            vecfuncT dvx2 = apply(world, Dx, dvx, false);
+            vecfuncT dvy2 = apply(world, Dy, dvy, false);
+            vecfuncT dvz2 = apply(world, Dz, dvz, false);
+            world.gop.fence();
+            t_xx[b++] = (dvx2 + dvy2 + dvz2) * (-0.5);
+        }
+        T0X = to_X_space(t_xx);
+    } else {
+        int b = 0;
+        for (const auto xi: x.X) {
+            vecfuncT dvx = apply(world, Dx, xi, false);
+            vecfuncT dvy = apply(world, Dy, xi, false);
+            vecfuncT dvz = apply(world, Dz, xi, false);
+            world.gop.fence();
+            compress(world, dvx, false);
+            compress(world, dvy, false);
+            compress(world, dvz, false);
+            world.gop.fence();
+            vecfuncT dvx2 = apply(world, Dx, dvx, false);
+            vecfuncT dvy2 = apply(world, Dy, dvy, false);
+            vecfuncT dvz2 = apply(world, Dz, dvz, false);
+            world.gop.fence();
+            T0X.X[b++] = (dvx2 + dvy2 + dvz2) * (-0.5);
+        }
+        T0X.Y = T0X.X.copy();
+    }
+    return T0X;
+}
 // Returns the ground state fock operator applied to functions f
 auto ResponseBase::compute_F0X(World &world, const X_space &X, const XCOperator<double, 3> &xc,
                                bool compute_Y) const -> X_space {

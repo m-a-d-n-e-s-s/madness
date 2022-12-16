@@ -294,6 +294,7 @@ protected:
                                const Tensor<double> &xij_norms, const Tensor<double> &xij_res_norms,
                                const Tensor<double> &rho_norms,
                                const Tensor<double> &rho_res_norms);
+    X_space compute_TX(World &world, const X_space &X, bool compute_Y) const;
 };
 
 
