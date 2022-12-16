@@ -52,7 +52,7 @@ private:
                                           std::vector<poperatorT> &bsh_y_ops,
                                           QProjector<double, 3> &projector, double &x_shifts,
                                           double &omega_n, response_solver &kain_x_space,
-                                          size_t iteration, const double &maxrotn);
+                                          size_t iteration, const double &max_rotation);
 };
 
 
