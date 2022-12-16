@@ -1095,7 +1095,6 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
 // EXC0=W[ground_density]
 auto ResponseBase::compute_TX(World &world, const X_space &x, bool compute_Y) const -> X_space {
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-
     X_space T0X = X_space(world, x.num_states(), x.num_orbitals());
 
     real_derivative_3d Dx(world, 0);
@@ -1106,7 +1105,7 @@ auto ResponseBase::compute_TX(World &world, const X_space &x, bool compute_Y) co
         auto t_xx = create_response_matrix(x.num_states(), x.num_orbitals());
         auto xx = to_response_matrix(x);
         int b = 0;
-        for (const auto xi: xx) {
+        for (const auto &xi: xx) {
             vecfuncT dvx = apply(world, Dx, xi, false);
             vecfuncT dvy = apply(world, Dy, xi, false);
             vecfuncT dvz = apply(world, Dz, xi, false);
@@ -1124,7 +1123,7 @@ auto ResponseBase::compute_TX(World &world, const X_space &x, bool compute_Y) co
         T0X = to_X_space(t_xx);
     } else {
         int b = 0;
-        for (const auto xi: x.X) {
+        for (const auto &xi: x.X) {
             vecfuncT dvx = apply(world, Dx, xi, false);
             vecfuncT dvy = apply(world, Dy, xi, false);
             vecfuncT dvz = apply(world, Dz, xi, false);

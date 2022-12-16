@@ -264,20 +264,16 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
 
     // Just compute theta x and lambda x compoenents here
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    X_space V0X = compute_V0X(world, x, xc, compute_y);
+    X_space V0X = compute_V0X(world, chi, xc, compute_y);
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "compute_V0X", "compute_V0X", iter_timing);
-        if (r_params.print_level() >= 20 && world.rank() == 0) {
-            print_inner(world, "xV0x", chi, V0X);
-        }
+        if (r_params.print_level() >= 20) { print_inner(world, "xV0x", chi, V0X); }
     }
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    X_space TOX = compute_TX(world, x, compute_y);
+    X_space TOX = compute_TX(world, chi, compute_y);
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "compute_TX", "TX", iter_timing);
-        if (r_params.print_level() >= 20 && world.rank() == 0) {
-            print_inner(world, "xTx", chi, TOX);
-        }
+        if (r_params.print_level() >= 20) { print_inner(world, "xTx", chi, TOX); }
     }
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
@@ -290,9 +286,9 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
             full_E0X.X = x.X * hamiltonian;
             full_E0X.Y = x.Y * hamiltonian;
         } else {
-            offdiag_E0X.X = offdiag_E0X.X * ham_no_diag;
+            offdiag_E0X.X = x.X * ham_no_diag;
             offdiag_E0X.Y = offdiag_E0X.X.copy();
-            full_E0X.X = full_E0X.X * hamiltonian;
+            full_E0X.X = x.X * hamiltonian;
             full_E0X.Y = full_E0X.X.copy();
         }
     }
@@ -319,7 +315,7 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
         molresponse::end_timer(world, "compute_ThetaX_add", "compute_ThetaX_add", iter_timing);
     }
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    theta_X = (TOX + V0X - full_E0X) + gamma;
+    lambda_X = (TOX + V0X - full_E0X+omega_X) + gamma;
     if (r_params.print_level() >= 1) { molresponse::end_timer(world, "lambda_x"); }
     auto polar = 2 * inner(x, lambda_X);
     X_space new_chi =
