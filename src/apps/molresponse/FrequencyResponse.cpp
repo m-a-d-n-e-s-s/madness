@@ -24,7 +24,7 @@ void FrequencyResponse::iterate(World &world) {
     // the Final protocol should be equal to dconv at the minimum
     const double dconv =
             std::max(FunctionDefaults<3>::get_thresh() * 100, r_params.dconv());//.01 .0001 .1e-5
-    const double bsh_abs_target = 575.75 * FunctionDefaults<3>::get_thresh() - 5.5e-4;
+    const double bsh_abs_target = 575.75 * FunctionDefaults<3>::get_thresh() + 2.0e-5;
     // m residuals for x and y
     Tensor<double> bsh_residualsX((int(m)));
     Tensor<double> bsh_residualsY((int(m)));
