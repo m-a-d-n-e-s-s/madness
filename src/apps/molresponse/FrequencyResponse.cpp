@@ -292,13 +292,10 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
             full_E0X.Y = full_E0X.X.copy();
         }
     }
+    full_E0X.truncate();
+    offdiag_E0X.truncate();
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "compute_E0X", "compute_E0X", iter_timing);
-    }
-    X_space omega_X = X_space::zero_functions(world, chi.num_states(), chi.num_orbitals());
-    if (compute_y) {
-        omega_X.X = -omega * x.X;
-        omega_X.Y = omega * x.Y;
     }
     X_space gamma;
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
@@ -311,11 +308,18 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     theta_X = (V0X - offdiag_E0X) + gamma;
+    theta_X.truncate();
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "compute_ThetaX_add", "compute_ThetaX_add", iter_timing);
     }
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    lambda_X = (TOX + V0X - full_E0X+omega_X) + gamma;
+    X_space omega_X = X_space::zero_functions(world, chi.num_states(), chi.num_orbitals());
+    if (compute_y) {
+        omega_X.X = -omega * x.X;
+        omega_X.Y = omega * x.Y;
+    }
+    lambda_X = TOX + V0X - full_E0X + omega_X + gamma;
+    lambda_X.truncate();
     if (r_params.print_level() >= 1) { molresponse::end_timer(world, "lambda_x"); }
     auto polar = 2 * inner(x, lambda_X);
     X_space new_chi =
@@ -389,6 +393,7 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
         molresponse::end_timer(world, "bsh_update", "bsh_update", iter_timing);
     }
 
+    bsh_X.truncate();
     return bsh_X;
 }
 

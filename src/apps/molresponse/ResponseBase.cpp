@@ -1048,6 +1048,7 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
                        [&](const auto &xi) { return mul_sparse(world, v0, xi, vtol, false); });
         world.gop.fence();
         V0 = to_X_space(vx);
+        V0.truncate();
         //V0 = v0 * X;
         if (world.rank() == 0) { print("vox: v0=v0*X"); }
         V0 += -c_xc * K0;
@@ -1058,9 +1059,11 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
         std::transform(X.X.begin(), X.X.end(), V0.X.begin(),
                        [&](const auto &xi) { return mul_sparse(world, v0, xi, vtol, false); });
         world.gop.fence();
+        V0.X.truncate_rf();
         //V0.X = v0 * X.X;
         if (world.rank() == 0) { print("vox: v0=v0*X"); }
         V0.X += -c_xc * K0.X;
+
         if (world.rank() == 0) { print("vox: v0+=c_xc*K0"); }
         V0.Y = V0.X.copy();
     }
