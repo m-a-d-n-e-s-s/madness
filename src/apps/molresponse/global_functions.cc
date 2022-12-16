@@ -372,6 +372,7 @@ auto response_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, cons
             K.X[b] = gaxpy_oop(1.0, k1x, 1.0, k2x, true);
         }
     }
+    K.truncate();
     return K;
 }
 
@@ -419,6 +420,8 @@ auto ground_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, const 
             op_0x.set_algorithm(algo);
             K0.X[b] = op_0x(chi.X[b]);
         }
+        K0.Y = K0.X.copy();
     }
+    K0.truncate();
     return K0;
 }
