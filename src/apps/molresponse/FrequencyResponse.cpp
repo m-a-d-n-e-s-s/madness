@@ -258,90 +258,79 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
     size_t m = chi.num_states();
     bool compute_y = omega_n != 0.0;
     auto x = chi.copy();// copy chi
-    X_space V0X = compute_V0X(world, x, xc, compute_y);
-    X_space TOX = compute_TX(world, x, compute_y);
-
+    X_space lambda_X = X_space(world, chi.num_states(), chi.num_orbitals());
+    X_space theta_X = X_space(world, chi.num_states(), chi.num_orbitals());
+    // We are going to build lambda and theta from individual components
 
     // Just compute theta x and lambda x compoenents here
-    X_space Theta_X = X_space(world, chi.num_states(), chi.num_orbitals());
-    world.gop.fence();
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    X_space V0X = compute_V0X(world, chi, xc, compute_y);
-    //V0X.truncate();
+    X_space V0X = compute_V0X(world, x, xc, compute_y);
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "compute_V0X", "compute_V0X", iter_timing);
+        if (r_params.print_level() >= 20 && world.rank() == 0) {
+            print_inner(world, "xV0x", chi, V0X);
+        }
     }
-    if (r_params.print_level() >= 20) { print_inner(world, "xV0x", chi, V0X); }
+    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
+    X_space TOX = compute_TX(world, x, compute_y);
+    if (r_params.print_level() >= 1) {
+        molresponse::end_timer(world, "compute_TX", "TX", iter_timing);
+        if (r_params.print_level() >= 20 && world.rank() == 0) {
+            print_inner(world, "xTx", chi, TOX);
+        }
+    }
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    X_space E0X(world, chi.num_states(), chi.num_orbitals());
+    X_space full_E0X(world, chi.num_states(), chi.num_orbitals());
+    X_space offdiag_E0X(world, chi.num_states(), chi.num_orbitals());
     if (r_params.localize() != "canon") {
-        E0X = chi.copy();
-        E0X.X = E0X.X * ham_no_diag;
-        if (compute_Y) { E0X.Y = E0X.Y * ham_no_diag; }
-        if (r_params.print_level() >= 20) { print_inner(world, "xE0x", chi, E0X); }
+        if (compute_y) {
+            offdiag_E0X.X = x.X * ham_no_diag;
+            offdiag_E0X.Y = x.Y * ham_no_diag;
+            full_E0X.X = x.X * hamiltonian;
+            full_E0X.Y = x.Y * hamiltonian;
+        } else {
+            offdiag_E0X.X = offdiag_E0X.X * ham_no_diag;
+            offdiag_E0X.Y = offdiag_E0X.X.copy();
+            full_E0X.X = full_E0X.X * hamiltonian;
+            full_E0X.Y = full_E0X.X.copy();
+        }
     }
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "compute_E0X", "compute_E0X", iter_timing);
     }
-
+    X_space omega_X = X_space::zero_functions(world, chi.num_states(), chi.num_orbitals());
+    if (compute_y) {
+        omega_X.X = -omega * x.X;
+        omega_X.Y = omega * x.Y;
+    }
     X_space gamma;
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    if (calc_type == "full") {
-        gamma = compute_gamma_full(world, {chi, ground_orbitals}, xc);
-    } else if (calc_type == "static") {
+    if (compute_y) gamma = compute_gamma_full(world, {chi, ground_orbitals}, xc);
+    else
         gamma = compute_gamma_static(world, {chi, ground_orbitals}, xc);
-    } else {
-        gamma = compute_gamma_tda(world, {chi, ground_orbitals}, xc);
-    }
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_compute", "gamma_compute", iter_timing);
     }
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    // Right here I can compute the polarizability before I try a KAIN UPDATE or step restriction
-
-
-    Theta_X = (V0X - E0X) + gamma;
-    world.gop.fence();
-    Theta_X.truncate();
-    //    Theta_X.truncate();
+    theta_X = (V0X - offdiag_E0X) + gamma;
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "compute_ThetaX_add", "compute_ThetaX_add", iter_timing);
     }
-    if (r_params.print_level() >= 20) { print_inner(world, "xThetax", chi, Theta_X); }
-    if (r_params.print_level() >= 1) {
-        molresponse::end_timer(world, "compute_ThetaX", "compute_ThetaX", iter_timing);
-    }
-
-
-    X_space theta_X = compute_theta_X(world, chi, xc, r_params.calc_type());
-
+    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
+    theta_X = (TOX + V0X - full_E0X) + gamma;
+    if (r_params.print_level() >= 1) { molresponse::end_timer(world, "lambda_x"); }
+    auto polar = 2 * inner(x, lambda_X);
     X_space new_chi =
             bsh_update_response(world, theta_X, bsh_x_ops, bsh_y_ops, projector, x_shifts);
-
     auto [new_res, bsh] = compute_residual(world, chi, new_chi, r_params.calc_type());
-
-    // kain update with temp adjusts temp
     //&& iteration < 7
-    if (r_params.kain() && (iteration > 2) && (iteration < 8)) {// & (iteration % 2 == 0)) {
+    if (r_params.kain() && (iteration > 2)) {// & (iteration % 2 == 0)) {
         new_chi = kain_x_space_update(world, chi, new_res, kain_x_space);
     }
     if (iteration > 2) { x_space_step_restriction(world, chi, new_chi, compute_y, max_rotation); }
 
-    X_space lambda_X = compute_lambda_X(world, new_chi, xc, r_params.calc_type());
-    // truncate x
-
-    auto chi_copy = new_chi.copy();
-    auto omega_a = r_params.omega();
-    lambda_X.X = lambda_X.X - omega_a * chi_copy.X;
-    if (compute_y) {
-        lambda_X.Y = lambda_X.X + omega_a * chi_copy.X;
-    } else {
-        lambda_X.Y = lambda_X.X.copy();
-    }
-    lambda_X.truncate();
-    auto polar = 2 * inner(new_chi, lambda_X);
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "update response", "update", iter_timing);
     }
