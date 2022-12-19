@@ -48,9 +48,7 @@ void FrequencyResponse::iterate(World &world) {
     // create a std vector of XNONLinearsolvers
     response_solver kain_x_space;
     for (size_t b = 0; b < m; b++) {
-        kain_x_space.push_back(
-                XNonlinearSolver<vector_real_function_3d, double, response_matrix_allocator>(
-                        response_matrix_allocator(world, r_vector_size), false));
+        kain_x_space.emplace_back(response_matrix_allocator(world, r_vector_size), false);
     }
     if (r_params.kain()) {
         for (auto &kain_space_b: kain_x_space) { kain_space_b.set_maxsub(r_params.maxsub()); }
@@ -197,7 +195,19 @@ void FrequencyResponse::iterate(World &world) {
             molresponse::end_timer(world, "copy_response_data", "copy_response_data", iter_timing);
         }
         if (world.rank() == 0) { print("computing chi norms: xij residuals"); }
-        density_residuals = norm2s_T(world, (rho_omega - rho_omega_old));
+
+        if (compute_y) {
+            xij_res_norms = new_res.residual.component_norm2s();
+            xij_norms = Chi.component_norm2s();
+        } else {
+            // TODO this is a waste but needs to be done for the analysis scripts to work.  Let's remove it later
+            new_res.residual.Y = new_res.residual.X;
+            Chi.Y = Chi.X;
+            xij_res_norms = new_res.residual.component_norm2s();
+            xij_norms = Chi.component_norm2s();
+        }
+        auto density_change = madness::sub(world, rho_omega, rho_omega_old, true);
+        density_residuals = norm2s_T(world, density_change);
         if (world.rank() == 0) { print("computing residuals: density residuals"); }
         Tensor<double> polar;
         if (compute_y) {
