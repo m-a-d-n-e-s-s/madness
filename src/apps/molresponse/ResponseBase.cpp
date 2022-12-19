@@ -320,7 +320,8 @@ void ResponseBase::load_balance_chi(World &world) {
     molresponse::end_timer(world, "Load balancing");
 }
 
-auto ResponseBase::make_bsh_operators_response(World &world, double &shift, double &omega) const
+auto ResponseBase::make_bsh_operators_response(World &world, double &shift,
+                                               const double omega) const
         -> std::vector<poperatorT> {
     if (r_params.print_level() >= 1) molresponse::start_timer(world);
 
@@ -498,43 +499,12 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
             molresponse::end_timer(world, "XC[omega]", "XC[omega]", iter_timing);
         }
     }
-    /*
-    X_space K1 = X_space::zero_functions(world, num_states, num_orbitals);
-    X_space K2 = X_space::zero_functions(world, num_states, num_orbitals);
-    auto phi0_c = madness::copy(world, phi0);
-    vecfuncT x, y;
-    for (size_t b = 0; b < num_states; b++) {
-        x = chi_alpha.X[b];
-        y = chi_alpha.Y[b];
-        K1.X[b] = newK(x, phi0, phi0_c);
-        world.gop.fence();
-        K1.Y[b] = newK(y, phi0, phi0_c);
-        world.gop.fence();
-        K2.X[b] = newK(phi0, y, phi0_c);
-        world.gop.fence();
-        K2.Y[b] = newK(phi0, x, phi0_c);
-        world.gop.fence();
-    }
-    auto K = K1 + K2;
-    world.gop.fence();
-    if (r_params.print_level() >= 20) { print_inner(world, "old xK1x", chi_alpha, K1); }
-    if (r_params.print_level() >= 20) { print_inner(world, "old xK2x", chi_alpha, K2); }
-    if (r_params.print_level() >= 20) { print_inner(world, "old xKx", chi_alpha, K); }
-     */
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     auto K = response_exchange_multiworld(phi0, chi_alpha, true);
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "K[omega]", "K[omega]", iter_timing);
     }
     if (r_params.print_level() >= 20) { print_inner(world, "old xKx", chi_alpha, K); }
-    /*
-    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    if (r_params.print_level() >= 1) {
-        K = response_exchange(phi0, chi_alpha, true);
-        molresponse::end_timer(world, "K[omega] multiworld");
-        print_inner(world, "new xKx", chi_alpha, K);
-    }
-     */
     molresponse::start_timer(world);
     X_space gamma(world, num_states, num_orbitals);
     auto c_xc = xcf.hf_exchange_coefficient();
@@ -554,9 +524,10 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     // project out ground state
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     QProjector<double, 3> projector(world, phi0);
-    for (size_t i = 0; i < num_states; i++) { gamma.X[i] = projector(gamma.X[i]); }
-    world.gop.fence();
-    for (size_t i = 0; i < num_states; i++) { gamma.Y[i] = projector(gamma.Y[i]); }
+    for (size_t i = 0; i < num_states; i++) {
+        gamma.X[i] = projector(gamma.X[i]);
+        gamma.Y[i] = projector(gamma.Y[i]);
+    }
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_project", "gamma_project", iter_timing);
     }
@@ -1189,10 +1160,17 @@ auto ResponseBase::compute_residual(World &world, const X_space &chi, const X_sp
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     size_t m = chi.X.size();
     size_t n = chi.X.size_orbitals();
+    bool compute_y = r_params.omega() != 0.0;
     //	compute residual
+    Tensor<double> residual_norms;
     X_space res(world, m, n);
-    res = g_chi - chi;
-    auto residual_norms = res.norm2s();
+    if (compute_y) {
+        res = g_chi - chi;
+        residual_norms = res.norm2s();
+    } else {
+        res.X = g_chi.X - chi.X;
+        residual_norms = res.X.norm2();
+    }
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "compute_bsh_residual", "compute_bsh_residual", iter_timing);
     }
@@ -1208,16 +1186,26 @@ auto ResponseBase::kain_x_space_update(World &world, const X_space &chi,
     size_t n = chi.num_orbitals();
     X_space kain_update(world, m, n);
     response_matrix update(m);
-    auto x_vectors = to_response_matrix(chi);
-    auto x_residuals = to_response_matrix(residual_chi);
+
+    bool compute_y = r_params.omega() != 0.0;
     if (world.rank() == 0) { print("----------------Start Kain Update -----------------"); }
-    int b = 0;
-    for (auto &kain_xb: kain_x_space) {
-        update[b] = kain_xb.update(x_vectors[b], x_residuals[b]);
-        b++;
+    if (compute_y) {
+        auto x_vectors = to_response_matrix(chi);
+        auto x_residuals = to_response_matrix(residual_chi);
+        int b = 0;
+        for (auto &kain_xb: kain_x_space) {
+            update[b] = kain_xb.update(x_vectors[b], x_residuals[b]);
+            b++;
+        }
+        world.gop.fence();
+        kain_update = to_X_space(update);
+    } else {
+        int b = 0;
+        for (auto &kain_xb: kain_x_space) {
+            kain_update.X[b] = kain_xb.update(chi.X[b], residual_chi.X[b]);
+            b++;
+        }
     }
-    world.gop.fence();
-    kain_update = to_X_space(update);
     if (world.rank() == 0) { print("----------------End Kain Update -----------------"); }
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "kain_x_update", "kain_x_update", iter_timing);
@@ -1226,36 +1214,62 @@ auto ResponseBase::kain_x_space_update(World &world, const X_space &chi,
 }
 
 void ResponseBase::x_space_step_restriction(World &world, const X_space &old_Chi, X_space &temp,
-                                            bool restrict_y, const double &maxrotn) {
+                                            bool restrict_y, const double &max_bsh_rotation) {
     size_t m = old_Chi.num_states();
     size_t n = old_Chi.num_orbitals();
 
-    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    print(maxrotn);
-    auto diff = temp - old_Chi;
-    auto m_old = to_response_matrix(old_Chi);
-    auto m_new = to_response_matrix(temp);
-    auto m_diff = to_response_matrix(diff);
+    bool compute_y = r_params.omega() != 0.0;
 
+    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
+    print(max_bsh_rotation);
     if (world.rank() == 0) { print("----------------Start Step Restriction -----------------"); }
-    for (size_t b = 0; b < m; b++) {
-        auto step_size = norm2(world, m_diff[b]);
-        auto norm_xb = norm2(world, m_old[b]);
-        auto max_step = maxrotn;//norm;//* norm_xb;
-        if (world.rank() == 0) {
-            print("---------------- step restriction :", b, " ------------------");
-            if (world.rank() == 0) { print("X[b]: ", norm_xb); }
-            if (world.rank() == 0) { print("deltaX[b]: ", step_size); }
-            if (world.rank() == 0) { print("max_step = max_rotation*norm_X: ", max_step); }
-        }
-        if (step_size > max_step && step_size < 10000 * FunctionDefaults<3>::get_thresh()) {
-            // and if the step size is less thant 10% the vector norm
-            double s = .80 * max_step / step_size;
+    if (compute_y) {
+        auto diff = temp - old_Chi;
+        auto m_old = to_response_matrix(old_Chi);
+        auto m_new = to_response_matrix(temp);
+        auto m_diff = to_response_matrix(diff);
+
+        for (size_t b = 0; b < m; b++) {
+            auto step_size = norm2(world, m_diff[b]);
+            auto norm_xb = norm2(world, m_old[b]);
+            auto max_step = max_bsh_rotation;//norm;//* norm_xb;
             if (world.rank() == 0) {
-                if (r_params.print_level() > 1)
-                    print("  restricting step for response-state: ", b, " step size", s);
+                print("---------------- step restriction :", b, " ------------------");
+                if (world.rank() == 0) { print("X[b]: ", norm_xb); }
+                if (world.rank() == 0) { print("deltaX[b]: ", step_size); }
+                if (world.rank() == 0) { print("max_step = max_rotation*norm_X: ", max_step); }
             }
-            gaxpy(world, s, m_new[b], (1.0 - s), m_old[b], false);
+            if (step_size > max_step && step_size < 10000 * FunctionDefaults<3>::get_thresh()) {
+                // and if the step size is less thant 10% the vector norm
+                double s = .80 * max_step / step_size;
+                if (world.rank() == 0) {
+                    if (r_params.print_level() > 1)
+                        print("  restricting step for response-state: ", b, " step size", s);
+                }
+                gaxpy(world, s, m_new[b], (1.0 - s), m_old[b], false);
+            }
+        }
+    } else {
+        auto diff = temp.X - old_Chi.X;
+        for (size_t b = 0; b < m; b++) {
+            auto step_size = norm2(world, diff[b]);
+            auto norm_xb = norm2(world, old_Chi.X[b]);
+            auto max_step = max_bsh_rotation;//norm;//* norm_xb;
+            if (world.rank() == 0) {
+                print("---------------- step restriction :", b, " ------------------");
+                if (world.rank() == 0) { print("X[b]: ", norm_xb); }
+                if (world.rank() == 0) { print("deltaX[b]: ", step_size); }
+                if (world.rank() == 0) { print("max_step = max_rotation*norm_X: ", max_step); }
+            }
+            if (step_size > max_step && step_size < 10000 * FunctionDefaults<3>::get_thresh()) {
+                // and if the step size is less thant 10% the vector norm
+                double s = .80 * max_step / step_size;
+                if (world.rank() == 0) {
+                    if (r_params.print_level() > 1)
+                        print("  restricting step for response-state: ", b, " step size", s);
+                }
+                gaxpy(world, s, temp.X[b], (1.0 - s), old_Chi.X[b], false);
+            }
         }
     }
     if (world.rank() == 0) { print("----------------End Step Restriction -----------------"); }

@@ -30,8 +30,14 @@ void FrequencyResponse::iterate(World &world) {
     Tensor<double> bsh_residualsY((int(m)));
     Tensor<double> density_residuals((int(m)));
 
-    Tensor<double> xij_norms(m, 2 * n);
-    Tensor<double> xij_res_norms(m, 2 * n);
+    bool static_res = (omega == 0.0);
+    bool compute_y = not static_res;
+    int r_vector_size;
+
+    r_vector_size = (compute_y) ? 2 * n : n;
+
+    Tensor<double> xij_norms(m, r_vector_size);
+    Tensor<double> xij_res_norms(m, r_vector_size);
     Tensor<double> v_polar(m, m);
 
     vecfuncT rho_omega_old(m);
@@ -44,7 +50,7 @@ void FrequencyResponse::iterate(World &world) {
     for (size_t b = 0; b < m; b++) {
         kain_x_space.push_back(
                 XNonlinearSolver<vector_real_function_3d, double, response_matrix_allocator>(
-                        response_matrix_allocator(world, 2 * n), false));
+                        response_matrix_allocator(world, r_vector_size), false));
     }
     if (r_params.kain()) {
         for (auto &kain_space_b: kain_x_space) { kain_space_b.set_maxsub(r_params.maxsub()); }
@@ -64,19 +70,10 @@ void FrequencyResponse::iterate(World &world) {
     }
     auto bsh_x_ops = make_bsh_operators_response(world, x_shifts, omega);
     std::vector<poperatorT> bsh_y_ops;
-
-    bool static_res = (omega == 0.0);
-    bool compute_y = not static_res;
-    // Negate omega to make this next set of BSH operators \eps - omega
-    if (compute_y) {
-        omega = -omega;
-        bsh_y_ops = make_bsh_operators_response(world, y_shifts, omega);
-        omega = -omega;
-    }
+    bsh_y_ops = (compute_y) ? make_bsh_operators_response(world, y_shifts, -omega) : bsh_x_ops;
     vector_real_function_3d rho_omega = make_density(world, Chi);
     converged = false;// Converged flag
     auto thresh = FunctionDefaults<3>::get_thresh();
-
     auto max_rotation = .5;
     if (thresh >= 1e-2) {
         max_rotation = 2;
@@ -87,7 +84,6 @@ void FrequencyResponse::iterate(World &world) {
     } else if (thresh >= 1e-7) {
         max_rotation = .01;
     }
-
     functionT mask;
     mask = real_function_3d(real_factory_3d(world).f(mask3).initial_level(4).norefine());
     PQ = generator(world, *this);
@@ -123,13 +119,12 @@ void FrequencyResponse::iterate(World &world) {
             Tensor<double> polar = -2 * inner(Chi, PQ);
             world.gop.fence();
             // Todo add chi norm and chi_x
-            function_data_to_json(j_molresponse, iter, chi_norms, bsh_residualsX, relative_bsh,
-                                  xij_norms, xij_res_norms, rho_norms, density_residuals);
-            frequency_to_json(j_molresponse, iter, polar, v_polar);
-            world.gop.fence();
-
+            if (world.rank() == 0) {
+                function_data_to_json(j_molresponse, iter, chi_norms, bsh_residualsX, relative_bsh,
+                                      xij_norms, xij_res_norms, rho_norms, density_residuals);
+                frequency_to_json(j_molresponse, iter, polar, v_polar);
+            }
             if (r_params.print_level() >= 1) {
-
                 if (world.rank() == 0) {
                     print("thresh: ", FunctionDefaults<3>::get_thresh());
                     print("k: ", FunctionDefaults<3>::get_k());
@@ -187,8 +182,6 @@ void FrequencyResponse::iterate(World &world) {
         if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
         bsh_residualsX = copy(new_res.residual_norms);
         if (world.rank() == 0) { print("copy tensors: bshX"); }
-        bsh_residualsY = copy(new_res.residual_norms);
-        if (world.rank() == 0) { print("copy tensors: bshY"); }
         Chi = new_chi.copy();
         if (world.rank() == 0) { print("copy chi:"); }
         if (r_params.print_level() >= 1) {
@@ -291,9 +284,9 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
             full_E0X.X = x.X * hamiltonian;
             full_E0X.Y = full_E0X.X.copy();
         }
+        full_E0X.truncate();
+        offdiag_E0X.truncate();
     }
-    full_E0X.truncate();
-    offdiag_E0X.truncate();
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "compute_E0X", "compute_E0X", iter_timing);
     }
@@ -307,8 +300,14 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
     }
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    theta_X = (V0X - offdiag_E0X) + gamma;
-    theta_X.truncate();
+    if (compute_y) {
+        theta_X = (V0X - offdiag_E0X) + gamma;
+        theta_X.truncate();
+    } else {
+        theta_X.X = (V0X.X - offdiag_E0X.X + gamma.X);
+        theta_X.X.truncate_rf();
+        theta_X.Y = theta_X.X.copy();
+    }
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "compute_ThetaX_add", "compute_ThetaX_add", iter_timing);
     }
@@ -317,11 +316,20 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
     if (compute_y) {
         omega_X.X = -omega * x.X;
         omega_X.Y = omega * x.Y;
+        lambda_X = TOX + V0X - full_E0X + omega_X + gamma;
+        lambda_X.truncate();
+    } else {
+        lambda_X.X = TOX.X + V0X.X - full_E0X.X + gamma.X;
+        lambda_X.X.truncate_rf();
     }
-    lambda_X = TOX + V0X - full_E0X + omega_X + gamma;
-    lambda_X.truncate();
+
     if (r_params.print_level() >= 1) { molresponse::end_timer(world, "lambda_x"); }
-    auto polar = 2 * inner(x, lambda_X);
+    Tensor<double> polar;
+    if (compute_y) {
+        polar = 2 * inner(x, lambda_X);
+    } else {
+        polar = 4 * response_space_inner(x.X, lambda_X.X);
+    }
     X_space new_chi =
             bsh_update_response(world, theta_X, bsh_x_ops, bsh_y_ops, projector, x_shifts);
     auto [new_res, bsh] = compute_residual(world, chi, new_chi, r_params.calc_type());
@@ -359,16 +367,14 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
     theta_X.X += PQ.X;
     theta_X.X = theta_X.X * -2;
     world.gop.fence();
-    if (world.rank() == 0) { print("--------------- ThetaX.X------------------"); }
-
     if (compute_y) {
         theta_X.Y += PQ.Y;
         theta_X.Y = theta_X.Y * -2;
+        theta_X.truncate();
+    } else {
+        theta_X.X.truncate_rf();
     }
-    theta_X.truncate();
     world.gop.fence();
-
-    if (world.rank() == 0) { print("--------------- ThetaX.Y------------------"); }
     // apply bsh
     X_space bsh_X(world, m, n);
     /*
@@ -384,16 +390,16 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
     for (size_t i = 0; i < m; i++) bsh_X.X[i] = projector(bsh_X.X[i]);
     if (compute_y) {
         for (size_t i = 0; i < m; i++) { bsh_X.Y[i] = projector(bsh_X.Y[i]); }
-    } else {
-        bsh_X.Y = bsh_X.X.copy();
     }
     if (world.rank() == 0) { print("--------------- Project BSH------------------"); }
-
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "bsh_update", "bsh_update", iter_timing);
     }
-
-    bsh_X.truncate();
+    if (compute_y) {
+        bsh_X.truncate();
+    } else {
+        bsh_X.X.truncate_rf();
+    }
     return bsh_X;
 }
 

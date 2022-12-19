@@ -194,7 +194,7 @@ protected:
 
     void load_balance_chi(World &world);
 
-    auto make_bsh_operators_response(World &world, double &shift, double &omega) const
+    auto make_bsh_operators_response(World &world, double &shift, const double omega) const
     -> vector<poperatorT>;
 
 
@@ -202,7 +202,7 @@ protected:
                              response_solver &kain_x_space) -> X_space;
 
     void x_space_step_restriction(World &world, const X_space &old_Chi, X_space &temp,
-                                  bool restrict_y, const double &maxrotn);
+                                  bool restrict_y, const double &max_bsh_rotation);
 
     void plotResponseOrbitals(World &world, size_t iteration, const response_space &x_response,
                               const response_space &y_response,
