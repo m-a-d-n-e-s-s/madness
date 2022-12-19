@@ -107,16 +107,21 @@ void FrequencyResponse::iterate(World &world) {
             }
             double d_residual = density_residuals.max();
             // Test convergence and set to true
-            auto chi_norms = Chi.norm2s();
+            auto chi_norms = (compute_y) ? Chi.norm2s() : Chi.X.norm2();
             auto relative_bsh = copy(bsh_residualsX);
             auto rho_norms = norm2s_T(world, rho_omega);
             std::transform(bsh_residualsX.ptr(), bsh_residualsX.ptr() + bsh_residualsX.size(),
                            chi_norms.ptr(), relative_bsh.ptr(),
                            [](auto bsh, auto norm_chi) { return bsh / norm_chi; });
             auto max_bsh = bsh_residualsX.absmax();
-            max_rotation = 1.50 * max_bsh;
+            max_rotation = .95 * max_bsh;
             auto relative_max_bsh = relative_bsh.absmax();
-            Tensor<double> polar = -2 * inner(Chi, PQ);
+            Tensor<double> polar;
+            if (compute_y) {
+                polar = -2 * inner(Chi, PQ);
+            } else {
+                polar = -4 * response_space_inner(Chi.X, PQ.X);
+            }
             world.gop.fence();
             // Todo add chi norm and chi_x
             if (world.rank() == 0) {
@@ -182,18 +187,24 @@ void FrequencyResponse::iterate(World &world) {
         if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
         bsh_residualsX = copy(new_res.residual_norms);
         if (world.rank() == 0) { print("copy tensors: bshX"); }
-        Chi = new_chi.copy();
+        if (compute_y) {
+            Chi = new_chi.copy();
+        } else {
+            Chi.X = new_chi.X.copy();
+        }
         if (world.rank() == 0) { print("copy chi:"); }
         if (r_params.print_level() >= 1) {
             molresponse::end_timer(world, "copy_response_data", "copy_response_data", iter_timing);
         }
-        xij_res_norms = new_res.residual.component_norm2s();
-        if (world.rank() == 0) { print("computing residuals: xij residuals"); }
-        xij_norms = Chi.component_norm2s();
         if (world.rank() == 0) { print("computing chi norms: xij residuals"); }
         density_residuals = norm2s_T(world, (rho_omega - rho_omega_old));
         if (world.rank() == 0) { print("computing residuals: density residuals"); }
-        Tensor<double> polar = -2 * inner(Chi, PQ);
+        Tensor<double> polar;
+        if (compute_y) {
+            polar = -2 * inner(Chi, PQ);
+        } else {
+            polar = -4 * response_space_inner(Chi.X, PQ.X);
+        }
         if (world.rank() == 0) { print("computing polarizability:"); }
 
         if (r_params.print_level() >= 20) {
