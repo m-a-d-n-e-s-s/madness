@@ -161,7 +161,10 @@ namespace madness {
             MADNESS_ASSERT(same_size(*this, rhs_y));// assert that same size
             World &world = this->x[0][0].world();
             response_space result(world, num_states, num_orbitals);// create zero_functions
-            for (size_t i = 0; i < num_states; i++) { result[i] = x[i] - rhs_y[i]; }
+            for (size_t i = 0; i < num_states; i++) {
+                result[i] = gaxpy_oop(1.0, x[i], -1.0, rhs_y[i], false);
+            }
+            world.gop.fence();
             return result;
         }
 
@@ -194,7 +197,7 @@ namespace madness {
 
         response_space &operator*=(double a) {
             World &world = this->x[0][0].world();
-            for (size_t i = 0; i < num_states; i++) { madness::scale(world, this->x[i], a,false); }
+            for (size_t i = 0; i < num_states; i++) { madness::scale(world, this->x[i], a, false); }
             world.gop.fence();
             return *this;
         }
