@@ -622,9 +622,10 @@ endif()
 # ccache for caching builds
 find_program(CCACHE ccache)
 if(CCACHE)
-    message (STATUS "Found ccache: ${CCACHE}")
-    set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ${CCACHE})
-    set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ${CCACHE})
+  mark_as_advanced(CCACHE)
+  message (STATUS "Found ccache: ${CCACHE}")
+  set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE}" CACHE STRING "Compiler launcher to use for compiling C++")
+  set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE}" CACHE STRING "Compiler launcher to use for compiling C")
 endif(CCACHE)
 
 # Check for external dependencies ==============================================
