@@ -25,9 +25,9 @@ void FrequencyResponse::iterate(World &world) {
     const double dconv =
             std::max(FunctionDefaults<3>::get_thresh() * 100, r_params.dconv());//.01 .0001 .1e-5
     auto thresh = FunctionDefaults<3>::get_thresh();
-    const double a_pow = 0.69441118;
-    const double b_pow = 0.85986518;
-    const double bsh_abs_target = pow(thresh, a_pow) * pow(10, b_pow); //thresh^a*10^b
+    const double a_pow = 0.70466272;
+    const double b_pow = 0.81457002;
+    const double bsh_abs_target = pow(thresh, a_pow) * pow(10, b_pow);//thresh^a*10^b
     // m residuals for x and y
     Tensor<double> bsh_residualsX((int(m)));
     Tensor<double> bsh_residualsY((int(m)));
@@ -114,7 +114,7 @@ void FrequencyResponse::iterate(World &world) {
                            chi_norms.ptr(), relative_bsh.ptr(),
                            [](auto bsh, auto norm_chi) { return bsh / norm_chi; });
             auto max_bsh = bsh_residualsX.absmax();
-            max_rotation = .95 * max_bsh;
+            max_rotation = 1.0 * max_bsh;
             auto relative_max_bsh = relative_bsh.absmax();
             Tensor<double> polar;
             if (compute_y) {
@@ -357,10 +357,10 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
             bsh_update_response(world, theta_X, bsh_x_ops, bsh_y_ops, projector, x_shifts);
     auto [new_res, bsh] = compute_residual(world, chi, new_chi, r_params.calc_type());
     //&& iteration < 7
-    if (r_params.kain() && (iteration > 2)) {// & (iteration % 2 == 0)) {
+    if (r_params.kain() && (iteration > 0)) {// & (iteration % 2 == 0)) {
         new_chi = kain_x_space_update(world, chi, new_res, kain_x_space);
     }
-    if (iteration > 2) { x_space_step_restriction(world, chi, new_chi, compute_y, max_rotation); }
+    if (iteration > 0) { x_space_step_restriction(world, chi, new_chi, compute_y, max_rotation); }
 
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "update response", "update", iter_timing);
