@@ -74,7 +74,6 @@ void FrequencyResponse::iterate(World &world) {
     bsh_y_ops = (compute_y) ? make_bsh_operators_response(world, y_shifts, -omega) : bsh_x_ops;
     vector_real_function_3d rho_omega = make_density(world, Chi);
     converged = false;// Converged flag
-    auto thresh = FunctionDefaults<3>::get_thresh();
     auto max_rotation = .5;
     if (thresh >= 1e-2) {
         max_rotation = 2;
