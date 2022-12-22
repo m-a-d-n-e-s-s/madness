@@ -356,7 +356,7 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
     auto [new_res, bsh] = compute_residual(world, chi, new_chi, r_params.calc_type());
     //&& iteration < 7
     if (iteration >= 0) {// & (iteration % 3 == 0)) {
-        if (false) {
+        if (true) {
             new_chi = kain_x_space_update(world, chi, new_res, kain_x_space);
         } else {
             new_chi = new_kain_x_space_update(world, chi, new_chi, solver);
@@ -402,7 +402,7 @@ auto FrequencyResponse::new_kain_x_space_update(World &world, const X_space &x, 
             vect_fx[orb_x + j] = fx.X[i][j];
         }
         if (compute_y) {
-            orb_y = i * p * n + n;
+            orb_y = orb_x + n;
             for (int j = 0; j < n; j++) {
                 vect_x[orb_y + j] = x.Y[i][j];
                 vect_fx[orb_y + j] = fx.Y[i][j];
@@ -419,7 +419,7 @@ auto FrequencyResponse::new_kain_x_space_update(World &world, const X_space &x, 
                     rf_solver[orb_x + j].update(vect_x[orb_x + j], vect_rx[orb_x + j]);
         }
         if (compute_y) {
-            orb_y = i * p * n + n;
+            orb_y = orb_x + n;
             for (int j = 0; j < n; j++) {
                 kain_update.Y[i][j] =
                         rf_solver[orb_y + j].update(vect_x[orb_y + j], vect_rx[orb_y + j]);
@@ -575,7 +575,6 @@ auto dipole_generator(World &world, FrequencyResponse &calc) -> X_space {
     //truncate(world, dipole_vectors, true);
     world.gop.fence();
     PQ.X = vector_to_PQ(world, dipole_vectors, calc.get_orbitals());
-    ;
     PQ.Y = PQ.X.copy();
     if (world.rank() == 0) { print("Made new PQ"); }
     return PQ;
