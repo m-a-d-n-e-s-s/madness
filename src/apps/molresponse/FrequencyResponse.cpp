@@ -356,7 +356,7 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
     auto [new_res, bsh] = compute_residual(world, chi, new_chi, r_params.calc_type());
     //&& iteration < 7
     if (iteration > 0) {// & (iteration % 3 == 0)) {
-        if (true) {
+        if (false) {
             new_chi = kain_x_space_update(world, chi, new_res, kain_x_space);
         } else {
             new_chi = new_kain_x_space_update(world, chi, new_chi, solver);
