@@ -52,6 +52,8 @@ private:
            QProjector<double, 3> &projector, double &x_shifts, double &omega_n,
            response_solver &kain_x_space, size_t iteration, const double &max_rotation,
            response_function_solver &solver);
+    X_space new_kain_x_space_update(World &world, const X_space &x, const X_space &fx,
+                                    response_function_solver &rf_solver);
 };
 
 

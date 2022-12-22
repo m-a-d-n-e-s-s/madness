@@ -9,7 +9,7 @@
 
 void FrequencyResponse::initialize(World &world) {
     if (world.rank() == 0) { print("FrequencyResponse::initialize()"); }
-    Chi = generator(world, *this);
+    Chi = PQ.copy();
 }
 
 
@@ -174,7 +174,7 @@ void FrequencyResponse::iterate(World &world) {
         }
         auto [new_chi, new_res, new_polar] =
                 update(world, Chi, xc, bsh_x_ops, bsh_y_ops, projector, x_shifts, omega,
-                       kain_x_space, iter, max_rotation, response_function_solver());
+                       kain_x_space, iter, max_rotation, rf_solver);
         v_polar = copy(new_polar);
         if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
         rho_omega_old = make_density(world, Chi);
@@ -357,8 +357,12 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
             bsh_update_response(world, theta_X, bsh_x_ops, bsh_y_ops, projector, x_shifts);
     auto [new_res, bsh] = compute_residual(world, chi, new_chi, r_params.calc_type());
     //&& iteration < 7
-    if (iteration >= 3) {// & (iteration % 3 == 0)) {
-        new_chi = kain_x_space_update(world, chi, new_res, kain_x_space);
+    if (iteration >= 0) {// & (iteration % 3 == 0)) {
+        if (false) {
+            new_chi = kain_x_space_update(world, chi, new_res, kain_x_space);
+        } else {
+            new_chi = new_kain_x_space_update(world, chi, new_chi, solver);
+        }
     }
     if (false) { x_space_step_restriction(world, chi, new_chi, compute_y, max_rotation); }
 
@@ -371,6 +375,64 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
     // print x norms
 }
 
+auto FrequencyResponse::new_kain_x_space_update(World &world, const X_space &x, const X_space &fx,
+                                                response_function_solver &rf_solver) -> X_space {
+    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
+
+    bool compute_y = omega != 0.0;
+
+    size_t m = x.num_states();
+    size_t n = x.num_orbitals();
+    size_t p = compute_y ? 2 : 1;
+
+
+    X_space kain_update(world, m, n);
+    // step 1 is to place all functions into a single vector
+
+    if (world.rank() == 0) { print("----------------Start Kain Update -----------------"); }
+
+    vector_real_function_3d vect_x(m * n * p);
+    vector_real_function_3d vect_fx(m * n * p);
+    vector_real_function_3d vect_rx(m * n * p);
+
+    int orb_x;
+    int orb_y;
+    for (int i = 0; i < m; i++) {
+        orb_x = i * p * n;
+        for (int j = 0; j < n; j++) {
+            vect_x[orb_x + j] = x.X[i][j];
+            vect_fx[orb_x + j] = fx.X[i][j];
+        }
+        if (compute_y) {
+            orb_y = i * p * n + n;
+            for (int j = 0; j < n; j++) {
+                vect_x[orb_y + j] = x.Y[i][j];
+                vect_fx[orb_y + j] = fx.Y[i][j];
+            }
+        }
+    }
+    vect_rx = sub(world, vect_fx, vect_x);
+
+    for (int i = 0; i < m; i++) {
+        orb_x = i * p * n;
+        for (int j = 0; j < n; j++) {
+            kain_update.X[i][j] =
+                    rf_solver[orb_x + j].update(vect_x[orb_x + j], vect_rx[orb_x + j]);
+        }
+        if (compute_y) {
+            orb_y = i * p * n + n;
+            for (int j = 0; j < n; j++) {
+                kain_update.Y[i][j] =
+                        rf_solver[orb_y + j].update(vect_x[orb_y + j], vect_rx[orb_y + j]);
+            }
+        }
+    }
+    if (world.rank() == 0) { print("----------------End Kain Update -----------------"); }
+    if (r_params.print_level() >= 1) {
+        molresponse::end_timer(world, "kain_x_update", "kain_x_update", iter_timing);
+    }
+    return kain_update;
+}
 auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
                                             std::vector<poperatorT> &bsh_x_ops,
                                             std::vector<poperatorT> &bsh_y_ops,
@@ -514,7 +576,7 @@ auto dipole_generator(World &world, FrequencyResponse &calc) -> X_space {
     //truncate(world, dipole_vectors, true);
     world.gop.fence();
     PQ.X = vector_to_PQ(world, dipole_vectors, calc.get_orbitals());
-    PQ.Y = PQ.X;
+    PQ.Y = PQ.X.copy();
     if (world.rank() == 0) { print("Made new PQ"); }
     return PQ;
 }
