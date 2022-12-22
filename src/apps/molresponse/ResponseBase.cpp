@@ -1221,6 +1221,7 @@ auto ResponseBase::kain_x_space_update(World &world, const X_space &chi,
     return kain_update;
 }
 
+
 void ResponseBase::x_space_step_restriction(World &world, const X_space &old_Chi, X_space &temp,
                                             bool restrict_y, const double &max_bsh_rotation) {
     size_t m = old_Chi.num_states();
