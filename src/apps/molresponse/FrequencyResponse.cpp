@@ -357,10 +357,10 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
             bsh_update_response(world, theta_X, bsh_x_ops, bsh_y_ops, projector, x_shifts);
     auto [new_res, bsh] = compute_residual(world, chi, new_chi, r_params.calc_type());
     //&& iteration < 7
-    if (r_params.kain() && (iteration > 0)) {// & (iteration % 2 == 0)) {
+    if (r_params.kain() && (iteration > 3)) {// & (iteration % 2 == 0)) {
         new_chi = kain_x_space_update(world, chi, new_res, kain_x_space);
     }
-    if (iteration > 0) { x_space_step_restriction(world, chi, new_chi, compute_y, max_rotation); }
+    if (iteration > 5) { x_space_step_restriction(world, chi, new_chi, compute_y, max_rotation); }
 
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "update response", "update", iter_timing);
