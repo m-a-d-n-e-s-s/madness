@@ -210,7 +210,6 @@ void FrequencyResponse::iterate(World &world) {
             polar = -4 * response_space_inner(Chi.X, PQ.X);
         }
 
-        auto v_polar2 = 2 * polar - v_polar;
         if (world.rank() == 0) { print("computing polarizability:"); }
 
         if (r_params.print_level() >= 20) {
@@ -226,8 +225,6 @@ void FrequencyResponse::iterate(World &world) {
                 print(evec);
                 print("V polarizability");
                 print(v_polar);
-                print("V polarizability 2");
-                print(v_polar2);
             }
         }
 
