@@ -379,6 +379,18 @@ namespace madness {
             return response_matrix_allocator(world, other.n_orbtials);
         }
     };
+
+    struct response_function_allocator {
+        World &world;
+        response_function_allocator(World &world) : world(world) {}
+        // overloading the default constructor () operator
+        real_function_3d operator()() {
+            return real_function_3d(real_factory_3d(world).fence(true));
+        }
+        response_function_allocator operator=(const response_function_allocator &other) {
+            return response_function_allocator(world);
+        }
+    };
 }// namespace madness
 
 #endif// SRC_APPS_MOLRESPONSE_X_SPACE_H_
