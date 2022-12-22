@@ -135,17 +135,17 @@ void FrequencyResponse::iterate(World &world) {
             }
             if (r_params.print_level() >= 1) {
                 if (world.rank() == 0) {
+                    print("r_params.dconv(): ", r_params.dconv());
                     print("thresh: ", FunctionDefaults<3>::get_thresh());
                     print("k: ", FunctionDefaults<3>::get_k());
                     print("Chi Norms at start of iteration: ", iter);
                     print("Chi_X: ", chi_norms);
                     print("max rotation: ", max_rotation);
-                    print("r_params.dconv(): ", r_params.dconv());
-                    print("density target : ", density_target);
                     print("d_residuals : ", density_residuals);
-                    print("d_residual_max : ", d_residual);
-                    print("d_residual_max target : ", dconv * 5.0);
                     print("bsh_residuals : ", bsh_residualsX);
+                    print("d_residual_max : ", d_residual);
+                    print("density target : ", density_target);
+                    print("d_residual_max target : ",density_target);
                     print("bsh_residual_max : ", max_bsh);
                     print("bsh abs target : ", bsh_abs_target);
                 }
