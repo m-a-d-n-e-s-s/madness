@@ -360,7 +360,7 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
     if (r_params.kain() && (iteration > 3)) {// & (iteration % 2 == 0)) {
         new_chi = kain_x_space_update(world, chi, new_res, kain_x_space);
     }
-    if (iteration > 5) { x_space_step_restriction(world, chi, new_chi, compute_y, max_rotation); }
+    if (iteration > 3) { x_space_step_restriction(world, chi, new_chi, compute_y, max_rotation); }
 
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "update response", "update", iter_timing);
