@@ -356,7 +356,7 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
             bsh_update_response(world, theta_X, bsh_x_ops, bsh_y_ops, projector, x_shifts);
     auto [new_res, bsh] = compute_residual(world, chi, new_chi, r_params.calc_type());
     //&& iteration < 7
-    if (false) {// & (iteration % 3 == 0)) {
+    if (iteration >= 3) {// & (iteration % 3 == 0)) {
         new_chi = kain_x_space_update(world, chi, new_res, kain_x_space);
     }
     if (false) { x_space_step_restriction(world, chi, new_chi, compute_y, max_rotation); }
