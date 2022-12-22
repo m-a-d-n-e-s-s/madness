@@ -1190,11 +1190,9 @@ auto ResponseBase::compute_residual(World &world, const X_space &chi, const X_sp
     X_space res(world, m, n);
     if (compute_y) {
         res = g_chi - chi;
-        res.truncate();
         residual_norms = res.norm2s();
     } else {
         res.X = g_chi.X - chi.X;
-        res.X.truncate_rf();
         residual_norms = res.X.norm2();
     }
     if (r_params.print_level() >= 1) {
