@@ -1917,8 +1917,8 @@ void ExcitedResponse::iterate(World &world) {
             auto relative_max_bsh = relative_bsh.absmax();
 
 
-            function_data_to_json(j_molresponse, iter, chi_norms, bsh_residualsX, relative_bsh,
-                                  xij_norms, xij_res_norms, rho_norms, density_residuals);
+            function_data_to_json(j_molresponse, iter, chi_norms, bsh_residualsX, xij_norms,
+                                  xij_res_norms, rho_norms, density_residuals);
 
             excited_to_json(j_molresponse, iter, omega);
 

@@ -290,9 +290,8 @@ protected:
                             const X_space &right);
 
     void function_data_to_json(json &j_mol_in, size_t iter, const Tensor<double> &x_norms,
-                               const Tensor<double> &x_abs_norms, const Tensor<double> &x_rel_norms,
-                               const Tensor<double> &xij_norms, const Tensor<double> &xij_res_norms,
-                               const Tensor<double> &rho_norms,
+                               const Tensor<double> &x_abs_norms, const Tensor<double> &xij_norms,
+                               const Tensor<double> &xij_res_norms, const Tensor<double> &rho_norms,
                                const Tensor<double> &rho_res_norms);
     X_space compute_TX(World &world, const X_space &X, bool compute_Y) const;
 };
