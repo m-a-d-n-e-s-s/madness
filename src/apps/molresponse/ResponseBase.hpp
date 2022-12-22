@@ -25,7 +25,10 @@ using namespace madness;
 
 using json=nlohmann::json;
 
-typedef std::vector<XNonlinearSolver<vector_real_function_3d , double, response_matrix_allocator>> response_solver;
+typedef std::vector<XNonlinearSolver<vector_real_function_3d, double, response_matrix_allocator>>
+        response_solver;
+typedef std::vector<XNonlinearSolver<real_function_3d, double, response_function_allocator>>
+        response_function_solver;
 
 class response_timing {
     std::map<std::string, std::vector<double>> wall_time_data;
@@ -290,8 +293,8 @@ protected:
                             const X_space &right);
 
     void function_data_to_json(json &j_mol_in, size_t iter, const Tensor<double> &x_norms,
-                               const Tensor<double> &x_abs_norms, const Tensor<double> &xij_norms,
-                               const Tensor<double> &xij_res_norms, const Tensor<double> &rho_norms,
+                               const Tensor<double> &x_abs_norms,
+                                const Tensor<double> &rho_norms,
                                const Tensor<double> &rho_res_norms);
     X_space compute_TX(World &world, const X_space &X, bool compute_Y) const;
 };

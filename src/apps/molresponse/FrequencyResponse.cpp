@@ -9,7 +9,7 @@
 
 void FrequencyResponse::initialize(World &world) {
     if (world.rank() == 0) { print("FrequencyResponse::initialize()"); }
-    Chi = PQ.copy();
+    Chi = generator(world, *this);
 }
 
 
@@ -25,12 +25,12 @@ void FrequencyResponse::iterate(World &world) {
     const double dconv =
             std::max(FunctionDefaults<3>::get_thresh() * 100, r_params.dconv());//.01 .0001 .1e-5
     auto thresh = FunctionDefaults<3>::get_thresh();
+    auto density_target = dconv * std::max(size_t(5), molecule.natom());
     const double a_pow = 0.59636157;
     const double b_pow = 0.16174869;
     const double bsh_abs_target = pow(thresh, a_pow) * pow(10, b_pow);//thresh^a*10^b
     // m residuals for x and y
     Tensor<double> bsh_residualsX((int(m)));
-    Tensor<double> bsh_residualsY((int(m)));
     Tensor<double> density_residuals((int(m)));
 
     bool static_res = (omega == 0.0);
@@ -39,8 +39,6 @@ void FrequencyResponse::iterate(World &world) {
 
     r_vector_size = (compute_y) ? 2 * n : n;
 
-    Tensor<double> xij_norms(m, r_vector_size);
-    Tensor<double> xij_res_norms(m, r_vector_size);
     Tensor<double> v_polar(m, m);
 
     vecfuncT rho_omega_old(m);
@@ -56,6 +54,18 @@ void FrequencyResponse::iterate(World &world) {
     if (r_params.kain()) {
         for (auto &kain_space_b: kain_x_space) { kain_space_b.set_maxsub(r_params.maxsub()); }
     }
+
+
+    // New approach solving single function at a time
+    response_function_solver rf_solver;
+    for (size_t b = 0; b < m * n; b++) {
+        rf_solver.emplace_back(response_function_allocator(world), false);
+    }
+    if (r_params.kain()) {
+        for (auto &solver_ij: rf_solver) { solver_ij.set_maxsub(r_params.maxsub()); }
+    }
+
+
     // We compute with positive frequencies
     if (world.rank() == 0) {
         print("Warning input frequency is assumed to be positive");
@@ -106,7 +116,6 @@ void FrequencyResponse::iterate(World &world) {
                 break;
             }
             double d_residual = density_residuals.max();
-            // Test convergence and set to true
             auto chi_norms = (compute_y) ? Chi.norm2s() : Chi.X.norm2();
             auto rho_norms = norm2s_T(world, rho_omega);
             auto max_bsh = bsh_residualsX.absmax();
@@ -120,8 +129,8 @@ void FrequencyResponse::iterate(World &world) {
             world.gop.fence();
             // Todo add chi norm and chi_x
             if (world.rank() == 0) {
-                function_data_to_json(j_molresponse, iter, chi_norms, bsh_residualsX, xij_norms,
-                                      xij_res_norms, rho_norms, density_residuals);
+                function_data_to_json(j_molresponse, iter, chi_norms, bsh_residualsX, rho_norms,
+                                      density_residuals);
                 frequency_to_json(j_molresponse, iter, polar, v_polar);
             }
             if (r_params.print_level() >= 1) {
@@ -129,19 +138,19 @@ void FrequencyResponse::iterate(World &world) {
                     print("thresh: ", FunctionDefaults<3>::get_thresh());
                     print("k: ", FunctionDefaults<3>::get_k());
                     print("Chi Norms at start of iteration: ", iter);
-                    print("xij norms: \n", xij_norms);
-                    print("xij residual norms: \n", xij_res_norms);
                     print("Chi_X: ", chi_norms);
-                    print("bsh_residuals : ", bsh_residualsX);
-                    print("r_params.dconv(): ", r_params.dconv());
                     print("max rotation: ", max_rotation);
+                    print("r_params.dconv(): ", r_params.dconv());
+                    print("density target : ", density_target);
+                    print("d_residuals : ", density_residuals);
                     print("d_residual_max : ", d_residual);
                     print("d_residual_max target : ", dconv * 5.0);
+                    print("bsh_residuals : ", bsh_residualsX);
                     print("bsh_residual_max : ", max_bsh);
                     print("bsh abs target : ", bsh_abs_target);
                 }
             }
-            if ((d_residual < dconv * std::max(size_t(5), molecule.natom())) and
+            if ((d_residual < density_target) and
                 ((max_bsh < bsh_abs_target) or r_params.get<bool>("conv_only_dens"))) {
                 converged = true;
             }
@@ -191,16 +200,6 @@ void FrequencyResponse::iterate(World &world) {
         }
         if (world.rank() == 0) { print("computing chi norms: xij residuals"); }
 
-        if (compute_y) {
-            xij_res_norms = new_res.residual.component_norm2s();
-            xij_norms = Chi.component_norm2s();
-        } else {
-            // TODO this is a waste but needs to be done for the analysis scripts to work.  Let's remove it later
-            new_res.residual.Y = new_res.residual.X;
-            Chi.Y = Chi.X;
-            xij_res_norms = new_res.residual.component_norm2s();
-            xij_norms = Chi.component_norm2s();
-        }
         auto density_change = madness::sub(world, rho_omega, rho_omega_old, true);
         density_residuals = norm2s_T(world, density_change);
         if (world.rank() == 0) { print("computing residuals: density residuals"); }
@@ -210,6 +209,8 @@ void FrequencyResponse::iterate(World &world) {
         } else {
             polar = -4 * response_space_inner(Chi.X, PQ.X);
         }
+
+        auto v_polar2 = 2 * polar - v_polar;
         if (world.rank() == 0) { print("computing polarizability:"); }
 
         if (r_params.print_level() >= 20) {
@@ -225,6 +226,8 @@ void FrequencyResponse::iterate(World &world) {
                 print(evec);
                 print("V polarizability");
                 print(v_polar);
+                print("V polarizability 2");
+                print(v_polar2);
             }
         }
 
@@ -247,8 +250,6 @@ void FrequencyResponse::iterate(World &world) {
     if (world.rank() == 0) {
         print(" Final energy residuals X:");
         print(bsh_residualsX);
-        print(" Final energy residuals Y:");
-        print(bsh_residualsY);
         print(" Final density residuals:");
         print(density_residuals);
     }
@@ -270,7 +271,6 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
     X_space lambda_X = X_space(world, chi.num_states(), chi.num_orbitals());
     X_space theta_X = X_space(world, chi.num_states(), chi.num_orbitals());
     // We are going to build lambda and theta from individual components
-
     // Just compute theta x and lambda x compoenents here
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     X_space V0X = compute_V0X(world, chi, xc, compute_y);
