@@ -57,8 +57,9 @@ void FrequencyResponse::iterate(World &world) {
 
 
     // New approach solving single function at a time
+    auto p = compute_y ? 2 : 1;
     response_function_solver rf_solver;
-    for (size_t b = 0; b < m * n; b++) {
+    for (size_t b = 0; b < m * n * p; b++) {
         rf_solver.emplace_back(response_function_allocator(world), false);
     }
     if (r_params.kain()) {
@@ -145,7 +146,7 @@ void FrequencyResponse::iterate(World &world) {
                     print("bsh_residuals : ", bsh_residualsX);
                     print("d_residual_max : ", d_residual);
                     print("density target : ", density_target);
-                    print("d_residual_max target : ",density_target);
+                    print("d_residual_max target : ", density_target);
                     print("bsh_residual_max : ", max_bsh);
                     print("bsh abs target : ", bsh_abs_target);
                 }
