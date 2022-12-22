@@ -363,7 +363,6 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
         }
     }
     if (false) { x_space_step_restriction(world, chi, new_chi, compute_y, max_rotation); }
-    if (~compute_y) { new_chi.Y = new_chi.X.copy(); }
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "update response", "update", iter_timing);
     }
