@@ -174,7 +174,7 @@ void FrequencyResponse::iterate(World &world) {
         }
         auto [new_chi, new_res, new_polar] =
                 update(world, Chi, xc, bsh_x_ops, bsh_y_ops, projector, x_shifts, omega,
-                       kain_x_space, iter, max_rotation);
+                       kain_x_space, iter, max_rotation, response_function_solver());
         v_polar = copy(new_polar);
         if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
         rho_omega_old = make_density(world, Chi);
@@ -260,7 +260,8 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
                                std::vector<poperatorT> &bsh_x_ops,
                                std::vector<poperatorT> &bsh_y_ops, QProjector<double, 3> &projector,
                                double &x_shifts, double &omega_n, response_solver &kain_x_space,
-                               size_t iteration, const double &max_rotation)
+                               size_t iteration, const double &max_rotation,
+                               response_function_solver &solver)
         -> std::tuple<X_space, residuals, Tensor<double>> {
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
