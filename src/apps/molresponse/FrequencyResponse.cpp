@@ -363,7 +363,7 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
         }
     }
     if (false) { x_space_step_restriction(world, chi, new_chi, compute_y, max_rotation); }
-
+    if (~compute_y) { new_chi.Y = new_chi.X.copy(); }
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "update response", "update", iter_timing);
     }
@@ -410,6 +410,7 @@ auto FrequencyResponse::new_kain_x_space_update(World &world, const X_space &x, 
         }
     }
     vect_rx = sub(world, vect_fx, vect_x);
+    truncate(world, vect_rx);
 
     for (int i = 0; i < m; i++) {
         orb_x = i * p * n;
@@ -574,6 +575,7 @@ auto dipole_generator(World &world, FrequencyResponse &calc) -> X_space {
     //truncate(world, dipole_vectors, true);
     world.gop.fence();
     PQ.X = vector_to_PQ(world, dipole_vectors, calc.get_orbitals());
+    ;
     PQ.Y = PQ.X.copy();
     if (world.rank() == 0) { print("Made new PQ"); }
     return PQ;
