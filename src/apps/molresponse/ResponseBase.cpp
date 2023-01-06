@@ -1459,10 +1459,6 @@ void ResponseBase::solve(World &world) {
         protocol_to_json(j_molresponse, iter_thresh);
         // Now actually ready to iterate...
         this->iterate(world);
-        if (world.rank() == 0) {
-            //calc.time_data.to_json(calc.j_molresponse);
-            this->output_json();
-        }
     }
     // At this point we should know if calc converged maybe add a flag to response.json which states if it has
     converged_to_json(j_molresponse);
