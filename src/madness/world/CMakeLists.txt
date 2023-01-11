@@ -97,7 +97,10 @@ if(BUILD_TESTING)
       test_worldref.cc test_stack.cc test_googletest.cc test_tree.cc
           )
 
-  add_unittests(world "${WORLD_TEST_SOURCES}" "MADworld;MADgtest")    
+  add_unittests(world "${WORLD_TEST_SOURCES}" "MADworld;MADgtest")
+
+#  add_scripted_tests(test.py test_tree "scripted")
+#  add_scripted_tests(test1.py test_hello "scripted")
 
   find_package(CUDA)
   if (TARGET PaRSEC::parsec AND CUDA_FOUND)
