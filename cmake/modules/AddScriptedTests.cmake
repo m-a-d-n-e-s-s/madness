@@ -4,7 +4,12 @@
 # CMakeLists.txt: add_scripted_tests(nemo_test1.py nemo)
 
 
-macro(add_scripted_tests _testcase _binary _labels)
+macro(add_scripted_tests _testcase_in _binary _labels)
+
+  # convert test.py.in to test.py
+#  get_filename_component(_testcase "${_testcase_in}" NAME_WLE)
+  # possibly path/to/src/test.py.in and path/to/build/test.py
+  set(_testcase ${_testcase_in})
 
   # Add targets and for scripted tests
   add_custom_target_subproject(madness ${_testcase}_scripted_tests)
@@ -14,25 +19,31 @@ macro(add_scripted_tests _testcase _binary _labels)
   add_test(madness/test/${_binary}/build
           "${CMAKE_COMMAND}" --build ${CMAKE_BINARY_DIR} --target ${_binary})
   set_tests_properties(madness/test/${_binary}/build
-          PROPERTIES DEPENDS ${_binary} LABELS scripted_tests)
+          PROPERTIES DEPENDS ${_binary} LABELS "${_labels}")
 
-#   Add a test that copies the test scripts
+#   Add a test that copies the test scripts and replaces the variable to the source directory
+#   containing the reference json outputs
+  if (0)
   add_test(madness/test/scripted_tests/${_binary}/${_testcase}/copy
           COMMAND ${CMAKE_COMMAND} -E copy
           ${CMAKE_CURRENT_SOURCE_DIR}/${_testcase}
           ${CMAKE_CURRENT_BINARY_DIR}/${_testcase})
   set_tests_properties(madness/test/scripted_tests/${_binary}/${_testcase}/copy
-          PROPERTIES DEPENDS ${_binary} LABELS scripted_tests)
+          PROPERTIES DEPENDS ${_binary} LABELS "${_labels}")
+  endif()
+  #  copy the test scripts and replaces the variable to the source directory containing the reference json outputs
+  set(SRCDIR ${CMAKE_CURRENT_SOURCE_DIR})
+  configure_file(${_testcase} ${_testcase} @ONLY)
 
-  message(STATUS "testcase: " ${_testcase})
-  message(STATUS "binary:   " ${_binary})
-  message(STATUS "labels:   " ${_labels})
-  message(STATUS "sourcedir "  ${CMAKE_CURRENT_SOURCE_DIR})
-  message(STATUS "binarydir "  ${CMAKE_CURRENT_BINARY_DIR})
+#  message(STATUS "testcase: " ${_testcase})
+#  message(STATUS "binary:   " ${_binary})
+#  message(STATUS "labels:   " ${_labels})
+#  message(STATUS "sourcedir "  ${CMAKE_CURRENT_SOURCE_DIR})
+#  message(STATUS "binarydir "  ${CMAKE_CURRENT_BINARY_DIR})
 
   # Add the tests (execution and result) and set dependencies
-  add_test(NAME madness/test/scripted_tests/${_binary}/${_testcase}/run COMMAND ${_testcase})
+  add_test(NAME madness/test/scripted_tests/${_binary}/${_testcase}/run COMMAND ${_testcase} --reference_directory=${CMAKE_CURRENT_SOURCE_DIR})
   set_tests_properties(madness/test/scripted_tests/${_binary}/${_testcase}/run
-          PROPERTIES LABELS scripted_tests)
+          PROPERTIES LABELS "${_labels}")
 
 endmacro()
