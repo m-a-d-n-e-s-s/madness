@@ -18,7 +18,9 @@ def localizer_run(localizer):
 
     cmd='rm '+outputfile+'; nemo --geometry=h2o --dft="maxiter=10; econv=3.e-5; k=8; localize='+localizer+'; dconv=1.e-3; prefix='+prefix+'"'
     print("executing \n ",cmd)
-    output=subprocess.run(cmd,shell=True,capture_output=True, text=True).stdout
+#    output=subprocess.run(cmd,shell=True,capture_output=True, text=True).stdout
+    p=subprocess.run(cmd,shell=True,stdout=subprocess.PIPE, stderr=subprocess.PIPE , universal_newlines=True)
+
     print("finished with run1")
 
     cmp=madjsoncompare(outputfile,referencefile)
