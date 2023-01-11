@@ -29,7 +29,9 @@ if __name__ == "__main__":
     other_arguments=' --oep="model=oaep"'
     cmd='rm '+outputfile+'; @BINARY@ '+global_arguments + dft_arguments  + other_arguments
     print("executing \n ",cmd)
-    output=subprocess.run(cmd,shell=True,capture_output=True, text=True).stdout
+#    output=subprocess.run(cmd,shell=True,capture_output=True, text=True).stdout
+    p=subprocess.run(cmd,shell=True,stdout=subprocess.PIPE, stderr=subprocess.PIPE , universal_newlines=True)
+
     print("finished with run")
 
     # compare results

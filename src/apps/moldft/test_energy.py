@@ -21,7 +21,9 @@ if __name__ == "__main__":
     other_arguments=''
     cmd='rm '+outputfile+'; @BINARY@ '+global_arguments + dft_arguments  + other_arguments
     print("executing \n ",cmd)
-    p=subprocess.run(cmd,shell=True,capture_output=True, text=True)
+#    p=subprocess.run(cmd,shell=True,capture_output=True, text=True)
+    p=subprocess.run(cmd,shell=True,stdout=subprocess.PIPE, stderr=subprocess.PIPE , universal_newlines=True)
+
     print("finished with run")
     print(p.stdout)
     exitcode=p.returncode
