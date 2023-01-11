@@ -180,7 +180,6 @@ frequencySchema::frequencySchema(World &world, const runSchema &run_schema,
  * @return
  */
 size_t set_excited_states(const ResponseDataBase &response_data_base,
-                          const std::filesystem::path &molecule_path,
                           const std::string &molecule_name, const std::string &xc) {
 
     const std::string property = "excited-state";
@@ -208,7 +207,7 @@ size_t set_excited_states(const ResponseDataBase &response_data_base,
  * @return
  */
 std::filesystem::path generate_excited_run_path(const std::filesystem::path &moldft_path,
-                                                const size_t &num_states, const std::string &xc) {
+                                                const size_t &num_states) {
     std::string s_num_states = std::to_string(num_states);
     std::string run_name = "excited-" + s_num_states;
     // set r_params to restart true if restart file exist
@@ -250,9 +249,8 @@ struct excitedSchema {
 
 
     excitedSchema(const runSchema &run_schema, const moldftSchema &m_schema) : xc(m_schema.xc) {
-        num_states =
-                set_excited_states(run_schema.rdb, run_schema.molecule_path, m_schema.mol_name, xc);
-        excited_state_run_path = generate_excited_run_path(m_schema.moldft_path, num_states, xc);
+        num_states = set_excited_states(run_schema.rdb, m_schema.mol_name, xc);
+        excited_state_run_path = generate_excited_run_path(m_schema.moldft_path, num_states);
         auto [sp, s] = generate_excited_save_path(excited_state_run_path);
         save_path = sp;
         save_string = s;
@@ -692,7 +690,7 @@ static void set_and_write_restart_excited_parameters(ResponseParameters &paramet
  * @param frequency
  * @param moldft_path
  */
-static void create_excited_paths(ResponseParameters &parameters, excitedSchema &schema) {
+static void create_excited_paths(excitedSchema &schema) {
 
     if (std::filesystem::is_directory(schema.excited_state_run_path)) {
         cout << "Response directory found " << std::endl;
@@ -720,7 +718,7 @@ auto runExcited(World &world, excitedSchema schema, bool restart, bool high_prec
     ResponseParameters r_params{};
 
     set_excited_parameters(r_params, schema.xc, schema.num_states, high_prec);
-    create_excited_paths(r_params, schema);
+    create_excited_paths(schema);
     std::filesystem::current_path(schema.excited_state_run_path);
     set_and_write_restart_excited_parameters(r_params, schema, restart);
 

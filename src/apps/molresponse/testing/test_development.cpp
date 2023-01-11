@@ -37,7 +37,7 @@ int main(int argc, char *argv[]) {
     excited_schema.print();
     ResponseParameters r_params{};
     set_excited_parameters(r_params, excited_schema.xc, excited_schema.num_states, false);
-    create_excited_paths(r_params, excited_schema);
+    create_excited_paths(excited_schema);
     std::filesystem::current_path(excited_schema.excited_state_run_path);
     set_and_write_restart_excited_parameters(r_params, excited_schema, false);
     auto xc_path = create_xc_path_and_directory(root, xc);

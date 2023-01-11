@@ -112,7 +112,7 @@ void FrequencyResponse::iterate(World &world) {
         }
         if (iter < 2 || (iter % 10) == 0) { load_balance_chi(world); }
         if (iter > 0) {
-            if (density_residuals.max() > 20) {
+            if (density_residuals.max() > 20 && iter > 5) {
                 if (world.rank() == 0) { print("d-residual > 20...break"); }
                 break;
             }
