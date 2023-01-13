@@ -1525,9 +1525,11 @@ void TDHF::analyze(const std::vector<CC_vecfunction> &x) const {
         j.back()["oscillator_strength_length"]=osl;
         j.back()["oscillator_strength_velocity"]=osv;
     }
+
     nlohmann::json j1;
     j1["cis_excitations"]=j;
     update_schema(get_calc()->param.prefix()+".calc_info", j1);
+
 
     // compute the transition densities
     const vector_real_function_3d bra_oct = get_active_mo_bra();
