@@ -168,7 +168,8 @@ void SCF::output_calc_info_schema() const {
     param.to_json(j);
     e_data.to_json(j);
 
-    output_schema(param.prefix()+".calc_info", j);
+//    output_schema(param.prefix()+".calc_info", j);
+    update_schema(param.prefix()+".calc_info", j);
 }
 
 void scf_data::add_data(std::map<std::string, double> values) {

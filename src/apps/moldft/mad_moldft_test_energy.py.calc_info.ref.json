@@ -1,0 +1,101 @@
+{
+    "calcinfo_nalpha": 1,
+    "calcinfo_natom": 1,
+    "calcinfo_nbeta": 1,
+    "calcinfo_nmo": 2,
+    "k": 8,
+    "parameters": {
+        "charge": 0.0,
+        "conv_only_dens": false,
+        "dconv": 0.001,
+        "derivatives": false,
+        "dipole": false,
+        "econv": 0.0001,
+        "ginitial_hessian": false,
+        "gmaxiter": 20,
+        "gopt": false,
+        "gprec": 0.0001,
+        "gtest": false,
+        "gtol": 0.0001,
+        "gval": 1e-05,
+        "k": -1,
+        "l": 50.0,
+        "lo": 0.013396,
+        "loadbalparts": 2,
+        "maxiter": 1,
+        "maxrotn": 0.25,
+        "maxsub": 10,
+        "nalpha": 1,
+        "nbeta": 1,
+        "nio": 1,
+        "nmo_alpha": 1,
+        "nmo_beta": 1,
+        "no_compute": false,
+        "nopen": 0,
+        "npt_plot": 101,
+        "nv_factor": 1,
+        "nvalpha": 0,
+        "nvbeta": 0,
+        "orbitalshift": 0.0,
+        "plotcoul": false,
+        "plotdens": false,
+        "plothi": -1,
+        "plotlo": 0,
+        "print_level": 3,
+        "psp_calc": false,
+        "pure_ae": true,
+        "restart": false,
+        "restartao": false,
+        "save": true,
+        "smear": 0.0,
+        "spin_restricted": true,
+        "vnucextra": 2
+    },
+    "return_energy": -2.861353410011521,
+    "scf_e_data": {
+        "e_coulomb": [
+            2.018645448166965,
+            2.04048235799564
+        ],
+        "e_kinetic": [
+            2.7628170728201096,
+            2.8227846011865667
+        ],
+        "e_local": [
+            0.0,
+            0.0
+        ],
+        "e_nrep": [
+            0.0,
+            0.0
+        ],
+        "e_nuclear": [
+            -6.626451864301439,
+            -6.704379191630678
+        ],
+        "e_pcm": [
+            0.0,
+            0.0
+        ],
+        "e_tot": [
+            -2.8543126357346864,
+            -2.861353410011521
+        ],
+        "e_xc": [
+            -1.0093232924203221,
+            -1.0202411775630498
+        ],
+        "iterations": 2
+    },
+    "scf_eigenvalues_a": {
+        "dims": [
+            1
+        ],
+        "size": 1,
+        "vals": [
+            -0.5563790539362039
+        ]
+    },
+    "time": "2023-01-13 23:48:06",
+    "wall_time": 1.9541189670562744
+}

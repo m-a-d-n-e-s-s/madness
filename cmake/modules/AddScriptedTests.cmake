@@ -12,8 +12,8 @@ macro(add_scripted_tests _testcase_in _binary _labels)
   set(_testcase ${_testcase_in})
 
   # Add targets and for scripted tests
-  add_custom_target_subproject(madness ${_testcase}_scripted_tests)
-  add_dependencies(scripted_tests-madness ${_testcase}_scripted_tests-madness)
+  add_custom_target_subproject(madness ${_testcase}_${_binary}_scripted_tests)
+  add_dependencies(scripted_tests-madness ${_testcase}_${_binary}_scripted_tests-madness)
 
 #   Add a test that builds the binary
   add_test(madness/test/${_binary}/build
@@ -33,6 +33,8 @@ macro(add_scripted_tests _testcase_in _binary _labels)
   endif()
   #  copy the test scripts and replaces the variable to the source directory containing the reference json outputs
   set(SRCDIR ${CMAKE_CURRENT_SOURCE_DIR})
+  set(BINARY ${_binary})
+  set(TESTCASE ${_testcase})
   configure_file(${_testcase} ${_testcase} @ONLY)
 
 #  message(STATUS "testcase: " ${_testcase})
