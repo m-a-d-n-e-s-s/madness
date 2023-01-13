@@ -297,7 +297,7 @@ protected:
         } catch (std::invalid_argument& e) {
             throw;
         } catch (std::exception& e) {
-            print(e.what());
+            madness::print(e.what());
         }
         read_commandline_options(world,parser,tag);
     }

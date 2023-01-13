@@ -672,6 +672,8 @@ struct CC_vecfunction {
             ktmp.second.plot(msg);
         }
     }
+public:
+    NLOHMANN_DEFINE_TYPE_INTRUSIVE(CC_vecfunction, excitation, omega, irrep, current_error)
 
 };
 
