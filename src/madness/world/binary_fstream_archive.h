@@ -123,7 +123,7 @@ namespace madness {
             /// \param[in] mode I/O attributes for opening the file.
             BinaryFstreamInputArchive(const std::string name,
                                        std::ios_base::openmode mode = std::ios_base::binary | \
-                                                                      std::ios_base::out | std::ios_base::trunc)
+                                                                      std::ios_base::in)
                     : BinaryFstreamInputArchive(name.c_str(),mode) {}
 
             /// Load from the filestream.
